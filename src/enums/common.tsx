@@ -1,0 +1,57 @@
+export const REWARD_STATUS_ENUM:any = {
+  DRAFT: '草稿',
+  WAITING: "待审核",
+  SUCCESS: "审核通过",
+  FAIL: "驳回",
+  CLOSED: "关闭",
+  FINDING: '寻找方案中',
+  SUBMIT: '已提交,待采纳',
+  PICKED: '已采纳',
+};
+export const CONTENT_STATUS_ENUM:any = {
+  DRAFT: '草稿',
+  WAITING: "待审核",
+  SUCCESS: "审核通过",
+  FAIL: "驳回",
+  PUBLISH: "已发布",
+  UN_PUBLISH: "已下架"
+};
+export const CONTENT_TYPE_ENUM:any = {
+  PAN: '网盘资源',
+  NEWS: '新闻',
+  NOVEL: '小说',
+  VIDEO: '视频',
+  ARTICLE: '文章',
+  FILM: "电影",
+  MUSIC: "音乐",
+  PICTURE_ALBUM: "图集",
+  TELEPLAY: "电视剧",
+  VSHOW: '综艺',
+  ANIMATION: '动漫',
+  COMICS: '漫画',
+  LIVE: '直播',
+  TOPLIST: '榜单',
+};
+
+export const TEMPLATE_TYPE_ENUM:any = {
+  PAN: '网盘资源',
+  NEWS: '新闻',
+  NOVEL: '小说',
+  NOVEL_CHAPTER: '小说章节',
+  VIDEO: '视频',
+  ARTICLE: '文章',
+  FILM: "电影",
+  FILM_ITEM: "电影子项",
+  MUSIC: "音乐",
+  PICTURE_ALBUM: "图集",
+  TELEPLAY: "电视剧",
+  TELEPLAY_ITEM: "电视剧子项",
+  VSHOW: '综艺',
+  VSHOW_ITEM: "综艺子项",
+  ANIMATION: '动漫',
+  ANIMATION_ITEM: "动漫子项",
+  COMICS: '漫画',
+  COMICS_ITEM: "漫画子项",
+  LIVE: '直播',
+  TOPLIST: '榜单',
+};

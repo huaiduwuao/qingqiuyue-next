@@ -1,0 +1,59 @@
+import { adminClient } from '@/lib/api/client';
+
+// 模块菜单信息
+export interface ModuleMenuInfo {
+  id: number;
+  moduleId: number;
+  name: string;
+  path?: string;
+  icon?: string;
+  sort?: number;
+  contentId?: number;
+  type?: string;
+  children?: ModuleMenuInfo[];
+}
+
+// 分页获取模块菜单
+export async function page(params: any) {
+  return adminClient("/module/moduleMenu/client/page", {
+    params
+  });
+}
+
+// 获取模块菜单树
+export async function clientTree(params: { moduleId: number }) {
+  return adminClient<ModuleMenuInfo[]>("/module/moduleMenu/client/tree", {
+    params
+  });
+}
+
+// 删除
+export async function remove(ids: any) {
+  return adminClient("/module/moduleMenu/removeByIds", {
+    method: "DELETE",
+    data: ids
+  });
+}
+
+// 列表
+export async function list(params: any) {
+  return adminClient("/module/moduleMenu/client/list", {
+    params
+  });
+}
+
+// 保存
+export async function save(params: any) {
+  return adminClient("/module/moduleMenu/save", {
+    method: "POST",
+    data: params
+  });
+}
+
+// 更新
+export async function update(params: any) {
+  return adminClient("/module/moduleMenu/updateById", {
+    method: "POST",
+    data: params
+  });
+}
