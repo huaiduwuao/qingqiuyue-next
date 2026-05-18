@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
@@ -11,7 +11,6 @@ import {
   GridPaginationModel,
   GridSortModel,
   GridRowId,
-  GridRowSelectionModel,
 } from '@mui/x-data-grid';
 
 interface DataGridTableProps {
@@ -49,51 +48,69 @@ export function DataGridTable({
   const [sortModel, setSortModel] = useState<GridSortModel>([]);
   const [selectedIds, setSelectedIds] = useState<GridRowId[]>([]);
 
+  const fetchDataRef = useRef(fetchData);
+  fetchDataRef.current = fetchData;
+
+  const isLoadingRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   const loadData = useCallback(async () => {
+    if (isLoadingRef.current || !mountedRef.current) return;
+
+    isLoadingRef.current = true;
     setLoading(true);
+
     try {
       const sortField = sortModel?.[0]?.field;
       const sortOrder = sortModel?.[0]?.sort;
 
-      const result = await fetchData({
+      const result = await fetchDataRef.current({
         pageNumber: paginationModel.page + 1,
         pageSize: paginationModel.pageSize,
         sortField,
         sortOrder: sortOrder as string | undefined,
       });
 
-      if (result.success) {
+      if (mountedRef.current && result.success) {
         setRows(result.data.records || []);
         setRowCount(result.data.totalRow || 0);
       }
     } catch (error) {
       console.error('Failed to fetch data:', error);
     } finally {
-      setLoading(false);
+      if (mountedRef.current) {
+        setLoading(false);
+      }
+      isLoadingRef.current = false;
     }
-  }, [paginationModel, sortModel, fetchData]);
+  }, [paginationModel.page, paginationModel.pageSize, sortModel]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     loadData();
-  }, [paginationModel, sortModel]);
+  }, [loadData]);
 
-  const handlePaginationModelChange = (newModel: GridPaginationModel) => {
+  const handlePaginationModelChange = useCallback((newModel: GridPaginationModel) => {
     setPaginationModel(newModel);
-  };
+  }, []);
 
-  const handleSortModelChange = (newModel: GridSortModel) => {
+  const handleSortModelChange = useCallback((newModel: GridSortModel) => {
     setSortModel(newModel);
-  };
+  }, []);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleRowSelectionChange = (newSelection: any) => {
-    const selectionArray = Array.from(newSelection as Iterable<GridRowId>);
-    setSelectedIds(selectionArray);
+  const handleRowSelectionChange = useCallback((newSelection: GridRowId[]) => {
+    setSelectedIds(newSelection);
     if (onSelectionChange) {
-      const selectedRows = rows.filter((row) => selectionArray.includes(row.id));
+      const selectedRows = rows.filter((row) => newSelection.includes(row.id));
       onSelectionChange(selectedRows);
     }
-  };
+  }, [rows, onSelectionChange]);
 
   const actionColumn: GridColDef = {
     field: 'actions',

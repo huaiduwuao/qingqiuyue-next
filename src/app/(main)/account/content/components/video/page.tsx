@@ -79,7 +79,7 @@ export default function VideoContentPage() {
   return (
     <Box sx={{ p: 2 }}>
       <Typography variant="h5" sx={{ mb: 2 }}>视频管理</Typography>
-      <DataGridTable columns={columns} fetchData={async (params) => { const res = await page('video', { ...params, pageNumber: params.pageNumber }); return { data: { records: res.data?.records || [], totalRow: res.data?.totalRow || 0 }, success: res.data?.success ?? true }; }} onEdit={handleEdit} onDelete={handleDelete} toolBarRender={() => <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleEdit({})}>新建</Button>} />
+      <DataGridTable columns={columns} fetchData={async (params) => { const res = await page('video', { ...params }); return { data: { records: res.data?.list || [], totalRow: res.data?.total || 0 }, success: res.code === 0 }; }} onEdit={handleEdit} onDelete={handleDelete} toolBarRender={() => <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleEdit({})}>新建</Button>} />
       <Dialog open={writeVisible} onClose={() => setWriteVisible(false)} maxWidth="md" fullWidth>
         <DialogTitle>{selectedRecord?.id ? '编辑视频' : '新建视频'}</DialogTitle>
         <DialogContent><Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>

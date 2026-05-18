@@ -299,13 +299,13 @@ export default function ArticleContentPage() {
       <DataGridTable
         columns={columns}
         fetchData={async (params) => {
-          const res = await page({ ...params, pageNumber: params.pageNumber });
+          const res = await page({ ...params });
           return {
             data: {
-              records: res.data?.records || [],
-              totalRow: res.data?.totalRow || 0,
+              records: res.data?.list || [],
+              totalRow: res.data?.total || 0,
             },
-            success: res.data?.success ?? true,
+            success: res.code === 0,
           };
         }}
         onEdit={handleEdit}

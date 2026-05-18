@@ -101,7 +101,7 @@ export default function AnimationItemContentPage({ detail, handleClose }: Props)
       <DataGridTable
         columns={columns}
         fetchData={async (params) => {
-          const res = await page({ ...params, pageNumber: params.pageNumber, animationId: detail?.id });
+          const res = await page({ ...params, animationId: detail?.id });
           return { data: { records: res.data?.records || [], totalRow: res.data?.totalRow || 0 }, success: res.data?.success ?? true };
         }}
         onEdit={handleEdit}
