@@ -37,6 +37,14 @@ export async function listConceptions(params?: ConceptionQuery) {
   });
 }
 
+// 后台管理列表
+export async function adminListConceptions(params?: ConceptionQuery) {
+  return rewardClient<ConceptionListResp>('/conception/list', {
+    method: 'GET',
+    params,
+  });
+}
+
 // 分页获取概念 (page alias)
 export const conceptionPage = (params?: ConceptionQuery) => listConceptions(params);
 
