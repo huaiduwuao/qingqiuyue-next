@@ -21,11 +21,16 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import CardGiftcardRoundedIcon from '@mui/icons-material/CardGiftcardRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import EmojiEmotionsRoundedIcon from '@mui/icons-material/EmojiEmotionsRounded';
-import { useSearchParams } from 'next/navigation';
+import SettingsIcon from '@mui/icons-material/Settings';
+import VolumeOffIcon from '@mui/icons-material/VolumeOff';
+import FlipIcon from '@mui/icons-material/Flip';
+import ReportProblemIcon from '@mui/icons-material/ReportProblem';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-live';
 import { withDefaults } from '@/utils/withDefaults';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
+import { LivePlayerSettings, DEFAULT_LIVE_SETTINGS, type LivePlayerSettingsState } from '@/components/detail/LivePlayerSettings';
 import { useContentNavigate } from '@/lib/contentRoute';
 
 interface Live {
@@ -99,8 +104,10 @@ const MOCK_RECOMMEND = [
 
 function LiveDetailContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const navigate = useContentNavigate();
   const id = searchParams.get('id');
+  const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
   const query = useQuery({
     queryKey: ['detail', 'live', id],
@@ -116,6 +123,11 @@ function LiveDetailContent() {
   const [chat, setChat] = useState(SAMPLE_CHAT);
   const [danmaku, setDanmaku] = useState<string[]>([]);
   const [giftPanelOpen, setGiftPanelOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settings, setSettings] = useState<LivePlayerSettingsState>(DEFAULT_LIVE_SETTINGS);
+
+  const updateSettings = (patch: Partial<LivePlayerSettingsState>) =>
+    setSettings((s) => ({ ...s, ...patch }));
 
   // 模拟观看人数实时上涨
   const [viewersLive, setViewersLive] = useState(MOCK_LIVE.viewers);
@@ -159,16 +171,26 @@ function LiveDetailContent() {
     setChatInput('');
   };
 
+  // 自动滚动聊天到底部
+  useEffect(() => {
+    if (!settings.autoScrollChat) return;
+    const el = chatScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [chat, settings.autoScrollChat]);
+
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <DetailHeader
         title={query.data?.title?.replace(/【直播中】/, '') || '直播'}
         rightActions={
           <Box sx={{ display: 'flex', gap: 0.5 }}>
-            <IconButton onClick={() => setFavorited((f) => !f)} sx={{ color: favorited ? 'primary.main' : 'text.tertiary' }}>
+            <IconButton onClick={() => setFavorited((f) => !f)} sx={{ color: favorited ? 'primary.main' : 'text.tertiary' }} aria-label="收藏">
               {favorited ? <FavoriteIcon /> : <FavoriteBorderIcon />}
             </IconButton>
-            <IconButton sx={{ color: 'text.tertiary' }}>
+            <IconButton onClick={() => setSettingsOpen(true)} sx={{ color: 'text.tertiary' }} aria-label="直播设置">
+              <SettingsIcon />
+            </IconButton>
+            <IconButton sx={{ color: 'text.tertiary' }} aria-label="分享">
               <ShareIcon />
             </IconButton>
           </Box>
@@ -185,16 +207,18 @@ function LiveDetailContent() {
                   sx={{
                     position: 'relative',
                     width: '100%',
-                    aspectRatio: '16/9',
+                    aspectRatio: settings.aspect === '4:3' ? '4/3' : settings.aspect === 'fill' ? '21/9' : '16/9',
                     backgroundImage: `linear-gradient(135deg, rgba(0,0,0,0.4), rgba(0,0,0,0.2)), url(${data.cover})`,
-                    backgroundSize: 'cover',
+                    backgroundSize: settings.aspect === 'fill' ? 'cover' : 'cover',
                     backgroundPosition: 'center',
                     borderRadius: 0,
                     overflow: 'hidden',
+                    transform: settings.mirror ? 'scaleX(-1)' : 'none',
+                    transition: 'aspect-ratio 0.3s',
                   }}
                 >
-                  {/* LIVE 徽章 + 房间号 */}
-                  <Box sx={{ position: 'absolute', top: 12, left: 12, display: 'flex', gap: 1, alignItems: 'center' }}>
+                  {/* LIVE 徽章 + 房间号 + 清晰度 */}
+                  <Box sx={{ position: 'absolute', top: 12, left: 12, display: 'flex', gap: 1, alignItems: 'center', zIndex: 2 }}>
                     {data.isLive && (
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.5, borderRadius: 0.75, bgcolor: 'primary.main' }}>
                         <LiveTvRoundedIcon sx={{ fontSize: 12, color: '#fff' }} />
@@ -204,10 +228,25 @@ function LiveDetailContent() {
                     <Box sx={{ px: 1, py: 0.5, borderRadius: 0.75, bgcolor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
                       <Typography sx={{ fontSize: 11, color: '#fff', fontWeight: 600 }}>房间号 {data.id}</Typography>
                     </Box>
+                    <Box sx={{ px: 1, py: 0.5, borderRadius: 0.75, bgcolor: 'rgba(254,44,85,0.85)' }}>
+                      <Typography sx={{ fontSize: 10, color: '#fff', fontWeight: 700, fontFamily: 'monospace' }}>
+                        {settings.quality}
+                      </Typography>
+                    </Box>
                   </Box>
 
-                  {/* 顶部右侧:观看人数 + 时长 */}
-                  <Box sx={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: 1, alignItems: 'center' }}>
+                  {/* 顶部右侧:观看人数 + 时长 + 静音/镜像状态 */}
+                  <Box sx={{ position: 'absolute', top: 12, right: 12, display: 'flex', gap: 1, alignItems: 'center', zIndex: 2 }}>
+                    {settings.muted && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.5, borderRadius: 0.75, bgcolor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+                        <VolumeOffIcon sx={{ fontSize: 12, color: 'warning.main' }} />
+                      </Box>
+                    )}
+                    {settings.mirror && (
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.5, borderRadius: 0.75, bgcolor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+                        <FlipIcon sx={{ fontSize: 12, color: 'warning.main' }} />
+                      </Box>
+                    )}
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.5, borderRadius: 0.75, bgcolor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
                       <VisibilityRoundedIcon sx={{ fontSize: 12, color: '#fff' }} />
                       <Typography sx={{ fontSize: 11, color: '#fff', fontWeight: 600 }}>{formatViewers(viewersLive)}</Typography>
@@ -218,36 +257,38 @@ function LiveDetailContent() {
                   </Box>
 
                   {/* 弹幕飘过 */}
-                  <Box sx={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
-                    {danmaku.slice(-6).map((t, i) => (
-                      <Box
-                        key={`${i}-${t}`}
-                        sx={{
-                          position: 'absolute',
-                          right: 16,
-                          top: 80 + i * 36,
-                          px: 1.25,
-                          py: 0.5,
-                          borderRadius: 0.75,
-                          bgcolor: 'rgba(0,0,0,0.45)',
-                          backdropFilter: 'blur(2px)',
-                          animation: 'fadeOut 4s ease-in forwards',
-                          '@keyframes fadeOut': {
-                            '0%': { opacity: 0, transform: 'translateX(20px)' },
-                            '10%': { opacity: 1, transform: 'translateX(0)' },
-                            '85%': { opacity: 1 },
-                            '100%': { opacity: 0 },
-                          },
-                        }}
-                      >
-                        <Typography sx={{ fontSize: 12, color: '#fff' }}>{t}</Typography>
-                      </Box>
-                    ))}
-                  </Box>
+                  {settings.danmakuOn && (
+                    <Box sx={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden', opacity: settings.danmakuOpacity / 100 }}>
+                      {danmaku.slice(-6).map((t, i) => (
+                        <Box
+                          key={`${i}-${t}`}
+                          sx={{
+                            position: 'absolute',
+                            right: 16,
+                            top: 80 + i * 40,
+                            px: 1.25,
+                            py: 0.5,
+                            borderRadius: 0.75,
+                            bgcolor: 'rgba(0,0,0,0.45)',
+                            backdropFilter: 'blur(2px)',
+                            animation: `dmScroll ${settings.danmakuSpeed}s linear forwards`,
+                            '@keyframes dmScroll': {
+                              '0%': { opacity: 0, transform: 'translateX(20px)' },
+                              '10%': { opacity: 1, transform: 'translateX(0)' },
+                              '85%': { opacity: 1 },
+                              '100%': { opacity: 0 },
+                            },
+                          }}
+                        >
+                          <Typography sx={{ fontSize: settings.danmakuFontSize, color: '#fff', whiteSpace: 'nowrap' }}>{t}</Typography>
+                        </Box>
+                      ))}
+                    </Box>
+                  )}
 
                   {/* 底部渐变 + 直播结束遮罩 */}
                   {!data.isLive && (
-                    <Box sx={{ position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Box sx={{ position: 'absolute', inset: 0, bgcolor: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3 }}>
                       <Typography sx={{ color: '#fff', fontSize: 18, fontWeight: 600 }}>主播已下播,看看回放?</Typography>
                     </Box>
                   )}
@@ -345,7 +386,10 @@ function LiveDetailContent() {
                   mb: 3,
                 }}
               >
-                <Box sx={{ maxHeight: 280, overflow: 'auto', mb: 1.5, pr: 1 }}>
+                <Box
+                  ref={chatScrollRef}
+                  sx={{ maxHeight: 280, overflow: 'auto', mb: 1.5, pr: 1 }}
+                >
                   {chat.map((c) => (
                     <Box key={c.id} sx={{ display: 'flex', gap: 1, mb: 1.25, alignItems: 'flex-start' }}>
                       <Avatar src={c.avatar} sx={{ width: 28, height: 28 }} />
@@ -482,6 +526,40 @@ function LiveDetailContent() {
           </>
         )}
       </AsyncState>
+
+      <LivePlayerSettings
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        settings={settings}
+        onChange={updateSettings}
+        headerInfo={
+          query.data && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5 }}>
+              <Avatar src={query.data.hostAvatar} sx={{ width: 24, height: 24 }} />
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.primary', lineHeight: 1.2 }} noWrap>
+                  {query.data.hostName}
+                </Typography>
+                <Typography sx={{ fontSize: 10, color: 'text.secondary', lineHeight: 1.2 }} noWrap>
+                  {query.data.isLive ? `直播中 · ${formatViewers(viewersLive)}` : '已下播'}
+                </Typography>
+              </Box>
+            </Box>
+          )
+        }
+        onReport={() => {
+          setSettingsOpen(false);
+          alert('已收到举报,我们会尽快处理');
+        }}
+        onHelp={() => {
+          setSettingsOpen(false);
+          alert('帮助中心:遇到问题可联系客服 400-xxx-xxxx');
+        }}
+        onLeave={() => {
+          setSettingsOpen(false);
+          router.back();
+        }}
+      />
     </Box>
   );
 }
