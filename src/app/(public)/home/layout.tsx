@@ -13,11 +13,12 @@ import Badge from '@mui/material/Badge';
 import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
 import Tooltip from '@mui/material/Tooltip';
-import Popover from '@mui/material/Popover';
+import Drawer from '@mui/material/Drawer';
 import Divider from '@mui/material/Divider';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Button from '@mui/material/Button';
+import { HomeSettingsDrawer } from '@/components/home/HomeSettingsDrawer';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import CheckroomIcon from '@mui/icons-material/Checkroom';
 import MovieFilterIcon from '@mui/icons-material/MovieFilter';
@@ -37,11 +38,6 @@ import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import ModeCommentOutlinedIcon from '@mui/icons-material/ModeCommentOutlined';
-import DarkModeRoundedIcon from '@mui/icons-material/DarkModeRounded';
-import LightModeRoundedIcon from '@mui/icons-material/LightModeRounded';
-import PaletteRoundedIcon from '@mui/icons-material/PaletteRounded';
-import Switch from '@mui/material/Switch';
-import { useThemeMode } from '@/contexts/ThemeContext';
 import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import RecommendRoundedIcon from '@mui/icons-material/RecommendRounded';
 import TravelExploreRoundedIcon from '@mui/icons-material/TravelExploreRounded';
@@ -82,16 +78,6 @@ const SIDE_NAV: { key: string; label: string; path?: string; icon: React.ReactNo
   { key: 'reward', label: '悬赏中心', path: '/account/reward', icon: <CardGiftcardIcon sx={{ fontSize: 18 }} />, accent: 'warning.main', external: '_blank' },
   { key: 'theater', label: '放映厅', path: '/home/recommend?tab=theater', icon: <MovieRoundedIcon sx={{ fontSize: 18 }} />, accent: ACCENT.purple.main, dividerBefore: true },
   { key: 'drama', label: '短剧', path: '/home/recommend?tab=drama', icon: <TheatersRoundedIcon sx={{ fontSize: 18 }} />, accent: 'secondary.main' },
-];
-
-const ME_SUBMENU = [
-  { key: 'default-page', label: '默认首页设置', path: '/account/settings' },
-  { key: 'mode', label: '定场模式' },
-  { key: 'general', label: '通用设置' },
-  { key: 'ai', label: 'AI 设置' },
-  { key: 'shortcut', label: '键盘快捷键' },
-  { key: 'faq', label: '常见问题' },
-  { key: 'support', label: '我的客服' },
 ];
 
 const RIGHT_COVERS = [
@@ -433,102 +419,6 @@ function Logo() {
   );
 }
 
-function SettingsPopoverContent({ onClose }: { onClose: () => void }) {
-  const { mode, setTheme, primaryColor, setPrimaryColor, presetColors } = useThemeMode();
-  const isDark = mode === 'dark';
-
-  return (
-    <>
-      <Box sx={{ px: 1.5, pt: 1, pb: 0.5 }}>
-        <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted, rgba(255,255,255,0.4))', letterSpacing: 1, textTransform: 'uppercase' }}>
-          外观
-        </Typography>
-      </Box>
-
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, px: 1.5, py: 0.75, borderRadius: 1.5, mx: 0.5 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flex: 1, color: 'var(--text-primary, rgba(255,255,255,0.85))' }}>
-          {isDark ? <DarkModeRoundedIcon sx={{ fontSize: 15, color: 'var(--text-secondary, rgba(255,255,255,0.6))' }} /> : <LightModeRoundedIcon sx={{ fontSize: 15, color: 'var(--text-secondary, rgba(255,255,255,0.6))' }} />}
-          <Typography sx={{ fontSize: 12 }}>{isDark ? '深色模式' : '浅色模式'}</Typography>
-        </Box>
-        <Switch
-          size="small"
-          checked={isDark}
-          onChange={(e) => setTheme(e.target.checked ? 'dark' : 'light')}
-          sx={{
-            '& .MuiSwitch-switchBase.Mui-checked': { color: 'var(--brand-color, #FE2C55)' },
-            '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: 'var(--brand-color, #FE2C55)' },
-          }}
-        />
-      </Box>
-
-      <Box sx={{ px: 1.5, pt: 0.5, pb: 1, mx: 0.5 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1 }}>
-          <PaletteRoundedIcon sx={{ fontSize: 15, color: 'var(--text-secondary, rgba(255,255,255,0.6))' }} />
-          <Typography sx={{ fontSize: 12, color: 'var(--text-primary, rgba(255,255,255,0.85))' }}>主题色</Typography>
-        </Box>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          {presetColors.map((c) => {
-            const isActive = primaryColor.toLowerCase() === c.value.toLowerCase();
-            return (
-              <Tooltip key={c.key} title={c.label} placement="top" arrow>
-                <Box
-                  onClick={() => setPrimaryColor(c.value)}
-                  sx={{
-                    width: 24,
-                    height: 24,
-                    borderRadius: '50%',
-                    bgcolor: c.value,
-                    cursor: 'pointer',
-                    border: '2px solid',
-                    borderColor: isActive ? 'text.primary' : 'transparent',
-                    boxShadow: isActive ? `0 0 0 2px ${c.value}, 0 2px 6px rgba(0,0,0,0.4)` : '0 1px 3px rgba(0,0,0,0.3)',
-                    transition: 'transform 0.15s',
-                    '&:hover': { transform: 'scale(1.12)' },
-                  }}
-                />
-              </Tooltip>
-            );
-          })}
-        </Box>
-      </Box>
-
-      <Divider sx={{ my: 0.5, borderColor: 'var(--border-color, rgba(255,255,255,0.06))' }} />
-
-      <Box sx={{ px: 1.5, pt: 0.75, pb: 0.5 }}>
-        <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted, rgba(255,255,255,0.4))', letterSpacing: 1, textTransform: 'uppercase' }}>
-          设置
-        </Typography>
-      </Box>
-
-      {ME_SUBMENU.map((s) => (
-        <Box
-          key={s.key}
-          component={s.path ? Link : 'div'}
-          href={s.path}
-          onClick={onClose}
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1.25,
-            px: 1.5,
-            py: 0.9,
-            mx: 0.5,
-            borderRadius: 1.5,
-            cursor: 'pointer',
-            fontSize: 12,
-            color: 'var(--text-secondary, rgba(255,255,255,0.75))',
-            textDecoration: 'none',
-            transition: 'all 0.15s',
-            '&:hover': { bgcolor: 'var(--bg-hover, rgba(255,255,255,0.05))', color: 'var(--text-primary, #ffffff)' },
-          }}
-        >
-          <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: s.path ? 'var(--brand-color, #8B5CF6)' : 'var(--text-disabled, rgba(255,255,255,0.25))' }} />
-          {s.label}
-        </Box>
-      ))}
-    </>
-  );
-}
 
 function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activeNav: string; onNavChange: (k: string) => void; meOpen: boolean; onMeOpenChange: (v: boolean) => void }) {
   const settingsBtnRef = React.useRef<HTMLDivElement | null>(null);
@@ -630,30 +520,8 @@ function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activ
         >
           <SettingsIcon sx={{ fontSize: 16 }} />
         </Box>
-        <Popover
-          open={meOpen}
-          onClose={() => onMeOpenChange(false)}
-          anchorEl={settingsBtnRef.current}
-          anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-          transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-          slotProps={{
-            paper: {
-              sx: {
-                ml: 1,
-                bgcolor: 'var(--bg-elevated, rgba(20, 22, 32, 0.98))',
-                border: '1px solid var(--border-color, rgba(255,255,255,0.08))',
-                backdropFilter: 'blur(12px)',
-                borderRadius: 2,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-                minWidth: 240,
-                p: 0.5,
-              },
-            },
-          }}
-        >
-          <SettingsPopoverContent onClose={() => onMeOpenChange(false)} />
-        </Popover>
       </Box>
+      <HomeSettingsDrawer open={meOpen} onClose={() => onMeOpenChange(false)} />
     </Box>
   );
 }
