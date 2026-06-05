@@ -31,6 +31,75 @@ export const MY_PROFILE = {
   collections: 49,
 };
 
+// ─── 我的:每个 tab 的内容(作品/喜欢/收藏/历史/稍后/预约/AI 笔记) ───
+type MyItem = {
+  id: number;
+  title: string;
+  cover: string;
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  collectNum: number;
+  durationSec: number;
+  postedAt: number;
+  contentType: 'NOVEL' | 'MUSIC' | 'FILM' | 'TELEPLAY' | 'ANIMATION' | 'COMICS' | 'VIDEO' | 'VSHOW' | 'LIVE' | 'ARTICLE' | 'NEWS';
+  status: 'public' | 'private' | 'draft';
+  isPrivate?: boolean;
+};
+
+function buildMyItem(i: number, opts: { type?: MyItem['contentType']; daysAgo?: number; status?: MyItem['status'] } = {}): MyItem {
+  const titles = ['银杏树下', '雨后清秋', '月下独酌', '长安的雨', '北岭的雪', '拾光手记', '山城阿吉', '光与影', '海蓝时见鲸', '夜雨寄北', '清欢渡', '林深时见鹿'];
+  return {
+    id: 1000 + i,
+    title: titles[i % titles.length] + (i > 11 ? ` ${Math.floor(i / 12) + 1}` : ''),
+    cover: cover(400, 600, 500 + i),
+    views: 800 + (i * 173) % 12000,
+    likes: 12 + (i * 11) % 800,
+    comments: 2 + (i * 3) % 200,
+    shares: 1 + (i * 2) % 80,
+    collectNum: 5 + (i * 7) % 400,
+    durationSec: 30 + (i * 13) % 600,
+    postedAt: Date.now() - (opts.daysAgo ?? i) * 86_400_000,
+    contentType: opts.type ?? (['VIDEO', 'NOVEL', 'MUSIC', 'ARTICLE', 'FILM'] as const)[i % 5],
+    status: opts.status ?? 'public',
+    isPrivate: opts.status === 'private',
+  };
+}
+
+const MY_WORKS: MyItem[] = range(12).map((i) => buildMyItem(i, { daysAgo: i }));
+const MY_PRIVATE_WORKS: MyItem[] = range(3).map((i) => buildMyItem(20 + i, { status: 'private' }));
+const MY_DRAFT: MyItem[] = range(2).map((i) => buildMyItem(30 + i, { status: 'draft' }));
+const MY_COLLECTIONS_LIST: MyItem[] = range(18).map((i) => buildMyItem(40 + i, { daysAgo: i * 2 }));
+const MY_LIKES: MyItem[] = range(8).map((i) => buildMyItem(60 + i, { daysAgo: i }));
+const MY_HISTORY: MyItem[] = range(15).map((i) => buildMyItem(80 + i, { daysAgo: 0, type: 'VIDEO' }));
+const MY_LATER: MyItem[] = range(5).map((i) => buildMyItem(100 + i, { daysAgo: i }));
+const MY_APPOINTMENTS: MyItem[] = range(3).map((i) => buildMyItem(120 + i, { type: 'LIVE', daysAgo: 1 }));
+const MY_AI_NOTES: MyItem[] = range(6).map((i) => buildMyItem(140 + i, { type: 'ARTICLE', daysAgo: i * 3 }));
+const MY_COLLECTIONS_GROUP: { id: number; title: string; cover: string; count: number; updatedAt: number }[] = range(6).map((i) => ({
+  id: 200 + i,
+  title: ['秋日收藏', '书单合集', '夜读', '音乐盒子', 'AI 收藏', '旅行相册'][i],
+  cover: cover(400, 600, 600 + i),
+  count: 8 + (i * 5) % 32,
+  updatedAt: Date.now() - i * 86_400_000 * 2,
+}));
+const MY_DRAMAS: MyItem[] = range(2).map((i) => buildMyItem(160 + i, { type: 'TELEPLAY', daysAgo: i * 5 }));
+
+export const MY_CONTENT = {
+  works: MY_WORKS,
+  private: MY_PRIVATE_WORKS,
+  draft: MY_DRAFT,
+  collection: MY_COLLECTIONS_LIST,
+  collections: MY_COLLECTIONS_GROUP,
+  drama: MY_DRAMAS,
+  like: MY_LIKES,
+  history: MY_HISTORY,
+  later: MY_LATER,
+  order: MY_APPOINTMENTS,
+  ai: MY_AI_NOTES,
+  recommend: MY_COLLECTIONS_LIST.slice(0, 6),
+};
+
 // ─── 通用 feed (首页/关注/朋友共用) ───
 type FeedItem = {
   id: number;

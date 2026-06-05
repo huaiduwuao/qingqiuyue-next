@@ -4,7 +4,7 @@
 
 import { http, HttpResponse } from 'msw';
 import {
-  MY_PROFILE, FEED, LIVE_ROOMS, LIVE_TOP_10, THEATER_ITEMS, DRAMA_EPISODES, DRAMA_SERIES, DRAMA_TOP_10, THEATER_TOP_10,
+  MY_PROFILE, MY_CONTENT, FEED, LIVE_ROOMS, LIVE_TOP_10, THEATER_ITEMS, DRAMA_EPISODES, DRAMA_SERIES, DRAMA_TOP_10, THEATER_TOP_10,
   AI_SEARCH_CHUNKS, WEREWOLF_PLAYERS, WEREWOLF_VIDEO, SIDE_COMMENTS, SIDE_RELATED,
   CURRENT_USER_ID, getUser, followUser, unfollowUser, addFriend, removeFriend,
   acceptFriendRequest, rejectFriendRequest, suggestFollowUsers, suggestFriendUsers,
@@ -16,6 +16,53 @@ const okList = <T,>(list: T[], total: number) => ok({ list, total });
 
 export const homeHandlers = [
   http.get('*/api/home/me/profile', () => ok(MY_PROFILE)),
+
+  // 我的 - 8 个 tab 通用 GET(支持 ?tab=works|recommend|like|collect|history|later|order|ai + ?sub=works|private|collection|drama)
+  http.get('*/api/home/me/list', ({ request }) => {
+    const url = new URL(request.url);
+    const tab = url.searchParams.get('tab') || 'works';
+    const sub = url.searchParams.get('sub');
+    let list: any[] = [];
+    if (tab === 'works') {
+      if (sub === 'private') list = MY_CONTENT.private;
+      else if (sub === 'collection') list = MY_CONTENT.collections;
+      else if (sub === 'drama') list = MY_CONTENT.drama;
+      else list = sub === 'draft' ? MY_CONTENT.draft : MY_CONTENT.works;
+    } else if (tab === 'recommend') {
+      list = MY_CONTENT.recommend;
+    } else if (tab === 'like') {
+      list = MY_CONTENT.like;
+    } else if (tab === 'collect') {
+      list = MY_CONTENT.collection;
+    } else if (tab === 'history') {
+      list = MY_CONTENT.history;
+    } else if (tab === 'later') {
+      list = MY_CONTENT.later;
+    } else if (tab === 'order') {
+      list = MY_CONTENT.order;
+    } else if (tab === 'ai') {
+      list = MY_CONTENT.ai;
+    }
+    return ok({ list, total: list.length, tab, sub });
+  }),
+
+  // 我的 - 批量删除
+  http.post('*/api/home/me/batch-delete', async ({ request }) => {
+    const body = (await request.json().catch(() => ({}))) as { ids?: number[]; tab?: string };
+    return ok({ deleted: body.ids?.length ?? 0, tab: body.tab });
+  }),
+
+  // 我的 - 编辑资料(本地状态模拟)
+  http.post('*/api/home/me/profile', async ({ request }) => {
+    const body = (await request.json().catch(() => ({}))) as Record<string, any>;
+    return ok({ ...MY_PROFILE, user: { ...MY_PROFILE.user, ...body }, updated: true });
+  }),
+
+  // 我的 - 切换私密/公开
+  http.post('*/api/home/me/toggle-private', async ({ request }) => {
+    const body = (await request.json().catch(() => ({}))) as { id?: number; isPrivate?: boolean };
+    return ok({ id: body.id, isPrivate: !body.isPrivate });
+  }),
 
   http.get('*/api/home/feed', ({ request }) => {
     const url = new URL(request.url);
