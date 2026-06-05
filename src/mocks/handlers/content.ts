@@ -107,6 +107,9 @@ for (const t of CONTENT_TYPES) {
   }
 
   contentTypeHandlers.push(http.delete(`${base}/removeByIds`, () => ok({ removed: 1 })));
+
+  // 通用 saveOrUpdate — 6 个 generic content-* (animation/comics/film/music/novel/video) 走这条
+  contentTypeHandlers.push(http.post(`${base}/saveOrUpdate`, () => ok({ id: Date.now(), updated: 1 })));
 }
 
 export const contentHandlers = [
@@ -274,4 +277,50 @@ export const contentHandlers = [
 
   // ─── 28 个 client-content 类型的 handler ───
   ...contentTypeHandlers,
+
+  // ─── content-novel-chapter 特殊端点 ───
+  http.post('*/api/content/client-content/novel-bookshelf/correctLastRead', () => ok({ corrected: true })),
+  http.get('*/api/content/client-content/novel/get', ({ request }) => {
+    const id = Number(new URL(request.url).searchParams.get('id') || 1);
+    const seed = CLIENT_CONTENT_SEED.novel;
+    return ok(seed.records.find((r) => r.id === id) || seed.records[0]);
+  }),
+
+  // ─── content-pan (走 adminClient) ───
+  http.get('*/api/admin/pan/page', () => okPage([], 0)),
+  http.post('*/api/admin/pan/process', () => ok({ processed: true })),
+  http.post('*/api/admin/pan', () => ok({ id: Date.now() })),
+  http.put(/\/api\/admin\/pan\/\d+/, () => ok({ updated: 1 })),
+  http.get(/\/api\/admin\/pan\/\d+/, () => ok({ id: 1, name: 'pan item', status: 'active' })),
+  http.delete(/\/api\/admin\/pan\/removeByIds.*/, () => ok({ removed: 1 })),
+
+  // ─── content-spider-queue (走 contentClient/content/) ───
+  http.get('*/api/content/content/spiderQueue/client/page', () => okPage([], 0)),
+  http.post('*/api/content/content/spiderQueue', () => ok({ id: Date.now() })),
+  http.put(/\/api\/content\/content\/spiderQueue\/\d+/, () => ok({ updated: 1 })),
+  http.get(/\/api\/content\/content\/spiderQueue\/\d+/, () => ok({ id: 1, url: 'https://example.com', status: 'pending' })),
+  http.delete(/\/api\/content\/content\/spiderQueue\/removeByIds.*/, () => ok({ removed: 1 })),
+
+  // ─── content-todo-queue (走 contentClient/content/) ───
+  http.get('*/api/content/content/todoQueue/client/page', () => okPage([], 0)),
+  http.post('*/api/content/content/todoQueue/process', () => ok({ processed: true })),
+  http.post('*/api/content/content/todoQueue', () => ok({ id: Date.now() })),
+  http.put(/\/api\/content\/content\/todoQueue\/\d+/, () => ok({ updated: 1 })),
+  http.get(/\/api\/content\/content\/todoQueue\/\d+/, () => ok({ id: 1, task: 'todo', status: 'pending' })),
+  http.delete(/\/api\/content\/content\/todoQueue\/removeByIds.*/, () => ok({ removed: 1 })),
+
+  // ─── content-urls (走 adminClient) ───
+  http.get('*/api/admin/urls/list', () => okList([], 0)),
+  http.post('*/api/admin/urls', () => ok({ id: Date.now() })),
+  http.put(/\/api\/admin\/urls\/\d+/, () => ok({ updated: 1 })),
+  http.get(/\/api\/admin\/urls\/\d+/, () => ok({ id: 1, url: 'https://example.com', status: 'active' })),
+  http.delete(/\/api\/admin\/urls.*/, () => ok({ removed: 1 })),
+
+  // ─── content-website (走 adminClient) ───
+  http.get('*/api/admin/website/page', () => okPage([], 0)),
+  http.post('*/api/admin/website/process', () => ok({ processed: true })),
+  http.post('*/api/admin/website', () => ok({ id: Date.now() })),
+  http.put(/\/api\/admin\/website\/\d+/, () => ok({ updated: 1 })),
+  http.get(/\/api\/admin\/website\/\d+/, () => ok({ id: 1, domain: 'example.com', status: 'active' })),
+  http.delete(/\/api\/admin\/website\/removeByIds.*/, () => ok({ removed: 1 })),
 ];

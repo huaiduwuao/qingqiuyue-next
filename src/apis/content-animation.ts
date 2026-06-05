@@ -1,9 +1,4 @@
 import { contentClient } from '@/lib/api/client';
-
-// Mock enabled for development
-const MOCK_ENABLED = true;
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
 // 内容类型
 export type ContentType = 'music' | 'novel' | 'video' | 'film' | 'teleplay' | 'animation' | 'comics' | 'article' | 'news' | 'picture-album' | 'picture-detail' | 'live' | 'website' | 'pan' | 'vshow' | 'animation-item' | 'teleplay-item' | 'comics-item' | 'film-item' | 'vshow-item';
 
@@ -39,18 +34,9 @@ export interface ContentPageParams {
 }
 
 // Mock data for animation content type
-const mockData: ContentItem[] = [
-  { id: 1, title: "Animation Title 1", name: "Animation 1", cover: "https://example.com/anim1.jpg", info: "Animation info 1", content: "Animation content 1", contentType: "animation", status: "published", createUser: 1, createTime: "2024-01-01", updateTime: "2024-01-01", groupId: 1 },
-  { id: 2, title: "Animation Title 2", name: "Animation 2", cover: "https://example.com/anim2.jpg", info: "Animation info 2", content: "Animation content 2", contentType: "animation", status: "published", createUser: 1, createTime: "2024-01-02", updateTime: "2024-01-02", groupId: 1 },
-  { id: 3, title: "Animation Title 3", name: "Animation 3", cover: "https://example.com/anim3.jpg", info: "Animation info 3", content: "Animation content 3", contentType: "animation", status: "draft", createUser: 1, createTime: "2024-01-03", updateTime: "2024-01-03", groupId: 1 },
-];
 
 // 分页获取内容
 export async function page(contentType: ContentType, params: ContentPageParams) {
-  if (MOCK_ENABLED) {
-    await delay(100);
-    return { code: 200, data: { records: mockData, totalRow: mockData.length } };
-  }
   return contentClient(`client-content/${contentType}/page`, {
     method: 'GET',
     params,
@@ -59,10 +45,6 @@ export async function page(contentType: ContentType, params: ContentPageParams) 
 
 // 获取内容详情
 export async function detail(contentType: ContentType, params: { id: number } | number) {
-  if (MOCK_ENABLED) {
-    await delay(100);
-    return { code: 200, data: mockData[0] };
-  }
   const id = typeof params === 'number' ? params : params.id;
   return contentClient(`client-content/${contentType}/detail`, {
     method: 'GET',
@@ -72,10 +54,6 @@ export async function detail(contentType: ContentType, params: { id: number } | 
 
 // 处理内容状态
 export async function process(contentType: ContentType, params: any) {
-  if (MOCK_ENABLED) {
-    await delay(100);
-    return { code: 200, data: null };
-  }
   return contentClient(`client-content/${contentType}/process`, {
     method: 'POST',
     data: params,
@@ -84,10 +62,6 @@ export async function process(contentType: ContentType, params: any) {
 
 // 保存或更新内容
 export async function saveOrUpdate(contentType: ContentType, params: any) {
-  if (MOCK_ENABLED) {
-    await delay(100);
-    return { code: 200, data: { id: Date.now(), ...params } };
-  }
   return contentClient(`client-content/${contentType}/saveOrUpdate`, {
     method: 'POST',
     data: params,
@@ -96,10 +70,6 @@ export async function saveOrUpdate(contentType: ContentType, params: any) {
 
 // 更新并发布
 export async function updateAndPublish(contentType: ContentType, params: any) {
-  if (MOCK_ENABLED) {
-    await delay(100);
-    return { code: 200, data: params };
-  }
   return contentClient(`client-content/${contentType}/updateAndPublish`, {
     method: 'POST',
     data: params,
@@ -108,10 +78,6 @@ export async function updateAndPublish(contentType: ContentType, params: any) {
 
 // 删除内容
 export async function remove(contentType: ContentType, ids: number[]) {
-  if (MOCK_ENABLED) {
-    await delay(100);
-    return { code: 200, data: null };
-  }
   return contentClient(`client-content/${contentType}/removeByIds`, {
     method: 'DELETE',
     data: ids,
