@@ -11,7 +11,7 @@ export default function KfChatPage() {
 
   return (
     <Container maxWidth="lg">
-      <Box sx={{ py: 4 }}>
+      <Box sx={{ py: { xs: 2, md: 4 } }}>
         <Typography variant="h4" sx={{ mb: 3 }}>客服聊天</Typography>
         <Typography color="text.secondary">点击右下角聊天图标开始对话</Typography>
       </Box>

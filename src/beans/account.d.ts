@@ -31,6 +31,7 @@ export interface CurrentUser {
   focusCount?: number;
   fansCount?: number;
   authorities?: string[];
+  permissions?: string[];
 }
 
 

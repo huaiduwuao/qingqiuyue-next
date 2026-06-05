@@ -1,6 +1,7 @@
 'use client';
 
 import { createTheme, ThemeOptions } from '@mui/material/styles';
+import { dataGridComponents } from './dataGridTheme';
 
 // Design System Tokens - 清秋月内容平台
 // Based on Data-Dense Dashboard style with dark mode support
@@ -17,36 +18,47 @@ const baseTheme: ThemeOptions = {
       'sans-serif',
     ].join(','),
     h1: {
-      fontSize: '2.5rem',
+      fontSize: '1.75rem',
       fontWeight: 700,
       lineHeight: 1.2,
       letterSpacing: '-0.02em',
+      '@media (min-width:900px)': { fontSize: '2.25rem' },
+      '@media (min-width:1200px)': { fontSize: '2.75rem' },
     },
     h2: {
-      fontSize: '2rem',
+      fontSize: '1.5rem',
       fontWeight: 600,
       lineHeight: 1.3,
       letterSpacing: '-0.01em',
+      '@media (min-width:900px)': { fontSize: '1.875rem' },
+      '@media (min-width:1200px)': { fontSize: '2.25rem' },
     },
     h3: {
-      fontSize: '1.5rem',
-      fontWeight: 600,
-      lineHeight: 1.4,
-    },
-    h4: {
       fontSize: '1.25rem',
       fontWeight: 600,
       lineHeight: 1.4,
+      '@media (min-width:900px)': { fontSize: '1.5rem' },
+      '@media (min-width:1200px)': { fontSize: '1.75rem' },
+    },
+    h4: {
+      fontSize: '1.125rem',
+      fontWeight: 600,
+      lineHeight: 1.4,
+      '@media (min-width:900px)': { fontSize: '1.25rem' },
+      '@media (min-width:1200px)': { fontSize: '1.375rem' },
     },
     h5: {
       fontSize: '1rem',
       fontWeight: 600,
       lineHeight: 1.5,
+      '@media (min-width:900px)': { fontSize: '1.125rem' },
+      '@media (min-width:1200px)': { fontSize: '1.25rem' },
     },
     h6: {
       fontSize: '0.875rem',
       fontWeight: 600,
       lineHeight: 1.5,
+      '@media (min-width:1200px)': { fontSize: '1rem' },
     },
     body1: {
       fontSize: '1rem',
@@ -67,7 +79,7 @@ const baseTheme: ThemeOptions = {
     },
   },
   shape: {
-    borderRadius: 8,
+    borderRadius: 0,
   },
   components: {
     MuiButton: {
@@ -77,7 +89,7 @@ const baseTheme: ThemeOptions = {
       },
       styleOverrides: {
         root: {
-          borderRadius: 8,
+          borderRadius: 0,
           padding: '8px 16px',
           transition: 'all 0.2s ease-in-out',
           '&:hover': {
@@ -117,7 +129,7 @@ const baseTheme: ThemeOptions = {
         root: {
           border: '1px solid',
           borderColor: 'divider',
-          borderRadius: 12,
+          borderRadius: 0,
           transition: 'all 0.2s ease-in-out',
           '&:hover': {
             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
@@ -132,7 +144,7 @@ const baseTheme: ThemeOptions = {
       },
       styleOverrides: {
         root: {
-          borderRadius: 12,
+          borderRadius: 0,
         },
       },
     },
@@ -144,7 +156,7 @@ const baseTheme: ThemeOptions = {
       styleOverrides: {
         root: {
           '& .MuiOutlinedInput-root': {
-            borderRadius: 8,
+            borderRadius: 0,
             transition: 'all 0.2s ease-in-out',
             '&:hover .MuiOutlinedInput-notchedOutline': {
               borderColor: 'primary.main',
@@ -159,7 +171,7 @@ const baseTheme: ThemeOptions = {
     MuiChip: {
       styleOverrides: {
         root: {
-          borderRadius: 6,
+          borderRadius: 0,
           fontWeight: 500,
         },
       },
@@ -167,9 +179,16 @@ const baseTheme: ThemeOptions = {
     MuiTableHead: {
       styleOverrides: {
         root: {
+          backgroundColor: 'transparent',
           '& .MuiTableCell-head': {
             fontWeight: 600,
-            backgroundColor: 'action.hover',
+            fontSize: 13,
+            color: 'text.secondary',
+            backgroundColor: 'transparent',
+            borderBottom: '1px solid',
+            borderColor: 'divider',
+            textAlign: 'center',
+            whiteSpace: 'nowrap',
           },
         },
       },
@@ -177,25 +196,60 @@ const baseTheme: ThemeOptions = {
     MuiTableCell: {
       styleOverrides: {
         root: {
+          borderColor: 'transparent',
+          padding: '14px 12px',
+          fontSize: 13,
+          color: 'text.primary',
+          textAlign: 'center',
+          verticalAlign: 'middle',
+        },
+        head: {
+          borderBottom: '1px solid',
           borderColor: 'divider',
-          padding: '12px 16px',
+        },
+        stickyHeader: {
+          backgroundColor: 'background.paper',
         },
       },
     },
     MuiTableRow: {
       styleOverrides: {
         root: {
-          transition: 'background-color 0.15s ease-in-out',
+          transition: 'none',
           '&:hover': {
-            backgroundColor: 'action.hover',
+            backgroundColor: 'transparent',
           },
+          '&:last-child .MuiTableCell-body': {
+            borderBottom: 'none',
+          },
+        },
+      },
+    },
+    MuiTableContainer: {
+      styleOverrides: {
+        root: {
+          backgroundColor: 'transparent',
+          boxShadow: 'none',
+        },
+      },
+    },
+    MuiTablePagination: {
+      styleOverrides: {
+        root: {
+          color: 'text.secondary',
+          fontSize: 12,
+          borderTop: '1px solid',
+          borderColor: 'divider',
+        },
+        toolbar: {
+          minHeight: 48,
         },
       },
     },
     MuiDialog: {
       styleOverrides: {
         paper: {
-          borderRadius: 16,
+          borderRadius: 0,
         },
       },
     },
@@ -211,10 +265,7 @@ const baseTheme: ThemeOptions = {
         elevation: 0,
       },
       styleOverrides: {
-        root: {
-          borderBottom: '1px solid',
-          borderColor: 'divider',
-        },
+        root: {},
       },
     },
     MuiListItemButton: {
@@ -353,6 +404,7 @@ export const lightTheme = createTheme({
     text: {
       primary: '#1F2937',
       secondary: '#6B7280',
+      tertiary: '#4B5563',
       disabled: '#9CA3AF',
     },
     divider: '#E5E7EB',
@@ -366,12 +418,13 @@ export const lightTheme = createTheme({
   },
   components: {
     ...baseTheme.components,
+    ...dataGridComponents,
     MuiCard: {
       ...baseTheme.components?.MuiCard,
       styleOverrides: {
         root: {
           border: '1px solid #E5E7EB',
-          borderRadius: 12,
+          borderRadius: 0,
           transition: 'all 0.2s ease-in-out',
           '&:hover': {
             boxShadow: '0 4px 20px rgba(124, 58, 237, 0.1)',
@@ -458,12 +511,13 @@ export const darkTheme = createTheme({
       contrastText: '#083344',
     },
     background: {
-      default: '#0F172A',
-      paper: '#1E293B',
+      default: '#000000',
+      paper: '#000000',
     },
     text: {
       primary: '#F1F5F9',
       secondary: '#CBD5E1',
+      tertiary: '#94A3B8',
       disabled: '#94A3B8',
     },
     divider: '#334155',
@@ -477,12 +531,13 @@ export const darkTheme = createTheme({
   },
   components: {
     ...baseTheme.components,
+    ...dataGridComponents,
     MuiCard: {
       ...baseTheme.components?.MuiCard,
       styleOverrides: {
         root: {
           border: '1px solid #334155',
-          borderRadius: 12,
+          borderRadius: 0,
           transition: 'all 0.2s ease-in-out',
           '&:hover': {
             boxShadow: '0 4px 20px rgba(167, 139, 250, 0.15)',

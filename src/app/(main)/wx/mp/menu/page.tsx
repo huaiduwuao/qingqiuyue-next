@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
@@ -11,10 +11,13 @@ import MenuItem from '@mui/material/MenuItem';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import IconButton from '@mui/material/IconButton';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { clientGet, publish } from '@/apis/wx-mp-menu';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { v4 as uuidv4 } from 'uuid';
+
+const LIST_KEY = ['wx-mp-menu'];
 
 const menuOptions = [
   { value: 'view', label: '跳转网页' },
@@ -30,36 +33,29 @@ const menuOptions = [
 ];
 
 export default function WxMpMenuPage() {
-  const [data, setData] = useState<any[]>([]);
+  const qc = useQueryClient();
   const [checkedFirstMenu, setCheckedFirstMenu] = useState<any>(null);
   const [checked, setChecked] = useState<any>('');
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
 
   const showMessage = (message: string, severity: 'success' | 'error' = 'success') => setSnackbar({ open: true, message, severity });
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const menuQuery = useQuery({
+    queryKey: LIST_KEY,
+    queryFn: () => clientGet({ mpAppId: 'qingqiuyue' }).then((r: any) => r.data?.buttons || []),
+    placeholderData: [],
+  });
+  const data: any[] = menuQuery.data || [];
 
-  const fetchData = async () => {
-    try {
-      const res = await clientGet({ mpAppId: 'qingqiuyue' });
-      setData(res.data?.buttons || []);
-    } catch (err: any) {
-      showMessage(err.message || '获取数据失败', 'error');
-    }
-  };
+  const publishMutation = useMutation({
+    mutationFn: () => publish({ buttons: data, mpAppId: 'qingqiuyue' }),
+    onSuccess: () => showMessage('保存并发布菜单成功'),
+    onError: (err: any) => showMessage(err.message || '发布失败', 'error'),
+  });
 
-  const dealPublish = async () => {
-    try {
-      await publish({
-        buttons: data,
-        mpAppId: 'qingqiuyue',
-      });
-      showMessage('保存并发布菜单成功');
-    } catch (err: any) {
-      showMessage(err.message || '发布失败', 'error');
-    }
+  const dealPublish = () => {
+    if (!confirm('确定发布吗？')) return;
+    publishMutation.mutate();
   };
 
   const addFirstMenu = () => {
@@ -68,7 +64,7 @@ export default function WxMpMenuPage() {
       return;
     }
     const newData = [...data, { name: '一级菜单', id: uuidv4(), sub_button: [], type: '' }];
-    setData(newData);
+    qc.setQueryData(LIST_KEY, newData);
   };
 
   const addSubMenu = (firMenu: any) => {
@@ -78,7 +74,7 @@ export default function WxMpMenuPage() {
       }
       return ele;
     });
-    setData(newData);
+    qc.setQueryData(LIST_KEY, newData);
   };
 
   const handleCheckMenu = (id: string, firId: string) => {
@@ -100,7 +96,7 @@ export default function WxMpMenuPage() {
         return ele;
       });
     }
-    setData(newData);
+    qc.setQueryData(LIST_KEY, newData);
     setChecked('');
     setCheckedFirstMenu(null);
   };
@@ -123,7 +119,7 @@ export default function WxMpMenuPage() {
       }
       return ele;
     });
-    setData(newData);
+    qc.setQueryData(LIST_KEY, newData);
   };
 
   const handleMenuNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -144,7 +140,7 @@ export default function WxMpMenuPage() {
       }
       return ele;
     });
-    setData(newData);
+    qc.setQueryData(LIST_KEY, newData);
   };
 
   const getCheckedMenu = () => {
@@ -160,7 +156,7 @@ export default function WxMpMenuPage() {
   const checkMenu = getCheckedMenu();
 
   return (
-    <Box sx={{ p: 2 }}>
+    <Box sx={{ p: { xs: 1.5, md: 2 } }}>
       <Typography variant="h5" sx={{ mb: 2 }}>微信菜单</Typography>
 
       <Box sx={{ display: 'flex', gap: 2 }}>

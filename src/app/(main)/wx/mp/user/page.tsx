@@ -109,7 +109,7 @@ export default function WxMpUserPage() {
   ];
 
   return (
-    <Box sx={{ p: 2 }}>
+    <Box sx={{ p: { xs: 1.5, md: 2 } }}>
       <Typography variant="h5" sx={{ mb: 2 }}>微信用户</Typography>
       <DataGridTable
         columns={columns}

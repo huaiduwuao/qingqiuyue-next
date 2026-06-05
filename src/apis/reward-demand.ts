@@ -1,14 +1,13 @@
 import { rewardClient } from '@/lib/api/client';
+import type { DemandItem } from '@/beans/reward';
 
-// 需求信息
-export interface DemandInfo {
+// 需求信息(API 返回的完整字段 = DemandItem 视图的全部可选字段)
+export interface DemandInfo extends DemandItem {
   id: number;
   title: string;
   description?: string;
   projectId?: number;
   groupId?: number;
-  status?: string;
-  createTime?: string;
 }
 
 // 需求查询参数
@@ -20,6 +19,7 @@ export interface DemandQuery {
   status?: string;
   groupId?: number;
   projectId?: number;
+  keyword?: string;
 }
 
 // 需求列表响应
@@ -100,3 +100,13 @@ export const update = (data: any) => {
   }
   return updateDemand(data._id, data);
 };
+
+// 触发结账(需求状态 COMPLETED → SETTLED,生成结算单)
+export async function settleDemand(id: number) {
+  return rewardClient(`/demand/${id}/settle`, { method: 'POST' });
+}
+
+// 反结账(SETTLED → COMPLETED,回滚 contribution、清空 settlement)
+export async function unsettleDemand(id: number) {
+  return rewardClient(`/demand/${id}/unsettle`, { method: 'POST' });
+}

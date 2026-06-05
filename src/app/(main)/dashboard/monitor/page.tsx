@@ -8,7 +8,7 @@ import Typography from '@mui/material/Typography';
 export default function DashboardMonitorPage() {
   return (
     <Container maxWidth="lg">
-      <Box sx={{ py: 4 }}>
+      <Box sx={{ py: { xs: 2, md: 4 } }}>
         <Typography variant="h4">监控</Typography>
       </Box>
     </Container>

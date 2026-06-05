@@ -1,0 +1,170 @@
+{
+  "moduleTypes": [
+    { "id": 1, "label": "小说", "name": "NOVEL", "type": "module-type", "sort": 1 },
+    { "id": 2, "label": "视频", "name": "VIDEO", "type": "module-type", "sort": 2 },
+    { "id": 3, "label": "音乐", "name": "MUSIC", "type": "module-type", "sort": 3 },
+    { "id": 4, "label": "电影", "name": "FILM", "type": "module-type", "sort": 4 },
+    { "id": 5, "label": "文章", "name": "ARTICLE", "type": "module-type", "sort": 5 },
+    { "id": 6, "label": "动画", "name": "ANIMATION", "type": "module-type", "sort": 6 },
+    { "id": 7, "label": "电视剧", "name": "TELEPLAY", "type": "module-type", "sort": 7 },
+    { "id": 8, "label": "漫画", "name": "COMICS", "type": "module-type", "sort": 8 },
+    { "id": 9, "label": "综艺", "name": "VSHOW", "type": "module-type", "sort": 9 }
+  ],
+  "moduleList": [
+    { "id": 1, "title": "热门小说", "subtitle": "最受欢迎的小说推荐", "type": "NOVEL", "status": "PUBLISH", "updateTime": "2026-05-27T10:00:00Z" },
+    { "id": 2, "title": "最新视频", "subtitle": "最新上传的视频内容", "type": "VIDEO", "status": "PUBLISH", "updateTime": "2026-05-27T10:00:00Z" },
+    { "id": 3, "title": "热播剧集", "subtitle": "正在热播的电视剧", "type": "TELEPLAY", "status": "PUBLISH", "updateTime": "2026-05-27T10:00:00Z" },
+    { "id": 4, "title": "热门音乐", "subtitle": "热门音乐推荐", "type": "MUSIC", "status": "PUBLISH", "updateTime": "2026-05-27T10:00:00Z" },
+    { "id": 5, "title": "动漫推荐", "subtitle": "热门动漫推荐", "type": "ANIMATION", "status": "PUBLISH", "updateTime": "2026-05-27T10:00:00Z" }
+  ],
+  "moduleContents": {
+    "records": [
+      { "id": 1, "moduleId": 1, "title": "测试小说", "subtitle": "副标题", "contentType": "NOVEL", "status": "PUBLISH", "search": true, "updateTime": "2026-05-27T10:00:00Z" },
+      { "id": 2, "moduleId": 1, "title": "测试视频", "subtitle": "副标题", "contentType": "VIDEO", "status": "PUBLISH", "search": false, "updateTime": "2026-05-27T10:00:00Z" }
+    ],
+    "totalRow": 2
+  },
+  "banners": [
+    { "id": 1, "name": "首页Banner", "imageUrl": "https://picsum.photos/1920/600", "linkUrl": "https://example.com", "status": "ACTIVE", "sort": 1, "updateTime": "2026-05-27T10:00:00Z" },
+    { "id": 2, "name": "活动Banner", "imageUrl": "https://picsum.photos/1920/600", "linkUrl": "https://example.com", "status": "ACTIVE", "sort": 2, "updateTime": "2026-05-27T10:00:00Z" }
+  ],
+  "categories": [
+    { "id": 1, "name": "小说", "code": "NOVEL", "sort": 1, "icon": "book", "updateTime": "2026-05-27T10:00:00Z" },
+    { "id": 2, "name": "视频", "code": "VIDEO", "sort": 2, "icon": "video", "updateTime": "2026-05-27T10:00:00Z" }
+  ],
+  "moduleMenus": [
+    { "id": 1, "name": "首页", "path": "/home", "icon": "home", "sort": 1, "updateTime": "2026-05-27T10:00:00Z" },
+    { "id": 2, "name": "内容管理", "path": "/account/content", "icon": "content", "sort": 2, "updateTime": "2026-05-27T10:00:00Z" }
+  ],
+  "moduleLists": [
+    { "id": 1, "name": "推荐列表", "code": "recommend", "type": "NOVEL", "sort": 1, "updateTime": "2026-05-27T10:00:00Z" }
+  ],
+  "moduleTags": [
+    { "id": 1, "name": "热门", "code": "hot", "type": "NOVEL", "updateTime": "2026-05-27T10:00:00Z" },
+    { "id": 2, "name": "最新", "code": "newest", "type": "NOVEL", "updateTime": "2026-05-27T10:00:00Z" }
+  ],
+  "moduleSources": [
+    { "id": 1, "name": "笔趣阁", "domain": "biquge.tw", "url": "https://www.biquge.tw", "category": ["NOVEL"], "updateTime": "2026-05-27T10:00:00Z" },
+    { "id": 2, "name": "哔哩哔哩", "domain": "bilibili.com", "url": "https://www.bilibili.com", "category": ["VIDEO"], "updateTime": "2026-05-27T10:00:00Z" }
+  ],
+  "moduleTemplates": [
+    { "id": 1, "type": "NOVEL", "category": "小说", "updateTime": "2026-05-27T10:00:00Z" },
+    { "id": 2, "type": "VIDEO", "category": "视频", "updateTime": "2026-05-27T10:00:00Z" }
+  ],
+  "moduleTemplateAttrs": [
+    { "id": 1, "templateId": 1, "name": "标题", "type": "STRING", "code": "title", "remark": "内容标题", "updateTime": "2026-05-27T10:00:00Z" }
+  ],
+  "moduleContentToplists": [
+    { "id": 1, "name": "热搜榜", "type": "NOVEL", "updateTime": "2026-05-27T10:00:00Z" }
+  ],
+  "moduleContentToplistItems": [
+    { "id": 1, "toplistId": 1, "contentId": 1, "title": "测试内容", "subtitle": "副标题", "sort": 1, "updateTime": "2026-05-27T10:00:00Z" }
+  ],
+  "moduleDetails": [
+    { "id": 1, "contentId": 1, "content": "详情内容", "updateTime": "2026-05-27T10:00:00Z" }
+  ],
+  "articles": {
+    "records": [{ "id": 1, "title": "测试文章", "subtitle": "副标题", "status": "PUBLISH", "updateTime": "2026-05-27T10:00:00Z" }],
+    "totalRow": 1
+  },
+  "videos": {
+    "records": [{ "id": 1, "title": "测试视频", "subtitle": "副标题", "status": "PUBLISH", "updateTime": "2026-05-27T10:00:00Z" }],
+    "totalRow": 1
+  },
+  "music": {
+    "records": [{ "id": 1, "title": "测试音乐", "subtitle": "副标题", "status": "PUBLISH", "updateTime": "2026-05-27T10:00:00Z" }],
+    "totalRow": 1
+  },
+  "novels": {
+    "records": [{ "id": 1, "title": "测试小说", "subtitle": "副标题", "status": "PUBLISH", "updateTime": "2026-05-27T10:00:00Z" }],
+    "totalRow": 1
+  },
+  "novelChapters": {
+    "records": [{ "id": 1, "novelId": 1, "title": "第一章", "sort": 1, "updateTime": "2026-05-27T10:00:00Z" }],
+    "totalRow": 1
+  },
+  "films": {
+    "records": [{ "id": 1, "title": "测试电影", "subtitle": "副标题", "status": "PUBLISH", "updateTime": "2026-05-27T10:00:00Z" }],
+    "totalRow": 1
+  },
+  "filmItems": { "records": [], "totalRow": 0 },
+  "teleplays": {
+    "records": [{ "id": 1, "title": "测试电视剧", "subtitle": "副标题", "status": "PUBLISH", "updateTime": "2026-05-27T10:00:00Z" }],
+    "totalRow": 1
+  },
+  "teleplayItems": { "records": [], "totalRow": 0 },
+  "animations": {
+    "records": [{ "id": 1, "title": "测试动画", "subtitle": "副标题", "status": "PUBLISH", "updateTime": "2026-05-27T10:00:00Z" }],
+    "totalRow": 1
+  },
+  "animationItems": { "records": [], "totalRow": 0 },
+  "comics": {
+    "records": [{ "id": 1, "title": "测试漫画", "subtitle": "副标题", "status": "PUBLISH", "updateTime": "2026-05-27T10:00:00Z" }],
+    "totalRow": 1
+  },
+  "comicsItems": { "records": [], "totalRow": 0 },
+  "vshows": {
+    "records": [{ "id": 1, "title": "测试微剧", "subtitle": "副标题", "status": "PUBLISH", "updateTime": "2026-05-27T10:00:00Z" }],
+    "totalRow": 1
+  },
+  "vshowItems": { "records": [], "totalRow": 0 },
+  "live": { "records": [], "totalRow": 0 },
+  "pictureAlbums": {
+    "records": [{ "id": 1, "title": "测试相册", "subtitle": "副标题", "status": "PUBLISH", "updateTime": "2026-05-27T10:00:00Z" }],
+    "totalRow": 1
+  },
+  "pictureDetails": { "records": [], "totalRow": 0 },
+  "news": {
+    "records": [{ "id": 1, "title": "测试新闻", "subtitle": "副标题", "status": "PUBLISH", "updateTime": "2026-05-27T10:00:00Z" }],
+    "totalRow": 1
+  },
+  "pan": {
+    "records": [{ "id": 1, "title": "测试网盘", "subtitle": "副标题", "status": "PUBLISH", "updateTime": "2026-05-27T10:00:00Z" }],
+    "totalRow": 1
+  },
+  "websites": {
+    "records": [{ "id": 1, "title": "测试网站", "subtitle": "副标题", "status": "PUBLISH", "updateTime": "2026-05-27T10:00:00Z" }],
+    "totalRow": 1
+  },
+  "urls": {
+    "records": [{ "id": 1, "title": "测试链接", "url": "https://example.com", "status": "PUBLISH", "updateTime": "2026-05-27T10:00:00Z" }],
+    "totalRow": 1
+  },
+  "spiderQueues": {
+    "records": [{ "id": 1, "name": "爬虫队列1", "status": "PENDING", "totalUrls": 100, "processedUrls": 50, "updateTime": "2026-05-27T10:00:00Z" }],
+    "totalRow": 1
+  },
+  "todoQueues": {
+    "records": [{ "id": 1, "name": "待办队列1", "status": "PENDING", "updateTime": "2026-05-27T10:00:00Z" }],
+    "totalRow": 1
+  },
+  "spiderBatch": {
+    "list": [
+      { "id": 1, "name": "笔趣阁爬取", "domain": "biquge.tw", "url": "https://www.biquge.tw", "type": "novel", "status": "running", "progress": 65, "totalUrls": 100, "processedUrls": 65, "createTime": "2026-05-27T10:00:00Z", "updateTime": "2026-05-27T10:30:00Z" }
+    ],
+    "total": 1
+  },
+  "spiderWorkers": {
+    "list": [
+      { "id": "w1", "name": "Worker-1", "status": "idle", "processedCount": 156, "lastActiveTime": "2026-05-27T10:35:00Z" }
+    ],
+    "total": 1
+  },
+  "spiderSiteSlots": {
+    "list": [
+      { "id": 1, "siteName": "笔趣阁", "domain": "biquge.tw", "status": "active", "activeSlots": 2, "maxSlots": 3, "progress": 65 }
+    ],
+    "total": 1
+  },
+  "userCurrent": {
+    "id": 1,
+    "username": "guest",
+    "nickname": "游客",
+    "avatar": "https://picsum.photos/100/100",
+    "permissions": []
+  },
+  "menuList": [
+    { "id": 1, "name": "首页", "path": "/home", "icon": "home", "sort": 1 },
+    { "id": 2, "name": "内容管理", "path": "/account/content", "icon": "content", "sort": 2 }
+  ]
+}

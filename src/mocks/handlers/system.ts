@@ -1,0 +1,329 @@
+/**
+ * Admin (system) MSW handlers — 110+ endpoints 覆盖 12 个 system 页面。
+ * 涵盖 user / role / menu / dict / app / appConfig / appService / resource / permission / data-permission / area / website-dict / notice / user-contact / point / sign / chart / sms / content / menu / module-menu。
+ */
+
+import { http, HttpResponse } from 'msw';
+import {
+  SYS_USER,
+  SYS_USER_LEVEL,
+  SYS_USER_POINT,
+  SYS_ROLE,
+  SYS_MENU,
+  SYS_DICT_TYPE,
+  SYS_DICT_DATA,
+  SYS_APP,
+  SYS_APP_CONFIG,
+  SYS_APP_SERVICE,
+  SYS_RESOURCE,
+  SYS_DATA_PERMISSION,
+  SYS_PROVINCE,
+  SYS_CITY,
+  SYS_STREET,
+  SYS_AREA,
+  SYS_WEBSITE_DICT,
+  NOTICE_LIST,
+  USER_CONTACT,
+  USER_CONTACT_GROUP,
+  USER_CONTACT_RECENT,
+  NOTICE_INTERACTION,
+  NOTICE_SYSTEM,
+  DM_SESSIONS,
+  DM_MESSAGES,
+  USER_SIGN,
+  USER_RELATION,
+  USER_PROFILE,
+  DASHBOARD_RADAR,
+  MODULE_MENU_TREE,
+} from '../db/system';
+
+const ok = <T,>(data: T) => HttpResponse.json({ code: 200, msg: 'OK', data });
+const okPage = <T,>(records: T[], totalRow: number) => ok({ records, totalRow, page: 1, pageSize: 20 });
+const okList = <T,>(list: T[], total: number) => ok({ list, total });
+const okSuggest = <T,>(list: T[]) => ok(list);
+
+export const systemHandlers = [
+  // ─── user ───
+  http.get('*/api/admin/user/page', () => okPage(SYS_USER.records, SYS_USER.totalRow)),
+  http.get(/\/api\/admin\/user\/\d+$/, ({ params }) => {
+    const id = Number((params as any)[0]);
+    return ok(SYS_USER.records.find((u) => u.id === id) || SYS_USER.records[0]);
+  }),
+  http.get('*/api/admin/user/list', () => okList(SYS_USER.records, SYS_USER.totalRow)),
+  http.get('*/api/admin/user', () => ok(USER_PROFILE)),
+  http.get('*/api/admin/user/profile', () => ok(USER_PROFILE)),
+  http.post('*/api/admin/user/systemAdd', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/admin/user/systemUpdate', () => ok({ updated: 1 })),
+  http.post('*/api/admin/user/updateMe', () => ok(USER_PROFILE)),
+  http.post('*/api/admin/user/checkPassword', () => ok({ valid: true })),
+  http.post('*/api/admin/user/roleAdd', () => ok({ added: 1 })),
+  http.post('*/api/admin/user/logout', () => ok({ success: true })),
+  http.post('*/api/admin/user/upload', () => ok({ url: 'https://picsum.photos/seed/avatar-upload/200/200' })),
+  http.get('*/api/admin/user/name/available', () => ok({ available: true })),
+  http.get('*/api/admin/user/connectList', () => okList([], 0)),
+  http.delete(/\/api\/admin\/user\/removeByIds.*/, () => ok({ removed: 1 })),
+
+  // ─── userLevel ───
+  http.get('*/api/admin/userLevel/client/page', () => okPage(SYS_USER_LEVEL.records, SYS_USER_LEVEL.totalRow)),
+  http.post('*/api/admin/userLevel/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/admin/userLevel/updateById', () => ok({ updated: 1 })),
+  http.delete(/\/api\/admin\/userLevel\/removeByIds.*/, () => ok({ removed: 1 })),
+
+  // ─── userRole ───
+  http.delete(/\/api\/admin\/userRole\/removeByIds.*/, () => ok({ removed: 1 })),
+
+  // ─── role ───
+  http.get('*/api/admin/role/page', () => okPage(SYS_ROLE.records, SYS_ROLE.totalRow)),
+  http.post('*/api/admin/role/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/admin/role/updateById', () => ok({ updated: 1 })),
+  http.post('*/api/admin/role/menuChange', () => ok({ updated: 1 })),
+  http.post('*/api/admin/role/permissionAdd', () => ok({ added: 1 })),
+  http.post('*/api/admin/role/dataPermissionAdd', () => ok({ added: 1 })),
+  http.post('*/api/admin/role/userAdd', () => ok({ added: 1 })),
+  http.get('*/api/admin/role/suggestUser', () => okSuggest(SYS_USER.records.slice(0, 10).map((u) => ({ id: u.id, nickname: u.nickname, avatar: u.avatar })))),
+  http.get('*/api/admin/role/suggestPermission', () => okSuggest(SYS_RESOURCE.records.slice(0, 10))),
+  http.get('*/api/admin/role/suggestDataPermission', () => okSuggest(SYS_DATA_PERMISSION.records)),
+  http.delete(/\/api\/admin\/role\/removeByIds.*/, () => ok({ removed: 1 })),
+
+  http.delete(/\/api\/admin\/rolePermission\/removeByIds.*/, () => ok({ removed: 1 })),
+  http.delete(/\/api\/admin\/roleDataPermission\/removeByIds.*/, () => ok({ removed: 1 })),
+
+  // ─── menu ───
+  http.get('*/api/admin/menu', () => ok(SYS_MENU.records)),
+  http.get('*/api/admin/menu/list', () => ok(SYS_MENU.records)),
+  http.get('*/api/admin/menu/me', () => ok(SYS_MENU.records)),
+  http.post('*/api/admin/menu/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/admin/menu/updateById', () => ok({ updated: 1 })),
+  http.delete(/\/api\/admin\/menu\/removeByIds.*/, () => ok({ removed: 1 })),
+
+  // ─── moduleMenu (content 子域) ───
+  http.get('*/api/admin/moduleMenu/client/list', () => okList(SYS_MENU.records, SYS_MENU.totalRow)),
+  http.get('*/api/admin/moduleMenu/client/page', () => okPage(SYS_MENU.records, SYS_MENU.totalRow)),
+  http.get('*/api/admin/moduleMenu/client/tree', () => ok(MODULE_MENU_TREE)),
+  http.get('*/api/admin/module/moduleMenu/client/tree', () => ok(MODULE_MENU_TREE)),
+  http.post('*/api/admin/moduleMenu/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/admin/moduleMenu/updateById', () => ok({ updated: 1 })),
+  http.delete(/\/api\/admin\/moduleMenu\/removeByIds.*/, () => ok({ removed: 1 })),
+
+  // ─── dict ───
+  http.get('*/api/admin/dict/data/list', () => okList(SYS_DICT_DATA, SYS_DICT_DATA.length)),
+  http.get('*/api/admin/dict/data/all', () => okList(SYS_DICT_DATA, SYS_DICT_DATA.length)),
+  http.get('*/api/admin/dict/data/all/module-type', () => okList(SYS_DICT_DATA.filter((d) => d.typeId === 1), 9)),
+
+  // ─── sysDictType ───
+  http.get('*/api/admin/sysDictType/list', () => okList(SYS_DICT_TYPE.records, SYS_DICT_TYPE.totalRow)),
+  http.get('*/api/admin/sysDictType/listType', () => okList(SYS_DICT_TYPE.records, SYS_DICT_TYPE.totalRow)),
+  http.get('*/api/admin/sysDictType/page', () => okPage(SYS_DICT_TYPE.records, SYS_DICT_TYPE.totalRow)),
+  http.post('*/api/admin/sysDictType/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/admin/sysDictType/updateById', () => ok({ updated: 1 })),
+  http.delete(/\/api\/admin\/sysDictType\/removeByIds.*/, () => ok({ removed: 1 })),
+
+  // ─── sysDictData ───
+  http.get('*/api/admin/sysDictData/list', () => okList(SYS_DICT_DATA, SYS_DICT_DATA.length)),
+  http.get('*/api/admin/sysDictData/listType', () => okList(SYS_DICT_DATA, SYS_DICT_DATA.length)),
+  http.get('*/api/admin/sysDictData/page', () => okPage(SYS_DICT_DATA, SYS_DICT_DATA.length)),
+  http.post('*/api/admin/sysDictData/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/admin/sysDictData/updateById', () => ok({ updated: 1 })),
+  http.delete(/\/api\/admin\/sysDictData\/removeByIds.*/, () => ok({ removed: 1 })),
+
+  // ─── app ───
+  http.get('*/api/admin/app/page', () => okPage(SYS_APP.records, SYS_APP.records.length)),
+  http.get('*/api/admin/app/removeByIds', () => ok({ removed: 1 })),
+  http.post('*/api/admin/app/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/admin/app/updateById', () => ok({ updated: 1 })),
+
+  // ─── appConfig ───
+  http.get('*/api/admin/appConfig/listByMap', () => okList(SYS_APP_CONFIG.list, SYS_APP_CONFIG.total)),
+  http.get('*/api/admin/appConfig/page', () => okPage(SYS_APP_CONFIG.list, SYS_APP_CONFIG.total)),
+  http.delete(/\/api\/admin\/appConfig\/removeByIds.*/, () => ok({ removed: 1 })),
+  http.post('*/api/admin/appConfig/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/admin/appConfig/updateById', () => ok({ updated: 1 })),
+
+  // ─── appService ───
+  http.get('*/api/admin/appService/listApp', () => okList(SYS_APP_SERVICE.list, SYS_APP_SERVICE.list.length)),
+  http.get('*/api/admin/appService/page', () => okPage(SYS_APP_SERVICE.list, SYS_APP_SERVICE.list.length)),
+  http.delete(/\/api\/admin\/appService\/removeByIds.*/, () => ok({ removed: 1 })),
+  http.post('*/api/admin/appService/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/admin/appService/updateById', () => ok({ updated: 1 })),
+
+  // ─── resource ───
+  http.get('*/api/admin/resource/list', () => okList(SYS_RESOURCE.records, SYS_RESOURCE.totalRow)),
+  http.get('*/api/admin/resource/page', () => okPage(SYS_RESOURCE.records, SYS_RESOURCE.totalRow)),
+  http.post('*/api/admin/resource/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/admin/resource/updateById', () => ok({ updated: 1 })),
+  http.post('*/api/admin/resource/sync', () => ok({ synced: 1 })),
+  http.delete(/\/api\/admin\/resource\/removeByIds.*/, () => ok({ removed: 1 })),
+
+  // ─── permission (老) ───
+  http.get('*/api/admin/permission/list', () => okList(SYS_RESOURCE.records, SYS_RESOURCE.totalRow)),
+  http.get('*/api/admin/permission/page', () => okPage(SYS_RESOURCE.records, SYS_RESOURCE.totalRow)),
+  http.post('*/api/admin/permission/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/admin/permission/updateById', () => ok({ updated: 1 })),
+  http.delete(/\/api\/admin\/permission\/removeByIds.*/, () => ok({ removed: 1 })),
+
+  // ─── point records ───
+  http.get('*/api/admin/point/records', () => okPage(SYS_USER_POINT.history, SYS_USER_POINT.history.length)),
+  http.get('*/api/admin/point/page', () => okPage(SYS_USER_POINT.history, SYS_USER_POINT.history.length)),
+
+  // ─── area/page ───
+  http.get('*/api/admin/area/page', () => okPage(SYS_PROVINCE, SYS_PROVINCE.length)),
+  http.get('*/api/admin/area/list', () => okList(SYS_PROVINCE, SYS_PROVINCE.length)),
+
+  // ─── data-permission ───
+  http.get('*/api/admin/data-permission/list', () => okList(SYS_DATA_PERMISSION.records, SYS_DATA_PERMISSION.totalRow)),
+  http.get('*/api/admin/dataPermission/list', () => okList(SYS_DATA_PERMISSION.records, SYS_DATA_PERMISSION.totalRow)),
+
+  // ─── area (省/市/区) ───
+  http.get('*/api/admin/area/provinces', () => okList(SYS_PROVINCE, SYS_PROVINCE.length)),
+  http.get('*/api/admin/sysProvince/page', () => okPage(SYS_PROVINCE, SYS_PROVINCE.length)),
+  http.post('*/api/admin/sysProvince/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/admin/sysProvince/updateById', () => ok({ updated: 1 })),
+  http.delete(/\/api\/admin\/sysProvince\/removeByIds.*/, () => ok({ removed: 1 })),
+
+  http.get('*/api/admin/sysCity/page', () => okPage(SYS_CITY.records, SYS_CITY.totalRow)),
+  http.post('*/api/admin/sysCity/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/admin/sysCity/updateById', () => ok({ updated: 1 })),
+  http.delete(/\/api\/admin\/sysCity\/removeByIds.*/, () => ok({ removed: 1 })),
+
+  http.get('*/api/admin/sysStreet/page', () => okPage(SYS_STREET.records, SYS_STREET.totalRow)),
+  http.post('*/api/admin/sysStreet/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/admin/sysStreet/updateById', () => ok({ updated: 1 })),
+  http.delete(/\/api\/admin\/sysStreet\/removeByIds.*/, () => ok({ removed: 1 })),
+
+  // 旧 /area 路径(简化)
+  http.get(/\/api\/admin\/area\/provinces.*/, () => okList(SYS_PROVINCE, SYS_PROVINCE.length)),
+  http.post('*/api/admin/area/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/admin/area/update', () => ok({ updated: 1 })),
+  http.post('*/api/admin/area/remove', () => ok({ removed: 1 })),
+
+  // ─── website-dict ───
+  http.get('*/api/admin/sysWebsiteDict/client/page', () => okPage(SYS_WEBSITE_DICT.records, SYS_WEBSITE_DICT.totalRow)),
+  http.post('*/api/admin/sysWebsiteDict/saveBatch', () => ok({ added: 1 })),
+  http.post('*/api/admin/sysWebsiteDict/updateById', () => ok({ updated: 1 })),
+  http.delete(/\/api\/admin\/sysWebsiteDict\/removeByIds.*/, () => ok({ removed: 1 })),
+
+  // ─── notice ───
+  http.get('*/api/admin/notice/list', () => okList(NOTICE_LIST.records, NOTICE_LIST.totalRow)),
+  http.get('*/api/admin/notice/size', () => ok({ total: NOTICE_LIST.totalRow, unread: 3 })),
+  http.post('*/api/admin/notice/update', () => ok({ updated: 1 })),
+  http.get('*/api/admin/notice/client/historyChat', () => okList([], 0)),
+  http.get('*/api/admin/notice/pullStream', () => okList([], 0)),
+
+  // ─── point ───
+  http.get('*/api/admin/point/user', () => ok(SYS_USER_POINT)),
+  http.get('*/api/admin/userPoint', () => ok(SYS_USER_POINT)),
+  http.post('*/api/admin/point/update', () => ok({ updated: 1 })),
+  http.post('*/api/admin/point/unlock', () => ok({ unlocked: true })),
+  http.post('*/api/admin/point/remove', () => ok({ removed: 1 })),
+
+  // ─── chart (dashboard) ───
+  http.get('*/api/admin/chart/radar', () => ok(DASHBOARD_RADAR)),
+
+  // ─── sms ───
+  http.post('*/api/admin/sms/send', () => ok({ sent: true, expireAt: new Date(Date.now() + 300000).toISOString() })),
+  http.post('*/api/admin/sms/verify', () => ok({ verified: true })),
+
+  // ─── authentication ───
+  http.post('*/api/admin/authentication/openid', () => ok({ openid: 'o6_bmjrPTlm6_2sgVt7hMZOPfL_demo', token: 'mock-token-67890' })),
+
+  // ─── content (admin 域里嵌的) ───
+  http.post('*/api/admin/content/parse', () => ok({ parsed: true, type: 'novel', fields: ['title', 'author', 'content'] })),
+  http.post('*/api/admin/content/collect', () => ok({ collected: 12 })),
+  http.post('*/api/admin/content/report', () => ok({ reported: true, reportId: 9999 })),
+  http.get('*/api/admin/content/search', () => okList([], 0)),
+  http.post('*/api/admin/content/file/upload', () => ok({ url: 'https://picsum.photos/seed/upload/200/200', filename: 'demo.jpg' })),
+  http.post('*/api/admin/file/upload', () => ok({ url: 'https://picsum.photos/seed/upload/200/200', filename: 'demo.jpg' })),
+  http.get('*/api/admin/content/novelBookshelf/my', () => okList([], 0)),
+  http.post('*/api/admin/content/novelBookshelf/remove', () => ok({ removed: 1 })),
+  http.get('*/api/admin/content/question/qa', () => okList([], 0)),
+  http.post('*/api/admin/content/question/qa', () => ok({ id: 9999 })),
+  http.get('*/api/admin/question/qa', () => okList([], 0)),
+
+  // ─── user-relation (社交) ───
+  http.get('*/api/admin/user-relation/list', () => okList(USER_RELATION.followers, USER_RELATION.followers.length)),
+  http.get('*/api/admin/user-relation/record', () => okList(USER_RELATION.following, USER_RELATION.following.length)),
+
+  // ─── user-sign ───
+  http.get('*/api/admin/user-sign/hasSign', () => ok(USER_SIGN.hasSign)),
+  http.get('*/api/admin/user-sign/record', () => ok(USER_SIGN.record)),
+  http.post('*/api/admin/user-sign/sign', () => ok({ signed: true, point: 10, continuousDays: USER_SIGN.continuousDays + 1 })),
+
+  // ─── user-activity ───
+  http.get('*/api/admin/user-activity/list', () => okList([], 0)),
+
+  // ─── userContact (社交联系人) ───
+  http.get('*/api/admin/userContact/client/list', () => okList(USER_CONTACT.records, USER_CONTACT.totalRow)),
+  http.post('*/api/admin/userContact/agree', () => ok({ agreed: true })),
+  http.post('*/api/admin/userContact/send', () => ok({ sent: true, requestId: 9999 })),
+  http.delete(/\/api\/admin\/userContact\/removeByIds.*/, () => ok({ removed: 1 })),
+
+  // ─── userContactGroup ───
+  http.get('*/api/admin/userContactGroup/client/list', () => okList(USER_CONTACT_GROUP.records, USER_CONTACT_GROUP.totalRow)),
+  http.get('*/api/admin/userContactGroup/client/suggest', () => okSuggest(USER_CONTACT_GROUP.records.slice(0, 5))),
+  http.post('*/api/admin/userContactGroup/create', () => ok({ id: 9999 })),
+  http.post('*/api/admin/userContactGroup/invite', () => ok({ invited: 1 })),
+  http.post('*/api/admin/userContactGroup/agree', () => ok({ agreed: true })),
+  http.post('*/api/admin/userContactGroup/send', () => ok({ sent: true })),
+
+  // ─── userContactRecent ───
+  http.get('*/api/admin/userContactRecent/client/list', () => okList(USER_CONTACT_RECENT, USER_CONTACT_RECENT.length)),
+  http.post('*/api/admin/userContactRecent/client/insert', () => ok({ id: 9999 })),
+  http.post('*/api/admin/userContactRecentExt/client/process', () => ok({ processed: true })),
+
+  // ─── 通知中心 ───
+  http.get('*/api/admin/notice/interaction/list', ({ request }) => {
+    const url = new URL(request.url);
+    const subType = url.searchParams.get('subType') || 'all';
+    let records = NOTICE_INTERACTION.records;
+    if (subType !== 'all') {
+      const map: Record<string, string[]> = {
+        comment: ['comment'],
+        mention: ['mention'],
+        like: ['like'],
+        follow: ['follow'],
+        friend: [],
+      };
+      const allowed = map[subType] || [];
+      records = records.filter((r) => allowed.includes(r.type));
+    }
+    return okList(records, records.length);
+  }),
+  http.get('*/api/admin/notice/system/list', () => okList(NOTICE_SYSTEM.records, NOTICE_SYSTEM.totalRow)),
+  http.get('*/api/admin/notice/count', () => ok({
+    interaction: NOTICE_INTERACTION.records.filter((r) => r.unread).length,
+    system: NOTICE_SYSTEM.records.filter((r) => r.unread).length,
+    total: NOTICE_INTERACTION.records.filter((r) => r.unread).length + NOTICE_SYSTEM.records.filter((r) => r.unread).length,
+  })),
+  http.post('*/api/admin/notice/read', () => ok({ updated: 1 })),
+  http.post('*/api/admin/notice/readAll', () => ok({ updated: 1 })),
+
+  // ─── 私信 ───
+  http.get('*/api/admin/msg/session/list', () => okList(DM_SESSIONS, DM_SESSIONS.length)),
+  http.get('*/api/admin/msg/session/detail', ({ request }) => {
+    const id = Number(new URL(request.url).searchParams.get('id') || 1);
+    const session = DM_SESSIONS.find((s) => s.id === id) || DM_SESSIONS[0];
+    return ok(session);
+  }),
+  http.get('*/api/admin/msg/message/list', ({ request }) => {
+    const id = Number(new URL(request.url).searchParams.get('sessionId') || 1);
+    return okList(DM_MESSAGES[id] || DM_MESSAGES[1] || [], (DM_MESSAGES[id] || DM_MESSAGES[1] || []).length);
+  }),
+  http.post('*/api/admin/msg/message/send', async ({ request }) => {
+    const body = (await request.json().catch(() => ({}))) as { sessionId?: number; content?: string; type?: string };
+    return ok({
+      id: Math.floor(Math.random() * 1000) + 99999,
+      sessionId: body.sessionId,
+      fromUserId: 2000,
+      type: body.type || 'text',
+      content: body.content || '',
+      time: new Date().toISOString(),
+      status: 'sent',
+    });
+  }),
+  http.post('*/api/admin/msg/session/follow', () => ok({ followed: true })),
+  http.post('*/api/admin/msg/session/unfollow', () => ok({ unfollowed: true })),
+  http.post('*/api/admin/msg/session/read', () => ok({ read: true })),
+  http.delete(/\/api\/admin\/msg\/session\/removeByIds.*/, () => ok({ removed: 1 })),
+  http.post('*/api/admin/msg/message/recall', () => ok({ recalled: true })),
+  http.post('*/api/admin/msg/upload', () => ok({ url: 'https://picsum.photos/seed/dm-up/240/180', filename: 'image.jpg' })),
+];

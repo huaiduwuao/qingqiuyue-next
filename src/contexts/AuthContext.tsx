@@ -19,49 +19,64 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 // Public paths that don't require authentication
-const PUBLIC_PATHS = ['/user/login', '/user/social-login'];
+export const PUBLIC_PATHS = ['/user/login', '/user/social-login'];
+
+// Cookie name used to bridge Edge middleware (which can't read localStorage)
+const TOKEN_COOKIE = 'auth-token';
+function setTokenCookie(token: string | null) {
+  if (typeof document === 'undefined') return;
+  if (token) {
+    document.cookie = `${TOKEN_COOKIE}=${token}; path=/; max-age=86400; SameSite=Lax`;
+  } else {
+    document.cookie = `${TOKEN_COOKIE}=; path=/; max-age=0; SameSite=Lax`;
+  }
+}
 
 export function AuthContextProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('token');
-    }
-    return null;
-  });
+  const [token, setToken] = useState<string | null>(null);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
   const { setCurrentUser, setMenuData, setDict } = useApp();
   const prevTokenRef = useRef<string | null>(null);
 
+  // 客户端 hydration 后从 localStorage 读 token,避免 SSR 闪烁
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const saved = localStorage.getItem('token');
+    if (saved) setToken(saved);
+    setHydrated(true);
+  }, []);
+
   const login = useCallback((newToken: string) => {
     localStorage.setItem('token', newToken);
+    setTokenCookie(newToken);
     setToken(newToken);
   }, []);
 
   const logout = useCallback(async () => {
     try {
-      await apiLogout(); // Call backend to invalidate session
+      await apiLogout();
     } catch (e) {
-      // Ignore errors, clear local state anyway
+      // Ignore
     }
     localStorage.removeItem('token');
+    setTokenCookie(null);
     setToken(null);
     setPermissions([]);
+    setCurrentUser(null);
     prevTokenRef.current = null;
     router.push('/user/login');
-  }, [router]);
+  }, [router, setCurrentUser]);
 
   const checkAuth = useCallback(async () => {
-    // Prevent re-fetching if token hasn't changed
-    if (prevTokenRef.current === token) {
-      return;
-    }
+    if (prevTokenRef.current === token) return;
     prevTokenRef.current = token;
 
     if (!token) {
-      if (!PUBLIC_PATHS.some(path => pathname?.startsWith(path))) {
+      if (!PUBLIC_PATHS.some((p) => pathname?.startsWith(p))) {
         router.push('/user/login');
       }
       return;
@@ -86,7 +101,6 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
         setDict(dictRes.data || []);
       }
     } catch (error) {
-      // Token invalid or expired
       if (error instanceof Error && error.message.includes(' unauthorized')) {
         logout();
       }
@@ -96,8 +110,8 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
   }, [token, pathname, router, logout, setCurrentUser, setMenuData, setDict]);
 
   useEffect(() => {
-    checkAuth();
-  }, [token]);
+    if (hydrated) checkAuth();
+  }, [hydrated, token, checkAuth]);
 
   const value: AuthContextValue = {
     isAuthenticated: !!token,
@@ -117,4 +131,36 @@ export function useAuth() {
     throw new Error('useAuth must be used within AuthContextProvider');
   }
   return context;
+}
+
+/**
+ * 角色 / 权限判断 hook。组合 useAuth + useApp,提供更便捷的判断。
+ *
+ * 用法:
+ *   const { isAdmin, hasAuthority, hasPermission } = useAuthority();
+ *   if (isAdmin) { ... }
+ *   if (hasAuthority('ADMIN')) { ... }
+ *   if (hasPermission('system:role:create')) { ... }
+ *
+ * 注:数据权限(行级过滤)由后端 GORM 插件根据 token 自动注入 WHERE,
+ *    前端不参与也不展示,不要在这里加 dataScope 相关字段。
+ */
+export function useAuthority() {
+  const { currentUser } = useApp();
+  const { permissions } = useAuth();
+  const authorities = currentUser?.authorities || [];
+
+  const hasAuthority = useCallback(
+    (auth: string) => authorities.includes(auth),
+    [authorities]
+  );
+  const hasPermission = useCallback(
+    (code: string) => permissions.includes(code),
+    [permissions]
+  );
+  const can = hasPermission;
+  const isAdmin = hasAuthority('ADMIN') || hasAuthority('SUPER_ADMIN');
+  const roles = authorities;
+
+  return { isAdmin, hasAuthority, hasPermission, can, roles };
 }

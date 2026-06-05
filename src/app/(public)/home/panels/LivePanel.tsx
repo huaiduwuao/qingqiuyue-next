@@ -1,0 +1,426 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import Chip from '@mui/material/Chip';
+import LiveTvRoundedIcon from '@mui/icons-material/LiveTvRounded';
+import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
+import WhatshotIcon from '@mui/icons-material/Whatshot';
+import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
+import StarRoundedIcon from '@mui/icons-material/StarRounded';
+import { homeClient } from '@/lib/api/client';
+import { AsyncState } from '@/components/common/AsyncState';
+import { useContentNavigate } from '@/lib/contentRoute';
+import { IMAGE_OVERLAY, MEDAL, SECTION_TINT } from '@/constants/gradients';
+
+type LiveStatus = 'all' | 'live' | 'offline';
+type LiveSort = 'hot' | 'new';
+
+type Room = {
+  id: number;
+  hostId: number;
+  hostName: string;
+  hostAvatar: string;
+  title: string;
+  cover: string;
+  viewers: number;
+  category: string;
+  region: string;
+  startedAt: number;
+  isLive: boolean;
+  isTop: boolean;
+  hotRank: number;
+};
+
+type Resp = { list: Room[]; total: number };
+
+const STATUSES: { key: LiveStatus; label: string }[] = [
+  { key: 'all', label: '全部' },
+  { key: 'live', label: '直播中' },
+  { key: 'offline', label: '已下播' },
+];
+
+const SORTS: { key: LiveSort; label: string }[] = [
+  { key: 'hot', label: '人气' },
+  { key: 'new', label: '最新开播' },
+];
+
+const CAT_COLOR: Record<string, string> = {
+  颜值: 'primary.main',
+  游戏: '#8B5CF6',
+  音乐: 'secondary.main',
+  户外: 'success.main',
+  二次元: '#FF8A3D',
+  知识: 'warning.main',
+};
+
+export function LivePanel() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const urlStatus = (searchParams.get('liveStatus') as LiveStatus) || 'all';
+  const urlSort = (searchParams.get('sort') as LiveSort) || 'hot';
+  const [status, setStatusState] = useState<LiveStatus>(urlStatus);
+  const [sort, setSortState] = useState<LiveSort>(urlSort);
+
+  useEffect(() => { setStatusState(urlStatus); }, [urlStatus]);
+  useEffect(() => { setSortState(urlSort); }, [urlSort]);
+
+  const updateParam = (next: { liveStatus?: LiveStatus; sort?: LiveSort }) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next.liveStatus !== undefined) {
+      if (next.liveStatus === 'all') params.delete('liveStatus');
+      else params.set('liveStatus', next.liveStatus);
+    }
+    if (next.sort !== undefined) {
+      if (next.sort === 'hot') params.delete('sort');
+      else params.set('sort', next.sort);
+    }
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
+
+  const setStatus = (s: LiveStatus) => { setStatusState(s); updateParam({ liveStatus: s }); };
+  const setSort = (s: LiveSort) => { setSortState(s); updateParam({ sort: s }); };
+
+  const query = useQuery({
+    queryKey: ['home', 'live', 'rooms', status, sort],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (status !== 'all') params.set('status', status);
+      if (sort !== 'hot') params.set('sort', sort);
+      return homeClient.get<Resp>(`/live/rooms?${params.toString()}`).then((r) => r.data);
+    },
+  });
+
+  const topQuery = useQuery({
+    queryKey: ['home', 'live', 'top'],
+    queryFn: () => homeClient.get<Resp & { updatedAt: number }>('/live/top').then((r) => r.data),
+  });
+
+  return (
+    <Box sx={{ p: 2 }}>
+      {/* 标题 + 简介 */}
+      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 2.5 }}>
+        <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary, #ffffff)' }}>直播</Typography>
+        <Typography sx={{ fontSize: 12, color: 'var(--text-muted, rgba(255,255,255,0.5))' }}>实时高热榜 · 在线主播</Typography>
+      </Box>
+
+      {/* TOP 10 人气榜(领奖台) */}
+      <AsyncState query={topQuery} skeletonCount={0} isEmpty={() => false}>
+        {(data) => <LiveTop10 list={data.list} />}
+      </AsyncState>
+
+      {/* 多维筛选 chips */}
+      <Box sx={{ mt: 4, mb: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1, flexWrap: 'wrap' }}>
+          <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', width: 36, flexShrink: 0 }}>状态</Typography>
+          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+            {STATUSES.map((s) => (
+              <FilterChip key={s.key} active={status === s.key} label={s.label} onClick={() => setStatus(s.key)} />
+            ))}
+          </Box>
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+          <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', width: 36, flexShrink: 0 }}>排序</Typography>
+          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+            {SORTS.map((s) => (
+              <FilterChip key={s.key} active={sort === s.key} label={s.label} onClick={() => setSort(s.key)} />
+            ))}
+          </Box>
+        </Box>
+      </Box>
+
+      {/* 直播间网格 */}
+      <AsyncState
+        query={query}
+        skeletonCount={6}
+        skeletonHeight={320}
+        isEmpty={(d) => d.list.length === 0}
+        emptyText="该筛选下暂无直播间"
+        emptyHint="试试切回全部"
+      >
+        {(data) => (
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
+            {data.list.map((room) => (
+              <RoomCard key={room.id} room={room} />
+            ))}
+          </Box>
+        )}
+      </AsyncState>
+    </Box>
+  );
+}
+
+function FilterChip({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+  return (
+    <Box
+      onClick={onClick}
+      sx={{
+        px: 1.25,
+        py: 0.5,
+        borderRadius: 1.5,
+        cursor: 'pointer',
+        fontSize: 12,
+        fontWeight: active ? 600 : 400,
+        color: active ? 'var(--text-primary, #ffffff)' : 'var(--text-secondary, rgba(255,255,255,0.65))',
+        bgcolor: active ? 'var(--brand-color, #FE2C55)' : 'var(--bg-input, rgba(255,255,255,0.04))',
+        border: active ? 'none' : '1px solid var(--border-color, rgba(255,255,255,0.06))',
+        transition: 'all 0.15s',
+        '&:hover': { bgcolor: active ? 'var(--brand-color, #FE2C55)' : 'var(--bg-active, rgba(255,255,255,0.08))' },
+      }}
+    >
+      {label}
+    </Box>
+  );
+}
+
+// ─── TOP 10 人气榜(领奖台) ───
+function LiveTop10({ list }: { list: Room[] }) {
+  if (list.length === 0) return null;
+  const top3 = list.filter((r) => r.hotRank >= 1 && r.hotRank <= 3);
+  const rest = list.filter((r) => r.hotRank >= 4 && r.hotRank <= 10);
+
+  return (
+    <Box
+      sx={{
+        position: 'relative',
+        mb: 1,
+        p: 2.5,
+        borderRadius: 2.5,
+        background: SECTION_TINT.RED_YELLOW_PURPLE,
+        border: '1px solid rgba(255,255,255,0.08)',
+        overflow: 'hidden',
+      }}
+    >
+      <Box sx={{ position: 'absolute', top: 12, right: 16, display: 'flex', alignItems: 'center', gap: 0.75, color: 'warning.main' }}>
+        <LocalFireDepartmentIcon sx={{ fontSize: 18 }} />
+        <Typography sx={{ fontSize: 13, fontWeight: 700, letterSpacing: 0.5 }}>TOP 10 人气榜</Typography>
+      </Box>
+
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+        <WhatshotIcon sx={{ fontSize: 20, color: 'primary.main' }} />
+        <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>本周人气最高</Typography>
+        <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))', ml: 1 }}>按在线观看人数</Typography>
+      </Box>
+
+      {/* 前三名:领奖台 */}
+      {top3.length === 3 && (
+        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1fr', gap: 1.5, mb: 2, mt: 1 }}>
+          {top3
+            .sort((a, b) => a.hotRank - b.hotRank)
+            .map((r) => (
+              <PodiumCard key={r.id} room={r} />
+            ))}
+        </Box>
+      )}
+
+      {/* 4-10 列表 */}
+      {rest.length > 0 && (
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 1, pt: 1.5, borderTop: '1px dashed rgba(255,255,255,0.08)' }}>
+          {rest.map((r) => (
+            <RankRow key={r.id} room={r} />
+          ))}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+function PodiumCard({ room }: { room: Room }) {
+  const rank = room.hotRank;
+  const rankStyle = MEDAL[rank] ?? MEDAL[3];
+
+  return (
+    <Box
+      sx={{
+        position: 'relative',
+        borderRadius: 2,
+        overflow: 'hidden',
+        cursor: 'pointer',
+        background: rankStyle.bg,
+        border: '1px solid',
+        borderColor: rankStyle.border,
+        transition: 'transform 0.2s',
+        '&:hover': { transform: 'translateY(-3px)' },
+      }}
+    >
+      <Box sx={{ position: 'absolute', top: 8, left: 8, width: 28, height: 28, borderRadius: '50%', background: rankStyle.badge, color: rankStyle.txt, fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(0,0,0,0.4)', zIndex: 1 }}>
+        {rank}
+      </Box>
+      <Box sx={{ position: 'relative', aspectRatio: '3/4' }}>
+        <img src={room.cover} alt={room.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.MID }} />
+        {room.isLive && (
+          <Box sx={{ position: 'absolute', top: 8, right: 8, display: 'flex', alignItems: 'center', gap: 0.25, px: 0.75, py: 0.25, borderRadius: 0.5, bgcolor: 'primary.main', color: '#fff', fontSize: 9, fontWeight: 700 }}>
+            <LiveTvRoundedIcon sx={{ fontSize: 10, color: '#fff !important' }} />
+            LIVE
+          </Box>
+        )}
+        <Box sx={{ position: 'absolute', bottom: 8, left: 8, right: 8 }}>
+          <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#fff', mb: 0.25, lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+            {room.title}
+          </Typography>
+          <Typography sx={{ fontSize: 10, color: 'rgba(255,255,255,0.7)' }}>
+            {formatViewers(room.viewers)} 人气 · {room.category}
+          </Typography>
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
+function RankRow({ room }: { room: Room }) {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.75, borderRadius: 1, cursor: 'pointer', transition: 'background 0.15s', '&:hover': { bgcolor: 'rgba(255,255,255,0.04)' } }}>
+      <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted, rgba(255,255,255,0.4))', width: 22, textAlign: 'right', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+        {room.hotRank}
+      </Typography>
+      <Box sx={{ width: 32, height: 18, borderRadius: 0.5, overflow: 'hidden', flexShrink: 0 }}>
+        <img src={room.cover} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      </Box>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography sx={{ fontSize: 11, fontWeight: 500, color: 'var(--text-primary, #fff)', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {room.title}
+        </Typography>
+        <Typography sx={{ fontSize: 9, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
+          {room.category} · {formatViewers(room.viewers)}
+        </Typography>
+      </Box>
+    </Box>
+  );
+}
+
+function RoomCard({ room }: { room: Room }) {
+  return (
+    <Box
+      sx={{
+        position: 'relative',
+        aspectRatio: '3/4',
+        borderRadius: 2,
+        overflow: 'hidden',
+        cursor: 'pointer',
+        transition: 'transform 0.2s',
+        '&:hover': { transform: 'scale(1.02)' },
+      }}
+    >
+      <img src={room.cover} alt={room.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.HEAVY }} />
+
+      {room.hotRank > 0 && (
+        <Chip
+          label={`TOP ${room.hotRank}`}
+          size="small"
+          sx={{
+            position: 'absolute',
+            top: 8,
+            left: 8,
+            height: 18,
+            bgcolor: 'warning.main',
+            color: '#1a1a1a',
+            fontSize: 9,
+            fontWeight: 800,
+          }}
+        />
+      )}
+
+      {room.isLive ? (
+        <Chip
+          icon={<LiveTvRoundedIcon sx={{ fontSize: 11, color: '#ffffff !important' }} />}
+          label="LIVE"
+          size="small"
+          sx={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            height: 18,
+            bgcolor: 'primary.main',
+            color: 'var(--text-primary, #ffffff)',
+            fontSize: 10,
+            fontWeight: 700,
+            '& .MuiChip-icon': { color: 'var(--text-primary, #ffffff)' },
+          }}
+        />
+      ) : (
+        <Chip
+          label="已下播"
+          size="small"
+          sx={{
+            position: 'absolute',
+            top: 8,
+            right: 8,
+            height: 18,
+            bgcolor: 'rgba(0,0,0,0.5)',
+            color: 'var(--text-secondary, rgba(255,255,255,0.7))',
+            fontSize: 10,
+          }}
+        />
+      )}
+
+      <Box sx={{ position: 'absolute', bottom: 12, left: 12, right: 12 }}>
+        <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary, #ffffff)', mb: 0.5, lineHeight: 1.3 }}>
+          {room.title}
+        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box
+            sx={{
+              width: 18,
+              height: 18,
+              borderRadius: '50%',
+              background: room.hostAvatar,
+              border: '1px solid var(--border-strong, rgba(255,255,255,0.3))',
+              fontSize: 9,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--text-primary, #ffffff)',
+              fontWeight: 600,
+            }}
+          >
+            {room.hostName[0]}
+          </Box>
+          <Typography sx={{ fontSize: 11, color: 'var(--text-primary, rgba(255,255,255,0.85))', flex: 1 }}>
+            {room.hostName}
+          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, color: 'var(--text-primary, #ffffff)' }}>
+            <VisibilityRoundedIcon sx={{ fontSize: 11 }} />
+            <Typography sx={{ fontSize: 11, fontWeight: 600 }}>{formatViewers(room.viewers)}</Typography>
+          </Box>
+        </Box>
+        <Box sx={{ mt: 0.75, display: 'flex', gap: 0.5 }}>
+          <Chip
+            label={room.category}
+            size="small"
+            sx={{
+              height: 16,
+              bgcolor: 'var(--border-strong, rgba(255,255,255,0.12))',
+              color: CAT_COLOR[room.category] || 'var(--text-primary, #fff)',
+              fontSize: 9,
+              fontWeight: 600,
+            }}
+          />
+          <Chip
+            label={room.region}
+            size="small"
+            sx={{
+              height: 16,
+              bgcolor: 'rgba(255,255,255,0.08)',
+              color: 'var(--text-secondary, rgba(255,255,255,0.7))',
+              fontSize: 9,
+              fontWeight: 500,
+            }}
+          />
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
+function formatViewers(n: number): string {
+  if (n >= 10000) return `${(n / 10000).toFixed(1)}万`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return n.toString();
+}

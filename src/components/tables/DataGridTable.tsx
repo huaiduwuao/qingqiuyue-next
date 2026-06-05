@@ -1,17 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
-import {
-  DataGrid,
-  GridColDef,
-  GridPaginationModel,
-  GridSortModel,
-  GridRowId,
-} from '@mui/x-data-grid';
+import { GridColDef, GridPaginationModel, GridSortModel, GridRowId } from '@mui/x-data-grid';
+
+const DataGrid = lazy(() => import('@mui/x-data-grid').then(mod => ({ default: mod.DataGrid })));
 
 interface DataGridTableProps {
   title?: string;
@@ -22,11 +18,20 @@ interface DataGridTableProps {
     sortField?: string;
     sortOrder?: string;
     [key: string]: any;
-  }) => Promise<{ data: { records: any[]; totalRow: number }; success: boolean }>;
+  }) => Promise<{ data: { records?: any[]; list?: any[]; totalRow?: number; total?: number }; success?: boolean; code?: number }>;
   onEdit?: (row: any) => void;
   onDelete?: (row: any) => void;
   onSelectionChange?: (rows: any[]) => void;
   toolBarRender?: () => React.ReactNode;
+  /**
+   * Optional filter/query values that should cause a refetch when changed.
+   * Serialized as a dep key — pass primitives only (string/number/boolean).
+   */
+  extraParams?: Record<string, string | number | boolean | undefined | null>;
+  /** 操作列权限码 — 不传则不限制 */
+  actionPermissions?: { edit?: string; delete?: string };
+  /** 拥有 edit/delete 权限的判断函数;不传则永远 true(交给 actionPermissions 控制) */
+  hasPermission?: (code: string) => boolean;
 }
 
 export function DataGridTable({
@@ -37,10 +42,14 @@ export function DataGridTable({
   onDelete,
   onSelectionChange,
   toolBarRender,
+  extraParams,
+  actionPermissions,
+  hasPermission,
 }: DataGridTableProps) {
   const [rows, setRows] = useState<any[]>([]);
   const [rowCount, setRowCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
     page: 0,
     pageSize: 20,
@@ -55,11 +64,21 @@ export function DataGridTable({
   const mountedRef = useRef(true);
 
   useEffect(() => {
+    setMounted(true);
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
     };
   }, []);
+
+  const extraParamsKey = useMemo(
+    () => (extraParams ? JSON.stringify(extraParams) : ''),
+    [extraParams],
+  );
+
+  useEffect(() => {
+    setPaginationModel((prev) => (prev.page === 0 ? prev : { ...prev, page: 0 }));
+  }, [extraParamsKey]);
 
   const loadData = useCallback(async () => {
     if (isLoadingRef.current || !mountedRef.current) return;
@@ -78,19 +97,35 @@ export function DataGridTable({
         sortOrder: sortOrder as string | undefined,
       });
 
-      if (mountedRef.current && result.success) {
-        setRows(result.data.records || []);
-        setRowCount(result.data.totalRow || 0);
+      if (mountedRef.current) {
+        const data = result?.data || {};
+        const list = data.records || data.list || [];
+        const total = data.totalRow || data.total || 0;
+
+        const isSuccess = result?.success !== false && (result?.success === true || result?.code === 200 || result?.code === 0 || result?.code === undefined || list.length > 0);
+
+        if (isSuccess) {
+          setRows(list);
+          setRowCount(total);
+        } else {
+          console.warn('Fetch returned unsuccessful result:', result);
+          setRows([]);
+          setRowCount(0);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch data:', error);
+      if (mountedRef.current) {
+        setRows([]);
+        setRowCount(0);
+      }
     } finally {
       if (mountedRef.current) {
         setLoading(false);
       }
       isLoadingRef.current = false;
     }
-  }, [paginationModel.page, paginationModel.pageSize, sortModel]);
+  }, [paginationModel.page, paginationModel.pageSize, sortModel, extraParamsKey]);
 
   useEffect(() => {
     loadData();
@@ -115,18 +150,24 @@ export function DataGridTable({
   const actionColumn: GridColDef = {
     field: 'actions',
     headerName: '操作',
-    width: 150,
+    flex: 1,
+    minWidth: 140,
     sortable: false,
     disableColumnMenu: true,
+    align: 'center',
+    headerAlign: 'center',
     renderCell: (params) => {
+      const canEdit = !actionPermissions?.edit || (hasPermission ? hasPermission(actionPermissions.edit) : true);
+      const canDelete = !actionPermissions?.delete || (hasPermission ? hasPermission(actionPermissions.delete) : true);
+      if (!canEdit && !canDelete) return null;
       return (
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          {onEdit && (
+        <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+          {onEdit && canEdit && (
             <Button size="small" variant="text" onClick={() => onEdit(params.row)}>
               编辑
             </Button>
           )}
-          {onDelete && (
+          {onDelete && canDelete && (
             <Button size="small" color="error" variant="text" onClick={() => onDelete(params.row)}>
               删除
             </Button>
@@ -136,33 +177,73 @@ export function DataGridTable({
     },
   };
 
-  const columnsWithActions = [...columns, actionColumn];
+  const columnsWithActions = useMemo<GridColDef[]>(() => {
+    if (columns.some((col) => col.field === 'actions')) {
+      // 给用户自定义的 actions 列也加 flex 让它填充剩余宽度
+      return columns.map((col) =>
+        col.field === 'actions' && !col.flex
+          ? { ...col, flex: 1, minWidth: col.minWidth ?? 140 }
+          : col,
+      );
+    }
+    return [...columns, actionColumn];
+  }, [columns]);
+
+  const centeredColumns = useMemo<GridColDef[]>(() => {
+    return columnsWithActions.map((col) => ({
+      ...col,
+      headerAlign: col.headerAlign ?? 'center',
+      align: col.align ?? 'center',
+    }));
+  }, [columnsWithActions]);
+
+  if (!mounted) {
+    return (
+      <Paper sx={{ width: '100%', p: 2 }}>
+        {title && (
+          <Typography variant="h6" sx={{ mb: 2 }}>
+            {title}
+          </Typography>
+        )}
+        <Box sx={{ minHeight: 400 }} />
+      </Paper>
+    );
+  }
 
   return (
-    <Paper sx={{ width: '100%', p: 2 }}>
+    <Paper sx={{ width: '100%', p: 2, bgcolor: 'background.paper' }}>
       {title && (
         <Typography variant="h6" sx={{ mb: 2 }}>
           {title}
         </Typography>
       )}
       {toolBarRender && <Box sx={{ mb: 2 }}>{toolBarRender()}</Box>}
-      <DataGrid
-        rows={rows}
-        columns={columnsWithActions}
-        loading={loading}
-        rowCount={rowCount}
-        paginationMode="server"
-        paginationModel={paginationModel}
-        onPaginationModelChange={handlePaginationModelChange}
-        pageSizeOptions={[10, 20, 50, 100]}
-        sortingMode="server"
-        sortModel={sortModel}
-        onSortModelChange={handleSortModelChange}
-        checkboxSelection
-        disableRowSelectionOnClick
-        onRowSelectionModelChange={handleRowSelectionChange}
-        sx={{ border: 0, minHeight: 400 }}
-      />
+      <Box sx={{ width: '100%' }}>
+        <Suspense fallback={<Box sx={{ height: 400 }} />}>
+          <DataGrid
+            rows={rows}
+            columns={centeredColumns}
+            loading={loading}
+            autoHeight
+            paginationModel={paginationModel}
+            onPaginationModelChange={handlePaginationModelChange}
+            pageSizeOptions={[10, 20, 50, 100]}
+            sortModel={sortModel}
+            onSortModelChange={handleSortModelChange}
+            disableRowSelectionOnClick
+            sx={{
+              width: '100%',
+              '& [data-field="actions"]': {
+                justifyContent: 'center',
+              },
+              '& [data-field="actions"].MuiDataGrid-cell--withRenderer': {
+                display: 'flex',
+                alignItems: 'center',
+              },
+            }}
+          />
+        </Suspense>
+      </Box>
     </Paper>
   );
 }

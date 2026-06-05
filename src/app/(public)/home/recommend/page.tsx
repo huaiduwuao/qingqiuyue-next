@@ -1,95 +1,313 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import Typography from '@mui/material/Typography';
+import React from 'react';
 import Box from '@mui/material/Box';
-import Container from '@mui/material/Container';
-import Tabs from '@mui/material/Tabs';
-import Tab from '@mui/material/Tab';
-import Card from '@mui/material/Card';
-import CardContent from '@mui/material/CardContent';
-import Grid from '@mui/material/Grid';
-import { useApp } from '@/contexts/AppContext';
-import { moduleList } from '@/apis/home';
+import Typography from '@mui/material/Typography';
+import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import { moduleContentPage } from '@/apis/home';
+import { getDetailRoute } from '@/lib/contentRoute';
+import { TYPE_GRADIENT, RANK_BG } from '@/constants/gradients';
+
+interface ContentItem {
+  id: number;
+  title: string;
+  subtitle?: string;
+  contentType: string;
+  coverUrl?: string;
+  status: string;
+  agreeCount?: number;
+  collectCount?: number;
+  commentCount?: number;
+  viewCount?: number;
+  author?: { id: number; nickname: string; avatar?: string };
+  [key: string]: any;
+}
+
+const CATEGORY_NAV = [
+  '全部', '小说', '漫画', '影视', '综艺', '音乐', '小剧场', '二次元', '游戏', '资讯', '公开课', '科技',
+];
+
+const CATEGORY_TO_TYPE: Record<string, string> = {
+  小说: 'NOVEL', 漫画: 'COMICS', 影视: 'FILM', 综艺: 'VSHOW', 音乐: 'MUSIC',
+  小剧场: 'TELEPLAY', 二次元: 'ANIMATION', 游戏: 'VIDEO', 资讯: 'NEWS',
+  公开课: 'ARTICLE', 科技: 'ARTICLE',
+};
+
+// URL ?tab=xxx ↔ 中文分类 双向映射;tab 缺失等价于 'all' (全部)
+const CATEGORY_TO_TAB: Record<string, string> = {
+  全部: 'all', 小说: 'novel', 漫画: 'comics', 影视: 'film', 综艺: 'vshow', 音乐: 'music',
+  小剧场: 'theater', 二次元: 'anime', 游戏: 'video', 资讯: 'news',
+  公开课: 'article', 科技: 'tech',
+};
+const TAB_TO_CATEGORY: Record<string, string> = Object.fromEntries(
+  Object.entries(CATEGORY_TO_TAB).map(([cat, tab]) => [tab, cat]),
+);
+
+function formatCount(n: number = 0): string {
+  if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return n.toString();
+}
 
 export default function HomeRecommendPage() {
-  const { currentUser, dict, modules } = useApp();
-  const [typeList, setTypeList] = useState<any[]>([]);
-  const [selectedType, setSelectedType] = useState<any>({});
-  const [moduleData, setModuleData] = useState<any[]>([]);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const tabFromUrl = searchParams.get('tab') || 'all';
+  const activeCategory = TAB_TO_CATEGORY[tabFromUrl] || '全部';
 
-  useEffect(() => {
-    if (dict && dict.length > 0) {
-      const types = dict.filter((item: any) => item.type === 'module-type')[0]?.dataList || [];
-      setTypeList(types);
-      if (types.length > 0 && !selectedType.id) {
-        setSelectedType(types[0]);
-      }
+  const setActiveCategory = (category: string) => {
+    const newTab = CATEGORY_TO_TAB[category] || 'all';
+    const params = new URLSearchParams(searchParams.toString());
+    if (newTab === 'all') {
+      params.delete('tab');
+    } else {
+      params.set('tab', newTab);
     }
-  }, [dict]);
-
-  useEffect(() => {
-    const fetchModules = async () => {
-      try {
-        const res = await moduleList({});
-        setModuleData(res.data?.list || []);
-      } catch (err) {
-        console.error('Failed to fetch modules:', err);
-      }
-    };
-    fetchModules();
-  }, []);
-
-  const filteredModules = moduleData.filter((item: any) => item.type === selectedType?.id);
-
-  const handleTypeChange = (event: React.SyntheticEvent, newValue: any) => {
-    const types = dict?.filter((item: any) => item.type === 'module-type')[0]?.dataList || [];
-    setSelectedType(types[newValue] || {});
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
   };
 
+  const contentQuery = useQuery({
+    queryKey: ['home-recommend', 'content', activeCategory],
+    queryFn: () => moduleContentPage({
+      pageNum: 1,
+      pageSize: 12,
+      contentType: activeCategory === '全部' ? '' : CATEGORY_TO_TYPE[activeCategory] || activeCategory,
+      order: 'COLLECT',
+    }).then((r: any) => r.data?.list || []),
+    placeholderData: (prev) => prev || [],
+  });
+  const contentList: ContentItem[] = contentQuery.data || [];
+  const loading = contentQuery.isFetching;
+
+  const handleCardClick = (item: ContentItem) => {
+    const route = getDetailRoute(item.contentType, item.id);
+    if (route) router.push(route);
+  };
+
+  const displayList = React.useMemo(() => {
+    if (contentList.length >= 12) return contentList;
+    const placeholders: ContentItem[] = Array.from({ length: 12 - contentList.length }).map((_, i) => ({
+      id: -(contentList.length + i + 1),
+      title: '',
+      contentType: 'NOVEL',
+      status: 'placeholder',
+    } as ContentItem));
+    return [...contentList, ...placeholders];
+  }, [contentList]);
+
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ py: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          首页推荐
-        </Typography>
-
-        {typeList.length > 0 && (
-          <Tabs
-            value={typeList.findIndex((t) => t.id === selectedType?.id) || 0}
-            onChange={handleTypeChange}
-            variant="scrollable"
-            scrollButtons="auto"
-            sx={{ mb: 3 }}
-          >
-            {typeList.map((type: any) => (
-              <Tab key={type.id} label={type.label || type.name} />
-            ))}
-          </Tabs>
-        )}
-
-        <Grid container spacing={3}>
-          {moduleData.map((item: any) => (
-            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={item.id}>
-              <Card>
-                <CardContent>
-                  <Typography variant="h6">{item.title}</Typography>
-                  <Typography color="text.secondary" sx={{ mt: 1 }}>
-                    {item.subtitle || '暂无描述'}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-          {moduleData.length === 0 && (
-            <Grid size={{ xs: 12 }}>
-              <Typography align="center" color="text.secondary" sx={{ py: 4 }}>
-                暂无内容
-              </Typography>
-            </Grid>
-          )}
-        </Grid>
+    <Box sx={{ px: 3, py: 2 }}>
+      {/* 分类导航 */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 0.5,
+          mb: 2,
+          pb: 1.5,
+          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          overflowX: 'auto',
+          '&::-webkit-scrollbar': { display: 'none' },
+        }}
+      >
+        {CATEGORY_NAV.map((c) => {
+          const isActive = activeCategory === c;
+          return (
+            <Box
+              key={c}
+              onClick={() => setActiveCategory(c)}
+              sx={{
+                position: 'relative',
+                px: 1.5,
+                py: 0.75,
+                fontSize: 14,
+                fontWeight: isActive ? 600 : 400,
+                color: isActive ? 'text.primary' : 'rgba(255,255,255,0.55)',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                transition: 'color 0.15s',
+                '&:hover': { color: 'text.primary' },
+                '&::after': isActive
+                  ? {
+                      content: '""',
+                      position: 'absolute',
+                      left: 12,
+                      right: 12,
+                      bottom: -1.5,
+                      height: 2,
+                      borderRadius: 1,
+                      bgcolor: 'primary.main',
+                    }
+                  : {},
+              }}
+            >
+              {c}
+            </Box>
+          );
+        })}
       </Box>
-    </Container>
+
+      {/* 内容 3 列网格 */}
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          gap: 1.5,
+        }}
+      >
+        {displayList.map((item, idx) => {
+          const rank = idx + 1;
+          const hasContent = item.id > 0;
+          const gradient = TYPE_GRADIENT[item.contentType] || TYPE_GRADIENT.NOVEL;
+
+          if (!hasContent) {
+            return <Box key={item.id} sx={{ aspectRatio: '4/5' }} />;
+          }
+
+          return (
+            <Box
+              key={item.id}
+              onClick={() => handleCardClick(item)}
+              sx={{
+                position: 'relative',
+                borderRadius: 2,
+                overflow: 'hidden',
+                cursor: 'pointer',
+                aspectRatio: '4/5',
+                background: gradient,
+                transition: 'transform 0.2s, box-shadow 0.2s',
+                '&:hover': {
+                  transform: 'translateY(-3px)',
+                  boxShadow: '0 12px 32px rgba(0,0,0,0.4)',
+                },
+              }}
+            >
+              <Box
+                sx={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: 'radial-gradient(circle at 30% 20%, rgba(255,255,255,0.15), transparent 60%)',
+                }}
+              />
+              {item.coverUrl && (
+                <Box
+                  component="img"
+                  src={item.coverUrl}
+                  alt={item.title}
+                  sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                  }}
+                  onError={(e: any) => {
+                    e.target.style.display = 'none';
+                  }}
+                />
+              )}
+
+              {/* Rank badge top-left */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: 36,
+                  height: 36,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 18,
+                  fontWeight: 800,
+                  color: 'text.primary',
+                  fontFamily: 'monospace',
+                  background: rank <= 3
+                    ? RANK_BG[rank]
+                    : 'rgba(0,0,0,0.5)',
+                  backdropFilter: rank > 3 ? 'blur(4px)' : 'none',
+                  borderBottomRightRadius: 8,
+                  boxShadow: rank <= 3 ? '0 4px 12px rgba(0,0,0,0.3)' : 'none',
+                }}
+              >
+                {rank}
+              </Box>
+
+              {/* Play count top-right */}
+              {item.viewCount !== undefined && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    top: 8,
+                    right: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.25,
+                    px: 0.75,
+                    py: 0.25,
+                    borderRadius: 1,
+                    bgcolor: 'rgba(0,0,0,0.5)',
+                    backdropFilter: 'blur(4px)',
+                    color: 'text.primary',
+                    fontSize: 10,
+                    fontFamily: 'monospace',
+                  }}
+                >
+                  <PlayArrowRoundedIcon sx={{ fontSize: 11 }} />
+                  {formatCount(item.viewCount)}
+                </Box>
+              )}
+
+              {/* Bottom info */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  p: 1.25,
+                  background: 'linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.7) 100%)',
+                }}
+              >
+                <Typography
+                  sx={{
+                    fontSize: 12,
+                    fontWeight: 500,
+                    color: 'text.primary',
+                    lineHeight: 1.3,
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                    minHeight: 32,
+                  }}
+                >
+                  {item.title}
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                  <Box
+                    sx={{
+                      px: 0.5,
+                      py: 0.125,
+                      borderRadius: 0.5,
+                      bgcolor: 'rgba(255, 88, 88, 0.4)',
+                      color: 'text.primary',
+                      fontSize: 9,
+                      fontWeight: 600,
+                    }}
+                  >
+                    狼人杀
+                  </Box>
+                </Box>
+              </Box>
+            </Box>
+          );
+        })}
+      </Box>
+    </Box>
   );
 }

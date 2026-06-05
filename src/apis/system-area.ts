@@ -44,7 +44,7 @@ export const page = async (params?: { pageNumber?: number; pageSize?: number; so
     params,
   });
 };
-export const remove = async (ids: string[]) => {
+export const remove = async (ids: Array<string | number>) => {
   return adminClient('/area/remove', { method: 'DELETE', data: ids });
 };
 export const save = async (params: any) => {

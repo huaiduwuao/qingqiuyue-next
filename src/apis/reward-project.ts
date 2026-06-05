@@ -1,12 +1,11 @@
 import { rewardClient } from '@/lib/api/client';
+import type { ProjectItem } from '@/beans/reward';
 
-// 项目信息
-export interface ProjectInfo {
+// 项目信息(API 返回的完整字段 = ProjectItem 视图的全部可选字段)
+export interface ProjectInfo extends ProjectItem {
   id: number;
   name: string;
   description?: string;
-  status?: string;
-  createTime?: string;
 }
 
 // 项目查询参数

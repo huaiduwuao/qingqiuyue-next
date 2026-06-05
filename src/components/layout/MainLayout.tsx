@@ -20,6 +20,7 @@ import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import Link from 'next/link';
 import Drawer from '@mui/material/Drawer';
+import { usePathname } from 'next/navigation';
 import HomeIcon from '@mui/icons-material/Home';
 import SearchIcon from '@mui/icons-material/Search';
 import PersonIcon from '@mui/icons-material/Person';
@@ -50,21 +51,17 @@ const CATEGORY_ICON_MAP: Record<string, React.ReactNode> = {
 
 // Memoized category items to prevent unnecessary re-renders
 const CATEGORIES = [
-  { id: 'home', name: '首页推荐', icon: 'home', path: '/home/recommend' },
-  { id: 'hot', name: '热点榜', icon: 'hot', path: '/home/more' },
-  { id: 'star', name: '明星脸', icon: 'star', path: '/home/star' },
-  { id: 'movie', name: '影视剧', icon: 'movie', path: '/home/movie' },
-  { id: 'music', name: '音乐', icon: 'music', path: '/home/music' },
-  { id: 'live', name: '直播', icon: 'live', path: '/home/live' },
+  { id: 'home', name: '推荐', icon: 'home', path: '/home/recommend' },
   { id: 'reward', name: '悬赏', icon: 'hot', path: '/home/reward' },
 ];
 
 // Memoized category button component
-const CategoryButton = memo(({ cat, onClose }: { cat: typeof CATEGORIES[0]; onClose?: () => void }) => (
+const CategoryButton = memo(({ cat, selected, onClose }: { cat: typeof CATEGORIES[0]; selected?: boolean; onClose?: () => void }) => (
   <ListItem key={cat.id} disablePadding>
     <ListItemButton
       component={Link}
       href={cat.path}
+      selected={selected}
       onClick={onClose}
       sx={{ mx: 1, borderRadius: 2 }}
     >
@@ -93,13 +90,19 @@ const MenuItemButton = memo(({ item, onClose }: { item: any; onClose?: () => voi
 MenuItemButton.displayName = 'MenuItemButton';
 
 export function MainLayout({ children }: { children: ReactNode }) {
+  const [mounted, setMounted] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [searchValue, setSearchValue] = useState('');
+  const pathname = usePathname();
   const { currentUser, menuData, setMenuData, setDict } = useApp();
   const { token, logout } = useAuth();
   const { mode, toggleTheme } = useThemeMode();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Menu data is fetched by AuthContext via checkAuth, no additional fetch needed
 
@@ -129,7 +132,7 @@ export function MainLayout({ children }: { children: ReactNode }) {
       <Divider />
       <List sx={{ py: 2 }}>
         {CATEGORIES.map((cat) => (
-          <CategoryButton key={cat.id} cat={cat} onClose={() => setMobileOpen(false)} />
+          <CategoryButton key={cat.id} cat={cat} selected={pathname === cat.path} onClose={() => setMobileOpen(false)} />
         ))}
       </List>
       <Divider />
@@ -139,14 +142,14 @@ export function MainLayout({ children }: { children: ReactNode }) {
         ))}
       </List>
     </Box>
-  ), [menuData]);
+  ), [menuData, pathname]);
 
   // Memoized desktop sidebar content
   const sidebarContent = useMemo(() => (
     <>
       <List sx={{ py: 2 }}>
         {CATEGORIES.map((cat) => (
-          <CategoryButton key={cat.id} cat={cat} />
+          <CategoryButton key={cat.id} cat={cat} selected={pathname === cat.path} />
         ))}
       </List>
       <Divider />
@@ -156,10 +159,10 @@ export function MainLayout({ children }: { children: ReactNode }) {
         ))}
       </List>
     </>
-  ), [menuData]);
+  ), [menuData, pathname]);
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }} suppressHydrationWarning>
       {/* Top Header */}
       <AppBar position="fixed" elevation={0} sx={{ bgcolor: 'background.paper', color: 'text.primary' }}>
         <Toolbar sx={{ gap: 2 }}>
@@ -185,7 +188,6 @@ export function MainLayout({ children }: { children: ReactNode }) {
               display: { xs: 'none', sm: 'flex' },
               alignItems: 'center',
               bgcolor: 'action.hover',
-              borderRadius: 2,
               px: 2,
               py: 0.5,
               flex: 1,
@@ -233,6 +235,10 @@ export function MainLayout({ children }: { children: ReactNode }) {
             <MenuItem component={Link} href="/account/content" onClick={handleMenuClose}>
               <ListItemIcon><HomeIcon fontSize="small" /></ListItemIcon>
               内容管理
+            </MenuItem>
+            <MenuItem component={Link} href="/account/reward" onClick={handleMenuClose}>
+              <ListItemIcon><WhatshotIcon fontSize="small" /></ListItemIcon>
+              悬赏中心
             </MenuItem>
             <MenuItem component={Link} href="/account/settings" onClick={handleMenuClose}>
               <ListItemIcon><SettingsIcon fontSize="small" /></ListItemIcon>

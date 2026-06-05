@@ -1,6 +1,11 @@
 import axios, { AxiosError, AxiosResponse } from 'axios';
 
-const API_GATEWAY = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:10000';
+const MOCK_API_PORT = 3001;
+// MSW 启动时必须用同源 URL(空串),否则 Service Worker 拦截不到跨域 XHR
+const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === '1' || process.env.NEXT_PUBLIC_USE_MOCK === 'true';
+const API_GATEWAY = USE_MOCK
+  ? ''
+  : process.env.NEXT_PUBLIC_API_BASE_URL || `http://localhost:${MOCK_API_PORT}`;
 
 // 各模块API基地址
 export const API_BASE = {
@@ -10,6 +15,8 @@ export const API_BASE = {
   wx: `${API_GATEWAY}/api/wx`,
   spider: `${API_GATEWAY}/api/spider`,
   im: `${API_GATEWAY}/api/im`,
+  account: `${API_GATEWAY}/api/account`,
+  home: `${API_GATEWAY}/api/home`,
 };
 
 // 创建指定baseURL的axios实例
@@ -26,7 +33,12 @@ function createApiClient(baseURL: string) {
   client.interceptors.request.use(
     (config) => {
       if (typeof window !== 'undefined') {
-        const token = localStorage.getItem('token');
+        // 优先 cookie(供 middleware 同步),localStorage 兜底
+        const fromCookie = document.cookie
+          .split('; ')
+          .find((r) => r.startsWith('auth-token='))
+          ?.split('=')[1];
+        const token = fromCookie || localStorage.getItem('token');
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
@@ -76,6 +88,8 @@ export const rewardClient = createApiClient(API_BASE.reward);
 export const wxClient = createApiClient(API_BASE.wx);
 export const spiderClient = createApiClient(API_BASE.spider);
 export const imClient = createApiClient(API_BASE.im);
+export const accountClient = createApiClient(API_BASE.account);
+export const homeClient = createApiClient(API_BASE.home);
 
 // 默认导出admin客户端（兼容现有代码）
 export const apiClient = adminClient;

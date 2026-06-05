@@ -1,13 +1,11 @@
 import { rewardClient } from '@/lib/api/client';
+import type { ConceptionItem } from '@/beans/reward';
 
-// 概念信息
-export interface ConceptionInfo {
+// 概念信息(API 返回的完整字段 = ConceptionItem 视图的全部可选字段)
+export interface ConceptionInfo extends ConceptionItem {
   id: number;
   name: string;
   description?: string;
-  groupId?: number;
-  status?: string;
-  createTime?: string;
 }
 
 // 概念查询参数
@@ -17,6 +15,8 @@ export interface ConceptionQuery {
   pageNumber?: number;
   name?: string;
   groupId?: number;
+  demandId?: number;
+  status?: string;
 }
 
 // 概念列表响应

@@ -90,7 +90,7 @@ export default function WxMpAutoReplyPage() {
   ];
 
   return (
-    <Box sx={{ p: 2 }}>
+    <Box sx={{ p: { xs: 1.5, md: 2 } }}>
       <Typography variant="h5" sx={{ mb: 2 }}>自动回复</Typography>
       <DataGridTable
         columns={columns}

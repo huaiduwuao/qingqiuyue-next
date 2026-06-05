@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
@@ -11,181 +12,97 @@ import CardContent from '@mui/material/CardContent';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemText from '@mui/material/ListItemText';
-import Skeleton from '@mui/material/Skeleton';
 import Divider from '@mui/material/Divider';
 import Badge from '@mui/material/Badge';
 import { page as spiderPage } from '@/apis/content-spider-queue';
 import { page as todoPage } from '@/apis/content-todo-queue';
+import { AsyncState, EmptyState } from '@/components/common/AsyncState';
 
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
+const MOCK_SPIDER = [
+  { id: 1, title: '晋江文学城 · 待抓取', info: 'http://www.jjwxc.net', content: { content: '排队等待中,预计 5 分钟开始' } },
+  { id: 2, title: '起点中文网 · 待抓取', info: 'http://www.qidian.com', content: { content: '已分配 worker #2' } },
+];
+const MOCK_TODO = [
+  { id: 1, title: '首页推荐算法优化', info: 'P1', content: { content: '改用向量召回,当前 CTR +0.3%' } },
+  { id: 2, title: '详情页接 useQuery', info: 'P0', content: { content: '已完成 9/9' } },
+];
+
+interface QueuePanelProps {
+  status: 'running' | 'done';
+  onStatusChange: (s: 'running' | 'done') => void;
+  query: ReturnType<typeof useQuery<any[]>>;
 }
 
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
+function QueuePanel({ status, onStatusChange, query }: QueuePanelProps) {
   return (
-    <div role="tabpanel" hidden={value !== index} {...other}>
-      {value === index && <Box sx={{ py: 2 }}>{children}</Box>}
-    </div>
+    <Card>
+      <CardContent>
+        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+          <Tabs value={status === 'running' ? 0 : 1} onChange={(_, v) => onStatusChange(v === 0 ? 'running' : 'done')}>
+            <Tab label="进行中" />
+            <Tab label="已完成" />
+          </Tabs>
+        </Box>
+        <AsyncState query={query} isEmpty={(d) => d.length === 0} emptyText="暂无任务" emptyVariant="inbox">
+          {(data) => (
+            <List>
+              {data.map((item, index) => (
+                <React.Fragment key={item.id || index}>
+                  <ListItem alignItems="flex-start">
+                    <Badge badgeContent={`第${index + 1}名`} color="primary" sx={{ mr: 2 }}>
+                      <ListItemText
+                        primary={item.title || '无标题'}
+                        secondary={
+                          <Box component="span">
+                            {item.info && <Typography variant="body2" color="text.secondary">{item.info}</Typography>}
+                            {item.content?.content && <Typography variant="body2" sx={{ mt: 1 }}>{item.content.content}</Typography>}
+                          </Box>
+                        }
+                      />
+                    </Badge>
+                  </ListItem>
+                  <Divider component="li" />
+                </React.Fragment>
+              ))}
+            </List>
+          )}
+        </AsyncState>
+      </CardContent>
+    </Card>
   );
 }
 
 export default function HomeQueuePage() {
   const [tabIndex, setTabIndex] = useState(0);
-  const [spiderData, setSpiderData] = useState<any[]>([]);
-  const [todoData, setTodoData] = useState<any[]>([]);
-  const [spiderLoading, setSpiderLoading] = useState(false);
-  const [todoLoading, setTodoLoading] = useState(false);
-  const [spiderStatus, setSpiderStatus] = useState<string>('running');
-  const [todoStatus, setTodoStatus] = useState<string>('running');
+  const [spiderStatus, setSpiderStatus] = useState<'running' | 'done'>('running');
+  const [todoStatus, setTodoStatus] = useState<'running' | 'done'>('running');
 
-  const fetchSpiderData = async (status?: string) => {
-    setSpiderLoading(true);
-    try {
-      const res = await spiderPage({ current: 1, size: 50, status: status || spiderStatus });
-      setSpiderData(res.data?.records || []);
-    } catch (err) {
-      console.error('Failed to fetch spider queue:', err);
-    }
-    setSpiderLoading(false);
-  };
+  const spiderQuery = useQuery({
+    queryKey: ['queue', 'spider', spiderStatus],
+    queryFn: () => spiderPage({ current: 1, size: 50, status: spiderStatus }).then((r) => r.data?.records || MOCK_SPIDER),
+    placeholderData: MOCK_SPIDER,
+  });
 
-  const fetchTodoData = async (status?: string) => {
-    setTodoLoading(true);
-    try {
-      const res = await todoPage({ current: 1, size: 50, status: status || todoStatus });
-      setTodoData(res.data?.records || []);
-    } catch (err) {
-      console.error('Failed to fetch todo queue:', err);
-    }
-    setTodoLoading(false);
-  };
-
-  useEffect(() => {
-    fetchSpiderData();
-    fetchTodoData();
-  }, []);
-
-  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
-    setTabIndex(newValue);
-  };
-
-  const handleStatusChange = (type: 'spider' | 'todo', status: string) => {
-    if (type === 'spider') {
-      setSpiderStatus(status);
-      fetchSpiderData(status);
-    } else {
-      setTodoStatus(status);
-      fetchTodoData(status);
-    }
-  };
-
-  const renderSpiderList = () => (
-    <Card>
-      <CardContent>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-          <Tabs value={spiderStatus === 'running' ? 0 : 1} onChange={(_, v) => handleStatusChange('spider', v === 0 ? 'running' : 'done')}>
-            <Tab label="进行中" />
-            <Tab label="已完成" />
-          </Tabs>
-        </Box>
-        {spiderLoading ? (
-          <List>
-            {[1, 2, 3].map((i) => (
-              <ListItem key={i}>
-                <Skeleton variant="text" width="100%" height={30} />
-              </ListItem>
-            ))}
-          </List>
-        ) : spiderData.length === 0 ? (
-          <Typography align="center" color="text.secondary" sx={{ py: 4 }}>暂无内容</Typography>
-        ) : (
-          <List>
-            {spiderData.map((item, index) => (
-              <React.Fragment key={item.id || index}>
-                <ListItem alignItems="flex-start">
-                  <Badge badgeContent={`第${index + 1}名`} color="primary" sx={{ mr: 2 }}>
-                    <ListItemText
-                      primary={item.title || '无标题'}
-                      secondary={
-                        <Box component="span">
-                          {item.info && <Typography variant="body2" color="text.secondary">{item.info}</Typography>}
-                          {item.content?.content && <Typography variant="body2" sx={{ mt: 1 }}>{item.content.content}</Typography>}
-                        </Box>
-                      }
-                    />
-                  </Badge>
-                </ListItem>
-                <Divider component="li" />
-              </React.Fragment>
-            ))}
-          </List>
-        )}
-      </CardContent>
-    </Card>
-  );
-
-  const renderTodoList = () => (
-    <Card>
-      <CardContent>
-        <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-          <Tabs value={todoStatus === 'running' ? 0 : 1} onChange={(_, v) => handleStatusChange('todo', v === 0 ? 'running' : 'done')}>
-            <Tab label="进行中" />
-            <Tab label="已完成" />
-          </Tabs>
-        </Box>
-        {todoLoading ? (
-          <List>
-            {[1, 2, 3].map((i) => (
-              <ListItem key={i}>
-                <Skeleton variant="text" width="100%" height={30} />
-              </ListItem>
-            ))}
-          </List>
-        ) : todoData.length === 0 ? (
-          <Typography align="center" color="text.secondary" sx={{ py: 4 }}>暂无内容</Typography>
-        ) : (
-          <List>
-            {todoData.map((item, index) => (
-              <React.Fragment key={item.id || index}>
-                <ListItem alignItems="flex-start">
-                  <Badge badgeContent={`第${index + 1}名`} color="primary" sx={{ mr: 2 }}>
-                    <ListItemText
-                      primary={item.title || '无标题'}
-                      secondary={
-                        <Box component="span">
-                          {item.info && <Typography variant="body2" color="text.secondary">{item.info}</Typography>}
-                          {item.content?.content && <Typography variant="body2" sx={{ mt: 1 }}>{item.content.content}</Typography>}
-                        </Box>
-                      }
-                    />
-                  </Badge>
-                </ListItem>
-                <Divider component="li" />
-              </React.Fragment>
-            ))}
-          </List>
-        )}
-      </CardContent>
-    </Card>
-  );
+  const todoQuery = useQuery({
+    queryKey: ['queue', 'todo', todoStatus],
+    queryFn: () => todoPage({ current: 1, size: 50, status: todoStatus }).then((r) => r.data?.records || MOCK_TODO),
+    placeholderData: MOCK_TODO,
+  });
 
   return (
     <Container maxWidth="lg">
-      <Box sx={{ py: 4 }}>
+      <Box sx={{ py: { xs: 2, md: 4 } }}>
         <Typography variant="h4" sx={{ mb: 3 }}>队列</Typography>
-        <Tabs value={tabIndex} onChange={handleTabChange} sx={{ mb: 2 }}>
+        <Tabs value={tabIndex} onChange={(_, v) => setTabIndex(v)} variant="scrollable" scrollButtons="auto" sx={{ mb: 2 }}>
           <Tab label="找资源任务" />
           <Tab label="网站开发任务" />
         </Tabs>
-        <TabPanel value={tabIndex} index={0}>
-          {renderSpiderList()}
-        </TabPanel>
-        <TabPanel value={tabIndex} index={1}>
-          {renderTodoList()}
-        </TabPanel>
+        <Box sx={{ display: tabIndex === 0 ? 'block' : 'none' }}>
+          <QueuePanel status={spiderStatus} onStatusChange={setSpiderStatus} query={spiderQuery} />
+        </Box>
+        <Box sx={{ display: tabIndex === 1 ? 'block' : 'none' }}>
+          <QueuePanel status={todoStatus} onStatusChange={setTodoStatus} query={todoQuery} />
+        </Box>
       </Box>
     </Container>
   );

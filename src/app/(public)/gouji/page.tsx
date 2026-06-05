@@ -12,7 +12,6 @@ import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import TextField from '@mui/material/TextField';
-import Number from './components/Number';
 
 const cards = [3, 4, 5, 6, 7, 8, 9, 10, 'J', 'Q', 'K', 'A', 2, '小王', '大王'];
 
@@ -41,14 +40,14 @@ export default function HomeGoujiPage() {
 
   return (
     <Container maxWidth="xl">
-      <Box sx={{ py: 4 }}>
+      <Box sx={{ py: { xs: 2, md: 4 } }}>
         <Typography variant="h4" sx={{ mb: 3 }}>够级</Typography>
         <TableContainer component={Paper}>
           <Table size="small" stickyHeader>
             <TableHead>
               <TableRow>
-                <TableCell sx={{ width: 80, fontWeight: 'bold', bgcolor: 'action.hover' }}>牌</TableCell>
-                <TableCell sx={{ width: 80, fontWeight: 'bold', bgcolor: 'action.hover' }}>剩余</TableCell>
+                <TableCell align="center" sx={{ width: 80, fontWeight: 'bold', bgcolor: 'action.hover' }}>牌</TableCell>
+                <TableCell align="center" sx={{ width: 80, fontWeight: 'bold', bgcolor: 'action.hover' }}>剩余</TableCell>
                 {[1, 2, 3, 4, 5, 6].map((player) => (
                   <TableCell key={player} align="center" sx={{ fontWeight: 'bold', bgcolor: 'action.hover' }}>
                     玩家{player}
@@ -57,7 +56,7 @@ export default function HomeGoujiPage() {
                       size="small"
                       value={pLeft[player - 1]}
                       onChange={(e) => onPChange(parseInt(e.target.value) || 0, player - 1)}
-                      inputProps={{ style: { textAlign: 'center', width: 50 } }}
+                      slotProps={{ input: { style: { textAlign: 'center', width: 50 } } }}
                       sx={{ ml: 1 }}
                     />
                   </TableCell>
@@ -67,11 +66,13 @@ export default function HomeGoujiPage() {
             <TableBody>
               {cards.map((card, cardIndex) => (
                 <TableRow key={cardIndex}>
-                  <TableCell sx={{ fontWeight: 'bold' }}>{card}</TableCell>
-                  <TableCell>{left[cardIndex]}</TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 'bold' }}>{card}</TableCell>
+                  <TableCell align="center">{left[cardIndex]}</TableCell>
                   {[0, 1, 2, 3, 4, 5].map((player) => (
                     <TableCell key={player} align="center">
-                      <Number index={cardIndex} p={player} onChange={onChange} />
+                      <Box sx={{ cursor: 'pointer', color: 'primary.main' }} onClick={() => onChange('minus', cardIndex, player)}>
+                        -
+                      </Box>
                     </TableCell>
                   ))}
                 </TableRow>
