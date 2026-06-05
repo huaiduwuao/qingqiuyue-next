@@ -402,6 +402,38 @@ for (const t of CONTENT_TYPES) {
   };
 }
 
+// live 类型额外补 Room 字段(hostName/hostAvatar/viewers/isLive/category/region/startedAt/hotRank/description)
+const LIVE_CATEGORIES = ['颜值', '游戏', '音乐', '户外', '二次元', '知识', '生活', '美食'];
+const LIVE_REGIONS = ['北京', '上海', '广州', '深圳', '杭州', '成都', '武汉', '西安', '南京', '苏州'];
+const LIVE_DESCRIPTIONS = [
+  '今晚继续连麦,聊聊最近书单里让我印象最深的几本。',
+  '正在直播新副本首杀,大家弹幕加油!',
+  'livehouse 排练花絮,顺便回答乐理问题~',
+  '周末城市漫步,带大家看不一样的角落。',
+  '深夜电台,点歌+聊天,留下你想听的歌。',
+  '健身打卡 30 天挑战,今天练背+有氧。',
+  '美食探店第三期,本地人才知道的小馆子。',
+  '代码时间,搭一个迷你工具,顺便答疑。',
+];
+{
+  const live = CLIENT_CONTENT_SEED.live;
+  live.records = live.records.map((r, i) => ({
+    ...r,
+    title: r.title.replace('直播', '【直播中】'),
+    hostId: 1000 + i,
+    hostName: ['月下旅人', '光影捕手', '山城阿吉', '青衣', '南风', '小满', '鹿野', '晚安先生'][i % 8],
+    hostAvatar: avatar(i + 100),
+    isLive: i % 4 !== 0,
+    viewers: 800 + i * 1370,
+    category: LIVE_CATEGORIES[i % LIVE_CATEGORIES.length],
+    region: LIVE_REGIONS[i % LIVE_REGIONS.length],
+    startedAt: Date.now() - (i * 1800 + 600) * 1000,
+    hotRank: i + 1,
+    isTop: i < 3,
+    description: LIVE_DESCRIPTIONS[i % LIVE_DESCRIPTIONS.length],
+  }));
+}
+
 // 18 个内容类型端点(articles/videos/...) 格式相同
 export const CONTENT_TYPE_ENDPOINTS: Record<string, { title: string; subtitle?: string; type: string; extra?: any }> = {
   '/articles': { title: '测试文章', subtitle: '副标题', type: 'ARTICLE' },

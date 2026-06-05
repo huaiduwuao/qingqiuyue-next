@@ -9,6 +9,7 @@ export const TYPE_TO_ROUTE: Record<string, string> = {
   COMICS: '/detail/comics-detail',
   VIDEO: '/detail/video-detail',
   VSHOW: '/detail/vshow-detail',
+  LIVE: '/detail/live-detail',
   ARTICLE: '/detail/article-detail',
   NEWS: '/detail/news-detail',
 };
@@ -16,7 +17,7 @@ export const TYPE_TO_ROUTE: Record<string, string> = {
 export const TYPE_LABEL: Record<string, string> = {
   NOVEL: '小说', MUSIC: '音乐', FILM: '电影', TELEPLAY: '电视剧',
   ANIMATION: '动漫', COMICS: '漫画', VIDEO: '视频', VSHOW: '综艺',
-  ARTICLE: '文章', NEWS: '新闻',
+  LIVE: '直播', ARTICLE: '文章', NEWS: '新闻',
 };
 
 export function getDetailRoute(contentType: string, id: number | string): string | null {

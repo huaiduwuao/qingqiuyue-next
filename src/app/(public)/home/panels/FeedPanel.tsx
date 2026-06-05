@@ -249,7 +249,9 @@ function FeedCard({ item, tab }: { item: FeedItem; tab: 'home' | 'follow' | 'fri
     knowledge: 'ARTICLE', tech: 'ARTICLE', food: 'VIDEO', game: 'VIDEO',
     sports: 'VIDEO', finance: 'ARTICLE',
   };
-  const targetType = item.category === 'video' || item.category === 'short' || item.category === 'image'
+  const targetType = item.category === 'live'
+    ? 'LIVE'
+    : item.category === 'video' || item.category === 'short' || item.category === 'image'
     ? (sectionToType[item.section] || 'VIDEO')
     : null;
 

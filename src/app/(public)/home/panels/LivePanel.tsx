@@ -61,6 +61,7 @@ export function LivePanel() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const navigate = useContentNavigate();
   const urlStatus = (searchParams.get('liveStatus') as LiveStatus) || 'all';
   const urlSort = (searchParams.get('sort') as LiveSort) || 'hot';
   const [status, setStatusState] = useState<LiveStatus>(urlStatus);
@@ -111,7 +112,7 @@ export function LivePanel() {
 
       {/* TOP 10 人气榜(领奖台) */}
       <AsyncState query={topQuery} skeletonCount={0} isEmpty={() => false}>
-        {(data) => <LiveTop10 list={data.list} />}
+        {(data) => <LiveTop10 list={data.list} onSelect={(r) => navigate('LIVE', r.id)} />}
       </AsyncState>
 
       {/* 多维筛选 chips */}
@@ -146,7 +147,7 @@ export function LivePanel() {
         {(data) => (
           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
             {data.list.map((room) => (
-              <RoomCard key={room.id} room={room} />
+              <RoomCard key={room.id} room={room} onClick={() => navigate('LIVE', room.id)} />
             ))}
           </Box>
         )}
@@ -179,7 +180,7 @@ function FilterChip({ active, label, onClick }: { active: boolean; label: string
 }
 
 // ─── TOP 10 人气榜(领奖台) ───
-function LiveTop10({ list }: { list: Room[] }) {
+function LiveTop10({ list, onSelect }: { list: Room[]; onSelect: (r: Room) => void }) {
   if (list.length === 0) return null;
   const top3 = list.filter((r) => r.hotRank >= 1 && r.hotRank <= 3);
   const rest = list.filter((r) => r.hotRank >= 4 && r.hotRank <= 10);
@@ -213,7 +214,7 @@ function LiveTop10({ list }: { list: Room[] }) {
           {top3
             .sort((a, b) => a.hotRank - b.hotRank)
             .map((r) => (
-              <PodiumCard key={r.id} room={r} />
+              <PodiumCard key={r.id} room={r} onClick={() => onSelect(r)} />
             ))}
         </Box>
       )}
@@ -222,7 +223,7 @@ function LiveTop10({ list }: { list: Room[] }) {
       {rest.length > 0 && (
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 1, pt: 1.5, borderTop: '1px dashed rgba(255,255,255,0.08)' }}>
           {rest.map((r) => (
-            <RankRow key={r.id} room={r} />
+            <RankRow key={r.id} room={r} onClick={() => onSelect(r)} />
           ))}
         </Box>
       )}
@@ -230,12 +231,13 @@ function LiveTop10({ list }: { list: Room[] }) {
   );
 }
 
-function PodiumCard({ room }: { room: Room }) {
+function PodiumCard({ room, onClick }: { room: Room; onClick: () => void }) {
   const rank = room.hotRank;
   const rankStyle = MEDAL[rank] ?? MEDAL[3];
 
   return (
     <Box
+      onClick={onClick}
       sx={{
         position: 'relative',
         borderRadius: 2,
@@ -273,9 +275,9 @@ function PodiumCard({ room }: { room: Room }) {
   );
 }
 
-function RankRow({ room }: { room: Room }) {
+function RankRow({ room, onClick }: { room: Room; onClick: () => void }) {
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.75, borderRadius: 1, cursor: 'pointer', transition: 'background 0.15s', '&:hover': { bgcolor: 'rgba(255,255,255,0.04)' } }}>
+    <Box onClick={onClick} sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.75, borderRadius: 1, cursor: 'pointer', transition: 'background 0.15s', '&:hover': { bgcolor: 'rgba(255,255,255,0.04)' } }}>
       <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted, rgba(255,255,255,0.4))', width: 22, textAlign: 'right', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
         {room.hotRank}
       </Typography>
@@ -294,9 +296,10 @@ function RankRow({ room }: { room: Room }) {
   );
 }
 
-function RoomCard({ room }: { room: Room }) {
+function RoomCard({ room, onClick }: { room: Room; onClick: () => void }) {
   return (
     <Box
+      onClick={onClick}
       sx={{
         position: 'relative',
         aspectRatio: '3/4',
