@@ -13,19 +13,25 @@ import Button from '@mui/material/Button';
 import Tooltip from '@mui/material/Tooltip';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
+import Dialog from '@mui/material/Dialog';
+import DialogContent from '@mui/material/DialogContent';
+import IconButton from '@mui/material/IconButton';
 import CheckIcon from '@mui/icons-material/Check';
 import AddIcon from '@mui/icons-material/Add';
+import PersonAddAlt1Icon from '@mui/icons-material/PersonAddAlt1';
 import LiveTvRoundedIcon from '@mui/icons-material/LiveTvRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import FavoriteBorderRoundedIcon from '@mui/icons-material/FavoriteBorderRounded';
 import ModeCommentOutlinedIcon from '@mui/icons-material/ModeCommentOutlined';
 import ShareOutlinedIcon from '@mui/icons-material/ShareOutlined';
-import PersonAddAlt1Icon from '@mui/icons-material/PersonAddAlt1';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import { homeClient } from '@/lib/api/client';
 import { AsyncState } from '@/components/common/AsyncState';
 import { WerewolfPlayer } from './WerewolfPlayer';
 import SendToSpider from '@/components/SendToSpider';
+import { FriendPanel } from './FriendPanel';
 import { useContentNavigate } from '@/lib/contentRoute';
 
 type FeedItem = {
@@ -81,10 +87,6 @@ const SECTIONS: { key: FeedItem['section']; label: string }[] = [
 ];
 
 export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recommend' }) {
-  if (tab === 'recommend') {
-    return <WerewolfPlayer />;
-  }
-
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -100,8 +102,12 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
   const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false, message: '', severity: 'success',
   });
+  const [manageOpen, setManageOpen] = useState(false);
+  const [followSub, setFollowSub] = useState<'feed' | 'list'>('feed');
+  const isFollow = tab === 'follow';
 
   const isPersonal = tab === 'follow' || tab === 'friend';
+  const isFriend = tab === 'friend';
 
   const query = useQuery({
     queryKey: ['home', 'feed', tab, isPersonal ? 'all' : section],
@@ -112,10 +118,22 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
       }
       return homeClient.get<FeedResp>(`/feed?${params.toString()}`).then((r) => r.data);
     },
+    enabled: tab !== 'recommend',
   });
+
+  // 所有 Hook 调用完毕后再做条件分支(遵守 Rules of Hooks:Hook 顺序在每次渲染必须一致)
+  if (tab === 'recommend') {
+    return <WerewolfPlayer />;
+  }
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {isFriend && (
+        <FriendHeader onOpenManage={() => setManageOpen(true)} />
+      )}
+      {isFollow && (
+        <FollowSubHeader value={followSub} onChange={setFollowSub} />
+      )}
       {!isPersonal && (
         <Box
           sx={{
@@ -161,10 +179,13 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
       )}
 
       <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+        {isFollow && followSub === 'list' ? (
+          <FollowList onSnack={(m, severity) => setSnack({ open: true, message: m, severity: severity || 'success' })} />
+        ) : (
         <AsyncState query={query} skeletonCount={4} skeletonHeight={420} isEmpty={() => false}>
           {(data) => (
             <Box sx={{ p: 2 }}>
-              {/* 仅 home 顶部抓取工具条 (follow/friend 是个人页,不放;recommend 已被 WerewolfPlayer 接管) */}
+              {/* 仅 home 顶部抓取工具条 (follow 是个人页,不放;recommend 已被 WerewolfPlayer 接管) */}
               {tab === 'home' && !isPersonal && section === 'recommend' && (
                 <Box sx={{ mb: 2, p: 1.5, borderRadius: 2, border: '1px dashed rgba(255,255,255,0.12)', bgcolor: 'rgba(255,255,255,0.02)' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
@@ -221,6 +242,7 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
             </Box>
           )}
         </AsyncState>
+        )}
       </Box>
 
       <Snackbar
@@ -233,6 +255,37 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
           {snack.message}
         </Alert>
       </Snackbar>
+
+      <Dialog
+        open={manageOpen}
+        onClose={() => setManageOpen(false)}
+        fullWidth
+        maxWidth="md"
+        slotProps={{
+          paper: {
+            sx: {
+              bgcolor: 'var(--bg-body, #0a0a0f)',
+              backgroundImage: 'none',
+              borderRadius: 3,
+              height: 'min(820px, 90dvh)',
+              overflow: 'hidden',
+            },
+          },
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', px: 2, py: 1, borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.06))', flexShrink: 0 }}>
+          <GroupsRoundedIcon sx={{ fontSize: 18, color: '#5B8DEF', mr: 1 }} />
+          <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #ffffff)', flex: 1 }}>
+            好友管理
+          </Typography>
+          <IconButton size="small" onClick={() => setManageOpen(false)} aria-label="关闭">
+            <CloseRoundedIcon sx={{ fontSize: 18, color: 'var(--text-muted, rgba(255,255,255,0.5))' }} />
+          </IconButton>
+        </Box>
+        <DialogContent sx={{ p: 0, overflow: 'hidden' }}>
+          <FriendPanel />
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 }
@@ -282,6 +335,7 @@ function FeedCard({ item, tab }: { item: FeedItem; tab: 'home' | 'follow' | 'fri
     try {
       await homeClient.post(`/friend/${item.authorId}`);
       qc.invalidateQueries({ queryKey: ['home', 'feed'] });
+      qc.invalidateQueries({ queryKey: ['home', 'friend'] });
     } catch (err) {
       console.error('add friend failed', err);
     } finally {
@@ -413,7 +467,27 @@ function FeedCard({ item, tab }: { item: FeedItem; tab: 'home' | 'follow' | 'fri
           </Box>
 
           {showActions && (
-            item.isFollowing ? (
+            tab === 'friend' && item.isFollowing && !item.isFriend ? (
+              <Button
+                size="small"
+                variant="contained"
+                onClick={addAsFriend}
+                disabled={busy}
+                startIcon={<PersonAddAlt1Icon sx={{ fontSize: 12 }} />}
+                sx={{
+                  minWidth: 0,
+                  px: 1,
+                  py: 0.25,
+                  fontSize: 10,
+                  fontWeight: 600,
+                  textTransform: 'none',
+                  bgcolor: '#5B8DEF',
+                  '&:hover': { bgcolor: '#4A7AD9' },
+                }}
+              >
+                加为朋友
+              </Button>
+            ) : item.isFollowing ? (
               <Button
                 size="small"
                 variant="outlined"
@@ -467,28 +541,6 @@ function FeedCard({ item, tab }: { item: FeedItem; tab: 'home' | 'follow' | 'fri
             {formatViews(item.views)} 播放
           </Typography>
         </Box>
-
-        {/* 朋友 tab 且 isFollowing && !isFriend:提示加为朋友 */}
-        {tab === 'friend' && item.isFollowing && !item.isFriend && (
-          <Button
-            size="small"
-            onClick={addAsFriend}
-            disabled={busy}
-            startIcon={<PersonAddAlt1Icon sx={{ fontSize: 12 }} />}
-            sx={{
-              mt: 1,
-              width: '100%',
-              py: 0.5,
-              fontSize: 11,
-              textTransform: 'none',
-              color: '#5B8DEF',
-              border: '1px solid rgba(91, 141, 239, 0.4)',
-              '&:hover': { bgcolor: 'rgba(91, 141, 239, 0.1)', borderColor: 'rgba(91, 141, 239, 0.6)' },
-            }}
-          >
-            加为朋友
-          </Button>
-        )}
       </Box>
     </Box>
   );
@@ -496,9 +548,9 @@ function FeedCard({ item, tab }: { item: FeedItem; tab: 'home' | 'follow' | 'fri
 
 // ─── 推荐区(空态 / 顶部插入) ───
 function RecommendSection({ tab }: { tab: 'follow' | 'friend' }) {
-  const type = tab === 'follow' ? 'follow' : 'friend';
-  const title = tab === 'follow' ? '推荐关注' : '你可能认识的人';
-  const hint = tab === 'follow' ? '基于你的兴趣推荐' : '基于共同好友推荐';
+  const type = tab === 'friend' ? 'friend' : 'follow';
+  const title = tab === 'friend' ? '你可能认识的人' : '推荐关注';
+  const hint = tab === 'friend' ? '基于共同好友推荐' : '基于你的兴趣推荐';
 
   const { data, isLoading } = useQuery({
     queryKey: ['home', 'suggestions', type],
@@ -526,16 +578,18 @@ function RecommendSection({ tab }: { tab: 'follow' | 'friend' }) {
 function SuggestUserCard({ user, tab, loading }: { user?: SuggestUser; tab: 'follow' | 'friend'; loading?: boolean }) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
+  const isFriend = tab === 'friend';
 
   const act = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!user || busy) return;
     setBusy(true);
     try {
-      if (tab === 'follow') {
-        await homeClient.post(`/follow/${user.id}`);
-      } else {
+      if (isFriend) {
         await homeClient.post(`/friend/${user.id}`);
+        qc.invalidateQueries({ queryKey: ['home', 'friend'] });
+      } else {
+        await homeClient.post(`/follow/${user.id}`);
       }
       qc.invalidateQueries({ queryKey: ['home', 'feed'] });
       qc.invalidateQueries({ queryKey: ['home', 'suggestions'] });
@@ -589,6 +643,7 @@ function SuggestUserCard({ user, tab, loading }: { user?: SuggestUser; tab: 'fol
         variant="contained"
         onClick={act}
         disabled={busy}
+        startIcon={isFriend ? <PersonAddAlt1Icon sx={{ fontSize: 12 }} /> : <AddIcon sx={{ fontSize: 12 }} />}
         sx={{
           minWidth: 0,
           px: 1.25,
@@ -596,11 +651,11 @@ function SuggestUserCard({ user, tab, loading }: { user?: SuggestUser; tab: 'fol
           fontSize: 11,
           fontWeight: 600,
           textTransform: 'none',
-          bgcolor: tab === 'friend' ? '#5B8DEF' : 'var(--brand-color, #FE2C55)',
-          '&:hover': { bgcolor: tab === 'friend' ? '#4A7AD8' : '#E0274A' },
+          bgcolor: isFriend ? '#5B8DEF' : 'var(--brand-color, #FE2C55)',
+          '&:hover': { bgcolor: isFriend ? '#4A7AD9' : '#E0274A' },
         }}
       >
-        {tab === 'friend' ? '加好友' : '+关注'}
+        {isFriend ? '+加好友' : '+关注'}
       </Button>
     </Box>
   );
@@ -634,7 +689,7 @@ function EmptyHint({ tab, section }: { tab: 'home' | 'follow' | 'friend'; sectio
   let hint = '试试切换到其他分类';
   if (isRec) {
     if (tab === 'home') { title = '精选内容为空'; hint = '稍后再来看看'; }
-    else if (tab === 'follow') { title = tab === 'follow' ? '还没有关注动态' : ''; hint = '去下方推荐关注更多创作者'; }
+    else if (tab === 'follow') { title = '还没有关注动态'; hint = '去下方推荐关注更多创作者'; }
     else if (tab === 'friend') { title = '朋友动态为空'; hint = '加几个朋友,看看他们的生活'; }
   }
   return (
@@ -651,5 +706,265 @@ function EmptyHint({ tab, section }: { tab: 'home' | 'follow' | 'friend'; sectio
       <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{title}</Typography>
       <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', mt: 0.5 }}>{hint}</Typography>
     </Box>
+  );
+}
+
+// ─── 朋友 tab 头部(sticky,带统计 + 管理入口) ───
+function FriendHeader({ onOpenManage }: { onOpenManage: () => void }) {
+  const { data } = useQuery({
+    queryKey: ['home', 'friend', 'stats'],
+    queryFn: () => homeClient.get<{ friendCount: number; incoming: number; sent: number }>('/friend/stats').then((r) => r.data),
+  });
+  return (
+    <Box
+      sx={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 10,
+        bgcolor: 'var(--bg-topbar, rgba(10, 10, 15, 0.85))',
+        backdropFilter: 'blur(12px)',
+        borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+        flexShrink: 0,
+        px: 2,
+        py: 1.5,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 2,
+      }}
+    >
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <GroupsRoundedIcon sx={{ fontSize: 18, color: '#5B8DEF' }} />
+        <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #ffffff)' }}>朋友动态</Typography>
+      </Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5, ml: 1 }}>
+        <FriendStat label="好友" value={data?.friendCount} />
+        <FriendStat label="收到的申请" value={data?.incoming} accent="#5B8DEF" />
+        <FriendStat label="已发出" value={data?.sent} />
+      </Box>
+      <Box sx={{ flex: 1 }} />
+      <Button
+        size="small"
+        variant="outlined"
+        startIcon={<GroupsRoundedIcon sx={{ fontSize: 14 }} />}
+        onClick={onOpenManage}
+        sx={{
+          minWidth: 0,
+          px: 1.5,
+          py: 0.5,
+          fontSize: 12,
+          fontWeight: 600,
+          textTransform: 'none',
+          color: '#5B8DEF',
+          borderColor: 'rgba(91, 141, 239, 0.4)',
+          '&:hover': { borderColor: '#5B8DEF', bgcolor: 'rgba(91, 141, 239, 0.08)' },
+        }}
+      >
+        好友管理
+      </Button>
+    </Box>
+  );
+}
+
+function FriendStat({ label, value, accent }: { label: string; value: number | undefined; accent?: string }) {
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+      <Typography sx={{ fontSize: 13, fontWeight: 700, color: accent || 'var(--text-primary, #ffffff)', fontVariantNumeric: 'tabular-nums' }}>
+        {value ?? '—'}
+      </Typography>
+      <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.5))' }}>{label}</Typography>
+    </Box>
+  );
+}
+
+// ─── 关注 tab 子头部:动态 / 我的关注 切换 ───
+function FollowSubHeader({ value, onChange }: { value: 'feed' | 'list'; onChange: (v: 'feed' | 'list') => void }) {
+  return (
+    <Box
+      sx={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 10,
+        bgcolor: 'var(--bg-topbar, rgba(10, 10, 15, 0.85))',
+        backdropFilter: 'blur(12px)',
+        borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+        flexShrink: 0,
+        px: 2,
+      }}
+    >
+      <Tabs
+        value={value}
+        onChange={(_, v) => onChange(v)}
+        sx={{
+          minHeight: 40,
+          '& .MuiTab-root': {
+            minHeight: 40,
+            fontSize: 13,
+            fontWeight: 500,
+            color: 'var(--text-secondary, rgba(255,255,255,0.6))',
+            textTransform: 'none',
+            px: 2,
+            py: 0,
+            transition: 'color 0.15s',
+            '&:hover': { color: 'var(--text-primary, #ffffff)' },
+          },
+          '& .Mui-selected': { color: 'var(--brand-color, #FE2C55) !important', fontWeight: 700 },
+          '& .MuiTabs-indicator': { backgroundColor: 'var(--brand-color, #FE2C55)', height: 2.5, borderRadius: 1.25 },
+        }}
+      >
+        <Tab value="feed" label="动态" />
+        <Tab value="list" label="我的关注" />
+      </Tabs>
+    </Box>
+  );
+}
+
+type FollowedUser = {
+  id: number;
+  name: string;
+  avatar: string;
+  douyinId: string;
+  bio?: string;
+  followers: number;
+  following: number;
+  posts: number;
+  isFriend: boolean;
+};
+
+// ─── 关注列表(行 + 取关) ───
+function FollowList({ onSnack }: { onSnack: (msg: string, severity?: 'success' | 'error') => void }) {
+  const qc = useQueryClient();
+  const query = useQuery({
+    queryKey: ['home', 'follow', 'list'],
+    queryFn: () => homeClient.get<{ list: FollowedUser[]; total: number }>('/follow/list').then((r) => r.data),
+  });
+
+  const unfollow = async (user: FollowedUser) => {
+    try {
+      await homeClient.delete(`/follow/${user.id}`);
+      qc.invalidateQueries({ queryKey: ['home', 'follow', 'list'] });
+      qc.invalidateQueries({ queryKey: ['home', 'feed'] });
+      qc.invalidateQueries({ queryKey: ['home', 'suggestions'] });
+      onSnack(`已取消关注 ${user.name}`, 'success');
+    } catch {
+      onSnack('取关失败,请重试', 'error');
+    }
+  };
+
+  return (
+    <Box sx={{ p: 2 }}>
+      <AsyncState query={query} skeletonCount={4} skeletonHeight={72} isEmpty={(d) => d.list.length === 0}>
+        {(data) => (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <Typography sx={{ fontSize: 12, color: 'var(--text-muted, rgba(255,255,255,0.5))', mb: 0.5 }}>
+              共 {data.total} 位关注
+            </Typography>
+            {data.list.map((u) => (
+              <FollowedRow key={u.id} user={u} onUnfollow={unfollow} />
+            ))}
+          </Box>
+        )}
+      </AsyncState>
+    </Box>
+  );
+}
+
+function FollowedRow({ user, onUnfollow }: { user: FollowedUser; onUnfollow: (u: FollowedUser) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+
+  const handle = async () => {
+    setBusy(true);
+    try {
+      await onUnfollow(user);
+    } finally {
+      setBusy(false);
+      setConfirming(false);
+    }
+  };
+
+  return (
+    <>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 2,
+          p: 1.5,
+          borderRadius: 2,
+          bgcolor: 'var(--bg-card, rgba(20, 22, 32, 0.6))',
+          border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+          transition: 'border-color 0.2s',
+          '&:hover': { borderColor: 'var(--border-strong, rgba(255,255,255,0.12))' },
+        }}
+      >
+        <Avatar src={user.avatar} sx={{ width: 48, height: 48, fontSize: 18 }}>
+          {user.name[0]}
+        </Avatar>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #fff)' }}>
+              {user.name}
+            </Typography>
+            {user.isFriend && (
+              <Tooltip title="互为朋友">
+                <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25, px: 0.5, py: 0.05, borderRadius: 0.5, bgcolor: 'rgba(91, 141, 239, 0.15)', color: '#5B8DEF', fontSize: 9, fontWeight: 600 }}>
+                  <CheckCircleRoundedIcon sx={{ fontSize: 9 }} />
+                  朋友
+                </Box>
+              </Tooltip>
+            )}
+          </Box>
+          <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.5))', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {user.bio || `抖音号: ${user.douyinId}`}
+          </Typography>
+          <Typography sx={{ fontSize: 10, color: 'var(--text-disabled, rgba(255,255,255,0.35))', mt: 0.25 }}>
+            {user.followers >= 10000 ? `${(user.followers / 10000).toFixed(1)}w` : user.followers} 粉丝 · {user.posts} 作品
+          </Typography>
+        </Box>
+        <Button
+          size="small"
+          variant="outlined"
+          onClick={() => setConfirming(true)}
+          disabled={busy}
+          sx={{
+            minWidth: 0,
+            px: 1.5,
+            py: 0.5,
+            fontSize: 12,
+            fontWeight: 500,
+            textTransform: 'none',
+            color: 'var(--text-secondary, rgba(255,255,255,0.7))',
+            borderColor: 'var(--border-strong, rgba(255,255,255,0.16))',
+            '&:hover': { borderColor: 'var(--brand-color, #FE2C55)', color: 'var(--brand-color, #FE2C55)', bgcolor: 'rgba(254, 44, 85, 0.06)' },
+          }}
+        >
+          已关注
+        </Button>
+      </Box>
+
+      <Dialog open={confirming} onClose={() => setConfirming(false)} maxWidth="xs" fullWidth>
+        <Box sx={{ p: 3 }}>
+          <Typography sx={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary, #fff)', mb: 1 }}>
+            确认取消关注?
+          </Typography>
+          <Typography sx={{ fontSize: 13, color: 'var(--text-secondary, rgba(255,255,255,0.6))' }}>
+            取消后将不再看到 <b style={{ color: 'var(--text-primary, #fff)' }}>{user.name}</b> 的动态更新。
+          </Typography>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 1, p: 2, pt: 0, justifyContent: 'flex-end' }}>
+          <Button onClick={() => setConfirming(false)} sx={{ color: 'var(--text-secondary, rgba(255,255,255,0.7))', textTransform: 'none' }}>
+            再想想
+          </Button>
+          <Button
+            onClick={handle}
+            disabled={busy}
+            variant="contained"
+            sx={{ bgcolor: 'var(--brand-color, #FE2C55)', textTransform: 'none', '&:hover': { bgcolor: '#E0274A' } }}
+          >
+            确认取关
+          </Button>
+        </Box>
+      </Dialog>
+    </>
   );
 }

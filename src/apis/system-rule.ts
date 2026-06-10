@@ -32,7 +32,7 @@ export async function listRules(params?: RuleQuery) {
 
 // 获取规则详情
 export async function getRule(id: number) {
-  return adminClient<RuleInfo>(`/api/rule/${id}`, {
+  return adminClient<RuleInfo>(`/rule/${id}`, {
     method: 'GET',
   });
 }
@@ -47,7 +47,7 @@ export async function createRule(data: any) {
 
 // 更新规则
 export async function updateRule(id: number, data: any) {
-  return adminClient<RuleInfo>(`/api/rule/${id}`, {
+  return adminClient<RuleInfo>(`/rule/${id}`, {
     method: 'PUT',
     data,
   });
@@ -55,7 +55,7 @@ export async function updateRule(id: number, data: any) {
 
 // 删除规则
 export async function deleteRule(id: number) {
-  return adminClient(`/api/rule/${id}`, {
+  return adminClient(`/rule/${id}`, {
     method: 'DELETE',
   });
 }

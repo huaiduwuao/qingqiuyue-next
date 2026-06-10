@@ -6,7 +6,8 @@ export async function page(params: any) {
 }
 
 export async function remove(ids: number[]) {
-  return contentClient("content/spiderQueue/removeByIds", { method: "DELETE", data: { ids } });
+  const arr = Array.isArray(ids) ? ids : [ids];
+  return Promise.all(arr.map((id) => contentClient(`content/spiderQueue/${id}`, { method: 'DELETE' })));
 }
 
 export async function save(params: any) {

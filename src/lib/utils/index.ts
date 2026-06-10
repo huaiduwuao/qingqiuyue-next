@@ -1,4 +1,4 @@
-export function cns(classes: Array<string | Object>): string {
+export function cns(classes: Array<string | object>): string {
   return classes.join(' ');
 }
 

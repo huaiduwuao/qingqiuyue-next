@@ -6,6 +6,9 @@ import { useState, useEffect } from 'react';
 import { AppContextProvider } from '@/contexts/AppContext';
 import { AuthContextProvider } from '@/contexts/AuthContext';
 import { startMock, mockEnabled } from '@/mocks/init';
+import dynamic from 'next/dynamic';
+
+const FloatingDigitalHuman = dynamic(() => import('@/digital-human/FloatingDigitalHuman'), { ssr: false });
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -14,7 +17,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
         defaultOptions: {
           queries: {
             staleTime: 5 * 60 * 1000,
-            retry: 1,
+            retry: 2,
+            retryDelay: (i) => Math.min(500 * 2 ** i, 2000),
           },
         },
       })
@@ -28,9 +32,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
       return;
     }
     let cancelled = false;
-    startMock().then(() => {
-      if (!cancelled) setMockReady(true);
-    });
+    startMock()
+      .then(() => {
+        if (!cancelled) setMockReady(true);
+      })
+      .catch((err) => {
+        // MSW 启动失败时也不要锁死 UI —— 让页面继续渲染,
+        // 失败的请求会自然返回 404,UI 走错误态
+        console.error('[MSW] startMock failed, continuing without mock:', err);
+        if (!cancelled) setMockReady(true);
+      });
     return () => {
       cancelled = true;
     };
@@ -49,6 +60,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <AppContextProvider>
           <AuthContextProvider>
             {children}
+            <FloatingDigitalHuman />
           </AuthContextProvider>
         </AppContextProvider>
       </CustomThemeProvider>

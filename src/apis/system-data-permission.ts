@@ -51,7 +51,7 @@ export async function listDataPermissions(params?: DataPermissionQuery) {
 
 // 获取数据权限详情
 export async function getDataPermission(id: number) {
-  return adminClient<DataPermissionInfo>(`/api/data-permission/${id}`, {
+  return adminClient<DataPermissionInfo>(`/data-permission/${id}`, {
     method: 'GET',
   });
 }
@@ -66,7 +66,7 @@ export async function createDataPermission(data: CreateDataPermissionReq) {
 
 // 更新数据权限
 export async function updateDataPermission(id: number, data: UpdateDataPermissionReq) {
-  return adminClient<DataPermissionInfo>(`/api/data-permission/${id}`, {
+  return adminClient<DataPermissionInfo>(`/data-permission/${id}`, {
     method: 'PUT',
     data,
   });
@@ -74,7 +74,7 @@ export async function updateDataPermission(id: number, data: UpdateDataPermissio
 
 // 删除数据权限
 export async function deleteDataPermission(id: number) {
-  return adminClient(`/api/data-permission/${id}`, {
+  return adminClient(`/data-permission/${id}`, {
     method: 'DELETE',
   });
 }

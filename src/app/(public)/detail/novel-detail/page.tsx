@@ -74,6 +74,16 @@ function NovelDetailContent() {
     nextChapterMutation.mutate({ chapterId: chapter.id, novelId });
   };
 
+  const loadPrevChapter = () => {
+    if (chapters.length <= 1) return;
+    setChapters((prev) => {
+      const next = prev.slice(0, -1);
+      setChapter(next[next.length - 1]);
+      return next;
+    });
+    setHasMore(true);
+  };
+
   const collectMutation = useMutation({
     mutationFn: (params: { novelId: string; chapterId: number | string }) =>
       addShelf({ id: params.novelId, chapterId: params.chapterId }),
@@ -271,7 +281,7 @@ function NovelDetailContent() {
             boxShadow: '0 -2px 8px rgba(0,0,0,0.06)',
           }}
         >
-          <Button fullWidth variant="outlined" onClick={() => {}} sx={{ borderRadius: 4 }}>
+          <Button fullWidth variant="outlined" onClick={loadPrevChapter} disabled={chapters.length <= 1} sx={{ borderRadius: 4 }}>
             上一章
           </Button>
           <Button

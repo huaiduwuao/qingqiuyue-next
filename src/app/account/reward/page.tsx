@@ -33,13 +33,13 @@ const menuItems = [
 ];
 
 const componentMap: Record<string, React.LazyExoticComponent<React.ComponentType<any>>> = {
-  '1': React.lazy(() => import('./components/dashboard/page')),
-  '2': React.lazy(() => import('./components/demand/page')),
-  '3': React.lazy(() => import('./components/realization/page')),
-  '4': React.lazy(() => import('./components/project/page')),
-  '5': React.lazy(() => import('./components/conception/page')),
-  '6': React.lazy(() => import('./components/group/page')),
-  '7': React.lazy(() => import('./components/taskboard/page')),
+  '1': React.lazy(() => import('./_components/dashboard/page')),
+  '2': React.lazy(() => import('./_components/demand/page')),
+  '3': React.lazy(() => import('./_components/realization/page')),
+  '4': React.lazy(() => import('./_components/project/page')),
+  '5': React.lazy(() => import('./_components/conception/page')),
+  '6': React.lazy(() => import('./_components/group/page')),
+  '7': React.lazy(() => import('./_components/taskboard/page')),
 };
 
 export default function AccountRewardPage() {

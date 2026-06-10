@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import React from 'react';
+import { usePathname } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Drawer from '@mui/material/Drawer';
 import IconButton from '@mui/material/IconButton';
@@ -10,30 +10,30 @@ import CssBaseline from '@mui/material/CssBaseline';
 import MenuIcon from '@mui/icons-material/Menu';
 import CloseIcon from '@mui/icons-material/Close';
 import { douyinDarkTheme } from '@/styles/creatorTheme';
-import CreatorSidebar, { MENU_ITEMS } from './components/CreatorSidebar';
-import RightSidebar from './components/RightSidebar';
+import CreatorSidebar from './_components/CreatorSidebar';
+import RightSidebar from './_components/RightSidebar';
+import { ActiveTabProvider, useActiveTab } from './ActiveTabContext';
 
 export default function CreatorLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  return (
+    <ActiveTabProvider>
+      <CreatorLayoutInner>{children}</CreatorLayoutInner>
+    </ActiveTabProvider>
+  );
+}
 
-  // Determine selected menu from pathname: /account/content/{route}
-  const segments = (pathname || '').split('/').filter(Boolean);
-  const section = segments[segments.length - 1];
-  const selected =
-    MENU_ITEMS.find((m) => m.route === section)?.id ||
-    (segments[segments.length - 1] === 'content' ? 'content' : 'content');
+function CreatorLayoutInner({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const { activeTab, setActiveTab } = useActiveTab();
+
+  // The right sidebar (notifications / activities / calendar) is only useful on
+  // the dashboard home. Work-heavy sub-pages bring their own dense UI and don't
+  // need the duplicate context strip.
+  const showRightSidebar = pathname === '/account/content';
 
   const handleSelect = (id: string) => {
-    const item = MENU_ITEMS.find((m) => m.id === id);
-    if (item) {
-      if (id === 'content') {
-        router.push('/account/content');
-      } else {
-        router.push(`/account/content/${item.route}`);
-      }
-    }
+    setActiveTab(id);
     setDrawerOpen(false);
   };
 
@@ -76,7 +76,7 @@ export default function CreatorLayout({ children }: { children: React.ReactNode 
             <CloseIcon fontSize="small" />
           </IconButton>
         </Box>
-        <CreatorSidebar selected={selected} onSelect={handleSelect} />
+        <CreatorSidebar selected={activeTab} onSelect={handleSelect} />
       </Drawer>
 
       <Box
@@ -92,7 +92,7 @@ export default function CreatorLayout({ children }: { children: React.ReactNode 
       >
         {/* Desktop sidebar - hidden on mobile */}
         <Box sx={{ display: { xs: 'none', md: 'block' }, flexShrink: 0, height: '100%' }}>
-          <CreatorSidebar selected={selected} onSelect={handleSelect} />
+          <CreatorSidebar selected={activeTab} onSelect={handleSelect} />
         </Box>
 
         {/* Main content area */}
@@ -111,25 +111,29 @@ export default function CreatorLayout({ children }: { children: React.ReactNode 
           {children}
         </Box>
 
-        {/* Right sidebar */}
-        <Box
-          sx={{
-            display: { xs: 'none', lg: 'block' },
-            p: 3,
-            pl: 0,
-            overflow: 'auto',
-            height: '100%',
-            flexShrink: 0,
-          }}
-        >
-          <RightSidebar />
-        </Box>
+        {/* Right sidebar - only on dashboard home */}
+        {showRightSidebar && (
+          <Box
+            sx={{
+              display: { xs: 'none', lg: 'block' },
+              p: 3,
+              pl: 0,
+              overflow: 'auto',
+              height: '100%',
+              flexShrink: 0,
+            }}
+          >
+            <RightSidebar />
+          </Box>
+        )}
       </Box>
 
-      {/* Mobile right sidebar (below content) */}
-      <Box sx={{ display: { xs: 'block', lg: 'none' }, px: 1.5, pb: 3, bgcolor: 'background.default' }}>
-        <RightSidebar />
-      </Box>
+      {/* Mobile right sidebar (below content) - only on dashboard home */}
+      {showRightSidebar && (
+        <Box sx={{ display: { xs: 'block', lg: 'none' }, px: 1.5, pb: 3, bgcolor: 'background.default' }}>
+          <RightSidebar />
+        </Box>
+      )}
     </ThemeProvider>
   );
 }

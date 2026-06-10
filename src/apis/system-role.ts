@@ -1,21 +1,29 @@
 import { adminClient } from '@/lib/api/client';
 
-// 角色分页
-export async function page(params: any) {
-  return adminClient("/role/page", { params });
+// 后端分页响应 { list, total } 归一成 UI 期望的 { records, totalRow }
+function normalizePage(res: any) {
+  const d = res?.data ?? {};
+  return { ...res, data: { records: d.records ?? d.list ?? [], totalRow: d.totalRow ?? d.total ?? 0 } };
 }
 
-// 角色列表菜单
+// 角色分页 -> 后端 GET /role/list
+export async function page(params: any) {
+  const res = await adminClient('/role/list', { params });
+  return normalizePage(res);
+}
+
+// ⚠️ 以下细粒度赋权端点(listMenu/listPermission/suggest*/menuChange/userAdd 及对应 ...Remove)
+//    后端 admin-api 未实现,仅整体赋权 POST /role/:id/permissions|data-permissions。暂保留走 mock,
+//    后端补齐后再对齐。
+// 角色列表菜单 (mock-only)
 export async function listMenu(params?: number) {
   return adminClient(`/role/listMenu/${params}`);
 }
 
-// 删除角色
+// 删除角色 -> 后端 DELETE /role/:id (批量循环)
 export async function remove(ids: number[]) {
-  return adminClient("/role/removeByIds", {
-    method: "DELETE",
-    data: ids
-  });
+  const list = Array.isArray(ids) ? ids : [ids];
+  return Promise.all(list.map((id) => adminClient(`/role/${id}`, { method: 'DELETE' })));
 }
 
 // 角色权限列表
@@ -36,11 +44,11 @@ export async function removePermission(ids?: number[]) {
   });
 }
 
-// 添加权限
+// 添加权限 -> 后端 POST /role/:id/permissions (整体赋权)
 export async function permissionAdd(params: any) {
-  return adminClient("/role/permissionAdd", {
-    method: "POST",
-    data: params
+  return adminClient(`/role/${params.roleId ?? params.id}/permissions`, {
+    method: 'POST',
+    data: params,
   });
 }
 
@@ -62,28 +70,22 @@ export async function removeDataPermission(ids?: number[]) {
   });
 }
 
-// 添加数据权限
+// 添加数据权限 -> 后端 POST /role/:id/data-permissions
 export async function dataPermissionAdd(params: any) {
-  return adminClient("/role/dataPermissionAdd", {
-    method: "POST",
-    data: params
+  return adminClient(`/role/${params.roleId ?? params.id}/data-permissions`, {
+    method: 'POST',
+    data: params,
   });
 }
 
-// 保存角色
+// 保存角色 -> 后端 POST /role
 export async function save(params: any) {
-  return adminClient("/role/save", {
-    method: "POST",
-    data: params
-  });
+  return adminClient('/role', { method: 'POST', data: params });
 }
 
-// 更新角色
+// 更新角色 -> 后端 PUT /role/:id
 export async function update(params: any) {
-  return adminClient("/role/updateById", {
-    method: "POST",
-    data: params
-  });
+  return adminClient(`/role/${params.id}`, { method: 'PUT', data: params });
 }
 
 // 菜单变更

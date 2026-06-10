@@ -50,6 +50,10 @@ export const systemHandlers = [
     return ok(SYS_USER.records.find((u) => u.id === id) || SYS_USER.records[0]);
   }),
   http.get('*/api/admin/user/list', () => okList(SYS_USER.records, SYS_USER.totalRow)),
+  // REST(对齐后端 admin-api): POST /user 新建, PUT /user/:id 更新, DELETE /user/:id 删除
+  http.post(/\/api\/admin\/user$/, () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.put(/\/api\/admin\/user\/\d+$/, () => ok({ updated: 1 })),
+  http.delete(/\/api\/admin\/user\/\d+$/, () => ok({ removed: 1 })),
   http.get('*/api/admin/user', () => ok(USER_PROFILE)),
   http.get('*/api/admin/user/profile', () => ok(USER_PROFILE)),
   http.post('*/api/admin/user/systemAdd', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
@@ -74,6 +78,13 @@ export const systemHandlers = [
 
   // ─── role ───
   http.get('*/api/admin/role/page', () => okPage(SYS_ROLE.records, SYS_ROLE.totalRow)),
+  // REST(对齐后端 admin-api)
+  http.get('*/api/admin/role/list', () => okList(SYS_ROLE.records, SYS_ROLE.totalRow)),
+  http.post(/\/api\/admin\/role\/\d+\/permissions$/, () => ok({ assigned: 1 })),
+  http.post(/\/api\/admin\/role\/\d+\/data-permissions$/, () => ok({ assigned: 1 })),
+  http.post(/\/api\/admin\/role$/, () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.put(/\/api\/admin\/role\/\d+$/, () => ok({ updated: 1 })),
+  http.delete(/\/api\/admin\/role\/\d+$/, () => ok({ removed: 1 })),
   http.post('*/api/admin/role/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
   http.post('*/api/admin/role/updateById', () => ok({ updated: 1 })),
   http.post('*/api/admin/role/menuChange', () => ok({ updated: 1 })),
@@ -109,6 +120,17 @@ export const systemHandlers = [
   http.get('*/api/admin/dict/data/list', () => okList(SYS_DICT_DATA, SYS_DICT_DATA.length)),
   http.get('*/api/admin/dict/data/all', () => okList(SYS_DICT_DATA, SYS_DICT_DATA.length)),
   http.get('*/api/admin/dict/data/all/module-type', () => okList(SYS_DICT_DATA.filter((d) => d.typeId === 1), 9)),
+  // dict REST(对齐后端 /dict/type/* 与 /dict/data/*)
+  http.get('*/api/admin/dict/type/list', () => okList(SYS_DICT_TYPE.records, SYS_DICT_TYPE.totalRow)),
+  http.get('*/api/admin/dict/data/all/*', () => okList(SYS_DICT_DATA, SYS_DICT_DATA.length)),
+  http.post(/\/api\/admin\/dict\/type$/, () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.put(/\/api\/admin\/dict\/type\/\d+$/, () => ok({ updated: 1 })),
+  http.delete(/\/api\/admin\/dict\/type\/\d+$/, () => ok({ removed: 1 })),
+  http.get(/\/api\/admin\/dict\/type\/\d+$/, () => ok(SYS_DICT_TYPE.records[0])),
+  http.post(/\/api\/admin\/dict\/data$/, () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.put(/\/api\/admin\/dict\/data\/\d+$/, () => ok({ updated: 1 })),
+  http.delete(/\/api\/admin\/dict\/data\/\d+$/, () => ok({ removed: 1 })),
+  http.get(/\/api\/admin\/dict\/data\/\d+$/, () => ok(SYS_DICT_DATA[0])),
 
   // ─── sysDictType ───
   http.get('*/api/admin/sysDictType/list', () => okList(SYS_DICT_TYPE.records, SYS_DICT_TYPE.totalRow)),
@@ -126,25 +148,28 @@ export const systemHandlers = [
   http.post('*/api/admin/sysDictData/updateById', () => ok({ updated: 1 })),
   http.delete(/\/api\/admin\/sysDictData\/removeByIds.*/, () => ok({ removed: 1 })),
 
-  // ─── app ───
-  http.get('*/api/admin/app/page', () => okPage(SYS_APP.records, SYS_APP.records.length)),
-  http.get('*/api/admin/app/removeByIds', () => ok({ removed: 1 })),
-  http.post('*/api/admin/app/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
-  http.post('*/api/admin/app/updateById', () => ok({ updated: 1 })),
-
-  // ─── appConfig ───
+  // ─── app/config (REST,对齐后端;必须在 /app/:id 之前注册) ───
+  http.get('*/api/admin/app/config/listByMap', () => okList(SYS_APP_CONFIG.list, SYS_APP_CONFIG.total)),
+  http.get('*/api/admin/app/config/list', () => okList(SYS_APP_CONFIG.list, SYS_APP_CONFIG.total)),
+  http.post(/\/api\/admin\/app\/config$/, () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.put(/\/api\/admin\/app\/config\/\d+$/, () => ok({ updated: 1 })),
+  http.delete(/\/api\/admin\/app\/config\/\d+$/, () => ok({ removed: 1 })),
+  // 兼容旧若依路径
   http.get('*/api/admin/appConfig/listByMap', () => okList(SYS_APP_CONFIG.list, SYS_APP_CONFIG.total)),
   http.get('*/api/admin/appConfig/page', () => okPage(SYS_APP_CONFIG.list, SYS_APP_CONFIG.total)),
-  http.delete(/\/api\/admin\/appConfig\/removeByIds.*/, () => ok({ removed: 1 })),
-  http.post('*/api/admin/appConfig/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
-  http.post('*/api/admin/appConfig/updateById', () => ok({ updated: 1 })),
 
-  // ─── appService ───
-  http.get('*/api/admin/appService/listApp', () => okList(SYS_APP_SERVICE.list, SYS_APP_SERVICE.list.length)),
-  http.get('*/api/admin/appService/page', () => okPage(SYS_APP_SERVICE.list, SYS_APP_SERVICE.list.length)),
-  http.delete(/\/api\/admin\/appService\/removeByIds.*/, () => ok({ removed: 1 })),
-  http.post('*/api/admin/appService/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
-  http.post('*/api/admin/appService/updateById', () => ok({ updated: 1 })),
+  // ─── app/service (REST) ───
+  http.get('*/api/admin/app/service/listApp', () => okList(SYS_APP_SERVICE.list, SYS_APP_SERVICE.list.length)),
+  http.get('*/api/admin/app/service/list', () => okList(SYS_APP_SERVICE.list, SYS_APP_SERVICE.list.length)),
+  http.post(/\/api\/admin\/app\/service$/, () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.put(/\/api\/admin\/app\/service\/\d+$/, () => ok({ updated: 1 })),
+  http.delete(/\/api\/admin\/app\/service\/\d+$/, () => ok({ removed: 1 })),
+
+  // ─── app (REST) ───
+  http.get('*/api/admin/app/list', () => okList(SYS_APP.records, SYS_APP.records.length)),
+  http.post(/\/api\/admin\/app$/, () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.put(/\/api\/admin\/app\/\d+$/, () => ok({ updated: 1 })),
+  http.delete(/\/api\/admin\/app\/\d+$/, () => ok({ removed: 1 })),
 
   // ─── resource ───
   http.get('*/api/admin/resource/list', () => okList(SYS_RESOURCE.records, SYS_RESOURCE.totalRow)),
@@ -194,7 +219,12 @@ export const systemHandlers = [
   http.get(/\/api\/admin\/area\/provinces.*/, () => okList(SYS_PROVINCE, SYS_PROVINCE.length)),
   http.post('*/api/admin/area/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
   http.post('*/api/admin/area/update', () => ok({ updated: 1 })),
+  http.put('*/api/admin/area/update', () => ok({ updated: 1 })),
   http.post('*/api/admin/area/remove', () => ok({ removed: 1 })),
+  http.delete('*/api/admin/area/remove', () => ok({ removed: 1 })),
+  http.get('*/api/admin/area/cities/*', () => okList(SYS_PROVINCE, SYS_PROVINCE.length)),
+  http.get('*/api/admin/area/areas/*', () => okList(SYS_PROVINCE, SYS_PROVINCE.length)),
+  http.get('*/api/admin/area/streets/*', () => okList(SYS_PROVINCE, SYS_PROVINCE.length)),
 
   // ─── website-dict ───
   http.get('*/api/admin/sysWebsiteDict/client/page', () => okPage(SYS_WEBSITE_DICT.records, SYS_WEBSITE_DICT.totalRow)),

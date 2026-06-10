@@ -1,51 +1,67 @@
 'use client';
 
-import React from 'react';
-import Box from '@mui/material/Box';
-import CreatorProfileHeader from './components/CreatorProfileHeader';
-import NewCreationSection from './components/NewCreationSection';
-import DataOverviewCard from './components/DataOverviewCard';
-import ContentDistributionChart from './components/ContentDistributionChart';
-import TrendChart from './components/TrendChart';
-import FanPortrait from './components/FanPortrait';
-import TopPerformingContent from './components/TopPerformingContent';
-import HotTopicsCarousel from './components/HotTopicsCarousel';
+import React, { useMemo } from 'react';
+import { useActiveTab } from './ActiveTabContext';
 
-export default function CreatorHomePage() {
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 1400, mx: 'auto', width: '100%' }}>
-      <CreatorProfileHeader />
-      <NewCreationSection />
+import DashboardView from './_views/dashboard/page';
+import HdPublishView from './_views/hd-publish/page';
+import HdReviewView from './_views/hd-review/page';
+import ActivityView from './_views/activity/page';
+import CoCreateView from './_views/co-create/page';
+import CollectionView from './_views/collection/page';
+import WorksView from './_views/works/page';
+import SpiderView from './_views/spider/page';
+import CrawledView from './_views/crawled/page';
+import OriginalView from './_views/original/page';
+import DataView from './_views/data/page';
+import CreatorView from './_views/creator/page';
+import MonetizeView from './_views/monetize/page';
 
-      {/* Data + Distribution row */}
-      <Box
-        sx={{
-          display: 'grid',
-          gap: 2,
-          gridTemplateColumns: { xs: '1fr', lg: '2fr 1fr' },
-        }}
-      >
-        <DataOverviewCard />
-        <ContentDistributionChart />
-      </Box>
+/**
+ * Single entry point for the creator workspace. Sub-pages used to live at
+ * /account/content/{tab} as separate routes, which meant every sidebar click
+ * pushed a new entry onto the browser history. The top-app-bar back arrow
+ * (router.back) would then walk the user through every tab they visited
+ * before finally returning to the page they came from.
+ *
+ * Tab state now lives in ActiveTabContext; this page just looks up the
+ * current tab and renders the matching view. The URL stays at
+ * /account/content the whole time.
+ */
+export default function CreatorContentPage() {
+  const { activeTab } = useActiveTab();
 
-      {/* Trend + Fan Portrait row */}
-      <Box
-        sx={{
-          display: 'grid',
-          gap: 2,
-          gridTemplateColumns: { xs: '1fr', lg: '2fr 1fr' },
-        }}
-      >
-        <TrendChart />
-        <FanPortrait />
-      </Box>
+  const view = useMemo(() => {
+    switch (activeTab) {
+      case 'hd-publish':
+        return <HdPublishView />;
+      case 'hd-review':
+        return <HdReviewView />;
+      case 'activity':
+        return <ActivityView />;
+      case 'co-create':
+        return <CoCreateView />;
+      case 'collection':
+        return <CollectionView />;
+      case 'works':
+        return <WorksView />;
+      case 'spider':
+        return <SpiderView />;
+      case 'crawled':
+        return <CrawledView />;
+      case 'original':
+        return <OriginalView />;
+      case 'data':
+        return <DataView />;
+      case 'creator':
+        return <CreatorView />;
+      case 'monetize':
+        return <MonetizeView />;
+      case 'content':
+      default:
+        return <DashboardView />;
+    }
+  }, [activeTab]);
 
-      {/* Top performing content */}
-      <TopPerformingContent />
-
-      {/* Hot topics */}
-      <HotTopicsCarousel />
-    </Box>
-  );
+  return view;
 }

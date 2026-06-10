@@ -1,0 +1,20 @@
+{
+  "_说明": "把这个文件复制为 public/avatar/clips.json 并填入你的真人视频片段地址,数字人即变成真人。",
+  "_字段": "每个动作一个 {url, loop};loop=true 持续循环(适合 idle/speaking/walk),loop=false 一次性播完后状态机自动切回 idle/speaking。",
+  "_来源建议": "真人实拍每个动作录一小段(竖屏 720x1280,无声,2~6 秒可循环);或用 Seedance/可灵/HeyGen 保持人物一致性批量生成。",
+  "_口型精确化": "speaking 用'对口型'的讲话片段即可近似;要逐句精确对上 TTS,接服务端 talking-head(SadTalker/LivePortrait/GeneFace)生成实时讲话流替换 speaking。",
+  "_point": "指向(配合 pointAt 高亮目标),真人录制 L/R 两版更自然;只有一版时状态机会播同一段。",
+  "_walk": "走动(配合 CSS 1.6s 位移过渡),需 loop=true,否则走一半就卡住。",
+  "idle":     { "url": "/avatar/clips/idle.mp4",     "loop": true  },
+  "speaking": { "url": "/avatar/clips/speaking.mp4", "loop": true  },
+  "thinking": { "url": "/avatar/clips/thinking.mp4", "loop": true  },
+  "greet":    { "url": "/avatar/clips/greet.mp4",    "loop": false },
+  "wave":     { "url": "/avatar/clips/wave.mp4",     "loop": false },
+  "point":    { "url": "/avatar/clips/point.mp4",    "loop": false },
+  "walk":     { "url": "/avatar/clips/walk.mp4",     "loop": true  },
+  "dance":    { "url": "/avatar/clips/dance.mp4",    "loop": false },
+  "sing":     { "url": "/avatar/clips/sing.mp4",     "loop": false },
+  "sit":      { "url": "/avatar/clips/sit.mp4",      "loop": true  },
+  "enter":    { "url": "/avatar/clips/enter.mp4",    "loop": false },
+  "leave":    { "url": "/avatar/clips/leave.mp4",    "loop": false }
+}

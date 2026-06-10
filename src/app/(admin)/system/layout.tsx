@@ -95,10 +95,33 @@ const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
   {
     title: '基础数据',
     items: [
-      { id: 'dict', label: '字典管理', path: '/system/dict', icon: <MenuBookRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_DICT.VIEW },
+      { id: 'dict', label: '字典管理', path: '/system/dict/dict-type', icon: <MenuBookRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_DICT.VIEW },
       { id: 'website-dict', label: '网站字典', path: '/system/website-dict', icon: <LanguageRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D', permission: PERMISSIONS.SYSTEM_WEBSITE_DICT.VIEW },
-      { id: 'address', label: '地址管理', path: '/system/address', icon: <LocationOnRoundedIcon sx={{ fontSize: 18 }} />, accent: 'success.main', permission: PERMISSIONS.SYSTEM_ADDRESS.VIEW },
+      { id: 'address', label: '地址管理', path: '/system/address/province', icon: <LocationOnRoundedIcon sx={{ fontSize: 18 }} />, accent: 'success.main', permission: PERMISSIONS.SYSTEM_ADDRESS.VIEW },
       { id: 'wx-config', label: '微信配置', path: '/system/wx-config', icon: <ChatBubbleOutlineRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
+    ],
+  },
+  {
+    title: '微信公众号',
+    items: [
+      { id: 'wx-mp-menu', label: '公众号菜单', path: '/wx/mp/menu', icon: <MenuBookRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
+      { id: 'wx-mp-auto-reply', label: '自动回复', path: '/wx/mp/auto-reply', icon: <ChatBubbleOutlineRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
+      { id: 'wx-mp-msg', label: '消息管理', path: '/wx/mp/msg', icon: <DnsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
+      { id: 'wx-mp-user', label: '公众号用户', path: '/wx/mp/user', icon: <PeopleRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
+    ],
+  },
+  {
+    title: '数据看板',
+    items: [
+      { id: 'dash-analysis', label: '分析页', path: '/dashboard/analysis', icon: <AccountTreeRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
+      { id: 'dash-monitor', label: '监控页', path: '/dashboard/monitor', icon: <StorageRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D' },
+      { id: 'dash-workplace', label: '工作台', path: '/dashboard/workplace', icon: <AppsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'success.main' },
+    ],
+  },
+  {
+    title: '数字人',
+    items: [
+      { id: 'dh-studio', label: '数字人工作台', path: '/system/digital-human', icon: <StarsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6' },
     ],
   },
 ];

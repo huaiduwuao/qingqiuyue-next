@@ -65,7 +65,7 @@ import { useContentNavigate } from '@/lib/contentRoute';
 import { ACCENT } from '@/constants/accents';
 import { gradient2, IMAGE_OVERLAY } from '@/constants/gradients';
 
-const SIDE_NAV: { key: string; label: string; path?: string; icon: React.ReactNode; accent: string; external?: '_blank'; dividerBefore?: boolean }[] = [
+const SIDE_NAV: { key: string; label: string; path?: string; icon: React.ReactNode; accent: string; external?: '_blank' | '_self'; dividerBefore?: boolean }[] = [
   { key: 'home', label: '精选', path: '/home/recommend?tab=home', icon: <HomeRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
   { key: 'recommend', label: '推荐', path: '/home/recommend?tab=recommend', icon: <RecommendRoundedIcon sx={{ fontSize: 18 }} />, accent: 'secondary.main' },
   { key: 'ai', label: 'AI 搜索', path: '/home/recommend?tab=ai', icon: <TravelExploreRoundedIcon sx={{ fontSize: 18 }} />, accent: ACCENT.blue.main },
@@ -158,7 +158,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
            : activeNav === 'drama' ? <DramaPanel />
            : children}
         </Box>
-        {activeNav !== 'me' && activeNav !== 'recommend' && activeNav !== 'follow' && activeNav !== 'friend' && <RightSidebar />}
+        {activeNav !== 'me' && activeNav !== 'recommend' && activeNav !== 'follow' && activeNav !== 'friend' && activeNav !== 'live' && <RightSidebar />}
       </Box>
       <MockStatusBadge />
     </Box>
@@ -437,7 +437,7 @@ function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activ
       <Box sx={{ flex: 1, py: 1.5, overflow: 'auto' }}>
         {SIDE_NAV.map((n) => {
           const isActive = activeNav === n.key;
-          const isNewTab = n.external === '_blank';
+          const isNewTab = !!n.external;
           const itemSx = {
             position: 'relative' as const,
             display: 'flex',
@@ -475,7 +475,7 @@ function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activ
                 {n.icon}
               </Box>
               <Typography sx={{ fontSize: 13, fontWeight: isActive ? 600 : 400, flex: 1 }}>{n.label}</Typography>
-              {isNewTab && (
+              {n.external === '_blank' && (
                 <Box sx={{ fontSize: 9, color: 'var(--text-disabled, rgba(255,255,255,0.3))', ml: 0.5 }}>↗</Box>
               )}
             </>
@@ -486,7 +486,7 @@ function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activ
                 <Divider sx={{ my: 1, mx: 2, borderColor: 'var(--border-color, rgba(255,255,255,0.06))' }} />
               )}
               {isNewTab ? (
-                <Box component="a" href={n.path} target="_blank" rel="noopener noreferrer" sx={itemSx}>
+                <Box component="a" href={n.path} target={n.external} rel="noopener noreferrer" sx={itemSx}>
                   {inner}
                 </Box>
               ) : (

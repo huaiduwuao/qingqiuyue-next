@@ -3,28 +3,19 @@ import {ProvinceItem, TableListParams} from "@/beans/system";
 
 
 export async function page(params: any) {
-  return adminClient("/sysProvince/page", {
+  return adminClient('/area/page', {
     params
   });
 }
 
 export async function remove(ids: number[]) {
-  return adminClient("/sysProvince/removeByIds", {
-    method: "DELETE",
-    data: ids
-  });
+  return adminClient('/area/remove', { method: 'DELETE', data: ids });
 }
 
 export async function save(params: ProvinceItem) {
-  return adminClient("/sysProvince/save", {
-    method: "POST",
-    data: params
-  });
+  return adminClient('/area/save', { method: 'POST', data: params });
 }
 
 export async function update(params: ProvinceItem) {
-  return adminClient("/sysProvince/updateById", {
-    method: "POST",
-    data: params
-  });
+  return adminClient('/area/update', { method: 'PUT', data: params });
 }

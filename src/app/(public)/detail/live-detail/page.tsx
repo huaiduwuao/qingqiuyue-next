@@ -25,6 +25,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import FlipIcon from '@mui/icons-material/Flip';
 import ReportProblemIcon from '@mui/icons-material/ReportProblem';
+import Snackbar from '@mui/material/Snackbar';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-live';
 import { withDefaults } from '@/utils/withDefaults';
@@ -125,6 +126,7 @@ function LiveDetailContent() {
   const [giftPanelOpen, setGiftPanelOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<LivePlayerSettingsState>(DEFAULT_LIVE_SETTINGS);
+  const [snack, setSnack] = useState<string | null>(null);
 
   const updateSettings = (patch: Partial<LivePlayerSettingsState>) =>
     setSettings((s) => ({ ...s, ...patch }));
@@ -549,16 +551,23 @@ function LiveDetailContent() {
         }
         onReport={() => {
           setSettingsOpen(false);
-          alert('已收到举报,我们会尽快处理');
+          setSnack('已收到举报,我们会尽快处理');
         }}
         onHelp={() => {
           setSettingsOpen(false);
-          alert('帮助中心:遇到问题可联系客服 400-xxx-xxxx');
+          setSnack('帮助中心:遇到问题可联系客服 400-xxx-xxxx');
         }}
         onLeave={() => {
           setSettingsOpen(false);
           router.back();
         }}
+      />
+      <Snackbar
+        open={!!snack}
+        autoHideDuration={2400}
+        onClose={() => setSnack(null)}
+        message={snack}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />
     </Box>
   );

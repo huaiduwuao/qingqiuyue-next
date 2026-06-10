@@ -6,6 +6,8 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Switch from '@mui/material/Switch';
 import IconButton from '@mui/material/IconButton';
+import Button from '@mui/material/Button';
+import Dialog from '@mui/material/Dialog';
 import EditIcon from '@mui/icons-material/Edit';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import StarRoundedIcon from '@mui/icons-material/StarRounded';
@@ -18,7 +20,7 @@ import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSettingsRounded';
-import { useAuthority } from '@/contexts/AuthContext';
+import { useAuthority, useAuth } from '@/contexts/AuthContext';
 import { gradient2, IMAGE_OVERLAY } from '@/constants/gradients';
 
 export const PROFILE = {
@@ -35,29 +37,52 @@ const LIKES_PREVIEW = [
   { id: 'p3', title: '发现有几分辛', cover: gradient2('#D4B89A', '#8B5A3C') },
 ];
 
-const SECTIONS = [
-  { key: 'favorites', label: '我的收藏', count: '49', icon: <StarRoundedIcon sx={{ fontSize: 18, color: 'warning.main' }} /> },
-  { key: 'history', label: '观看历史', count: '30天内', icon: <HistoryRoundedIcon sx={{ fontSize: 18, color: 'secondary.main' }} /> },
-  { key: 'watchlater', label: '稍后再看', count: '2', icon: <WatchLaterIcon sx={{ fontSize: 18, color: '#8B5CF6' }} /> },
-  { key: 'works', label: '我的作品', count: '0', icon: <VideoLibraryIcon sx={{ fontSize: 18, color: 'primary.main' }} /> },
-  { key: 'reservation', label: '我的预约', icon: <EventNoteRoundedIcon sx={{ fontSize: 18, color: 'success.main' }} /> },
-  { key: 'orders', label: '我的订单', icon: <ReceiptLongIcon sx={{ fontSize: 18, color: '#5B8DEF' }} /> },
+interface Section {
+  key: string;
+  label: string;
+  count?: string;
+  icon: React.ReactNode;
+  href: string;
+}
+
+const SECTIONS: Section[] = [
+  { key: 'favorites', label: '我的收藏', count: '49', icon: <StarRoundedIcon sx={{ fontSize: 18, color: 'warning.main' }} />, href: '/home/recommend?tab=me&mainTab=collect' },
+  { key: 'history', label: '观看历史', count: '30天内', icon: <HistoryRoundedIcon sx={{ fontSize: 18, color: 'secondary.main' }} />, href: '/home/recommend?tab=me&mainTab=history' },
+  { key: 'watchlater', label: '稍后再看', count: '2', icon: <WatchLaterIcon sx={{ fontSize: 18, color: '#8B5CF6' }} />, href: '/home/recommend?tab=me&mainTab=later' },
+  { key: 'works', label: '我的作品', count: '0', icon: <VideoLibraryIcon sx={{ fontSize: 18, color: 'primary.main' }} />, href: '/account/content' },
+  { key: 'reservation', label: '我的预约', icon: <EventNoteRoundedIcon sx={{ fontSize: 18, color: 'success.main' }} />, href: '/home/recommend?tab=me&mainTab=order' },
+  { key: 'orders', label: '我的订单', icon: <ReceiptLongIcon sx={{ fontSize: 18, color: '#5B8DEF' }} />, href: '/account/orders' },
 ];
 
 export interface PersonalCenterCardProps {
   compact?: boolean;
+  onNavigate?: () => void;
 }
 
-export function PersonalCenterCard({ compact = false }: PersonalCenterCardProps) {
+export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCenterCardProps) {
   const [saveLogin, setSaveLogin] = useState(true);
+  const [logoutOpen, setLogoutOpen] = useState(false);
   const router = useRouter();
   const { isAdmin } = useAuthority();
+  const { logout } = useAuth();
+
+  const go = (href: string) => {
+    onNavigate?.();
+    router.push(href);
+  };
+
+  const handleLogout = () => {
+    setLogoutOpen(false);
+    onNavigate?.();
+    logout();
+  };
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
       {/* === 资料头 === */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
         <Box
+          onClick={() => go('/home/recommend?tab=me')}
           sx={{
             width: compact ? 40 : 56,
             height: compact ? 40 : 56,
@@ -67,6 +92,7 @@ export function PersonalCenterCard({ compact = false }: PersonalCenterCardProps)
             position: 'relative',
             overflow: 'hidden',
             boxShadow: '0 0 0 1px rgba(255,255,255,0.05)',
+            cursor: 'pointer',
           }}
         >
           <Box
@@ -94,10 +120,18 @@ export function PersonalCenterCard({ compact = false }: PersonalCenterCardProps)
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <Typography sx={{ fontSize: compact ? 14 : 17, fontWeight: 600, color: 'text.primary', lineHeight: 1.2 }}>
+            <Typography
+              onClick={() => go('/home/recommend?tab=me')}
+              sx={{ fontSize: compact ? 14 : 17, fontWeight: 600, color: 'text.primary', lineHeight: 1.2, cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
+            >
               {PROFILE.nickname}
             </Typography>
-            <IconButton size="small" sx={{ color: 'rgba(255,255,255,0.5)', p: 0.25 }}>
+            <IconButton
+              size="small"
+              onClick={() => go('/home/recommend?tab=me')}
+              sx={{ color: 'rgba(255,255,255,0.5)', p: 0.25, '&:hover': { color: 'primary.main' } }}
+              aria-label="编辑资料"
+            >
               <EditIcon sx={{ fontSize: 14 }} />
             </IconButton>
           </Box>
@@ -120,20 +154,29 @@ export function PersonalCenterCard({ compact = false }: PersonalCenterCardProps)
 
       {/* === 我的喜欢 === */}
       <Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+        <Box
+          onClick={() => go('/home/recommend?tab=me&mainTab=like')}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            mb: 1,
+            cursor: 'pointer',
+            '&:hover .pc-likes-arrow': { color: 'text.primary' },
+          }}
+        >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1 }}>
             <FavoriteRoundedIcon sx={{ fontSize: 14, color: 'primary.main' }} />
             <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary' }}>我的喜欢</Typography>
           </Box>
           <Box
+            className="pc-likes-arrow"
             sx={{
               display: 'flex',
               alignItems: 'center',
               gap: 0.25,
               color: 'rgba(255,255,255,0.6)',
-              cursor: 'pointer',
               fontSize: 11,
-              '&:hover': { color: 'text.primary' },
+              transition: 'color 0.15s',
             }}
           >
             <span>{PROFILE.likes}</span>
@@ -144,6 +187,7 @@ export function PersonalCenterCard({ compact = false }: PersonalCenterCardProps)
           {LIKES_PREVIEW.map((p) => (
             <Box
               key={p.id}
+              onClick={() => go('/home/recommend?tab=me&mainTab=like')}
               sx={{
                 position: 'relative',
                 aspectRatio: '3/4',
@@ -180,6 +224,7 @@ export function PersonalCenterCard({ compact = false }: PersonalCenterCardProps)
         {SECTIONS.map((s, idx) => (
           <Box
             key={s.key}
+            onClick={() => go(s.href)}
             sx={{
               display: 'flex',
               alignItems: 'center',
@@ -208,6 +253,7 @@ export function PersonalCenterCard({ compact = false }: PersonalCenterCardProps)
       {isAdmin && (
         <Box
           onClick={() => {
+            onNavigate?.();
             const fullPath = window.location.pathname + window.location.search;
             sessionStorage.setItem('admin_entry_path', fullPath);
             router.push('/system/role');
@@ -234,10 +280,15 @@ export function PersonalCenterCard({ compact = false }: PersonalCenterCardProps)
 
       {/* === 退出登录 + 保存登录信息 === */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pt: 1 }}>
-        <LogoutRoundedIcon sx={{ fontSize: 16, color: 'primary.main' }} />
-        <Typography sx={{ fontSize: 13, color: 'primary.main', fontWeight: 500, flex: 1, cursor: 'pointer' }}>
-          退出登录
-        </Typography>
+        <Box
+          onClick={() => setLogoutOpen(true)}
+          sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, cursor: 'pointer', '&:hover .pc-logout-text': { color: '#FF8AA8' } }}
+        >
+          <LogoutRoundedIcon sx={{ fontSize: 16, color: 'primary.main' }} />
+          <Typography className="pc-logout-text" sx={{ fontSize: 13, color: 'primary.main', fontWeight: 500, transition: 'color 0.15s' }}>
+            退出登录
+          </Typography>
+        </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>保存登录信息</Typography>
           <Switch
@@ -251,6 +302,65 @@ export function PersonalCenterCard({ compact = false }: PersonalCenterCardProps)
           />
         </Box>
       </Box>
+
+      {/* === 退出登录确认 === */}
+      <Dialog
+        open={logoutOpen}
+        onClose={() => setLogoutOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        slotProps={{
+          paper: {
+            sx: {
+              borderRadius: 3,
+              background: 'linear-gradient(180deg, #15171F 0%, #0A0B14 100%)',
+              border: '1px solid rgba(255,255,255,0.08)',
+            },
+          },
+        }}
+      >
+        <Box sx={{ p: 3, textAlign: 'center' }}>
+          <Box
+            sx={{
+              width: 56,
+              height: 56,
+              borderRadius: '50%',
+              mx: 'auto',
+              mb: 2,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              bgcolor: 'rgba(254, 44, 85, 0.12)',
+            }}
+          >
+            <LogoutRoundedIcon sx={{ fontSize: 28, color: 'primary.main' }} />
+          </Box>
+          <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'text.primary', mb: 1 }}>
+            确认退出登录?
+          </Typography>
+          <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 3, lineHeight: 1.6 }}>
+            退出后需要重新输入账号密码,关闭浏览器后 {saveLogin ? '仍会' : '不会'}保留登录状态
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1.5 }}>
+            <Button fullWidth variant="outlined" onClick={() => setLogoutOpen(false)} sx={{ borderRadius: 2, textTransform: 'none' }}>
+              取消
+            </Button>
+            <Button
+              fullWidth
+              variant="contained"
+              onClick={handleLogout}
+              sx={{
+                borderRadius: 2,
+                textTransform: 'none',
+                background: 'linear-gradient(90deg, #FE2C55 0%, #FF6B8A 100%)',
+                '&:hover': { background: 'linear-gradient(90deg, #FE2C55 0%, #FF6B8A 100%)', filter: 'brightness(1.1)' },
+              }}
+            >
+              确认退出
+            </Button>
+          </Box>
+        </Box>
+      </Dialog>
     </Box>
   );
 }

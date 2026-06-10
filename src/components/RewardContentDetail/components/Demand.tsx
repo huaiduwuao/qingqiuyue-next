@@ -10,6 +10,7 @@ import Divider from '@mui/material/Divider';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemText from '@mui/material/ListItemText';
+import Snackbar from '@mui/material/Snackbar';
 import { demandDetail } from '@/apis/reward-demand';
 import { useApp } from '@/contexts/AppContext';
 import { REWARD_STATUS_ENUM } from '@/enums/common';
@@ -22,6 +23,7 @@ interface DemandDetailProps {
 export default function DemandDetail({ item, type }: DemandDetailProps) {
   const { currentUser } = useApp();
   const [detail, setDetail] = useState<any>({});
+  const [snack, setSnack] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchDetail = async () => {
@@ -39,10 +41,11 @@ export default function DemandDetail({ item, type }: DemandDetailProps) {
 
   const goRealizationOperation = () => {
     if (!currentUser?.id) {
-      alert('请先登录');
+      setSnack('请先登录');
       return;
     }
     // 实现提交流程
+    setSnack('已打开提交流程');
   };
 
   const renderSubmitButton = () => {
@@ -224,6 +227,14 @@ export default function DemandDetail({ item, type }: DemandDetailProps) {
           </List>
         </Box>
       )}
+
+      <Snackbar
+        open={!!snack}
+        autoHideDuration={2200}
+        onClose={() => setSnack(null)}
+        message={snack}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
     </Card>
   );
 }

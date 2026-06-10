@@ -55,7 +55,7 @@ function ShareModuleDetailContent() {
     enabled: !!moduleId,
   });
   const treeData = treeAndModuleQuery.data?.tree || [];
-  const module = treeAndModuleQuery.data?.module;
+  const moduleInfo = treeAndModuleQuery.data?.module;
   const loading = treeAndModuleQuery.isLoading;
 
   const contentDetailQuery = useQuery({
@@ -185,7 +185,7 @@ function ShareModuleDetailContent() {
           CONTENT MODULE
         </Typography>
         <Typography sx={{ fontSize: 15, fontWeight: 600, color: 'text.primary', mt: 0.5 }}>
-          {module?.name || '内容详情'}
+          {moduleInfo?.name || '内容详情'}
         </Typography>
       </Box>
       <Box sx={{ flex: 1, p: 1.5, overflow: 'auto' }}>
@@ -233,7 +233,7 @@ function ShareModuleDetailContent() {
             </IconButton>
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <Typography sx={{ fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {module?.name || '内容详情'}
+                {moduleInfo?.name || '内容详情'}
               </Typography>
               <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
                 共 {treeData.length} 个分类
@@ -338,16 +338,16 @@ function ShareModuleDetailContent() {
               color: 'text.primary',
             }}
           >
-            {module?.shareType === 'pay' ? <QrCode2Icon sx={{ fontSize: 28 }} /> : <LockOutlinedIcon sx={{ fontSize: 28 }} />}
+            {moduleInfo?.shareType === 'pay' ? <QrCode2Icon sx={{ fontSize: 28 }} /> : <LockOutlinedIcon sx={{ fontSize: 28 }} />}
           </Box>
           <Typography variant="h6" sx={{ mb: 0.5, textAlign: 'center', fontWeight: 700 }}>
-            {module?.shareType === 'pay' ? '扫码支付解锁' : '输入口令解锁'}
+            {moduleInfo?.shareType === 'pay' ? '扫码支付解锁' : '输入口令解锁'}
           </Typography>
           <Typography sx={{ fontSize: 12, color: 'text.secondary', textAlign: 'center', mb: 3 }}>
-            {module?.shareType === 'pay' ? '请使用微信/支付宝扫码支付' : '请输入分享者提供的 6 位口令'}
+            {moduleInfo?.shareType === 'pay' ? '请使用微信/支付宝扫码支付' : '请输入分享者提供的 6 位口令'}
           </Typography>
 
-          {module?.shareType === 'pay' && (
+          {moduleInfo?.shareType === 'pay' && (
             <Box sx={{ textAlign: 'center', mb: 2 }}>
               <Box
                 sx={{
@@ -367,12 +367,12 @@ function ShareModuleDetailContent() {
                 <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>二维码占位</Typography>
               </Box>
               <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'primary.main', fontFamily: 'monospace' }}>
-                ¥{module?.shareContent?.pay || 9.9}
+                ¥{moduleInfo?.shareContent?.pay || 9.9}
               </Typography>
             </Box>
           )}
 
-          {module?.shareType === 'password' && (
+          {moduleInfo?.shareType === 'password' && (
             <Box>
               <TextField
                 fullWidth

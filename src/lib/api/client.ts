@@ -61,6 +61,15 @@ function createApiClient(baseURL: string) {
         (error as any).response = data;
         return Promise.reject(error);
       }
+      // 分页响应归一:后端返回 { list, total }，部分页面读 { records, totalRow }。
+      // 统一挂上别名，两种约定都能用，避免逐个 api 文件适配。
+      const payload = (data as any)?.data;
+      if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+        if ('list' in payload && !('records' in payload)) payload.records = payload.list;
+        if ('records' in payload && !('list' in payload)) payload.list = payload.records;
+        if ('total' in payload && !('totalRow' in payload)) payload.totalRow = payload.total;
+        if ('totalRow' in payload && !('total' in payload)) payload.total = payload.totalRow;
+      }
       // 返回 data 而不是 response，方便使用
       return data;
     },

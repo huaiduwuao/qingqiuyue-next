@@ -21,10 +21,7 @@ export async function suggest(params: ArticleItem) {
 }
 
 export async function remove(ids: number[]) {
-  return contentClient("client-content/news/removeByIds", {
-    method: "DELETE",
-    data: ids
-  });
+  return Promise.all(ids.map((id) => contentClient(`content/${id}`, { method: "DELETE" })));
 }
 
 export async function save(params: ArticleItem) {

@@ -79,10 +79,8 @@ export async function updateAndPublish(contentType: ContentType, params: any) {
 
 // Aliases
 export const remove = (contentType: ContentType, ids: number[]) => {
-  return contentClient(`client-content/${contentType}/removeByIds`, {
-    method: 'DELETE',
-    data: ids,
-  });
+  const list = Array.isArray(ids) ? ids : [ids];
+  return Promise.all(list.map((id) => contentClient(`content/${id}`, { method: 'DELETE' })));
 };
 
 export const save = (contentType: ContentType, data: any) => saveOrUpdate(contentType, data);

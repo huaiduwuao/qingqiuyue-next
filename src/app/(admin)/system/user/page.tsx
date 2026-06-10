@@ -127,10 +127,10 @@ export default function SystemUserPage() {
           const res = await page(params);
           return {
             data: {
-              records: res.data?.data?.records || [],
-              totalRow: res.data?.data?.totalRow || 0,
+              records: res.data?.records || [],
+              totalRow: res.data?.totalRow || 0,
             },
-            success: res.data?.success ?? true,
+            success: res.success ?? true,
           };
         }}
         onEdit={handleEdit}

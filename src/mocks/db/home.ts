@@ -235,6 +235,44 @@ export function rejectFriendRequest(reqId: number) {
   return req;
 }
 
+// ─── 我发出的好友申请 ───
+export const SENT_FRIEND_REQUESTS: { id: number; toId: number; toName: string; toAvatar: string; message: string; time: string }[] = [
+  { id: 101, toId: 1020, toName: '南风知我意', toAvatar: avatar(3019), message: '我是怀独无傲', time: '1 天前' },
+  { id: 102, toId: 1025, toName: '白衣卿相', toAvatar: avatar(3024), message: '想加个好友一起创作', time: '3 天前' },
+];
+export function getSentFriendRequests() {
+  return SENT_FRIEND_REQUESTS.slice();
+}
+export function cancelSentFriendRequest(reqId: number) {
+  const idx = SENT_FRIEND_REQUESTS.findIndex((r) => r.id === reqId);
+  if (idx < 0) return null;
+  const [req] = SENT_FRIEND_REQUESTS.splice(idx, 1);
+  return req;
+}
+
+// ─── 我的好友(从 FRIEND_IDS 派生出 UserSummary)───
+export function getFriendList(): UserSummary[] {
+  return Array.from(FRIEND_IDS)
+    .map((id) => getUser(id))
+    .filter((u): u is UserSummary => u !== null);
+}
+// ─── 我的关注(从 FOLLOWED_IDS 派生出 UserSummary + 朋友标记)───
+export function getFollowingList() {
+  return Array.from(FOLLOWED_IDS)
+    .map((id) => {
+      const u = getUser(id);
+      return u ? { ...u, isFriend: FRIEND_IDS.has(id) } : null;
+    })
+    .filter((u): u is UserSummary & { isFriend: boolean } => u !== null);
+}
+export function getFriendStats() {
+  return {
+    friendCount: FRIEND_IDS.size,
+    incomingCount: FRIEND_REQUESTS.length,
+    sentCount: SENT_FRIEND_REQUESTS.length,
+  };
+}
+
 // ─── Feed 构造:用真实 userId,标 isFollowing/isFriend ───
 const NAMES = USER_NAMES;
 
@@ -365,6 +403,34 @@ export const WEREWOLF_VIDEO = {
   prevEpisode: 55,
   nextEpisode: 57,
 };
+
+// ─── 推荐流(抖音式上下切换的视频列表)───
+const FEED_SEED = [
+  { brand: 'AI 狼人杀官方', title: '重磅!', sub: 'AI 狼人杀 V4 · 第 56 局正式上线', ep: 56, name: 'AI 狼人杀官方', handle: 'ai_werewolf', caption: 'AI 狼人杀上帝视角 · 第 56 局 · 12 人白狼王局 · 屠边局女巫全程不可自救' },
+  { brand: '清秋影视', title: '名场面', sub: '《人世间》经典片段重温', ep: 12, name: '清秋影视', handle: 'qingqiu_film', caption: '跨越五十年的家庭史诗,这一段看哭了多少人 #人世间 #经典' },
+  { brand: '国风音乐站', title: '原创', sub: '古风新曲《山月不知》首发', ep: 3, name: '国风音乐站', handle: 'guofeng_music', caption: '一把琵琶一壶酒,听完这首仿佛回到了江南烟雨 #国风 #原创音乐' },
+  { brand: '二次元星球', title: '高燃', sub: '新番《铃芽之旅》混剪', ep: 8, name: '二次元星球', handle: 'acg_planet', caption: '新海诚的画面永远封神,这个混剪燃到起鸡皮疙瘩 #新海诚 #混剪' },
+  { brand: '知识研究所', title: '涨知识', sub: '三分钟看懂量子纠缠', ep: 21, name: '知识研究所', handle: 'know_lab', caption: '爱因斯坦都觉得诡异的"鬼魅般的超距作用",到底是什么? #科普 #物理' },
+  { brand: '美食日记', title: '深夜放毒', sub: '苏州面馆的一碗头汤面', ep: 34, name: '美食日记', handle: 'food_diary', caption: '凌晨四点的苏州,只为一碗头汤面 #美食 #苏州 #深夜放毒' },
+];
+export const WEREWOLF_FEED = FEED_SEED.map((s, i) => ({
+  id: 1000 + i,
+  brand: s.brand,
+  centerTitle: s.title,
+  centerSubtitle: s.sub,
+  episode: s.ep,
+  durationSec: 45 + (i * 7) % 40,
+  cover: `https://picsum.photos/seed/feed-${1000 + i}/720/1280`,
+  user: { name: s.name, handle: s.handle, verified: i % 2 === 0, avatar: avatar(8800 + i) },
+  caption: s.caption,
+  views: 50000 + (i * 81731) % 900000,
+  likes: 50 + (i * 137) % 9000,
+  comments: 4 + (i * 31) % 800,
+  collects: 17 + (i * 53) % 2000,
+  shares: 2 + (i * 19) % 500,
+  prevEpisode: s.ep - 1,
+  nextEpisode: s.ep + 1,
+}));
 
 // ─── 直播 ───
 export const LIVE_ROOMS = range(18).map((i) => ({

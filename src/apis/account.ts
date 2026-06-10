@@ -17,7 +17,7 @@ export async function queryProvince() {
 }
 
 export async function queryCity(params: any) {
-  return adminClient(`/api/area/cities/${params.provinceCode}`, {
+  return adminClient(`/area/cities/${params.provinceCode}`, {
     params
   });
 }

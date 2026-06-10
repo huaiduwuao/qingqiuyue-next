@@ -12,6 +12,19 @@ import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
 
 type EmptyVariant = 'inbox' | 'sad';
 
+function describeError(err: unknown): string {
+  if (!err) return '未知错误';
+  if (err instanceof Error) return err.message || err.name;
+  if (typeof err === 'string') return err;
+  if (typeof err === 'object') {
+    const e = err as { message?: string; status?: number; code?: string };
+    if (e.message) return e.message;
+    if (e.status) return `HTTP ${e.status}`;
+    if (e.code) return `code ${e.code}`;
+  }
+  return '未知错误';
+}
+
 export function AsyncState<T>({
   query,
   isEmpty,
@@ -20,15 +33,17 @@ export function AsyncState<T>({
   emptyVariant = 'inbox',
   skeletonCount = 6,
   skeletonHeight = 80,
+  errorHint,
   children,
 }: {
-  query: { isLoading: boolean; isError: boolean; refetch: () => void; data: T | undefined };
+  query: { isLoading: boolean; isError: boolean; refetch: () => void; data: T | undefined; error?: unknown };
   isEmpty?: (data: T) => boolean;
   emptyText?: string;
   emptyHint?: string;
   emptyVariant?: EmptyVariant;
   skeletonCount?: number;
   skeletonHeight?: number;
+  errorHint?: string;
   children: (data: T) => ReactNode;
 }) {
   if (query.isLoading) {
@@ -47,6 +62,7 @@ export function AsyncState<T>({
   }
 
   if (query.isError) {
+    const msg = describeError(query.error);
     return (
       <Box sx={{ p: 2 }}>
         <Alert
@@ -73,9 +89,17 @@ export function AsyncState<T>({
             border: '1px solid rgba(254, 44, 85, 0.3)',
             color: 'text.primary',
             '& .MuiAlert-icon': { color: 'primary.main' },
+            alignItems: 'center',
           }}
         >
-          加载失败,请检查网络后重试
+          <Box>
+            <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+              {errorHint ?? '加载失败,请稍后重试'}
+            </Typography>
+            <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.25, fontFamily: 'monospace' }}>
+              {msg}
+            </Typography>
+          </Box>
         </Alert>
       </Box>
     );

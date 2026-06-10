@@ -64,6 +64,10 @@ export const rewardHandlers = [
   // group-user
   http.get('*/api/reward/group-user/list', () => ok(GROUP_USER_LIST)),
   http.post('*/api/reward/group-user/invite', () => ok({ success: true })),
+  http.post('*/api/reward/group-user/agree/*', () => ok({ success: true })),
+  http.post(/\/api\/reward\/group-user$/, () => ok({ id: (GROUP_USER_LIST.list?.length ?? 0) + 1, status: 'WAIT' })),
+  http.put(/\/api\/reward\/group-user\/\d+$/, () => ok({ success: true })),
+  http.delete(/\/api\/reward\/group-user\/\d+$/, () => ok({ success: true })),
 
   // demand
   http.get('*/api/reward/demand/client/page', () => ok(DEMAND_PAGE)),

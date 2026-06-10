@@ -1,35 +1,28 @@
 import { adminClient } from '@/lib/api/client';
 import {AppConfigItem, AppItem, TableListParams} from "@/beans/system";
 
+// -> 后端 GET /app/config/listByMap
 export async function listByMap(params: AppConfigItem) {
-  return adminClient("/appConfig/listByMap", {
-    params
-  });
+  return adminClient('/app/config/listByMap', { params });
 }
 
+// 应用配置分页 -> 后端 GET /app/config/list
 export async function page(params: any) {
-  return adminClient("/appConfig/page", {
-    params
-  });
+  return adminClient('/app/config/list', { params });
 }
 
+// 删除 -> 后端 DELETE /app/config/:id (批量循环)
 export async function remove(ids: number[]) {
-  return adminClient("/appConfig/removeByIds", {
-    method: "DELETE",
-    data: ids
-  });
+  const list = Array.isArray(ids) ? ids : [ids];
+  return Promise.all(list.map((id) => adminClient(`/app/config/${id}`, { method: 'DELETE' })));
 }
 
+// 保存 -> 后端 POST /app/config
 export async function save(params: AppItem) {
-  return adminClient("/appConfig/save", {
-    method: "POST",
-    data: params
-  });
+  return adminClient('/app/config', { method: 'POST', data: params });
 }
 
+// 更新 -> 后端 PUT /app/config/:id
 export async function update(params: AppItem) {
-  return adminClient("/appConfig/updateById", {
-    method: "POST",
-    data: params
-  });
+  return adminClient(`/app/config/${(params as any).id}`, { method: 'PUT', data: params });
 }

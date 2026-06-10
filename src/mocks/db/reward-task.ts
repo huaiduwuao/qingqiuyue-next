@@ -7,6 +7,7 @@
 
 import { range, dateOffset, avatar } from '../utils/seed';
 import type { RewardTask, RewardTaskStatus, TaskPriority } from '@/beans/reward';
+import { refreshDemandProgress, appendRealizationFromTask } from './reward';
 
 const T = (d: number, h = 10) => dateOffset(d, h);
 
@@ -247,14 +248,9 @@ export function reviewTaskRecord(id: number | string, approved: boolean, note: s
   t.updatedAt = t.reviewedAt;
   // 副作用:若 task 关联了 demand,同步刷新该 demand 的完成度 + 派生 Realization
   if (t.demandId != null) {
-    try {
-      const { refreshDemandProgress, appendRealizationFromTask } = require('./reward');
-      refreshDemandProgress(t.demandId, TASKS);
-      if (t.status === 'APPROVED') {
-        appendRealizationFromTask(t);
-      }
-    } catch {
-      // reward.ts 未加载(单元测试场景)静默忽略
+    refreshDemandProgress(t.demandId, TASKS);
+    if (t.status === 'APPROVED') {
+      appendRealizationFromTask(t);
     }
   }
   return t;

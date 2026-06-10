@@ -6,6 +6,7 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
+import Snackbar from '@mui/material/Snackbar';
 import { realizationDetail, pickRealization } from '@/apis/reward-realization';
 import { useApp } from '@/contexts/AppContext';
 import { REWARD_STATUS_ENUM } from '@/enums/common';
@@ -19,6 +20,7 @@ interface RealizationDetailProps {
 export default function RealizationDetail({ item, demand, handleClose }: RealizationDetailProps) {
   const { currentUser } = useApp();
   const [detail, setDetail] = useState<any>({});
+  const [snack, setSnack] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchDetail = async () => {
@@ -39,9 +41,10 @@ export default function RealizationDetail({ item, demand, handleClose }: Realiza
       await pickRealization({ id: detail.id });
       const detailRes = await realizationDetail({ id: item.id });
       setDetail(detailRes.data || {});
-      alert('采纳成功!');
+      setSnack('采纳成功');
     } catch (err) {
       console.error('Failed to pick realization:', err);
+      setSnack('采纳失败,请重试');
     }
   };
 
@@ -129,6 +132,14 @@ export default function RealizationDetail({ item, demand, handleClose }: Realiza
           ))
         )}
       </Box>
+
+      <Snackbar
+        open={!!snack}
+        autoHideDuration={2200}
+        onClose={() => setSnack(null)}
+        message={snack}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
     </Card>
   );
 }

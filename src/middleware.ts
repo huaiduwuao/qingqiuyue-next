@@ -8,12 +8,14 @@ const PUBLIC_PREFIXES = [
   '/user/social-login',
   '/detail',
   '/home',
+  '/digital-human',
   '/_next',
   '/favicon',
   '/mockServiceWorker',
   '/api',
   '/static',
   '/images',
+  '/avatar',
 ];
 
 // 仅限管理员 / 已登录用户的路由前缀

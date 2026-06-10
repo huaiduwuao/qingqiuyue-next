@@ -43,3 +43,9 @@ next-env.d.ts
 # scratch / debug
 /tmp/
 /verify_*.py
+
+# 数字人演示视频(大文件,clone 后自备,见 public/avatar/clips.example.json)
+/public/avatar/clips/*.mp4
+
+# 本地 agent/编辑器配置
+/.claude/launch.json

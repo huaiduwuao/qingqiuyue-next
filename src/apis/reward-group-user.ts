@@ -42,7 +42,7 @@ export async function createGroupUser(data: any) {
 
 // 更新分组用户
 export async function updateGroupUser(id: number, data: any) {
-  return rewardClient<GroupUserInfo>(`/api/group-user/${id}`, {
+  return rewardClient<GroupUserInfo>(`/group-user/${id}`, {
     method: 'PUT',
     data,
   });
@@ -50,7 +50,7 @@ export async function updateGroupUser(id: number, data: any) {
 
 // 删除分组用户
 export async function deleteGroupUser(id: number) {
-  return rewardClient(`/api/group-user/${id}`, {
+  return rewardClient(`/group-user/${id}`, {
     method: 'DELETE',
   });
 }
@@ -65,7 +65,7 @@ export async function inviteGroupUser(data: any) {
 
 // 同意/拒绝加入申请
 export async function agreeGroupUser(id: number, status: string) {
-  return rewardClient(`/api/group-user/agree/${id}?status=${status}`, {
+  return rewardClient(`/group-user/agree/${id}?status=${status}`, {
     method: 'POST',
   });
 }

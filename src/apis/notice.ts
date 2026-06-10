@@ -32,7 +32,7 @@ export async function listNotices(params?: NoticeQuery) {
 
 // 获取通知详情
 export async function getNotice(id: number) {
-  return adminClient<NoticeInfo>(`/api/notice/${id}`, {
+  return adminClient<NoticeInfo>(`/notice/${id}`, {
     method: 'GET',
   });
 }
@@ -47,7 +47,7 @@ export async function createNotice(data: any) {
 
 // 更新通知
 export async function updateNotice(id: number, data: any) {
-  return adminClient<NoticeInfo>(`/api/notice/${id}`, {
+  return adminClient<NoticeInfo>(`/notice/${id}`, {
     method: 'PUT',
     data,
   });
@@ -55,7 +55,7 @@ export async function updateNotice(id: number, data: any) {
 
 // 删除通知
 export async function deleteNotice(id: number) {
-  return adminClient(`/api/notice/${id}`, {
+  return adminClient(`/notice/${id}`, {
     method: 'DELETE',
   });
 }

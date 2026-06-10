@@ -5,10 +5,12 @@
 import { http, HttpResponse } from 'msw';
 import {
   MY_PROFILE, MY_CONTENT, FEED, LIVE_ROOMS, LIVE_TOP_10, THEATER_ITEMS, DRAMA_EPISODES, DRAMA_SERIES, DRAMA_TOP_10, THEATER_TOP_10,
-  AI_SEARCH_CHUNKS, WEREWOLF_PLAYERS, WEREWOLF_VIDEO, SIDE_COMMENTS, SIDE_RELATED,
+  AI_SEARCH_CHUNKS, WEREWOLF_PLAYERS, WEREWOLF_VIDEO, WEREWOLF_FEED, SIDE_COMMENTS, SIDE_RELATED,
   CURRENT_USER_ID, getUser, followUser, unfollowUser, addFriend, removeFriend,
   acceptFriendRequest, rejectFriendRequest, suggestFollowUsers, suggestFriendUsers,
   isFollowing, isFriend, FRIEND_REQUESTS,
+  getSentFriendRequests, cancelSentFriendRequest, getFriendList, getFriendStats,
+  getFollowingList,
 } from '../db/home';
 
 const ok = <T,>(data: T) => HttpResponse.json({ code: 200, msg: 'OK', data });
@@ -89,6 +91,12 @@ export const homeHandlers = [
     return ok({ userId, isFollowing: isFollowing(userId), isFriend: isFriend(userId) });
   }),
 
+  // 我的关注列表(关注 tab 第二视图用)
+  http.get('*/api/home/follow/list', () => {
+    const list = getFollowingList();
+    return ok({ list, total: list.length });
+  }),
+
   http.post('*/api/home/follow/:userId', ({ params }) => {
     const userId = Number(params.userId);
     const target = getUser(userId);
@@ -126,6 +134,19 @@ export const homeHandlers = [
     return r ? ok(r) : ok({ ok: false, msg: '请求不存在' });
   }),
 
+  // 我发出的好友申请
+  http.get('*/api/home/friend/requests/sent', () => okList(getSentFriendRequests(), getSentFriendRequests().length)),
+  http.post('*/api/home/friend/requests/sent/:id/cancel', ({ params }) => {
+    const r = cancelSentFriendRequest(Number(params.id));
+    return r ? ok(r) : ok({ ok: false, msg: '请求不存在' });
+  }),
+
+  // 我的好友(已是双向好友)
+  http.get('*/api/home/friend/list', () => okList(getFriendList(), getFriendList().length)),
+
+  // 好友面板统计
+  http.get('*/api/home/friend/stats', () => ok(getFriendStats())),
+
   // 推荐用户(关注/朋友 空态用)
   http.get('*/api/home/suggestions', ({ request }) => {
     const url = new URL(request.url);
@@ -136,6 +157,7 @@ export const homeHandlers = [
   }),
 
   http.get('*/api/home/werewolf/video', () => ok(WEREWOLF_VIDEO)),
+  http.get('*/api/home/werewolf/feed', () => okList(WEREWOLF_FEED, WEREWOLF_FEED.length)),
   http.get('*/api/home/werewolf/players', () => okList(WEREWOLF_PLAYERS, WEREWOLF_PLAYERS.length)),
   http.post('*/api/home/werewolf/like', () => ok({ liked: true, likes: WEREWOLF_VIDEO.likes + 1 })),
   http.post('*/api/home/werewolf/collect', () => ok({ collected: true, collects: WEREWOLF_VIDEO.collects + 1 })),
@@ -197,7 +219,7 @@ export const homeHandlers = [
   http.get('*/api/home/theater/top', ({ request }) => {
     const url = new URL(request.url);
     const category = url.searchParams.get('category');
-    let pool = category && category !== 'all' ? THEATER_ITEMS.filter((t) => t.category === category) : THEATER_ITEMS;
+    const pool = category && category !== 'all' ? THEATER_ITEMS.filter((t) => t.category === category) : THEATER_ITEMS;
     const list = [...pool]
       .sort((a, b) => b.views - a.views)
       .slice(0, 10)

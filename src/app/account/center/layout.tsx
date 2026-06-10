@@ -14,12 +14,12 @@ const douyinSelectTheme = createTheme({
       paper: '#0a0a0f',
     },
     text: {
-      primary: 'text.primary',
+      primary: '#ffffff',
       secondary: 'rgba(255, 255, 255, 0.6)',
       disabled: 'rgba(255, 255, 255, 0.4)',
     },
     primary: {
-      main: 'primary.main',
+      main: '#FE2C55',
     },
     secondary: {
       main: '#5b8def',

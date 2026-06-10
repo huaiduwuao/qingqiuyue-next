@@ -1,0 +1,15 @@
+{
+  "_note": "本地 mp4 演示(mixkit 拉来的不同真人,人物不保证一致)。要'同一个人做多种动作'的真人效果,自己录 12 段或 HeyGen/可灵/Seedance 一致性生成后放 public/avatar/clips/*.mp4 即可。",
+  "idle":     { "url": "/avatar/clips/4836.mp4", "loop": true  },
+  "speaking": { "url": "/avatar/clips/4836.mp4", "loop": true  },
+  "thinking": { "url": "/avatar/clips/4835.mp4", "loop": true  },
+  "greet":    { "url": "/avatar/clips/4153.mp4", "loop": false },
+  "wave":     { "url": "/avatar/clips/4153.mp4", "loop": false },
+  "point":    { "url": "/avatar/clips/4153.mp4", "loop": false },
+  "walk":     { "url": "/avatar/clips/247.mp4",  "loop": true  },
+  "dance":    { "url": "/avatar/clips/4153.mp4", "loop": false },
+  "sing":     { "url": "/avatar/clips/4835.mp4", "loop": false },
+  "sit":      { "url": "/avatar/clips/247.mp4",  "loop": true  },
+  "enter":    { "url": "/avatar/clips/4836.mp4", "loop": false },
+  "leave":    { "url": "/avatar/clips/4836.mp4", "loop": false }
+}

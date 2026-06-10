@@ -113,6 +113,10 @@ for (const t of CONTENT_TYPES) {
 }
 
 export const contentHandlers = [
+  // content 主资源 REST(对齐后端 content-api: POST /content, GET/PUT/DELETE /content/:id)
+  http.post(/\/api\/content\/content$/, () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.put(/\/api\/content\/content\/\d+$/, () => ok({ updated: 1 })),
+  http.delete(/\/api\/content\/content\/\d+$/, () => ok({ removed: 1 })),
   http.get('*/api/content/banners', () => ok(BANNERS)),
   http.get('*/api/content/categories', () => ok(CATEGORIES)),
   http.get('*/api/content/module-menus', () => ok(MODULE_MENUS)),

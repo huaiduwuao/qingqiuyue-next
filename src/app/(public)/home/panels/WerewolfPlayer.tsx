@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -32,6 +32,8 @@ import HighQualityOutlinedIcon from '@mui/icons-material/HighQualityOutlined';
 import MicNoneRoundedIcon from '@mui/icons-material/MicNoneRounded';
 import QueueMusicRoundedIcon from '@mui/icons-material/QueueMusicRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import KeyboardArrowUpRoundedIcon from '@mui/icons-material/KeyboardArrowUpRounded';
+import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import { homeClient } from '@/lib/api/client';
 
 interface WerewolfVideo {
@@ -77,17 +79,63 @@ export function WerewolfPlayer() {
   const [collectedCount, setCollectedCount] = useState(0);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const { data: video } = useQuery({
-    queryKey: ['home', 'werewolf', 'video'],
-    queryFn: () => homeClient.get<WerewolfVideo>('/werewolf/video').then((r) => r.data),
+  // ─── 视频流 + 上下切换 ───
+  const { data: feed } = useQuery({
+    queryKey: ['home', 'werewolf', 'feed'],
+    queryFn: () => homeClient.get<{ list: WerewolfVideo[] }>('/werewolf/feed').then((r) => r.data.list),
   });
+  const [index, setIndex] = useState(0);
+  const [slideDir, setSlideDir] = useState<1 | -1>(1);
+  // 导航锁:切换动画期间(以及滚轮惯性持续期间)禁止再次切换,避免一次操作连翻多页
+  const navLock = useRef(false);
+  const unlockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const videos = feed ?? [];
+  const video = videos[index];
+  const indexRef = useRef(0);
+  indexRef.current = index;
 
+  const lockNav = useCallback((ms = 380) => {
+    navLock.current = true;
+    if (unlockTimer.current) clearTimeout(unlockTimer.current);
+    unlockTimer.current = setTimeout(() => { navLock.current = false; }, ms);
+  }, []);
+
+  const go = useCallback(
+    (dir: 1 | -1) => {
+      if (navLock.current) return;
+      const next = indexRef.current + dir;
+      if (next < 0 || next >= videos.length) return;
+      setSlideDir(dir);
+      setIndex(next);
+      lockNav();
+    },
+    [videos.length, lockNav],
+  );
+
+  // 切换视频时重置单条播放状态
   useEffect(() => {
+    setCurrentTime(0);
+    setPlaying(true);
+    setLiked(false);
+    setCollected(false);
     if (video) {
       setLikedCount(video.likes);
       setCollectedCount(video.collects);
     }
-  }, [video]);
+  }, [index, video]);
+
+  // 滚轮上下切换:锁定期间(含惯性滚动)持续刷新锁,滚动停止后才解锁,避免一次滑动连翻多页
+  const handleWheel = useCallback(
+    (e: React.WheelEvent) => {
+      if (Math.abs(e.deltaY) < 8) return;
+      if (navLock.current) {
+        lockNav(220); // 惯性持续,延长锁直到滚动停止
+        return;
+      }
+      go(e.deltaY > 0 ? 1 : -1); // go 内部会 lockNav
+    },
+    [go, lockNav],
+  );
 
   const likeMutation = useMutation({
     mutationFn: () => homeClient.post<{ liked: boolean; likes: number }>('/werewolf/like'),
@@ -151,21 +199,104 @@ export function WerewolfPlayer() {
         setCurrentTime((t) => Math.min(video?.durationSec || 0, t + 5));
       } else if (e.key === 'ArrowLeft') {
         setCurrentTime((t) => Math.max(0, t - 5));
+      } else if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === 'j') {
+        e.preventDefault();
+        go(1);
+      } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
+        e.preventDefault();
+        go(-1);
       } else if (e.key === 'f') {
         setIsFullscreen((v) => !v);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [video]);
+  }, [video, go]);
+
+  // ─── 跟手拖拽切换 ───
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const roRef = useRef<ResizeObserver | null>(null);
+  const [vh, setVh] = useState(0);
+  const [dragY, setDragY] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const dragState = useRef({ active: false, startY: 0, moved: 0 });
+
+  // 回调 ref:viewport 挂载(视频加载后)即测高度并监听尺寸变化,依赖恒定
+  const setViewportRef = useCallback((node: HTMLDivElement | null) => {
+    viewportRef.current = node;
+    roRef.current?.disconnect();
+    if (node) {
+      setVh(node.clientHeight);
+      const ro = new ResizeObserver(() => setVh(node.clientHeight));
+      ro.observe(node);
+      roRef.current = ro;
+    }
+  }, []);
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    if ((e.target as HTMLElement).closest('[data-no-drag]')) return;
+    dragState.current = { active: true, startY: e.clientY, moved: 0 };
+    setDragging(true);
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    const s = dragState.current;
+    if (!s.active) return;
+    let d = e.clientY - s.startY;
+    s.moved = Math.max(s.moved, Math.abs(d));
+    // 到顶/到底加阻尼
+    if ((d > 0 && index === 0) || (d < 0 && index === videos.length - 1)) d *= 0.32;
+    setDragY(d);
+  };
+  const endDrag = () => {
+    const s = dragState.current;
+    if (!s.active) return;
+    s.active = false;
+    setDragging(false);
+    const d = dragY;
+    if (s.moved < 6) {
+      // 视为点击:播放/暂停
+      setDragY(0);
+      setPlaying((p) => !p);
+      return;
+    }
+    const threshold = (vh || 600) * 0.2;
+    if (!navLock.current && d <= -threshold && index < videos.length - 1) {
+      setSlideDir(1);
+      setIndex((i) => i + 1);
+      setDragY(0);
+      lockNav();
+    } else if (!navLock.current && d >= threshold && index > 0) {
+      setSlideDir(-1);
+      setIndex((i) => i - 1);
+      setDragY(0);
+      lockNav();
+    } else {
+      // 未过阈值 / 动画进行中 → 回弹
+      setDragY(0);
+    }
+  };
 
   if (!video) return null;
 
   const progress = (currentTime / video.durationSec) * 100;
 
+  const navBtnSx = {
+    width: 40,
+    height: 40,
+    bgcolor: 'rgba(0,0,0,0.45)',
+    color: '#fff',
+    backdropFilter: 'blur(8px)',
+    border: '1px solid rgba(255,255,255,0.12)',
+    transition: 'background 0.15s, transform 0.15s',
+    '&:hover': { bgcolor: 'rgba(0,0,0,0.65)', transform: 'scale(1.06)' },
+    '&.Mui-disabled': { opacity: 0.3, color: 'rgba(255,255,255,0.5)' },
+  } as const;
+
   return (
     <Box
       ref={containerRef}
+      onWheel={handleWheel}
       sx={{
         position: 'relative',
         width: '100%',
@@ -176,28 +307,126 @@ export function WerewolfPlayer() {
         overflow: 'hidden',
       }}
     >
-      {/* 视频区 */}
+      {/* 视频区(viewport + 纵向 track,跟手拖拽切换) */}
       <Box
+        ref={setViewportRef}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
         sx={{
           position: 'relative',
           flex: 1,
           minHeight: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: `url(${video.cover}) center/cover`,
-          cursor: 'pointer',
-          '&::after': {
-            content: '""',
-            position: 'absolute',
-            inset: 0,
-            background:
-              'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 22%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.85) 100%)',
-            pointerEvents: 'none',
-          },
+          overflow: 'hidden',
+          bgcolor: '#000',
+          touchAction: 'none',
+          cursor: dragging ? 'grabbing' : 'grab',
         }}
-        onClick={() => setPlaying((p) => !p)}
       >
+        <Box
+          sx={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            top: 0,
+            height: vh ? vh * videos.length : '100%',
+            transform: `translateY(${-index * (vh || 0) + dragY}px)`,
+            transition: dragging ? 'none' : 'transform 0.34s cubic-bezier(0.22, 0.61, 0.36, 1)',
+            willChange: 'transform',
+          }}
+        >
+          {videos.map((v, i) => (
+            <Box
+              key={v.id}
+              sx={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                top: vh ? i * vh : 0,
+                height: vh || '100%',
+                opacity: vh > 0 || i === index ? 1 : 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: `url(${v.cover}) center/cover`,
+                '&::after': {
+                  content: '""',
+                  position: 'absolute',
+                  inset: 0,
+                  background:
+                    'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 22%, rgba(0,0,0,0) 60%, rgba(0,0,0,0.85) 100%)',
+                  pointerEvents: 'none',
+                },
+              }}
+            >
+              {i === index && (
+                <>
+        {/* 上下切换按钮(右侧中部) */}
+        <Box
+          data-no-drag
+          sx={{
+            position: 'absolute',
+            right: { xs: 8, sm: 16, md: 20 },
+            top: '50%',
+            transform: 'translateY(-50%)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1.25,
+            zIndex: 4,
+          }}
+        >
+          <Tooltip title="上一个 (↑)" placement="left">
+            <span>
+              <IconButton
+                onClick={(e) => { e.stopPropagation(); go(-1); }}
+                disabled={index <= 0}
+                sx={navBtnSx}
+              >
+                <KeyboardArrowUpRoundedIcon sx={{ fontSize: 26 }} />
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title="下一个 (↓)" placement="left">
+            <span>
+              <IconButton
+                onClick={(e) => { e.stopPropagation(); go(1); }}
+                disabled={index >= videos.length - 1}
+                sx={navBtnSx}
+              >
+                <KeyboardArrowDownRoundedIcon sx={{ fontSize: 26 }} />
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Box>
+
+        {/* 进度指示(右侧竖条) */}
+        <Box
+          sx={{
+            position: 'absolute',
+            right: 4,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            display: { xs: 'none', md: 'flex' },
+            flexDirection: 'column',
+            gap: 0.5,
+            zIndex: 3,
+          }}
+        >
+          {videos.map((_, i) => (
+            <Box
+              key={i}
+              sx={{
+                width: 3,
+                height: i === index ? 18 : 8,
+                borderRadius: 2,
+                bgcolor: i === index ? 'var(--brand-color, #FE2C55)' : 'rgba(255,255,255,0.3)',
+                transition: 'all 0.2s',
+              }}
+            />
+          ))}
+        </Box>
+
         {/* 顶部:品牌徽标 */}
         <Box
           sx={{
@@ -273,10 +502,7 @@ export function WerewolfPlayer() {
               alignItems: 'center',
               justifyContent: 'center',
               bgcolor: 'rgba(0, 0, 0, 0.3)',
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              setPlaying(true);
+              pointerEvents: 'none',
             }}
           >
             <Box
@@ -299,6 +525,7 @@ export function WerewolfPlayer() {
 
         {/* 右侧操作按钮栈 */}
         <Box
+          data-no-drag
           sx={{
             position: 'absolute',
             right: { xs: 8, sm: 16, md: 20 },
@@ -432,6 +659,11 @@ export function WerewolfPlayer() {
             <QueueMusicRoundedIcon sx={{ fontSize: 12 }} />
             <Typography sx={{ fontSize: 11 }}>原声 - {video.brand}</Typography>
           </Box>
+        </Box>
+                </>
+              )}
+            </Box>
+          ))}
         </Box>
       </Box>
 

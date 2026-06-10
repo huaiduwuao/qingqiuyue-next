@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -11,7 +13,15 @@ import Avatar from '@mui/material/Avatar';
 import Menu from '@mui/material/Menu';
 import Snackbar from '@mui/material/Snackbar';
 import Checkbox from '@mui/material/Checkbox';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import Drawer from '@mui/material/Drawer';
+import Dialog from '@mui/material/Dialog';
+import Divider from '@mui/material/Divider';
+import Stack from '@mui/material/Stack';
+import CircularProgress from '@mui/material/CircularProgress';
+import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
+import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
+import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import VideoLibraryOutlinedIcon from '@mui/icons-material/VideoLibraryOutlined';
 import SearchIcon from '@mui/icons-material/Search';
@@ -30,7 +40,7 @@ import QrCodeRoundedIcon from '@mui/icons-material/QrCodeRounded';
 import WalletRoundedIcon from '@mui/icons-material/WalletRounded';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import WorkspacePremiumRoundedIcon from '@mui/icons-material/WorkspacePremiumRounded';
-import MovieFilterRoundedIcon from '@mui/icons-material/MovieFilterRounded';
+import StarsIcon from '@mui/icons-material/Stars';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
@@ -94,11 +104,11 @@ const SUB_TABS: { key: string; label: string }[] = [
   { key: 'drama', label: '短剧' },
 ];
 
-const QUICK_LINKS: { key: string; label: string; icon: React.ReactNode; badge?: string; href?: string }[] = [
-  { key: 'wallet', label: '我的钱包', icon: <WalletRoundedIcon sx={{ fontSize: 18 }} />, badge: '¥128' },
-  { key: 'order', label: '我的订单', icon: <ReceiptLongRoundedIcon sx={{ fontSize: 18 }} />, badge: '3' },
-  { key: 'vip', label: '会员中心', icon: <WorkspacePremiumRoundedIcon sx={{ fontSize: 18 }} />, badge: 'VIP' },
-  { key: 'creator', label: '创作中心', icon: <MovieFilterRoundedIcon sx={{ fontSize: 18 }} /> },
+const QUICK_LINKS: { key: string; label: string; icon: React.ReactNode; badge?: string; href: string }[] = [
+  { key: 'wallet', label: '我的钱包', icon: <WalletRoundedIcon sx={{ fontSize: 18 }} />, badge: '¥128', href: '/account/wallet' },
+  { key: 'points', label: '积分中心', icon: <StarsIcon sx={{ fontSize: 18 }} />, badge: '12,580', href: '/user/points' },
+  { key: 'order', label: '我的订单', icon: <ReceiptLongRoundedIcon sx={{ fontSize: 18 }} />, badge: '3', href: '/account/orders' },
+  { key: 'vip', label: '会员中心', icon: <WorkspacePremiumRoundedIcon sx={{ fontSize: 18 }} />, badge: 'VIP', href: '/account/vip' },
 ];
 
 const DATE_RANGES = [
@@ -149,14 +159,25 @@ export function MyHomePage() {
   const { currentUser } = useApp();
   const qc = useQueryClient();
   const navigate = useContentNavigate();
-  const [mainTab, setMainTab] = useState('works');
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const urlMainTab = searchParams.get('mainTab') || 'works';
+  const [mainTab, setMainTab] = useState(urlMainTab);
   const [subTab, setSubTab] = useState('works');
+
+  // URL → state(从其它页面跳过来时,主 tab 跟着 URL 走)
+  useEffect(() => {
+    setMainTab(urlMainTab);
+  }, [urlMainTab]);
   const [keyword, setKeyword] = useState('');
   const [dateRange, setDateRange] = useState('all');
   const [dateMenuAnchor, setDateMenuAnchor] = useState<null | HTMLElement>(null);
   const [batchMode, setBatchMode] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [toast, setToast] = useState<string | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [qrOpen, setQrOpen] = useState(false);
 
   const profileQuery = useQuery({
     queryKey: ['home', 'me', 'profile'],
@@ -224,11 +245,32 @@ export function MyHomePage() {
     qc.invalidateQueries({ queryKey: ['home', 'me', 'list'] });
   };
 
+  const saveProfileMutation = useMutation({
+    mutationFn: (payload: Record<string, any>) => homeClient.post('/me/profile', payload).then((r) => r.data),
+    onSuccess: () => {
+      setToast('资料已更新');
+      setEditOpen(false);
+      qc.invalidateQueries({ queryKey: ['home', 'me', 'profile'] });
+    },
+    onError: () => {
+      setToast('保存失败,请重试');
+    },
+  });
+
   const switchTab = (key: string) => {
     setMainTab(key);
     setSubTab('works');
     setSelected(new Set());
     setBatchMode(false);
+    // 同步到 URL,让头像弹窗等其它入口能 deep-link 回来
+    const params = new URLSearchParams(searchParams.toString());
+    if (key === 'works') {
+      params.delete('mainTab');
+    } else {
+      params.set('mainTab', key);
+    }
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
 
   return (
@@ -358,7 +400,7 @@ export function MyHomePage() {
                 size="small"
                 variant="outlined"
                 startIcon={<EditRoundedIcon sx={{ fontSize: 14 }} />}
-                onClick={() => setToast('编辑资料已打开(开发中)')}
+                onClick={() => setEditOpen(true)}
                 sx={{ textTransform: 'none', fontSize: 11, borderRadius: 1.5, borderColor: 'var(--border-strong, rgba(255,255,255,0.12))', color: 'text.secondary' }}
               >
                 编辑资料
@@ -383,7 +425,7 @@ export function MyHomePage() {
                 size="small"
                 variant="outlined"
                 startIcon={<QrCodeRoundedIcon sx={{ fontSize: 14 }} />}
-                onClick={() => setToast('二维码名片:扫描即可访问主页')}
+                onClick={() => setQrOpen(true)}
                 sx={{ textTransform: 'none', fontSize: 11, borderRadius: 1.5, borderColor: 'var(--border-strong, rgba(255,255,255,0.12))', color: 'text.secondary' }}
               >
                 二维码
@@ -409,7 +451,8 @@ export function MyHomePage() {
           {QUICK_LINKS.map((q) => (
             <Box
               key={q.key}
-              onClick={() => setToast(`${q.label}:开发中`)}
+              component={Link}
+              href={q.href}
               sx={{
                 display: 'flex',
                 alignItems: 'center',
@@ -417,6 +460,7 @@ export function MyHomePage() {
                 p: 1.25,
                 borderRadius: 1.5,
                 cursor: 'pointer',
+                textDecoration: 'none',
                 transition: 'all 0.15s',
                 '&:hover': { bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))' },
               }}
@@ -695,6 +739,22 @@ export function MyHomePage() {
         onClose={() => setToast(null)}
         message={toast}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
+
+      <EditProfileDrawer
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        profile={profile}
+        onSave={(payload) => saveProfileMutation.mutate(payload)}
+        saving={saveProfileMutation.isPending}
+      />
+
+      <QrCodeDialog
+        open={qrOpen}
+        onClose={() => setQrOpen(false)}
+        profile={profile}
+        currentUser={currentUser}
+        onMessage={setToast}
       />
     </Box>
   );
@@ -1095,3 +1155,427 @@ function EmptyState({ tab, subTab }: { tab: string; subTab: string }) {
     </Box>
   );
 }
+
+// ─── 子组件:编辑资料 Drawer ───
+const REGION_PRESETS = ['中国', '奥地利', '日本', '韩国', '美国', '英国', '法国', '德国', '加拿大', '澳大利亚'];
+
+function EditProfileDrawer({
+  open, onClose, profile, onSave, saving,
+}: {
+  open: boolean;
+  onClose: () => void;
+  profile: any;
+  onSave: (payload: Record<string, any>) => void;
+  saving: boolean;
+}) {
+  const initial = profile?.user;
+  const [nickname, setNickname] = useState('');
+  const [douyinId, setDouyinId] = useState('');
+  const [bio, setBio] = useState('');
+  const [region, setRegion] = useState('');
+  const [age, setAge] = useState<string>('');
+  const [avatar, setAvatar] = useState('');
+  const [showRegionMenu, setShowRegionMenu] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setNickname(initial?.nickname || '');
+    setDouyinId(initial?.douyinId || '');
+    setBio(initial?.bio || '');
+    setRegion(initial?.region || '');
+    setAge(initial?.age != null ? String(initial.age) : '');
+    setAvatar(initial?.avatar || '');
+  }, [open, initial?.nickname, initial?.douyinId, initial?.bio, initial?.region, initial?.age, initial?.avatar]);
+
+  const handleRandomAvatar = () => {
+    const seed = Math.floor(Math.random() * 10000);
+    setAvatar(`https://picsum.photos/seed/${seed}/200/200`);
+  };
+
+  const handleSubmit = () => {
+    const payload: Record<string, any> = {};
+    if (nickname.trim()) payload.nickname = nickname.trim();
+    if (douyinId.trim()) payload.douyinId = douyinId.trim();
+    if (bio.trim()) payload.bio = bio.trim();
+    if (region) payload.region = region;
+    if (age && !isNaN(Number(age))) payload.age = Number(age);
+    if (avatar) payload.avatar = avatar;
+    onSave(payload);
+  };
+
+  const fieldSx = {
+    '& .MuiOutlinedInput-root': {
+      bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))',
+      color: 'text.primary',
+      fontSize: 13,
+      borderRadius: 1.5,
+      '& fieldset': { borderColor: 'var(--border-color, rgba(255,255,255,0.08))' },
+      '&:hover fieldset': { borderColor: 'var(--border-strong, rgba(255,255,255,0.18))' },
+      '&.Mui-focused fieldset': { borderColor: 'primary.main' },
+    },
+    '& .MuiInputLabel-root': { color: 'text.secondary', fontSize: 13 },
+    '& .MuiInputLabel-root.Mui-focused': { color: 'primary.main' },
+  };
+
+  return (
+    <Drawer
+      anchor="right"
+      open={open}
+      onClose={onClose}
+      slotProps={{ paper: { sx: { width: { xs: '100%', sm: 420 }, bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.98))' } } }}
+    >
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, borderBottom: 1, borderColor: 'divider' }}>
+        <Typography sx={{ fontSize: 16, fontWeight: 700 }}>编辑资料</Typography>
+        <IconButton size="small" onClick={onClose} aria-label="关闭">
+          <CloseRoundedIcon sx={{ fontSize: 18 }} />
+        </IconButton>
+      </Box>
+
+      <Box sx={{ flex: 1, overflowY: 'auto', p: 2.5 }}>
+        <Stack spacing={2.5}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5, py: 1 }}>
+            <Avatar src={avatar} sx={{ width: 80, height: 80, border: 2, borderColor: 'warning.main' }}>
+              {(nickname || '我')[0]}
+            </Avatar>
+            <Stack direction="row" spacing={1}>
+              <Button size="small" variant="outlined" onClick={handleRandomAvatar} sx={{ textTransform: 'none', fontSize: 12, borderRadius: 1.5 }}>
+                随机头像
+              </Button>
+              <Button
+                size="small"
+                variant="text"
+                onClick={() => setAvatar('')}
+                sx={{ textTransform: 'none', fontSize: 12, borderRadius: 1.5, color: 'text.secondary' }}
+              >
+                移除
+              </Button>
+            </Stack>
+          </Box>
+
+          <Divider sx={{ borderColor: 'var(--border-color, rgba(255,255,255,0.06))' }} />
+
+          <TextField
+            label="昵称"
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value.slice(0, 20))}
+            fullWidth
+            slotProps={{ htmlInput: { maxLength: 20 }, formHelperText: { sx: { fontSize: 10, color: 'text.muted' } } }}
+            helperText={`${nickname.length}/20`}
+            sx={fieldSx}
+          />
+
+          <TextField
+            label="抖音号"
+            value={douyinId}
+            onChange={(e) => setDouyinId(e.target.value.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20))}
+            fullWidth
+            sx={fieldSx}
+          />
+
+          <Box>
+            <TextField
+              label="个人简介"
+              value={bio}
+              onChange={(e) => setBio(e.target.value.slice(0, 80))}
+              fullWidth
+              multiline
+              minRows={2}
+              maxRows={4}
+              slotProps={{ htmlInput: { maxLength: 80 }, formHelperText: { sx: { fontSize: 10, color: 'text.muted' } } }}
+              helperText={`${bio.length}/80`}
+              sx={fieldSx}
+            />
+          </Box>
+
+          <Stack direction="row" spacing={1.5}>
+            <TextField
+              label="年龄"
+              type="number"
+              value={age}
+              onChange={(e) => setAge(e.target.value)}
+              sx={{ ...fieldSx, width: 120 }}
+              slotProps={{ htmlInput: { min: 0, max: 120 } }}
+            />
+            <Box sx={{ flex: 1, position: 'relative' }}>
+              <TextField
+                label="地区"
+                value={region}
+                onChange={(e) => setRegion(e.target.value)}
+                onFocus={() => setShowRegionMenu(true)}
+                onBlur={() => setTimeout(() => setShowRegionMenu(false), 150)}
+                fullWidth
+                sx={fieldSx}
+              />
+              {showRegionMenu && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    mt: 0.5,
+                    zIndex: 10,
+                    bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.98))',
+                    border: 1,
+                    borderColor: 'divider',
+                    borderRadius: 1.5,
+                    boxShadow: 3,
+                    maxHeight: 200,
+                    overflowY: 'auto',
+                  }}
+                >
+                  {REGION_PRESETS.map((r) => (
+                    <Box
+                      key={r}
+                      onMouseDown={() => { setRegion(r); setShowRegionMenu(false); }}
+                      sx={{
+                        px: 1.5,
+                        py: 0.75,
+                        fontSize: 12,
+                        cursor: 'pointer',
+                        bgcolor: region === r ? 'var(--bg-hover, rgba(255,255,255,0.06))' : 'transparent',
+                        '&:hover': { bgcolor: 'var(--bg-hover, rgba(255,255,255,0.06))' },
+                      }}
+                    >
+                      {r}
+                    </Box>
+                  ))}
+                </Box>
+              )}
+            </Box>
+          </Stack>
+        </Stack>
+      </Box>
+
+      <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider', display: 'flex', gap: 1.5 }}>
+        <Button fullWidth variant="outlined" onClick={onClose} sx={{ borderRadius: 2, textTransform: 'none' }}>
+          取消
+        </Button>
+        <Button
+          fullWidth
+          variant="contained"
+          onClick={handleSubmit}
+          disabled={saving}
+          startIcon={saving ? <CircularProgress size={14} color="inherit" /> : null}
+          sx={{ borderRadius: 2, textTransform: 'none' }}
+        >
+          {saving ? '保存中…' : '保存'}
+        </Button>
+      </Box>
+    </Drawer>
+  );
+}
+
+// ─── 子组件:二维码名片 Dialog ───
+function QrCodeDialog({
+  open, onClose, profile, currentUser, onMessage,
+}: {
+  open: boolean;
+  onClose: () => void;
+  profile: any;
+  currentUser: any;
+  onMessage: (msg: string) => void;
+}) {
+  const user = profile?.user || currentUser;
+  const nickname = user?.nickname || currentUser?.nickname || currentUser?.name || '我';
+  const douyinId = user?.douyinId || '84301022';
+  const avatarSrc = user?.avatar || currentUser?.avatar;
+  const profileUrl = `https://qingqiuyue.com/u/${encodeURIComponent(douyinId)}`;
+  const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=${encodeURIComponent(profileUrl)}`;
+  const [refreshing, setRefreshing] = useState(false);
+  const [qrKey, setQrKey] = useState(0);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    setQrKey((k) => k + 1);
+    setTimeout(() => setRefreshing(false), 600);
+  };
+
+  const handleSave = async () => {
+    try {
+      const res = await fetch(qrSrc);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `清秋月-${nickname}-${douyinId}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      onMessage('已保存到下载文件夹');
+    } catch {
+      onMessage('保存失败,请长按二维码图片保存');
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(profileUrl);
+      onMessage('主页链接已复制');
+    } catch {
+      onMessage('复制失败');
+    }
+  };
+
+  const handleShare = async () => {
+    if (typeof navigator !== 'undefined' && (navigator as any).share) {
+      try {
+        await (navigator as any).share({ title: `${nickname}的主页`, text: `来清秋月关注 ${nickname}`, url: profileUrl });
+        return;
+      } catch {
+        // user cancelled or share failed, fall through
+      }
+    }
+    handleCopyLink();
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="xs"
+      fullWidth
+      slotProps={{
+        paper: {
+          sx: {
+            borderRadius: 3,
+            background: 'linear-gradient(180deg, #15171F 0%, #0A0B14 100%)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            overflow: 'hidden',
+          },
+        },
+      }}
+    >
+      <Box
+        sx={{
+          position: 'relative',
+          background: 'radial-gradient(ellipse 80% 60% at 50% 0%, rgba(254, 44, 85, 0.12) 0%, transparent 70%), radial-gradient(ellipse 60% 50% at 50% 100%, rgba(139, 92, 246, 0.1) 0%, transparent 60%)',
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', p: 2, pb: 0 }}>
+          <Typography sx={{ fontSize: 15, fontWeight: 700, flex: 1 }}>我的二维码名片</Typography>
+          <IconButton size="small" onClick={onClose} aria-label="关闭">
+            <CloseRoundedIcon sx={{ fontSize: 18 }} />
+          </IconButton>
+        </Box>
+
+        <Stack spacing={2.5} sx={{ px: 3, pb: 3, pt: 1.5, alignItems: 'center' }}>
+          {/* 头像 + 名字 */}
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', width: '100%', p: 1.5, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <Avatar src={avatarSrc} sx={{ width: 48, height: 48, border: '2px solid', borderColor: 'warning.main' }}>
+              {nickname[0]}
+            </Avatar>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography sx={{ fontSize: 14, fontWeight: 700 }} noWrap>{nickname}</Typography>
+              <Typography sx={{ fontSize: 11, color: 'text.secondary' }} noWrap>抖音号: {douyinId}</Typography>
+            </Box>
+            <Box sx={{ px: 0.75, py: 0.25, borderRadius: 0.5, bgcolor: 'warning.main', color: '#1a1a1a', fontSize: 9, fontWeight: 700 }}>
+              {user?.level || '月亮'}
+            </Box>
+          </Stack>
+
+          {/* QR Code */}
+          <Box
+            sx={{
+              position: 'relative',
+              p: 1.5,
+              borderRadius: 2.5,
+              bgcolor: '#fff',
+              boxShadow: '0 8px 32px rgba(254, 44, 85, 0.2)',
+            }}
+          >
+            <Box
+              component="img"
+              key={qrKey}
+              src={qrSrc}
+              alt={`${nickname} 的二维码`}
+              sx={{ display: 'block', width: 220, height: 220, opacity: refreshing ? 0.3 : 1, transition: 'opacity 0.3s' }}
+            />
+            <Box
+              sx={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: 36,
+                height: 36,
+                borderRadius: 1.5,
+                bgcolor: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: '2px solid #fff',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              }}
+            >
+              <Avatar src={avatarSrc} sx={{ width: 30, height: 30, fontSize: 12, fontWeight: 700 }}>
+                {nickname[0]}
+              </Avatar>
+            </Box>
+            {refreshing && (
+              <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <CircularProgress size={28} sx={{ color: 'primary.main' }} />
+              </Box>
+            )}
+          </Box>
+
+          <Typography sx={{ fontSize: 12, color: 'text.secondary', textAlign: 'center' }}>
+            扫一扫,加我好友 · 关注后可在「我的-关注」中找到
+          </Typography>
+
+          {/* 操作按钮 */}
+          <Stack direction="row" spacing={1} sx={{ width: '100%' }}>
+            <Button
+              fullWidth
+              variant="outlined"
+              size="small"
+              startIcon={<DownloadRoundedIcon sx={{ fontSize: 16 }} />}
+              onClick={handleSave}
+              sx={{ textTransform: 'none', fontSize: 12, borderRadius: 1.5, borderColor: 'rgba(255,255,255,0.12)', color: 'text.secondary' }}
+            >
+              保存图片
+            </Button>
+            <Button
+              fullWidth
+              variant="outlined"
+              size="small"
+              startIcon={<LinkRoundedIcon sx={{ fontSize: 16 }} />}
+              onClick={handleCopyLink}
+              sx={{ textTransform: 'none', fontSize: 12, borderRadius: 1.5, borderColor: 'rgba(255,255,255,0.12)', color: 'text.secondary' }}
+            >
+              复制链接
+            </Button>
+            <Button
+              fullWidth
+              variant="contained"
+              size="small"
+              startIcon={<ShareRoundedIcon sx={{ fontSize: 16 }} />}
+              onClick={handleShare}
+              sx={{ textTransform: 'none', fontSize: 12, borderRadius: 1.5, background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)', '&:hover': { background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)', filter: 'brightness(1.1)' } }}
+            >
+              分享
+            </Button>
+          </Stack>
+
+          <Box
+            onClick={handleRefresh}
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.5,
+              fontSize: 10,
+              color: 'text.disabled',
+              cursor: 'pointer',
+              '&:hover': { color: 'text.secondary' },
+            }}
+          >
+            <RefreshRoundedIcon sx={{ fontSize: 11 }} />
+            二维码失效?点击刷新
+          </Box>
+        </Stack>
+      </Box>
+    </Dialog>
+  );
+}
+
