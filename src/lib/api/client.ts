@@ -3,9 +3,11 @@ import axios, { AxiosError, AxiosResponse } from 'axios';
 const MOCK_API_PORT = 3001;
 // MSW 启动时必须用同源 URL(空串),否则 Service Worker 拦截不到跨域 XHR
 const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === '1' || process.env.NEXT_PUBLIC_USE_MOCK === 'true';
+// 用 ?? 而非 ||:显式设为空串("")表示同源(/api/... 走 Next rewrites 反代到网关),
+// 仅当变量未定义时才回退到本地 dev 地址。
 const API_GATEWAY = USE_MOCK
   ? ''
-  : process.env.NEXT_PUBLIC_API_BASE_URL || `http://localhost:${MOCK_API_PORT}`;
+  : process.env.NEXT_PUBLIC_API_BASE_URL ?? `http://localhost:${MOCK_API_PORT}`;
 
 // 各模块API基地址
 export const API_BASE = {

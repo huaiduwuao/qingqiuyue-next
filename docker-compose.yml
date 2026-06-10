@@ -1,0 +1,28 @@
+services:
+  # =============================================
+  # qingqiuyue-next 前端(Next.js standalone,:3000)
+  # /api/* 由 Next 服务端反代到后端网关(默认走宿主机已发布的 10000 端口)
+  # =============================================
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: localhost/qingqiuyue/web:latest
+    container_name: qingqiuyue-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # 后端网关地址(容器视角)。后端 compose 把 gateway 发布在宿主机 :10000,
+      # 这里通过 host.docker.internal 访问宿主机;若前后端在同一 compose 网络,
+      # 可改成 http://gateway:10000。
+      - API_PROXY_TARGET=http://host.docker.internal:10000
+    extra_hosts:
+      # docker 与 podman 都支持 host-gateway,解析到宿主机
+      - "host.docker.internal:host-gateway"
+    networks:
+      - default
+
+networks:
+  default:
+    driver: bridge
