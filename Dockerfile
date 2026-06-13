@@ -13,6 +13,11 @@ COPY . .
 ENV NEXT_PUBLIC_USE_MOCK=0
 ENV NEXT_PUBLIC_API_BASE_URL=""
 ENV NEXT_TELEMETRY_DISABLED=1
+# 关键:next.config.ts 里 API_PROXY_TARGET 在 build 期被内联进 rewrites,
+# 必须在 build 时就有,否则 rewrite 目标会回退到默认 http://localhost:10000。
+# 默认值与 docker-compose.yml 里的同网络目标保持一致(可直接覆盖)。
+ARG API_PROXY_TARGET=http://apisix:9080
+ENV API_PROXY_TARGET=$API_PROXY_TARGET
 RUN npm run build
 
 # ===== runner:最小运行镜像 =====
