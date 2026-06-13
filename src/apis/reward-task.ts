@@ -2,14 +2,14 @@
  * Reward task API — 悬赏项目下的协作任务。
  *
  * 端点(对齐 mock-bridge-api/internal/handler/reward_task.go,本轮仅 mock):
- *   GET    /api/reward/task/page?projectId=&status=&assigneeId=&priority=
- *   GET    /api/reward/task/{id}
- *   POST   /api/reward/task
- *   PUT    /api/reward/task/{id}
- *   DELETE /api/reward/task/{id}
- *   POST   /api/reward/task/{id}/claim     OPEN → CLAIMED
- *   POST   /api/reward/task/{id}/submit    CLAIMED → SUBMITTED
- *   POST   /api/reward/task/{id}/review    SUBMITTED → APPROVED|REJECTED
+ *   GET    /api/core/task/page?projectId=&status=&assigneeId=&priority=
+ *   GET    /api/core/task/{id}
+ *   POST   /api/core/task
+ *   PUT    /api/core/task/{id}
+ *   DELETE /api/core/task/{id}
+ *   POST   /api/core/task/{id}/claim     OPEN → CLAIMED
+ *   POST   /api/core/task/{id}/submit    CLAIMED → SUBMITTED
+ *   POST   /api/core/task/{id}/review    SUBMITTED → APPROVED|REJECTED
  *
  * 响应通过 axios 拦截器解包为 { code, msg, data },这里直接返回 data。
  */

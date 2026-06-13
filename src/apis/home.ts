@@ -91,7 +91,7 @@ export async function sendComment(params: any) {
 
 // ========== Reward APIs (use rewardClient) ==========
 
-// 项目列表 - GET /api/reward/project/list
+// 项目列表 - GET /api/core/project/list
 export async function listProjects(params?: any) {
   return rewardClient("/project/list", { params });
 }
@@ -101,7 +101,7 @@ export async function queryDoingProject() {
   return rewardClient("/project/list", { params: { status: 'DOING' } });
 }
 
-// 用户活动列表 - GET /api/reward/user-activity/list
+// 用户活动列表 - GET /api/core/user-activity/list
 export async function listUserActivities(params?: any) {
   return rewardClient("/user-activity/list", { params });
 }
@@ -110,17 +110,17 @@ export async function queryActivities() {
   return rewardClient("/user-activity/list", {});
 }
 
-// 图表数据 - GET /api/reward/chart/overview/list
+// 图表数据 - GET /api/core/chart/overview/list
 export async function listChartOverviews(params?: any) {
   return rewardClient("/chart/overview/list", { params });
 }
 
-// 图表数据 - GET /api/reward/chart/day-search/list
+// 图表数据 - GET /api/core/chart/day-search/list
 export async function listChartDaySearches(params?: any) {
   return rewardClient("/chart/day-search/list", { params });
 }
 
-// 雷达图 - GET /api/reward/chart/radar/list
+// 雷达图 - GET /api/core/chart/radar/list
 export async function listChartContentRadars(params?: any) {
   return rewardClient("/chart/radar/list", { params });
 }
@@ -129,12 +129,12 @@ export async function queryRadar() {
   return rewardClient("/chart/radar/list", {});
 }
 
-// 搜索建议 - GET /api/reward/chart/search/list
+// 搜索建议 - GET /api/core/chart/search/list
 export async function searchSuggest(params?: any) {
   return rewardClient("/chart/search/list", { params });
 }
 
-// 热词 - GET /api/reward/chart/day-search/list
+// 热词 - GET /api/core/chart/day-search/list
 export async function topKeywordInThirdMonth(params?: any) {
   return rewardClient("/chart/day-search/list", { params });
 }
