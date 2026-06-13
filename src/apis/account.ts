@@ -50,13 +50,13 @@ export async function moduleContentActionPage(params: any) {
 }
 
 export async function novelBookshelf(params: any) {
-  return adminClient("/content/novelBookshelf/my", {
+  return contentClient("/novelBookshelf/my", {
     params
   });
 }
 
 export async function removeNovel(params: any) {
-  return adminClient("/content/novelBookshelf/remove", {
+  return contentClient("/novelBookshelf/remove", {
     params
   });
 }

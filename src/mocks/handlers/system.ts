@@ -257,16 +257,16 @@ export const systemHandlers = [
   http.post('*/api/admin/authentication/openid', () => ok({ openid: 'o6_bmjrPTlm6_2sgVt7hMZOPfL_demo', token: 'mock-token-67890' })),
 
   // ─── content (admin 域里嵌的) ───
-  http.post('*/api/admin/content/parse', () => ok({ parsed: true, type: 'novel', fields: ['title', 'author', 'content'] })),
-  http.post('*/api/admin/content/collect', () => ok({ collected: 12 })),
-  http.post('*/api/admin/content/report', () => ok({ reported: true, reportId: 9999 })),
-  http.get('*/api/admin/content/search', () => okList([], 0)),
-  http.post('*/api/admin/content/file/upload', () => ok({ url: 'https://picsum.photos/seed/upload/200/200', filename: 'demo.jpg' })),
+  http.post('*/api/content/parse', () => ok({ parsed: true, type: 'novel', fields: ['title', 'author', 'content'] })),
+  http.post('*/api/content/collect', () => ok({ collected: 12 })),
+  http.post('*/api/content/report', () => ok({ reported: true, reportId: 9999 })),
+  http.get('*/api/content/search', () => okList([], 0)),
+  http.post('*/api/content/file/upload', () => ok({ url: 'https://picsum.photos/seed/upload/200/200', filename: 'demo.jpg' })),
   http.post('*/api/admin/file/upload', () => ok({ url: 'https://picsum.photos/seed/upload/200/200', filename: 'demo.jpg' })),
-  http.get('*/api/admin/content/novelBookshelf/my', () => okList([], 0)),
-  http.post('*/api/admin/content/novelBookshelf/remove', () => ok({ removed: 1 })),
-  http.get('*/api/admin/content/question/qa', () => okList([], 0)),
-  http.post('*/api/admin/content/question/qa', () => ok({ id: 9999 })),
+  http.get('*/api/content/novelBookshelf/my', () => okList([], 0)),
+  http.post('*/api/content/novelBookshelf/remove', () => ok({ removed: 1 })),
+  http.get('*/api/content/question/qa', () => okList([], 0)),
+  http.post('*/api/content/question/qa', () => ok({ id: 9999 })),
   http.get('*/api/admin/question/qa', () => okList([], 0)),
 
   // ─── user-relation (社交) ───

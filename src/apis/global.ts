@@ -32,34 +32,34 @@ export async function listAllDictData(params: any) {
 }
 
 export async function parseContent(params: any) {
-  return adminClient("/content/parse", {
+  return contentClient("/parse", {
     params
   });
 }
 
 export async function reportContent(params: any) {
-  return adminClient("/content/report", {
+  return contentClient("/report", {
     method: "POST",
     data: params
   });
 }
 
 export async function searchContent(params: any) {
-  return adminClient("/content/search", {
+  return contentClient("/search", {
     method: "POST",
     data: params
   });
 }
 
 export async function collectContent(params: any) {
-  return adminClient("/content/collect", {
+  return contentClient("/collect", {
     method: "POST",
     data: params
   });
 }
 
 export async function fileUpload(params: any) {
-  return adminClient("/content/file/upload", {
+  return contentClient("/file/upload", {
     method: "POST",
     data: params
   });
@@ -140,7 +140,7 @@ export async function pullStream(params: any) {
 }
 
 export async function qaDetail(params: any) {
-  return adminClient("/content/question/qa", {
+  return contentClient("/question/qa", {
     method: "POST",
     data: params
   });
