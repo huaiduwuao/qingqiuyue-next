@@ -28,7 +28,7 @@ type Asset = { id: string; name: string; mode: string; status: string; active: b
 type Job = { id: string; name: string; method: string; status: string; stage: string; progress: number; logs: string[]; createdAt?: number };
 
 const api = (p: string, init?: RequestInit) =>
-  fetch('/api/avatar' + p, { headers: { 'Content-Type': 'application/json' }, ...init }).then((r) => r.json()).then((j) => j?.data ?? j);
+  fetch('/api/realtime' + p, { headers: { 'Content-Type': 'application/json' }, ...init }).then((r) => r.json()).then((j) => j?.data ?? j);
 const fmtTime = (t?: number) => (t ? new Date(t).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-');
 
 const cellSx = { fontSize: 12.5, color: 'text.primary', borderColor: 'rgba(255,255,255,0.06)' };

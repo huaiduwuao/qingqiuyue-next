@@ -17,10 +17,10 @@ const ok = <T,>(data: T) => HttpResponse.json({ code: 200, msg: 'OK', data });
 const okList = <T,>(list: T[], total: number) => ok({ list, total });
 
 export const homeHandlers = [
-  http.get('*/api/home/me/profile', () => ok(MY_PROFILE)),
+  http.get('*/api/content/home/me/profile', () => ok(MY_PROFILE)),
 
   // 我的 - 8 个 tab 通用 GET(支持 ?tab=works|recommend|like|collect|history|later|order|ai + ?sub=works|private|collection|drama)
-  http.get('*/api/home/me/list', ({ request }) => {
+  http.get('*/api/content/home/me/list', ({ request }) => {
     const url = new URL(request.url);
     const tab = url.searchParams.get('tab') || 'works';
     const sub = url.searchParams.get('sub');
@@ -49,24 +49,24 @@ export const homeHandlers = [
   }),
 
   // 我的 - 批量删除
-  http.post('*/api/home/me/batch-delete', async ({ request }) => {
+  http.post('*/api/content/home/me/batch-delete', async ({ request }) => {
     const body = (await request.json().catch(() => ({}))) as { ids?: number[]; tab?: string };
     return ok({ deleted: body.ids?.length ?? 0, tab: body.tab });
   }),
 
   // 我的 - 编辑资料(本地状态模拟)
-  http.post('*/api/home/me/profile', async ({ request }) => {
+  http.post('*/api/content/home/me/profile', async ({ request }) => {
     const body = (await request.json().catch(() => ({}))) as Record<string, any>;
     return ok({ ...MY_PROFILE, user: { ...MY_PROFILE.user, ...body }, updated: true });
   }),
 
   // 我的 - 切换私密/公开
-  http.post('*/api/home/me/toggle-private', async ({ request }) => {
+  http.post('*/api/content/home/me/toggle-private', async ({ request }) => {
     const body = (await request.json().catch(() => ({}))) as { id?: number; isPrivate?: boolean };
     return ok({ id: body.id, isPrivate: !body.isPrivate });
   }),
 
-  http.get('*/api/home/feed', ({ request }) => {
+  http.get('*/api/content/home/feed', ({ request }) => {
     const url = new URL(request.url);
     const tab = url.searchParams.get('tab') || 'recommend';
     const section = url.searchParams.get('section') || 'recommend';
@@ -85,19 +85,19 @@ export const homeHandlers = [
   }),
 
   // ─── 关注/朋友 关系 API ───
-  http.get('*/api/home/follow/state', ({ request }) => {
+  http.get('*/api/content/home/follow/state', ({ request }) => {
     const url = new URL(request.url);
     const userId = Number(url.searchParams.get('userId') || 0);
     return ok({ userId, isFollowing: isFollowing(userId), isFriend: isFriend(userId) });
   }),
 
   // 我的关注列表(关注 tab 第二视图用)
-  http.get('*/api/home/follow/list', () => {
+  http.get('*/api/content/home/follow/list', () => {
     const list = getFollowingList();
     return ok({ list, total: list.length });
   }),
 
-  http.post('*/api/home/follow/:userId', ({ params }) => {
+  http.post('*/api/content/home/follow/:userId', ({ params }) => {
     const userId = Number(params.userId);
     const target = getUser(userId);
     if (!target) return ok({ ok: false, msg: '用户不存在' });
@@ -105,50 +105,50 @@ export const homeHandlers = [
     return ok({ ok: true, isFollowing: true, isFriend: isFriend(userId) });
   }),
 
-  http.delete('*/api/home/follow/:userId', ({ params }) => {
+  http.delete('*/api/content/home/follow/:userId', ({ params }) => {
     const userId = Number(params.userId);
     unfollowUser(userId);
     return ok({ ok: true, isFollowing: false, isFriend: false });
   }),
 
-  http.post('*/api/home/friend/:userId', ({ params }) => {
+  http.post('*/api/content/home/friend/:userId', ({ params }) => {
     const userId = Number(params.userId);
     addFriend(userId);
     return ok({ ok: true, isFriend: true });
   }),
 
-  http.delete('*/api/home/friend/:userId', ({ params }) => {
+  http.delete('*/api/content/home/friend/:userId', ({ params }) => {
     const userId = Number(params.userId);
     removeFriend(userId);
     return ok({ ok: true, isFriend: false });
   }),
 
   // 好友请求
-  http.get('*/api/home/friend/requests', () => okList(FRIEND_REQUESTS, FRIEND_REQUESTS.length)),
-  http.post('*/api/home/friend/requests/:id/accept', ({ params }) => {
+  http.get('*/api/content/home/friend/requests', () => okList(FRIEND_REQUESTS, FRIEND_REQUESTS.length)),
+  http.post('*/api/content/home/friend/requests/:id/accept', ({ params }) => {
     const r = acceptFriendRequest(Number(params.id));
     return r ? ok(r) : ok({ ok: false, msg: '请求不存在' });
   }),
-  http.post('*/api/home/friend/requests/:id/reject', ({ params }) => {
+  http.post('*/api/content/home/friend/requests/:id/reject', ({ params }) => {
     const r = rejectFriendRequest(Number(params.id));
     return r ? ok(r) : ok({ ok: false, msg: '请求不存在' });
   }),
 
   // 我发出的好友申请
-  http.get('*/api/home/friend/requests/sent', () => okList(getSentFriendRequests(), getSentFriendRequests().length)),
-  http.post('*/api/home/friend/requests/sent/:id/cancel', ({ params }) => {
+  http.get('*/api/content/home/friend/requests/sent', () => okList(getSentFriendRequests(), getSentFriendRequests().length)),
+  http.post('*/api/content/home/friend/requests/sent/:id/cancel', ({ params }) => {
     const r = cancelSentFriendRequest(Number(params.id));
     return r ? ok(r) : ok({ ok: false, msg: '请求不存在' });
   }),
 
   // 我的好友(已是双向好友)
-  http.get('*/api/home/friend/list', () => okList(getFriendList(), getFriendList().length)),
+  http.get('*/api/content/home/friend/list', () => okList(getFriendList(), getFriendList().length)),
 
   // 好友面板统计
-  http.get('*/api/home/friend/stats', () => ok(getFriendStats())),
+  http.get('*/api/content/home/friend/stats', () => ok(getFriendStats())),
 
   // 推荐用户(关注/朋友 空态用)
-  http.get('*/api/home/suggestions', ({ request }) => {
+  http.get('*/api/content/home/suggestions', ({ request }) => {
     const url = new URL(request.url);
     const type = url.searchParams.get('type') || 'follow';
     const limit = Number(url.searchParams.get('limit') || 8);
@@ -156,13 +156,13 @@ export const homeHandlers = [
     return okList(list, list.length);
   }),
 
-  http.get('*/api/home/werewolf/video', () => ok(WEREWOLF_VIDEO)),
-  http.get('*/api/home/werewolf/feed', () => okList(WEREWOLF_FEED, WEREWOLF_FEED.length)),
-  http.get('*/api/home/werewolf/players', () => okList(WEREWOLF_PLAYERS, WEREWOLF_PLAYERS.length)),
-  http.post('*/api/home/werewolf/like', () => ok({ liked: true, likes: WEREWOLF_VIDEO.likes + 1 })),
-  http.post('*/api/home/werewolf/collect', () => ok({ collected: true, collects: WEREWOLF_VIDEO.collects + 1 })),
+  http.get('*/api/content/home/werewolf/video', () => ok(WEREWOLF_VIDEO)),
+  http.get('*/api/content/home/werewolf/feed', () => okList(WEREWOLF_FEED, WEREWOLF_FEED.length)),
+  http.get('*/api/content/home/werewolf/players', () => okList(WEREWOLF_PLAYERS, WEREWOLF_PLAYERS.length)),
+  http.post('*/api/content/home/werewolf/like', () => ok({ liked: true, likes: WEREWOLF_VIDEO.likes + 1 })),
+  http.post('*/api/content/home/werewolf/collect', () => ok({ collected: true, collects: WEREWOLF_VIDEO.collects + 1 })),
 
-  http.get('*/api/home/live/rooms', ({ request }) => {
+  http.get('*/api/content/home/live/rooms', ({ request }) => {
     const url = new URL(request.url);
     const status = url.searchParams.get('status'); // 'live' | 'offline' | null
     const sort = url.searchParams.get('sort');     // 'hot' | 'new' | null
@@ -174,23 +174,23 @@ export const homeHandlers = [
     return ok({ list, total: list.length });
   }),
 
-  http.get('*/api/home/live/top', () => ok({ list: LIVE_TOP_10, total: LIVE_TOP_10.length, updatedAt: Date.now() })),
+  http.get('*/api/content/home/live/top', () => ok({ list: LIVE_TOP_10, total: LIVE_TOP_10.length, updatedAt: Date.now() })),
 
-  http.get('*/api/home/theater/items', ({ request }) => {
+  http.get('*/api/content/home/theater/items', ({ request }) => {
     const url = new URL(request.url);
     const category = url.searchParams.get('category');
     const filtered = category ? THEATER_ITEMS.filter((i) => i.category === category) : THEATER_ITEMS;
     return ok({ list: filtered, total: filtered.length });
   }),
 
-  http.get('*/api/home/drama/episodes', ({ request }) => {
+  http.get('*/api/content/home/drama/episodes', ({ request }) => {
     const url = new URL(request.url);
     const dramaId = Number(url.searchParams.get('dramaId') || 9000);
     return ok({ list: DRAMA_EPISODES, total: DRAMA_EPISODES.length, dramaId });
   }),
 
   // 短剧系列(支持题材 + 状态双过滤)
-  http.get('*/api/home/drama/series', ({ request }) => {
+  http.get('*/api/content/home/drama/series', ({ request }) => {
     const url = new URL(request.url);
     const genre = url.searchParams.get('genre') || '';
     const status = url.searchParams.get('status') || 'ALL';
@@ -201,7 +201,7 @@ export const homeHandlers = [
   }),
 
   // 短剧 Top 10(支持题材 + 状态过滤,每个筛选维度下取 top 10)
-  http.get('*/api/home/drama/top', ({ request }) => {
+  http.get('*/api/content/home/drama/top', ({ request }) => {
     const url = new URL(request.url);
     const genre = url.searchParams.get('genre') || '';
     const status = url.searchParams.get('status') || 'ALL';
@@ -216,7 +216,7 @@ export const homeHandlers = [
   }),
 
   // 放映厅 Top 10(每个分类内部取 top 10,而不是在全局 top 10 中过滤)
-  http.get('*/api/home/theater/top', ({ request }) => {
+  http.get('*/api/content/home/theater/top', ({ request }) => {
     const url = new URL(request.url);
     const category = url.searchParams.get('category');
     const pool = category && category !== 'all' ? THEATER_ITEMS.filter((t) => t.category === category) : THEATER_ITEMS;
@@ -227,13 +227,13 @@ export const homeHandlers = [
     return okList(list, list.length);
   }),
 
-  http.get('*/api/home/ai/search', ({ request }) => {
+  http.get('*/api/content/home/ai/search', ({ request }) => {
     const url = new URL(request.url);
     const q = url.searchParams.get('q') || '';
     const chunks = AI_SEARCH_CHUNKS[q] || AI_SEARCH_CHUNKS.default;
     return ok({ query: q, chunks });
   }),
 
-  http.get('*/api/home/side/comments', () => okList(SIDE_COMMENTS, SIDE_COMMENTS.length)),
-  http.get('*/api/home/side/related', () => okList(SIDE_RELATED, SIDE_RELATED.length)),
+  http.get('*/api/content/home/side/comments', () => okList(SIDE_COMMENTS, SIDE_COMMENTS.length)),
+  http.get('*/api/content/home/side/related', () => okList(SIDE_RELATED, SIDE_RELATED.length)),
 ];

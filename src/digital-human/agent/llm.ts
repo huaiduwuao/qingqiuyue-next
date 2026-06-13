@@ -1,7 +1,7 @@
 /**
  * LLM 接入层(可插拔)。
  * - MockIntentLLM:零依赖的本地意图路由,先把整条链跑通(关键词→回复+工具+动作)。
- * - RemoteLLM:对接真实大模型 function-calling 接口(/api/avatar/chat),按需替换。
+ * - RemoteLLM:对接真实大模型 function-calling 接口(/api/realtime/chat),按需替换。
  */
 import type { AgentReply, ToolDef } from '../types';
 import { toolsAsPrompt } from './tools';
@@ -56,9 +56,9 @@ export class MockIntentLLM implements LLM {
   }
 }
 
-// ── 真实大模型:POST 到你的网关 /api/avatar/chat,服务端做 function-calling ──
+// ── 真实大模型:POST 到你的网关 /api/realtime/chat,服务端做 function-calling ──
 export class RemoteLLM implements LLM {
-  constructor(private endpoint = '/api/avatar/chat') {}
+  constructor(private endpoint = '/api/realtime/chat') {}
   async chat(userText: string, tools: ToolDef[], history: { role: string; content: string }[]): Promise<AgentReply> {
     const res = await fetch(this.endpoint, {
       method: 'POST',

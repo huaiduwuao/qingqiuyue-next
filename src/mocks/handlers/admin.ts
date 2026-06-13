@@ -19,29 +19,29 @@ import {
 const ok = <T,>(data: T) => HttpResponse.json({ code: 200, msg: 'OK', data });
 
 export const adminHandlers = [
-  http.get('*/api/admin/dict/type/list', () => ok(DICT_TYPE_LIST)),
+  http.get('*/api/core/dict/type/list', () => ok(DICT_TYPE_LIST)),
 
-  http.get('*/api/admin/dict/data/all/module-type', () => ok(DICT_DATA_BY_TYPE)),
+  http.get('*/api/core/dict/data/all/module-type', () => ok(DICT_DATA_BY_TYPE)),
 
-  http.get('*/api/admin/user/current', () => ok(CURRENT_USER)),
+  http.get('*/api/core/user/current', () => ok(CURRENT_USER)),
 
-  http.get('*/api/admin/menu/list', () => ok(MENU_LIST)),
+  http.get('*/api/core/menu/list', () => ok(MENU_LIST)),
 
-  http.get('*/api/admin/menu/me', () => ok(MENU_LIST)),
+  http.get('*/api/core/menu/me', () => ok(MENU_LIST)),
 
-  http.get('*/api/admin/dict/data/all', () => ok([MODULE_TYPE_DICT])),
+  http.get('*/api/core/dict/data/all', () => ok([MODULE_TYPE_DICT])),
 
   // 公开登录(router.go:74 public group)
-  http.post('*/api/admin/login', () => ok({ token: 'mock-token-12345', user: CURRENT_USER })),
+  http.post('*/api/core/login', () => ok({ token: 'mock-token-12345', user: CURRENT_USER })),
 
   // 旧路径兼容
-  http.post('*/api/admin/user/login', () => ok({ token: 'mock-token-12345', user: CURRENT_USER })),
+  http.post('*/api/core/user/login', () => ok({ token: 'mock-token-12345', user: CURRENT_USER })),
 
-  http.get('*/api/admin/appConfig/listByMap', () => ok(APP_CONFIG_LIST)),
+  http.get('*/api/core/appConfig/listByMap', () => ok(APP_CONFIG_LIST)),
 
-  http.get('*/api/admin/module/menu/clientTree', () => ok(MODULE_MENU_TREE)),
+  http.get('*/api/core/module/menu/clientTree', () => ok(MODULE_MENU_TREE)),
 
-  http.get('*/api/admin/point/user', () => ok(USER_POINT)),
+  http.get('*/api/core/point/user', () => ok(USER_POINT)),
 
-  http.get('*/api/admin/user-relation/list', () => ok(USER_RELATION_PAGE)),
+  http.get('*/api/core/user-relation/list', () => ok(USER_RELATION_PAGE)),
 ];

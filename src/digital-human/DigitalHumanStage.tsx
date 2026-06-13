@@ -70,7 +70,7 @@ export default function DigitalHumanStage() {
       const asr = new BrowserASR('zh-CN');
       const tts = new BrowserTTS('zh-CN');
       asr.onEnd = () => setListening(false);
-      const llm: LLM = useRemote ? new RemoteLLM('/api/avatar/chat') : new MockIntentLLM();
+      const llm: LLM = useRemote ? new RemoteLLM('/api/realtime/chat') : new MockIntentLLM();
       const tools = buildTools({ navigate: (p) => router.push(p) });
       const onEvent = (e: AgentEvent) => {
         if (e.type === 'thinking') setThinking(true);
@@ -133,7 +133,7 @@ export default function DigitalHumanStage() {
     pushLog('⏳ 加载 3D 高斯人…');
     let stage: IAvatarStage | null = null;
     try {
-      const cfg = await fetch('/api/avatar/config').then((r) => r.json()).catch(() => null);
+      const cfg = await fetch('/api/realtime/config').then((r) => r.json()).catch(() => null);
       const assetUrl = cfg?.data?.assetUrl;
       if (!assetUrl) {
         pushLog('ℹ️ 未配置 assetUrl(AVATAR_ASSET_URL)。训练出资产后填入即可。');

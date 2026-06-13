@@ -44,85 +44,85 @@ const okSuggest = <T,>(list: T[]) => ok(list);
 
 export const systemHandlers = [
   // ─── user ───
-  http.get('*/api/admin/user/page', () => okPage(SYS_USER.records, SYS_USER.totalRow)),
+  http.get('*/api/core/user/page', () => okPage(SYS_USER.records, SYS_USER.totalRow)),
   http.get(/\/api\/admin\/user\/\d+$/, ({ params }) => {
     const id = Number((params as any)[0]);
     return ok(SYS_USER.records.find((u) => u.id === id) || SYS_USER.records[0]);
   }),
-  http.get('*/api/admin/user/list', () => okList(SYS_USER.records, SYS_USER.totalRow)),
+  http.get('*/api/core/user/list', () => okList(SYS_USER.records, SYS_USER.totalRow)),
   // REST(对齐后端 admin-api): POST /user 新建, PUT /user/:id 更新, DELETE /user/:id 删除
   http.post(/\/api\/admin\/user$/, () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
   http.put(/\/api\/admin\/user\/\d+$/, () => ok({ updated: 1 })),
   http.delete(/\/api\/admin\/user\/\d+$/, () => ok({ removed: 1 })),
-  http.get('*/api/admin/user', () => ok(USER_PROFILE)),
-  http.get('*/api/admin/user/profile', () => ok(USER_PROFILE)),
-  http.post('*/api/admin/user/systemAdd', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
-  http.post('*/api/admin/user/systemUpdate', () => ok({ updated: 1 })),
-  http.post('*/api/admin/user/updateMe', () => ok(USER_PROFILE)),
-  http.post('*/api/admin/user/checkPassword', () => ok({ valid: true })),
-  http.post('*/api/admin/user/roleAdd', () => ok({ added: 1 })),
-  http.post('*/api/admin/user/logout', () => ok({ success: true })),
-  http.post('*/api/admin/user/upload', () => ok({ url: 'https://picsum.photos/seed/avatar-upload/200/200' })),
-  http.get('*/api/admin/user/name/available', () => ok({ available: true })),
-  http.get('*/api/admin/user/connectList', () => okList([], 0)),
+  http.get('*/api/core/user', () => ok(USER_PROFILE)),
+  http.get('*/api/core/user/profile', () => ok(USER_PROFILE)),
+  http.post('*/api/core/user/systemAdd', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/core/user/systemUpdate', () => ok({ updated: 1 })),
+  http.post('*/api/core/user/updateMe', () => ok(USER_PROFILE)),
+  http.post('*/api/core/user/checkPassword', () => ok({ valid: true })),
+  http.post('*/api/core/user/roleAdd', () => ok({ added: 1 })),
+  http.post('*/api/core/user/logout', () => ok({ success: true })),
+  http.post('*/api/core/user/upload', () => ok({ url: 'https://picsum.photos/seed/avatar-upload/200/200' })),
+  http.get('*/api/core/user/name/available', () => ok({ available: true })),
+  http.get('*/api/core/user/connectList', () => okList([], 0)),
   http.delete(/\/api\/admin\/user\/removeByIds.*/, () => ok({ removed: 1 })),
 
   // ─── userLevel ───
-  http.get('*/api/admin/userLevel/client/page', () => okPage(SYS_USER_LEVEL.records, SYS_USER_LEVEL.totalRow)),
-  http.post('*/api/admin/userLevel/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
-  http.post('*/api/admin/userLevel/updateById', () => ok({ updated: 1 })),
+  http.get('*/api/core/userLevel/client/page', () => okPage(SYS_USER_LEVEL.records, SYS_USER_LEVEL.totalRow)),
+  http.post('*/api/core/userLevel/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/core/userLevel/updateById', () => ok({ updated: 1 })),
   http.delete(/\/api\/admin\/userLevel\/removeByIds.*/, () => ok({ removed: 1 })),
 
   // ─── userRole ───
   http.delete(/\/api\/admin\/userRole\/removeByIds.*/, () => ok({ removed: 1 })),
 
   // ─── role ───
-  http.get('*/api/admin/role/page', () => okPage(SYS_ROLE.records, SYS_ROLE.totalRow)),
+  http.get('*/api/core/role/page', () => okPage(SYS_ROLE.records, SYS_ROLE.totalRow)),
   // REST(对齐后端 admin-api)
-  http.get('*/api/admin/role/list', () => okList(SYS_ROLE.records, SYS_ROLE.totalRow)),
+  http.get('*/api/core/role/list', () => okList(SYS_ROLE.records, SYS_ROLE.totalRow)),
   http.post(/\/api\/admin\/role\/\d+\/permissions$/, () => ok({ assigned: 1 })),
   http.post(/\/api\/admin\/role\/\d+\/data-permissions$/, () => ok({ assigned: 1 })),
   http.post(/\/api\/admin\/role$/, () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
   http.put(/\/api\/admin\/role\/\d+$/, () => ok({ updated: 1 })),
   http.delete(/\/api\/admin\/role\/\d+$/, () => ok({ removed: 1 })),
-  http.post('*/api/admin/role/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
-  http.post('*/api/admin/role/updateById', () => ok({ updated: 1 })),
-  http.post('*/api/admin/role/menuChange', () => ok({ updated: 1 })),
-  http.post('*/api/admin/role/permissionAdd', () => ok({ added: 1 })),
-  http.post('*/api/admin/role/dataPermissionAdd', () => ok({ added: 1 })),
-  http.post('*/api/admin/role/userAdd', () => ok({ added: 1 })),
-  http.get('*/api/admin/role/suggestUser', () => okSuggest(SYS_USER.records.slice(0, 10).map((u) => ({ id: u.id, nickname: u.nickname, avatar: u.avatar })))),
-  http.get('*/api/admin/role/suggestPermission', () => okSuggest(SYS_RESOURCE.records.slice(0, 10))),
-  http.get('*/api/admin/role/suggestDataPermission', () => okSuggest(SYS_DATA_PERMISSION.records)),
+  http.post('*/api/core/role/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/core/role/updateById', () => ok({ updated: 1 })),
+  http.post('*/api/core/role/menuChange', () => ok({ updated: 1 })),
+  http.post('*/api/core/role/permissionAdd', () => ok({ added: 1 })),
+  http.post('*/api/core/role/dataPermissionAdd', () => ok({ added: 1 })),
+  http.post('*/api/core/role/userAdd', () => ok({ added: 1 })),
+  http.get('*/api/core/role/suggestUser', () => okSuggest(SYS_USER.records.slice(0, 10).map((u) => ({ id: u.id, nickname: u.nickname, avatar: u.avatar })))),
+  http.get('*/api/core/role/suggestPermission', () => okSuggest(SYS_RESOURCE.records.slice(0, 10))),
+  http.get('*/api/core/role/suggestDataPermission', () => okSuggest(SYS_DATA_PERMISSION.records)),
   http.delete(/\/api\/admin\/role\/removeByIds.*/, () => ok({ removed: 1 })),
 
   http.delete(/\/api\/admin\/rolePermission\/removeByIds.*/, () => ok({ removed: 1 })),
   http.delete(/\/api\/admin\/roleDataPermission\/removeByIds.*/, () => ok({ removed: 1 })),
 
   // ─── menu ───
-  http.get('*/api/admin/menu', () => ok(SYS_MENU.records)),
-  http.get('*/api/admin/menu/list', () => ok(SYS_MENU.records)),
-  http.get('*/api/admin/menu/me', () => ok(SYS_MENU.records)),
-  http.post('*/api/admin/menu/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
-  http.post('*/api/admin/menu/updateById', () => ok({ updated: 1 })),
+  http.get('*/api/core/menu', () => ok(SYS_MENU.records)),
+  http.get('*/api/core/menu/list', () => ok(SYS_MENU.records)),
+  http.get('*/api/core/menu/me', () => ok(SYS_MENU.records)),
+  http.post('*/api/core/menu/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/core/menu/updateById', () => ok({ updated: 1 })),
   http.delete(/\/api\/admin\/menu\/removeByIds.*/, () => ok({ removed: 1 })),
 
   // ─── moduleMenu (content 子域) ───
-  http.get('*/api/admin/moduleMenu/client/list', () => okList(SYS_MENU.records, SYS_MENU.totalRow)),
-  http.get('*/api/admin/moduleMenu/client/page', () => okPage(SYS_MENU.records, SYS_MENU.totalRow)),
-  http.get('*/api/admin/moduleMenu/client/tree', () => ok(MODULE_MENU_TREE)),
-  http.get('*/api/admin/module/moduleMenu/client/tree', () => ok(MODULE_MENU_TREE)),
-  http.post('*/api/admin/moduleMenu/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
-  http.post('*/api/admin/moduleMenu/updateById', () => ok({ updated: 1 })),
+  http.get('*/api/core/moduleMenu/client/list', () => okList(SYS_MENU.records, SYS_MENU.totalRow)),
+  http.get('*/api/core/moduleMenu/client/page', () => okPage(SYS_MENU.records, SYS_MENU.totalRow)),
+  http.get('*/api/core/moduleMenu/client/tree', () => ok(MODULE_MENU_TREE)),
+  http.get('*/api/core/module/moduleMenu/client/tree', () => ok(MODULE_MENU_TREE)),
+  http.post('*/api/core/moduleMenu/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/core/moduleMenu/updateById', () => ok({ updated: 1 })),
   http.delete(/\/api\/admin\/moduleMenu\/removeByIds.*/, () => ok({ removed: 1 })),
 
   // ─── dict ───
-  http.get('*/api/admin/dict/data/list', () => okList(SYS_DICT_DATA, SYS_DICT_DATA.length)),
-  http.get('*/api/admin/dict/data/all', () => okList(SYS_DICT_DATA, SYS_DICT_DATA.length)),
-  http.get('*/api/admin/dict/data/all/module-type', () => okList(SYS_DICT_DATA.filter((d) => d.typeId === 1), 9)),
+  http.get('*/api/core/dict/data/list', () => okList(SYS_DICT_DATA, SYS_DICT_DATA.length)),
+  http.get('*/api/core/dict/data/all', () => okList(SYS_DICT_DATA, SYS_DICT_DATA.length)),
+  http.get('*/api/core/dict/data/all/module-type', () => okList(SYS_DICT_DATA.filter((d) => d.typeId === 1), 9)),
   // dict REST(对齐后端 /dict/type/* 与 /dict/data/*)
-  http.get('*/api/admin/dict/type/list', () => okList(SYS_DICT_TYPE.records, SYS_DICT_TYPE.totalRow)),
-  http.get('*/api/admin/dict/data/all/*', () => okList(SYS_DICT_DATA, SYS_DICT_DATA.length)),
+  http.get('*/api/core/dict/type/list', () => okList(SYS_DICT_TYPE.records, SYS_DICT_TYPE.totalRow)),
+  http.get('*/api/core/dict/data/all/*', () => okList(SYS_DICT_DATA, SYS_DICT_DATA.length)),
   http.post(/\/api\/admin\/dict\/type$/, () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
   http.put(/\/api\/admin\/dict\/type\/\d+$/, () => ok({ updated: 1 })),
   http.delete(/\/api\/admin\/dict\/type\/\d+$/, () => ok({ removed: 1 })),
@@ -133,128 +133,128 @@ export const systemHandlers = [
   http.get(/\/api\/admin\/dict\/data\/\d+$/, () => ok(SYS_DICT_DATA[0])),
 
   // ─── sysDictType ───
-  http.get('*/api/admin/sysDictType/list', () => okList(SYS_DICT_TYPE.records, SYS_DICT_TYPE.totalRow)),
-  http.get('*/api/admin/sysDictType/listType', () => okList(SYS_DICT_TYPE.records, SYS_DICT_TYPE.totalRow)),
-  http.get('*/api/admin/sysDictType/page', () => okPage(SYS_DICT_TYPE.records, SYS_DICT_TYPE.totalRow)),
-  http.post('*/api/admin/sysDictType/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
-  http.post('*/api/admin/sysDictType/updateById', () => ok({ updated: 1 })),
+  http.get('*/api/core/sysDictType/list', () => okList(SYS_DICT_TYPE.records, SYS_DICT_TYPE.totalRow)),
+  http.get('*/api/core/sysDictType/listType', () => okList(SYS_DICT_TYPE.records, SYS_DICT_TYPE.totalRow)),
+  http.get('*/api/core/sysDictType/page', () => okPage(SYS_DICT_TYPE.records, SYS_DICT_TYPE.totalRow)),
+  http.post('*/api/core/sysDictType/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/core/sysDictType/updateById', () => ok({ updated: 1 })),
   http.delete(/\/api\/admin\/sysDictType\/removeByIds.*/, () => ok({ removed: 1 })),
 
   // ─── sysDictData ───
-  http.get('*/api/admin/sysDictData/list', () => okList(SYS_DICT_DATA, SYS_DICT_DATA.length)),
-  http.get('*/api/admin/sysDictData/listType', () => okList(SYS_DICT_DATA, SYS_DICT_DATA.length)),
-  http.get('*/api/admin/sysDictData/page', () => okPage(SYS_DICT_DATA, SYS_DICT_DATA.length)),
-  http.post('*/api/admin/sysDictData/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
-  http.post('*/api/admin/sysDictData/updateById', () => ok({ updated: 1 })),
+  http.get('*/api/core/sysDictData/list', () => okList(SYS_DICT_DATA, SYS_DICT_DATA.length)),
+  http.get('*/api/core/sysDictData/listType', () => okList(SYS_DICT_DATA, SYS_DICT_DATA.length)),
+  http.get('*/api/core/sysDictData/page', () => okPage(SYS_DICT_DATA, SYS_DICT_DATA.length)),
+  http.post('*/api/core/sysDictData/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/core/sysDictData/updateById', () => ok({ updated: 1 })),
   http.delete(/\/api\/admin\/sysDictData\/removeByIds.*/, () => ok({ removed: 1 })),
 
   // ─── app/config (REST,对齐后端;必须在 /app/:id 之前注册) ───
-  http.get('*/api/admin/app/config/listByMap', () => okList(SYS_APP_CONFIG.list, SYS_APP_CONFIG.total)),
-  http.get('*/api/admin/app/config/list', () => okList(SYS_APP_CONFIG.list, SYS_APP_CONFIG.total)),
+  http.get('*/api/core/app/config/listByMap', () => okList(SYS_APP_CONFIG.list, SYS_APP_CONFIG.total)),
+  http.get('*/api/core/app/config/list', () => okList(SYS_APP_CONFIG.list, SYS_APP_CONFIG.total)),
   http.post(/\/api\/admin\/app\/config$/, () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
   http.put(/\/api\/admin\/app\/config\/\d+$/, () => ok({ updated: 1 })),
   http.delete(/\/api\/admin\/app\/config\/\d+$/, () => ok({ removed: 1 })),
   // 兼容旧若依路径
-  http.get('*/api/admin/appConfig/listByMap', () => okList(SYS_APP_CONFIG.list, SYS_APP_CONFIG.total)),
-  http.get('*/api/admin/appConfig/page', () => okPage(SYS_APP_CONFIG.list, SYS_APP_CONFIG.total)),
+  http.get('*/api/core/appConfig/listByMap', () => okList(SYS_APP_CONFIG.list, SYS_APP_CONFIG.total)),
+  http.get('*/api/core/appConfig/page', () => okPage(SYS_APP_CONFIG.list, SYS_APP_CONFIG.total)),
 
   // ─── app/service (REST) ───
-  http.get('*/api/admin/app/service/listApp', () => okList(SYS_APP_SERVICE.list, SYS_APP_SERVICE.list.length)),
-  http.get('*/api/admin/app/service/list', () => okList(SYS_APP_SERVICE.list, SYS_APP_SERVICE.list.length)),
+  http.get('*/api/core/app/service/listApp', () => okList(SYS_APP_SERVICE.list, SYS_APP_SERVICE.list.length)),
+  http.get('*/api/core/app/service/list', () => okList(SYS_APP_SERVICE.list, SYS_APP_SERVICE.list.length)),
   http.post(/\/api\/admin\/app\/service$/, () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
   http.put(/\/api\/admin\/app\/service\/\d+$/, () => ok({ updated: 1 })),
   http.delete(/\/api\/admin\/app\/service\/\d+$/, () => ok({ removed: 1 })),
 
   // ─── app (REST) ───
-  http.get('*/api/admin/app/list', () => okList(SYS_APP.records, SYS_APP.records.length)),
+  http.get('*/api/core/app/list', () => okList(SYS_APP.records, SYS_APP.records.length)),
   http.post(/\/api\/admin\/app$/, () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
   http.put(/\/api\/admin\/app\/\d+$/, () => ok({ updated: 1 })),
   http.delete(/\/api\/admin\/app\/\d+$/, () => ok({ removed: 1 })),
 
   // ─── resource ───
-  http.get('*/api/admin/resource/list', () => okList(SYS_RESOURCE.records, SYS_RESOURCE.totalRow)),
-  http.get('*/api/admin/resource/page', () => okPage(SYS_RESOURCE.records, SYS_RESOURCE.totalRow)),
-  http.post('*/api/admin/resource/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
-  http.post('*/api/admin/resource/updateById', () => ok({ updated: 1 })),
-  http.post('*/api/admin/resource/sync', () => ok({ synced: 1 })),
+  http.get('*/api/core/resource/list', () => okList(SYS_RESOURCE.records, SYS_RESOURCE.totalRow)),
+  http.get('*/api/core/resource/page', () => okPage(SYS_RESOURCE.records, SYS_RESOURCE.totalRow)),
+  http.post('*/api/core/resource/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/core/resource/updateById', () => ok({ updated: 1 })),
+  http.post('*/api/core/resource/sync', () => ok({ synced: 1 })),
   http.delete(/\/api\/admin\/resource\/removeByIds.*/, () => ok({ removed: 1 })),
 
   // ─── permission (老) ───
-  http.get('*/api/admin/permission/list', () => okList(SYS_RESOURCE.records, SYS_RESOURCE.totalRow)),
-  http.get('*/api/admin/permission/page', () => okPage(SYS_RESOURCE.records, SYS_RESOURCE.totalRow)),
-  http.post('*/api/admin/permission/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
-  http.post('*/api/admin/permission/updateById', () => ok({ updated: 1 })),
+  http.get('*/api/core/permission/list', () => okList(SYS_RESOURCE.records, SYS_RESOURCE.totalRow)),
+  http.get('*/api/core/permission/page', () => okPage(SYS_RESOURCE.records, SYS_RESOURCE.totalRow)),
+  http.post('*/api/core/permission/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/core/permission/updateById', () => ok({ updated: 1 })),
   http.delete(/\/api\/admin\/permission\/removeByIds.*/, () => ok({ removed: 1 })),
 
   // ─── point records ───
-  http.get('*/api/admin/point/records', () => okPage(SYS_USER_POINT.history, SYS_USER_POINT.history.length)),
-  http.get('*/api/admin/point/page', () => okPage(SYS_USER_POINT.history, SYS_USER_POINT.history.length)),
+  http.get('*/api/core/point/records', () => okPage(SYS_USER_POINT.history, SYS_USER_POINT.history.length)),
+  http.get('*/api/core/point/page', () => okPage(SYS_USER_POINT.history, SYS_USER_POINT.history.length)),
 
   // ─── area/page ───
-  http.get('*/api/admin/area/page', () => okPage(SYS_PROVINCE, SYS_PROVINCE.length)),
-  http.get('*/api/admin/area/list', () => okList(SYS_PROVINCE, SYS_PROVINCE.length)),
+  http.get('*/api/core/area/page', () => okPage(SYS_PROVINCE, SYS_PROVINCE.length)),
+  http.get('*/api/core/area/list', () => okList(SYS_PROVINCE, SYS_PROVINCE.length)),
 
   // ─── data-permission ───
-  http.get('*/api/admin/data-permission/list', () => okList(SYS_DATA_PERMISSION.records, SYS_DATA_PERMISSION.totalRow)),
-  http.get('*/api/admin/dataPermission/list', () => okList(SYS_DATA_PERMISSION.records, SYS_DATA_PERMISSION.totalRow)),
+  http.get('*/api/core/data-permission/list', () => okList(SYS_DATA_PERMISSION.records, SYS_DATA_PERMISSION.totalRow)),
+  http.get('*/api/core/dataPermission/list', () => okList(SYS_DATA_PERMISSION.records, SYS_DATA_PERMISSION.totalRow)),
 
   // ─── area (省/市/区) ───
-  http.get('*/api/admin/area/provinces', () => okList(SYS_PROVINCE, SYS_PROVINCE.length)),
-  http.get('*/api/admin/sysProvince/page', () => okPage(SYS_PROVINCE, SYS_PROVINCE.length)),
-  http.post('*/api/admin/sysProvince/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
-  http.post('*/api/admin/sysProvince/updateById', () => ok({ updated: 1 })),
+  http.get('*/api/core/area/provinces', () => okList(SYS_PROVINCE, SYS_PROVINCE.length)),
+  http.get('*/api/core/sysProvince/page', () => okPage(SYS_PROVINCE, SYS_PROVINCE.length)),
+  http.post('*/api/core/sysProvince/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/core/sysProvince/updateById', () => ok({ updated: 1 })),
   http.delete(/\/api\/admin\/sysProvince\/removeByIds.*/, () => ok({ removed: 1 })),
 
-  http.get('*/api/admin/sysCity/page', () => okPage(SYS_CITY.records, SYS_CITY.totalRow)),
-  http.post('*/api/admin/sysCity/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
-  http.post('*/api/admin/sysCity/updateById', () => ok({ updated: 1 })),
+  http.get('*/api/core/sysCity/page', () => okPage(SYS_CITY.records, SYS_CITY.totalRow)),
+  http.post('*/api/core/sysCity/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/core/sysCity/updateById', () => ok({ updated: 1 })),
   http.delete(/\/api\/admin\/sysCity\/removeByIds.*/, () => ok({ removed: 1 })),
 
-  http.get('*/api/admin/sysStreet/page', () => okPage(SYS_STREET.records, SYS_STREET.totalRow)),
-  http.post('*/api/admin/sysStreet/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
-  http.post('*/api/admin/sysStreet/updateById', () => ok({ updated: 1 })),
+  http.get('*/api/core/sysStreet/page', () => okPage(SYS_STREET.records, SYS_STREET.totalRow)),
+  http.post('*/api/core/sysStreet/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/core/sysStreet/updateById', () => ok({ updated: 1 })),
   http.delete(/\/api\/admin\/sysStreet\/removeByIds.*/, () => ok({ removed: 1 })),
 
   // 旧 /area 路径(简化)
   http.get(/\/api\/admin\/area\/provinces.*/, () => okList(SYS_PROVINCE, SYS_PROVINCE.length)),
-  http.post('*/api/admin/area/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
-  http.post('*/api/admin/area/update', () => ok({ updated: 1 })),
-  http.put('*/api/admin/area/update', () => ok({ updated: 1 })),
-  http.post('*/api/admin/area/remove', () => ok({ removed: 1 })),
-  http.delete('*/api/admin/area/remove', () => ok({ removed: 1 })),
-  http.get('*/api/admin/area/cities/*', () => okList(SYS_PROVINCE, SYS_PROVINCE.length)),
-  http.get('*/api/admin/area/areas/*', () => okList(SYS_PROVINCE, SYS_PROVINCE.length)),
-  http.get('*/api/admin/area/streets/*', () => okList(SYS_PROVINCE, SYS_PROVINCE.length)),
+  http.post('*/api/core/area/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/core/area/update', () => ok({ updated: 1 })),
+  http.put('*/api/core/area/update', () => ok({ updated: 1 })),
+  http.post('*/api/core/area/remove', () => ok({ removed: 1 })),
+  http.delete('*/api/core/area/remove', () => ok({ removed: 1 })),
+  http.get('*/api/core/area/cities/*', () => okList(SYS_PROVINCE, SYS_PROVINCE.length)),
+  http.get('*/api/core/area/areas/*', () => okList(SYS_PROVINCE, SYS_PROVINCE.length)),
+  http.get('*/api/core/area/streets/*', () => okList(SYS_PROVINCE, SYS_PROVINCE.length)),
 
   // ─── website-dict ───
-  http.get('*/api/admin/sysWebsiteDict/client/page', () => okPage(SYS_WEBSITE_DICT.records, SYS_WEBSITE_DICT.totalRow)),
-  http.post('*/api/admin/sysWebsiteDict/saveBatch', () => ok({ added: 1 })),
-  http.post('*/api/admin/sysWebsiteDict/updateById', () => ok({ updated: 1 })),
+  http.get('*/api/core/sysWebsiteDict/client/page', () => okPage(SYS_WEBSITE_DICT.records, SYS_WEBSITE_DICT.totalRow)),
+  http.post('*/api/core/sysWebsiteDict/saveBatch', () => ok({ added: 1 })),
+  http.post('*/api/core/sysWebsiteDict/updateById', () => ok({ updated: 1 })),
   http.delete(/\/api\/admin\/sysWebsiteDict\/removeByIds.*/, () => ok({ removed: 1 })),
 
   // ─── notice ───
-  http.get('*/api/admin/notice/list', () => okList(NOTICE_LIST.records, NOTICE_LIST.totalRow)),
-  http.get('*/api/admin/notice/size', () => ok({ total: NOTICE_LIST.totalRow, unread: 3 })),
-  http.post('*/api/admin/notice/update', () => ok({ updated: 1 })),
-  http.get('*/api/admin/notice/client/historyChat', () => okList([], 0)),
-  http.get('*/api/admin/notice/pullStream', () => okList([], 0)),
+  http.get('*/api/core/notice/list', () => okList(NOTICE_LIST.records, NOTICE_LIST.totalRow)),
+  http.get('*/api/core/notice/size', () => ok({ total: NOTICE_LIST.totalRow, unread: 3 })),
+  http.post('*/api/core/notice/update', () => ok({ updated: 1 })),
+  http.get('*/api/core/notice/client/historyChat', () => okList([], 0)),
+  http.get('*/api/core/notice/pullStream', () => okList([], 0)),
 
   // ─── point ───
-  http.get('*/api/admin/point/user', () => ok(SYS_USER_POINT)),
-  http.get('*/api/admin/userPoint', () => ok(SYS_USER_POINT)),
-  http.post('*/api/admin/point/update', () => ok({ updated: 1 })),
-  http.post('*/api/admin/point/unlock', () => ok({ unlocked: true })),
-  http.post('*/api/admin/point/remove', () => ok({ removed: 1 })),
+  http.get('*/api/core/point/user', () => ok(SYS_USER_POINT)),
+  http.get('*/api/core/userPoint', () => ok(SYS_USER_POINT)),
+  http.post('*/api/core/point/update', () => ok({ updated: 1 })),
+  http.post('*/api/core/point/unlock', () => ok({ unlocked: true })),
+  http.post('*/api/core/point/remove', () => ok({ removed: 1 })),
 
   // ─── chart (dashboard) ───
-  http.get('*/api/admin/chart/radar', () => ok(DASHBOARD_RADAR)),
+  http.get('*/api/core/chart/radar', () => ok(DASHBOARD_RADAR)),
 
   // ─── sms ───
-  http.post('*/api/admin/sms/send', () => ok({ sent: true, expireAt: new Date(Date.now() + 300000).toISOString() })),
-  http.post('*/api/admin/sms/verify', () => ok({ verified: true })),
+  http.post('*/api/core/sms/send', () => ok({ sent: true, expireAt: new Date(Date.now() + 300000).toISOString() })),
+  http.post('*/api/core/sms/verify', () => ok({ verified: true })),
 
   // ─── authentication ───
-  http.post('*/api/admin/authentication/openid', () => ok({ openid: 'o6_bmjrPTlm6_2sgVt7hMZOPfL_demo', token: 'mock-token-67890' })),
+  http.post('*/api/core/authentication/openid', () => ok({ openid: 'o6_bmjrPTlm6_2sgVt7hMZOPfL_demo', token: 'mock-token-67890' })),
 
   // ─── content (admin 域里嵌的) ───
   http.post('*/api/content/parse', () => ok({ parsed: true, type: 'novel', fields: ['title', 'author', 'content'] })),
@@ -262,46 +262,46 @@ export const systemHandlers = [
   http.post('*/api/content/report', () => ok({ reported: true, reportId: 9999 })),
   http.get('*/api/content/search', () => okList([], 0)),
   http.post('*/api/content/file/upload', () => ok({ url: 'https://picsum.photos/seed/upload/200/200', filename: 'demo.jpg' })),
-  http.post('*/api/admin/file/upload', () => ok({ url: 'https://picsum.photos/seed/upload/200/200', filename: 'demo.jpg' })),
+  http.post('*/api/core/file/upload', () => ok({ url: 'https://picsum.photos/seed/upload/200/200', filename: 'demo.jpg' })),
   http.get('*/api/content/novelBookshelf/my', () => okList([], 0)),
   http.post('*/api/content/novelBookshelf/remove', () => ok({ removed: 1 })),
   http.get('*/api/content/question/qa', () => okList([], 0)),
   http.post('*/api/content/question/qa', () => ok({ id: 9999 })),
-  http.get('*/api/admin/question/qa', () => okList([], 0)),
+  http.get('*/api/core/question/qa', () => okList([], 0)),
 
   // ─── user-relation (社交) ───
-  http.get('*/api/admin/user-relation/list', () => okList(USER_RELATION.followers, USER_RELATION.followers.length)),
-  http.get('*/api/admin/user-relation/record', () => okList(USER_RELATION.following, USER_RELATION.following.length)),
+  http.get('*/api/core/user-relation/list', () => okList(USER_RELATION.followers, USER_RELATION.followers.length)),
+  http.get('*/api/core/user-relation/record', () => okList(USER_RELATION.following, USER_RELATION.following.length)),
 
   // ─── user-sign ───
-  http.get('*/api/admin/user-sign/hasSign', () => ok(USER_SIGN.hasSign)),
-  http.get('*/api/admin/user-sign/record', () => ok(USER_SIGN.record)),
-  http.post('*/api/admin/user-sign/sign', () => ok({ signed: true, point: 10, continuousDays: USER_SIGN.continuousDays + 1 })),
+  http.get('*/api/core/user-sign/hasSign', () => ok(USER_SIGN.hasSign)),
+  http.get('*/api/core/user-sign/record', () => ok(USER_SIGN.record)),
+  http.post('*/api/core/user-sign/sign', () => ok({ signed: true, point: 10, continuousDays: USER_SIGN.continuousDays + 1 })),
 
   // ─── user-activity ───
-  http.get('*/api/admin/user-activity/list', () => okList([], 0)),
+  http.get('*/api/core/user-activity/list', () => okList([], 0)),
 
   // ─── userContact (社交联系人) ───
-  http.get('*/api/admin/userContact/client/list', () => okList(USER_CONTACT.records, USER_CONTACT.totalRow)),
-  http.post('*/api/admin/userContact/agree', () => ok({ agreed: true })),
-  http.post('*/api/admin/userContact/send', () => ok({ sent: true, requestId: 9999 })),
+  http.get('*/api/core/userContact/client/list', () => okList(USER_CONTACT.records, USER_CONTACT.totalRow)),
+  http.post('*/api/core/userContact/agree', () => ok({ agreed: true })),
+  http.post('*/api/core/userContact/send', () => ok({ sent: true, requestId: 9999 })),
   http.delete(/\/api\/admin\/userContact\/removeByIds.*/, () => ok({ removed: 1 })),
 
   // ─── userContactGroup ───
-  http.get('*/api/admin/userContactGroup/client/list', () => okList(USER_CONTACT_GROUP.records, USER_CONTACT_GROUP.totalRow)),
-  http.get('*/api/admin/userContactGroup/client/suggest', () => okSuggest(USER_CONTACT_GROUP.records.slice(0, 5))),
-  http.post('*/api/admin/userContactGroup/create', () => ok({ id: 9999 })),
-  http.post('*/api/admin/userContactGroup/invite', () => ok({ invited: 1 })),
-  http.post('*/api/admin/userContactGroup/agree', () => ok({ agreed: true })),
-  http.post('*/api/admin/userContactGroup/send', () => ok({ sent: true })),
+  http.get('*/api/core/userContactGroup/client/list', () => okList(USER_CONTACT_GROUP.records, USER_CONTACT_GROUP.totalRow)),
+  http.get('*/api/core/userContactGroup/client/suggest', () => okSuggest(USER_CONTACT_GROUP.records.slice(0, 5))),
+  http.post('*/api/core/userContactGroup/create', () => ok({ id: 9999 })),
+  http.post('*/api/core/userContactGroup/invite', () => ok({ invited: 1 })),
+  http.post('*/api/core/userContactGroup/agree', () => ok({ agreed: true })),
+  http.post('*/api/core/userContactGroup/send', () => ok({ sent: true })),
 
   // ─── userContactRecent ───
-  http.get('*/api/admin/userContactRecent/client/list', () => okList(USER_CONTACT_RECENT, USER_CONTACT_RECENT.length)),
-  http.post('*/api/admin/userContactRecent/client/insert', () => ok({ id: 9999 })),
-  http.post('*/api/admin/userContactRecentExt/client/process', () => ok({ processed: true })),
+  http.get('*/api/core/userContactRecent/client/list', () => okList(USER_CONTACT_RECENT, USER_CONTACT_RECENT.length)),
+  http.post('*/api/core/userContactRecent/client/insert', () => ok({ id: 9999 })),
+  http.post('*/api/core/userContactRecentExt/client/process', () => ok({ processed: true })),
 
   // ─── 通知中心 ───
-  http.get('*/api/admin/notice/interaction/list', ({ request }) => {
+  http.get('*/api/core/notice/interaction/list', ({ request }) => {
     const url = new URL(request.url);
     const subType = url.searchParams.get('subType') || 'all';
     let records = NOTICE_INTERACTION.records;
@@ -318,27 +318,27 @@ export const systemHandlers = [
     }
     return okList(records, records.length);
   }),
-  http.get('*/api/admin/notice/system/list', () => okList(NOTICE_SYSTEM.records, NOTICE_SYSTEM.totalRow)),
-  http.get('*/api/admin/notice/count', () => ok({
+  http.get('*/api/core/notice/system/list', () => okList(NOTICE_SYSTEM.records, NOTICE_SYSTEM.totalRow)),
+  http.get('*/api/core/notice/count', () => ok({
     interaction: NOTICE_INTERACTION.records.filter((r) => r.unread).length,
     system: NOTICE_SYSTEM.records.filter((r) => r.unread).length,
     total: NOTICE_INTERACTION.records.filter((r) => r.unread).length + NOTICE_SYSTEM.records.filter((r) => r.unread).length,
   })),
-  http.post('*/api/admin/notice/read', () => ok({ updated: 1 })),
-  http.post('*/api/admin/notice/readAll', () => ok({ updated: 1 })),
+  http.post('*/api/core/notice/read', () => ok({ updated: 1 })),
+  http.post('*/api/core/notice/readAll', () => ok({ updated: 1 })),
 
   // ─── 私信 ───
-  http.get('*/api/admin/msg/session/list', () => okList(DM_SESSIONS, DM_SESSIONS.length)),
-  http.get('*/api/admin/msg/session/detail', ({ request }) => {
+  http.get('*/api/core/msg/session/list', () => okList(DM_SESSIONS, DM_SESSIONS.length)),
+  http.get('*/api/core/msg/session/detail', ({ request }) => {
     const id = Number(new URL(request.url).searchParams.get('id') || 1);
     const session = DM_SESSIONS.find((s) => s.id === id) || DM_SESSIONS[0];
     return ok(session);
   }),
-  http.get('*/api/admin/msg/message/list', ({ request }) => {
+  http.get('*/api/core/msg/message/list', ({ request }) => {
     const id = Number(new URL(request.url).searchParams.get('sessionId') || 1);
     return okList(DM_MESSAGES[id] || DM_MESSAGES[1] || [], (DM_MESSAGES[id] || DM_MESSAGES[1] || []).length);
   }),
-  http.post('*/api/admin/msg/message/send', async ({ request }) => {
+  http.post('*/api/core/msg/message/send', async ({ request }) => {
     const body = (await request.json().catch(() => ({}))) as { sessionId?: number; content?: string; type?: string };
     return ok({
       id: Math.floor(Math.random() * 1000) + 99999,
@@ -350,10 +350,10 @@ export const systemHandlers = [
       status: 'sent',
     });
   }),
-  http.post('*/api/admin/msg/session/follow', () => ok({ followed: true })),
-  http.post('*/api/admin/msg/session/unfollow', () => ok({ unfollowed: true })),
-  http.post('*/api/admin/msg/session/read', () => ok({ read: true })),
+  http.post('*/api/core/msg/session/follow', () => ok({ followed: true })),
+  http.post('*/api/core/msg/session/unfollow', () => ok({ unfollowed: true })),
+  http.post('*/api/core/msg/session/read', () => ok({ read: true })),
   http.delete(/\/api\/admin\/msg\/session\/removeByIds.*/, () => ok({ removed: 1 })),
-  http.post('*/api/admin/msg/message/recall', () => ok({ recalled: true })),
-  http.post('*/api/admin/msg/upload', () => ok({ url: 'https://picsum.photos/seed/dm-up/240/180', filename: 'image.jpg' })),
+  http.post('*/api/core/msg/message/recall', () => ok({ recalled: true })),
+  http.post('*/api/core/msg/upload', () => ok({ url: 'https://picsum.photos/seed/dm-up/240/180', filename: 'image.jpg' })),
 ];

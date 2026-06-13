@@ -1,6 +1,6 @@
 /**
  * 数字人 avatar-api 的 MSW mock(dev 用)。
- * 生产环境前端 fetch /api/avatar/* 会经网关命中真 avatar-api(Go),
+ * 生产环境前端 fetch /api/realtime/* 会经网关命中真 avatar-api(Go),
  * dev(USE_MOCK)下由这里返回,使"真·LLM"开关也能走通 RemoteLLM→服务 链路。
  *
  * 这里复刻 Go 服务的 mock 逻辑:关键词 → 回复 + toolCalls。
@@ -76,7 +76,7 @@ function runJob(job: any) {
 }
 
 export const avatarHandlers = [
-  http.get('*/api/avatar/config', () => {
+  http.get('*/api/realtime/config', () => {
     // assetUrl 默认从环境变量读;为空时前端走 2D 兜底(Canvas/Video)
     // 生产把训练产物放到 CDN,把 NEXT_PUBLIC_AVATAR_ASSET_URL 指过去即可
     const assetUrl = (typeof process !== 'undefined' && (process as any).env?.NEXT_PUBLIC_AVATAR_ASSET_URL) || '';
@@ -85,11 +85,11 @@ export const avatarHandlers = [
       assetUrl,
       clipsUrl: '/avatar/clips.json',
       features: { asr: false, tts: !!((process as any).env?.NEXT_PUBLIC_TTS_AUDIO_URL), llm: true },
-      wsUrl: '/api/avatar/ws',
+      wsUrl: '/api/realtime/ws',
     });
   }),
 
-  http.post('*/api/avatar/chat', async ({ request }) => {
+  http.post('*/api/realtime/chat', async ({ request }) => {
     const body: any = await request.json().catch(() => ({}));
     const msg: string = (body?.message || '').trim();
     const has = (re: RegExp) => re.test(msg);
@@ -111,21 +111,21 @@ export const avatarHandlers = [
   }),
 
   // ─── 素材上传列表 ───
-  http.get('*/api/avatar/materials', () => ok({ list: materials })),
-  http.post('*/api/avatar/materials', async ({ request }) => {
+  http.get('*/api/realtime/materials', () => ok({ list: materials })),
+  http.post('*/api/realtime/materials', async ({ request }) => {
     const b: any = await request.json().catch(() => ({}));
     const m = { id: 'm' + ++seq, name: b.name || `素材_${seq}.mp4`, type: b.type || 'video', sizeMB: b.sizeMB || (20 + (seq % 80)), status: 'uploaded', durationSec: b.durationSec || 30, createdAt: Date.now(), usedBy: '' };
     materials.unshift(m);
     return ok(m);
   }),
-  http.delete('*/api/avatar/materials/:id', ({ params }) => {
+  http.delete('*/api/realtime/materials/:id', ({ params }) => {
     const i = materials.findIndex((m) => m.id === params.id);
     if (i >= 0) materials.splice(i, 1);
     return ok({ removed: params.id });
   }),
 
   // ─── 发布 ───
-  http.post('*/api/avatar/assets/:id/publish', async ({ params, request }) => {
+  http.post('*/api/realtime/assets/:id/publish', async ({ params, request }) => {
     const b: any = await request.json().catch(() => ({}));
     const a = assets.find((x) => x.id === params.id);
     if (a) a.published = b.published !== false;
@@ -133,7 +133,7 @@ export const avatarHandlers = [
   }),
 
   // ─── 训练资源(GPU)───
-  http.get('*/api/avatar/resources', () => {
+  http.get('*/api/realtime/resources', () => {
     // 把运行中任务挂到 g1
     const running = jobs.find((j) => j.status === 'running');
     resources[0].currentJob = running ? running.name : '';
@@ -142,7 +142,7 @@ export const avatarHandlers = [
   }),
 
   // ─── 调度队列 ───
-  http.get('*/api/avatar/schedule', () => {
+  http.get('*/api/realtime/schedule', () => {
     const rows = jobs
       .filter((j) => j.status === 'running' || j.status === 'queued')
       .map((j, i) => ({ jobId: j.id, name: j.name, status: j.status, resource: '本地工作站 · 4070', priority: i === 0 ? '高' : '普通', eta: j.status === 'running' ? `${Math.max(1, Math.round((100 - j.progress) / 8))} 分钟` : '排队中' }));
@@ -150,42 +150,42 @@ export const avatarHandlers = [
   }),
 
   // ─── 模型服务(ASR/LLM/TTS)───
-  http.get('*/api/avatar/models', () => ok({ list: models })),
-  http.post('*/api/avatar/models/:id/toggle', ({ params }) => {
+  http.get('*/api/realtime/models', () => ok({ list: models })),
+  http.post('*/api/realtime/models/:id/toggle', ({ params }) => {
     const m = models.find((x) => x.id === params.id);
     if (m) m.status = m.status === 'online' ? 'offline' : 'online';
     return ok({ id: params.id, status: m?.status });
   }),
-  http.post('*/api/avatar/models/:id/reload', ({ params }) => {
+  http.post('*/api/realtime/models/:id/reload', ({ params }) => {
     const m = models.find((x) => x.id === params.id);
     if (m) m.status = 'online';
     return ok({ id: params.id, reloaded: true });
   }),
 
   // ─── 工作台:资产 + 一键训练 ───
-  http.get('*/api/avatar/assets', () => ok({ list: assets, stages: STAGES })),
-  http.post('*/api/avatar/assets/:id/activate', ({ params }) => {
+  http.get('*/api/realtime/assets', () => ok({ list: assets, stages: STAGES })),
+  http.post('*/api/realtime/assets/:id/activate', ({ params }) => {
     assets.forEach((a) => (a.active = a.id === params.id));
     return ok({ active: params.id });
   }),
-  http.delete('*/api/avatar/assets/:id', ({ params }) => {
+  http.delete('*/api/realtime/assets/:id', ({ params }) => {
     const i = assets.findIndex((a) => a.id === params.id);
     if (i >= 0) assets.splice(i, 1);
     return ok({ removed: params.id });
   }),
-  http.post('*/api/avatar/train', async ({ request }) => {
+  http.post('*/api/realtime/train', async ({ request }) => {
     const b: any = await request.json().catch(() => ({}));
     const job = { id: 'job' + ++seq, name: b.name || '新数字人', method: b.method || 'ExAvatar', status: 'running', stage: 'capture', progress: 0, logs: ['任务创建,来源:' + (b.source || '-')], createdAt: Date.now() };
     jobs.unshift(job);
     runJob(job);
     return ok({ jobId: job.id });
   }),
-  http.get('*/api/avatar/jobs', () => ok({ list: jobs })),
-  http.get('*/api/avatar/jobs/:id', ({ params }) => {
+  http.get('*/api/realtime/jobs', () => ok({ list: jobs })),
+  http.get('*/api/realtime/jobs/:id', ({ params }) => {
     const j = jobs.find((x) => x.id === params.id);
     return j ? ok(j) : HttpResponse.json({ code: 404, msg: 'not found' }, { status: 404 });
   }),
-  http.post('*/api/avatar/jobs/:id/cancel', ({ params }) => {
+  http.post('*/api/realtime/jobs/:id/cancel', ({ params }) => {
     const j = jobs.find((x) => x.id === params.id);
     if (j && j.status === 'running') { j.status = 'canceled'; j.logs.push('已取消'); }
     return ok({ canceled: params.id });

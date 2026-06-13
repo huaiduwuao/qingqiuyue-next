@@ -9,16 +9,17 @@ const API_GATEWAY = USE_MOCK
   ? ''
   : process.env.NEXT_PUBLIC_API_BASE_URL ?? `http://localhost:${MOCK_API_PORT}`;
 
-// 各模块API基地址
+// 各模块 API 基地址 —— 前缀按 4 个合并服务收口:
+//   core(admin+wx+reward)/ content(content+home)/ realtime(im+avatar)/ spider
 export const API_BASE = {
-  admin: `${API_GATEWAY}/api/admin`,
+  admin: `${API_GATEWAY}/api/core`,
   content: `${API_GATEWAY}/api/content`,
-  reward: `${API_GATEWAY}/api/reward`,
-  wx: `${API_GATEWAY}/api/wx`,
+  reward: `${API_GATEWAY}/api/core`,
+  wx: `${API_GATEWAY}/api/core`,
   spider: `${API_GATEWAY}/api/spider`,
-  im: `${API_GATEWAY}/api/im`,
-  account: `${API_GATEWAY}/api/account`,
-  home: `${API_GATEWAY}/api/home`,
+  im: `${API_GATEWAY}/api/realtime`,
+  account: `${API_GATEWAY}/api/core`,
+  home: `${API_GATEWAY}/api/content/home`,
 };
 
 // 创建指定baseURL的axios实例

@@ -2,14 +2,14 @@
  * Reward-task MSW handlers — 项目协作任务的 9 个端点。
  *
  * 端点:
- *   GET    /api/reward/task/page
- *   GET    /api/reward/task/{id}
- *   POST   /api/reward/task
- *   PUT    /api/reward/task/{id}
- *   DELETE /api/reward/task/{id}
- *   POST   /api/reward/task/{id}/claim
- *   POST   /api/reward/task/{id}/submit
- *   POST   /api/reward/task/{id}/review
+ *   GET    /api/core/task/page
+ *   GET    /api/core/task/{id}
+ *   POST   /api/core/task
+ *   PUT    /api/core/task/{id}
+ *   DELETE /api/core/task/{id}
+ *   POST   /api/core/task/{id}/claim
+ *   POST   /api/core/task/{id}/submit
+ *   POST   /api/core/task/{id}/review
  */
 
 import { http, HttpResponse } from 'msw';
@@ -30,7 +30,7 @@ const fail = (msg: string, code = 400) => HttpResponse.json({ code, msg }, { sta
 
 export const rewardTaskHandlers = [
   // 列表
-  http.get('*/api/reward/task/page', ({ request }) => {
+  http.get('*/api/core/task/page', ({ request }) => {
     const url = new URL(request.url);
     const projectId = url.searchParams.get('projectId');
     const groupId = url.searchParams.get('groupId');
@@ -67,7 +67,7 @@ export const rewardTaskHandlers = [
   }),
 
   // 新建
-  http.post('*/api/reward/task', async ({ request }) => {
+  http.post('*/api/core/task', async ({ request }) => {
     const body: any = await request.json();
     if (!body.title) return fail('标题必填', 400);
     const rec = createTaskRecord({

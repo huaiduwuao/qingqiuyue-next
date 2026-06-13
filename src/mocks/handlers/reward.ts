@@ -51,27 +51,27 @@ const fail = (msg: string, code = 400) => HttpResponse.json({ code, msg }, { sta
 
 export const rewardHandlers = [
   // group list / paged
-  http.get('*/api/reward/group/client/page', () => ok(GROUP_PAGE)),
-  http.get('*/api/reward/group/suggest', () => ok(GROUP_SUGGEST)),
-  http.get('*/api/reward/group/wait', () => ok(GROUP_WAIT)),
-  http.post('*/api/reward/group', () => ok({ id: 3, name: '新团队', status: 'AGREE' })),
+  http.get('*/api/core/group/client/page', () => ok(GROUP_PAGE)),
+  http.get('*/api/core/group/suggest', () => ok(GROUP_SUGGEST)),
+  http.get('*/api/core/group/wait', () => ok(GROUP_WAIT)),
+  http.post('*/api/core/group', () => ok({ id: 3, name: '新团队', status: 'AGREE' })),
   http.get(/\/api\/reward\/group\/\d+$/, () => ok({ id: 1, name: '前端开发组', info: '专注前端技术', status: 'AGREE' })),
   http.put(/\/api\/reward\/group\/\d+$/, () => ok({ success: true })),
   http.delete(/\/api\/reward\/group\/\d+$/, () => ok({ success: true })),
   http.put(/\/api\/reward\/group\/\d+\/agree$/, () => ok({ success: true })),
-  http.post('*/api/reward/group/send', () => ok({ success: true })),
+  http.post('*/api/core/group/send', () => ok({ success: true })),
 
   // group-user
-  http.get('*/api/reward/group-user/list', () => ok(GROUP_USER_LIST)),
-  http.post('*/api/reward/group-user/invite', () => ok({ success: true })),
-  http.post('*/api/reward/group-user/agree/*', () => ok({ success: true })),
+  http.get('*/api/core/group-user/list', () => ok(GROUP_USER_LIST)),
+  http.post('*/api/core/group-user/invite', () => ok({ success: true })),
+  http.post('*/api/core/group-user/agree/*', () => ok({ success: true })),
   http.post(/\/api\/reward\/group-user$/, () => ok({ id: (GROUP_USER_LIST.list?.length ?? 0) + 1, status: 'WAIT' })),
   http.put(/\/api\/reward\/group-user\/\d+$/, () => ok({ success: true })),
   http.delete(/\/api\/reward\/group-user\/\d+$/, () => ok({ success: true })),
 
   // demand
-  http.get('*/api/reward/demand/client/page', () => ok(DEMAND_PAGE)),
-  http.post('*/api/reward/demand', () => ok({ id: DEMANDS.length + 1, title: '新需求' })),
+  http.get('*/api/core/demand/client/page', () => ok(DEMAND_PAGE)),
+  http.post('*/api/core/demand', () => ok({ id: DEMANDS.length + 1, title: '新需求' })),
   http.get(/\/api\/reward\/demand\/\d+$/, ({ request }) => {
     const id = request.url.split('/').pop();
     const d = getDemandRecord(id!);
@@ -90,7 +90,7 @@ export const rewardHandlers = [
     return ok(d);
   }),
   http.delete(/\/api\/reward\/demand\/\d+$/, () => ok({ success: true })),
-  http.post('*/api/reward/demand/process', () => ok({ success: true })),
+  http.post('*/api/core/demand/process', () => ok({ success: true })),
   // 触发结账
   http.post(/\/api\/reward\/demand\/\d+\/settle$/, ({ request }) => {
     const id = request.url.split('/').slice(-2, -1)[0];
@@ -107,14 +107,14 @@ export const rewardHandlers = [
   }),
 
   // project
-  http.get('*/api/reward/project/client/page', () => ok(PROJECT_PAGE)),
-  http.post('*/api/reward/project', () => ok({ id: 4, title: '新项目' })),
+  http.get('*/api/core/project/client/page', () => ok(PROJECT_PAGE)),
+  http.post('*/api/core/project', () => ok({ id: 4, title: '新项目' })),
   http.get(/\/api\/reward\/project\/\d+$/, () => ok({ id: 1, title: '用户中心项目', description: '开发用户中心模块', status: 'DOING' })),
   http.put(/\/api\/reward\/project\/\d+$/, () => ok({ success: true })),
   http.delete(/\/api\/reward\/project\/\d+$/, () => ok({ success: true })),
 
   // conception — page/list 支持 demandId 过滤(查询参数)
-  http.get('*/api/reward/conception/client/page', ({ request }) => {
+  http.get('*/api/core/conception/client/page', ({ request }) => {
     const url = new URL(request.url);
     const demandId = url.searchParams.get('demandId');
     const demandIdNum = demandId ? Number(demandId) : null;
@@ -123,7 +123,7 @@ export const rewardHandlers = [
     }
     return ok(CONCEPTION_PAGE);
   }),
-  http.get('*/api/reward/conception/list', ({ request }) => {
+  http.get('*/api/core/conception/list', ({ request }) => {
     const url = new URL(request.url);
     const demandId = url.searchParams.get('demandId');
     const demandIdNum = demandId ? Number(demandId) : null;
@@ -133,14 +133,14 @@ export const rewardHandlers = [
     }
     return ok(CONCEPTION_LIST);
   }),
-  http.post('*/api/reward/conception', () => ok({ id: 3, title: '新意境' })),
+  http.post('*/api/core/conception', () => ok({ id: 3, title: '新意境' })),
   http.get(/\/api\/reward\/conception\/\d+$/, () => ok({ id: 1, title: 'AI助手创意', description: '基于AI的创意助手', status: 'OPEN' })),
   http.put(/\/api\/reward\/conception\/\d+$/, () => ok({ success: true })),
   http.delete(/\/api\/reward\/conception\/\d+$/, () => ok({ success: true })),
 
   // realization — list 实时化(task APPROVED 派生追加)
-  http.get('*/api/reward/realization/list', () => ok(REALIZATION_LIST)),
-  http.post('*/api/reward/realization', () => ok({ id: 3, title: '新实现' })),
+  http.get('*/api/core/realization/list', () => ok(REALIZATION_LIST)),
+  http.post('*/api/core/realization', () => ok({ id: 3, title: '新实现' })),
   http.get(/\/api\/reward\/realization\/\d+$/, () => ok({ id: 1, title: '登录功能实现', description: '完成了用户登录功能', status: 'APPROVED' })),
   http.put(/\/api\/reward\/realization\/\d+$/, () => ok({ success: true })),
   http.delete(/\/api\/reward\/realization\/\d+$/, () => ok({ success: true })),

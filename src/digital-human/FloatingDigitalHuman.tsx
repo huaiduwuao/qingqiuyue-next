@@ -90,12 +90,12 @@ export default function FloatingDigitalHuman() {
     setPos({ left: window.innerWidth - FIG_W - 24, top: window.innerHeight - FIG_H - 24 });
     let disposed = false;
     const init = async () => {
-      // 1) 优先 3D 路径:从 /api/avatar/config 读 assetUrl,优先用 SparkStage(WebGL + LBS 蒙皮),
+      // 1) 优先 3D 路径:从 /api/realtime/config 读 assetUrl,优先用 SparkStage(WebGL + LBS 蒙皮),
       //    失败再退到 DynamicAvatarStage(mkkellogg 静态 .ply),都不行再 2D
       let stage: IAvatarStage | null = null;
       let disposed3d: IAvatarStage | null = null;
       try {
-        const cfg = await fetch('/api/avatar/config').then((r) => r.json()).catch(() => null);
+        const cfg = await fetch('/api/realtime/config').then((r) => r.json()).catch(() => null);
         const assetUrl: string | undefined = cfg?.data?.assetUrl;
         if (assetUrl) {
           // a) SparkStage:支持 LBS 蒙皮,真人 3DGS 可驱动(姿势+口型)
