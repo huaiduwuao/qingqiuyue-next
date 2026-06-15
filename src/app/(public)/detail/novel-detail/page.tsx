@@ -22,6 +22,7 @@ import { ReadingSettings, DEFAULT_PAGE_STYLE } from '@/components/detail/Reading
 import type { PageStyle } from '@/components/detail/ReadingSettings';
 import { ReadingContainer } from '@/components/detail/ReadingContainer';
 import { useScrollProgress } from '@/hooks/useScrollProgress';
+import { track } from '@/lib/track';
 
 function NovelDetailContent() {
   const router = useRouter();
@@ -39,6 +40,12 @@ function NovelDetailContent() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const readProgress = useScrollProgress(scrollRef);
   const qc = useQueryClient();
+
+  // 行为埋点:进入详情即上报一次浏览(推荐/大数据源头)
+  useEffect(() => {
+    const nid = novelId || id;
+    if (nid) track(nid, 'view', 'novel');
+  }, [novelId, id]);
 
   const initialQuery = useQuery({
     queryKey: ['detail', 'novel', id],

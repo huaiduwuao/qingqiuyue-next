@@ -23,7 +23,7 @@ import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 
 type Stage = { key: string; label: string };
-type Material = { id: string; name: string; type: string; sizeMB: number; status: string; durationSec: number; createdAt: number; usedBy: string };
+type Material = { id: string; name: string; type: string; sizeMB: number; status: string; durationSec: number; createdAt: number; usedBy: string; url?: string; key?: string };
 type Asset = { id: string; name: string; mode: string; status: string; active: boolean; published: boolean; thumbnail: string; sizeMB: number; joints: number; hasFlame: boolean };
 type Job = { id: string; name: string; method: string; status: string; stage: string; progress: number; logs: string[]; createdAt?: number };
 
@@ -74,11 +74,29 @@ export default function DigitalHumanStudio() {
     setTab(1);
     refresh();
   };
-  const uploadMaterial = async () => {
-    const nm = prompt('素材文件名(模拟上传)', `采集_${Date.now() % 1000}.mp4`);
-    if (!nm) return;
-    await api('/materials', { method: 'POST', body: JSON.stringify({ name: nm, type: 'video' }) });
-    refresh();
+  const fileRef = React.useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = React.useState(false);
+  const uploadMaterial = () => fileRef.current?.click();
+  const onFilePicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // 允许重复选同一文件
+    if (!file) return;
+    const kind = file.type.startsWith('image') ? 'image' : file.type.startsWith('audio') ? 'audio' : 'video';
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('type', kind);
+    setUploading(true);
+    try {
+      // 注意:FormData 不能手动设 Content-Type(浏览器要自带 multipart boundary),故不用 api() 包装
+      const r = await fetch('/api/realtime/materials', { method: 'POST', body: fd });
+      const j = await r.json();
+      if (j?.code && j.code !== 0 && j.code !== 200) alert('上传失败: ' + (j.msg || '未知错误'));
+    } catch (err: any) {
+      alert('上传失败: ' + (err?.message || err));
+    } finally {
+      setUploading(false);
+      refresh();
+    }
   };
   const delMaterial = async (id: string) => { await api(`/materials/${id}`, { method: 'DELETE' }); refresh(); };
   const trainWithMaterial = (m: Material) => { setSource(m.name); setName(m.name.replace(/\.\w+$/, '')); setTab(1); };
@@ -119,7 +137,10 @@ export default function DigitalHumanStudio() {
         <Box>
           <Box sx={{ display: 'flex', mb: 1.5 }}>
             <Box sx={{ flex: 1 }} />
-            <Button variant="contained" size="small" startIcon={<UploadFileRoundedIcon />} onClick={uploadMaterial}>上传素材</Button>
+            <input ref={fileRef} type="file" accept="video/*,image/*,audio/*" hidden onChange={onFilePicked} />
+            <Button variant="contained" size="small" disabled={uploading} startIcon={<UploadFileRoundedIcon />} onClick={uploadMaterial}>
+              {uploading ? '上传中…' : '上传素材'}
+            </Button>
           </Box>
           <Table size="small">
             <TableHead><TableRow>

@@ -8,6 +8,7 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { moduleContentPage } from '@/apis/home';
 import { getDetailRoute } from '@/lib/contentRoute';
+import { track } from '@/lib/track';
 import { TYPE_GRADIENT, RANK_BG } from '@/constants/gradients';
 
 interface ContentItem {
@@ -84,6 +85,7 @@ export default function HomeRecommendPage() {
   const loading = contentQuery.isFetching;
 
   const handleCardClick = (item: ContentItem) => {
+    track(item.id, 'click', item.contentType || 'novel'); // 行为埋点 → 推荐/大数据源头
     const route = getDetailRoute(item.contentType, item.id);
     if (route) router.push(route);
   };
