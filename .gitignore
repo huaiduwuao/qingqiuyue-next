@@ -49,3 +49,6 @@ next-env.d.ts
 
 # 本地 agent/编辑器配置
 /.claude/launch.json
+
+# compose 增量构建标记
+.last-build-web
