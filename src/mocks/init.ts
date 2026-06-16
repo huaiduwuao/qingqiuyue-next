@@ -8,6 +8,21 @@ export const mockEnabled = rawMock === '1' || rawMock === 'true';
 
 let started = false;
 
+/**
+ * 注销可能残留的 mock service worker。
+ * mock 关闭时(生产 / compose 构建)调用,确保浏览器里早先注册的
+ * mockServiceWorker.js 不再拦截真实请求。
+ */
+export async function stopMock(): Promise<void> {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration('/mockServiceWorker.js');
+    if (reg) await reg.unregister();
+  } catch {
+    /* 注销失败无所谓:SW 无激活客户端时本就放行 */
+  }
+}
+
 export async function startMock(): Promise<void> {
   if (!mockEnabled) return;
   if (typeof window === 'undefined') return;

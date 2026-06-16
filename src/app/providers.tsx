@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, useEffect } from 'react';
 import { AppContextProvider } from '@/contexts/AppContext';
 import { AuthContextProvider } from '@/contexts/AuthContext';
-import { startMock, mockEnabled } from '@/mocks/init';
+import { startMock, stopMock, mockEnabled } from '@/mocks/init';
 import dynamic from 'next/dynamic';
 
 const FloatingDigitalHuman = dynamic(() => import('@/digital-human/FloatingDigitalHuman'), { ssr: false });
@@ -28,7 +28,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!mockEnabled) {
-      setMockReady(true);
+      // 生产 / compose 构建:注销可能残留的 mock service worker,避免其继续拦截真实请求
+      stopMock().finally(() => setMockReady(true));
       return;
     }
     let cancelled = false;
