@@ -1,7 +1,10 @@
 services:
   # =============================================
   # qingqiuyue-next 前端(Next.js standalone,:3000)
-  # /api/* 由 Next 服务端反代到后端 APISIX 网关
+  # /api/* 与 /logs/* 由 Next 服务端反代到后端 APISIX 网关。
+  #
+  # ⚠️ 推荐统一用 qingqiuyue-go 的 `make compose-up` 一并构建启动前端(web 已并入
+  #    后端业务 compose)。本文件仅供前端单独起;两者别同时跑(container_name 冲突)。
   # =============================================
   web:
     build:
@@ -19,8 +22,10 @@ services:
       - backend
 
 networks:
-  # 复用后端 compose(qingqiuyue-go/docker)创建的网络 docker_default
-  # 需先启动后端(make compose-up)再起前端
+  # 接入基础设施创建的 qingqiuyue 网络(apisix 就在这张网上,DNS 名 apisix 可解析)。
+  # ⚠️ 必须用 qingqiuyue,不能用 docker_default —— 拆分 infra/业务 compose 后
+  #    apisix 只挂 qingqiuyue,放 docker_default 会 ENOTFOUND apisix 导致 /api 反代 500。
+  # 需先 `make compose-infra-up` 起基础设施(创建该网络)。
   backend:
     external: true
-    name: docker_default
+    name: qingqiuyue
