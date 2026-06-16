@@ -21,6 +21,11 @@ const nextConfig: NextConfig = {
         source: "/api/:path*",
         destination: `${API_PROXY_TARGET}/api/:path*`,
       },
+      {
+        // logtail 日志平台:同源 /logs/* 反代到网关 /logs/*(APISIX 再转 logtail-server)
+        source: "/logs/:path*",
+        destination: `${API_PROXY_TARGET}/logs/:path*`,
+      },
     ];
   },
 };

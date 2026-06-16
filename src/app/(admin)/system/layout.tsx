@@ -31,6 +31,7 @@ import LocationOnRoundedIcon from '@mui/icons-material/LocationOnRounded';
 import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
+import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded';
 import { useAuthority } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
 import { PERMISSIONS } from '@/lib/permissions';
@@ -122,6 +123,12 @@ const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
     title: '数字人',
     items: [
       { id: 'dh-studio', label: '数字人工作台', path: '/system/digital-human', icon: <StarsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6' },
+    ],
+  },
+  {
+    title: '运维监控',
+    items: [
+      { id: 'log', label: '服务日志', path: '/system/log', icon: <TerminalRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
     ],
   },
 ];
