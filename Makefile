@@ -23,7 +23,9 @@ lint:
 
 # 容器:增量构建并启动前端(:3000)。
 #   .last-build-web 记录上次构建的 git rev。无变化且 web 在运行 → 不调 compose(零噪音);
-#   有变化 / 工作区改动 / web 未运行 → up -d --build。要强制重建用:make compose-up FORCE=1
+#   有变化 / 工作区改动 / web 未运行 → up -d --build --force-recreate。
+#   要强制重建用:make compose-up FORCE=1
+#   顺带清掉残留 stopped 容器,避免 podman 报 "name already in use"。
 WEB_MARK = .last-build-web
 compose-up:
 	@echo "Using compose tool: $(COMPOSE)"
@@ -31,9 +33,13 @@ compose-up:
 	dirty=$$(git status --porcelain 2>/dev/null | head -1); \
 	rt=$$(case "$(COMPOSE)" in *podman*) echo podman;; *) echo docker;; esac); \
 	running=$$($$rt ps --format '{{.Names}}' 2>/dev/null | grep -xc qingqiuyue-web); \
+	if [ -n "$$($$rt ps -a --format '{{.Names}}' 2>/dev/null | grep -x qingqiuyue-web)" ] && [ "$$running" = "0" ]; then \
+	  echo "清理残留 stopped 容器: qingqiuyue-web"; \
+	  $$rt rm qingqiuyue-web >/dev/null 2>&1 || true; \
+	fi; \
 	if [ -n "$(FORCE)" ] || [ -z "$$cur" ] || [ -z "$$last" ] || [ "$$last" != "$$cur" ] || [ -n "$$dirty" ] || [ "$$running" = "0" ]; then \
 	  echo "前端有变化/未运行 → 构建并启动 web…"; \
-	  $(COMPOSE) -f $(COMPOSE_FILE) up -d --build; \
+	  $(COMPOSE) -f $(COMPOSE_FILE) up -d --build --force-recreate; \
 	  if [ -n "$$cur" ]; then echo "$$cur" > $(WEB_MARK); fi; \
 	else \
 	  echo "前端无变化且 web 在运行 → 无需操作(跳过构建)"; \
