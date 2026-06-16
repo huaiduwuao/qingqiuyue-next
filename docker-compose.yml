@@ -3,8 +3,8 @@ services:
   # qingqiuyue-next 前端(Next.js standalone,:3000)
   # /api/* 与 /logs/* 由 Next 服务端反代到后端 APISIX 网关。
   #
-  # ⚠️ 推荐统一用 qingqiuyue-go 的 `make compose-up` 一并构建启动前端(web 已并入
-  #    后端业务 compose)。本文件仅供前端单独起;两者别同时跑(container_name 冲突)。
+  # 前端独立启动:先 `make compose-infra-up`(建 qingqiuyue 网 + apisix),
+  # 再在本目录 `make compose-up`。web 接入下方 qingqiuyue 网,与 apisix 同网。
   # =============================================
   web:
     build:
