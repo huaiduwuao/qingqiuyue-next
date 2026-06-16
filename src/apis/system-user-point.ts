@@ -77,7 +77,7 @@ export interface UserActivityListResp {
 
 // 获取用户积分
 export async function getUserPoint(userId?: number) {
-  return adminClient<UserPointResp>(`/api/point/user`, {
+  return adminClient<UserPointResp>(`/point/user`, {
     method: 'GET',
     params: userId ? { userId } : undefined,
   });
