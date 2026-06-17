@@ -1,5 +1,5 @@
 /**
- * Admin MSW handlers — user / dict / menu / appConfig / module-menu / point / user-relation.
+ * Admin MSW handlers — user / dict / menu / app/config / module-menu / point / user-relation.
  * URL 全部 wildcard 形式以兼容各 baseURL.
  */
 
@@ -36,8 +36,6 @@ export const adminHandlers = [
 
   // 旧路径兼容
   http.post('*/api/core/user/login', () => ok({ token: 'mock-token-12345', user: CURRENT_USER })),
-
-  http.get('*/api/core/appConfig/listByMap', () => ok(APP_CONFIG_LIST)),
 
   http.get('*/api/core/module/menu/clientTree', () => ok(MODULE_MENU_TREE)),
 

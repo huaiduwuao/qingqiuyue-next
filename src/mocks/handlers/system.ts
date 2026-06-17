@@ -1,6 +1,6 @@
 /**
  * Admin (system) MSW handlers — 110+ endpoints 覆盖 12 个 system 页面。
- * 涵盖 user / role / menu / dict / app / appConfig / appService / resource / permission / data-permission / area / website-dict / notice / user-contact / point / sign / chart / sms / content / menu / module-menu。
+ * 涵盖 user / role / menu / dict / app / app/config / appService / resource / permission / data-permission / area / website-dict / notice / user-contact / point / sign / chart / sms / content / menu / module-menu。
  */
 
 import { http, HttpResponse } from 'msw';
@@ -153,9 +153,6 @@ export const systemHandlers = [
   http.post(/\/api\/admin\/app\/config$/, () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
   http.put(/\/api\/admin\/app\/config\/\d+$/, () => ok({ updated: 1 })),
   http.delete(/\/api\/admin\/app\/config\/\d+$/, () => ok({ removed: 1 })),
-  // 兼容旧若依路径
-  http.get('*/api/core/appConfig/listByMap', () => okList(SYS_APP_CONFIG.list, SYS_APP_CONFIG.total)),
-  http.get('*/api/core/appConfig/page', () => okPage(SYS_APP_CONFIG.list, SYS_APP_CONFIG.total)),
 
   // ─── app/service (REST) ───
   http.get('*/api/core/app/service/listApp', () => okList(SYS_APP_SERVICE.list, SYS_APP_SERVICE.list.length)),

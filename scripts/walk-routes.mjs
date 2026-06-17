@@ -16,8 +16,13 @@ const routes = raw
   .map((l) => l.trim())
   .filter(Boolean);
 
-// 去掉 (group) 包裹层
-const toUrl = (r) => '/' + r.replace(/^\([^)]+\)\//, '').replace(/^\([^)]+\)$/, '');
+// 去掉 (group) 包裹层,支持 "/(admin)/system" → "/system" 和 "(admin)/system" → "/system"
+// 跳过 Next.js 私有文件夹(_components / _views / 任何 _ 前缀)—— 它们不是路由
+function toUrl(r) {
+  if (/\/_[^/]+(\/|$)/.test(r)) return null; // 下划线开头的目录段
+  const stripped = r.replace(/\/\([^)]+\)\//g, '/').replace(/^\/\([^)]+\)\//, '/');
+  return stripped.startsWith('/') ? stripped : '/' + stripped;
+}
 
 async function login() {
   const res = await fetch(`${BACKEND}/api/core/login`, {
@@ -69,6 +74,7 @@ page.setDefaultTimeout(25000);
 const report = [];
 for (const r of routes) {
   const url = toUrl(r);
+  if (url === null) continue; // 私有文件夹,不是路由
   process.stdout.write(`→ ${url}\r`);
   const findings = await walkRoute(page, url);
   if (findings.length) {
