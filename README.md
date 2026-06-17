@@ -1,5 +1,17 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## 架构约定:MOCK 与真实后端切换(2026-06-17)
+
+后端永不 mock。所有假数据都走前端 MSW(`src/mocks/*`),通过单一开关切换:
+
+| 场景 | `NEXT_PUBLIC_USE_MOCK` | `NEXT_PUBLIC_API_BASE_URL` | 数据来源 |
+|---|---|---|---|
+| **纯前端开发** | `1` / `true` | 不设 | MSW Service Worker 拦截 `/api/*`(`src/mocks/handlers/*` + `src/mocks/db/*`) |
+| **联调真实后端** | `0` / 不设 | 留空(同源) | Next.js `rewrites` 把 `/api/*` 反代到 `API_PROXY_TARGET`(默认 `http://apisix:9080`) |
+| **指向具体网关** | `0` / 不设 | `http://gateway.xxx` | axios 直连,不走 rewrites |
+
+切换**只改环境变量**,业务代码零改动。详见 `../qingqiuyue-go/docs/IMPLEMENTATION-GAPS.md`。
+
 ## Getting Started
 
 First, run the development server:
