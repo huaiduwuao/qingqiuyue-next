@@ -362,7 +362,7 @@ function FeedCard({ item, tab }: { item: FeedItem; tab: 'home' | 'follow' | 'fri
       }}
     >
       <Box sx={{ position: 'relative', aspectRatio: '16/9', bgcolor: 'var(--bg-input, rgba(255,255,255,0.04))', overflow: 'hidden' }}>
-        <img src={item.cover} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <img src={item.cover || undefined} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         {item.isLive ? (
           <Chip
             icon={<LiveTvRoundedIcon sx={{ fontSize: 12, color: '#ffffff !important' }} />}
@@ -441,8 +441,8 @@ function FeedCard({ item, tab }: { item: FeedItem; tab: 'home' | 'follow' | 'fri
 
         {/* 作者行:头像 + 名字 + 状态徽章 + 关注/朋友按钮 */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.75 }}>
-          <Avatar src={item.authorAvatar} sx={{ width: 22, height: 22, fontSize: 10 }}>
-            {item.authorName[0]}
+          <Avatar src={item.authorAvatar || undefined} sx={{ width: 22, height: 22, fontSize: 10 }}>
+            {item.authorName?.[0] ?? '?'}
           </Avatar>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -620,8 +620,8 @@ function SuggestUserCard({ user, tab, loading }: { user?: SuggestUser; tab: 'fol
         '&:hover': { borderColor: 'var(--border-strong, rgba(255,255,255,0.12))' },
       }}
     >
-      <Avatar src={user.avatar} sx={{ width: 40, height: 40, fontSize: 14, flexShrink: 0 }}>
-        {user.name[0]}
+      <Avatar src={user.avatar || undefined} sx={{ width: 40, height: 40, fontSize: 14, flexShrink: 0 }}>
+        {user.name?.[0] ?? '?'}
       </Avatar>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -897,8 +897,8 @@ function FollowedRow({ user, onUnfollow }: { user: FollowedUser; onUnfollow: (u:
           '&:hover': { borderColor: 'var(--border-strong, rgba(255,255,255,0.12))' },
         }}
       >
-        <Avatar src={user.avatar} sx={{ width: 48, height: 48, fontSize: 18 }}>
-          {user.name[0]}
+        <Avatar src={user.avatar || undefined} sx={{ width: 48, height: 48, fontSize: 18 }}>
+          {user.name?.[0] ?? '?'}
         </Avatar>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>

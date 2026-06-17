@@ -73,16 +73,23 @@ export function useThemeMode() {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [mode, setMode] = useState<ThemeMode>(() => {
-    if (typeof window === 'undefined') return 'light';
+  // 初始 mode 固定 'light' —— 避免 SSR/CSR theme 不一致导致 hydration mismatch
+  // (server 无 window,client 读 localStorage/matchMedia,两边值会不一样 → MUI 生成的 styles 不同 → emotion hash 撞不上)
+  // 客户端 mount 后再切到用户实际偏好(下面的 useEffect)
+  const [mode, setMode] = useState<ThemeMode>('light');
+  const [primaryColor, setPrimaryColorState] = useState<string>(PRESET_COLORS[0].value);
+
+  // 客户端 mount 后同步 localStorage / prefers-color-scheme
+  useEffect(() => {
     const saved = localStorage.getItem('theme-mode') as ThemeMode | null;
-    if (saved === 'light' || saved === 'dark') return saved;
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  });
-  const [primaryColor, setPrimaryColorState] = useState<string>(() => {
-    if (typeof window === 'undefined') return PRESET_COLORS[0].value;
-    return localStorage.getItem('theme-primary') || PRESET_COLORS[0].value;
-  });
+    if (saved === 'light' || saved === 'dark') {
+      setMode(saved);
+    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      setMode('dark');
+    }
+    const savedColor = localStorage.getItem('theme-primary');
+    if (savedColor) setPrimaryColorState(savedColor);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('theme-mode', mode);

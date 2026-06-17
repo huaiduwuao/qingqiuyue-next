@@ -7,6 +7,7 @@ import { AppContextProvider } from '@/contexts/AppContext';
 import { AuthContextProvider } from '@/contexts/AuthContext';
 import { startMock, stopMock, mockEnabled } from '@/mocks/init';
 import dynamic from 'next/dynamic';
+import EmotionProvider from '@/lib/emotion-provider';
 
 const FloatingDigitalHuman = dynamic(() => import('@/digital-human/FloatingDigitalHuman'), { ssr: false });
 
@@ -57,14 +58,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <CustomThemeProvider>
-        <AppContextProvider>
-          <AuthContextProvider>
-            {children}
-            <FloatingDigitalHuman />
-          </AuthContextProvider>
-        </AppContextProvider>
-      </CustomThemeProvider>
+      <EmotionProvider>
+        <CustomThemeProvider>
+          <AppContextProvider>
+            <AuthContextProvider>
+              {children}
+              <FloatingDigitalHuman />
+            </AuthContextProvider>
+          </AppContextProvider>
+        </CustomThemeProvider>
+      </EmotionProvider>
     </QueryClientProvider>
   );
 }

@@ -17,21 +17,21 @@ export async function getProvinces() {
 
 // 获取城市列表
 export async function getCities(provinceCode: string) {
-  return adminClient<AreaInfo[]>(`/api/area/cities/${provinceCode}`, {
+  return adminClient<AreaInfo[]>(`/area/cities/${provinceCode}`, {
     method: 'GET',
   });
 }
 
 // 获取区县列表
 export async function getAreas(cityCode: string) {
-  return adminClient<AreaInfo[]>(`/api/area/areas/${cityCode}`, {
+  return adminClient<AreaInfo[]>(`/area/areas/${cityCode}`, {
     method: 'GET',
   });
 }
 
 // 获取街道列表
 export async function getStreets(areaCode: string) {
-  return adminClient<AreaInfo[]>(`/api/area/streets/${areaCode}`, {
+  return adminClient<AreaInfo[]>(`/area/streets/${areaCode}`, {
     method: 'GET',
   });
 }

@@ -145,7 +145,9 @@ export const contentHandlers = [
 
   // ─── module 域 CRUD ───
   http.get(/\/api\/content\/module(\?|$)/, () => ok(MODULE_LIST)),
+  http.get(/\/api\/content\/module\/\d+$/, () => ok(MODULE_LIST.list[0] || { id: 1 })),
   http.post('*/api/content/module', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.put(/\/api\/content\/module\/\d+$/, () => ok({ updated: 1 })),
   http.delete(/\/api\/content\/module\/removeByIds.*/, () => ok({ removed: 1 })),
   http.get('*/api/content/module/list', () => ok(MODULE_LIST)),
   http.get('*/api/content/module/list/myPage', () => okPage(MODULE_LIST.list, MODULE_LIST.list.length)),
@@ -210,15 +212,16 @@ export const contentHandlers = [
   http.post('*/api/content/module/passwordUnlock', () => ok({ unlocked: true })),
   http.post('*/api/content/module/payUnlock', () => ok({ unlocked: true })),
 
-  // module/moduleContent
-  http.post('*/api/content/module/moduleContent/action', () => ok({ processed: true })),
-  http.post('*/api/content/module/moduleContent/client/process', () => ok({ processed: true })),
-  http.get('*/api/content/module/moduleContent/client/related', () => okList([], 0)),
-  http.post('*/api/content/module/moduleContent/client/removeFromModule', () => ok({ removed: true })),
-  http.get('*/api/content/module/moduleContent/client/suggest', () => ok(MODULE_CONTENTS.records.slice(0, 8).map((r) => ({ id: r.id, title: r.title })))),
-  http.post('*/api/content/module/moduleContent/client/updateShare', () => ok({ updated: 1 })),
-  http.get('*/api/content/module/moduleContent/comment', () => okList([], 0)),
-  http.post('*/api/content/module/moduleContent/comment', () => ok({ id: 9999 })),
+  // module/content
+  http.post('*/api/content/module/content/action', () => ok({ processed: true })),
+  http.post('*/api/content/module/content/client/process', () => ok({ processed: true })),
+  http.get('*/api/content/module/content/client/related', () => okList([], 0)),
+  http.post('*/api/content/module/content/client/removeFromModule', () => ok({ removed: true })),
+  http.get('*/api/content/module/content/client/suggest', () => ok(MODULE_CONTENTS.records.slice(0, 8).map((r) => ({ id: r.id, title: r.title })))),
+  http.post('*/api/content/module/content/client/updateShare', () => ok({ updated: 1 })),
+  http.get('*/api/content/module/content/comment', () => okList([], 0)),
+  http.post('*/api/content/module/content/comment', () => ok({ id: 9999 })),
+  http.get(/\/api\/content\/module\/content\/comment\/\d+.*/, () => okList([], 0)),
 
   // moduleContentItem / Preview
   http.get('*/api/content/module/moduleContentItem/client/detail', ({ request }) => {
@@ -226,8 +229,13 @@ export const contentHandlers = [
     return ok(NOVEL_CHAPTERS.find((c) => c.id === id) || NOVEL_CHAPTERS[0]);
   }),
   http.get('*/api/content/module/moduleContentPreview/client/detail', () => ok(MODULE_CONTENTS.records[0])),
-  http.get('*/api/content/module/moduleContent/client/detail', () => ok(MODULE_CONTENTS.records[0])),
-  http.get(/\/api\/content\/module\/moduleContent\/client\/detail.*/, () => ok(MODULE_CONTENTS.records[0])),
+  http.get('*/api/content/module/content/client/page', () => okPage(MODULE_CONTENTS.records, MODULE_CONTENTS.totalRow)),
+  http.get('*/api/content/module/content/client/detail', () => ok(MODULE_CONTENTS.records[0])),
+  http.get(/\/api\/content\/module\/content\/client\/detail.*/, () => ok(MODULE_CONTENTS.records[0])),
+  http.get(/\/api\/content\/module\/content\/\d+$/, () => ok(MODULE_CONTENTS.records[0])),
+  http.put(/\/api\/content\/module\/content\/\d+$/, () => ok({ updated: 1 })),
+  http.post('*/api/content/module/content', () => ok({ id: 9999 })),
+  http.delete(/\/api\/content\/module\/content\/removeByIds.*/, () => ok({ removed: 1 })),
 
   // moduleContentToplist
   http.get('*/api/content/module/moduleContentToplist/client/list', () => okList(MODULE_CONTENT_TOPLISTS, MODULE_CONTENT_TOPLISTS.length)),
@@ -268,11 +276,12 @@ export const contentHandlers = [
   http.delete(/\/api\/content\/module\/moduleTemplateAttr\/removeByIds.*/, () => ok({ removed: 1 })),
 
   // moduleMenu
-  http.get('*/api/content/module/moduleMenu/client/list', () => okList(MODULE_MENUS, MODULE_MENUS.length)),
-  http.get('*/api/content/module/moduleMenu/client/page', () => okPage(MODULE_MENUS, MODULE_MENUS.length)),
-  http.post('*/api/content/module/moduleMenu/save', () => ok({ id: 9999 })),
-  http.post('*/api/content/module/moduleMenu/updateById', () => ok({ updated: 1 })),
-  http.delete(/\/api\/content\/module\/moduleMenu\/removeByIds.*/, () => ok({ removed: 1 })),
+  http.get('*/api/content/module/menu/client/list', () => okList(MODULE_MENUS, MODULE_MENUS.length)),
+  http.get('*/api/content/module/menu/client/page', () => okPage(MODULE_MENUS, MODULE_MENUS.length)),
+  http.get('*/api/content/module/menu/client/tree', () => ok(MODULE_MENUS)),
+  http.post('*/api/content/module/menu/save', () => ok({ id: 9999 })),
+  http.post('*/api/content/module/menu/updateById', () => ok({ updated: 1 })),
+  http.delete(/\/api\/content\/module\/menu\/removeByIds.*/, () => ok({ removed: 1 })),
 
   // ─── 通用 ───
   http.post('*/api/content/file/upload', () => ok({ url: 'https://picsum.photos/seed/upload/200/200', filename: 'demo.jpg' })),

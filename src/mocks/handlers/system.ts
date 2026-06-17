@@ -108,13 +108,12 @@ export const systemHandlers = [
   http.delete(/\/api\/admin\/menu\/removeByIds.*/, () => ok({ removed: 1 })),
 
   // ─── moduleMenu (content 子域) ───
-  http.get('*/api/core/moduleMenu/client/list', () => okList(SYS_MENU.records, SYS_MENU.totalRow)),
-  http.get('*/api/core/moduleMenu/client/page', () => okPage(SYS_MENU.records, SYS_MENU.totalRow)),
-  http.get('*/api/core/moduleMenu/client/tree', () => ok(MODULE_MENU_TREE)),
-  http.get('*/api/core/module/moduleMenu/client/tree', () => ok(MODULE_MENU_TREE)),
-  http.post('*/api/core/moduleMenu/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
-  http.post('*/api/core/moduleMenu/updateById', () => ok({ updated: 1 })),
-  http.delete(/\/api\/admin\/moduleMenu\/removeByIds.*/, () => ok({ removed: 1 })),
+  http.get('*/api/content/module/menu/client/list', () => okList(SYS_MENU.records, SYS_MENU.totalRow)),
+  http.get('*/api/content/module/menu/client/page', () => okPage(SYS_MENU.records, SYS_MENU.totalRow)),
+  http.get('*/api/content/module/menu/client/tree', () => ok(MODULE_MENU_TREE)),
+  http.post('*/api/content/module/menu/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.post('*/api/content/module/menu/updateById', () => ok({ updated: 1 })),
+  http.delete(/\/api\/content\/module\/menu\/removeByIds.*/, () => ok({ removed: 1 })),
 
   // ─── dict ───
   http.get('*/api/core/dict/data/list', () => okList(SYS_DICT_DATA, SYS_DICT_DATA.length)),

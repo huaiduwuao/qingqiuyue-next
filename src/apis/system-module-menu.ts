@@ -1,4 +1,4 @@
-import { adminClient } from '@/lib/api/client';
+import { contentClient } from '@/lib/api/client';
 
 // 模块菜单信息
 export interface ModuleMenuInfo {
@@ -15,21 +15,21 @@ export interface ModuleMenuInfo {
 
 // 分页获取模块菜单
 export async function page(params: any) {
-  return adminClient("/module/moduleMenu/client/page", {
+  return contentClient("/module/menu/client/page", {
     params
   });
 }
 
 // 获取模块菜单树
 export async function clientTree(params: { moduleId: number }) {
-  return adminClient<ModuleMenuInfo[]>("/module/moduleMenu/client/tree", {
+  return contentClient<ModuleMenuInfo[]>("/module/menu/client/tree", {
     params
   });
 }
 
 // 删除
 export async function remove(ids: any) {
-  return adminClient("/module/moduleMenu/removeByIds", {
+  return contentClient("/module/menu/removeByIds", {
     method: "DELETE",
     data: ids
   });
@@ -37,14 +37,14 @@ export async function remove(ids: any) {
 
 // 列表
 export async function list(params: any) {
-  return adminClient("/module/moduleMenu/client/list", {
+  return contentClient("/module/menu/client/list", {
     params
   });
 }
 
 // 保存
 export async function save(params: any) {
-  return adminClient("/module/moduleMenu/save", {
+  return contentClient("/module/menu/save", {
     method: "POST",
     data: params
   });
@@ -52,7 +52,7 @@ export async function save(params: any) {
 
 // 更新
 export async function update(params: any) {
-  return adminClient("/module/moduleMenu/updateById", {
+  return contentClient("/module/menu/updateById", {
     method: "POST",
     data: params
   });
