@@ -9,8 +9,11 @@ FROM docker.io/library/node:22-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# 容器内前端同源(/api 走 Next rewrites 反代),关闭浏览器端 MSW mock
-ENV NEXT_PUBLIC_USE_MOCK=0
+# 容器内前端同源(/api 走 Next rewrites 反代),默认关闭浏览器端 MSW mock。
+# 做成 ARG 便于 compose 显式覆盖;.dockerignore 已排除 .env*.local,
+# 开发用的 .env.local(NEXT_PUBLIC_USE_MOCK=true)不会进镜像、不会覆盖这里。
+ARG NEXT_PUBLIC_USE_MOCK=0
+ENV NEXT_PUBLIC_USE_MOCK=$NEXT_PUBLIC_USE_MOCK
 ENV NEXT_PUBLIC_API_BASE_URL=""
 ENV NEXT_TELEMETRY_DISABLED=1
 # 关键:next.config.ts 里 API_PROXY_TARGET 在 build 期被内联进 rewrites,
