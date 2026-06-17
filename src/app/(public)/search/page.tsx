@@ -27,17 +27,48 @@ import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import VerifiedIcon from '@mui/icons-material/Verified';
 import { ACCENT } from '@/constants/accents';
 import { useContentNavigate } from '@/lib/contentRoute';
-import {
-  HOT_KEYWORDS,
-  SEARCH_HISTORY,
-  searchContent,
-  searchCreators,
-  searchTopics,
-  formatNumber,
-  type SearchContentItem,
-  type SearchCreatorItem,
-  type SearchTopicItem,
-} from '@/mocks/search';
+
+// 搜索域占位:后端 `/api/core/search/*` 就绪后,以下数据/函数替换为 API 调用
+const HOT_KEYWORDS: string[] = [];
+const SEARCH_HISTORY: string[] = [];
+type SearchContentItemContentType =
+  | 'NOVEL' | 'FILM' | 'MUSIC' | 'VIDEO' | 'COMICS'
+  | 'TELEPLAY' | 'ARTICLE' | 'ANIMATION' | 'NEWS' | 'VSHOW';
+interface SearchContentItem {
+  id: number;
+  title: string;
+  subtitle?: string;
+  contentType: SearchContentItemContentType;
+  coverGradient: string;
+  author: string;
+  views: number;
+  comments: number;
+  likes: number;
+  matchField: 'title' | 'subtitle' | 'author';
+}
+interface SearchCreatorItem {
+  id: number;
+  name: string;
+  bio: string;
+  avatarGradient: string;
+  followers: number;
+  works: number;
+  verified: boolean;
+  tags: string[];
+}
+interface SearchTopicItem {
+  id: number;
+  title: string;
+  description: string;
+  discussCount: number;
+  viewCount: number;
+  hot: boolean;
+  gradient: string;
+}
+function searchContent(_query: string): SearchContentItem[] { return []; }
+function searchCreators(_query: string): SearchCreatorItem[] { return []; }
+function searchTopics(_query: string): SearchTopicItem[] { return []; }
+function formatNumber(n: number): string { return n.toString(); }
 
 type ResultTab = 'all' | 'content' | 'creator' | 'topic';
 

@@ -25,23 +25,6 @@ const TYPE_TABS = [
   { key: 'conception', label: '意境', api: conceptionPage },
 ];
 
-const MOCK_REWARD: Record<string, any[]> = {
-  demand: [
-    { id: 1, name: '江南古镇纪录片解说词', info: '需要 5 分钟成片脚本', rewardAmount: 3000 },
-    { id: 2, name: '古风音乐歌词征集', info: '围绕清秋月主题', rewardAmount: 1500 },
-  ],
-  project: [
-    { id: 1, name: '《清秋月物语》动画化', info: '10 集短片,寻找制作团队', rewardAmount: 80000 },
-  ],
-  group: [
-    { id: 1, name: '原创插画师联盟', info: '已聚集 12 位插画师', rewardAmount: 0 },
-  ],
-  conception: [
-    { id: 1, name: '"水墨秋色"主题短句征集', info: '一句话意境文案', rewardAmount: 500 },
-    { id: 2, name: '夜雨听书场景氛围', info: '需要 200 字环境描写', rewardAmount: 800 },
-  ],
-};
-
 export default function HomeRewardPage() {
   const [tabIndex, setTabIndex] = useState(0);
   const [selectedItem, setSelectedItem] = useState<any>(null);
@@ -50,8 +33,7 @@ export default function HomeRewardPage() {
 
   const query = useQuery({
     queryKey: ['reward', 'home', currentTab.key],
-    queryFn: () => currentTab.api({ pageNum: 1, pageSize: 50 } as any).then((r) => r.data?.records || MOCK_REWARD[currentTab.key] || []),
-    placeholderData: MOCK_REWARD[currentTab.key] || [],
+    queryFn: () => currentTab.api({ pageNum: 1, pageSize: 50 } as any).then((r) => r.data?.records || []),
   });
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
@@ -73,29 +55,32 @@ export default function HomeRewardPage() {
             <AsyncState query={query} isEmpty={(d) => d.length === 0} emptyText="暂无内容" emptyHint="试试切换其他分类">
               {(data) => (
                 <List>
-                  {data.map((item) => (
-                    <React.Fragment key={item.id}>
-                      <ListItem
-                        sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
-                        onClick={() => setSelectedItem(item)}
-                      >
-                        <ListItemText
-                          primary={item.name || '无标题'}
-                          secondary={
-                            <Box component="span">
-                              {item.info && <Typography variant="body2" color="text.secondary">{item.info}</Typography>}
-                              {item.rewardAmount && (
-                                <Typography color="error" sx={{ mt: 0.5 }}>
-                                  赏金: ¥{item.rewardAmount}
-                                </Typography>
-                              )}
-                            </Box>
-                          }
-                        />
-                      </ListItem>
-                      <Divider component="li" />
-                    </React.Fragment>
-                  ))}
+                  {data.map((rawItem) => {
+                    const item = rawItem as unknown as { id: number; name?: string; info?: string; rewardAmount?: number };
+                    return (
+                      <React.Fragment key={item.id}>
+                        <ListItem
+                          sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+                          onClick={() => setSelectedItem(rawItem)}
+                        >
+                          <ListItemText
+                            primary={item.name || '无标题'}
+                            secondary={
+                              <Box component="span">
+                                {item.info && <Typography variant="body2" color="text.secondary">{item.info}</Typography>}
+                                {item.rewardAmount ? (
+                                  <Typography color="error" sx={{ mt: 0.5 }}>
+                                    赏金: ¥{item.rewardAmount}
+                                  </Typography>
+                                ) : null}
+                              </Box>
+                            }
+                          />
+                        </ListItem>
+                        <Divider component="li" />
+                      </React.Fragment>
+                    );
+                  })}
                 </List>
               )}
             </AsyncState>

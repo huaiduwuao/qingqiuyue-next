@@ -21,15 +21,6 @@ interface NoticeItem {
   read: boolean;
 }
 
-const MOCK_NOTICES: NoticeItem[] = [
-  { id: 1, type: 'system', title: '系统升级完成', content: '视频上传服务已升级,新版本支持 4K HDR。', time: '10 分钟前', read: false },
-  { id: 2, type: 'activity', title: '618 创作激励计划开启', content: '参与瓜分 ¥10w 现金池,详情请查看活动页。', time: '1 小时前', read: false },
-  { id: 3, type: 'reward', title: '收益到账提醒', content: '昨日视频收益 ¥326.50 已到账,可提现。', time: '今天 09:15', read: false },
-  { id: 4, type: 'interaction', title: '新增 1.2w 粉丝', content: '你的视频《夏日 vlog》受到大家喜爱,新增 12,341 粉丝。', time: '昨天 18:42', read: true },
-  { id: 5, type: 'system', title: '原创保护升级', content: '新增 AI 查重功能,自动保护你的原创作品。', time: '昨天 12:00', read: true },
-  { id: 6, type: 'activity', title: '夏日 vlog 挑战赛', content: '你参与的话题 #夏日vlog 登上热搜榜 Top 3。', time: '2 天前', read: true },
-];
-
 const TYPE_COLORS: Record<NoticeItem['type'], string> = {
   system: 'secondary.main',
   activity: 'primary.main',
@@ -48,12 +39,11 @@ export default function NotificationsPage() {
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
   const queryClient = useQueryClient();
 
-  const { data: notices = MOCK_NOTICES } = useQuery({
+  const { data: notices = [] } = useQuery({
     queryKey: ['notifications', 'client'],
     queryFn: () => adminClient<{ list: NoticeItem[]; total: number }>('/notice/client/page', {
       params: { page: 1, pageSize: 20 },
-    }).then((r: any) => r?.data?.list?.length ? r.data.list as NoticeItem[] : MOCK_NOTICES),
-    placeholderData: MOCK_NOTICES,
+    }).then((r: any) => (r?.data?.list as NoticeItem[]) || []),
   });
 
   const visible = filter === 'unread' ? notices.filter((n) => !n.read) : notices;

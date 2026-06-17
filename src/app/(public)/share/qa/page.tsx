@@ -14,28 +14,14 @@ import Paper from '@mui/material/Paper';
 import { qaDetail } from '@/apis/home';
 import { AsyncState, EmptyState } from '@/components/common/AsyncState';
 
-const MOCK_QA: any[] = [
-  {
-    title: '清秋月品牌创立的初衷是什么?',
-    content: '弘扬江南文化 / 提供原创内容 / 探索数字传承 / 推广国风美学',
-    answer: '清秋月以"江南文化复兴"为初衷,致力于把传统美学通过数字方式重新带回日常生活。',
-  },
-  {
-    title: '平台主要的内容形式有哪些?',
-    content: '小说 / 漫画 / 短剧 / 综艺 / 资讯',
-    answer: '小说、漫画、影视、综艺、音乐、二次元、资讯、公开课等八大类,覆盖图文与长短视频。',
-  },
-];
-
 export default function ShareQaPage() {
   const [searchKey, setSearchKey] = useState('');
   const [submittedKey, setSubmittedKey] = useState('');
 
   const query = useQuery({
     queryKey: ['qa', submittedKey],
-    queryFn: () => qaDetail({ title: submittedKey }).then((r) => (r.data && (r.data as any[]).length > 0 ? (r.data as any[]) : MOCK_QA)),
+    queryFn: () => qaDetail({ title: submittedKey }).then((r) => (r.data as any[]) || []),
     enabled: !!submittedKey,
-    placeholderData: MOCK_QA,
   });
 
   const handleSearch = () => {

@@ -18,11 +18,9 @@ import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import AddIcon from '@mui/icons-material/Add';
 import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-video';
-import { withDefaults } from '@/utils/withDefaults';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
-import { useContentNavigate } from '@/lib/contentRoute';
 
 interface Video {
   id: number;
@@ -40,57 +38,14 @@ interface Video {
   tags: string[];
 }
 
-interface Comment {
-  id: number;
-  user: string;
-  avatar: string;
-  content: string;
-  time: string;
-  likes: number;
-}
-
-const MOCK_VIDEO: Video = {
-  id: 1,
-  title: '江南秋日 vlog · 古镇漫游与桂花糕手作',
-  cover: 'https://picsum.photos/seed/v0/800/450',
-  uploader: '秋月旅人',
-  uploaderAvatar: 'https://picsum.photos/seed/u1/100/100',
-  fans: 28600,
-  description:
-    '本期视频记录了我在江南古镇度过的两天一夜。清晨的烟雨廊桥,午后的老茶馆,傍晚的桂花糕手作,完整呈现江南秋日最温柔的样貌。视频拍摄使用 Sony A7M4 + 24-70 GM,搭配大疆 Pocket 3 拍摄运动镜头。',
-  duration: 480,
-  viewCount: 12_5000,
-  likeCount: 8230,
-  commentCount: 342,
-  publishTime: '2026-06-01 18:30',
-  tags: ['vlog', '江南', '古镇', '美食', '旅行'],
-};
-
-const MOCK_COMMENTS: Comment[] = [
-  { id: 1, user: '杭州老饕', avatar: 'https://picsum.photos/seed/c1/60/60', content: '画面太美了,问下桂花糕的模具在哪买的?', time: '2 小时前', likes: 56 },
-  { id: 2, user: '摄影小白', avatar: 'https://picsum.photos/seed/c2/60/60', content: 'BGM 名字是什么?求链接', time: '3 小时前', likes: 23 },
-  { id: 3, user: '古镇控', avatar: 'https://picsum.photos/seed/c3/60/60', content: '这是哪个古镇?想去!', time: '5 小时前', likes: 18 },
-  { id: 4, user: '美食家阿强', avatar: 'https://picsum.photos/seed/c4/60/60', content: '结尾的桂花糕看着就好吃,请问具体地址方便分享吗?', time: '昨天', likes: 42 },
-];
-
-const MOCK_RECOMMEND = [
-  { id: 51, title: '苏州一日游', cover: 'https://picsum.photos/seed/vd1/300/400', uploader: '老苏州', views: '8.2万' },
-  { id: 52, title: '徽州古村', cover: 'https://picsum.photos/seed/vd2/300/400', uploader: '行走的镜头', views: '5.1万' },
-  { id: 53, title: '杭州茶山', cover: 'https://picsum.photos/seed/vd3/300/400', uploader: '茶农小赵', views: '3.6万' },
-  { id: 54, title: '婺源晒秋', cover: 'https://picsum.photos/seed/vd4/300/400', uploader: '摄影老李', views: '12.1万' },
-];
-
 function VideoDetailContent() {
   const searchParams = useSearchParams();
-  const navigate = useContentNavigate();
   const id = searchParams.get('id');
 
   const query = useQuery({
     queryKey: ['detail', 'video', id],
     queryFn: () => contentDetail('video', { id: Number(id) }).then((r) => r.data as Partial<Video>),
     enabled: !!id,
-    placeholderData: MOCK_VIDEO,
-    select: (data) => withDefaults(MOCK_VIDEO, data),
   });
 
   const [favorited, setFavorited] = React.useState(false);
@@ -129,11 +84,11 @@ function VideoDetailContent() {
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                   <VisibilityIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{(data.viewCount / 10000).toFixed(1)}万</Typography>
+                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{((data.viewCount || 0) / 10000).toFixed(1)}万</Typography>
                   <ThumbUpIcon sx={{ fontSize: 14, color: 'text.secondary', ml: 1 }} />
-                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{data.likeCount.toLocaleString()}</Typography>
+                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{(data.likeCount || 0).toLocaleString()}</Typography>
                   <CommentIcon sx={{ fontSize: 14, color: 'text.secondary', ml: 1 }} />
-                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{data.commentCount}</Typography>
+                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{data.commentCount || 0}</Typography>
                 </Box>
                 <Box sx={{ flex: 1 }} />
                 <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{data.publishTime}</Typography>
@@ -154,7 +109,7 @@ function VideoDetailContent() {
                 <Avatar src={data.uploaderAvatar} sx={{ width: 40, height: 40 }} />
                 <Box sx={{ flex: 1 }}>
                   <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'text.primary' }}>{data.uploader}</Typography>
-                  <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{(data.fans / 10000).toFixed(1)}万 粉丝</Typography>
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{((data.fans || 0) / 10000).toFixed(1)}万 粉丝</Typography>
                 </Box>
                 <Chip
                   icon={<AddIcon sx={{ fontSize: 14 }} />}
@@ -178,7 +133,7 @@ function VideoDetailContent() {
               </Typography>
 
               <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 3 }}>
-                {data.tags.map((t) => (
+                {(data.tags || []).map((t) => (
                   <Chip
                     key={t}
                     label={`#${t}`}
@@ -192,54 +147,10 @@ function VideoDetailContent() {
 
               <Typography variant="h6" sx={{ color: 'text.primary', mb: 2, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
                 <CommentIcon sx={{ color: 'primary.main' }} />
-                热门评论 ({MOCK_COMMENTS.length})
+                热门评论 (0)
               </Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
-                {MOCK_COMMENTS.map((c) => (
-                  <Box key={c.id} sx={{ display: 'flex', gap: 1.5 }}>
-                    <Avatar src={c.avatar} sx={{ width: 36, height: 36 }} />
-                    <Box sx={{ flex: 1 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.3 }}>
-                        <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary' }}>{c.user}</Typography>
-                        <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{c.time}</Typography>
-                      </Box>
-                      <Typography sx={{ fontSize: 13, color: 'text.tertiary', mb: 0.5, lineHeight: 1.6 }}>
-                        {c.content}
-                      </Typography>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
-                        <ThumbUpIcon sx={{ fontSize: 12, color: 'text.secondary' }} />
-                        <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{c.likes}</Typography>
-                      </Box>
-                    </Box>
-                  </Box>
-                ))}
-              </Box>
-
-              <Divider sx={{ borderColor: 'divider', my: 3 }} />
-              <Typography variant="h6" sx={{ color: 'text.primary', mb: 2, fontWeight: 700 }}>
-                相关推荐
-              </Typography>
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 1.5 }}>
-                {MOCK_RECOMMEND.map((r) => (
-                  <Box
-                    key={r.id}
-                    onClick={() => navigate('VIDEO', r.id)}
-                    sx={{ cursor: 'pointer', '&:hover': { transform: 'translateY(-2px)' }, transition: 'all 0.15s' }}
-                  >
-                    <Box
-                      component="img"
-                      src={r.cover}
-                      alt={r.title}
-                      sx={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', borderRadius: 1.5 }}
-                    />
-                    <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary', mt: 1 }} noWrap>
-                      {r.title}
-                    </Typography>
-                    <Typography sx={{ fontSize: 11, color: 'text.secondary' }} noWrap>
-                      {r.uploader} · {r.views}
-                    </Typography>
-                  </Box>
-                ))}
+              <Box sx={{ p: 4, textAlign: 'center', color: 'text.secondary', fontSize: 13, mb: 3 }}>
+                暂无评论
               </Box>
             </Container>
           </>

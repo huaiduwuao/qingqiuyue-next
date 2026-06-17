@@ -25,17 +25,50 @@ import HistoryIcon from '@mui/icons-material/History';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2, gradient3 } from '@/constants/gradients';
-import {
-  DIAMOND_BALANCE,
-  DIAMOND_PACKAGES,
-  DIAMOND_RECORDS,
-  DIAMOND_BENEFITS,
-  DIAMOND_ACTIVITY,
-  PAY_METHODS,
-  type DiamondPackage,
-  type DiamondRecord,
-  type PayMethod,
-} from '@/mocks/diamond';
+
+// 充值/钱包域占位:后端 `/api/core/wallet/*` 就绪后,以下数据/类型替换为 API 调用
+const DIAMOND_BALANCE = 0;
+type PayMethod = 'wechat' | 'alipay' | 'apple' | 'card';
+interface DiamondPackage {
+  id: string;
+  diamonds: number;
+  bonus?: number;
+  price: number;
+  originalPrice?: number;
+  badge?: 'recommend' | 'hot' | 'bonus' | 'first';
+  desc: string;
+  perDiamond: string;
+}
+interface DiamondRecord {
+  id: number;
+  type: 'recharge' | 'consume' | 'reward' | 'gift';
+  amount: number;
+  balance: number;
+  description: string;
+  payMethod?: PayMethod;
+  createTime: string;
+}
+interface DiamondBenefit {
+  icon: 'crown' | 'flash' | 'gift' | 'badge' | 'support' | 'theater';
+  title: string;
+  desc: string;
+}
+interface DiamondActivity {
+  title: string;
+  subtitle: string;
+  endsAt: string;
+  rules: string[];
+}
+const DIAMOND_PACKAGES: DiamondPackage[] = [];
+const DIAMOND_RECORDS: DiamondRecord[] = [];
+const DIAMOND_BENEFITS: DiamondBenefit[] = [];
+const DIAMOND_ACTIVITY: DiamondActivity = {
+  title: '',
+  subtitle: '',
+  endsAt: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+  rules: [],
+};
+const PAY_METHODS: Array<{ key: PayMethod; label: string; sub: string; iconKey: 'wechat' | 'alipay' | 'apple' | 'card'; recommended?: boolean }> = [];
 
 const BENEFIT_ICON_MAP: Record<string, React.ComponentType<{ sx?: any }>> = {
   crown: EmojiEventsIcon,
@@ -751,7 +784,7 @@ export default function RechargePage() {
               </Box>
               <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
                 {DIAMOND_BENEFITS.map((b) => {
-                  const Icon = BENEFIT_ICON_MAP[b.Icon] ?? CardGiftcardIcon;
+                  const Icon = BENEFIT_ICON_MAP[b.icon] ?? CardGiftcardIcon;
                   return (
                     <Box
                       key={b.title}

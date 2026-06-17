@@ -18,39 +18,14 @@ import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import ShareIcon from '@mui/icons-material/Share';
-import LibraryMusicIcon from '@mui/icons-material/LibraryMusic';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-music';
 import { AsyncState } from '@/components/common/AsyncState';
-import { useContentNavigate } from '@/lib/contentRoute';
 
 interface LyricLine {
   time: number;
   text: string;
 }
-
-const MOCK_LYRICS: LyricLine[] = [
-  { time: 0, text: '清秋月 - 主题音乐' },
-  { time: 4, text: '词: 测试' },
-  { time: 7, text: '曲: 测试' },
-  { time: 12, text: '月光洒在窗台' },
-  { time: 16, text: '清风吹过书斋' },
-  { time: 20, text: '我在这秋夜里' },
-  { time: 24, text: '独自等待' },
-  { time: 28, text: '...' },
-  { time: 36, text: '愿与你共此时' },
-  { time: 40, text: '愿与你共白头' },
-  { time: 44, text: '...' },
-  { time: 60, text: '(间奏)' },
-  { time: 80, text: '...' },
-];
-
-const MOCK_RECOMMEND = [
-  { id: 101, title: '夏日微风', artist: '海潮乐队', cover: 'https://picsum.photos/seed/m1/200/200' },
-  { id: 102, title: '深夜独白', artist: '陈墨', cover: 'https://picsum.photos/seed/m2/200/200' },
-  { id: 103, title: '远方来信', artist: '苏明远', cover: 'https://picsum.photos/seed/m3/200/200' },
-  { id: 104, title: '秋日私语', artist: '轻音乐团', cover: 'https://picsum.photos/seed/m4/200/200' },
-];
 
 function fmtTime(s: number) {
   if (!isFinite(s) || s < 0) return '0:00';
@@ -62,7 +37,6 @@ function fmtTime(s: number) {
 function MusicDetailContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const navigate = useContentNavigate();
   const id = searchParams.get('id');
   const playlistId = searchParams.get('playlistId');
 
@@ -70,16 +44,6 @@ function MusicDetailContent() {
     queryKey: ['detail', 'music', id],
     queryFn: () => contentDetail('music', { id: Number(id) }).then((r) => r.data as any),
     enabled: !!id,
-    placeholderData: {
-      id: 1,
-      title: '清秋月主题音乐',
-      artist: '清秋月工作室',
-      cover: 'https://picsum.photos/seed/music0/400/400',
-      album: '清秋月 · 原创专辑',
-      duration: 180,
-      release: '2026-05',
-      info: '清秋月原创主题音乐,融合古典与现代元素,以古筝与电子音色交织,描绘秋夜书斋独坐的静谧时光。整首曲目以五声音阶为基调,旋律舒缓悠长,适合静心阅读与创作时循环播放。',
-    },
   });
 
   const [playing, setPlaying] = useState(false);
@@ -89,6 +53,7 @@ function MusicDetailContent() {
   const [activeLyric, setActiveLyric] = useState(0);
   const lyricRef = useRef<HTMLDivElement>(null);
   const duration = query.data?.duration ?? 180;
+  const lyrics: LyricLine[] = (query.data?.lyrics as LyricLine[] | undefined) || [];
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -107,12 +72,13 @@ function MusicDetailContent() {
   }, [playing, duration]);
 
   useEffect(() => {
-    const idx = MOCK_LYRICS.findIndex((l, i) => {
-      const next = MOCK_LYRICS[i + 1];
+    if (!lyrics.length) return;
+    const idx = lyrics.findIndex((l, i) => {
+      const next = lyrics[i + 1];
       return currentTime >= l.time && (!next || currentTime < next.time);
     });
     if (idx >= 0) setActiveLyric(idx);
-  }, [currentTime]);
+  }, [currentTime, lyrics]);
 
   useEffect(() => {
     if (lyricRef.current) {
@@ -180,23 +146,29 @@ function MusicDetailContent() {
                   '&::-webkit-scrollbar-thumb': { bgcolor: 'divider', borderRadius: 2 },
                 }}
               >
-                {MOCK_LYRICS.map((l, idx) => (
-                  <Box
-                    key={idx}
-                    data-idx={idx}
-                    sx={{
-                      py: 1,
-                      color: idx === activeLyric ? 'primary.main' : 'text.secondary',
-                      fontSize: idx === activeLyric ? 18 : 14,
-                      fontWeight: idx === activeLyric ? 600 : 400,
-                      textAlign: 'center',
-                      transition: 'all 0.2s',
-                      transform: idx === activeLyric ? 'scale(1.05)' : 'scale(1)',
-                    }}
-                  >
-                    {l.text}
-                  </Box>
-                ))}
+                {lyrics.length === 0 ? (
+                  <Typography sx={{ p: 4, textAlign: 'center', color: 'text.secondary', fontSize: 13 }}>
+                    暂无歌词
+                  </Typography>
+                ) : (
+                  lyrics.map((l, idx) => (
+                    <Box
+                      key={idx}
+                      data-idx={idx}
+                      sx={{
+                        py: 1,
+                        color: idx === activeLyric ? 'primary.main' : 'text.secondary',
+                        fontSize: idx === activeLyric ? 18 : 14,
+                        fontWeight: idx === activeLyric ? 600 : 400,
+                        textAlign: 'center',
+                        transition: 'all 0.2s',
+                        transform: idx === activeLyric ? 'scale(1.05)' : 'scale(1)',
+                      }}
+                    >
+                      {l.text}
+                    </Box>
+                  ))
+                )}
               </Box>
             </Box>
 
@@ -258,40 +230,8 @@ function MusicDetailContent() {
               歌曲简介
             </Typography>
             <Typography sx={{ color: 'text.tertiary', fontSize: 14, lineHeight: 1.8, mb: 3 }}>
-              {data.info || '清秋月原创主题音乐,融合古典与现代元素,以古筝与电子音色交织,描绘秋夜书斋独坐的静谧时光。整首曲目以五声音阶为基调,旋律舒缓悠长,适合静心阅读与创作时循环播放。'}
+              {data.info}
             </Typography>
-
-            <Typography variant="h6" sx={{ color: 'text.primary', mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-              <LibraryMusicIcon sx={{ color: 'primary.main' }} />
-              相似推荐
-            </Typography>
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 2 }}>
-              {MOCK_RECOMMEND.map((r) => (
-                <Box
-                  key={r.id}
-                  onClick={() => navigate('MUSIC', r.id)}
-                  sx={{
-                    bgcolor: 'background.paper',
-                    border: '1px solid #252836',
-                    borderRadius: 2,
-                    overflow: 'hidden',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                    '&:hover': { borderColor: 'primary.main', transform: 'translateY(-2px)' },
-                  }}
-                >
-                  <Box component="img" src={r.cover} alt={r.title} sx={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover' }} />
-                  <Box sx={{ p: 1.5 }}>
-                    <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary' }} noWrap>
-                      {r.title}
-                    </Typography>
-                    <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.5 }} noWrap>
-                      {r.artist}
-                    </Typography>
-                  </Box>
-                </Box>
-              ))}
-            </Box>
           </Container>
         )}
       </AsyncState>

@@ -15,12 +15,10 @@ import StarIcon from '@mui/icons-material/Star';
 import LockIcon from '@mui/icons-material/Lock';
 import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-animation';
-import { withDefaults } from '@/utils/withDefaults';
 import { page as itemPage } from '@/apis/content-animation-item';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
-import { useContentNavigate } from '@/lib/contentRoute';
 
 interface AnimeItem {
   id: number;
@@ -45,47 +43,14 @@ interface Animation {
   status: string;
 }
 
-const MOCK_ANIMATION: Animation = {
-  id: 1,
-  title: '清秋月物语',
-  cover: 'https://picsum.photos/seed/anim0/800/450',
-  director: '新海诚',
-  actors: ['役所广司', '宫崎葵', '松田龙平', '莉莉'],
-  genre: ['动画', '治愈', '校园'],
-  area: '日本',
-  year: 2024,
-  rating: 9.1,
-  description:
-    '一部以江南秋景为灵感的治愈系动画电影。故事讲述少女清秋在城市与乡间穿梭,寻找失落已久的传统手工艺,沿途遇见形形色色的人,最终在深秋的月色下,找到了自己真正的方向。',
-  totalEpisodes: 12,
-  status: '已完结',
-};
-
-const MOCK_ITEMS: AnimeItem[] = Array.from({ length: 12 }, (_, i) => ({
-  id: i + 1,
-  title: `第${i + 1}话`,
-  num: String(i + 1),
-  collected: i < 3,
-}));
-
-const MOCK_RECOMMEND = [
-  { id: 31, title: '你的名字', cover: 'https://picsum.photos/seed/a1/300/400', rating: 9.4 },
-  { id: 32, title: '铃芽之旅', cover: 'https://picsum.photos/seed/a2/300/400', rating: 8.7 },
-  { id: 33, title: '天气之子', cover: 'https://picsum.photos/seed/a3/300/400', rating: 8.5 },
-  { id: 34, title: '千与千寻', cover: 'https://picsum.photos/seed/a4/300/400', rating: 9.5 },
-];
-
 function AnimationDetailContent() {
   const searchParams = useSearchParams();
-  const navigate = useContentNavigate();
   const id = searchParams.get('id');
 
   const query = useQuery({
     queryKey: ['detail', 'animation', id],
     queryFn: () => contentDetail('animation', { id: Number(id) }).then((r) => r.data as Partial<Animation>),
     enabled: !!id,
-    placeholderData: MOCK_ANIMATION,
-    select: (data) => withDefaults(MOCK_ANIMATION, data),
   });
 
   const itemsQuery = useQuery({
@@ -96,7 +61,6 @@ function AnimationDetailContent() {
         return list as AnimeItem[];
       }),
     enabled: !!id,
-    placeholderData: MOCK_ITEMS,
   });
 
   const [activeEp, setActiveEp] = useState<number>(1);
@@ -134,10 +98,12 @@ function AnimationDetailContent() {
                     {data.title}
                   </Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-                    {data.genre.map((g) => (
+                    {(data.genre || []).map((g) => (
                       <Chip key={g} label={g} size="small" sx={{ bgcolor: 'rgba(254, 44, 85, 0.12)', color: 'primary.main', fontWeight: 600 }} />
                     ))}
-                    <Chip label={data.status} size="small" sx={{ bgcolor: 'rgba(93,219,150,0.15)', color: 'success.main', fontWeight: 600 }} />
+                    {data.status && (
+                      <Chip label={data.status} size="small" sx={{ bgcolor: 'rgba(93,219,150,0.15)', color: 'success.main', fontWeight: 600 }} />
+                    )}
                     <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
                       {data.area} · {data.year} · 全{data.totalEpisodes}话
                     </Typography>
@@ -161,7 +127,7 @@ function AnimationDetailContent() {
                 </Box>
                 <Box>
                   <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>声优</Typography>
-                  <Typography sx={{ fontSize: 14, color: 'text.primary', mt: 0.5 }}>{data.actors.join(' / ')}</Typography>
+                  <Typography sx={{ fontSize: 14, color: 'text.primary', mt: 0.5 }}>{(data.actors || []).join(' / ')}</Typography>
                 </Box>
               </Box>
 
@@ -208,32 +174,6 @@ function AnimationDetailContent() {
               </Box>
 
               <Divider sx={{ borderColor: 'divider', my: 3 }} />
-              <Typography variant="h6" sx={{ color: 'text.primary', mb: 2, fontWeight: 700 }}>
-                相似推荐
-              </Typography>
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 1.5 }}>
-                {MOCK_RECOMMEND.map((r) => (
-                  <Box
-                    key={r.id}
-                    onClick={() => navigate('ANIMATION', r.id)}
-                    sx={{ cursor: 'pointer', '&:hover': { transform: 'translateY(-2px)' }, transition: 'all 0.15s' }}
-                  >
-                    <Box
-                      component="img"
-                      src={r.cover}
-                      alt={r.title}
-                      sx={{ width: '100%', aspectRatio: '3/4', objectFit: 'cover', borderRadius: 1.5 }}
-                    />
-                    <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary', mt: 1 }} noWrap>
-                      {r.title}
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, mt: 0.3 }}>
-                      <StarIcon sx={{ fontSize: 12, color: 'warning.main' }} />
-                      <Typography sx={{ fontSize: 11, color: 'warning.main', fontWeight: 600 }}>{r.rating}</Typography>
-                    </Box>
-                  </Box>
-                ))}
-              </Box>
             </Container>
           </>
         )}

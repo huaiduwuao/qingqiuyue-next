@@ -27,14 +27,39 @@ import StarIcon from '@mui/icons-material/Star';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2, gradient3 } from '@/constants/gradients';
-import {
-  WALLPAPER_CATEGORIES,
-  WALLPAPERS,
-  MY_WALLPAPERS,
-  type Wallpaper,
-  type WallpaperCategory,
-  type MyWallpaper,
-} from '@/mocks/wallpaper';
+
+// 壁纸域占位:后端 `/api/core/wallpaper/*` 就绪后,以下数据/类型替换为 API 调用
+type WallpaperCategory = 'abstract' | 'anime' | 'scenery' | 'stars' | 'minimal' | 'cyber';
+type WallpaperSize = 'desktop' | 'tablet' | 'mobile' | 'all';
+interface Wallpaper {
+  id: string;
+  title: string;
+  category: WallpaperCategory;
+  tags: string[];
+  source: 'gradient' | 'image';
+  bg: string;
+  accent: string;
+  author: string;
+  usage: number;
+  sizeMb: number;
+  desc: string;
+  sizes: WallpaperSize[];
+  official: boolean;
+  releaseTime: string;
+}
+interface MyWallpaper {
+  id: string;
+  appliedTo: 'home' | 'account' | 'none';
+  setAt: string;
+}
+const WALLPAPER_CATEGORIES: Array<{
+  key: WallpaperCategory;
+  label: string;
+  sub: string;
+  accent: string;
+}> = [];
+const WALLPAPERS: Wallpaper[] = [];
+const MY_WALLPAPERS: MyWallpaper[] = [];
 
 function formatCount(n: number): string {
   if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
@@ -114,6 +139,14 @@ export default function WallpaperPage() {
     });
     setToast({ open: true, msg: `已收藏《${wp.title}》` });
   };
+
+  if (!currentWallpaper) {
+    return (
+      <Box sx={{ minHeight: '100dvh', bgcolor: '#0a0a0f', color: 'rgba(255,255,255,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Typography sx={{ color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>暂无壁纸数据</Typography>
+      </Box>
+    );
+  }
 
   return (
     <Box

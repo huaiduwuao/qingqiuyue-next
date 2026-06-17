@@ -18,15 +18,6 @@ import { page as spiderPage } from '@/apis/content-spider-queue';
 import { page as todoPage } from '@/apis/content-todo-queue';
 import { AsyncState, EmptyState } from '@/components/common/AsyncState';
 
-const MOCK_SPIDER = [
-  { id: 1, title: '晋江文学城 · 待抓取', info: 'http://www.jjwxc.net', content: { content: '排队等待中,预计 5 分钟开始' } },
-  { id: 2, title: '起点中文网 · 待抓取', info: 'http://www.qidian.com', content: { content: '已分配 worker #2' } },
-];
-const MOCK_TODO = [
-  { id: 1, title: '首页推荐算法优化', info: 'P1', content: { content: '改用向量召回,当前 CTR +0.3%' } },
-  { id: 2, title: '详情页接 useQuery', info: 'P0', content: { content: '已完成 9/9' } },
-];
-
 interface QueuePanelProps {
   status: 'running' | 'done';
   onStatusChange: (s: 'running' | 'done') => void;
@@ -79,14 +70,12 @@ export default function HomeQueuePage() {
 
   const spiderQuery = useQuery({
     queryKey: ['queue', 'spider', spiderStatus],
-    queryFn: () => spiderPage({ current: 1, size: 50, status: spiderStatus }).then((r) => r.data?.records || MOCK_SPIDER),
-    placeholderData: MOCK_SPIDER,
+    queryFn: () => spiderPage({ current: 1, size: 50, status: spiderStatus }).then((r) => r.data?.records || []),
   });
 
   const todoQuery = useQuery({
     queryKey: ['queue', 'todo', todoStatus],
-    queryFn: () => todoPage({ current: 1, size: 50, status: todoStatus }).then((r) => r.data?.records || MOCK_TODO),
-    placeholderData: MOCK_TODO,
+    queryFn: () => todoPage({ current: 1, size: 50, status: todoStatus }).then((r) => r.data?.records || []),
   });
 
   return (

@@ -18,11 +18,9 @@ import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import LockIcon from '@mui/icons-material/Lock';
 import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-comics';
-import { withDefaults } from '@/utils/withDefaults';
 import { page as itemPage } from '@/apis/content-comics-item';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
-import { useContentNavigate } from '@/lib/contentRoute';
 
 interface Chapter {
   id: number;
@@ -46,49 +44,14 @@ interface Comics {
   totalChapters: number;
 }
 
-const MOCK_COMICS: Comics = {
-  id: 1,
-  title: '清秋月物语',
-  cover: 'https://picsum.photos/seed/cm0/400/550',
-  author: '林清秋',
-  painter: '白月光',
-  genre: ['少女', '治愈', '古风'],
-  area: '中国大陆',
-  status: '连载中',
-  rating: 9.3,
-  description:
-    '清秋月物语讲述一位现代少女意外穿越回明清时期江南小镇的故事。她在古镇中学习传统手工艺,与当地的青年才俊相识相知,展开了一段跨越时空的奇幻旅程。',
-  totalChapters: 80,
-};
-
-const MOCK_CHAPTERS: Chapter[] = Array.from({ length: 24 }, (_, i) => ({
-  id: i + 1,
-  title: `第${i + 1}话`,
-  num: String(i + 1),
-  pages: 20 + (i % 6) * 4,
-  collected: i < 6,
-}));
-
-const MOCK_PAGES = Array.from({ length: 24 }, (_, i) => `https://picsum.photos/seed/cmpg${i}/800/1200`);
-
-const MOCK_RECOMMEND = [
-  { id: 61, title: '步天歌', cover: 'https://picsum.photos/seed/cm1/300/400', rating: 9.1 },
-  { id: 62, title: '一人之下', cover: 'https://picsum.photos/seed/cm2/300/400', rating: 9.0 },
-  { id: 63, title: '狐妖小红娘', cover: 'https://picsum.photos/seed/cm3/300/400', rating: 9.2 },
-  { id: 64, title: '罗小黑战记', cover: 'https://picsum.photos/seed/cm4/300/400', rating: 9.4 },
-];
-
 function ComicsDetailContent() {
   const searchParams = useSearchParams();
-  const navigate = useContentNavigate();
   const id = searchParams.get('id');
 
   const query = useQuery({
     queryKey: ['detail', 'comics', id],
     queryFn: () => contentDetail('comics', { id: Number(id) }).then((r) => r.data as Partial<Comics>),
     enabled: !!id,
-    placeholderData: MOCK_COMICS,
-    select: (data) => withDefaults(MOCK_COMICS, data),
   });
 
   const chaptersQuery = useQuery({
@@ -96,10 +59,9 @@ function ComicsDetailContent() {
     queryFn: () =>
       itemPage({ moduleContentId: String(id), page: 1, pageSize: 100 }).then((r) => {
         const list = r?.data?.records || r?.data?.list || [];
-        return (list.length ? list : MOCK_CHAPTERS) as Chapter[];
+        return list as Chapter[];
       }),
     enabled: !!id,
-    placeholderData: MOCK_CHAPTERS,
   });
 
   const [activeChapter, setActiveChapter] = useState<number>(1);
@@ -150,10 +112,12 @@ function ComicsDetailContent() {
                     {data.title}
                   </Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5, flexWrap: 'wrap' }}>
-                    {data.genre.map((g) => (
+                    {(data.genre || []).map((g) => (
                       <Chip key={g} label={g} size="small" sx={{ bgcolor: 'rgba(254, 44, 85, 0.12)', color: 'primary.main', fontWeight: 600 }} />
                     ))}
-                    <Chip label={data.status} size="small" sx={{ bgcolor: 'rgba(93,219,150,0.15)', color: 'success.main', fontWeight: 600 }} />
+                    {data.status && (
+                      <Chip label={data.status} size="small" sx={{ bgcolor: 'rgba(93,219,150,0.15)', color: 'success.main', fontWeight: 600 }} />
+                    )}
                   </Box>
                   <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mb: 1.5 }}>
                     <Box>
@@ -224,32 +188,6 @@ function ComicsDetailContent() {
               </Box>
 
               <Divider sx={{ borderColor: 'divider', my: 3 }} />
-              <Typography variant="h6" sx={{ color: 'text.primary', mb: 2, fontWeight: 700 }}>
-                相似推荐
-              </Typography>
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 1.5 }}>
-                {MOCK_RECOMMEND.map((r) => (
-                  <Box
-                    key={r.id}
-                    onClick={() => navigate('COMICS', r.id)}
-                    sx={{ cursor: 'pointer', '&:hover': { transform: 'translateY(-2px)' }, transition: 'all 0.15s' }}
-                  >
-                    <Box
-                      component="img"
-                      src={r.cover}
-                      alt={r.title}
-                      sx={{ width: '100%', aspectRatio: '3/4', objectFit: 'cover', borderRadius: 1.5 }}
-                    />
-                    <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary', mt: 1 }} noWrap>
-                      {r.title}
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3, mt: 0.3 }}>
-                      <StarIcon sx={{ fontSize: 12, color: 'warning.main' }} />
-                      <Typography sx={{ fontSize: 11, color: 'warning.main', fontWeight: 600 }}>{r.rating}</Typography>
-                    </Box>
-                  </Box>
-                ))}
-              </Box>
 
               {/* 阅读器弹层 */}
               {readerOpen && (
@@ -271,7 +209,7 @@ function ComicsDetailContent() {
                       {data.title} · {chapters.find((c) => c.id === activeChapter)?.title}
                     </Typography>
                     <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-                      {activePage} / {MOCK_PAGES.length}
+                      {activePage}
                     </Typography>
                   </Box>
 
@@ -279,16 +217,9 @@ function ComicsDetailContent() {
                     ref={readerRef}
                     sx={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
                   >
-                    {MOCK_PAGES.map((src, i) => (
-                      <Box
-                        key={i}
-                        component="img"
-                        src={src}
-                        alt={`page ${i + 1}`}
-                        onClick={() => setActivePage(i + 1)}
-                        sx={{ width: '100%', maxWidth: 600, display: 'block', mb: 1 }}
-                      />
-                    ))}
+                    <Box sx={{ p: 4, color: '#fff', textAlign: 'center', fontSize: 14 }}>
+                      暂无内容
+                    </Box>
                   </Box>
 
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1.5, borderTop: '1px solid #252836' }}>
@@ -299,12 +230,12 @@ function ComicsDetailContent() {
                       size="small"
                       value={activePage}
                       min={1}
-                      max={MOCK_PAGES.length}
+                      max={Math.max(1, activePage)}
                       onChange={(_, v) => setActivePage(v as number)}
                       sx={{ color: 'primary.main', mx: 1 }}
                     />
                     <IconButton
-                      onClick={() => setActivePage(Math.min(MOCK_PAGES.length, activePage + 1))}
+                      onClick={() => setActivePage(activePage + 1)}
                       sx={{ color: 'text.primary' }}
                     >
                       <NavigateNextIcon />

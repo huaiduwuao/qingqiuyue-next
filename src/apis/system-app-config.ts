@@ -2,8 +2,13 @@ import { adminClient } from '@/lib/api/client';
 import {AppConfigItem, AppItem, TableListParams} from "@/beans/system";
 
 // -> 后端 GET /app/config/listByMap
-export async function listByMap(params: AppConfigItem) {
+export async function listByMap(params: { type: string }) {
   return adminClient('/app/config/listByMap', { params });
+}
+
+// 根据 code 查单个配置 -> 后端 GET /app/config/getByCode
+export async function getByCode(params: { code: string }) {
+  return adminClient('/app/config/getByCode', { params });
 }
 
 // 应用配置分页 -> 后端 GET /app/config/list

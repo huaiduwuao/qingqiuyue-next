@@ -14,7 +14,9 @@ import DataOverviewCard from '../../_components/DataOverviewCard';
 import TopPerformingContent from '../../_components/TopPerformingContent';
 import ContentDistributionChart from '../../_components/ContentDistributionChart';
 import ModuleContentPage from '../../_components/module-content/page';
-import { MODULE_CONTENT_SOURCES } from '@/mocks/db/module-content';
+
+// 数据源选项:后端 `/api/core/module-content/sources` 就绪后接入,目前为空占位
+const SOURCE_OPTIONS_LIST: { value: string; label: string }[] = [];
 
 const TYPE_OPTIONS = [
   { value: '', label: '全部类型' },
@@ -36,7 +38,7 @@ const STATUS_OPTIONS = [
 
 const SOURCE_OPTIONS = [
   { value: '', label: '全部来源' },
-  ...MODULE_CONTENT_SOURCES,
+  ...SOURCE_OPTIONS_LIST,
 ];
 
 export default function WorksPage() {

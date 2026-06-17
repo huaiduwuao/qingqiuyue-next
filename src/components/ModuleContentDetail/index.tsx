@@ -42,33 +42,6 @@ interface ModuleContentDetailProps {
   onClose?: () => void;
 }
 
-const MOCK_COMMENTS = [
-  {
-    id: 'c1',
-    user: '月下独酌',
-    avatar: 'primary.main',
-    text: '太精彩了，求更新！！！',
-    likes: 128,
-    time: '2 小时前',
-  },
-  {
-    id: 'c2',
-    user: '云中鹤',
-    avatar: 'secondary.main',
-    text: '作者的文笔真好，意境很美，收藏了。',
-    likes: 86,
-    time: '5 小时前',
-  },
-  {
-    id: 'c3',
-    user: '南方有暖阳',
-    avatar: 'warning.main',
-    text: '看完心里暖暖的，希望作者继续加油。',
-    likes: 54,
-    time: '昨天 18:23',
-  },
-];
-
 export default function ModuleContentDetail({ detail, onClose }: ModuleContentDetailProps) {
   const [liked, setLiked] = useState(false);
   const [disliked, setDisliked] = useState(false);
@@ -315,36 +288,12 @@ export default function ModuleContentDetail({ detail, onClose }: ModuleContentDe
         {/* Comments */}
         <Box>
           <Typography sx={{ fontSize: 14, fontWeight: 600, mb: 1.5 }}>
-            精选评论 ({MOCK_COMMENTS.length})
+            精选评论 (0)
           </Typography>
 
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: 2 }}>
-            {MOCK_COMMENTS.map((c) => (
-              <Box key={c.id} sx={{ display: 'flex', gap: 1 }}>
-                <Avatar sx={{ width: 32, height: 32, bgcolor: c.avatar, fontSize: 13, fontWeight: 700 }}>
-                  {c.user.charAt(0)}
-                </Avatar>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary' }}>
-                      {c.user}
-                    </Typography>
-                    <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>{c.time}</Typography>
-                  </Box>
-                  <Typography sx={{ fontSize: 13, mt: 0.25, lineHeight: 1.5 }}>{c.text}</Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5, color: 'text.secondary' }}>
-                    <IconButton size="small" sx={{ p: 0.25 }}>
-                      <ThumbUpOutlinedIcon sx={{ fontSize: 12 }} />
-                    </IconButton>
-                    <Typography sx={{ fontSize: 11 }}>{c.likes}</Typography>
-                    <Typography sx={{ fontSize: 11, ml: 1, cursor: 'pointer', '&:hover': { color: 'primary.main' } }}>
-                      回复
-                    </Typography>
-                  </Box>
-                </Box>
-              </Box>
-            ))}
-          </Box>
+          <Typography sx={{ p: 3, textAlign: 'center', color: 'text.secondary', fontSize: 12, mb: 2 }}>
+            暂无评论
+          </Typography>
 
           <TextField
             fullWidth

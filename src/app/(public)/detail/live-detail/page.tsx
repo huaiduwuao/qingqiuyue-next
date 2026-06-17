@@ -24,15 +24,12 @@ import EmojiEmotionsRoundedIcon from '@mui/icons-material/EmojiEmotionsRounded';
 import SettingsIcon from '@mui/icons-material/Settings';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import FlipIcon from '@mui/icons-material/Flip';
-import ReportProblemIcon from '@mui/icons-material/ReportProblem';
 import Snackbar from '@mui/material/Snackbar';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-live';
-import { withDefaults } from '@/utils/withDefaults';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
 import { LivePlayerSettings, DEFAULT_LIVE_SETTINGS, type LivePlayerSettingsState } from '@/components/detail/LivePlayerSettings';
-import { useContentNavigate } from '@/lib/contentRoute';
 
 interface Live {
   id: number;
@@ -56,57 +53,9 @@ interface Live {
   likes: number;
 }
 
-const MOCK_LIVE: Live = {
-  id: 1,
-  title: '【直播中】月下旅人 · 深夜书斋与慢生活',
-  subtitle: '夜读《浮生六记》,聊聊最近的阅读与生活',
-  cover: 'https://picsum.photos/seed/lv-cover/1280/720',
-  author: '月下旅人',
-  hostId: 1001,
-  hostName: '月下旅人',
-  hostAvatar: 'https://picsum.photos/seed/host-1/120/120',
-  description: '今晚继续连麦,聊聊最近书单里让我印象最深的几本。书斋灯下,一杯热茶,一段慢时光,直播间见~',
-  isLive: true,
-  viewers: 12480,
-  category: '知识',
-  region: '杭州',
-  startedAt: Date.now() - 1000 * 60 * 35,
-  hotRank: 1,
-  isTop: true,
-  tags: ['夜读', '书斋', '慢生活', '浮生六记'],
-  views: 28_5600,
-  likes: 12_400,
-};
-
-const SAMPLE_GIFTS = [
-  { id: 1, name: '小星星', icon: '⭐', price: 1 },
-  { id: 2, name: '玫瑰', icon: '🌹', price: 10 },
-  { id: 3, name: '跑车', icon: '🏎️', price: 100 },
-  { id: 4, name: '城堡', icon: '🏰', price: 1000 },
-  { id: 5, name: '火箭', icon: '🚀', price: 5000 },
-];
-
-const SAMPLE_CHAT = [
-  { id: 1, user: '青衣', avatar: 'https://picsum.photos/seed/u1/60/60', text: '主播声音真好听,深夜陪伴', time: '刚刚' },
-  { id: 2, user: '南风', avatar: 'https://picsum.photos/seed/u2/60/60', text: '《浮生六记》我也很喜欢!', time: '1 分钟前' },
-  { id: 3, user: '小满', avatar: 'https://picsum.photos/seed/u3/60/60', text: '今天这泡茶真香,什么茶?', time: '2 分钟前' },
-  { id: 4, user: '鹿野', avatar: 'https://picsum.photos/seed/u4/60/60', text: '刚下班就赶过来了', time: '3 分钟前' },
-  { id: 5, user: '光影', avatar: 'https://picsum.photos/seed/u5/60/60', text: '听说今晚会连麦,期待!', time: '4 分钟前' },
-];
-
-const SAMPLE_DANMAKU = ['666', '主播加油', '好看', '前排', '🍵', '深夜陪伴', '好听', '❤️', '🎉', '💰', '前排打卡', '主播晚安'];
-
-const MOCK_RECOMMEND = [
-  { id: 2, title: '【直播中】光影捕手 · 城市夜景漫步', cover: 'https://picsum.photos/seed/lv2/300/400', hostName: '光影捕手', viewers: 8930, category: '户外' },
-  { id: 3, title: '【直播中】青衣 · 古典吉他弹唱', cover: 'https://picsum.photos/seed/lv3/300/400', hostName: '青衣', viewers: 5621, category: '音乐' },
-  { id: 4, title: '【直播中】南风 · 周末厨房日记', cover: 'https://picsum.photos/seed/lv4/300/400', hostName: '南风', viewers: 4203, category: '美食' },
-  { id: 5, title: '【直播中】小满 · 代码时间', cover: 'https://picsum.photos/seed/lv5/300/400', hostName: '小满', viewers: 3112, category: '知识' },
-];
-
 function LiveDetailContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const navigate = useContentNavigate();
   const id = searchParams.get('id');
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -114,14 +63,12 @@ function LiveDetailContent() {
     queryKey: ['detail', 'live', id],
     queryFn: () => contentDetail({ id: Number(id) }).then((r) => r.data as Partial<Live>),
     enabled: !!id,
-    placeholderData: MOCK_LIVE,
-    select: (data) => withDefaults(MOCK_LIVE, data),
   });
 
   const [followed, setFollowed] = useState(false);
   const [favorited, setFavorited] = useState(false);
   const [chatInput, setChatInput] = useState('');
-  const [chat, setChat] = useState(SAMPLE_CHAT);
+  const [chat, setChat] = useState<Array<{ id: number; user: string; avatar: string; text: string; time: string }>>([]);
   const [danmaku, setDanmaku] = useState<string[]>([]);
   const [giftPanelOpen, setGiftPanelOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -132,7 +79,7 @@ function LiveDetailContent() {
     setSettings((s) => ({ ...s, ...patch }));
 
   // 模拟观看人数实时上涨
-  const [viewersLive, setViewersLive] = useState(MOCK_LIVE.viewers);
+  const [viewersLive, setViewersLive] = useState(0);
   useEffect(() => {
     if (query.data?.viewers) setViewersLive(query.data.viewers);
   }, [query.data?.viewers]);
@@ -141,16 +88,6 @@ function LiveDetailContent() {
     const t = setInterval(() => {
       setViewersLive((v) => v + Math.floor(Math.random() * 11) - 3);
     }, 3000);
-    return () => clearInterval(t);
-  }, [query.data?.isLive]);
-
-  // 模拟弹幕飘过
-  useEffect(() => {
-    if (!query.data?.isLive) return;
-    const t = setInterval(() => {
-      const text = SAMPLE_DANMAKU[Math.floor(Math.random() * SAMPLE_DANMAKU.length)];
-      setDanmaku((d) => [...d.slice(-12), text]);
-    }, 1800);
     return () => clearInterval(t);
   }, [query.data?.isLive]);
 
@@ -168,7 +105,7 @@ function LiveDetailContent() {
     if (!chatInput.trim()) return;
     setChat((c) => [
       ...c,
-      { id: Date.now(), user: '我', avatar: 'https://picsum.photos/seed/me/60/60', text: chatInput, time: '刚刚' },
+      { id: Date.now(), user: '我', avatar: '', text: chatInput, time: '刚刚' },
     ]);
     setChatInput('');
   };
@@ -314,7 +251,7 @@ function LiveDetailContent() {
                 {data.isTop && (
                   <Chip label="🔥 推荐" size="small" sx={{ bgcolor: 'warning.main', color: '#1a1a1a', fontWeight: 700 }} />
                 )}
-                {data.tags.map((t) => (
+                {(data.tags || []).map((t) => (
                   <Chip key={t} label={`#${t}`} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.04)', color: 'text.tertiary' }} />
                 ))}
               </Box>
@@ -343,7 +280,7 @@ function LiveDetailContent() {
                       </Box>
                     )}
                   </Box>
-                  <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>粉丝 {(data.views / 10000).toFixed(1)}万 · 累计 {(data.likes / 10000).toFixed(1)}万 赞</Typography>
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>粉丝 {((data.views || 0) / 10000).toFixed(1)}万 · 累计 {((data.likes || 0) / 10000).toFixed(1)}万 赞</Typography>
                 </Box>
                 <Chip
                   icon={followed ? <CheckRoundedIcon sx={{ fontSize: 14 }} /> : <AddIcon sx={{ fontSize: 14 }} />}
@@ -454,27 +391,9 @@ function LiveDetailContent() {
                         <CloseRoundedIcon sx={{ fontSize: 14 }} />
                       </IconButton>
                     </Box>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 1 }}>
-                      {SAMPLE_GIFTS.map((g) => (
-                        <Box
-                          key={g.id}
-                          sx={{
-                            display: 'flex',
-                            flexDirection: 'column',
-                            alignItems: 'center',
-                            py: 1,
-                            borderRadius: 1.5,
-                            cursor: 'pointer',
-                            transition: 'all 0.15s',
-                            '&:hover': { bgcolor: 'rgba(254,44,85,0.08)' },
-                          }}
-                        >
-                          <Typography sx={{ fontSize: 26, mb: 0.25 }}>{g.icon}</Typography>
-                          <Typography sx={{ fontSize: 11, color: 'text.primary', fontWeight: 600 }}>{g.name}</Typography>
-                          <Typography sx={{ fontSize: 10, color: 'primary.main' }}>¥{g.price}</Typography>
-                        </Box>
-                      ))}
-                    </Box>
+                    <Typography sx={{ p: 2, textAlign: 'center', color: 'text.secondary', fontSize: 12 }}>
+                      暂无礼物数据
+                    </Typography>
                   </Box>
                 )}
               </Box>
@@ -483,46 +402,9 @@ function LiveDetailContent() {
 
               {/* 直播数据 */}
               <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.5, mb: 3 }}>
-                <StatBox label="累计观看" value={formatViewers(data.views)} />
-                <StatBox label="本场点赞" value={formatViewers(data.likes)} />
-                <StatBox label="人气榜" value={`#${data.hotRank}`} />
-              </Box>
-
-              {/* 相关推荐 */}
-              <Typography variant="h6" sx={{ color: 'text.primary', mb: 2, fontWeight: 700 }}>
-                更多直播
-              </Typography>
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 1.5 }}>
-                {MOCK_RECOMMEND.map((r) => (
-                  <Box
-                    key={r.id}
-                    onClick={() => navigate('LIVE', r.id)}
-                    sx={{ cursor: 'pointer', '&:hover': { transform: 'translateY(-2px)' }, transition: 'all 0.15s' }}
-                  >
-                    <Box sx={{ position: 'relative' }}>
-                      <Box
-                        component="img"
-                        src={r.cover}
-                        alt={r.title}
-                        sx={{ width: '100%', aspectRatio: '3/4', objectFit: 'cover', borderRadius: 1.5 }}
-                      />
-                      <Box sx={{ position: 'absolute', top: 6, left: 6, display: 'flex', alignItems: 'center', gap: 0.25, px: 0.75, py: 0.25, borderRadius: 0.5, bgcolor: 'primary.main' }}>
-                        <LiveTvRoundedIcon sx={{ fontSize: 10, color: '#fff' }} />
-                        <Typography sx={{ fontSize: 9, fontWeight: 800, color: '#fff' }}>LIVE</Typography>
-                      </Box>
-                      <Box sx={{ position: 'absolute', bottom: 6, right: 6, display: 'flex', alignItems: 'center', gap: 0.25, px: 0.5, py: 0.25, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.55)' }}>
-                        <VisibilityRoundedIcon sx={{ fontSize: 10, color: '#fff' }} />
-                        <Typography sx={{ fontSize: 9, color: '#fff' }}>{formatViewers(r.viewers)}</Typography>
-                      </Box>
-                    </Box>
-                    <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.primary', mt: 0.75 }} noWrap>
-                      {r.title}
-                    </Typography>
-                    <Typography sx={{ fontSize: 10, color: 'text.secondary' }} noWrap>
-                      {r.hostName} · {r.category}
-                    </Typography>
-                  </Box>
-                ))}
+                <StatBox label="累计观看" value={formatViewers(data.views || 0)} />
+                <StatBox label="本场点赞" value={formatViewers(data.likes || 0)} />
+                <StatBox label="人气榜" value={`#${data.hotRank || 0}`} />
               </Box>
             </Container>
           </>

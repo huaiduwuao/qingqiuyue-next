@@ -20,7 +20,19 @@ import CardGiftcardRoundedIcon from '@mui/icons-material/CardGiftcardRounded';
 import SwapHorizRoundedIcon from '@mui/icons-material/SwapHorizRounded';
 import { ACCENT } from '@/constants/accents';
 import { gradient3 } from '@/constants/gradients';
-import { DIAMOND_BALANCE, DIAMOND_RECORDS } from '@/mocks/diamond';
+
+// 钱包域占位:后端 `/api/core/wallet/*` 就绪后,以下数据替换为 API 调用
+const DIAMOND_BALANCE = 0;
+interface DiamondRecord {
+  id: number;
+  type: 'recharge' | 'consume' | 'reward' | 'gift';
+  amount: number;
+  balance: number;
+  description: string;
+  payMethod?: 'wechat' | 'alipay' | 'apple' | 'card';
+  createTime: string;
+}
+const DIAMOND_RECORDS: DiamondRecord[] = [];
 
 const TYPE_META: Record<string, { text: string; color: string; sign: 1 | -1 }> = {
   recharge: { text: '充值', color: '#5DDB96', sign: 1 },

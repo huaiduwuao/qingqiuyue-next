@@ -23,38 +23,14 @@ interface WxConfig {
   fans: number;
 }
 
-const MOCK_CONFIGS: WxConfig[] = [
-  {
-    id: 1,
-    appId: 'wx1234567890abcdef',
-    appName: '清秋月官方公众号',
-    appSecret: '********************************',
-    token: 'qingqiuyue_token_2026',
-    status: 'active',
-    bindTime: '2025-08-12',
-    fans: 28420,
-  },
-  {
-    id: 2,
-    appId: 'wxabcdef1234567890',
-    appName: '创作助手',
-    appSecret: '********************************',
-    token: 'creator_token_2026',
-    status: 'inactive',
-    bindTime: '2025-11-03',
-    fans: 5420,
-  },
-];
-
 export default function WxConfigPage() {
-  const { data: configs = MOCK_CONFIGS } = useQuery({
+  const { data: configs = [] } = useQuery({
     queryKey: ['wx-config', 'list'],
     queryFn: () => wxClient<{ list: WxConfig[]; total: number }>('/wxConfig/list', {
       params: { page: 1, pageSize: 20 },
-    }).then((r: any) => r?.data?.list?.length ? (r.data.list as WxConfig[]) : MOCK_CONFIGS),
-    placeholderData: MOCK_CONFIGS,
+    }).then((r: any) => (r?.data?.list as WxConfig[]) || []),
   });
-  const [selected, setSelected] = useState<WxConfig | null>(MOCK_CONFIGS[0]);
+  const [selected, setSelected] = useState<WxConfig | null>(null);
 
   return (
     <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3, maxWidth: 1200, mx: 'auto' }}>

@@ -12,7 +12,7 @@ import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import { clientTree } from '@/apis/system-module-menu';
 import { detail } from '@/apis/system-module-content';
-import { listByMap } from '@/apis/system-app-config';
+import { getByCode } from '@/apis/system-app-config';
 import ModuleContentDetail from '@/components/ModuleContentDetail';
 import { AsyncState, EmptyState } from '@/components/common/AsyncState';
 
@@ -24,46 +24,25 @@ interface MenuItem {
   children?: MenuItem[];
 }
 
-const MOCK_TREE: MenuItem[] = [
-  { id: 1, name: '清秋月简介', type: 'PAGE', contentId: 1 },
-  { id: 2, name: '团队', type: 'GROUP', children: [
-    { id: 21, name: '创始团队', type: 'PAGE', contentId: 2 },
-    { id: 22, name: '顾问', type: 'PAGE', contentId: 3 },
-  ]},
-  { id: 3, name: '合作', type: 'PAGE', contentId: 4 },
-];
-
-const MOCK_DETAIL: Record<number, any> = {
-  1: { id: 1, title: '清秋月简介', content: '清秋月致力于把江南文化通过数字方式带回日常生活。' },
-  2: { id: 2, title: '创始团队', content: '由设计师、作家、工程师组成的小型独立团队。' },
-  3: { id: 3, title: '顾问', content: '邀请了多位文化学者作为内容顾问。' },
-  4: { id: 4, title: '合作', content: '欢迎品牌、内容方洽谈合作。' },
-};
-
 export default function HomeMorePage() {
   const [selectedKeys, setSelectedKeys] = useState<number[]>([]);
   const [activeContentId, setActiveContentId] = useState<number | null>(null);
 
   const configQuery = useQuery({
     queryKey: ['more', 'config'],
-    queryFn: () => listByMap({ code: 'more' }).then((r) => r.data?.[0]?.content?.id as number | undefined),
+    queryFn: () => getByCode({ code: 'more' }).then((r) => r.data?.content?.id as number | undefined),
   });
 
   const treeQuery = useQuery({
     queryKey: ['more', 'tree', configQuery.data],
-    queryFn: () => clientTree({ moduleId: configQuery.data! }).then((r) => {
-      const list = r.data && r.data.length > 0 ? r.data : MOCK_TREE;
-      return list;
-    }),
+    queryFn: () => clientTree({ moduleId: configQuery.data! }).then((r) => r.data || []),
     enabled: !!configQuery.data,
-    placeholderData: MOCK_TREE,
   });
 
   const detailQuery = useQuery({
     queryKey: ['more', 'detail', activeContentId],
-    queryFn: () => detail({ id: activeContentId! }).then((r) => r.data || MOCK_DETAIL[activeContentId!] || null),
+    queryFn: () => detail({ id: activeContentId! }).then((r) => r.data || null),
     enabled: !!activeContentId,
-    placeholderData: activeContentId ? MOCK_DETAIL[activeContentId] : undefined,
   });
 
   useEffect(() => {

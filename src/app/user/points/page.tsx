@@ -23,23 +23,6 @@ import {
 } from '@/apis/system-user-point';
 import { PointsMallTab } from './PointsMallTab';
 
-const MOCK_POINT: UserPointResp = { userId: 1001, points: 12580 };
-const MOCK_RECORDS: PointRecordInfo[] = [
-  { id: 1, userId: 1001, type: 'earn', points: 50, balance: 12580, description: '发布视频', createTime: '2026-06-04 10:23' },
-  { id: 2, userId: 1001, type: 'earn', points: 30, balance: 12530, description: '收到点赞', createTime: '2026-06-04 09:15' },
-  { id: 3, userId: 1001, type: 'consume', points: 100, balance: 12500, description: '兑换流量包', createTime: '2026-06-03 18:42' },
-  { id: 4, userId: 1001, type: 'earn', points: 200, balance: 12600, description: '完成周任务', createTime: '2026-06-03 12:00' },
-  { id: 5, userId: 1001, type: 'earn', points: 10, balance: 12400, description: '每日签到', createTime: '2026-06-02 08:30' },
-];
-const MOCK_ACHIEVEMENTS: AchievementInfo[] = [
-  { id: 1, name: '新星创作者', description: '首次发布作品', icon: '⭐', unlocked: true, unlockedTime: '2026-01-10' },
-  { id: 2, name: '百万播放', description: '单视频播放破百万', icon: '🏆', unlocked: true, unlockedTime: '2026-03-22' },
-  { id: 3, name: '勤奋日更', description: '连续 30 天发布', icon: '🔥', unlocked: true, unlockedTime: '2026-05-01' },
-  { id: 4, name: '话题制造机', description: '创作的话题上热搜', icon: '#️⃣', unlocked: false },
-  { id: 5, name: '粉丝过万', description: '粉丝数突破 1 万', icon: '💎', unlocked: false },
-  { id: 6, name: '原创大师', description: '原创作品超 100', icon: '🎨', unlocked: false },
-];
-
 const USER_ID = 1001;
 
 export default function PointsPage() {
@@ -47,25 +30,22 @@ export default function PointsPage() {
 
   const pointQuery = useQuery({
     queryKey: ['user-point', USER_ID],
-    queryFn: () => getUserPoint(USER_ID).then((r: any) => r.data || MOCK_POINT),
-    placeholderData: MOCK_POINT,
+    queryFn: () => getUserPoint(USER_ID).then((r: any) => r.data as UserPointResp | undefined),
   });
 
   const recordsQuery = useQuery({
     queryKey: ['user-point-records', USER_ID],
-    queryFn: () => listPointRecords({ userId: USER_ID, page: 1, pageSize: 20 }).then((r: any) => r.data?.list || r.data?.records || MOCK_RECORDS),
-    placeholderData: MOCK_RECORDS,
+    queryFn: () => listPointRecords({ userId: USER_ID, page: 1, pageSize: 20 }).then((r: any) => (r.data?.list || r.data?.records || []) as PointRecordInfo[]),
   });
 
   const achievementsQuery = useQuery({
     queryKey: ['user-achievements', USER_ID],
-    queryFn: () => listAchievements(USER_ID).then((r: any) => r.data?.list || MOCK_ACHIEVEMENTS),
-    placeholderData: MOCK_ACHIEVEMENTS,
+    queryFn: () => listAchievements(USER_ID).then((r: any) => (r.data?.list || []) as AchievementInfo[]),
   });
 
-  const point: UserPointResp = pointQuery.data || MOCK_POINT;
-  const records: PointRecordInfo[] = recordsQuery.data || MOCK_RECORDS;
-  const achievements: AchievementInfo[] = achievementsQuery.data || MOCK_ACHIEVEMENTS;
+  const point: UserPointResp = pointQuery.data || { userId: USER_ID, points: 0 };
+  const records: PointRecordInfo[] = recordsQuery.data || [];
+  const achievements: AchievementInfo[] = achievementsQuery.data || [];
 
   const nextLevelPoints = 15000;
   const progress = Math.min(100, (point.points / nextLevelPoints) * 100);
