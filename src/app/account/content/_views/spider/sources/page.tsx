@@ -29,15 +29,6 @@ import type { GridColDef } from '@mui/x-data-grid';
 
 const LIST_KEY = ['spider', 'sources'];
 
-// Mock data
-const mockSources = [
-  { id: 1, name: '笔趣阁', domain: 'biquge.tw', url: 'https://www.biquge.tw', type: 'novel', status: 'active', itemCount: 1250, createTime: '2026-05-20T10:00:00Z' },
-  { id: 2, name: '起点中文', domain: 'qidian.com', url: 'https://www.qidian.com', type: 'novel', status: 'active', itemCount: 3400, createTime: '2026-05-18T08:00:00Z' },
-  { id: 3, name: '哔哩哔哩', domain: 'bilibili.com', url: 'https://www.bilibili.com', type: 'video', status: 'inactive', itemCount: 890, createTime: '2026-05-15T14:00:00Z' },
-  { id: 4, name: '腾讯新闻', domain: 'news.qq.com', url: 'https://news.qq.com', type: 'news', status: 'active', itemCount: 2100, createTime: '2026-05-10T09:00:00Z' },
-  { id: 5, name: '网易音乐', domain: 'music.163.com', url: 'https://music.163.com', type: 'music', status: 'paused', itemCount: 456, createTime: '2026-05-05T16:00:00Z' },
-];
-
 const STATUS_COLORS: Record<string, 'default' | 'info' | 'warning' | 'success' | 'error'> = {
   active: 'success',
   inactive: 'default',
@@ -180,11 +171,16 @@ export default function SourcesPage() {
       <DataGridTable
         columns={columns}
         fetchData={async (params) => {
-          // Mock data
-          return {
-            data: { records: mockSources, totalRow: mockSources.length },
-            success: true,
-          };
+          return listSources({
+            pageNumber: params.page + 1,
+            pageSize: params.pageSize,
+          }).then((r) => {
+            const p = r.data || {};
+            return {
+              data: { records: p.records || p.list || [], totalRow: p.totalRow ?? p.total ?? 0 },
+              success: true,
+            };
+          });
         }}
         toolBarRender={() => (
           <Button variant="contained" startIcon={<AddIcon />} onClick={handleCreate}>

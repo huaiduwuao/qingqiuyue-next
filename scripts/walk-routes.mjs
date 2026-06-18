@@ -48,10 +48,30 @@ async function walkRoute(page, url) {
   page.on('response', onResponse);
   try {
     const r = await page.goto(`${FRONTEND}${url}`, { waitUntil: 'domcontentloaded', timeout: 15000 });
-    await page.waitForTimeout(1500); // 给 react-query 一点时间触发 API 请求
+    await page.waitForTimeout(1200);
     if (!r || r.status() >= 400) {
       findings.push({ status: r?.status() ?? 0, method: 'GET', url: `${FRONTEND}${url}` });
     }
+    // ── 子 tab / 侧边栏 / 底部导航 一轮扫,触发懒加载的 API 调用 ──
+    // 用类名匹配 MUI 组件(其它库可扩展);不点 data-no-drag / 模态触发器,
+    // 避免误触播放/暂停/弹窗导致状态污染。
+    const tabSelectors = [
+      '.MuiTab-root',
+      '.MuiListItemButton-root',
+      '.MuiBottomNavigationAction-root',
+      '.MuiToggleButton-root',
+    ].join(', ');
+    const tabs = await page.$$(tabSelectors);
+    for (const t of tabs) {
+      try {
+        // 跳过 disabled / hidden
+        const isDisabled = await t.evaluate((el) => el.matches('[disabled], [aria-disabled="true"]') || el.getAttribute('data-no-drag') !== null);
+        if (isDisabled) continue;
+        await t.click({ timeout: 1000 });
+        await page.waitForTimeout(600);
+      } catch { /* 元素被遮罩/已 unmount,跳过 */ }
+    }
+    await page.waitForTimeout(500);
   } catch (e) {
     findings.push({ status: 0, method: 'GET', url: `${FRONTEND}${url}`, error: String(e).slice(0, 200) });
   } finally {
