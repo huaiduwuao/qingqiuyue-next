@@ -79,12 +79,6 @@ const SIDE_NAV: { key: string; label: string; path?: string; icon: React.ReactNo
   { key: 'drama', label: '短剧', path: '/home/recommend?tab=drama', icon: <TheatersRoundedIcon sx={{ fontSize: 18 }} />, accent: 'secondary.main' },
 ];
 
-const RIGHT_COVERS = [
-  { title: 'AI 狼人杀第 52 局', sub: '12 人动物梦境 · 游戏规则', gradient: 'linear-gradient(135deg, #FE2C55 0%, #8B5CF6 100%)' },
-  { title: '深海深水 - 埃及艳后', sub: '为了等几白目的娜察干干的，他们要潜入水母宫殿', gradient: 'linear-gradient(135deg, #8B5CF6 0%, #2D1B4E 100%)' },
-  { title: '狼村异事', sub: '红事已完，轮到白事', gradient: 'linear-gradient(135deg, #FFB400 0%, #8B0000 100%)' },
-];
-
 export default function HomeLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -593,18 +587,60 @@ function RightSidebar() {
 
 function HotTab() {
   const navigate = useContentNavigate();
-  const hotTypes: ('FILM' | 'TELEPLAY' | 'MUSIC')[] = ['FILM', 'TELEPLAY', 'MUSIC'];
+  const { data, isLoading } = useQuery({
+    queryKey: ['home', 'side', 'hot'],
+    queryFn: () =>
+      homeClient
+        .get<{
+          list: Array<{
+            id: number;
+            title: string;
+            category: string;
+            cover: string;
+            views: number;
+          }>;
+        }>('/side/hot')
+        .then((r) => r.data),
+    staleTime: 60_000,
+  });
+  const items = data?.list ?? [];
+
+  if (isLoading) {
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+        {[0, 1, 2].map((i) => (
+          <Box
+            key={i}
+            sx={{
+              aspectRatio: '16/9',
+              borderRadius: 1.5,
+              bgcolor: 'rgba(255,255,255,0.04)',
+            }}
+          />
+        ))}
+      </Box>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <Typography variant="caption" sx={{ color: 'text.secondary', p: 1, display: 'block' }}>
+        暂无热门
+      </Typography>
+    );
+  }
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-      {RIGHT_COVERS.map((c, i) => (
+      {items.map((c, i) => (
         <Box
-          key={i}
-          onClick={() => navigate(hotTypes[i] || 'FILM', i + 1)}
+          key={c.id}
+          onClick={() => navigate(c.category.toUpperCase(), c.id)}
           sx={{
             position: 'relative',
             aspectRatio: '16/9',
             borderRadius: 1.5,
-            background: c.gradient,
+            background: gradientByType(c.category),
             overflow: 'hidden',
             cursor: 'pointer',
             transition: 'transform 0.2s',
@@ -663,13 +699,23 @@ function HotTab() {
                 overflow: 'hidden',
               }}
             >
-              {c.sub}
+              {c.views >= 10000 ? `${(c.views / 10000).toFixed(1)}万播放` : `${c.views} 播放`}
             </Typography>
           </Box>
         </Box>
       ))}
     </Box>
   );
+}
+
+const GRADIENT_BY_TYPE: Record<string, string> = {
+  film: 'linear-gradient(135deg, #FE2C55 0%, #8B5CF6 100%)',
+  teleplay: 'linear-gradient(135deg, #8B5CF6 0%, #2D1B4E 100%)',
+  music: 'linear-gradient(135deg, #FFB400 0%, #8B0000 100%)',
+};
+
+function gradientByType(contentType: string): string {
+  return GRADIENT_BY_TYPE[contentType] ?? 'linear-gradient(135deg, #2D1B4E 0%, #0a0a0f 100%)';
 }
 
 function CommentTab() {
