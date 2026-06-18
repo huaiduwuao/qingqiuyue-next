@@ -32,6 +32,14 @@ interface DataGridTableProps {
   actionPermissions?: { edit?: string; delete?: string };
   /** 拥有 edit/delete 权限的判断函数;不传则永远 true(交给 actionPermissions 控制) */
   hasPermission?: (code: string) => boolean;
+  /** 自定义行级操作(暂停/恢复等)。hidden 返回 true 则不渲染。 */
+  customActions?: Array<{
+    label: string;
+    icon?: React.ReactNode;
+    onClick: (row: any) => void;
+    hidden?: (row: any) => boolean;
+    color?: 'inherit' | 'primary' | 'secondary' | 'success' | 'error' | 'info' | 'warning';
+  }>;
 }
 
 export function DataGridTable({
@@ -45,6 +53,7 @@ export function DataGridTable({
   extraParams,
   actionPermissions,
   hasPermission,
+  customActions,
 }: DataGridTableProps) {
   const [rows, setRows] = useState<any[]>([]);
   const [rowCount, setRowCount] = useState(0);
@@ -161,7 +170,22 @@ export function DataGridTable({
       const canDelete = !actionPermissions?.delete || (hasPermission ? hasPermission(actionPermissions.delete) : true);
       if (!canEdit && !canDelete) return null;
       return (
-        <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+        <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center', flexWrap: 'wrap' }}>
+          {customActions?.map((ca, i) => {
+            if (ca.hidden && ca.hidden(params.row)) return null;
+            return (
+              <Button
+                key={i}
+                size="small"
+                variant="text"
+                color={ca.color || 'inherit'}
+                startIcon={ca.icon}
+                onClick={() => ca.onClick(params.row)}
+              >
+                {ca.label}
+              </Button>
+            );
+          })}
           {onEdit && canEdit && (
             <Button size="small" variant="text" onClick={() => onEdit(params.row)}>
               编辑

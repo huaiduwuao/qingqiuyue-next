@@ -55,6 +55,12 @@ export const PERMISSIONS = {
     UPDATE: 'system:user-point:update',
     DELETE: 'system:user-point:delete',
   },
+  SYSTEM_BOT: {
+    VIEW: 'system:bot:list',
+    CREATE: 'system:bot:create',
+    UPDATE: 'system:bot:update',
+    DELETE: 'system:bot:delete',
+  },
   SYSTEM_APP: {
     VIEW: 'system:app:list',
     CREATE: 'system:app:create',

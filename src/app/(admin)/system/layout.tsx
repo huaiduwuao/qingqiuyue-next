@@ -32,6 +32,7 @@ import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded';
+import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
 import { useAuthority } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
 import { PERMISSIONS } from '@/lib/permissions';
@@ -80,6 +81,7 @@ const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
     title: '用户管理',
     items: [
       { id: 'user', label: '用户列表', path: '/system/user', icon: <PeopleRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_USER.VIEW },
+      { id: 'bot', label: '假人管理', path: '/system/bot', icon: <SmartToyRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6', permission: PERMISSIONS.SYSTEM_BOT.VIEW },
       { id: 'user-level', label: '用户等级', path: '/system/user-level', icon: <MilitaryTechRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D', permission: PERMISSIONS.SYSTEM_USER_LEVEL.VIEW },
       { id: 'user-point', label: '用户积分', path: '/system/user-point', icon: <StarsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'success.main', permission: PERMISSIONS.SYSTEM_USER_POINT.VIEW },
     ],

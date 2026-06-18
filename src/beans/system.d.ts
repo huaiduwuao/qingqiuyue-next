@@ -167,6 +167,23 @@ export interface UserItem extends TableListItem {
   nickname?: string;
 }
 
+export interface BotItem extends TableListItem {
+  id?: number;
+  name?: string;
+  nickname?: string;
+  avatar?: string;
+  personaPrompt?: string;
+  commentTemplates?: string[];
+  useLlmForComments?: boolean;
+  commentIntervalMinutes?: number;
+  chatEnabled?: boolean;
+  llmModel?: string;
+  status?: 'active' | 'paused' | 'banned';
+  lastActiveAt?: string;
+  createTime?: string;
+  updateTime?: string;
+}
+
 export interface UserChangeType {
   userIds?: number[];
   roleId?: number;
