@@ -375,34 +375,33 @@ export default function LoginPage() {
             <Box sx={{ flex: 1, height: 1, bgcolor: 'rgba(255,255,255,0.06)' }} />
           </Box>
 
-          <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center', gap: 3 }}>
-            {[
-              { name: '微信', bg: '#07C160' },
-              { name: 'QQ', bg: '#1296DB' },
-              { name: '微博', bg: '#E6162D' },
-            ].map((s) => (
-              <Box key={s.name} sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5, cursor: 'pointer' }}>
-                <Box
-                  sx={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: '50%',
-                    bgcolor: s.bg,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#fff',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    transition: 'transform 0.15s',
-                    '&:hover': { transform: 'scale(1.1)' },
-                  }}
-                >
-                  {s.name[0]}
-                </Box>
-                <Typography sx={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>{s.name}</Typography>
+          <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
+            <Box
+              onClick={() => {
+                window.location.href = '/api/core/oauth/login/wechat?from=' + encodeURIComponent(window.location.pathname + window.location.search);
+              }}
+              sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5, cursor: 'pointer' }}
+            >
+              <Box
+                sx={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: '50%',
+                  bgcolor: '#07C160',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  transition: 'transform 0.15s',
+                  '&:hover': { transform: 'scale(1.1)' },
+                }}
+              >
+                微
               </Box>
-            ))}
+              <Typography sx={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>微信</Typography>
+            </Box>
           </Box>
         </Box>
 

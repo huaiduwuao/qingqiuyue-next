@@ -63,7 +63,7 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
   const [saveLogin, setSaveLogin] = useState(true);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const router = useRouter();
-  const { isAdmin } = useAuthority();
+  const { isAdmin, isSuperAdmin } = useAuthority();
   const { logout } = useAuth();
 
   const go = (href: string) => {
@@ -249,8 +249,8 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
         ))}
       </Box>
 
-      {/* === 管理后台(仅管理员) === */}
-      {isAdmin && (
+      {/* === 管理后台(仅超管可见) === */}
+      {isSuperAdmin && (
         <Box
           onClick={() => {
             onNavigate?.();

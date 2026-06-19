@@ -19,7 +19,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 // Public paths that don't require authentication
-export const PUBLIC_PATHS = ['/user/login', '/user/social-login'];
+export const PUBLIC_PATHS = ['/user/login', '/user/social-login', '/home'];
 
 // Cookie name used to bridge Edge middleware (which can't read localStorage)
 const TOKEN_COOKIE = 'auth-token';
@@ -160,7 +160,8 @@ export function useAuthority() {
   );
   const can = hasPermission;
   const isAdmin = hasAuthority('ADMIN') || hasAuthority('SUPER_ADMIN');
+  const isSuperAdmin = hasAuthority('SUPER_ADMIN');
   const roles = authorities;
 
-  return { isAdmin, hasAuthority, hasPermission, can, roles };
+  return { isAdmin, isSuperAdmin, hasAuthority, hasPermission, can, roles };
 }
