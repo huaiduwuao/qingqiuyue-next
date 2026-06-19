@@ -148,7 +148,9 @@ export function useAuth() {
 export function useAuthority() {
   const { currentUser } = useApp();
   const { permissions } = useAuth();
-  const authorities = currentUser?.authorities || [];
+  // 后端 vo.UserResp 序列化字段是 roles(见 qingqiuyue-go/internal/model/vo/admin.go),
+  // 这里兼容 authorities(老字段)/roles(新字段),前端都以 roles 为准。
+  const authorities = (currentUser as any)?.roles ?? currentUser?.authorities ?? [];
 
   const hasAuthority = useCallback(
     (auth: string) => authorities.includes(auth),

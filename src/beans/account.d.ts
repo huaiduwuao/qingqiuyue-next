@@ -31,6 +31,8 @@ export interface CurrentUser {
   focusCount?: number;
   fansCount?: number;
   authorities?: string[];
+  /** 后端 /api/core/login 响应里实际用的是这个字段(vo.UserResp.Roles) */
+  roles?: string[];
   permissions?: string[];
 }
 

@@ -280,7 +280,7 @@ export default function SystemLayout({ children }: { children: React.ReactNode }
                 {currentUser?.nickname || currentUser?.name || '未登录'}
               </Typography>
               {(() => {
-                const role = getPrimaryRole(currentUser?.authorities);
+                const role = getPrimaryRole((currentUser as any)?.roles ?? currentUser?.authorities);
                 return role ? (
                   <Typography sx={{ fontSize: 10, color: role.color, fontWeight: 600, mt: 0.25 }}>
                     {role.label}
