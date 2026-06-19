@@ -61,6 +61,12 @@ export const PERMISSIONS = {
     UPDATE: 'system:bot:update',
     DELETE: 'system:bot:delete',
   },
+  SYSTEM_HERMES: {
+    VIEW: 'system:hermes:list',
+    CREATE: 'system:hermes:create',
+    UPDATE: 'system:hermes:update',
+    DELETE: 'system:hermes:delete',
+  },
   SYSTEM_APP: {
     VIEW: 'system:app:list',
     CREATE: 'system:app:create',

@@ -82,6 +82,7 @@ const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
     items: [
       { id: 'user', label: '用户列表', path: '/system/user', icon: <PeopleRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_USER.VIEW },
       { id: 'bot', label: '假人管理', path: '/system/bot', icon: <SmartToyRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6', permission: PERMISSIONS.SYSTEM_BOT.VIEW },
+      { id: 'hermes', label: 'Hermes 智能体', path: '/system/hermes', icon: <SmartToyRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160', permission: PERMISSIONS.SYSTEM_HERMES.VIEW },
       { id: 'user-level', label: '用户等级', path: '/system/user-level', icon: <MilitaryTechRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D', permission: PERMISSIONS.SYSTEM_USER_LEVEL.VIEW },
       { id: 'user-point', label: '用户积分', path: '/system/user-point', icon: <StarsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'success.main', permission: PERMISSIONS.SYSTEM_USER_POINT.VIEW },
     ],

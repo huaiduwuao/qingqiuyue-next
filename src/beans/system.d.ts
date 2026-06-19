@@ -184,6 +184,35 @@ export interface BotItem extends TableListItem {
   updateTime?: string;
 }
 
+export interface HermesAgentItem extends TableListItem {
+  id: number;
+  agentId: string;
+  name: string;
+  role: string;
+  tags: string[];
+  avatarUrl?: string;
+  description?: string;
+  systemPrompt?: string;
+  greeting?: string;
+  status: 'active' | 'paused' | 'draft';
+  published: boolean;
+  publishedAt?: string;
+  sortOrder: number;
+  chatCount: number;
+  createTime: string;
+  updateTime: string;
+}
+
+export interface HermesChatResp {
+  text: string;
+}
+
+export interface HermesInstanceStatus {
+  ok: boolean;
+  baseUrl: string;
+  containerAgents: string[];
+}
+
 export interface UserChangeType {
   userIds?: number[];
   roleId?: number;
