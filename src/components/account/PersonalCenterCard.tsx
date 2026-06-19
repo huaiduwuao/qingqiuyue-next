@@ -21,6 +21,7 @@ import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSettingsRounded';
 import { useAuthority, useAuth } from '@/contexts/AuthContext';
+import { useApp } from '@/contexts/AppContext';
 import { gradient2, IMAGE_OVERLAY } from '@/constants/gradients';
 
 export const PROFILE = {
@@ -65,6 +66,7 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
   const router = useRouter();
   const { isAdmin, isSuperAdmin } = useAuthority();
   const { logout } = useAuth();
+  const { currentUser } = useApp();
 
   const go = (href: string) => {
     onNavigate?.();
@@ -79,6 +81,50 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      {/* === 未登录:显示登录入口(取代下面所有需登录的 UI) === */}
+      {!currentUser && (
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5, py: 3 }}>
+          <Box
+            sx={{
+              width: 64,
+              height: 64,
+              borderRadius: '50%',
+              background: 'radial-gradient(circle at 35% 35%, #2a2a3a 0%, #0a0a0f 70%)',
+              boxShadow: '0 0 0 1px rgba(255,255,255,0.05)',
+            }}
+          />
+          <Typography sx={{ fontSize: 13, color: 'rgba(255,255,255,0.65)' }}>
+            未登录
+          </Typography>
+          <Button
+            variant="contained"
+            onClick={() => {
+              onNavigate?.();
+              const here = typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/home/recommend';
+              sessionStorage.setItem('login_redirect', here);
+              router.push('/user/login');
+            }}
+            sx={{
+              mt: 0.5,
+              px: 4,
+              py: 1,
+              borderRadius: 2,
+              fontSize: 13,
+              fontWeight: 600,
+              textTransform: 'none',
+              background: 'linear-gradient(135deg, #FE2C55 0%, #8B5CF6 100%)',
+              boxShadow: '0 4px 14px rgba(254, 44, 85, 0.4)',
+              '&:hover': { background: 'linear-gradient(135deg, #FE2C55 0%, #8B5CF6 90%)' },
+            }}
+          >
+            立即登录
+          </Button>
+        </Box>
+      )}
+
+      {/* === 已登录才显示下面的内容 === */}
+      {currentUser && (
+      <>
       {/* === 资料头 === */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
         <Box
@@ -361,6 +407,8 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
           </Box>
         </Box>
       </Dialog>
+      </>
+      )}
     </Box>
   );
 }
