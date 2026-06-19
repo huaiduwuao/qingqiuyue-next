@@ -161,9 +161,26 @@ export function useAuthority() {
     [permissions]
   );
   const can = hasPermission;
-  const isAdmin = hasAuthority('ADMIN') || hasAuthority('SUPER_ADMIN');
-  const isSuperAdmin = hasAuthority('SUPER_ADMIN');
+  // 角色名同时存在英文 code 和中文显示名两种约定(后端 RoleEntity.Name 存中文,
+  // mocks/db/system.ts 同样存中文;前端内部代码如 system/layout.tsx 的
+  // ROLE_LABEL 又用英文 code 当 key)。这里双向兼容,任一命中即认为持有该角色。
+  const ROLE_ALIASES: Record<string, string[]> = {
+    SUPER_ADMIN: ['SUPER_ADMIN', '超级管理员'],
+    ADMIN: ['ADMIN', '系统管理员', '管理员'],
+    OPERATOR: ['OPERATOR', '运营'],
+    AUDITOR: ['AUDITOR', '审核员'],
+    USER: ['USER', '普通用户', '用户'],
+  };
+  const hasAnyRole = useCallback(
+    (code: string) => {
+      const aliases = ROLE_ALIASES[code] ?? [code];
+      return aliases.some((a) => authorities.includes(a));
+    },
+    [authorities]
+  );
+  const isAdmin = hasAnyRole('ADMIN') || hasAnyRole('SUPER_ADMIN');
+  const isSuperAdmin = hasAnyRole('SUPER_ADMIN');
   const roles = authorities;
 
-  return { isAdmin, isSuperAdmin, hasAuthority, hasPermission, can, roles };
+  return { isAdmin, isSuperAdmin, hasAuthority, hasPermission, can, hasAnyRole, roles };
 }
