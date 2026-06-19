@@ -249,8 +249,8 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
         ))}
       </Box>
 
-      {/* === 管理后台(仅超管可见) === */}
-      {isSuperAdmin && (
+      {/* === 管理后台(管理员可见) === */}
+      {isAdmin && (
         <Box
           onClick={() => {
             onNavigate?.();
