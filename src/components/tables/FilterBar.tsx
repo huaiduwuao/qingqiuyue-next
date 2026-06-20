@@ -26,13 +26,17 @@ export interface FilterBarProps {
   values: Record<string, any>;
   onChange: (values: Record<string, any>) => void;
   onReset?: () => void;
+  /** 自定义「查询」按钮回调 —— 不传则用 onChange 自动触发 */
+  onSearch?: () => void;
+  /** 禁用「查询」按钮(比如数据加载中) */
+  searching?: boolean;
 }
 
 function hasAnyValue(values: Record<string, any>): boolean {
   return Object.values(values).some((v) => v !== '' && v !== null && v !== undefined);
 }
 
-export function FilterBar({ fields, values, onChange, onReset }: FilterBarProps) {
+export function FilterBar({ fields, values, onChange, onReset, onSearch, searching }: FilterBarProps) {
   const handleFieldChange = (key: string, val: any) => {
     onChange({ ...values, [key]: val });
   };
@@ -66,6 +70,9 @@ export function FilterBar({ fields, values, onChange, onReset }: FilterBarProps)
               placeholder={f.placeholder || `请输入${f.label}`}
               value={values[f.key] ?? ''}
               onChange={(e) => handleFieldChange(f.key, e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && onSearch) onSearch();
+              }}
               sx={{ width: w, '& .MuiInputBase-input': { fontSize: 13 } }}
               slotProps={{
                 input: {
@@ -103,6 +110,19 @@ export function FilterBar({ fields, values, onChange, onReset }: FilterBarProps)
           </FormControl>
         );
       })}
+
+      {/* 「查询」按钮 — 永远显示;onSearch 存在就显式触发,否则自动走 onChange(refetch) */}
+      <Button
+        size="small"
+        variant="contained"
+        color="primary"
+        startIcon={<SearchRoundedIcon fontSize="small" />}
+        onClick={onSearch}
+        disabled={!!searching}
+        sx={{ textTransform: 'none', fontSize: 13, minWidth: 88 }}
+      >
+        {searching ? '查询中…' : '查询'}
+      </Button>
 
       {showReset && (
         <Button

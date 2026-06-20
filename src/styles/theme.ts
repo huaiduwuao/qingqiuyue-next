@@ -82,45 +82,6 @@ const baseTheme: ThemeOptions = {
     borderRadius: 0,
   },
   components: {
-    MuiButton: {
-      defaultProps: {
-        variant: 'contained',
-        disableElevation: true,
-      },
-      styleOverrides: {
-        root: {
-          borderRadius: 0,
-          padding: '8px 16px',
-          transition: 'all 0.2s ease-in-out',
-          '&:hover': {
-            transform: 'translateY(-1px)',
-          },
-          '&:active': {
-            transform: 'translateY(0)',
-          },
-        },
-        contained: {
-          boxShadow: 'none',
-          '&:hover': {
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-          },
-        },
-        outlined: {
-          borderWidth: '1.5px',
-          '&:hover': {
-            borderWidth: '1.5px',
-          },
-        },
-        sizeSmall: {
-          padding: '4px 12px',
-          fontSize: '0.8125rem',
-        },
-        sizeLarge: {
-          padding: '12px 24px',
-          fontSize: '1rem',
-        },
-      },
-    },
     MuiCard: {
       defaultProps: {
         elevation: 0,
@@ -145,6 +106,11 @@ const baseTheme: ThemeOptions = {
       styleOverrides: {
         root: {
           borderRadius: 0,
+          // 关掉 MUI 自带的 dark overlay(浅色模式不该有这层灰)
+          backgroundImage: 'none',
+          // 默认浅色背景 + 暗文本;具体页用 bgcolor="background.paper" 会覆盖
+          bgcolor: 'background.paper',
+          color: 'text.primary',
         },
       },
     },
@@ -157,22 +123,140 @@ const baseTheme: ThemeOptions = {
         root: {
           '& .MuiOutlinedInput-root': {
             borderRadius: 0,
+            backgroundColor: 'background.paper',
+            color: 'text.primary',
             transition: 'all 0.2s ease-in-out',
+            '& .MuiOutlinedInput-notchedOutline': {
+              borderColor: 'divider',
+              borderWidth: '1px',
+            },
             '&:hover .MuiOutlinedInput-notchedOutline': {
               borderColor: 'primary.main',
+              borderWidth: '1.5px',
             },
             '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+              borderColor: 'primary.main',
               borderWidth: '2px',
             },
+            '&.Mui-disabled': {
+              backgroundColor: 'action.disabledBackground',
+              color: 'text.disabled',
+            },
+          },
+          '& .MuiInputLabel-root': {
+            color: 'text.secondary',
+            '&.Mui-focused': { color: 'primary.main' },
+            '&.Mui-error': { color: 'error.main' },
+          },
+          '& .MuiFormHelperText-root': {
+            color: 'text.secondary',
+            '&.Mui-error': { color: 'error.main' },
           },
         },
       },
     },
-    MuiChip: {
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: {
+          backgroundColor: 'background.paper',
+          color: 'text.primary',
+          '& .MuiOutlinedInput-notchedOutline': { borderColor: 'divider' },
+          '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'primary.main' },
+          '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: 'primary.main', borderWidth: '2px' },
+        },
+        input: { color: 'text.primary' },
+      },
+    },
+    MuiInputLabel: {
+      styleOverrides: {
+        root: {
+          color: 'text.secondary',
+          '&.Mui-focused': { color: 'primary.main' },
+        },
+      },
+    },
+    MuiSelect: {
+      styleOverrides: {
+        icon: { color: 'text.secondary' },
+        select: { color: 'text.primary', backgroundColor: 'background.paper' },
+      },
+    },
+    MuiMenu: {
+      styleOverrides: {
+        paper: {
+          bgcolor: 'background.paper',
+          color: 'text.primary',
+          backgroundImage: 'none',
+        },
+      },
+    },
+    MuiMenuItem: {
+      styleOverrides: {
+        root: {
+          color: 'text.primary',
+          '&:hover': { backgroundColor: 'action.hover' },
+          '&.Mui-selected': {
+            backgroundColor: 'action.selected',
+            color: 'primary.main',
+            '&:hover': { backgroundColor: 'action.selected' },
+          },
+        },
+      },
+    },
+    MuiButton: {
+      defaultProps: {
+        variant: 'contained',
+        disableElevation: true,
+      },
       styleOverrides: {
         root: {
           borderRadius: 0,
+          padding: '8px 16px',
+          transition: 'all 0.2s ease-in-out',
+          textTransform: 'none',
           fontWeight: 500,
+          '&:hover': {
+            transform: 'translateY(-1px)',
+          },
+          '&:active': {
+            transform: 'translateY(0)',
+          },
+        },
+        contained: {
+          boxShadow: 'none',
+          color: '#fff', // 主色按钮始终白字
+          '&:hover': {
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            color: '#fff',
+          },
+          '&.Mui-disabled': {
+            color: 'rgba(255, 255, 255, 0.7)',
+            backgroundColor: 'action.disabledBackground',
+          },
+        },
+        outlined: {
+          borderWidth: '1.5px',
+          color: 'text.primary',
+          borderColor: 'divider',
+          backgroundColor: 'transparent',
+          '&:hover': {
+            borderWidth: '1.5px',
+            borderColor: 'primary.main',
+            backgroundColor: 'action.hover',
+            color: 'primary.main',
+          },
+        },
+        text: {
+          color: 'text.primary',
+          '&:hover': { backgroundColor: 'action.hover', color: 'primary.main' },
+        },
+        sizeSmall: {
+          padding: '4px 12px',
+          fontSize: '0.8125rem',
+        },
+        sizeLarge: {
+          padding: '12px 24px',
+          fontSize: '1rem',
         },
       },
     },
@@ -250,6 +334,16 @@ const baseTheme: ThemeOptions = {
       styleOverrides: {
         paper: {
           borderRadius: 0,
+          backgroundColor: 'background.paper',
+          color: 'text.primary',
+          backgroundImage: 'none',
+        },
+      },
+    },
+    MuiBackdrop: {
+      styleOverrides: {
+        root: {
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
         },
       },
     },
@@ -257,6 +351,9 @@ const baseTheme: ThemeOptions = {
       styleOverrides: {
         paper: {
           borderRight: 'none',
+          backgroundColor: 'background.paper',
+          color: 'text.primary',
+          backgroundImage: 'none',
         },
       },
     },
