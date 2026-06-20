@@ -108,10 +108,10 @@ const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
   {
     title: '微信公众号',
     items: [
-      { id: 'wx-mp-menu', label: '公众号菜单', path: '/wx/mp/menu', icon: <MenuBookRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
-      { id: 'wx-mp-auto-reply', label: '自动回复', path: '/wx/mp/auto-reply', icon: <ChatBubbleOutlineRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
-      { id: 'wx-mp-msg', label: '消息管理', path: '/wx/mp/msg', icon: <DnsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
-      { id: 'wx-mp-user', label: '公众号用户', path: '/wx/mp/user', icon: <PeopleRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
+      { id: 'wx-mp-menu', label: '公众号菜单', path: '/system/wx/mp/menu', icon: <MenuBookRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
+      { id: 'wx-mp-auto-reply', label: '自动回复', path: '/system/wx/mp/auto-reply', icon: <ChatBubbleOutlineRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
+      { id: 'wx-mp-msg', label: '消息管理', path: '/system/wx/mp/msg', icon: <DnsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
+      { id: 'wx-mp-user', label: '公众号用户', path: '/system/wx/mp/user', icon: <PeopleRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
     ],
   },
   {
