@@ -199,6 +199,10 @@ export interface HermesAgentItem extends TableListItem {
   publishedAt?: string;
   sortOrder: number;
   chatCount: number;
+  /** 所属 hermes 容器实例 id,0 或 undefined = 未分配 */
+  instanceId?: number;
+  /** 所属实例名称(后端 join 返回,只读) */
+  instanceName?: string;
   createTime: string;
   updateTime: string;
 }

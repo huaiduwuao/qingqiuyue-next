@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -13,7 +14,9 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
+import CircularProgress from '@mui/material/CircularProgress';
 import type { HermesAgentItem } from '@/beans/system';
+import { hermesApi, type HermesInstanceItem } from '@/apis/hermes';
 
 interface HermesFormDialogProps {
   open: boolean;
@@ -24,12 +27,23 @@ interface HermesFormDialogProps {
 }
 
 const STATUS_OPTIONS = ['active', 'paused', 'draft'];
+const UNASSIGNED = 0;
 
 export default function HermesFormDialog({ open, onClose, onSubmit, record, isSubmitting }: HermesFormDialogProps) {
   const isEdit = !!record?.id;
   const [values, setValues] = useState<Record<string, any>>({});
   const [tagsRaw, setTagsRaw] = useState('');
   const [error, setError] = useState('');
+
+  // 拉取实例列表(供下拉框),只取前 100 条
+  const instancesQuery = useQuery<{ list: HermesInstanceItem[]; totalRow: number }>({
+    queryKey: ['system', 'hermes', 'instances', 'for-select'],
+    queryFn: () => hermesApi.instancePage({ pageSize: 100, pageNumber: 1, current: 1 }) as any,
+    enabled: open,
+    staleTime: 30_000,
+  });
+  const instances = (instancesQuery.data as any)?.list || (instancesQuery.data as any)?.data?.records || [];
+  const instancesLoaded = !instancesQuery.isLoading;
 
   useEffect(() => {
     if (record) {
@@ -44,6 +58,7 @@ export default function HermesFormDialog({ open, onClose, onSubmit, record, isSu
         status: record.status || 'active',
         published: !!record.published,
         sortOrder: record.sortOrder ?? 0,
+        instanceId: record.instanceId ?? UNASSIGNED,
       });
       setTagsRaw((record.tags || []).join(', '));
     } else {
@@ -58,6 +73,7 @@ export default function HermesFormDialog({ open, onClose, onSubmit, record, isSu
         status: 'active',
         published: false,
         sortOrder: 0,
+        instanceId: UNASSIGNED,
       });
       setTagsRaw('');
     }
@@ -82,6 +98,7 @@ export default function HermesFormDialog({ open, onClose, onSubmit, record, isSu
     }
     setError('');
 
+    const instanceId = Number(values.instanceId);
     const payload: any = {
       agentId: String(values.agentId).trim(),
       name: String(values.name).trim(),
@@ -92,6 +109,8 @@ export default function HermesFormDialog({ open, onClose, onSubmit, record, isSu
       systemPrompt: values.systemPrompt || '',
       greeting: values.greeting || '',
       sortOrder: Number(values.sortOrder) || 0,
+      // 0 表示未分配 — 后端可以接收 0 或忽略
+      instanceId: Number.isFinite(instanceId) ? instanceId : UNASSIGNED,
     };
     if (isEdit) {
       payload.status = values.status || 'active';
@@ -123,6 +142,29 @@ export default function HermesFormDialog({ open, onClose, onSubmit, record, isSu
             fullWidth
             required
           />
+
+          <TextField
+            select
+            label="所属实例"
+            value={values.instanceId ?? UNASSIGNED}
+            onChange={(e) => set('instanceId', Number(e.target.value))}
+            fullWidth
+            helperText="选择此 agent 所属的 hermes 容器实例,新建时默认「未分配」"
+          >
+            <MenuItem value={UNASSIGNED}>未分配</MenuItem>
+            {!instancesLoaded ? (
+              <MenuItem value={UNASSIGNED} disabled>
+                <CircularProgress size={12} sx={{ mr: 1 }} /> 加载中…
+              </MenuItem>
+            ) : (
+              instances.map((ins: HermesInstanceItem) => (
+                <MenuItem key={ins.id} value={ins.id}>
+                  {ins.name} ({ins.baseUrl})
+                </MenuItem>
+              ))
+            )}
+          </TextField>
+
           <TextField
             label="角色(自由文本)"
             value={values.role || ''}

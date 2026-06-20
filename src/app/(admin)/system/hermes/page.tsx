@@ -11,10 +11,13 @@ import Switch from '@mui/material/Switch';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Typography from '@mui/material/Typography';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
 import CircularProgress from '@mui/material/CircularProgress';
 import { DataGridTable } from '@/components/tables/DataGridTable';
 import HermesFormDialog from '@/components/hermes/HermesFormDialog';
-import * as hermesApi from '@/apis/hermes';
+import InstancesPanel from '@/components/hermes/InstancesPanel';
+import { hermesApi } from '@/apis/hermes';
 import type { HermesAgentItem, HermesInstanceStatus } from '@/beans/system';
 import type { GridColDef } from '@mui/x-data-grid';
 import AddIcon from '@mui/icons-material/Add';
@@ -26,16 +29,28 @@ import SyncIcon from '@mui/icons-material/Sync';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 
-const LIST_KEY = ['system', 'hermes'];
+type TabKey = 'agents' | 'instances';
 
-const statusColor: Record<string, 'success' | 'warning' | 'default' | 'error'> = {
+const AGENT_LIST_KEY = ['system', 'hermes', 'agents'];
+
+const agentStatusColor: Record<string, 'success' | 'warning' | 'default' | 'error'> = {
   active: 'success',
   paused: 'warning',
   draft: 'default',
 };
 
-const columns: GridColDef<HermesAgentItem>[] = [
+const agentColumns: GridColDef<HermesAgentItem>[] = [
   { field: 'id', headerName: 'ID', width: 70 },
+  {
+    field: 'instanceName',
+    headerName: '实例',
+    width: 150,
+    renderCell: (p) => {
+      const v = p.value as string | undefined;
+      if (!v) return <Chip label="未分配" size="small" variant="outlined" />;
+      return <Chip label={v} size="small" variant="outlined" color="primary" />;
+    },
+  },
   { field: 'name', headerName: '名称', width: 140 },
   { field: 'agentId', headerName: 'agentId', width: 130 },
   { field: 'role', headerName: '角色', width: 140 },
@@ -59,12 +74,12 @@ const columns: GridColDef<HermesAgentItem>[] = [
   {
     field: 'status',
     headerName: '状态',
-    width: 100,
+    width: 90,
     renderCell: (p) => (
       <Chip
         label={p.value as string}
         size="small"
-        color={statusColor[p.value as string] || 'default'}
+        color={agentStatusColor[p.value as string] || 'default'}
         variant="outlined"
       />
     ),
@@ -84,7 +99,7 @@ const columns: GridColDef<HermesAgentItem>[] = [
   },
 ];
 
-export default function SystemHermesPage() {
+function AgentsPanel() {
   const qc = useQueryClient();
   const [modalVisible, setModalVisible] = useState(false);
   const [record, setRecord] = useState<HermesAgentItem | null>(null);
@@ -98,44 +113,44 @@ export default function SystemHermesPage() {
     setSnackbar({ open: true, message, severity });
 
   const instanceStatusQuery = useQuery<HermesInstanceStatus>({
-    queryKey: ['system', 'hermes', 'instance'],
+    queryKey: ['system', 'hermes', 'legacy-instance'],
     queryFn: () => hermesApi.instanceStatus() as any,
     refetchInterval: 30_000,
   });
 
   const saveMutation = useMutation({
     mutationFn: (vals: any) => hermesApi.save(vals),
-    onSuccess: () => { showMessage('创建成功'); handleModalClose(); qc.invalidateQueries({ queryKey: LIST_KEY }); },
+    onSuccess: () => { showMessage('创建成功'); handleModalClose(); qc.invalidateQueries({ queryKey: AGENT_LIST_KEY }); },
     onError: (err: any) => showMessage(err.message || '创建失败', 'error'),
   });
   const updateMutation = useMutation({
     mutationFn: (vals: any) => hermesApi.update({ ...vals, id: record?.id }),
-    onSuccess: () => { showMessage('更新成功'); handleModalClose(); qc.invalidateQueries({ queryKey: LIST_KEY }); },
+    onSuccess: () => { showMessage('更新成功'); handleModalClose(); qc.invalidateQueries({ queryKey: AGENT_LIST_KEY }); },
     onError: (err: any) => showMessage(err.message || '更新失败', 'error'),
   });
   const deleteMutation = useMutation({
     mutationFn: (ids: number[]) => hermesApi.remove(ids),
-    onSuccess: () => { showMessage('删除成功'); qc.invalidateQueries({ queryKey: LIST_KEY }); },
+    onSuccess: () => { showMessage('删除成功'); qc.invalidateQueries({ queryKey: AGENT_LIST_KEY }); },
     onError: (err: any) => showMessage(err.message || '删除失败', 'error'),
   });
   const publishMutation = useMutation({
     mutationFn: (id: number) => hermesApi.publish(id),
-    onSuccess: () => { showMessage('已发布'); qc.invalidateQueries({ queryKey: LIST_KEY }); },
+    onSuccess: () => { showMessage('已发布'); qc.invalidateQueries({ queryKey: AGENT_LIST_KEY }); },
     onError: (err: any) => showMessage(err.message || '发布失败', 'error'),
   });
   const unpublishMutation = useMutation({
     mutationFn: (id: number) => hermesApi.unpublish(id),
-    onSuccess: () => { showMessage('已下线'); qc.invalidateQueries({ queryKey: LIST_KEY }); },
+    onSuccess: () => { showMessage('已下线'); qc.invalidateQueries({ queryKey: AGENT_LIST_KEY }); },
     onError: (err: any) => showMessage(err.message || '下线失败', 'error'),
   });
   const pauseMutation = useMutation({
     mutationFn: (id: number) => hermesApi.pause(id),
-    onSuccess: () => { showMessage('已暂停'); qc.invalidateQueries({ queryKey: LIST_KEY }); },
+    onSuccess: () => { showMessage('已暂停'); qc.invalidateQueries({ queryKey: AGENT_LIST_KEY }); },
     onError: (err: any) => showMessage(err.message || '暂停失败', 'error'),
   });
   const resumeMutation = useMutation({
     mutationFn: (id: number) => hermesApi.resume(id),
-    onSuccess: () => { showMessage('已恢复'); qc.invalidateQueries({ queryKey: LIST_KEY }); },
+    onSuccess: () => { showMessage('已恢复'); qc.invalidateQueries({ queryKey: AGENT_LIST_KEY }); },
     onError: (err: any) => showMessage(err.message || '恢复失败', 'error'),
   });
   const syncMutation = useMutation({
@@ -143,7 +158,7 @@ export default function SystemHermesPage() {
     onSuccess: (res: any) => {
       const imported = res?.data?.imported;
       showMessage(imported != null ? `已同步,导入 ${imported} 个 agent` : '同步完成');
-      qc.invalidateQueries({ queryKey: LIST_KEY });
+      qc.invalidateQueries({ queryKey: AGENT_LIST_KEY });
     },
     onError: (err: any) => showMessage(err.message || '同步失败', 'error'),
   });
@@ -187,7 +202,7 @@ export default function SystemHermesPage() {
   const instanceOk = instanceStatus?.ok;
 
   return (
-    <Box sx={{ p: { xs: 1.5, md: 3 } }}>
+    <Box>
       <Card sx={{ mb: 2, bgcolor: 'background.paper' }}>
         <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
           <Box sx={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 1.5 }}>
@@ -199,7 +214,7 @@ export default function SystemHermesPage() {
               <ErrorIcon sx={{ fontSize: 18, color: 'error.main' }} />
             )}
             <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
-              {instanceOk ? '容器连通' : instanceOk === false ? '容器未连通' : '容器状态未知'}
+              {instanceOk ? '默认实例连通' : instanceOk === false ? '默认实例未连通' : '默认实例状态未知'}
             </Typography>
             {instanceStatus?.baseUrl && (
               <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
@@ -210,7 +225,7 @@ export default function SystemHermesPage() {
               <>
                 <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>|</Typography>
                 <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-                  容器内 agent:
+                  默认实例 agent:
                 </Typography>
                 <Box sx={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: 0.5 }}>
                   {instanceStatus.containerAgents.map((a, i) => (
@@ -230,7 +245,7 @@ export default function SystemHermesPage() {
 
       <DataGridTable
         title="Hermes 智能体管理"
-        columns={columns}
+        columns={agentColumns}
         fetchData={async (params) => {
           const res = await hermesApi.page(params);
           return {
@@ -254,7 +269,7 @@ export default function SystemHermesPage() {
               onClick={handleSync}
               disabled={syncMutation.isPending}
             >
-              同步容器 agent
+              同步默认实例 agent
             </Button>
           </Box>
         )}
@@ -305,6 +320,39 @@ export default function SystemHermesPage() {
           {snackbar.message}
         </Alert>
       </Snackbar>
+    </Box>
+  );
+}
+
+export default function SystemHermesPage() {
+  const [tab, setTab] = useState<TabKey>('agents');
+
+  return (
+    <Box sx={{ p: { xs: 1.5, md: 3 }, display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Tabs
+        value={tab}
+        onChange={(_, v: TabKey) => setTab(v)}
+        sx={{
+          minHeight: 36,
+          borderBottom: 1,
+          borderColor: 'divider',
+          '& .MuiTab-root': {
+            minHeight: 36,
+            fontSize: 14,
+            fontWeight: 500,
+            textTransform: 'none',
+            py: 1,
+          },
+          '& .Mui-selected': { fontWeight: 700 },
+          '& .MuiTabs-indicator': { height: 2 },
+        }}
+      >
+        <Tab value="agents" label="Agent 管理" />
+        <Tab value="instances" label="实例管理" />
+      </Tabs>
+
+      {tab === 'agents' && <AgentsPanel />}
+      {tab === 'instances' && <InstancesPanel />}
     </Box>
   );
 }
