@@ -22,12 +22,21 @@ const BRAND = 'primary.main';
 
 export default function LoginPage() {
   const [tab, setTab] = useState(0);
-  const [name, setName] = useState('');
+  // 从 localStorage 读上次记住的账号(不存密码,仅存用户名 + 勾选状态)
+  const [name, setName] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return localStorage.getItem('login_remembered_name') || '';
+  });
   const [password, setPassword] = useState('');
   const [showPwd, setShowPwd] = useState(false);
   const [mobile, setMobile] = useState('');
   const [captcha, setCaptcha] = useState('');
-  const [autoLogin, setAutoLogin] = useState(true);
+  const [rememberMe, setRememberMe] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    // 默认 true;如果用户主动取消过则记录到 localStorage
+    const stored = localStorage.getItem('login_remember_me');
+    return stored === null ? true : stored === 'true';
+  });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [captchaLoading, setCaptchaLoading] = useState(false);
@@ -45,6 +54,14 @@ export default function LoginPage() {
     try {
       const res = await accountLogin({ name, password });
       login(res.data.token);
+      // 记住账号(不存密码)
+      if (rememberMe) {
+        localStorage.setItem('login_remembered_name', name);
+        localStorage.setItem('login_remember_me', 'true');
+      } else {
+        localStorage.removeItem('login_remembered_name');
+        localStorage.setItem('login_remember_me', 'false');
+      }
       router.push('/home/recommend');
     } catch (err: any) {
       setError(err.message || '登录失败');
@@ -291,8 +308,8 @@ export default function LoginPage() {
 
               <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
                 <Checkbox
-                  checked={autoLogin}
-                  onChange={(e) => setAutoLogin(e.target.checked)}
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
                   size="small"
                   sx={{
                     p: 0.5,
