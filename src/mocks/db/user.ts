@@ -7,8 +7,10 @@ export const CURRENT_USER = {
   username: 'guest',
   nickname: '怀独无傲',
   avatar: 'https://picsum.photos/seed/u1/100/100',
-  // 管理员模式默认开启(mock 环境);真后端时由 /user/current 返 authorities
+  // 真后端由 /api/core/login 返 roles: ['ADMIN', 'SUPER_ADMIN'] 等英文 code;
+  // 这里 mock 环境保持两字段一致。
   authorities: ['ADMIN', 'SUPER_ADMIN'],
+  roles: ['ADMIN', 'SUPER_ADMIN'],
   permissions: [
     'system:role:list',
     'system:role:create',

@@ -148,8 +148,9 @@ export function useAuth() {
 export function useAuthority() {
   const { currentUser } = useApp();
   const { permissions } = useAuth();
-  // 后端 vo.UserResp 序列化字段是 roles(见 qingqiuyue-go/internal/model/vo/admin.go),
-  // 这里兼容 authorities(老字段)/roles(新字段),前端都以 roles 为准。
+  // 后端 service/user.go Login/MobileLogin/FormLogin 现在发的是 role.code(英文),
+  // 见 qingqiuyue-go/internal/model/entity/base.go RoleEntity.Code 与 schema.sql 的
+  // role.code 列及回填 SQL。这里前端只用 code 判断,不再做中英文别名映射。
   const authorities = (currentUser as any)?.roles ?? currentUser?.authorities ?? [];
 
   const hasAuthority = useCallback(
@@ -161,26 +162,9 @@ export function useAuthority() {
     [permissions]
   );
   const can = hasPermission;
-  // 角色名同时存在英文 code 和中文显示名两种约定(后端 RoleEntity.Name 存中文,
-  // mocks/db/system.ts 同样存中文;前端内部代码如 system/layout.tsx 的
-  // ROLE_LABEL 又用英文 code 当 key)。这里双向兼容,任一命中即认为持有该角色。
-  const ROLE_ALIASES: Record<string, string[]> = {
-    SUPER_ADMIN: ['SUPER_ADMIN', '超级管理员'],
-    ADMIN: ['ADMIN', '系统管理员', '管理员'],
-    OPERATOR: ['OPERATOR', '运营'],
-    AUDITOR: ['AUDITOR', '审核员'],
-    USER: ['USER', '普通用户', '用户'],
-  };
-  const hasAnyRole = useCallback(
-    (code: string) => {
-      const aliases = ROLE_ALIASES[code] ?? [code];
-      return aliases.some((a) => authorities.includes(a));
-    },
-    [authorities]
-  );
-  const isAdmin = hasAnyRole('ADMIN') || hasAnyRole('SUPER_ADMIN');
-  const isSuperAdmin = hasAnyRole('SUPER_ADMIN');
+  const isAdmin = hasAuthority('ADMIN') || hasAuthority('SUPER_ADMIN');
+  const isSuperAdmin = hasAuthority('SUPER_ADMIN');
   const roles = authorities;
 
-  return { isAdmin, isSuperAdmin, hasAuthority, hasPermission, can, hasAnyRole, roles };
+  return { isAdmin, isSuperAdmin, hasAuthority, hasPermission, can, roles };
 }

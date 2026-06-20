@@ -114,7 +114,7 @@ export const SYS_ROLE = {
   records: range(8).map((i) => ({
     id: 1 + i,
     name: ['超级管理员', '系统管理员', '运营', '审核员', '编辑', '普通用户', 'VIP 用户', '游客'][i],
-    code: ['super_admin', 'sys_admin', 'operator', 'auditor', 'editor', 'user', 'vip', 'guest'][i],
+    code: ['SUPER_ADMIN', 'ADMIN', 'OPERATOR', 'AUDITOR', 'EDITOR', 'USER', 'VIP_USER', 'GUEST'][i],
     description: ['拥有所有权限', '系统级权限', '内容运营', '内容审核', '内容编辑', '基础用户', 'VIP 权益', '只读权限'][i],
     userCount: 5 - i,
     sort: i,
