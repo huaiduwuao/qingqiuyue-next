@@ -1,8 +1,16 @@
 import { adminClient } from '@/lib/api/client';
 import {AppServiceItem, TableListParams} from "@/beans/system";
 
+export interface AppServiceListParams {
+  page?: number;
+  pageSize?: number;
+  pageNumber?: number;
+  name?: string;
+  code?: string;
+}
+
 // 应用服务分页 -> 后端 GET /app/service/list
-export async function page(params: any) {
+export async function page(params: AppServiceListParams) {
   return adminClient('/app/service/list', { params });
 }
 

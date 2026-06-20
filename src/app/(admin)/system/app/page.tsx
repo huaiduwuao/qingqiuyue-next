@@ -28,6 +28,7 @@ export default function SystemAppPage() {
   const [writeVisible, setWriteVisible] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
   const [formValues, setFormValues] = useState<any>({});
+  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
 
   const showMessage = (message: string, severity: 'success' | 'error' = 'success') => setSnackbar({ open: true, message, severity });
@@ -116,6 +117,15 @@ export default function SystemAppPage() {
         }}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        filters={{
+          fields: [
+            { key: 'name', label: '名称', type: 'text' },
+            { key: 'status', label: '状态', type: 'select', options: [{ label: '启用', value: 1 }, { label: '禁用', value: 0 }] },
+          ],
+          values: filterValues,
+          onChange: setFilterValues,
+          onReset: () => setFilterValues({}),
+        }}
         toolBarRender={() => (
           <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleEdit({})}>新建</Button>
         )}

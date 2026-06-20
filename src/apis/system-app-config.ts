@@ -1,6 +1,14 @@
 import { adminClient } from '@/lib/api/client';
 import {AppConfigItem, AppItem, TableListParams} from "@/beans/system";
 
+export interface AppConfigListParams {
+  page?: number;
+  pageSize?: number;
+  pageNumber?: number;
+  name?: string;
+  code?: string;
+}
+
 // -> 后端 GET /app/config/listByMap
 export async function listByMap(params: { type: string }) {
   return adminClient('/app/config/listByMap', { params });
@@ -12,7 +20,7 @@ export async function getByCode(params: { code: string }) {
 }
 
 // 应用配置分页 -> 后端 GET /app/config/list
-export async function page(params: any) {
+export async function page(params: AppConfigListParams) {
   return adminClient('/app/config/list', { params });
 }
 

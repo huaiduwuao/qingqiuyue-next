@@ -46,6 +46,7 @@ export interface UserPointQuery {
   pageNumber?: number;
   userId?: number;
   type?: string;
+  name?: string;
 }
 
 // 用户积分响应

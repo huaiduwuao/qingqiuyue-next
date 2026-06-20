@@ -103,6 +103,7 @@ function AgentsPanel() {
   const qc = useQueryClient();
   const [modalVisible, setModalVisible] = useState(false);
   const [record, setRecord] = useState<HermesAgentItem | null>(null);
+  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -258,6 +259,19 @@ function AgentsPanel() {
         }}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        filters={{
+          fields: [
+            { key: 'name', label: '名称', type: 'text' },
+            { key: 'status', label: '状态', type: 'select', options: [
+              { label: 'active', value: 'active' },
+              { label: 'paused', value: 'paused' },
+              { label: 'draft', value: 'draft' },
+            ] },
+          ],
+          values: filterValues,
+          onChange: setFilterValues,
+          onReset: () => setFilterValues({}),
+        }}
         toolBarRender={() => (
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Button variant="contained" startIcon={<AddIcon />} onClick={handleAdd}>

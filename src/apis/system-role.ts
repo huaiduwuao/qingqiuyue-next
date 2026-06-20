@@ -1,5 +1,14 @@
 import { adminClient } from '@/lib/api/client';
 
+export interface RoleListParams {
+  page?: number;
+  pageSize?: number;
+  pageNumber?: number;
+  name?: string;
+  code?: string;
+  status?: number;
+}
+
 // 后端分页响应 { list, total } 归一成 UI 期望的 { records, totalRow }
 function normalizePage(res: any) {
   const d = res?.data ?? {};
@@ -7,7 +16,7 @@ function normalizePage(res: any) {
 }
 
 // 角色分页 -> 后端 GET /role/list
-export async function page(params: any) {
+export async function page(params: RoleListParams) {
   const res = await adminClient('/role/list', { params });
   return normalizePage(res);
 }

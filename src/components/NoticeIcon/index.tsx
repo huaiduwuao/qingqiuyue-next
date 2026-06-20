@@ -83,7 +83,7 @@ export default function NoticeIconView() {
   return (
     <>
       <Tooltip title="通知">
-        <IconButton size="small" sx={{ color: 'rgba(255,255,255,0.75)' }} onClick={(e) => setAnchorEl(e.currentTarget)}>
+        <IconButton size="small" sx={{ color: 'text.secondary' }} onClick={(e) => setAnchorEl(e.currentTarget)}>
           <Badge
             badgeContent={unread}
             color="error"
@@ -106,8 +106,8 @@ export default function NoticeIconView() {
               mt: 1,
               width: 380,
               maxHeight: 540,
-              bgcolor: '#1A1D29',
-              border: '1px solid #252836',
+              bgcolor: 'background.paper',
+              border: '1px solid var(--border-color, transparent)',
               borderRadius: 2,
               boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
               backgroundImage: 'none',
@@ -185,14 +185,14 @@ export default function NoticeIconView() {
                     px: 1.25,
                     py: 0.4,
                     borderRadius: 1,
-                    bgcolor: subType === s.key ? 'rgba(254, 44, 85, 0.18)' : 'rgba(255,255,255,0.06)',
-                    color: subType === s.key ? 'primary.main' : 'rgba(255,255,255,0.7)',
+                    bgcolor: subType === s.key ? 'rgba(254, 44, 85, 0.18)' : 'action.hover',
+                    color: subType === s.key ? 'primary.main' : 'text.secondary',
                     fontSize: 12,
                     fontWeight: subType === s.key ? 600 : 400,
                     cursor: 'pointer',
                     whiteSpace: 'nowrap',
                     transition: 'all 0.15s',
-                    '&:hover': { bgcolor: subType === s.key ? 'rgba(254, 44, 85, 0.25)' : 'rgba(255,255,255,0.1)' },
+                    '&:hover': { bgcolor: subType === s.key ? 'rgba(254, 44, 85, 0.25)' : 'action.selected' },
                   }}
                 >
                   {s.label}
@@ -206,7 +206,7 @@ export default function NoticeIconView() {
             {loading ? (
               <Box sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <Skeleton key={i} variant="rounded" height={64} sx={{ bgcolor: 'rgba(255,255,255,0.04)' }} />
+                  <Skeleton key={i} variant="rounded" height={64} sx={{ bgcolor: 'action.hover' }} />
                 ))}
               </Box>
             ) : filteredList.length === 0 ? (
@@ -216,15 +216,15 @@ export default function NoticeIconView() {
                     width: 64,
                     height: 64,
                     borderRadius: '50%',
-                    bgcolor: 'rgba(255,255,255,0.04)',
+                    bgcolor: 'action.hover',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
                 >
-                  <CheckCircleOutlineIcon sx={{ fontSize: 28, color: 'rgba(255,255,255,0.25)' }} />
+                  <CheckCircleOutlineIcon sx={{ fontSize: 28, color: 'text.disabled' }} />
                 </Box>
-                <Typography sx={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>暂无消息</Typography>
+                <Typography sx={{ fontSize: 13, color: 'text.disabled' }}>暂无消息</Typography>
               </Box>
             ) : (
               filteredList.map((item: any) => (
@@ -245,7 +245,7 @@ export default function NoticeIconView() {
               justifyContent: 'center',
               gap: 0.5,
               py: 1.25,
-              borderTop: '1px solid #252836',
+              borderTop: '1px solid var(--border-color, transparent)',
               color: 'primary.main',
               fontSize: 12,
               fontWeight: 500,
@@ -282,8 +282,8 @@ function InteractionItem({ item, onClose }: { item: any; onClose: () => void }) 
         py: 1.25,
         cursor: 'pointer',
         transition: 'background 0.15s',
-        borderBottom: '1px solid rgba(37, 40, 54, 0.5)',
-        '&:hover': { bgcolor: 'rgba(255,255,255,0.03)' },
+        borderBottom: '1px solid var(--border-color, transparent)',
+        '&:hover': { bgcolor: 'action.hover' },
         position: 'relative',
       }}
     >
@@ -321,7 +321,7 @@ function InteractionItem({ item, onClose }: { item: any; onClose: () => void }) 
         <Typography
           sx={{
             fontSize: 12,
-            color: item.unread ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.55)',
+            color: item.unread ? 'text.primary' : 'text.secondary',
             lineHeight: 1.5,
             display: '-webkit-box',
             WebkitLineClamp: 2,
@@ -359,7 +359,7 @@ export function DmIconView() {
 
   return (
     <Tooltip title="私信">
-      <IconButton size="small" sx={{ color: 'rgba(255,255,255,0.75)' }} onClick={() => router.push('/account/msg')}>
+      <IconButton size="small" sx={{ color: 'text.secondary' }} onClick={() => router.push('/account/msg')}>
         <Badge
           badgeContent={unread}
           color="error"

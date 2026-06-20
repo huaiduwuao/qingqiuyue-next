@@ -13,6 +13,8 @@ export interface PermissionQuery {
   page?: number;
   pageNumber?: number;
   pageSize?: number;
+  name?: string;
+  code?: string;
 }
 
 // 创建权限请求

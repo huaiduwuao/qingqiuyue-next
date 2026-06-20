@@ -42,6 +42,7 @@ export default function SystemUserPage() {
   const [modalVisible, setModalVisible] = useState(false);
   const [record, setRecord] = useState<UserItem | null>(null);
   const [deleteIds, setDeleteIds] = useState<number[]>([]);
+  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -136,6 +137,15 @@ export default function SystemUserPage() {
         onEdit={handleEdit}
         onDelete={handleDelete}
         onSelectionChange={handleSelectionChange}
+        filters={{
+          fields: [
+            { key: 'name', label: '名称', type: 'text' },
+            { key: 'status', label: '状态', type: 'select', options: [{ label: '启用', value: 1 }, { label: '禁用', value: 0 }] },
+          ],
+          values: filterValues,
+          onChange: setFilterValues,
+          onReset: () => setFilterValues({}),
+        }}
         toolBarRender={() => (
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Button variant="contained" startIcon={<AddIcon />} onClick={handleAdd}>

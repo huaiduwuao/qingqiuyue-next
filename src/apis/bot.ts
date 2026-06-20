@@ -1,5 +1,13 @@
 import { adminClient } from '@/lib/api/client';
 
+export interface BotListParams {
+  page?: number;
+  pageSize?: number;
+  pageNumber?: number;
+  name?: string;
+  status?: string;
+}
+
 function normalizePage(res: any) {
   const d = res?.data ?? {};
   return {
@@ -11,7 +19,7 @@ function normalizePage(res: any) {
   };
 }
 
-export async function page(params: any) {
+export async function page(params: BotListParams) {
   const res = await adminClient('/bot/list', { params });
   return normalizePage(res);
 }

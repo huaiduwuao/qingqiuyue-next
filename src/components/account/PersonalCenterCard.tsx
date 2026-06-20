@@ -89,8 +89,12 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
               width: 64,
               height: 64,
               borderRadius: '50%',
-              background: 'radial-gradient(circle at 35% 35%, #2a2a3a 0%, #0a0a0f 70%)',
-              boxShadow: '0 0 0 1px rgba(255,255,255,0.05)',
+              background: (t: any) =>
+                t.palette.mode === 'dark'
+                  ? 'radial-gradient(circle at 35% 35%, #2a2a3a 0%, #0a0a0f 70%)'
+                  : 'radial-gradient(circle at 35% 35%, #e8e8ee 0%, #b8b8c0 70%)',
+              boxShadow: (t: any) =>
+                t.palette.mode === 'dark' ? '0 0 0 1px rgba(255,255,255,0.05)' : '0 0 0 1px rgba(0,0,0,0.08)',
             }}
           />
           <Typography sx={{ fontSize: 13, color: 'rgba(255,255,255,0.65)' }}>
@@ -134,10 +138,14 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
             height: compact ? 40 : 56,
             borderRadius: '50%',
             flexShrink: 0,
-            background: 'radial-gradient(circle at 35% 35%, #2a2a3a 0%, #0a0a0f 70%)',
+            background: (t: any) =>
+              t.palette.mode === 'dark'
+                ? 'radial-gradient(circle at 35% 35%, #2a2a3a 0%, #0a0a0f 70%)'
+                : 'radial-gradient(circle at 35% 35%, #e8e8ee 0%, #b8b8c0 70%)',
             position: 'relative',
             overflow: 'hidden',
-            boxShadow: '0 0 0 1px rgba(255,255,255,0.05)',
+            boxShadow: (t: any) =>
+              t.palette.mode === 'dark' ? '0 0 0 1px rgba(255,255,255,0.05)' : '0 0 0 1px rgba(0,0,0,0.08)',
             cursor: 'pointer',
           }}
         >
@@ -276,14 +284,14 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
               alignItems: 'center',
               gap: 1.25,
               py: 1.25,
-              borderTop: idx === 0 ? '1px solid rgba(255,255,255,0.06)' : 'none',
-              borderBottom: '1px solid rgba(255,255,255,0.06)',
+              borderTop: idx === 0 ? (t: any) => `1px solid ${t.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : t.palette.divider || 'rgba(0,0,0,0.08)'}` : 'none',
+              borderBottom: (t: any) => `1px solid ${t.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : t.palette.divider || 'rgba(0,0,0,0.08)'}`,
               cursor: 'pointer',
               transition: 'background 0.15s',
-              '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' },
+              '&:hover': { bgcolor: 'action.hover' },
             }}
           >
-            <Box sx={{ width: 24, height: 24, borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(255,255,255,0.04)' }}>
+            <Box sx={{ width: 24, height: 24, borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'action.hover' }}>
               {s.icon}
             </Box>
             <Typography sx={{ fontSize: 13, color: 'text.primary', flex: 1 }}>{s.label}</Typography>
@@ -359,8 +367,12 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
           paper: {
             sx: {
               borderRadius: 3,
-              background: 'linear-gradient(180deg, #15171F 0%, #0A0B14 100%)',
-              border: '1px solid rgba(255,255,255,0.08)',
+              background: (t: any) =>
+                t.palette.mode === 'dark'
+                  ? 'linear-gradient(180deg, #15171F 0%, #0A0B14 100%)'
+                  : 'background.paper',
+              border: (t: any) =>
+                t.palette.mode === 'dark' ? '1px solid rgba(255,255,255,0.08)' : (t.palette.divider || '1px solid rgba(0,0,0,0.12)'),
             },
           },
         }}

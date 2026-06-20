@@ -14,6 +14,8 @@ export interface DataPermissionQuery {
   page?: number;
   pageNumber?: number;
   pageSize?: number;
+  name?: string;
+  code?: string;
 }
 
 // 创建数据权限请求

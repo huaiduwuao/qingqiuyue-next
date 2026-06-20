@@ -1,8 +1,14 @@
 import { adminClient } from '@/lib/api/client';
 import {TableListParams} from "@/beans/system";
 
+export interface UserLevelListParams {
+  page?: number;
+  pageSize?: number;
+  pageNumber?: number;
+  name?: string;
+}
 
-export async function page(params: any) {
+export async function page(params: UserLevelListParams) {
   return adminClient("/userLevel/client/page", {
     params
   });

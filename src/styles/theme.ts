@@ -321,12 +321,14 @@ const baseTheme: ThemeOptions = {
     },
     MuiTooltip: {
       styleOverrides: {
-        tooltip: {
-          backgroundColor: 'rgba(15, 23, 42, 0.9)',
+        tooltip: ({ theme }) => ({
+          backgroundColor:
+            theme.palette.mode === 'dark' ? 'rgba(15, 23, 42, 0.92)' : 'rgba(51, 65, 85, 0.95)',
+          color: theme.palette.common.white,
           borderRadius: 6,
           fontSize: '0.75rem',
           padding: '6px 12px',
-        },
+        }),
       },
     },
     MuiIconButton: {

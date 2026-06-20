@@ -104,10 +104,14 @@ export interface DictDataItem extends TableListItem {
   typeName?: string;
   value?: string;
   remark?: string;
-  sort?: string;
+  sort?: string | number;
   typeId?: number;
+  status?: string | number;
+  /** 父节点 id,根节点为 0 */
+  parentId?: number;
+  /** @deprecated 用 parentId;保留以兼容旧接口 */
   pid?: number;
-  children?: [];
+  children?: DictDataItem[];
 }
 
 export interface DictTypeItem extends TableListItem {

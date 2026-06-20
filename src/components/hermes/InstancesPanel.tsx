@@ -56,6 +56,7 @@ export default function InstancesPanel() {
     message: '',
     severity: 'success',
   });
+  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
 
   const showMessage = (message: string, severity: 'success' | 'error' | 'info' = 'success') =>
     setSnackbar({ open: true, message, severity });
@@ -232,6 +233,19 @@ export default function InstancesPanel() {
         }}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        filters={{
+          fields: [
+            { key: 'name', label: '名称', type: 'text' },
+            { key: 'status', label: '状态', type: 'select', options: [
+              { label: 'active', value: 'active' },
+              { label: 'paused', value: 'paused' },
+              { label: 'offline', value: 'offline' },
+            ] },
+          ],
+          values: filterValues,
+          onChange: setFilterValues,
+          onReset: () => setFilterValues({}),
+        }}
         toolBarRender={() => (
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Button variant="contained" startIcon={<AddIcon />} onClick={handleAdd}>

@@ -1,8 +1,16 @@
 import { adminClient } from '@/lib/api/client';
 import {AppItem, TableListParams} from "@/beans/system";
 
+export interface WebsiteDictListParams {
+  page?: number;
+  pageSize?: number;
+  pageNumber?: number;
+  name?: string;
+  type?: string;
+}
 
-export async function page(params: any) {
+
+export async function page(params: WebsiteDictListParams) {
   return adminClient("/sysWebsiteDict/client/page", {
     params
   });

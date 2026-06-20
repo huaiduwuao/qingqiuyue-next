@@ -89,7 +89,7 @@ function AccountLayoutContent({
     html.style.overflow = 'hidden';
     body.style.overflow = 'hidden';
     body.style.height = '100dvh';
-    body.style.backgroundColor = '#0a0a0f';
+    body.style.backgroundColor = 'transparent';
     return () => {
       html.style.overflow = prev.htmlOverflow;
       body.style.overflow = prev.bodyOverflow;
@@ -103,13 +103,13 @@ function AccountLayoutContent({
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100dvh', bgcolor: '#0a0a0f', overflow: 'hidden' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100dvh', bgcolor: 'transparent', overflow: 'hidden' }}>
       <AppBar
         ref={appBarRef}
         position="sticky"
         elevation={0}
         sx={{
-          bgcolor: 'rgba(10, 10, 15, 0.85)',
+          bgcolor: 'transparent',
           color: 'text.primary',
           borderBottom: 'none',
           backdropFilter: 'blur(12px)',
@@ -217,7 +217,7 @@ function AccountLayoutContent({
                     fontSize: 13,
                     fontWeight: 700,
                     border: '2px solid',
-                    borderColor: '#0a0a0f',
+                    borderColor: 'transparent',
                   }}
                 >
                   {currentUser?.name?.[0] || 'U'}

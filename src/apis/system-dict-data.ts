@@ -31,3 +31,8 @@ export async function update(params: DictDataItem) {
 export async function typeList(params: any) {
   return adminClient('/dict/type/list', { params });
 }
+
+// 字典数据树 -> 后端 GET /dict/data/tree/:type
+export async function tree(type: string) {
+  return adminClient<DictDataItem[]>(`/dict/data/tree/${type}`);
+}

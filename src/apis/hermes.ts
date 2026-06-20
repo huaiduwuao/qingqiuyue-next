@@ -42,7 +42,16 @@ export interface HermesInstanceSyncResp {
 
 // ===== Admin (/api/core/hermes/*) =====
 // --- Agent ---
-export async function page(params: any) {
+export interface HermesListParams {
+  page?: number;
+  pageSize?: number;
+  pageNumber?: number;
+  name?: string;
+  status?: string;
+  instanceId?: number;
+}
+
+export async function page(params: HermesListParams) {
   // 后端 GET /list 接受 instance_id 作为过滤参数
   const res = await adminClient('/hermes/list', { params });
   return normalizePage(res);
@@ -93,7 +102,17 @@ export async function instanceSync() {
 }
 
 // --- Instance (CRUD on hermes containers) ---
-export async function instancePage(params: any = {}) {
+export interface HermesInstanceListParams {
+  page?: number;
+  pageSize?: number;
+  pageNumber?: number;
+  current?: number;
+  name?: string;
+  status?: string;
+  [key: string]: any;
+}
+
+export async function instancePage(params: HermesInstanceListParams = {}) {
   const res = await adminClient('/hermes/instance/list', { params });
   return normalizePage(res);
 }

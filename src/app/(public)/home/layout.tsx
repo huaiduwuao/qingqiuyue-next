@@ -126,7 +126,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
     html.style.overflow = 'hidden';
     body.style.overflow = 'hidden';
     body.style.height = '100dvh';
-    body.style.backgroundColor = 'var(--bg-body, #0a0a0f)';
+    body.style.backgroundColor = 'var(--bg-body, transparent)';
     return () => {
       html.style.overflow = prev.htmlOverflow;
       body.style.overflow = prev.bodyOverflow;
@@ -136,7 +136,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
   }, []);
 
   return (
-    <Box sx={{ height: '100dvh', bgcolor: 'var(--bg-body, #0a0a0f)', color: 'var(--text-primary, #ffffff)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <Box sx={{ height: '100dvh', bgcolor: 'var(--bg-body, transparent)', color: 'var(--text-primary, currentColor)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <TopBar />
       <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
         <LeftSidebar activeNav={activeNav} onNavChange={handleNavChange} meOpen={meOpen} onMeOpenChange={setMeOpen} />
@@ -182,9 +182,9 @@ function TopBar() {
         gap: 2,
         height: 60,
         px: 3,
-        bgcolor: 'var(--bg-topbar, rgba(10, 10, 15, 0.85))',
+        bgcolor: 'var(--bg-topbar, transparent)',
         backdropFilter: 'blur(12px)',
-        borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+        borderBottom: '1px solid var(--border-color, transparent)',
         flexShrink: 0,
       }}
     >
@@ -206,7 +206,7 @@ function TopBar() {
             input: {
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchIcon sx={{ fontSize: 16, color: 'var(--text-muted, rgba(255,255,255,0.5))' }} />
+                  <SearchIcon sx={{ fontSize: 16, color: 'var(--text-muted, currentColor)' }} />
                 </InputAdornment>
               ),
               endAdornment: (
@@ -221,14 +221,14 @@ function TopBar() {
                       py: 0.25,
                       borderRadius: 1,
                       bgcolor: 'primary.main',
-                      color: 'var(--text-primary, #ffffff)',
+                      color: 'var(--text-primary, currentColor)',
                       fontSize: 11,
                       fontWeight: 600,
                       textTransform: 'none',
                       lineHeight: 1.4,
                       boxShadow: 'none',
                       // 让涟漪在 primary.main 上更明显
-                      '& .MuiTouchRipple-child': { bgcolor: 'rgba(255,255,255,0.45)' },
+                      '& .MuiTouchRipple-child': { bgcolor: 'currentColor' },
                       '&:hover': { bgcolor: 'primary.main', filter: 'brightness(1.1)' },
                     }}
                   >
@@ -237,13 +237,13 @@ function TopBar() {
                 </InputAdornment>
               ),
               sx: {
-                bgcolor: 'var(--border-color, rgba(255,255,255,0.06))',
-                color: 'var(--text-primary, #ffffff)',
+                bgcolor: 'var(--border-color, transparent)',
+                color: 'var(--text-primary, currentColor)',
                 fontSize: 13,
                 borderRadius: 2,
-                '& input::placeholder': { color: 'var(--text-muted, rgba(255,255,255,0.4))', opacity: 1 },
-                '& fieldset': { borderColor: 'var(--border-strong, rgba(255,255,255,0.1))' },
-                '&:hover fieldset': { borderColor: 'var(--text-disabled, rgba(255,255,255,0.2))' },
+                '& input::placeholder': { color: 'var(--text-muted, currentColor)', opacity: 1 },
+                '& fieldset': { borderColor: 'var(--border-strong, transparent)' },
+                '&:hover fieldset': { borderColor: 'var(--text-disabled, currentColor)' },
                 '&.Mui-focused fieldset': { borderColor: 'var(--brand-color, #FE2C55)' },
               },
             },
@@ -263,8 +263,8 @@ function TopBar() {
               px: 1,
               borderRadius: 2,
               textDecoration: 'none',
-              color: 'var(--text-secondary, rgba(255,255,255,0.75))',
-              '&:hover': { bgcolor: 'var(--border-color, rgba(255,255,255,0.06))' },
+              color: 'var(--text-secondary, currentColor)',
+              '&:hover': { bgcolor: 'var(--border-color, transparent)' },
             }}
           >
             <DiamondIcon sx={{ fontSize: 16, color: 'secondary.light' }} />
@@ -283,8 +283,8 @@ function TopBar() {
               px: 1,
               borderRadius: 2,
               textDecoration: 'none',
-              color: 'var(--text-secondary, rgba(255,255,255,0.75))',
-              '&:hover': { bgcolor: 'var(--border-color, rgba(255,255,255,0.06))' },
+              color: 'var(--text-secondary, currentColor)',
+              '&:hover': { bgcolor: 'var(--border-color, transparent)' },
             }}
           >
             <CloudDownloadIcon sx={{ fontSize: 16 }} />
@@ -302,8 +302,8 @@ function TopBar() {
               px: 1,
               borderRadius: 2,
               textDecoration: 'none',
-              color: 'var(--text-secondary, rgba(255,255,255,0.75))',
-              '&:hover': { bgcolor: 'var(--border-color, rgba(255,255,255,0.06))' },
+              color: 'var(--text-secondary, currentColor)',
+              '&:hover': { bgcolor: 'var(--border-color, transparent)' },
             }}
           >
             <AutoAwesomeIcon sx={{ fontSize: 16, color: 'warning.main' }} />
@@ -360,7 +360,7 @@ function Logo() {
               inset: 0,
               borderRadius: '50%',
               border: '1px solid',
-              borderColor: 'rgba(212, 175, 55, 0.4)',
+              borderColor: 'var(--brand-color, transparent)',
               animation: `moon-ripple 3.6s ease-out ${i * 1.2}s infinite`,
               '@keyframes moon-ripple': {
                 '0%': { transform: 'scale(0.4)', opacity: 0.8 },
@@ -386,7 +386,7 @@ function Logo() {
           sx={{
             fontFamily: '"Ma Shan Zheng", "STKaiti", "KaiTi", "STXingkai", "华文行楷", serif',
             fontSize: 22,
-            color: 'var(--text-primary, #ffffff)',
+            color: 'var(--text-primary, currentColor)',
             lineHeight: 1,
             letterSpacing: 4,
             textShadow: '0 0 8px rgba(212, 175, 55, 0.3)',
@@ -398,7 +398,7 @@ function Logo() {
           sx={{
             fontFamily: '"ZCOOL XiaoWei", "Songti SC", "STSong", "SimSun", serif',
             fontSize: 9,
-            color: 'rgba(212, 175, 55, 0.7)',
+            color: 'var(--brand-color, currentColor)',
             letterSpacing: 1.5,
             mt: 0.25,
             lineHeight: 1,
@@ -424,8 +424,8 @@ function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activ
         height: 'calc(100dvh - 60px)',
         display: { xs: 'none', md: 'flex' },
         flexDirection: 'column',
-        borderRight: '1px solid var(--border-color, rgba(255,255,255,0.06))',
-        bgcolor: 'var(--bg-sidebar, rgba(10, 10, 15, 0.5))',
+        borderRight: '1px solid var(--border-color, transparent)',
+        bgcolor: 'var(--bg-sidebar, transparent)',
       }}
     >
       <Box sx={{ flex: 1, py: 1.5, overflow: 'auto' }}>
@@ -442,11 +442,11 @@ function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activ
             py: 1,
             borderRadius: 1.5,
             cursor: 'pointer',
-            color: isActive ? 'var(--text-primary, #ffffff)' : 'var(--text-secondary, rgba(255,255,255,0.65))',
-            bgcolor: isActive ? 'var(--border-color, rgba(255,255,255,0.06))' : 'transparent',
+            color: isActive ? 'var(--text-primary, currentColor)' : 'var(--text-secondary, currentColor)',
+            bgcolor: isActive ? 'var(--border-color, transparent)' : 'transparent',
             transition: 'all 0.15s',
             textDecoration: 'none',
-            '&:hover': { bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))', color: 'var(--text-primary, #ffffff)' },
+            '&:hover': { bgcolor: 'var(--bg-hover, transparent)', color: 'var(--text-primary, currentColor)' },
           };
           const inner = (
             <>
@@ -470,14 +470,14 @@ function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activ
               </Box>
               <Typography sx={{ fontSize: 13, fontWeight: isActive ? 600 : 400, flex: 1 }}>{n.label}</Typography>
               {n.external === '_blank' && (
-                <Box sx={{ fontSize: 9, color: 'var(--text-disabled, rgba(255,255,255,0.3))', ml: 0.5 }}>↗</Box>
+                <Box sx={{ fontSize: 9, color: 'var(--text-disabled, currentColor)', ml: 0.5 }}>↗</Box>
               )}
             </>
           );
           return (
             <React.Fragment key={n.key}>
               {n.dividerBefore && (
-                <Divider sx={{ my: 1, mx: 2, borderColor: 'var(--border-color, rgba(255,255,255,0.06))' }} />
+                <Divider sx={{ my: 1, mx: 2, borderColor: 'var(--border-color, transparent)' }} />
               )}
               {isNewTab ? (
                 <Box component="a" href={n.path} target={n.external} rel="noopener noreferrer" sx={itemSx}>
@@ -492,7 +492,7 @@ function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activ
           );
         })}
       </Box>
-      <Box sx={{ p: 1.5, borderTop: '1px solid var(--border-color, rgba(255,255,255,0.06))' }}>
+      <Box sx={{ p: 1.5, borderTop: '1px solid var(--border-color, transparent)' }}>
         <Box
           ref={settingsBtnRef}
           onClick={() => onMeOpenChange(!meOpen)}
@@ -504,7 +504,7 @@ function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activ
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: meOpen ? ACCENT.purple.main : 'var(--text-muted, rgba(255,255,255,0.5))',
+            color: meOpen ? ACCENT.purple.main : 'var(--text-muted, currentColor)',
             bgcolor: meOpen ? ACCENT.purple.soft12 : 'transparent',
             cursor: 'pointer',
             transition: 'all 0.2s',
@@ -539,18 +539,18 @@ function RightSidebar() {
       <Box
         sx={{
           borderRadius: 2,
-          bgcolor: 'var(--bg-surface, rgba(255,255,255,0.03))',
-          border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+          bgcolor: 'var(--bg-surface, transparent)',
+          border: '1px solid var(--border-color, transparent)',
           overflow: 'hidden',
         }}
       >
         {/* 头部 + tab 切换 */}
         <Box sx={{ display: 'flex', alignItems: 'center', px: 2, pt: 1.5, pb: 0.5 }}>
           <WhatshotIcon sx={{ fontSize: 16, color: 'primary.main', mr: 0.75 }} />
-          <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #ffffff)', flex: 1 }}>
+          <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary, currentColor)', flex: 1 }}>
             实时动态
           </Typography>
-          <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>实时</Typography>
+          <Typography sx={{ fontSize: 10, color: 'var(--text-muted, currentColor)' }}>实时</Typography>
         </Box>
         <Tabs
           value={tab}
@@ -562,11 +562,11 @@ function RightSidebar() {
               minHeight: 32,
               fontSize: 12,
               fontWeight: 500,
-              color: 'var(--text-secondary, rgba(255,255,255,0.55))',
+              color: 'var(--text-secondary, currentColor)',
               textTransform: 'none',
               py: 0.5,
             },
-            '& .Mui-selected': { color: '#FE2C55 !important', fontWeight: 700 },
+            '& .Mui-selected': { color: 'var(--brand-color, currentColor) !important', fontWeight: 700 },
             '& .MuiTabs-indicator': { backgroundColor: 'primary.main', height: 2 },
           }}
         >
@@ -614,7 +614,7 @@ function HotTab() {
             sx={{
               aspectRatio: '16/9',
               borderRadius: 1.5,
-              bgcolor: 'rgba(255,255,255,0.04)',
+              bgcolor: 'action.hover',
             }}
           />
         ))}
@@ -651,7 +651,7 @@ function HotTab() {
             sx={{
               position: 'absolute',
               inset: 0,
-              background: 'radial-gradient(circle at 30% 30%, var(--text-disabled, rgba(255,255,255,0.2)), transparent 60%)',
+              background: 'radial-gradient(circle at 30% 30%, rgba(0,0,0,0.18), transparent 60%)',
             }}
           />
           <Box
@@ -684,13 +684,13 @@ function HotTab() {
               background: IMAGE_OVERLAY.TO_TOP,
             }}
           >
-            <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary, #ffffff)', lineHeight: 1.2 }}>
+            <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary, currentColor)', lineHeight: 1.2 }}>
               {c.title}
             </Typography>
             <Typography
               sx={{
                 fontSize: 10,
-                color: 'var(--text-secondary, rgba(255,255,255,0.7))',
+                color: 'var(--text-secondary, currentColor)',
                 mt: 0.25,
                 lineHeight: 1.2,
                 display: '-webkit-box',
@@ -715,7 +715,7 @@ const GRADIENT_BY_TYPE: Record<string, string> = {
 };
 
 function gradientByType(contentType: string): string {
-  return GRADIENT_BY_TYPE[contentType] ?? 'linear-gradient(135deg, #2D1B4E 0%, #0a0a0f 100%)';
+  return GRADIENT_BY_TYPE[contentType] ?? 'linear-gradient(135deg, #2D1B4E 0%, transparent 100%)';
 }
 
 function CommentTab() {
@@ -730,10 +730,10 @@ function CommentTab() {
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
         {[0, 1, 2].map((i) => (
           <Box key={i} sx={{ display: 'flex', gap: 1 }}>
-            <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: 'var(--bg-hover, rgba(255,255,255,0.05))' }} />
+            <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: 'var(--bg-hover, transparent)' }} />
             <Box sx={{ flex: 1 }}>
-              <Box sx={{ width: '60%', height: 10, borderRadius: 0.5, bgcolor: 'var(--bg-hover, rgba(255,255,255,0.05))', mb: 0.5 }} />
-              <Box sx={{ width: '90%', height: 10, borderRadius: 0.5, bgcolor: 'var(--bg-hover, rgba(255,255,255,0.05))' }} />
+              <Box sx={{ width: '60%', height: 10, borderRadius: 0.5, bgcolor: 'var(--bg-hover, transparent)', mb: 0.5 }} />
+              <Box sx={{ width: '90%', height: 10, borderRadius: 0.5, bgcolor: 'var(--bg-hover, transparent)' }} />
             </Box>
           </Box>
         ))}
@@ -745,20 +745,20 @@ function CommentTab() {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
       {list.map((c) => (
         <Box key={c.id} sx={{ display: 'flex', gap: 1 }}>
-          <Avatar src={c.avatar} sx={{ width: 28, height: 28, fontSize: 11, bgcolor: 'var(--border-color, rgba(255,255,255,0.08))' }}>
+          <Avatar src={c.avatar} sx={{ width: 28, height: 28, fontSize: 11, bgcolor: 'var(--border-color, transparent)' }}>
             {c.user?.[0] || 'U'}
           </Avatar>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.25 }}>
-              <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary, rgba(255,255,255,0.85))' }}>
+              <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary, currentColor)' }}>
                 {c.user}
               </Typography>
-              <Typography sx={{ fontSize: 9, color: 'var(--text-muted, rgba(255,255,255,0.35))' }}>{c.time}</Typography>
+              <Typography sx={{ fontSize: 9, color: 'var(--text-muted, currentColor)' }}>{c.time}</Typography>
             </Box>
-            <Typography sx={{ fontSize: 11, color: 'var(--text-secondary, rgba(255,255,255,0.7))', lineHeight: 1.4, mb: 0.25 }}>
+            <Typography sx={{ fontSize: 11, color: 'var(--text-secondary, currentColor)', lineHeight: 1.4, mb: 0.25 }}>
               {c.text}
             </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'var(--text-muted, currentColor)' }}>
               <FavoriteBorderRoundedIcon sx={{ fontSize: 11 }} />
               <Typography sx={{ fontSize: 10 }}>{c.likes}</Typography>
             </Box>
@@ -780,7 +780,7 @@ function RelatedTab() {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
         {[0, 1, 2].map((i) => (
-          <Box key={i} sx={{ height: 70, borderRadius: 1.5, bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))' }} />
+          <Box key={i} sx={{ height: 70, borderRadius: 1.5, bgcolor: 'var(--bg-hover, transparent)' }} />
         ))}
       </Box>
     );
@@ -798,7 +798,7 @@ function RelatedTab() {
             p: 0.5,
             borderRadius: 1.5,
             transition: 'background 0.15s',
-            '&:hover': { bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))' },
+            '&:hover': { bgcolor: 'var(--bg-hover, transparent)' },
           }}
         >
           <Box
@@ -809,7 +809,7 @@ function RelatedTab() {
               flexShrink: 0,
               borderRadius: 1.25,
               overflow: 'hidden',
-              bgcolor: 'var(--border-color, rgba(255,255,255,0.06))',
+              bgcolor: 'var(--border-color, transparent)',
             }}
           >
             <Box
@@ -827,7 +827,7 @@ function RelatedTab() {
                 py: 0.05,
                 borderRadius: 0.5,
                 bgcolor: 'rgba(0, 0, 0, 0.6)',
-                color: 'var(--text-primary, #ffffff)',
+                color: 'var(--text-primary, currentColor)',
                 fontSize: 9,
                 fontVariantNumeric: 'tabular-nums',
               }}
@@ -840,7 +840,7 @@ function RelatedTab() {
               sx={{
                 fontSize: 12,
                 fontWeight: 600,
-                color: 'var(--text-primary, #ffffff)',
+                color: 'var(--text-primary, currentColor)',
                 lineHeight: 1.3,
                 display: '-webkit-box',
                 WebkitLineClamp: 2,
@@ -855,9 +855,9 @@ function RelatedTab() {
                 <Avatar src={item.authorAvatar} sx={{ width: 14, height: 14, fontSize: 8 }}>
                   {item.author?.[0]}
                 </Avatar>
-                <Typography sx={{ fontSize: 10, color: 'var(--text-secondary, rgba(255,255,255,0.55))' }}>{item.author}</Typography>
+                <Typography sx={{ fontSize: 10, color: 'var(--text-secondary, currentColor)' }}>{item.author}</Typography>
               </Box>
-              <Typography sx={{ fontSize: 9, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
+              <Typography sx={{ fontSize: 9, color: 'var(--text-muted, currentColor)' }}>
                 {formatViews(item.views)} 播放 · {formatLikes(item.likes)} 赞
               </Typography>
             </Box>

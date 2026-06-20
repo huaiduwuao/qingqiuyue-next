@@ -127,16 +127,21 @@ export default function LoginPage() {
         fontFamily: '"PingFang SC", "Microsoft YaHei", system-ui, sans-serif',
       }}
     >
-      {/* 抖音风 aurora 渐变背景 */}
+      {/* 抖音风 aurora 渐变背景 — 在两种模式下都保留(装饰性),但 light 模式下减弱 */}
       <Box
         sx={{
           position: 'absolute',
           inset: 0,
-          background:
-            'radial-gradient(ellipse 60% 50% at 20% 10%, rgba(139, 92, 246, 0.22) 0%, transparent 60%), ' +
-            'radial-gradient(ellipse 50% 40% at 85% 5%, rgba(91, 141, 239, 0.18) 0%, transparent 60%), ' +
-            'radial-gradient(ellipse 80% 30% at 50% 0%, rgba(254, 44, 85, 0.10) 0%, transparent 70%), ' +
-            'radial-gradient(ellipse 40% 30% at 90% 90%, rgba(212, 175, 55, 0.10) 0%, transparent 70%)',
+          background: (theme) =>
+            theme.palette.mode === 'dark'
+              ? 'radial-gradient(ellipse 60% 50% at 20% 10%, rgba(139, 92, 246, 0.22) 0%, transparent 60%), ' +
+                'radial-gradient(ellipse 50% 40% at 85% 5%, rgba(91, 141, 239, 0.18) 0%, transparent 60%), ' +
+                'radial-gradient(ellipse 80% 30% at 50% 0%, rgba(254, 44, 85, 0.10) 0%, transparent 70%), ' +
+                'radial-gradient(ellipse 40% 30% at 90% 90%, rgba(212, 175, 55, 0.10) 0%, transparent 70%)'
+              : 'radial-gradient(ellipse 60% 50% at 20% 10%, rgba(139, 92, 246, 0.10) 0%, transparent 60%), ' +
+                'radial-gradient(ellipse 50% 40% at 85% 5%, rgba(91, 141, 239, 0.08) 0%, transparent 60%), ' +
+                'radial-gradient(ellipse 80% 30% at 50% 0%, rgba(254, 44, 85, 0.06) 0%, transparent 70%), ' +
+                'radial-gradient(ellipse 40% 30% at 90% 90%, rgba(212, 175, 55, 0.06) 0%, transparent 70%)',
           pointerEvents: 'none',
         }}
       />
@@ -145,9 +150,12 @@ export default function LoginPage() {
         sx={{
           position: 'absolute',
           inset: 0,
-          backgroundImage:
-            'linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), ' +
-            'linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)',
+          backgroundImage: (theme) =>
+            theme.palette.mode === 'dark'
+              ? 'linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), ' +
+                'linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px)'
+              : 'linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px), ' +
+                'linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px)',
           backgroundSize: '40px 40px',
           maskImage: 'radial-gradient(ellipse 70% 60% at 50% 50%, #000 30%, transparent 80%)',
           pointerEvents: 'none',
@@ -161,10 +169,15 @@ export default function LoginPage() {
           maxWidth: 420,
           mx: 2,
           borderRadius: 3,
-          bgcolor: 'rgba(20, 22, 32, 0.55)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
+          bgcolor: (theme) =>
+            theme.palette.mode === 'dark' ? 'rgba(20, 22, 32, 0.55)' : 'rgba(255, 255, 255, 0.85)',
+          border: (theme) =>
+            theme.palette.mode === 'dark' ? '1px solid rgba(255, 255, 255, 0.08)' : '1px solid rgba(0, 0, 0, 0.08)',
           backdropFilter: 'blur(20px)',
-          boxShadow: '0 24px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.02) inset',
+          boxShadow: (theme) =>
+            theme.palette.mode === 'dark'
+              ? '0 24px 48px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.02) inset'
+              : '0 24px 48px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.04) inset',
           overflow: 'hidden',
         }}
       >
@@ -444,16 +457,25 @@ function DarkTextField(props: TextFieldProps) {
       variant="outlined"
       size="medium"
       slotProps={{
-        inputLabel: { sx: { color: 'rgba(255,255,255,0.5)', fontSize: 13 } },
+        inputLabel: {
+          sx: {
+            color: (t: any) => (t.palette.mode === 'dark' ? 'rgba(255,255,255,0.5)' : 'text.secondary'),
+            fontSize: 13,
+          },
+        },
         htmlInput: { sx: { color: 'text.primary', fontSize: 14, padding: '14px 14px' } },
       }}
       sx={{
         '& .MuiOutlinedInput-root': {
           borderRadius: 1.5,
-          bgcolor: 'rgba(255,255,255,0.03)',
+          bgcolor: (t: any) => (t.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'),
           transition: 'all 0.2s',
-          '& fieldset': { borderColor: 'rgba(255,255,255,0.08)' },
-          '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.18)' },
+          '& fieldset': {
+            borderColor: (t: any) => (t.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.18)'),
+          },
+          '&:hover fieldset': {
+            borderColor: (t: any) => (t.palette.mode === 'dark' ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.4)'),
+          },
           '&.Mui-focused': {
             bgcolor: 'rgba(254, 44, 85, 0.05)',
           },

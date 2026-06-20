@@ -31,6 +31,7 @@ export default function SystemRolePage() {
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
   const { can } = useAuthority();
   const [formValues, setFormValues] = useState<any>({});
+  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
 
   const showMessage = (message: string, severity: 'success' | 'error' = 'success') => setSnackbar({ open: true, message, severity });
@@ -132,6 +133,16 @@ export default function SystemRolePage() {
         }}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        filters={{
+          fields: [
+            { key: 'name', label: '名称', type: 'text' },
+            { key: 'code', label: '代码', type: 'text' },
+            { key: 'status', label: '状态', type: 'select', options: [{ label: '启用', value: 1 }, { label: '禁用', value: 0 }] },
+          ],
+          values: filterValues,
+          onChange: setFilterValues,
+          onReset: () => setFilterValues({}),
+        }}
         toolBarRender={() => (
           <PermissionGuard need={PERMISSIONS.SYSTEM_ROLE.CREATE}>
             <Button

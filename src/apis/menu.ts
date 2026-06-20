@@ -1,13 +1,20 @@
 import { adminClient } from '@/lib/api/client';
 import { MenuItem } from '@/beans/system';
 
+export interface MenuListParams {
+  page?: number;
+  pageSize?: number;
+  pageNumber?: number;
+  name?: string;
+}
+
 // 获取当前用户菜单 - GET /api/core/menu/me
 export async function getMenuData(params?: any) {
   return adminClient('/menu/me', { params });
 }
 
 // 获取菜单列表 - GET /api/core/menu/list
-export async function list(params?: any) {
+export async function list(params?: MenuListParams) {
   return adminClient('/menu/list', { params });
 }
 

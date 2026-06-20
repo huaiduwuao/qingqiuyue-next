@@ -1,15 +1,18 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
 import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
+import TextField from '@mui/material/TextField';
+import InputAdornment from '@mui/material/InputAdornment';
 import ChatIcon from '@mui/icons-material/Chat';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
+import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import { wxClient } from '@/lib/api/client';
 
 interface WxConfig {
@@ -31,6 +34,15 @@ export default function WxConfigPage() {
     }).then((r: any) => (r?.data?.list as WxConfig[]) || []),
   });
   const [selected, setSelected] = useState<WxConfig | null>(null);
+  const [nameFilter, setNameFilter] = useState('');
+
+  const filteredConfigs = useMemo(() => {
+    if (!nameFilter) return configs;
+    const k = nameFilter.toLowerCase();
+    return configs.filter(
+      (c) => c.appName?.toLowerCase().includes(k) || c.appId?.toLowerCase().includes(k),
+    );
+  }, [configs, nameFilter]);
 
   return (
     <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3, maxWidth: 1200, mx: 'auto' }}>
@@ -44,8 +56,28 @@ export default function WxConfigPage() {
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '320px 1fr' }, gap: 3 }}>
         {/* 左侧公众号列表 */}
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          {configs.map((c) => {
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          <TextField
+            size="small"
+            placeholder="搜索公众号名称 / AppID"
+            value={nameFilter}
+            onChange={(e) => setNameFilter(e.target.value)}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchRoundedIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
+          {filteredConfigs.length === 0 && (
+            <Typography sx={{ fontSize: 12, color: 'text.secondary', textAlign: 'center', py: 2 }}>
+              暂无匹配的公众号
+            </Typography>
+          )}
+          {filteredConfigs.map((c) => {
             const isSel = selected?.id === c.id;
             return (
               <Box

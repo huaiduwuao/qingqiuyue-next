@@ -86,6 +86,7 @@ export default function SystemBotPage() {
     message: '',
     severity: 'success',
   });
+  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
   const actionRef = useRef<{ reload: () => void } | null>(null);
 
   const showMessage = (message: string, severity: 'success' | 'error' = 'success') =>
@@ -171,6 +172,19 @@ export default function SystemBotPage() {
         }}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        filters={{
+          fields: [
+            { key: 'name', label: '名称', type: 'text' },
+            { key: 'status', label: '状态', type: 'select', options: [
+              { label: 'active', value: 'active' },
+              { label: 'paused', value: 'paused' },
+              { label: 'banned', value: 'banned' },
+            ] },
+          ],
+          values: filterValues,
+          onChange: setFilterValues,
+          onReset: () => setFilterValues({}),
+        }}
         toolBarRender={() => (
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Button variant="contained" startIcon={<AddIcon />} onClick={handleAdd}>

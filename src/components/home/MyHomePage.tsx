@@ -278,7 +278,7 @@ export function MyHomePage() {
       sx={{
         position: 'relative',
         minHeight: '100%',
-        bgcolor: 'var(--bg-body, #0A0B14)',
+        bgcolor: 'var(--bg-body, transparent)',
         overflow: 'hidden',
       }}
     >
@@ -302,7 +302,7 @@ export function MyHomePage() {
             p: 2.5,
             borderRadius: 2.5,
             bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))',
-            border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+            border: '1px solid var(--border-color, transparent)',
             backdropFilter: 'blur(8px)',
             mb: 2,
           }}
@@ -345,7 +345,7 @@ export function MyHomePage() {
 
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
-              <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary, #ffffff)' }}>
+              <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary, currentColor)' }}>
                 {profile?.user?.nickname || currentUser?.nickname || currentUser?.name || '怀独无傲'}
               </Typography>
               <Box sx={{ width: 16, height: 16, borderRadius: 0.5, bgcolor: 'rgba(255,180,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -355,8 +355,8 @@ export function MyHomePage() {
 
             <Box sx={{ display: 'flex', gap: 2.5, mb: 1, flexWrap: 'wrap' }}>
               <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, cursor: 'pointer' }}>
-                <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.5))' }}>关注</Typography>
-                <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #ffffff)' }}>{profile?.stats?.following ?? '—'}</Typography>
+                <Typography sx={{ fontSize: 11, color: 'var(--text-muted, currentColor)' }}>关注</Typography>
+                <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, currentColor)' }}>{profile?.stats?.following ?? '—'}</Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
@@ -365,17 +365,17 @@ export function MyHomePage() {
                 </Box>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, cursor: 'pointer' }}>
-                <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.5))' }}>粉丝</Typography>
-                <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #ffffff)' }}>{profile?.stats?.followers ?? '—'}</Typography>
+                <Typography sx={{ fontSize: 11, color: 'var(--text-muted, currentColor)' }}>粉丝</Typography>
+                <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, currentColor)' }}>{profile?.stats?.followers ?? '—'}</Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, cursor: 'pointer' }}>
-                <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.5))' }}>获赞</Typography>
-                <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #ffffff)' }}>{profile?.stats?.likes ?? 0}</Typography>
+                <Typography sx={{ fontSize: 11, color: 'var(--text-muted, currentColor)' }}>获赞</Typography>
+                <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, currentColor)' }}>{profile?.stats?.likes ?? 0}</Typography>
               </Box>
             </Box>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
-              <Typography sx={{ fontSize: 12, color: 'var(--text-secondary, rgba(255,255,255,0.55))' }}>抖音号: {profile?.user?.douyinId ?? '—'}</Typography>
+              <Typography sx={{ fontSize: 12, color: 'var(--text-secondary, currentColor)' }}>抖音号: {profile?.user?.douyinId ?? '—'}</Typography>
               {profile?.user?.age != null && (
                 <Box sx={{ px: 0.75, py: 0.125, borderRadius: 0.75, bgcolor: 'rgba(91, 141, 239, 0.15)', border: '1px solid rgba(91, 141, 239, 0.3)' }}>
                   <Typography sx={{ fontSize: 10, color: ACCENT.blue.main, fontWeight: 600 }}>{profile.user.age}岁</Typography>
@@ -389,7 +389,7 @@ export function MyHomePage() {
             </Box>
 
             {profile?.user?.bio && (
-              <Typography sx={{ fontSize: 12, color: 'var(--text-secondary, rgba(255,255,255,0.6))', mt: 0.5 }}>
+              <Typography sx={{ fontSize: 12, color: 'var(--text-secondary, currentColor)', mt: 0.5 }}>
                 {profile.user.bio}
               </Typography>
             )}
@@ -401,7 +401,7 @@ export function MyHomePage() {
                 variant="outlined"
                 startIcon={<EditRoundedIcon sx={{ fontSize: 14 }} />}
                 onClick={() => setEditOpen(true)}
-                sx={{ textTransform: 'none', fontSize: 11, borderRadius: 1.5, borderColor: 'var(--border-strong, rgba(255,255,255,0.12))', color: 'text.secondary' }}
+                sx={{ textTransform: 'none', fontSize: 11, borderRadius: 1.5, borderColor: 'var(--border-strong, transparent)', color: 'text.secondary' }}
               >
                 编辑资料
               </Button>
@@ -417,7 +417,7 @@ export function MyHomePage() {
                     setToast('主页链接已复制');
                   }
                 }}
-                sx={{ textTransform: 'none', fontSize: 11, borderRadius: 1.5, borderColor: 'var(--border-strong, rgba(255,255,255,0.12))', color: 'text.secondary' }}
+                sx={{ textTransform: 'none', fontSize: 11, borderRadius: 1.5, borderColor: 'var(--border-strong, transparent)', color: 'text.secondary' }}
               >
                 分享
               </Button>
@@ -426,7 +426,7 @@ export function MyHomePage() {
                 variant="outlined"
                 startIcon={<QrCodeRoundedIcon sx={{ fontSize: 14 }} />}
                 onClick={() => setQrOpen(true)}
-                sx={{ textTransform: 'none', fontSize: 11, borderRadius: 1.5, borderColor: 'var(--border-strong, rgba(255,255,255,0.12))', color: 'text.secondary' }}
+                sx={{ textTransform: 'none', fontSize: 11, borderRadius: 1.5, borderColor: 'var(--border-strong, transparent)', color: 'text.secondary' }}
               >
                 二维码
               </Button>
@@ -444,7 +444,7 @@ export function MyHomePage() {
             p: 1.5,
             borderRadius: 2.5,
             bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))',
-            border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+            border: '1px solid var(--border-color, transparent)',
             backdropFilter: 'blur(8px)',
           }}
         >
@@ -462,13 +462,13 @@ export function MyHomePage() {
                 cursor: 'pointer',
                 textDecoration: 'none',
                 transition: 'all 0.15s',
-                '&:hover': { bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))' },
+                '&:hover': { bgcolor: 'var(--bg-hover, transparent)' },
               }}
             >
               <Box sx={{ color: 'primary.main', display: 'flex' }}>{q.icon}</Box>
               <Typography sx={{ fontSize: 12, color: 'text.primary', flex: 1 }}>{q.label}</Typography>
               {q.badge && (
-                <Box sx={{ px: 0.75, py: 0.125, borderRadius: 0.75, bgcolor: q.badge === 'VIP' ? 'warning.main' : 'rgba(255,255,255,0.06)', color: q.badge === 'VIP' ? '#1a1a1a' : 'text.secondary', fontSize: 10, fontWeight: 700 }}>
+                <Box sx={{ px: 0.75, py: 0.125, borderRadius: 0.75, bgcolor: q.badge === 'VIP' ? 'warning.main' : 'action.hover', color: q.badge === 'VIP' ? '#1a1a1a' : 'text.secondary', fontSize: 10, fontWeight: 700 }}>
                   {q.badge}
                 </Box>
               )}
@@ -483,7 +483,7 @@ export function MyHomePage() {
             alignItems: 'center',
             gap: 0.5,
             mb: 2,
-            borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+            borderBottom: '1px solid var(--border-color, transparent)',
             pb: 0,
             overflowX: 'auto',
             '&::-webkit-scrollbar': { display: 'none' },
@@ -502,7 +502,7 @@ export function MyHomePage() {
                   px: 1.5,
                   py: 1.25,
                   cursor: 'pointer',
-                  color: isActive ? 'var(--text-primary, #ffffff)' : 'var(--text-secondary, rgba(255,255,255,0.55))',
+                  color: isActive ? 'var(--text-primary, currentColor)' : 'var(--text-secondary, currentColor)',
                   fontSize: 13,
                   fontWeight: isActive ? 600 : 400,
                   borderBottom: '2px solid',
@@ -510,7 +510,7 @@ export function MyHomePage() {
                   mb: '-1px',
                   transition: 'all 0.15s',
                   whiteSpace: 'nowrap',
-                  '&:hover': { color: 'var(--text-primary, #ffffff)' },
+                  '&:hover': { color: 'var(--text-primary, currentColor)' },
                 }}
               >
                 {t.icon}
@@ -552,13 +552,13 @@ export function MyHomePage() {
               onClick={enterBatchMode}
               disabled={filteredList.length === 0}
               sx={{
-                borderColor: 'var(--border-strong, rgba(255,255,255,0.12))',
-                color: 'var(--text-secondary, rgba(255,255,255,0.7))',
+                borderColor: 'var(--border-strong, transparent)',
+                color: 'var(--text-secondary, currentColor)',
                 textTransform: 'none',
                 fontSize: 12,
                 borderRadius: 1.5,
-                '&:hover': { borderColor: 'var(--border-strong, rgba(255,255,255,0.24))', bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))' },
-                '&.Mui-disabled': { color: 'var(--text-disabled, rgba(255,255,255,0.3))', borderColor: 'var(--border-color, rgba(255,255,255,0.04))' },
+                '&:hover': { borderColor: 'var(--border-strong, transparent)', bgcolor: 'var(--bg-hover, transparent)' },
+                '&.Mui-disabled': { color: 'var(--text-disabled, currentColor)', borderColor: 'var(--border-color, transparent)' },
               }}
             >
               批量管理
@@ -583,12 +583,12 @@ export function MyHomePage() {
                       cursor: 'pointer',
                       fontSize: 12,
                       fontWeight: isActive ? 600 : 400,
-                      color: isActive ? '#fff' : 'var(--text-secondary, rgba(255,255,255,0.65))',
-                      bgcolor: isActive ? 'primary.main' : 'var(--bg-hover, rgba(255,255,255,0.04))',
+                      color: isActive ? '#fff' : 'var(--text-secondary, currentColor)',
+                      bgcolor: isActive ? 'primary.main' : 'var(--bg-hover, transparent)',
                       border: '1px solid',
-                      borderColor: isActive ? 'primary.main' : 'var(--border-color, rgba(255,255,255,0.06))',
+                      borderColor: isActive ? 'primary.main' : 'var(--border-color, transparent)',
                       transition: 'all 0.15s',
-                      '&:hover': { borderColor: isActive ? 'primary.main' : 'var(--border-color, rgba(255,255,255,0.16))' },
+                      '&:hover': { borderColor: isActive ? 'primary.main' : 'var(--border-color, transparent)' },
                     }}
                   >
                     {t.label}
@@ -608,16 +608,16 @@ export function MyHomePage() {
                 input: {
                   startAdornment: (
                     <InputAdornment position="start">
-                      <SearchIcon sx={{ fontSize: 14, color: 'var(--text-muted, rgba(255,255,255,0.4))' }} />
+                      <SearchIcon sx={{ fontSize: 14, color: 'var(--text-muted, currentColor)' }} />
                     </InputAdornment>
                   ),
                   sx: {
-                    bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))',
-                    color: 'var(--text-primary, #ffffff)',
+                    bgcolor: 'var(--bg-hover, transparent)',
+                    color: 'var(--text-primary, currentColor)',
                     fontSize: 12,
                     borderRadius: 1.5,
-                    '& input::placeholder': { color: 'var(--text-muted, rgba(255,255,255,0.4))', opacity: 1 },
-                    '& fieldset': { borderColor: 'var(--border-color, rgba(255,255,255,0.08))' },
+                    '& input::placeholder': { color: 'var(--text-muted, currentColor)', opacity: 1 },
+                    '& fieldset': { borderColor: 'var(--border-color, transparent)' },
                   },
                 },
               }}
@@ -629,12 +629,12 @@ export function MyHomePage() {
               startIcon={<CalendarMonthIcon sx={{ fontSize: 14 }} />}
               onClick={(e) => setDateMenuAnchor(e.currentTarget)}
               sx={{
-                borderColor: 'var(--border-strong, rgba(255,255,255,0.12))',
-                color: 'var(--text-secondary, rgba(255,255,255,0.7))',
+                borderColor: 'var(--border-strong, transparent)',
+                color: 'var(--text-secondary, currentColor)',
                 textTransform: 'none',
                 fontSize: 12,
                 borderRadius: 1.5,
-                '&:hover': { borderColor: 'var(--border-strong, rgba(255,255,255,0.24))', bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))' },
+                '&:hover': { borderColor: 'var(--border-strong, transparent)', bgcolor: 'var(--bg-hover, transparent)' },
               }}
             >
               {DATE_RANGES.find((d) => d.key === dateRange)?.label || '日期筛选'}
@@ -659,7 +659,7 @@ export function MyHomePage() {
                     minWidth: 120,
                     color: dateRange === d.key ? 'primary.main' : 'text.primary',
                     fontWeight: dateRange === d.key ? 600 : 400,
-                    '&:hover': { bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))' },
+                    '&:hover': { bgcolor: 'var(--bg-hover, transparent)' },
                   }}
                 >
                   {d.label}
@@ -782,9 +782,9 @@ function WorkGridView({
               cursor: 'pointer',
               bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))',
               border: '1px solid',
-              borderColor: isSelected ? 'primary.main' : 'var(--border-color, rgba(255,255,255,0.06))',
+              borderColor: isSelected ? 'primary.main' : 'var(--border-color, transparent)',
               transition: 'all 0.2s',
-              '&:hover': { transform: 'translateY(-2px)', borderColor: isSelected ? 'primary.main' : 'var(--border-strong, rgba(255,255,255,0.16))' },
+              '&:hover': { transform: 'translateY(-2px)', borderColor: isSelected ? 'primary.main' : 'var(--border-strong, transparent)' },
             }}
           >
             {batchMode && (
@@ -793,7 +793,7 @@ function WorkGridView({
                   size="small"
                   checked={isSelected}
                   onClick={(e) => { e.stopPropagation(); onToggle(it.id); }}
-                  sx={{ color: 'rgba(255,255,255,0.6)', p: 0.25, bgcolor: 'rgba(0,0,0,0.5)', borderRadius: 1 }}
+                  sx={{ color: 'text.secondary', p: 0.25, bgcolor: 'rgba(0,0,0,0.5)', borderRadius: 1 }}
                 />
               </Box>
             )}
@@ -867,12 +867,12 @@ function CollectionGridView({ list, batchMode, selected, onToggle }: { list: MyC
               cursor: 'pointer',
               bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))',
               border: '1px solid',
-              borderColor: isSelected ? 'primary.main' : 'var(--border-color, rgba(255,255,255,0.06))',
+              borderColor: isSelected ? 'primary.main' : 'var(--border-color, transparent)',
               display: 'flex',
               gap: 1.25,
               alignItems: 'center',
               transition: 'all 0.15s',
-              '&:hover': { borderColor: isSelected ? 'primary.main' : 'var(--border-strong, rgba(255,255,255,0.16))' },
+              '&:hover': { borderColor: isSelected ? 'primary.main' : 'var(--border-strong, transparent)' },
             }}
           >
             {batchMode && (
@@ -915,9 +915,9 @@ function HistoryListView({ list, batchMode, selected, onToggle, onClick }: { lis
               cursor: 'pointer',
               bgcolor: isSelected ? 'rgba(254,44,85,0.08)' : 'var(--bg-surface, rgba(20, 22, 32, 0.6))',
               border: '1px solid',
-              borderColor: isSelected ? 'primary.main' : 'var(--border-color, rgba(255,255,255,0.04))',
+              borderColor: isSelected ? 'primary.main' : 'var(--border-color, transparent)',
               transition: 'all 0.15s',
-              '&:hover': { borderColor: isSelected ? 'primary.main' : 'var(--border-strong, rgba(255,255,255,0.12))' },
+              '&:hover': { borderColor: isSelected ? 'primary.main' : 'var(--border-strong, transparent)' },
             }}
           >
             {batchMode && (
@@ -962,9 +962,9 @@ function LaterGridView({ list, batchMode, selected, onToggle, onClick }: { list:
               cursor: 'pointer',
               bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))',
               border: '1px solid',
-              borderColor: isSelected ? 'primary.main' : 'var(--border-color, rgba(255,255,255,0.06))',
+              borderColor: isSelected ? 'primary.main' : 'var(--border-color, transparent)',
               transition: 'all 0.15s',
-              '&:hover': { borderColor: isSelected ? 'primary.main' : 'var(--border-strong, rgba(255,255,255,0.16))' },
+              '&:hover': { borderColor: isSelected ? 'primary.main' : 'var(--border-strong, transparent)' },
             }}
           >
             {batchMode && (
@@ -1010,9 +1010,9 @@ function AppointmentListView({ list, onClick }: { list: MyItem[]; onClick: (it: 
             borderRadius: 2,
             cursor: 'pointer',
             bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))',
-            border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+            border: '1px solid var(--border-color, transparent)',
             transition: 'all 0.15s',
-            '&:hover': { borderColor: 'var(--border-strong, rgba(255,255,255,0.12))' },
+            '&:hover': { borderColor: 'var(--border-strong, transparent)' },
           }}
         >
           <Box sx={{ width: 72, height: 72, borderRadius: 1.5, overflow: 'hidden', flexShrink: 0, position: 'relative' }}>
@@ -1067,7 +1067,7 @@ function AINoteListView({ list, batchMode, selected, onToggle }: { list: MyItem[
               cursor: 'pointer',
               bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))',
               border: '1px solid',
-              borderColor: isSelected ? 'primary.main' : 'var(--border-color, rgba(255,255,255,0.06))',
+              borderColor: isSelected ? 'primary.main' : 'var(--border-color, transparent)',
             }}
             onClick={() => batchMode && onToggle(it.id)}
           >
@@ -1091,7 +1091,7 @@ function AINoteListView({ list, batchMode, selected, onToggle }: { list: MyItem[
                 <Box sx={{ px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(139,92,246,0.15)', color: ACCENT.purple.main, fontSize: 10, fontWeight: 600 }}>
                   AI 摘要
                 </Box>
-                <Box sx={{ px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(255,255,255,0.06)', color: 'text.secondary', fontSize: 10 }}>
+                <Box sx={{ px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'action.hover', color: 'text.secondary', fontSize: 10 }}>
                   {Math.floor(it.likes / 5)} 条引用
                 </Box>
               </Box>
@@ -1132,19 +1132,19 @@ function EmptyState({ tab, subTab }: { tab: string; subTab: string }) {
           width: 88,
           height: 88,
           borderRadius: 2.5,
-          bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))',
-          border: '1px solid var(--border-color, rgba(255,255,255,0.08))',
+          bgcolor: 'var(--bg-hover, transparent)',
+          border: '1px solid var(--border-color, transparent)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <FolderIcon sx={{ fontSize: 44, color: 'var(--text-disabled, rgba(255,255,255,0.25))' }} />
+        <FolderIcon sx={{ fontSize: 44, color: 'var(--text-disabled, currentColor)' }} />
       </Box>
-      <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary, rgba(255,255,255,0.7))', mt: 1 }}>
+      <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary, currentColor)', mt: 1 }}>
         {c.title}
       </Typography>
-      <Typography sx={{ fontSize: 12, color: 'var(--text-muted, rgba(255,255,255,0.4))', textAlign: 'center' }}>
+      <Typography sx={{ fontSize: 12, color: 'var(--text-muted, currentColor)', textAlign: 'center' }}>
         {c.hint}
       </Typography>
       {c.cta && (
@@ -1205,12 +1205,12 @@ function EditProfileDrawer({
 
   const fieldSx = {
     '& .MuiOutlinedInput-root': {
-      bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))',
+      bgcolor: 'var(--bg-hover, transparent)',
       color: 'text.primary',
       fontSize: 13,
       borderRadius: 1.5,
-      '& fieldset': { borderColor: 'var(--border-color, rgba(255,255,255,0.08))' },
-      '&:hover fieldset': { borderColor: 'var(--border-strong, rgba(255,255,255,0.18))' },
+      '& fieldset': { borderColor: 'var(--border-color, transparent)' },
+      '&:hover fieldset': { borderColor: 'var(--border-strong, transparent)' },
       '&.Mui-focused fieldset': { borderColor: 'primary.main' },
     },
     '& .MuiInputLabel-root': { color: 'text.secondary', fontSize: 13 },
@@ -1252,7 +1252,7 @@ function EditProfileDrawer({
             </Stack>
           </Box>
 
-          <Divider sx={{ borderColor: 'var(--border-color, rgba(255,255,255,0.06))' }} />
+          <Divider sx={{ borderColor: 'var(--border-color, transparent)' }} />
 
           <TextField
             label="昵称"
@@ -1333,8 +1333,8 @@ function EditProfileDrawer({
                         py: 0.75,
                         fontSize: 12,
                         cursor: 'pointer',
-                        bgcolor: region === r ? 'var(--bg-hover, rgba(255,255,255,0.06))' : 'transparent',
-                        '&:hover': { bgcolor: 'var(--bg-hover, rgba(255,255,255,0.06))' },
+                        bgcolor: region === r ? 'var(--bg-hover, transparent)' : 'transparent',
+                        '&:hover': { bgcolor: 'var(--bg-hover, transparent)' },
                       }}
                     >
                       {r}
@@ -1440,8 +1440,12 @@ function QrCodeDialog({
         paper: {
           sx: {
             borderRadius: 3,
-            background: 'linear-gradient(180deg, #15171F 0%, #0A0B14 100%)',
-            border: '1px solid rgba(255,255,255,0.08)',
+            background: (t: any) =>
+              t.palette.mode === 'dark'
+                ? 'linear-gradient(180deg, #15171F 0%, #0A0B14 100%)'
+                : 'background.paper',
+            border: (t: any) =>
+              t.palette.mode === 'dark' ? '1px solid rgba(255,255,255,0.08)' : `1px solid ${t.palette.divider}`,
             overflow: 'hidden',
           },
         },
@@ -1462,7 +1466,7 @@ function QrCodeDialog({
 
         <Stack spacing={2.5} sx={{ px: 3, pb: 3, pt: 1.5, alignItems: 'center' }}>
           {/* 头像 + 名字 */}
-          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', width: '100%', p: 1.5, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', width: '100%', p: 1.5, borderRadius: 2, bgcolor: 'action.hover', border: '1px solid var(--border-color, transparent)' }}>
             <Avatar src={avatarSrc} sx={{ width: 48, height: 48, border: '2px solid', borderColor: 'warning.main' }}>
               {nickname[0]}
             </Avatar>
@@ -1532,7 +1536,7 @@ function QrCodeDialog({
               size="small"
               startIcon={<DownloadRoundedIcon sx={{ fontSize: 16 }} />}
               onClick={handleSave}
-              sx={{ textTransform: 'none', fontSize: 12, borderRadius: 1.5, borderColor: 'rgba(255,255,255,0.12)', color: 'text.secondary' }}
+              sx={{ textTransform: 'none', fontSize: 12, borderRadius: 1.5, borderColor: 'action.selected', color: 'text.secondary' }}
             >
               保存图片
             </Button>
@@ -1542,7 +1546,7 @@ function QrCodeDialog({
               size="small"
               startIcon={<LinkRoundedIcon sx={{ fontSize: 16 }} />}
               onClick={handleCopyLink}
-              sx={{ textTransform: 'none', fontSize: 12, borderRadius: 1.5, borderColor: 'rgba(255,255,255,0.12)', color: 'text.secondary' }}
+              sx={{ textTransform: 'none', fontSize: 12, borderRadius: 1.5, borderColor: 'action.selected', color: 'text.secondary' }}
             >
               复制链接
             </Button>

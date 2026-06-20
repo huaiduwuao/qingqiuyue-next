@@ -6,6 +6,7 @@ import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import { GridColDef, GridPaginationModel, GridSortModel, GridRowId } from '@mui/x-data-grid';
+import { FilterBar, FilterBarProps } from './FilterBar';
 
 const DataGrid = lazy(() => import('@mui/x-data-grid').then(mod => ({ default: mod.DataGrid })));
 
@@ -28,6 +29,12 @@ interface DataGridTableProps {
    * Serialized as a dep key — pass primitives only (string/number/boolean).
    */
   extraParams?: Record<string, string | number | boolean | undefined | null>;
+  /**
+   * Optional FilterBar configuration. When provided, the FilterBar is rendered
+   * above the table toolbar. filter values are merged into `extraParams` and
+   * auto-refetched on change.
+   */
+  filters?: FilterBarProps;
   /** 操作列权限码 — 不传则不限制 */
   actionPermissions?: { edit?: string; delete?: string };
   /** 拥有 edit/delete 权限的判断函数;不传则永远 true(交给 actionPermissions 控制) */
@@ -51,6 +58,7 @@ export function DataGridTable({
   onSelectionChange,
   toolBarRender,
   extraParams,
+  filters,
   actionPermissions,
   hasPermission,
   customActions,
@@ -80,10 +88,16 @@ export function DataGridTable({
     };
   }, []);
 
-  const extraParamsKey = useMemo(
-    () => (extraParams ? JSON.stringify(extraParams) : ''),
-    [extraParams],
-  );
+  const extraParamsKey = useMemo(() => {
+    const merged: Record<string, any> = { ...(extraParams || {}) };
+    const filterVals = filters?.values;
+    if (filterVals) {
+      for (const [k, v] of Object.entries(filterVals)) {
+        if (v !== '' && v !== null && v !== undefined) merged[k] = v;
+      }
+    }
+    return Object.keys(merged).length ? JSON.stringify(merged) : '';
+  }, [extraParams, filters]);
 
   useEffect(() => {
     setPaginationModel((prev) => (prev.page === 0 ? prev : { ...prev, page: 0 }));
@@ -99,11 +113,20 @@ export function DataGridTable({
       const sortField = sortModel?.[0]?.field;
       const sortOrder = sortModel?.[0]?.sort;
 
+      // Merge filter values (drop empties) so fetchData receives them as flat query params
+      const filterArgs: Record<string, any> = {};
+      if (filters?.values) {
+        for (const [k, v] of Object.entries(filters.values)) {
+          if (v !== '' && v !== null && v !== undefined) filterArgs[k] = v;
+        }
+      }
+
       const result = await fetchDataRef.current({
         pageNumber: paginationModel.page + 1,
         pageSize: paginationModel.pageSize,
         sortField,
         sortOrder: sortOrder as string | undefined,
+        ...filterArgs,
       });
 
       if (mountedRef.current) {
@@ -134,7 +157,7 @@ export function DataGridTable({
       }
       isLoadingRef.current = false;
     }
-  }, [paginationModel.page, paginationModel.pageSize, sortModel, extraParamsKey]);
+  }, [paginationModel.page, paginationModel.pageSize, sortModel, extraParamsKey, filters?.values]);
 
   useEffect(() => {
     loadData();
@@ -241,6 +264,7 @@ export function DataGridTable({
           {title}
         </Typography>
       )}
+      {filters && <FilterBar {...filters} />}
       {toolBarRender && <Box sx={{ mb: 2 }}>{toolBarRender()}</Box>}
       <Box sx={{ width: '100%' }}>
         <Suspense fallback={<Box sx={{ height: 400 }} />}>

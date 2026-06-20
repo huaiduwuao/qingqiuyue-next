@@ -23,6 +23,9 @@ export interface DictTypeQuery {
   page?: number;
   pageNumber?: number;
   pageSize?: number;
+  name?: string;
+  type?: string;
+  status?: number;
 }
 
 export interface DictDataQuery {

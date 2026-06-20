@@ -1,8 +1,14 @@
 import { adminClient } from '@/lib/api/client';
 import {ProvinceItem, TableListParams} from "@/beans/system";
 
+export interface ProvinceListParams {
+  page?: number;
+  pageSize?: number;
+  pageNumber?: number;
+  name?: string;
+}
 
-export async function page(params: any) {
+export async function page(params: ProvinceListParams) {
   return adminClient('/area/page', {
     params
   });

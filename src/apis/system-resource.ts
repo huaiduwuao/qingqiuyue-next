@@ -1,6 +1,13 @@
 import { adminClient } from '@/lib/api/client';
 import {ResourceItem, TableListParams} from "@/beans/system";
 
+export interface ResourceListParams {
+  page?: number;
+  pageSize?: number;
+  pageNumber?: number;
+  name?: string;
+}
+
 // 后端分页响应 { list, total } 归一成 UI 期望的 { records, totalRow }
 function normalizePage(res: any) {
   const d = res?.data ?? {};
@@ -8,7 +15,7 @@ function normalizePage(res: any) {
 }
 
 // 资源分页 -> 后端 GET /resource/list
-export async function page(params: any) {
+export async function page(params: ResourceListParams) {
   const res = await adminClient('/resource/list', { params });
   return normalizePage(res);
 }

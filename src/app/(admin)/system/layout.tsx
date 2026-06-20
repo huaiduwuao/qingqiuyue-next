@@ -147,7 +147,7 @@ export default function SystemLayout({ children }: { children: React.ReactNode }
 
   if (!isAdmin) {
     return (
-      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'var(--bg-body, #0A0B14)' }}>
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'var(--bg-body, transparent)' }}>
         <Box sx={{ textAlign: 'center', color: 'text.secondary' }}>
           <AdminPanelSettingsRoundedIcon sx={{ fontSize: 40, color: 'text.disabled', mb: 1 }} />
           <Typography sx={{ fontSize: 14, color: 'text.tertiary' }}>无访问权限</Typography>
@@ -178,8 +178,8 @@ export default function SystemLayout({ children }: { children: React.ReactNode }
         display: 'flex',
         flexDirection: 'column',
         minHeight: '100vh',
-        bgcolor: 'var(--bg-body, #0A0B14)',
-        color: 'var(--text-primary, #ffffff)',
+        bgcolor: 'var(--bg-body, transparent)',
+        color: 'var(--text-primary, currentColor)',
       }}
     >
       {/* 顶部条 — 与 home TopBar 同一套(60px / rgba 背景 / blur / 细白边) */}
@@ -194,9 +194,9 @@ export default function SystemLayout({ children }: { children: React.ReactNode }
           gap: 2,
           height: 60,
           px: 3,
-          bgcolor: 'var(--bg-topbar, rgba(10, 10, 15, 0.85))',
+          bgcolor: 'var(--bg-topbar, transparent)',
           backdropFilter: 'blur(12px)',
-          borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+          borderBottom: '1px solid var(--border-color, transparent)',
           flexShrink: 0,
         }}
       >
@@ -219,16 +219,16 @@ export default function SystemLayout({ children }: { children: React.ReactNode }
             <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'text.primary' }}>
               系统管理
             </Typography>
-            <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.4))', mt: 0.25 }}>
+            <Typography sx={{ fontSize: 10, color: 'var(--text-muted, currentColor)', mt: 0.25 }}>
               Admin Console
             </Typography>
           </Box>
         </Box>
 
-        <Typography sx={{ fontSize: 13, color: 'var(--text-muted, rgba(255,255,255,0.5))' }}>
+        <Typography sx={{ fontSize: 13, color: 'var(--text-muted, currentColor)' }}>
           /
         </Typography>
-        <Typography sx={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary, #ffffff)' }}>
+        <Typography sx={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary, currentColor)' }}>
           {activeItem?.label || '控制台'}
         </Typography>
 
@@ -240,9 +240,9 @@ export default function SystemLayout({ children }: { children: React.ReactNode }
               size="small"
               onClick={() => router.push('/home/recommend')}
               sx={{
-                color: 'var(--text-secondary, rgba(255,255,255,0.75))',
+                color: 'var(--text-secondary, currentColor)',
                 borderRadius: 2,
-                '&:hover': { bgcolor: 'var(--bg-hover, rgba(255,255,255,0.06))', color: 'var(--text-primary, #ffffff)' },
+                '&:hover': { bgcolor: 'var(--bg-hover, transparent)', color: 'var(--text-primary, currentColor)' },
               }}
             >
               <HomeRoundedIcon sx={{ fontSize: 18 }} />
@@ -260,7 +260,7 @@ export default function SystemLayout({ children }: { children: React.ReactNode }
               borderRadius: 2,
               cursor: 'pointer',
               transition: 'all 0.15s',
-              '&:hover': { bgcolor: 'var(--bg-hover, rgba(255,255,255,0.06))' },
+              '&:hover': { bgcolor: 'var(--bg-hover, transparent)' },
             }}
           >
             <Avatar
@@ -276,7 +276,7 @@ export default function SystemLayout({ children }: { children: React.ReactNode }
               {(currentUser?.nickname || currentUser?.name)?.[0]?.toUpperCase() || 'U'}
             </Avatar>
             <Box sx={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
-              <Typography sx={{ fontSize: 12.5, color: 'var(--text-primary, #ffffff)', fontWeight: 500 }}>
+              <Typography sx={{ fontSize: 12.5, color: 'var(--text-primary, currentColor)', fontWeight: 500 }}>
                 {currentUser?.nickname || currentUser?.name || '未登录'}
               </Typography>
               {(() => {
@@ -297,8 +297,8 @@ export default function SystemLayout({ children }: { children: React.ReactNode }
             slotProps={{
               paper: {
                 sx: {
-                  bgcolor: 'var(--bg-elevated, rgba(20, 22, 32, 0.98))',
-                  border: '1px solid var(--border-color, rgba(255,255,255,0.08))',
+                  bgcolor: 'var(--bg-elevated, transparent)',
+                  border: '1px solid var(--border-color, transparent)',
                   backdropFilter: 'blur(12px)',
                   color: 'text.primary',
                   mt: 1,
@@ -311,9 +311,9 @@ export default function SystemLayout({ children }: { children: React.ReactNode }
           >
             <MenuItem
               onClick={handleReturnToFront}
-              sx={{ fontSize: 13, borderRadius: 1.5, mx: 0.5, my: 0.25, '&:hover': { bgcolor: 'var(--bg-hover, rgba(255,255,255,0.06))' } }}
+              sx={{ fontSize: 13, borderRadius: 1.5, mx: 0.5, my: 0.25, '&:hover': { bgcolor: 'var(--bg-hover, transparent)' } }}
             >
-              <ListItemIcon sx={{ minWidth: 30, color: 'var(--text-secondary, rgba(255,255,255,0.6))' }}>
+              <ListItemIcon sx={{ minWidth: 30, color: 'var(--text-secondary, currentColor)' }}>
                 <ArrowBackRoundedIcon sx={{ fontSize: 16 }} />
               </ListItemIcon>
               返回前台
@@ -330,8 +330,8 @@ export default function SystemLayout({ children }: { children: React.ReactNode }
           sx={{
             width: 220,
             flexShrink: 0,
-            bgcolor: 'var(--bg-sidebar, rgba(10, 10, 15, 0.5))',
-            borderRight: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+            bgcolor: 'var(--bg-sidebar, transparent)',
+            borderRight: '1px solid var(--border-color, transparent)',
             display: { xs: 'none', md: 'flex' },
             flexDirection: 'column',
             height: 'calc(100vh - 60px)',
@@ -343,7 +343,7 @@ export default function SystemLayout({ children }: { children: React.ReactNode }
             {visibleGroups.map((group) => (
               <Box key={group.title} sx={{ mb: 0.5 }}>
                 <Box sx={{ px: 3, pt: 1.5, pb: 0.5 }}>
-                  <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted, rgba(255,255,255,0.4))', letterSpacing: 1, textTransform: 'uppercase' }}>
+                  <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted, currentColor)', letterSpacing: 1, textTransform: 'uppercase' }}>
                     {group.title}
                   </Typography>
                 </Box>
@@ -363,10 +363,10 @@ export default function SystemLayout({ children }: { children: React.ReactNode }
                         py: 1,
                         borderRadius: 1.5,
                         cursor: 'pointer',
-                        color: isActive ? 'var(--text-primary, #ffffff)' : 'var(--text-secondary, rgba(255,255,255,0.65))',
-                        bgcolor: isActive ? 'var(--border-color, rgba(255,255,255,0.06))' : 'transparent',
+                        color: isActive ? 'var(--text-primary, currentColor)' : 'var(--text-secondary, currentColor)',
+                        bgcolor: isActive ? 'var(--border-color, transparent)' : 'transparent',
                         transition: 'all 0.15s',
-                        '&:hover': { bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))', color: 'var(--text-primary, #ffffff)' },
+                        '&:hover': { bgcolor: 'var(--bg-hover, transparent)', color: 'var(--text-primary, currentColor)' },
                       }}
                     >
                       {isActive && (
@@ -398,7 +398,7 @@ export default function SystemLayout({ children }: { children: React.ReactNode }
           </Box>
 
           {/* 底部状态 */}
-          <Box sx={{ p: 1.5, borderTop: '1px solid var(--border-color, rgba(255,255,255,0.06))' }}>
+          <Box sx={{ p: 1.5, borderTop: '1px solid var(--border-color, transparent)' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.5 }}>
               <Box
                 sx={{
@@ -409,13 +409,13 @@ export default function SystemLayout({ children }: { children: React.ReactNode }
                   boxShadow: '0 0 6px rgba(93, 219, 150, 0.6)',
                 }}
               />
-              <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>服务运行中 · v2.0.1</Typography>
+              <Typography sx={{ fontSize: 11, color: 'var(--text-muted, currentColor)' }}>服务运行中 · v2.0.1</Typography>
             </Box>
           </Box>
         </Box>
 
         {/* 内容 */}
-        <Box component="main" sx={{ flex: 1, minWidth: 0, overflow: 'auto', p: 3, bgcolor: 'var(--bg-body, #0A0B14)' }}>
+        <Box component="main" sx={{ flex: 1, minWidth: 0, overflow: 'auto', p: 3, bgcolor: 'var(--bg-body, transparent)' }}>
           {children}
         </Box>
       </Box>

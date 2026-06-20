@@ -153,18 +153,72 @@ export const SYS_DICT_TYPE = {
   totalRow: 10,
 };
 
-export const SYS_DICT_DATA = range(30).map((i) => ({
-  id: 1 + i,
-  typeId: 1 + (i % 10),
-  typeName: ['模块类型', '内容状态', '用户状态', '角色类型', '菜单类型', '性别', '审核状态', '支付方式', '消息类型', '任务状态'][i % 10],
-  label: ['小说', '视频', '音乐', '电影', '文章', '已发布', '已下架', '草稿', '已启用', '已禁用'][i % 10],
-  name: ['NOVEL', 'VIDEO', 'MUSIC', 'FILM', 'ARTICLE', 'PUBLISH', 'UN_PUBLISH', 'DRAFT', 'ENABLED', 'DISABLED'][i % 10],
-  type: 'system',
-  sort: i,
-  status: 'ENABLED',
-  remark: '',
-  createTime: dateOffset(i % 14),
-}));
+export const SYS_DICT_DATA = [
+  // 模块类型(嵌套示例)
+  {
+    id: 1,
+    typeId: 1,
+    typeName: '模块类型',
+    label: '视频',
+    name: 'VIDEO',
+    type: 'module-type',
+    sort: 1,
+    status: 'ENABLED',
+    parentId: 0,
+    pid: 0,
+    remark: '视频内容',
+    createTime: dateOffset(10),
+    children: [
+      { id: 11, typeId: 1, typeName: '模块类型', label: '短视频', name: 'SHORT_VIDEO', type: 'module-type', sort: 1, status: 'ENABLED', parentId: 1, pid: 1, remark: '', createTime: dateOffset(9), children: [] },
+      { id: 12, typeId: 1, typeName: '模块类型', label: '长视频', name: 'LONG_VIDEO', type: 'module-type', sort: 2, status: 'ENABLED', parentId: 1, pid: 1, remark: '', createTime: dateOffset(8), children: [] },
+      { id: 13, typeId: 1, typeName: '模块类型', label: '直播', name: 'LIVE', type: 'module-type', sort: 3, status: 'ENABLED', parentId: 1, pid: 1, remark: '', createTime: dateOffset(7), children: [] },
+    ],
+  },
+  {
+    id: 2,
+    typeId: 1,
+    typeName: '模块类型',
+    label: '图文',
+    name: 'ARTICLE',
+    type: 'module-type',
+    sort: 2,
+    status: 'ENABLED',
+    parentId: 0,
+    pid: 0,
+    remark: '图文内容',
+    createTime: dateOffset(10),
+    children: [
+      { id: 21, typeId: 1, typeName: '模块类型', label: '长文', name: 'LONG_ARTICLE', type: 'module-type', sort: 1, status: 'ENABLED', parentId: 2, pid: 2, remark: '', createTime: dateOffset(9), children: [] },
+      { id: 22, typeId: 1, typeName: '模块类型', label: '微文', name: 'SHORT_ARTICLE', type: 'module-type', sort: 2, status: 'ENABLED', parentId: 2, pid: 2, remark: '', createTime: dateOffset(8), children: [] },
+    ],
+  },
+  {
+    id: 3,
+    typeId: 1,
+    typeName: '模块类型',
+    label: '音乐',
+    name: 'MUSIC',
+    type: 'module-type',
+    sort: 3,
+    status: 'ENABLED',
+    parentId: 0,
+    pid: 0,
+    remark: '',
+    createTime: dateOffset(10),
+    children: [],
+  },
+  // 内容状态(平铺示例)
+  { id: 4, typeId: 2, typeName: '内容状态', label: '已发布', name: 'PUBLISH', type: 'content-status', sort: 1, status: 'ENABLED', parentId: 0, pid: 0, remark: '', createTime: dateOffset(9), children: [] },
+  { id: 5, typeId: 2, typeName: '内容状态', label: '已下架', name: 'UN_PUBLISH', type: 'content-status', sort: 2, status: 'ENABLED', parentId: 0, pid: 0, remark: '', createTime: dateOffset(8), children: [] },
+  { id: 6, typeId: 2, typeName: '内容状态', label: '草稿', name: 'DRAFT', type: 'content-status', sort: 3, status: 'DISABLED', parentId: 0, pid: 0, remark: '', createTime: dateOffset(7), children: [] },
+  // 用户状态
+  { id: 7, typeId: 3, typeName: '用户状态', label: '已启用', name: 'ENABLED', type: 'user-status', sort: 1, status: 'ENABLED', parentId: 0, pid: 0, remark: '', createTime: dateOffset(6), children: [] },
+  { id: 8, typeId: 3, typeName: '用户状态', label: '已禁用', name: 'DISABLED', type: 'user-status', sort: 2, status: 'ENABLED', parentId: 0, pid: 0, remark: '', createTime: dateOffset(5), children: [] },
+  // 性别
+  { id: 9, typeId: 6, typeName: '性别', label: '男', name: 'MALE', type: 'sex', sort: 1, status: 'ENABLED', parentId: 0, pid: 0, remark: '', createTime: dateOffset(4), children: [] },
+  { id: 10, typeId: 6, typeName: '性别', label: '女', name: 'FEMALE', type: 'sex', sort: 2, status: 'ENABLED', parentId: 0, pid: 0, remark: '', createTime: dateOffset(3), children: [] },
+  { id: 11, typeId: 6, typeName: '性别', label: '未知', name: 'UNKNOWN', type: 'sex', sort: 3, status: 'ENABLED', parentId: 0, pid: 0, remark: '', createTime: dateOffset(2), children: [] },
+];
 
 export const SYS_APP = {
   records: range(8).map((i) => ({

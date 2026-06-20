@@ -1,8 +1,14 @@
 import { adminClient } from '@/lib/api/client';
 import {StreetItem} from "@/beans/system";
 
+export interface StreetListParams {
+  page?: number;
+  pageSize?: number;
+  pageNumber?: number;
+  name?: string;
+}
 
-export async function page(params: any) {
+export async function page(params: StreetListParams) {
   return adminClient('/area/page', {
     params
   });
