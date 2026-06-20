@@ -117,9 +117,9 @@ const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
   {
     title: '数据看板',
     items: [
-      { id: 'dash-analysis', label: '分析页', path: '/dashboard/analysis', icon: <AccountTreeRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
-      { id: 'dash-monitor', label: '监控页', path: '/dashboard/monitor', icon: <StorageRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D' },
-      { id: 'dash-workplace', label: '工作台', path: '/dashboard/workplace', icon: <AppsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'success.main' },
+      { id: 'dash-analysis', label: '分析页', path: '/system/dashboard/analysis', icon: <AccountTreeRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
+      { id: 'dash-monitor', label: '监控页', path: '/system/dashboard/monitor', icon: <StorageRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D' },
+      { id: 'dash-workplace', label: '工作台', path: '/system/dashboard/workplace', icon: <AppsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'success.main' },
     ],
   },
   {
