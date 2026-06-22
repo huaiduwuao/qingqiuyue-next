@@ -14,6 +14,7 @@ import Typography from '@mui/material/Typography';
 import Divider from '@mui/material/Divider';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
+import { alpha } from '@mui/material/styles';
 import { claimTask, submitTask, reviewTask } from '@/apis/reward-task';
 import { useApp } from '@/contexts/AppContext';
 import type { RewardTask, RewardTaskStatus } from '@/beans/reward';
@@ -137,7 +138,11 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
               height: 20,
               fontSize: 11,
               fontWeight: 700,
-              bgcolor: task.priority === 'P0' ? 'rgba(254,44,85,0.18)' : task.priority === 'P1' ? 'rgba(255,180,0,0.18)' : 'rgba(139,143,163,0.18)',
+              bgcolor: (theme) => task.priority === 'P0'
+                ? alpha(theme.palette.primary.main, 0.18)
+                : task.priority === 'P1'
+                  ? alpha(theme.palette.warning.main, 0.18)
+                  : alpha(theme.palette.text.secondary, 0.18),
               color: task.priority === 'P0' ? 'primary.main' : task.priority === 'P1' ? 'warning.main' : 'text.secondary',
             }}
           />
@@ -294,7 +299,7 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
                 sx={{
                   borderColor: 'primary.main',
                   color: 'primary.main',
-                  '&:hover': { borderColor: 'primary.main', bgcolor: 'rgba(254,44,85,0.1)' },
+                  '&:hover': (theme) => ({ borderColor: 'primary.main', bgcolor: alpha(theme.palette.primary.main, 0.1) }),
                 }}
               >
                 驳回

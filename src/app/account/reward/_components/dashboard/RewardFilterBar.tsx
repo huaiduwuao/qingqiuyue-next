@@ -10,6 +10,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import { alpha } from '@mui/material/styles';
 
 const ORDERS = [
   { id: 'reward', label: '赏金最高', icon: <ArrowUpwardIcon sx={{ fontSize: 12 }} /> },
@@ -89,10 +90,14 @@ export default function RewardFilterBar({
               fontWeight: 500,
               cursor: 'pointer',
               transition: 'all 0.2s',
-              bgcolor: filter === f ? 'rgba(254, 44, 85, 0.15)' : 'transparent',
+              bgcolor: filter === f
+                ? (theme) => alpha(theme.palette.primary.main, 0.15)
+                : 'transparent',
               color: filter === f ? 'primary.main' : 'text.secondary',
               border: '1px solid',
-              borderColor: filter === f ? 'rgba(254, 44, 85, 0.3)' : 'divider',
+              borderColor: filter === f
+                ? (theme) => alpha(theme.palette.primary.main, 0.3)
+                : 'divider',
               '&:hover': {
                 color: 'text.primary',
                 borderColor: 'primary.main',

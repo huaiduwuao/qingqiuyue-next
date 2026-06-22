@@ -8,13 +8,15 @@ import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { TaskCard } from './TaskCard';
 import type { RewardTask, RewardTaskStatus } from '@/beans/reward';
+import { alpha } from '@mui/material/styles';
 
-const STATUS_META: Record<RewardTaskStatus, { label: string; color: string; bg: string }> = {
-  OPEN: { label: '待领', color: 'success.main', bg: 'rgba(93, 219, 150, 0.12)' },
-  CLAIMED: { label: '进行中', color: 'secondary.main', bg: 'rgba(37, 244, 238, 0.12)' },
-  SUBMITTED: { label: '待验收', color: 'warning.main', bg: 'rgba(255, 180, 0, 0.12)' },
-  APPROVED: { label: '已完成', color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.12)' },
-  REJECTED: { label: '已驳回', color: 'primary.main', bg: 'rgba(254, 44, 85, 0.12)' },
+// 状态色 — REJECTED 用 primary.main(跟主题色),其余是平台视觉色(青/黄/绿)
+const STATUS_META: Record<RewardTaskStatus, { label: string; color: string; bg: (t: any) => string }> = {
+  OPEN: { label: '待领', color: 'success.main', bg: (t) => alpha(t.palette.success.main, 0.12) },
+  CLAIMED: { label: '进行中', color: 'secondary.main', bg: (t) => alpha(t.palette.secondary.main, 0.12) },
+  SUBMITTED: { label: '待验收', color: 'warning.main', bg: (t) => alpha(t.palette.warning.main, 0.12) },
+  APPROVED: { label: '已完成', color: 'secondary.main', bg: (t) => alpha(t.palette.secondary.main, 0.12) },
+  REJECTED: { label: '已驳回', color: 'primary.main', bg: (t) => alpha(t.palette.primary.main, 0.12) },
 };
 
 interface Props {
@@ -37,13 +39,13 @@ export function KanbanColumn({ status, tasks, onTaskClick, onOpenDemand, demandT
         minWidth: 0,
         display: 'flex',
         flexDirection: 'column',
-        bgcolor: (theme) => theme.palette.mode === 'dark' ? '#0F1018' : '#FAFAFA',
+        bgcolor: 'background.default',
         border: '1px solid',
-        borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
+        borderColor: 'divider',
         borderRadius: 2,
         overflow: 'hidden',
         transition: 'border-color 0.15s, background-color 0.15s',
-        ...(isOver && { borderColor: meta.color, bgcolor: `${meta.bg}40` }),
+        ...(isOver && { borderColor: meta.color, bgcolor: (theme) => alpha(meta.color === 'primary.main' ? theme.palette.primary.main : theme.palette.secondary.main, 0.18) }),
       }}
     >
       <Box
@@ -51,7 +53,7 @@ export function KanbanColumn({ status, tasks, onTaskClick, onOpenDemand, demandT
           px: 1.5,
           py: 1,
           borderBottom: '1px solid',
-          borderBottomColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
+          borderBottomColor: 'divider',
           display: 'flex',
           alignItems: 'center',
           gap: 1,
@@ -64,7 +66,16 @@ export function KanbanColumn({ status, tasks, onTaskClick, onOpenDemand, demandT
             height: 8,
             borderRadius: '50%',
             bgcolor: meta.color,
-            boxShadow: `0 0 6px ${meta.color}80`,
+            // 状态点光晕 — 用 alpha 包装 meta.color
+            boxShadow: (theme) => {
+              const c =
+                meta.color === 'primary.main' ? theme.palette.primary.main :
+                meta.color === 'secondary.main' ? theme.palette.secondary.main :
+                meta.color === 'success.main' ? theme.palette.success.main :
+                meta.color === 'warning.main' ? theme.palette.warning.main :
+                theme.palette.secondary.main;
+              return `0 0 6px ${alpha(c, 0.5)}`;
+            },
           }}
         />
         <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.primary', flex: 1 }}>

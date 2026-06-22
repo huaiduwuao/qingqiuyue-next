@@ -13,11 +13,13 @@ import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import GroupsIcon from '@mui/icons-material/Groups';
 import type { RewardTask, TaskPriority } from '@/beans/reward';
+import { alpha } from '@mui/material/styles';
 
-const PRIORITY_COLOR: Record<TaskPriority, { bg: string; fg: string; border: string }> = {
-  P0: { bg: 'rgba(254, 44, 85, 0.18)', fg: 'primary.main', border: 'primary.main' },
-  P1: { bg: 'rgba(255, 180, 0, 0.18)', fg: 'warning.main', border: 'warning.main' },
-  P2: { bg: 'rgba(139, 143, 163, 0.18)', fg: 'text.secondary', border: 'divider' },
+// 优先级色 — 全部跟随主题:P0 用 primary.main,P1 用 warning.main,P2 用 text.secondary
+const PRIORITY_COLOR: Record<TaskPriority, { bgcolor: (t: any) => string; color: string; borderLeftColor: string; borderLeftWidth: number }> = {
+  P0: { bgcolor: (t) => alpha(t.palette.primary.main, 0.18), color: 'primary.main', borderLeftColor: 'primary.main', borderLeftWidth: 3 },
+  P1: { bgcolor: (t) => alpha(t.palette.warning.main, 0.18), color: 'warning.main', borderLeftColor: 'warning.main', borderLeftWidth: 3 },
+  P2: { bgcolor: (t) => alpha(t.palette.text.secondary, 0.18), color: 'text.secondary', borderLeftColor: 'divider', borderLeftWidth: 3 },
 };
 
 interface Props {
@@ -68,14 +70,19 @@ export function TaskCard({ task, onClick, isOverlay, demandTitle, onOpenDemand, 
       sx={{
         p: 1.25,
         mb: 1,
-        bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1C1F2A' : '#FFFFFF',
+        bgcolor: 'background.paper',
         border: '1px solid',
-        borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
-        borderLeft: `3px solid ${pri.border}`,
+        borderColor: 'divider',
         borderRadius: 1.5,
         boxShadow: isOverlay ? 4 : 'none',
-        '&:hover': { borderColor: (theme) => theme.palette.mode === 'dark' ? '#3A3D4D' : '#D1D5DB', bgcolor: (theme) => theme.palette.mode === 'dark' ? '#21243A' : '#F5F5F7' },
+        '&:hover': {
+          borderColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)',
+          bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.025)',
+        },
         userSelect: 'none',
+        // 优先级色(从 pri 展开):左边框颜色 / 宽度
+        borderLeftColor: pri.borderLeftColor,
+        borderLeftWidth: pri.borderLeftWidth,
       }}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5, flexWrap: 'wrap' }}>
@@ -86,8 +93,8 @@ export function TaskCard({ task, onClick, isOverlay, demandTitle, onOpenDemand, 
             height: 18,
             fontSize: 10,
             fontWeight: 700,
-            bgcolor: pri.bg,
-            color: pri.fg,
+            bgcolor: pri.bgcolor,
+            color: pri.color,
           }}
         />
         {dl && (
@@ -121,10 +128,15 @@ export function TaskCard({ task, onClick, isOverlay, demandTitle, onOpenDemand, 
               bgcolor: 'transparent',
               color: 'text.secondary',
               border: '1px solid',
-              borderColor: (theme) => theme.palette.mode === 'dark' ? '#3A3D4D' : '#E5E7EB',
+              borderColor: 'divider',
               cursor: 'pointer',
               '& .MuiChip-icon': { color: 'text.secondary', ml: 0.5 },
-              '&:hover': { bgcolor: 'rgba(139, 92, 246, 0.12)', borderColor: '#8B5CF6', color: '#8B5CF6' },
+              // 需求 chip hover — 跟随主品牌色
+              '&:hover': (theme) => ({
+                bgcolor: alpha(theme.palette.primary.main, 0.12),
+                borderColor: theme.palette.primary.main,
+                color: theme.palette.primary.main,
+              }),
             }}
           />
         )}

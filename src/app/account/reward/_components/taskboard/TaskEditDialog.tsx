@@ -16,6 +16,7 @@ import Chip from '@mui/material/Chip';
 import Typography from '@mui/material/Typography';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import { alpha } from '@mui/material/styles';
 import { createTask, updateTask } from '@/apis/reward-task';
 import { myPage as listDemandsApi } from '@/apis/reward-demand';
 import type { RewardTask, TaskPriority, DemandItem } from '@/beans/reward';
@@ -138,10 +139,14 @@ export function TaskEditDialog({ open, record, projectId, groupId, groups = [], 
                     flex: 1,
                     fontSize: 12,
                     border: '1px solid',
-                    borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
+                    borderColor: 'divider',
                     color: 'text.secondary',
                     '&.Mui-selected': {
-                      bgcolor: priority === 'P0' ? 'rgba(254,44,85,0.18)' : priority === 'P1' ? 'rgba(255,180,0,0.18)' : 'rgba(139,143,163,0.18)',
+                      bgcolor: (theme) => priority === 'P0'
+                        ? alpha(theme.palette.primary.main, 0.18)
+                        : priority === 'P1'
+                          ? alpha(theme.palette.warning.main, 0.18)
+                          : alpha(theme.palette.text.secondary, 0.18),
                       color: priority === 'P0' ? 'primary.main' : priority === 'P1' ? 'warning.main' : 'text.tertiary',
                     },
                   },

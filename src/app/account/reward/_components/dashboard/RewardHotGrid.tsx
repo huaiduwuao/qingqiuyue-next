@@ -14,6 +14,7 @@ import BrushIcon from '@mui/icons-material/Brush';
 import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import MovieIcon from '@mui/icons-material/Movie';
 import { gradient2 } from '@/constants/gradients';
+import { alpha } from '@mui/material/styles';
 
 interface Bounty {
   id: string;
@@ -136,7 +137,7 @@ export default function RewardHotGrid() {
               px: 0.75,
               py: 0.125,
               borderRadius: 0.5,
-              bgcolor: 'rgba(254, 44, 85, 0.15)',
+              bgcolor: (theme) => alpha(theme.palette.primary.main, 0.15),
               color: 'primary.main',
               fontSize: 10,
               fontWeight: 600,
@@ -182,7 +183,7 @@ export default function RewardHotGrid() {
               '&:hover': {
                 transform: 'translateY(-3px)',
                 borderColor: 'primary.main',
-                boxShadow: '0 8px 24px rgba(254, 44, 85, 0.15)',
+                boxShadow: (theme) => `0 8px 24px ${alpha(theme.palette.primary.main, 0.15)}`,
               },
             }}
           >
@@ -233,9 +234,9 @@ export default function RewardHotGrid() {
                   px: 0.75,
                   py: 0.25,
                   borderRadius: 0.5,
-                  bgcolor: 'rgba(254, 44, 85, 0.9)',
+                  bgcolor: (theme) => alpha(theme.palette.primary.main, 0.9),
                   backdropFilter: 'blur(4px)',
-                  color: 'text.primary',
+                  color: (theme) => theme.palette.primary.contrastText,
                   fontSize: 11,
                   fontWeight: 700,
                   fontFamily: 'monospace',

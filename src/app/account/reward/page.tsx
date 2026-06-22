@@ -95,7 +95,7 @@ export default function AccountRewardPage() {
               width: 32,
               height: 32,
               borderRadius: 1,
-              background: 'linear-gradient(135deg, #FFB400 0%, #FE2C55 100%)',
+              background: (theme) => `linear-gradient(135deg, ${theme.palette.warning.main} 0%, ${theme.palette.primary.main} 100%)`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',

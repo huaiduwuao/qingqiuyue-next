@@ -9,7 +9,8 @@ import WhatshotIcon from '@mui/icons-material/Whatshot';
 import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import StarIcon from '@mui/icons-material/Star';
-import { DARK_BG, CTA_GRADIENT, gradient2 } from '@/constants/gradients';
+import { alpha } from '@mui/material/styles';
+import { DARK_BG } from '@/constants/gradients';
 
 interface RewardHeroProps {
   totalPoint: number;
@@ -28,9 +29,14 @@ export default function RewardHero({ totalPoint, level, levelName, needPoint }: 
         position: 'relative',
         borderRadius: 2,
         overflow: 'hidden',
-        background: DARK_BG.PURPLE_BLUE,
+        // 深色模式保留原深沉紫蓝;浅色模式用 primary.main 淡 tint 渐变,
+        // 跟全局主题色一致,不再"浅色下也黑乎乎"
+        background: (theme) =>
+          theme.palette.mode === 'dark'
+            ? DARK_BG.PURPLE_BLUE
+            : `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.10)} 0%, ${alpha(theme.palette.secondary.main, 0.10)} 100%)`,
         border: '1px solid',
-        borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
+        borderColor: (theme) => alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.22 : 0.18),
         p: { xs: 2, md: 3 },
       }}
     >
@@ -42,7 +48,9 @@ export default function RewardHero({ totalPoint, level, levelName, needPoint }: 
           width: 220,
           height: 220,
           borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(254, 44, 85, 0.25) 0%, transparent 70%)',
+          // 右上光晕:跟随主品牌色
+          background: (theme) =>
+            `radial-gradient(circle, ${alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.25 : 0.16)} 0%, transparent 70%)`,
           filter: 'blur(20px)',
           pointerEvents: 'none',
         }}
@@ -55,6 +63,7 @@ export default function RewardHero({ totalPoint, level, levelName, needPoint }: 
           width: 180,
           height: 180,
           borderRadius: '50%',
+          // 左下光晕:青色是平台视觉识别色,保留
           background: 'radial-gradient(circle, rgba(37, 244, 238, 0.18) 0%, transparent 70%)',
           filter: 'blur(20px)',
           pointerEvents: 'none',
@@ -74,8 +83,9 @@ export default function RewardHero({ totalPoint, level, levelName, needPoint }: 
                 px: 1,
                 py: 0.25,
                 borderRadius: 1,
-                background: gradient2('#FE2C55', '#FFB400'),
-                color: 'text.primary',
+                // 等级徽章:主品牌色 + warning 黄(黄是平台视觉识别色,保留)
+                background: (theme) => `linear-gradient(90deg, ${theme.palette.primary.main} 0%, ${theme.palette.warning.main} 100%)`,
+                color: (theme) => theme.palette.primary.contrastText,
                 fontSize: 11,
                 fontWeight: 700,
                 fontFamily: 'monospace',
@@ -100,7 +110,8 @@ export default function RewardHero({ totalPoint, level, levelName, needPoint }: 
                   borderRadius: 3,
                   bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'action.hover',
                   '& .MuiLinearProgress-bar': {
-                    background: CTA_GRADIENT.RED_YELLOW,
+                    // 主品牌色 → warning 黄(黄是平台识别色)
+                    background: (theme) => `linear-gradient(90deg, ${theme.palette.primary.main} 0%, ${theme.palette.warning.main} 100%)`,
                     borderRadius: 3,
                   },
                 }}
