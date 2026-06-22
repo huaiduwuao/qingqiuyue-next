@@ -52,7 +52,7 @@ export default function RightSidebar() {
                 bgcolor: timeRange === '7d' ? 'primary.main' : 'transparent',
                 borderColor: 'divider',
                 color: timeRange === '7d' ? 'text.primary' : 'text.secondary',
-                '&:hover': { bgcolor: timeRange === '7d' ? 'primary.dark' : 'rgba(255,255,255,0.05)' },
+                '&:hover': { bgcolor: timeRange === '7d' ? 'primary.dark' : (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover' },
               }}
             >
               近7日
@@ -64,7 +64,7 @@ export default function RightSidebar() {
                 bgcolor: timeRange === '30d' ? 'primary.main' : 'transparent',
                 borderColor: 'divider',
                 color: timeRange === '30d' ? 'text.primary' : 'text.secondary',
-                '&:hover': { bgcolor: timeRange === '30d' ? 'primary.dark' : 'rgba(255,255,255,0.05)' },
+                '&:hover': { bgcolor: timeRange === '30d' ? 'primary.dark' : (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover' },
               }}
             >
               近30日
@@ -103,7 +103,7 @@ export default function RightSidebar() {
                 borderRadius: 1,
                 cursor: 'pointer',
                 transition: 'background-color 0.15s ease-in-out',
-                '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.04)' },
+                '&:hover': { bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'action.hover' },
               }}
             >
               <Typography sx={{ fontSize: 11, color: 'text.disabled', fontFamily: 'monospace', minWidth: 30 }}>
@@ -178,7 +178,7 @@ export default function RightSidebar() {
               sx={{
                 p: 1.5,
                 borderRadius: 1.5,
-                bgcolor: '#1E2030',
+                bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
                 border: '1px solid',
                 borderColor: 'divider',
                 cursor: 'pointer',
@@ -231,7 +231,7 @@ export default function RightSidebar() {
             sx={{
               p: 1.5,
               borderRadius: 1.5,
-              bgcolor: '#1E2030',
+              bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
               border: '1px solid',
               borderColor: 'divider',
               textAlign: 'center',
@@ -248,7 +248,7 @@ export default function RightSidebar() {
             sx={{
               p: 1.5,
               borderRadius: 1.5,
-              bgcolor: '#1E2030',
+              bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
               border: '1px solid',
               borderColor: 'divider',
               textAlign: 'center',

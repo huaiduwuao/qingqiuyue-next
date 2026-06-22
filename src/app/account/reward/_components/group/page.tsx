@@ -349,7 +349,7 @@ export default function GroupPage({ groupId, groupData, onOpenTaskboard }: { gro
                     }}
                   >
                     {!group.cover && (
-                      <GroupIcon sx={{ fontSize: 48, color: 'rgba(255,255,255,0.7)' }} />
+                      <GroupIcon sx={{ fontSize: 48, color: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.7)' : '#FFFFFF' }} />
                     )}
                   </CardMedia>
                   <CardContent sx={{ flex: 1 }}>

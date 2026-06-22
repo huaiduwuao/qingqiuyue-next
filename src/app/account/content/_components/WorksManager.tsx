@@ -68,7 +68,7 @@ const SEED: Work[] = [
 const STATUS_META: Record<WorkStatus, { label: string; color: string; bg: string }> = {
   published: { label: '已发布', color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.12)' },
   reviewing: { label: '审核中', color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)' },
-  draft: { label: '草稿', color: 'rgba(255,255,255,0.6)', bg: 'rgba(255,255,255,0.06)' },
+  draft: { label: '草稿', color: 'text.secondary', bg: 'action.hover' },
   private: { label: '私密', color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.12)' },
   rejected: { label: '已驳回', color: '#FF6B8A', bg: 'rgba(255, 107, 138, 0.12)' },
 };
@@ -323,7 +323,7 @@ export default function WorksManager() {
                     </Typography>
                     <Box sx={{ px: 0.75, py: 0.1, borderRadius: 0.5, bgcolor: sm.bg, color: sm.color, fontSize: 9, fontWeight: 700 }}>{sm.label}</Box>
                     {w.tags.slice(0, 2).map((tag) => (
-                      <Box key={tag} sx={{ px: 0.5, py: 0.1, borderRadius: 0.5, bgcolor: 'rgba(255,255,255,0.04)', color: 'text.secondary', fontSize: 9 }}>#{tag}</Box>
+                      <Box key={tag} sx={{ px: 0.5, py: 0.1, borderRadius: 0.5, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'action.hover', color: 'text.secondary', fontSize: 9 }}>#{tag}</Box>
                     ))}
                   </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontSize: 11, color: 'text.disabled', flexWrap: 'wrap' }}>

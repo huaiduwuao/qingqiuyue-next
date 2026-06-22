@@ -81,7 +81,7 @@ const STATUS_META: Record<CollabStatus, { label: string; color: string; bg: stri
   active: { label: '进行中', color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.12)' },
   pending: { label: '待响应', color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)' },
   completed: { label: '已完成', color: '#5B8DEF', bg: 'rgba(91, 141, 239, 0.12)' },
-  declined: { label: '已拒绝', color: 'rgba(255,255,255,0.4)', bg: 'rgba(255,255,255,0.06)' },
+  declined: { label: '已拒绝', color: 'text.disabled', bg: 'action.hover' },
 };
 
 const ACTIVE_COLLABS: Collaboration[] = [

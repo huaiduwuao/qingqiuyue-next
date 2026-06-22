@@ -106,7 +106,7 @@ export default function TrendChart() {
                 bgcolor: range === r ? 'primary.main' : 'transparent',
                 borderColor: 'divider',
                 color: range === r ? 'text.primary' : 'text.secondary',
-                '&:hover': { bgcolor: range === r ? 'primary.dark' : 'rgba(255,255,255,0.05)' },
+                '&:hover': { bgcolor: range === r ? 'primary.dark' : (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover' },
               }}
             >
               {r === '7d' ? '近 7 日' : '近 30 日'}

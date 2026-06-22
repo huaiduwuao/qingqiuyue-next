@@ -207,7 +207,7 @@ export default function ProjectPage({ groupId, groupData, onOpenTaskboard }: { g
                 }}
               >
                 {!item.cover && (
-                  <FolderIcon sx={{ fontSize: 48, color: 'rgba(255,255,255,0.7)' }} />
+                  <FolderIcon sx={{ fontSize: 48, color: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.7)' : '#FFFFFF' }} />
                 )}
               </CardMedia>
               <CardContent sx={{ flex: 1 }}>

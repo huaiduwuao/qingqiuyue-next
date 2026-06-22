@@ -120,7 +120,7 @@ export default function ContentDistributionChart() {
                 borderRadius: 1,
                 cursor: 'pointer',
                 transition: 'background-color 0.15s ease-in-out',
-                '&:hover': { bgcolor: 'rgba(255,255,255,0.04)' },
+                '&:hover': { bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover' },
               }}
             >
               <Box

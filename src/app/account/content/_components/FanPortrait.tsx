@@ -126,7 +126,7 @@ export default function FanPortrait() {
           </Box>
           <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
             {GENDER.map((g) => (
-              <Box key={g.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 0.75, borderRadius: 1, bgcolor: '#1E2030' }}>
+              <Box key={g.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 0.75, borderRadius: 1, bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF' }}>
                 <Box
                   sx={{
                     width: 28,
@@ -158,7 +158,7 @@ export default function FanPortrait() {
               <Typography sx={{ fontSize: 11, color: 'text.secondary', minWidth: 48, fontFamily: 'monospace' }}>
                 {a.range}
               </Typography>
-              <Box sx={{ flex: 1, height: 18, bgcolor: '#1E2030', borderRadius: 1, overflow: 'hidden', position: 'relative' }}>
+              <Box sx={{ flex: 1, height: 18, bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF', borderRadius: 1, overflow: 'hidden', position: 'relative' }}>
                 <Box
                   sx={{
                     width: `${(a.value / maxAge) * 100}%`,
@@ -191,7 +191,7 @@ export default function FanPortrait() {
                 gap: 1.5,
                 p: 1,
                 borderRadius: 1,
-                bgcolor: '#1E2030',
+                bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
               }}
             >
               <Box
