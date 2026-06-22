@@ -312,24 +312,47 @@ function TopBar() {
         </Tooltip>
         <NoticeIconView />
         <DmIconView />
-        <AvatarHoverPopup
-          anchor={
-            <IconButton size="small" sx={{ p: 0.5, ml: 1 }}>
-              <Avatar
-                src={currentUser?.avatar}
-                sx={{
-                  width: 32,
-                  height: 32,
-                  background: gradient2('#FE2C55', ACCENT.purple.main),
-                  fontSize: 13,
-                  fontWeight: 700,
-                }}
-              >
-                {currentUser?.name?.[0] || 'U'}
-              </Avatar>
-            </IconButton>
-          }
-        />
+        {currentUser ? (
+          <AvatarHoverPopup
+            anchor={
+              <IconButton size="small" sx={{ p: 0.5, ml: 1 }}>
+                <Avatar
+                  src={currentUser?.avatar}
+                  sx={{
+                    width: 32,
+                    height: 32,
+                    background: gradient2('#FE2C55', ACCENT.purple.main),
+                    fontSize: 13,
+                    fontWeight: 700,
+                  }}
+                >
+                  {currentUser?.name?.[0] || 'U'}
+                </Avatar>
+              </IconButton>
+            }
+          />
+        ) : (
+          <Button
+            size="small"
+            variant="contained"
+            color="primary"
+            onClick={() => {
+              const here = typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/home/recommend';
+              sessionStorage.setItem('login_redirect', here);
+              router.push('/user/login');
+            }}
+            sx={{
+              ml: 1.5,
+              textTransform: 'none',
+              fontSize: 13,
+              fontWeight: 600,
+              px: 2.25,
+              borderRadius: 999,
+            }}
+          >
+            登录
+          </Button>
+        )}
       </Box>
     </Box>
   );
