@@ -182,25 +182,59 @@ export default function DigitalHumanStage() {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 520, gap: 1.5 }}>
       <Box sx={{ display: 'flex', gap: 1.5, flex: 1, minHeight: 0 }}>
-        {/* 舞台 */}
-        <Box sx={{ position: 'relative', flex: 1, borderRadius: 3, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.08)', bgcolor: '#05060B' }}>
+        {/* 舞台 — 主题感知:dark 模式近黑、light 模式近白,但始终比卡片深一档,
+             让数字人形象有"舞台"感 */}
+        <Box sx={{
+          position: 'relative',
+          flex: 1,
+          borderRadius: 3,
+          overflow: 'hidden',
+          border: '1px solid',
+          borderColor: 'divider',
+          // 舞台背景需要始终比文字浅(深)以保证数字人形象可见;跟主题的 paper 区分
+          bgcolor: (theme) => theme.palette.mode === 'dark' ? '#05060B' : '#0F1018',
+        }}>
           <Box ref={aholoRef} sx={{ position: 'absolute', inset: 0, zIndex: 0 }} />
           <Box ref={stageRef} sx={{ position: 'absolute', inset: 0, zIndex: 1 }} />
           {thinking && (
-            <Chip size="small" label="思考中…" sx={{ position: 'absolute', top: 12, left: 12, zIndex: 2, bgcolor: 'rgba(139,92,246,0.25)', color: '#fff' }} />
+            <Chip size="small" label="思考中…" sx={{
+              position: 'absolute', top: 12, left: 12, zIndex: 2,
+              bgcolor: 'rgba(139,92,246,0.85)', color: '#fff',
+              fontWeight: 600,
+            }} />
           )}
           {stageKind === 'placeholder' && (
-            <Box sx={{ position: 'absolute', bottom: 12, left: 12, right: 12, zIndex: 2, p: 1, borderRadius: 2, bgcolor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(6px)' }}>
-              <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', lineHeight: 1.5 }}>
+            <Box sx={{
+              position: 'absolute', bottom: 12, left: 12, right: 12, zIndex: 2,
+              p: 1, borderRadius: 2,
+              bgcolor: 'rgba(15,17,26,0.75)',
+              backdropFilter: 'blur(6px)',
+              border: '1px solid rgba(255,255,255,0.08)',
+            }}>
+              <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.9)', lineHeight: 1.5 }}>
                 当前为占位形象。放入真人视频片段即变真人:把 <code>public/avatar/clips.example.json</code> 复制为 <code>clips.json</code> 并填入你的片段地址(待机/讲话/打招呼/跳舞…),刷新即可。
               </Typography>
             </Box>
           )}
           <Box sx={{ position: 'absolute', top: 12, right: 12, zIndex: 2, display: 'flex', gap: 1 }}>
-            <Button size="small" variant="outlined" onClick={toggleAholo} disabled={aholoOn} sx={{ fontSize: 11 }}>
+            <Button size="small" variant="outlined" onClick={toggleAholo} disabled={aholoOn} sx={{
+              fontSize: 11,
+              borderColor: 'rgba(255,255,255,0.3)',
+              color: '#fff',
+              bgcolor: 'rgba(0,0,0,0.35)',
+              backdropFilter: 'blur(6px)',
+              '&:hover': { borderColor: 'rgba(255,255,255,0.6)', bgcolor: 'rgba(0,0,0,0.55)' },
+            }}>
               {aholoOn ? '高斯场景已开' : '加载高斯场景'}
             </Button>
-            <Button size="small" variant="outlined" onClick={load3DAvatar} sx={{ fontSize: 11 }}>
+            <Button size="small" variant="outlined" onClick={load3DAvatar} sx={{
+              fontSize: 11,
+              borderColor: 'rgba(255,255,255,0.3)',
+              color: '#fff',
+              bgcolor: 'rgba(0,0,0,0.35)',
+              backdropFilter: 'blur(6px)',
+              '&:hover': { borderColor: 'rgba(255,255,255,0.6)', bgcolor: 'rgba(0,0,0,0.55)' },
+            }}>
               3D 高斯人
             </Button>
             <Button size="small" variant={useRemote ? 'contained' : 'outlined'} onClick={() => setUseRemote((v) => !v)} sx={{ fontSize: 11 }}>
@@ -210,7 +244,16 @@ export default function DigitalHumanStage() {
         </Box>
 
         {/* 事件日志 */}
-        <Box sx={{ width: 280, display: { xs: 'none', md: 'flex' }, flexDirection: 'column', borderRadius: 3, border: '1px solid rgba(255,255,255,0.08)', p: 1.5, bgcolor: 'rgba(255,255,255,0.02)' }}>
+        <Box sx={{
+          width: 280,
+          display: { xs: 'none', md: 'flex' },
+          flexDirection: 'column',
+          borderRadius: 3,
+          border: '1px solid',
+          borderColor: 'divider',
+          p: 1.5,
+          bgcolor: 'background.paper',
+        }}>
           <Typography sx={{ fontSize: 12, fontWeight: 700, mb: 1, color: 'text.secondary' }}>交互日志</Typography>
           <Box sx={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 0.75 }}>
             {log.map((l, i) => (
@@ -231,7 +274,11 @@ export default function DigitalHumanStage() {
 
       {/* 输入栏 */}
       <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-        <IconButton onClick={toggleMic} sx={{ bgcolor: listening ? 'primary.main' : 'rgba(255,255,255,0.06)', color: '#fff', '&:hover': { bgcolor: listening ? 'primary.dark' : 'rgba(255,255,255,0.12)' } }}>
+        <IconButton onClick={toggleMic} sx={{
+          bgcolor: listening ? 'primary.main' : 'action.hover',
+          color: listening ? '#fff' : 'text.primary',
+          '&:hover': { bgcolor: listening ? 'primary.dark' : 'action.selected' },
+        }}>
           {listening ? <MicRoundedIcon /> : <MicOffRoundedIcon />}
         </IconButton>
         <TextField
@@ -242,7 +289,11 @@ export default function DigitalHumanStage() {
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && send()}
         />
-        <IconButton onClick={send} sx={{ bgcolor: 'primary.main', color: '#fff', '&:hover': { bgcolor: 'primary.dark' } }}>
+        <IconButton onClick={send} sx={{
+          bgcolor: 'primary.main',
+          color: '#fff',
+          '&:hover': { bgcolor: 'primary.dark' },
+        }}>
           <SendRoundedIcon />
         </IconButton>
       </Box>
