@@ -97,7 +97,7 @@ export default function NotificationsPage() {
         </Box>
       </Box>
 
-      <Box sx={{ borderRadius: 2, bgcolor: 'background.paper', border: '1px solid #252836', overflow: 'hidden' }}>
+      <Box sx={{ borderRadius: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB', overflow: 'hidden' }}>
         {visible.length === 0 ? (
           <Box sx={{ p: 6, textAlign: 'center' }}>
             <NotificationsIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
@@ -113,9 +113,10 @@ export default function NotificationsPage() {
                   p: 2.5,
                   display: 'flex',
                   gap: 2,
-                  borderBottom: idx < visible.length - 1 ? '1px solid #252836' : 'none',
+                  borderBottom: idx < visible.length - 1 ? '1px solid' : 'none',
+                  borderBottomColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
                   cursor: 'pointer',
-                  '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' },
+                  '&:hover': { bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover' },
                   ...(n.read ? {} : { borderLeft: '3px solid #FE2C55' }),
                 }}
               >

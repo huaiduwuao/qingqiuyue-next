@@ -47,7 +47,7 @@ export default function MonetizePage() {
                 gap: 1.5,
                 p: 1.25,
                 borderRadius: 1,
-                bgcolor: '#1E2030',
+                bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
                 border: '1px solid',
                 borderColor: 'divider',
               }}

@@ -123,7 +123,8 @@ export default function RewardHotGrid() {
         p: 2,
         borderRadius: 2,
         bgcolor: 'background.paper',
-        border: '1px solid #252836',
+        border: '1px solid',
+        borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
       }}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
@@ -173,8 +174,9 @@ export default function RewardHotGrid() {
               position: 'relative',
               borderRadius: 1.5,
               overflow: 'hidden',
-              bgcolor: '#1E2030',
-              border: '1px solid #252836',
+              bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
+              border: '1px solid',
+              borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
               cursor: 'pointer',
               transition: 'all 0.25s',
               '&:hover': {
@@ -213,7 +215,7 @@ export default function RewardHotGrid() {
                   px: 0.75,
                   py: 0.25,
                   borderRadius: 0.5,
-                  bgcolor: 'rgba(0,0,0,0.5)',
+                  bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.4)',
                   backdropFilter: 'blur(4px)',
                   color: 'text.primary',
                   fontSize: 10,

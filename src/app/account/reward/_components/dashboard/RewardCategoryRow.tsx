@@ -32,7 +32,8 @@ export default function RewardCategoryRow({ onSelect }: { onSelect?: (id: string
         p: 2,
         borderRadius: 2,
         bgcolor: 'background.paper',
-        border: '1px solid #252836',
+        border: '1px solid',
+        borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
       }}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
@@ -59,7 +60,7 @@ export default function RewardCategoryRow({ onSelect }: { onSelect?: (id: string
               borderRadius: 1.5,
               transition: 'all 0.2s',
               '&:hover': {
-                bgcolor: 'rgba(255,255,255,0.04)',
+                bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'action.hover',
                 transform: 'translateY(-2px)',
               },
             }}

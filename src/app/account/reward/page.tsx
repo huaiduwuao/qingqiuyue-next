@@ -86,7 +86,7 @@ export default function AccountRewardPage() {
   };
 
   const SidebarContent = () => (
-    <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, bgcolor: 'background.paper', borderRight: '1px solid #252836' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, bgcolor: 'background.paper', borderRight: '1px solid', borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB' }}>
       {/* Logo / Title */}
       <Box sx={{ p: 3, pb: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -132,7 +132,9 @@ export default function AccountRewardPage() {
                 bgcolor: isSelected ? `${item.accent}1F` : 'transparent',
                 color: isSelected ? 'text.primary' : 'text.tertiary',
                 '&:hover': {
-                  bgcolor: isSelected ? `${item.accent}2A` : 'rgba(255, 255, 255, 0.05)',
+                  bgcolor: isSelected
+                    ? `${item.accent}2A`
+                    : (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
                 },
                 '&::before': isSelected
                   ? {
@@ -237,8 +239,9 @@ export default function AccountRewardPage() {
             alignItems: 'center',
             gap: 1.5,
             p: 1.5,
-            borderBottom: '1px solid #252836',
-            bgcolor: '#0F1018',
+            borderBottom: '1px solid',
+            borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
+            bgcolor: (theme) => theme.palette.mode === 'dark' ? '#0F1018' : '#FFFFFF',
             flexShrink: 0,
           }}
         >
@@ -246,7 +249,8 @@ export default function AccountRewardPage() {
             onClick={() => setDrawerOpen(true)}
             sx={{
               color: 'text.primary',
-              border: '1px solid #252836',
+              border: '1px solid',
+              borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
               borderRadius: 1.5,
               p: 0.75,
             }}

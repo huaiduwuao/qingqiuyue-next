@@ -152,7 +152,7 @@ function AccountLayoutContent({
               <Typography sx={{ fontSize: 17, fontWeight: 700, color: 'text.primary', lineHeight: 1.2, whiteSpace: 'nowrap' }}>
                 {currentPage.label}
               </Typography>
-              <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', lineHeight: 1.2, whiteSpace: 'nowrap' }}>
+              <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1.2, whiteSpace: 'nowrap' }}>
                 {currentPage.sub}
               </Typography>
             </Box>
@@ -197,7 +197,7 @@ function AccountLayoutContent({
               onClick={handleBack}
               size="small"
               aria-label="返回"
-              sx={{ color: 'rgba(255,255,255,0.7)' }}
+              sx={{ color: 'text.secondary' }}
             >
               <ArrowBackIcon fontSize="small" />
             </IconButton>

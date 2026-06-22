@@ -739,7 +739,7 @@ export default function OriginalPage() {
                 mr: 1,
                 '& .MuiOutlinedInput-root': {
                   fontSize: 12,
-                  bgcolor: '#1E2030',
+                  bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FAFAFA',
                   '& fieldset': { borderColor: 'divider' },
                 },
               }}
@@ -774,7 +774,7 @@ export default function OriginalPage() {
                       sx={{
                         p: 1.5,
                         borderRadius: 1.5,
-                        bgcolor: '#1E2030',
+                        bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
                         border: '1px solid',
                         borderColor: p.status === 'infringing' ? 'rgba(254, 44, 85, 0.3)' : 'divider',
                         display: 'flex',
@@ -807,7 +807,7 @@ export default function OriginalPage() {
                               fontSize: 9,
                               color: '#fff',
                               fontWeight: 600,
-                              bgcolor: 'rgba(0,0,0,0.6)',
+                              bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.4)',
                               px: 0.5,
                               borderRadius: 0.5,
                             }}
@@ -933,7 +933,7 @@ export default function OriginalPage() {
                       sx={{
                         p: 1.5,
                         borderRadius: 1.5,
-                        bgcolor: '#1E2030',
+                        bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
                         border: '1px solid',
                         borderColor: i.status === 'pending' ? 'rgba(255, 180, 0, 0.3)' : 'divider',
                         display: 'flex',
@@ -961,7 +961,7 @@ export default function OriginalPage() {
                               fontSize: 8,
                               color: '#fff',
                               fontWeight: 700,
-                              bgcolor: 'rgba(0,0,0,0.6)',
+                              bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.4)',
                               px: 0.5,
                               borderRadius: 0.25,
                             }}
@@ -1138,7 +1138,7 @@ export default function OriginalPage() {
                     sx={{
                       p: 1.5,
                       borderRadius: 1.5,
-                      bgcolor: '#1E2030',
+                      bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
                       border: '1px solid',
                       borderColor: 'divider',
                     }}
@@ -1226,8 +1226,8 @@ export default function OriginalPage() {
                                     width: 16,
                                     height: 16,
                                     borderRadius: '50%',
-                                    bgcolor: stepStatus === 'done' ? 'primary.main' : stepStatus === 'current' ? '#FFB400' : 'rgba(255,255,255,0.1)',
-                                    color: '#fff',
+                                    bgcolor: stepStatus === 'done' ? 'primary.main' : stepStatus === 'current' ? '#FFB400' : (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
+                                    color: stepStatus === 'pending' ? 'text.primary' : '#fff',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
@@ -1252,7 +1252,7 @@ export default function OriginalPage() {
                                     sx={{
                                       flex: 1,
                                       height: 1,
-                                      bgcolor: stepStatus === 'done' ? 'primary.main' : 'rgba(255,255,255,0.1)',
+                                      bgcolor: stepStatus === 'done' ? 'primary.main' : (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
                                       minWidth: 12,
                                     }}
                                   />
@@ -1277,7 +1277,7 @@ export default function OriginalPage() {
               sx={{
                 p: 2,
                 borderRadius: 1.5,
-                bgcolor: '#1E2030',
+                bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
                 border: '1px solid',
                 borderColor: 'divider',
               }}
@@ -1301,7 +1301,7 @@ export default function OriginalPage() {
                       sx={{
                         fontSize: 12,
                         fontWeight: 600,
-                        bgcolor: selected ? `${meta.color}20` : 'rgba(255,255,255,0.04)',
+                        bgcolor: selected ? `${meta.color}20` : (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
                         color: selected ? meta.color : 'text.disabled',
                         border: '1px solid',
                         borderColor: selected ? meta.color : 'divider',
@@ -1317,7 +1317,7 @@ export default function OriginalPage() {
               sx={{
                 p: 2,
                 borderRadius: 1.5,
-                bgcolor: '#1E2030',
+                bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
                 border: '1px solid',
                 borderColor: 'divider',
               }}
@@ -1367,7 +1367,7 @@ export default function OriginalPage() {
               sx={{
                 p: 2,
                 borderRadius: 1.5,
-                bgcolor: '#1E2030',
+                bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
                 border: '1px solid',
                 borderColor: 'divider',
               }}
@@ -1390,7 +1390,7 @@ export default function OriginalPage() {
                       sx={{
                         p: 1,
                         borderRadius: 0.75,
-                        bgcolor: 'rgba(255,255,255,0.03)',
+                        bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
                         display: 'flex',
                         alignItems: 'center',
                         gap: 1,
@@ -1485,7 +1485,7 @@ export default function OriginalPage() {
                       borderRadius: 1.5,
                       border: '1.5px solid',
                       borderColor: selected ? 'primary.main' : 'divider',
-                      bgcolor: selected ? 'rgba(254, 44, 85, 0.06)' : '#1E2030',
+                      bgcolor: selected ? 'rgba(254, 44, 85, 0.06)' : (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FAFAFA',
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
@@ -1810,7 +1810,7 @@ export default function OriginalPage() {
                         sx={{
                           p: 1.25,
                           borderRadius: 1,
-                          bgcolor: '#1E2030',
+                          bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FAFAFA',
                           border: '1px solid',
                           borderColor: 'divider',
                           textAlign: 'center',
@@ -1838,7 +1838,7 @@ export default function OriginalPage() {
                               sx={{
                                 p: 1,
                                 borderRadius: 1,
-                                bgcolor: '#1E2030',
+                                bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FAFAFA',
                                 border: '1px solid',
                                 borderColor: 'divider',
                                 display: 'flex',

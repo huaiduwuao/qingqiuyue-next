@@ -99,7 +99,7 @@ export default function CreatorPage() {
                 sx={{
                   height: 6,
                   borderRadius: 3,
-                  bgcolor: 'rgba(255,255,255,0.08)',
+                  bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
                   '& .MuiLinearProgress-bar': {
                     background: 'linear-gradient(90deg, #FE2C55 0%, #8B5CF6 100%)',
                     borderRadius: 3,
@@ -157,7 +157,8 @@ function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label:
         p: 2,
         borderRadius: 2,
         bgcolor: 'background.paper',
-        border: '1px solid #252836',
+        border: '1px solid',
+        borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
         position: 'relative',
         overflow: 'hidden',
         transition: 'all 0.2s',

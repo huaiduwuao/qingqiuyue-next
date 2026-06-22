@@ -88,8 +88,9 @@ export function SettlementDialog({ open, demand, readonly, onClose, onConfirm, o
                   alignItems: 'center',
                   gap: 1.5,
                   p: 1.5,
-                  bgcolor: '#FAFAFA',
-                  border: '1px solid #E5E7EB',
+                  bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FAFAFA',
+                  border: '1px solid',
+                  borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
                   borderRadius: 1,
                 }}
               >
@@ -111,7 +112,7 @@ export function SettlementDialog({ open, demand, readonly, onClose, onConfirm, o
             ))}
           </Box>
         ) : (
-          <Box sx={{ p: 2, textAlign: 'center', bgcolor: '#FAFAFA', borderRadius: 1, border: '1px dashed #E5E7EB' }}>
+          <Box sx={{ p: 2, textAlign: 'center', bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FAFAFA', borderRadius: 1, border: '1px dashed', borderColor: 'divider' }}>
             <Typography variant="caption" color="text.secondary">
               {readonly ? '无分账记录' : '确认结账后将自动按任务数等额分账给所有贡献者'}
             </Typography>
@@ -129,7 +130,7 @@ export function SettlementDialog({ open, demand, readonly, onClose, onConfirm, o
           <LinearProgress
             variant="determinate"
             value={100}
-            sx={{ height: 6, borderRadius: 3, bgcolor: '#E5E7EB', '& .MuiLinearProgress-bar': { bgcolor: 'success.main', borderRadius: 3 } }}
+            sx={{ height: 6, borderRadius: 3, bgcolor: 'divider', '& .MuiLinearProgress-bar': { bgcolor: 'success.main', borderRadius: 3 } }}
           />
         </Box>
 

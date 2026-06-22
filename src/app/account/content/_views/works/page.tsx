@@ -68,7 +68,8 @@ export default function WorksPage() {
       <Box
         sx={{
           bgcolor: 'background.paper',
-          border: '1px solid #252836',
+          border: '1px solid',
+          borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
           borderRadius: 2,
           p: 2,
         }}

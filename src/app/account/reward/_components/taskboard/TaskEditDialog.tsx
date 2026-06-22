@@ -137,7 +137,8 @@ export function TaskEditDialog({ open, record, projectId, groupId, groups = [], 
                   '& .MuiToggleButton-root': {
                     flex: 1,
                     fontSize: 12,
-                    border: '1px solid #252836',
+                    border: '1px solid',
+                    borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
                     color: 'text.secondary',
                     '&.Mui-selected': {
                       bgcolor: priority === 'P0' ? 'rgba(254,44,85,0.18)' : priority === 'P1' ? 'rgba(255,180,0,0.18)' : 'rgba(139,143,163,0.18)',

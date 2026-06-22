@@ -182,7 +182,7 @@ export default function InteractionPage() {
               sx={{
                 p: 2,
                 borderRadius: 1.5,
-                bgcolor: '#1E2030',
+                bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
                 border: '1px solid',
                 borderColor: 'divider',
               }}
@@ -261,7 +261,7 @@ export default function InteractionPage() {
               sx={{
                 p: 1.5,
                 borderRadius: 1.5,
-                bgcolor: '#1E2030',
+                bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
                 border: '1px solid',
                 borderColor: 'divider',
                 display: 'flex',
@@ -378,7 +378,9 @@ export default function InteractionPage() {
                   sx={{
                     p: 2,
                     borderRadius: 1.5,
-                    bgcolor: m.read ? '#1E2030' : 'rgba(254, 44, 85, 0.06)',
+                    bgcolor: m.read
+                      ? (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF'
+                      : 'rgba(254, 44, 85, 0.06)',
                     border: '1px solid',
                     borderColor: m.read ? 'divider' : 'rgba(254, 44, 85, 0.25)',
                     position: 'relative',

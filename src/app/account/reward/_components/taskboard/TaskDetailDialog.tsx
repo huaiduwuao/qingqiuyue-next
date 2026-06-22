@@ -177,7 +177,7 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
             </>
           ) : (
             <>
-              <Avatar sx={{ width: 28, height: 28, bgcolor: 'transparent', border: '1px dashed #5A5E72' }} />
+              <Avatar sx={{ width: 28, height: 28, bgcolor: 'transparent', border: '1px dashed', borderColor: (theme) => theme.palette.mode === 'dark' ? '#5A5E72' : '#D1D5DB' }} />
               <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>暂无人认领</Typography>
             </>
           )}
@@ -233,7 +233,7 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
               size="small"
               sx={{
                 mb: 1,
-                '& .MuiOutlinedInput-root': { bgcolor: '#0F1018', fontSize: 12 },
+                '& .MuiOutlinedInput-root': { bgcolor: (theme) => theme.palette.mode === 'dark' ? '#0F1018' : '#FAFAFA', fontSize: 12 },
               }}
             />
             {status === 'REJECTED' && task.reviewNote && (
@@ -271,7 +271,7 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
               size="small"
               sx={{
                 mb: 1,
-                '& .MuiOutlinedInput-root': { bgcolor: '#0F1018', fontSize: 12 },
+                '& .MuiOutlinedInput-root': { bgcolor: (theme) => theme.palette.mode === 'dark' ? '#0F1018' : '#FAFAFA', fontSize: 12 },
               }}
             />
             <Box sx={{ display: 'flex', gap: 1 }}>
@@ -337,7 +337,7 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
           )}
         </Box>
       </DialogContent>
-      <DialogActions sx={{ borderTop: '1px solid #252836', px: 2, py: 1.5, justifyContent: 'space-between' }}>
+      <DialogActions sx={{ borderTop: '1px solid', borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB', px: 2, py: 1.5, justifyContent: 'space-between' }}>
         {canDelete ? (
           <Button size="small" color="error" onClick={handleDelete}>
             删除

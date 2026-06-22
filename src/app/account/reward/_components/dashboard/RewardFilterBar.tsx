@@ -41,7 +41,8 @@ export default function RewardFilterBar({
         p: 1.5,
         borderRadius: 2,
         bgcolor: 'background.paper',
-        border: '1px solid #252836',
+        border: '1px solid',
+        borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
         display: 'flex',
         flexDirection: { xs: 'column', md: 'row' },
         gap: 1.5,
@@ -65,7 +66,7 @@ export default function RewardFilterBar({
         sx={{
           minWidth: { md: 240 },
           '& .MuiOutlinedInput-root': {
-            bgcolor: '#0F1018',
+            bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
             color: 'text.primary',
             fontSize: 12,
             '& fieldset': { borderColor: 'divider' },

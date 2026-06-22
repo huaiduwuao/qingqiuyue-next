@@ -358,7 +358,8 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
               px: 1.5,
               py: 0.5,
               fontSize: 12,
-              border: '1px solid #252836',
+              border: '1px solid',
+              borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
               color: 'text.secondary',
               textTransform: 'none',
               '&.Mui-selected': {
@@ -467,7 +468,7 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
 
       {/* 我的任务小卡(视图模式 != mine 时也显示,作为速览) */}
       {viewMode !== 'mine' && myStats.total > 0 && (
-        <Card sx={{ bgcolor: '#0F1018', border: '1px solid #252836' }}>
+        <Card sx={{ bgcolor: (theme) => theme.palette.mode === 'dark' ? '#0F1018' : '#FFFFFF', border: '1px solid', borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB' }}>
           <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 3, p: '12px !important' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
               <AssignmentIndIcon sx={{ fontSize: 16, color: '#06B6D4' }} />
@@ -492,7 +493,7 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
       )}
 
       {/* 进度条 */}
-      <Box sx={{ p: 1.5, bgcolor: '#0F1018', border: '1px solid #252836', borderRadius: 1.5 }}>
+      <Box sx={{ p: 1.5, bgcolor: (theme) => theme.palette.mode === 'dark' ? '#0F1018' : '#FAFAFA', border: '1px solid', borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB', borderRadius: 1.5 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 0.75 }}>
           <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>当前视图进度</Typography>
           <Typography sx={{ fontSize: 12, fontWeight: 600, color: progressColor }}>
@@ -509,7 +510,7 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
           sx={{
             height: 6,
             borderRadius: 3,
-            bgcolor: 'rgba(255,255,255,0.05)',
+            bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
             '& .MuiLinearProgress-bar': { bgcolor: progressColor, borderRadius: 3 },
           }}
         />

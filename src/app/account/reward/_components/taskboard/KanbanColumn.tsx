@@ -37,8 +37,9 @@ export function KanbanColumn({ status, tasks, onTaskClick, onOpenDemand, demandT
         minWidth: 0,
         display: 'flex',
         flexDirection: 'column',
-        bgcolor: '#0F1018',
-        border: '1px solid #252836',
+        bgcolor: (theme) => theme.palette.mode === 'dark' ? '#0F1018' : '#FAFAFA',
+        border: '1px solid',
+        borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
         borderRadius: 2,
         overflow: 'hidden',
         transition: 'border-color 0.15s, background-color 0.15s',
@@ -49,7 +50,8 @@ export function KanbanColumn({ status, tasks, onTaskClick, onOpenDemand, demandT
         sx={{
           px: 1.5,
           py: 1,
-          borderBottom: '1px solid #252836',
+          borderBottom: '1px solid',
+          borderBottomColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
           display: 'flex',
           alignItems: 'center',
           gap: 1,
@@ -75,7 +77,7 @@ export function KanbanColumn({ status, tasks, onTaskClick, onOpenDemand, demandT
             height: 18,
             fontSize: 10,
             fontWeight: 700,
-            bgcolor: 'rgba(255,255,255,0.08)',
+            bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'action.hover',
             color: meta.color,
           }}
         />

@@ -29,7 +29,8 @@ export default function RewardHero({ totalPoint, level, levelName, needPoint }: 
         borderRadius: 2,
         overflow: 'hidden',
         background: DARK_BG.PURPLE_BLUE,
-        border: '1px solid #252836',
+        border: '1px solid',
+        borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
         p: { xs: 2, md: 3 },
       }}
     >
@@ -97,7 +98,7 @@ export default function RewardHero({ totalPoint, level, levelName, needPoint }: 
                 sx={{
                   height: 6,
                   borderRadius: 3,
-                  bgcolor: 'rgba(255,255,255,0.08)',
+                  bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'action.hover',
                   '& .MuiLinearProgress-bar': {
                     background: CTA_GRADIENT.RED_YELLOW,
                     borderRadius: 3,
@@ -133,8 +134,9 @@ export default function RewardHero({ totalPoint, level, levelName, needPoint }: 
               sx={{
                 p: 1.5,
                 borderRadius: 1.5,
-                bgcolor: 'rgba(255,255,255,0.03)',
-                border: '1px solid rgba(255,255,255,0.06)',
+                bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'action.hover',
+                border: '1px solid',
+                borderColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'divider',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 1,

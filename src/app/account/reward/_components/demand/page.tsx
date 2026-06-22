@@ -282,7 +282,7 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
                   component="div"
                   sx={{
                     height: 120,
-                    backgroundColor: item.cover ? 'transparent' : '#f5f5f5',
+                    backgroundColor: item.cover ? 'transparent' : (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FAFAFA',
                     backgroundImage: item.cover ? `url(${item.cover})` : 'none',
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
@@ -526,7 +526,7 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
               <LinearProgress
                 variant="determinate"
                 value={progressPercent}
-                sx={{ height: 6, borderRadius: 3, bgcolor: '#E5E7EB', '& .MuiLinearProgress-bar': { bgcolor: progressColor, borderRadius: 3 } }}
+                sx={{ height: 6, borderRadius: 3, bgcolor: 'divider', '& .MuiLinearProgress-bar': { bgcolor: progressColor, borderRadius: 3 } }}
               />
             </Box>
           ) : (
@@ -544,8 +544,9 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
                   key={t.id}
                   sx={{
                     p: 1,
-                    bgcolor: '#FAFAFA',
-                    border: '1px solid #E5E7EB',
+                    bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FAFAFA',
+                    border: '1px solid',
+                    borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
                     borderRadius: 1,
                     display: 'flex',
                     alignItems: 'center',
@@ -601,8 +602,9 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
                   key={c.id}
                   sx={{
                     p: 1,
-                    bgcolor: '#FAFAFA',
-                    border: '1px solid #E5E7EB',
+                    bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FAFAFA',
+                    border: '1px solid',
+                    borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
                     borderRadius: 1,
                     display: 'flex',
                     alignItems: 'center',
