@@ -240,27 +240,70 @@ export default function FloatingDigitalHuman() {
     <Box data-dh-root sx={{ position: 'fixed', left: pos.left, top: pos.top, zIndex: 2000, transition: walking ? 'left 1.6s cubic-bezier(.4,0,.2,1), top 1.6s cubic-bezier(.4,0,.2,1)' : 'none' }}>
       {/* 气泡回复 */}
       {!open && lastReply && (
-        <Box sx={{ position: 'absolute', bottom: FIG_H - 10, left: -70, width: 200, px: 1.5, py: 0.75, borderRadius: 2, bgcolor: 'rgba(15,17,26,0.96)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 6px 20px rgba(0,0,0,0.45)' }}>
+        <Box sx={{
+          position: 'absolute', bottom: FIG_H - 10, left: -70, width: 200,
+          px: 1.5, py: 0.75, borderRadius: 2,
+          // 玻璃气泡:dark 模式深玻璃,light 模式白玻璃(跟全局主题同步)
+          bgcolor: (theme) => theme.palette.mode === 'dark'
+            ? 'rgba(15,17,26,0.96)'
+            : 'rgba(255,255,255,0.96)',
+          border: (theme) => `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)'}`,
+          boxShadow: '0 6px 20px rgba(0,0,0,0.45)',
+        }}>
           <Typography sx={{ fontSize: 11.5, color: 'text.primary' }}>{lastReply}</Typography>
         </Box>
       )}
 
       {/* 聊天面板 */}
       {open && (
-        <Box sx={{ position: 'absolute', bottom: FIG_H - 6, left: -90, width: 300, borderRadius: 3, overflow: 'hidden', bgcolor: 'rgba(15,17,26,0.97)', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 12px 40px rgba(0,0,0,0.5)', backdropFilter: 'blur(12px)' }}>
-          <Box sx={{ px: 1.5, py: 1, display: 'flex', alignItems: 'center', gap: 1, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            <Typography sx={{ fontSize: 12.5, fontWeight: 700, flex: 1 }}>数字人助理</Typography>
-            {voiceOn && <Chip size="small" label={speaking ? '聆听中' : '待命'} sx={{ height: 18, fontSize: 10, bgcolor: speaking ? 'rgba(93,219,150,0.3)' : 'rgba(255,255,255,0.08)', color: '#fff' }} />}
-            {thinking && <Chip size="small" label="思考" sx={{ height: 18, fontSize: 10, bgcolor: 'rgba(139,92,246,0.3)', color: '#fff' }} />}
-            <IconButton size="small" onClick={() => router.push('/digital-human')} title="进入全屏数字人工作室"><OpenInFullRoundedIcon sx={{ fontSize: 14 }} /></IconButton>
-            <IconButton size="small" onClick={() => setOpen(false)} title="收起聊天(数字人保留)"><CloseRoundedIcon sx={{ fontSize: 16 }} /></IconButton>
+        <Box sx={{
+          position: 'absolute', bottom: FIG_H - 6, left: -90, width: 300,
+          borderRadius: 3, overflow: 'hidden',
+          // 跟全局主题同步:dark 深玻璃,light 白玻璃
+          bgcolor: (theme) => theme.palette.mode === 'dark'
+            ? 'rgba(15,17,26,0.97)'
+            : 'rgba(255,255,255,0.97)',
+          border: (theme) => `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+          boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(12px)',
+        }}>
+          <Box sx={{
+            px: 1.5, py: 1, display: 'flex', alignItems: 'center', gap: 1,
+            borderBottom: (theme) => `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)'}`,
+          }}>
+            <Typography sx={{ fontSize: 12.5, fontWeight: 700, flex: 1, color: 'text.primary' }}>数字人助理</Typography>
+            {voiceOn && <Chip size="small" label={speaking ? '聆听中' : '待命'} sx={{
+              height: 18, fontSize: 10,
+              // Chip 在玻璃面板上:dark 模式浅色字,light 模式深色字
+              bgcolor: (theme) => theme.palette.mode === 'dark'
+                ? (speaking ? 'rgba(93,219,150,0.3)' : 'rgba(255,255,255,0.08)')
+                : (speaking ? 'rgba(93,219,150,0.2)' : 'rgba(0,0,0,0.06)'),
+              color: (theme) => theme.palette.mode === 'dark' ? '#fff' : 'text.primary',
+            }} />}
+            {thinking && <Chip size="small" label="思考" sx={{
+              height: 18, fontSize: 10,
+              bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(139,92,246,0.3)' : 'rgba(139,92,246,0.18)',
+              color: (theme) => theme.palette.mode === 'dark' ? '#fff' : 'text.primary',
+            }} />}
+            <IconButton size="small" onClick={() => router.push('/digital-human')} title="进入全屏数字人工作室" sx={{ color: 'text.primary' }}><OpenInFullRoundedIcon sx={{ fontSize: 14 }} /></IconButton>
+            <IconButton size="small" onClick={() => setOpen(false)} title="收起聊天(数字人保留)" sx={{ color: 'text.primary' }}><CloseRoundedIcon sx={{ fontSize: 16 }} /></IconButton>
           </Box>
           <Box sx={{ maxHeight: 190, overflowY: 'auto', p: 1.25, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
             {log.length === 0 && <Typography sx={{ fontSize: 11.5, color: 'text.disabled' }}>开麦克风后我会一直听你说话;也可打字。试试"点击新建""帮我填名称 测试""悬赏在哪""打开用户管理"。</Typography>}
             {log.map((l, i) => <Typography key={i} sx={{ fontSize: 11.5, color: 'text.secondary', fontFamily: 'ui-monospace, monospace', wordBreak: 'break-all' }}>{l}</Typography>)}
           </Box>
-          <Box sx={{ p: 1, display: 'flex', gap: 0.5, alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-            <IconButton size="small" onClick={toggleVoice} sx={{ bgcolor: voiceOn ? (speaking ? 'success.main' : 'primary.main') : 'rgba(255,255,255,0.06)', color: '#fff', position: 'relative' }}>
+          <Box sx={{
+            p: 1, display: 'flex', gap: 0.5, alignItems: 'center',
+            borderTop: (theme) => `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)'}`,
+          }}>
+            <IconButton size="small" onClick={toggleVoice} sx={{
+              // 麦克风按钮:激活态 primary/success(品牌色两种模式通用),闲置态随主题
+              bgcolor: voiceOn
+                ? (speaking ? 'success.main' : 'primary.main')
+                : (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+              color: voiceOn ? '#fff' : 'text.primary',
+              position: 'relative',
+            }}>
               {voiceOn ? <MicRoundedIcon sx={{ fontSize: 18 }} /> : <MicOffRoundedIcon sx={{ fontSize: 18 }} />}
               {voiceOn && <Box sx={{ position: 'absolute', inset: -2, borderRadius: '50%', border: '2px solid', borderColor: 'success.main', opacity: Math.min(1, level * 25), pointerEvents: 'none' }} />}
             </IconButton>
