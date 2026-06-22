@@ -4,6 +4,7 @@ import React from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Tooltip from '@mui/material/Tooltip';
+import { alpha } from '@mui/material/styles';
 import VerifiedIcon from '@mui/icons-material/Verified';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
 import StarIcon from '@mui/icons-material/Star';
@@ -49,10 +50,14 @@ export default function CreatorProfileHeader() {
         position: 'relative',
         overflow: 'hidden',
         flexShrink: 0,
-        background: DARK_BG.DEEP_NIGHT,
+        // 深色模式保留原深沉渐变;浅色模式用品牌色淡 tint + 浅背景,跟随主题色
+        background: (theme) =>
+          theme.palette.mode === 'dark'
+            ? DARK_BG.DEEP_NIGHT
+            : `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.10)} 0%, ${alpha(theme.palette.primary.main, 0.04)} 50%, ${alpha(theme.palette.secondary.main, 0.08)} 100%)`,
         borderRadius: 2,
         border: '1px solid',
-        borderColor: 'divider',
+        borderColor: (theme) => alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.2 : 0.18),
         p: { xs: 2, md: 3 },
       }}
     >
@@ -123,14 +128,16 @@ export default function CreatorProfileHeader() {
               height: 22,
               borderRadius: 11,
               background: gradient2('#FE2C55', '#FF6B8A'),
-              color: 'text.primary',
+              color: '#fff',
               fontSize: 11,
               fontWeight: 700,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               px: 0.75,
-              border: '2px solid #0A0B14',
+              // 边框跟当前卡片背景一致,浅色模式下不再是突兀的深色描边
+              border: '2px solid',
+              borderColor: (theme) => theme.palette.mode === 'dark' ? '#0A0B14' : theme.palette.background.paper,
             }}
           >
             Lv{PROFILE.level}
@@ -285,7 +292,8 @@ export default function CreatorProfileHeader() {
               textAlign: 'center',
               cursor: 'pointer',
               transition: 'all 0.2s ease-in-out',
-              borderRight: { xs: i < 3 ? '1px solid #252836' : 'none', md: i < 3 ? '1px solid #252836' : 'none' },
+              borderRight: { xs: i < 3 ? '1px solid' : 'none', md: i < 3 ? '1px solid' : 'none' },
+              borderColor: 'divider',
               '&:hover': { color: 'primary.main' },
             }}
           >

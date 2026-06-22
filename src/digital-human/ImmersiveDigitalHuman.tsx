@@ -24,6 +24,7 @@ import MicOffRoundedIcon from '@mui/icons-material/MicOffRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import CircleIcon from '@mui/icons-material/Circle';
+import { alpha } from '@mui/material/styles';
 
 import type { AgentEvent, IAvatarStage } from './types';
 import { CanvasStage } from './CanvasStage';
@@ -142,8 +143,9 @@ export default function ImmersiveDigitalHuman() {
         position: 'fixed',
         inset: 0,
         zIndex: 1,
-        // 始终深色舞台(数字人形象需要深背景才好看,跟全局 light/dark 解耦)
-        bgcolor: '#05060B',
+        // 舞台需要深色基底(数字人形象在浅色下不好看),但用品牌主色做极淡光晕,
+        // 切深浅 / 切主色时都会有视觉反馈,而不是一个孤零零的纯黑块
+        background: (t) => `radial-gradient(ellipse at 50% 30%, ${alpha(t.palette.primary.main, 0.18)} 0%, transparent 55%), #05060B`,
         overflow: 'hidden',
       }}
     >
@@ -183,13 +185,13 @@ export default function ImmersiveDigitalHuman() {
           onClick={() => router.back()}
           size="small"
           aria-label="退出"
-          sx={{ color: 'rgba(255,255,255,0.9)' }}
+          sx={{ color: (t) => alpha(t.palette.common.white, 0.9) }}
         >
           <CloseRoundedIcon />
         </IconButton>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <CircleIcon sx={{ fontSize: 8, color: connected === 'ready' ? '#5DDB96' : connected === 'tts' ? '#FE2C55' : '#FFB400' }} />
-          <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.85)', fontWeight: 500 }}>
+          <CircleIcon sx={{ fontSize: 8, color: connected === 'ready' ? 'success.main' : connected === 'tts' ? 'primary.main' : 'warning.main' }} />
+          <Typography sx={{ fontSize: 12, color: (t) => alpha(t.palette.common.white, 0.85), fontWeight: 500 }}>
             {connected === 'ready' ? '已连接' : connected === 'tts' ? '正在回应…' : '连接中…'}
           </Typography>
         </Box>
@@ -197,7 +199,7 @@ export default function ImmersiveDigitalHuman() {
           onClick={() => setUseRemote((v) => !v)}
           size="small"
           aria-label="切换 LLM"
-          sx={{ color: 'rgba(255,255,255,0.85)', fontSize: 11, px: 1.5, borderRadius: 1 }}
+          sx={{ color: (t) => alpha(t.palette.common.white, 0.85), fontSize: 11, px: 1.5, borderRadius: 1 }}
         >
           <Typography sx={{ fontSize: 11, fontWeight: 600 }}>
             {useRemote ? '真·LLM' : 'Mock'}
@@ -217,14 +219,14 @@ export default function ImmersiveDigitalHuman() {
             px: 2,
             py: 1,
             borderRadius: 2,
-            bgcolor: 'rgba(15,17,26,0.75)',
+            bgcolor: (t) => alpha(t.palette.background.default, 0.78),
             backdropFilter: 'blur(8px)',
-            border: '1px solid rgba(255,255,255,0.08)',
+            border: (t) => `1px solid ${alpha(t.palette.primary.main, 0.32)}`,
             maxWidth: 480,
             textAlign: 'center',
           }}
         >
-          <Typography sx={{ fontSize: 11.5, color: 'rgba(255,255,255,0.85)', lineHeight: 1.6 }}>
+          <Typography sx={{ fontSize: 11.5, color: (t) => alpha(t.palette.common.white, 0.88), lineHeight: 1.6 }}>
             占位形象 · 放入真人视频片段即变真人：把 <code>public/avatar/clips.example.json</code> 复制为 <code>clips.json</code> 填入你的片段地址(待机 / 讲话 / 表情…),刷新即可。
           </Typography>
         </Box>
@@ -242,8 +244,8 @@ export default function ImmersiveDigitalHuman() {
             px: 1.5,
             py: 0.5,
             borderRadius: 999,
-            bgcolor: 'rgba(139,92,246,0.85)',
-            color: '#fff',
+            bgcolor: (t) => alpha(t.palette.secondary.main, 0.85),
+            color: (t) => t.palette.secondary.contrastText,
             fontSize: 11,
             fontWeight: 600,
             backdropFilter: 'blur(8px)',
@@ -267,10 +269,10 @@ export default function ImmersiveDigitalHuman() {
             flexDirection: 'column',
             gap: 0.75,
             pointerEvents: 'auto',
-            // 玻璃面板
-            bgcolor: 'rgba(15, 17, 26, 0.55)',
+            // 玻璃面板 — 跟随主题:背景用 background.default 派生,边框叠品牌色
+            bgcolor: (t) => alpha(t.palette.background.default, 0.6),
             backdropFilter: 'blur(14px)',
-            border: '1px solid rgba(255,255,255,0.08)',
+            border: (t) => `1px solid ${alpha(t.palette.primary.main, 0.28)}`,
             borderRadius: 2,
             p: 1.25,
             maxHeight: { xs: 180, md: 240 },
@@ -284,7 +286,8 @@ export default function ImmersiveDigitalHuman() {
                 sx={{
                   fontSize: 12.5,
                   lineHeight: 1.5,
-                  color: c.who === 'user' ? 'rgba(91,141,239,0.95)' : 'rgba(255,255,255,0.92)',
+                  // 用户消息用主品牌色,AI 消息用白
+                  color: (t) => c.who === 'user' ? alpha(t.palette.primary.main, 0.95) : alpha(t.palette.common.white, 0.92),
                   textAlign: c.who === 'user' ? 'right' : 'left',
                   wordBreak: 'break-word',
                 }}
@@ -301,14 +304,22 @@ export default function ImmersiveDigitalHuman() {
             <>
               <Box
                 onClick={() => setLogOpen((v) => !v)}
-                sx={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', cursor: 'pointer', userSelect: 'none', textAlign: 'center', pt: 0.25, borderTop: '1px solid rgba(255,255,255,0.06)' }}
+                sx={{
+                  fontSize: 10,
+                  color: (t) => alpha(t.palette.common.white, 0.55),
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  textAlign: 'center',
+                  pt: 0.25,
+                  borderTop: (t) => `1px solid ${alpha(t.palette.common.white, 0.08)}`,
+                }}
               >
                 {logOpen ? '▾ 收起日志' : `▴ 展开日志(${log.length})`}
               </Box>
               {logOpen && (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, maxHeight: 120, overflowY: 'auto', pt: 0.25 }}>
                   {log.slice(0, 10).map((l, i) => (
-                    <Box key={i} sx={{ fontSize: 10.5, color: 'rgba(255,255,255,0.55)', fontFamily: 'ui-monospace, monospace', lineHeight: 1.4 }}>
+                    <Box key={i} sx={{ fontSize: 10.5, color: (t) => alpha(t.palette.common.white, 0.6), fontFamily: 'ui-monospace, monospace', lineHeight: 1.4 }}>
                       {l}
                     </Box>
                   ))}
@@ -329,8 +340,8 @@ export default function ImmersiveDigitalHuman() {
           zIndex: 3,
           px: { xs: 2, md: 4 },
           py: { xs: 1.5, md: 2 },
-          // 从下往上渐变深色蒙版,让输入条与数字人之间有视觉层次
-          background: 'linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 100%)',
+          // 从下往上渐变蒙版,叠品牌色 — 切主色时有反馈
+          background: (t) => `linear-gradient(0deg, ${alpha(t.palette.common.black, 0.7)} 0%, ${alpha(t.palette.primary.main, 0)} 100%)`,
         }}
       >
         <Box
@@ -343,17 +354,18 @@ export default function ImmersiveDigitalHuman() {
             px: 1.5,
             py: 0.5,
             borderRadius: 999,
-            bgcolor: 'rgba(20, 22, 32, 0.85)',
+            bgcolor: (t) => alpha(t.palette.background.default, 0.85),
             backdropFilter: 'blur(16px)',
-            border: '1px solid rgba(255,255,255,0.12)',
+            border: (t) => `1px solid ${alpha(t.palette.primary.main, 0.32)}`,
           }}
         >
           <IconButton
             onClick={toggleMic}
             size="small"
             sx={{
-              color: listening ? '#FE2C55' : 'rgba(255,255,255,0.85)',
-              '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' },
+              // 监听中:主题主色;闲置:白
+              color: (t) => listening ? t.palette.primary.main : alpha(t.palette.common.white, 0.85),
+              '&:hover': { bgcolor: (t) => alpha(t.palette.common.white, 0.08) },
             }}
             aria-label={listening ? '停止聆听' : '开始语音'}
           >
@@ -367,16 +379,20 @@ export default function ImmersiveDigitalHuman() {
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && send()}
             slotProps={{
-              input: { disableUnderline: true, sx: { color: '#fff', fontSize: 14, py: 0.5 } },
+              input: {
+                disableUnderline: true,
+                sx: { color: (t) => t.palette.common.white, fontSize: 14, py: 0.5 },
+              },
             }}
-            sx={{ '& input::placeholder': { color: 'rgba(255,255,255,0.5)', opacity: 1 } }}
+            sx={{ '& input::placeholder': { color: (t) => alpha(t.palette.common.white, 0.5), opacity: 1 } }}
           />
           <IconButton
             onClick={send}
             size="small"
             sx={{
-              color: text.trim() ? '#FE2C55' : 'rgba(255,255,255,0.4)',
-              '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' },
+              // 输入有内容:主题主色;否则:灰白
+              color: (t) => text.trim() ? t.palette.primary.main : alpha(t.palette.common.white, 0.4),
+              '&:hover': { bgcolor: (t) => alpha(t.palette.common.white, 0.08) },
             }}
             aria-label="发送"
           >

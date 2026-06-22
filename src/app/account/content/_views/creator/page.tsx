@@ -14,6 +14,7 @@ import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import PersonAddRoundedIcon from '@mui/icons-material/PersonAddRounded';
 import { accountClient } from '@/lib/api/client';
 import { AsyncState } from '@/components/common/AsyncState';
+import { alpha } from '@mui/material/styles';
 
 type CreatorStats = {
   totalWorks: number;
@@ -45,8 +46,12 @@ export default function CreatorPage() {
             sx={{
               p: 3,
               borderRadius: 2.5,
-              background: 'linear-gradient(135deg, rgba(254, 44, 85, 0.12) 0%, rgba(139, 92, 246, 0.12) 100%)',
-              border: '1px solid rgba(254, 44, 85, 0.2)',
+              // 跟随品牌主色,深浅模式自适应
+              background: (theme) =>
+                theme.palette.mode === 'dark'
+                  ? `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.18)} 0%, ${alpha(theme.palette.secondary.main, 0.18)} 100%)`
+                  : `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.10)} 0%, ${alpha(theme.palette.secondary.main, 0.10)} 100%)`,
+              border: (theme) => `1px solid ${alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.32 : 0.22)}`,
               position: 'relative',
               overflow: 'hidden',
             }}
@@ -59,7 +64,8 @@ export default function CreatorPage() {
                 width: 240,
                 height: 240,
                 borderRadius: '50%',
-                background: 'radial-gradient(circle, rgba(254, 44, 85, 0.18) 0%, transparent 70%)',
+                background: (theme) =>
+                  `radial-gradient(circle, ${alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.22 : 0.16)} 0%, transparent 70%)`,
                 pointerEvents: 'none',
               }}
             />
@@ -69,14 +75,15 @@ export default function CreatorPage() {
                   width: 64,
                   height: 64,
                   borderRadius: 2,
-                  background: 'linear-gradient(135deg, #FE2C55 0%, #8B5CF6 100%)',
+                  background: (theme) =>
+                    `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   flexShrink: 0,
                 }}
               >
-                <WorkspacePremiumRoundedIcon sx={{ fontSize: 32, color: 'text.primary' }} />
+                <WorkspacePremiumRoundedIcon sx={{ fontSize: 32, color: (theme) => theme.palette.primary.contrastText }} />
               </Box>
               <Box sx={{ flex: 1 }}>
                 <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'text.primary', mb: 0.5 }}>
@@ -101,7 +108,8 @@ export default function CreatorPage() {
                   borderRadius: 3,
                   bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
                   '& .MuiLinearProgress-bar': {
-                    background: 'linear-gradient(90deg, #FE2C55 0%, #8B5CF6 100%)',
+                    background: (theme) =>
+                      `linear-gradient(90deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
                     borderRadius: 3,
                   },
                 }}

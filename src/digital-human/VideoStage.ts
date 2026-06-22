@@ -34,10 +34,38 @@ export class VideoStage implements IAvatarStage {
       const r = await fetch(url, { cache: 'no-cache' });
       if (!r.ok) return null;
       const m = (await r.json()) as ClipManifest;
-      return m?.idle?.url ? m : null;
+      if (!m?.idle?.url) return null;
+      // 探测 idle 视频是否真的可加载 — clips.json 里写的 url 可能 404
+      // (例如 public/avatar/clips/*.mp4 还没拷贝到位)。
+      // 用 <video> element 做一次 canplay / error 探测,失败则返回 null
+      // 让调用方回退到 CanvasStage 占位,保证数字人始终可见。
+      const ok = await VideoStage.probe(m.idle.url);
+      return ok ? m : null;
     } catch {
       return null;
     }
+  }
+
+  /**
+   * 用隐藏的 <video> 元素探测 url 是否真的能加载。
+   * 成功(可以 play)→ true;失败(404 / 解码错 / 超时)→ false。
+   * 超时 4s 兜底,避免被慢响应卡死。
+   */
+  private static probe(url: string): Promise<boolean> {
+    return new Promise((resolve) => {
+      const v = document.createElement('video');
+      v.muted = true;
+      v.preload = 'metadata';
+      const finish = (ok: boolean) => {
+        v.removeAttribute('src');
+        v.load();
+        resolve(ok);
+      };
+      const timer = setTimeout(() => finish(false), 4000);
+      v.addEventListener('loadedmetadata', () => { clearTimeout(timer); finish(true); }, { once: true });
+      v.addEventListener('error', () => { clearTimeout(timer); finish(false); }, { once: true });
+      v.src = url;
+    });
   }
 
   async mount(container: HTMLElement) {
