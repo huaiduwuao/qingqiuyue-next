@@ -47,9 +47,13 @@ export function AvatarHoverPopup({ anchor, width = 320 }: AvatarHoverPopupProps)
         width,
         maxHeight: 'calc(100vh - 60px)',
         zIndex: 9999,
-        bgcolor: 'rgba(10, 10, 15, 0.96)',
+        bgcolor: (theme) =>
+          theme.palette.mode === 'dark' ? 'rgba(10, 10, 15, 0.96)' : 'rgba(255, 255, 255, 0.96)',
         backdropFilter: 'blur(16px)',
-        borderLeft: '1px solid rgba(255,255,255,0.08)',
+        borderLeft: (theme) =>
+          theme.palette.mode === 'dark'
+            ? '1px solid rgba(255,255,255,0.08)'
+            : '1px solid rgba(0,0,0,0.08)',
         borderTopLeftRadius: 2,
         borderBottomLeftRadius: 2,
         boxShadow: '-12px 0 32px rgba(0,0,0,0.5)',

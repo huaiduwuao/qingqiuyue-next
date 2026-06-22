@@ -97,7 +97,13 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
                 t.palette.mode === 'dark' ? '0 0 0 1px rgba(255,255,255,0.05)' : '0 0 0 1px rgba(0,0,0,0.08)',
             }}
           />
-          <Typography sx={{ fontSize: 13, color: 'rgba(255,255,255,0.65)' }}>
+          <Typography
+            sx={{
+              fontSize: 13,
+              color: (theme) =>
+                theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.65)' : 'rgba(0,0,0,0.65)',
+            }}
+          >
             未登录
           </Typography>
           <Button
@@ -183,7 +189,12 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
             <IconButton
               size="small"
               onClick={() => go('/home/recommend?tab=me')}
-              sx={{ color: 'rgba(255,255,255,0.5)', p: 0.25, '&:hover': { color: 'primary.main' } }}
+              sx={{
+                color: (theme) =>
+                  theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)',
+                p: 0.25,
+                '&:hover': { color: 'primary.main' },
+              }}
               aria-label="编辑资料"
             >
               <EditIcon sx={{ fontSize: 14 }} />
@@ -196,11 +207,21 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
               gap: 1,
               mt: 0.5,
               fontSize: 12,
-              color: 'rgba(255, 255, 255, 0.6)',
+              color: (theme) =>
+                theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 0.6)',
             }}
           >
             <Box component="span">关注 {PROFILE.following}</Box>
-            <Box component="span" sx={{ width: 2, height: 2, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.3)' }} />
+            <Box
+              component="span"
+              sx={{
+                width: 2,
+                height: 2,
+                borderRadius: '50%',
+                bgcolor: (theme) =>
+                  theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)',
+              }}
+            />
             <Box component="span">粉丝 {PROFILE.followers}</Box>
           </Box>
         </Box>
@@ -228,7 +249,8 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
               display: 'flex',
               alignItems: 'center',
               gap: 0.25,
-              color: 'rgba(255,255,255,0.6)',
+              color: (theme) =>
+                theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)',
               fontSize: 11,
               transition: 'color 0.15s',
             }}
@@ -296,9 +318,23 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
             </Box>
             <Typography sx={{ fontSize: 13, color: 'text.primary', flex: 1 }}>{s.label}</Typography>
             {s.count && (
-              <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>{s.count}</Typography>
+              <Typography
+                sx={{
+                  fontSize: 11,
+                  color: (theme) =>
+                    theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.5)',
+                }}
+              >
+                {s.count}
+              </Typography>
             )}
-            <ChevronRightIcon sx={{ fontSize: 14, color: 'rgba(255,255,255,0.4)' }} />
+            <ChevronRightIcon
+              sx={{
+                fontSize: 14,
+                color: (theme) =>
+                  theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.4)' : 'rgba(0,0,0,0.4)',
+              }}
+            />
           </Box>
         ))}
       </Box>
@@ -317,8 +353,10 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
             alignItems: 'center',
             gap: 1.25,
             py: 1.25,
-            borderTop: '1px solid rgba(255,255,255,0.06)',
-            borderBottom: '1px solid rgba(255,255,255,0.06)',
+            borderTop: (theme) =>
+              theme.palette.mode === 'dark' ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(0,0,0,0.08)',
+            borderBottom: (theme) =>
+              theme.palette.mode === 'dark' ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(0,0,0,0.08)',
             cursor: 'pointer',
             transition: 'background 0.15s',
             '&:hover': { bgcolor: 'rgba(254, 44, 85, 0.06)' },
@@ -344,7 +382,15 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>保存登录信息</Typography>
+          <Typography
+            sx={{
+              fontSize: 11,
+              color: (theme) =>
+                theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.6)',
+            }}
+          >
+            保存登录信息
+          </Typography>
           <Switch
             checked={saveLogin}
             onChange={(e) => setSaveLogin(e.target.checked)}
