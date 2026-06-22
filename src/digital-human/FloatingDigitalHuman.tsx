@@ -278,6 +278,80 @@ export default function FloatingDigitalHuman() {
         sx={{ width: FIG_W, height: FIG_H, cursor: 'grab', touchAction: 'none', filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.5))', position: 'relative' }}
       >
         <Box ref={avatarRef} sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' }} />
+        {/* 兜底:3D / 视频 / Canvas 都失败时也保证有可见形象 */}
+        {/*
+          实时 stage 不可用(没配 3D 资产 / 视频 manifest)时,这里显示一个
+          CSS 渲染的"小 Q"形象,保证数字人始终可见、可点击、可拖拽。
+        */}
+        <Box
+          data-dh-fallback
+          sx={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            // CSS 头像:渐变圆 + 表情 + 头身,够用就好
+            '&::before': {
+              content: '""',
+              position: 'absolute',
+              bottom: 0,
+              width: 80,
+              height: 90,
+              borderRadius: '40px 40px 16px 16px',
+              background: 'linear-gradient(135deg, #5B8DEF 0%, #7C3AED 100%)',
+              boxShadow: '0 6px 16px rgba(91,141,239,0.4)',
+            },
+            '&::after': {
+              content: '""',
+              position: 'absolute',
+              top: 12,
+              width: 64,
+              height: 64,
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #FFD9B3 0%, #FFB48A 100%)',
+              boxShadow: '0 -4px 0 0 #E89B6E inset, 0 4px 12px rgba(0,0,0,0.18)',
+            },
+          }}
+        >
+          {/* 表情眼睛 */}
+          <Box sx={{
+            position: 'absolute',
+            top: 38,
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            bgcolor: '#1E293B',
+            boxShadow: '32px 0 0 0 #1E293B',
+            zIndex: 1,
+          }} />
+          {/* 嘴 */}
+          <Box sx={{
+            position: 'absolute',
+            top: 56,
+            width: 16,
+            height: 4,
+            borderRadius: '50%',
+            bgcolor: '#FB7185',
+            zIndex: 1,
+          }} />
+          {/* 飘浮光圈 */}
+          <Box sx={{
+            position: 'absolute',
+            top: 0,
+            width: 30,
+            height: 6,
+            borderRadius: '50%',
+            border: '2px solid rgba(91,141,239,0.6)',
+            borderBottom: 'none',
+            animation: 'dh-bounce 2.4s ease-in-out infinite',
+            '@keyframes dh-bounce': {
+              '0%,100%': { transform: 'translateY(0)' },
+              '50%': { transform: 'translateY(-4px)' },
+            },
+          }} />
+        </Box>
       </Box>
     </Box>
   );
