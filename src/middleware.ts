@@ -5,6 +5,7 @@ const TOKEN_COOKIE = 'auth-token';
 // 公开路由白名单(无需 token)—— 路由可访问,但页面里需要登录的局部内容
 // 会被 <LoginGate> 包起来显示锁图标(不强制整页跳登录)
 const PUBLIC_PREFIXES = [
+  '/',              // 根路径 → src/app/page.tsx 内部 redirect 到 /home/recommend
   '/user/login',
   '/user/social-login',
   '/detail',
