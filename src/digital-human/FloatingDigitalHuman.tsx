@@ -11,6 +11,7 @@ import MicOffRoundedIcon from '@mui/icons-material/MicOffRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import OpenInFullRoundedIcon from '@mui/icons-material/OpenInFullRounded';
+import { alpha, useTheme } from '@mui/material/styles';
 import { useRouter, usePathname } from 'next/navigation';
 
 import type { AgentEvent, IAvatarStage } from './types';
@@ -33,6 +34,7 @@ export default function FloatingDigitalHuman() {
   const router = useRouter();
   const pathname = usePathname() || '';
   const hidden = HIDE_ON.some((p) => pathname.startsWith(p));
+  const theme = useTheme();
 
   const avatarRef = React.useRef<HTMLDivElement>(null);
   const stageRef = React.useRef<IAvatarStage | null>(null);
@@ -75,13 +77,13 @@ export default function FloatingDigitalHuman() {
     // 高亮目标
     if (highlightRef.current) highlightRef.current.el.style.outline = highlightRef.current.prev;
     highlightRef.current = { el, prev: el.style.outline };
-    el.style.outline = '2px solid #FFB400';
+    el.style.outline = `2px solid ${theme.palette.primary.main}`;
     el.style.outlineOffset = '2px';
     setTimeout(() => {
       if (highlightRef.current?.el === el) { el.style.outline = highlightRef.current.prev; highlightRef.current = null; }
     }, 4000);
     return true;
-  }, []);
+  }, [theme]);
 
   // 初始化
   React.useEffect(() => {
@@ -243,12 +245,10 @@ export default function FloatingDigitalHuman() {
         <Box sx={{
           position: 'absolute', bottom: FIG_H - 10, left: -70, width: 200,
           px: 1.5, py: 0.75, borderRadius: 2,
-          // 玻璃气泡:dark 模式深玻璃,light 模式白玻璃(跟全局主题同步)
-          bgcolor: (theme) => theme.palette.mode === 'dark'
-            ? 'rgba(15,17,26,0.96)'
-            : 'rgba(255,255,255,0.96)',
-          border: (theme) => `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)'}`,
-          boxShadow: '0 6px 20px rgba(0,0,0,0.45)',
+          // 玻璃气泡:从主题背景派生,深浅模式都跟当前主品牌色融合
+          bgcolor: (theme) => alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.92 : 0.96),
+          border: (theme) => `1px solid ${alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.28 : 0.18)}`,
+          boxShadow: (theme) => `0 6px 20px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.55 : 0.18)}`,
         }}>
           <Typography sx={{ fontSize: 11.5, color: 'text.primary' }}>{lastReply}</Typography>
         </Box>
@@ -259,31 +259,36 @@ export default function FloatingDigitalHuman() {
         <Box sx={{
           position: 'absolute', bottom: FIG_H - 6, left: -90, width: 300,
           borderRadius: 3, overflow: 'hidden',
-          // 跟全局主题同步:dark 深玻璃,light 白玻璃
-          bgcolor: (theme) => theme.palette.mode === 'dark'
-            ? 'rgba(15,17,26,0.97)'
-            : 'rgba(255,255,255,0.97)',
-          border: (theme) => `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
-          boxShadow: '0 12px 40px rgba(0,0,0,0.5)',
+          // 跟全局主题同步:从 background.paper 派生,叠一层品牌色光晕,深浅模式自然切换
+          bgcolor: (theme) => alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.94 : 0.96),
+          border: (theme) => `1px solid ${alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.32 : 0.22)}`,
+          boxShadow: (theme) =>
+            `0 12px 40px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.6 : 0.22)},
+             0 0 0 1px ${alpha(theme.palette.primary.main, 0.06)}`,
           backdropFilter: 'blur(12px)',
         }}>
           <Box sx={{
             px: 1.5, py: 1, display: 'flex', alignItems: 'center', gap: 1,
-            borderBottom: (theme) => `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)'}`,
+            // 顶栏用主品牌色淡光晕,标题区一眼能看出主题色
+            background: (theme) => `linear-gradient(135deg, ${alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.18 : 0.08)}, ${alpha(theme.palette.primary.main, 0)})`,
+            borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
           }}>
             <Typography sx={{ fontSize: 12.5, fontWeight: 700, flex: 1, color: 'text.primary' }}>数字人助理</Typography>
             {voiceOn && <Chip size="small" label={speaking ? '聆听中' : '待命'} sx={{
               height: 18, fontSize: 10,
-              // Chip 在玻璃面板上:dark 模式浅色字,light 模式深色字
-              bgcolor: (theme) => theme.palette.mode === 'dark'
-                ? (speaking ? 'rgba(93,219,150,0.3)' : 'rgba(255,255,255,0.08)')
-                : (speaking ? 'rgba(93,219,150,0.2)' : 'rgba(0,0,0,0.06)'),
-              color: (theme) => theme.palette.mode === 'dark' ? '#fff' : 'text.primary',
+              // 监听中:主题 success;待命:主题主色淡底 + 文本主色
+              bgcolor: (theme) => speaking
+                ? alpha(theme.palette.success.main, theme.palette.mode === 'dark' ? 0.32 : 0.22)
+                : alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.22 : 0.12),
+              color: (theme) => speaking
+                ? (theme.palette.mode === 'dark' ? theme.palette.success.light : theme.palette.success.dark)
+                : (theme.palette.mode === 'dark' ? theme.palette.primary.light : 'text.primary'),
             }} />}
             {thinking && <Chip size="small" label="思考" sx={{
               height: 18, fontSize: 10,
-              bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(139,92,246,0.3)' : 'rgba(139,92,246,0.18)',
-              color: (theme) => theme.palette.mode === 'dark' ? '#fff' : 'text.primary',
+              // 思考态:用 secondary,跟品牌色保持同源
+              bgcolor: (theme) => alpha(theme.palette.secondary.main, theme.palette.mode === 'dark' ? 0.32 : 0.18),
+              color: (theme) => theme.palette.mode === 'dark' ? theme.palette.secondary.light : theme.palette.secondary.dark,
             }} />}
             <IconButton size="small" onClick={() => router.push('/digital-human')} title="进入全屏数字人工作室" sx={{ color: 'text.primary' }}><OpenInFullRoundedIcon sx={{ fontSize: 14 }} /></IconButton>
             <IconButton size="small" onClick={() => setOpen(false)} title="收起聊天(数字人保留)" sx={{ color: 'text.primary' }}><CloseRoundedIcon sx={{ fontSize: 16 }} /></IconButton>
@@ -294,21 +299,29 @@ export default function FloatingDigitalHuman() {
           </Box>
           <Box sx={{
             p: 1, display: 'flex', gap: 0.5, alignItems: 'center',
-            borderTop: (theme) => `1px solid ${theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)'}`,
+            borderTop: (theme) => `1px solid ${theme.palette.divider}`,
+            bgcolor: (theme) => alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.06 : 0.03),
           }}>
             <IconButton size="small" onClick={toggleVoice} sx={{
-              // 麦克风按钮:激活态 primary/success(品牌色两种模式通用),闲置态随主题
+              // 麦克风按钮:激活态用主题 success / primary(随品牌色);闲置态用主题背景 token
               bgcolor: voiceOn
                 ? (speaking ? 'success.main' : 'primary.main')
-                : (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                : (theme) => alpha(theme.palette.action.active, theme.palette.mode === 'dark' ? 0.18 : 0.06),
               color: voiceOn ? '#fff' : 'text.primary',
+              '&:hover': voiceOn ? undefined : {
+                bgcolor: (theme) => alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.18 : 0.10),
+              },
               position: 'relative',
             }}>
               {voiceOn ? <MicRoundedIcon sx={{ fontSize: 18 }} /> : <MicOffRoundedIcon sx={{ fontSize: 18 }} />}
               {voiceOn && <Box sx={{ position: 'absolute', inset: -2, borderRadius: '50%', border: '2px solid', borderColor: 'success.main', opacity: Math.min(1, level * 25), pointerEvents: 'none' }} />}
             </IconButton>
             <TextField size="small" fullWidth placeholder="对数字人说…" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} sx={{ '& .MuiInputBase-input': { fontSize: 12.5 } }} />
-            <IconButton size="small" onClick={send} sx={{ bgcolor: 'primary.main', color: '#fff' }}><SendRoundedIcon sx={{ fontSize: 18 }} /></IconButton>
+            <IconButton size="small" onClick={send} sx={{
+              bgcolor: 'primary.main',
+              color: (theme) => theme.palette.primary.contrastText,
+              '&:hover': { bgcolor: 'primary.dark' },
+            }}><SendRoundedIcon sx={{ fontSize: 18 }} /></IconButton>
           </Box>
         </Box>
       )}
