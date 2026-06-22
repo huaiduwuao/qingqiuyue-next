@@ -118,10 +118,10 @@ export default function ModuleContentPage({ moduleId, groupId, groupData, conten
           <Box
             component="img"
             src={params.value}
-            sx={{ width: 40, height: 40, borderRadius: 0.5, objectFit: 'cover', bgcolor: 'rgba(255,255,255,0.04)' }}
+            sx={{ width: 40, height: 40, borderRadius: 0.5, objectFit: 'cover', bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'action.hover') }}
           />
         ) : (
-          <Box sx={{ width: 40, height: 40, borderRadius: 0.5, bgcolor: 'rgba(255,255,255,0.04)' }} />
+          <Box sx={{ width: 40, height: 40, borderRadius: 0.5, bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'action.hover') }} />
         ),
     },
     {
@@ -286,7 +286,7 @@ function DetailModal({ open, record, onClose }: { open: boolean; record: ModuleC
           sx={{
             p: 2,
             borderRadius: 1,
-            bgcolor: 'rgba(255,255,255,0.04)',
+            bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'action.hover'),
             maxHeight: 320,
             overflow: 'auto',
             whiteSpace: 'pre-wrap',

@@ -417,9 +417,11 @@ export default function NewCreationSection() {
                               flex: 1,
                               height: 4,
                               borderRadius: 1,
-                              bgcolor: 'rgba(255,255,255,0.06)',
+                              bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'action.hover'),
                               '& .MuiLinearProgress-bar': {
-                                bgcolor: item.paused ? 'rgba(255,255,255,0.3)' : '#25F4EE',
+                                bgcolor: item.paused
+                                  ? (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)')
+                                  : '#25F4EE',
                               },
                             }}
                           />
@@ -465,7 +467,7 @@ export default function NewCreationSection() {
                                   px: 0.5,
                                   py: 0.05,
                                   borderRadius: 0.5,
-                                  bgcolor: 'rgba(255,255,255,0.04)',
+                                  bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'action.hover'),
                                   color: 'text.secondary',
                                   fontSize: 9,
                                 }}
