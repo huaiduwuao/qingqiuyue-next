@@ -273,8 +273,11 @@ export default function SystemLogPage() {
           overflow: 'auto',
           borderRadius: 2,
           p: 1,
-          bgcolor: 'var(--bg-elevated, #0d0f17)',
-          border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+          // 日志区固定深色(终端风格,无论 light/dark 模式都保持),
+          // 否则 light 模式下 --bg-elevated 是白色,白字不可见
+          bgcolor: '#0A0B14',
+          border: '1px solid rgba(255,255,255,0.08)',
+          color: 'rgba(255,255,255,0.9)',
           fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
           fontSize: 12.5,
           lineHeight: 1.6,
@@ -310,7 +313,7 @@ export default function SystemLogPage() {
               }}
             >
               {p.ts && (
-                <Box component="span" sx={{ color: 'text.disabled', flexShrink: 0 }}>
+                <Box component="span" sx={{ color: 'rgba(255,255,255,0.5)', flexShrink: 0 }}>
                   {p.ts}
                 </Box>
               )}
@@ -323,11 +326,11 @@ export default function SystemLogPage() {
                 </Box>
               )}
               {p.src && (
-                <Box component="span" sx={{ color: 'text.secondary', flexShrink: 0 }}>
+                <Box component="span" sx={{ color: 'rgba(255,255,255,0.55)', flexShrink: 0 }}>
                   {p.src}
                 </Box>
               )}
-              <Box component="span" sx={{ color: p.level ? 'rgba(255,255,255,0.85)' : 'text.secondary' }}>
+              <Box component="span" sx={{ color: p.level ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.7)' }}>
                 {p.msg}
               </Box>
             </Box>

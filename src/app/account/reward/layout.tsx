@@ -4,11 +4,13 @@ import React from 'react';
 import Box from '@mui/material/Box';
 import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import { douyinDarkTheme } from '@/styles/creatorTheme';
+import { douyinDarkTheme, douyinLightTheme } from '@/styles/creatorTheme';
+import { useThemeMode } from '@/contexts/ThemeContext';
 
 export default function RewardLayout({ children }: { children: React.ReactNode }) {
+  const { mode } = useThemeMode();
   return (
-    <ThemeProvider theme={douyinDarkTheme}>
+    <ThemeProvider theme={mode === 'light' ? douyinLightTheme : douyinDarkTheme}>
       <CssBaseline />
       <Box
         sx={{

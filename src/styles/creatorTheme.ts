@@ -115,3 +115,53 @@ export const douyinDarkTheme = createTheme({
     },
   },
 });
+
+/**
+ * 抖音创作者中心主题 - 浅色风格
+ * 跟 douyinDarkTheme 同样的 brand 色(primary #FE2C55 粉),但背景 / 文字
+ * 反相,匹配全局 light 模式。
+ */
+export const douyinLightTheme = createTheme({
+  ...douyinBase,
+  components: {
+    ...douyinBase.components,
+    ...dataGridComponents,
+  },
+  palette: {
+    mode: 'light',
+    primary: {
+      main: '#FE2C55',
+      light: '#FF4D75',
+      dark: '#D81B42',
+      contrastText: '#FFFFFF',
+    },
+    secondary: {
+      main: '#25F4EE',
+      light: '#5DF7F2',
+      dark: '#1AC3BD',
+      contrastText: '#FFFFFF',
+    },
+    success: { main: '#5DDB96', light: '#85E5B0', dark: '#3CB876' },
+    error: { main: '#FE2C55', light: '#FF4D75', dark: '#D81B42' },
+    warning: { main: '#FFB400', light: '#FFC533', dark: '#CC9100' },
+    info: { main: '#25F4EE', light: '#5DF7F2', dark: '#1AC3BD' },
+    background: {
+      default: '#F5F5F7',
+      paper: '#FFFFFF',
+    },
+    text: {
+      primary: '#0A0B14',
+      secondary: '#6B7280',
+      tertiary: '#374151',
+      disabled: '#9CA3AF',
+    },
+    divider: '#E5E7EB',
+    action: {
+      active: '#0A0B14',
+      hover: 'rgba(254, 44, 85, 0.06)',
+      selected: 'rgba(254, 44, 85, 0.12)',
+      disabled: '#9CA3AF',
+      disabledBackground: '#F3F4F6',
+    },
+  },
+});

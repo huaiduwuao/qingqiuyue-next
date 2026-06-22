@@ -9,7 +9,8 @@ import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import MenuIcon from '@mui/icons-material/Menu';
 import CloseIcon from '@mui/icons-material/Close';
-import { douyinDarkTheme } from '@/styles/creatorTheme';
+import { douyinDarkTheme, douyinLightTheme } from '@/styles/creatorTheme';
+import { useThemeMode } from '@/contexts/ThemeContext';
 import CreatorSidebar from './_components/CreatorSidebar';
 import RightSidebar from './_components/RightSidebar';
 import { ActiveTabProvider, useActiveTab } from './ActiveTabContext';
@@ -26,6 +27,7 @@ function CreatorLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const { activeTab, setActiveTab } = useActiveTab();
+  const { mode } = useThemeMode();
 
   // The right sidebar (notifications / activities / calendar) is only useful on
   // the dashboard home. Work-heavy sub-pages bring their own dense UI and don't
@@ -38,7 +40,7 @@ function CreatorLayoutInner({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <ThemeProvider theme={douyinDarkTheme}>
+    <ThemeProvider theme={mode === 'light' ? douyinLightTheme : douyinDarkTheme}>
       <CssBaseline />
       {/* Mobile hamburger - floating button */}
       <IconButton
