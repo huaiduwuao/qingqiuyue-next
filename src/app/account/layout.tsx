@@ -89,7 +89,9 @@ function AccountLayoutContent({
     html.style.overflow = 'hidden';
     body.style.overflow = 'hidden';
     body.style.height = '100dvh';
-    body.style.backgroundColor = 'transparent';
+    // 跟主题走:var(--bg-body) 由 ThemeContext 在切 light/dark 时写入;
+    // 这里不再用 'transparent'(否则 AppBar 透到 html 根 --background,跟主题脱节)
+    body.style.backgroundColor = 'var(--bg-body)';
     return () => {
       html.style.overflow = prev.htmlOverflow;
       body.style.overflow = prev.bodyOverflow;
@@ -109,9 +111,11 @@ function AccountLayoutContent({
         position="sticky"
         elevation={0}
         sx={{
-          bgcolor: 'transparent',
+          // AppBar 背景:用 var(--bg-body, 默认 #0a0b14) 跟主题走;
+          // 之前 transparent 在 dark 模式下透到 html 根 --background,显示成白
+          bgcolor: 'var(--bg-body, #0a0b14)',
           color: 'text.primary',
-          borderBottom: 'none',
+          borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.06))',
           backdropFilter: 'blur(12px)',
           flexShrink: 0,
         }}
