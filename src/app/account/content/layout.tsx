@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Drawer from '@mui/material/Drawer';
 import IconButton from '@mui/material/IconButton';
-import { ThemeProvider } from '@mui/material/styles';
+import { ThemeProvider, alpha } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import MenuIcon from '@mui/icons-material/Menu';
 import CloseIcon from '@mui/icons-material/Close';
@@ -27,7 +27,7 @@ function CreatorLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const { activeTab, setActiveTab } = useActiveTab();
-  const { mode } = useThemeMode();
+  const { mode, primaryColor } = useThemeMode();
 
   // The right sidebar (notifications / activities / calendar) is only useful on
   // the dashboard home. Work-heavy sub-pages bring their own dense UI and don't
@@ -40,7 +40,7 @@ function CreatorLayoutInner({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <ThemeProvider theme={mode === 'light' ? douyinLightTheme : douyinDarkTheme}>
+    <ThemeProvider theme={(mode === 'light' ? douyinLightTheme : douyinDarkTheme)(primaryColor)}>
       <CssBaseline />
       {/* Mobile hamburger - floating button */}
       <IconButton
@@ -55,7 +55,7 @@ function CreatorLayoutInner({ children }: { children: React.ReactNode }) {
           color: 'text.primary',
           width: 48,
           height: 48,
-          boxShadow: '0 4px 16px rgba(254, 44, 85, 0.4)',
+          boxShadow: (theme) => `0 4px 16px ${alpha(theme.palette.primary.main, 0.4)}`,
           '&:hover': { bgcolor: 'primary.dark' },
         }}
       >

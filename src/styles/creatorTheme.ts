@@ -71,97 +71,109 @@ const douyinBase: ThemeOptions = {
   },
 };
 
-export const douyinDarkTheme = createTheme({
-  ...douyinBase,
-  components: {
-    ...douyinBase.components,
-    ...dataGridComponents,
-  },
-  palette: {
-    mode: 'dark',
-    primary: {
-      main: '#FE2C55',
-      light: '#FF4D75',
-      dark: '#D81B42',
-      contrastText: '#FFFFFF',
+/**
+ * 抖音创作者中心主题 - 深色风格
+ *
+ * primary 跟随 ThemeContext 里的 primaryColor(用户可在 6 种预设主色之间切换),
+ * 不再写死 #FE2C55。secondary / success / warning / info 是平台视觉识别色
+ * (青/绿/黄/青),保留原值,代表"赏金平台"的视觉语言。
+ *
+ * 调用方(RewardLayout)需要传 primaryColor,默认 #FE2C55 兜底。
+ */
+export function douyinDarkTheme(primaryColor: string = '#FE2C55') {
+  return createTheme({
+    ...douyinBase,
+    components: {
+      ...douyinBase.components,
+      ...dataGridComponents,
     },
-    secondary: {
-      main: '#25F4EE',
-      light: '#5DF7F2',
-      dark: '#1AC3BD',
-      contrastText: '#0A0B14',
+    palette: {
+      mode: 'dark',
+      primary: {
+        main: primaryColor,
+        contrastText: '#FFFFFF',
+      },
+      secondary: {
+        main: '#25F4EE',
+        light: '#5DF7F2',
+        dark: '#1AC3BD',
+        contrastText: '#0A0B14',
+      },
+      success: { main: '#5DDB96', light: '#85E5B0', dark: '#3CB876' },
+      // error 用同一个 primaryColor — 在抖音视觉里红既是 brand 也是 error
+      error: { main: primaryColor, contrastText: '#FFFFFF' },
+      warning: { main: '#FFB400', light: '#FFC533', dark: '#CC9100' },
+      info: { main: '#25F4EE', light: '#5DF7F2', dark: '#1AC3BD' },
+      background: {
+        default: '#0A0B14',
+        paper: '#161821',
+      },
+      text: {
+        primary: '#FFFFFF',
+        secondary: '#8B8FA3',
+        tertiary: '#C5C8D6',
+        disabled: '#5A5E72',
+      },
+      divider: '#252836',
+      action: {
+        active: '#FFFFFF',
+        hover: 'rgba(255, 255, 255, 0.06)',
+        // 选中态用 primaryColor 15% alpha,跟着主色变
+        selected: `${primaryColor}26`,
+        disabled: '#5A5E72',
+        disabledBackground: '#252836',
+      },
     },
-    success: { main: '#5DDB96', light: '#85E5B0', dark: '#3CB876' },
-    error: { main: '#FE2C55', light: '#FF4D75', dark: '#D81B42' },
-    warning: { main: '#FFB400', light: '#FFC533', dark: '#CC9100' },
-    info: { main: '#25F4EE', light: '#5DF7F2', dark: '#1AC3BD' },
-    background: {
-      default: '#0A0B14',
-      paper: '#161821',
-    },
-    text: {
-      primary: '#FFFFFF',
-      secondary: '#8B8FA3',
-      tertiary: '#C5C8D6',
-      disabled: '#5A5E72',
-    },
-    divider: '#252836',
-    action: {
-      active: '#FFFFFF',
-      hover: 'rgba(255, 255, 255, 0.06)',
-      selected: 'rgba(254, 44, 85, 0.15)',
-      disabled: '#5A5E72',
-      disabledBackground: '#252836',
-    },
-  },
-});
+  });
+}
 
 /**
  * 抖音创作者中心主题 - 浅色风格
- * 跟 douyinDarkTheme 同样的 brand 色(primary #FE2C55 粉),但背景 / 文字
- * 反相,匹配全局 light 模式。
+ * 跟 douyinDarkTheme 同样的视觉识别色,但背景 / 文字反相,匹配全局 light 模式。
+ * primary 同样跟随 ThemeContext.primaryColor。
  */
-export const douyinLightTheme = createTheme({
-  ...douyinBase,
-  components: {
-    ...douyinBase.components,
-    ...dataGridComponents,
-  },
-  palette: {
-    mode: 'light',
-    primary: {
-      main: '#FE2C55',
-      light: '#FF4D75',
-      dark: '#D81B42',
-      contrastText: '#FFFFFF',
+export function douyinLightTheme(primaryColor: string = '#FE2C55') {
+  return createTheme({
+    ...douyinBase,
+    components: {
+      ...douyinBase.components,
+      ...dataGridComponents,
     },
-    secondary: {
-      main: '#25F4EE',
-      light: '#5DF7F2',
-      dark: '#1AC3BD',
-      contrastText: '#FFFFFF',
+    palette: {
+      mode: 'light',
+      primary: {
+        main: primaryColor,
+        contrastText: '#FFFFFF',
+      },
+      secondary: {
+        main: '#25F4EE',
+        light: '#5DF7F2',
+        dark: '#1AC3BD',
+        contrastText: '#FFFFFF',
+      },
+      success: { main: '#5DDB96', light: '#85E5B0', dark: '#3CB876' },
+      error: { main: primaryColor, contrastText: '#FFFFFF' },
+      warning: { main: '#FFB400', light: '#FFC533', dark: '#CC9100' },
+      info: { main: '#25F4EE', light: '#5DF7F2', dark: '#1AC3BD' },
+      background: {
+        default: '#F5F5F7',
+        paper: '#FFFFFF',
+      },
+      text: {
+        primary: '#0A0B14',
+        secondary: '#6B7280',
+        tertiary: '#374151',
+        disabled: '#9CA3AF',
+      },
+      divider: '#E5E7EB',
+      action: {
+        active: '#0A0B14',
+        // hover / selected 用 primaryColor 浅 alpha,跟着主色变
+        hover: `${primaryColor}0F`,
+        selected: `${primaryColor}1F`,
+        disabled: '#9CA3AF',
+        disabledBackground: '#F3F4F6',
+      },
     },
-    success: { main: '#5DDB96', light: '#85E5B0', dark: '#3CB876' },
-    error: { main: '#FE2C55', light: '#FF4D75', dark: '#D81B42' },
-    warning: { main: '#FFB400', light: '#FFC533', dark: '#CC9100' },
-    info: { main: '#25F4EE', light: '#5DF7F2', dark: '#1AC3BD' },
-    background: {
-      default: '#F5F5F7',
-      paper: '#FFFFFF',
-    },
-    text: {
-      primary: '#0A0B14',
-      secondary: '#6B7280',
-      tertiary: '#374151',
-      disabled: '#9CA3AF',
-    },
-    divider: '#E5E7EB',
-    action: {
-      active: '#0A0B14',
-      hover: 'rgba(254, 44, 85, 0.06)',
-      selected: 'rgba(254, 44, 85, 0.12)',
-      disabled: '#9CA3AF',
-      disabledBackground: '#F3F4F6',
-    },
-  },
-});
+  });
+}

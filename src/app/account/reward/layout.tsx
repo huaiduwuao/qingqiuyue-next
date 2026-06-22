@@ -8,9 +8,9 @@ import { douyinDarkTheme, douyinLightTheme } from '@/styles/creatorTheme';
 import { useThemeMode } from '@/contexts/ThemeContext';
 
 export default function RewardLayout({ children }: { children: React.ReactNode }) {
-  const { mode } = useThemeMode();
+  const { mode, primaryColor } = useThemeMode();
   return (
-    <ThemeProvider theme={mode === 'light' ? douyinLightTheme : douyinDarkTheme}>
+    <ThemeProvider theme={(mode === 'light' ? douyinLightTheme : douyinDarkTheme)(primaryColor)}>
       <CssBaseline />
       <Box
         sx={{
