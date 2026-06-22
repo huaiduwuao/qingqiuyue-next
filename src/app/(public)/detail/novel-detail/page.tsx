@@ -23,6 +23,7 @@ import type { PageStyle } from '@/components/detail/ReadingSettings';
 import { ReadingContainer } from '@/components/detail/ReadingContainer';
 import { useScrollProgress } from '@/hooks/useScrollProgress';
 import { track } from '@/lib/track';
+import { LoginGate } from '@/components/auth/LoginGate';
 
 function NovelDetailContent() {
   const router = useRouter();
@@ -176,14 +177,16 @@ function NovelDetailContent() {
         >
           <Brightness6Icon fontSize="small" />
         </IconButton>
-        <IconButton
-          onClick={handleCollect}
-          size="small"
-          aria-label="收藏"
-          sx={{ color: collected ? 'primary.main' : 'inherit' }}
-        >
-          {collected ? <BookmarkAddedIcon fontSize="small" /> : <BookmarkAddIcon fontSize="small" />}
-        </IconButton>
+        <LoginGate mode="overlay" message="登录后收藏" overlayOpacity={1}>
+          <IconButton
+            onClick={handleCollect}
+            size="small"
+            aria-label="收藏"
+            sx={{ color: collected ? 'primary.main' : 'inherit' }}
+          >
+            {collected ? <BookmarkAddedIcon fontSize="small" /> : <BookmarkAddIcon fontSize="small" />}
+          </IconButton>
+        </LoginGate>
         <IconButton onClick={() => setSettingsOpen(true)} size="small" aria-label="设置">
           <SettingsIcon fontSize="small" />
         </IconButton>
@@ -195,16 +198,18 @@ function NovelDetailContent() {
         style={pageStyle}
         onChange={updatePageStyle}
         footerAction={
-          <Button
-            fullWidth
-            variant="contained"
-            startIcon={collected ? <BookmarkAddedIcon /> : <BookmarkAddIcon />}
-            onClick={handleCollect}
-            disabled={collected}
-            sx={{ borderRadius: 4 }}
-          >
-            {collected ? '已在书架' : '加入书架'}
-          </Button>
+          <LoginGate mode="overlay" message="登录后加入书架" overlayOpacity={1}>
+            <Button
+              fullWidth
+              variant="contained"
+              startIcon={collected ? <BookmarkAddedIcon /> : <BookmarkAddIcon />}
+              onClick={handleCollect}
+              disabled={collected}
+              sx={{ borderRadius: 4 }}
+            >
+              {collected ? '已在书架' : '加入书架'}
+            </Button>
+          </LoginGate>
         }
       />
 

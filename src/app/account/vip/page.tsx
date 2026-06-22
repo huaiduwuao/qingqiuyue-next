@@ -26,6 +26,7 @@ import LoginRoundedIcon from '@mui/icons-material/LoginRounded';
 import CommentRoundedIcon from '@mui/icons-material/CommentRounded';
 import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import { CTA_GRADIENT, gradient3 } from '@/constants/gradients';
+import { LoginGate } from '@/components/auth/LoginGate';
 
 interface VipTier {
   key: string;
@@ -116,6 +117,8 @@ export default function VipPage() {
             续费记录
           </Button>
         </Box>
+
+      <LoginGate mode="replace" message="登录后查看会员中心">
 
       {/* 当前会员卡 */}
       <Box
@@ -393,6 +396,7 @@ export default function VipPage() {
         message={snack}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />
+      </LoginGate>
       </Container>
     </Box>
   );

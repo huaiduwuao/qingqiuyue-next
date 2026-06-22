@@ -22,6 +22,7 @@ import {
   UserPointResp,
 } from '@/apis/system-user-point';
 import { PointsMallTab } from './PointsMallTab';
+import { LoginGate } from '@/components/auth/LoginGate';
 
 const USER_ID = 1001;
 
@@ -57,6 +58,8 @@ export default function PointsPage() {
         <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
           我的积分
         </Typography>
+
+      <LoginGate mode="replace" message="登录后查看我的积分">
 
       {/* 顶部概览卡 */}
       <Box
@@ -213,6 +216,7 @@ export default function PointsPage() {
       )}
 
       {tab === 'mall' && <PointsMallTab initialPoints={point.points} />}
+      </LoginGate>
       </Box>
     </Box>
   );

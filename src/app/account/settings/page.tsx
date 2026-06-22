@@ -34,6 +34,7 @@ import DoNotDisturbRoundedIcon from '@mui/icons-material/DoNotDisturbRounded';
 import { useApp } from '@/contexts/AppContext';
 import { updateUser, upload } from '@/apis/account';
 import { isNameAvail } from '@/apis/user';
+import { LoginGate } from '@/components/auth/LoginGate';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -95,6 +96,7 @@ export default function AccountSettingsPage() {
     <Container maxWidth="lg" sx={{ height: 'calc(100dvh - var(--appbar-h, 66px))', overflow: 'auto', overscrollBehavior: 'contain', px: { xs: 1.5, md: 3 } }}>
       <Box sx={{ py: { xs: 2, md: 4 } }}>
         <Typography variant="h4" sx={{ mb: 3 }}>设置</Typography>
+        <LoginGate mode="replace" message="登录后查看设置">
         <Card>
           <CardContent>
             <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto" sx={{ mb: 3 }}>
@@ -197,6 +199,7 @@ export default function AccountSettingsPage() {
             </TabPanel>
           </CardContent>
         </Card>
+        </LoginGate>
       </Box>
 
       <Snackbar

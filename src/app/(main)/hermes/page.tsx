@@ -17,6 +17,7 @@ import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutlineOutlined
 import * as hermesApi from '@/apis/hermes';
 import type { HermesAgentItem } from '@/beans/system';
 import { AsyncState } from '@/components/common/AsyncState';
+import { LoginGate } from '@/components/auth/LoginGate';
 
 type HermesCardItem = HermesAgentItem & { coverUrl?: string };
 
@@ -148,17 +149,19 @@ export default function HomeHermesPage() {
 
                           <Box sx={{ flex: 1 }} />
 
-                          <Button
-                            variant="contained"
-                            startIcon={<ChatBubbleOutlineIcon />}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              router.push(`/hermes/${item.id}`);
-                            }}
-                            fullWidth
-                          >
-                            开始对话
-                          </Button>
+                          <LoginGate mode="overlay" message="登录后对话">
+                            <Button
+                              variant="contained"
+                              startIcon={<ChatBubbleOutlineIcon />}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                router.push(`/hermes/${item.id}`);
+                              }}
+                              fullWidth
+                            >
+                              开始对话
+                            </Button>
+                          </LoginGate>
                         </CardContent>
                       </CardActionArea>
                     </Card>

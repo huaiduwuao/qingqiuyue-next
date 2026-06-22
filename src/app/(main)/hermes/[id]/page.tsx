@@ -24,6 +24,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import * as hermesApi from '@/apis/hermes';
 import type { HermesAgentItem } from '@/beans/system';
 import { AsyncState } from '@/components/common/AsyncState';
+import { LoginGate } from '@/components/auth/LoginGate';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -166,6 +167,8 @@ export default function HermesChatPage() {
           }}
         </AsyncState>
 
+        <LoginGate mode="replace" message="登录后开始对话">
+
         <Paper
           ref={listRef as any}
           sx={{
@@ -281,6 +284,7 @@ export default function HermesChatPage() {
             发送
           </Button>
         </Box>
+        </LoginGate>
       </Box>
     </Container>
   );

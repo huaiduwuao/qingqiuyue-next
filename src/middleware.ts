@@ -2,13 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const TOKEN_COOKIE = 'auth-token';
 
-// 公开路由白名单(无需 token)
+// 公开路由白名单(无需 token)—— 路由可访问,但页面里需要登录的局部内容
+// 会被 <LoginGate> 包起来显示锁图标(不强制整页跳登录)
 const PUBLIC_PREFIXES = [
   '/user/login',
   '/user/social-login',
   '/detail',
   '/home',
   '/digital-human',
+  '/search',
+  '/share',
+  '/recharge',
+  '/download',
+  '/wallpaper',
+  '/gouji',
+  '/kf-chat',
+  '/hermes',
+  '/crawled',
+  '/account',     // 个人中心:整页 LoginGate 替换内容(看得到路径,看不到数据)
+  '/user',        // 积分等
   '/_next',
   '/favicon',
   '/mockServiceWorker',

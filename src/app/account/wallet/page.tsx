@@ -20,6 +20,7 @@ import CardGiftcardRoundedIcon from '@mui/icons-material/CardGiftcardRounded';
 import SwapHorizRoundedIcon from '@mui/icons-material/SwapHorizRounded';
 import { ACCENT } from '@/constants/accents';
 import { gradient3 } from '@/constants/gradients';
+import { LoginGate } from '@/components/auth/LoginGate';
 
 // 钱包域占位:后端 `/api/core/wallet/*` 就绪后,以下数据替换为 API 调用
 const DIAMOND_BALANCE = 0;
@@ -70,6 +71,8 @@ export default function WalletPage() {
             订单记录
           </Button>
         </Box>
+
+      <LoginGate mode="replace" message="登录后查看我的钱包">
 
       {/* 余额卡 */}
       <Box
@@ -243,6 +246,7 @@ export default function WalletPage() {
         message={snack}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />
+      </LoginGate>
       </Container>
     </Box>
   );
