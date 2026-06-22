@@ -176,7 +176,7 @@ export default function HotTopicsCarousel() {
               minWidth: 240,
               scrollSnapAlign: 'start',
               borderRadius: 2,
-              bgcolor: '#1E2030',
+              bgcolor: (theme) => (theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF'),
               border: '1px solid',
               borderColor: 'divider',
               overflow: 'hidden',

@@ -153,12 +153,17 @@ export default function TopPerformingContent() {
                 gap: 1.5,
                 p: 1,
                 borderRadius: 1.5,
-                bgcolor: isOpen ? '#1E2030' : 'transparent',
+                bgcolor: isOpen
+                  ? (theme) => (theme.palette.mode === 'dark' ? '#1E2030' : 'action.hover')
+                  : 'transparent',
                 border: '1px solid',
                 borderColor: isOpen ? 'rgba(254, 44, 85, 0.4)' : 'transparent',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease-in-out',
-                '&:hover': { bgcolor: '#1E2030' },
+                '&:hover': {
+                  bgcolor: (theme) =>
+                    theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
+                },
               }}
             >
               {/* Rank */}

@@ -180,7 +180,7 @@ export default function EarningsOverview() {
                   {percent.toFixed(1)}%
                 </Typography>
               </Box>
-              <Box sx={{ height: 4, bgcolor: '#1E2030', borderRadius: 1, overflow: 'hidden' }}>
+              <Box sx={{ height: 4, bgcolor: (theme) => (theme.palette.mode === 'dark' ? '#1E2030' : 'action.hover'), borderRadius: 1, overflow: 'hidden' }}>
                 <Box
                   sx={{
                     width: `${percent}%`,

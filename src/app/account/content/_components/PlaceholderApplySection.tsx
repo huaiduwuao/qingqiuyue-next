@@ -111,7 +111,7 @@ export function PlaceholderApplySection({
                       gap: 1,
                       p: 1.5,
                       borderRadius: 1.5,
-                      bgcolor: '#1E2030',
+                      bgcolor: (theme) => (theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF'),
                       border: '1px solid',
                       borderColor: 'divider',
                     }}

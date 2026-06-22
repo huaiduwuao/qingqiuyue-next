@@ -142,7 +142,7 @@ const TYPE_ICON: Record<WipType, React.ReactNode> = {
 };
 
 const KIND_META: Record<WipKind, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
-  draft: { label: '草稿', color: 'rgba(255,255,255,0.7)', bg: 'rgba(255,255,255,0.06)', icon: <EditRoundedIcon sx={{ fontSize: 13 }} /> },
+  draft: { label: '草稿', color: 'text.secondary', bg: 'action.hover', icon: <EditRoundedIcon sx={{ fontSize: 13 }} /> },
   uploading: { label: '上传中', color: '#25F4EE', bg: 'rgba(37, 244, 238, 0.12)', icon: <CloudUploadRoundedIcon sx={{ fontSize: 13 }} /> },
   scheduled: { label: '已定时', color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)', icon: <ScheduleRoundedIcon sx={{ fontSize: 13 }} /> },
 };
@@ -219,7 +219,7 @@ export default function NewCreationSection() {
             sx={{
               p: 2.5,
               borderRadius: 2,
-              bgcolor: '#1E2030',
+              bgcolor: (theme) => (theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF'),
               border: '1px solid',
               borderColor: 'divider',
               cursor: 'pointer',
@@ -301,7 +301,7 @@ export default function NewCreationSection() {
                   sx={{
                     p: 1.5,
                     borderRadius: 1.5,
-                    bgcolor: '#1E2030',
+                    bgcolor: (theme) => (theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF'),
                     border: '1px solid',
                     borderColor: 'divider',
                     display: 'flex',

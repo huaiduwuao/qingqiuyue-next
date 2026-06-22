@@ -99,7 +99,7 @@ export default function CreatorProfileHeader() {
                 width: '100%',
                 height: '100%',
                 borderRadius: '50%',
-                bgcolor: '#1E2030',
+                bgcolor: (theme) => (theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF'),
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
