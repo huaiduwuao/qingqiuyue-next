@@ -6,9 +6,9 @@ import type { NextConfig } from "next";
 const API_PROXY_TARGET = process.env.API_PROXY_TARGET || "http://localhost:10005";
 
 const nextConfig: NextConfig = {
-  // 注意:standalone 模式默认不复制 public/ 资源到 .next/standalone/,
-  // 开发阶段先关掉,改回普通模式方便迭代。生产部署再开。
-  // output: "standalone",
+  // standalone 模式:Dockerfile 期望 .next/standalone 存在,生产部署必须开。
+  // dev 模式 `next dev` 仍正常工作(standalone 只影响 `next build` 输出)。
+  output: "standalone",
   compiler: {
     reactRemoveProperties: true,
   },
