@@ -246,6 +246,189 @@ def make_walk_action(armature):
     return bake_animation(armature, 'walk', frame_fn, frame_count=60)
 
 
+def make_run_action(armature):
+    """run: 步频更快 + 抬腿更高 + 摆臂更猛"""
+    def frame_fn(f, bones):
+        phase = (f / 30.0) * 2 * math.pi  # 2x 速度
+        if bones.get('Knee_L'):
+            bones['Knee_L'].rotation_euler = (math.sin(phase) * 0.9, 0, 0)
+        if bones.get('Knee_R'):
+            bones['Knee_R'].rotation_euler = (math.sin(phase + math.pi) * 0.9, 0, 0)
+        if bones.get('Hip_L'):
+            bones['Hip_L'].rotation_euler = (math.sin(phase) * 0.15, 0, 0)
+        if bones.get('Hip_R'):
+            bones['Hip_R'].rotation_euler = (math.sin(phase + math.pi) * 0.15, 0, 0)
+        if bones.get('Shoulder_L'):
+            bones['Shoulder_L'].rotation_euler = (math.sin(phase + math.pi) * 0.7, 0, 0)
+        if bones.get('Shoulder_R'):
+            bones['Shoulder_R'].rotation_euler = (math.sin(phase) * 0.7, 0, 0)
+        # 整体身体轻微上下颠
+        root = bones.get('Root')
+        if root:
+            root.location = (0, 0, abs(math.sin(phase * 2)) * 0.04)
+    return bake_animation(armature, 'run', frame_fn, frame_count=45)  # 1.5s 循环
+
+
+def make_dance_action(armature):
+    """dance: 身体左右晃 + 双臂摆动 + 头摆"""
+    def frame_fn(f, bones):
+        phase = (f / 60.0) * 2 * math.pi
+        # 身体左右晃
+        spine = bones.get('Spine')
+        if spine:
+            spine.rotation_euler = (0, math.sin(phase) * 0.25, 0)
+        # 头随身体摆
+        head = bones.get('Head')
+        if head:
+            head.rotation_euler = (math.sin(phase * 1.3) * 0.1, 0, math.sin(phase) * 0.15)
+        # 双臂轮流抬
+        r_shoulder = bones.get('Shoulder_R')
+        l_shoulder = bones.get('Shoulder_L')
+        if r_shoulder:
+            r_shoulder.rotation_euler = (0, -2.2 + math.sin(phase) * 0.4, -0.4)
+        if l_shoulder:
+            l_shoulder.rotation_euler = (0, 2.2 + math.sin(phase + math.pi) * 0.4, 0.4)
+        # 双腿轻摇
+        if bones.get('Knee_L'):
+            bones['Knee_L'].rotation_euler = (math.sin(phase * 2) * 0.15, 0, 0)
+        if bones.get('Knee_R'):
+            bones['Knee_R'].rotation_euler = (math.sin(phase * 2 + math.pi) * 0.15, 0, 0)
+    return bake_animation(armature, 'dance', frame_fn, frame_count=90)  # 3s 循环
+
+
+def make_sit_action(armature):
+    """sit: 双腿弯曲 90° + 身体下沉"""
+    def frame_fn(f, bones):
+        # 第 1 帧开始坐下,中间保持,最后 10 帧回站立(让循环自然)
+        progress = f / 60.0  # 0 -> 1
+        if progress < 0.5:
+            t = progress * 2  # 0 -> 1 (坐下)
+        else:
+            t = 1.0  # 保持坐
+        # 双腿弯 90°
+        for knee_name in ('Knee_L', 'Knee_R'):
+            knee = bones.get(knee_name)
+            if knee:
+                knee.rotation_euler = (t * 1.5, 0, 0)  # ~85°
+        # 臀部轻沉
+        root = bones.get('Root')
+        if root:
+            root.location = (0, 0, -t * 0.35)
+        # 上身略前倾
+        spine = bones.get('Spine')
+        if spine:
+            spine.rotation_euler = (t * 0.15, 0, 0)
+    return bake_animation(armature, 'sit', frame_fn, frame_count=60)
+
+
+def make_point_action(armature):
+    """point: 抬右臂指向前方 + 头微低(看指的方向)"""
+    def frame_fn(f, bones):
+        phase = (f / 60.0) * 2 * math.pi
+        # 右臂抬平,前伸 + 食指伸出(用单骨近似)
+        r_shoulder = bones.get('Shoulder_R')
+        r_elbow = bones.get('Elbow_R')
+        if r_shoulder:
+            r_shoulder.rotation_euler = (0, -1.5, 0)  # 前伸
+        if r_elbow:
+            r_elbow.rotation_euler = (0, -0.1, 0)  # 微弯
+        # 头跟手臂方向
+        head = bones.get('Head')
+        if head:
+            head.rotation_euler = (0, math.sin(phase) * 0.05, math.sin(phase) * 0.05)
+        # 左手自然下垂(微动)
+        l_shoulder = bones.get('Shoulder_L')
+        if l_shoulder:
+            l_shoulder.rotation_euler = (math.sin(phase) * 0.05, 0, 0)
+    return bake_animation(armature, 'point', frame_fn, frame_count=60)
+
+
+def make_think_action(armature):
+    """think: 右手托下巴(头微低)+ 身体略前倾"""
+    def frame_fn(f, bones):
+        phase = (f / 60.0) * 2 * math.pi
+        # 头微低(思考)
+        head = bones.get('Head')
+        if head:
+            head.rotation_euler = (0.3, math.sin(phase) * 0.04, 0)
+        # 身体前倾
+        spine = bones.get('Spine')
+        if spine:
+            spine.rotation_euler = (0.1, 0, 0)
+        # 右手弯曲,上抬到下巴位置
+        r_shoulder = bones.get('Shoulder_R')
+        r_elbow = bones.get('Elbow_R')
+        if r_shoulder:
+            r_shoulder.rotation_euler = (0, -1.8, -0.3)
+        if r_elbow:
+            r_elbow.rotation_euler = (-0.3, -2.2, 0)  # 前臂水平
+    return bake_animation(armature, 'think', frame_fn, frame_count=60)
+
+
+def make_talk_action(armature):
+    """talk: 双臂微张 + 头随节奏摆(像在说话时打手势)"""
+    def frame_fn(f, bones):
+        phase = (f / 60.0) * 2 * math.pi
+        # 头随节奏点头 + 摆
+        head = bones.get('Head')
+        if head:
+            head.rotation_euler = (math.sin(phase * 1.5) * 0.08, math.sin(phase) * 0.1, 0)
+        # 双臂抬起到胸前,微张(打手势)
+        for side_sign, shoulder_name, elbow_name in [(+1, 'Shoulder_R', 'Elbow_R'), (-1, 'Shoulder_L', 'Elbow_L')]:
+            sh = bones.get(shoulder_name)
+            el = bones.get(elbow_name)
+            if sh:
+                sh.rotation_euler = (0, -1.0 + math.sin(phase + side_sign) * 0.3, side_sign * 0.4)
+            if el:
+                el.rotation_euler = (-0.8, math.sin(phase * 1.5 + side_sign) * 0.2, 0)
+    return bake_animation(armature, 'talk', frame_fn, frame_count=60)
+
+
+def make_bow_action(armature):
+    """bow: 上身前倾 30°(鞠躬) + 头更前倾"""
+    def frame_fn(f, bones):
+        progress = f / 60.0
+        if progress < 0.3:
+            t = progress / 0.3  # 0 -> 1 (弯腰)
+        elif progress < 0.7:
+            t = 1.0  # 保持鞠躬
+        else:
+            t = (1.0 - progress) / 0.3  # 1 -> 0 (直起)
+        # 脊椎前倾
+        spine = bones.get('Spine')
+        if spine:
+            spine.rotation_euler = (t * 0.5, 0, 0)  # ~30°
+        # 头更前倾
+        head = bones.get('Head')
+        if head:
+            head.rotation_euler = (t * 0.4, 0, 0)
+    return bake_animation(armature, 'bow', frame_fn, frame_count=60)
+
+
+# 10 个 baked action(标准动作库)
+BUILTIN_ACTIONS = [
+    ('idle', make_idle_action, 60),
+    ('wave', make_wave_action, 60),
+    ('walk', make_walk_action, 60),
+    ('run', make_run_action, 45),
+    ('dance', make_dance_action, 90),
+    ('sit', make_sit_action, 60),
+    ('point', make_point_action, 60),
+    ('think', make_think_action, 60),
+    ('talk', make_talk_action, 60),
+    ('bow', make_bow_action, 60),
+]
+
+
+def make_all_builtin_actions(armature):
+    """一次性 bake 全部 10 个内置 action 到 armature"""
+    out = []
+    for name, fn, _ in BUILTIN_ACTIONS:
+        out.append(fn(armature))
+        print(f'[_rig_template] baked action: {name}')
+    return out
+
+
 def export_glb(output_path, scene_name='avatar'):
     """导出 GLB 格式(兼容 Blender 4.x 和 5.x)"""
     os.makedirs(os.path.dirname(output_path), exist_ok=True)

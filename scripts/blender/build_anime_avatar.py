@@ -38,7 +38,7 @@ from mathutils import Vector, Color
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _rig_template import (
     clear_scene, build_armature, bind_mesh, add_basic_blendshapes,
-    make_idle_action, make_wave_action, make_walk_action, export_glb,
+    make_all_builtin_actions, export_glb,
 )
 
 
@@ -461,9 +461,8 @@ def generate_one(cfg, output_dir):
     print(f'[anime] BlendShape: {keys}')
 
     # 5. 3 个 baked action
-    make_idle_action(armature)
-    make_wave_action(armature)
-    make_walk_action(armature)
+    make_all_builtin_actions(armature)
+    print("[build_xxx] 10 个 baked actions 烘焙完成")
     print('[anime] 3 个 baked action 完成')
 
     # 6. 导出 GLB

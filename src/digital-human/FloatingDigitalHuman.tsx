@@ -85,7 +85,10 @@ export default function FloatingDigitalHuman() {
     setPos({ right: 24, bottom: 24 });
   }, []);
 
-  if (hidden) return null;
+  // 注意:必须在所有 hook 之后才能 return null,否则 React Rules of Hooks 报错
+  // "Rendered fewer hooks than expected"(pathname 切换时 hidden 翻转会导致
+  // 下方的 useEffect 被跳过,hook 数量变化 → 崩)
+  // 改用 null || JSX 形式:return null 本身没问题,关键是所有 hook 之前不能 early return
 
   const onDown = (e: React.PointerEvent) => {
     // 只在拖动手柄区域才响应,避免点击输入框/按钮
@@ -191,6 +194,9 @@ export default function FloatingDigitalHuman() {
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, []);
+
+  // 所有 hook 跑完之后,才能根据 hidden 决定渲染什么
+  if (hidden) return null;
 
   return (
     <Box

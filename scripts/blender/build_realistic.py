@@ -25,7 +25,7 @@ import argparse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _rig_template import (
     clear_scene, build_armature, bind_mesh, add_basic_blendshapes,
-    make_idle_action, make_wave_action, make_walk_action, export_glb,
+    make_all_builtin_actions, export_glb,
 )
 
 
@@ -234,11 +234,8 @@ def main():
     morph_keys = add_basic_blendshapes(body)
     print(f'[build_realistic] BlendShape: {len(morph_keys)} keys')
 
-    make_idle_action(armature)
-    print('[build_realistic] idle 动画烘焙完成')
-    make_wave_action(armature)
-    print('[build_realistic] wave 动画烘焙完成')
-    make_walk_action(armature)
+    make_all_builtin_actions(armature)
+    print("[build_xxx] 10 个 baked actions 烘焙完成")
     print('[build_realistic] walk 动画烘焙完成')
 
     export_glb(args.output, 'avatar')

@@ -32,7 +32,7 @@ import argparse
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _rig_template import (
     clear_scene, build_armature, bind_mesh, add_basic_blendshapes,
-    make_idle_action, make_wave_action, make_walk_action, export_glb,
+    make_all_builtin_actions, export_glb,
 )
 
 
@@ -132,12 +132,8 @@ def main():
     morph_keys = add_basic_blendshapes(body)
     print(f'[build_avatar] BlendShape: {len(morph_keys)} keys ({morph_keys})')
 
-    make_idle_action(armature)
-    print('[build_avatar] idle 动画烘焙完成')
-    make_wave_action(armature)
-    print('[build_avatar] wave 动画烘焙完成')
-    make_walk_action(armature)
-    print('[build_avatar] walk 动画烘焙完成')
+    make_all_builtin_actions(armature)
+    print('[build_avatar] 10 个 baked actions 烘焙完成(idle/wave/walk/run/dance/sit/point/think/talk/bow)')
 
     export_glb(args.output, args.name)
     print('[build_avatar] 完成!')

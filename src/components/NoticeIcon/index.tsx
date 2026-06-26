@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/contexts/AuthContext';
 import Box from '@mui/material/Box';
 import Badge from '@mui/material/Badge';
 import IconButton from '@mui/material/IconButton';
@@ -46,15 +47,17 @@ function timeAgo(iso: string): string {
 
 export default function NoticeIconView() {
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [tab, setTab] = useState<'interaction' | 'system'>('interaction');
   const [subType, setSubType] = useState('all');
 
-  // 从后端拉未读数(用于 badge)
+  // 从后端拉未读数(用于 badge)—— 未登录不发请求(否则会 401 刷屏)
   const { data: countData } = useQuery({
     queryKey: ['notice-count'],
     queryFn: async () => (await adminClient('/notice/count')).data,
     refetchInterval: 30000,
+    enabled: isAuthenticated,
   });
 
   const { data: interactionData, isLoading: loadingInter } = useQuery({
@@ -348,9 +351,11 @@ function InteractionItem({ item, onClose }: { item: any; onClose: () => void }) 
 // 私信图标(DM 入口) — 走 useQuery 拿未读数
 export function DmIconView() {
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
   const { data: sessions } = useQuery({
     queryKey: ['dm-sessions-badge'],
     queryFn: async () => (await adminClient('/msg/session/list')).data,
+    enabled: isAuthenticated,  // 未登录不发请求(否则 401 刷屏)
   });
   const unread = useMemo(() => {
     const list = sessions?.list || [];

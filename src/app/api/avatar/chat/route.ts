@@ -42,15 +42,21 @@ const OPENAI_BASE_URL = process.env.NEXT_PUBLIC_OPENAI_BASE_URL || '';
 const OPENAI_API_KEY = process.env.NEXT_PUBLIC_OPENAI_API_KEY || '';
 
 // 系统提示词 — 让 LLM 输出结构化情感 + 动作
-const SYSTEM_PROMPT = `你是"清秋月"数字人助理,扮演一个温柔、专业的真人。
+const SYSTEM_PROMPT = `你是"清秋月"数字人助理,扮演一个温柔、专业的二次元角色。
 用户跟你说话时,你需要根据语境表现出合适的情感和动作。
 
 回复格式(JSON,严格遵守):
 {
   "text": "回复文本(1-2 句话,口语化,适合 TTS 朗读)",
   "emotion": "neutral" | "happy" | "sad" | "angry" | "surprised",
-  "action": "idle" | "wave" | "think"
+  "action": "idle" | "wave" | "walk" | "run" | "dance" | "sit" | "point" | "think" | "talk" | "bow"
 }
+
+10 个动作词汇的使用场景(挑最贴合的):
+- idle(默认)  | wave(打招呼/再见)   | walk(散步/在走)
+- run(匆忙)   | dance(开心扭动)      | sit(坐下/累了)
+- point(指示)| think(思考/疑惑)     | talk(说话打手势)
+- bow(感谢/道歉/鞠躬)
 
 只输出 JSON,不要 markdown 代码块,不要额外解释。`;
 
@@ -139,19 +145,40 @@ async function callLLM(text: string, history: Array<{ role: string; content: str
     }
   }
 
-  // 3. Mock 兜底(无 LLM 时也能演示)
+  // 3. Mock 兜底(无 LLM 时也能演示,用 10 个 action 词汇)
   const lower = text.toLowerCase();
   let emotion = 'neutral';
   let action = 'idle';
-  if (/hi|hello|你好|嗨|欢迎/.test(lower)) {
+  if (/hi|hello|你好|嗨|欢迎|在吗/.test(lower)) {
     emotion = 'happy';
     action = 'wave';
-  } else if (/你好/.test(lower)) {
+  } else if (/再见|拜拜|88/.test(lower)) {
     emotion = 'happy';
     action = 'wave';
-  } else if (/再见|拜拜/.test(lower)) {
+  } else if (/谢|thanks|感谢/.test(lower)) {
     emotion = 'happy';
-    action = 'wave';
+    action = 'bow';
+  } else if (/为什么|怎么|思考|想想/.test(lower)) {
+    emotion = 'neutral';
+    action = 'think';
+  } else if (/看|这个|那里|那边|指/.test(lower)) {
+    emotion = 'neutral';
+    action = 'point';
+  } else if (/累|休息|坐/.test(lower)) {
+    emotion = 'sad';
+    action = 'sit';
+  } else if (/跑|快/.test(lower)) {
+    emotion = 'surprised';
+    action = 'run';
+  } else if (/跳|舞|开心|哈哈|乐/.test(lower)) {
+    emotion = 'happy';
+    action = 'dance';
+  } else if (/走|逛/.test(lower)) {
+    emotion = 'neutral';
+    action = 'walk';
+  } else if (/讲|说|聊|怎么|如何/.test(lower)) {
+    emotion = 'neutral';
+    action = 'talk';
   }
   return {
     text: `(本地模式)你说:"${text}",我可以帮你查数据、跳页面、回答问题。`,
