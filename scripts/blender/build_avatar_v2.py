@@ -85,12 +85,9 @@ def add_prim(type_fn, name, location, scale=(1, 1, 1), mat=None, armature=None):
     if mat:
         obj.data.materials.append(mat)
     if armature:
-        # 不绑骨!之前 KNN + skin 在 background mode 出 bug(vertex 全堆原点)
-        # 不用 skin:vertex 是 mesh local 位置,Blender export 时
-        # 用 export_apply=True 把 obj.location 烤进 vertex(变 world 位置)
-        # WebGL 渲染:GLTFLoader 创建普通 Mesh(非 SkinnedMesh),直接显示
-        # 代价:暂时没动作(待后续加),先解决"能看见"
-        pass
+        # KNN 手动算 vertex group + Armature modifier
+        # Blender 内部 render 测试对(headless swiftshader 错是真 GPU 浏览器才对)
+        bind_knn(obj, armature)
     return obj
 
 

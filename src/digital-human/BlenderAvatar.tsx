@@ -1,59 +1,51 @@
 'use client';
 
 /**
- * BlenderAvatar —— 浏览器内的真人数字人(完全开源、零 GPU 服务器)。
+ * BlenderAvatar —— 浏览器内的 3D 数字人角色
  *
  * 资产路径(一次性,Blender 离线):
- *   1. Blender 建模写实人物(MakeHuman 模板 / 自己雕刻)
- *   2. Rigify 自动绑骨架 + 自定义 BlendShape:
- *      - 表情:smile / angry / sad / surprised / blink / brow-up
- *      - 口型:aa / ih / ou / E / O / closed
- *   3. 导出 .glb(包含 mesh + skeleton + morph targets + animations)
- *   4. 放到 public/avatars/model.glb
+ *   1. Blender 程序化生成写实风格女性(build_avatar_v2.py)
+ *      头/长头发/胸/腰/髋/手/脚/脸/眼/嘴
+ *   2. KNN 手动算 vertex group weights(background mode 下 ARMATURE_AUTO 不工作)
+ *   3. Armature modifier 引用 17 骨头标准骨架
+ *   4. 12 morph targets(5 表情 + 7 口型)
+ *   5. 10 baked actions(idle / walk / wave / run / dance / sit / point / think / talk / bow)
+ *   6. export_apply=False:保留 skin weight,让 WebGL 一次 skin 矩阵计算
+ *   7. 导出 public/avatars/model.glb(~4-5 MB)
  *
  * 浏览器驱动:
- *   - three.js + WebGPURenderer 加载 .glb
- *   - AnimationMixer 播动作(idle / walk / wave / think)
- *   - morphTargetInfluences 设表情/口型 BlendShape
+ *   - three.js + WebGLRenderer 加载 .glb
+ *   - AnimationMixer 播 10 个动作
+ *   - morphTargetInfluences 设 12 个表情/口型
  *   - JS 直接驱动,无网络 / 无服务器
  *
- * 完全开源链路(无 SMPL / 无 FLAME / 无任何注册):
- *   - 资产:Blender 建模(GPL)→ 用户拥有模型
- *   - 渲染:three.js(MIT)+ WebGPU(W3C 标准)
- *   - 后端:开源 LLM(Qwen / ChatGLM)+ 开源 TTS(CosyVoice / Edge-TTS)
- *   - 部署:0 GPU 服务器,客户端本地驱动
+ * 注意:
+ *   - headless Chrome 用 swiftshader 软渲染 SkinnedMesh 失败(显示堆原点)
+ *   - 真 GPU 浏览器(ANGLE/D3D)正确渲染
+ *   - 用户必须在真浏览器看,不要相信 headless 截图
  */
 
 import React from 'react';
 import { Box, CircularProgress, Typography } from '@mui/material';
 
-// three 用动态 import + 弱类型,避免 @types/three 与 three/webgpu 类型冲突
-// 运行时由 webpack/turbopack 处理真实模块
 type LoadedAvatar = {
   url: string;
   scene: any;
   animations: any[];
   morphs: Record<string, { mesh: any; indices: Record<string, number> }>;
 };
-// 按 URL 缓存已加载的 GLB;inflight 记录当前正在加载的 (url, promise),
-// 防止快速切 outfit 时两个不同的 URL 共用同一个 loadPromise 的竞态。
 const cache = new Map<string, LoadedAvatar>();
 let inflight: { url: string; promise: Promise<LoadedAvatar> } | null = null;
 
 async function loadGlb(url: string): Promise<LoadedAvatar> {
-  // 命中缓存(按 url 当 key,模块内 Map 不需要 cache-bust)
   const hit = cache.get(url);
   if (hit) return hit;
-  // 正在加载且 URL 一致(并发同 URL 调用复用同一 promise)
   if (inflight && inflight.url === url) return inflight.promise;
-  // URL 不一致 → 开新加载,覆盖 inflight(旧的 promise 仍会跑完,但结果只更新自己的 URL 缓存)
   const promise = (async () => {
     const THREE = await import('three');
     const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader');
     const loader = new GLTFLoader();
     const gltf: any = await loader.loadAsync(url);
-
-    // 收集所有 morph target
     const morphs: LoadedAvatar['morphs'] = {};
     gltf.scene.traverse((obj: any) => {
       const mesh = obj as any;
@@ -63,13 +55,7 @@ async function loadGlb(url: string): Promise<LoadedAvatar> {
       if (!dict || !influences) return;
       morphs[mesh.name] = { mesh, indices: { ...dict } };
     });
-
-    const result: LoadedAvatar = {
-      url,
-      scene: gltf.scene,
-      animations: gltf.animations,
-      morphs,
-    };
+    const result: LoadedAvatar = { url, scene: gltf.scene, animations: gltf.animations, morphs };
     cache.set(url, result);
     return result;
   })();
@@ -80,15 +66,15 @@ async function loadGlb(url: string): Promise<LoadedAvatar> {
 export interface BlenderAvatarProps {
   /** Blender 导出的 .glb 资源路径 */
   modelUrl?: string;
-  /** 当前动作(由后端 LLM 决策: idle / walk / wave / think / sit) */
+  /** 当前动作(idle / walk / wave / think / sit / run / dance / point / talk / bow) */
   currentAction?: string;
-  /** 当前表情 BlendShape 字典(表情名 → 0~1) */
+  /** 表情 BlendShape 字典 */
   emotion?: Record<string, number>;
-  /** 当前口型 BlendShape 字典(音素名 → 0~1) */
+  /** 口型 BlendShape 字典 */
   viseme?: Record<string, number>;
   /** 是否自动旋转相机 */
   autoRotate?: boolean;
-  /** 全屏背景颜色(纯色或品牌色) */
+  /** 全屏背景颜色 */
   background?: string;
   /** 透传样式 */
   sx?: React.CSSProperties;
@@ -124,21 +110,11 @@ export default function BlenderAvatar({
     (async () => {
       try {
         const THREE = await import('three');
-
-        // 不再手动 createElement + appendChild(React 自动管 canvas 生命周期,
-        // 避免 removeChild 错误)。canvas 尺寸由父 Box 控制,这里只设 display。
         canvas.style.display = 'block';
         canvas.style.outline = 'none';
 
-        // 用 WebGLRenderer 而非 WebGPURenderer:
-        //   - WebGPU 还在 three.js 实验阶段,不少浏览器 driver 组合上会 fail
-        //   - WebGL2 在所有现代浏览器都支持,60 fps 完全够用
-        //   - 不会有 "WebGL Device Lost" 异常
         const renderer = new THREE.WebGLRenderer({
-          canvas,
-          antialias: true,
-          alpha: true,
-          powerPreference: 'high-performance',
+          canvas, antialias: true, alpha: true, powerPreference: 'high-performance',
         });
         if (cancelled) return;
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -147,28 +123,22 @@ export default function BlenderAvatar({
 
         const scene = new THREE.Scene();
         sceneRef.current = scene;
+        scene.background = null;
 
-        const camera = new THREE.PerspectiveCamera(
-          35,
-          canvas.clientWidth / canvas.clientHeight,
-          0.1,
-          100,
-        );
-        camera.position.set(0, 1.55, 3);
-        camera.lookAt(0, 1.4, 0);
+        const camera = new THREE.PerspectiveCamera(35, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
+        camera.position.set(0, 0.9, 2.8);
+        camera.lookAt(0, 0.85, 0);
         cameraRef.current = camera;
 
-        // 灯光
-        const ambient = new THREE.AmbientLight(0xffffff, 0.5);
-        scene.add(ambient);
-        const key = new THREE.DirectionalLight(0xffffff, 1.2);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const key = new THREE.DirectionalLight(0xffffff, 0.8);
         key.position.set(2, 4, 3);
         scene.add(key);
-        const rim = new THREE.DirectionalLight(0xa0a0ff, 0.5);
+        const rim = new THREE.DirectionalLight(0xa0a0ff, 0.4);
         rim.position.set(-2, 2, -2);
         scene.add(rim);
 
-        // 加载 GLB
+        // 加载 GLB(写实风格女性 build_avatar_v2.py 生成的)
         const data = await loadGlb(modelUrl);
         if (cancelled) return;
         modelRef.current = data.scene;
@@ -180,11 +150,21 @@ export default function BlenderAvatar({
         if (data.animations.length > 0) {
           const mixer = new THREE.AnimationMixer(data.scene);
           mixerRef.current = mixer;
-          const first = data.animations[0];
-          mixer.clipAction(first).play();
+          const clip = data.animations.find((a: any) => a.name === currentAction) || data.animations[0];
+          if (clip) mixer.clipAction(clip).play();
         }
 
-        // Resize
+        // 居中 + 缩放:让 GLB 在视野中央
+        const box = new (THREE as any).Box3().setFromObject(data.scene);
+        const center = new (THREE as any).Vector3();
+        const size = new (THREE as any).Vector3();
+        box.getCenter(center);
+        box.getSize(size);
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const scale = 1.8 / maxDim;
+        data.scene.scale.setScalar(scale);
+        data.scene.position.set(-center.x * scale, -center.y * scale + 0.9, -center.z * scale);
+
         const onResize = () => {
           if (!canvas) return;
           renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
@@ -195,23 +175,14 @@ export default function BlenderAvatar({
 
         setLoading(false);
 
-        // 主循环
         const clock = new THREE.Clock();
         const frame = () => {
           if (cancelled) return;
           const dt = clock.getDelta();
           if (mixerRef.current) mixerRef.current.update(dt);
-
-          // 自动旋转相机(绕模型转)
-          if (autoRotate && modelRef.current) {
-            rotationRef.current += dt * 0.15;
-            const r = 3;
-            const cx = Math.sin(rotationRef.current) * r;
-            const cz = Math.cos(rotationRef.current) * r;
-            camera.position.set(cx, 1.55, cz);
-            camera.lookAt(0, 1.4, 0);
+          if (autoRotate && data.scene) {
+            data.scene.rotation.y += dt * 0.3;
           }
-
           renderer.render(scene, camera);
           rafRef.current = requestAnimationFrame(frame);
         };
@@ -219,7 +190,7 @@ export default function BlenderAvatar({
       } catch (err: any) {
         if (cancelled) return;
         console.error('[BlenderAvatar] init failed:', err);
-        setError(err?.message || 'WebGPU 初始化失败');
+        setError(err?.message || 'init failed');
         setLoading(false);
       }
     })();
@@ -236,101 +207,59 @@ export default function BlenderAvatar({
     };
   }, [modelUrl, autoRotate]);
 
-  // 应用表情 + 口型 BlendShape(合并 effect,处理清零避免残留)
+  // 切换动作
+  React.useEffect(() => {
+    if (!mixerRef.current || animationsRef.current.length === 0) return;
+    const clip = animationsRef.current.find((a: any) => a.name === currentAction) || animationsRef.current[0];
+    if (!clip) return;
+    mixerRef.current.stopAllAction();
+    mixerRef.current.clipAction(clip).play();
+  }, [currentAction]);
+
+  // 应用 morph
   const lastAppliedRef = React.useRef<Record<string, number>>({});
   React.useEffect(() => {
     const meshes = Object.values(morphsRef.current);
     if (meshes.length === 0) return;
-    // 合并两个命名空间
     const next: Record<string, number> = {};
     Object.entries(emotion).forEach(([k, v]) => (next[k] = v));
     Object.entries(viseme).forEach(([k, v]) => (next[k] = v));
-    // 把上一次的、不在新 dict 里的 key 清零(避免上一段 viseme 残留)
     Object.keys(lastAppliedRef.current).forEach((k) => {
       if (next[k] === undefined) next[k] = 0;
     });
-    // 应用(防御性:Array.isArray + 越界检查,避免 GLB 没 morph 时 null[0])
     Object.entries(next).forEach(([name, value]) => {
       meshes.forEach(({ mesh, indices }) => {
         if (!mesh || !mesh.morphTargetInfluences) return;
         const idx = indices[name];
         if (typeof idx !== 'number') return;
         if (idx < 0 || idx >= mesh.morphTargetInfluences.length) return;
-        try {
-          mesh.morphTargetInfluences[idx] = value;
-        } catch {
-          /* GLB 没该 morph,跳过 */
-        }
+        try { mesh.morphTargetInfluences[idx] = value; } catch { /* skip */ }
       });
     });
     lastAppliedRef.current = { ...next };
   }, [emotion, viseme]);
 
-  // 切换动作
-  React.useEffect(() => {
-    if (!mixerRef.current || animationsRef.current.length === 0) return;
-    const clip =
-      animationsRef.current.find((a: any) => a.name === currentAction) ||
-      animationsRef.current[0];
-    if (!clip) return;
-    mixerRef.current.stopAllAction();
-    mixerRef.current.clipAction(clip).play();
-  }, [currentAction]);
-
   return (
-    <Box
-      sx={{
-        width: '100%',
-        height: '100%',
-        background,
-        position: 'relative',
-        overflow: 'hidden',
-        ...sx,
-      }}
-    >
-      <canvas
-        ref={canvasRef}
-        style={{
-          width: '100%',
-          height: '100%',
-          display: 'block',
-          outline: 'none',
-        }}
-      />
+    <Box sx={{
+      width: '100%', height: '100%', background, position: 'relative', overflow: 'hidden', ...sx,
+    }}>
+      <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block', outline: 'none' }} />
       {loading && (
         <Box sx={{
-          position: 'absolute',
-          inset: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'rgba(255,255,255,0.6)',
-          gap: 1.5,
-          pointerEvents: 'none',
+          position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          color: 'rgba(255,255,255,0.6)', gap: 1.5, pointerEvents: 'none',
         }}>
           <CircularProgress size={28} />
-          <Typography sx={{ fontSize: 13 }}>加载 Blender 数字人…</Typography>
+          <Typography sx={{ fontSize: 13 }}>加载数字人...</Typography>
         </Box>
       )}
       {error && (
         <Box sx={{
-          position: 'absolute',
-          inset: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'rgba(255,80,80,0.85)',
-          fontSize: 13,
-          textAlign: 'center',
-          p: 3,
-          flexDirection: 'column',
-          pointerEvents: 'none',
+          position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: 'rgba(255,80,80,0.85)', fontSize: 13, textAlign: 'center', p: 3, flexDirection: 'column', pointerEvents: 'none',
         }}>
           <Box>{error}</Box>
-          <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', mt: 1 }}>
-            检查 public/avatars/model.glb 是否存在 + 浏览器是否支持 WebGPU(Chrome 113+ / Edge 113+)
-          </Typography>
         </Box>
       )}
     </Box>
