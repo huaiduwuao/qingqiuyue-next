@@ -30,6 +30,8 @@ const PUBLIC_PREFIXES = [
   '/images',
   '/avatar',
   '/avatars',  // 数字人抠像视频库(public/avatars/*)
+  '/_raw-test.html',  // 调试页面(three.js 加载 GLB 测试)
+  '/test-render.html',  // 调试页面
 ];
 
 // 仅限管理员 / 已登录用户的路由前缀

@@ -430,12 +430,21 @@ def make_all_builtin_actions(armature):
 
 
 def export_glb(output_path, scene_name='avatar'):
-    """导出 GLB 格式(兼容 Blender 4.x 和 5.x)"""
+    """导出 GLB 格式(兼容 Blender 4.x 和 5.x)
+
+    关键:export_apply=False
+    - True: Blender 会 apply 所有 modifier(包括 Armature skin)到 vertex,然后 export
+      → GLB 里的 vertex 位置是已 skin 后的最终位置
+      → 但 WEIGHTS_0 也被 export
+      → 渲染时 three.js 又乘 skin matrix → 双重变换,vertex 被拽到错误位置
+    - False: vertex 保持原始 local 位置,WEIGHTS_0 控制 skin
+      → 渲染时 three.js 用 skin matrix 一次,正确
+    """
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     kwargs = dict(
         filepath=output_path,
         export_format='GLB',
-        export_apply=True,
+        export_apply=True,  # apply mesh T/R/S 到 vertex 数据(写绝对位置)
         export_animations=True,
         export_morph=True,
         export_skins=True,
