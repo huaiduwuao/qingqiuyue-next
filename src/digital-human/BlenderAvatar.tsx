@@ -103,7 +103,7 @@ export default function BlenderAvatar({
   background = 'radial-gradient(ellipse at 50% 30%, rgba(124,58,237,0.18) 0%, transparent 55%), #05060B',
   sx,
 }: BlenderAvatarProps) {
-  const containerRef = React.useRef<HTMLDivElement>(null);
+  const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const rendererRef = React.useRef<any>(null);
   const sceneRef = React.useRef<any>(null);
   const cameraRef = React.useRef<any>(null);
@@ -117,8 +117,8 @@ export default function BlenderAvatar({
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
     let cancelled = false;
 
     (async () => {
@@ -126,19 +126,16 @@ export default function BlenderAvatar({
         const THREE = await import('three');
         const { WebGPURenderer } = await import('three/webgpu');
 
-        const canvas = document.createElement('canvas');
-        canvas.style.width = '100%';
-        canvas.style.height = '100%';
+        // 不再手动 createElement + appendChild(React 自动管 canvas 生命周期,
+        // 避免 removeChild 错误)。canvas 尺寸由父 Box 控制,这里只设 display。
         canvas.style.display = 'block';
         canvas.style.outline = 'none';
-        container.innerHTML = '';
-        container.appendChild(canvas);
 
         const renderer = new WebGPURenderer({ canvas, antialias: true, alpha: true } as any);
         await renderer.init();
         if (cancelled) return;
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-        renderer.setSize(container.clientWidth, container.clientHeight, false);
+        renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
         rendererRef.current = renderer;
 
         const scene = new THREE.Scene();
@@ -146,7 +143,7 @@ export default function BlenderAvatar({
 
         const camera = new THREE.PerspectiveCamera(
           35,
-          container.clientWidth / container.clientHeight,
+          canvas.clientWidth / canvas.clientHeight,
           0.1,
           100,
         );
@@ -182,9 +179,9 @@ export default function BlenderAvatar({
 
         // Resize
         const onResize = () => {
-          if (!container) return;
-          renderer.setSize(container.clientWidth, container.clientHeight, false);
-          camera.aspect = container.clientWidth / container.clientHeight;
+          if (!canvas) return;
+          renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+          camera.aspect = canvas.clientWidth / canvas.clientHeight;
           camera.updateProjectionMatrix();
         };
         window.addEventListener('resize', onResize);
@@ -270,7 +267,6 @@ export default function BlenderAvatar({
 
   return (
     <Box
-      ref={containerRef}
       sx={{
         width: '100%',
         height: '100%',
@@ -280,6 +276,15 @@ export default function BlenderAvatar({
         ...sx,
       }}
     >
+      <canvas
+        ref={canvasRef}
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'block',
+          outline: 'none',
+        }}
+      />
       {loading && (
         <Box sx={{
           position: 'absolute',
@@ -290,6 +295,7 @@ export default function BlenderAvatar({
           justifyContent: 'center',
           color: 'rgba(255,255,255,0.6)',
           gap: 1.5,
+          pointerEvents: 'none',
         }}>
           <CircularProgress size={28} />
           <Typography sx={{ fontSize: 13 }}>加载 Blender 数字人…</Typography>
@@ -307,6 +313,7 @@ export default function BlenderAvatar({
           textAlign: 'center',
           p: 3,
           flexDirection: 'column',
+          pointerEvents: 'none',
         }}>
           <Box>{error}</Box>
           <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', mt: 1 }}>
