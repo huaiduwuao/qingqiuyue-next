@@ -17,6 +17,18 @@ const nextConfig: NextConfig = {
       fullUrl: true,
     },
   },
+  // 数字人 GLB 资源:dev 模式强制 no-store,避免浏览器 HTTP cache 卡住旧文件
+  // (改完 Blender 脚本重生成 GLB 后,普通 F5 刷新就能拿新版,不用 Ctrl+Shift+R)
+  async headers() {
+    return [
+      {
+        source: '/avatars/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'no-store, must-revalidate' },
+        ],
+      },
+    ];
+  },
   async rewrites() {
     // avatar pipeline 路由必须在本地处理(Next.js spawn 脚本 + MinIO 客户端),
     // 不能被反代到 Go 后端。Next.js 路由优先匹配,理论上不需要显式 exclusion,

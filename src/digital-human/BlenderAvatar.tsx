@@ -41,7 +41,7 @@ const cache = new Map<string, LoadedAvatar>();
 let inflight: { url: string; promise: Promise<LoadedAvatar> } | null = null;
 
 async function loadGlb(url: string): Promise<LoadedAvatar> {
-  // 命中缓存
+  // 命中缓存(按 url 当 key,模块内 Map 不需要 cache-bust)
   const hit = cache.get(url);
   if (hit) return hit;
   // 正在加载且 URL 一致(并发同 URL 调用复用同一 promise)
