@@ -1,405 +1,258 @@
 'use client';
 
 /**
- * ImmersiveDigitalHuman —— 全屏沉浸式数字人视频通话风格
+ * ImmersiveDigitalHuman —— /digital-human 沉浸式页面。
  *
- * 跟 DigitalHumanStage 的区别:
- * - 数字人占满全屏(像视频通话里看对方)
- * - 输入条 / 聊天记录 / 状态都是半透明悬浮玻璃面板
- * - 没有「打招呼 / 挥手 / 跳舞」这些快捷按钮(那是工坊模式才用的)
- * - 顶部只有一个「退出」按钮,不显示页面标题
+ * 用 BlenderAvatar 渲染 Blender 离线训练的写实数字人(完全开源)。
+ * LLM 通过 emotion / viseme / action props 实时驱动表情 + 口型 + 动作。
  *
- * 复用 DigitalHumanStage 的 stage / agent 基础设施(Canvas / Video / Spark / FSM /
- * ASR / TTS / AgentController),只重做外层布局。
+ * 与 FloatingDigitalHuman 共用同一套驱动协议(LLM → emotion/viseme/action + TTS audio),
+ * 只是把浮窗扩展为全屏。
  */
+
 import React from 'react';
-import { useRouter } from 'next/navigation';
-import Box from '@mui/material/Box';
-import IconButton from '@mui/material/IconButton';
-import TextField from '@mui/material/TextField';
-import Typography from '@mui/material/Typography';
-import Chip from '@mui/material/Chip';
-import MicRoundedIcon from '@mui/icons-material/MicRounded';
-import MicOffRoundedIcon from '@mui/icons-material/MicOffRounded';
-import SendRoundedIcon from '@mui/icons-material/SendRounded';
+import {
+  Box, IconButton, TextField, Typography, CircularProgress, Chip,
+} from '@mui/material';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
-import CircleIcon from '@mui/icons-material/Circle';
+import SendRoundedIcon from '@mui/icons-material/SendRounded';
+import { useRouter } from 'next/navigation';
 import { alpha } from '@mui/material/styles';
+import BlenderAvatar from './BlenderAvatar';
 
-import type { AgentEvent, IAvatarStage } from './types';
-import { CanvasStage } from './CanvasStage';
-import { VideoStage } from './VideoStage';
-import { AholoStage } from './AholoStage';
-import { DynamicAvatarStage } from './DynamicAvatarStage';
-import { SparkStage } from './SparkStage';
-import { ActionStateMachine } from './ActionStateMachine';
-import { BrowserASR } from './voice/asr';
-import { BrowserTTS } from './voice/tts';
-import { buildTools } from './agent/tools';
-import { MockIntentLLM, RemoteLLM, LLM } from './agent/llm';
-import { AgentController } from './agent/AgentController';
+interface ChatResp {
+  text: string;
+  emotion: Record<string, number>;
+  action: string;
+  visemes: Array<{ t: number; shape: string; weight: number }>;
+  audioUrl: string | null;
+}
 
-const FIG_W_MOBILE = '70vw';
-const FIG_W_DESKTOP = '55vh';
-const FIG_MAX_W = 480;
+const OUTFITS = [
+  { name: 'casual', label: '休闲' },
+  { name: 'suit', label: '西装' },
+  { name: 'sports', label: '运动' },
+];
 
 export default function ImmersiveDigitalHuman() {
   const router = useRouter();
-  const stageRef = React.useRef<HTMLDivElement>(null);
-  const canvasStageRef = React.useRef<IAvatarStage | null>(null);
-  const fsmRef = React.useRef<ActionStateMachine | null>(null);
-  const agentRef = React.useRef<AgentController | null>(null);
-
+  const [outfit, setOutfit] = React.useState('casual');
+  const [autoRotate, setAutoRotate] = React.useState(true);
   const [text, setText] = React.useState('');
-  const [listening, setListening] = React.useState(false);
-  const [useRemote, setUseRemote] = React.useState(false);
-  const [thinking, setThinking] = React.useState(false);
-  const [stageKind, setStageKind] = React.useState<'placeholder' | 'real'>('placeholder');
-  const [connected, setConnected] = React.useState<'connecting' | 'ready' | 'tts'>('connecting');
-  // 聊天记录(只显示最近 6 条,保持面板不爆)
-  const [chat, setChat] = React.useState<{ who: 'user' | 'ai'; text: string }[]>([]);
-  // 日志详情面板(可展开 / 收起,默认收起)
-  const [logOpen, setLogOpen] = React.useState(false);
-  const [log, setLog] = React.useState<string[]>([]);
+  const [chatBusy, setChatBusy] = React.useState(false);
+  const [chatLog, setChatLog] = React.useState<Array<{ who: 'user' | 'ai'; text: string }>>([]);
+  const [emotion, setEmotion] = React.useState<Record<string, number>>({});
+  const [viseme, setViseme] = React.useState<Record<string, number>>({});
+  const [action, setAction] = React.useState('idle');
+  const audioRef = React.useRef<HTMLAudioElement>(null);
+  const visemeTimelineRef = React.useRef<ChatResp['visemes']>([]);
+  const visemeStartRef = React.useRef<number>(0);
+  const visemeActiveRef = React.useRef<boolean>(false);
 
-  const pushLog = (s: string) => setLog((l) => [s, ...l].slice(0, 30));
-  const pushChat = (who: 'user' | 'ai', text: string) =>
-    setChat((c) => [...c, { who, text }].slice(-6));
-
-  React.useEffect(() => {
-    if (!stageRef.current) return;
-    let disposed = false;
-
-    const init = async () => {
-      // 优先真人视频(public/avatar/clips.json),否则占位
-      const manifest = await VideoStage.fromUrl('/avatar/clips.json');
-      if (disposed || !stageRef.current) return;
-      const stage: IAvatarStage = manifest ? new VideoStage(manifest) : new CanvasStage();
-      setStageKind(manifest ? 'real' : 'placeholder');
-      canvasStageRef.current = stage;
-      await stage.mount(stageRef.current);
-      if (disposed) return;
-      const fsm = new ActionStateMachine(stage);
-      fsmRef.current = fsm;
-      const asr = new BrowserASR('zh-CN');
-      const tts = new BrowserTTS('zh-CN');
-      asr.onEnd = () => setListening(false);
-      const llm: LLM = useRemote ? new RemoteLLM('/api/realtime/chat') : new MockIntentLLM();
-      const tools = buildTools({ navigate: (p) => router.push(p) });
-      const onEvent = (e: AgentEvent) => {
-        if (e.type === 'thinking') setThinking(true);
-        if (e.type === 'done' || e.type === 'error') setThinking(false);
-        if (e.type === 'asr') {
-          pushLog(`🎤 ${e.text}`);
-          pushChat('user', e.text);
-        }
-        if (e.type === 'reply') {
-          pushLog(`🤖 ${e.reply.text}`);
-          pushChat('ai', e.reply.text);
-        }
-        if (e.type === 'tool') pushLog(`🔧 ${e.name}(${JSON.stringify(e.args)})${e.error ? ' ✗ ' + e.error : ' ✓'}`);
-        if (e.type === 'speaking') setConnected('tts');
-        if (e.type === 'done') setConnected('ready');
-        if (e.type === 'error') setConnected('ready');
-      };
-      agentRef.current = new AgentController({ llm, tools, asr, tts, fsm, onEvent });
-      fsm.start();
-      setConnected('ready');
-    };
-    init();
-
-    return () => {
-      disposed = true;
-      fsmRef.current?.stop();
-      canvasStageRef.current?.dispose();
-    };
-    // useRemote 变化时重建 agent
-  }, [router, useRemote]);
-
-  const send = () => {
+  const send = async () => {
     const t = text.trim();
-    if (!t) return;
-    pushChat('user', t);
-    agentRef.current?.handle(t);
+    if (!t || chatBusy) return;
+    setChatBusy(true);
+    setChatLog((c) => [...c, { who: 'user', text: t }]);
     setText('');
-  };
-
-  const toggleMic = async () => {
-    const agent = agentRef.current;
-    if (!agent) return;
-    if (listening) {
-      agent.stopListening();
-      setListening(false);
-    } else {
-      agent.startListening();
-      setListening(true);
+    try {
+      const r = await fetch('/api/avatar/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: t,
+          history: chatLog.map((m) => ({ role: m.who === 'user' ? 'user' : 'assistant', content: m.text })),
+        }),
+      });
+      const j: ChatResp = await r.json();
+      setChatLog((c) => [...c, { who: 'ai', text: j.text }]);
+      setEmotion(j.emotion);
+      setAction(j.action);
+      setViseme({});
+      visemeTimelineRef.current = j.visemes || [];
+      if (j.audioUrl && audioRef.current) {
+        const a = audioRef.current;
+        a.onplay = () => {
+          visemeStartRef.current = performance.now();
+          visemeActiveRef.current = true;
+        };
+        a.onended = () => {
+          visemeActiveRef.current = false;
+          setViseme({});
+        };
+        a.src = j.audioUrl;
+        a.play().catch(() => {
+          visemeStartRef.current = performance.now();
+          visemeActiveRef.current = true;
+        });
+      } else {
+        visemeStartRef.current = performance.now();
+        visemeActiveRef.current = true;
+      }
+    } catch (err) {
+      setChatLog((c) => [...c, { who: 'ai', text: '抱歉,服务暂时不可用。' }]);
+    } finally {
+      setChatBusy(false);
     }
   };
 
-  // 全屏沉浸容器:fixed 铺满整个 viewport,数字人占中央
+  // viseme 驱动 rAF(与 FloatingDigitalHuman 同款)
+  React.useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      if (!visemeActiveRef.current) return;
+      const timeline = visemeTimelineRef.current;
+      if (timeline.length === 0) return;
+      const elapsed = (performance.now() - visemeStartRef.current) / 1000;
+      let current = timeline[0];
+      for (const v of timeline) {
+        if (v.t <= elapsed) current = v;
+        else break;
+      }
+      const next = { [current.shape]: current.weight };
+      setViseme((prev) => {
+        const k = Object.keys(next)[0];
+        if (prev[k] === next[k]) return prev;
+        return next;
+      });
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
   return (
-    <Box
-      sx={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 1,
-        // 舞台需要深色基底(数字人形象在浅色下不好看),但用品牌主色做极淡光晕,
-        // 切深浅 / 切主色时都会有视觉反馈,而不是一个孤零零的纯黑块
-        background: (t) => `radial-gradient(ellipse at 50% 30%, ${alpha(t.palette.primary.main, 0.18)} 0%, transparent 55%), #05060B`,
-        overflow: 'hidden',
-      }}
-    >
-      {/* 数字人形象(占屏幕中央,宽高自适应) */}
-      <Box
-        ref={stageRef}
-        sx={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: { xs: FIG_W_MOBILE, md: FIG_W_DESKTOP },
-          maxWidth: `${FIG_MAX_W}px`,
-          aspectRatio: '3/4',
-          // 让 canvas / 3D 模型本身铺满,容器透明
-          '& canvas, & video': { width: '100%', height: '100%', objectFit: 'contain' },
-        }}
+    <Box sx={{ position: 'fixed', inset: 0, zIndex: 1, background: '#05060B' }}>
+      {/* 全屏数字人 */}
+      <BlenderAvatar
+        modelUrl={`/avatars/outfits/${outfit}.glb`}
+        currentAction={action}
+        emotion={emotion}
+        viseme={viseme}
+        autoRotate={autoRotate}
+        sx={{ position: 'absolute', inset: 0 }}
       />
 
-      {/* 顶部状态栏:左 = 退出,中 = 角色名,右 = 连接状态指示 + LLM 切换 */}
-      <Box
-        sx={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          px: 2,
-          py: 1.5,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          zIndex: 3,
-          background: 'linear-gradient(180deg, rgba(0,0,0,0.6) 0%, transparent 100%)',
-        }}
-      >
+      {/* 顶部:退出 + 换装 */}
+      <Box sx={{
+        position: 'absolute',
+        top: 16,
+        left: 16,
+        right: 16,
+        zIndex: 3,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1,
+        pointerEvents: 'none',
+      }}>
         <IconButton
           onClick={() => router.back()}
-          size="small"
+          size="medium"
           aria-label="退出"
-          sx={{ color: (t) => alpha(t.palette.common.white, 0.9) }}
+          sx={{
+            pointerEvents: 'auto',
+            color: 'rgba(255,255,255,0.85)',
+            bgcolor: 'rgba(0,0,0,0.4)',
+            backdropFilter: 'blur(8px)',
+            '&:hover': { bgcolor: 'rgba(255,255,255,0.12)' },
+          }}
         >
           <CloseRoundedIcon />
         </IconButton>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <CircleIcon sx={{ fontSize: 8, color: connected === 'ready' ? 'success.main' : connected === 'tts' ? 'primary.main' : 'warning.main' }} />
-          <Typography sx={{ fontSize: 12, color: (t) => alpha(t.palette.common.white, 0.85), fontWeight: 500 }}>
-            {connected === 'ready' ? '已连接' : connected === 'tts' ? '正在回应…' : '连接中…'}
-          </Typography>
+        <Box sx={{ display: 'flex', gap: 0.75, pointerEvents: 'auto' }}>
+          {OUTFITS.map((o) => (
+            <Chip
+              key={o.name}
+              label={o.label}
+              size="small"
+              onClick={() => setOutfit(o.name)}
+              sx={{
+                bgcolor: outfit === o.name
+                  ? (t) => alpha(t.palette.primary.main, 0.7)
+                  : 'rgba(0,0,0,0.4)',
+                color: 'white',
+                backdropFilter: 'blur(8px)',
+                fontSize: 12,
+                '&:hover': { bgcolor: (t) => alpha(t.palette.primary.main, 0.4) },
+              }}
+            />
+          ))}
         </Box>
-        <IconButton
-          onClick={() => setUseRemote((v) => !v)}
-          size="small"
-          aria-label="切换 LLM"
-          sx={{ color: (t) => alpha(t.palette.common.white, 0.85), fontSize: 11, px: 1.5, borderRadius: 1 }}
-        >
-          <Typography sx={{ fontSize: 11, fontWeight: 600 }}>
-            {useRemote ? '真·LLM' : 'Mock'}
-          </Typography>
-        </IconButton>
+        <Box sx={{ flex: 1 }} />
       </Box>
 
-      {/* 占位提示(浮在数字人脚下,仅 placeholder 时显示) */}
-      {stageKind === 'placeholder' && (
-        <Box
-          sx={{
-            position: 'absolute',
-            bottom: { xs: 100, md: 130 },
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 2,
-            px: 2,
-            py: 1,
-            borderRadius: 2,
-            bgcolor: (t) => alpha(t.palette.background.default, 0.78),
+      {/* 底部:聊天输入 + 记录 */}
+      <Box sx={{
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 3,
+        p: 2,
+        background: 'linear-gradient(0deg, rgba(0,0,0,0.85) 0%, transparent 100%)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 1.5,
+      }}>
+        {chatLog.length > 0 && (
+          <Box sx={{
+            maxHeight: 140,
+            overflowY: 'auto',
+            background: 'rgba(0,0,0,0.45)',
+            borderRadius: 1,
+            p: 1,
             backdropFilter: 'blur(8px)',
-            border: (t) => `1px solid ${alpha(t.palette.primary.main, 0.32)}`,
-            maxWidth: 480,
-            textAlign: 'center',
-          }}
-        >
-          <Typography sx={{ fontSize: 11.5, color: (t) => alpha(t.palette.common.white, 0.88), lineHeight: 1.6 }}>
-            占位形象 · 放入真人视频片段即变真人：把 <code>public/avatar/clips.example.json</code> 复制为 <code>clips.json</code> 填入你的片段地址(待机 / 讲话 / 表情…),刷新即可。
-          </Typography>
-        </Box>
-      )}
-
-      {/* 思考中提示(顶部状态条下) */}
-      {thinking && (
-        <Box
-          sx={{
-            position: 'absolute',
-            top: 56,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 3,
-            px: 1.5,
-            py: 0.5,
-            borderRadius: 999,
-            bgcolor: (t) => alpha(t.palette.secondary.main, 0.85),
-            color: (t) => t.palette.secondary.contrastText,
-            fontSize: 11,
-            fontWeight: 600,
-            backdropFilter: 'blur(8px)',
-          }}
-        >
-          思考中…
-        </Box>
-      )}
-
-      {/* 聊天记录面板(浮在数字人左侧 / 下方,玻璃半透明,可折叠日志详情) */}
-      {(chat.length > 0 || log.length > 0) && (
-        <Box
-          sx={{
-            position: 'absolute',
-            left: { xs: 12, md: 24 },
-            bottom: { xs: 96, md: 120 },
-            width: { xs: 'calc(100% - 24px)', md: 320 },
-            maxWidth: 360,
-            zIndex: 2,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 0.75,
-            pointerEvents: 'auto',
-            // 玻璃面板 — 跟随主题:背景用 background.default 派生,边框叠品牌色
-            bgcolor: (t) => alpha(t.palette.background.default, 0.6),
-            backdropFilter: 'blur(14px)',
-            border: (t) => `1px solid ${alpha(t.palette.primary.main, 0.28)}`,
-            borderRadius: 2,
-            p: 1.25,
-            maxHeight: { xs: 180, md: 240 },
-          }}
-        >
-          {/* 聊天流 */}
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, overflowY: 'auto', flex: 1 }}>
-            {chat.slice(-5).map((c, i) => (
-              <Box
+          }}>
+            {chatLog.slice(-4).map((m, i) => (
+              <Typography
                 key={i}
                 sx={{
-                  fontSize: 12.5,
-                  lineHeight: 1.5,
-                  // 用户消息用主品牌色,AI 消息用白
-                  color: (t) => c.who === 'user' ? alpha(t.palette.primary.main, 0.95) : alpha(t.palette.common.white, 0.92),
-                  textAlign: c.who === 'user' ? 'right' : 'left',
+                  fontSize: 13,
+                  color: m.who === 'user' ? '#a0c4ff' : '#fff',
+                  mb: 0.5,
                   wordBreak: 'break-word',
                 }}
               >
-                <Box component="span" sx={{ opacity: 0.6, fontSize: 10, mr: 0.5 }}>
-                  {c.who === 'user' ? '我' : 'AI'}
-                </Box>
-                {c.text}
-              </Box>
+                <strong>{m.who === 'user' ? '我' : 'AI'}:</strong> {m.text}
+              </Typography>
             ))}
           </Box>
-          {/* 日志详情(可折叠) */}
-          {log.length > 0 && (
-            <>
-              <Box
-                onClick={() => setLogOpen((v) => !v)}
-                sx={{
-                  fontSize: 10,
-                  color: (t) => alpha(t.palette.common.white, 0.55),
-                  cursor: 'pointer',
-                  userSelect: 'none',
-                  textAlign: 'center',
-                  pt: 0.25,
-                  borderTop: (t) => `1px solid ${alpha(t.palette.common.white, 0.08)}`,
-                }}
-              >
-                {logOpen ? '▾ 收起日志' : `▴ 展开日志(${log.length})`}
-              </Box>
-              {logOpen && (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.25, maxHeight: 120, overflowY: 'auto', pt: 0.25 }}>
-                  {log.slice(0, 10).map((l, i) => (
-                    <Box key={i} sx={{ fontSize: 10.5, color: (t) => alpha(t.palette.common.white, 0.6), fontFamily: 'ui-monospace, monospace', lineHeight: 1.4 }}>
-                      {l}
-                    </Box>
-                  ))}
-                </Box>
-              )}
-            </>
-          )}
-        </Box>
-      )}
-
-      {/* 底部输入条(全宽半透明玻璃,固定在最下面) */}
-      <Box
-        sx={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          zIndex: 3,
-          px: { xs: 2, md: 4 },
-          py: { xs: 1.5, md: 2 },
-          // 从下往上渐变蒙版,叠品牌色 — 切主色时有反馈
-          background: (t) => `linear-gradient(0deg, ${alpha(t.palette.common.black, 0.7)} 0%, ${alpha(t.palette.primary.main, 0)} 100%)`,
-        }}
-      >
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 1,
-            maxWidth: 640,
-            mx: 'auto',
-            px: 1.5,
-            py: 0.5,
-            borderRadius: 999,
-            bgcolor: (t) => alpha(t.palette.background.default, 0.85),
-            backdropFilter: 'blur(16px)',
-            border: (t) => `1px solid ${alpha(t.palette.primary.main, 0.32)}`,
-          }}
-        >
-          <IconButton
-            onClick={toggleMic}
-            size="small"
-            sx={{
-              // 监听中:主题主色;闲置:白
-              color: (t) => listening ? t.palette.primary.main : alpha(t.palette.common.white, 0.85),
-              '&:hover': { bgcolor: (t) => alpha(t.palette.common.white, 0.08) },
-            }}
-            aria-label={listening ? '停止聆听' : '开始语音'}
-          >
-            {listening ? <MicRoundedIcon /> : <MicOffRoundedIcon />}
-          </IconButton>
+        )}
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', maxWidth: 900, mx: 'auto', width: '100%' }}>
           <TextField
             fullWidth
-            variant="standard"
-            placeholder="对数字人说点什么…"
+            placeholder="跟数字人说点什么…"
             value={text}
             onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && send()}
-            slotProps={{
-              input: {
-                disableUnderline: true,
-                sx: { color: (t) => t.palette.common.white, fontSize: 14, py: 0.5 },
+            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), send())}
+            disabled={chatBusy}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                color: 'white',
+                bgcolor: 'rgba(255,255,255,0.08)',
+                backdropFilter: 'blur(8px)',
+                '& fieldset': { borderColor: 'rgba(255,255,255,0.2)' },
               },
+              '& .MuiOutlinedInput-input::placeholder': { color: 'rgba(255,255,255,0.5)', opacity: 1 },
             }}
-            sx={{ '& input::placeholder': { color: (t) => alpha(t.palette.common.white, 0.5), opacity: 1 } }}
           />
           <IconButton
+            size="large"
+            disabled={chatBusy || !text.trim()}
             onClick={send}
-            size="small"
             sx={{
-              // 输入有内容:主题主色;否则:灰白
-              color: (t) => text.trim() ? t.palette.primary.main : alpha(t.palette.common.white, 0.4),
-              '&:hover': { bgcolor: (t) => alpha(t.palette.common.white, 0.08) },
+              bgcolor: (t) => alpha(t.palette.primary.main, 0.8),
+              color: 'white',
+              '&:hover': { bgcolor: (t) => t.palette.primary.main },
+              '&.Mui-disabled': { color: 'rgba(255,255,255,0.3)' },
             }}
-            aria-label="发送"
           >
-            <SendRoundedIcon />
+            {chatBusy ? <CircularProgress size={18} sx={{ color: 'white' }} /> : <SendRoundedIcon />}
           </IconButton>
         </Box>
       </Box>
+
+      <audio ref={audioRef} hidden />
     </Box>
   );
 }

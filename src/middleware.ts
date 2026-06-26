@@ -29,6 +29,7 @@ const PUBLIC_PREFIXES = [
   '/static',
   '/images',
   '/avatar',
+  '/avatars',  // 数字人抠像视频库(public/avatars/*)
 ];
 
 // 仅限管理员 / 已登录用户的路由前缀

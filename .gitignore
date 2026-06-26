@@ -47,6 +47,15 @@ next-env.d.ts
 # 数字人演示视频(大文件,clone 后自备,见 public/avatar/clips.example.json)
 /public/avatar/clips/*.mp4
 
+# Edge-TTS 生成的音频缓存(运行时产生,可随时清)
+/public/avatars/audio-cache/*.mp3
+
+# COLMAP / 3DGS 重建管线的 staging 目录(脚本运行时生成)
+/public/avatars/pipeline/
+
+# 数字人 Web UI 管线的本地 workdir(input.mp4 / 中间产物 / deploy)
+/.avatar-work/
+
 # 本地 agent/编辑器配置
 /.claude/launch.json
 

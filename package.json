@@ -23,6 +23,7 @@
     "@sparkjsdev/spark": "^2.1.0",
     "@tanstack/react-query": "^5.99.0",
     "axios": "^1.15.0",
+    "minio": "^8.0.7",
     "next": "16.2.3",
     "next-intl": "^4.9.1",
     "react": "19.2.4",

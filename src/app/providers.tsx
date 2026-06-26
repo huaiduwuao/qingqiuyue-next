@@ -2,14 +2,19 @@
 
 import { ThemeProvider as CustomThemeProvider } from '@/contexts/ThemeContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { AppContextProvider } from '@/contexts/AppContext';
 import { AuthContextProvider } from '@/contexts/AuthContext';
 import { startMock, stopMock, mockEnabled } from '@/mocks/init';
-import dynamic from 'next/dynamic';
 import EmotionProvider from '@/lib/emotion-provider';
 
-const FloatingDigitalHuman = dynamic(() => import('@/digital-human/FloatingDigitalHuman'), { ssr: false });
+// 延迟加载 three.js(避免 Turbopack 首次编译整个 app 时卡在 three 大依赖上)。
+// 用户首次点击页面再 mount;非 /digital-human 路由永远不会触发。
+const FloatingDigitalHuman = lazy(() =>
+  typeof window === 'undefined'
+    ? Promise.resolve({ default: () => null })
+    : import('@/digital-human/FloatingDigitalHuman'),
+);
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -26,6 +31,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   const [mockReady, setMockReady] = useState(!mockEnabled);
+  const [mountFloating, setMountFloating] = useState(false);
 
   useEffect(() => {
     if (!mockEnabled) {
@@ -49,6 +55,18 @@ export function Providers({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // 浏览器空闲时再挂载浮窗数字人(等首次交互后再加载,避免阻塞 SSR)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onIdle = () => setMountFloating(true);
+    if ('requestIdleCallback' in window) {
+      (window as unknown as { requestIdleCallback: (cb: () => void) => void }).requestIdleCallback(onIdle);
+    } else {
+      const t = setTimeout(onIdle, 1500);
+      return () => clearTimeout(t);
+    }
+  }, []);
+
   if (!mockReady) {
     if (typeof document !== 'undefined') {
       document.documentElement.setAttribute('data-mock-loading', '1');
@@ -63,7 +81,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <AppContextProvider>
             <AuthContextProvider>
               {children}
-              <FloatingDigitalHuman />
+              {mountFloating && (
+                <Suspense fallback={null}>
+                  <FloatingDigitalHuman />
+                </Suspense>
+              )}
             </AuthContextProvider>
           </AppContextProvider>
         </CustomThemeProvider>

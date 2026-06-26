@@ -19,8 +19,27 @@ services:
     environment:
       # 直连后端 APISIX(同一容器网络,DNS 名 apisix,内部端口 9080),不绕宿主机
       - API_PROXY_TARGET=http://apisix:9080
+      # === 数字人 Web 流水线 ===
+      - MINIO_ENDPOINT=minio
+      - MINIO_PORT=9000
+      - MINIO_USE_SSL=false
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-qingqiuyue}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-qingqiuyue123}
+      - MINIO_BUCKET=qingqiuyue-avatars
+      - MINIO_PUBLIC_ENDPOINT=${MINIO_PUBLIC_ENDPOINT:-localhost:9000}
+      - MINIO_PUBLIC_USE_SSL=${MINIO_PUBLIC_USE_SSL:-false}
+      - AVATAR_WORK_ROOT=/data/avatar-work
+      - MAX_CONCURRENT_PIPELINES=${MAX_CONCURRENT_PIPELINES:-2}
+      - AVATAR_JOB_TTL_MIN=${AVATAR_JOB_TTL_MIN:-30}
+      - JWT_SECRET=${JWT_SECRET:-please-change-me-to-a-long-random-string}
     networks:
       - backend
+    volumes:
+      # 数字人管线工作目录(input.mp4 / 中间产物 / deploy)
+      - avatar-work:/data/avatar-work
+
+volumes:
+  avatar-work:
 
 networks:
   # 接入基础设施创建的 qingqiuyue 网络(apisix 就在这张网上,DNS 名 apisix 可解析)。

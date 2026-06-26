@@ -1,414 +1,438 @@
 'use client';
 
-import React from 'react';
-import Box from '@mui/material/Box';
-import IconButton from '@mui/material/IconButton';
-import TextField from '@mui/material/TextField';
-import Typography from '@mui/material/Typography';
-import Chip from '@mui/material/Chip';
-import MicRoundedIcon from '@mui/icons-material/MicRounded';
-import MicOffRoundedIcon from '@mui/icons-material/MicOffRounded';
-import SendRoundedIcon from '@mui/icons-material/SendRounded';
-import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
-import OpenInFullRoundedIcon from '@mui/icons-material/OpenInFullRounded';
-import { alpha, useTheme } from '@mui/material/styles';
-import { useRouter, usePathname } from 'next/navigation';
+/**
+ * FloatingDigitalHuman —— 全站右下角的 Blender 写实数字人浮窗。
+ *
+ * 完全开源 · 浏览器本地驱动 · 0 GPU 服务器:
+ *   - 资产:Blender 离线建模 + 绑骨架 + BlendShape + 动作,导出 GLB
+ *   - 渲染:three.js + WebGPURenderer
+ *   - LLM:/api/avatar/chat(Ollama 本地 qwen2.5 / 云 API)
+ *   - TTS:Edge-TTS 公共接口,无需 key
+ *   - viseme:文本音素序列 → 驱动 aa/ih/ou BlendShape
+ *
+ * 用户行为:
+ *   - 拖动浮窗到任意位置
+ *   - 输入文字 → LLM 回复 → 数字人说话(嘴型 + 表情 + 动作)
+ *   - 切换服装(suit / casual / sports)
+ *   - 切换场景(office / park)
+ */
 
-import type { AgentEvent, IAvatarStage } from './types';
-import { CanvasStage } from './CanvasStage';
-import { VideoStage } from './VideoStage';
-import { SparkStage } from './SparkStage';
-import { DynamicAvatarStage } from './DynamicAvatarStage';
-import { ActionStateMachine } from './ActionStateMachine';
-import { BrowserASR } from './voice/asr';
-import { BrowserTTS, AnalyserTTS } from './voice/tts';
-import { VAD } from './voice/vad';
-import { buildTools } from './agent/tools';
-import { MockIntentLLM, LLM } from './agent/llm';
-import { AgentController } from './agent/AgentController';
+import React from 'react';
+import { Box, IconButton, TextField, Typography, CircularProgress, Chip } from '@mui/material';
+import OpenInFullRoundedIcon from '@mui/icons-material/OpenInFullRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import SendRoundedIcon from '@mui/icons-material/SendRounded';
+import CheckroomRoundedIcon from '@mui/icons-material/CheckroomRounded';
+import ParkRoundedIcon from '@mui/icons-material/ParkRounded';
+import BusinessRoundedIcon from '@mui/icons-material/BusinessRounded';
+import { alpha } from '@mui/material/styles';
+import { useRouter, usePathname } from 'next/navigation';
+import BlenderAvatar from './BlenderAvatar';
+
+const FIG_W = 320;
+const FIG_H = 480;
 
 const HIDE_ON = ['/user/login', '/digital-human'];
-const FIG_W = 130, FIG_H = 190;
+
+const OUTFITS = [
+  { name: 'suit', label: '西装', icon: <BusinessRoundedIcon sx={{ fontSize: 14 }} /> },
+  { name: 'casual', label: '休闲', icon: <CheckroomRoundedIcon sx={{ fontSize: 14 }} /> },
+  { name: 'sports', label: '运动', icon: <ParkRoundedIcon sx={{ fontSize: 14 }} /> },
+];
+
+const SCENES = [
+  { name: 'office', label: '办公室' },
+  { name: 'park', label: '户外' },
+];
+
+interface ChatResp {
+  text: string;
+  emotion: Record<string, number>;
+  action: string;
+  visemes: Array<{ t: number; shape: string; weight: number }>;
+  audioUrl: string | null;
+}
 
 export default function FloatingDigitalHuman() {
   const router = useRouter();
   const pathname = usePathname() || '';
   const hidden = HIDE_ON.some((p) => pathname.startsWith(p));
-  const theme = useTheme();
 
-  const avatarRef = React.useRef<HTMLDivElement>(null);
-  const stageRef = React.useRef<IAvatarStage | null>(null);
-  const fsmRef = React.useRef<ActionStateMachine | null>(null);
-  const agentRef = React.useRef<AgentController | null>(null);
-  const vadRef = React.useRef<VAD | null>(null);
-  const asrRef = React.useRef<BrowserASR | null>(null);
-
-  const [open, setOpen] = React.useState(false);
-  const [pos, setPos] = React.useState<{ left: number; top: number }>({ left: 0, top: 0 });
-  const [walking, setWalking] = React.useState(true);
+  const wrapRef = React.useRef<HTMLDivElement>(null);
+  const dragRef = React.useRef({ active: false, sx: 0, sy: 0, ox: 0, oy: 0 });
+  const [pos, setPos] = React.useState<{ right: number; bottom: number }>({ right: 24, bottom: 24 });
+  const [open, setOpen] = React.useState(true);
+  const [autoRotate, setAutoRotate] = React.useState(true);
+  const [outfit, setOutfit] = React.useState('casual');
+  const [scene, setScene] = React.useState<string | null>(null); // null = 浮窗不显示场景
   const [text, setText] = React.useState('');
-  const [voiceOn, setVoiceOn] = React.useState(false);
-  const [speaking, setSpeaking] = React.useState(false);
-  const [level, setLevel] = React.useState(0);
-  const [log, setLog] = React.useState<string[]>([]);
-  const [thinking, setThinking] = React.useState(false);
-  const [lastReply, setLastReply] = React.useState('');
+  const [chatBusy, setChatBusy] = React.useState(false);
+  const [chatLog, setChatLog] = React.useState<Array<{ who: 'user' | 'ai'; text: string }>>([]);
+  const [emotion, setEmotion] = React.useState<Record<string, number>>({});
+  // viseme 与 emotion 分两个命名空间:emotion 是长期状态(smile/angry/...),
+  // viseme 是短期口型驱动(aa/ih/ou/...),不再混进同一份 dict,
+  // 避免动画名(若叫 wave)和表情名撞车。
+  const [viseme, setViseme] = React.useState<Record<string, number>>({});
+  const [action, setAction] = React.useState('idle');
+  const audioRef = React.useRef<HTMLAudioElement>(null);
+  const visemeTimelineRef = React.useRef<ChatResp['visemes']>([]);
+  // viseme 时间基线:对齐到 <audio>.onplay 事件,不再用 fetch 解析瞬间
+  const visemeStartRef = React.useRef<number>(0);
+  const visemeActiveRef = React.useRef<boolean>(false); // 是否在播音
 
-  const drag = React.useRef({ active: false, sx: 0, sy: 0, ol: 0, ot: 0, moved: 0 });
-  const highlightRef = React.useRef<{ el: HTMLElement; prev: string } | null>(null);
-  const pushLog = (s: string) => setLog((l) => [s, ...l].slice(0, 12));
-
-  // 指向数据:移动到元素旁 + 高亮 + 伸手
-  const pointAt = React.useCallback((textq: string): boolean => {
-    const t = textq.trim();
-    const els = Array.from(document.querySelectorAll<HTMLElement>('button,a,td,th,h1,h2,h3,h4,p,span,.MuiChip-root,.MuiTab-root,[role=row]'));
-    const el = els.find((e) => (e.textContent || '').trim() === t) || els.find((e) => (e.textContent || '').includes(t));
-    if (!el) return false;
-    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    const r = el.getBoundingClientRect();
-    // 数字人站到目标右侧或左侧
-    const onLeft = r.left > window.innerWidth - r.right;
-    const left = onLeft ? Math.max(8, r.left - FIG_W - 8) : Math.min(window.innerWidth - FIG_W - 8, r.right + 8);
-    const top = Math.min(window.innerHeight - FIG_H - 8, Math.max(8, r.top + r.height / 2 - FIG_H / 2));
-    setWalking(true);
-    setPos({ left, top });
-    fsmRef.current?.enterWalking(1700);
-    fsmRef.current?.playOneShot('point', 4000);
-    // 高亮目标
-    if (highlightRef.current) highlightRef.current.el.style.outline = highlightRef.current.prev;
-    highlightRef.current = { el, prev: el.style.outline };
-    el.style.outline = `2px solid ${theme.palette.primary.main}`;
-    el.style.outlineOffset = '2px';
-    setTimeout(() => {
-      if (highlightRef.current?.el === el) { el.style.outline = highlightRef.current.prev; highlightRef.current = null; }
-    }, 4000);
-    return true;
-  }, [theme]);
-
-  // 初始化
   React.useEffect(() => {
-    if (hidden || !avatarRef.current) return;
-    // 初始位置:右下
-    setPos({ left: window.innerWidth - FIG_W - 24, top: window.innerHeight - FIG_H - 24 });
-    let disposed = false;
-    const init = async () => {
-      // 1) 优先 3D 路径:从 /api/realtime/config 读 assetUrl,优先用 SparkStage(WebGL + LBS 蒙皮),
-      //    失败再退到 DynamicAvatarStage(mkkellogg 静态 .ply),都不行再 2D
-      let stage: IAvatarStage | null = null;
-      let disposed3d: IAvatarStage | null = null;
-      try {
-        const cfg = await fetch('/api/realtime/config').then((r) => r.json()).catch(() => null);
-        const assetUrl: string | undefined = cfg?.data?.assetUrl;
-        if (assetUrl) {
-          // a) SparkStage:支持 LBS 蒙皮,真人 3DGS 可驱动(姿势+口型)
-          try {
-            const spark = new SparkStage();
-            await spark.mount(avatarRef.current!);
-            await spark.loadAvatar(assetUrl);
-            stage = spark;
-            console.log('[DH] SparkStage ready:', assetUrl);
-          } catch (e) {
-            console.warn('[DH] SparkStage 失败,试 DynamicAvatarStage:', e);
-          }
-          // b) DynamicAvatarStage:仅可视化 .ply,无 LBS
-          if (!stage) {
-            try {
-              const dyn = new DynamicAvatarStage();
-              await dyn.mount(avatarRef.current!);
-              await dyn.loadAvatar(assetUrl);
-              stage = dyn;
-              disposed3d = dyn;
-              console.log('[DH] DynamicAvatarStage ready:', assetUrl);
-            } catch (e) {
-              console.warn('[DH] DynamicAvatarStage 也失败,回退 2D:', e);
-            }
-          }
-          void disposed3d;
-        }
-      } catch (e) {
-        console.warn('[DH] 3D stage 初始化失败,回退 2D:', e);
-      }
-
-      // 2) 回退:真人视频片段 → 2D VideoStage,再不行 CanvasStage 占位
-      if (!stage) {
-        const manifest = await VideoStage.fromUrl('/avatar/clips.json');
-        if (disposed || !avatarRef.current) return;
-        stage = manifest ? new VideoStage(manifest) : new CanvasStage({ transparent: true });
-        await stage.mount(avatarRef.current);
-      }
-      if (disposed) { try { stage.dispose(); } catch {} return; }
-      stageRef.current = stage;
-      const fsm = new ActionStateMachine(stage);
-      fsmRef.current = fsm;
-      const asr = new BrowserASR('zh-CN');
-      asrRef.current = asr;
-      // TTS:有服务端音频接口就用 AnalyserTTS(口型对真音频 RMS),否则用浏览器 SpeechSynthesis 兜底
-      const ttsEndpoint = (typeof process !== 'undefined' && (process as any).env?.NEXT_PUBLIC_TTS_AUDIO_URL) || '';
-      const tts = ttsEndpoint
-        ? new AnalyserTTS({ fetchAudio: async (text) => `${ttsEndpoint}?text=${encodeURIComponent(text)}` })
-        : new BrowserTTS('zh-CN');
-      const llm: LLM = new MockIntentLLM();
-      const tools = buildTools({ navigate: (p) => router.push(p), pointAt });
-      const onEvent = (e: AgentEvent) => {
-        if (e.type === 'thinking') setThinking(true);
-        if (e.type === 'done' || e.type === 'error') setThinking(false);
-        if (e.type === 'asr') pushLog(`🎤 ${e.text}`);
-        if (e.type === 'reply') { pushLog(`🤖 ${e.reply.text}`); setLastReply(e.reply.text); setTimeout(() => setLastReply(''), 6000); }
-        if (e.type === 'tool') pushLog(`🔧 ${e.name} ${e.error ? '✗' + e.error : '✓'}`);
-      };
-      agentRef.current = new AgentController({ llm, tools, asr, tts, fsm, onEvent });
-      // 如果 stage 加载好了资产,把关节数同步给状态机(让 pose 数组长度对齐)
-      const stg = stageRef.current as any;
-      if (stg?.asset?.meta?.jointCount) fsm.setJointCount(stg.asset.meta.jointCount);
-      fsm.start();
-    };
-    init();
-    return () => {
-      disposed = true;
-      fsmRef.current?.stop();
-      stageRef.current?.dispose();
-      vadRef.current?.stop();
-    };
-  }, [hidden, router, pointAt]);
-
-  // 自己走动(闲时每 7s 换个位置)
-  React.useEffect(() => {
-    if (hidden) return;
-    const t = setInterval(() => {
-      if (open || thinking || highlightRef.current) return; // 对话/指向时不乱跑
-      setWalking(true);
-      fsmRef.current?.enterWalking(1700);
-      setPos({
-        left: 24 + Math.random() * Math.max(0, window.innerWidth - FIG_W - 48),
-        top: 80 + Math.random() * Math.max(0, window.innerHeight - FIG_H - 140),
-      });
-    }, 7000);
-    return () => clearInterval(t);
-  }, [hidden, open, thinking]);
+    if (typeof window === 'undefined') return;
+    setPos({ right: 24, bottom: 24 });
+  }, []);
 
   if (hidden) return null;
 
-  // VAD 持续听
-  const toggleVoice = async () => {
-    if (voiceOn) {
-      vadRef.current?.stop();
-      vadRef.current = null;
-      asrRef.current?.stop();
-      setVoiceOn(false);
-      setSpeaking(false);
-      return;
-    }
-    try {
-      const vad = new VAD();
-      vad.onLevel = (rms) => setLevel(rms);
-      vad.onSpeechStart = () => { setSpeaking(true); asrRef.current?.start(); };
-      vad.onSpeechEnd = () => { setSpeaking(false); asrRef.current?.stop(); };
-      await vad.start();
-      vadRef.current = vad;
-      setVoiceOn(true);
-    } catch (e: any) {
-      pushLog(`⚠️ 麦克风不可用:${e?.message || e}`);
-    }
-  };
-
-  const send = () => {
-    const t = text.trim();
-    if (!t) return;
-    pushLog(`🧑 ${t}`);
-    agentRef.current?.handle(t);
-    setText('');
-  };
-
-  // 拖拽
   const onDown = (e: React.PointerEvent) => {
-    drag.current = { active: true, sx: e.clientX, sy: e.clientY, ol: pos.left, ot: pos.top, moved: 0 };
-    setWalking(false);
+    // 只在拖动手柄区域才响应,避免点击输入框/按钮
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-no-drag]')) return;
+    dragRef.current = {
+      active: true,
+      sx: e.clientX,
+      sy: e.clientY,
+      ox: pos.right,
+      oy: pos.bottom,
+    };
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    setAutoRotate(false);
   };
   const onMove = (e: React.PointerEvent) => {
-    const d = drag.current;
+    const d = dragRef.current;
     if (!d.active) return;
-    const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
-    d.moved = Math.max(d.moved, Math.abs(dx) + Math.abs(dy));
-    setPos({ left: d.ol + dx, top: d.ot + dy });
+    setPos({
+      right: Math.max(0, d.ox + (d.sx - e.clientX)),
+      bottom: Math.max(0, d.oy + (d.sy - e.clientY)),
+    });
   };
   const onUp = () => {
-    const moved = drag.current.moved;
-    drag.current.active = false;
-    if (moved < 6) setOpen((v) => !v);
+    dragRef.current.active = false;
+    setTimeout(() => setAutoRotate(true), 1500);
   };
 
+  // 发送消息
+  const send = async () => {
+    const t = text.trim();
+    if (!t || chatBusy) return;
+    setChatBusy(true);
+    setChatLog((c) => [...c, { who: 'user', text: t }]);
+    setText('');
+    try {
+      const r = await fetch('/api/avatar/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: t, history: chatLog.map((m) => ({ role: m.who === 'user' ? 'user' : 'assistant', content: m.text })) }),
+      });
+      const j: ChatResp = await r.json();
+      setChatLog((c) => [...c, { who: 'ai', text: j.text }]);
+      // 驱动数字人
+      setEmotion(j.emotion);
+      setAction(j.action);
+      // 清空上一段 viseme,避免残留
+      setViseme({});
+      // 播放 TTS + 同步 viseme 时间线
+      visemeTimelineRef.current = j.visemes || [];
+      if (j.audioUrl && audioRef.current) {
+        const a = audioRef.current;
+        // 把时间基线对齐到真正开始播音的瞬间(不是 fetch 解析瞬间)
+        a.onplay = () => {
+          visemeStartRef.current = performance.now();
+          visemeActiveRef.current = true;
+        };
+        a.onended = () => {
+          visemeActiveRef.current = false;
+          setViseme({});
+        };
+        a.src = j.audioUrl;
+        a.play().catch(() => {
+          // autoplay 被浏览器拒绝时回退:仍然启动 viseme 驱动
+          visemeStartRef.current = performance.now();
+          visemeActiveRef.current = true;
+        });
+      } else {
+        // 无音频(纯文本回复):也启动 viseme 时间线让数字人动嘴
+        visemeStartRef.current = performance.now();
+        visemeActiveRef.current = true;
+      }
+    } catch (err) {
+      setChatLog((c) => [...c, { who: 'ai', text: '抱歉,服务暂时不可用。' }]);
+    } finally {
+      setChatBusy(false);
+    }
+  };
+
+  // 实时 viseme 驱动(每帧 rAF,~60fps),写到独立的 viseme 命名空间
+  React.useEffect(() => {
+    let raf = 0;
+    const tick = () => {
+      raf = requestAnimationFrame(tick);
+      if (!visemeActiveRef.current) return;
+      const timeline = visemeTimelineRef.current;
+      if (timeline.length === 0) return;
+      const elapsed = (performance.now() - visemeStartRef.current) / 1000;
+      // 找到当前时间最近的 viseme(时间线按 t 升序)
+      let current = timeline[0];
+      for (const v of timeline) {
+        if (v.t <= elapsed) current = v;
+        else break;
+      }
+      // 不每帧 setState:只在 shape 切换时才更新(避免 ~60 次 re-render/秒)
+      const next = { [current.shape]: current.weight };
+      setViseme((prev) => {
+        const k = Object.keys(next)[0];
+        if (prev[k] === next[k]) return prev;
+        return next;
+      });
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
   return (
-    <Box data-dh-root sx={{ position: 'fixed', left: pos.left, top: pos.top, zIndex: 2000, transition: walking ? 'left 1.6s cubic-bezier(.4,0,.2,1), top 1.6s cubic-bezier(.4,0,.2,1)' : 'none' }}>
-      {/* 气泡回复 */}
-      {!open && lastReply && (
-        <Box sx={{
-          position: 'absolute', bottom: FIG_H - 10, left: -70, width: 200,
-          px: 1.5, py: 0.75, borderRadius: 2,
-          // 玻璃气泡:从主题背景派生,深浅模式都跟当前主品牌色融合
-          bgcolor: (theme) => alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.92 : 0.96),
-          border: (theme) => `1px solid ${alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.28 : 0.18)}`,
-          boxShadow: (theme) => `0 6px 20px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.55 : 0.18)}`,
-        }}>
-          <Typography sx={{ fontSize: 11.5, color: 'text.primary' }}>{lastReply}</Typography>
-        </Box>
-      )}
-
-      {/* 聊天面板 */}
-      {open && (
-        <Box sx={{
-          position: 'absolute', bottom: FIG_H - 6, left: -90, width: 300,
-          borderRadius: 3, overflow: 'hidden',
-          // 跟全局主题同步:从 background.paper 派生,叠一层品牌色光晕,深浅模式自然切换
-          bgcolor: (theme) => alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.94 : 0.96),
-          border: (theme) => `1px solid ${alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.32 : 0.22)}`,
-          boxShadow: (theme) =>
-            `0 12px 40px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.6 : 0.22)},
-             0 0 0 1px ${alpha(theme.palette.primary.main, 0.06)}`,
-          backdropFilter: 'blur(12px)',
-        }}>
+    <Box
+      ref={wrapRef}
+      sx={{
+        position: 'fixed',
+        right: `${pos.right}px`,
+        bottom: `${pos.bottom}px`,
+        width: FIG_W,
+        height: FIG_H,
+        borderRadius: 3,
+        overflow: 'hidden',
+        cursor: 'grab',
+        touchAction: 'none',
+        boxShadow: (t) => `0 8px 32px ${alpha(t.palette.common.black, 0.5)}`,
+        border: (t) => `1px solid ${alpha(t.palette.primary.main, 0.32)}`,
+        background: '#05060B',
+        zIndex: 1500,
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+      onPointerDown={onDown}
+      onPointerMove={onMove}
+      onPointerUp={onUp}
+      onPointerCancel={onUp}
+    >
+      {/* 数字人本体(占据上半部分) */}
+      <Box sx={{
+        position: 'relative',
+        flex: 1,
+        minHeight: 0,
+        '& canvas': { width: '100% !important', height: '100% !important' },
+      }}>
+        <BlenderAvatar
+          modelUrl={`/avatars/outfits/${outfit}.glb`}
+          currentAction={action}
+          emotion={emotion}
+          viseme={viseme}
+          autoRotate={autoRotate}
+          sx={{ borderRadius: 0 }}
+        />
+        {scene && (
+          // 场景作为独立 GLB 渲染:不是 CSS 背景图(GLB 是二进制,url() 永远 404)
+          // 用绝对定位 + 低透明度叠在主 avatar 后面,避免遮挡交互
           <Box sx={{
-            px: 1.5, py: 1, display: 'flex', alignItems: 'center', gap: 1,
-            // 顶栏用主品牌色淡光晕,标题区一眼能看出主题色
-            background: (theme) => `linear-gradient(135deg, ${alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.18 : 0.08)}, ${alpha(theme.palette.primary.main, 0)})`,
-            borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
-          }}>
-            <Typography sx={{ fontSize: 12.5, fontWeight: 700, flex: 1, color: 'text.primary' }}>数字人助理</Typography>
-            {voiceOn && <Chip size="small" label={speaking ? '聆听中' : '待命'} sx={{
-              height: 18, fontSize: 10,
-              // 监听中:主题 success;待命:主题主色淡底 + 文本主色
-              bgcolor: (theme) => speaking
-                ? alpha(theme.palette.success.main, theme.palette.mode === 'dark' ? 0.32 : 0.22)
-                : alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.22 : 0.12),
-              color: (theme) => speaking
-                ? (theme.palette.mode === 'dark' ? theme.palette.success.light : theme.palette.success.dark)
-                : (theme.palette.mode === 'dark' ? theme.palette.primary.light : 'text.primary'),
-            }} />}
-            {thinking && <Chip size="small" label="思考" sx={{
-              height: 18, fontSize: 10,
-              // 思考态:用 secondary,跟品牌色保持同源
-              bgcolor: (theme) => alpha(theme.palette.secondary.main, theme.palette.mode === 'dark' ? 0.32 : 0.18),
-              color: (theme) => theme.palette.mode === 'dark' ? theme.palette.secondary.light : theme.palette.secondary.dark,
-            }} />}
-            <IconButton size="small" onClick={() => router.push('/digital-human')} title="进入全屏数字人工作室" sx={{ color: 'text.primary' }}><OpenInFullRoundedIcon sx={{ fontSize: 14 }} /></IconButton>
-            <IconButton size="small" onClick={() => setOpen(false)} title="收起聊天(数字人保留)" sx={{ color: 'text.primary' }}><CloseRoundedIcon sx={{ fontSize: 16 }} /></IconButton>
-          </Box>
-          <Box sx={{ maxHeight: 190, overflowY: 'auto', p: 1.25, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            {log.length === 0 && <Typography sx={{ fontSize: 11.5, color: 'text.disabled' }}>开麦克风后我会一直听你说话;也可打字。试试"点击新建""帮我填名称 测试""悬赏在哪""打开用户管理"。</Typography>}
-            {log.map((l, i) => <Typography key={i} sx={{ fontSize: 11.5, color: 'text.secondary', fontFamily: 'ui-monospace, monospace', wordBreak: 'break-all' }}>{l}</Typography>)}
-          </Box>
-          <Box sx={{
-            p: 1, display: 'flex', gap: 0.5, alignItems: 'center',
-            borderTop: (theme) => `1px solid ${theme.palette.divider}`,
-            bgcolor: (theme) => alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.06 : 0.03),
-          }}>
-            <IconButton size="small" onClick={toggleVoice} sx={{
-              // 麦克风按钮:激活态用主题 success / primary(随品牌色);闲置态用主题背景 token
-              bgcolor: voiceOn
-                ? (speaking ? 'success.main' : 'primary.main')
-                : (theme) => alpha(theme.palette.action.active, theme.palette.mode === 'dark' ? 0.18 : 0.06),
-              color: voiceOn ? '#fff' : 'text.primary',
-              '&:hover': voiceOn ? undefined : {
-                bgcolor: (theme) => alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.18 : 0.10),
-              },
-              position: 'relative',
-            }}>
-              {voiceOn ? <MicRoundedIcon sx={{ fontSize: 18 }} /> : <MicOffRoundedIcon sx={{ fontSize: 18 }} />}
-              {voiceOn && <Box sx={{ position: 'absolute', inset: -2, borderRadius: '50%', border: '2px solid', borderColor: 'success.main', opacity: Math.min(1, level * 25), pointerEvents: 'none' }} />}
-            </IconButton>
-            <TextField size="small" fullWidth placeholder="对数字人说…" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && send()} sx={{ '& .MuiInputBase-input': { fontSize: 12.5 } }} />
-            <IconButton size="small" onClick={send} sx={{
-              bgcolor: 'primary.main',
-              color: (theme) => theme.palette.primary.contrastText,
-              '&:hover': { bgcolor: 'primary.dark' },
-            }}><SendRoundedIcon sx={{ fontSize: 18 }} /></IconButton>
-          </Box>
-        </Box>
-      )}
-
-      {/* 数字人形象(透明、可拖拽、可走动)*/}
-      <Box
-        onPointerDown={onDown}
-        onPointerMove={onMove}
-        onPointerUp={onUp}
-        sx={{ width: FIG_W, height: FIG_H, cursor: 'grab', touchAction: 'none', filter: 'drop-shadow(0 8px 16px rgba(0,0,0,0.5))', position: 'relative' }}
-      >
-        <Box ref={avatarRef} sx={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%' }} />
-        {/* 兜底:3D / 视频 / Canvas 都失败时也保证有可见形象 */}
-        {/*
-          实时 stage 不可用(没配 3D 资产 / 视频 manifest)时,这里显示一个
-          CSS 渲染的"小 Q"形象,保证数字人始终可见、可点击、可拖拽。
-        */}
-        <Box
-          data-dh-fallback
-          sx={{
             position: 'absolute',
             inset: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            // CSS 头像:渐变圆 + 表情 + 头身,够用就好
-            '&::before': {
-              content: '""',
-              position: 'absolute',
-              bottom: 0,
-              width: 80,
-              height: 90,
-              borderRadius: '40px 40px 16px 16px',
-              background: 'linear-gradient(135deg, #5B8DEF 0%, #7C3AED 100%)',
-              boxShadow: '0 6px 16px rgba(91,141,239,0.4)',
-            },
-            '&::after': {
-              content: '""',
-              position: 'absolute',
-              top: 12,
-              width: 64,
-              height: 64,
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, #FFD9B3 0%, #FFB48A 100%)',
-              boxShadow: '0 -4px 0 0 #E89B6E inset, 0 4px 12px rgba(0,0,0,0.18)',
-            },
-          }}
-        >
-          {/* 表情眼睛 */}
-          <Box sx={{
-            position: 'absolute',
-            top: 38,
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            bgcolor: '#1E293B',
-            boxShadow: '32px 0 0 0 #1E293B',
-            zIndex: 1,
-          }} />
-          {/* 嘴 */}
-          <Box sx={{
-            position: 'absolute',
-            top: 56,
-            width: 16,
-            height: 4,
-            borderRadius: '50%',
-            bgcolor: '#FB7185',
-            zIndex: 1,
-          }} />
-          {/* 飘浮光圈 */}
-          <Box sx={{
-            position: 'absolute',
-            top: 0,
-            width: 30,
-            height: 6,
-            borderRadius: '50%',
-            border: '2px solid rgba(91,141,239,0.6)',
-            borderBottom: 'none',
-            animation: 'dh-bounce 2.4s ease-in-out infinite',
-            '@keyframes dh-bounce': {
-              '0%,100%': { transform: 'translateY(0)' },
-              '50%': { transform: 'translateY(-4px)' },
-            },
-          }} />
-        </Box>
+            pointerEvents: 'none',
+            opacity: 0.35,
+          }}>
+            <BlenderAvatar
+              modelUrl={`/avatars/scenes/${scene}.glb`}
+              autoRotate={false}
+              background="transparent"
+              sx={{ width: '100%', height: '100%' }}
+            />
+          </Box>
+        )}
       </Box>
+
+      {/* 顶部按钮组 */}
+      <Box data-no-drag sx={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        p: 0.75,
+        display: 'flex',
+        gap: 0.5,
+        background: 'linear-gradient(180deg, rgba(0,0,0,0.6) 0%, transparent 100%)',
+        zIndex: 2,
+      }}>
+        <IconButton
+          size="small"
+          aria-label="全屏"
+          onClick={(e) => {
+            e.stopPropagation();
+            router.push('/digital-human');
+          }}
+          sx={{ color: 'rgba(255,255,255,0.85)', bgcolor: 'rgba(0,0,0,0.4)' }}
+        >
+          <OpenInFullRoundedIcon sx={{ fontSize: 14 }} />
+        </IconButton>
+        <Box sx={{ flex: 1 }} />
+        <IconButton
+          size="small"
+          aria-label="关闭"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(false);
+          }}
+          sx={{ color: 'rgba(255,255,255,0.85)', bgcolor: 'rgba(0,0,0,0.4)' }}
+        >
+          <CloseRoundedIcon sx={{ fontSize: 14 }} />
+        </IconButton>
+      </Box>
+
+      {/* 底部输入 + 切换 */}
+      <Box data-no-drag sx={{
+        p: 1,
+        background: 'linear-gradient(0deg, rgba(0,0,0,0.85) 0%, transparent 100%)',
+        zIndex: 2,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 0.75,
+      }}>
+        {/* 换装切换 */}
+        <Box sx={{ display: 'flex', gap: 0.5 }}>
+          {OUTFITS.map((o) => (
+            <Chip
+              key={o.name}
+              size="small"
+              icon={o.icon}
+              label={o.label}
+              data-no-drag
+              onClick={(e) => {
+                e.stopPropagation();
+                setOutfit(o.name);
+              }}
+              sx={{
+                height: 22,
+                fontSize: 10,
+                cursor: 'pointer',
+                bgcolor: outfit === o.name
+                  ? (t) => alpha(t.palette.primary.main, 0.6)
+                  : 'rgba(255,255,255,0.08)',
+                color: 'white',
+                '&:hover': { bgcolor: (t) => alpha(t.palette.primary.main, 0.4) },
+              }}
+            />
+          ))}
+        </Box>
+        {/* 场景切换 */}
+        <Box sx={{ display: 'flex', gap: 0.5 }}>
+          <Chip
+            size="small"
+            label="无场景"
+            data-no-drag
+            onClick={(e) => {
+              e.stopPropagation();
+              setScene(null);
+            }}
+            sx={{
+              height: 22,
+              fontSize: 10,
+              cursor: 'pointer',
+              bgcolor: scene === null ? (t) => alpha(t.palette.primary.main, 0.6) : 'rgba(255,255,255,0.08)',
+              color: 'white',
+            }}
+          />
+          {SCENES.map((s) => (
+            <Chip
+              key={s.name}
+              size="small"
+              label={s.label}
+              data-no-drag
+              onClick={(e) => {
+                e.stopPropagation();
+                setScene(s.name);
+              }}
+              sx={{
+                height: 22,
+                fontSize: 10,
+                cursor: 'pointer',
+                bgcolor: scene === s.name
+                  ? (t) => alpha(t.palette.primary.main, 0.6)
+                  : 'rgba(255,255,255,0.08)',
+                color: 'white',
+                '&:hover': { bgcolor: (t) => alpha(t.palette.primary.main, 0.4) },
+              }}
+            />
+          ))}
+        </Box>
+
+        {/* 聊天输入 */}
+        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+          <TextField
+            size="small"
+            fullWidth
+            placeholder="跟数字人说点什么…"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), send())}
+            disabled={chatBusy}
+            onPointerDown={(e) => e.stopPropagation()}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                color: 'white',
+                fontSize: 12,
+                bgcolor: 'rgba(255,255,255,0.08)',
+                '& fieldset': { borderColor: 'rgba(255,255,255,0.2)' },
+              },
+              '& .MuiOutlinedInput-input::placeholder': { color: 'rgba(255,255,255,0.5)', opacity: 1 },
+            }}
+          />
+          <IconButton
+            size="small"
+            data-no-drag
+            disabled={chatBusy || !text.trim()}
+            onClick={(e) => {
+              e.stopPropagation();
+              send();
+            }}
+            sx={{
+              bgcolor: (t) => alpha(t.palette.primary.main, 0.8),
+              color: 'white',
+              '&:hover': { bgcolor: (t) => t.palette.primary.main },
+              '&.Mui-disabled': { color: 'rgba(255,255,255,0.3)' },
+            }}
+          >
+            {chatBusy ? <CircularProgress size={14} sx={{ color: 'white' }} /> : <SendRoundedIcon sx={{ fontSize: 16 }} />}
+          </IconButton>
+        </Box>
+
+        {/* 聊天记录(最近 2 条,折叠显示) */}
+        {chatLog.length > 0 && (
+          <Box sx={{
+            maxHeight: 80,
+            overflowY: 'auto',
+            background: 'rgba(0,0,0,0.5)',
+            borderRadius: 1,
+            p: 0.75,
+          }}>
+            {chatLog.slice(-2).map((m, i) => (
+              <Typography
+                key={i}
+                sx={{
+                  fontSize: 10.5,
+                  color: m.who === 'user' ? '#a0c4ff' : '#fff',
+                  mb: 0.25,
+                  wordBreak: 'break-word',
+                }}
+              >
+                <strong>{m.who === 'user' ? '我' : 'AI'}:</strong> {m.text}
+              </Typography>
+            ))}
+          </Box>
+        )}
+      </Box>
+
+      {/* TTS 音频 */}
+      <audio ref={audioRef} hidden />
     </Box>
   );
 }
