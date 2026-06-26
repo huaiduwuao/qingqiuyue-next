@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>真人抠像数字人 Demo · 独立运行</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #05060B; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+  canvas { display: block; width: 100vw; height: 100vh; cursor: grab; }
+  .info { position: fixed; bottom: 12px; left: 12px; color: rgba(255,255,255,0.5); font-size: 11px; pointer-events: none; }
+  .info-r { right: 12px; left: auto; }
+  .badge { position: fixed; top: 12px; left: 12px; color: rgba(255,255,255,0.7); font-size: 12px; font-weight: 600; background: rgba(124,58,237,0.15); border: 1px solid rgba(124,58,237,0.3); padding: 4px 12px; border-radius: 6px; }
+</style>
+</head>
+<body>
+<div class="badge">独立 Demo · 真人抠像 · 乱走中…</div>
+<canvas id="c"></canvas>
+<div class="info">乱走中…(鼠标按住数字人拖动)</div>
+<div class="info info-r" id="label">真人抠像 · 演示</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const video = document.createElement('video');
+video.src = './person-test.mp4';
+video.autoplay = video.loop = video.muted = video.playsInline = true;
+video.crossOrigin = 'anonymous';
+
+const dpr = Math.min(window.devicePixelRatio || 1, 2);
+function resize() {
+  canvas.width = Math.floor(window.innerWidth * dpr);
+  canvas.height = Math.floor(window.innerHeight * dpr);
+}
+resize();
+window.addEventListener('resize', resize);
+
+const state = { x: 200, y: 200, vx: 80, vy: 50, dragging: false, dx: 0, dy: 0 };
+
+canvas.onpointerdown = (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const px = (e.clientX - rect.left) * dpr;
+  const py = (e.clientY - rect.top) * dpr;
+  const PW = 400 * dpr, PH = 600 * dpr;
+  if (px >= state.x && px <= state.x + PW && py >= state.y && py <= state.y + PH) {
+    state.dragging = true;
+    state.dx = px - state.x;
+    state.dy = py - state.y;
+  }
+};
+canvas.onpointermove = (e) => {
+  if (!state.dragging) return;
+  const rect = canvas.getBoundingClientRect();
+  state.x = (e.clientX - rect.left) * dpr - state.dx;
+  state.y = (e.clientY - rect.top) * dpr - state.dy;
+};
+canvas.onpointerup = () => { state.dragging = false; };
+
+let lastT = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - lastT) / 1000);
+  lastT = now;
+  const W = canvas.width, H = canvas.height;
+  if (!state.dragging) {
+    state.x += state.vx * dt;
+    state.y += state.vy * dt;
+    const PW = 400 * dpr, PH = 600 * dpr;
+    if (state.x < 0 || state.x > W - PW) state.vx = -state.vx;
+    if (state.y < 0 || state.y > H - PH) state.vy = -state.vy;
+    state.x = Math.max(0, Math.min(W - PW, state.x));
+    state.y = Math.max(0, Math.min(H - PH, state.y));
+  }
+
+  // 背景 + 品牌色光晕
+  ctx.fillStyle = '#05060B';
+  ctx.fillRect(0, 0, W, H);
+  const grad = ctx.createRadialGradient(W/2, H*0.3, 0, W/2, H*0.3, W*0.6);
+  grad.addColorStop(0, 'rgba(124,58,237,0.18)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  if (video.readyState >= 2) {
+    const PW = 400 * dpr, PH = 600 * dpr;
+    try {
+      ctx.drawImage(video, state.x, state.y, PW, PH);
+      const img = ctx.getImageData(state.x, state.y, PW, PH);
+      const d = img.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const r = d[i], g = d[i+1], b = d[i+2];
+        // chroma key: 去掉绿色(R<80 && G>100 && B<80)
+        if (r < 80 && g > 100 && b < 80) d[i+3] = 0;
+        else if (r < 100 && g > 120 && b < 100) d[i+3] = Math.floor((g - 100) * 2.5);
+      }
+      ctx.putImageData(img, state.x, state.y);
+    } catch (err) {
+      console.warn('canvas taint:', err);
+      ctx.drawImage(video, state.x, state.y, PW, PH);
+    }
+  } else {
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.font = `${16*dpr}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText('加载中…  ' + (video.error ? 'video err: ' + video.error.code : ''), W/2, H/2);
+  }
+  requestAnimationFrame(frame);
+}
+
+video.addEventListener('error', (e) => {
+  console.error('video error:', video.error, 'src=', video.src);
+});
+video.addEventListener('loadeddata', () => {
+  console.log('video loaded, size=', video.videoWidth, 'x', video.videoHeight);
+});
+video.addEventListener('canplay', () => {
+  console.log('video canplay');
+});
+
+video.play().catch((err) => {
+  console.warn('autoplay blocked, waiting for user click', err);
+  window.addEventListener('pointerdown', () => {
+    video.play().then(() => console.log('playback resumed'));
+  }, { once: true });
+});
+
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

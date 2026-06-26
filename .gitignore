@@ -61,4 +61,7 @@ next-env.d.ts
 
 # compose 增量构建标记
 .last-build-web
-public/avatars/  # 用户本地资产
+
+# 注:public/avatars/{model.glb,outfits/*.glb,scenes/*.glb,demo.html,person-test.mp4}
+# 是项目自带的数字人资产,NOT 排除,要让 docker build COPY 进镜像。
+# 但 public/avatars/pipeline/ 和 audio-cache/ 是运行时产物,已在上方 exclude。
