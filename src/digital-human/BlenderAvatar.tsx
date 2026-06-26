@@ -124,15 +124,22 @@ export default function BlenderAvatar({
     (async () => {
       try {
         const THREE = await import('three');
-        const { WebGPURenderer } = await import('three/webgpu');
 
         // 不再手动 createElement + appendChild(React 自动管 canvas 生命周期,
         // 避免 removeChild 错误)。canvas 尺寸由父 Box 控制,这里只设 display。
         canvas.style.display = 'block';
         canvas.style.outline = 'none';
 
-        const renderer = new WebGPURenderer({ canvas, antialias: true, alpha: true } as any);
-        await renderer.init();
+        // 用 WebGLRenderer 而非 WebGPURenderer:
+        //   - WebGPU 还在 three.js 实验阶段,不少浏览器 driver 组合上会 fail
+        //   - WebGL2 在所有现代浏览器都支持,60 fps 完全够用
+        //   - 不会有 "WebGL Device Lost" 异常
+        const renderer = new THREE.WebGLRenderer({
+          canvas,
+          antialias: true,
+          alpha: true,
+          powerPreference: 'high-performance',
+        });
         if (cancelled) return;
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
@@ -242,12 +249,17 @@ export default function BlenderAvatar({
     Object.keys(lastAppliedRef.current).forEach((k) => {
       if (next[k] === undefined) next[k] = 0;
     });
-    // 应用
+    // 应用(防御性:Array.isArray + 越界检查,避免 GLB 没 morph 时 null[0])
     Object.entries(next).forEach(([name, value]) => {
       meshes.forEach(({ mesh, indices }) => {
+        if (!mesh || !mesh.morphTargetInfluences) return;
         const idx = indices[name];
-        if (idx !== undefined && mesh.morphTargetInfluences) {
+        if (typeof idx !== 'number') return;
+        if (idx < 0 || idx >= mesh.morphTargetInfluences.length) return;
+        try {
           mesh.morphTargetInfluences[idx] = value;
+        } catch {
+          /* GLB 没该 morph,跳过 */
         }
       });
     });
