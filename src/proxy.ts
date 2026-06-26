@@ -43,7 +43,7 @@ function isAdminRoute(pathname: string): boolean {
   return ADMIN_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/'));
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get(TOKEN_COOKIE)?.value;
 

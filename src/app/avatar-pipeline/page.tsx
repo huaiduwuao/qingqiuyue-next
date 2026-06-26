@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { Suspense, useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
-  Box, Typography, Stepper, Step, StepLabel, Paper, Alert,
+  Box, Typography, Stepper, Step, StepLabel, Paper, Alert, CircularProgress,
 } from '@mui/material';
 import axios from 'axios';
 import ModeStep, { type AvatarMode } from '@/components/avatar-pipeline/ModeStep';
@@ -17,9 +17,8 @@ import type { JobSnapshot } from '@/lib/avatar-pipeline/types';
 
 const STEPS = ['方式', '素材', '配置', '运行', '预览'] as const;
 
-type StepId = 'mode' | 'upload' | 'library' | 'configure' | 'run' | 'preview';
-
-export default function AvatarPipelinePage() {
+// 内层组件:用 useSearchParams,需要被 Suspense 包裹
+function WizardInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialJobId = searchParams.get('job');
@@ -68,7 +67,6 @@ export default function AvatarPipelinePage() {
   const onLibrarySelected = useCallback((char: LibraryCharacter, customName: string) => {
     setFromLibrary(char.id);
     setConfigName(customName);
-    // 直接调 jobs POST + start,跳过 configure 步骤(库模式无参数)
     void createAndStartLibraryJob(char.id, customName);
   }, []);
 
@@ -147,6 +145,84 @@ export default function AvatarPipelinePage() {
   })();
 
   return (
+    <Box>
+      <Typography sx={{ fontSize: 22, fontWeight: 700, mb: 0.5 }}>
+        数字人 Web 流水线
+      </Typography>
+      <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 3 }}>
+        拍视频 / 选角色 → 一键绑骨 + 雕表情 → 拿到 GLB
+      </Typography>
+
+      <Stepper activeStep={stepIndex} sx={{ mb: 3 }}>
+        {STEPS.map((label) => (
+          <Step key={label}>
+            <StepLabel>{label}</StepLabel>
+          </Step>
+        ))}
+      </Stepper>
+
+      <Paper sx={{ p: 3, minHeight: 400 }}>
+        {state.step === 'mode' && <ModeStep onSelect={onModeSelect} />}
+
+        {state.step === 'upload' && (
+          <UploadStep onUploaded={onUploaded} />
+        )}
+
+        {state.step === 'library' && (
+          <LibraryStep
+            onSelected={onLibrarySelected}
+            onBack={() => setStep('mode')}
+          />
+        )}
+
+        {state.step === 'configure' && jobId && mode === 'video' && (
+          <ConfigureStep
+            defaultName={configName || 'xiaoqiu'}
+            defaultSkip3dgs={false}
+            defaultHeight={1.75}
+            onBack={() => setStep('upload')}
+            onStart={onStart}
+            busy={starting}
+            error={startError}
+          />
+        )}
+
+        {state.step === 'run' && jobId && (
+          <RunStep
+            job={state.job}
+            stage={state.job?.stage || null}
+            pct={state.job?.pct || 0}
+            logs={state.logs}
+            status={state.job?.status || 'running'}
+            connection={state.connection}
+            onCancel={onCancel}
+            onContinue={onContinue}
+          />
+        )}
+
+        {state.step === 'preview' && state.job && (
+          <PreviewStep
+            job={state.job}
+            artifacts={state.artifacts}
+            onDeploy={onDeploy}
+            onRestart={onRestart}
+          />
+        )}
+
+        {state.step === 'configure' && mode === 'library' && (
+          <Alert severity="info">库模式直接进 run 阶段</Alert>
+        )}
+        {state.step === 'configure' && !mode && (
+          <Alert severity="info">请先回第 1 步选个方式</Alert>
+        )}
+      </Paper>
+    </Box>
+  );
+}
+
+// 外层:包 Suspense 满足 Next 16 useSearchParams 强制要求
+export default function AvatarPipelinePage() {
+  return (
     <Box sx={{
       minHeight: '100vh',
       bgcolor: (t) => t.palette.mode === 'dark' ? '#0a0a0a' : '#f5f5f5',
@@ -154,76 +230,15 @@ export default function AvatarPipelinePage() {
       px: 2,
     }}>
       <Box sx={{ maxWidth: 900, mx: 'auto' }}>
-        <Typography sx={{ fontSize: 22, fontWeight: 700, mb: 0.5 }}>
-          数字人 Web 流水线
-        </Typography>
-        <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 3 }}>
-          拍视频 / 选角色 → 一键绑骨 + 雕表情 → 拿到 GLB
-        </Typography>
-
-        <Stepper activeStep={stepIndex} sx={{ mb: 3 }}>
-          {STEPS.map((label) => (
-            <Step key={label}>
-              <StepLabel>{label}</StepLabel>
-            </Step>
-          ))}
-        </Stepper>
-
-        <Paper sx={{ p: 3, minHeight: 400 }}>
-          {state.step === 'mode' && <ModeStep onSelect={onModeSelect} />}
-
-          {state.step === 'upload' && (
-            <UploadStep onUploaded={onUploaded} />
-          )}
-
-          {state.step === 'library' && (
-            <LibraryStep
-              onSelected={onLibrarySelected}
-              onBack={() => setStep('mode')}
-            />
-          )}
-
-          {state.step === 'configure' && jobId && mode === 'video' && (
-            <ConfigureStep
-              defaultName={configName || 'xiaoqiu'}
-              defaultSkip3dgs={false}
-              defaultHeight={1.75}
-              onBack={() => setStep('upload')}
-              onStart={onStart}
-              busy={starting}
-              error={startError}
-            />
-          )}
-
-          {state.step === 'run' && jobId && (
-            <RunStep
-              job={state.job}
-              stage={state.job?.stage || null}
-              pct={state.job?.pct || 0}
-              logs={state.logs}
-              status={state.job?.status || 'running'}
-              connection={state.connection}
-              onCancel={onCancel}
-              onContinue={onContinue}
-            />
-          )}
-
-          {state.step === 'preview' && state.job && (
-            <PreviewStep
-              job={state.job}
-              artifacts={state.artifacts}
-              onDeploy={onDeploy}
-              onRestart={onRestart}
-            />
-          )}
-
-          {state.step === 'configure' && mode === 'library' && (
-            <Alert severity="info">库模式直接进 run 阶段</Alert>
-          )}
-          {state.step === 'configure' && !mode && (
-            <Alert severity="info">请先回第 1 步选个方式</Alert>
-          )}
-        </Paper>
+        <Suspense
+          fallback={
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+              <CircularProgress size={32} />
+            </Box>
+          }
+        >
+          <WizardInner />
+        </Suspense>
       </Box>
     </Box>
   );

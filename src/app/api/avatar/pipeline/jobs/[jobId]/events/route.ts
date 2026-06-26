@@ -7,7 +7,7 @@ import type { SseEvent } from '@/lib/avatar-pipeline/types';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 // 30 分钟上限(刚好覆盖最长 pipeline 30min TTL)
-export const maxDuration = 60 * 30;
+export const maxDuration = 1800;
 
 // GET /api/avatar/pipeline/jobs/[jobId]/events (SSE)
 //
