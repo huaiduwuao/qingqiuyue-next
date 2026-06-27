@@ -139,6 +139,9 @@ async function callLLM(text: string, history: Array<{ role: string; content: str
         } catch {
           return { text: content, emotion: 'neutral', action: 'idle' };
         }
+      } else {
+        console.warn(`[chat] OpenAI 兼容 endpoint 返 ${r.status}:`,
+          r.status === 404 ? 'model not found' : await r.text().catch(() => '(body unreadable)'));
       }
     } catch (e) {
       console.warn('[chat] OpenAI 失败:', (e as Error).message);
@@ -191,11 +194,34 @@ async function callLLM(text: string, history: Array<{ role: string; content: str
  * Edge-TTS 合成音频
  */
 async function ttsEdge(text: string, voice = 'zh-CN-XiaoxiaoNeural'): Promise<Buffer> {
+  // 优先:xinference 的 /v1/audio/speech(OpenAI 兼容,本机)
+  const xinfBase = process.env.NEXT_PUBLIC_OPENAI_BASE_URL;
+  if (xinfBase) {
+    try {
+      // xinference 启的 TTS 模型名(默认 CosyVoice2-0.5B)
+      const ttsModel = process.env.XINFERENCE_TTS_MODEL || 'CosyVoice2-0.5B';
+      const r = await fetch(`${xinfBase.replace(/\/v1$/, '')}/audio/speech`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(process.env.OPENAI_API_KEY ? { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` } : {}),
+        },
+        body: JSON.stringify({ model: ttsModel, input: text, voice, response_format: 'mp3' }),
+        signal: AbortSignal.timeout(20000),
+      });
+      if (r.ok) {
+        const ab = await r.arrayBuffer();
+        return Buffer.from(ab);
+      }
+      console.warn(`[chat] xinference TTS 返 ${r.status},fallback Edge-TTS`);
+    } catch (e) {
+      console.warn('[chat] xinference TTS 失败:', (e as Error).message);
+    }
+  }
   // Edge-TTS 公共接口 SSML 路径(无需 API key)
   const ssml = `<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='zh-CN'>
     <voice name='${voice}'>${escapeXml(text)}</voice>
   </speak>`;
-  // 用 node-fetch 直接打 Edge-TTS endpoint
   const url = `https://speech.platform.bing.com/consumer/speech/synthesize/readaloud/edge/v1?trustedclienttoken=6A5AA1D4EAFF4E9FB37E23D68491D6F4`;
   const r = await fetch(url, {
     method: 'POST',
