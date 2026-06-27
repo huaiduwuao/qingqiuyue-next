@@ -29,14 +29,16 @@ interface ChatResp {
 }
 
 const OUTFITS = [
-  { name: 'casual', label: '休闲' },
-  { name: 'suit', label: '西装' },
-  { name: 'sports', label: '运动' },
+  { name: 'vrm', label: 'VRM 角色(默认)', modelUrl: '/avatars/character.vrm' },
+  { name: 'casual', label: '休闲', modelUrl: '/avatars/outfits/casual.glb' },
+  { name: 'suit', label: '西装', modelUrl: '/avatars/outfits/suit.glb' },
+  { name: 'sports', label: '运动', modelUrl: '/avatars/outfits/sports.glb' },
 ];
 
 export default function ImmersiveDigitalHuman() {
   const router = useRouter();
-  const [outfit, setOutfit] = React.useState('casual');
+  // outfit 是 modelUrl 字符串(.vrm 或 .glb),BlenderAvatar 自动判断
+  const [outfit, setOutfit] = React.useState('/avatars/character.vrm');
   const [autoRotate, setAutoRotate] = React.useState(true);
   const [text, setText] = React.useState('');
   const [chatBusy, setChatBusy] = React.useState(false);
@@ -125,7 +127,7 @@ export default function ImmersiveDigitalHuman() {
     <Box sx={{ position: 'fixed', inset: 0, zIndex: 1, background: '#05060B' }}>
       {/* 全屏数字人 */}
       <BlenderAvatar
-        modelUrl={`/avatars/outfits/${outfit}.glb`}
+        modelUrl={outfit}
         currentAction={action}
         emotion={emotion}
         viseme={viseme}
@@ -162,10 +164,10 @@ export default function ImmersiveDigitalHuman() {
         <Box sx={{ display: 'flex', gap: 0.75, pointerEvents: 'auto' }}>
           {OUTFITS.map((o) => (
             <Chip
-              key={o.name}
+              key={o.modelUrl}
               label={o.label}
               size="small"
-              onClick={() => setOutfit(o.name)}
+              onClick={() => setOutfit(o.modelUrl)}
               sx={{
                 bgcolor: outfit === o.name
                   ? (t) => alpha(t.palette.primary.main, 0.7)
