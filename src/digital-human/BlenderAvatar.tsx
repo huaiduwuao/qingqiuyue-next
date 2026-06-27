@@ -47,14 +47,15 @@ const EXPRESSION_MAP: Record<string, string> = {
   aa: 'aa', ih: 'ih', ou: 'ou', E: 'E', O: 'O', U: 'U', closed: 'closed',
 };
 
-// 缓存:url -> 加载好的 scene + vrm(或 null 表示 GLB fallback)
+// 缓存:url -> 加载好的 VRM 数据(单一格式,不再支持 GLB)
+type MorphEntry = { mesh: any; indices: Record<string, number> };
 type Cached = {
   url: string;
   scene: any;
-  vrm: any | null;  // null 表示 GLB 模式
-  morphs: Record<string, { mesh: any; indices: Record<string, number> }>;
-  expressionManager: any | null;  // VRM 模式
-  humanoid: any | null;  // VRM 模式
+  vrm: any;
+  morphs: Record<string, MorphEntry>;
+  expressionManager: any;
+  humanoid: any;
   animations: any[];
 };
 const cache = new Map<string, Cached>();
@@ -65,57 +66,36 @@ async function loadAvatar(url: string): Promise<Cached> {
   if (hit) return hit;
   if (inflight && inflight.url === url) return inflight.promise;
   const promise = (async () => {
+    if (!url.endsWith('.vrm')) {
+      throw new Error(`BlenderAvatar 现在只支持 .vrm 格式(${url} 不是)。请把角色放到 public/avatars/character.vrm`);
+    }
     const THREE = await import('three');
     const cache_url = url + (url.includes('?') ? '&' : '?') + 'v=' + Date.now();
     const res = await fetch(cache_url);
     if (!res.ok) throw new Error(`fetch ${url} failed: ${res.status}`);
     const buf = new Uint8Array(await res.arrayBuffer());
     const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader');
-
-    // 尝试当 VRM 加载(.vrm 后缀 或 用 VRM 解析器)
-    if (url.endsWith('.vrm')) {
-      const { VRMLoaderPlugin, VRMUtils } = await import('@pixiv/three-vrm');
-      const loader = new GLTFLoader();
-      loader.register((parser: any) => new VRMLoaderPlugin(parser));
-      const gltf = await loader.parseAsync(buf.buffer, '');
-      const vrm = gltf.userData.vrm;
-      // VRM 0.0 → humanoid bones + expressionManager
-      const morphs: Record<string, { mesh: any; indices: Record<string, number> }> = {};
-      vrm.scene.traverse((obj: any) => {
-        if (obj.isMesh || obj.isSkinnedMesh) {
-          const dict = obj.morphTargetDictionary;
-          if (dict) morphs[obj.name] = { mesh: obj, indices: { ...dict } };
-        }
-      });
-      const result: Cached = {
-        url,
-        scene: vrm.scene,
-        vrm,
-        morphs,
-        expressionManager: vrm.expressionManager,
-        humanoid: vrm.humanoid,
-        animations: gltf.animations || [],
-      };
-      cache.set(url, result);
-      return result;
-    }
-
-    // GLB fallback
+    const { VRMLoaderPlugin, VRMUtils } = await import('@pixiv/three-vrm');
     const loader = new GLTFLoader();
-    const gltf: any = await loader.parseAsync(buf.buffer, '');
-    const morphs: Record<string, { mesh: any; indices: Record<string, number> }> = {};
-    gltf.scene.traverse((obj: any) => {
-      if (!obj.isMesh && !obj.isSkinnedMesh) return;
-      const dict = obj.morphTargetDictionary;
-      if (dict) morphs[obj.name] = { mesh: obj, indices: { ...dict } };
+    loader.register((parser: any) => new VRMLoaderPlugin(parser));
+    const gltf = await loader.parseAsync(buf.buffer, '');
+    const vrm = gltf.userData.vrm;
+    if (!vrm) throw new Error(`VRM 解析失败: ${url}`);
+    // VRM 0.0 → humanoid bones + expressionManager
+    const morphs: Record<string, MorphEntry> = {};
+    vrm.scene.traverse((obj: any) => {
+      if (obj.isMesh || obj.isSkinnedMesh) {
+        const dict = obj.morphTargetDictionary;
+        if (dict) morphs[obj.name] = { mesh: obj, indices: { ...dict } };
+      }
     });
     const result: Cached = {
       url,
-      scene: gltf.scene,
-      vrm: null,
+      scene: vrm.scene,
+      vrm,
       morphs,
-      expressionManager: null,
-      humanoid: null,
+      expressionManager: vrm.expressionManager,
+      humanoid: vrm.humanoid,
       animations: gltf.animations || [],
     };
     cache.set(url, result);
@@ -127,7 +107,7 @@ async function loadAvatar(url: string): Promise<Cached> {
 
 
 export interface BlenderAvatarProps {
-  /** 角色 URL(优先 .vrm,fallback .glb) */
+  /** 角色 URL(必须 .vrm 后缀) */
   modelUrl?: string;
   /** 当前动作 */
   currentAction?: string;
@@ -162,7 +142,6 @@ export default function BlenderAvatar({
   const rotationRef = React.useRef(0);
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [useFallback, setUseFallback] = React.useState(false);
 
   // 初始化场景 + 加载角色
   React.useEffect(() => {
@@ -202,26 +181,14 @@ export default function BlenderAvatar({
         rim.position.set(-2, 2, -2);
         scene.add(rim);
 
-        // 尝试加载 .vrm,失败 fallback 到 .glb
+        // 加载 VRM(只支持 .vrm)
         let loaded: Cached | null = null;
         try {
-          console.log('[BlenderAvatar] 开始加载 VRM/GLB...');
+          console.log('[BlenderAvatar] 开始加载 VRM:', modelUrl);
           loaded = await loadAvatar(modelUrl);
-          console.log('[BlenderAvatar] 加载成功,isVRM=', !!loaded.vrm, 'animations=', loaded.animations.length);
+          console.log('[BlenderAvatar] 加载成功,animations=', loaded.animations.length);
         } catch (e1: any) {
-          console.warn('[BlenderAvatar] 加载失败,fallback .glb:', e1?.message);
-          const fallback = modelUrl.replace(/\.vrm$/, '.glb');
-          if (fallback !== modelUrl) {
-            try {
-              loaded = await loadAvatar(fallback);
-              setUseFallback(true);
-              console.log('[BlenderAvatar] GLB fallback 成功');
-            } catch (e2: any) {
-              throw new Error(`VRM 失败 (${e1?.message}) + GLB fallback 失败 (${e2?.message})`);
-            }
-          } else {
-            throw e1;
-          }
+          throw e1;
         }
         if (cancelled) return;
         if (!loaded) throw new Error('no avatar loaded');
@@ -229,31 +196,16 @@ export default function BlenderAvatar({
         scene.add(loaded.scene);
         console.log('[BlenderAvatar] 角色已加入 scene,scene children=', scene.children.length);
 
-        // mixer
+        // VRM 调整(默认 1.0 scale 即可,VRoid Hub 角色标准化高度)
+        loaded.scene.scale.setScalar(1.0);
+
+        // 动画 mixer(VRM 通常没内置动画,这里只是 placeholder)
         if (loaded.animations.length > 0) {
           const { AnimationMixer } = THREE as any;
-          const mixer = new AnimationMixer(loaded.scene);
+          const mixer = new THREE.AnimationMixer(loaded.scene);
           mixerRef.current = mixer;
           const clip = loaded.animations.find((a: any) => a.name === currentAction) || loaded.animations[0];
           if (clip) mixer.clipAction(clip).play();
-        }
-
-        // VRM 模式:scale + 居中
-        if (loaded.vrm) {
-          loaded.scene.scale.setScalar(1.0);
-          console.log('[BlenderAvatar] VRM 加载,scene 已加');
-        } else {
-          const { Box3, Vector3 } = THREE as any;
-          const box = new Box3().setFromObject(loaded.scene);
-          const center = new Vector3();
-          const size = new Vector3();
-          box.getCenter(center);
-          box.getSize(size);
-          const maxDim = Math.max(size.x, size.y, size.z);
-          const scale = 1.6 / maxDim;
-          loaded.scene.scale.setScalar(scale);
-          loaded.scene.position.set(-center.x * scale, -center.y * scale + 0.9, -center.z * scale);
-          console.log('[BlenderAvatar] GLB fallback,scale=', scale);
         }
 
         const onResize = () => {
@@ -350,7 +302,7 @@ export default function BlenderAvatar({
           </Typography>
         </Box>
       )}
-      {useFallback && !error && !loading && (
+      {false && !error && !loading && (
         <Typography sx={{
           position: 'absolute', bottom: 8, right: 8, fontSize: 10,
           color: 'rgba(255,255,255,0.4)', pointerEvents: 'none',
