@@ -176,6 +176,8 @@ export default function BlenderAvatar({
         canvas.style.display = 'block';
         canvas.style.outline = 'none';
 
+        console.log('[BlenderAvatar] 初始化,modelUrl=', modelUrl);
+
         const renderer = new THREE.WebGLRenderer({
           canvas, antialias: true, alpha: true, powerPreference: 'high-performance',
         });
@@ -203,15 +205,17 @@ export default function BlenderAvatar({
         // 尝试加载 .vrm,失败 fallback 到 .glb
         let loaded: Cached | null = null;
         try {
+          console.log('[BlenderAvatar] 开始加载 VRM/GLB...');
           loaded = await loadAvatar(modelUrl);
+          console.log('[BlenderAvatar] 加载成功,isVRM=', !!loaded.vrm, 'animations=', loaded.animations.length);
         } catch (e1: any) {
-          console.warn('[BlenderAvatar] .vrm 加载失败,fallback 到 .glb:', e1?.message);
-          // .vrm 失败 → 试 .glb
+          console.warn('[BlenderAvatar] 加载失败,fallback .glb:', e1?.message);
           const fallback = modelUrl.replace(/\.vrm$/, '.glb');
           if (fallback !== modelUrl) {
             try {
               loaded = await loadAvatar(fallback);
               setUseFallback(true);
+              console.log('[BlenderAvatar] GLB fallback 成功');
             } catch (e2: any) {
               throw new Error(`VRM 失败 (${e1?.message}) + GLB fallback 失败 (${e2?.message})`);
             }
@@ -223,6 +227,7 @@ export default function BlenderAvatar({
         if (!loaded) throw new Error('no avatar loaded');
         loadedRef.current = loaded;
         scene.add(loaded.scene);
+        console.log('[BlenderAvatar] 角色已加入 scene,scene children=', scene.children.length);
 
         // mixer
         if (loaded.animations.length > 0) {
@@ -235,10 +240,9 @@ export default function BlenderAvatar({
 
         // VRM 模式:scale + 居中
         if (loaded.vrm) {
-          // VRM 一般身高 1.5-1.7m,让模型填视野
           loaded.scene.scale.setScalar(1.0);
+          console.log('[BlenderAvatar] VRM 加载,scene 已加');
         } else {
-          // GLB fallback: 居中 + 缩放
           const { Box3, Vector3 } = THREE as any;
           const box = new Box3().setFromObject(loaded.scene);
           const center = new Vector3();
@@ -249,6 +253,7 @@ export default function BlenderAvatar({
           const scale = 1.6 / maxDim;
           loaded.scene.scale.setScalar(scale);
           loaded.scene.position.set(-center.x * scale, -center.y * scale + 0.9, -center.z * scale);
+          console.log('[BlenderAvatar] GLB fallback,scale=', scale);
         }
 
         const onResize = () => {
@@ -273,6 +278,7 @@ export default function BlenderAvatar({
           rafRef.current = requestAnimationFrame(frame);
         };
         rafRef.current = requestAnimationFrame(frame);
+        console.log('[BlenderAvatar] 主循环启动,渲染中...');
       } catch (err: any) {
         if (cancelled) return;
         console.error('[BlenderAvatar] init failed:', err);
