@@ -194,20 +194,19 @@ async function callLLM(text: string, history: Array<{ role: string; content: str
  * Edge-TTS 合成音频
  */
 async function ttsEdge(text: string, voice = 'zh-CN-XiaoxiaoNeural'): Promise<Buffer> {
-  // 优先:xinference 的 /v1/audio/speech(OpenAI 兼容,本机)
+  // 优先:xinference 的 /v1/audio/speech(multipart/form-data,不是 JSON)
   const xinfBase = process.env.NEXT_PUBLIC_OPENAI_BASE_URL;
   if (xinfBase) {
     try {
-      // xinference 启的 TTS 模型名(默认 CosyVoice2-0.5B)
       const ttsModel = process.env.XINFERENCE_TTS_MODEL || 'CosyVoice2-0.5B';
+      const fd = new FormData();
+      fd.append('model', ttsModel);
+      fd.append('input', text);
+      if (voice) fd.append('voice', voice);
       const r = await fetch(`${xinfBase.replace(/\/v1$/, '')}/audio/speech`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(process.env.OPENAI_API_KEY ? { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` } : {}),
-        },
-        body: JSON.stringify({ model: ttsModel, input: text, voice, response_format: 'mp3' }),
-        signal: AbortSignal.timeout(20000),
+        body: fd,
+        signal: AbortSignal.timeout(30000),
       });
       if (r.ok) {
         const ab = await r.arrayBuffer();
