@@ -127,7 +127,16 @@ async function callLLM(text: string, history: Array<{ role: string; content: str
         signal: AbortSignal.timeout(20000),
       });
       if (r.ok) {
-        const j = await r.json();
+        // xinference 偶发返非 UTF-8 字节(模型 generate 内部 0xbe 等),
+        // 手动 replace 所有非 UTF-8 字节为 '?' 再 parse JSON(强制走通)
+        const raw = await r.text();
+        const safe = raw.replace(/[\x80-\xFF]/g, '?');
+        let j: any = {};
+        try {
+          j = JSON.parse(safe);
+        } catch (e) {
+          console.warn('[chat] LLM response 仍非 JSON:', (e as Error).message, 'raw len=', raw.length);
+        }
         const content = j?.choices?.[0]?.message?.content || '{}';
         try {
           const parsed = JSON.parse(content);
