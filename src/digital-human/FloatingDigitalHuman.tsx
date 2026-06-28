@@ -12,6 +12,8 @@ import { Box, IconButton, TextField, Typography, CircularProgress, Chip } from '
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import OpenInFullRoundedIcon from '@mui/icons-material/OpenInFullRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
+import MicNoneRoundedIcon from '@mui/icons-material/MicNoneRounded';
+import MicRoundedIcon from '@mui/icons-material/MicRounded';
 import { alpha } from '@mui/material/styles';
 import { useRouter, usePathname } from 'next/navigation';
 import BlenderAvatar from './BlenderAvatar';
@@ -35,7 +37,8 @@ export default function FloatingDigitalHuman() {
   const [autoRotate, setAutoRotate] = React.useState(true);
   const [text, setText] = React.useState('');
   const chat = useChatAvatar();
-  const { chatBusy, chatLog, emotion, viseme, action, send, audioRef } = chat;
+  const { chatBusy, chatLog, emotion, viseme, action, send, audioRef,
+    recording, recordingError, toggleRecording } = chat;
 
   // 注意:必须在所有 hook 之后才能 return null,否则 React Rules of Hooks 报错
   // "Rendered fewer hooks than expected"(pathname 切换时 hidden 翻转会导致
@@ -185,22 +188,39 @@ export default function FloatingDigitalHuman() {
           <TextField
             size="small"
             fullWidth
-            placeholder="跟数字人说点什么…"
+            placeholder={recording ? '正在录音…' : '跟数字人说点什么…'}
             value={chat.text}
             onChange={(e) => chat.setText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), chat.send())}
-            disabled={chatBusy}
+            disabled={chatBusy || recording}
             onPointerDown={(e) => e.stopPropagation()}
             sx={{
               '& .MuiOutlinedInput-root': {
                 color: 'white',
                 fontSize: 12,
                 bgcolor: 'rgba(255,255,255,0.08)',
-                '& fieldset': { borderColor: 'rgba(255,255,255,0.2)' },
+                '& fieldset': { borderColor: recording ? '#ff5252' : 'rgba(255,255,255,0.2)' },
               },
               '& .MuiOutlinedInput-input::placeholder': { color: 'rgba(255,255,255,0.5)', opacity: 1 },
             }}
           />
+          <IconButton
+            size="small"
+            data-no-drag
+            disabled={chatBusy}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleRecording();
+            }}
+            sx={{
+              bgcolor: recording ? '#ff5252' : (t) => alpha(t.palette.common.white, 0.1),
+              color: recording ? 'white' : 'rgba(255,255,255,0.7)',
+              '&:hover': { bgcolor: recording ? '#ff1744' : (t) => alpha(t.palette.common.white, 0.2) },
+              '&.Mui-disabled': { color: 'rgba(255,255,255,0.3)' },
+            }}
+          >
+            {recording ? <MicRoundedIcon sx={{ fontSize: 18, animation: 'pulse 1.2s infinite' }} /> : <MicNoneRoundedIcon sx={{ fontSize: 16 }} />}
+          </IconButton>
           <IconButton
             size="small"
             data-no-drag
@@ -219,6 +239,11 @@ export default function FloatingDigitalHuman() {
             {chatBusy ? <CircularProgress size={14} sx={{ color: 'white' }} /> : <SendRoundedIcon sx={{ fontSize: 16 }} />}
           </IconButton>
         </Box>
+        {recordingError && (
+          <Typography sx={{ fontSize: 9, color: 'error.main', mt: 0.5 }}>
+            {recordingError}
+          </Typography>
+        )}
       </Box>
 
       <audio ref={audioRef} hidden />

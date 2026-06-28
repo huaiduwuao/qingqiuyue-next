@@ -13,6 +13,8 @@ import {
 } from '@mui/material';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
+import MicNoneRoundedIcon from '@mui/icons-material/MicNoneRounded';
+import MicRoundedIcon from '@mui/icons-material/MicRounded';
 import { useRouter } from 'next/navigation';
 import { alpha } from '@mui/material/styles';
 import BlenderAvatar from './BlenderAvatar';
@@ -21,7 +23,8 @@ import { useChatAvatar } from './useChatAvatar';
 export default function ImmersiveDigitalHuman() {
   const router = useRouter();
   const chat = useChatAvatar();
-  const { chatBusy, chatLog, emotion, viseme, action, send, audioRef } = chat;
+  const { chatBusy, chatLog, emotion, viseme, action, send, audioRef,
+    recording, recordingError, toggleRecording } = chat;
 
   return (
     <Box sx={{ position: 'fixed', inset: 0, zIndex: 1, background: '#05060B' }}>
@@ -94,21 +97,34 @@ export default function ImmersiveDigitalHuman() {
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', maxWidth: 900, mx: 'auto', width: '100%' }}>
           <TextField
             fullWidth
-            placeholder="跟数字人说点什么…"
+            placeholder={recording ? '正在录音…点麦克风停止' : '跟数字人说点什么…'}
             value={chat.text}
             onChange={(e) => chat.setText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), chat.send())}
-            disabled={chatBusy}
+            disabled={chatBusy || recording}
             sx={{
               '& .MuiOutlinedInput-root': {
                 color: 'white',
                 bgcolor: 'rgba(255,255,255,0.08)',
                 backdropFilter: 'blur(8px)',
-                '& fieldset': { borderColor: 'rgba(255,255,255,0.2)' },
+                '& fieldset': { borderColor: recording ? '#ff5252' : 'rgba(255,255,255,0.2)' },
               },
               '& .MuiOutlinedInput-input::placeholder': { color: 'rgba(255,255,255,0.5)', opacity: 1 },
             }}
           />
+          <IconButton
+            size="large"
+            disabled={chatBusy}
+            onClick={toggleRecording}
+            sx={{
+              bgcolor: recording ? '#ff5252' : (t) => alpha(t.palette.common.white, 0.1),
+              color: recording ? 'white' : 'rgba(255,255,255,0.7)',
+              '&:hover': { bgcolor: recording ? '#ff1744' : (t) => alpha(t.palette.common.white, 0.2) },
+              '&.Mui-disabled': { color: 'rgba(255,255,255,0.3)' },
+            }}
+          >
+            {recording ? <MicRoundedIcon sx={{ animation: 'pulse 1.2s infinite' }} /> : <MicNoneRoundedIcon />}
+          </IconButton>
           <IconButton
             size="large"
             disabled={chatBusy || !chat.text.trim()}
@@ -123,6 +139,11 @@ export default function ImmersiveDigitalHuman() {
             {chatBusy ? <CircularProgress size={18} sx={{ color: 'white' }} /> : <SendRoundedIcon />}
           </IconButton>
         </Box>
+        {recordingError && (
+          <Typography sx={{ fontSize: 10, color: 'error.main', mt: 0.5, textAlign: 'center' }}>
+            {recordingError}
+          </Typography>
+        )}
       </Box>
 
       <audio ref={audioRef} hidden />

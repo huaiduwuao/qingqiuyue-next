@@ -59,6 +59,11 @@ export interface ChatAvatarState {
   action: string;
   send: () => Promise<void>;
   audioRef: React.MutableRefObject<HTMLAudioElement | null>;
+  /** 语音输入(ASR)状态 */
+  recording: boolean;
+  recordingError: string | null;
+  /** 点按开始/停止录音 → 自动调 send(text) */
+  toggleRecording: () => Promise<void>;
 }
 
 // mock 关键词匹配(LLM 失败时降级)
@@ -216,6 +221,146 @@ export function useChatAvatar(): ChatAvatarState {
     return () => cancelAnimationFrame(raf);
   }, []);
 
+  // 4. 语音输入(ASR):MediaRecorder 录音 → /api/avatar/asr → 自动 send
+  const [recording, setRecording] = React.useState(false);
+  const [recordingError, setRecordingError] = React.useState<string | null>(null);
+  const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
+  const chunksRef = React.useRef<Blob[]>([]);
+
+  const toggleRecording = React.useCallback(async () => {
+    if (recording) {
+      // 停止录音 → POST /asr → send
+      try {
+        const mr = mediaRecorderRef.current;
+        if (mr && mr.state !== 'inactive') {
+          mr.stop();
+          // onstop 回调里处理 chunks
+          return;
+        }
+      } catch (e) {
+        console.warn('[record] stop failed:', (e as Error).message);
+        setRecording(false);
+      }
+      return;
+    }
+    // 开始录音
+    try {
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+        setRecordingError('当前浏览器不支持麦克风');
+        return;
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+      const mr = new MediaRecorder(stream, { mimeType: mime });
+      mediaRecorderRef.current = mr;
+      chunksRef.current = [];
+      mr.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      mr.onstop = async () => {
+        // 关闭 mic
+        stream.getTracks().forEach((t) => t.stop());
+        setRecording(false);
+        const blob = new Blob(chunksRef.current, { type: mime });
+        chunksRef.current = [];
+        if (blob.size === 0) {
+          setRecordingError('录音为空');
+          return;
+        }
+        // POST /api/avatar/asr
+        const fd = new FormData();
+        fd.append('file', new File([blob], 'recording.webm', { type: mime }));
+        try {
+          const r = await fetch('/api/avatar/asr', { method: 'POST', body: fd });
+          if (r.ok) {
+            const j = await r.json();
+            if (j.text) {
+              setText(j.text);
+              // 自动 send(用 ref,因为 setText 是异步的)
+              setTimeout(() => {
+                if (text !== j.text) sendTextRef.current?.(j.text);
+              }, 50);
+            } else {
+              setRecordingError('ASR 返回空');
+            }
+          } else {
+            const j = await r.json().catch(() => ({}));
+            setRecordingError(j.msg || `ASR 失败 (${r.status})`);
+          }
+        } catch (e) {
+          setRecordingError(`ASR 请求失败: ${(e as Error).message}`);
+        }
+      };
+      mr.onerror = (e) => {
+        console.error('[record] error:', e);
+        setRecordingError('录音出错');
+        setRecording(false);
+      };
+      mr.start();
+      setRecordingError(null);
+      setRecording(true);
+    } catch (e: any) {
+      console.error('[record] failed:', e);
+      setRecordingError(e?.message || '无法访问麦克风');
+      setRecording(false);
+    }
+  }, [recording, text]);
+
+  // sendRef 给 onstop 用(拿到最新 send)
+  const sendTextRef = React.useRef<((t: string) => Promise<void>) | null>(null);
+  React.useEffect(() => {
+    sendTextRef.current = async (t: string) => {
+      // 模拟 send 但用新文本
+      if (chatBusyRef.current) return;
+      setChatLog((c: ChatLogItem[]) => [...c, { who: 'user', text: t }]);
+      let resp: ChatResp;
+      try {
+        const r = await fetch('/api/avatar/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: t,
+            history: [],
+          }),
+        });
+        if (r.ok) {
+          resp = await r.json();
+        } else {
+          resp = mockReply(t);
+        }
+      } catch {
+        resp = mockReply(t);
+      }
+      setChatLog((c: ChatLogItem[]) => [...c, { who: 'ai', text: resp.text }]);
+      setEmotion(resp.emotion);
+      setAction(resp.action);
+      setViseme({});
+      visemeTimelineRef.current = resp.visemes || [];
+      if (resp.audioUrl && audioRef.current) {
+        const a = audioRef.current;
+        a.onplay = () => {
+          visemeStartRef.current = performance.now();
+          visemeActiveRef.current = true;
+        };
+        a.onended = () => {
+          visemeActiveRef.current = false;
+          setViseme({});
+        };
+        a.src = resp.audioUrl;
+        a.play().catch(() => {
+          visemeStartRef.current = performance.now();
+          visemeActiveRef.current = true;
+        });
+      } else {
+        visemeStartRef.current = performance.now();
+        visemeActiveRef.current = true;
+      }
+    };
+  }, []);
+
+  const chatBusyRef = React.useRef(chatBusy);
+  chatBusyRef.current = chatBusy;
+
   return {
     text,
     setText,
@@ -226,6 +371,9 @@ export function useChatAvatar(): ChatAvatarState {
     action,
     send,
     audioRef,
+    recording,
+    recordingError,
+    toggleRecording,
   };
 }
 
