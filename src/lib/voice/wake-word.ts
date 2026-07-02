@@ -277,30 +277,33 @@ export function getDefaultWakeWordConfig(): WakeWordConfig {
 /**
  * 动态探测 ONNX Runtime WASM 路径
  *
- * 不同打包器把 .wasm 放到不同目录:
- *   - webpack (Next.js 默认): /_next/static/chunks/
- *   - Turbopack: /_next/static/chunks/ (同路径,但 lazy load)
- *   - 自托管: 当前 origin /public/wasm/
+ * Next.js 不会自动 bundle onnxruntime-web 的 WASM/.mjs 运行时,必须手动放
+ * public/ 并显式指 wasmPaths。我们把整个 ORT runtime 复制到 public/ort-wasm/。
  *
- * 按顺序探测能 fetch 通的路径,设给 ort.env.wasm.wasmPaths
+ * ORT 1.27 实际文件名: 没有了旧版 ort-wasm.wasm,只保留变体
+ *   - ort-wasm-simd-threaded.wasm (默认)
+ *   - ort-wasm-simd-threaded.{jsep,jspi,asyncify}.wasm (变体)
+ * ORT 启动时按 executionProvider 顺序自动选最合适的。
  */
 async function resolveWasmPaths(): Promise<string> {
-  const candidates = [
-    '/_next/static/chunks/',     // Next.js webpack + Turbopack 默认
-    '/wake/',                    // 自托管(同 public/wake/)
-    '/wasm/',                    // 标准 alt 路径
-  ]
-  for (const p of candidates) {
+  const localPath = '/ort-wasm/'
+
+  // 验证关键文件能访问(挑 ORT 默认会用的)
+  for (const probe of [
+    'ort-wasm-simd-threaded.wasm',
+    'ort-wasm-simd-threaded.jsep.wasm',
+    'ort.mjs',
+  ]) {
     try {
-      const r = await fetch(p + 'ort-wasm.wasm', { method: 'HEAD' })
+      const r = await fetch(localPath + probe, { method: 'HEAD' })
       if (r.ok) {
-        voiceLog('info', 'wake', 'wasm path resolved:', p)
-        return p
+        voiceLog('info', 'wake', 'wasm path resolved:', localPath, 'via', probe)
+        return localPath
       }
     } catch {
-      // 继续下一个
+      // continue
     }
   }
-  voiceLog('warn', 'wake', 'no WASM path resolved, using Next.js default')
+  voiceLog('warn', 'wake', 'no WASM found in /ort-wasm/, falling back to Next.js default (likely broken)')
   return '/_next/static/chunks/'
 }

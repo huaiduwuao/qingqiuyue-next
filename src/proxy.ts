@@ -31,6 +31,7 @@ const PUBLIC_PREFIXES = [
   '/avatar',
   '/avatars',  // 数字人抠像视频库(public/avatars/*)
   '/wake',     // openWakeWord 模型文件(public/wake/*.onnx,客户端推理需要)
+  '/ort-wasm', // onnxruntime-web 运行时 WASM/.mjs(public/ort-wasm/*)
   '/_raw-test.html',  // 调试页面(three.js 加载 GLB 测试)
   '/test-render.html',  // 调试页面
 ];
