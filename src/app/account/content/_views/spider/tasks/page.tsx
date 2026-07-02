@@ -31,6 +31,7 @@ import { DataGridTable } from '@/components/tables/DataGridTable';
 import {
   listTasks,
   createTask,
+  createRuleTask,
   stopTask as apiStopTask,
   deleteTask as apiDeleteTask,
   getTaskDetail,
@@ -82,6 +83,12 @@ export default function SpiderTasksPage() {
     onError: (err: any) => showMsg(err.message || '创建失败', 'error'),
   });
 
+  const createRuleMutation = useMutation({
+    mutationFn: (vals: any) => createRuleTask(vals),
+    onSuccess: () => { showMsg('规则任务已创建'); setWriteVisible(false); setForm({ sourceId: '', startUrl: '', maxDepth: '2', maxPages: '100' }); refresh(); },
+    onError: (err: any) => showMsg(err.message || '创建规则任务失败', 'error'),
+  });
+
   const stopMutation = useMutation({
     mutationFn: (id: string) => apiStopTask(id),
     onSuccess: () => { showMsg('已停止'); refresh(); },
@@ -96,8 +103,20 @@ export default function SpiderTasksPage() {
 
   const handleCreate = () => {
     if (!form.startUrl) return showMsg('起始 URL 必填', 'error');
+
+    // 选择了来源 → 走基于 Source + Template 的规则爬虫（适合豆瓣这类配置化站点）
+    if (form.sourceId) {
+      createRuleMutation.mutate({
+        source_id: Number(form.sourceId),
+        start_url: form.startUrl,
+        max_pages: Number(form.maxPages) || 100,
+      });
+      return;
+    }
+
+    // 未选择来源 → 走 colly 通用爬虫
     createMutation.mutate({
-      source_id: form.sourceId ? Number(form.sourceId) : undefined,
+      source_id: undefined,
       start_url: form.startUrl,
       max_depth: Number(form.maxDepth) || 2,
       max_pages: Number(form.maxPages) || 100,

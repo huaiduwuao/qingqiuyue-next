@@ -127,6 +127,10 @@ export async function createTask(params: { source_id?: number; start_url: string
   return spiderClient('/tasks', { method: 'POST', data: params });
 }
 
+export async function createRuleTask(params: { source_id: number; start_url: string; max_pages?: number; incremental?: boolean }): Promise<any> {
+  return spiderClient('/tasks/rule', { method: 'POST', data: params });
+}
+
 export async function stopTask(id: string): Promise<any> {
   return spiderClient(`/tasks/${id}/stop`, { method: 'POST' });
 }
