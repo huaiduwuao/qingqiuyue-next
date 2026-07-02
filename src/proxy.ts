@@ -30,6 +30,7 @@ const PUBLIC_PREFIXES = [
   '/images',
   '/avatar',
   '/avatars',  // 数字人抠像视频库(public/avatars/*)
+  '/wake',     // openWakeWord 模型文件(public/wake/*.onnx,客户端推理需要)
   '/_raw-test.html',  // 调试页面(three.js 加载 GLB 测试)
   '/test-render.html',  // 调试页面
 ];
