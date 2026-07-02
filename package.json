@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint ."
   },
@@ -20,31 +20,46 @@
     "@mui/material": "^9.0.0",
     "@mui/x-data-grid": "^9.3.0",
     "@mui/x-tree-view": "^9.6.0",
+    "@picovoice/porcupine-web": "^4.0.1",
     "@pixiv/three-vrm": "^3.5.4",
+    "@ricky0123/vad-web": "^0.0.30",
     "@sparkjsdev/spark": "^2.1.0",
     "@tanstack/react-query": "^5.99.0",
     "axios": "^1.15.0",
+    "drizzle-orm": "^0.45.2",
     "minio": "^8.0.7",
     "next": "16.2.3",
     "next-intl": "^4.9.1",
+    "onnxruntime-web": "1.18.0",
+    "pg": "^8.22.0",
+    "pinyin-pro": "^3.28.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-hook-form": "^7.72.1",
     "three": "^0.180.0",
-    "three-vrm": "^0.0.17",
     "uuid": "^13.0.0",
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^20",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/three": "^0.184.1",
     "@types/uuid": "^10.0.0",
+    "@vitejs/plugin-react": "^6.0.3",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.9",
+    "jsdom": "^29.1.1",
     "msw": "^2.14.6",
-    "typescript": "^5"
+    "playwright": "^1.61.1",
+    "typescript": "^5",
+    "vitest": "^4.1.9"
+  },
+  "overrides": {
+    "onnxruntime-web": "1.18.0"
   },
   "msw": {
     "workerDirectory": [
