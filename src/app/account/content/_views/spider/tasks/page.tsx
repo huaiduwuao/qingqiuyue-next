@@ -204,8 +204,21 @@ export default function SpiderTasksPage() {
         fetchData={async (params) => {
           try {
             const res = await listTasks({ ...params, pageNumber: params.pageNumber });
+            const sourceMap = new Map((sourcesQuery.data?.list || []).map((s: SpiderSource) => [s.id, s.name]));
+            const list = (res.data?.list || []).map((task: any) => ({
+              ...task,
+              startUrl: task.start_url,
+              maxDepth: task.max_depth,
+              maxPages: task.max_pages,
+              pagesCrawled: task.pages_crawled,
+              linksFound: task.links_found,
+              itemsSaved: task.items_saved,
+              createdAt: task.created_at,
+              updatedAt: task.updated_at,
+              sourceName: task.source_name || sourceMap.get(task.source_id) || '-',
+            }));
             return {
-              data: { records: res.data?.list || [], totalRow: res.data?.total || 0 },
+              data: { records: list, totalRow: res.data?.total || 0 },
               success: true,
             };
           } catch (err: any) {
