@@ -74,17 +74,6 @@ export default function ImmersiveDigitalHuman() {
         <CloseRoundedIcon />
       </IconButton>
 
-      {/* 顶部右侧:AIGC 合规角标 (国家网信办要求) */}
-      {isAIGenerated && (
-        <AIGCBadge
-          variant="overlay"
-          top={16}
-          right={16}
-          label="AI 生成对话"
-          sx={{ zIndex: 3 }}
-        />
-      )}
-
       {/* 底部:聊天输入 + 记录 */}
       <Box sx={{
         position: 'absolute',
