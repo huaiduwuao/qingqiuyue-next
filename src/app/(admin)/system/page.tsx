@@ -6,7 +6,7 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Paper from '@mui/material/Paper';
 import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSettingsRounded';
-import { MENU_GROUPS as MENU_GROUPS_PUBLIC } from './layout';
+import { MENU_GROUPS as MENU_GROUPS_PUBLIC } from './menu-config';
 
 export default function SystemIndexPage() {
   const router = useRouter();

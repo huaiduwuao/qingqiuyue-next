@@ -35,18 +35,7 @@ import BlockRoundedIcon from '@mui/icons-material/BlockRounded';
 import { useAuthority } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
 import { PERMISSIONS } from '@/lib/permissions';
-
-interface MenuItemDef {
-  id: string;
-  label: string;
-  path: string;
-  icon: React.ReactNode;
-  accent: string;
-  /** 查看该菜单所需的权限码,缺省则不限制 */
-  permission?: string;
-}
-
-export type { MenuItemDef };
+import { MENU_GROUPS, type MenuItemDef } from './menu-config';
 
 const ROLE_LABEL: Record<string, { label: string; color: string }> = {
   SUPER_ADMIN: { label: '超级管理员', color: 'primary.main' },
@@ -65,99 +54,6 @@ function getPrimaryRole(authorities?: string[]): { label: string; color: string 
   }
   return { label: authorities[0], color: 'text.secondary' };
 }
-
-const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
-  {
-    title: '认证授权',
-    items: [
-      { id: 'role', label: '角色管理', path: '/system/role', icon: <AdminPanelSettingsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main', permission: PERMISSIONS.SYSTEM_ROLE.VIEW },
-      { id: 'menu', label: '菜单管理', path: '/system/menu', icon: <AccountTreeRoundedIcon sx={{ fontSize: 18 }} />, accent: 'secondary.main', permission: PERMISSIONS.SYSTEM_MENU.VIEW },
-      { id: 'permission', label: '权限管理', path: '/system/permission', icon: <LockRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6', permission: PERMISSIONS.SYSTEM_PERMISSION.VIEW },
-      { id: 'data-permission', label: '数据权限', path: '/system/data-permission', icon: <VpnKeyRoundedIcon sx={{ fontSize: 18 }} />, accent: 'warning.main', permission: PERMISSIONS.SYSTEM_DATA_PERMISSION.VIEW },
-    ],
-  },
-  {
-    title: '用户管理',
-    items: [
-      { id: 'user', label: '用户列表', path: '/system/user', icon: <PeopleRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_USER.VIEW },
-      { id: 'bot', label: '假人管理', path: '/system/bot', icon: <SmartToyRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6', permission: PERMISSIONS.SYSTEM_BOT.VIEW },
-      { id: 'hermes', label: 'Hermes 智能体', path: '/system/hermes', icon: <SmartToyRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160', permission: PERMISSIONS.SYSTEM_HERMES.VIEW },
-      { id: 'user-level', label: '用户等级', path: '/system/user-level', icon: <MilitaryTechRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D', permission: PERMISSIONS.SYSTEM_USER_LEVEL.VIEW },
-      { id: 'user-point', label: '用户积分', path: '/system/user-point', icon: <StarsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'success.main', permission: PERMISSIONS.SYSTEM_USER_POINT.VIEW },
-    ],
-  },
-  {
-    title: '内容治理',
-    items: [
-      {
-        id: 'moderation-reports',
-        label: '举报审核',
-        path: '/system/moderation/reports',
-        icon: <ReportProblemRoundedIcon sx={{ fontSize: 18 }} />,
-        accent: '#FE2C55',
-        permission: PERMISSIONS.SYSTEM_MODERATION.REPORT_LIST,
-      },
-      {
-        id: 'moderation-words',
-        label: '敏感词管理',
-        path: '/system/moderation/sensitive-words',
-        icon: <BlockRoundedIcon sx={{ fontSize: 18 }} />,
-        accent: '#8B5CF6',
-        permission: PERMISSIONS.SYSTEM_MODERATION.SENSITIVE_WORD_LIST,
-      },
-    ],
-  },
-  {
-    title: '资源管理',
-    items: [
-      { id: 'app', label: '应用管理', path: '/system/app', icon: <AppsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main', permission: PERMISSIONS.SYSTEM_APP.VIEW },
-      { id: 'app-config', label: '应用配置', path: '/system/app-config', icon: <SettingsApplicationsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'secondary.main', permission: PERMISSIONS.SYSTEM_APP_CONFIG.VIEW },
-      { id: 'app-service', label: '应用服务', path: '/system/app-service', icon: <DnsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6', permission: PERMISSIONS.SYSTEM_APP_SERVICE.VIEW },
-      { id: 'resource', label: '资源管理', path: '/system/resource', icon: <StorageRoundedIcon sx={{ fontSize: 18 }} />, accent: 'warning.main', permission: PERMISSIONS.SYSTEM_RESOURCE.VIEW },
-    ],
-  },
-  {
-    title: '基础数据',
-    items: [
-      { id: 'dict', label: '字典管理', path: '/system/dict/dict-type', icon: <MenuBookRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_DICT.VIEW },
-      { id: 'website-dict', label: '网站字典', path: '/system/website-dict', icon: <LanguageRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D', permission: PERMISSIONS.SYSTEM_WEBSITE_DICT.VIEW },
-      { id: 'address', label: '地址管理', path: '/system/address/province', icon: <LocationOnRoundedIcon sx={{ fontSize: 18 }} />, accent: 'success.main', permission: PERMISSIONS.SYSTEM_ADDRESS.VIEW },
-      { id: 'wx-config', label: '微信配置', path: '/system/wx-config', icon: <ChatBubbleOutlineRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
-    ],
-  },
-  {
-    title: '微信公众号',
-    items: [
-      { id: 'wx-mp-menu', label: '公众号菜单', path: '/system/wx/mp/menu', icon: <MenuBookRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
-      { id: 'wx-mp-auto-reply', label: '自动回复', path: '/system/wx/mp/auto-reply', icon: <ChatBubbleOutlineRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
-      { id: 'wx-mp-msg', label: '消息管理', path: '/system/wx/mp/msg', icon: <DnsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
-      { id: 'wx-mp-user', label: '公众号用户', path: '/system/wx/mp/user', icon: <PeopleRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
-    ],
-  },
-  {
-    title: '数据看板',
-    items: [
-      { id: 'dash-analysis', label: '分析页', path: '/system/dashboard/analysis', icon: <AccountTreeRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
-      { id: 'dash-monitor', label: '监控页', path: '/system/dashboard/monitor', icon: <StorageRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D' },
-      { id: 'dash-workplace', label: '工作台', path: '/system/dashboard/workplace', icon: <AppsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'success.main' },
-    ],
-  },
-  {
-    title: '数字人',
-    items: [
-      { id: 'dh-studio', label: '数字人工作台', path: '/system/digital-human', icon: <StarsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6' },
-      { id: 'wake-word-train', label: '唤醒词训练', path: '/system/record-wake', icon: <RecordVoiceOverRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
-    ],
-  },
-  {
-    title: '运维监控',
-    items: [
-      { id: 'log', label: '服务日志', path: '/system/log', icon: <TerminalRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
-    ],
-  },
-];
-
-export { MENU_GROUPS };
 
 export default function SystemLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
