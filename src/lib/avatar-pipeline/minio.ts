@@ -30,7 +30,9 @@ const PUBLIC_USE_SSL = process.env.MINIO_PUBLIC_USE_SSL === 'true';
 let _client: MinioClient | null = null;
 let _bucketReady = false;
 
-function getClient(): MinioClient {
+interface MinioError extends Error { code?: string }
+
+export function getClient(): MinioClient {
   if (_client) return _client;
   if (!ACCESS_KEY || !SECRET_KEY) {
     throw new Error('MINIO_ACCESS_KEY / MINIO_SECRET_KEY 未配置;复制 .env.example 到 .env.local');
@@ -155,8 +157,9 @@ export async function appendNdjson(key: string, obj: unknown): Promise<void> {
       chunks.push(chunk);
     }
     existing = Buffer.concat(chunks).toString('utf8');
-  } catch (e: any) {
-    if (e?.code !== 'NoSuchKey' && e?.code !== 'NotFound') {
+  } catch (e) {
+    const err = e as MinioError;
+    if (err.code !== 'NoSuchKey' && err.code !== 'NotFound') {
       throw e;
     }
     // 文件不存在,existing 留空
@@ -183,8 +186,9 @@ export async function readNdjson<T = unknown>(key: string): Promise<T[]> {
         // 忽略坏行
       }
     }
-  } catch (e: any) {
-    if (e?.code !== 'NoSuchKey' && e?.code !== 'NotFound') {
+  } catch (e) {
+    const err = e as MinioError;
+    if (err.code !== 'NoSuchKey' && err.code !== 'NotFound') {
       throw e;
     }
   }
@@ -201,10 +205,24 @@ export async function getObjectBuffer(key: string): Promise<Buffer | null> {
       chunks.push(chunk);
     }
     return Buffer.concat(chunks);
-  } catch (e: any) {
-    if (e?.code === 'NoSuchKey' || e?.code === 'NotFound') return null;
+  } catch (e) {
+    const err = e as MinioError;
+    if (err.code === 'NoSuchKey' || err.code === 'NotFound') return null;
     throw e;
   }
+}
+
+/** Node 内部:列出指定 prefix 下的对象 key */
+export async function listObjects(prefix: string, recursive = true): Promise<string[]> {
+  const c = getClient();
+  const objects: string[] = [];
+  await new Promise<void>((resolve, reject) => {
+    const stream = c.listObjectsV2(BUCKET, prefix, recursive);
+    stream.on('data', (o: { name?: string }) => { if (o.name) objects.push(o.name); });
+    stream.on('end', () => resolve());
+    stream.on('error', reject);
+  });
+  return objects;
 }
 
 /** Node 内部:对象 stat */
@@ -216,8 +234,9 @@ export async function statObject(key: string): Promise<{ size: number; contentTy
       size: s.size,
       contentType: (s.metaData && (s.metaData['content-type'] || s.metaData['Content-Type'])) || 'application/octet-stream',
     };
-  } catch (e: any) {
-    if (e?.code === 'NoSuchKey' || e?.code === 'NotFound') return null;
+  } catch (e) {
+    const err = e as MinioError;
+    if (err.code === 'NoSuchKey' || err.code === 'NotFound') return null;
     throw e;
   }
 }
