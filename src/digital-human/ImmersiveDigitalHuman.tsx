@@ -19,12 +19,29 @@ import { useRouter } from 'next/navigation';
 import { alpha } from '@mui/material/styles';
 import BlenderAvatar from './BlenderAvatar';
 import { useChatAvatar } from './useChatAvatar';
+import { useVoiceAgent } from '@/hooks/useVoiceAgent';
+import { VoiceIndicator, type VoiceIndicatorState } from '@/components/VoiceIndicator';
+import AIGCBadge from '@/components/AIGCBadge';
 
 export default function ImmersiveDigitalHuman() {
   const router = useRouter();
   const chat = useChatAvatar();
   const { chatBusy, chatLog, emotion, viseme, action, send, audioRef,
-    recording, recordingError, toggleRecording } = chat;
+    cancel, isSpeaking, isAIGenerated } = chat;
+
+  // 语音唤醒: 点 mic 一次 → 一直监听 (说"小月"+ 命令 → barge-in 打断)
+  const wakePhrases = React.useMemo(() => ['小月', '清秋月', '清秋'], [])
+  const [voiceEnabled, setVoiceEnabled] = React.useState(false)
+  const voice = useVoiceAgent({
+    wakePhrases,
+    asrGatewayUrl: typeof window !== 'undefined' ? `${window.location.origin}/api/audio` : '/api/audio',
+    onCommand: async (text) => {
+      if (chat.isSpeaking()) chat.cancel()
+      await chat.sendText(text)
+    },
+    isAvatarSpeaking: () => chat.isSpeaking(),
+    onInterrupt: () => chat.cancel(),
+  })
 
   return (
     <Box sx={{ position: 'fixed', inset: 0, zIndex: 1, background: '#05060B' }}>
@@ -34,7 +51,7 @@ export default function ImmersiveDigitalHuman() {
         currentAction={action}
         emotion={emotion}
         viseme={viseme}
-        autoRotate
+        autoRotate={false}
         sx={{ position: 'absolute', inset: 0 }}
       />
 
@@ -56,6 +73,17 @@ export default function ImmersiveDigitalHuman() {
       >
         <CloseRoundedIcon />
       </IconButton>
+
+      {/* 顶部右侧:AIGC 合规角标 (国家网信办要求) */}
+      {isAIGenerated && (
+        <AIGCBadge
+          variant="overlay"
+          top={16}
+          right={16}
+          label="AI 生成对话"
+          sx={{ zIndex: 3 }}
+        />
+      )}
 
       {/* 底部:聊天输入 + 记录 */}
       <Box sx={{
@@ -97,33 +125,40 @@ export default function ImmersiveDigitalHuman() {
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', maxWidth: 900, mx: 'auto', width: '100%' }}>
           <TextField
             fullWidth
-            placeholder={recording ? '正在录音…点麦克风停止' : '跟数字人说点什么…'}
+            placeholder={voiceEnabled ? (voice.state === 'recording' ? '我在听…' : '说"小月"唤醒') : '跟数字人说点什么…'}
             value={chat.text}
             onChange={(e) => chat.setText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), chat.send())}
-            disabled={chatBusy || recording}
+            disabled={chatBusy}
             sx={{
               '& .MuiOutlinedInput-root': {
                 color: 'white',
                 bgcolor: 'rgba(255,255,255,0.08)',
                 backdropFilter: 'blur(8px)',
-                '& fieldset': { borderColor: recording ? '#ff5252' : 'rgba(255,255,255,0.2)' },
+                '& fieldset': { borderColor: voiceEnabled ? (voice.state === 'recording' ? '#3b82f6' : '#a855f7') : 'rgba(255,255,255,0.2)' },
               },
               '& .MuiOutlinedInput-input::placeholder': { color: 'rgba(255,255,255,0.5)', opacity: 1 },
             }}
           />
           <IconButton
             size="large"
-            disabled={chatBusy}
-            onClick={toggleRecording}
+            onClick={(e) => {
+              e.stopPropagation();
+              setVoiceEnabled(v => {
+                const newVal = !v;
+                // 直接在 click 里调 (保留 user gesture 上下文, AudioContext 才能创建)
+                if (newVal) voice.start();
+                else voice.stop();
+                return newVal;
+              });
+            }}
             sx={{
-              bgcolor: recording ? '#ff5252' : (t) => alpha(t.palette.common.white, 0.1),
-              color: recording ? 'white' : 'rgba(255,255,255,0.7)',
-              '&:hover': { bgcolor: recording ? '#ff1744' : (t) => alpha(t.palette.common.white, 0.2) },
-              '&.Mui-disabled': { color: 'rgba(255,255,255,0.3)' },
+              bgcolor: voiceEnabled ? '#a855f7' : (t) => alpha(t.palette.common.white, 0.1),
+              color: voiceEnabled ? 'white' : 'rgba(255,255,255,0.7)',
+              '&:hover': { bgcolor: voiceEnabled ? '#9333ea' : (t) => alpha(t.palette.common.white, 0.2) },
             }}
           >
-            {recording ? <MicRoundedIcon sx={{ animation: 'pulse 1.2s infinite' }} /> : <MicNoneRoundedIcon />}
+            <MicRoundedIcon sx={{ fontSize: 26, animation: voiceEnabled ? 'pulse 1.2s infinite' : 'none' }} />
           </IconButton>
           <IconButton
             size="large"
@@ -139,12 +174,23 @@ export default function ImmersiveDigitalHuman() {
             {chatBusy ? <CircularProgress size={18} sx={{ color: 'white' }} /> : <SendRoundedIcon />}
           </IconButton>
         </Box>
-        {recordingError && (
+        {voice.error && (
           <Typography sx={{ fontSize: 10, color: 'error.main', mt: 0.5, textAlign: 'center' }}>
-            {recordingError}
+            {voice.error}
           </Typography>
         )}
       </Box>
+
+      {voiceEnabled && (
+        <VoiceIndicator
+          state={voice.state as VoiceIndicatorState}
+          transcript={voice.transcript}
+          wakeWord={voice.wakeWord}
+          error={voice.error}
+          position="top-right"
+          showTranscript
+        />
+      )}
 
       <audio ref={audioRef} hidden />
     </Box>

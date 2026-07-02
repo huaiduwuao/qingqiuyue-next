@@ -21,6 +21,7 @@ import { detail as contentDetail } from '@/apis/content-video';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
+import AIGCBadge from '@/components/AIGCBadge';
 
 interface Video {
   id: number;
@@ -36,6 +37,8 @@ interface Video {
   commentCount: number;
   publishTime: string;
   tags: string[];
+  /** 国家网信办 AIGC 合规:后端标记 true 时,前端展示「AI 生成」角标 */
+  isAIGenerated?: boolean;
 }
 
 function VideoDetailContent() {
@@ -72,14 +75,23 @@ function VideoDetailContent() {
           <>
             <Box sx={{ bgcolor: '#000' }}>
               <Container maxWidth="lg" sx={{ py: 0 }}>
-                <VideoPlayer src="" poster={data.cover} initialDuration={data.duration} autoPlay={false} />
+                <VideoPlayer
+                  src=""
+                  poster={data.cover}
+                  initialDuration={data.duration}
+                  autoPlay={false}
+                  isAIGenerated={data.isAIGenerated === true}
+                />
               </Container>
             </Box>
 
             <Container maxWidth="lg" sx={{ py: 3 }}>
-              <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary', mb: 1.5, lineHeight: 1.4 }}>
-                {data.title}
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
+                <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary', lineHeight: 1.4 }}>
+                  {data.title}
+                </Typography>
+                {data.isAIGenerated && <AIGCBadge variant="inline" />}
+              </Box>
 
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>

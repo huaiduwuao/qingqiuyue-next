@@ -11,6 +11,7 @@ import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import Replay10Icon from '@mui/icons-material/Replay10';
 import Forward10Icon from '@mui/icons-material/Forward10';
+import AIGCBadge from '@/components/AIGCBadge';
 
 interface Props {
   src: string;
@@ -18,6 +19,8 @@ interface Props {
   initialDuration?: number;
   onEnded?: () => void;
   autoPlay?: boolean;
+  /** 国家网信办 AIGC 合规:当视频内容由 AI 生成时,显示「AI 生成」角标 */
+  isAIGenerated?: boolean;
 }
 
 function fmt(s: number) {
@@ -27,7 +30,7 @@ function fmt(s: number) {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
-export default function VideoPlayer({ src, poster, initialDuration = 600, onEnded, autoPlay = false }: Props) {
+export default function VideoPlayer({ src, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -151,6 +154,9 @@ export default function VideoPlayer({ src, poster, initialDuration = 600, onEnde
           )}
         </Box>
       )}
+
+      {/* AIGC 合规角标:视频左上角,只在 isAIGenerated=true 时出现 */}
+      {isAIGenerated && <AIGCBadge variant="overlay" top={10} left={10} label="AI 生成视频" />}
 
       {/* 中心播放按钮 (视频模式,暂停时显示) */}
       {src && !playing && (

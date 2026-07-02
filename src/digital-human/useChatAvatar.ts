@@ -47,6 +47,8 @@ export interface ChatResp {
   action: string;
   visemes: VisemeFrame[];
   audioUrl: string | null;
+  /** 国家网信办 AIGC 合规:后端已在 /api/avatar/chat 标记 true,前端用来显示「AI 生成」角标 */
+  isAIGenerated?: boolean;
 }
 
 export interface ChatAvatarState {
@@ -57,13 +59,21 @@ export interface ChatAvatarState {
   emotion: Record<string, number>;
   viseme: Record<string, number>;
   action: string;
+  /** 最新一次 AI 回复是否带 isAIGenerated 标记 (用于角标显示) */
+  isAIGenerated: boolean;
   send: () => Promise<void>;
+  /** 直接发送指定文本 (给 voice agent / 外部触发用, 绕过 text state) */
+  sendText: (v: string) => Promise<void>;
   audioRef: React.MutableRefObject<HTMLAudioElement | null>;
   /** 语音输入(ASR)状态 */
   recording: boolean;
   recordingError: string | null;
   /** 点按开始/停止录音 → 自动调 send(text) */
   toggleRecording: () => Promise<void>;
+  /** 打断当前回复 (barge-in: 数字人正在说话时被用户唤醒) */
+  cancel: () => void;
+  /** 是否在说话 (audio 正在播, 用于打断检测) */
+  isSpeaking: () => boolean;
 }
 
 // mock 关键词匹配(LLM 失败时降级)
@@ -121,13 +131,15 @@ function mockReply(text: string): ChatResp {
   };
 }
 
-export function useChatAvatar(): ChatAvatarState {
+export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarState {
   const [text, setText] = useStateSafe('');
   const [chatBusy, setChatBusy] = useStateSafe(false);
   const [chatLog, setChatLog] = useStateSafe<ChatLogItem[]>([]);
   const [emotion, setEmotion] = useStateSafe<Record<string, number>>({});
   const [viseme, setViseme] = useStateSafe<Record<string, number>>({});
   const [action, setAction] = useStateSafe('idle');
+  /** 最近一次 AI 回复的 isAIGenerated 标记 (后端 /api/avatar/chat 已设 true) */
+  const [isAIGenerated, setIsAIGenerated] = useStateSafe(false);
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   const visemeTimelineRef = React.useRef<VisemeFrame[]>([]);
   const visemeStartRef = React.useRef<number>(0);
@@ -148,6 +160,7 @@ export function useChatAvatar(): ChatAvatarState {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             text: t,
+            agentId,
             history: chatLog.map((m) => ({ role: m.who === 'user' ? 'user' : 'assistant', content: m.text })),
           }),
         });
@@ -165,6 +178,7 @@ export function useChatAvatar(): ChatAvatarState {
       setEmotion(resp.emotion);
       setAction(resp.action);
       setViseme({});  // 清空旧 viseme
+      setIsAIGenerated(resp.isAIGenerated === true);  // AIGC 合规:把后端标记透传到 UI
       visemeTimelineRef.current = resp.visemes || [];
 
       // 2. 播放 TTS 音频 + 同步 viseme 时间线
@@ -173,10 +187,12 @@ export function useChatAvatar(): ChatAvatarState {
         a.onplay = () => {
           visemeStartRef.current = performance.now();
           visemeActiveRef.current = true;
+          setIsAvatarPlaying(true);   // 通知 voice agent: 数字人在说话, VAD 段丢弃
         };
         a.onended = () => {
           visemeActiveRef.current = false;
           setViseme({});
+          setIsAvatarPlaying(false);  // 数字人说完了
         };
         a.src = resp.audioUrl;
         a.play().catch(() => {
@@ -191,10 +207,54 @@ export function useChatAvatar(): ChatAvatarState {
       }
     } catch (err) {
       setChatLog((c: ChatLogItem[]) => [...c, { who: 'ai', text: '抱歉,服务暂时不可用。' }]);
+      setIsAIGenerated(false);  // 失败回执非 AIGC
     } finally {
       setChatBusy(false);
     }
   }, [text, chatBusy, chatLog]);
+
+  // 直接发送文本 (绕过 text state), 给 voice agent 用
+  const sendText = React.useCallback(async (v: string) => {
+    const t = v.trim()
+    if (!t || chatBusy) return
+    setChatBusy(true)
+    setChatLog((c: ChatLogItem[]) => [...c, { who: 'user', text: t }])
+    try {
+      const r = await fetch('/api/avatar/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: t,
+          agentId,
+          history: chatLog.map((m) => ({ role: m.who === 'user' ? 'user' : 'assistant', content: m.text })),
+        }),
+      })
+      let resp: ChatResp
+      if (r.ok) resp = await r.json()
+      else { resp = mockReply(t) }
+      setChatLog((c: ChatLogItem[]) => [...c, { who: 'ai', text: resp.text }])
+      setEmotion(resp.emotion)
+      setAction(resp.action)
+      setViseme({})
+      setIsAIGenerated(resp.isAIGenerated === true)  // AIGC 合规
+      visemeTimelineRef.current = resp.visemes || []
+      if (resp.audioUrl && audioRef.current) {
+        const a = audioRef.current
+        a.onplay = () => { visemeStartRef.current = performance.now(); visemeActiveRef.current = true }
+        a.onended = () => { visemeActiveRef.current = false; setViseme({}) }
+        a.src = resp.audioUrl
+        a.play().catch(() => { visemeStartRef.current = performance.now(); visemeActiveRef.current = true })
+      } else {
+        visemeStartRef.current = performance.now()
+        visemeActiveRef.current = true
+      }
+    } catch (err) {
+      setChatLog((c: ChatLogItem[]) => [...c, { who: 'ai', text: '抱歉,服务暂时不可用。' }])
+      setIsAIGenerated(false)
+    } finally {
+      setChatBusy(false)
+    }
+  }, [chatBusy, chatLog])
 
   // 3. viseme 驱动 rAF
   React.useEffect(() => {
@@ -335,16 +395,19 @@ export function useChatAvatar(): ChatAvatarState {
       setEmotion(resp.emotion);
       setAction(resp.action);
       setViseme({});
+      setIsAIGenerated(resp.isAIGenerated === true);  // AIGC 合规
       visemeTimelineRef.current = resp.visemes || [];
       if (resp.audioUrl && audioRef.current) {
         const a = audioRef.current;
         a.onplay = () => {
           visemeStartRef.current = performance.now();
           visemeActiveRef.current = true;
+          setIsAvatarPlaying(true);   // 通知 voice agent: 数字人在说话, VAD 段丢弃
         };
         a.onended = () => {
           visemeActiveRef.current = false;
           setViseme({});
+          setIsAvatarPlaying(false);  // 数字人说完了
         };
         a.src = resp.audioUrl;
         a.play().catch(() => {
@@ -361,6 +424,31 @@ export function useChatAvatar(): ChatAvatarState {
   const chatBusyRef = React.useRef(chatBusy);
   chatBusyRef.current = chatBusy;
 
+  // 打断: 停 audio, 清 viseme 状态
+  // voice agent 在数字人说话时检测到唤醒词会调这个
+  const cancel = React.useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+    }
+    visemeActiveRef.current = false
+    setViseme({})
+    setIsAvatarPlaying(false)   // 同步标记
+    setChatBusy(false)
+  }, [])
+
+  // 数字人是否在说话: 用于 voice agent 决定 VAD 段是否要丢
+  // (数字人自己的音频会被 VAD 捕获, 不当作用户命令)
+  const [isAvatarPlaying, setIsAvatarPlaying] = React.useState(false)
+
+  // 是否在说话: 用于 voice agent 决定是否触发打断
+  const isSpeaking = React.useCallback(() => {
+    if (isAvatarPlaying) return true   // LLM 处理中 / 音频播放中
+    const a = audioRef.current
+    if (!a) return false
+    return !a.paused && a.currentTime > 0 && !a.ended
+  }, [isAvatarPlaying])
+
   return {
     text,
     setText,
@@ -369,11 +457,15 @@ export function useChatAvatar(): ChatAvatarState {
     emotion,
     viseme,
     action,
+    isAIGenerated,
     send,
+    sendText,
     audioRef,
     recording,
     recordingError,
     toggleRecording,
+    cancel,
+    isSpeaking,
   };
 }
 
