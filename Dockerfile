@@ -2,7 +2,8 @@
 FROM docker.io/library/node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+# --legacy-peer-deps 兜底: 防止 peer dep 冲突(如 three-vrm 与 three 主版本不一致)
+RUN npm ci --legacy-peer-deps
 
 # ===== builder:构建 standalone 产物 =====
 FROM docker.io/library/node:22-alpine AS builder
