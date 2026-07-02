@@ -334,13 +334,6 @@ export default function FloatingDigitalHuman() {
                 return newVal
               })
             }}
-            // 双击 mic = 强制进 recording 状态 (绕过 VAD, 调试用)
-            onDoubleClick={(e) => {
-              e.stopPropagation()
-              e.preventDefault()
-              console.log('[voice] DEBUG: 强制进 recording (绕过 VAD)')
-              voice.start()
-            }}
             sx={{
               bgcolor: voiceEnabled ? '#a855f7' : (t) => alpha(t.palette.common.white, 0.1),
               color: voiceEnabled ? 'white' : 'rgba(255,255,255,0.7)',
