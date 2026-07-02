@@ -6,6 +6,7 @@ export type Intent =
   | { type: 'chat'; text: string; agentId: string }       // 普通对话
   | { type: 'navigate'; path: string; label?: string }
   | { type: 'open_external'; url: string; label?: string; mode?: 'iframe' | 'newtab' }  // 弹窗/新标签显示外部 URL
+  | { type: 'walk_to'; target: 'sidebar' | 'header' | 'footer' | 'center' | 'cursor' | { x: number; y: number }; durationMs?: number }  // 数字人走到页面上某处
   | { type: 'delegate'; agentId: string; task: string; taskId?: string }
   | { type: 'switch'; agentId: string }                   // 切换当前对话角色
   | { type: 'return' }                                    // 返回上一个角色

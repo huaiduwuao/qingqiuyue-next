@@ -67,6 +67,37 @@ export async function executeIntent(intent: Intent, opts: ExecutorOptions): Prom
         }
         return { ok: true, message: `opened ${intent.url}` }
 
+      case 'walk_to':
+        if (typeof window !== 'undefined') {
+          // 把语义 target 转成屏幕坐标
+          let target: { x: number; y: number }
+          const w = window.innerWidth
+          const h = window.innerHeight
+          const FW = 320  // 浮窗宽
+          const FH = 520  // 浮窗高
+          if (intent.target === 'cursor') {
+            target = { x: Math.max(0, w - FW - 20), y: Math.max(0, h - FH - 20) }
+          } else if (intent.target === 'sidebar') {
+            target = { x: 0, y: (h - FH) / 2 }  // 屏幕最左
+          } else if (intent.target === 'header') {
+            target = { x: (w - FW) / 2, y: 0 }  // 屏幕最上
+          } else if (intent.target === 'footer') {
+            target = { x: (w - FW) / 2, y: h - FH }  // 屏幕最下
+          } else if (intent.target === 'center') {
+            target = { x: (w - FW) / 2, y: (h - FH) / 2 }  // 屏幕正中央
+          } else if (typeof intent.target === 'object') {
+            target = { x: intent.target.x, y: intent.target.y }
+          } else {
+            target = { x: (w - FW) / 2, y: (h - FH) / 2 }
+          }
+          // 调 FloatingDigitalHuman 暴露的 walkTo
+          const walkTo = (window as any).__qingqiuyueWalkTo as ((t: any, d?: number) => void) | undefined
+          if (walkTo) walkTo({ left: target.x, top: target.y }, intent.durationMs || 1500)
+          // 走路时也播 walk 动作 + 回来后 idle
+          window.dispatchEvent(new CustomEvent('digital-human-walk', { detail: { target: intent.target } }))
+        }
+        return { ok: true, message: `walking to ${typeof intent.target === 'string' ? intent.target : 'position'}` }
+
       case 'switch': {
         sessionManager.switchAgent(opts.conversationId, intent.agentId)
         return { ok: true, message: `switched to ${intent.agentId}`, data: { agentId: intent.agentId } }

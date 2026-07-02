@@ -45,10 +45,20 @@ export default function FloatingDigitalHuman() {
 
   const wrapRef = React.useRef<HTMLDivElement>(null);
   const dragRef = React.useRef({ active: false, sx: 0, sy: 0, ox: 0, oy: 0 });
-  const [pos, setPos] = React.useState<{ right: number; bottom: number }>({ right: 24, bottom: 24 });
+  // 位置: 用 left/top + transform: translate() 做 GPU 加速动画
+  // 数字人"在页面上走": 走的过程 transform 平滑过渡
+  const [pos, setPos] = React.useState<{ left: number; top: number }>({ left: 0, top: 0 });
   const [open, setOpen] = React.useState(true);
   const [autoRotate, setAutoRotate] = React.useState(false);  // 默认不自动转圈, 数字人有自己的 idle 动画
   const [text, setText] = React.useState('');
+
+  // 初始化位置: 右下角 (CSS 用 right/bottom 转为 left/top 计算)
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return
+    const w = window.innerWidth, h = window.innerHeight
+    // 默认 320x520 浮窗, 放右下角
+    setPos({ left: Math.max(0, w - 320 - 24), top: Math.max(0, h - 520 - 24) })
+  }, [])
 
   const app = useApp();
   const { activeAgentId, agentStack, setActiveAgent, popAgent } = app;
@@ -126,7 +136,7 @@ export default function FloatingDigitalHuman() {
         }
         return
       }
-      if (intent.type === 'delegate' || intent.type === 'navigate' || intent.type === 'open_external' || intent.type === 'system' || intent.type === 'cron' || intent.type === 'query') {
+      if (intent.type === 'delegate' || intent.type === 'navigate' || intent.type === 'open_external' || intent.type === 'walk_to' || intent.type === 'system' || intent.type === 'cron' || intent.type === 'query') {
         const res = await executeIntent(intent, { conversationId })
         chat.setText(replyText || res.message)
         return
@@ -162,6 +172,17 @@ export default function FloatingDigitalHuman() {
     return () => window.removeEventListener('digital-human-open-external', onOpen)
   }, [])
 
+  // 走路时播 walk 动作, 走完回 idle
+  React.useEffect(() => {
+    const onWalk = () => {
+      chat.setAction('walk')
+      setTimeout(() => chat.setAction('idle'), 1800)
+    }
+    window.addEventListener('digital-human-walk', onWalk)
+    return () => window.removeEventListener('digital-human-walk', onWalk)
+  }, [chat])
+
+  // 拖动 offset (从当前 left/top 算)
   const onDown = React.useCallback((e: React.PointerEvent) => {
     const target = e.target as HTMLElement;
     if (target.closest('[data-no-drag]')) return;
@@ -169,24 +190,51 @@ export default function FloatingDigitalHuman() {
       active: true,
       sx: e.clientX,
       sy: e.clientY,
-      ox: pos.right,
-      oy: pos.bottom,
+      ox: pos.left,
+      oy: pos.top,
     };
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
     setAutoRotate(false);
-  }, [pos.right, pos.bottom]);
+  }, [pos.left, pos.top]);
   const onMove = React.useCallback((e: React.PointerEvent) => {
     const d = dragRef.current;
     if (!d.active) return;
     setPos({
-      right: Math.max(0, d.ox + (d.sx - e.clientX)),
-      bottom: Math.max(0, d.oy + (d.sy - e.clientY)),
+      left: Math.max(0, d.ox + (e.clientX - d.sx)),
+      top: Math.max(0, d.oy + (e.clientY - d.sy)),
     });
   }, []);
   const onUp = React.useCallback(() => {
     dragRef.current.active = false;
-    // 不恢复 autoRotate — 数字人有自己的 idle 动画, 用户拖完保持静止
   }, []);
+
+  // 数字人"走路": 平滑移动到目标坐标
+  // duration 默认 1500ms(像正常步速走 200-400px)
+  const walkTo = React.useCallback((target: { left: number; top: number }, durationMs = 1500) => {
+    if (typeof window === 'undefined') return
+    const w = window.innerWidth, h = window.innerHeight
+    const maxLeft = Math.max(0, w - 320)  // 浮窗宽 320
+    const maxTop = Math.max(0, h - 520)   // 浮窗高 520
+    const clamped = {
+      left: Math.max(0, Math.min(maxLeft, target.left)),
+      top: Math.max(0, Math.min(maxTop, target.top)),
+    }
+    // 触发动画: 设 CSS transition 后修改位置
+    if (wrapRef.current) {
+      wrapRef.current.style.transition = `left ${durationMs}ms ease-in-out, top ${durationMs}ms ease-in-out`
+    }
+    setPos(clamped)
+    // 清除 transition(动画完后)
+    setTimeout(() => {
+      if (wrapRef.current) wrapRef.current.style.transition = ''
+    }, durationMs + 50)
+  }, [])
+
+  // 暴露 walkTo 到 window (executor 派事件时调)
+  React.useEffect(() => {
+    (window as any).__qingqiuyueWalkTo = walkTo
+    return () => { delete (window as any).__qingqiuyueWalkTo }
+  }, [walkTo])
 
   // ⚠️ 所有 hooks 必须在 early return 前调用 (React Rules of Hooks)
 
@@ -197,8 +245,9 @@ export default function FloatingDigitalHuman() {
       ref={wrapRef}
       sx={{
         position: 'fixed',
-        right: `${pos.right}px`,
-        bottom: `${pos.bottom}px`,
+        left: `${pos.left}px`,
+        top: `${pos.top}px`,
+        // transition 在 walkTo() 里动态设(平滑动画), 这里默认无
         width: FIG_W,
         height: FIG_H,
         borderRadius: 3,

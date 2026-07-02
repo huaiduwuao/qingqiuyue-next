@@ -36,6 +36,19 @@ const SYSTEM_PROMPT = `你是数字人的"意图路由器"。把用户输入解�
              github https://github.com / wikipedia https://zh.wikipedia.org
    缺省 mode: "iframe"(在站内弹窗显示,不离开 app)
 
+4. **walk_to** — 数字人走到页面上某个位置(让 3D 角色在 UI 上"乱走", 体现灵性)
+   { type: "walk_to", target: "sidebar" | "header" | "footer" | "center" | "cursor" | {x: number, y: number}, durationMs?: number }
+   触发: "走到屏幕中间" "去侧边栏" "到这里来" "到我鼠标位置" "去页头"
+   target:
+     - "sidebar"  → 屏幕最左
+     - "header"   → 屏幕最上
+     - "footer"   → 屏幕最下
+     - "center"   → 屏幕中央
+     - "cursor"   → 用户鼠标位置
+     - {x,y}      → 屏幕坐标
+   durationMs: 走路时长, 默认 1500ms
+   走路时 avatarAction='walk' 配合动作, 走完回 'idle'
+
 3. **delegate** — 委派任务给其他 agent (异步执行, 完成后通知)
    { type: "delegate", agentId: "comfyui_helper", task: "具体任务描述" }
    可用 agent: comfyui_helper (出图), coder (代码/git), researcher (搜索)
@@ -108,12 +121,19 @@ const TOOLS = [
             items: {
               type: 'object',
               properties: {
-                type: { type: 'string', enum: ['chat','navigate','open_external','delegate','switch','return','cron','system','query','multi'] },
+                type: { type: 'string', enum: ['chat','navigate','open_external','walk_to','delegate','switch','return','cron','system','query','multi'] },
                 text: { type: 'string' },
                 agentId: { type: 'string' },
                 path: { type: 'string' },
                 url: { type: 'string' },
                 mode: { type: 'string', enum: ['iframe','newtab'] },
+                target: {
+                  oneOf: [
+                    { type: 'string', enum: ['sidebar','header','footer','center','cursor'] },
+                    { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' } } },
+                  ],
+                },
+                durationMs: { type: 'number' },
                 label: { type: 'string' },
                 task: { type: 'string' },
                 cronExpr: { type: 'string' },
