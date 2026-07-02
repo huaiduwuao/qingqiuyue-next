@@ -153,7 +153,7 @@ export default function ModerationReportsPage() {
               records: res.data?.records || [],
               totalRow: res.data?.totalRow || 0,
             },
-            success: res.success ?? true,
+            success: res.status >= 200 && res.status < 300,
           };
         }}
         filters={{

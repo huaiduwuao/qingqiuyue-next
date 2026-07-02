@@ -120,7 +120,7 @@ export default function ModerationSensitiveWordsPage() {
               records: res.data?.list || [],
               totalRow: res.data?.total || 0,
             },
-            success: res.success ?? true,
+            success: res.status >= 200 && res.status < 300,
           };
         }}
         onDelete={canDelete ? handleDelete : undefined}
