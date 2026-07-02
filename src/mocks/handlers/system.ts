@@ -20,7 +20,6 @@ import {
   SYS_PROVINCE,
   SYS_CITY,
   SYS_STREET,
-  SYS_AREA,
   SYS_WEBSITE_DICT,
   NOTICE_LIST,
   USER_CONTACT,
@@ -46,7 +45,7 @@ export const systemHandlers = [
   // ─── user ───
   http.get('*/api/core/user/page', () => okPage(SYS_USER.records, SYS_USER.totalRow)),
   http.get(/\/api\/admin\/user\/\d+$/, ({ params }) => {
-    const id = Number((params as any)[0]);
+    const id = Number((params as Record<string, string[]>)[0]);
     return ok(SYS_USER.records.find((u) => u.id === id) || SYS_USER.records[0]);
   }),
   http.get('*/api/core/user/list', () => okList(SYS_USER.records, SYS_USER.totalRow)),
@@ -350,6 +349,41 @@ export const systemHandlers = [
   http.post('*/api/core/msg/session/unfollow', () => ok({ unfollowed: true })),
   http.post('*/api/core/msg/session/read', () => ok({ read: true })),
   http.delete(/\/api\/admin\/msg\/session\/removeByIds.*/, () => ok({ removed: 1 })),
-  http.post('*/api/core/msg/message/recall', () => ok({ recalled: true })),
-  http.post('*/api/core/msg/upload', () => ok({ url: 'https://picsum.photos/seed/dm-up/240/180', filename: 'image.jpg' })),
+  // ─── moderation ───
+  http.get('*/api/core/moderation/sensitive-words', () =>
+    ok([
+      { id: 1, word: '赌博', level: 2, category: 'illegal', status: 'active', createdAt: '2026-01-01T00:00:00Z' },
+      { id: 2, word: '色情', level: 2, category: 'porn', status: 'active', createdAt: '2026-01-01T00:00:00Z' },
+      { id: 3, word: '淫秽', level: 2, category: 'porn', status: 'active', createdAt: '2026-01-01T00:00:00Z' },
+      { id: 4, word: '暴力', level: 1, category: 'violence', status: 'active', createdAt: '2026-01-01T00:00:00Z' },
+      { id: 5, word: '自杀', level: 1, category: 'danger', status: 'active', createdAt: '2026-01-01T00:00:00Z' },
+    ]),
+  ),
+  http.post('*/api/core/moderation/sensitive-words', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
+  http.delete(/\/api\/core\/moderation\/sensitive-words\/\d+/, () => ok({ deleted: 1 })),
+  http.get('*/api/core/moderation/reports', ({ request }) => {
+    const url = new URL(request.url);
+    const status = url.searchParams.get('status') || '';
+    const allReports = [
+      { id: 1, reporterId: 100, targetType: 'chat', targetId: 1, reason: '发布不当言论', status: 'pending', createdAt: '2026-06-01T10:00:00Z' },
+      { id: 2, reporterId: 101, targetType: 'video', targetId: 2, reason: '涉及色情内容', status: 'resolved', reviewerId: 1, reviewNote: '确认违规，已下架', reviewedAt: '2026-06-02T10:00:00Z', createdAt: '2026-06-01T11:00:00Z' },
+      { id: 3, reporterId: 102, targetType: 'image', targetId: 3, reason: '暴力血腥', status: 'rejected', reviewerId: 1, reviewNote: '经核实不违规', reviewedAt: '2026-06-02T12:00:00Z', createdAt: '2026-06-01T12:00:00Z' },
+      { id: 4, reporterId: 103, targetType: 'user', targetId: 4, reason: '头像含低俗内容', status: 'pending', createdAt: '2026-06-03T09:00:00Z' },
+    ];
+    const filtered = status ? allReports.filter((r) => r.status === status) : allReports;
+    return okPage(filtered, filtered.length);
+  }),
+  http.post(/\/api\/core\/moderation\/reports\/\d+\/review/, () => ok({ reviewed: true })),
+  http.post('*/api/core/moderation/check-media', async ({ request }) => {
+    const body = (await request.json().catch(() => ({}))) as { url?: string };
+    const lower = (body.url || '').toLowerCase();
+    const hit = ['adult', 'porn', 'sex', 'violence', 'blood', 'terror'].some((kw) => lower.includes(kw));
+    return ok({
+      passed: !hit,
+      riskLevel: hit ? 3 : 0,
+      categories: hit ? ['porn'] : [],
+      confidence: hit ? 0.92 : 0,
+      reason: hit ? '命中模拟风险内容' : '',
+    });
+  }),
 ];

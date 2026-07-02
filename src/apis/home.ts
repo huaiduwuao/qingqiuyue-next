@@ -1,7 +1,7 @@
 import { contentClient, rewardClient } from '@/lib/api/client';
 
 // File upload - POST /api/content/file/upload
-export async function fileUpload(params: any) {
+export async function fileUpload(params: Record<string, unknown>) {
   return contentClient("/file/upload", {
     method: "POST",
     data: params
@@ -19,7 +19,7 @@ export async function moduleContentPage(params?: any) {
 }
 
 // 模块内容操作(点赞等) - POST /api/content/module/content/action
-export async function moduleContentAction(params: any) {
+export async function moduleContentAction(params: Record<string, unknown>) {
   return contentClient("/module/content/action", {
     method: "POST",
     data: params
@@ -32,7 +32,7 @@ export async function getComments(contentId: number, params?: any) {
 }
 
 // 发送评论 - POST /api/content/module/content/comment
-export async function sendComment(params: any) {
+export async function sendComment(params: Record<string, unknown>) {
   return contentClient("/module/content/comment", {
     method: "POST",
     data: params
@@ -92,7 +92,7 @@ export async function topKeywordInThirdMonth(params?: any) {
 // ========== Global/Other APIs ==========
 
 // QA详情 - POST /api/content/question/qa
-export async function qaDetail(params: any) {
+export async function qaDetail(params: Record<string, unknown>) {
   return contentClient("/question/qa", {
     method: "POST",
     data: params

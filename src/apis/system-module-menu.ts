@@ -14,7 +14,7 @@ export interface ModuleMenuInfo {
 }
 
 // 分页获取模块菜单
-export async function page(params: any) {
+export async function page(params: Record<string, unknown>) {
   return contentClient("/module/menu/client/page", {
     params
   });
@@ -36,14 +36,14 @@ export async function remove(ids: any) {
 }
 
 // 列表
-export async function list(params: any) {
+export async function list(params: Record<string, unknown>) {
   return contentClient("/module/menu/client/list", {
     params
   });
 }
 
 // 保存
-export async function save(params: any) {
+export async function save(params: Record<string, unknown>) {
   return contentClient("/module/menu/save", {
     method: "POST",
     data: params
@@ -51,7 +51,7 @@ export async function save(params: any) {
 }
 
 // 更新
-export async function update(params: any) {
+export async function update(params: Record<string, unknown>) {
   return contentClient("/module/menu/updateById", {
     method: "POST",
     data: params

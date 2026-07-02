@@ -3,7 +3,7 @@
  */
 
 import { http, HttpResponse } from 'msw';
-import { WX_MENU, WX_USER, WX_MSG, WX_AUTO_REPLY, WX_MSG_REPLY_PRESETS } from '../db/wx';
+import { WX_MENU, WX_USER, WX_MSG, WX_AUTO_REPLY } from '../db/wx';
 
 const ok = <T,>(data: T) => HttpResponse.json({ code: 200, msg: 'OK', data });
 const okPage = <T,>(records: T[], totalRow: number) => ok({ records, totalRow, page: 1, pageSize: 20 });

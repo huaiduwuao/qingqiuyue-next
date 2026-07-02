@@ -2,12 +2,12 @@ import { adminClient } from '@/lib/api/client';
 import {DictDataItem} from "@/beans/system";
 
 // -> 后端 GET /dict/data/list
-export async function list(params: any) {
+export async function list(params: Record<string, unknown>) {
   return adminClient('/dict/data/list', { params });
 }
 
 // 字典数据分页 -> 后端 GET /dict/data/list (分页别名由 client 拦截器统一处理)
-export async function page(params: any) {
+export async function page(params: Record<string, unknown>) {
   return adminClient('/dict/data/list', { params });
 }
 
@@ -24,11 +24,11 @@ export async function save(params: DictDataItem) {
 
 // 更新 -> 后端 PUT /dict/data/:id
 export async function update(params: DictDataItem) {
-  return adminClient(`/dict/data/${(params as any).id}`, { method: 'PUT', data: params });
+  return adminClient(`/dict/data/${params.id}`, { method: 'PUT', data: params });
 }
 
 // 字典类型列表 -> 后端 GET /dict/type/list
-export async function typeList(params: any) {
+export async function typeList(params: Record<string, unknown>) {
   return adminClient('/dict/type/list', { params });
 }
 

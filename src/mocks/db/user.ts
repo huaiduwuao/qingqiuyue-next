@@ -68,6 +68,11 @@ export const CURRENT_USER = {
     'system:address:create',
     'system:address:update',
     'system:address:delete',
+    'system:moderation:report:list',
+    'system:moderation:report:review',
+    'system:moderation:sensitive-word:list',
+    'system:moderation:sensitive-word:create',
+    'system:moderation:sensitive-word:delete',
   ],
 };
 

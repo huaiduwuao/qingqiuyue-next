@@ -28,11 +28,11 @@ export async function get(id: number) {
   return adminClient(`/bot/${id}`);
 }
 
-export async function save(params: any) {
+export async function save(params: Record<string, unknown>) {
   return adminClient('/bot', { method: 'POST', data: params });
 }
 
-export async function update(params: any) {
+export async function update(params: Record<string, unknown>) {
   return adminClient(`/bot/${params.id}`, { method: 'PUT', data: params });
 }
 

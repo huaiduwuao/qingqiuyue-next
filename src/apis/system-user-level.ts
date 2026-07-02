@@ -21,14 +21,14 @@ export async function remove(ids: number[]) {
   });
 }
 
-export async function save(params: any) {
+export async function save(params: Record<string, unknown>) {
   return adminClient("/userLevel/save", {
     method: "POST",
     data: params
   });
 }
 
-export async function update(params: any) {
+export async function update(params: Record<string, unknown>) {
   return adminClient("/userLevel/updateById", {
     method: "POST",
     data: params

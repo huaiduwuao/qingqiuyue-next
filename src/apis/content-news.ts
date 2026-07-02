@@ -1,13 +1,13 @@
 import { contentClient } from '@/lib/api/client';
 import {ArticleItem} from "@/beans/content";
 
-export async function page(params: any) {
+export async function page(params: Record<string, unknown>) {
   return contentClient("client-content/news/page", {
     params
   });
 }
 
-export async function process(params: any) {
+export async function process(params: Record<string, unknown>) {
   return contentClient("client-content/news/process", {
     method: "POST",
     data: params

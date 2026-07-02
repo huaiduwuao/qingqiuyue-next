@@ -37,5 +37,5 @@ export async function save(params: AppItem) {
 
 // 更新 -> 后端 PUT /app/config/:id
 export async function update(params: AppItem) {
-  return adminClient(`/app/config/${(params as any).id}`, { method: 'PUT', data: params });
+  return adminClient(`/app/config/${params.id}`, { method: 'PUT', data: params });
 }

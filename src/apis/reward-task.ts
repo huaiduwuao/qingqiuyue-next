@@ -39,28 +39,28 @@ export async function listTasks(params: TaskQuery = {}) {
   return rewardClient<{ code: number; msg: string; data: TaskPageResp }>(
     '/task/page',
     { method: 'GET', params },
-  ) as any;
+  ) as unknown;
 }
 
 export async function getTask(id: number) {
   return rewardClient<{ code: number; msg: string; data: RewardTask }>(
     `/task/${id}`,
     { method: 'GET' },
-  ) as any;
+  ) as unknown;
 }
 
 export async function createTask(data: Partial<RewardTask>) {
   return rewardClient<{ code: number; msg: string; data: RewardTask }>(
     '/task',
     { method: 'POST', data },
-  ) as any;
+  ) as unknown;
 }
 
 export async function updateTask(id: number, data: Partial<RewardTask>) {
   return rewardClient<{ code: number; msg: string; data: RewardTask }>(
     `/task/${id}`,
     { method: 'PUT', data },
-  ) as any;
+  ) as unknown;
 }
 
 export async function deleteTask(id: number) {

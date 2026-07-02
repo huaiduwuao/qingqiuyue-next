@@ -36,12 +36,12 @@ export async function remove(ids: number[]) {
 }
 
 // 角色权限列表
-export async function listPermission(params: any) {
+export async function listPermission(params: Record<string, unknown>) {
   return adminClient(`/role/listPermission/${params.id}`, { params });
 }
 
 // 建议权限
-export async function suggestPermission(params: any) {
+export async function suggestPermission(params: Record<string, unknown>) {
   return adminClient("/role/suggestPermission", { params });
 }
 
@@ -54,7 +54,7 @@ export async function removePermission(ids?: number[]) {
 }
 
 // 添加权限 -> 后端 POST /role/:id/permissions (整体赋权)
-export async function permissionAdd(params: any) {
+export async function permissionAdd(params: Record<string, unknown>) {
   return adminClient(`/role/${params.roleId ?? params.id}/permissions`, {
     method: 'POST',
     data: params,
@@ -62,12 +62,12 @@ export async function permissionAdd(params: any) {
 }
 
 // 数据权限列表
-export async function listDataPermission(params: any) {
+export async function listDataPermission(params: Record<string, unknown>) {
   return adminClient(`/role/listDataPermission/${params.id}`, { params });
 }
 
 // 建议数据权限
-export async function suggestDataPermission(params: any) {
+export async function suggestDataPermission(params: Record<string, unknown>) {
   return adminClient("/role/suggestDataPermission", { params });
 }
 
@@ -80,7 +80,7 @@ export async function removeDataPermission(ids?: number[]) {
 }
 
 // 添加数据权限 -> 后端 POST /role/:id/data-permissions
-export async function dataPermissionAdd(params: any) {
+export async function dataPermissionAdd(params: Record<string, unknown>) {
   return adminClient(`/role/${params.roleId ?? params.id}/data-permissions`, {
     method: 'POST',
     data: params,
@@ -88,17 +88,17 @@ export async function dataPermissionAdd(params: any) {
 }
 
 // 保存角色 -> 后端 POST /role
-export async function save(params: any) {
+export async function save(params: Record<string, unknown>) {
   return adminClient('/role', { method: 'POST', data: params });
 }
 
 // 更新角色 -> 后端 PUT /role/:id
-export async function update(params: any) {
+export async function update(params: Record<string, unknown>) {
   return adminClient(`/role/${params.id}`, { method: 'PUT', data: params });
 }
 
 // 菜单变更
-export async function menuChange(params: any) {
+export async function menuChange(params: Record<string, unknown>) {
   return adminClient("/role/menuChange", {
     method: "POST",
     data: params
@@ -106,12 +106,12 @@ export async function menuChange(params: any) {
 }
 
 // 角色用户列表
-export async function listUser(params: any) {
+export async function listUser(params: Record<string, unknown>) {
   return adminClient(`/role/listUser/${params.id}`, { params });
 }
 
 // 建议用户
-export async function suggestUser(params: any) {
+export async function suggestUser(params: Record<string, unknown>) {
   return adminClient("/role/suggestUser", { params });
 }
 
@@ -124,7 +124,7 @@ export async function removeUser(ids?: number[]) {
 }
 
 // 添加用户
-export async function userAdd(params: any) {
+export async function userAdd(params: Record<string, unknown>) {
   return adminClient("/role/userAdd", {
     method: "POST",
     data: params

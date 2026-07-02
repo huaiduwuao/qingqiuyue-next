@@ -2,7 +2,7 @@
  * /api/avatar/asr —— 语音转文字
  *
  * 输入:audio/webm(浏览器 MediaRecorder 格式)或 audio/wav
- * 流程:优先打 xinference /v1/audio/transcriptions(Whisper-large-v3),
+ * 流程:优先打 gateway /v1/audio/transcriptions(Qwen3-ASR 本地容器经 gateway 包装),
  * 失败 → OpenAI 兼容,最终 → 返回空 + 错误
  *
  * 输出:{ text, language } 或 { error }
@@ -13,8 +13,10 @@ import { NextRequest, NextResponse } from 'next/server';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const XINFERENCE_BASE = process.env.NEXT_PUBLIC_OPENAI_BASE_URL || 'http://127.0.0.1:9997/v1';
-const ASR_MODEL = process.env.XINFERENCE_ASR_MODEL || 'whisper-large-v3';
+// Gateway 配置: 本地 Qwen3 容器经 audio-gateway 包装成 OpenAI 兼容
+// gateway 默认在 host 网络下监听 8001; 这里走 /v1 前缀
+const GATEWAY_BASE = process.env.AUDIO_GATEWAY_BASE_URL || 'http://127.0.0.1:8001/v1';
+const ASR_MODEL = 'qwen3-asr-0.6b';
 
 export async function POST(req: NextRequest) {
   let buf: ArrayBuffer | null = null;
@@ -45,16 +47,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'audio too large (50MB max)' }, { status: 413 });
   }
 
-  // 1) 试 xinference /v1/audio/transcriptions(OpenAI 兼容 Whisper)
+  // 1) 试 audio-gateway /v1/audio/transcriptions(本地 Qwen3-ASR, OpenAI 兼容)
   try {
-    const xinfBase = XINFERENCE_BASE.replace(/\/v1$/, '');
-    const xinfUrl = `${xinfBase}/v1/audio/transcriptions`;
     const fd = new FormData();
     fd.append('file', new Blob([buf], { type: contentType }), filename);
     fd.append('model', ASR_MODEL);
     fd.append('language', 'zh');
     fd.append('response_format', 'json');
-    const r = await fetch(xinfUrl, { method: 'POST', body: fd, signal: AbortSignal.timeout(30000) });
+    const r = await fetch(`${GATEWAY_BASE}/audio/transcriptions`, {
+      method: 'POST',
+      body: fd,
+      signal: AbortSignal.timeout(30000),
+    });
     if (r.ok) {
       const j = await r.json();
       const text = String(j.text || '').trim();
@@ -62,13 +66,13 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ text, language: j.language || 'zh' });
       }
     } else {
-      console.warn(`[asr] xinference 返 ${r.status}:`, await r.text().catch(() => ''));
+      console.warn(`[asr] gateway 返 ${r.status}:`, await r.text().catch(() => ''));
     }
   } catch (e) {
-    console.warn('[asr] xinference 失败:', (e as Error).message);
+    console.warn('[asr] gateway 失败:', (e as Error).message);
   }
 
-  // 2) 试 OpenAI 兼容(其他 base)
+  // 2) 试 OpenAI 兼容云 API(回退方案,需 OPENAI_API_KEY)
   if (process.env.OPENAI_API_KEY) {
     try {
       const fd = new FormData();
@@ -91,9 +95,9 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 3) 全部失败 → 提示用户检查 xinference 模型
+  // 3) 全部失败 → 提示启动 gateway
   return NextResponse.json({
     error: 'ASR failed',
-    msg: `没 ASR 模型可用。先在 xinference 跑: curl -X GET 'http://127.0.0.1:9997/v1/models/launch?model_name=whisper-large-v3&model_type=audio'`,
+    msg: `没 ASR 服务可用。先在 qingqiuyue-go/docker/ 跑: podman-compose -f docker-compose-model.yml up -d asr gateway`,
   }, { status: 502 });
 }

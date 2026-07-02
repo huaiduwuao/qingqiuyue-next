@@ -15,6 +15,10 @@ interface AppState {
   kfTalkShow: boolean;
   contactTalkShow: boolean;
   kfSingleShow: boolean;
+  // 多角色会话状态
+  activeAgentId: string | null;
+  activeConversationId: string | null;
+  agentStack: string[];
 }
 
 interface AppContextValue extends AppState {
@@ -28,6 +32,12 @@ interface AppContextValue extends AppState {
   setKfTalkShow: (show: boolean) => void;
   setContactTalkShow: (show: boolean) => void;
   setKfSingleShow: (show: boolean) => void;
+  // 多角色操作
+  setActiveAgent: (agentId: string | null) => void;
+  setActiveConversation: (conversationId: string | null) => void;
+  pushAgent: (agentId: string) => void;
+  popAgent: () => string | null;
+  clearAgentStack: () => void;
 }
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
@@ -43,6 +53,48 @@ export function AppContextProvider({ children }: { children: React.ReactNode }) 
   const [kfTalkShow, setKfTalkShow] = useState(false);
   const [contactTalkShow, setContactTalkShow] = useState(false);
   const [kfSingleShow, setKfSingleShow] = useState(false);
+  const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [agentStack, setAgentStack] = useState<string[]>([]);
+
+  const setActiveAgent = useCallback((agentId: string | null) => {
+    setActiveAgentId(agentId);
+    if (agentId) {
+      setAgentStack((prev) => (prev.includes(agentId) ? prev : [...prev, agentId]));
+    }
+  }, []);
+
+  const setActiveConversation = useCallback((conversationId: string | null) => {
+    setActiveConversationId(conversationId);
+  }, []);
+
+  const pushAgent = useCallback((agentId: string) => {
+    setAgentStack((prev) => [...prev, agentId]);
+    setActiveAgentId(agentId);
+  }, []);
+
+  const popAgent = useCallback((): string | null => {
+    let popped: string | null = null;
+    setAgentStack((prev) => {
+      if (prev.length === 0) return prev;
+      const next = [...prev];
+      popped = next.pop() || null;
+      return next;
+    });
+    setActiveAgentId((current) => {
+      if (current === popped) {
+        const remaining = agentStack.filter((id) => id !== popped);
+        return remaining.at(-1) || null;
+      }
+      return current;
+    });
+    return popped;
+  }, [agentStack]);
+
+  const clearAgentStack = useCallback(() => {
+    setAgentStack([]);
+    setActiveAgentId(null);
+  }, []);
 
   const value: AppContextValue = {
     currentUser,
@@ -55,6 +107,9 @@ export function AppContextProvider({ children }: { children: React.ReactNode }) 
     kfTalkShow,
     contactTalkShow,
     kfSingleShow,
+    activeAgentId,
+    activeConversationId,
+    agentStack,
     setCurrentUser,
     setMenuData,
     setDict,
@@ -65,6 +120,11 @@ export function AppContextProvider({ children }: { children: React.ReactNode }) 
     setKfTalkShow,
     setContactTalkShow,
     setKfSingleShow,
+    setActiveAgent,
+    setActiveConversation,
+    pushAgent,
+    popAgent,
+    clearAgentStack,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

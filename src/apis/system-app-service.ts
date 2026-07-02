@@ -15,7 +15,7 @@ export async function page(params: AppServiceListParams) {
 }
 
 // ⚠️ 后端 app-service 未提供 listApp，保留走 mock。
-export async function appList(params: any) {
+export async function appList(params: Record<string, unknown>) {
   return adminClient('/app/service/listApp', { params });
 }
 
@@ -32,5 +32,5 @@ export async function save(params: AppServiceItem) {
 
 // 更新 -> 后端 PUT /app/service/:id
 export async function update(params: AppServiceItem) {
-  return adminClient(`/app/service/${(params as any).id}`, { method: 'PUT', data: params });
+  return adminClient(`/app/service/${params.id}`, { method: 'PUT', data: params });
 }

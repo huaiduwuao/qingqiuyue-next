@@ -10,13 +10,11 @@
 
 import { spawn, type ChildProcess } from 'child_process';
 import path from 'path';
-import { pipeline as streamPipeline } from 'stream/promises';
-import { createReadStream, createWriteStream } from 'fs';
-import { mkdir, stat, readdir } from 'fs/promises';
+import { mkdir } from 'fs/promises';
 import * as minio from './minio';
 import * as jobStore from './job-store';
 import { parseLine } from './parser';
-import type { StartJobRequest, PipelineStage, Artifact } from './types';
+import type { StartJobRequest, Artifact } from './types';
 
 const REPO_ROOT = process.cwd();
 const SCRIPT_PATH = path.join(REPO_ROOT, 'scripts', 'avatar-pipeline.sh');
@@ -45,7 +43,7 @@ export async function runJob(jobId: string, opts: StartJobRequest): Promise<RunR
     let videoStat: Awaited<ReturnType<typeof minio.statObject>>;
     try {
       videoStat = await minio.statObject(videoKey);
-    } catch (e) {
+    } catch {
       throw new Error(`input 视频不存在: ${videoKey}`);
     }
     if (!videoStat) {
@@ -145,8 +143,9 @@ export async function runJob(jobId: string, opts: StartJobRequest): Promise<RunR
         }
         jobStore.markCompleted(jobId);
         resolve({ ok: true, code, signal, artifacts: jobStore.getJob(jobId)?.artifacts || [] });
-      } catch (e: any) {
-        jobStore.markFailed(jobId, 'UPLOAD_FAILED', `上传产物到 MinIO 失败: ${e?.message || e}`);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        jobStore.markFailed(jobId, 'UPLOAD_FAILED', `上传产物到 MinIO 失败: ${msg}`);
         resolve({ ok: false, code, signal, artifacts: jobStore.getJob(jobId)?.artifacts || [], error: 'upload failed' });
       }
     });
@@ -163,16 +162,8 @@ export async function runJob(jobId: string, opts: StartJobRequest): Promise<RunR
 async function downloadMixamoDir(jobId: string, mixamoKey: string, workDir: string): Promise<string> {
   const localDir = path.join(workDir, 'mixamo');
   await mkdir(localDir, { recursive: true });
-  // 用 minio listObjectsV2
-  const c = (minio as any).getClient ? (minio as any).getClient() : null;
-  if (!c) throw new Error('minio client 未初始化');
-  const objects: string[] = [];
-  await new Promise<void>((resolve, reject) => {
-    const stream = c.listObjectsV2(minio.BUCKET, `${mixamoKey}/`, true);
-    stream.on('data', (o: any) => { if (o.name) objects.push(o.name); });
-    stream.on('end', () => resolve());
-    stream.on('error', reject);
-  });
+  // 用 minio listObjects
+  const objects = await minio.listObjects(`${mixamoKey}/`, true);
   for (const key of objects) {
     const rel = key.replace(`${mixamoKey}/`, '');
     const local = path.join(localDir, rel);

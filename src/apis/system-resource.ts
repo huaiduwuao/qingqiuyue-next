@@ -38,5 +38,5 @@ export async function save(params: ResourceItem) {
 
 // 更新资源 -> 后端 PUT /resource/:id
 export async function update(params: ResourceItem) {
-  return adminClient(`/resource/${(params as any).id}`, { method: 'PUT', data: params });
+  return adminClient(`/resource/${params.id}`, { method: 'PUT', data: params });
 }

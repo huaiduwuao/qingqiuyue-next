@@ -38,7 +38,7 @@ export async function getNotice(id: number) {
 }
 
 // 创建通知
-export async function createNotice(data: any) {
+export async function createNotice(data: unknown) {
   return adminClient<NoticeInfo>('/notice', {
     method: 'POST',
     data,
@@ -46,7 +46,7 @@ export async function createNotice(data: any) {
 }
 
 // 更新通知
-export async function updateNotice(id: number, data: any) {
+export async function updateNotice(id: number, data: unknown) {
   return adminClient<NoticeInfo>(`/notice/${id}`, {
     method: 'PUT',
     data,

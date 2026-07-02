@@ -33,7 +33,7 @@ export async function listGroupUsers(params?: GroupUserQuery) {
 }
 
 // 添加分组用户
-export async function createGroupUser(data: any) {
+export async function createGroupUser(data: unknown) {
   return rewardClient<GroupUserInfo>('/group-user', {
     method: 'POST',
     data,
@@ -41,7 +41,7 @@ export async function createGroupUser(data: any) {
 }
 
 // 更新分组用户
-export async function updateGroupUser(id: number, data: any) {
+export async function updateGroupUser(id: number, data: unknown) {
   return rewardClient<GroupUserInfo>(`/group-user/${id}`, {
     method: 'PUT',
     data,
@@ -56,7 +56,7 @@ export async function deleteGroupUser(id: number) {
 }
 
 // 邀请用户加入分组
-export async function inviteGroupUser(data: any) {
+export async function inviteGroupUser(data: unknown) {
   return rewardClient('/group-user/invite', {
     method: 'POST',
     data,
@@ -80,12 +80,12 @@ export const remove = (ids: number | number[]) => {
 };
 
 // Wrapper for save that accepts an object
-export const save = (data: any) => createGroupUser(data);
+export const save = (data: unknown) => createGroupUser(data);
 
 // Wrapper for update that accepts an object with id
-export const update = (data: any) => {
+export const update = (data: { id?: number; _id?: number } & Record<string, unknown>) => {
   if (data.id) {
-    return updateGroupUser(data.id, data);
+    return updateGroupUser(data.id, data as any);
   }
-  return updateGroupUser(data._id, data);
+  return updateGroupUser(data._id!, data as any);
 };

@@ -1,7 +1,7 @@
 import { contentClient } from '@/lib/api/client';
 import {NovelChapterItem} from "@/beans/content";
 
-export async function page(params: any) {
+export async function page(params: Record<string, unknown>) {
   return contentClient("client-content/novel-chapter/page", {
     params
   });
@@ -35,7 +35,7 @@ export async function update(params: NovelChapterItem) {
   });
 }
 
-export async function correctLastRead(params: any) {
+export async function correctLastRead(params: Record<string, unknown>) {
   return contentClient("client-content/novel-bookshelf/correctLastRead", {
     method: "POST",
     data: params
@@ -48,14 +48,14 @@ export async function get(params: NovelChapterItem) {
   });
 }
 
-export async function addShelf(params: any) {
+export async function addShelf(params: Record<string, unknown>) {
   return contentClient('client-content/novel-bookshelf/add', {
     method: "POST",
     data: params
   });
 }
 
-export async function getNovel(params: any) {
+export async function getNovel(params: Record<string, unknown>) {
   return contentClient(`client-content/novel/get`, {
     params
   });

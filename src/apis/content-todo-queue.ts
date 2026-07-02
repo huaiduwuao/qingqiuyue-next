@@ -1,12 +1,12 @@
 import { contentClient } from '@/lib/api/client';
 import {ArticleItem} from "@/beans/content";
 
-export async function process(params: any) {
+export async function process(params: Record<string, unknown>) {
   // 后端:/api/content/content/todoQueue/process (双 content)
   return contentClient("content/todoQueue/process", { method: "POST", data: params });
 }
 
-export async function page(params: any) {
+export async function page(params: Record<string, unknown>) {
   return contentClient("content/todoQueue/client/page", { params });
 }
 

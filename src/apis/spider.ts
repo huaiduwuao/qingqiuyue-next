@@ -1,16 +1,8 @@
 import type {
-  BatchJob,
-  BatchStats,
-  Worker,
-  WorkerStats,
-  SiteSlot,
-  SiteSlotStats,
-  CrawlTask,
-  CrawlTaskDetail,
+                CrawlTaskDetail,
   Proxy,
   ProxyStats,
-  TemplateAttr,
-  TemplateDetail,
+    TemplateDetail,
   AutoTemplateResult,
   CrawlStats,
   HealthStatus,
@@ -143,11 +135,11 @@ export async function deleteTask(id: string): Promise<any> {
   return spiderClient(`/tasks/${id}`, { method: 'DELETE' });
 }
 
-export async function getTaskItems(id: string): Promise<{ code: number; data: { list: any[]; total: number } }> {
+export async function getTaskItems(id: string): Promise<{ code: number; data: { list: unknown[]; total: number } }> {
   return spiderClient(`/tasks/${id}/items`, { method: 'GET' });
 }
 
-export async function getTaskLinks(id: string): Promise<{ code: number; data: { list: any[]; total: number } }> {
+export async function getTaskLinks(id: string): Promise<{ code: number; data: { list: unknown[]; total: number } }> {
   return spiderClient(`/tasks/${id}/links`, { method: 'GET' });
 }
 

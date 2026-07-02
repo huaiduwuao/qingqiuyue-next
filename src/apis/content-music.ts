@@ -53,7 +53,7 @@ export async function detail(contentType: ContentType, params: { id: number } | 
 }
 
 // 处理内容状态
-export async function process(contentType: ContentType, params: any) {
+export async function process(contentType: ContentType, params: Record<string, unknown>) {
   return contentClient(`client-content/${contentType}/process`, {
     method: 'POST',
     data: params,
@@ -61,7 +61,7 @@ export async function process(contentType: ContentType, params: any) {
 }
 
 // 保存或更新内容
-export async function saveOrUpdate(contentType: ContentType, params: any) {
+export async function saveOrUpdate(contentType: ContentType, params: Record<string, unknown>) {
   return contentClient(`client-content/${contentType}/saveOrUpdate`, {
     method: 'POST',
     data: params,
@@ -69,7 +69,7 @@ export async function saveOrUpdate(contentType: ContentType, params: any) {
 }
 
 // 更新并发布
-export async function updateAndPublish(contentType: ContentType, params: any) {
+export async function updateAndPublish(contentType: ContentType, params: Record<string, unknown>) {
   return contentClient(`client-content/${contentType}/updateAndPublish`, {
     method: 'POST',
     data: params,
@@ -83,6 +83,6 @@ export async function remove(contentType: ContentType, ids: number[]) {
 }
 
 // Aliases
-export const save = (contentType: ContentType, data: any) => saveOrUpdate(contentType, data);
-export const update = (contentType: ContentType, data: any) => saveOrUpdate(contentType, data);
+export const save = (contentType: ContentType, data: Record<string, unknown>) => saveOrUpdate(contentType, data);
+export const update = (contentType: ContentType, data: Record<string, unknown>) => saveOrUpdate(contentType, data);
 export const myPage = (contentType: ContentType, params: ContentPageParams) => page(contentType, params);

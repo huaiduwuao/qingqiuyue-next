@@ -61,12 +61,12 @@ export async function get(id: number) {
   return adminClient(`/hermes/${id}`);
 }
 
-export async function save(params: any) {
+export async function save(params: Record<string, unknown>) {
   // 接受 instanceId(可选) — 后端 POST /
   return adminClient('/hermes', { method: 'POST', data: params });
 }
 
-export async function update(params: any) {
+export async function update(params: Record<string, unknown>) {
   // 接受 instanceId(可选) — 后端 PUT /:id
   return adminClient(`/hermes/${params.id}`, { method: 'PUT', data: params });
 }
@@ -121,11 +121,11 @@ export async function instanceGet(id: number) {
   return adminClient(`/hermes/instance/${id}`);
 }
 
-export async function instanceSave(data: any) {
+export async function instanceSave(data: unknown) {
   return adminClient('/hermes/instance', { method: 'POST', data });
 }
 
-export async function instanceUpdate(data: any) {
+export async function instanceUpdate(data: { id: number } & Record<string, unknown>) {
   return adminClient(`/hermes/instance/${data.id}`, { method: 'PUT', data });
 }
 
@@ -142,7 +142,7 @@ export async function instanceSyncAgents(id: number) {
 }
 
 // ===== Client (/api/content/hermes/client/*) =====
-export async function clientPage(params: any) {
+export async function clientPage(params: Record<string, unknown>) {
   const res = await contentClient('/hermes/client/page', { params });
   return normalizePage(res);
 }

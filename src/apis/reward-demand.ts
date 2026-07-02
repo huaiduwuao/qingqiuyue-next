@@ -51,7 +51,7 @@ export async function getDemand(id: number) {
 }
 
 // 创建需求
-export async function createDemand(data: any) {
+export async function createDemand(data: unknown) {
   return rewardClient<DemandInfo>('/demand', {
     method: 'POST',
     data,
@@ -59,7 +59,7 @@ export async function createDemand(data: any) {
 }
 
 // 更新需求
-export async function updateDemand(id: number, data: any) {
+export async function updateDemand(id: number, data: unknown) {
   return rewardClient<DemandInfo>(`/demand/${id}`, {
     method: 'PUT',
     data,
@@ -81,7 +81,7 @@ export const demandDetail = (params: { id: number } | number) => {
   }
   return getDemand(params.id);
 };
-export const process = async (params: any) => {
+export const process = async (params: Record<string, unknown>) => {
   return rewardClient('/demand/process', { method: 'POST', data: params });
 };
 // Wrapper for remove that accepts an array or single id
@@ -91,14 +91,14 @@ export const remove = (ids: number | number[]) => {
 };
 
 // Wrapper for save that accepts an object
-export const save = (data: any) => createDemand(data);
+export const save = (data: unknown) => createDemand(data);
 
 // Wrapper for update that accepts an object with id
-export const update = (data: any) => {
+export const update = (data: { id?: number; _id?: number } & Record<string, unknown>) => {
   if (data.id) {
-    return updateDemand(data.id, data);
+    return updateDemand(data.id, data as any);
   }
-  return updateDemand(data._id, data);
+  return updateDemand(data._id!, data as any);
 };
 
 // 触发结账(需求状态 COMPLETED → SETTLED,生成结算单)

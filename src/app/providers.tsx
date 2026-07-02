@@ -58,13 +58,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
   // 浏览器空闲时再挂载浮窗数字人(等首次交互后再加载,避免阻塞 SSR)
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const onIdle = () => setMountFloating(true);
-    if ('requestIdleCallback' in window) {
-      (window as unknown as { requestIdleCallback: (cb: () => void) => void }).requestIdleCallback(onIdle);
-    } else {
-      const t = setTimeout(onIdle, 1500);
-      return () => clearTimeout(t);
-    }
+    // 立刻挂载 — setTimeout 0 让 React 先 commit 首屏
+    // (不依赖 requestIdleCallback, 因为重页面 /home/recommend 可能永远不 idle)
+    const t = setTimeout(() => setMountFloating(true), 200)
+    return () => clearTimeout(t)
   }, []);
 
   if (!mockReady) {

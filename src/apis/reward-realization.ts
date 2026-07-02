@@ -46,7 +46,7 @@ export async function getRealization(id: number) {
 }
 
 // 创建实现
-export async function createRealization(data: any) {
+export async function createRealization(data: unknown) {
   return rewardClient<RealizationInfo>('/realization', {
     method: 'POST',
     data,
@@ -54,7 +54,7 @@ export async function createRealization(data: any) {
 }
 
 // 更新实现
-export async function updateRealization(id: number, data: any) {
+export async function updateRealization(id: number, data: unknown) {
   return rewardClient<RealizationInfo>(`/realization/${id}`, {
     method: 'PUT',
     data,
@@ -76,7 +76,7 @@ export const realizationDetail = (params: { id: number } | number) => {
   }
   return getRealization(params.id);
 };
-export const pickRealization = async (params: any) => {
+export const pickRealization = async (params: Record<string, unknown>) => {
   return rewardClient('/realization/pick', { method: 'POST', data: params });
 };
 
@@ -87,12 +87,12 @@ export const remove = (ids: number | number[]) => {
 };
 
 // Wrapper for save that accepts an object
-export const save = (data: any) => createRealization(data);
+export const save = (data: unknown) => createRealization(data);
 
 // Wrapper for update that accepts an object with id
-export const update = (data: any) => {
+export const update = (data: { id?: number; _id?: number } & Record<string, unknown>) => {
   if (data.id) {
-    return updateRealization(data.id, data);
+    return updateRealization(data.id, data as any);
   }
-  return updateRealization(data._id, data);
+  return updateRealization(data._id!, data as any);
 };

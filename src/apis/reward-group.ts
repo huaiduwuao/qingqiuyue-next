@@ -48,7 +48,7 @@ export async function getGroup(id: number) {
 }
 
 // 创建分组
-export async function createGroup(data: any) {
+export async function createGroup(data: unknown) {
   return rewardClient<GroupInfo>('/group', {
     method: 'POST',
     data,
@@ -56,7 +56,7 @@ export async function createGroup(data: any) {
 }
 
 // 更新分组
-export async function updateGroup(id: number, data: any) {
+export async function updateGroup(id: number, data: unknown) {
   return rewardClient<GroupInfo>(`/group/${id}`, {
     method: 'PUT',
     data,
@@ -107,7 +107,7 @@ export async function groupSuggest(params?: any) {
 }
 
 // 发送分组
-export async function sendGroup(data: any) {
+export async function sendGroup(data: unknown) {
   return rewardClient<GroupInfo>('/group/send', {
     method: 'POST',
     data,

@@ -1,20 +1,20 @@
 import { contentClient } from '@/lib/api/client';
 import {FilmItem, VideoItem} from "@/beans/content";
 
-export async function process(params: any) {
+export async function process(params: Record<string, unknown>) {
   return contentClient("client-content/vshow/process", {
     method: "POST",
     data: params
   });
 }
 
-export async function page(params: any) {
+export async function page(params: Record<string, unknown>) {
   return contentClient("client-content/vshow/page", {
     params
   });
 }
 
-export async function itemUpdate(params: any) {
+export async function itemUpdate(params: Record<string, unknown>) {
   return contentClient("client-content/vshow-item/update", {
     method: "POST",
     data: params
@@ -44,13 +44,13 @@ export async function detail(params: VideoItem) {
   });
 }
 
-export async function itemList(params: any) {
+export async function itemList(params: Record<string, unknown>) {
   return contentClient("client-content/vshow-item/list", {
     params
   });
 }
 
-export async function updateAndPublish(params: any) {
+export async function updateAndPublish(params: Record<string, unknown>) {
   return contentClient("client-content/vshow/updateAndPublish", {
     method: "POST",
     data: params

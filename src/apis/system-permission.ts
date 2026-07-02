@@ -87,9 +87,9 @@ export const remove = (ids: number | number[]) => {
 export const save = createPermission;
 
 // Wrapper for update that accepts an object with id
-export const update = (data: any) => {
+export const update = (data: { id?: number; _id?: number } & Record<string, unknown>) => {
   if (data.id) {
-    return updatePermission(data.id, data);
+    return updatePermission(data.id, data as any);
   }
-  return updatePermission(data._id, data);
+  return updatePermission(data._id!, data as any);
 };

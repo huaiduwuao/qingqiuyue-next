@@ -1,7 +1,7 @@
 import { wxClient } from '@/lib/api/client';
 
 // 微信菜单分页
-export async function page(params: any) {
+export async function page(params: Record<string, unknown>) {
   return wxClient("/wxMenu/client/page", { params });
 }
 
@@ -14,7 +14,7 @@ export async function remove(ids: number[]) {
 }
 
 // 保存菜单
-export async function save(params: any) {
+export async function save(params: Record<string, unknown>) {
   return wxClient("/wxMenu/save", {
     method: "POST",
     data: params
@@ -22,7 +22,7 @@ export async function save(params: any) {
 }
 
 // 更新菜单
-export async function update(params: any) {
+export async function update(params: Record<string, unknown>) {
   return wxClient("/wxMenu/updateById", {
     method: "POST",
     data: params
@@ -30,7 +30,7 @@ export async function update(params: any) {
 }
 
 // 发布菜单
-export async function publish(params: any) {
+export async function publish(params: Record<string, unknown>) {
   return wxClient("/wxMenu/client/publish", {
     method: "POST",
     data: params
@@ -38,6 +38,6 @@ export async function publish(params: any) {
 }
 
 // 客户端获取菜单
-export async function clientGet(params: any) {
+export async function clientGet(params: Record<string, unknown>) {
   return wxClient("/wxMenu/client/get", { params });
 }

@@ -56,7 +56,7 @@ export async function getConception(id: number) {
 }
 
 // 创建概念
-export async function createConception(data: any) {
+export async function createConception(data: unknown) {
   return rewardClient<ConceptionInfo>('/conception', {
     method: 'POST',
     data,
@@ -64,7 +64,7 @@ export async function createConception(data: any) {
 }
 
 // 更新概念
-export async function updateConception(id: number, data: any) {
+export async function updateConception(id: number, data: unknown) {
   return rewardClient<ConceptionInfo>(`/conception/${id}`, {
     method: 'PUT',
     data,
@@ -95,9 +95,9 @@ export const remove = (ids: number | number[]) => {
 };
 
 // Wrapper for update that accepts an object with id
-export const update = (data: any) => {
+export const update = (data: { id?: number; _id?: number } & Record<string, unknown>) => {
   if (data.id) {
-    return updateConception(data.id, data);
+    return updateConception(data.id, data as any);
   }
-  return updateConception(data._id, data);
+  return updateConception(data._id!, data as any);
 };

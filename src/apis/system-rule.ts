@@ -38,7 +38,7 @@ export async function getRule(id: number) {
 }
 
 // 创建规则
-export async function createRule(data: any) {
+export async function createRule(data: unknown) {
   return adminClient<RuleInfo>('/rule', {
     method: 'POST',
     data,
@@ -46,7 +46,7 @@ export async function createRule(data: any) {
 }
 
 // 更新规则
-export async function updateRule(id: number, data: any) {
+export async function updateRule(id: number, data: unknown) {
   return adminClient<RuleInfo>(`/rule/${id}`, {
     method: 'PUT',
     data,

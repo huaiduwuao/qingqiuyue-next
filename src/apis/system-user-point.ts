@@ -117,7 +117,7 @@ export async function listUserActivities(params?: any) {
 }
 
 // 创建用户活动
-export async function createUserActivity(data: any) {
+export async function createUserActivity(data: unknown) {
   return adminClient<UserActivityInfo>('/user-activity', {
     method: 'POST',
     data,
@@ -130,6 +130,6 @@ export const remove = async (ids: number[]) => {
   return adminClient('/point/remove', { method: 'DELETE', data: ids });
 };
 export const save = createUserActivity;
-export const update = async (params: any) => {
+export const update = async (params: Record<string, unknown>) => {
   return adminClient('/point/update', { method: 'PUT', data: params });
 };

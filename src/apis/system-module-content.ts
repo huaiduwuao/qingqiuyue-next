@@ -82,7 +82,7 @@ export async function getModuleContent(id: number) {
 }
 
 // 创建模块内容 - POST /module/content
-export async function createModuleContent(data: any) {
+export async function createModuleContent(data: unknown) {
   return contentClient<ModuleContentInfo>('/module/content', {
     method: 'POST',
     data,
@@ -90,7 +90,7 @@ export async function createModuleContent(data: any) {
 }
 
 // 更新模块内容 - PUT /module/content/{id}
-export async function updateModuleContent(id: number, data: any) {
+export async function updateModuleContent(id: number, data: unknown) {
   return contentClient<ModuleContentInfo>(`/module/content/${id}`, {
     method: 'PUT',
     data,
@@ -114,7 +114,7 @@ export async function removeFromModule(params: { moduleId: number; contentId: nu
 }
 
 // 处理内容
-export async function process(params: any) {
+export async function process(params: Record<string, unknown>) {
   return contentClient('/module/content/client/process', {
     method: 'POST',
     data: params,
@@ -122,7 +122,7 @@ export async function process(params: any) {
 }
 
 // 获取关联内容
-export async function related(params: any) {
+export async function related(params: Record<string, unknown>) {
   return contentClient('/module/content/client/related', {
     method: 'GET',
     params,
@@ -130,7 +130,7 @@ export async function related(params: any) {
 }
 
 // 建议内容
-export async function suggest(params: any) {
+export async function suggest(params: Record<string, unknown>) {
   return contentClient('/module/content/client/suggest', {
     method: 'GET',
     params,
@@ -138,7 +138,7 @@ export async function suggest(params: any) {
 }
 
 // 更新分享设置
-export async function updateShare(params: any) {
+export async function updateShare(params: Record<string, unknown>) {
   return contentClient('/module/content/client/updateShare', {
     method: 'POST',
     data: params,
@@ -173,9 +173,9 @@ export async function getComments(contentId: number, params?: { page?: number; p
 export const myPage = (params: ModuleContentQuery) => page({ ...params });
 export const remove = (ids: number[]) => deleteModuleContent(ids);
 export const save = createModuleContent;
-export const update = (data: any) => {
+export const update = (data: { id?: number; _id?: number } & Record<string, unknown>) => {
   if (data.id) {
-    return updateModuleContent(data.id, data);
+    return updateModuleContent(data.id, data as any);
   }
-  return updateModuleContent(data._id, data);
+  return updateModuleContent(data._id!, data as any);
 };

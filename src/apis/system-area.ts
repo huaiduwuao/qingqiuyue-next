@@ -47,9 +47,9 @@ export const page = async (params?: { pageNumber?: number; pageSize?: number; so
 export const remove = async (ids: Array<string | number>) => {
   return adminClient('/area/remove', { method: 'DELETE', data: ids });
 };
-export const save = async (params: any) => {
+export const save = async (params: Record<string, unknown>) => {
   return adminClient('/area/save', { method: 'POST', data: params });
 };
-export const update = async (params: any) => {
+export const update = async (params: Record<string, unknown>) => {
   return adminClient('/area/update', { method: 'PUT', data: params });
 };

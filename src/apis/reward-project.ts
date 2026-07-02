@@ -47,7 +47,7 @@ export async function getProject(id: number) {
 }
 
 // 创建项目
-export async function createProject(data: any) {
+export async function createProject(data: unknown) {
   return rewardClient<ProjectInfo>('/project', {
     method: 'POST',
     data,
@@ -55,7 +55,7 @@ export async function createProject(data: any) {
 }
 
 // 更新项目
-export async function updateProject(id: number, data: any) {
+export async function updateProject(id: number, data: unknown) {
   return rewardClient<ProjectInfo>(`/project/${id}`, {
     method: 'PUT',
     data,
@@ -85,12 +85,12 @@ export const remove = (ids: number | number[]) => {
 };
 
 // Wrapper for save that accepts an object
-export const save = (data: any) => createProject(data);
+export const save = (data: unknown) => createProject(data);
 
 // Wrapper for update that accepts an object with id
-export const update = (data: any) => {
+export const update = (data: { id?: number; _id?: number } & Record<string, unknown>) => {
   if (data.id) {
-    return updateProject(data.id, data);
+    return updateProject(data.id, data as any);
   }
-  return updateProject(data._id, data);
+  return updateProject(data._id!, data as any);
 };

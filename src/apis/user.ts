@@ -31,7 +31,7 @@ export async function queryCurrent(): Promise<any> {
 }
 
 // 检查用户名是否可用 - GET /api/core/user/name/available
-export const isNameAvail = async (params: any) => {
+export const isNameAvail = async (params: Record<string, unknown>) => {
   return adminClient('/user/name/available', { params });
 };
 
@@ -41,7 +41,7 @@ export const getUserProfile = async () => {
 };
 
 // 更新用户资料 - PUT /api/core/user/profile
-export const updateUserProfile = async (data: any) => {
+export const updateUserProfile = async (data: unknown) => {
   return adminClient('/user/profile', { method: 'PUT', data });
 };
 
@@ -51,12 +51,12 @@ export async function listUsers(params?: any) {
 }
 
 // 创建用户 - POST /api/core/user
-export async function createUser(data: any) {
+export async function createUser(data: unknown) {
   return adminClient('/user', { method: 'POST', data });
 }
 
 // 更新用户 - PUT /api/core/user/{id}
-export async function updateUser(id: number, data: any) {
+export async function updateUser(id: number, data: unknown) {
   return adminClient(`/user/${id}`, { method: 'PUT', data });
 }
 

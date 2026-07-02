@@ -49,7 +49,7 @@ export async function getDictType(id: number) {
 }
 
 // 创建字典类型
-export async function createDictType(data: any) {
+export async function createDictType(data: unknown) {
   return adminClient<DictTypeInfo>('/dict/type', {
     method: 'POST',
     data,
@@ -57,7 +57,7 @@ export async function createDictType(data: any) {
 }
 
 // 更新字典类型
-export async function updateDictType(id: number, data: any) {
+export async function updateDictType(id: number, data: unknown) {
   return adminClient<DictTypeInfo>(`/dict/type/${id}`, {
     method: 'PUT',
     data,
@@ -94,7 +94,7 @@ export async function getDictDataByType(type: string) {
 }
 
 // 创建字典数据
-export async function createDictData(data: any) {
+export async function createDictData(data: unknown) {
   return adminClient<DictDataInfo>('/dict/data', {
     method: 'POST',
     data,
@@ -102,7 +102,7 @@ export async function createDictData(data: any) {
 }
 
 // 更新字典数据
-export async function updateDictData(id: number, data: any) {
+export async function updateDictData(id: number, data: unknown) {
   return adminClient<DictDataInfo>(`/dict/data/${id}`, {
     method: 'PUT',
     data,
@@ -125,9 +125,9 @@ export const remove = (ids: number | number[]) => {
 export const save = createDictType;
 
 // Wrapper for update that accepts an object with id
-export const update = (data: any) => {
+export const update = (data: { id?: number; _id?: number } & Record<string, unknown>) => {
   if (data.id) {
-    return updateDictType(data.id, data);
+    return updateDictType(data.id, data as any);
   }
-  return updateDictType(data._id, data);
+  return updateDictType(data._id!, data as any);
 };

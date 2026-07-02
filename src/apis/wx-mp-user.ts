@@ -1,7 +1,7 @@
 import { wxClient } from '@/lib/api/client';
 
 // 微信用户分页
-export async function page(params: any) {
+export async function page(params: Record<string, unknown>) {
   return wxClient("/wxUser/client/page", { params });
 }
 
@@ -14,7 +14,7 @@ export async function remove(ids: number[]) {
 }
 
 // 保存用户
-export async function save(params: any) {
+export async function save(params: Record<string, unknown>) {
   return wxClient("/wxUser/save", {
     method: "POST",
     data: params
@@ -22,7 +22,7 @@ export async function save(params: any) {
 }
 
 // 更新用户
-export async function update(params: any) {
+export async function update(params: Record<string, unknown>) {
   return wxClient("/wxUser/updateById", {
     method: "POST",
     data: params

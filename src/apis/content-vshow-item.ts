@@ -1,7 +1,7 @@
 import { contentClient } from '@/lib/api/client';
 import {NovelChapterItem} from "@/beans/content";
 
-export async function page(params: any) {
+export async function page(params: Record<string, unknown>) {
   return contentClient("client-content/vshow-item/page", {
     params
   });
