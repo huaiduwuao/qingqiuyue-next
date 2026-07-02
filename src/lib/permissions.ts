@@ -121,6 +121,18 @@ export const PERMISSIONS = {
     UPDATE: 'system:wx-config:update',
     DELETE: 'system:wx-config:delete',
   },
+  SYSTEM_MODERATION: {
+    REPORT_LIST: 'system:moderation:report:list',
+    REPORT_REVIEW: 'system:moderation:report:review',
+    SENSITIVE_WORD_LIST: 'system:moderation:sensitive-word:list',
+    SENSITIVE_WORD_CREATE: 'system:moderation:sensitive-word:create',
+    SENSITIVE_WORD_DELETE: 'system:moderation:sensitive-word:delete',
+  },
+  SYSTEM_WAKE_WORD: {
+    VIEW: 'system:wake-word:view',
+    TRAIN: 'system:wake-word:train',
+    RESET: 'system:wake-word:reset',
+  },
 } as const;
 
 export type PermissionCode = string;

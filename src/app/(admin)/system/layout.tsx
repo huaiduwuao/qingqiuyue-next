@@ -4,11 +4,7 @@ import React, { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import Divider from '@mui/material/Divider';
-import List from '@mui/material/List';
-import ListItemButton from '@mui/material/ListItemButton';
 import ListItemIcon from '@mui/material/ListItemIcon';
-import ListItemText from '@mui/material/ListItemText';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import Avatar from '@mui/material/Avatar';
@@ -17,6 +13,7 @@ import MenuItem from '@mui/material/MenuItem';
 import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSettingsRounded';
 import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
 import LockRoundedIcon from '@mui/icons-material/LockRounded';
+import RecordVoiceOverRoundedIcon from '@mui/icons-material/RecordVoiceOverRounded';
 import VpnKeyRoundedIcon from '@mui/icons-material/VpnKeyRounded';
 import PeopleRoundedIcon from '@mui/icons-material/PeopleRounded';
 import MilitaryTechRoundedIcon from '@mui/icons-material/MilitaryTechRounded';
@@ -33,6 +30,8 @@ import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded';
 import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
+import ReportProblemRoundedIcon from '@mui/icons-material/ReportProblemRounded';
+import BlockRoundedIcon from '@mui/icons-material/BlockRounded';
 import { useAuthority } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
 import { PERMISSIONS } from '@/lib/permissions';
@@ -88,6 +87,27 @@ const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
     ],
   },
   {
+    title: '内容治理',
+    items: [
+      {
+        id: 'moderation-reports',
+        label: '举报审核',
+        path: '/system/moderation/reports',
+        icon: <ReportProblemRoundedIcon sx={{ fontSize: 18 }} />,
+        accent: '#FE2C55',
+        permission: PERMISSIONS.SYSTEM_MODERATION.REPORT_LIST,
+      },
+      {
+        id: 'moderation-words',
+        label: '敏感词管理',
+        path: '/system/moderation/sensitive-words',
+        icon: <BlockRoundedIcon sx={{ fontSize: 18 }} />,
+        accent: '#8B5CF6',
+        permission: PERMISSIONS.SYSTEM_MODERATION.SENSITIVE_WORD_LIST,
+      },
+    ],
+  },
+  {
     title: '资源管理',
     items: [
       { id: 'app', label: '应用管理', path: '/system/app', icon: <AppsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main', permission: PERMISSIONS.SYSTEM_APP.VIEW },
@@ -126,6 +146,7 @@ const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
     title: '数字人',
     items: [
       { id: 'dh-studio', label: '数字人工作台', path: '/system/digital-human', icon: <StarsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6' },
+      { id: 'wake-word-train', label: '唤醒词训练', path: '/system/record-wake', icon: <RecordVoiceOverRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55', permission: PERMISSIONS.SYSTEM_WAKE_WORD.VIEW },
     ],
   },
   {
@@ -280,7 +301,7 @@ export default function SystemLayout({ children }: { children: React.ReactNode }
                 {currentUser?.nickname || currentUser?.name || '未登录'}
               </Typography>
               {(() => {
-                const role = getPrimaryRole((currentUser as any)?.roles ?? currentUser?.authorities);
+                const role = getPrimaryRole((currentUser as { roles?: string[] } | undefined)?.roles ?? currentUser?.authorities);
                 return role ? (
                   <Typography sx={{ fontSize: 10, color: role.color, fontWeight: 600, mt: 0.25 }}>
                     {role.label}
