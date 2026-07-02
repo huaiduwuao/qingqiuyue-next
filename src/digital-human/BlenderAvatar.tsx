@@ -193,6 +193,8 @@ export default function BlenderAvatar({
   // 用 ref 跟踪 currentAction, 避免 frame 闭包过期
   const currentActionRef = React.useRef(currentAction);
   currentActionRef.current = currentAction;
+  // 鼠标位置(让数字人头部跟随, 看着用户)
+  const mouseRef = React.useRef<{ x: number; y: number }>({ x: 0, y: 0 })
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
 
@@ -200,6 +202,7 @@ export default function BlenderAvatar({
   React.useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    let onMouseMove: ((e: MouseEvent) => void) | null = null;
     let cancelled = false;
 
     (async () => {
@@ -291,8 +294,12 @@ export default function BlenderAvatar({
             }
             // 3) 设下帧 bone rotation (time-dependent idle 动画)
             applyVRMAction(vrm, currentActionRef.current).catch(() => {})
+            // 4) 鼠标跟随头部 + 眼球 (让数字人"看着你")
+            applyMouseFollow(vrm, mouseRef.current)
+            // 5) 随机微表情 + 长眨眼 (自然感)
+            applyMicroExpressions(vrm, tSec())
           }
-          // 4) 可选: 整体缓慢旋转 (由 prop 控制)
+          // 6) 可选: 整体缓慢旋转 (由 prop 控制)
           if (autoRotate && loadedRef.current?.scene) {
             loadedRef.current.scene.rotation.y += dt * 0.3;
           }
@@ -300,6 +307,15 @@ export default function BlenderAvatar({
           rafRef.current = requestAnimationFrame(frame);
         };
         rafRef.current = requestAnimationFrame(frame);
+
+        // 鼠标位置跟踪(让数字人头部跟着鼠标转, 像在"看"用户)
+        const onMouseMove = (e: MouseEvent) => {
+          // 归一化到 [-1, 1] (屏幕中心 = 0,0)
+          const x = (e.clientX / window.innerWidth) * 2 - 1
+          const y = (e.clientY / window.innerHeight) * 2 - 1
+          mouseRef.current = { x, y }
+        }
+        window.addEventListener('mousemove', onMouseMove)
       } catch (err: any) {
         if (cancelled) return;
         console.error('[BlenderAvatar] init failed:', err);
@@ -310,6 +326,7 @@ export default function BlenderAvatar({
 
     return () => {
       cancelled = true;
+      if (onMouseMove) window.removeEventListener('mousemove', onMouseMove);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rendererRef.current?.dispose?.();
       rendererRef.current = null;
@@ -654,5 +671,87 @@ function applyExpressions(
       });
     });
     lastAppliedRef.current = { ...next };
+  }
+}
+
+
+// ── 数字人"活"细节: 鼠标跟随 + 微表情 + 呼吸 ────────────────
+
+// 共享时间源(避免每个函数重新 Date.now())
+let _tStart = 0
+function tSec() {
+  if (!_tStart) _tStart = performance.now() / 1000
+  return performance.now() / 1000 - _tStart
+}
+
+// 鼠标位置 → 头部 + 眼球旋转(让数字人"看着你")
+// mouse: {x, y} 都在 [-1, 1]
+function applyMouseFollow(vrm: any, mouse: { x: number; y: number }) {
+  if (!vrm.humanoid) return
+  const vrmVer = (vrm.meta?.metaVersion || '').toString()
+  const isVRM1 = vrmVer.startsWith('1') || vrmVer.startsWith('2')
+  const bone = (vrm0: string, vrm1: string) => isVRM1 ? vrm1 : vrm0
+
+  // 头部最大转 ±0.4 rad (~23°)
+  const headX = -mouse.y * 0.25  // 鼠标 y 越大, 头越低
+  const headY = mouse.x * 0.4
+  const head = vrm.humanoid.getNormalizedBoneNode(bone('Head', 'head'))
+  if (head) {
+    // 叠在 idle 动画上(用 += 偏移, 不覆盖)
+    head.rotation.x += headX * 0.3
+    head.rotation.y += headY * 0.3
+  }
+
+  // 眼球更大幅度(让"眼神"跟着, 头可以不动, 眼动)
+  const eyeX = -mouse.y * 0.15
+  const eyeY = mouse.x * 0.2
+  const em = vrm.expressionManager
+  if (em?.setValue) {
+    if (mouse.x > 0.3) {
+      em.setValue(bone('eyeLookOutRight', 'eyeLookOutRight'), eyeY)
+      em.setValue(bone('eyeLookInLeft', 'eyeLookInLeft'), eyeY)
+    } else if (mouse.x < -0.3) {
+      em.setValue(bone('eyeLookInRight', 'eyeLookInRight'), -eyeY)
+      em.setValue(bone('eyeLookOutLeft', 'eyeLookOutLeft'), -eyeY)
+    }
+    if (mouse.y > 0.3) {
+      em.setValue(bone('eyeLookUpLeft', 'eyeLookUpLeft'), eyeX)
+      em.setValue(bone('eyeLookUpRight', 'eyeLookUpRight'), eyeX)
+    } else if (mouse.y < -0.3) {
+      em.setValue(bone('eyeLookDownLeft', 'eyeLookDownLeft'), -eyeX)
+      em.setValue(bone('eyeLookDownRight', 'eyeLookDownRight'), -eyeX)
+    }
+  }
+}
+
+// 随机微表情 + 长眨眼(让数字人"活"得更像人, 不只眨眼一次)
+// 周期 6-9s 随机闪烁 joy 0.15(若有若无的微笑)
+// 周期 3-7s 随机长眨眼(0.15s 闭眼)
+function applyMicroExpressions(vrm: any, t: number) {
+  if (!vrm.expressionManager) return
+  const em = vrm.expressionManager
+
+  // 微表情: 周期性 joy 微闪(若有若无)
+  const microJoyCycle = t % 7.3
+  if (microJoyCycle > 6.9) {
+    em.setValue('joy', 0.15)
+  } else {
+    em.setValue('joy', 0)
+  }
+
+  // 眨眼: 5-6s 一次, 持续 0.15s
+  const blinkCycle = t % 5.7
+  if (blinkCycle > 5.55) {
+    em.setValue('blink', 1.0)
+  } else {
+    em.setValue('blink', 0)
+  }
+
+  // 偶尔微微皱眉(sad): 11s 周期, 1s 持续
+  const sadCycle = t % 11
+  if (sadCycle > 10.5) {
+    em.setValue('sorrow', 0.2)
+  } else {
+    em.setValue('sorrow', 0)
   }
 }
