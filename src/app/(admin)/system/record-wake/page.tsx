@@ -17,7 +17,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Box, Button, Typography, LinearProgress, IconButton, Alert, Chip,
-  TextField, Card, CardContent, Divider, Switch, FormControlLabel,
+  TextField, Card, CardContent, Divider, Switch, FormControlLabel, Grid,
 } from '@mui/material';
 
 import MicRoundedIcon from '@mui/icons-material/MicRounded';
@@ -26,6 +26,9 @@ import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
 import SkipNextRoundedIcon from '@mui/icons-material/SkipNextRounded';
 import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
+import GraphicEqRoundedIcon from '@mui/icons-material/GraphicEqRounded';
+import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
+import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 
 const TARGET_PHRASE = '小月';
 const TARGET_COUNT = 50;  // 目标录音数(够 5 分钟训练)
@@ -46,6 +49,8 @@ export default function RecordWakePage() {
   const [error, setError] = useState<string | null>(null)
   const [autoRecord, setAutoRecord] = useState(false)
   const [currentModel, setCurrentModel] = useState<string>('')
+  const [modelDetail, setModelDetail] = useState<any>(null)
+  const [hasAutoStarted, setHasAutoStarted] = useState(false)
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
@@ -54,16 +59,31 @@ export default function RecordWakePage() {
   const audioContextRef = useRef<AudioContext | null>(null)
 
   // 加载当前模型状态
-  useEffect(() => {
-    fetch('/api/train-wake-word')
-      .then(r => r.json())
-      .then(d => {
-        if (d.ok) {
-          setCurrentModel(d.model || '未部署')
-        }
-      })
-      .catch(() => {})
+  const loadModelStatus = useCallback(async () => {
+    try {
+      const r = await fetch('/api/train-wake-word')
+      const d = await r.json()
+      if (d.ok) {
+        setCurrentModel(d.model || '未部署')
+        setModelDetail(d)
+      }
+    } catch {}
   }, [])
+
+  useEffect(() => {
+    loadModelStatus()
+  }, [loadModelStatus])
+
+  // 自动开始录音(进页面 2s 后, 让用户先看清界面)
+  useEffect(() => {
+    if (hasAutoStarted) return
+    if (currentModel === '' && modelDetail === null) return
+    const t = setTimeout(() => {
+      setAutoRecord(true)
+      setHasAutoStarted(true)
+    }, 2000)
+    return () => clearTimeout(t)
+  }, [hasAutoStarted, currentModel, modelDetail])
 
   // 启动麦克风
   const initMic = useCallback(async () => {
@@ -228,18 +248,51 @@ export default function RecordWakePage() {
         </Box>
       </Box>
 
-      <Card sx={{ mb: 2 }}>
+      <Card sx={{ mb: 2, background: 'linear-gradient(135deg, rgba(254,44,85,0.08) 0%, rgba(139,92,246,0.08) 100%)' }}>
         <CardContent>
-          <Box sx={{  display: "flex", flexDirection: "row", alignItems: "center", mb: 1  }}>
-            <Typography component="p" variant="body2" color="text.secondary">
-              当前模型: <code style={{ fontSize: 11 }}>{currentModel || '加载中...'}</code>
-            </Typography>
+          <Box sx={{  display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-between", mb: 2  }}>
+            <Box sx={{  display: "flex", flexDirection: "row", alignItems: "center", gap: 1  }}>
+              <GraphicEqRoundedIcon color="primary" />
+              <Typography component="h6" variant="h6" sx={{ fontWeight: 600,  }}>当前唤醒词模型</Typography>
+            </Box>
             <Chip
               size="small"
               label={`${progress} / ${TARGET_COUNT} 条`}
               color={progress >= 30 ? 'success' : progress >= 10 ? 'warning' : 'default'}
             />
           </Box>
+          {modelDetail ? (
+            <Box sx={{  display: "grid", gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' }, gap: 2, mb: 2  }}>
+              <Box>
+                <Typography component="p" variant="caption" color="text.secondary">模型文件</Typography>
+                <Typography component="p" variant="body2" sx={{ fontWeight: 600, fontSize: 13,  }}>
+                  {modelDetail.modelSize > 0 ? `${(modelDetail.modelSize / 1024).toFixed(1)} KB` : '未部署'}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography component="p" variant="caption" color="text.secondary">最后训练</Typography>
+                <Typography component="p" variant="body2" sx={{ fontWeight: 600, fontSize: 13,  }}>
+                  {modelDetail.modelMtime ? new Date(modelDetail.modelMtime).toLocaleString('zh-CN', { hour12: false }) : '-'}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography component="p" variant="caption" color="text.secondary">正样本数</Typography>
+                <Typography component="p" variant="body2" sx={{ fontWeight: 600, fontSize: 13, color: 'primary.main'  }}>
+                  {modelDetail.positiveSamples}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography component="p" variant="caption" color="text.secondary">最后准确度</Typography>
+                <Typography component="p" variant="body2" sx={{ fontWeight: 600, fontSize: 13, color: modelDetail.trainingLog?.final_recall > 0.7 ? 'success.main' : 'warning.main' }}>
+                  {modelDetail.trainingLog?.final_recall !== undefined
+                    ? `recall ${(modelDetail.trainingLog.final_recall * 100).toFixed(0)}%`
+                    : '-'}
+                </Typography>
+              </Box>
+            </Box>
+          ) : (
+            <Typography component="p" variant="body2" color="text.secondary">加载中...</Typography>
+          )}
           <LinearProgress
             variant="determinate"
             value={(progress / TARGET_COUNT) * 100}

@@ -28,6 +28,7 @@ import asyncio
 import os
 import random
 import sys
+import time
 import shutil
 import subprocess
 from pathlib import Path
@@ -370,6 +371,9 @@ def train_fcn(neg_mmap_path, pos_mmap_path, epochs=10, batch_size=128):
     y = np.array([0] * len(X_neg) + [1] * len(X_pos), dtype=np.float32)[:, None]
     print(f"  X shape: {X.shape}, y: {sum(y==1)} pos / {sum(y==0)} neg")
 
+    # 记录每 epoch 指标(用于训练日志)
+    log_history = []
+
     loader = torch.utils.data.DataLoader(
         torch.utils.data.TensorDataset(torch.from_numpy(X), torch.from_numpy(y)),
         batch_size=batch_size, shuffle=True,
@@ -399,6 +403,22 @@ def train_fcn(neg_mmap_path, pos_mmap_path, epochs=10, batch_size=128):
         avg_loss = total_loss / len(X)
         recall = tp / max(1, total_pos)
         print(f"  epoch {epoch+1}/{epochs}: loss={avg_loss:.4f}  recall={recall:.3f} ({tp}/{total_pos})")
+        log_history.append({"epoch": epoch + 1, "loss": float(avg_loss), "recall": float(recall)})
+
+    # 写训练日志(供前端展示)
+    import json
+    log_file = MODEL_OUT_DIR / "training-log.json"
+    log_data = {
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "positive_samples": int(sum(y == 1)),
+        "negative_samples": int(sum(y == 0)),
+        "epochs": epochs,
+        "final_loss": log_history[-1]["loss"] if log_history else 0,
+        "final_recall": log_history[-1]["recall"] if log_history else 0,
+        "history": log_history,
+    }
+    log_file.write_text(json.dumps(log_data, indent=2, ensure_ascii=False))
+    print(f"  ✓ 训练日志: {log_file.relative_to(REPO_ROOT)}")
 
     return model
 

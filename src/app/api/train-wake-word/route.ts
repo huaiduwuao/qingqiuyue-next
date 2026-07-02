@@ -129,10 +129,10 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
-  // 查看当前训练数据状态
+  // 查看当前训练数据状态 + 训练日志
   try {
     let posCount = 0
-    let lastModel = ''
+    let lastModel = { size: 0, mtime: '' }
     if (existsSync(POS_DIR)) {
       const files = await readdir(POS_DIR)
       posCount = files.filter(f => f.endsWith('.wav')).length
@@ -140,12 +140,24 @@ export async function GET() {
     if (existsSync(join(PUBLIC_WAKE_DIR, 'xiaoyue.onnx'))) {
       const { statSync } = await import('fs')
       const s = statSync(join(PUBLIC_WAKE_DIR, 'xiaoyue.onnx'))
-      lastModel = `${(s.size / 1024).toFixed(1)} KB, mtime ${s.mtime.toISOString()}`
+      lastModel = { size: s.size, mtime: s.mtime.toISOString() }
+    }
+    // 读训练日志
+    let trainingLog: any = null
+    const logPath = join(MODEL_OUT_DIR, 'training-log.json')
+    if (existsSync(logPath)) {
+      try {
+        const fs = await import('fs/promises')
+        trainingLog = JSON.parse(await fs.readFile(logPath, 'utf-8'))
+      } catch {}
     }
     return NextResponse.json({
       ok: true,
       positiveSamples: posCount,
-      model: lastModel,
+      model: lastModel.size > 0 ? `${(lastModel.size / 1024).toFixed(1)} KB, mtime ${lastModel.mtime}` : '未部署',
+      modelSize: lastModel.size,
+      modelMtime: lastModel.mtime,
+      trainingLog,
       posDir: POS_DIR,
       trainScript: TRAIN_SCRIPT,
     });
