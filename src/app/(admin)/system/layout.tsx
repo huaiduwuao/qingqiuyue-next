@@ -146,7 +146,7 @@ const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
     title: '数字人',
     items: [
       { id: 'dh-studio', label: '数字人工作台', path: '/system/digital-human', icon: <StarsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6' },
-      { id: 'wake-word-train', label: '唤醒词训练', path: '/system/record-wake', icon: <RecordVoiceOverRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55', permission: PERMISSIONS.SYSTEM_WAKE_WORD.VIEW },
+      { id: 'wake-word-train', label: '唤醒词训练', path: '/system/record-wake', icon: <RecordVoiceOverRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
     ],
   },
   {
