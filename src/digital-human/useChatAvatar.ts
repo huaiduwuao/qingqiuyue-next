@@ -188,17 +188,91 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
           visemeStartRef.current = performance.now();
           visemeActiveRef.current = true;
           setIsAvatarPlaying(true);   // 通知 voice agent: 数字人在说话, VAD 段丢弃
+
+          // 客户端口型: AnalyserNode 挂在 audio 元素上, 实时测音频能量驱动 viseme
+          // (后端 viseme 时间线为 null/空时降级到客户端)
+          if (!analyserRef.current && typeof window !== 'undefined' && (window.AudioContext || (window as any).webkitAudioContext)) {
+            try {
+              const AC = window.AudioContext || (window as any).webkitAudioContext
+              const ctx = new AC()
+              audioCtxRef.current = ctx
+              const source = ctx.createMediaElementSource(a)
+              const analyser = ctx.createAnalyser()
+              analyser.fftSize = 512
+              source.connect(analyser)
+              // 不接 destination, 避免双重播放
+              analyserRef.current = analyser
+            } catch (e) {
+              // CORS 限制或 autoplay policy,忽略
+            }
+          } else if (analyserRef.current && audioCtxRef.current) {
+            // 重用已有 AnalyserNode(多次回复复用)
+            audioCtxRef.current.resume?.()
+          }
         };
         a.onended = () => {
           visemeActiveRef.current = false;
           setViseme({});
-          setIsAvatarPlaying(false);  // 数字人说完了
+          setIsAvatarPlaying(false);
         };
-        a.src = resp.audioUrl;
-        a.play().catch(() => {
-          // autoplay 被拒,纯文本模式
+        a.onerror = () => {
+          // autoplay 失败,降级到纯文本 + 浏览器 TTS
           visemeStartRef.current = performance.now();
           visemeActiveRef.current = true;
+          if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+            try {
+              window.speechSynthesis.cancel()
+              const utter = new SpeechSynthesisUtterance(resp.text)
+              utter.lang = 'zh-CN'
+              speechUtterRef.current = utter
+              utter.onstart = () => {
+                visemeStartRef.current = performance.now()
+                visemeActiveRef.current = true
+              }
+              utter.onend = () => {
+                visemeActiveRef.current = false
+                setViseme({})
+                setIsAvatarPlaying(false)
+              }
+              window.speechSynthesis.speak(utter)
+            } catch {}
+          }
+        };
+        a.src = resp.audioUrl;
+        a.play().catch((e) => {
+          // autoplay 被拒,降级到纯文本 + 浏览器 TTS
+          visemeStartRef.current = performance.now();
+          visemeActiveRef.current = true;
+          if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+            try {
+              window.speechSynthesis.cancel()
+              const utter = new SpeechSynthesisUtterance(resp.text)
+              utter.lang = 'zh-CN'
+              speechUtterRef.current = utter
+              utter.onstart = () => {
+                visemeStartRef.current = performance.now()
+                visemeActiveRef.current = true
+                // 启动定时器: 随机切 viseme 模拟说话
+                if (speechTimerRef.current) clearInterval(speechTimerRef.current)
+                const visemes = ['aa', 'E', 'O', 'U', 'ih', 'closed']
+                speechTimerRef.current = window.setInterval(() => {
+                  if (!visemeActiveRef.current) return
+                  const shape = visemes[Math.floor(Math.random() * (visemes.length - 1))]
+                  setViseme({ [shape]: 0.4 + Math.random() * 0.4 })
+                }, 90)
+              }
+              utter.onend = () => {
+                visemeActiveRef.current = false
+                setViseme({})
+                setIsAvatarPlaying(false)
+                if (speechTimerRef.current) {
+                  clearInterval(speechTimerRef.current)
+                  speechTimerRef.current = null
+                }
+              }
+              window.speechSynthesis.speak(utter)
+            } catch {}
+          }
         });
       } else {
         // 无音频(纯文本):也启动 viseme 时间线
@@ -256,26 +330,90 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
     }
   }, [chatBusy, chatLog])
 
-  // 3. viseme 驱动 rAF
+  // 3. viseme 驱动 rAF — 优先后端时间线,降级客户端 AnalyserNode + speechSynthesis
+  //    (后端经常不返 visemes;客户端必须能自己驱动口型)
+  const analyserRef = React.useRef<AnalyserNode | null>(null);
+  const audioCtxRef = React.useRef<AudioContext | null>(null);
+  const speechUtterRef = React.useRef<SpeechSynthesisUtterance | null>(null);
+  const speechTimerRef = React.useRef<number | null>(null);
+
   React.useEffect(() => {
     let raf = 0;
+    let backendUsed = false;
+    let lastTone = 'aa';
+    let lastChangeMs = 0;
+
     const tick = () => {
       raf = requestAnimationFrame(tick);
       if (!visemeActiveRef.current) return;
+
+      // A) 优先: 后端返了 viseme 时间线
       const timeline = visemeTimelineRef.current;
-      if (timeline.length === 0) return;
-      const elapsed = (performance.now() - visemeStartRef.current) / 1000;
-      let current = timeline[0];
-      for (const v of timeline) {
-        if (v.t <= elapsed) current = v;
-        else break;
+      if (timeline.length > 0) {
+        if (!backendUsed) backendUsed = true
+        const elapsed = (performance.now() - visemeStartRef.current) / 1000;
+        let current = timeline[0];
+        for (const v of timeline) {
+          if (v.t <= elapsed) current = v;
+          else break;
+        }
+        const next = { [current.shape]: current.weight };
+        setViseme((prev: Record<string, number>) => {
+          const k = Object.keys(next)[0];
+          if (prev[k] === next[k]) return prev;
+          return next;
+        });
+        return;
       }
-      const next = { [current.shape]: current.weight };
-      setViseme((prev: Record<string, number>) => {
-        const k = Object.keys(next)[0];
-        if (prev[k] === next[k]) return prev;
-        return next;
-      });
+
+      // B) 客户端降级: AnalyserNode 监听 audio 元素 amplitude
+      //    原理: TTS 音频的瞬时能量 → 分桶 → 映射到 5 个 viseme
+      //    (aa 闭 / E 半开 / O 全开 / U 圆 / closed 静音)
+      if (analyserRef.current) {
+        const buf = new Uint8Array(analyserRef.current.fftSize)
+        analyserRef.current.getByteTimeDomainData(buf)
+        // 计算 RMS 能量 (0-1)
+        let sum = 0
+        for (let i = 0; i < buf.length; i++) {
+          const v = (buf[i] - 128) / 128
+          sum += v * v
+        }
+        const rms = Math.sqrt(sum / buf.length)
+
+        // 静音(< 0.01) → closed
+        // 高频/急促(变化快) → 选一个
+        // 稳定能量 → 保持当前
+        if (rms < 0.01) {
+          setViseme({ closed: 1.0 })
+          lastTone = 'closed'
+          return
+        }
+
+        // 随机变化模拟自然语流(70ms 切一次,像真说话)
+        const now = performance.now()
+        const shouldChange = now - lastChangeMs > 70 + Math.random() * 60
+        let chosenShape = lastTone
+        if (shouldChange) {
+          // 按 rms 强度选口型(弱音→E/ih,中→aa,强→O/U)
+          const r = Math.random()
+          if (rms < 0.03) chosenShape = r < 0.5 ? 'E' : 'ih'
+          else if (rms < 0.08) chosenShape = r < 0.5 ? 'aa' : 'E'
+          else chosenShape = r < 0.4 ? 'O' : (r < 0.7 ? 'U' : 'aa')
+          lastChangeMs = now
+          lastTone = chosenShape
+        }
+
+        // 强度映射成 weight (rms 越大张得越开)
+        const weight = Math.min(1, rms * 4)
+        setViseme({ [chosenShape]: weight })
+        return
+      }
+
+      // C) 兜底: speechSynthesis 模式(tts 用 browser API,无 audio 元素)
+      //    已在 onstart 时设了定时器,直接用 lastTone 维持
+      if (lastTone && visemeActiveRef.current) {
+        setViseme({ [lastTone]: 0.6 })
+      }
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);

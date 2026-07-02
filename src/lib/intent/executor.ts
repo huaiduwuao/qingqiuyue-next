@@ -49,6 +49,24 @@ export async function executeIntent(intent: Intent, opts: ExecutorOptions): Prom
         }
         return { ok: true, message: `navigated to ${intent.path}` }
 
+      case 'open_external':
+        if (typeof window !== 'undefined' && intent.url) {
+          // 派发自定义事件给前端 ExternalViewer 组件(在站内的 iframe 弹窗里显示)
+          // 不直接用 window.open —— 走前端组件保证用户体验一致
+          window.dispatchEvent(new CustomEvent('digital-human-open-external', {
+            detail: {
+              url: intent.url,
+              label: intent.label || new URL(intent.url).hostname,
+              mode: intent.mode || 'iframe',
+            },
+          }))
+          // mode='newtab' 时同时开新标签(用户明确要求)
+          if (intent.mode === 'newtab') {
+            window.open(intent.url, '_blank', 'noopener,noreferrer')
+          }
+        }
+        return { ok: true, message: `opened ${intent.url}` }
+
       case 'switch': {
         sessionManager.switchAgent(opts.conversationId, intent.agentId)
         return { ok: true, message: `switched to ${intent.agentId}`, data: { agentId: intent.agentId } }

@@ -11,6 +11,7 @@ import React from 'react';
 import { Box, IconButton, TextField, Typography, CircularProgress, Chip, Collapse } from '@mui/material';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import OpenInFullRoundedIcon from '@mui/icons-material/OpenInFullRounded';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import MicNoneRoundedIcon from '@mui/icons-material/MicNoneRounded';
 import MicRoundedIcon from '@mui/icons-material/MicRounded';
@@ -100,7 +101,7 @@ export default function FloatingDigitalHuman() {
 
       // 意图路由: 切换角色 / 委派任务 / 普通聊天
       const conversationId = app.activeConversationId || 'default'
-      const { intent } = await routeIntent(text, {
+      const { intent, replyText } = await routeIntent(text, {
         availableAgents: availableAgents.map((a) => ({
           id: a.agentId,
           displayName: a.name,
@@ -111,24 +112,25 @@ export default function FloatingDigitalHuman() {
 
       if (intent.type === 'switch') {
         setActiveAgent(intent.agentId)
-        chat.setText(`已切换到 ${availableAgents.find((a) => a.agentId === intent.agentId)?.name || intent.agentId}`)
+        chat.setText(replyText || `已切换到 ${availableAgents.find((a) => a.agentId === intent.agentId)?.name || intent.agentId}`)
         return
       }
       if (intent.type === 'return') {
         const prev = popAgent()
         if (prev) {
-          chat.setText(`已返回 ${availableAgents.find((a) => a.agentId === app.activeAgentId)?.name || app.activeAgentId}`)
+          chat.setText(replyText || `已返回 ${availableAgents.find((a) => a.agentId === app.activeAgentId)?.name || app.activeAgentId}`)
         }
         return
       }
-      if (intent.type === 'delegate' || intent.type === 'navigate' || intent.type === 'system' || intent.type === 'cron' || intent.type === 'query') {
+      if (intent.type === 'delegate' || intent.type === 'navigate' || intent.type === 'open_external' || intent.type === 'system' || intent.type === 'cron' || intent.type === 'query') {
         const res = await executeIntent(intent, { conversationId })
-        chat.setText(res.message)
+        chat.setText(replyText || res.message)
         return
       }
 
-      // 普通聊天
-      await chat.sendText(text)
+      // 普通聊天(LLM 返回的 chat intent)
+      // 注意: router 返回的 replyText 给数字人朗读, 不需要再发到 /api/avatar/chat
+      chat.setText(replyText || '让我想想...')
     },
     isAvatarSpeaking: () => chat.isSpeaking(),
     onInterrupt: () => chat.cancel(),
@@ -142,6 +144,19 @@ export default function FloatingDigitalHuman() {
   // 注意:必须在所有 hook 之后才能 return null,否则 React Rules of Hooks 报错
   // "Rendered fewer hooks than expected"(pathname 切换时 hidden 翻转会导致
   // 下方的 useEffect 被跳过,hook 数量变化 → 崩)
+
+  // ExternalViewer: 监听 executor 的 'digital-human-open-external' 事件,
+  // 弹 iframe 模态显示用户想看的外部 URL(百度/知乎等)
+  const [externalViewer, setExternalViewer] = React.useState<{ url: string; label: string } | null>(null)
+  React.useEffect(() => {
+    const onOpen = (e: Event) => {
+      const detail = (e as CustomEvent<{ url: string; label: string; mode: string }>).detail
+      if (!detail) return
+      setExternalViewer({ url: detail.url, label: detail.label })
+    }
+    window.addEventListener('digital-human-open-external', onOpen)
+    return () => window.removeEventListener('digital-human-open-external', onOpen)
+  }, [])
 
   const onDown = React.useCallback((e: React.PointerEvent) => {
     const target = e.target as HTMLElement;
@@ -440,6 +455,50 @@ export default function FloatingDigitalHuman() {
           />
         )}
       </Box>
+
+      {/* ExternalViewer: 用户说"打开百度"等 → 弹 iframe 模态显示 */}
+      {externalViewer && (
+        <Box data-no-drag sx={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          bgcolor: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          p: { xs: 1, md: 4 },
+        }}>
+          <Box sx={{
+            width: '100%', maxWidth: 1200, height: '100%', maxHeight: 800,
+            bgcolor: 'background.paper', borderRadius: 2, overflow: 'hidden',
+            display: 'flex', flexDirection: 'column',
+            boxShadow: '0 24px 48px rgba(0,0,0,0.5)',
+          }}>
+            {/* 顶部工具栏 */}
+            <Box sx={{
+              display: 'flex', alignItems: 'center', gap: 1, p: 1, pl: 2,
+              borderBottom: 1, borderColor: 'divider',
+              bgcolor: 'grey.100',
+            }}>
+              <Box sx={{ flex: 1, fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                🌐 {externalViewer.label}
+              </Box>
+              <IconButton size="small" onClick={() => window.open(externalViewer.url, '_blank', 'noopener,noreferrer')} title="新标签打开">
+                <OpenInNewIcon fontSize="small" />
+              </IconButton>
+              <IconButton size="small" onClick={() => setExternalViewer(null)} title="关闭">
+                <CloseRoundedIcon />
+              </IconButton>
+            </Box>
+            {/* iframe 内容 */}
+            <Box sx={{ flex: 1, position: 'relative', bgcolor: '#fafafa' }}>
+              <iframe
+                src={externalViewer.url}
+                title={externalViewer.label}
+                style={{ width: '100%', height: '100%', border: 'none' }}
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                referrerPolicy="no-referrer"
+              />
+            </Box>
+          </Box>
+        </Box>
+      )}
     </Box>
   );
 }

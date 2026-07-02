@@ -29,6 +29,13 @@ const SYSTEM_PROMPT = `你是数字人的"意图路由器"。把用户输入解�
    常见路径: / (首页) /home /digital-human /account /account/center
              /account/content /account/msg /system/moderation/reports (管理面)
 
+3. **open_external** — 显示外部 URL(弹窗 iframe 或新标签页,用户想看的东西)
+   { type: "open_external", url: "https://...", label: "页面名", mode: "iframe" | "newtab" }
+   触发: "打开百度" "看看知乎" "搜索 xxx" "让我看谷歌" "打开 wikipedia"
+   常见 URL: 百度 https://www.baidu.com / 知乎 https://www.zhihu.com
+             github https://github.com / wikipedia https://zh.wikipedia.org
+   缺省 mode: "iframe"(在站内弹窗显示,不离开 app)
+
 3. **delegate** — 委派任务给其他 agent (异步执行, 完成后通知)
    { type: "delegate", agentId: "comfyui_helper", task: "具体任务描述" }
    可用 agent: comfyui_helper (出图), coder (代码/git), researcher (搜索)
@@ -76,10 +83,12 @@ const TOOLS = [
             items: {
               type: 'object',
               properties: {
-                type: { type: 'string', enum: ['chat','navigate','delegate','switch','return','cron','system','query','multi'] },
+                type: { type: 'string', enum: ['chat','navigate','open_external','delegate','switch','return','cron','system','query','multi'] },
                 text: { type: 'string' },
                 agentId: { type: 'string' },
                 path: { type: 'string' },
+                url: { type: 'string' },
+                mode: { type: 'string', enum: ['iframe','newtab'] },
                 label: { type: 'string' },
                 task: { type: 'string' },
                 cronExpr: { type: 'string' },
@@ -194,7 +203,7 @@ export async function routeIntent(
   const intent: Intent = first as Intent
 
   // 需要 awaitExecution 的类型 (执行后才能回复)
-  const awaitTypes = new Set(['navigate', 'system'])
+  const awaitTypes = new Set(['navigate', 'open_external', 'system'])
   return {
     intent,
     replyText: parsed.replyText || '',
