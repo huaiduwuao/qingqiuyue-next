@@ -35,16 +35,68 @@
 
 import React from 'react';
 import { Box, CircularProgress, Typography } from '@mui/material';
+// ⚠️ 静态导入 @pixiv/three-vrm — 不能用动态 import()
+// 动态 import 在 React 组件里每帧调用会触发 turbopack HMR 报错:
+//   "Unexpected import of module ... which was deleted by an HMR update"
+// 导致整个 BlenderAvatar 组件挂掉, VRM 不动 → T-pose
+import * as THREE_VRM from '@pixiv/three-vrm';
+const { VRMLoaderPlugin, VRMUtils, VRMHumanBoneName } = THREE_VRM;
 
 // VRM 表情名字映射(我们 LLM/Mock 用的 12 个 → VRM 表情管理器的标准名字)
+// VRM 0.0 标准表情名 = ARKit Blendshape 1:1 映射
+// 52 个表情全部直通, 没在表里的 key 直接当 VRM 名用
 const EXPRESSION_MAP: Record<string, string> = {
-  smile: 'joy',          // VRM 0.0 标准的 happy
+  // 兼容旧 short 名
+  smile: 'joy',
   angry: 'angry',
   sad: 'sorrow',
   surprised: 'fun',
-  blink: 'blink',         // VRM 自带
-  // viseme 同名
-  aa: 'aa', ih: 'ih', ou: 'ou', E: 'E', O: 'O', U: 'U', closed: 'closed',
+  blink: 'blink',
+  // 52 维 ARKit (直通)
+  // 眉毛 (5)
+  browInnerUp: 'browInnerUp',
+  browDownLeft: 'browDownLeft', browDownRight: 'browDownRight',
+  browOuterUpLeft: 'browOuterUpLeft', browOuterUpRight: 'browOuterUpRight',
+  // 脸颊 (3)
+  cheekPuff: 'cheekPuff',
+  cheekSquintLeft: 'cheekSquintLeft', cheekSquintRight: 'cheekSquintRight',
+  // 眼睛 (14)
+  eyeBlinkLeft: 'eyeBlinkLeft', eyeBlinkRight: 'eyeBlinkRight',
+  eyeLookDownLeft: 'eyeLookDownLeft', eyeLookDownRight: 'eyeLookDownRight',
+  eyeLookInLeft: 'eyeLookInLeft', eyeLookInRight: 'eyeLookInRight',
+  eyeLookOutLeft: 'eyeLookOutLeft', eyeLookOutRight: 'eyeLookOutRight',
+  eyeLookUpLeft: 'eyeLookUpLeft', eyeLookUpRight: 'eyeLookUpRight',
+  eyeSquintLeft: 'eyeSquintLeft', eyeSquintRight: 'eyeSquintRight',
+  eyeWideLeft: 'eyeWideLeft', eyeWideRight: 'eyeWideRight',
+  // 下颚 (4)
+  jawForward: 'jawForward', jawLeft: 'jawLeft',
+  jawOpen: 'jawOpen', jawRight: 'jawRight',
+  // 嘴 (22)
+  mouthClose: 'mouthClose',
+  mouthDimpleLeft: 'mouthDimpleLeft', mouthDimpleRight: 'mouthDimpleRight',
+  mouthFrownLeft: 'mouthFrownLeft', mouthFrownRight: 'mouthFrownRight',
+  mouthFunnel: 'mouthFunnel',
+  mouthLeft: 'mouthLeft',
+  mouthLowerDownLeft: 'mouthLowerDownLeft', mouthLowerDownRight: 'mouthLowerDownRight',
+  mouthPressLeft: 'mouthPressLeft', mouthPressRight: 'mouthPressRight',
+  mouthPucker: 'mouthPucker',
+  mouthRight: 'mouthRight',
+  mouthRollLower: 'mouthRollLower', mouthRollUpper: 'mouthRollUpper',
+  mouthShrugLower: 'mouthShrugLower', mouthShrugUpper: 'mouthShrugUpper',
+  mouthSmileLeft: 'mouthSmileLeft', mouthSmileRight: 'mouthSmileRight',
+  mouthStretchLeft: 'mouthStretchLeft', mouthStretchRight: 'mouthStretchRight',
+  mouthUpperUpLeft: 'mouthUpperUpLeft', mouthUpperUpRight: 'mouthUpperUpRight',
+  // 鼻子 (2)
+  noseSneerLeft: 'noseSneerLeft', noseSneerRight: 'noseSneerRight',
+  // 舌头 (1)
+  tongueOut: 'tongueOut',
+  // viseme (OVRLipSync 标准, VRM 0.0 用 "viseme_" 前缀)
+  // 数字人 chat 返回短名 (sil/aa/E/I/O/U/PP/FF/DD/kk/CH/SS/nn/RR), 自动加前缀
+  sil: 'viseme_sil', aa: 'viseme_aa', E: 'viseme_E', I: 'viseme_I',
+  O: 'viseme_O', U: 'viseme_U', ou: 'viseme_ou', ih: 'viseme_ih',
+  PP: 'viseme_PP', FF: 'viseme_FF', TH: 'viseme_TH', DD: 'viseme_DD',
+  kk: 'viseme_kk', CH: 'viseme_CH', SS: 'viseme_SS', nn: 'viseme_nn',
+  RR: 'viseme_RR', closed: 'viseme_sil',
 };
 
 // 缓存:url -> 加载好的 VRM 数据(单一格式,不再支持 GLB)
@@ -70,12 +122,10 @@ async function loadAvatar(url: string): Promise<Cached> {
       throw new Error(`BlenderAvatar 现在只支持 .vrm 格式(${url} 不是)。请把角色放到 public/avatars/character.vrm`);
     }
     const THREE = await import('three');
-    const cache_url = url + (url.includes('?') ? '&' : '?') + 'v=' + Date.now();
-    const res = await fetch(cache_url);
+    const res = await fetch(url);
     if (!res.ok) throw new Error(`fetch ${url} failed: ${res.status}`);
     const buf = new Uint8Array(await res.arrayBuffer());
     const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader');
-    const { VRMLoaderPlugin, VRMUtils } = await import('@pixiv/three-vrm');
     const loader = new GLTFLoader();
     loader.register((parser: any) => new VRMLoaderPlugin(parser));
     const gltf = await loader.parseAsync(buf.buffer, '');
@@ -140,6 +190,9 @@ export default function BlenderAvatar({
   const mixerRef = React.useRef<any>(null);
   const rafRef = React.useRef<number | null>(null);
   const rotationRef = React.useRef(0);
+  // 用 ref 跟踪 currentAction, 避免 frame 闭包过期
+  const currentActionRef = React.useRef(currentAction);
+  currentActionRef.current = currentAction;
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
 
@@ -223,6 +276,23 @@ export default function BlenderAvatar({
           if (cancelled) return;
           const dt = clock.getDelta();
           if (mixerRef.current) mixerRef.current.update(dt);
+          // 每帧调用 applyVRMAction, 让 idle (呼吸) 等时间相关动画持续动
+          if (loadedRef.current?.vrm) {
+            const vrm = loadedRef.current.vrm
+            // 1) 推 bone rotation 到顶点
+            if (vrm.humanoid && typeof vrm.humanoid.update === 'function') {
+              vrm.humanoid.update(dt)
+            }
+            // 2) VRM 1.x spring bone 物理 (衣服/头发跟随)
+            if (typeof vrm.update === 'function') {
+              vrm.update(dt)
+            } else if ((vrm as any).springBoneManager?.update) {
+              ;(vrm as any).springBoneManager.update(dt)
+            }
+            // 3) 设下帧 bone rotation (time-dependent idle 动画)
+            applyVRMAction(vrm, currentActionRef.current).catch(() => {})
+          }
+          // 4) 可选: 整体缓慢旋转 (由 prop 控制)
           if (autoRotate && loadedRef.current?.scene) {
             loadedRef.current.scene.rotation.y += dt * 0.3;
           }
@@ -230,7 +300,6 @@ export default function BlenderAvatar({
           rafRef.current = requestAnimationFrame(frame);
         };
         rafRef.current = requestAnimationFrame(frame);
-        console.log('[BlenderAvatar] 主循环启动,渲染中...');
       } catch (err: any) {
         if (cancelled) return;
         console.error('[BlenderAvatar] init failed:', err);
@@ -318,97 +387,223 @@ export default function BlenderAvatar({
 // ── VRM 动作:10 个通过 humanoid bones 实现 ─────────────────
 
 async function applyVRMAction(vrm: any, action: string) {
-  if (!vrm.humanoid) return;
-  // VRMHumanBoneName: Hips / Spine / Chest / Neck / Head / LeftShoulder / RightShoulder 等
-  const { VRMHumanBoneName } = await import('@pixiv/three-vrm');
-  const t = performance.now() / 1000;
+  if (!vrm.humanoid) {
+    if (!(globalThis as any).__vrm_warn) {
+      console.warn('[BlenderAvatar] applyVRMAction: vrm.humanoid 不存在! bones 无法控制')
+      ;(globalThis as any).__vrm_warn = true
+    }
+    return
+  }
+  const t = performance.now() / 1000
 
-  // 复位所有 bone
-  const allBones = Object.values(VRMHumanBoneName) as string[];
-  for (const name of allBones) {
-    const bone = vrm.humanoid.getNormalizedBoneNode(name);
-    if (bone) {
-      bone.rotation.set(0, 0, 0);
-      bone.position.set(0, bone.position.y, 0);  // 保留 y(让脚贴地)
+  // ⚠️ VRM 版本适配:
+  //   VRM 0.x: bone 名 PascalCase (Hips, Spine, LeftUpperArm)
+  //   VRM 1.x: bone 名 camelCase  (hips, spine, leftUpperArm)
+  // getBoneNode() 接受字符串, 大小写敏感 — 必须按 VRM 版本走
+  const vrmVer = (vrm.meta?.metaVersion || '').toString()
+  const isVRM1 = vrmVer.startsWith('1') || vrmVer.startsWith('2')
+  const bone = (vrm0: string, vrm1: string) => isVRM1 ? vrm1 : vrm0
+
+  // 1) 复位所有 bone (用当前 VRM 版本的 bone 名)
+  //    不能用 Object.values(VRMHumanBoneName) 因为 0.x 用 PascalCase 跟我们 VRM 1.x 模型不匹配
+  const ALL_BONE_NAMES = isVRM1 ? [
+    'hips', 'spine', 'chest', 'upperChest', 'neck', 'head',
+    'leftUpperLeg', 'leftLowerLeg', 'leftFoot', 'leftToes',
+    'rightUpperLeg', 'rightLowerLeg', 'rightFoot', 'rightToes',
+    'leftShoulder', 'leftUpperArm', 'leftLowerArm', 'leftHand',
+    'rightShoulder', 'rightUpperArm', 'rightLowerArm', 'rightHand',
+    'leftEye', 'rightEye', 'jaw',
+  ] : Object.values(VRMHumanBoneName) as string[]
+  for (const name of ALL_BONE_NAMES) {
+    const b = vrm.humanoid.getNormalizedBoneNode(name)
+    if (b) {
+      b.rotation.set(0, 0, 0)
+      b.position.set(0, b.position.y, 0)
     }
   }
 
+  // 2) 应用"自然姿态"基线 — 让数字人不是 T-pose
+  //    T-pose 手臂水平外伸, 要让其自然下垂, 大臂 rotation.z 要转 ~1.4 rad (80°)
+  //    之前 0.35 rad (20°) 太小, 看着还是 T-pose
+  const setNaturalPose = () => {
+    const lUpper = vrm.humanoid.getNormalizedBoneNode(bone('LeftUpperArm', 'leftUpperArm'))
+    const rUpper = vrm.humanoid.getNormalizedBoneNode(bone('RightUpperArm', 'rightUpperArm'))
+    const lLower = vrm.humanoid.getNormalizedBoneNode(bone('LeftLowerArm', 'leftLowerArm'))
+    const rLower = vrm.humanoid.getNormalizedBoneNode(bone('RightLowerArm', 'rightLowerArm'))
+    const lHand = vrm.humanoid.getNormalizedBoneNode(bone('LeftHand', 'leftHand'))
+    const rHand = vrm.humanoid.getNormalizedBoneNode(bone('RightHand', 'rightHand'))
+    // 大臂往下垂 (rotation.z = -1.4 rad ≈ -80° 让手臂从水平外伸 → 垂到身体两侧)
+    // ⚠️ 方向: 实测 +z 让手臂上扬 (过头), -z 才是下垂
+    if (lUpper) lUpper.rotation.z = -1.4
+    if (rUpper) rUpper.rotation.z = 1.4
+    // 小臂微弯 (手肘往前, x 正向)
+    if (lLower) lLower.rotation.x = 0.3
+    if (rLower) rLower.rotation.x = 0.3
+    // 手自然下垂 (x 正向)
+    if (lHand) lHand.rotation.x = 0.3
+    if (rHand) rHand.rotation.x = 0.3
+    // 腿直立微张
+    const lUpperLeg = vrm.humanoid.getNormalizedBoneNode(bone('LeftUpperLeg', 'leftUpperLeg'))
+    const rUpperLeg = vrm.humanoid.getNormalizedBoneNode(bone('RightUpperLeg', 'rightUpperLeg'))
+    if (lUpperLeg) lUpperLeg.rotation.x = -0.1
+    if (rUpperLeg) rUpperLeg.rotation.x = -0.1
+  }
+  setNaturalPose()
+
   // 周期相位
-  const phase = Math.sin(t * 2);
+  const phase = Math.sin(t * 2)
 
   switch (action) {
     case 'wave': {
-      const r = vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.RightUpperArm);
-      const f = vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.RightLowerArm);
-      if (r) r.rotation.z = -2.5 + phase * 0.3;
-      if (f) f.rotation.z = -0.3;
-      vrm.scene.position.y = Math.abs(phase) * 0.02;
-      break;
+      const r = vrm.humanoid.getNormalizedBoneNode(bone('RightUpperArm', 'rightUpperArm'))
+      const f = vrm.humanoid.getNormalizedBoneNode(bone('RightLowerArm', 'rightLowerArm'))
+      if (r) r.rotation.z = -2.5 + phase * 0.3
+      if (f) f.rotation.z = -0.3
+      vrm.scene.position.y = Math.abs(phase) * 0.02
+      break
     }
     case 'walk': {
-      const l1 = vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.LeftUpperLeg);
-      const r1 = vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.RightUpperLeg);
-      if (l1) l1.rotation.x = phase * 0.4;
-      if (r1) r1.rotation.x = -phase * 0.4;
-      vrm.scene.position.y = Math.abs(phase) * 0.02;
-      break;
+      const l1 = vrm.humanoid.getNormalizedBoneNode(bone('LeftUpperLeg', 'leftUpperLeg'))
+      const r1 = vrm.humanoid.getNormalizedBoneNode(bone('RightUpperLeg', 'rightUpperLeg'))
+      if (l1) l1.rotation.x = phase * 0.4
+      if (r1) r1.rotation.x = -phase * 0.4
+      vrm.scene.position.y = Math.abs(phase) * 0.02
+      break
     }
     case 'run': {
-      const l1 = vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.LeftUpperLeg);
-      const r1 = vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.RightUpperLeg);
-      if (l1) l1.rotation.x = phase * 0.7;
-      if (r1) r1.rotation.x = -phase * 0.7;
-      vrm.scene.position.y = Math.abs(phase) * 0.04;
-      break;
+      const l1 = vrm.humanoid.getNormalizedBoneNode(bone('LeftUpperLeg', 'leftUpperLeg'))
+      const r1 = vrm.humanoid.getNormalizedBoneNode(bone('RightUpperLeg', 'rightUpperLeg'))
+      if (l1) l1.rotation.x = phase * 0.7
+      if (r1) r1.rotation.x = -phase * 0.7
+      vrm.scene.position.y = Math.abs(phase) * 0.04
+      break
     }
     case 'dance': {
-      const hips = vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.Hips);
-      if (hips) hips.rotation.y = t * 0.4;
-      const chest = vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.Chest);
-      if (chest) chest.rotation.z = phase * 0.1;
-      vrm.scene.position.y = Math.abs(Math.sin(t * 4)) * 0.03;
-      break;
+      // 跳舞: hips 转 + 手臂摆 + 上下颠
+      const hips = vrm.humanoid.getNormalizedBoneNode(bone('Hips', 'hips'))
+      if (hips) {
+        hips.rotation.y = t * 1.2  // 加速旋转
+        hips.rotation.z = phase * 0.15
+      }
+      const chest = vrm.humanoid.getNormalizedBoneNode(bone('Chest', 'chest'))
+      if (chest) chest.rotation.z = phase * 0.25
+      // 双臂交替举
+      const lU = vrm.humanoid.getNormalizedBoneNode(bone('LeftUpperArm', 'leftUpperArm'))
+      const rU = vrm.humanoid.getNormalizedBoneNode(bone('RightUpperArm', 'rightUpperArm'))
+      if (lU) lU.rotation.z = -2.5 + Math.sin(t * 2.5) * 0.6  // 举过头
+      if (rU) rU.rotation.z = 2.5 + Math.sin(t * 2.5 + Math.PI) * 0.6
+      // 膝微屈弹跳
+      vrm.scene.position.y = Math.abs(Math.sin(t * 4)) * 0.05
+      vrm.scene.position.x = Math.sin(t * 2) * 0.04
+      break
+    }
+    case 'sing': {
+      // 唱歌: 胸腔打开, 头微仰, 身体微摆(像有节奏)
+      const neck = vrm.humanoid.getNormalizedBoneNode(bone('Neck', 'neck'))
+      if (neck) neck.rotation.x = -0.15 + Math.sin(t * 3) * 0.05  // 微仰
+      const chest = vrm.humanoid.getNormalizedBoneNode(bone('Chest', 'chest'))
+      if (chest) {
+        chest.rotation.x = -0.05  // 胸腔打开
+        chest.rotation.y = Math.sin(t * 1.5) * 0.15  // 摆动
+      }
+      // 手放胸口位置(像握话筒)
+      const rU2 = vrm.humanoid.getNormalizedBoneNode(bone('RightUpperArm', 'rightUpperArm'))
+      if (rU2) rU2.rotation.z = 1.0  // 手到胸前
+      vrm.scene.position.y = Math.abs(Math.sin(t * 2.5)) * 0.025
+      break
+    }
+    case 'walk': {
+      // 原地踏步(不是真的在走路,但看着在动)
+      const lUL = vrm.humanoid.getNormalizedBoneNode(bone('LeftUpperLeg', 'leftUpperLeg'))
+      const rUL = vrm.humanoid.getNormalizedBoneNode(bone('RightUpperLeg', 'rightUpperLeg'))
+      const lLL = vrm.humanoid.getNormalizedBoneNode(bone('LeftLowerLeg', 'leftLowerLeg'))
+      const rLL = vrm.humanoid.getNormalizedBoneNode(bone('RightLowerLeg', 'rightLowerLeg'))
+      if (lUL) lUL.rotation.x = phase * 0.5
+      if (rUL) rUL.rotation.x = -phase * 0.5
+      if (lLL) lLL.rotation.x = Math.max(0, -phase * 0.3)
+      if (rLL) rLL.rotation.x = Math.max(0, phase * 0.3)
+      // 双臂自然摆
+      const lUA = vrm.humanoid.getNormalizedBoneNode(bone('LeftUpperArm', 'leftUpperArm'))
+      const rUA = vrm.humanoid.getNormalizedBoneNode(bone('RightUpperArm', 'rightUpperArm'))
+      if (lUA) lUA.rotation.x = -phase * 0.3
+      if (rUA) rUA.rotation.x = phase * 0.3
+      vrm.scene.position.y = Math.abs(Math.sin(t * 4)) * 0.04
+      vrm.scene.position.x = Math.sin(t * 2) * 0.06  // 看似在挪动
+      break
     }
     case 'sit': {
-      vrm.scene.position.y = -0.35;
-      const l1 = vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.LeftUpperLeg);
-      const r1 = vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.RightUpperLeg);
-      if (l1) l1.rotation.x = -1.5;
-      if (r1) r1.rotation.x = -1.5;
-      break;
+      vrm.scene.position.y = -0.35
+      const l1 = vrm.humanoid.getNormalizedBoneNode(bone('LeftUpperLeg', 'leftUpperLeg'))
+      const r1 = vrm.humanoid.getNormalizedBoneNode(bone('RightUpperLeg', 'rightUpperLeg'))
+      if (l1) l1.rotation.x = -1.5
+      if (r1) r1.rotation.x = -1.5
+      break
     }
     case 'point': {
-      const r = vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.RightUpperArm);
-      if (r) r.rotation.z = -1.5;
-      const neck = vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.Neck);
-      if (neck) neck.rotation.x = -0.1;
-      break;
+      const r = vrm.humanoid.getNormalizedBoneNode(bone('RightUpperArm', 'rightUpperArm'))
+      if (r) r.rotation.z = -1.5
+      const neck = vrm.humanoid.getNormalizedBoneNode(bone('Neck', 'neck'))
+      if (neck) neck.rotation.x = -0.1
+      break
     }
     case 'think': {
-      const neck = vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.Neck);
-      if (neck) neck.rotation.z = 0.2;
-      const r = vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.RightUpperArm);
-      if (r) r.rotation.z = -1.8;
-      break;
+      const neck = vrm.humanoid.getNormalizedBoneNode(bone('Neck', 'neck'))
+      if (neck) neck.rotation.z = 0.2
+      const r = vrm.humanoid.getNormalizedBoneNode(bone('RightUpperArm', 'rightUpperArm'))
+      if (r) r.rotation.z = -1.8
+      break
     }
     case 'talk': {
-      const chest = vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.Chest);
-      if (chest) chest.rotation.x = Math.sin(t * 3) * 0.05;
-      vrm.scene.position.y = Math.abs(Math.sin(t * 3)) * 0.02;
-      break;
+      const chest = vrm.humanoid.getNormalizedBoneNode(bone('Chest', 'chest'))
+      if (chest) chest.rotation.x = Math.sin(t * 3) * 0.05
+      vrm.scene.position.y = Math.abs(Math.sin(t * 3)) * 0.02
+      break
     }
     case 'bow': {
-      const chest = vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.Chest);
-      if (chest) chest.rotation.x = 0.4;
-      const neck = vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.Neck);
-      if (neck) neck.rotation.x = 0.3;
-      break;
+      const chest = vrm.humanoid.getNormalizedBoneNode(bone('Chest', 'chest'))
+      if (chest) chest.rotation.x = 0.4
+      const neck = vrm.humanoid.getNormalizedBoneNode(bone('Neck', 'neck'))
+      if (neck) neck.rotation.x = 0.3
+      break
     }
     case 'idle':
     default: {
-      const chest = vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.Chest);
-      if (chest) chest.rotation.x = Math.sin(t * 0.5) * 0.03;
-      break;
+      // 活泼 idle: 头部摆动 + 点头 + 歪头 + 呼吸 + 重心转移 + 眨眼
+      const head = vrm.humanoid.getNormalizedBoneNode(bone('Head', 'head'))
+      if (head) {
+        head.rotation.y = Math.sin(t * 0.4) * 0.18
+        head.rotation.x = Math.sin(t * 0.7) * 0.08 - 0.02
+        head.rotation.z = Math.sin(t * 0.3) * 0.06
+      }
+      const chest = vrm.humanoid.getNormalizedBoneNode(bone('Chest', 'chest'))
+      if (chest) {
+        chest.rotation.x = Math.sin(t * 0.9) * 0.05
+        chest.rotation.y = Math.sin(t * 0.25) * 0.08
+      }
+      const spine = vrm.humanoid.getNormalizedBoneNode(bone('Spine', 'spine'))
+      if (spine) {
+        spine.rotation.z = Math.sin(t * 0.4) * 0.04
+        spine.rotation.x = Math.sin(t * 0.5) * 0.02
+      }
+      const hips = vrm.humanoid.getNormalizedBoneNode(bone('Hips', 'hips'))
+      if (hips) hips.rotation.z = Math.sin(t * 0.3) * 0.03
+      vrm.scene.position.y = Math.abs(Math.sin(t * 0.9)) * 0.02
+      vrm.scene.position.x = Math.sin(t * 0.4) * 0.01
+      // 眨眼: 4s 一轮, 最后 0.1s 闭眼
+      const blinkCycle = t % 4
+      const em = vrm.expressionManager
+      if (em?.setValue) {
+        if (blinkCycle > 3.9) {
+          em.setValue(bone('Blink', 'blink'), 1.0)
+          em.setValue(bone('blinkLeft', 'eyeBlinkLeft'), 1.0)
+          em.setValue(bone('blinkRight', 'eyeBlinkRight'), 1.0)
+        } else {
+          em.setValue(bone('Blink', 'blink'), 0)
+          em.setValue(bone('blinkLeft', 'eyeBlinkLeft'), 0)
+          em.setValue(bone('blinkRight', 'eyeBlinkRight'), 0)
+        }
+      }
+      break
     }
   }
 }

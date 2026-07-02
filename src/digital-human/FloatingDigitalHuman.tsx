@@ -101,7 +101,7 @@ export default function FloatingDigitalHuman() {
 
       // 意图路由: 切换角色 / 委派任务 / 普通聊天
       const conversationId = app.activeConversationId || 'default'
-      const { intent, replyText } = await routeIntent(text, {
+      const { intent, replyText, emotion: emo, action: act } = await routeIntent(text, {
         availableAgents: availableAgents.map((a) => ({
           id: a.agentId,
           displayName: a.name,
@@ -109,6 +109,10 @@ export default function FloatingDigitalHuman() {
           tools: [],
         })),
       })
+
+      // LLM 驱动的表情 + 动作: 让数字人有灵性, 不是傻站着
+      if (emo) chat.setEmotion(emo)
+      if (act) chat.setAction(act)
 
       if (intent.type === 'switch') {
         setActiveAgent(intent.agentId)

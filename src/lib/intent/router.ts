@@ -66,7 +66,32 @@ const SYSTEM_PROMPT = `你是数字人的"意图路由器"。把用户输入解�
 - 明确指令 → delegate / navigate / system / cron
 - 多个独立任务 → multi
 - 闲聊中夹杂任务 → multi (chat + 任务)
-- 输出严格 JSON, 不要 markdown 代码块, 不要解释`
+- 输出严格 JSON, 不要 markdown 代码块, 不要解释
+
+## 数字人表情 + 动作 (必填, 让 3D 角色有灵性)
+除 intents 数组外, 还要返回顶层 emotion + avatarAction:
+- emotion: 这次回复的情绪(驱动 VRM 表情 BlendShape)
+  - smile     → 友好/开心/同意
+  - surprised → 惊讶/没想到/oh
+  - angry     → 不满/生气/警告
+  - sad       → 抱歉/难过/遗憾
+  - neutral   → 默认/不知道
+- avatarAction: 这次回复同时做的肢体动作(驱动 VRM bone rotation)
+  - idle    → 默认,呼吸+摆头
+  - wave    → 打招呼/再见
+  - think   → 思考/分析/不知道
+  - point   → 指向/这个/那边
+  - bow     → 道歉/感谢
+  - dance   → 庆祝/音乐/跳舞
+  - sing    → 唱歌/哼歌
+  - walk    → 走动/动起来
+  - sit     → 累了/坐下
+  - talk    → 说话时配合胸腔起伏
+
+例:
+  用户"今天好开心啊" → { emotion: 'smile', avatarAction: 'dance', intents: [{type:'chat', text:'是呢今天真不错', agentId:'digital_human'}] }
+  用户"打开百度" → { emotion: 'neutral', avatarAction: 'point', intents: [{type:'open_external', url:'https://baidu.com', label:'百度'}] }
+  用户"跳舞给我看" → { emotion: 'smile', avatarAction: 'dance', intents: [{type:'chat', text:'好呀!', agentId:'digital_human'}] }`
 
 const TOOLS = [
   {
@@ -98,6 +123,8 @@ const TOOLS = [
                 kind: { type: 'string', enum: ['conversation','task','artifact'] },
                 query: { type: 'string' },
                 intents: { type: 'array', items: { type: 'object' } },
+                emotion: { type: 'string', enum: ['smile','angry','sad','surprised','neutral'] },
+                avatarAction: { type: 'string', enum: ['idle','wave','think','point','bow','dance','sing','walk','sit','talk'] },
               },
               required: ['type'],
             },
@@ -177,7 +204,7 @@ export async function routeIntent(
     }
   }
 
-  let parsed: { replyText: string; intents: Intent[] }
+  let parsed: { replyText: string; intents: Intent[]; emotion?: string; avatarAction?: string }
   try {
     const args = toolCall.function.arguments
     parsed = typeof args === 'string' ? JSON.parse(args) : args
@@ -204,9 +231,15 @@ export async function routeIntent(
 
   // 需要 awaitExecution 的类型 (执行后才能回复)
   const awaitTypes = new Set(['navigate', 'open_external', 'system'])
+
+  // 提取 LLM 决定的表情/动作(让数字人有"灵性",不只是傻站着)
+  // emotion: smile | angry | sad | surprised | neutral
+  // action:  idle | wave | think | point | bow | dance | sing | walk | sit | talk
   return {
     intent,
     replyText: parsed.replyText || '',
+    emotion: parsed.emotion,
+    action: parsed.avatarAction,
     awaitExecution: awaitTypes.has(intent.type),
   }
 }

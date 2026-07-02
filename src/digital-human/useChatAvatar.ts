@@ -64,6 +64,10 @@ export interface ChatAvatarState {
   send: () => Promise<void>;
   /** 直接发送指定文本 (给 voice agent / 外部触发用, 绕过 text state) */
   sendText: (v: string) => Promise<void>;
+  /** LLM 驱动的情绪 (chat/回答后调用,驱动 VRM 表情) */
+  setEmotion: (e: string) => void;
+  /** LLM 驱动的动作 (驱动 VRM bone rotation) */
+  setAction: (a: string) => void;
   audioRef: React.MutableRefObject<HTMLAudioElement | null>;
   /** 语音输入(ASR)状态 */
   recording: boolean;
@@ -587,6 +591,29 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
     return !a.paused && a.currentTime > 0 && !a.ended
   }, [isAvatarPlaying])
 
+  // LLM 驱动的表情: emotion name → 1.0 weight blend shape
+  const setEmotionExternal = React.useCallback((name: string) => {
+    if (!name) return
+    const map: Record<string, Record<string, number>> = {
+      smile:     { smile: 1.0 },
+      surprised: { surprised: 1.0 },
+      angry:     { angry: 1.0 },
+      sad:       { sad: 1.0 },
+      neutral:   { smile: 0, surprised: 0, angry: 0, sad: 0 },  // reset
+    }
+    setEmotion(map[name] || map.neutral)
+    // 5 秒后回 idle 表情(避免长时间凝固)
+    setTimeout(() => setEmotion({ smile: 0.1, blink: 0 }), 5000)
+  }, [])
+
+  // LLM 驱动的动作: 直接 setAction(BlenderAvatar 通过 prop 接住)
+  const setActionExternal = React.useCallback((name: string) => {
+    if (!name) return
+    setAction(name)
+    // 6 秒后回 idle(动作不要太长)
+    setTimeout(() => setAction('idle'), 6000)
+  }, [])
+
   return {
     text,
     setText,
@@ -598,6 +625,8 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
     isAIGenerated,
     send,
     sendText,
+    setEmotion: setEmotionExternal,
+    setAction: setActionExternal,
     audioRef,
     recording,
     recordingError,
