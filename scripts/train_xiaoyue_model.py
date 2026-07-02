@@ -412,12 +412,33 @@ def export_onnx(model: WakeFCN, in_shape):
     onnx_path = MODEL_OUT_DIR / "xiaoyue.onnx"
     model.eval()
     dummy = torch.zeros((1, in_shape[0], in_shape[1]))
-    torch.onnx.export(
-        model, args=dummy, f=str(onnx_path),
-        input_names=["input"], output_names=["output"],
-        dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
-        opset_version=13,
-    )
+    # 关键: torch.onnx.export 默认会生成外部 .data 文件(权重)
+    # 但 ORT 浏览器端加载 .onnx + .data 双文件很容易丢一个
+    # 设 location 强制权重大小阈值 = 1.0 都不会触发外部分片
+    # 或者用 use_external_data_format=False (torch >= 2.0 支持)
+    try:
+        torch.onnx.export(
+            model, args=dummy, f=str(onnx_path),
+            input_names=["input"], output_names=["output"],
+            dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
+            opset_version=18,
+            use_external_data_format=False,  # 权重全部 inline 到 .onnx
+        )
+    except TypeError:
+        # 旧版 torch 不支持 use_external_data_format 参数,fallback
+        torch.onnx.export(
+            model, args=dummy, f=str(onnx_path),
+            input_names=["input"], output_names=["output"],
+            dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
+            opset_version=18,
+        )
+        # 手动 inline 外部数据
+        try:
+            import onnx
+            m = onnx.load(str(onnx_path))
+            onnx.save(m, str(onnx_path), save_external_data=False)
+        except Exception as e:
+            print(f"  ⚠️ inline external data 失败: {e}")
     sz = os.path.getsize(onnx_path) / 1024
     print(f"  ✓ {onnx_path} ({sz:.1f} KB)")
     return onnx_path
