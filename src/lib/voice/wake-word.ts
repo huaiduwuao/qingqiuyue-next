@@ -51,6 +51,7 @@ class OpenWakeWordEngine {
   // 推理延迟统计 (每 100 帧打一次平均)
   private inferenceCount = 0
   private inferenceTotalMs = 0
+  private runFrameErrorLogged = false  // 抑制重复 log 噪声
 
   constructor(cfg: WakeWordConfig, cbs: WakeWordCallbacks) {
     this.cfg = cfg
@@ -209,7 +210,12 @@ class OpenWakeWordEngine {
       }
       return score === Number.NEGATIVE_INFINITY ? null : score
     } catch (err) {
-      voiceLog('error', 'wake', 'runFrame error:', err)
+      // 静默错误: 大概率是某帧的输出 shape 跟期望不符(合成模型小,过载时偶发)
+      // 记详细错但不每帧 log (避免和之前的重复打印问题)
+      if (!this.runFrameErrorLogged) {
+        voiceLog('warn', 'wake', 'runFrame error (first occurrence, will suppress further):', err)
+        this.runFrameErrorLogged = true
+      }
       return null
     }
   }
