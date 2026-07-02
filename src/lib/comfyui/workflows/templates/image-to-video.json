@@ -1,0 +1,72 @@
+{
+  "_description": "图生视频占位工作流。请替换为真实 ComfyUI 工作流 JSON(从 ComfyUI 菜单 Export API 导出)。inputImage 字段会被 ComfyUI API 以 LoadImage 节点处理。",
+  "1": {
+    "inputs": {
+      "image": "input.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": { "title": "Load Input Image" }
+  },
+  "2": {
+    "inputs": {
+      "text": "${positivePrompt}",
+      "clip": ["3", 0]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": { "title": "Positive Prompt" }
+  },
+  "3": {
+    "inputs": {
+      "ckpt_name": "model.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": { "title": "Load Checkpoint" }
+  },
+  "4": {
+    "inputs": {
+      "text": "${negativePrompt}",
+      "clip": ["3", 0]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": { "title": "Negative Prompt" }
+  },
+  "5": {
+    "inputs": {
+      "seed": "${seed}",
+      "steps": "${steps}",
+      "cfg": "${cfg}",
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "model": ["3", 0],
+      "positive": ["2", 0],
+      "negative": ["4", 0],
+      "latent_image": ["6", 0]
+    },
+    "class_type": "KSampler",
+    "_meta": { "title": "KSampler" }
+  },
+  "6": {
+    "inputs": {
+      "pixels": ["1", 0],
+      "vae": ["3", 2]
+    },
+    "class_type": "VAEEncode",
+    "_meta": { "title": "VAE Encode" }
+  },
+  "7": {
+    "inputs": {
+      "samples": ["5", 0],
+      "vae": ["3", 2]
+    },
+    "class_type": "VAEDecode",
+    "_meta": { "title": "VAE Decode" }
+  },
+  "8": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": ["7", 0]
+    },
+    "class_type": "SaveImage",
+    "_meta": { "title": "Save Image" }
+  }
+}
