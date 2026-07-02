@@ -211,9 +211,11 @@ export async function startVAD(cbs: VADCallbacks, userOpts: VadOptions = {}): Pr
       }
     }
 
-    if (frameCount % 50 === 0) {
-      voiceLog('info', 'vad', `f${frameCount} e=${energy.toFixed(4)} zcr=${zcr.toFixed(3)} floor=${floor.toFixed(4)} loud=${isLoud} voice=${isHumanVoice} speaking=${isSpeaking}`)
-    }
+    // 心跳日志已删除 (vad.ts:214): 每 50 帧 (~1.5s) 一次的 frame stats 噪声,
+    // 用户日常使用时不需要看, 真要排查时手动 uncomment 即可。
+    // if (frameCount % 50 === 0) {
+    //   voiceLog('info', 'vad', `f${frameCount} e=${energy.toFixed(4)} zcr=${zcr.toFixed(3)} floor=${floor.toFixed(4)} loud=${isLoud} voice=${isHumanVoice} speaking=${isSpeaking}`)
+    // }
     frameCount++
   }
   sourceNode.connect(processorNode)
