@@ -15,6 +15,8 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import MicNoneRoundedIcon from '@mui/icons-material/MicNoneRounded';
 import MicRoundedIcon from '@mui/icons-material/MicRounded';
+import NearMeRoundedIcon from '@mui/icons-material/NearMeRounded';
+import PetsRoundedIcon from '@mui/icons-material/PetsRounded';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { alpha } from '@mui/material/styles';
@@ -230,10 +232,65 @@ export default function FloatingDigitalHuman() {
     }, durationMs + 50)
   }, [])
 
+  // 数字人"宠物模式": 跟着鼠标走(带惯性, 像猫跟主人)
+  // 用户在屏幕任何地方移动鼠标, 数字人平滑地跟过去
+  const [petMode, setPetMode] = React.useState(false)
+  const petAnimRef = React.useRef<number | null>(null)
+  React.useEffect(() => {
+    if (!petMode) return
+    const FW = 320, FH = 520
+    let lastMoveTime = 0
+    const onMouseMove = (e: MouseEvent) => {
+      // 节流: 60fps 足够, 不需要每次都调
+      const now = performance.now()
+      if (now - lastMoveTime < 16) return
+      lastMoveTime = now
+      // 浮窗跟随鼠标位置(但保持在鼠标上方右侧, 不挡住)
+      const targetLeft = Math.max(0, Math.min(window.innerWidth - FW, e.clientX - FW + 80))
+      const targetTop = Math.max(0, Math.min(window.innerHeight - FH, e.clientY - FH + 60))
+      // 平滑插值 (lerp 因子 0.15 → 像有惯性)
+      setPos(prev => ({
+        left: prev.left + (targetLeft - prev.left) * 0.15,
+        top: prev.top + (targetTop - prev.top) * 0.15,
+      }))
+    }
+    window.addEventListener('mousemove', onMouseMove)
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      if (petAnimRef.current) cancelAnimationFrame(petAnimRef.current)
+    }
+  }, [petMode])
+
+  // 召唤模式: 用户点页面任何位置, 数字人走过去
+  // 单独 useEffect 因为它跟 pet 互斥
+  const [summonMode, setSummonMode] = React.useState(false)
+  React.useEffect(() => {
+    if (!summonMode) return
+    const onClick = (e: MouseEvent) => {
+      // 排除点击浮窗自身(避免点击浮窗就跳到自己位置)
+      if (wrapRef.current?.contains(e.target as Node)) return
+      // 数字人浮窗走到点击位置(浮窗左上角对齐点击位置 - 80px 偏移)
+      const FW = 320, FH = 520
+      const target = {
+        left: Math.max(0, Math.min(window.innerWidth - FW, e.clientX - 80)),
+        top: Math.max(0, Math.min(window.innerHeight - FH, e.clientY - 60)),
+      }
+      walkTo(target, 1500)
+    }
+    window.addEventListener('click', onClick)
+    return () => window.removeEventListener('click', onClick)
+  }, [summonMode, walkTo])
+
   // 暴露 walkTo 到 window (executor 派事件时调)
   React.useEffect(() => {
     (window as any).__qingqiuyueWalkTo = walkTo
-    return () => { delete (window as any).__qingqiuyueWalkTo }
+    ;(window as any).__qingqiuyueSetPetMode = setPetMode
+    ;(window as any).__qingqiuyueSetSummonMode = setSummonMode
+    return () => {
+      delete (window as any).__qingqiueWalkTo
+      delete (window as any).__qingqiuyueSetPetMode
+      delete (window as any).__qingqiueSetSummonMode
+    }
   }, [walkTo])
 
   // ⚠️ 所有 hooks 必须在 early return 前调用 (React Rules of Hooks)
@@ -307,6 +364,32 @@ export default function FloatingDigitalHuman() {
           sx={{ color: 'rgba(255,255,255,0.85)', bgcolor: 'rgba(0,0,0,0.4)' }}
         >
           <OpenInFullRoundedIcon sx={{ fontSize: 14 }} />
+        </IconButton>
+        <IconButton
+          size="small"
+          aria-label="宠物模式(数字人跟鼠标走)"
+          title="宠物模式: 数字人跟着鼠标走"
+          onClick={(e) => { e.stopPropagation(); setPetMode((p) => !p); if (!petMode) setSummonMode(false) }}
+          sx={{
+            color: petMode ? '#a855f7' : 'rgba(255,255,255,0.7)',
+            bgcolor: petMode ? 'rgba(168,85,247,0.3)' : 'rgba(0,0,0,0.3)',
+            animation: petMode ? 'pulse 1.5s infinite' : 'none',
+          }}
+        >
+          <PetsRoundedIcon sx={{ fontSize: 14 }} />
+        </IconButton>
+        <IconButton
+          size="small"
+          aria-label="召唤模式(点击页面让数字人走过去)"
+          title="召唤模式: 点击页面任何位置, 数字人走过去"
+          onClick={(e) => { e.stopPropagation(); setSummonMode((s) => !s); if (!summonMode) setPetMode(false) }}
+          sx={{
+            color: summonMode ? '#25F4EE' : 'rgba(255,255,255,0.7)',
+            bgcolor: summonMode ? 'rgba(37,244,238,0.25)' : 'rgba(0,0,0,0.3)',
+            border: summonMode ? '1px dashed #25F4EE' : 'none',
+          }}
+        >
+          <NearMeRoundedIcon sx={{ fontSize: 14 }} />
         </IconButton>
         <MicTestButton />
         <Box sx={{ flex: 1 }} />

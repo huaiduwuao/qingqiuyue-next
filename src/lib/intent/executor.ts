@@ -98,6 +98,19 @@ export async function executeIntent(intent: Intent, opts: ExecutorOptions): Prom
         }
         return { ok: true, message: `walking to ${typeof intent.target === 'string' ? intent.target : 'position'}` }
 
+      case 'multi': {
+        // 复合意图: 按顺序执行子 intent, 支持 walk 序列(LLM 可规划路径)
+        const results = []
+        for (const sub of intent.intents) {
+          if (sub.type === 'walk_to' && (window as any).__qingqiuyueWalkTo) {
+            // walk 之间加 100ms 缓冲(连续走更平滑)
+            await new Promise((r) => setTimeout(r, 100))
+          }
+          results.push(await executeIntent(sub, opts))
+        }
+        return { ok: true, message: `multi executed: ${results.length} intents`, data: results }
+      }
+
       case 'switch': {
         sessionManager.switchAgent(opts.conversationId, intent.agentId)
         return { ok: true, message: `switched to ${intent.agentId}`, data: { agentId: intent.agentId } }
@@ -184,13 +197,6 @@ export async function executeIntent(intent: Intent, opts: ExecutorOptions): Prom
         }
         return { ok: false, message: 'unsupported query kind' }
       }
-
-      case 'multi':
-        const results = []
-        for (const sub of intent.intents) {
-          results.push(await executeIntent(sub, opts))
-        }
-        return { ok: true, message: `multi executed: ${results.length} intents`, data: results }
 
       default:
         return { ok: false, message: `unknown intent type: ${(intent as any).type}` }
