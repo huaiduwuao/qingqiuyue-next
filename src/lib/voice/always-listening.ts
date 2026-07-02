@@ -236,10 +236,13 @@ export class AlwaysListening {
   }
 
   private onSpeechStart(): void {
-    // VAD 检测到人声起 — 立刻开始累积
+    // VAD 检测到人声起 — 立刻开始累积候选音频
     this.candidateChunks = []
-    // 用户又说话了, 取消 pending 静默定时器
-    if (this.silenceTimer) { clearTimeout(this.silenceTimer); this.silenceTimer = null }
+    // ⚠️ 不再在这里清 silenceTimer — 之前的设计是"用户开始说话就重置静默计时",
+    // 但在 noisy 环境下 VAD 频繁触发 onSpeechStart,导致 2s 静默计时器永远清零,
+    // onSilenceDetected 永远不触发 → 唤醒后用户说命令,数字人不响应
+    //
+    // 修复: 静默计时器改在 onSpeechEnd 重启(段结束 = 候选停顿 = 真正静默起点)
     this.emit({})
   }
 
@@ -264,6 +267,12 @@ export class AlwaysListening {
     // 段结束处理定时器 (等 200ms 看有没有接续 — 从 500ms 缩短,降低首字响应)
     if (this.segmentEndTimer) clearTimeout(this.segmentEndTimer)
     this.segmentEndTimer = setTimeout(() => this.processSegment(), 200)
+
+    // 唤醒后 command 静默计时器 — 移到 onSpeechEnd 重启(原在 onSpeechStart 清, noisy 永远清不掉)
+    if (this.state === 'recording') {
+      if (this.silenceTimer) clearTimeout(this.silenceTimer)
+      this.silenceTimer = setTimeout(() => this.onSilenceDetected(), AlwaysListening.SILENCE_MS)
+    }
   }
 
   /**
