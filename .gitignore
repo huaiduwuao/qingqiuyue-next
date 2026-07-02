@@ -65,3 +65,31 @@ next-env.d.ts
 # 注:public/avatars/{model.glb,outfits/*.glb,scenes/*.glb,demo.html,person-test.mp4}
 # 是项目自带的数字人资产,NOT 排除,要让 docker build COPY 进镜像。
 # 但 public/avatars/pipeline/ 和 audio-cache/ 是运行时产物,已在上方 exclude。
+
+# ─── 防止下次再 untracked 一堆核心文件 ───
+# 模型/数据/训练产物(很大,不该进 git)
+/data/
+/models/
+*.pt
+*.pth
+*.onnx.data
+*.pkl
+
+# 测试/调试产物(临时)
+/test.mp3
+/test.wav
+/test_out.wav
+*.test.wav
+
+# 工具脚本输出
+/lint-output.txt
+/unused-vars.txt
+/DIGITAL-HUMAN-INTEGRATION.md
+/analyze-unused.py
+/remove-unused-imports.py
+/scripts/__pycache__/
+**/__pycache__/
+
+# node_modules 里的 token 文件等(防御)
+/node_modules/.cache/
+/node_modules/.package-lock.json
