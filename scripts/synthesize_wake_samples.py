@@ -27,6 +27,14 @@ import random
 import sys
 from pathlib import Path
 
+# Windows GBK 不能打 emoji, 强制 UTF-8 输出
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 import edge_tts
 import numpy as np
 from scipy.io import wavfile
@@ -72,7 +80,9 @@ async def synth_one(text: str, voice: str, rate: str, pitch: str, out_path: Path
 
         # 用 pydub/soundfile 读 mp3 太重, 改用 ffprobe + ffmpeg 转 wav 16kHz mono
         import subprocess
-        wav_tmp = out_path.with_suffix(".wav.tmp")
+        # 注意: ffmpeg 靠扩展名推断格式, .wav.tmp 的 .tmp 会被当格式解析而失败
+        # 必须把 .wav 放最后: 灏忔湀_001.tmp.wav 而不是 灏忔湀_001.wav.tmp
+        wav_tmp = out_path.with_name(out_path.stem + ".tmp.wav")
         r = subprocess.run(
             ["ffmpeg", "-y", "-i", str(mp3_path), "-ar", "16000", "-ac", "1", str(wav_tmp)],
             capture_output=True, timeout=30,
