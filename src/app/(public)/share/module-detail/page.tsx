@@ -23,6 +23,8 @@ import { useSearchParams } from 'next/navigation';
 import { clientTree } from '@/apis/system-module-menu';
 import { detail as contentDetailApi } from '@/apis/system-module-content';
 import { detail as moduleDetail } from '@/apis/system-module-list';
+import { passwordUnlock, payUnlock } from '@/apis/global';
+import { formatApiError } from '@/lib/api/client';
 import ModuleContentDetail from '@/components/ModuleContentDetail';
 
 interface MenuItem {
@@ -42,6 +44,9 @@ function ShareModuleDetailContent() {
   const [password, setPassword] = useState('');
   const [unlockDismissed, setUnlockDismissed] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [unlockBusy, setUnlockBusy] = useState(false);
+  const [unlockError, setUnlockError] = useState('');
+  const [payInfo, setPayInfo] = useState<{ qrCode?: string; payUrl?: string; amount?: number } | null>(null);
 
   const treeAndModuleQuery = useQuery({
     queryKey: ['share-module', moduleId],
@@ -79,6 +84,24 @@ function ShareModuleDetailContent() {
     !!moduleShareType && (moduleShareType === 'password' || (moduleNeedPay && moduleShareType === 'pay'));
   const unlockVisible = shouldShowUnlock && !unlockDismissed;
 
+  useEffect(() => {
+    if (!unlockVisible || moduleInfo?.shareType !== 'pay' || !moduleId) return;
+    let cancelled = false;
+    payUnlock({ moduleId: Number(moduleId) })
+      .then((res: any) => {
+        if (cancelled) return;
+        setPayInfo({
+          qrCode: res?.data?.qrCode || res?.data?.qrUrl,
+          payUrl: res?.data?.payUrl,
+          amount: res?.data?.amount ?? moduleInfo?.shareContent?.pay,
+        });
+      })
+      .catch(() => {
+        // 后端未就绪时使用模块价格兜底展示
+      });
+    return () => { cancelled = true; };
+  }, [unlockVisible, moduleInfo?.shareType, moduleInfo?.shareContent?.pay, moduleId]);
+
   const handleMenuClick = (menu: MenuItem) => {
     setSelectedKeys([menu.id]);
     if (menu.contentId) {
@@ -87,9 +110,17 @@ function ShareModuleDetailContent() {
     setDrawerOpen(false);
   };
 
-  const handlePasswordUnlock = () => {
-    if (password === '123456') {
+  const handlePasswordUnlock = async () => {
+    if (!password.trim() || !moduleId) return;
+    setUnlockBusy(true);
+    setUnlockError('');
+    try {
+      await passwordUnlock({ moduleId: Number(moduleId), password: password.trim() });
       setUnlockDismissed(true);
+    } catch (err) {
+      setUnlockError(formatApiError(err));
+    } finally {
+      setUnlockBusy(false);
     }
   };
 
@@ -362,12 +393,17 @@ function ShareModuleDetailContent() {
                   alignItems: 'center',
                   justifyContent: 'center',
                   mb: 2,
+                  overflow: 'hidden',
                 }}
               >
-                <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>二维码占位</Typography>
+                {payInfo?.qrCode ? (
+                  <Box component="img" src={payInfo.qrCode} alt="支付二维码" sx={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                ) : (
+                  <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>二维码加载中…</Typography>
+                )}
               </Box>
               <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'primary.main', fontFamily: 'monospace' }}>
-                ¥{moduleInfo?.shareContent?.pay || 9.9}
+                ¥{payInfo?.amount ?? moduleInfo?.shareContent?.pay ?? 9.9}
               </Typography>
             </Box>
           )}
@@ -381,6 +417,7 @@ function ShareModuleDetailContent() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handlePasswordUnlock()}
+                disabled={unlockBusy}
                 sx={{ mb: 2 }}
                 slotProps={{
                   input: {
@@ -388,9 +425,13 @@ function ShareModuleDetailContent() {
                   },
                 }}
               />
+              {unlockError && (
+                <Typography sx={{ fontSize: 12, color: 'error.main', textAlign: 'center', mb: 1.5 }}>{unlockError}</Typography>
+              )}
               <Button
                 fullWidth
                 variant="contained"
+                disabled={unlockBusy || !password.trim()}
                 onClick={handlePasswordUnlock}
                 sx={{
                   borderRadius: 4,
@@ -398,11 +439,8 @@ function ShareModuleDetailContent() {
                   background: 'linear-gradient(135deg, #FE2C55 0%, #FF6B8A 100%)',
                 }}
               >
-                解锁内容
+                {unlockBusy ? '验证中…' : '解锁内容'}
               </Button>
-              <Typography sx={{ fontSize: 11, color: 'text.disabled', textAlign: 'center', mt: 1.5 }}>
-                提示：演示口令为 123456
-              </Typography>
             </Box>
           )}
         </Box>

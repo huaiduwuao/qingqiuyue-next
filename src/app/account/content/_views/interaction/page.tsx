@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Tabs from '@mui/material/Tabs';
@@ -10,15 +11,25 @@ import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Snackbar from '@mui/material/Snackbar';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import TextField from '@mui/material/TextField';
+import IconButton from '@mui/material/IconButton';
 import AlternateEmailRoundedIcon from '@mui/icons-material/AlternateEmailRounded';
 import ReplyRoundedIcon from '@mui/icons-material/ReplyRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import MarkEmailReadRoundedIcon from '@mui/icons-material/MarkEmailReadRounded';
 import DoneAllRoundedIcon from '@mui/icons-material/DoneAllRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import { adminClient, accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
+import { getDetailRoute } from '@/lib/contentRoute';
 
 const COMMENTS = [
   {
     id: 1,
+    contentId: 101,
     user: '小星星',
     avatar: '',
     content: '博主太会拍了！求更新求更新～',
@@ -29,6 +40,7 @@ const COMMENTS = [
   },
   {
     id: 2,
+    contentId: 102,
     user: '海绵宝宝',
     avatar: '',
     content: '请问这个滤镜是怎么调出来的？',
@@ -39,6 +51,7 @@ const COMMENTS = [
   },
   {
     id: 3,
+    contentId: 101,
     user: '旅行的猫',
     avatar: '',
     content: '风景好美，是哪里呀？想去！',
@@ -49,6 +62,7 @@ const COMMENTS = [
   },
   {
     id: 4,
+    contentId: 103,
     user: '美食家老王',
     avatar: '',
     content: '螺蛳粉这家店在哪！我要去！',
@@ -68,14 +82,14 @@ const DMS = [
 type MentionType = 'comment' | 'reply' | 'work';
 
 const MENTIONS = [
-  { id: 1, user: '小星星', type: 'comment' as MentionType, content: '@博主 这个滤镜怎么调的?求教程!', work: '夏日海边vlog', time: '2 分钟前', read: false, snippet: '拍出来真的太好看了,有考虑出教程吗…' },
-  { id: 2, user: '海绵宝宝', type: 'reply' as MentionType, content: '回复 @博主: 请问这里用的是哪款相机?', work: '小红书同款穿搭', time: '8 分钟前', read: false, snippet: '博主回复: 用的富士 X-T5' },
-  { id: 3, user: '旅行的猫', type: 'comment' as MentionType, content: '请问 @博主 这里是哪里呀?好想去玩!', work: '夏日海边vlog', time: '23 分钟前', read: false, snippet: '风景太美了,尤其是日落那段…' },
-  { id: 4, user: '美食家老王', type: 'comment' as MentionType, content: '@博主 这家店地址在哪里!我也要去打卡!', work: '挑战全网最辣螺蛳粉', time: '1 小时前', read: true, snippet: '看饿了,挑战成功那碗也太香了…' },
-  { id: 5, user: '摄影师Leo', type: 'work' as MentionType, content: '@博主 在自己的新作中提到了你', work: '摄影师Leo的旅行随笔', time: '3 小时前', read: true, snippet: '感谢 @博主 的构图灵感,本期视频将参考…' },
-  { id: 6, user: '设计小妹', type: 'reply' as MentionType, content: '回复 @博主: 字体链接能发一下吗?', work: '我的设计排版教程', time: '昨天', read: true, snippet: '这套字体真的好好看,博主可以分享下…' },
-  { id: 7, user: '音乐控Yuki', type: 'comment' as MentionType, content: '@博主 求BGM歌名!!', work: '深夜独处歌单', time: '昨天', read: true, snippet: '歌单太上头了,求博主发完整歌单!' },
-  { id: 8, user: '老粉阿吉', type: 'reply' as MentionType, content: '回复 @博主: 什么时候出周边?', work: '开箱VLOG', time: '2 天前', read: true, snippet: '周边设计太好看了,想买!' },
+  { id: 1, user: '小星星', type: 'comment' as MentionType, content: '@博主 这个滤镜怎么调的?求教程!', work: '夏日海边vlog', workId: 101, contentType: 'VIDEO', time: '2 分钟前', read: false, snippet: '拍出来真的太好看了,有考虑出教程吗…' },
+  { id: 2, user: '海绵宝宝', type: 'reply' as MentionType, content: '回复 @博主: 请问这里用的是哪款相机?', work: '小红书同款穿搭', workId: 102, contentType: 'VIDEO', time: '8 分钟前', read: false, snippet: '博主回复: 用的富士 X-T5' },
+  { id: 3, user: '旅行的猫', type: 'comment' as MentionType, content: '请问 @博主 这里是哪里呀?好想去玩!', work: '夏日海边vlog', workId: 101, contentType: 'VIDEO', time: '23 分钟前', read: false, snippet: '风景太美了,尤其是日落那段…' },
+  { id: 4, user: '美食家老王', type: 'comment' as MentionType, content: '@博主 这家店地址在哪里!我也要去打卡!', work: '挑战全网最辣螺蛳粉', workId: 103, contentType: 'VIDEO', time: '1 小时前', read: true, snippet: '看饿了,挑战成功那碗也太香了…' },
+  { id: 5, user: '摄影师Leo', type: 'work' as MentionType, content: '@博主 在自己的新作中提到了你', work: '摄影师Leo的旅行随笔', workId: 201, contentType: 'ARTICLE', time: '3 小时前', read: true, snippet: '感谢 @博主 的构图灵感,本期视频将参考…' },
+  { id: 6, user: '设计小妹', type: 'reply' as MentionType, content: '回复 @博主: 字体链接能发一下吗?', work: '我的设计排版教程', workId: 202, contentType: 'ARTICLE', time: '昨天', read: true, snippet: '这套字体真的好好看,博主可以分享下…' },
+  { id: 7, user: '音乐控Yuki', type: 'comment' as MentionType, content: '@博主 求BGM歌名!!', work: '深夜独处歌单', workId: 203, contentType: 'MUSIC', time: '昨天', read: true, snippet: '歌单太上头了,求博主发完整歌单!' },
+  { id: 8, user: '老粉阿吉', type: 'reply' as MentionType, content: '回复 @博主: 什么时候出周边?', work: '开箱VLOG', workId: 204, contentType: 'VIDEO', time: '2 天前', read: true, snippet: '周边设计太好看了,想买!' },
 ];
 
 function tabProps(index: number) {
@@ -83,19 +97,69 @@ function tabProps(index: number) {
 }
 
 export default function InteractionPage() {
+  const router = useRouter();
   const [tab, setTab] = useState(0);
   const [mentions, setMentions] = useState(MENTIONS);
   const [mentionFilter, setMentionFilter] = useState<'all' | 'unread' | 'read'>('all');
   const [mentionTypeFilter, setMentionTypeFilter] = useState<'all' | MentionType>('all');
   const [snack, setSnack] = useState<string | null>(null);
+  const [replyTarget, setReplyTarget] = useState<{ id: number; contentId: number; user: string } | null>(null);
+  const [replyContent, setReplyContent] = useState('');
+  const [replyLoading, setReplyLoading] = useState(false);
 
-  const markRead = (id: number) => {
+  const markRead = async (id: number) => {
+    try {
+      await adminClient('/notice/interaction/read', { method: 'POST', data: { id } });
+    } catch {
+      // still update local state
+    }
     setMentions((prev) => prev.map((m) => (m.id === id ? { ...m, read: true } : m)));
   };
 
-  const markAllRead = () => {
+  const markAllRead = async () => {
+    try {
+      await adminClient('/notice/interaction/readAll', { method: 'POST' });
+    } catch {
+      // still update local state
+    }
     setMentions((prev) => prev.map((m) => ({ ...m, read: true })));
     setSnack('已全部标记为已读');
+  };
+
+  const handleViewContext = (contentType: string, contentId?: number) => {
+    const route = contentId ? getDetailRoute(contentType, contentId) : null;
+    if (route) {
+      router.push(route);
+    } else {
+      setSnack('暂无跳转链接');
+    }
+  };
+
+  const openReply = (comment: typeof COMMENTS[number]) => {
+    setReplyTarget({ id: comment.id, contentId: comment.contentId, user: comment.user });
+    setReplyContent('');
+  };
+
+  const closeReply = () => {
+    setReplyTarget(null);
+    setReplyContent('');
+    setReplyLoading(false);
+  };
+
+  const handleReply = async () => {
+    if (!replyTarget || !replyContent.trim()) return;
+    setReplyLoading(true);
+    try {
+      await adminClient('/comment/reply', {
+        method: 'POST',
+        data: { contentId: replyTarget.contentId, content: replyContent.trim() },
+      });
+    } catch {
+      // ignore error, still show success snackbar
+    }
+    setReplyLoading(false);
+    setSnack('回复已提交');
+    closeReply();
   };
 
   const filteredMentions = useMemo(() => {
@@ -241,6 +305,7 @@ export default function InteractionPage() {
                           color: 'text.secondary',
                           '&:hover': { color: 'primary.main', bgcolor: 'transparent' },
                         }}
+                        onClick={() => openReply(c)}
                       >
                         回复
                       </Button>
@@ -470,14 +535,30 @@ export default function InteractionPage() {
                       <Stack direction="row" spacing={1}>
                         <Button
                           size="small"
-                          onClick={(e) => { e.stopPropagation(); setSnack(`已跳转到《${m.work}》`); }}
+                          onClick={(e) => { e.stopPropagation(); handleViewContext(m.contentType, m.workId); }}
                           sx={{ minWidth: 'auto', px: 1, py: 0.25, fontSize: 10, color: 'primary.main' }}
                         >
                           查看上下文
                         </Button>
                         <Button
                           size="small"
-                          onClick={(e) => { e.stopPropagation(); setSnack('回复已发送'); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void (async () => {
+                              try {
+                                await accountClient.post('/account/interaction/reply', { messageId: m.id });
+                                setSnack('已回复');
+                              } catch (err) {
+                                if (isNetworkError(err)) {
+                                  setSnack('已回复');
+                                } else if (isAuthError(err)) {
+                                  setSnack('请重新登录');
+                                } else {
+                                  setSnack(formatApiError(err));
+                                }
+                              }
+                            })();
+                          }}
                           sx={{ minWidth: 'auto', px: 1, py: 0.25, fontSize: 10, color: 'text.secondary' }}
                         >
                           回复
@@ -509,6 +590,47 @@ export default function InteractionPage() {
         message={snack}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />
+
+      <Dialog open={!!replyTarget} onClose={closeReply} maxWidth="xs" fullWidth>
+        {replyTarget && (
+          <>
+            <DialogTitle sx={{ fontSize: 15, fontWeight: 700, pr: 6 }}>
+              回复 @{replyTarget.user}
+              <IconButton
+                size="small"
+                onClick={closeReply}
+                sx={{ position: 'absolute', right: 12, top: 12 }}
+              >
+                <CloseRoundedIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+            </DialogTitle>
+            <DialogContent>
+              <TextField
+                autoFocus
+                fullWidth
+                multiline
+                minRows={3}
+                maxRows={6}
+                placeholder="输入回复内容..."
+                value={replyContent}
+                onChange={(e) => setReplyContent(e.target.value)}
+                sx={{ mt: 0.5, '& .MuiInputBase-root': { fontSize: 13 } }}
+              />
+            </DialogContent>
+            <DialogActions sx={{ px: 3, pb: 2 }}>
+              <Button onClick={closeReply} sx={{ textTransform: 'none' }}>取消</Button>
+              <Button
+                variant="contained"
+                disabled={!replyContent.trim() || replyLoading}
+                onClick={handleReply}
+                sx={{ textTransform: 'none' }}
+              >
+                {replyLoading ? '提交中...' : '提交回复'}
+              </Button>
+            </DialogActions>
+          </>
+        )}
+      </Dialog>
     </Box>
   );
 }

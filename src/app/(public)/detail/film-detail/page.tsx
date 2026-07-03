@@ -8,15 +8,21 @@ import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
 import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import ShareIcon from '@mui/icons-material/Share';
 import StarIcon from '@mui/icons-material/Star';
 import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-film';
+import { collectContent } from '@/apis/global';
+import { contentClient, formatApiError, isNetworkError } from '@/lib/api/client';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
+
+const SAMPLE_VIDEO_URL = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
 
 interface Film {
   id: number;
@@ -45,6 +51,80 @@ function FilmDetailContent() {
   });
 
   const [favorited, setFavorited] = React.useState(false);
+  const [collectBusy, setCollectBusy] = React.useState(false);
+  const [videoSrc, setVideoSrc] = React.useState<string>('');
+  const [snack, setSnack] = React.useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
+
+  const notify = React.useCallback((message: string, severity: 'success' | 'error' | 'info' = 'success') => {
+    setSnack({ open: true, message, severity });
+  }, []);
+
+  React.useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await contentClient.get<{ url: string; cover?: string; title?: string }>('/detail/film/play', {
+          params: { id },
+        });
+        if (cancelled) return;
+        setVideoSrc(res?.data?.url || SAMPLE_VIDEO_URL);
+      } catch (err) {
+        if (cancelled) return;
+        if (isNetworkError(err)) {
+          setVideoSrc(SAMPLE_VIDEO_URL);
+        } else {
+          notify(formatApiError(err), 'error');
+          setVideoSrc(SAMPLE_VIDEO_URL);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, notify]);
+
+  const handleCollect = async () => {
+    if (!id) {
+      notify('内容 ID 缺失', 'error');
+      return;
+    }
+    if (collectBusy) return;
+    setCollectBusy(true);
+    const next = !favorited;
+    setFavorited(next);
+    try {
+      await collectContent({ contentId: Number(id), action: next ? 'collect' : 'cancel_collect' });
+    } catch (err) {
+      setFavorited(!next);
+      notify(formatApiError(err), 'error');
+    } finally {
+      setCollectBusy(false);
+    }
+  };
+
+  const handleShare = async () => {
+    const url = typeof window !== 'undefined' ? window.location.href : '';
+    const title = query.data?.title || '电影详情';
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, url });
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        notify('链接已复制到剪贴板');
+      } else {
+        notify('当前环境不支持分享', 'info');
+      }
+    } catch (err) {
+      if ((err as Error)?.name !== 'AbortError') {
+        notify('分享失败', 'error');
+      }
+    }
+  };
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -52,10 +132,10 @@ function FilmDetailContent() {
         title={query.data?.title || '电影详情'}
         rightActions={
           <Box sx={{ display: 'flex', gap: 0.5 }}>
-            <IconButton onClick={() => setFavorited((f) => !f)} sx={{ color: favorited ? 'primary.main' : 'text.tertiary' }}>
+            <IconButton disabled={collectBusy} onClick={handleCollect} sx={{ color: favorited ? 'primary.main' : 'text.tertiary' }}>
               {favorited ? <FavoriteIcon /> : <FavoriteBorderIcon />}
             </IconButton>
-            <IconButton sx={{ color: 'text.tertiary' }}>
+            <IconButton onClick={handleShare} sx={{ color: 'text.tertiary' }}>
               <ShareIcon />
             </IconButton>
           </Box>
@@ -67,7 +147,7 @@ function FilmDetailContent() {
           <>
             <Box sx={{ bgcolor: '#000' }}>
               <Container maxWidth="lg" sx={{ py: 0 }}>
-                <VideoPlayer src="" poster={data.cover} initialDuration={(data.duration || 0) * 60} autoPlay={false} />
+                <VideoPlayer src={videoSrc} poster={data.cover} initialDuration={(data.duration || 0) * 60} autoPlay={false} />
               </Container>
             </Box>
 
@@ -140,6 +220,17 @@ function FilmDetailContent() {
           </>
         )}
       </AsyncState>
+
+      <Snackbar
+        open={snack.open}
+        autoHideDuration={2500}
+        onClose={() => setSnack((s) => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert severity={snack.severity} variant="filled" sx={{ width: '100%' }}>
+          {snack.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

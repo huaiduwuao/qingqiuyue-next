@@ -54,7 +54,7 @@ function AccountLayoutContent({
     if (typeof window !== 'undefined' && window.history.length > 1) {
       router.back();
     } else {
-      router.push('/home/recommend');
+      router.push('/home/recommend?tab=home');
     }
   };
 
@@ -211,7 +211,7 @@ function AccountLayoutContent({
 
           <AvatarHoverPopup
             anchor={
-              <IconButton size="small" sx={{ ml: 0.5, p: 0.25 }}>
+              <IconButton size="small" sx={{ ml: 0.5, p: 0.25 }} onClick={() => router.push('/account/center')}>
                 <Avatar
                   src={currentUser?.avatar}
                   sx={{

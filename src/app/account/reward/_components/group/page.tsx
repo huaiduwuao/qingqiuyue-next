@@ -35,18 +35,14 @@ import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import ResponsiveTableWrapper from '@/components/common/ResponsiveTableWrapper';
-import Switch from '@mui/material/Switch';
 import InputAdornment from '@mui/material/InputAdornment';
-import {
-  agreeGroup,
+import { agreeGroup,
   groupList,
   groupListWait,
   groupSuggest,
   newGroup,
   remove,
-  sendGroup,
-  getGroup,
-} from '@/apis/reward-group';
+  sendGroup } from '@/apis/reward-group';
 import { listGroupUsers, inviteGroupUser, remove as removeGroupUser, updateGroupUser } from '@/apis/reward-group-user';
 import { useApp } from '@/contexts/AppContext';
 import { useAccount } from '@/contexts/AccountContext';

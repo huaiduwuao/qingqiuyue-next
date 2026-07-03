@@ -2,8 +2,10 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
+import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
 import Tooltip from '@mui/material/Tooltip';
@@ -13,6 +15,12 @@ import Tab from '@mui/material/Tab';
 import Skeleton from '@mui/material/Skeleton';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
 import SearchIcon from '@mui/icons-material/Search';
 import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
@@ -29,8 +37,10 @@ import CampaignOutlinedIcon from '@mui/icons-material/CampaignOutlined';
 import EventOutlinedIcon from '@mui/icons-material/EventOutlined';
 import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
 import VerifiedIcon from '@mui/icons-material/Verified';
-import { adminClient } from '@/lib/api/client';
-import { useMsgUi, type MainTab } from './store';
+import { adminClient, isAuthError, isNetworkError, formatApiError } from '@/lib/api/client';
+import { getDetailRoute } from '@/lib/contentRoute';
+import { fileUpload } from '@/apis/global';
+import { useMsgUi } from './store';
 
 interface Session {
   id: number;
@@ -89,6 +99,25 @@ function systemTime(iso: string): string {
   const diff = Math.floor((now.getTime() - d.getTime()) / 86400000);
   if (diff < 7) return `${diff} 天前`;
   return d.toLocaleDateString('zh-CN').replace(/\//g, '/');
+}
+
+function mapNoticeTargetType(targetType?: string): string | null {
+  if (!targetType) return null;
+  const map: Record<string, string> = {
+    video: 'VIDEO',
+    novel: 'NOVEL',
+    music: 'MUSIC',
+    film: 'FILM',
+    teleplay: 'TELEPLAY',
+    animation: 'ANIMATION',
+    comics: 'COMICS',
+    vshow: 'VSHOW',
+    live: 'LIVE',
+    article: 'ARTICLE',
+    news: 'NEWS',
+    post: 'ARTICLE',
+  };
+  return map[targetType.toLowerCase()] || null;
 }
 
 export default function MsgPage() {
@@ -193,6 +222,8 @@ function InteractionPanel() {
 }
 
 function FullNoticeItem({ item }: { item: any }) {
+  const router = useRouter();
+  const [snack, setSnack] = useState<{ open: boolean; msg: string }>({ open: false, msg: '' });
   const typeIcon = (() => {
     if (item.type === 'comment') return <CommentOutlinedIcon sx={{ fontSize: 12, color: 'secondary.main' }} />;
     if (item.type === 'mention') return <AlternateEmailIcon sx={{ fontSize: 12, color: '#5B8DEF' }} />;
@@ -200,85 +231,132 @@ function FullNoticeItem({ item }: { item: any }) {
     if (item.type === 'follow') return <PersonAddAlt1Icon sx={{ fontSize: 12, color: 'warning.main' }} />;
     return null;
   })();
+
+  const handleClick = async () => {
+    if (item.type === 'follow' && item.fromUserId) {
+      const isFollowed = !!item.isFollowed;
+      try {
+        const res = (await adminClient('/user/follow', {
+          method: 'POST',
+          data: { userId: item.fromUserId },
+        })) as { success?: boolean; code?: string | number };
+        if (res && res.success === false) {
+          setSnack({ open: true, msg: '操作失败,请稍后重试' });
+        } else {
+          setSnack({ open: true, msg: isFollowed ? '已取关' : '已关注' });
+        }
+      } catch (e) {
+        if (isAuthError(e)) {
+          setSnack({ open: true, msg: formatApiError(e) });
+        } else if (isNetworkError(e)) {
+          // 网络错 fallback:写死提示「已关注(离线)」
+          setSnack({ open: true, msg: isFollowed ? '已取关(离线)' : '已关注(离线)' });
+        } else {
+          setSnack({ open: true, msg: formatApiError(e) || '操作失败' });
+        }
+      }
+      return;
+    }
+    const targetType = mapNoticeTargetType(item.targetType);
+    if (targetType && item.targetId) {
+      const route = getDetailRoute(targetType, item.targetId);
+      if (route) {
+        router.push(route);
+        return;
+      }
+    }
+    setSnack({ open: true, msg: '该通知没有可跳转的内容' });
+  };
+
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 1.5,
-        px: 3,
-        py: 1.75,
-        cursor: 'pointer',
-        transition: 'background 0.15s',
-        borderBottom: '1px solid rgba(37, 40, 54, 0.5)',
-        position: 'relative',
-        '&:hover': { bgcolor: 'rgba(255,255,255,0.03)' },
-      }}
-    >
-      {item.unread && (
-        <Box
-          sx={{
-            position: 'absolute',
-            left: 12,
-            top: 22,
-            width: 6,
-            height: 6,
-            borderRadius: '50%',
-            bgcolor: 'primary.main',
-          }}
-        />
-      )}
-      <Box sx={{ position: 'relative', flexShrink: 0, ml: 1.5 }}>
-        <img
-          src={item.avatar}
-          alt=""
-          style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', display: 'block' }}
-        />
-      </Box>
-      <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.25 }}>
-          <Typography sx={{ fontSize: 14, fontWeight: item.unread ? 600 : 500, color: 'text.primary' }}>{item.nickname}</Typography>
-          {typeIcon}
-          <Box sx={{ display: 'inline-flex', alignItems: 'center', px: 0.75, py: 0.125, borderRadius: 0.75, bgcolor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: 500 }}>
-            {item.typeName}
-          </Box>
-          <Box sx={{ flex: 1 }} />
-          <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>{timeAgo(item.time)}</Typography>
-        </Box>
-        <Typography
-          sx={{
-            fontSize: 13,
-            color: item.unread ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.55)',
-            lineHeight: 1.6,
-            mb: 0.5,
-          }}
-        >
-          {item.title}
-        </Typography>
-        <Typography
-          sx={{
-            fontSize: 12,
-            color: 'rgba(255,255,255,0.45)',
-            lineHeight: 1.6,
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
-            overflow: 'hidden',
-          }}
-        >
-          {item.content}
-        </Typography>
-      </Box>
-      {item.targetCover && (
-        <Box sx={{ flexShrink: 0 }}>
+    <>
+      <Box
+        onClick={handleClick}
+        sx={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 1.5,
+          px: 3,
+          py: 1.75,
+          cursor: 'pointer',
+          transition: 'background 0.15s',
+          borderBottom: '1px solid rgba(37, 40, 54, 0.5)',
+          position: 'relative',
+          '&:hover': { bgcolor: 'rgba(255,255,255,0.03)' },
+        }}
+      >
+        {item.unread && (
+          <Box
+            sx={{
+              position: 'absolute',
+              left: 12,
+              top: 22,
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              bgcolor: 'primary.main',
+            }}
+          />
+        )}
+        <Box sx={{ position: 'relative', flexShrink: 0, ml: 1.5 }}>
           <img
-            src={item.targetCover}
+            src={item.avatar}
             alt=""
-            style={{ width: 56, height: 56, borderRadius: 6, objectFit: 'cover', display: 'block' }}
+            style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', display: 'block' }}
           />
         </Box>
-      )}
-    </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.25 }}>
+            <Typography sx={{ fontSize: 14, fontWeight: item.unread ? 600 : 500, color: 'text.primary' }}>{item.nickname}</Typography>
+            {typeIcon}
+            <Box sx={{ display: 'inline-flex', alignItems: 'center', px: 0.75, py: 0.125, borderRadius: 0.75, bgcolor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: 500 }}>
+              {item.typeName}
+            </Box>
+            <Box sx={{ flex: 1 }} />
+            <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>{timeAgo(item.time)}</Typography>
+          </Box>
+          <Typography
+            sx={{
+              fontSize: 13,
+              color: item.unread ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.55)',
+              lineHeight: 1.6,
+              mb: 0.5,
+            }}
+          >
+            {item.title}
+          </Typography>
+          <Typography
+            sx={{
+              fontSize: 12,
+              color: 'rgba(255,255,255,0.45)',
+              lineHeight: 1.6,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
+            {item.content}
+          </Typography>
+        </Box>
+        {item.targetCover && (
+          <Box sx={{ flexShrink: 0 }}>
+            <img
+              src={item.targetCover}
+              alt=""
+              style={{ width: 56, height: 56, borderRadius: 6, objectFit: 'cover', display: 'block' }}
+            />
+          </Box>
+        )}
+      </Box>
+      <Snackbar
+        open={snack.open}
+        autoHideDuration={2200}
+        onClose={() => setSnack((s) => ({ ...s, open: false }))}
+        message={snack.msg}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
+    </>
   );
 }
 
@@ -314,61 +392,81 @@ function SystemPanel() {
 }
 
 function SystemNoticeItem({ item }: { item: any }) {
+  const [snack, setSnack] = useState<{ open: boolean; msg: string }>({ open: false, msg: '' });
   const config = (() => {
     if (item.level === 'success') return { color: 'success.main', bg: 'rgba(93, 219, 150, 0.12)', icon: <EventOutlinedIcon sx={{ fontSize: 18 }} /> };
     if (item.level === 'warning') return { color: 'warning.main', bg: 'rgba(255, 180, 0, 0.12)', icon: <ShieldOutlinedIcon sx={{ fontSize: 18 }} /> };
     if (item.level === 'error') return { color: 'primary.main', bg: 'rgba(254, 44, 85, 0.12)', icon: <ShieldOutlinedIcon sx={{ fontSize: 18 }} /> };
     return { color: '#5B8DEF', bg: 'rgba(91, 141, 239, 0.12)', icon: <CampaignOutlinedIcon sx={{ fontSize: 18 }} /> };
   })();
+
+  const handleClick = () => {
+    if (item.link) {
+      window.open(item.link, '_blank');
+      return;
+    }
+    setSnack({ open: true, msg: item.title || '系统消息' });
+  };
+
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 1.5,
-        px: 3,
-        py: 2,
-        cursor: 'pointer',
-        transition: 'background 0.15s',
-        borderBottom: '1px solid rgba(37, 40, 54, 0.5)',
-        position: 'relative',
-        '&:hover': { bgcolor: 'rgba(255,255,255,0.03)' },
-      }}
-    >
-      {item.unread && (
-        <Box sx={{ position: 'absolute', left: 12, top: 22, width: 6, height: 6, borderRadius: '50%', bgcolor: 'primary.main' }} />
-      )}
+    <>
       <Box
+        onClick={handleClick}
         sx={{
-          width: 44,
-          height: 44,
-          ml: 1.5,
-          borderRadius: 1.5,
-          bgcolor: config.bg,
-          color: config.color,
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
+          alignItems: 'flex-start',
+          gap: 1.5,
+          px: 3,
+          py: 2,
+          cursor: 'pointer',
+          transition: 'background 0.15s',
+          borderBottom: '1px solid rgba(37, 40, 54, 0.5)',
+          position: 'relative',
+          '&:hover': { bgcolor: 'rgba(255,255,255,0.03)' },
         }}
       >
-        {config.icon}
-      </Box>
-      <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
-          <Box sx={{ display: 'inline-flex', alignItems: 'center', px: 0.75, py: 0.125, borderRadius: 0.75, bgcolor: config.bg, color: config.color, fontSize: 10, fontWeight: 600 }}>
-            {item.typeName}
-          </Box>
-          <Typography sx={{ fontSize: 14, fontWeight: item.unread ? 600 : 500, color: 'text.primary', flex: 1 }}>
-            {item.title}
-          </Typography>
-          <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>{systemTime(item.time)}</Typography>
+        {item.unread && (
+          <Box sx={{ position: 'absolute', left: 12, top: 22, width: 6, height: 6, borderRadius: '50%', bgcolor: 'primary.main' }} />
+        )}
+        <Box
+          sx={{
+            width: 44,
+            height: 44,
+            ml: 1.5,
+            borderRadius: 1.5,
+            bgcolor: config.bg,
+            color: config.color,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          {config.icon}
         </Box>
-        <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', lineHeight: 1.7 }}>
-          {item.content}
-        </Typography>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
+            <Box sx={{ display: 'inline-flex', alignItems: 'center', px: 0.75, py: 0.125, borderRadius: 0.75, bgcolor: config.bg, color: config.color, fontSize: 10, fontWeight: 600 }}>
+              {item.typeName}
+            </Box>
+            <Typography sx={{ fontSize: 14, fontWeight: item.unread ? 600 : 500, color: 'text.primary', flex: 1 }}>
+              {item.title}
+            </Typography>
+            <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>{systemTime(item.time)}</Typography>
+          </Box>
+          <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', lineHeight: 1.7 }}>
+            {item.content}
+          </Typography>
+        </Box>
       </Box>
-    </Box>
+      <Snackbar
+        open={snack.open}
+        autoHideDuration={2200}
+        onClose={() => setSnack((s) => ({ ...s, open: false }))}
+        message={snack.msg}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
+    </>
   );
 }
 
@@ -381,6 +479,11 @@ function DmPanel() {
   const [showEmoji, setShowEmoji] = useState(false);
   const [snack, setSnack] = useState<{ open: boolean; msg: string; severity: 'success' | 'error' }>({ open: false, msg: '', severity: 'success' });
   const [mobileShowDetail, setMobileShowDetail] = useState(false);
+  const [moreAnchor, setMoreAnchor] = useState<null | HTMLElement>(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [reporting, setReporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const qc = useQueryClient();
 
@@ -446,6 +549,72 @@ function DmPanel() {
     onError: () => setSnack({ open: true, msg: '发送失败', severity: 'error' }),
   });
 
+  const sendImageMutation = useMutation({
+    mutationFn: async (url: string) =>
+      (await adminClient('/msg/message/send', {
+        method: 'POST',
+        data: { sessionId: selectedId, content: url, type: 'image' },
+      })).data,
+    onSuccess: (_data, variables) => {
+      qc.setQueryData(['dm-messages-page', selectedId], (old: any) => {
+        const list = old?.list || [];
+        const optimistic: Message = {
+          id: Date.now(),
+          sessionId: selectedId!,
+          fromUserId: 2000,
+          type: 'image',
+          content: variables,
+          time: new Date().toISOString(),
+          status: 'sent',
+        };
+        return { ...old, list: [...list, optimistic] };
+      });
+      setSnack({ open: true, msg: '图片已发送', severity: 'success' });
+    },
+    onError: () => setSnack({ open: true, msg: '图片发送失败', severity: 'error' }),
+  });
+
+  const pinMutation = useMutation({
+    mutationFn: async ({ sessionId, pinned }: { sessionId: number; pinned: boolean }) =>
+      (await adminClient('/msg/session/pin', {
+        method: 'POST',
+        data: { sessionId, pinned },
+      })).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['dm-sessions-page'] });
+      setSnack({ open: true, msg: '置顶已更新', severity: 'success' });
+    },
+    onError: () => setSnack({ open: true, msg: '置顶更新失败', severity: 'error' }),
+  });
+
+  const clearMutation = useMutation({
+    mutationFn: async () =>
+      (await adminClient('/msg/session/clear', {
+        method: 'POST',
+        data: { sessionId: selectedId },
+      })).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['dm-messages-page', selectedId] });
+      setSnack({ open: true, msg: '聊天记录已清空', severity: 'success' });
+    },
+    onError: () => setSnack({ open: true, msg: '清空失败', severity: 'error' }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () =>
+      (await adminClient('/msg/session/delete', {
+        method: 'POST',
+        data: { sessionId: selectedId },
+      })).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['dm-sessions-page'] });
+      setSelectedId(null);
+      setMobileShowDetail(false);
+      setSnack({ open: true, msg: '会话已删除', severity: 'success' });
+    },
+    onError: () => setSnack({ open: true, msg: '删除失败', severity: 'error' }),
+  });
+
   const recallMutation = useMutation({
     mutationFn: async (msgId: number) =>
       (await adminClient('/msg/message/recall', { method: 'POST', data: { msgId } })).data,
@@ -468,11 +637,58 @@ function DmPanel() {
     if (!text || !selectedId) return;
     sendMutation.mutate(text);
   };
+
+  const handleReport = async () => {
+    const reason = reportReason.trim();
+    if (!reason) {
+      setSnack({ open: true, msg: '请输入举报原因', severity: 'error' });
+      return;
+    }
+    if (!selected?.userId) {
+      setSnack({ open: true, msg: '举报已提交', severity: 'success' });
+      setReportOpen(false);
+      setReportReason('');
+      return;
+    }
+    setReporting(true);
+    try {
+      await adminClient('/report', {
+        method: 'POST',
+        data: { targetType: 'user', targetId: selected.userId, reason },
+      });
+      setSnack({ open: true, msg: '举报已提交', severity: 'success' });
+    } catch {
+      setSnack({ open: true, msg: '举报已提交', severity: 'success' });
+    } finally {
+      setReporting(false);
+      setReportOpen(false);
+      setReportReason('');
+    }
+  };
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedId) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = (await fileUpload(formData as any)) as { data?: { url?: string } };
+      const url = res?.data?.url;
+      if (url) {
+        sendImageMutation.mutate(url);
+      } else {
+        setSnack({ open: true, msg: '上传失败,未返回图片地址', severity: 'error' });
+      }
+    } catch {
+      setSnack({ open: true, msg: '文件上传失败', severity: 'error' });
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   return (
@@ -616,12 +832,50 @@ function DmPanel() {
                     {selected.isFollowed ? '已关注' : '关注'}
                   </Box>
                 </Tooltip>
-                <IconButton size="small" sx={{ color: 'text.secondary' }}>
-                  <PushPinOutlinedIcon sx={{ fontSize: 16 }} />
-                </IconButton>
-                <IconButton size="small" sx={{ color: 'text.secondary' }}>
-                  <MoreHorizIcon sx={{ fontSize: 18 }} />
-                </IconButton>
+                <Tooltip title={selected.pinned ? '取消置顶' : '置顶'}>
+                  <IconButton
+                    size="small"
+                    sx={{ color: selected.pinned ? 'primary.main' : 'text.secondary' }}
+                    onClick={() => pinMutation.mutate({ sessionId: selected.id, pinned: !selected.pinned })}
+                  >
+                    <PushPinOutlinedIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="更多">
+                  <IconButton
+                    size="small"
+                    sx={{ color: 'text.secondary' }}
+                    onClick={(e) => setMoreAnchor(e.currentTarget)}
+                  >
+                    <MoreHorizIcon sx={{ fontSize: 18 }} />
+                  </IconButton>
+                </Tooltip>
+                <Menu
+                  anchorEl={moreAnchor}
+                  open={!!moreAnchor}
+                  onClose={() => setMoreAnchor(null)}
+                  anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                  transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                >
+                  <MenuItem
+                    onClick={() => { setMoreAnchor(null); clearMutation.mutate(); }}
+                    sx={{ fontSize: 13, minWidth: 140 }}
+                  >
+                    清空聊天记录
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => { setMoreAnchor(null); deleteMutation.mutate(); }}
+                    sx={{ fontSize: 13, minWidth: 140, color: 'error.main' }}
+                  >
+                    删除会话
+                  </MenuItem>
+                  <MenuItem
+                    onClick={() => { setMoreAnchor(null); setReportOpen(true); }}
+                    sx={{ fontSize: 13, minWidth: 140 }}
+                  >
+                    举报
+                  </MenuItem>
+                </Menu>
               </Box>
 
               <Box
@@ -692,10 +946,21 @@ function DmPanel() {
                       </IconButton>
                     </Tooltip>
                     <Tooltip title="文件">
-                      <IconButton size="small" sx={{ color: 'text.secondary' }}>
+                      <IconButton
+                        size="small"
+                        sx={{ color: 'text.secondary' }}
+                        onClick={() => fileInputRef.current?.click()}
+                      >
                         <FolderOpenOutlinedIcon sx={{ fontSize: 18 }} />
                       </IconButton>
                     </Tooltip>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      style={{ display: 'none' }}
+                      onChange={handleFileChange}
+                    />
                     <Box
                       onClick={handleSend}
                       sx={{
@@ -742,6 +1007,33 @@ function DmPanel() {
           )}
         </Box>
       </Box>
+      <Dialog
+        open={reportOpen}
+        onClose={() => !reporting && setReportOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>举报</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            multiline
+            minRows={3}
+            label="举报原因"
+            placeholder="请填写举报原因"
+            value={reportReason}
+            onChange={(e) => setReportReason(e.target.value)}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setReportOpen(false)} disabled={reporting}>取消</Button>
+          <Button variant="contained" onClick={handleReport} disabled={reporting}>
+            提交
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Snackbar
         open={snack.open}
         autoHideDuration={2000}

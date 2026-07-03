@@ -16,7 +16,7 @@ import Divider from '@mui/material/Divider';
 import Modal from '@mui/material/Modal';
 import { demandPage, conceptionPage, groupPage, projectPage } from '@/apis/reward';
 import RewardContentDetail from '@/components/RewardContentDetail';
-import { AsyncState, EmptyState } from '@/components/common/AsyncState';
+import { AsyncState } from '@/components/common/AsyncState';
 
 const TYPE_TABS = [
   { key: 'demand', label: '需求', api: demandPage },

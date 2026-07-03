@@ -1,5 +1,5 @@
 import { adminClient } from '@/lib/api/client';
-import {ResourceItem, TableListParams} from "@/beans/system";
+import { ResourceItem } from "@/beans/system";
 
 export interface ResourceListParams {
   page?: number;

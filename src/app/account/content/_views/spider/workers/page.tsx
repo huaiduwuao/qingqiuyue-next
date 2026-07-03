@@ -11,7 +11,7 @@ import Paper from '@mui/material/Paper';
 import { DataGridTable } from '@/components/tables/DataGridTable';
 import { listWorkers, getWorkerStats } from '@/apis/spider';
 import type { GridColDef } from '@mui/x-data-grid';
-import type { Worker, WorkerStats } from '@/beans/spider';
+import type { WorkerStats } from '@/beans/spider';
 
 const LIST_KEY = ['spider', 'workers'];
 

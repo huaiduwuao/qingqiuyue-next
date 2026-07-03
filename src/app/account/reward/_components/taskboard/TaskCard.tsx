@@ -24,7 +24,7 @@ const PRIORITY_COLOR: Record<TaskPriority, { bgcolor: (t: any) => string; color:
 
 interface Props {
   task: RewardTask;
-  onClick: (task: RewardTask) => void;
+  onClick?: (task: RewardTask) => void;
   isOverlay?: boolean;
   demandTitle?: string;
   onOpenDemand?: (demandId: number) => void;
@@ -63,7 +63,7 @@ export function TaskCard({ task, onClick, isOverlay, demandTitle, onOpenDemand, 
       {...attributes}
       {...listeners}
       onClick={(e) => {
-        if (isDragging) return;
+        if (isDragging || !onClick) return;
         e.stopPropagation();
         onClick(task);
       }}

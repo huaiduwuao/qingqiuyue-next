@@ -18,7 +18,6 @@ import Tooltip from '@mui/material/Tooltip';
 import Chip from '@mui/material/Chip';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
-import LinearProgress from '@mui/material/LinearProgress';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import StopIcon from '@mui/icons-material/Stop';

@@ -9,6 +9,7 @@ import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import CampaignIcon from '@mui/icons-material/Campaign';
+import { useRouter } from 'next/navigation';
 import { gradient2, gradient3 } from '@/constants/gradients';
 
 interface Topic {
@@ -95,12 +96,17 @@ const TagIcon = ({ tag }: { tag: Topic['tag'] }) => {
 };
 
 export default function HotTopicsCarousel() {
+  const router = useRouter();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const scroll = (dir: 1 | -1) => {
     if (!scrollRef.current) return;
     const el = scrollRef.current;
     el.scrollBy({ left: dir * 280, behavior: 'smooth' });
+  };
+
+  const handleTopicClick = (title: string) => {
+    router.push(`/search?q=${encodeURIComponent(title)}`);
   };
 
   return (
@@ -171,6 +177,7 @@ export default function HotTopicsCarousel() {
         {TOPICS.map((t) => (
           <Box
             key={t.id}
+            onClick={() => handleTopicClick(t.title)}
             sx={{
               flex: '0 0 240px',
               minWidth: 240,

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useAuthority } from '@/contexts/AuthContext';
 import { useActiveTab } from '../../ActiveTabContext';
 import Box from '@mui/material/Box';
@@ -54,28 +54,26 @@ import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import PlaylistAddCheckRoundedIcon from '@mui/icons-material/PlaylistAddCheckRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
-import { useMutation } from '@tanstack/react-query';
-import { updateShare } from '@/apis/module-content';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
+import { myPage, updateShare, process as contentProcess } from '@/apis/module-content';
 import type { ModuleContentItem } from '@/apis/module-content';
+import { fileUpload } from '@/apis/global';
+import { useContentNavigate } from '@/lib/contentRoute';
+import { formatApiError, accountClient } from '@/lib/api/client';
 import { gradient2, gradient3 } from '@/constants/gradients';
-import {
-  HdResolution,
+import { HdResolution,
   HdStatus,
   HdFilter,
   HdVideo,
   Reviewer,
-  ReviewerLevel,
-  ReviewCheck,
-  ReviewInfo,
   SubtitleTrack,
   AudioTrack,
   SEED,
   SEED_REVIEWERS,
   REVIEW_CHECK_TEMPLATE,
   REVIEWER_LEVEL_META,
-  FAST_CHANNEL_MONTHLY,
-  getReviewer,
-} from './data';
+  FAST_CHANNEL_MONTHLY } from './data';
 
 const QUALITY_PRESETS: { id: HdResolution; label: string; bitrate: string; size: string; popular?: boolean }[] = [
   { id: '4K', label: '4K 超清', bitrate: '60 Mbps', size: '适合 ≤ 20 min', popular: true },
@@ -142,6 +140,16 @@ function relativeTime(ts: number): string {
   return isPast ? `${d} 天前` : `${d} 天后`;
 }
 
+function mapContentStatusToHd(status?: string): HdStatus {
+  const s = status?.toLowerCase() || '';
+  if (s === 'reviewing' || s === 'review') return 'reviewing';
+  if (s === 'publish' || s === 'published' || s === 'online') return 'published';
+  if (s === 'un_publish' || s === 'offline' || s === 'reject' || s === 'review_failed') return 'review_failed';
+  if (s === 'failed' || s === 'error') return 'failed';
+  // 默认放在转码中,符合 HD 发布流程
+  return 'transcoding';
+}
+
 export default function HdPublishPage() {
   const { setActiveTab } = useActiveTab();
   const { hasAuthority } = useAuthority();
@@ -157,6 +165,13 @@ export default function HdPublishPage() {
   const [fastChannelQuota, setFastChannelQuota] = useState(5); // 每月极速通道剩余
   const [reviewHistoryOpen, setReviewHistoryOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+  const [coverTargetId, setCoverTargetId] = useState<string | null>(null);
+  const [appealOpen, setAppealOpen] = useState(false);
+  const [appealReason, setAppealReason] = useState('');
+
+  const router = useRouter();
+  const navigateToContent = useContentNavigate();
 
   // upload dialog state
   const [uploadTitle, setUploadTitle] = useState('');
@@ -169,6 +184,43 @@ export default function HdPublishPage() {
   ]);
   const [newSubLang, setNewSubLang] = useState('');
   const [newSubLabel, setNewSubLabel] = useState('');
+
+  // 拉取真实 VIDEO 内容并合并到本地列表(去重)
+  const { data: realVideos } = useQuery({
+    queryKey: ['module-content', 'hd-publish', 'videos'],
+    queryFn: async () => {
+      const res = await myPage({ contentType: 'VIDEO', pageSize: 100 });
+      return (res.data?.records || []) as ModuleContentItem[];
+    },
+    staleTime: 30_000,
+  });
+
+  useEffect(() => {
+    if (!realVideos?.length) return;
+    setVideos((prev) => {
+      const existingIds = new Set(prev.map((v) => v.id));
+      const mapped: HdVideo[] = realVideos
+        .filter((item) => !existingIds.has(String(item.id)))
+        .map((item) => ({
+          id: String(item.id),
+          title: item.title || '(无标题)',
+          cover: item.coverUrl || item.cover || gradient2('#FE2C55', '#FFB400'),
+          resolution: '1080P',
+          fps: 30,
+          hdr: false,
+          duration: '00:00',
+          sizeMB: 0,
+          status: mapContentStatusToHd(item.status),
+          uploadedAt: item.createTime ? new Date(item.createTime).getTime() : Date.now(),
+          hasCover: !!(item.coverUrl || item.cover),
+          subtitles: [],
+          audioTracks: [{ id: 'a1', label: '原声', codec: 'AAC 320kbps', isDefault: true }],
+          views: item.readNum ?? 0,
+          likes: item.agreeNum ?? 0,
+        }));
+      return [...mapped, ...prev];
+    });
+  }, [realVideos]);
 
   const detail = useMemo(() => videos.find((v) => v.id === detailId) ?? null, [videos, detailId]);
 
@@ -234,29 +286,58 @@ export default function HdPublishPage() {
   };
   const handleMenuClose = () => setMenuAnchor(null);
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
+    // 乐观更新:先从本地移除,失败时回滚
+    const previous = videos.find((v) => v.id === id);
     setVideos((p) => p.filter((v) => v.id !== id));
-    setSnack('已删除');
     handleMenuClose();
+    try {
+      await accountClient.delete(`/account/content/${id}`);
+      setSnack('已删除');
+    } catch (e) {
+      // 回滚本地 state
+      if (previous) {
+        setVideos((p) => (p.some((v) => v.id === id) ? p : [previous, ...p]));
+      }
+      setSnack(`删除失败:${formatApiError(e)}`);
+    }
   };
-  const handleRetry = (id: string) => {
+  const handleRetry = async (id: string) => {
+    // 乐观更新
     setVideos((p) =>
       p.map((v) => (v.id === id ? { ...v, status: 'transcoding', progress: 0, failedReason: undefined } : v)),
     );
-    setSnack('已重新提交转码');
     handleMenuClose();
+    try {
+      await accountClient.post(`/account/content/${id}/transcode`);
+      setSnack('已重新提交转码');
+    } catch (e) {
+      // 转码任务 API 失败时回滚状态
+      setVideos((p) =>
+        p.map((v) => (v.id === id ? { ...v, status: 'failed' } : v)),
+      );
+      setSnack(`重新转码失败:${formatApiError(e)}`);
+    }
   };
-  const handlePublishNow = (id: string) => {
+  const handlePublishNow = async (id: string) => {
+    // 乐观更新
     setVideos((p) => p.filter((v) => v.id !== id));
-    setSnack('已立即发布');
     handleMenuClose();
+    try {
+      await accountClient.post(`/account/content/${id}/publish`);
+      setSnack('已立即发布');
+    } catch (e) {
+      // 回滚:刷新列表数据由后台 useQuery 重拉;此处提示失败
+      setSnack(`发布失败:${formatApiError(e)}`);
+    }
   };
 
-  const handleFastTrackReview = (id: string) => {
+  const handleFastTrackReview = async (id: string) => {
     if (fastChannelQuota <= 0) {
       setSnack('本月极速通道已用完,下月 1 日恢复');
       return;
     }
+    // 乐观更新
     setVideos((p) =>
       p.map((v) =>
         v.id === id && v.review
@@ -272,11 +353,33 @@ export default function HdPublishPage() {
       ),
     );
     setFastChannelQuota((q) => q - 1);
-    setSnack('已启用极速通道,审核将优先处理');
     handleMenuClose();
+    try {
+      await accountClient.post(`/account/content/${id}/fasttrack`);
+      setSnack('已启用极速通道,审核将优先处理');
+    } catch (e) {
+      // 回滚
+      setVideos((p) =>
+        p.map((v) =>
+          v.id === id && v.review
+            ? {
+                ...v,
+                review: {
+                  ...v.review,
+                  useFastChannel: false,
+                  fastChannelChargedAt: undefined,
+                },
+              }
+            : v,
+        ),
+      );
+      setFastChannelQuota((q) => q + 1);
+      setSnack(`极速送审失败:${formatApiError(e)}`);
+    }
   };
 
-  const handleResubmitReview = (id: string) => {
+  const handleResubmitReview = async (id: string) => {
+    // 乐观更新
     setVideos((p) =>
       p.map((v) =>
         v.id === id
@@ -286,6 +389,7 @@ export default function HdPublishPage() {
               failedStage: undefined,
               failedReason: undefined,
               review: {
+                ...v.review,
                 checks: REVIEW_CHECK_TEMPLATE.map((c) => ({ ...c, status: 'pending' as const })),
                 startedAt: Date.now(),
               },
@@ -293,19 +397,120 @@ export default function HdPublishPage() {
           : v,
       ),
     );
-    setSnack('已重新提交审核');
     handleMenuClose();
+    try {
+      await accountClient.post(`/account/content/${id}/review`);
+      setSnack('已重新提交审核');
+    } catch (e) {
+      // 回滚
+      setVideos((p) =>
+        p.map((v) =>
+          v.id === id
+            ? { ...v, status: 'review_failed' }
+            : v,
+        ),
+      );
+      setSnack(`重新送审失败:${formatApiError(e)}`);
+    }
+  };
+
+  const handleViewPublished = (id: string) => {
+    const numericId = Number(id);
+    if (numericId) {
+      navigateToContent('VIDEO', numericId);
+    } else {
+      router.push(`/detail/video-detail?id=${encodeURIComponent(id)}`);
+    }
+  };
+
+  const handleOpenAppeal = () => {
+    setAppealReason('');
+    setAppealOpen(true);
+  };
+
+  const handleSubmitAppeal = async () => {
+    if (!detail) return;
+    if (!appealReason.trim()) {
+      setSnack('请输入申诉理由');
+      return;
+    }
+    const contentId = Number(detail.id);
+    if (!contentId) {
+      setSnack('演示内容不支持提交申诉');
+      return;
+    }
+    try {
+      await contentProcess({
+        ids: [contentId],
+        status: 'appeal',
+        moduleContentStatus: 'appeal',
+      });
+      setSnack('申诉已提交,审核员将在 72 小时内复审');
+      setAppealOpen(false);
+    } catch (e) {
+      setSnack(`申诉提交失败:${formatApiError(e)}`);
+    }
+  };
+
+  const handleOpenCoverPicker = (id: string) => {
+    setCoverTargetId(id);
+    setCoverPickerOpen(true);
+    handleMenuClose();
+  };
+
+  const handlePickCoverFile = () => {
+    coverInputRef.current?.click();
+  };
+
+  const handleCoverFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !coverTargetId) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = (await fileUpload(formData as unknown as Record<string, unknown>)) as { data?: { url?: string } };
+      const url = res?.data?.url;
+      if (url) {
+        setVideos((p) =>
+          p.map((v) => (v.id === coverTargetId ? { ...v, cover: url, hasCover: true } : v)),
+        );
+        setSnack('封面已更新');
+      } else {
+        setSnack('上传成功但未返回封面地址');
+      }
+    } catch (e) {
+      setSnack(`封面上传失败:${formatApiError(e)}`);
+    }
+    setCoverPickerOpen(false);
+    setCoverTargetId(null);
+    e.target.value = '';
   };
 
   const handlePickFile = () => {
     fileInputRef.current?.click();
   };
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
     setUploadTitle((p) => p || file.name.replace(/\.[^.]+$/, ''));
-    setSnack(`已选择文件: ${(file.size / 1024 / 1024).toFixed(1)} MB`);
-    e.target.value = '';
+    setSnack(`已选择文件: ${(file.size / 1024 / 1024).toFixed(1)} MB,正在上传...`);
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await accountClient.post('/account/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const url = (res as { data?: { url?: string } })?.data?.url;
+      if (url) {
+        // 将上传得到的 url 暂存到 uploadTitle 旁的隐藏状态;此处仅 snack 提示。
+        setSnack(`文件上传成功:${url}`);
+      } else {
+        setSnack('上传成功但未返回文件地址');
+      }
+    } catch (e) {
+      setSnack(`文件上传失败:${formatApiError(e)}`);
+    }
   };
 
   const handleAddSubtitle = () => {
@@ -1038,7 +1243,7 @@ export default function HdPublishPage() {
                       <Button
                         size="small"
                         startIcon={<VisibilityRoundedIcon sx={{ fontSize: 14 }} />}
-                        onClick={() => setSnack(`打开《${v.title}》`)}
+                        onClick={() => handleViewPublished(v.id)}
                         sx={{ textTransform: 'none', fontSize: 11, color: 'text.secondary', minWidth: 0, px: 1 }}
                       >
                         查看
@@ -1175,6 +1380,15 @@ export default function HdPublishPage() {
           >
             <RefreshRoundedIcon sx={{ fontSize: 14, mr: 1 }} />
             重新送审
+          </MenuItem>
+        )}
+        {menuAnchor && (
+          <MenuItem
+            onClick={() => menuAnchor && handleOpenCoverPicker(menuAnchor.id)}
+            sx={{ fontSize: 12 }}
+          >
+            <ImageRoundedIcon sx={{ fontSize: 14, mr: 1 }} />
+            更换封面
           </MenuItem>
         )}
         <Divider sx={{ my: 0.5, borderColor: 'divider' }} />
@@ -2019,7 +2233,7 @@ export default function HdPublishPage() {
                           </Box>
                           <Button
                             size="small"
-                            onClick={() => setSnack('申诉已提交,审核员将在 72 小时内复审')}
+                            onClick={handleOpenAppeal}
                             sx={{
                               textTransform: 'none',
                               fontSize: 11,
@@ -2221,6 +2435,7 @@ export default function HdPublishPage() {
                   fullWidth
                   variant="outlined"
                   startIcon={<VisibilityRoundedIcon sx={{ fontSize: 14 }} />}
+                  onClick={() => handleViewPublished(detail.id)}
                   sx={{
                     textTransform: 'none',
                     fontSize: 12,
@@ -2307,10 +2522,79 @@ export default function HdPublishPage() {
         <Box sx={{ p: 1.5, borderTop: '1px solid', borderColor: 'divider', textAlign: 'center' }}>
           <Button
             startIcon={<ImageRoundedIcon sx={{ fontSize: 14 }} />}
-            onClick={() => setSnack('打开本地上传')}
+            onClick={handlePickCoverFile}
             sx={{ textTransform: 'none', fontSize: 11, color: 'text.secondary' }}
           >
             从本地上传
+          </Button>
+          <input
+            ref={coverInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleCoverFileChange}
+            style={{ display: 'none' }}
+          />
+        </Box>
+      </Dialog>
+
+      {/* 申诉 Dialog */}
+      <Dialog
+        open={appealOpen}
+        onClose={() => setAppealOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        slotProps={{
+          paper: {
+            sx: { bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' },
+          },
+        }}
+      >
+        <Box sx={{ p: 2.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography sx={{ fontSize: 15, fontWeight: 600, color: 'text.primary' }}>提交申诉</Typography>
+          <IconButton size="small" onClick={() => setAppealOpen(false)}>
+            <CloseRoundedIcon sx={{ fontSize: 18 }} />
+          </IconButton>
+        </Box>
+        <Divider sx={{ borderColor: 'divider' }} />
+        <Box sx={{ p: 2.5, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+            请说明您认为审核结果有误的原因,审核员将在 72 小时内复审。
+          </Typography>
+          <TextField
+            label="申诉理由"
+            value={appealReason}
+            onChange={(e) => setAppealReason(e.target.value)}
+            multiline
+            minRows={3}
+            maxRows={5}
+            fullWidth
+            placeholder="例如:封面中的 logo 已获得品牌方授权..."
+            slotProps={{
+              inputLabel: { sx: { fontSize: 12 } },
+              input: { sx: { fontSize: 13 } },
+            }}
+          />
+        </Box>
+        <Divider sx={{ borderColor: 'divider' }} />
+        <Box sx={{ p: 2, display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+          <Button onClick={() => setAppealOpen(false)} sx={{ textTransform: 'none', fontSize: 12, color: 'text.secondary' }}>
+            取消
+          </Button>
+          <Button
+            variant="contained"
+            disabled={!appealReason.trim()}
+            onClick={handleSubmitAppeal}
+            sx={{
+              textTransform: 'none',
+              fontSize: 12,
+              background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)',
+              '&:hover': {
+                background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)',
+                filter: 'brightness(1.1)',
+              },
+            }}
+          >
+            提交申诉
           </Button>
         </Box>
       </Dialog>

@@ -1,7 +1,7 @@
 'use client';
 
-import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import React, { Suspense, useCallback, useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -25,12 +25,15 @@ import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutlineOutlined';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import VerifiedIcon from '@mui/icons-material/Verified';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
 import { ACCENT } from '@/constants/accents';
 import { useContentNavigate } from '@/lib/contentRoute';
+import { searchContent } from '@/apis/global';
+import { topKeywordInThirdMonth } from '@/apis/home';
+import { adminClient, accountClient, formatApiError } from '@/lib/api/client';
 
 // 搜索域占位:后端 `/api/core/search/*` 就绪后,以下数据/函数替换为 API 调用
-const HOT_KEYWORDS: string[] = [];
-const SEARCH_HISTORY: string[] = [];
 type SearchContentItemContentType =
   | 'NOVEL' | 'FILM' | 'MUSIC' | 'VIDEO' | 'COMICS'
   | 'TELEPLAY' | 'ARTICLE' | 'ANIMATION' | 'NEWS' | 'VSHOW';
@@ -65,9 +68,6 @@ interface SearchTopicItem {
   hot: boolean;
   gradient: string;
 }
-function searchContent(_query: string): SearchContentItem[] { return []; }
-function searchCreators(_query: string): SearchCreatorItem[] { return []; }
-function searchTopics(_query: string): SearchTopicItem[] { return []; }
 function formatNumber(n: number): string { return n.toString(); }
 
 type ResultTab = 'all' | 'content' | 'creator' | 'topic';
@@ -121,8 +121,114 @@ function SearchPageContent() {
   const initialQ = searchParams.get('q') ?? '';
   const [query, setQuery] = useState(initialQ);
   const [tab, setTab] = useState<ResultTab>('all');
-  const [history, setHistory] = useState<string[]>(SEARCH_HISTORY);
-  const [loading, setLoading] = useState(false);
+  const [history, setHistory] = useState<string[]>([]);
+  const [creators, setCreators] = useState<SearchCreatorItem[]>([]);
+  const [topics, setTopics] = useState<SearchTopicItem[]>([]);
+  const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
+  const [followBusyId, setFollowBusyId] = useState<number | null>(null);
+
+  // 联想:创作者 + 话题(suggest API)
+  useEffect(() => {
+    const kw = query.trim();
+    if (!kw) {
+      setCreators([]);
+      setTopics([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = (await adminClient('/search/suggest', {
+          params: { q: kw },
+        })) as any;
+        if (cancelled) return;
+        const payload = res?.data ?? res ?? {};
+        const creatorList: any[] = Array.isArray(payload.creators) ? payload.creators : [];
+        const topicList: any[] = Array.isArray(payload.topics) ? payload.topics : [];
+        setCreators(
+          creatorList.map((c) => ({
+            id: Number(c.id ?? 0),
+            name: c.name || c.username || c.userName || '创作者',
+            bio: c.bio || c.description || '',
+            avatarGradient:
+              c.avatarGradient ||
+              c.coverGradient ||
+              'linear-gradient(135deg, #FE2C55, #8B5CF6)',
+            followers: Number(c.followers ?? c.fans ?? 0),
+            works: Number(c.works ?? c.workCount ?? 0),
+            verified: Boolean(c.verified),
+            tags: Array.isArray(c.tags) ? c.tags : [],
+          })) as SearchCreatorItem[],
+        );
+        setTopics(
+          topicList.map((t) => ({
+            id: Number(t.id ?? 0),
+            title: t.title || t.name || '话题',
+            description: t.description || t.info || '',
+            discussCount: Number(t.discussCount ?? t.commentNum ?? 0),
+            viewCount: Number(t.viewCount ?? t.views ?? 0),
+            hot: Boolean(t.hot),
+            gradient:
+              t.gradient ||
+              t.coverGradient ||
+              'linear-gradient(135deg, #FE2C55, #FFB400)',
+          })) as SearchTopicItem[],
+        );
+      } catch (err) {
+        if (cancelled) return;
+        // 后端未就绪时静默兜底,保持为空数组即可
+        console.warn('load search/suggest failed', formatApiError(err));
+        setCreators([]);
+        setTopics([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [query]);
+
+  const hotKeywordsQuery = useQuery({
+    queryKey: ['search-hot'],
+    queryFn: async () => {
+      const res = (await topKeywordInThirdMonth()) as any;
+      const list = res?.data?.list || res?.data || [];
+      return (Array.isArray(list) ? list : [])
+        .map((it: any) => it.keyword || it.word || it.title || String(it))
+        .filter(Boolean)
+        .slice(0, 10) as string[];
+    },
+    enabled: query.trim().length === 0,
+    staleTime: 5 * 60 * 1000,
+  });
+  const hotKeywords = hotKeywordsQuery.data ?? [];
+
+  const searchQuery = useQuery({
+    queryKey: ['search-content', query.trim()],
+    queryFn: async () => {
+      const q = query.trim();
+      if (!q) return [];
+      const res = (await searchContent({ keyword: q })) as any;
+      const list = res?.data?.list || res?.data || [];
+      return (Array.isArray(list) ? list : []).map((it: any) => ({
+        id: it.id ?? 0,
+        title: it.title || it.name || '未命名',
+        subtitle: it.subtitle || it.info || it.description,
+        contentType: (it.contentType || it.type || 'VIDEO').toUpperCase() as SearchContentItem['contentType'],
+        coverGradient: it.cover || it.coverGradient || 'linear-gradient(135deg, #FE2C55, #8B5CF6)',
+        author: it.author || it.username || it.userName || '清秋月',
+        views: it.views || it.readNum || 0,
+        comments: it.comments || it.commentNum || 0,
+        likes: it.likes || it.agreeNum || 0,
+        matchField: (it.matchField || 'title') as SearchContentItem['matchField'],
+      })) as SearchContentItem[];
+    },
+    enabled: query.trim().length > 0,
+    staleTime: 60 * 1000,
+  });
 
   // URL ?q= → query 同步(支持深链 / 浏览器后退)
   useEffect(() => {
@@ -134,21 +240,9 @@ function SearchPageContent() {
   const q = query.trim();
   const hasQuery = q.length > 0;
 
-  const contents = useMemo(() => (hasQuery ? searchContent(q) : []), [q, hasQuery]);
-  const creators = useMemo(() => (hasQuery ? searchCreators(q) : []), [q, hasQuery]);
-  const topics = useMemo(() => (hasQuery ? searchTopics(q) : []), [q, hasQuery]);
+  const contents = searchQuery.data ?? [];
   const total = contents.length + creators.length + topics.length;
-
-  // 模拟 loading: query 变化时 320ms
-  useEffect(() => {
-    if (!hasQuery) {
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    const t = setTimeout(() => setLoading(false), 320);
-    return () => clearTimeout(t);
-  }, [q, hasQuery]);
+  const loading = searchQuery.isPending;
 
   const pushQuery = useCallback(
     (next: string) => {
@@ -193,6 +287,23 @@ function SearchPageContent() {
   const handleClearHistory = () => setHistory([]);
   const handleRemoveHistory = (kw: string) =>
     setHistory((prev) => prev.filter((h) => h !== kw));
+
+  const handleFollowCreator = async (creator: SearchCreatorItem) => {
+    if (followBusyId === creator.id) return;
+    setFollowBusyId(creator.id);
+    try {
+      await accountClient.post('/user/follow', { userId: creator.id });
+      setSnack({ open: true, message: '关注成功', severity: 'success' });
+    } catch (err) {
+      setSnack({ open: true, message: formatApiError(err) || '关注失败,请重试', severity: 'error' });
+    } finally {
+      setFollowBusyId(null);
+    }
+  };
+
+  const handleOpenTopic = (topic: SearchTopicItem) => {
+    router.push(`/search/topic?id=${topic.id}`);
+  };
 
   const renderHighlight = (text: string) => {
     if (!q) return text;
@@ -326,7 +437,7 @@ function SearchPageContent() {
       <Box sx={{ maxWidth: 1200, mx: 'auto', px: { xs: 2, md: 3 }, py: { xs: 2, md: 3 } }}>
         {!hasQuery ? (
           <EmptyState
-            hotKeywords={HOT_KEYWORDS}
+            hotKeywords={hotKeywords}
             history={history}
             onPickKeyword={handleKeywordPick}
             onClearHistory={handleClearHistory}
@@ -396,7 +507,7 @@ function SearchPageContent() {
             {loading ? (
               <LoadingSkeleton />
             ) : total === 0 ? (
-              <NoResults query={q} hotKeywords={HOT_KEYWORDS} onPickKeyword={handleKeywordPick} />
+              <NoResults query={q} hotKeywords={hotKeywords} onPickKeyword={handleKeywordPick} />
             ) : (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {(tab === 'all' || tab === 'content') && contents.length > 0 && (
@@ -418,7 +529,13 @@ function SearchPageContent() {
                     {creators
                       .slice(0, tab === 'all' ? 3 : undefined)
                       .map((c) => (
-                        <CreatorResult key={c.id} item={c} renderHL={renderHighlight} />
+                        <CreatorResult
+                          key={c.id}
+                          item={c}
+                          renderHL={renderHighlight}
+                          onFollow={() => handleFollowCreator(c)}
+                          following={followBusyId === c.id}
+                        />
                       ))}
                   </Section>
                 )}
@@ -427,7 +544,12 @@ function SearchPageContent() {
                     {topics
                       .slice(0, tab === 'all' ? 3 : undefined)
                       .map((t) => (
-                        <TopicResult key={t.id} item={t} renderHL={renderHighlight} />
+                        <TopicResult
+                          key={t.id}
+                          item={t}
+                          renderHL={renderHighlight}
+                          onClick={() => handleOpenTopic(t)}
+                        />
                       ))}
                   </Section>
                 )}
@@ -443,6 +565,17 @@ function SearchPageContent() {
           © 2026 清秋月 · 按 Enter 搜索 · Esc 返回
         </Typography>
       </Box>
+
+      <Snackbar
+        open={snack.open}
+        autoHideDuration={2200}
+        onClose={() => setSnack((s) => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert severity={snack.severity} variant="filled" sx={{ width: '100%' }}>
+          {snack.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }
@@ -621,9 +754,13 @@ function ContentResult({
 function CreatorResult({
   item,
   renderHL,
+  onFollow,
+  following,
 }: {
   item: SearchCreatorItem;
   renderHL: (text: string) => React.ReactNode;
+  onFollow: () => void;
+  following?: boolean;
 }) {
   return (
     <Box
@@ -707,6 +844,8 @@ function CreatorResult({
         size="small"
         variant="contained"
         disableElevation
+        disabled={following}
+        onClick={onFollow}
         sx={{
           minWidth: 56,
           fontSize: 11,
@@ -728,12 +867,15 @@ function CreatorResult({
 function TopicResult({
   item,
   renderHL,
+  onClick,
 }: {
   item: SearchTopicItem;
   renderHL: (text: string) => React.ReactNode;
+  onClick: () => void;
 }) {
   return (
     <Box
+      onClick={onClick}
       sx={{
         display: 'flex',
         alignItems: 'center',

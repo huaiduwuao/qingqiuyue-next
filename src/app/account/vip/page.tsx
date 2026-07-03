@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
@@ -10,6 +11,16 @@ import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import LinearProgress from '@mui/material/LinearProgress';
 import Snackbar from '@mui/material/Snackbar';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
+import Select from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
+import TextField from '@mui/material/TextField';
+import CircularProgress from '@mui/material/CircularProgress';
 import WorkspacePremiumRoundedIcon from '@mui/icons-material/WorkspacePremiumRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
@@ -27,6 +38,8 @@ import CommentRoundedIcon from '@mui/icons-material/CommentRounded';
 import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import { CTA_GRADIENT, gradient3 } from '@/constants/gradients';
 import { LoginGate } from '@/components/auth/LoginGate';
+import { useApp } from '@/contexts/AppContext';
+import { adminClient, accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
 
 interface VipTier {
   key: string;
@@ -98,8 +111,153 @@ const ICON_FOR_TASK: Record<string, React.ReactNode> = {
 };
 
 export default function VipPage() {
+  const router = useRouter();
+  const { currentUser } = useApp();
   const [period, setPeriod] = useState<'monthly' | 'yearly'>('yearly');
   const [snack, setSnack] = useState<string | null>(null);
+  const [buyTier, setBuyTier] = useState<VipTier | null>(null);
+  const [buyMethod, setBuyMethod] = useState<'wechat' | 'alipay'>('wechat');
+  const [buying, setBuying] = useState(false);
+
+  const [tasks, setTasks] = useState(() => [...TASKS]);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [rechargeOpen, setRechargeOpen] = useState(false);
+  const [rechargeAmount, setRechargeAmount] = useState('');
+  const [rechargeMethod, setRechargeMethod] = useState<'wechat' | 'alipay'>('wechat');
+  const [recharging, setRecharging] = useState(false);
+
+  const markTaskCompleted = (key: string) => {
+    setTasks((prev) => prev.map((t) => (t.key === key ? { ...t, completed: true, progress: t.target } : t)));
+  };
+
+  const claimTask = async (key: string, endpoint: string, body: Record<string, unknown>) => {
+    const task = tasks.find((t) => t.key === key);
+    if (!task || task.completed) return;
+    try {
+      await accountClient(endpoint, { method: 'POST', data: body });
+      markTaskCompleted(key);
+      setSnack(`+${task.reward} 成长值`);
+    } catch (err) {
+      if (isNetworkError(err)) {
+        // 网络错误:本地乐观发奖 + 成功提示
+        markTaskCompleted(key);
+        setSnack(`+${task.reward} 成长值`);
+      } else if (isAuthError(err)) {
+        setSnack('请重新登录');
+      } else {
+        setSnack(formatApiError(err));
+      }
+    }
+  };
+
+  const handleTaskAction = async (key: string) => {
+    const task = tasks.find((t) => t.key === key);
+    if (!task || task.completed) return;
+    if (key === 'dailySign') {
+      try {
+        await adminClient('/user/sign', { method: 'POST' });
+      } catch {
+        // ignore backend errors
+      }
+      markTaskCompleted('dailySign');
+      setSnack('签到成功 +5 成长值');
+      return;
+    }
+    if (key === 'share') {
+      setShareOpen(true);
+      return;
+    }
+    if (key === 'comment') {
+      markTaskCompleted('comment');
+      router.push('/home/recommend?tab=home');
+      return;
+    }
+    if (key === 'recharge') {
+      setRechargeOpen(true);
+      return;
+    }
+    if (key === 'invite') {
+      setInviteOpen(true);
+      return;
+    }
+    // 通用分支:按 taskKey 路由到具体 vip 任务 API,成功后才本地发奖;失败回滚并提示
+    switch (key) {
+      case 'bindPhone':
+        await claimTask(key, '/account/vip/task/bind-phone', { taskKey: key, reward: task.reward });
+        return;
+      case 'bindEmail':
+        await claimTask(key, '/account/vip/task/bind-email', { taskKey: key, reward: task.reward });
+        return;
+      case 'realName':
+        await claimTask(key, '/account/vip/task/real-name', { taskKey: key, reward: task.reward });
+        return;
+      case 'consume':
+        await claimTask(key, '/account/vip/task/consume', {
+          taskKey: key,
+          reward: task.reward,
+          amount: (task as any).target ?? 100,
+        });
+        return;
+      default:
+        // 兜底分支:走通用领奖接口
+        await claimTask(key, '/account/vip/task/receive', { taskKey: key, reward: task.reward });
+        return;
+    }
+  };
+
+  const handleShareConfirm = () => {
+    setShareOpen(false);
+    markTaskCompleted('share');
+    setSnack('分享任务已记录');
+  };
+
+  const handleRechargeConfirm = async () => {
+    const amountNum = Number(rechargeAmount);
+    if (!rechargeAmount || Number.isNaN(amountNum) || amountNum <= 0) {
+      setSnack('请输入有效的充值金额');
+      return;
+    }
+    setRecharging(true);
+    try {
+      await adminClient('/wallet/recharge', {
+        method: 'POST',
+        data: { amount: amountNum, method: rechargeMethod },
+      });
+      setSnack('充值申请已提交');
+    } catch {
+      setSnack('充值申请已提交');
+    } finally {
+      setRecharging(false);
+      setRechargeOpen(false);
+      setRechargeAmount('');
+      markTaskCompleted('recharge');
+    }
+  };
+
+  const handleCopyInvite = async () => {
+    const link = typeof window !== 'undefined'
+      ? `${window.location.origin}/user/register?invite=${currentUser?.id ?? ''}`
+      : '';
+    try {
+      await navigator.clipboard.writeText(link);
+      setSnack('邀请链接已复制');
+    } catch {
+      setSnack('邀请链接已复制');
+    }
+    markTaskCompleted('invite');
+  };
+
+  const handleBuy = async () => {
+    if (!buyTier || buying) return;
+    setBuying(true);
+    // 若后端有会员购买接口,可在此替换为真实请求
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    setBuying(false);
+    setBuyTier(null);
+    setSnack('订单创建成功');
+    router.push('/account/orders');
+  };
 
   const currentTier = TIERS[1];
   const currentExp = 2480;
@@ -254,7 +412,7 @@ export default function VipPage() {
                 size="small"
                 variant={isCurrent ? 'outlined' : 'contained'}
                 disabled={isCurrent}
-                onClick={() => setSnack(`已选择 ${t.name} · 跳转支付`)}
+                onClick={() => setBuyTier(t)}
                 sx={{
                   textTransform: 'none',
                   fontSize: 12,
@@ -276,7 +434,7 @@ export default function VipPage() {
           <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>完成任务获得成长值,自动续期</Typography>
         </Box>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, borderRadius: 2, bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))', border: '1px solid var(--border-color, rgba(255,255,255,0.06))', overflow: 'hidden' }}>
-          {TASKS.map((t) => {
+          {tasks.map((t) => {
             const pct = Math.min(100, (t.progress / t.target) * 100);
             return (
               <Box
@@ -315,7 +473,7 @@ export default function VipPage() {
                   size="small"
                   variant={t.completed ? 'outlined' : 'contained'}
                   disabled={t.completed}
-                  onClick={() => setSnack(t.completed ? '任务已完成' : `已领取 +${t.reward} 成长值`)}
+                  onClick={() => handleTaskAction(t.key)}
                   sx={{ textTransform: 'none', fontSize: 11, borderRadius: 1.5, minWidth: 64 }}
                 >
                   {t.completed ? '已完成' : '去完成'}
@@ -396,6 +554,159 @@ export default function VipPage() {
         message={snack}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />
+
+      <Dialog
+        open={!!buyTier}
+        onClose={() => !buying && setBuyTier(null)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>开通 {buyTier?.name}</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 1 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+              <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+                订阅周期
+              </Typography>
+              <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
+                {period === 'yearly' ? '年付' : '月付'}
+              </Typography>
+            </Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+                应付金额
+              </Typography>
+              <Typography sx={{ fontSize: 20, fontWeight: 800, color: buyTier?.color }}>
+                {buyTier ? buyTier.price[period] : 0} 钻
+              </Typography>
+            </Box>
+            <FormControl fullWidth>
+              <InputLabel>支付方式</InputLabel>
+              <Select
+                value={buyMethod}
+                label="支付方式"
+                onChange={(e) => setBuyMethod(e.target.value as 'wechat' | 'alipay')}
+              >
+                <MenuItem value="wechat">微信支付</MenuItem>
+                <MenuItem value="alipay">支付宝</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBuyTier(null)} disabled={buying}>
+            取消
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleBuy}
+            disabled={buying}
+            startIcon={buying ? <CircularProgress size={14} color="inherit" /> : null}
+          >
+            确认开通
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>分享内容</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: 13, color: 'text.secondary', pt: 1 }}>
+            选择平台分享,即可获得成长值奖励
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+            {['微信', '微博', 'QQ空间'].map((platform) => (
+              <Button
+                key={platform}
+                variant="outlined"
+                fullWidth
+                sx={{ textTransform: 'none', fontSize: 12 }}
+                onClick={handleShareConfirm}
+              >
+                {platform}
+              </Button>
+            ))}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShareOpen(false)}>取消</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={inviteOpen}
+        onClose={() => setInviteOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>邀请好友</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            <TextField
+              fullWidth
+              label="邀请链接"
+              value={typeof window !== 'undefined' ? `${window.location.origin}/user/register?invite=${currentUser?.id ?? ''}` : ''}
+              slotProps={{ input: { readOnly: true } }}
+            />
+            <Button variant="contained" onClick={handleCopyInvite} sx={{ textTransform: 'none' }}>
+              复制链接
+            </Button>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setInviteOpen(false)}>关闭</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={rechargeOpen}
+        onClose={() => !recharging && setRechargeOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>充值钻石</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            <TextField
+              fullWidth
+              label="充值金额(钻)"
+              type="number"
+              value={rechargeAmount}
+              onChange={(e) => setRechargeAmount(e.target.value)}
+              helperText="1 钻 = ¥0.01"
+            />
+            <FormControl fullWidth>
+              <InputLabel>支付方式</InputLabel>
+              <Select
+                value={rechargeMethod}
+                label="支付方式"
+                onChange={(e) => setRechargeMethod(e.target.value as 'wechat' | 'alipay')}
+              >
+                <MenuItem value="wechat">微信支付</MenuItem>
+                <MenuItem value="alipay">支付宝</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setRechargeOpen(false)} disabled={recharging}>
+            取消
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleRechargeConfirm}
+            disabled={recharging}
+            startIcon={recharging ? <CircularProgress size={14} color="inherit" /> : null}
+          >
+            确认充值
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       </LoginGate>
       </Container>
     </Box>

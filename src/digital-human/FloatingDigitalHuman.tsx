@@ -8,17 +8,17 @@
  */
 
 import React from 'react';
-import { Box, IconButton, TextField, Typography, CircularProgress, Chip, Collapse } from '@mui/material';
+import { Box, IconButton, TextField, Typography, CircularProgress, Collapse } from '@mui/material';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import OpenInFullRoundedIcon from '@mui/icons-material/OpenInFullRounded';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
-import MicNoneRoundedIcon from '@mui/icons-material/MicNoneRounded';
 import MicRoundedIcon from '@mui/icons-material/MicRounded';
 import NearMeRoundedIcon from '@mui/icons-material/NearMeRounded';
 import PetsRoundedIcon from '@mui/icons-material/PetsRounded';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import ChatIcon from '@mui/icons-material/Chat';
 import { alpha } from '@mui/material/styles';
 import { useRouter, usePathname } from 'next/navigation';
 import BlenderAvatar from './BlenderAvatar';
@@ -29,8 +29,10 @@ import { MicTestButton } from '@/components/MicTestButton';
 import AIGCBadge from '@/components/AIGCBadge';
 import { AgentSelector } from '@/components/hermes/AgentSelector';
 import { useApp } from '@/contexts/AppContext';
+import { useThemeMode } from '@/contexts/ThemeContext';
 import { routeIntent } from '@/lib/intent/router';
 import { executeIntent } from '@/lib/intent/executor';
+import { logout } from '@/apis/user';
 import type { VoiceLogEntry } from '@/lib/voice/logger';
 import type { HermesAgentItem } from '@/beans/system';
 
@@ -39,6 +41,17 @@ const FIG_H = 480;
 
 const HIDE_ON = ['/user/login', '/digital-human'];  // /digital-human 是沉浸式大窗口, 不显示浮窗
 
+interface QingqiuyueWindow extends Window {
+  __qingqiuyueWalkTo?: (target: { left: number; top: number }, durationMs?: number) => void;
+  __qingqiuyueSetPetMode?: React.Dispatch<React.SetStateAction<boolean>>;
+  __qingqiuyueSetSummonMode?: React.Dispatch<React.SetStateAction<boolean>>;
+}
+
+interface AgentPayload {
+  agentId: string;
+  name: string;
+  description?: string;
+}
 
 export default function FloatingDigitalHuman() {
   const router = useRouter();
@@ -49,20 +62,16 @@ export default function FloatingDigitalHuman() {
   const dragRef = React.useRef({ active: false, sx: 0, sy: 0, ox: 0, oy: 0 });
   // 位置: 用 left/top + transform: translate() 做 GPU 加速动画
   // 数字人"在页面上走": 走的过程 transform 平滑过渡
-  const [pos, setPos] = React.useState<{ left: number; top: number }>({ left: 0, top: 0 });
+  const [pos, setPos] = React.useState<{ left: number; top: number }>(() =>
+    typeof window !== 'undefined'
+      ? { left: Math.max(0, window.innerWidth - 320 - 24), top: Math.max(0, window.innerHeight - 520 - 24) }
+      : { left: 0, top: 0 }
+  );
   const [open, setOpen] = React.useState(true);
   const [autoRotate, setAutoRotate] = React.useState(false);  // 默认不自动转圈, 数字人有自己的 idle 动画
-  const [text, setText] = React.useState('');
-
-  // 初始化位置: 右下角 (CSS 用 right/bottom 转为 left/top 计算)
-  React.useEffect(() => {
-    if (typeof window === 'undefined') return
-    const w = window.innerWidth, h = window.innerHeight
-    // 默认 320x520 浮窗, 放右下角
-    setPos({ left: Math.max(0, w - 320 - 24), top: Math.max(0, h - 520 - 24) })
-  }, [])
 
   const app = useApp();
+  const { setTheme } = useThemeMode();
   const { activeAgentId, agentStack, setActiveAgent, popAgent } = app;
   const [availableAgents, setAvailableAgents] = React.useState<HermesAgentItem[]>([]);
 
@@ -70,7 +79,7 @@ export default function FloatingDigitalHuman() {
     fetch('/api/agents')
       .then((r) => r.json())
       .then((data) => {
-        const agents = (data.agents || []).map((a: any) => ({
+        const agents = (data.agents || []).map((a: AgentPayload) => ({
           agentId: a.agentId,
           name: a.name,
           role: a.description || a.agentId,
@@ -84,8 +93,8 @@ export default function FloatingDigitalHuman() {
   }, [activeAgentId, setActiveAgent]);
 
   const chat = useChatAvatar(activeAgentId || 'digital_human');
-  const { chatBusy, chatLog, emotion, viseme, action, send, audioRef,
-    cancel, isSpeaking, isAIGenerated } = chat;
+  const { chatBusy, chatLog, emotion, viseme, action, audioRef,
+    isAIGenerated } = chat;
 
   // 语音唤醒词: 文本匹配模式 (ASR 后看文本里是否含 "小月")
   const wakePhrases = React.useMemo(() => ['小月', '清秋月', '清秋'], [])
@@ -151,11 +160,6 @@ export default function FloatingDigitalHuman() {
     isAvatarSpeaking: () => chat.isSpeaking(),
     onInterrupt: () => chat.cancel(),
   })
-  // 启动/停止 (点 mic 切换)
-  React.useEffect(() => {
-    if (voiceEnabled) voice.start()
-    else voice.stop()
-  }, [voiceEnabled])
 
   // 注意:必须在所有 hook 之后才能 return null,否则 React Rules of Hooks 报错
   // "Rendered fewer hooks than expected"(pathname 切换时 hidden 翻转会导致
@@ -183,6 +187,76 @@ export default function FloatingDigitalHuman() {
     window.addEventListener('digital-human-walk', onWalk)
     return () => window.removeEventListener('digital-human-walk', onWalk)
   }, [chat])
+
+  // system 意图: 音量/主题/全屏/刷新/登出等实际浏览器操作
+  const preMuteVolumeRef = React.useRef<number | null>(null)
+  React.useEffect(() => {
+    const applySystem = (e: Event) => {
+      const detail = (e as CustomEvent<import('@/lib/intent/types').Intent>).detail
+      if (!detail || detail.type !== 'system') return
+      const { action, params } = detail
+      const audio = chat.audioRef.current
+
+      switch (action) {
+        case 'volume-up': {
+          if (audio) audio.volume = Math.min(1, (audio.volume || 0.5) + 0.1)
+          break
+        }
+        case 'volume-down': {
+          if (audio) audio.volume = Math.max(0, (audio.volume || 0.5) - 0.1)
+          break
+        }
+        case 'volume-set': {
+          const level = typeof params?.level === 'number' ? params.level : Number(params?.level)
+          if (audio && !Number.isNaN(level)) audio.volume = Math.max(0, Math.min(1, level))
+          break
+        }
+        case 'mute': {
+          if (audio) {
+            preMuteVolumeRef.current = audio.volume
+            audio.volume = 0
+          }
+          break
+        }
+        case 'unmute': {
+          if (audio) {
+            const restored = preMuteVolumeRef.current ?? 0.5
+            audio.volume = restored > 0 ? restored : 0.5
+          }
+          break
+        }
+        case 'theme-light':
+          setTheme('light')
+          break
+        case 'theme-dark':
+          setTheme('dark')
+          break
+        case 'fullscreen-on': {
+          const el = document.documentElement as HTMLElement & { requestFullscreen?: () => Promise<void> }
+          el.requestFullscreen?.().catch(() => {})
+          break
+        }
+        case 'fullscreen-off': {
+          const d = document as Document & { exitFullscreen?: () => Promise<void> }
+          d.exitFullscreen?.().catch(() => {})
+          break
+        }
+        case 'reload':
+          window.location.reload()
+          break
+        case 'logout': {
+          logout().catch(() => {}).finally(() => {
+            router.push('/user/login')
+          })
+          break
+        }
+        default:
+          break
+      }
+    }
+    window.addEventListener('digital-human-system', applySystem)
+    return () => window.removeEventListener('digital-human-system', applySystem)
+  }, [chat, router, setTheme])
 
   // 拖动 offset (从当前 left/top 算)
   const onDown = React.useCallback((e: React.PointerEvent) => {
@@ -234,8 +308,18 @@ export default function FloatingDigitalHuman() {
 
   // 数字人"宠物模式": 跟着鼠标走(带惯性, 像猫跟主人)
   // 用户在屏幕任何地方移动鼠标, 数字人平滑地跟过去
-  const [petMode, setPetMode] = React.useState(false)
-  const petAnimRef = React.useRef<number | null>(null)
+  const [petMode, setPetModeRaw] = React.useState(() => {
+    if (typeof window === 'undefined') return false
+    try { return localStorage.getItem('qingqiuyue-pet-mode') === 'true' } catch { return false }
+  })
+  const setPetMode = React.useCallback((value: React.SetStateAction<boolean>) => {
+    setPetModeRaw((prev) => {
+      const next = typeof value === 'function' ? value(prev) : value
+      try { localStorage.setItem('qingqiuyue-pet-mode', String(next)) } catch {}
+      return next
+    })
+  }, [])
+
   React.useEffect(() => {
     if (!petMode) return
     const FW = 320, FH = 520
@@ -257,13 +341,22 @@ export default function FloatingDigitalHuman() {
     window.addEventListener('mousemove', onMouseMove)
     return () => {
       window.removeEventListener('mousemove', onMouseMove)
-      if (petAnimRef.current) cancelAnimationFrame(petAnimRef.current)
     }
   }, [petMode])
 
   // 召唤模式: 用户点页面任何位置, 数字人走过去
   // 单独 useEffect 因为它跟 pet 互斥
-  const [summonMode, setSummonMode] = React.useState(false)
+  const [summonMode, setSummonModeRaw] = React.useState(() => {
+    if (typeof window === 'undefined') return false
+    try { return localStorage.getItem('qingqiuyue-summon-mode') === 'true' } catch { return false }
+  })
+  const setSummonMode = React.useCallback((value: React.SetStateAction<boolean>) => {
+    setSummonModeRaw((prev) => {
+      const next = typeof value === 'function' ? value(prev) : value
+      try { localStorage.setItem('qingqiuyue-summon-mode', String(next)) } catch {}
+      return next
+    })
+  }, [])
   React.useEffect(() => {
     if (!summonMode) return
     const onClick = (e: MouseEvent) => {
@@ -283,19 +376,49 @@ export default function FloatingDigitalHuman() {
 
   // 暴露 walkTo 到 window (executor 派事件时调)
   React.useEffect(() => {
-    (window as any).__qingqiuyueWalkTo = walkTo
-    ;(window as any).__qingqiuyueSetPetMode = setPetMode
-    ;(window as any).__qingqiuyueSetSummonMode = setSummonMode
+    const w = window as QingqiuyueWindow
+    w.__qingqiuyueWalkTo = walkTo
+    w.__qingqiuyueSetPetMode = setPetMode
+    w.__qingqiuyueSetSummonMode = setSummonMode
     return () => {
-      delete (window as any).__qingqiueWalkTo
-      delete (window as any).__qingqiuyueSetPetMode
-      delete (window as any).__qingqiueSetSummonMode
+      delete w.__qingqiuyueWalkTo
+      delete w.__qingqiuyueSetPetMode
+      delete w.__qingqiuyueSetSummonMode
     }
-  }, [walkTo])
+  }, [walkTo, setPetMode, setSummonMode])
 
   // ⚠️ 所有 hooks 必须在 early return 前调用 (React Rules of Hooks)
 
   if (hidden) return null;
+
+  if (!open) {
+    return (
+      <Box
+        sx={{
+          position: 'fixed',
+          right: 24,
+          bottom: 24,
+          zIndex: 1500,
+        }}
+      >
+        <IconButton
+          aria-label="展开数字人"
+          onClick={() => setOpen(true)}
+          sx={{
+            width: 48,
+            height: 48,
+            borderRadius: '50%',
+            bgcolor: (t) => alpha(t.palette.primary.main, 0.85),
+            color: 'white',
+            boxShadow: (t) => `0 4px 16px ${alpha(t.palette.primary.main, 0.45)}`,
+            '&:hover': { bgcolor: (t) => t.palette.primary.main },
+          }}
+        >
+          <ChatIcon sx={{ fontSize: 24 }} />
+        </IconButton>
+      </Box>
+    );
+  }
 
   return (
     <Box
@@ -525,12 +648,10 @@ export default function FloatingDigitalHuman() {
           <Box sx={{ mt: 0.5 }}>
             <Box
               data-no-drag
-              onClick={(e) => { e.stopPropagation(); setShowVoiceLogs(v => !v) }}
               sx={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                cursor: 'pointer',
                 bgcolor: 'rgba(255,255,255,0.08)',
                 borderRadius: 1,
                 px: 0.75,
@@ -540,7 +661,11 @@ export default function FloatingDigitalHuman() {
               <Typography variant="caption" sx={{ fontSize: 10, color: 'rgba(255,255,255,0.7)' }}>
                 语音日志 ({voiceLogs.length})
               </Typography>
-              <IconButton size="small" sx={{ color: 'rgba(255,255,255,0.6)', p: 0.25 }}>
+              <IconButton
+                size="small"
+                onClick={(e) => { e.stopPropagation(); setShowVoiceLogs(v => !v) }}
+                sx={{ color: 'rgba(255,255,255,0.6)', p: 0.25 }}
+              >
                 {showVoiceLogs ? <ExpandLessIcon sx={{ fontSize: 14 }} /> : <ExpandMoreIcon sx={{ fontSize: 14 }} />}
               </IconButton>
             </Box>

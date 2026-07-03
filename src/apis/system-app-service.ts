@@ -1,5 +1,5 @@
 import { adminClient } from '@/lib/api/client';
-import {AppServiceItem, TableListParams} from "@/beans/system";
+import { AppServiceItem } from "@/beans/system";
 
 export interface AppServiceListParams {
   page?: number;

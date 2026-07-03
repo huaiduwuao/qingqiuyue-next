@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -8,16 +8,20 @@ import IconButton from '@mui/material/IconButton';
 import Slider from '@mui/material/Slider';
 import Tooltip from '@mui/material/Tooltip';
 import Avatar from '@mui/material/Avatar';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import Button from '@mui/material/Button';
+import TextField from '@mui/material/TextField';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import PauseRoundedIcon from '@mui/icons-material/PauseRounded';
-import VolumeUpRoundedIcon from '@mui/icons-material/VolumeUpRounded';
-import VolumeOffRoundedIcon from '@mui/icons-material/VolumeOffRounded';
 import FullscreenRoundedIcon from '@mui/icons-material/FullscreenRounded';
 import FullscreenExitRoundedIcon from '@mui/icons-material/FullscreenExitRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
-import SkipNextRoundedIcon from '@mui/icons-material/SkipNextRounded';
-import SkipPreviousRoundedIcon from '@mui/icons-material/SkipPreviousRounded';
 import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import FavoriteBorderRoundedIcon from '@mui/icons-material/FavoriteBorderRounded';
 import BookmarkRoundedIcon from '@mui/icons-material/BookmarkRounded';
@@ -25,7 +29,6 @@ import BookmarkBorderRoundedIcon from '@mui/icons-material/BookmarkBorderRounded
 import ModeCommentOutlinedIcon from '@mui/icons-material/ModeCommentOutlined';
 import ReplyRoundedIcon from '@mui/icons-material/ReplyRounded';
 import StarRoundedIcon from '@mui/icons-material/StarRounded';
-import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import VerifiedRoundedIcon from '@mui/icons-material/VerifiedRounded';
 import SpeedRoundedIcon from '@mui/icons-material/SpeedRounded';
 import HighQualityOutlinedIcon from '@mui/icons-material/HighQualityOutlined';
@@ -35,6 +38,8 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import KeyboardArrowUpRoundedIcon from '@mui/icons-material/KeyboardArrowUpRounded';
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import { homeClient } from '@/lib/api/client';
+import { sendComment } from '@/apis/home';
+import { reportContent } from '@/apis/global';
 
 interface WerewolfVideo {
   id: number;
@@ -44,7 +49,7 @@ interface WerewolfVideo {
   episode: number;
   durationSec: number;
   cover: string;
-  user: { name: string; handle: string; verified: boolean; avatar: string };
+  user: { id: number; name: string; handle: string; verified: boolean; avatar: string };
   caption: string;
   views: number;
   likes: number;
@@ -74,9 +79,17 @@ export function WerewolfPlayer() {
   const [liked, setLiked] = useState(false);
   const [collected, setCollected] = useState(false);
   const [following, setFollowing] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [likedCount, setLikedCount] = useState(0);
   const [collectedCount, setCollectedCount] = useState(0);
+  const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
+    open: false, message: '', severity: 'success',
+  });
+  const [commentDialogOpen, setCommentDialogOpen] = useState(false);
+  const [commentText, setCommentText] = useState('');
+  const [commentSending, setCommentSending] = useState(false);
+  const [moreDialogOpen, setMoreDialogOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   // ─── 视频流 + 上下切换 ───
@@ -138,7 +151,8 @@ export function WerewolfPlayer() {
   );
 
   const likeMutation = useMutation({
-    mutationFn: () => homeClient.post<{ liked: boolean; likes: number }>('/werewolf/like'),
+    mutationFn: (nextLiked: boolean) =>
+      homeClient.post<{ liked: boolean; likes: number }>('/werewolf/like', { liked: nextLiked }),
     onSuccess: (res) => {
       const data = (res as any).data;
       if (data?.likes != null) setLikedCount(data.likes);
@@ -146,33 +160,141 @@ export function WerewolfPlayer() {
   });
 
   const collectMutation = useMutation({
-    mutationFn: () => homeClient.post<{ collected: boolean; collects: number }>('/werewolf/collect'),
+    mutationFn: (nextCollected: boolean) =>
+      homeClient.post<{ collected: boolean; collects: number }>('/werewolf/collect', { collected: nextCollected }),
     onSuccess: (res) => {
       const data = (res as any).data;
       if (data?.collects != null) setCollectedCount(data.collects);
     },
   });
 
-  const handleLike = () => {
-    if (liked) {
-      setLiked(false);
-      setLikedCount((c) => c - 1);
-    } else {
-      setLiked(true);
-      setLikedCount((c) => c + 1);
-      likeMutation.mutate();
+  const handleLike = async () => {
+    if (likeMutation.isPending) return;
+    const nextLiked = !liked;
+    // 乐观更新
+    const prevLiked = liked;
+    const prevCount = likedCount;
+    setLiked(nextLiked);
+    setLikedCount((c) => c + (nextLiked ? 1 : -1));
+    try {
+      await likeMutation.mutateAsync(nextLiked);
+    } catch {
+      // 回滚
+      setLiked(prevLiked);
+      setLikedCount(prevCount);
+      notify('操作失败,请稍后再试', 'error');
     }
   };
 
-  const handleCollect = () => {
-    if (collected) {
-      setCollected(false);
-      setCollectedCount((c) => c - 1);
-    } else {
-      setCollected(true);
-      setCollectedCount((c) => c + 1);
-      collectMutation.mutate();
+  const handleCollect = async () => {
+    if (collectMutation.isPending) return;
+    const nextCollected = !collected;
+    // 乐观更新
+    const prevCollected = collected;
+    const prevCount = collectedCount;
+    setCollected(nextCollected);
+    setCollectedCount((c) => c + (nextCollected ? 1 : -1));
+    try {
+      await collectMutation.mutateAsync(nextCollected);
+    } catch {
+      // 回滚
+      setCollected(prevCollected);
+      setCollectedCount(prevCount);
+      notify('操作失败,请稍后再试', 'error');
     }
+  };
+
+  const notify = (message: string, severity: 'success' | 'error' | 'info' = 'success') => {
+    setSnack({ open: true, message, severity });
+  };
+
+  const handleFollow = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!video?.user?.id || followBusy) return;
+    setFollowBusy(true);
+    const wasFollowing = following;
+    setFollowing(!wasFollowing);
+    try {
+      if (wasFollowing) {
+        await homeClient.delete(`/follow/${video.user.id}`);
+        notify('已取消关注');
+      } else {
+        await homeClient.post(`/follow/${video.user.id}`);
+        notify('关注成功');
+      }
+    } catch {
+      setFollowing(wasFollowing);
+      notify('操作失败，请稍后再试', 'error');
+    } finally {
+      setFollowBusy(false);
+    }
+  };
+
+  const handleCommentClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCommentDialogOpen(true);
+  };
+
+  const handleSendComment = async () => {
+    if (!commentText.trim() || !video?.id) return;
+    setCommentSending(true);
+    try {
+      await sendComment({ contentId: video.id, content: commentText.trim() });
+      notify('评论已发送');
+      setCommentText('');
+      setCommentDialogOpen(false);
+    } catch {
+      notify('评论发送失败,请重试', 'error');
+    } finally {
+      setCommentSending(false);
+    }
+  };
+
+  const handleReport = async () => {
+    if (!video?.id) return;
+    try {
+      await reportContent({ targetId: video.id, targetType: 'VIDEO', reason: '违规/低俗内容' });
+      notify('举报已提交,我们会尽快处理');
+      setMoreDialogOpen(false);
+    } catch {
+      notify('举报提交失败,请重试', 'error');
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(typeof window !== 'undefined' ? window.location.href : '');
+      notify('链接已复制到剪贴板');
+      setMoreDialogOpen(false);
+    } catch {
+      notify('复制失败', 'error');
+    }
+  };
+
+  const handleShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: video?.caption || 'AI 狼人杀',
+          url: typeof window !== 'undefined' ? window.location.href : '',
+        });
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(typeof window !== 'undefined' ? window.location.href : '');
+        notify('链接已复制到剪贴板');
+      } else {
+        notify('当前环境不支持分享', 'info');
+      }
+    } catch (err) {
+      if ((err as Error)?.name !== 'AbortError') {
+        notify('分享失败', 'error');
+      }
+    }
+  };
+
+  const handleMore = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMoreDialogOpen(true);
   };
 
   useEffect(() => {
@@ -552,10 +674,7 @@ export function WerewolfPlayer() {
             </Avatar>
             {!following && (
               <Box
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setFollowing(true);
-                }}
+                onClick={handleFollow}
                 sx={{
                   position: 'absolute',
                   bottom: -6,
@@ -570,6 +689,7 @@ export function WerewolfPlayer() {
                   justifyContent: 'center',
                   border: '2px solid #000000',
                   cursor: 'pointer',
+                  opacity: followBusy ? 0.6 : 1,
                 }}
               >
                 <AddRoundedIcon sx={{ fontSize: 14, color: 'text.primary' }} />
@@ -590,6 +710,7 @@ export function WerewolfPlayer() {
           <SideAction
             icon={<ModeCommentOutlinedIcon sx={{ fontSize: 26 }} />}
             value={formatCount(video.comments)}
+            onClick={handleCommentClick}
           />
           <SideAction
             active={collected}
@@ -604,8 +725,9 @@ export function WerewolfPlayer() {
           <SideAction
             icon={<ReplyRoundedIcon sx={{ fontSize: 26, transform: 'scaleX(-1)' }} />}
             value={formatCount(video.shares)}
+            onClick={handleShare}
           />
-          <SideAction icon={<MoreHorizRoundedIcon sx={{ fontSize: 26 }} />} value="" />
+          <SideAction icon={<MoreHorizRoundedIcon sx={{ fontSize: 26 }} />} value="" onClick={handleMore} />
         </Box>
 
         {/* 左下角:用户 + 描述 */}
@@ -728,6 +850,82 @@ export function WerewolfPlayer() {
           </Tooltip>
         </Box>
       </Box>
+
+      <Snackbar
+        open={snack.open}
+        autoHideDuration={2500}
+        onClose={() => setSnack((s) => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert severity={snack.severity} variant="filled" sx={{ width: '100%' }}>
+          {snack.message}
+        </Alert>
+      </Snackbar>
+
+      <Dialog open={commentDialogOpen} onClose={() => setCommentDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: 15, fontWeight: 600 }}>评论</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            multiline
+            rows={3}
+            placeholder="写下你的想法..."
+            value={commentText}
+            onChange={(e) => setCommentText(e.target.value)}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setCommentDialogOpen(false)} size="small" sx={{ textTransform: 'none' }}>取消</Button>
+          <Button
+            variant="contained"
+            size="small"
+            disabled={!commentText.trim() || commentSending}
+            onClick={handleSendComment}
+            sx={{ textTransform: 'none' }}
+          >
+            {commentSending ? '发送中…' : '发送'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={moreDialogOpen} onClose={() => setMoreDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: 15, fontWeight: 600 }}>更多</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Button
+              fullWidth
+              variant="outlined"
+              size="small"
+              onClick={handleReport}
+              sx={{ textTransform: 'none', justifyContent: 'flex-start', borderColor: 'rgba(255,255,255,0.12)', color: 'text.primary' }}
+            >
+              举报内容
+            </Button>
+            <Button
+              fullWidth
+              variant="outlined"
+              size="small"
+              onClick={() => { notify('已减少此类推荐', 'info'); setMoreDialogOpen(false); }}
+              sx={{ textTransform: 'none', justifyContent: 'flex-start', borderColor: 'rgba(255,255,255,0.12)', color: 'text.primary' }}
+            >
+              不感兴趣
+            </Button>
+            <Button
+              fullWidth
+              variant="outlined"
+              size="small"
+              onClick={handleCopyLink}
+              sx={{ textTransform: 'none', justifyContent: 'flex-start', borderColor: 'rgba(255,255,255,0.12)', color: 'text.primary' }}
+            >
+              复制链接
+            </Button>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setMoreDialogOpen(false)} size="small" sx={{ textTransform: 'none' }}>关闭</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

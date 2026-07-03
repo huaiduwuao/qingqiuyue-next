@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
 import { userPointMe } from '@/apis/global';
 import RewardHero from './RewardHero';
 import RewardCategoryRow from './RewardCategoryRow';

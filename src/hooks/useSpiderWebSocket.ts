@@ -90,7 +90,7 @@ export function useSpiderWebSocket(): SpiderWSState {
           const now = Date.now();
 
           setState((prev) => {
-            let next = { ...prev };
+            const next = { ...prev };
 
             if (msg.type === 'health') {
               next.health = msg.payload as SpiderHealth;

@@ -10,7 +10,9 @@ import EmojiEventsOutlinedIcon from '@mui/icons-material/EmojiEventsOutlined';
 import ForumOutlinedIcon from '@mui/icons-material/ForumOutlined';
 import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
+import { useActiveTab } from '../ActiveTabContext';
 import MiniCalendar from './MiniCalendar';
+import { useRouter } from 'next/navigation';
 
 const NOTIFICATIONS = [
   { date: '06-01', title: '【新功能】视频合集创作工具上线', tag: '平台' },
@@ -26,6 +28,8 @@ const ACTIVITIES = [
 ];
 
 export default function RightSidebar() {
+  const router = useRouter();
+  const { setActiveTab } = useActiveTab();
   const [timeRange, setTimeRange] = useState<'7d' | '30d'>('7d');
 
   return (
@@ -88,7 +92,10 @@ export default function RightSidebar() {
           <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary', flex: 1 }}>
             通知
           </Typography>
-          <Typography sx={{ fontSize: 11, color: 'text.secondary', cursor: 'pointer', '&:hover': { color: 'primary.main' } }}>
+          <Typography
+            onClick={() => setActiveTab('works')}
+            sx={{ fontSize: 11, color: 'text.secondary', cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
+          >
             查看更多
           </Typography>
         </Box>
@@ -96,6 +103,7 @@ export default function RightSidebar() {
           {NOTIFICATIONS.map((n, i) => (
             <Box
               key={i}
+              onClick={() => setActiveTab('works')}
               sx={{
                 display: 'flex',
                 gap: 1.5,
@@ -158,6 +166,7 @@ export default function RightSidebar() {
             活动中心
           </Typography>
           <Box
+            onClick={() => router.push('/account/reward')}
             sx={{
               display: 'flex',
               alignItems: 'center',
@@ -175,6 +184,7 @@ export default function RightSidebar() {
           {ACTIVITIES.map((a) => (
             <Box
               key={a.id}
+              onClick={() => router.push('/account/reward')}
               sx={{
                 p: 1.5,
                 borderRadius: 1.5,
@@ -228,6 +238,7 @@ export default function RightSidebar() {
         </Box>
         <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
           <Box
+            onClick={() => router.push('/account/msg')}
             sx={{
               p: 1.5,
               borderRadius: 1.5,
@@ -245,6 +256,7 @@ export default function RightSidebar() {
             <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>作品评论</Typography>
           </Box>
           <Box
+            onClick={() => router.push('/account/msg')}
             sx={{
               p: 1.5,
               borderRadius: 1.5,

@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Avatar from '@mui/material/Avatar';
@@ -117,7 +118,7 @@ export function FriendPanel() {
       await homeClient.post(`/friend/requests/${req.id}/accept`);
       notify(`已和 ${req.fromName} 成为好友`);
       refreshAll();
-    } catch (e) {
+    } catch {
       notify('操作失败,请稍后再试', 'error');
     }
   };
@@ -126,7 +127,7 @@ export function FriendPanel() {
       await homeClient.post(`/friend/requests/${req.id}/reject`);
       notify(`已忽略 ${req.fromName} 的申请`);
       refreshAll();
-    } catch (e) {
+    } catch {
       notify('操作失败,请稍后再试', 'error');
     }
   };
@@ -137,7 +138,7 @@ export function FriendPanel() {
       await Promise.all(list.map((r) => homeClient.post(`/friend/requests/${r.id}/accept`)));
       notify(`已全部接受 (${list.length} 人)`);
       refreshAll();
-    } catch (e) {
+    } catch {
       notify('部分操作失败', 'error');
       refreshAll();
     }
@@ -148,7 +149,7 @@ export function FriendPanel() {
       await homeClient.post(`/friend/requests/sent/${req.id}/cancel`);
       notify(`已撤回给 ${req.toName} 的申请`);
       refreshAll();
-    } catch (e) {
+    } catch {
       notify('操作失败,请稍后再试', 'error');
     }
   };
@@ -158,7 +159,7 @@ export function FriendPanel() {
       await homeClient.post(`/friend/${u.id}`);
       notify(`好友申请已发送给 ${u.name}`);
       refreshAll();
-    } catch (e) {
+    } catch {
       notify('发送失败,请稍后再试', 'error');
     }
   };
@@ -170,7 +171,7 @@ export function FriendPanel() {
       notify(`已解除和 ${u.name} 的好友关系`);
       setRemoveTarget(null);
       refreshAll();
-    } catch (e) {
+    } catch {
       notify('操作失败,请稍后再试', 'error');
     }
   };
@@ -737,6 +738,7 @@ function FriendsTab({
 }
 
 function FriendCard({ friend, onRemove }: { friend: Friend; onRemove: () => void }) {
+  const router = useRouter();
   return (
     <Box
       sx={{
@@ -796,6 +798,7 @@ function FriendCard({ friend, onRemove }: { friend: Friend; onRemove: () => void
         <Tooltip title="发消息">
           <IconButton
             size="small"
+            onClick={() => router.push('/account/msg')}
             sx={{
               color: 'var(--text-secondary, rgba(255,255,255,0.65))',
               border: '1px solid var(--border-color, rgba(255,255,255,0.1))',

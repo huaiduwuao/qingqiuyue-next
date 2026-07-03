@@ -7,7 +7,6 @@ import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
-import Tooltip from '@mui/material/Tooltip';
 import { DataGridTable } from '@/components/tables/DataGridTable';
 import BotFormDialog from '@/components/bot/BotFormDialog';
 import * as botApi from '@/apis/bot';
@@ -16,8 +15,6 @@ import type { GridColDef } from '@mui/x-data-grid';
 import AddIcon from '@mui/icons-material/Add';
 import PauseIcon from '@mui/icons-material/Pause';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import EditIcon from '@mui/icons-material/Edit';
-import DeleteIcon from '@mui/icons-material/Delete';
 
 const LIST_KEY = ['system', 'bot'];
 

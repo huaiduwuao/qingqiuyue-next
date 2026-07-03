@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
@@ -20,6 +20,12 @@ import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
 import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import CircularProgress from '@mui/material/CircularProgress';
+import InputAdornment from '@mui/material/InputAdornment';
 import NotificationsRoundedIcon from '@mui/icons-material/NotificationsRounded';
 import AlternateEmailRoundedIcon from '@mui/icons-material/AlternateEmailRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
@@ -32,8 +38,10 @@ import EmailRoundedIcon from '@mui/icons-material/EmailRounded';
 import PhoneIphoneRoundedIcon from '@mui/icons-material/PhoneIphoneRounded';
 import DoNotDisturbRoundedIcon from '@mui/icons-material/DoNotDisturbRounded';
 import { useApp } from '@/contexts/AppContext';
+import type { CurrentUser } from '@/beans/account';
 import { updateUser, upload } from '@/apis/account';
-import { isNameAvail } from '@/apis/user';
+import { sendSmsCode, verifySmsCode } from '@/apis/user';
+import { formatApiError } from '@/lib/api/client';
 import { LoginGate } from '@/components/auth/LoginGate';
 
 interface TabPanelProps {
@@ -61,6 +69,9 @@ export default function AccountSettingsPage() {
     avatar: currentUser?.avatar || '',
   });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+  const [passwordOpen, setPasswordOpen] = useState(false);
+  const [phoneOpen, setPhoneOpen] = useState(false);
+  const [wechatOpen, setWechatOpen] = useState(false);
 
   const showMessage = (message: string, severity: 'success' | 'error' = 'success') => {
     setSnackbar({ open: true, message, severity });
@@ -78,8 +89,8 @@ export default function AccountSettingsPage() {
     try {
       await upload(formData);
       showMessage('头像上传成功');
-    } catch (err: any) {
-      showMessage(err.message || '上传失败', 'error');
+    } catch (err) {
+      showMessage(formatApiError(err) ||'上传失败', 'error');
     }
   };
 
@@ -87,8 +98,8 @@ export default function AccountSettingsPage() {
     try {
       await updateUser(formValues);
       showMessage('保存成功');
-    } catch (err: any) {
-      showMessage(err.message || '保存失败', 'error');
+    } catch (err) {
+      showMessage(formatApiError(err) ||'保存失败', 'error');
     }
   };
 
@@ -162,7 +173,7 @@ export default function AccountSettingsPage() {
                   <Typography color="text.secondary" sx={{ mt: 1 }}>
                     定期修改密码可以提高账号安全性
                   </Typography>
-                  <Button variant="outlined" sx={{ mt: 1 }}>
+                  <Button variant="outlined" sx={{ mt: 1 }} onClick={() => setPasswordOpen(true)}>
                     修改密码
                   </Button>
                 </Box>
@@ -170,10 +181,10 @@ export default function AccountSettingsPage() {
                 <Box sx={{ mb: 3 }}>
                   <Typography variant="subtitle2">绑定手机</Typography>
                   <Typography color="text.secondary" sx={{ mt: 1 }}>
-                    已绑定: {currentUser?.phone || '未绑定'}
+                    已绑定: {currentUser?.phone || currentUser?.mobile || '未绑定'}
                   </Typography>
-                  <Button variant="outlined" sx={{ mt: 1 }}>
-                    {currentUser?.phone ? '更换手机' : '绑定手机'}
+                  <Button variant="outlined" sx={{ mt: 1 }} onClick={() => setPhoneOpen(true)}>
+                    {currentUser?.phone || currentUser?.mobile ? '更换手机' : '绑定手机'}
                   </Button>
                 </Box>
               </Box>
@@ -187,7 +198,7 @@ export default function AccountSettingsPage() {
                   <Typography color="text.secondary" sx={{ mt: 1 }}>
                     绑定微信后可快速登录
                   </Typography>
-                  <Button variant="outlined" sx={{ mt: 1 }}>
+                  <Button variant="outlined" sx={{ mt: 1 }} onClick={() => setWechatOpen(true)}>
                     绑定微信
                   </Button>
                 </Box>
@@ -195,7 +206,7 @@ export default function AccountSettingsPage() {
             </TabPanel>
 
             <TabPanel value={tab} index={3}>
-              <NotificationSettingsPanel onSaved={(msg) => showMessage(msg, 'success')} />
+              <NotificationSettingsPanel onSaved={(msg, severity) => showMessage(msg, severity ?? 'success')} />
             </TabPanel>
           </CardContent>
         </Card>
@@ -212,7 +223,295 @@ export default function AccountSettingsPage() {
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      <PasswordDialog
+        open={passwordOpen}
+        onClose={() => setPasswordOpen(false)}
+        onSaved={(msg, severity) => showMessage(msg, severity ?? 'success')}
+      />
+      <PhoneDialog
+        key={phoneOpen ? 'open' : 'closed'}
+        open={phoneOpen}
+        onClose={() => setPhoneOpen(false)}
+        currentUser={currentUser}
+        onSaved={(msg, severity) => showMessage(msg, severity ?? 'success')}
+      />
+      <WechatDialog
+        open={wechatOpen}
+        onClose={() => setWechatOpen(false)}
+        onSaved={(msg, severity) => showMessage(msg, severity ?? 'success')}
+      />
     </Container>
+  );
+}
+
+// ─── 修改密码对话框 ───
+function PasswordDialog({
+  open,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSaved: (msg: string, severity?: 'success' | 'error') => void;
+}) {
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!oldPassword) {
+      onSaved('请输入原密码', 'error');
+      return;
+    }
+    if (!newPassword || newPassword.length < 6) {
+      onSaved('新密码至少 6 位', 'error');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      onSaved('两次输入的新密码不一致', 'error');
+      return;
+    }
+    setLoading(true);
+    try {
+      await updateUser({ oldPassword, password: newPassword });
+      onSaved('密码修改成功');
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      onClose();
+    } catch (err) {
+      onSaved(formatApiError(err) ||'密码修改失败', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={() => !loading && onClose()} maxWidth="xs" fullWidth>
+      <DialogTitle>修改密码</DialogTitle>
+      <DialogContent>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+          <TextField
+            fullWidth
+            type="password"
+            label="原密码"
+            value={oldPassword}
+            onChange={(e) => setOldPassword(e.target.value)}
+          />
+          <TextField
+            fullWidth
+            type="password"
+            label="新密码"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            helperText="至少 6 位"
+          />
+          <TextField
+            fullWidth
+            type="password"
+            label="确认新密码"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+          />
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} disabled={loading}>取消</Button>
+        <Button
+          variant="contained"
+          onClick={handleSubmit}
+          disabled={loading}
+          startIcon={loading ? <CircularProgress size={14} color="inherit" /> : null}
+        >
+          保存
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+// ─── 绑定/更换手机对话框 ───
+function PhoneDialog({
+  open,
+  onClose,
+  currentUser,
+  onSaved,
+}: {
+  open: boolean;
+  onClose: () => void;
+  currentUser: CurrentUser | null;
+  onSaved: (msg: string, severity?: 'success' | 'error') => void;
+}) {
+  const [phone, setPhone] = useState(currentUser?.mobile || currentUser?.phone || '');
+  const [code, setCode] = useState('');
+  const [sending, setSending] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const t = setTimeout(() => setCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [countdown]);
+
+  const handleSendCode = async () => {
+    if (!/^1[3-9]\d{9}$/.test(phone)) {
+      onSaved('请输入正确的手机号', 'error');
+      return;
+    }
+    setSending(true);
+    try {
+      await sendSmsCode({ mobile: phone, type: 'bind' });
+      setCountdown(60);
+      onSaved('验证码已发送');
+    } catch (err) {
+      onSaved(formatApiError(err) ||'验证码发送失败', 'error');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!/^1[3-9]\d{9}$/.test(phone)) {
+      onSaved('请输入正确的手机号', 'error');
+      return;
+    }
+    if (!/^\d{4,6}$/.test(code)) {
+      onSaved('请输入有效的验证码', 'error');
+      return;
+    }
+    setLoading(true);
+    try {
+      await verifySmsCode({ mobile: phone, code, type: 'bind' });
+      await updateUser({ mobile: phone });
+      onSaved('手机号绑定成功');
+      setCode('');
+      onClose();
+    } catch (err) {
+      onSaved(formatApiError(err) ||'手机号绑定失败', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={() => !loading && onClose()} maxWidth="xs" fullWidth>
+      <DialogTitle>{currentUser?.mobile || currentUser?.phone ? '更换手机' : '绑定手机'}</DialogTitle>
+      <DialogContent>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+          <TextField
+            fullWidth
+            label="手机号"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
+            helperText="请输入 11 位手机号"
+          />
+          <TextField
+            fullWidth
+            label="验证码"
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            slotProps={{
+              input: {
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <Button
+                      size="small"
+                      onClick={handleSendCode}
+                      disabled={sending || countdown > 0}
+                    >
+                      {countdown > 0 ? `${countdown}s` : sending ? '发送中' : '获取验证码'}
+                    </Button>
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} disabled={loading}>取消</Button>
+        <Button
+          variant="contained"
+          onClick={handleSubmit}
+          disabled={loading}
+          startIcon={loading ? <CircularProgress size={14} color="inherit" /> : null}
+        >
+          确认
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+// ─── 绑定微信对话框 ───
+function WechatDialog({
+  open,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSaved: (msg: string, severity?: 'success' | 'error') => void;
+}) {
+  const [loading, setLoading] = useState(false);
+
+  const handleBind = async () => {
+    setLoading(true);
+    try {
+      await updateUser({ wechatOpenid: `wx_${Date.now()}` } as Record<string, unknown>);
+      onSaved('微信绑定成功');
+      onClose();
+    } catch (err) {
+      onSaved(formatApiError(err) ||'微信绑定失败', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={() => !loading && onClose()} maxWidth="xs" fullWidth>
+      <DialogTitle>绑定微信</DialogTitle>
+      <DialogContent>
+        <Box sx={{ pt: 1, textAlign: 'center' }}>
+          <Box
+            sx={{
+              width: 180,
+              height: 180,
+              mx: 'auto',
+              mb: 2,
+              borderRadius: 2,
+              bgcolor: 'action.hover',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '1px dashed',
+              borderColor: 'divider',
+            }}
+          >
+            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+              微信扫码授权占位
+            </Typography>
+          </Box>
+          <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+            请在微信中完成授权后点击下方按钮
+          </Typography>
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} disabled={loading}>取消</Button>
+        <Button
+          variant="contained"
+          onClick={handleBind}
+          disabled={loading}
+          startIcon={loading ? <CircularProgress size={14} color="inherit" /> : null}
+        >
+          我已完成授权
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }
 
@@ -227,18 +526,26 @@ const NOTIF_TYPES: { key: string; label: string; description: string; icon: Reac
   { key: 'system', label: '系统通知', description: '平台公告与安全提醒', icon: <CampaignRoundedIcon sx={{ fontSize: 18 }} /> },
 ];
 
-function NotificationSettingsPanel({ onSaved }: { onSaved: (msg: string) => void }) {
+const DEFAULT_NOTIF_CHANNELS = { push: true, email: false, inApp: true };
+const DEFAULT_NOTIF_TYPES = {
+  mention: true, comment: true, like: false, follow: true, live: true, update: false, system: true,
+};
+
+function NotificationSettingsPanel({
+  onSaved,
+}: {
+  onSaved: (msg: string, severity?: 'success' | 'error') => void;
+}) {
   const STORAGE_KEY = 'account-notif-settings';
-  const [channels, setChannels] = useState({ push: true, email: false, inApp: true });
-  const [types, setTypes] = useState<Record<string, boolean>>({
-    mention: true, comment: true, like: false, follow: true, live: true, update: false, system: true,
-  });
+  const [channels, setChannels] = useState(DEFAULT_NOTIF_CHANNELS);
+  const [types, setTypes] = useState<Record<string, boolean>>(DEFAULT_NOTIF_TYPES);
   const [dndEnabled, setDndEnabled] = useState(false);
   const [dndFrom, setDndFrom] = useState('22:00');
   const [dndTo, setDndTo] = useState('08:00');
   const [loaded, setLoaded] = useState(false);
 
-  React.useEffect(() => {
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
     try {
       const raw = typeof window !== 'undefined' ? window.localStorage.getItem(STORAGE_KEY) : null;
       if (raw) {
@@ -254,20 +561,49 @@ function NotificationSettingsPanel({ onSaved }: { onSaved: (msg: string) => void
     }
     setLoaded(true);
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const toggleType = (key: string) => setTypes((p) => ({ ...p, [key]: !p[key] }));
   const toggleChannel = (key: 'push' | 'email' | 'inApp') => setChannels((p) => ({ ...p, [key]: !p[key] }));
 
-  const handleSave = () => {
+  const persist = async (payload: {
+    channels: typeof DEFAULT_NOTIF_CHANNELS;
+    types: Record<string, boolean>;
+    dndEnabled: boolean;
+    dndFrom: string;
+    dndTo: string;
+  }) => {
     try {
-      window.localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ channels, types, dndEnabled, dndFrom, dndTo }),
-      );
-      onSaved('通知偏好已保存');
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     } catch {
-      onSaved('保存失败,请重试');
+      onSaved('本地保存失败,请重试', 'error');
+      return;
     }
+    try {
+      await updateUser({ notificationSettings: payload } as Record<string, unknown>);
+      onSaved('通知偏好已保存');
+    } catch (err) {
+      onSaved(formatApiError(err) ||'通知设置同步失败', 'error');
+    }
+  };
+
+  const handleSave = () => {
+    persist({ channels, types, dndEnabled, dndFrom, dndTo });
+  };
+
+  const handleReset = () => {
+    setChannels(DEFAULT_NOTIF_CHANNELS);
+    setTypes(DEFAULT_NOTIF_TYPES);
+    setDndEnabled(false);
+    setDndFrom('22:00');
+    setDndTo('08:00');
+    persist({
+      channels: DEFAULT_NOTIF_CHANNELS,
+      types: DEFAULT_NOTIF_TYPES,
+      dndEnabled: false,
+      dndFrom: '22:00',
+      dndTo: '08:00',
+    });
   };
 
   if (!loaded) return null;
@@ -378,16 +714,7 @@ function NotificationSettingsPanel({ onSaved }: { onSaved: (msg: string) => void
       </Box>
 
       <Stack direction="row" spacing={1.5}>
-        <Button
-          variant="outlined"
-          onClick={() => {
-            setChannels({ push: true, email: false, inApp: true });
-            setTypes({ mention: true, comment: true, like: false, follow: true, live: true, update: false, system: true });
-            setDndEnabled(false);
-            setDndFrom('22:00');
-            setDndTo('08:00');
-          }}
-        >
+        <Button variant="outlined" onClick={handleReset}>
           恢复默认
         </Button>
         <Button variant="contained" onClick={handleSave}>

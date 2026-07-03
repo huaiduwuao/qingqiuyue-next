@@ -10,7 +10,6 @@ import LiveTvRoundedIcon from '@mui/icons-material/LiveTvRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
-import StarRoundedIcon from '@mui/icons-material/StarRounded';
 import { homeClient } from '@/lib/api/client';
 import { AsyncState } from '@/components/common/AsyncState';
 import { useContentNavigate } from '@/lib/contentRoute';

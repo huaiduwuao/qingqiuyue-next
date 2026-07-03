@@ -14,12 +14,10 @@ import Chip from '@mui/material/Chip';
 import Divider from '@mui/material/Divider';
 import Stack from '@mui/material/Stack';
 import Snackbar from '@mui/material/Snackbar';
-import Tooltip from '@mui/material/Tooltip';
 import LinearProgress from '@mui/material/LinearProgress';
 import TextField from '@mui/material/TextField';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import GppMaybeRoundedIcon from '@mui/icons-material/GppMaybeRounded';
-import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import PlayCircleRoundedIcon from '@mui/icons-material/PlayCircleRounded';
 import BoltRoundedIcon from '@mui/icons-material/BoltRounded';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
@@ -31,11 +29,11 @@ import FlagRoundedIcon from '@mui/icons-material/FlagRounded';
 import AssignmentIndRoundedIcon from '@mui/icons-material/AssignmentIndRounded';
 import AssignmentTurnedInRoundedIcon from '@mui/icons-material/AssignmentTurnedInRounded';
 import AssignmentLateRoundedIcon from '@mui/icons-material/AssignmentLateRounded';
-import EditNoteRoundedIcon from '@mui/icons-material/EditNoteRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import LightbulbRoundedIcon from '@mui/icons-material/LightbulbRounded';
 import { useQuery } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import { gradient2 } from '@/constants/gradients';
 import { myPage, process as updateContentStatus } from '@/apis/module-content';
 import {
@@ -534,7 +532,6 @@ export default function HdReviewPage() {
                     <QueueItem
                       key={v.id}
                       video={v}
-                      reviewer={currentReviewer}
                       selected={v.id === selectedVideoId}
                       onClick={() => handleSelectVideo(v.id)}
                     />
@@ -555,7 +552,6 @@ export default function HdReviewPage() {
                     <QueueItem
                       key={v.id}
                       video={v}
-                      reviewer={currentReviewer}
                       selected={v.id === selectedVideoId}
                       onClick={() => handleSelectVideo(v.id)}
                       reviewed
@@ -632,13 +628,11 @@ export default function HdReviewPage() {
 
 function QueueItem({
   video,
-  reviewer,
   selected,
   onClick,
   reviewed = false,
 }: {
   video: HdVideo;
-  reviewer: Reviewer | undefined;
   selected: boolean;
   onClick: () => void;
   reviewed?: boolean;
@@ -860,6 +854,7 @@ function ReviewPanel({
   onToggleRejectReason: (r: string) => void;
   onSubmit: (d: ReviewerDecision) => void;
 }) {
+  const router = useRouter();
   const risk = computeRiskLevel(video);
   const checks = video.review?.checks ?? [];
   const passed = checks.filter((c) => c.status === 'passed').length;
@@ -1029,6 +1024,7 @@ function ReviewPanel({
           <Button
             size="small"
             sx={{ textTransform: 'none', fontSize: 11, color: 'text.secondary' }}
+            onClick={() => router.push('/account/content?tab=history')}
           >
             查看历史
           </Button>

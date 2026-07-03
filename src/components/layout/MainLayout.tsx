@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useCallback, useMemo, memo, type ReactNode } from 'react';
+import React, { useState, useMemo, memo, type ReactNode } from 'react';
 import Box from '@mui/material/Box';
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
@@ -37,6 +37,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeMode } from '@/contexts/ThemeContext';
+import type { MenuItem as MenuItemType } from '@/beans/system';
 
 const LEFT_SIDEBAR_WIDTH = 200;
 
@@ -75,7 +76,7 @@ const CategoryButton = memo(({ cat, selected, onClose }: { cat: typeof CATEGORIE
 CategoryButton.displayName = 'CategoryButton';
 
 // Memoized menu item button component
-const MenuItemButton = memo(({ item, onClose }: { item: any; onClose?: () => void }) => (
+const MenuItemButton = memo(({ item, onClose }: { item: MenuItemType; onClose?: () => void }) => (
   <ListItem key={item.id || item.path} disablePadding>
     <ListItemButton
       component={Link}
@@ -90,19 +91,14 @@ const MenuItemButton = memo(({ item, onClose }: { item: any; onClose?: () => voi
 MenuItemButton.displayName = 'MenuItemButton';
 
 export function MainLayout({ children }: { children: ReactNode }) {
-  const [mounted, setMounted] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [searchValue, setSearchValue] = useState('');
   const pathname = usePathname();
-  const { currentUser, menuData, setMenuData, setDict } = useApp();
-  const { token, logout } = useAuth();
+  const { currentUser, menuData } = useApp();
+  const { logout } = useAuth();
   const { mode, toggleTheme } = useThemeMode();
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // Menu data is fetched by AuthContext via checkAuth, no additional fetch needed
 

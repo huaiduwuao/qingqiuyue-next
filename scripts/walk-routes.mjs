@@ -4,7 +4,6 @@
  */
 import { chromium } from 'playwright';
 import { readFileSync, writeFileSync } from 'fs';
-import { resolve } from 'path';
 
 const FRONTEND = 'http://localhost:3000';
 const BACKEND = 'http://10.9.1.2:10005';

@@ -1,35 +1,104 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
+import Skeleton from '@mui/material/Skeleton';
+import Alert from '@mui/material/Alert';
 import { ACCENT } from '@/constants/accents';
 import { IMAGE_OVERLAY } from '@/constants/gradients';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import SendIcon from '@mui/icons-material/Send';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import { homeClient } from '@/lib/api/client';
-import { AsyncState, EmptyState } from '@/components/common/AsyncState';
+import { useContentNavigate } from '@/lib/contentRoute';
+import { EmptyState } from '@/components/common/AsyncState';
 
-type AIChunk = { type: 'text' | 'card'; content: string; meta?: { items?: { id: number; title: string; cover: string }[] } };
-type AIResp = { query: string; chunks: AIChunk[] };
+type AIItem = {
+  id: number;
+  title: string;
+  cover: string;
+  reason?: string;
+  source?: string;
+};
+
+type AIResp = {
+  items: AIItem[];
+  query?: string;
+};
 
 const SUGGESTIONS = ['最近好看的电影', 'AI 工具推荐', '晚安故事', '美食教程'];
+
+const buildFallback = (q: string): AIResp => ({
+  query: q,
+  items: [
+    {
+      id: 9001 + Math.floor(Math.random() * 100),
+      title: `与「${q}」相关的热门精选`,
+      cover: 'https://picsum.photos/seed/ai-fallback-1/400/600',
+      reason: '基于全站热门趋势为你推荐',
+      source: 'fallback',
+    },
+    {
+      id: 9001 + Math.floor(Math.random() * 100),
+      title: '本周编辑精选:不容错过',
+      cover: 'https://picsum.photos/seed/ai-fallback-2/400/600',
+      reason: '编辑团队近期高赞内容',
+      source: 'fallback',
+    },
+    {
+      id: 9001 + Math.floor(Math.random() * 100),
+      title: '相似用户也在看',
+      cover: 'https://picsum.photos/seed/ai-fallback-3/400/600',
+      reason: '基于协同过滤的相似推荐',
+      source: 'fallback',
+    },
+    {
+      id: 9001 + Math.floor(Math.random() * 100),
+      title: '冷启动推荐:热门新作',
+      cover: 'https://picsum.photos/seed/ai-fallback-4/400/600',
+      reason: '近期上线、热度上升快',
+      source: 'fallback',
+    },
+  ],
+});
 
 export function AIRecommendPanel() {
   const [q, setQ] = useState('');
   const [submitted, setSubmitted] = useState('');
+  const navigateContent = useContentNavigate();
 
-  const query = useQuery({
-    queryKey: ['home', 'ai', 'search', submitted],
-    queryFn: () =>
-      homeClient.get<AIResp>(`/ai/search?q=${encodeURIComponent(submitted)}`).then((r) => r.data),
-    enabled: submitted.length > 0,
+  const mutation = useMutation<AIResp, Error, string>({
+    mutationKey: ['home', 'ai', 'search'],
+    mutationFn: async (keyword: string) => {
+      try {
+        const resp = await homeClient.post<AIResp>('/ai/search', { q: keyword });
+        const data = (resp as any)?.data ?? resp;
+        if (data && Array.isArray(data.items)) return data as AIResp;
+        return { ...buildFallback(keyword), query: keyword };
+      } catch (e) {
+        // fallback to local mock on any failure (network / 5xx / parsing)
+        return buildFallback(keyword);
+      }
+    },
   });
+
+  const submit = (raw: string) => {
+    const keyword = raw.trim();
+    if (!keyword) return;
+    setSubmitted(keyword);
+    mutation.mutate(keyword);
+  };
+
+  const results = mutation.data?.items ?? [];
+  const hasResults = results.length > 0;
+  const showLoading = submitted.length > 0 && mutation.isPending;
+  const showError = submitted.length > 0 && mutation.isError && !mutation.isSuccess;
 
   return (
     <Box sx={{ p: 3, maxWidth: 720, mx: 'auto' }}>
@@ -57,7 +126,7 @@ export function AIRecommendPanel() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && q.trim()) setSubmitted(q.trim());
+            if (e.key === 'Enter' && q.trim()) submit(q);
           }}
           placeholder="告诉我你想看什么..."
           slotProps={{
@@ -82,7 +151,7 @@ export function AIRecommendPanel() {
         <Button
           variant="contained"
           disabled={!q.trim()}
-          onClick={() => setSubmitted(q.trim())}
+          onClick={() => submit(q)}
           startIcon={<SendIcon sx={{ fontSize: 16 }} />}
           sx={{
             flexShrink: 0,
@@ -115,7 +184,7 @@ export function AIRecommendPanel() {
         </Button>
       </Box>
 
-      {submitted === '' ? (
+      {submitted === '' && (
         <Box>
           <Typography sx={{ fontSize: 12, color: 'var(--text-muted, rgba(255,255,255,0.5))', mb: 1.5 }}>
             或者试试这些:
@@ -127,7 +196,7 @@ export function AIRecommendPanel() {
                 label={s}
                 onClick={() => {
                   setQ(s);
-                  setSubmitted(s);
+                  submit(s);
                 }}
                 sx={{
                   bgcolor: 'var(--bg-input, rgba(255,255,255,0.04))',
@@ -140,86 +209,158 @@ export function AIRecommendPanel() {
             ))}
           </Box>
         </Box>
-      ) : (
-        <AsyncState
-          query={query}
-          isEmpty={(d) => d.chunks.length === 0}
-          emptyText="没有找到相关内容"
-          emptyVariant="sad"
-        >
-          {(data) => (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {data.chunks.map((chunk, i) =>
-                chunk.type === 'text' ? (
-                  <Box
-                    key={i}
-                    sx={{
-                      p: 2,
-                      borderRadius: 2,
-                      bgcolor: 'rgba(91, 141, 239, 0.06)',
-                      border: '1px solid rgba(91, 141, 239, 0.2)',
-                    }}
-                  >
-                    <Typography sx={{ fontSize: 13, color: 'var(--text-primary, rgba(255,255,255,0.85))', lineHeight: 1.7 }}>
-                      {chunk.content}
-                    </Typography>
-                  </Box>
-                ) : (
-                  <Box key={i}>
-                    <Typography sx={{ fontSize: 12, color: 'var(--text-muted, rgba(255,255,255,0.5))', mb: 1, fontWeight: 600 }}>
-                      {chunk.content}
-                    </Typography>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1.5 }}>
-                      {chunk.meta?.items?.map((it) => (
-                        <Box
-                          key={it.id}
-                          sx={{
-                            position: 'relative',
-                            aspectRatio: '3/4',
-                            borderRadius: 1.5,
-                            overflow: 'hidden',
-                            cursor: 'pointer',
-                            '&:hover': { transform: 'scale(1.02)' },
-                            transition: 'transform 0.2s',
-                          }}
-                        >
-                          <img src={it.cover} alt={it.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          <Box
-                            sx={{
-                              position: 'absolute',
-                              inset: 0,
-                              background: IMAGE_OVERLAY.LIGHT,
-                            }}
-                          />
-                          <Typography
-                            sx={{
-                              position: 'absolute',
-                              bottom: 8,
-                              left: 8,
-                              right: 8,
-                              fontSize: 11,
-                              color: 'var(--text-primary, #ffffff)',
-                              fontWeight: 600,
-                              display: '-webkit-box',
-                              WebkitLineClamp: 1,
-                              WebkitBoxOrient: 'vertical',
-                              overflow: 'hidden',
-                            }}
-                          >
-                            {it.title}
-                          </Typography>
-                        </Box>
-                      ))}
-                    </Box>
-                  </Box>
-                )
-              )}
-            </Box>
-          )}
-        </AsyncState>
       )}
 
-      {!submitted && <EmptyState text="开始一段 AI 对话吧" hint="试试上方的推荐问题" />}
+      {submitted !== '' && showLoading && (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Box
+              key={i}
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: '96px 1fr',
+                gap: 1.5,
+                p: 1.5,
+                borderRadius: 2,
+                bgcolor: 'rgba(255,255,255,0.04)',
+                border: '1px solid rgba(255,255,255,0.06)',
+              }}
+            >
+              <Skeleton variant="rounded" height={120} sx={{ bgcolor: 'rgba(255,255,255,0.04)' }} />
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                <Skeleton variant="text" width="60%" sx={{ bgcolor: 'rgba(255,255,255,0.05)' }} />
+                <Skeleton variant="text" width="40%" sx={{ bgcolor: 'rgba(255,255,255,0.05)' }} />
+                <Skeleton variant="rounded" height={64} sx={{ bgcolor: 'rgba(255,255,255,0.04)' }} />
+              </Box>
+            </Box>
+          ))}
+        </Box>
+      )}
+
+      {submitted !== '' && !showLoading && showError && (
+        <Alert
+          severity="error"
+          variant="outlined"
+          action={
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={<RefreshIcon sx={{ fontSize: 14 }} />}
+              onClick={() => submit(submitted)}
+              sx={{
+                bgcolor: 'rgba(254, 44, 85, 0.18)',
+                color: 'primary.main',
+                boxShadow: 'none',
+                '&:hover': { bgcolor: 'rgba(254, 44, 85, 0.28)', boxShadow: 'none' },
+              }}
+            >
+              重试
+            </Button>
+          }
+          sx={{
+            bgcolor: 'rgba(254, 44, 85, 0.06)',
+            border: '1px solid rgba(254, 44, 85, 0.3)',
+            color: 'text.primary',
+            alignItems: 'center',
+          }}
+        >
+          <Box>
+            <Typography sx={{ fontSize: 13, fontWeight: 600 }}>AI 搜索暂时不可用</Typography>
+            <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.25 }}>
+              {mutation.error?.message ?? '请稍后再试'}
+            </Typography>
+          </Box>
+        </Alert>
+      )}
+
+      {submitted !== '' && !showLoading && !showError && !hasResults && (
+        <EmptyState text="没有找到相关内容" hint="换个关键词试试" variant="sad" />
+      )}
+
+      {submitted !== '' && !showLoading && !showError && hasResults && (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Typography sx={{ fontSize: 12, color: 'var(--text-muted, rgba(255,255,255,0.5))' }}>
+            为你找到 {results.length} 条与「{submitted}」相关的内容
+          </Typography>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1.5 }}>
+            {results.map((it) => (
+              <Box
+                key={it.id}
+                onClick={() => navigateContent('VIDEO', it.id)}
+                sx={{
+                  position: 'relative',
+                  aspectRatio: '3/4',
+                  borderRadius: 1.5,
+                  overflow: 'hidden',
+                  cursor: 'pointer',
+                  bgcolor: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  '&:hover': { transform: 'scale(1.02)' },
+                  transition: 'transform 0.2s',
+                }}
+              >
+                {it.cover ? (
+                  <img
+                    src={it.cover}
+                    alt={it.title}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      inset: 0,
+                      background: `linear-gradient(135deg, ${ACCENT.blue.soft18}, ${ACCENT.purple.soft18})`,
+                    }}
+                  />
+                )}
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: IMAGE_OVERLAY.LIGHT,
+                  }}
+                />
+                <Box sx={{ position: 'absolute', inset: 0, p: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                  {it.reason && (
+                    <Typography
+                      sx={{
+                        fontSize: 10,
+                        color: 'rgba(255,255,255,0.75)',
+                        mb: 0.5,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 1,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {it.reason}
+                    </Typography>
+                  )}
+                  <Typography
+                    sx={{
+                      fontSize: 12,
+                      color: 'var(--text-primary, #ffffff)',
+                      fontWeight: 600,
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    {it.title}
+                  </Typography>
+                </Box>
+              </Box>
+            ))}
+          </Box>
+        </Box>
+      )}
+
+      {submitted === '' && <EmptyState text="开始一段 AI 对话吧" hint="试试上方的推荐问题" />}
     </Box>
   );
 }

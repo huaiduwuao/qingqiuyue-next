@@ -16,7 +16,7 @@ import Divider from '@mui/material/Divider';
 import Badge from '@mui/material/Badge';
 import { page as spiderPage } from '@/apis/content-spider-queue';
 import { page as todoPage } from '@/apis/content-todo-queue';
-import { AsyncState, EmptyState } from '@/components/common/AsyncState';
+import { AsyncState } from '@/components/common/AsyncState';
 
 interface QueuePanelProps {
   status: 'running' | 'done';

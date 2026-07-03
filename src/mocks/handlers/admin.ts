@@ -4,17 +4,14 @@
  */
 
 import { http, HttpResponse } from 'msw';
-import {
-  CURRENT_USER,
+import { CURRENT_USER,
   MENU_LIST,
   MODULE_TYPE_DICT,
   DICT_TYPE_LIST,
   DICT_DATA_BY_TYPE,
-  APP_CONFIG_LIST,
   MODULE_MENU_TREE,
   USER_POINT,
-  USER_RELATION_PAGE,
-} from '../db/user';
+  USER_RELATION_PAGE } from '../db/user';
 
 const ok = <T,>(data: T) => HttpResponse.json({ code: 200, msg: 'OK', data });
 

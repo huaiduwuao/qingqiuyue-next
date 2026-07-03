@@ -28,12 +28,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 import path from 'path';
 import crypto from 'crypto';
-import { eq } from 'drizzle-orm';
-import { segmentsToVisemes, textToUniformVisemes, type AlignedSegment } from '@/lib/audio/viseme-mapper';
+import { segmentsToVisemes, type AlignedSegment } from '@/lib/audio/viseme-mapper';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';

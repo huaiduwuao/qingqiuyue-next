@@ -144,10 +144,17 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
   const [action, setAction] = useStateSafe('idle');
   /** 最近一次 AI 回复的 isAIGenerated 标记 (后端 /api/avatar/chat 已设 true) */
   const [isAIGenerated, setIsAIGenerated] = useStateSafe(false);
+  /** 数字人是否在说话: 用于 voice agent 决定 VAD 段是否要丢 */
+  const [isAvatarPlaying, setIsAvatarPlaying] = React.useState(false);
+
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   const visemeTimelineRef = React.useRef<VisemeFrame[]>([]);
   const visemeStartRef = React.useRef<number>(0);
   const visemeActiveRef = React.useRef<boolean>(false);
+  const analyserRef = React.useRef<AnalyserNode | null>(null);
+  const audioCtxRef = React.useRef<AudioContext | null>(null);
+  const speechUtterRef = React.useRef<SpeechSynthesisUtterance | null>(null);
+  const speechTimerRef = React.useRef<number | null>(null);
 
   const send = React.useCallback(async () => {
     const t = text.trim();
@@ -175,7 +182,7 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
           resp = mockReply(t);
         }
       } catch (e) {
-        console.warn('[chat] chat 路由失败:', (e as Error).message);
+        console.warn('[chat] chat 路由失败:', e instanceof Error ? e.message : String(e));
         resp = mockReply(t);
       }
       setChatLog((c: ChatLogItem[]) => [...c, { who: 'ai', text: resp.text }]);
@@ -195,9 +202,10 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
 
           // 客户端口型: AnalyserNode 挂在 audio 元素上, 实时测音频能量驱动 viseme
           // (后端 viseme 时间线为 null/空时降级到客户端)
-          if (!analyserRef.current && typeof window !== 'undefined' && (window.AudioContext || (window as any).webkitAudioContext)) {
+          if (!analyserRef.current && getAudioContextClass()) {
             try {
-              const AC = window.AudioContext || (window as any).webkitAudioContext
+              const AC = getAudioContextClass()
+              if (!AC) return
               const ctx = new AC()
               audioCtxRef.current = ctx
               const source = ctx.createMediaElementSource(a)
@@ -206,7 +214,7 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
               source.connect(analyser)
               // 不接 destination, 避免双重播放
               analyserRef.current = analyser
-            } catch (e) {
+            } catch {
               // CORS 限制或 autoplay policy,忽略
             }
           } else if (analyserRef.current && audioCtxRef.current) {
@@ -243,7 +251,7 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
           }
         };
         a.src = resp.audioUrl;
-        a.play().catch((e) => {
+        a.play().catch(() => {
           // autoplay 被拒,降级到纯文本 + 浏览器 TTS
           visemeStartRef.current = performance.now();
           visemeActiveRef.current = true;
@@ -283,13 +291,13 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
         visemeStartRef.current = performance.now();
         visemeActiveRef.current = true;
       }
-    } catch (err) {
+    } catch {
       setChatLog((c: ChatLogItem[]) => [...c, { who: 'ai', text: '抱歉,服务暂时不可用。' }]);
       setIsAIGenerated(false);  // 失败回执非 AIGC
     } finally {
       setChatBusy(false);
     }
-  }, [text, chatBusy, chatLog]);
+  }, [text, chatBusy, chatLog, agentId, setAction, setChatBusy, setChatLog, setEmotion, setIsAIGenerated, setIsAvatarPlaying, setText, setViseme]);
 
   // 直接发送文本 (绕过 text state), 给 voice agent 用
   const sendText = React.useCallback(async (v: string) => {
@@ -326,21 +334,16 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
         visemeStartRef.current = performance.now()
         visemeActiveRef.current = true
       }
-    } catch (err) {
+    } catch {
       setChatLog((c: ChatLogItem[]) => [...c, { who: 'ai', text: '抱歉,服务暂时不可用。' }])
       setIsAIGenerated(false)
     } finally {
       setChatBusy(false)
     }
-  }, [chatBusy, chatLog])
+  }, [chatBusy, chatLog, agentId, setAction, setChatBusy, setChatLog, setEmotion, setIsAIGenerated, setViseme])
 
   // 3. viseme 驱动 rAF — 优先后端时间线,降级客户端 AnalyserNode + speechSynthesis
   //    (后端经常不返 visemes;客户端必须能自己驱动口型)
-  const analyserRef = React.useRef<AnalyserNode | null>(null);
-  const audioCtxRef = React.useRef<AudioContext | null>(null);
-  const speechUtterRef = React.useRef<SpeechSynthesisUtterance | null>(null);
-  const speechTimerRef = React.useRef<number | null>(null);
-
   React.useEffect(() => {
     let raf = 0;
     let backendUsed = false;
@@ -421,7 +424,7 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, []);
+  }, [setViseme]);
 
   // 4. 语音输入(ASR):MediaRecorder 录音 → /api/avatar/asr → 自动 send
   const [recording, setRecording] = React.useState(false);
@@ -440,7 +443,7 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
           return;
         }
       } catch (e) {
-        console.warn('[record] stop failed:', (e as Error).message);
+        console.warn('[record] stop failed:', e instanceof Error ? e.message : String(e));
         setRecording(false);
       }
       return;
@@ -478,9 +481,9 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
             const j = await r.json();
             if (j.text) {
               setText(j.text);
-              // 自动 send(用 ref,因为 setText 是异步的)
+              // 自动 send(绕过 text state 的异步,直接用 sendText 发送识别结果)
               setTimeout(() => {
-                if (text !== j.text) sendTextRef.current?.(j.text);
+                sendText(j.text);
               }, 50);
             } else {
               setRecordingError('ASR 返回空');
@@ -490,7 +493,7 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
             setRecordingError(j.msg || `ASR 失败 (${r.status})`);
           }
         } catch (e) {
-          setRecordingError(`ASR 请求失败: ${(e as Error).message}`);
+          setRecordingError(`ASR 请求失败: ${e instanceof Error ? e.message : String(e)}`);
         }
       };
       mr.onerror = (e) => {
@@ -501,70 +504,12 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
       mr.start();
       setRecordingError(null);
       setRecording(true);
-    } catch (e: any) {
+    } catch (e) {
       console.error('[record] failed:', e);
-      setRecordingError(e?.message || '无法访问麦克风');
+      setRecordingError((e instanceof Error ? e.message : String(e)) || '无法访问麦克风');
       setRecording(false);
     }
-  }, [recording, text]);
-
-  // sendRef 给 onstop 用(拿到最新 send)
-  const sendTextRef = React.useRef<((t: string) => Promise<void>) | null>(null);
-  React.useEffect(() => {
-    sendTextRef.current = async (t: string) => {
-      // 模拟 send 但用新文本
-      if (chatBusyRef.current) return;
-      setChatLog((c: ChatLogItem[]) => [...c, { who: 'user', text: t }]);
-      let resp: ChatResp;
-      try {
-        const r = await fetch('/api/avatar/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: t,
-            history: [],
-          }),
-        });
-        if (r.ok) {
-          resp = await r.json();
-        } else {
-          resp = mockReply(t);
-        }
-      } catch {
-        resp = mockReply(t);
-      }
-      setChatLog((c: ChatLogItem[]) => [...c, { who: 'ai', text: resp.text }]);
-      setEmotion(resp.emotion);
-      setAction(resp.action);
-      setViseme({});
-      setIsAIGenerated(resp.isAIGenerated === true);  // AIGC 合规
-      visemeTimelineRef.current = resp.visemes || [];
-      if (resp.audioUrl && audioRef.current) {
-        const a = audioRef.current;
-        a.onplay = () => {
-          visemeStartRef.current = performance.now();
-          visemeActiveRef.current = true;
-          setIsAvatarPlaying(true);   // 通知 voice agent: 数字人在说话, VAD 段丢弃
-        };
-        a.onended = () => {
-          visemeActiveRef.current = false;
-          setViseme({});
-          setIsAvatarPlaying(false);  // 数字人说完了
-        };
-        a.src = resp.audioUrl;
-        a.play().catch(() => {
-          visemeStartRef.current = performance.now();
-          visemeActiveRef.current = true;
-        });
-      } else {
-        visemeStartRef.current = performance.now();
-        visemeActiveRef.current = true;
-      }
-    };
-  }, []);
-
-  const chatBusyRef = React.useRef(chatBusy);
-  chatBusyRef.current = chatBusy;
+  }, [recording, sendText, setRecording, setRecordingError, setText]);
 
   // 打断: 停 audio, 清 viseme 状态
   // voice agent 在数字人说话时检测到唤醒词会调这个
@@ -577,11 +522,7 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
     setViseme({})
     setIsAvatarPlaying(false)   // 同步标记
     setChatBusy(false)
-  }, [])
-
-  // 数字人是否在说话: 用于 voice agent 决定 VAD 段是否要丢
-  // (数字人自己的音频会被 VAD 捕获, 不当作用户命令)
-  const [isAvatarPlaying, setIsAvatarPlaying] = React.useState(false)
+  }, [setChatBusy, setIsAvatarPlaying, setViseme])
 
   // 是否在说话: 用于 voice agent 决定是否触发打断
   const isSpeaking = React.useCallback(() => {
@@ -604,7 +545,7 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
     setEmotion(map[name] || map.neutral)
     // 5 秒后回 idle 表情(避免长时间凝固)
     setTimeout(() => setEmotion({ smile: 0.1, blink: 0 }), 5000)
-  }, [])
+  }, [setEmotion])
 
   // LLM 驱动的动作: 直接 setAction(BlenderAvatar 通过 prop 接住)
   const setActionExternal = React.useCallback((name: string) => {
@@ -612,7 +553,7 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
     setAction(name)
     // 6 秒后回 idle(动作不要太长)
     setTimeout(() => setAction('idle'), 6000)
-  }, [])
+  }, [setAction])
 
   return {
     text,
@@ -634,6 +575,14 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
     cancel,
     isSpeaking,
   };
+}
+
+function getAudioContextClass(): typeof AudioContext | undefined {
+  if (typeof window === 'undefined') return undefined;
+  return (
+    window.AudioContext ||
+    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+  );
 }
 
 // helper: useState 包装 + 类型

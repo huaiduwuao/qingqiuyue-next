@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
@@ -18,7 +19,6 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import GroupsIcon from '@mui/icons-material/Groups';
 import CloseIcon from '@mui/icons-material/Close';
 import MenuIcon from '@mui/icons-material/Menu';
-import WhatshotIcon from '@mui/icons-material/Whatshot';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import ViewKanbanIcon from '@mui/icons-material/ViewKanban';
 
@@ -42,7 +42,11 @@ const componentMap: Record<string, React.LazyExoticComponent<React.ComponentType
   '7': React.lazy(() => import('./_components/taskboard/page')),
 };
 
+// 已有对应子路由时走 router.push,否则保持原 tab 状态切换
+const keyToPath: Record<string, string> = {};
+
 export default function AccountRewardPage() {
+  const router = useRouter();
   const [tabKey, setTabKey] = useState('1');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [taskboardProjectId, setTaskboardProjectId] = useState<number | null>(null);
@@ -120,7 +124,12 @@ export default function AccountRewardPage() {
             <ListItemButton
               key={item.key}
               onClick={() => {
-                setTabKey(item.key);
+                const path = keyToPath[item.key];
+                if (path) {
+                  router.push(path);
+                } else {
+                  setTabKey(item.key);
+                }
                 setDrawerOpen(false);
               }}
               sx={{

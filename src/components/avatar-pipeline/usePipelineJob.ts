@@ -14,7 +14,6 @@
 import { useEffect, useReducer, useRef, useCallback } from 'react';
 import type {
   JobSnapshot,
-  JobStatus,
   PipelineStage,
   SseEvent,
   Artifact,

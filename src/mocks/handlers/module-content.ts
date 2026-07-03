@@ -9,7 +9,7 @@
  */
 
 import { http, HttpResponse } from 'msw';
-import { getModuleContentPage, getModuleContentById, MODULE_CONTENT_ALL } from '../db/module-content';
+import { getModuleContentPage, getModuleContentById } from '../db/module-content';
 
 const ok = <T,>(data: T) => HttpResponse.json({ code: 200, msg: 'OK', data });
 const okPage = (records: any[], totalRow: number, page: number, pageSize: number) =>

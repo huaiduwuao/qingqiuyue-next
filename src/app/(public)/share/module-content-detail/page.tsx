@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, Suspense } from 'react';
+import React, { useState, Suspense, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
@@ -13,6 +13,8 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import QrCode2Icon from '@mui/icons-material/QrCode2';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { detail as contentDetailApi } from '@/apis/system-module-content';
+import { contentPasswordUnlock, contentPayUnlock } from '@/apis/global';
+import { formatApiError } from '@/lib/api/client';
 import ModuleContentDetail from '@/components/ModuleContentDetail';
 
 function ShareModuleContentDetailContent() {
@@ -22,6 +24,9 @@ function ShareModuleContentDetailContent() {
 
   const [unlockDismissed, setUnlockDismissed] = useState(false);
   const [password, setPassword] = useState('');
+  const [unlockBusy, setUnlockBusy] = useState(false);
+  const [unlockError, setUnlockError] = useState('');
+  const [payInfo, setPayInfo] = useState<{ qrCode?: string; payUrl?: string; amount?: number } | null>(null);
 
   const contentQuery = useQuery({
     queryKey: ['share-module-content-detail', id],
@@ -40,16 +45,42 @@ function ShareModuleContentDetailContent() {
       (contentDetail.needPay && contentDetail.shareType === 'pay'));
   const visible = shouldShowUnlock && !unlockDismissed;
 
-  const handlePasswordUnlock = () => {
-    if (password === '123456') {
+  useEffect(() => {
+    if (!visible || contentDetail?.shareType !== 'pay' || !id) return;
+    let cancelled = false;
+    contentPayUnlock({ contentId: Number(id) })
+      .then((res: any) => {
+        if (cancelled) return;
+        setPayInfo({
+          qrCode: res?.data?.qrCode || res?.data?.qrUrl,
+          payUrl: res?.data?.payUrl,
+          amount: res?.data?.amount ?? contentDetail?.shareContent?.pay,
+        });
+      })
+      .catch(() => {
+        // 后端未就绪时使用内容价格兜底展示
+      });
+    return () => { cancelled = true; };
+  }, [visible, contentDetail?.shareType, contentDetail?.shareContent?.pay, id]);
+
+  const handlePasswordUnlock = async () => {
+    if (!password.trim() || !id) return;
+    setUnlockBusy(true);
+    setUnlockError('');
+    try {
+      await contentPasswordUnlock({ contentId: Number(id), password: password.trim() });
       setUnlockDismissed(true);
+    } catch (err) {
+      setUnlockError(formatApiError(err));
+    } finally {
+      setUnlockBusy(false);
     }
   };
 
   const renderUnlockModal = () => (
     <Modal
       open={visible}
-      onClose={() => {}}
+      onClose={() => setUnlockDismissed(true)}
       sx={{
         display: 'flex',
         alignItems: 'center',
@@ -105,12 +136,17 @@ function ShareModuleContentDetailContent() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 mb: 2,
+                overflow: 'hidden',
               }}
             >
-              <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>二维码占位</Typography>
+              {payInfo?.qrCode ? (
+                <Box component="img" src={payInfo.qrCode} alt="支付二维码" sx={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              ) : (
+                <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>二维码加载中…</Typography>
+              )}
             </Box>
             <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'primary.main', fontFamily: 'monospace' }}>
-              ¥{contentDetail?.shareContent?.pay}
+              ¥{payInfo?.amount ?? contentDetail?.shareContent?.pay ?? 9.9}
             </Typography>
           </Box>
         )}
@@ -124,6 +160,7 @@ function ShareModuleContentDetailContent() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handlePasswordUnlock()}
+              disabled={unlockBusy}
               sx={{ mb: 2 }}
               slotProps={{
                 input: {
@@ -131,9 +168,13 @@ function ShareModuleContentDetailContent() {
                 },
               }}
             />
+            {unlockError && (
+              <Typography sx={{ fontSize: 12, color: 'error.main', textAlign: 'center', mb: 1.5 }}>{unlockError}</Typography>
+            )}
             <Button
               fullWidth
               variant="contained"
+              disabled={unlockBusy || !password.trim()}
               onClick={handlePasswordUnlock}
               sx={{
                 borderRadius: 4,
@@ -141,11 +182,8 @@ function ShareModuleContentDetailContent() {
                 background: 'linear-gradient(135deg, #FE2C55 0%, #FF6B8A 100%)',
               }}
             >
-              解锁内容
+              {unlockBusy ? '验证中…' : '解锁内容'}
             </Button>
-            <Typography sx={{ fontSize: 11, color: 'text.disabled', textAlign: 'center', mt: 1.5 }}>
-              提示：演示口令为 123456
-            </Typography>
           </Box>
         )}
       </Box>

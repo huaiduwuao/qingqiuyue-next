@@ -1,5 +1,5 @@
 import { adminClient } from '@/lib/api/client';
-import {ProvinceItem, TableListParams} from "@/beans/system";
+import { ProvinceItem } from "@/beans/system";
 
 export interface ProvinceListParams {
   page?: number;

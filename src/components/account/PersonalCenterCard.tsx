@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -22,6 +22,7 @@ import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSettingsRounded';
 import { useAuthority, useAuth } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
+import { updateUser } from '@/apis/account';
 import { gradient2, IMAGE_OVERLAY } from '@/constants/gradients';
 
 export const PROFILE = {
@@ -67,6 +68,23 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
   const { isAdmin, isSuperAdmin } = useAuthority();
   const { logout } = useAuth();
   const { currentUser } = useApp();
+
+  useEffect(() => {
+    const saved = (currentUser as any)?.saveLoginInfo;
+    if (typeof saved === 'boolean') {
+      setSaveLogin(saved);
+    }
+  }, [(currentUser as any)?.saveLoginInfo]);
+
+  const handleSaveLoginChange = async (checked: boolean) => {
+    setSaveLogin(checked);
+    if (!currentUser?.id) return;
+    try {
+      await updateUser({ saveLoginInfo: checked });
+    } catch {
+      // 同步失败时至少保留本地状态,不打扰用户
+    }
+  };
 
   const go = (href: string) => {
     onNavigate?.();
@@ -393,7 +411,7 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
           </Typography>
           <Switch
             checked={saveLogin}
-            onChange={(e) => setSaveLogin(e.target.checked)}
+            onChange={(e) => handleSaveLoginChange(e.target.checked)}
             size="small"
             sx={{
               '& .MuiSwitch-switchBase.Mui-checked': { color: 'primary.main' },

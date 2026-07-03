@@ -1,5 +1,4 @@
 import { adminClient } from '@/lib/api/client';
-import {TableListParams} from "@/beans/system";
 
 export interface UserLevelListParams {
   page?: number;

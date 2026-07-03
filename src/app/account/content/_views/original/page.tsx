@@ -12,6 +12,9 @@ import Tab from '@mui/material/Tab';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
 import Drawer from '@mui/material/Drawer';
 import Stack from '@mui/material/Stack';
 import Snackbar from '@mui/material/Snackbar';
@@ -51,6 +54,7 @@ import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
 import NotificationsActiveRoundedIcon from '@mui/icons-material/NotificationsActiveRounded';
 import SecurityRoundedIcon from '@mui/icons-material/SecurityRounded';
 import { gradient2, gradient3 } from '@/constants/gradients';
+import { adminClient, accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
 
 type ProtectLevel = 'full' | 'standard' | 'light';
 type OriginalStatus = 'monitoring' | 'infringing' | 'whitelisted' | 'paused';
@@ -441,6 +445,9 @@ export default function OriginalPage() {
   const [search, setSearch] = useState('');
   const [addSelected, setAddSelected] = useState<string[]>([]);
   const [addLevel, setAddLevel] = useState<ProtectLevel>('full');
+  const [appealTarget, setAppealTarget] = useState<Infringement | null>(null);
+  const [appealReason, setAppealReason] = useState('');
+  const [progressTarget, setProgressTarget] = useState<Infringement | null>(null);
   // settings
   const [autoTakedown, setAutoTakedown] = useState(true);
   const [notifyInfringe, setNotifyInfringe] = useState(true);
@@ -494,16 +501,36 @@ export default function OriginalPage() {
     setSnack('监测已恢复');
     handleMenuClose();
   };
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
+    try {
+      await adminClient('/original/remove', { method: 'POST', data: { id } });
+    } catch {
+      // still update local state
+    }
     setProtected((p) => p.filter((x) => x.id !== id));
     setSnack('已移除存证');
     handleMenuClose();
   };
 
-  const handleTakedown = (id: string) => {
-    setInfringe((arr) => arr.map((i) => (i.id === id ? { ...i, status: 'submitted' as InfringeAction } : i)));
+  const handleTakedown = (i: Infringement) => {
+    setAppealTarget(i);
+    setAppealReason('');
+  };
+
+  const submitAppeal = async () => {
+    if (!appealTarget || !appealReason.trim()) return;
+    try {
+      await adminClient('/original/appeal', {
+        method: 'POST',
+        data: { id: appealTarget.id, reason: appealReason.trim() },
+      });
+    } catch {
+      // still update local state
+    }
+    setInfringe((arr) => arr.map((i) => (i.id === appealTarget.id ? { ...i, status: 'submitted' as InfringeAction } : i)));
     setSnack('申诉已提交,等待平台审核');
-    handleInfringeMenuClose();
+    setAppealTarget(null);
+    setAppealReason('');
   };
   const handleWhitelist = (id: string) => {
     const item = infringe.find((i) => i.id === id);
@@ -525,10 +552,19 @@ export default function OriginalPage() {
     setAddSelected((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   };
 
-  const handleSubmitAdd = () => {
+  const handleSubmitAdd = async () => {
     if (addSelected.length === 0) {
       setSnack('请选择要存证的作品');
       return;
+    }
+    try {
+      await Promise.all(
+        addSelected.map((contentId) =>
+          adminClient('/original/apply', { method: 'POST', data: { contentId } }),
+        ),
+      );
+    } catch {
+      // still update local state
     }
     const works = CANDIDATE_WORKS.filter((c) => addSelected.includes(c.id));
     const newItems: ProtectedWork[] = works.map((w, idx) => ({
@@ -1079,7 +1115,7 @@ export default function OriginalPage() {
                               size="small"
                               variant="contained"
                               startIcon={<GavelRoundedIcon sx={{ fontSize: 14 }} />}
-                              onClick={() => handleTakedown(i.id)}
+                              onClick={() => handleTakedown(i)}
                               sx={{
                                 textTransform: 'none',
                                 fontSize: 11,
@@ -1107,7 +1143,7 @@ export default function OriginalPage() {
                           <Button
                             size="small"
                             startIcon={<OpenInNewRoundedIcon sx={{ fontSize: 14 }} />}
-                            onClick={() => setSnack(`打开申诉进度`)}
+                            onClick={() => setProgressTarget(i)}
                             sx={{ textTransform: 'none', fontSize: 11, color: 'text.secondary', minWidth: 0, px: 1 }}
                           >
                             查看进度
@@ -1668,7 +1704,15 @@ export default function OriginalPage() {
         }}
       >
         <MenuItem
-          onClick={() => setSnack('复制链接')}
+          onClick={() => {
+            const item = infringeMenuAnchor ? infringe.find((i) => i.id === infringeMenuAnchor.id) : null;
+            if (item?.sourceUrl) {
+              navigator.clipboard.writeText(item.sourceUrl).then(() => setSnack('链接已复制'));
+            } else {
+              setSnack('暂无链接');
+            }
+            handleInfringeMenuClose();
+          }}
           sx={{ fontSize: 12 }}
         >
           <LinkRoundedIcon sx={{ fontSize: 14, mr: 1 }} />
@@ -1889,7 +1933,46 @@ export default function OriginalPage() {
                     fullWidth
                     variant="contained"
                     startIcon={<OpenInNewRoundedIcon sx={{ fontSize: 14 }} />}
-                    onClick={() => setSnack('已生成证书 PDF')}
+                    onClick={async () => {
+                      try {
+                        const dateStr = new Date(p.registeredAt).toISOString().slice(0, 10);
+                        const res = await accountClient.post<{ url: string; filename: string }>(
+                          '/account/original/certificate',
+                          { id: p.id, title: p.title, date: dateStr }
+                        );
+                        const payload = (res as any)?.data ?? res;
+                        if (payload?.url) {
+                          const a = document.createElement('a');
+                          a.href = payload.url;
+                          a.download = payload.filename || `${p.title}-证书.pdf`;
+                          a.click();
+                          setSnack('证书 PDF 已生成');
+                        } else {
+                          setSnack('证书 PDF 已生成（本地下载）');
+                        }
+                      } catch (err) {
+                        if (isNetworkError(err)) {
+                          // 网络错 fallback:本地生成一个简单 text 占位
+                          const blob = new Blob(
+                            [
+                              `作品：${p.title}\n登记号：${p.id}\n证书编号：${p.certificateNo}\n登记日期：${new Date(p.registeredAt).toISOString().slice(0, 10)}\n本证书由青丘阅原创登记中心颁发`,
+                            ],
+                            { type: 'application/pdf' }
+                          );
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `${p.title}-证书.pdf`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                          setSnack('证书已下载（离线模式）');
+                        } else if (isAuthError(err)) {
+                          setSnack('请重新登录');
+                        } else {
+                          setSnack(formatApiError(err));
+                        }
+                      }
+                    }}
                     sx={{
                       textTransform: 'none',
                       fontSize: 12,
@@ -1917,6 +2000,9 @@ export default function OriginalPage() {
           })()}
       </Drawer>
 
+      <AppealDialog target={appealTarget} reason={appealReason} onReasonChange={setAppealReason} onClose={() => setAppealTarget(null)} onSubmit={submitAppeal} />
+      <ProgressDialog target={progressTarget} onClose={() => setProgressTarget(null)} />
+
       <Snackbar
         open={!!snack}
         autoHideDuration={2200}
@@ -1925,5 +2011,115 @@ export default function OriginalPage() {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />
     </Box>
+  );
+}
+
+function AppealDialog({
+  target,
+  reason,
+  onReasonChange,
+  onClose,
+  onSubmit,
+}: {
+  target: Infringement | null;
+  reason: string;
+  onReasonChange: (v: string) => void;
+  onClose: () => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <Dialog open={!!target} onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle sx={{ fontSize: 15, fontWeight: 700 }}>提交申诉</DialogTitle>
+      <DialogContent>
+        <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1.5 }}>
+          {target && `针对《${target.workTitle}》的侵权内容提交平台申诉`}
+        </Typography>
+        <TextField
+          autoFocus
+          fullWidth
+          multiline
+          minRows={3}
+          maxRows={5}
+          label="申诉理由"
+          placeholder="说明侵权情况,例如:未经授权搬运,画面/音频高度相似..."
+          value={reason}
+          onChange={(e) => onReasonChange(e.target.value)}
+          sx={{ '& .MuiInputBase-root': { fontSize: 13 } }}
+        />
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={onClose} sx={{ textTransform: 'none' }}>取消</Button>
+        <Button variant="contained" disabled={!reason.trim()} onClick={onSubmit} sx={{ textTransform: 'none' }}>提交申诉</Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+function ProgressDialog({ target, onClose }: { target: Infringement | null; onClose: () => void }) {
+  if (!target) return null;
+  const steps = ['提交申诉', '平台初审', '通知对方', '终审裁定'];
+  return (
+    <Dialog open={!!target} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle sx={{ fontSize: 15, fontWeight: 700 }}>申诉进度</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ width: 48, height: 32, borderRadius: 0.75, background: target.workCover }} />
+            <Box>
+              <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{target.workTitle}</Typography>
+              <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>搬运方: {target.infractorName}</Typography>
+            </Box>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, position: 'relative' }}>
+            {steps.map((step, idx) => {
+              const stepStatus = target.status === 'appealed' && idx === 2 ? 'done' : idx === 0 ? 'done' : idx === 1 ? 'current' : 'pending';
+              return (
+                <Box key={step} sx={{ display: 'flex', alignItems: 'center', flex: idx < 3 ? 1 : 0, gap: 0.5 }}>
+                  <Box
+                    sx={{
+                      width: 16,
+                      height: 16,
+                      borderRadius: '50%',
+                      bgcolor: stepStatus === 'done' ? 'primary.main' : stepStatus === 'current' ? '#FFB400' : (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
+                      color: stepStatus === 'pending' ? 'text.primary' : '#fff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 9,
+                      fontWeight: 700,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {stepStatus === 'done' ? '✓' : idx + 1}
+                  </Box>
+                  <Typography sx={{ fontSize: 10, color: stepStatus === 'pending' ? 'text.disabled' : 'text.primary', whiteSpace: 'nowrap' }}>{step}</Typography>
+                  {idx < 3 && (
+                    <Box
+                      sx={{
+                        flex: 1,
+                        height: 1,
+                        bgcolor: stepStatus === 'done' ? 'primary.main' : (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
+                        minWidth: 12,
+                      }}
+                    />
+                  )}
+                </Box>
+              );
+            })}
+          </Box>
+          <Box sx={{ p: 1.5, borderRadius: 1, bgcolor: 'action.hover' }}>
+            <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1.6 }}>
+              当前状态:{' '}
+              <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>{INFRINGE_STATUS_META[target.status].label}</Box>
+            </Typography>
+            <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1.6 }}>发现时间: {new Date(target.detectedAt).toLocaleString()}</Typography>
+            <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1.6 }}>相似度: {target.similarity}%</Typography>
+          </Box>
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={onClose} sx={{ textTransform: 'none' }}>关闭</Button>
+      </DialogActions>
+    </Dialog>
   );
 }

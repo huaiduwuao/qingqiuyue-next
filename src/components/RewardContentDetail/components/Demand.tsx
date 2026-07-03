@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
-import CardContent from '@mui/material/CardContent';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
@@ -11,7 +10,13 @@ import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemText from '@mui/material/ListItemText';
 import Snackbar from '@mui/material/Snackbar';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import TextField from '@mui/material/TextField';
 import { demandDetail } from '@/apis/reward-demand';
+import { createRealization } from '@/apis/reward-realization';
 import { useApp } from '@/contexts/AppContext';
 import { REWARD_STATUS_ENUM } from '@/enums/common';
 
@@ -24,6 +29,11 @@ export default function DemandDetail({ item, type }: DemandDetailProps) {
   const { currentUser } = useApp();
   const [detail, setDetail] = useState<any>({});
   const [snack, setSnack] = useState<string | null>(null);
+  const [submitOpen, setSubmitOpen] = useState(false);
+  const [submitTitle, setSubmitTitle] = useState('');
+  const [submitContent, setSubmitContent] = useState('');
+  const [submitBusy, setSubmitBusy] = useState(false);
+  const [selectedRealization, setSelectedRealization] = useState<any>(null);
 
   useEffect(() => {
     const fetchDetail = async () => {
@@ -44,8 +54,32 @@ export default function DemandDetail({ item, type }: DemandDetailProps) {
       setSnack('请先登录');
       return;
     }
-    // 实现提交流程
-    setSnack('已打开提交流程');
+    setSubmitTitle('');
+    setSubmitContent('');
+    setSubmitOpen(true);
+  };
+
+  const handleSubmitRealization = async () => {
+    if (!submitTitle.trim() || !submitContent.trim() || !detail.id) {
+      setSnack('请填写方案标题与说明');
+      return;
+    }
+    setSubmitBusy(true);
+    try {
+      await createRealization({
+        demandId: detail.id,
+        title: submitTitle.trim(),
+        content: submitContent.trim(),
+      });
+      setSubmitOpen(false);
+      setSnack('方案提交成功');
+      const res = await demandDetail({ id: item.id });
+      setDetail(res.data || {});
+    } catch (err) {
+      setSnack('方案提交失败,请重试');
+    } finally {
+      setSubmitBusy(false);
+    }
   };
 
   const renderSubmitButton = () => {
@@ -202,7 +236,11 @@ export default function DemandDetail({ item, type }: DemandDetailProps) {
           <Divider sx={{ my: 2 }}>实现列表</Divider>
           <List>
             {detail.realizations.map((realization: any) => (
-              <ListItem key={realization.id} sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}>
+              <ListItem
+                key={realization.id}
+                onClick={() => setSelectedRealization(realization)}
+                sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+              >
                 <ListItemText
                   primary={realization.title}
                   secondary={`状态: ${REWARD_STATUS_ENUM[realization.status] || realization.status}`}
@@ -218,15 +256,68 @@ export default function DemandDetail({ item, type }: DemandDetailProps) {
         <Box>
           <Divider sx={{ my: 2 }}>我的方案</Divider>
           <List>
-            <ListItem>
-              <ListItemText
-                primary={detail.myRealizations[0].title}
-                secondary={`状态: ${REWARD_STATUS_ENUM[detail.myRealizations[0].status] || detail.myRealizations[0].status}`}
-              />
-            </ListItem>
+            {detail.myRealizations.map((realization: any) => (
+              <ListItem
+                key={realization.id}
+                onClick={() => setSelectedRealization(realization)}
+                sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+              >
+                <ListItemText
+                  primary={realization.title}
+                  secondary={`状态: ${REWARD_STATUS_ENUM[realization.status] || realization.status}`}
+                />
+              </ListItem>
+            ))}
           </List>
         </Box>
       )}
+
+      <Dialog open={submitOpen} onClose={() => setSubmitOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontSize: 16, fontWeight: 700 }}>提交实现方案</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            <TextField
+              fullWidth
+              label="方案标题"
+              value={submitTitle}
+              onChange={(e) => setSubmitTitle(e.target.value)}
+              sx={{ '& .MuiInputLabel-root': { fontSize: 13 } }}
+            />
+            <TextField
+              fullWidth
+              multiline
+              minRows={4}
+              label="方案说明"
+              value={submitContent}
+              onChange={(e) => setSubmitContent(e.target.value)}
+              sx={{ '& .MuiInputLabel-root': { fontSize: 13 } }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+          <Button variant="outlined" onClick={() => setSubmitOpen(false)} sx={{ textTransform: 'none', borderRadius: 1.5 }}>取消</Button>
+          <Button
+            variant="contained"
+            disabled={submitBusy || !submitTitle.trim() || !submitContent.trim()}
+            onClick={handleSubmitRealization}
+            sx={{ textTransform: 'none', borderRadius: 1.5 }}
+          >
+            {submitBusy ? '提交中…' : '提交方案'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={!!selectedRealization} onClose={() => setSelectedRealization(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: 16, fontWeight: 700 }}>方案详情</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: 14, fontWeight: 600, mb: 1 }}>{selectedRealization?.title}</Typography>
+          <Typography sx={{ fontSize: 13, color: '#666', lineHeight: 1.6, mb: 1 }}>{selectedRealization?.content || '暂无详细说明'}</Typography>
+          <Typography sx={{ fontSize: 12, color: '#999' }}>状态: {REWARD_STATUS_ENUM[selectedRealization?.status] || selectedRealization?.status}</Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setSelectedRealization(null)} sx={{ textTransform: 'none' }}>关闭</Button>
+        </DialogActions>
+      </Dialog>
 
       <Snackbar
         open={!!snack}

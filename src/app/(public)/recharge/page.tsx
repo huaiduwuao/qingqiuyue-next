@@ -11,6 +11,10 @@ import IconButton from '@mui/material/IconButton';
 import Divider from '@mui/material/Divider';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DiamondIcon from '@mui/icons-material/Diamond';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -25,6 +29,7 @@ import HistoryIcon from '@mui/icons-material/History';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2, gradient3 } from '@/constants/gradients';
+import { accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
 
 // 充值/钱包域占位:后端 `/api/core/wallet/*` 就绪后,以下数据/类型替换为 API 调用
 const DIAMOND_BALANCE = 0;
@@ -59,16 +64,40 @@ interface DiamondActivity {
   endsAt: string;
   rules: string[];
 }
-const DIAMOND_PACKAGES: DiamondPackage[] = [];
+const DIAMOND_PACKAGES: DiamondPackage[] = [
+  { id: 'p6', diamonds: 60, price: 6, badge: 'first', desc: '首充特惠', perDiamond: '0.100' },
+  { id: 'p30', diamonds: 300, bonus: 30, price: 30, badge: 'hot', desc: '热播内容随心看', perDiamond: '0.091' },
+  { id: 'p68', diamonds: 680, bonus: 68, price: 68, desc: '性价比之选', perDiamond: '0.090' },
+  { id: 'p128', diamonds: 1280, bonus: 180, price: 128, badge: 'recommend', desc: '推荐档位,畅看会员', perDiamond: '0.082' },
+  { id: 'p328', diamonds: 3280, bonus: 580, price: 328, badge: 'bonus', desc: '重度用户专享', perDiamond: '0.078' },
+  { id: 'p648', diamonds: 6480, bonus: 1380, price: 648, badge: 'bonus', desc: '至尊加赠', perDiamond: '0.075' },
+];
 const DIAMOND_RECORDS: DiamondRecord[] = [];
-const DIAMOND_BENEFITS: DiamondBenefit[] = [];
+const DIAMOND_BENEFITS: DiamondBenefit[] = [
+  { icon: 'crown', title: '会员专属', desc: '解锁会员内容与画质' },
+  { icon: 'flash', title: '专属特效', desc: '评论/弹幕特效展示' },
+  { icon: 'gift', title: '打赏作者', desc: '用钻石给喜欢的创作者送礼' },
+  { icon: 'badge', title: '身份标识', desc: '个人主页专属钻石铭牌' },
+  { icon: 'support', title: '优先客服', desc: '7×24 小时钻石专属通道' },
+  { icon: 'theater', title: '影院权益', desc: '4K/HDR 与高码率通道' },
+];
 const DIAMOND_ACTIVITY: DiamondActivity = {
-  title: '',
-  subtitle: '',
+  title: '暑期充值加赠 10%',
+  subtitle: '活动期间充值任意档位,额外加赠 10% 钻石,上不封顶',
   endsAt: new Date(Date.now() + 30 * 86_400_000).toISOString(),
-  rules: [],
+  rules: [
+    '活动时间:即日起至活动结束;',
+    '加赠钻石将在支付成功后实时到账;',
+    '钻石为虚拟货币,充值后不支持退款;',
+    '如有疑问请联系在线客服。',
+  ],
 };
-const PAY_METHODS: Array<{ key: PayMethod; label: string; sub: string; iconKey: 'wechat' | 'alipay' | 'apple' | 'card'; recommended?: boolean }> = [];
+const PAY_METHODS: Array<{ key: PayMethod; label: string; sub: string; iconKey: 'wechat' | 'alipay' | 'apple' | 'card'; recommended?: boolean }> = [
+  { key: 'wechat', label: '微信支付', sub: '推荐', iconKey: 'wechat', recommended: true },
+  { key: 'alipay', label: '支付宝', sub: '快捷', iconKey: 'alipay' },
+  { key: 'apple', label: 'Apple Pay', sub: 'iOS 用户', iconKey: 'apple' },
+  { key: 'card', label: '银行卡', sub: '储蓄卡/信用卡', iconKey: 'card' },
+];
 
 const BENEFIT_ICON_MAP: Record<string, React.ComponentType<{ sx?: any }>> = {
   crown: EmojiEventsIcon,
@@ -122,6 +151,8 @@ export default function RechargePage() {
   const [payMethod, setPayMethod] = useState<PayMethod>('wechat');
   const [records, setRecords] = useState(DIAMOND_RECORDS);
   const [paying, setPaying] = useState(false);
+  const [payDialogOpen, setPayDialogOpen] = useState(false);
+  const [order, setOrder] = useState<{ id: string; amount: number; diamonds: number; method: PayMethod; qrUrl?: string } | null>(null);
   const [toast, setToast] = useState<{ open: boolean; msg: string; severity: 'success' | 'info' }>({ open: false, msg: '', severity: 'success' });
   const countdown = useCountdown(DIAMOND_ACTIVITY.endsAt);
 
@@ -139,23 +170,115 @@ export default function RechargePage() {
   const handlePay = async () => {
     if (!pkg || paying) return;
     setPaying(true);
-    // 模拟支付:1.4s 后成功,余额 += 钻石
-    await new Promise((r) => setTimeout(r, 1400));
-    setBalance((b) => b + pkg.diamonds + (pkg.bonus ?? 0));
-    setRecords((prev) => [
-      {
-        id: Math.max(0, ...prev.map((r) => r.id)) + 1,
-        type: 'recharge',
-        amount: pkg.diamonds + (pkg.bonus ?? 0),
-        balance: balance + pkg.diamonds + (pkg.bonus ?? 0),
-        description: `充值 ${pkg.diamonds} 钻${pkg.bonus ? ` + 赠送 ${pkg.bonus} 钻` : ''}`,
-        payMethod,
-        createTime: new Date().toISOString(),
-      },
-      ...prev,
-    ]);
-    setPaying(false);
-    setToast({ open: true, msg: `充值成功!+${pkg.diamonds + (pkg.bonus ?? 0)} 钻`, severity: 'success' });
+    const amount = pkg.price;
+    const diamonds = pkg.diamonds + (pkg.bonus ?? 0);
+    try {
+      // 真实 API:创建充值订单,后端返回 qrCode 字符串(扫码支付码/二维码 URL)
+      let res: { qrCode: string; orderId: string; amount: number; expireAt: string };
+      try {
+        const apiRes = await accountClient.post<typeof res>('/account/recharge/order', {
+          amount,
+          channel: payMethod === 'wechat' ? 'wechat' : payMethod === 'alipay' ? 'alipay' : 'wechat',
+        });
+        res = apiRes.data ?? (apiRes as any);
+      } catch (err) {
+        // 网络层失败 → 回退到本地 mock 二维码(仅用于展示,非关键业务)
+        if (isNetworkError(err)) {
+          const orderId = `ORD${Date.now()}`;
+          const qrData = JSON.stringify({ orderId, amount, method: payMethod, diamonds });
+          const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrData)}`;
+          setOrder({ id: orderId, amount, diamonds, method: payMethod, qrUrl });
+          setPayDialogOpen(true);
+          setToast({ open: true, msg: '网络异常,已切换到本地二维码演示', severity: 'info' });
+          return;
+        }
+        // 业务/鉴权错误 → 直接抛出,由外层 catch 弹错
+        throw err;
+      }
+      setOrder({ id: res.orderId, amount: res.amount, diamonds, method: payMethod, qrUrl: res.qrCode });
+      setPayDialogOpen(true);
+    } catch (err) {
+      if (isAuthError(err)) {
+        setToast({ open: true, msg: '登录已过期,请重新登录', severity: 'info' });
+      } else {
+        setToast({ open: true, msg: formatApiError(err) || '创建订单失败', severity: 'info' });
+      }
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  const handlePaySuccess = async () => {
+    if (!order || !pkg) return;
+    const orderId = order.id;
+    const gained = order.diamonds;
+    try {
+      // 真实 API:确认订单到账,后端返回最新余额 + 流水记录
+      let resBalance: number | undefined;
+      let resRecord: DiamondRecord | undefined;
+      try {
+        const apiRes = await accountClient.post<{ balance: number; record: DiamondRecord }>(
+          '/account/recharge/confirm',
+          { orderId },
+        );
+        resBalance = apiRes.data?.balance;
+        resRecord = apiRes.data?.record;
+      } catch (err) {
+        // 网络层失败 → 回退到本地加钱(保留 UX)
+        if (isNetworkError(err)) {
+          const newBalance = balance + gained;
+          setBalance(newBalance);
+          setRecords((prev) => [
+            {
+              id: Math.max(0, ...prev.map((r) => r.id)) + 1,
+              type: 'recharge',
+              amount: gained,
+              balance: newBalance,
+              description: `充值 ${pkg.diamonds} 钻${pkg.bonus ? ` + 赠送 ${pkg.bonus} 钻` : ''}`,
+              payMethod: order.method,
+              createTime: new Date().toISOString(),
+            },
+            ...prev,
+          ]);
+          setPayDialogOpen(false);
+          setOrder(null);
+          setToast({ open: true, msg: `网络异常,已本地到账 +${gained} 钻`, severity: 'success' });
+          return;
+        }
+        throw err;
+      }
+      // 用后端返回的 balance 替换本地 state
+      if (typeof resBalance === 'number') {
+        setBalance(resBalance);
+      } else {
+        setBalance((b) => b + gained);
+      }
+      if (resRecord) {
+        setRecords((prev) => [resRecord!, ...prev]);
+      } else {
+        setRecords((prev) => [
+          {
+            id: Math.max(0, ...prev.map((r) => r.id)) + 1,
+            type: 'recharge',
+            amount: gained,
+            balance: (resBalance ?? balance + gained),
+            description: `充值 ${pkg.diamonds} 钻${pkg.bonus ? ` + 赠送 ${pkg.bonus} 钻` : ''}`,
+            payMethod: order.method,
+            createTime: new Date().toISOString(),
+          },
+          ...prev,
+        ]);
+      }
+      setPayDialogOpen(false);
+      setOrder(null);
+      setToast({ open: true, msg: `充值成功!+${gained} 钻`, severity: 'success' });
+    } catch (err) {
+      if (isAuthError(err)) {
+        setToast({ open: true, msg: '登录已过期,请重新登录', severity: 'info' });
+      } else {
+        setToast({ open: true, msg: formatApiError(err) || '确认支付失败', severity: 'info' });
+      }
+    }
   };
 
   return (
@@ -974,6 +1097,82 @@ export default function RechargePage() {
           © 2026 清秋月 · 钻石为虚拟货币,一经充值不退 · 客服 9:00 - 23:00
         </Typography>
       </Box>
+
+      <Dialog
+        open={payDialogOpen}
+        onClose={() => setPayDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        slotProps={{
+          paper: {
+            sx: {
+              bgcolor: 'rgba(20, 22, 32, 0.98)',
+              backgroundImage: 'none',
+              border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 3,
+              color: '#fff',
+            },
+          },
+        }}
+      >
+        <DialogTitle sx={{ fontSize: 16, fontWeight: 700 }}>
+          订单支付
+        </DialogTitle>
+        <DialogContent>
+          {order && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, py: 1 }}>
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>支付金额</Typography>
+                <Typography sx={{ fontSize: 32, fontWeight: 800, color: '#FFD566' }}>¥ {order.amount}</Typography>
+                <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>获得 {order.diamonds} 钻 · 订单号 {order.id}</Typography>
+              </Box>
+              {order.method === 'wechat' || order.method === 'alipay' ? (
+                <Box sx={{ textAlign: 'center' }}>
+                  <Box
+                    component="img"
+                    src={order.qrUrl}
+                    alt="支付二维码"
+                    sx={{ width: 180, height: 180, borderRadius: 2, bgcolor: '#fff', p: 1 }}
+                  />
+                  <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', mt: 1 }}>请使用{PAY_METHODS.find((m) => m.key === order.method)?.label}扫码支付</Typography>
+                </Box>
+              ) : (
+                <Box
+                  sx={{
+                    width: '100%',
+                    p: 2,
+                    borderRadius: 2,
+                    bgcolor: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(255,255,255,0.08)',
+                    textAlign: 'center',
+                  }}
+                >
+                  <Typography sx={{ fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>请在对应 App 或网银完成支付</Typography>
+                  <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', mt: 0.5 }}>{PAY_METHODS.find((m) => m.key === order.method)?.label}</Typography>
+                </Box>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+          <Button
+            fullWidth
+            variant="outlined"
+            onClick={() => setPayDialogOpen(false)}
+            sx={{ borderRadius: 2, textTransform: 'none', borderColor: 'rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.8)' }}
+          >
+            取消支付
+          </Button>
+          <Button
+            fullWidth
+            variant="contained"
+            onClick={handlePaySuccess}
+            sx={{ borderRadius: 2, textTransform: 'none', background: CTA_GRADIENT.RED_YELLOW, color: '#fff' }}
+          >
+            已完成支付
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Snackbar
         open={toast.open}

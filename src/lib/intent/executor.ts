@@ -11,12 +11,16 @@
  */
 
 import { db, schema } from '@/lib/db/client'
-import { desc, eq, ilike, and, sql } from 'drizzle-orm'
+import { desc, ilike, sql } from 'drizzle-orm'
 import { agentRegistry } from '@/lib/agents/registry'
 import { sharedContext } from '@/lib/agents/shared-context'
 import { sessionManager } from '@/lib/agents/session-context'
 import * as taskEngine from '@/lib/task-engine/store'
 import type { Intent } from './types'
+
+interface QingqiuyueWindow extends Window {
+  __qingqiuyueWalkTo?: (target: { left: number; top: number }, durationMs?: number) => void
+}
 
 export interface ExecutorOptions {
   conversationId: string
@@ -26,7 +30,7 @@ export interface ExecutorOptions {
 export interface ExecutorResult {
   ok: boolean
   message: string
-  data?: any
+  data?: unknown
 }
 
 export async function executeIntent(intent: Intent, opts: ExecutorOptions): Promise<ExecutorResult> {
@@ -91,7 +95,7 @@ export async function executeIntent(intent: Intent, opts: ExecutorOptions): Prom
             target = { x: (w - FW) / 2, y: (h - FH) / 2 }
           }
           // 调 FloatingDigitalHuman 暴露的 walkTo
-          const walkTo = (window as any).__qingqiuyueWalkTo as ((t: any, d?: number) => void) | undefined
+          const walkTo = (window as QingqiuyueWindow).__qingqiuyueWalkTo
           if (walkTo) walkTo({ left: target.x, top: target.y }, intent.durationMs || 1500)
           // 走路时也播 walk 动作 + 回来后 idle
           window.dispatchEvent(new CustomEvent('digital-human-walk', { detail: { target: intent.target } }))
@@ -102,7 +106,7 @@ export async function executeIntent(intent: Intent, opts: ExecutorOptions): Prom
         // 复合意图: 按顺序执行子 intent, 支持 walk 序列(LLM 可规划路径)
         const results = []
         for (const sub of intent.intents) {
-          if (sub.type === 'walk_to' && (window as any).__qingqiuyueWalkTo) {
+          if (sub.type === 'walk_to' && (window as QingqiuyueWindow).__qingqiuyueWalkTo) {
             // walk 之间加 100ms 缓冲(连续走更平滑)
             await new Promise((r) => setTimeout(r, 100))
           }
@@ -149,17 +153,19 @@ export async function executeIntent(intent: Intent, opts: ExecutorOptions): Prom
               const result = await agent.hermes!.sendMessage(agent.hermesSessionId!, {
                 role: 'user',
                 content: intent.task,
-              })
-              taskEngine.markDone(task.id, result as Record<string, unknown>)
+              }) as Record<string, unknown>
+              taskEngine.markDone(task.id, result)
               // artifact 落库 (假设 result 含 url / content)
-              if (result?.artifact_url || result?.content) {
+              const artifactUrl = typeof result.artifact_url === 'string' ? result.artifact_url : ''
+              const content = typeof result.content === 'string' ? result.content : ''
+              if (artifactUrl || content) {
                 await db.insert(schema.artifacts).values({
                   conversationId: opts.conversationId,
                   agentId: intent.agentId,
-                  kind: (result.kind as any) || 'file',
-                  url: (result.artifact_url as string) || '',
-                  filename: (result.filename as string) || null,
-                  metadata: result as any,
+                  kind: typeof result.kind === 'string' ? result.kind : 'file',
+                  url: artifactUrl || content,
+                  filename: typeof result.filename === 'string' ? result.filename : null,
+                  metadata: result,
                 })
               }
             } catch (e) {
@@ -188,18 +194,35 @@ export async function executeIntent(intent: Intent, opts: ExecutorOptions): Prom
         return { ok: true, message: `system action: ${intent.action}` }
 
       case 'query': {
-        if (intent.kind === 'conversation' || intent.kind === 'task' || intent.kind === 'artifact') {
+        const q = `%${intent.query}%`
+        if (intent.kind === 'conversation') {
           const rows = await db.select().from(schema.messages)
-            .where(ilike(schema.messages.content, `%${intent.query}%`))
+            .where(ilike(schema.messages.content, q))
             .orderBy(desc(schema.messages.createdAt))
             .limit(10)
           return { ok: true, message: `found ${rows.length} messages`, data: rows }
+        }
+        if (intent.kind === 'task') {
+          const rows = await db.select().from(schema.tasks)
+            .where(ilike(schema.tasks.prompt, q))
+            .orderBy(desc(schema.tasks.createdAt))
+            .limit(10)
+          return { ok: true, message: `found ${rows.length} tasks`, data: rows }
+        }
+        if (intent.kind === 'artifact') {
+          const rows = await db.select().from(schema.artifacts)
+            .where(
+              sql`(${schema.artifacts.filename} ILIKE ${q}) OR (${schema.artifacts.url} ILIKE ${q}) OR (${schema.artifacts.metadata}::text ILIKE ${q})`
+            )
+            .orderBy(desc(schema.artifacts.createdAt))
+            .limit(10)
+          return { ok: true, message: `found ${rows.length} artifacts`, data: rows }
         }
         return { ok: false, message: 'unsupported query kind' }
       }
 
       default:
-        return { ok: false, message: `unknown intent type: ${(intent as any).type}` }
+        return { ok: false, message: `unknown intent type: ${(intent as { type?: string }).type}` }
     }
   } catch (e) {
     return { ok: false, message: (e as Error).message }

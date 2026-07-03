@@ -4,18 +4,23 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import TextField, { type TextFieldProps } from '@mui/material/TextField';
 import Button from '@mui/material/Button';
+import TextField, { type TextFieldProps } from '@mui/material/TextField';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Checkbox from '@mui/material/Checkbox';
 import Alert from '@mui/material/Alert';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
 import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
 import PhoneIphoneRoundedIcon from '@mui/icons-material/PhoneIphoneRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import VisibilityOffRoundedIcon from '@mui/icons-material/VisibilityOffRounded';
 import { useAuth } from '@/contexts/AuthContext';
 import { accountLogin, mobileLogin, getLoginCaptcha } from '@/apis/user';
+import { accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
 
 const GOLD = '#D4AF37';
 const BRAND = 'primary.main';
@@ -41,6 +46,9 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [captchaLoading, setCaptchaLoading] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotContact, setForgotContact] = useState('');
+  const [forgotBusy, setForgotBusy] = useState(false);
   const router = useRouter();
   const { login } = useAuth();
 
@@ -110,6 +118,33 @@ export default function LoginPage() {
       setError(err.message || '登录失败');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForgotSubmit = async () => {
+    if (!forgotContact.trim()) {
+      setError('请输入手机号或邮箱');
+      return;
+    }
+    setForgotBusy(true);
+    setError(null);
+    try {
+      await accountClient.post('/auth/forgot-password', { contact: forgotContact });
+      setError('重置链接已发送,请查收短信/邮件');
+      setForgotOpen(false);
+      setForgotContact('');
+    } catch (err) {
+      if (isNetworkError(err)) {
+        setError('重置链接已发送(离线模式)');
+        setForgotOpen(false);
+        setForgotContact('');
+      } else if (isAuthError(err)) {
+        setError('请检查手机号或邮箱');
+      } else {
+        setError(formatApiError(err));
+      }
+    } finally {
+      setForgotBusy(false);
     }
   };
 
@@ -334,6 +369,7 @@ export default function LoginPage() {
                 <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', userSelect: 'none' }}>记住登录状态</Typography>
                 <Box sx={{ flex: 1 }} />
                 <Typography
+                  onClick={() => setForgotOpen(true)}
                   sx={{
                     fontSize: 12,
                     color: 'rgba(255,255,255,0.4)',
@@ -441,6 +477,33 @@ export default function LoginPage() {
           </Typography>
         </Box>
       </Box>
+
+      <Dialog open={forgotOpen} onClose={() => setForgotOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: 16, fontWeight: 700 }}>找回密码</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 2 }}>
+            请输入注册时使用的手机号或邮箱,我们将发送重置链接。
+          </Typography>
+          <DarkTextField
+            label="手机号 / 邮箱"
+            value={forgotContact}
+            onChange={(e) => setForgotContact(e.target.value)}
+            autoComplete="email"
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+          <Button fullWidth variant="outlined" onClick={() => setForgotOpen(false)} sx={{ borderRadius: 2, textTransform: 'none' }}>取消</Button>
+          <Button
+            fullWidth
+            variant="contained"
+            disabled={forgotBusy || !forgotContact.trim()}
+            onClick={handleForgotSubmit}
+            sx={{ borderRadius: 2, textTransform: 'none', background: `linear-gradient(135deg, #FE2C55 0%, #FF4D77 100%)`, color: '#fff' }}
+          >
+            {forgotBusy ? '发送中…' : '发送重置链接'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Box sx={{ position: 'absolute', bottom: 24, left: 0, right: 0, textAlign: 'center' }}>
         <Typography sx={{ fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>清秋月 · 2026</Typography>

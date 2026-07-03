@@ -389,6 +389,7 @@ export const WEREWOLF_VIDEO = {
   durationSec: 55,
   cover: 'https://picsum.photos/seed/werewolf-56/720/1280',
   user: {
+    id: 8888,
     name: 'AI 狼人杀官方',
     handle: 'ai_werewolf',
     verified: true,
@@ -421,7 +422,7 @@ export const WEREWOLF_FEED = FEED_SEED.map((s, i) => ({
   episode: s.ep,
   durationSec: 45 + (i * 7) % 40,
   cover: `https://picsum.photos/seed/feed-${1000 + i}/720/1280`,
-  user: { name: s.name, handle: s.handle, verified: i % 2 === 0, avatar: avatar(8800 + i) },
+  user: { name: s.name, handle: s.handle, verified: i % 2 === 0, avatar: avatar(8800 + i), id: 8800 + i },
   caption: s.caption,
   views: 50000 + (i * 81731) % 900000,
   likes: 50 + (i * 137) % 9000,

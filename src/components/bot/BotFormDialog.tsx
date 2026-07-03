@@ -12,7 +12,6 @@ import Switch from '@mui/material/Switch';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Typography from '@mui/material/Typography';
-import Alert from '@mui/material/Alert';
 import type { BotItem } from '@/beans/system';
 
 interface BotFormDialogProps {

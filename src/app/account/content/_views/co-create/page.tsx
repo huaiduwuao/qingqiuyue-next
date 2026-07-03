@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -24,7 +25,6 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
-import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import HandshakeRoundedIcon from '@mui/icons-material/HandshakeRounded';
 import MovieRoundedIcon from '@mui/icons-material/MovieRounded';
 import FolderSharedRoundedIcon from '@mui/icons-material/FolderSharedRounded';
@@ -32,6 +32,7 @@ import TopicRoundedIcon from '@mui/icons-material/TopicRounded';
 import VerifiedRoundedIcon from '@mui/icons-material/VerifiedRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import { gradient2 } from '@/constants/gradients';
+import { adminClient } from '@/lib/api/client';
 
 type CollabType = 'jointPost' | 'assetShare' | 'topicCollab';
 type CollabStatus = 'active' | 'pending' | 'completed' | 'declined';
@@ -175,6 +176,15 @@ export default function CoCreatePage() {
   const [inviteTarget, setInviteTarget] = useState<Partner | null>(null);
   const [keyword, setKeyword] = useState('');
   const [detailCollab, setDetailCollab] = useState<Collaboration | null>(null);
+  const router = useRouter();
+
+  const handleMessage = () => {
+    router.push('/account/msg');
+  };
+
+  const handleViewProfile = (name: string) => {
+    router.push(`/u/${encodeURIComponent(name)}`);
+  };
 
   const totals = useMemo(() => ({
     active: collabs.length,
@@ -183,48 +193,76 @@ export default function CoCreatePage() {
     pendingInvites: incoming.length,
   }), [collabs, incoming]);
 
-  const handleAcceptInvite = (id: number) => {
+  const handleAcceptInvite = async (id: number) => {
     const inv = incoming.find((i) => i.id === id);
     if (!inv) return;
-    setIncoming((p) => p.filter((i) => i.id !== id));
-    setCollabs((p) => [{
-      id: Date.now(),
-      partner: inv.partner,
-      type: inv.type,
-      status: 'active',
-      revenueSplit: inv.revenueSplit,
-      topic: inv.message.slice(0, 30),
-      progress: 0,
-      startedAt: Date.now(),
-      lastActivityAt: Date.now(),
-      totalEarnings: 0,
-      jointViews: 0,
-    }, ...p]);
-    setSnack(`已接受 @${inv.partner.name} 的共创邀请`);
+    try {
+      await adminClient('/co-create/accept', { method: 'POST', data: { id } });
+      setIncoming((p) => p.filter((i) => i.id !== id));
+      setCollabs((p) => [{
+        id: Date.now(),
+        partner: inv.partner,
+        type: inv.type,
+        status: 'active',
+        revenueSplit: inv.revenueSplit,
+        topic: inv.message.slice(0, 30),
+        progress: 0,
+        startedAt: Date.now(),
+        lastActivityAt: Date.now(),
+        totalEarnings: 0,
+        jointViews: 0,
+      }, ...p]);
+      setSnack(`已接受 @${inv.partner.name} 的共创邀请`);
+    } catch (e) {
+      setSnack(`接受邀请失败:${e instanceof Error ? e.message : '网络异常'}`);
+    }
   };
 
-  const handleDeclineInvite = (id: number) => {
-    setIncoming((p) => p.filter((i) => i.id !== id));
-    setSnack('已拒绝邀请');
+  const handleDeclineInvite = async (id: number) => {
+    try {
+      await adminClient('/co-create/reject', { method: 'POST', data: { id } });
+      setIncoming((p) => p.filter((i) => i.id !== id));
+      setSnack('已拒绝邀请');
+    } catch (e) {
+      setSnack(`拒绝邀请失败:${e instanceof Error ? e.message : '网络异常'}`);
+    }
   };
 
-  const handleCancelOutgoing = (id: number) => {
-    setOutgoing((p) => p.filter((i) => i.id !== id));
-    setSnack('已撤回邀请');
+  const handleCancelOutgoing = async (id: number) => {
+    try {
+      await adminClient('/co-create/cancel', { method: 'POST', data: { id } });
+      setOutgoing((p) => p.filter((i) => i.id !== id));
+      setSnack('已撤回邀请');
+    } catch (e) {
+      setSnack(`撤回失败:${e instanceof Error ? e.message : '网络异常'}`);
+    }
   };
 
-  const handleEndCollab = (id: number) => {
-    setCollabs((p) => p.map((c) => (c.id === id ? { ...c, status: 'completed' as CollabStatus, progress: 100, lastActivityAt: Date.now() } : c)));
-    setSnack('共创已结算并标记完成');
-    setDetailCollab(null);
+  const handleEndCollab = async (id: number) => {
+    try {
+      await adminClient('/co-create/finish', { method: 'POST', data: { id } });
+      setCollabs((p) => p.map((c) => (c.id === id ? { ...c, status: 'completed' as CollabStatus, progress: 100, lastActivityAt: Date.now() } : c)));
+      setSnack('共创已结算并标记完成');
+      setDetailCollab(null);
+    } catch (e) {
+      setSnack(`结束共创失败:${e instanceof Error ? e.message : '网络异常'}`);
+    }
   };
 
-  const handleSendInvite = (partner: Partner, type: CollabType, split: number, message: string) => {
-    setOutgoing((p) => [{
-      id: Date.now(), direction: 'outgoing', partner, type, revenueSplit: split, message, createdAt: Date.now(),
-    }, ...p]);
-    setSnack(`已向 @${partner.name} 发送共创邀请`);
-    setInviteTarget(null);
+  const handleSendInvite = async (partner: Partner, type: CollabType, split: number, message: string, projectId: string, role: string) => {
+    try {
+      await adminClient('/co-create/invite', {
+        method: 'POST',
+        data: { projectId, userId: partner.id, role },
+      });
+      setOutgoing((p) => [{
+        id: Date.now(), direction: 'outgoing', partner, type, revenueSplit: split, message, createdAt: Date.now(),
+      }, ...p]);
+      setSnack(`已向 @${partner.name} 发送共创邀请`);
+      setInviteTarget(null);
+    } catch (e) {
+      setSnack(`发送邀请失败:${e instanceof Error ? e.message : '网络异常'}`);
+    }
   };
 
   const recFiltered = useMemo(() => {
@@ -339,7 +377,7 @@ export default function CoCreatePage() {
                       <Button size="small" variant="outlined" onClick={() => setDetailCollab(c)} sx={{ textTransform: 'none', fontSize: 12, borderRadius: 1.5, borderColor: 'divider', color: 'text.secondary' }}>
                         查看详情
                       </Button>
-                      <Button size="small" variant="outlined" startIcon={<ChatBubbleOutlineRoundedIcon sx={{ fontSize: 13 }} />} onClick={() => setSnack(`打开与 @${c.partner.name} 的对话`)} sx={{ textTransform: 'none', fontSize: 12, borderRadius: 1.5, borderColor: 'divider', color: 'text.secondary' }}>
+                      <Button size="small" variant="outlined" startIcon={<ChatBubbleOutlineRoundedIcon sx={{ fontSize: 13 }} />} onClick={handleMessage} sx={{ textTransform: 'none', fontSize: 12, borderRadius: 1.5, borderColor: 'divider', color: 'text.secondary' }}>
                         私信
                       </Button>
                       <Box sx={{ flex: 1 }} />
@@ -411,7 +449,7 @@ export default function CoCreatePage() {
                           >
                             拒绝
                           </Button>
-                          <Button size="small" onClick={() => setSnack(`查看 @${inv.partner.name} 主页`)} sx={{ textTransform: 'none', fontSize: 12, color: 'text.secondary' }}>
+                          <Button size="small" onClick={() => handleViewProfile(inv.partner.name)} sx={{ textTransform: 'none', fontSize: 12, color: 'text.secondary' }}>
                             查看主页
                           </Button>
                         </Box>
@@ -528,7 +566,7 @@ export default function CoCreatePage() {
                     >
                       邀请共创
                     </Button>
-                    <Button size="small" variant="outlined" onClick={() => setSnack(`查看 @${p.name} 主页`)} sx={{ textTransform: 'none', fontSize: 12, borderRadius: 1.5, borderColor: 'divider', color: 'text.secondary' }}>
+                    <Button size="small" variant="outlined" onClick={() => handleViewProfile(p.name)} sx={{ textTransform: 'none', fontSize: 12, borderRadius: 1.5, borderColor: 'divider', color: 'text.secondary' }}>
                       主页
                     </Button>
                   </Box>
@@ -561,17 +599,21 @@ function InviteDialog({
 }: {
   partner: Partner | null;
   onClose: () => void;
-  onSend: (partner: Partner, type: CollabType, split: number, message: string) => void;
+  onSend: (partner: Partner, type: CollabType, split: number, message: string, projectId: string, role: string) => void;
 }) {
   const [type, setType] = useState<CollabType>('jointPost');
   const [split, setSplit] = useState(50);
   const [message, setMessage] = useState('');
+  const [projectId, setProjectId] = useState('');
+  const [role, setRole] = useState('');
 
   React.useEffect(() => {
     if (partner) {
       setType('jointPost');
       setSplit(50);
       setMessage('');
+      setProjectId('');
+      setRole('');
     }
   }, [partner?.id]);
 
@@ -644,6 +686,24 @@ function InviteDialog({
           </Box>
 
           <TextField
+            label="项目 ID"
+            value={projectId}
+            onChange={(e) => setProjectId(e.target.value)}
+            fullWidth
+            placeholder="例如: 2026-summer-collab"
+            sx={{ '& .MuiInputBase-root': { fontSize: 13 } }}
+          />
+
+          <TextField
+            label="角色"
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            fullWidth
+            placeholder="例如: 拍摄 / 剪辑 / 文案"
+            sx={{ '& .MuiInputBase-root': { fontSize: 13 } }}
+          />
+
+          <TextField
             label="共创说明 / 合作意向"
             value={message}
             onChange={(e) => setMessage(e.target.value.slice(0, 200))}
@@ -657,8 +717,8 @@ function InviteDialog({
       <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider', display: 'flex', gap: 1.5, justifyContent: 'flex-end' }}>
         <Button onClick={onClose} variant="outlined" sx={{ textTransform: 'none', borderRadius: 1.5 }}>取消</Button>
         <Button
-          variant="contained" disabled={!message.trim()}
-          onClick={() => onSend(partner, type, split, message.trim())}
+          variant="contained" disabled={!message.trim() || !projectId.trim() || !role.trim()}
+          onClick={() => onSend(partner, type, split, message.trim(), projectId.trim(), role.trim())}
           sx={{
             textTransform: 'none', borderRadius: 1.5,
             background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)',

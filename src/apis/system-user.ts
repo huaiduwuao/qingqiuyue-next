@@ -1,5 +1,4 @@
 import { adminClient } from '@/lib/api/client';
-import { UserInfo } from './auth';
 
 // 后端分页响应 { list, total } 归一成 UI 期望的 { records, totalRow }
 function normalizePage(res: any) {

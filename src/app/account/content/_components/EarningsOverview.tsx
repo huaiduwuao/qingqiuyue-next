@@ -12,6 +12,8 @@ import LiveTvOutlinedIcon from '@mui/icons-material/LiveTvOutlined';
 import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
 import StarOutlineIcon from '@mui/icons-material/StarBorder';
 
+import { useActiveTab } from '../ActiveTabContext';
+
 const SUMMARY = {
   total: 8420.5,
   cashable: 3120.8,
@@ -55,6 +57,7 @@ const SOURCES = [
 ];
 
 export default function EarningsOverview() {
+  const { setActiveTab } = useActiveTab();
   const total = SOURCES.reduce((a, b) => a + b.value, 0);
 
   return (
@@ -75,6 +78,7 @@ export default function EarningsOverview() {
           收益总览
         </Typography>
         <Box
+          onClick={() => setActiveTab('monetize')}
           sx={{
             display: 'flex',
             alignItems: 'center',

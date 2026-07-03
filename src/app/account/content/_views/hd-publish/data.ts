@@ -1,7 +1,7 @@
 // Shared types + seed data for the HD publish + reviewer console pages.
 // Anything the reviewer console needs lives here so both pages stay in sync.
 
-import { gradient2, gradient3 } from '@/constants/gradients';
+import { gradient3 } from '@/constants/gradients';
 
 // ========== Types ==========
 

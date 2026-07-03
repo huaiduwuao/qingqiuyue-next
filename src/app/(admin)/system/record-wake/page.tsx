@@ -15,20 +15,15 @@
  */
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import {
-  Box, Button, Typography, LinearProgress, IconButton, Alert, Chip,
-  TextField, Card, CardContent, Divider, Switch, FormControlLabel, Grid,
-} from '@mui/material';
+import { Box, Button, Typography, LinearProgress, IconButton, Alert, Chip,
+  Card, CardContent, Switch, FormControlLabel } from '@mui/material';
 
 import MicRoundedIcon from '@mui/icons-material/MicRounded';
 import StopRoundedIcon from '@mui/icons-material/StopRounded';
 import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
 import SkipNextRoundedIcon from '@mui/icons-material/SkipNextRounded';
 import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
-import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import GraphicEqRoundedIcon from '@mui/icons-material/GraphicEqRounded';
-import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
-import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 
 const TARGET_PHRASE = '小月';
 const TARGET_COUNT = 50;  // 目标录音数(够 5 分钟训练)
@@ -38,6 +33,89 @@ interface RecordedClip {
   blob: Blob
   url: string
   duration: number
+}
+
+// 将 AudioBuffer 编码为 WAV (PCM 16-bit mono)
+function audioBufferToWav(buffer: AudioBuffer): Blob {
+  const numOfChan = buffer.numberOfChannels
+  const length = buffer.length * numOfChan * 2 + 44
+  const arrBuffer = new ArrayBuffer(length)
+  const view = new DataView(arrBuffer)
+  const channels: Float32Array[] = []
+  let sample = 0
+  let offset = 0
+  let pos = 0
+
+  // write WAVE header
+  setUint32(0x46464952) // "RIFF"
+  setUint32(length - 8) // file length - 8
+  setUint32(0x45564157) // "WAVE"
+
+  setUint32(0x20746d66) // "fmt " chunk
+  setUint32(16) // length = 16
+  setUint16(1) // PCM (uncompressed)
+  setUint16(numOfChan)
+  setUint32(buffer.sampleRate)
+  setUint32(buffer.sampleRate * 2 * numOfChan) // avg. bytes/sec
+  setUint16(numOfChan * 2) // block-align
+  setUint16(16) // 16-bit (hardcoded in this demo)
+
+  setUint32(0x61746164) // "data" - chunk
+  setUint32(length - pos - 4) // chunk length
+
+  // write interleaved data
+  for (let i = 0; i < buffer.numberOfChannels; i++) {
+    channels.push(buffer.getChannelData(i))
+  }
+
+  while (pos < buffer.length) {
+    for (let i = 0; i < numOfChan; i++) {
+      sample = Math.max(-1, Math.min(1, channels[i][pos])) // clamp
+      sample = sample < 0 ? sample * 0x8000 : sample * 0x7fff // scale to 16-bit signed int
+      view.setInt16(44 + offset, sample, true) // write little endian
+      offset += 2
+    }
+    pos++
+  }
+
+  return new Blob([arrBuffer], { type: 'audio/wav' })
+
+  function setUint16(data: number) {
+    view.setUint16(pos, data, true)
+    pos += 2
+  }
+
+  function setUint32(data: number) {
+    view.setUint32(pos, data, true)
+    pos += 4
+  }
+}
+
+// 使用 Web Audio API 将录制得到的 webm/opus 解码并转码为 WAV
+async function convertClipToWav(clip: RecordedClip): Promise<Blob> {
+  const mime = clip.blob.type || 'audio/webm'
+  if (!mime.includes('audio/webm') && !mime.includes('audio/ogg')) {
+    throw new Error(`不支持的音频格式: ${mime}`)
+  }
+  const ctx = new AudioContext()
+  const arrayBuffer = await clip.blob.arrayBuffer()
+  const decoded = await ctx.decodeAudioData(arrayBuffer)
+  await ctx.close()
+
+  // 下混为单声道(唤醒词训练需要单声道)
+  const offline = new OfflineAudioContext(1, decoded.length, decoded.sampleRate)
+  const source = offline.createBufferSource()
+  source.buffer = decoded
+  source.connect(offline.destination)
+  source.start()
+  const mono = await offline.startRendering()
+  return audioBufferToWav(mono)
+}
+
+async function tryLoadFfmpeg() {
+  // 若项目后续安装 @ffmpeg/ffmpeg,可在此动态加载并转码;
+  // 当前未安装,直接返回 null,让调用方使用 Web Audio API 兜底。
+  return null
 }
 
 export default function RecordWakePage() {
@@ -196,14 +274,32 @@ export default function RecordWakePage() {
       return
     }
     setIsTraining(true)
-    setTrainStatus(`上传 ${valid.length} 条样本...`)
+    setTrainStatus(`转换 ${valid.length} 条音频格式...`)
     setError(null)
     try {
+      const ffmpeg = await tryLoadFfmpeg()
+      const wavBlobs: { blob: Blob; name: string }[] = []
+      for (let i = 0; i < valid.length; i++) {
+        const c = valid[i]
+        if (!c.blob.type || (!c.blob.type.includes('audio/webm') && !c.blob.type.includes('audio/ogg'))) {
+          throw new Error(`第 ${i + 1} 条音频格式不支持: ${c.blob.type || '未知'}`)
+        }
+        let wavBlob: Blob
+        if (ffmpeg) {
+          // 若 ffmpeg.wasm 可用,应走 ffmpeg 转码(当前未安装,预留)
+          throw new Error('ffmpeg 转码未实现')
+        } else {
+          wavBlob = await convertClipToWav(c)
+        }
+        wavBlobs.push({
+          blob: wavBlob,
+          name: `小月_${String(i + 1).padStart(3, '0')}.wav`,
+        })
+      }
+      setTrainStatus(`上传 ${valid.length} 条样本...`)
       const fd = new FormData()
-      valid.forEach((c, i) => {
-        // 把 webm 改成 wav 后缀(后端不做转码, 直接存)
-        // TODO: 实际应前端 ffmpeg.wasm 转 wav
-        fd.append('files', c.blob, `小月_${String(i + 1).padStart(3, '0')}.webm`)
+      wavBlobs.forEach(({ blob, name }) => {
+        fd.append('files', blob, name)
       })
       const r = await fetch('/api/train-wake-word', { method: 'POST', body: fd })
       const data = await r.json()
@@ -218,7 +314,7 @@ export default function RecordWakePage() {
         })
       }
     } catch (e: any) {
-      setError(`请求失败: ${e.message}`)
+      setError(`处理失败: ${e.message}`)
       setTrainStatus(null)
     } finally {
       setIsTraining(false)

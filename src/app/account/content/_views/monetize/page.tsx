@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
@@ -23,6 +24,7 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 
 export default function MonetizePage() {
+  const router = useRouter();
   const query = useQuery({
     queryKey: ['account', 'monetize', 'summary'],
     queryFn: () => getCreatorMonetizeSummary().then((r) => r.data),
@@ -66,6 +68,7 @@ export default function MonetizePage() {
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
                 <Typography sx={{ fontSize: 16, fontWeight: 600, color: 'text.primary', flex: 1 }}>收益总览</Typography>
                 <Box
+                  onClick={() => router.push('/account/orders')}
                   sx={{
                     display: 'flex',
                     alignItems: 'center',

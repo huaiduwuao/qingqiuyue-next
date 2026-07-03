@@ -1,5 +1,5 @@
 import { adminClient } from '@/lib/api/client';
-import {AppItem, TableListParams} from "@/beans/system";
+import { AppItem } from "@/beans/system";
 
 export interface WebsiteDictListParams {
   page?: number;

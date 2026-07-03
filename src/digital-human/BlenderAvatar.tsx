@@ -40,7 +40,10 @@ import { Box, CircularProgress, Typography } from '@mui/material';
 //   "Unexpected import of module ... which was deleted by an HMR update"
 // 导致整个 BlenderAvatar 组件挂掉, VRM 不动 → T-pose
 import * as THREE_VRM from '@pixiv/three-vrm';
-const { VRMLoaderPlugin, VRMUtils, VRMHumanBoneName } = THREE_VRM;
+const { VRMLoaderPlugin, VRMHumanBoneName } = THREE_VRM;
+
+// 注: three.js / VRM 对象在运行时动态加载, 很多内部类型无法静态精确表达;
+// 本文件里保留的 `any` 仅用于胶水代码, 不影响业务行为。
 
 // VRM 表情名字映射(我们 LLM/Mock 用的 12 个 → VRM 表情管理器的标准名字)
 // VRM 0.0 标准表情名 = ARKit Blendshape 1:1 映射
@@ -121,7 +124,6 @@ async function loadAvatar(url: string): Promise<Cached> {
     if (!url.endsWith('.vrm')) {
       throw new Error(`BlenderAvatar 现在只支持 .vrm 格式(${url} 不是)。请把角色放到 public/avatars/character.vrm`);
     }
-    const THREE = await import('three');
     const res = await fetch(url);
     if (!res.ok) throw new Error(`fetch ${url} failed: ${res.status}`);
     const buf = new Uint8Array(await res.arrayBuffer());
@@ -189,10 +191,11 @@ export default function BlenderAvatar({
   const loadedRef = React.useRef<Cached | null>(null);
   const mixerRef = React.useRef<any>(null);
   const rafRef = React.useRef<number | null>(null);
-  const rotationRef = React.useRef(0);
   // 用 ref 跟踪 currentAction, 避免 frame 闭包过期
   const currentActionRef = React.useRef(currentAction);
-  currentActionRef.current = currentAction;
+  React.useEffect(() => {
+    currentActionRef.current = currentAction;
+  }, [currentAction]);
   // 鼠标位置(让数字人头部跟随, 看着用户)
   const mouseRef = React.useRef<{ x: number; y: number }>({ x: 0, y: 0 })
   const [error, setError] = React.useState<string | null>(null);
@@ -202,8 +205,8 @@ export default function BlenderAvatar({
   React.useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    let onMouseMove: ((e: MouseEvent) => void) | null = null;
     let cancelled = false;
+    let onMouseMove: ((e: MouseEvent) => void) | null = null;
 
     (async () => {
       try {
@@ -243,7 +246,7 @@ export default function BlenderAvatar({
           console.log('[BlenderAvatar] 开始加载 VRM:', modelUrl);
           loaded = await loadAvatar(modelUrl);
           console.log('[BlenderAvatar] 加载成功,animations=', loaded.animations.length);
-        } catch (e1: any) {
+        } catch (e1: unknown) {
           throw e1;
         }
         if (cancelled) return;
@@ -258,9 +261,9 @@ export default function BlenderAvatar({
         // 动画 mixer(VRM 通常没内置动画,这里只是 placeholder)
         if (loaded.animations.length > 0) {
           const { AnimationMixer } = THREE as any;
-          const mixer = new THREE.AnimationMixer(loaded.scene);
+          const mixer = new AnimationMixer(loaded.scene);
           mixerRef.current = mixer;
-          const clip = loaded.animations.find((a: any) => a.name === currentAction) || loaded.animations[0];
+          const clip = loaded.animations[0];
           if (clip) mixer.clipAction(clip).play();
         }
 
@@ -309,17 +312,17 @@ export default function BlenderAvatar({
         rafRef.current = requestAnimationFrame(frame);
 
         // 鼠标位置跟踪(让数字人头部跟着鼠标转, 像在"看"用户)
-        const onMouseMove = (e: MouseEvent) => {
+        onMouseMove = (e: MouseEvent) => {
           // 归一化到 [-1, 1] (屏幕中心 = 0,0)
           const x = (e.clientX / window.innerWidth) * 2 - 1
           const y = (e.clientY / window.innerHeight) * 2 - 1
           mouseRef.current = { x, y }
         }
         window.addEventListener('mousemove', onMouseMove)
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (cancelled) return;
         console.error('[BlenderAvatar] init failed:', err);
-        setError(err?.message || 'init failed');
+        setError((err as Error)?.message || 'init failed');
         setLoading(false);
       }
     })();

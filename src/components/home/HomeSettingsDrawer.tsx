@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
@@ -17,6 +17,8 @@ import HelpOutlineRoundedIcon from '@mui/icons-material/HelpOutlineRounded';
 import HeadsetMicRoundedIcon from '@mui/icons-material/HeadsetMicRounded';
 import NotificationsActiveRoundedIcon from '@mui/icons-material/NotificationsActiveRounded';
 import { useThemeMode, PRESET_COLORS } from '@/contexts/ThemeContext';
+import { useApp } from '@/contexts/AppContext';
+import { updateUser } from '@/apis/account';
 import { useHomeSettings } from '@/hooks/useHomeSettings';
 
 interface Props {
@@ -139,7 +141,15 @@ const FAQ: { q: string; a: string }[] = [
 export function HomeSettingsDrawer({ open, onClose }: Props) {
   const { mode, setTheme, primaryColor, setPrimaryColor } = useThemeMode();
   const { settings, update, reset } = useHomeSettings();
+  const { currentUser } = useApp();
   const isDark = mode === 'dark';
+
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    updateUser({ homeSettings: settings }).catch(() => {
+      // 偏好同步失败时仍以本地存储为准,避免打扰用户
+    });
+  }, [settings, currentUser?.id]);
 
   return (
     <Drawer anchor="right" open={open} onClose={onClose}>

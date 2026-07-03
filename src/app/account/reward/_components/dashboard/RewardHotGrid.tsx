@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
@@ -118,6 +119,8 @@ const CATEGORY_COLOR: Record<string, string> = {
 };
 
 export default function RewardHotGrid() {
+  const router = useRouter();
+
   return (
     <Box
       sx={{
@@ -147,6 +150,7 @@ export default function RewardHotGrid() {
           </Box>
         </Box>
         <Box
+          onClick={() => router.push('/account/reward/list')}
           sx={{
             display: 'flex',
             alignItems: 'center',
@@ -171,6 +175,7 @@ export default function RewardHotGrid() {
         {HOT_BOUNTIES.map((b) => (
           <Box
             key={b.id}
+            onClick={() => router.push(`/account/reward/detail?id=${b.id}`)}
             sx={{
               position: 'relative',
               borderRadius: 1.5,

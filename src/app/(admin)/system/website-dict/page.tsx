@@ -23,12 +23,20 @@ import type { GridColDef } from '@mui/x-data-grid';
 
 const LIST_KEY = ['system', 'website-dict'];
 
+interface WebsiteDictRecord {
+  id?: number;
+  sitename?: string;
+  dictTypeName?: string;
+  dictDataValue?: string;
+  updateTime?: string;
+}
+
 export default function SystemWebsiteDictPage() {
   const qc = useQueryClient();
   const [writeVisible, setWriteVisible] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState<any>(null);
-  const [formValues, setFormValues] = useState<any>({});
-  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
+  const [selectedRecord, setSelectedRecord] = useState<WebsiteDictRecord | null>(null);
+  const [formValues, setFormValues] = useState<WebsiteDictRecord>({});
+  const [filterValues, setFilterValues] = useState<Record<string, string | number | undefined>>({});
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
 
   const showMessage = (message: string, severity: 'success' | 'error' = 'success') => setSnackbar({ open: true, message, severity });
@@ -38,22 +46,22 @@ export default function SystemWebsiteDictPage() {
   const deleteMutation = useMutation({
     mutationFn: (ids: number[]) => remove(ids),
     onSuccess: () => { showMessage('删除成功'); invalidate(); },
-    onError: (err: any) => showMessage(err.message || '删除失败', 'error'),
+    onError: (err: unknown) => showMessage(err instanceof Error ? err.message : '删除失败', 'error'),
   });
 
   const saveMutation = useMutation({
-    mutationFn: (vals: any) => save(vals),
+    mutationFn: (vals: WebsiteDictRecord) => save(vals),
     onSuccess: () => { showMessage('创建成功'); setWriteVisible(false); invalidate(); },
-    onError: (err: any) => showMessage(err.message || '创建失败', 'error'),
+    onError: (err: unknown) => showMessage(err instanceof Error ? err.message : '创建失败', 'error'),
   });
 
   const updateMutation = useMutation({
-    mutationFn: (vals: any) => update(vals),
+    mutationFn: (vals: WebsiteDictRecord) => update(vals),
     onSuccess: () => { showMessage('更新成功'); setWriteVisible(false); invalidate(); },
-    onError: (err: any) => showMessage(err.message || '更新失败', 'error'),
+    onError: (err: unknown) => showMessage(err instanceof Error ? err.message : '更新失败', 'error'),
   });
 
-  const handleEdit = (record: any) => {
+  const handleEdit = (record: WebsiteDictRecord) => {
     setSelectedRecord(record);
     setFormValues({
       sitename: record?.sitename || '',
@@ -63,9 +71,9 @@ export default function SystemWebsiteDictPage() {
     setWriteVisible(true);
   };
 
-  const handleDelete = (record: any) => {
+  const handleDelete = (record: WebsiteDictRecord) => {
     if (!confirm('确定删除吗？')) return;
-    deleteMutation.mutate([record.id]);
+    if (record.id) deleteMutation.mutate([record.id]);
   };
 
   const handleSubmit = () => {
@@ -76,8 +84,8 @@ export default function SystemWebsiteDictPage() {
     }
   };
 
-  const handleFormChange = (field: string, value: any) => {
-    setFormValues((prev: any) => ({ ...prev, [field]: value }));
+  const handleFormChange = (field: keyof WebsiteDictRecord, value: string) => {
+    setFormValues((prev: WebsiteDictRecord) => ({ ...prev, [field]: value }));
   };
 
   const isSubmitting = saveMutation.isPending || updateMutation.isPending;
@@ -95,6 +103,9 @@ export default function SystemWebsiteDictPage() {
       disableColumnMenu: true,
       renderCell: (params) => (
         <Box sx={{ display: 'flex', gap: 0.5 }}>
+          <Tooltip title="编辑">
+            <IconButton size="small" onClick={() => handleEdit(params.row)}><EditIcon /></IconButton>
+          </Tooltip>
           <Tooltip title="删除">
             <IconButton size="small" color="error" onClick={() => handleDelete(params.row)}><DeleteIcon /></IconButton>
           </Tooltip>

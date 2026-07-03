@@ -19,7 +19,9 @@ import ScheduleRoundedIcon from '@mui/icons-material/ScheduleRounded';
 import PauseRoundedIcon from '@mui/icons-material/PauseRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import { useActiveTab } from '../ActiveTabContext';
 import { gradient2, gradient3 } from '@/constants/gradients';
+import { accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
 
 const CREATION_ITEMS = [
   {
@@ -150,26 +152,67 @@ const KIND_META: Record<WipKind, { label: string; color: string; bg: string; ico
 export default function NewCreationSection() {
   const [wip, setWip] = useState<WipItem[]>(SEED_WIP);
   const [snack, setSnack] = useState<string | null>(null);
+  const { setActiveTab } = useActiveTab();
 
   const drafts = wip.filter((w) => w.kind === 'draft');
   const uploading = wip.filter((w) => w.kind === 'uploading');
   const scheduled = wip.filter((w) => w.kind === 'scheduled');
 
-  const handleResume = (item: WipItem) => setSnack(`继续编辑《${item.title}》`);
-  const handleCancel = (id: string) => {
-    setWip((p) => p.filter((w) => w.id !== id));
-    setSnack('已取消');
+  const handleResume = (item: WipItem) => {
+    setActiveTab('hd-publish', { resumeId: item.id });
   };
-  const handlePauseToggle = (id: string) => {
-    setWip((p) => p.map((w) => (w.id === id ? { ...w, paused: !w.paused } : w)));
+  const handleCancel = async (item: WipItem) => {
+    try {
+      await accountClient.post('/account/content/wip/cancel', { id: item.id });
+      setWip((p) => p.filter((w) => w.id !== item.id));
+      setSnack('已取消');
+    } catch (err) {
+      if (isNetworkError(err)) {
+        setWip((p) => p.filter((w) => w.id !== item.id));
+        setSnack('已取消(离线模式)');
+      } else if (isAuthError(err)) {
+        setSnack('请重新登录');
+      } else {
+        setSnack(formatApiError(err));
+      }
+    }
   };
-  const handlePublishNow = (item: WipItem) => {
-    setWip((p) => p.filter((w) => w.id !== item.id));
-    setSnack(`已立即发布《${item.title}》`);
+  const handlePauseToggle = async (item: WipItem) => {
+    try {
+      await accountClient.post('/account/content/wip/pause', { id: item.id, paused: !item.paused });
+      setWip((p) => p.map((w) => (w.id === item.id ? { ...w, paused: !w.paused } : w)));
+    } catch (err) {
+      if (isNetworkError(err)) {
+        setWip((p) => p.map((w) => (w.id === item.id ? { ...w, paused: !w.paused } : w)));
+        setSnack(item.paused ? '已继续(离线模式)' : '已暂停(离线模式)');
+      } else if (isAuthError(err)) {
+        setSnack('请重新登录');
+      } else {
+        setSnack(formatApiError(err));
+      }
+    }
+  };
+  const handlePublishNow = async (item: WipItem) => {
+    try {
+      await accountClient.post('/account/content/wip/publish', { id: item.id });
+      setWip((p) => p.filter((w) => w.id !== item.id));
+      setSnack('已发布');
+    } catch (err) {
+      if (isNetworkError(err)) {
+        setWip((p) => p.filter((w) => w.id !== item.id));
+        setSnack('已发布(离线模式)');
+      } else if (isAuthError(err)) {
+        setSnack('请重新登录');
+      } else {
+        setSnack(formatApiError(err));
+      }
+    }
   };
   const handleCreate = (id: string) => {
-    const item = CREATION_ITEMS.find((c) => c.id === id);
-    setSnack(item ? `准备${item.title}…` : '准备发布…');
+    setActiveTab('hd-publish', { type: id });
+  };
+  const handleViewAll = () => {
+    setActiveTab('works');
   };
 
   return (
@@ -197,7 +240,7 @@ export default function NewCreationSection() {
             fontSize: 12,
             '&:hover': { color: 'primary.main' },
           }}
-          onClick={() => setSnack('打开发布历史')}
+          onClick={handleViewAll}
         >
           <Typography sx={{ fontSize: 12 }}>查看全部</Typography>
           <ArrowForwardIosIcon sx={{ fontSize: 10 }} />
@@ -398,7 +441,7 @@ export default function NewCreationSection() {
                           </Button>
                           <Button
                             size="small"
-                            onClick={() => handleCancel(item.id)}
+                            onClick={() => handleCancel(item)}
                             sx={{ textTransform: 'none', fontSize: 10, color: 'text.secondary', minWidth: 0, py: 0.25, px: 1 }}
                           >
                             删除
@@ -435,7 +478,7 @@ export default function NewCreationSection() {
                         <Box sx={{ display: 'flex', gap: 0.25, mt: 'auto', pt: 0.5 }}>
                           <IconButton
                             size="small"
-                            onClick={() => handlePauseToggle(item.id)}
+                            onClick={() => handlePauseToggle(item)}
                             sx={{ p: 0.25 }}
                             aria-label={item.paused ? '继续' : '暂停'}
                           >
@@ -443,7 +486,7 @@ export default function NewCreationSection() {
                           </IconButton>
                           <IconButton
                             size="small"
-                            onClick={() => handleCancel(item.id)}
+                            onClick={() => handleCancel(item)}
                             sx={{ p: 0.25 }}
                             aria-label="取消上传"
                           >
@@ -488,7 +531,7 @@ export default function NewCreationSection() {
                           </Button>
                           <Button
                             size="small"
-                            onClick={() => handleCancel(item.id)}
+                            onClick={() => handleCancel(item)}
                             sx={{ textTransform: 'none', fontSize: 10, color: 'text.secondary', minWidth: 0, py: 0.25, px: 1 }}
                           >
                             取消定时

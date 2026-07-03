@@ -1,11 +1,14 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Tooltip from '@mui/material/Tooltip';
+import Snackbar from '@mui/material/Snackbar';
 import { alpha } from '@mui/material/styles';
+import { useActiveTab } from '../ActiveTabContext';
 import VerifiedIcon from '@mui/icons-material/Verified';
+import { useRouter } from 'next/navigation';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
 import StarIcon from '@mui/icons-material/Star';
 import EditIcon from '@mui/icons-material/Edit';
@@ -14,6 +17,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import { gradient2, gradient3, DARK_BG } from '@/constants/gradients';
 
 const PROFILE = {
+  userId: 1,
   nickname: '清秋月月鸟',
   douyinId: 'qingqiuyue',
   avatar: '',
@@ -44,6 +48,24 @@ function formatCount(n: number): string {
 }
 
 export default function CreatorProfileHeader() {
+  const router = useRouter();
+  const { setActiveTab } = useActiveTab();
+  const [snack, setSnack] = useState<string | null>(null);
+
+  const handleEdit = () => router.push('/account/settings');
+  const handleCreatorSettings = () => router.push('/account/settings');
+  const handleStats = () => setActiveTab('data');
+
+  const handleShare = async () => {
+    const url = `${window.location.origin}/u/${PROFILE.userId}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setSnack('主页链接已复制');
+    } catch {
+      setSnack('复制失败，请手动复制');
+    }
+  };
+
   return (
     <Box
       sx={{
@@ -204,6 +226,7 @@ export default function CreatorProfileHeader() {
         {/* Action buttons */}
         <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
           <Box
+            onClick={handleEdit}
             sx={{
               display: { xs: 'none', sm: 'inline-flex' },
               alignItems: 'center',
@@ -226,6 +249,7 @@ export default function CreatorProfileHeader() {
             <span>编辑资料</span>
           </Box>
           <Box
+            onClick={handleShare}
             sx={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -248,6 +272,7 @@ export default function CreatorProfileHeader() {
             <span>分享主页</span>
           </Box>
           <Box
+            onClick={handleCreatorSettings}
             sx={{
               display: { xs: 'none', md: 'inline-flex' },
               alignItems: 'center',
@@ -288,6 +313,7 @@ export default function CreatorProfileHeader() {
         {STATS.map((s, i) => (
           <Box
             key={s.id}
+            onClick={handleStats}
             sx={{
               textAlign: 'center',
               cursor: 'pointer',
@@ -304,6 +330,14 @@ export default function CreatorProfileHeader() {
           </Box>
         ))}
       </Box>
+
+      <Snackbar
+        open={!!snack}
+        autoHideDuration={2200}
+        onClose={() => setSnack(null)}
+        message={snack}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
     </Box>
   );
 }

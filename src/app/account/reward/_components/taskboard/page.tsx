@@ -534,7 +534,7 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
           ))}
         </Box>
         <DragOverlay>
-          {activeTask && <TaskCard task={activeTask} onClick={() => {}} isOverlay />}
+          {activeTask && <TaskCard task={activeTask} isOverlay />}
         </DragOverlay>
       </DndContext>
 

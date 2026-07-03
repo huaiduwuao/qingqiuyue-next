@@ -16,7 +16,6 @@ import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import { alpha } from '@mui/material/styles';
 import { claimTask, submitTask, reviewTask } from '@/apis/reward-task';
-import { useApp } from '@/contexts/AppContext';
 import type { RewardTask, RewardTaskStatus } from '@/beans/reward';
 
 const STATUS_LABEL: Record<RewardTaskStatus, string> = {

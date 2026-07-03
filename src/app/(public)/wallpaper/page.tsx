@@ -12,8 +12,9 @@ import Divider from '@mui/material/Divider';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import Dialog from '@mui/material/Dialog';
+import Skeleton from '@mui/material/Skeleton';
+import CircularProgress from '@mui/material/CircularProgress';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
@@ -24,9 +25,11 @@ import PhoneIphoneIcon from '@mui/icons-material/PhoneIphone';
 import HomeIcon from '@mui/icons-material/Home';
 import PersonIcon from '@mui/icons-material/Person';
 import StarIcon from '@mui/icons-material/Star';
-import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import { useApp } from '@/contexts/AppContext';
+import { updateUser } from '@/apis/account';
+import { contentClient, accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
 import { ACCENT } from '@/constants/accents';
-import { CTA_GRADIENT, gradient2, gradient3 } from '@/constants/gradients';
+import { CTA_GRADIENT, gradient2 } from '@/constants/gradients';
 
 // 壁纸域占位:后端 `/api/core/wallpaper/*` 就绪后,以下数据/类型替换为 API 调用
 type WallpaperCategory = 'abstract' | 'anime' | 'scenery' | 'stars' | 'minimal' | 'cyber';
@@ -82,6 +85,7 @@ const SIZE_ICON: Record<Wallpaper['sizes'][number], { Icon: React.ComponentType<
 
 export default function WallpaperPage() {
   const router = useRouter();
+  const { currentUser } = useApp();
   const [activeCat, setActiveCat] = useState<WallpaperCategory | 'all'>('all');
   const [sort, setSort] = useState<'new' | 'hot' | 'size'>('hot');
   const [favorites, setFavorites] = useState<Set<string>>(new Set(['w006', 'w009']));
@@ -89,19 +93,74 @@ export default function WallpaperPage() {
   const [detail, setDetail] = useState<Wallpaper | null>(null);
   const [toast, setToast] = useState<{ open: boolean; msg: string }>({ open: false, msg: '' });
 
+  // 真实 API:加载壁纸分类 + 列表
+  const [categories, setCategories] = useState<Array<{ key: WallpaperCategory; label: string; sub: string; accent: string }>>(WALLPAPER_CATEGORIES);
+  const [wallpapers, setWallpapers] = useState<Wallpaper[]>(WALLPAPERS);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        let payload: { categories?: any[]; items?: any[] };
+        try {
+          const apiRes = await contentClient.get<{ categories: any[]; items: any[] }>('/wallpaper/list');
+          payload = apiRes.data ?? (apiRes as any);
+        } catch (err) {
+          // 网络层失败 → 保持空数组 + 提示
+          if (isNetworkError(err)) {
+            if (!cancelled) {
+              setCategories([]);
+              setWallpapers([]);
+              setToast({ open: true, msg: '网络异常,壁纸库暂不可用' });
+            }
+            return;
+          }
+          throw err;
+        }
+        if (cancelled) return;
+        const cats = (payload.categories ?? []).map((c: any) => ({
+          key: (c.key ?? c.id) as WallpaperCategory,
+          label: String(c.label ?? c.name ?? c.key ?? ''),
+          sub: String(c.sub ?? c.subtitle ?? ''),
+          accent: String(c.accent ?? '#8B5CF6'),
+        }));
+        const items = (payload.items ?? []) as Wallpaper[];
+        setCategories(cats);
+        setWallpapers(items);
+      } catch (err) {
+        if (!cancelled) {
+          if (isAuthError(err)) {
+            setToast({ open: true, msg: '登录已过期,请重新登录' });
+          } else {
+            setToast({ open: true, msg: formatApiError(err) || '加载壁纸失败' });
+          }
+          setCategories([]);
+          setWallpapers([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const currentApplied = myWallpapers.find((m) => m.appliedTo === 'home');
   const currentWallpaper = useMemo(
-    () => WALLPAPERS.find((w) => w.id === currentApplied?.id) ?? WALLPAPERS[0],
-    [currentApplied],
+    () => wallpapers.find((w) => w.id === currentApplied?.id) ?? wallpapers[0],
+    [currentApplied, wallpapers],
   );
 
   const filtered = useMemo(() => {
-    let list = activeCat === 'all' ? WALLPAPERS : WALLPAPERS.filter((w) => w.category === activeCat);
+    let list = activeCat === 'all' ? wallpapers : wallpapers.filter((w) => w.category === activeCat);
     if (sort === 'new') list = [...list].sort((a, b) => +new Date(b.releaseTime) - +new Date(a.releaseTime));
     if (sort === 'hot') list = [...list].sort((a, b) => b.usage - a.usage);
     if (sort === 'size') list = [...list].sort((a, b) => b.sizeMb - a.sizeMb);
     return list;
-  }, [activeCat, sort]);
+  }, [activeCat, sort, wallpapers]);
 
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) {
@@ -111,33 +170,103 @@ export default function WallpaperPage() {
     }
   };
 
-  const toggleFavorite = (id: string) => {
-    setFavorites((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  const toggleFavorite = async (id: string) => {
+    const next = new Set(favorites);
+    const adding = !next.has(id);
+    if (adding) next.add(id);
+    else next.delete(id);
+    setFavorites(next);
+    if (!currentUser?.id) {
+      setToast({ open: true, msg: '请先登录后收藏壁纸' });
+      return;
+    }
+    try {
+      await updateUser({ favoriteWallpapers: Array.from(next) });
+      setToast({ open: true, msg: adding ? '已收藏' : '已取消收藏' });
+    } catch (err) {
+      setToast({ open: true, msg: formatApiError(err) });
+    }
   };
 
-  const handleApply = (wp: Wallpaper, target: 'home' | 'account') => {
-    setMyWallpapers((prev) => {
-      const next = prev.filter((m) => m.appliedTo !== target);
-      const existing = prev.find((m) => m.id === wp.id);
-      if (existing) {
-        return [{ ...existing, appliedTo: target, setAt: new Date().toISOString() }, ...next];
+  const handleApply = async (wp: Wallpaper, target: 'home' | 'account') => {
+    const cleared = myWallpapers.filter((m) => m.appliedTo !== target);
+    const existing = myWallpapers.find((m) => m.id === wp.id);
+    const updated: MyWallpaper = existing
+      ? { ...existing, appliedTo: target, setAt: new Date().toISOString() }
+      : { id: wp.id, appliedTo: target, setAt: new Date().toISOString() };
+    setMyWallpapers([updated, ...cleared]);
+    if (!currentUser?.id) {
+      setToast({ open: true, msg: '请先登录后应用壁纸' });
+      return;
+    }
+    try {
+      await updateUser({ [target === 'home' ? 'homeWallpaper' : 'profileWallpaper']: wp.id });
+      setToast({ open: true, msg: `已设为${target === 'home' ? '主页' : '个人中心'}背景` });
+    } catch (err) {
+      setToast({ open: true, msg: formatApiError(err) });
+    }
+  };
+
+  const handleSave = async (wp: Wallpaper) => {
+    if (myWallpapers.find((m) => m.id === wp.id)) {
+      setToast({ open: true, msg: '该壁纸已在「我的壁纸」中' });
+      return;
+    }
+    const next: MyWallpaper[] = [{ id: wp.id, appliedTo: 'none', setAt: new Date().toISOString() }, ...myWallpapers];
+    setMyWallpapers(next);
+    if (!currentUser?.id) {
+      setToast({ open: true, msg: '请先登录后保存壁纸' });
+      return;
+    }
+    try {
+      await updateUser({ savedWallpapers: next.map((m) => m.id) });
+      setToast({ open: true, msg: `已收藏《${wp.title}》` });
+    } catch (err) {
+      setToast({ open: true, msg: formatApiError(err) });
+    }
+  };
+
+  // 真实 API:下载壁纸
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const handleDownload = async (wp: Wallpaper) => {
+    if (downloading) return;
+    setDownloading(wp.id);
+    try {
+      let res: { url?: string; filename?: string } = {};
+      try {
+        const apiRes = await accountClient.post<typeof res>('/wallpaper/download', { id: wp.id });
+        res = apiRes.data ?? (apiRes as any);
+      } catch (err) {
+        // 网络错时 fallback 到直接打开预览(仅前端演示,非真实下载)
+        if (isNetworkError(err)) {
+          if (typeof window !== 'undefined' && wp.bg) {
+            window.open(wp.bg, '_blank');
+          }
+          setToast({ open: true, msg: '网络异常,已打开预览图' });
+          return;
+        }
+        throw err;
       }
-      return [{ id: wp.id, appliedTo: target, setAt: new Date().toISOString() }, ...next];
-    });
-    setToast({ open: true, msg: `已设为${target === 'home' ? '主页' : '个人中心'}背景` });
-  };
-
-  const handleSave = (wp: Wallpaper) => {
-    setMyWallpapers((prev) => {
-      if (prev.find((m) => m.id === wp.id)) return prev;
-      return [{ id: wp.id, appliedTo: 'none', setAt: new Date().toISOString() }, ...prev];
-    });
-    setToast({ open: true, msg: `已收藏《${wp.title}》` });
+      if (res.url && typeof window !== 'undefined') {
+        const a = document.createElement('a');
+        a.href = res.url;
+        a.download = res.filename ?? `${wp.title}.png`;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
+      setToast({ open: true, msg: `已下载《${wp.title}》` });
+    } catch (err) {
+      if (isAuthError(err)) {
+        setToast({ open: true, msg: '登录已过期,请重新登录' });
+      } else {
+        setToast({ open: true, msg: formatApiError(err) || '下载失败' });
+      }
+    } finally {
+      setDownloading(null);
+    }
   };
 
   if (!currentWallpaper) {

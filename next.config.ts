@@ -39,7 +39,7 @@ const nextConfig: NextConfig = {
       };
       config.externals = [
         ...(config.externals || []),
-        // @ts-ignore - pg 家族包类型在 webpack 文档里没声明
+        // @ts-expect-error - pg 家族包类型在 webpack 文档里没声明
         function externalPgOrDrizzle(request, callback) {
           if (
             request === 'pg' ||
@@ -88,7 +88,7 @@ const nextConfig: NextConfig = {
         { source: '/logs/:path*', destination: '/logs-stub/:path*' },
       ];
     }
-    const target = process.env.API_PROXY_TARGET;
+    const target = API_PROXY_TARGET;
     return [
       pipelineNoop,
       // audio 网关代理 (/api/audio/* → audio-gateway :8001),

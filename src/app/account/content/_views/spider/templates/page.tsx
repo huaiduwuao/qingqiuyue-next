@@ -20,17 +20,14 @@ import Divider from '@mui/material/Divider';
 import Paper from '@mui/material/Paper';
 import CircularProgress from '@mui/material/CircularProgress';
 import { DataGridTable } from '@/components/tables/DataGridTable';
-import {
-  listTemplates,
+import { listTemplates,
   createTemplate,
   updateTemplate,
   deleteTemplate,
   getTemplateDetail,
   addTemplateAttr,
-  updateTemplateAttr,
   deleteTemplateAttr,
-  autoGenerateTemplate,
-} from '@/apis/spider';
+  autoGenerateTemplate } from '@/apis/spider';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';

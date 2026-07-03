@@ -175,7 +175,7 @@ export default function MobileNavDrawer({ open, onClose, pages, currentPath }: P
 
           <Box
             component={Link}
-            href="/home/recommend"
+            href="/home/recommend?tab=home"
             onClick={onClose}
             sx={{
               display: 'flex',

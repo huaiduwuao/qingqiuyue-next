@@ -12,6 +12,8 @@ import MovieIcon from '@mui/icons-material/Movie';
 import ImageIcon from '@mui/icons-material/Image';
 import VideocamIcon from '@mui/icons-material/Videocam';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
+import { useRouter } from 'next/navigation';
+import { getDetailRoute } from '@/lib/contentRoute';
 import { gradient2, gradient3, CTA_GRADIENT } from '@/constants/gradients';
 
 interface Item {
@@ -112,10 +114,23 @@ function formatCount(n: number): string {
   return n.toString();
 }
 
+const typeToContentType = (type: Item['type']): string => {
+  if (type === 'video') return 'VIDEO';
+  if (type === 'image') return 'ARTICLE';
+  return 'LIVE';
+};
+
 const RANK_COLORS = ['primary.main', '#FF6B8A', 'warning.main', 'secondary.light', 'text.disabled'];
 
 export default function TopPerformingContent() {
+  const router = useRouter();
   const [expanded, setExpanded] = useState<number | null>(1);
+
+  const handleClick = (item: Item) => {
+    const route = getDetailRoute(typeToContentType(item.type), item.id);
+    if (route) router.push(route);
+    else setExpanded(expanded === item.id ? null : item.id);
+  };
 
   return (
     <Box
@@ -147,7 +162,7 @@ export default function TopPerformingContent() {
           return (
             <Box
               key={item.id}
-              onClick={() => setExpanded(isOpen ? null : item.id)}
+              onClick={() => handleClick(item)}
               sx={{
                 display: 'flex',
                 gap: 1.5,

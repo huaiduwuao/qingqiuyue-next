@@ -2,10 +2,15 @@
 
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
 import Button from '@mui/material/Button';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import CampaignIcon from '@mui/icons-material/Campaign';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -19,6 +24,7 @@ interface NoticeItem {
   content: string;
   time: string;
   read: boolean;
+  link?: string;
 }
 
 const TYPE_COLORS: Record<NoticeItem['type'], string> = {
@@ -36,7 +42,9 @@ const TYPE_LABELS: Record<NoticeItem['type'], string> = {
 };
 
 export default function NotificationsPage() {
+  const router = useRouter();
   const [filter, setFilter] = useState<'all' | 'unread'>('all');
+  const [detail, setDetail] = useState<NoticeItem | null>(null);
   const queryClient = useQueryClient();
 
   const { data: notices = [] } = useQuery({
@@ -49,12 +57,27 @@ export default function NotificationsPage() {
   const visible = filter === 'unread' ? notices.filter((n) => !n.read) : notices;
   const unreadCount = notices.filter((n) => !n.read).length;
 
-  const markAllRead = () => {
+  const markAllRead = async () => {
+    try {
+      await adminClient('/notice/system/readAll', { method: 'POST' });
+    } catch {
+      // ignore error
+    }
     queryClient.setQueryData(['notifications', 'client'], (prev: any) => {
       if (!prev) return prev;
       return prev.map((n: NoticeItem) => ({ ...n, read: true }));
     });
   };
+
+  const handleRowClick = (item: NoticeItem) => {
+    if (item.link) {
+      router.push(item.link);
+    } else {
+      setDetail(item);
+    }
+  };
+
+  const closeDetail = () => setDetail(null);
 
   return (
     <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5, maxWidth: 900, mx: 'auto' }}>
@@ -119,6 +142,7 @@ export default function NotificationsPage() {
                   '&:hover': { bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover' },
                   ...(n.read ? {} : { borderLeft: '3px solid #FE2C55' }),
                 }}
+                onClick={() => handleRowClick(n)}
               >
                 <Box
                   sx={{
@@ -165,6 +189,20 @@ export default function NotificationsPage() {
           })
         )}
       </Box>
+
+      <Dialog open={!!detail} onClose={closeDetail} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: 15, fontWeight: 700 }}>{detail ? detail.title : ""}</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: 13, color: 'text.secondary', lineHeight: 1.7 }}>{detail ? detail.content : ""}</Typography>
+          <Typography sx={{ fontSize: 11, color: 'text.disabled', mt: 1 }}>{detail ? detail.time : ""}</Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          {detail && detail.link && (
+            <Button onClick={() => { closeDetail(); router.push(detail.link!); }} sx={{ textTransform: 'none' }}>查看详情</Button>
+          )}
+          <Button onClick={closeDetail} sx={{ textTransform: 'none' }}>关闭</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

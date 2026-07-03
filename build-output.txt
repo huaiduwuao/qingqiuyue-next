@@ -1,0 +1,128 @@
+
+> qingqiuyue-next@0.1.0 build
+> next build --webpack
+
+▲ Next.js 16.2.3 (webpack)
+- Environments: .env.local
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 5.1s
+  Running TypeScript ...
+  Finished TypeScript in 12.9s ...
+  Collecting page data using 19 workers ...
+  Generating static pages using 19 workers (0/59) ...
+  Generating static pages using 19 workers (14/59) 
+  Generating static pages using 19 workers (29/59) 
+  Generating static pages using 19 workers (44/59) 
+✓ Generating static pages using 19 workers (59/59) in 752ms
+  Finalizing page optimization ...
+  Collecting build traces ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ○ /(main/)/generate/video
+├ ○ /account/center
+├ ○ /account/content
+├ ○ /account/content/works
+├ ○ /account/msg
+├ ○ /account/orders
+├ ○ /account/reward
+├ ○ /account/settings
+├ ○ /account/vip
+├ ○ /account/wallet
+├ ƒ /api/admin/agents
+├ ƒ /api/agents
+├ ƒ /api/artifacts/[...key]
+├ ƒ /api/audio/[...path]
+├ ƒ /api/avatar/asr
+├ ƒ /api/avatar/chat
+├ ƒ /api/avatar/pipeline/jobs
+├ ƒ /api/avatar/pipeline/jobs/[jobId]
+├ ƒ /api/avatar/pipeline/jobs/[jobId]/artifacts/[...path]
+├ ƒ /api/avatar/pipeline/jobs/[jobId]/deploy
+├ ƒ /api/avatar/pipeline/jobs/[jobId]/events
+├ ƒ /api/avatar/pipeline/jobs/[jobId]/start
+├ ƒ /api/avatar/pipeline/library
+├ ƒ /api/tasks
+├ ƒ /api/tasks/[taskId]
+├ ƒ /api/tasks/[taskId]/events
+├ ƒ /api/train-wake-word
+├ ƒ /api/video/generate
+├ ○ /avatar-pipeline
+├ ○ /crawled
+├ ƒ /detail/animation-detail
+├ ƒ /detail/article-detail
+├ ƒ /detail/comics-detail
+├ ƒ /detail/film-detail
+├ ƒ /detail/live-detail
+├ ƒ /detail/music-detail
+├ ƒ /detail/news-detail
+├ ƒ /detail/novel-detail
+├ ƒ /detail/teleplay-detail
+├ ƒ /detail/video-detail
+├ ƒ /detail/vshow-detail
+├ ƒ /digital-human
+├ ƒ /download
+├ ƒ /gouji
+├ ○ /hermes
+├ ƒ /hermes/[id]
+├ ○ /home/more
+├ ○ /home/queue
+├ ƒ /home/recommend
+├ ○ /home/reward
+├ ƒ /kf-chat
+├ ƒ /publish/[type]
+├ ƒ /recharge
+├ ƒ /search
+├ ƒ /share/module-content-detail
+├ ƒ /share/module-detail
+├ ƒ /share/qa
+├ ○ /system
+├ ○ /system/address/area
+├ ○ /system/address/city
+├ ○ /system/address/province
+├ ○ /system/address/street
+├ ○ /system/app
+├ ○ /system/app-config
+├ ○ /system/app-service
+├ ○ /system/bot
+├ ○ /system/dashboard/analysis
+├ ○ /system/dashboard/monitor
+├ ○ /system/dashboard/workplace
+├ ○ /system/data-permission
+├ ○ /system/dict/dict-data
+├ ○ /system/dict/dict-type
+├ ○ /system/digital-human
+├ ○ /system/hermes
+├ ○ /system/log
+├ ○ /system/menu
+├ ○ /system/moderation/reports
+├ ○ /system/moderation/sensitive-words
+├ ○ /system/permission
+├ ○ /system/record-wake
+├ ○ /system/resource
+├ ○ /system/role
+├ ○ /system/spider-dashboard
+├ ○ /system/user
+├ ○ /system/user-level
+├ ○ /system/user-point
+├ ○ /system/website-dict
+├ ○ /system/wx-config
+├ ○ /system/wx/mp/auto-reply
+├ ○ /system/wx/mp/menu
+├ ○ /system/wx/mp/msg
+├ ○ /system/wx/mp/user
+├ ƒ /u/[name]
+├ ○ /user/login
+├ ○ /user/points
+├ ○ /user/social-login/wx
+├ ○ /video-gen
+└ ƒ /wallpaper
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

@@ -19,7 +19,6 @@ import Snackbar from '@mui/material/Snackbar';
 import Switch from '@mui/material/Switch';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
-import LinearProgress from '@mui/material/LinearProgress';
 import SearchIcon from '@mui/icons-material/Search';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
@@ -35,6 +34,7 @@ import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import ArrowDownwardRoundedIcon from '@mui/icons-material/ArrowDownwardRounded';
 import ArrowUpwardRoundedIcon from '@mui/icons-material/ArrowUpwardRounded';
 import { gradient2, gradient3 } from '@/constants/gradients';
+import { accountClient } from '@/lib/api/client';
 
 type CollectionStatus = 'active' | 'finished' | 'draft';
 type CollectionVisibility = 'public' | 'fansOnly' | 'private';
@@ -246,28 +246,98 @@ export default function CollectionPage() {
   const totalViews = collections.reduce((s, c) => s + c.totalViews, 0);
   const totalSubs = collections.reduce((s, c) => s + c.subscribers, 0);
 
-  const handleCreate = (data: Omit<Collection, 'id' | 'totalViews' | 'subscribers' | 'createdAt' | 'updatedAt'>) => {
-    const next: Collection = {
-      ...data,
-      id: Date.now(),
-      totalViews: 0,
-      subscribers: 0,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-    setCollections((p) => [next, ...p]);
-    setSnack('合集已创建');
-    setCreateOpen(false);
+  const handleCreate = async (data: Omit<Collection, 'id' | 'totalViews' | 'subscribers' | 'createdAt' | 'updatedAt'>) => {
+    try {
+      await accountClient('/account/collection', {
+        method: 'POST',
+        data: {
+          name: data.title,
+          description: data.description,
+          cover: data.cover,
+          category: data.category,
+          visibility: data.visibility,
+          autoSort: data.autoSort,
+          status: data.status,
+          works: data.works.map((w) => ({ id: w.id, title: w.title, cover: w.cover, duration: w.duration, views: w.views, type: w.type })),
+        },
+      });
+      const next: Collection = {
+        ...data,
+        id: Date.now(),
+        totalViews: 0,
+        subscribers: 0,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      setCollections((p) => [next, ...p]);
+      setSnack('合集已创建');
+      setCreateOpen(false);
+    } catch (err) {
+      // 失败回滚:不更新本地 state
+      setSnack('创建失败,请重试');
+    }
   };
 
-  const handleUpdate = (id: number, patch: Partial<Collection>) => {
+  const handleUpdate = async (id: number, patch: Partial<Collection>) => {
+    const current = collections.find((c) => c.id === id);
+    if (!current) return;
+    const changed = (
+      patch.title !== undefined ||
+      patch.description !== undefined ||
+      patch.cover !== undefined ||
+      patch.status !== undefined ||
+      patch.visibility !== undefined ||
+      patch.works !== undefined
+    );
+    if (!changed) {
+      // 没有需要同步到后端的字段,只更新本地
+      setCollections((p) => p.map((c) => (c.id === id ? { ...c, ...patch, updatedAt: Date.now() } : c)));
+      return;
+    }
+    const prev = current;
+    // 乐观更新
     setCollections((p) => p.map((c) => (c.id === id ? { ...c, ...patch, updatedAt: Date.now() } : c)));
+    try {
+      await accountClient('/account/collection', {
+        method: 'PUT',
+        data: {
+          id,
+          name: patch.title ?? current.title,
+          description: patch.description ?? current.description,
+          cover: patch.cover ?? current.cover,
+          status: patch.status ?? current.status,
+          visibility: patch.visibility ?? current.visibility,
+          works: (patch.works ?? current.works).map((w) => ({
+            id: w.id,
+            title: w.title,
+            cover: w.cover,
+            duration: w.duration,
+            views: w.views,
+            type: w.type,
+          })),
+        },
+      });
+    } catch (err) {
+      // 失败回滚到之前的状态
+      setCollections((p) => p.map((c) => (c.id === id ? prev : c)));
+      setSnack('保存失败,已恢复');
+    }
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = async (id: number) => {
+    const target = collections.find((c) => c.id === id);
+    if (!target) return;
+    // 乐观更新
     setCollections((p) => p.filter((c) => c.id !== id));
-    setSnack('合集已删除');
     setAnchorEl(null);
+    try {
+      await accountClient('/account/collection', { method: 'DELETE', data: { id } });
+      setSnack('合集已删除');
+    } catch (err) {
+      // 失败回滚
+      setCollections((p) => [target, ...p]);
+      setSnack('删除失败,已恢复');
+    }
   };
 
   const handleFinish = (c: Collection) => {
@@ -276,9 +346,14 @@ export default function CollectionPage() {
     setAnchorEl(null);
   };
 
-  const handleCopyLink = (c: Collection) => {
-    const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/collection/${c.id}`;
-    navigator.clipboard?.writeText(url).then(() => setSnack('链接已复制'));
+  const handleCopyLink = async (c: Collection) => {
+    const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/collection?id=${c.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setSnack('链接已复制');
+    } catch {
+      setSnack('复制失败');
+    }
     setAnchorEl(null);
   };
 
@@ -668,7 +743,20 @@ function CreateCollectionDialog({
                       '&:hover': { bgcolor: 'action.hover' },
                     }}
                   >
-                    <Checkbox size="small" checked={picked} onClick={(e) => e.stopPropagation()} onChange={() => {}} sx={{ p: 0 }} />
+                    <Checkbox
+                      size="small"
+                      checked={picked}
+                      onChange={(e) => {
+                        setPickedWorks((s) => {
+                          const n = new Set(s);
+                          if (e.target.checked) n.add(w.id);
+                          else n.delete(w.id);
+                          return n;
+                        });
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      sx={{ p: 0 }}
+                    />
                     <Box sx={{ width: 48, height: 30, borderRadius: 0.5, background: w.cover, flexShrink: 0 }} />
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Typography sx={{ fontSize: 12, color: 'text.primary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

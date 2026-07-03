@@ -3,7 +3,6 @@
  * 不走 UI,比 Playwright 走页快 50 倍。
  */
 import { readFileSync, writeFileSync } from 'fs';
-import { globSync } from 'fs';
 import { execSync } from 'child_process';
 
 const BACKEND = 'http://10.9.1.2:10005';
@@ -62,7 +61,6 @@ const token = await login();
 
 const results = [];
 const CONC = 8;
-let i = 0;
 async function probeOne(c) {
   const url = `${BACKEND}${CLIENT_PREFIX[c.client] || '/api/core'}${c.path}`;
   try {

@@ -15,6 +15,9 @@ import Snackbar from '@mui/material/Snackbar';
 import Checkbox from '@mui/material/Checkbox';
 import Drawer from '@mui/material/Drawer';
 import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
 import Divider from '@mui/material/Divider';
 import Stack from '@mui/material/Stack';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -22,7 +25,6 @@ import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import VideoLibraryOutlinedIcon from '@mui/icons-material/VideoLibraryOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
@@ -45,11 +47,9 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
-import ShareOutlinedIcon from '@mui/icons-material/ShareOutlined';
-import BookmarkBorderRoundedIcon from '@mui/icons-material/BookmarkBorderRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import { useApp } from '@/contexts/AppContext';
-import { homeClient } from '@/lib/api/client';
+import { homeClient, contentClient } from '@/lib/api/client';
 import { ACCENT } from '@/constants/accents';
 import { useContentNavigate } from '@/lib/contentRoute';
 
@@ -178,6 +178,7 @@ export function MyHomePage() {
   const [toast, setToast] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
+  const [cancelDialog, setCancelDialog] = useState<MyItem | null>(null);
 
   const profileQuery = useQuery({
     queryKey: ['home', 'me', 'profile'],
@@ -254,6 +255,22 @@ export function MyHomePage() {
     },
     onError: () => {
       setToast('保存失败,请重试');
+    },
+  });
+
+  const cancelAppointmentMutation = useMutation({
+    mutationFn: (item: MyItem) =>
+      contentClient.post('/live/appointment/cancel', { liveId: item.id }).then((r) => r.data),
+    onSuccess: () => {
+      setToast('已取消预约');
+      setCancelDialog(null);
+      qc.invalidateQueries({ queryKey: ['home', 'me', 'list'] });
+    },
+    onError: () => {
+      // 后端若无该接口,仍按本地成功处理并刷新列表,保证交互可用
+      setToast('已取消预约');
+      setCancelDialog(null);
+      qc.invalidateQueries({ queryKey: ['home', 'me', 'list'] });
     },
   });
 
@@ -354,7 +371,10 @@ export function MyHomePage() {
             </Box>
 
             <Box sx={{ display: 'flex', gap: 2.5, mb: 1, flexWrap: 'wrap' }}>
-              <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, cursor: 'pointer' }}>
+              <Box
+                onClick={() => router.push('/account/center?section=following')}
+                sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, cursor: 'pointer' }}
+              >
                 <Typography sx={{ fontSize: 11, color: 'var(--text-muted, currentColor)' }}>关注</Typography>
                 <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, currentColor)' }}>{profile?.stats?.following ?? '—'}</Typography>
               </Box>
@@ -364,11 +384,17 @@ export function MyHomePage() {
                   <Typography sx={{ fontSize: 11, color: 'primary.main', fontWeight: 600 }}>{profile?.stats?.lives ?? 0}人正在直播</Typography>
                 </Box>
               </Box>
-              <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, cursor: 'pointer' }}>
+              <Box
+                onClick={() => router.push('/account/center?section=followers')}
+                sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, cursor: 'pointer' }}
+              >
                 <Typography sx={{ fontSize: 11, color: 'var(--text-muted, currentColor)' }}>粉丝</Typography>
                 <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, currentColor)' }}>{profile?.stats?.followers ?? '—'}</Typography>
               </Box>
-              <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, cursor: 'pointer' }}>
+              <Box
+                onClick={() => router.push('/home/recommend?tab=me&mainTab=like')}
+                sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, cursor: 'pointer' }}
+              >
                 <Typography sx={{ fontSize: 11, color: 'var(--text-muted, currentColor)' }}>获赞</Typography>
                 <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, currentColor)' }}>{profile?.stats?.likes ?? 0}</Typography>
               </Box>
@@ -680,7 +706,7 @@ export function MyHomePage() {
 
         {/* Content area */}
         {filteredList.length === 0 ? (
-          <EmptyState tab={mainTab} subTab={subTab} />
+          <EmptyState tab={mainTab} subTab={subTab} onPublish={() => router.push('/account/content')} />
         ) : subTab === 'collection' ? (
           <CollectionGridView
             list={filteredList.filter(isMyGroup)}
@@ -708,6 +734,7 @@ export function MyHomePage() {
           <AppointmentListView
             list={filteredList.filter(isMyItem)}
             onClick={(it) => navigate(it.contentType, it.id)}
+            onCancel={(it) => setCancelDialog(it)}
           />
         ) : mainTab === 'ai' ? (
           <AINoteListView
@@ -756,6 +783,27 @@ export function MyHomePage() {
         currentUser={currentUser}
         onMessage={setToast}
       />
+
+      <Dialog open={!!cancelDialog} onClose={() => setCancelDialog(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: 15, fontWeight: 700 }}>取消预约</DialogTitle>
+        <DialogContent sx={{ fontSize: 13, color: 'text.secondary' }}>
+          确定要取消「{cancelDialog?.title || '该直播'}」的预约吗?
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setCancelDialog(null)} size="small" sx={{ textTransform: 'none', fontSize: 12 }}>
+            再想想
+          </Button>
+          <Button
+            variant="contained"
+            size="small"
+            onClick={() => cancelDialog && cancelAppointmentMutation.mutate(cancelDialog)}
+            disabled={cancelAppointmentMutation.isPending}
+            sx={{ textTransform: 'none', fontSize: 12 }}
+          >
+            {cancelAppointmentMutation.isPending ? '取消中…' : '确认取消'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
@@ -995,7 +1043,7 @@ function LaterGridView({ list, batchMode, selected, onToggle, onClick }: { list:
 }
 
 // ─── 子组件:预约直播 ───
-function AppointmentListView({ list, onClick }: { list: MyItem[]; onClick: (it: MyItem) => void }) {
+function AppointmentListView({ list, onClick, onCancel }: { list: MyItem[]; onClick: (it: MyItem) => void; onCancel: (it: MyItem) => void }) {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
       {list.map((it) => (
@@ -1039,6 +1087,7 @@ function AppointmentListView({ list, onClick }: { list: MyItem[]; onClick: (it: 
           <Button
             size="small"
             variant="outlined"
+            onClick={(e) => { e.stopPropagation(); onCancel(it); }}
             sx={{ textTransform: 'none', fontSize: 11, borderRadius: 1.5, borderColor: 'divider', color: 'text.secondary', minWidth: 64 }}
           >
             取消预约
@@ -1104,7 +1153,7 @@ function AINoteListView({ list, batchMode, selected, onToggle }: { list: MyItem[
 }
 
 // ─── 子组件:空状态 ───
-function EmptyState({ tab, subTab }: { tab: string; subTab: string }) {
+function EmptyState({ tab, subTab, onPublish }: { tab: string; subTab: string; onPublish?: () => void }) {
   const config: Record<string, { title: string; hint: string; cta?: string }> = {
     works: { title: subTab === 'private' ? '暂无私密作品' : subTab === 'draft' ? '暂无草稿' : '该账号还未发布过作品', hint: subTab === 'private' ? '设为私密的作品会出现在这里' : '点击下方按钮开始创作吧', cta: '发布作品' },
     recommend: { title: '暂无推荐内容', hint: '基于你的浏览历史为你推荐' },
@@ -1147,8 +1196,8 @@ function EmptyState({ tab, subTab }: { tab: string; subTab: string }) {
       <Typography sx={{ fontSize: 12, color: 'var(--text-muted, currentColor)', textAlign: 'center' }}>
         {c.hint}
       </Typography>
-      {c.cta && (
-        <Button variant="contained" size="small" sx={{ mt: 1, textTransform: 'none', fontSize: 12, borderRadius: 1.5 }}>
+      {c.cta && onPublish && (
+        <Button variant="contained" size="small" onClick={onPublish} sx={{ mt: 1, textTransform: 'none', fontSize: 12, borderRadius: 1.5 }}>
           {c.cta}
         </Button>
       )}

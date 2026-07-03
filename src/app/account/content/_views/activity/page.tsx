@@ -22,7 +22,6 @@ import Checkbox from '@mui/material/Checkbox';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
-import LinearProgress from '@mui/material/LinearProgress';
 import Divider from '@mui/material/Divider';
 
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
@@ -51,22 +50,19 @@ import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import NotificationsActiveRoundedIcon from '@mui/icons-material/NotificationsActiveRounded';
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
 
-import {
-  ACTIVITIES,
+import { adminClient } from '@/lib/api/client';
+import { ACTIVITIES,
   MY_WORKS,
   CATEGORY_META,
   STATUS_META,
   PART_META,
   type Activity,
-  type ActivityStatus,
   type ActivityCategory,
-  type ParticipationStatus,
   type ActivitySubmission,
   type MyWork,
   relativeTime,
   formatBigNumber,
-  formatDuration,
-} from './data';
+  formatDuration } from './data';
 
 type FilterTab = 'all' | 'mine' | 'active' | 'signup' | 'upcoming' | 'won' | 'ended';
 type CategoryFilter = 'all' | ActivityCategory;
@@ -193,17 +189,22 @@ export default function ActivityPage() {
     setSignupAgreed(false);
   };
 
-  const confirmSignup = () => {
+  const confirmSignup = async () => {
     if (!signupTarget || !signupAgreed) return;
-    setItems((prev) =>
-      prev.map((a) =>
-        a.id === signupTarget.id
-          ? { ...a, participation: 'signed', signupCount: a.signupCount + 1 }
-          : a,
-      ),
-    );
-    setSnack({ msg: `已成功报名《${signupTarget.title}》`, sev: 'success' });
-    closeSignup();
+    try {
+      await adminClient('/activity/signup', { method: 'POST', data: { activityId: signupTarget.id } });
+      setItems((prev) =>
+        prev.map((a) =>
+          a.id === signupTarget.id
+            ? { ...a, participation: 'signed', signupCount: a.signupCount + 1 }
+            : a,
+        ),
+      );
+      setSnack({ msg: `已成功报名《${signupTarget.title}》`, sev: 'success' });
+      closeSignup();
+    } catch (e) {
+      setSnack({ msg: `报名失败:${e instanceof Error ? e.message : '网络异常'}`, sev: 'warning' });
+    }
   };
 
   const openSubmit = (id: string) => {
@@ -218,44 +219,55 @@ export default function ActivityPage() {
     setSubmitCaption('');
   };
 
-  const confirmSubmit = () => {
+  const confirmSubmit = async () => {
     if (!submitTarget || submitSelected.length === 0) return;
-    const newSubs: ActivitySubmission[] = submitSelected.map((wid, idx) => {
-      const w = MY_WORKS.find((x) => x.id === wid)!;
-      return {
-        id: `sub-${Date.now()}-${idx}`,
-        workId: w.id,
-        workTitle: w.title,
-        workCover: w.cover,
-        workDuration: w.duration,
-        views: w.views,
-        likes: w.likes,
-        votes: Math.floor(w.likes * 0.6),
-        submittedAt: Date.now(),
-      };
-    });
-    setItems((prev) =>
-      prev.map((a) =>
-        a.id === submitTarget.id
-          ? {
-              ...a,
-              participation: 'submitted',
-              submissions: [...a.submissions, ...newSubs],
-              submissionCount: a.submissionCount + newSubs.length,
-            }
-          : a,
-      ),
-    );
-    setSnack({
-      msg: `已提交 ${newSubs.length} 部作品到《${submitTarget.title}》`,
-      sev: 'success',
-    });
-    closeSubmit();
+    try {
+      await adminClient('/activity/submit', { method: 'POST', data: { activityId: submitTarget.id } });
+      const newSubs: ActivitySubmission[] = submitSelected.map((wid, idx) => {
+        const w = MY_WORKS.find((x) => x.id === wid)!;
+        return {
+          id: `sub-${Date.now()}-${idx}`,
+          workId: w.id,
+          workTitle: w.title,
+          workCover: w.cover,
+          workDuration: w.duration,
+          views: w.views,
+          likes: w.likes,
+          votes: Math.floor(w.likes * 0.6),
+          submittedAt: Date.now(),
+        };
+      });
+      setItems((prev) =>
+        prev.map((a) =>
+          a.id === submitTarget.id
+            ? {
+                ...a,
+                participation: 'submitted',
+                submissions: [...a.submissions, ...newSubs],
+                submissionCount: a.submissionCount + newSubs.length,
+              }
+            : a,
+        ),
+      );
+      setSnack({
+        msg: `已提交 ${newSubs.length} 部作品到《${submitTarget.title}》`,
+        sev: 'success',
+      });
+      closeSubmit();
+    } catch (e) {
+      setSnack({ msg: `投稿失败:${e instanceof Error ? e.message : '网络异常'}`, sev: 'warning' });
+    }
   };
 
   const handleCopyLink = (id: string) => {
-    navigator.clipboard?.writeText(`${window.location.origin}/activity/${id}`).catch(() => {});
-    setSnack({ msg: '活动链接已复制,快邀好友一起来玩', sev: 'info' });
+    if (!navigator.clipboard?.writeText) {
+      setSnack({ msg: '复制失败,请手动复制链接', sev: 'warning' });
+      return;
+    }
+    navigator.clipboard
+      .writeText(`${window.location.origin}/activity/${id}`)
+      .then(() => setSnack({ msg: '活动链接已复制,快邀好友一起来玩', sev: 'info' }))
+      .catch(() => setSnack({ msg: '复制失败,请手动复制链接', sev: 'warning' }));
   };
 
   return (
@@ -292,9 +304,14 @@ export default function ActivityPage() {
             size="small"
             variant="outlined"
             startIcon={<NotificationsActiveRoundedIcon sx={{ fontSize: 14 }} />}
-            onClick={() =>
-              setSnack({ msg: '已开启活动提醒,新活动上线时第一时间通知', sev: 'success' })
-            }
+            onClick={async () => {
+              try {
+                await adminClient('/activity/subscribe', { method: 'POST' });
+                setSnack({ msg: '已开启活动提醒,新活动上线时第一时间通知', sev: 'success' });
+              } catch (e) {
+                setSnack({ msg: `订阅失败:${e instanceof Error ? e.message : '网络异常'}`, sev: 'warning' });
+              }
+            }}
             sx={{ textTransform: 'none', fontSize: 12 }}
           >
             活动订阅

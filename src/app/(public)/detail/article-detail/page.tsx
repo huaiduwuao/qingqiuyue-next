@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
@@ -9,6 +9,8 @@ import Chip from '@mui/material/Chip';
 import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import Avatar from '@mui/material/Avatar';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import ShareIcon from '@mui/icons-material/Share';
@@ -19,6 +21,9 @@ import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-article';
+import { moduleContentAction } from '@/apis/home';
+import { collectContent } from '@/apis/global';
+import { formatApiError } from '@/lib/api/client';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
 import { ReadingSettings, DEFAULT_PAGE_STYLE, type PageStyle } from '@/components/detail/ReadingSettings';
@@ -54,8 +59,76 @@ function ArticleDetailContent() {
 
   const [favorited, setFavorited] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
+  const [likeBusy, setLikeBusy] = useState(false);
+  const [collectBusy, setCollectBusy] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pageStyle, setPageStyle] = useState<PageStyle>(DEFAULT_PAGE_STYLE);
+  const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
+
+  const notify = useCallback((message: string, severity: 'success' | 'error' | 'info' = 'success') => {
+    setSnack({ open: true, message, severity });
+  }, []);
+
+  const handleLike = async () => {
+    if (!id) {
+      notify('内容 ID 缺失', 'error');
+      return;
+    }
+    if (likeBusy) return;
+    setLikeBusy(true);
+    const next = !favorited;
+    setFavorited(next);
+    try {
+      await moduleContentAction({ contentId: Number(id), action: next ? 'agree' : 'cancel_agree' });
+    } catch (err) {
+      setFavorited(!next);
+      notify(formatApiError(err), 'error');
+    } finally {
+      setLikeBusy(false);
+    }
+  };
+
+  const handleBookmark = async () => {
+    if (!id) {
+      notify('内容 ID 缺失', 'error');
+      return;
+    }
+    if (collectBusy) return;
+    setCollectBusy(true);
+    const next = !bookmarked;
+    setBookmarked(next);
+    try {
+      await collectContent({ contentId: Number(id), action: next ? 'collect' : 'cancel_collect' });
+    } catch (err) {
+      setBookmarked(!next);
+      notify(formatApiError(err), 'error');
+    } finally {
+      setCollectBusy(false);
+    }
+  };
+
+  const handleShare = async () => {
+    const url = typeof window !== 'undefined' ? window.location.href : '';
+    const title = query.data?.title || '文章详情';
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, url });
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        notify('链接已复制到剪贴板');
+      } else {
+        notify('当前环境不支持分享', 'info');
+      }
+    } catch (err) {
+      if ((err as Error)?.name !== 'AbortError') {
+        notify('分享失败', 'error');
+      }
+    }
+  };
 
   const updateStyle = (updates: Partial<PageStyle>) =>
     setPageStyle((prev) => ({ ...prev, ...updates }));
@@ -69,13 +142,13 @@ function ArticleDetailContent() {
             <IconButton onClick={() => setSettingsOpen(true)} sx={{ color: 'text.tertiary' }}>
               <SettingsIcon />
             </IconButton>
-            <IconButton onClick={() => setFavorited((f) => !f)} sx={{ color: favorited ? 'primary.main' : 'text.tertiary' }}>
+            <IconButton disabled={likeBusy} onClick={handleLike} sx={{ color: favorited ? 'primary.main' : 'text.tertiary' }}>
               {favorited ? <FavoriteIcon /> : <FavoriteBorderIcon />}
             </IconButton>
-            <IconButton onClick={() => setBookmarked((b) => !b)} sx={{ color: bookmarked ? 'warning.main' : 'text.tertiary' }}>
+            <IconButton disabled={collectBusy} onClick={handleBookmark} sx={{ color: bookmarked ? 'warning.main' : 'text.tertiary' }}>
               {bookmarked ? <BookmarkIcon /> : <BookmarkBorderIcon />}
             </IconButton>
-            <IconButton sx={{ color: 'text.tertiary' }}>
+            <IconButton onClick={handleShare} sx={{ color: 'text.tertiary' }}>
               <ShareIcon />
             </IconButton>
           </Box>
@@ -163,6 +236,17 @@ function ArticleDetailContent() {
         style={pageStyle}
         onChange={updateStyle}
       />
+
+      <Snackbar
+        open={snack.open}
+        autoHideDuration={2500}
+        onClose={() => setSnack((s) => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert severity={snack.severity} variant="filled" sx={{ width: '100%' }}>
+          {snack.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

@@ -13,10 +13,13 @@ import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Snackbar from '@mui/material/Snackbar';
 import Checkbox from '@mui/material/Checkbox';
-import Dialog from '@mui/material/Dialog';
 import Drawer from '@mui/material/Drawer';
 import Divider from '@mui/material/Divider';
 import Stack from '@mui/material/Stack';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
 import SearchIcon from '@mui/icons-material/Search';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
@@ -32,10 +35,19 @@ import ImageRoundedIcon from '@mui/icons-material/ImageRounded';
 import ArticleRoundedIcon from '@mui/icons-material/ArticleRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import { useRouter } from 'next/navigation';
+import { process, saveOrUpdate, remove } from '@/apis/content-video';
+import type { ContentType } from '@/apis/content-video';
 import { gradient2, gradient3 } from '@/constants/gradients';
 
 type WorkType = 'video' | 'image' | 'article';
 type WorkStatus = 'published' | 'reviewing' | 'draft' | 'private' | 'rejected';
+
+const WORK_TYPE_MAP: Record<WorkType, ContentType> = {
+  video: 'video',
+  image: 'picture-album',
+  article: 'article',
+};
 
 interface Work {
   id: number;
@@ -99,6 +111,7 @@ function formatDate(ts: number): string {
 }
 
 export default function WorksManager() {
+  const router = useRouter();
   const [works, setWorks] = useState<Work[]>(SEED);
   const [tab, setTab] = useState<0 | 1 | 2 | 3 | 4>(0);
   const [typeFilter, setTypeFilter] = useState<'all' | WorkType>('all');
@@ -108,6 +121,8 @@ export default function WorksManager() {
   const [snack, setSnack] = useState<string | null>(null);
   const [editing, setEditing] = useState<Work | null>(null);
   const [anchorEl, setAnchorEl] = useState<{ id: number; el: HTMLElement } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState<Work | null>(null);
 
   const counts = useMemo(() => {
     const c = { all: works.length, published: 0, reviewing: 0, draft: 0, private: 0, rejected: 0 };
@@ -144,41 +159,114 @@ export default function WorksManager() {
     setWorks((prev) => prev.map((w) => (w.id === id ? { ...w, ...patch, updatedAt: Date.now() } : w)));
   };
 
-  const handleDelete = (id: number) => {
+  const removeWork = (id: number) => {
     setWorks((prev) => prev.filter((w) => w.id !== id));
     setSelected((s) => { const n = new Set(s); n.delete(id); return n; });
-    setSnack('作品已删除');
-    setAnchorEl(null);
   };
 
-  const handleTogglePrivate = (w: Work) => {
+  const handleDelete = async (w: Work) => {
+    setLoading(true);
+    try {
+      await remove(WORK_TYPE_MAP[w.type], [w.id]);
+      removeWork(w.id);
+      setSnack('作品已删除');
+    } catch (err: unknown) {
+      setSnack(err instanceof Error ? err.message : '删除失败');
+    } finally {
+      setLoading(false);
+      setAnchorEl(null);
+      setDeleteDialog(null);
+    }
+  };
+
+  const handleTogglePrivate = async (w: Work) => {
     const next: WorkStatus = w.status === 'private' ? 'published' : 'private';
-    updateWork(w.id, { status: next });
-    setSnack(next === 'private' ? '已设为私密' : '已设为公开');
-    setAnchorEl(null);
+    setLoading(true);
+    try {
+      await process(WORK_TYPE_MAP[w.type], { id: w.id, status: next });
+      updateWork(w.id, { status: next });
+      setSnack(next === 'private' ? '已设为私密' : '已设为公开');
+    } catch (err: unknown) {
+      setSnack(err instanceof Error ? err.message : '操作失败');
+    } finally {
+      setLoading(false);
+      setAnchorEl(null);
+    }
   };
 
-  const handlePublish = (w: Work) => {
-    updateWork(w.id, { status: 'reviewing' });
-    setSnack('已提交审核,预计 24 小时内完成');
-    setAnchorEl(null);
+  const handlePublish = async (w: Work) => {
+    setLoading(true);
+    try {
+      await process(WORK_TYPE_MAP[w.type], { id: w.id, status: 'reviewing' });
+      updateWork(w.id, { status: 'reviewing' });
+      setSnack('已提交审核,预计 24 小时内完成');
+    } catch (err: unknown) {
+      setSnack(err instanceof Error ? err.message : '提交审核失败');
+    } finally {
+      setLoading(false);
+      setAnchorEl(null);
+    }
   };
 
-  const handleBatchDelete = () => {
+  const handleBatchDelete = async () => {
     if (selected.size === 0) return;
-    setWorks((prev) => prev.filter((w) => !selected.has(w.id)));
-    setSnack(`已删除 ${selected.size} 个作品`);
-    setSelected(new Set());
-    setBatchMode(false);
+    setLoading(true);
+    try {
+      const ids = Array.from(selected);
+      // Use the first selected work's type for batch remove; individual remove handles per id
+      await Promise.all(ids.map((id) => {
+        const w = works.find((x) => x.id === id);
+        return w ? remove(WORK_TYPE_MAP[w.type], [id]) : Promise.resolve();
+      }));
+      setWorks((prev) => prev.filter((w) => !selected.has(w.id)));
+      setSnack(`已删除 ${selected.size} 个作品`);
+      setSelected(new Set());
+      setBatchMode(false);
+    } catch (err: unknown) {
+      setSnack(err instanceof Error ? err.message : '批量删除失败');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleBatchSetPrivate = (priv: boolean) => {
+  const handleBatchSetPrivate = async (priv: boolean) => {
     if (selected.size === 0) return;
-    setWorks((prev) => prev.map((w) => selected.has(w.id) ? { ...w, status: priv ? 'private' as WorkStatus : 'published' as WorkStatus, updatedAt: Date.now() } : w));
-    setSnack(priv ? `已将 ${selected.size} 个作品设为私密` : `已将 ${selected.size} 个作品设为公开`);
-    setSelected(new Set());
-    setBatchMode(false);
+    setLoading(true);
+    try {
+      const ids = Array.from(selected);
+      await Promise.all(
+        ids.map((id) => {
+          const w = works.find((x) => x.id === id);
+          return w ? process(WORK_TYPE_MAP[w.type], { id, status: priv ? 'private' : 'published' }) : Promise.resolve();
+        })
+      );
+      setWorks((prev) => prev.map((w) => selected.has(w.id) ? { ...w, status: priv ? 'private' as WorkStatus : 'published' as WorkStatus, updatedAt: Date.now() } : w));
+      setSnack(priv ? `已将 ${selected.size} 个作品设为私密` : `已将 ${selected.size} 个作品设为公开`);
+      setSelected(new Set());
+      setBatchMode(false);
+    } catch (err: unknown) {
+      setSnack(err instanceof Error ? err.message : '批量操作失败');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleSave = async (patch: Partial<Work>) => {
+    if (!editing) return;
+    setLoading(true);
+    try {
+      await saveOrUpdate(WORK_TYPE_MAP[editing.type], { id: editing.id, ...patch });
+      updateWork(editing.id, patch);
+      setSnack('已保存');
+      setEditing(null);
+    } catch (err: unknown) {
+      setSnack(err instanceof Error ? err.message : '保存失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const navigateToPublish = () => router.push('/account/content/hd-publish');
 
   return (
     <Box
@@ -197,6 +285,8 @@ export default function WorksManager() {
           size="small"
           variant="contained"
           startIcon={<AddRoundedIcon sx={{ fontSize: 14 }} />}
+          onClick={navigateToPublish}
+          disabled={loading}
           sx={{
             textTransform: 'none', fontSize: 12, borderRadius: 1.5,
             background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)',
@@ -257,9 +347,9 @@ export default function WorksManager() {
             <Button size="small" onClick={toggleAll} sx={{ textTransform: 'none', fontSize: 12, color: 'text.secondary' }}>
               {selected.size === filtered.length ? '取消全选' : '全选'}
             </Button>
-            <Button size="small" onClick={() => handleBatchSetPrivate(true)} disabled={selected.size === 0} sx={{ textTransform: 'none', fontSize: 12, color: 'text.secondary' }}>设为私密</Button>
-            <Button size="small" onClick={() => handleBatchSetPrivate(false)} disabled={selected.size === 0} sx={{ textTransform: 'none', fontSize: 12, color: 'text.secondary' }}>设为公开</Button>
-            <Button size="small" onClick={handleBatchDelete} disabled={selected.size === 0} sx={{ textTransform: 'none', fontSize: 12, color: 'error.main' }}>删除</Button>
+            <Button size="small" onClick={() => handleBatchSetPrivate(true)} disabled={selected.size === 0 || loading} sx={{ textTransform: 'none', fontSize: 12, color: 'text.secondary' }}>设为私密</Button>
+            <Button size="small" onClick={() => handleBatchSetPrivate(false)} disabled={selected.size === 0 || loading} sx={{ textTransform: 'none', fontSize: 12, color: 'text.secondary' }}>设为公开</Button>
+            <Button size="small" onClick={handleBatchDelete} disabled={selected.size === 0 || loading} sx={{ textTransform: 'none', fontSize: 12, color: 'error.main' }}>删除</Button>
             <IconButton size="small" onClick={() => { setBatchMode(false); setSelected(new Set()); }} aria-label="退出批量">
               <CloseRoundedIcon sx={{ fontSize: 16 }} />
             </IconButton>
@@ -278,7 +368,7 @@ export default function WorksManager() {
       {filtered.length === 0 ? (
         <Box sx={{ textAlign: 'center', py: 6, color: 'text.disabled' }}>
           <Typography sx={{ fontSize: 13 }}>暂无作品</Typography>
-          <Button size="small" variant="text" sx={{ mt: 1, textTransform: 'none', fontSize: 12 }}>去发布</Button>
+          <Button size="small" variant="text" onClick={navigateToPublish} sx={{ mt: 1, textTransform: 'none', fontSize: 12 }}>去发布</Button>
         </Box>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -341,7 +431,7 @@ export default function WorksManager() {
                 {!batchMode && (
                   <Stack direction="row" spacing={0.5}>
                     {w.status === 'draft' && (
-                      <Button size="small" variant="contained" onClick={() => handlePublish(w)} sx={{ textTransform: 'none', fontSize: 11, borderRadius: 1.5, minWidth: 56, py: 0.25 }}>
+                      <Button size="small" variant="contained" onClick={() => handlePublish(w)} disabled={loading} sx={{ textTransform: 'none', fontSize: 11, borderRadius: 1.5, minWidth: 56, py: 0.25 }}>
                         发布
                       </Button>
                     )}
@@ -364,14 +454,14 @@ export default function WorksManager() {
           const w = anchorEl ? works.find((x) => x.id === anchorEl.id) : null;
           if (!w) return null;
           return [
-            <MenuItem key="priv" onClick={() => handleTogglePrivate(w)} sx={{ fontSize: 12 }}>
+            <MenuItem key="priv" onClick={() => handleTogglePrivate(w)} disabled={loading} sx={{ fontSize: 12 }}>
               {w.status === 'private' ? <><LockOpenOutlinedIcon sx={{ fontSize: 14, mr: 1 }} />设为公开</> : <><LockOutlinedIcon sx={{ fontSize: 14, mr: 1 }} />设为私密</>}
             </MenuItem>,
             <MenuItem key="edit" onClick={() => { setEditing(w); setAnchorEl(null); }} sx={{ fontSize: 12 }}>
               <EditRoundedIcon sx={{ fontSize: 14, mr: 1 }} />编辑详情
             </MenuItem>,
             <Divider key="d" />,
-            <MenuItem key="del" onClick={() => handleDelete(w.id)} sx={{ fontSize: 12, color: 'error.main' }}>
+            <MenuItem key="del" onClick={() => { setDeleteDialog(w); setAnchorEl(null); }} sx={{ fontSize: 12, color: 'error.main' }}>
               <DeleteOutlineRoundedIcon sx={{ fontSize: 14, mr: 1 }} />删除作品
             </MenuItem>,
           ];
@@ -381,17 +471,26 @@ export default function WorksManager() {
       <EditWorkDrawer
         open={!!editing}
         work={editing}
+        loading={loading}
         onClose={() => setEditing(null)}
-        onSave={(patch) => {
-          if (editing) updateWork(editing.id, patch);
-          setSnack('已保存');
-          setEditing(null);
-        }}
-        onDelete={() => {
-          if (editing) handleDelete(editing.id);
-          setEditing(null);
-        }}
+        onSave={handleSave}
+        onDelete={() => { if (editing) setDeleteDialog(editing); }}
       />
+
+      <Dialog open={!!deleteDialog} onClose={() => setDeleteDialog(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>确认删除</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: 14, color: 'text.secondary' }}>
+            确定要删除作品「{deleteDialog?.title}」吗？删除后无法恢复。
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialog(null)} disabled={loading}>取消</Button>
+          <Button color="error" variant="contained" onClick={() => deleteDialog && handleDelete(deleteDialog)} disabled={loading}>
+            删除
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Snackbar
         open={!!snack}
@@ -405,28 +504,15 @@ export default function WorksManager() {
 }
 
 function EditWorkDrawer({
-  open, work, onClose, onSave, onDelete,
+  open, work, loading, onClose, onSave, onDelete,
 }: {
   open: boolean;
   work: Work | null;
+  loading: boolean;
   onClose: () => void;
   onSave: (patch: Partial<Work>) => void;
   onDelete: () => void;
 }) {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [tagsText, setTagsText] = useState('');
-  const [status, setStatus] = useState<WorkStatus>('draft');
-
-  React.useEffect(() => {
-    if (work) {
-      setTitle(work.title);
-      setDescription(work.description);
-      setTagsText(work.tags.join(' '));
-      setStatus(work.status);
-    }
-  }, [work?.id]);
-
   if (!work) return null;
 
   return (
@@ -436,6 +522,27 @@ function EditWorkDrawer({
       onClose={onClose}
       slotProps={{ paper: { sx: { width: { xs: '100%', sm: 480 }, bgcolor: 'background.paper' } } }}
     >
+      <EditWorkForm key={work.id} work={work} loading={loading} onClose={onClose} onSave={onSave} onDelete={onDelete} />
+    </Drawer>
+  );
+}
+
+function EditWorkForm({
+  work, loading, onClose, onSave, onDelete,
+}: {
+  work: Work;
+  loading: boolean;
+  onClose: () => void;
+  onSave: (patch: Partial<Work>) => void;
+  onDelete: () => void;
+}) {
+  const [title, setTitle] = useState(work.title);
+  const [description, setDescription] = useState(work.description);
+  const [tagsText, setTagsText] = useState(work.tags.join(' '));
+  const [status, setStatus] = useState<WorkStatus>(work.status);
+
+  return (
+    <>
       <Box sx={{ display: 'flex', alignItems: 'center', p: 2, borderBottom: 1, borderColor: 'divider' }}>
         <Typography sx={{ fontSize: 15, fontWeight: 700, flex: 1 }}>编辑作品</Typography>
         <IconButton size="small" onClick={onClose} aria-label="关闭">
@@ -501,12 +608,14 @@ function EditWorkDrawer({
         <Box sx={{ flex: 1 }} />
         <Button variant="outlined" onClick={onClose} sx={{ textTransform: 'none', borderRadius: 2 }}>取消</Button>
         <Button
-          variant="contained" onClick={() => onSave({ title, description, tags: tagsText.split(/\s+/).filter(Boolean), status })}
+          variant="contained"
+          disabled={loading}
+          onClick={() => onSave({ title, description, tags: tagsText.split(/\s+/).filter(Boolean), status })}
           sx={{ textTransform: 'none', borderRadius: 2, background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)', '&:hover': { background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)', filter: 'brightness(1.1)' } }}
         >
           保存
         </Button>
       </Box>
-    </Drawer>
+    </>
   );
 }

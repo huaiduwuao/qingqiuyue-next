@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -10,17 +10,12 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
-import FormControl from '@mui/material/FormControl';
-import InputLabel from '@mui/material/InputLabel';
-import Select from '@mui/material/Select';
-import MenuItem from '@mui/material/MenuItem';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import { GridColDef } from '@mui/x-data-grid';
 import { DataGridTable } from '@/components/tables/DataGridTable';
-import { myPage, remove, ModuleContentItem, updateShare, process, suggest } from '@/apis/module-content';
+import { myPage, remove, ModuleContentItem, updateShare, process } from '@/apis/module-content';
 import SendToSpider from '@/components/SendToSpider';
-import AddIcon from '@mui/icons-material/Add';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 
 interface Props {
@@ -96,12 +91,26 @@ export default function ModuleContentPage({ moduleId, groupId, groupData, conten
     processMutation.mutate({ ids: [row.id], status: row.status, moduleContentSearch: checked });
   }, [processMutation]);
 
-  const handleAdd = (values: any) => {
+  const handleAdd = async (values: { title: string; subtitle?: string }) => {
     if (record?.id) {
       updateShareMutation.mutate({ ...record, ...values });
     } else {
-      setModalVisible(false);
-      setSnackbar({ open: true, message: '操作成功', severity: 'success' });
+      const item: Partial<ModuleContentItem> = {
+        moduleId: moduleId ?? 0,
+        groupId,
+        contentType: contentType || 'ARTICLE',
+        status: status || 'UN_PUBLISH',
+        ...values,
+      };
+      try {
+        await updateShare(item as ModuleContentItem);
+        setSnackbar({ open: true, message: '操作成功', severity: 'success' });
+        setModalVisible(false);
+        invalidate();
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : '保存失败';
+        setSnackbar({ open: true, message: message, severity: 'error' });
+      }
     }
   };
 
@@ -223,25 +232,30 @@ interface OperationModalProps {
   record: ModuleContentItem | null;
   isSubmitting: boolean;
   onClose: () => void;
-  onSave: (values: any) => void;
+  onSave: (values: { title: string; subtitle?: string }) => void;
 }
 
 function OperationModal({ open, record, isSubmitting, onClose, onSave }: OperationModalProps) {
-  const [values, setValues] = useState({ title: '', subtitle: '' });
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <OperationModalForm key={record?.id ?? 'new'} record={record} isSubmitting={isSubmitting} onClose={onClose} onSave={onSave} />
+    </Dialog>
+  );
+}
 
-  useEffect(() => {
-    if (record) {
-      setValues({ title: record.title || '', subtitle: record.subtitle || '' });
-    } else {
-      setValues({ title: '', subtitle: '' });
-    }
-  }, [record]);
+function OperationModalForm({
+  record,
+  isSubmitting,
+  onClose,
+  onSave,
+}: Omit<OperationModalProps, 'open'>) {
+  const [values, setValues] = useState({ title: record?.title || '', subtitle: record?.subtitle || '' });
 
   const handleChange = (field: string) => (e: any) => setValues({ ...values, [field]: e.target.value });
   const handleSubmit = () => { onSave(values); };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <>
       <DialogTitle>{record ? '编辑' : '导入'}</DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
@@ -253,7 +267,7 @@ function OperationModal({ open, record, isSubmitting, onClose, onSave }: Operati
         <Button onClick={onClose}>取消</Button>
         <Button onClick={handleSubmit} variant="contained" disabled={isSubmitting}>确认</Button>
       </DialogActions>
-    </Dialog>
+    </>
   );
 }
 

@@ -156,6 +156,95 @@ const TOOLS = [
   },
 ]
 
+const NAVIGATION_KEYWORDS: Array<{ pattern: RegExp; path: string; label: string }> = [
+  { pattern: /^(打开|去|进入|跳转|查看).*首页/, path: '/', label: '首页' },
+  { pattern: /^(打开|去|进入|跳转|查看).*数字人(工作台|页面)?/, path: '/digital-human', label: '数字人' },
+  { pattern: /^(打开|去|进入|跳转|查看).*个人中心/, path: '/account/center', label: '个人中心' },
+  { pattern: /^(打开|去|进入|跳转|查看).*我的(内容|作品)/, path: '/account/content', label: '我的内容' },
+  { pattern: /^(打开|去|进入|跳转|查看).*消息/, path: '/account/msg', label: '消息' },
+  { pattern: /^(打开|去|进入|跳转|查看).*钱包/, path: '/account/wallet', label: '钱包' },
+  { pattern: /^(打开|去|进入|跳转|查看).*悬赏/, path: '/reward', label: '悬赏中心' },
+  { pattern: /^(打开|去|进入|跳转|查看).*管理(后台|面板)/, path: '/system/user', label: '管理后台' },
+]
+
+const EXTERNAL_KEYWORDS: Array<{ pattern: RegExp; url: string; label: string }> = [
+  { pattern: /^(打开|搜索|查看)?\s*百度/, url: 'https://www.baidu.com', label: '百度' },
+  { pattern: /^(打开|搜索|查看)?\s*知乎/, url: 'https://www.zhihu.com', label: '知乎' },
+  { pattern: /^(打开|查看)?\s*github/i, url: 'https://github.com', label: 'GitHub' },
+  { pattern: /^(打开|查看)?\s*wikipedia|维基百科/, url: 'https://zh.wikipedia.org', label: '维基百科' },
+  { pattern: /^(打开|查看)?\s*谷歌|google/i, url: 'https://www.google.com', label: 'Google' },
+]
+
+const SYSTEM_KEYWORDS: Array<{ pattern: RegExp; action: SystemAction; replyText: string }> = [
+  { pattern: /音量(增大|大一点|放大|提高|上升|增加|向上|\+)/, action: 'volume-up', replyText: '已调高音量' },
+  { pattern: /音量(减小|小一点|降低|下降|减少|向下|-)/, action: 'volume-down', replyText: '已调低音量' },
+  { pattern: /^(静音|关闭声音|关掉声音)/, action: 'mute', replyText: '已静音' },
+  { pattern: /^(取消静音|恢复声音|打开声音)/, action: 'unmute', replyText: '已恢复声音' },
+  { pattern: /^(亮色主题|浅色主题|浅色模式|明亮模式)/, action: 'theme-light', replyText: '已切换为浅色主题' },
+  { pattern: /^(暗色主题|深色主题|深色模式|暗黑模式|黑暗模式)/, action: 'theme-dark', replyText: '已切换为深色主题' },
+  { pattern: /^(全屏|进入全屏|打开全屏)/, action: 'fullscreen-on', replyText: '已进入全屏' },
+  { pattern: /^(退出全屏|取消全屏|关闭全屏)/, action: 'fullscreen-off', replyText: '已退出全屏' },
+  { pattern: /^(刷新|重新加载|reload|刷新页面)/, action: 'reload', replyText: '正在刷新页面' },
+  { pattern: /^(退出登录|登出|logout|注销)/, action: 'logout', replyText: '正在退出登录' },
+]
+
+const WALK_KEYWORDS: Array<{ pattern: RegExp; target: Extract<Intent, { type: 'walk_to' }>['target'] }> = [
+  { pattern: /(走到|去|移动到).*中间|中央|正中/, target: 'center' },
+  { pattern: /(走到|去|移动到).*左边|左侧|侧边栏|最左/, target: 'sidebar' },
+  { pattern: /(走到|去|移动到).*上边|顶部|页头|最上/, target: 'header' },
+  { pattern: /(走到|去|移动到).*下边|底部|页脚|最下/, target: 'footer' },
+  { pattern: /(走到|去|移动到).*鼠标|光标|指针/, target: 'cursor' },
+]
+
+function keywordRoute(input: string): IntentResult | null {
+  const text = input.trim()
+  for (const nav of NAVIGATION_KEYWORDS) {
+    if (nav.pattern.test(text)) {
+      return {
+        intent: { type: 'navigate', path: nav.path, label: nav.label },
+        replyText: `好的, 带你去${nav.label}`,
+        emotion: 'neutral',
+        action: 'point',
+        awaitExecution: true,
+      }
+    }
+  }
+  for (const ext of EXTERNAL_KEYWORDS) {
+    if (ext.pattern.test(text)) {
+      return {
+        intent: { type: 'open_external', url: ext.url, label: ext.label, mode: 'iframe' },
+        replyText: `好的, 打开${ext.label}`,
+        emotion: 'neutral',
+        action: 'point',
+        awaitExecution: true,
+      }
+    }
+  }
+  for (const sys of SYSTEM_KEYWORDS) {
+    if (sys.pattern.test(text)) {
+      return {
+        intent: { type: 'system', action: sys.action },
+        replyText: sys.replyText,
+        emotion: 'neutral',
+        action: 'wave',
+        awaitExecution: true,
+      }
+    }
+  }
+  for (const walk of WALK_KEYWORDS) {
+    if (walk.pattern.test(text)) {
+      return {
+        intent: { type: 'walk_to', target: walk.target },
+        replyText: '好的, 我这就过去',
+        emotion: 'smile',
+        action: 'walk',
+        awaitExecution: true,
+      }
+    }
+  }
+  return null
+}
+
 export async function routeIntent(
   userInput: string,
   opts: IntentRouterOptions = {}
@@ -165,7 +254,9 @@ export async function routeIntent(
   const model = opts.model || process.env.OPENAI_MODEL || DEFAULT_MODEL
 
   if (!apiKey) {
-    // fallback: 当成普通 chat
+    // fallback: 关键词规则兜底, 避免所有非 chat 意图失效
+    const kw = keywordRoute(userInput)
+    if (kw) return kw
     return {
       intent: { type: 'chat', text: userInput, agentId: 'digital_human' },
       replyText: '',
@@ -206,6 +297,8 @@ export async function routeIntent(
   if (!r.ok) {
     console.error('[router] LLM error:', r.status, await r.text().catch(() => ''))
     // fallback
+    const kw = keywordRoute(userInput)
+    if (kw) return kw
     return {
       intent: { type: 'chat', text: userInput, agentId: 'digital_human' },
       replyText: '',
@@ -216,7 +309,9 @@ export async function routeIntent(
   const j = await r.json()
   const toolCall = j?.choices?.[0]?.message?.tool_calls?.[0]
   if (!toolCall || toolCall.function?.name !== 'emit_intent') {
-    // 没解析出工具调用, fallback chat
+    // 没解析出工具调用, fallback chat (先尝试关键词兜底)
+    const kw = keywordRoute(userInput)
+    if (kw) return kw
     return {
       intent: { type: 'chat', text: userInput, agentId: 'digital_human' },
       replyText: '',
@@ -229,6 +324,8 @@ export async function routeIntent(
     const args = toolCall.function.arguments
     parsed = typeof args === 'string' ? JSON.parse(args) : args
   } catch {
+    const kw = keywordRoute(userInput)
+    if (kw) return kw
     return {
       intent: { type: 'chat', text: userInput, agentId: 'digital_human' },
       replyText: '',

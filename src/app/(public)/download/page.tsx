@@ -16,7 +16,6 @@ import LaptopMacIcon from '@mui/icons-material/LaptopMac';
 import PhoneIphoneIcon from '@mui/icons-material/PhoneIphone';
 import AndroidIcon from '@mui/icons-material/Android';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import HdIcon from '@mui/icons-material/Hd';
 import CloudOffIcon from '@mui/icons-material/CloudOff';
 import SyncIcon from '@mui/icons-material/Sync';
 import ForumIcon from '@mui/icons-material/Forum';
@@ -43,6 +42,13 @@ const FILE_SIZE_MB: Record<ClientPlatform, number> = {
   macos: 92.1,
   ios: 64.8,
   android: 58.2,
+};
+
+const CLIENT_INSTALL_URLS: Record<ClientPlatform, string | undefined> = {
+  windows: process.env.NEXT_PUBLIC_CLIENT_URL_WINDOWS,
+  macos: process.env.NEXT_PUBLIC_CLIENT_URL_MACOS,
+  ios: process.env.NEXT_PUBLIC_CLIENT_URL_IOS,
+  android: process.env.NEXT_PUBLIC_CLIENT_URL_ANDROID,
 };
 
 const PLATFORM_ICONS: Record<ClientPlatform, React.ComponentType<{ sx?: any }>> = {
@@ -147,6 +153,7 @@ export default function DownloadPage() {
       platform: p.key,
       version: VERSION,
       sizeMb: FILE_SIZE_MB[p.key],
+      installUrl: CLIENT_INSTALL_URLS[p.key],
     });
   };
 
@@ -685,7 +692,9 @@ export default function DownloadPage() {
               lineHeight: 1.6,
             }}
           >
-            提示:后端真实安装包 URL 尚未配置,目前下载为占位文本文件(可正常打开)。接入后将自动替换为真实 CDN 包。
+            {Object.values(CLIENT_INSTALL_URLS).some(Boolean)
+              ? '客户端安装包已配置 CDN,点击下方按钮即可下载对应平台安装包。'
+              : '提示:后端真实安装包 URL 尚未配置,目前下载为占位文本文件(可正常打开)。接入后将自动替换为真实 CDN 包,请在环境变量中配置 NEXT_PUBLIC_CLIENT_URL_*。'}
           </Typography>
         </Box>
       </Box>

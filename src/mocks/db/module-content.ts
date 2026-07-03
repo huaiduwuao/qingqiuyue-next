@@ -5,7 +5,7 @@
  * 状态枚举与前端 components/module-content/page.tsx 的 CONTENT_STATUS/CONTENT_TYPE 对齐。
  */
 
-import { range, dateOffset, cover, paged, pick } from '../utils/seed';
+import { range, dateOffset, cover, pick } from '../utils/seed';
 
 const T = (d: number) => dateOffset(d, 10);
 

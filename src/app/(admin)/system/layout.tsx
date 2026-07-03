@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -11,31 +11,11 @@ import Avatar from '@mui/material/Avatar';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSettingsRounded';
-import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
-import LockRoundedIcon from '@mui/icons-material/LockRounded';
-import RecordVoiceOverRoundedIcon from '@mui/icons-material/RecordVoiceOverRounded';
-import VpnKeyRoundedIcon from '@mui/icons-material/VpnKeyRounded';
-import PeopleRoundedIcon from '@mui/icons-material/PeopleRounded';
-import MilitaryTechRoundedIcon from '@mui/icons-material/MilitaryTechRounded';
-import StarsRoundedIcon from '@mui/icons-material/StarsRounded';
-import AppsRoundedIcon from '@mui/icons-material/AppsRounded';
-import SettingsApplicationsRoundedIcon from '@mui/icons-material/SettingsApplicationsRounded';
-import DnsRoundedIcon from '@mui/icons-material/DnsRounded';
-import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
-import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
-import LanguageRoundedIcon from '@mui/icons-material/LanguageRounded';
-import LocationOnRoundedIcon from '@mui/icons-material/LocationOnRounded';
 import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
-import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
-import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded';
-import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
-import ReportProblemRoundedIcon from '@mui/icons-material/ReportProblemRounded';
-import BlockRoundedIcon from '@mui/icons-material/BlockRounded';
 import { useAuthority } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
-import { PERMISSIONS } from '@/lib/permissions';
-import { MENU_GROUPS, type MenuItemDef } from './menu-config';
+import { MENU_GROUPS } from './menu-config';
 
 const ROLE_LABEL: Record<string, { label: string; color: string }> = {
   SUPER_ADMIN: { label: '超级管理员', color: 'primary.main' },
@@ -55,7 +35,7 @@ function getPrimaryRole(authorities?: string[]): { label: string; color: string 
   return { label: authorities[0], color: 'text.secondary' };
 }
 
-export default function SystemLayout({ children }: { children: React.ReactNode }) {
+export default function SystemLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { isAdmin, can } = useAuthority();

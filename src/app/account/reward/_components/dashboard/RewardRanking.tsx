@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Avatar from '@mui/material/Avatar';
@@ -20,6 +21,8 @@ const RANKERS = [
 ];
 
 export default function RewardRanking() {
+  const router = useRouter();
+
   return (
     <Box
       sx={{
@@ -42,6 +45,7 @@ export default function RewardRanking() {
         {RANKERS.map((r) => (
           <Box
             key={r.rank}
+            onClick={() => router.push('/account/reward/ranking')}
             sx={{
               display: 'flex',
               alignItems: 'center',
@@ -51,6 +55,7 @@ export default function RewardRanking() {
               bgcolor: r.rank <= 3 ? 'rgba(255, 180, 0, 0.05)' : 'transparent',
               border: '1px solid',
               borderColor: r.rank <= 3 ? 'rgba(255, 180, 0, 0.15)' : 'transparent',
+              cursor: 'pointer',
               transition: 'all 0.2s',
               '&:hover': { bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'action.hover' },
             }}
@@ -120,6 +125,7 @@ export default function RewardRanking() {
         }}
       >
         <Typography
+          onClick={() => router.push('/account/reward/ranking')}
           sx={{
             fontSize: 11,
             color: 'primary.main',

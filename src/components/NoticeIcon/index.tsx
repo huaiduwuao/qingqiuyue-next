@@ -13,6 +13,7 @@ import Typography from '@mui/material/Typography';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Skeleton from '@mui/material/Skeleton';
+import Snackbar from '@mui/material/Snackbar';
 import CloseIcon from '@mui/icons-material/Close';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import ModeCommentOutlinedIcon from '@mui/icons-material/ModeCommentOutlined';
@@ -22,7 +23,8 @@ import AlternateEmailIcon from '@mui/icons-material/AlternateEmail';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import PersonAddAlt1Icon from '@mui/icons-material/PersonAddAlt1';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import { adminClient } from '@/lib/api/client';
+import { adminClient, homeClient } from '@/lib/api/client';
+import { getDetailRoute } from '@/lib/contentRoute';
 
 const SUB_TYPES = [
   { key: 'all', label: '最新' },
@@ -45,12 +47,32 @@ function timeAgo(iso: string): string {
   return d.toLocaleDateString('zh-CN').replace(/\//g, '/');
 }
 
+function mapNoticeTargetType(targetType?: string): string | null {
+  if (!targetType) return null;
+  const map: Record<string, string> = {
+    video: 'VIDEO',
+    novel: 'NOVEL',
+    music: 'MUSIC',
+    film: 'FILM',
+    teleplay: 'TELEPLAY',
+    animation: 'ANIMATION',
+    comics: 'COMICS',
+    vshow: 'VSHOW',
+    live: 'LIVE',
+    article: 'ARTICLE',
+    news: 'NEWS',
+    post: 'ARTICLE',
+  };
+  return map[targetType.toLowerCase()] || null;
+}
+
 export default function NoticeIconView() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [tab, setTab] = useState<'interaction' | 'system'>('interaction');
   const [subType, setSubType] = useState('all');
+  const [toast, setToast] = useState<string | null>(null);
 
   // 从后端拉未读数(用于 badge)—— 未登录不发请求(否则会 401 刷屏)
   const { data: countData } = useQuery({
@@ -231,7 +253,12 @@ export default function NoticeIconView() {
               </Box>
             ) : (
               filteredList.map((item: any) => (
-                <InteractionItem key={item.id} item={item} onClose={() => setAnchorEl(null)} />
+                <InteractionItem
+                  key={item.id}
+                  item={item}
+                  onClose={() => setAnchorEl(null)}
+                  onMessage={setToast}
+                />
               ))
             )}
           </Box>
@@ -262,11 +289,20 @@ export default function NoticeIconView() {
           </Box>
         </Box>
       </Popover>
+      <Snackbar
+        open={!!toast}
+        autoHideDuration={2200}
+        onClose={() => setToast(null)}
+        message={toast}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
     </>
   );
 }
 
-function InteractionItem({ item, onClose }: { item: any; onClose: () => void }) {
+function InteractionItem({ item, onClose, onMessage }: { item: any; onClose: () => void; onMessage: (msg: string) => void }) {
+  const router = useRouter();
+  const [followedBack, setFollowedBack] = useState(false);
   const typeIcon = (() => {
     if (item.type === 'comment') return <CommentOutlinedIcon sx={{ fontSize: 12, color: 'secondary.main' }} />;
     if (item.type === 'mention') return <AlternateEmailIcon sx={{ fontSize: 12, color: '#5B8DEF' }} />;
@@ -275,8 +311,36 @@ function InteractionItem({ item, onClose }: { item: any; onClose: () => void }) 
     return null;
   })();
 
+  const handleClick = async () => {
+    onClose();
+    if (item.type === 'follow' && item.fromUserId) {
+      if (followedBack) {
+        onMessage('已经回关过啦');
+        return;
+      }
+      try {
+        await homeClient.post(`/follow/${item.fromUserId}`);
+        setFollowedBack(true);
+        onMessage(`已回关 ${item.nickname || '用户'}`);
+      } catch {
+        onMessage('回关失败,请稍后再试');
+      }
+      return;
+    }
+    const targetType = mapNoticeTargetType(item.targetType);
+    if (targetType && item.targetId) {
+      const route = getDetailRoute(targetType, item.targetId);
+      if (route) {
+        router.push(route);
+        return;
+      }
+    }
+    onMessage('暂无可跳转的目标');
+  };
+
   return (
     <Box
+      onClick={handleClick}
       sx={{
         display: 'flex',
         alignItems: 'flex-start',

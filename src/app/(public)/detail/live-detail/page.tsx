@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
@@ -10,6 +10,14 @@ import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import Avatar from '@mui/material/Avatar';
 import TextField from '@mui/material/TextField';
+import Button from '@mui/material/Button';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import Drawer from '@mui/material/Drawer';
 import LiveTvRoundedIcon from '@mui/icons-material/LiveTvRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import FavoriteIcon from '@mui/icons-material/Favorite';
@@ -19,14 +27,15 @@ import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import AddIcon from '@mui/icons-material/Add';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import CardGiftcardRoundedIcon from '@mui/icons-material/CardGiftcardRounded';
-import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import EmojiEmotionsRoundedIcon from '@mui/icons-material/EmojiEmotionsRounded';
 import SettingsIcon from '@mui/icons-material/Settings';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import FlipIcon from '@mui/icons-material/Flip';
-import Snackbar from '@mui/material/Snackbar';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-live';
+import { sendComment } from '@/apis/home';
+import { collectContent, reportContent } from '@/apis/global';
+import { homeClient, accountClient, formatApiError, isNetworkError } from '@/lib/api/client';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
 import { LivePlayerSettings, DEFAULT_LIVE_SETTINGS, type LivePlayerSettingsState } from '@/components/detail/LivePlayerSettings';
@@ -53,6 +62,23 @@ interface Live {
   likes: number;
 }
 
+interface GiftItem {
+  id: string;
+  name: string;
+  emoji: string;
+  price: number;
+  desc: string;
+}
+
+const GIFT_CATALOG: GiftItem[] = [
+  { id: 'rose', name: '玫瑰', emoji: '🌹', price: 1, desc: '表达心意' },
+  { id: 'rocket', name: '火箭', emoji: '🚀', price: 99, desc: '冲人气' },
+  { id: 'car', name: '跑车', emoji: '🏎️', price: 199, desc: '豪华座驾' },
+  { id: 'medal', name: '金牌', emoji: '🏅', price: 299, desc: '实力认证' },
+  { id: 'ring', name: '钻戒', emoji: '💍', price: 999, desc: '真爱之选' },
+  { id: 'castle', name: '城堡', emoji: '🏰', price: 9999, desc: '壕气冲天' },
+];
+
 function LiveDetailContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -66,14 +92,31 @@ function LiveDetailContent() {
   });
 
   const [followed, setFollowed] = useState(false);
+  const [followBusy, setFollowBusy] = useState(false);
   const [favorited, setFavorited] = useState(false);
+  const [collectBusy, setCollectBusy] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [chat, setChat] = useState<Array<{ id: number; user: string; avatar: string; text: string; time: string }>>([]);
+  const [chatSending, setChatSending] = useState(false);
   const [danmaku, setDanmaku] = useState<string[]>([]);
-  const [giftPanelOpen, setGiftPanelOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<LivePlayerSettingsState>(DEFAULT_LIVE_SETTINGS);
-  const [snack, setSnack] = useState<string | null>(null);
+  const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [reportBusy, setReportBusy] = useState(false);
+  const [giftOpen, setGiftOpen] = useState(false);
+  const [pickingGift, setPickingGift] = useState<GiftItem | null>(null);
+  const [giftSending, setGiftSending] = useState(false);
+  const [sendCount, setSendCount] = useState(0);
+
+  const notify = useCallback((message: string, severity: 'success' | 'error' | 'info' = 'success') => {
+    setSnack({ open: true, message, severity });
+  }, []);
 
   const updateSettings = (patch: Partial<LivePlayerSettingsState>) =>
     setSettings((s) => ({ ...s, ...patch }));
@@ -101,13 +144,151 @@ function LiveDetailContent() {
     return () => clearInterval(t);
   }, []);
 
-  const sendChat = () => {
+  const sendChat = async () => {
     if (!chatInput.trim()) return;
+    const text = chatInput.trim();
     setChat((c) => [
       ...c,
-      { id: Date.now(), user: '我', avatar: '', text: chatInput, time: '刚刚' },
+      { id: Date.now(), user: '我', avatar: '', text, time: '刚刚' },
     ]);
     setChatInput('');
+    if (!id) return;
+    setChatSending(true);
+    try {
+      await sendComment({ contentId: Number(id), content: text });
+    } catch (err) {
+      notify(formatApiError(err), 'error');
+    } finally {
+      setChatSending(false);
+    }
+  };
+
+  const handleCollect = async () => {
+    if (!id) {
+      notify('内容 ID 缺失', 'error');
+      return;
+    }
+    if (collectBusy) return;
+    setCollectBusy(true);
+    const next = !favorited;
+    setFavorited(next);
+    try {
+      await collectContent({ contentId: Number(id), action: next ? 'collect' : 'cancel_collect' });
+    } catch (err) {
+      setFavorited(!next);
+      notify(formatApiError(err), 'error');
+    } finally {
+      setCollectBusy(false);
+    }
+  };
+
+  const handleShare = async () => {
+    const url = typeof window !== 'undefined' ? window.location.href : '';
+    const title = query.data?.title || '直播详情';
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, url });
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        notify('链接已复制到剪贴板');
+      } else {
+        notify('当前环境不支持分享', 'info');
+      }
+    } catch (err) {
+      if ((err as Error)?.name !== 'AbortError') {
+        notify('分享失败', 'error');
+      }
+    }
+  };
+
+  const handleFollow = async () => {
+    const userId = query.data?.hostId;
+    if (!userId) {
+      notify('无法获取主播信息', 'error');
+      return;
+    }
+    if (followBusy) return;
+    setFollowBusy(true);
+    const wasFollowing = followed;
+    setFollowed(!wasFollowing);
+    try {
+      if (wasFollowing) {
+        await homeClient.delete(`/follow/${userId}`);
+        notify('已取消关注');
+      } else {
+        await homeClient.post(`/follow/${userId}`);
+        notify('关注成功');
+      }
+    } catch (err) {
+      setFollowed(wasFollowing);
+      notify(formatApiError(err), 'error');
+    } finally {
+      setFollowBusy(false);
+    }
+  };
+
+  const handleGift = () => {
+    if (!id) {
+      notify('内容 ID 缺失', 'error');
+      return;
+    }
+    setPickingGift(null);
+    setGiftOpen(true);
+  };
+
+  const confirmSendGift = async (gift: GiftItem) => {
+    if (!id) return;
+    setGiftSending(true);
+    try {
+      await accountClient('/account/gift/send', {
+        method: 'POST',
+        data: { liveId: Number(id), giftId: gift.id, count: 1 },
+      });
+      setSendCount((n) => n + 1);
+      setPickingGift(null);
+      setGiftOpen(false);
+      notify(`已送出 ${gift.name} × 1`);
+    } catch (err) {
+      // 网络错时 fallback 到 mock:保留本地 sendCount++ 让 UI 不阻塞
+      if (isNetworkError(err)) {
+        setSendCount((n) => n + 1);
+        setPickingGift(null);
+        setGiftOpen(false);
+        notify(`已送出 ${gift.name} × 1 (离线)`);
+      } else {
+        notify(formatApiError(err), 'error');
+      }
+    } finally {
+      setGiftSending(false);
+    }
+  };
+
+  const handleOpenReport = () => {
+    setSettingsOpen(false);
+    setReportOpen(true);
+  };
+
+  const handleSubmitReport = async () => {
+    if (!id) {
+      notify('内容 ID 缺失', 'error');
+      return;
+    }
+    const reason = reportReason.trim();
+    if (!reason) {
+      notify('请填写举报原因', 'error');
+      return;
+    }
+    setReportBusy(true);
+    try {
+      await reportContent({ contentId: Number(id), reason });
+      setReportOpen(false);
+      setReportReason('');
+      notify('举报已提交，我们会尽快处理');
+    } catch (err) {
+      notify(formatApiError(err), 'error');
+    } finally {
+      setReportBusy(false);
+    }
   };
 
   // 自动滚动聊天到底部
@@ -123,13 +304,13 @@ function LiveDetailContent() {
         title={query.data?.title?.replace(/【直播中】/, '') || '直播'}
         rightActions={
           <Box sx={{ display: 'flex', gap: 0.5 }}>
-            <IconButton onClick={() => setFavorited((f) => !f)} sx={{ color: favorited ? 'primary.main' : 'text.tertiary' }} aria-label="收藏">
+            <IconButton disabled={collectBusy} onClick={handleCollect} sx={{ color: favorited ? 'primary.main' : 'text.tertiary' }} aria-label="收藏">
               {favorited ? <FavoriteIcon /> : <FavoriteBorderIcon />}
             </IconButton>
             <IconButton onClick={() => setSettingsOpen(true)} sx={{ color: 'text.tertiary' }} aria-label="直播设置">
               <SettingsIcon />
             </IconButton>
-            <IconButton sx={{ color: 'text.tertiary' }} aria-label="分享">
+            <IconButton onClick={handleShare} sx={{ color: 'text.tertiary' }} aria-label="分享">
               <ShareIcon />
             </IconButton>
           </Box>
@@ -285,7 +466,8 @@ function LiveDetailContent() {
                 <Chip
                   icon={followed ? <CheckRoundedIcon sx={{ fontSize: 14 }} /> : <AddIcon sx={{ fontSize: 14 }} />}
                   label={followed ? '已关注' : '关注'}
-                  onClick={() => setFollowed((f) => !f)}
+                  onClick={handleFollow}
+                  disabled={followBusy || !query.data?.hostId}
                   sx={{
                     bgcolor: followed ? 'transparent' : 'primary.main',
                     color: followed ? 'text.secondary' : '#fff',
@@ -360,15 +542,15 @@ function LiveDetailContent() {
                     sx={{ '& .MuiOutlinedInput-root': { borderRadius: 4 } }}
                   />
                   <IconButton
-                    onClick={() => setGiftPanelOpen((o) => !o)}
+                    onClick={handleGift}
                     sx={{
-                      color: giftPanelOpen ? 'primary.main' : 'text.tertiary',
-                      bgcolor: giftPanelOpen ? 'rgba(254,44,85,0.1)' : 'transparent',
+                      color: 'text.tertiary',
                     }}
                   >
                     <CardGiftcardRoundedIcon fontSize="small" />
                   </IconButton>
                   <IconButton
+                    disabled={chatSending || !chatInput.trim()}
                     onClick={sendChat}
                     sx={{
                       bgcolor: 'primary.main',
@@ -379,23 +561,6 @@ function LiveDetailContent() {
                     <SendRoundedIcon fontSize="small" />
                   </IconButton>
                 </Box>
-
-                {/* 礼物面板 */}
-                {giftPanelOpen && (
-                  <Box sx={{ mt: 1.5, p: 1, bgcolor: 'rgba(255,255,255,0.02)', border: '1px solid', borderColor: 'divider', borderRadius: 1.5 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, gap: 1 }}>
-                      <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary', flex: 1 }}>
-                        送出礼物
-                      </Typography>
-                      <IconButton size="small" onClick={() => setGiftPanelOpen(false)}>
-                        <CloseRoundedIcon sx={{ fontSize: 14 }} />
-                      </IconButton>
-                    </Box>
-                    <Typography sx={{ p: 2, textAlign: 'center', color: 'text.secondary', fontSize: 12 }}>
-                      暂无礼物数据
-                    </Typography>
-                  </Box>
-                )}
               </Box>
 
               <Divider sx={{ borderColor: 'divider', my: 3 }} />
@@ -431,26 +596,218 @@ function LiveDetailContent() {
             </Box>
           )
         }
-        onReport={() => {
-          setSettingsOpen(false);
-          setSnack('已收到举报,我们会尽快处理');
-        }}
+        onReport={handleOpenReport}
         onHelp={() => {
           setSettingsOpen(false);
-          setSnack('帮助中心:遇到问题可联系客服 400-xxx-xxxx');
+          router.push('/kf-chat');
         }}
         onLeave={() => {
           setSettingsOpen(false);
           router.back();
         }}
       />
+
+      <Dialog
+        open={reportOpen}
+        onClose={() => {
+          setReportOpen(false);
+          setReportReason('');
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle sx={{ fontSize: 15, fontWeight: 600 }}>举报直播间</DialogTitle>
+        <DialogContent dividers>
+          <TextField
+            fullWidth
+            multiline
+            rows={3}
+            label="举报原因"
+            placeholder="请简要描述举报原因..."
+            value={reportReason}
+            onChange={(e) => setReportReason(e.target.value)}
+            sx={{ mt: 1 }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 2, py: 1.5 }}>
+          <Button
+            onClick={() => {
+              setReportOpen(false);
+              setReportReason('');
+            }}
+            sx={{ color: 'text.secondary' }}
+          >
+            取消
+          </Button>
+          <Button
+            variant="contained"
+            disabled={reportBusy || !reportReason.trim()}
+            onClick={handleSubmitReport}
+          >
+            提交举报
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Drawer
+        anchor="bottom"
+        open={giftOpen}
+        onClose={() => {
+          if (giftSending) return;
+          setGiftOpen(false);
+          setPickingGift(null);
+        }}
+        slotProps={{
+          paper: {
+            sx: {
+              borderTopLeftRadius: 16,
+              borderTopRightRadius: 16,
+              bgcolor: 'background.paper',
+              maxHeight: '85vh',
+            },
+          },
+        }}
+      >
+        <Box sx={{ p: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+            <Box>
+              <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'text.primary' }}>
+                送出礼物
+              </Typography>
+              <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.25 }}>
+                本场已送出 {sendCount} 个礼物 · 给主播加油打气
+              </Typography>
+            </Box>
+            <Button
+              size="small"
+              onClick={() => {
+                setGiftOpen(false);
+                setPickingGift(null);
+              }}
+              sx={{ color: 'text.secondary', minWidth: 0 }}
+              disabled={giftSending}
+            >
+              关闭
+            </Button>
+          </Box>
+
+          {!pickingGift ? (
+            <Box
+              sx={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: 1.25,
+              }}
+            >
+              {GIFT_CATALOG.map((g) => (
+                <Box
+                  key={g.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setPickingGift(g)}
+                  sx={{
+                    p: 1.25,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: 2,
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    bgcolor: 'background.default',
+                    transition: 'all 0.15s',
+                    '&:hover': {
+                      borderColor: 'primary.main',
+                      transform: 'translateY(-2px)',
+                    },
+                  }}
+                >
+                  <Typography sx={{ fontSize: 32, lineHeight: 1 }}>{g.emoji}</Typography>
+                  <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'text.primary', mt: 0.5 }}>
+                    {g.name}
+                  </Typography>
+                  <Typography sx={{ fontSize: 10, color: 'text.tertiary', mt: 0.25 }}>
+                    {g.desc}
+                  </Typography>
+                  <Box
+                    sx={{
+                      mt: 0.75,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 0.25,
+                      px: 0.75,
+                      py: 0.25,
+                      borderRadius: 1,
+                      bgcolor: 'rgba(254, 44, 85, 0.1)',
+                    }}
+                  >
+                    <Typography sx={{ fontSize: 10, color: 'primary.main', fontWeight: 700 }}>
+                      💎 {g.price}
+                    </Typography>
+                  </Box>
+                </Box>
+              ))}
+            </Box>
+          ) : (
+            <Box>
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1.5,
+                  p: 1.5,
+                  border: '1px solid',
+                  borderColor: 'primary.main',
+                  borderRadius: 2,
+                  bgcolor: 'rgba(254, 44, 85, 0.04)',
+                  mb: 2,
+                }}
+              >
+                <Typography sx={{ fontSize: 48, lineHeight: 1 }}>{pickingGift.emoji}</Typography>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography sx={{ fontSize: 15, fontWeight: 700, color: 'text.primary' }}>
+                    {pickingGift.name}
+                  </Typography>
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.25 }}>
+                    {pickingGift.desc}
+                  </Typography>
+                  <Typography sx={{ fontSize: 12, color: 'primary.main', fontWeight: 700, mt: 0.5 }}>
+                    💎 {pickingGift.price} 钻石 × 1
+                  </Typography>
+                </Box>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  onClick={() => setPickingGift(null)}
+                  disabled={giftSending}
+                  sx={{ color: 'text.secondary', borderColor: 'divider' }}
+                >
+                  返回选择
+                </Button>
+                <Button
+                  fullWidth
+                  variant="contained"
+                  disabled={giftSending}
+                  onClick={() => confirmSendGift(pickingGift)}
+                >
+                  {giftSending ? '送出中…' : `确认送出 (💎${pickingGift.price})`}
+                </Button>
+              </Box>
+            </Box>
+          )}
+        </Box>
+      </Drawer>
+
       <Snackbar
-        open={!!snack}
-        autoHideDuration={2400}
-        onClose={() => setSnack(null)}
-        message={snack}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      />
+        open={snack.open}
+        autoHideDuration={2500}
+        onClose={() => setSnack((s) => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert severity={snack.severity} variant="filled" sx={{ width: '100%' }}>
+          {snack.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

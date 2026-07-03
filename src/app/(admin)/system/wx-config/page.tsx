@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
@@ -9,6 +9,12 @@ import Button from '@mui/material/Button';
 import Divider from '@mui/material/Divider';
 import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
 import ChatIcon from '@mui/icons-material/Chat';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
@@ -26,15 +32,38 @@ interface WxConfig {
   fans: number;
 }
 
+const LIST_KEY = ['wx-config', 'list'];
+
 export default function WxConfigPage() {
+  const qc = useQueryClient();
   const { data: configs = [] } = useQuery({
-    queryKey: ['wx-config', 'list'],
-    queryFn: () => wxClient<{ list: WxConfig[]; total: number }>('/wxConfig/list', {
+    queryKey: LIST_KEY,
+    queryFn: () => wxClient<{ data?: { list?: WxConfig[]; total?: number } }>('/wxConfig/list', {
       params: { page: 1, pageSize: 20 },
-    }).then((r: any) => (r?.data?.list as WxConfig[]) || []),
+    }).then((r) => r?.data?.data?.list || []),
   });
-  const [selected, setSelected] = useState<WxConfig | null>(null);
+  const [selected, setSelectedState] = useState<WxConfig | null>(null);
   const [nameFilter, setNameFilter] = useState('');
+  const [formValues, setFormValues] = useState<Partial<WxConfig>>({});
+  const [authDialogOpen, setAuthDialogOpen] = useState(false);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
+
+  const showMessage = (message: string, severity: 'success' | 'error' = 'success') => setSnackbar({ open: true, message, severity });
+  const invalidate = () => qc.invalidateQueries({ queryKey: LIST_KEY });
+
+  const setSelected = (c: WxConfig | null) => {
+    setSelectedState(c);
+    if (c) {
+      setFormValues({
+        appName: c.appName,
+        appId: c.appId,
+        appSecret: c.appSecret,
+        token: c.token,
+      });
+    } else {
+      setFormValues({});
+    }
+  };
 
   const filteredConfigs = useMemo(() => {
     if (!nameFilter) return configs;
@@ -43,6 +72,64 @@ export default function WxConfigPage() {
       (c) => c.appName?.toLowerCase().includes(k) || c.appId?.toLowerCase().includes(k),
     );
   }, [configs, nameFilter]);
+
+  const updateMutation = useMutation({
+    mutationFn: (vals: Partial<WxConfig> & { id: number }) => wxClient('/wxConfig/updateById', {
+      method: 'POST',
+      data: vals,
+    }),
+    onSuccess: () => {
+      showMessage('保存成功');
+      invalidate();
+    },
+    onError: (err: unknown) => showMessage(err instanceof Error ? err.message : '保存失败', 'error'),
+  });
+
+  const handleFormChange = (field: keyof WxConfig, value: string) => {
+    setFormValues((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSave = () => {
+    if (!selected) return;
+    updateMutation.mutate({
+      id: selected.id,
+      appName: formValues.appName ?? selected.appName,
+      appId: formValues.appId ?? selected.appId,
+      appSecret: formValues.appSecret ?? selected.appSecret,
+      token: formValues.token ?? selected.token,
+    });
+  };
+
+  const handleToggleStatus = () => {
+    if (!selected) return;
+    const nextStatus = selected.status === 'active' ? 'inactive' : 'active';
+    updateMutation.mutate({
+      id: selected.id,
+      status: nextStatus,
+    }, {
+      onSuccess: () => {
+        showMessage(nextStatus === 'active' ? '已启用' : '已停用');
+        setSelectedState((prev) => (prev ? { ...prev, status: nextStatus } : prev));
+      },
+    });
+  };
+
+  const handleReauthorize = () => {
+    setAuthDialogOpen(true);
+  };
+
+  const confirmReauthorize = () => {
+    // 触发微信授权：跳转后端授权入口（带当前页回调）
+    const callback = encodeURIComponent(window.location.href);
+    window.open(`/api/core/wxConfig/authorize?callback=${callback}`, '_blank', 'noopener,noreferrer');
+    setAuthDialogOpen(false);
+  };
+
+  const handleCopy = (value: string) => {
+    navigator.clipboard?.writeText(value).then(() => showMessage('已复制到剪贴板'));
+  };
+
+  const isSubmitting = updateMutation.isPending;
 
   return (
     <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3, maxWidth: 1200, mx: 'auto' }}>
@@ -153,33 +240,51 @@ export default function WxConfigPage() {
 
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               {[
-                { label: 'AppID', value: selected.appId, copy: true },
-                { label: 'AppSecret', value: selected.appSecret, copy: true },
-                { label: 'Token', value: selected.token, copy: true },
-                { label: '绑定时间', value: selected.bindTime, copy: false },
-                { label: '粉丝数', value: selected.fans.toLocaleString(), copy: false },
+                { label: 'AppID', field: 'appId' as const, copy: true },
+                { label: 'AppSecret', field: 'appSecret' as const, copy: true },
+                { label: 'Token', field: 'token' as const, copy: true },
+                { label: '绑定时间', field: 'bindTime' as const, copy: false, disabled: true },
+                { label: '粉丝数', field: 'fans' as const, copy: false, disabled: true, format: (v: number) => v.toLocaleString() },
               ].map((f) => (
                 <Box key={f.label}>
                   <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 0.5 }}>{f.label}</Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Box
-                      sx={{
-                        flex: 1,
-                        p: 1.5,
-                        borderRadius: 1,
-                        bgcolor: 'background.default',
-                        border: '1px solid #252836',
-                        fontFamily: 'monospace',
-                        fontSize: 13,
-                        color: 'text.tertiary',
-                      }}
-                    >
-                      {f.value}
-                    </Box>
+                    {f.disabled ? (
+                      <Box
+                        sx={{
+                          flex: 1,
+                          p: 1.5,
+                          borderRadius: 1,
+                          bgcolor: 'background.default',
+                          border: '1px solid #252836',
+                          fontFamily: 'monospace',
+                          fontSize: 13,
+                          color: 'text.tertiary',
+                        }}
+                      >
+                        {f.format ? f.format(selected[f.field] as number) : selected[f.field]}
+                      </Box>
+                    ) : (
+                      <TextField
+                        size="small"
+                        fullWidth
+                        value={formValues[f.field] ?? selected[f.field]}
+                        onChange={(e) => handleFormChange(f.field, e.target.value)}
+                        type={f.field === 'appSecret' || f.field === 'token' ? 'password' : 'text'}
+                        sx={{
+                          flex: 1,
+                          '& .MuiOutlinedInput-root': {
+                            fontFamily: 'monospace',
+                            fontSize: 13,
+                            bgcolor: 'background.default',
+                          },
+                        }}
+                      />
+                    )}
                     {f.copy && (
                       <Button
                         size="small"
-                        onClick={() => navigator.clipboard?.writeText(selected.appId)}
+                        onClick={() => handleCopy(String(formValues[f.field] ?? selected[f.field]))}
                         sx={{ minWidth: 60, textTransform: 'none', color: 'success.main' }}
                       >
                         复制
@@ -195,18 +300,23 @@ export default function WxConfigPage() {
             <Box sx={{ display: 'flex', gap: 1 }}>
               <Button
                 variant="contained"
+                disabled={isSubmitting}
+                onClick={handleSave}
                 sx={{ bgcolor: 'success.main', '&:hover': { bgcolor: '#4FC986' }, textTransform: 'none' }}
               >
                 保存修改
               </Button>
               <Button
                 variant="outlined"
+                onClick={handleReauthorize}
                 sx={{ borderColor: 'divider', color: 'text.tertiary', textTransform: 'none' }}
               >
                 重新授权
               </Button>
               <Button
                 variant="outlined"
+                disabled={isSubmitting}
+                onClick={handleToggleStatus}
                 sx={{ borderColor: 'divider', color: 'primary.main', textTransform: 'none' }}
               >
                 {selected.status === 'active' ? '停用' : '启用'}
@@ -215,6 +325,25 @@ export default function WxConfigPage() {
           </Box>
         )}
       </Box>
+
+      <Dialog open={authDialogOpen} onClose={() => setAuthDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>重新授权微信公众号</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: 14, color: 'text.secondary', pt: 1 }}>
+            重新授权将跳转到微信开放平台授权页，授权完成后会自动返回当前页面。是否继续？
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAuthDialogOpen(false)}>取消</Button>
+          <Button variant="contained" onClick={confirmReauthorize}>
+            去授权
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={() => setSnackbar((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+        <Alert severity={snackbar.severity} sx={{ width: '100%' }}>{snackbar.message}</Alert>
+      </Snackbar>
     </Box>
   );
 }
