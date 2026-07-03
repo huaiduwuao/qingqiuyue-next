@@ -54,6 +54,9 @@ import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import PlaylistAddCheckRoundedIcon from '@mui/icons-material/PlaylistAddCheckRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
+import { useMutation } from '@tanstack/react-query';
+import { updateShare } from '@/apis/module-content';
+import type { ModuleContentItem } from '@/apis/module-content';
 import { gradient2, gradient3 } from '@/constants/gradients';
 import {
   HdResolution,
@@ -330,10 +333,25 @@ export default function HdPublishPage() {
     setUploadAudios((p) => p.map((a) => ({ ...a, isDefault: a.id === id })));
   };
 
-  const handleSubmitUpload = () => {
+  const createMutation = useMutation({
+    mutationFn: (title: string) =>
+      updateShare({
+        title,
+        contentType: 'VIDEO',
+        status: 'reviewing',
+        subtitle: `分辨率:${uploadResolution} · HDR:${uploadHdr ? '是' : '否'}`,
+      } as ModuleContentItem),
+  });
+
+  const handleSubmitUpload = async () => {
     if (!uploadTitle.trim()) {
       setSnack('请输入视频标题');
       return;
+    }
+    try {
+      await createMutation.mutateAsync(uploadTitle.trim());
+    } catch (e: any) {
+      setSnack(`真实内容创建失败:${e.message || '未知错误'},仅保存到本地预览`);
     }
     const newItem: HdVideo = {
       id: `hd-${Date.now()}`,
@@ -352,7 +370,7 @@ export default function HdPublishPage() {
       audioTracks: uploadAudios,
     };
     setVideos((p) => [newItem, ...p]);
-    setSnack(`《${newItem.title}》已加入转码队列`);
+    setSnack(`《${newItem.title}》已加入转码队列并同步创建内容记录`);
     setUploadOpen(false);
     // reset
     setUploadTitle('');

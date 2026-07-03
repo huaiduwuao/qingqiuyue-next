@@ -35,6 +35,9 @@ import EditNoteRoundedIcon from '@mui/icons-material/EditNoteRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import LightbulbRoundedIcon from '@mui/icons-material/LightbulbRounded';
+import { useQuery } from '@tanstack/react-query';
+import { gradient2 } from '@/constants/gradients';
+import { myPage, process as updateContentStatus } from '@/apis/module-content';
 import {
   HdVideo,
   Reviewer,
@@ -44,6 +47,7 @@ import {
   SEED_REVIEWERS,
   REVIEWER_LEVEL_META,
   getReviewerById,
+  REVIEW_CHECK_TEMPLATE,
 } from '../hd-publish/data';
 
 type ReviewTab = 'pending' | 'reviewed';
@@ -117,6 +121,47 @@ export default function HdReviewPage() {
   const [selectedRejectReasons, setSelectedRejectReasons] = useState<string[]>([]);
   const [snack, setSnack] = useState<string | null>(null);
 
+  // 拉取真实待审核内容(VIDEO 类型 + reviewing 状态)
+  const { data: realReviewing } = useQuery({
+    queryKey: ['module-content', 'reviewing'],
+    queryFn: async () => {
+      const res = await myPage({ status: 'reviewing', contentType: 'VIDEO', pageSize: 100 });
+      return res.data?.records || [];
+    },
+    staleTime: 30_000,
+  });
+
+  // 把真实内容合并到本地 simulator 列表(去重)
+  useEffect(() => {
+    if (!realReviewing?.length) return;
+    setVideos((prev) => {
+      const existingIds = new Set(prev.map((v) => v.id));
+      const mapped: HdVideo[] = realReviewing
+        .filter((item) => !existingIds.has(String(item.id)))
+        .map((item) => ({
+          id: String(item.id),
+          title: item.title || '(无标题)',
+          cover: item.coverUrl || gradient2('#FE2C55', '#FFB400'),
+          resolution: '1080P',
+          fps: 30,
+          hdr: false,
+          duration: '00:00',
+          sizeMB: 0,
+          status: 'reviewing',
+          uploadedAt: item.createTime ? new Date(item.createTime).getTime() : Date.now(),
+          hasCover: !!item.coverUrl,
+          subtitles: [],
+          audioTracks: [{ id: 'a1', label: '原声', codec: 'AAC 320kbps', isDefault: true }],
+          review: {
+            checks: REVIEW_CHECK_TEMPLATE.map((c) => ({ ...c, status: 'pending' as const })),
+            startedAt: Date.now(),
+            assignedReviewerId: currentReviewerId,
+          },
+        }));
+      return [...mapped, ...prev];
+    });
+  }, [realReviewing, currentReviewerId]);
+
   // When hd-publish sends us a pre-selected video via setActiveTab('hd-review',
   // { video }), open that video in the right panel as soon as the data is ready.
   useEffect(() => {
@@ -183,7 +228,7 @@ export default function HdReviewPage() {
     setSelectedRejectReasons((p) => (p.includes(reason) ? p.filter((r) => r !== reason) : [...p, reason]));
   };
 
-  const handleSubmitVerdict = (decision: ReviewerDecision) => {
+  const handleSubmitVerdict = async (decision: ReviewerDecision) => {
     if (!selectedVideo || !currentReviewer) return;
     if (decision !== 'pass' && verdictNote.trim().length === 0 && selectedRejectReasons.length === 0) {
       setSnack('驳回/需修改时,必须填写备注或选择驳回原因');
@@ -206,6 +251,20 @@ export default function HdReviewPage() {
     };
     const completedAt = Date.now();
     const isPass = decision === 'pass';
+
+    // 真实内容(数字 ID)同步更新后端状态
+    const numericId = Number(selectedVideo.id);
+    if (!isNaN(numericId) && numericId > 0) {
+      try {
+        await updateContentStatus({
+          ids: [numericId],
+          status: isPass ? 'PUBLISH' : 'UN_PUBLISH',
+        });
+      } catch (e: any) {
+        setSnack(`后端状态更新失败:${e.message || '未知错误'}`);
+        return;
+      }
+    }
 
     setVideos((p) =>
       p.map((v) =>
