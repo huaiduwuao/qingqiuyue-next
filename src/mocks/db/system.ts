@@ -702,6 +702,188 @@ export const DM_SESSIONS = [
   },
 ];
 
+// ─── 数据分析看板 ───
+export const DASHBOARD_STATS = {
+  totalUsers: 28647,
+  totalUsersGrowth: 12.5,
+  totalContent: 158392,
+  totalContentGrowth: 8.3,
+  todayRevenue: 48560,
+  todayRevenueGrowth: -3.2,
+  totalOrders: 6721,
+  totalOrdersGrowth: 22.8,
+  newUsersToday: 342,
+  activeUsersToday: 12856,
+  conversionRate: 4.8,
+};
+
+export const DASHBOARD_TREND = range(30).map((i) => {
+  const date = new Date();
+  date.setDate(date.getDate() - (29 - i));
+  const day = `${date.getMonth() + 1}/${date.getDate()}`;
+  return {
+    date: day,
+    users: 120 + Math.floor(Math.random() * 200),
+    content: 50 + Math.floor(Math.random() * 150),
+    revenue: 800 + Math.floor(Math.random() * 1200),
+    orders: 30 + Math.floor(Math.random() * 70),
+    activeUsers: 400 + Math.floor(Math.random() * 300),
+  };
+});
+
+export const DASHBOARD_CONTENT_DISTRIBUTION = [
+  { type: '视频', count: 45230, percent: 37, color: '#FE2C55' },
+  { type: '图文', count: 32150, percent: 26, color: '#25F4EE' },
+  { type: '音乐', count: 21580, percent: 18, color: '#FFB400' },
+  { type: '小说', count: 12890, percent: 11, color: '#8B5CF6' },
+  { type: '动漫', count: 6540, percent: 5, color: '#5DDB96' },
+  { type: '其他', count: 3890, percent: 3, color: '#A78BFA' },
+];
+
+export const DASHBOARD_TOP_CREATORS = range(10).map((i) => ({
+  rank: i + 1,
+  id: 8000 + i,
+  name: USER_NICKNAMES[i % USER_NICKNAMES.length],
+  avatar: avatar(i + 100),
+  fans: 100000 - i * 7000 + Math.floor(Math.random() * 3000),
+  works: 120 - i * 10 + Math.floor(Math.random() * 8),
+  totalViews: 5000000 - i * 400000 + Math.floor(Math.random() * 100000),
+  growth: 15 - i + Math.floor(Math.random() * 10),
+}));
+
+export const DASHBOARD_RECENT_ACTIVITIES = range(15).map((i) => ({
+  id: 9000 + i,
+  user: USER_NICKNAMES[(i + 3) % USER_NICKNAMES.length],
+  avatar: avatar(i + 500),
+  action: pick(['发布了新作品', '更新了内容', '获得精选', '完成订单', '新增粉丝里程碑', '作品破万播放', '开通会员', '收到打赏'], i),
+  target: pick(['《记录日常》', '《旅行日记》', '《我的创作故事》', '《生活美学》', '《科技前沿》', '《美食探店》'], i),
+  time: dateOffset(Math.floor(i / 2), 8 + (i % 12)),
+}));
+
+// ─── 工作台 ───
+export const WORKPLACE_USER = {
+  name: '系统管理员',
+  avatar: avatar(1),
+  role: '超级管理员',
+  department: '技术部',
+  greeting: (() => {
+    const h = new Date().getHours();
+    if (h < 6) return '夜深了,注意休息';
+    if (h < 9) return '早上好';
+    if (h < 12) return '上午好';
+    if (h < 14) return '中午好';
+    if (h < 18) return '下午好';
+    return '晚上好';
+  })(),
+};
+
+export const WORKPLACE_QUICK_ACTIONS = [
+  { id: 'content', label: '发布内容', icon: 'publish', color: '#FE2C55', path: '/account/content/works' },
+  { id: 'user', label: '添加用户', icon: 'userAdd', color: '#5B8DEF', path: '/system/user' },
+  { id: 'hermes', label: '管理智能体', icon: 'bot', color: '#07C160', path: '/system/hermes' },
+  { id: 'dict', label: '字典配置', icon: 'dict', color: '#FF8A3D', path: '/system/dict/dict-type' },
+  { id: 'log', label: '查看日志', icon: 'log', color: '#25F4EE', path: '/system/log' },
+  { id: 'monitor', label: '系统监控', icon: 'monitor', color: '#8B5CF6', path: '/system/dashboard/monitor' },
+  { id: 'spider', label: '爬虫管理', icon: 'spider', color: '#F59E0B', path: '/system/spider-dashboard' },
+  { id: 'analysis', label: '数据分析', icon: 'chart', color: '#5DDB96', path: '/system/dashboard/analysis' },
+];
+
+export const WORKPLACE_TODOS = range(8).map((i) => ({
+  id: 100 + i,
+  title: [
+    '审核新提交的内容作品',
+    '处理用户举报申诉',
+    '更新系统字典配置',
+    '检查爬虫任务运行状态',
+    '审核创作者入驻申请',
+    '发布平台公告通知',
+    '配置微信公众号菜单',
+    '巡检数字人管线服务',
+  ][i],
+  description: [
+    '有 12 条新内容待审核',
+    '3 个用户提交了申诉请求',
+    '产品类型字典需要新增条目',
+    '2 个爬虫任务出现异常',
+    '5 位新创作者等待审核',
+    '新版本上线公告待发布',
+    '菜单结构需要调整',
+    '检查 avatar-pipeline 健康状态',
+  ][i],
+  priority: pick(['high', 'medium', 'low', 'medium', 'high', 'medium', 'low', 'high'], i) as 'high' | 'medium' | 'low',
+  status: i < 5 ? 'pending' : i < 7 ? 'in_progress' : 'done',
+  assignee: USER_NICKNAMES[i % USER_NICKNAMES.length],
+  dueDate: dateOffset(-(i - 3), 18),
+  createTime: dateOffset(i + 1, 9),
+}));
+
+export const WORKPLACE_PROJECTS = range(5).map((i) => ({
+  id: 200 + i,
+  name: [
+    '青丘阅 App 2.0 版本',
+    'AI 智能推荐引擎',
+    '数字人直播间',
+    '创作者激励计划',
+    '内容安全审核系统',
+  ][i],
+  description: [
+    '全新 UI 设计与性能优化',
+    '基于 Hermes 的多模态推荐',
+    '实时数字人直播推流',
+    '创作者流量扶持与变现',
+    'AI + 人工双重审核流程',
+  ][i],
+  progress: [75, 60, 45, 90, 30][i],
+  status: i < 2 ? 'active' : i < 4 ? 'active' : 'planning',
+  members: range(3 + (i % 3)).map((j) => ({
+    name: USER_NICKNAMES[(i * 3 + j) % USER_NICKNAMES.length],
+    avatar: avatar(i * 10 + j + 200),
+  })),
+  deadline: dateOffset(-(i - 14), 18),
+  updateTime: dateOffset(i, 9),
+}));
+
+export const WORKPLACE_TEAM = range(8).map((i) => ({
+  id: 300 + i,
+  name: USER_NICKNAMES[i],
+  avatar: avatar(i + 300),
+  role: ['前端开发', '后端开发', '产品经理', 'UI 设计师', '测试工程师', '运营专员', '数据分析', '架构师'][i],
+  status: i < 6 ? 'online' : 'offline',
+  lastActive: i < 6 ? `${Math.floor(Math.random() * 59)} 分钟前` : `${1 + Math.floor(Math.random() * 24)} 小时前`,
+}));
+
+// ─── 数字人资产管理 ───
+export const DH_ASSETS = range(8).map((i) => ({
+  id: 1000 + i,
+  name: ['小秋', '墨染', '云汐', '星河', '月白', '清瑶', '风吟', '沐晨'][i],
+  style: pick(['二次元', '二次元', '写实', '二次元', '写实', '二次元', '写实', '二次元'], i),
+  status: i < 5 ? 'online' : i < 7 ? 'training' : 'draft',
+  statusLabel: { online: '在线', training: '训练中', draft: '草稿' }[i < 5 ? 'online' : i < 7 ? 'training' : 'draft'],
+  thumbnail: cover(120, 120, i + 600),
+  modelFile: `public/avatars/${['xiaoqiu', 'moran', 'yunxi', 'xinghe', 'yuebai', 'qingyao', 'fengyin', 'muchen'][i]}.glb`,
+  blendShapeCount: 12 + i * 2,
+  animationCount: 5 + i,
+  outfitCount: 2 + (i % 3),
+  sceneCount: 1 + (i % 2),
+  createdAt: dateOffset(i * 5 + 10, 10),
+  updatedAt: dateOffset(i * 3, 12),
+  pipelineStage: i < 5 ? 'deployed' : i < 7 ? 'training' : 'mesh',
+  quality: [95, 88, 92, 78, 85, 70, 65, 60][i],
+  size: [45, 62, 38, 55, 48, 35, 28, 22][i],
+  conversations: [1250, 890, 2340, 450, 3200, 120, 45, 10][i],
+}));
+
+export const DH_RECENT_JOBS = range(6).map((i) => ({
+  id: 5000 + i,
+  name: ['真人重建-张三', '二次元生成-墨染', 'Mixamo 动作导入', 'BlendShape 雕刻', '换装系统构建', '场景集成-办公室'][i],
+  type: pick(['rebuild', 'generate', 'import', 'sculpt', 'outfit', 'scene'], i),
+  status: i < 2 ? 'running' : i < 4 ? 'completed' : i < 5 ? 'failed' : 'queued',
+  progress: i < 2 ? 45 + i * 20 : i < 4 ? 100 : i < 5 ? 72 : 0,
+  createdAt: dateOffset(i, 8),
+  finishedAt: i < 4 ? dateOffset(i - 1, 10) : undefined,
+  log: i < 5 ? '执行中...' : '等待队列',
+}));
+
 export const DM_MESSAGES: Record<number, Array<{
   id: number;
   sessionId: number;

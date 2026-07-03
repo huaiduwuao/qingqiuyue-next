@@ -34,6 +34,18 @@ import {
   USER_PROFILE,
   DASHBOARD_RADAR,
   MODULE_MENU_TREE,
+  DASHBOARD_STATS,
+  DASHBOARD_TREND,
+  DASHBOARD_CONTENT_DISTRIBUTION,
+  DASHBOARD_TOP_CREATORS,
+  DASHBOARD_RECENT_ACTIVITIES,
+  WORKPLACE_USER,
+  WORKPLACE_QUICK_ACTIONS,
+  WORKPLACE_TODOS,
+  WORKPLACE_PROJECTS,
+  WORKPLACE_TEAM,
+  DH_ASSETS,
+  DH_RECENT_JOBS,
 } from '../db/system';
 
 const ok = <T,>(data: T) => HttpResponse.json({ code: 200, msg: 'OK', data });
@@ -349,6 +361,27 @@ export const systemHandlers = [
   http.post('*/api/core/msg/session/unfollow', () => ok({ unfollowed: true })),
   http.post('*/api/core/msg/session/read', () => ok({ read: true })),
   http.delete(/\/api\/admin\/msg\/session\/removeByIds.*/, () => ok({ removed: 1 })),
+
+  // ─── dashboard/analysis ───
+  http.get('*/api/core/dashboard/stats', () => ok(DASHBOARD_STATS)),
+  http.get('*/api/core/dashboard/trend', () => ok(DASHBOARD_TREND)),
+  http.get('*/api/core/dashboard/content-distribution', () => ok(DASHBOARD_CONTENT_DISTRIBUTION)),
+  http.get('*/api/core/dashboard/top-creators', () => ok(DASHBOARD_TOP_CREATORS)),
+  http.get('*/api/core/dashboard/recent-activities', () => ok(DASHBOARD_RECENT_ACTIVITIES)),
+
+  // ─── workplace ───
+  http.get('*/api/core/workplace/user', () => ok(WORKPLACE_USER)),
+  http.get('*/api/core/workplace/quick-actions', () => ok(WORKPLACE_QUICK_ACTIONS)),
+  http.get('*/api/core/workplace/todos', () => ok(WORKPLACE_TODOS)),
+  http.post('*/api/core/workplace/todo/toggle', () => ok({ updated: 1 })),
+  http.get('*/api/core/workplace/projects', () => ok(WORKPLACE_PROJECTS)),
+  http.get('*/api/core/workplace/team', () => ok(WORKPLACE_TEAM)),
+
+  // ─── digital-human assets ───
+  http.get('*/api/core/digital-human/assets', () => ok(DH_ASSETS)),
+  http.get('*/api/core/digital-human/recent-jobs', () => ok(DH_RECENT_JOBS)),
+  http.post('*/api/core/digital-human/job/start', () => ok({ id: Math.floor(Math.random() * 1000) + 9999, status: 'queued' })),
+
   // ─── moderation ───
   http.get('*/api/core/moderation/sensitive-words', () =>
     ok([

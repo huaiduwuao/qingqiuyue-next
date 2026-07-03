@@ -1,196 +1,458 @@
 'use client';
 
 import React from 'react';
-import Box from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
-import Link from 'next/link';
+import {
+  Box,
+  Container,
+  Typography,
+  Card,
+  CardContent,
+  CardMedia,
+  Grid,
+  Chip,
+  LinearProgress,
+  List,
+  ListItem,
+  ListItemAvatar,
+  ListItemText,
+  Avatar,
+  Divider,
+  Skeleton,
+  Alert,
+  Button,
+  IconButton,
+  Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Snackbar,
+  Tabs,
+  Tab,
+} from '@mui/material';
 import { alpha } from '@mui/material/styles';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
+import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
+import StopRoundedIcon from '@mui/icons-material/StopRounded';
+import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
+import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
+import FileDownloadRoundedIcon from '@mui/icons-material/FileDownloadRounded';
+import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded';
+import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
+import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
+import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
+import QueueRoundedIcon from '@mui/icons-material/QueueRounded';
+import HourglassEmptyRoundedIcon from '@mui/icons-material/HourglassEmptyRounded';
+import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
+import FaceRoundedIcon from '@mui/icons-material/FaceRounded';
+import Face2RoundedIcon from '@mui/icons-material/Face2Rounded';
+import MicExternalOnRoundedIcon from '@mui/icons-material/MicExternalOnRounded';
+import GestureRoundedIcon from '@mui/icons-material/GestureRounded';
+import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
 
-/**
- * 数字人资产管理页(Blender + COLMAP + 3DGS 路线)。
- *
- * 不走 SMPL-X / FLAME(邮箱 + license 卡死商用)。
- * 完整流水线:
- *   拍摄视频 → COLMAP 重建 → 3DGS(可选)→ clean-mesh → Blender 绑骨 → GLB
- *   一键脚本:bash scripts/avatar-pipeline.sh --input <video> --out <work>
- */
+// ── 类型 ──
+interface DHAsset {
+  id: number;
+  name: string;
+  style: string;
+  status: string;
+  statusLabel: string;
+  thumbnail: string;
+  modelFile: string;
+  blendShapeCount: number;
+  animationCount: number;
+  outfitCount: number;
+  sceneCount: number;
+  createdAt: string;
+  updatedAt: string;
+  pipelineStage: string;
+  quality: number;
+  size: number;
+  conversations: number;
+}
+
+interface DHJob {
+  id: number;
+  name: string;
+  type: string;
+  status: string;
+  progress: number;
+  createdAt: string;
+  finishedAt?: string;
+  log: string;
+}
+
+const STATUS_CHIP_COLORS: Record<string, 'success' | 'info' | 'warning' | 'default'> = {
+  online: 'success', training: 'warning', draft: 'default', deployed: 'success',
+};
+const JOB_STATUS_ICONS: Record<string, React.ReactNode> = {
+  running: <HourglassEmptyRoundedIcon sx={{ fontSize: 16, color: '#FFB400' }} />,
+  completed: <CheckCircleRoundedIcon sx={{ fontSize: 16, color: '#5DDB96' }} />,
+  failed: <ErrorOutlineRoundedIcon sx={{ fontSize: 16, color: '#FE2C55' }} />,
+  queued: <QueueRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />,
+};
+
+function useDigitalHuman() {
+  const assets = useQuery<DHAsset[]>({
+    queryKey: ['digital-human', 'assets'],
+    queryFn: () => fetch('/api/core/digital-human/assets').then((r) => r.json()).then((r) => r.data),
+    refetchInterval: 15_000,
+  });
+  const jobs = useQuery<DHJob[]>({
+    queryKey: ['digital-human', 'recent-jobs'],
+    queryFn: () => fetch('/api/core/digital-human/recent-jobs').then((r) => r.json()).then((r) => r.data),
+    refetchInterval: 10_000,
+  });
+  return { assets, jobs };
+}
+
+// ── 格式化 ──
+function fmtDate(s: string) {
+  return new Date(s).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+function fmt(n: number): string {
+  if (n >= 10000) return (n / 10000).toFixed(1) + '万';
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
+  return String(n);
+}
+
 export default function SystemDigitalHumanPage() {
+  const { assets, jobs } = useDigitalHuman();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const [tab, setTab] = React.useState(0);
+  const [snack, setSnack] = React.useState('');
+  const [detailAsset, setDetailAsset] = React.useState<DHAsset | null>(null);
+  const [confirmDelete, setConfirmDelete] = React.useState<DHAsset | null>(null);
+
+  const startJob = useMutation({
+    mutationFn: (type: string) =>
+      fetch('/api/core/digital-human/job/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type }) }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['digital-human', 'recent-jobs'] }); setSnack('任务已提交'); },
+    onError: () => { setSnack('任务提交失败'); },
+  });
+
+  const onlineCount = (assets.data || []).filter((a: DHAsset) => a.status === 'online').length;
+  const trainingCount = (assets.data || []).filter((a: DHAsset) => a.status === 'training').length;
+  const totalConversations = (assets.data || []).reduce((acc: number, a: DHAsset) => acc + a.conversations, 0);
+  const totalSize = (assets.data || []).reduce((acc: number, a: DHAsset) => acc + a.size, 0);
+
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <Box>
-        <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'text.primary' }}>
-          数字人资产(Blender + COLMAP + 3DGS 路线)
-        </Typography>
-        <Typography sx={{ fontSize: 13, color: 'text.secondary', mt: 0.5 }}>
-          完全开源 · 浏览器本地驱动 · 商用干净(无 SMPL-X / FLAME license)
-        </Typography>
-      </Box>
-
-      {/* 现状 */}
-      <Box sx={{
-        p: 2.5, borderRadius: 2,
-        border: (t) => `1px solid ${t.palette.divider}`,
-        bgcolor: 'background.paper',
-        display: 'flex', flexDirection: 'column', gap: 1.5,
-      }}>
-        <Typography sx={{ fontSize: 15, fontWeight: 600 }}>现状</Typography>
-        <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-          前端 three.js + WebGPURenderer 加载 <code>public/avatars/model.glb</code>
-          (Blender 导出的可驱动数字人,含 mesh + skeleton + 12 个 BlendShape + animations)。
-        </Typography>
-        <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-          LLM(<code>/api/avatar/chat</code>)决策 <code>emotion / action</code>,
-          Edge-TTS 生成音频 + 文本驱动 viseme 时间线;数字人张嘴 + 表情 + 动作。
-        </Typography>
-      </Box>
-
-      {/* 当前 model.glb 状态卡 */}
-      <Box sx={{
-        p: 2.5, borderRadius: 2,
-        border: (t) => `1px solid ${t.palette.divider}`,
-        bgcolor: 'background.paper',
-        display: 'flex', flexDirection: 'column', gap: 1.5,
-      }}>
-        <Typography sx={{ fontSize: 15, fontWeight: 600 }}>当前资产</Typography>
-        <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
-          <Box component="tbody">
-            <Box component="tr">
-              <Box component="td" sx={{ py: 0.75, pr: 2, color: 'text.secondary' }}>主模型</Box>
-              <Box component="td"><code>public/avatars/model.glb</code></Box>
-            </Box>
-            <Box component="tr">
-              <Box component="td" sx={{ py: 0.75, pr: 2, color: 'text.secondary' }}>换装</Box>
-              <Box component="td">
-                <code>outfits/casual.glb</code> · <code>outfits/suit.glb</code> · <code>outfits/sports.glb</code>
-              </Box>
-            </Box>
-            <Box component="tr">
-              <Box component="td" sx={{ py: 0.75, pr: 2, color: 'text.secondary' }}>场景</Box>
-              <Box component="td">
-                <code>scenes/office.glb</code> · <code>scenes/park.glb</code>
-              </Box>
-            </Box>
-            <Box component="tr">
-              <Box component="td" sx={{ py: 0.75, pr: 2, color: 'text.secondary' }}>BlendShape</Box>
-              <Box component="td">
-                表情:smile / angry / sad / surprised / blink
-                <br />
-                口型:aa / ih / ou / E / O / U / closed
-              </Box>
-            </Box>
-            <Box component="tr">
-              <Box component="td" sx={{ py: 0.75, pr: 2, color: 'text.secondary' }}>动作</Box>
-              <Box component="td">idle / wave / walk (+ Mixamo 导入的额外动作)</Box>
-            </Box>
-          </Box>
-        </Box>
-      </Box>
-
-      {/* 一键管线 */}
-      <Box sx={{
-        p: 2.5, borderRadius: 2,
-        border: (t) => `1px solid ${t.palette.divider}`,
-        bgcolor: 'background.paper',
-        display: 'flex', flexDirection: 'column', gap: 1.5,
-      }}>
-        <Typography sx={{ fontSize: 15, fontWeight: 600 }}>如何生成 / 替换数字人</Typography>
-        <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-          <strong>方式 A —— Web UI 一键(推荐,二次元 5 分钟 / 真人 30~60 分钟)</strong>
-        </Typography>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, pl: 2 }}>
-          <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-            · 二次元:从 10 个预制角色里点选 → 命名 → 完成
+      {/* ── 标题栏 ── */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+        <Box>
+          <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'text.primary' }}>
+            数字人资产管理
           </Typography>
-          <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-            · 真人:上传本人视频 → 自动过 COLMAP + 3DGS + Blender 绑骨
+          <Typography sx={{ fontSize: 13, color: 'text.secondary', mt: 0.5 }}>
+            Blender + COLMAP + 3DGS · 完全开源 · 商用干净
           </Typography>
         </Box>
-        <Typography sx={{ fontSize: 13, color: 'text.secondary', mt: 1 }}>
-          <strong>方式 B —— 命令行(适合自动化 / CI)</strong>
-        </Typography>
-        <Box sx={{
-          p: 1.5, borderRadius: 1,
-          bgcolor: (t) => alpha(t.palette.primary.main, 0.05),
-          fontFamily: 'monospace', fontSize: 12,
-        }}>
-          <Box>{`# 1) 手机拍 30 秒慢转 360° 的视频(竖屏,1080p+,充足漫射光)`}</Box>
-          <Box>{`bash scripts/capture.sh --input input.mp4 --out work/`}</Box>
-          <Box>{`# 2) COLMAP SfM + 稠密重建`}</Box>
-          <Box>{`bash scripts/reconstruct-colmap.sh --work work/xiaoqiu`}</Box>
-          <Box>{`# 3) 3DGS 训练(可选,需 NVIDIA GPU 8GB+)`}</Box>
-          <Box>{`bash scripts/train-3dgs.sh --work work/xiaoqiu`}</Box>
-          <Box>{`# 4) 点云 → GLB mesh(需 open3d)`}</Box>
-          <Box>{`python scripts/clean-mesh.py --ply work/xiaoqiu/gs/point_cloud/iteration_30000/point_cloud.ply --out work/xiaoqiu/mesh/cleaned.glb`}</Box>
-          <Box>{`# 5) Blender 绑骨 + 雕 12 个 BlendShape + 导出`}</Box>
-          <Box>{`blender --background --python scripts/blender/rig_mesh.py -- --input work/xiaoqiu/mesh/cleaned.glb --output public/avatars/model.glb`}</Box>
-          <Box>{`# 或一条龙:`}</Box>
-          <Box>{`bash scripts/avatar-pipeline.sh --input input.mp4 --name xiaoqiu --out work/xiaoqiu [--skip-3dgs] [--mixamo mixamo/]`}</Box>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<RefreshRoundedIcon />}
+            onClick={() => { assets.refetch(); jobs.refetch(); }}
+          >
+            刷新
+          </Button>
+          <Button
+            size="small"
+            variant="contained"
+            startIcon={<AddRoundedIcon />}
+            onClick={() => router.push('/avatar-pipeline')}
+          >
+            创建数字人
+          </Button>
         </Box>
-        <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-          <strong>无视频时(纯程序化占位 demo)</strong>
-        </Typography>
-        <Box sx={{
-          p: 1.5, borderRadius: 1,
-          bgcolor: (t) => alpha(t.palette.primary.main, 0.05),
-          fontFamily: 'monospace', fontSize: 12,
-        }}>
-          <Box>{`blender --background --python scripts/blender/build_avatar.py -- --output public/avatars/model.glb`}</Box>
-          <Box>{`# 或写实版:`}</Box>
-          <Box>{`blender --background --python scripts/blender/build_realistic.py -- --output public/avatars/model-realistic.glb`}</Box>
-        </Box>
-        <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-          <strong>Mixamo 动作导入</strong>:到 <code>https://www.mixamo.com</code> 下载 FBX,
-          用 <code>scripts/blender/import_mixamo.py --fbx &lt;动作&gt;.fbx --target model.glb --output model.glb --action-name 动作名</code> 追加。
-        </Typography>
       </Box>
 
-      {/* License 表 */}
-      <Box sx={{
-        p: 2.5, borderRadius: 2,
-        border: (t) => `1px solid ${t.palette.divider}`,
-        bgcolor: 'background.paper',
-        display: 'flex', flexDirection: 'column', gap: 1.5,
-      }}>
-        <Typography sx={{ fontSize: 15, fontWeight: 600 }}>完全开源链路</Typography>
-        <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
-          <Box component="tbody">
-            <Box component="tr"><Box component="td" sx={{ py: 0.75, pr: 2, color: 'text.secondary' }}>拍摄协议</Box><Box component="td">用户自有视频(无 license)</Box></Box>
-            <Box component="tr"><Box component="td" sx={{ py: 0.75, pr: 2, color: 'text.secondary' }}>COLMAP</Box><Box component="td">BSD-3,免费商用</Box></Box>
-            <Box component="tr"><Box component="td" sx={{ py: 0.75, pr: 2, color: 'text.secondary' }}>3DGS</Box><Box component="td">gaussian-splatting(独立子项目),非商用研究 license;商用前确认上游条款</Box></Box>
-            <Box component="tr"><Box component="td" sx={{ py: 0.75, pr: 2, color: 'text.secondary' }}>Open3D</Box><Box component="td">MIT,免费商用</Box></Box>
-            <Box component="tr"><Box component="td" sx={{ py: 0.75, pr: 2, color: 'text.secondary' }}>Blender</Box><Box component="td">GPL(Blender 软件本体);导出的 .glb / .fbx 只是数据,不受 GPL 传染</Box></Box>
-            <Box component="tr"><Box component="td" sx={{ py: 0.75, pr: 2, color: 'text.secondary' }}>Mixamo</Box><Box component="td">免费 Adobe 账号;license 干净,允许商用(详见 Adobe Mixamo 条款)</Box></Box>
-            <Box component="tr"><Box component="td" sx={{ py: 0.75, pr: 2, color: 'text.secondary' }}>渲染</Box><Box component="td">three.js(MIT)+ WebGPURenderer(W3C 标准)</Box></Box>
-            <Box component="tr"><Box component="td" sx={{ py: 0.75, pr: 2, color: 'text.secondary' }}>LLM / TTS</Box><Box component="td">Qwen2.5(Apache 2.0)+ Edge-TTS / CosyVoice2(开源)</Box></Box>
-          </Box>
+      {/* ── 概览卡片 ── */}
+      {assets.isLoading ? (
+        <Box sx={{ display: 'flex', gap: 2 }}>{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} variant="rounded" width={200} height={100} />)}</Box>
+      ) : assets.isError ? (
+        <Alert severity="warning">资产数据加载中,请确认后端 API 已启动</Alert>
+      ) : (
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2 }}>
+          <Card variant="outlined"><CardContent sx={{ py: 2, textAlign: 'center' }}>
+            <Typography variant="overline" color="text.secondary">资产总数</Typography>
+            <Typography variant="h4" sx={{ fontWeight: 700 }}>{(assets.data || []).length}</Typography>
+          </CardContent></Card>
+          <Card variant="outlined"><CardContent sx={{ py: 2, textAlign: 'center' }}>
+            <Typography variant="overline" color="text.secondary">在线</Typography>
+            <Typography variant="h4" sx={{ fontWeight: 700, color: 'success.main' }}>{onlineCount}</Typography>
+          </CardContent></Card>
+          <Card variant="outlined"><CardContent sx={{ py: 2, textAlign: 'center' }}>
+            <Typography variant="overline" color="text.secondary">训练中</Typography>
+            <Typography variant="h4" sx={{ fontWeight: 700, color: 'warning.main' }}>{trainingCount}</Typography>
+          </CardContent></Card>
+          <Card variant="outlined"><CardContent sx={{ py: 2, textAlign: 'center' }}>
+            <Typography variant="overline" color="text.secondary">总对话数</Typography>
+            <Typography variant="h4" sx={{ fontWeight: 700, color: '#8B5CF6' }}>{totalConversations.toLocaleString()}</Typography>
+          </CardContent></Card>
         </Box>
-        <Typography sx={{ fontSize: 12, color: 'warning.main', mt: 1 }}>
-          ⚠️ 不使用 SMPL-X / FLAME —— 它们的 license 禁商用,且需要学术邮箱注册,本路线完全绕开。
-        </Typography>
-      </Box>
+      )}
 
-      {/* 跳转 */}
-      <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
-        <Link href="/avatar-pipeline" style={{ color: 'inherit' }}>
-          <Box sx={{
-            px: 2, py: 1, borderRadius: 1,
-            bgcolor: (t) => alpha(t.palette.primary.main, 0.15),
-            border: (t) => `1px solid ${alpha(t.palette.primary.main, 0.4)}`,
-            fontSize: 13, fontWeight: 600,
-          }}>
-            Web UI 创建数字人 →
+      {/* ── Tab: 资产管理 / 任务管线 ── */}
+      <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
+        <Tab label="我的数字人" />
+        <Tab label="任务管线" />
+      </Tabs>
+
+      {/* ── 资产列表 ── */}
+      {tab === 0 && (
+        assets.isLoading ? (
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' }, gap: 2 }}>
+            {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} variant="rounded" height={280} />)}
           </Box>
-        </Link>
-        <Link href="/digital-human" style={{ color: 'inherit' }}>
-          <Box sx={{
-            px: 2, py: 1, borderRadius: 1,
-            border: (t) => `1px solid ${t.palette.divider}`,
-            fontSize: 13, fontWeight: 600,
-          }}>
-            打开数字人页 →
+        ) : (
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' }, gap: 2 }}>
+            {(assets.data || []).map((a: DHAsset) => (
+              <Card
+                key={a.id}
+                sx={{
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  '&:hover': { transform: 'translateY(-2px)', boxShadow: 4 },
+                }}
+                onClick={() => setDetailAsset(a)}
+              >
+                <Box sx={{ position: 'relative', pt: '75%', bgcolor: 'grey.100', overflow: 'hidden' }}>
+                  <CardMedia
+                    component="img"
+                    image={a.thumbnail}
+                    alt={a.name}
+                    sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                  <Box sx={{ position: 'absolute', top: 8, right: 8 }}>
+                    <Chip
+                      label={a.statusLabel}
+                      size="small"
+                      color={STATUS_CHIP_COLORS[a.status]}
+                      sx={{ fontWeight: 600, fontSize: 11 }}
+                    />
+                  </Box>
+                  <Box sx={{ position: 'absolute', bottom: 8, left: 8 }}>
+                    <Chip
+                      label={a.style}
+                      size="small"
+                      variant="outlined"
+                      sx={{ bgcolor: 'rgba(0,0,0,0.5)', color: 'white', borderColor: 'transparent', fontSize: 11 }}
+                    />
+                  </Box>
+                </Box>
+                <CardContent sx={{ py: 1.5, px: 2 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>{a.name}</Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
+                    <Chip size="small" label={`BS×${a.blendShapeCount}`} variant="outlined" sx={{ height: 20, fontSize: 10 }} />
+                    <Chip size="small" label={`动作×${a.animationCount}`} variant="outlined" sx={{ height: 20, fontSize: 10 }} />
+                    <Chip size="small" label={`换装×${a.outfitCount}`} variant="outlined" sx={{ height: 20, fontSize: 10 }} />
+                  </Box>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Typography variant="caption" color="text.secondary">{a.size}MB</Typography>
+                    <Typography variant="caption" color="text.secondary">{fmt(a.conversations)} 对话</Typography>
+                  </Box>
+                  <LinearProgress
+                    variant="determinate"
+                    value={a.quality}
+                    sx={{ mt: 1, height: 4, borderRadius: 2, bgcolor: alpha('#8B5CF6', 0.1), '& .MuiLinearProgress-bar': { bgcolor: a.quality >= 80 ? '#5DDB96' : a.quality >= 50 ? '#FFB400' : '#FE2C55', borderRadius: 2 } }}
+                  />
+                </CardContent>
+              </Card>
+            ))}
           </Box>
-        </Link>
-      </Box>
+        )
+      )}
+
+      {/* ── 任务管线 ── */}
+      {tab === 1 && (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {/* 快捷操作按钮 */}
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            {[
+              { label: '二次元生成', icon: <FaceRoundedIcon />, type: 'generate-anime', color: '#8B5CF6' },
+              { label: '真人重建', icon: <Face2RoundedIcon />, type: 'rebuild-real', color: '#5B8DEF' },
+              { label: '导入 Mixamo 动作', icon: <GestureRoundedIcon />, type: 'import-mixamo', color: '#FFB400' },
+              { label: 'BlendShape 雕刻', icon: <AutoFixHighRoundedIcon />, type: 'sculpt-blendshape', color: '#FE2C55' },
+            ].map((btn) => (
+              <Button
+                key={btn.type}
+                variant="outlined"
+                size="small"
+                startIcon={btn.icon}
+                disabled={startJob.isPending}
+                onClick={() => startJob.mutate(btn.type)}
+                sx={{ borderColor: alpha(btn.color, 0.3), color: btn.color, '&:hover': { borderColor: btn.color, bgcolor: alpha(btn.color, 0.05) } }}
+              >
+                {btn.label}
+              </Button>
+            ))}
+          </Box>
+
+          {/* 最近任务列表 */}
+          <Card>
+            <CardContent>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 2 }}>最近任务</Typography>
+              {jobs.isLoading ? (
+                Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} variant="rounded" height={48} sx={{ mb: 1 }} />)
+              ) : (
+                <List dense disablePadding>
+                  {(jobs.data || []).map((j: DHJob) => (
+                    <React.Fragment key={j.id}>
+                      <ListItem sx={{ px: 0, py: 1 }}>
+                        <ListItemAvatar sx={{ minWidth: 36 }}>
+                          <Avatar sx={{ width: 28, height: 28, bgcolor: 'action.hover' }}>
+                            {JOB_STATUS_ICONS[j.status]}
+                          </Avatar>
+                        </ListItemAvatar>
+                        <ListItemText
+                          primary={<Typography variant="body2" sx={{ fontSize: 13, fontWeight: 500 }}>{j.name}</Typography>}
+                          secondary={
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Chip
+                                label={{ running: '运行中', completed: '已完成', failed: '失败', queued: '队列中' }[j.status]}
+                                size="small"
+                                color={{ running: 'warning', completed: 'success', failed: 'error', queued: 'default' }[j.status] as any}
+                                sx={{ height: 20, fontSize: 10 }}
+                              />
+                              <Typography variant="caption" color="text.secondary">{fmtDate(j.createdAt)}</Typography>
+                              {j.finishedAt && <Typography variant="caption" color="text.secondary">· 完成于 {fmtDate(j.finishedAt)}</Typography>}
+                            </Box>
+                          }
+                        />
+                        <Box sx={{ textAlign: 'right', minWidth: 100 }}>
+                          {j.status === 'running' ? (
+                            <>
+                              <LinearProgress variant="determinate" value={j.progress} sx={{ width: 80, height: 6, borderRadius: 3, mb: 0.3 }} />
+                              <Typography variant="caption" sx={{ fontSize: 10 }}>{j.progress}%</Typography>
+                            </>
+                          ) : j.status === 'completed' ? (
+                            <Chip icon={<CheckCircleRoundedIcon />} label="100%" size="small" color="success" variant="outlined" sx={{ height: 22, fontSize: 10 }} />
+                          ) : null}
+                        </Box>
+                      </ListItem>
+                      <Divider component="li" />
+                    </React.Fragment>
+                  ))}
+                  {(jobs.data || []).length === 0 && (
+                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 3 }}>暂无任务</Typography>
+                  )}
+                </List>
+              )}
+            </CardContent>
+          </Card>
+        </Box>
+      )}
+
+      {/* ── 管线文档(折叠) ── */}
+      <Card variant="outlined" sx={{ mt: 1 }}>
+        <CardContent sx={{ py: 2 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>管线概览</Typography>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
+            <Box sx={{ p: 1.5, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+              <Typography variant="caption" sx={{ fontWeight: 600, color: '#8B5CF6' }}>方式 A — Web UI (推荐)</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                二次元: 5 分钟 · 从 10 个预制角色选 → 命名 → 完成<br />
+                真人: 30~60 分钟 · 上传视频 → COLMAP + 3DGS + Blender 绑骨
+              </Typography>
+            </Box>
+            <Box sx={{ p: 1.5, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
+              <Typography variant="caption" sx={{ fontWeight: 600, color: '#5B8DEF' }}>方式 B — 命令行 (CI/CD)</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                bash scripts/avatar-pipeline.sh --input &lt;video&gt; --name &lt;name&gt;
+              </Typography>
+            </Box>
+          </Box>
+          <Button size="small" sx={{ mt: 1 }} onClick={() => router.push('/avatar-pipeline')}>
+            打开 Web UI 创建数字人 →
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* ── 详情弹窗 ── */}
+      <Dialog open={!!detailAsset} onClose={() => setDetailAsset(null)} maxWidth="sm" fullWidth>
+        {detailAsset && (
+          <>
+            <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              {detailAsset.name}
+              <Chip label={detailAsset.statusLabel} size="small" color={STATUS_CHIP_COLORS[detailAsset.status]} />
+            </DialogTitle>
+            <DialogContent dividers>
+              <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+                <Avatar src={detailAsset.thumbnail} variant="rounded" sx={{ width: 120, height: 120 }} />
+                <Box>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>质量评分</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                    <LinearProgress
+                      variant="determinate"
+                      value={detailAsset.quality}
+                      sx={{ width: 100, height: 8, borderRadius: 4, bgcolor: alpha('#8B5CF6', 0.1), '& .MuiLinearProgress-bar': { bgcolor: detailAsset.quality >= 80 ? '#5DDB96' : detailAsset.quality >= 50 ? '#FFB400' : '#FE2C55', borderRadius: 4 } }}
+                    />
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{detailAsset.quality}%</Typography>
+                  </Box>
+                  <Typography variant="body2" sx={{ fontWeight: 600, mt: 1.5 }}>规格</Typography>
+                  <Typography variant="caption" color="text.secondary" component="div">
+                    BlendShape: {detailAsset.blendShapeCount} · 动作: {detailAsset.animationCount}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" component="div">
+                    换装: {detailAsset.outfitCount} · 场景: {detailAsset.sceneCount}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" component="div">
+                    文件大小: {detailAsset.size}MB
+                  </Typography>
+                </Box>
+              </Box>
+              <Typography variant="subtitle2" sx={{ mb: 1 }}>管线阶段</Typography>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                {['mesh', 'rig', 'blendshape', 'outfit', 'deployed'].map((stage, i) => {
+                  const done = ['mesh', 'rig', 'blendshape', 'outfit', 'deployed'].indexOf(detailAsset.pipelineStage) >= i;
+                  return (
+                    <Chip
+                      key={stage}
+                      label={{ mesh: '网格重建', rig: '骨骼绑定', blendshape: '表情雕刻', outfit: '换装配置', deployed: '已部署' }[stage]}
+                      size="small"
+                      color={done ? 'primary' : 'default'}
+                      variant={done ? 'filled' : 'outlined'}
+                      sx={{ fontSize: 10 }}
+                    />
+                  );
+                })}
+              </Box>
+              <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>统计</Typography>
+              <Box sx={{ display: 'flex', gap: 3 }}>
+                <Box><Typography variant="h6" sx={{ fontWeight: 700 }}>{detailAsset.conversations.toLocaleString()}</Typography><Typography variant="caption" color="text.secondary">对话</Typography></Box>
+                <Box><Typography variant="h6" sx={{ fontWeight: 700 }}>{fmtDate(detailAsset.updatedAt)}</Typography><Typography variant="caption" color="text.secondary">最后更新</Typography></Box>
+              </Box>
+            </DialogContent>
+            <DialogActions>
+              <Button size="small" onClick={() => setConfirmDelete(detailAsset)} color="error" startIcon={<DeleteOutlineRoundedIcon />}>删除</Button>
+              <Button size="small" onClick={() => setDetailAsset(null)}>关闭</Button>
+            </DialogActions>
+          </>
+        )}
+      </Dialog>
+
+      {/* ── 确认删除 ── */}
+      <Dialog open={!!confirmDelete} onClose={() => setConfirmDelete(null)}>
+        <DialogTitle>确认删除</DialogTitle>
+        <DialogContent>
+          <Typography>确定要删除数字人 「{confirmDelete?.name}」 吗?此操作不可撤销。</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setConfirmDelete(null)}>取消</Button>
+          <Button color="error" onClick={() => { setSnack(`已删除 ${confirmDelete?.name}`); setConfirmDelete(null); setDetailAsset(null); }}>确认删除</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar */}
+      <Snackbar open={!!snack} autoHideDuration={3000} onClose={() => setSnack('')} message={snack} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} />
     </Box>
   );
 }
