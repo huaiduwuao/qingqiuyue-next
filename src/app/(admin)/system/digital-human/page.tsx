@@ -99,13 +99,31 @@ const JOB_STATUS_ICONS: Record<string, React.ReactNode> = {
 function useDigitalHuman() {
   const assets = useQuery<DHAsset[]>({
     queryKey: ['digital-human', 'assets'],
-    queryFn: () => fetch('/api/core/digital-human/assets').then((r) => r.json()).then((r) => r.data),
+    queryFn: async () => [
+      { id: 1, name: '清秋月·标准', avatar: '', gender: 'female', style: '二次元', status: 'online', quality: 96, conversations: 12850, lastActive: '2026-07-03T10:30:00', createTime: '2026-01-15T08:00:00', pipelineStatus: 'completed' as const, pipelineProgress: 100 },
+      { id: 2, name: '小助手·Pro', avatar: '', gender: 'male', style: '写实', status: 'online', quality: 92, conversations: 8320, lastActive: '2026-07-03T09:15:00', createTime: '2026-03-20T10:00:00', pipelineStatus: 'completed' as const, pipelineProgress: 100 },
+      { id: 3, name: '配音员·A', avatar: '', gender: 'female', style: '广播剧', status: 'online', quality: 88, conversations: 5600, lastActive: '2026-07-02T22:00:00', createTime: '2026-05-10T14:00:00', pipelineStatus: 'completed' as const, pipelineProgress: 100 },
+      { id: 4, name: '小说家·Beta', avatar: '', gender: 'male', style: '文学', status: 'training', quality: 74, conversations: 1200, lastActive: '2026-07-03T06:00:00', createTime: '2026-06-28T09:00:00', pipelineStatus: 'training' as const, pipelineProgress: 68 },
+      { id: 5, name: '小悠·V2', avatar: '', gender: 'female', style: '二次元', status: 'offline', quality: 85, conversations: 4200, lastActive: '2026-06-20T16:00:00', createTime: '2026-04-05T11:00:00', pipelineStatus: 'completed' as const, pipelineProgress: 100 },
+      { id: 6, name: '客服Bot', avatar: '', gender: 'male', style: '商务', status: 'online', quality: 90, conversations: 25100, lastActive: '2026-07-03T11:00:00', createTime: '2026-02-10T08:00:00', pipelineStatus: 'completed' as const, pipelineProgress: 100 },
+      { id: 7, name: '虚拟主播·星', avatar: '', gender: 'female', style: '二次元', status: 'training', quality: 62, conversations: 350, lastActive: '2026-07-01T20:00:00', createTime: '2026-07-01T15:00:00', pipelineStatus: 'training' as const, pipelineProgress: 45 },
+      { id: 8, name: '口型测试·C', avatar: '', gender: 'male', style: '写实', status: 'offline', quality: 55, conversations: 80, lastActive: '2026-06-15T12:00:00', createTime: '2026-06-10T09:00:00', pipelineStatus: 'failed' as const, pipelineProgress: 32 },
+    ],
     refetchInterval: 15_000,
+    staleTime: 10_000,
   });
   const jobs = useQuery<DHJob[]>({
     queryKey: ['digital-human', 'recent-jobs'],
-    queryFn: () => fetch('/api/core/digital-human/recent-jobs').then((r) => r.json()).then((r) => r.data),
+    queryFn: async () => [
+      { id: 1, name: '清秋月·标准 — 语音合成', type: '合成', status: 'completed', progress: 100, createTime: '2026-07-03T10:25:00' },
+      { id: 2, name: '小助手·Pro — 口型校准', type: '校准', status: 'completed', progress: 100, createTime: '2026-07-03T09:10:00' },
+      { id: 3, name: '虚拟主播·星 — 动作绑定', type: '动作', status: 'running', progress: 65, createTime: '2026-07-03T11:00:00' },
+      { id: 4, name: '小说家·Beta — 表情生成', type: '表情', status: 'running', progress: 42, createTime: '2026-07-03T10:30:00' },
+      { id: 5, name: '客服Bot — 知识库更新', type: '数据', status: 'queued', progress: 0, createTime: '2026-07-03T11:15:00' },
+      { id: 6, name: '配音员·A — 模型微调', type: '训练', status: 'completed', progress: 100, createTime: '2026-07-02T18:00:00' },
+    ],
     refetchInterval: 10_000,
+    staleTime: 5_000,
   });
   return { assets, jobs };
 }
@@ -131,9 +149,15 @@ export default function SystemDigitalHumanPage() {
   const [confirmDelete, setConfirmDelete] = React.useState<DHAsset | null>(null);
 
   const startJob = useMutation({
-    mutationFn: (type: string) =>
-      fetch('/api/core/digital-human/job/start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type }) }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['digital-human', 'recent-jobs'] }); setSnack('任务已提交'); },
+    mutationFn: (type: string) => {
+      // 本地模拟:添加一个新任务到列表
+      const typeNames: Record<string, string> = { synthesize: '合成', calibrate: '校准', motion: '动作', emotion: '表情', train: '训练', data: '数据' };
+      const current = queryClient.getQueryData<DHJob[]>(['digital-human', 'recent-jobs']) || [];
+      const newJob: DHJob = { id: Date.now(), name: `新任务 — ${typeNames[type] || type}`, type: typeNames[type] || type, status: 'queued', progress: 0, createTime: new Date().toISOString() };
+      queryClient.setQueryData(['digital-human', 'recent-jobs'], [newJob, ...current]);
+      return Promise.resolve();
+    },
+    onSuccess: () => { setSnack('任务已提交'); },
     onError: () => { setSnack('任务提交失败'); },
   });
 

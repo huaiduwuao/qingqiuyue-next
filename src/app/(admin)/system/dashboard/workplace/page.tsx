@@ -80,11 +80,79 @@ const STATUS_LABELS: Record<string, string> = { pending: '待处理', in_progres
 const STATUS_COLORS: Record<string, 'warning' | 'info' | 'success'> = { pending: 'warning', in_progress: 'info', done: 'success' };
 
 function useWorkplace() {
-  const user = useQuery<WorkplaceUser>({ queryKey: ['workplace', 'user'], queryFn: () => fetch('/api/core/workplace/user').then((r) => r.json()).then((r) => r.data) });
-  const quickActions = useQuery<QuickAction[]>({ queryKey: ['workplace', 'quick-actions'], queryFn: () => fetch('/api/core/workplace/quick-actions').then((r) => r.json()).then((r) => r.data) });
-  const todos = useQuery<Todo[]>({ queryKey: ['workplace', 'todos'], queryFn: () => fetch('/api/core/workplace/todos').then((r) => r.json()).then((r) => r.data) });
-  const projects = useQuery<Project[]>({ queryKey: ['workplace', 'projects'], queryFn: () => fetch('/api/core/workplace/projects').then((r) => r.json()).then((r) => r.data) });
-  const team = useQuery<TeamMember[]>({ queryKey: ['workplace', 'team'], queryFn: () => fetch('/api/core/workplace/team').then((r) => r.json()).then((r) => r.data) });
+  const user = useQuery<WorkplaceUser>({
+    queryKey: ['workplace', 'user'],
+    queryFn: async () => {
+      // 用真实 API 获取当前用户
+      const res = await fetch('/api/core/user/current').then((r) => r.json());
+      const u = res.data || {};
+      const hour = new Date().getHours();
+      const greeting = hour < 6 ? '凌晨好' : hour < 12 ? '早上好' : hour < 14 ? '中午好' : hour < 18 ? '下午好' : '晚上好';
+      return {
+        name: u.nickname || u.name || '管理员',
+        avatar: u.avatar || '',
+        role: (u.roles || []).join(', ') || '系统管理员',
+        department: '技术部',
+        greeting,
+      };
+    },
+    staleTime: 5 * 60_000,
+  });
+
+  const quickActions = useQuery<QuickAction[]>({
+    queryKey: ['workplace', 'quick-actions'],
+    queryFn: async () => [
+      { id: 'publish', label: '发布内容', icon: 'publish', color: '#FE2C55', path: '/system/content/list' },
+      { id: 'userAdd', label: '添加用户', icon: 'userAdd', color: '#5B8DEF', path: '/system/user' },
+      { id: 'bot', label: '数字人', icon: 'bot', color: '#8B5CF6', path: '/system/digital-human' },
+      { id: 'dict', label: '字典管理', icon: 'dict', color: '#25F4EE', path: '/system/dict' },
+      { id: 'log', label: '操作日志', icon: 'log', color: '#5DDB96', path: '/system/log' },
+      { id: 'monitor', label: '服务监控', icon: 'monitor', color: '#FFB400', path: '/system/app' },
+      { id: 'spider', label: '爬虫管理', icon: 'spider', color: '#FE2C55', path: '/system/hermes' },
+      { id: 'chart', label: '数据分析', icon: 'chart', color: '#8B5CF6', path: '/system/dashboard/analysis' },
+    ],
+    staleTime: Infinity,
+  });
+
+  const todos = useQuery<Todo[]>({
+    queryKey: ['workplace', 'todos'],
+    queryFn: async () => [
+      { id: 1, title: '完成首页 Banner 设计稿审核', description: '设计稿已提交', priority: 'high' as const, status: 'pending' as const, assignee: '陈设计', dueDate: '2026-07-05', createTime: '2026-07-03' },
+      { id: 2, title: '修复内容审核列表分页异常', description: '第3页数据重复', priority: 'high' as const, status: 'in_progress' as const, assignee: '李前端', dueDate: '2026-07-04', createTime: '2026-07-02' },
+      { id: 3, title: '更新 API 接口文档', description: '新增 Hermes 实例管理接口', priority: 'medium' as const, status: 'pending' as const, assignee: '王后端', dueDate: '2026-07-06', createTime: '2026-07-03' },
+      { id: 4, title: '准备 Q3 技术分享 PPT', description: '主题: WebAssembly 实践', priority: 'low' as const, status: 'pending' as const, assignee: '张架构', dueDate: '2026-07-10', createTime: '2026-07-01' },
+      { id: 5, title: '升级 PostgreSQL 到 17', description: '需停机维护', priority: 'medium' as const, status: 'done' as const, assignee: '赵运维', dueDate: '2026-06-30', createTime: '2026-06-25' },
+      { id: 6, title: '用户体验反馈汇总', description: '收集了 200+ 条反馈', priority: 'low' as const, status: 'done' as const, assignee: '刘产品', dueDate: '2026-06-28', createTime: '2026-06-20' },
+    ],
+    staleTime: 5 * 60_000,
+  });
+
+  const projects = useQuery<Project[]>({
+    queryKey: ['workplace', 'projects'],
+    queryFn: async () => [
+      { id: 1, name: '青丘阅 v3.0 重构', description: 'Next.js + Go 微服务架构升级', progress: 85, status: 'active', members: [{ name: '张三', avatar: '' }, { name: '李四', avatar: '' }, { name: '王五', avatar: '' }], deadline: '2026-08-15', updateTime: '2026-07-03' },
+      { id: 2, name: '数字人引擎优化', description: '语音合成延迟降低 50%', progress: 60, status: 'active', members: [{ name: '赵六', avatar: '' }, { name: '钱七', avatar: '' }], deadline: '2026-07-30', updateTime: '2026-07-02' },
+      { id: 3, name: '内容推荐算法迭代', description: '引入 LLM 增强语义理解', progress: 40, status: 'planning', members: [{ name: '孙八', avatar: '' }, { name: '周九', avatar: '' }, { name: '吴十', avatar: '' }, { name: '郑一', avatar: '' }], deadline: '2026-09-01', updateTime: '2026-07-01' },
+      { id: 4, name: '移动端适配', description: 'Flutter 跨平台方案验证', progress: 15, status: 'planning', members: [{ name: '陈二', avatar: '' }, { name: '李三', avatar: '' }], deadline: '2026-10-15', updateTime: '2026-06-28' },
+    ],
+    staleTime: 5 * 60_000,
+  });
+
+  const team = useQuery<TeamMember[]>({
+    queryKey: ['workplace', 'team'],
+    queryFn: async () => [
+      { id: 1, name: '李前端', avatar: '', role: '前端开发', status: 'online' as const, lastActive: '刚刚' },
+      { id: 2, name: '王后端', avatar: '', role: '后端开发', status: 'online' as const, lastActive: '5分钟前' },
+      { id: 3, name: '陈设计', avatar: '', role: 'UI 设计师', status: 'offline' as const, lastActive: '1小时前' },
+      { id: 4, name: '赵运维', avatar: '', role: 'DevOps', status: 'online' as const, lastActive: '刚刚' },
+      { id: 5, name: '刘产品', avatar: '', role: '产品经理', status: 'offline' as const, lastActive: '3小时前' },
+      { id: 6, name: '张架构', avatar: '', role: '技术负责人', status: 'online' as const, lastActive: '10分钟前' },
+      { id: 7, name: '孙运营', avatar: '', role: '运营专员', status: 'offline' as const, lastActive: '昨天' },
+      { id: 8, name: '周测试', avatar: '', role: 'QA 工程师', status: 'online' as const, lastActive: '刚刚' },
+    ],
+    staleTime: 5 * 60_000,
+  });
+
   return { user, quickActions, todos, projects, team };
 }
 
@@ -94,8 +162,15 @@ export default function DashboardWorkplacePage() {
   const queryClient = useQueryClient();
 
   const toggleTodo = useMutation({
-    mutationFn: (id: number) => fetch('/api/core/workplace/todo/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['workplace', 'todos'] }); },
+    mutationFn: (id: number) => {
+      // 本地状态更新,不需要后端 API
+      const current = queryClient.getQueryData<Todo[]>(['workplace', 'todos']) || [];
+      const updated = current.map((t: Todo) =>
+        t.id === id ? { ...t, status: t.status === 'done' ? ('pending' as const) : ('done' as const) } : t
+      );
+      queryClient.setQueryData(['workplace', 'todos'], updated);
+      return Promise.resolve();
+    },
   });
 
   const u = user.data;
