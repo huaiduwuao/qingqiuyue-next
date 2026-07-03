@@ -21,8 +21,6 @@ import ArticleIcon from '@mui/icons-material/Article';
 import LinkIcon from '@mui/icons-material/Link';
 import StorageIcon from '@mui/icons-material/Storage';
 import {
-  getHealth,
-  getCrawlStats,
   getWorkerStats,
   getSiteSlotStats,
   getBatchStats,
@@ -37,6 +35,7 @@ import type {
   ActivityType,
   Worker,
 } from '@/beans/spider';
+import { useSpiderRealtime } from '../SpiderRealtimeContext';
 
 const fmt = (n: number | undefined) => (n == null ? '—' : n.toLocaleString('zh-CN'));
 const POLL_MS = 5000;
@@ -58,10 +57,11 @@ const TYPE_LABELS: Record<ActivityType, string> = {
 };
 
 export default function SpiderDashboardPage() {
-  // ── 实时轮询(5s) ──
+  // ── 实时 WebSocket 状态 ──
+  const { health, stats } = useSpiderRealtime();
+
+  // ── 其他数据仍用 HTTP 轮询(5s) ──
   const common = { refetchInterval: POLL_MS, refetchIntervalInBackground: false } as const;
-  const health = useQuery({ queryKey: ['spider', 'health'], queryFn: () => getHealth().then((r) => r.data), ...common });
-  const stats = useQuery({ queryKey: ['spider', 'stats'], queryFn: () => getCrawlStats().then((r) => r.data), ...common });
   const workers = useQuery({ queryKey: ['spider', 'worker-stats'], queryFn: () => getWorkerStats().then((r) => r.data), ...common });
   const sites = useQuery({ queryKey: ['spider', 'site-stats'], queryFn: () => getSiteSlotStats().then((r) => r.data), ...common });
   const batch = useQuery({ queryKey: ['spider', 'batch-stats'], queryFn: () => getBatchStats(0).then((r) => r.data), ...common });
@@ -88,24 +88,26 @@ export default function SpiderDashboardPage() {
     return () => clearInterval(t);
   }, []);
   const lastFetchAt = useMemo(() => {
-    const ts = [health.dataUpdatedAt, stats.dataUpdatedAt, timeseries.dataUpdatedAt, activity.dataUpdatedAt]
-      .filter(Boolean)
-      .map((t) => new Date(t!).getTime());
+    const ts = [
+      health?.timestamp,
+      timeseries.dataUpdatedAt,
+      activity.dataUpdatedAt,
+    ].filter(Boolean).map((t) => (typeof t === 'number' ? t : new Date(t!).getTime()));
     return ts.length ? Math.max(...ts) : 0;
-  }, [health.dataUpdatedAt, stats.dataUpdatedAt, timeseries.dataUpdatedAt, activity.dataUpdatedAt]);
+  }, [health?.timestamp, timeseries.dataUpdatedAt, activity.dataUpdatedAt]);
   const secondsSinceFetch = lastFetchAt ? Math.max(0, Math.floor((now - lastFetchAt) / 1000)) : -1;
 
   // 轮询中或刚轮询过
-  const isRefreshing = health.isFetching || stats.isFetching || timeseries.isFetching;
+  const isRefreshing = timeseries.isFetching || activity.isFetching;
 
   const heroStats = [
-    { label: '运行引擎', value: stats.data?.runningEngines, color: 'primary.main' },
-    { label: '总抓取页', value: stats.data?.totalPages, color: '#8B5CF6' },
-    { label: '总发现链接', value: stats.data?.totalLinks, color: 'secondary.main' },
-    { label: '总抓取条目', value: stats.data?.totalItems, color: 'warning.main' },
+    { label: '运行引擎', value: stats?.runningEngines, color: 'primary.main' },
+    { label: '总抓取页', value: stats?.totalPages, color: '#8B5CF6' },
+    { label: '总发现链接', value: stats?.totalLinks, color: 'secondary.main' },
+    { label: '总抓取条目', value: stats?.totalItems, color: 'warning.main' },
   ];
 
-  const isHealthy = health.data?.status === 'healthy';
+  const isHealthy = health?.status === 'healthy';
 
   return (
     <Box sx={{ p: { xs: 1.5, md: 2 } }}>
@@ -127,9 +129,9 @@ export default function SpiderDashboardPage() {
           <Typography sx={{ fontSize: 12, fontWeight: 600, color: isHealthy ? '#22c55e' : '#ef4444' }}>
             {isHealthy ? '服务健康' : '服务异常'}
           </Typography>
-          {health.data && (
+          {health && (
             <Typography sx={{ fontSize: 11, color: 'text.secondary', ml: 1 }}>
-              · 运行 {Math.floor(health.data.uptime / 3600)}h · {health.data.engines} 引擎
+              · 运行 {Math.floor((health.uptime || 0) / 3600)}h · {health.engines} 引擎
             </Typography>
           )}
         </Box>

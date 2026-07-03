@@ -1,7 +1,6 @@
 'use client';
 
 import React, { Suspense, lazy, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
@@ -16,7 +15,7 @@ import HomeIcon from '@mui/icons-material/Home';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import Link from 'next/link';
 import { SPIDER_TABS } from '@/beans/spider-tabs';
-import { getHealth, getCrawlStats } from '@/apis/spider';
+import { SpiderRealtimeProvider, useSpiderRealtime } from './SpiderRealtimeContext';
 
 const DashboardPage = lazy(() => import('./dashboard/page'));
 const BatchPage = lazy(() => import('./batch/page'));
@@ -38,29 +37,24 @@ const componentMap: Record<string, React.LazyExoticComponent<React.ComponentType
   proxies: ProxiesPage,
 };
 
-const POLL_MS = 5000;
-
 export default function SpiderPage() {
+  return (
+    <SpiderRealtimeProvider>
+      <SpiderPageInner />
+    </SpiderRealtimeProvider>
+  );
+}
+
+function SpiderPageInner() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const [tab, setTab] = useState(0);
   const currentType = SPIDER_TABS[tab];
   const ContentComponent = componentMap[currentType?.key];
 
-  const health = useQuery({
-    queryKey: ['spider', 'health'],
-    queryFn: () => getHealth().then((r) => r.data),
-    refetchInterval: POLL_MS,
-    refetchIntervalInBackground: false,
-  });
-  const stats = useQuery({
-    queryKey: ['spider', 'stats'],
-    queryFn: () => getCrawlStats().then((r) => r.data),
-    refetchInterval: POLL_MS,
-    refetchIntervalInBackground: false,
-  });
+  const { health, stats, connected } = useSpiderRealtime();
 
-  const isHealthy = health.data?.status === 'healthy';
+  const isHealthy = health?.status === 'healthy';
   const accent = theme.palette.primary.main;
   const cyan = theme.palette.secondary.main;
 
@@ -196,10 +190,10 @@ export default function SpiderPage() {
                 />
               }
               label={
-                health.isLoading
-                  ? '检查中…'
+                !connected
+                  ? '连接中…'
                   : isHealthy
-                  ? `服务健康 · ${health.data?.engines ?? 0} 引擎运行中`
+                  ? `服务健康 · ${health?.engines ?? 0} 引擎运行中`
                   : '服务异常'
               }
               sx={{
@@ -212,7 +206,7 @@ export default function SpiderPage() {
               }}
             />
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-              {stats.isLoading ? (
+              {!stats ? (
                 <>
                   <Skeleton variant="text" width={60} sx={{ fontSize: 12 }} />
                   <Skeleton variant="text" width={60} sx={{ fontSize: 12 }} />
@@ -220,9 +214,9 @@ export default function SpiderPage() {
                 </>
               ) : (
                 <>
-                  <MiniStat label="抓取页" value={stats.data?.totalPages} />
-                  <MiniStat label="发现链接" value={stats.data?.totalLinks} />
-                  <MiniStat label="入库条目" value={stats.data?.totalItems} />
+                  <MiniStat label="抓取页" value={stats?.totalPages} />
+                  <MiniStat label="发现链接" value={stats?.totalLinks} />
+                  <MiniStat label="入库条目" value={stats?.totalItems} />
                 </>
               )}
             </Box>

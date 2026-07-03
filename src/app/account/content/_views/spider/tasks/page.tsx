@@ -42,6 +42,7 @@ import {
 import type { GridColDef } from '@mui/x-data-grid';
 import type { CrawlTask, CrawlTaskDetail, SpiderSource } from '@/beans/spider';
 import { useActiveTab } from '../../../ActiveTabContext';
+import { useSpiderRealtime } from '../SpiderRealtimeContext';
 
 const STATUS_COLORS: Record<string, 'default' | 'info' | 'warning' | 'success' | 'error'> = {
   pending: 'default',
@@ -64,6 +65,7 @@ const LIST_KEY = ['spider', 'tasks'];
 export default function SpiderTasksPage() {
   const { setActiveTab } = useActiveTab();
   const qc = useQueryClient();
+  const { revision } = useSpiderRealtime();
   const [writeVisible, setWriteVisible] = useState(false);
   const [viewing, setViewing] = useState<CrawlTaskDetail | null>(null);
   const [form, setForm] = useState({ sourceId: '', startUrl: '', maxDepth: '2', maxPages: '100' });
@@ -201,6 +203,7 @@ export default function SpiderTasksPage() {
 
       <DataGridTable
         columns={columns}
+        extraParams={{ wsRevision: revision }}
         fetchData={async (params) => {
           try {
             const res = await listTasks({ ...params, pageNumber: params.pageNumber });
