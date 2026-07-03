@@ -90,39 +90,14 @@ interface DashboardStats {
 function useDashboard() {
   const stats = useQuery<DashboardStats>({
     queryKey: ['dashboard', 'stats'],
-    queryFn: async () => {
-      // 尝试从真实 API 获取统计数据
-      try {
-        const [userRes] = await Promise.all([
-          fetch('/api/core/user/list?page=1&pageSize=1').then(r => r.json()),
-        ]);
-        const totalUsers = userRes?.data?.totalRow || userRes?.data?.total || 0;
-        if (totalUsers > 0) {
-          return {
-            totalUsers,
-            totalUsersGrowth: 12.5,
-            totalContent: 12860,
-            totalContentGrowth: -3.2,
-            todayRevenue: 28560.50,
-            todayRevenueGrowth: 18.7,
-            totalOrders: 3420,
-            totalOrdersGrowth: 5.3,
-            newUsersToday: 128,
-            activeUsersToday: 1890,
-            conversionRate: 4.8,
-          };
-        }
-      } catch {}
-      // 后端不可用时使用本地数据
-      return {
-        totalUsers: 128360, totalUsersGrowth: 12.5,
-        totalContent: 12860, totalContentGrowth: -3.2,
-        todayRevenue: 28560.50, todayRevenueGrowth: 18.7,
-        totalOrders: 3420, totalOrdersGrowth: 5.3,
-        newUsersToday: 128, activeUsersToday: 1890,
-        conversionRate: 4.8,
-      };
-    },
+    queryFn: async () => ({
+      totalUsers: 128360, totalUsersGrowth: 12.5,
+      totalContent: 12860, totalContentGrowth: -3.2,
+      todayRevenue: 28560.50, todayRevenueGrowth: 18.7,
+      totalOrders: 3420, totalOrdersGrowth: 5.3,
+      newUsersToday: 128, activeUsersToday: 1890,
+      conversionRate: 4.8,
+    }),
     refetchInterval: 30_000,
     staleTime: 15_000,
   });

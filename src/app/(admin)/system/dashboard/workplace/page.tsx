@@ -27,6 +27,7 @@ import {
 import { alpha } from '@mui/material/styles';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
+import { useApp } from '@/contexts/AppContext';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
@@ -80,18 +81,17 @@ const STATUS_LABELS: Record<string, string> = { pending: '待处理', in_progres
 const STATUS_COLORS: Record<string, 'warning' | 'info' | 'success'> = { pending: 'warning', in_progress: 'info', done: 'success' };
 
 function useWorkplace() {
+  const { currentUser } = useApp();
   const user = useQuery<WorkplaceUser>({
-    queryKey: ['workplace', 'user'],
+    queryKey: ['workplace', 'user', currentUser?.name],
     queryFn: async () => {
-      // 用真实 API 获取当前用户
-      const res = await fetch('/api/core/user/current').then((r) => r.json());
-      const u = res.data || {};
+      const u = currentUser || {};
       const hour = new Date().getHours();
       const greeting = hour < 6 ? '凌晨好' : hour < 12 ? '早上好' : hour < 14 ? '中午好' : hour < 18 ? '下午好' : '晚上好';
       return {
-        name: u.nickname || u.name || '管理员',
-        avatar: u.avatar || '',
-        role: (u.roles || []).join(', ') || '系统管理员',
+        name: (u as any).nickname || (u as any).name || '管理员',
+        avatar: (u as any).avatar || '',
+        role: ((u as any).roles || []).join(', ') || '系统管理员',
         department: '技术部',
         greeting,
       };
