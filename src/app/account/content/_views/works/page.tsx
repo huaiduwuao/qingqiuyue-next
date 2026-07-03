@@ -9,11 +9,13 @@ import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
 import Button from '@mui/material/Button';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import CloudOutlinedIcon from '@mui/icons-material/CloudOutlined';
+import MovieOutlinedIcon from '@mui/icons-material/MovieOutlined';
+import { GridColDef } from '@mui/x-data-grid';
+import { DataGridTable } from '@/components/tables/DataGridTable';
 import DataOverviewCard from '../../_components/DataOverviewCard';
 import TopPerformingContent from '../../_components/TopPerformingContent';
 import ContentDistributionChart from '../../_components/ContentDistributionChart';
-import ModuleContentPage from '../../_components/module-content/page';
+import { getCreatorWorks, type WorksItem } from '@/apis/creator';
 
 // 数据源选项:后端 `/api/core/module-content/sources` 就绪后接入,目前为空占位
 const SOURCE_OPTIONS_LIST: { value: string; label: string }[] = [];
@@ -36,9 +38,57 @@ const STATUS_OPTIONS = [
   { value: 'UN_PUBLISH', label: '已下架' },
 ];
 
+const CONTENT_TYPE_LABEL: Record<string, string> = {
+  NOVEL: '小说', VIDEO: '视频', ARTICLE: '文章', MUSIC: '音乐',
+  FILM: '电影', TELEPLAY: '电视剧', ANIMATION: '动画', COMICS: '漫画',
+};
+
 const SOURCE_OPTIONS = [
   { value: '', label: '全部来源' },
   ...SOURCE_OPTIONS_LIST,
+];
+
+const COLUMNS: GridColDef[] = [
+  {
+    field: 'coverUrl',
+    headerName: '封面',
+    width: 64,
+    sortable: false,
+    renderCell: (params) =>
+      params.value ? (
+        <Box
+          component="img"
+          src={params.value}
+          sx={{ width: 40, height: 40, borderRadius: 0.5, objectFit: 'cover' }}
+        />
+      ) : (
+        <Box sx={{ width: 40, height: 40, borderRadius: 0.5, bgcolor: 'action.hover' }} />
+      ),
+  },
+  { field: 'title', headerName: '标题', flex: 1, minWidth: 160 },
+  {
+    field: 'contentType',
+    headerName: '类型',
+    width: 90,
+    valueGetter: (value) => CONTENT_TYPE_LABEL[value as string] || value,
+  },
+  {
+    field: 'status',
+    headerName: '状态',
+    width: 90,
+    valueGetter: (value) => (value === 'PUBLISH' ? '已发布' : value === 'UN_PUBLISH' ? '已下架' : value),
+  },
+  { field: 'readNum', headerName: '阅读', width: 80, type: 'number' },
+  { field: 'agreeNum', headerName: '点赞', width: 80, type: 'number' },
+  { field: 'commentNum', headerName: '评论', width: 80, type: 'number' },
+  { field: 'source', headerName: '来源', width: 100 },
+  {
+    field: 'publishTime',
+    headerName: '发布时间',
+    width: 150,
+    valueGetter: (value) =>
+      value ? new Date(value as string).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-',
+  },
 ];
 
 export default function WorksPage() {
@@ -55,16 +105,32 @@ export default function WorksPage() {
     return parts.length ? parts.join(' · ') : '全部';
   }, [type, status, source]);
 
+  const fetchWorks = async (params: { pageNumber: number; pageSize: number }) => {
+    const res = await getCreatorWorks({
+      contentType: type || undefined,
+      status: status || undefined,
+      source: source || undefined,
+      page: params.pageNumber,
+      pageSize: params.pageSize,
+    });
+    return {
+      data: {
+        records: (res.data?.records || []) as WorksItem[],
+        totalRow: res.data?.totalRow ?? res.data?.total ?? 0,
+      },
+    };
+  };
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      {/* 顶部统计区(只读,使用 mock 数据) */}
+      {/* 顶部统计区(已接真实 /data/overview) */}
       <DataOverviewCard />
       <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: '1fr', lg: '2fr 1fr' } }}>
         <TopPerformingContent />
         <ContentDistributionChart />
       </Box>
 
-      {/* 爬取内容列表区 */}
+      {/* 我的作品列表区 */}
       <Box
         sx={{
           bgcolor: 'background.paper',
@@ -75,11 +141,11 @@ export default function WorksPage() {
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2, flexWrap: 'wrap' }}>
-          <CloudOutlinedIcon sx={{ fontSize: 18, color: 'primary.main' }} />
+          <MovieOutlinedIcon sx={{ fontSize: 18, color: 'primary.main' }} />
           <Box sx={{ flex: 1, minWidth: 160 }}>
-            <Typography sx={{ fontSize: 15, fontWeight: 700, color: 'text.primary' }}>爬取内容管理</Typography>
+            <Typography sx={{ fontSize: 15, fontWeight: 700, color: 'text.primary' }}>作品管理</Typography>
             <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.25 }}>
-              当前筛选: {filterSummary} · 数据源 module_content
+              当前筛选: {filterSummary} · 数据源 /api/core/account/works
             </Typography>
           </Box>
 
@@ -127,11 +193,11 @@ export default function WorksPage() {
           </Button>
         </Box>
 
-        <ModuleContentPage
+        <DataGridTable
           key={refreshKey}
-          contentType={type || undefined}
-          status={status || undefined}
-          source={source || undefined}
+          columns={COLUMNS}
+          fetchData={fetchWorks}
+          extraParams={{ type, status, source, refreshKey }}
         />
       </Box>
     </Box>
