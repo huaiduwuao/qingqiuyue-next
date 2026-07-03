@@ -60,7 +60,8 @@ const agentColumns: GridColDef<HermesAgentItem>[] = [
     flex: 1,
     minWidth: 160,
     renderCell: (p) => {
-      const tags = (p.value as string[]) || [];
+      const raw = p.value;
+      const tags: string[] = Array.isArray(raw) ? raw : typeof raw === 'string' ? raw.split(',').filter(Boolean) : [];
       if (!tags.length) return <Chip label="-" size="small" variant="outlined" />;
       return (
         <Box sx={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: 0.5 }}>
