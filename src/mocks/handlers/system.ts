@@ -70,6 +70,7 @@ export const systemHandlers = [
   http.post('*/api/core/user/systemAdd', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
   http.post('*/api/core/user/systemUpdate', () => ok({ updated: 1 })),
   http.post('*/api/core/user/updateMe', () => ok(USER_PROFILE)),
+  http.put('*/api/core/user/updateMe', () => ok(USER_PROFILE)),
   http.post('*/api/core/user/checkPassword', () => ok({ valid: true })),
   http.post('*/api/core/user/roleAdd', () => ok({ added: 1 })),
   http.post('*/api/core/user/logout', () => ok({ success: true })),
@@ -116,6 +117,7 @@ export const systemHandlers = [
   http.get('*/api/core/menu/me', () => ok(SYS_MENU.records)),
   http.post('*/api/core/menu/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
   http.post('*/api/core/menu/updateById', () => ok({ updated: 1 })),
+  http.put(/\/api\/admin\/menu\/\d+$/, () => ok({ updated: 1 })),
   http.delete(/\/api\/admin\/menu\/removeByIds.*/, () => ok({ removed: 1 })),
 
   // ─── moduleMenu (content 子域) ───
@@ -183,6 +185,7 @@ export const systemHandlers = [
   http.get('*/api/core/resource/page', () => okPage(SYS_RESOURCE.records, SYS_RESOURCE.totalRow)),
   http.post('*/api/core/resource/save', () => ok({ id: Math.floor(Math.random() * 1000) + 9999 })),
   http.post('*/api/core/resource/updateById', () => ok({ updated: 1 })),
+  http.put(/\/api\/admin\/resource\/\d+$/, () => ok({ updated: 1 })),
   http.post('*/api/core/resource/sync', () => ok({ synced: 1 })),
   http.delete(/\/api\/admin\/resource\/removeByIds.*/, () => ok({ removed: 1 })),
 
@@ -249,7 +252,7 @@ export const systemHandlers = [
   // ─── point ───
   http.get('*/api/core/point/user', () => ok(SYS_USER_POINT)),
   http.get('*/api/core/userPoint', () => ok(SYS_USER_POINT)),
-  http.post('*/api/core/point/update', () => ok({ updated: 1 })),
+  http.put('*/api/core/point/update', () => ok({ updated: 1 })),
   http.post('*/api/core/point/unlock', () => ok({ unlocked: true })),
   http.post('*/api/core/point/remove', () => ok({ removed: 1 })),
 

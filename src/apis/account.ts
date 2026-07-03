@@ -23,7 +23,7 @@ export async function queryCity(params: Record<string, unknown>) {
 }
 
 export async function updateUser(params: Record<string, unknown>) {
-  return adminClient("/user/updateMe", {
+  return adminClient("/user/profile", {
     method: 'PUT',
     data: params
   });
