@@ -51,6 +51,12 @@ function buildWsUrl(): string {
   if (typeof window === 'undefined') {
     return '';
   }
+  // dev 模式: NEXT_PUBLIC_WS_BASE 直连后端(Next.js rewrites 不支持 WS 升级)
+  // 生产环境: 相对路径, 经 nginx/APISIX 代理(enable_websocket: true)
+  const devBase = process.env.NEXT_PUBLIC_WS_BASE || '';
+  if (devBase) {
+    return `${devBase}/api/spider/ws`;
+  }
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   return `${protocol}//${window.location.host}/api/spider/ws`;
 }
