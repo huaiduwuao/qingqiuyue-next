@@ -142,6 +142,10 @@ export async function startVAD(cbs: VADCallbacks, userOpts: VadOptions = {}): Pr
 
   processorNode.onaudioprocess = (e) => {
     if (!callbacks) return
+    // 调试计数器
+    if (typeof (window as any)?.__DEBUG_audioFrameInc === 'function') {
+      (window as any).__DEBUG_audioFrameInc()
+    }
     const input = e.inputBuffer.getChannelData(0)
     const now = performance.now()
 

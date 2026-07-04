@@ -161,6 +161,14 @@ async function loadAvatar(url: string): Promise<Cached> {
 export interface BlenderAvatarProps {
   /** 角色 URL(必须 .vrm 后缀) */
   modelUrl?: string;
+  /** 渲染模式: vrm(默认) | 3dgs(Gaussian Splatting) */
+  avatarMode?: 'vrm' | '3dgs';
+  /** 3DGS 模式: 资产目录 URL(含 gaussians.bin/skinning.bin/smplx.json) */
+  assetBaseUrl?: string;
+  /** 3DGS 模式: pose (J*3 axis-angle) */
+  gsPose?: Float32Array;
+  /** 3DGS 模式: FLAME expressions (D floats) */
+  gsExpressions?: Float32Array;
   /** 当前动作 */
   currentAction?: string;
   /** 表情 BlendShape 字典(LLM/Mock 输出) */
@@ -177,6 +185,10 @@ export interface BlenderAvatarProps {
 
 export default function BlenderAvatar({
   modelUrl = '/avatars/character.vrm',
+  avatarMode = 'vrm',
+  assetBaseUrl,
+  gsPose,
+  gsExpressions,
   currentAction = 'idle',
   emotion = {},
   viseme = {},
@@ -184,6 +196,30 @@ export default function BlenderAvatar({
   background = 'radial-gradient(ellipse at 50% 30%, rgba(124,58,237,0.18) 0%, transparent 55%), #05060B',
   sx,
 }: BlenderAvatarProps) {
+  // ── 3DGS 模式: 用 GaussianSplatRenderer ──
+  if (avatarMode === '3dgs' && assetBaseUrl) {
+    const GS = React.lazy(() => import('./gs/GaussianSplatRenderer'));
+    return (
+      <React.Suspense fallback={
+        <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background }}>
+          <Typography sx={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>加载 3DGS 渲染器...</Typography>
+        </Box>
+      }>
+        <GS
+          assetUrl={`${assetBaseUrl}/gaussians.bin`}
+          skinningUrl={`${assetBaseUrl}/skinning.bin`}
+          smplxUrl={`${assetBaseUrl}/smplx.json`}
+          metaUrl={`${assetBaseUrl}/meta.json`}
+          pose={gsPose}
+          expressions={gsExpressions}
+          background={background}
+          sx={sx as React.CSSProperties}
+        />
+      </React.Suspense>
+    );
+  }
+
+  // ── VRM 模式(默认) ──
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const rendererRef = React.useRef<any>(null);
   const sceneRef = React.useRef<any>(null);
@@ -205,6 +241,13 @@ export default function BlenderAvatar({
   React.useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    // 调试：按 1 键可跳过 Three.js，用于排查 runtime.lastError 来源
+    const debug = (typeof window !== 'undefined' && (window as any).__DIGITAL_HUMAN_DEBUG) as { noThree?: boolean } | undefined;
+    if (debug?.noThree) {
+      console.log('[BlenderAvatar] SKIP: noThree debug flag set');
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     let onMouseMove: ((e: MouseEvent) => void) | null = null;
 

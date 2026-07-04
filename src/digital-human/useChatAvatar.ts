@@ -80,61 +80,6 @@ export interface ChatAvatarState {
   isSpeaking: () => boolean;
 }
 
-// mock 关键词匹配(LLM 失败时降级)
-function mockReply(text: string): ChatResp {
-  const lower = text.toLowerCase();
-  let emotion: Record<string, number> = { smile: 0, blink: 0 };
-  let action = 'idle';
-  if (/hi|hello|你好|嗨|欢迎|在吗/.test(lower)) {
-    emotion = { smile: 0.8, blink: 0 };
-    action = 'wave';
-  } else if (/再见|拜拜|88/.test(lower)) {
-    emotion = { smile: 0.8, blink: 0 };
-    action = 'wave';
-  } else if (/谢|thanks|感谢/.test(lower)) {
-    emotion = { smile: 0.6, blink: 0 };
-    action = 'bow';
-  } else if (/为什么|怎么|思考|想想/.test(lower)) {
-    emotion = { blink: 0 };
-    action = 'think';
-  } else if (/看|这个|那里|那边|指/.test(lower)) {
-    emotion = { smile: 0.2, blink: 0 };
-    action = 'point';
-  } else if (/累|休息|坐/.test(lower)) {
-    emotion = { smile: 0, blink: 0.5 };
-    action = 'sit';
-  } else if (/跑|快/.test(lower)) {
-    emotion = { surprised: 0.6, blink: 0 };
-    action = 'run';
-  } else if (/跳|舞|开心|哈哈|乐/.test(lower)) {
-    emotion = { joy: 0.8, blink: 0 };
-    action = 'dance';
-  } else if (/走|逛/.test(lower)) {
-    emotion = { blink: 0 };
-    action = 'walk';
-  } else if (/讲|说|聊|怎么|如何/.test(lower)) {
-    emotion = { smile: 0.3, blink: 0 };
-    action = 'talk';
-  }
-  // 生成简单 viseme timeline(根据字符数,每个字符 150ms,全用 aa/closed 交替)
-  const visemes: VisemeFrame[] = [];
-  for (let i = 0; i < text.length; i++) {
-    visemes.push({
-      t: i * 0.15,
-      shape: i % 2 === 0 ? 'aa' : 'closed',
-      weight: 0.7,
-    });
-  }
-  visemes.push({ t: text.length * 0.15, shape: 'closed', weight: 1 });
-  return {
-    text: `(本地模式)你说:"${text}",我可以帮你查数据、跳页面、回答问题。`,
-    emotion,
-    action,
-    visemes,
-    audioUrl: null,
-  };
-}
-
 export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarState {
   const [text, setText] = useStateSafe('');
   const [chatBusy, setChatBusy] = useStateSafe(false);
@@ -163,7 +108,7 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
     setChatLog((c: ChatLogItem[]) => [...c, { who: 'user', text: t }]);
     setText('');
     try {
-      // 1. 调 chat 路由(LLM 优先 xinference,失败 mock)
+      // 1. 调 chat 路由(LLM 优先 xinference, 失败直接报错)
       let resp: ChatResp;
       try {
         const r = await fetch('/api/avatar/chat', {
@@ -178,12 +123,16 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
         if (r.ok) {
           resp = await r.json();
         } else {
-          console.warn(`[chat] chat 路由返 ${r.status},用 mock 降级`);
-          resp = mockReply(t);
+          const errBody = await r.json().catch(() => ({})) as any;
+          throw new Error(errBody?.error || errBody?.msg || `服务返回 ${r.status}`);
         }
       } catch (e) {
-        console.warn('[chat] chat 路由失败:', e instanceof Error ? e.message : String(e));
-        resp = mockReply(t);
+        const errMsg = e instanceof Error ? e.message : String(e);
+        console.error('[chat] chat 路由失败:', errMsg);
+        setChatLog((c: ChatLogItem[]) => [...c, { who: 'ai', text: `抱歉，服务暂时不可用：${errMsg}` }]);
+        setIsAIGenerated(false);
+        setChatBusy(false);
+        return;
       }
       setChatLog((c: ChatLogItem[]) => [...c, { who: 'ai', text: resp.text }]);
       setEmotion(resp.emotion);
@@ -316,8 +265,12 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
         }),
       })
       let resp: ChatResp
-      if (r.ok) resp = await r.json()
-      else { resp = mockReply(t) }
+      if (r.ok) {
+        resp = await r.json()
+      } else {
+        const errBody = await r.json().catch(() => ({})) as any
+        throw new Error(errBody?.error || errBody?.msg || `服务返回 ${r.status}`)
+      }
       setChatLog((c: ChatLogItem[]) => [...c, { who: 'ai', text: resp.text }])
       setEmotion(resp.emotion)
       setAction(resp.action)

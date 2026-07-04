@@ -3,7 +3,7 @@
 /**
  * ImmersiveDigitalHuman —— /digital-human 沉浸式全屏页面
  *
- * 统一 VRM 渲染(从 /avatars/character.vrm)+ 共享 useChatAvatar hook
+ * 统一 VRM 渲染(从 /avatars/character.vrm)+ 共享 useChatAvatarWS hook
  * 跟 FloatingDigitalHuman 是同一套 chat + TTS + viseme 流程。
  */
 
@@ -15,16 +15,62 @@ import MicRoundedIcon from '@mui/icons-material/MicRounded';
 import { useRouter } from 'next/navigation';
 import { alpha } from '@mui/material/styles';
 import BlenderAvatar from './BlenderAvatar';
-import { useChatAvatar } from './useChatAvatar';
+import { useChatAvatarWS } from './useChatAvatarWS';
 import { useVoiceAgent } from '@/hooks/useVoiceAgent';
 import { VoiceIndicator, type VoiceIndicatorState } from '@/components/VoiceIndicator';
 import { useThemeMode } from '@/contexts/ThemeContext';
 import { logout } from '@/apis/user';
 
+// ── 调试：排查 runtime.lastError 来源 ──
+// 操作步骤:
+//   1. 打开 http://localhost:3000/digital-human
+//   2. 先记下控制台错误出现频率
+//   3. 按 1 → 刷新页面 → 看错误是否停止 (排除 Three.js)
+//   4. 按 2 → 刷新页面 → 点麦克风 → 看错误是否出现 (排除 VAD)
+//   5. 按 3 → 刷新页面 → 点麦克风 → 看错误是否出现 (排除 ONNX wake-word)
+//   "开关状态" 会打印在控制台，切换后需手动刷新页面生效
+//   按 0 清除所有开关
+const STORAGE_KEY = 'dh_debug_flags';
+const loadFlags = (): Record<string, boolean> => {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; }
+};
+const saveFlags = (f: Record<string, boolean>) => {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(f));
+  console.log('[debug] flags saved:', f, '(刷新页面生效)');
+};
+if (typeof window !== 'undefined') {
+  const flags = loadFlags();
+  (window as any).__DIGITAL_HUMAN_DEBUG = { noThree: !!flags.noThree, noVoice: !!flags.noVoice, noWake: !!flags.noWake };
+  console.log('[debug] current flags:', (window as any).__DIGITAL_HUMAN_DEBUG, '| 按 1/2/3 切换, 0 清除, 需刷新生效');
+
+  window.addEventListener('keydown', (e) => {
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return; // 不在输入框里触发
+    const f = loadFlags();
+    switch (e.key) {
+      case '1': f.noThree = !f.noThree; saveFlags(f); break;
+      case '2': f.noVoice = !f.noVoice; saveFlags(f); break;
+      case '3': f.noWake  = !f.noWake;  saveFlags(f); break;
+      case '0': localStorage.removeItem(STORAGE_KEY); console.log('[debug] all flags cleared'); break;
+    }
+  });
+
+  // 每 2 秒采样一次，统计 rAF / audio 帧率
+  let rAFCount = 0, audioFrameCount = 0;
+  const origRAF = window.requestAnimationFrame.bind(window);
+  window.requestAnimationFrame = (cb: FrameRequestCallback) => origRAF(() => { rAFCount++; cb(performance.now()); });
+  const timer = setInterval(() => {
+    if (rAFCount > 0 || audioFrameCount > 0) {
+      console.log(`[debug] rAF=${rAFCount}/2s (~${Math.round(rAFCount/2)}fps) audioFrame=${audioFrameCount}/2s`);
+      rAFCount = 0; audioFrameCount = 0;
+    }
+  }, 2000);
+  (window as any).__DEBUG_audioFrameInc = () => { audioFrameCount++; };
+}
+
 export default function ImmersiveDigitalHuman() {
   const router = useRouter();
   const { setTheme } = useThemeMode();
-  const chat = useChatAvatar();
+  const chat = useChatAvatarWS();
   const { chatBusy, chatLog, emotion, viseme, action, send, sendText, audioRef,
     text, setText } = chat;
 

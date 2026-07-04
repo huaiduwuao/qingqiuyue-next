@@ -69,6 +69,12 @@ class OpenWakeWordEngine {
       // 顺序: webpack 默认 → Turbopack → 同源 /wake/
       ort.env.wasm.wasmPaths = await resolveWasmPaths()
 
+      // 禁用多线程 — 不创建 Web Worker, 避免 100+/s 的
+      // "Unchecked runtime.lastError: Could not establish connection"
+      // (threaded WASM 需要 SharedArrayBuffer + COOP/COEP 头, 当前项目没配)
+      ort.env.wasm.numThreads = 1
+      ort.env.wasm.proxy = true
+
       // melspectrogram 路径: cfg 可覆盖,默认 /wake/melspectrogram.onnx
       const melUrl = (this.cfg as WakeWordConfig & { melModelUrl?: string }).melModelUrl || '/wake/melspectrogram.onnx'
       voiceLog('info', 'wake', 'loading melspectrogram model:', melUrl)
@@ -237,6 +243,13 @@ export async function startWakeWord(
   cbs: WakeWordCallbacks
 ): Promise<{ mode: 'openwakeword' | 'vad-fallback' }> {
   stopWakeWord()
+
+  // 调试：按 3 键可跳过 ONNX wake-word，用于排查 runtime.lastError 来源
+  const debug = (typeof window !== 'undefined' && (window as any).__DIGITAL_HUMAN_DEBUG) as { noWake?: boolean } | undefined;
+  if (debug?.noWake) {
+    voiceLog('info', 'wake', 'noWake flag set, using vad-fallback')
+    return { mode: 'vad-fallback' }
+  }
 
   if (!isOpenWakeWordSupported()) {
     voiceLog('warn', 'wake', '浏览器不支持 Web Audio, 降级到 vad-fallback')

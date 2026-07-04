@@ -63,6 +63,10 @@ export interface AlwaysListeningOptions {
   onInterrupt?: () => void
   /** 查询数字人是否正在说 (每次 ASR 段处理时调, 用于判断要不要触发打断) */
   isAvatarSpeaking?: () => boolean
+  /** WS 发送函数 (可选, 用于流式 ASR: 直接发 PCM chunk 到 WS, 不走 HTTP) */
+  wsSend?: (msg: { type: string; pcm?: string; language?: string }) => void
+  /** WS 是否已连接 (用于判断是否走 WS ASR) */
+  wsConnected?: () => boolean
 }
 
 export class AlwaysListening {
@@ -331,10 +335,24 @@ export class AlwaysListening {
     }
     const merged = this.mergeChunks(this.candidateChunks)
     this.candidateChunks = []
-    // 太短 (< 0.15s) 当噪声忽略 (唤醒词可能很短, 降到 0.15s)
+    // 太短 (< 0.15s) 当噪声忽略
     if (merged.length < 2400) return
 
     try {
+      // ── 优先走 WS 流式 ASR (降低延迟) ──
+      const wsConnected = this.opts.wsConnected?.() ?? false;
+      if (wsConnected && this.opts.wsSend) {
+        // 编码 PCM16 → base64, 发 WS asr_chunk
+        const pcm16 = float32ToPCM16(merged);
+        const b64 = btoa(String.fromCharCode(...new Uint8Array(pcm16.buffer)));
+        this.opts.wsSend({ type: 'asr_chunk', pcm: b64 });
+
+        // WS ASR 结果是异步的 — 这里不等, 靠 onWSServerMsg 回调
+        // 那个回调会触发 custom event 'ws-asr-result', 由 useChatAvatarWS 监听
+        // 这里仍然做 HTTP ASR 作为 fallback (双路: WS 快 + HTTP 稳)
+      }
+
+      // ── HTTP ASR (降级/双路) ──
       const r = await transcribe(merged, {
         gatewayUrl: this.opts.asrGatewayUrl,
         model: this.opts.asrModel,
@@ -342,25 +360,28 @@ export class AlwaysListening {
       })
       if (!r.text || !r.text.trim()) return
       const text = r.text.trim()
-      // 去标点 (ASR 可能输出 "小月。", "小月, 帮我倒水")
       const normalized = text.replace(/[，。！？、；：""''（）,.!?;:"'()]/g, ' ').trim()
       voiceLog('info', 'voice', 'segment:', { state: this.state, text, normalized, avatarSpeaking: this.opts.isAvatarSpeaking?.() })
 
-      if (this.state === 'idle') {
-        const wake = this.matchWakeWord(normalized)
-        if (wake) {
-          this.handleWakeWord(wake)
-        } else {
-          voiceLog('info', 'voice', 'no wake word in segment, text:', text)
-        }
-        // 没唤醒词: 丢弃
-      }
-      // 注: state === 'recording' 时的段已通过 onSpeechEnd 累积到 commandBuffer
-      //     不在 processSegment 里直接处理, 统一由 onSilenceDetected 触发
+      this.handleSegmentText(normalized, text)
     } catch (e) {
       voiceLog('error', 'voice', 'ASR 失败:', (e as Error).message)
       this.emit({ error: (e as Error).message })
       this.setState('idle')
+    }
+  }
+
+  /**
+   * 处理 ASR 文本 (共用逻辑: idle 检查唤醒词, 否则丢弃)
+   */
+  private handleSegmentText(normalized: string, rawText: string): void {
+    if (this.state === 'idle') {
+      const wake = this.matchWakeWord(normalized)
+      if (wake) {
+        this.handleWakeWord(wake)
+      } else {
+        voiceLog('info', 'voice', 'no wake word in segment, text:', rawText)
+      }
     }
   }
 
@@ -441,4 +462,17 @@ export class AlwaysListening {
 
   getState(): VoiceState { return this.state as VoiceState }
   getMode(): VoiceAgentMode { return this.state }
+}
+
+/**
+ * Float32Array (归一化 -1..1) → Int16Array (PCM16 LE)
+ * 用于 WS 流式 ASR: 客户端发送 PCM16 base64 到服务端
+ */
+function float32ToPCM16(float32: Float32Array): Int16Array {
+  const pcm16 = new Int16Array(float32.length)
+  for (let i = 0; i < float32.length; i++) {
+    const s = Math.max(-1, Math.min(1, float32[i]))
+    pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF
+  }
+  return pcm16
 }

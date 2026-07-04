@@ -3,7 +3,7 @@
 /**
  * FloatingDigitalHuman —— 全站右下角二次元浮窗
  *
- * 统一 VRM 渲染(从 /avatars/character.vrm)+ 共享 useChatAvatar hook
+ * 统一 VRM 渲染(从 /avatars/character.vrm)+ 共享 useChatAvatarWS hook
  * 跟 ImmersiveDigitalHuman 是同一套 chat + TTS + viseme 流程。
  */
 
@@ -21,7 +21,7 @@ import ChatIcon from '@mui/icons-material/Chat';
 import { alpha } from '@mui/material/styles';
 import { useRouter, usePathname } from 'next/navigation';
 import BlenderAvatar from './BlenderAvatar';
-import { useChatAvatar } from './useChatAvatar';
+import { useChatAvatarWS } from './useChatAvatarWS';
 import { useVoiceAgent } from '@/hooks/useVoiceAgent';
 import { VoiceIndicator, type VoiceIndicatorState } from '@/components/VoiceIndicator';
 import { MicTestButton } from '@/components/MicTestButton';
@@ -90,7 +90,7 @@ export default function FloatingDigitalHuman() {
       .catch((e) => console.error('[FloatingDigitalHuman] 加载 agents 失败:', e));
   }, [activeAgentId, setActiveAgent]);
 
-  const chat = useChatAvatar(activeAgentId || 'digital_human');
+  const chat = useChatAvatarWS(activeAgentId || 'digital_human');
   const { chatBusy, chatLog, emotion, viseme, action, audioRef,
     isAIGenerated } = chat;
 

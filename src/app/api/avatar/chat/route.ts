@@ -17,10 +17,10 @@
  *     audioUrl: '/api/avatar/tts/abc123.mp3'  // TTS 音频,前端播放
  *   }
  *
- * LLM 策略(完全开源,按优先级):
- *   1. NEXT_PUBLIC_OLLAMA_URL(本地 Ollama,qwen2.5:7b) — 完全离线
- *   2. NEXT_PUBLIC_OPENAI_BASE_URL + key(云 API)
- *   3. 失败则 mock 兜底
+ * LLM 策略（API 优先，后端不部署 LLM）:
+ *   1. OpenAI 兼容云 API — DeepSeek / MiniMax / 通义千问 等（主力）
+ *   2. Ollama 本地（仅当显式配置了 OLLAMA_URL 才试，纯可选）
+ *   3. 全部失败则返回 500 错误
  *
  * TTS 策略(完全开源):
  *   - Edge-TTS 公共接口(微软 azure speech),无需 key,直接 fetch 合成
@@ -217,7 +217,12 @@ function extractJson(s: string): string {
 }
 
 /**
- * 调 LLM(三种降级路径)
+ * 调 LLM（API 优先，本地可选）
+ *
+ * 优先级:
+ *   1. OpenAI 兼容云 API（DeepSeek / MiniMax / 通义千问 等）—— 主力，后端不部署 LLM
+ *   2. Ollama 本地（仅当显式配置了 OLLAMA_URL 时才试，纯可选兜底）
+ *   3. 全部失败 → throw Error
  */
 async function callLLM(
   text: string,
@@ -225,46 +230,11 @@ async function callLLM(
   systemPrompt?: string,
 ): Promise<{ text: string; emotion: string; emotion52: any; action: string }> {
   const prompt = systemPrompt || SYSTEM_PROMPT;
-  // 1. Ollama 本地
-  try {
-    const r = await fetch(`${OLLAMA_URL}/api/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: process.env.OLLAMA_MODEL || 'qwen2.5:7b',
-        messages: [
-          { role: 'system', content: prompt },
-          ...history,
-          { role: 'user', content: text },
-        ],
-        stream: false,
-        format: 'json',
-      }),
-      signal: AbortSignal.timeout(20000),
-    });
-    if (r.ok) {
-      const j = await r.json();
-      const content = extractJson(j?.message?.content || '{}');
-      try {
-        const parsed = JSON.parse(content);
-        return {
-          text: parsed.text || j?.message?.content || '',
-          emotion: parsed.emotion_high || parsed.emotion || 'neutral',
-          emotion52: parsed.emotion_52 || parsed.emotion52 || {},
-          action: parsed.action || 'idle',
-        };
-      } catch {
-        // 不是 JSON 就当纯文本
-        return { text: j?.message?.content || '', emotion: 'neutral', emotion52: {}, action: 'idle' };
-      }
-    }
-  } catch (e) {
-    console.warn('[chat] Ollama 失败:', (e as Error).message);
-  }
 
-  // 2. OpenAI 兼容云 API
+  // 1. OpenAI 兼容云 API（主力 — DeepSeek / MiniMax / Qwen 等）
   if (OPENAI_BASE_URL && OPENAI_API_KEY) {
     try {
+      const model = process.env.OPENAI_MODEL || 'deepseek-chat';
       const r = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -272,22 +242,18 @@ async function callLLM(
           Authorization: `Bearer ${OPENAI_API_KEY}`,
         },
         body: JSON.stringify({
-          model: process.env.OPENAI_MODEL || 'qwen-plus',
+          model,
           messages: [
             { role: 'system', content: prompt },
             ...history,
             { role: 'user', content: text },
           ],
           response_format: { type: 'json_object' },
-          // kimi-for-coding 有独立 reasoning_content, 会占 token, 给足额度
-          // ⚠️ kimi-for-coding 只允许 temperature=1, 不设即用默认
           max_tokens: 2048,
         }),
-        signal: AbortSignal.timeout(40000),   // reasoning model 慢, 40s
+        signal: AbortSignal.timeout(40000),
       });
       if (r.ok) {
-        // xinference 偶发返非 UTF-8 字节(模型 generate 内部 0xbe 等),
-        // 手动 replace 所有非 UTF-8 字节为 '?' 再 parse JSON(强制走通)
         const raw = await r.text();
         const safe = raw.replace(/[\x80-\xFF]/g, '?');
         let j: any = {};
@@ -296,7 +262,6 @@ async function callLLM(
         } catch (e) {
           console.warn('[chat] LLM response 仍非 JSON:', (e as Error).message, 'raw len=', raw.length);
         }
-        // 关键: 剥离 M 系列 LLM 输出的 chain-of-thought 思考块
         const content = extractJson(j?.choices?.[0]?.message?.content || '{}');
         try {
           const parsed = JSON.parse(content);
@@ -310,55 +275,57 @@ async function callLLM(
           return { text: content, emotion: 'neutral', emotion52: {}, action: 'idle' };
         }
       } else {
-        console.warn(`[chat] OpenAI 兼容 endpoint 返 ${r.status}:`,
+        console.warn(`[chat] API ${model} 返 ${r.status}:`,
           r.status === 404 ? 'model not found' : await r.text().catch(() => '(body unreadable)'));
       }
     } catch (e) {
-      console.warn('[chat] OpenAI 失败:', (e as Error).message);
+      console.warn('[chat] API 调用失败:', (e as Error).message);
     }
   }
 
-  // 3. Mock 兜底(无 LLM 时也能演示,用 10 个 action 词汇)
-  const lower = text.toLowerCase();
-  let emotion = 'neutral';
-  let action = 'idle';
-  if (/hi|hello|你好|嗨|欢迎|在吗/.test(lower)) {
-    emotion = 'happy';
-    action = 'wave';
-  } else if (/再见|拜拜|88/.test(lower)) {
-    emotion = 'happy';
-    action = 'wave';
-  } else if (/谢|thanks|感谢/.test(lower)) {
-    emotion = 'happy';
-    action = 'bow';
-  } else if (/为什么|怎么|思考|想想/.test(lower)) {
-    emotion = 'neutral';
-    action = 'think';
-  } else if (/看|这个|那里|那边|指/.test(lower)) {
-    emotion = 'neutral';
-    action = 'point';
-  } else if (/累|休息|坐/.test(lower)) {
-    emotion = 'sad';
-    action = 'sit';
-  } else if (/跑|快/.test(lower)) {
-    emotion = 'surprised';
-    action = 'run';
-  } else if (/跳|舞|开心|哈哈|乐/.test(lower)) {
-    emotion = 'happy';
-    action = 'dance';
-  } else if (/走|逛/.test(lower)) {
-    emotion = 'neutral';
-    action = 'walk';
-  } else if (/讲|说|聊|怎么|如何/.test(lower)) {
-    emotion = 'neutral';
-    action = 'talk';
+  // 2. Ollama 本地（仅当显式配置了 OLLAMA_URL 才试，纯可选）
+  if (process.env.NEXT_PUBLIC_OLLAMA_URL) {
+    try {
+      const r = await fetch(`${OLLAMA_URL}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: process.env.OLLAMA_MODEL || 'qwen2.5:7b',
+          messages: [
+            { role: 'system', content: prompt },
+            ...history,
+            { role: 'user', content: text },
+          ],
+          stream: false,
+          format: 'json',
+        }),
+        signal: AbortSignal.timeout(20000),
+      });
+      if (r.ok) {
+        const j = await r.json();
+        const content = extractJson(j?.message?.content || '{}');
+        try {
+          const parsed = JSON.parse(content);
+          return {
+            text: parsed.text || j?.message?.content || '',
+            emotion: parsed.emotion_high || parsed.emotion || 'neutral',
+            emotion52: parsed.emotion_52 || parsed.emotion52 || {},
+            action: parsed.action || 'idle',
+          };
+        } catch {
+          return { text: j?.message?.content || '', emotion: 'neutral', emotion52: {}, action: 'idle' };
+        }
+      }
+    } catch (e) {
+      console.warn('[chat] Ollama 失败:', (e as Error).message);
+    }
   }
-  return {
-    text: `(本地模式)你说:"${text}",我可以帮你查数据、跳页面、回答问题。`,
-    emotion,
-    emotion52: {},
-    action,
-  };
+
+  // 3. 无可用 LLM → 直接抛错
+  if (!OPENAI_BASE_URL || !OPENAI_API_KEY) {
+    throw new Error('未配置 LLM API。请在 .env 中设置 OPENAI_BASE_URL 和 OPENAI_API_KEY（支持 DeepSeek / MiniMax / 通义千问 等 OpenAI 兼容 API）');
+  }
+  throw new Error('LLM API 调用失败，请检查 OPENAI_BASE_URL / OPENAI_API_KEY 配置及网络连接');
 }
 
 /**
