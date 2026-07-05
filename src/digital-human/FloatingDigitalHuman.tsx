@@ -118,16 +118,46 @@ export default function FloatingDigitalHuman() {
       // 数字人正在说? 打断
       if (chat.isSpeaking()) chat.cancel()
 
-      // 意图路由: 切换角色 / 委派任务 / 普通聊天
+      // 意图路由: 走服务端 API (服务端有 OPENAI_API_KEY 可调 LLM)
       const conversationId = app.activeConversationId || 'default'
-      const { intent, replyText, emotion: emo, action: act } = await routeIntent(text, {
-        availableAgents: availableAgents.map((a) => ({
-          id: a.agentId,
-          displayName: a.name,
-          description: a.role || '',
-          tools: [],
-        })),
-      })
+      let intentResult: Awaited<ReturnType<typeof routeIntent>>
+      try {
+        const r = await fetch('/api/intent/route', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text,
+            availableAgents: availableAgents.map((a) => ({
+              id: a.agentId,
+              displayName: a.name,
+              description: a.role || '',
+              tools: [],
+            })),
+          }),
+        })
+        if (r.ok) {
+          intentResult = await r.json()
+        } else {
+          intentResult = await routeIntent(text, {
+            availableAgents: availableAgents.map((a) => ({
+              id: a.agentId,
+              displayName: a.name,
+              description: a.role || '',
+              tools: [],
+            })),
+          })
+        }
+      } catch {
+        intentResult = await routeIntent(text, {
+          availableAgents: availableAgents.map((a) => ({
+            id: a.agentId,
+            displayName: a.name,
+            description: a.role || '',
+            tools: [],
+          })),
+        })
+      }
+      const { intent, replyText, emotion: emo, action: act } = intentResult
 
       // LLM 驱动的表情 + 动作: 让数字人有灵性, 不是傻站着
       if (emo) chat.setEmotion(emo)
@@ -151,9 +181,9 @@ export default function FloatingDigitalHuman() {
         return
       }
 
-      // 普通聊天(LLM 返回的 chat intent)
-      // 注意: router 返回的 replyText 给数字人朗读, 不需要再发到 /api/avatar/chat
-      chat.setText(replyText || '让我想想...')
+      // 普通聊天: 走 WS 流式通道 (text_token + audio_chunk + viseme)
+      // router 只做意图分类, chat 不依赖它的 replyText
+      chat.sendText(text)
     },
     isAvatarSpeaking: () => chat.isSpeaking(),
     onInterrupt: () => chat.cancel(),
