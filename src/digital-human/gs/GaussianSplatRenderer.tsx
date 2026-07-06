@@ -22,6 +22,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import type { GaussianAsset, PoseFrame } from './assetFormat';
 import { loadGaussianAsset } from './gaussianLoader';
 import { sortGaussiansByDepth, sortGaussiansFast } from './gaussianSorter';
+import type * as THREE from 'three';
 
 export type QualityMode = 'quality' | 'balanced' | 'performance';
 
@@ -214,7 +215,7 @@ export default function GaussianSplatRenderer({
             const sorted = sortGaussiansFast(
               asset.positions,
               asset.count,
-              camera.matrixWorldInverse.elements,
+              new Float32Array(camera.matrixWorldInverse.elements),
             );
             // 更新 index buffer (简单方式: 重建 geometry)
             // 生产级实现会用 buffer 更新, 这里保持简洁
@@ -381,6 +382,8 @@ export default function GaussianSplatRenderer({
     </Box>
   );
 }
+
+export { GaussianSplatRenderer };
 
 // ─── Geometry 创建 ───
 

@@ -60,7 +60,8 @@ export default function HermesFormDialog({ open, onClose, onSubmit, record, isSu
         sortOrder: record.sortOrder ?? 0,
         instanceId: record.instanceId ?? UNASSIGNED,
       });
-      const tags = Array.isArray(record.tags) ? record.tags : typeof record.tags === 'string' ? record.tags.split(',').filter(Boolean) : [];
+      const recordTags = record.tags as string[] | string;
+      const tags = Array.isArray(recordTags) ? recordTags : typeof recordTags === 'string' ? recordTags.split(',').filter(Boolean) : [];
       setTagsRaw(tags.join(', '));
     } else {
       setValues({

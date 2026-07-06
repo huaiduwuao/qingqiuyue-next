@@ -12,7 +12,7 @@
  * 如果未提供 asset 参数, 显示 URL 输入框。
  */
 
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   Box, Container, Typography, TextField, Button, IconButton,
@@ -37,7 +37,7 @@ const GaussianSplatRenderer = dynamic(
   },
 );
 
-export default function GSViewerPage() {
+function GSViewerContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const assetParam = searchParams.get('asset') || '';
@@ -166,5 +166,19 @@ export default function GSViewerPage() {
         />
       </Box>
     </Box>
+  );
+}
+
+export default function GSViewerPage() {
+  return (
+    <Suspense
+      fallback={
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400 }}>
+          <CircularProgress size={32} />
+        </Box>
+      }
+    >
+      <GSViewerContent />
+    </Suspense>
   );
 }
