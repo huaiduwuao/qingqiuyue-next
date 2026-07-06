@@ -178,7 +178,9 @@ const SYSTEM_PROMPT = `你是"清秋月"数字人助理,扮演一个温柔、专
 3. action 反映**你做这个动作的意图** (用户说"走"时你 walk, 说"谢谢"时你 bow)
 4. text 必须简短口语化, 不要超过 30 字
 5. **绝对不要**用 markdown 代码块包装, 直接以 { 开头 以 } 结尾
-6. 只输出 JSON, 不要额外解释`;
+6. 只输出 JSON, 不要额外解释
+7. **绝对不要复述或重复用户的问题**, 直接给出回答
+8. 不要以"你问的是...""关于你的问题...""今天是星期几?"等引导语或复述语开头`;
 
 // Edge-TTS 公共接口
 const EDGE_TTS_VOICES: Record<string, string> = {
@@ -509,14 +511,17 @@ export async function POST(req: NextRequest) {
       const id = crypto.randomBytes(8).toString('hex');
       const audioDir = path.join(process.cwd(), 'public', 'avatars', 'audio-cache');
       await fs.mkdir(audioDir, { recursive: true });
-      const audioPath = path.join(audioDir, `${id}.mp3`);
+      // 根据实际格式决定扩展名, 避免 WAV 内容被标成 .mp3 导致浏览器无法播放
+      const isWav = audioBuffer[0] === 0x52 && audioBuffer[1] === 0x49; // 'RI'
+      const ext = isWav ? 'wav' : 'mp3';
+      const audioPath = path.join(audioDir, `${id}.${ext}`);
       await fs.writeFile(audioPath, audioBuffer);
-      audioUrl = `/avatars/audio-cache/${id}.mp3`;
+      audioUrl = `/avatars/audio-cache/${id}.${ext}`;
 
       // 估算音频时长
       // - WAV 格式 (本地 Qwen3-TTS): 读 RIFF 头
       // - MP3 格式 (Edge-TTS 公共): 文本估算 ~150ms/字
-      if (audioBuffer[0] === 0x52 && audioBuffer[1] === 0x49) {  // 'RI'
+      if (isWav) {
         try {
           const sr = audioBuffer.readUInt32LE(24)
           const channels = audioBuffer.readUInt16LE(22)

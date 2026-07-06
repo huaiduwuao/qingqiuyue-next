@@ -214,9 +214,9 @@ export function useChatAvatarWS(agentId: string = 'digital_human'): ChatAvatarSt
       if (!ctx) return;
 
       try {
-        // 解码 base64 → ArrayBuffer → AudioBuffer
+        // 解码 base64 → ArrayBuffer → AudioBuffer (后端保证 16kHz mono PCM16)
         const raw = Uint8Array.from(atob(audioB64), (c) => c.charCodeAt(0));
-        const pcm16 = new Int16Array(raw.buffer);
+        const pcm16 = new Int16Array(raw.buffer, raw.byteOffset, Math.floor(raw.length / 2));
 
         // 转 Float32
         const float32 = new Float32Array(pcm16.length);
