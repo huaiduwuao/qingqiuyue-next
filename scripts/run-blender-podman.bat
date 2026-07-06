@@ -1,7 +1,7 @@
 @echo off
 REM 跑 Blender 容器生成写实女性 GLB
-set HTTP_PROXY=http://127.0.0.1:7890
-set HTTPS_PROXY=http://127.0.0.1:7890
+set HTTP_PROXY=http://127.0.0.1:7891
+set HTTPS_PROXY=http://127.0.0.1:7891
 podman run --rm ^
   -v D:\git\really\qingqiuyue-next:/work ^
   -w /work ^
