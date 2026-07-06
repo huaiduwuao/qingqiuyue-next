@@ -264,7 +264,7 @@ export const systemHandlers = [
   http.post('*/api/core/sms/verify', () => ok({ verified: true })),
 
   // ─── authentication ───
-  http.post('*/api/core/authentication/openid', () => ok({ openid: 'o6_bmjrPTlm6_2sgVt7hMZOPfL_demo', token: 'mock-token-67890' })),
+  http.post('*/api/core/authentication/openid', () => ok({ openid: 'o6_bmjrPTlm6_2sgVt7hMZOPfL_demo', token: 'mock-token-67891' })),
 
   // ─── content (admin 域里嵌的) ───
   http.post('*/api/content/parse', () => ok({ parsed: true, type: 'novel', fields: ['title', 'author', 'content'] })),

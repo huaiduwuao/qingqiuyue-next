@@ -15,7 +15,7 @@ const DATA: Record<Range, Array<{ date: string; views: number; likes: number; co
     { date: '05/28', views: 38920, likes: 2890, comments: 234, fans: 412 },
     { date: '05/29', views: 42180, likes: 3120, comments: 287, fans: 489 },
     { date: '05/30', views: 67540, likes: 5430, comments: 412, fans: 821 },
-    { date: '05/31', views: 89230, likes: 7890, comments: 567, fans: 1240 },
+    { date: '05/31', views: 89230, likes: 7891, comments: 567, fans: 1240 },
     { date: '06/01', views: 128450, likes: 11240, comments: 823, fans: 1890 },
   ],
   '30d': Array.from({ length: 30 }, (_, i) => {

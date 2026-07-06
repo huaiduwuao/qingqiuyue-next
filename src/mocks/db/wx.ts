@@ -15,7 +15,7 @@ export const WX_MENU = {
     parentId: i < 2 ? 0 : [5000, 5001][i % 2],
     url: i % 3 === 0 ? `https://example.com/menu/${i}` : '',
     content: i % 3 === 1 ? `key_${i}` : '',
-    appId: i % 3 === 2 ? 'wx1234567890' : '',
+    appId: i % 3 === 2 ? 'wx1234567891' : '',
     pagePath: i % 3 === 2 ? `pages/index/index?id=${i}` : '',
     sort: i,
     status: i < 6 ? 'PUBLISH' : 'UN_PUBLISH',

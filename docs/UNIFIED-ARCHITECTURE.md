@@ -57,7 +57,7 @@ src/digital-human/
 
 ```bash
 # 一键拉模型
-HTTP_PROXY=http://127.0.0.1:7890 HTTPS_PROXY=http://127.0.0.1:7890 \
+HTTP_PROXY=http://127.0.0.1:7891 HTTPS_PROXY=http://127.0.0.1:7891 \
   bash scripts/xinference-setup.sh
 ```
 
