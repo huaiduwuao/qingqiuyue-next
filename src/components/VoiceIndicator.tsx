@@ -79,6 +79,7 @@ export function VoiceIndicator({
   }, [position, pos])
 
   const onPointerDown = React.useCallback((e: React.PointerEvent) => {
+    e.stopPropagation()
     const el = e.currentTarget as HTMLElement
     el.setPointerCapture(e.pointerId)
     setDragging(true)
@@ -127,6 +128,7 @@ export function VoiceIndicator({
     cursor: dragging ? 'grabbing' : 'grab',
     userSelect: 'none',
     touchAction: 'none',
+    pointerEvents: 'auto',
   }
 
   return (
