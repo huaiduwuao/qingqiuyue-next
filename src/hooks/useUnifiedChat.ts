@@ -8,7 +8,7 @@
 
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as hermesApi from '@/apis/hermes'
 
@@ -39,7 +39,46 @@ function normalizeHistory(raw: any[]): ChatMessage[] {
 export function useUnifiedChat({ agentId, enableAvatar = false, autoGreeting = false }: UseUnifiedChatOptions) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
+  const [isSpeaking, setIsSpeaking] = useState(false)
   const qc = useQueryClient()
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  const stopSpeaking = useCallback(() => {
+    const audio = audioRef.current
+    if (audio) {
+      audio.pause()
+      audio.currentTime = 0
+      audioRef.current = null
+    }
+    setIsSpeaking(false)
+  }, [])
+
+  const playAudio = useCallback((url: string | null | undefined) => {
+    if (!url) return
+    stopSpeaking()
+    try {
+      const audio = new Audio(url)
+      audioRef.current = audio
+      audio.onended = () => {
+        audioRef.current = null
+        setIsSpeaking(false)
+      }
+      audio.onerror = () => {
+        console.warn('[useUnifiedChat] TTS 音频播放失败:', url)
+        audioRef.current = null
+        setIsSpeaking(false)
+      }
+      setIsSpeaking(true)
+      audio.play().catch((err) => {
+        console.warn('[useUnifiedChat] TTS 播放被浏览器阻止:', err?.message || err)
+        audioRef.current = null
+        setIsSpeaking(false)
+      })
+    } catch (e) {
+      console.warn('[useUnifiedChat] TTS 播放异常:', (e as Error).message)
+      setIsSpeaking(false)
+    }
+  }, [stopSpeaking])
 
   const detailQuery = useQuery({
     queryKey: ['hermes', 'detail', agentId],
@@ -115,6 +154,10 @@ export function useUnifiedChat({ agentId, enableAvatar = false, autoGreeting = f
       ])
       setInput('')
       qc.invalidateQueries({ queryKey: ['hermes', 'history', agentId] })
+      // enableAvatar 模式下自动播放 TTS 音频
+      if (enableAvatar && assistantMsg.audioUrl) {
+        playAudio(assistantMsg.audioUrl)
+      }
     },
   })
 
@@ -142,5 +185,7 @@ export function useUnifiedChat({ agentId, enableAvatar = false, autoGreeting = f
     isLoading: sendMutation.isPending || historyQuery.isLoading,
     isHistoryLoading: historyQuery.isLoading,
     error: sendMutation.error,
+    isSpeaking,
+    stopSpeaking,
   }
 }
