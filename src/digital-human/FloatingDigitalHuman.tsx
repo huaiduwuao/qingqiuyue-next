@@ -25,7 +25,6 @@ import { useChatAvatarWS } from './useChatAvatarWS';
 import { useVoiceAgent } from '@/hooks/useVoiceAgent';
 import { VoiceIndicator, type VoiceIndicatorState } from '@/components/VoiceIndicator';
 import { MicTestButton } from '@/components/MicTestButton';
-import AIGCBadge from '@/components/AIGCBadge';
 import { AgentSelector } from '@/components/hermes/AgentSelector';
 import { useApp } from '@/contexts/AppContext';
 import { useThemeMode } from '@/contexts/ThemeContext';
@@ -91,8 +90,7 @@ export default function FloatingDigitalHuman() {
   }, [activeAgentId, setActiveAgent]);
 
   const chat = useChatAvatarWS(activeAgentId || 'digital_human');
-  const { chatBusy, chatLog, emotion, viseme, action, audioRef,
-    isAIGenerated } = chat;
+  const { chatBusy, chatLog, emotion, viseme, action, audioRef } = chat;
 
   // 语音唤醒词: 文本匹配模式 (ASR 后看文本里是否含 "小月")
   const wakePhrases = React.useMemo(() => ['小月', '清秋月', '清秋'], [])
@@ -449,8 +447,6 @@ export default function FloatingDigitalHuman() {
           autoRotate={autoRotate}
           sx={{ borderRadius: 0 }}
         />
-        {/* AIGC 合规角标:贴数字人画布左上,只遮住一小块,符合网信办最小可见标识要求 */}
-        {isAIGenerated && <AIGCBadge variant="overlay" top={6} left={6} />}
       </Box>
 
       {/* 顶部按钮组 */}
