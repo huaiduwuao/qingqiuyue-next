@@ -12,6 +12,7 @@
 
 'use client'
 
+import React from 'react'
 import type { CSSProperties } from 'react'
 
 export type VoiceIndicatorState = 'idle' | 'listening' | 'wake' | 'recording' | 'processing' | 'error'
@@ -59,29 +60,82 @@ export function VoiceIndicator({
 }: VoiceIndicatorProps) {
   const color = COLORS[state]
   const label = LABELS[state]
-  const posStyle: CSSProperties =
-    position === 'top-right' ? { top: 16, right: 16 }
-    : position === 'top-left' ? { top: 16, left: 16 }
-    : { bottom: 16, right: 16 }
+
+  // 拖动状态
+  const [pos, setPos] = React.useState<{ left: number; top: number } | null>(null)
+  const [dragging, setDragging] = React.useState(false)
+  const dragRef = React.useRef<{ startX: number; startY: number; initLeft: number; initTop: number } | null>(null)
+
+  // 只在客户端、且未拖动过时计算初始位置
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || pos !== null) return
+    const getInitialPos = () => {
+      if (position === 'top-right') return { left: window.innerWidth - 16 - 320, top: 16 }
+      if (position === 'top-left') return { left: 16, top: 16 }
+      // bottom-right
+      return { left: window.innerWidth - 16 - 320, top: window.innerHeight - 80 }
+    }
+    setPos(getInitialPos())
+  }, [position, pos])
+
+  const onPointerDown = React.useCallback((e: React.PointerEvent) => {
+    const el = e.currentTarget as HTMLElement
+    el.setPointerCapture(e.pointerId)
+    setDragging(true)
+    const rect = el.getBoundingClientRect()
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initLeft: rect.left,
+      initTop: rect.top,
+    }
+  }, [])
+
+  const onPointerMove = React.useCallback((e: React.PointerEvent) => {
+    if (!dragging || !dragRef.current) return
+    const dx = e.clientX - dragRef.current.startX
+    const dy = e.clientY - dragRef.current.startY
+    setPos({
+      left: Math.max(0, dragRef.current.initLeft + dx),
+      top: Math.max(0, dragRef.current.initTop + dy),
+    })
+  }, [dragging])
+
+  const onPointerUp = React.useCallback(() => {
+    setDragging(false)
+    dragRef.current = null
+  }, [])
+
+  if (pos === null) return null
+
+  const style: CSSProperties = {
+    position: 'fixed',
+    left: pos.left,
+    top: pos.top,
+    zIndex: 9999,
+    background: 'rgba(0,0,0,0.65)',
+    color: '#fff',
+    borderRadius: 12,
+    padding: '8px 14px',
+    fontSize: 13,
+    fontFamily: 'system-ui, sans-serif',
+    backdropFilter: 'blur(8px)',
+    border: `2px solid ${color}`,
+    boxShadow: `0 0 16px ${color}40`,
+    transition: dragging ? 'none' : 'all 200ms ease',
+    maxWidth: 320,
+    cursor: dragging ? 'grabbing' : 'grab',
+    userSelect: 'none',
+    touchAction: 'none',
+  }
 
   return (
     <div
-      style={{
-        position: 'fixed',
-        ...posStyle,
-        zIndex: 9999,
-        background: 'rgba(0,0,0,0.65)',
-        color: '#fff',
-        borderRadius: 12,
-        padding: '8px 14px',
-        fontSize: 13,
-        fontFamily: 'system-ui, sans-serif',
-        backdropFilter: 'blur(8px)',
-        border: `2px solid ${color}`,
-        boxShadow: `0 0 16px ${color}40`,
-        transition: 'all 200ms ease',
-        maxWidth: 320,
-      }}
+      style={style}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span
