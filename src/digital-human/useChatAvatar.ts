@@ -4,7 +4,7 @@
  * useChatAvatar —— 数字人对话 hook(LLM + TTS + viseme + 表情 + 动作)
  *
  * FloatingDigitalHuman 和 ImmersiveDigitalHuman 共用,
- * 统一 LLM endpoint(xinference OpenAI 兼容),失败降级到 mock。
+ * 统一 LLM endpoint(OpenAI 兼容),失败降级到 mock。
  *
  * 返回:
  *   text / setText           输入文本
@@ -108,7 +108,7 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
     setChatLog((c: ChatLogItem[]) => [...c, { who: 'user', text: t }]);
     setText('');
     try {
-      // 1. 调 chat 路由(LLM 优先 xinference, 失败直接报错)
+      // 1. 调 chat 路由(LLM 优先真实 OpenAI 兼容后端,失败直接报错)
       let resp: ChatResp;
       try {
         const r = await fetch('/api/avatar/chat', {

@@ -19,6 +19,8 @@ services:
     environment:
       # 直连后端 APISIX(同一容器网络,DNS 名 apisix,内部端口 9080),不绕宿主机
       - API_PROXY_TARGET=http://apisix:9080
+      # audio-gateway 与 web 同属 qingqiuyue 网络,服务端代理用服务名访问
+      - AUDIO_GATEWAY_BASE_URL=http://audio-gateway:8001/v1
       # === 数字人 Web 流水线 ===
       - MINIO_ENDPOINT=minio
       - MINIO_PORT=9000
