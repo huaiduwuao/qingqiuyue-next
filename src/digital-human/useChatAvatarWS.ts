@@ -381,6 +381,17 @@ export function useChatAvatarWS(agentId: string = 'digital_human'): ChatAvatarSt
     };
   }, [connectWS]);
 
+  // 心跳: 每 30s 发一次 ping,防止 APISIX/nginx 60s 空闲超时断连
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      const conn = connRef.current;
+      if (conn && conn.connected) {
+        sendRaw(conn, { type: 'ping' });
+      }
+    }, 30000);
+    return () => clearInterval(timer);
+  }, []);
+
   // send: 发送聊天消息
   const send = React.useCallback(async () => {
     const t = text.trim();
