@@ -160,33 +160,39 @@ export class AlwaysListening {
    * 屏蔽时长 6s(原 4s 不够 — 中文 TTS "我在听, 请讲" 实测 3-4.5s,
    * 加上尾音 0.5-1s,以及用户从听到 cue 到开口的反应 1-2s,4s 太紧会吞首字)。
    * 同时挂 onend 事件:TTS 真播完就立即解除屏蔽(比固定 6s 提前释放,
-   * 减少对正常说话的影响)。
+   * 减少对正常说话的影响)。为防止喇叭回声被 VAD 捕获,最早也要 cue 开始后 2.5s 才解除屏蔽。
    */
   private playWakeCue(): void {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
+    const cueStartMs = Date.now()
     // 屏蔽 VAD 6 秒 (TTS cue ~4s + 用户反应 ~2s)
-    this.muteVadUntilMs = Date.now() + 6000
+    this.muteVadUntilMs = cueStartMs + 6000
     try {
       window.speechSynthesis.cancel()
       const utter = new SpeechSynthesisUtterance('我在听, 请讲')
       utter.lang = 'zh-CN'
       utter.rate = 1.0
       utter.pitch = 1.0
-      // TTS 实际结束时立即解除屏蔽(比固定 6s 早)
+      // TTS 实际结束时立即解除屏蔽,但最早也要 cue 开始后 2.5s(抗回声)
       utter.onend = () => {
-        if (Date.now() < this.muteVadUntilMs) {
+        const elapsed = Date.now() - cueStartMs
+        const minMuteMs = 2500
+        if (elapsed < minMuteMs) {
+          this.muteVadUntilMs = cueStartMs + minMuteMs
+          voiceLog('info', 'voice', `wake cue ended early, keep VAD muted until ${minMuteMs}ms`)
+        } else if (Date.now() < this.muteVadUntilMs) {
           this.muteVadUntilMs = 0
-          voiceLog('info', 'voice', 'wake cue ended early, VAD unmuted')
+          voiceLog('info', 'voice', 'wake cue ended, VAD unmuted')
         }
       }
       utter.onerror = () => {
-        this.muteVadUntilMs = 0
+        this.muteVadUntilMs = cueStartMs + 2500
       }
       window.speechSynthesis.speak(utter)
-      voiceLog('info', 'voice', 'playing wake cue: 我在听, 请讲 (VAD muted 6s, early-release on onend)')
+      voiceLog('info', 'voice', 'playing wake cue: 我在听, 请讲 (VAD muted 6s, early-release on onend with 2.5s min)')
     } catch (e) {
       // TTS 失败也要解除屏蔽
-      this.muteVadUntilMs = 0
+      this.muteVadUntilMs = cueStartMs + 2500
       voiceLog('warn', 'voice', 'TTS cue failed:', (e as Error).message)
     }
   }
@@ -417,7 +423,9 @@ export class AlwaysListening {
       const normalized = text.replace(/[，。！？、；：""''（）,.!?;:"'()]/g, ' ').trim()
       // 去掉唤醒词
       const wake = this.matchWakeWord(normalized)
-      const cmd = (wake ? normalized.replace(wake, '') : normalized).trim()
+      let cmd = (wake ? normalized.replace(wake, '') : normalized).trim()
+      // 过滤系统提示语(喇叭回声/ASR 幻觉会把 cue 文本识别进来)
+      cmd = this.stripCuePhrases(cmd)
       voiceLog('info', 'voice', 'command from silence:', { text, cmd })
       if (!cmd) {
         this.setState('idle')
@@ -442,6 +450,17 @@ export class AlwaysListening {
     let off = 0
     for (const c of chunks) { out.set(c, off); off += c.length }
     return out
+  }
+
+  private stripCuePhrases(text: string): string {
+    // 系统提示语(来自 speechSynthesis 播放的 cue),如果喇叭回声被麦克风拾取,
+    // ASR 会把它们识别进用户命令,这里兜底过滤。
+    const cues = ['我在听', '请讲', '我想想', '有事再来找我吧']
+    let out = text
+    for (const cue of cues) {
+      out = out.split(cue).join(' ')
+    }
+    return out.replace(/\s+/g, ' ').trim()
   }
 
   private matchWakeWord(text: string): string | null {
