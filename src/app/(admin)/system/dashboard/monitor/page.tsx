@@ -102,8 +102,8 @@ export default function DashboardMonitorPage() {
       <Box sx={{ py: { xs: 2, md: 4 } }}>
         <Typography variant="h4" gutterBottom>监控</Typography>
 
-        {/* ── 中间件健康 ── */}
-        <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>中间件</Typography>
+        {/* ── 服务健康 ── */}
+        <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>服务健康</Typography>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(3, 1fr)' }, gap: 1.5 }}>
           {mws.map((m) => (
             <Card key={m.name} variant="outlined" sx={{ p: 1.5 }}>
