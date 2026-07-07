@@ -22,6 +22,7 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { useActiveTab } from '../ActiveTabContext';
 import { gradient2, gradient3 } from '@/constants/gradients';
 import { accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
+import { RelativeTime } from '@/components/common/RelativeTime';
 
 const CREATION_ITEMS = [
   {
@@ -124,18 +125,9 @@ const SEED_WIP: WipItem[] = [
   },
 ];
 
-function relativeTime(ts: number): string {
-  const diff = Date.now() - ts;
-  const abs = Math.abs(diff);
-  const isPast = diff > 0;
-  const m = Math.floor(abs / 60000);
-  if (m < 1) return '刚刚';
-  if (m < 60) return isPast ? `${m} 分钟前` : `${m} 分钟后`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return isPast ? `${h} 小时前` : `${h} 小时后`;
-  const d = Math.floor(h / 24);
-  return isPast ? `${d} 天前` : `${d} 天后`;
-}
+// SSR 阶段不计算 Date.now()——返回 fallback 字符串避免 hydration mismatch。
+// 客户端通过 RelativeTime 组件在 mount 后才填真实值。
+// 已统一用 <RelativeTime ts={...} /> 组件处理,这里不再需要函数实现。
 
 const TYPE_ICON: Record<WipType, React.ReactNode> = {
   video: <VideocamIcon sx={{ fontSize: 13 }} />,
@@ -415,8 +407,8 @@ export default function NewCreationSection() {
 
                     {item.kind === 'draft' && (
                       <>
-                        <Typography sx={{ fontSize: 10, color: 'text.disabled', mt: 0.25 }}>
-                          {item.wordCount ? `${item.wordCount} 字 · ` : ''}最后编辑 {item.updatedAt && relativeTime(item.updatedAt)}
+                        <Typography sx={{ fontSize: 10, color: 'text.disabled', mt: 0.25 }} suppressHydrationWarning>
+                          {item.wordCount ? `${item.wordCount} 字 · ` : ''}最后编辑 {item.updatedAt && <RelativeTime ts={item.updatedAt} fallback="" />}
                         </Typography>
                         <Box sx={{ display: 'flex', gap: 0.5, mt: 'auto', pt: 0.75 }}>
                           <Button
@@ -498,8 +490,8 @@ export default function NewCreationSection() {
 
                     {item.kind === 'scheduled' && (
                       <>
-                        <Typography sx={{ fontSize: 10, color: 'text.disabled', mt: 0.25 }}>
-                          预定 {item.scheduleAt && relativeTime(item.scheduleAt)} 发布
+                        <Typography sx={{ fontSize: 10, color: 'text.disabled', mt: 0.25 }} suppressHydrationWarning>
+                          预定 {item.scheduleAt && <RelativeTime ts={item.scheduleAt} showFuture fallback="" />} 发布
                         </Typography>
                         {item.tags && item.tags.length > 0 && (
                           <Box sx={{ display: 'flex', gap: 0.5, mt: 0.25 }}>

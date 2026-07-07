@@ -60,9 +60,9 @@ import { ACTIVITIES,
   type ActivityCategory,
   type ActivitySubmission,
   type MyWork,
-  relativeTime,
   formatBigNumber,
   formatDuration } from './data';
+import { RelativeTime } from '@/components/common/RelativeTime';
 
 type FilterTab = 'all' | 'mine' | 'active' | 'signup' | 'upcoming' | 'won' | 'ended';
 type CategoryFilter = 'all' | ActivityCategory;
@@ -1437,8 +1437,8 @@ function DetailDrawer({
             <Typography sx={{ fontSize: 12, color: 'text.primary', fontWeight: 600, mb: 0.5 }}>
               🎉 恭喜!获得 <Box component="span" sx={{ color: '#FFD700' }}>{a.myWonReward}</Box>
               {a.myWonAt && (
-                <Typography component="span" sx={{ fontSize: 11, color: 'text.disabled', ml: 0.5 }}>
-                  · {relativeTime(a.myWonAt)}揭晓
+                <Typography component="span" sx={{ fontSize: 11, color: 'text.disabled', ml: 0.5 }} suppressHydrationWarning>
+                  · <RelativeTime ts={a.myWonAt} fallback="" />揭晓
                 </Typography>
               )}
             </Typography>
