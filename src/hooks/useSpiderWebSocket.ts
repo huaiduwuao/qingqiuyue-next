@@ -69,9 +69,13 @@ export function useSpiderWebSocket(): SpiderWSState {
   });
 
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectDelayRef = useRef(1000);
+  const reconnectDelayRef = useRef(2000);
+  const reconnectAttemptsRef = useRef(0);
   const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
   const unmountedRef = useRef(false);
+  // 上限重连次数,达到后停止。避免 WS 永远失败时反复重连耗尽 socket buffer
+  // (ERR_NO_BUFFER_SPACE) 和浏览器连接池。
+  const MAX_RECONNECT_ATTEMPTS = 5;
 
   const connect = useCallback(() => {
     if (typeof window === 'undefined' || unmountedRef.current) {
@@ -86,7 +90,8 @@ export function useSpiderWebSocket(): SpiderWSState {
       wsRef.current = ws;
 
       ws.onopen = () => {
-        reconnectDelayRef.current = 1000;
+        reconnectDelayRef.current = 2000;
+        reconnectAttemptsRef.current = 0;
         setState((prev) => ({ ...prev, connected: true, error: undefined }));
       };
 
@@ -135,7 +140,17 @@ export function useSpiderWebSocket(): SpiderWSState {
 
         if (unmountedRef.current) return;
 
-        const delay = Math.min(reconnectDelayRef.current, 10000);
+        // 达到重连上限,停止。浏览器 socket buffer 耗尽时(ERR_NO_BUFFER_SPACE)
+        // 反复重连只会让情况更糟。给用户/操作员机会介入。
+        if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
+          console.warn(
+            `[useSpiderWebSocket] WS reconnect 达上限 (${MAX_RECONNECT_ATTEMPTS} 次),停止重连。请检查 APISIX 路由与 spider-api 容器状态。`,
+          );
+          return;
+        }
+        reconnectAttemptsRef.current += 1;
+
+        const delay = Math.min(reconnectDelayRef.current, 30000);
         reconnectDelayRef.current = reconnectDelayRef.current * 1.5;
 
         if (reconnectTimerRef.current) {
