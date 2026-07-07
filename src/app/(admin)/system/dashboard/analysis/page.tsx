@@ -34,6 +34,7 @@ import ShoppingCartRoundedIcon from '@mui/icons-material/ShoppingCartRounded';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 import { useQuery } from '@tanstack/react-query';
+import { adminClient } from '@/lib/api/client';
 import { alpha } from '@mui/material/styles';
 
 // ── 类型 ──
@@ -90,50 +91,41 @@ interface DashboardStats {
 function useDashboard() {
   const stats = useQuery<DashboardStats>({
     queryKey: ['dashboard', 'stats'],
-    queryFn: async () => ({
-      totalUsers: 128360, totalUsersGrowth: 12.5,
-      totalContent: 12860, totalContentGrowth: -3.2,
-      todayRevenue: 28560.50, todayRevenueGrowth: 18.7,
-      totalOrders: 3420, totalOrdersGrowth: 5.3,
-      newUsersToday: 128, activeUsersToday: 1890,
-      conversionRate: 4.8,
-    }),
+    queryFn: async () => {
+      const r: any = await adminClient('/admin/dashboard/stats');
+      return (r?.data?.data ?? r?.data ?? r) as DashboardStats;
+    },
     refetchInterval: 30_000,
     staleTime: 15_000,
   });
   const trend = useQuery<TrendPoint[]>({
     queryKey: ['dashboard', 'trend'],
     queryFn: async () => {
-      // 生成近 30 天趋势数据(本地)
-      const days = 30;
-      const result: TrendPoint[] = [];
-      const now = new Date();
-      for (let i = days - 1; i >= 0; i--) {
-        const d = new Date(now);
-        d.setDate(d.getDate() - i);
-        const date = d.toISOString().slice(0, 10);
-        const base = 3000 + Math.floor(Math.random() * 2000);
-        result.push({
-          date, users: base, content: Math.floor(base * 0.4),
-          revenue: Math.floor(base * 0.15 + Math.random() * 500),
-          orders: Math.floor(base * 0.08), activeUsers: Math.floor(base * 0.65),
-        });
-      }
-      return result;
+      const r: any = await adminClient('/admin/dashboard/trend', { params: { days: 30 } });
+      const list = (r?.data?.data?.list ?? r?.data?.list ?? r?.list ?? []) as Array<{
+        statDate: string; users: number; content: number; revenue: number; orders: number; activeUsers: number;
+      }>;
+      return list.map((p) => ({
+        date: p.statDate,
+        users: p.users,
+        content: p.content,
+        revenue: p.revenue,
+        orders: p.orders,
+        activeUsers: p.activeUsers,
+      }));
     },
     staleTime: 60_000,
   });
   const contentDist = useQuery<ContentDist[]>({
     queryKey: ['dashboard', 'content-distribution'],
-    queryFn: async () => [
-      { type: '文章', count: 4520, percent: 35.1, color: '#FE2C55' },
-      { type: '视频', count: 3210, percent: 25.0, color: '#5B8DEF' },
-      { type: '音频', count: 2180, percent: 16.9, color: '#8B5CF6' },
-      { type: '图片', count: 1650, percent: 12.8, color: '#25F4EE' },
-      { type: '小说', count: 980, percent: 7.6, color: '#FFB400' },
-      { type: '其他', count: 320, percent: 2.5, color: '#5DDB96' },
-    ],
-    staleTime: Infinity,
+    queryFn: async () => {
+      const r: any = await adminClient('/admin/dashboard/content-distribution');
+      const list = (r?.data?.data?.list ?? r?.data?.list ?? r?.list ?? []) as Array<{
+        type: string; count: number; percent: number; color: string;
+      }>;
+      return list.map((d) => ({ type: d.type, count: d.count, percent: d.percent, color: d.color }));
+    },
+    staleTime: 60_000,
   });
   const topCreators = useQuery<TopCreator[]>({
     queryKey: ['dashboard', 'top-creators'],

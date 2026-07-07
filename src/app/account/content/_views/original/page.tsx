@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getProtectedList, getInfringementList, getTakedownList, getMyWorks } from '@/apis/dashboard';
+import { getProtectedList, getInfringementList, getTakedownList, getMyWorks, type Certificate } from '@/apis/dashboard';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -360,21 +360,37 @@ export default function OriginalPage() {
       // still update local state
     }
     const works = (myWorksQ.data?.records ?? myWorksQ.data?.list ?? []).filter((c: any) => addSelected.includes(String(c.id)));
-    const newItems: ProtectedWork[] = works.map((w: any, idx) => ({
-      id: `p-new-${Date.now()}-${idx}`,
-      title: w.title,
-      cover: w.cover,
-      type: (w.contentType || 'video') as ProtectedWork['type'],
-      fingerprint: Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join(''),
-      blockchainHash: '0x' + Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join(''),
-      certificateNo: `QY-DBC-2026-${String(13000 + Math.floor(Math.random() * 999)).padStart(8, '0')}`,
-      registeredAt: Date.now(),
-      level: addLevel,
-      status: 'monitoring',
-      infringeCount: 0,
-      totalViews: w.views || 0,
-      duration: typeof w.duration === 'string' ? w.duration : (w.duration ? String(w.duration) : '00:00'),
-    }));
+    // 真接口:批量查后端 /original/apply 一次性返回所有证书(后端真生成 hash)
+    const contentIds = works.map((w: any) => Number(w.id));
+    let realCerts: Certificate[] = [];
+    try {
+      const resp = await adminClient.post('/original/apply', { contentIds });
+      const raw = (resp as any)?.data?.data ?? (resp as any)?.data ?? resp;
+      realCerts = (raw?.list ?? raw?.records ?? []) as Certificate[];
+    } catch {
+      // 网络失败时明确提示,不再用 Math.random 凑假数据
+      setSnack('存证服务暂时不可用,请稍后重试');
+      return;
+    }
+
+    const newItems: ProtectedWork[] = works.map((w: any, idx: number) => {
+      const cert = realCerts[idx];
+      return {
+        id: cert?.id ?? `p-new-${Date.now()}-${idx}`,
+        title: w.title,
+        cover: w.cover,
+        type: (w.contentType || 'video') as ProtectedWork['type'],
+        fingerprint: cert?.fingerprint ?? '',
+        blockchainHash: cert?.blockchainHash ?? '',
+        certificateNo: cert?.certificateNo ?? '',
+        registeredAt: cert?.registeredAt ?? Date.now(),
+        level: addLevel,
+        status: 'monitoring',
+        infringeCount: 0,
+        totalViews: w.views || 0,
+        duration: typeof w.duration === 'string' ? w.duration : (w.duration ? String(w.duration) : '00:00'),
+      };
+    });
     setProtected((p) => [...newItems, ...p]);
     setSnack(`已成功存证 ${newItems.length} 个作品`);
     setAddOpen(false);

@@ -319,3 +319,140 @@ export interface HotTopic {
 export async function getCreatorHotTopics(params?: { limit?: number }) {
   return unwrap<PageData<HotTopic>>(await accountClient('/creator/hot-topics', { params }));
 }
+
+// ========== 创作者档案(CreatorProfileHeader) ==========
+
+export interface CreatorBadge {
+  id: string;
+  label: string;
+  color: string;
+}
+export interface CreatorProfile {
+  userId: number;
+  nickname: string;
+  douyinId: string;
+  avatar: string;
+  level: number;
+  levelName: string;
+  fans: number;
+  follows: number;
+  likes: number;
+  works: number;
+  signature: string;
+  badges: string; // 后端存为 JSON 字符串,前端解析
+}
+export async function getCreatorProfile(): Promise<{
+  profile: CreatorProfile;
+  badges: CreatorBadge[];
+}> {
+  const data = unwrap<{ profile: CreatorProfile; badges: CreatorBadge[] }>(
+    await accountClient('/creator/profile')
+  );
+  // 兜底:badges 字段可能为字符串(JSON)或数组
+  if (data && typeof (data.profile as any)?.badges === 'string') {
+    try {
+      data.badges = JSON.parse((data.profile as any).badges);
+    } catch {
+      data.badges = [];
+    }
+  }
+  return data;
+}
+
+// ========== 存证(original 页面用) ==========
+
+export interface Certificate {
+  id: string;
+  userId: number;
+  contentId: number;
+  contentTitle: string;
+  cover: string;
+  contentType: string;
+  fingerprint: string; // sha256 hex
+  blockchainHash: string; // sha256 hex
+  certificateNo: string; // QY-DBC-2026-XXXXXXXX
+  level: string;
+  status: string;
+  infringeCount: number;
+  totalViews: number;
+  duration: string;
+  registeredAt: number;
+}
+export async function applyOriginalCertificate(contentIds: number[]) {
+  return unwrap<PageData<Certificate>>(
+    await accountClient.post('/original/apply', { contentIds })
+  );
+}
+export async function getCertificateList() {
+  return unwrap<PageData<Certificate>>(await accountClient('/certificate/list'));
+}
+
+// ========== 悬赏榜 + 分类 ==========
+
+export interface RewardRanker {
+  id: string;
+  rank: number;
+  name: string;
+  initials: string;
+  avatarColor: string;
+  bounty: number; // 已接悬赏数
+  income: number; // 累计收益(分)
+  color: string;
+}
+export async function getRewardRanking(params?: { limit?: number }) {
+  return unwrap<PageData<RewardRanker>>(await accountClient('/reward/ranking', { params }));
+}
+
+export interface RewardCategory {
+  id: string;
+  code: string;
+  label: string;
+  icon: string; // MUI icon 名
+  color: string;
+  sort: number;
+  count: number; // 该分类当前悬赏数
+}
+export async function getRewardCategories() {
+  return unwrap<PageData<RewardCategory>>(await accountClient('/reward/categories'));
+}
+
+// ========== 后台 dashboard(/admin/system/dashboard/analysis) ==========
+
+export interface AdminStats {
+  totalUsers: number;
+  totalUsersGrowth: number;
+  totalContent: number;
+  totalContentGrowth: number;
+  todayRevenue: number; // 单位:分
+  todayRevenueGrowth: number;
+  totalOrders: number;
+  totalOrdersGrowth: number;
+  newUsersToday: number;
+  activeUsersToday: number;
+  conversionRate: number;
+}
+export async function getAdminStats() {
+  return unwrap<AdminStats>(await accountClient('/admin/dashboard/stats'));
+}
+
+export interface AdminTrendPoint {
+  statDate: string;
+  users: number;
+  content: number;
+  revenue: number;
+  orders: number;
+  activeUsers: number;
+}
+export async function getAdminTrend(params?: { days?: number }) {
+  return unwrap<PageData<AdminTrendPoint>>(await accountClient('/admin/dashboard/trend', { params }));
+}
+
+export interface AdminContentDist {
+  type: string;
+  count: number;
+  percent: number;
+  color: string;
+}
+export async function getAdminContentDistribution() {
+  return unwrap<PageData<AdminContentDist>>(await accountClient('/admin/dashboard/content-distribution'));
+}
