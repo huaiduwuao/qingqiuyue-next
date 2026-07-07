@@ -480,3 +480,55 @@ export async function getHomeRecommendFriend(params?: { page?: number; size?: nu
     await accountClient('/home/recommend/friend', { params })
   );
 }
+
+// ========== CMS 后台配置(8 张公共表 CRUD) ==========
+
+const cmsBase = '/admin/dashboard-config';
+
+function client() {
+  // 这里直接调用 accountClient,wrap 返回 promise;
+  // 方法用 async,避免顶层 await。
+  return accountClient;
+}
+
+// activity
+export const cmsActivity = {
+  list: async () => unwrap<{ list: any[] }>(await client()(`${cmsBase}/activity`)),
+  save: async (item: any) => unwrap(await client().post(`${cmsBase}/activity`, item)),
+  remove: async (id: string) => unwrap(await client().delete(`${cmsBase}/activity/${id}`)),
+};
+export const cmsGift = {
+  list: async () => unwrap<{ list: any[] }>(await client()(`${cmsBase}/gift`)),
+  save: async (item: any) => unwrap(await client().post(`${cmsBase}/gift`, item)),
+  remove: async (id: string) => unwrap(await client().delete(`${cmsBase}/gift/${id}`)),
+};
+export const cmsHotTopic = {
+  list: async () => unwrap<{ list: any[] }>(await client()(`${cmsBase}/hot-topic`)),
+  save: async (item: any) => unwrap(await client().post(`${cmsBase}/hot-topic`, item)),
+  remove: async (id: string) => unwrap(await client().delete(`${cmsBase}/hot-topic/${id}`)),
+};
+export const cmsReviewer = {
+  list: async () => unwrap<{ list: any[] }>(await client()(`${cmsBase}/reviewer`)),
+  save: async (item: any) => unwrap(await client().post(`${cmsBase}/reviewer`, item)),
+  remove: async (id: string) => unwrap(await client().delete(`${cmsBase}/reviewer/${id}`)),
+};
+export const cmsBounty = {
+  list: async () => unwrap<{ list: any[] }>(await client()(`${cmsBase}/bounty`)),
+  save: async (item: any) => unwrap(await client().post(`${cmsBase}/bounty`, item)),
+  remove: async (id: string) => unwrap(await client().delete(`${cmsBase}/bounty/${id}`)),
+};
+export const cmsCategory = {
+  list: async () => unwrap<{ list: any[] }>(await client()(`${cmsBase}/category`)),
+  save: async (item: any) => unwrap(await client().post(`${cmsBase}/category`, item)),
+  remove: async (id: string) => unwrap(await client().delete(`${cmsBase}/category/${id}`)),
+};
+export const cmsRanker = {
+  list: async () => unwrap<{ list: any[] }>(await client()(`${cmsBase}/ranker`)),
+  save: async (item: any) => unwrap(await client().post(`${cmsBase}/ranker`, item)),
+  remove: async (id: string) => unwrap(await client().delete(`${cmsBase}/ranker/${id}`)),
+};
+export const cmsVip = {
+  get: async () => unwrap<{ tiers: any[]; tasks: any[]; benefits: any[] }>(await client()(`${cmsBase}/vip`)),
+  save: async (data: { tiers: any[]; tasks: any[]; benefits: any[] }) =>
+    unwrap(await client().put(`${cmsBase}/vip`, data)),
+};
