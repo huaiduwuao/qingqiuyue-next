@@ -263,3 +263,59 @@ export interface VipInfo {
 export async function getVipInfo() {
   return unwrap<VipInfo>(await accountClient('/vip/tiers'));
 }
+
+// ========== 创作者数据洞察 ==========
+
+// 数据趋势点(7d / 30d,前端切换 range 即可)
+export interface TrendPoint {
+  id: string;
+  date: string; // "MM/DD"
+  range: '7d' | '30d';
+  views: number;
+  likes: number;
+  comments: number;
+  fans: number;
+}
+export async function getCreatorTrend(params: { range: '7d' | '30d' }) {
+  return unwrap<PageData<TrendPoint>>(await accountClient('/creator/trend', { params }));
+}
+
+// 内容分布(各类型作品数量)
+export interface ContentStat {
+  id: string;
+  type: string; // video/image/live/article/other
+  label: string;
+  count: number;
+  color: string; // 主题色 token(primary.main / #8B5CF6 等)
+}
+export async function getCreatorContentDistribution() {
+  return unwrap<PageData<ContentStat>>(await accountClient('/creator/content-distribution'));
+}
+
+// 粉丝画像(性别 / 年龄 / 地域)
+export interface FanStat {
+  id: string;
+  category: 'gender' | 'age' | 'region';
+  label: string;
+  value: number; // 0~100,两位小数
+  color: string;
+}
+export async function getCreatorFanPortrait() {
+  return unwrap<PageData<FanStat>>(await accountClient('/creator/fan-portrait'));
+}
+
+// 实时热点(公共)
+export interface HotTopic {
+  id: string;
+  title: string;
+  desc: string;
+  heat: number;
+  tag: '活动' | '热点' | '挑战' | '话题';
+  reward: string;
+  participants: string;
+  color: string;
+  gradient: string;
+}
+export async function getCreatorHotTopics(params?: { limit?: number }) {
+  return unwrap<PageData<HotTopic>>(await accountClient('/creator/hot-topics', { params }));
+}

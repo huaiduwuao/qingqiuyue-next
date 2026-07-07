@@ -5,31 +5,11 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import ButtonGroup from '@mui/material/ButtonGroup';
 import Button from '@mui/material/Button';
+import Skeleton from '@mui/material/Skeleton';
+import { useQuery } from '@tanstack/react-query';
+import { getCreatorTrend, type TrendPoint } from '@/apis/dashboard';
 
 type Range = '7d' | '30d';
-
-const DATA: Record<Range, Array<{ date: string; views: number; likes: number; comments: number; fans: number }>> = {
-  '7d': [
-    { date: '05/26', views: 18420, likes: 1230, comments: 89, fans: 156 },
-    { date: '05/27', views: 21350, likes: 1456, comments: 102, fans: 203 },
-    { date: '05/28', views: 38920, likes: 2890, comments: 234, fans: 412 },
-    { date: '05/29', views: 42180, likes: 3120, comments: 287, fans: 489 },
-    { date: '05/30', views: 67540, likes: 5430, comments: 412, fans: 821 },
-    { date: '05/31', views: 89230, likes: 7891, comments: 567, fans: 1240 },
-    { date: '06/01', views: 128450, likes: 11240, comments: 823, fans: 1890 },
-  ],
-  '30d': Array.from({ length: 30 }, (_, i) => {
-    const day = i + 1;
-    const base = 20000 + Math.sin(i * 0.4) * 12000 + i * 1800;
-    return {
-      date: day < 10 ? `0${day}/06` : `${day}/06`,
-      views: Math.max(8000, Math.floor(base + Math.random() * 8000)),
-      likes: Math.max(500, Math.floor(base * 0.08 + Math.random() * 800)),
-      comments: Math.max(20, Math.floor(base * 0.005 + Math.random() * 80)),
-      fans: Math.max(50, Math.floor(base * 0.012 + Math.random() * 200)),
-    };
-  }),
-};
 
 const METRICS = [
   { id: 'views', label: '播放量', color: 'primary.main' },
@@ -44,39 +24,57 @@ const WIDTH = 600;
 const HEIGHT = 220;
 const PAD = { top: 16, right: 16, bottom: 28, left: 40 };
 
+function buildPath(points: Array<{ x: number; y: number }>) {
+  if (points.length === 0) return '';
+  return points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+}
+
+function buildAreaPath(points: Array<{ x: number; y: number }>, baselineY: number) {
+  if (points.length === 0) return '';
+  const segs = points.map((p) => `L ${p.x} ${p.y}`).join(' ');
+  return `M ${points[0].x} ${baselineY} ${segs} L ${points[points.length - 1].x} ${baselineY} Z`;
+}
+
 export default function TrendChart() {
   const [range, setRange] = useState<Range>('7d');
   const [metric, setMetric] = useState<MetricId>('views');
 
-  const data = DATA[range];
+  const query = useQuery({
+    queryKey: ['creator-trend', range],
+    queryFn: () => getCreatorTrend({ range }),
+    staleTime: 30 * 1000,
+    refetchOnMount: 'always',
+  });
+
   const color = METRICS.find((m) => m.id === metric)!.color;
   const innerW = WIDTH - PAD.left - PAD.right;
   const innerH = HEIGHT - PAD.top - PAD.bottom;
-  const max = Math.max(...data.map((d) => d[metric]));
-  const min = 0;
-  const stepX = data.length > 1 ? innerW / (data.length - 1) : 0;
+  const baselineY = PAD.top + innerH;
 
-  const points = data.map((d, i) => {
-    const x = PAD.left + i * stepX;
-    const y = PAD.top + innerH - ((d[metric] - min) / (max - min)) * innerH;
-    return { x, y, raw: d };
-  });
-
-  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
-  const areaPath =
-    `M ${points[0].x} ${PAD.top + innerH} ` +
-    points.map((p) => `L ${p.x} ${p.y}`).join(' ') +
-    ` L ${points[points.length - 1].x} ${PAD.top + innerH} Z`;
-
-  const yTicks = useMemo(() => {
-    const ticks: number[] = [];
-    for (let i = 0; i <= 4; i++) {
-      ticks.push((max / 4) * i);
+  const { linePath, areaPath, points, yTicks, xLabelStep, isEmpty } = useMemo(() => {
+    const list = ((query.data?.records ?? query.data?.list ?? []) as TrendPoint[]);
+    if (list.length === 0) {
+      return { linePath: '', areaPath: '', points: [] as Array<{ x: number; y: number; raw: TrendPoint }>, yTicks: [], xLabelStep: 1, isEmpty: true };
     }
-    return ticks;
-  }, [max]);
-
-  const xLabelStep = data.length > 7 ? Math.ceil(data.length / 6) : 1;
+    const max = Math.max(...list.map((d) => d[metric]), 1);
+    const stepX = list.length > 1 ? innerW / (list.length - 1) : 0;
+    const pts = list.map((d, i) => ({
+      x: PAD.left + i * stepX,
+      y: baselineY - ((d[metric] - 0) / max) * innerH,
+      raw: d,
+    }));
+    const ticks: number[] = [];
+    for (let i = 0; i <= 4; i++) ticks.push((max / 4) * i);
+    const step = list.length > 7 ? Math.ceil(list.length / 6) : 1;
+    return {
+      linePath: buildPath(pts),
+      areaPath: buildAreaPath(pts, baselineY),
+      points: pts,
+      yTicks: ticks,
+      xLabelStep: step,
+      isEmpty: false,
+    };
+  }, [query.data, metric, innerW, innerH, baselineY]);
 
   return (
     <Box
@@ -144,70 +142,82 @@ export default function TrendChart() {
         ))}
       </Box>
 
-      <Box sx={{ width: '100%', overflow: 'hidden' }}>
-        <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
-          <defs>
-            <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={color} stopOpacity="0.35" />
-              <stop offset="100%" stopColor={color} stopOpacity="0" />
-            </linearGradient>
-          </defs>
-          {yTicks.map((t, i) => {
-            const y = PAD.top + innerH - (t / max) * innerH;
-            return (
-              <g key={i}>
-                <line
-                  x1={PAD.left}
-                  y1={y}
-                  x2={WIDTH - PAD.right}
-                  y2={y}
-                  stroke="divider"
-                  strokeWidth="1"
-                  strokeDasharray="3 3"
-                />
+      {query.isLoading ? (
+        <Skeleton variant="rounded" height={HEIGHT} sx={{ bgcolor: 'rgba(255,255,255,0.04)' }} />
+      ) : query.isError ? (
+        <Box sx={{ height: HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>数据加载失败,请稍后重试</Typography>
+        </Box>
+      ) : isEmpty ? (
+        <Box sx={{ height: HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>近 {range === '7d' ? 7 : 30} 日暂无数据</Typography>
+        </Box>
+      ) : (
+        <Box sx={{ width: '100%', overflow: 'hidden' }}>
+          <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+            <defs>
+              <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={color} stopOpacity="0.35" />
+                <stop offset="100%" stopColor={color} stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            {yTicks.map((t, i) => {
+              const y = baselineY - (t / yTicks[yTicks.length - 1] || 1) * innerH;
+              return (
+                <g key={i}>
+                  <line
+                    x1={PAD.left}
+                    y1={y}
+                    x2={WIDTH - PAD.right}
+                    y2={y}
+                    stroke="divider"
+                    strokeWidth="1"
+                    strokeDasharray="3 3"
+                  />
+                  <text
+                    x={PAD.left - 6}
+                    y={y + 3}
+                    fill="text.disabled"
+                    fontSize="9"
+                    textAnchor="end"
+                    fontFamily="monospace"
+                  >
+                    {t >= 10000 ? `${(t / 10000).toFixed(1)}w` : t.toFixed(0)}
+                  </text>
+                </g>
+              );
+            })}
+            {points.map((p, i) =>
+              i % xLabelStep === 0 || i === points.length - 1 ? (
                 <text
-                  x={PAD.left - 6}
-                  y={y + 3}
+                  key={i}
+                  x={p.x}
+                  y={HEIGHT - 8}
                   fill="text.disabled"
                   fontSize="9"
-                  textAnchor="end"
+                  textAnchor="middle"
                   fontFamily="monospace"
                 >
-                  {t >= 10000 ? `${(t / 10000).toFixed(1)}w` : t.toFixed(0)}
+                  {p.raw.date}
                 </text>
-              </g>
-            );
-          })}
-          {data.map((d, i) =>
-            i % xLabelStep === 0 || i === data.length - 1 ? (
-              <text
+              ) : null
+            )}
+            <path d={areaPath} fill="url(#trendFill)" />
+            <path d={linePath} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+            {points.map((p, i) => (
+              <circle
                 key={i}
-                x={PAD.left + i * stepX}
-                y={HEIGHT - 8}
-                fill="text.disabled"
-                fontSize="9"
-                textAnchor="middle"
-                fontFamily="monospace"
-              >
-                {d.date}
-              </text>
-            ) : null
-          )}
-          <path d={areaPath} fill="url(#trendFill)" />
-          <path d={linePath} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-          {points.map((p, i) => (
-            <circle
-              key={i}
-              cx={p.x}
-              cy={p.y}
-              r="2.5"
-              fill="background.default"
-              stroke={color}
-              strokeWidth="2"
-            />
-          ))}
-        </svg>
-      </Box>
+                cx={p.x}
+                cy={p.y}
+                r="2.5"
+                fill="background.default"
+                stroke={color}
+                strokeWidth="2"
+              />
+            ))}
+          </svg>
+        </Box>
+      )}
     </Box>
   );
 }
