@@ -260,9 +260,13 @@ export function useChatAvatarWS(agentId: string = 'digital_human'): ChatAvatarSt
     // dev 模式: NEXT_PUBLIC_WS_BASE 直连后端(Next.js rewrites 不支持 WS 升级)
     // 生产环境: 相对路径, 经 nginx/APISIX 代理(enable_websocket: true)
     const base = process.env.NEXT_PUBLIC_WS_BASE || '';
+    // 实际后端 route 是 /api/realtime/imws(避让 avatar /ws),
+    // 之前前端写 /api/realtime/ws 是错的,APISIX 在 WS 模式下自返 101 假连,
+    // 真正数据帧发不出去。
+    const wsPath = '/api/realtime/imws';
     const wsUrl = base
-      ? `${base}/api/realtime/ws?agentId=${encodeURIComponent(agentRef.current)}`
-      : `/api/realtime/ws?agentId=${encodeURIComponent(agentRef.current)}`;
+      ? `${base}${wsPath}?agentId=${encodeURIComponent(agentRef.current)}`
+      : `${wsPath}?agentId=${encodeURIComponent(agentRef.current)}`;
 
     const conn = createWSConnection(
       wsUrl,
