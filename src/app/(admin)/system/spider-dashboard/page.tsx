@@ -148,19 +148,19 @@ export default function SpiderDashboardPage() {
             <CardContent>
               <Typography variant="h6" gutterBottom>最近活动</Typography>
               <List dense sx={{ maxHeight: 260, overflow: 'auto' }}>
-                {(activity.data?.items || []).slice(0, 20).map((a: any, i: number) => (
-                  <React.Fragment key={i}>
+                {(activity.data?.events || []).slice(0, 20).map((a: any, i: number) => (
+                  <React.Fragment key={a.id || i}>
                     <ListItem>
                       <ListItemText
-                        primary={a.message || a.event || 'activity'}
-                        secondary={a.time ? new Date(a.time).toLocaleString() : ''}
+                        primary={a.title || a.message || a.event || 'activity'}
+                        secondary={a.detail || (a.time ? new Date(a.time).toLocaleString() : '')}
                       />
-                      {a.status && <Chip label={a.status} size="small" />}
+                      {a.severity && <Chip label={a.severity} size="small" color={a.severity === 'error' ? 'error' : a.severity === 'success' ? 'success' : 'default'} />}
                     </ListItem>
-                    {i < (activity.data?.items || []).length - 1 && <Divider component="li" />}
+                    {i < (activity.data?.events || []).length - 1 && <Divider component="li" />}
                   </React.Fragment>
                 ))}
-                {(activity.data?.items || []).length === 0 && (
+                {(activity.data?.events || []).length === 0 && (
                   <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>暂无活动</Typography>
                 )}
               </List>

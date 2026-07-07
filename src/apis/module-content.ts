@@ -49,6 +49,7 @@ export interface ModuleContentQuery {
   contentType?: string;
   status?: string;
   source?: string;
+  sourceLabel?: string;
   title?: string;
   sortField?: string;
   sortOrder?: string;
@@ -70,6 +71,7 @@ function toBackendParams(q: ModuleContentQuery) {
     contentType: q.contentType,
     status: q.status,
     source: q.source,
+    sourceLabel: q.sourceLabel,
     title: q.title,
     sortField: q.sortField,
     sortOrder: q.sortOrder,
