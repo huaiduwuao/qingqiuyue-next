@@ -13,24 +13,46 @@ import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import { useActiveTab } from '../ActiveTabContext';
 import MiniCalendar from './MiniCalendar';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
+import { getContentActivityFeed, type Activity } from '@/apis/dashboard';
 
-const NOTIFICATIONS = [
-  { date: '06-01', title: '【新功能】视频合集创作工具上线', tag: '平台' },
-  { date: '05-30', title: '你的作品《夏日记忆》播放量破万', tag: '数据' },
-  { date: '05-28', title: '【活动】618创作激励计划启动', tag: '活动' },
-  { date: '05-25', title: '原创保护审核通过，请查看详情', tag: '通知' },
-];
+// 通知走站内消息系统;此处先显示空态,后端通知接口接入后接 getMessageList
+const NOTIFICATIONS: { date: string; title: string; tag: string }[] = [];
 
-const ACTIVITIES = [
-  { id: 1, title: '618创作激励计划', desc: '瓜分千万流量，最高奖10万', tag: '进行中', color: 'primary.main' },
-  { id: 2, title: '夏日vlog挑战赛', desc: '上传作品即可参与抽奖', tag: '报名中', color: 'secondary.main' },
-  { id: 3, title: '新星扶持计划', desc: '新人创作者专属流量包', tag: '长期', color: 'warning.main' },
-];
+const STATUS_TO_COLOR: Record<string, string> = {
+  active: 'primary.main',
+  signup: 'secondary.main',
+  upcoming: 'warning.main',
+  ended: 'text.disabled',
+  judging: 'warning.main',
+};
+const STATUS_TO_TAG: Record<string, string> = {
+  active: '进行中',
+  signup: '报名中',
+  upcoming: '即将开始',
+  ended: '已结束',
+  judging: '评审中',
+};
 
 export default function RightSidebar() {
   const router = useRouter();
   const { setActiveTab } = useActiveTab();
   const [timeRange, setTimeRange] = useState<'7d' | '30d'>('7d');
+
+  // 真接口:内容侧栏活动 feed
+  const { data: feed } = useQuery({
+    queryKey: ['content-activity-feed'],
+    queryFn: () => getContentActivityFeed({ limit: 5 }),
+    staleTime: 60 * 1000,
+  });
+  const activitiesRaw = (feed?.records ?? feed?.list ?? []) as Activity[];
+  const ACTIVITIES = activitiesRaw.map((a) => ({
+    id: a.id,
+    title: a.title,
+    desc: a.subtitle,
+    tag: STATUS_TO_TAG[a.status] ?? '进行中',
+    color: STATUS_TO_COLOR[a.status] ?? 'primary.main',
+  }));
 
   return (
     <Box sx={{ width: { xs: '100%', lg: 320 }, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>

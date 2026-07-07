@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
@@ -27,6 +28,7 @@ import CardGiftcardRoundedIcon from '@mui/icons-material/CardGiftcardRounded';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import { LoginGate } from '@/components/auth/LoginGate';
 import { accountClient, isNetworkError, isBusinessError, isAuthError, formatApiError } from '@/lib/api/client';
+import { getOrderList, type Order as ApiOrder } from '@/apis/dashboard';
 
 type OrderStatus = 'paid' | 'pending' | 'refunded' | 'cancelled';
 type OrderType = 'recharge' | 'vip' | 'content' | 'gift';
@@ -41,17 +43,6 @@ interface Order {
   createdAt: number;
   payMethod: 'wechat' | 'alipay' | 'apple' | 'card';
 }
-
-const INITIAL_ORDERS: Order[] = [
-  { id: 'OD20260605001', type: 'recharge', title: '钻石充值 100 钻', subtitle: '微信支付 · 2026-06-05 10:23', amount: 100, status: 'paid', createdAt: Date.now() - 1000 * 60 * 30, payMethod: 'wechat' },
-  { id: 'OD20260604022', type: 'vip', title: '年度会员', subtitle: '微信支付 · 2026-06-04 22:15', amount: 16800, status: 'paid', createdAt: Date.now() - 1000 * 60 * 60 * 18, payMethod: 'wechat' },
-  { id: 'OD20260603018', type: 'recharge', title: '钻石充值 500 钻 (加赠 50)', subtitle: '支付宝 · 2026-06-03 14:08', amount: 550, status: 'paid', createdAt: Date.now() - 1000 * 60 * 60 * 50, payMethod: 'alipay' },
-  { id: 'OD20260602014', type: 'content', title: '解锁付费剧《长安十二时辰》第 12 集', subtitle: '抖音支付 · 2026-06-02 19:30', amount: 60, status: 'paid', createdAt: Date.now() - 1000 * 60 * 60 * 72, payMethod: 'apple' },
-  { id: 'OD20260601009', type: 'gift', title: '打赏作者「旅行的猫」', subtitle: '抖音支付 · 2026-06-01 09:45', amount: 200, status: 'paid', createdAt: Date.now() - 1000 * 60 * 60 * 100, payMethod: 'apple' },
-  { id: 'OD20260531005', type: 'recharge', title: '钻石充值 1280 钻 (加赠 200)', subtitle: '微信支付 · 2026-05-31 21:12', amount: 1480, status: 'pending', createdAt: Date.now() - 1000 * 60 * 60 * 130, payMethod: 'wechat' },
-  { id: 'OD20260530001', type: 'vip', title: '月度会员', subtitle: '支付宝 · 2026-05-30 11:30', amount: 1800, status: 'refunded', createdAt: Date.now() - 1000 * 60 * 60 * 150, payMethod: 'alipay' },
-  { id: 'OD20260528019', type: 'content', title: '订阅创作者「摄影师Leo」', subtitle: '微信支付 · 2026-05-28 16:48', amount: 300, status: 'paid', createdAt: Date.now() - 1000 * 60 * 60 * 200, payMethod: 'wechat' },
-];
 
 const TYPE_META: Record<OrderType, { icon: React.ReactNode; color: string; label: string }> = {
   recharge: { icon: <DiamondIcon sx={{ fontSize: 18 }} />, color: '#FFB400', label: '充值' },
@@ -74,9 +65,21 @@ function formatTime(ts: number): string {
 }
 
 export default function OrdersPage() {
+  const qc = useQueryClient();
   const [tab, setTab] = useState(0);
   const [snack, setSnack] = useState<string | null>(null);
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
+
+  // 真接口拉订单(uid 已从 JWT 取,后端按用户隔离)
+  const ordersQuery = useQuery({
+    queryKey: ['order-list'],
+    queryFn: () => getOrderList({ page: 1, size: 100 }),
+    staleTime: 30 * 1000,
+  });
+  // 后端 ApiOrder.payMethod 是 string,本地 Order 限定为枚举 → 在边界处 narrow
+  const orders = (ordersQuery.data?.records ?? ordersQuery.data?.list ?? []).map((o: ApiOrder) => ({
+    ...o,
+    payMethod: (['wechat', 'alipay', 'apple', 'card'].includes(o.payMethod) ? o.payMethod : 'wechat') as Order['payMethod'],
+  }));
 
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);
   const [dialogMode, setDialogMode] = useState<'pay' | 'refund' | null>(null);
@@ -120,14 +123,8 @@ export default function OrdersPage() {
           throw err;
         }
       }
-      const now = formatTime(Date.now());
-      setOrders((prev) =>
-        prev.map((o) =>
-          o.id === orderId
-            ? { ...o, status: 'paid' as OrderStatus, subtitle: `支付成功 · ${now}`, payMethod: method }
-            : o
-        )
-      );
+      // 真实接口成功后让 query 重新拉,而不是改本地 state
+      qc.invalidateQueries({ queryKey: ['order-list'] });
       setProcessing(false);
       setDialogMode(null);
       setActiveOrder(null);
@@ -142,7 +139,7 @@ export default function OrdersPage() {
         setSnack(formatApiError(err));
       }
     }
-  }, [activeOrder, payMethod]);
+  }, [activeOrder, payMethod, qc]);
 
   const handleRefundSubmit = useCallback(async () => {
     if (!activeOrder) return;
@@ -165,11 +162,7 @@ export default function OrdersPage() {
           throw err;
         }
       }
-      setOrders((prev) =>
-        prev.map((o) =>
-          o.id === orderId ? { ...o, status: 'refunded' as OrderStatus } : o
-        )
-      );
+      qc.invalidateQueries({ queryKey: ['order-list'] });
       setProcessing(false);
       setDialogMode(null);
       setActiveOrder(null);
@@ -184,7 +177,7 @@ export default function OrdersPage() {
         setSnack(formatApiError(err));
       }
     }
-  }, [activeOrder, refundReason]);
+  }, [activeOrder, refundReason, qc]);
 
   const filtered = useMemo(() => {
     if (tab === 0) return orders;
@@ -232,7 +225,11 @@ export default function OrdersPage() {
         <Tab label="待支付" />
       </Tabs>
 
-      {filtered.length === 0 ? (
+      {ordersQuery.isLoading ? (
+        <Box sx={{ textAlign: 'center', py: 8 }}>
+          <CircularProgress size={32} />
+        </Box>
+      ) : filtered.length === 0 ? (
         <Box sx={{ textAlign: 'center', py: 8 }}>
           <Box sx={{ fontSize: 48, opacity: 0.3, mb: 1 }}>📋</Box>
           <Typography sx={{ fontSize: 13, color: 'text.disabled' }}>暂无订单</Typography>

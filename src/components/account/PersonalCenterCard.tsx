@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getLikesPreview } from '@/apis/dashboard';
 import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -25,15 +27,9 @@ import { useApp } from '@/contexts/AppContext';
 import { updateUser } from '@/apis/account';
 import { gradient2, IMAGE_OVERLAY } from '@/constants/gradients';
 
-export const PROFILE = {
-  nickname: '怀独无傲',
-  avatar: '',
-  following: 131,
-  followers: 23,
-  likes: 2903,
-};
-
-const LIKES_PREVIEW = [
+// PROFILE 不再硬编码,昵称/统计从 currentUser 取(后端 /api/core/user/current)
+// 无 currentUser 时不渲染统计(空态显示)
+const LIKES_FALLBACK = [
   { id: 'p1', title: '我哥就差这版', cover: gradient2('#C8A882', '#8B6F47') },
   { id: 'p2', title: '最近感觉发型', cover: gradient2('#A88B6F', '#5C4033') },
   { id: 'p3', title: '发现有几分辛', cover: gradient2('#D4B89A', '#8B5A3C') },
@@ -68,6 +64,16 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
   const { isAdmin, isSuperAdmin } = useAuthority();
   const { logout } = useAuth();
   const { currentUser } = useApp();
+
+  // 真接口拉"我喜欢的预览"
+  const { data: likesResp } = useQuery({
+    queryKey: ['account-likes-preview'],
+    queryFn: () => getLikesPreview(),
+    staleTime: 30 * 1000,
+  });
+  const LIKES_PREVIEW = (likesResp?.records ?? likesResp?.list ?? []).map((l) => ({
+    id: l.id, title: l.title, cover: l.cover || gradient2('#C8A882', '#8B6F47'),
+  }));
 
   useEffect(() => {
     const saved = (currentUser as any)?.saveLoginInfo;
@@ -202,7 +208,7 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
               onClick={() => go('/home/recommend?tab=me')}
               sx={{ fontSize: compact ? 14 : 17, fontWeight: 600, color: 'text.primary', lineHeight: 1.2, cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
             >
-              {PROFILE.nickname}
+              {(currentUser as any)?.nickname ?? (currentUser as any)?.username ?? (currentUser as any)?.name ?? '未登录'}
             </Typography>
             <IconButton
               size="small"
@@ -229,7 +235,7 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
                 theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 0.6)',
             }}
           >
-            <Box component="span">关注 {PROFILE.following}</Box>
+            <Box component="span">关注 {(currentUser as any)?.following ?? 0}</Box>
             <Box
               component="span"
               sx={{
@@ -240,7 +246,7 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
                   theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)',
               }}
             />
-            <Box component="span">粉丝 {PROFILE.followers}</Box>
+            <Box component="span">粉丝 {(currentUser as any)?.followers ?? 0}</Box>
           </Box>
         </Box>
       </Box>
@@ -273,7 +279,7 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
               transition: 'color 0.15s',
             }}
           >
-            <span>{PROFILE.likes}</span>
+            <span>{(currentUser as any)?.likes ?? (currentUser as any)?.totalLikes ?? 0}</span>
             <ChevronRightIcon sx={{ fontSize: 14 }} />
           </Box>
         </Box>

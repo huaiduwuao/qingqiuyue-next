@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
@@ -16,80 +17,7 @@ import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import MovieIcon from '@mui/icons-material/Movie';
 import { gradient2 } from '@/constants/gradients';
 import { alpha } from '@mui/material/styles';
-
-interface Bounty {
-  id: string;
-  title: string;
-  category: 'video' | 'image' | 'novel' | 'art' | 'music' | 'film';
-  reward: number;
-  applicants: number;
-  daysLeft: number;
-  sponsor: string;
-  gradient: string;
-}
-
-const HOT_BOUNTIES: Bounty[] = [
-  {
-    id: 'b1',
-    title: '征集《夏日海岛》15秒竖屏短视频',
-    category: 'video',
-    reward: 5000,
-    applicants: 128,
-    daysLeft: 3,
-    sponsor: '文旅中国',
-    gradient: gradient2('#FE2C55', '#FF6B8A'),
-  },
-  {
-    id: 'b2',
-    title: '国风小说《长安月》同人插画征集',
-    category: 'art',
-    reward: 8000,
-    applicants: 86,
-    daysLeft: 7,
-    sponsor: '起点中文网',
-    gradient: gradient2('#8B5CF6', '#C084FC'),
-  },
-  {
-    id: 'b3',
-    title: '校园主题BGM原创音乐征集',
-    category: 'music',
-    reward: 3200,
-    applicants: 54,
-    daysLeft: 5,
-    sponsor: '校园音乐计划',
-    gradient: gradient2('#5DDB96', '#25F4EE'),
-  },
-  {
-    id: 'b4',
-    title: '《江南雨巷》30秒竖屏微短剧剧本',
-    category: 'film',
-    reward: 6500,
-    applicants: 42,
-    daysLeft: 10,
-    sponsor: '东方卫视',
-    gradient: gradient2('#FFB400', '#F59E0B'),
-  },
-  {
-    id: 'b5',
-    title: '城市夜景摄影九宫格挑战',
-    category: 'image',
-    reward: 1800,
-    applicants: 96,
-    daysLeft: 2,
-    sponsor: '摄影之友',
-    gradient: gradient2('#25F4EE', '#5DF7F2'),
-  },
-  {
-    id: 'b6',
-    title: '《云端恋人》长篇言情小说连载',
-    category: 'novel',
-    reward: 12000,
-    applicants: 28,
-    daysLeft: 14,
-    sponsor: '番茄小说',
-    gradient: gradient2('#FE2C55', '#8B5CF6'),
-  },
-];
+import { getHotBounties, type Bounty } from '@/apis/dashboard';
 
 const CATEGORY_ICON: Record<string, React.ReactElement> = {
   video: <VideoLibraryIcon sx={{ fontSize: 14 }} />,
@@ -98,6 +26,7 @@ const CATEGORY_ICON: Record<string, React.ReactElement> = {
   art: <BrushIcon sx={{ fontSize: 14 }} />,
   music: <MusicNoteIcon sx={{ fontSize: 14 }} />,
   film: <MovieIcon sx={{ fontSize: 14 }} />,
+  script: <MovieIcon sx={{ fontSize: 14 }} />,
 };
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -107,6 +36,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   art: '画作',
   music: '音乐',
   film: '短剧',
+  script: '剧本',
 };
 
 const CATEGORY_COLOR: Record<string, string> = {
@@ -116,10 +46,28 @@ const CATEGORY_COLOR: Record<string, string> = {
   art: '#8B5CF6',
   music: 'success.main',
   film: '#F59E0B',
+  script: '#FFB400',
 };
 
 export default function RewardHotGrid() {
   const router = useRouter();
+
+  // 真接口拉热门悬赏,后端 amount 是分,渲染时 / 100 转元
+  const { data: hotResp } = useQuery({
+    queryKey: ['reward-bounty-hot'],
+    queryFn: () => getHotBounties({ limit: 6 }),
+    staleTime: 60 * 1000,
+  });
+  const HOT_BOUNTIES: Bounty[] = (hotResp?.records ?? hotResp?.list ?? []).map((b) => ({
+    id: b.id,
+    title: b.title,
+    category: (b.category as Bounty['category']) ?? 'video',
+    reward: b.reward / 100,
+    applicants: b.applicants,
+    daysLeft: b.daysLeft,
+    sponsor: b.sponsor,
+    gradient: b.gradient || gradient2('#FE2C55', '#FF6B8A'),
+  }));
 
   return (
     <Box

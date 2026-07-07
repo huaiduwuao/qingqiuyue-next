@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { getGiftList, type GiftItem as ApiGift } from '@/apis/dashboard';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
@@ -70,7 +71,8 @@ interface GiftItem {
   desc: string;
 }
 
-const GIFT_CATALOG: GiftItem[] = [
+// 后端 /api/core/live/gifts 真接口拉礼物列表(uid 不限,公共数据)
+const FALLBACK_GIFTS: GiftItem[] = [
   { id: 'rose', name: '玫瑰', emoji: '🌹', price: 1, desc: '表达心意' },
   { id: 'rocket', name: '火箭', emoji: '🚀', price: 99, desc: '冲人气' },
   { id: 'car', name: '跑车', emoji: '🏎️', price: 199, desc: '豪华座驾' },
@@ -90,6 +92,17 @@ function LiveDetailContent() {
     queryFn: () => contentDetail({ id: Number(id) }).then((r) => r.data as Partial<Live>),
     enabled: !!id,
   });
+
+  // 礼物列表:真接口拉,失败 fallback 到 FALLBACK_GIFTS
+  const { data: giftResp } = useQuery({
+    queryKey: ['live-gifts'],
+    queryFn: () => getGiftList(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const apiGifts: GiftItem[] = (giftResp?.records ?? giftResp?.list ?? []).map((g: ApiGift) => ({
+    id: g.id, name: g.name, emoji: g.icon, price: g.price / 100, desc: g.effect,
+  }));
+  const GIFT_CATALOG: GiftItem[] = apiGifts.length ? apiGifts : FALLBACK_GIFTS;
 
   const [followed, setFollowed] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);

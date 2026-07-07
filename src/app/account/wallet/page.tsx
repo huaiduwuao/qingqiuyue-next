@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
@@ -33,8 +34,7 @@ import { gradient3 } from '@/constants/gradients';
 import { LoginGate } from '@/components/auth/LoginGate';
 import { adminClient } from '@/lib/api/client';
 
-// 钱包域占位:后端 `/api/core/wallet/*` 就绪后,以下数据替换为 API 调用
-const DIAMOND_BALANCE = 0;
+// 钱包流水类型:后端 walletapp.WalletTx 的形状,前端 normalize 后 { id/type/amount/balanceAfter/refId/remark/createTime }
 interface DiamondRecord {
   id: number;
   type: 'recharge' | 'consume' | 'reward' | 'gift';
@@ -44,7 +44,6 @@ interface DiamondRecord {
   payMethod?: 'wechat' | 'alipay' | 'apple' | 'card';
   createTime: string;
 }
-const DIAMOND_RECORDS: DiamondRecord[] = [];
 
 const TYPE_META: Record<string, { text: string; color: string; sign: 1 | -1 }> = {
   recharge: { text: '充值', color: '#5DDB96', sign: 1 },
@@ -64,9 +63,38 @@ function formatTime(iso: string): string {
 }
 
 export default function WalletPage() {
+  const qc = useQueryClient();
   const [hidden, setHidden] = useState(false);
   const [tab, setTab] = useState(0);
   const [snack, setSnack] = useState<string | null>(null);
+
+  // 真接口:钱包余额 + 流水(后端 walletapp,UID 隔离)
+  const balanceQuery = useQuery({
+    queryKey: ['wallet-balance'],
+    queryFn: async () => {
+      const r: any = await adminClient('/wallet');
+      // 拦截器返回 {code, msg, data:{balance, frozen}}
+      return r?.data?.data ?? r?.data ?? r;
+    },
+    staleTime: 10 * 1000,
+  });
+  const txQuery = useQuery({
+    queryKey: ['wallet-transactions', tab],
+    queryFn: async () => {
+      const r: any = await adminClient('/wallet/transactions', { params: { page: 1, size: 50 } });
+      return r?.data?.data ?? r?.data ?? r;
+    },
+    staleTime: 10 * 1000,
+  });
+  const balanceDiamonds = Math.floor((balanceQuery.data?.balance ?? 0) / 10); // 分 → 钻
+  const records: DiamondRecord[] = (txQuery.data?.list ?? []).map((t: any) => ({
+    id: t.id,
+    type: (t.type ?? 'consume') as DiamondRecord['type'],
+    amount: t.amount ?? 0,                 // 分
+    balance: Math.floor((t.balanceAfter ?? 0) / 10),
+    description: t.remark ?? '',
+    createTime: t.createTime ?? '',
+  }));
 
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
@@ -108,7 +136,7 @@ export default function WalletPage() {
       setSnack('请输入有效的提现金额');
       return;
     }
-    if (amountNum > DIAMOND_BALANCE) {
+    if (amountNum > balanceDiamonds) {
       setSnack('提现金额不能超过余额');
       return;
     }
@@ -138,10 +166,11 @@ export default function WalletPage() {
     }
   };
 
-  const filtered = tab === 0 ? DIAMOND_RECORDS : tab === 1 ? DIAMOND_RECORDS.filter((r) => r.amount > 0) : DIAMOND_RECORDS.filter((r) => r.amount < 0);
+  const filtered = tab === 0 ? records : tab === 1 ? records.filter((r) => r.amount > 0) : records.filter((r) => r.amount < 0);
 
-  const monthIn = DIAMOND_RECORDS.filter((r) => r.amount > 0).reduce((s, r) => s + r.amount, 0);
-  const monthOut = DIAMOND_RECORDS.filter((r) => r.amount < 0).reduce((s, r) => s + Math.abs(r.amount), 0);
+  // 流水 amount 是"分」,按 1 钻 = 10 分换算成钻
+  const monthIn = records.filter((r) => r.amount > 0).reduce((s, r) => s + r.amount, 0) / 10;
+  const monthOut = records.filter((r) => r.amount < 0).reduce((s, r) => s + Math.abs(r.amount), 0) / 10;
 
   return (
     <Box sx={{ height: 'calc(100dvh - var(--appbar-h, 66px))', overflow: 'auto', overscrollBehavior: 'contain' }}>
@@ -181,13 +210,13 @@ export default function WalletPage() {
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 2.5 }}>
             <Typography sx={{ fontSize: { xs: 44, md: 56 }, fontWeight: 800, color: '#fff', lineHeight: 1, textShadow: '0 2px 12px rgba(0,0,0,0.25)' }}>
-              {hidden ? '****' : DIAMOND_BALANCE}
+              {hidden ? '****' : balanceDiamonds}
             </Typography>
             <Typography sx={{ fontSize: 16, fontWeight: 600, color: 'rgba(255,255,255,0.85)' }}>钻</Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pt: 2, borderTop: '1px solid rgba(255,255,255,0.2)', mb: 2 }}>
             <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>
-              ≈ ¥ {hidden ? '**. **' : (DIAMOND_BALANCE * 0.01).toFixed(2)} · 永不过期
+              ≈ ¥ {hidden ? '**. **' : (balanceDiamonds * 0.01).toFixed(2)} · 永不过期
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', gap: 1 }}>
@@ -387,7 +416,7 @@ export default function WalletPage() {
               type="number"
               value={withdrawAmount}
               onChange={(e) => setWithdrawAmount(e.target.value)}
-              helperText={`当前余额 ${DIAMOND_BALANCE} 钻`}
+              helperText={`当前余额 ${balanceDiamonds} 钻`}
             />
             <FormControl fullWidth>
               <InputLabel>提现方式</InputLabel>

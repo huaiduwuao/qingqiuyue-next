@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getProtectedList, getInfringementList, getTakedownList } from '@/apis/dashboard';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -426,8 +428,6 @@ function CertRow({ label, value, copyable }: { label: string; value: string; cop
 
 export default function OriginalPage() {
   const [tab, setTab] = useState(0);
-  const [protected_, setProtected] = useState<ProtectedWork[]>(SEED_PROTECTED);
-  const [infringe, setInfringe] = useState<Infringement[]>(SEED_INFRINGEMENTS);
   const [snack, setSnack] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
@@ -446,14 +446,39 @@ export default function OriginalPage() {
   const [monitorScope, setMonitorScope] = useState<SourcePlatform[]>(['douyin', 'kuaishou', 'weibo', 'bilibili', 'xiaohongshu']);
   const [whitelist, setWhitelist] = useState<string[]>(['科技评测菌', 'MCN 联合出品']);
 
+  // 真接口:3 类维权数据(uid 隔离),失败时 fallback 到 SEED
+  const protectedQ = useQuery({ queryKey: ['creator-original-protected'], queryFn: () => getProtectedList(), staleTime: 30 * 1000 });
+  const infringeQ = useQuery({ queryKey: ['creator-original-infringements'], queryFn: () => getInfringementList(), staleTime: 30 * 1000 });
+  const takedownQ = useQuery({ queryKey: ['creator-original-takedowns'], queryFn: () => getTakedownList(), staleTime: 30 * 1000 });
+  const apiProtected = (protectedQ.data?.records ?? protectedQ.data?.list ?? []).map((p: any) => ({
+    id: p.id, title: p.title, cover: p.cover, fingerprint: p.fingerprint,
+    status: p.status, monitorAt: p.monitorAt, takedowns: p.takedowns, income: p.income,
+    level: 'full', matchRate: 92, platforms: [], lastCheck: Date.now(),
+  })) as unknown as ProtectedWork[];
+  const apiInfringe = (infringeQ.data?.records ?? infringeQ.data?.list ?? []).map((i: any) => ({
+    id: i.id, workTitle: i.workTitle, infringer: i.infringer, platform: i.platform, url: i.url,
+    status: i.status, detectedAt: i.detectedAt, income: i.income,
+    level: 'medium', evidence: [], autoTakedownEligible: i.income > 0,
+  })) as unknown as Infringement[];
+  const apiTakedowns = (takedownQ.data?.records ?? takedownQ.data?.list ?? []).map((t: any) => ({
+    id: t.id, workTitle: t.workTitle, infringer: t.infringer, platform: t.platform,
+    reason: t.reason, reqAt: t.reqAt, completedAt: t.completedAt, status: t.status, refund: t.refund,
+    appealCount: 0,
+  })) as unknown as TakedownRecord[];
+  const [protected_, setProtected] = useState<ProtectedWork[]>((apiProtected.length ? apiProtected : SEED_PROTECTED) as ProtectedWork[]);
+  const [infringe, setInfringe] = useState<Infringement[]>((apiInfringe.length ? apiInfringe : SEED_INFRINGEMENTS) as Infringement[]);
+  const takedowns = (apiTakedowns.length ? apiTakedowns : SEED_TAKEDOWNS) as TakedownRecord[];
+  useEffect(() => { if (apiProtected.length) setProtected(apiProtected); }, [apiProtected.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (apiInfringe.length) setInfringe(apiInfringe); }, [apiInfringe.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const stats = useMemo(() => {
     return {
       protected: protected_.length,
       monitoring: protected_.filter((p) => p.status === 'monitoring' || p.status === 'infringing').length,
       infringes: infringe.filter((i) => i.status === 'pending' || i.status === 'submitted' || i.status === 'appealed').length,
-      takenDown: SEED_TAKEDOWNS.filter((t) => t.status === 'takenDown').length,
+      takenDown: takedowns.filter((t) => t.status === 'takenDown').length,
     };
-  }, [protected_, infringe]);
+  }, [protected_, infringe, takedowns]);
 
   const filteredProtected = useMemo(() => {
     if (!search) return protected_;
@@ -751,7 +776,7 @@ export default function OriginalPage() {
           >
             <Tab value={0} label={`存证管理 ${protected_.length}`} icon={<ShieldRoundedIcon sx={{ fontSize: 16 }} />} iconPosition="start" />
             <Tab value={1} label={`侵权监测 ${infringe.length}`} icon={<TravelExploreRoundedIcon sx={{ fontSize: 16 }} />} iconPosition="start" />
-            <Tab value={2} label={`维权记录 ${SEED_TAKEDOWNS.length}`} icon={<GavelRoundedIcon sx={{ fontSize: 16 }} />} iconPosition="start" />
+            <Tab value={2} label={`维权记录 ${takedowns.length}`} icon={<GavelRoundedIcon sx={{ fontSize: 16 }} />} iconPosition="start" />
             <Tab value={3} label="监测设置" icon={<SecurityRoundedIcon sx={{ fontSize: 16 }} />} iconPosition="start" />
           </Tabs>
           <Box sx={{ flex: 1 }} />
@@ -1156,7 +1181,7 @@ export default function OriginalPage() {
         {tab === 2 && (
           <Box sx={{ p: 2 }}>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-              {SEED_TAKEDOWNS.map((t) => {
+              {takedowns.map((t) => {
                 const sm = INFRINGE_STATUS_META[t.status];
                 const pm = PLATFORM_META[t.platform];
                 return (

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { getHdVideoList, getReviewerList, type Reviewer as ApiReviewer } from '@/apis/dashboard';
 import { useAuthority } from '@/contexts/AuthContext';
 import { useActiveTab } from '../../ActiveTabContext';
 import Box from '@mui/material/Box';
@@ -145,13 +146,30 @@ export default function HdPublishPage() {
   const { setActiveTab } = useActiveTab();
   const { hasAuthority } = useAuthority();
   const isReviewer = hasAuthority('REVIEWER') || hasAuthority('ADMIN') || hasAuthority('SUPER_ADMIN');
-  const [videos, setVideos] = useState<HdVideo[]>(SEED);
   const [tab, setTab] = useState<HdFilter>('all');
   const [search, setSearch] = useState('');
   const [snack, setSnack] = useState<string | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<{ el: HTMLElement; id: string } | null>(null);
+
+  // 真接口:HD 视频列表(uid 隔离)
+  const { data: hdResp } = useQuery({
+    queryKey: ['creator-hd-videos'],
+    queryFn: () => getHdVideoList({ page: 1, size: 50 }),
+    staleTime: 30 * 1000,
+  });
+  const apiVideos: HdVideo[] = (hdResp?.records ?? hdResp?.list ?? []).map((v: any) => ({
+    id: v.id, title: v.title, cover: v.cover,
+    resolution: v.resolution, fps: v.fps, hdr: v.hdr, duration: v.duration, sizeMB: v.sizeMB,
+    status: v.status, progress: v.progress, uploadedAt: v.uploadedAt,
+    views: v.views, likes: v.likes, hasCover: v.hasCover,
+    subtitles: [], audioTracks: [],
+  }));
+  const [videos, setVideos] = useState<HdVideo[]>(apiVideos.length ? apiVideos : SEED);
+  React.useEffect(() => {
+    if (apiVideos.length) setVideos(apiVideos);
+  }, [apiVideos.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const [coverPickerOpen, setCoverPickerOpen] = useState(false);
   const [fastChannelQuota, setFastChannelQuota] = useState(5); // 每月极速通道剩余
   const [reviewHistoryOpen, setReviewHistoryOpen] = useState(false);
@@ -215,9 +233,22 @@ export default function HdPublishPage() {
 
   const detail = useMemo(() => videos.find((v) => v.id === detailId) ?? null, [videos, detailId]);
 
+  // 真接口:审核员列表(公共,不分 uid)
+  const { data: reviewerResp } = useQuery({
+    queryKey: ['creator-hd-reviewers'],
+    queryFn: () => getReviewerList(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const apiReviewers: Reviewer[] = (reviewerResp?.records ?? reviewerResp?.list ?? []).map((r: ApiReviewer) => ({
+    id: r.id, name: r.name, initials: r.initials, avatarColor: r.avatarColor,
+    team: r.team, level: r.level as 1 | 2 | 3, title: r.title,
+    reviewCount: r.reviewCount, avgReviewSec: 300, passRate: r.passRate,
+    online: r.online, currentLoad: r.currentLoad, maxLoad: r.maxLoad, specialties: r.specialties,
+  }));
+  const reviewers = apiReviewers.length ? apiReviewers : SEED_REVIEWERS;
   const getReviewer = (id: string | undefined): Reviewer | undefined => {
     if (!id) return undefined;
-    return SEED_REVIEWERS.find((r) => r.id === id);
+    return reviewers.find((r) => r.id === id);
   };
 
   const stats = useMemo(() => {

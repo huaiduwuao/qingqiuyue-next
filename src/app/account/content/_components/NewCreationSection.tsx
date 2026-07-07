@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getCreatorWipList } from '@/apis/dashboard';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import LinearProgress from '@mui/material/LinearProgress';
@@ -77,6 +79,8 @@ interface WipItem {
 }
 
 const SEED_WIP: WipItem[] = [
+  // 后端 /api/core/creator/wip/list 就绪后,以下种子数据不再被读取
+  // 现在作为"网络异常/首次加载"的兜底展示用,正常情况会被 useQuery 覆盖
   {
     id: 'd-001',
     kind: 'draft',
@@ -142,9 +146,31 @@ const KIND_META: Record<WipKind, { label: string; color: string; bg: string; ico
 };
 
 export default function NewCreationSection() {
-  const [wip, setWip] = useState<WipItem[]>(SEED_WIP);
   const [snack, setSnack] = useState<string | null>(null);
   const { setActiveTab } = useActiveTab();
+
+  // 真接口拉创作中作品(draft/uploading/scheduled 在后端 wip 中一并返回,前端按 stage 字段映射 kind)
+  const { data: wipResp } = useQuery({
+    queryKey: ['creator-wip'],
+    queryFn: () => getCreatorWipList({ page: 1, size: 50 }),
+    staleTime: 30 * 1000,
+  });
+  const apiWip: WipItem[] = (wipResp?.records ?? wipResp?.list ?? []).map((w) => ({
+    id: w.id,
+    kind: w.stage === 'draft' ? 'draft' : w.stage === 'transcoding' || w.stage === 'reviewing' ? 'uploading' : 'scheduled',
+    type: (w.type as WipItem['type']) ?? 'video',
+    title: w.title,
+    cover: w.cover || gradient2('#5B8DEF', '#8B5CF6'),
+    updatedAt: w.updatedAt,
+    progress: w.progress,
+    tags: [],
+  }));
+  // API 失败/无数据 → fallback 到 seed(网络异常兜底,正常情况数据来自后端)
+  const [wip, setWip] = useState<WipItem[]>(apiWip.length ? apiWip : SEED_WIP);
+  // 同步 API 数据到本地(用户操作 cancel/resume 改本地,刷新则重新拉)
+  useEffect(() => {
+    if (apiWip.length) setWip(apiWip);
+  }, [apiWip.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const drafts = wip.filter((w) => w.kind === 'draft');
   const uploading = wip.filter((w) => w.kind === 'uploading');

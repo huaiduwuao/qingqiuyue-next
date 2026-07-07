@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getCollectionList, type Collection as ApiCollection } from '@/apis/dashboard';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -218,7 +220,31 @@ function DetailHeader({ title, action }: { title: string; action?: React.ReactNo
 }
 
 export default function CollectionPage() {
-  const [collections, setCollections] = useState<Collection[]>(SEED);
+  // 真接口拉作品合集(uid 隔离),失败时 fallback 到 SEED 兜底
+  const { data: colResp } = useQuery({
+    queryKey: ['creator-collections'],
+    queryFn: () => getCollectionList({ page: 1, size: 50 }),
+    staleTime: 30 * 1000,
+  });
+  const apiCollections: Collection[] = (colResp?.records ?? colResp?.list ?? []).map((c: ApiCollection) => ({
+    id: Number(c.id) || 0,
+    title: c.title,
+    description: '',
+    cover: c.cover || '',
+    status: 'active',
+    visibility: c.isPublic ? 'public' : 'private',
+    category: 'travel' as any, // 后端暂无分类,UI 默认给个值
+    works: [],
+    totalViews: c.viewCount,
+    subscribers: 0,
+    autoSort: false,
+    createdAt: c.updateTime,
+    updatedAt: c.updateTime,
+  }));
+  const [collections, setCollections] = useState<Collection[]>(apiCollections.length ? apiCollections : SEED);
+  useEffect(() => {
+    if (apiCollections.length) setCollections(apiCollections);
+  }, [apiCollections.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const [tab, setTab] = useState<0 | 1 | 2 | 3>(0);
   const [keyword, setKeyword] = useState('');
   const [createOpen, setCreateOpen] = useState(false);

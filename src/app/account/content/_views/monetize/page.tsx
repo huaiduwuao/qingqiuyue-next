@@ -27,7 +27,7 @@ export default function MonetizePage() {
   const router = useRouter();
   const query = useQuery({
     queryKey: ['account', 'monetize', 'summary'],
-    queryFn: () => getCreatorMonetizeSummary().then((r) => r.data),
+    queryFn: () => getCreatorMonetizeSummary(),
   });
 
   return (

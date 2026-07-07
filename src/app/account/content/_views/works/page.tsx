@@ -115,8 +115,8 @@ export default function WorksPage() {
     });
     return {
       data: {
-        records: (res.data?.records || []) as WorksItem[],
-        totalRow: res.data?.totalRow ?? res.data?.total ?? 0,
+        records: (res.records || res.list || []) as WorksItem[],
+        totalRow: res.totalRow ?? res.total ?? 0,
       },
     };
   };

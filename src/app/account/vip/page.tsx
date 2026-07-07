@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getVipInfo } from '@/apis/dashboard';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
@@ -51,41 +53,8 @@ interface VipTier {
   notIncluded?: string[];
 }
 
-const TIERS: VipTier[] = [
-  {
-    key: 'silver',
-    name: '白银会员',
-    price: { monthly: 1280, yearly: 12800 },
-    color: '#94A3B8',
-    features: ['1080P 高清画质', '免广告', '专属弹幕颜色', '每月 100 钻赠送'],
-    notIncluded: ['4K 蓝光画质', '影院提前观看', '专属客服'],
-  },
-  {
-    key: 'gold',
-    name: '黄金会员',
-    price: { monthly: 1980, yearly: 19800 },
-    color: '#FFB400',
-    badge: '推荐',
-    features: ['全部白银权益', '4K 蓝光画质', '新片提前 7 天观看', '每月 300 钻赠送', '专属客服'],
-  },
-  {
-    key: 'diamond',
-    name: '钻石会员',
-    price: { monthly: 2980, yearly: 29800 },
-    color: '#FE2C55',
-    features: ['全部黄金权益', '8K 超清画质', '新片提前 30 天观看', '每月 800 钻赠送', '线下活动优先', '1 对 1 专属管家'],
-  },
-];
-
-const TASKS = [
-  { key: 'dailySign', title: '每日签到', desc: '+ 5 成长值', progress: 0, target: 1, reward: 5, completed: false, type: '每日' },
-  { key: 'share', title: '分享内容', desc: '分享 1 条内容到外部,+ 10 成长值', progress: 0, target: 3, reward: 30, completed: false, type: '每周' },
-  { key: 'comment', title: '发布评论', desc: '+ 2 成长值 / 条', progress: 0, target: 5, reward: 10, completed: false, type: '每周' },
-  { key: 'recharge', title: '充值钻石', desc: '充值任意金额 + 50 成长值', progress: 1, target: 1, reward: 50, completed: true, type: '一次性' },
-  { key: 'invite', title: '邀请好友', desc: '+ 100 成长值 / 人', progress: 2, target: 5, reward: 500, completed: false, type: '永久' },
-];
-
-const BENEFITS = [
+// VIP 页面的"权益图标库"只是 UI 展示映射,跟数据无关;真正的数据(价格/任务/购买历史)从后端 /api/core/vip/tiers 拉
+const BENEFIT_ICON_LIBRARY: { title: string; desc: string; color: string; icon: React.ReactNode }[] = [
   { icon: <FlashOnRoundedIcon />, title: '4K 蓝光画质', desc: '影院级视听享受', color: '#FE2C55' },
   { icon: <TheaterComedyRoundedIcon />, title: '新片提前看', desc: '比普通用户早 7-30 天', color: '#FFB400' },
   { icon: <VolumeOffRoundedIcon />, title: '免广告', desc: '全程无打扰', color: '#5DDB96' },
@@ -94,12 +63,6 @@ const BENEFITS = [
   { icon: <CardGiftcardRoundedIcon />, title: '钻石月赠送', desc: '每月最高 800 钻', color: '#FF6B8A' },
   { icon: <DownloadRoundedIcon />, title: '离线下载', desc: '无限次下载', color: '#06B6D4' },
   { icon: <LiveTvRoundedIcon />, title: '直播专属', desc: 'VIP 直播标识 + 礼物折扣', color: '#FFD566' },
-];
-
-const RENEWAL_HISTORY = [
-  { id: 'VIP20260604001', tier: '黄金会员', period: '年付', amount: 19800, startedAt: '2026-06-04', expiresAt: '2027-06-04', status: 'active' },
-  { id: 'VIP20250530001', tier: '白银会员', period: '月付', amount: 1280, startedAt: '2025-05-30', expiresAt: '2025-06-30', status: 'expired' },
-  { id: 'VIP20240515002', tier: '黄金会员', period: '年付', amount: 19800, startedAt: '2024-05-15', expiresAt: '2025-05-15', status: 'expired' },
 ];
 
 const ICON_FOR_TASK: Record<string, React.ReactNode> = {
@@ -119,13 +82,59 @@ export default function VipPage() {
   const [buyMethod, setBuyMethod] = useState<'wechat' | 'alipay'>('wechat');
   const [buying, setBuying] = useState(false);
 
-  const [tasks, setTasks] = useState(() => [...TASKS]);
+  // 真接口:VIP 套餐 + 任务 + 权益
+  const vipQuery = useQuery({
+    queryKey: ['vip-info'],
+    queryFn: () => getVipInfo(),
+    staleTime: 60 * 1000,
+  });
+
+  // 把后端 {id,name,price(分),badge,color,benefits[]} 转成页面用的 VipTier
+  const TIERS: VipTier[] = (vipQuery.data?.tiers ?? []).map((t, idx) => ({
+    key: t.id,
+    name: t.name,
+    price: { monthly: t.price, yearly: t.price * 10 }, // 后端只给"月价",年付按 10 倍粗算
+    color: t.color || ['#94A3B8', '#FFB400', '#FE2C55'][idx] || '#5B8DEF',
+    badge: t.badge,
+    features: t.benefits,
+  }));
+
+  // 任务:后端 {id,title,reward,done} → 页面用 5 字段;前端为每条记录补一个 key 给 setTasks 用
+  const baseTasks = (vipQuery.data?.tasks ?? []).map((t, idx) => ({
+    key: t.id || `task-${idx}`,
+    title: t.title,
+    desc: t.reward,
+    progress: t.done ? 1 : 0,
+    target: 1,
+    reward: 0,
+    completed: t.done,
+    type: '每日' as const,
+  }));
+  const [tasks, setTasks] = useState(baseTasks);
+
+  // 当后端数据变化时同步本地 tasks(已勾选状态保留)
+  React.useEffect(() => {
+    setTasks((prev) => {
+      const done = new Set(prev.filter((t) => t.completed).map((t) => t.key));
+      return baseTasks.map((t) => ({ ...t, completed: t.completed || done.has(t.key) }));
+    });
+  }, [vipQuery.data?.tasks]);
+
+  // 续费历史:暂未在后端 schema 里,前端置空,后端有再加
+  const RENEWAL_HISTORY: { id: string; tier: string; period: string; amount: number; startedAt: string; expiresAt: string; status: string }[] = [];
+
   const [shareOpen, setShareOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [rechargeOpen, setRechargeOpen] = useState(false);
   const [rechargeAmount, setRechargeAmount] = useState('');
   const [rechargeMethod, setRechargeMethod] = useState<'wechat' | 'alipay'>('wechat');
   const [recharging, setRecharging] = useState(false);
+
+  // 权益展示:用后端字符串列表匹配本地图标库;匹配不到的归到"通用权益"
+  const BENEFITS = (vipQuery.data?.benefits ?? []).map((title, idx) => {
+    const found = BENEFIT_ICON_LIBRARY.find((b) => b.title === title);
+    return found || { icon: <FlashOnRoundedIcon />, title, desc: '会员专属权益', color: '#5B8DEF' };
+  });
 
   const markTaskCompleted = (key: string) => {
     setTasks((prev) => prev.map((t) => (t.key === key ? { ...t, completed: true, progress: t.target } : t)));

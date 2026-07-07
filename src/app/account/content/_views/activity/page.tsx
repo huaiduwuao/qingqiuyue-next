@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getActivityList, getMyWorks, type Activity as ApiActivity } from '@/apis/dashboard';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -86,7 +88,6 @@ const SORT_DEFS: Array<{ id: SortKey; label: string }> = [
 ];
 
 export default function ActivityPage() {
-  const [items, setItems] = useState<Activity[]>(ACTIVITIES);
   const [tab, setTab] = useState<FilterTab>('all');
   const [category, setCategory] = useState<CategoryFilter>('all');
   const [sort, setSort] = useState<SortKey>('heat');
@@ -95,6 +96,28 @@ export default function ActivityPage() {
   const [detailTab, setDetailTab] = useState<'detail' | 'prizes' | 'leaderboard' | 'mywork'>('detail');
   const [signupId, setSignupId] = useState<string | null>(null);
   const [signupAgreed, setSignupAgreed] = useState(false);
+
+  // 真接口拉活动列表 + 我的可投稿作品
+  const { data: actResp } = useQuery({
+    queryKey: ['creator-activities', category],
+    queryFn: () => getActivityList({ category: category === 'all' ? undefined : category }),
+    staleTime: 30 * 1000,
+  });
+  const { data: worksResp } = useQuery({
+    queryKey: ['creator-my-works'],
+    queryFn: () => getMyWorks(),
+    staleTime: 30 * 1000,
+  });
+  const apiActivities: Activity[] = (actResp?.records ?? actResp?.list ?? []).map((a: ApiActivity) => ({
+    ...a,
+    submissions: a.submissions ?? [],
+    leaderboard: a.leaderboard ?? [],
+  }));
+  const apiMyWorks: MyWork[] = (worksResp?.records ?? worksResp?.list ?? []) as MyWork[];
+  const [items, setItems] = useState<Activity[]>(apiActivities.length ? apiActivities : ACTIVITIES);
+  useEffect(() => {
+    if (apiActivities.length) setItems(apiActivities);
+  }, [apiActivities.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const [submitId, setSubmitId] = useState<string | null>(null);
   const [submitSelected, setSubmitSelected] = useState<string[]>([]);
   const [submitCaption, setSubmitCaption] = useState('');
@@ -161,23 +184,24 @@ export default function ActivityPage() {
   const signupTarget = useMemo(() => items.find((a) => a.id === signupId) ?? null, [items, signupId]);
   const submitTarget = useMemo(() => items.find((a) => a.id === submitId) ?? null, [items, submitId]);
 
-  // Pre-filter MY_WORKS for the submit dialog (rough hashtag match)
+  // Pre-filter MY_WORKS for the submit dialog (rough hashtag match) — 用 API 数据
+  const effectiveMyWorks: MyWork[] = apiMyWorks.length ? apiMyWorks : MY_WORKS;
   const eligibleWorks = useMemo(() => {
     if (!submitTarget) return [] as MyWork[];
     const required = submitTarget.requirements
       .map((r) => r.match(/#[一-龥\w]+/g) || [])
       .flat()
       .map((h) => h.toLowerCase());
-    if (required.length === 0) return MY_WORKS;
+    if (required.length === 0) return effectiveMyWorks;
     const matched: MyWork[] = [];
     const rest: MyWork[] = [];
-    for (const w of MY_WORKS) {
+    for (const w of effectiveMyWorks) {
       const tags = w.hashtags.map((t) => t.toLowerCase());
       if (required.some((r) => tags.includes(r))) matched.push(w);
       else rest.push(w);
     }
     return [...matched, ...rest];
-  }, [submitTarget]);
+  }, [submitTarget, effectiveMyWorks]);
 
   const openSignup = (id: string) => {
     setSignupId(id);
@@ -224,7 +248,7 @@ export default function ActivityPage() {
     try {
       await adminClient('/activity/submit', { method: 'POST', data: { activityId: submitTarget.id } });
       const newSubs: ActivitySubmission[] = submitSelected.map((wid, idx) => {
-        const w = MY_WORKS.find((x) => x.id === wid)!;
+        const w = effectiveMyWorks.find((x) => x.id === wid)!;
         return {
           id: `sub-${Date.now()}-${idx}`,
           workId: w.id,

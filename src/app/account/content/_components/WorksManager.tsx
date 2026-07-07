@@ -1,6 +1,8 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { getCreatorWorks } from '@/apis/creator';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -67,6 +69,7 @@ interface Work {
 }
 
 const SEED: Work[] = [
+  // 后端 /api/core/creator/works/manage 就绪后,作为网络异常兜底
   { id: 1001, title: '夏日海边vlog｜这个夏天最治愈的5个瞬间', type: 'video', status: 'published', cover: gradient3('#FE2C55', '#FF6B8A', '#FFB400'), views: 1284932, likes: 89432, comments: 3211, shares: 1820, collectNum: 5210, createdAt: Date.now() - 86400000 * 5, updatedAt: Date.now() - 86400000 * 5, tags: ['vlog', '夏日', '治愈'], description: '记录 5 个治愈瞬间,背景音乐用《夏日漱石》。' },
   { id: 1002, title: '小红书同款｜夏日穿搭合集', type: 'image', status: 'published', cover: gradient3('#25F4EE', '#5DF7F2', '#8B5CF6'), views: 423891, likes: 32104, comments: 1287, shares: 932, collectNum: 3842, createdAt: Date.now() - 86400000 * 7, updatedAt: Date.now() - 86400000 * 7, tags: ['穿搭', '小红书', '夏日'], description: '9 套夏日穿搭,白色系为主,搭配草编包。' },
   { id: 1003, title: '挑战全网最辣螺蛳粉!结果我输了…', type: 'video', status: 'published', cover: gradient3('#FFB400', '#FE2C55', '#8B5CF6'), views: 287432, likes: 21890, comments: 2143, shares: 612, collectNum: 1287, createdAt: Date.now() - 86400000 * 9, updatedAt: Date.now() - 86400000 * 9, tags: ['挑战', '美食', '辣'], description: '挑战变态辣螺蛳粉,坚持 3 分 17 秒后投降。' },
@@ -112,7 +115,6 @@ function formatDate(ts: number): string {
 
 export default function WorksManager() {
   const router = useRouter();
-  const [works, setWorks] = useState<Work[]>(SEED);
   const [tab, setTab] = useState<0 | 1 | 2 | 3 | 4>(0);
   const [typeFilter, setTypeFilter] = useState<'all' | WorkType>('all');
   const [keyword, setKeyword] = useState('');
@@ -123,6 +125,36 @@ export default function WorksManager() {
   const [anchorEl, setAnchorEl] = useState<{ id: number; el: HTMLElement } | null>(null);
   const [loading, setLoading] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState<Work | null>(null);
+
+  // 真接口:创作者作品列表(走 /api/core/account/works,后端按 uid 隔离)
+  const { data: worksResp } = useQuery({
+    queryKey: ['creator-works-manage', typeFilter, tab],
+    queryFn: () => getCreatorWorks({ contentType: typeFilter === 'all' ? undefined : typeFilter.toUpperCase(), page: 1, pageSize: 100 }),
+    staleTime: 30 * 1000,
+  });
+  const apiWorks: Work[] = (worksResp?.records ?? worksResp?.list ?? []).map((w: any) => ({
+    id: w.id,
+    title: w.title,
+    type: (String(w.contentType || 'video').toLowerCase()) as WorkType,
+    status: ((w.status === 'UN_PUBLISH' ? 'private' : (w.status === 'REVIEWING' ? 'reviewing' : (w.status || 'published')).toLowerCase())) as WorkStatus,
+    cover: w.coverUrl || '',
+    views: w.readNum || 0,
+    likes: w.agreeNum || 0,
+    comments: w.commentNum || 0,
+    shares: w.shareNum || 0,
+    collectNum: w.collectNum || 0,
+    createdAt: w.publishTime ? new Date(w.publishTime).getTime() : Date.now(),
+    updatedAt: w.updateTime ? new Date(w.updateTime).getTime() : Date.now(),
+    tags: [],
+    description: w.subtitle || '',
+  }));
+  const [works, setWorks] = useState<Work[]>(apiWorks.length ? apiWorks : SEED);
+  // API 数据变化时同步本地状态(本地操作后不覆盖)
+  const apiWorksRef = React.useRef(apiWorks);
+  apiWorksRef.current = apiWorks;
+  useEffect(() => {
+    if (apiWorks.length) setWorks(apiWorks);
+  }, [apiWorks.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const counts = useMemo(() => {
     const c = { all: works.length, published: 0, reviewing: 0, draft: 0, private: 0, rejected: 0 };
