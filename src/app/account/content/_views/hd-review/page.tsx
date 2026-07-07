@@ -47,6 +47,7 @@ import {
   getReviewerById,
   REVIEW_CHECK_TEMPLATE,
 } from '../hd-publish/data';
+import { RelativeTime } from '@/components/common/RelativeTime';
 
 type ReviewTab = 'pending' | 'reviewed';
 
@@ -80,18 +81,8 @@ function formatCount(n: number): string {
   return String(n);
 }
 
-function relativeTime(ts: number): string {
-  const diff = Date.now() - ts;
-  const abs = Math.abs(diff);
-  const isPast = diff > 0;
-  const m = Math.floor(abs / 60000);
-  if (m < 1) return '刚刚';
-  if (m < 60) return isPast ? `${m} 分钟前` : `${m} 分钟后`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return isPast ? `${h} 小时前` : `${h} 小时后`;
-  const d = Math.floor(h / 24);
-  return isPast ? `${d} 天前` : `${d} 天后`;
-}
+// relativeTime() 已废弃:SSR/CSR Date.now() 不同会引发 hydration mismatch。
+// 改用 <RelativeTime ts={...} /> 组件。
 
 type RiskLevel = 'low' | 'medium' | 'high';
 function computeRiskLevel(video: HdVideo): RiskLevel {
@@ -790,12 +781,12 @@ function QueueItem({
         <Box component="span" sx={{ width: 2, height: 2, borderRadius: '50%', bgcolor: 'divider' }} />
         {isReviewing ? (
           <>
-            <span>已等待 {video.review?.startedAt ? relativeTime(video.review.startedAt) : '—'}</span>
+            <span>已等待 {video.review?.startedAt ? <RelativeTime ts={video.review.startedAt} fallback="" /> : '—'}</span>
             <Box component="span" sx={{ width: 2, height: 2, borderRadius: '50%', bgcolor: 'divider' }} />
             <span>AI {passedCount}/{totalChecks}</span>
           </>
         ) : (
-          <span>{video.review?.completedAt ? `完成于 ${relativeTime(video.review.completedAt)}` : '—'}</span>
+          <span>{video.review?.completedAt ? `完成于 ${<RelativeTime ts={video.review.completedAt} fallback="" />}` : '—'}</span>
         )}
       </Box>
 
@@ -972,10 +963,10 @@ function ReviewPanel({
             </Typography>
             <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
               {video.fps}fps · {formatSize(video.sizeMB)} · {pickCreatorName(video.id)} · 上传于{' '}
-              {relativeTime(video.uploadedAt)}
+              {<RelativeTime ts={video.uploadedAt} fallback="" />}
               {video.review?.startedAt && (
                 <Box component="span" sx={{ ml: 0.5 }}>
-                  · 进入审核 {relativeTime(video.review.startedAt)}
+                  · 进入审核 {<RelativeTime ts={video.review.startedAt} fallback="" />}
                 </Box>
               )}
             </Typography>
@@ -1117,7 +1108,7 @@ function ReviewPanel({
                 {verdict.decision === 'pass' ? '审核通过' : verdict.decision === 'reject' ? '已驳回' : '需补充材料'}
               </Typography>
               <Box sx={{ flex: 1 }} />
-              <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>{relativeTime(verdict.timestamp)}</Typography>
+              <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>{<RelativeTime ts={verdict.timestamp} fallback="" />}</Typography>
             </Box>
             <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1.6, mb: 1 }}>
               {verdict.note}

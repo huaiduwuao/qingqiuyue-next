@@ -61,6 +61,7 @@ import type { ModuleContentItem } from '@/apis/module-content';
 import { fileUpload } from '@/apis/global';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { formatApiError, accountClient } from '@/lib/api/client';
+import { RelativeTime } from '@/components/common/RelativeTime';
 import { gradient2, gradient3 } from '@/constants/gradients';
 import { HdResolution,
   HdStatus,
@@ -127,18 +128,8 @@ function formatCount(n: number): string {
   return String(n);
 }
 
-function relativeTime(ts: number): string {
-  const diff = Date.now() - ts;
-  const abs = Math.abs(diff);
-  const isPast = diff > 0;
-  const m = Math.floor(abs / 60000);
-  if (m < 1) return '刚刚';
-  if (m < 60) return isPast ? `${m} 分钟前` : `${m} 分钟后`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return isPast ? `${h} 小时前` : `${h} 小时后`;
-  const d = Math.floor(h / 24);
-  return isPast ? `${d} 天前` : `${d} 天后`;
-}
+// relativeTime() 已废弃:直接调用 Date.now() 在 SSR/CSR 阶段值不同,会引发 hydration mismatch。
+// 改用 <RelativeTime ts={...} /> 组件,在 client mount 后才计算显示。
 
 function mapContentStatusToHd(status?: string): HdStatus {
   const s = status?.toLowerCase() || '';
@@ -1190,7 +1181,7 @@ export default function HdPublishPage() {
                           ❤ {formatCount(v.likes ?? 0)} 点赞
                         </Typography>
                         <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
-                          发布于 {v.publishedAt && relativeTime(v.publishedAt)}
+                          发布于 {v.publishedAt && <RelativeTime ts={v.publishedAt} fallback="" />}
                         </Typography>
                       </Box>
                     )}
@@ -1205,7 +1196,7 @@ export default function HdPublishPage() {
 
                     {v.status === 'scheduled' && (
                       <Typography sx={{ fontSize: 10, color: '#8B5CF6', mt: 0.5 }}>
-                        🚀 将在 {v.scheduledAt && relativeTime(v.scheduledAt)} 自动发布
+                        🚀 将在 {v.scheduledAt && <RelativeTime ts={v.scheduledAt} fallback="" />} 自动发布
                       </Typography>
                     )}
                   </Box>
@@ -1841,7 +1832,7 @@ export default function HdPublishPage() {
                   {detail.title}
                 </Typography>
                 <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>
-                  {detail.fps}fps · {formatSize(detail.sizeMB)} · 上传于 {relativeTime(detail.uploadedAt)}
+                  {detail.fps}fps · {formatSize(detail.sizeMB)} · 上传于 {<RelativeTime ts={detail.uploadedAt} fallback="" />}
                 </Typography>
               </Box>
 
@@ -1934,7 +1925,7 @@ export default function HdPublishPage() {
                     <Box sx={{ flex: 1 }} />
                     {detail.review.startedAt && (
                       <Typography sx={{ fontSize: 9, color: 'text.disabled' }}>
-                        开始 {relativeTime(detail.review.startedAt)}
+                        开始 {<RelativeTime ts={detail.review.startedAt} fallback="" />}
                       </Typography>
                     )}
                   </Box>
@@ -2043,7 +2034,7 @@ export default function HdPublishPage() {
                           {isRejected && detail.review.reviewerVerdict && (
                             <Box sx={{ textAlign: 'right' }}>
                               <Typography sx={{ fontSize: 10, color: '#FE2C55', fontWeight: 600 }}>
-                                拒绝 · {relativeTime(detail.review.reviewerVerdict.timestamp)}
+                                拒绝 · {<RelativeTime ts={detail.review.reviewerVerdict.timestamp} fallback="" />}
                               </Typography>
                             </Box>
                           )}
@@ -2196,7 +2187,7 @@ export default function HdPublishPage() {
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: detail.review.result === 'reject' && detail.review.reviewerVerdict?.appealable ? 1 : 0 }}>
                         <SecurityRoundedIcon sx={{ fontSize: 12, color: detail.review.result === 'pass' ? '#5DDB96' : '#FE2C55' }} />
                         <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
-                          {detail.review.result === 'pass' ? '审核通过' : '审核未通过'} · 完成于 {relativeTime(detail.review.completedAt)}
+                          {detail.review.result === 'pass' ? '审核通过' : '审核未通过'} · 完成于 {<RelativeTime ts={detail.review.completedAt} fallback="" />}
                         </Typography>
                         <Box sx={{ flex: 1 }} />
                         {detail.review.result === 'pass' && detail.review.reviewerVerdict && (
@@ -2227,7 +2218,7 @@ export default function HdPublishPage() {
                             </Typography>
                             <Typography sx={{ fontSize: 9, color: 'text.disabled' }}>
                               {detail.review.reviewerVerdict.appealDeadline
-                                ? `可在 ${relativeTime(detail.review.reviewerVerdict.appealDeadline)} 前提交申诉,72 小时内重新审核`
+                                ? `可在 ${<RelativeTime ts={detail.review.reviewerVerdict.appealDeadline} fallback="" />} 前提交申诉,72 小时内重新审核`
                                 : '可在 7 天内提交申诉,72 小时内重新审核'}
                             </Typography>
                           </Box>
@@ -2757,9 +2748,9 @@ export default function HdPublishPage() {
                       })()}
                       <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
                         {h.review.completedAt
-                          ? `完成于 ${relativeTime(h.review.completedAt)}`
+                          ? `完成于 ${<RelativeTime ts={h.review.completedAt} fallback="" />}`
                           : h.review.startedAt
-                          ? `开始于 ${relativeTime(h.review.startedAt)}`
+                          ? `开始于 ${<RelativeTime ts={h.review.startedAt} fallback="" />}`
                           : '尚未开始'}
                         {h.review.startedAt && h.review.completedAt && (
                           <Box component="span" sx={{ ml: 0.75 }}>

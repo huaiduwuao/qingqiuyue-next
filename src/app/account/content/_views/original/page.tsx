@@ -55,6 +55,7 @@ import NotificationsActiveRoundedIcon from '@mui/icons-material/NotificationsAct
 import SecurityRoundedIcon from '@mui/icons-material/SecurityRounded';
 import { gradient2, gradient3 } from '@/constants/gradients';
 import { adminClient, accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
+import { RelativeTime } from '@/components/common/RelativeTime';
 
 type ProtectLevel = 'full' | 'standard' | 'light';
 type OriginalStatus = 'monitoring' | 'infringing' | 'whitelisted' | 'paused';
@@ -382,18 +383,8 @@ function shortHash(hash: string, head = 6, tail = 4): string {
   return `${hash.slice(0, head)}…${hash.slice(-tail)}`;
 }
 
-function relativeTime(ts: number): string {
-  const diff = Date.now() - ts;
-  const abs = Math.abs(diff);
-  const isPast = diff > 0;
-  const m = Math.floor(abs / 60000);
-  if (m < 1) return '刚刚';
-  if (m < 60) return isPast ? `${m} 分钟前` : `${m} 分钟后`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return isPast ? `${h} 小时前` : `${h} 小时后`;
-  const d = Math.floor(h / 24);
-  return isPast ? `${d} 天前` : `${d} 天后`;
-}
+// relativeTime() 已废弃:SSR/CSR Date.now() 不同会引发 hydration mismatch。
+// 改用 <RelativeTime ts={...} /> 组件。
 
 function CertRow({ label, value, copyable }: { label: string; value: string; copyable?: boolean }) {
   const [copied, setCopied] = useState(false);
@@ -926,7 +917,7 @@ export default function OriginalPage() {
                             🔗 {shortHash(p.blockchainHash, 8, 6)}
                           </Typography>
                           <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
-                            存证于 {relativeTime(p.registeredAt)}
+                            存证于 {<RelativeTime ts={p.registeredAt} fallback="" />}
                           </Typography>
                         </Box>
                       </Box>
@@ -1098,7 +1089,7 @@ export default function OriginalPage() {
                             搬运方:<Box component="span" sx={{ color: 'text.primary' }}>{i.infractorName}</Box> · {formatCount(i.infractorFans)} 粉丝
                           </Typography>
                           <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
-                            已播放 {formatCount(i.views)} · 发现于 {relativeTime(i.detectedAt)}
+                            已播放 {formatCount(i.views)} · 发现于 {<RelativeTime ts={i.detectedAt} fallback="" />}
                           </Typography>
                         </Box>
                         {i.resolution && (
@@ -1225,7 +1216,7 @@ export default function OriginalPage() {
                             {pm.label}
                           </Box>
                           <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
-                            提交于 {relativeTime(t.submittedAt)}
+                            提交于 {<RelativeTime ts={t.submittedAt} fallback="" />}
                             {t.resolvedAt && ` · 处理用时 ${Math.ceil((t.resolvedAt - t.submittedAt) / 86400000)} 天`}
                           </Typography>
                         </Box>
@@ -1819,7 +1810,7 @@ export default function OriginalPage() {
                         {p.title}
                       </Typography>
                       <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>
-                        存证于 {relativeTime(p.registeredAt)} · 累计播放 {formatCount(p.totalViews)}
+                        存证于 {<RelativeTime ts={p.registeredAt} fallback="" />} · 累计播放 {formatCount(p.totalViews)}
                       </Typography>
                     </Box>
                   </Box>

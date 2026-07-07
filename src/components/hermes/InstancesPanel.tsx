@@ -16,6 +16,7 @@ import { DataGridTable } from '@/components/tables/DataGridTable';
 import HermesInstanceFormDialog from '@/components/hermes/HermesInstanceFormDialog';
 import { hermesApi, type HermesInstanceItem } from '@/apis/hermes';
 import type { GridColDef } from '@mui/x-data-grid';
+import { RelativeTime } from '@/components/common/RelativeTime';
 
 const LIST_KEY = ['system', 'hermes', 'instances'];
 
@@ -31,16 +32,8 @@ const healthColor: Record<HermesInstanceItem['healthStatus'], 'success' | 'error
   unknown: 'default',
 };
 
-function relativeTime(iso?: string): string {
-  if (!iso) return '从未';
-  const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return '从未';
-  const diff = Date.now() - t;
-  if (diff < 60_000) return '刚刚';
-  if (diff < 3600_000) return `${Math.floor(diff / 60_000)} 分钟前`;
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} 小时前`;
-  return `${Math.floor(diff / 86_400_000)} 天前`;
-}
+// relativeTime() 已废弃:SSR/CSR Date.now() 不同会引发 hydration mismatch。
+// 改用 <RelativeTime ts={...} /> 组件。
 
 function truncate(s: string | undefined, max = 50): string {
   if (!s) return '-';
@@ -194,7 +187,7 @@ export default function InstancesPanel() {
               variant="outlined"
             />
             <Box component="span" sx={{ fontSize: 11, color: 'text.secondary' }}>
-              {relativeTime(row.lastHealthAt)}
+              {<RelativeTime ts={row.lastHealthAt} fallback="" />}
             </Box>
           </Box>
         );

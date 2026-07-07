@@ -33,6 +33,7 @@ import VerifiedRoundedIcon from '@mui/icons-material/VerifiedRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import { gradient2 } from '@/constants/gradients';
 import { adminClient } from '@/lib/api/client';
+import { RelativeTime } from '@/components/common/RelativeTime';
 
 type CollabType = 'jointPost' | 'assetShare' | 'topicCollab';
 type CollabStatus = 'active' | 'pending' | 'completed' | 'declined';
@@ -139,14 +140,11 @@ function formatNum(n: number): string {
   return n.toString();
 }
 
-function relativeTime(ts: number): string {
-  const diff = Math.abs(Date.now() - ts);
-  const m = Math.floor(diff / 60000);
-  if (m < 60) return `${m} 分钟前`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h} 小时前`;
-  const d = Math.floor(h / 24);
-  return `${d} 天前`;
+function relativeTime(_ts: number): string {
+  // 已废弃:直接调用会引发 SSR/CSR hydration mismatch。
+  // 改用 <RelativeTime ts={...} /> 组件,在 mount 后才计算显示。
+  if (typeof window === 'undefined') return '';
+  return '';
 }
 
 function PartnerAvatar({ partner, size = 40 }: { partner: Partner; size?: number }) {
@@ -347,8 +345,8 @@ export default function CoCreatePage() {
                           </Box>
                           <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: c.status === 'declined' ? (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'action.hover' : sm.bg, color: c.status === 'declined' ? 'text.disabled' : sm.color, fontSize: 10, fontWeight: 700 }}>{sm.label}</Box>
                         </Box>
-                        <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>
-                          {c.partner.niche} · {formatNum(c.partner.fans)} 粉丝 · 最近 {relativeTime(c.lastActivityAt)}
+                        <Typography sx={{ fontSize: 11, color: 'text.disabled' }} suppressHydrationWarning>
+                          {c.partner.niche} · {formatNum(c.partner.fans)} 粉丝 · 最近 <RelativeTime ts={c.lastActivityAt} fallback="" />
                         </Typography>
                       </Box>
                       <Box sx={{ textAlign: 'right' }}>
@@ -417,8 +415,8 @@ export default function CoCreatePage() {
                               匹配 {inv.partner.matchScore}%
                             </Box>
                           </Tooltip>
-                          <Typography sx={{ fontSize: 11, color: 'text.disabled', ml: 'auto' }}>
-                            {relativeTime(inv.createdAt)}
+                          <Typography sx={{ fontSize: 11, color: 'text.disabled', ml: 'auto' }} suppressHydrationWarning>
+                            <RelativeTime ts={inv.createdAt} fallback="" />
                           </Typography>
                         </Box>
                         <Typography sx={{ fontSize: 11, color: 'text.disabled', mb: 1 }}>
@@ -482,7 +480,7 @@ export default function CoCreatePage() {
                           </Box>
                           <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(255, 180, 0, 0.12)', color: '#FFB400', fontSize: 10, fontWeight: 700 }}>等待回复</Box>
                         </Box>
-                        <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>{inv.message.slice(0, 60)} · 发送于 {relativeTime(inv.createdAt)}</Typography>
+                        <Typography sx={{ fontSize: 11, color: 'text.disabled' }} suppressHydrationWarning>{inv.message.slice(0, 60)} · 发送于 <RelativeTime ts={inv.createdAt} fallback="" /></Typography>
                       </Box>
                       <Button size="small" onClick={() => handleCancelOutgoing(inv.id)} sx={{ textTransform: 'none', fontSize: 12, color: 'text.secondary' }}>撤回</Button>
                     </Box>
