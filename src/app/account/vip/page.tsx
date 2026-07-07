@@ -1,4 +1,5 @@
 'use client';
+export const dynamic = 'force-dynamic';
 
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -268,9 +269,9 @@ export default function VipPage() {
     router.push('/account/orders');
   };
 
-  const currentTier = TIERS[1];
+  const currentTier = TIERS[1] ?? TIERS[0] ?? { name: '黄金会员', key: 'gold', color: '#FFB400', price: { monthly: 1980, yearly: 19800 } };
   const currentExp = 2480;
-  const nextTier = TIERS[2];
+  const nextTier = TIERS[2] ?? TIERS[TIERS.length - 1] ?? currentTier;
   const nextTarget = 5000;
   const expPercent = (currentExp / nextTarget) * 100;
   const daysLeft = 358;

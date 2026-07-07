@@ -1,21 +1,25 @@
 'use client';
 
 import React, { useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { useActiveTab } from './ActiveTabContext';
 
-import DashboardView from './_views/dashboard/page';
-import HdPublishView from './_views/hd-publish/page';
-import HdReviewView from './_views/hd-review/page';
-import ActivityView from './_views/activity/page';
-import CoCreateView from './_views/co-create/page';
-import CollectionView from './_views/collection/page';
-import WorksView from './_views/works/page';
-import SpiderView from './_views/spider/page';
-import CrawledView from './_views/crawled/page';
-import OriginalView from './_views/original/page';
-import DataView from './_views/data/page';
-import CreatorView from './_views/creator/page';
-import MonetizeView from './_views/monetize/page';
+// 创作者中心各 tab view 全是 client 组件 + 大量 useQuery,pre-render 时拿不到
+// React Context(`useActiveTab`)会触发 "Cannot read properties of undefined"。
+// 改用 next/dynamic + ssr:false 让 SSR 阶段直接跳过,运行时再渲染。
+const DashboardView = dynamic(() => import('./_views/dashboard/page'), { ssr: false });
+const HdPublishView = dynamic(() => import('./_views/hd-publish/page'), { ssr: false });
+const HdReviewView = dynamic(() => import('./_views/hd-review/page'), { ssr: false });
+const ActivityView = dynamic(() => import('./_views/activity/page'), { ssr: false });
+const CoCreateView = dynamic(() => import('./_views/co-create/page'), { ssr: false });
+const CollectionView = dynamic(() => import('./_views/collection/page'), { ssr: false });
+const WorksView = dynamic(() => import('./_views/works/page'), { ssr: false });
+const SpiderView = dynamic(() => import('./_views/spider/page'), { ssr: false });
+const CrawledView = dynamic(() => import('./_views/crawled/page'), { ssr: false });
+const OriginalView = dynamic(() => import('./_views/original/page'), { ssr: false });
+const DataView = dynamic(() => import('./_views/data/page'), { ssr: false });
+const CreatorView = dynamic(() => import('./_views/creator/page'), { ssr: false });
+const MonetizeView = dynamic(() => import('./_views/monetize/page'), { ssr: false });
 
 /**
  * Single entry point for the creator workspace. Sub-pages used to live at

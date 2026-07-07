@@ -1,5 +1,10 @@
 'use client';
 
+export const dynamic = "force-dynamic";
+
+// 该页依赖 client context + 后端实时数据,SSR/pre-render 时 TIERS/orders 等未就绪 →
+// 报 "Cannot read properties of undefined"。强制 dynamic 跳过预渲染。
+
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
