@@ -456,3 +456,27 @@ export interface AdminContentDist {
 export async function getAdminContentDistribution() {
   return unwrap<PageData<AdminContentDist>>(await accountClient('/admin/dashboard/content-distribution'));
 }
+
+// ========== 首页推荐(关注 / 朋友) ==========
+
+export interface RecommendWork {
+  id: string;
+  title: string;
+  cover: string;
+  duration: number;
+  views: number;
+  likes: number;
+  publishedAt: number;
+  status: string;
+  hashtags: string; // 逗号分隔
+}
+export async function getHomeRecommendFollow(params?: { page?: number; size?: number }) {
+  return unwrap<PageData<RecommendWork>>(
+    await accountClient('/home/recommend/follow', { params })
+  );
+}
+export async function getHomeRecommendFriend(params?: { page?: number; size?: number }) {
+  return unwrap<PageData<RecommendWork>>(
+    await accountClient('/home/recommend/friend', { params })
+  );
+}

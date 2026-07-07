@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -30,6 +31,7 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2, gradient3 } from '@/constants/gradients';
 import { accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
+import { getWallet, getWalletTransactions, createRechargeOrder, confirmRecharge, type WalletTx } from '@/apis/wallet';
 
 // 充值/钱包域占位:后端 `/api/core/wallet/*` 就绪后,以下数据/类型替换为 API 调用
 const DIAMOND_BALANCE = 0;
@@ -146,15 +148,44 @@ function useCountdown(target: string) {
 
 export default function RechargePage() {
   const router = useRouter();
-  const [balance, setBalance] = useState(DIAMOND_BALANCE);
   const [selectedPkg, setSelectedPkg] = useState<string>(DIAMOND_PACKAGES.find((p) => p.badge === 'recommend')?.id ?? 'p128');
   const [payMethod, setPayMethod] = useState<PayMethod>('wechat');
-  const [records, setRecords] = useState(DIAMOND_RECORDS);
   const [paying, setPaying] = useState(false);
   const [payDialogOpen, setPayDialogOpen] = useState(false);
   const [order, setOrder] = useState<{ id: string; amount: number; diamonds: number; method: PayMethod; qrUrl?: string } | null>(null);
   const [toast, setToast] = useState<{ open: boolean; msg: string; severity: 'success' | 'info' }>({ open: false, msg: '', severity: 'success' });
   const countdown = useCountdown(DIAMOND_ACTIVITY.endsAt);
+
+  // 真接口:当前钱包余额
+  const walletQ = useQuery({
+    queryKey: ['wallet'],
+    queryFn: () => getWallet(),
+    refetchOnMount: 'always',
+    staleTime: 0,
+  });
+  const balanceDiamonds = Math.floor((walletQ.data?.balance ?? 0) / 10); // 1 钻 = 1 分,余额(分) → 钻
+
+  // 真接口:钱包流水
+  const txQ = useQuery({
+    queryKey: ['wallet-transactions'],
+    queryFn: () => getWalletTransactions({ page: 1, size: 30 }),
+    refetchOnMount: 'always',
+    staleTime: 0,
+  });
+  // 把 wallet_tx 转成页面用的 DiamondRecord 形态
+  const records: DiamondRecord[] = (txQ.data?.list ?? []).map((t: WalletTx, idx: number) => {
+    const diamonds = Math.floor(Math.abs(t.amount) / 10);
+    const isRecharge = t.type === 'recharge' || t.amount > 0;
+    return {
+      id: t.id ?? idx,
+      type: isRecharge ? 'recharge' : (t.type as any) || 'consume',
+      amount: diamonds,
+      balance: Math.floor((t.balanceAfter ?? 0) / 10),
+      description: t.remark || (isRecharge ? `充值入账 +${diamonds} 钻` : `${t.type} -${diamonds} 钻`),
+      payMethod: undefined,
+      createTime: t.createTime,
+    };
+  });
 
   const pkg = DIAMOND_PACKAGES.find((p) => p.id === selectedPkg);
   const totalDiamonds = pkg ? pkg.diamonds + (pkg.bonus ?? 0) : 0;
@@ -170,32 +201,34 @@ export default function RechargePage() {
   const handlePay = async () => {
     if (!pkg || paying) return;
     setPaying(true);
-    const amount = pkg.price;
+    const amountYuan = pkg.price; // 元
+    const amountFen = Math.round(amountYuan * 100); // 分
     const diamonds = pkg.diamonds + (pkg.bonus ?? 0);
     try {
-      // 真实 API:创建充值订单,后端返回 qrCode 字符串(扫码支付码/二维码 URL)
-      let res: { qrCode: string; orderId: string; amount: number; expireAt: string };
+      // 真接口:钱包充值订单(后端 walletapp 已实现)
+      let res: { orderNo: string; amount: number; payTip: string };
       try {
-        const apiRes = await accountClient.post<typeof res>('/account/recharge/order', {
-          amount,
-          channel: payMethod === 'wechat' ? 'wechat' : payMethod === 'alipay' ? 'alipay' : 'wechat',
+        res = await createRechargeOrder({
+          amount: amountFen,
+          channel: payMethod === 'wechat' ? 'wechat' : payMethod === 'alipay' ? 'alipay' : 'mock',
         });
-        res = apiRes.data ?? (apiRes as any);
       } catch (err) {
-        // 网络层失败 → 回退到本地 mock 二维码(仅用于展示,非关键业务)
+        // 网络层失败 → 回退到本地 mock 二维码(保留 UX,网络好了会自动恢复)
         if (isNetworkError(err)) {
           const orderId = `ORD${Date.now()}`;
-          const qrData = JSON.stringify({ orderId, amount, method: payMethod, diamonds });
+          const qrData = JSON.stringify({ orderId, amount: amountYuan, method: payMethod, diamonds });
           const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrData)}`;
-          setOrder({ id: orderId, amount, diamonds, method: payMethod, qrUrl });
+          setOrder({ id: orderId, amount: amountYuan, diamonds, method: payMethod, qrUrl });
           setPayDialogOpen(true);
           setToast({ open: true, msg: '网络异常,已切换到本地二维码演示', severity: 'info' });
           return;
         }
-        // 业务/鉴权错误 → 直接抛出,由外层 catch 弹错
         throw err;
       }
-      setOrder({ id: res.orderId, amount: res.amount, diamonds, method: payMethod, qrUrl: res.qrCode });
+      // 把 orderNo + 支付方式显示到弹窗;payTip 字段是后端的 mock 提示
+      const qrData = JSON.stringify({ orderNo: res.orderNo, amount: res.amount, method: payMethod });
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrData)}`;
+      setOrder({ id: res.orderNo, amount: amountYuan, diamonds, method: payMethod, qrUrl });
       setPayDialogOpen(true);
     } catch (err) {
       if (isAuthError(err)) {
@@ -213,62 +246,20 @@ export default function RechargePage() {
     const orderId = order.id;
     const gained = order.diamonds;
     try {
-      // 真实 API:确认订单到账,后端返回最新余额 + 流水记录
-      let resBalance: number | undefined;
-      let resRecord: DiamondRecord | undefined;
+      // 真接口:确认支付 → 后端 walletapp 标记已付 + 入账,前端只刷新缓存
       try {
-        const apiRes = await accountClient.post<{ balance: number; record: DiamondRecord }>(
-          '/account/recharge/confirm',
-          { orderId },
-        );
-        resBalance = apiRes.data?.balance;
-        resRecord = apiRes.data?.record;
+        await confirmRecharge({ orderNo: orderId });
       } catch (err) {
-        // 网络层失败 → 回退到本地加钱(保留 UX)
         if (isNetworkError(err)) {
-          const newBalance = balance + gained;
-          setBalance(newBalance);
-          setRecords((prev) => [
-            {
-              id: Math.max(0, ...prev.map((r) => r.id)) + 1,
-              type: 'recharge',
-              amount: gained,
-              balance: newBalance,
-              description: `充值 ${pkg.diamonds} 钻${pkg.bonus ? ` + 赠送 ${pkg.bonus} 钻` : ''}`,
-              payMethod: order.method,
-              createTime: new Date().toISOString(),
-            },
-            ...prev,
-          ]);
           setPayDialogOpen(false);
           setOrder(null);
-          setToast({ open: true, msg: `网络异常,已本地到账 +${gained} 钻`, severity: 'success' });
+          setToast({ open: true, msg: `网络异常,稍后到账 +${gained} 钻`, severity: 'success' });
           return;
         }
         throw err;
       }
-      // 用后端返回的 balance 替换本地 state
-      if (typeof resBalance === 'number') {
-        setBalance(resBalance);
-      } else {
-        setBalance((b) => b + gained);
-      }
-      if (resRecord) {
-        setRecords((prev) => [resRecord!, ...prev]);
-      } else {
-        setRecords((prev) => [
-          {
-            id: Math.max(0, ...prev.map((r) => r.id)) + 1,
-            type: 'recharge',
-            amount: gained,
-            balance: (resBalance ?? balance + gained),
-            description: `充值 ${pkg.diamonds} 钻${pkg.bonus ? ` + 赠送 ${pkg.bonus} 钻` : ''}`,
-            payMethod: order.method,
-            createTime: new Date().toISOString(),
-          },
-          ...prev,
-        ]);
-      }
+      // 触发余额 + 流水刷新
+      await Promise.all([walletQ.refetch(), txQ.refetch()]);
       setPayDialogOpen(false);
       setOrder(null);
       setToast({ open: true, msg: `充值成功!+${gained} 钻`, severity: 'success' });
@@ -476,7 +467,7 @@ export default function RechargePage() {
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 2.5 }}>
                 <Typography sx={{ fontSize: { xs: 44, md: 56 }, fontWeight: 800, color: '#fff', lineHeight: 1, textShadow: '0 2px 12px rgba(0,0,0,0.25)' }}>
-                  {balance}
+                  {walletQ.isLoading ? '—' : balanceDiamonds}
                 </Typography>
                 <Typography sx={{ fontSize: 16, fontWeight: 600, color: 'rgba(255,255,255,0.85)' }}>
                   钻
@@ -484,7 +475,7 @@ export default function RechargePage() {
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pt: 2, borderTop: '1px solid rgba(255,255,255,0.2)' }}>
                 <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>
-                  ≈ ¥ {(balance * 0.01).toFixed(2)} · 永不过期
+                  ≈ ¥ {(balanceDiamonds * 0.01).toFixed(2)} · 永不过期
                 </Typography>
                 <Box sx={{ flex: 1 }} />
                 <Box
@@ -991,84 +982,95 @@ export default function RechargePage() {
               </Typography>
             </Box>
 
-            {records.map((r) => {
-              const typeMeta = RECORD_TYPE_LABEL[r.type];
-              const payMeta = r.payMethod ? PAY_METHODS.find((m) => m.key === r.payMethod) : null;
-              const isPositive = r.amount > 0;
-              return (
-                <Box
-                  key={r.id}
-                  sx={{
-                    display: 'grid',
-                    gridTemplateColumns: { xs: '1fr 1fr 1fr', sm: '2fr 1fr 1fr 1.5fr' },
-                    gap: 2,
-                    px: 2.5,
-                    py: 1.5,
-                    alignItems: 'center',
-                    borderBottom: '1px solid rgba(255,255,255,0.04)',
-                    '&:last-child': { borderBottom: 'none' },
-                    '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' },
-                  }}
-                >
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography
-                      sx={{
-                        fontSize: 13,
-                        color: '#fff',
-                        lineHeight: 1.4,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      {r.description}
-                    </Typography>
-                    {payMeta && (
-                      <Typography sx={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', mt: 0.25 }}>
-                        {payMeta.label}
+            {txQ.isLoading ? (
+              <Box sx={{ px: 2.5, py: 6, textAlign: 'center' }}>
+                <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>记录加载中…</Typography>
+              </Box>
+            ) : records.length === 0 ? (
+              <Box sx={{ px: 2.5, py: 6, textAlign: 'center' }}>
+                <Typography sx={{ fontSize: 13, color: 'rgba(255,255,255,0.55)' }}>暂无充值或流水记录</Typography>
+                <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', mt: 0.5 }}>完成第一笔充值后会显示在这里</Typography>
+              </Box>
+            ) : (
+              records.map((r) => {
+                const typeMeta = RECORD_TYPE_LABEL[r.type];
+                const payMeta = r.payMethod ? PAY_METHODS.find((m) => m.key === r.payMethod) : null;
+                const isPositive = r.amount > 0;
+                return (
+                  <Box
+                    key={r.id}
+                    sx={{
+                      display: 'grid',
+                      gridTemplateColumns: { xs: '1fr 1fr 1fr', sm: '2fr 1fr 1fr 1.5fr' },
+                      gap: 2,
+                      px: 2.5,
+                      py: 1.5,
+                      alignItems: 'center',
+                      borderBottom: '1px solid rgba(255,255,255,0.04)',
+                      '&:last-child': { borderBorder: 'none' },
+                      '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' },
+                    }}
+                  >
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography
+                        sx={{
+                          fontSize: 13,
+                          color: '#fff',
+                          lineHeight: 1.4,
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {r.description}
                       </Typography>
-                    )}
-                  </Box>
-                  <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
-                    <Box
-                      sx={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        px: 0.75,
-                        py: 0.25,
-                        borderRadius: 0.75,
-                        bgcolor: `${typeMeta.color}1A`,
-                        color: typeMeta.color,
-                        fontSize: 10,
-                        fontWeight: 600,
-                      }}
-                    >
-                      {typeMeta.text}
+                      {payMeta && (
+                        <Typography sx={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', mt: 0.25 }}>
+                          {payMeta.label}
+                        </Typography>
+                      )}
+                    </Box>
+                    <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
+                      <Box
+                        sx={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          px: 0.75,
+                          py: 0.25,
+                          borderRadius: 0.75,
+                          bgcolor: `${typeMeta.color}1A`,
+                          color: typeMeta.color,
+                          fontSize: 10,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {typeMeta.text}
+                      </Box>
+                    </Box>
+                    <Box sx={{ textAlign: 'right' }}>
+                      <Typography
+                        sx={{
+                          fontSize: 14,
+                          fontWeight: 700,
+                          color: isPositive ? '#5DDB96' : '#FF6B8A',
+                          fontVariantNumeric: 'tabular-nums',
+                        }}
+                      >
+                        {isPositive ? '+' : ''}{r.amount}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ textAlign: 'right', display: { xs: 'none', sm: 'block' } }}>
+                      <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontVariantNumeric: 'tabular-nums' }}>
+                        {r.balance} 钻
+                      </Typography>
+                      <Typography sx={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>
+                        {formatTime(r.createTime)}
+                      </Typography>
                     </Box>
                   </Box>
-                  <Box sx={{ textAlign: 'right' }}>
-                    <Typography
-                      sx={{
-                        fontSize: 14,
-                        fontWeight: 700,
-                        color: isPositive ? '#5DDB96' : '#FF6B8A',
-                        fontVariantNumeric: 'tabular-nums',
-                      }}
-                    >
-                      {isPositive ? '+' : ''}{r.amount}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ textAlign: 'right', display: { xs: 'none', sm: 'block' } }}>
-                    <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', fontVariantNumeric: 'tabular-nums' }}>
-                      {r.balance} 钻
-                    </Typography>
-                    <Typography sx={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>
-                      {formatTime(r.createTime)}
-                    </Typography>
-                  </Box>
-                </Box>
-              );
-            })}
+                );
+              })
+            )}
           </Box>
         </Box>
       </Box>

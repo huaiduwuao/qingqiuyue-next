@@ -28,13 +28,7 @@ import { updateUser } from '@/apis/account';
 import { gradient2, IMAGE_OVERLAY } from '@/constants/gradients';
 
 // PROFILE 不再硬编码,昵称/统计从 currentUser 取(后端 /api/core/user/current)
-// 无 currentUser 时不渲染统计(空态显示)
-const LIKES_FALLBACK = [
-  { id: 'p1', title: '我哥就差这版', cover: gradient2('#C8A882', '#8B6F47') },
-  { id: 'p2', title: '最近感觉发型', cover: gradient2('#A88B6F', '#5C4033') },
-  { id: 'p3', title: '发现有几分辛', cover: gradient2('#D4B89A', '#8B5A3C') },
-];
-
+// 我的喜欢预览完全由 /api/core/account/likes/preview 拉取,不再用任何静态 fallback。
 interface Section {
   key: string;
   label: string;
