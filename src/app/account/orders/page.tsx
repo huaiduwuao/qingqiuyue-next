@@ -79,6 +79,7 @@ export default function OrdersPage() {
     queryKey: ['order-list'],
     queryFn: () => getOrderList({ page: 1, size: 100 }),
     staleTime: 30 * 1000,
+    refetchOnMount: 'always',
   });
   // 后端 ApiOrder.payMethod 是 string,本地 Order 限定为枚举 → 在边界处 narrow
   const orders = (ordersQuery.data?.records ?? ordersQuery.data?.list ?? []).map((o: ApiOrder) => ({

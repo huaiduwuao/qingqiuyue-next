@@ -87,83 +87,6 @@ const ALL_WORKS: WorkRef[] = [
   { id: 1012, title: '快手早餐｜3分钟蛋饼', cover: gradient2('#5DDB96', '#25F4EE'), duration: '03:12', views: 167423, type: 'video' },
 ];
 
-const SEED: Collection[] = [
-  {
-    id: 901,
-    title: '夏日海岛旅行 vlog',
-    description: '三天两夜的海岛之旅,记录每一个治愈瞬间。',
-    cover: gradient3('#FE2C55', '#FF6B8A', '#FFB400'),
-    status: 'active',
-    visibility: 'public',
-    category: 'travel',
-    works: [ALL_WORKS[8], ALL_WORKS[9], ALL_WORKS[10]],
-    totalViews: 249261,
-    subscribers: 2148,
-    autoSort: false,
-    createdAt: Date.now() - 86400000 * 14,
-    updatedAt: Date.now() - 86400000 * 2,
-  },
-  {
-    id: 902,
-    title: '快手早餐教程系列',
-    description: '7 道适合上班族的快手早餐,平均 10 分钟搞定。',
-    cover: gradient2('#5DDB96', '#25F4EE'),
-    status: 'active',
-    visibility: 'public',
-    category: 'tutorial',
-    works: [ALL_WORKS[3], ALL_WORKS[11]],
-    totalViews: 167423,
-    subscribers: 932,
-    autoSort: true,
-    createdAt: Date.now() - 86400000 * 21,
-    updatedAt: Date.now() - 86400000 * 5,
-  },
-  {
-    id: 903,
-    title: '夏日穿搭合集',
-    description: '夏日 9 套穿搭,白色系为主。',
-    cover: gradient3('#25F4EE', '#5DF7F2', '#8B5CF6'),
-    status: 'finished',
-    visibility: 'public',
-    category: 'fashion',
-    works: [ALL_WORKS[1], ALL_WORKS[7]],
-    totalViews: 548723,
-    subscribers: 3210,
-    autoSort: false,
-    createdAt: Date.now() - 86400000 * 45,
-    updatedAt: Date.now() - 86400000 * 30,
-  },
-  {
-    id: 904,
-    title: '深夜独处歌单',
-    description: '深夜助眠歌单合集,陆续更新中。',
-    cover: gradient2('#8B5CF6', '#FE2C55'),
-    status: 'active',
-    visibility: 'fansOnly',
-    category: 'music',
-    works: [ALL_WORKS[5]],
-    totalViews: 8432,
-    subscribers: 487,
-    autoSort: true,
-    createdAt: Date.now() - 86400000 * 7,
-    updatedAt: Date.now() - 86400000 * 1,
-  },
-  {
-    id: 905,
-    title: '相机开箱评测',
-    description: '准备开始的开箱系列,从 Sony A7C II 开始。',
-    cover: gradient2('#FF6B8A', '#FFB400'),
-    status: 'draft',
-    visibility: 'private',
-    category: 'review',
-    works: [ALL_WORKS[6]],
-    totalViews: 0,
-    subscribers: 0,
-    autoSort: false,
-    createdAt: Date.now() - 86400000 * 3,
-    updatedAt: Date.now() - 3600000 * 4,
-  },
-];
 
 const STATUS_META: Record<CollectionStatus, { label: string; color: string; bg: string }> = {
   active: { label: '进行中', color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.12)' },
@@ -230,6 +153,7 @@ export default function CollectionPage() {
     queryKey: ['creator-collections'],
     queryFn: () => getCollectionList({ page: 1, size: 50 }),
     staleTime: 30 * 1000,
+    refetchOnMount: 'always',
   });
   const apiCollections: Collection[] = (colResp?.records ?? colResp?.list ?? []).map((c: ApiCollection) => ({
     id: Number(c.id) || 0,
@@ -246,10 +170,8 @@ export default function CollectionPage() {
     createdAt: c.updateTime,
     updatedAt: c.updateTime,
   }));
-  const [collections, setCollections] = useState<Collection[]>(apiCollections.length ? apiCollections : SEED);
-  useEffect(() => {
-    if (apiCollections.length) setCollections(apiCollections);
-  }, [apiCollections.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [collections, setCollections] = useState<Collection[]>(apiCollections);
+  // CRUD 后通过 qc.invalidate 触发重新拉,这里保留 setCollections 用于 UI 即时反馈。
   const [tab, setTab] = useState<0 | 1 | 2 | 3>(0);
   const [keyword, setKeyword] = useState('');
   const [createOpen, setCreateOpen] = useState(false);

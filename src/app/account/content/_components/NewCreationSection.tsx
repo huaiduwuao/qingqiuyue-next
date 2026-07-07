@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getCreatorWipList } from '@/apis/dashboard';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -78,57 +78,6 @@ interface WipItem {
   tags?: string[];
 }
 
-const SEED_WIP: WipItem[] = [
-  // 后端 /api/core/creator/wip/list 就绪后,以下种子数据不再被读取
-  // 现在作为"网络异常/首次加载"的兜底展示用,正常情况会被 useQuery 覆盖
-  {
-    id: 'd-001',
-    kind: 'draft',
-    type: 'video',
-    title: '我的家乡｜回家路上的风景',
-    cover: gradient2('#5B8DEF', '#8B5CF6'),
-    updatedAt: Date.now() - 1000 * 60 * 35,
-    tags: ['家乡', '旅行'],
-  },
-  {
-    id: 'd-002',
-    kind: 'draft',
-    type: 'article',
-    title: '我对 AI 工具的 5 点思考(未完成)',
-    cover: gradient2('#FFB400', '#FFD566'),
-    updatedAt: Date.now() - 1000 * 60 * 60 * 6,
-    wordCount: 1843,
-  },
-  {
-    id: 'u-001',
-    kind: 'uploading',
-    type: 'video',
-    title: '深夜街拍｜东京 4K HDR.mp4',
-    cover: gradient3('#FE2C55', '#FF6B8A', '#FFB400'),
-    progress: 67,
-    speedKB: 3420,
-    paused: false,
-  },
-  {
-    id: 's-001',
-    kind: 'scheduled',
-    type: 'image',
-    title: '夏日穿搭合集｜白色系特辑',
-    cover: gradient2('#25F4EE', '#5DF7F2'),
-    scheduleAt: Date.now() + 1000 * 60 * 60 * 8,
-    tags: ['穿搭', '夏日'],
-  },
-  {
-    id: 's-002',
-    kind: 'scheduled',
-    type: 'video',
-    title: '【教程】10 分钟学会快手早餐',
-    cover: gradient2('#5DDB96', '#25F4EE'),
-    scheduleAt: Date.now() + 1000 * 60 * 60 * 26,
-    tags: ['美食', '教程'],
-  },
-];
-
 // SSR 阶段不计算 Date.now()——返回 fallback 字符串避免 hydration mismatch。
 // 客户端通过 RelativeTime 组件在 mount 后才填真实值。
 // 已统一用 <RelativeTime ts={...} /> 组件处理,这里不再需要函数实现。
@@ -150,12 +99,14 @@ export default function NewCreationSection() {
   const { setActiveTab } = useActiveTab();
 
   // 真接口拉创作中作品(draft/uploading/scheduled 在后端 wip 中一并返回,前端按 stage 字段映射 kind)
+  const qc = useQueryClient();
   const { data: wipResp } = useQuery({
     queryKey: ['creator-wip'],
     queryFn: () => getCreatorWipList({ page: 1, size: 50 }),
     staleTime: 30 * 1000,
+    refetchOnMount: 'always',
   });
-  const apiWip: WipItem[] = (wipResp?.records ?? wipResp?.list ?? []).map((w) => ({
+  const wip: WipItem[] = (wipResp?.records ?? wipResp?.list ?? []).map((w) => ({
     id: w.id,
     kind: w.stage === 'draft' ? 'draft' : w.stage === 'transcoding' || w.stage === 'reviewing' ? 'uploading' : 'scheduled',
     type: (w.type as WipItem['type']) ?? 'video',
@@ -165,12 +116,10 @@ export default function NewCreationSection() {
     progress: w.progress,
     tags: [],
   }));
-  // API 失败/无数据 → fallback 到 seed(网络异常兜底,正常情况数据来自后端)
-  const [wip, setWip] = useState<WipItem[]>(apiWip.length ? apiWip : SEED_WIP);
-  // 同步 API 数据到本地(用户操作 cancel/resume 改本地,刷新则重新拉)
-  useEffect(() => {
-    if (apiWip.length) setWip(apiWip);
-  }, [apiWip.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 操作后(取消/暂停等)通过 invalidate 触发重新拉
+  const setWip = (_updater: (prev: WipItem[]) => WipItem[]) => {
+    qc.invalidateQueries({ queryKey: ['creator-wip'] });
+  };
 
   const drafts = wip.filter((w) => w.kind === 'draft');
   const uploading = wip.filter((w) => w.kind === 'uploading');

@@ -57,6 +57,7 @@ export default function RewardHotGrid() {
     queryKey: ['reward-bounty-hot'],
     queryFn: () => getHotBounties({ limit: 6 }),
     staleTime: 60 * 1000,
+    refetchOnMount: 'always',
   });
   const HOT_BOUNTIES: Bounty[] = (hotResp?.records ?? hotResp?.list ?? []).map((b) => ({
     id: b.id,

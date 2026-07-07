@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getProtectedList, getInfringementList, getTakedownList } from '@/apis/dashboard';
+import { getProtectedList, getInfringementList, getTakedownList, getMyWorks } from '@/apis/dashboard';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -147,237 +147,8 @@ const PLATFORM_META: Record<SourcePlatform, { label: string; color: string }> = 
   other: { label: '其他', color: '#8B8FA3' },
 };
 
-const SEED_PROTECTED: ProtectedWork[] = [
-  {
-    id: 'p-001',
-    title: '【4K HDR】阿尔卑斯山脉航拍',
-    cover: gradient3('#5B8DEF', '#8B5CF6', '#25F4EE'),
-    type: 'video',
-    fingerprint: 'a3f8b2c1d9e4f5a6b7c8d9e0f1a2b3c4',
-    blockchainHash: '0x8f3a2b1c9d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a',
-    certificateNo: 'QY-DBC-2026-00012834',
-    registeredAt: Date.now() - 86400000 * 12,
-    level: 'full',
-    status: 'infringing',
-    infringeCount: 3,
-    totalViews: 1284932,
-    duration: '24:18',
-  },
-  {
-    id: 'p-002',
-    title: '深夜独处歌单 10 首',
-    cover: gradient2('#8B5CF6', '#FE2C55'),
-    type: 'article',
-    fingerprint: 'b4c9d3e2f0a5b6c7d8e9f0a1b2c3d4e5',
-    blockchainHash: '0x7e2b1c0d9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c',
-    certificateNo: 'QY-DBC-2026-00012811',
-    registeredAt: Date.now() - 86400000 * 8,
-    level: 'standard',
-    status: 'monitoring',
-    infringeCount: 0,
-    totalViews: 8432,
-  },
-  {
-    id: 'p-003',
-    title: '夏日海边 vlog',
-    cover: gradient3('#FE2C55', '#FF6B8A', '#FFB400'),
-    type: 'video',
-    fingerprint: 'c5d0e4f3a1b6c7d8e9f0a1b2c3d4e5f6',
-    blockchainHash: '0x6d1c0b9a8f7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c',
-    certificateNo: 'QY-DBC-2026-00012789',
-    registeredAt: Date.now() - 86400000 * 20,
-    level: 'full',
-    status: 'monitoring',
-    infringeCount: 1,
-    totalViews: 482931,
-    duration: '03:42',
-  },
-  {
-    id: 'p-004',
-    title: 'Sony A7M4 开箱 + 镜头测试',
-    cover: gradient3('#FF6B8A', '#FFB400', '#5DDB96'),
-    type: 'video',
-    fingerprint: 'd6e1f5a4b2c7d8e9f0a1b2c3d4e5f6a7',
-    blockchainHash: '0x5c0b9a8f7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b',
-    certificateNo: 'QY-DBC-2026-00012756',
-    registeredAt: Date.now() - 86400000 * 35,
-    level: 'standard',
-    status: 'whitelisted',
-    infringeCount: 2,
-    totalViews: 218432,
-    duration: '18:21',
-  },
-  {
-    id: 'p-005',
-    title: '10 分钟学会快手早餐',
-    cover: gradient2('#5DDB96', '#25F4EE'),
-    type: 'video',
-    fingerprint: 'e7f2a6b5c3d8e9f0a1b2c3d4e5f6a7b8',
-    blockchainHash: '0x4b9a8f7e6d5c4b3a2f1e0d9c8b7a6f5e4d3c2b1a',
-    certificateNo: 'QY-DBC-2026-00012734',
-    registeredAt: Date.now() - 86400000 * 50,
-    level: 'light',
-    status: 'paused',
-    infringeCount: 0,
-    totalViews: 67843,
-    duration: '09:54',
-  },
-];
 
-const SEED_INFRINGEMENTS: Infringement[] = [
-  {
-    id: 'i-001',
-    workId: 'p-001',
-    workTitle: '【4K HDR】阿尔卑斯山脉航拍',
-    workCover: gradient3('#5B8DEF', '#8B5CF6', '#25F4EE'),
-    infractorName: '风景搬运工',
-    infractorAvatar: gradient2('#FE2C55', '#FFB400'),
-    infractorFans: 124832,
-    similarity: 96,
-    platform: 'douyin',
-    sourceUrl: 'https://www.douyin.com/video/7234567891123456789',
-    detectedAt: Date.now() - 3600000 * 3,
-    views: 482931,
-    status: 'submitted',
-  },
-  {
-    id: 'i-002',
-    workId: 'p-001',
-    workTitle: '【4K HDR】阿尔卑斯山脉航拍',
-    workCover: gradient3('#5B8DEF', '#8B5CF6', '#25F4EE'),
-    infractorName: '航拍素材库',
-    infractorAvatar: gradient2('#25F4EE', '#5DDB96'),
-    infractorFans: 28432,
-    similarity: 88,
-    platform: 'kuaishou',
-    sourceUrl: 'https://www.kuaishou.com/short-video/3x9y7m2k1p',
-    detectedAt: Date.now() - 3600000 * 8,
-    views: 124832,
-    status: 'pending',
-  },
-  {
-    id: 'i-003',
-    workId: 'p-001',
-    workTitle: '【4K HDR】阿尔卑斯山脉航拍',
-    workCover: gradient3('#5B8DEF', '#8B5CF6', '#25F4EE'),
-    infractorName: '旅行精选',
-    infractorAvatar: gradient2('#8B5CF6', '#FE2C55'),
-    infractorFans: 8932,
-    similarity: 79,
-    platform: 'bilibili',
-    sourceUrl: 'https://www.bilibili.com/video/BV1xx411c7mD',
-    detectedAt: Date.now() - 86400000 * 2,
-    views: 38421,
-    status: 'takenDown',
-    resolution: '对方已删除视频',
-  },
-  {
-    id: 'i-004',
-    workId: 'p-003',
-    workTitle: '夏日海边 vlog',
-    workCover: gradient3('#FE2C55', '#FF6B8A', '#FFB400'),
-    infractorName: '海边风景控',
-    infractorAvatar: gradient2('#06B6D4', '#5B8DEF'),
-    infractorFans: 42831,
-    similarity: 92,
-    platform: 'xiaohongshu',
-    sourceUrl: 'https://www.xiaohongshu.com/explore/abc123',
-    detectedAt: Date.now() - 86400000 * 1,
-    views: 89432,
-    status: 'appealed',
-  },
-  {
-    id: 'i-005',
-    workId: 'p-004',
-    workTitle: 'Sony A7M4 开箱 + 镜头测试',
-    workCover: gradient3('#FF6B8A', '#FFB400', '#5DDB96'),
-    infractorName: '科技评测菌',
-    infractorAvatar: gradient2('#5B5CF6', '#C4B5FD'),
-    infractorFans: 218432,
-    similarity: 84,
-    platform: 'weibo',
-    sourceUrl: 'https://weibo.com/1234567891/abc',
-    detectedAt: Date.now() - 86400000 * 5,
-    views: 124832,
-    status: 'settled',
-    resolution: '对方已获得授权,加入白名单',
-    whitelisted: true,
-  },
-  {
-    id: 'i-006',
-    workId: 'p-004',
-    workTitle: 'Sony A7M4 开箱 + 镜头测试',
-    workCover: gradient3('#FF6B8A', '#FFB400', '#5DDB96'),
-    infractorName: '科技搬运站',
-    infractorAvatar: gradient2('#FE2C55', '#FF6B8A'),
-    infractorFans: 8932,
-    similarity: 91,
-    platform: 'douyin',
-    sourceUrl: 'https://www.douyin.com/video/7123456789112345678',
-    detectedAt: Date.now() - 86400000 * 3,
-    views: 23421,
-    status: 'rejected',
-    resolution: '对方提供了原素材证据,判定不构成侵权',
-  },
-];
 
-const SEED_TAKEDOWNS: TakedownRecord[] = [
-  {
-    id: 't-001',
-    workTitle: '【4K HDR】阿尔卑斯山脉航拍',
-    workCover: gradient3('#5B8DEF', '#8B5CF6', '#25F4EE'),
-    infractorName: '风景搬运工',
-    platform: 'douyin',
-    status: 'submitted',
-    submittedAt: Date.now() - 86400000 * 1,
-    reason: '未经授权搬运原视频,画面/音频完全一致,相似度 96%',
-    proofHash: '0x8f3a2b1c9d4e5f6a7b8c9d0e1f2a3b4c',
-  },
-  {
-    id: 't-002',
-    workTitle: '【4K HDR】阿尔卑斯山脉航拍',
-    workCover: gradient3('#5B8DEF', '#8B5CF6', '#25F4EE'),
-    infractorName: '旅行精选',
-    platform: 'bilibili',
-    status: 'takenDown',
-    submittedAt: Date.now() - 86400000 * 4,
-    resolvedAt: Date.now() - 86400000 * 2,
-    reason: '原视频片段被剪辑使用,相似度 79%',
-    proofHash: '0x6d1c0b9a8f7e6d5c4b3a2f1e0d9c8b7a',
-  },
-  {
-    id: 't-003',
-    workTitle: 'Sony A7M4 开箱 + 镜头测试',
-    workCover: gradient3('#FF6B8A', '#FFB400', '#5DDB96'),
-    infractorName: '科技搬运站',
-    platform: 'douyin',
-    status: 'rejected',
-    submittedAt: Date.now() - 86400000 * 5,
-    resolvedAt: Date.now() - 86400000 * 3,
-    reason: '视频高度疑似搬运,相似度 91%',
-    proofHash: '0x5c0b9a8f7e6d5c4b3a2f1e0d9c8b7a6f',
-  },
-  {
-    id: 't-004',
-    workTitle: '夏日海边 vlog',
-    workCover: gradient3('#FE2C55', '#FF6B8A', '#FFB400'),
-    infractorName: '海边风景控',
-    platform: 'xiaohongshu',
-    status: 'appealed',
-    submittedAt: Date.now() - 86400000 * 1,
-    reason: '原视频片段被剪辑使用,相似度 92%',
-    proofHash: '0x4b9a8f7e6d5c4b3a2f1e0d9c8b7a6f5e',
-  },
-];
-
-const CANDIDATE_WORKS = [
-  { id: 'c-001', title: '北京胡同漫步｜城市印象', cover: gradient3('#FE2C55', '#FF6B8A', '#FFB400'), type: 'video' as const, duration: '12:34', views: 234821 },
-  { id: 'c-002', title: '露营装备清单｜新手必看', cover: gradient2('#25F4EE', '#5DF7F2'), type: 'article' as const, views: 0 },
-  { id: 'c-003', title: '广式早茶 vlog', cover: gradient3('#FFB400', '#FE2C55', '#8B5CF6'), type: 'video' as const, duration: '08:21', views: 89432 },
-  { id: 'c-004', title: '胶片摄影入门指南', cover: gradient2('#5B8DEF', '#8B5CF6'), type: 'image' as const, views: 0 },
-  { id: 'c-005', title: '咖啡店测评 10 家', cover: gradient2('#06B6D4', '#5B8DEF'), type: 'video' as const, duration: '15:42', views: 0 },
-  { id: 'c-006', title: '周末厨房｜家常菜合集', cover: gradient2('#5DDB96', '#FFB400'), type: 'video' as const, duration: '06:33', views: 0 },
-];
 
 function formatCount(n: number): string {
   if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
@@ -451,10 +222,12 @@ export default function OriginalPage() {
   const [monitorScope, setMonitorScope] = useState<SourcePlatform[]>(['douyin', 'kuaishou', 'weibo', 'bilibili', 'xiaohongshu']);
   const [whitelist, setWhitelist] = useState<string[]>(['科技评测菌', 'MCN 联合出品']);
 
-  // 真接口:3 类维权数据(uid 隔离),失败时 fallback 到 SEED
-  const protectedQ = useQuery({ queryKey: ['creator-original-protected'], queryFn: () => getProtectedList(), staleTime: 30 * 1000 });
-  const infringeQ = useQuery({ queryKey: ['creator-original-infringements'], queryFn: () => getInfringementList(), staleTime: 30 * 1000 });
-  const takedownQ = useQuery({ queryKey: ['creator-original-takedowns'], queryFn: () => getTakedownList(), staleTime: 30 * 1000 });
+  // 真接口:3 类维权数据(uid 隔离),tab 切换强制 refetch
+  const protectedQ = useQuery({ queryKey: ['creator-original-protected'], queryFn: () => getProtectedList(), staleTime: 30 * 1000, refetchOnMount: 'always' });
+  const infringeQ = useQuery({ queryKey: ['creator-original-infringements'], queryFn: () => getInfringementList(), staleTime: 30 * 1000, refetchOnMount: 'always' });
+  const takedownQ = useQuery({ queryKey: ['creator-original-takedowns'], queryFn: () => getTakedownList(), staleTime: 30 * 1000, refetchOnMount: 'always' });
+  // "加入监测"对话框的候选作品:从我的可投稿作品接口拉(已有的 dashboard 端点)
+  const myWorksQ = useQuery({ queryKey: ['creator-my-works'], queryFn: () => getMyWorks(), staleTime: 30 * 1000, refetchOnMount: 'always' });
   const apiProtected = (protectedQ.data?.records ?? protectedQ.data?.list ?? []).map((p: any) => ({
     id: p.id, title: p.title, cover: p.cover, fingerprint: p.fingerprint,
     status: p.status, monitorAt: p.monitorAt, takedowns: p.takedowns, income: p.income,
@@ -470,10 +243,9 @@ export default function OriginalPage() {
     reason: t.reason, reqAt: t.reqAt, completedAt: t.completedAt, status: t.status, refund: t.refund,
     appealCount: 0,
   })) as unknown as TakedownRecord[];
-  const [protected_, setProtected] = useState<ProtectedWork[]>((apiProtected.length ? apiProtected : SEED_PROTECTED) as ProtectedWork[]);
-  const [infringe, setInfringe] = useState<Infringement[]>((apiInfringe.length ? apiInfringe : SEED_INFRINGEMENTS) as Infringement[]);
-  const takedowns = (apiTakedowns.length ? apiTakedowns : SEED_TAKEDOWNS) as TakedownRecord[];
-  useEffect(() => { if (apiProtected.length) setProtected(apiProtected); }, [apiProtected.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [protected_, setProtected] = useState<ProtectedWork[]>(apiProtected as ProtectedWork[]);
+  const [infringe, setInfringe] = useState<Infringement[]>(apiInfringe as Infringement[]);
+  const takedowns = apiTakedowns as TakedownRecord[];
   useEffect(() => { if (apiInfringe.length) setInfringe(apiInfringe); }, [apiInfringe.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const stats = useMemo(() => {
@@ -587,12 +359,12 @@ export default function OriginalPage() {
     } catch {
       // still update local state
     }
-    const works = CANDIDATE_WORKS.filter((c) => addSelected.includes(c.id));
-    const newItems: ProtectedWork[] = works.map((w, idx) => ({
+    const works = (myWorksQ.data?.records ?? myWorksQ.data?.list ?? []).filter((c: any) => addSelected.includes(String(c.id)));
+    const newItems: ProtectedWork[] = works.map((w: any, idx) => ({
       id: `p-new-${Date.now()}-${idx}`,
       title: w.title,
       cover: w.cover,
-      type: w.type,
+      type: (w.contentType || 'video') as ProtectedWork['type'],
       fingerprint: Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join(''),
       blockchainHash: '0x' + Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join(''),
       certificateNo: `QY-DBC-2026-${String(13000 + Math.floor(Math.random() * 999)).padStart(8, '0')}`,
@@ -600,8 +372,8 @@ export default function OriginalPage() {
       level: addLevel,
       status: 'monitoring',
       infringeCount: 0,
-      totalViews: w.views,
-      duration: w.duration,
+      totalViews: w.views || 0,
+      duration: typeof w.duration === 'string' ? w.duration : (w.duration ? String(w.duration) : '00:00'),
     }));
     setProtected((p) => [...newItems, ...p]);
     setSnack(`已成功存证 ${newItems.length} 个作品`);
@@ -1531,7 +1303,7 @@ export default function OriginalPage() {
                 pr: 0.5,
               }}
             >
-              {CANDIDATE_WORKS.map((w) => {
+              {(myWorksQ.data?.records ?? myWorksQ.data?.list ?? []).map((w: any) => {
                 const selected = addSelected.includes(w.id);
                 return (
                   <Box

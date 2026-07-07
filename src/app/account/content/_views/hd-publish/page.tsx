@@ -76,8 +76,6 @@ import { HdResolution,
   Reviewer,
   SubtitleTrack,
   AudioTrack,
-  SEED,
-  SEED_REVIEWERS,
   REVIEW_CHECK_TEMPLATE,
   REVIEWER_LEVEL_META,
   FAST_CHANNEL_MONTHLY } from './data';
@@ -163,6 +161,7 @@ export default function HdPublishPage() {
     queryKey: ['creator-hd-videos'],
     queryFn: () => getHdVideoList({ page: 1, size: 50 }),
     staleTime: 30 * 1000,
+    refetchOnMount: 'always',
   });
   const apiVideos: HdVideo[] = (hdResp?.records ?? hdResp?.list ?? []).map((v: any) => ({
     id: v.id, title: v.title, cover: v.cover,
@@ -171,7 +170,7 @@ export default function HdPublishPage() {
     views: v.views, likes: v.likes, hasCover: v.hasCover,
     subtitles: [], audioTracks: [],
   }));
-  const [videos, setVideos] = useState<HdVideo[]>(apiVideos.length ? apiVideos : SEED);
+  const [videos, setVideos] = useState<HdVideo[]>(apiVideos);
   React.useEffect(() => {
     if (apiVideos.length) setVideos(apiVideos);
   }, [apiVideos.length]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -207,6 +206,7 @@ export default function HdPublishPage() {
       return (res.data?.records || []) as ModuleContentItem[];
     },
     staleTime: 30_000,
+    refetchOnMount: 'always',
   });
 
   useEffect(() => {
@@ -243,6 +243,7 @@ export default function HdPublishPage() {
     queryKey: ['creator-hd-reviewers'],
     queryFn: () => getReviewerList(),
     staleTime: 5 * 60 * 1000,
+    refetchOnMount: 'always',
   });
   const apiReviewers: Reviewer[] = (reviewerResp?.records ?? reviewerResp?.list ?? []).map((r: ApiReviewer) => ({
     id: r.id, name: r.name, initials: r.initials, avatarColor: r.avatarColor,
@@ -250,7 +251,7 @@ export default function HdPublishPage() {
     reviewCount: r.reviewCount, avgReviewSec: 300, passRate: r.passRate,
     online: r.online, currentLoad: r.currentLoad, maxLoad: r.maxLoad, specialties: r.specialties,
   }));
-  const reviewers = apiReviewers.length ? apiReviewers : SEED_REVIEWERS;
+  const reviewers = apiReviewers;
   const getReviewer = (id: string | undefined): Reviewer | undefined => {
     if (!id) return undefined;
     return reviewers.find((r) => r.id === id);

@@ -88,6 +88,7 @@ export default function VipPage() {
     queryKey: ['vip-info'],
     queryFn: () => getVipInfo(),
     staleTime: 60 * 1000,
+    refetchOnMount: 'always',
   });
 
   // 把后端 {id,name,price(分),badge,color,benefits[]} 转成页面用的 VipTier

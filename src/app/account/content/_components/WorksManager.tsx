@@ -68,17 +68,8 @@ interface Work {
   description: string;
 }
 
-const SEED: Work[] = [
-  // 后端 /api/core/creator/works/manage 就绪后,作为网络异常兜底
-  { id: 1001, title: '夏日海边vlog｜这个夏天最治愈的5个瞬间', type: 'video', status: 'published', cover: gradient3('#FE2C55', '#FF6B8A', '#FFB400'), views: 1284932, likes: 89432, comments: 3211, shares: 1820, collectNum: 5210, createdAt: Date.now() - 86400000 * 5, updatedAt: Date.now() - 86400000 * 5, tags: ['vlog', '夏日', '治愈'], description: '记录 5 个治愈瞬间,背景音乐用《夏日漱石》。' },
-  { id: 1002, title: '小红书同款｜夏日穿搭合集', type: 'image', status: 'published', cover: gradient3('#25F4EE', '#5DF7F2', '#8B5CF6'), views: 423891, likes: 32104, comments: 1287, shares: 932, collectNum: 3842, createdAt: Date.now() - 86400000 * 7, updatedAt: Date.now() - 86400000 * 7, tags: ['穿搭', '小红书', '夏日'], description: '9 套夏日穿搭,白色系为主,搭配草编包。' },
-  { id: 1003, title: '挑战全网最辣螺蛳粉!结果我输了…', type: 'video', status: 'published', cover: gradient3('#FFB400', '#FE2C55', '#8B5CF6'), views: 287432, likes: 21890, comments: 2143, shares: 612, collectNum: 1287, createdAt: Date.now() - 86400000 * 9, updatedAt: Date.now() - 86400000 * 9, tags: ['挑战', '美食', '辣'], description: '挑战变态辣螺蛳粉,坚持 3 分 17 秒后投降。' },
-  { id: 1004, title: '10分钟学会 3 道快手早餐', type: 'video', status: 'reviewing', cover: gradient2('#5DDB96', '#25F4EE'), views: 0, likes: 0, comments: 0, shares: 0, collectNum: 0, createdAt: Date.now() - 86400000 * 1, updatedAt: Date.now() - 86400000 * 1, tags: ['美食', '早餐', '教程'], description: '三明治 / 蛋饼 / 燕麦杯,适合上班族。' },
-  { id: 1005, title: '我的家乡', type: 'video', status: 'draft', cover: gradient2('#5B8DEF', '#8B5CF6'), views: 0, likes: 0, comments: 0, shares: 0, collectNum: 0, createdAt: Date.now() - 86400000 * 12, updatedAt: Date.now() - 3600000 * 2, tags: ['家乡', '旅行'], description: '未完成,等剪辑完成后发布。' },
-  { id: 1006, title: '深夜独处歌单', type: 'article', status: 'private', cover: gradient2('#8B5CF6', '#FE2C55'), views: 8432, likes: 921, comments: 87, shares: 24, collectNum: 312, createdAt: Date.now() - 86400000 * 15, updatedAt: Date.now() - 86400000 * 15, tags: ['歌单', '音乐', '深夜'], description: '深夜独处 10 首推荐,助眠为主。' },
-  { id: 1007, title: '开箱 VLOG', type: 'video', status: 'rejected', cover: gradient2('#FF6B8A', '#FFB400'), views: 0, likes: 0, comments: 0, shares: 0, collectNum: 0, createdAt: Date.now() - 86400000 * 18, updatedAt: Date.now() - 86400000 * 18, tags: ['开箱'], description: '因版权问题被驳回,请重新剪辑。' },
-  { id: 1008, title: '设计师的一天', type: 'image', status: 'published', cover: gradient2('#06B6D4', '#5B8DEF'), views: 124832, likes: 8932, comments: 421, shares: 187, collectNum: 943, createdAt: Date.now() - 86400000 * 22, updatedAt: Date.now() - 86400000 * 22, tags: ['设计', '日常', '工作'], description: '记录普通设计师的日常 9 点到 22 点。' },
-];
+// 数据完全来自后端 /api/core/account/works,前端不保留任何 SEED 兜底。
+// 网络异常时显示空态,不展示假数据误导用户。
 
 const STATUS_META: Record<WorkStatus, { label: string; color: string; bg: string }> = {
   published: { label: '已发布', color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.12)' },
@@ -131,6 +122,7 @@ export default function WorksManager() {
     queryKey: ['creator-works-manage', typeFilter, tab],
     queryFn: () => getCreatorWorks({ contentType: typeFilter === 'all' ? undefined : typeFilter.toUpperCase(), page: 1, pageSize: 100 }),
     staleTime: 30 * 1000,
+    refetchOnMount: 'always',
   });
   const apiWorks: Work[] = (worksResp?.records ?? worksResp?.list ?? []).map((w: any) => ({
     id: w.id,
@@ -148,7 +140,7 @@ export default function WorksManager() {
     tags: [],
     description: w.subtitle || '',
   }));
-  const [works, setWorks] = useState<Work[]>(apiWorks.length ? apiWorks : SEED);
+  const [works, setWorks] = useState<Work[]>(apiWorks);
   // API 数据变化时同步本地状态(本地操作后不覆盖)
   const apiWorksRef = React.useRef(apiWorks);
   apiWorksRef.current = apiWorks;

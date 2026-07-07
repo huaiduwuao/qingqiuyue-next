@@ -82,6 +82,7 @@ export default function WalletPage() {
       return r?.data?.data ?? r?.data ?? r;
     },
     staleTime: 10 * 1000,
+    refetchOnMount: 'always',
   });
   const txQuery = useQuery({
     queryKey: ['wallet-transactions', tab],
@@ -90,6 +91,7 @@ export default function WalletPage() {
       return r?.data?.data ?? r?.data ?? r;
     },
     staleTime: 10 * 1000,
+    refetchOnMount: 'always',
   });
   const balanceDiamonds = Math.floor((balanceQuery.data?.balance ?? 0) / 10); // 分 → 钻
   const records: DiamondRecord[] = (txQuery.data?.list ?? []).map((t: any) => ({

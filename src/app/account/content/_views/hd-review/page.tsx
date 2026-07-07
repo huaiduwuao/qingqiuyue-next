@@ -47,10 +47,7 @@ import {
   Reviewer,
   ReviewerVerdict,
   ReviewerDecision,
-  SEED,
-  SEED_REVIEWERS,
   REVIEWER_LEVEL_META,
-  getReviewerById,
   REVIEW_CHECK_TEMPLATE,
 } from '../hd-publish/data';
 import { RelativeTime } from '@/components/common/RelativeTime';
@@ -68,12 +65,9 @@ const PRESET_REJECT_REASONS = [
   '音质过差',
 ];
 
-const CREATOR_FAKE_NAMES = ['创作者 A', '创作者 B', '海风映画', '北纬 30°', '像素工坊', '声光实验室'];
-
-function pickCreatorName(videoId: string): string {
-  let hash = 0;
-  for (let i = 0; i < videoId.length; i++) hash = (hash * 31 + videoId.charCodeAt(i)) | 0;
-  return CREATOR_FAKE_NAMES[Math.abs(hash) % CREATOR_FAKE_NAMES.length];
+// 创作者名称:由后端 HdVideo 数据带回(creatorName/author 字段),不再用本地哈希假名
+function pickCreatorName(video: { id: string; creatorName?: string; author?: string }): string {
+  return video.creatorName || video.author || '未知创作者';
 }
 
 function formatSize(mb: number): string {
@@ -108,8 +102,8 @@ const RISK_META: Record<RiskLevel, { label: string; color: string; bg: string }>
 
 export default function HdReviewPage() {
   const { tabParams, setActiveTab } = useActiveTab();
-  // 真接口:HD 视频 + 审核员(优先用 API 数据,失败 fallback 到 SEED)
-  const { data: hdResp } = useQuery({ queryKey: ['creator-hd-videos'], queryFn: () => getHdVideoList({ page: 1, size: 50 }), staleTime: 30 * 1000 });
+  // 真接口:HD 视频 + 审核员,tab 切换时强制 refetch
+  const { data: hdResp } = useQuery({ queryKey: ['creator-hd-videos'], queryFn: () => getHdVideoList({ page: 1, size: 50 }), staleTime: 30 * 1000, refetchOnMount: 'always' });
   const apiVideos: HdVideo[] = (hdResp?.records ?? hdResp?.list ?? []).map((v: any) => ({
     id: v.id, title: v.title, cover: v.cover,
     resolution: v.resolution, fps: v.fps, hdr: v.hdr, duration: v.duration, sizeMB: v.sizeMB,
@@ -117,19 +111,23 @@ export default function HdReviewPage() {
     views: v.views, likes: v.likes, hasCover: v.hasCover,
     subtitles: [], audioTracks: [],
   }));
-  const [videos, setVideos] = useState<HdVideo[]>(apiVideos.length ? apiVideos : SEED);
-  const { data: reviewerResp } = useQuery({ queryKey: ['creator-hd-reviewers'], queryFn: () => getReviewerList(), staleTime: 5 * 60 * 1000 });
+  const [videos, setVideos] = useState<HdVideo[]>(apiVideos);
+  const { data: reviewerResp } = useQuery({ queryKey: ['creator-hd-reviewers'], queryFn: () => getReviewerList(), staleTime: 5 * 60 * 1000, refetchOnMount: 'always' });
   const apiReviewers: Reviewer[] = (reviewerResp?.records ?? reviewerResp?.list ?? []).map((r: ApiReviewer) => ({
     id: r.id, name: r.name, initials: r.initials, avatarColor: r.avatarColor,
     team: r.team, level: r.level as 1 | 2 | 3, title: r.title,
     reviewCount: r.reviewCount, avgReviewSec: 300, passRate: r.passRate,
     online: r.online, currentLoad: r.currentLoad, maxLoad: r.maxLoad, specialties: r.specialties,
   }));
-  const reviewers = apiReviewers.length ? apiReviewers : SEED_REVIEWERS;
-  useEffect(() => {
-    if (apiVideos.length) setVideos(apiVideos);
-  }, [apiVideos.length]); // eslint-disable-line react-hooks/exhaustive-deps
-  const [currentReviewerId, setCurrentReviewerId] = useState(tabParams.reviewer || 'r-002');
+  const reviewers = apiReviewers;
+  // 默认审核员:tabParams 优先,否则从拉到的列表里取第一个在线的
+  const [currentReviewerId, setCurrentReviewerId] = useState(tabParams.reviewer || '');
+  React.useEffect(() => {
+    if (!currentReviewerId && reviewers.length) {
+      const online = reviewers.find((r) => r.online);
+      setCurrentReviewerId(online?.id || reviewers[0].id);
+    }
+  }, [currentReviewerId, reviewers]);
   const [tab, setTab] = useState<ReviewTab>('pending');
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(tabParams.video || null);
   const [verdictNote, setVerdictNote] = useState('');
@@ -144,6 +142,7 @@ export default function HdReviewPage() {
       return res.data?.records || [];
     },
     staleTime: 30_000,
+    refetchOnMount: 'always',
   });
 
   // 把真实内容合并到本地 simulator 列表(去重)
@@ -184,7 +183,7 @@ export default function HdReviewPage() {
   }, [tabParams.video]);
 
   const currentReviewer: Reviewer | undefined = useMemo(
-    () => getReviewerById(currentReviewerId),
+    () => reviewers.find((r) => r.id === currentReviewerId),
     [currentReviewerId],
   );
 
@@ -410,7 +409,7 @@ export default function HdReviewPage() {
               '& .MuiOutlinedInput-root': { fontSize: 12 },
             }}
             renderValue={(id) => {
-              const r = getReviewerById(id);
+              const r = reviewers.find((r) => r.id === id);
               if (!r) return id;
               return (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
@@ -803,7 +802,7 @@ function QueueItem({
 
       {/* 元信息 */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, fontSize: 9, color: 'text.disabled' }}>
-        <span>{pickCreatorName(video.id)}</span>
+        <span>{pickCreatorName(video)}</span>
         <Box component="span" sx={{ width: 2, height: 2, borderRadius: '50%', bgcolor: 'divider' }} />
         {isReviewing ? (
           <>
@@ -988,7 +987,7 @@ function ReviewPanel({
               {video.title}
             </Typography>
             <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
-              {video.fps}fps · {formatSize(video.sizeMB)} · {pickCreatorName(video.id)} · 上传于{' '}
+              {video.fps}fps · {formatSize(video.sizeMB)} · {pickCreatorName(video)} · 上传于{' '}
               {<RelativeTime ts={video.uploadedAt} fallback="" />}
               {video.review?.startedAt && (
                 <Box component="span" sx={{ ml: 0.5 }}>
@@ -1028,11 +1027,11 @@ function ReviewPanel({
               justifyContent: 'center',
             }}
           >
-            {pickCreatorName(video.id)[0]}
+            {pickCreatorName(video)[0]}
           </Box>
           <Box sx={{ flex: 1 }}>
             <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.primary' }}>
-              {pickCreatorName(video.id)}
+              {pickCreatorName(video)}
             </Typography>
             <Typography sx={{ fontSize: 9, color: 'text.secondary' }}>
               累计发布 124 部 · 粉丝 8.2w · 历史违规 0 · 信用极好

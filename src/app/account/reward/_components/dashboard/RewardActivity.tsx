@@ -62,6 +62,7 @@ export default function RewardActivity() {
     queryKey: ['creator-activity', 'reward'],
     queryFn: () => getCreatorActivities({ page: 1, pageSize: 10 }),
     staleTime: 30 * 1000,
+    refetchOnMount: 'always',
   });
   const list = (data?.records ?? data?.list ?? []) as ActivityItem[];
 

@@ -58,9 +58,7 @@ import NotificationsActiveRoundedIcon from '@mui/icons-material/NotificationsAct
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
 
 import { adminClient } from '@/lib/api/client';
-import { ACTIVITIES,
-  MY_WORKS,
-  CATEGORY_META,
+import { CATEGORY_META,
   STATUS_META,
   PART_META,
   type Activity,
@@ -107,11 +105,13 @@ export default function ActivityPage() {
     queryKey: ['creator-activities', category],
     queryFn: () => getActivityList({ category: category === 'all' ? undefined : category }),
     staleTime: 30 * 1000,
+    refetchOnMount: 'always',
   });
   const { data: worksResp } = useQuery({
     queryKey: ['creator-my-works'],
     queryFn: () => getMyWorks(),
     staleTime: 30 * 1000,
+    refetchOnMount: 'always',
   });
   const apiActivities: Activity[] = (actResp?.records ?? actResp?.list ?? []).map((a: ApiActivity) => ({
     ...a,
@@ -119,7 +119,7 @@ export default function ActivityPage() {
     leaderboard: a.leaderboard ?? [],
   }));
   const apiMyWorks: MyWork[] = (worksResp?.records ?? worksResp?.list ?? []) as MyWork[];
-  const [items, setItems] = useState<Activity[]>(apiActivities.length ? apiActivities : ACTIVITIES);
+  const [items, setItems] = useState<Activity[]>(apiActivities);
   useEffect(() => {
     if (apiActivities.length) setItems(apiActivities);
   }, [apiActivities.length]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -190,7 +190,7 @@ export default function ActivityPage() {
   const submitTarget = useMemo(() => items.find((a) => a.id === submitId) ?? null, [items, submitId]);
 
   // Pre-filter MY_WORKS for the submit dialog (rough hashtag match) — 用 API 数据
-  const effectiveMyWorks: MyWork[] = apiMyWorks.length ? apiMyWorks : MY_WORKS;
+  const effectiveMyWorks: MyWork[] = apiMyWorks;
   const eligibleWorks = useMemo(() => {
     if (!submitTarget) return [] as MyWork[];
     const required = submitTarget.requirements

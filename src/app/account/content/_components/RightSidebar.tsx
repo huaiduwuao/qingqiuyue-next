@@ -44,6 +44,7 @@ export default function RightSidebar() {
     queryKey: ['content-activity-feed'],
     queryFn: () => getContentActivityFeed({ limit: 5 }),
     staleTime: 60 * 1000,
+    refetchOnMount: 'always',
   });
   const activitiesRaw = (feed?.records ?? feed?.list ?? []) as Activity[];
   const ACTIVITIES = activitiesRaw.map((a) => ({
