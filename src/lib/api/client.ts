@@ -100,32 +100,53 @@ function createApiClient(baseURL: string) {
   );
 
   // Response interceptor - 适配后端响应格式 { code, msg, data }
+  // 兼容两种约定:
+  //   1. 标准包装: { code: 200, msg: 'OK', data: {...} }
+  //   2. 直接返 body: { items: [...], total: 0 } 或 { list: [...], total: 0 }
+  // 第二种常见于 spider-api 等早期接口,这里归一为第一种,避免业务层分支判断。
   client.interceptors.response.use(
     (response: AxiosResponse) => {
       const { data, status } = response;
-      // 0 和 200 都是成功状态码
-      if (data.code !== 200 && data.code !== '200' && data.code !== 0) {
-        const isAuth = status === 401 || data.code === 401 || data.code === '401';
-        const error = new ApiError({
-          message: data.msg || '请求失败',
-          category: isAuth ? 'auth' : 'business',
-          code: data.code,
-          status,
-          response: data,
-        });
-        return Promise.reject(error);
+
+      // 1) 已经是 { code, msg, data } 包装:走原逻辑
+      if (data && typeof data === 'object' && 'code' in data) {
+        if (data.code !== 200 && data.code !== '200' && data.code !== 0) {
+          const isAuth = status === 401 || data.code === 401 || data.code === '401';
+          const error = new ApiError({
+            message: data.msg || '请求失败',
+            category: isAuth ? 'auth' : 'business',
+            code: data.code,
+            status,
+            response: data,
+          });
+          return Promise.reject(error);
+        }
+        // 分页响应归一(同原逻辑)
+        const payload = (data as any)?.data;
+        if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+          if ('list' in payload && !('records' in payload)) payload.records = payload.list;
+          if ('records' in payload && !('list' in payload)) payload.list = payload.records;
+          if ('total' in payload && !('totalRow' in payload)) payload.totalRow = payload.total;
+          if ('totalRow' in payload && !('total' in payload)) payload.total = payload.totalRow;
+        }
+        return data;
       }
-      // 分页响应归一:后端返回 { list, total }，部分页面读 { records, totalRow }。
-      // 统一挂上别名，两种约定都能用，避免逐个 api 文件适配。
-      const payload = (data as any)?.data;
-      if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
-        if ('list' in payload && !('records' in payload)) payload.records = payload.list;
-        if ('records' in payload && !('list' in payload)) payload.list = payload.records;
-        if ('total' in payload && !('totalRow' in payload)) payload.totalRow = payload.total;
-        if ('totalRow' in payload && !('total' in payload)) payload.total = payload.totalRow;
+
+      // 2) flat shape:把整个 body 当作 data 包一层,业务层用 res.data?.items / res.data?.list 读
+      //    (业务层习惯 res.data?.data,所以这里也提供 res.data?.data 同名别名)
+      const wrapped: any = {
+        code: 200,
+        msg: 'OK',
+        data,
+      };
+      // 列表分页归一:flat { items } 也提供 list 别名
+      if (data && typeof data === 'object' && !Array.isArray(data)) {
+        if ('items' in data && !('list' in data)) (wrapped.data as any).list = (data as any).items;
+        if ('list' in data && !('records' in data)) (wrapped.data as any).records = (data as any).list;
+        if ('total' in data && !('totalRow' in data)) (wrapped.data as any).totalRow = (data as any).total;
+        if ('totalRow' in data && !('total' in data)) (wrapped.data as any).total = (data as any).totalRow;
       }
-      // 返回 data 而不是 response，方便使用
-      return data;
+      return wrapped;
     },
     (error: AxiosError) => {
       const status = error.response?.status;
