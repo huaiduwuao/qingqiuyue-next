@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import Skeleton from '@mui/material/Skeleton';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import GroupIcon from '@mui/icons-material/Group';
@@ -49,17 +50,31 @@ const CATEGORY_COLOR: Record<string, string> = {
   script: '#FFB400',
 };
 
-export default function RewardHotGrid() {
+export default function RewardHotGrid({
+  search = '',
+  order = 'reward',
+  filter = '全部',
+}: {
+  search?: string;
+  order?: 'reward' | 'deadline' | 'hot' | 'newest';
+  filter?: string;
+} = {}) {
   const router = useRouter();
 
-  // 真接口拉热门悬赏,后端 amount 是分,渲染时 / 100 转元
-  const { data: hotResp } = useQuery({
-    queryKey: ['reward-bounty-hot'],
-    queryFn: () => getHotBounties({ limit: 6 }),
-    staleTime: 60 * 1000,
+  // 真接口:热门悬赏(支持 keyword 搜索 + category 过滤 + order 排序)
+  const hotQuery = useQuery({
+    queryKey: ['reward-bounty-hot', { search, order, filter }],
+    queryFn: () => getHotBounties({
+      page: 1,
+      size: 6,
+      keyword: search || undefined,
+      category: filter !== '全部' ? filter : undefined,
+      order,
+    }),
+    staleTime: 30 * 1000,
     refetchOnMount: 'always',
   });
-  const HOT_BOUNTIES: Bounty[] = (hotResp?.records ?? hotResp?.list ?? []).map((b) => ({
+  const HOT_BOUNTIES: Bounty[] = ((hotQuery.data?.records ?? hotQuery.data?.list ?? []) as any[]).map((b) => ({
     id: b.id,
     title: b.title,
     category: (b.category as Bounty['category']) ?? 'video',
@@ -114,14 +129,27 @@ export default function RewardHotGrid() {
         </Box>
       </Box>
 
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(1, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
-          gap: 1.5,
-        }}
-      >
-        {HOT_BOUNTIES.map((b) => (
+      {hotQuery.isLoading ? (
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(1, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 1.5 }}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} variant="rounded" height={160} sx={{ bgcolor: 'rgba(255,255,255,0.04)' }} />
+          ))}
+        </Box>
+      ) : HOT_BOUNTIES.length === 0 ? (
+        <Box sx={{ py: 4, textAlign: 'center', color: 'text.disabled' }}>
+          <Typography sx={{ fontSize: 12 }}>
+            {search || (filter && filter !== '全部') ? '当前筛选条件下暂无悬赏' : '暂无热门悬赏'}
+          </Typography>
+        </Box>
+      ) : (
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: 'repeat(1, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
+            gap: 1.5,
+          }}
+        >
+          {HOT_BOUNTIES.map((b) => (
           <Box
             key={b.id}
             onClick={() => router.push(`/account/reward/detail?id=${b.id}`)}
@@ -244,6 +272,7 @@ export default function RewardHotGrid() {
           </Box>
         ))}
       </Box>
+      )}
     </Box>
   );
 }

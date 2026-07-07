@@ -54,7 +54,7 @@ export default function DashboardPage({ groupId, groupData }: DashboardProps) {
         }}
       >
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-          <RewardHotGrid />
+          <RewardHotGrid search={search} order={order as any} filter={filter} />
           <RewardActivity />
         </Box>
         <Box sx={{ display: { xs: 'none', lg: 'block' }, width: 360, minWidth: 0 }}>

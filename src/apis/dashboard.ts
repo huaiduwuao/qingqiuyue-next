@@ -206,7 +206,14 @@ export interface Bounty {
   sponsor: string;
   gradient: string;
 }
-export async function getHotBounties(params?: { limit?: number }) {
+export async function getHotBounties(params?: {
+  limit?: number;
+  category?: string;
+  keyword?: string;
+  order?: 'reward' | 'deadline' | 'hot' | 'newest';
+  page?: number;
+  size?: number;
+}) {
   return unwrap<PageData<Bounty>>(await accountClient('/reward/bounty/hot', { params }));
 }
 
