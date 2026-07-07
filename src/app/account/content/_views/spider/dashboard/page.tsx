@@ -82,8 +82,11 @@ export default function SpiderDashboardPage() {
   });
 
   // 上次刷新时间(每秒重渲染)
-  const [now, setNow] = useState(() => Date.now());
+  // SSR 阶段初始化为 0,避免 Date.now() 在 server/client 不一致引发 hydration mismatch;
+  // mount 后立刻 setNow 一次,之后每秒刷新。
+  const [now, setNow] = useState(0);
   useEffect(() => {
+    setNow(Date.now());
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
@@ -139,7 +142,7 @@ export default function SpiderDashboardPage() {
         {/* 实时刷新指示 */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1, py: 0.5, borderRadius: 1.5, bgcolor: isRefreshing ? 'rgba(91, 141, 239, 0.12)' : 'action.hover' }}>
           <RefreshIcon sx={{ fontSize: 12, color: isRefreshing ? '#5B8DEF' : 'text.secondary', animation: isRefreshing ? 'spin 0.9s linear infinite' : 'none', '@keyframes spin': { from: { transform: 'rotate(0deg)' }, to: { transform: 'rotate(360deg)' } } }} />
-          <Typography sx={{ fontSize: 11, color: isRefreshing ? '#5B8DEF' : 'text.secondary' }}>
+          <Typography sx={{ fontSize: 11, color: isRefreshing ? '#5B8DEF' : 'text.secondary' }} suppressHydrationWarning>
             {isRefreshing ? '刷新中…' : secondsSinceFetch >= 0 ? `${secondsSinceFetch}s 前刷新 · 每 ${POLL_MS / 1000}s 自动` : '等待首次刷新'}
           </Typography>
         </Box>
