@@ -117,6 +117,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   const vrmDataRef = useRef<Cached | null>(null);
   const expressionManagerRef = useRef<any>(null);
   const vrmRef = useRef<any>(null);
+  const handleInternalRef = useRef<VrmStageHandle | null>(null);  // useImperativeHandle 工厂里同步存 handle
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -237,58 +238,56 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   }, [rendererState, autoBlink, confettiOn]);
 
   // 暴露 handle
-  useImperativeHandle(ref, () => ({
-    setEmotion: (dict) => {
-      if (!vrmDataRef.current?.expressionManager) return;
-      for (const [k, v] of Object.entries(dict)) vrmDataRef.current.expressionManager.setValue(k, v);
-    },
-    setViseme: (dict) => {
-      if (!vrmDataRef.current?.expressionManager) return;
-      for (const [k, v] of Object.entries(dict)) vrmDataRef.current.expressionManager.setValue(k, v);
-    },
-    setAction: (name) => { danceApi.setPose(name as PoseName); },
-    setScene: (name) => { sceneApi.setPreset(name); rebuildConfetti(name); },
-    setCameraPreset: (name) => { camApi.switchTo(name); },
-    setDanceStyle: (s) => { danceApi.setStyle(s); },
-    setDanceAmp: (v) => { danceApi.setAmp(v); },
-    setBpm: (v) => { danceApi.setBpm(v); },
-    setDancing: (on) => { danceApi.setDancing(on); },
-    setPose: (name) => { danceApi.setPose(name); },
-    speak: (text, audioUrl) => {
-      // 简单实现：触发口型时间线（用 audio.ts 的 viseme）
-      // 实际 TTS+viseme 走 chat hook 的 speak sink；这里只做标记
-      console.log('[VrmStage] speak:', text, audioUrl);
-    },
-    setUserLipOverride: (on) => { userLipOverrideRef.current = on; },
-    setUserBlinkOverride: (on) => { userBlinkOverrideRef.current = on; },
-    setConfetti: (on) => {
-      setConfettiOn(on);
-      if (on) rebuildConfetti(sceneApi.preset);
-      else removeConfetti();
-    },
-    startSong: () => { lipApi.startSong(); },
-    stopSong: () => { lipApi.stopSong(); },
-    startMic: async () => { const ok = await lipApi.startMic(); return ok; },
-    stopMic: () => { lipApi.stopMic(); },
-    getScreenshot: () => {
-      const r = (rendererState as any)?.renderer;
-      if (!r) return null;
-      try { return r.domElement.toDataURL('image/png'); } catch { return null; }
-    },
+  useImperativeHandle(ref, () => {
+    const h: VrmStageHandle = {
+      setEmotion: (dict) => {
+        if (!vrmDataRef.current?.expressionManager) return;
+        for (const [k, v] of Object.entries(dict)) vrmDataRef.current.expressionManager.setValue(k, v);
+      },
+      setViseme: (dict) => {
+        if (!vrmDataRef.current?.expressionManager) return;
+        for (const [k, v] of Object.entries(dict)) vrmDataRef.current.expressionManager.setValue(k, v);
+      },
+      setAction: (name) => { danceApi.setPose(name as PoseName); },
+      setScene: (name) => { sceneApi.setPreset(name); rebuildConfetti(name); },
+      setCameraPreset: (name) => { camApi.switchTo(name); },
+      setDanceStyle: (s) => { danceApi.setStyle(s); },
+      setDanceAmp: (v) => { danceApi.setAmp(v); },
+      setBpm: (v) => { danceApi.setBpm(v); },
+      setDancing: (on) => { danceApi.setDancing(on); },
+      setPose: (name) => { danceApi.setPose(name); },
+      speak: (text, audioUrl) => {
+        console.log('[VrmStage] speak:', text, audioUrl);
+      },
+      setUserLipOverride: (on) => { userLipOverrideRef.current = on; },
+      setUserBlinkOverride: (on) => { userBlinkOverrideRef.current = on; },
+      setConfetti: (on) => {
+        setConfettiOn(on);
+        if (on) rebuildConfetti(sceneApi.preset);
+        else removeConfetti();
+      },
+      startSong: () => { lipApi.startSong(); },
+      stopSong: () => { lipApi.stopSong(); },
+      startMic: async () => { const ok = await lipApi.startMic(); return ok; },
+      stopMic: () => { lipApi.stopMic(); },
+      getScreenshot: () => {
+        const r = (rendererState as any)?.renderer;
+        if (!r) return null;
+        try { return r.domElement.toDataURL('image/png'); } catch { return null; }
+      },
+    };
+    // 同步保存到内部 ref，下面的 useEffect 会读它再调 onReady
+    handleInternalRef.current = h;
+    return h;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [rendererState, sceneApi, danceApi, camApi, confettiOn, sceneApi.preset]);
+  }, [rendererState, sceneApi, danceApi, camApi, confettiOn, sceneApi.preset]);
 
-  // 把 handle 推给父组件（onReady 回调，仅触发一次，避免循环）
-  const onReadyFiredRef = useRef(false);
+  // useEffect: handle 重建后通知父组件（onReady 是 useState 的 setter，引用稳定）
   useEffect(() => {
-    if (!onReady || !rendererState) return;
-    const h = (ref as React.MutableRefObject<VrmStageHandle | null>).current;
-    if (h && !onReadyFiredRef.current) {
-      onReadyFiredRef.current = true;
-      onReady(h);
-    }
+    if (!onReady || !handleInternalRef.current) return;
+    onReady(handleInternalRef.current);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rendererState, onReady]);
+  }, [onReady, rendererState, sceneApi, danceApi, camApi, confettiOn, sceneApi.preset]);
 
   function rebuildConfetti(_name: ScenePresetName) {
     if (!rendererState || !confettiOn) return;
