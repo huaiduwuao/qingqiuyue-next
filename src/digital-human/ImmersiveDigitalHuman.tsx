@@ -103,6 +103,7 @@ export default function ImmersiveDigitalHuman() {
     fov: 30,
     songOn: false,
     micOn: false,
+    yOffset: 0,
   });
   const updateStageState = React.useCallback((patch: Partial<typeof stageState>) => {
     setStageState((prev) => ({ ...prev, ...patch }));
@@ -116,6 +117,7 @@ export default function ImmersiveDigitalHuman() {
   React.useEffect(() => { console.log('[Immersive→handle] setBpm', stageState.bpm, '| handle:', !!stageHandle); stageHandle?.setBpm(stageState.bpm); }, [stageHandle, stageState.bpm]);
   React.useEffect(() => { console.log('[Immersive→handle] setDanceAmp', stageState.danceAmp, '| handle:', !!stageHandle); stageHandle?.setDanceAmp(stageState.danceAmp); }, [stageHandle, stageState.danceAmp]);
   React.useEffect(() => { console.log('[Immersive→handle] setConfetti', stageState.confetti, '| handle:', !!stageHandle); stageHandle?.setConfetti(stageState.confetti); }, [stageHandle, stageState.confetti]);
+  React.useEffect(() => { stageHandle?.setYOffset(stageState.yOffset); }, [stageHandle, stageState.yOffset]);
   React.useEffect(() => { console.log('[Immersive→handle] setAutoBlink', stageState.autoBlink); }, [stageState.autoBlink]);  // autoBlink 走 prop，不走 handle
   React.useEffect(() => { console.log('[Immersive→handle] setLookAtCamera', stageState.lookAtCamera); }, [stageState.lookAtCamera]);  // lookAtCamera 走 prop
   // 唱歌/麦克风：on 触发 start，off 触发 stop

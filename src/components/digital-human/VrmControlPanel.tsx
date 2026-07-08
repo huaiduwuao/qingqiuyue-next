@@ -48,6 +48,7 @@ interface Props {
     fov: number;
     songOn: boolean;
     micOn: boolean;
+    yOffset: number;
   };
   onChange: (patch: Partial<Props['state']>) => void;
 }
@@ -177,12 +178,17 @@ export default function VrmControlPanel({ open, onClose, handle, state, onChange
         </Box>
         <Stack direction="row" spacing={0.5} sx={{ mb: 0.5 }}>
           <Button size="small" variant="outlined"
-            onClick={() => { handle?.setPosition(0, 0); handle?.setCameraPreset('front'); }}
+            onClick={() => { handle?.setPosition(0, 0); handle?.setCameraPreset('front'); onChange({ yOffset: 0 }); }}
             sx={{ flex: 1, fontSize: 11, py: 0.5 }}>↺ 重置</Button>
           <Button size="small" variant="outlined"
             onClick={() => handle?.move('forward', { durationMs: 600, style: 'run' })}
             sx={{ flex: 1, fontSize: 11, py: 0.5 }}>🏃 跑</Button>
         </Stack>
+        <Box sx={{ px: 0.5 }}>
+          <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>Y 偏移 {state.yOffset.toFixed(2)} （手动贴地微调）</Typography>
+          <Slider size="small" min={-1} max={1} step={0.01} value={state.yOffset}
+            onChange={(_, v) => onChange({ yOffset: v as number })} sx={{ color: '#4fd8ff' }} />
+        </Box>
 
         <Divider sx={{ my: 1, borderColor: 'rgba(255,255,255,0.06)' }} />
 

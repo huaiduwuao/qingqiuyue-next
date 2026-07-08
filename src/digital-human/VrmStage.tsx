@@ -67,6 +67,8 @@ export interface VrmStageHandle {
   move: (target: { x: number; y?: number; z: number } | 'left' | 'right' | 'center' | 'forward' | 'back', opts?: { durationMs?: number; style?: 'walk' | 'run' | 'teleport' }) => void;
   /** 直接设位置（瞬移） */
   setPosition: (x: number, z: number) => void;
+  /** 调整 Y 偏移（手动调） */
+  setYOffset: (y: number) => void;
   /** 获取当前 (x, z) */
   getPosition: () => { x: number; z: number };
   getScreenshot: () => string | null;
@@ -140,8 +142,9 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   const [confettiOn, setConfettiOn] = useState(false);
   const confettiRef = useRef<any>(null);
   const vrmVersionRef = useRef<0 | 1>(1);  // VRM 0.0/1.0 — 0 用 joy/sorrow/fun/viseme_aa，1 用 happy/aa
-  // 角色位置（x, z，y 始终 0 在地面上）
+  // 角色位置（x, z，y 由 yOffset 控制）
   const positionRef = useRef({ x: 0, z: 0, prevX: 0, prevZ: 0 });
+  const yOffsetRef = useRef(0);  // 手动 Y 偏移
   // 行走状态（useVrmDance 通过 walkRef 读这个来播放行走动画）
   // 移动动画状态
   const moveAnimRef = useRef<{ active: boolean; startTime: number; duration: number; fromX: number; fromZ: number; toX: number; toZ: number; style: 'walk' | 'run' | 'teleport' }>({
@@ -209,13 +212,11 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         console.log(`[VrmStage] VRM 版本: ${ver}, 可用 expressions (${available.length}):`, available.slice(0, 30));
         cached.scene.traverse((o: any) => { o.castShadow = true; o.frustumCulled = false; });
         rendererState.scene.add(cached.scene);
-        // 贴地（Box3 minY 加 tolerance：0 < minY < 0.1 视为 0，避免 shadow plane 之类的微正数把模型降到地板下）
+        // 贴地：信任模型自然原点（VRM 标准：feet 在 y=0），用 yOffset 手动微调
         const THREE_NS = (rendererState as any).THREE_NS as typeof import('three');
         const box = new THREE_NS.Box3().setFromObject(cached.scene);
-        const rawMinY = box.min.y;
-        const minY = (rawMinY > 0 && rawMinY < 0.1) ? 0 : rawMinY;
-        console.log(`[VrmStage] Box3 minY=${rawMinY.toFixed(3)}, 调整后=${minY.toFixed(3)}`);
-        cached.scene.position.y -= minY;
+        console.log(`[VrmStage] Box3 minY=${box.min.y.toFixed(3)} maxY=${box.max.y.toFixed(3)} (yOffset=${yOffsetRef.current})`);
+        cached.scene.position.y = yOffsetRef.current;
         // 视线
         if (cached.vrm.lookAt) {
           cached.vrm.lookAt.target = lookAtCamera ? rendererState.camera : null;
@@ -318,6 +319,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       // 把位置应用到模型 + 让相机跟随平移
       if (vrmDataRef.current?.scene) {
         vrmDataRef.current.scene.position.x = pos.x;
+        vrmDataRef.current.scene.position.y = yOffsetRef.current;
         vrmDataRef.current.scene.position.z = pos.z;
       }
       const dx = pos.x - pos.prevX;
@@ -432,6 +434,11 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         positionRef.current.x = Math.max(-6, Math.min(6, x));
         positionRef.current.z = Math.max(-6, Math.min(6, z));
         walkRef.current.moving = false;
+      },
+      setYOffset: (y) => {
+        console.log(`[VrmStage.setYOffset] y=${y}`);
+        yOffsetRef.current = y;
+        if (vrmDataRef.current?.scene) vrmDataRef.current.scene.position.y = y;
       },
       getPosition: () => ({ x: positionRef.current.x, z: positionRef.current.z }),
       getScreenshot: () => {
