@@ -197,15 +197,17 @@ export function buildConcert(THREE_NS: typeof THREE, sceneGroup: THREE.Group): S
   sceneGroup.add(makeSkyDome(THREE_NS, 0x1a0a2e, 0x07060d));
   const ambient = new THREE_NS.AmbientLight(0x9988cc, 0.7);
   sceneGroup.add(ambient); lights.push(ambient);
-  const key = new THREE_NS.DirectionalLight(0xffffff, 1.6);
-  key.position.set(1, 4, 4);
+  // 主光：VRM 0.0 经 rotateVRM0 后正面朝 +Z（向相机），模型右手在世界 -X 方向
+  // 影视标准 3 点光：key 在被摄主体的右脸（世界 -X），fill 在左脸（世界 +X）
+  const key = new THREE_NS.DirectionalLight(0xffffff, 1.8);
+  key.position.set(-2, 4, 4);
   key.target.position.set(0, 0.9, 0);
   key.castShadow = true;
   key.shadow.mapSize.set(1024, 1024);
   sceneGroup.add(key, key.target); lights.push(key);
-  // 柔光补光（相机方向，暖白，保证脸/胸口亮起来）
-  const fill = new THREE_NS.DirectionalLight(0xfff0d8, 0.8);
-  fill.position.set(-1.5, 2.5, 4);
+  // 补光：暖白，从相机左前方
+  const fill = new THREE_NS.DirectionalLight(0xfff0d8, 0.9);
+  fill.position.set(2, 2.5, 4);
   sceneGroup.add(fill); lights.push(fill);
   // 半身补光（从下方，消除眼窝阴影）
   const hemi = new THREE_NS.HemisphereLight(0xa0a8ff, 0x2a1a3a, 0.5);

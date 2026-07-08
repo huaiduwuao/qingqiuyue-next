@@ -179,7 +179,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     let cancelled = false;
     (async () => {
       try {
-        const cached = await loadAvatar(modelUrl, { rotateVRM0: false, removeUnnecessaryJoints: true });
+        const cached = await loadAvatar(modelUrl, { rotateVRM0: true, removeUnnecessaryJoints: true });
         if (cancelled) return;
         vrmDataRef.current = cached;
         vrmRef.current = cached.vrm;
@@ -192,10 +192,12 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         console.log(`[VrmStage] VRM 版本: ${ver}, 可用 expressions (${available.length}):`, available.slice(0, 30));
         cached.scene.traverse((o: any) => { o.castShadow = true; o.frustumCulled = false; });
         rendererState.scene.add(cached.scene);
-        // 贴地
+        // 贴地（Box3 minY 加 tolerance：0 < minY < 0.1 视为 0，避免 shadow plane 之类的微正数把模型降到地板下）
         const THREE_NS = (rendererState as any).THREE_NS as typeof import('three');
         const box = new THREE_NS.Box3().setFromObject(cached.scene);
-        const minY = box.min.y;
+        const rawMinY = box.min.y;
+        const minY = (rawMinY > 0 && rawMinY < 0.1) ? 0 : rawMinY;
+        console.log(`[VrmStage] Box3 minY=${rawMinY.toFixed(3)}, 调整后=${minY.toFixed(3)}`);
         cached.scene.position.y -= minY;
         // 视线
         if (cached.vrm.lookAt) {
@@ -216,10 +218,42 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rendererState, modelUrl]);
 
+  // WASD/QE 键盘控制 — 自由轨道
+  const keysRef = useRef<Record<string, boolean>>({});
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      const k = e.key.toLowerCase();
+      if (['w', 'a', 's', 'd', 'q', 'e'].includes(k)) {
+        keysRef.current[k] = true;
+        e.preventDefault();
+      }
+    };
+    const onKeyUp = (e: KeyboardEvent) => { keysRef.current[e.key.toLowerCase()] = false; };
+    const onBlur = () => { keysRef.current = {}; };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', onBlur);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', onBlur);
+    };
+  }, []);
+
   // 启动 rAF（拿到 rendererState 后）
   useEffect(() => {
     if (!rendererState) return;
     rendererApi.setOnFrame((dt, t) => {
+      // 0. WASD 键盘控制（先于其他，避免 camera 动画冲突）
+      const keys = keysRef.current;
+      if (keys.w) camApi.orbit('in', dt);
+      if (keys.s) camApi.orbit('out', dt);
+      if (keys.a) camApi.orbit('left', dt);
+      if (keys.d) camApi.orbit('right', dt);
+      if (keys.q) camApi.orbit('up', dt);
+      if (keys.e) camApi.orbit('down', dt);
       // 1. lip sync
       lipApi.tick(dt);
       // 2. 自动眨眼（用 vrmVersion 兼容 0.0 的 blink / 1.0 的 blink）

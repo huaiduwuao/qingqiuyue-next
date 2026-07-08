@@ -58,5 +58,32 @@ export function useVrmCamera(opts: UseVrmCameraOptions) {
     if (k >= 1) animRef.current = null;
   }
 
-  return { preset, presets: CAMERA_PRESETS, switchTo, tick };
+  /**
+   * 自由轨道（用于 WASD 控制）：
+   *   - left/right 绕 Y 轴旋转（azimuth）
+   *   - up/down    改变仰角（polar）
+   *   - in/out     拉远拉近（radius）
+   */
+  function orbit(direction: 'left' | 'right' | 'up' | 'down' | 'in' | 'out', amount = 0.04) {
+    if (!camera) return;
+    const target = controls?.target ?? new (camera.position.constructor as any)(0, 0.95, 0);
+    const offset = camera.position.clone().sub(target);
+    const radius = Math.max(0.1, offset.length());
+    // 当前 azimuth (绕 Y 角度) 和 polar (仰角)
+    const azimuth = Math.atan2(offset.x, offset.z);
+    const polar = Math.acos(Math.max(-1, Math.min(1, offset.y / radius)));
+    let newAz = azimuth, newPol = polar, newRad = radius;
+    if (direction === 'left') newAz -= amount;
+    else if (direction === 'right') newAz += amount;
+    else if (direction === 'up') newPol = Math.max(0.05, polar - amount);
+    else if (direction === 'down') newPol = Math.min(Math.PI * 0.92, polar + amount);
+    else if (direction === 'in') newRad = Math.max(0.8, radius - amount * 4);
+    else if (direction === 'out') newRad = Math.min(20, radius + amount * 4);
+    offset.x = newRad * Math.sin(newAz) * Math.sin(newPol);
+    offset.y = newRad * Math.cos(newPol);
+    offset.z = newRad * Math.cos(newAz) * Math.sin(newPol);
+    camera.position.copy(target).add(offset);
+  }
+
+  return { preset, presets: CAMERA_PRESETS, switchTo, orbit, tick };
 }
