@@ -51,9 +51,11 @@ interface Props {
     yOffset: number;
   };
   onChange: (patch: Partial<Props['state']>) => void;
+  /** 实时位置显示（父组件每 250ms 读一次 VrmStage.positionRef） */
+  posDisplay?: { x: number; z: number };
 }
 
-export default function VrmControlPanel({ open, onClose, handle, state, onChange }: Props) {
+export default function VrmControlPanel({ open, onClose, handle, state, onChange, posDisplay }: Props) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [expressions, setExpressions] = React.useState<Record<string, number>>({});
@@ -169,6 +171,14 @@ export default function VrmControlPanel({ open, onClose, handle, state, onChange
 
         {/* 身体位置（方向键 pad + 跑/走模式） */}
         {sectionLabel('身体位置')}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5, px: 0.5 }}>
+          <Typography sx={{ fontSize: 10, color: 'text.disabled', fontFamily: 'ui-monospace, monospace' }}>
+            📍 角色 ({posDisplay?.x.toFixed(2) ?? '0.00'}, {posDisplay?.z.toFixed(2) ?? '0.00'})  y={state.yOffset.toFixed(2)}
+          </Typography>
+          <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
+            🏟 {SCENE_LABELS[state.scene]}
+          </Typography>
+        </Box>
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gridTemplateRows: 'repeat(2, 1fr)', gap: 0.5, mb: 0.5 }}>
           <Box /><Button size="small" variant="outlined" onClick={() => handle?.move('forward', { durationMs: 1200 })} sx={{ fontSize: 14, py: 0.5 }}>↑</Button><Box />
           <Button size="small" variant="outlined" onClick={() => handle?.move('left', { durationMs: 1200 })} sx={{ fontSize: 14, py: 0.5 }}>←</Button>

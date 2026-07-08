@@ -351,6 +351,13 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rendererState, autoBlink, confettiOn]);
 
+  // 暴露位置给 UI 显示（每 250ms 更新一次，避免频繁 re-render）
+  const [, forceUpdatePos] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => forceUpdatePos((n) => n + 1), 250);
+    return () => clearInterval(id);
+  }, []);
+
   // 暴露 handle — 用 useMemo 直接构造（不用 useImperativeHandle，React 19 行为不稳）
   // handle 引用稳定（deps=[] 只跑一次），方法内部用 ref 读最新值
   const handle: VrmStageHandle = useMemo(() => {

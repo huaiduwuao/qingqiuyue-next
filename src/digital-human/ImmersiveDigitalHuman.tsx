@@ -109,6 +109,16 @@ export default function ImmersiveDigitalHuman() {
     setStageState((prev) => ({ ...prev, ...patch }));
   }, []);
 
+  // 实时读 VrmStage 里的 positionRef 给面板显示（每 250ms）
+  const [posDisplay, setPosDisplay] = React.useState({ x: 0, z: 0 });
+  React.useEffect(() => {
+    const id = setInterval(() => {
+      const p = stageHandle?.getPosition?.();
+      if (p) setPosDisplay({ x: p.x, z: p.z });
+    }, 250);
+    return () => clearInterval(id);
+  }, [stageHandle]);
+
   // 把 UI state 推到 VrmStage.handle（每条都打日志，方便排查哪条没生效）
   React.useEffect(() => { console.log('[Immersive→handle] setScene', stageState.scene, '| handle:', !!stageHandle); stageHandle?.setScene(stageState.scene); }, [stageHandle, stageState.scene]);
   React.useEffect(() => { console.log('[Immersive→handle] setCameraPreset', stageState.camera, '| handle:', !!stageHandle); stageHandle?.setCameraPreset(stageState.camera); }, [stageHandle, stageState.camera]);
@@ -274,6 +284,7 @@ export default function ImmersiveDigitalHuman() {
         handle={stageHandle}
         state={stageState}
         onChange={updateStageState}
+        posDisplay={posDisplay}
       />
 
       {/* 右下角:聊天输入 + 记录(不再用底部全宽遮挡 avatar) */}
