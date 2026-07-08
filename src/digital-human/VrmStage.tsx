@@ -133,26 +133,24 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   } = props;
   // Phase 1：模块加载时已 loadConfigBundle()，所有子模块（expressions/visemes/actions）已用
   // Phase 2：父组件可以传 config prop 覆盖
-  const configBundle = configProp ?? loadConfigBundle();
-  console.log(`[VrmStage] using ConfigBundle: ${configBundle.model.name}, ${configBundle.scenes.length} scenes, ${configBundle.actions.length} actions, ${configBundle.expressions.length} expressions, ${configBundle.visemes.length} visemes`);
+  // 用 useState 保持引用稳定，async loader 完成后一次性更新，避免每次 render 产生新对象
+  const [configBundle, setConfigBundle] = useState(() => configProp ?? loadConfigBundle());
+  useEffect(() => {
+    if (configProp) {
+      setConfigBundle(configProp);
+      return;
+    }
+    loadConfigBundleAsync().then((b) => {
+      setConfigBundle(b);
+      console.log(`[VrmStage] async config updated: ${b.actions.length} actions, ${b.scenes.length} scenes`);
+    });
+  }, [configProp]);
 
   // 当前激活的 scene config（从 bundle.scenes 找 name === 当前 scene）
   const currentSceneConfig = useMemo(() => {
     return configBundle.scenes.find((s) => s.name === 'concert') || configBundle.scenes[0];
     // TODO: 读 stageState.scene
   }, [configBundle]);
-
-  // Phase 2: 异步从 API 拉 config 覆盖模块级 BUNDLE
-  // 注意：模块级字典（EXPRESSION_PRESETS / VISEME_BLENDSHAPES / ACTION_UPDATERS）
-  // 是在 import 时生成的，APB 覆盖后需要 VrmStage 重 mount 才能看到。
-  // 这里只发请求更新 BUNDLE，真正消费 BUNDLE 的代码在 VrmStage 之外的层
-  // （如 useVrmScene / useVrmDance / useVrmLipSync）—— Phase 3 切到 React Context 之后会全链路 reactive
-  React.useEffect(() => {
-    if (configProp) return; // 父组件已注入，不异步覆盖
-    loadConfigBundleAsync().then((b) => {
-      console.log(`[VrmStage] async config updated: ${b.actions.length} actions, ${b.scenes.length} scenes`);
-    });
-  }, [configProp]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const vrmSceneRef = useRef<any>(null);  // THREE.Object3D of the loaded VRM
@@ -609,11 +607,13 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   handleInternalRef.current = handle;
   if (ref) (ref as React.MutableRefObject<VrmStageHandle | null>).current = handle;
 
-  // useEffect: handle 构造后通知父组件（onReady 是 useState 的 setter，引用稳定）
+  // useEffect: handle 构造后通知父组件（只触发一次）
+  const onReadyCalledRef = useRef(false);
   useEffect(() => {
-    if (!onReady) { console.warn('[VrmStage.onReady] onReady prop 未传'); return; }
-    if (!handle) { console.warn('[VrmStage.onReady] handle 还没构造'); return; }
-    console.log('[VrmStage] onReady 触发');
+    if (!onReady) return;
+    if (!handle) return;
+    if (onReadyCalledRef.current) return;
+    onReadyCalledRef.current = true;
     onReady(handle);
   }, [onReady, handle]);
 

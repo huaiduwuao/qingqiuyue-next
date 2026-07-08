@@ -55,31 +55,18 @@ let BUNDLE: ConfigBundle = {
 
 /** 同步加载（Phase 1 静态 JSON；Phase 2 改成 async fetch） */
 export function loadConfigBundle(): ConfigBundle {
-  const scenes = Array.isArray(BUNDLE.scenes) ? BUNDLE.scenes : SCENES;
-  const actions = Array.isArray(BUNDLE.actions) ? BUNDLE.actions : [];
-  const danceStyles = Array.isArray(BUNDLE.danceStyles) ? BUNDLE.danceStyles : [];
-  const poses = Array.isArray(BUNDLE.poses) ? BUNDLE.poses : [];
-  const expressions = Array.isArray(BUNDLE.expressions) ? BUNDLE.expressions : [];
-  const visemes = Array.isArray(BUNDLE.visemes) ? BUNDLE.visemes : [];
-  const bundle: ConfigBundle = {
-    model: BUNDLE.model || DEFAULT_MODEL,
-    scenes,
-    actions,
-    danceStyles,
-    poses,
-    expressions,
-    visemes,
-  };
-  console.log('[config] 加载 ConfigBundle:', {
-    model: bundle.model.name,
-    scenes: bundle.scenes.map((s) => s.name),
-    actions: bundle.actions.length,
-    danceStyles: bundle.danceStyles.length,
-    poses: bundle.poses.length,
-    expressions: bundle.expressions.length,
-    visemes: bundle.visemes.length,
-  });
-  return bundle;
+  // BUNDLE 被异步 loader 覆盖时必须保持数组，这里直接返回引用避免每次 render 都产生新对象
+  if (!Array.isArray(BUNDLE.scenes)) {
+    console.warn('[config] BUNDLE.scenes 不是数组，回退到 seed');
+    BUNDLE.scenes = SCENES;
+  }
+  if (!Array.isArray(BUNDLE.actions)) BUNDLE.actions = [];
+  if (!Array.isArray(BUNDLE.danceStyles)) BUNDLE.danceStyles = [];
+  if (!Array.isArray(BUNDLE.poses)) BUNDLE.poses = [];
+  if (!Array.isArray(BUNDLE.expressions)) BUNDLE.expressions = [];
+  if (!Array.isArray(BUNDLE.visemes)) BUNDLE.visemes = [];
+  if (!BUNDLE.model) BUNDLE.model = DEFAULT_MODEL;
+  return BUNDLE;
 }
 
 /** 工具：按 name 查（O(1) Map） */
