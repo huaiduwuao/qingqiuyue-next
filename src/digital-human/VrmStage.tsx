@@ -241,43 +241,44 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   useImperativeHandle(ref, () => {
     const h: VrmStageHandle = {
       setEmotion: (dict) => {
-        if (!vrmDataRef.current?.expressionManager) return;
+        if (!vrmDataRef.current?.expressionManager) { console.warn('[VrmStage.setEmotion] expressionManager 未就绪'); return; }
+        console.log('[VrmStage.setEmotion]', dict);
         for (const [k, v] of Object.entries(dict)) vrmDataRef.current.expressionManager.setValue(k, v);
       },
       setViseme: (dict) => {
-        if (!vrmDataRef.current?.expressionManager) return;
+        if (!vrmDataRef.current?.expressionManager) { console.warn('[VrmStage.setViseme] expressionManager 未就绪'); return; }
+        console.log('[VrmStage.setViseme]', dict);
         for (const [k, v] of Object.entries(dict)) vrmDataRef.current.expressionManager.setValue(k, v);
       },
-      setAction: (name) => { danceApi.setPose(name as PoseName); },
-      setScene: (name) => { sceneApi.setPreset(name); rebuildConfetti(name); },
-      setCameraPreset: (name) => { camApi.switchTo(name); },
-      setDanceStyle: (s) => { danceApi.setStyle(s); },
-      setDanceAmp: (v) => { danceApi.setAmp(v); },
-      setBpm: (v) => { danceApi.setBpm(v); },
-      setDancing: (on) => { danceApi.setDancing(on); },
-      setPose: (name) => { danceApi.setPose(name); },
-      speak: (text, audioUrl) => {
-        console.log('[VrmStage] speak:', text, audioUrl);
-      },
-      setUserLipOverride: (on) => { userLipOverrideRef.current = on; },
-      setUserBlinkOverride: (on) => { userBlinkOverrideRef.current = on; },
+      setAction: (name) => { console.log('[VrmStage.setAction]', name); danceApi.setPose(name as PoseName); },
+      setScene: (name) => { console.log('[VrmStage.setScene]', name); sceneApi.setPreset(name); rebuildConfetti(name); },
+      setCameraPreset: (name) => { console.log('[VrmStage.setCameraPreset]', name); camApi.switchTo(name); },
+      setDanceStyle: (s) => { console.log('[VrmStage.setDanceStyle]', s); danceApi.setStyle(s); },
+      setDanceAmp: (v) => { console.log('[VrmStage.setDanceAmp]', v); danceApi.setAmp(v); },
+      setBpm: (v) => { console.log('[VrmStage.setBpm]', v); danceApi.setBpm(v); },
+      setDancing: (on) => { console.log('[VrmStage.setDancing]', on); danceApi.setDancing(on); },
+      setPose: (name) => { console.log('[VrmStage.setPose]', name); danceApi.setPose(name); },
+      speak: (text, audioUrl) => { console.log('[VrmStage.speak]', text, audioUrl); },
+      setUserLipOverride: (on) => { console.log('[VrmStage.setUserLipOverride]', on); userLipOverrideRef.current = on; },
+      setUserBlinkOverride: (on) => { console.log('[VrmStage.setUserBlinkOverride]', on); userBlinkOverrideRef.current = on; },
       setConfetti: (on) => {
+        console.log('[VrmStage.setConfetti]', on);
         setConfettiOn(on);
         if (on) rebuildConfetti(sceneApi.preset);
         else removeConfetti();
       },
-      startSong: () => { lipApi.startSong(); },
-      stopSong: () => { lipApi.stopSong(); },
-      startMic: async () => { const ok = await lipApi.startMic(); return ok; },
-      stopMic: () => { lipApi.stopMic(); },
+      startSong: () => { console.log('[VrmStage.startSong]'); lipApi.startSong(); },
+      stopSong: () => { console.log('[VrmStage.stopSong]'); lipApi.stopSong(); },
+      startMic: async () => { console.log('[VrmStage.startMic]'); const ok = await lipApi.startMic(); console.log('[VrmStage.startMic] result=', ok); return ok; },
+      stopMic: () => { console.log('[VrmStage.stopMic]'); lipApi.stopMic(); },
       getScreenshot: () => {
         const r = (rendererState as any)?.renderer;
         if (!r) return null;
         try { return r.domElement.toDataURL('image/png'); } catch { return null; }
       },
     };
-    // 同步保存到内部 ref，下面的 useEffect 会读它再调 onReady
     handleInternalRef.current = h;
+    console.log('[VrmStage] handle 已构造（onReady 即将触发）');
     return h;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rendererState, sceneApi, danceApi, camApi, confettiOn, sceneApi.preset]);
@@ -285,6 +286,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   // useEffect: handle 重建后通知父组件（onReady 是 useState 的 setter，引用稳定）
   useEffect(() => {
     if (!onReady || !handleInternalRef.current) return;
+    console.log('[VrmStage] onReady 触发');
     onReady(handleInternalRef.current);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onReady, rendererState, sceneApi, danceApi, camApi, confettiOn, sceneApi.preset]);

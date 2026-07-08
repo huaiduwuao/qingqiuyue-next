@@ -106,17 +106,19 @@ export default function ImmersiveDigitalHuman() {
     setStageState((prev) => ({ ...prev, ...patch }));
   }, []);
 
-  // 把 UI state 推到 VrmStage.handle
-  React.useEffect(() => { stageHandle?.setScene(stageState.scene); }, [stageHandle, stageState.scene]);
-  React.useEffect(() => { stageHandle?.setCameraPreset(stageState.camera); }, [stageHandle, stageState.camera]);
-  React.useEffect(() => { stageHandle?.setDanceStyle(stageState.danceStyle); }, [stageHandle, stageState.danceStyle]);
-  React.useEffect(() => { stageHandle?.setDancing(stageState.dancing); }, [stageHandle, stageState.dancing]);
-  React.useEffect(() => { stageHandle?.setBpm(stageState.bpm); }, [stageHandle, stageState.bpm]);
-  React.useEffect(() => { stageHandle?.setDanceAmp(stageState.danceAmp); }, [stageHandle, stageState.danceAmp]);
-  React.useEffect(() => { stageHandle?.setConfetti(stageState.confetti); }, [stageHandle, stageState.confetti]);
+  // 把 UI state 推到 VrmStage.handle（每条都打日志，方便排查哪条没生效）
+  React.useEffect(() => { console.log('[Immersive→handle] setScene', stageState.scene, '| handle:', !!stageHandle); stageHandle?.setScene(stageState.scene); }, [stageHandle, stageState.scene]);
+  React.useEffect(() => { console.log('[Immersive→handle] setCameraPreset', stageState.camera, '| handle:', !!stageHandle); stageHandle?.setCameraPreset(stageState.camera); }, [stageHandle, stageState.camera]);
+  React.useEffect(() => { console.log('[Immersive→handle] setDanceStyle', stageState.danceStyle, '| handle:', !!stageHandle); stageHandle?.setDanceStyle(stageState.danceStyle); }, [stageHandle, stageState.danceStyle]);
+  React.useEffect(() => { console.log('[Immersive→handle] setDancing', stageState.dancing, '| handle:', !!stageHandle); stageHandle?.setDancing(stageState.dancing); }, [stageHandle, stageState.dancing]);
+  React.useEffect(() => { console.log('[Immersive→handle] setBpm', stageState.bpm, '| handle:', !!stageHandle); stageHandle?.setBpm(stageState.bpm); }, [stageHandle, stageState.bpm]);
+  React.useEffect(() => { console.log('[Immersive→handle] setDanceAmp', stageState.danceAmp, '| handle:', !!stageHandle); stageHandle?.setDanceAmp(stageState.danceAmp); }, [stageHandle, stageState.danceAmp]);
+  React.useEffect(() => { console.log('[Immersive→handle] setConfetti', stageState.confetti, '| handle:', !!stageHandle); stageHandle?.setConfetti(stageState.confetti); }, [stageHandle, stageState.confetti]);
+  React.useEffect(() => { console.log('[Immersive→handle] setAutoBlink', stageState.autoBlink); }, [stageState.autoBlink]);  // autoBlink 走 prop，不走 handle
+  React.useEffect(() => { console.log('[Immersive→handle] setLookAtCamera', stageState.lookAtCamera); }, [stageState.lookAtCamera]);  // lookAtCamera 走 prop
   // 唱歌/麦克风：on 触发 start，off 触发 stop
-  React.useEffect(() => { if (stageHandle) stageState.songOn ? stageHandle.startSong() : stageHandle.stopSong(); }, [stageHandle, stageState.songOn]);
-  React.useEffect(() => { if (stageHandle) stageState.micOn ? stageHandle.startMic() : stageHandle.stopMic(); }, [stageHandle, stageState.micOn]);
+  React.useEffect(() => { console.log('[Immersive→handle] songOn', stageState.songOn, '| handle:', !!stageHandle); if (stageHandle) stageState.songOn ? stageHandle.startSong() : stageHandle.stopSong(); }, [stageHandle, stageState.songOn]);
+  React.useEffect(() => { console.log('[Immersive→handle] micOn', stageState.micOn, '| handle:', !!stageHandle); if (stageHandle) stageState.micOn ? stageHandle.startMic() : stageHandle.stopMic(); }, [stageHandle, stageState.micOn]);
 
   // system 意图: 音量/主题/全屏/刷新/登出等实际浏览器操作
   const preMuteVolumeRef = React.useRef<number | null>(null)

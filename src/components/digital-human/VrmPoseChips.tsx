@@ -15,7 +15,12 @@ interface Props {
 
 export default function VrmPoseChips({ handle }: Props) {
   const [active, setActive] = React.useState<PoseName>('idle');
-  const apply = (name: PoseName) => { handle?.setPose(name); setActive(name); };
+  const apply = (name: PoseName) => {
+    if (!handle) { console.warn('[VrmPoseChips] handle=null, 跳过', name); return; }
+    console.log('[VrmPoseChips] click', name);
+    handle.setPose(name);
+    setActive(name);
+  };
 
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>

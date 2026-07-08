@@ -59,14 +59,15 @@ export default function VrmControlPanel({ open, onClose, handle, state, onChange
 
   // 暴露给 handle 的内部 setter（手动 UI 操作时通过 setUserLipOverride 通知主组件）
   const setExpression = (key: string, value: number) => {
+    console.log('[VrmControlPanel] slider', key, '=', value, '| handle:', !!handle);
     setExpressions((prev) => ({ ...prev, [key]: value }));
     handle?.setEmotion({ [key]: value });
-    // 任何口型/眨眼滑杆都标记为手动覆盖
     if (['aa', 'ih', 'ou', 'ee', 'oh'].includes(key)) handle?.setUserLipOverride(true);
     if (['blinkLeft', 'blinkRight'].includes(key)) handle?.setUserBlinkOverride(true);
   };
 
   const resetExpressions = () => {
+    console.log('[VrmControlPanel] reset');
     setExpressions({});
     handle?.setEmotion({});
     handle?.setUserLipOverride(false);

@@ -24,10 +24,10 @@ export default function VrmEmotionChips({ handle, activeTemplate }: Props) {
   React.useEffect(() => { setActive(activeTemplate); }, [activeTemplate]);
 
   const apply = (p: typeof EMOTION_PRESETS[number]) => {
-    if (!handle) return;
+    if (!handle) { console.warn('[VrmEmotionChips] handle=null, 跳过', p.id); return; }
+    console.log('[VrmEmotionChips] click', p.id, p.template, 'intensity=', p.intensity);
     const name = p.template as ExpressionTemplateName;
     const dict = buildExpressionFromPreset(name, p.intensity, {});
-    // 眨眼等带额外通道的预设，merge 进去
     if (p.blinkLeft) dict.blinkLeft = p.blinkLeft;
     handle.setEmotion(dict);
     setActive(name);
