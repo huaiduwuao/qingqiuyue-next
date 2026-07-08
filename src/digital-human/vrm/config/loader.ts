@@ -55,16 +55,31 @@ let BUNDLE: ConfigBundle = {
 
 /** 同步加载（Phase 1 静态 JSON；Phase 2 改成 async fetch） */
 export function loadConfigBundle(): ConfigBundle {
+  const scenes = Array.isArray(BUNDLE.scenes) ? BUNDLE.scenes : SCENES;
+  const actions = Array.isArray(BUNDLE.actions) ? BUNDLE.actions : [];
+  const danceStyles = Array.isArray(BUNDLE.danceStyles) ? BUNDLE.danceStyles : [];
+  const poses = Array.isArray(BUNDLE.poses) ? BUNDLE.poses : [];
+  const expressions = Array.isArray(BUNDLE.expressions) ? BUNDLE.expressions : [];
+  const visemes = Array.isArray(BUNDLE.visemes) ? BUNDLE.visemes : [];
+  const bundle: ConfigBundle = {
+    model: BUNDLE.model || DEFAULT_MODEL,
+    scenes,
+    actions,
+    danceStyles,
+    poses,
+    expressions,
+    visemes,
+  };
   console.log('[config] 加载 ConfigBundle:', {
-    model: BUNDLE.model.name,
-    scenes: BUNDLE.scenes.map((s) => s.name),
-    actions: BUNDLE.actions.length,
-    danceStyles: BUNDLE.danceStyles.length,
-    poses: BUNDLE.poses.length,
-    expressions: BUNDLE.expressions.length,
-    visemes: BUNDLE.visemes.length,
+    model: bundle.model.name,
+    scenes: bundle.scenes.map((s) => s.name),
+    actions: bundle.actions.length,
+    danceStyles: bundle.danceStyles.length,
+    poses: bundle.poses.length,
+    expressions: bundle.expressions.length,
+    visemes: bundle.visemes.length,
   });
-  return BUNDLE;
+  return bundle;
 }
 
 /** 工具：按 name 查（O(1) Map） */
@@ -78,15 +93,26 @@ export function buildLookups(bundle: ConfigBundle) {
   return { sceneByName, actionByName, danceByName, poseByName, expressionByName, visemeByName };
 }
 
+/** 把后端列表响应统一成数组（兼容 { data: [...] } / { items: [...] } / { scenes: [...] } 等） */
+function normalizeList<T>(v: any): T[] | null {
+  if (Array.isArray(v)) return v as T[];
+  if (v && typeof v === 'object') {
+    for (const key of ['data', 'items', 'scenes', 'models', 'actions', 'danceStyles', 'poses', 'expressionPresets', 'visemes']) {
+      if (Array.isArray(v[key])) return v[key] as T[];
+    }
+  }
+  return null;
+}
+
 /** 异步加载：从 API 拉所有 config，覆盖模块级 BUNDLE
  *  返回 Promise<ConfigBundle>（resolve 为最终生效的 bundle）
  *  失败时 fallback 到 seed JSON（不抛错）
  */
 export async function loadConfigBundleAsync(): Promise<ConfigBundle> {
-  if (typeof window === 'undefined') return BUNDLE; // SSR 阶段不动
+  if (typeof window === 'undefined') return loadConfigBundle(); // SSR 阶段不动
   try {
     const [
-      models, actions, danceStyles, poses, expressions, visemes, scenes,
+      modelsRaw, actionsRaw, danceStylesRaw, posesRaw, expressionsRaw, visemesRaw, scenesRaw,
     ] = await Promise.all([
       import('../../api/digitalHumanConfig').then(m => m.listModels()),
       import('../../api/digitalHumanConfig').then(m => m.listActions('character')),
@@ -96,27 +122,41 @@ export async function loadConfigBundleAsync(): Promise<ConfigBundle> {
       import('../../api/digitalHumanConfig').then(m => m.listVisemes('character')),
       import('../../api/digitalHumanConfig').then(m => m.listScenes()),
     ]);
-    // 只在所有都拿到的情况下覆盖（部分失败保留 seed）
-    if (models && models.length && actions && danceStyles && poses && expressions && visemes && scenes) {
+
+    const models = normalizeList<VrmModelConfig>(modelsRaw);
+    const actions = normalizeList<ActionConfig>(actionsRaw);
+    const danceStyles = normalizeList<DanceStyleConfig>(danceStylesRaw);
+    const poses = normalizeList<PoseConfig>(posesRaw);
+    const expressions = normalizeList<ExpressionPresetConfig>(expressionsRaw);
+    const visemes = normalizeList<VisemeConfig>(visemesRaw);
+    const scenes = normalizeList<SceneConfig>(scenesRaw);
+
+    // 只在所有都拿到且是数组的情况下覆盖（部分失败保留 seed）
+    if (models?.length && actions?.length && danceStyles?.length && poses?.length && expressions?.length && visemes?.length && scenes?.length) {
       BUNDLE = {
         model: models[0],
-        scenes: scenes!,
-        actions: actions!,
-        danceStyles: danceStyles!,
-        poses: poses!,
-        expressions: expressions!,
-        visemes: visemes!,
+        scenes,
+        actions,
+        danceStyles,
+        poses,
+        expressions,
+        visemes,
       };
       console.log('[loader] 异步覆盖 ConfigBundle:', {
         model: BUNDLE.model.name,
         actions: BUNDLE.actions.length,
         scenes: BUNDLE.scenes.length,
       });
+    } else {
+      console.warn('[loader] API 返回格式异常或部分列表为空，保留 seed:', {
+        models: models?.length, actions: actions?.length, danceStyles: danceStyles?.length,
+        poses: poses?.length, expressions: expressions?.length, visemes: visemes?.length, scenes: scenes?.length,
+      });
     }
   } catch (e) {
     console.warn('[loader] loadConfigBundleAsync failed, fallback to seed:', e);
   }
-  return BUNDLE;
+  return loadConfigBundle();
 }
 
 /** 默认 scene = isDefault=true 的 */
