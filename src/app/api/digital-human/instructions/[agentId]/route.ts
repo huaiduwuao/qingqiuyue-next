@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
 import { invalidateInstructionsCache } from '@/digital-human/instructions/loader';
-import { invalidateInstructionsCache as _inv } from '@/digital-human/instructions/loader';
+import { isExternalDigitalHumanAPI, fetchDigitalHuman } from '@/digital-human/api-mode';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -45,8 +45,17 @@ async function saveStore(list: Instruction[]) {
 }
 
 export async function GET(req: NextRequest, ctx: { params: { agentId: string } }) {
+  const agentId = decodeURIComponent(ctx.params.agentId);
+  if (isExternalDigitalHumanAPI()) {
+    try {
+      const r = await fetchDigitalHuman(`/api/realtime/digital-human/instructions/${encodeURIComponent(agentId)}`, { method: 'GET' });
+      const data = await r.json();
+      return NextResponse.json(data, { status: r.status });
+    } catch (e: any) {
+      return NextResponse.json({ error: `upstream Go: ${e?.message || e}` }, { status: 502 });
+    }
+  }
   try {
-    const agentId = decodeURIComponent(ctx.params.agentId);
     const all = await loadStore();
     const doc = all.find(i => i.agentId === agentId);
     if (!doc) return NextResponse.json({ error: 'not found' }, { status: 404 });
@@ -57,8 +66,21 @@ export async function GET(req: NextRequest, ctx: { params: { agentId: string } }
 }
 
 export async function PUT(req: NextRequest, ctx: { params: { agentId: string } }) {
+  const agentId = decodeURIComponent(ctx.params.agentId);
+  if (isExternalDigitalHumanAPI()) {
+    try {
+      const body = await req.text();
+      const r = await fetchDigitalHuman(`/api/realtime/digital-human/instructions/${encodeURIComponent(agentId)}`, {
+        method: 'PUT',
+        body,
+      });
+      const data = await r.json();
+      return NextResponse.json(data, { status: r.status });
+    } catch (e: any) {
+      return NextResponse.json({ error: `upstream Go: ${e?.message || e}` }, { status: 502 });
+    }
+  }
   try {
-    const agentId = decodeURIComponent(ctx.params.agentId);
     const body = await req.json();
     const all = await loadStore();
     const idx = all.findIndex(i => i.agentId === agentId);
@@ -82,8 +104,17 @@ export async function PUT(req: NextRequest, ctx: { params: { agentId: string } }
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: { agentId: string } }) {
+  const agentId = decodeURIComponent(ctx.params.agentId);
+  if (isExternalDigitalHumanAPI()) {
+    try {
+      const r = await fetchDigitalHuman(`/api/realtime/digital-human/instructions/${encodeURIComponent(agentId)}`, { method: 'DELETE' });
+      const data = await r.json();
+      return NextResponse.json(data, { status: r.status });
+    } catch (e: any) {
+      return NextResponse.json({ error: `upstream Go: ${e?.message || e}` }, { status: 502 });
+    }
+  }
   try {
-    const agentId = decodeURIComponent(ctx.params.agentId);
     const all = await loadStore();
     const idx = all.findIndex(i => i.agentId === agentId);
     if (idx < 0) return NextResponse.json({ error: 'not found' }, { status: 404 });

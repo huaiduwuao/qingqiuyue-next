@@ -14,6 +14,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { PERSONA_PRESETS } from '@/digital-human/instructions/presets';
 import { invalidateInstructionsCache } from '@/digital-human/instructions/loader';
+import { isExternalDigitalHumanAPI, fetchDigitalHuman } from '@/digital-human/api-mode';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -60,6 +61,15 @@ async function saveStore(list: Instruction[]) {
 }
 
 export async function GET(req: NextRequest) {
+  if (isExternalDigitalHumanAPI()) {
+    try {
+      const r = await fetchDigitalHuman('/api/realtime/digital-human/instructions', { method: 'GET' });
+      const data = await r.json();
+      return NextResponse.json(data, { status: r.status });
+    } catch (e: any) {
+      return NextResponse.json({ error: `upstream Go: ${e?.message || e}` }, { status: 502 });
+    }
+  }
   try {
     const all = await ensureStore();
     return NextResponse.json({ instructions: all, total: all.length });
@@ -69,6 +79,19 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  if (isExternalDigitalHumanAPI()) {
+    try {
+      const body = await req.text();
+      const r = await fetchDigitalHuman('/api/realtime/digital-human/instructions', {
+        method: 'POST',
+        body,
+      });
+      const data = await r.json();
+      return NextResponse.json(data, { status: r.status });
+    } catch (e: any) {
+      return NextResponse.json({ error: `upstream Go: ${e?.message || e}` }, { status: 502 });
+    }
+  }
   try {
     const body = await req.json();
     const { agentId, name, description, prompt, tags = [], updatedBy } = body;
