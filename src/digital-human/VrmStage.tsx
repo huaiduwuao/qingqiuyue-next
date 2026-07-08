@@ -383,6 +383,41 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     return () => clearInterval(id);
   }, []);
 
+  // Phase 2.5: 加载/保存 session
+  // mount 时拉服务端 session → 恢复；每 5s 自动 flush；unmount 立即 flush
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let mounted = true;
+    (async () => {
+      try {
+        const { getMySession } = await import('./api/digitalHumanConfig');
+        const { useSessionStore } = await import('./store/session');
+        const sess = await getMySession(useSessionStore.getState().session.userId);
+        if (mounted && sess) {
+          useSessionStore.getState().setSession(sess);
+          console.log('[VrmStage] session restored:', sess);
+          // 恢复位置
+          handleInternalRef.current?.setPosition(sess.positionX, sess.positionZ);
+          handleInternalRef.current?.setYOffset(sess.yOffset);
+        }
+      } catch (e) { console.warn('[VrmStage] session restore failed:', e); }
+    })();
+    const flushId = setInterval(() => {
+      import('./store/session').then(m => m.useSessionStore.getState().flush()).catch(() => {});
+    }, 5000);
+    const onUnload = () => {
+      import('./store/session').then(m => m.useSessionStore.getState().flush()).catch(() => {});
+    };
+    window.addEventListener('beforeunload', onUnload);
+    return () => {
+      mounted = false;
+      clearInterval(flushId);
+      window.removeEventListener('beforeunload', onUnload);
+      import('./store/session').then(m => m.useSessionStore.getState().flush()).catch(() => {});
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // 暴露 handle — 用 useMemo 直接构造（不用 useImperativeHandle，React 19 行为不稳）
   // handle 引用稳定（deps=[] 只跑一次），方法内部用 ref 读最新值
   const handle: VrmStageHandle = useMemo(() => {
