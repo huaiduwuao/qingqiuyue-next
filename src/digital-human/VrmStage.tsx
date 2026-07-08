@@ -27,6 +27,8 @@
 import React, { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, CircularProgress, Typography } from '@mui/material';
 
+import { loadConfigBundle } from './vrm/config/loader';
+import type { ConfigBundle } from './vrm/config/types';
 import { loadAvatar, type Cached } from './vrm/loadAvatar';
 import { useVrmRenderer } from './vrm/useVrmRenderer';
 import { useVrmScene } from './vrm/useVrmScene';
@@ -97,6 +99,12 @@ export interface VrmStageProps {
    * 父组件用这个把 handle 存到 state，避免首次渲染时 ref.current 还没填的坑。
    */
   onReady?: (handle: VrmStageHandle) => void;
+  /**
+   * ConfigBundle（可选）
+   * - 不传：模块加载时自动从 src/data/seed/*.json 加载（Phase 1 行为）
+   * - 传：父组件可以注入从 API 拉来的 config（Phase 2 用）
+   */
+  config?: ConfigBundle;
 }
 
 const EXPRESSION_PASSTHROUGH = new Set([
@@ -119,7 +127,12 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     sx,
     debugNoThree,
     onReady,
+    config: configProp,
   } = props;
+  // Phase 1：模块加载时已 loadConfigBundle()，所有子模块（expressions/visemes/actions）已用
+  // Phase 2：父组件可以传 config prop 覆盖
+  const configBundle = configProp ?? loadConfigBundle();
+  console.log(`[VrmStage] using ConfigBundle: ${configBundle.model.name}, ${configBundle.scenes.length} scenes, ${configBundle.actions.length} actions, ${configBundle.expressions.length} expressions, ${configBundle.visemes.length} visemes`);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const vrmSceneRef = useRef<any>(null);  // THREE.Object3D of the loaded VRM
