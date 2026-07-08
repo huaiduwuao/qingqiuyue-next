@@ -87,6 +87,8 @@ export default function ImmersiveDigitalHuman() {
 
   // VrmStage sinks 引用（用 state 而非 ref，避免首次渲染时 ref.current 还没填的坑）
   const [stageHandle, setStageHandle] = React.useState<VrmStageHandle | null>(null);
+  // 诊断：监听 stageHandle 变化
+  React.useEffect(() => { console.log('[Immersive] stageHandle 变化:', stageHandle); }, [stageHandle]);
   const [panelOpen, setPanelOpen] = React.useState(false);
   const [stageState, setStageState] = React.useState({
     dancing: false,
@@ -208,7 +210,7 @@ export default function ImmersiveDigitalHuman() {
     <Box sx={{ position: 'fixed', inset: 0, zIndex: 1, background: '#05060B' }}>
       {/* 全屏 VRM 角色（与浮窗同一个 character.vrm） — 用 VrmStage 替代 BlenderAvatar */}
       <VrmStage
-        onReady={setStageHandle}
+        onReady={(h) => { console.log('[Immersive] onReady 被调用, h=', h); setStageHandle(h); }}
         modelUrl="/avatars/character.vrm"
         currentAction={action}
         emotion={emotion}

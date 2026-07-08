@@ -306,7 +306,8 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
 
   // useEffect: handle 构造后通知父组件（onReady 是 useState 的 setter，引用稳定）
   useEffect(() => {
-    if (!onReady || !handleInternalRef.current) return;
+    if (!onReady) { console.warn('[VrmStage.onReady] onReady prop 未传'); return; }
+    if (!handleInternalRef.current) { console.warn('[VrmStage.onReady] handleInternalRef.current 仍是 null (factory 还没跑？)'); return; }
     console.log('[VrmStage] onReady 触发');
     onReady(handleInternalRef.current);
   }, [onReady]);
