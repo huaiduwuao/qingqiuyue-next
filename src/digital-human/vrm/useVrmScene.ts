@@ -68,36 +68,53 @@ export function useVrmScene(opts: UseVrmSceneOptions) {
     if (vrmSceneLocal) scene.add(vrmSceneLocal);
   }, [rendererState]);
 
-  // 跟随节拍呼吸（每帧调用）
+  // 跟随节拍呼吸（每帧调用）—— 仅在 dancing=true 时才让聚光跟着节拍脉冲，
+  // 不跳舞时保持原 intensity（避免整体压暗）
   function tick(t: number, dt: number, bass: number, dancing: boolean, spotPowerMul: number) {
     const h = handleRef.current;
     if (!h) return;
     const dance = dancing ? (0.5 + 0.5 * Math.abs(Math.sin(t * Math.PI))) + bass * 1.5 : 0.4;
-    for (const l of h.lights) {
-      if ((l as any).isSpotLight) (l as any).intensity = 1.2 * dance * spotPowerMul;
-    }
-    for (let i = 0; i < h.beams.length; i++) {
-      const beam = h.beams[i];
-      const m = beam as any;
-      if (m.material && 'opacity' in m.material) {
-        m.material.opacity = 0.08 + 0.22 * dance * (0.7 + 0.3 * Math.sin(t * 2 + i));
-        if ('scale' in m) { m.scale.x = m.scale.z = 0.85 + 0.3 * dance; }
+    if (dancing) {
+      // 跳舞时聚光跟节拍呼吸（强度围绕 spotPowerMul 上下浮动）
+      for (const l of h.lights) {
+        if ((l as any).isSpotLight) (l as any).intensity = 1.2 * dance * spotPowerMul;
+      }
+      for (let i = 0; i < h.beams.length; i++) {
+        const beam = h.beams[i];
+        const m = beam as any;
+        if (m.material && 'opacity' in m.material) {
+          m.material.opacity = 0.08 + 0.22 * dance * (0.7 + 0.3 * Math.sin(t * 2 + i));
+          if ('scale' in m) { m.scale.x = m.scale.z = 0.85 + 0.3 * dance; }
+        }
+      }
+      if (h.ledRing) {
+        const m = h.ledRing as any;
+        if (m.material && 'opacity' in m.material) {
+          m.material.opacity = 0.4 + 0.5 * Math.min(1, dance);
+          if ('rotation' in m) m.rotation.z += dt * 1.5;
+        }
+      }
+      if (h.ledRing2) {
+        const m = h.ledRing2 as any;
+        if (m.material && 'opacity' in m.material) {
+          m.material.opacity = 0.3 + 0.4 * Math.min(1, 1 - dance);
+          if ('rotation' in m) m.rotation.z -= dt * 1.0;
+        }
+      }
+    } else {
+      // 不跳舞时让 LED 环慢速转 + 半透（保活，不压暗）
+      if (h.ledRing) {
+        const m = h.ledRing as any;
+        if (m.material && 'opacity' in m.material) m.material.opacity = 0.55;
+        if ('rotation' in m) m.rotation.z += dt * 0.3;
+      }
+      if (h.ledRing2) {
+        const m = h.ledRing2 as any;
+        if (m.material && 'opacity' in m.material) m.material.opacity = 0.45;
+        if ('rotation' in m) m.rotation.z -= dt * 0.2;
       }
     }
-    if (h.ledRing) {
-      const m = h.ledRing as any;
-      if (m.material && 'opacity' in m.material) {
-        m.material.opacity = 0.4 + 0.5 * Math.min(1, dance);
-        if ('rotation' in m) m.rotation.z += dt * (dancing ? 1.5 : 0.4);
-      }
-    }
-    if (h.ledRing2) {
-      const m = h.ledRing2 as any;
-      if (m.material && 'opacity' in m.material) {
-        m.material.opacity = 0.3 + 0.4 * Math.min(1, 1 - dance);
-        if ('rotation' in m) m.rotation.z -= dt * (dancing ? 1.0 : 0.2);
-      }
-    }
+    // backdrop / particles 时间相关动画始终在跑
     if (h.backdrop) {
       const m = h.backdrop as any;
       if (m.material?.uniforms?.uTime) m.material.uniforms.uTime.value = t;

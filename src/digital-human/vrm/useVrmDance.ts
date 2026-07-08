@@ -11,6 +11,7 @@ import { useCallback, useRef, useState } from 'react';
 import { POSES } from './poses';
 import type { PoseName, DanceStyle } from './types';
 import type { AudioHandle } from './audio';
+import { getBone } from './vrmCompat';
 
 export interface UseVrmDanceOptions {
   /**
@@ -50,7 +51,7 @@ export function useVrmDance(opts: UseVrmDanceOptions) {
   const setPose = useCallback((name: PoseName, instant = false) => {
     currentPoseRef.current = name;
     if (instant && vrmRef.current) {
-      const H = (n: string) => vrmRef.current.humanoid?.getNormalizedBoneNode?.(n);
+      const H = (n: string) => getBone(vrmRef.current.humanoid, n);
       const spec = POSES[name] as Record<string, [number, number, number]>;
       for (const [bone, rot] of Object.entries(spec)) {
         const o = H(bone);
@@ -77,7 +78,7 @@ export function useVrmDance(opts: UseVrmDanceOptions) {
   function tick(elapsed: number, dt: number) {
     const vrm = vrmRef.current;
     if (!vrm) return;
-    const H = (n: string) => vrm.humanoid?.getNormalizedBoneNode?.(n);
+    const H = (n: string) => getBone(vrm.humanoid, n);
     const set = (n: string, x: number, y: number, z: number) => {
       const o = H(n); if (o) o.rotation.set(x, y, z);
     };

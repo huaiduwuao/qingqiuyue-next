@@ -35,6 +35,7 @@ import { useVrmDance } from './vrm/useVrmDance';
 import { useVrmCamera } from './vrm/useVrmCamera';
 import { makeConfetti, updateConfetti } from './vrm/particles';
 import { createAudioHandle, type AudioHandle } from './vrm/audio';
+import { detectVrmVersion, setExpression, setExpressionDict, listAvailableExpressions } from './vrm/vrmCompat';
 import type { ScenePresetName, CameraPresetName, DanceStyle, PoseName } from './vrm/types';
 import { POSES } from './vrm/poses';
 
@@ -132,6 +133,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   const [error, setError] = useState<string | null>(null);
   const [confettiOn, setConfettiOn] = useState(false);
   const confettiRef = useRef<any>(null);
+  const vrmVersionRef = useRef<0 | 1>(1);  // VRM 0.0/1.0 — 0 用 joy/sorrow/fun/viseme_aa，1 用 happy/aa
 
   const userLipOverrideRef = useRef(false);
   const userBlinkOverrideRef = useRef(false);
@@ -158,7 +160,12 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   danceApiRef.current = danceApi;
 
   // 4. lip sync
-  const lipApi = useVrmLipSync({ expressionManager: expressionManagerRef.current, audio, userLipOverride: false });
+  const lipApi = useVrmLipSync({
+    expressionManager: expressionManagerRef.current,
+    audio,
+    userLipOverride: false,
+    vrmVersion: vrmVersionRef.current,
+  });
   lipApiRef.current = lipApi;
 
   // 5. camera
@@ -172,12 +179,17 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     let cancelled = false;
     (async () => {
       try {
-        const cached = await loadAvatar(modelUrl, { rotateVRM0: true, removeUnnecessaryJoints: true });
+        const cached = await loadAvatar(modelUrl, { rotateVRM0: false, removeUnnecessaryJoints: true });
         if (cancelled) return;
         vrmDataRef.current = cached;
         vrmRef.current = cached.vrm;
         vrmSceneRef.current = cached.scene;
         expressionManagerRef.current = cached.expressionManager;
+        // 检测 VRM 版本 + 列出可用的 expression（调试用）
+        const ver = detectVrmVersion(cached.vrm);
+        vrmVersionRef.current = ver;
+        const available = listAvailableExpressions(cached.expressionManager);
+        console.log(`[VrmStage] VRM 版本: ${ver}, 可用 expressions (${available.length}):`, available.slice(0, 30));
         cached.scene.traverse((o: any) => { o.castShadow = true; o.frustumCulled = false; });
         rendererState.scene.add(cached.scene);
         // 贴地
@@ -185,12 +197,6 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         const box = new THREE_NS.Box3().setFromObject(cached.scene);
         const minY = box.min.y;
         cached.scene.position.y -= minY;
-        // 记录 hip 基线
-        const hips = cached.humanoid?.getNormalizedBoneNode?.('hips');
-        if (hips) {
-          const baseY = hips.getWorldPosition(new THREE_NS.Vector3()).y;
-          danceApi.setHipsBaseY(baseY);
-        }
         // 视线
         if (cached.vrm.lookAt) {
           cached.vrm.lookAt.target = lookAtCamera ? rendererState.camera : null;
@@ -216,21 +222,21 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     rendererApi.setOnFrame((dt, t) => {
       // 1. lip sync
       lipApi.tick(dt);
-      // 2. 自动眨眼
+      // 2. 自动眨眼（用 vrmVersion 兼容 0.0 的 blink / 1.0 的 blink）
       if (autoBlink && vrmDataRef.current?.expressionManager && !userBlinkOverrideRef.current) {
         blinkTRef.current -= dt;
         if (blinkTRef.current <= 0) blinkTRef.current = 1.2 + Math.random() * 3.5;
         blinkVRef.current = blinkTRef.current > 0.12 ? 0 : Math.sin((0.12 - blinkTRef.current) / 0.12 * Math.PI);
         vrmDataRef.current.expressionManager.setValue('blink', blinkVRef.current);
       }
-      // 3. 应用 chat 推过来的 emotion / viseme
+      // 3. 应用 chat 推过来的 emotion / viseme（兼容 0.0/1.0）
       if (vrmDataRef.current?.expressionManager) {
         const em = vrmDataRef.current.expressionManager;
         for (const [k, v] of Object.entries(emotion)) {
-          if (EXPRESSION_PASSTHROUGH.has(k)) em.setValue(k, v);
+          if (EXPRESSION_PASSTHROUGH.has(k)) setExpression(em, k, v, vrmVersionRef.current);
         }
         for (const [k, v] of Object.entries(viseme)) {
-          if (EXPRESSION_PASSTHROUGH.has(k)) em.setValue(k, v);
+          if (EXPRESSION_PASSTHROUGH.has(k)) setExpression(em, k, v, vrmVersionRef.current);
         }
       }
       // 4. dance
@@ -259,13 +265,13 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     return {
       setEmotion: (dict) => {
         if (!vrmDataRef.current?.expressionManager) { console.warn('[VrmStage.setEmotion] expressionManager 未就绪'); return; }
-        console.log('[VrmStage.setEmotion]', dict);
-        for (const [k, v] of Object.entries(dict)) vrmDataRef.current.expressionManager.setValue(k, v);
+        console.log('[VrmStage.setEmotion] ver=' + vrmVersionRef.current, dict);
+        setExpressionDict(vrmDataRef.current.expressionManager, dict, vrmVersionRef.current);
       },
       setViseme: (dict) => {
         if (!vrmDataRef.current?.expressionManager) { console.warn('[VrmStage.setViseme] expressionManager 未就绪'); return; }
-        console.log('[VrmStage.setViseme]', dict);
-        for (const [k, v] of Object.entries(dict)) vrmDataRef.current.expressionManager.setValue(k, v);
+        console.log('[VrmStage.setViseme] ver=' + vrmVersionRef.current, dict);
+        setExpressionDict(vrmDataRef.current.expressionManager, dict, vrmVersionRef.current);
       },
       setAction: (name) => { console.log('[VrmStage.setAction]', name); danceApiRef.current?.setPose(name as PoseName); },
       setScene: (name) => {
