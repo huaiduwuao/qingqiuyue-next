@@ -6,7 +6,9 @@
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:digital-human": "vitest run src/digital-human/__tests__/commands.parametric.test.ts"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",
