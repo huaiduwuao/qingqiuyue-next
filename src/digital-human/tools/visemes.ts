@@ -11,10 +11,16 @@ import type { BlendshapeDict, VisemeName as VName } from '../vrm/config/types';
 export type VisemeName = VName;
 export type { BlendshapeDict };
 
+/** 参数化测试/校验用的规范口型名数组（与 VisemeName 类型严格绑定） */
+export const ALL_VISEME_NAMES: VisemeName[] = [
+  'sil', 'PP', 'FF', 'TH', 'DD', 'kk', 'CH', 'SS', 'nn', 'RR',
+  'aa', 'E', 'I', 'O', 'U', 'oh', 'ih', 'ou', 'closed',
+] satisfies readonly VisemeName[];
+
 // 模块加载时一次性生成
 const _bundle = loadConfigBundle();
 
-/** viseme 名字数组（按 name 排） */
+/** viseme 名字数组（按 seed 顺序；测试会校验其集合与 ALL_VISEME_NAMES 一致） */
 export const VISEME_NAMES: VisemeName[] = _bundle.visemes.map((v) => v.name as VisemeName);
 
 /** Viseme → ARKit blendshape 组合 */

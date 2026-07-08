@@ -12,11 +12,11 @@
  */
 
 import { TOOLS_BY_NAME, type ToolDefinition } from './tools';
-import type { ActionController } from './actions';
-import { buildExpressionFromPreset } from './expressions';
-import type { BlendshapeDict } from './expressions';
+import { ALL_ACTIONS, type ActionController } from './actions';
+import { buildExpressionFromPreset, EXPRESSION_PRESETS } from './expressions';
+import type { BlendshapeDict, ExpressionTemplateName } from './expressions';
 import type { VisemeName } from './visemes';
-import { VISEME_BLENDSHAPES, textToVisemeTimeline } from './visemes';
+import { ALL_VISEME_NAMES, textToVisemeTimeline } from './visemes';
 
 /** tool_call (LLM 输出格式) */
 export interface ToolCall {
@@ -74,8 +74,12 @@ export function dispatchToolCall(call: ToolCall, sinks: DigitalHumanSinks): Disp
     switch (call.name) {
       case 'face.setExpression': {
         const params = call.params || {};
+        const template = (params.template || 'neutral') as ExpressionTemplateName;
+        if (!EXPRESSION_PRESETS[template]) {
+          return { ok: false, toolName: 'face.setExpression', error: `unknown expression template: ${template}` };
+        }
         const built = buildExpressionFromPreset(
-          params.template || 'neutral',
+          template,
           params.intensity ?? 1,
           params.blendshapes || {},
         );
@@ -83,7 +87,7 @@ export function dispatchToolCall(call: ToolCall, sinks: DigitalHumanSinks): Disp
         if (params.durationMs && params.durationMs > 0) {
           setTimeout(() => sinks.setEmotion({}), params.durationMs);
         }
-        return { ok: true, toolName: 'face.setExpression', result: { applied: params.template } };
+        return { ok: true, toolName: 'face.setExpression', result: { applied: template } };
       }
 
       case 'face.mouthOpen': {
@@ -94,6 +98,9 @@ export function dispatchToolCall(call: ToolCall, sinks: DigitalHumanSinks): Disp
 
       case 'mouth.setViseme': {
         const shape = (call.params?.shape || 'closed') as VisemeName;
+        if (!ALL_VISEME_NAMES.includes(shape)) {
+          return { ok: false, toolName: 'mouth.setViseme', error: `unknown viseme: ${shape}` };
+        }
         const weight = call.params?.weight ?? 1;
         sinks.setViseme(shape, weight);
         return { ok: true, toolName: 'mouth.setViseme', result: { shape, weight } };
@@ -114,6 +121,9 @@ export function dispatchToolCall(call: ToolCall, sinks: DigitalHumanSinks): Disp
 
       case 'body.playAction': {
         const name = call.params?.name || 'idle';
+        if (!ALL_ACTIONS.includes(name)) {
+          return { ok: false, toolName: 'body.playAction', error: `unknown action: ${name}` };
+        }
         const speed = call.params?.speed ?? 1;
         const repeat = call.params?.repeat ?? 1;
         sinks.setAction(name);

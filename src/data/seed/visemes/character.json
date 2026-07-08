@@ -16,5 +16,6 @@
   { "id": "00000000-0000-0000-0000-000000020015", "modelId": "00000000-0000-0000-0000-000000000001", "name": "U",  "label": "圆唇元音 u", "blendshapes": { "viseme_U": 1.0, "mouthPucker": 0.6, "mouthFunnel": 0.3 } },
   { "id": "00000000-0000-0000-0000-000000020016", "modelId": "00000000-0000-0000-0000-000000000001", "name": "closed", "label": "闭合", "blendshapes": { "mouthClose": 1.0 } },
   { "id": "00000000-0000-0000-0000-000000020017", "modelId": "00000000-0000-0000-0000-000000000001", "name": "ou", "label": "双元音 ou", "blendshapes": { "viseme_ou": 1.0, "mouthPucker": 0.4, "jawOpen": 0.3 } },
-  { "id": "00000000-0000-0000-0000-000000020018", "modelId": "00000000-0000-0000-0000-000000000001", "name": "ih", "label": "双元音 ih", "blendshapes": { "viseme_ih": 1.0, "mouthStretchLeft": 0.3, "mouthStretchRight": 0.3 } }
+  { "id": "00000000-0000-0000-0000-000000020018", "modelId": "00000000-0000-0000-0000-000000000001", "name": "ih", "label": "双元音 ih", "blendshapes": { "viseme_ih": 1.0, "mouthStretchLeft": 0.3, "mouthStretchRight": 0.3 } },
+  { "id": "00000000-0000-0000-0000-000000020019", "modelId": "00000000-0000-0000-0000-000000000001", "name": "oh", "label": "圆唇半开元音 oh", "blendshapes": { "viseme_oh": 1.0, "jawOpen": 0.6, "mouthFunnel": 0.4 } }
 ]

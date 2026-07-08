@@ -73,6 +73,12 @@ interface WSConnection {
   connected: boolean;
   reconnectTimer: ReturnType<typeof setTimeout> | null;
   reconnectAttempts: number;
+  // 用户主动断开标记(disconnect 调用后置 true)
+  // 用于:
+  //   1. 阻止 CONNECTING 状态下调 close()(避免浏览器原生报
+  //      "WebSocket is closed before the connection is established")
+  //   2. 阻止重连逻辑
+  cancelled: boolean;
 }
 
 function createWSConnection(
@@ -94,12 +100,14 @@ function createWSConnection(
     connected: false,
     reconnectTimer: null,
     reconnectAttempts: 0,
+    cancelled: false,
   };
   connect(conn);
   return conn;
 }
 
 function connect(conn: WSConnection) {
+  if (conn.cancelled) return;
   if (conn.ws && conn.ws.readyState === WebSocket.OPEN) return;
 
   try {
@@ -110,6 +118,12 @@ function connect(conn: WSConnection) {
     conn.ws = ws;
 
     ws.onopen = () => {
+      // 用户在 CONNECTING 期间点了 disconnect → 等到 OPEN 后再安静关闭,
+      // 避免浏览器报 "WebSocket is closed before the connection is established"
+      if (conn.cancelled) {
+        try { ws.close(1000, 'cancelled'); } catch { /* noop */ }
+        return;
+      }
       conn.connected = true;
       conn.reconnectAttempts = 0;
       // 发送缓存的消息
@@ -121,6 +135,8 @@ function connect(conn: WSConnection) {
     };
 
     ws.onmessage = (e) => {
+      // 已取消的连接忽略后续消息
+      if (conn.cancelled) return;
       try {
         const msg: WSServerMsg = JSON.parse(e.data);
         if (msg.seq != null) conn.seq = msg.seq;
@@ -132,6 +148,7 @@ function connect(conn: WSConnection) {
 
     ws.onclose = () => {
       conn.connected = false;
+      if (conn.cancelled) return; // 用户主动断开,不重连、不报错
       const shouldReconnect = conn.reconnectAttempts < 10;
       if (shouldReconnect) {
         const delay = Math.min(
@@ -146,10 +163,14 @@ function connect(conn: WSConnection) {
     };
 
     ws.onerror = () => {
+      // 用户主动断开导致的 error 静默,不污染控制台
+      if (conn.cancelled) return;
       // onclose 会紧随其后触发
     };
   } catch {
-    conn.onClose('WebSocket 初始化失败');
+    if (!conn.cancelled) {
+      conn.onClose('WebSocket 初始化失败');
+    }
   }
 }
 
@@ -162,14 +183,21 @@ function sendRaw(conn: WSConnection, msg: WSClientMsg) {
 }
 
 function disconnect(conn: WSConnection) {
+  // 标记主动断开 → 所有 onopen/onmessage/onclose/onerror handler 见到此标志都直接 return
+  conn.cancelled = true;
   if (conn.reconnectTimer) {
     clearTimeout(conn.reconnectTimer);
     conn.reconnectTimer = null;
   }
   conn.reconnectAttempts = 999; // 阻止重连
   if (conn.ws) {
-    conn.ws.onclose = null; // 阻止 onclose 触发重连
-    conn.ws.close();
+    const state = conn.ws.readyState;
+    if (state === WebSocket.OPEN || state === WebSocket.CLOSING) {
+      // 只有 OPEN/CLOSING 状态调 close() 不会触发浏览器原生 onerror
+      conn.ws.close(1000, 'client disconnect');
+    }
+    // CONNECTING 状态:不要调 close(),让 onopen 触发时检测 cancelled 并安静关闭
+    // 避免浏览器报 "WebSocket is closed before the connection is established"
   }
   conn.connected = false;
 }

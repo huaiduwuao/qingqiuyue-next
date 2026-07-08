@@ -51,7 +51,7 @@ export const ALL_ACTIONS: ActionName[] = [
   'salute', 'kiss', 'shrug', 'talk', 'explain',
   'listen', 'pray',
   'groove', 'idol',
-];
+] satisfies readonly ActionName[];
 
 /** 中文标签 */
 export const ACTION_LABELS: Record<ActionName, string> = {

@@ -41,6 +41,11 @@ function buildExpressionLabels(): Record<ExpressionTemplateName, string> {
 export const EXPRESSION_PRESETS: Record<ExpressionTemplateName, BlendshapeDict> = buildExpressionPresets();
 export const EXPRESSION_PRESET_LABELS: Record<ExpressionTemplateName, string> = buildExpressionLabels();
 
+/** 参数化测试/校验用的规范表情名数组（与 ExpressionTemplateName 类型严格绑定） */
+export const ALL_EXPRESSION_TEMPLATE_NAMES: ExpressionTemplateName[] = Object.keys(
+  EXPRESSION_PRESETS,
+) as ExpressionTemplateName[];
+
 /**
  * 应用一个表情预设 + 强度 + 覆写
  */
