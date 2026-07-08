@@ -28,14 +28,18 @@ const cache = new Map<string, Cached>();
 let inflight: { url: string; promise: Promise<Cached> } | null = null;
 
 export interface LoadAvatarOptions {
-  /** VRM 0.0 模型需要绕 Y 轴 180° 才正面朝相机（默认 true） */
+  /**
+   * VRM 0.0 模型需要绕 Y 轴 180° 才正面朝相机。
+   * 默认 false：项目 character.vrm 实际朝向就是 +Z（虽然注释写 0.0），强制 rotate 会把模型转成背对相机。
+   * 如果你换了一个真正 VRM 0.0 且朝 -Z 的模型，把这个开关打开。
+   */
   rotateVRM0?: boolean;
   /** 去除冗余关节（默认 true） */
   removeUnnecessaryJoints?: boolean;
 }
 
 export async function loadAvatar(url: string, opts: LoadAvatarOptions = {}): Promise<Cached> {
-  const { rotateVRM0 = true, removeUnnecessaryJoints = true } = opts;
+  const { rotateVRM0 = false, removeUnnecessaryJoints = true } = opts;
 
   const cacheKey = `${url}::r${rotateVRM0 ? 1 : 0}::j${removeUnnecessaryJoints ? 1 : 0}`;
   const hit = cache.get(cacheKey);
@@ -56,13 +60,11 @@ export async function loadAvatar(url: string, opts: LoadAvatarOptions = {}): Pro
     const vrm = gltf.userData.vrm;
     if (!vrm) throw new Error(`VRM 解析失败: ${url}`);
 
-    // 检测 VRM 版本
-    const metaVersion: string = (vrm.meta as any)?.metaVersion || '1';
-    const isVRM0 = String(metaVersion).startsWith('0');
-    console.log('[loadAvatar] VRM 版本:', metaVersion, isVRM0 ? '(0.0 — 需要 rotateVRM0)' : '(1.0+ — 不旋转)');
+    // 检测 VRM 版本（仅打 log，不强制旋转 — 实际朝向以模型文件为准）
+    const metaVersion: string = (vrm.meta as any)?.metaVersion || 'unknown';
+    console.log('[loadAvatar] VRM metaVersion:', metaVersion, '| rotateVRM0:', rotateVRM0);
 
-    // 仅当确实是 VRM 0.0 时才 rotateVRM0（VRM 1.0 自然朝 +Z）
-    if (rotateVRM0 && isVRM0) {
+    if (rotateVRM0) {
       try { THREE_VRM.VRMUtils.rotateVRM0(vrm); } catch (e) { console.warn('[loadAvatar] rotateVRM0 failed', e); }
     }
     if (removeUnnecessaryJoints) {

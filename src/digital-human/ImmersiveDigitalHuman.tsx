@@ -85,8 +85,8 @@ export default function ImmersiveDigitalHuman() {
   const { chatBusy, chatLog, emotion, viseme, action, send, sendText, audioRef,
     text, setText } = chat;
 
-  // VrmStage sinks 引用
-  const stageRef = React.useRef<VrmStageHandle>(null);
+  // VrmStage sinks 引用（用 state 而非 ref，避免首次渲染时 ref.current 还没填的坑）
+  const [stageHandle, setStageHandle] = React.useState<VrmStageHandle | null>(null);
   const [panelOpen, setPanelOpen] = React.useState(false);
   const [stageState, setStageState] = React.useState({
     dancing: false,
@@ -107,16 +107,16 @@ export default function ImmersiveDigitalHuman() {
   }, []);
 
   // 把 UI state 推到 VrmStage.handle
-  React.useEffect(() => {
-    const h = stageRef.current; if (!h) return;
-    h.setScene(stageState.scene);
-  }, [stageState.scene]);
-  React.useEffect(() => { stageRef.current?.setCameraPreset(stageState.camera); }, [stageState.camera]);
-  React.useEffect(() => { stageRef.current?.setDanceStyle(stageState.danceStyle); }, [stageState.danceStyle]);
-  React.useEffect(() => { stageRef.current?.setDancing(stageState.dancing); }, [stageState.dancing]);
-  React.useEffect(() => { stageRef.current?.setBpm(stageState.bpm); }, [stageState.bpm]);
-  React.useEffect(() => { stageRef.current?.setDanceAmp(stageState.danceAmp); }, [stageState.danceAmp]);
-  React.useEffect(() => { stageRef.current?.setConfetti(stageState.confetti); }, [stageState.confetti]);
+  React.useEffect(() => { stageHandle?.setScene(stageState.scene); }, [stageHandle, stageState.scene]);
+  React.useEffect(() => { stageHandle?.setCameraPreset(stageState.camera); }, [stageHandle, stageState.camera]);
+  React.useEffect(() => { stageHandle?.setDanceStyle(stageState.danceStyle); }, [stageHandle, stageState.danceStyle]);
+  React.useEffect(() => { stageHandle?.setDancing(stageState.dancing); }, [stageHandle, stageState.dancing]);
+  React.useEffect(() => { stageHandle?.setBpm(stageState.bpm); }, [stageHandle, stageState.bpm]);
+  React.useEffect(() => { stageHandle?.setDanceAmp(stageState.danceAmp); }, [stageHandle, stageState.danceAmp]);
+  React.useEffect(() => { stageHandle?.setConfetti(stageState.confetti); }, [stageHandle, stageState.confetti]);
+  // 唱歌/麦克风：on 触发 start，off 触发 stop
+  React.useEffect(() => { if (stageHandle) stageState.songOn ? stageHandle.startSong() : stageHandle.stopSong(); }, [stageHandle, stageState.songOn]);
+  React.useEffect(() => { if (stageHandle) stageState.micOn ? stageHandle.startMic() : stageHandle.stopMic(); }, [stageHandle, stageState.micOn]);
 
   // system 意图: 音量/主题/全屏/刷新/登出等实际浏览器操作
   const preMuteVolumeRef = React.useRef<number | null>(null)
@@ -206,7 +206,7 @@ export default function ImmersiveDigitalHuman() {
     <Box sx={{ position: 'fixed', inset: 0, zIndex: 1, background: '#05060B' }}>
       {/* 全屏 VRM 角色（与浮窗同一个 character.vrm） — 用 VrmStage 替代 BlenderAvatar */}
       <VrmStage
-        ref={stageRef}
+        onReady={setStageHandle}
         modelUrl="/avatars/character.vrm"
         currentAction={action}
         emotion={emotion}
@@ -257,15 +257,15 @@ export default function ImmersiveDigitalHuman() {
         position: 'absolute', left: 16, right: { xs: 16, md: 540 }, bottom: { xs: 100, md: 100 },
         zIndex: 3, display: { xs: 'none', md: 'flex' }, flexDirection: 'column', gap: 0.5,
       }}>
-        <VrmEmotionChips handle={stageRef.current} />
-        <VrmPoseChips handle={stageRef.current} />
+        <VrmEmotionChips handle={stageHandle} />
+        <VrmPoseChips handle={stageHandle} />
       </Box>
 
       {/* 右侧控制面板 */}
       <VrmControlPanel
         open={panelOpen}
         onClose={() => setPanelOpen(false)}
-        handle={stageRef.current}
+        handle={stageHandle}
         state={stageState}
         onChange={updateStageState}
       />

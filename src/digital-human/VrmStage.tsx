@@ -56,6 +56,12 @@ export interface VrmStageHandle {
   setUserBlinkOverride: (on: boolean) => void;
   /** 彩屑开关 */
   setConfetti: (on: boolean) => void;
+  /** 演示歌曲 */
+  startSong: () => void;
+  stopSong: () => void;
+  /** 麦克风 */
+  startMic: () => Promise<boolean>;
+  stopMic: () => void;
   getScreenshot: () => string | null;
 }
 
@@ -77,6 +83,11 @@ export interface VrmStageProps {
   sx?: React.CSSProperties;
   /** 调试：按 1 跳过 three.js */
   debugNoThree?: boolean;
+  /**
+   * handle 就绪回调（首帧 mount 后触发，useImperativeHandle 跑完才 fire）。
+   * 父组件用这个把 handle 存到 state，避免首次渲染时 ref.current 还没填的坑。
+   */
+  onReady?: (handle: VrmStageHandle) => void;
 }
 
 const EXPRESSION_PASSTHROUGH = new Set([
@@ -98,6 +109,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     background = 'transparent',
     sx,
     debugNoThree,
+    onReady,
   } = props;
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -254,6 +266,10 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       if (on) rebuildConfetti(sceneApi.preset);
       else removeConfetti();
     },
+    startSong: () => { lipApi.startSong(); },
+    stopSong: () => { lipApi.stopSong(); },
+    startMic: async () => { const ok = await lipApi.startMic(); return ok; },
+    stopMic: () => { lipApi.stopMic(); },
     getScreenshot: () => {
       const r = (rendererState as any)?.renderer;
       if (!r) return null;
@@ -261,6 +277,18 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     },
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [rendererState, sceneApi, danceApi, camApi, confettiOn, sceneApi.preset]);
+
+  // 把 handle 推给父组件（onReady 回调，仅触发一次，避免循环）
+  const onReadyFiredRef = useRef(false);
+  useEffect(() => {
+    if (!onReady || !rendererState) return;
+    const h = (ref as React.MutableRefObject<VrmStageHandle | null>).current;
+    if (h && !onReadyFiredRef.current) {
+      onReadyFiredRef.current = true;
+      onReady(h);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rendererState, onReady]);
 
   function rebuildConfetti(_name: ScenePresetName) {
     if (!rendererState || !confettiOn) return;
