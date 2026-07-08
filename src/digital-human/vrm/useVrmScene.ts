@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE_NS from 'three';
-import { buildScene, type SceneHandle, type ScenePresetName } from './sceneBuilders';
+import { buildScene, buildSceneByName, type SceneHandle, type ScenePresetName } from './sceneBuilders';
 
 export interface UseVrmSceneOptions {
   rendererState: { THREE_NS: typeof THREE_NS; scene: THREE_NS.Scene } | null;
@@ -43,7 +43,7 @@ export function useVrmScene(opts: UseVrmSceneOptions) {
       while (grp.children.length > 0) grp.remove(grp.children[0]);
       const vrmSceneLocal = vrmSceneRef.current;
       if (vrmSceneLocal && vrmSceneLocal.parent) vrmSceneLocal.parent.remove(vrmSceneLocal);
-      handleRef.current = buildScene(THREE_NS, grp, p);
+      handleRef.current = buildSceneByName(THREE_NS, grp, p);
       if (vrmSceneLocal) scene.add(vrmSceneLocal);
     }
     applyPreset(preset);
@@ -64,7 +64,7 @@ export function useVrmScene(opts: UseVrmSceneOptions) {
     while (grp.children.length > 0) grp.remove(grp.children[0]);
     const vrmSceneLocal = vrmSceneRef.current;
     if (vrmSceneLocal && vrmSceneLocal.parent) vrmSceneLocal.parent.remove(vrmSceneLocal);
-    handleRef.current = buildScene(THREE_NS, grp, p);
+    handleRef.current = buildSceneByName(THREE_NS, grp, p);
     if (vrmSceneLocal) scene.add(vrmSceneLocal);
   }, [rendererState]);
 
