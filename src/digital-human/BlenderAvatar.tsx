@@ -44,6 +44,7 @@ const { VRMLoaderPlugin, VRMHumanBoneName } = THREE_VRM;
 
 // 注: three.js / VRM 对象在运行时动态加载, 很多内部类型无法静态精确表达;
 // 本文件里保留的 `any` 仅用于胶水代码, 不影响业务行为。
+// VRMHumanBoneName 仍在这里用(用于把 bone 名转成 VRM 标准名,见 line 439)
 
 // VRM 表情名字映射(我们 LLM/Mock 用的 12 个 → VRM 表情管理器的标准名字)
 // VRM 0.0 标准表情名 = ARKit Blendshape 1:1 映射
@@ -103,59 +104,8 @@ const EXPRESSION_MAP: Record<string, string> = {
 };
 
 // 缓存:url -> 加载好的 VRM 数据(单一格式,不再支持 GLB)
-type MorphEntry = { mesh: any; indices: Record<string, number> };
-type Cached = {
-  url: string;
-  scene: any;
-  vrm: any;
-  morphs: Record<string, MorphEntry>;
-  expressionManager: any;
-  humanoid: any;
-  animations: any[];
-};
-const cache = new Map<string, Cached>();
-let inflight: { url: string; promise: Promise<Cached> } | null = null;
-
-async function loadAvatar(url: string): Promise<Cached> {
-  const hit = cache.get(url);
-  if (hit) return hit;
-  if (inflight && inflight.url === url) return inflight.promise;
-  const promise = (async () => {
-    if (!url.endsWith('.vrm')) {
-      throw new Error(`BlenderAvatar 现在只支持 .vrm 格式(${url} 不是)。请把角色放到 public/avatars/character.vrm`);
-    }
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`fetch ${url} failed: ${res.status}`);
-    const buf = new Uint8Array(await res.arrayBuffer());
-    const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader');
-    const loader = new GLTFLoader();
-    loader.register((parser: any) => new VRMLoaderPlugin(parser));
-    const gltf = await loader.parseAsync(buf.buffer, '');
-    const vrm = gltf.userData.vrm;
-    if (!vrm) throw new Error(`VRM 解析失败: ${url}`);
-    // VRM 0.0 → humanoid bones + expressionManager
-    const morphs: Record<string, MorphEntry> = {};
-    vrm.scene.traverse((obj: any) => {
-      if (obj.isMesh || obj.isSkinnedMesh) {
-        const dict = obj.morphTargetDictionary;
-        if (dict) morphs[obj.name] = { mesh: obj, indices: { ...dict } };
-      }
-    });
-    const result: Cached = {
-      url,
-      scene: vrm.scene,
-      vrm,
-      morphs,
-      expressionManager: vrm.expressionManager,
-      humanoid: vrm.humanoid,
-      animations: gltf.animations || [],
-    };
-    cache.set(url, result);
-    return result;
-  })();
-  inflight = { url, promise };
-  return promise;
-}
+// 加载层已抽离到 ./vrm/loadAvatar.ts,这里只 re-export 类型,行为完全不变
+import { loadAvatar, type Cached } from './vrm/loadAvatar';
 
 
 export interface BlenderAvatarProps {

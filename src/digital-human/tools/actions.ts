@@ -40,7 +40,8 @@ export type ActionName =
   | 'dance' | 'sing' | 'laugh' | 'cry' | 'think'
   | 'point' | 'sit' | 'sleep' | 'stretch' | 'greet'
   | 'salute' | 'kiss' | 'shrug' | 'talk' | 'explain'
-  | 'listen' | 'pray';
+  | 'listen' | 'pray'
+  | 'groove' | 'idol';
 
 export const ALL_ACTIONS: ActionName[] = [
   'idle', 'wave', 'bow', 'nod', 'shake',
@@ -49,6 +50,7 @@ export const ALL_ACTIONS: ActionName[] = [
   'point', 'sit', 'sleep', 'stretch', 'greet',
   'salute', 'kiss', 'shrug', 'talk', 'explain',
   'listen', 'pray',
+  'groove', 'idol',
 ];
 
 /** 中文标签 */
@@ -59,6 +61,7 @@ export const ACTION_LABELS: Record<ActionName, string> = {
   point: '指示', sit: '坐下', sleep: '睡觉', stretch: '伸懒腰', greet: '行礼',
   salute: '敬礼', kiss: '飞吻', shrug: '摊手', talk: '讲话', explain: '讲解',
   listen: '倾听', pray: '祈祷',
+  groove: '节奏律动', idol: '偶像挥手',
 };
 
 /** 动作元信息 (含 default duration / 是否 loopable) */
@@ -101,6 +104,8 @@ export const ACTION_METADATA: Record<ActionName, ActionDef> = {
   explain: { duration: 3, loopable: true, category: 'thought', description: '讲解姿态 (双手前伸比划)', triggers: ['详细说', '怎么用', '教'] },
   listen: { duration: 4, loopable: true, category: 'thought', description: '安静倾听 (歪头 + 看着对方)', triggers: ['听', '继续说'] },
   pray: { duration: 2.5, loopable: false, category: 'greeting', description: '双手合十 (感谢 / 求好运)', triggers: ['拜托', '感谢', '求求你'] },
+  groove: { duration: 0, loopable: true, category: 'performance', description: '节奏律动: 弹跳 + 左右摆胯 + 手臂挥舞 (BPM 驱动)', triggers: ['节奏', '律动', 'groove', '跟着节奏'] },
+  idol: { duration: 0, loopable: true, category: 'performance', description: '偶像挥手: 举臂左右摆 (BPM 驱动)', triggers: ['偶像', '挥手', 'idol'] },
 };
 
 /**
@@ -515,5 +520,63 @@ export const ACTION_UPDATERS: Record<ActionName, ActionUpdater> = {
     if (rl) rl.rotation.x = -1.2;
     const head = b.head || b.Head;
     if (head) head.rotation.x = -0.1;
+  },
+  // 节奏律动：每拍一次弹跳 + 两拍一次左右摆胯 + 手臂挥舞（与 VrmStage 的 useVrmDance 风格一致）
+  groove(t, blend, scene, b) {
+    const P = Math.PI;
+    const bounce = Math.abs(Math.sin(t * P));
+    const sway = Math.sin(t * P / 2);
+    const hips = b.hips || b.Hips;
+    const spine = b.spine || b.Spine;
+    const chest = b.chest || b.Chest;
+    const head = b.head || b.Head;
+    const lu = b.leftUpperArm || b.LeftUpperArm;
+    const ru = b.rightUpperArm || b.RightUpperArm;
+    const ll = b.leftLowerArm || b.LeftLowerArm;
+    const rl = b.rightLowerArm || b.RightLowerArm;
+    const lul = b.leftUpperLeg || b.LeftUpperLeg;
+    const rul = b.rightUpperLeg || b.RightUpperLeg;
+    const lll = b.leftLowerLeg || b.LeftLowerLeg;
+    const rll = b.rightLowerLeg || b.RightLowerLeg;
+    if (hips) hips.rotation.y = sway * 0.3;
+    if (spine) { spine.rotation.y = -sway * 0.55; spine.rotation.z = -sway * 0.06; }
+    if (chest) { chest.rotation.y = -sway * 0.275; chest.rotation.z = -sway * 0.03; }
+    if (head) { head.rotation.z = Math.sin(t * P + 0.6) * 0.1; head.rotation.x = Math.sin(t * 2 * P) * 0.08; head.rotation.y = -sway * 0.4; }
+    const sw = Math.sin(t * P / 2);
+    if (lu) { lu.rotation.x = -0.45 + 0.45 * sw; lu.rotation.y = 0.12; lu.rotation.z = -1.15 + 0.18 * Math.sin(t * P); }
+    if (ru) { ru.rotation.x = -0.45 - 0.45 * sw; ru.rotation.y = -0.12; ru.rotation.z = 1.15 - 0.18 * Math.sin(t * P); }
+    if (ll) { ll.rotation.y = 0.9 + 0.3 * sw; ll.rotation.z = -0.2; }
+    if (rl) { rl.rotation.y = -0.9 + 0.3 * sw; rl.rotation.z = 0.2; }
+    const legBend = 0.32 - bounce * 0.22;
+    if (lul) lul.rotation.x = -legBend;
+    if (rul) rul.rotation.x = -legBend;
+    if (lll) lll.rotation.x = legBend * 1.9;
+    if (rll) rll.rotation.x = legBend * 1.9;
+    scene.position.y = bounce * 0.05;
+  },
+  // 偶像挥手：举臂左右摆
+  idol(t, blend, scene, b) {
+    const P = Math.PI;
+    const wave = Math.sin(t * P / 2);
+    const hips = b.hips || b.Hips;
+    const spine = b.spine || b.Spine;
+    const head = b.head || b.Head;
+    const lu = b.leftUpperArm || b.LeftUpperArm;
+    const ru = b.rightUpperArm || b.RightUpperArm;
+    const ll = b.leftLowerArm || b.LeftLowerArm;
+    const rl = b.rightLowerArm || b.RightLowerArm;
+    const lul = b.leftUpperLeg || b.LeftUpperLeg;
+    const rul = b.rightUpperLeg || b.RightUpperLeg;
+    if (hips) { hips.rotation.z = wave * 0.1; hips.rotation.y = Math.sin(t * P / 4) * 0.12; }
+    if (spine) spine.rotation.z = wave * 0.1;
+    if (head) { head.rotation.z = wave * 0.16; head.rotation.x = -0.05; }
+    if (lu) { lu.rotation.x = 0.2 * wave; lu.rotation.z = 0.95 - 1.15 * (1 - 0); /* 保持举起 */ }
+    if (ru) { ru.rotation.x = -0.2 * wave; ru.rotation.z = -0.95 + 1.15 * (1 - 0); }
+    if (ll) ll.rotation.z = 0.5 + 0.45 * wave;
+    if (rl) rl.rotation.z = -0.5 + 0.45 * wave;
+    const legBend = 0.12 + 0.10 * Math.abs(Math.sin(t * P));
+    if (lul) lul.rotation.x = -legBend;
+    if (rul) rul.rotation.x = -legBend;
+    scene.position.y = Math.abs(Math.sin(t * P)) * 0.025;
   },
 };

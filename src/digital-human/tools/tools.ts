@@ -222,6 +222,50 @@ export const cameraControl: ToolDefinition<{ action: 'zoomIn' | 'zoomOut' | 'orb
   handler: ({ action }) => ({ action }),
 };
 
+/* ────────────── scene.* 工具（VRM 舞台新增）────────────── */
+
+export const SCENE_PRESET_NAMES = ['concert', 'idol', 'garden', 'neon', 'studio'] as const;
+export type ScenePresetToolName = typeof SCENE_PRESET_NAMES[number];
+
+export const sceneChange: ToolDefinition<{ name: ScenePresetToolName }> = {
+  name: 'scene.change',
+  category: 'system',
+  description: '切换 VRM 舞台背景场景。concert=演唱会主舞台, idol=偶像练习室, garden=月光花园, neon=赛博霓虹, studio=摄影棚白底。',
+  parameters: {
+    type: 'object',
+    properties: {
+      name: {
+        type: 'string',
+        enum: SCENE_PRESET_NAMES as unknown as string[],
+        description: '场景名',
+      },
+    },
+    required: ['name'],
+  },
+  handler: ({ name }) => ({ name }),
+};
+
+export const CAMERA_PRESET_NAMES = ['front', 'three', 'side', 'low', 'top', 'back'] as const;
+export type CameraPresetToolName = typeof CAMERA_PRESET_NAMES[number];
+
+export const cameraPreset: ToolDefinition<{ name: CameraPresetToolName }> = {
+  name: 'camera.preset',
+  category: 'camera',
+  description: '切换 VRM 舞台相机视角预设：front=正面, three=3/4 视角, side=侧面, low=仰视, top=顶视, back=背面。',
+  parameters: {
+    type: 'object',
+    properties: {
+      name: {
+        type: 'string',
+        enum: CAMERA_PRESET_NAMES as unknown as string[],
+        description: '视角名',
+      },
+    },
+    required: ['name'],
+  },
+  handler: ({ name }) => ({ name }),
+};
+
 /* ────────────── 全量注册 ────────────── */
 
 export const ALL_TOOLS: ToolDefinition<any>[] = [
@@ -232,6 +276,8 @@ export const ALL_TOOLS: ToolDefinition<any>[] = [
   bodyPlayAction,
   bodyMove,
   cameraControl,
+  sceneChange,
+  cameraPreset,
 ];
 
 export const TOOLS_BY_NAME: Record<string, ToolDefinition> = Object.fromEntries(

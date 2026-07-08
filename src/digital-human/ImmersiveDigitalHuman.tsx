@@ -3,8 +3,14 @@
 /**
  * ImmersiveDigitalHuman —— /digital-human 沉浸式全屏页面
  *
- * 统一 VRM 渲染(从 /avatars/character.vrm)+ 共享 useChatAvatarWS hook
- * 跟 FloatingDigitalHuman 是同一套 chat + TTS + viseme 流程。
+ * 2026-07 升级：用 VrmStage 替代 BlenderAvatar。
+ *   - 全身取景（camera 0,1.1,4.5 FOV 30）
+ *   - 5 个场景预设、6 个相机视角预设
+ *   - 12 表情滑杆 + 10 情绪 chip + 6 姿势 chip
+ *   - 保留 chat / voice / wake-up / system 全部功能
+ *   - 兼容 useChatAvatarWS（emotion/viseme/action 直传）
+ *   - 通过 VrmStageHandle 暴露 sinks，给 V2 sinks 模式或
+ *     未来从 chat WS 解析 tool_calls 预留入口
  */
 
 import React from 'react';
@@ -12,14 +18,19 @@ import { Box, IconButton, TextField, Typography, CircularProgress } from '@mui/m
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import MicRoundedIcon from '@mui/icons-material/MicRounded';
+import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import { useRouter } from 'next/navigation';
 import { alpha } from '@mui/material/styles';
-import BlenderAvatar from './BlenderAvatar';
+import { VrmStage, type VrmStageHandle } from './VrmStage';
 import { useChatAvatarWS } from './useChatAvatarWS';
 import { useVoiceAgent } from '@/hooks/useVoiceAgent';
 import { VoiceIndicator, type VoiceIndicatorState } from '@/components/VoiceIndicator';
 import { useThemeMode } from '@/contexts/ThemeContext';
 import { logout } from '@/apis/user';
+import VrmControlPanel from '@/components/digital-human/VrmControlPanel';
+import VrmEmotionChips from '@/components/digital-human/VrmEmotionChips';
+import VrmPoseChips from '@/components/digital-human/VrmPoseChips';
+import type { ScenePresetName, CameraPresetName, DanceStyle } from './vrm/types';
 
 // ── 调试：排查 runtime.lastError 来源 ──
 // 操作步骤:
@@ -73,6 +84,39 @@ export default function ImmersiveDigitalHuman() {
   const chat = useChatAvatarWS();
   const { chatBusy, chatLog, emotion, viseme, action, send, sendText, audioRef,
     text, setText } = chat;
+
+  // VrmStage sinks 引用
+  const stageRef = React.useRef<VrmStageHandle>(null);
+  const [panelOpen, setPanelOpen] = React.useState(false);
+  const [stageState, setStageState] = React.useState({
+    dancing: false,
+    danceStyle: 'groove' as DanceStyle,
+    bpm: 120,
+    danceAmp: 1,
+    scene: 'concert' as ScenePresetName,
+    camera: 'front' as CameraPresetName,
+    confetti: false,
+    autoBlink: true,
+    lookAtCamera: true,
+    fov: 30,
+    songOn: false,
+    micOn: false,
+  });
+  const updateStageState = React.useCallback((patch: Partial<typeof stageState>) => {
+    setStageState((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  // 把 UI state 推到 VrmStage.handle
+  React.useEffect(() => {
+    const h = stageRef.current; if (!h) return;
+    h.setScene(stageState.scene);
+  }, [stageState.scene]);
+  React.useEffect(() => { stageRef.current?.setCameraPreset(stageState.camera); }, [stageState.camera]);
+  React.useEffect(() => { stageRef.current?.setDanceStyle(stageState.danceStyle); }, [stageState.danceStyle]);
+  React.useEffect(() => { stageRef.current?.setDancing(stageState.dancing); }, [stageState.dancing]);
+  React.useEffect(() => { stageRef.current?.setBpm(stageState.bpm); }, [stageState.bpm]);
+  React.useEffect(() => { stageRef.current?.setDanceAmp(stageState.danceAmp); }, [stageState.danceAmp]);
+  React.useEffect(() => { stageRef.current?.setConfetti(stageState.confetti); }, [stageState.confetti]);
 
   // system 意图: 音量/主题/全屏/刷新/登出等实际浏览器操作
   const preMuteVolumeRef = React.useRef<number | null>(null)
@@ -160,17 +204,19 @@ export default function ImmersiveDigitalHuman() {
 
   return (
     <Box sx={{ position: 'fixed', inset: 0, zIndex: 1, background: '#05060B' }}>
-      {/* 全屏 VRM 角色(与浮窗同一个 character.vrm) */}
-      <BlenderAvatar
+      {/* 全屏 VRM 角色（与浮窗同一个 character.vrm） — 用 VrmStage 替代 BlenderAvatar */}
+      <VrmStage
+        ref={stageRef}
         modelUrl="/avatars/character.vrm"
         currentAction={action}
         emotion={emotion}
         viseme={viseme}
-        autoRotate={false}
+        autoBlink={stageState.autoBlink}
+        lookAtCamera={stageState.lookAtCamera}
         sx={{ position: 'absolute', inset: 0 }}
       />
 
-      {/* 顶部:退出按钮 */}
+      {/* 顶部:退出按钮 + 控制台切换 */}
       <IconButton
         onClick={() => router.back()}
         size="medium"
@@ -188,6 +234,41 @@ export default function ImmersiveDigitalHuman() {
       >
         <CloseRoundedIcon />
       </IconButton>
+      <IconButton
+        onClick={() => setPanelOpen((o) => !o)}
+        size="medium"
+        aria-label="舞台控制台"
+        sx={{
+          position: 'absolute',
+          top: 12,
+          right: 12,
+          zIndex: 3,
+          color: panelOpen ? '#ff4fd8' : 'rgba(255,255,255,0.85)',
+          bgcolor: panelOpen ? 'rgba(255,79,216,0.15)' : 'rgba(0,0,0,0.4)',
+          backdropFilter: 'blur(8px)',
+          '&:hover': { bgcolor: 'rgba(255,79,216,0.2)' },
+        }}
+      >
+        <TuneRoundedIcon />
+      </IconButton>
+
+      {/* 底部 chip 条：情绪 + 姿势（移动端隐藏，腾位置给 chat） */}
+      <Box sx={{
+        position: 'absolute', left: 16, right: { xs: 16, md: 540 }, bottom: { xs: 100, md: 100 },
+        zIndex: 3, display: { xs: 'none', md: 'flex' }, flexDirection: 'column', gap: 0.5,
+      }}>
+        <VrmEmotionChips handle={stageRef.current} />
+        <VrmPoseChips handle={stageRef.current} />
+      </Box>
+
+      {/* 右侧控制面板 */}
+      <VrmControlPanel
+        open={panelOpen}
+        onClose={() => setPanelOpen(false)}
+        handle={stageRef.current}
+        state={stageState}
+        onChange={updateStageState}
+      />
 
       {/* 右下角:聊天输入 + 记录(不再用底部全宽遮挡 avatar) */}
       <Box sx={{

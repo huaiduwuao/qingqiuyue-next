@@ -30,7 +30,8 @@ export type ExpressionTemplateName =
   | 'smug'
   | 'worried'
   | 'excited'
-  | 'bored';
+  | 'bored'
+  | 'relaxed';
 
 export type BlendshapeDict = Record<string, number>;
 
@@ -169,6 +170,15 @@ export const EXPRESSION_PRESETS: Record<ExpressionTemplateName, BlendshapeDict> 
     mouthOpen: 0.15,
     browInnerUp: 0.1,
   },
+
+  // VRM 舞台新增 — "relaxed" 不是 ARKit 标准名，组合出"放松/舒适"的感觉
+  // 配方：浅笑 + 眉心上抬 + 眼轻眯 + 嘴微张（呼吸感）
+  relaxed: {
+    mouthSmileLeft: 0.25, mouthSmileRight: 0.25,
+    browInnerUp: 0.15,
+    eyeSquintLeft: 0.15, eyeSquintRight: 0.15,
+    mouthOpen: 0.05,
+  },
 };
 
 /**
@@ -223,4 +233,5 @@ export const EXPRESSION_PRESET_LABELS: Record<ExpressionTemplateName, string> = 
   worried: '担忧',
   excited: '激动',
   bored: '无聊',
+  relaxed: '放松',
 };

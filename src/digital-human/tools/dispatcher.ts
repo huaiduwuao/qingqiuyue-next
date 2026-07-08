@@ -39,8 +39,22 @@ export interface DigitalHumanSinks {
   speak: (text: string, audioUrl?: string) => void;
   /** 移动到目标 */
   move: (target: { x: number; y?: number; z?: number } | 'left' | 'right' | 'center', opts?: { durationMs?: number; style?: 'walk' | 'run' | 'teleport' }) => void;
-  /** 相机 */
+  /** 相机（旧） */
   camera: (action: 'zoomIn' | 'zoomOut' | 'orbit' | 'face' | 'full' | 'reset') => void;
+  /** 场景切换（VRM 舞台新增，旧的 BlenderAvatar 实现是 noop） */
+  setScene?: (name: 'concert' | 'idol' | 'garden' | 'neon' | 'studio') => void;
+  /** 相机预设（VRM 舞台新增，6 个机位平滑切换） */
+  setCameraPreset?: (name: 'front' | 'three' | 'side' | 'low' | 'top' | 'back') => void;
+  /** 舞蹈风格（VRM 舞台新增） */
+  setDanceStyle?: (style: 'groove' | 'idol') => void;
+  /** 动作幅度 */
+  setDanceAmp?: (value: number) => void;
+  /** BPM */
+  setBpm?: (value: number) => void;
+  /** 开/关跳舞 */
+  setDancing?: (on: boolean) => void;
+  /** 姿势（VRM 舞台新增，独立于动作系统） */
+  setPose?: (name: string) => void;
 }
 
 export interface DispatchResult {
@@ -118,6 +132,20 @@ export function dispatchToolCall(call: ToolCall, sinks: DigitalHumanSinks): Disp
         const action = call.params?.action || 'reset';
         sinks.camera(action);
         return { ok: true, toolName: 'camera.control', result: { action } };
+      }
+
+      case 'scene.change': {
+        const name = call.params?.name || 'concert';
+        if (sinks.setScene) sinks.setScene(name);
+        else console.warn('[dispatcher] scene.change: sinks.setScene 未实现 (旧 BlenderAvatar)');
+        return { ok: true, toolName: 'scene.change', result: { name, applied: !!sinks.setScene } };
+      }
+
+      case 'camera.preset': {
+        const name = call.params?.name || 'front';
+        if (sinks.setCameraPreset) sinks.setCameraPreset(name);
+        else console.warn('[dispatcher] camera.preset: sinks.setCameraPreset 未实现 (旧 BlenderAvatar)');
+        return { ok: true, toolName: 'camera.preset', result: { name, applied: !!sinks.setCameraPreset } };
       }
 
       default:

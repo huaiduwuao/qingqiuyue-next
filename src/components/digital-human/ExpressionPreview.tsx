@@ -43,13 +43,14 @@ const TONE_COLORS: Record<ExpressionTemplateName, string> = {
   worried: '#8d6e63',
   excited: '#ff7043',
   bored: '#b0bec5',
+  relaxed: '#80cbc4',
 };
 
 const PREVIEW_ORDER: ExpressionTemplateName[] = [
   'happy', 'sad', 'angry', 'surprised', 'shy',
   'cry', 'laugh', 'love', 'thinking', 'confused',
   'fearful', 'disgusted', 'sleepy_tired', 'smug', 'worried',
-  'excited', 'bored',
+  'excited', 'bored', 'relaxed',
 ];
 
 export default function ExpressionPreview({ active, onChange, onEmotionChange }: Props) {
