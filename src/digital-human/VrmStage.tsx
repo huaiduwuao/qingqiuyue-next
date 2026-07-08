@@ -27,7 +27,7 @@
 import React, { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, CircularProgress, Typography } from '@mui/material';
 
-import { loadConfigBundle } from './vrm/config/loader';
+import { loadConfigBundle, loadConfigBundleAsync } from './vrm/config/loader';
 import type { ConfigBundle } from './vrm/config/types';
 import { loadAvatar, type Cached } from './vrm/loadAvatar';
 import { useVrmRenderer } from './vrm/useVrmRenderer';
@@ -133,6 +133,18 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   // Phase 2：父组件可以传 config prop 覆盖
   const configBundle = configProp ?? loadConfigBundle();
   console.log(`[VrmStage] using ConfigBundle: ${configBundle.model.name}, ${configBundle.scenes.length} scenes, ${configBundle.actions.length} actions, ${configBundle.expressions.length} expressions, ${configBundle.visemes.length} visemes`);
+
+  // Phase 2: 异步从 API 拉 config 覆盖模块级 BUNDLE
+  // 注意：模块级字典（EXPRESSION_PRESETS / VISEME_BLENDSHAPES / ACTION_UPDATERS）
+  // 是在 import 时生成的，APB 覆盖后需要 VrmStage 重 mount 才能看到。
+  // 这里只发请求更新 BUNDLE，真正消费 BUNDLE 的代码在 VrmStage 之外的层
+  // （如 useVrmScene / useVrmDance / useVrmLipSync）—— Phase 3 切到 React Context 之后会全链路 reactive
+  React.useEffect(() => {
+    if (configProp) return; // 父组件已注入，不异步覆盖
+    loadConfigBundleAsync().then((b) => {
+      console.log(`[VrmStage] async config updated: ${b.actions.length} actions, ${b.scenes.length} scenes`);
+    });
+  }, [configProp]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const vrmSceneRef = useRef<any>(null);  // THREE.Object3D of the loaded VRM

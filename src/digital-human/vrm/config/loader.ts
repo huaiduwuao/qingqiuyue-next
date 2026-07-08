@@ -2,11 +2,15 @@
  * vrm/config/loader.ts — 配置加载器
  *
  * Phase 1：从 src/data/seed/ 静态 import JSON
- * Phase 2：会改成先 fetch /api/realtime/digital-human/config?modelId=...
- *         → 失败时 fallback 到静态 JSON
+ * Phase 2：先 fetch /api/realtime/digital-human/* → 失败时 fallback 到静态 JSON
  *
  * 返回完整的 ConfigBundle（model + scenes + actions + dances + poses + expressions + visemes）
  * 一次拉齐，VrmStage 整个生命周期不重新加载。
+ *
+ * 同步入口（loadConfigBundle）：模块加载时立即返回 seed JSON，
+ *   tools/*.ts 能在 import 时生成字典（保持向后兼容）
+ * 异步入口（loadConfigBundleAsync）：先 fetch API，再用 API 数据覆盖
+ *   VrmStage mount 时调用，模型配置变化时无需重启
  */
 
 import modelCharacter from '../../../data/seed/models/character.json';
@@ -39,7 +43,7 @@ const SCENES: SceneConfig[] = [
 /** 默认 model 总是 character（Phase 2 改成多 model） */
 const DEFAULT_MODEL = modelCharacter as unknown as VrmModelConfig;
 
-const BUNDLE: ConfigBundle = {
+let BUNDLE: ConfigBundle = {
   model: DEFAULT_MODEL,
   scenes: SCENES,
   actions: actionsCharacter as unknown as ActionConfig[],
@@ -72,6 +76,47 @@ export function buildLookups(bundle: ConfigBundle) {
   const expressionByName = new Map(bundle.expressions.map((e) => [e.name, e]));
   const visemeByName = new Map(bundle.visemes.map((v) => [v.name, v]));
   return { sceneByName, actionByName, danceByName, poseByName, expressionByName, visemeByName };
+}
+
+/** 异步加载：从 API 拉所有 config，覆盖模块级 BUNDLE
+ *  返回 Promise<ConfigBundle>（resolve 为最终生效的 bundle）
+ *  失败时 fallback 到 seed JSON（不抛错）
+ */
+export async function loadConfigBundleAsync(): Promise<ConfigBundle> {
+  if (typeof window === 'undefined') return BUNDLE; // SSR 阶段不动
+  try {
+    const [
+      models, actions, danceStyles, poses, expressions, visemes, scenes,
+    ] = await Promise.all([
+      import('../../api/digitalHumanConfig').then(m => m.listModels()),
+      import('../../api/digitalHumanConfig').then(m => m.listActions('character')),
+      import('../../api/digitalHumanConfig').then(m => m.listDanceStyles('character')),
+      import('../../api/digitalHumanConfig').then(m => m.listPoses('character')),
+      import('../../api/digitalHumanConfig').then(m => m.listExpressionPresets('character')),
+      import('../../api/digitalHumanConfig').then(m => m.listVisemes('character')),
+      import('../../api/digitalHumanConfig').then(m => m.listScenes()),
+    ]);
+    // 只在所有都拿到的情况下覆盖（部分失败保留 seed）
+    if (models && models.length && actions && danceStyles && poses && expressions && visemes && scenes) {
+      BUNDLE = {
+        model: models[0],
+        scenes: scenes!,
+        actions: actions!,
+        danceStyles: danceStyles!,
+        poses: poses!,
+        expressions: expressions!,
+        visemes: visemes!,
+      };
+      console.log('[loader] 异步覆盖 ConfigBundle:', {
+        model: BUNDLE.model.name,
+        actions: BUNDLE.actions.length,
+        scenes: BUNDLE.scenes.length,
+      });
+    }
+  } catch (e) {
+    console.warn('[loader] loadConfigBundleAsync failed, fallback to seed:', e);
+  }
+  return BUNDLE;
 }
 
 /** 默认 scene = isDefault=true 的 */
