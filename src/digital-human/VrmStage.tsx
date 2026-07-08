@@ -24,7 +24,7 @@
  *   - getScreenshot()  (debug)
  */
 
-import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import React, { forwardRef, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, CircularProgress, Typography } from '@mui/material';
 
 import { loadAvatar, type Cached } from './vrm/loadAvatar';
@@ -252,11 +252,11 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rendererState, autoBlink, confettiOn]);
 
-  // 暴露 handle — 关键：deps 留空，handle 只构造一次
-  // 所有方法内部都通过 ref 读最新值（sceneApiRef/danceApiRef 等）
-  useImperativeHandle(ref, () => {
-    console.log('[VrmStage] handle 已构造（deps=[], 只跑一次）');
-    const h: VrmStageHandle = {
+  // 暴露 handle — 用 useMemo 直接构造（不用 useImperativeHandle，React 19 行为不稳）
+  // handle 引用稳定（deps=[] 只跑一次），方法内部用 ref 读最新值
+  const handle: VrmStageHandle = useMemo(() => {
+    console.log('[VrmStage] handle 已构造（useMemo, 只跑一次）');
+    return {
       setEmotion: (dict) => {
         if (!vrmDataRef.current?.expressionManager) { console.warn('[VrmStage.setEmotion] expressionManager 未就绪'); return; }
         console.log('[VrmStage.setEmotion]', dict);
@@ -298,19 +298,20 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         try { return r.domElement.toDataURL('image/png'); } catch { return null; }
       },
     };
-    handleInternalRef.current = h;
-    return h;
-  // 关键：deps 留空，handle 只构造一次（每次构造的 sceneApi/danceApi 不同对象会让 handle 一直变）
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 同步给内部 ref（让 forwardRef 的 ref 也能拿到 —— 即使父组件没传 ref）
+  handleInternalRef.current = handle;
+  if (ref) (ref as React.MutableRefObject<VrmStageHandle | null>).current = handle;
 
   // useEffect: handle 构造后通知父组件（onReady 是 useState 的 setter，引用稳定）
   useEffect(() => {
     if (!onReady) { console.warn('[VrmStage.onReady] onReady prop 未传'); return; }
-    if (!handleInternalRef.current) { console.warn('[VrmStage.onReady] handleInternalRef.current 仍是 null (factory 还没跑？)'); return; }
+    if (!handle) { console.warn('[VrmStage.onReady] handle 还没构造'); return; }
     console.log('[VrmStage] onReady 触发');
-    onReady(handleInternalRef.current);
-  }, [onReady]);
+    onReady(handle);
+  }, [onReady, handle]);
 
   function rebuildConfetti(_name: ScenePresetName) {
     if (!rendererState || !confettiOn) return;
