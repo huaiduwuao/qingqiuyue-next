@@ -40,6 +40,7 @@ import { useVrmCamera } from './vrm/useVrmCamera';
 import { makeConfetti, updateConfetti } from './vrm/particles';
 import { createAudioHandle, type AudioHandle } from './vrm/audio';
 import { detectVrmVersion, setExpression, setExpressionDict, listAvailableExpressions } from './vrm/vrmCompat';
+import { lookupAutoExpression } from './vrm/config/types';
 import type { ScenePresetName, CameraPresetName, DanceStyle, PoseName } from './vrm/types';
 import { POSES } from './vrm/poses';
 
@@ -165,6 +166,11 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   // emotionLerp / visemeLerp 用 ref 拿 em（vrm 异步加载后才就绪）
   const emotionLerp = useExpressionLerp({ emRef: expressionManagerRef, speed: 6 });
   const visemeLerp = useExpressionLerp({ emRef: expressionManagerRef, speed: 10 });
+
+  // Phase 4: 统一动画状态机（auto-emotion/viseme 适配）
+  const animStateRef = useRef<{ currentAction: string; currentPose: string }>({
+    currentAction: 'idle', currentPose: 'idle',
+  });
 
   // 关键：把 hook 返回值（每次 render 都是新对象）存到 ref，handle 内部读 ref
   // 这样 useImperativeHandle 的 factory 用空 deps 只跑一次，handle 引用稳定
@@ -494,7 +500,31 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         }
         visemeLerp.setTarget(filtered);
       },
-      setAction: (name) => { console.log('[VrmStage.setAction]', name); danceApiRef.current?.setPose(name as PoseName); },
+      setAction: (name) => {
+        console.log('[VrmStage.setAction]', name);
+        // Phase 4: 状态机记下 currentAction
+        animStateRef.current.currentAction = name;
+        // 触发姿势（useVrmDance.setPose 会写 currentPoseRef + 重置 blend）
+        danceApiRef.current?.setPose(name as PoseName);
+        // Phase 5: auto-emotion/viseme 适配（DEFAULT_ACTION_EXPRESSION_MAP）
+        const auto = lookupAutoExpression(name);
+        if (auto.expression || auto.viseme) {
+          const emotionDict: Record<string, number> = {};
+          if (auto.expression) {
+            const expCfg = configBundle.expressions.find((e) => e.name === auto.expression);
+            if (expCfg) {
+              const intensity = auto.intensity ?? 1;
+              for (const [k, v] of Object.entries(expCfg.blendshapes)) {
+                emotionDict[k] = v * intensity;
+              }
+            }
+          }
+          emotionLerp.setTarget(emotionDict);
+          if (auto.viseme) {
+            visemeLerp.setTarget({ [auto.viseme]: 0.8 });
+          }
+        }
+      },
       setScene: (name) => {
         console.log('[VrmStage.setScene]', name);
         sceneApiRef.current?.setPreset(name);
