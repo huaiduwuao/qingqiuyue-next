@@ -166,6 +166,26 @@ export default function VrmControlPanel({ open, onClose, handle, state, onChange
 
         <Divider sx={{ my: 1, borderColor: 'rgba(255,255,255,0.06)' }} />
 
+        {/* 身体位置（方向键 pad + 跑/走模式） */}
+        {sectionLabel('身体位置')}
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gridTemplateRows: 'repeat(2, 1fr)', gap: 0.5, mb: 0.5 }}>
+          <Box /><Button size="small" variant="outlined" onClick={() => handle?.move('forward', { durationMs: 1200 })} sx={{ fontSize: 14, py: 0.5 }}>↑</Button><Box />
+          <Button size="small" variant="outlined" onClick={() => handle?.move('left', { durationMs: 1200 })} sx={{ fontSize: 14, py: 0.5 }}>←</Button>
+          <Button size="small" variant="outlined" onClick={() => handle?.setPosition(0, 0)} sx={{ fontSize: 11, py: 0.5 }}>回中</Button>
+          <Button size="small" variant="outlined" onClick={() => handle?.move('right', { durationMs: 1200 })} sx={{ fontSize: 14, py: 0.5 }}>→</Button>
+          <Box /><Button size="small" variant="outlined" onClick={() => handle?.move('back', { durationMs: 1200 })} sx={{ fontSize: 14, py: 0.5 }}>↓</Button><Box />
+        </Box>
+        <Stack direction="row" spacing={0.5} sx={{ mb: 0.5 }}>
+          <Button size="small" variant="outlined"
+            onClick={() => { handle?.setPosition(0, 0); handle?.setCameraPreset('front'); }}
+            sx={{ flex: 1, fontSize: 11, py: 0.5 }}>↺ 重置</Button>
+          <Button size="small" variant="outlined"
+            onClick={() => handle?.move('forward', { durationMs: 600, style: 'run' })}
+            sx={{ flex: 1, fontSize: 11, py: 0.5 }}>🏃 跑</Button>
+        </Stack>
+
+        <Divider sx={{ my: 1, borderColor: 'rgba(255,255,255,0.06)' }} />
+
         {/* 跳舞 */}
         {sectionLabel('跳舞')}
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>

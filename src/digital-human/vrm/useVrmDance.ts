@@ -24,12 +24,14 @@ export interface UseVrmDanceOptions {
   initialAmp?: number;
   initialStyle?: DanceStyle;
   initialDancing?: boolean;
+  /** 行走状态（ref）—— 内部读 .current 拿 { moving, phase, style } */
+  walkRef?: React.MutableRefObject<{ moving: boolean; phase: number; style: 'walk' | 'run' | 'idle' | 'teleport' }>;
 }
 
 const P = Math.PI;
 
 export function useVrmDance(opts: UseVrmDanceOptions) {
-  const { vrmRef, audio, initialBpm = 120, initialAmp = 1, initialStyle = 'groove', initialDancing = false } = opts;
+  const { vrmRef, audio, walkRef, initialBpm = 120, initialAmp = 1, initialStyle = 'groove', initialDancing = false } = opts;
   const [dancing, setDancing] = useState(initialDancing);
   const [style, setStyle] = useState<DanceStyle>(initialStyle);
   const [bpm, setBpm] = useState(initialBpm);
@@ -139,6 +141,26 @@ export function useVrmDance(opts: UseVrmDanceOptions) {
     set('rightUpperLeg', -legBend, 0, -0.03);
     set('leftLowerLeg', legBend * 1.9, 0, 0);
     set('rightLowerLeg', legBend * 1.9, 0, 0);
+
+    // —— 行走覆盖：moving=true 时腿前后摆动 + 身体轻微颠簸 ——
+    if (walkRef?.current?.moving) {
+      const w = walkRef.current;
+      const swing = Math.sin(w.phase) * 0.55;
+      const kneeBend = Math.max(0, -Math.sin(w.phase)) * 0.6;  // 后摆时膝盖弯
+      const bounce = Math.abs(Math.sin(w.phase * 2)) * 0.03;   // 上下颠簸
+      set('leftUpperLeg', swing, 0, 0);
+      set('rightUpperLeg', -swing, 0, 0);
+      set('leftLowerLeg', kneeBend, 0, 0);
+      set('rightLowerLeg', kneeBend, 0, 0);
+      // 身体轻微上下
+      if (hips) hips.position.y = hipsBaseYRef.current + bounce;
+      // 手臂轻微反向摆（自然行走）
+      set('leftUpperArm', 0, 0, -1.15 + swing * 0.25);
+      set('rightUpperArm', 0, 0, 1.15 - swing * 0.25);
+    } else if (hips) {
+      // 静止时归位
+      hips.position.y = hipsBaseYRef.current;
+    }
 
     // pose 平滑混合（在 dance 写入之后做"覆盖"，不破坏 dance 的动态）
     poseBlendRef.current = Math.min(1, poseBlendRef.current + dt * 3);

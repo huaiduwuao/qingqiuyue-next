@@ -63,6 +63,12 @@ export interface VrmStageHandle {
   /** 麦克风 */
   startMic: () => Promise<boolean>;
   stopMic: () => void;
+  /** 身体位置（body.move tool） */
+  move: (target: { x: number; y?: number; z: number } | 'left' | 'right' | 'center' | 'forward' | 'back', opts?: { durationMs?: number; style?: 'walk' | 'run' | 'teleport' }) => void;
+  /** 直接设位置（瞬移） */
+  setPosition: (x: number, z: number) => void;
+  /** 获取当前 (x, z) */
+  getPosition: () => { x: number; z: number };
   getScreenshot: () => string | null;
 }
 
@@ -134,6 +140,17 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   const [confettiOn, setConfettiOn] = useState(false);
   const confettiRef = useRef<any>(null);
   const vrmVersionRef = useRef<0 | 1>(1);  // VRM 0.0/1.0 — 0 用 joy/sorrow/fun/viseme_aa，1 用 happy/aa
+  // 角色位置（x, z，y 始终 0 在地面上）
+  const positionRef = useRef({ x: 0, z: 0, prevX: 0, prevZ: 0 });
+  // 行走状态（useVrmDance 通过 walkRef 读这个来播放行走动画）
+  // 移动动画状态
+  const moveAnimRef = useRef<{ active: boolean; startTime: number; duration: number; fromX: number; fromZ: number; toX: number; toZ: number; style: 'walk' | 'run' | 'teleport' }>({
+    active: false, startTime: 0, duration: 0, fromX: 0, fromZ: 0, toX: 0, toZ: 0, style: 'walk',
+  });
+  // 行走状态（useVrmDance 通过 walkRef 读这个来播放行走动画）
+  const walkRef = useRef<{ moving: boolean; phase: number; style: 'walk' | 'run' | 'idle' | 'teleport' }>({ moving: false, phase: 0, style: 'idle' });
+  // 行走步进（每帧 dt 累积）
+  const walkStepRef = useRef(0);
 
   const userLipOverrideRef = useRef(false);
   const userBlinkOverrideRef = useRef(false);
@@ -156,7 +173,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   sceneApiRef.current = sceneApi;
 
   // 3. dance（用 ref 传 vrm —— VRM 是异步加载的，首次渲染时 vrmRef.current 是 null）
-  const danceApi = useVrmDance({ vrmRef, audio, initialDancing: false });
+  const danceApi = useVrmDance({ vrmRef, audio, walkRef, initialDancing: false });
   danceApiRef.current = danceApi;
 
   // 4. lip sync
@@ -273,12 +290,52 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
           if (EXPRESSION_PASSTHROUGH.has(k)) setExpression(em, k, v, vrmVersionRef.current);
         }
       }
-      // 4. dance
+      // 4. 位置 / 行走动画
+      const mv = moveAnimRef.current;
+      const pos = positionRef.current;
+      if (mv.active) {
+        const elapsed = performance.now() - mv.startTime;
+        const k = Math.min(1, elapsed / mv.duration);
+        const eased = 1 - Math.pow(1 - k, 2);  // easeOutQuad
+        pos.prevX = pos.x; pos.prevZ = pos.z;
+        pos.x = mv.fromX + (mv.toX - mv.fromX) * eased;
+        pos.z = mv.fromZ + (mv.toZ - mv.fromZ) * eased;
+        if (k >= 1) {
+          mv.active = false;
+          walkRef.current.moving = false;
+        }
+        // 行走步进（基于速度：walk 4 步/秒，run 8 步/秒）
+        const speed = mv.style === 'run' ? 8 : 4;
+        walkStepRef.current += dt * speed * 2 * Math.PI;
+        walkRef.current.phase = walkStepRef.current;
+      } else {
+        pos.prevX = pos.x; pos.prevZ = pos.z;
+        // 静止时步进慢衰减（让最后的相位平滑停下，不跳）
+        walkStepRef.current *= 0.92;
+        walkRef.current.phase = walkStepRef.current;
+        walkRef.current.moving = false;
+      }
+      // 把位置应用到模型 + 让相机跟随平移
+      if (vrmDataRef.current?.scene) {
+        vrmDataRef.current.scene.position.x = pos.x;
+        vrmDataRef.current.scene.position.z = pos.z;
+      }
+      const dx = pos.x - pos.prevX;
+      const dz = pos.z - pos.prevZ;
+      if ((dx !== 0 || dz !== 0) && rendererState) {
+        rendererState.camera.position.x += dx;
+        rendererState.camera.position.z += dz;
+        if (rendererState.controls) {
+          rendererState.controls.target.x += dx;
+          rendererState.controls.target.z += dz;
+        }
+      }
+      // 5. dance
       danceApi.tick(t, dt);
-      // 5. scene breath
+      // 6. scene breath
       const bass = lipApi.audio.poll().bass;
       sceneApi.tick(t, dt, bass, danceApi.dancing, 1);
-      // 6. camera anim
+      // 7. camera anim
       camApi.tick(dt);
       // 7. confetti
       if (confettiOn && confettiRef.current && rendererState) {
@@ -332,6 +389,51 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       stopSong: () => { console.log('[VrmStage.stopSong]'); lipApiRef.current?.stopSong(); },
       startMic: async () => { console.log('[VrmStage.startMic]'); const ok = await lipApiRef.current?.startMic() ?? false; console.log('[VrmStage.startMic] result=', ok); return ok; },
       stopMic: () => { console.log('[VrmStage.stopMic]'); lipApiRef.current?.stopMic(); },
+      move: (target, opts = {}) => {
+        const durationMs = opts.durationMs ?? 1500;
+        const style = opts.style ?? 'walk';
+        // target 解析
+        let tx = positionRef.current.x, tz = positionRef.current.z;
+        if (target === 'left') { tx -= 2; }
+        else if (target === 'right') { tx += 2; }
+        else if (target === 'forward') { tz -= 2; }
+        else if (target === 'back') { tz += 2; }
+        else if (target === 'center') { tx = 0; tz = 0; }
+        else if (typeof target === 'object') { tx = target.x ?? tx; tz = target.z ?? tz; }
+        // 边界：限制在 ±6
+        tx = Math.max(-6, Math.min(6, tx));
+        tz = Math.max(-6, Math.min(6, tz));
+        console.log(`[VrmStage.move] style=${style} duration=${durationMs}ms from=(${positionRef.current.x.toFixed(2)}, ${positionRef.current.z.toFixed(2)}) to=(${tx.toFixed(2)}, ${tz.toFixed(2)})`);
+        walkRef.current.style = style;
+        if (style === 'teleport') {
+          positionRef.current.prevX = positionRef.current.x;
+          positionRef.current.prevZ = positionRef.current.z;
+          positionRef.current.x = tx;
+          positionRef.current.z = tz;
+          walkRef.current.moving = false;
+          return;
+        }
+        moveAnimRef.current = {
+          active: true,
+          startTime: performance.now(),
+          duration: durationMs,
+          fromX: positionRef.current.x,
+          fromZ: positionRef.current.z,
+          toX: tx, toZ: tz,
+          style,
+        };
+        walkRef.current.moving = true;
+        walkStepRef.current = 0;
+      },
+      setPosition: (x, z) => {
+        console.log(`[VrmStage.setPosition] (${x}, ${z})`);
+        positionRef.current.prevX = positionRef.current.x;
+        positionRef.current.prevZ = positionRef.current.z;
+        positionRef.current.x = Math.max(-6, Math.min(6, x));
+        positionRef.current.z = Math.max(-6, Math.min(6, z));
+        walkRef.current.moving = false;
+      },
+      getPosition: () => ({ x: positionRef.current.x, z: positionRef.current.z }),
       getScreenshot: () => {
         const r = (rendererStateRef.current as any)?.renderer;
         if (!r) return null;
