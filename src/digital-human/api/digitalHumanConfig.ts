@@ -60,18 +60,34 @@ export const deleteAction = (id: number) => jsend<{ deleted: number }>('DELETE',
 // ---------- Dance Styles ----------
 export const listDanceStyles = (modelId?: string) =>
   jget<DanceStyleConfig[]>(`${BASE}/dance-styles${modelId ? `?modelId=${encodeURIComponent(modelId)}` : ''}`);
+export const getDanceStyle = (id: number) => jget<DanceStyleConfig>(`${BASE}/dance-styles/${id}`);
+export const createDanceStyle = (e: DanceStyleConfig) => jsend<DanceStyleConfig>('POST', `${BASE}/dance-styles`, e);
+export const updateDanceStyle = (id: number, e: DanceStyleConfig) => jsend<DanceStyleConfig>('PUT', `${BASE}/dance-styles/${id}`, e);
+export const deleteDanceStyle = (id: number) => jsend<{ deleted: number }>('DELETE', `${BASE}/dance-styles/${id}`);
 
 // ---------- Poses ----------
 export const listPoses = (modelId?: string) =>
   jget<PoseConfig[]>(`${BASE}/poses${modelId ? `?modelId=${encodeURIComponent(modelId)}` : ''}`);
+export const getPose = (id: number) => jget<PoseConfig>(`${BASE}/poses/${id}`);
+export const createPose = (e: PoseConfig) => jsend<PoseConfig>('POST', `${BASE}/poses`, e);
+export const updatePose = (id: number, e: PoseConfig) => jsend<PoseConfig>('PUT', `${BASE}/poses/${id}`, e);
+export const deletePose = (id: number) => jsend<{ deleted: number }>('DELETE', `${BASE}/poses/${id}`);
 
 // ---------- Expression Presets ----------
 export const listExpressionPresets = (modelId?: string) =>
   jget<ExpressionPresetConfig[]>(`${BASE}/expression-presets${modelId ? `?modelId=${encodeURIComponent(modelId)}` : ''}`);
+export const getExpressionPreset = (id: number) => jget<ExpressionPresetConfig>(`${BASE}/expression-presets/${id}`);
+export const createExpressionPreset = (e: ExpressionPresetConfig) => jsend<ExpressionPresetConfig>('POST', `${BASE}/expression-presets`, e);
+export const updateExpressionPreset = (id: number, e: ExpressionPresetConfig) => jsend<ExpressionPresetConfig>('PUT', `${BASE}/expression-presets/${id}`, e);
+export const deleteExpressionPreset = (id: number) => jsend<{ deleted: number }>('DELETE', `${BASE}/expression-presets/${id}`);
 
 // ---------- Visemes ----------
 export const listVisemes = (modelId?: string) =>
   jget<VisemeConfig[]>(`${BASE}/visemes${modelId ? `?modelId=${encodeURIComponent(modelId)}` : ''}`);
+export const getViseme = (id: number) => jget<VisemeConfig>(`${BASE}/visemes/${id}`);
+export const createViseme = (e: VisemeConfig) => jsend<VisemeConfig>('POST', `${BASE}/visemes`, e);
+export const updateViseme = (id: number, e: VisemeConfig) => jsend<VisemeConfig>('PUT', `${BASE}/visemes/${id}`, e);
+export const deleteViseme = (id: number) => jsend<{ deleted: number }>('DELETE', `${BASE}/visemes/${id}`);
 
 // ---------- Scenes ----------
 export const listScenes = () => jget<SceneConfig[]>(`${BASE}/scenes`);

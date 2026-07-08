@@ -3,10 +3,13 @@
 /**
  * /system/digital-human-config
  *
- * 数字人配置可视化维护（Phase 5.1）
+ * 数字人配置可视化维护（Phase 5.1 / 5.2）
  *   - Models（角色模型 URL + 物理胶囊尺寸 + 名字映射）
- *   - Actions（27 个动作 + formula）
+ *   - Actions（29 个动作 + formula）
  *   - Dance Styles（groove / idol / walk / run + formula）
+ *   - Poses（6 个静态姿势）
+ *   - Expressions（20 个表情预设）
+ *   - Visemes（18 个口型）
  *   - Scenes（6 个场景 + lights + decorations + cameraPresets + particles）
  */
 
@@ -23,28 +26,34 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   listModels, createModel, updateModel, deleteModel,
   listActions, createAction, updateAction, deleteAction,
-  listDanceStyles,
+  listDanceStyles, createDanceStyle, updateDanceStyle, deleteDanceStyle,
+  listPoses, createPose, updatePose, deletePose,
+  listExpressionPresets, createExpressionPreset, updateExpressionPreset, deleteExpressionPreset,
+  listVisemes, createViseme, updateViseme, deleteViseme,
   listScenes, createScene, updateScene, deleteScene,
 } from '@/digital-human/api/digitalHumanConfig';
 
-type Tab = 'models' | 'actions' | 'dances' | 'scenes';
+type TabKey = 'models' | 'actions' | 'dances' | 'poses' | 'expressions' | 'visemes' | 'scenes';
 
-const tabs: { key: Tab; label: string }[] = [
+const tabs: { key: TabKey; label: string }[] = [
   { key: 'models', label: '模型 (Models)' },
   { key: 'actions', label: '动作 (Actions)' },
   { key: 'dances', label: '舞蹈风格 (Dance Styles)' },
+  { key: 'poses', label: '姿势 (Poses)' },
+  { key: 'expressions', label: '表情 (Expressions)' },
+  { key: 'visemes', label: '口型 (Visemes)' },
   { key: 'scenes', label: '场景 (Scenes)' },
 ];
 
 export default function DigitalHumanConfigPage() {
   const qc = useQueryClient();
-  const [tab, setTab] = React.useState<Tab>('models');
+  const [tab, setTab] = React.useState<TabKey>('models');
 
   return (
     <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
       <Typography variant="h5" sx={{ fontWeight: 600, letterSpacing: '.12em' }}>数字人配置</Typography>
       <Typography sx={{ color: 'text.secondary', fontSize: 13 }}>
-        管理 VRM 模型、动作、舞蹈风格、场景。后端 qingqiuyue-go Postgres，编辑后自动同步到 /api/realtime/digital-human/*。
+        管理 VRM 模型、动作、舞蹈风格、姿势、表情、口型、场景。后端 qingqiuyue-go Postgres，编辑后自动同步到 /api/realtime/digital-human/*。
       </Typography>
 
       <Card variant="outlined">
@@ -57,6 +66,9 @@ export default function DigitalHumanConfigPage() {
           {tab === 'models' && <ModelsTab qc={qc} />}
           {tab === 'actions' && <ActionsTab qc={qc} />}
           {tab === 'dances' && <DancesTab qc={qc} />}
+          {tab === 'poses' && <PosesTab qc={qc} />}
+          {tab === 'expressions' && <ExpressionsTab qc={qc} />}
+          {tab === 'visemes' && <VisemesTab qc={qc} />}
           {tab === 'scenes' && <ScenesTab qc={qc} />}
         </CardContent>
       </Card>
@@ -135,8 +147,9 @@ function ModelEditor({ value, onChange, onSave, onCancel }: any) {
         <FormControlLabel control={<Switch checked={!!value.isDefault} onChange={(_, v) => update({ isDefault: v })} />} label="default" />
       </Stack>
       <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-        Expression / Viseme / Bone Map 是 JSON 字段，Phase 5.2 加可视化编辑。
+        Expression / Viseme / Bone Map 是 JSON 字段，在下方整 JSON 编辑器里维护。
       </Typography>
+      <JsonEditor label="整模型 JSON" value={value} onChange={onChange} minRows={12} />
       <Stack direction="row" spacing={1}>
         <Button variant="contained" onClick={() => onSave(value)}>保存</Button>
         <Button onClick={onCancel}>取消</Button>
@@ -233,6 +246,7 @@ function ActionEditor({ value, onChange, onSave, onCancel }: any) {
       <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
         提示：t=秒, A=振幅, bass=低频能量, phase=相位(行走)。bones 返回 {'{ hips: [x,y,z], leftUpperArm: [...] }'}。
       </Typography>
+      <JsonEditor label="整动作 JSON" value={value} onChange={onChange} minRows={10} />
       <Stack direction="row" spacing={1}>
         <Button variant="contained" onClick={() => onSave(value)}>保存</Button>
         <Button onClick={onCancel}>取消</Button>
@@ -242,28 +256,263 @@ function ActionEditor({ value, onChange, onSave, onCancel }: any) {
 }
 
 // ============================================================================
-// Dances (只读展示)
+// Dance Styles
 // ============================================================================
 function DancesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   const list = useQuery({ queryKey: ['dhc', 'dances'], queryFn: () => listDanceStyles('character'), refetchInterval: 60_000 });
+  const [editing, setEditing] = React.useState<any | null>(null);
+
+  const save = useMutation({
+    mutationFn: (e: any) => editing?.id ? updateDanceStyle(editing.id, e) : createDanceStyle(e),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['dhc', 'dances'] }); setEditing(null); },
+  });
+  const del = useMutation({
+    mutationFn: (id: number) => deleteDanceStyle(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['dhc', 'dances'] }),
+  });
+
+  if (editing) return <DanceEditor value={editing} onChange={setEditing} onSave={save.mutate} onCancel={() => setEditing(null)} />;
+
   return (
     <Stack spacing={1}>
-      <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-        舞蹈风格走 formula。编辑通过 /api/realtime/digital-human/dance-styles（Phase 5.2 加可视化）。当前展示 metadata。
-      </Typography>
-      {list.data?.map((d: any) => (
-        <Card key={d.id} variant="outlined" sx={{ p: 1.5 }}>
-          <Stack direction="row" sx={{ alignItems: 'center' }} spacing={2}>
-            <Chip label={d.category || 'idle_bounce'} size="small" />
-            <Typography sx={{ fontWeight: 600, fontSize: 14, minWidth: 80 }}>{d.name}</Typography>
-            <Typography sx={{ fontSize: 13, color: 'text.secondary', flex: 1 }}>{d.label}</Typography>
-            <Chip label={`BPM ${d.bpm}`} size="small" />
-            {d.params && Object.keys(d.params).length > 0 && (
-              <Chip label={`params: ${Object.keys(d.params).join(', ')}`} size="small" variant="outlined" />
-            )}
-          </Stack>
-        </Card>
-      ))}
+      <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
+        <Button startIcon={<AddRoundedIcon />} variant="contained"
+          onClick={() => setEditing({
+            id: 0, modelId: '00000000-0000-0000-0000-000000000001', name: '', label: '',
+            category: 'idle_bounce', bpm: 120, description: '', formula: '', params: {},
+          })}>新建舞蹈风格</Button>
+      </Stack>
+      <Stack spacing={1}>
+        {list.data?.map((d: any) => (
+          <Card key={d.id} variant="outlined" sx={{ p: 1.5 }}>
+            <Stack direction="row" sx={{ alignItems: 'center' }} spacing={2}>
+              <Chip label={d.category || 'idle_bounce'} size="small" />
+              <Typography sx={{ fontWeight: 600, fontSize: 14, minWidth: 80 }}>{d.name}</Typography>
+              <Typography sx={{ fontSize: 13, color: 'text.secondary', flex: 1 }}>{d.label}</Typography>
+              <Chip label={`BPM ${d.bpm}`} size="small" />
+              {d.params && Object.keys(d.params).length > 0 && (
+                <Chip label={`params: ${Object.keys(d.params).join(', ')}`} size="small" variant="outlined" />
+              )}
+              <IconButton size="small" onClick={() => setEditing(d)}><EditRoundedIcon fontSize="small" /></IconButton>
+              <IconButton size="small" onClick={() => { if (confirm(`删除 ${d.name}?`)) del.mutate(d.id); }}><DeleteOutlineRoundedIcon fontSize="small" /></IconButton>
+            </Stack>
+          </Card>
+        ))}
+      </Stack>
+    </Stack>
+  );
+}
+
+function DanceEditor({ value, onChange, onSave, onCancel }: any) {
+  const update = (patch: any) => onChange({ ...value, ...patch });
+  return (
+    <Stack spacing={2}>
+      <Typography variant="subtitle1">{value.id ? '编辑舞蹈风格' : '新建舞蹈风格'}</Typography>
+      <Stack direction="row" spacing={2}>
+        <TextField label="name" value={value.name} onChange={(e) => update({ name: e.target.value })} size="small" fullWidth />
+        <TextField label="label" value={value.label} onChange={(e) => update({ label: e.target.value })} size="small" fullWidth />
+        <TextField label="BPM" type="number" value={value.bpm} onChange={(e) => update({ bpm: parseInt(e.target.value) || 120 })} size="small" />
+      </Stack>
+      <Stack direction="row" spacing={2}>
+        <FormControl size="small" sx={{ minWidth: 140 }}>
+          <InputLabel>category</InputLabel>
+          <Select value={value.category} label="category" onChange={(e) => update({ category: e.target.value })}>
+            {['idle_bounce', 'wave', 'walk', 'run', 'pose_hold'].map((c) => (
+              <MenuItem key={c} value={c}>{c}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <TextField label="description" value={value.description} onChange={(e) => update({ description: e.target.value })} size="small" fullWidth />
+      </Stack>
+      <TextField
+        label="formula (参数 t/b/blend/A/bass/phase, 返回 { bones, hipsPosY? })"
+        value={value.formula || ''}
+        onChange={(e) => update({ formula: e.target.value })}
+        size="small"
+        fullWidth
+        multiline
+        minRows={6}
+        maxRows={16}
+        sx={{ '& textarea': { fontFamily: 'ui-monospace, monospace', fontSize: 12 } }}
+      />
+      <JsonEditor label="整舞蹈风格 JSON" value={value} onChange={onChange} minRows={10} />
+      <Stack direction="row" spacing={1}>
+        <Button variant="contained" onClick={() => onSave(value)}>保存</Button>
+        <Button onClick={onCancel}>取消</Button>
+      </Stack>
+    </Stack>
+  );
+}
+
+// ============================================================================
+// Poses
+// ============================================================================
+function PosesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
+  const list = useQuery({ queryKey: ['dhc', 'poses'], queryFn: () => listPoses('character'), refetchInterval: 60_000 });
+  const [editing, setEditing] = React.useState<any | null>(null);
+
+  const save = useMutation({
+    mutationFn: (e: any) => editing?.id ? updatePose(editing.id, e) : createPose(e),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['dhc', 'poses'] }); setEditing(null); },
+  });
+  const del = useMutation({
+    mutationFn: (id: number) => deletePose(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['dhc', 'poses'] }),
+  });
+
+  if (editing) return <PoseEditor value={editing} onChange={setEditing} onSave={save.mutate} onCancel={() => setEditing(null)} />;
+
+  return (
+    <Stack spacing={1}>
+      <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
+        <Button startIcon={<AddRoundedIcon />} variant="contained"
+          onClick={() => setEditing({
+            id: 0, modelId: '00000000-0000-0000-0000-000000000001', name: '', label: '',
+            description: '', boneRotations: {},
+          })}>新建姿势</Button>
+      </Stack>
+      <Stack spacing={1}>
+        {list.data?.map((p: any) => (
+          <Card key={p.id} variant="outlined" sx={{ p: 1.5 }}>
+            <Stack direction="row" sx={{ alignItems: 'center' }} spacing={2}>
+              <Typography sx={{ fontWeight: 600, fontSize: 14, minWidth: 80 }}>{p.name}</Typography>
+              <Typography sx={{ fontSize: 13, color: 'text.secondary', flex: 1 }}>{p.label}</Typography>
+              <Chip label={`${Object.keys(p.boneRotations ?? {}).length} bones`} size="small" />
+              <IconButton size="small" onClick={() => setEditing(p)}><EditRoundedIcon fontSize="small" /></IconButton>
+              <IconButton size="small" onClick={() => { if (confirm(`删除 ${p.name}?`)) del.mutate(p.id); }}><DeleteOutlineRoundedIcon fontSize="small" /></IconButton>
+            </Stack>
+          </Card>
+        ))}
+      </Stack>
+    </Stack>
+  );
+}
+
+function PoseEditor({ value, onChange, onSave, onCancel }: any) {
+  return (
+    <Stack spacing={2}>
+      <Typography variant="subtitle1">{value.id ? '编辑姿势' : '新建姿势'}</Typography>
+      <JsonEditor label="整姿势 JSON" value={value} onChange={onChange} minRows={18} />
+      <Stack direction="row" spacing={1}>
+        <Button variant="contained" onClick={() => onSave(value)}>保存</Button>
+        <Button onClick={onCancel}>取消</Button>
+      </Stack>
+    </Stack>
+  );
+}
+
+// ============================================================================
+// Expressions
+// ============================================================================
+function ExpressionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
+  const list = useQuery({ queryKey: ['dhc', 'expressions'], queryFn: () => listExpressionPresets('character'), refetchInterval: 60_000 });
+  const [editing, setEditing] = React.useState<any | null>(null);
+
+  const save = useMutation({
+    mutationFn: (e: any) => editing?.id ? updateExpressionPreset(editing.id, e) : createExpressionPreset(e),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['dhc', 'expressions'] }); setEditing(null); },
+  });
+  const del = useMutation({
+    mutationFn: (id: number) => deleteExpressionPreset(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['dhc', 'expressions'] }),
+  });
+
+  if (editing) return <ExpressionEditor value={editing} onChange={setEditing} onSave={save.mutate} onCancel={() => setEditing(null)} />;
+
+  return (
+    <Stack spacing={1}>
+      <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
+        <Button startIcon={<AddRoundedIcon />} variant="contained"
+          onClick={() => setEditing({
+            id: 0, modelId: '00000000-0000-0000-0000-000000000001', name: '', label: '',
+            emoji: '', intensity: 1, blendshapes: {}, description: '',
+          })}>新建表情</Button>
+      </Stack>
+      <Stack spacing={1}>
+        {list.data?.map((e: any) => (
+          <Card key={e.id} variant="outlined" sx={{ p: 1.5 }}>
+            <Stack direction="row" sx={{ alignItems: 'center' }} spacing={2}>
+              <Typography sx={{ fontSize: 18 }}>{e.emoji}</Typography>
+              <Typography sx={{ fontWeight: 600, fontSize: 14, minWidth: 80 }}>{e.name}</Typography>
+              <Typography sx={{ fontSize: 13, color: 'text.secondary', flex: 1 }}>{e.label}</Typography>
+              <Chip label={`int ${e.intensity}`} size="small" />
+              <Chip label={`${Object.keys(e.blendshapes ?? {}).length} shapes`} size="small" />
+              <IconButton size="small" onClick={() => setEditing(e)}><EditRoundedIcon fontSize="small" /></IconButton>
+              <IconButton size="small" onClick={() => { if (confirm(`删除 ${e.name}?`)) del.mutate(e.id); }}><DeleteOutlineRoundedIcon fontSize="small" /></IconButton>
+            </Stack>
+          </Card>
+        ))}
+      </Stack>
+    </Stack>
+  );
+}
+
+function ExpressionEditor({ value, onChange, onSave, onCancel }: any) {
+  return (
+    <Stack spacing={2}>
+      <Typography variant="subtitle1">{value.id ? '编辑表情' : '新建表情'}</Typography>
+      <JsonEditor label="整表情 JSON" value={value} onChange={onChange} minRows={18} />
+      <Stack direction="row" spacing={1}>
+        <Button variant="contained" onClick={() => onSave(value)}>保存</Button>
+        <Button onClick={onCancel}>取消</Button>
+      </Stack>
+    </Stack>
+  );
+}
+
+// ============================================================================
+// Visemes
+// ============================================================================
+function VisemesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
+  const list = useQuery({ queryKey: ['dhc', 'visemes'], queryFn: () => listVisemes('character'), refetchInterval: 60_000 });
+  const [editing, setEditing] = React.useState<any | null>(null);
+
+  const save = useMutation({
+    mutationFn: (e: any) => editing?.id ? updateViseme(editing.id, e) : createViseme(e),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['dhc', 'visemes'] }); setEditing(null); },
+  });
+  const del = useMutation({
+    mutationFn: (id: number) => deleteViseme(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['dhc', 'visemes'] }),
+  });
+
+  if (editing) return <VisemeEditor value={editing} onChange={setEditing} onSave={save.mutate} onCancel={() => setEditing(null)} />;
+
+  return (
+    <Stack spacing={1}>
+      <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
+        <Button startIcon={<AddRoundedIcon />} variant="contained"
+          onClick={() => setEditing({
+            id: 0, modelId: '00000000-0000-0000-0000-000000000001', name: '', label: '',
+            blendshapes: {},
+          })}>新建口型</Button>
+      </Stack>
+      <Stack spacing={1}>
+        {list.data?.map((v: any) => (
+          <Card key={v.id} variant="outlined" sx={{ p: 1.5 }}>
+            <Stack direction="row" sx={{ alignItems: 'center' }} spacing={2}>
+              <Typography sx={{ fontWeight: 600, fontSize: 14, minWidth: 80 }}>{v.name}</Typography>
+              <Typography sx={{ fontSize: 13, color: 'text.secondary', flex: 1 }}>{v.label}</Typography>
+              <Chip label={`${Object.keys(v.blendshapes ?? {}).length} shapes`} size="small" />
+              <IconButton size="small" onClick={() => setEditing(v)}><EditRoundedIcon fontSize="small" /></IconButton>
+              <IconButton size="small" onClick={() => { if (confirm(`删除 ${v.name}?`)) del.mutate(v.id); }}><DeleteOutlineRoundedIcon fontSize="small" /></IconButton>
+            </Stack>
+          </Card>
+        ))}
+      </Stack>
+    </Stack>
+  );
+}
+
+function VisemeEditor({ value, onChange, onSave, onCancel }: any) {
+  return (
+    <Stack spacing={2}>
+      <Typography variant="subtitle1">{value.id ? '编辑口型' : '新建口型'}</Typography>
+      <JsonEditor label="整口型 JSON" value={value} onChange={onChange} minRows={14} />
+      <Stack direction="row" spacing={1}>
+        <Button variant="contained" onClick={() => onSave(value)}>保存</Button>
+        <Button onClick={onCancel}>取消</Button>
+      </Stack>
     </Stack>
   );
 }
@@ -317,15 +566,6 @@ function ScenesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
 }
 
 function SceneEditor({ value, onChange, onCancel, onSave }: any) {
-  const [jsonView, setJsonView] = React.useState(JSON.stringify(value, null, 2));
-  const handleSave = () => {
-    try {
-      const parsed = JSON.parse(jsonView);
-      onSave(parsed);
-    } catch (e: any) {
-      alert('JSON 解析失败: ' + e.message);
-    }
-  };
   return (
     <Stack spacing={2}>
       <Typography variant="subtitle1">{value.id ? '编辑场景' : '新建场景'}</Typography>
@@ -334,15 +574,48 @@ function SceneEditor({ value, onChange, onCancel, onSave }: any) {
         <TextField label="label" value={value.label} onChange={(e) => onChange({ ...value, label: e.target.value })} size="small" />
         <FormControlLabel control={<Switch checked={!!value.isDefault} onChange={(_, v) => onChange({ ...value, isDefault: v })} />} label="default" />
       </Stack>
-      <TextField label="config JSON (SceneConfig 整树)" value={jsonView}
-        onChange={(e) => setJsonView(e.target.value)}
-        multiline minRows={20} maxRows={30}
-        sx={{ '& textarea': { fontFamily: 'ui-monospace, monospace', fontSize: 12 } }}
-        fullWidth />
+      <JsonEditor label="config JSON (SceneConfig 整树)" value={value} onChange={onChange} minRows={24} />
       <Stack direction="row" spacing={1}>
-        <Button variant="contained" onClick={handleSave}>保存</Button>
+        <Button variant="contained" onClick={() => onSave(value)}>保存</Button>
         <Button onClick={onCancel}>取消</Button>
       </Stack>
     </Stack>
+  );
+}
+
+// ============================================================================
+// Shared JSON editor
+// ============================================================================
+function JsonEditor({ label, value, onChange, minRows = 12 }: { label: string; value: any; onChange: (v: any) => void; minRows?: number }) {
+  const [text, setText] = React.useState(() => JSON.stringify(value, null, 2));
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    setText(JSON.stringify(value, null, 2));
+    setError(null);
+  }, [value]);
+
+  return (
+    <TextField
+      label={error ? `${label} (JSON 错误)` : label}
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+        try {
+          const parsed = JSON.parse(e.target.value);
+          setError(null);
+          onChange(parsed);
+        } catch (err: any) {
+          setError(err.message);
+        }
+      }}
+      multiline
+      minRows={minRows}
+      maxRows={40}
+      fullWidth
+      error={!!error}
+      helperText={error || '实时解析；只有合法 JSON 时才会写回对象'}
+      sx={{ '& textarea': { fontFamily: 'ui-monospace, monospace', fontSize: 12 } }}
+    />
   );
 }
