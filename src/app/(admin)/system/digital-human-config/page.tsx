@@ -88,7 +88,7 @@ function ModelsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['dhc', 'models'] }); setEditing(null); },
   });
   const del = useMutation({
-    mutationFn: (id: number) => deleteModel(id),
+    mutationFn: (id: string) => deleteModel(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['dhc', 'models'] }),
   });
 
@@ -171,7 +171,7 @@ function ActionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['dhc', 'actions'] }); setEditing(null); },
   });
   const del = useMutation({
-    mutationFn: (id: number) => deleteAction(id),
+    mutationFn: (id: string) => deleteAction(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['dhc', 'actions'] }),
   });
 
@@ -267,7 +267,7 @@ function DancesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['dhc', 'dances'] }); setEditing(null); },
   });
   const del = useMutation({
-    mutationFn: (id: number) => deleteDanceStyle(id),
+    mutationFn: (id: string) => deleteDanceStyle(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['dhc', 'dances'] }),
   });
 
@@ -356,7 +356,7 @@ function PosesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['dhc', 'poses'] }); setEditing(null); },
   });
   const del = useMutation({
-    mutationFn: (id: number) => deletePose(id),
+    mutationFn: (id: string) => deletePose(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['dhc', 'poses'] }),
   });
 
@@ -413,7 +413,7 @@ function ExpressionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['dhc', 'expressions'] }); setEditing(null); },
   });
   const del = useMutation({
-    mutationFn: (id: number) => deleteExpressionPreset(id),
+    mutationFn: (id: string) => deleteExpressionPreset(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['dhc', 'expressions'] }),
   });
 
@@ -472,7 +472,7 @@ function VisemesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['dhc', 'visemes'] }); setEditing(null); },
   });
   const del = useMutation({
-    mutationFn: (id: number) => deleteViseme(id),
+    mutationFn: (id: string) => deleteViseme(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['dhc', 'visemes'] }),
   });
 
@@ -529,7 +529,7 @@ function ScenesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['dhc', 'scenes'] }); setEditing(null); },
   });
   const del = useMutation({
-    mutationFn: (id: number) => deleteScene(id),
+    mutationFn: (id: string) => deleteScene(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['dhc', 'scenes'] }),
   });
 

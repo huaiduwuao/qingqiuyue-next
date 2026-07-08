@@ -44,15 +44,14 @@ src/digital-human/
     visemes/character.json (18)
 
 D:\git\really\qingqiuyue-go\internal\digitalhuman\
-  entity.go                 # 7 套 Entity struct + 通用 JSONBMap / JSONBArray
+  entity.go                 # 7 套 Entity struct + 通用 JSONBMap / JSONBArray（UUID 主键）
   repository.go             # 7 套 Repository（含 modelRepo / actionRepo / sceneRepo / sessionRepo）
   handler.go                # 7 套 CRUD + sessions/me HTTP handlers
   service.go                # 业务逻辑
   router.go                 # Register() 挂 20+ 个路由
-  seed.go                   # //go:embed seed_data/*.json
   dto.go                    # 请求/响应 DTO
   tools.go                  # 7 套 tool catalog
-  seed_data/                # 镜像前端 src/data/seed/（脚本 sync）
+  migrations/001_vrm_seed.sql  # 初始数据（首次部署执行一次）
 ```
 
 ## 数据流
@@ -60,12 +59,12 @@ D:\git\really\qingqiuyue-go\internal\digitalhuman\
 ```
 [qingqiuyue-go 启动]
   → AutoMigrateAll(7 张表)
-  → SeedIfEmpty (从 embed JSON 灌入)
+  → 首次部署执行 migrations/001_vrm_seed.sql 灌入初始数据
   → Register 路由
 
 [浏览器 mount /digital-human]
   → VrmStage mount
-  → loadConfigBundle() (同步) — 用 seed JSON
+  → loadConfigBundle() (同步) — 用本地 seed JSON 兜底
   → loadConfigBundleAsync() (异步) — 覆盖 BUNDLE（DB 改了才会变）
   → 异步 getMySession → useSessionStore.setSession
   → handle.setPosition/setYOffset 恢复
