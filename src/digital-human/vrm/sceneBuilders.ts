@@ -490,11 +490,126 @@ export function buildStudio(THREE_NS: typeof THREE, sceneGroup: THREE.Group): Sc
   return { lights, beams, preset: 'studio', dispose: () => disposers.forEach(d => d()) };
 }
 
+/* ---------------- 草坪（白天阳光 + 大片绿色） ---------------- */
+export function buildLawn(THREE_NS: typeof THREE, sceneGroup: THREE.Group): SceneHandle {
+  const disposers: Array<() => void> = [];
+  const lights: THREE.Light[] = [];
+  const beams: THREE.Object3D[] = [];
+  let particles: THREE.Points | undefined;
+
+  // 蓝天圆顶
+  sceneGroup.add(makeSkyDome(THREE_NS, 0x6db3f2, 0xb0dff7));
+
+  // 环境光（暖白，模拟天空散射）
+  const ambient = new THREE_NS.AmbientLight(0xfff8e0, 0.8);
+  sceneGroup.add(ambient); lights.push(ambient);
+
+  // 太阳 —— 暖白 directional，从右上 45° 打下来
+  const sun = new THREE_NS.DirectionalLight(0xfff0c0, 2.0);
+  sun.position.set(4, 8, 3);
+  sun.target.position.set(0, 0.9, 0);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.left = -8;
+  sun.shadow.camera.right = 8;
+  sun.shadow.camera.top = 8;
+  sun.shadow.camera.bottom = -8;
+  sceneGroup.add(sun, sun.target); lights.push(sun);
+
+  // 半球光（天蓝/草绿）—— 模拟自然反射
+  const hemi = new THREE_NS.HemisphereLight(0x8ec5ff, 0x4a7a2a, 0.7);
+  sceneGroup.add(hemi); lights.push(hemi);
+
+  // 大片草坪（直径 16 的圆盘，绿色）
+  const grass = new THREE_NS.Mesh(
+    new THREE_NS.CircleGeometry(16, 64),
+    new THREE_NS.MeshStandardMaterial({ color: 0x5fa83a, roughness: 0.95, metalness: 0 }),
+  );
+  grass.rotation.x = -Math.PI / 2;
+  grass.receiveShadow = true;
+  sceneGroup.add(grass);
+  disposers.push(() => { (grass.material as THREE.Material).dispose(); grass.geometry.dispose(); });
+
+  // 草尖细节：用半透明小三角形随机分布，做出"草地不平整"的感觉
+  for (let i = 0; i < 220; i++) {
+    const r = Math.random() * 7 + 1;
+    const a = Math.random() * Math.PI * 2;
+    const x = Math.cos(a) * r, z = Math.sin(a) * r - 0.5;
+    const blade = new THREE_NS.Mesh(
+      new THREE_NS.PlaneGeometry(0.04, 0.18 + Math.random() * 0.1),
+      new THREE_NS.MeshStandardMaterial({
+        color: new THREE_NS.Color().setHSL(0.28 + Math.random() * 0.05, 0.6, 0.35 + Math.random() * 0.1),
+        roughness: 0.9, side: THREE_NS.DoubleSide, transparent: true, opacity: 0.85,
+      }),
+    );
+    blade.position.set(x, 0.09, z);
+    blade.rotation.y = Math.random() * Math.PI;
+    blade.castShadow = false;
+    sceneGroup.add(blade);
+  }
+
+  // 散落的树（圆锥+圆柱，6 棵）
+  const treePositions: [number, number][] = [
+    [4, -3], [-5, -2], [3, -5], [-4, 3], [5, 4], [-6, -4],
+  ];
+  for (const [x, z] of treePositions) {
+    const h = 1.8 + Math.random() * 0.8;
+    const trunk = new THREE_NS.Mesh(
+      new THREE_NS.CylinderGeometry(0.12, 0.18, h * 0.4, 6),
+      new THREE_NS.MeshStandardMaterial({ color: 0x6b4423, roughness: 0.9 }),
+    );
+    trunk.position.set(x, h * 0.2, z);
+    trunk.castShadow = true;
+    sceneGroup.add(trunk);
+    disposers.push(() => { (trunk.material as THREE.Material).dispose(); trunk.geometry.dispose(); });
+
+    const leafColors = [0x3a8a3a, 0x4a9a4a, 0x5fa83a];
+    for (let i = 0; i < 3; i++) {
+      const leaf = new THREE_NS.Mesh(
+        new THREE_NS.SphereGeometry(0.6 - i * 0.12, 8, 6),
+        new THREE_NS.MeshStandardMaterial({
+          color: leafColors[i % leafColors.length],
+          roughness: 0.8,
+        }),
+      );
+      leaf.position.set(x + (Math.random() - 0.5) * 0.3, h * 0.4 + h * 0.5 + i * 0.5, z + (Math.random() - 0.5) * 0.3);
+      leaf.scale.set(1, 0.7, 1);
+      leaf.castShadow = true;
+      sceneGroup.add(leaf);
+      disposers.push(() => { (leaf.material as THREE.Material).dispose(); leaf.geometry.dispose(); });
+    }
+  }
+
+  // 几朵小花（黄/白小圆点）
+  for (let i = 0; i < 40; i++) {
+    const r = 1.5 + Math.random() * 5;
+    const a = Math.random() * Math.PI * 2;
+    const x = Math.cos(a) * r, z = Math.sin(a) * r - 0.5;
+    if (Math.hypot(x, z) < 1.2) continue;  // 避开模型正下方
+    const flower = new THREE_NS.Mesh(
+      new THREE_NS.SphereGeometry(0.05, 6, 4),
+      new THREE_NS.MeshStandardMaterial({
+        color: Math.random() > 0.5 ? 0xfff0a0 : 0xffffff,
+        roughness: 0.7, emissive: 0x222200, emissiveIntensity: 0.2,
+      }),
+    );
+    flower.position.set(x, 0.05, z);
+    sceneGroup.add(flower);
+  }
+
+  // 蝴蝶/光斑粒子
+  particles = makeParticles(THREE_NS, 80, 14);
+  sceneGroup.add(particles);
+  disposers.push(() => { (particles?.material as THREE.Material | undefined)?.dispose(); particles?.geometry.dispose(); });
+
+  return { lights, beams, particles, preset: 'lawn', dispose: () => disposers.forEach(d => d()) };
+}
+
 /* ---------------- 工厂：根据名字取 builder ---------------- */
-export type ScenePresetName = 'concert' | 'idol' | 'garden' | 'neon' | 'studio';
-export const SCENE_PRESETS: ScenePresetName[] = ['concert', 'idol', 'garden', 'neon', 'studio'];
+export type ScenePresetName = 'concert' | 'idol' | 'garden' | 'neon' | 'studio' | 'lawn';
+export const SCENE_PRESETS: ScenePresetName[] = ['concert', 'idol', 'garden', 'neon', 'studio', 'lawn'];
 export const SCENE_LABELS: Record<ScenePresetName, string> = {
-  concert: '演唱会主舞台', idol: '偶像练习室', garden: '月光花园', neon: '赛博霓虹', studio: '摄影棚白底',
+  concert: '演唱会主舞台', idol: '偶像练习室', garden: '月光花园', neon: '赛博霓虹', studio: '摄影棚白底', lawn: '白天草坪',
 };
 
 export function buildScene(THREE_NS: typeof THREE, sceneGroup: THREE.Group, name: ScenePresetName): SceneHandle {
@@ -504,5 +619,6 @@ export function buildScene(THREE_NS: typeof THREE, sceneGroup: THREE.Group, name
     case 'garden': return buildGarden(THREE_NS, sceneGroup);
     case 'neon': return buildNeon(THREE_NS, sceneGroup);
     case 'studio': return buildStudio(THREE_NS, sceneGroup);
+    case 'lawn': return buildLawn(THREE_NS, sceneGroup);
   }
 }

@@ -138,9 +138,10 @@ export default function VrmControlPanel({ open, onClose, handle, state, onChange
           exclusive size="small" fullWidth
           value={state.scene}
           onChange={(_, v) => v && onChange({ scene: v as ScenePresetName })}
+          sx={{ flexWrap: 'wrap', gap: 0.5, '& .MuiToggleButton-root': { flex: '1 1 30%', borderRadius: '8px !important', fontSize: 11, px: 0.5, py: 0.5, whiteSpace: 'nowrap' } }}
         >
           {SCENE_PRESETS.map((s: ScenePresetName) => (
-            <ToggleButton key={s} value={s} sx={{ fontSize: 11, px: 1, py: 0.5, flex: 1 }}>
+            <ToggleButton key={s} value={s}>
               {SCENE_LABELS[s]}
             </ToggleButton>
           ))}
