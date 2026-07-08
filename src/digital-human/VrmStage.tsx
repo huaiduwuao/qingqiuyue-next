@@ -29,6 +29,7 @@ import { Box, CircularProgress, Typography } from '@mui/material';
 
 import { loadConfigBundle, loadConfigBundleAsync } from './vrm/config/loader';
 import type { ConfigBundle } from './vrm/config/types';
+import { useVrmPhysics } from './vrm/useVrmPhysics';
 import { loadAvatar, type Cached } from './vrm/loadAvatar';
 import { useVrmRenderer } from './vrm/useVrmRenderer';
 import { useVrmScene } from './vrm/useVrmScene';
@@ -134,6 +135,12 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   const configBundle = configProp ?? loadConfigBundle();
   console.log(`[VrmStage] using ConfigBundle: ${configBundle.model.name}, ${configBundle.scenes.length} scenes, ${configBundle.actions.length} actions, ${configBundle.expressions.length} expressions, ${configBundle.visemes.length} visemes`);
 
+  // 当前激活的 scene config（从 bundle.scenes 找 name === 当前 scene）
+  const currentSceneConfig = useMemo(() => {
+    return configBundle.scenes.find((s) => s.name === 'concert') || configBundle.scenes[0];
+    // TODO: 读 stageState.scene
+  }, [configBundle]);
+
   // Phase 2: 异步从 API 拉 config 覆盖模块级 BUNDLE
   // 注意：模块级字典（EXPRESSION_PRESETS / VISEME_BLENDSHAPES / ACTION_UPDATERS）
   // 是在 import 时生成的，APB 覆盖后需要 VrmStage 重 mount 才能看到。
@@ -179,6 +186,21 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   const walkRef = useRef<{ moving: boolean; phase: number; style: 'walk' | 'run' | 'idle' | 'teleport' }>({ moving: false, phase: 0, style: 'idle' });
   // 行走步进（每帧 dt 累积）
   const walkStepRef = useRef(0);
+
+  // Phase 3: 物理（vrmDataRef 之后才能访问 scene）
+  const vrmSceneForPhysics = vrmDataRef.current?.scene ?? null;
+  const targetPositionRef = useRef({ x: 0, y: 0, z: 0 });
+  const physics = useVrmPhysics({
+    model: configBundle.model,
+    sceneConfig: currentSceneConfig,
+    vrmScene: vrmSceneForPhysics,
+    targetPositionRef,
+    onStep: (pos) => {
+      // 物理 step 后实际位置写回 positionRef（让 useEffects/session 看到）
+      positionRef.current.x = pos.x;
+      positionRef.current.z = pos.z;
+    },
+  });
 
   const userLipOverrideRef = useRef(false);
   const userBlinkOverrideRef = useRef(false);
@@ -341,11 +363,23 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         walkRef.current.phase = walkStepRef.current;
         walkRef.current.moving = false;
       }
-      // 把位置应用到模型 + 让相机跟随平移
-      if (vrmDataRef.current?.scene) {
-        vrmDataRef.current.scene.position.x = pos.x;
-        vrmDataRef.current.scene.position.y = yOffsetRef.current;
-        vrmDataRef.current.scene.position.z = pos.z;
+
+      // Phase 3: 同步给物理 + 物理 step（撞墙会修正 pos）
+      targetPositionRef.current.x = pos.x;
+      targetPositionRef.current.y = yOffsetRef.current;
+      targetPositionRef.current.z = pos.z;
+      if (physics.ready) {
+        physics.step(dt);
+        // physics 写入 vrmScene.position 后，同步回 pos
+        pos.x = vrmDataRef.current?.scene.position.x ?? pos.x;
+        pos.z = vrmDataRef.current?.scene.position.z ?? pos.z;
+      } else {
+        // 没物理：直接写 scene.position（旧路径）
+        if (vrmDataRef.current?.scene) {
+          vrmDataRef.current.scene.position.x = pos.x;
+          vrmDataRef.current.scene.position.y = yOffsetRef.current;
+          vrmDataRef.current.scene.position.z = pos.z;
+        }
       }
       const dx = pos.x - pos.prevX;
       const dz = pos.z - pos.prevZ;
