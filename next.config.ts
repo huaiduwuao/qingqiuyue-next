@@ -9,6 +9,22 @@ const nextConfig: NextConfig = {
   // standalone 模式:Dockerfile 期望 .next/standalone 存在,生产部署必须开。
   // dev 模式 `next dev` 仍正常工作(standalone 只影响 `next build` 输出)。
   output: "standalone",
+  // 内存治理(5.37 GB dev server 反复泄漏的根因之一):
+  // 1) 关闭客户端 source map(浏览器加载时不会再持有完整 sourcemap payload)
+  // 2) 关闭 server source map(Next dev 不再为每个 route 缓存 sourcemap)
+  // 3) preloadEntriesOnStart=false:不再启动时一次性把全部 page 预加载到内存
+  //    (按需加载,rss 从 ~GB 级别降到 MB)
+  // 4) 显式开启 webpackBuildWorker:把 webpack 编译挪到子进程,
+  //    主进程不再持有完整的 module graph
+  // 这 4 项不会改变 dev 行为,只减少常驻内存。
+  productionBrowserSourceMaps: false,
+  experimental: {
+    serverSourceMaps: false,
+    preloadEntriesOnStart: false,
+    webpackBuildWorker: true,
+    // Next 15+:开启后降低 webpack 编译阶段最大内存峰值,代价是编译稍慢。
+    webpackMemoryOptimizations: true,
+  },
   compiler: {
     reactRemoveProperties: true,
   },
@@ -89,6 +105,7 @@ const nextConfig: NextConfig = {
       ];
     }
     const target = API_PROXY_TARGET;
+    const contentTarget = process.env.CONTENT_API_PROXY_TARGET || target;
     return [
       pipelineNoop,
       // audio 网关代理 (/api/audio/* → audio-gateway :8001),
@@ -96,6 +113,15 @@ const nextConfig: NextConfig = {
       {
         source: "/api/audio/:path*",
         destination: "/api/audio/:path*",
+      },
+      // 内容类接口可单独指向 content-api(本地或网关)
+      {
+        source: "/api/content/:path*",
+        destination: `${contentTarget}/api/content/:path*`,
+      },
+      {
+        source: "/api/spider/:path*",
+        destination: `${target}/api/spider/:path*`,
       },
       {
         source: "/api/:path*",
