@@ -685,6 +685,35 @@ async function applyVRMAction(vrm: any, action: string) {
 
 // ── morph / expression 应用(VRM 用 expressionManager,GLB 用 morphTargetInfluences) ──
 
+// ── viseme → ARKit 兜底 ──────────────────────────────────────────────
+//
+// 多数 VRM 0.0 模型(VRoid Hub 自制角色)只有 ARKit 52 维 blendshape
+// (mouthOpen / jawOpen / mouthClose 等),不带 viseme_* ovrlipsync 名字。
+// 我们的 LLM/TTS 链路返回的是 OVRLipSync 短名(sil/aa/E/I/O/U/PP/FF/...)。
+//
+// 优先按 EXPRESSION_MAP 设 viseme_*;就算设不上,再设 ARKit 兜底,
+// 让无 viseme 通道的 VRM 也能嘴动。
+const VISEME_TO_ARKIT: Record<string, string[]> = {
+  sil:   ['mouthClose', 'jawOpen'],                  // 闭唇
+  closed: ['mouthClose', 'jawOpen'],
+  aa:    ['mouthOpen', 'jawOpen'],                   // 张嘴元音
+  E:     ['mouthStretchLeft', 'mouthStretchRight'], // 咧嘴角
+  I:     ['mouthStretchLeft', 'mouthStretchRight'],
+  O:     ['mouthPucker', 'mouthFunnel', 'jawOpen'],  // 圆唇
+  U:     ['mouthPucker', 'mouthFunnel', 'jawOpen'],
+  ou:    ['mouthPucker', 'mouthFunnel', 'jawOpen'],
+  ih:    ['mouthStretchLeft', 'mouthStretchRight'],
+  PP:    ['mouthPressLeft', 'mouthPressRight', 'mouthClose'],  // 双唇紧闭(辅音)
+  FF:    ['mouthLowerDownLeft', 'mouthLowerDownRight'],
+  TH:    ['tongueOut'],
+  DD:    ['tongueOut', 'mouthOpen'],
+  kk:    ['mouthOpen'],
+  CH:    ['mouthFunnel', 'mouthOpen'],
+  SS:    ['mouthStretchLeft', 'mouthStretchRight'],
+  nn:    ['mouthOpen'],
+  RR:    ['mouthRollLower', 'mouthOpen'],
+};
+
 function applyExpressions(
   loaded: Cached,
   emotion: Record<string, number>,
@@ -707,6 +736,14 @@ function applyExpressions(
       const vrmName = EXPRESSION_MAP[k] || k;
       em.setValue(vrmName, viseme[k] || 0);
       next[vrmName] = viseme[k] || 0;
+      // ARKit 兜底 (VRoid 模型通常没 viseme_* 通道,只走这条才动嘴)
+      const arkitChannels = VISEME_TO_ARKIT[k];
+      if (arkitChannels) {
+        for (const ch of arkitChannels) {
+          em.setValue(ch, viseme[k]);
+          next[ch] = viseme[k];
+        }
+      }
     }
     em.update();
   } else {
