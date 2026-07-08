@@ -292,12 +292,26 @@ export function useChatAvatarWS(agentId: string = 'digital_human'): ChatAvatarSt
             break;
 
           case 'audio_chunk':
+            // DEBUG: 诊断口型链路 — 一次 commit 后可以整段删
+            // eslint-disable-next-line no-console
+            console.log('[dh-debug] audio_chunk', {
+              hasAudio: !!msg.audioB64,
+              audioBytes: msg.audioB64 ? Math.round(msg.audioB64.length * 0.75) : 0,  // base64 → bytes 近似
+              visemeCount: msg.visemes?.length || 0,
+              firstViseme: msg.visemes?.[0],
+              lastViseme: msg.visemes?.[msg.visemes.length - 1],
+              audioDone: msg.audioDone,
+              textDone: msg.textDone,
+            });
             if (msg.audioB64) {
               playAudioChunk(msg.audioB64);
               setIsAvatarPlaying(true);
             }
             if (msg.visemes && msg.visemes.length > 0) {
               const last = msg.visemes[msg.visemes.length - 1];
+              // DEBUG: 实际被应用的 viseme
+              // eslint-disable-next-line no-console
+              console.log('[dh-debug] viseme-apply', { shape: last.shape, weight: last.weight });
               setViseme({ [last.shape]: last.weight });
             }
             break;
