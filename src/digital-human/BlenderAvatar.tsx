@@ -181,6 +181,11 @@ export interface BlenderAvatarProps {
   background?: string;
   /** 透传样式 */
   sx?: React.CSSProperties;
+  /**
+   * LLM/Hermes tool_call 通道 — 上层 chat hook 调用此 prop 把 tool_calls 喂给数字人。
+   * 父组件要么用 useChatAvatarV2 (内置 dispatcher), 要么自己消费返回的 sink 集合。
+   */
+  onToolCall?: (call: { name: string; params: Record<string, any> }) => void;
 }
 
 export default function BlenderAvatar({
@@ -194,6 +199,12 @@ export default function BlenderAvatar({
   viseme = {},
   autoRotate = true,
   background = 'radial-gradient(ellipse at 50% 30%, rgba(124,58,237,0.18) 0%, transparent 55%), #05060B',
+  /**
+   * LLM/Hermes tool_call 通道 — 当外部 (例如 chat hook) 想直接 dispatch 一个工具调用
+   * (例如 face.setExpression / body.playAction) 时, 直接调这个 callback。
+   * — 默认空 noop, 让 BlenderAvatar 保持纯展示层
+   */
+  onToolCall,
   sx,
 }: BlenderAvatarProps) {
   // ── 3DGS 模式: 用 GaussianSplatRenderer ──
