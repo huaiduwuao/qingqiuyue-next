@@ -140,18 +140,12 @@ function LiveDetailContent() {
   const updateSettings = (patch: Partial<LivePlayerSettingsState>) =>
     setSettings((s) => ({ ...s, ...patch }));
 
-  // 模拟观看人数实时上涨
+  // 模拟观看人数实时上涨 — 已禁用:线上需 WebSocket / 长连接推送真实人数。
+  // 这里只显示后端初始 viewers,不做伪造的随机漂移。
   const [viewersLive, setViewersLive] = useState(0);
   useEffect(() => {
-    if (query.data?.viewers) setViewersLive(query.data.viewers);
+    if (typeof query.data?.viewers === 'number') setViewersLive(query.data.viewers);
   }, [query.data?.viewers]);
-  useEffect(() => {
-    if (!query.data?.isLive) return;
-    const t = setInterval(() => {
-      setViewersLive((v) => v + Math.floor(Math.random() * 11) - 3);
-    }, 3000);
-    return () => clearInterval(t);
-  }, [query.data?.isLive]);
 
   const elapsed = query.data?.startedAt
     ? formatElapsed(Date.now() - query.data.startedAt)

@@ -22,7 +22,7 @@ import VideoPlayer from '@/components/detail/VideoPlayer';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
 
-const SAMPLE_VIDEO_URL = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+// 之前这里硬编码了 Google 公开样片作为缺省视频。已移除:无 URL 时由 VideoPlayer 显示空状态。
 
 interface Film {
   id: number;
@@ -72,14 +72,14 @@ function FilmDetailContent() {
           params: { id },
         });
         if (cancelled) return;
-        setVideoSrc(res?.data?.url || SAMPLE_VIDEO_URL);
+        setVideoSrc(res?.data?.url || '');
       } catch (err) {
         if (cancelled) return;
         if (isNetworkError(err)) {
-          setVideoSrc(SAMPLE_VIDEO_URL);
+          setVideoSrc('');
         } else {
           notify(formatApiError(err), 'error');
-          setVideoSrc(SAMPLE_VIDEO_URL);
+          setVideoSrc('');
         }
       }
     })();

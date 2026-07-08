@@ -24,8 +24,6 @@ import VideoPlayer from '@/components/detail/VideoPlayer';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
 
-const SAMPLE_VIDEO_URL = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
-
 interface AnimeItem {
   id: number;
   title: string;
@@ -90,13 +88,13 @@ function AnimationDetailContent() {
         const res = await contentClient.get<{ url: string; cover?: string; title?: string }>('/detail/animation/play', {
           params: { id, episodeId: epId },
         });
-        setVideoSrc(res?.data?.url || SAMPLE_VIDEO_URL);
+        setVideoSrc(res?.data?.url || '');
       } catch (err) {
         if (isNetworkError(err)) {
-          setVideoSrc(SAMPLE_VIDEO_URL);
+          setVideoSrc('');
         } else {
           notify(formatApiError(err), 'error');
-          setVideoSrc(SAMPLE_VIDEO_URL);
+          setVideoSrc('');
         }
       }
     },
@@ -166,7 +164,7 @@ function AnimationDetailContent() {
           <>
             <Box sx={{ bgcolor: '#000' }}>
               <Container maxWidth="lg" sx={{ py: 0 }}>
-                <VideoPlayer src="" poster={data.cover} initialDuration={24 * 60} autoPlay={false} />
+                <VideoPlayer src={videoSrc} poster={data.cover} initialDuration={24 * 60} autoPlay={false} />
               </Container>
             </Box>
 
