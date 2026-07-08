@@ -77,22 +77,22 @@ export function useChatAvatarV2(
   const send = React.useCallback(async () => {
     const t = text.trim();
     if (!t || chatBusy) return;
-    await doSend(t, chatLog, sinks, {
+    await doSend(t, chatLog, sinks, agentId, {
       setChatBusy, setChatLog, setEmotion, setAction, setViseme, setText,
       setIsAIGenerated,
       audioRef, visemeTimelineRef, visemeStartRef, visemeActiveRef, isAvatarPlayingRef,
     });
-  }, [text, chatBusy, chatLog, sinks]);
+  }, [text, chatBusy, chatLog, sinks, agentId]);
 
   const sendText = React.useCallback(async (v: string) => {
     const t = v.trim();
     if (!t || chatBusy) return;
-    await doSend(t, chatLog, sinks, {
+    await doSend(t, chatLog, sinks, agentId, {
       setChatBusy, setChatLog, setEmotion, setAction, setViseme, setText: () => {},
       setIsAIGenerated,
       audioRef, visemeTimelineRef, visemeStartRef, visemeActiveRef, isAvatarPlayingRef,
     });
-  }, [chatBusy, chatLog, sinks]);
+  }, [chatBusy, chatLog, sinks, agentId]);
 
   const cancel = React.useCallback(() => {
     if (audioRef.current) {
@@ -141,6 +141,7 @@ async function doSend(
   t: string,
   chatLog: ChatLogItem[],
   sinks: ChatAvatarV2Sinks,
+  agentId: string,
   ctx: DoSendCtx,
 ) {
   ctx.setChatBusy(true);

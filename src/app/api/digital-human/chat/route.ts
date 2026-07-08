@@ -28,10 +28,10 @@ import { segmentsToVisemes, type AlignedSegment } from '@/lib/audio/viseme-mappe
 import { loadInstructionsForAgent } from '@/digital-human/instructions/loader';
 import {
   ALL_ACTIONS,
-  buildToolsHint,
   ACTION_LABELS,
   ACTION_METADATA,
 } from '@/digital-human/tools/actions';
+import { buildToolsHint } from '@/digital-human/tools/tools';
 import { EXPRESSION_PRESET_LABELS } from '@/digital-human/tools/expressions';
 
 export const dynamic = 'force-dynamic';

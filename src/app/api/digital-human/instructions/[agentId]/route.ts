@@ -44,8 +44,9 @@ async function saveStore(list: Instruction[]) {
   await fs.writeFile(STORE_PATH, JSON.stringify(list, null, 2), 'utf-8');
 }
 
-export async function GET(req: NextRequest, ctx: { params: { agentId: string } }) {
-  const agentId = decodeURIComponent(ctx.params.agentId);
+export async function GET(req: NextRequest, ctx: { params: Promise<{ agentId: string }> }) {
+  const { agentId: raw } = await ctx.params;
+  const agentId = decodeURIComponent(raw);
   if (isExternalDigitalHumanAPI()) {
     try {
       const r = await fetchDigitalHuman(`/api/realtime/digital-human/instructions/${encodeURIComponent(agentId)}`, { method: 'GET' });
@@ -65,8 +66,9 @@ export async function GET(req: NextRequest, ctx: { params: { agentId: string } }
   }
 }
 
-export async function PUT(req: NextRequest, ctx: { params: { agentId: string } }) {
-  const agentId = decodeURIComponent(ctx.params.agentId);
+export async function PUT(req: NextRequest, ctx: { params: Promise<{ agentId: string }> }) {
+  const { agentId: raw } = await ctx.params;
+  const agentId = decodeURIComponent(raw);
   if (isExternalDigitalHumanAPI()) {
     try {
       const body = await req.text();
@@ -103,8 +105,9 @@ export async function PUT(req: NextRequest, ctx: { params: { agentId: string } }
   }
 }
 
-export async function DELETE(req: NextRequest, ctx: { params: { agentId: string } }) {
-  const agentId = decodeURIComponent(ctx.params.agentId);
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ agentId: string }> }) {
+  const { agentId: raw } = await ctx.params;
+  const agentId = decodeURIComponent(raw);
   if (isExternalDigitalHumanAPI()) {
     try {
       const r = await fetchDigitalHuman(`/api/realtime/digital-human/instructions/${encodeURIComponent(agentId)}`, { method: 'DELETE' });

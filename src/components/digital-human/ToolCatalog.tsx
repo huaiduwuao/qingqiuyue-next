@@ -49,7 +49,7 @@ export default function ToolCatalog({
 
   return (
     <Box>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1}>
+      <Stack direction="row" sx={{ mb: 1, justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography variant="subtitle2" color="text.secondary">
           工具清单 ({tools.length})
         </Typography>
@@ -65,7 +65,7 @@ export default function ToolCatalog({
           <Accordion
             key={cat}
             expanded={expanded === cat || list.some(t => expanded === t.name)}
-            onChange={(_, e) => setExpanded(e ? cat : false)}
+            onChange={(_, e) => setExpanded(e ? cat : null)}
             sx={{
               border: `1px solid ${color}30`,
               bgcolor: `${color}08`,
@@ -81,7 +81,7 @@ export default function ToolCatalog({
               <Stack spacing={1}>
                 {list.map(t => (
                   <Paper key={t.name} variant="outlined" sx={{ p: 1.5, borderColor: `${color}40` }}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                    <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <Box>
                         <Typography variant="caption" sx={{ fontFamily: 'ui-monospace, monospace', color, fontWeight: 600 }}>
                           {t.name}
@@ -90,7 +90,7 @@ export default function ToolCatalog({
                           {t.description}
                         </Typography>
                       </Box>
-                      <Stack direction="row" gap={0.5} flexWrap="wrap" justifyContent="flex-end" sx={{ maxWidth: 220 }}>
+                      <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: 220 }}>
                         {t.params.map(p => (
                           <Chip key={p} label={p} size="small" variant="outlined" sx={{ fontFamily: 'ui-monospace, monospace', fontSize: 10 }} />
                         ))}

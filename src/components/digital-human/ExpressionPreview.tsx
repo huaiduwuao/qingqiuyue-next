@@ -82,7 +82,7 @@ export default function ExpressionPreview({ active, onChange, onEmotionChange }:
           background="transparent"
         />
       </Box>
-      <Stack direction="row" flexWrap="wrap" gap={0.5}>
+      <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
         {PREVIEW_ORDER.map((name) => (
           <Chip
             key={name}

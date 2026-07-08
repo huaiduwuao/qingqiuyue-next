@@ -6,7 +6,8 @@
  * 加上我们新的工具调用规范 (让 LLM 输出 tool_calls 而不是单纯 action 名)
  */
 
-import { buildToolsHint, ALL_ACTIONS, ACTION_LABELS, ACTION_METADATA } from '../tools/actions';
+import { ALL_ACTIONS, ACTION_LABELS, ACTION_METADATA } from '../tools/actions';
+import { buildToolsHint } from '../tools/tools';
 import { EXPRESSION_PRESET_LABELS } from '../tools/expressions';
 import { VISEME_NAMES } from '../tools/visemes';
 
