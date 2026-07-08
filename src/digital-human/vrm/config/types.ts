@@ -303,6 +303,54 @@ export interface ToolContext {
 }
 
 // ============================================================================
+// 适配规则（Phase 5：动作/口型/表情/物理 联动）
+// ============================================================================
+
+/**
+ * Action → auto emotion/viseme 映射
+ * 当 character 跑某个 action 时，自动套用对应的 emotion/viseme baseline
+ * 用户可以手动覆盖
+ */
+export interface ActionAutoExpressionMap {
+  /** action name → 触发的 expression preset name */
+  [actionName: string]: {
+    expression?: ExpressionTemplateName;
+    viseme?: VisemeName;
+    /** 强度 (0-1) */
+    intensity?: number;
+  };
+}
+
+/** 全局默认映射（在 loader.ts 里填默认值） */
+export const DEFAULT_ACTION_EXPRESSION_MAP: ActionAutoExpressionMap = {
+  // 表演类
+  dance: { expression: 'happy', intensity: 0.7 },
+  sing: { expression: 'excited', viseme: 'aa', intensity: 0.8 },
+  laugh: { expression: 'laugh', intensity: 0.9 },
+  jump: { expression: 'surprised', viseme: 'oh', intensity: 0.7 },
+  // 情绪类
+  cry: { expression: 'cry', intensity: 0.9 },
+  think: { expression: 'thinking', intensity: 0.6 },
+  // 互动类
+  wave: { expression: 'happy', intensity: 0.5 },
+  greet: { expression: 'happy', intensity: 0.6 },
+  kiss: { expression: 'love', intensity: 0.7 },
+  // 安静类
+  sleep: { expression: 'sleepy_tired', intensity: 0.9 },
+  sit: { expression: 'relaxed', intensity: 0.4 },
+  explain: { expression: 'thinking', intensity: 0.4 },
+  talk: { viseme: 'aa', intensity: 0.3 },
+  // 走路 / 跑步：维持中性
+  walk: {},
+  run: {},
+  idle: {},
+};
+
+export function lookupAutoExpression(actionName: string): { expression?: ExpressionTemplateName; viseme?: VisemeName; intensity?: number } {
+  return DEFAULT_ACTION_EXPRESSION_MAP[actionName] || {};
+}
+
+// ============================================================================
 // 兼容导出（给老 tools/{expressions,actions,visemes}.ts 用）
 // ============================================================================
 
@@ -314,10 +362,10 @@ export type ExpressionTemplateName =
 
 export type BlendshapeDict = Record<string, number>;
 
-/** Viseme 名（OVRLipSync 标准 16 个） */
+/** Viseme 名（OVRLipSync 标准 17 个，加 oh/ih/ou） */
 export type VisemeName =
   | 'sil' | 'PP' | 'FF' | 'TH' | 'DD' | 'kk' | 'CH' | 'SS' | 'nn' | 'RR'
-  | 'aa' | 'E' | 'I' | 'O' | 'U' | 'closed';
+  | 'aa' | 'E' | 'I' | 'O' | 'U' | 'oh' | 'ih' | 'ou' | 'closed';
 
 /** 29 个动作名（兼容旧 ActionName） */
 export type ActionName =
