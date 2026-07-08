@@ -13,7 +13,11 @@ import type { PoseName, DanceStyle } from './types';
 import type { AudioHandle } from './audio';
 
 export interface UseVrmDanceOptions {
-  vrm: any;
+  /**
+   * VRM 引用（ref，而不是值 — VRM 是异步加载的，首次渲染时 vrmRef.current 是 null）
+   * 父组件用 useRef 存 vrm 实例，dance 内部每帧读 vrmRef.current
+   */
+  vrmRef: React.MutableRefObject<any>;
   audio: AudioHandle;
   initialBpm?: number;
   initialAmp?: number;
@@ -24,7 +28,7 @@ export interface UseVrmDanceOptions {
 const P = Math.PI;
 
 export function useVrmDance(opts: UseVrmDanceOptions) {
-  const { vrm, audio, initialBpm = 120, initialAmp = 1, initialStyle = 'groove', initialDancing = false } = opts;
+  const { vrmRef, audio, initialBpm = 120, initialAmp = 1, initialStyle = 'groove', initialDancing = false } = opts;
   const [dancing, setDancing] = useState(initialDancing);
   const [style, setStyle] = useState<DanceStyle>(initialStyle);
   const [bpm, setBpm] = useState(initialBpm);
@@ -45,8 +49,8 @@ export function useVrmDance(opts: UseVrmDanceOptions) {
 
   const setPose = useCallback((name: PoseName, instant = false) => {
     currentPoseRef.current = name;
-    if (instant && vrm) {
-      const H = (n: string) => vrm.humanoid?.getNormalizedBoneNode?.(n);
+    if (instant && vrmRef.current) {
+      const H = (n: string) => vrmRef.current.humanoid?.getNormalizedBoneNode?.(n);
       const spec = POSES[name] as Record<string, [number, number, number]>;
       for (const [bone, rot] of Object.entries(spec)) {
         const o = H(bone);
@@ -54,7 +58,7 @@ export function useVrmDance(opts: UseVrmDanceOptions) {
       }
     }
     poseBlendRef.current = instant ? 1 : 0;
-  }, [vrm]);
+  }, [vrmRef]);
 
   /** 第一次拿到 vrm 时记录 hip 基线 */
   const setHipsBaseY = useCallback((y: number) => { hipsBaseYRef.current = y; }, []);
@@ -71,6 +75,7 @@ export function useVrmDance(opts: UseVrmDanceOptions) {
 
   /** 每帧调用 */
   function tick(elapsed: number, dt: number) {
+    const vrm = vrmRef.current;
     if (!vrm) return;
     const H = (n: string) => vrm.humanoid?.getNormalizedBoneNode?.(n);
     const set = (n: string, x: number, y: number, z: number) => {

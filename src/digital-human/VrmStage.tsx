@@ -141,8 +141,8 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   // 2. scene
   const sceneApi = useVrmScene({ rendererState, vrmScene: vrmSceneRef.current, initialPreset: 'concert' });
 
-  // 3. dance
-  const danceApi = useVrmDance({ vrm: vrmRef.current, audio, initialDancing: false });
+  // 3. dance（用 ref 传 vrm —— VRM 是异步加载的，首次渲染时 vrmRef.current 是 null）
+  const danceApi = useVrmDance({ vrmRef, audio, initialDancing: false });
 
   // 4. lip sync
   const lipApi = useVrmLipSync({ expressionManager: expressionManagerRef.current, audio, userLipOverride: false });
