@@ -141,7 +141,9 @@ function useDashboard() {
       { rank: 9, id: 9, name: '星河万里', avatar: '', fans: 42000, works: 165, totalViews: 3400000, growth: 9.4 },
       { rank: 10, id: 10, name: '雨后初晴', avatar: '', fans: 38000, works: 140, totalViews: 2800000, growth: 14.6 },
     ],
-    staleTime: Infinity,
+    // 之前:staleTime: Infinity → dev 模式下 query cache 永不释放,叠加 HMR 内存增长
+    // 改:用 1h 长 stale,既保留 admin dashboard 长时间停留不重查,又给 GC 留窗口
+    staleTime: 60 * 60 * 1000,
   });
   const activities = useQuery<Activity[]>({
     queryKey: ['dashboard', 'recent-activities'],

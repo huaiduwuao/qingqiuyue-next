@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -24,6 +24,14 @@ import RedeemRoundedIcon from '@mui/icons-material/RedeemRounded';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import ArrowForwardIosRoundedIcon from '@mui/icons-material/ArrowForwardIosRounded';
 import { getUserPoint } from '@/apis/system-user-point';
+import { useApp } from '@/contexts/AppContext';
+import {
+  getPointMallItems,
+  getPointMallHistory,
+  redeemPointMallItem,
+  type PointMallItem as ApiMallItem,
+  type PointMallRecord as ApiRecord,
+} from '@/apis/dashboard';
 
 type Category = 'all' | 'virtual' | 'privilege' | 'physical' | 'limited';
 
@@ -53,36 +61,7 @@ interface RedemptionRecord {
   serial?: string;
 }
 
-const MALL_ITEMS: MallItem[] = [
-  { id: 101, name: '1 个月会员', desc: '全场 4K 蓝光 + 每月 300 钻赠送', category: 'virtual', emoji: '👑', gradient: 'linear-gradient(135deg, #FE2C55 0%, #FFB400 100%)', points: 5000, originalPoints: 6800, stock: -1, totalRedeemed: 8420, tag: 'HOT' },
-  { id: 102, name: '周卡免广告', desc: '7 天全程无打扰观看', category: 'virtual', emoji: '🚫', gradient: 'linear-gradient(135deg, #5DDB96 0%, #25F4EE 100%)', points: 200, originalPoints: 380, stock: -1, totalRedeemed: 24180, tag: '限时' },
-  { id: 103, name: '彩色昵称 30 天', desc: '专属彩色昵称,人群中一眼找到你', category: 'virtual', emoji: '🌈', gradient: 'linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%)', points: 300, stock: -1, totalRedeemed: 18420 },
-  { id: 104, name: '专属弹幕 30 天', desc: '多彩气泡 + 优先显示 + 防刷屏', category: 'virtual', emoji: '💬', gradient: 'linear-gradient(135deg, #5B8DEF 0%, #8B5CF6 100%)', points: 800, stock: -1, totalRedeemed: 6200 },
-  { id: 105, name: '表情包月卡', desc: '畅用 2000+ 付费表情包', category: 'virtual', emoji: '😎', gradient: 'linear-gradient(135deg, #FFB400 0%, #FF6B8A 100%)', points: 400, originalPoints: 600, stock: -1, totalRedeemed: 12900, tag: '限时' },
-  { id: 106, name: '1GB 流量包', desc: '移动/联通/电信均可,72 小时内到账', category: 'virtual', emoji: '📶', gradient: 'linear-gradient(135deg, #06B6D4 0%, #5B8DEF 100%)', points: 600, stock: 4820, totalRedeemed: 24180 },
-  { id: 201, name: '优先审核 1 次', desc: '创作者投稿 30 分钟内优先审核', category: 'privilege', emoji: '⚡', gradient: 'linear-gradient(135deg, #FFB400 0%, #FE2C55 100%)', points: 1500, stock: -1, totalRedeemed: 890 },
-  { id: 202, name: '专属客服 1 次', desc: '7×24 人工通道,5 分钟内接入', category: 'privilege', emoji: '🎧', gradient: 'linear-gradient(135deg, #5DDB96 0%, #5B8DEF 100%)', points: 800, stock: -1, totalRedeemed: 2240 },
-  { id: 203, name: '创作者认证月标', desc: '30 天创作者认证角标 + 推荐加权', category: 'privilege', emoji: '🏅', gradient: 'linear-gradient(135deg, #FFB400 0%, #FF6B8A 100%)', points: 3000, stock: 120, totalRedeemed: 480, tag: 'HOT' },
-  { id: 204, name: '直播间专属入场', desc: '主播开播 30 秒前优先提醒', category: 'privilege', emoji: '🔔', gradient: 'linear-gradient(135deg, #FE2C55 0%, #8B5CF6 100%)', points: 500, stock: -1, totalRedeemed: 3680 },
-  { id: 301, name: '平台纪念马克杯', desc: '清秋月十周年限定陶瓷杯', category: 'physical', emoji: '☕', gradient: 'linear-gradient(135deg, #8B5CF6 0%, #FE2C55 100%)', points: 12000, stock: 480, totalRedeemed: 1280, tag: 'NEW' },
-  { id: 302, name: '清秋月限定抱枕', desc: '40cm 绒毛抱枕,含 logo 刺绣', category: 'physical', emoji: '🛋️', gradient: 'linear-gradient(135deg, #FFB400 0%, #FF6B8A 100%)', points: 18000, stock: 320, totalRedeemed: 920 },
-  { id: 303, name: '真无线蓝牙耳机', desc: '主动降噪,30h 续航,一年保修', category: 'physical', emoji: '🎧', gradient: 'linear-gradient(135deg, #25F4EE 0%, #5B8DEF 100%)', points: 45000, stock: 50, totalRedeemed: 142, tag: '独家' },
-  { id: 304, name: '10000mAh 充电宝', desc: 'PD 22.5W 快充,轻薄便携', category: 'physical', emoji: '🔋', gradient: 'linear-gradient(135deg, #5DDB96 0%, #06B6D4 100%)', points: 22000, stock: 180, totalRedeemed: 460 },
-  { id: 401, name: '限定头像框', desc: '清秋月典藏版头像框,限时 30 天', category: 'limited', emoji: '🖼️', gradient: 'linear-gradient(135deg, #FE2C55 0%, #FFB400 50%, #25F4EE 100%)', points: 600, originalPoints: 1200, stock: 5000, totalRedeemed: 8420, tag: '限时' },
-  { id: 402, name: '平台纪念数字徽章', desc: '链上存证,永久珍藏,可在主页展示', category: 'limited', emoji: '🎖️', gradient: 'linear-gradient(135deg, #FFB400 0%, #FE2C55 100%)', points: 2500, stock: 1000, totalRedeemed: 1820, tag: 'HOT' },
-  { id: 403, name: '月度限定背景图', desc: '本月主推创作者手绘背景,4K 高清', category: 'limited', emoji: '🎨', gradient: 'linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%)', points: 1000, stock: 2000, totalRedeemed: 3120, tag: 'NEW' },
-  { id: 404, name: '创作者认证铭牌', desc: '实物金属铭牌,刻用户名 + 编号', category: 'limited', emoji: '🏆', gradient: 'linear-gradient(135deg, #FFB400 0%, #FE2C55 100%)', points: 8800, stock: 200, totalRedeemed: 380 },
-];
-
-const REDEMPTION_RECORDS: RedemptionRecord[] = [
-  { id: 1, itemId: 103, itemName: '彩色昵称 30 天', emoji: '🌈', gradient: 'linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%)', points: 300, status: 'completed', redeemedAt: '2026-05-28 14:23', serial: 'NICK-202605-7XQ9' },
-  { id: 2, itemId: 105, itemName: '表情包月卡', emoji: '😎', gradient: 'linear-gradient(135deg, #FFB400 0%, #FF6B8A 100%)', points: 400, status: 'completed', redeemedAt: '2026-05-21 09:15', serial: 'EMOJI-202605-A4F2' },
-  { id: 3, itemId: 402, itemName: '平台纪念数字徽章', emoji: '🎖️', gradient: 'linear-gradient(135deg, #FFB400 0%, #FE2C55 100%)', points: 2500, status: 'shipped', redeemedAt: '2026-06-03 16:42', serial: 'BADGE-202606-K9M1' },
-  { id: 4, itemId: 301, itemName: '平台纪念马克杯', emoji: '☕', gradient: 'linear-gradient(135deg, #8B5CF6 0%, #FE2C55 100%)', points: 12000, status: 'pending', redeemedAt: '2026-06-05 11:08' },
-  { id: 5, itemId: 106, itemName: '1GB 流量包', emoji: '📶', gradient: 'linear-gradient(135deg, #06B6D4 0%, #5B8DEF 100%)', points: 600, status: 'completed', redeemedAt: '2026-05-15 20:31', serial: 'FLOW-202515-0P3X' },
-];
-
-const FLASH_SALE_IDS = [401, 102, 105];
+const FLASH_SALE_IDS: number[] = [401, 102, 105]; // 后端可在 /user/point/mall/items 上用 tag='限时' 或 isFlash 字段控制,此处保留兜底
 
 const CATEGORY_META: Record<Category, { label: string }> = {
   all: { label: '全部' },
@@ -98,7 +77,7 @@ const STATUS_META: Record<RedemptionRecord['status'], { label: string; color: st
   completed: { label: '已完成', color: '#5DDB96', icon: <CheckCircleRoundedIcon sx={{ fontSize: 12 }} /> },
 };
 
-const USER_ID = 1001;
+const USER_ID = 0; // 0 = 走 context 里的 currentUser,这里只是兼容旧 fallback;正式路径用 useApp().currentUser?.id
 
 function formatStock(stock: number): { text: string; tone: 'unlimited' | 'plenty' | 'low' | 'gone' } {
   if (stock < 0) return { text: '充足', tone: 'unlimited' };
@@ -132,6 +111,7 @@ interface Props {
 }
 
 export function PointsMallTab({ initialPoints }: Props) {
+  const { currentUser } = useApp();
   const [tab, setTab] = useState<'items' | 'orders'>('items');
   const [cat, setCat] = useState<Category>('all');
   const [confirmItem, setConfirmItem] = useState<MallItem | null>(null);
@@ -139,21 +119,64 @@ export function PointsMallTab({ initialPoints }: Props) {
   const qc = useQueryClient();
   const countdown = useCountdown(FLASH_END);
 
+  // 当前用户积分(优先 context,fallback 0 → 由 initialPoints 兜底)
+  const userId = currentUser?.id ?? USER_ID;
   const pointQuery = useQuery({
-    queryKey: ['user-point', USER_ID],
-    queryFn: () => getUserPoint(USER_ID).then((r: any) => r.data || { userId: USER_ID, points: initialPoints }),
-    placeholderData: { userId: USER_ID, points: initialPoints },
+    queryKey: ['user-point', userId],
+    queryFn: () => getUserPoint(userId).then((r: any) => r.data || { userId, points: initialPoints }),
+    placeholderData: { userId, points: initialPoints },
   });
   const currentPoints = pointQuery.data?.points ?? initialPoints;
 
-  const [records, setRecords] = useState<RedemptionRecord[]>(REDEMPTION_RECORDS);
+  // 积分商城商品 — 真接口
+  const itemsQuery = useQuery({
+    queryKey: ['point-mall-items'],
+    queryFn: () => getPointMallItems().then((r) => r.list || []),
+    placeholderData: [],
+  });
+  const MALL_ITEMS: MallItem[] = (itemsQuery.data ?? []).map((it: ApiMallItem) => ({
+    id: it.id,
+    name: it.name,
+    desc: it.desc,
+    category: it.category,
+    emoji: it.emoji,
+    gradient: it.gradient,
+    points: it.points,
+    originalPoints: it.originalPoints,
+    stock: it.stock,
+    totalRedeemed: it.totalRedeemed,
+    tag: it.tag,
+  }));
+
+  // 我的兑换历史 — 真接口
+  const historyQuery = useQuery({
+    queryKey: ['point-mall-history', userId],
+    queryFn: () => getPointMallHistory().then((r) => ({ list: r.list || [], lifetime: r.lifetime || 0 })),
+    placeholderData: { list: [], lifetime: 0 },
+  });
+  const records: RedemptionRecord[] = (historyQuery.data?.list ?? []).map((r: ApiRecord) => ({
+    id: r.id,
+    itemId: r.itemId,
+    itemName: r.itemName,
+    emoji: r.emoji,
+    gradient: r.gradient,
+    points: r.points,
+    status: r.status,
+    redeemedAt: r.redeemedAt,
+    serial: r.serial,
+  }));
+  const lifetimePoints = historyQuery.data?.lifetime ?? 0;
 
   const filtered = useMemo(
     () => (cat === 'all' ? MALL_ITEMS : MALL_ITEMS.filter((i) => i.category === cat)),
-    [cat]
+    [cat, MALL_ITEMS]
   );
 
-  const flashItems = MALL_ITEMS.filter((i) => FLASH_SALE_IDS.includes(i.id));
+  // 限时秒杀:tag 含 '限时' 的;若后端没标记,fallback 到 FLASH_SALE_IDS 兜底
+  const flashItems = useMemo(() => {
+    const tagged = MALL_ITEMS.filter((i) => i.tag === '限时');
+    return tagged.length > 0 ? tagged : MALL_ITEMS.filter((i) => FLASH_SALE_IDS.includes(i.id));
+  }, [MALL_ITEMS]);
 
   const handleRedeem = (item: MallItem) => {
     if (item.stock === 0) {
@@ -167,34 +190,37 @@ export function PointsMallTab({ initialPoints }: Props) {
     setConfirmItem(item);
   };
 
+  const redeemMutation = useMutation({
+    mutationFn: (itemId: number) => redeemPointMallItem(itemId),
+    onSuccess: (resp) => {
+      // 服务端返回新记录 + 最新余额,直接用真实数据
+      const data = (resp as any)?.data ?? resp;
+      if (data?.record) {
+        qc.invalidateQueries({ queryKey: ['point-mall-history', userId] });
+      }
+      if (typeof data?.balance === 'number') {
+        qc.setQueryData(['user-point', userId], (old: any) => ({
+          ...(old || { userId }),
+          points: data.balance,
+        }));
+      } else {
+        // 兜底:服务端没返回余额,本地减一下
+        qc.setQueryData(['user-point', userId], (old: any) => ({
+          ...(old || { userId }),
+          points: Math.max(0, (old?.points ?? currentPoints) - (confirmItem?.points ?? 0)),
+        }));
+      }
+      setConfirmItem(null);
+      setToast(`兑换成功 · 消耗 ${confirmItem?.points.toLocaleString() ?? 0} 积分`);
+    },
+    onError: (err: any) => {
+      setToast(err?.message || '兑换失败,请重试');
+    },
+  });
+
   const confirmRedeem = () => {
     if (!confirmItem) return;
-    const now = new Date();
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    const ts = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
-
-    const newRecord: RedemptionRecord = {
-      id: Date.now(),
-      itemId: confirmItem.id,
-      itemName: confirmItem.name,
-      emoji: confirmItem.emoji,
-      gradient: confirmItem.gradient,
-      points: confirmItem.points,
-      status: confirmItem.category === 'physical' ? 'pending' : 'completed',
-      redeemedAt: ts,
-      serial: ['virtual', 'limited'].includes(confirmItem.category)
-        ? `SERIAL-${now.getFullYear()}${pad(now.getMonth() + 1)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
-        : undefined,
-    };
-    setRecords((r) => [newRecord, ...r]);
-
-    qc.setQueryData(['user-point', USER_ID], (old: any) => ({
-      ...(old || { userId: USER_ID }),
-      points: Math.max(0, (old?.points ?? currentPoints) - confirmItem.points),
-    }));
-
-    setConfirmItem(null);
-    setToast(`兑换成功 · 消耗 ${confirmItem.points.toLocaleString()} 积分`);
+    redeemMutation.mutate(confirmItem.id);
   };
 
   return (
@@ -229,7 +255,7 @@ export function PointsMallTab({ initialPoints }: Props) {
               <Typography sx={{ fontSize: 14, fontWeight: 600, opacity: 0.85 }}>可用积分</Typography>
             </Box>
             <Typography sx={{ fontSize: 12, opacity: 0.85 }}>
-              可兑换 {MALL_ITEMS.filter((i) => i.points <= currentPoints).length} 件商品 · 历史累计 28,420
+              可兑换 {MALL_ITEMS.filter((i) => i.points <= currentPoints).length} 件商品 · 历史累计 {lifetimePoints.toLocaleString()}
             </Typography>
           </Box>
         </Box>

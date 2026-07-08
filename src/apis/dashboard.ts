@@ -539,3 +539,179 @@ export const cmsVip = {
   save: async (data: { tiers: any[]; tasks: any[]; benefits: any[] }) =>
     unwrap(await client().put(`${cmsBase}/vip`, data)),
 };
+
+// ========== 积分商城(用户中心 points 页) ==========
+
+export interface PointMallItem {
+  id: number;
+  name: string;
+  desc: string;
+  category: 'virtual' | 'privilege' | 'physical' | 'limited';
+  emoji: string;
+  gradient: string;
+  points: number;
+  originalPoints?: number;
+  stock: number; // -1 = 无限
+  totalRedeemed: number;
+  tag?: 'HOT' | 'NEW' | '限时' | '独家';
+}
+export async function getPointMallItems() {
+  return unwrap<{ list: PointMallItem[]; total: number }>(
+    await accountClient('/user/point/mall/items')
+  );
+}
+export async function getPointMallHistory() {
+  return unwrap<{ list: PointMallRecord[]; total: number; lifetime: number }>(
+    await accountClient('/user/point/mall/history')
+  );
+}
+export async function redeemPointMallItem(itemId: number) {
+  return unwrap<{ record: PointMallRecord; balance: number }>(
+    await accountClient.post('/user/point/mall/redeem', { itemId })
+  );
+}
+
+export interface PointMallRecord {
+  id: number;
+  itemId: number;
+  itemName: string;
+  emoji: string;
+  gradient: string;
+  points: number;
+  status: 'pending' | 'shipped' | 'completed';
+  redeemedAt: string;
+  serial?: string;
+}
+
+// ========== 创作者 · 优质作品榜 ==========
+
+export interface TopPerformingItem {
+  id: number;
+  rank: number;
+  type: 'video' | 'image' | 'live';
+  title: string;
+  thumbnail: string;
+  views: number;
+  likes: number;
+  comments: number;
+  completion: number;
+  delta: number; // 7 日环比 %
+  publishedAt: string;
+  duration?: string;
+}
+export async function getTopPerformingContent(params?: { days?: 7 | 30; limit?: number }) {
+  return unwrap<PageData<TopPerformingItem>>(
+    await accountClient('/creator/content/top-performing', { params })
+  );
+}
+
+// ========== 共创中心(co-create) ==========
+
+export interface CoCreatePartner {
+  id: number;
+  name: string;
+  avatar: string;
+  niche: string;
+  fans: number;
+  verified?: boolean;
+  matchScore: number;
+}
+
+export interface CoCreateCollab {
+  id: number;
+  partner: CoCreatePartner;
+  type: 'jointPost' | 'assetShare' | 'topicCollab';
+  status: 'active' | 'pending' | 'completed' | 'declined';
+  revenueSplit: number;
+  topic: string;
+  progress: number;
+  startedAt: number;
+  lastActivityAt: number;
+  totalEarnings: number;
+  jointViews: number;
+}
+
+export interface CoCreateInvite {
+  id: number;
+  direction: 'incoming' | 'outgoing';
+  partner: CoCreatePartner;
+  type: 'jointPost' | 'assetShare' | 'topicCollab';
+  revenueSplit: number;
+  message: string;
+  createdAt: number;
+}
+
+export async function getCoCreateCollabs() {
+  return unwrap<PageData<CoCreateCollab>>(await accountClient('/co-create/collabs'));
+}
+export async function getCoCreateInvites(direction: 'incoming' | 'outgoing') {
+  return unwrap<PageData<CoCreateInvite>>(
+    await accountClient(`/co-create/invites`, { params: { direction } })
+  );
+}
+export async function getRecommendedCoCreatePartners(params?: { keyword?: string }) {
+  return unwrap<PageData<CoCreatePartner>>(
+    await accountClient('/co-create/recommend', { params })
+  );
+}
+
+export async function acceptCoCreateInvite(id: number) {
+  return unwrap(await accountClient.post('/co-create/accept', { id }));
+}
+export async function rejectCoCreateInvite(id: number) {
+  return unwrap(await accountClient.post('/co-create/reject', { id }));
+}
+export async function cancelCoCreateInvite(id: number) {
+  return unwrap(await accountClient.post('/co-create/cancel', { id }));
+}
+export async function finishCoCreate(id: number) {
+  return unwrap(await accountClient.post('/co-create/finish', { id }));
+}
+export async function sendCoCreateInvite(body: {
+  projectId: string;
+  userId: number;
+  role: string;
+  type?: CoCreateCollab['type'];
+  revenueSplit?: number;
+  message?: string;
+}) {
+  return unwrap(await accountClient.post('/co-create/invite', body));
+}
+
+// ========== 充值包 / 权益 / 活动(recharge 页) ==========
+
+export interface DiamondPackage {
+  id: string;
+  diamonds: number;
+  bonus?: number;
+  price: number; // 元
+  originalPrice?: number;
+  badge?: 'recommend' | 'hot' | 'bonus' | 'first';
+  desc: string;
+  perDiamond: string;
+  sort?: number;
+  enabled?: boolean;
+}
+export async function getDiamondPackages() {
+  return unwrap<{ list: DiamondPackage[] }>(await accountClient('/recharge/packages'));
+}
+
+export interface DiamondBenefit {
+  icon: 'crown' | 'flash' | 'gift' | 'badge' | 'support' | 'theater';
+  title: string;
+  desc: string;
+  sort?: number;
+}
+export async function getDiamondBenefits() {
+  return unwrap<{ list: DiamondBenefit[] }>(await accountClient('/recharge/benefits'));
+}
+
+export interface DiamondActivity {
+  title: string;
+  subtitle: string;
+  endsAt: string;
+  rules: string[];
+}
+export async function getDiamondActivity() {
+  return unwrap<DiamondActivity>(await accountClient('/recharge/activity'));
+}

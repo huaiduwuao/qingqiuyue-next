@@ -23,8 +23,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
         defaultOptions: {
           queries: {
             staleTime: 5 * 60 * 1000,
+            // 内存治理:5.37 GB dev server 反复泄漏的根因之一是 query cache 永驻
+            // 内存(gcTime 默认 5 min,但没人触发就持续累加)。给个 30 min 上限,
+            // HMR 重新挂载后旧缓存自动回收;production 不会因为 gcTime 影响数据新鲜度
+            // (staleTime 5 min < gcTime 30 min,取数仍会按需 refetch)。
+            gcTime: 30 * 60 * 1000,
             retry: 2,
             retryDelay: (i) => Math.min(500 * 2 ** i, 2000),
+            // 切走页面后立即停止请求,避免无意义的 network + 内存占用
+            refetchOnWindowFocus: false,
           },
         },
       })

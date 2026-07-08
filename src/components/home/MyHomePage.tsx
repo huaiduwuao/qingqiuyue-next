@@ -104,11 +104,11 @@ const SUB_TABS: { key: string; label: string }[] = [
   { key: 'drama', label: '短剧' },
 ];
 
-const QUICK_LINKS: { key: string; label: string; icon: React.ReactNode; badge?: string; href: string }[] = [
-  { key: 'wallet', label: '我的钱包', icon: <WalletRoundedIcon sx={{ fontSize: 18 }} />, badge: '¥128', href: '/account/wallet' },
-  { key: 'points', label: '积分中心', icon: <StarsIcon sx={{ fontSize: 18 }} />, badge: '12,580', href: '/user/points' },
-  { key: 'order', label: '我的订单', icon: <ReceiptLongRoundedIcon sx={{ fontSize: 18 }} />, badge: '3', href: '/account/orders' },
-  { key: 'vip', label: '会员中心', icon: <WorkspacePremiumRoundedIcon sx={{ fontSize: 18 }} />, badge: 'VIP', href: '/account/vip' },
+const QUICK_LINKS: { key: string; label: string; icon: React.ReactNode; href: string }[] = [
+  { key: 'wallet', label: '我的钱包', icon: <WalletRoundedIcon sx={{ fontSize: 18 }} />, href: '/account/wallet' },
+  { key: 'points', label: '积分中心', icon: <StarsIcon sx={{ fontSize: 18 }} />, href: '/user/points' },
+  { key: 'order', label: '我的订单', icon: <ReceiptLongRoundedIcon sx={{ fontSize: 18 }} />, href: '/account/orders' },
+  { key: 'vip', label: '会员中心', icon: <WorkspacePremiumRoundedIcon sx={{ fontSize: 18 }} />, href: '/account/vip' },
 ];
 
 const DATE_RANGES = [
@@ -192,6 +192,28 @@ export function MyHomePage() {
       homeClient
         .get<ListResp>(`/me/list?tab=${mainTab}&sub=${subTab}`)
         .then((r) => r.data),
+  });
+
+  // 快捷入口徽标所需数据(QUICK_LINKS 渲染时实时消费)
+  const walletQ = useQuery({
+    queryKey: ['home', 'me', 'wallet'],
+    queryFn: () => homeClient.get<any>('/me/wallet').then((r) => r.data),
+    staleTime: 60_000,
+  });
+  const pointQ = useQuery({
+    queryKey: ['home', 'me', 'point'],
+    queryFn: () => homeClient.get<any>('/me/point').then((r) => r.data),
+    staleTime: 60_000,
+  });
+  const orderQ = useQuery({
+    queryKey: ['home', 'me', 'orders'],
+    queryFn: () => homeClient.get<any>('/me/orders?size=1').then((r) => r.data),
+    staleTime: 60_000,
+  });
+  const vipQ = useQuery({
+    queryKey: ['home', 'me', 'vip'],
+    queryFn: () => homeClient.get<any>('/me/vip').then((r) => r.data),
+    staleTime: 5 * 60_000,
   });
 
   const filteredList = useMemo(() => {
@@ -363,7 +385,7 @@ export function MyHomePage() {
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
               <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary, currentColor)' }}>
-                {profile?.user?.nickname || currentUser?.nickname || currentUser?.name || '怀独无傲'}
+                {profile?.user?.nickname || currentUser?.nickname || currentUser?.name || '—'}
               </Typography>
               <Box sx={{ width: 16, height: 16, borderRadius: 0.5, bgcolor: 'rgba(255,180,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'warning.main' }} />
@@ -474,32 +496,57 @@ export function MyHomePage() {
             backdropFilter: 'blur(8px)',
           }}
         >
-          {QUICK_LINKS.map((q) => (
-            <Box
-              key={q.key}
-              component={Link}
-              href={q.href}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1,
-                p: 1.25,
-                borderRadius: 1.5,
-                cursor: 'pointer',
-                textDecoration: 'none',
-                transition: 'all 0.15s',
-                '&:hover': { bgcolor: 'var(--bg-hover, transparent)' },
-              }}
-            >
-              <Box sx={{ color: 'primary.main', display: 'flex' }}>{q.icon}</Box>
-              <Typography sx={{ fontSize: 12, color: 'text.primary', flex: 1 }}>{q.label}</Typography>
-              {q.badge && (
-                <Box sx={{ px: 0.75, py: 0.125, borderRadius: 0.75, bgcolor: q.badge === 'VIP' ? 'warning.main' : 'action.hover', color: q.badge === 'VIP' ? '#1a1a1a' : 'text.secondary', fontSize: 10, fontWeight: 700 }}>
-                  {q.badge}
-                </Box>
-              )}
-            </Box>
-          ))}
+          {QUICK_LINKS.map((q) => {
+            // 真实数据:每个入口右上角的小徽标从对应接口取
+            let badge: string | null = null;
+            let badgeColor: 'warning' | 'default' = 'default';
+            if (q.key === 'wallet') {
+              const yuan = (walletQ.data?.balance ?? 0) / 100;
+              badge = yuan > 0 ? `¥${yuan.toFixed(yuan < 100 ? 2 : 0)}` : null;
+            } else if (q.key === 'points') {
+              const pts = pointQ.data?.points ?? 0;
+              badge = pts > 0 ? pts.toLocaleString() : null;
+            } else if (q.key === 'order') {
+              const cnt = orderQ.data?.records?.length ?? orderQ.data?.list?.length ?? 0;
+              badge = cnt > 0 ? String(cnt) : null;
+            } else if (q.key === 'vip') {
+              const vip = vipQ.data as any;
+              if (vip?.tiers?.some((t: any) => t.active)) {
+                badge = 'VIP';
+                badgeColor = 'warning';
+              }
+            }
+            return (
+              <Box
+                key={q.key}
+                component={Link}
+                href={q.href}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                  p: 1.25,
+                  borderRadius: 1.5,
+                  cursor: 'pointer',
+                  textDecoration: 'none',
+                  transition: 'all 0.15s',
+                  '&:hover': { bgcolor: 'var(--bg-hover, transparent)' },
+                }}
+              >
+                <Box sx={{ color: 'primary.main', display: 'flex' }}>{q.icon}</Box>
+                <Typography sx={{ fontSize: 12, color: 'text.primary', flex: 1 }}>{q.label}</Typography>
+                {badge && (
+                  <Box sx={{
+                    px: 0.75, py: 0.125, borderRadius: 0.75, fontSize: 10, fontWeight: 700,
+                    bgcolor: badgeColor === 'warning' ? 'warning.main' : 'action.hover',
+                    color: badgeColor === 'warning' ? '#1a1a1a' : 'text.secondary',
+                  }}>
+                    {badge}
+                  </Box>
+                )}
+              </Box>
+            );
+          })}
         </Box>
 
         {/* Main tabs */}
@@ -1076,7 +1123,13 @@ function AppointmentListView({ list, onClick, onCancel }: { list: MyItem[]; onCl
             <Box sx={{ display: 'flex', gap: 1, fontSize: 11, color: 'text.secondary', alignItems: 'center' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
                 <EventNoteRoundedIcon sx={{ fontSize: 11 }} />
-                预计开播: 今晚 20:00
+                {(() => {
+                  const start = (it as any).startAt || (it as any).liveStartAt;
+                  if (typeof start === 'number' && start > Date.now()) {
+                    return <>预计开播: {new Date(start).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</>;
+                  }
+                  return <>已开播 · 预约观看</>;
+                })()}
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
                 <VisibilityRoundedIcon sx={{ fontSize: 11 }} />
@@ -1134,14 +1187,14 @@ function AINoteListView({ list, batchMode, selected, onToggle }: { list: MyItem[
                 <Typography sx={{ fontSize: 10, color: 'text.muted' }}>{formatRelativeTime(it.postedAt)}</Typography>
               </Box>
               <Typography sx={{ fontSize: 12, color: 'text.secondary', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                AI 自动整理的笔记摘要:从你最近观看的 {formatViews(it.views)} 条内容中提炼了 12 个关键观点…
+                {(it as any).summary || (it as any).aiSummary || '该内容暂无 AI 摘要'}
               </Typography>
               <Box sx={{ display: 'flex', gap: 0.5, mt: 0.75 }}>
                 <Box sx={{ px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(139,92,246,0.15)', color: ACCENT.purple.main, fontSize: 10, fontWeight: 600 }}>
                   AI 摘要
                 </Box>
                 <Box sx={{ px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'action.hover', color: 'text.secondary', fontSize: 10 }}>
-                  {Math.floor(it.likes / 5)} 条引用
+                  {(it as any).citeCount != null ? `${(it as any).citeCount} 条引用` : '暂无引用'}
                 </Box>
               </Box>
             </Box>
@@ -1206,7 +1259,8 @@ function EmptyState({ tab, subTab, onPublish }: { tab: string; subTab: string; o
 }
 
 // ─── 子组件:编辑资料 Drawer ───
-const REGION_PRESETS = ['中国', '奥地利', '日本', '韩国', '美国', '英国', '法国', '德国', '加拿大', '澳大利亚'];
+// 地区选项:从 system-area 接口拉,无网络时兜底显示空(不再硬编码 10 个国家)
+const REGION_FALLBACK: string[] = [];
 
 function EditProfileDrawer({
   open, onClose, profile, onSave, saving,
@@ -1226,6 +1280,19 @@ function EditProfileDrawer({
   const [avatar, setAvatar] = useState('');
   const [showRegionMenu, setShowRegionMenu] = useState(false);
 
+  // 地区选项:真接口(system-area) → fallback 空
+  const regionQ = useQuery({
+    queryKey: ['home', 'me', 'region-presets'],
+    queryFn: () =>
+      homeClient.get<any>('/region/options').then((r) => {
+        const list = r.data?.list || r.data || [];
+        return Array.isArray(list) ? list.map((x: any) => x.name || x.label || String(x)) : [];
+      }),
+    enabled: open,
+    staleTime: 10 * 60_000,
+  });
+  const REGION_PRESETS: string[] = (regionQ.data && regionQ.data.length > 0) ? regionQ.data : REGION_FALLBACK;
+
   useEffect(() => {
     if (!open) return;
     setNickname(initial?.nickname || '');
@@ -1236,9 +1303,10 @@ function EditProfileDrawer({
     setAvatar(initial?.avatar || '');
   }, [open, initial?.nickname, initial?.douyinId, initial?.bio, initial?.region, initial?.age, initial?.avatar]);
 
+  // 之前:使用 picsum.photos + Math.random() 拼一个外部样图作默认头像。
+  // 改:头像应走系统上传或后端默认头像接口;此处不伪造 URL,清空让用户上传。
   const handleRandomAvatar = () => {
-    const seed = Math.floor(Math.random() * 10000);
-    setAvatar(`https://picsum.photos/seed/${seed}/200/200`);
+    setAvatar('');
   };
 
   const handleSubmit = () => {
@@ -1427,9 +1495,10 @@ function QrCodeDialog({
 }) {
   const user = profile?.user || currentUser;
   const nickname = user?.nickname || currentUser?.nickname || currentUser?.name || '我';
-  const douyinId = user?.douyinId || '84301022';
+  // douyinId 没拉到时不伪造 ID,直接用 uid(后端有唯一性);不再使用硬编码 '84301022' 兜底
+  const douyinId = user?.douyinId || user?.id || currentUser?.id || '';
   const avatarSrc = user?.avatar || currentUser?.avatar;
-  const profileUrl = `https://qingqiuyue.com/u/${encodeURIComponent(douyinId)}`;
+  const profileUrl = `https://qingqiuyue.com/u/${encodeURIComponent(String(douyinId))}`;
   const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=${encodeURIComponent(profileUrl)}`;
   const [refreshing, setRefreshing] = useState(false);
   const [qrKey, setQrKey] = useState(0);

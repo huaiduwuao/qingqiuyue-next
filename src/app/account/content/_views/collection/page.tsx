@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getCollectionList, type Collection as ApiCollection } from '@/apis/dashboard';
+import { getCollectionList, getMyWorks, type Collection as ApiCollection, type MyWork as ApiMyWork } from '@/apis/dashboard';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -72,22 +72,6 @@ interface Collection {
   updatedAt: number;
 }
 
-const ALL_WORKS: WorkRef[] = [
-  { id: 1001, title: '夏日海边vlog｜治愈瞬间', cover: gradient3('#FE2C55', '#FF6B8A', '#FFB400'), duration: '03:42', views: 1284932, type: 'video' },
-  { id: 1002, title: '小红书同款｜夏日穿搭', cover: gradient3('#25F4EE', '#5DF7F2', '#8B5CF6'), duration: '02:15', views: 423891, type: 'image' },
-  { id: 1003, title: '挑战全网最辣螺蛳粉', cover: gradient3('#FFB400', '#FE2C55', '#8B5CF6'), duration: '05:28', views: 287432, type: 'video' },
-  { id: 1004, title: '10分钟学会快手早餐', cover: gradient2('#5DDB96', '#25F4EE'), duration: '09:54', views: 0, type: 'video' },
-  { id: 1005, title: '我的家乡｜回家路上', cover: gradient2('#5B8DEF', '#8B5CF6'), duration: '04:21', views: 0, type: 'video' },
-  { id: 1006, title: '深夜独处歌单 10 首', cover: gradient2('#8B5CF6', '#FE2C55'), views: 8432, type: 'article' },
-  { id: 1007, title: '【开箱】Sony A7C II', cover: gradient2('#FF6B8A', '#FFB400'), duration: '12:14', views: 0, type: 'video' },
-  { id: 1008, title: '设计师的一天', cover: gradient2('#06B6D4', '#5B8DEF'), views: 124832, type: 'image' },
-  { id: 1009, title: '岛屿旅行 Day1｜机场出发', cover: gradient2('#25F4EE', '#5DDB96'), duration: '06:33', views: 89231, type: 'video' },
-  { id: 1010, title: '岛屿旅行 Day2｜浮潜', cover: gradient2('#5DDB96', '#FFB400'), duration: '08:12', views: 67843, type: 'video' },
-  { id: 1011, title: '岛屿旅行 Day3｜日落', cover: gradient2('#FFB400', '#FE2C55'), duration: '04:48', views: 92187, type: 'video' },
-  { id: 1012, title: '快手早餐｜3分钟蛋饼', cover: gradient2('#5DDB96', '#25F4EE'), duration: '03:12', views: 167423, type: 'video' },
-];
-
-
 const STATUS_META: Record<CollectionStatus, { label: string; color: string; bg: string }> = {
   active: { label: '进行中', color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.12)' },
   finished: { label: '已完结', color: '#5B8DEF', bg: 'rgba(91, 141, 239, 0.12)' },
@@ -133,6 +117,13 @@ function formatDate(ts: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+function formatDuration(sec: number): string {
+  if (!sec) return '';
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
+
 function DetailHeader({ title, action }: { title: string; action?: React.ReactNode }) {
   return (
     <Box sx={{ mb: 3, display: 'flex', alignItems: 'flex-end' }}>
@@ -155,6 +146,22 @@ export default function CollectionPage() {
     staleTime: 30 * 1000,
     refetchOnMount: 'always',
   });
+
+  // 真接口拉当前创作者的所有作品(供「添加作品」选择器使用)
+  const { data: myWorksResp } = useQuery({
+    queryKey: ['creator-my-works-all'],
+    queryFn: () => getMyWorks().then((r) => r.records || r.list || []),
+    staleTime: 30 * 1000,
+    refetchOnMount: 'always',
+  });
+  const myWorks: WorkRef[] = (myWorksResp ?? []).map((w: ApiMyWork) => ({
+    id: Number(w.id) || 0,
+    title: w.title,
+    cover: w.cover,
+    duration: typeof w.duration === 'number' ? formatDuration(w.duration) : undefined,
+    views: w.views ?? 0,
+    type: (w.hashtags?.includes('article') ? 'article' : w.duration > 0 ? 'video' : 'image') as WorkRef['type'],
+  }));
   const apiCollections: Collection[] = (colResp?.records ?? colResp?.list ?? []).map((c: ApiCollection) => ({
     id: Number(c.id) || 0,
     title: c.title,
@@ -510,11 +517,13 @@ export default function CollectionPage() {
           open={createOpen}
           onClose={() => setCreateOpen(false)}
           onCreate={handleCreate}
+          allWorks={myWorks}
         />
 
         <EditCollectionDrawer
           collection={editing}
           onClose={() => setEditing(null)}
+          allWorks={myWorks}
           onSave={(patch) => {
             if (editing) {
               handleUpdate(editing.id, patch);
@@ -538,11 +547,12 @@ export default function CollectionPage() {
 
 // ───── 创建合集 Dialog ─────
 function CreateCollectionDialog({
-  open, onClose, onCreate,
+  open, onClose, onCreate, allWorks,
 }: {
   open: boolean;
   onClose: () => void;
   onCreate: (data: Omit<Collection, 'id' | 'totalViews' | 'subscribers' | 'createdAt' | 'updatedAt'>) => void;
+  allWorks: WorkRef[];
 }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -673,10 +683,15 @@ function CreateCollectionDialog({
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
               <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>添加作品</Typography>
               <Box sx={{ flex: 1 }} />
-              <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>已选 {pickedWorks.size} / {ALL_WORKS.length}</Typography>
+              <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>已选 {pickedWorks.size} / {allWorks.length}</Typography>
             </Box>
             <Box sx={{ maxHeight: 240, overflowY: 'auto', border: 1, borderColor: 'divider', borderRadius: 1.5, p: 0.5 }}>
-              {ALL_WORKS.map((w) => {
+              {allWorks.length === 0 ? (
+                <Box sx={{ p: 3, textAlign: 'center', color: 'text.disabled', fontSize: 12 }}>
+                  暂无可加入合集的作品
+                </Box>
+              ) : (
+                allWorks.map((w) => {
                 const picked = pickedWorks.has(w.id);
                 return (
                   <Box
@@ -721,7 +736,8 @@ function CreateCollectionDialog({
                     </Box>
                   </Box>
                 );
-              })}
+              })
+              )}
             </Box>
           </Box>
         </Stack>
@@ -730,7 +746,7 @@ function CreateCollectionDialog({
         <Button onClick={onClose} variant="outlined" sx={{ textTransform: 'none', borderRadius: 1.5 }}>取消</Button>
         <Button
           onClick={() => {
-            const works = ALL_WORKS.filter((w) => pickedWorks.has(w.id));
+            const works = allWorks.filter((w) => pickedWorks.has(w.id));
             onCreate({
               title: title.trim(), description, cover, category, visibility, autoSort,
               status: 'draft', works,
@@ -753,11 +769,12 @@ function CreateCollectionDialog({
 
 // ───── 编辑合集 Drawer (含作品重排序 + 增删) ─────
 function EditCollectionDrawer({
-  collection, onClose, onSave,
+  collection, onClose, onSave, allWorks,
 }: {
   collection: Collection | null;
   onClose: () => void;
   onSave: (patch: Partial<Collection>) => void;
+  allWorks: WorkRef[];
 }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -795,7 +812,7 @@ function EditCollectionDrawer({
   };
   const removeWork = (id: number) => setWorks((p) => p.filter((w) => w.id !== id));
 
-  const availableToAdd = ALL_WORKS.filter((w) => !works.some((x) => x.id === w.id));
+  const availableToAdd = allWorks.filter((w) => !works.some((x) => x.id === w.id));
 
   return (
     <Drawer

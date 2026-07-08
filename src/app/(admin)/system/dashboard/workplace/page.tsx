@@ -111,7 +111,9 @@ function useWorkplace() {
       { id: 'spider', label: '爬虫管理', icon: 'spider', color: '#FE2C55', path: '/system/hermes' },
       { id: 'chart', label: '数据分析', icon: 'chart', color: '#8B5CF6', path: '/system/dashboard/analysis' },
     ],
-    staleTime: Infinity,
+    // 之前:staleTime: Infinity → dev 模式 query cache 永不释放,内存持续上涨
+    // 改:1h 上限,既保持 admin 长时间停留不重查,也允许 GC 释放
+    staleTime: 60 * 60 * 1000,
   });
 
   const todos = useQuery<Todo[]>({

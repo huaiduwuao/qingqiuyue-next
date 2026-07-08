@@ -32,9 +32,15 @@ import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2, gradient3 } from '@/constants/gradients';
 import { accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
 import { getWallet, getWalletTransactions, createRechargeOrder, confirmRecharge, type WalletTx } from '@/apis/wallet';
+import {
+  getDiamondPackages,
+  getDiamondBenefits,
+  getDiamondActivity,
+  type DiamondPackage as ApiDiamondPackage,
+  type DiamondBenefit as ApiDiamondBenefit,
+  type DiamondActivity as ApiDiamondActivity,
+} from '@/apis/dashboard';
 
-// 充值/钱包域占位:后端 `/api/core/wallet/*` 就绪后,以下数据/类型替换为 API 调用
-const DIAMOND_BALANCE = 0;
 type PayMethod = 'wechat' | 'alipay' | 'apple' | 'card';
 interface DiamondPackage {
   id: string;
@@ -66,34 +72,6 @@ interface DiamondActivity {
   endsAt: string;
   rules: string[];
 }
-const DIAMOND_PACKAGES: DiamondPackage[] = [
-  { id: 'p6', diamonds: 60, price: 6, badge: 'first', desc: '首充特惠', perDiamond: '0.100' },
-  { id: 'p30', diamonds: 300, bonus: 30, price: 30, badge: 'hot', desc: '热播内容随心看', perDiamond: '0.091' },
-  { id: 'p68', diamonds: 680, bonus: 68, price: 68, desc: '性价比之选', perDiamond: '0.090' },
-  { id: 'p128', diamonds: 1280, bonus: 180, price: 128, badge: 'recommend', desc: '推荐档位,畅看会员', perDiamond: '0.082' },
-  { id: 'p328', diamonds: 3280, bonus: 580, price: 328, badge: 'bonus', desc: '重度用户专享', perDiamond: '0.078' },
-  { id: 'p648', diamonds: 6480, bonus: 1380, price: 648, badge: 'bonus', desc: '至尊加赠', perDiamond: '0.075' },
-];
-const DIAMOND_RECORDS: DiamondRecord[] = [];
-const DIAMOND_BENEFITS: DiamondBenefit[] = [
-  { icon: 'crown', title: '会员专属', desc: '解锁会员内容与画质' },
-  { icon: 'flash', title: '专属特效', desc: '评论/弹幕特效展示' },
-  { icon: 'gift', title: '打赏作者', desc: '用钻石给喜欢的创作者送礼' },
-  { icon: 'badge', title: '身份标识', desc: '个人主页专属钻石铭牌' },
-  { icon: 'support', title: '优先客服', desc: '7×24 小时钻石专属通道' },
-  { icon: 'theater', title: '影院权益', desc: '4K/HDR 与高码率通道' },
-];
-const DIAMOND_ACTIVITY: DiamondActivity = {
-  title: '暑期充值加赠 10%',
-  subtitle: '活动期间充值任意档位,额外加赠 10% 钻石,上不封顶',
-  endsAt: new Date(Date.now() + 30 * 86_400_000).toISOString(),
-  rules: [
-    '活动时间:即日起至活动结束;',
-    '加赠钻石将在支付成功后实时到账;',
-    '钻石为虚拟货币,充值后不支持退款;',
-    '如有疑问请联系在线客服。',
-  ],
-};
 const PAY_METHODS: Array<{ key: PayMethod; label: string; sub: string; iconKey: 'wechat' | 'alipay' | 'apple' | 'card'; recommended?: boolean }> = [
   { key: 'wechat', label: '微信支付', sub: '推荐', iconKey: 'wechat', recommended: true },
   { key: 'alipay', label: '支付宝', sub: '快捷', iconKey: 'alipay' },
@@ -148,12 +126,61 @@ function useCountdown(target: string) {
 
 export default function RechargePage() {
   const router = useRouter();
-  const [selectedPkg, setSelectedPkg] = useState<string>(DIAMOND_PACKAGES.find((p) => p.badge === 'recommend')?.id ?? 'p128');
+  const [selectedPkg, setSelectedPkg] = useState<string>('');
   const [payMethod, setPayMethod] = useState<PayMethod>('wechat');
   const [paying, setPaying] = useState(false);
   const [payDialogOpen, setPayDialogOpen] = useState(false);
   const [order, setOrder] = useState<{ id: string; amount: number; diamonds: number; method: PayMethod; qrUrl?: string } | null>(null);
   const [toast, setToast] = useState<{ open: boolean; msg: string; severity: 'success' | 'info' }>({ open: false, msg: '', severity: 'success' });
+
+  // 真接口:充值包 / 权益 / 活动
+  const pkgQ = useQuery({
+    queryKey: ['recharge-packages'],
+    queryFn: () => getDiamondPackages().then((r) => r.list || []),
+    staleTime: 5 * 60 * 1000,
+    refetchOnMount: 'always',
+  });
+  const benefitQ = useQuery({
+    queryKey: ['recharge-benefits'],
+    queryFn: () => getDiamondBenefits().then((r) => r.list || []),
+    staleTime: 10 * 60 * 1000,
+  });
+  const activityQ = useQuery({
+    queryKey: ['recharge-activity'],
+    queryFn: () => getDiamondActivity(),
+    staleTime: 60 * 1000,
+  });
+
+  const DIAMOND_PACKAGES: DiamondPackage[] = (pkgQ.data ?? []).map((p: ApiDiamondPackage) => ({
+    id: p.id,
+    diamonds: p.diamonds,
+    bonus: p.bonus,
+    price: p.price,
+    originalPrice: p.originalPrice,
+    badge: p.badge,
+    desc: p.desc,
+    perDiamond: p.perDiamond,
+  }));
+  const DIAMOND_BENEFITS: DiamondBenefit[] = (benefitQ.data ?? []).map((b: ApiDiamondBenefit) => ({
+    icon: b.icon,
+    title: b.title,
+    desc: b.desc,
+  }));
+  const DIAMOND_ACTIVITY: DiamondActivity = activityQ.data ?? {
+    title: '',
+    subtitle: '',
+    endsAt: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+    rules: [],
+  };
+
+  // 选中默认值:首次加载完后默认选 recommend
+  useEffect(() => {
+    if (!selectedPkg && DIAMOND_PACKAGES.length > 0) {
+      const recommended = DIAMOND_PACKAGES.find((p) => p.badge === 'recommend') ?? DIAMOND_PACKAGES[0];
+      setSelectedPkg(recommended.id);
+    }
+  }, [DIAMOND_PACKAGES, selectedPkg]);
+
   const countdown = useCountdown(DIAMOND_ACTIVITY.endsAt);
 
   // 真接口:当前钱包余额

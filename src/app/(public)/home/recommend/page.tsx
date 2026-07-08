@@ -42,6 +42,13 @@ const CATEGORY_TO_TYPE: Record<string, string> = {
   公开课: 'ARTICLE', 科技: 'ARTICLE',
 };
 
+// 后端 contentType → 卡片角标文案。前端不写死具体题材,统一走类型映射。
+const TYPE_TO_CHIP: Record<string, string> = {
+  NOVEL: '小说', COMICS: '漫画', FILM: '影视', VSHOW: '综艺', MUSIC: '音乐',
+  TELEPLAY: '短剧', ANIMATION: '二次元', VIDEO: '游戏', NEWS: '资讯',
+  ARTICLE: '文章', LIVE: '直播',
+};
+
 // URL ?tab=xxx ↔ 中文分类 双向映射;tab 缺失等价于 'all' (全部)
 const CATEGORY_TO_TAB: Record<string, string> = {
   全部: 'all', 小说: 'novel', 漫画: 'comics', 影视: 'film', 综艺: 'vshow', 音乐: 'music',
@@ -428,7 +435,7 @@ export default function HomeRecommendPage() {
                         fontWeight: 600,
                       }}
                     >
-                      狼人杀
+                      {TYPE_TO_CHIP[item.contentType] ?? '推荐'}
                     </Box>
                   </Box>
                 </Box>

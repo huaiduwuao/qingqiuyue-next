@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -14,94 +15,10 @@ import VideocamIcon from '@mui/icons-material/Videocam';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import { useRouter } from 'next/navigation';
 import { getDetailRoute } from '@/lib/contentRoute';
-import { gradient2, gradient3, CTA_GRADIENT } from '@/constants/gradients';
+import { CTA_GRADIENT } from '@/constants/gradients';
+import { getTopPerformingContent, type TopPerformingItem as ApiItem } from '@/apis/dashboard';
 
-interface Item {
-  id: number;
-  rank: number;
-  type: 'video' | 'image' | 'live';
-  title: string;
-  thumbnail: string;
-  views: number;
-  likes: number;
-  comments: number;
-  completion: number;
-  delta: number;
-  publishedAt: string;
-  duration?: string;
-}
-
-const ITEMS: Item[] = [
-  {
-    id: 1,
-    rank: 1,
-    type: 'video',
-    title: '夏日海边vlog｜这个夏天最治愈的5个瞬间',
-    thumbnail: gradient3('#FE2C55', '#FF6B8A', '#FFB400'),
-    views: 1284932,
-    likes: 89432,
-    comments: 3211,
-    completion: 78.4,
-    delta: 312,
-    publishedAt: '5/30',
-    duration: '02:34',
-  },
-  {
-    id: 2,
-    rank: 2,
-    type: 'image',
-    title: '小红书同款｜夏日穿搭合集',
-    thumbnail: gradient3('#25F4EE', '#5DF7F2', '#8B5CF6'),
-    views: 423891,
-    likes: 32104,
-    comments: 1287,
-    completion: 92.1,
-    delta: 89,
-    publishedAt: '5/28',
-  },
-  {
-    id: 3,
-    rank: 3,
-    type: 'video',
-    title: '挑战全网最辣螺蛳粉！结果我输了…',
-    thumbnail: gradient3('#FFB400', '#FE2C55', '#8B5CF6'),
-    views: 287432,
-    likes: 21890,
-    comments: 2143,
-    completion: 65.8,
-    delta: -12,
-    publishedAt: '5/26',
-    duration: '04:12',
-  },
-  {
-    id: 4,
-    rank: 4,
-    type: 'video',
-    title: '10分钟学会 3 道快手早餐｜上班族必看',
-    thumbnail: gradient2('#5DDB96', '#25F4EE'),
-    views: 198234,
-    likes: 15672,
-    comments: 876,
-    completion: 81.2,
-    delta: 42,
-    publishedAt: '5/24',
-    duration: '10:08',
-  },
-  {
-    id: 5,
-    rank: 5,
-    type: 'live',
-    title: '直播回放｜深夜电台·聊聊最近的生活',
-    thumbnail: gradient2('#8B5CF6', '#FE2C55'),
-    views: 87432,
-    likes: 12340,
-    comments: 4532,
-    completion: 0,
-    delta: 18,
-    publishedAt: '5/22',
-    duration: '01:23:45',
-  },
-];
+type Item = ApiItem;
 
 const TypeIcon = ({ type }: { type: Item['type'] }) => {
   if (type === 'video') return <VideocamIcon sx={{ fontSize: 12 }} />;
@@ -125,6 +42,14 @@ const RANK_COLORS = ['primary.main', '#FF6B8A', 'warning.main', 'secondary.light
 export default function TopPerformingContent() {
   const router = useRouter();
   const [expanded, setExpanded] = useState<number | null>(1);
+
+  // 优质作品榜 — 真接口
+  const itemsQuery = useQuery({
+    queryKey: ['creator-content-top-performing', 7],
+    queryFn: () => getTopPerformingContent({ days: 7, limit: 5 }).then((r) => r.records || r.list || []),
+    placeholderData: [],
+  });
+  const ITEMS: Item[] = (itemsQuery.data ?? []) as Item[];
 
   const handleClick = (item: Item) => {
     const route = getDetailRoute(typeToContentType(item.type), item.id);
@@ -155,7 +80,14 @@ export default function TopPerformingContent() {
         表现最好的 5 个作品及关键指标
       </Typography>
 
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1 }}>
+      {ITEMS.length === 0 ? (
+        <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', py: 4 }}>
+          <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>
+            {itemsQuery.isLoading ? '加载中…' : '暂无作品数据'}
+          </Typography>
+        </Box>
+      ) : (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1 }}>
         {ITEMS.map((item) => {
           const isOpen = expanded === item.id;
           const deltaUp = item.delta > 0;
@@ -309,7 +241,8 @@ export default function TopPerformingContent() {
             </Box>
           );
         })}
-      </Box>
+        </Box>
+      )}
     </Box>
   );
 }

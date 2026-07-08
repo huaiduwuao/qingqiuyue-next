@@ -66,7 +66,7 @@ interface Props {
 
 export default function TaskboardPage({ initialProjectId, initialGroupId, initialViewMode, initialDemandId, onOpenDemandDetail }: Props) {
   const { currentUser } = useApp();
-  const currentUserId = currentUser?.id || 10086;
+  const currentUserId = currentUser?.id ?? 0;
 
   // ?owner=1 query 用于演示/测试时切换为 owner 视角
   const [isOwner, setIsOwner] = useState(false);
@@ -143,7 +143,7 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
       return res?.data?.records || [];
     },
     enabled:
-      viewMode === 'mine' ||
+      (viewMode === 'mine' && !!currentUserId) ||
       (viewMode === 'project' && !!projectId) ||
       (viewMode === 'team' && !!groupId),
     placeholderData: [],

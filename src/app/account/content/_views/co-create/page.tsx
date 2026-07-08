@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -32,46 +33,28 @@ import TopicRoundedIcon from '@mui/icons-material/TopicRounded';
 import VerifiedRoundedIcon from '@mui/icons-material/VerifiedRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import { gradient2 } from '@/constants/gradients';
-import { adminClient } from '@/lib/api/client';
+import {
+  getCoCreateCollabs,
+  getCoCreateInvites,
+  getRecommendedCoCreatePartners,
+  acceptCoCreateInvite,
+  rejectCoCreateInvite,
+  cancelCoCreateInvite,
+  finishCoCreate,
+  sendCoCreateInvite,
+  type CoCreateCollab as ApiCollab,
+  type CoCreateInvite as ApiInvite,
+  type CoCreatePartner as ApiPartner,
+} from '@/apis/dashboard';
 import { RelativeTime } from '@/components/common/RelativeTime';
 
 type CollabType = 'jointPost' | 'assetShare' | 'topicCollab';
 type CollabStatus = 'active' | 'pending' | 'completed' | 'declined';
 type InviteDirection = 'incoming' | 'outgoing';
 
-interface Partner {
-  id: number;
-  name: string;
-  avatar: string;
-  niche: string;
-  fans: number;
-  verified?: boolean;
-  matchScore: number;
-}
-
-interface Collaboration {
-  id: number;
-  partner: Partner;
-  type: CollabType;
-  status: CollabStatus;
-  revenueSplit: number; // % to me
-  topic: string;
-  progress: number; // 0-100
-  startedAt: number;
-  lastActivityAt: number;
-  totalEarnings: number; // diamonds
-  jointViews: number;
-}
-
-interface Invite {
-  id: number;
-  direction: InviteDirection;
-  partner: Partner;
-  type: CollabType;
-  revenueSplit: number;
-  message: string;
-  createdAt: number;
-}
+type Partner = ApiPartner;
+type Collaboration = ApiCollab;
+type Invite = ApiInvite;
 
 const TYPE_META: Record<CollabType, { label: string; icon: React.ReactNode; color: string; bg: string; desc: string }> = {
   jointPost: { label: '联合投稿', icon: <MovieRoundedIcon sx={{ fontSize: 14 }} />, color: '#FE2C55', bg: 'rgba(254, 44, 85, 0.12)', desc: '双方账号同时发布同一作品,流量与收益按分成比例分配' },
@@ -85,54 +68,6 @@ const STATUS_META: Record<CollabStatus, { label: string; color: string; bg: stri
   completed: { label: '已完成', color: '#5B8DEF', bg: 'rgba(91, 141, 239, 0.12)' },
   declined: { label: '已拒绝', color: 'text.disabled', bg: 'action.hover' },
 };
-
-const ACTIVE_COLLABS: Collaboration[] = [
-  {
-    id: 201,
-    partner: { id: 11, name: '旅行的猫', avatar: gradient2('#FE2C55', '#FFB400'), niche: '旅行 · Vlog', fans: 1284932, verified: true, matchScore: 92 },
-    type: 'jointPost', status: 'active', revenueSplit: 55,
-    topic: '夏日海岛三天两夜', progress: 64,
-    startedAt: Date.now() - 86400000 * 8, lastActivityAt: Date.now() - 3600000 * 4,
-    totalEarnings: 8420, jointViews: 482931,
-  },
-  {
-    id: 202,
-    partner: { id: 12, name: '摄影师Leo', avatar: gradient2('#25F4EE', '#5DF7F2'), niche: '摄影 · 教程', fans: 423891, matchScore: 87 },
-    type: 'assetShare', status: 'active', revenueSplit: 50,
-    topic: '相机开箱 · 4K 拍摄实例', progress: 38,
-    startedAt: Date.now() - 86400000 * 14, lastActivityAt: Date.now() - 86400000 * 1,
-    totalEarnings: 3210, jointViews: 187423,
-  },
-  {
-    id: 203,
-    partner: { id: 13, name: '美食日常Cici', avatar: gradient2('#5DDB96', '#25F4EE'), niche: '美食 · 教程', fans: 892341, verified: true, matchScore: 78 },
-    type: 'topicCollab', status: 'active', revenueSplit: 50,
-    topic: '#10分钟快手早餐挑战', progress: 82,
-    startedAt: Date.now() - 86400000 * 21, lastActivityAt: Date.now() - 3600000 * 12,
-    totalEarnings: 12384, jointViews: 1843219,
-  },
-];
-
-const INCOMING_INVITES: Invite[] = [
-  { id: 301, direction: 'incoming', partner: { id: 21, name: '小柯Vlog', avatar: gradient2('#8B5CF6', '#FE2C55'), niche: '生活 · 学生党', fans: 348921, matchScore: 81 }, type: 'jointPost', revenueSplit: 50, message: '想跟你合拍一期校园生活 vlog,我提供拍摄场地。', createdAt: Date.now() - 3600000 * 3 },
-  { id: 302, direction: 'incoming', partner: { id: 22, name: '健身教练 Tony', avatar: gradient2('#FFB400', '#FE2C55'), niche: '健身 · 教程', fans: 587294, verified: true, matchScore: 64 }, type: 'topicCollab', revenueSplit: 50, message: '一起搞个 #夏日燃脂打卡 话题怎么样?', createdAt: Date.now() - 86400000 * 1 },
-  { id: 303, direction: 'incoming', partner: { id: 23, name: '吃货阿杰', avatar: gradient2('#5B8DEF', '#8B5CF6'), niche: '美食 · 探店', fans: 192384, matchScore: 72 }, type: 'assetShare', revenueSplit: 45, message: '我有一批美食探店素材想分享给你,你帮我剪辑文案版?', createdAt: Date.now() - 86400000 * 2 },
-  { id: 304, direction: 'incoming', partner: { id: 24, name: '舞蹈区Lily', avatar: gradient2('#FE2C55', '#FF6B8A'), niche: '舞蹈 · 翻跳', fans: 723419, verified: true, matchScore: 58 }, type: 'jointPost', revenueSplit: 55, message: '想合拍下个月新歌的翻跳挑战。', createdAt: Date.now() - 86400000 * 3 },
-];
-
-const OUTGOING_INVITES: Invite[] = [
-  { id: 401, direction: 'outgoing', partner: { id: 31, name: '科技评测员', avatar: gradient2('#25F4EE', '#8B5CF6'), niche: '数码 · 评测', fans: 1024893, verified: true, matchScore: 88 }, type: 'jointPost', revenueSplit: 50, message: '想合作一期手机评测对比', createdAt: Date.now() - 86400000 * 2 },
-  { id: 402, direction: 'outgoing', partner: { id: 32, name: '插画师小米', avatar: gradient2('#FFB400', '#FFD566'), niche: '艺术 · 插画', fans: 287432, matchScore: 71 }, type: 'assetShare', revenueSplit: 50, message: '想做一期插画工具开箱合集', createdAt: Date.now() - 86400000 * 5 },
-];
-
-const RECOMMENDED_PARTNERS: Partner[] = [
-  { id: 41, name: '城市夜骑王', avatar: gradient2('#FE2C55', '#FFB400'), niche: '骑行 · 城市探索', fans: 489321, verified: true, matchScore: 94 },
-  { id: 42, name: '咖啡探店笔记', avatar: gradient2('#8B5CF6', '#FE2C55'), niche: '生活 · 探店', fans: 234819, matchScore: 89 },
-  { id: 43, name: 'DIY手工Kelly', avatar: gradient2('#5DDB96', '#FFB400'), niche: '手工 · 教程', fans: 612382, verified: true, matchScore: 86 },
-  { id: 44, name: '吉他少年阿凯', avatar: gradient2('#25F4EE', '#FE2C55'), niche: '音乐 · 翻唱', fans: 348219, matchScore: 82 },
-  { id: 45, name: '宠物日记 Maomao', avatar: gradient2('#FF6B8A', '#25F4EE'), niche: '萌宠 · 日常', fans: 1284932, verified: true, matchScore: 79 },
-  { id: 46, name: '硬核游戏老六', avatar: gradient2('#5B8DEF', '#8B5CF6'), niche: '游戏 · 实况', fans: 738291, matchScore: 76 },
-];
 
 function formatNum(n: number): string {
   if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
@@ -166,15 +101,41 @@ function PartnerAvatar({ partner, size = 40 }: { partner: Partner; size?: number
 
 export default function CoCreatePage() {
   const [tab, setTab] = useState<0 | 1 | 2 | 3>(0);
-  const [collabs, setCollabs] = useState(ACTIVE_COLLABS);
-  const [incoming, setIncoming] = useState(INCOMING_INVITES);
-  const [outgoing, setOutgoing] = useState(OUTGOING_INVITES);
-  const [recommended] = useState(RECOMMENDED_PARTNERS);
   const [snack, setSnack] = useState<string | null>(null);
   const [inviteTarget, setInviteTarget] = useState<Partner | null>(null);
   const [keyword, setKeyword] = useState('');
   const [detailCollab, setDetailCollab] = useState<Collaboration | null>(null);
   const router = useRouter();
+  const qc = useQueryClient();
+
+  // 真实 API
+  const collabsQuery = useQuery({
+    queryKey: ['co-create-collabs'],
+    queryFn: () => getCoCreateCollabs().then((r) => r.records || r.list || []),
+    placeholderData: [],
+  });
+  const collabs: Collaboration[] = collabsQuery.data ?? [];
+
+  const incomingQuery = useQuery({
+    queryKey: ['co-create-invites', 'incoming'],
+    queryFn: () => getCoCreateInvites('incoming').then((r) => r.records || r.list || []),
+    placeholderData: [],
+  });
+  const incoming: Invite[] = incomingQuery.data ?? [];
+
+  const outgoingQuery = useQuery({
+    queryKey: ['co-create-invites', 'outgoing'],
+    queryFn: () => getCoCreateInvites('outgoing').then((r) => r.records || r.list || []),
+    placeholderData: [],
+  });
+  const outgoing: Invite[] = outgoingQuery.data ?? [];
+
+  const recQuery = useQuery({
+    queryKey: ['co-create-recommend', keyword],
+    queryFn: () => getRecommendedCoCreatePartners({ keyword: keyword || undefined }).then((r) => r.records || r.list || []),
+    placeholderData: [],
+  });
+  const recommended: Partner[] = recQuery.data ?? [];
 
   const handleMessage = () => {
     router.push('/account/msg');
@@ -191,26 +152,16 @@ export default function CoCreatePage() {
     pendingInvites: incoming.length,
   }), [collabs, incoming]);
 
+  const invalidateAll = () => {
+    qc.invalidateQueries({ queryKey: ['co-create-collabs'] });
+    qc.invalidateQueries({ queryKey: ['co-create-invites'] });
+  };
+
   const handleAcceptInvite = async (id: number) => {
-    const inv = incoming.find((i) => i.id === id);
-    if (!inv) return;
     try {
-      await adminClient('/co-create/accept', { method: 'POST', data: { id } });
-      setIncoming((p) => p.filter((i) => i.id !== id));
-      setCollabs((p) => [{
-        id: Date.now(),
-        partner: inv.partner,
-        type: inv.type,
-        status: 'active',
-        revenueSplit: inv.revenueSplit,
-        topic: inv.message.slice(0, 30),
-        progress: 0,
-        startedAt: Date.now(),
-        lastActivityAt: Date.now(),
-        totalEarnings: 0,
-        jointViews: 0,
-      }, ...p]);
-      setSnack(`已接受 @${inv.partner.name} 的共创邀请`);
+      await acceptCoCreateInvite(id);
+      setSnack('已接受共创邀请');
+      invalidateAll();
     } catch (e) {
       setSnack(`接受邀请失败:${e instanceof Error ? e.message : '网络异常'}`);
     }
@@ -218,9 +169,9 @@ export default function CoCreatePage() {
 
   const handleDeclineInvite = async (id: number) => {
     try {
-      await adminClient('/co-create/reject', { method: 'POST', data: { id } });
-      setIncoming((p) => p.filter((i) => i.id !== id));
+      await rejectCoCreateInvite(id);
       setSnack('已拒绝邀请');
+      invalidateAll();
     } catch (e) {
       setSnack(`拒绝邀请失败:${e instanceof Error ? e.message : '网络异常'}`);
     }
@@ -228,9 +179,9 @@ export default function CoCreatePage() {
 
   const handleCancelOutgoing = async (id: number) => {
     try {
-      await adminClient('/co-create/cancel', { method: 'POST', data: { id } });
-      setOutgoing((p) => p.filter((i) => i.id !== id));
+      await cancelCoCreateInvite(id);
       setSnack('已撤回邀请');
+      invalidateAll();
     } catch (e) {
       setSnack(`撤回失败:${e instanceof Error ? e.message : '网络异常'}`);
     }
@@ -238,10 +189,10 @@ export default function CoCreatePage() {
 
   const handleEndCollab = async (id: number) => {
     try {
-      await adminClient('/co-create/finish', { method: 'POST', data: { id } });
-      setCollabs((p) => p.map((c) => (c.id === id ? { ...c, status: 'completed' as CollabStatus, progress: 100, lastActivityAt: Date.now() } : c)));
+      await finishCoCreate(id);
       setSnack('共创已结算并标记完成');
       setDetailCollab(null);
+      invalidateAll();
     } catch (e) {
       setSnack(`结束共创失败:${e instanceof Error ? e.message : '网络异常'}`);
     }
@@ -249,15 +200,10 @@ export default function CoCreatePage() {
 
   const handleSendInvite = async (partner: Partner, type: CollabType, split: number, message: string, projectId: string, role: string) => {
     try {
-      await adminClient('/co-create/invite', {
-        method: 'POST',
-        data: { projectId, userId: partner.id, role },
-      });
-      setOutgoing((p) => [{
-        id: Date.now(), direction: 'outgoing', partner, type, revenueSplit: split, message, createdAt: Date.now(),
-      }, ...p]);
+      await sendCoCreateInvite({ projectId, userId: partner.id, role, type, revenueSplit: split, message });
       setSnack(`已向 @${partner.name} 发送共创邀请`);
       setInviteTarget(null);
+      invalidateAll();
     } catch (e) {
       setSnack(`发送邀请失败:${e instanceof Error ? e.message : '网络异常'}`);
     }
