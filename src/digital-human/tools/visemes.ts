@@ -1,43 +1,32 @@
 /**
- * Viseme 表 — OVRLipSync 标准对齐
+ * Viseme 表 — 从 ConfigBundle 动态生成
  *
- * 14 个 viseme: sil, PP, FF, TH, DD, kk, CH, SS, nn, RR, aa, E, I, O, U
- * 加上 closed (sil 的别名)
- *
- * 每个 viseme 是多个 ARKit blendshape 的组合 — 因为 VRM 用 viseme_* 前缀,
- * 我们同时设两边, 让任意 VRM 模型都能找到对应 channel。
+ * Phase 1.5：从 src/data/seed/visemes/character.json 加载。
+ * 兼容：VISEME_NAMES / VISEME_BLENDSHAPES 形状不变。
  */
 
-import type { BlendshapeDict } from './expressions';
+import { loadConfigBundle, buildLookups } from '../vrm/config/loader';
+import type { BlendshapeDict, VisemeName as VName } from '../vrm/config/types';
 
-export type VisemeName =
-  | 'sil' | 'PP' | 'FF' | 'TH' | 'DD' | 'kk' | 'CH' | 'SS' | 'nn' | 'RR'
-  | 'aa' | 'E' | 'I' | 'O' | 'U' | 'closed';
+export type VisemeName = VName;
+export type { BlendshapeDict };
 
-export const VISEME_NAMES: VisemeName[] = [
-  'sil', 'PP', 'FF', 'TH', 'DD', 'kk', 'CH', 'SS', 'nn', 'RR',
-  'aa', 'E', 'I', 'O', 'U', 'closed',
-];
+// 模块加载时一次性生成
+const _bundle = loadConfigBundle();
+
+/** viseme 名字数组（按 name 排） */
+export const VISEME_NAMES: VisemeName[] = _bundle.visemes.map((v) => v.name as VisemeName);
 
 /** Viseme → ARKit blendshape 组合 */
-export const VISEME_BLENDSHAPES: Record<VisemeName, BlendshapeDict> = {
-  sil: { viseme_sil: 1.0, mouthClose: 1.0 },
-  PP: { viseme_PP: 1.0, mouthPressLeft: 0.5, mouthPressRight: 0.5, mouthClose: 0.4 },
-  FF: { viseme_FF: 1.0, mouthLowerDownLeft: 0.4, mouthLowerDownRight: 0.4 },
-  TH: { viseme_TH: 1.0, tongueOut: 0.5, mouthOpen: 0.2 },
-  DD: { viseme_DD: 1.0, mouthOpen: 0.3, tongueOut: 0.3 },
-  kk: { viseme_kk: 1.0, mouthOpen: 0.4 },
-  CH: { viseme_CH: 1.0, mouthFunnel: 0.5, mouthOpen: 0.3 },
-  SS: { viseme_SS: 1.0, mouthStretchLeft: 0.3, mouthStretchRight: 0.3 },
-  nn: { viseme_nn: 1.0, mouthOpen: 0.3 },
-  RR: { viseme_RR: 1.0, mouthOpen: 0.4, mouthRollLower: 0.3 },
-  aa: { viseme_aa: 1.0, jawOpen: 0.6, mouthOpen: 0.5 },
-  E:  { viseme_E: 1.0, mouthStretchLeft: 0.4, mouthStretchRight: 0.4 },
-  I:  { viseme_I: 1.0, mouthStretchLeft: 0.5, mouthStretchRight: 0.5 },
-  O:  { viseme_O: 1.0, jawOpen: 0.7, mouthFunnel: 0.4 },
-  U:  { viseme_U: 1.0, mouthPucker: 0.6, mouthFunnel: 0.3 },
-  closed: { mouthClose: 1.0 },
-};
+export const VISEME_BLENDSHAPES: Record<VisemeName, BlendshapeDict> = (() => {
+  const out: Partial<Record<VisemeName, BlendshapeDict>> = {};
+  for (const v of _bundle.visemes) {
+    out[v.name as VisemeName] = { ...v.blendshapes };
+  }
+  // closed 默认值兜底（如果 seed JSON 没包含）
+  if (!out.closed) out.closed = { mouthClose: 1.0 };
+  return out as Record<VisemeName, BlendshapeDict>;
+})();
 
 /** 中文 → viseme (基于拼音首字母匹配) */
 export function chineseCharToViseme(ch: string): VisemeName {

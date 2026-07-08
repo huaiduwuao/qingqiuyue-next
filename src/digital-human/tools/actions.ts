@@ -226,357 +226,41 @@ function setNaturalPose(bones: Record<string, any>) {
   if (rul) rul.rotation.x = -0.1;
 }
 
-/* ─── 动作定义 ─── */
+/* ─── 动作定义（Phase 1.5：从 ConfigBundle formula 动态生成） ─── */
+import { loadConfigBundle } from '../vrm/config/loader';
+import { safeEvalFormula } from '../vrm/config/loader';
+import { getBone } from '../vrm/vrmCompat';
+
+const _actionBundle = loadConfigBundle();
+const _actionsByName = new Map(_actionBundle.actions.map((a) => [a.name, a]));
+
 type ActionUpdater = (t: number, blend: number, scene: any, bones: Record<string, any>) => void;
 
-export const ACTION_UPDATERS: Record<ActionName, ActionUpdater> = {
-  idle(t, blend, scene, b) {
-    const head = b.head || b.Head;
-    const chest = b.chest || b.Chest;
-    const spine = b.spine || b.Spine;
-    const hips = b.hips || b.Hips;
-    if (head) {
-      head.rotation.y = Math.sin(t * 0.4) * 0.18;
-      head.rotation.x = Math.sin(t * 0.7) * 0.08 - 0.02;
-      head.rotation.z = Math.sin(t * 0.3) * 0.06;
+/** 公式版 updater：用 safeEvalFormula 执行 formula，结果应用到 scene/bones */
+function makeFormulaUpdater(formula: string | undefined): ActionUpdater {
+  return (t, blend, scene, bones) => {
+    if (!formula) return;
+    const result = safeEvalFormula(formula, { t, blend });
+    if (!result || !result.bones) return;
+    for (const [bone, rot] of Object.entries(result.bones)) {
+      // 兼容 VRM 0.0/1.0：bones 里可能是 camelCase 或 PascalCase
+      let o = bones[bone];
+      if (!o) {
+        const pascal = bone.charAt(0).toUpperCase() + bone.slice(1);
+        o = bones[pascal];
+      }
+      if (o && o.rotation) o.rotation.set(rot[0], rot[1], rot[2]);
     }
-    if (chest) {
-      chest.rotation.x = Math.sin(t * 0.9) * 0.05;
-      chest.rotation.y = Math.sin(t * 0.25) * 0.08;
-    }
-    if (spine) spine.rotation.z = Math.sin(t * 0.4) * 0.04;
-    if (hips) hips.rotation.z = Math.sin(t * 0.3) * 0.03;
-    scene.position.y = Math.abs(Math.sin(t * 0.9)) * 0.02;
-    scene.position.x = Math.sin(t * 0.4) * 0.01;
-  },
-  wave(t, blend, scene, b) {
-    const phase = Math.sin(t * 4);
-    const ru = b.rightUpperArm || b.RightUpperArm;
-    const rl = b.rightLowerArm || b.RightLowerArm;
-    if (ru) ru.rotation.z = -2.5 + phase * 0.4;
-    if (rl) rl.rotation.z = -0.3;
-    scene.position.y = Math.abs(phase) * 0.02;
-  },
-  bow(t, blend, scene, b) {
-    const chest = b.chest || b.Chest;
-    const neck = b.neck || b.Neck;
-    const p = t < 1 ? t : Math.max(0, 1 - (t - 1) * 0.7);
-    if (chest) chest.rotation.x = p * 0.5;
-    if (neck) neck.rotation.x = p * 0.3;
-  },
-  nod(t, blend, scene, b) {
-    const neck = b.neck || b.Neck;
-    const head = b.head || b.Head;
-    const phase = (t * 2 * Math.PI) % (Math.PI * 2);
-    const amp = Math.sin(phase) * Math.exp(-t * 0.5) * 0.25;
-    if (neck) neck.rotation.x = amp;
-    if (head) head.rotation.x = amp * 0.7;
-  },
-  shake(t, blend, scene, b) {
-    const head = b.head || b.Head;
-    const neck = b.neck || b.Neck;
-    const phase = Math.sin(t * 6) * Math.exp(-t * 0.4) * 0.4;
-    if (head) head.rotation.y = phase;
-    if (neck) neck.rotation.y = phase * 0.4;
-  },
-  clap(t, blend, scene, b) {
-    const cycle = (t * 3) % 1;
-    const close = Math.sin(cycle * Math.PI);
-    const lu = b.leftUpperArm || b.LeftUpperArm;
-    const ru = b.rightUpperArm || b.RightUpperArm;
-    const ll = b.leftLowerArm || b.LeftLowerArm;
-    const rl = b.rightLowerArm || b.RightLowerArm;
-    if (lu) lu.rotation.z = -0.8;
-    if (ru) ru.rotation.z = 0.8;
-    if (ll) ll.rotation.z = 1.4 - close * 0.3;
-    if (rl) rl.rotation.z = -1.4 + close * 0.3;
-  },
-  cheer(t, blend, scene, b) {
-    const bounce = Math.abs(Math.sin(t * 4));
-    const lu = b.leftUpperArm || b.LeftUpperArm;
-    const ru = b.rightUpperArm || b.RightUpperArm;
-    if (lu) lu.rotation.z = -2.5 + Math.sin(t * 4) * 0.2;
-    if (ru) ru.rotation.z = 2.5 + Math.sin(t * 4 + Math.PI) * 0.2;
-    scene.position.y = bounce * 0.05;
-  },
-  jump(t, blend, scene, b) {
-    const normT = Math.min(1, t / 1.2);
-    const height = normT < 0.5 ? normT * 2 : (1 - (normT - 0.5) * 2);
-    scene.position.y = Math.max(0, height * 0.4);
-    const bend = (1 - normT) * 0.6;
-    const lul = b.leftUpperLeg || b.LeftUpperLeg;
-    const rul = b.rightUpperLeg || b.RightUpperLeg;
-    const lll = b.leftLowerLeg || b.LeftLowerLeg;
-    const rll = b.rightLowerLeg || b.RightLowerLeg;
-    if (lul) lul.rotation.x = -bend;
-    if (rul) rul.rotation.x = -bend;
-    if (lll) lll.rotation.x = bend * 1.5;
-    if (rll) rll.rotation.x = bend * 1.5;
-    const lu = b.leftUpperArm || b.LeftUpperArm;
-    const ru = b.rightUpperArm || b.RightUpperArm;
-    if (lu) lu.rotation.z = -2.2 - height * 0.3;
-    if (ru) ru.rotation.z = 2.2 + height * 0.3;
-  },
-  walk(t, blend, scene, b) {
-    const phase = Math.sin(t * 5.2);
-    const lul = b.leftUpperLeg || b.LeftUpperLeg;
-    const rul = b.rightUpperLeg || b.RightUpperLeg;
-    const lll = b.leftLowerLeg || b.LeftLowerLeg;
-    const rll = b.rightLowerLeg || b.RightLowerLeg;
-    if (lul) lul.rotation.x = phase * 0.45;
-    if (rul) rul.rotation.x = -phase * 0.45;
-    if (lll) lll.rotation.x = Math.max(0, -phase * 0.4);
-    if (rll) rll.rotation.x = Math.max(0, phase * 0.4);
-    const lua = b.leftUpperArm || b.LeftUpperArm;
-    const rua = b.rightUpperArm || b.RightUpperArm;
-    if (lua) lua.rotation.x = -phase * 0.3;
-    if (rua) rua.rotation.x = phase * 0.3;
-    scene.position.y = Math.abs(Math.sin(t * 5.2)) * 0.025;
-    scene.position.x = Math.sin(t * 5.2 / 2) * 0.06;
-  },
-  run(t, blend, scene, b) {
-    const phase = Math.sin(t * 9);
-    const lul = b.leftUpperLeg || b.LeftUpperLeg;
-    const rul = b.rightUpperLeg || b.RightUpperLeg;
-    const lll = b.leftLowerLeg || b.LeftLowerLeg;
-    const rll = b.rightLowerLeg || b.RightLowerLeg;
-    if (lul) lul.rotation.x = phase * 0.7;
-    if (rul) rul.rotation.x = -phase * 0.7;
-    if (lll) lll.rotation.x = Math.max(0, -phase * 0.6);
-    if (rll) rll.rotation.x = Math.max(0, phase * 0.6);
-    const lua = b.leftUpperArm || b.LeftUpperArm;
-    const rua = b.rightUpperArm || b.RightUpperArm;
-    if (lua) lua.rotation.x = -phase * 0.55;
-    if (rua) rua.rotation.x = phase * 0.55;
-    scene.position.y = Math.abs(Math.sin(t * 9)) * 0.05;
-    scene.position.x = Math.sin(t * 9 / 2) * 0.1;
-  },
-  dance(t, blend, scene, b) {
-    const hips = b.hips || b.Hips;
-    const chest = b.chest || b.Chest;
-    const lu = b.leftUpperArm || b.LeftUpperArm;
-    const ru = b.rightUpperArm || b.RightUpperArm;
-    if (hips) {
-      hips.rotation.y = t * 1.2;
-      hips.rotation.z = Math.sin(t * 2) * 0.15;
-    }
-    if (chest) chest.rotation.z = Math.sin(t * 2) * 0.25;
-    if (lu) lu.rotation.z = -2.5 + Math.sin(t * 2.5) * 0.6;
-    if (ru) ru.rotation.z = 2.5 + Math.sin(t * 2.5 + Math.PI) * 0.6;
-    scene.position.y = Math.abs(Math.sin(t * 4)) * 0.05;
-    scene.position.x = Math.sin(t * 2) * 0.04;
-  },
-  sing(t, blend, scene, b) {
-    const neck = b.neck || b.Neck;
-    const chest = b.chest || b.Chest;
-    if (neck) neck.rotation.x = -0.15 + Math.sin(t * 3) * 0.05;
-    if (chest) {
-      chest.rotation.x = -0.05;
-      chest.rotation.y = Math.sin(t * 1.5) * 0.15;
-    }
-    const ru = b.rightUpperArm || b.RightUpperArm;
-    if (ru) ru.rotation.z = 1.0;
-    scene.position.y = Math.abs(Math.sin(t * 2.5)) * 0.025;
-  },
-  laugh(t, blend, scene, b) {
-    const chest = b.chest || b.Chest;
-    const head = b.head || b.Head;
-    const phase = Math.sin(t * 6) * 0.15;
-    if (chest) {
-      chest.rotation.x = phase * 0.3;
-      chest.rotation.z = phase * 0.3;
-    }
-    if (head) {
-      head.rotation.x = -0.05 + Math.abs(phase) * 0.2;
-      head.rotation.z = phase * 0.2;
-    }
-    scene.position.y = Math.abs(Math.sin(t * 4)) * 0.04;
-  },
-  cry(t, blend, scene, b) {
-    const head = b.head || b.Head;
-    const spine = b.spine || b.Spine;
-    const breath = Math.sin(t * 2) * 0.05;
-    if (head) {
-      head.rotation.x = 0.25 + breath;
-      head.rotation.z = Math.sin(t * 1.3) * 0.08;
-    }
-    if (spine) spine.rotation.x = 0.15;
-  },
-  think(t, blend, scene, b) {
-    const neck = b.neck || b.Neck;
-    const ru = b.rightUpperArm || b.RightUpperArm;
-    const rl = b.rightLowerArm || b.RightLowerArm;
-    if (neck) neck.rotation.z = 0.25 + Math.sin(t * 0.5) * 0.05;
-    if (ru) ru.rotation.z = -1.6;
-    if (rl) rl.rotation.x = -1.2;
-    scene.position.y = Math.abs(Math.sin(t * 0.6)) * 0.015;
-  },
-  point(t, blend, scene, b) {
-    const ru = b.rightUpperArm || b.RightUpperArm;
-    const rl = b.rightLowerArm || b.RightLowerArm;
-    const neck = b.neck || b.Neck;
-    if (ru) ru.rotation.z = -1.6;
-    if (rl) rl.rotation.x = -0.2;
-    if (neck) neck.rotation.x = -0.1;
-  },
-  sit(t, blend, scene, b) {
-    scene.position.y = -0.35;
-    const lul = b.leftUpperLeg || b.LeftUpperLeg;
-    const rul = b.rightUpperLeg || b.RightUpperLeg;
-    if (lul) lul.rotation.x = -1.5;
-    if (rul) rul.rotation.x = -1.5;
-  },
-  sleep(t, blend, scene, b) {
-    const neck = b.neck || b.Neck;
-    const head = b.head || b.Head;
-    const breath = Math.sin(t * 0.6) * 0.05;
-    scene.position.y = -0.05;
-    if (neck) neck.rotation.x = 0.4 + breath;
-    if (head) head.rotation.x = 0.6;
-  },
-  stretch(t, blend, scene, b) {
-    const phase = t < 2 ? t / 2 : (t < 3.5 ? 1 : Math.max(0, 1 - (t - 3.5) * 2));
-    const lu = b.leftUpperArm || b.LeftUpperArm;
-    const ru = b.rightUpperArm || b.RightUpperArm;
-    if (lu) lu.rotation.z = -2.7 * phase;
-    if (ru) ru.rotation.z = 2.7 * phase;
-    const head = b.head || b.Head;
-    if (head) head.rotation.x = -0.2 * phase;
-    scene.position.y = Math.sin(t * 2) * 0.02 * phase;
-  },
-  greet(t, blend, scene, b) {
-    const head = b.head || b.Head;
-    const neck = b.neck || b.Neck;
-    const nod = Math.sin(t * Math.PI * 2) * 0.15 * Math.exp(-t * 0.5);
-    if (head) head.rotation.x = nod;
-    if (neck) neck.rotation.x = nod * 0.5;
-    const ru = b.rightUpperArm || b.RightUpperArm;
-    const rl = b.rightLowerArm || b.RightLowerArm;
-    if (ru) ru.rotation.z = -2.4;
-    if (rl) rl.rotation.z = -0.3;
-  },
-  salute(t, blend, scene, b) {
-    const ru = b.rightUpperArm || b.RightUpperArm;
-    const rl = b.rightLowerArm || b.RightLowerArm;
-    if (ru) ru.rotation.z = -2.5;
-    if (rl) rl.rotation.z = -0.6;
-    const head = b.head || b.Head;
-    if (head) head.rotation.x = -0.05;
-  },
-  kiss(t, blend, scene, b) {
-    const ru = b.rightUpperArm || b.RightUpperArm;
-    const rl = b.rightLowerArm || b.RightLowerArm;
-    if (ru) ru.rotation.z = -1.8;
-    if (rl) rl.rotation.x = -0.5;
-    const head = b.head || b.Head;
-    if (head) {
-      head.rotation.x = -0.2;
-      head.rotation.z = 0.2 * Math.sin(t * 8);
-    }
-  },
-  shrug(t, blend, scene, b) {
-    const normT = Math.min(1, t / 1.5);
-    const lu = b.leftUpperArm || b.LeftUpperArm;
-    const ru = b.rightUpperArm || b.RightUpperArm;
-    if (lu) { lu.rotation.z = -1.6 * normT; lu.rotation.x = -0.4 * normT; }
-    if (ru) { ru.rotation.z = 1.6 * normT; ru.rotation.x = -0.4 * normT; }
-    const head = b.head || b.Head;
-    if (head) head.rotation.z = Math.sin(t * Math.PI) * 0.1 * normT;
-  },
-  talk(t, blend, scene, b) {
-    const chest = b.chest || b.Chest;
-    if (chest) chest.rotation.x = Math.sin(t * 3) * 0.05;
-    scene.position.y = Math.abs(Math.sin(t * 3)) * 0.02;
-  },
-  explain(t, blend, scene, b) {
-    const lu = b.leftUpperArm || b.LeftUpperArm;
-    const ru = b.rightUpperArm || b.RightUpperArm;
-    const ll = b.leftLowerArm || b.LeftLowerArm;
-    const rl = b.rightLowerArm || b.RightLowerArm;
-    if (lu) lu.rotation.z = -1.0 + Math.sin(t * 1.5) * 0.3;
-    if (ru) ru.rotation.z = 1.0 + Math.sin(t * 1.5 + Math.PI) * 0.3;
-    if (ll) ll.rotation.x = -0.3;
-    if (rl) rl.rotation.x = -0.3;
-    scene.position.y = Math.abs(Math.sin(t * 1.2)) * 0.018;
-  },
-  listen(t, blend, scene, b) {
-    const neck = b.neck || b.Neck;
-    const head = b.head || b.Head;
-    if (neck) neck.rotation.z = 0.18;
-    if (head) {
-      head.rotation.y = Math.sin(t * 0.6) * 0.1;
-      head.rotation.x = Math.sin(t * 0.4) * 0.06 - 0.04;
-    }
-    scene.position.y = Math.abs(Math.sin(t * 0.7)) * 0.018;
-  },
-  pray(t, blend, scene, b) {
-    const lu = b.leftUpperArm || b.LeftUpperArm;
-    const ru = b.rightUpperArm || b.RightUpperArm;
-    const ll = b.leftLowerArm || b.LeftLowerArm;
-    const rl = b.rightLowerArm || b.RightLowerArm;
-    if (lu) lu.rotation.z = -0.6;
-    if (ru) ru.rotation.z = 0.6;
-    if (ll) ll.rotation.x = -1.2;
-    if (rl) rl.rotation.x = -1.2;
-    const head = b.head || b.Head;
-    if (head) head.rotation.x = -0.1;
-  },
-  // 节奏律动：每拍一次弹跳 + 两拍一次左右摆胯 + 手臂挥舞（与 VrmStage 的 useVrmDance 风格一致）
-  groove(t, blend, scene, b) {
-    const P = Math.PI;
-    const bounce = Math.abs(Math.sin(t * P));
-    const sway = Math.sin(t * P / 2);
-    const hips = b.hips || b.Hips;
-    const spine = b.spine || b.Spine;
-    const chest = b.chest || b.Chest;
-    const head = b.head || b.Head;
-    const lu = b.leftUpperArm || b.LeftUpperArm;
-    const ru = b.rightUpperArm || b.RightUpperArm;
-    const ll = b.leftLowerArm || b.LeftLowerArm;
-    const rl = b.rightLowerArm || b.RightLowerArm;
-    const lul = b.leftUpperLeg || b.LeftUpperLeg;
-    const rul = b.rightUpperLeg || b.RightUpperLeg;
-    const lll = b.leftLowerLeg || b.LeftLowerLeg;
-    const rll = b.rightLowerLeg || b.RightLowerLeg;
-    if (hips) hips.rotation.y = sway * 0.3;
-    if (spine) { spine.rotation.y = -sway * 0.55; spine.rotation.z = -sway * 0.06; }
-    if (chest) { chest.rotation.y = -sway * 0.275; chest.rotation.z = -sway * 0.03; }
-    if (head) { head.rotation.z = Math.sin(t * P + 0.6) * 0.1; head.rotation.x = Math.sin(t * 2 * P) * 0.08; head.rotation.y = -sway * 0.4; }
-    const sw = Math.sin(t * P / 2);
-    if (lu) { lu.rotation.x = -0.45 + 0.45 * sw; lu.rotation.y = 0.12; lu.rotation.z = -1.15 + 0.18 * Math.sin(t * P); }
-    if (ru) { ru.rotation.x = -0.45 - 0.45 * sw; ru.rotation.y = -0.12; ru.rotation.z = 1.15 - 0.18 * Math.sin(t * P); }
-    if (ll) { ll.rotation.y = 0.9 + 0.3 * sw; ll.rotation.z = -0.2; }
-    if (rl) { rl.rotation.y = -0.9 + 0.3 * sw; rl.rotation.z = 0.2; }
-    const legBend = 0.32 - bounce * 0.22;
-    if (lul) lul.rotation.x = -legBend;
-    if (rul) rul.rotation.x = -legBend;
-    if (lll) lll.rotation.x = legBend * 1.9;
-    if (rll) rll.rotation.x = legBend * 1.9;
-    scene.position.y = bounce * 0.05;
-  },
-  // 偶像挥手：举臂左右摆
-  idol(t, blend, scene, b) {
-    const P = Math.PI;
-    const wave = Math.sin(t * P / 2);
-    const hips = b.hips || b.Hips;
-    const spine = b.spine || b.Spine;
-    const head = b.head || b.Head;
-    const lu = b.leftUpperArm || b.LeftUpperArm;
-    const ru = b.rightUpperArm || b.RightUpperArm;
-    const ll = b.leftLowerArm || b.LeftLowerArm;
-    const rl = b.rightLowerArm || b.RightLowerArm;
-    const lul = b.leftUpperLeg || b.LeftUpperLeg;
-    const rul = b.rightUpperLeg || b.RightUpperLeg;
-    if (hips) { hips.rotation.z = wave * 0.1; hips.rotation.y = Math.sin(t * P / 4) * 0.12; }
-    if (spine) spine.rotation.z = wave * 0.1;
-    if (head) { head.rotation.z = wave * 0.16; head.rotation.x = -0.05; }
-    if (lu) { lu.rotation.x = 0.2 * wave; lu.rotation.z = 0.95 - 1.15 * (1 - 0); /* 保持举起 */ }
-    if (ru) { ru.rotation.x = -0.2 * wave; ru.rotation.z = -0.95 + 1.15 * (1 - 0); }
-    if (ll) ll.rotation.z = 0.5 + 0.45 * wave;
-    if (rl) rl.rotation.z = -0.5 + 0.45 * wave;
-    const legBend = 0.12 + 0.10 * Math.abs(Math.sin(t * P));
-    if (lul) lul.rotation.x = -legBend;
-    if (rul) rul.rotation.x = -legBend;
-    scene.position.y = Math.abs(Math.sin(t * P)) * 0.025;
-  },
-};
+    if (typeof result.scenePosY === 'number' && scene?.position) scene.position.y = result.scenePosY;
+    if (typeof result.scenePosX === 'number' && scene?.position) scene.position.x = result.scenePosX;
+  };
+}
+
+/** 兼容导出：从 config bundle 公式构建的 updater 映射 */
+export const ACTION_UPDATERS: Record<string, ActionUpdater> = (() => {
+  const out: Record<string, ActionUpdater> = {};
+  for (const [name, a] of _actionsByName) {
+    out[name] = makeFormulaUpdater(a.formula);
+  }
+  return out;
+})();

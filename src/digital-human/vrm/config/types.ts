@@ -303,6 +303,33 @@ export interface ToolContext {
 }
 
 // ============================================================================
+// 兼容导出（给老 tools/{expressions,actions,visemes}.ts 用）
+// ============================================================================
+
+/** 20 个表情预设名（兼容 ExpressionTemplateName） */
+export type ExpressionTemplateName =
+  | 'neutral' | 'happy' | 'sad' | 'angry' | 'surprised' | 'shy' | 'cry' | 'laugh'
+  | 'love' | 'thinking' | 'confused' | 'fearful' | 'disgusted' | 'sleepy' | 'sleepy_tired'
+  | 'smug' | 'worried' | 'excited' | 'bored' | 'relaxed';
+
+export type BlendshapeDict = Record<string, number>;
+
+/** Viseme 名（OVRLipSync 标准 16 个） */
+export type VisemeName =
+  | 'sil' | 'PP' | 'FF' | 'TH' | 'DD' | 'kk' | 'CH' | 'SS' | 'nn' | 'RR'
+  | 'aa' | 'E' | 'I' | 'O' | 'U' | 'closed';
+
+/** 29 个动作名（兼容旧 ActionName） */
+export type ActionName =
+  | 'idle' | 'wave' | 'bow' | 'nod' | 'shake'
+  | 'clap' | 'cheer' | 'jump' | 'walk' | 'run'
+  | 'dance' | 'sing' | 'laugh' | 'cry' | 'think'
+  | 'point' | 'sit' | 'sleep' | 'stretch' | 'greet'
+  | 'salute' | 'kiss' | 'shrug' | 'talk' | 'explain'
+  | 'listen' | 'pray'
+  | 'groove' | 'idol';
+
+// ============================================================================
 // 类型守卫
 // ============================================================================
 
