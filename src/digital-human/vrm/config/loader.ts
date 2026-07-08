@@ -134,17 +134,18 @@ export function getDefaultScene(bundle: ConfigBundle): SceneConfig {
  */
 export function safeEvalFormula(
   formula: string | undefined,
-  ctx: { t: number; blend?: number; A?: number; bass?: number; phase?: number } = { t: 0 },
-): { bones: Record<string, [number, number, number]>; scenePosY?: number; scenePosX?: number } {
+  ctx: { t: number; b?: number; blend?: number; A?: number; bass?: number; phase?: number } = { t: 0 },
+): { bones: Record<string, [number, number, number]>; scenePosY?: number; scenePosX?: number; hipsPosY?: number } {
   if (!formula) return { bones: {} };
   try {
-    const fn = new Function('t', 'blend', 'A', 'bass', 'phase', `return (${formula});`);
-    const result = fn(ctx.t, ctx.blend ?? 1, ctx.A ?? 1, ctx.bass ?? 0, ctx.phase ?? 0);
+    const fn = new Function('t', 'b', 'blend', 'A', 'bass', 'phase', `return (${formula});`);
+    const result = fn(ctx.t, ctx.b ?? ctx.t, ctx.blend ?? 1, ctx.A ?? 1, ctx.bass ?? 0, ctx.phase ?? 0);
     if (!result || typeof result !== 'object') return { bones: {} };
     return {
       bones: result.bones || {},
       scenePosY: result.scenePosY,
       scenePosX: result.scenePosX,
+      hipsPosY: result.hipsPosY,
     };
   } catch (e) {
     console.warn('[safeEvalFormula] failed:', e, 'formula:', formula.slice(0, 100));

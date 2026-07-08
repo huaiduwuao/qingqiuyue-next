@@ -35,14 +35,13 @@ import { loadAvatar, type Cached } from './vrm/loadAvatar';
 import { useVrmRenderer } from './vrm/useVrmRenderer';
 import { useVrmScene } from './vrm/useVrmScene';
 import { useVrmLipSync } from './vrm/useVrmLipSync';
-import { useVrmDance } from './vrm/useVrmDance';
+import { useVrmAnimation } from './vrm/useVrmAnimation';
 import { useVrmCamera } from './vrm/useVrmCamera';
 import { makeConfetti, updateConfetti } from './vrm/particles';
 import { createAudioHandle, type AudioHandle } from './vrm/audio';
 import { detectVrmVersion, setExpression, setExpressionDict, listAvailableExpressions } from './vrm/vrmCompat';
 import { lookupAutoExpression } from './vrm/config/types';
 import type { ScenePresetName, CameraPresetName, DanceStyle, PoseName } from './vrm/types';
-import { POSES } from './vrm/poses';
 
 export interface VrmStageHandle {
   setEmotion: (dict: Record<string, number>) => void;
@@ -175,7 +174,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   // 关键：把 hook 返回值（每次 render 都是新对象）存到 ref，handle 内部读 ref
   // 这样 useImperativeHandle 的 factory 用空 deps 只跑一次，handle 引用稳定
   const sceneApiRef = useRef<any>(null);
-  const danceApiRef = useRef<any>(null);
+  const animApiRef = useRef<any>(null);
   const camApiRef = useRef<any>(null);
   const rendererStateRef = useRef<any>(null);
   const lipApiRef = useRef<any>(null);
@@ -234,9 +233,9 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   const sceneApi = useVrmScene({ rendererState, vrmScene: vrmSceneRef.current, initialPreset: 'concert' });
   sceneApiRef.current = sceneApi;
 
-  // 3. dance（用 ref 传 vrm —— VRM 是异步加载的，首次渲染时 vrmRef.current 是 null）
-  const danceApi = useVrmDance({ vrmRef, audio, walkRef, initialDancing: false });
-  danceApiRef.current = danceApi;
+  // 3. 统一动画状态机（替代 useVrmDance）
+  const animApi = useVrmAnimation({ vrmRef, audio, walkRef, configBundle, physics });
+  animApiRef.current = animApi;
 
   // 4. lip sync
   const lipApi = useVrmLipSync({
@@ -414,11 +413,11 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
           rendererState.controls.target.z += dz;
         }
       }
-      // 5. dance
-      danceApi.tick(t, dt);
+      // 5. 统一动画状态机
+      animApi.tick(t, dt);
       // 6. scene breath
       const bass = lipApi.audio.poll().bass;
-      sceneApi.tick(t, dt, bass, danceApi.dancing, 1);
+      sceneApi.tick(t, dt, bass, animApiRef.current?.dancing ?? false, 1);
       // 7. camera anim
       camApi.tick(dt);
       // 7. confetti
@@ -502,11 +501,9 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       },
       setAction: (name) => {
         console.log('[VrmStage.setAction]', name);
-        // Phase 4: 状态机记下 currentAction
         animStateRef.current.currentAction = name;
-        // 触发姿势（useVrmDance.setPose 会写 currentPoseRef + 重置 blend）
-        danceApiRef.current?.setPose(name as PoseName);
-        // Phase 5: auto-emotion/viseme 适配（DEFAULT_ACTION_EXPRESSION_MAP）
+        animApiRef.current?.playAction(name);
+        // Phase 5: auto-emotion/viseme 适配
         const auto = lookupAutoExpression(name);
         if (auto.expression || auto.viseme) {
           const emotionDict: Record<string, number> = {};
@@ -531,11 +528,11 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         rebuildConfetti(name);
       },
       setCameraPreset: (name) => { console.log('[VrmStage.setCameraPreset]', name); camApiRef.current?.switchTo(name); },
-      setDanceStyle: (s) => { console.log('[VrmStage.setDanceStyle]', s); danceApiRef.current?.setStyle(s); },
-      setDanceAmp: (v) => { console.log('[VrmStage.setDanceAmp]', v); danceApiRef.current?.setAmp(v); },
-      setBpm: (v) => { console.log('[VrmStage.setBpm]', v); danceApiRef.current?.setBpm(v); },
-      setDancing: (on) => { console.log('[VrmStage.setDancing]', on); danceApiRef.current?.setDancing(on); },
-      setPose: (name) => { console.log('[VrmStage.setPose]', name); danceApiRef.current?.setPose(name); },
+      setDanceStyle: (s) => { console.log('[VrmStage.setDanceStyle]', s); animApiRef.current?.setStyle(s); },
+      setDanceAmp: (v) => { console.log('[VrmStage.setDanceAmp]', v); animApiRef.current?.setAmp(v); },
+      setBpm: (v) => { console.log('[VrmStage.setBpm]', v); animApiRef.current?.setBpm(v); },
+      setDancing: (on) => { console.log('[VrmStage.setDancing]', on); animApiRef.current?.setDancing(on); },
+      setPose: (name) => { console.log('[VrmStage.setPose]', name); animApiRef.current?.setPose(name); },
       speak: (text, audioUrl) => { console.log('[VrmStage.speak]', text, audioUrl); },
       setUserLipOverride: (on) => { console.log('[VrmStage.setUserLipOverride]', on); userLipOverrideRef.current = on; },
       setUserBlinkOverride: (on) => { console.log('[VrmStage.setUserBlinkOverride]', on); userBlinkOverrideRef.current = on; },

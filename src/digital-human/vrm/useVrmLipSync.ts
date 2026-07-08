@@ -4,7 +4,7 @@
  * 用法：
  *   const lipApi = useVrmLipSync({ expressionManager, audio });
  *   lipApi.tick(dt);  // 每帧调
- *   // audio 由 VrmStage 创建并传入（与 useVrmDance 共享同一 AudioContext）
+ *   // audio 由 VrmStage 创建并传入（与 useVrmAnimation 共享同一 AudioContext）
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -14,7 +14,7 @@ import { setExpression } from './vrmCompat';
 export interface UseVrmLipSyncOptions {
   /** VRM expressionManager（无 vrm 时为 null，自动 noop） */
   expressionManager: any;
-  /** 由父组件传入的 audio handle（与 useVrmDance 共享） */
+  /** 由父组件传入的 audio handle（与 useVrmAnimation 共享） */
   audio: AudioHandle;
   /** 手动 UI 是否在用口型滑杆（true 时跳过自动覆盖） */
   userLipOverride?: boolean;

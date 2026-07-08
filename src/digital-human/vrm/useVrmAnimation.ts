@@ -1,76 +1,60 @@
 /**
  * vrm/useVrmAnimation.ts — 统一动画状态机
  *
- * Phase 4 设计：
- *   替换现有 last-writer-wins 隐式约定，用显式优先级：
- *     action > dance > walk > talk > pose > idle
+ * Phase 4.1：真正替换 useVrmDance，把 dance / pose / walk / action 的 bone rotation
+ * 全部收敛到本 hook，按优先级合成：
+ *   action > dance > walk > pose > idle
  *
- * 每种"动画源"可设置自己的状态，状态机按优先级合成每帧的最终 bone rotation。
- *
- * 设计原则：
- *   - 各源独立运作（不互相等待）
- *   - 高优先级覆盖低优先级（同 bone）
- *   - emotion / viseme 独立通道（不与 bone 覆盖）
- *   - 物理独立通道（场景位置由物理决定）
- *
- * Phase 4.1 落地：定义类型 + helper
- * Phase 4.2 落地：替换 useVrmDance 和 VrmStage 里的 frame loop（next PR）
+ * 所有动态骨骼数据来自 ConfigBundle 的 formula（不再 hardcode）。
  */
 
-import { useCallback, useRef, useState } from 'react';
-import type { ConfigBundle } from './config/types';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import * as THREE from 'three';
+import { getBone } from './vrmCompat';
+import { buildLookups, safeEvalFormula } from './config/loader';
+import type {
+  ActionConfig,
+  ConfigBundle,
+  DanceStyleConfig,
+  PoseConfig,
+} from './config/types';
+import type { AudioHandle } from './audio';
+import type { DanceStyle, PoseName } from './types';
 
 // ---------- 状态机类型 ----------
 
 export type AnimState =
   | { kind: 'idle' }
-  | { kind: 'action'; name: string; startedAt: number; speed: number; repeat: number; expiresAt: number }
-  | { kind: 'pose'; name: string; blend: number }  // 永远 active，blend 从 0 升到 1
-  | { kind: 'dance'; style: string; bpm: number; amp: number; startedAt: number }
-  | { kind: 'walk'; phase: number; style: 'walk' | 'run' | 'idle' }
-  | { kind: 'talk'; visemeAt: (t: number) => { shape: string; weight: number } | null };
+  | { kind: 'action'; name: string; startedAtMs: number; speed: number; repeat: number }
+  | { kind: 'pose'; name: string; blend: number }
+  | { kind: 'dance'; style: string; bpm: number; amp: number; startedAtMs: number }
+  | { kind: 'walk'; phase: number; style: 'walk' | 'run' | 'idle' };
 
-export type AnimPriority =
-  | 'action'   // 最高
-  | 'dance'
-  | 'walk'
-  | 'talk'
-  | 'pose'
-  | 'idle';    // 最低
+export type AnimPriority = 'action' | 'dance' | 'walk' | 'pose' | 'idle';
 
 const PRIORITY_RANK: Record<string, number> = {
-  action: 6, dance: 5, walk: 4, talk: 3, pose: 2, idle: 1,
+  action: 5, dance: 4, walk: 3, pose: 2, idle: 1,
 };
 
 // ---------- 状态机实例 ----------
 
 export class AnimationStateMachine {
-  /** 当前优先级最高的状态 */
   active: AnimState = { kind: 'idle' };
-  /** 所有运行中的状态（按优先级排序） */
   stack: AnimState[] = [{ kind: 'idle' }];
 
-  /**
-   * 设置一个状态（自动按优先级合并到 stack）
-   * 同优先级的新状态会覆盖旧状态
-   */
   set(state: AnimState) {
-    // 同 kind 的状态覆盖
     this.stack = this.stack.filter((s) => s.kind !== state.kind);
     this.stack.push(state);
-    // 按优先级排序（高到低）
     this.stack.sort((a, b) => (PRIORITY_RANK[b.kind] ?? 0) - (PRIORITY_RANK[a.kind] ?? 0));
     this.active = this.stack[0];
   }
 
-  /** 移除某个状态（fallback 到 idle） */
   remove(kind: AnimState['kind']) {
     this.stack = this.stack.filter((s) => s.kind !== kind);
     if (this.stack.length === 0) this.stack.push({ kind: 'idle' });
     this.active = this.stack[0];
   }
 
-  /** 取所有"还在动"的状态（用于 tick 时按优先级合成） */
   activeByPriority(): AnimState[] {
     return [...this.stack].sort((a, b) => (PRIORITY_RANK[b.kind] ?? 0) - (PRIORITY_RANK[a.kind] ?? 0));
   }
@@ -79,48 +63,250 @@ export class AnimationStateMachine {
 // ---------- React hook ----------
 
 export interface UseVrmAnimationOptions {
-  /** 用于 formula 查表 */
   configBundle: ConfigBundle;
-  /** VRM humanoid（用于 getBone） */
-  humanoid: any;
-  /** 物理 body（如有，物理控制位置） */
-  physicsBody?: any;
+  vrmRef: React.MutableRefObject<any>;
+  audio: AudioHandle;
+  walkRef: React.MutableRefObject<{ moving: boolean; phase: number; style: 'walk' | 'run' | 'idle' | 'teleport' }>;
+  /** 物理世界（用于 Foot IK 射线检测） */
+  physics?: { ready: boolean; raycastGround: (origin: { x: number; y: number; z: number }, maxDistance?: number) => number | null };
 }
 
 export function useVrmAnimation(opts: UseVrmAnimationOptions) {
-  const { configBundle, humanoid } = opts;
+  const { configBundle, vrmRef, audio, walkRef, physics } = opts;
   const smRef = useRef<AnimationStateMachine>(new AnimationStateMachine());
-  const sm = smRef.current;
+  const lookups = useMemo(() => buildLookups(configBundle), [configBundle]);
 
-  /** 状态 setter（外部调用） */
-  const setState = useCallback((s: AnimState) => sm.set(s), [sm]);
-  const removeState = useCallback((kind: AnimState['kind']) => sm.remove(kind), [sm]);
+  const [dancing, setDancingState] = useState(false);
+  const [style, setStyleState] = useState<DanceStyle>('groove');
+  const [bpm, setBpmState] = useState(120);
+  const [amp, setAmpState] = useState(1);
+  const [pose, setPoseState] = useState<PoseName>('idle');
 
-  /**
-   * tick(elapsed, dt, bones) — 状态机驱动 bone rotation
-   *
-   * 优先级合成：低优先级状态写 bone，高优先级状态覆盖。
-   * 同 kind 的状态：先 setState 一次的最新值。
-   * 不同 kind 同 bone：低优先级先写，高优先级后覆盖。
-   *
-   * 注：当前实现不实际执行 bone rotation（保留 useVrmDance / VrmStage 现有逻辑）
-   * Phase 4.2 会把 useVrmDance 拆掉，全切到本 hook
-   */
-  function tick(_elapsed: number, _dt: number) {
-    // Phase 4.2 落地
-    // 1. idle 写入默认站姿
-    // 2. pose 覆盖（如果 blend < 1）
-    // 3. talk 覆盖 mouth 骨骼
-    // 4. walk 覆盖 leg/arm
-    // 5. dance 覆盖 dance 涉及的 bone
-    // 6. action 覆盖所有 bone
+  const dancingRef = useRef(dancing);
+  const styleRef = useRef(style);
+  const bpmRef = useRef(bpm);
+  const ampRef = useRef(amp);
+  const poseRef = useRef(pose);
+  const poseBlendRef = useRef(1);
+  const freeBeatRef = useRef(0);
+
+  dancingRef.current = dancing;
+  styleRef.current = style;
+  bpmRef.current = bpm;
+  ampRef.current = amp;
+  poseRef.current = pose;
+
+  const setDancing = useCallback((on: boolean) => {
+    setDancingState(on);
+    dancingRef.current = on;
+    if (on) {
+      smRef.current.set({ kind: 'dance', style: styleRef.current, bpm: bpmRef.current, amp: ampRef.current, startedAtMs: performance.now() });
+    } else {
+      smRef.current.remove('dance');
+    }
+  }, []);
+
+  const setStyle = useCallback((s: DanceStyle) => {
+    setStyleState(s);
+    styleRef.current = s;
+    if (dancingRef.current) {
+      smRef.current.set({ kind: 'dance', style: s, bpm: bpmRef.current, amp: ampRef.current, startedAtMs: performance.now() });
+    }
+  }, []);
+
+  const setBpm = useCallback((v: number) => {
+    setBpmState(v);
+    bpmRef.current = v;
+    if (dancingRef.current) {
+      smRef.current.set({ kind: 'dance', style: styleRef.current, bpm: v, amp: ampRef.current, startedAtMs: performance.now() });
+    }
+  }, []);
+
+  const setAmp = useCallback((v: number) => {
+    setAmpState(v);
+    ampRef.current = v;
+    if (dancingRef.current) {
+      smRef.current.set({ kind: 'dance', style: styleRef.current, bpm: bpmRef.current, amp: v, startedAtMs: performance.now() });
+    }
+  }, []);
+
+  const setPose = useCallback((name: PoseName, instant = false) => {
+    setPoseState(name);
+    poseRef.current = name;
+    poseBlendRef.current = instant ? 1 : 0;
+    smRef.current.set({ kind: 'pose', name, blend: instant ? 1 : 0 });
+  }, []);
+
+  const playAction = useCallback((name: string) => {
+    const actionCfg = lookups.actionByName.get(name);
+    if (!actionCfg) {
+      console.warn('[useVrmAnimation.playAction] unknown action:', name);
+      return;
+    }
+    smRef.current.set({ kind: 'action', name, startedAtMs: performance.now(), speed: 1, repeat: 1 });
+  }, [lookups.actionByName]);
+
+  function beatNow(dt: number): number {
+    const ctx: AudioContext | null = (audio as any).audioCtx;
+    if (audio.isSongOn() && ctx) {
+      return (ctx.currentTime - audio.getSongStartTime()) * bpmRef.current / 60;
+    }
+    freeBeatRef.current += dt * bpmRef.current / 60;
+    return freeBeatRef.current;
+  }
+
+  function applyBoneRotations(bones: Record<string, [number, number, number]>, H: (n: string) => any) {
+    for (const [boneName, rot] of Object.entries(bones)) {
+      if (!Array.isArray(rot) || rot.length < 3) continue;
+      const o = H(boneName);
+      if (o && o.rotation) {
+        o.rotation.set(rot[0], rot[1], rot[2]);
+      }
+    }
+  }
+
+  function applyActionFormula(cfg: ActionConfig, t: number, H: (n: string) => any, sceneObj: any) {
+    if (!cfg.formula) return;
+    const result = safeEvalFormula(cfg.formula, { t, blend: 1 });
+    if (result.bones) applyBoneRotations(result.bones, H);
+    if (typeof result.scenePosY === 'number') {
+      const hips = H('hips');
+      if (hips) hips.position.y = result.scenePosY;
+    }
+    if (typeof result.scenePosX === 'number') {
+      const hips = H('hips');
+      if (hips) hips.position.x = result.scenePosX;
+    }
+  }
+
+  function applyDanceFormula(cfg: DanceStyleConfig, danceT: number, b: number, A: number, bass: number, phase: number, H: (n: string) => any) {
+    const result = safeEvalFormula(cfg.formula, { t: danceT, b, blend: 1, A, bass, phase });
+    if (result.bones) applyBoneRotations(result.bones, H);
+    if (typeof result.hipsPosY === 'number') {
+      const hips = H('hips');
+      if (hips) hips.position.y = result.hipsPosY;
+    }
+  }
+
+  function applyPose(cfg: PoseConfig, blend: number, H: (n: string) => any) {
+    if (blend <= 0) return;
+    for (const [boneName, rot] of Object.entries(cfg.boneRotations)) {
+      const o = H(boneName);
+      if (!o || !o.rotation) continue;
+      o.rotation.x = o.rotation.x * (1 - blend) + rot[0] * blend;
+      o.rotation.y = o.rotation.y * (1 - blend) + rot[1] * blend;
+      o.rotation.z = o.rotation.z * (1 - blend) + rot[2] * blend;
+    }
+  }
+
+  function resetBonesToNatural(H: (n: string) => any) {
+    const lu = H('leftUpperArm');
+    const ru = H('rightUpperArm');
+    const ll = H('leftLowerArm');
+    const rl = H('rightLowerArm');
+    const lh = H('leftHand');
+    const rh = H('rightHand');
+    if (lu) lu.rotation.set(0, 0, -1.4);
+    if (ru) ru.rotation.set(0, 0, 1.4);
+    if (ll) ll.rotation.set(0.3, 0, 0);
+    if (rl) rl.rotation.set(0.3, 0, 0);
+    if (lh) lh.rotation.set(0.3, 0, 0);
+    if (rh) rh.rotation.set(0.3, 0, 0);
+    const lul = H('leftUpperLeg');
+    const rul = H('rightUpperLeg');
+    if (lul) lul.rotation.set(-0.1, 0, 0);
+    if (rul) rul.rotation.set(-0.1, 0, 0);
+  }
+
+  function applyFootIK(dt: number, H: (n: string) => any) {
+    if (!physics?.ready) return;
+    const footOffset = 0.05;
+    const speed = 8;
+    for (const side of ['left', 'right'] as const) {
+      const foot = H(`${side}Foot`);
+      if (!foot) continue;
+      const pos = new THREE.Vector3();
+      foot.getWorldPosition(pos);
+      const groundY = physics.raycastGround({ x: pos.x, y: pos.y + 1, z: pos.z }, 2);
+      if (groundY == null) continue;
+      const desiredY = groundY + footOffset;
+      const diff = desiredY - pos.y;
+      if (Math.abs(diff) > 0.005) {
+        // 限制单帧调整量，避免抖动
+        foot.position.y += Math.max(-0.08, Math.min(0.08, diff * dt * speed));
+      }
+    }
+  }
+
+  function tick(elapsed: number, dt: number) {
+    const vrm = vrmRef.current;
+    if (!vrm?.humanoid) return;
+    const H = (n: string) => getBone(vrm.humanoid, n);
+    const sceneObj = vrm.scene;
+
+    // 1. 归位到自然姿势
+    resetBonesToNatural(H);
+
+    // 2. idle 基准（呼吸 + 微动）
+    const idleCfg = lookups.actionByName.get('idle');
+    if (idleCfg) applyActionFormula(idleCfg, elapsed, H, sceneObj);
+
+    // 3. pose 平滑混合
+    poseBlendRef.current = Math.min(1, poseBlendRef.current + dt * 3);
+    const poseCfg = lookups.poseByName.get(poseRef.current);
+    if (poseCfg) applyPose(poseCfg, poseBlendRef.current, H);
+
+    // 4. walk 步态
+    const w = walkRef.current;
+    if (w.moving && w.style !== 'teleport' && w.style !== 'idle') {
+      const walkStyle = w.style === 'run' ? 'run' : 'walk';
+      const walkCfg = lookups.danceByName.get(walkStyle);
+      if (walkCfg) {
+        applyDanceFormula(walkCfg, 0, 0, ampRef.current, audio.poll().bass, w.phase, H);
+      }
+      smRef.current.set({ kind: 'walk', phase: w.phase, style: walkStyle });
+    } else {
+      smRef.current.remove('walk');
+    }
+
+    // 5. dance
+    if (dancingRef.current) {
+      const danceCfg = lookups.danceByName.get(styleRef.current);
+      if (danceCfg) {
+        const b = beatNow(dt);
+        const danceState = smRef.current.stack.find((s): s is Extract<AnimState, { kind: 'dance' }> => s.kind === 'dance');
+        const danceT = danceState ? (performance.now() - danceState.startedAtMs) / 1000 : 0;
+        applyDanceFormula(danceCfg, danceT, b, ampRef.current, audio.poll().bass, 0, H);
+      }
+    }
+
+    // 6. action（最高优先级）+ 自动过期
+    const actionState = smRef.current.stack.find((s): s is Extract<AnimState, { kind: 'action' }> => s.kind === 'action');
+    if (actionState) {
+      const actionCfg = lookups.actionByName.get(actionState.name);
+      if (actionCfg) {
+        const t = (performance.now() - actionState.startedAtMs) / 1000;
+        if (!actionCfg.loopable && actionCfg.duration > 0 && t > actionCfg.duration) {
+          smRef.current.remove('action');
+        } else {
+          applyActionFormula(actionCfg, t, H, sceneObj);
+        }
+      }
+    }
+
+    // 7. Foot IK：脚贴地
+    applyFootIK(dt, H);
   }
 
   return {
-    state: sm,
-    activeState: () => sm.active,
-    setState,
-    removeState,
+    state: smRef.current,
+    activeState: () => smRef.current.active,
+    dancing, setDancing,
+    style, setStyle,
+    bpm, setBpm,
+    amp, setAmp,
+    pose, setPose,
+    playAction,
     tick,
   };
 }

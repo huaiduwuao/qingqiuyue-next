@@ -16,16 +16,14 @@ src/digital-human/
     useVrmRenderer.ts       # three.js + OrbitControls + rAF
     useVrmScene.ts          # 场景切换 + 灯光呼吸
     useVrmLipSync.ts        # 口型（WebAudio 频谱 → aa/ih/ou）
-    useVrmDance.ts          # 舞蹈（groove/idol formula-based）
     useVrmCamera.ts         # 相机预设 + 自由轨道
     useVrmPhysics.ts        # Rapier 集成 hook
-    useVrmAnimation.ts      # 统一动画状态机（Phase 4）
+    useVrmAnimation.ts      # 统一动画状态机（Phase 4.1）
     legacySceneBuilders.ts  # 旧硬编码 build*（Phase 1 过渡，Phase 2 删）
     sceneBuilders.ts        # buildScene(SceneConfig) config-driven
     vrmCompat.ts            # ARKit ↔ VRM 0.0/1.0 名字兼容
     loadAvatar.ts           # 加载 .vrm 模型
     audio.ts                # WebAudio + 演示歌曲合成
-    poses.ts                # （Phase 1.5 后从 config 读，保留兼容）
   api/
     digitalHumanConfig.ts   # 7 套 CRUD + sessions/me 的 fetch 封装
   store/
@@ -146,8 +144,8 @@ vrm_sessions (
 
 ## 后续路线
 
-- Phase 3.1: Foot IK（脚贴着地面，自动适应斜坡）
-- Phase 3.2: 表情/口型/动作 lerp 过渡（现在直接 setValue，会跳变）
-- Phase 4.1: 实际用 useVrmAnimation 替换 useVrmDance 隐式逻辑
-- Phase 5.1: Admin UI (`/system/digital-human-config`)：可视化编辑 model/scenes/actions
+- ✅ Phase 3.1: Foot IK（脚贴着地面，自动适应斜坡）
+- ✅ Phase 3.2: 表情/口型/动作 lerp 过渡（现在直接 setValue，会跳变）
+- ✅ Phase 4.1: 实际用 useVrmAnimation 替换 useVrmDance 隐式逻辑
+- ✅ Phase 5.1: Admin UI (`/system/digital-human-config`)：可视化编辑 model/scenes/actions
 - Phase 6: 多用户 + 权限（vrm_sessions 加 tenant_id 索引已就位）

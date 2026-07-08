@@ -63,5 +63,10 @@ export function useVrmPhysics(opts: UseVrmPhysicsOptions) {
     onStep?.(t);
   }
 
-  return { ready, step, world: worldRef };
+  /** 向下射线检测地面高度（Foot IK） */
+  function raycastGround(origin: { x: number; y: number; z: number }, maxDistance = 2): number | null {
+    return worldRef.current?.raycastGround(origin, maxDistance) ?? null;
+  }
+
+  return { ready, step, raycastGround, world: worldRef };
 }

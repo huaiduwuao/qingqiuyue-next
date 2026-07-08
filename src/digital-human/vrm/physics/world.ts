@@ -33,6 +33,8 @@ export interface PhysicsWorld {
   walls: RAPIER.RigidBody[];
   /** 步进 + 同步 scene.position */
   step: (dt: number, targetPos: { x: number; y: number; z: number }, scene: THREE.Object3D) => { x: number; y: number; z: number };
+  /** 从某点向下射线检测地面高度（Foot IK 用） */
+  raycastGround: (origin: { x: number; y: number; z: number }, maxDistance?: number) => number | null;
   /** 清理 */
   dispose: () => void;
 }
@@ -112,5 +114,19 @@ export async function createPhysicsWorld(
     world.free();
   };
 
-  return { rapier: RAPIER, world, character, characterCollider, ground, walls, step, dispose };
+  const raycastGround = (origin: { x: number; y: number; z: number }, maxDistance = 2): number | null => {
+    try {
+      const ray = new RAPIER.Ray(origin, { x: 0, y: -1, z: 0 });
+      const hit = world.castRay(ray, maxDistance, true);
+      if (hit) {
+        const p = ray.pointAt(hit.timeOfImpact);
+        return p.y;
+      }
+    } catch (e) {
+      console.warn('[PhysicsWorld.raycastGround] failed:', e);
+    }
+    return null;
+  };
+
+  return { rapier: RAPIER, world, character, characterCollider, ground, walls, step, raycastGround, dispose };
 }
