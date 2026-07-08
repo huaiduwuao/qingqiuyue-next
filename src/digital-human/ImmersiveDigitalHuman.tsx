@@ -189,36 +189,42 @@ export default function ImmersiveDigitalHuman() {
         <CloseRoundedIcon />
       </IconButton>
 
-      {/* 底部:聊天输入 + 记录 */}
+      {/* 右下角:聊天输入 + 记录(不再用底部全宽遮挡 avatar) */}
       <Box sx={{
         position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
+        bottom: 16,
+        right: 16,
+        left: { xs: 16, md: 'auto' },     // 移动端也到边
+        width: { xs: 'auto', md: 480 },
+        maxWidth: '100%',
         zIndex: 3,
-        p: 2,
-        background: 'linear-gradient(0deg, rgba(0,0,0,0.85) 0%, transparent 100%)',
+        p: 1.5,
+        background: 'rgba(0,0,0,0.65)',
+        borderRadius: 2,
+        backdropFilter: 'blur(12px)',
+        border: '1px solid rgba(255,255,255,0.08)',
         display: 'flex',
         flexDirection: 'column',
-        gap: 1.5,
+        gap: 1,
+        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
       }}>
         {chatLog.length > 0 && (
           <Box sx={{
-            maxHeight: 140,
+            maxHeight: 120,
             overflowY: 'auto',
-            background: 'rgba(0,0,0,0.45)',
+            background: 'rgba(0,0,0,0.35)',
             borderRadius: 1,
-            p: 1,
-            backdropFilter: 'blur(8px)',
+            p: 0.75,
           }}>
             {chatLog.slice(-4).map((m, i) => (
               <Typography
                 key={i}
                 sx={{
-                  fontSize: 13,
+                  fontSize: 12,
                   color: m.who === 'user' ? '#a0c4ff' : '#fff',
-                  mb: 0.5,
+                  mb: 0.25,
                   wordBreak: 'break-word',
+                  lineHeight: 1.4,
                 }}
               >
                 <strong>{m.who === 'user' ? '我' : 'AI'}:</strong> {m.text}
@@ -226,7 +232,7 @@ export default function ImmersiveDigitalHuman() {
             ))}
           </Box>
         )}
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', maxWidth: 900, mx: 'auto', width: '100%' }}>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
           <TextField
             fullWidth
             placeholder={voiceEnabled ? (voice.state === 'recording' ? '我在听…' : '说"小月"唤醒') : '跟数字人说点什么…'}
