@@ -56,8 +56,13 @@ export async function loadAvatar(url: string, opts: LoadAvatarOptions = {}): Pro
     const vrm = gltf.userData.vrm;
     if (!vrm) throw new Error(`VRM 解析失败: ${url}`);
 
-    // VRM 0.0 兼容：绕 Y 轴 180° + 去冗余关节
-    if (rotateVRM0) {
+    // 检测 VRM 版本
+    const metaVersion: string = (vrm.meta as any)?.metaVersion || '1';
+    const isVRM0 = String(metaVersion).startsWith('0');
+    console.log('[loadAvatar] VRM 版本:', metaVersion, isVRM0 ? '(0.0 — 需要 rotateVRM0)' : '(1.0+ — 不旋转)');
+
+    // 仅当确实是 VRM 0.0 时才 rotateVRM0（VRM 1.0 自然朝 +Z）
+    if (rotateVRM0 && isVRM0) {
       try { THREE_VRM.VRMUtils.rotateVRM0(vrm); } catch (e) { console.warn('[loadAvatar] rotateVRM0 failed', e); }
     }
     if (removeUnnecessaryJoints) {

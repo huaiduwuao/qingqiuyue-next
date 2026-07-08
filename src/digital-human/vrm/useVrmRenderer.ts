@@ -63,7 +63,8 @@ export function useVrmRenderer(opts: UseVrmRendererOptions) {
       renderer.toneMappingExposure = 1.05;
 
       const scene = new THREE_NS.Scene();
-      scene.fog = new THREE_NS.FogExp2(0x0a0612, 0.035);
+      // 雾很轻（0.015）—— 主要靠 sky dome 控背景，雾只是让远处物体淡一点
+      scene.fog = new THREE_NS.FogExp2(0x0a0612, 0.015);
 
       const camera = new THREE_NS.PerspectiveCamera(fov, canvas.clientWidth / canvas.clientHeight, 0.1, 100);
       camera.position.set(0, 1.1, 4.5);

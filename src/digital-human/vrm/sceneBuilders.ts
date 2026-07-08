@@ -195,12 +195,21 @@ export function buildConcert(THREE_NS: typeof THREE, sceneGroup: THREE.Group): S
   let particles: THREE.Points | undefined;
 
   sceneGroup.add(makeSkyDome(THREE_NS, 0x1a0a2e, 0x07060d));
-  const ambient = new THREE_NS.AmbientLight(0x9988cc, 0.35);
+  const ambient = new THREE_NS.AmbientLight(0x9988cc, 0.7);
   sceneGroup.add(ambient); lights.push(ambient);
-  const key = new THREE_NS.DirectionalLight(0xffffff, 1.0);
-  key.position.set(2, 4, 3); key.castShadow = true;
+  const key = new THREE_NS.DirectionalLight(0xffffff, 1.6);
+  key.position.set(1, 4, 4);
+  key.target.position.set(0, 0.9, 0);
+  key.castShadow = true;
   key.shadow.mapSize.set(1024, 1024);
-  sceneGroup.add(key); lights.push(key);
+  sceneGroup.add(key, key.target); lights.push(key);
+  // 柔光补光（相机方向，暖白，保证脸/胸口亮起来）
+  const fill = new THREE_NS.DirectionalLight(0xfff0d8, 0.8);
+  fill.position.set(-1.5, 2.5, 4);
+  sceneGroup.add(fill); lights.push(fill);
+  // 半身补光（从下方，消除眼窝阴影）
+  const hemi = new THREE_NS.HemisphereLight(0xa0a8ff, 0x2a1a3a, 0.5);
+  sceneGroup.add(hemi); lights.push(hemi);
 
   const colors = [0xff4fd8, 0x4fd8ff, 0x9b6bff, 0xffb74f, 0x4fff9b, 0xff6b9b];
   const positions: [number, number, number][] = [
@@ -253,12 +262,15 @@ export function buildIdol(THREE_NS: typeof THREE, sceneGroup: THREE.Group): Scen
   let particles: THREE.Points | undefined;
 
   sceneGroup.add(makeSkyDome(THREE_NS, 0x221530, 0x0a0814));
-  const ambient = new THREE_NS.AmbientLight(0xffd9b3, 0.5);
+  const ambient = new THREE_NS.AmbientLight(0xffd9b3, 0.8);
   sceneGroup.add(ambient); lights.push(ambient);
-  const key = new THREE_NS.DirectionalLight(0xfff2d6, 1.3);
-  key.position.set(1, 4, 2); key.castShadow = true;
+  const key = new THREE_NS.DirectionalLight(0xfff2d6, 1.6);
+  key.position.set(1, 4, 3); key.castShadow = true;
   key.shadow.mapSize.set(1024, 1024);
   sceneGroup.add(key); lights.push(key);
+  const fill = new THREE_NS.DirectionalLight(0xfff0d8, 0.6);
+  fill.position.set(-1.5, 2, 3);
+  sceneGroup.add(fill); lights.push(fill);
 
   [{ c: 0xffd6a5, p: [-2.5, 3.5, 2] as [number, number, number] }, { c: 0xa5d6ff, p: [2.5, 3.5, 2] as [number, number, number] }, { c: 0xffffff, p: [0, 4.5, 1] as [number, number, number] }].forEach(({ c, p }) => {
     const s = new THREE_NS.SpotLight(c, 1.5, 12, Math.PI / 5, 0.7, 1.5);
@@ -306,12 +318,15 @@ export function buildGarden(THREE_NS: typeof THREE, sceneGroup: THREE.Group): Sc
   let particles: THREE.Points | undefined;
 
   sceneGroup.add(makeSkyDome(THREE_NS, 0x050818, 0x100a20));
-  const ambient = new THREE_NS.AmbientLight(0x4a5a8a, 0.4);
+  const ambient = new THREE_NS.AmbientLight(0x4a5a8a, 0.6);
   sceneGroup.add(ambient); lights.push(ambient);
-  const moon = new THREE_NS.DirectionalLight(0xaab8ff, 0.8);
+  const moon = new THREE_NS.DirectionalLight(0xaab8ff, 1.2);
   moon.position.set(-3, 5, 2); moon.castShadow = true;
   moon.shadow.mapSize.set(1024, 1024);
   sceneGroup.add(moon); lights.push(moon);
+  const fill = new THREE_NS.DirectionalLight(0xc8d0ff, 0.5);
+  fill.position.set(2, 3, 3);
+  sceneGroup.add(fill); lights.push(fill);
 
   const ms = new THREE_NS.SpotLight(0xc8d8ff, 2.0, 12, Math.PI / 5, 0.5, 1.4);
   ms.position.set(0, 5, 1.5); ms.target.position.set(0, 0.9, 0);
@@ -364,12 +379,15 @@ export function buildNeon(THREE_NS: typeof THREE, sceneGroup: THREE.Group): Scen
   let particles: THREE.Points | undefined;
 
   sceneGroup.add(makeSkyDome(THREE_NS, 0x100520, 0x05010f));
-  const ambient = new THREE_NS.AmbientLight(0x6644aa, 0.35);
+  const ambient = new THREE_NS.AmbientLight(0x6644aa, 0.7);
   sceneGroup.add(ambient); lights.push(ambient);
-  const key = new THREE_NS.DirectionalLight(0xff66cc, 0.7);
-  key.position.set(2, 4, 2); key.castShadow = true;
+  const key = new THREE_NS.DirectionalLight(0xff66cc, 1.0);
+  key.position.set(2, 4, 3); key.castShadow = true;
   key.shadow.mapSize.set(1024, 1024);
   sceneGroup.add(key); lights.push(key);
+  const fill = new THREE_NS.DirectionalLight(0xffffff, 0.5);
+  fill.position.set(-1.5, 2, 3);
+  sceneGroup.add(fill); lights.push(fill);
 
   [
     { c: 0xff0066, p: [-2.5, 3, 2.5] as [number, number, number] },

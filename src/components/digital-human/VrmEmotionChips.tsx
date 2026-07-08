@@ -23,10 +23,12 @@ export default function VrmEmotionChips({ handle, activeTemplate }: Props) {
 
   React.useEffect(() => { setActive(activeTemplate); }, [activeTemplate]);
 
-  const apply = (template: string, intensity: number) => {
+  const apply = (p: typeof EMOTION_PRESETS[number]) => {
     if (!handle) return;
-    const name = template as ExpressionTemplateName;
-    const dict = buildExpressionFromPreset(name, intensity, {});
+    const name = p.template as ExpressionTemplateName;
+    const dict = buildExpressionFromPreset(name, p.intensity, {});
+    // 眨眼等带额外通道的预设，merge 进去
+    if (p.blinkLeft) dict.blinkLeft = p.blinkLeft;
     handle.setEmotion(dict);
     setActive(name);
   };
@@ -37,11 +39,11 @@ export default function VrmEmotionChips({ handle, activeTemplate }: Props) {
         {EMOTION_PRESETS.map((p) => {
           const isOn = active === p.template;
           return (
-            <Tooltip key={p.template} title={EXPRESSION_PRESETS[p.template as ExpressionTemplateName] ? p.label : p.label} arrow>
+            <Tooltip key={p.id} title={p.label} arrow>
               <Chip
                 size="small"
                 label={`${p.emoji} ${p.label}`}
-                onClick={() => apply(p.template, p.intensity)}
+                onClick={() => apply(p)}
                 variant={isOn ? 'filled' : 'outlined'}
                 sx={{
                   fontSize: 12, height: 28,

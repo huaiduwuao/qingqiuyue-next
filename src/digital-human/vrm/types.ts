@@ -40,15 +40,15 @@ export const EXPRESSION_CHANNELS = [
 ] as const;
 
 /** 10 个情绪预设 chip（与 EXPRESSION_PRESETS 的 template name 对应） */
-export const EMOTION_PRESETS: { emoji: string; label: string; template: string; intensity: number }[] = [
-  { emoji: '😄', label: '大笑', template: 'laugh', intensity: 1.0 },
-  { emoji: '🙂', label: '微笑', template: 'happy', intensity: 0.6 },
-  { emoji: '😠', label: '生气', template: 'angry', intensity: 0.9 },
-  { emoji: '😢', label: '难过', template: 'sad', intensity: 0.9 },
-  { emoji: '😲', label: '惊讶', template: 'surprised', intensity: 1.0 },
-  { emoji: '😌', label: '放松', template: 'relaxed', intensity: 1.0 },
-  { emoji: '😉', label: '眨眼', template: 'happy', intensity: 0.4 },  // 眨眼用 happy 0.4 + blinkLeft
-  { emoji: '🤔', label: '疑惑', template: 'thinking', intensity: 1.0 },
-  { emoji: '😤', label: '不甘', template: 'angry', intensity: 0.5 },
-  { emoji: '😐', label: '中性', template: 'neutral', intensity: 0.0 },
+export const EMOTION_PRESETS: { id: string; emoji: string; label: string; template: string; intensity: number; blinkLeft?: number }[] = [
+  { id: 'laugh',     emoji: '😄', label: '大笑',   template: 'laugh',     intensity: 1.0 },
+  { id: 'smile',     emoji: '🙂', label: '微笑',   template: 'happy',     intensity: 0.6 },
+  { id: 'angry',     emoji: '😠', label: '生气',   template: 'angry',     intensity: 0.9 },
+  { id: 'sad',       emoji: '😢', label: '难过',   template: 'sad',       intensity: 0.9 },
+  { id: 'surprised', emoji: '😲', label: '惊讶',   template: 'surprised', intensity: 1.0 },
+  { id: 'relaxed',   emoji: '😌', label: '放松',   template: 'relaxed',   intensity: 1.0 },
+  { id: 'wink',      emoji: '😉', label: '眨眼',   template: 'happy',     intensity: 0.3, blinkLeft: 0.9 },
+  { id: 'thinking',  emoji: '🤔', label: '疑惑',   template: 'thinking',  intensity: 1.0 },
+  { id: 'frustrated', emoji: '😤', label: '不甘',   template: 'angry',     intensity: 0.5 },
+  { id: 'neutral',   emoji: '😐', label: '中性',   template: 'neutral',   intensity: 0.0 },
 ];
