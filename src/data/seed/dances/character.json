@@ -1,0 +1,42 @@
+[
+  {
+    "id": "00000000-0000-0000-0000-000000040001",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "groove", "label": "节奏律动",
+    "category": "idle_bounce",
+    "bpm": 120,
+    "description": "弹跳 + 左右摆胯 + 手臂挥舞（BPM 驱动）",
+    "params": { "PI": 3.14159265 },
+    "formula": "const P = Math.PI; const bounce = Math.abs(Math.sin(b * P)); const sway = Math.sin(b * P / 2); const legBend = A * (0.32 - bounce * 0.22 + bass * 0.25); const hipsY = -legBend * 0.16; const hipsRY = A * 0.30 * sway; const hipsRZ = A * 0.06 * Math.sin(b * P); const spineY = -hipsRY * 0.55; const spineZ = -hipsRZ * 0.6; const headZ = A * 0.10 * Math.sin(b * P + 0.6); const headX = A * 0.08 * Math.sin(b * 2 * P); const headY = -hipsRY * 0.4; const sw = Math.sin(b * P / 2); return { hipsPosY: hipsY, bones: { hips: [0, hipsRY, hipsRZ], spine: [0, spineY, spineZ], chest: [0, spineY * 0.5, spineZ * 0.5], neck: [headX * 0.4, headY * 0.4, headZ * 0.4], head: [headX, headY, headZ], leftUpperArm: [A * (-0.45 + 0.45 * sw), A * 0.12, -1.15 + A * 0.18 * Math.sin(b * P)], rightUpperArm: [A * (-0.45 - 0.45 * sw), -A * 0.12, 1.15 - A * 0.18 * Math.sin(b * P)], leftLowerArm: [0, A * (0.9 + 0.3 * sw), -0.2], rightLowerArm: [0, -A * (0.9 - 0.3 * sw), 0.2], leftUpperLeg: [-legBend, 0, 0.03], rightUpperLeg: [-legBend, 0, -0.03], leftLowerLeg: [legBend * 1.9, 0, 0], rightLowerLeg: [legBend * 1.9, 0, 0] } };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000040002",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "idol", "label": "偶像挥手",
+    "category": "wave",
+    "bpm": 120,
+    "description": "举臂左右摆动（BPM 驱动）",
+    "params": { "PI": 3.14159265 },
+    "formula": "const P = Math.PI; const wave = Math.sin(b * P / 2); const legBend = A * (0.12 + 0.10 * Math.abs(Math.sin(b * P))); const hipsY = -legBend * 0.12; const hipsRZ = A * 0.10 * wave; const hipsRY = A * 0.12 * Math.sin(b * P / 4); const spineZ = A * 0.10 * wave; const headZ = A * 0.16 * wave; const headX = -A * 0.05; return { hipsPosY: hipsY, bones: { hips: [0, hipsRY, hipsRZ], spine: [0, 0, spineZ], chest: [0, 0, spineZ * 0.5], neck: [headX * 0.4, 0, headZ * 0.4], head: [headX, 0, headZ], leftUpperArm: [A * 0.2 * wave, 0, 0.95 * A - 1.15 * (1 - A)], rightUpperArm: [-A * 0.2 * wave, 0, -0.95 * A + 1.15 * (1 - A)], leftLowerArm: [0, 0, A * (0.5 + 0.45 * wave)], rightLowerArm: [0, 0, -A * (0.5 - 0.45 * wave)], leftUpperLeg: [-legBend, 0, 0.03], rightUpperLeg: [-legBend, 0, -0.03], leftLowerLeg: [legBend * 1.9, 0, 0], rightLowerLeg: [legBend * 1.9, 0, 0] } };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000040003",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "walk", "label": "走路",
+    "category": "walk",
+    "bpm": 100,
+    "description": "走路步态（phase 驱动）",
+    "params": { "PI": 3.14159265 },
+    "formula": "const swing = Math.sin(phase) * 0.55; const kneeBend = Math.max(0, -Math.sin(phase)) * 0.6; const bounce = Math.abs(Math.sin(phase * 2)) * 0.03; return { hipsPosY: bounce, bones: { leftUpperLeg: [swing, 0, 0], rightUpperLeg: [-swing, 0, 0], leftLowerLeg: [kneeBend, 0, 0], rightLowerLeg: [kneeBend, 0, 0], leftUpperArm: [0, 0, -1.15 + swing * 0.25], rightUpperArm: [0, 0, 1.15 - swing * 0.25] } };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000040004",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "run", "label": "跑步",
+    "category": "run",
+    "bpm": 160,
+    "description": "跑步步态（更快 phase）",
+    "params": { "PI": 3.14159265, "swingAmp": 0.85, "kneeAmp": 0.9 },
+    "formula": "const swing = Math.sin(phase) * 0.85; const kneeBend = Math.max(0, -Math.sin(phase)) * 0.9; const bounce = Math.abs(Math.sin(phase * 2)) * 0.06; return { hipsPosY: bounce, bones: { leftUpperLeg: [swing, 0, 0], rightUpperLeg: [-swing, 0, 0], leftLowerLeg: [kneeBend, 0, 0], rightLowerLeg: [kneeBend, 0, 0], leftUpperArm: [0, 0, -1.15 + swing * 0.4], rightUpperArm: [0, 0, 1.15 - swing * 0.4], spine: [0.15, 0, 0] } };"
+  }
+]

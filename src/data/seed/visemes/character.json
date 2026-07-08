@@ -1,0 +1,20 @@
+[
+  { "id": "00000000-0000-0000-0000-000000020001", "modelId": "00000000-0000-0000-0000-000000000001", "name": "sil", "label": "静默", "blendshapes": { "viseme_sil": 1.0, "mouthClose": 1.0 } },
+  { "id": "00000000-0000-0000-0000-000000020002", "modelId": "00000000-0000-0000-0000-000000000001", "name": "PP", "label": "双唇音 (b/p/m)", "blendshapes": { "viseme_PP": 1.0, "mouthPressLeft": 0.5, "mouthPressRight": 0.5, "mouthClose": 0.4 } },
+  { "id": "00000000-0000-0000-0000-000000020003", "modelId": "00000000-0000-0000-0000-000000000001", "name": "FF", "label": "唇齿音 (f/v)", "blendshapes": { "viseme_FF": 1.0, "mouthLowerDownLeft": 0.4, "mouthLowerDownRight": 0.4 } },
+  { "id": "00000000-0000-0000-0000-000000020004", "modelId": "00000000-0000-0000-0000-000000000001", "name": "TH", "label": "舌齿音 (th)", "blendshapes": { "viseme_TH": 1.0, "tongueOut": 0.5, "mouthOpen": 0.2 } },
+  { "id": "00000000-0000-0000-0000-000000020005", "modelId": "00000000-0000-0000-0000-000000000001", "name": "DD", "label": "齿龈音 (d/t)", "blendshapes": { "viseme_DD": 1.0, "mouthOpen": 0.3, "tongueOut": 0.3 } },
+  { "id": "00000000-0000-0000-0000-000000020006", "modelId": "00000000-0000-0000-0000-000000000001", "name": "kk", "label": "软腭音 (k/g)", "blendshapes": { "viseme_kk": 1.0, "mouthOpen": 0.4 } },
+  { "id": "00000000-0000-0000-0000-000000020007", "modelId": "00000000-0000-0000-0000-000000000001", "name": "CH", "label": "硬腭音 (ch/sh)", "blendshapes": { "viseme_CH": 1.0, "mouthFunnel": 0.5, "mouthOpen": 0.3 } },
+  { "id": "00000000-0000-0000-0000-000000020008", "modelId": "00000000-0000-0000-0000-000000000001", "name": "SS", "label": "擦音 (s/z)", "blendshapes": { "viseme_SS": 1.0, "mouthStretchLeft": 0.3, "mouthStretchRight": 0.3 } },
+  { "id": "00000000-0000-0000-0000-000000020009", "modelId": "00000000-0000-0000-0000-000000000001", "name": "nn", "label": "鼻音 (n/ng)", "blendshapes": { "viseme_nn": 1.0, "mouthOpen": 0.3 } },
+  { "id": "00000000-0000-0000-0000-000000020010", "modelId": "00000000-0000-0000-0000-000000000001", "name": "RR", "label": "近音 (r/l)", "blendshapes": { "viseme_RR": 1.0, "mouthOpen": 0.4, "mouthRollLower": 0.3 } },
+  { "id": "00000000-0000-0000-0000-000000020011", "modelId": "00000000-0000-0000-0000-000000000001", "name": "aa", "label": "开口元音 a", "blendshapes": { "viseme_aa": 1.0, "jawOpen": 0.6, "mouthOpen": 0.5 } },
+  { "id": "00000000-0000-0000-0000-000000020012", "modelId": "00000000-0000-0000-0000-000000000001", "name": "E",  "label": "半开元音 E", "blendshapes": { "viseme_E": 1.0, "mouthStretchLeft": 0.4, "mouthStretchRight": 0.4 } },
+  { "id": "00000000-0000-0000-0000-000000020013", "modelId": "00000000-0000-0000-0000-000000000001", "name": "I",  "label": "闭口元音 i", "blendshapes": { "viseme_I": 1.0, "mouthStretchLeft": 0.5, "mouthStretchRight": 0.5 } },
+  { "id": "00000000-0000-0000-0000-000000020014", "modelId": "00000000-0000-0000-0000-000000000001", "name": "O",  "label": "圆唇元音 o", "blendshapes": { "viseme_O": 1.0, "jawOpen": 0.7, "mouthFunnel": 0.4 } },
+  { "id": "00000000-0000-0000-0000-000000020015", "modelId": "00000000-0000-0000-0000-000000000001", "name": "U",  "label": "圆唇元音 u", "blendshapes": { "viseme_U": 1.0, "mouthPucker": 0.6, "mouthFunnel": 0.3 } },
+  { "id": "00000000-0000-0000-0000-000000020016", "modelId": "00000000-0000-0000-0000-000000000001", "name": "closed", "label": "闭合", "blendshapes": { "mouthClose": 1.0 } },
+  { "id": "00000000-0000-0000-0000-000000020017", "modelId": "00000000-0000-0000-0000-000000000001", "name": "ou", "label": "双元音 ou", "blendshapes": { "viseme_ou": 1.0, "mouthPucker": 0.4, "jawOpen": 0.3 } },
+  { "id": "00000000-0000-0000-0000-000000020018", "modelId": "00000000-0000-0000-0000-000000000001", "name": "ih", "label": "双元音 ih", "blendshapes": { "viseme_ih": 1.0, "mouthStretchLeft": 0.3, "mouthStretchRight": 0.3 } }
+]

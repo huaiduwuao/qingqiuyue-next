@@ -1,0 +1,31 @@
+{
+  "id": "00000000-0000-0000-0000-000000060006",
+  "name": "lawn", "label": "白天草坪",
+  "description": "蓝天阳光 + 大片绿色草坪 + 散落的树 + 花",
+  "background": { "type": "sky_dome", "skyTopColor": 7194098, "skyBottomColor": 11594487 },
+  "floor": { "type": "circle", "radius": 16, "color": 6262330, "roughness": 0.95, "metalness": 0, "receiveShadow": true, "collider": "plane" },
+  "lights": [
+    { "id": "lawn-amb", "type": "ambient", "color": 16777024, "intensity": 0.8 },
+    { "id": "lawn-sun", "type": "directional", "color": 16771392, "intensity": 2.0, "position": [4, 8, 3], "target": [0, 0.9, 0], "castShadow": true, "shadowMapSize": 2048 },
+    { "id": "lawn-hemi", "type": "hemisphere", "color": 9355519, "intensity": 0.7, "groundColor": 4887082 }
+  ],
+  "decorations": [
+    { "id": "lawn-tree-1", "type": "tree", "position": [4, 0, -3], "params": { "height": 2.0, "trunkRadius": 0.15, "leafColor": 3841050 }, "collider": "cylinder", "colliderSize": 0.2 },
+    { "id": "lawn-tree-2", "type": "tree", "position": [-5, 0, -2], "params": { "height": 2.1, "trunkRadius": 0.15, "leafColor": 4886458 }, "collider": "cylinder", "colliderSize": 0.2 },
+    { "id": "lawn-tree-3", "type": "tree", "position": [3, 0, -5], "params": { "height": 2.0, "trunkRadius": 0.15, "leafColor": 6262202 }, "collider": "cylinder", "colliderSize": 0.2 },
+    { "id": "lawn-tree-4", "type": "tree", "position": [-4, 0, 3], "params": { "height": 1.9, "trunkRadius": 0.15, "leafColor": 3841050 }, "collider": "cylinder", "colliderSize": 0.2 },
+    { "id": "lawn-tree-5", "type": "tree", "position": [5, 0, 4], "params": { "height": 2.2, "trunkRadius": 0.15, "leafColor": 4886458 }, "collider": "cylinder", "colliderSize": 0.2 },
+    { "id": "lawn-tree-6", "type": "tree", "position": [-6, 0, -4], "params": { "height": 2.0, "trunkRadius": 0.15, "leafColor": 6262202 }, "collider": "cylinder", "colliderSize": 0.2 }
+  ],
+  "cameraPresets": [
+    { "name": "front", "label": "正面", "position": [0, 1.1, 4.5], "target": [0, 0.95, 0] },
+    { "name": "three", "label": "3/4", "position": [2.4, 1.4, 3.6], "target": [0, 0.95, 0] },
+    { "name": "side", "label": "侧面", "position": [4.0, 1.0, 0.0], "target": [0, 0.95, 0] },
+    { "name": "low", "label": "仰视", "position": [0, 0.25, 3.8], "target": [0, 1.3, 0] },
+    { "name": "top", "label": "顶视", "position": [0, 4.0, 2.5], "target": [0, 0.6, 0] },
+    { "name": "back", "label": "背面", "position": [0, 1.1, -3.8], "target": [0, 0.95, 0] }
+  ],
+  "particles": { "count": 80, "area": 14, "palette": [16777215, 13168639, 10529344] },
+  "physics": { "gravity": -9.81, "bounds": { "minX": -14, "maxX": 14, "minZ": -14, "maxZ": 14 } },
+  "isDefault": false
+}

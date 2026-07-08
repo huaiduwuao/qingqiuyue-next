@@ -1,0 +1,31 @@
+{
+  "id": "00000000-0000-0000-0000-000000060002",
+  "name": "idol", "label": "偶像练习室",
+  "description": "镜面地板 + 弧形镜墙 + 暖柔光",
+  "background": { "type": "sky_dome", "skyTopColor": 2235440, "skyBottomColor": 658068 },
+  "floor": { "type": "circle", "radius": 5, "color": 15649056, "roughness": 0.1, "metalness": 0.4, "receiveShadow": true, "collider": "plane" },
+  "lights": [
+    { "id": "idol-amb", "type": "ambient", "color": 16772531, "intensity": 0.8 },
+    { "id": "idol-key", "type": "directional", "color": 16772502, "intensity": 1.6, "position": [1, 4, 3], "castShadow": true, "shadowMapSize": 1024 },
+    { "id": "idol-fill", "type": "directional", "color": 16772808, "intensity": 0.6, "position": [-1.5, 2, 3] },
+    { "id": "idol-sp1", "type": "spot", "color": 16772037, "intensity": 1.5, "position": [-2.5, 3.5, 2], "target": [0, 0.9, 0], "distance": 12, "angle": 0.6283, "penumbra": 0.7, "decay": 1.5 },
+    { "id": "idol-sp2", "type": "spot", "color": 10867711, "intensity": 1.5, "position": [2.5, 3.5, 2], "target": [0, 0.9, 0], "distance": 12, "angle": 0.6283, "penumbra": 0.7, "decay": 1.5 },
+    { "id": "idol-sp3", "type": "spot", "color": 16777215, "intensity": 1.5, "position": [0, 4.5, 1], "target": [0, 0.9, 0], "distance": 12, "angle": 0.6283, "penumbra": 0.7, "decay": 1.5 }
+  ],
+  "decorations": [
+    { "id": "idol-mirrorbg", "type": "screen", "position": [0, 2, -3.5], "rotation": [0, 0, 0], "params": { "type": "plane", "width": 10, "height": 4, "color": 16774032, "roughness": 0.05, "metalness": 0.95 }, "collider": "none" },
+    { "id": "idol-col-l", "type": "column", "position": [-4.5, 2, -2], "params": { "width": 0.3, "height": 4, "depth": 0.3, "color": 2758960 }, "collider": "box", "colliderSize": [0.3, 4, 0.3] },
+    { "id": "idol-col-r", "type": "column", "position": [4.5, 2, -2], "params": { "width": 0.3, "height": 4, "depth": 0.3, "color": 2758960 }, "collider": "box", "colliderSize": [0.3, 4, 0.3] }
+  ],
+  "cameraPresets": [
+    { "name": "front", "label": "正面", "position": [0, 1.1, 4.5], "target": [0, 0.95, 0] },
+    { "name": "three", "label": "3/4", "position": [2.4, 1.4, 3.6], "target": [0, 0.95, 0] },
+    { "name": "side", "label": "侧面", "position": [4.0, 1.0, 0.0], "target": [0, 0.95, 0] },
+    { "name": "low", "label": "仰视", "position": [0, 0.25, 3.8], "target": [0, 1.3, 0] },
+    { "name": "top", "label": "顶视", "position": [0, 4.0, 2.5], "target": [0, 0.6, 0] },
+    { "name": "back", "label": "背面", "position": [0, 1.1, -3.8], "target": [0, 0.95, 0] }
+  ],
+  "particles": { "count": 60, "area": 14, "palette": [16772037, 10867711, 16777215] },
+  "physics": { "gravity": -9.81, "bounds": { "minX": -5, "maxX": 5, "minZ": -5, "maxZ": 5 } },
+  "isDefault": false
+}

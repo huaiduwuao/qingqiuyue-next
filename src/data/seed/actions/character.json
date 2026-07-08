@@ -1,0 +1,234 @@
+[
+  {
+    "id": "00000000-0000-0000-0000-000000050001", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "idle", "label": "待机", "category": "neutral",
+    "description": "默认待机：随机头部摆动 + 呼吸", "triggers": ["默认", "idle"],
+    "duration": 6, "loopable": true,
+    "boneRotations": {},
+    "formula": "return { bones: { head: [Math.sin(t*0.7)*0.08 - 0.02, Math.sin(t*0.4)*0.18, Math.sin(t*0.3)*0.06], chest: [Math.sin(t*0.9)*0.05, Math.sin(t*0.25)*0.08, 0], spine: [0, 0, Math.sin(t*0.4)*0.04], hips: [0, 0, Math.sin(t*0.3)*0.03] }, scenePosY: Math.abs(Math.sin(t*0.9))*0.02, scenePosX: Math.sin(t*0.4)*0.01 };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050002", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "wave", "label": "挥手", "category": "greeting",
+    "description": "举手挥舞, 打招呼或再见", "triggers": ["你好", "hi", "hello", "再见", "拜", "招唤"],
+    "duration": 3, "loopable": false,
+    "boneRotations": {},
+    "formula": "const phase = Math.sin(t * 4); return { bones: { rightUpperArm: [0, 0, -2.5 + phase * 0.4], rightLowerArm: [0, 0, -0.3] }, scenePosY: Math.abs(phase) * 0.02 };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050003", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "bow", "label": "鞠躬", "category": "greeting",
+    "description": "弯腰鞠躬, 表示感谢或道歉", "triggers": ["谢谢", "感谢", "抱歉", "对不起", "劳驾", "请"],
+    "duration": 2.5, "loopable": false,
+    "boneRotations": {},
+    "formula": "const p = t < 1 ? t : Math.max(0, 1 - (t - 1) * 0.7); return { bones: { chest: [p * 0.5, 0, 0], neck: [p * 0.3, 0, 0] } };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050004", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "nod", "label": "点头", "category": "emote",
+    "description": "点头示意, 表示同意或肯定", "triggers": ["嗯", "是的", "同意", "对", "好"],
+    "duration": 2, "loopable": false,
+    "boneRotations": {},
+    "formula": "const phase = (t * 2 * Math.PI) % (Math.PI * 2); const amp = Math.sin(phase) * Math.exp(-t * 0.5) * 0.25; return { bones: { neck: [amp, 0, 0], head: [amp * 0.7, 0, 0] } };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050005", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "shake", "label": "摇头", "category": "emote",
+    "description": "摇头示意, 表示否定或婉拒", "triggers": ["不", "不要", "不对", "摇头", "否认"],
+    "duration": 2.5, "loopable": false,
+    "boneRotations": {},
+    "formula": "const phase = Math.sin(t * 6) * Math.exp(-t * 0.4) * 0.4; return { bones: { head: [0, phase, 0], neck: [0, phase * 0.4, 0] } };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050006", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "clap", "label": "鼓掌", "category": "performance",
+    "description": "双手合拢鼓掌", "triggers": ["鼓掌", "拍掌", "鼓励", "加油"],
+    "duration": 3, "loopable": true,
+    "boneRotations": {},
+    "formula": "const cycle = (t * 3) % 1; const close = Math.sin(cycle * Math.PI); return { bones: { leftUpperArm: [0, 0, -0.8], rightUpperArm: [0, 0, 0.8], leftLowerArm: [0, 0, 1.4 - close * 0.3], rightLowerArm: [0, 0, -1.4 + close * 0.3] } };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050007", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "cheer", "label": "欢呼", "category": "performance",
+    "description": "举手挥舞欢呼, 通常伴随蹦跳", "triggers": ["耶", "太棒", "庆祝", "胜利", "欢呼", "yeah"],
+    "duration": 4, "loopable": true,
+    "boneRotations": {},
+    "formula": "const bounce = Math.abs(Math.sin(t * 4)); return { bones: { leftUpperArm: [0, 0, -2.5 + Math.sin(t * 4) * 0.2], rightUpperArm: [0, 0, 2.5 + Math.sin(t * 4 + Math.PI) * 0.2] }, scenePosY: bounce * 0.05 };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050008", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "jump", "label": "跳跃", "category": "performance",
+    "description": "原地起跳, 表示兴奋或强调", "triggers": ["跳", "跳跃", "跳起来"],
+    "duration": 2, "loopable": false,
+    "boneRotations": {},
+    "formula": "const normT = Math.min(1, t / 1.2); const height = normT < 0.5 ? normT * 2 : (1 - (normT - 0.5) * 2); const bend = (1 - normT) * 0.6; return { bones: { leftUpperLeg: [-bend, 0, 0], rightUpperLeg: [-bend, 0, 0], leftLowerLeg: [bend * 1.5, 0, 0], rightLowerLeg: [bend * 1.5, 0, 0], leftUpperArm: [0, 0, -2.2 - height * 0.3], rightUpperArm: [0, 0, 2.2 + height * 0.3] }, scenePosY: Math.max(0, height * 0.4) };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050009", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "walk", "label": "走路", "category": "locomotion",
+    "description": "原地走路姿态, 配合 scene.x 位移可横向移动", "triggers": ["走", "散步", "过来", "去"],
+    "duration": 1.2, "loopable": true,
+    "boneRotations": {},
+    "formula": "const phase = Math.sin(t * 5.2); return { bones: { leftUpperLeg: [phase * 0.45, 0, 0], rightUpperLeg: [-phase * 0.45, 0, 0], leftLowerLeg: [Math.max(0, -phase * 0.4), 0, 0], rightLowerLeg: [Math.max(0, phase * 0.4), 0, 0], leftUpperArm: [-phase * 0.3, 0, 0], rightUpperArm: [phase * 0.3, 0, 0] }, scenePosY: Math.abs(Math.sin(t * 5.2)) * 0.025, scenePosX: Math.sin(t * 5.2 / 2) * 0.06 };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050010", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "run", "label": "跑步", "category": "locomotion",
+    "description": "原地跑步姿态, 速度更快", "triggers": ["跑", "快", "追"],
+    "duration": 0.7, "loopable": true,
+    "boneRotations": {},
+    "formula": "const phase = Math.sin(t * 9); return { bones: { leftUpperLeg: [phase * 0.7, 0, 0], rightUpperLeg: [-phase * 0.7, 0, 0], leftLowerLeg: [Math.max(0, -phase * 0.6), 0, 0], rightLowerLeg: [Math.max(0, phase * 0.6), 0, 0], leftUpperArm: [-phase * 0.55, 0, 0], rightUpperArm: [phase * 0.55, 0, 0] }, scenePosY: Math.abs(Math.sin(t * 9)) * 0.05, scenePosX: Math.sin(t * 9 / 2) * 0.1 };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050011", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "dance", "label": "跳舞", "category": "performance",
+    "description": "原版 dance（旧 groove 之前的）", "triggers": ["跳舞", "dance", "来一段", "跳个舞"],
+    "duration": 2, "loopable": true,
+    "boneRotations": {},
+    "formula": "return { bones: { hips: [0, t * 1.2, Math.sin(t * 2) * 0.15], chest: [0, 0, Math.sin(t * 2) * 0.25], leftUpperArm: [0, 0, -2.5 + Math.sin(t * 2.5) * 0.6], rightUpperArm: [0, 0, 2.5 + Math.sin(t * 2.5 + Math.PI) * 0.6] }, scenePosY: Math.abs(Math.sin(t * 4)) * 0.05, scenePosX: Math.sin(t * 2) * 0.04 };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050012", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "sing", "label": "唱歌", "category": "performance",
+    "description": "唱歌姿态, 手放胸前像握话筒", "triggers": ["唱歌", "sing", "来一首"],
+    "duration": 2, "loopable": true,
+    "boneRotations": {},
+    "formula": "return { bones: { neck: [-0.15 + Math.sin(t * 3) * 0.05, 0, 0], chest: [-0.05, Math.sin(t * 1.5) * 0.15, 0], rightUpperArm: [0, 0, 1.0] }, scenePosY: Math.abs(Math.sin(t * 2.5)) * 0.025 };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050013", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "laugh", "label": "大笑", "category": "emote",
+    "description": "身体笑姿 + 头前倾 (搭配 laugh 表情)", "triggers": ["笑", "哈哈", "好笑"],
+    "duration": 2.5, "loopable": true,
+    "boneRotations": {},
+    "formula": "const phase = Math.sin(t * 6) * 0.15; return { bones: { chest: [phase * 0.3, 0, phase * 0.3], head: [-0.05 + Math.abs(phase) * 0.2, 0, phase * 0.2] }, scenePosY: Math.abs(Math.sin(t * 4)) * 0.04 };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050014", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "cry", "label": "哭泣", "category": "emote",
+    "description": "低头哭泣姿态 (搭配 cry 表情)", "triggers": ["哭", "难过", "伤心"],
+    "duration": 3, "loopable": true,
+    "boneRotations": {},
+    "formula": "const breath = Math.sin(t * 2) * 0.05; return { bones: { head: [0.25 + breath, 0, Math.sin(t * 1.3) * 0.08], spine: [0.15, 0, 0] } };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050015", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "think", "label": "思考", "category": "thought",
+    "description": "歪头思考 (右手托下巴)", "triggers": ["想", "思考", "为什么", "怎么"],
+    "duration": 4, "loopable": true,
+    "boneRotations": {},
+    "formula": "return { bones: { neck: [0, 0.25 + Math.sin(t * 0.5) * 0.05, 0], rightUpperArm: [0, 0, -1.6], rightLowerArm: [-1.2, 0, 0] }, scenePosY: Math.abs(Math.sin(t * 0.6)) * 0.015 };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050016", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "point", "label": "指示", "category": "emote",
+    "description": "手指某处", "triggers": ["那个", "这里", "那里", "你看"],
+    "duration": 2, "loopable": false,
+    "boneRotations": {},
+    "formula": "return { bones: { rightUpperArm: [0, 0, -1.6], rightLowerArm: [-0.2, 0, 0], neck: [0, -0.1, 0] } };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050017", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "sit", "label": "坐下", "category": "rest",
+    "description": "坐下 (膝盖 90°)", "triggers": ["坐", "坐下", "休息"],
+    "duration": 1, "loopable": true,
+    "boneRotations": {},
+    "formula": "return { bones: { leftUpperLeg: [-1.5, 0, 0], rightUpperLeg: [-1.5, 0, 0] }, scenePosY: -0.35 };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050018", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "sleep", "label": "睡觉", "category": "rest",
+    "description": "睡觉 (低头闭眼)", "triggers": ["睡", "睡觉"],
+    "duration": 5, "loopable": true,
+    "boneRotations": {},
+    "formula": "const breath = Math.sin(t * 0.6) * 0.05; return { bones: { neck: [0.4 + breath, 0, 0], head: [0.6, 0, 0] }, scenePosY: -0.05 };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050019", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "stretch", "label": "伸懒腰", "category": "rest",
+    "description": "伸懒腰 (抬手+头仰)", "triggers": ["起床", "伸个懒腰"],
+    "duration": 4, "loopable": false,
+    "boneRotations": {},
+    "formula": "const phase = t < 2 ? t / 2 : (t < 3.5 ? 1 : Math.max(0, 1 - (t - 3.5) * 2)); return { bones: { leftUpperArm: [0, 0, -2.7 * phase], rightUpperArm: [0, 0, 2.7 * phase], head: [-0.2 * phase, 0, 0] }, scenePosY: Math.sin(t * 2) * 0.02 * phase };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050020", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "greet", "label": "行礼", "category": "greeting",
+    "description": "正式行礼 (抬手 + 点头)", "triggers": ["幸会", "你好呀", "初次见面"],
+    "duration": 3, "loopable": false,
+    "boneRotations": {},
+    "formula": "const nod = Math.sin(t * Math.PI * 2) * 0.15 * Math.exp(-t * 0.5); return { bones: { head: [nod, 0, 0], neck: [nod * 0.5, 0, 0], rightUpperArm: [0, 0, -2.4], rightLowerArm: [0, 0, -0.3] } };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050021", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "salute", "label": "敬礼", "category": "emote",
+    "description": "敬礼", "triggers": ["敬礼", "致敬"],
+    "duration": 2, "loopable": false,
+    "boneRotations": {},
+    "formula": "return { bones: { rightUpperArm: [0, 0, -2.5], rightLowerArm: [0, 0, -0.6], head: [-0.05, 0, 0] } };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050022", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "kiss", "label": "飞吻", "category": "emote",
+    "description": "飞吻", "triggers": ["飞吻", "亲一个", "爱你"],
+    "duration": 1.5, "loopable": false,
+    "boneRotations": {},
+    "formula": "return { bones: { rightUpperArm: [0, 0, -1.8], rightLowerArm: [-0.5, 0, 0], head: [-0.2, 0, 0.2 * Math.sin(t * 8)] } };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050023", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "shrug", "label": "摊手", "category": "emote",
+    "description": "摊手 (我不知道 / 无可奈何)", "triggers": ["不知道", "没办法", "摊手"],
+    "duration": 2, "loopable": false,
+    "boneRotations": {},
+    "formula": "const normT = Math.min(1, t / 1.5); return { bones: { leftUpperArm: [0, 0, -1.6 * normT], leftUpperArm: [-0.4 * normT, 0, 0], rightUpperArm: [0, 0, 1.6 * normT], rightUpperArm: [-0.4 * normT, 0, 0], head: [0, Math.sin(t * Math.PI) * 0.1 * normT, 0] } };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050024", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "talk", "label": "讲话", "category": "thought",
+    "description": "讲话姿态 (微动+呼吸)", "triggers": ["解释", "说", "讲"],
+    "duration": 2, "loopable": true,
+    "boneRotations": {},
+    "formula": "return { bones: { chest: [Math.sin(t * 3) * 0.05, 0, 0] }, scenePosY: Math.abs(Math.sin(t * 3)) * 0.02 };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050025", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "explain", "label": "讲解", "category": "thought",
+    "description": "讲解姿态 (双手前伸比划)", "triggers": ["详细说", "怎么用", "教"],
+    "duration": 3, "loopable": true,
+    "boneRotations": {},
+    "formula": "return { bones: { leftUpperArm: [0, 0, -1.0 + Math.sin(t * 1.5) * 0.3], rightUpperArm: [0, 0, 1.0 + Math.sin(t * 1.5 + Math.PI) * 0.3], leftLowerArm: [-0.3, 0, 0], rightLowerArm: [-0.3, 0, 0] }, scenePosY: Math.abs(Math.sin(t * 1.2)) * 0.018 };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050026", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "listen", "label": "倾听", "category": "thought",
+    "description": "安静倾听 (歪头 + 看着对方)", "triggers": ["听", "继续说"],
+    "duration": 4, "loopable": true,
+    "boneRotations": {},
+    "formula": "return { bones: { neck: [0, 0.18, 0], head: [Math.sin(t * 0.4) * 0.06 - 0.04, Math.sin(t * 0.6) * 0.1, 0] }, scenePosY: Math.abs(Math.sin(t * 0.7)) * 0.018 };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050027", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "pray", "label": "祈祷", "category": "greeting",
+    "description": "双手合十 (感谢 / 求好运)", "triggers": ["拜托", "感谢", "求求你"],
+    "duration": 2.5, "loopable": false,
+    "boneRotations": {},
+    "formula": "return { bones: { leftUpperArm: [0, 0, -0.6], rightUpperArm: [0, 0, 0.6], leftLowerArm: [-1.2, 0, 0], rightLowerArm: [-1.2, 0, 0], head: [-0.1, 0, 0] } };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050028", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "groove", "label": "节奏律动", "category": "performance",
+    "description": "BPM 驱动的节奏律动（每拍一次弹跳 + 两拍一次左右摆）", "triggers": ["节奏", "律动", "groove"],
+    "duration": 0, "loopable": true,
+    "boneRotations": {},
+    "formula": "const P = Math.PI; const bounce = Math.abs(Math.sin(t * P)); const sway = Math.sin(t * P / 2); const legBend = 0.32 - bounce * 0.22; const hipsY = -legBend * 0.16; const hipsRY = 0.30 * sway; const hipsRZ = 0.06 * Math.sin(t * P); const spineY = -hipsRY * 0.55; const spineZ = -hipsRZ * 0.6; const headZ = 0.10 * Math.sin(t * P + 0.6); const headX = 0.08 * Math.sin(t * 2 * P); const headY = -hipsRY * 0.4; const sw = Math.sin(t * P / 2); return { bones: { hips: [0, hipsRY, hipsRZ], spine: [0, spineY, spineZ], chest: [0, spineY * 0.5, spineZ * 0.5], neck: [headX * 0.4, headY * 0.4, headZ * 0.4], head: [headX, headY, headZ], leftUpperArm: [-0.45 + 0.45 * sw, 0.12, -1.15 + 0.18 * Math.sin(t * P)], rightUpperArm: [-0.45 - 0.45 * sw, -0.12, 1.15 - 0.18 * Math.sin(t * P)], leftLowerArm: [0, 0.9 + 0.3 * sw, -0.2], rightLowerArm: [0, -0.9 + 0.3 * sw, 0.2], leftUpperLeg: [-legBend, 0, 0.03], rightUpperLeg: [-legBend, 0, -0.03], leftLowerLeg: [legBend * 1.9, 0, 0], rightLowerLeg: [legBend * 1.9, 0, 0] }, scenePosY: hipsY };"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000050029", "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "idol", "label": "偶像挥手", "category": "performance",
+    "description": "举臂左右摆动（BPM 驱动）", "triggers": ["偶像", "挥手", "idol"],
+    "duration": 0, "loopable": true,
+    "boneRotations": {},
+    "formula": "const P = Math.PI; const wave = Math.sin(t * P / 2); const legBend = 0.12 + 0.10 * Math.abs(Math.sin(t * P)); const hipsY = -legBend * 0.12; const hipsRZ = 0.10 * wave; const hipsRY = 0.12 * Math.sin(t * P / 4); const spineZ = 0.10 * wave; const headZ = 0.16 * wave; const headX = -0.05; return { bones: { hips: [0, hipsRY, hipsRZ], spine: [0, 0, spineZ], chest: [0, 0, spineZ * 0.5], neck: [headX * 0.4, 0, headZ * 0.4], head: [headX, 0, headZ], leftUpperArm: [0.2 * wave, 0, 0.95 - 1.15 * (1 - 0)], rightUpperArm: [-0.2 * wave, 0, -0.95 + 1.15 * (1 - 0)], leftLowerArm: [0, 0, 0.5 + 0.45 * wave], rightLowerArm: [0, 0, -0.5 + 0.45 * wave], leftUpperLeg: [-legBend, 0, 0.03], rightUpperLeg: [-legBend, 0, -0.03], leftLowerLeg: [legBend * 1.9, 0, 0], rightLowerLeg: [legBend * 1.9, 0, 0] }, scenePosY: hipsY };"
+  }
+]

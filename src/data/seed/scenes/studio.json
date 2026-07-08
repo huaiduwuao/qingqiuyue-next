@@ -1,0 +1,29 @@
+{
+  "id": "00000000-0000-0000-0000-000000060005",
+  "name": "studio", "label": "摄影棚白底",
+  "description": "无影白背景",
+  "background": { "type": "color", "color": 16777215 },
+  "floor": { "type": "plane", "width": 20, "depth": 20, "color": 15658734, "roughness": 0.9, "metalness": 0, "receiveShadow": true, "collider": "plane" },
+  "lights": [
+    { "id": "studio-amb", "type": "ambient", "color": 16777215, "intensity": 0.9 },
+    { "id": "studio-key", "type": "directional", "color": 16777215, "intensity": 1.0, "position": [2, 4, 2], "castShadow": true, "shadowMapSize": 1024 },
+    { "id": "studio-pl1", "type": "point", "color": 16777215, "intensity": 0.6, "position": [0, 2.5, 2.5], "distance": 6, "decay": 2 },
+    { "id": "studio-pl2", "type": "point", "color": 16777215, "intensity": 0.6, "position": [0, 2.5, -2.5], "distance": 6, "decay": 2 },
+    { "id": "studio-pl3", "type": "point", "color": 16777215, "intensity": 0.6, "position": [2.5, 2.5, 0], "distance": 6, "decay": 2 },
+    { "id": "studio-pl4", "type": "point", "color": 16777215, "intensity": 0.6, "position": [-2.5, 2.5, 0], "distance": 6, "decay": 2 }
+  ],
+  "decorations": [
+    { "id": "studio-paper", "type": "screen", "position": [0, 2, -3], "params": { "type": "curved-paper", "width": 12, "height": 8, "color": 16777072 }, "collider": "none" }
+  ],
+  "cameraPresets": [
+    { "name": "front", "label": "正面", "position": [0, 1.1, 4.5], "target": [0, 0.95, 0] },
+    { "name": "three", "label": "3/4", "position": [2.4, 1.4, 3.6], "target": [0, 0.95, 0] },
+    { "name": "side", "label": "侧面", "position": [4.0, 1.0, 0.0], "target": [0, 0.95, 0] },
+    { "name": "low", "label": "仰视", "position": [0, 0.25, 3.8], "target": [0, 1.3, 0] },
+    { "name": "top", "label": "顶视", "position": [0, 4.0, 2.5], "target": [0, 0.6, 0] },
+    { "name": "back", "label": "背面", "position": [0, 1.1, -3.8], "target": [0, 0.95, 0] }
+  ],
+  "particles": null,
+  "physics": { "gravity": -9.81, "bounds": { "minX": -8, "maxX": 8, "minZ": -8, "maxZ": 8 } },
+  "isDefault": false
+}

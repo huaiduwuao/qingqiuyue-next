@@ -1,0 +1,74 @@
+[
+  {
+    "id": "00000000-0000-0000-0000-000000030001",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "idle", "label": "自然站立",
+    "description": "默认：手臂自然下垂，腿伸直",
+    "boneRotations": {
+      "leftUpperArm": [0, 0, -1.15], "rightUpperArm": [0, 0, 1.15],
+      "leftLowerArm": [0, 0, -0.15], "rightLowerArm": [0, 0, 0.15],
+      "leftUpperLeg": [0, 0, 0], "rightUpperLeg": [0, 0, 0],
+      "leftLowerLeg": [0, 0, 0], "rightLowerLeg": [0, 0, 0],
+      "spine": [0, 0, 0], "chest": [0, 0, 0], "neck": [0, 0, 0], "head": [0, 0, 0]
+    }
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000030002",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "wave", "label": "👋 单手挥手",
+    "description": "右臂举起",
+    "boneRotations": {
+      "leftUpperArm": [0, 0, -0.2],
+      "rightUpperArm": [0, 0, 1.95],
+      "rightLowerArm": [0, 0, 1.3],
+      "leftLowerArm": [0, 0, -0.15],
+      "spine": [0, 0, 0], "chest": [0, 0, 0],
+      "neck": [0, -0.15, 0], "head": [0, -0.2, 0]
+    }
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000030003",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "bothUp", "label": "🙌 双手举起",
+    "description": "双臂举过头顶",
+    "boneRotations": {
+      "leftUpperArm": [0, 0, -2.6], "rightUpperArm": [0, 0, 2.6],
+      "leftLowerArm": [0, 0, -0.3], "rightLowerArm": [0, 0, 0.3]
+    }
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000030004",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "akimbo", "label": "💪 叉腰",
+    "description": "双手叉腰",
+    "boneRotations": {
+      "leftUpperArm": [0, 0, -0.7], "rightUpperArm": [0, 0, 0.7],
+      "leftLowerArm": [-1.4, 0, -0.1], "rightLowerArm": [1.4, 0, 0.1],
+      "spine": [0, 0, 0], "chest": [0, 0, 0]
+    }
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000030005",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "point", "label": "👉 指向",
+    "description": "右臂水平伸出",
+    "boneRotations": {
+      "leftUpperArm": [0, 0, -0.3],
+      "rightUpperArm": [0, 0, 1.5],
+      "rightLowerArm": [0, 0, 0.4],
+      "leftLowerArm": [0, 0, -0.15],
+      "neck": [0, -0.4, 0], "head": [0, -0.3, 0]
+    }
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000030006",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "pray", "label": "🙏 比心",
+    "description": "双手胸前合拢",
+    "boneRotations": {
+      "leftUpperArm": [0, 0, -1.1], "rightUpperArm": [0, 0, 1.1],
+      "leftLowerArm": [-0.4, 0, -0.6], "rightLowerArm": [0.4, 0, 0.6],
+      "chest": [0, 0, 0]
+    }
+  }
+]

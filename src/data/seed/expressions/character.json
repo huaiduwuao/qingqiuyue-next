@@ -1,0 +1,304 @@
+[
+  {
+    "id": "00000000-0000-0000-0000-000000010001",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "neutral",
+    "label": "中性",
+    "emoji": "😐",
+    "intensity": 0.0,
+    "blendshapes": {},
+    "description": "默认中性表情"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000010002",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "happy",
+    "label": "开心",
+    "emoji": "🙂",
+    "intensity": 1.0,
+    "blendshapes": {
+      "mouthSmileLeft": 0.8, "mouthSmileRight": 0.8,
+      "cheekSquintLeft": 0.4, "cheekSquintRight": 0.4,
+      "eyeSquintLeft": 0.3, "eyeSquintRight": 0.3,
+      "browOuterUpLeft": 0.2, "browOuterUpRight": 0.2,
+      "mouthDimpleLeft": 0.3, "mouthDimpleRight": 0.3
+    },
+    "description": "嘴角上扬，眼角微眯"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000010003",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "sad",
+    "label": "悲伤",
+    "emoji": "😢",
+    "intensity": 1.0,
+    "blendshapes": {
+      "mouthFrownLeft": 0.7, "mouthFrownRight": 0.7,
+      "browInnerUp": 0.6,
+      "eyeLookDownLeft": 0.4, "eyeLookDownRight": 0.4,
+      "mouthStretchLeft": 0.3, "mouthStretchRight": 0.3,
+      "browDownLeft": 0.2, "browDownRight": 0.2
+    },
+    "description": "嘴角下垂，眉心微皱"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000010004",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "angry",
+    "label": "生气",
+    "emoji": "😠",
+    "intensity": 1.0,
+    "blendshapes": {
+      "browDownLeft": 0.8, "browDownRight": 0.8,
+      "eyeSquintLeft": 0.5, "eyeSquintRight": 0.5,
+      "noseSneerLeft": 0.3, "noseSneerRight": 0.3,
+      "mouthPressLeft": 0.4, "mouthPressRight": 0.4,
+      "jawForward": 0.2
+    },
+    "description": "眉头紧锁，鼻翼皱起"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000010005",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "surprised",
+    "label": "惊讶",
+    "emoji": "😲",
+    "intensity": 1.0,
+    "blendshapes": {
+      "eyeWideLeft": 0.9, "eyeWideRight": 0.9,
+      "browOuterUpLeft": 0.8, "browOuterUpRight": 0.8,
+      "jawOpen": 0.5,
+      "mouthStretchLeft": 0.4, "mouthStretchRight": 0.4
+    },
+    "description": "眼睛瞪大，嘴巴张开"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000010006",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "shy",
+    "label": "害羞",
+    "emoji": "😊",
+    "intensity": 1.0,
+    "blendshapes": {
+      "mouthSmileLeft": 0.5, "mouthSmileRight": 0.5,
+      "eyeLookDownLeft": 0.6, "eyeLookDownRight": 0.6,
+      "cheekSquintLeft": 0.2, "cheekSquintRight": 0.2,
+      "mouthPucker": 0.2
+    },
+    "description": "眼睛低垂，嘴角浅笑"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000010007",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "cry",
+    "label": "哭泣",
+    "emoji": "😭",
+    "intensity": 1.0,
+    "blendshapes": {
+      "mouthFrownLeft": 0.85, "mouthFrownRight": 0.85,
+      "browInnerUp": 0.9,
+      "eyeLookDownLeft": 0.7, "eyeLookDownRight": 0.7,
+      "mouthStretchLeft": 0.6, "mouthStretchRight": 0.6,
+      "mouthLowerDownLeft": 0.4, "mouthLowerDownRight": 0.4,
+      "eyeSquintLeft": 0.2, "eyeSquintRight": 0.2
+    },
+    "description": "嘴角严重下垂，眉心紧皱"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000010008",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "laugh",
+    "label": "大笑",
+    "emoji": "😄",
+    "intensity": 1.0,
+    "blendshapes": {
+      "mouthSmileLeft": 1.0, "mouthSmileRight": 1.0,
+      "mouthOpen": 0.5,
+      "cheekSquintLeft": 0.7, "cheekSquintRight": 0.7,
+      "eyeSquintLeft": 0.5, "eyeSquintRight": 0.5,
+      "browOuterUpLeft": 0.3, "browOuterUpRight": 0.3,
+      "mouthUpperUpLeft": 0.3, "mouthUpperUpRight": 0.3
+    },
+    "description": "嘴大张笑，眼角上挑"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000010009",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "love",
+    "label": "喜爱",
+    "emoji": "😍",
+    "intensity": 1.0,
+    "blendshapes": {
+      "mouthSmileLeft": 0.7, "mouthSmileRight": 0.7,
+      "mouthPucker": 0.4,
+      "browOuterUpLeft": 0.3, "browOuterUpRight": 0.3,
+      "eyeWideLeft": 0.2, "eyeWideRight": 0.2,
+      "cheekPuff": 0.2
+    },
+    "description": "眯眯笑，嘟嘴"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000010010",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "thinking",
+    "label": "思考",
+    "emoji": "🤔",
+    "intensity": 1.0,
+    "blendshapes": {
+      "eyeLookOutLeft": 0.4, "eyeLookOutRight": 0.4,
+      "browInnerUp": 0.3,
+      "mouthPucker": 0.2
+    },
+    "description": "眼神外飘，眉心微皱"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000010011",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "confused",
+    "label": "困惑",
+    "emoji": "😕",
+    "intensity": 1.0,
+    "blendshapes": {
+      "browDownLeft": 0.4, "browDownRight": 0.4,
+      "browInnerUp": 0.3,
+      "mouthFrownLeft": 0.2, "mouthFrownRight": 0.2,
+      "eyeSquintLeft": 0.2, "eyeSquintRight": 0.2,
+      "mouthLeft": 0.2
+    },
+    "description": "眉头一高一低，嘴角不对称"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000010012",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "fearful",
+    "label": "恐惧",
+    "emoji": "😨",
+    "intensity": 1.0,
+    "blendshapes": {
+      "eyeWideLeft": 1.0, "eyeWideRight": 1.0,
+      "browInnerUp": 0.9, "browOuterUpLeft": 0.5, "browOuterUpRight": 0.5,
+      "mouthStretchLeft": 0.5, "mouthStretchRight": 0.5,
+      "jawOpen": 0.3
+    },
+    "description": "眼睛大睁，眉心高抬"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000010013",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "disgusted",
+    "label": "厌恶",
+    "emoji": "🤢",
+    "intensity": 1.0,
+    "blendshapes": {
+      "noseSneerLeft": 0.8, "noseSneerRight": 0.8,
+      "mouthFrownLeft": 0.5, "mouthFrownRight": 0.5,
+      "browDownLeft": 0.3, "browDownRight": 0.3,
+      "mouthUpperUpLeft": 0.4, "mouthUpperUpRight": 0.4
+    },
+    "description": "鼻翼上翻，上唇提升"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000010014",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "sleepy",
+    "label": "犯困",
+    "emoji": "😪",
+    "intensity": 1.0,
+    "blendshapes": {
+      "eyeBlinkLeft": 0.4, "eyeBlinkRight": 0.4,
+      "mouthOpen": 0.2,
+      "browInnerUp": 0.2
+    },
+    "description": "眼睛半闭，打哈欠"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000010015",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "sleepy_tired",
+    "label": "困倦",
+    "emoji": "😴",
+    "intensity": 1.0,
+    "blendshapes": {
+      "eyeBlinkLeft": 0.7, "eyeBlinkRight": 0.7,
+      "mouthOpen": 0.3
+    },
+    "description": "眼睛几乎全闭"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000010016",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "smug",
+    "label": "得意",
+    "emoji": "😏",
+    "intensity": 1.0,
+    "blendshapes": {
+      "mouthSmileLeft": 0.6, "mouthSmileRight": 0.4,
+      "mouthLeft": 0.5,
+      "browOuterUpLeft": 0.3, "browDownRight": 0.2,
+      "eyeSquintLeft": 0.3,
+      "cheekSquintLeft": 0.3
+    },
+    "description": "歪嘴笑，不对称"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000010017",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "worried",
+    "label": "担忧",
+    "emoji": "😟",
+    "intensity": 1.0,
+    "blendshapes": {
+      "browInnerUp": 0.7,
+      "browDownLeft": 0.3, "browDownRight": 0.3,
+      "mouthFrownLeft": 0.4, "mouthFrownRight": 0.4,
+      "eyeWideLeft": 0.2, "eyeWideRight": 0.2
+    },
+    "description": "眉心抬起，眉头下压"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000010018",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "excited",
+    "label": "激动",
+    "emoji": "🤩",
+    "intensity": 1.0,
+    "blendshapes": {
+      "eyeWideLeft": 0.7, "eyeWideRight": 0.7,
+      "browOuterUpLeft": 0.6, "browOuterUpRight": 0.6,
+      "mouthSmileLeft": 0.9, "mouthSmileRight": 0.9,
+      "mouthOpen": 0.3,
+      "cheekPuff": 0.2
+    },
+    "description": "眼睛大睁，眉毛高挑"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000010019",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "bored",
+    "label": "无聊",
+    "emoji": "😑",
+    "intensity": 1.0,
+    "blendshapes": {
+      "eyeBlinkLeft": 0.3, "eyeBlinkRight": 0.3,
+      "eyeLookDownLeft": 0.5, "eyeLookDownRight": 0.5,
+      "mouthOpen": 0.15,
+      "browInnerUp": 0.1
+    },
+    "description": "眼神低垂，嘴微张"
+  },
+  {
+    "id": "00000000-0000-0000-0000-000000010020",
+    "modelId": "00000000-0000-0000-0000-000000000001",
+    "name": "relaxed",
+    "label": "放松",
+    "emoji": "😌",
+    "intensity": 1.0,
+    "blendshapes": {
+      "mouthSmileLeft": 0.25, "mouthSmileRight": 0.25,
+      "browInnerUp": 0.15,
+      "eyeSquintLeft": 0.15, "eyeSquintRight": 0.15,
+      "mouthOpen": 0.05
+    },
+    "description": "浅笑 + 眉心微抬 + 眼轻眯（呼吸感）"
+  }
+]
