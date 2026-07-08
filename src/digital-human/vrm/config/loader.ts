@@ -138,7 +138,13 @@ export function safeEvalFormula(
 ): { bones: Record<string, [number, number, number]>; scenePosY?: number; scenePosX?: number; hipsPosY?: number } {
   if (!formula) return { bones: {} };
   try {
-    const fn = new Function('t', 'b', 'blend', 'A', 'bass', 'phase', `return (${formula});`);
+    // 公式可能是纯表达式（如 Math.sin(t)*0.5）也可能是带 return 的语句块。
+    // 含 return 时包成 IIFE，避免 return (return ...) 语法错误。
+    const hasReturn = /\breturn\b/.test(formula);
+    const body = hasReturn
+      ? `return (function(t, b, blend, A, bass, phase) { ${formula} })(t, b, blend, A, bass, phase);`
+      : `return (${formula});`;
+    const fn = new Function('t', 'b', 'blend', 'A', 'bass', 'phase', body);
     const result = fn(ctx.t, ctx.b ?? ctx.t, ctx.blend ?? 1, ctx.A ?? 1, ctx.bass ?? 0, ctx.phase ?? 0);
     if (!result || typeof result !== 'object') return { bones: {} };
     return {
