@@ -30,6 +30,7 @@ import { Box, CircularProgress, Typography } from '@mui/material';
 import { loadConfigBundle, loadConfigBundleAsync } from './vrm/config/loader';
 import type { ConfigBundle } from './vrm/config/types';
 import { useVrmPhysics } from './vrm/useVrmPhysics';
+import { useExpressionLerp } from './vrm/useExpressionLerp';
 import { loadAvatar, type Cached } from './vrm/loadAvatar';
 import { useVrmRenderer } from './vrm/useVrmRenderer';
 import { useVrmScene } from './vrm/useVrmScene';
@@ -159,6 +160,11 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   const expressionManagerRef = useRef<any>(null);
   const vrmRef = useRef<any>(null);
   const handleInternalRef = useRef<VrmStageHandle | null>(null);  // useImperativeHandle 工厂里同步存 handle
+
+  // Phase 3.2: 表情/口型/动作的 lerp 平滑过渡
+  // emotionLerp / visemeLerp 用 ref 拿 em（vrm 异步加载后才就绪）
+  const emotionLerp = useExpressionLerp({ emRef: expressionManagerRef, speed: 6 });
+  const visemeLerp = useExpressionLerp({ emRef: expressionManagerRef, speed: 10 });
 
   // 关键：把 hook 返回值（每次 render 都是新对象）存到 ref，handle 内部读 ref
   // 这样 useImperativeHandle 的 factory 用空 deps 只跑一次，handle 引用稳定
@@ -321,22 +327,33 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       if (keys.e) camApi.orbit('down', dt);
       // 1. lip sync
       lipApi.tick(dt);
-      // 2. 自动眨眼（用 vrmVersion 兼容 0.0 的 blink / 1.0 的 blink）
+      // 2. 自动眨眼（直接 setValue，因为它是一闪即过的脉冲，不走 lerp）
       if (autoBlink && vrmDataRef.current?.expressionManager && !userBlinkOverrideRef.current) {
         blinkTRef.current -= dt;
         if (blinkTRef.current <= 0) blinkTRef.current = 1.2 + Math.random() * 3.5;
         blinkVRef.current = blinkTRef.current > 0.12 ? 0 : Math.sin((0.12 - blinkTRef.current) / 0.12 * Math.PI);
         vrmDataRef.current.expressionManager.setValue('blink', blinkVRef.current);
       }
-      // 3. 应用 chat 推过来的 emotion / viseme（兼容 0.0/1.0）
+      // 3. 把 chat 推过来的 emotion / viseme 喂给 lerp
+      //    （不是直接 setValue —— 走 emotionLerp / visemeLerp 平滑）
       if (vrmDataRef.current?.expressionManager) {
-        const em = vrmDataRef.current.expressionManager;
+        // 合并 emotion: chat emotion + 适配规则（autoEmotion）
+        // 适配规则在 Phase 4.1 落地；目前先只用 chat
+        const emotionTarget: Record<string, number> = {};
         for (const [k, v] of Object.entries(emotion)) {
-          if (EXPRESSION_PASSTHROUGH.has(k)) setExpression(em, k, v, vrmVersionRef.current);
+          if (EXPRESSION_PASSTHROUGH.has(k)) emotionTarget[k] = v;
         }
+        // 视口（viseme）直接走 chat
+        const visemeTarget: Record<string, number> = {};
         for (const [k, v] of Object.entries(viseme)) {
-          if (EXPRESSION_PASSTHROUGH.has(k)) setExpression(em, k, v, vrmVersionRef.current);
+          if (EXPRESSION_PASSTHROUGH.has(k)) visemeTarget[k] = v;
         }
+        emotionLerp.setTarget(emotionTarget);
+        visemeLerp.setTarget(visemeTarget);
+        // 注意：emotionManager 是在 vrm 加载后才就绪的；
+        // useExpressionLerp 用的是 ref 拿到的 em — 加载后会即时生效
+        emotionLerp.tick(dt);
+        visemeLerp.tick(dt);
       }
       // 4. 位置 / 行走动画
       const mv = moveAnimRef.current;
@@ -460,12 +477,22 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       setEmotion: (dict) => {
         if (!vrmDataRef.current?.expressionManager) { console.warn('[VrmStage.setEmotion] expressionManager 未就绪'); return; }
         console.log('[VrmStage.setEmotion] ver=' + vrmVersionRef.current, dict);
-        setExpressionDict(vrmDataRef.current.expressionManager, dict, vrmVersionRef.current);
+        // Phase 3.2: 走 lerp，不再直接 setValue
+        // （chat / 适配规则也走同一个 lerp 通道）
+        const filtered: Record<string, number> = {};
+        for (const [k, v] of Object.entries(dict)) {
+          if (EXPRESSION_PASSTHROUGH.has(k)) filtered[k] = v;
+        }
+        emotionLerp.setTarget(filtered);
       },
       setViseme: (dict) => {
         if (!vrmDataRef.current?.expressionManager) { console.warn('[VrmStage.setViseme] expressionManager 未就绪'); return; }
         console.log('[VrmStage.setViseme] ver=' + vrmVersionRef.current, dict);
-        setExpressionDict(vrmDataRef.current.expressionManager, dict, vrmVersionRef.current);
+        const filtered: Record<string, number> = {};
+        for (const [k, v] of Object.entries(dict)) {
+          if (EXPRESSION_PASSTHROUGH.has(k)) filtered[k] = v;
+        }
+        visemeLerp.setTarget(filtered);
       },
       setAction: (name) => { console.log('[VrmStage.setAction]', name); danceApiRef.current?.setPose(name as PoseName); },
       setScene: (name) => {
