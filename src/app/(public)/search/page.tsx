@@ -31,6 +31,8 @@ import { ACCENT } from '@/constants/accents';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { searchContent } from '@/apis/global';
 import { topKeywordInThirdMonth } from '@/apis/home';
+import HotRankingBar from '@/components/home/HotRankingBar';
+import RecommendBoard from '@/components/home/RecommendBoard';
 import { adminClient, accountClient, formatApiError } from '@/lib/api/client';
 
 // 搜索域占位:后端 `/api/core/search/*` 就绪后,以下数据/函数替换为 API 调用
@@ -981,58 +983,66 @@ function EmptyState({
 }) {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      {history.length > 0 && (
-        <Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-            <HistoryIcon sx={{ fontSize: 14, color: 'rgba(255,255,255,0.45)' }} />
-            <Typography
-              sx={{
-                fontSize: 12,
-                fontWeight: 700,
-                color: 'rgba(255,255,255,0.55)',
-                letterSpacing: 1,
-                textTransform: 'uppercase',
-              }}
-            >
-              搜索历史
-            </Typography>
-            <Box sx={{ flex: 1 }} />
-            <Button
-              size="small"
-              onClick={onClearHistory}
-              sx={{
-                minWidth: 0,
-                textTransform: 'none',
-                fontSize: 11,
-                color: 'rgba(255,255,255,0.4)',
-                '&:hover': { color: '#fff', bgcolor: 'transparent' },
-              }}
-            >
-              清空
-            </Button>
-          </Box>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-            {history.map((h) => (
-              <Chip
-                key={h}
-                label={h}
-                onClick={() => onPickKeyword(h)}
-                onDelete={() => onRemoveHistory(h)}
-                deleteIcon={<CloseIcon sx={{ fontSize: 14 }} />}
+      {/* 历史 + 全网热搜(Phase 3 Doris 实时数据) */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
+        {history.length > 0 ? (
+          <Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+              <HistoryIcon sx={{ fontSize: 14, color: 'rgba(255,255,255,0.45)' }} />
+              <Typography
                 sx={{
-                  bgcolor: 'rgba(255,255,255,0.05)',
-                  color: 'rgba(255,255,255,0.85)',
                   fontSize: 12,
-                  fontWeight: 500,
-                  border: '1px solid rgba(255,255,255,0.06)',
-                  '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' },
-                  '& .MuiChip-deleteIcon': { color: 'rgba(255,255,255,0.4)', '&:hover': { color: '#fff' } },
+                  fontWeight: 700,
+                  color: 'rgba(255,255,255,0.55)',
+                  letterSpacing: 1,
+                  textTransform: 'uppercase',
                 }}
-              />
-            ))}
+              >
+                搜索历史
+              </Typography>
+              <Box sx={{ flex: 1 }} />
+              <Button
+                size="small"
+                onClick={onClearHistory}
+                sx={{
+                  minWidth: 0,
+                  textTransform: 'none',
+                  fontSize: 11,
+                  color: 'rgba(255,255,255,0.4)',
+                  '&:hover': { color: '#fff', bgcolor: 'transparent' },
+                }}
+              >
+                清空
+              </Button>
+            </Box>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+              {history.map((h) => (
+                <Chip
+                  key={h}
+                  label={h}
+                  onClick={() => onPickKeyword(h)}
+                  onDelete={() => onRemoveHistory(h)}
+                  deleteIcon={<CloseIcon sx={{ fontSize: 14 }} />}
+                  sx={{
+                    bgcolor: 'rgba(255,255,255,0.05)',
+                    color: 'rgba(255,255,255,0.85)',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    border: '1px solid rgba(255,255,255,0.06)',
+                    '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' },
+                    '& .MuiChip-deleteIcon': { color: 'rgba(255,255,255,0.4)', '&:hover': { color: '#fff' } },
+                  }}
+                />
+              ))}
+            </Box>
           </Box>
+        ) : (
+          <Box />
+        )}
+        <Box>
+          <HotRankingBar contentType="NEWS" title="全网热搜" maxItems={10} expandable />
         </Box>
-      )}
+      </Box>
 
       <Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
@@ -1107,6 +1117,13 @@ function EmptyState({
           ))}
         </Box>
       </Box>
+
+      {/* 个性化推荐(Phase 3 /home/recommend 真实数据,4 类混合) */}
+      <RecommendBoard
+        types={['NEWS', 'ARTICLE', 'VIDEO', 'MUSIC']}
+        size={12}
+        title="猜你想看"
+      />
     </Box>
   );
 }

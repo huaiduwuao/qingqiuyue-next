@@ -20,6 +20,7 @@ import { collectContent } from '@/apis/global';
 import { contentClient, formatApiError, isNetworkError } from '@/lib/api/client';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import DetailHeader from '@/components/detail/DetailHeader';
+import HotRankingBar from '@/components/home/HotRankingBar';
 import { AsyncState } from '@/components/common/AsyncState';
 
 // 之前这里硬编码了 Google 公开样片作为缺省视频。已移除:无 URL 时由 VideoPlayer 显示空状态。
@@ -235,6 +236,10 @@ function FilmDetailContent() {
   );
 }
 
+
+      <Container maxWidth="md" sx={{ pb: 6 }}>
+        <HotRankingBar contentType="FILM" title="全网电影热门" maxItems={10} expandable />
+      </Container>
 export default function FilmDetailPage() {
   return (
     <React.Suspense fallback={null}>

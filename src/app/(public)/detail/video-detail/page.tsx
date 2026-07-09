@@ -24,6 +24,7 @@ import { collectContent } from '@/apis/global';
 import { homeClient, formatApiError } from '@/lib/api/client';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import DetailHeader from '@/components/detail/DetailHeader';
+import HotRankingBar from '@/components/home/HotRankingBar';
 import { AsyncState } from '@/components/common/AsyncState';
 import AIGCBadge from '@/components/AIGCBadge';
 
@@ -264,6 +265,10 @@ function VideoDetailContent() {
   );
 }
 
+
+      <Container maxWidth="md" sx={{ pb: 6 }}>
+        <HotRankingBar contentType="VIDEO" title="全网视频热门" maxItems={10} expandable />
+      </Container>
 export default function VideoDetailPage() {
   return (
     <React.Suspense fallback={null}>

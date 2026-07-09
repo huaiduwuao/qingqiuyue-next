@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
@@ -12,6 +13,7 @@ import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import TextField from '@mui/material/TextField';
+import HotRankingBar from '@/components/home/HotRankingBar';
 
 const cards = [3, 4, 5, 6, 7, 8, 9, 10, 'J', 'Q', 'K', 'A', 2, '小王', '大王'];
 

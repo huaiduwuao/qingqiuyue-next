@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
@@ -17,6 +18,7 @@ import Badge from '@mui/material/Badge';
 import { page as spiderPage } from '@/apis/content-spider-queue';
 import { page as todoPage } from '@/apis/content-todo-queue';
 import { AsyncState } from '@/components/common/AsyncState';
+import HotRankingBar from '@/components/home/HotRankingBar';
 
 interface QueuePanelProps {
   status: 'running' | 'done';

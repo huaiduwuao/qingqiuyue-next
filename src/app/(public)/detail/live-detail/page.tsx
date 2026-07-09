@@ -43,6 +43,7 @@ import { sendComment } from '@/apis/home';
 import { collectContent, reportContent } from '@/apis/global';
 import { homeClient, accountClient, formatApiError, isNetworkError } from '@/lib/api/client';
 import DetailHeader from '@/components/detail/DetailHeader';
+import HotRankingBar from '@/components/home/HotRankingBar';
 import { AsyncState } from '@/components/common/AsyncState';
 import { LivePlayerSettings, DEFAULT_LIVE_SETTINGS, type LivePlayerSettingsState } from '@/components/detail/LivePlayerSettings';
 
@@ -860,6 +861,10 @@ function formatElapsed(ms: number): string {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
+
+      <Container maxWidth="md" sx={{ pb: 6 }}>
+        <HotRankingBar contentType="LIVE" title="全网直播热门" maxItems={10} expandable />
+      </Container>
 export default function LiveDetailPage() {
   return (
     <React.Suspense fallback={null}>

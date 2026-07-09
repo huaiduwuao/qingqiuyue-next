@@ -22,6 +22,7 @@ import { collectContent } from '@/apis/global';
 import { formatApiError } from '@/lib/api/client';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import DetailHeader from '@/components/detail/DetailHeader';
+import HotRankingBar from '@/components/home/HotRankingBar';
 import { AsyncState } from '@/components/common/AsyncState';
 
 interface ShowItem {
@@ -248,6 +249,10 @@ function VShowDetailContent() {
   );
 }
 
+
+      <Container maxWidth="md" sx={{ pb: 6 }}>
+        <HotRankingBar contentType="VSHOW" title="全网综艺热门" maxItems={10} expandable />
+      </Container>
 export default function VShowDetailPage() {
   return (
     <React.Suspense fallback={null}>

@@ -25,6 +25,7 @@ import { detail as contentDetail } from '@/apis/content-music';
 import { collectContent } from '@/apis/global';
 import { formatApiError } from '@/lib/api/client';
 import { AsyncState } from '@/components/common/AsyncState';
+import HotRankingBar from '@/components/home/HotRankingBar';
 
 interface LyricLine {
   time: number;
@@ -302,6 +303,10 @@ function MusicDetailContent() {
   );
 }
 
+
+      <Container maxWidth="md" sx={{ pb: 6 }}>
+        <HotRankingBar contentType="MUSIC" title="全网音乐热门" maxItems={10} expandable />
+      </Container>
 export default function MusicDetailPage() {
   return (
     <React.Suspense fallback={null}>

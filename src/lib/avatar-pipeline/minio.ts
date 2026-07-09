@@ -18,7 +18,7 @@
 import { Client as MinioClient } from 'minio';
 
 const ENDPOINT = process.env.MINIO_ENDPOINT || 'minio';
-const PORT = parseInt(process.env.MINIO_PORT || '9000', 10);
+const PORT = parseInt(process.env.MINIO_PORT || '10000', 10);
 const USE_SSL = process.env.MINIO_USE_SSL === 'true';
 const ACCESS_KEY = process.env.MINIO_ACCESS_KEY || '';
 const SECRET_KEY = process.env.MINIO_SECRET_KEY || '';

@@ -29,12 +29,12 @@ services:
       - OPENAI_MODEL=${OPENAI_MODEL:-deepseek-chat}
       # === 数字人 Web 流水线 ===
       - MINIO_ENDPOINT=minio
-      - MINIO_PORT=9000
+      - MINIO_PORT=10000
       - MINIO_USE_SSL=false
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-qingqiuyue}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-qingqiuyue123}
       - MINIO_BUCKET=qingqiuyue-avatars
-      - MINIO_PUBLIC_ENDPOINT=${MINIO_PUBLIC_ENDPOINT:-localhost:9000}
+      - MINIO_PUBLIC_ENDPOINT=${MINIO_PUBLIC_ENDPOINT:-localhost:10000}
       - MINIO_PUBLIC_USE_SSL=${MINIO_PUBLIC_USE_SSL:-false}
       - AVATAR_WORK_ROOT=/data/avatar-work
       - MAX_CONCURRENT_PIPELINES=${MAX_CONCURRENT_PIPELINES:-2}

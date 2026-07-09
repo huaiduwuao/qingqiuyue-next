@@ -22,6 +22,7 @@ import { ReadingSettings, DEFAULT_PAGE_STYLE } from '@/components/detail/Reading
 import type { PageStyle } from '@/components/detail/ReadingSettings';
 import { ReadingContainer } from '@/components/detail/ReadingContainer';
 import { useScrollProgress } from '@/hooks/useScrollProgress';
+import HotRankingBar from '@/components/home/HotRankingBar';
 import { track } from '@/lib/track';
 import { LoginGate } from '@/components/auth/LoginGate';
 
@@ -311,6 +312,10 @@ function NovelDetailContent() {
   );
 }
 
+
+      <Container maxWidth="md" sx={{ pb: 6 }}>
+        <HotRankingBar contentType="NOVEL" title="全网小说热门" maxItems={10} expandable />
+      </Container>
 export default function NovelDetailPage() {
   return (
     <React.Suspense

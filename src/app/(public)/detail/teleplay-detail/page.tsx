@@ -22,6 +22,7 @@ import { collectContent } from '@/apis/global';
 import { formatApiError } from '@/lib/api/client';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import DetailHeader from '@/components/detail/DetailHeader';
+import HotRankingBar from '@/components/home/HotRankingBar';
 import { AsyncState } from '@/components/common/AsyncState';
 
 interface Episode {
@@ -266,6 +267,10 @@ function TeleplayDetailContent() {
   );
 }
 
+
+      <Container maxWidth="md" sx={{ pb: 6 }}>
+        <HotRankingBar contentType="TELEPLAY" title="全网剧集热门" maxItems={10} expandable />
+      </Container>
 export default function TeleplayDetailPage() {
   return (
     <React.Suspense fallback={null}>

@@ -25,6 +25,7 @@ import { moduleContentAction } from '@/apis/home';
 import { collectContent } from '@/apis/global';
 import { formatApiError } from '@/lib/api/client';
 import DetailHeader from '@/components/detail/DetailHeader';
+import HotRankingBar from '@/components/home/HotRankingBar';
 import { AsyncState } from '@/components/common/AsyncState';
 import { ReadingSettings, DEFAULT_PAGE_STYLE, type PageStyle } from '@/components/detail/ReadingSettings';
 import { ReadingContainer } from '@/components/detail/ReadingContainer';
@@ -247,6 +248,10 @@ function ArticleDetailContent() {
           {snack.message}
         </Alert>
       </Snackbar>
+
+      <Container maxWidth="md" sx={{ pb: 6 }}>
+        <HotRankingBar contentType="ARTICLE" title="全网热门文章" maxItems={10} expandable />
+      </Container>
     </Box>
   );
 }

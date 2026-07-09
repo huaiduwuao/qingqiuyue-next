@@ -30,6 +30,7 @@ import { updateUser } from '@/apis/account';
 import { contentClient, accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
 import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2 } from '@/constants/gradients';
+import HotRankingBar from '@/components/home/HotRankingBar';
 
 // 壁纸域占位:后端 `/api/core/wallpaper/*` 就绪后,以下数据/类型替换为 API 调用
 type WallpaperCategory = 'abstract' | 'anime' | 'scenery' | 'stars' | 'minimal' | 'cyber';

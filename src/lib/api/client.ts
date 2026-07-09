@@ -108,6 +108,56 @@ function createApiClient(baseURL: string) {
     (response: AxiosResponse) => {
       const { data, status } = response;
 
+      // 字段别名归一:后端实体用 coverUrl / videoUrl / authorAvatar 等驼峰,
+      // 业务层习惯短名 cover / videoUrl / authorAvatar。这里做就地重命名,
+      // 避免每个详情页都写 ??. 兜底。
+      // 数组场景:递归处理每个元素(分页 list / records)。
+      // 已对 Phase 3 home/hot 等接口做过适配。
+      const aliasMap: Record<string, string> = {
+        // 封面与媒体
+        coverUrl: 'cover',
+        poster: 'cover',
+        videoUrl: 'video',
+        audioUrl: 'audio',
+        // 作者/来源
+        authorAvatar: 'avatar',
+        authorName: 'author',
+        sourceUrl: 'source',
+        sourceLabel: 'source',
+        externalId: 'id',
+        // 计数:后端 entity 字段 readNum/agreeNum/... → 业务层 viewCount/likeCount/...
+        readNum: 'viewCount',
+        agreeNum: 'likeCount',
+        collectNum: 'collectCount',
+        commentNum: 'commentCount',
+        shareNum: 'shareCount',
+        // 内容字段
+        content: 'description',
+        publishTime: 'publishedAt',
+        // 影视字段(后端 Tags 里有 JSON 的话会展开)
+        year: 'releaseYear',
+        runtime: 'duration',
+        voteAverage: 'rating',
+      };
+
+      const applyAliases = (obj: any): any => {
+        if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj;
+        for (const [from, to] of Object.entries(aliasMap)) {
+          if (from in obj && !(to in obj)) {
+            obj[to] = obj[from];
+          }
+        }
+        // 递归处理 list / records / items
+        for (const key of ['list', 'records', 'items', 'data']) {
+          if (Array.isArray(obj[key])) {
+            obj[key] = obj[key].map((it: any) => applyAliases(it));
+          } else if (obj[key] && typeof obj[key] === 'object' && !Array.isArray(obj[key])) {
+            obj[key] = applyAliases(obj[key]);
+          }
+        }
+        return obj;
+      };
+
       // 1) 已经是 { code, msg, data } 包装:走原逻辑
       if (data && typeof data === 'object' && 'code' in data) {
         if (data.code !== 200 && data.code !== '200' && data.code !== 0) {
@@ -128,6 +178,8 @@ function createApiClient(baseURL: string) {
           if ('records' in payload && !('list' in payload)) payload.list = payload.records;
           if ('total' in payload && !('totalRow' in payload)) payload.totalRow = payload.total;
           if ('totalRow' in payload && !('total' in payload)) payload.total = payload.totalRow;
+          // 字段别名:对分页响应里的 data.data 整个对象做一次
+          applyAliases(payload);
         }
         return data;
       }
@@ -145,6 +197,8 @@ function createApiClient(baseURL: string) {
         if ('list' in data && !('records' in data)) (wrapped.data as any).records = (data as any).list;
         if ('total' in data && !('totalRow' in data)) (wrapped.data as any).totalRow = (data as any).total;
         if ('totalRow' in data && !('total' in data)) (wrapped.data as any).total = (data as any).totalRow;
+        // 字段别名归一(递归)
+        applyAliases(wrapped.data);
       }
       return wrapped;
     },

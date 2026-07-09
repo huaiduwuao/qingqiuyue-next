@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
+
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Card from '@mui/material/Card';
@@ -18,6 +19,7 @@ import { myPage, ModuleContentItem } from '@/apis/module-content';
 import { listSources } from '@/apis/spider';
 import type { GridColDef } from '@mui/x-data-grid';
 import { TYPE_LABEL, useContentNavigate } from '@/lib/contentRoute';
+import HotRankingBar from '@/components/home/HotRankingBar';
 
 const STATUS_LABELS: Record<string, { label: string; color: 'success' | 'default' }> = {
   PUBLISH: { label: '已发布', color: 'success' },

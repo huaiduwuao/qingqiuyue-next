@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
@@ -17,6 +18,7 @@ import Modal from '@mui/material/Modal';
 import { demandPage, conceptionPage, groupPage, projectPage } from '@/apis/reward';
 import RewardContentDetail from '@/components/RewardContentDetail';
 import { AsyncState } from '@/components/common/AsyncState';
+import HotRankingBar from '@/components/home/HotRankingBar';
 
 const TYPE_TABS = [
   { key: 'demand', label: '需求', api: demandPage },

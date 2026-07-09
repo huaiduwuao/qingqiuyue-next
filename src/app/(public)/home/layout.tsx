@@ -42,6 +42,7 @@ import NoticeIconView, { DmIconView } from '@/components/NoticeIcon';
 import { FeedPanel } from './panels/FeedPanel';
 import { AIRecommendPanel } from './panels/AIRecommendPanel';
 import { MockStatusBadge } from '@/components/debug/MockStatusBadge';
+import HotRankingBar from '@/components/home/HotRankingBar';
 // 客户端下载入口:跳到独立 /download 介绍页
 import { LivePanel } from './panels/LivePanel';
 import { TheaterPanel } from './panels/TheaterPanel';
@@ -538,10 +539,12 @@ function RightSidebar() {
       sx={{
         width: 320,
         flexShrink: 0,
-        display: { xs: 'none', lg: 'block' },
+        display: { xs: 'none', lg: 'flex' },
         p: 2,
         height: 'calc(100dvh - 60px)',
         overflowY: 'auto',
+        flexDirection: 'column',
+        gap: 1.5,
       }}
     >
       <Box
@@ -589,6 +592,14 @@ function RightSidebar() {
           {tab === 'related' && <RelatedTab />}
         </Box>
       </Box>
+
+      {/* 全网热搜:Phase 3 从 Doris 拉全量热榜,每小时自动刷新 */}
+      <HotRankingBar
+        contentType="NEWS"
+        title="全网热搜"
+        maxItems={10}
+        expandable
+      />
     </Box>
   );
 }

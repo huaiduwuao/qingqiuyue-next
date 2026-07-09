@@ -13,6 +13,7 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { moduleContentPage } from '@/apis/home';
 import { getHomeRecommendFollow, getHomeRecommendFriend, type RecommendWork } from '@/apis/dashboard';
+import HotRankingBar from '@/components/home/HotRankingBar';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { track } from '@/lib/track';
 import { TYPE_GRADIENT, RANK_BG } from '@/constants/gradients';
@@ -178,6 +179,11 @@ export default function HomeRecommendPage() {
 
   return (
     <Box sx={{ px: 3, py: 2 }}>
+      {/* 全网热搜(Doris 实时,首页置顶) */}
+      <Box sx={{ mb: 2 }}>
+        <HotRankingBar contentType="NEWS" title="全网热搜" maxItems={12} expandable />
+      </Box>
+
       {/* 分类导航 */}
       <Box
         sx={{

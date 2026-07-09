@@ -24,6 +24,7 @@ import { page as itemPage } from '@/apis/content-comics-item';
 import { collectContent } from '@/apis/global';
 import { formatApiError } from '@/lib/api/client';
 import DetailHeader from '@/components/detail/DetailHeader';
+import HotRankingBar from '@/components/home/HotRankingBar';
 import { AsyncState } from '@/components/common/AsyncState';
 
 interface Chapter {
@@ -314,6 +315,10 @@ function ComicsDetailContent() {
   );
 }
 
+
+      <Container maxWidth="md" sx={{ pb: 6 }}>
+        <HotRankingBar contentType="COMICS" title="全网漫画热门" maxItems={10} expandable />
+      </Container>
 export default function ComicsDetailPage() {
   return (
     <React.Suspense fallback={null}>
