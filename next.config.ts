@@ -92,10 +92,10 @@ const nextConfig: NextConfig = {
       source: '/api/avatar/pipeline/:path*',
       destination: '/api/avatar/pipeline/:path*',
     };
-    // 没有真后端网关时:完全跳过 /api/* 和 /logs/* 反代,避免 500 / ECONNREFUSED
-    // 让客户端 fetch 直接 404,避免 react-query 重试循环拖垮 dev server。
-    // 接入真网关时:删掉这个 if,恢复下面两段 rewrites。
-    if (process.env.API_PROXY_TARGET === 'disabled' || !process.env.API_PROXY_TARGET) {
+    // 没有真后端网关时:设置 API_PROXY_TARGET=disabled 完全跳过 /api/* 和 /logs/* 反代,
+    // 避免 500 / ECONNREFUSED 让客户端 fetch 直接 404,防止 react-query 重试循环拖垮 dev server。
+    // 默认已指向 localhost:10005(容器/真网关用 API_PROXY_TARGET 覆盖)。
+    if (API_PROXY_TARGET === 'disabled') {
       return [
         pipelineNoop,
         // audio 网关代理 noop
