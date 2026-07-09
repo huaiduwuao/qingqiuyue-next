@@ -12,6 +12,7 @@ import SmartToyIcon from '@mui/icons-material/SmartToy';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { moduleContentPage } from '@/apis/home';
+import { fetchRecommend } from '@/apis/home-discover';
 import { getHomeRecommendFollow, getHomeRecommendFriend, type RecommendWork } from '@/apis/dashboard';
 import HotRankingBar from '@/components/home/HotRankingBar';
 import { getDetailRoute } from '@/lib/contentRoute';
@@ -106,7 +107,7 @@ export default function HomeRecommendPage() {
       order: 'COLLECT',
     }).then((r: any) => r.data?.list || []),
     placeholderData: (prev) => prev || [],
-    enabled: !isSpecialTab,
+    enabled: !isSpecialTab && tabFromUrl !== 'recommend',
   });
 
   // 关注推荐
@@ -125,6 +126,25 @@ export default function HomeRecommendPage() {
     refetchOnMount: 'always',
   });
 
+  // "推荐" tab 走 /home/recommend 混合推荐(与 RecommendBoard 同源)
+  const recommendQuery = useQuery({
+    queryKey: ['home-recommend', 'recommend'],
+    queryFn: () =>
+      fetchRecommend({ types: 'NEWS,ARTICLE,VIDEO,MUSIC,FILM,ANIMATION', size: 12 }).then(
+        (r: any) =>
+          (r?.data?.list ?? []).map((it: any) => ({
+            id: Number(it.id) || 0,
+            title: it.title,
+            contentType: (it.category || 'NOVEL').toUpperCase(),
+            coverUrl: it.cover,
+            status: 'active',
+            viewCount: it.views,
+          } as ContentItem)),
+      ),
+    enabled: tabFromUrl === 'recommend',
+    refetchOnMount: 'always',
+  });
+
   // AI tab → 跳到 search 页?q=
   React.useEffect(() => {
     if (tabFromUrl === 'ai') {
@@ -134,7 +154,9 @@ export default function HomeRecommendPage() {
 
   // 决定显示列表
   let contentList: ContentItem[] = contentQuery.data || [];
-  if (tabFromUrl === 'follow') {
+  if (tabFromUrl === 'recommend') {
+    contentList = recommendQuery.data || [];
+  } else if (tabFromUrl === 'follow') {
     const raw = (followQuery.data?.records ?? followQuery.data?.list ?? []) as RecommendWork[];
     contentList = raw.map((w) => ({
       id: Number(w.id.replace(/^\D+/, '')) || 0,
@@ -157,8 +179,10 @@ export default function HomeRecommendPage() {
   }
 
   const loading = isSpecialTab
-    ? (tabFromUrl === 'follow' ? followQuery.isFetching : tabFromUrl === 'friend' ? friendQuery.isFetching : false)
-    : contentQuery.isFetching;
+    ? (tabFromUrl === 'follow' ? followQuery.isFetching : tabFromUrl === 'friend' ? friendQuery.isFetching : recommendQuery.isFetching)
+    : tabFromUrl === 'recommend'
+      ? recommendQuery.isFetching
+      : contentQuery.isFetching;
 
   const handleCardClick = (item: ContentItem) => {
     track(item.id, 'click', item.contentType || 'novel'); // 行为埋点 → 推荐/大数据源头
