@@ -11,6 +11,7 @@ import List from '@mui/material/List';
 import Paper from '@mui/material/Paper';
 import { qaDetail } from '@/apis/home';
 import { AsyncState, EmptyState } from '@/components/common/AsyncState';
+import HotRankingBar from '@/components/home/HotRankingBar';
 
 export default function ShareQaPage() {
   const [searchKey, setSearchKey] = useState('');
@@ -45,6 +46,14 @@ export default function ShareQaPage() {
     <Container maxWidth="md">
       <Box sx={{ py: { xs: 2, md: 4 } }}>
         <Typography variant="h4" sx={{ mb: 3 }}>问答搜索</Typography>
+        <Box sx={{ mb: 3 }}>
+          <HotRankingBar
+            contentType="NEWS"
+            title="热搜热词 · 可能匹配的问答"
+            maxItems={10}
+            expandable
+          />
+        </Box>
 
         <Box sx={{ mb: 3, display: 'flex', gap: 1 }}>
           <TextField

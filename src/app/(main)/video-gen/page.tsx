@@ -21,6 +21,7 @@ import {
 } from '@mui/material';
 import { useTaskEngine } from '@/hooks/useTaskEngine';
 import type { WorkflowKind } from '@/lib/comfyui/workflows/registry';
+import HotRankingBar from '@/components/home/HotRankingBar';
 
 interface GenerateForm {
   positivePrompt: string;
@@ -213,6 +214,16 @@ export default function VideoGenPage() {
           )}
         </Paper>
       )}
+
+      {/* 灵感来源:全网视频热榜,每 60s 自动刷新 */}
+      <Paper sx={{ p: 2, mb: 3 }}>
+        <HotRankingBar
+          contentType="VIDEO"
+          title="热门视频 · 灵感来源"
+          maxItems={10}
+          expandable
+        />
+      </Paper>
     </Container>
   );
 }

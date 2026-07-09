@@ -725,6 +725,18 @@ export default function WallpaperPage() {
 
       <Divider sx={{ borderColor: 'rgba(255,255,255,0.06)' }} />
 
+      {/* 实时壁纸热榜:Doris 每小时自动入新壁纸 */}
+      <Box sx={{ px: { xs: 2, md: 4 }, py: { xs: 4, md: 6 } }}>
+        <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
+          <HotRankingBar
+            contentType="WALLPAPER"
+            title="新晋壁纸 · 来自站酷等公开源"
+            maxItems={10}
+            expandable
+          />
+        </Box>
+      </Box>
+
       <Box sx={{ py: 4, px: { xs: 2, md: 4 }, textAlign: 'center' }}>
         <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>
           © 2026 清秋月 · 壁纸由官方与创作者共同贡献 · 创作者投稿请联系运营

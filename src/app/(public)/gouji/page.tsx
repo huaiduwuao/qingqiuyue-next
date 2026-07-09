@@ -44,44 +44,61 @@ export default function HomeGoujiPage() {
     <Container maxWidth="xl">
       <Box sx={{ py: { xs: 2, md: 4 } }}>
         <Typography variant="h4" sx={{ mb: 3 }}>够级</Typography>
-        <TableContainer component={Paper}>
-          <Table size="small" stickyHeader>
-            <TableHead>
-              <TableRow>
-                <TableCell align="center" sx={{ width: 80, fontWeight: 'bold', bgcolor: 'action.hover' }}>牌</TableCell>
-                <TableCell align="center" sx={{ width: 80, fontWeight: 'bold', bgcolor: 'action.hover' }}>剩余</TableCell>
-                {[1, 2, 3, 4, 5, 6].map((player) => (
-                  <TableCell key={player} align="center" sx={{ fontWeight: 'bold', bgcolor: 'action.hover' }}>
-                    玩家{player}
-                    <TextField
-                      type="number"
-                      size="small"
-                      value={pLeft[player - 1]}
-                      onChange={(e) => onPChange(parseInt(e.target.value) || 0, player - 1)}
-                      slotProps={{ input: { style: { textAlign: 'center', width: 50 } } }}
-                      sx={{ ml: 1 }}
-                    />
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {cards.map((card, cardIndex) => (
-                <TableRow key={cardIndex}>
-                  <TableCell align="center" sx={{ fontWeight: 'bold' }}>{card}</TableCell>
-                  <TableCell align="center">{left[cardIndex]}</TableCell>
-                  {[0, 1, 2, 3, 4, 5].map((player) => (
-                    <TableCell key={player} align="center">
-                      <Box sx={{ cursor: 'pointer', color: 'primary.main' }} onClick={() => onChange('minus', cardIndex, player)}>
-                        -
-                      </Box>
-                    </TableCell>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 320px' }, gap: 3, mb: 3 }}>
+          <Box>
+            <TableContainer component={Paper}>
+              <Table size="small" stickyHeader>
+                <TableHead>
+                  <TableRow>
+                    <TableCell align="center" sx={{ width: 80, fontWeight: 'bold', bgcolor: 'action.hover' }}>牌</TableCell>
+                    <TableCell align="center" sx={{ width: 80, fontWeight: 'bold', bgcolor: 'action.hover' }}>剩余</TableCell>
+                    {[1, 2, 3, 4, 5, 6].map((player) => (
+                      <TableCell key={player} align="center" sx={{ fontWeight: 'bold', bgcolor: 'action.hover' }}>
+                        玩家{player}
+                        <TextField
+                          type="number"
+                          size="small"
+                          value={pLeft[player - 1]}
+                          onChange={(e) => onPChange(parseInt(e.target.value) || 0, player - 1)}
+                          slotProps={{ input: { style: { textAlign: 'center', width: 50 } } }}
+                          sx={{ ml: 1 }}
+                        />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {cards.map((card, cardIndex) => (
+                    <TableRow key={cardIndex}>
+                      <TableCell align="center" sx={{ fontWeight: 'bold' }}>{card}</TableCell>
+                      <TableCell align="center">{left[cardIndex]}</TableCell>
+                      {[0, 1, 2, 3, 4, 5].map((player) => (
+                        <TableCell key={player} align="center">
+                          <Box sx={{ cursor: 'pointer', color: 'primary.main' }} onClick={() => onChange('minus', cardIndex, player)}>
+                            -
+                          </Box>
+                        </TableCell>
+                      ))}
+                    </TableRow>
                   ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <HotRankingBar
+              contentType="NEWS"
+              title="全网热搜 · 边玩边看"
+              maxItems={10}
+              expandable
+            />
+            <HotRankingBar
+              contentType="VIDEO"
+              title="热门视频"
+              maxItems={8}
+            />
+          </Box>
+        </Box>
       </Box>
     </Container>
   );

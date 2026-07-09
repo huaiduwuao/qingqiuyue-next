@@ -15,6 +15,7 @@ import { detail } from '@/apis/system-module-content';
 import { getByCode } from '@/apis/system-app-config';
 import ModuleContentDetail from '@/components/ModuleContentDetail';
 import { AsyncState, EmptyState } from '@/components/common/AsyncState';
+import HotRankingBar from '@/components/home/HotRankingBar';
 
 interface MenuItem {
   id: number;
@@ -104,7 +105,9 @@ export default function HomeMorePage() {
     <Container maxWidth="lg">
       <Box sx={{ py: { xs: 2, md: 4 } }}>
         <Typography variant="h4" sx={{ mb: 3 }}>更多内容</Typography>
-        <Box sx={{ display: 'flex', gap: 2 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 320px' }, gap: 2, mb: 3 }}>
+          <Box>
+            <Box sx={{ display: 'flex', gap: 2 }}>
           <Card sx={{ width: 256, flexShrink: 0 }}>
             <CardContent sx={{ p: 0, '&:last-child': { pb: 0 } }}>
               <AsyncState query={treeQuery} isEmpty={(d) => d.length === 0} emptyText="暂无内容" skeletonCount={5}>
@@ -123,6 +126,21 @@ export default function HomeMorePage() {
               )}
             </CardContent>
           </Card>
+        </Box>
+          </Box>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <HotRankingBar
+              contentType="NEWS"
+              title="实时热搜"
+              maxItems={10}
+              expandable
+            />
+            <HotRankingBar
+              contentType="ARTICLE"
+              title="热门文章"
+              maxItems={8}
+            />
+          </Box>
         </Box>
       </Box>
     </Container>
