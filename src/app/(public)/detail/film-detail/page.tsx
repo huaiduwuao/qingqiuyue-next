@@ -236,14 +236,13 @@ function FilmDetailContent() {
   );
 }
 
-
-      <Container maxWidth="md" sx={{ pb: 6 }}>
-        <HotRankingBar contentType="FILM" title="全网电影热门" maxItems={10} expandable />
-      </Container>
 export default function FilmDetailPage() {
   return (
     <React.Suspense fallback={null}>
       <FilmDetailContent />
+      <Container maxWidth="md" sx={{ pb: 6 }}>
+        <HotRankingBar contentType="FILM" title="全网电影热门" maxItems={10} expandable />
+      </Container>
     </React.Suspense>
   );
 }

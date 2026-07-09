@@ -251,6 +251,10 @@ function VideoDetailContent() {
         )}
       </AsyncState>
 
+      <Container maxWidth="md" sx={{ pb: 6 }}>
+        <HotRankingBar contentType="VIDEO" title="全网视频热门" maxItems={10} expandable />
+      </Container>
+
       <Snackbar
         open={snack.open}
         autoHideDuration={2500}
@@ -266,9 +270,6 @@ function VideoDetailContent() {
 }
 
 
-      <Container maxWidth="md" sx={{ pb: 6 }}>
-        <HotRankingBar contentType="VIDEO" title="全网视频热门" maxItems={10} expandable />
-      </Container>
 export default function VideoDetailPage() {
   return (
     <React.Suspense fallback={null}>

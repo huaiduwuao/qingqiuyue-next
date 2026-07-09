@@ -312,10 +312,6 @@ function NovelDetailContent() {
   );
 }
 
-
-      <Container maxWidth="md" sx={{ pb: 6 }}>
-        <HotRankingBar contentType="NOVEL" title="全网小说热门" maxItems={10} expandable />
-      </Container>
 export default function NovelDetailPage() {
   return (
     <React.Suspense
@@ -326,6 +322,9 @@ export default function NovelDetailPage() {
       }
     >
       <NovelDetailContent />
+      <Container maxWidth="md" sx={{ pb: 6 }}>
+        <HotRankingBar contentType="NOVEL" title="全网小说热门" maxItems={10} expandable />
+      </Container>
     </React.Suspense>
   );
 }

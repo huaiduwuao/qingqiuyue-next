@@ -303,14 +303,13 @@ function MusicDetailContent() {
   );
 }
 
-
-      <Container maxWidth="md" sx={{ pb: 6 }}>
-        <HotRankingBar contentType="MUSIC" title="全网音乐热门" maxItems={10} expandable />
-      </Container>
 export default function MusicDetailPage() {
   return (
     <React.Suspense fallback={null}>
       <MusicDetailContent />
+      <Container maxWidth="md" sx={{ pb: 6 }}>
+        <HotRankingBar contentType="MUSIC" title="全网音乐热门" maxItems={10} expandable />
+      </Container>
     </React.Suspense>
   );
 }

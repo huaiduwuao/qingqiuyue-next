@@ -249,14 +249,13 @@ function VShowDetailContent() {
   );
 }
 
-
-      <Container maxWidth="md" sx={{ pb: 6 }}>
-        <HotRankingBar contentType="VSHOW" title="全网综艺热门" maxItems={10} expandable />
-      </Container>
 export default function VShowDetailPage() {
   return (
     <React.Suspense fallback={null}>
       <VShowDetailContent />
+      <Container maxWidth="md" sx={{ pb: 6 }}>
+        <HotRankingBar contentType="VSHOW" title="全网综艺热门" maxItems={10} expandable />
+      </Container>
     </React.Suspense>
   );
 }

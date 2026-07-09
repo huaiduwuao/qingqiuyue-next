@@ -315,14 +315,13 @@ function ComicsDetailContent() {
   );
 }
 
-
-      <Container maxWidth="md" sx={{ pb: 6 }}>
-        <HotRankingBar contentType="COMICS" title="全网漫画热门" maxItems={10} expandable />
-      </Container>
 export default function ComicsDetailPage() {
   return (
     <React.Suspense fallback={null}>
       <ComicsDetailContent />
+      <Container maxWidth="md" sx={{ pb: 6 }}>
+        <HotRankingBar contentType="COMICS" title="全网漫画热门" maxItems={10} expandable />
+      </Container>
     </React.Suspense>
   );
 }

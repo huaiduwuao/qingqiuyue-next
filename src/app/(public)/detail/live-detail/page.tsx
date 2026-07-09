@@ -861,14 +861,13 @@ function formatElapsed(ms: number): string {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
-
-      <Container maxWidth="md" sx={{ pb: 6 }}>
-        <HotRankingBar contentType="LIVE" title="全网直播热门" maxItems={10} expandable />
-      </Container>
 export default function LiveDetailPage() {
   return (
     <React.Suspense fallback={null}>
       <LiveDetailContent />
+      <Container maxWidth="md" sx={{ pb: 6 }}>
+        <HotRankingBar contentType="LIVE" title="全网直播热门" maxItems={10} expandable />
+      </Container>
     </React.Suspense>
   );
 }

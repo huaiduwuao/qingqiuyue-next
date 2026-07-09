@@ -267,14 +267,13 @@ function TeleplayDetailContent() {
   );
 }
 
-
-      <Container maxWidth="md" sx={{ pb: 6 }}>
-        <HotRankingBar contentType="TELEPLAY" title="全网剧集热门" maxItems={10} expandable />
-      </Container>
 export default function TeleplayDetailPage() {
   return (
     <React.Suspense fallback={null}>
       <TeleplayDetailContent />
+      <Container maxWidth="md" sx={{ pb: 6 }}>
+        <HotRankingBar contentType="TELEPLAY" title="全网剧集热门" maxItems={10} expandable />
+      </Container>
     </React.Suspense>
   );
 }
