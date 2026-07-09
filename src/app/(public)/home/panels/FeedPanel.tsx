@@ -296,17 +296,14 @@ function FeedCard({ item, tab }: { item: FeedItem; tab: 'home' | 'follow' | 'fri
   const navigate = useContentNavigate();
   const [busy, setBusy] = useState(false);
 
-  const sectionToType: Record<string, string> = {
-    novel: 'NOVEL', comics: 'COMICS', film: 'FILM', teleplay: 'TELEPLAY',
-    music: 'MUSIC', anime: 'ANIMATION', news: 'NEWS', entertainment: 'VSHOW',
-    knowledge: 'ARTICLE', tech: 'ARTICLE', food: 'VIDEO', game: 'VIDEO',
-    sports: 'VIDEO', finance: 'ARTICLE',
+  // 后端 /feed 返回的 item.category 实际是 module_content.content_type(已是规范大写
+  // NOVEL/FILM/.../VIDEO/LIVE),直接用作详情路由 type,不再做枚举猜测。
+  // 兼容旧 mock(可能返 'video'/'live' 等小写)的兜底映射。
+  const legacyCategoryToType: Record<string, string> = {
+    video: 'VIDEO', short: 'VIDEO', image: 'VIDEO', live: 'LIVE',
   };
-  const targetType = item.category === 'live'
-    ? 'LIVE'
-    : item.category === 'video' || item.category === 'short' || item.category === 'image'
-    ? (sectionToType[item.section] || 'VIDEO')
-    : null;
+  const rawType = (item as any).contentType || item.category;
+  const targetType = rawType ? (legacyCategoryToType[rawType] || String(rawType).toUpperCase()) : null;
 
   const toggleFollow = async (e: React.MouseEvent) => {
     e.stopPropagation();
