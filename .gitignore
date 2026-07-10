@@ -93,3 +93,9 @@ next-env.d.ts
 # node_modules 里的 token 文件等(防御)
 /node_modules/.cache/
 /node_modules/.package-lock.json
+
+# Playwright E2E 登录态(运行时生成,含 token,不入库)
+/e2e/.auth/
+/test-results/
+/playwright-report/
+
