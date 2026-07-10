@@ -12,6 +12,7 @@ import WhatshotIcon from '@mui/icons-material/Whatshot';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import { homeClient } from '@/lib/api/client';
 import { AsyncState } from '@/components/common/AsyncState';
+import { CoverImage } from '@/components/common/CoverImage';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT } from '@/constants/gradients';
 
@@ -253,7 +254,7 @@ function PodiumCard({ room, onClick }: { room: Room; onClick: () => void }) {
         {rank}
       </Box>
       <Box sx={{ position: 'relative', aspectRatio: '3/4' }}>
-        <img src={room.cover || undefined} alt={room.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <CoverImage src={room.cover} alt={room.title} sx={{ width: '100%', height: '100%' }} />
         <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.MID }} />
         {room.isLive && (
           <Box sx={{ position: 'absolute', top: 8, right: 8, display: 'flex', alignItems: 'center', gap: 0.25, px: 0.75, py: 0.25, borderRadius: 0.5, bgcolor: 'primary.main', color: '#fff', fontSize: 9, fontWeight: 700 }}>
@@ -281,7 +282,7 @@ function RankRow({ room, onClick }: { room: Room; onClick: () => void }) {
         {room.hotRank}
       </Typography>
       <Box sx={{ width: 32, height: 18, borderRadius: 0.5, overflow: 'hidden', flexShrink: 0 }}>
-        <img src={room.cover || undefined} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <CoverImage src={room.cover} alt="" sx={{ width: '100%', height: '100%' }} />
       </Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography sx={{ fontSize: 11, fontWeight: 500, color: 'var(--text-primary, #fff)', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

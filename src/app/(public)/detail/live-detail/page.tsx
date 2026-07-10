@@ -43,8 +43,8 @@ import { sendComment } from '@/apis/home';
 import { collectContent, reportContent } from '@/apis/global';
 import { homeClient, accountClient, formatApiError } from '@/lib/api/client';
 import DetailHeader from '@/components/detail/DetailHeader';
-import HotRankingBar from '@/components/home/HotRankingBar';
 import { AsyncState } from '@/components/common/AsyncState';
+import { track, recordHistory } from '@/lib/track';
 import { LivePlayerSettings, DEFAULT_LIVE_SETTINGS, type LivePlayerSettingsState } from '@/components/detail/LivePlayerSettings';
 
 interface Live {
@@ -110,6 +110,14 @@ function LiveDetailContent() {
     id: g.id, name: g.name, emoji: g.icon, price: g.price / 100, desc: g.effect,
   }));
   const GIFT_CATALOG: GiftItem[] = apiGifts.length ? apiGifts : FALLBACK_GIFTS;
+
+  // 进入详情:行为埋点(供榜单/推荐)+ 写观看历史。itemType 大写以匹配 Doris content_type。
+  React.useEffect(() => {
+    if (id) {
+      track(id, 'view', 'LIVE');
+      recordHistory(id);
+    }
+  }, [id]);
 
   const [followOverride, setFollowOverride] = useState<boolean | null>(null);
   const followed = followOverride ?? !!(query.data as any)?.isFollowing;
@@ -858,9 +866,6 @@ export default function LiveDetailPage() {
   return (
     <React.Suspense fallback={null}>
       <LiveDetailContent />
-      <Container maxWidth="md" sx={{ pb: 6 }}>
-        <HotRankingBar contentType="LIVE" title="全网直播热门" maxItems={10} expandable />
-      </Container>
     </React.Suspense>
   );
 }

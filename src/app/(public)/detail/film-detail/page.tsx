@@ -20,8 +20,9 @@ import { collectContent } from '@/apis/global';
 import { contentClient, formatApiError, isNetworkError } from '@/lib/api/client';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import DetailHeader from '@/components/detail/DetailHeader';
-import HotRankingBar from '@/components/home/HotRankingBar';
 import { AsyncState } from '@/components/common/AsyncState';
+import { CoverImage } from '@/components/common/CoverImage';
+import { track, recordHistory } from '@/lib/track';
 
 // 之前这里硬编码了 Google 公开样片作为缺省视频。已移除:无 URL 时由 VideoPlayer 显示空状态。
 
@@ -50,6 +51,14 @@ function FilmDetailContent() {
     queryFn: () => contentDetail('film', { id: Number(id) }).then((r) => r.data as Partial<Film>),
     enabled: !!id,
   });
+
+  // 进入详情:行为埋点(供榜单/推荐)+ 写观看历史。itemType 大写以匹配 Doris content_type。
+  React.useEffect(() => {
+    if (id) {
+      track(id, 'view', 'FILM');
+      recordHistory(id);
+    }
+  }, [id]);
 
   const [favorited, setFavorited] = React.useState(false);
   const [collectBusy, setCollectBusy] = React.useState(false);
@@ -206,12 +215,11 @@ function FilmDetailContent() {
                 }}
               >
                 {(data.stills || []).map((s, i) => (
-                  <Box
+                  <CoverImage
                     key={i}
-                    component="img"
                     src={s}
                     alt={`stills ${i + 1}`}
-                    sx={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', borderRadius: 1.5 }}
+                    sx={{ width: '100%', aspectRatio: '16/9', borderRadius: 1.5 }}
                   />
                 ))}
               </Box>
@@ -240,9 +248,6 @@ export default function FilmDetailPage() {
   return (
     <React.Suspense fallback={null}>
       <FilmDetailContent />
-      <Container maxWidth="md" sx={{ pb: 6 }}>
-        <HotRankingBar contentType="FILM" title="全网电影热门" maxItems={10} expandable />
-      </Container>
     </React.Suspense>
   );
 }

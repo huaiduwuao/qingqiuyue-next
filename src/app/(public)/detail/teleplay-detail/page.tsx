@@ -22,8 +22,8 @@ import { collectContent } from '@/apis/global';
 import { formatApiError } from '@/lib/api/client';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import DetailHeader from '@/components/detail/DetailHeader';
-import HotRankingBar from '@/components/home/HotRankingBar';
 import { AsyncState } from '@/components/common/AsyncState';
+import { track, recordHistory } from '@/lib/track';
 
 interface Episode {
   id: number;
@@ -68,6 +68,14 @@ function TeleplayDetailContent() {
       }),
     enabled: !!id,
   });
+
+  // 进入详情:行为埋点(供榜单/推荐)+ 写观看历史。itemType 大写以匹配 Doris content_type。
+  React.useEffect(() => {
+    if (id) {
+      track(id, 'view', 'TELEPLAY');
+      recordHistory(id);
+    }
+  }, [id]);
 
   const [activeEp, setActiveEp] = useState<number>(episodeId ? Number(episodeId) : 1);
   const [favorited, setFavorited] = useState(false);
@@ -271,9 +279,6 @@ export default function TeleplayDetailPage() {
   return (
     <React.Suspense fallback={null}>
       <TeleplayDetailContent />
-      <Container maxWidth="md" sx={{ pb: 6 }}>
-        <HotRankingBar contentType="TELEPLAY" title="全网剧集热门" maxItems={10} expandable />
-      </Container>
     </React.Suspense>
   );
 }

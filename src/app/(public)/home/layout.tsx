@@ -138,7 +138,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
            : activeNav === 'drama' ? <DramaPanel />
            : children}
         </Box>
-        {activeNav !== 'me' && activeNav !== 'live' && activeNav !== 'recommend' && <RightSidebar />}
+        {activeNav === 'home' && <RightSidebar />}
       </Box>
       <MockStatusBadge />
     </Box>

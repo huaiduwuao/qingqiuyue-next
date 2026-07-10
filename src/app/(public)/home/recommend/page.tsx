@@ -12,7 +12,7 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { moduleContentPage } from '@/apis/home';
 import { getHomeRecommendFollow, getHomeRecommendFriend, type RecommendWork } from '@/apis/dashboard';
-import HotRankingBar from '@/components/home/HotRankingBar';
+import { CoverImage } from '@/components/common/CoverImage';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { track } from '@/lib/track';
 import { TYPE_GRADIENT, RANK_BG } from '@/constants/gradients';
@@ -23,6 +23,7 @@ interface ContentItem {
   title: string;
   subtitle?: string;
   contentType: string;
+  cover?: string;
   coverUrl?: string;
   status: string;
   agreeCount?: number;
@@ -132,7 +133,7 @@ export default function HomeRecommendPage() {
       title: w.title,
       contentType: 'VIDEO',
       status: w.status,
-      coverUrl: w.cover,
+      cover: w.cover,
       viewCount: w.views,
     } as ContentItem));
   } else if (tabFromUrl === 'friend') {
@@ -142,7 +143,7 @@ export default function HomeRecommendPage() {
       title: w.title,
       contentType: 'VIDEO',
       status: w.status,
-      coverUrl: w.cover,
+      cover: w.cover,
       viewCount: w.views,
     } as ContentItem));
   }
@@ -176,10 +177,6 @@ export default function HomeRecommendPage() {
 
   return (
     <Box sx={{ px: 3, py: 2 }}>
-      <Box sx={{ mb: 2 }}>
-        <HotRankingBar contentType="NEWS" title="全网热搜" maxItems={12} expandable />
-      </Box>
-
       <Box
         sx={{
           display: 'flex',
@@ -329,20 +326,15 @@ export default function HomeRecommendPage() {
                     background: 'radial-gradient(circle at 30% 20%, rgba(255,255,255,0.15), transparent 60%)',
                   }}
                 />
-                {item.coverUrl && (
-                  <Box
-                    component="img"
-                    src={item.coverUrl || undefined}
+                {(item.cover || item.coverUrl) && (
+                  <CoverImage
+                    src={item.cover || item.coverUrl}
                     alt={item.title}
                     sx={{
                       position: 'absolute',
                       inset: 0,
                       width: '100%',
                       height: '100%',
-                      objectFit: 'cover',
-                    }}
-                    onError={(e: any) => {
-                      e.target.style.display = 'none';
                     }}
                   />
                 )}

@@ -22,8 +22,8 @@ import { collectContent } from '@/apis/global';
 import { formatApiError } from '@/lib/api/client';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import DetailHeader from '@/components/detail/DetailHeader';
-import HotRankingBar from '@/components/home/HotRankingBar';
 import { AsyncState } from '@/components/common/AsyncState';
+import { track, recordHistory } from '@/lib/track';
 
 interface ShowItem {
   id: number;
@@ -67,6 +67,14 @@ function VShowDetailContent() {
       }),
     enabled: !!id,
   });
+
+  // 进入详情:行为埋点(供榜单/推荐)+ 写观看历史。itemType 大写以匹配 Doris content_type。
+  React.useEffect(() => {
+    if (id) {
+      track(id, 'view', 'VSHOW');
+      recordHistory(id);
+    }
+  }, [id]);
 
   const [activeEp, setActiveEp] = useState<number>(1);
   const [favorited, setFavorited] = useState(false);
@@ -253,9 +261,6 @@ export default function VShowDetailPage() {
   return (
     <React.Suspense fallback={null}>
       <VShowDetailContent />
-      <Container maxWidth="md" sx={{ pb: 6 }}>
-        <HotRankingBar contentType="VSHOW" title="全网综艺热门" maxItems={10} expandable />
-      </Container>
     </React.Suspense>
   );
 }

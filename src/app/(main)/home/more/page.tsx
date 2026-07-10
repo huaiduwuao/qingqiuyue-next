@@ -15,7 +15,6 @@ import { detail } from '@/apis/system-module-content';
 import { getByCode } from '@/apis/system-app-config';
 import ModuleContentDetail from '@/components/ModuleContentDetail';
 import { AsyncState, EmptyState } from '@/components/common/AsyncState';
-import HotRankingBar from '@/components/home/HotRankingBar';
 
 interface MenuItem {
   id: number;
@@ -127,19 +126,6 @@ export default function HomeMorePage() {
             </CardContent>
           </Card>
         </Box>
-          </Box>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <HotRankingBar
-              contentType="NEWS"
-              title="实时热搜"
-              maxItems={10}
-              expandable
-            />
-            <HotRankingBar
-              contentType="ARTICLE"
-              title="热门文章"
-              maxItems={8}
-            />
           </Box>
         </Box>
       </Box>

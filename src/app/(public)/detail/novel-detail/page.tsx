@@ -24,8 +24,7 @@ import { ReadingSettings, DEFAULT_PAGE_STYLE } from '@/components/detail/Reading
 import type { PageStyle } from '@/components/detail/ReadingSettings';
 import { ReadingContainer } from '@/components/detail/ReadingContainer';
 import { useScrollProgress } from '@/hooks/useScrollProgress';
-import HotRankingBar from '@/components/home/HotRankingBar';
-import { track } from '@/lib/track';
+import { track, recordHistory } from '@/lib/track';
 import { LoginGate } from '@/components/auth/LoginGate';
 import { formatApiError } from '@/lib/api/client';
 
@@ -47,10 +46,13 @@ function NovelDetailContent() {
   const readProgress = useScrollProgress(scrollRef);
   const qc = useQueryClient();
 
-  // 行为埋点:进入详情即上报一次浏览(推荐/大数据源头)
+  // 行为埋点:进入详情即上报一次浏览(推荐/大数据源头)+ 写观看历史。itemType 大写以匹配 Doris content_type。
   useEffect(() => {
     const nid = novelId || id;
-    if (nid) track(nid, 'view', 'novel');
+    if (nid) {
+      track(nid, 'view', 'NOVEL');
+      recordHistory(nid);
+    }
   }, [novelId, id]);
 
   const initialQuery = useQuery({
@@ -336,9 +338,6 @@ export default function NovelDetailPage() {
       }
     >
       <NovelDetailContent />
-      <Container maxWidth="md" sx={{ pb: 6 }}>
-        <HotRankingBar contentType="NOVEL" title="全网小说热门" maxItems={10} expandable />
-      </Container>
     </React.Suspense>
   );
 }

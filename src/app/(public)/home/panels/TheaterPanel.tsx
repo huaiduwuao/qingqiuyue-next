@@ -10,6 +10,7 @@ import WhatshotIcon from '@mui/icons-material/Whatshot';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import { homeClient } from '@/lib/api/client';
 import { AsyncState } from '@/components/common/AsyncState';
+import { CoverImage } from '@/components/common/CoverImage';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT } from '@/constants/gradients';
 
@@ -214,7 +215,7 @@ function TheaterPodiumCard({ item }: { item: TheaterItem }) {
         {rank}
       </Box>
       <Box sx={{ position: 'relative', aspectRatio: '16/9' }}>
-        <img src={item.cover || undefined} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <CoverImage src={item.cover} alt={item.title} sx={{ width: '100%', height: '100%' }} />
         <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.MID }} />
         <Box sx={{ position: 'absolute', top: 8, right: 8, px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: CAT_COLOR[item.category], fontSize: 9, fontWeight: 600 }}>
           {CAT_LABEL[item.category]}
@@ -240,7 +241,7 @@ function TheaterRankRow({ item }: { item: TheaterItem }) {
         {item.hotRank}
       </Typography>
       <Box sx={{ width: 32, height: 18, borderRadius: 0.5, overflow: 'hidden', flexShrink: 0 }}>
-        <img src={item.cover || undefined} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <CoverImage src={item.cover} alt="" sx={{ width: '100%', height: '100%' }} />
       </Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography sx={{ fontSize: 11, fontWeight: 500, color: 'var(--text-primary, #fff)', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -270,7 +271,7 @@ function TheaterCard({ item }: { item: TheaterItem }) {
       }}
     >
       <Box sx={{ position: 'relative', aspectRatio: '16/9', overflow: 'hidden' }}>
-        <img src={item.cover || undefined} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <CoverImage src={item.cover} alt={item.title} sx={{ width: '100%', height: '100%' }} />
         <Box
           sx={{
             position: 'absolute',

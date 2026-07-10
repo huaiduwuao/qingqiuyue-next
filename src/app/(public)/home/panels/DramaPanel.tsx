@@ -11,6 +11,7 @@ import WhatshotIcon from '@mui/icons-material/Whatshot';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import { homeClient } from '@/lib/api/client';
 import { AsyncState } from '@/components/common/AsyncState';
+import { CoverImage } from '@/components/common/CoverImage';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT } from '@/constants/gradients';
 
@@ -274,7 +275,7 @@ function PodiumCard({ item }: { item: DramaSeries }) {
 
       {/* 封面 */}
       <Box sx={{ position: 'relative', aspectRatio: '3/4' }}>
-        <img src={item.cover || undefined} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <CoverImage src={item.cover} alt={item.title} sx={{ width: '100%', height: '100%' }} />
         <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.MID }} />
 
         {/* 题材 + 评分 */}
@@ -323,7 +324,7 @@ function RankRow({ item }: { item: DramaSeries }) {
         {item.hotRank}
       </Typography>
       <Box sx={{ width: 24, height: 32, borderRadius: 0.5, overflow: 'hidden', flexShrink: 0 }}>
-        <img src={item.cover || undefined} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <CoverImage src={item.cover} alt="" sx={{ width: '100%', height: '100%' }} />
       </Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography sx={{ fontSize: 11, fontWeight: 500, color: 'var(--text-primary, #fff)', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -355,7 +356,7 @@ function DramaCard({ item }: { item: DramaSeries }) {
       }}
     >
       <Box sx={{ position: 'relative', aspectRatio: '3/4' }}>
-        <img src={item.cover || undefined} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <CoverImage src={item.cover} alt={item.title} sx={{ width: '100%', height: '100%' }} />
         <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.MID }} />
 
         {/* 题材 */}

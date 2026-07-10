@@ -39,9 +39,9 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import KeyboardArrowUpRoundedIcon from '@mui/icons-material/KeyboardArrowUpRounded';
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import { fetchRecommend } from '@/apis/home-discover';
-import { sendComment } from '@/apis/home';
-import { reportContent } from '@/apis/global';
-import { contentClient } from '@/lib/api/client';
+import { sendComment, moduleContentAction } from '@/apis/home';
+import { reportContent, collectContent } from '@/apis/global';
+import { homeClient } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { TYPE_LABEL } from '@/lib/contentRoute';
 import { TYPE_GRADIENT } from '@/constants/gradients';
@@ -63,6 +63,7 @@ interface VideoItem {
   caption: string;
   verified?: boolean;
   brand?: string;
+  authorId?: number;
 }
 
 function formatTime(sec: number): string {
@@ -112,7 +113,8 @@ export function RecommendVideoFeed() {
             contentType: (it.category || 'NOVEL').toUpperCase(),
             cover: it.cover || '',
             author: it.author || '未知作者',
-            authorAvatar: '',
+            authorAvatar: it.authorAvatar || '',
+            authorId: Number(it.authorId) || 0,
             durationSec: 30 + (Number(it.id) % 60),
             views: Number(it.views) || 0,
             likes: Number(it.likes) || 0,
@@ -178,21 +180,19 @@ export function RecommendVideoFeed() {
   );
 
   const likeMutation = useMutation({
-    mutationFn: (nextLiked: boolean) => contentClient.post('/module/content/action', {
-      contentId: video?.id,
-      type: 'AGREE',
-      value: nextLiked ? 1 : 0,
-    }),
-    onSuccess: () => setLikedCount((c) => c + (liked ? -1 : 1)),
+    // 字段对齐后端 moduleContentAction:{contentId, action:'agree'|'cancel_agree'}
+    // (旧 {type:'AGREE',value} 与后端 req.Action 不匹配→Action 空→每次 +1)。
+    mutationFn: (nextLiked: boolean) =>
+      moduleContentAction({ contentId: video?.id, action: nextLiked ? 'agree' : 'cancel_agree' }),
   });
 
   const collectMutation = useMutation({
-    mutationFn: (nextCollected: boolean) => contentClient.post('/collect', {
-      contentId: video?.id,
-      type: 'COLLECT',
-      value: nextCollected ? 1 : 0,
-    }),
-    onSuccess: () => setCollectedCount((c) => c + (collected ? -1 : 1)),
+    // 后端 CollectToggle 不读 action、纯 toggle;onSuccess 用响应 collected 校正,避免无初始态时方向反。
+    mutationFn: (_nextCollected: boolean) => collectContent({ contentId: video?.id }),
+    onSuccess: (res: any) => {
+      const server = res?.data?.collected;
+      if (typeof server === 'boolean') setCollected(server);
+    },
   });
 
   const handleLike = async () => {
@@ -233,16 +233,24 @@ export function RecommendVideoFeed() {
 
   const handleFollow = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!video?.id || followBusy) return;
+    if (!video?.authorId || followBusy) {
+      if (!video?.authorId) notify('暂无法关注该作者', 'info');
+      return;
+    }
     setFollowBusy(true);
     const wasFollowing = following;
     setFollowing(!wasFollowing);
     try {
       if (wasFollowing) {
+        await homeClient.delete(`/follow/${video.authorId}`);
         notify('已取消关注');
       } else {
+        await homeClient.post(`/follow/${video.authorId}`);
         notify('关注成功');
       }
+    } catch {
+      setFollowing(wasFollowing);
+      notify('操作失败,请稍后再试', 'error');
     } finally {
       setFollowBusy(false);
     }

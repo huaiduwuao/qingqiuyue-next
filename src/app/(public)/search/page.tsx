@@ -33,7 +33,6 @@ import { ACCENT } from '@/constants/accents';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { searchContent } from '@/apis/global';
 import { topKeywordInThirdMonth } from '@/apis/home';
-import HotRankingBar from '@/components/home/HotRankingBar';
 import RecommendBoard from '@/components/home/RecommendBoard';
 import { adminClient, homeClient, formatApiError } from '@/lib/api/client';
 
@@ -1043,9 +1042,6 @@ function EmptyState({
         ) : (
           <Box />
         )}
-        <Box>
-          <HotRankingBar contentType="NEWS" title="全网热搜" maxItems={10} expandable />
-        </Box>
       </Box>
 
       <Box>

@@ -25,7 +25,8 @@ import { detail as contentDetail } from '@/apis/content-music';
 import { collectContent } from '@/apis/global';
 import { formatApiError } from '@/lib/api/client';
 import { AsyncState } from '@/components/common/AsyncState';
-import HotRankingBar from '@/components/home/HotRankingBar';
+import { CoverImage } from '@/components/common/CoverImage';
+import { track, recordHistory } from '@/lib/track';
 
 interface LyricLine {
   time: number;
@@ -50,6 +51,14 @@ function MusicDetailContent() {
     queryFn: () => contentDetail('music', { id: Number(id) }).then((r) => r.data as any),
     enabled: !!id,
   });
+
+  // 进入详情:行为埋点(供榜单/推荐)+ 写观看历史。itemType 大写以匹配 Doris content_type。
+  React.useEffect(() => {
+    if (id) {
+      track(id, 'view', 'MUSIC');
+      recordHistory(id);
+    }
+  }, [id]);
 
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -161,15 +170,13 @@ function MusicDetailContent() {
           <Container maxWidth="md" sx={{ py: 3 }}>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '280px 1fr' }, gap: 3, mb: 3 }}>
               <Box>
-                <Box
-                  component="img"
+                <CoverImage
                   src={data.cover}
                   alt={data.title}
                   sx={{
                     width: '100%',
                     aspectRatio: '1/1',
                     borderRadius: 2,
-                    objectFit: 'cover',
                     boxShadow: '0 8px 32px rgba(254, 44, 85, 0.25)',
                     animation: playing ? 'spin 20s linear infinite' : 'none',
                     '@keyframes spin': { '0%': { transform: 'rotate(0deg)' }, '100%': { transform: 'rotate(360deg)' } },
@@ -308,9 +315,6 @@ export default function MusicDetailPage() {
   return (
     <React.Suspense fallback={null}>
       <MusicDetailContent />
-      <Container maxWidth="md" sx={{ pb: 6 }}>
-        <HotRankingBar contentType="MUSIC" title="全网音乐热门" maxItems={10} expandable />
-      </Container>
     </React.Suspense>
   );
 }

@@ -24,8 +24,9 @@ import { page as itemPage } from '@/apis/content-comics-item';
 import { collectContent } from '@/apis/global';
 import { formatApiError } from '@/lib/api/client';
 import DetailHeader from '@/components/detail/DetailHeader';
-import HotRankingBar from '@/components/home/HotRankingBar';
 import { AsyncState } from '@/components/common/AsyncState';
+import { CoverImage } from '@/components/common/CoverImage';
+import { track, recordHistory } from '@/lib/track';
 
 interface Chapter {
   id: number;
@@ -68,6 +69,14 @@ function ComicsDetailContent() {
       }),
     enabled: !!id,
   });
+
+  // 进入详情:行为埋点(供榜单/推荐)+ 写观看历史。itemType 大写以匹配 Doris content_type。
+  React.useEffect(() => {
+    if (id) {
+      track(id, 'view', 'COMICS');
+      recordHistory(id);
+    }
+  }, [id]);
 
   const [activeChapter, setActiveChapter] = useState<number>(1);
   const [activePage, setActivePage] = useState<number>(1);
@@ -154,11 +163,10 @@ function ComicsDetailContent() {
           return (
             <Container maxWidth="md" sx={{ py: 3 }}>
               <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
-                <Box
-                  component="img"
+                <CoverImage
                   src={data.cover}
                   alt={data.title}
-                  sx={{ width: 140, aspectRatio: '3/4', objectFit: 'cover', borderRadius: 2, flexShrink: 0 }}
+                  sx={{ width: 140, aspectRatio: '3/4', borderRadius: 2, flexShrink: 0 }}
                 />
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Typography variant="h5" sx={{ fontWeight: 800, color: 'text.primary', mb: 1 }}>
@@ -320,9 +328,6 @@ export default function ComicsDetailPage() {
   return (
     <React.Suspense fallback={null}>
       <ComicsDetailContent />
-      <Container maxWidth="md" sx={{ pb: 6 }}>
-        <HotRankingBar contentType="COMICS" title="全网漫画热门" maxItems={10} expandable />
-      </Container>
     </React.Suspense>
   );
 }

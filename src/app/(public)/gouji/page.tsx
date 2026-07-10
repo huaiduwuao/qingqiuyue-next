@@ -13,7 +13,6 @@ import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import TextField from '@mui/material/TextField';
-import HotRankingBar from '@/components/home/HotRankingBar';
 
 const cards = [3, 4, 5, 6, 7, 8, 9, 10, 'J', 'Q', 'K', 'A', 2, '小王', '大王'];
 
@@ -84,19 +83,6 @@ export default function HomeGoujiPage() {
                 </TableBody>
               </Table>
             </TableContainer>
-          </Box>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <HotRankingBar
-              contentType="NEWS"
-              title="全网热搜 · 边玩边看"
-              maxItems={10}
-              expandable
-            />
-            <HotRankingBar
-              contentType="VIDEO"
-              title="热门视频"
-              maxItems={8}
-            />
           </Box>
         </Box>
       </Box>

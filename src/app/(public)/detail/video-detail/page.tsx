@@ -24,8 +24,8 @@ import { collectContent } from '@/apis/global';
 import { homeClient, formatApiError } from '@/lib/api/client';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import DetailHeader from '@/components/detail/DetailHeader';
-import HotRankingBar from '@/components/home/HotRankingBar';
 import { AsyncState } from '@/components/common/AsyncState';
+import { track, recordHistory } from '@/lib/track';
 import AIGCBadge from '@/components/AIGCBadge';
 
 interface Video {
@@ -56,6 +56,14 @@ function VideoDetailContent() {
     queryFn: () => contentDetail('video', { id: Number(id) }).then((r) => r.data as Partial<Video>),
     enabled: !!id,
   });
+
+  // 进入详情:行为埋点(供榜单/推荐)+ 写观看历史。itemType 大写以匹配 Doris content_type。
+  React.useEffect(() => {
+    if (id) {
+      track(id, 'view', 'VIDEO');
+      recordHistory(id);
+    }
+  }, [id]);
 
   const [favorited, setFavorited] = React.useState(false);
   const [collectBusy, setCollectBusy] = React.useState(false);
@@ -253,10 +261,6 @@ function VideoDetailContent() {
           </>
         )}
       </AsyncState>
-
-      <Container maxWidth="md" sx={{ pb: 6 }}>
-        <HotRankingBar contentType="VIDEO" title="全网视频热门" maxItems={10} expandable />
-      </Container>
 
       <Snackbar
         open={snack.open}

@@ -29,6 +29,7 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import { homeClient, formatApiError } from '@/lib/api/client';
 import { AsyncState } from '@/components/common/AsyncState';
+import { CoverImage } from '@/components/common/CoverImage';
 import { WerewolfPlayer } from './WerewolfPlayer';
 import SendToSpider from '@/components/SendToSpider';
 import { FriendPanel } from './FriendPanel';
@@ -359,7 +360,7 @@ function FeedCard({ item, tab, onSnack }: { item: FeedItem; tab: 'home' | 'follo
       }}
     >
       <Box sx={{ position: 'relative', aspectRatio: '16/9', bgcolor: 'var(--bg-input, rgba(255,255,255,0.04))', overflow: 'hidden' }}>
-        <img src={item.cover || undefined} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <CoverImage src={item.cover} alt={item.title} sx={{ width: '100%', height: '100%' }} />
         {item.isLive ? (
           <Chip
             icon={<LiveTvRoundedIcon sx={{ fontSize: 12, color: '#ffffff !important' }} />}

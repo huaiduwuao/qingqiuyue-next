@@ -1,21 +1,26 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
-import CardMedia from '@mui/material/CardMedia';
 import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
+import FavoriteIcon from '@mui/icons-material/Favorite';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
+import StarIcon from '@mui/icons-material/Star';
+import StarBorderIcon from '@mui/icons-material/StarBorder';
 import ModeCommentIcon from '@mui/icons-material/ModeComment';
-import { fallbackImg } from '@/lib/utils';
+import { CoverImage } from '@/components/common/CoverImage';
+import { moduleContentAction } from '@/apis/home';
+import { collectContent } from '@/apis/global';
 
 interface ContentItem {
   id: number;
   title: string;
   subtitle?: string;
   contentType: string;
+  cover?: string;
   coverUrl?: string;
   status: string;
   agreeCount?: number;
@@ -52,6 +57,44 @@ function formatCount(num: number): string {
 }
 
 export default function ModuleContentCard({ content, onClick }: ModuleContentCardProps) {
+  const [liked, setLiked] = useState(false);
+  const [collected, setCollected] = useState(false);
+  const [agreeCount, setAgreeCount] = useState(content.agreeCount || 0);
+  const [collectCount, setCollectCount] = useState(content.collectCount || 0);
+
+  // 点赞:乐观切换 + 失败回滚;字段对齐后端 moduleContentAction({contentId, action})。
+  const handleLike = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const next = !liked;
+    const prevLiked = liked;
+    const prevCount = agreeCount;
+    setLiked(next);
+    setAgreeCount((c) => c + (next ? 1 : -1));
+    try {
+      await moduleContentAction({ contentId: content.id, action: next ? 'agree' : 'cancel_agree' });
+    } catch {
+      setLiked(prevLiked);
+      setAgreeCount(prevCount);
+    }
+  };
+
+  // 收藏:后端 toggle 不读 action;以响应 collected 校正布尔,计数乐观 + 回滚。
+  const handleCollect = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const prevCollected = collected;
+    const prevCount = collectCount;
+    setCollected(!collected);
+    setCollectCount((c) => c + (collected ? -1 : 1));
+    try {
+      const res: any = await collectContent({ contentId: content.id });
+      const server = res?.data?.collected;
+      if (typeof server === 'boolean') setCollected(server);
+    } catch {
+      setCollected(prevCollected);
+      setCollectCount(prevCount);
+    }
+  };
+
   return (
     <Card
       sx={{
@@ -64,11 +107,10 @@ export default function ModuleContentCard({ content, onClick }: ModuleContentCar
       onClick={onClick}
     >
       <Box sx={{ display: 'flex', p: 1.5, gap: 2 }}>
-        <CardMedia
-          component="img"
-          sx={{ width: 120, height: 160, borderRadius: 1, objectFit: 'cover' }}
-          image={content.coverUrl || fallbackImg}
+        <CoverImage
+          src={content.cover || content.coverUrl}
           alt={content.title}
+          sx={{ width: 120, height: 160, borderRadius: 1, flexShrink: 0 }}
         />
         <CardContent sx={{ flex: 1, p: '0 !important', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -91,14 +133,20 @@ export default function ModuleContentCard({ content, onClick }: ModuleContentCar
             {content.subtitle || '暂无描述'}
           </Typography>
           <Box sx={{ flex: 1 }} />
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <FavoriteBorderIcon fontSize="small" color="action" />
-              <Typography variant="caption">{formatCount(content.agreeCount || 0)}</Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box
+              onClick={handleLike}
+              sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer', '&:hover': { color: 'error.main' } }}
+            >
+              {liked ? <FavoriteIcon fontSize="small" color="error" /> : <FavoriteBorderIcon fontSize="small" color="action" />}
+              <Typography variant="caption">{formatCount(agreeCount)}</Typography>
             </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <FavoriteBorderIcon fontSize="small" color="action" />
-              <Typography variant="caption">{formatCount(content.collectCount || 0)}</Typography>
+            <Box
+              onClick={handleCollect}
+              sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer', '&:hover': { color: 'warning.main' } }}
+            >
+              {collected ? <StarIcon fontSize="small" color="warning" /> : <StarBorderIcon fontSize="small" color="action" />}
+              <Typography variant="caption">{formatCount(collectCount)}</Typography>
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <ModeCommentIcon fontSize="small" color="action" />

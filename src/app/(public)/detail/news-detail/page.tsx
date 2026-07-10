@@ -23,8 +23,9 @@ import { detail as contentDetail } from '@/apis/content-news';
 import { collectContent } from '@/apis/global';
 import { formatApiError } from '@/lib/api/client';
 import DetailHeader from '@/components/detail/DetailHeader';
-import HotRankingBar from '@/components/home/HotRankingBar';
 import { AsyncState } from '@/components/common/AsyncState';
+import { CoverImage } from '@/components/common/CoverImage';
+import { track, recordHistory } from '@/lib/track';
 import { ReadingSettings, DEFAULT_PAGE_STYLE, type PageStyle } from '@/components/detail/ReadingSettings';
 import { ReadingContainer } from '@/components/detail/ReadingContainer';
 
@@ -54,6 +55,14 @@ function NewsDetailContent() {
     queryFn: () => contentDetail({ id: Number(id) }).then((r) => r.data as Partial<News>),
     enabled: !!id,
   });
+
+  // 进入详情:行为埋点(供榜单/推荐)+ 写观看历史。itemType 大写以匹配 Doris content_type。
+  React.useEffect(() => {
+    if (id) {
+      track(id, 'view', 'NEWS');
+      recordHistory(id);
+    }
+  }, [id]);
 
   const [favorited, setFavorited] = useState(false);
   const [collectBusy, setCollectBusy] = useState(false);
@@ -169,8 +178,7 @@ function NewsDetailContent() {
             </Box>
 
             {data.cover && (
-              <Box
-                component="img"
+              <CoverImage
                 src={data.cover}
                 alt={data.title}
                 sx={{ width: '100%', borderRadius: 2, mb: 3 }}
@@ -239,11 +247,6 @@ function NewsDetailContent() {
           {snack.message}
         </Alert>
       </Snackbar>
-
-      {/* 页底全网热搜(Phase 3 Doris 实时) */}
-      <Container maxWidth="md" sx={{ pb: 6 }}>
-        <HotRankingBar contentType="NEWS" title="全网热搜" maxItems={10} expandable />
-      </Container>
     </Box>
   );
 }
