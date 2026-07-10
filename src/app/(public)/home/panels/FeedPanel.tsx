@@ -27,7 +27,7 @@ import ShareOutlinedIcon from '@mui/icons-material/ShareOutlined';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
-import { homeClient } from '@/lib/api/client';
+import { homeClient, formatApiError } from '@/lib/api/client';
 import { AsyncState } from '@/components/common/AsyncState';
 import { WerewolfPlayer } from './WerewolfPlayer';
 import SendToSpider from '@/components/SendToSpider';
@@ -187,7 +187,7 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
             <Box sx={{ p: 2 }}>
               {/* 仅 home 顶部抓取工具条 (follow 是个人页,不放;recommend 已被 WerewolfPlayer 接管) */}
               {tab === 'home' && !isPersonal && section === 'recommend' && (
-                <Box sx={{ mb: 2, p: 1.5, borderRadius: 2, border: '1px dashed rgba(255,255,255,0.12)', bgcolor: 'rgba(255,255,255,0.02)' }}>
+                <Box sx={{ mb: 2, p: 1.5, borderRadius: 2, border: '1px dashed', borderColor: 'divider', bgcolor: 'action.hover' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
                     <Typography sx={{ fontSize: 12, color: 'var(--text-secondary, rgba(255,255,255,0.6))' }}>
                       没找到想看的?抓一个 URL 进来:
@@ -211,7 +211,7 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
                     {data.list.length > 0 ? (
                       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
                         {data.list.map((item) => (
-                          <FeedCard key={item.id} item={item} tab={tab} />
+                          <FeedCard key={item.id} item={item} tab={tab} onSnack={(m, s) => setSnack({ open: true, message: m, severity: s })} />
                         ))}
                       </Box>
                     ) : (
@@ -227,13 +227,13 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
                       display: { xs: 'none', lg: 'block' },
                     }}
                   >
-                    <RecommendSection tab={tab} />
+                    <RecommendSection tab={tab} onSnack={(m, s) => setSnack({ open: true, message: m, severity: s })} />
                   </Box>
                 </Box>
               ) : data.list.length > 0 ? (
                 <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 2 }}>
                   {data.list.map((item) => (
-                    <FeedCard key={item.id} item={item} tab={tab} />
+                    <FeedCard key={item.id} item={item} tab={tab} onSnack={(m, s) => setSnack({ open: true, message: m, severity: s })} />
                   ))}
                 </Box>
               ) : (
@@ -264,7 +264,7 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
         slotProps={{
           paper: {
             sx: {
-              bgcolor: 'var(--bg-body, #0a0a0f)',
+              bgcolor: 'var(--bg-body, #F5F5F7)',
               backgroundImage: 'none',
               borderRadius: 3,
               height: 'min(820px, 90dvh)',
@@ -291,7 +291,7 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
 }
 
 // ─── 卡片 ───
-function FeedCard({ item, tab }: { item: FeedItem; tab: 'home' | 'follow' | 'friend' }) {
+function FeedCard({ item, tab, onSnack }: { item: FeedItem; tab: 'home' | 'follow' | 'friend'; onSnack?: (m: string, s: 'success' | 'error') => void }) {
   const qc = useQueryClient();
   const navigate = useContentNavigate();
   const [busy, setBusy] = useState(false);
@@ -319,7 +319,7 @@ function FeedCard({ item, tab }: { item: FeedItem; tab: 'home' | 'follow' | 'fri
       qc.invalidateQueries({ queryKey: ['home', 'feed'] });
       qc.invalidateQueries({ queryKey: ['home', 'suggestions'] });
     } catch (err) {
-      console.error('follow toggle failed', err);
+      onSnack?.(formatApiError(err), 'error');
     } finally {
       setBusy(false);
     }
@@ -334,7 +334,7 @@ function FeedCard({ item, tab }: { item: FeedItem; tab: 'home' | 'follow' | 'fri
       qc.invalidateQueries({ queryKey: ['home', 'feed'] });
       qc.invalidateQueries({ queryKey: ['home', 'friend'] });
     } catch (err) {
-      console.error('add friend failed', err);
+      onSnack?.(formatApiError(err), 'error');
     } finally {
       setBusy(false);
     }
@@ -544,7 +544,7 @@ function FeedCard({ item, tab }: { item: FeedItem; tab: 'home' | 'follow' | 'fri
 }
 
 // ─── 推荐区(空态 / 顶部插入) ───
-function RecommendSection({ tab }: { tab: 'follow' | 'friend' }) {
+function RecommendSection({ tab, onSnack }: { tab: 'follow' | 'friend'; onSnack?: (m: string, s: 'success' | 'error') => void }) {
   const type = tab === 'friend' ? 'friend' : 'follow';
   const title = tab === 'friend' ? '你可能认识的人' : '推荐关注';
   const hint = tab === 'friend' ? '基于共同好友推荐' : '基于你的兴趣推荐';
@@ -565,14 +565,14 @@ function RecommendSection({ tab }: { tab: 'follow' | 'friend' }) {
 
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 1.5 }}>
         {((isLoading ? Array.from({ length: 4 }, () => undefined as SuggestUser | undefined) : (data?.list as SuggestUser[] | undefined) || [])).map((u, i) => (
-          <SuggestUserCard key={u?.id || i} user={u} tab={tab} loading={isLoading} />
+          <SuggestUserCard key={u?.id || i} user={u} tab={tab} loading={isLoading} onSnack={onSnack} />
         ))}
       </Box>
     </Box>
   );
 }
 
-function SuggestUserCard({ user, tab, loading }: { user?: SuggestUser; tab: 'follow' | 'friend'; loading?: boolean }) {
+function SuggestUserCard({ user, tab, loading, onSnack }: { user?: SuggestUser; tab: 'follow' | 'friend'; loading?: boolean; onSnack?: (m: string, s: 'success' | 'error') => void }) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   const isFriend = tab === 'friend';
@@ -591,7 +591,7 @@ function SuggestUserCard({ user, tab, loading }: { user?: SuggestUser; tab: 'fol
       qc.invalidateQueries({ queryKey: ['home', 'feed'] });
       qc.invalidateQueries({ queryKey: ['home', 'suggestions'] });
     } catch (err) {
-      console.error('action failed', err);
+      onSnack?.(formatApiError(err), 'error');
     } finally {
       setBusy(false);
     }

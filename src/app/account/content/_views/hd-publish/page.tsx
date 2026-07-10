@@ -526,7 +526,7 @@ export default function HdPublishPage() {
     const formData = new FormData();
     formData.append('file', file);
     try {
-      const res = await accountClient.post('/account/upload', formData, {
+      const res = await accountClient.post('/file/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       const url = (res as { data?: { url?: string } })?.data?.url;
@@ -756,7 +756,7 @@ export default function HdPublishPage() {
                       px: 1,
                       py: 0.25,
                       borderRadius: 0.5,
-                      bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
+                      bgcolor: 'action.hover',
                       color: 'text.secondary',
                       fontSize: 10,
                     }}
@@ -811,7 +811,7 @@ export default function HdPublishPage() {
                   sx={{
                     p: 1.25,
                     borderRadius: 1.5,
-                    bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
+                    bgcolor: 'action.hover',
                     border: '1px solid',
                     borderColor: 'divider',
                     display: 'flex',
@@ -884,7 +884,7 @@ export default function HdPublishPage() {
               minWidth: 220,
               '& .MuiOutlinedInput-root': {
                 fontSize: 12,
-                bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FAFAFA',
+                bgcolor: 'action.hover',
                 '& fieldset': { borderColor: 'divider' },
               },
             }}
@@ -915,7 +915,7 @@ export default function HdPublishPage() {
                   sx={{
                     p: 1.5,
                     borderRadius: 1.5,
-                    bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
+                    bgcolor: 'background.paper',
                     border: '1px solid',
                     borderColor: v.status === 'failed' ? 'rgba(254, 44, 85, 0.3)' : 'divider',
                     display: 'flex',
@@ -1070,7 +1070,7 @@ export default function HdPublishPage() {
                               flex: 1,
                               height: 4,
                               borderRadius: 1,
-                              bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
+                              bgcolor: 'action.hover',
                               '& .MuiLinearProgress-bar': { bgcolor: '#25F4EE' },
                             }}
                           />
@@ -1617,7 +1617,7 @@ export default function HdPublishPage() {
                   sx={{
                     p: 1,
                     borderRadius: 1,
-                    bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FAFAFA',
+                    bgcolor: 'action.hover',
                     border: '1px solid',
                     borderColor: 'divider',
                     display: 'flex',
@@ -1703,7 +1703,7 @@ export default function HdPublishPage() {
                     sx={{
                       p: 0.75,
                       borderRadius: 0.75,
-                      bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FAFAFA',
+                      bgcolor: 'action.hover',
                       border: '1px solid',
                       borderColor: 'divider',
                       display: 'flex',
@@ -1934,7 +1934,7 @@ export default function HdPublishPage() {
                   sx={{
                     p: 1.5,
                     borderRadius: 1.5,
-                    bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FAFAFA',
+                    bgcolor: 'action.hover',
                     border: '1px solid',
                     borderColor: 'divider',
                   }}
@@ -2021,7 +2021,7 @@ export default function HdPublishPage() {
                                 borderRadius: '50%',
                                 bgcolor: reviewer.online ? '#5DDB96' : (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.3)' : '#9CA3AF',
                                 border: '2px solid',
-                                borderColor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
+                                borderColor: 'background.paper',
                               }}
                             />
                           </Box>
@@ -2197,7 +2197,7 @@ export default function HdPublishPage() {
                                   sx={{
                                     height: 14,
                                     fontSize: 9,
-                                    bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
+                                    bgcolor: 'action.hover',
                                     color: 'text.secondary',
                                     '& .MuiChip-label': { px: 0.5 },
                                   }}
@@ -2288,7 +2288,7 @@ export default function HdPublishPage() {
                   sx={{
                     p: 1.5,
                     borderRadius: 1.5,
-                    bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FAFAFA',
+                    bgcolor: 'action.hover',
                     border: '1px solid',
                     borderColor: 'divider',
                   }}
@@ -2305,7 +2305,7 @@ export default function HdPublishPage() {
                             sx={{
                               p: 0.75,
                               borderRadius: 0.75,
-                              bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
+                              bgcolor: 'action.hover',
                               display: 'flex',
                               alignItems: 'center',
                               gap: 1,
@@ -2345,7 +2345,7 @@ export default function HdPublishPage() {
                             sx={{
                               p: 0.75,
                               borderRadius: 0.75,
-                              bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
+                              bgcolor: 'action.hover',
                               display: 'flex',
                               alignItems: 'center',
                               gap: 1,
@@ -2379,7 +2379,7 @@ export default function HdPublishPage() {
                     sx={{
                       height: 6,
                       borderRadius: 1,
-                      bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
+                      bgcolor: 'action.hover',
                       '& .MuiLinearProgress-bar': { bgcolor: '#25F4EE' },
                     }}
                   />
@@ -2428,7 +2428,7 @@ export default function HdPublishPage() {
                       filter: 'brightness(1.1)',
                     },
                     '&.Mui-disabled': {
-                      bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
+                      bgcolor: 'action.hover',
                       color: 'text.disabled',
                     },
                   }}
@@ -2685,7 +2685,7 @@ export default function HdPublishPage() {
                     sx={{
                       p: 1.5,
                       borderRadius: 1.5,
-                      bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FAFAFA',
+                      bgcolor: 'action.hover',
                       border: '1px solid',
                       borderColor: 'divider',
                       display: 'flex',

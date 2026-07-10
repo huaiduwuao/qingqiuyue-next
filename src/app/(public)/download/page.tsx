@@ -25,6 +25,8 @@ import SpeedIcon from '@mui/icons-material/Speed';
 import MovieFilterIcon from '@mui/icons-material/MovieFilter';
 import SecurityIcon from '@mui/icons-material/Security';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import { ThemeProvider } from '@mui/material/styles';
+import { darkTheme } from '@/styles/theme';
 import {
   PLATFORMS,
   detectPlatform,
@@ -131,7 +133,7 @@ const SCREENSHOTS = [
   { label: '离线管理', gradient: gradient2('#06B6D4', '#5DDB96') },
 ];
 
-export default function DownloadPage() {
+function DownloadPageContent() {
   const router = useRouter();
   const [detected, setDetected] = useState<ClientPlatform | 'unknown'>('unknown');
   const [downloading, setDownloading] = useState<ClientPlatform | null>(null);
@@ -985,5 +987,13 @@ export default function DownloadPage() {
         </Typography>
       </Box>
     </Box>
+  );
+}
+
+export default function DownloadPage() {
+  return (
+    <ThemeProvider theme={darkTheme}>
+      <DownloadPageContent />
+    </ThemeProvider>
   );
 }

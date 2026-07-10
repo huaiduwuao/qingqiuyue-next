@@ -341,7 +341,7 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
           )}
         </Box>
       </DialogContent>
-      <DialogActions sx={{ borderTop: '1px solid', borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB', px: 2, py: 1.5, justifyContent: 'space-between' }}>
+      <DialogActions sx={{ borderTop: '1px solid', borderColor: 'divider', px: 2, py: 1.5, justifyContent: 'space-between' }}>
         {canDelete ? (
           <Button size="small" color="error" onClick={handleDelete}>
             删除

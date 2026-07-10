@@ -86,7 +86,7 @@ export default function DataOverviewCard() {
                   sx={{
                     p: 2.5,
                     borderRadius: 2,
-                    bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
+                    bgcolor: 'background.paper',
                     border: '1px solid',
                     borderColor: 'divider',
                     position: 'relative',

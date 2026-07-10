@@ -37,7 +37,7 @@ import CampaignOutlinedIcon from '@mui/icons-material/CampaignOutlined';
 import EventOutlinedIcon from '@mui/icons-material/EventOutlined';
 import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
 import VerifiedIcon from '@mui/icons-material/Verified';
-import { adminClient, isAuthError, isNetworkError, formatApiError } from '@/lib/api/client';
+import { adminClient, homeClient, contentClient, formatApiError } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { fileUpload } from '@/apis/global';
 import { useMsgUi } from './store';
@@ -126,7 +126,7 @@ export default function MsgPage() {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - var(--appbar-h, 66px))', bgcolor: 'background.default' }}>
       {/* 顶部 Tab 导航 */}
-      <Box sx={{ borderBottom: '1px solid #252836', bgcolor: 'background.default', flexShrink: 0, px: 3 }}>
+      <Box sx={{ borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.default', flexShrink: 0, px: 3 }}>
         <Tabs
           value={mainTab}
           onChange={(_, v) => setMainTab(v)}
@@ -172,7 +172,7 @@ function InteractionPanel() {
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ display: 'flex', gap: 0.75, px: 3, py: 1.5, borderBottom: '1px solid #252836', flexShrink: 0, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' } }}>
+      <Box sx={{ display: 'flex', gap: 0.75, px: 3, py: 1.5, borderBottom: '1px solid', borderColor: 'divider', flexShrink: 0, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' } }}>
         {INTERACTION_SUB_TYPES.map((s) => (
           <Box
             key={s.key}
@@ -181,14 +181,14 @@ function InteractionPanel() {
               px: 1.5,
               py: 0.5,
               borderRadius: 1,
-              bgcolor: subType === s.key ? 'rgba(254, 44, 85, 0.18)' : 'rgba(255,255,255,0.06)',
-              color: subType === s.key ? 'primary.main' : 'rgba(255,255,255,0.7)',
+              bgcolor: subType === s.key ? 'rgba(254, 44, 85, 0.18)' : 'action.hover',
+              color: subType === s.key ? 'primary.main' : 'text.secondary',
               fontSize: 13,
               fontWeight: subType === s.key ? 600 : 400,
               cursor: 'pointer',
               whiteSpace: 'nowrap',
               transition: 'all 0.15s',
-              '&:hover': { bgcolor: subType === s.key ? 'rgba(254, 44, 85, 0.25)' : 'rgba(255,255,255,0.1)' },
+              '&:hover': { bgcolor: subType === s.key ? 'rgba(254, 44, 85, 0.25)' : 'action.selected' },
             }}
           >
             {s.label}
@@ -199,15 +199,15 @@ function InteractionPanel() {
         {isLoading ? (
           <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
             {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} variant="rounded" height={72} sx={{ bgcolor: 'rgba(255,255,255,0.04)' }} />
+              <Skeleton key={i} variant="rounded" height={72} sx={{ bgcolor: 'action.hover' }} />
             ))}
           </Box>
         ) : records.length === 0 ? (
           <Box sx={{ py: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-            <Box sx={{ width: 80, height: 80, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.04)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <CheckCircleOutlineIcon sx={{ fontSize: 36, color: 'rgba(255,255,255,0.25)' }} />
+            <Box sx={{ width: 80, height: 80, borderRadius: '50%', bgcolor: 'action.hover', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <CheckCircleOutlineIcon sx={{ fontSize: 36, color: 'text.disabled' }} />
             </Box>
-            <Typography sx={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>暂无互动消息</Typography>
+            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>暂无互动消息</Typography>
           </Box>
         ) : (
           <Box sx={{ maxWidth: 900, mx: 'auto' }}>
@@ -236,24 +236,14 @@ function FullNoticeItem({ item }: { item: any }) {
     if (item.type === 'follow' && item.fromUserId) {
       const isFollowed = !!item.isFollowed;
       try {
-        const res = (await adminClient('/user/follow', {
-          method: 'POST',
-          data: { userId: item.fromUserId },
-        })) as { success?: boolean; code?: string | number };
-        if (res && res.success === false) {
-          setSnack({ open: true, msg: '操作失败,请稍后重试' });
+        if (isFollowed) {
+          await homeClient.delete(`/follow/${item.fromUserId}`);
         } else {
-          setSnack({ open: true, msg: isFollowed ? '已取关' : '已关注' });
+          await homeClient.post(`/follow/${item.fromUserId}`);
         }
+        setSnack({ open: true, msg: isFollowed ? '已取关' : '已关注' });
       } catch (e) {
-        if (isAuthError(e)) {
-          setSnack({ open: true, msg: formatApiError(e) });
-        } else if (isNetworkError(e)) {
-          // 网络错 fallback:写死提示「已关注(离线)」
-          setSnack({ open: true, msg: isFollowed ? '已取关(离线)' : '已关注(离线)' });
-        } else {
-          setSnack({ open: true, msg: formatApiError(e) || '操作失败' });
-        }
+        setSnack({ open: true, msg: formatApiError(e) || '操作失败,请稍后重试' });
       }
       return;
     }
@@ -280,9 +270,10 @@ function FullNoticeItem({ item }: { item: any }) {
           py: 1.75,
           cursor: 'pointer',
           transition: 'background 0.15s',
-          borderBottom: '1px solid rgba(37, 40, 54, 0.5)',
+          borderBottom: '1px solid',
+          borderColor: 'divider',
           position: 'relative',
-          '&:hover': { bgcolor: 'rgba(255,255,255,0.03)' },
+          '&:hover': { bgcolor: 'action.hover' },
         }}
       >
         {item.unread && (
@@ -309,7 +300,7 @@ function FullNoticeItem({ item }: { item: any }) {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.25 }}>
             <Typography sx={{ fontSize: 14, fontWeight: item.unread ? 600 : 500, color: 'text.primary' }}>{item.nickname}</Typography>
             {typeIcon}
-            <Box sx={{ display: 'inline-flex', alignItems: 'center', px: 0.75, py: 0.125, borderRadius: 0.75, bgcolor: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.7)', fontSize: 10, fontWeight: 500 }}>
+            <Box sx={{ display: 'inline-flex', alignItems: 'center', px: 0.75, py: 0.125, borderRadius: 0.75, bgcolor: 'action.hover', color: 'text.secondary', fontSize: 10, fontWeight: 500 }}>
               {item.typeName}
             </Box>
             <Box sx={{ flex: 1 }} />
@@ -318,7 +309,7 @@ function FullNoticeItem({ item }: { item: any }) {
           <Typography
             sx={{
               fontSize: 13,
-              color: item.unread ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.55)',
+              color: item.unread ? 'text.primary' : 'text.secondary',
               lineHeight: 1.6,
               mb: 0.5,
             }}
@@ -328,7 +319,7 @@ function FullNoticeItem({ item }: { item: any }) {
           <Typography
             sx={{
               fontSize: 12,
-              color: 'rgba(255,255,255,0.45)',
+              color: 'text.secondary',
               lineHeight: 1.6,
               display: '-webkit-box',
               WebkitLineClamp: 2,
@@ -373,12 +364,12 @@ function SystemPanel() {
       {isLoading ? (
         <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
           {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} variant="rounded" height={84} sx={{ bgcolor: 'rgba(255,255,255,0.04)' }} />
+            <Skeleton key={i} variant="rounded" height={84} sx={{ bgcolor: 'action.hover' }} />
           ))}
         </Box>
       ) : records.length === 0 ? (
         <Box sx={{ py: 10, textAlign: 'center' }}>
-          <Typography sx={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>暂无系统消息</Typography>
+          <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>暂无系统消息</Typography>
         </Box>
       ) : (
         <Box sx={{ maxWidth: 900, mx: 'auto' }}>
@@ -420,9 +411,10 @@ function SystemNoticeItem({ item }: { item: any }) {
           py: 2,
           cursor: 'pointer',
           transition: 'background 0.15s',
-          borderBottom: '1px solid rgba(37, 40, 54, 0.5)',
+          borderBottom: '1px solid',
+          borderColor: 'divider',
           position: 'relative',
-          '&:hover': { bgcolor: 'rgba(255,255,255,0.03)' },
+          '&:hover': { bgcolor: 'action.hover' },
         }}
       >
         {item.unread && (
@@ -454,7 +446,7 @@ function SystemNoticeItem({ item }: { item: any }) {
             </Typography>
             <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>{systemTime(item.time)}</Typography>
           </Box>
-          <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', lineHeight: 1.7 }}>
+          <Typography sx={{ fontSize: 12, color: 'text.secondary', lineHeight: 1.7 }}>
             {item.content}
           </Typography>
         </Box>
@@ -652,13 +644,14 @@ function DmPanel() {
     }
     setReporting(true);
     try {
-      await adminClient('/report', {
-        method: 'POST',
-        data: { targetType: 'user', targetId: selected.userId, reason },
+      await contentClient.post('/report', {
+        contentId: selected.userId,
+        type: 'user',
+        reason,
       });
       setSnack({ open: true, msg: '举报已提交', severity: 'success' });
-    } catch {
-      setSnack({ open: true, msg: '举报已提交', severity: 'success' });
+    } catch (e) {
+      setSnack({ open: true, msg: formatApiError(e) || '举报提交失败', severity: 'error' });
     } finally {
       setReporting(false);
       setReportOpen(false);
@@ -710,11 +703,12 @@ function DmPanel() {
             flexShrink: 0,
             display: { xs: mobileShowDetail ? 'none' : 'flex', md: 'flex' },
             flexDirection: 'column',
-            borderRight: { md: '1px solid #252836' },
+            borderRight: { md: '1px solid' },
+            borderColor: 'divider',
             bgcolor: 'background.default',
           }}
         >
-          <Box sx={{ p: 1.5, borderBottom: '1px solid #252836' }}>
+          <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
             <TextField
               fullWidth
               size="small"
@@ -732,12 +726,12 @@ function DmPanel() {
               }}
               sx={{
                 '& .MuiOutlinedInput-root': {
-                  bgcolor: 'rgba(255,255,255,0.04)',
+                  bgcolor: 'action.hover',
                   color: 'text.primary',
                   fontSize: 13,
                   borderRadius: 1.5,
                   '& fieldset': { borderColor: 'transparent' },
-                  '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.1)' },
+                  '&:hover fieldset': { borderColor: 'divider' },
                   '&.Mui-focused fieldset': { borderColor: 'primary.main' },
                   '& input::placeholder': { color: 'text.disabled', opacity: 1 },
                 },
@@ -748,7 +742,7 @@ function DmPanel() {
             {loadingSessions ? (
               <Box sx={{ p: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <Skeleton key={i} variant="rounded" height={64} sx={{ bgcolor: 'rgba(255,255,255,0.04)' }} />
+                  <Skeleton key={i} variant="rounded" height={64} sx={{ bgcolor: 'action.hover' }} />
                 ))}
               </Box>
             ) : sortedSessions.length === 0 ? (
@@ -790,7 +784,7 @@ function DmPanel() {
                   gap: 1.5,
                   px: 2,
                   py: 1.5,
-                  borderBottom: '1px solid #252836',
+                  borderBottom: '1px solid', borderColor: 'divider',
                   bgcolor: 'background.default',
                 }}
               >
@@ -801,7 +795,7 @@ function DmPanel() {
                 >
                   <ArrowBackIcon sx={{ fontSize: 18 }} />
                 </IconButton>
-                <img src={selected.avatar} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />
+                <img src={selected.avatar || undefined} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <Typography sx={{ fontSize: 15, fontWeight: 600, color: 'text.primary' }}>{selected.nickname}</Typography>
@@ -820,13 +814,13 @@ function DmPanel() {
                       px: 1.25,
                       py: 0.4,
                       borderRadius: 1,
-                      bgcolor: selected.isFollowed ? 'rgba(255,255,255,0.04)' : 'primary.main',
+                      bgcolor: selected.isFollowed ? 'action.hover' : 'primary.main',
                       color: selected.isFollowed ? 'text.secondary' : 'text.primary',
                       fontSize: 12,
                       fontWeight: 600,
                       cursor: 'pointer',
                       transition: 'all 0.15s',
-                      '&:hover': { bgcolor: selected.isFollowed ? 'rgba(255,255,255,0.08)' : 'primary.dark' },
+                      '&:hover': { bgcolor: selected.isFollowed ? 'action.selected' : 'primary.dark' },
                     }}
                   >
                     {selected.isFollowed ? '已关注' : '关注'}
@@ -893,9 +887,9 @@ function DmPanel() {
               >
                 {loadingMsgs ? (
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, alignItems: 'center', py: 4 }}>
-                    <Skeleton variant="circular" width={40} height={40} sx={{ bgcolor: 'rgba(255,255,255,0.04)' }} />
-                    <Skeleton variant="rounded" width={200} height={60} sx={{ bgcolor: 'rgba(255,255,255,0.04)' }} />
-                    <Skeleton variant="rounded" width={280} height={80} sx={{ bgcolor: 'rgba(255,255,255,0.04)' }} />
+                    <Skeleton variant="circular" width={40} height={40} sx={{ bgcolor: 'action.hover' }} />
+                    <Skeleton variant="rounded" width={200} height={60} sx={{ bgcolor: 'action.hover' }} />
+                    <Skeleton variant="rounded" width={280} height={80} sx={{ bgcolor: 'action.hover' }} />
                   </Box>
                 ) : (
                   messages.map((m) => (
@@ -910,13 +904,13 @@ function DmPanel() {
                 )}
               </Box>
 
-              <Box sx={{ px: 2, py: 1.5, bgcolor: 'background.default', borderTop: '1px solid #252836' }}>
+              <Box sx={{ px: 2, py: 1.5, bgcolor: 'background.default', borderTop: '1px solid', borderColor: 'divider' }}>
                 <Box
                   sx={{
                     display: 'flex',
                     alignItems: 'flex-end',
                     gap: 1,
-                    bgcolor: 'rgba(255,255,255,0.04)',
+                    bgcolor: 'action.hover',
                     borderRadius: 2,
                     border: '1px solid transparent',
                     transition: 'border-color 0.15s',
@@ -968,14 +962,14 @@ function DmPanel() {
                         width: 28,
                         height: 28,
                         borderRadius: '50%',
-                        bgcolor: draft.trim() ? 'primary.main' : 'rgba(255,255,255,0.08)',
+                        bgcolor: draft.trim() ? 'primary.main' : 'action.hover',
                         color: 'text.primary',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         cursor: draft.trim() ? 'pointer' : 'not-allowed',
                         transition: 'all 0.15s',
-                        '&:hover': { bgcolor: draft.trim() ? 'primary.dark' : 'rgba(255,255,255,0.12)' },
+                        '&:hover': { bgcolor: draft.trim() ? 'primary.dark' : 'action.selected' },
                       }}
                     >
                       <ArrowUpwardIcon sx={{ fontSize: 16 }} />
@@ -983,12 +977,12 @@ function DmPanel() {
                   </Box>
                 </Box>
                 {showEmoji && (
-                  <Box sx={{ mt: 1, p: 1.5, bgcolor: 'rgba(255,255,255,0.04)', borderRadius: 2, display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 0.5 }}>
+                  <Box sx={{ mt: 1, p: 1.5, bgcolor: 'action.hover', borderRadius: 2, display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 0.5 }}>
                     {QUICK_EMOJI.map((e) => (
                       <Box
                         key={e}
                         onClick={() => setDraft((d) => d + e)}
-                        sx={{ fontSize: 22, textAlign: 'center', cursor: 'pointer', borderRadius: 1, py: 0.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' } }}
+                        sx={{ fontSize: 22, textAlign: 'center', cursor: 'pointer', borderRadius: 1, py: 0.5, '&:hover': { bgcolor: 'action.hover' } }}
                       >
                         {e}
                       </Box>
@@ -1062,13 +1056,13 @@ function SessionItem({ session, active, onClick }: { session: Session; active: b
         bgcolor: active ? 'rgba(254, 44, 85, 0.08)' : 'transparent',
         borderLeft: active ? '2px solid #FE2C55' : '2px solid transparent',
         transition: 'background 0.15s',
-        '&:hover': { bgcolor: active ? 'rgba(254, 44, 85, 0.1)' : 'rgba(255,255,255,0.04)' },
+        '&:hover': { bgcolor: active ? 'rgba(254, 44, 85, 0.1)' : 'action.hover' },
       }}
     >
       <Box sx={{ position: 'relative', flexShrink: 0 }}>
-        <img src={session.avatar} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />
+        <img src={session.avatar || undefined} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />
         {session.unread > 0 && (
-          <Box sx={{ position: 'absolute', top: -2, right: -2, minWidth: 16, height: 16, borderRadius: 8, bgcolor: 'primary.main', color: 'text.primary', fontSize: 10, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', px: 0.5, border: '2px solid #0A0B14' }}>
+          <Box sx={{ position: 'absolute', top: -2, right: -2, minWidth: 16, height: 16, borderRadius: 8, bgcolor: 'primary.main', color: 'text.primary', fontSize: 10, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', px: 0.5, border: '2px solid', borderColor: 'background.paper' }}>
             {session.unread > 99 ? '99+' : session.unread}
           </Box>
         )}
@@ -1082,7 +1076,7 @@ function SessionItem({ session, active, onClick }: { session: Session; active: b
           {session.isOfficial && <VerifiedIcon sx={{ fontSize: 12, color: 'secondary.main' }} />}
           <Typography sx={{ fontSize: 10, color: 'text.disabled', flexShrink: 0 }}>{session.lastTime}</Typography>
         </Box>
-        <Typography sx={{ fontSize: 12, color: session.unread > 0 ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.45)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.4 }}>
+        <Typography sx={{ fontSize: 12, color: session.unread > 0 ? 'text.primary' : 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.4 }}>
           {session.lastMessageType === 'image' ? '[图片]' : session.lastMessageType === 'recall' ? '你撤回了一条消息' : session.lastMessage}
         </Typography>
       </Box>
@@ -1100,8 +1094,8 @@ function MessageBubble({ message, avatar, isMine, onRecall }: { message: Message
   }
   if (message.type === 'system') {
     return (
-      <Box sx={{ alignSelf: 'center', maxWidth: 480, py: 1.25, px: 2, bgcolor: 'rgba(255,255,255,0.04)', borderRadius: 1.5, textAlign: 'center' }}>
-        <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', lineHeight: 1.6 }}>{message.content}</Typography>
+      <Box sx={{ alignSelf: 'center', maxWidth: 480, py: 1.25, px: 2, bgcolor: 'action.hover', borderRadius: 1.5, textAlign: 'center' }}>
+        <Typography sx={{ fontSize: 12, color: 'text.secondary', lineHeight: 1.6 }}>{message.content}</Typography>
       </Box>
     );
   }
@@ -1115,24 +1109,24 @@ function MessageBubble({ message, avatar, isMine, onRecall }: { message: Message
   if (message.type === 'image') {
     return (
       <Box sx={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', gap: 1, alignItems: 'flex-end' }}>
-        {!isMine && <img src={avatar} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />}
-        <Box sx={{ maxWidth: 240, borderRadius: 2, overflow: 'hidden', border: '1px solid #252836' }}>
-          <img src={message.content} alt="" style={{ width: '100%', display: 'block' }} />
+        {!isMine && <img src={avatar || undefined} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />}
+        <Box sx={{ maxWidth: 240, borderRadius: 2, overflow: 'hidden', border: '1px solid', borderColor: 'divider' }}>
+          <img src={message.content || undefined} alt="" style={{ width: '100%', display: 'block' }} />
         </Box>
-        {isMine && <img src={avatar} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />}
+        {isMine && <img src={avatar || undefined} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />}
       </Box>
     );
   }
   return (
     <Box sx={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', gap: 1, alignItems: 'flex-end' }}>
-      {!isMine && <img src={avatar} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', display: 'block', flexShrink: 0 }} />}
+      {!isMine && <img src={avatar || undefined} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', display: 'block', flexShrink: 0 }} />}
       <Box
         sx={{
           maxWidth: '70%',
           px: 1.75,
           py: 1,
           borderRadius: 2,
-          bgcolor: isMine ? 'primary.main' : 'rgba(255,255,255,0.08)',
+          bgcolor: isMine ? 'primary.main' : 'action.hover',
           color: 'text.primary',
           fontSize: 13,
           lineHeight: 1.6,
@@ -1146,7 +1140,7 @@ function MessageBubble({ message, avatar, isMine, onRecall }: { message: Message
       >
         {message.content}
       </Box>
-      {isMine && <img src={avatar} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', display: 'block', flexShrink: 0 }} />}
+      {isMine && <img src={avatar || undefined} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', display: 'block', flexShrink: 0 }} />}
     </Box>
   );
 }

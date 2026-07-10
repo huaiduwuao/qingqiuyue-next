@@ -378,7 +378,7 @@ export function PointsMallTab({ initialPoints }: Props) {
                           textTransform: 'none',
                           boxShadow: 'none',
                           '&:hover': { bgcolor: '#FFC233', boxShadow: 'none' },
-                          '&.Mui-disabled': { bgcolor: 'rgba(255,255,255,0.08)', color: 'text.disabled' },
+                          '&.Mui-disabled': { bgcolor: 'action.hover', color: 'text.disabled' },
                         }}
                       >
                         {stock.tone === 'gone' ? '已兑完' : !canAfford ? '积分不足' : '立即抢购'}
@@ -707,8 +707,10 @@ export function PointsMallTab({ initialPoints }: Props) {
           paper: {
             sx: {
               borderRadius: 3,
-              background: 'linear-gradient(180deg, #15171F 0%, #0A0B14 100%)',
-              border: '1px solid rgba(255,255,255,0.08)',
+              background: 'background.paper',
+              bgcolor: 'background.paper',
+              border: '1px solid',
+              borderColor: 'divider',
               overflow: 'hidden',
             },
           },

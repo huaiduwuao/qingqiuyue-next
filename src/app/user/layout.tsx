@@ -73,7 +73,7 @@ function UserLayoutContent({
     html.style.overflow = 'hidden';
     body.style.overflow = 'hidden';
     body.style.height = '100dvh';
-    body.style.backgroundColor = 'transparent';
+    body.style.backgroundColor = 'var(--bg-body)';
     return () => {
       html.style.overflow = prev.htmlOverflow;
       body.style.overflow = prev.bodyOverflow;
@@ -118,7 +118,7 @@ function UserLayoutContent({
               <Typography sx={{ fontSize: 17, fontWeight: 700, color: 'text.primary', lineHeight: 1.2, whiteSpace: 'nowrap' }}>
                 {currentPage.label}
               </Typography>
-              <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', lineHeight: 1.2, whiteSpace: 'nowrap' }}>
+              <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1.2, whiteSpace: 'nowrap' }}>
                 {currentPage.sub}
               </Typography>
             </Box>
@@ -161,7 +161,7 @@ function UserLayoutContent({
               onClick={handleBack}
               size="small"
               aria-label="返回"
-              sx={{ color: 'rgba(255,255,255,0.7)' }}
+              sx={{ color: 'text.secondary' }}
             >
               <ArrowBackIcon fontSize="small" />
             </IconButton>

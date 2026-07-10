@@ -21,12 +21,12 @@ type TheaterItem = {
   id: number;
   title: string;
   cover: string;
-  durationMin: number;
-  rating: number;
+  durationMin?: number;
+  rating?: number;
   category: 'movie' | 'drama' | 'anime' | 'variety';
-  region: string;
-  year: number;
-  views: number;
+  region?: string;
+  year?: number;
+  views?: number;
   hotRank?: number;
 };
 
@@ -123,7 +123,7 @@ export function TheaterPanel() {
       >
         {(data) => {
           // 网格内按 rating 倒序排
-          const sorted = [...data.list].sort((a, b) => b.rating - a.rating);
+          const sorted = [...data.list].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
           return (
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 2 }}>
               {sorted.map((item) => (
@@ -180,7 +180,7 @@ function TheaterTop10({ list, category }: { list: TheaterItem[]; category: strin
       )}
 
       {rest.length > 0 && (
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 1, pt: 1.5, borderTop: '1px dashed rgba(255,255,255,0.08)' }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 1, pt: 1.5, borderTop: '1px dashed', borderTopColor: 'divider' }}>
           {rest.map((d) => (
             <TheaterRankRow key={d.id} item={d} />
           ))}
@@ -214,7 +214,7 @@ function TheaterPodiumCard({ item }: { item: TheaterItem }) {
         {rank}
       </Box>
       <Box sx={{ position: 'relative', aspectRatio: '16/9' }}>
-        <img src={item.cover} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <img src={item.cover || undefined} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.MID }} />
         <Box sx={{ position: 'absolute', top: 8, right: 8, px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: CAT_COLOR[item.category], fontSize: 9, fontWeight: 600 }}>
           {CAT_LABEL[item.category]}
@@ -224,7 +224,7 @@ function TheaterPodiumCard({ item }: { item: TheaterItem }) {
             {item.title}
           </Typography>
           <Typography sx={{ fontSize: 10, color: 'rgba(255,255,255,0.7)' }}>
-            {formatViews(item.views)} 播放 · 评分 {item.rating.toFixed(1)}
+            {formatViews(item.views)} 播放 · 评分 {(item.rating ?? 0).toFixed(1)}
           </Typography>
         </Box>
       </Box>
@@ -235,12 +235,12 @@ function TheaterPodiumCard({ item }: { item: TheaterItem }) {
 function TheaterRankRow({ item }: { item: TheaterItem }) {
   const navigate = useContentNavigate();
   return (
-    <Box onClick={() => navigate(CAT_TO_TYPE[item.category], item.id)} sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.75, borderRadius: 1, cursor: 'pointer', transition: 'background 0.15s', '&:hover': { bgcolor: 'rgba(255,255,255,0.04)' } }}>
+    <Box onClick={() => navigate(CAT_TO_TYPE[item.category], item.id)} sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.75, borderRadius: 1, cursor: 'pointer', transition: 'background 0.15s', '&:hover': { bgcolor: 'action.hover' } }}>
       <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted, rgba(255,255,255,0.4))', width: 22, textAlign: 'right', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
         {item.hotRank}
       </Typography>
       <Box sx={{ width: 32, height: 18, borderRadius: 0.5, overflow: 'hidden', flexShrink: 0 }}>
-        <img src={item.cover} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <img src={item.cover || undefined} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       </Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography sx={{ fontSize: 11, fontWeight: 500, color: 'var(--text-primary, #fff)', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -270,7 +270,7 @@ function TheaterCard({ item }: { item: TheaterItem }) {
       }}
     >
       <Box sx={{ position: 'relative', aspectRatio: '16/9', overflow: 'hidden' }}>
-        <img src={item.cover} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <img src={item.cover || undefined} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         <Box
           sx={{
             position: 'absolute',
@@ -288,13 +288,13 @@ function TheaterCard({ item }: { item: TheaterItem }) {
         </Box>
         <Box sx={{ position: 'absolute', top: 8, left: 8, display: 'flex', alignItems: 'center', gap: 0.25, px: 0.75, py: 0.25, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.7)', color: 'warning.main', fontSize: 11, fontWeight: 700 }}>
           <StarRoundedIcon sx={{ fontSize: 12 }} />
-          {item.rating.toFixed(1)}
+          {(item.rating ?? 0).toFixed(1)}
         </Box>
         <Box sx={{ position: 'absolute', top: 8, right: 8, px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.7)', color: CAT_COLOR[item.category], fontSize: 10, fontWeight: 600 }}>
           {CAT_LABEL[item.category]}
         </Box>
         <Box sx={{ position: 'absolute', bottom: 8, right: 8, px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.7)', color: 'var(--text-primary, #ffffff)', fontSize: 10 }}>
-          {item.durationMin} 分钟
+          {item.durationMin ?? '-'} 分钟
         </Box>
       </Box>
       <Box sx={{ p: 1.5 }}>
@@ -315,7 +315,7 @@ function TheaterCard({ item }: { item: TheaterItem }) {
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'space-between' }}>
           <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
-            {item.region} · {item.year}
+            {[item.region, item.year].filter(Boolean).join(' · ') || '未知'}
           </Typography>
           <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
             {formatViews(item.views)} 播放
@@ -326,8 +326,9 @@ function TheaterCard({ item }: { item: TheaterItem }) {
   );
 }
 
-function formatViews(n: number): string {
-  if (n >= 100000000) return `${(n / 100000000).toFixed(1)}亿`;
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
-  return n.toString();
+function formatViews(n?: number | null): string {
+  const num = Number(n) || 0;
+  if (num >= 100000000) return `${(num / 100000000).toFixed(1)}亿`;
+  if (num >= 10000) return `${(num / 10000).toFixed(1)}w`;
+  return num.toString();
 }

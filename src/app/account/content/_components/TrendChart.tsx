@@ -104,7 +104,7 @@ export default function TrendChart() {
                 bgcolor: range === r ? 'primary.main' : 'transparent',
                 borderColor: 'divider',
                 color: range === r ? 'text.primary' : 'text.secondary',
-                '&:hover': { bgcolor: range === r ? 'primary.dark' : (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover' },
+                '&:hover': { bgcolor: range === r ? 'primary.dark' : 'action.hover'},
               }}
             >
               {r === '7d' ? '近 7 日' : '近 30 日'}
@@ -143,7 +143,7 @@ export default function TrendChart() {
       </Box>
 
       {query.isLoading ? (
-        <Skeleton variant="rounded" height={HEIGHT} sx={{ bgcolor: 'rgba(255,255,255,0.04)' }} />
+        <Skeleton variant="rounded" height={HEIGHT} sx={{ bgcolor: 'action.hover' }} />
       ) : query.isError ? (
         <Box sx={{ height: HEIGHT, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>数据加载失败,请稍后重试</Typography>

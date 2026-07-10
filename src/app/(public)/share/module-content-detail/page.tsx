@@ -94,7 +94,6 @@ function ShareModuleContentDetailContent() {
           borderRadius: 3,
           p: 3,
           outline: 'none',
-          background: 'linear-gradient(135deg, #FFFFFF 0%, #FAFAFA 100%)',
           boxShadow: '0 24px 48px rgba(0,0,0,0.2)',
         }}
       >
@@ -129,7 +128,7 @@ function ShareModuleContentDetailContent() {
                 height: 180,
                 mx: 'auto',
                 borderRadius: 2,
-                bgcolor: '#F5F5F5',
+                bgcolor: 'action.hover',
                 border: '1px dashed',
                 borderColor: 'divider',
                 display: 'flex',

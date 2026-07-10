@@ -46,15 +46,28 @@ export async function getCreatorWipList(params?: { page?: number; size?: number 
   return unwrap<PageData<WipItem>>(await accountClient('/creator/wip/list', { params }));
 }
 
+export interface CollectionWork {
+  id: number;
+  title: string;
+  cover?: string;
+  duration?: number | string;
+  views?: number;
+  type?: 'video' | 'image' | 'article';
+}
 export interface Collection {
   id: string;
   title: string;
+  description?: string;
   cover: string;
   workCount: number;
   viewCount: number;
   isPublic: boolean;
+  status?: 'active' | 'finished' | 'draft';
+  autoSort?: boolean;
+  category?: string;
   tags: string[];
   updateTime: number;
+  works?: CollectionWork[];
 }
 export async function getCollectionList(params?: { page?: number; size?: number }) {
   return unwrap<PageData<Collection>>(await accountClient('/creator/collection/list', { params }));

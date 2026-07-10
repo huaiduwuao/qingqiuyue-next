@@ -342,7 +342,7 @@ function TaskDetailDialog({ viewing, onClose, onOpenInContent }: { viewing: Craw
                 ) : (
                   <Box sx={{ maxHeight: 360, overflow: 'auto' }}>
                     {(itemsQ.data?.list || []).map((it: any) => (
-                      <Box key={it.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, borderBottom: '1px dashed rgba(255,255,255,0.06)' }}>
+                      <Box key={it.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, borderBottom: '1px dashed', borderBottomColor: 'divider' }}>
                         {it.cover && <img src={it.cover} alt="" style={{ width: 40, height: 24, objectFit: 'cover', borderRadius: 4 }} />}
                         <Box sx={{ flex: 1, minWidth: 0 }}>
                           <Typography sx={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.title}</Typography>
@@ -363,7 +363,7 @@ function TaskDetailDialog({ viewing, onClose, onOpenInContent }: { viewing: Craw
                 ) : (
                   <Box sx={{ maxHeight: 360, overflow: 'auto' }}>
                     {(linksQ.data?.list || []).map((l: any) => (
-                      <Box key={l.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, borderBottom: '1px dashed rgba(255,255,255,0.06)' }}>
+                      <Box key={l.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, borderBottom: '1px dashed', borderBottomColor: 'divider' }}>
                         <Chip label={`D${l.depth}`} size="small" sx={{ height: 18, fontSize: 10 }} color="default" />
                         <Typography sx={{ fontSize: 11, fontFamily: 'monospace', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.url}</Typography>
                         {l.source && <Chip label={l.source} size="small" sx={{ height: 18, fontSize: 10 }} variant="outlined" />}

@@ -59,7 +59,7 @@ function SectionHeader({
             height: 20,
             fontSize: 10,
             fontWeight: 600,
-            bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
+            bgcolor: 'action.hover',
             color: 'text.secondary',
           }}
         />

@@ -148,7 +148,7 @@ function ShareModuleDetailContent() {
               color: isSelected ? 'primary.main' : 'text.tertiary',
               bgcolor: isSelected ? 'rgba(254, 44, 85, 0.12)' : 'transparent',
               '&:hover': {
-                bgcolor: isSelected ? 'rgba(254, 44, 85, 0.18)' : 'rgba(255,255,255,0.04)',
+                bgcolor: isSelected ? 'rgba(254, 44, 85, 0.18)' : 'action.hover',
               },
             }}
           >
@@ -211,7 +211,7 @@ function ShareModuleDetailContent() {
 
   const SidebarContent = () => (
     <Box sx={{ height: '100%', bgcolor: 'background.default', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ p: 2, borderBottom: '1px solid #252836' }}>
+      <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
         <Typography sx={{ fontSize: 10, color: 'text.secondary', letterSpacing: 1 }}>
           CONTENT MODULE
         </Typography>
@@ -223,7 +223,7 @@ function ShareModuleDetailContent() {
         {loading ? (
           <Box sx={{ p: 1.5 }}>
             {[1, 2, 3, 4, 5].map((i) => (
-              <Skeleton key={i} variant="text" width="100%" height={32} sx={{ my: 0.5, bgcolor: '#1E2030' }} />
+              <Skeleton key={i} variant="text" width="100%" height={32} sx={{ my: 0.5 }} />
             ))}
           </Box>
         ) : treeData.length === 0 ? (
@@ -281,7 +281,8 @@ function ShareModuleDetailContent() {
                 flexShrink: 0,
                 borderRadius: 2,
                 bgcolor: 'background.default',
-                border: '1px solid #252836',
+                border: '1px solid',
+                borderColor: 'divider',
                 position: 'sticky',
                 top: 80,
                 maxHeight: 'calc(100vh - 100px)',
@@ -351,7 +352,6 @@ function ShareModuleDetailContent() {
             borderRadius: 3,
             p: 3,
             outline: 'none',
-            background: 'linear-gradient(135deg, #FFFFFF 0%, #FAFAFA 100%)',
             boxShadow: '0 24px 48px rgba(0,0,0,0.2)',
           }}
         >
@@ -386,7 +386,7 @@ function ShareModuleDetailContent() {
                   height: 180,
                   mx: 'auto',
                   borderRadius: 2,
-                  bgcolor: '#F5F5F5',
+                  bgcolor: 'action.hover',
                   border: '1px dashed',
                   borderColor: 'divider',
                   display: 'flex',

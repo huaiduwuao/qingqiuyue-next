@@ -195,7 +195,8 @@ function NewsDetailContent() {
                 sx={{
                   p: 2,
                   bgcolor: 'background.paper',
-                  border: '1px solid #252836',
+                  border: '1px solid',
+                  borderColor: 'divider',
                   borderRadius: 2,
                   mb: 3,
                   display: 'flex',

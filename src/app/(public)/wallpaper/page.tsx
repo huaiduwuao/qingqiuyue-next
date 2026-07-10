@@ -25,6 +25,8 @@ import PhoneIphoneIcon from '@mui/icons-material/PhoneIphone';
 import HomeIcon from '@mui/icons-material/Home';
 import PersonIcon from '@mui/icons-material/Person';
 import StarIcon from '@mui/icons-material/Star';
+import { ThemeProvider } from '@mui/material/styles';
+import { darkTheme } from '@/styles/theme';
 import { useApp } from '@/contexts/AppContext';
 import { updateUser } from '@/apis/account';
 import { contentClient, accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
@@ -84,7 +86,7 @@ const SIZE_ICON: Record<Wallpaper['sizes'][number], { Icon: React.ComponentType<
   all: { Icon: DesktopWindowsIcon, label: '通用' },
 };
 
-export default function WallpaperPage() {
+function WallpaperPageContent() {
   const router = useRouter();
   const { currentUser } = useApp();
   const [activeCat, setActiveCat] = useState<WallpaperCategory | 'all'>('all');
@@ -1324,6 +1326,14 @@ function DetailContent({
         </Box>
       </Box>
     </Box>
+  );
+}
+
+export default function WallpaperPage() {
+  return (
+    <ThemeProvider theme={darkTheme}>
+      <WallpaperPageContent />
+    </ThemeProvider>
   );
 }
 

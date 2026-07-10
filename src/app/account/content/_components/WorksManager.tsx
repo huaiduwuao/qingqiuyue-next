@@ -437,7 +437,7 @@ export default function WorksManager() {
                     </Typography>
                     <Box sx={{ px: 0.75, py: 0.1, borderRadius: 0.5, bgcolor: sm.bg, color: sm.color, fontSize: 9, fontWeight: 700 }}>{sm.label}</Box>
                     {w.tags.slice(0, 2).map((tag) => (
-                      <Box key={tag} sx={{ px: 0.5, py: 0.1, borderRadius: 0.5, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'action.hover', color: 'text.secondary', fontSize: 9 }}>#{tag}</Box>
+                      <Box key={tag} sx={{ px: 0.5, py: 0.1, borderRadius: 0.5, bgcolor: 'action.hover', color: 'text.secondary', fontSize: 9 }}>#{tag}</Box>
                     ))}
                   </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontSize: 11, color: 'text.disabled', flexWrap: 'wrap' }}>

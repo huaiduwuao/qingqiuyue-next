@@ -27,13 +27,15 @@ import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import VerifiedIcon from '@mui/icons-material/Verified';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
+import { ThemeProvider } from '@mui/material/styles';
+import { darkTheme } from '@/styles/theme';
 import { ACCENT } from '@/constants/accents';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { searchContent } from '@/apis/global';
 import { topKeywordInThirdMonth } from '@/apis/home';
 import HotRankingBar from '@/components/home/HotRankingBar';
 import RecommendBoard from '@/components/home/RecommendBoard';
-import { adminClient, accountClient, formatApiError } from '@/lib/api/client';
+import { adminClient, homeClient, formatApiError } from '@/lib/api/client';
 
 // 搜索域占位:后端 `/api/core/search/*` 就绪后,以下数据/函数替换为 API 调用
 type SearchContentItemContentType =
@@ -102,9 +104,11 @@ const TYPE_ACCENT: Record<SearchContentItem['contentType'], string> = {
 
 export default function SearchPage() {
   return (
-    <Suspense fallback={<SearchLoadingShell />}>
-      <SearchPageContent />
-    </Suspense>
+    <ThemeProvider theme={darkTheme}>
+      <Suspense fallback={<SearchLoadingShell />}>
+        <SearchPageContent />
+      </Suspense>
+    </ThemeProvider>
   );
 }
 
@@ -294,7 +298,7 @@ function SearchPageContent() {
     if (followBusyId === creator.id) return;
     setFollowBusyId(creator.id);
     try {
-      await accountClient.post('/user/follow', { userId: creator.id });
+      await homeClient.post(`/follow/${creator.id}`);
       setSnack({ open: true, message: '关注成功', severity: 'success' });
     } catch (err) {
       setSnack({ open: true, message: formatApiError(err) || '关注失败,请重试', severity: 'error' });

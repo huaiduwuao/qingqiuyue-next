@@ -108,7 +108,7 @@ export default function RewardHero({ totalPoint, level, levelName, needPoint }: 
                 sx={{
                   height: 6,
                   borderRadius: 3,
-                  bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'action.hover',
+                  bgcolor: 'action.hover',
                   '& .MuiLinearProgress-bar': {
                     // 主品牌色 → warning 黄(黄是平台识别色)
                     background: (theme) => `linear-gradient(90deg, ${theme.palette.primary.main} 0%, ${theme.palette.warning.main} 100%)`,
@@ -145,9 +145,9 @@ export default function RewardHero({ totalPoint, level, levelName, needPoint }: 
               sx={{
                 p: 1.5,
                 borderRadius: 1.5,
-                bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'action.hover',
+                bgcolor: 'action.hover',
                 border: '1px solid',
-                borderColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'divider',
+                borderColor: 'divider',
                 display: 'flex',
                 alignItems: 'center',
                 gap: 1,

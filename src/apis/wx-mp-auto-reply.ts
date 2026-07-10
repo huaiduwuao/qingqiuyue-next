@@ -24,7 +24,7 @@ export async function save(params: Record<string, unknown>) {
 // 更新自动回复
 export async function update(params: Record<string, unknown>) {
   return wxClient("/wxAutoReply/updateById", {
-    method: "POST",
+    method: "PUT",
     data: params
   });
 }

@@ -289,7 +289,7 @@ export default function CoCreatePage() {
                           <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25, px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: tm.bg, color: tm.color, fontSize: 10, fontWeight: 700 }}>
                             {tm.icon}{tm.label}
                           </Box>
-                          <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: c.status === 'declined' ? (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'action.hover' : sm.bg, color: c.status === 'declined' ? 'text.disabled' : sm.color, fontSize: 10, fontWeight: 700 }}>{sm.label}</Box>
+                          <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: c.status === 'declined' ? 'action.hover': sm.bg, color: c.status === 'declined' ? 'text.disabled' : sm.color, fontSize: 10, fontWeight: 700 }}>{sm.label}</Box>
                         </Box>
                         <Typography sx={{ fontSize: 11, color: 'text.disabled' }} suppressHydrationWarning>
                           {c.partner.niche} · {formatNum(c.partner.fans)} 粉丝 · 最近 <RelativeTime ts={c.lastActivityAt} fallback="" />
@@ -310,7 +310,7 @@ export default function CoCreatePage() {
                       <LinearProgress
                         variant="determinate"
                         value={c.progress}
-                        sx={{ height: 4, borderRadius: 1, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover', '& .MuiLinearProgress-bar': { background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)' } }}
+                        sx={{ height: 4, borderRadius: 1, bgcolor: 'action.hover', '& .MuiLinearProgress-bar': { background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)' } }}
                       />
                     </Box>
                     <Box sx={{ display: 'flex', gap: 2, mb: 1.5, fontSize: 11, color: 'text.disabled' }}>
@@ -733,7 +733,7 @@ function CollabDetailDrawer({
             </Box>
             <LinearProgress
               variant="determinate" value={collab.progress}
-              sx={{ height: 6, borderRadius: 1, bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover', '& .MuiLinearProgress-bar': { background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)' } }}
+              sx={{ height: 6, borderRadius: 1, bgcolor: 'action.hover', '& .MuiLinearProgress-bar': { background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)' } }}
             />
           </Box>
 

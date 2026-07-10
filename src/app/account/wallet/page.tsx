@@ -37,7 +37,7 @@ import SwapHorizRoundedIcon from '@mui/icons-material/SwapHorizRounded';
 import { ACCENT } from '@/constants/accents';
 import { gradient3 } from '@/constants/gradients';
 import { LoginGate } from '@/components/auth/LoginGate';
-import { adminClient } from '@/lib/api/client';
+import { adminClient, formatApiError } from '@/lib/api/client';
 
 // 钱包流水类型:后端 walletapp.WalletTx 的形状,前端 normalize 后 { id/type/amount/balanceAfter/refId/remark/createTime }
 interface DiamondRecord {
@@ -127,9 +127,8 @@ export default function WalletPage() {
         data: { amount: amountNum, method: rechargeMethod },
       });
       setSnack('充值申请已提交');
-    } catch {
-      // 后端接口若未就绪,仍按提交成功展示,保证前端交互可用
-      setSnack('充值申请已提交');
+    } catch (err) {
+      setSnack(formatApiError(err) || '充值提交失败');
     } finally {
       setRecharging(false);
       setRechargeOpen(false);
@@ -162,9 +161,8 @@ export default function WalletPage() {
         },
       });
       setSnack('提交成功,等待审核');
-    } catch {
-      // 后端接口若未就绪,仍按提交成功展示,保证前端交互可用
-      setSnack('提交成功,等待审核');
+    } catch (err) {
+      setSnack(formatApiError(err) || '提现提交失败');
     } finally {
       setWithdrawing(false);
       setWithdrawOpen(false);

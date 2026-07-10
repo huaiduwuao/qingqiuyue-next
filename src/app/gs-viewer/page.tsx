@@ -23,6 +23,8 @@ import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import { ThemeProvider } from '@mui/material/styles';
+import { darkTheme } from '@/styles/theme';
 
 // 动态导入 (避免 SSR 时 Three.js 报错)
 const GaussianSplatRenderer = dynamic(
@@ -171,14 +173,16 @@ function GSViewerContent() {
 
 export default function GSViewerPage() {
   return (
-    <Suspense
-      fallback={
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400 }}>
-          <CircularProgress size={32} />
-        </Box>
-      }
-    >
-      <GSViewerContent />
-    </Suspense>
+    <ThemeProvider theme={darkTheme}>
+      <Suspense
+        fallback={
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400 }}>
+            <CircularProgress size={32} />
+          </Box>
+        }
+      >
+        <GSViewerContent />
+      </Suspense>
+    </ThemeProvider>
   );
 }

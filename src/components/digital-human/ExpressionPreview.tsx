@@ -73,7 +73,10 @@ export default function ExpressionPreview({ active, onChange, onEmotionChange }:
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
       <Box sx={{
         width: '100%', height: 220, borderRadius: 2, overflow: 'hidden',
-        background: 'radial-gradient(ellipse at center, #2a1e3f 0%, #0a0815 100%)',
+        background: (t: any) =>
+          t.palette.mode === 'dark'
+            ? 'radial-gradient(ellipse at center, #2a1e3f 0%, #0a0815 100%)'
+            : 'radial-gradient(ellipse at center, #f3eefb 0%, #e7e9f3 100%)',
       }}>
         <BlenderAvatar
           modelUrl="/avatars/character.vrm"

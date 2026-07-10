@@ -9,6 +9,7 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
 import Skeleton from '@mui/material/Skeleton';
+import { useTheme } from '@mui/material/styles';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { getCreatorContentDistribution, type ContentStat } from '@/apis/dashboard';
@@ -20,6 +21,7 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 export default function ContentDistributionChart() {
   const router = useRouter();
+  const theme = useTheme();
   const [hovered, setHovered] = useState<string | null>(null);
   const [dialogId, setDialogId] = useState<string | null>(null);
 
@@ -84,7 +86,7 @@ export default function ContentDistributionChart() {
 
         {query.isLoading ? (
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
-            <Skeleton variant="circular" width={SIZE} height={SIZE} sx={{ bgcolor: 'rgba(255,255,255,0.04)' }} />
+            <Skeleton variant="circular" width={SIZE} height={SIZE} sx={{ bgcolor: 'action.hover' }} />
           </Box>
         ) : query.isError ? (
           <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -104,7 +106,7 @@ export default function ContentDistributionChart() {
                   cy={SIZE / 2}
                   r={RADIUS}
                   fill="transparent"
-                  stroke="#1E2030"
+                  stroke={theme.palette.divider}
                   strokeWidth={STROKE}
                 />
                 {segments.map((d) => (
@@ -165,7 +167,7 @@ export default function ContentDistributionChart() {
                     borderRadius: 1,
                     cursor: 'pointer',
                     transition: 'background-color 0.15s ease-in-out',
-                    '&:hover': { bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover' },
+                    '&:hover': { bgcolor: 'action.hover'},
                   }}
                 >
                   <Box

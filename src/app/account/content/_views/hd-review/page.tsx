@@ -665,12 +665,12 @@ function QueueItem({
       sx={{
         p: 1.25,
         borderRadius: 1.25,
-        bgcolor: selected ? 'rgba(254, 44, 85, 0.08)' : (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
+        bgcolor: selected ? 'rgba(254, 44, 85, 0.08)' : 'background.paper',
         border: '1px solid',
         borderColor: selected ? 'primary.main' : 'divider',
         cursor: 'pointer',
         transition: 'all 0.15s',
-        '&:hover': { borderColor: selected ? 'primary.main' : (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover' },
+        '&:hover': { borderColor: selected ? 'primary.main' : 'action.hover'},
       }}
     >
       <Box sx={{ display: 'flex', gap: 1, mb: 0.75 }}>
@@ -824,7 +824,7 @@ function QueueItem({
             mt: 0.75,
             height: 3,
             borderRadius: 1,
-            bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
+            bgcolor: 'action.hover',
             '& .MuiLinearProgress-bar': {
               bgcolor: risk === 'high' ? '#FE2C55' : risk === 'medium' ? '#FFB400' : '#5DDB96',
             },
@@ -1005,7 +1005,7 @@ function ReviewPanel({
           sx={{
             p: 1.5,
             borderRadius: 1.5,
-            bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FAFAFA',
+            bgcolor: 'action.hover',
             border: '1px solid',
             borderColor: 'divider',
             display: 'flex',
@@ -1051,7 +1051,7 @@ function ReviewPanel({
           sx={{
             p: 1.5,
             borderRadius: 1.5,
-            bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FAFAFA',
+            bgcolor: 'action.hover',
             border: '1px solid',
             borderColor: 'divider',
           }}
@@ -1089,7 +1089,7 @@ function ReviewPanel({
                     gap: 1,
                     p: 0.75,
                     borderRadius: 1,
-                    bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
+                    bgcolor: 'action.hover',
                   }}
                 >
                   <Box sx={{ color: meta.color, display: 'flex' }}>{meta.icon}</Box>
@@ -1182,7 +1182,7 @@ function ReviewPanel({
                       sx={{
                         fontSize: 10,
                         fontWeight: selected ? 700 : 500,
-                        bgcolor: selected ? 'rgba(254, 44, 85, 0.12)' : (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
+                        bgcolor: selected ? 'rgba(254, 44, 85, 0.12)' : 'action.hover',
                         color: selected ? '#FE2C55' : 'text.secondary',
                         border: '1px solid',
                         borderColor: selected ? '#FE2C55' : 'divider',
@@ -1215,7 +1215,7 @@ function ReviewPanel({
                 sx={{
                   '& .MuiOutlinedInput-root': {
                     fontSize: 12,
-                    bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FAFAFA',
+                    bgcolor: 'action.hover',
                   },
                 }}
               />

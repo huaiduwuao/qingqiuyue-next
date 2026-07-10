@@ -102,8 +102,8 @@ function ChipGroup<T extends string>({ options, value, onChange }: ChipGroupProp
               fontWeight: active ? 600 : 400,
               borderRadius: 1.5,
               cursor: 'pointer',
-              bgcolor: active ? 'primary.main' : 'rgba(255,255,255,0.04)',
-              color: active ? '#fff' : 'text.secondary',
+              bgcolor: active ? 'primary.main' : 'action.hover',
+              color: active ? 'primary.contrastText' : 'text.secondary',
               border: '1px solid',
               borderColor: active ? 'primary.main' : 'divider',
               transition: 'all 0.15s',
@@ -389,7 +389,7 @@ export function HomeSettingsDrawer({ open, onClose }: Props) {
                       px: 0.75,
                       py: 0.25,
                       borderRadius: 1,
-                      bgcolor: 'rgba(255,255,255,0.06)',
+                      bgcolor: 'action.hover',
                       border: '1px solid',
                       borderColor: 'divider',
                       fontSize: 10,
@@ -419,7 +419,7 @@ export function HomeSettingsDrawer({ open, onClose }: Props) {
                   sx={{
                     p: 1.25,
                     borderRadius: 1.5,
-                    bgcolor: 'rgba(255,255,255,0.02)',
+                    bgcolor: 'action.hover',
                     border: '1px solid',
                     borderColor: 'divider',
                   }}

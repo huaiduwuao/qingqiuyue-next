@@ -131,7 +131,7 @@ export default function PointsPage() {
             { label: '本周获得', value: 580, color: 'secondary.main' },
             { label: '历史累计', value: 28420, color: 'warning.main' },
           ].map((s) => (
-            <Box key={s.label} sx={{ p: 2.5, borderRadius: 2, bgcolor: 'background.paper', border: '1px solid #252836' }}>
+            <Box key={s.label} sx={{ p: 2.5, borderRadius: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
               <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{s.label}</Typography>
               <Typography sx={{ fontSize: 28, fontWeight: 700, color: s.color, mt: 0.5 }}>
                 {s.value.toLocaleString()}
@@ -142,7 +142,7 @@ export default function PointsPage() {
       )}
 
       {tab === 'records' && (
-        <Box sx={{ borderRadius: 2, bgcolor: 'background.paper', border: '1px solid #252836' }}>
+        <Box sx={{ borderRadius: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
           {records.map((r, idx) => (
             <Box
               key={r.id}
@@ -151,7 +151,8 @@ export default function PointsPage() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                borderBottom: idx < records.length - 1 ? '1px solid #252836' : 'none',
+                borderBottom: idx < records.length - 1 ? '1px solid' : 'none',
+                borderColor: 'divider',
               }}
             >
               <Box>
@@ -184,7 +185,7 @@ export default function PointsPage() {
                 p: 2.5,
                 borderRadius: 2,
                 bgcolor: 'background.paper',
-                border: '1px solid #252836',
+                border: '1px solid', borderColor: 'divider',
                 opacity: a.unlocked ? 1 : 0.55,
                 textAlign: 'center',
               }}

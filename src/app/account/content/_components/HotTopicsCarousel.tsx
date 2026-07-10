@@ -109,7 +109,7 @@ export default function HotTopicsCarousel() {
               key={i}
               variant="rounded"
               height={180}
-              sx={{ flex: '0 0 240px', minWidth: 240, bgcolor: 'rgba(255,255,255,0.04)' }}
+              sx={{ flex: '0 0 240px', minWidth: 240, bgcolor: 'action.hover' }}
             />
           ))}
         </Box>
@@ -149,7 +149,7 @@ export default function HotTopicsCarousel() {
                   minWidth: 240,
                   scrollSnapAlign: 'start',
                   borderRadius: 2,
-                  bgcolor: (theme) => (theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF'),
+                  bgcolor: 'background.paper',
                   border: '1px solid',
                   borderColor: 'divider',
                   overflow: 'hidden',

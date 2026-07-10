@@ -282,7 +282,7 @@ export default function LoginPage() {
                 minHeight: 36,
                 fontSize: 13,
                 fontWeight: 500,
-                color: 'rgba(255,255,255,0.5)',
+                color: 'text.secondary',
                 textTransform: 'none',
                 py: 0.75,
                 transition: 'color 0.2s',
@@ -307,7 +307,7 @@ export default function LoginPage() {
               severity="error"
               sx={{
                 bgcolor: 'rgba(254, 44, 85, 0.12)',
-                color: '#FFB4C0',
+                color: 'error.main',
                 border: '1px solid rgba(254, 44, 85, 0.25)',
                 '& .MuiAlert-icon': { color: BRAND },
                 fontSize: 12,
@@ -343,7 +343,7 @@ export default function LoginPage() {
                     right: 12,
                     top: '50%',
                     transform: 'translateY(-50%)',
-                    color: 'rgba(255,255,255,0.4)',
+                    color: 'text.secondary',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
@@ -362,17 +362,17 @@ export default function LoginPage() {
                   sx={{
                     p: 0.5,
                     mr: 0.5,
-                    color: 'rgba(255,255,255,0.3)',
+                    color: 'text.disabled',
                     '&.Mui-checked': { color: BRAND },
                   }}
                 />
-                <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', userSelect: 'none' }}>记住登录状态</Typography>
+                <Typography sx={{ fontSize: 12, color: 'text.secondary', userSelect: 'none' }}>记住登录状态</Typography>
                 <Box sx={{ flex: 1 }} />
                 <Typography
                   onClick={() => setForgotOpen(true)}
                   sx={{
                     fontSize: 12,
-                    color: 'rgba(255,255,255,0.4)',
+                    color: 'text.secondary',
                     cursor: 'pointer',
                     transition: 'color 0.15s',
                     '&:hover': { color: BRAND },
@@ -411,10 +411,10 @@ export default function LoginPage() {
                     width: 120,
                     height: 56,
                     borderRadius: 1.5,
-                    bgcolor: countdown > 0 ? 'rgba(255,255,255,0.04)' : 'rgba(254, 44, 85, 0.12)',
+                    bgcolor: countdown > 0 ? 'action.hover' : 'rgba(254, 44, 85, 0.12)',
                     border: '1px solid',
-                    borderColor: countdown > 0 ? 'rgba(255,255,255,0.06)' : 'rgba(254, 44, 85, 0.3)',
-                    color: countdown > 0 ? 'rgba(255,255,255,0.3)' : BRAND,
+                    borderColor: countdown > 0 ? 'divider' : 'rgba(254, 44, 85, 0.3)',
+                    color: countdown > 0 ? 'text.disabled' : BRAND,
                     fontSize: 13,
                     fontWeight: 500,
                     display: 'flex',
@@ -435,10 +435,10 @@ export default function LoginPage() {
             </Box>
           )}
 
-          <Box sx={{ mt: 3, display: 'flex', alignItems: 'center', gap: 1, color: 'rgba(255,255,255,0.3)' }}>
-            <Box sx={{ flex: 1, height: 1, bgcolor: 'rgba(255,255,255,0.06)' }} />
+          <Box sx={{ mt: 3, display: 'flex', alignItems: 'center', gap: 1, color: 'text.disabled' }}>
+            <Box sx={{ flex: 1, height: 1, bgcolor: 'divider' }} />
             <Typography sx={{ fontSize: 10, letterSpacing: 1 }}>其他登录方式</Typography>
-            <Box sx={{ flex: 1, height: 1, bgcolor: 'rgba(255,255,255,0.06)' }} />
+            <Box sx={{ flex: 1, height: 1, bgcolor: 'divider' }} />
           </Box>
 
           <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
@@ -466,13 +466,13 @@ export default function LoginPage() {
               >
                 微
               </Box>
-              <Typography sx={{ fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>微信</Typography>
+              <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>微信</Typography>
             </Box>
           </Box>
         </Box>
 
-        <Box sx={{ py: 1.5, borderTop: '1px solid rgba(255,255,255,0.06)', textAlign: 'center' }}>
-          <Typography sx={{ fontSize: 10, color: 'rgba(255,255,255,0.3)' }}>
+        <Box sx={{ py: 1.5, borderTop: '1px solid', borderColor: 'divider', textAlign: 'center' }}>
+          <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
             登录即代表同意《用户协议》与《隐私政策》
           </Typography>
         </Box>
@@ -506,7 +506,7 @@ export default function LoginPage() {
       </Dialog>
 
       <Box sx={{ position: 'absolute', bottom: 24, left: 0, right: 0, textAlign: 'center' }}>
-        <Typography sx={{ fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>清秋月 · 2026</Typography>
+        <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>清秋月 · 2026</Typography>
       </Box>
     </Box>
   );

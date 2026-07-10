@@ -212,7 +212,7 @@ export function TaskEditDialog({ open, record, projectId, groupId, groups = [], 
           </FormControl>
         </Box>
       </DialogContent>
-      <DialogActions sx={{ borderTop: '1px solid #252836', px: 2, py: 1.5 }}>
+      <DialogActions sx={{ borderTop: '1px solid', borderColor: 'divider', px: 2, py: 1.5 }}>
         <Button onClick={onClose} size="small">取消</Button>
         <Button onClick={handleSave} variant="contained" size="small" disabled={saving}>
           保存

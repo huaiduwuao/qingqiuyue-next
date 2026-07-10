@@ -653,7 +653,7 @@ function SuggestionCard({
             textOverflow: 'ellipsis',
           }}
         >
-          {user.douyinId} · {user.followers >= 10000 ? `${(user.followers / 10000).toFixed(1)}w` : user.followers} 粉丝
+          {user.douyinId ? `${user.douyinId} · ` : ''}{user.followers >= 10000 ? `${(user.followers / 10000).toFixed(1)}w` : user.followers} 粉丝
         </Typography>
       </Box>
       {isFriend ? (
@@ -676,8 +676,8 @@ function SuggestionCard({
           label="已发送"
           size="small"
           sx={{
-            bgcolor: 'rgba(255,255,255,0.06)',
-            color: 'var(--text-secondary, rgba(255,255,255,0.6))',
+            bgcolor: 'action.hover',
+            color: 'text.secondary',
             fontSize: 10,
             fontWeight: 500,
             height: 24,
@@ -791,7 +791,7 @@ function FriendCard({ friend, onRemove }: { friend: Friend; onRemove: () => void
           </Typography>
         )}
         <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.4))', mt: 0.5 }}>
-          {friend.douyinId} · {friend.region || '未知地区'}
+          {friend.douyinId ? `抖音号: ${friend.douyinId}` : (friend.region || '')}
         </Typography>
       </Box>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, flexShrink: 0 }}>

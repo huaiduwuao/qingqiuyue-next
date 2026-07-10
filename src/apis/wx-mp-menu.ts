@@ -24,7 +24,7 @@ export async function save(params: Record<string, unknown>) {
 // 更新菜单
 export async function update(params: Record<string, unknown>) {
   return wxClient("/wxMenu/updateById", {
-    method: "POST",
+    method: "PUT",
     data: params
   });
 }

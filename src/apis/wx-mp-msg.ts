@@ -24,7 +24,7 @@ export async function save(params: Record<string, unknown>) {
 // 更新消息
 export async function update(params: Record<string, unknown>) {
   return wxClient("/wxMsg/updateById", {
-    method: "POST",
+    method: "PUT",
     data: params
   });
 }

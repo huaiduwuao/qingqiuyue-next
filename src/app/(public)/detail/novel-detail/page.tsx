@@ -9,6 +9,8 @@ import IconButton from '@mui/material/IconButton';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import LinearProgress from '@mui/material/LinearProgress';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SettingsIcon from '@mui/icons-material/Settings';
 import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
@@ -25,6 +27,7 @@ import { useScrollProgress } from '@/hooks/useScrollProgress';
 import HotRankingBar from '@/components/home/HotRankingBar';
 import { track } from '@/lib/track';
 import { LoginGate } from '@/components/auth/LoginGate';
+import { formatApiError } from '@/lib/api/client';
 
 function NovelDetailContent() {
   const router = useRouter();
@@ -38,6 +41,7 @@ function NovelDetailContent() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pageStyle, setPageStyle] = useState<PageStyle>(DEFAULT_PAGE_STYLE);
   const [collected, setCollected] = useState(false);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const readProgress = useScrollProgress(scrollRef);
@@ -101,7 +105,7 @@ function NovelDetailContent() {
       qc.invalidateQueries({ queryKey: ['detail', 'novel', id] });
     },
     onError: (err) => {
-      console.error('Failed to collect:', err);
+      setErrMsg(formatApiError(err) || '收藏失败,请稍后重试');
     },
   });
 
@@ -126,6 +130,16 @@ function NovelDetailContent() {
 
   return (
     <Box sx={{ position: 'relative' }}>
+      <Snackbar
+        open={!!errMsg}
+        autoHideDuration={2500}
+        onClose={() => setErrMsg(null)}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert severity="error" variant="filled" onClose={() => setErrMsg(null)}>
+          {errMsg}
+        </Alert>
+      </Snackbar>
       <Box
         sx={{
           position: 'sticky',

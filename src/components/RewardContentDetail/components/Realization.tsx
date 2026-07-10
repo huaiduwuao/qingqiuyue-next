@@ -56,10 +56,11 @@ export default function RealizationDetail({ item, demand, handleClose }: Realiza
       <Box
         sx={{
           p: 2.5,
-          borderBottom: '1px solid #f5f5f5',
+          borderBottom: '1px solid',
+          borderColor: 'divider',
           fontSize: 20,
           fontWeight: 700,
-          color: '#000',
+          color: 'text.primary',
         }}
       >
         <Typography variant="h5" component="div" sx={{ fontWeight: 700 }}>
@@ -68,7 +69,7 @@ export default function RealizationDetail({ item, demand, handleClose }: Realiza
       </Box>
 
       {/* Detail Desc */}
-      <Box sx={{ p: 2.5, fontSize: 14, lineHeight: 1.5, color: '#48576a' }}>
+      <Box sx={{ p: 2.5, fontSize: 14, lineHeight: 1.5, color: 'text.secondary' }}>
         <Typography component="div" sx={{ mb: 1 }}>
           状态: <span>{REWARD_STATUS_ENUM[detail.status] || detail.status}</span>
         </Typography>
@@ -87,22 +88,23 @@ export default function RealizationDetail({ item, demand, handleClose }: Realiza
       </Box>
 
       {/* Detail Main */}
-      <Box sx={{ p: 2.5, fontSize: 14, lineHeight: 1.5, color: '#48576a' }}>
+      <Box sx={{ p: 2.5, fontSize: 14, lineHeight: 1.5, color: 'text.secondary' }}>
         <Typography
           component="div"
           sx={{
             fontWeight: 700,
             fontSize: 16,
-            color: '#151519',
+            color: 'text.primary',
             pl: 1.25,
-            borderLeft: '5px solid #1890ff',
+            borderLeft: '5px solid',
+            borderColor: 'info.main',
             mb: 1,
           }}
         >
           实现方案:
         </Typography>
         <Box
-          sx={{ minHeight: 100, fontSize: 14, color: '#666', lineHeight: '22px', py: 2.5 }}
+          sx={{ minHeight: 100, fontSize: 14, color: 'text.secondary', lineHeight: '22px', py: 2.5 }}
           dangerouslySetInnerHTML={{ __html: detail.content?.content || '' }}
         />
 
@@ -111,9 +113,10 @@ export default function RealizationDetail({ item, demand, handleClose }: Realiza
           sx={{
             fontWeight: 700,
             fontSize: 16,
-            color: '#151519',
+            color: 'text.primary',
             pl: 1.25,
-            borderLeft: '5px solid #1890ff',
+            borderLeft: '5px solid',
+            borderColor: 'info.main',
             mb: 1,
           }}
         >

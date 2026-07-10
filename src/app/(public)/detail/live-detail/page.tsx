@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 // 该页依赖 client context + 后端实时数据,SSR/pre-render 时 TIERS/orders 等未就绪 →
 // 报 "Cannot read properties of undefined"。强制 dynamic 跳过预渲染。
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { getGiftList, type GiftItem as ApiGift } from '@/apis/dashboard';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
@@ -41,7 +41,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-live';
 import { sendComment } from '@/apis/home';
 import { collectContent, reportContent } from '@/apis/global';
-import { homeClient, accountClient, formatApiError, isNetworkError } from '@/lib/api/client';
+import { homeClient, accountClient, formatApiError } from '@/lib/api/client';
 import DetailHeader from '@/components/detail/DetailHeader';
 import HotRankingBar from '@/components/home/HotRankingBar';
 import { AsyncState } from '@/components/common/AsyncState';
@@ -111,7 +111,8 @@ function LiveDetailContent() {
   }));
   const GIFT_CATALOG: GiftItem[] = apiGifts.length ? apiGifts : FALLBACK_GIFTS;
 
-  const [followed, setFollowed] = useState(false);
+  const [followOverride, setFollowOverride] = useState<boolean | null>(null);
+  const followed = followOverride ?? !!(query.data as any)?.isFollowing;
   const [followBusy, setFollowBusy] = useState(false);
   const [favorited, setFavorited] = useState(false);
   const [collectBusy, setCollectBusy] = useState(false);
@@ -134,9 +135,9 @@ function LiveDetailContent() {
   const [giftSending, setGiftSending] = useState(false);
   const [sendCount, setSendCount] = useState(0);
 
-  const notify = useCallback((message: string, severity: 'success' | 'error' | 'info' = 'success') => {
+  const notify = (message: string, severity: 'success' | 'error' | 'info' = 'success') => {
     setSnack({ open: true, message, severity });
-  }, []);
+  };
 
   const updateSettings = (patch: Partial<LivePlayerSettingsState>) =>
     setSettings((s) => ({ ...s, ...patch }));
@@ -224,7 +225,7 @@ function LiveDetailContent() {
     if (followBusy) return;
     setFollowBusy(true);
     const wasFollowing = followed;
-    setFollowed(!wasFollowing);
+    setFollowOverride(!wasFollowing);
     try {
       if (wasFollowing) {
         await homeClient.delete(`/follow/${userId}`);
@@ -234,7 +235,7 @@ function LiveDetailContent() {
         notify('关注成功');
       }
     } catch (err) {
-      setFollowed(wasFollowing);
+      setFollowOverride(wasFollowing);
       notify(formatApiError(err), 'error');
     } finally {
       setFollowBusy(false);
@@ -263,15 +264,7 @@ function LiveDetailContent() {
       setGiftOpen(false);
       notify(`已送出 ${gift.name} × 1`);
     } catch (err) {
-      // 网络错时 fallback 到 mock:保留本地 sendCount++ 让 UI 不阻塞
-      if (isNetworkError(err)) {
-        setSendCount((n) => n + 1);
-        setPickingGift(null);
-        setGiftOpen(false);
-        notify(`已送出 ${gift.name} × 1 (离线)`);
-      } else {
-        notify(formatApiError(err), 'error');
-      }
+      notify(formatApiError(err) || '送礼失败,请稍后重试', 'error');
     } finally {
       setGiftSending(false);
     }
@@ -447,7 +440,7 @@ function LiveDetailContent() {
                   <Chip label="🔥 推荐" size="small" sx={{ bgcolor: 'warning.main', color: '#1a1a1a', fontWeight: 700 }} />
                 )}
                 {(data.tags || []).map((t) => (
-                  <Chip key={t} label={`#${t}`} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.04)', color: 'text.tertiary' }} />
+                  <Chip key={t} label={`#${t}`} size="small" sx={{ bgcolor: 'action.hover', color: 'text.tertiary' }} />
                 ))}
               </Box>
 

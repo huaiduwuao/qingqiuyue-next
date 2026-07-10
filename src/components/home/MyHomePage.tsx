@@ -49,7 +49,7 @@ import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import { useApp } from '@/contexts/AppContext';
-import { homeClient, contentClient } from '@/lib/api/client';
+import { homeClient, contentClient, adminClient } from '@/lib/api/client';
 import { ACCENT } from '@/constants/accents';
 import { useContentNavigate } from '@/lib/contentRoute';
 
@@ -893,7 +893,7 @@ function WorkGridView({
               </Box>
             )}
             <Box sx={{ position: 'relative', aspectRatio: '3/4' }}>
-              <Box component="img" src={it.cover} alt={it.title} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <Box component="img" src={it.cover || undefined} alt={it.title} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.7) 100%)' }} />
               {it.durationSec > 0 && (
                 <Box sx={{ position: 'absolute', bottom: 6, right: 6, px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.65)', fontSize: 9, color: '#fff', fontFamily: 'monospace' }}>
@@ -974,7 +974,7 @@ function CollectionGridView({ list, batchMode, selected, onToggle }: { list: MyC
               <Checkbox size="small" checked={isSelected} onClick={(e) => { e.stopPropagation(); onToggle(g.id); }} sx={{ p: 0 }} />
             )}
             <Box sx={{ width: 56, height: 56, borderRadius: 1.5, overflow: 'hidden', flexShrink: 0 }}>
-              <Box component="img" src={g.cover} alt={g.title} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <Box component="img" src={g.cover || undefined} alt={g.title} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </Box>
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary', mb: 0.25, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -1019,7 +1019,7 @@ function HistoryListView({ list, batchMode, selected, onToggle, onClick }: { lis
               <Checkbox size="small" checked={isSelected} onClick={(e) => { e.stopPropagation(); onToggle(it.id); }} sx={{ p: 0 }} />
             )}
             <Box sx={{ width: 80, height: 50, borderRadius: 1, overflow: 'hidden', flexShrink: 0, position: 'relative' }}>
-              <Box component="img" src={it.cover} alt={it.title} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <Box component="img" src={it.cover || undefined} alt={it.title} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               <Box sx={{ position: 'absolute', right: 3, bottom: 3, px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.7)', fontSize: 9, color: '#fff', fontFamily: 'monospace' }}>
                 {formatDuration(it.durationSec)}
               </Box>
@@ -1068,7 +1068,7 @@ function LaterGridView({ list, batchMode, selected, onToggle, onClick }: { list:
               </Box>
             )}
             <Box sx={{ position: 'relative', aspectRatio: '16/9' }}>
-              <Box component="img" src={it.cover} alt={it.title} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <Box component="img" src={it.cover || undefined} alt={it.title} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.5) 100%)' }} />
               <Box sx={{ position: 'absolute', top: 6, right: 6, px: 0.5, py: 0.25, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)' }}>
                 <Typography sx={{ fontSize: 9, color: '#fff', fontWeight: 600 }}>已添加 {formatRelativeTime(it.postedAt)}</Typography>
@@ -1111,7 +1111,7 @@ function AppointmentListView({ list, onClick, onCancel }: { list: MyItem[]; onCl
           }}
         >
           <Box sx={{ width: 72, height: 72, borderRadius: 1.5, overflow: 'hidden', flexShrink: 0, position: 'relative' }}>
-            <Box component="img" src={it.cover} alt={it.title} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <Box component="img" src={it.cover || undefined} alt={it.title} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             <Box sx={{ position: 'absolute', top: 4, left: 4, px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'primary.main' }}>
               <Typography sx={{ fontSize: 8, color: '#fff', fontWeight: 800 }}>预约</Typography>
             </Box>
@@ -1284,7 +1284,7 @@ function EditProfileDrawer({
   const regionQ = useQuery({
     queryKey: ['home', 'me', 'region-presets'],
     queryFn: () =>
-      homeClient.get<any>('/region/options').then((r) => {
+      adminClient.get<any>('/area/provinces').then((r) => {
         const list = r.data?.list || r.data || [];
         return Array.isArray(list) ? list.map((x: any) => x.name || x.label || String(x)) : [];
       }),

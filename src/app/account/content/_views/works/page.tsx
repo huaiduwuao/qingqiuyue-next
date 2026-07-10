@@ -140,7 +140,7 @@ export default function WorksPage() {
         sx={{
           bgcolor: 'background.paper',
           border: '1px solid',
-          borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
+          borderColor: 'divider',
           borderRadius: 2,
           p: 2,
         }}

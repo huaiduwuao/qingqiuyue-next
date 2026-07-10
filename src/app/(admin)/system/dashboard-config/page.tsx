@@ -98,7 +98,7 @@ function SimpleListEditor({ rows, fields, onSave, onDelete, idKey = 'id', newRow
         </Button>
       </Box>
       <Box sx={{ overflowX: 'auto', bgcolor: 'background.paper', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-        <Box sx={{ display: 'flex', minWidth: 800, bgcolor: 'rgba(255,255,255,0.04)', px: 1.5, py: 1, fontSize: 11, fontWeight: 700, color: 'text.secondary', letterSpacing: 1, textTransform: 'uppercase' }}>
+        <Box sx={{ display: 'flex', minWidth: 800, bgcolor: 'action.hover', px: 1.5, py: 1, fontSize: 11, fontWeight: 700, color: 'text.secondary', letterSpacing: 1, textTransform: 'uppercase' }}>
           {fields.map((f) => (
             <Box key={f.key} sx={{ flex: 1, minWidth: f.width ?? 100 }}>{f.label}</Box>
           ))}
@@ -129,7 +129,7 @@ function SimpleListEditor({ rows, fields, onSave, onDelete, idKey = 'id', newRow
         {rows.map((row) => {
           const isEditing = editingId === row[idKey];
           return (
-            <Box key={row[idKey]} sx={{ display: 'flex', minWidth: 800, px: 1.5, py: 1, borderTop: '1px solid', borderColor: 'divider', alignItems: 'center', '&:hover': { bgcolor: 'rgba(255,255,255,0.02)' } }}>
+            <Box key={row[idKey]} sx={{ display: 'flex', minWidth: 800, px: 1.5, py: 1, borderTop: '1px solid', borderColor: 'divider', alignItems: 'center', '&:hover': { bgcolor: 'action.hover' } }}>
               {fields.map((f) => (
                 <Box key={f.key} sx={{ flex: 1, minWidth: f.width ?? 100, pr: 0.5, fontSize: 12, color: 'text.primary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {isEditing ? (

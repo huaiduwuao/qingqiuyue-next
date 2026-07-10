@@ -7,17 +7,16 @@ import Skeleton from '@mui/material/Skeleton';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import PersonIcon from '@mui/icons-material/Person';
 import GroupIcon from '@mui/icons-material/Group';
-import ExploreIcon from '@mui/icons-material/Explore';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { moduleContentPage } from '@/apis/home';
-import { fetchRecommend } from '@/apis/home-discover';
 import { getHomeRecommendFollow, getHomeRecommendFriend, type RecommendWork } from '@/apis/dashboard';
 import HotRankingBar from '@/components/home/HotRankingBar';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { track } from '@/lib/track';
 import { TYPE_GRADIENT, RANK_BG } from '@/constants/gradients';
+import { RecommendVideoFeed } from './components/RecommendVideoFeed';
 
 interface ContentItem {
   id: number;
@@ -44,14 +43,12 @@ const CATEGORY_TO_TYPE: Record<string, string> = {
   公开课: 'ARTICLE', 科技: 'ARTICLE',
 };
 
-// 后端 contentType → 卡片角标文案。前端不写死具体题材,统一走类型映射。
 const TYPE_TO_CHIP: Record<string, string> = {
   NOVEL: '小说', COMICS: '漫画', FILM: '影视', VSHOW: '综艺', MUSIC: '音乐',
   TELEPLAY: '短剧', ANIMATION: '二次元', VIDEO: '游戏', NEWS: '资讯',
   ARTICLE: '文章', LIVE: '直播',
 };
 
-// URL ?tab=xxx ↔ 中文分类 双向映射;tab 缺失等价于 'all' (全部)
 const CATEGORY_TO_TAB: Record<string, string> = {
   全部: 'all', 小说: 'novel', 漫画: 'comics', 影视: 'film', 综艺: 'vshow', 音乐: 'music',
   小剧场: 'theater', 二次元: 'anime', 游戏: 'video', 资讯: 'news',
@@ -61,8 +58,6 @@ const TAB_TO_CATEGORY: Record<string, string> = Object.fromEntries(
   Object.entries(CATEGORY_TO_TAB).map(([cat, tab]) => [tab, cat]),
 );
 
-// 特殊 tab:follow / friend / ai(与 CATEGORY_NAV 互不影响,各自独立)
-// 推荐 tab 不参与分类筛选,直接调专属接口
 const SPECIAL_TABS = new Set(['follow', 'friend', 'ai']);
 const SPECIAL_TAB_LABEL: Record<string, { label: string; icon: React.ReactNode }> = {
   follow: { label: '关注', icon: <PersonIcon sx={{ fontSize: 14 }} /> },
@@ -97,7 +92,6 @@ export default function HomeRecommendPage() {
   const setActiveCategory = (category: string) => setTab(CATEGORY_TO_TAB[category] || 'all');
   const setActiveSpecial = (tab: string) => setTab(tab);
 
-  // 分类推荐(全部/小说/...)走 moduleContentPage
   const contentQuery = useQuery({
     queryKey: ['home-recommend', 'content', activeCategory],
     queryFn: () => moduleContentPage({
@@ -110,7 +104,6 @@ export default function HomeRecommendPage() {
     enabled: !isSpecialTab && tabFromUrl !== 'recommend',
   });
 
-  // 关注推荐
   const followQuery = useQuery({
     queryKey: ['home-recommend', 'follow'],
     queryFn: () => getHomeRecommendFollow({ page: 1, size: 12 }),
@@ -118,7 +111,6 @@ export default function HomeRecommendPage() {
     refetchOnMount: 'always',
   });
 
-  // 朋友推荐
   const friendQuery = useQuery({
     queryKey: ['home-recommend', 'friend'],
     queryFn: () => getHomeRecommendFriend({ page: 1, size: 12 }),
@@ -126,37 +118,14 @@ export default function HomeRecommendPage() {
     refetchOnMount: 'always',
   });
 
-  // "推荐" tab 走 /home/recommend 混合推荐(与 RecommendBoard 同源)
-  const recommendQuery = useQuery({
-    queryKey: ['home-recommend', 'recommend'],
-    queryFn: () =>
-      fetchRecommend({ types: 'NEWS,ARTICLE,VIDEO,MUSIC,FILM,ANIMATION', size: 12 }).then(
-        (r: any) =>
-          (r?.data?.list ?? []).map((it: any) => ({
-            id: Number(it.id) || 0,
-            title: it.title,
-            contentType: (it.category || 'NOVEL').toUpperCase(),
-            coverUrl: it.cover,
-            status: 'active',
-            viewCount: it.views,
-          } as ContentItem)),
-      ),
-    enabled: tabFromUrl === 'recommend',
-    refetchOnMount: 'always',
-  });
-
-  // AI tab → 跳到 search 页?q=
   React.useEffect(() => {
     if (tabFromUrl === 'ai') {
       router.replace('/search?q=' + encodeURIComponent('推荐'));
     }
   }, [tabFromUrl, router]);
 
-  // 决定显示列表
   let contentList: ContentItem[] = contentQuery.data || [];
-  if (tabFromUrl === 'recommend') {
-    contentList = recommendQuery.data || [];
-  } else if (tabFromUrl === 'follow') {
+  if (tabFromUrl === 'follow') {
     const raw = (followQuery.data?.records ?? followQuery.data?.list ?? []) as RecommendWork[];
     contentList = raw.map((w) => ({
       id: Number(w.id.replace(/^\D+/, '')) || 0,
@@ -179,13 +148,13 @@ export default function HomeRecommendPage() {
   }
 
   const loading = isSpecialTab
-    ? (tabFromUrl === 'follow' ? followQuery.isFetching : tabFromUrl === 'friend' ? friendQuery.isFetching : recommendQuery.isFetching)
+    ? (tabFromUrl === 'follow' ? followQuery.isFetching : tabFromUrl === 'friend' ? friendQuery.isFetching : false)
     : tabFromUrl === 'recommend'
-      ? recommendQuery.isFetching
+      ? false
       : contentQuery.isFetching;
 
   const handleCardClick = (item: ContentItem) => {
-    track(item.id, 'click', item.contentType || 'novel'); // 行为埋点 → 推荐/大数据源头
+    track(item.id, 'click', item.contentType || 'novel');
     const route = getDetailRoute(item.contentType, item.id);
     if (route) router.push(route);
   };
@@ -201,14 +170,16 @@ export default function HomeRecommendPage() {
     return [...contentList, ...placeholders];
   }, [contentList]);
 
+  if (tabFromUrl === 'recommend') {
+    return <RecommendVideoFeed />;
+  }
+
   return (
     <Box sx={{ px: 3, py: 2 }}>
-      {/* 全网热搜(Doris 实时,首页置顶) */}
       <Box sx={{ mb: 2 }}>
         <HotRankingBar contentType="NEWS" title="全网热搜" maxItems={12} expandable />
       </Box>
 
-      {/* 分类导航 */}
       <Box
         sx={{
           display: 'flex',
@@ -216,7 +187,8 @@ export default function HomeRecommendPage() {
           gap: 0.5,
           mb: 2,
           pb: 1.5,
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          borderBottom: '1px solid',
+          borderColor: 'divider',
           overflowX: 'auto',
           '&::-webkit-scrollbar': { display: 'none' },
         }}
@@ -233,7 +205,7 @@ export default function HomeRecommendPage() {
                 py: 0.75,
                 fontSize: 14,
                 fontWeight: isActive ? 600 : 400,
-                color: isActive ? 'text.primary' : 'rgba(255,255,255,0.55)',
+                color: isActive ? 'text.primary' : 'text.secondary',
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
                 transition: 'color 0.15s',
@@ -258,7 +230,6 @@ export default function HomeRecommendPage() {
         })}
       </Box>
 
-      {/* 推荐子 tab:关注 / 朋友 / AI */}
       <Box
         sx={{
           display: 'flex',
@@ -284,10 +255,10 @@ export default function HomeRecommendPage() {
                 fontSize: 12,
                 fontWeight: isActive ? 700 : 500,
                 cursor: 'pointer',
-                bgcolor: isActive ? 'rgba(254, 44, 85, 0.15)' : 'rgba(255,255,255,0.04)',
-                color: isActive ? 'primary.main' : 'rgba(255,255,255,0.7)',
+                bgcolor: isActive ? 'rgba(254, 44, 85, 0.15)' : 'action.hover',
+                color: isActive ? 'primary.main' : 'text.secondary',
                 border: '1px solid',
-                borderColor: isActive ? 'rgba(254, 44, 85, 0.4)' : 'rgba(255,255,255,0.06)',
+                borderColor: isActive ? 'rgba(254, 44, 85, 0.4)' : 'divider',
                 transition: 'all 0.15s',
                 '&:hover': { borderColor: 'rgba(254, 44, 85, 0.4)' },
               }}
@@ -299,12 +270,12 @@ export default function HomeRecommendPage() {
         })}
         <Box sx={{ flex: 1 }} />
         {tabFromUrl === 'follow' && (
-          <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>
+          <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
             {contentList.length === 0 ? (loading ? '加载中…' : '关注的人还没发作品') : `共 ${contentList.length} 部`}
           </Typography>
         )}
         {tabFromUrl === 'friend' && (
-          <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>
+          <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
             {contentList.length === 0 ? (loading ? '加载中…' : '还没有互相关注的朋友') : `共 ${contentList.length} 部`}
           </Typography>
         )}
@@ -313,7 +284,7 @@ export default function HomeRecommendPage() {
       {loading ? (
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.5 }}>
           {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} variant="rounded" sx={{ aspectRatio: '4/5', bgcolor: 'rgba(255,255,255,0.04)' }} />
+            <Skeleton key={i} variant="rounded" sx={{ aspectRatio: '4/5', bgcolor: 'action.hover' }} />
           ))}
         </Box>
       ) : (
@@ -361,7 +332,7 @@ export default function HomeRecommendPage() {
                 {item.coverUrl && (
                   <Box
                     component="img"
-                    src={item.coverUrl}
+                    src={item.coverUrl || undefined}
                     alt={item.title}
                     sx={{
                       position: 'absolute',
@@ -376,7 +347,6 @@ export default function HomeRecommendPage() {
                   />
                 )}
 
-                {/* Rank badge top-left */}
                 <Box
                   sx={{
                     position: 'absolute',
@@ -402,7 +372,6 @@ export default function HomeRecommendPage() {
                   {rank}
                 </Box>
 
-                {/* Play count top-right */}
                 {item.viewCount !== undefined && (
                   <Box
                     sx={{
@@ -427,7 +396,6 @@ export default function HomeRecommendPage() {
                   </Box>
                 )}
 
-                {/* Bottom info */}
                 <Box
                   sx={{
                     position: 'absolute',

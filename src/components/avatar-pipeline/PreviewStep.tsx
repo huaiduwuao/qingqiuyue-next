@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Box, Typography, Button, Alert, Chip } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import BlenderAvatar from '@/digital-human/BlenderAvatar';
 import type { JobSnapshot } from '@/lib/avatar-pipeline/types';
 
@@ -13,6 +14,7 @@ export interface PreviewStepProps {
 }
 
 export default function PreviewStep({ job, artifacts, onDeploy, onRestart }: PreviewStepProps) {
+  const theme = useTheme();
   const [deploying, setDeploying] = useState(false);
   const [deployed, setDeployed] = useState(false);
   const [deployErr, setDeployErr] = useState<string | null>(null);
@@ -58,7 +60,7 @@ export default function PreviewStep({ job, artifacts, onDeploy, onRestart }: Pre
           border: '1px solid',
           borderColor: 'divider',
         }}>
-          <BlenderAvatar modelUrl={modelUrl} autoRotate background="#05060B" />
+          <BlenderAvatar modelUrl={modelUrl} autoRotate background={theme.palette.mode === 'dark' ? '#05060B' : '#eef0f5'} />
         </Box>
       ) : (
         <Alert severity="warning">

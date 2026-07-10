@@ -24,7 +24,7 @@ export async function save(params: Record<string, unknown>) {
 // 更新用户
 export async function update(params: Record<string, unknown>) {
   return wxClient("/wxUser/updateById", {
-    method: "POST",
+    method: "PUT",
     data: params
   });
 }

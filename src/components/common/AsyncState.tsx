@@ -54,7 +54,7 @@ export function AsyncState<T>({
             key={i}
             variant="rounded"
             height={skeletonHeight}
-            sx={{ bgcolor: 'rgba(255,255,255,0.04)' }}
+            sx={{ bgcolor: 'action.hover' }}
           />
         ))}
       </Box>
@@ -140,20 +140,21 @@ export function EmptyState({
           width: 88,
           height: 88,
           borderRadius: 2.5,
-          bgcolor: 'rgba(255,255,255,0.04)',
-          border: '1px solid rgba(255,255,255,0.08)',
+          bgcolor: 'action.hover',
+          border: '1px solid',
+          borderColor: 'divider',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <Icon sx={{ fontSize: 44, color: 'rgba(255,255,255,0.25)' }} />
+        <Icon sx={{ fontSize: 44, color: 'text.disabled' }} />
       </Box>
-      <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>
+      <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'text.primary' }}>
         {text}
       </Typography>
       {hint && (
-        <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
+        <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
           {hint}
         </Typography>
       )}

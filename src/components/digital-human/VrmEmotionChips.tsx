@@ -47,9 +47,9 @@ export default function VrmEmotionChips({ handle, activeTemplate }: Props) {
                 variant={isOn ? 'filled' : 'outlined'}
                 sx={{
                   fontSize: 12, height: 28,
-                  bgcolor: isOn ? 'rgba(255,79,216,0.25)' : 'rgba(255,255,255,0.04)',
-                  borderColor: isOn ? 'rgba(255,79,216,0.7)' : 'rgba(255,255,255,0.1)',
-                  color: isOn ? '#ff4fd8' : 'rgba(255,255,255,0.85)',
+                  bgcolor: isOn ? 'rgba(255,79,216,0.25)' : 'transparent',
+                  borderColor: isOn ? 'rgba(255,79,216,0.7)' : 'divider',
+                  color: isOn ? '#ff4fd8' : 'text.secondary',
                   '&:hover': { borderColor: 'rgba(255,79,216,0.5)', bgcolor: 'rgba(255,79,216,0.1)' },
                 }}
               />

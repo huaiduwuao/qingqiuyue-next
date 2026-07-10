@@ -36,9 +36,9 @@ export default function VrmPoseChips({ handle }: Props) {
               variant={isOn ? 'filled' : 'outlined'}
               sx={{
                 fontSize: 12, height: 28,
-                bgcolor: isOn ? 'rgba(79,216,255,0.25)' : 'rgba(255,255,255,0.04)',
-                borderColor: isOn ? 'rgba(79,216,255,0.7)' : 'rgba(255,255,255,0.1)',
-                color: isOn ? '#4fd8ff' : 'rgba(255,255,255,0.85)',
+                bgcolor: isOn ? 'rgba(79,216,255,0.25)' : 'transparent',
+                borderColor: isOn ? 'rgba(79,216,255,0.7)' : 'divider',
+                color: isOn ? '#4fd8ff' : 'text.secondary',
                 '&:hover': { borderColor: 'rgba(79,216,255,0.5)', bgcolor: 'rgba(79,216,255,0.1)' },
               }}
             />

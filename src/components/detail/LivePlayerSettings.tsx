@@ -129,8 +129,8 @@ function ChipGroup<T extends string | number>({ options, value, onChange, size =
               fontWeight: active ? 600 : 400,
               borderRadius: 1.5,
               cursor: 'pointer',
-              bgcolor: active ? 'primary.main' : 'rgba(255,255,255,0.04)',
-              color: active ? '#fff' : 'text.secondary',
+              bgcolor: active ? 'primary.main' : 'action.hover',
+              color: active ? 'primary.contrastText' : 'text.secondary',
               border: '1px solid',
               borderColor: active ? 'primary.main' : 'divider',
               transition: 'all 0.15s',
@@ -198,7 +198,7 @@ export function LivePlayerSettings({
         </Box>
 
         {headerInfo && (
-          <Box sx={{ px: 2, py: 1, bgcolor: 'rgba(255,255,255,0.02)', borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Box sx={{ px: 2, py: 1, bgcolor: 'action.hover', borderBottom: '1px solid', borderColor: 'divider' }}>
             {headerInfo}
           </Box>
         )}

@@ -42,7 +42,7 @@ import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import { CTA_GRADIENT, gradient3 } from '@/constants/gradients';
 import { LoginGate } from '@/components/auth/LoginGate';
 import { useApp } from '@/contexts/AppContext';
-import { adminClient, accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
+import { adminClient, accountClient, isAuthError, formatApiError } from '@/lib/api/client';
 
 interface VipTier {
   key: string;
@@ -150,14 +150,10 @@ export default function VipPage() {
       markTaskCompleted(key);
       setSnack(`+${task.reward} 成长值`);
     } catch (err) {
-      if (isNetworkError(err)) {
-        // 网络错误:本地乐观发奖 + 成功提示
-        markTaskCompleted(key);
-        setSnack(`+${task.reward} 成长值`);
-      } else if (isAuthError(err)) {
+      if (isAuthError(err)) {
         setSnack('请重新登录');
       } else {
-        setSnack(formatApiError(err));
+        setSnack(formatApiError(err) || '领奖失败,请稍后重试');
       }
     }
   };
@@ -168,11 +164,11 @@ export default function VipPage() {
     if (key === 'dailySign') {
       try {
         await adminClient('/user/sign', { method: 'POST' });
-      } catch {
-        // ignore backend errors
+        markTaskCompleted('dailySign');
+        setSnack('签到成功 +5 成长值');
+      } catch (err) {
+        setSnack(formatApiError(err) || '签到失败,请稍后重试');
       }
-      markTaskCompleted('dailySign');
-      setSnack('签到成功 +5 成长值');
       return;
     }
     if (key === 'share') {
@@ -236,13 +232,13 @@ export default function VipPage() {
         data: { amount: amountNum, method: rechargeMethod },
       });
       setSnack('充值申请已提交');
-    } catch {
-      setSnack('充值申请已提交');
+      markTaskCompleted('recharge');
+    } catch (err) {
+      setSnack(formatApiError(err) || '充值提交失败');
     } finally {
       setRecharging(false);
       setRechargeOpen(false);
       setRechargeAmount('');
-      markTaskCompleted('recharge');
     }
   };
 
@@ -466,7 +462,7 @@ export default function VipPage() {
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                     <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.primary' }}>{t.title}</Typography>
-                    <Box sx={{ px: 0.5, py: 0.1, borderRadius: 0.5, bgcolor: 'rgba(255,255,255,0.06)', color: 'text.secondary', fontSize: 9 }}>{t.type}</Box>
+                    <Box sx={{ px: 0.5, py: 0.1, borderRadius: 0.5, bgcolor: 'action.hover', color: 'text.secondary', fontSize: 9 }}>{t.type}</Box>
                     <Box sx={{ flex: 1 }} />
                     <Typography sx={{ fontSize: 11, color: '#FFB400', fontWeight: 700 }}>+{t.reward} 成长值</Typography>
                   </Box>

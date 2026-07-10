@@ -451,7 +451,7 @@ export default function ActivityPage() {
                           borderRadius: 0.5,
                           bgcolor: tab === t.id
                             ? 'rgba(254, 44, 85, 0.16)'
-                            : (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
+                            : 'action.hover',
                           color: tab === t.id ? 'primary.main' : 'text.disabled',
                         }}
                       >
@@ -831,7 +831,7 @@ export default function ActivityPage() {
                                 bgcolor:
                                   matchedTag === h
                                     ? 'rgba(93, 219, 150, 0.16)'
-                                    : (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
+                                    : 'action.hover',
                                 color: matchedTag === h ? '#5DDB96' : 'text.disabled',
                                 fontWeight: matchedTag === h ? 700 : 400,
                               }}
@@ -929,7 +929,7 @@ function KpiCard({
       sx={{
         p: 1.5,
         borderRadius: 1.5,
-        bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
+        bgcolor: 'background.paper',
         border: '1px solid',
         borderColor: 'divider',
         display: 'flex',
@@ -993,7 +993,7 @@ function ActivityCard({
     <Box
       sx={{
         borderRadius: 2,
-        bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
+        bgcolor: 'background.paper',
         border: '1px solid',
         borderColor: a.participation === 'won' ? 'rgba(255, 215, 0, 0.4)' : 'divider',
         overflow: 'hidden',
@@ -1050,7 +1050,7 @@ function ActivityCard({
             top: 8,
             left: 8,
             height: 20,
-            bgcolor: 'rgba(255,255,255,0.95)',
+            bgcolor: 'background.paper',
             color: cat.color,
             fontSize: 10,
             fontWeight: 700,
@@ -1331,7 +1331,7 @@ function DetailDrawer({
           <Chip
             label={cat.label}
             size="small"
-            sx={{ height: 20, fontSize: 10, fontWeight: 700, bgcolor: 'rgba(255,255,255,0.95)', color: cat.color }}
+            sx={{ height: 20, fontSize: 10, fontWeight: 700, bgcolor: 'background.paper', color: cat.color }}
           />
           <Chip
             label={st.label}
@@ -1632,7 +1632,7 @@ function PrizesTabContent({ activity }: { activity: Activity }) {
           sx={{
             p: 2,
             borderRadius: 2,
-            bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
+            bgcolor: 'background.paper',
             border: '1px solid',
             borderColor: 'divider',
             display: 'flex',
@@ -1740,7 +1740,7 @@ function LeaderboardTabContent({ activity }: { activity: Activity }) {
               '&:hover': {
                 bgcolor: e.isMe
                   ? 'rgba(254, 44, 85, 0.14)'
-                  : (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
+                  : 'action.hover',
               },
             }}
           >
@@ -1756,7 +1756,7 @@ function LeaderboardTabContent({ activity }: { activity: Activity }) {
                     ? '#C0C0C0'
                     : e.rank === 3
                     ? '#CD7F32'
-                    : (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover',
+                    : 'action.hover',
                 color: e.rank <= 3 ? '#1F1B00' : 'text.secondary',
                 display: 'flex',
                 alignItems: 'center',
@@ -1853,7 +1853,7 @@ function MyWorkTabContent({ activity }: { activity: Activity }) {
             sx={{
               p: 1.25,
               borderRadius: 1.5,
-              bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
+              bgcolor: 'background.paper',
               border: '1px solid',
               borderColor: s.prize ? 'rgba(255, 215, 0, 0.4)' : 'divider',
               display: 'flex',

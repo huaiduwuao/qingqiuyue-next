@@ -161,7 +161,8 @@ export default function SystemDataPermissionPage() {
             sx: {
               bgcolor: 'background.paper',
               color: 'text.primary',
-              border: '1px solid #252836',
+              border: '1px solid',
+              borderColor: 'divider',
               borderRadius: 2,
               backgroundImage: 'none',
               boxShadow: '0 24px 48px rgba(0,0,0,0.5)',
@@ -169,7 +170,7 @@ export default function SystemDataPermissionPage() {
           },
         }}
       >
-        <DialogTitle sx={{ color: 'text.primary', borderBottom: '1px solid #252836', fontSize: 14, fontWeight: 600, py: 1.5 }}>
+        <DialogTitle sx={{ color: 'text.primary', borderBottom: '1px solid', borderColor: 'divider', fontSize: 14, fontWeight: 600, py: 1.5 }}>
           {selectedRecord?.id ? '编辑数据权限' : '新建数据权限'}
         </DialogTitle>
         <DialogContent sx={{ pt: '16px !important' }}>
@@ -208,7 +209,7 @@ export default function SystemDataPermissionPage() {
             />
           </Box>
         </DialogContent>
-        <DialogActions sx={{ borderTop: '1px solid #252836', px: 2.5, py: 1.5, gap: 1 }}>
+        <DialogActions sx={{ borderTop: '1px solid', borderColor: 'divider', px: 2.5, py: 1.5, gap: 1 }}>
           <Button
             onClick={() => setWriteVisible(false)}
             sx={{
@@ -216,7 +217,7 @@ export default function SystemDataPermissionPage() {
               textTransform: 'none',
               fontSize: 12.5,
               px: 2,
-              '&:hover': { color: 'text.tertiary', bgcolor: 'rgba(255,255,255,0.04)' },
+              '&:hover': { color: 'text.tertiary', bgcolor: 'action.hover' },
             }}
           >取消</Button>
           <Button
@@ -246,7 +247,7 @@ export default function SystemDataPermissionPage() {
 
 const textFieldSx = {
   '& .MuiOutlinedInput-root': {
-    bgcolor: 'rgba(255, 255, 255, 0.02)',
+    bgcolor: 'background.default',
     borderRadius: 1.5,
     '& fieldset': { borderColor: 'divider' },
     '&:hover fieldset': { borderColor: 'text.disabled' },

@@ -25,8 +25,8 @@ export default function LogTail({ logs, maxLines = 200 }: LogTailProps) {
       sx={{
         height: 240,
         overflowY: 'auto',
-        bgcolor: '#0a0a0a',
-        color: '#d0d0d0',
+        bgcolor: 'background.paper',
+        color: 'text.primary',
         fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
         fontSize: 11,
         p: 1.5,
@@ -44,7 +44,7 @@ export default function LogTail({ logs, maxLines = 200 }: LogTailProps) {
           <Box
             key={i}
             sx={{
-              color: l.stream === 'stderr' ? '#ff8888' : '#d0d0d0',
+              color: l.stream === 'stderr' ? 'error.main' : 'text.primary',
             }}
           >
             {l.line}

@@ -20,14 +20,14 @@ type DramaSeries = {
   cover: string;
   genre: '古风' | '悬疑' | '都市' | '言情' | '校园' | '逆袭';
   status: 'HOT' | 'DONE' | 'EXCLUSIVE';
-  rating: number;
-  views: number;
-  likes: number;
-  episodes: number;
-  freeEpisodes: number;
-  author: string;
-  description: string;
-  hotRank: number;
+  rating?: number;
+  views?: number;
+  likes?: number;
+  episodes?: number;
+  freeEpisodes?: number;
+  author?: string;
+  description?: string;
+  hotRank?: number;
 };
 
 const GENRES: { key: DramaSeries['genre'] | 'all'; label: string }[] = [
@@ -174,8 +174,8 @@ function Top10Podium({ list, genre, status }: { list: DramaSeries[]; genre: Dram
     genre === 'all' && status === 'ALL'
       ? '本周热门'
       : `${genre !== 'all' ? genre : ''}${genre !== 'all' && status !== 'ALL' ? '·' : ''}${status !== 'ALL' ? STATUS_LABEL[status] : ''}热门` || '本周热门';
-  const top3 = list.filter((d) => d.hotRank >= 1 && d.hotRank <= 3);
-  const rest = list.filter((d) => d.hotRank >= 4 && d.hotRank <= 10);
+  const top3 = list.filter((d) => (d.hotRank || 0) >= 1 && (d.hotRank || 0) <= 3);
+  const rest = list.filter((d) => (d.hotRank || 0) >= 4 && (d.hotRank || 0) <= 10);
 
   return (
     <Box
@@ -205,7 +205,7 @@ function Top10Podium({ list, genre, status }: { list: DramaSeries[]; genre: Dram
       {/* 前三名:领奖台 */}
       <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1fr', gap: 1.5, mb: 2, mt: 1 }}>
         {top3
-          .sort((a, b) => a.hotRank - b.hotRank)
+          .sort((a, b) => (a.hotRank ?? 0) - (b.hotRank ?? 0))
           .map((d) => (
             <PodiumCard key={d.id} item={d} />
           ))}
@@ -213,7 +213,7 @@ function Top10Podium({ list, genre, status }: { list: DramaSeries[]; genre: Dram
 
       {/* 4-10 列表 */}
       {rest.length > 0 && (
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 1, pt: 1.5, borderTop: '1px dashed rgba(255,255,255,0.08)' }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 1, pt: 1.5, borderTop: '1px dashed', borderTopColor: 'divider' }}>
           {rest.map((d) => (
             <RankRow key={d.id} item={d} />
           ))}
@@ -274,7 +274,7 @@ function PodiumCard({ item }: { item: DramaSeries }) {
 
       {/* 封面 */}
       <Box sx={{ position: 'relative', aspectRatio: '3/4' }}>
-        <img src={item.cover} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <img src={item.cover || undefined} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.MID }} />
 
         {/* 题材 + 评分 */}
@@ -284,7 +284,7 @@ function PodiumCard({ item }: { item: DramaSeries }) {
           </Box>
           <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25, px: 0.5, py: 0.05, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: 'warning.main', fontSize: 9, fontWeight: 700 }}>
             <StarRoundedIcon sx={{ fontSize: 10 }} />
-            {item.rating.toFixed(1)}
+            {item.rating?.toFixed(1) ?? '0.0'}
           </Box>
         </Box>
 
@@ -294,7 +294,7 @@ function PodiumCard({ item }: { item: DramaSeries }) {
             {item.title}
           </Typography>
           <Typography sx={{ fontSize: 10, color: 'rgba(255,255,255,0.7)' }}>
-            {formatViews(item.views)} 播放 · {item.episodes} 集
+            {formatViews(item.views)} 播放 · {item.episodes ?? '-'} 集
           </Typography>
         </Box>
       </Box>
@@ -316,21 +316,21 @@ function RankRow({ item }: { item: DramaSeries }) {
         borderRadius: 1,
         cursor: 'pointer',
         transition: 'background 0.15s',
-        '&:hover': { bgcolor: 'rgba(255,255,255,0.04)' },
+        '&:hover': { bgcolor: 'action.hover' },
       }}
     >
       <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted, rgba(255,255,255,0.4))', width: 22, textAlign: 'right', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
         {item.hotRank}
       </Typography>
       <Box sx={{ width: 24, height: 32, borderRadius: 0.5, overflow: 'hidden', flexShrink: 0 }}>
-        <img src={item.cover} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <img src={item.cover || undefined} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       </Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography sx={{ fontSize: 11, fontWeight: 500, color: 'var(--text-primary, #fff)', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {item.title}
         </Typography>
         <Typography sx={{ fontSize: 9, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
-          {STATUS_LABEL[item.status]} · {formatViews(item.views)}
+          {STATUS_LABEL[item.status] ?? '-'} · {formatViews(item.views)}
         </Typography>
       </Box>
     </Box>
@@ -339,7 +339,7 @@ function RankRow({ item }: { item: DramaSeries }) {
 
 function DramaCard({ item }: { item: DramaSeries }) {
   const navigate = useContentNavigate();
-  const sColor = STATUS_COLOR[item.status];
+  const sColor = STATUS_COLOR[item.status] ?? { bg: 'rgba(255,255,255,0.08)', fg: 'var(--text-secondary, rgba(255,255,255,0.7))' };
   return (
     <Box
       onClick={() => navigate('TELEPLAY', item.id)}
@@ -355,7 +355,7 @@ function DramaCard({ item }: { item: DramaSeries }) {
       }}
     >
       <Box sx={{ position: 'relative', aspectRatio: '3/4' }}>
-        <img src={item.cover} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <img src={item.cover || undefined} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.MID }} />
 
         {/* 题材 */}
@@ -366,7 +366,7 @@ function DramaCard({ item }: { item: DramaSeries }) {
         {/* 评分 */}
         <Box sx={{ position: 'absolute', top: 8, right: 8, display: 'inline-flex', alignItems: 'center', gap: 0.25, px: 0.5, py: 0.05, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: 'warning.main', fontSize: 10, fontWeight: 700 }}>
           <StarRoundedIcon sx={{ fontSize: 10 }} />
-          {item.rating.toFixed(1)}
+          {item.rating?.toFixed(1) ?? '0.0'}
         </Box>
 
         {/* 状态徽章 */}
@@ -381,12 +381,12 @@ function DramaCard({ item }: { item: DramaSeries }) {
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'rgba(255,255,255,0.7)' }}>
             <PlayArrowRoundedIcon sx={{ fontSize: 10 }} />
-            <Typography sx={{ fontSize: 10 }}>{item.episodes} 集 · {formatViews(item.views)} 播放</Typography>
+            <Typography sx={{ fontSize: 10 }}>{item.episodes ?? '-'} 集 · {formatViews(item.views)} 播放</Typography>
           </Box>
         </Box>
 
         {/* 锁 */}
-        {item.freeEpisodes < item.episodes && (
+        {item.freeEpisodes != null && item.episodes != null && item.freeEpisodes < item.episodes && (
           <Box sx={{ position: 'absolute', bottom: 8, right: 8, width: 20, height: 20, borderRadius: '50%', bgcolor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <LockRoundedIcon sx={{ fontSize: 11, color: 'warning.main' }} />
           </Box>
@@ -396,8 +396,9 @@ function DramaCard({ item }: { item: DramaSeries }) {
   );
 }
 
-function formatViews(n: number): string {
-  if (n >= 100000000) return `${(n / 100000000).toFixed(1)}亿`;
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
-  return n.toString();
+function formatViews(n?: number | null): string {
+  const num = Number(n) || 0;
+  if (num >= 100000000) return `${(num / 100000000).toFixed(1)}亿`;
+  if (num >= 10000) return `${(num / 10000).toFixed(1)}w`;
+  return num.toString();
 }

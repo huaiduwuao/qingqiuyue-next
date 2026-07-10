@@ -222,15 +222,15 @@ export function AIRecommendPanel() {
                 gap: 1.5,
                 p: 1.5,
                 borderRadius: 2,
-                bgcolor: 'rgba(255,255,255,0.04)',
-                border: '1px solid rgba(255,255,255,0.06)',
+                bgcolor: 'var(--bg-hover)',
+                border: '1px solid var(--border-color)',
               }}
             >
-              <Skeleton variant="rounded" height={120} sx={{ bgcolor: 'rgba(255,255,255,0.04)' }} />
+              <Skeleton variant="rounded" height={120} sx={{ bgcolor: 'var(--bg-active)' }} />
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <Skeleton variant="text" width="60%" sx={{ bgcolor: 'rgba(255,255,255,0.05)' }} />
-                <Skeleton variant="text" width="40%" sx={{ bgcolor: 'rgba(255,255,255,0.05)' }} />
-                <Skeleton variant="rounded" height={64} sx={{ bgcolor: 'rgba(255,255,255,0.04)' }} />
+                <Skeleton variant="text" width="60%" sx={{ bgcolor: 'var(--bg-active)' }} />
+                <Skeleton variant="text" width="40%" sx={{ bgcolor: 'var(--bg-active)' }} />
+                <Skeleton variant="rounded" height={64} sx={{ bgcolor: 'var(--bg-active)' }} />
               </Box>
             </Box>
           ))}
@@ -293,8 +293,8 @@ export function AIRecommendPanel() {
                   borderRadius: 1.5,
                   overflow: 'hidden',
                   cursor: 'pointer',
-                  bgcolor: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(255,255,255,0.06)',
+                  bgcolor: 'var(--bg-hover)',
+                  border: '1px solid var(--border-color)',
                   '&:hover': { transform: 'scale(1.02)' },
                   transition: 'transform 0.2s',
                 }}

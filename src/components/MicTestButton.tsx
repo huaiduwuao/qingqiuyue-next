@@ -11,6 +11,7 @@
 
 import React from 'react'
 import { Box, IconButton, Typography, Button, Switch, FormControlLabel } from '@mui/material'
+import { alpha } from '@mui/material/styles'
 import GraphicEqIcon from '@mui/icons-material/GraphicEq'
 import CloseIcon from '@mui/icons-material/Close'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
@@ -187,9 +188,9 @@ export function MicTestButton() {
         data-no-drag
         onClick={(e) => { e.stopPropagation(); start() }}
         sx={{
-          bgcolor: 'rgba(255,255,255,0.1)',
-          color: 'rgba(255,255,255,0.7)',
-          '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' },
+          bgcolor: 'action.hover',
+          color: 'text.secondary',
+          '&:hover': { bgcolor: 'action.selected' },
         }}
         title="麦克风测试"
       >
@@ -204,12 +205,13 @@ export function MicTestButton() {
             position: 'fixed',
             top: 80, right: 16, zIndex: 2000,
             width: 360,
-            bgcolor: 'rgba(20,20,30,0.95)',
-            color: 'white',
+            bgcolor: (t) => alpha(t.palette.background.paper, 0.97),
+            color: 'text.primary',
             borderRadius: 2,
             p: 2,
             backdropFilter: 'blur(8px)',
-            border: '1px solid rgba(124,58,237,0.4)',
+            border: '1px solid',
+            borderColor: 'primary.main',
             boxShadow: 4,
           }}
         >
@@ -220,7 +222,7 @@ export function MicTestButton() {
                 size="small"
                 startIcon={<ContentCopyIcon sx={{ fontSize: 14 }} />}
                 onClick={copyResults}
-                sx={{ color: 'rgba(255,255,255,0.8)', fontSize: 11, minWidth: 0, textTransform: 'none' }}
+                sx={{ color: 'text.secondary', fontSize: 11, minWidth: 0, textTransform: 'none' }}
               >
                 {copied ? '已复制' : '复制结果'}
               </Button>
@@ -261,7 +263,7 @@ export function MicTestButton() {
 
           <Box sx={{
             height: 12, mt: 1, mb: 1,
-            bgcolor: 'rgba(255,255,255,0.1)',
+            bgcolor: 'action.hover',
             borderRadius: 1, overflow: 'hidden', position: 'relative',
           }}>
             <Box sx={{
@@ -273,7 +275,7 @@ export function MicTestButton() {
           </Box>
 
           {settings && (
-            <Box sx={{ mt: 1, p: 1, bgcolor: 'rgba(255,255,255,0.05)', borderRadius: 1, fontSize: 10, fontFamily: 'monospace' }}>
+            <Box sx={{ mt: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1, fontSize: 10, fontFamily: 'monospace' }}>
               <div>echoCancellation: {String(settings.echoCancellation)}</div>
               <div>noiseSuppression: {String(settings.noiseSuppression)}</div>
               <div style={{ color: settings.autoGainControl ? '#ef4444' : '#10b981' }}>

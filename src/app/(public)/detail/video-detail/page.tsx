@@ -59,7 +59,8 @@ function VideoDetailContent() {
 
   const [favorited, setFavorited] = React.useState(false);
   const [collectBusy, setCollectBusy] = React.useState(false);
-  const [followed, setFollowed] = React.useState(false);
+  const [followOverride, setFollowOverride] = React.useState<boolean | null>(null);
+  const followed = followOverride ?? !!(query.data as any)?.isFollowing;
   const [followBusy, setFollowBusy] = React.useState(false);
   const [snack, setSnack] = React.useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
     open: false,
@@ -118,7 +119,7 @@ function VideoDetailContent() {
     if (followBusy) return;
     setFollowBusy(true);
     const wasFollowing = followed;
-    setFollowed(!wasFollowing);
+    setFollowOverride(!wasFollowing);
     try {
       if (wasFollowing) {
         await homeClient.delete(`/follow/${userId}`);
@@ -128,7 +129,7 @@ function VideoDetailContent() {
         notify('关注成功');
       }
     } catch (err) {
-      setFollowed(wasFollowing);
+      setFollowOverride(wasFollowing);
       notify(formatApiError(err), 'error');
     } finally {
       setFollowBusy(false);
@@ -194,7 +195,8 @@ function VideoDetailContent() {
                   gap: 1.5,
                   p: 1.5,
                   bgcolor: 'background.paper',
-                  border: '1px solid #252836',
+                  border: '1px solid',
+                  borderColor: 'divider',
                   borderRadius: 2,
                   mb: 2,
                 }}
@@ -212,7 +214,8 @@ function VideoDetailContent() {
                   sx={{
                     bgcolor: followed ? 'transparent' : 'primary.main',
                     color: followed ? 'text.secondary' : 'text.primary',
-                    border: followed ? '1px solid #252836' : 'none',
+                    border: followed ? '1px solid' : 'none',
+                    borderColor: 'divider',
                     fontWeight: 600,
                     '&:hover': { bgcolor: followed ? 'transparent' : '#E0264B' },
                   }}

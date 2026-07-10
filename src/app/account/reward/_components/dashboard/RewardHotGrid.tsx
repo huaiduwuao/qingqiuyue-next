@@ -92,7 +92,7 @@ export default function RewardHotGrid({
         borderRadius: 2,
         bgcolor: 'background.paper',
         border: '1px solid',
-        borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
+        borderColor: 'divider',
       }}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
@@ -132,7 +132,7 @@ export default function RewardHotGrid({
       {hotQuery.isLoading ? (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(1, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 1.5 }}>
           {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} variant="rounded" height={160} sx={{ bgcolor: 'rgba(255,255,255,0.04)' }} />
+            <Skeleton key={i} variant="rounded" height={160} sx={{ bgcolor: 'action.hover' }} />
           ))}
         </Box>
       ) : HOT_BOUNTIES.length === 0 ? (
@@ -157,9 +157,9 @@ export default function RewardHotGrid({
               position: 'relative',
               borderRadius: 1.5,
               overflow: 'hidden',
-              bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
+              bgcolor: 'background.paper',
               border: '1px solid',
-              borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
+              borderColor: 'divider',
               cursor: 'pointer',
               transition: 'all 0.25s',
               '&:hover': {

@@ -219,7 +219,8 @@ function ComicsDetailContent() {
                       p: 1.5,
                       borderRadius: 1.5,
                       cursor: 'pointer',
-                      border: '1px solid #252836',
+                      border: '1px solid',
+                      borderColor: 'divider',
                       bgcolor: 'background.paper',
                       display: 'flex',
                       alignItems: 'center',
@@ -254,7 +255,7 @@ function ComicsDetailContent() {
                     flexDirection: 'column',
                   }}
                 >
-                  <Box sx={{ display: 'flex', alignItems: 'center', p: 1.5, borderBottom: '1px solid #252836' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', p: 1.5, borderBottom: '1px solid', borderBottomColor: 'divider' }}>
                     <IconButton onClick={() => setReaderOpen(false)} sx={{ color: 'text.primary' }}>
                       <NavigateBeforeIcon />
                     </IconButton>
@@ -275,7 +276,7 @@ function ComicsDetailContent() {
                     </Box>
                   </Box>
 
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1.5, borderTop: '1px solid #252836' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1.5, borderTop: '1px solid', borderTopColor: 'divider' }}>
                     <IconButton onClick={() => setActivePage(Math.max(1, activePage - 1))} sx={{ color: 'text.primary' }}>
                       <NavigateBeforeIcon />
                     </IconButton>

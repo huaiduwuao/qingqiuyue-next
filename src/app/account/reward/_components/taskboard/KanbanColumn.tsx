@@ -88,7 +88,7 @@ export function KanbanColumn({ status, tasks, onTaskClick, onOpenDemand, demandT
             height: 18,
             fontSize: 10,
             fontWeight: 700,
-            bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'action.hover',
+            bgcolor: 'action.hover',
             color: meta.color,
           }}
         />

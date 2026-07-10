@@ -88,9 +88,9 @@ export function SettlementDialog({ open, demand, readonly, onClose, onConfirm, o
                   alignItems: 'center',
                   gap: 1.5,
                   p: 1.5,
-                  bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FAFAFA',
+                  bgcolor: 'action.hover',
                   border: '1px solid',
-                  borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
+                  borderColor: 'divider',
                   borderRadius: 1,
                 }}
               >
@@ -112,7 +112,7 @@ export function SettlementDialog({ open, demand, readonly, onClose, onConfirm, o
             ))}
           </Box>
         ) : (
-          <Box sx={{ p: 2, textAlign: 'center', bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FAFAFA', borderRadius: 1, border: '1px dashed', borderColor: 'divider' }}>
+          <Box sx={{ p: 2, textAlign: 'center', bgcolor: 'action.hover', borderRadius: 1, border: '1px dashed', borderColor: 'divider' }}>
             <Typography variant="caption" color="text.secondary">
               {readonly ? '无分账记录' : '确认结账后将自动按任务数等额分账给所有贡献者'}
             </Typography>

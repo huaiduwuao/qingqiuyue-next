@@ -30,7 +30,7 @@ export default function RewardRanking() {
         borderRadius: 2,
         bgcolor: 'background.paper',
         border: '1px solid',
-        borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
+        borderColor: 'divider',
       }}
     >
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
@@ -44,7 +44,7 @@ export default function RewardRanking() {
       {query.isLoading ? (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
           {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} variant="rounded" height={48} sx={{ bgcolor: 'rgba(255,255,255,0.04)' }} />
+            <Skeleton key={i} variant="rounded" height={48} sx={{ bgcolor: 'action.hover' }} />
           ))}
         </Box>
       ) : query.isError ? (
@@ -72,7 +72,7 @@ export default function RewardRanking() {
                 borderColor: r.rank <= 3 ? 'rgba(255, 180, 0, 0.15)' : 'transparent',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
-                '&:hover': { bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'action.hover' },
+                '&:hover': { bgcolor: 'action.hover'},
               }}
             >
               <Box
@@ -142,7 +142,7 @@ export default function RewardRanking() {
           mt: 1.5,
           pt: 1.5,
           borderTop: '1px solid',
-          borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
+          borderColor: 'divider',
           textAlign: 'center',
         }}
       >

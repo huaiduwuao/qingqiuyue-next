@@ -28,6 +28,8 @@ import TheatersIcon from '@mui/icons-material/Theaters';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutlineOutlined';
 import HistoryIcon from '@mui/icons-material/History';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import { ThemeProvider } from '@mui/material/styles';
+import { darkTheme } from '@/styles/theme';
 import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2, gradient3 } from '@/constants/gradients';
 import { accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
@@ -124,7 +126,7 @@ function useCountdown(target: string) {
   }, [now, target]);
 }
 
-export default function RechargePage() {
+function RechargePageContent() {
   const router = useRouter();
   const [selectedPkg, setSelectedPkg] = useState<string>('');
   const [payMethod, setPayMethod] = useState<PayMethod>('wechat');
@@ -1218,6 +1220,14 @@ export default function RechargePage() {
         </Alert>
       </Snackbar>
     </Box>
+  );
+}
+
+export default function RechargePage() {
+  return (
+    <ThemeProvider theme={darkTheme}>
+      <RechargePageContent />
+    </ThemeProvider>
   );
 }
 

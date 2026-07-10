@@ -282,7 +282,7 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
                   component="div"
                   sx={{
                     height: 120,
-                    backgroundColor: item.cover ? 'transparent' : (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FAFAFA',
+                    backgroundColor: item.cover ? 'transparent' : 'action.hover',
                     backgroundImage: item.cover ? `url(${item.cover})` : 'none',
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
@@ -544,9 +544,9 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
                   key={t.id}
                   sx={{
                     p: 1,
-                    bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FAFAFA',
+                    bgcolor: 'action.hover',
                     border: '1px solid',
-                    borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
+                    borderColor: 'divider',
                     borderRadius: 1,
                     display: 'flex',
                     alignItems: 'center',
@@ -602,9 +602,9 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
                   key={c.id}
                   sx={{
                     p: 1,
-                    bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FAFAFA',
+                    bgcolor: 'action.hover',
                     border: '1px solid',
-                    borderColor: (theme) => theme.palette.mode === 'dark' ? '#252836' : '#E5E7EB',
+                    borderColor: 'divider',
                     borderRadius: 1,
                     display: 'flex',
                     alignItems: 'center',

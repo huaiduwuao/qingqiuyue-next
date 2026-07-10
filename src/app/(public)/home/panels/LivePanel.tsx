@@ -220,7 +220,7 @@ function LiveTop10({ list, onSelect }: { list: Room[]; onSelect: (r: Room) => vo
 
       {/* 4-10 列表 */}
       {rest.length > 0 && (
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 1, pt: 1.5, borderTop: '1px dashed rgba(255,255,255,0.08)' }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 1, pt: 1.5, borderTop: '1px dashed', borderTopColor: 'divider' }}>
           {rest.map((r) => (
             <RankRow key={r.id} room={r} onClick={() => onSelect(r)} />
           ))}
@@ -253,7 +253,7 @@ function PodiumCard({ room, onClick }: { room: Room; onClick: () => void }) {
         {rank}
       </Box>
       <Box sx={{ position: 'relative', aspectRatio: '3/4' }}>
-        <img src={room.cover} alt={room.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <img src={room.cover || undefined} alt={room.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.MID }} />
         {room.isLive && (
           <Box sx={{ position: 'absolute', top: 8, right: 8, display: 'flex', alignItems: 'center', gap: 0.25, px: 0.75, py: 0.25, borderRadius: 0.5, bgcolor: 'primary.main', color: '#fff', fontSize: 9, fontWeight: 700 }}>
@@ -276,12 +276,12 @@ function PodiumCard({ room, onClick }: { room: Room; onClick: () => void }) {
 
 function RankRow({ room, onClick }: { room: Room; onClick: () => void }) {
   return (
-    <Box onClick={onClick} sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.75, borderRadius: 1, cursor: 'pointer', transition: 'background 0.15s', '&:hover': { bgcolor: 'rgba(255,255,255,0.04)' } }}>
+    <Box onClick={onClick} sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.75, borderRadius: 1, cursor: 'pointer', transition: 'background 0.15s', '&:hover': { bgcolor: 'action.hover' } }}>
       <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted, rgba(255,255,255,0.4))', width: 22, textAlign: 'right', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
         {room.hotRank}
       </Typography>
       <Box sx={{ width: 32, height: 18, borderRadius: 0.5, overflow: 'hidden', flexShrink: 0 }}>
-        <img src={room.cover} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <img src={room.cover || undefined} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       </Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography sx={{ fontSize: 11, fontWeight: 500, color: 'var(--text-primary, #fff)', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -309,7 +309,7 @@ function RoomCard({ room, onClick }: { room: Room; onClick: () => void }) {
         '&:hover': { transform: 'scale(1.02)' },
       }}
     >
-      <img src={room.cover} alt={room.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      <img src={room.cover || undefined} alt={room.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.HEAVY }} />
 
       {room.hotRank > 0 && (
@@ -372,7 +372,7 @@ function RoomCard({ room, onClick }: { room: Room; onClick: () => void }) {
               width: 18,
               height: 18,
               borderRadius: '50%',
-              background: room.hostAvatar,
+              background: room.hostAvatar || 'var(--bg-hover, rgba(255,255,255,0.1))',
               border: '1px solid var(--border-strong, rgba(255,255,255,0.3))',
               fontSize: 9,
               display: 'flex',
@@ -382,7 +382,7 @@ function RoomCard({ room, onClick }: { room: Room; onClick: () => void }) {
               fontWeight: 600,
             }}
           >
-            {room.hostName[0]}
+            {(room.hostName || '?')[0]}
           </Box>
           <Typography sx={{ fontSize: 11, color: 'var(--text-primary, rgba(255,255,255,0.85))', flex: 1 }}>
             {room.hostName}
@@ -409,8 +409,8 @@ function RoomCard({ room, onClick }: { room: Room; onClick: () => void }) {
             size="small"
             sx={{
               height: 16,
-              bgcolor: 'rgba(255,255,255,0.08)',
-              color: 'var(--text-secondary, rgba(255,255,255,0.7))',
+              bgcolor: 'action.hover',
+              color: 'text.secondary',
               fontSize: 9,
               fontWeight: 500,
             }}
@@ -421,8 +421,9 @@ function RoomCard({ room, onClick }: { room: Room; onClick: () => void }) {
   );
 }
 
-function formatViewers(n: number): string {
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}万`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return n.toString();
+function formatViewers(n?: number | null): string {
+  const num = Number(n) || 0;
+  if (num >= 10000) return `${(num / 10000).toFixed(1)}万`;
+  if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
+  return num.toString();
 }

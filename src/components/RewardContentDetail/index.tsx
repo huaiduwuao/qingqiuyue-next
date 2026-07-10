@@ -39,7 +39,7 @@ export default function RewardContentDetail({ detail, type, onClose, onReward }:
         return (
           <Box sx={{ p: 3, textAlign: 'center' }}>
             <Box sx={{ fontSize: 20, fontWeight: 700, mb: 2 }}>{detail.name}</Box>
-            <Box sx={{ color: '#48576a' }} dangerouslySetInnerHTML={{ __html: detail.info || '' }} />
+            <Box sx={{ color: 'text.secondary' }} dangerouslySetInnerHTML={{ __html: detail.info || '' }} />
           </Box>
         );
     }

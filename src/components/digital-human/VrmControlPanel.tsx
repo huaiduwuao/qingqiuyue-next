@@ -93,10 +93,11 @@ export default function VrmControlPanel({ open, onClose, handle, state, onChange
           sx: {
             width: { xs: '100%', md: 340 },
             maxHeight: { xs: '80vh', md: '100%' },
-            bgcolor: 'rgba(16,13,30,0.92)',
+            bgcolor: (t) => alpha(t.palette.background.paper, 0.92),
             backdropFilter: 'blur(16px)',
-            borderLeft: { xs: 0, md: '1px solid rgba(255,255,255,0.1)' },
-            borderTop: { xs: '1px solid rgba(255,255,255,0.1)', md: 0 },
+            borderLeft: { xs: 0, md: '1px solid' },
+            borderTop: { xs: '1px solid', md: 0 },
+            borderColor: 'divider',
             color: 'text.primary',
           },
         },
@@ -133,7 +134,7 @@ export default function VrmControlPanel({ open, onClose, handle, state, onChange
           </Button>
         </Box>
 
-        <Divider sx={{ my: 1, borderColor: 'rgba(255,255,255,0.06)' }} />
+        <Divider sx={{ my: 1, borderColor: 'divider' }} />
 
         {/* 场景 */}
         {sectionLabel('场景')}
@@ -167,7 +168,7 @@ export default function VrmControlPanel({ open, onClose, handle, state, onChange
           ))}
         </Box>
 
-        <Divider sx={{ my: 1, borderColor: 'rgba(255,255,255,0.06)' }} />
+        <Divider sx={{ my: 1, borderColor: 'divider' }} />
 
         {/* 身体位置（方向键 pad + 跑/走模式） */}
         {sectionLabel('身体位置')}
@@ -200,7 +201,7 @@ export default function VrmControlPanel({ open, onClose, handle, state, onChange
             onChange={(_, v) => onChange({ yOffset: v as number })} sx={{ color: '#4fd8ff' }} />
         </Box>
 
-        <Divider sx={{ my: 1, borderColor: 'rgba(255,255,255,0.06)' }} />
+        <Divider sx={{ my: 1, borderColor: 'divider' }} />
 
         {/* 跳舞 */}
         {sectionLabel('跳舞')}
@@ -233,7 +234,7 @@ export default function VrmControlPanel({ open, onClose, handle, state, onChange
             onChange={(_, v) => onChange({ danceAmp: v as number })} sx={{ color: '#4fd8ff' }} />
         </Box>
 
-        <Divider sx={{ my: 1, borderColor: 'rgba(255,255,255,0.06)' }} />
+        <Divider sx={{ my: 1, borderColor: 'divider' }} />
 
         {/* 唱歌 */}
         {sectionLabel('唱歌（口型同步）')}
@@ -248,7 +249,7 @@ export default function VrmControlPanel({ open, onClose, handle, state, onChange
           </Button>
         </Stack>
 
-        <Divider sx={{ my: 1, borderColor: 'rgba(255,255,255,0.06)' }} />
+        <Divider sx={{ my: 1, borderColor: 'divider' }} />
 
         {/* 杂项 */}
         {sectionLabel('杂项')}

@@ -32,7 +32,7 @@ import MovieFilterRoundedIcon from '@mui/icons-material/MovieFilterRounded';
 import CardGiftcardRoundedIcon from '@mui/icons-material/CardGiftcardRounded';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import { LoginGate } from '@/components/auth/LoginGate';
-import { accountClient, isNetworkError, isBusinessError, isAuthError, formatApiError } from '@/lib/api/client';
+import { accountClient, isBusinessError, isAuthError, formatApiError } from '@/lib/api/client';
 import { getOrderList, type Order as ApiOrder } from '@/apis/dashboard';
 
 type OrderStatus = 'paid' | 'pending' | 'refunded' | 'cancelled';
@@ -59,8 +59,8 @@ const TYPE_META: Record<OrderType, { icon: React.ReactNode; color: string; label
 const STATUS_META: Record<OrderStatus, { label: string; color: string; bg: string }> = {
   paid: { label: '已完成', color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.12)' },
   pending: { label: '待支付', color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)' },
-  refunded: { label: '已退款', color: 'rgba(255,255,255,0.5)', bg: 'rgba(255,255,255,0.06)' },
-  cancelled: { label: '已取消', color: 'rgba(255,255,255,0.5)', bg: 'rgba(255,255,255,0.06)' },
+  refunded: { label: '已退款', color: 'text.secondary', bg: 'action.hover' },
+  cancelled: { label: '已取消', color: 'text.secondary', bg: 'action.hover' },
 };
 
 function formatTime(ts: number): string {
@@ -116,19 +116,8 @@ export default function OrdersPage() {
     const orderId = activeOrder.id;
     const method = payMethod;
     try {
-      try {
-        // 真实网络请求:支付订单
-        await accountClient.post(`/account/orders/${orderId}/pay`, { payMethod: method });
-      } catch (err) {
-        // 仅对网络错误做 mock 回退,业务失败(余额不足等)需提示给用户
-        if (isNetworkError(err)) {
-          // 网络层失败 → 回退到 mock,但保留本地状态变更
-          await new Promise((resolve) => setTimeout(resolve, 600));
-        } else {
-          // 业务失败 / 鉴权失败 → 抛给外层 catch 统一提示
-          throw err;
-        }
-      }
+      // 真实网络请求:支付订单(失败直接抛到外层 catch,不做 mock 假成功)
+      await accountClient.post(`/account/orders/${orderId}/pay`, { payMethod: method });
       // 真实接口成功后让 query 重新拉,而不是改本地 state
       qc.invalidateQueries({ queryKey: ['order-list'] });
       setProcessing(false);
@@ -157,17 +146,8 @@ export default function OrdersPage() {
     const orderId = activeOrder.id;
     const reason = refundReason.trim();
     try {
-      try {
-        // 真实网络请求:申请退款
-        await accountClient.post(`/account/orders/${orderId}/refund`, { reason });
-      } catch (err) {
-        if (isNetworkError(err)) {
-          // 网络失败 → 回退到 mock,保留本地状态变更
-          await new Promise((resolve) => setTimeout(resolve, 600));
-        } else {
-          throw err;
-        }
-      }
+      // 真实网络请求:申请退款(失败直接抛到外层 catch,不做 mock 假成功)
+      await accountClient.post(`/account/orders/${orderId}/refund`, { reason });
       qc.invalidateQueries({ queryKey: ['order-list'] });
       setProcessing(false);
       setDialogMode(null);

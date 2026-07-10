@@ -77,7 +77,7 @@ export function TaskCard({ task, onClick, isOverlay, demandTitle, onOpenDemand, 
         boxShadow: isOverlay ? 4 : 'none',
         '&:hover': {
           borderColor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)',
-          bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.025)',
+          bgcolor: 'action.hover',
         },
         userSelect: 'none',
         // 优先级色(从 pri 展开):左边框颜色 / 宽度

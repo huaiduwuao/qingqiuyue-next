@@ -229,7 +229,7 @@ export default function NewCreationSection() {
             sx={{
               p: 2.5,
               borderRadius: 2,
-              bgcolor: (theme) => (theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF'),
+              bgcolor: 'background.paper',
               border: '1px solid',
               borderColor: 'divider',
               cursor: 'pointer',
@@ -311,7 +311,7 @@ export default function NewCreationSection() {
                   sx={{
                     p: 1.5,
                     borderRadius: 1.5,
-                    bgcolor: (theme) => (theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF'),
+                    bgcolor: 'background.paper',
                     border: '1px solid',
                     borderColor: 'divider',
                     display: 'flex',
@@ -427,7 +427,7 @@ export default function NewCreationSection() {
                               flex: 1,
                               height: 4,
                               borderRadius: 1,
-                              bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'action.hover'),
+                              bgcolor: 'action.hover',
                               '& .MuiLinearProgress-bar': {
                                 bgcolor: item.paused
                                   ? (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)')
@@ -477,7 +477,7 @@ export default function NewCreationSection() {
                                   px: 0.5,
                                   py: 0.05,
                                   borderRadius: 0.5,
-                                  bgcolor: (theme) => (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'action.hover'),
+                                  bgcolor: 'action.hover',
                                   color: 'text.secondary',
                                   fontSize: 9,
                                 }}

@@ -147,7 +147,7 @@ function MusicDetailContent() {
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       {/* 顶部条 */}
-      <Box sx={{ display: 'flex', alignItems: 'center', p: 1.5, borderBottom: '1px solid #252836' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
         <IconButton onClick={() => router.back()} sx={{ color: 'text.tertiary' }}>
           <ArrowBackIcon />
         </IconButton>
@@ -192,7 +192,8 @@ function MusicDetailContent() {
                   height: { xs: 280, sm: 380 },
                   overflow: 'auto',
                   bgcolor: 'background.paper',
-                  border: '1px solid #252836',
+                  border: '1px solid',
+                  borderColor: 'divider',
                   borderRadius: 2,
                   p: 2,
                   '&::-webkit-scrollbar': { width: 4 },

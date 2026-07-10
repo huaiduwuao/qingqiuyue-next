@@ -21,6 +21,30 @@ const eslintConfig = defineConfig([
       'react/no-unescaped-entities': 'warn',
     },
   },
+  // 防止暗色硬编码回退:在 app/components 内禁止裸写暗色十六进制值,
+  // 强制使用 theme.palette.* 或 CSS 变量(--bg-*/--text-*)。
+  // styles/tokens 与强制暗色的沉浸式页面通过 ignores 排除。
+  {
+    files: ['src/app/**/*.{ts,tsx}', 'src/components/**/*.{ts,tsx}'],
+    ignores: [
+      'src/styles/**',
+      'src/app/(public)/wallpaper/**',
+      'src/app/(public)/recharge/**',
+      'src/app/(public)/download/**',
+      'src/app/(public)/search/**',
+      'src/app/(public)/detail/comics-detail/**',
+      'src/app/(admin)/system/log/**',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'warn',
+        {
+          selector: 'Literal[value=/#252836|#0A0B14|#0a0a0f|#1E2030|#161821/]',
+          message: '避免硬编码暗色值,请使用 theme.palette.* 或 CSS 变量(--bg-*/--text-*)。',
+        },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     '.next/**',

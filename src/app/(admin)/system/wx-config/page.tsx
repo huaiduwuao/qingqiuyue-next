@@ -222,7 +222,7 @@ export default function WxConfigPage() {
 
         {/* 右侧详情 */}
         {selected && (
-          <Box sx={{ p: 3, borderRadius: 2, bgcolor: 'background.paper', border: '1px solid #252836' }}>
+          <Box sx={{ p: 3, borderRadius: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
               <Typography variant="h6" sx={{ color: 'text.primary' }}>
                 {selected.appName}
@@ -256,7 +256,7 @@ export default function WxConfigPage() {
                           p: 1.5,
                           borderRadius: 1,
                           bgcolor: 'background.default',
-                          border: '1px solid #252836',
+                          border: '1px solid', borderColor: 'divider',
                           fontFamily: 'monospace',
                           fontSize: 13,
                           color: 'text.tertiary',

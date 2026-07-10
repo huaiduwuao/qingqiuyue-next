@@ -154,12 +154,13 @@ export default function InteractionPage() {
         method: 'POST',
         data: { contentId: replyTarget.contentId, content: replyContent.trim() },
       });
-    } catch {
-      // ignore error, still show success snackbar
+      setSnack('回复已提交');
+      closeReply();
+    } catch (err) {
+      setSnack(formatApiError(err) || '回复失败,请稍后重试');
+    } finally {
+      setReplyLoading(false);
     }
-    setReplyLoading(false);
-    setSnack('回复已提交');
-    closeReply();
   };
 
   const filteredMentions = useMemo(() => {
@@ -246,7 +247,7 @@ export default function InteractionPage() {
               sx={{
                 p: 2,
                 borderRadius: 1.5,
-                bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
+                bgcolor: 'background.paper',
                 border: '1px solid',
                 borderColor: 'divider',
               }}
@@ -326,7 +327,7 @@ export default function InteractionPage() {
               sx={{
                 p: 1.5,
                 borderRadius: 1.5,
-                bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF',
+                bgcolor: 'background.paper',
                 border: '1px solid',
                 borderColor: 'divider',
                 display: 'flex',
@@ -444,8 +445,7 @@ export default function InteractionPage() {
                     p: 2,
                     borderRadius: 1.5,
                     bgcolor: m.read
-                      ? (theme) => theme.palette.mode === 'dark' ? '#1E2030' : '#FFFFFF'
-                      : 'rgba(254, 44, 85, 0.06)',
+                      ? 'background.paper': 'rgba(254, 44, 85, 0.06)',
                     border: '1px solid',
                     borderColor: m.read ? 'divider' : 'rgba(254, 44, 85, 0.25)',
                     position: 'relative',

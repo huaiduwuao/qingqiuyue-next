@@ -75,7 +75,7 @@ interface Collection {
 const STATUS_META: Record<CollectionStatus, { label: string; color: string; bg: string }> = {
   active: { label: '进行中', color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.12)' },
   finished: { label: '已完结', color: '#5B8DEF', bg: 'rgba(91, 141, 239, 0.12)' },
-  draft: { label: '草稿', color: 'rgba(255,255,255,0.6)', bg: 'rgba(255,255,255,0.06)' },
+  draft: { label: '草稿', color: 'text.secondary', bg: 'action.hover' },
 };
 
 const VISIBILITY_META: Record<CollectionVisibility, { label: string }> = {
@@ -165,15 +165,22 @@ export default function CollectionPage() {
   const apiCollections: Collection[] = (colResp?.records ?? colResp?.list ?? []).map((c: ApiCollection) => ({
     id: Number(c.id) || 0,
     title: c.title,
-    description: '',
+    description: c.description ?? '',
     cover: c.cover || '',
-    status: 'active',
+    status: (c.status ?? 'active') as CollectionStatus,
     visibility: c.isPublic ? 'public' : 'private',
-    category: 'travel' as any, // 后端暂无分类,UI 默认给个值
-    works: [],
+    category: (c.category as CollectionCategory) ?? ('travel' as any),
+    works: (c.works ?? []).map((w) => ({
+      id: Number(w.id) || 0,
+      title: w.title,
+      cover: w.cover ?? '',
+      duration: typeof w.duration === 'number' ? formatDuration(w.duration) : w.duration,
+      views: w.views ?? 0,
+      type: (w.type ?? 'video') as WorkRef['type'],
+    })),
     totalViews: c.viewCount,
     subscribers: 0,
-    autoSort: false,
+    autoSort: c.autoSort ?? false,
     createdAt: c.updateTime,
     updatedAt: c.updateTime,
   }));

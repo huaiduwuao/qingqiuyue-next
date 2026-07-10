@@ -189,7 +189,7 @@ export default function CreatorSidebar({ selected = 'content', onSelect }: Props
                     bgcolor: isSelected ? 'rgba(254, 44, 85, 0.12)' : 'transparent',
                     color: isSelected ? 'primary.main' : 'text.tertiary',
                     '&:hover': {
-                      bgcolor: isSelected ? 'rgba(254, 44, 85, 0.18)' : 'rgba(255, 255, 255, 0.05)',
+                      bgcolor: isSelected ? 'rgba(254, 44, 85, 0.18)' : 'action.hover',
                     },
                     '&::before': isSelected
                       ? {

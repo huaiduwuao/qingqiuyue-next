@@ -15,6 +15,7 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
+import { alpha } from '@mui/material/styles';
 import { demandDetail } from '@/apis/reward-demand';
 import { createRealization } from '@/apis/reward-realization';
 import { useApp } from '@/contexts/AppContext';
@@ -116,11 +117,12 @@ export default function DemandDetail({ item, type }: DemandDetailProps) {
       <Box
         sx={{
           p: 2.5,
-          borderBottom: '1px solid #f5f5f5',
+          borderBottom: '1px solid',
+          borderColor: 'divider',
           position: 'relative',
           fontSize: 20,
           fontWeight: 700,
-          color: '#000',
+          color: 'text.primary',
         }}
       >
         <Typography variant="h5" component="div" sx={{ fontWeight: 700 }}>
@@ -136,8 +138,8 @@ export default function DemandDetail({ item, type }: DemandDetailProps) {
               lineHeight: '26px',
               textAlign: 'center',
               fontSize: 13,
-              bgcolor: '#fff2e6',
-              color: '#fa8c16',
+              bgcolor: (theme) => alpha(theme.palette.warning.main, 0.12),
+              color: 'warning.main',
               borderRadius: 1,
             }}
           >
@@ -152,8 +154,8 @@ export default function DemandDetail({ item, type }: DemandDetailProps) {
               lineHeight: '26px',
               textAlign: 'center',
               fontSize: 13,
-              bgcolor: '#e6f7ff',
-              color: '#1890ff',
+              bgcolor: (theme) => alpha(theme.palette.info.main, 0.12),
+              color: 'info.main',
               borderRadius: 1,
             }}
           >
@@ -170,8 +172,8 @@ export default function DemandDetail({ item, type }: DemandDetailProps) {
                 lineHeight: '26px',
                 textAlign: 'center',
                 fontSize: 13,
-                bgcolor: '#f0f0f0',
-                color: '#666',
+                bgcolor: 'action.hover',
+                color: 'text.secondary',
                 borderRadius: 1,
               }}
             >
@@ -189,22 +191,23 @@ export default function DemandDetail({ item, type }: DemandDetailProps) {
       </Box>
 
       {/* Detail Main */}
-      <Box sx={{ p: 2.5, fontSize: 14, lineHeight: 1.5, color: '#48576a' }}>
+      <Box sx={{ p: 2.5, fontSize: 14, lineHeight: 1.5, color: 'text.secondary' }}>
         <Typography
           component="div"
           sx={{
             fontWeight: 700,
             fontSize: 16,
-            color: '#151519',
+            color: 'text.primary',
             pl: 1.25,
-            borderLeft: '5px solid #1890ff',
+            borderLeft: '5px solid',
+            borderColor: 'info.main',
             mb: 1,
           }}
         >
           需求描述:
         </Typography>
         <Box
-          sx={{ minHeight: 100, fontSize: 14, color: '#666', lineHeight: '22px', py: 2.5 }}
+          sx={{ minHeight: 100, fontSize: 14, color: 'text.secondary', lineHeight: '22px', py: 2.5 }}
           dangerouslySetInnerHTML={{ __html: detail.content?.content || '' }}
         />
 
@@ -213,9 +216,10 @@ export default function DemandDetail({ item, type }: DemandDetailProps) {
           sx={{
             fontWeight: 700,
             fontSize: 16,
-            color: '#151519',
+            color: 'text.primary',
             pl: 1.25,
-            borderLeft: '5px solid #1890ff',
+            borderLeft: '5px solid',
+            borderColor: 'info.main',
             mb: 1,
           }}
         >
@@ -311,8 +315,8 @@ export default function DemandDetail({ item, type }: DemandDetailProps) {
         <DialogTitle sx={{ fontSize: 16, fontWeight: 700 }}>方案详情</DialogTitle>
         <DialogContent>
           <Typography sx={{ fontSize: 14, fontWeight: 600, mb: 1 }}>{selectedRealization?.title}</Typography>
-          <Typography sx={{ fontSize: 13, color: '#666', lineHeight: 1.6, mb: 1 }}>{selectedRealization?.content || '暂无详细说明'}</Typography>
-          <Typography sx={{ fontSize: 12, color: '#999' }}>状态: {REWARD_STATUS_ENUM[selectedRealization?.status] || selectedRealization?.status}</Typography>
+          <Typography sx={{ fontSize: 13, color: 'text.secondary', lineHeight: 1.6, mb: 1 }}>{selectedRealization?.content || '暂无详细说明'}</Typography>
+          <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>状态: {REWARD_STATUS_ENUM[selectedRealization?.status] || selectedRealization?.status}</Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setSelectedRealization(null)} sx={{ textTransform: 'none' }}>关闭</Button>

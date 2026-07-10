@@ -5,6 +5,7 @@ import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import Typography from '@mui/material/Typography';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import { alpha } from '@mui/material/styles';
 import { useRouter } from 'next/navigation';
 
 interface Props {
@@ -22,9 +23,10 @@ export default function DetailHeader({ title, rightActions }: Props) {
         zIndex: 10,
         display: 'flex',
         alignItems: 'center',
-        bgcolor: 'rgba(10, 11, 20, 0.85)',
+        bgcolor: (theme) => alpha(theme.palette.background.paper, 0.85),
         backdropFilter: 'blur(8px)',
-        borderBottom: '1px solid #252836',
+        borderBottom: '1px solid',
+        borderColor: 'divider',
         px: 1.5,
         py: 1,
       }}

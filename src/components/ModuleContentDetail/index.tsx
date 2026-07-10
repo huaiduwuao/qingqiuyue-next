@@ -56,6 +56,7 @@ interface ModuleContentDetailProps {
     authorAvatar?: string;
     authorId?: string | number;
     userId?: string | number;
+    isFollowing?: boolean;
     views?: number;
     readNum?: number;
     likes?: number;
@@ -83,7 +84,7 @@ export default function ModuleContentDetail({ detail, onClose }: ModuleContentDe
   const [liked, setLiked] = useState(false);
   const [disliked, setDisliked] = useState(false);
   const [starred, setStarred] = useState(false);
-  const [following, setFollowing] = useState(false);
+  const [following, setFollowing] = useState(() => !!detail.isFollowing);
   const [followBusy, setFollowBusy] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [commentDialogOpen, setCommentDialogOpen] = useState(false);
@@ -268,7 +269,7 @@ export default function ModuleContentDetail({ detail, onClose }: ModuleContentDe
         >
           <Box
             component="img"
-            src={detail.cover}
+            src={detail.cover || undefined}
             alt={contentName}
             sx={{
               width: '100%',
@@ -383,10 +384,10 @@ export default function ModuleContentDetail({ detail, onClose }: ModuleContentDe
               borderRadius: 4,
               fontSize: 12,
               px: 2,
-              background: following ? 'rgba(255,255,255,0.12)' : gradient2('#FE2C55', '#FF6B8A'),
+              background: following ? 'action.hover' : gradient2('#FE2C55', '#FF6B8A'),
               color: following ? 'text.secondary' : 'text.primary',
               '&:hover': {
-                background: following ? 'rgba(255,255,255,0.18)' : gradient2('#FE2C55', '#FF6B8A'),
+                background: following ? 'action.selected' : gradient2('#FE2C55', '#FF6B8A'),
                 opacity: 0.92,
               },
             }}

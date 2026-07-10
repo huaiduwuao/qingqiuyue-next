@@ -130,7 +130,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
           {activeNav === 'me' ? <MyHomePage />
            : activeNav === 'ai' ? <AIRecommendPanel />
            : activeNav === 'home' ? <FeedPanel tab="home" />
-           : activeNav === 'recommend' ? <FeedPanel tab="recommend" />
+           : activeNav === 'recommend' ? children
            : activeNav === 'follow' ? <FeedPanel tab="follow" />
            : activeNav === 'friend' ? <FeedPanel tab="friend" />
            : activeNav === 'live' ? <LivePanel />
@@ -138,7 +138,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
            : activeNav === 'drama' ? <DramaPanel />
            : children}
         </Box>
-        {activeNav !== 'me' && activeNav !== 'recommend' && activeNav !== 'follow' && activeNav !== 'friend' && activeNav !== 'live' && <RightSidebar />}
+        {activeNav !== 'me' && activeNav !== 'live' && activeNav !== 'recommend' && <RightSidebar />}
       </Box>
       <MockStatusBadge />
     </Box>
@@ -833,7 +833,7 @@ function RelatedTab() {
           >
             <Box
               component="img"
-              src={item.cover}
+              src={item.cover || undefined}
               alt={item.title}
               sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
