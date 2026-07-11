@@ -23,6 +23,7 @@ import Dialog from '@mui/material/Dialog';
 import Drawer from '@mui/material/Drawer';
 import Stack from '@mui/material/Stack';
 import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
 import Switch from '@mui/material/Switch';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import LinearProgress from '@mui/material/LinearProgress';
@@ -79,6 +80,12 @@ import { HdResolution,
   REVIEW_CHECK_TEMPLATE,
   REVIEWER_LEVEL_META,
   FAST_CHANNEL_MONTHLY } from './data';
+
+type SnackSeverity = 'success' | 'error' | 'info' | 'warning';
+interface SnackMsg {
+  msg: string;
+  severity: SnackSeverity;
+}
 
 const QUALITY_PRESETS: { id: HdResolution; label: string; bitrate: string; size: string; popular?: boolean }[] = [
   { id: '4K', label: '4K 超清', bitrate: '60 Mbps', size: '适合 ≤ 20 min', popular: true },
@@ -151,10 +158,31 @@ export default function HdPublishPage() {
   const isReviewer = hasAuthority('REVIEWER') || hasAuthority('ADMIN') || hasAuthority('SUPER_ADMIN');
   const [tab, setTab] = useState<HdFilter>('all');
   const [search, setSearch] = useState('');
-  const [snack, setSnack] = useState<string | null>(null);
+  const [snack, setSnackRaw] = useState<SnackMsg | null>(null);
+  // setSnack 接受 string 或 SnackMsg — 旧 30+ 处 setSnack('msg') 调用无需改,
+  // 自动转成 { msg, severity: 'info' }。新代码可传 { msg, severity } 显式区分。
+  const setSnack = React.useCallback((s: string | SnackMsg) => {
+    setSnackRaw(typeof s === 'string' ? { msg: s, severity: 'info' } : s);
+  }, []);
+  const dismissSnack = React.useCallback(() => setSnackRaw(null), []);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<{ el: HTMLElement; id: string } | null>(null);
+
+  // 上传文件状态机(用于提交按钮 disabled + 失败保护)。
+  // 历史上 handleFileChange 直接调后端 /file/upload,文件未存到 state,
+  // handleSubmitUpload 不知道用户有没有选过文件 → 没文件也能提交 → catch 后创建假 item。
+  type UploadStatus = 'idle' | 'uploading' | 'uploaded' | 'failed';
+  const [uploadFileName, setUploadFileName] = useState<string | null>(null);
+  const [uploadFileSizeMB, setUploadFileSizeMB] = useState(0);
+  const [uploadFileUrl, setUploadFileUrl] = useState<string | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<UploadStatus>('idle');
+  const resetUpload = React.useCallback(() => {
+    setUploadFileName(null);
+    setUploadFileSizeMB(0);
+    setUploadFileUrl(null);
+    setUploadStatus('idle');
+  }, []);
 
   // 真接口:HD 视频列表(uid 隔离)
   const { data: hdResp } = useQuery({
@@ -522,7 +550,11 @@ export default function HdPublishPage() {
     e.target.value = '';
     if (!file) return;
     setUploadTitle((p) => p || file.name.replace(/\.[^.]+$/, ''));
-    setSnack(`已选择文件: ${(file.size / 1024 / 1024).toFixed(1)} MB,正在上传...`);
+    const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+    setUploadFileName(file.name);
+    setUploadFileSizeMB(Number(sizeMB));
+    setUploadStatus('uploading');
+    setSnack({ msg: `已选择文件: ${sizeMB} MB,正在上传...`, severity: 'info' });
     const formData = new FormData();
     formData.append('file', file);
     try {
@@ -531,13 +563,17 @@ export default function HdPublishPage() {
       });
       const url = (res as { data?: { url?: string } })?.data?.url;
       if (url) {
-        // 将上传得到的 url 暂存到 uploadTitle 旁的隐藏状态;此处仅 snack 提示。
-        setSnack(`文件上传成功:${url}`);
+        setUploadFileUrl(url);
+        setUploadStatus('uploaded');
+        setSnack({ msg: '文件上传成功,可以提交了', severity: 'success' });
       } else {
-        setSnack('上传成功但未返回文件地址');
+        // 后端 200 但没 url:视为失败,不让用户提交。
+        setUploadStatus('failed');
+        setSnack({ msg: '上传成功但未返回文件地址,请重试', severity: 'error' });
       }
     } catch (e) {
-      setSnack(`文件上传失败:${formatApiError(e)}`);
+      setUploadStatus('failed');
+      setSnack({ msg: `文件上传失败:${formatApiError(e)}`, severity: 'error' });
     }
   };
 
@@ -578,13 +614,33 @@ export default function HdPublishPage() {
 
   const handleSubmitUpload = async () => {
     if (!uploadTitle.trim()) {
-      setSnack('请输入视频标题');
+      setSnack({ msg: '请输入视频标题', severity: 'warning' });
+      return;
+    }
+    // 文件上传状态机检查(历史上完全没检查过文件,导致没选文件也能提交)。
+    if (uploadStatus === 'idle') {
+      setSnack({ msg: '请先选择视频文件', severity: 'warning' });
+      return;
+    }
+    if (uploadStatus === 'uploading') {
+      setSnack({ msg: '文件正在上传,请稍候...', severity: 'info' });
+      return;
+    }
+    if (uploadStatus === 'failed') {
+      setSnack({ msg: '文件上传失败,请重新选择文件后重试', severity: 'error' });
+      return;
+    }
+    if (!uploadFileUrl) {
+      setSnack({ msg: '文件地址缺失,请重新选择', severity: 'error' });
       return;
     }
     try {
       await createMutation.mutateAsync(uploadTitle.trim());
     } catch (e: any) {
-      setSnack(`真实内容创建失败:${e.message || '未知错误'},仅保存到本地预览`);
+      // catch 后立即 return,不再继续往下走创建 progress:5% / sizeMB:0 的假 item —
+      // 历史上假 item 加进列表但永远卡 5%,KPI 数字不变,用户感知为"界面死了"。
+      setSnack({ msg: `内容创建失败:${e.message || '未知错误'}`, severity: 'error' });
+      return;
     }
     const newItem: HdVideo = {
       id: `hd-${Date.now()}`,
@@ -594,7 +650,7 @@ export default function HdPublishPage() {
       fps: uploadResolution === '4K' || uploadResolution === '1080P' ? 60 : 30,
       hdr: uploadHdr,
       duration: '00:00',
-      sizeMB: 0,
+      sizeMB: uploadFileSizeMB,
       status: 'transcoding',
       progress: 5,
       uploadedAt: Date.now(),
@@ -603,7 +659,7 @@ export default function HdPublishPage() {
       audioTracks: uploadAudios,
     };
     setVideos((p) => [newItem, ...p]);
-    setSnack(`《${newItem.title}》已加入转码队列并同步创建内容记录`);
+    setSnack({ msg: `《${newItem.title}》已加入转码队列`, severity: 'success' });
     setUploadOpen(false);
     // reset
     setUploadTitle('');
@@ -612,6 +668,7 @@ export default function HdPublishPage() {
     setUploadAutoCover(true);
     setUploadSubtitles([]);
     setUploadAudios([{ id: 'a1', label: '原声', codec: 'AAC 320kbps', isDefault: true }]);
+    resetUpload();
   };
 
   return (
@@ -1735,6 +1792,11 @@ export default function HdPublishPage() {
           <Button
             variant="contained"
             onClick={handleSubmitUpload}
+            disabled={
+              !uploadTitle.trim() ||
+              uploadStatus !== 'uploaded' ||
+              createMutation.isPending
+            }
             sx={{
               textTransform: 'none',
               fontSize: 12,
@@ -1745,7 +1807,11 @@ export default function HdPublishPage() {
               },
             }}
           >
-            提交上传
+            {createMutation.isPending
+              ? '提交中...'
+              : uploadStatus !== 'uploaded'
+                ? '请先上传文件'
+                : '提交上传'}
           </Button>
         </Box>
       </Dialog>
@@ -2809,11 +2875,21 @@ export default function HdPublishPage() {
 
       <Snackbar
         open={!!snack}
-        autoHideDuration={2200}
-        onClose={() => setSnack(null)}
-        message={snack}
+        autoHideDuration={snack?.severity === 'error' ? 5000 : 2400}
+        onClose={dismissSnack}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      />
+      >
+        {snack ? (
+          <Alert
+            severity={snack.severity}
+            variant="filled"
+            onClose={dismissSnack}
+            sx={{ width: '100%' }}
+          >
+            {snack.msg}
+          </Alert>
+        ) : undefined}
+      </Snackbar>
     </Box>
   );
 }
