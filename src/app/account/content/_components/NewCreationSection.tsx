@@ -14,6 +14,13 @@ import VideocamIcon from '@mui/icons-material/Videocam';
 import ImageIcon from '@mui/icons-material/Image';
 import ThreeSixtyIcon from '@mui/icons-material/ThreeSixty';
 import DescriptionIcon from '@mui/icons-material/Description';
+import PhotoLibraryRoundedIcon from '@mui/icons-material/PhotoLibraryRounded';
+import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
+import ArticleRoundedIcon from '@mui/icons-material/ArticleRounded';
+import LibraryMusicRoundedIcon from '@mui/icons-material/LibraryMusicRounded';
+import AutoStoriesRoundedIcon from '@mui/icons-material/AutoStoriesRounded';
+import MovieFilterRoundedIcon from '@mui/icons-material/MovieFilterRounded';
+import TvRoundedIcon from '@mui/icons-material/TvRounded';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import CloudUploadRoundedIcon from '@mui/icons-material/CloudUploadRounded';
@@ -26,13 +33,27 @@ import { gradient2, gradient3 } from '@/constants/gradients';
 import { accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
 import { RelativeTime } from '@/components/common/RelativeTime';
 
-const CREATION_ITEMS = [
+interface CreationItem {
+  id: string;
+  title: string;
+  desc: string;
+  icon: React.ReactNode;
+  gradient: string;
+  /** true = 真实表单已上线,可点;false = 仍是 placeholder,显示"开发中" */
+  ready: boolean;
+  /** 后端 contentType 枚举(用于埋点/未来 payload 预填) */
+  contentType: string;
+}
+
+const CREATION_ITEMS: CreationItem[] = [
   {
     id: 'video',
     title: '发布视频',
     desc: '支持常用格式，推荐mp4、webm',
     icon: <VideocamIcon sx={{ fontSize: 32 }} />,
     gradient: gradient2('#FE2C55', '#FF6B8A'),
+    ready: true,
+    contentType: 'VIDEO',
   },
   {
     id: 'image',
@@ -40,22 +61,98 @@ const CREATION_ITEMS = [
     desc: '支持常用图片格式，png、jpg',
     icon: <ImageIcon sx={{ fontSize: 32 }} />,
     gradient: gradient2('#25F4EE', '#5DF7F2'),
+    ready: true,
+    contentType: 'PICTURE',
   },
   {
-    id: 'panorama',
-    title: '发布全景视频',
-    desc: '推荐4K及以上分辨率',
-    icon: <ThreeSixtyIcon sx={{ fontSize: 32 }} />,
-    gradient: gradient2('#FFB400', '#FFD566'),
+    id: 'image-mv',
+    title: '发布图片 MV',
+    desc: '多图轮播 + 背景音乐',
+    icon: <PhotoLibraryRoundedIcon sx={{ fontSize: 32 }} />,
+    gradient: gradient2('#22D3EE', '#67E8F9'),
+    ready: false,
+    contentType: 'PICTURE',
   },
   {
     id: 'article',
     title: '发布文章',
-    desc: '支持8000字文本和30个图片素材',
+    desc: '支持 8000 字文本和 30 个图片素材',
     icon: <DescriptionIcon sx={{ fontSize: 32 }} />,
     gradient: gradient2('#8B5CF6', '#C4B5FD'),
+    ready: true,
+    contentType: 'ARTICLE',
+  },
+  {
+    id: 'novel',
+    title: '发布小说',
+    desc: '章节连载，单本可超 10 万字',
+    icon: <MenuBookRoundedIcon sx={{ fontSize: 32 }} />,
+    gradient: gradient2('#A78BFA', '#DDD6FE'),
+    ready: false,
+    contentType: 'NOVEL',
+  },
+  {
+    id: 'news',
+    title: '发布新闻',
+    desc: '摘要 + 配图 + 来源',
+    icon: <ArticleRoundedIcon sx={{ fontSize: 32 }} />,
+    gradient: gradient2('#F87171', '#FCA5A5'),
+    ready: false,
+    contentType: 'NEWS',
+  },
+  {
+    id: 'music',
+    title: '发布音乐',
+    desc: '音频 + 封面 + LRC 歌词',
+    icon: <LibraryMusicRoundedIcon sx={{ fontSize: 32 }} />,
+    gradient: gradient2('#34D399', '#6EE7B7'),
+    ready: false,
+    contentType: 'MUSIC',
+  },
+  {
+    id: 'comics',
+    title: '发布漫画',
+    desc: '分镜列表，每页图片 + 旁白',
+    icon: <AutoStoriesRoundedIcon sx={{ fontSize: 32 }} />,
+    gradient: gradient2('#FB923C', '#FDBA74'),
+    ready: false,
+    contentType: 'COMICS',
+  },
+  {
+    id: 'vshow',
+    title: '发布短剧',
+    desc: '竖屏短剧，支持选集',
+    icon: <MovieFilterRoundedIcon sx={{ fontSize: 32 }} />,
+    gradient: gradient2('#F472B6', '#F9A8D4'),
+    ready: false,
+    contentType: 'VSHOW',
+  },
+  {
+    id: 'teleplay',
+    title: '发布电视剧',
+    desc: '季 / 集，每集独立视频',
+    icon: <TvRoundedIcon sx={{ fontSize: 32 }} />,
+    gradient: gradient2('#60A5FA', '#93C5FD'),
+    ready: false,
+    contentType: 'TELEPLAY',
   },
 ];
+
+// type → view id 路由表。video / panorama 都进 hd-publish(全景作为视频
+// 的 360° 开关,在 hd-publish 内部处理),其他类型一对一。
+const TYPE_TO_TAB: Record<string, string> = {
+  video: 'hd-publish',
+  panorama: 'hd-publish', // 并入视频(后续在 hd-publish 加 360° 开关)
+  image: 'image-publish',
+  'image-mv': 'image-mv-publish',
+  article: 'article-publish',
+  novel: 'novel-publish',
+  news: 'news-publish',
+  music: 'music-publish',
+  comics: 'comics-publish',
+  vshow: 'vshow-publish',
+  teleplay: 'teleplay-publish',
+};
 
 type WipKind = 'draft' | 'uploading' | 'scheduled';
 type WipType = 'video' | 'image' | 'article';
@@ -176,19 +273,25 @@ export default function NewCreationSection() {
     }
   };
   const handleCreate = (id: string) => {
-    // 4 个创作入口需要分发到不同 view:
-    //   - video     → hd-publish        (VIDEO contentType, 实际可用的)
-    //   - image     → image-publish     (IMAGE  — 骨架,见 _views/image-publish)
-    //   - panorama  → panorama-publish  (PANORAMA — 骨架,后续补 360 metadata)
-    //   - article   → article-publish   (ARTICLE  — 骨架)
-    // 历史上所有入口都跳 hd-publish,导致 image/article 选了图片被拒。
-    const TAB_BY_TYPE: Record<string, string> = {
-      video: 'hd-publish',
-      image: 'image-publish',
-      panorama: 'panorama-publish',
-      article: 'article-publish',
-    };
-    const tab = TAB_BY_TYPE[id] ?? 'hd-publish';
+    // 10 个创作入口分发到不同 view:
+    //   video / panorama → hd-publish        (全景并入视频,作为 360° 开关)
+    //   image            → image-publish     (PICTURE 图集, 已实装)
+    //   image-mv         → image-mv-publish  (PICTURE 图片 MV, 骨架)
+    //   article          → article-publish   (ARTICLE, 已实装)
+    //   novel            → novel-publish     (NOVEL, 骨架)
+    //   news             → news-publish      (NEWS, 骨架)
+    //   music            → music-publish     (MUSIC, 骨架)
+    //   comics           → comics-publish    (COMICS, 骨架)
+    //   vshow            → vshow-publish     (VSHOW 短剧, 骨架)
+    //   teleplay         → teleplay-publish  (TELEPLAY 电视剧, 骨架)
+    // ready=false 的入口(骨架)只提示「开发中」不跳转,避免 user 卡在空 view。
+    const item = CREATION_ITEMS.find((c) => c.id === id);
+    if (!item) return;
+    if (!item.ready) {
+      setSnack(`「${item.title}」正在开发中,暂未开放`);
+      return;
+    }
+    const tab = TYPE_TO_TAB[id] ?? 'hd-publish';
     setActiveTab(tab, { type: id });
   };
   const handleViewAll = () => {
@@ -227,12 +330,12 @@ export default function NewCreationSection() {
         </Box>
       </Box>
 
-      {/* 4 个发布入口 */}
+      {/* 10 个发布入口(2 行 × 5 列);ready=false 的灰显并加「开发中」徽标 */}
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' },
-          gap: { xs: 1.5, md: 2 },
+          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' },
+          gap: { xs: 1.5, md: 1.5 },
         }}
       >
         {CREATION_ITEMS.map((item) => (
@@ -240,7 +343,7 @@ export default function NewCreationSection() {
             key={item.id}
             onClick={() => handleCreate(item.id)}
             sx={{
-              p: 2.5,
+              p: 2,
               borderRadius: 2,
               bgcolor: 'background.paper',
               border: '1px solid',
@@ -249,37 +352,57 @@ export default function NewCreationSection() {
               transition: 'all 0.25s ease-in-out',
               position: 'relative',
               overflow: 'hidden',
-              '&:hover': {
-                transform: 'translateY(-4px)',
-                borderColor: 'primary.main',
-                boxShadow: '0 8px 24px rgba(254, 44, 85, 0.15)',
-                '& .creation-icon': {
-                  transform: 'scale(1.1) rotate(-5deg)',
-                },
-              },
+              opacity: item.ready ? 1 : 0.55,
+              '&:hover': item.ready
+                ? {
+                    transform: 'translateY(-4px)',
+                    borderColor: 'primary.main',
+                    boxShadow: '0 8px 24px rgba(254, 44, 85, 0.15)',
+                    '& .creation-icon': {
+                      transform: 'scale(1.1) rotate(-5deg)',
+                    },
+                  }
+                : { borderColor: 'text.disabled' },
             }}
           >
+            {!item.ready && (
+              <Chip
+                size="small"
+                label="开发中"
+                sx={{
+                  position: 'absolute',
+                  top: 8,
+                  right: 8,
+                  height: 18,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  bgcolor: 'rgba(255, 180, 0, 0.16)',
+                  color: '#FFB400',
+                  '& .MuiChip-label': { px: 0.75 },
+                }}
+              />
+            )}
             <Box
               className="creation-icon"
               sx={{
-                width: 56,
-                height: 56,
-                borderRadius: 2,
+                width: 48,
+                height: 48,
+                borderRadius: 1.5,
                 background: item.gradient,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 color: 'text.primary',
-                mb: 1.5,
+                mb: 1.25,
                 transition: 'transform 0.3s ease-in-out',
               }}
             >
               {item.icon}
             </Box>
-            <Typography sx={{ fontSize: 15, fontWeight: 600, color: 'text.primary', mb: 0.5 }}>
+            <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary', mb: 0.5 }}>
               {item.title}
             </Typography>
-            <Typography sx={{ fontSize: 12, color: 'text.secondary', lineHeight: 1.5 }}>
+            <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1.5 }}>
               {item.desc}
             </Typography>
           </Box>

@@ -19,13 +19,13 @@ const ActiveTabContext = createContext<ActiveTabContextValue | null>(null);
 const KNOWN_IDS = new Set(MENU_ITEMS.map((m) => m.id));
 
 /**
- * View-only tab ids reachable through in-page actions (e.g. the four
- * "发布视频/图文/全景/文章" cards on the dashboard). They are intentionally
- * NOT shown in the sidebar — the sidebar already has a single "高清发布"
- * entry which currently drives the video publish flow. Image/article/
- * panorama publish flows live behind their own view id, set via
- * NewCreationSection.handleCreate, and are only valid as transient tabs
- * (i.e. not part of the persistent sidebar menu).
+ * View-only tab ids reachable through in-page actions (the "新的创作"
+ * cards on the dashboard). They are intentionally NOT shown in the sidebar
+ * — the sidebar has a single "高清发布" entry which currently drives the
+ * video publish flow. Each card on the dashboard maps to its own view id
+ * (image / article / novel / news / music / comics / vshow / teleplay /
+ * image-mv), and they are only valid as transient tabs (not part of the
+ * persistent sidebar menu).
  *
  * Keeping them out of MENU_GROUPS also avoids polluting the sidebar with
  * placeholder entries while the corresponding views are still skeletons.
@@ -33,7 +33,13 @@ const KNOWN_IDS = new Set(MENU_ITEMS.map((m) => m.id));
 const VIEW_ONLY_IDS = new Set([
   'image-publish',
   'article-publish',
-  'panorama-publish',
+  'novel-publish',
+  'news-publish',
+  'music-publish',
+  'comics-publish',
+  'vshow-publish',
+  'teleplay-publish',
+  'image-mv-publish',
 ]);
 
 const ALLOWED_IDS = new Set([...KNOWN_IDS, ...VIEW_ONLY_IDS]);

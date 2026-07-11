@@ -10,8 +10,14 @@ import { useActiveTab } from './ActiveTabContext';
 const DashboardView = dynamic(() => import('./_views/dashboard/page'), { ssr: false });
 const HdPublishView = dynamic(() => import('./_views/hd-publish/page'), { ssr: false });
 const ImagePublishView = dynamic(() => import('./_views/image-publish/page'), { ssr: false });
+const ImageMvPublishView = dynamic(() => import('./_views/image-mv-publish/page'), { ssr: false });
 const ArticlePublishView = dynamic(() => import('./_views/article-publish/page'), { ssr: false });
-const PanoramaPublishView = dynamic(() => import('./_views/panorama-publish/page'), { ssr: false });
+const NovelPublishView = dynamic(() => import('./_views/novel-publish/page'), { ssr: false });
+const NewsPublishView = dynamic(() => import('./_views/news-publish/page'), { ssr: false });
+const MusicPublishView = dynamic(() => import('./_views/music-publish/page'), { ssr: false });
+const ComicsPublishView = dynamic(() => import('./_views/comics-publish/page'), { ssr: false });
+const VshowPublishView = dynamic(() => import('./_views/vshow-publish/page'), { ssr: false });
+const TeleplayPublishView = dynamic(() => import('./_views/teleplay-publish/page'), { ssr: false });
 const HdReviewView = dynamic(() => import('./_views/hd-review/page'), { ssr: false });
 const ActivityView = dynamic(() => import('./_views/activity/page'), { ssr: false });
 const CoCreateView = dynamic(() => import('./_views/co-create/page'), { ssr: false });
@@ -44,10 +50,22 @@ export default function CreatorContentPage() {
         return <HdPublishView />;
       case 'image-publish':
         return <ImagePublishView />;
+      case 'image-mv-publish':
+        return <ImageMvPublishView />;
       case 'article-publish':
         return <ArticlePublishView />;
-      case 'panorama-publish':
-        return <PanoramaPublishView />;
+      case 'novel-publish':
+        return <NovelPublishView />;
+      case 'news-publish':
+        return <NewsPublishView />;
+      case 'music-publish':
+        return <MusicPublishView />;
+      case 'comics-publish':
+        return <ComicsPublishView />;
+      case 'vshow-publish':
+        return <VshowPublishView />;
+      case 'teleplay-publish':
+        return <TeleplayPublishView />;
       case 'hd-review':
         return <HdReviewView />;
       case 'activity':

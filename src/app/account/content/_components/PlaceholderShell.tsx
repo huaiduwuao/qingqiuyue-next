@@ -5,22 +5,38 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
-import ThreeSixtyIcon from '@mui/icons-material/ThreeSixty';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import HdRoundedIcon from '@mui/icons-material/Hd';
-import { useActiveTab } from '../../ActiveTabContext';
 
 /**
- * 全景视频发布 — 骨架页。
+ * PlaceholderShell — 6+ 个内容发布 placeholder view 复用的"开发中"骨架。
  *
- * 全景视频(360°)在底层仍然是 video,理论上可以复用 hd-publish 的上传流,
- * 但需要补全 360 metadata(equirectangular projection、stereo mode、
- * initial view yaw/pitch 等)。目前 hd-publish 暂不支持这些字段,
- * 所以单独拆出一个 view 占位,后续补 metadata 表单时再复用底层。
+ * 历史上 novel/news/music/comics/vshow/teleplay/image-mv 7 个 view 都是
+ * placeholder,各自写一遍同样的"开发中"提示 + 2 个回退按钮代码重复。
+ * 抽到 _components 统一渲染,view 只传 title/desc/icon/gradient。
+ *
+ * 后续每个 placeholder 升级成真实表单时,把这个 view 改成正常的 form UI,
+ * PlaceholderShell 就不再被引用。
  */
-export default function PanoramaPublishPage() {
-  const { setActiveTab } = useActiveTab();
-
+export default function PlaceholderShell({
+  title,
+  subtitle,
+  gradient,
+  icon,
+  desc,
+  setActiveTab,
+  fallbackTab = 'hd-publish',
+  fallbackLabel = '去视频发布',
+}: {
+  title: string;
+  subtitle: string;
+  gradient: string;
+  icon: React.ReactNode;
+  desc: React.ReactNode;
+  setActiveTab: (id: string, params?: Record<string, string>) => void;
+  fallbackTab?: string;
+  fallbackLabel?: string;
+}) {
   return (
     <Box
       sx={{
@@ -42,31 +58,31 @@ export default function PanoramaPublishPage() {
           width: 88,
           height: 88,
           borderRadius: '50%',
-          background: 'linear-gradient(135deg, #FFB400 0%, #FFD566 100%)',
+          background: gradient,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           color: '#0F172A',
           mb: 2.5,
-          boxShadow: '0 8px 24px rgba(255, 180, 0, 0.25)',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.1)',
         }}
       >
-        <ThreeSixtyIcon sx={{ fontSize: 44 }} />
+        {icon}
       </Box>
 
       <Typography sx={{ fontSize: 22, fontWeight: 700, color: 'text.primary', mb: 1 }}>
-        全景视频发布
+        {title}
       </Typography>
 
       <Chip
-        label="开发中"
+        label={subtitle}
         size="small"
         sx={{
           mb: 2,
-          fontSize: 11,
-          fontWeight: 700,
-          bgcolor: 'rgba(255, 180, 0, 0.16)',
-          color: '#FFB400',
+          fontSize: 10,
+          fontWeight: 600,
+          bgcolor: 'action.hover',
+          color: 'text.secondary',
         }}
       />
 
@@ -80,10 +96,7 @@ export default function PanoramaPublishPage() {
           mb: 3.5,
         }}
       >
-        全景视频(360°)需要 equirectangular 投影元数据、初始视角、立体声模式
-        等额外配置,当前"高清发布"页未支持。
-        <br />
-        本入口暂未开放,暂需发布时,请使用下方"去视频发布"通道上传普通视频。
+        {desc}
       </Typography>
 
       <Box sx={{ display: 'flex', gap: 1.5 }}>
@@ -98,7 +111,7 @@ export default function PanoramaPublishPage() {
         <Button
           variant="contained"
           startIcon={<HdRoundedIcon />}
-          onClick={() => setActiveTab('hd-publish', { type: 'video' })}
+          onClick={() => setActiveTab(fallbackTab, { type: 'video' })}
           sx={{
             textTransform: 'none',
             fontSize: 13,
@@ -106,7 +119,7 @@ export default function PanoramaPublishPage() {
             '&:hover': { filter: 'brightness(1.08)' },
           }}
         >
-          去视频发布
+          {fallbackLabel}
         </Button>
       </Box>
     </Box>
