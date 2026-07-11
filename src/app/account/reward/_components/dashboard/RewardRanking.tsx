@@ -1,18 +1,19 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
-import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { getRewardRanking, type RewardRanker } from '@/apis/dashboard';
 import { RANK_PILL } from '@/constants/gradients';
+import RankingListDialog from './RankingListDialog';
 
 export default function RewardRanking() {
-  const router = useRouter();
+  // 完整榜单页内弹层打开,不跳转 /account/reward/ranking(该路由不存在)
+  const [listOpen, setListOpen] = useState(false);
 
   const query = useQuery({
     queryKey: ['reward-ranking', 8],
@@ -60,7 +61,7 @@ export default function RewardRanking() {
           {rankers.map((r) => (
             <Box
               key={r.id}
-              onClick={() => router.push('/account/reward/ranking')}
+              onClick={() => setListOpen(true)}
               sx={{
                 display: 'flex',
                 alignItems: 'center',
@@ -147,7 +148,7 @@ export default function RewardRanking() {
         }}
       >
         <Typography
-          onClick={() => router.push('/account/reward/ranking')}
+          onClick={() => setListOpen(true)}
           sx={{
             fontSize: 11,
             color: 'primary.main',
@@ -159,6 +160,8 @@ export default function RewardRanking() {
           查看完整榜单 →
         </Typography>
       </Box>
+
+      <RankingListDialog open={listOpen} onClose={() => setListOpen(false)} />
     </Box>
   );
 }

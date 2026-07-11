@@ -1,7 +1,6 @@
 'use client';
 
-import React from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -19,6 +18,8 @@ import MovieIcon from '@mui/icons-material/Movie';
 import { gradient2 } from '@/constants/gradients';
 import { alpha } from '@mui/material/styles';
 import { getHotBounties, type Bounty } from '@/apis/dashboard';
+import BountyDetailDialog from './BountyDetailDialog';
+import BountyListDialog from './BountyListDialog';
 
 const CATEGORY_ICON: Record<string, React.ReactElement> = {
   video: <VideoLibraryIcon sx={{ fontSize: 14 }} />,
@@ -59,7 +60,9 @@ export default function RewardHotGrid({
   order?: 'reward' | 'deadline' | 'hot' | 'newest';
   filter?: string;
 } = {}) {
-  const router = useRouter();
+  // 详情/全部都在页内弹层打开,不跳转路由(悬赏中心是纯客户端 tab 体系)
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [listOpen, setListOpen] = useState(false);
 
   // 真接口:热门悬赏(支持 keyword 搜索 + category 过滤 + order 排序)
   const hotQuery = useQuery({
@@ -114,7 +117,7 @@ export default function RewardHotGrid({
           </Box>
         </Box>
         <Box
-          onClick={() => router.push('/account/reward/list')}
+          onClick={() => setListOpen(true)}
           sx={{
             display: 'flex',
             alignItems: 'center',
@@ -152,7 +155,7 @@ export default function RewardHotGrid({
           {HOT_BOUNTIES.map((b) => (
           <Box
             key={b.id}
-            onClick={() => router.push(`/account/reward/detail?id=${b.id}`)}
+            onClick={() => setDetailId(b.id)}
             sx={{
               position: 'relative',
               borderRadius: 1.5,
@@ -273,6 +276,20 @@ export default function RewardHotGrid({
         ))}
       </Box>
       )}
+
+      <BountyListDialog
+        open={listOpen}
+        onClose={() => setListOpen(false)}
+        onSelect={(id) => setDetailId(id)}
+        search={search}
+        order={order}
+        filter={filter}
+      />
+      <BountyDetailDialog
+        open={!!detailId}
+        bountyId={detailId}
+        onClose={() => setDetailId(null)}
+      />
     </Box>
   );
 }

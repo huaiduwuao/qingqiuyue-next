@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 // 该页依赖 client context + 后端实时数据,SSR/pre-render 时 TIERS/orders 等未就绪 →
 // 报 "Cannot read properties of undefined"。强制 dynamic 跳过预渲染。
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import FormControl from '@mui/material/FormControl';
@@ -21,6 +21,14 @@ import DataOverviewCard from '../../_components/DataOverviewCard';
 import TopPerformingContent from '../../_components/TopPerformingContent';
 import ContentDistributionChart from '../../_components/ContentDistributionChart';
 import { getCreatorWorks, type WorksItem } from '@/apis/creator';
+import { useActiveTab } from '../../ActiveTabContext';
+
+// 分布图/日历等组件切 tab 时透传的小写类型 → 本页大写枚举
+const PARAM_TYPE_MAP: Record<string, string> = {
+  video: 'VIDEO', image: 'ARTICLE', article: 'ARTICLE', live: 'LIVE',
+  novel: 'NOVEL', music: 'MUSIC', film: 'FILM', teleplay: 'TELEPLAY',
+  animation: 'ANIMATION', comics: 'COMICS',
+};
 
 // 数据源选项:后端 `/api/core/module-content/sources` 就绪后接入,目前为空占位
 const SOURCE_OPTIONS_LIST: { value: string; label: string }[] = [];
@@ -101,6 +109,15 @@ export default function WorksPage() {
   const [status, setStatus] = useState('');
   const [source, setSource] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // 接收 setActiveTab('works', { type }) 透传的过滤条件(不读 URL query)
+  const { tabParams } = useActiveTab();
+  useEffect(() => {
+    const t = tabParams.type;
+    if (t == null) return;
+    const mapped = PARAM_TYPE_MAP[t] ?? (TYPE_OPTIONS.some((o) => o.value === t) ? t : '');
+    setType(mapped);
+  }, [tabParams.type]);
 
   const filterSummary = useMemo(() => {
     const parts: string[] = [];

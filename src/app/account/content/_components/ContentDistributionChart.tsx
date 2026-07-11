@@ -10,9 +10,9 @@ import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
 import Skeleton from '@mui/material/Skeleton';
 import { useTheme } from '@mui/material/styles';
-import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { getCreatorContentDistribution, type ContentStat } from '@/apis/dashboard';
+import { useActiveTab } from '../ActiveTabContext';
 
 const SIZE = 200;
 const RADIUS = 80;
@@ -20,7 +20,8 @@ const STROKE = 22;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 export default function ContentDistributionChart() {
-  const router = useRouter();
+  // works 是 tab 而非路由:切 tab + 透传类型过滤,不 router.push
+  const { setActiveTab } = useActiveTab();
   const theme = useTheme();
   const [hovered, setHovered] = useState<string | null>(null);
   const [dialogId, setDialogId] = useState<string | null>(null);
@@ -49,7 +50,7 @@ export default function ContentDistributionChart() {
 
   const handleOpen = (id: string) => setDialogId(id);
   const handleClose = () => setDialogId(null);
-  const handleNavigate = (id: string) => router.push(`/account/content/works?type=${id}`);
+  const handleNavigate = (id: string) => setActiveTab('works', { type: id });
 
   const segments = useMemo(() => {
     return dataWithPercent.reduce<

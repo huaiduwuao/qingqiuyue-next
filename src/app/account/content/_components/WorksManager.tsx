@@ -37,7 +37,7 @@ import ImageRoundedIcon from '@mui/icons-material/ImageRounded';
 import ArticleRoundedIcon from '@mui/icons-material/ArticleRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import { useRouter } from 'next/navigation';
+import { useActiveTab } from '../ActiveTabContext';
 import { process, saveOrUpdate, remove } from '@/apis/content-video';
 import type { ContentType } from '@/apis/content-video';
 import { gradient2, gradient3 } from '@/constants/gradients';
@@ -105,7 +105,7 @@ function formatDate(ts: number): string {
 }
 
 export default function WorksManager() {
-  const router = useRouter();
+  const { setActiveTab } = useActiveTab();
   const [tab, setTab] = useState<0 | 1 | 2 | 3 | 4>(0);
   const [typeFilter, setTypeFilter] = useState<'all' | WorkType>('all');
   const [keyword, setKeyword] = useState('');
@@ -290,7 +290,8 @@ export default function WorksManager() {
     }
   };
 
-  const navigateToPublish = () => router.push('/account/content/hd-publish');
+  // hd-publish 是 tab 而非路由(/_views 下),切 tab 不跳转,保持 URL 在 /account/content
+  const navigateToPublish = () => setActiveTab('hd-publish');
 
   return (
     <Box

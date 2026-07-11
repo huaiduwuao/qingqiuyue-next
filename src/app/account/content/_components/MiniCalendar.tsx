@@ -11,7 +11,7 @@ import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import { useRouter } from 'next/navigation';
+import { useActiveTab } from '../ActiveTabContext';
 
 const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
 
@@ -20,7 +20,8 @@ interface Props {
 }
 
 export default function MiniCalendar({ highlightDays = [1, 2, 3, 4, 5, 6] }: Props) {
-  const router = useRouter();
+  // works 是 tab 而非路由:切 tab + 透传 date,不 router.push
+  const { setActiveTab } = useActiveTab();
   const [year] = useState(2026);
   const [month, setMonth] = useState(6); // June = 6
   const [dialogDate, setDialogDate] = useState<string | null>(null);
@@ -49,7 +50,7 @@ export default function MiniCalendar({ highlightDays = [1, 2, 3, 4, 5, 6] }: Pro
     if (highlightDays.includes(d)) {
       setDialogDate(dateStr);
     } else {
-      router.push(`/account/content/works?date=${dateStr}`);
+      setActiveTab('works', { date: dateStr });
     }
   };
 
@@ -142,7 +143,7 @@ export default function MiniCalendar({ highlightDays = [1, 2, 3, 4, 5, 6] }: Pro
           <Button
             variant="contained"
             onClick={() => {
-              if (dialogDate) router.push(`/account/content/works?date=${dialogDate}`);
+              if (dialogDate) setActiveTab('works', { date: dialogDate });
               setDialogDate(null);
             }}
           >
