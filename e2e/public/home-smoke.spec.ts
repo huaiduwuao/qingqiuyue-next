@@ -15,8 +15,27 @@ test.describe('首页 smoke', () => {
 
   test('2 · recommend 页有 hero / 列表渲染', async ({ page }) => {
     await page.goto('http://localhost:3000/home/recommend');
-    // 不要绑死文案（推荐位每周变），验首屏至少有 5 个可点击的卡片（推荐/排行榜/分类）
-    const cards = page.locator('a, [role="button"], [class*="Card"]').filter({ hasNotText: '' });
-    expect(await cards.count()).toBeGreaterThanOrEqual(5);
+    // 不绑死文案（推荐位每周变）:主内容区每张内容卡都有一张封面 img,数它最稳。
+    // dev 冷编译首屏可能 >15s,给 30s 余量。
+    const covers = page.locator('main img[alt]:not([alt=""])');
+    await expect(covers.first()).toBeVisible({ timeout: 30_000 });
+    expect(await covers.count()).toBeGreaterThanOrEqual(5);
   });
+
+  // 左侧栏「内容管理」「悬赏中心」:router.replace 替换当前路由,不开新标签页
+  for (const { label, url } of [
+    { label: '内容管理', url: /\/account\/content$/ },
+    { label: '悬赏中心', url: /\/account\/reward$/ },
+  ]) {
+    test(`3 · 侧栏「${label}」同页替换(不开新标签)`, async ({ page, context }) => {
+      await page.goto('/home/recommend');
+      await expect(page.getByText(label, { exact: true }).first()).toBeVisible({ timeout: 10_000 });
+      // 监听新标签页 —— 不该有
+      let popupOpened = false;
+      context.on('page', () => { popupOpened = true; });
+      await page.getByText(label, { exact: true }).first().click();
+      await expect(page).toHaveURL(url, { timeout: 10_000 });
+      expect(popupOpened).toBe(false);
+    });
+  }
 });

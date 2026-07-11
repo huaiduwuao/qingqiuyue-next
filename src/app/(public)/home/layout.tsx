@@ -51,7 +51,7 @@ import { useContentNavigate } from '@/lib/contentRoute';
 import { ACCENT } from '@/constants/accents';
 import { gradient2, IMAGE_OVERLAY } from '@/constants/gradients';
 
-const SIDE_NAV: { key: string; label: string; path?: string; icon: React.ReactNode; accent: string; external?: '_blank' | '_self'; dividerBefore?: boolean }[] = [
+const SIDE_NAV: { key: string; label: string; path?: string; icon: React.ReactNode; accent: string; dividerBefore?: boolean }[] = [
   { key: 'home', label: '精选', path: '/home/recommend?tab=home', icon: <HomeRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
   { key: 'recommend', label: '推荐', path: '/home/recommend?tab=recommend', icon: <RecommendRoundedIcon sx={{ fontSize: 18 }} />, accent: 'secondary.main' },
   { key: 'ai', label: 'AI 搜索', path: '/home/recommend?tab=ai', icon: <TravelExploreRoundedIcon sx={{ fontSize: 18 }} />, accent: ACCENT.blue.main },
@@ -59,8 +59,9 @@ const SIDE_NAV: { key: string; label: string; path?: string; icon: React.ReactNo
   { key: 'friend', label: '朋友', path: '/home/recommend?tab=friend', icon: <GroupsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'warning.main' },
   { key: 'me', label: '我的', path: '/home/recommend?tab=me', icon: <PersonRoundedIcon sx={{ fontSize: 18 }} />, accent: ACCENT.purple.main },
   { key: 'live', label: '直播', path: '/home/recommend?tab=live', icon: <LiveTvRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
-  { key: 'content', label: '内容管理', path: '/account/content', icon: <VideoLibraryIcon sx={{ fontSize: 18 }} />, accent: 'secondary.main', external: '_blank' },
-  { key: 'reward', label: '悬赏中心', path: '/account/reward', icon: <CardGiftcardIcon sx={{ fontSize: 18 }} />, accent: 'warning.main', external: '_blank' },
+  // 内容管理/悬赏中心:router.replace 同页替换当前路由,不开新标签页、不留历史栈
+  { key: 'content', label: '内容管理', path: '/account/content', icon: <VideoLibraryIcon sx={{ fontSize: 18 }} />, accent: 'secondary.main' },
+  { key: 'reward', label: '悬赏中心', path: '/account/reward', icon: <CardGiftcardIcon sx={{ fontSize: 18 }} />, accent: 'warning.main' },
   { key: 'theater', label: '放映厅', path: '/home/recommend?tab=theater', icon: <MovieRoundedIcon sx={{ fontSize: 18 }} />, accent: ACCENT.purple.main, dividerBefore: true },
   { key: 'drama', label: '短剧', path: '/home/recommend?tab=drama', icon: <TheatersRoundedIcon sx={{ fontSize: 18 }} />, accent: 'secondary.main' },
 ];
@@ -423,6 +424,7 @@ function Logo() {
 
 
 function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activeNav: string; onNavChange: (k: string) => void; meOpen: boolean; onMeOpenChange: (v: boolean) => void }) {
+  const router = useRouter();
   const settingsBtnRef = React.useRef<HTMLDivElement | null>(null);
   return (
     <Box
@@ -440,7 +442,8 @@ function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activ
       <Box sx={{ flex: 1, py: 1.5, overflow: 'auto' }}>
         {SIDE_NAV.map((n) => {
           const isActive = activeNav === n.key;
-          const isNewTab = !!n.external;
+          // 整页路由(内容管理/悬赏中心):replace 替换当前路由,不压历史栈、不开新标签
+          const isFullRoute = !!n.path && !n.path.includes('?tab=');
           const itemSx = {
             position: 'relative' as const,
             display: 'flex',
@@ -478,9 +481,6 @@ function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activ
                 {n.icon}
               </Box>
               <Typography sx={{ fontSize: 13, fontWeight: isActive ? 600 : 400, flex: 1 }}>{n.label}</Typography>
-              {n.external === '_blank' && (
-                <Box sx={{ fontSize: 9, color: 'var(--text-disabled, currentColor)', ml: 0.5 }}>↗</Box>
-              )}
             </>
           );
           return (
@@ -488,15 +488,12 @@ function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activ
               {n.dividerBefore && (
                 <Divider sx={{ my: 1, mx: 2, borderColor: 'var(--border-color, transparent)' }} />
               )}
-              {isNewTab ? (
-                <Box component="a" href={n.path} target={n.external} rel="noopener noreferrer" sx={itemSx}>
-                  {inner}
-                </Box>
-              ) : (
-                <Box onClick={() => onNavChange(n.key)} sx={itemSx}>
-                  {inner}
-                </Box>
-              )}
+              <Box
+                onClick={() => (isFullRoute && n.path ? router.replace(n.path) : onNavChange(n.key))}
+                sx={itemSx}
+              >
+                {inner}
+              </Box>
             </React.Fragment>
           );
         })}
