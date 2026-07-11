@@ -307,11 +307,32 @@ export default function WorksManager() {
     }
   };
 
+  // 前端 WorkStatus → 后端 module_content.status 枚举(seed/爬虫用大写 PUBLISH/UN_PUBLISH/REVIEWING)
+  const STATUS_TO_BACKEND: Record<string, string> = {
+    published: 'PUBLISH', private: 'UN_PUBLISH', draft: 'UN_PUBLISH',
+    reviewing: 'REVIEWING', rejected: 'UN_PUBLISH',
+  };
+
   const handleSave = async (patch: Partial<Work>) => {
     if (!editing) return;
     setLoading(true);
     try {
-      await saveOrUpdate(workTypeOf(editing.type), { id: editing.id, ...patch });
+      // 对齐后端 ModuleContentReq 并防覆盖丢字段:
+      // ① tags 必须为逗号分隔 string(后端 Tags string;直接传 string[] 会 binding 失败 → 400)
+      // ② 简介用 subtitle(后端无 description 字段)
+      // ③ svc.Update 无条件用 req 覆盖 Content/ContentType/CoverUrl,缺省会清空 → 从 editing 补齐
+      const desc = patch.description ?? editing.description;
+      const payload = {
+        id: editing.id,
+        title: patch.title ?? editing.title,
+        subtitle: desc,
+        content: desc,
+        contentType: editing.type.toUpperCase(),
+        coverUrl: editing.cover,
+        tags: Array.isArray(patch.tags) ? patch.tags.join(',') : (patch.tags ?? editing.tags.join(',')),
+        status: STATUS_TO_BACKEND[patch.status ?? editing.status] ?? 'PUBLISH',
+      };
+      await saveOrUpdate(workTypeOf(editing.type), payload);
       updateWork(editing.id, patch);
       setSnack('已保存');
       setEditing(null);

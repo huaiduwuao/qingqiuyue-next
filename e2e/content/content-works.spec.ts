@@ -39,8 +39,8 @@ test.describe('创作者中心 · 作品管理', () => {
     await expect(page.getByText('我的作品').first()).toBeVisible({ timeout: 10_000 });
     // exact:true —— 否则子串撞上「继续编辑」(草稿卡)/「编辑资料」(profile)
     const editBtn = page.getByRole('button', { name: '编辑', exact: true }).first();
-    // 并行 cold-compile 时 WorksManager chunk 加载慢,给足 15s
-    const hasRow = await editBtn.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false);
+    // 工作台「我的作品」懒加载:点工作台按钮触发 setActiveTab 重新渲染才出作品行;给足 25s 抗 cold-compile。
+    const hasRow = await editBtn.waitFor({ state: 'visible', timeout: 25_000 }).then(() => true).catch(() => false);
     test.skip(!hasRow, '作品列表空载,无作品可编辑(seed 后应有 24 部)');
 
     await editBtn.dispatchEvent('click'); // 数字人聊天气泡可能拦截
