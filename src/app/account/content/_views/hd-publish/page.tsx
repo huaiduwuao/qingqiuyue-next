@@ -191,8 +191,18 @@ export default function HdPublishPage() {
     staleTime: 30 * 1000,
     refetchOnMount: 'always',
   });
-  const apiVideos: HdVideo[] = (hdResp?.records ?? hdResp?.list ?? []).map((v: any) => ({
-    id: v.id, title: v.title, cover: v.cover,
+  // 按 id 去重:后端 /creator/hd/videos 在 stale cache 命中或后端测试数据偶发会
+  // 返回两条同 id 的记录(react-query staleTime 30s 内复用 cache + 后端 raw 数据
+  // 重复),触发 React duplicate key 警告,严重时导致 fiber 错位渲染(用户反馈
+  // 「界面下部分黑色遮罩 + 点哪都出现视频详情」)。Map 去重即可消除该现象。
+  const apiVideos: HdVideo[] = Array.from(
+    new Map(
+      (hdResp?.records ?? hdResp?.list ?? [])
+        .filter((v: any) => v && v.id !== undefined && v.id !== null)
+        .map((v: any) => [String(v.id), v] as const),
+    ).values(),
+  ).map((v: any) => ({
+    id: String(v.id), title: v.title, cover: v.cover,
     resolution: v.resolution, fps: v.fps, hdr: v.hdr, duration: v.duration, sizeMB: v.sizeMB,
     status: v.status, progress: v.progress, uploadedAt: v.uploadedAt,
     views: v.views, likes: v.likes, hasCover: v.hasCover,
