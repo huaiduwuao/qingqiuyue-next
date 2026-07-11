@@ -22,20 +22,22 @@ test.describe('首页 smoke', () => {
     expect(await covers.count()).toBeGreaterThanOrEqual(5);
   });
 
-  // 左侧栏「内容管理」「悬赏中心」:router.replace 替换当前路由,不开新标签页
+  // 左侧栏「内容管理」「悬赏中心」:router.push 同页跳转,不开新标签页,且返回键能回首页
   for (const { label, url } of [
     { label: '内容管理', url: /\/account\/content$/ },
     { label: '悬赏中心', url: /\/account\/reward$/ },
   ]) {
-    test(`3 · 侧栏「${label}」同页替换(不开新标签)`, async ({ page, context }) => {
+    test(`3 · 侧栏「${label}」同页跳转且可返回(不开新标签)`, async ({ page, context }) => {
       await page.goto('/home/recommend');
       await expect(page.getByText(label, { exact: true }).first()).toBeVisible({ timeout: 10_000 });
-      // 监听新标签页 —— 不该有
       let popupOpened = false;
       context.on('page', () => { popupOpened = true; });
       await page.getByText(label, { exact: true }).first().click();
       await expect(page).toHaveURL(url, { timeout: 10_000 });
       expect(popupOpened).toBe(false);
+      // push 留了历史栈:返回键应回到 /home/recommend
+      await page.goBack();
+      await expect(page).toHaveURL(/\/home\/recommend/, { timeout: 10_000 });
     });
   }
 });

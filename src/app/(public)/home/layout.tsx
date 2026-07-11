@@ -59,7 +59,7 @@ const SIDE_NAV: { key: string; label: string; path?: string; icon: React.ReactNo
   { key: 'friend', label: '朋友', path: '/home/recommend?tab=friend', icon: <GroupsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'warning.main' },
   { key: 'me', label: '我的', path: '/home/recommend?tab=me', icon: <PersonRoundedIcon sx={{ fontSize: 18 }} />, accent: ACCENT.purple.main },
   { key: 'live', label: '直播', path: '/home/recommend?tab=live', icon: <LiveTvRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
-  // 内容管理/悬赏中心:router.replace 同页替换当前路由,不开新标签页、不留历史栈
+  // 内容管理/悬赏中心:router.push 同页跳转(不开新标签),保留历史栈可返回
   { key: 'content', label: '内容管理', path: '/account/content', icon: <VideoLibraryIcon sx={{ fontSize: 18 }} />, accent: 'secondary.main' },
   { key: 'reward', label: '悬赏中心', path: '/account/reward', icon: <CardGiftcardIcon sx={{ fontSize: 18 }} />, accent: 'warning.main' },
   { key: 'theater', label: '放映厅', path: '/home/recommend?tab=theater', icon: <MovieRoundedIcon sx={{ fontSize: 18 }} />, accent: ACCENT.purple.main, dividerBefore: true },
@@ -442,7 +442,7 @@ function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activ
       <Box sx={{ flex: 1, py: 1.5, overflow: 'auto' }}>
         {SIDE_NAV.map((n) => {
           const isActive = activeNav === n.key;
-          // 整页路由(内容管理/悬赏中心):replace 替换当前路由,不压历史栈、不开新标签
+          // 整页路由(内容管理/悬赏中心):push 同页跳转,不开新标签,返回键可回首页
           const isFullRoute = !!n.path && !n.path.includes('?tab=');
           const itemSx = {
             position: 'relative' as const,
@@ -489,7 +489,7 @@ function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activ
                 <Divider sx={{ my: 1, mx: 2, borderColor: 'var(--border-color, transparent)' }} />
               )}
               <Box
-                onClick={() => (isFullRoute && n.path ? router.replace(n.path) : onNavChange(n.key))}
+                onClick={() => (isFullRoute && n.path ? router.push(n.path) : onNavChange(n.key))}
                 sx={itemSx}
               >
                 {inner}
