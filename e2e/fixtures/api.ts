@@ -44,15 +44,18 @@ export async function ensureGroup(api: APIRequestContext, name = 'E2E-Group'): P
 
 /** 幂等确保至少存在一个项目；返回 project id（必要时带 groupId）。 */
 export async function ensureProject(api: APIRequestContext, groupId?: number, name = 'E2E-Project'): Promise<number> {
-  const list = await unwrap(await api.get('/api/core/project/client/page', { params: { pageSize: 50, groupId } }));
+  // Playwright params 不收 undefined → 只在 groupId 存在时透传,避开 TS 严格类型
+  const baseParams: Record<string, string | number> = { pageSize: 50 };
+  if (groupId != null) baseParams.groupId = groupId;
+  const list = await unwrap(await api.get('/api/core/project/client/page', { params: baseParams }));
   const records = list?.records || list?.list || (Array.isArray(list) ? list : []);
   let found = records.find((p: any) => p?.name === name);
   if (found?.id) return found.id;
   const data: any = { name };
-  if (groupId) data.groupId = groupId;
+  if (groupId != null) data.groupId = groupId;
   await (await api.post('/api/core/project', { data })).json().catch(() => ({}));
   // 后端创建可能仅返回 {code:0,msg:'创建成功'} 不带回实体 → 回查列表取 id
-  const after = await unwrap(await api.get('/api/core/project/client/page', { params: { pageSize: 50, groupId } }));
+  const after = await unwrap(await api.get('/api/core/project/client/page', { params: baseParams }));
   const rec2 = after?.records || after?.list || (Array.isArray(after) ? after : []);
   found = rec2.find((p: any) => p?.name === name) || rec2[0];
   if (!found?.id) throw new Error(`ensureProject 失败，列表中没有 name=${name}: ${JSON.stringify(after)}`);
