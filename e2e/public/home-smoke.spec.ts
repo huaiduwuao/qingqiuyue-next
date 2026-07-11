@@ -16,9 +16,9 @@ test.describe('首页 smoke', () => {
   test('2 · recommend 页有 hero / 列表渲染', async ({ page }) => {
     await page.goto('http://localhost:3000/home/recommend');
     // 不绑死文案（推荐位每周变）:主内容区每张内容卡都有一张封面 img,数它最稳。
-    // dev 冷编译首屏可能 >15s,给 30s 余量。
+    // 全量并行跑时 dev 冷编译竞争严重,首屏可能 >30s,给 45s 余量。
     const covers = page.locator('main img[alt]:not([alt=""])');
-    await expect(covers.first()).toBeVisible({ timeout: 30_000 });
+    await expect(covers.first()).toBeVisible({ timeout: 45_000 });
     expect(await covers.count()).toBeGreaterThanOrEqual(5);
   });
 

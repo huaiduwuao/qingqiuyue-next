@@ -138,6 +138,14 @@ const INFRINGE_STATUS_META: Record<InfringeAction, { label: string; color: strin
   settled: { label: '已和解', color: '#5B8DEF', bg: 'rgba(91, 141, 239, 0.12)', icon: <HandshakeRoundedIcon sx={{ fontSize: 12 }} /> },
 };
 
+/**
+ * 后端 status/platform 可能返回前端枚举外的值(新状态先发后端的常态),
+ * 直接索引 META 再读 .color/.label 会整页白屏(侵权监测 tab 已踩过)。统一兜底。
+ */
+const STATUS_META_FALLBACK = { label: '未知状态', color: 'text.disabled', bg: 'action.hover', icon: null as React.ReactNode };
+const PLATFORM_META_FALLBACK = { label: '未知平台', color: '#9CA3AF' };
+const LEVEL_META_FALLBACK = { label: '—', color: 'text.disabled', bg: 'action.hover', desc: '', cycles: '' };
+
 const PLATFORM_META: Record<SourcePlatform, { label: string; color: string }> = {
   douyin: { label: '抖音', color: '#FE2C55' },
   kuaishou: { label: '快手', color: '#FFB400' },
@@ -270,7 +278,7 @@ export default function OriginalPage() {
       (i) =>
         i.workTitle.toLowerCase().includes(k) ||
         i.infractorName.toLowerCase().includes(k) ||
-        PLATFORM_META[i.platform].label.toLowerCase().includes(k),
+        (PLATFORM_META[i.platform] ?? PLATFORM_META_FALLBACK).label.toLowerCase().includes(k),
     );
   }, [infringe, search]);
 
@@ -611,8 +619,8 @@ export default function OriginalPage() {
             ) : (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
                 {filteredProtected.map((p) => {
-                  const lm = LEVEL_META[p.level];
-                  const sm = STATUS_META[p.status];
+                  const lm = LEVEL_META[p.level] ?? LEVEL_META_FALLBACK;
+                  const sm = STATUS_META[p.status] ?? STATUS_META_FALLBACK;
                   return (
                     <Box
                       key={p.id}
@@ -770,8 +778,8 @@ export default function OriginalPage() {
             ) : (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
                 {filteredInfringe.map((i) => {
-                  const sm = INFRINGE_STATUS_META[i.status];
-                  const pm = PLATFORM_META[i.platform];
+                  const sm = INFRINGE_STATUS_META[i.status] ?? STATUS_META_FALLBACK;
+                  const pm = PLATFORM_META[i.platform] ?? PLATFORM_META_FALLBACK;
                   return (
                     <Box
                       key={i.id}
@@ -975,8 +983,8 @@ export default function OriginalPage() {
           <Box sx={{ p: 2 }}>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
               {takedowns.map((t) => {
-                const sm = INFRINGE_STATUS_META[t.status];
-                const pm = PLATFORM_META[t.platform];
+                const sm = INFRINGE_STATUS_META[t.status] ?? STATUS_META_FALLBACK;
+                const pm = PLATFORM_META[t.platform] ?? PLATFORM_META_FALLBACK;
                 return (
                   <Box
                     key={t.id}
@@ -1559,8 +1567,8 @@ export default function OriginalPage() {
           (() => {
             const p = protected_.find((x) => x.id === detailId);
             if (!p) return null;
-            const lm = LEVEL_META[p.level];
-            const sm = STATUS_META[p.status];
+            const lm = LEVEL_META[p.level] ?? LEVEL_META_FALLBACK;
+            const sm = STATUS_META[p.status] ?? STATUS_META_FALLBACK;
             const relatedInfringe = infringe.filter((i) => i.workId === p.id);
             return (
               <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -1684,7 +1692,7 @@ export default function OriginalPage() {
                       </Typography>
                       <Stack spacing={0.75}>
                         {relatedInfringe.map((i) => {
-                          const ism = INFRINGE_STATUS_META[i.status];
+                          const ism = INFRINGE_STATUS_META[i.status] ?? STATUS_META_FALLBACK;
                           return (
                             <Box
                               key={i.id}
@@ -1710,7 +1718,7 @@ export default function OriginalPage() {
                               />
                               <Box sx={{ flex: 1, minWidth: 0 }}>
                                 <Typography sx={{ fontSize: 11, color: 'text.primary' }} noWrap>
-                                  {i.infractorName} · {PLATFORM_META[i.platform].label}
+                                  {i.infractorName} · {(PLATFORM_META[i.platform] ?? PLATFORM_META_FALLBACK).label}
                                 </Typography>
                                 <Typography sx={{ fontSize: 9, color: 'text.disabled' }}>
                                   相似度 {i.similarity}%

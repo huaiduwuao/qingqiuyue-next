@@ -115,6 +115,10 @@ export default function ActivityPage() {
   });
   const apiActivities: Activity[] = (actResp?.records ?? actResp?.list ?? []).map((a: ApiActivity) => ({
     ...a,
+    // 后端不保证这些数组字段:缺省直接 .map/.length 会白屏(报名弹窗 rules.map 已踩过)
+    rules: a.rules ?? [],
+    requirements: a.requirements ?? [],
+    prizes: a.prizes ?? [],
     submissions: a.submissions ?? [],
     leaderboard: a.leaderboard ?? [],
   }));
