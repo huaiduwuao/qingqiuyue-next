@@ -21,6 +21,9 @@ import LibraryMusicRoundedIcon from '@mui/icons-material/LibraryMusicRounded';
 import AutoStoriesRoundedIcon from '@mui/icons-material/AutoStoriesRounded';
 import MovieFilterRoundedIcon from '@mui/icons-material/MovieFilterRounded';
 import TvRoundedIcon from '@mui/icons-material/TvRounded';
+import LocalMoviesRoundedIcon from '@mui/icons-material/LocalMoviesRounded';
+import AnimationRoundedIcon from '@mui/icons-material/AnimationRounded';
+import LiveTvRoundedIcon from '@mui/icons-material/LiveTvRounded';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import CloudUploadRoundedIcon from '@mui/icons-material/CloudUploadRounded';
@@ -136,6 +139,33 @@ const CREATION_ITEMS: CreationItem[] = [
     ready: true,
     contentType: 'TELEPLAY',
   },
+  {
+    id: 'film',
+    title: '发布电影',
+    desc: '长视频,海报+导演+演员+时长',
+    icon: <LocalMoviesRoundedIcon sx={{ fontSize: 32 }} />,
+    gradient: gradient2('#1E40AF', '#3B82F6'),
+    ready: true,
+    contentType: 'FILM',
+  },
+  {
+    id: 'animation',
+    title: '发布动画',
+    desc: '2D/3D/定格,选集+制作公司+监督',
+    icon: <AnimationRoundedIcon sx={{ fontSize: 32 }} />,
+    gradient: gradient2('#A855F7', '#C084FC'),
+    ready: true,
+    contentType: 'ANIMATION',
+  },
+  {
+    id: 'live',
+    title: '发布直播回放',
+    desc: '直播录制+开始时间+弹幕开关',
+    icon: <LiveTvRoundedIcon sx={{ fontSize: 32 }} />,
+    gradient: gradient2('#DC2626', '#EF4444'),
+    ready: true,
+    contentType: 'LIVE',
+  },
 ];
 
 // type → view id 路由表。video / panorama 都进 hd-publish(全景作为视频
@@ -152,6 +182,9 @@ const TYPE_TO_TAB: Record<string, string> = {
   comics: 'comics-publish',
   vshow: 'vshow-publish',
   teleplay: 'teleplay-publish',
+  film: 'film-publish',
+  animation: 'animation-publish',
+  live: 'live-publish',
 };
 
 type WipKind = 'draft' | 'uploading' | 'scheduled';
@@ -273,7 +306,7 @@ export default function NewCreationSection() {
     }
   };
   const handleCreate = (id: string) => {
-    // 10 个创作入口分发到不同 view:
+    // 13 个创作入口分发到不同 view:
     //   video / panorama → hd-publish        (全景并入视频,作为 360° 开关)
     //   image            → image-publish     (PICTURE 图集, 已实装)
     //   image-mv         → image-mv-publish  (PICTURE 图片 MV, 骨架)

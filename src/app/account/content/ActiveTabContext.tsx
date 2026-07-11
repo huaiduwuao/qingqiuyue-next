@@ -40,6 +40,9 @@ const VIEW_ONLY_IDS = new Set([
   'vshow-publish',
   'teleplay-publish',
   'image-mv-publish',
+  'film-publish',
+  'animation-publish',
+  'live-publish',
 ]);
 
 const ALLOWED_IDS = new Set([...KNOWN_IDS, ...VIEW_ONLY_IDS]);

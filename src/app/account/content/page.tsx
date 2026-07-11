@@ -18,6 +18,9 @@ const MusicPublishView = dynamic(() => import('./_views/music-publish/page'), { 
 const ComicsPublishView = dynamic(() => import('./_views/comics-publish/page'), { ssr: false });
 const VshowPublishView = dynamic(() => import('./_views/vshow-publish/page'), { ssr: false });
 const TeleplayPublishView = dynamic(() => import('./_views/teleplay-publish/page'), { ssr: false });
+const FilmPublishView = dynamic(() => import('./_views/film-publish/page'), { ssr: false });
+const AnimationPublishView = dynamic(() => import('./_views/animation-publish/page'), { ssr: false });
+const LivePublishView = dynamic(() => import('./_views/live-publish/page'), { ssr: false });
 const HdReviewView = dynamic(() => import('./_views/hd-review/page'), { ssr: false });
 const ActivityView = dynamic(() => import('./_views/activity/page'), { ssr: false });
 const CoCreateView = dynamic(() => import('./_views/co-create/page'), { ssr: false });
@@ -66,6 +69,12 @@ export default function CreatorContentPage() {
         return <VshowPublishView />;
       case 'teleplay-publish':
         return <TeleplayPublishView />;
+      case 'film-publish':
+        return <FilmPublishView />;
+      case 'animation-publish':
+        return <AnimationPublishView />;
+      case 'live-publish':
+        return <LivePublishView />;
       case 'hd-review':
         return <HdReviewView />;
       case 'activity':
