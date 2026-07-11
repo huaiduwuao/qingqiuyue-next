@@ -30,31 +30,33 @@ export async function unwrap(res: { json(): Promise<any> }) {
 /** 幂等确保至少存在一个团队；返回 team id。 */
 export async function ensureGroup(api: APIRequestContext, name = 'E2E-Group'): Promise<number> {
   const list = await unwrap(await api.get('/api/core/group/client/page', { params: { pageSize: 50 } }));
-  const found = (list?.records || list?.list || []).find((g: any) => g?.name === name) || (list?.records || list?.list || [])[0];
+  const records = list?.records || list?.list || (Array.isArray(list) ? list : []);
+  let found = records.find((g: any) => g?.name === name);
   if (found?.id) return found.id;
-  const created = await unwrap(await api.post('/api/core/group', { data: { name } }));
-  const id = created?.id ?? created?.data?.id;
-  if (!id) throw new Error(`createGroup 失败：${JSON.stringify(created)}`);
-  return id;
+  // 触发创建 —— 响应可能只回 {code:0,msg:'创建成功'},创建完用同 name 再查一次
+  await (await api.post('/api/core/group', { data: { name } })).json().catch(() => ({}));
+  const after = await unwrap(await api.get('/api/core/group/client/page', { params: { pageSize: 50 } }));
+  const rec2 = after?.records || after?.list || (Array.isArray(after) ? after : []);
+  found = rec2.find((g: any) => g?.name === name) || rec2[0];
+  if (!found?.id) throw new Error(`ensureGroup 失败，列表中没有 name=${name}: ${JSON.stringify(after)}`);
+  return found.id;
 }
 
 /** 幂等确保至少存在一个项目；返回 project id（必要时带 groupId）。 */
 export async function ensureProject(api: APIRequestContext, groupId?: number, name = 'E2E-Project'): Promise<number> {
   const list = await unwrap(await api.get('/api/core/project/client/page', { params: { pageSize: 50, groupId } }));
   const records = list?.records || list?.list || (Array.isArray(list) ? list : []);
-  const found = records.find((p: any) => p?.name === name) || records[0];
+  let found = records.find((p: any) => p?.name === name);
   if (found?.id) return found.id;
   const data: any = { name };
   if (groupId) data.groupId = groupId;
-  const resp = await (await api.post('/api/core/project', { data })).json();
-  const ok = resp?.code === 200 || resp?.code === '200' || resp?.code === 0 || resp?.code === '0';
-  if (!ok) throw new Error(`createProject 失败：${JSON.stringify(resp)}`);
+  await (await api.post('/api/core/project', { data })).json().catch(() => ({}));
   // 后端创建可能仅返回 {code:0,msg:'创建成功'} 不带回实体 → 回查列表取 id
   const after = await unwrap(await api.get('/api/core/project/client/page', { params: { pageSize: 50, groupId } }));
   const rec2 = after?.records || after?.list || (Array.isArray(after) ? after : []);
-  const created = rec2.find((p: any) => p?.name === name) || rec2[0];
-  if (!created?.id) throw new Error(`createProject 成功但回查未拿到 id：${JSON.stringify(after)}`);
-  return created.id;
+  found = rec2.find((p: any) => p?.name === name) || rec2[0];
+  if (!found?.id) throw new Error(`ensureProject 失败，列表中没有 name=${name}: ${JSON.stringify(after)}`);
+  return found.id;
 }
 
 /** 幂等建一个任务（同 project 下同名存在则复用）；返回 task id。createTask 后端无 bool 字段，可直接走 API。 */
@@ -76,3 +78,25 @@ export async function seedTask(
   if (!created?.id) throw new Error(`createTask 成功但回查未拿到 id`);
   return created.id;
 }
+
+/** 幂等确保至少存在一个需求。status 用后端默认 (PENDING)，返回 demand id。 */
+export async function seedDemand(
+  api: APIRequestContext,
+  { groupId, projectId, title, status = 'PENDING' }: { groupId: number; projectId?: number; title: string; status?: string },
+): Promise<number> {
+  const list = await unwrap(await api.get('/api/core/demand/client/page', { params: { pageSize: 50, groupId } }));
+  const records = list?.records || list?.list || (Array.isArray(list) ? list : []);
+  const found = records.find((d: any) => d?.title === title);
+  if (found?.id) return found.id;
+  const data: any = { groupId, title, content: 'e2e seed demand', pay: 0, status };
+  if (projectId) data.projectId = projectId;
+  const resp = await (await api.post('/api/core/demand', { data })).json().catch((e: any) => ({ error: String(e) }));
+  const ok = resp?.code === 200 || resp?.code === '200' || resp?.code === 0 || resp?.code === '0';
+  if (!ok) throw new Error(`createDemand 失败：${JSON.stringify(resp)}`);
+  const after = await unwrap(await api.get('/api/core/demand/client/page', { params: { pageSize: 50, groupId } }));
+  const rec2 = after?.records || after?.list || (Array.isArray(after) ? after : []);
+  const created = rec2.find((d: any) => d?.title === title);
+  if (!created?.id) throw new Error(`createDemand 成功但回查未拿到 id`);
+  return created.id;
+}
+

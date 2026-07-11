@@ -39,16 +39,23 @@ setup('authenticate + seed', async ({ request, browser }) => {
     extraHTTPHeaders: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
   });
   try {
-    const groupId = await ensureGroup(api);
-    const projectId = await ensureProject(api, groupId);
     // createTask 后端原样存小写 status(reward_task.go:148)；前端 OPEN/CLAIMED 是显示归一化结果，seed 必须用 'pending'
-    // 加时间戳后缀避免与上次残留(status=OPEN 旧值)混淆；spec 从 seed.json 读新标题
+    // 用静态名 E2E-Group / E2E-Project：现在 SetupReward 挂 JWT + R6 修 CreateUser 后，
+    // ClientPageGroup/Project 按 userID=1 filter，老的 create_user=0 历史记录不会再冒头，
+    // 同名也不会撞；任务标题保留时间戳后缀避免旧任务遗重。
+    const groupName = 'E2E-Group';
+    const projectName = 'E2E-Project';
     const ts = Date.now().toString(36);
     const linkTitle = `E2E-链路-Seed-${ts}`;
     const deleteTitle = `E2E-删除-Seed-${ts}`;
+    const groupId = await ensureGroup(api, groupName);
+    const projectId = await ensureProject(api, groupId, projectName);
     await seedTask(api, { projectId, groupId, title: linkTitle, status: 'pending' });
     await seedTask(api, { projectId, groupId, title: deleteTitle, status: 'pending' });
-    fs.writeFileSync('e2e/.auth/seed.json', JSON.stringify({ groupId, projectId, linkTitle, deleteTitle }));
+    fs.writeFileSync(
+      'e2e/.auth/seed.json',
+      JSON.stringify({ groupId, groupName, projectId, projectName, linkTitle, deleteTitle }),
+    );
   } catch (e) {
     console.warn('[seed] 跳过（后端创建接口异常，写路径用例可能受影响）:', (e as Error).message);
   } finally {

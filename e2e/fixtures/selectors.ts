@@ -1,6 +1,12 @@
 /** 集中文案/角色选择器，便于后续模块同模式复用。 */
 export const S = {
   // reward sidebar
+  tabDashboard: '赏金广场',
+  tabDemand: '需求管理',
+  tabRealization: '实现管理',
+  tabProject: '项目管理',
+  tabConception: '意境管理',
+  tabGroup: '团队管理',
   tabTaskboard: '协作看板',
   // taskboard 视图模式（VIEW_META.label）
   viewMine: '我的任务',
@@ -28,9 +34,22 @@ export const S = {
   statusUpdated: '状态已更新',
   opSuccess: '操作成功',
   deleted: '已删除',
+  // demand 的几个 snackbar
+  demandCreated: '创建成功',
+  demandUpdated: '更新成功',
+  demandSettled: '结账成功',
+  demandUnsettled: '反结账成功',
+  // demand status filter tab
+  demandFilterAll: '全部',
+  demandFilterPending: '待发布',
+  demandFilterPublished: '进行中',
+  demandFilterCompleted: '待结账',
+  demandFilterSettled: '已结算',
+  demandFilterClosed: '已关闭',
 } as const;
 
 /** 生成唯一任务标题，避免并发/重跑互相踩。 */
 export function uniqueTitle(prefix = 'E2E') {
   return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
 }
+

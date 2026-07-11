@@ -26,8 +26,9 @@ test.describe('悬赏中心 · 协作看板', () => {
   });
 
   test('1 · 导航进入看板且 owner 可新建', async ({ page }) => {
+    // 「我的任务」与 dashboard 的「跳转到我的任务 →」链接同字串,严格化避免
     for (const label of [S.viewMine, S.viewAll, S.viewTeam, S.viewProject]) {
-      await expect(page.getByRole('button', { name: label })).toBeVisible();
+      await expect(page.getByRole('button', { name: label, exact: true })).toBeVisible();
     }
     await expect(page).toHaveURL(/\/account\/reward/); // 无 deep link，URL 不变
     await expect(page.getByRole('button', { name: S.newTask })).toBeEnabled(); // owner 对齐代理信号
@@ -38,10 +39,10 @@ test.describe('悬赏中心 · 协作看板', () => {
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
     await expect(dialog.getByLabel(S.title)).toBeVisible();
-    // 团队下拉能列出 seed 的 E2E-Group-{ts}（验证 groups 数据通路）。多 run 后累积多条同前缀,用 regex 头匹配。
+    // 团队下拉能列出 seed 的 E2E-Group（验证 groups 数据通路）。setup 用静态名后,严格相等即可。
     const teamFC = dialog.locator('.MuiFormControl-root').filter({ hasText: '所属团队' });
     await teamFC.getByRole('combobox').click();
-    await expect(page.getByRole('option', { name: /^E2E-Group-/ }).first()).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('option', { name: /^E2E-Group\b/ }).first()).toBeVisible({ timeout: 5000 });
     await page.keyboard.press('Escape');
     await dialog.getByRole('button', { name: S.cancel }).click(); // 不保存（创建由 seed 覆盖，绕开多选 Select 保存）
   });
