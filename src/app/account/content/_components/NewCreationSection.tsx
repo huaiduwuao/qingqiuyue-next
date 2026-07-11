@@ -176,7 +176,20 @@ export default function NewCreationSection() {
     }
   };
   const handleCreate = (id: string) => {
-    setActiveTab('hd-publish', { type: id });
+    // 4 个创作入口需要分发到不同 view:
+    //   - video     → hd-publish        (VIDEO contentType, 实际可用的)
+    //   - image     → image-publish     (IMAGE  — 骨架,见 _views/image-publish)
+    //   - panorama  → panorama-publish  (PANORAMA — 骨架,后续补 360 metadata)
+    //   - article   → article-publish   (ARTICLE  — 骨架)
+    // 历史上所有入口都跳 hd-publish,导致 image/article 选了图片被拒。
+    const TAB_BY_TYPE: Record<string, string> = {
+      video: 'hd-publish',
+      image: 'image-publish',
+      panorama: 'panorama-publish',
+      article: 'article-publish',
+    };
+    const tab = TAB_BY_TYPE[id] ?? 'hd-publish';
+    setActiveTab(tab, { type: id });
   };
   const handleViewAll = () => {
     setActiveTab('works');

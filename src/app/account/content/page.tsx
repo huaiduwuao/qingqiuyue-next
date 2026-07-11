@@ -9,6 +9,9 @@ import { useActiveTab } from './ActiveTabContext';
 // 改用 next/dynamic + ssr:false 让 SSR 阶段直接跳过,运行时再渲染。
 const DashboardView = dynamic(() => import('./_views/dashboard/page'), { ssr: false });
 const HdPublishView = dynamic(() => import('./_views/hd-publish/page'), { ssr: false });
+const ImagePublishView = dynamic(() => import('./_views/image-publish/page'), { ssr: false });
+const ArticlePublishView = dynamic(() => import('./_views/article-publish/page'), { ssr: false });
+const PanoramaPublishView = dynamic(() => import('./_views/panorama-publish/page'), { ssr: false });
 const HdReviewView = dynamic(() => import('./_views/hd-review/page'), { ssr: false });
 const ActivityView = dynamic(() => import('./_views/activity/page'), { ssr: false });
 const CoCreateView = dynamic(() => import('./_views/co-create/page'), { ssr: false });
@@ -39,6 +42,12 @@ export default function CreatorContentPage() {
     switch (activeTab) {
       case 'hd-publish':
         return <HdPublishView />;
+      case 'image-publish':
+        return <ImagePublishView />;
+      case 'article-publish':
+        return <ArticlePublishView />;
+      case 'panorama-publish':
+        return <PanoramaPublishView />;
       case 'hd-review':
         return <HdReviewView />;
       case 'activity':
