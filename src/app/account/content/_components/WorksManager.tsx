@@ -35,6 +35,12 @@ import ShareOutlinedIcon from '@mui/icons-material/ShareOutlined';
 import VideocamRoundedIcon from '@mui/icons-material/VideocamRounded';
 import ImageRoundedIcon from '@mui/icons-material/ImageRounded';
 import ArticleRoundedIcon from '@mui/icons-material/ArticleRounded';
+import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
+import MusicNoteRoundedIcon from '@mui/icons-material/MusicNoteRounded';
+import MovieRoundedIcon from '@mui/icons-material/MovieRounded';
+import TvRoundedIcon from '@mui/icons-material/TvRounded';
+import AnimationRoundedIcon from '@mui/icons-material/AnimationRounded';
+import AutoStoriesRoundedIcon from '@mui/icons-material/AutoStoriesRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { useActiveTab } from '../ActiveTabContext';
@@ -45,11 +51,22 @@ import { gradient2, gradient3 } from '@/constants/gradients';
 type WorkType = 'video' | 'image' | 'article';
 type WorkStatus = 'published' | 'reviewing' | 'draft' | 'private' | 'rejected';
 
-const WORK_TYPE_MAP: Record<WorkType, ContentType> = {
+// 放宽为 Record<string,...>:与 TYPE_META 同步覆盖后端全部 content_type,
+// 新类型查不到时回退 'article',避免 saveOrUpdate(undefined) 发向 client-content/undefined/*。
+const WORK_TYPE_MAP: Record<string, ContentType> = {
   video: 'video',
   image: 'picture-album',
   article: 'article',
+  novel: 'novel',
+  music: 'music',
+  film: 'film',
+  teleplay: 'teleplay',
+  animation: 'animation',
+  comics: 'comics',
+  live: 'live',
+  news: 'news',
 };
+const workTypeOf = (t: string): ContentType => WORK_TYPE_MAP[t] ?? 'article';
 
 interface Work {
   id: number;
@@ -71,19 +88,31 @@ interface Work {
 // 数据完全来自后端 /api/core/account/works,前端不保留任何 SEED 兜底。
 // 网络异常时显示空态,不展示假数据误导用户。
 
-const STATUS_META: Record<WorkStatus, { label: string; color: string; bg: string }> = {
+// 放宽为 Record<string,...>:后端 content_type/status 取值范围比前端枚举广(NOVEL/MUSIC/FILM/...),
+// 查不到时用 FALLBACK 兜底,避免 tm.icon / sm.label 白屏(seed 真实数据后暴露)。
+const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   published: { label: '已发布', color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.12)' },
   reviewing: { label: '审核中', color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)' },
   draft: { label: '草稿', color: 'text.secondary', bg: 'action.hover' },
   private: { label: '私密', color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.12)' },
   rejected: { label: '已驳回', color: '#FF6B8A', bg: 'rgba(255, 107, 138, 0.12)' },
 };
+const STATUS_META_FALLBACK = { label: '未知', color: 'text.disabled', bg: 'action.hover' };
 
-const TYPE_META: Record<WorkType, { label: string; icon: React.ReactNode; color: string }> = {
+const TYPE_META: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
   video: { label: '视频', icon: <VideocamRoundedIcon sx={{ fontSize: 14 }} />, color: '#FE2C55' },
   image: { label: '图文', icon: <ImageRoundedIcon sx={{ fontSize: 14 }} />, color: '#25F4EE' },
   article: { label: '文章', icon: <ArticleRoundedIcon sx={{ fontSize: 14 }} />, color: '#8B5CF6' },
+  novel: { label: '小说', icon: <MenuBookRoundedIcon sx={{ fontSize: 14 }} />, color: '#F59E0B' },
+  music: { label: '音乐', icon: <MusicNoteRoundedIcon sx={{ fontSize: 14 }} />, color: '#10B981' },
+  film: { label: '电影', icon: <MovieRoundedIcon sx={{ fontSize: 14 }} />, color: '#EF4444' },
+  teleplay: { label: '电视剧', icon: <TvRoundedIcon sx={{ fontSize: 14 }} />, color: '#3B82F6' },
+  animation: { label: '动画', icon: <AnimationRoundedIcon sx={{ fontSize: 14 }} />, color: '#8B5CF6' },
+  comics: { label: '漫画', icon: <AutoStoriesRoundedIcon sx={{ fontSize: 14 }} />, color: '#EC4899' },
+  live: { label: '直播', icon: <VideocamRoundedIcon sx={{ fontSize: 14 }} />, color: '#FE2C55' },
+  news: { label: '资讯', icon: <ArticleRoundedIcon sx={{ fontSize: 14 }} />, color: '#6B7280' },
 };
+const TYPE_META_FALLBACK = { label: '其他', icon: <ArticleRoundedIcon sx={{ fontSize: 14 }} />, color: '#9CA3AF' };
 
 const TYPE_OPTIONS: { key: 'all' | WorkType; label: string }[] = [
   { key: 'all', label: '全部类型' },
@@ -128,7 +157,10 @@ export default function WorksManager() {
     id: w.id,
     title: w.title,
     type: (String(w.contentType || 'video').toLowerCase()) as WorkType,
-    status: ((w.status === 'UN_PUBLISH' ? 'private' : (w.status === 'REVIEWING' ? 'reviewing' : (w.status || 'published')).toLowerCase())) as WorkStatus,
+    status: (w.status === 'UN_PUBLISH' ? 'private'
+      : w.status === 'REVIEWING' ? 'reviewing'
+      : w.status === 'PUBLISH' ? 'published'
+      : String(w.status || 'published').toLowerCase()) as WorkStatus,
     cover: w.coverUrl || '',
     views: w.readNum || 0,
     likes: w.agreeNum || 0,
@@ -191,7 +223,7 @@ export default function WorksManager() {
   const handleDelete = async (w: Work) => {
     setLoading(true);
     try {
-      await remove(WORK_TYPE_MAP[w.type], [w.id]);
+      await remove(workTypeOf(w.type), [w.id]);
       removeWork(w.id);
       setSnack('作品已删除');
     } catch (err: unknown) {
@@ -207,7 +239,7 @@ export default function WorksManager() {
     const next: WorkStatus = w.status === 'private' ? 'published' : 'private';
     setLoading(true);
     try {
-      await process(WORK_TYPE_MAP[w.type], { id: w.id, status: next });
+      await process(workTypeOf(w.type), { id: w.id, status: next });
       updateWork(w.id, { status: next });
       setSnack(next === 'private' ? '已设为私密' : '已设为公开');
     } catch (err: unknown) {
@@ -221,7 +253,7 @@ export default function WorksManager() {
   const handlePublish = async (w: Work) => {
     setLoading(true);
     try {
-      await process(WORK_TYPE_MAP[w.type], { id: w.id, status: 'reviewing' });
+      await process(workTypeOf(w.type), { id: w.id, status: 'reviewing' });
       updateWork(w.id, { status: 'reviewing' });
       setSnack('已提交审核,预计 24 小时内完成');
     } catch (err: unknown) {
@@ -240,7 +272,7 @@ export default function WorksManager() {
       // Use the first selected work's type for batch remove; individual remove handles per id
       await Promise.all(ids.map((id) => {
         const w = works.find((x) => x.id === id);
-        return w ? remove(WORK_TYPE_MAP[w.type], [id]) : Promise.resolve();
+        return w ? remove(workTypeOf(w.type), [id]) : Promise.resolve();
       }));
       setWorks((prev) => prev.filter((w) => !selected.has(w.id)));
       setSnack(`已删除 ${selected.size} 个作品`);
@@ -261,7 +293,7 @@ export default function WorksManager() {
       await Promise.all(
         ids.map((id) => {
           const w = works.find((x) => x.id === id);
-          return w ? process(WORK_TYPE_MAP[w.type], { id, status: priv ? 'private' : 'published' }) : Promise.resolve();
+          return w ? process(workTypeOf(w.type), { id, status: priv ? 'private' : 'published' }) : Promise.resolve();
         })
       );
       setWorks((prev) => prev.map((w) => selected.has(w.id) ? { ...w, status: priv ? 'private' as WorkStatus : 'published' as WorkStatus, updatedAt: Date.now() } : w));
@@ -279,7 +311,7 @@ export default function WorksManager() {
     if (!editing) return;
     setLoading(true);
     try {
-      await saveOrUpdate(WORK_TYPE_MAP[editing.type], { id: editing.id, ...patch });
+      await saveOrUpdate(workTypeOf(editing.type), { id: editing.id, ...patch });
       updateWork(editing.id, patch);
       setSnack('已保存');
       setEditing(null);
@@ -398,8 +430,8 @@ export default function WorksManager() {
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
           {filtered.map((w) => {
-            const sm = STATUS_META[w.status];
-            const tm = TYPE_META[w.type];
+            const sm = STATUS_META[w.status] ?? STATUS_META_FALLBACK;
+            const tm = TYPE_META[w.type] ?? TYPE_META_FALLBACK;
             const isSelected = selected.has(w.id);
             return (
               <Box
