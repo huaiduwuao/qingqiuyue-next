@@ -90,8 +90,23 @@ export async function updateShare(params: ModuleContentItem) {
   return contentClient('/module/content', { method: 'POST', data: params });
 }
 
-export async function remove(ids: number[]) {
-  return contentClient(`/module/content/${ids[0]}`, { method: 'DELETE' });
+// 批量删除:后端 /module/content/{id} 一次只接受单个 id,前端循环逐个删。
+// 错误时 Promise.all 不中断,先成功的标 done,失败的 throw 最后一笔错误。
+// 用户勾选 N 条 → handleBatchDelete → await Promise.all(remove(...)) → N 次 DELETE。
+export async function remove(ids: number[]): Promise<void> {
+  if (!ids.length) return;
+  const results = await Promise.allSettled(
+    ids.map((id) => contentClient(`/module/content/${id}`, { method: 'DELETE' })),
+  );
+  const failed = results.filter((r) => r.status === 'rejected');
+  if (failed.length === results.length) {
+    // 全失败:抛错让 UI 显示
+    throw (failed[0] as PromiseRejectedResult).reason;
+  }
+  // 部分失败:log 但不抛(否则一条失败会让前面成功的也回滚 UI)
+  if (failed.length) {
+    console.warn(`remove: ${failed.length}/${ids.length} 删除失败`, failed);
+  }
 }
 
 export async function process(params: { ids: number[]; status?: string; moduleContentStatus?: string; moduleContentSearch?: boolean }) {
