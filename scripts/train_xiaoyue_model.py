@@ -132,10 +132,10 @@ async def synth_negative_speech(text: str, voice: str, out_path: Path) -> bool:
 
 
 async def prepare_negatives(count: int = 30, total_minutes: float = 5.0):
-    """生成负样本: 噪声 + 中文"非小月"语音"""
+    """生成负样本: 噪声 + 中文"非小月"语音 (含近音混淆词)"""
     print(f"\n[1/5] 准备负样本 (目标 {count} 条噪声 + 几分钟语音)")
 
-    # 1) 各种噪声
+    # 1) 各种噪声 (少一点,只做背景模拟,不要喧宾夺主)
     noise_types = [
         ("pink_",  gen_pink_noise, 30),
         ("white_", gen_white_noise, 20),
@@ -144,22 +144,24 @@ async def prepare_negatives(count: int = 30, total_minutes: float = 5.0):
     ]
     written = 0
     for prefix, fn, dur_sec in noise_types:
-        for i in range(8):  # 每种 8 条
+        for i in range(3):  # 每种 3 条 (原 8 条 -> 3 条,避免模型把"任意声音"当正样本)
             audio = fn(dur_sec)
             out = NEG_DIR / f"{prefix}{i:03d}.wav"
             scipy.io.wavfile.write(out, SAMPLE_RATE, audio)
             written += 1
     print(f"  ✓ 写了 {written} 条噪声")
 
-    # 2) 中文"非小月"语音
+    # 2) 中文"非小月"语音 — 多量 + 多样, 包括近音混淆词
     print(f"  → 合成中文'非小月'语音 ({count} 条)...")
     voices = [
         "zh-CN-XiaoxiaoNeural",
+        "zh-CN-XiaoyiNeural",
         "zh-CN-YunxiNeural",
+        "zh-CN-YunjianNeural",
         "zh-CN-YunyangNeural",
     ]
-    # 中文常见语,确保不含"小月"两字相邻
-    phrases = [
+    # 通用中文指令 (不含"小月")
+    common_phrases = [
         "今天天气怎么样",
         "帮我打开空调",
         "查询明天日程",
@@ -180,13 +182,41 @@ async def prepare_negatives(count: int = 30, total_minutes: float = 5.0):
         "我回来了",
         "今天晚饭吃什么",
         "去睡觉吧",
+        "把音量调高",
+        "关闭所有灯光",
+        "打电话给妈妈",
+        "查一下公交",
+        "导航去公司",
+    ]
+    # 近音混淆词: 跟"小月"只差一两个字, 防止把"晓月"/"小约"误唤为"小月"
+    confusable_phrases = [
+        "晓月",
+        "小约",
+        "小悦",
+        "小岳",
+        "小玥",
+        "小跃",
+        "小阅",
+        "小粤",
+        "小曰",
+        "小乐",
+        "小月啊等等",
+        "看小月色",
+        "听小月歌",
+        "清秋月",
+        "小月山",
+        "晓月当空",
     ]
 
     success = 0
     for i in range(count):
-        phrase = random.choice(phrases)
+        # 70% 通用中文, 30% 近音混淆词
+        if random.random() < 0.3:
+            phrase = random.choice(confusable_phrases)
+        else:
+            phrase = random.choice(common_phrases)
         voice = random.choice(voices)
-        rate = random.choice(["+0%", "+10%", "-10%"])
+        rate = random.choice(["+0%", "+10%", "-10%", "+20%", "-20%"])
         out = NEG_DIR / f"speech_{i:03d}.wav"
         try:
             import edge_tts
@@ -204,7 +234,7 @@ async def prepare_negatives(count: int = 30, total_minutes: float = 5.0):
                 success += 1
         except Exception:
             pass
-    print(f"  ✓ 写了 {success} 条中文负样本语音")
+    print(f"  ✓ 写了 {success} 条中文负样本语音 (含近音混淆词)")
     return written + success
 
 
@@ -284,7 +314,7 @@ def extract_features():
                     start = random.randint(0, len(bg_audio) - CLIP_SAMPLES)
                     bg_clip = bg_audio[start:start + CLIP_SAMPLES]
                 else:
-                    bg_clip = np.pad(bg_clip, (0, CLIP_SAMPLES - len(bg_clip))) if len(bg_audio) < CLIP_SAMPLES else bg_clip[:CLIP_SAMPLES]
+                    bg_clip = np.pad(bg_audio, (0, CLIP_SAMPLES - len(bg_audio)))
 
                 # 随机 SNR 混合
                 snr_db = random.uniform(0, 15)
@@ -341,18 +371,20 @@ def _wav_duration(path: str) -> float:
 
 class WakeFCN(nn.Module):
     """小全连接网络: 特征 → 概率"""
-    def __init__(self, in_shape):
+    def __init__(self, in_shape, hidden=64):
         super().__init__()
         self.flatten = nn.Flatten()
         in_dim = in_shape[0] * in_shape[1]
         self.net = nn.Sequential(
-            nn.Linear(in_dim, 32),
-            nn.LayerNorm(32),
+            nn.Linear(in_dim, hidden),
+            nn.LayerNorm(hidden),
             nn.ReLU(),
-            nn.Linear(32, 32),
-            nn.LayerNorm(32),
+            nn.Dropout(0.2),
+            nn.Linear(hidden, hidden),
+            nn.LayerNorm(hidden),
             nn.ReLU(),
-            nn.Linear(32, 1),
+            nn.Dropout(0.2),
+            nn.Linear(hidden, 1),
             nn.Sigmoid(),
         )
 
@@ -374,8 +406,17 @@ def train_fcn(neg_mmap_path, pos_mmap_path, epochs=10, batch_size=128):
     # 记录每 epoch 指标(用于训练日志)
     log_history = []
 
+    # 负样本权重 (跟 openWakeWord 官方 notebook 的 max_negative_weight 思路一致 —
+    # 负样本是"背景", 只需要它不要太多 false accept, 权重压低让模型关注"小月"的特征)
+    NEG_WEIGHT = 0.3
+
+    sample_weights = np.where(y.flatten() == 1, 1.0, NEG_WEIGHT).astype(np.float32)
     loader = torch.utils.data.DataLoader(
-        torch.utils.data.TensorDataset(torch.from_numpy(X), torch.from_numpy(y)),
+        torch.utils.data.TensorDataset(
+            torch.from_numpy(X),
+            torch.from_numpy(y),
+            torch.from_numpy(sample_weights),
+        ),
         batch_size=batch_size, shuffle=True,
     )
 
@@ -386,14 +427,10 @@ def train_fcn(neg_mmap_path, pos_mmap_path, epochs=10, batch_size=128):
     for epoch in range(epochs):
         total_loss = 0
         tp, fn, total_pos = 0, 0, 0
-        for xb, yb in loader:
-            # 平衡权重 (1.0): 平等对待正负样本
-            # notebook 用负样本 0.1 是为了减少误唤醒, 但小数据集下直接学不到正样本
-            # 我们的合成样本已经很干净, 不需要那么偏
-            weights = torch.ones(yb.shape[0])
+        for xb, yb, wb in loader:
             opt.zero_grad()
             pred = model(xb)
-            loss = loss_fn(pred, yb, weights[:, None])
+            loss = loss_fn(pred, yb, wb[:, None])
             loss.backward()
             opt.step()
             total_loss += float(loss.item()) * len(yb)
@@ -410,8 +447,9 @@ def train_fcn(neg_mmap_path, pos_mmap_path, epochs=10, batch_size=128):
     log_file = MODEL_OUT_DIR / "training-log.json"
     log_data = {
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
-        "positive_samples": int(sum(y == 1)),
-        "negative_samples": int(sum(y == 0)),
+        "positive_samples": int((y == 1).sum()),
+        "negative_samples": int((y == 0).sum()),
+        "neg_weight": NEG_WEIGHT,
         "epochs": epochs,
         "final_loss": log_history[-1]["loss"] if log_history else 0,
         "final_recall": log_history[-1]["recall"] if log_history else 0,
@@ -536,8 +574,24 @@ def verify_and_deploy(onnx_path: Path):
 # ============================================================
 
 async def main():
-    # 1) 负样本
-    await prepare_negatives(count=40, total_minutes=4.0)
+    # 1) 负样本 (count 提到 80, 让语音类负样本足够多样, 模型能学到"声音像小月"≠"小月")
+    # 旧: 清掉上轮噪声 + 语音, 避免粉噪的"任意声音"模式污染模型
+    for old in NEG_DIR.glob("*.wav"):
+        try:
+            old.unlink()
+        except Exception:
+            pass
+    for old in NEG_DIR.glob("*.mp3"):
+        try:
+            old.unlink()
+        except Exception:
+            pass
+    for old in NEG_DIR.glob("*.tmp.wav"):
+        try:
+            old.unlink()
+        except Exception:
+            pass
+    await prepare_negatives(count=80, total_minutes=6.0)
 
     # 2) 特征
     neg_mmap, pos_mmap = extract_features()
@@ -548,7 +602,7 @@ async def main():
     X_neg = np.load(neg_mmap)
     in_shape = X_neg.shape[1:]
     print(f"  实际特征 shape: {in_shape}")
-    model = train_fcn(neg_mmap, pos_mmap, epochs=10)
+    model = train_fcn(neg_mmap, pos_mmap, epochs=25)
 
     # 4) 导出
     onnx_path = export_onnx(model, in_shape)

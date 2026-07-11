@@ -65,15 +65,22 @@ class OpenWakeWordEngine {
     }
 
     try {
-      // 动态探测 WASM 路径 (兼容 webpack + Turbopack + 自托管)
+      // 动态探测 WASM 路径 (兼容 webpack + Turbopack + 同源 /wake/)
       // 顺序: webpack 默认 → Turbopack → 同源 /wake/
-      ort.env.wasm.wasmPaths = await resolveWasmPaths()
+      // 注意: 必须用绝对 URL, 否则 ort.env.wasm.proxy=true 时 worker 内 fetch 相对路径会失败
+      // ("Failed to parse URL from /ort-wasm/ort-wasm-simd-threaded.wasm" — WorkerGlobalScope 没有 location)
+      const wasmDir = await resolveWasmPaths()
+      ort.env.wasm.wasmPaths = (typeof window !== 'undefined' && window.location?.origin)
+        ? window.location.origin + (wasmDir.startsWith('/') ? wasmDir : '/' + wasmDir)
+        : wasmDir
 
       // 禁用多线程 — 不创建 Web Worker, 避免 100+/s 的
       // "Unchecked runtime.lastError: Could not establish connection"
       // (threaded WASM 需要 SharedArrayBuffer + COOP/COEP 头, 当前项目没配)
       ort.env.wasm.numThreads = 1
-      ort.env.wasm.proxy = true
+      // proxy = false 让 wasm 在主线程跑, fetch 用相对 URL 也 OK
+      // (proxy = true 会用 Worker, Worker 内 fetch 相对 URL 解析不出来)
+      ort.env.wasm.proxy = false
 
       // melspectrogram 路径: cfg 可覆盖,默认 /wake/melspectrogram.onnx
       const melUrl = (this.cfg as WakeWordConfig & { melModelUrl?: string }).melModelUrl || '/wake/melspectrogram.onnx'
@@ -93,8 +100,28 @@ class OpenWakeWordEngine {
       voiceLog('info', 'wake', 'openWakeWord init success, label=', this.cfg.label)
       return true
     } catch (err) {
-      voiceLog('error', 'wake', 'openWakeWord init failed:', err)
-      this.cbs.onError?.(err instanceof Error ? err : new Error(String(err)))
+      // 排查: ORT 抛出的 err 经常是空对象 (因为内部 Symbol 字段 / Error.cause 链 JSON.stringify 拿不到)
+      // 展开所有可枚举属性 + stack + name + message + cause, 让用户能看到真实失败原因
+      const detail: Record<string, unknown> = {}
+      if (err && typeof err === 'object') {
+        for (const k of Object.getOwnPropertyNames(err)) {
+          try {
+            detail[k] = (err as Record<string, unknown>)[k]
+          } catch {
+            detail[k] = '<unreadable>'
+          }
+        }
+        const e = err as { message?: unknown; name?: unknown; stack?: unknown; cause?: unknown; code?: unknown }
+        if (e.message) detail.message = e.message
+        if (e.name) detail.name = e.name
+        if (e.stack) detail.stack = e.stack
+        if (e.cause !== undefined) detail.cause = e.cause
+        if (e.code !== undefined) detail.code = e.code
+      }
+      console.error('[wake] openWakeWord init failed, full err:', err)
+      console.error('[wake] openWakeWord init failed, detail:', detail)
+      voiceLog('error', 'wake', 'openWakeWord init failed:', JSON.stringify(detail))
+      this.cbs.onError?.(err instanceof Error ? err : new Error(JSON.stringify(detail)))
       return false
     }
   }
