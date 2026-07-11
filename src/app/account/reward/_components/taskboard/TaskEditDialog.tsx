@@ -33,6 +33,8 @@ interface Props {
 }
 
 export function TaskEditDialog({ open, record, projectId, groupId, groups = [], onClose, onSaved, onError }: Props) {
+  // 后端成功 code 为 0（client.ts 拦截器兼容 0/200），业务层判定需同时认 0 与 200
+  const isOk = (res: any) => res?.code === 200 || res?.code === 0 || res?.code === '200' || res?.code === '0';
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('P1');
@@ -93,7 +95,7 @@ export function TaskEditDialog({ open, record, projectId, groupId, groups = [], 
       const res: any = record?.id
         ? await updateTask(record.id, data)
         : await createTask(data);
-      if (res?.code === 200) onSaved(res.data);
+      if (isOk(res)) onSaved(res.data);
       else onError(res?.msg || '保存失败');
     } catch (e: any) {
       onError(e?.message || '保存失败');

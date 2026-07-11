@@ -17,22 +17,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import { alpha } from '@mui/material/styles';
 import { claimTask, submitTask, reviewTask } from '@/apis/reward-task';
 import type { RewardTask, RewardTaskStatus } from '@/beans/reward';
-
-const STATUS_LABEL: Record<RewardTaskStatus, string> = {
-  OPEN: '待领',
-  CLAIMED: '进行中',
-  SUBMITTED: '待验收',
-  APPROVED: '已完成',
-  REJECTED: '已驳回',
-};
-
-const STATUS_COLOR: Record<RewardTaskStatus, string> = {
-  OPEN: 'success.main',
-  CLAIMED: 'secondary.main',
-  SUBMITTED: 'warning.main',
-  APPROVED: '#8B5CF6',
-  REJECTED: 'primary.main',
-};
+import { normalizeRewardTaskStatus, REWARD_TASK_STATUS_LABEL, REWARD_TASK_STATUS_COLOR } from './status';
 
 interface Props {
   open: boolean;
@@ -51,6 +36,8 @@ function fmtTime(iso?: string | null) {
 }
 
 export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, onChanged, onDeleted, onError }: Props) {
+  // 后端成功 code 为 0（client.ts 拦截器兼容 0/200），业务层判定需同时认 0 与 200
+  const isOk = (res: any) => res?.code === 200 || res?.code === 0 || res?.code === '200' || res?.code === '0';
   const [deliverable, setDeliverable] = useState('');
   const [reviewNote, setReviewNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -64,7 +51,8 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
 
   if (!task) return null;
 
-  const status = (task.status || 'OPEN') as RewardTaskStatus;
+  // 后端原样存小写 pending/claimed/submitted/approved/rejected；前端用 OPEN/CLAIMED/... → 归一化
+  const status = normalizeRewardTaskStatus(task.status);
   const isAssignee = task.assigneeId === currentUserId;
   const canClaim = status === 'OPEN' && !task.assigneeId;
   const canSubmit = (status === 'CLAIMED' || status === 'REJECTED') && isAssignee;
@@ -75,7 +63,7 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
     setSubmitting(true);
     try {
       const res: any = await claimTask(task.id!);
-      if (res?.code === 200) onChanged(res.data);
+      if (isOk(res)) onChanged(res.data);
       else onError(res?.msg || '领取失败');
     } catch (e: any) {
       onError(e?.message || '领取失败');
@@ -92,7 +80,7 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
     setSubmitting(true);
     try {
       const res: any = await submitTask(task.id!, deliverable);
-      if (res?.code === 200) onChanged(res.data);
+      if (isOk(res)) onChanged(res.data);
       else onError(res?.msg || '提交失败');
     } catch (e: any) {
       onError(e?.message || '提交失败');
@@ -105,7 +93,7 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
     setSubmitting(true);
     try {
       const res: any = await reviewTask(task.id!, approved, reviewNote);
-      if (res?.code === 200) onChanged(res.data);
+      if (isOk(res)) onChanged(res.data);
       else onError(res?.msg || '审稿失败');
     } catch (e: any) {
       onError(e?.message || '审稿失败');
@@ -119,7 +107,7 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
     const { deleteTask } = await import('@/apis/reward-task');
     try {
       const res: any = await deleteTask(task.id!);
-      if (res?.code === 200) onDeleted(task.id!);
+      if (isOk(res)) onDeleted(task.id!);
       else onError(res?.msg || '删除失败');
     } catch (e: any) {
       onError(e?.message || '删除失败');
@@ -146,14 +134,14 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
             }}
           />
           <Chip
-            label={STATUS_LABEL[status]}
+            label={REWARD_TASK_STATUS_LABEL[status]}
             size="small"
             sx={{
               height: 20,
               fontSize: 11,
               fontWeight: 600,
-              bgcolor: `${STATUS_COLOR[status]}1A`,
-              color: STATUS_COLOR[status],
+              bgcolor: `${REWARD_TASK_STATUS_COLOR[status]}1A`,
+              color: REWARD_TASK_STATUS_COLOR[status],
             }}
           />
           {task.deadline && (

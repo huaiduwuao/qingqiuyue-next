@@ -36,6 +36,7 @@ import { KanbanColumn } from './KanbanColumn';
 import { TaskCard } from './TaskCard';
 import { TaskDetailDialog } from './TaskDetailDialog';
 import { TaskEditDialog } from './TaskEditDialog';
+import { normalizeRewardTaskStatus } from './status';
 import { listTasks, claimTask, submitTask, reviewTask } from '@/apis/reward-task';
 import { listProjects } from '@/apis/reward-project';
 import { listGroups } from '@/apis/reward-group';
@@ -219,7 +220,7 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
       OPEN: [], CLAIMED: [], SUBMITTED: [], APPROVED: [], REJECTED: [],
     };
     for (const t of filtered) {
-      const s = (t.status || 'OPEN') as RewardTaskStatus;
+      const s = normalizeRewardTaskStatus(t.status);
       if (m[s]) m[s].push(t);
     }
     return m;
@@ -228,7 +229,7 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
   // 进度统计
   const progress = useMemo(() => {
     const total = filtered.length;
-    const approved = filtered.filter((t) => t.status === 'APPROVED').length;
+    const approved = filtered.filter((t) => normalizeRewardTaskStatus(t.status) === 'APPROVED').length;
     return { total, approved, percent: total > 0 ? Math.round((approved / total) * 100) : 0 };
   }, [filtered]);
 
@@ -237,9 +238,9 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
     const all = tasks.filter((t) => t.assigneeId === currentUserId);
     return {
       total: all.length,
-      inProgress: all.filter((t) => t.status === 'CLAIMED').length,
-      submitted: all.filter((t) => t.status === 'SUBMITTED').length,
-      approved: all.filter((t) => t.status === 'APPROVED').length,
+      inProgress: all.filter((t) => normalizeRewardTaskStatus(t.status) === 'CLAIMED').length,
+      submitted: all.filter((t) => normalizeRewardTaskStatus(t.status) === 'SUBMITTED').length,
+      approved: all.filter((t) => normalizeRewardTaskStatus(t.status) === 'APPROVED').length,
     };
   }, [tasks, currentUserId]);
 
@@ -265,15 +266,16 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
       targetStatus = over.id.slice(4) as RewardTaskStatus;
     } else {
       const overTask = tasks.find((t) => t.id === over.id);
-      if (overTask) targetStatus = (overTask.status || 'OPEN') as RewardTaskStatus;
+      if (overTask) targetStatus = normalizeRewardTaskStatus(overTask.status);
     }
     if (!targetStatus) return;
-    if (targetStatus === task.status) return;
+    const currentStatus = normalizeRewardTaskStatus(task.status);
+    if (targetStatus === currentStatus) return;
 
     const isAssignee = task.assigneeId === currentUserId;
-    if (targetStatus === 'CLAIMED' && task.status === 'OPEN') {
+    if (targetStatus === 'CLAIMED' && currentStatus === 'OPEN') {
       // 任意人都能领
-    } else if (targetStatus === 'CLAIMED' && task.status === 'REJECTED') {
+    } else if (targetStatus === 'CLAIMED' && currentStatus === 'REJECTED') {
       if (!isAssignee) {
         showMessage('只有原负责人可以重新认领', 'error');
         return;

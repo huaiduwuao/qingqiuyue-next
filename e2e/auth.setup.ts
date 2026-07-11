@@ -2,7 +2,7 @@ import { test as setup, expect, request as pwRequest } from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 import { loginViaApi, buildStorageState } from './fixtures/auth';
-import { ensureGroup, ensureProject } from './fixtures/api';
+import { ensureGroup, ensureProject, seedTask } from './fixtures/api';
 
 // Playwright 测试进程不自动读 Next 的 .env.local；显式注入 E2E_OWNER_NAME/PASSWORD。
 process.loadEnvFile('.env.local');
@@ -40,7 +40,15 @@ setup('authenticate + seed', async ({ request, browser }) => {
   });
   try {
     const groupId = await ensureGroup(api);
-    await ensureProject(api, groupId);
+    const projectId = await ensureProject(api, groupId);
+    // createTask 后端原样存小写 status(reward_task.go:148)；前端 OPEN/CLAIMED 是显示归一化结果，seed 必须用 'pending'
+    // 加时间戳后缀避免与上次残留(status=OPEN 旧值)混淆；spec 从 seed.json 读新标题
+    const ts = Date.now().toString(36);
+    const linkTitle = `E2E-链路-Seed-${ts}`;
+    const deleteTitle = `E2E-删除-Seed-${ts}`;
+    await seedTask(api, { projectId, groupId, title: linkTitle, status: 'pending' });
+    await seedTask(api, { projectId, groupId, title: deleteTitle, status: 'pending' });
+    fs.writeFileSync('e2e/.auth/seed.json', JSON.stringify({ groupId, projectId, linkTitle, deleteTitle }));
   } catch (e) {
     console.warn('[seed] 跳过（后端创建接口异常，写路径用例可能受影响）:', (e as Error).message);
   } finally {

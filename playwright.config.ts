@@ -38,13 +38,13 @@ export default defineConfig({
     },
   ],
 
-  // Playwright 自启干净 next dev（已授权 kill 旧的崩坏实例 PID 32844）。
+  // 自启干净 next dev；本机若已有 dev 在 3000 上跑则复用，避端口冲突。
   // 自动读 .env.development.local 的 API_PROXY_TARGET=http://10.9.1.2:10005。
   webServer: {
     command: 'npm run dev',
     cwd: '.',
     url: 'http://localhost:3000',
-    reuseExistingServer: false,
+    reuseExistingServer: true,
     timeout: 120_000,
     stdout: 'pipe',
     stderr: 'pipe',
