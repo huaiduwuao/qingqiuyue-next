@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useRef, useMemo } from 'react';
-import { useMutation } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -9,10 +8,7 @@ import TextField from '@mui/material/TextField';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import LinearProgress from '@mui/material/LinearProgress';
-import Snackbar from '@mui/material/Snackbar';
-import Alert from '@mui/material/Alert';
 import Divider from '@mui/material/Divider';
-import Chip from '@mui/material/Chip';
 import DescriptionIcon from '@mui/icons-material/Description';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import CloudUploadRoundedIcon from '@mui/icons-material/CloudUploadRounded';
@@ -28,31 +24,17 @@ import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { useActiveTab } from '../../ActiveTabContext';
-import { fileUpload } from '@/apis/global';
-import { updateShare } from '@/apis/module-content';
-import { accountClient, formatApiError, isAuthError, isNetworkError } from '@/lib/api/client';
+import { useContentForm, normalizeTags, uploadOneFile } from '../../_components/useContentForm';
 import { gradient2 } from '@/constants/gradients';
 
-// 文章发布 — 真实表单
+// 文章发布 — ARTICLE contentType,Markdown 排版 + 封面单图。
 //
-// 历史上 NewCreationSection 把"发布文章"也路由到 hd-publish,但 hd-publish
-// 的 file input 强制 accept="video/*",且没有富文本编辑能力,user 选不到
-// 任何东西。这次拆出独立 view,提供:
-//  - 标题(40 字)+ 封面单图
-//  - markdown 编辑器(textarea + 工具栏在光标处插入粗体/斜体/标题/链接/
-//    引用/列表/代码/图片;支持预览切换)
-//  - 8000 字字数限制 + 实时计数
-//  - 标签(逗号/空格分隔,8 个)
-//  - 提交按钮调 updateShare(contentType: 'ARTICLE')
-//
-// 不引入 Tiptap/Slate 等富文本库 — markdown 简洁 + 0 依赖,跟现有
-// image-publish 风格一致;后续要 WYSIWYG 升级再考虑 Tiptap。
+// 重构后:title/tags/snack/submit 走 useContentForm hook,本 view
+// 管 body (Markdown 正文) + cover (单图) + 编辑器工具栏。desc 字段
+// 不需要(文章用 body 完整表达),所以传 maxDesc: 0。
 const MAX_TITLE = 40;
 const MAX_BODY = 8000;
 const MAX_TAGS = 8;
-
-type SnackSeverity = 'success' | 'error' | 'info' | 'warning';
-interface SnackMsg { msg: string; severity: SnackSeverity; }
 
 type CoverStatus = 'idle' | 'uploading' | 'uploaded' | 'failed';
 
@@ -63,9 +45,7 @@ export default function ArticlePublishPage() {
   const coverInputRef = useRef<HTMLInputElement>(null);
   const inlineImageInputRef = useRef<HTMLInputElement>(null);
 
-  const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [tags, setTags] = useState('');
   const [showPreview, setShowPreview] = useState(false);
   const [cover, setCover] = useState<{
     file: File;
@@ -73,13 +53,34 @@ export default function ArticlePublishPage() {
     status: CoverStatus;
     uploadedUrl?: string;
   } | null>(null);
-  const [snack, setSnackRaw] = useState<SnackMsg | null>(null);
-  const dismissSnack = React.useCallback(() => setSnackRaw(null), []);
-  const setSnack = React.useCallback(
-    (s: string | SnackMsg) =>
-      setSnackRaw(typeof s === 'string' ? { msg: s, severity: 'info' } : s),
-    [],
-  );
+
+  const f = useContentForm<any>({
+    contentType: 'ARTICLE',
+    maxTitle: MAX_TITLE,
+    maxDesc: 0, // 文章没有 desc 字段,关掉
+    maxTags: MAX_TAGS,
+    requireTitle: true,
+    requireDesc: false,
+    onSuccess: () => {
+      if (cover?.previewUrl) URL.revokeObjectURL(cover.previewUrl);
+      setActiveTab('content');
+    },
+    validate: () => {
+      if (!body.trim()) return '请输入正文内容';
+      if (body.length > MAX_BODY) return `正文超出 ${MAX_BODY} 字,请精简`;
+      if (cover && cover.status !== 'uploaded') return '封面上传未完成,请稍候或重新选择';
+      return null;
+    },
+    buildPayload: () => ({
+      title: f.title.trim(),
+      subtitle: body.replace(/\s+/g, ' ').trim().slice(0, 80),
+      content: body.slice(0, MAX_BODY),
+      contentType: 'ARTICLE',
+      coverUrl: cover?.uploadedUrl,
+      status: 'reviewing',
+      tags: normalizeTags(f.tags, MAX_TAGS),
+    } as any),
+  });
 
   // 工具栏:在光标处插入 markdown 标记
   const wrapSelection = (before: string, after = before, placeholder = '') => {
@@ -111,35 +112,24 @@ export default function ArticlePublishPage() {
   };
 
   // 封面:单图上传
-  const handleCoverPick = () => coverInputRef.current?.click();
   const handleCoverChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      setSnack({ msg: '封面必须是图片', severity: 'warning' });
+      f.setSnack({ msg: '封面必须是图片', severity: 'warning' });
       return;
     }
     if (cover?.previewUrl) URL.revokeObjectURL(cover.previewUrl);
     const previewUrl = URL.createObjectURL(file);
     setCover({ file, previewUrl, status: 'uploading' });
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-      const res: any = await accountClient.post('/file/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      const url = res?.data?.url ?? res?.url;
-      if (url) {
-        setCover((c) => (c ? { ...c, status: 'uploaded', uploadedUrl: url } : c));
-        setSnack({ msg: '封面上传成功', severity: 'success' });
-      } else {
-        setCover((c) => (c ? { ...c, status: 'failed' } : c));
-        setSnack({ msg: '封面上传成功但未返回地址', severity: 'error' });
-      }
-    } catch (e) {
+    const url = await uploadOneFile(file);
+    if (url) {
+      setCover((c) => (c ? { ...c, status: 'uploaded', uploadedUrl: url } : c));
+      f.setSnack({ msg: '封面上传成功', severity: 'success' });
+    } else {
       setCover((c) => (c ? { ...c, status: 'failed' } : c));
-      setSnack({ msg: `封面上传失败:${formatApiError(e)}`, severity: 'error' });
+      f.setSnack({ msg: '封面上传失败,请重试', severity: 'error' });
     }
   };
   const removeCover = () => {
@@ -147,95 +137,33 @@ export default function ArticlePublishPage() {
     setCover(null);
   };
 
-  // 内嵌图:点工具栏"插入图片" → 选图 → 上传 → 在光标处插入 markdown
-  const handleInlineImagePick = () => inlineImageInputRef.current?.click();
+  // 内嵌图:工具栏按钮 → 选图 → 上传 → 插入 markdown
   const handleInlineImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     e.target.value = '';
     if (files.length === 0) return;
-    setSnack({ msg: `开始上传 ${files.length} 张内嵌图...`, severity: 'info' });
+    f.setSnack({ msg: `开始上传 ${files.length} 张内嵌图...`, severity: 'info' });
     for (const file of files) {
       if (!file.type.startsWith('image/')) continue;
-      const formData = new FormData();
-      formData.append('file', file);
-      try {
-        const res: any = await accountClient.post('/file/upload', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
-        const url = res?.data?.url ?? res?.url;
-        if (url) {
-          const alt = file.name.replace(/\.[^.]+$/, '');
-          insertAtCursor(`\n![${alt}](${url})\n`);
-        } else {
-          setSnack({ msg: `${file.name} 上传成功但未返回地址`, severity: 'error' });
-        }
-      } catch (err) {
-        setSnack({ msg: `${file.name} 上传失败:${formatApiError(err)}`, severity: 'error' });
-      }
-    }
-    setSnack({ msg: '内嵌图上传完成', severity: 'success' });
-  };
-
-  const createMutation = useMutation({
-    mutationFn: () =>
-      updateShare({
-        title: title.trim(),
-        subtitle: body.replace(/\s+/g, ' ').trim().slice(0, 80),
-        content: body.slice(0, MAX_BODY),
-        contentType: 'ARTICLE',
-        coverUrl: cover?.uploadedUrl,
-        status: 'reviewing',
-        tags: tags
-          .split(/[,，\s]+/)
-          .filter(Boolean)
-          .slice(0, MAX_TAGS)
-          .join(','),
-      } as any),
-  });
-
-  const handleSubmit = async () => {
-    if (!title.trim()) {
-      setSnack({ msg: '请输入文章标题', severity: 'warning' });
-      titleRef.current?.focus();
-      return;
-    }
-    if (!body.trim()) {
-      setSnack({ msg: '请输入正文内容', severity: 'warning' });
-      bodyRef.current?.focus();
-      return;
-    }
-    if (body.length > MAX_BODY) {
-      setSnack({ msg: `正文超出 ${MAX_BODY - body.length} 字,请精简`, severity: 'warning' });
-      return;
-    }
-    if (cover && cover.status !== 'uploaded') {
-      setSnack({ msg: '封面上传未完成,请稍候或重新选择', severity: 'warning' });
-      return;
-    }
-    try {
-      await createMutation.mutateAsync();
-    } catch (e: any) {
-      if (isAuthError(e)) {
-        setSnack({ msg: '请重新登录', severity: 'error' });
-      } else if (isNetworkError(e)) {
-        setSnack({ msg: '网络错误,请检查连接后重试', severity: 'error' });
+      const url = await uploadOneFile(file);
+      if (url) {
+        const alt = file.name.replace(/\.[^.]+$/, '');
+        insertAtCursor(`\n![${alt}](${url})\n`);
       } else {
-        setSnack({ msg: `发布失败:${formatApiError(e)}`, severity: 'error' });
+        f.setSnack({ msg: `${file.name} 上传失败`, severity: 'error' });
       }
-      return;
     }
-    setSnack({ msg: '文章已提交审核', severity: 'success' });
-    if (cover?.previewUrl) URL.revokeObjectURL(cover.previewUrl);
-    setActiveTab('content');
+    f.setSnack({ msg: '内嵌图上传完成', severity: 'success' });
   };
 
-  const canSubmit = useMemo(() => {
-    if (!title.trim() || !body.trim()) return false;
-    if (body.length > MAX_BODY) return false;
-    if (cover && cover.status !== 'uploaded') return false;
-    if (createMutation.isPending) return false;
-    return true;
-  }, [title, body, cover, createMutation.isPending]);
+  const canSubmitFinal = useMemo(
+    () =>
+      f.canSubmit &&
+      body.trim().length > 0 &&
+      body.length <= MAX_BODY &&
+      (cover === null || cover.status === 'uploaded'),
+    [f.canSubmit, body, cover],
+  );
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
@@ -268,12 +196,11 @@ export default function ArticlePublishPage() {
       >
         {/* 左:标题 + 编辑器(7/12) */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-          {/* 文章标题 */}
           <TextField
             inputRef={titleRef}
             fullWidth
-            value={title}
-            onChange={(e) => setTitle(e.target.value.slice(0, MAX_TITLE))}
+            value={f.title}
+            onChange={(e) => f.setTitle(e.target.value)}
             placeholder="给你的文章起个标题"
             slotProps={{
               htmlInput: {
@@ -282,10 +209,9 @@ export default function ArticlePublishPage() {
               },
               formHelperText: { sx: { textAlign: 'right', fontSize: 10, m: 0, mt: 0.25 } },
             }}
-            helperText={`${title.length} / ${MAX_TITLE}`}
+            helperText={`${f.title.length} / ${MAX_TITLE}`}
           />
 
-          {/* 工具栏 */}
           <Box
             sx={{
               display: 'flex',
@@ -335,7 +261,7 @@ export default function ArticlePublishPage() {
               </IconButton>
             </Tooltip>
             <Tooltip title="插入图片(在光标处)">
-              <IconButton size="small" onClick={handleInlineImagePick}>
+              <IconButton size="small" onClick={() => inlineImageInputRef.current?.click()}>
                 <AddPhotoAlternateRoundedIcon fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -359,7 +285,6 @@ export default function ArticlePublishPage() {
             </Tooltip>
           </Box>
 
-          {/* 编辑区 / 预览区 */}
           {showPreview ? (
             <Box
               sx={{
@@ -425,16 +350,19 @@ export default function ArticlePublishPage() {
 
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Box sx={{ display: 'flex', gap: 0.75 }}>
-              <Chip
-                size="small"
-                label="Markdown"
-                sx={{ height: 20, fontSize: 10, bgcolor: 'action.hover' }}
-              />
-              <Chip
-                size="small"
-                label="自动保存草稿(开发中)"
-                sx={{ height: 20, fontSize: 10, bgcolor: 'action.hover', color: 'text.disabled' }}
-              />
+              <Box
+                sx={{
+                  px: 0.75,
+                  py: 0.25,
+                  borderRadius: 0.75,
+                  bgcolor: 'action.hover',
+                  fontSize: 10,
+                  fontWeight: 600,
+                  color: 'text.secondary',
+                }}
+              >
+                Markdown
+              </Box>
             </Box>
             <Typography
               sx={{
@@ -450,7 +378,6 @@ export default function ArticlePublishPage() {
 
         {/* 右:封面 + 标签 + 提交(5/12) */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {/* 封面 */}
           <Box>
             <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 0.5 }}>
               封面图(选填,推荐 16:9)
@@ -541,7 +468,7 @@ export default function ArticlePublishPage() {
               </Box>
             ) : (
               <Box
-                onClick={handleCoverPick}
+                onClick={() => coverInputRef.current?.click()}
                 role="button"
                 tabIndex={0}
                 aria-label="上传封面图"
@@ -577,7 +504,6 @@ export default function ArticlePublishPage() {
             />
           </Box>
 
-          {/* 标签 */}
           <Box>
             <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 0.5 }}>
               标签
@@ -585,8 +511,8 @@ export default function ArticlePublishPage() {
             <TextField
               fullWidth
               size="small"
-              value={tags}
-              onChange={(e) => setTags(e.target.value)}
+              value={f.tags}
+              onChange={(e) => f.setTags(e.target.value)}
               placeholder="逗号或空格分隔,最多 8 个"
               helperText="例如:技术, 教程, React"
               slotProps={{
@@ -619,8 +545,8 @@ export default function ArticlePublishPage() {
           <Button
             variant="contained"
             size="large"
-            onClick={handleSubmit}
-            disabled={!canSubmit}
+            onClick={() => f.submit()}
+            disabled={!canSubmitFinal}
             sx={{
               textTransform: 'none',
               fontSize: 14,
@@ -634,28 +560,12 @@ export default function ArticlePublishPage() {
               },
             }}
           >
-            {createMutation.isPending ? '提交中...' : '提交文章'}
+            {f.isPending ? '提交中...' : '提交文章'}
           </Button>
         </Box>
       </Box>
 
-      <Snackbar
-        open={!!snack}
-        autoHideDuration={snack?.severity === 'error' ? 5000 : 2400}
-        onClose={dismissSnack}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        {snack ? (
-          <Alert
-            severity={snack.severity}
-            variant="filled"
-            onClose={dismissSnack}
-            sx={{ width: '100%' }}
-          >
-            {snack.msg}
-          </Alert>
-        ) : undefined}
-      </Snackbar>
+      {f.renderSnackbar()}
     </Box>
   );
 }
@@ -716,7 +626,6 @@ function renderMarkdownPreview(src: string) {
       listBuffer.push(line.replace(/^-\s+/, ''));
     } else if (line.trim() === '') {
       flushList();
-      // 空行:分段
       if (blocks.length > 0) blocks.push(<Box key={`br-${i}`} sx={{ height: 8 }} />);
     } else {
       flushList();
@@ -732,9 +641,8 @@ function renderMarkdownPreview(src: string) {
 }
 
 function renderInline(text: string): React.ReactNode {
-  // 顺序: 图片 ![alt](url) → 链接 [t](url) → 粗体 **t** → 斜体 *t* → 行内代码 `t`
   const tokens: React.ReactNode[] = [];
-  let rest = text;
+  let i = 0;
   let key = 0;
   const patterns: Array<[RegExp, (m: RegExpMatchArray) => React.ReactNode]> = [
     [/!\[([^\]]*)\]\(([^)]+)\)/, (m) => <img key={key++} src={m[2]} alt={m[1]} />],
@@ -747,8 +655,6 @@ function renderInline(text: string): React.ReactNode {
     [/\*([^*]+)\*/, (m) => <em key={key++}>{m[1]}</em>],
     [/`([^`]+)`/, (m) => <code key={key++}>{m[1]}</code>],
   ];
-  // 简单逐字符解析(够用,文章字数 8000 内性能 OK)
-  let i = 0;
   while (i < text.length) {
     let matched = false;
     for (const [pat, builder] of patterns) {
@@ -762,7 +668,6 @@ function renderInline(text: string): React.ReactNode {
       }
     }
     if (!matched) {
-      // 收集到下一个特殊字符之前的纯文本
       const next = text.slice(i).search(/[!*`\[]/);
       const end = next === -1 ? text.length : i + next;
       tokens.push(text.slice(i, end));
