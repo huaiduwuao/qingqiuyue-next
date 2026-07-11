@@ -38,10 +38,10 @@ test.describe('悬赏中心 · 协作看板', () => {
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
     await expect(dialog.getByLabel(S.title)).toBeVisible();
-    // 团队下拉能列出 seed 的 E2E-Group（验证 groups 数据通路）
+    // 团队下拉能列出 seed 的 E2E-Group-{ts}（验证 groups 数据通路）。多 run 后累积多条同前缀,用 regex 头匹配。
     const teamFC = dialog.locator('.MuiFormControl-root').filter({ hasText: '所属团队' });
     await teamFC.getByRole('combobox').click();
-    await expect(page.getByRole('option', { name: 'E2E-Group' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('option', { name: /^E2E-Group-/ }).first()).toBeVisible({ timeout: 5000 });
     await page.keyboard.press('Escape');
     await dialog.getByRole('button', { name: S.cancel }).click(); // 不保存（创建由 seed 覆盖，绕开多选 Select 保存）
   });
@@ -67,6 +67,7 @@ test.describe('悬赏中心 · 协作看板', () => {
     // 提交（负责人可见交付物输入 + 提交）
     const deliverable = dialog.getByPlaceholder('交付物链接 / 文本说明');
     await expect(deliverable).toBeVisible({ timeout: 5000 });
+    await deliverable.fill('e2e-deliverable'); // 不填会被 TaskDetailDialog onError('请填写交付物…') 短路,不发 POST
     const listRefetch2 = page.waitForResponse((r) => RX.taskList.test(r.url()), { timeout: 8_000 });
     await Promise.all([waitAction(page, 'submit'), dialog.getByRole('button', { name: S.submit }).click()]);
     await expect(page.getByText(S.opSuccess)).toBeVisible({ timeout: 5000 });

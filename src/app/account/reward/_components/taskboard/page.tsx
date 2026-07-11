@@ -36,7 +36,7 @@ import { KanbanColumn } from './KanbanColumn';
 import { TaskCard } from './TaskCard';
 import { TaskDetailDialog } from './TaskDetailDialog';
 import { TaskEditDialog } from './TaskEditDialog';
-import { normalizeRewardTaskStatus } from './status';
+import { normalizeRewardTaskStatus, mapRewardTaskListFromBackend, mapRewardTaskFromBackend } from './status';
 import { listTasks, claimTask, submitTask, reviewTask } from '@/apis/reward-task';
 import { listProjects } from '@/apis/reward-project';
 import { listGroups } from '@/apis/reward-group';
@@ -133,7 +133,9 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
     queryFn: async () => {
       const params: any = { pageSize: 100 };
       if (viewMode === 'mine') {
+        // 后端 handler 用 `claimerId` 读 query,前端 beans 叫 assigneeId —— 两边都发,丢一也能命中
         params.assigneeId = currentUserId;
+        params.claimerId = currentUserId;
       } else if (viewMode === 'team') {
         params.groupId = groupId;
       } else if (viewMode === 'project') {
@@ -141,7 +143,8 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
       }
       if (initialDemandId) params.demandId = initialDemandId;
       const res: any = await listTasks(params);
-      return res?.data?.records || [];
+      // 后端 json tag 是 claimerId/reviewerId/ownerId,与前端 bean 的 assigneeId/reviewerId/ownerId 一对一映射需要补齐
+      return mapRewardTaskListFromBackend(res?.data?.records || []);
     },
     enabled:
       (viewMode === 'mine' && !!currentUserId) ||
@@ -303,7 +306,7 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
   };
 
   const handleTaskChanged = (updated: RewardTask) => {
-    setDetailTask(updated);
+    setDetailTask(mapRewardTaskFromBackend(updated) as RewardTask);
     showMessage('操作成功');
     qc.invalidateQueries({ queryKey: ['taskboard', 'tasks', viewMode, projectId, groupId, currentUserId, initialDemandId] });
   };
