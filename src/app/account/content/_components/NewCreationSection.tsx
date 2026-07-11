@@ -70,7 +70,7 @@ const CREATION_ITEMS: CreationItem[] = [
     desc: '多图轮播 + 背景音乐',
     icon: <PhotoLibraryRoundedIcon sx={{ fontSize: 32 }} />,
     gradient: gradient2('#22D3EE', '#67E8F9'),
-    ready: false,
+    ready: true,
     contentType: 'PICTURE',
   },
   {
@@ -88,7 +88,7 @@ const CREATION_ITEMS: CreationItem[] = [
     desc: '章节连载，单本可超 10 万字',
     icon: <MenuBookRoundedIcon sx={{ fontSize: 32 }} />,
     gradient: gradient2('#A78BFA', '#DDD6FE'),
-    ready: false,
+    ready: true,
     contentType: 'NOVEL',
   },
   {
@@ -97,7 +97,7 @@ const CREATION_ITEMS: CreationItem[] = [
     desc: '摘要 + 配图 + 来源',
     icon: <ArticleRoundedIcon sx={{ fontSize: 32 }} />,
     gradient: gradient2('#F87171', '#FCA5A5'),
-    ready: false,
+    ready: true,
     contentType: 'NEWS',
   },
   {
@@ -106,7 +106,7 @@ const CREATION_ITEMS: CreationItem[] = [
     desc: '音频 + 封面 + LRC 歌词',
     icon: <LibraryMusicRoundedIcon sx={{ fontSize: 32 }} />,
     gradient: gradient2('#34D399', '#6EE7B7'),
-    ready: false,
+    ready: true,
     contentType: 'MUSIC',
   },
   {
@@ -115,7 +115,7 @@ const CREATION_ITEMS: CreationItem[] = [
     desc: '分镜列表，每页图片 + 旁白',
     icon: <AutoStoriesRoundedIcon sx={{ fontSize: 32 }} />,
     gradient: gradient2('#FB923C', '#FDBA74'),
-    ready: false,
+    ready: true,
     contentType: 'COMICS',
   },
   {
@@ -124,7 +124,7 @@ const CREATION_ITEMS: CreationItem[] = [
     desc: '竖屏短剧，支持选集',
     icon: <MovieFilterRoundedIcon sx={{ fontSize: 32 }} />,
     gradient: gradient2('#F472B6', '#F9A8D4'),
-    ready: false,
+    ready: true,
     contentType: 'VSHOW',
   },
   {
@@ -133,7 +133,7 @@ const CREATION_ITEMS: CreationItem[] = [
     desc: '季 / 集，每集独立视频',
     icon: <TvRoundedIcon sx={{ fontSize: 32 }} />,
     gradient: gradient2('#60A5FA', '#93C5FD'),
-    ready: false,
+    ready: true,
     contentType: 'TELEPLAY',
   },
 ];
