@@ -189,24 +189,30 @@ export default function HdPublishPage() {
   const [menuAnchor, setMenuAnchor] = useState<{ el: HTMLElement; id: string } | null>(null);
 
   // ---- Dispatcher state ----
-  // 13 类型 chip: 'all' 默认显示所有上传区 + 视频 HD 列表
+  // 13 类型 chip:'video' 默认显示 VIDEO HD 上传流程(原 hd-publish 主体)。
+  // tabParams.type 从 setActiveTab('hd-publish', {type: 'novel'}) 之类的入口传进来;
+  // 我们尊重它作为初始 selectedType,但**不**自动弹 Dialog(避免用户被砸脸)。
+  // chip 主动点击时(handleTypeClick)才按需打开 Dialog。
   const { tabParams } = useActiveTab();
   const [selectedType, setSelectedType] = useState<PublishHubType>(
     (tabParams.type as PublishHubType) || 'video',
   );
-  // 非 VIDEO 类型弹窗:打开后渲染对应表单
   const [formDialogOpen, setFormDialogOpen] = useState(false);
   // 非 VIDEO 通用详情(我的发布列表点击进)
   const [unifiedDetail, setUnifiedDetail] = useState<UnifiedContentPayload | null>(null);
 
-  // 当 chip 切到其它类型时,自动弹对应表单 Dialog
-  useEffect(() => {
-    if (selectedType !== 'video' && selectedType !== 'all') {
+  // chip 点击入口:切类型 + 按需弹 Dialog。
+  // 'video' / 'all' 类型不进 Dialog(走原 VIDEO 流程)。
+  // 关键:这样用户从 sidebar 「发布」进,即使 selectedType 是 stale(non-video),
+  // 不会立刻被 Dialog 砸一脸,除非他主动点 chip 切换。
+  const handleTypeClick = React.useCallback((next: PublishHubType) => {
+    setSelectedType(next);
+    if (next !== 'video' && next !== 'all') {
       setFormDialogOpen(true);
     } else {
       setFormDialogOpen(false);
     }
-  }, [selectedType]);
+  }, []);
 
   // 上传文件状态机(用于提交按钮 disabled + 失败保护)。
   // 历史上 handleFileChange 直接调后端 /file/upload,文件未存到 state,
@@ -723,7 +729,7 @@ export default function HdPublishPage() {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
       {/* Dispatcher 顶部:13 类型 chip 选择 */}
-      <PublishTypeChips value={selectedType} onChange={setSelectedType} />
+      <PublishTypeChips value={selectedType} onChange={handleTypeClick} />
 
       {/* 非 VIDEO 类型渲染对应表单到 Dialog */}
       {selectedType !== 'video' && selectedType !== 'all' && (
