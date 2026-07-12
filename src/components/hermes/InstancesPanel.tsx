@@ -12,9 +12,10 @@ import Alert from '@mui/material/Alert';
 import AddIcon from '@mui/icons-material/Add';
 import HealthAndSafetyIcon from '@mui/icons-material/HealthAndSafety';
 import SyncIcon from '@mui/icons-material/Sync';
+import TravelExploreIcon from '@mui/icons-material/TravelExplore';
 import { DataGridTable } from '@/components/tables/DataGridTable';
 import HermesInstanceFormDialog from '@/components/hermes/HermesInstanceFormDialog';
-import { hermesApi, type HermesInstanceItem } from '@/apis/hermes';
+import { hermesApi, type HermesDiscoverResult, type HermesInstanceItem } from '@/apis/hermes';
 import type { GridColDef } from '@mui/x-data-grid';
 import { RelativeTime } from '@/components/common/RelativeTime';
 
@@ -91,6 +92,18 @@ export default function InstancesPanel() {
     },
     onError: (err: any) => showMessage(err.message || '健康检查失败', 'error'),
   });
+  const discoverMutation = useMutation({
+    mutationFn: () => hermesApi.instanceDiscover(),
+    onSuccess: (res: any) => {
+      const data = (res?.data ?? res) as HermesDiscoverResult;
+      const msg = `扫描 ${data.scanned} 个容器,发现 ${data.candidates} 个候选:新增 ${data.imported} / 更新 ${data.updated} / 跳过 ${data.skipped}`;
+      showMessage(msg, data.imported + data.updated > 0 ? 'success' : 'info');
+      qc.invalidateQueries({ queryKey: LIST_KEY });
+      qc.invalidateQueries({ queryKey: ['system', 'hermes', 'agents'] });
+    },
+    onError: (err: any) => showMessage(err.message || '发现失败', 'error'),
+  });
+
   const syncMutation = useMutation({
     mutationFn: (id: number) => hermesApi.instanceSyncAgents(id),
     onSuccess: (res: any) => {
@@ -243,6 +256,14 @@ export default function InstancesPanel() {
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Button variant="contained" startIcon={<AddIcon />} onClick={handleAdd}>
               新建实例
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={discoverMutation.isPending ? <CircularProgress size={14} color="inherit" /> : <TravelExploreIcon />}
+              onClick={() => discoverMutation.mutate()}
+              disabled={discoverMutation.isPending}
+            >
+              扫描容器发现
             </Button>
           </Box>
         )}

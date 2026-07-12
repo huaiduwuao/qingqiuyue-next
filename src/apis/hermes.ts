@@ -40,6 +40,28 @@ export interface HermesInstanceSyncResp {
   skipped: number;
 }
 
+export interface HermesDiscoverCandidate {
+  containerId: string;
+  containerName: string;
+  image: string;
+  command?: string;
+  networkIp?: string;
+  port?: number;
+  baseUrl?: string;
+  action: 'imported' | 'updated' | 'skipped';
+  reason?: string;
+  instanceId?: number;
+}
+
+export interface HermesDiscoverResult {
+  scanned: number;
+  candidates: number;
+  imported: number;
+  updated: number;
+  skipped: number;
+  items: HermesDiscoverCandidate[];
+}
+
 // ===== Admin (/api/core/hermes/*) =====
 // --- Agent ---
 export interface HermesListParams {
@@ -141,6 +163,10 @@ export async function instanceSyncAgents(id: number) {
   return adminClient<HermesInstanceSyncResp>(`/hermes/instance/${id}/sync`, { method: 'POST' });
 }
 
+export async function instanceDiscover() {
+  return adminClient<HermesDiscoverResult>('/hermes/instance/discover', { method: 'POST' });
+}
+
 // ===== Client (/api/content/hermes/client/*) =====
 export async function clientPage(params: Record<string, unknown>) {
   const res = await contentClient('/hermes/client/page', { params });
@@ -186,6 +212,7 @@ export const hermesApi = {
   instanceRemove,
   instanceHealth,
   instanceSyncAgents,
+  instanceDiscover,
   clientPage,
   clientDetail,
   clientGreeting,
