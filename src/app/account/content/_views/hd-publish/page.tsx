@@ -1122,6 +1122,11 @@ export default function HdPublishPage() {
                   >
                     {v.hasCover ? (
                       <>
+                        {/* 注意:这里 background 用 inline style 而不是 sx — sx 走的 emotion
+                            CSS class 会按内容 hash,某些场合(<Box sx={{position:'absolute',inset:0}}>
+                            但不同 gradient)可能跟 dispatcher 顶层 Box 撞类名,导致整个视口
+                            被这个 gradient 涂成黑色伪遮罩。inline style 完全不走 emotion cache,
+                            杜绝撞名。 */}
                         <Box
                           sx={{
                             position: 'absolute',
@@ -1129,8 +1134,9 @@ export default function HdPublishPage() {
                             left: 0,
                             right: 0,
                             bottom: 0,
-                            background: 'linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.6) 100%)',
+                            pointerEvents: 'none',
                           }}
+                          style={{ background: 'linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.6) 100%)' }}
                         />
                         <Typography
                           sx={{
