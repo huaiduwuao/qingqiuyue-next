@@ -207,7 +207,7 @@ export function MyHomePage() {
   });
   const orderQ = useQuery({
     queryKey: ['home', 'me', 'orders'],
-    queryFn: () => homeClient.get<any>('/me/orders?size=1').then((r) => r.data),
+    queryFn: () => homeClient.get<any>('/home/me/orders?size=1').then((r) => r.data),
     staleTime: 60_000,
   });
   const vipQ = useQuery({

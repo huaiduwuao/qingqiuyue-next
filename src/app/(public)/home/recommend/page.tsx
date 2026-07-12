@@ -17,6 +17,7 @@ import { getDetailRoute } from '@/lib/contentRoute';
 import { track } from '@/lib/track';
 import { TYPE_GRADIENT, RANK_BG } from '@/constants/gradients';
 import { RecommendVideoFeed } from './components/RecommendVideoFeed';
+import { MeTabView } from './components/MeTabView';
 
 interface ContentItem {
   id: number;
@@ -170,6 +171,10 @@ export default function HomeRecommendPage() {
     } as ContentItem));
     return [...contentList, ...placeholders];
   }, [contentList]);
+
+  if (tabFromUrl === 'me') {
+    return <MeTabView />;
+  }
 
   if (tabFromUrl === 'recommend') {
     return <RecommendVideoFeed />;

@@ -100,7 +100,7 @@ export function FriendPanel() {
   });
   const suggestionsQ = useQuery({
     queryKey: ['home', 'suggestions', 'friend'],
-    queryFn: () => homeClient.get<{ list: Suggestion[] }>('/suggestions?type=friend&limit=24').then((r) => r.data),
+    queryFn: () => homeClient.get<{ list: Suggestion[] }>('/home/suggestions?type=friend&limit=24').then((r) => r.data),
   });
   const statsQ = useQuery({
     queryKey: ['home', 'friend', 'stats'],

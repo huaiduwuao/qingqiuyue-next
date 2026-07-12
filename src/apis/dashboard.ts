@@ -273,6 +273,32 @@ export async function getAccountStats() {
   return unwrap<AccountStats>(await accountClient('/account/stats'));
 }
 
+// ========== 个人中心 5 分区真实列表(给悬浮卡 → /home/recommend?tab=me 调) ==========
+export interface MePageItem {
+  id?: number | string;
+  contentId?: number | string;
+  title?: string;
+  cover?: string;
+  coverUrl?: string;
+  author?: { id?: number; nickname?: string; avatar?: string };
+  contentType?: string;
+  [k: string]: any;
+}
+export interface MePageResp<T = MePageItem> {
+  list: T[];
+  records: T[];
+  total: number;
+  totalRow: number;
+}
+async function meGet<T = MePageItem>(path: string) {
+  return unwrap<MePageResp<T>>(await accountClient(path));
+}
+export const getFavoritesPage   = () => meGet('/account/favorites/page');
+export const getHistoryPage     = () => meGet('/account/history/page');
+export const getLikesPage       = () => meGet('/account/likes/page');
+export const getWatchlaterPage  = () => meGet('/account/watchlater/page');
+export const getReservationsPage= () => meGet('/account/reservations/page');
+
 export interface VipTier {
   id: string;
   name: string;
