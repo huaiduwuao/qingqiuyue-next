@@ -13,6 +13,7 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
+import MenuItem from '@mui/material/MenuItem';
 import Chip from '@mui/material/Chip';
 import Grid from '@mui/material/Grid';
 import Snackbar from '@mui/material/Snackbar';
@@ -160,7 +161,7 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
     setSettling(true);
     try {
       const res: any = await settleDemand(selectedRecord.id);
-      if (res?.code === 200) {
+      if (res?.code === 200 || res?.code === 0) {
         showMessage('结账成功');
         setSettleVisible(false);
         setDetailVisible(false);
@@ -181,7 +182,7 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
     setSettling(true);
     try {
       const res: any = await unsettleDemand(selectedRecord.id);
-      if (res?.code === 200) {
+      if (res?.code === 200 || res?.code === 0) {
         showMessage('反结账成功,已回到待结账状态');
         setSettleVisible(false);
         // 同步刷新详情 + 列表
@@ -423,6 +424,23 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
               onChange={(e) => handleFormChange('pay', Number(e.target.value))}
               fullWidth
             />
+            <TextField
+              select
+              label="分类"
+              value={formValues.category || ''}
+              onChange={(e) => handleFormChange('category', e.target.value)}
+              fullWidth
+            >
+              <MenuItem value="">未分类</MenuItem>
+              <MenuItem value="video">短视频</MenuItem>
+              <MenuItem value="image">图文</MenuItem>
+              <MenuItem value="novel">小说</MenuItem>
+              <MenuItem value="art">画作</MenuItem>
+              <MenuItem value="music">音乐</MenuItem>
+              <MenuItem value="film">短剧</MenuItem>
+              <MenuItem value="live">直播</MenuItem>
+              <MenuItem value="voice">配音</MenuItem>
+            </TextField>
             <TextField
               label="封面图URL"
               value={formValues.cover || ''}

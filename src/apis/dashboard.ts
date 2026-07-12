@@ -218,6 +218,7 @@ export interface Bounty {
   daysLeft: number;
   sponsor: string;
   gradient: string;
+  cover?: string;
 }
 export async function getHotBounties(params?: {
   limit?: number;

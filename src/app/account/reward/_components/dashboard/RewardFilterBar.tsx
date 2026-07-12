@@ -18,7 +18,18 @@ const ORDERS = [
   { id: 'newest', label: '最新发布', icon: <ArrowDownwardIcon sx={{ fontSize: 12 }} /> },
 ];
 
-const FILTERS = ['全部', '短视频', '图文', '小说', '画作', '音乐', '短剧', '直播', '配音'];
+// 分类 chip:code 与后端/需求表 category 对齐;'' = 全部
+const FILTERS: Array<{ code: string; label: string }> = [
+  { code: '', label: '全部' },
+  { code: 'video', label: '短视频' },
+  { code: 'image', label: '图文' },
+  { code: 'novel', label: '小说' },
+  { code: 'art', label: '画作' },
+  { code: 'music', label: '音乐' },
+  { code: 'film', label: '短剧' },
+  { code: 'live', label: '直播' },
+  { code: 'voice', label: '配音' },
+];
 
 export default function RewardFilterBar({
   search,
@@ -79,8 +90,8 @@ export default function RewardFilterBar({
       <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', flex: 1 }}>
         {FILTERS.map((f) => (
           <Box
-            key={f}
-            onClick={() => onFilterChange(f)}
+            key={f.code}
+            onClick={() => onFilterChange(f.code)}
             sx={{
               px: 1.25,
               py: 0.5,
@@ -89,12 +100,12 @@ export default function RewardFilterBar({
               fontWeight: 500,
               cursor: 'pointer',
               transition: 'all 0.2s',
-              bgcolor: filter === f
+              bgcolor: filter === f.code
                 ? (theme) => alpha(theme.palette.primary.main, 0.15)
                 : 'transparent',
-              color: filter === f ? 'primary.main' : 'text.secondary',
+              color: filter === f.code ? 'primary.main' : 'text.secondary',
               border: '1px solid',
-              borderColor: filter === f
+              borderColor: filter === f.code
                 ? (theme) => alpha(theme.palette.primary.main, 0.3)
                 : 'divider',
               '&:hover': {
@@ -103,7 +114,7 @@ export default function RewardFilterBar({
               },
             }}
           >
-            {f}
+            {f.label}
           </Box>
         ))}
       </Box>

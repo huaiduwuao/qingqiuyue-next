@@ -8,12 +8,32 @@ import { S } from './selectors';
  *   goto /account/reward[?owner=1] → 点 sidebar item → 等 Suspense fallback 消失
  *
  * label 取 S.tabXxx（'赏金广场' / '需求管理' / ...）。
+ *
+ * 健壮性(2026-07-12):sidebar 点击在「懒加载 chunk 未就绪」或「数字人 canvas
+ * 压在点击坐标上」时会丢点击,表现为永远停在默认视图(赏金广场)。
+ * 对策:dispatchEvent 直跳(绕 canvas)+ 以「Suspense fallback『加载中…』出现」
+ * 为点击生效信号重试;chunk 已缓存时无 fallback,重试点同一 tab 幂等无害。
  */
 export async function gotoRewardView(page: Page, label: string, { owner = false }: { owner?: boolean } = {}) {
   await page.goto(`/account/reward${owner ? '?owner=1' : ''}`);
-  await page.getByRole('button', { name: label }).first().click();
-  // 等懒加载 chunk（Suspense fallback「加载中…」）消失
-  await expect(page.getByText('加载中…')).toBeHidden({ timeout: 15_000 }).catch(() => {});
+  const sidebarBtn = page.getByRole('button', { name: label }).first();
+  const fallback = page.getByText('加载中…');
+  // 选中态:ListItemButton 选中时 sx bgcolor 为 `${accent}1F`(非透明),可作通用到位信号
+  const isSelected = () =>
+    sidebarBtn.evaluate((el) => {
+      const bg = getComputedStyle(el).backgroundColor;
+      return bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent';
+    }).catch(() => false);
+  for (let i = 0; i < 5; i++) {
+    await sidebarBtn.dispatchEvent('click');
+    // 点击生效 → 新 chunk 加载,fallback 出现
+    const loading = await fallback.waitFor({ state: 'visible', timeout: 2_000 }).then(() => true).catch(() => false);
+    if (loading) break;
+    // 无 fallback:chunk 已缓存(按钮已选中即到位),否则视为丢点击重试
+    if (await isSelected()) break;
+    await page.waitForTimeout(500);
+  }
+  await expect(fallback).toBeHidden({ timeout: 15_000 }).catch(() => {});
 }
 
 /**

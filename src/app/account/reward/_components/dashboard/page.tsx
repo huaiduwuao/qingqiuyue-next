@@ -19,8 +19,8 @@ interface DashboardProps {
 export default function DashboardPage({ groupId, groupData }: DashboardProps) {
   const [search, setSearch] = useState('');
   const [order, setOrder] = useState('reward');
-  const [filter, setFilter] = useState('全部');
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  // 分类过滤统一用 code('' = 全部);分类行点击直接驱动同一状态
+  const [filter, setFilter] = useState('');
 
   const pointQuery = useQuery({
     queryKey: ['user-point', 'me', 'reward'],
@@ -37,7 +37,7 @@ export default function DashboardPage({ groupId, groupData }: DashboardProps) {
         levelName={myPoint.levelName}
         needPoint={myPoint.needPoint}
       />
-      <RewardCategoryRow onSelect={setSelectedCategory} />
+      <RewardCategoryRow onSelect={(code) => setFilter(code)} />
       <RewardFilterBar
         search={search}
         onSearchChange={setSearch}

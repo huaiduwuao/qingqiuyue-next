@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -11,6 +11,8 @@ import ListItemButton from '@mui/material/ListItemButton';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import Divider from '@mui/material/Divider';
+import MenuItem from '@mui/material/MenuItem';
+import TextField from '@mui/material/TextField';
 import HomeIcon from '@mui/icons-material/Home';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import HandshakeIcon from '@mui/icons-material/Handshake';
@@ -21,6 +23,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import MenuIcon from '@mui/icons-material/Menu';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import ViewKanbanIcon from '@mui/icons-material/ViewKanban';
+import { listGroups, type GroupInfo } from '@/apis/reward-group';
 
 const menuItems = [
   { key: '1', label: '赏金广场', icon: <HomeIcon sx={{ fontSize: 20 }} />, accent: 'primary.main' },
@@ -54,6 +57,31 @@ export default function AccountRewardPage() {
   const [taskboardDemandId, setTaskboardDemandId] = useState<number | null>(null);
   const [conceptionDemandId, setConceptionDemandId] = useState<number | null>(null);
   const [realizationDemandId, setRealizationDemandId] = useState<number | null>(null);
+  // 子模块(需求/项目/意境/实现)的列表查询与创建都强依赖 groupId,
+  // 旧代码传 '' 导致列表不加载、创建 400。这里拉取当前用户团队并默认选中第一个;
+  // tab 切换时重新拉取,保证「团队管理」里新建的团队能即时生效。
+  const [groups, setGroups] = useState<GroupInfo[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | ''>('');
+
+  useEffect(() => {
+    let alive = true;
+    listGroups({ pageSize: 50 })
+      .then((res: any) => {
+        if (!alive) return;
+        // rewardClient 拦截器返回完整 body { code, msg, data:{ records, total } }
+        const payload = res?.data ?? res;
+        const list: GroupInfo[] = payload?.records || payload?.list || (Array.isArray(payload) ? payload : []);
+        setGroups(list);
+        setSelectedGroupId((prev) => {
+          if (prev && list.some((g) => g.id === prev)) return prev;
+          return list[0]?.id ?? '';
+        });
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [tabKey]);
 
   const ContentComponent = componentMap[tabKey];
   const activeItem = menuItems.find((m) => m.key === tabKey) || menuItems[0];
@@ -297,6 +325,32 @@ export default function AccountRewardPage() {
         </Box>
 
         <Box sx={{ p: { xs: 1.5, md: 3 } }}>
+          {/* 团队切换器:需求/项目/意境/实现模块的数据域。无团队时提示先去团队管理创建。 */}
+          {groups.length > 0 ? (
+            <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>当前团队</Typography>
+              <TextField
+                select
+                size="small"
+                value={selectedGroupId}
+                onChange={(e) => setSelectedGroupId(Number(e.target.value))}
+                sx={{ minWidth: 200 }}
+                slotProps={{ input: { 'aria-label': '当前团队' } as any }}
+              >
+                {groups.map((g) => (
+                  <MenuItem key={g.id} value={g.id}>
+                    {g.name}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Box>
+          ) : (
+            tabKey !== '6' && (
+              <Typography sx={{ fontSize: 12, color: 'text.disabled', mb: 2 }}>
+                还没有团队,请先在「团队管理」中创建,需求/项目/意境/实现模块需要归属团队。
+              </Typography>
+            )
+          )}
           {ContentComponent ? (
             <React.Suspense
               fallback={
@@ -306,8 +360,8 @@ export default function AccountRewardPage() {
               }
             >
               <ContentComponent
-                groupId=""
-                groupData={[]}
+                groupId={selectedGroupId}
+                groupData={groups}
                 onOpenTaskboard={
                   tabKey === '4' ? openTaskboardFor :
                   tabKey === '6' ? openTaskboardForGroup :

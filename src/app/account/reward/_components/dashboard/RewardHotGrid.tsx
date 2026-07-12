@@ -29,6 +29,8 @@ const CATEGORY_ICON: Record<string, React.ReactElement> = {
   music: <MusicNoteIcon sx={{ fontSize: 14 }} />,
   film: <MovieIcon sx={{ fontSize: 14 }} />,
   script: <MovieIcon sx={{ fontSize: 14 }} />,
+  live: <VideoLibraryIcon sx={{ fontSize: 14 }} />,
+  voice: <MusicNoteIcon sx={{ fontSize: 14 }} />,
 };
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -39,6 +41,8 @@ const CATEGORY_LABEL: Record<string, string> = {
   music: '音乐',
   film: '短剧',
   script: '剧本',
+  live: '直播',
+  voice: '配音',
 };
 
 const CATEGORY_COLOR: Record<string, string> = {
@@ -49,15 +53,18 @@ const CATEGORY_COLOR: Record<string, string> = {
   music: 'success.main',
   film: '#F59E0B',
   script: '#FFB400',
+  live: '#06B6D4',
+  voice: '#EC4899',
 };
 
 export default function RewardHotGrid({
   search = '',
   order = 'reward',
-  filter = '全部',
+  filter = '',
 }: {
   search?: string;
   order?: 'reward' | 'deadline' | 'hot' | 'newest';
+  /** 分类 code('' = 全部);中文 label 由后端兼容,前端统一传 code */
   filter?: string;
 } = {}) {
   // 详情/全部都在页内弹层打开,不跳转路由(悬赏中心是纯客户端 tab 体系)
@@ -71,7 +78,7 @@ export default function RewardHotGrid({
       page: 1,
       size: 6,
       keyword: search || undefined,
-      category: filter !== '全部' ? filter : undefined,
+      category: filter || undefined,
       order,
     }),
     staleTime: 30 * 1000,
@@ -86,6 +93,7 @@ export default function RewardHotGrid({
     daysLeft: b.daysLeft,
     sponsor: b.sponsor,
     gradient: b.gradient || gradient2('#FE2C55', '#FF6B8A'),
+    cover: b.cover || undefined,
   }));
 
   return (
@@ -141,7 +149,7 @@ export default function RewardHotGrid({
       ) : HOT_BOUNTIES.length === 0 ? (
         <Box sx={{ py: 4, textAlign: 'center', color: 'text.disabled' }}>
           <Typography sx={{ fontSize: 12 }}>
-            {search || (filter && filter !== '全部') ? '当前筛选条件下暂无悬赏' : '暂无热门悬赏'}
+            {search || filter ? '当前筛选条件下暂无悬赏' : '暂无热门悬赏'}
           </Typography>
         </Box>
       ) : (
@@ -176,7 +184,8 @@ export default function RewardHotGrid({
               sx={{
                 position: 'relative',
                 aspectRatio: '16 / 9',
-                background: b.gradient,
+                // 有封面用封面,无封面回退渐变(图文/视频类悬赏视觉区分)
+                background: b.cover ? `url(${b.cover}) center / cover no-repeat` : b.gradient,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -208,8 +217,8 @@ export default function RewardHotGrid({
                   fontWeight: 600,
                 }}
               >
-                {CATEGORY_ICON[b.category]}
-                {CATEGORY_LABEL[b.category]}
+                {CATEGORY_ICON[b.category] ?? <WhatshotIcon sx={{ fontSize: 14 }} />}
+                {CATEGORY_LABEL[b.category] ?? b.category}
               </Box>
               <Box
                 sx={{
@@ -262,8 +271,8 @@ export default function RewardHotGrid({
                     px: 0.75,
                     py: 0.125,
                     borderRadius: 0.5,
-                    bgcolor: `${CATEGORY_COLOR[b.category]}1F`,
-                    color: CATEGORY_COLOR[b.category],
+                    bgcolor: `${CATEGORY_COLOR[b.category] ?? '#8B5CF6'}1F`,
+                    color: CATEGORY_COLOR[b.category] ?? '#8B5CF6',
                     fontSize: 10,
                     fontWeight: 600,
                   }}
