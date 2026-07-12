@@ -189,23 +189,28 @@ export default function HdPublishPage() {
   const [menuAnchor, setMenuAnchor] = useState<{ el: HTMLElement; id: string } | null>(null);
 
   // ---- Dispatcher state ----
-  // 13 类型 chip:'video' 默认显示 VIDEO HD 上传流程(原 hd-publish 主体)。
-  // tabParams.type 从 setActiveTab('hd-publish', {type: 'novel'}) 之类的入口传进来;
-  // 我们尊重它作为初始 selectedType,但**不**自动弹 Dialog(避免用户被砸脸)。
-  // chip 主动点击时(handleTypeClick)才按需打开 Dialog。
-  const { tabParams } = useActiveTab();
-  const [selectedType, setSelectedType] = useState<PublishHubType>(
-    (tabParams.type as PublishHubType) || 'video',
-  );
+  // 13 类型 chip;selectedType 硬初始化为 'video'(忽略 tabParams.type),
+  // 这样不管从哪个路径进 dispatcher,默认都是 VIDEO HD 流程原貌,绝不
+  // 自动弹 Dialog 把整个页面挡成黑色 backdrop。
+  //
+  // 上一个版本还在读 tabParams.type,即便 useEffect 删了,首次 mount
+  // 时若 tabParams 残留 stale(如 NewCreationSection 卡预 set 的 type),
+  // selectedType 仍可能是 non-video,导致 UnifiedContentList 区域拉错类型
+  // 数据 + chip 状态错乱。改成硬初始化,NewCreationSection 卡的"打开图文
+  // 发布"路径让用户自己点 chip 来恢复(代价小、稳定性高)。
+  const [selectedType, setSelectedType] = useState<PublishHubType>('video');
   const [formDialogOpen, setFormDialogOpen] = useState(false);
   // 非 VIDEO 通用详情(我的发布列表点击进)
   const [unifiedDetail, setUnifiedDetail] = useState<UnifiedContentPayload | null>(null);
 
-  // chip 点击入口:切类型 + 按需弹 Dialog。
-  // 'video' / 'all' 类型不进 Dialog(走原 VIDEO 流程)。
-  // 关键:这样用户从 sidebar 「发布」进,即使 selectedType 是 stale(non-video),
-  // 不会立刻被 Dialog 砸一脸,除非他主动点 chip 切换。
+  // chip 主动点击:切类型 + 按需弹 Dialog
+  // 只有用户明确点 chip 才弹 Dialog,绝不是 mount 或 URL params 触发
   const handleTypeClick = React.useCallback((next: PublishHubType) => {
+    if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
+      // dev self-check:每次 chip 点击都打印,确认 handleTypeClick 路径活跃
+      // eslint-disable-next-line no-console
+      console.debug('[hd-publish.dispatcher] chip click →', next);
+    }
     setSelectedType(next);
     if (next !== 'video' && next !== 'all') {
       setFormDialogOpen(true);
