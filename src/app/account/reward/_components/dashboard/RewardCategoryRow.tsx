@@ -28,7 +28,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   LiveTv: <LiveTvIcon sx={{ fontSize: 22 }} />,
 };
 
-export default function RewardCategoryRow({ onSelect }: { onSelect?: (id: string) => void }) {
+export default function RewardCategoryRow({ onSelect, selectedCode }: { onSelect?: (id: string) => void; selectedCode?: string }) {
   const query = useQuery({
     queryKey: ['reward-categories'],
     queryFn: () => getRewardCategories(),
@@ -78,22 +78,32 @@ export default function RewardCategoryRow({ onSelect }: { onSelect?: (id: string
             gap: 1,
           }}
         >
-          {categories.map((c) => (
-            <Box
-              key={c.code}
-              onClick={() => onSelect?.(c.code)}
-              sx={{
-                cursor: 'pointer',
-                textAlign: 'center',
-                p: 1,
-                borderRadius: 1.5,
-                transition: 'all 0.2s',
-                '&:hover': {
-                  bgcolor: 'action.hover',
-                  transform: 'translateY(-2px)',
-                },
-              }}
-            >
+          {categories.map((c) => {
+            const active = selectedCode === c.code;
+            return (
+              <Box
+                key={c.code}
+                onClick={() => onSelect?.(c.code)}
+                sx={{
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  p: 1,
+                  borderRadius: 1.5,
+                  transition: 'all 0.2s',
+                  border: '2px solid',
+                  borderColor: active ? 'primary.main' : 'transparent',
+                  bgcolor: active ? (theme) => `${c.color}14` : 'transparent',
+                  boxShadow: active
+                    ? (theme) => `0 6px 16px ${c.color}40`
+                    : 'none',
+                  '&:hover': active
+                    ? { filter: 'brightness(1.04)' }
+                    : {
+                        bgcolor: 'action.hover',
+                        transform: 'translateY(-2px)',
+                      },
+                }}
+              >
               <Box
                 sx={{
                   width: 44,
@@ -133,9 +143,19 @@ export default function RewardCategoryRow({ onSelect }: { onSelect?: (id: string
                   </Box>
                 )}
               </Box>
-              <Typography sx={{ fontSize: 11, color: 'text.tertiary', lineHeight: 1.2 }}>{c.label}</Typography>
+              <Typography
+                sx={{
+                  fontSize: 11,
+                  color: active ? 'text.primary' : 'text.tertiary',
+                  fontWeight: active ? 700 : 500,
+                  lineHeight: 1.2,
+                }}
+              >
+                {c.label}
+              </Typography>
             </Box>
-          ))}
+            );
+          })}
         </Box>
       )}
     </Box>

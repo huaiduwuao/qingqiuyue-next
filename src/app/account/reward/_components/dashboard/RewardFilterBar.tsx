@@ -88,35 +88,36 @@ export default function RewardFilterBar({
       />
 
       <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', flex: 1 }}>
-        {FILTERS.map((f) => (
-          <Box
-            key={f.code}
-            onClick={() => onFilterChange(f.code)}
-            sx={{
-              px: 1.25,
-              py: 0.5,
-              borderRadius: 1.5,
-              fontSize: 11,
-              fontWeight: 500,
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              bgcolor: filter === f.code
-                ? (theme) => alpha(theme.palette.primary.main, 0.15)
-                : 'transparent',
-              color: filter === f.code ? 'primary.main' : 'text.secondary',
-              border: '1px solid',
-              borderColor: filter === f.code
-                ? (theme) => alpha(theme.palette.primary.main, 0.3)
-                : 'divider',
-              '&:hover': {
-                color: 'text.primary',
-                borderColor: 'primary.main',
-              },
-            }}
-          >
-            {f.label}
-          </Box>
-        ))}
+        {FILTERS.map((f) => {
+          const selected = filter === f.code;
+          return (
+            <Box
+              key={f.code}
+              onClick={() => onFilterChange(f.code)}
+              sx={{
+                px: 1.5,
+                py: 0.5,
+                borderRadius: 999,
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                bgcolor: selected ? 'primary.main' : 'transparent',
+                color: selected ? '#fff' : 'text.secondary',
+                border: '1px solid',
+                borderColor: selected ? 'primary.main' : 'divider',
+                boxShadow: selected
+                  ? (theme) => `0 4px 12px ${alpha(theme.palette.primary.main, 0.35)}`
+                  : 'none',
+                '&:hover': selected
+                  ? { filter: 'brightness(1.08)' }
+                  : { color: 'text.primary', borderColor: 'primary.main', bgcolor: (theme) => alpha(theme.palette.primary.main, 0.06) },
+              }}
+            >
+              {f.label}
+            </Box>
+          );
+        })}
       </Box>
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>

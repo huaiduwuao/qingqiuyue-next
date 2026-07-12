@@ -37,7 +37,7 @@ export default function DashboardPage({ groupId, groupData }: DashboardProps) {
         levelName={myPoint.levelName}
         needPoint={myPoint.needPoint}
       />
-      <RewardCategoryRow onSelect={(code) => setFilter(code)} />
+      <RewardCategoryRow onSelect={(code) => setFilter(code)} selectedCode={filter} />
       <RewardFilterBar
         search={search}
         onSearchChange={setSearch}
