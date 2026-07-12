@@ -314,6 +314,23 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
           </Box>
         </Box>
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0.5 }}>
+          {LIKES_PREVIEW.length === 0 && (
+            <Box
+              sx={{
+                gridColumn: '1 / -1',
+                py: 2.5,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 11,
+                color: 'text.secondary',
+                bgcolor: 'rgba(0,0,0,0.03)',
+                borderRadius: 1,
+              }}
+            >
+              {String('暂无喜欢内容(后端真点赞机制未上线, 暂为空)')}
+            </Box>
+          )}
           {LIKES_PREVIEW.map((p) => (
             <Box
               key={p.id}
