@@ -17,7 +17,7 @@ import MicRoundedIcon from '@mui/icons-material/MicRounded';
 import NearMeRoundedIcon from '@mui/icons-material/NearMeRounded';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import ChatIcon from '@mui/icons-material/Chat';
+import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import { alpha } from '@mui/material/styles';
 import { useRouter, usePathname } from 'next/navigation';
 import BlenderAvatar from './BlenderAvatar';
@@ -64,7 +64,9 @@ export default function FloatingDigitalHuman() {
       ? { left: Math.max(0, window.innerWidth - 320 - 24), top: Math.max(0, window.innerHeight - 520 - 24) }
       : { left: 0, top: 0 }
   );
-  const [open, setOpen] = React.useState(true);
+  // 默认收起(只显示小图标)— 之前默认展开常驻占屏,新版默认折叠
+  // 用户主动点图标才展开大窗口。折叠状态大小见下方 IconButton。
+  const [open, setOpen] = React.useState(false);
   const [autoRotate, setAutoRotate] = React.useState(false);  // 默认不自动转圈, 数字人有自己的 idle 动画
 
   const app = useApp();
@@ -391,16 +393,17 @@ export default function FloatingDigitalHuman() {
           aria-label="展开数字人"
           onClick={() => setOpen(true)}
           sx={{
-            width: 48,
-            height: 48,
+            width: 40,
+            height: 40,
             borderRadius: '50%',
             bgcolor: (t) => alpha(t.palette.primary.main, 0.85),
             color: 'white',
-            boxShadow: (t) => `0 4px 16px ${alpha(t.palette.primary.main, 0.45)}`,
+            boxShadow: (t) => `0 4px 12px ${alpha(t.palette.primary.main, 0.4)}`,
             '&:hover': { bgcolor: (t) => t.palette.primary.main },
+            transition: 'all 0.2s',
           }}
         >
-          <ChatIcon sx={{ fontSize: 24 }} />
+          <PersonRoundedIcon sx={{ fontSize: 22 }} />
         </IconButton>
       </Box>
     );

@@ -9,18 +9,6 @@ import { useActiveTab } from './ActiveTabContext';
 // 改用 next/dynamic + ssr:false 让 SSR 阶段直接跳过,运行时再渲染。
 const DashboardView = dynamic(() => import('./_views/dashboard/page'), { ssr: false });
 const HdPublishView = dynamic(() => import('./_views/hd-publish/page'), { ssr: false });
-const ImagePublishView = dynamic(() => import('./_views/image-publish/page'), { ssr: false });
-const ImageMvPublishView = dynamic(() => import('./_views/image-mv-publish/page'), { ssr: false });
-const ArticlePublishView = dynamic(() => import('./_views/article-publish/page'), { ssr: false });
-const NovelPublishView = dynamic(() => import('./_views/novel-publish/page'), { ssr: false });
-const NewsPublishView = dynamic(() => import('./_views/news-publish/page'), { ssr: false });
-const MusicPublishView = dynamic(() => import('./_views/music-publish/page'), { ssr: false });
-const ComicsPublishView = dynamic(() => import('./_views/comics-publish/page'), { ssr: false });
-const VshowPublishView = dynamic(() => import('./_views/vshow-publish/page'), { ssr: false });
-const TeleplayPublishView = dynamic(() => import('./_views/teleplay-publish/page'), { ssr: false });
-const FilmPublishView = dynamic(() => import('./_views/film-publish/page'), { ssr: false });
-const AnimationPublishView = dynamic(() => import('./_views/animation-publish/page'), { ssr: false });
-const LivePublishView = dynamic(() => import('./_views/live-publish/page'), { ssr: false });
 const HdReviewView = dynamic(() => import('./_views/hd-review/page'), { ssr: false });
 const ActivityView = dynamic(() => import('./_views/activity/page'), { ssr: false });
 const CoCreateView = dynamic(() => import('./_views/co-create/page'), { ssr: false });
@@ -43,38 +31,31 @@ const MonetizeView = dynamic(() => import('./_views/monetize/page'), { ssr: fals
  * Tab state now lives in ActiveTabContext; this page just looks up the
  * current tab and renders the matching view. The URL stays at
  * /account/content the whole time.
+ *
+ * 重构后:所有 12 个 publish-* 旧 tab id 都已重定向到 'hd-publish' dispatcher。
+ * 现在 tab 列表只剩 12 条业务 tab + hd-publish,switch 分支大幅减少。
  */
 export default function CreatorContentPage() {
   const { activeTab } = useActiveTab();
 
   const view = useMemo(() => {
     switch (activeTab) {
+      // 唯一发布入口。所有旧 publish-* tab 兼容:虽 ActiveTabContext 已收窄
+      // ALLOWED_IDS,但若有遗留 deep-link 进来,统一走 HdPublishView(默认 chip = 'video')。
       case 'hd-publish':
-        return <HdPublishView />;
       case 'image-publish':
-        return <ImagePublishView />;
       case 'image-mv-publish':
-        return <ImageMvPublishView />;
       case 'article-publish':
-        return <ArticlePublishView />;
       case 'novel-publish':
-        return <NovelPublishView />;
       case 'news-publish':
-        return <NewsPublishView />;
       case 'music-publish':
-        return <MusicPublishView />;
       case 'comics-publish':
-        return <ComicsPublishView />;
       case 'vshow-publish':
-        return <VshowPublishView />;
       case 'teleplay-publish':
-        return <TeleplayPublishView />;
       case 'film-publish':
-        return <FilmPublishView />;
       case 'animation-publish':
-        return <AnimationPublishView />;
       case 'live-publish':
-        return <LivePublishView />;
+        return <HdPublishView />;
       case 'hd-review':
         return <HdReviewView />;
       case 'activity':

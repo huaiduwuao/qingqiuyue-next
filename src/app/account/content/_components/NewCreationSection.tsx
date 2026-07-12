@@ -168,23 +168,25 @@ const CREATION_ITEMS: CreationItem[] = [
   },
 ];
 
-// type → view id 路由表。video / panorama 都进 hd-publish(全景作为视频
-// 的 360° 开关,在 hd-publish 内部处理),其他类型一对一。
+// type → view id 路由表。视频和图片 MV 都进 hd-publish dispatcher,
+// hd-publish 内部用 chip 选子类型。其他类型也全部进 hd-publish,
+// type 作为 tabParams 传入让 dispatcher 自动切 chip 并弹对应 dialog。
+// 早期版本每种类型一个独立 page,现已统一为 dispatcher 入口。
 const TYPE_TO_TAB: Record<string, string> = {
   video: 'hd-publish',
   panorama: 'hd-publish', // 并入视频(后续在 hd-publish 加 360° 开关)
-  image: 'image-publish',
-  'image-mv': 'image-mv-publish',
-  article: 'article-publish',
-  novel: 'novel-publish',
-  news: 'news-publish',
-  music: 'music-publish',
-  comics: 'comics-publish',
-  vshow: 'vshow-publish',
-  teleplay: 'teleplay-publish',
-  film: 'film-publish',
-  animation: 'animation-publish',
-  live: 'live-publish',
+  image: 'hd-publish',
+  'image-mv': 'hd-publish',
+  article: 'hd-publish',
+  novel: 'hd-publish',
+  news: 'hd-publish',
+  music: 'hd-publish',
+  comics: 'hd-publish',
+  vshow: 'hd-publish',
+  teleplay: 'hd-publish',
+  film: 'hd-publish',
+  animation: 'hd-publish',
+  live: 'hd-publish',
 };
 
 type WipKind = 'draft' | 'uploading' | 'scheduled';
@@ -306,18 +308,20 @@ export default function NewCreationSection() {
     }
   };
   const handleCreate = (id: string) => {
-    // 13 个创作入口分发到不同 view:
-    //   video / panorama → hd-publish        (全景并入视频,作为 360° 开关)
-    //   image            → image-publish     (PICTURE 图集, 已实装)
-    //   image-mv         → image-mv-publish  (PICTURE 图片 MV, 骨架)
-    //   article          → article-publish   (ARTICLE, 已实装)
-    //   novel            → novel-publish     (NOVEL, 骨架)
-    //   news             → news-publish      (NEWS, 骨架)
-    //   music            → music-publish     (MUSIC, 骨架)
-    //   comics           → comics-publish    (COMICS, 骨架)
-    //   vshow            → vshow-publish     (VSHOW 短剧, 骨架)
-    //   teleplay         → teleplay-publish  (TELEPLAY 电视剧, 骨架)
-    // ready=false 的入口(骨架)只提示「开发中」不跳转,避免 user 卡在空 view。
+    // 13 个创作入口全部进 hd-publish dispatcher,type 作 tabParams:
+    //   video      → type='video'  (默认 VIDEO 流程:HD 转码 / 审核 / 极速通道)
+    //   image      → type='picture-album'  (图集)
+    //   image-mv   → type='picture-mv'
+    //   article    → type='article'
+    //   novel      → type='novel'  / news  → 'news'
+    //   music      → type='music'
+    //   comics     → type='comics'
+    //   vshow      → type='vshow'
+    //   teleplay   → type='teleplay'
+    //   film       → type='film'
+    //   animation  → type='animation'
+    //   live       → type='live'
+    // dispatcher 接住 tabParams.type 自动切 chip + 弹对应表单 dialog。
     const item = CREATION_ITEMS.find((c) => c.id === id);
     if (!item) return;
     if (!item.ready) {
@@ -325,7 +329,8 @@ export default function NewCreationSection() {
       return;
     }
     const tab = TYPE_TO_TAB[id] ?? 'hd-publish';
-    setActiveTab(tab, { type: id });
+    // type 用 chip 用的 kebab-case;chip 内部 PUBLISH_HUB_TYPE_TO_CONTENT_TYPE 再转后端枚举
+    setActiveTab(tab, { type: id === 'panorama' ? 'video' : id });
   };
   const handleViewAll = () => {
     setActiveTab('works');

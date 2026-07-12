@@ -9,6 +9,25 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { getHdVideoList, getReviewerList, type Reviewer as ApiReviewer } from '@/apis/dashboard';
 import { useAuthority } from '@/contexts/AuthContext';
 import { useActiveTab } from '../../ActiveTabContext';
+import { PUBLISH_HUB_TYPE_LABEL, type PublishHubType } from '@/lib/contentRoute';
+import PublishTypeChips from '../../_components/PublishHub/PublishTypeChips';
+import UnifiedContentList from '../../_components/PublishHub/UnifiedContentList';
+import ContentDetailDrawer from '../../_components/PublishHub/ContentDetailDrawer';
+import type { UnifiedContentPayload } from '../../_components/PublishHub';
+import {
+  ImageFormLazy,
+  ImageMvFormLazy,
+  ArticleFormLazy,
+  NovelFormLazy,
+  NewsFormLazy,
+  MusicFormLazy,
+  ComicsFormLazy,
+  VshowFormLazy,
+  TeleplayFormLazy,
+  FilmFormLazy,
+  AnimationFormLazy,
+  LiveFormLazy,
+} from '../../_components/PublishForms';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -168,6 +187,26 @@ export default function HdPublishPage() {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<{ el: HTMLElement; id: string } | null>(null);
+
+  // ---- Dispatcher state ----
+  // 13 类型 chip: 'all' 默认显示所有上传区 + 视频 HD 列表
+  const { tabParams } = useActiveTab();
+  const [selectedType, setSelectedType] = useState<PublishHubType>(
+    (tabParams.type as PublishHubType) || 'video',
+  );
+  // 非 VIDEO 类型弹窗:打开后渲染对应表单
+  const [formDialogOpen, setFormDialogOpen] = useState(false);
+  // 非 VIDEO 通用详情(我的发布列表点击进)
+  const [unifiedDetail, setUnifiedDetail] = useState<UnifiedContentPayload | null>(null);
+
+  // 当 chip 切到其它类型时,自动弹对应表单 Dialog
+  useEffect(() => {
+    if (selectedType !== 'video' && selectedType !== 'all') {
+      setFormDialogOpen(true);
+    } else {
+      setFormDialogOpen(false);
+    }
+  }, [selectedType]);
 
   // 上传文件状态机(用于提交按钮 disabled + 失败保护)。
   // 历史上 handleFileChange 直接调后端 /file/upload,文件未存到 state,
@@ -683,6 +722,68 @@ export default function HdPublishPage() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+      {/* Dispatcher 顶部:13 类型 chip 选择 */}
+      <PublishTypeChips value={selectedType} onChange={setSelectedType} />
+
+      {/* 非 VIDEO 类型渲染对应表单到 Dialog */}
+      {selectedType !== 'video' && selectedType !== 'all' && (
+        <Dialog
+          open={formDialogOpen}
+          onClose={() => setFormDialogOpen(false)}
+          maxWidth="lg"
+          fullWidth
+          slotProps={{
+            paper: { sx: { bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', maxHeight: '90vh' } },
+          }}
+        >
+          <Box sx={{ p: 3, pb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid', borderColor: 'divider' }}>
+            <Typography sx={{ fontSize: 16, fontWeight: 600, color: 'text.primary' }}>
+              发布「{PUBLISH_HUB_TYPE_LABEL[selectedType]}」
+            </Typography>
+            <IconButton size="small" onClick={() => setFormDialogOpen(false)}>
+              <CloseRoundedIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Box>
+          <Box sx={{ p: 3, maxHeight: 'calc(90vh - 80px)', overflow: 'auto' }}>
+            {/* 按类型懒加载对应表单 */}
+            {selectedType === 'picture-album' && <ImageFormLazy onSuccess={() => setFormDialogOpen(false)} />}
+            {selectedType === 'picture-mv' && <ImageMvFormLazy onSuccess={() => setFormDialogOpen(false)} />}
+            {selectedType === 'article' && <ArticleFormLazy onSuccess={() => setFormDialogOpen(false)} />}
+            {selectedType === 'novel' && <NovelFormLazy onSuccess={() => setFormDialogOpen(false)} />}
+            {selectedType === 'news' && <NewsFormLazy onSuccess={() => setFormDialogOpen(false)} />}
+            {selectedType === 'music' && <MusicFormLazy onSuccess={() => setFormDialogOpen(false)} />}
+            {selectedType === 'comics' && <ComicsFormLazy onSuccess={() => setFormDialogOpen(false)} />}
+            {selectedType === 'vshow' && <VshowFormLazy onSuccess={() => setFormDialogOpen(false)} />}
+            {selectedType === 'teleplay' && <TeleplayFormLazy onSuccess={() => setFormDialogOpen(false)} />}
+            {selectedType === 'film' && <FilmFormLazy onSuccess={() => setFormDialogOpen(false)} />}
+            {selectedType === 'animation' && <AnimationFormLazy onSuccess={() => setFormDialogOpen(false)} />}
+            {selectedType === 'live' && <LiveFormLazy onSuccess={() => setFormDialogOpen(false)} />}
+          </Box>
+        </Dialog>
+      )}
+
+      {/* 非 VIDEO 内容的统一详情 Drawer */}
+      <ContentDetailDrawer
+        open={!!unifiedDetail}
+        payload={unifiedDetail}
+        onClose={() => setUnifiedDetail(null)}
+      />
+
+      {/* 非 VIDEO 列表区:按下文判定显隐 */}
+      {selectedType !== 'video' && (
+        <UnifiedContentList
+          selectedType={selectedType === 'all' ? 'video' : selectedType}
+          onSelectItem={(item) => {
+            // VIDEO 类型走原 drawer;其它用统一 drawer
+            if (item.contentType === 'VIDEO') {
+              setDetailId(String(item.id));
+            } else {
+              setUnifiedDetail(item);
+            }
+          }}
+        />
+      )}
+
       {/* Stat cards */}
       <Box
         sx={{
