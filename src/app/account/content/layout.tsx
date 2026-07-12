@@ -67,7 +67,6 @@ function CreatorLayoutInner({ children }: { children: React.ReactNode }) {
         anchor="left"
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
-        ModalProps={{ keepMounted: true }}
         sx={{
           display: { xs: 'block', md: 'none' },
           '& .MuiDrawer-paper': { width: 220, bgcolor: 'background.paper' },
