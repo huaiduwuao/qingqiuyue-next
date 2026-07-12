@@ -14,7 +14,7 @@ const VIDEO_INPUT = 'input[accept="video/*"]';
 
 /** 打开上传弹窗(dispatchEvent 绕开数字人聊天气泡的 pointer 拦截)。 */
 async function openUploadDialog(page: Page) {
-  await gotoContentView(page, '高清发布');
+  await gotoContentView(page, '发布');
   await page.getByText('点击或拖拽视频文件到此区域', { exact: false }).first().dispatchEvent('click');
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible({ timeout: 5_000 });
@@ -38,7 +38,7 @@ async function uploadFile(page: Page, dialog: ReturnType<Page['getByRole']>) {
 
 test.describe('创作者中心 · 高清发布', () => {
   test('1 · 渲染骨架（统计卡 + 上传区 + 特权 + 状态 Tabs)', async ({ page }) => {
-    await gotoContentView(page, '高清发布');
+    await gotoContentView(page, '发布');
     for (const t of ['今日上传', 'HD 作品总数', '极速通道剩余', '今日审核']) {
       await expect(page.getByText(t).first()).toBeVisible({ timeout: 10_000 });
     }

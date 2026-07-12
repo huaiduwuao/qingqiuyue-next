@@ -30,11 +30,76 @@ test.describe('创作者中心 · 作品管理', () => {
   });
 
   /**
+   * 类型筛选实际生效:点开下拉选「小说」→ 工具栏的"当前筛选"摘要应包含"小说" → 后端请求
+   * 应带 contentType=NOVEL 参数。
+   * 之前只验证下拉能打开,没验证选了之后真生效。
+   */
+  test('3 · 类型筛选 → 摘要 + 请求参数同步更新', async ({ page }) => {
+    await gotoContentView(page, '作品管理');
+    await expect(page.getByText('作品管理').first()).toBeVisible({ timeout: 10_000 });
+
+    // 监听下一次 /api/core/account/works 请求
+    const listReq = page.waitForRequest(
+      (r) => r.url().includes('/api/core/account/works') && r.method() === 'GET',
+      { timeout: 10_000 },
+    );
+
+    const typeCombo = page.locator('.MuiToolbar-root, .MuiFormControl-root').getByRole('combobox').first();
+    await typeCombo.click();
+    await page.getByRole('option', { name: '小说', exact: true }).click();
+
+    // 摘要文本应包含"小说"
+    await expect(page.getByText(/当前筛选.*小说/)).toBeVisible({ timeout: 5_000 });
+
+    // 请求参数应带 contentType=NOVEL
+    const req = await listReq.catch(() => null);
+    if (req) {
+      const url = new URL(req.url());
+      const contentType = url.searchParams.get('contentType') ?? url.searchParams.get('type');
+      expect(
+        contentType === 'NOVEL',
+        `选「小说」后请求应带 contentType=NOVEL,实际=${contentType}`,
+      ).toBeTruthy();
+    }
+  });
+
+  /**
+   * 状态筛选:下拉选「已下架」→ 摘要更新。
+   * 验证 status 字段也能透传到请求。
+   */
+  test('4 · 状态筛选 → 摘要更新', async ({ page }) => {
+    await gotoContentView(page, '作品管理');
+    await expect(page.getByText('作品管理').first()).toBeVisible({ timeout: 10_000 });
+
+    const listReq = page.waitForRequest(
+      (r) => r.url().includes('/api/core/account/works') && r.method() === 'GET',
+      { timeout: 10_000 },
+    );
+
+    // 状态 Select 是 toolbar 里第二个 combobox
+    const statusCombo = page.locator('.MuiFormControl-root').getByRole('combobox').nth(1);
+    await statusCombo.click();
+    await page.getByRole('option', { name: '已下架', exact: true }).click();
+
+    await expect(page.getByText(/当前筛选.*已下架/)).toBeVisible({ timeout: 5_000 });
+
+    const req = await listReq.catch(() => null);
+    if (req) {
+      const url = new URL(req.url());
+      const status = url.searchParams.get('status');
+      expect(
+        status === 'UN_PUBLISH',
+        `选「已下架」后请求应带 status=UN_PUBLISH,实际=${status}`,
+      ).toBeTruthy();
+    }
+  });
+
+  /**
    * 写路径(WorksManager 编辑 → 保存 → snack「已保存」→ 还原标题)。
    * WorksManager 在工作台视图;作品数据走 /api/core/account/works。
    * 注意:该接口当前后端报错(Doris 缺 user_id 列),列表恒空 → 有数据才跑,否则 skip。
    */
-  test('3 · 工作台 · 编辑作品 → 保存 → 还原(写路径)', async ({ page }) => {
+  test('5 · 工作台 · 编辑作品 → 保存 → 还原(写路径)', async ({ page }) => {
     await gotoContentView(page, '工作台');
     await expect(page.getByText('我的作品').first()).toBeVisible({ timeout: 10_000 });
     // exact:true —— 否则子串撞上「继续编辑」(草稿卡)/「编辑资料」(profile)

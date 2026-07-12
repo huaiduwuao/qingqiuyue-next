@@ -25,7 +25,8 @@ import { useActiveTab } from '../../ActiveTabContext';
 
 // 分布图/日历等组件切 tab 时透传的小写类型 → 本页大写枚举
 const PARAM_TYPE_MAP: Record<string, string> = {
-  video: 'VIDEO', image: 'ARTICLE', article: 'ARTICLE', live: 'LIVE',
+  video: 'VIDEO', image: 'PICTURE', 'image-mv': 'PICTURE', panorama: 'VIDEO',
+  article: 'ARTICLE', live: 'LIVE',
   novel: 'NOVEL', music: 'MUSIC', film: 'FILM', teleplay: 'TELEPLAY',
   animation: 'ANIMATION', comics: 'COMICS',
 };
@@ -43,6 +44,8 @@ const TYPE_OPTIONS = [
   { value: 'TELEPLAY', label: '电视剧' },
   { value: 'ANIMATION', label: '动画' },
   { value: 'COMICS', label: '漫画' },
+  { value: 'LIVE', label: '直播' },
+  { value: 'PICTURE', label: '图文' },
 ];
 
 const STATUS_OPTIONS = [
@@ -189,14 +192,18 @@ export default function WorksPage() {
             </Select>
           </FormControl>
 
-          <FormControl size="small" sx={{ minWidth: 130 }}>
-            <InputLabel>来源</InputLabel>
-            <Select value={source} label="来源" onChange={(e) => setSource(e.target.value)}>
-              {SOURCE_OPTIONS.map((o) => (
-                <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          {/* 来源过滤:后端 /api/core/module-content/sources 未就绪,先不渲染。
+              SOURCE_OPTIONS_LIST 非空后再放开(SOURCE_OPTIONS 已用 ... 拼接好)。 */}
+          {SOURCE_OPTIONS_LIST.length > 0 && (
+            <FormControl size="small" sx={{ minWidth: 130 }}>
+              <InputLabel>来源</InputLabel>
+              <Select value={source} label="来源" onChange={(e) => setSource(e.target.value)}>
+                {SOURCE_OPTIONS.map((o) => (
+                  <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
 
           <Button
             size="small"

@@ -18,9 +18,9 @@ import { accountClient, formatApiError, isAuthError, isNetworkError } from '@/li
  *   1. 共享:title/desc(可选)/tags/snack Alert/submit mutation/后端
  *      调 updateShare 的 contentType + payload 构造 + 失败错误处理
  *      + 成功后跳回工作台
- *   2. 各自管:image-publish 管 images[],article-publish 管 body +
- *      cover,novel-publish 管 chapters[],music-publish 管 audioFile +
- *      lrcLyrics,comics-publish 管 pages[] 等
+ *   2. 各自管:PublishForms/ImageForm 管 images[]、ArticleForm 管 body +
+ *      cover、NovelForm 管 chapters[]、MusicForm 管 audioFile +
+ *      lrcLyrics、ComicsForm 管 pages[] 等
  *
  * 不抽 ContentForm 组件而抽 hook:各类型 view 完全控制 UI 布局,只
  * 复用逻辑。
@@ -155,9 +155,9 @@ export function useContentForm<TPayload = Record<string, unknown>>(
     if (onSuccess) {
       onSuccess();
     } else if (redirectOnSuccess) {
-      // 跳回工作台 — view 层通过 setActiveTab 实现,这里通过事件
-      // 简单做法:让 view 在 onSuccess 传一个跳转函数。我们用 fallback:
-      // 通过 history.back() 走 tab state history。这里不强制,留给 view。
+      // Fallback:view 没传 onSuccess 时,主动派发一个自定义事件让宿主跳回工作台。
+      // PublishForms/ 的 ImageForm 等都传 onSuccess,这里兜底给忘记传的人。
+      window.dispatchEvent(new CustomEvent('creator-content:form-success'));
     }
     return { ok: true };
   }, [validate, createMutation, setSnack, onSuccess, redirectOnSuccess]);

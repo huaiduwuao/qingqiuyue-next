@@ -10,7 +10,7 @@ import ListItemText from '@mui/material/ListItemText';
 import Divider from '@mui/material/Divider';
 import Chip from '@mui/material/Chip';
 import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
-import HdIcon from '@mui/icons-material/Hd';
+import PublishRoundedIcon from '@mui/icons-material/PublishRounded';
 import EventIcon from '@mui/icons-material/Event';
 import MovieIcon from '@mui/icons-material/Movie';
 import CollectionsIcon from '@mui/icons-material/Collections';
@@ -55,7 +55,7 @@ export const MENU_GROUPS: MenuGroup[] = [
     id: 'create',
     title: '创作',
     items: [
-      { id: 'hd-publish', label: '发布', icon: <HdIcon />, route: 'hd-publish' },
+      { id: 'hd-publish', label: '发布', icon: <PublishRoundedIcon />, route: 'hd-publish' },
       { id: 'hd-review', label: '审核员工作台', icon: <RateReviewRoundedIcon />, route: 'hd-review', requireAuthority: ['REVIEWER', 'ADMIN', 'SUPER_ADMIN'] },
       { id: 'activity', label: '活动管理', icon: <EventIcon />, route: 'activity' },
       { id: 'co-create', label: '共创中心', icon: <GroupsIcon />, route: 'co-create' },

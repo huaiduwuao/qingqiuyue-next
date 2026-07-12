@@ -602,6 +602,7 @@ export default function HdReviewPage() {
               selectedRejectReasons={selectedRejectReasons}
               onToggleRejectReason={toggleRejectReason}
               onSubmit={handleSubmitVerdict}
+              onViewHistory={() => setActiveTab('works', { creatorName: pickCreatorName(selectedVideo) })}
             />
           ) : (
             <Box
@@ -861,6 +862,7 @@ function ReviewPanel({
   selectedRejectReasons,
   onToggleRejectReason,
   onSubmit,
+  onViewHistory,
 }: {
   video: HdVideo;
   reviewer: Reviewer;
@@ -869,6 +871,7 @@ function ReviewPanel({
   selectedRejectReasons: string[];
   onToggleRejectReason: (r: string) => void;
   onSubmit: (d: ReviewerDecision) => void;
+  onViewHistory: () => void;
 }) {
   const router = useRouter();
   const risk = computeRiskLevel(video);
@@ -1040,7 +1043,7 @@ function ReviewPanel({
           <Button
             size="small"
             sx={{ textTransform: 'none', fontSize: 11, color: 'text.secondary' }}
-            onClick={() => router.push('/account/content?tab=history')}
+            onClick={onViewHistory}
           >
             查看历史
           </Button>

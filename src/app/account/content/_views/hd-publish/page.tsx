@@ -7,7 +7,6 @@ export const dynamic = "force-dynamic";
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { getHdVideoList, getReviewerList, type Reviewer as ApiReviewer } from '@/apis/dashboard';
-import { useAuthority } from '@/contexts/AuthContext';
 import { useActiveTab } from '../../ActiveTabContext';
 import { PUBLISH_HUB_TYPE_LABEL, type PublishHubType } from '@/lib/contentRoute';
 import PublishTypeChips from '../../_components/PublishHub/PublishTypeChips';
@@ -28,6 +27,8 @@ import {
   AnimationFormLazy,
   LiveFormLazy,
 } from '../../_components/PublishForms';
+import { TypePicker } from './TypePicker';
+import { PublishStepper } from './PublishStepper';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -54,6 +55,7 @@ import HdRoundedIcon from '@mui/icons-material/HdRounded';
 import VideoFileRoundedIcon from '@mui/icons-material/VideoFileRounded';
 import SpeedRoundedIcon from '@mui/icons-material/SpeedRounded';
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
+import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import SubtitlesRoundedIcon from '@mui/icons-material/SubtitlesRounded';
 import HighQualityRoundedIcon from '@mui/icons-material/HighQualityRounded';
 import RocketLaunchRoundedIcon from '@mui/icons-material/RocketLaunchRounded';
@@ -91,7 +93,6 @@ import { RelativeTime } from '@/components/common/RelativeTime';
 import { gradient2, gradient3 } from '@/constants/gradients';
 import { HdResolution,
   HdStatus,
-  HdFilter,
   HdVideo,
   Reviewer,
   SubtitleTrack,
@@ -173,10 +174,6 @@ function mapContentStatusToHd(status?: string): HdStatus {
 
 export default function HdPublishPage() {
   const { setActiveTab } = useActiveTab();
-  const { hasAuthority } = useAuthority();
-  const isReviewer = hasAuthority('REVIEWER') || hasAuthority('ADMIN') || hasAuthority('SUPER_ADMIN');
-  const [tab, setTab] = useState<HdFilter>('all');
-  const [search, setSearch] = useState('');
   const [snack, setSnackRaw] = useState<SnackMsg | null>(null);
   // setSnack 接受 string 或 SnackMsg — 旧 30+ 处 setSnack('msg') 调用无需改,
   // 自动转成 { msg, severity: 'info' }。新代码可传 { msg, severity } 显式区分。
@@ -184,9 +181,7 @@ export default function HdPublishPage() {
     setSnackRaw(typeof s === 'string' ? { msg: s, severity: 'info' } : s);
   }, []);
   const dismissSnack = React.useCallback(() => setSnackRaw(null), []);
-  const [uploadOpen, setUploadOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [menuAnchor, setMenuAnchor] = useState<{ el: HTMLElement; id: string } | null>(null);
 
   // ---- Dispatcher state ----
   // 13 类型 chip;selectedType 硬初始化为 'video'(忽略 tabParams.type),
@@ -199,12 +194,14 @@ export default function HdPublishPage() {
   // 数据 + chip 状态错乱。改成硬初始化,NewCreationSection 卡的"打开图文
   // 发布"路径让用户自己点 chip 来恢复(代价小、稳定性高)。
   const [selectedType, setSelectedType] = useState<PublishHubType>('video');
-  const [formDialogOpen, setFormDialogOpen] = useState(false);
   // 非 VIDEO 通用详情(我的发布列表点击进)
   const [unifiedDetail, setUnifiedDetail] = useState<UnifiedContentPayload | null>(null);
+  // 类型选择页落地态:进入「发布」默认显示 13 类型卡片网格(而非直接的视频上传区);
+  // 用户挑了类型 / 点顶部 chip 后才进入正常流程。要"重新选择"时回到 true。
+  const [showTypePicker, setShowTypePicker] = useState(true);
 
-  // chip 主动点击:切类型 + 按需弹 Dialog
-  // 只有用户明确点 chip 才弹 Dialog,绝不是 mount 或 URL params 触发
+  // chip 主动点击:切类型 + 退出 picker(非 VIDEO 类型有内联 form,VIDEO 走上传区,
+  // 都不再弹 Dialog,改完后回到类型选择页)
   const handleTypeClick = React.useCallback((next: PublishHubType) => {
     if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
       // dev self-check:每次 chip 点击都打印,确认 handleTypeClick 路径活跃
@@ -212,12 +209,14 @@ export default function HdPublishPage() {
       console.debug('[hd-publish.dispatcher] chip click →', next);
     }
     setSelectedType(next);
-    if (next !== 'video' && next !== 'all') {
-      setFormDialogOpen(true);
-    } else {
-      setFormDialogOpen(false);
-    }
+    // 从 picker 切到任何一个具体类型,都退出 picker 模式
+    setShowTypePicker(false);
   }, []);
+
+  // TypePicker 卡片点击:同 chip,但更显式(用户主动选了某类型)
+  const handlePickFromType = React.useCallback((type: PublishHubType) => {
+    handleTypeClick(type);
+  }, [handleTypeClick]);
 
   // 上传文件状态机(用于提交按钮 disabled + 失败保护)。
   // 历史上 handleFileChange 直接调后端 /file/upload,文件未存到 state,
@@ -383,30 +382,10 @@ export default function HdPublishPage() {
       .sort((a, b) => (b.review.completedAt ?? b.review.startedAt ?? 0) - (a.review.completedAt ?? a.review.startedAt ?? 0));
   }, [videos]);
 
-  const filtered = useMemo(() => {
-    let list = videos;
-    if (tab === 'transcoding') list = list.filter((v) => v.status === 'transcoding');
-    else if (tab === 'reviewing') list = list.filter((v) => v.status === 'reviewing');
-    else if (tab === 'review_failed') list = list.filter((v) => v.status === 'review_failed');
-    else if (tab === 'published') list = list.filter((v) => v.status === 'published');
-    else if (tab === 'failed') list = list.filter((v) => v.status === 'failed');
-    if (search) {
-      const k = search.toLowerCase();
-      list = list.filter((v) => v.title.toLowerCase().includes(k));
-    }
-    return list;
-  }, [videos, tab, search]);
-
-  const handleMenuOpen = (e: React.MouseEvent<HTMLElement>, id: string) => {
-    setMenuAnchor({ el: e.currentTarget, id });
-  };
-  const handleMenuClose = () => setMenuAnchor(null);
-
   const handleDelete = async (id: string) => {
     // 乐观更新:先从本地移除,失败时回滚
     const previous = videos.find((v) => v.id === id);
     setVideos((p) => p.filter((v) => v.id !== id));
-    handleMenuClose();
     try {
       await accountClient.delete(`/account/content/${id}`);
       setSnack('已删除');
@@ -423,7 +402,6 @@ export default function HdPublishPage() {
     setVideos((p) =>
       p.map((v) => (v.id === id ? { ...v, status: 'transcoding', progress: 0, failedReason: undefined } : v)),
     );
-    handleMenuClose();
     try {
       await accountClient.post(`/account/content/${id}/transcode`);
       setSnack('已重新提交转码');
@@ -438,7 +416,6 @@ export default function HdPublishPage() {
   const handlePublishNow = async (id: string) => {
     // 乐观更新
     setVideos((p) => p.filter((v) => v.id !== id));
-    handleMenuClose();
     try {
       await accountClient.post(`/account/content/${id}/publish`);
       setSnack('已立即发布');
@@ -469,7 +446,6 @@ export default function HdPublishPage() {
       ),
     );
     setFastChannelQuota((q) => q - 1);
-    handleMenuClose();
     try {
       await accountClient.post(`/account/content/${id}/fasttrack`);
       setSnack('已启用极速通道,审核将优先处理');
@@ -513,7 +489,6 @@ export default function HdPublishPage() {
           : v,
       ),
     );
-    handleMenuClose();
     try {
       await accountClient.post(`/account/content/${id}/review`);
       setSnack('已重新提交审核');
@@ -571,7 +546,6 @@ export default function HdPublishPage() {
   const handleOpenCoverPicker = (id: string) => {
     setCoverTargetId(id);
     setCoverPickerOpen(true);
-    handleMenuClose();
   };
 
   const handlePickCoverFile = () => {
@@ -602,9 +576,6 @@ export default function HdPublishPage() {
     e.target.value = '';
   };
 
-  const handlePickFile = () => {
-    fileInputRef.current?.click();
-  };
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -720,7 +691,6 @@ export default function HdPublishPage() {
     };
     setVideos((p) => [newItem, ...p]);
     setSnack({ msg: `《${newItem.title}》已加入转码队列`, severity: 'success' });
-    setUploadOpen(false);
     // reset
     setUploadTitle('');
     setUploadResolution('4K');
@@ -733,44 +703,53 @@ export default function HdPublishPage() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-      {/* Dispatcher 顶部:13 类型 chip 选择 */}
-      <PublishTypeChips value={selectedType} onChange={handleTypeClick} />
+      {/* 落地态 1:未选类型 — 13 类型卡片网格,挑了再进入正常流程 */}
+      {showTypePicker && <TypePicker onPick={handlePickFromType} />}
 
-      {/* 非 VIDEO 类型渲染对应表单到 Dialog */}
-      {selectedType !== 'video' && selectedType !== 'all' && (
-        <Dialog
-          open={formDialogOpen}
-          onClose={() => setFormDialogOpen(false)}
-          maxWidth="lg"
-          fullWidth
-          slotProps={{
-            paper: { sx: { bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', maxHeight: '90vh' } },
-          }}
+      {/* 落地态 2:已选类型 — 顶部 chip 切换 + "重新选择" 返回卡片,主体走原流程 */}
+      {!showTypePicker && (
+        <>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+        <Button
+          size="small"
+          variant="text"
+          startIcon={<ArrowBackRoundedIcon sx={{ fontSize: 14 }} />}
+          onClick={() => setShowTypePicker(true)}
+          sx={{ textTransform: 'none', color: 'text.secondary', fontSize: 12, flexShrink: 0 }}
         >
-          <Box sx={{ p: 3, pb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid', borderColor: 'divider' }}>
-            <Typography sx={{ fontSize: 16, fontWeight: 600, color: 'text.primary' }}>
+          重新选择
+        </Button>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          {/* Dispatcher 顶部:13 类型 chip 选择 */}
+          <PublishTypeChips value={selectedType} onChange={handleTypeClick} />
+        </Box>
+      </Box>
+
+      {/* 非 VIDEO 类型:内联分步表单(无 Dialog)
+          顶部 3 步 stepper(基本信息 / 内容详情 / 预览提交),PublishForm 直接在页面渲染。
+          onSuccess 提交后回到类型选择页。 */}
+      {selectedType !== 'video' && selectedType !== 'all' && (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Typography sx={{ fontSize: 18, fontWeight: 700, color: 'text.primary' }}>
               发布「{PUBLISH_HUB_TYPE_LABEL[selectedType]}」
             </Typography>
-            <IconButton size="small" onClick={() => setFormDialogOpen(false)}>
-              <CloseRoundedIcon sx={{ fontSize: 18 }} />
-            </IconButton>
+            <Box sx={{ flex: 1 }} />
           </Box>
-          <Box sx={{ p: 3, maxHeight: 'calc(90vh - 80px)', overflow: 'auto' }}>
-            {/* 按类型懒加载对应表单 */}
-            {selectedType === 'picture-album' && <ImageFormLazy onSuccess={() => setFormDialogOpen(false)} />}
-            {selectedType === 'picture-mv' && <ImageMvFormLazy onSuccess={() => setFormDialogOpen(false)} />}
-            {selectedType === 'article' && <ArticleFormLazy onSuccess={() => setFormDialogOpen(false)} />}
-            {selectedType === 'novel' && <NovelFormLazy onSuccess={() => setFormDialogOpen(false)} />}
-            {selectedType === 'news' && <NewsFormLazy onSuccess={() => setFormDialogOpen(false)} />}
-            {selectedType === 'music' && <MusicFormLazy onSuccess={() => setFormDialogOpen(false)} />}
-            {selectedType === 'comics' && <ComicsFormLazy onSuccess={() => setFormDialogOpen(false)} />}
-            {selectedType === 'vshow' && <VshowFormLazy onSuccess={() => setFormDialogOpen(false)} />}
-            {selectedType === 'teleplay' && <TeleplayFormLazy onSuccess={() => setFormDialogOpen(false)} />}
-            {selectedType === 'film' && <FilmFormLazy onSuccess={() => setFormDialogOpen(false)} />}
-            {selectedType === 'animation' && <AnimationFormLazy onSuccess={() => setFormDialogOpen(false)} />}
-            {selectedType === 'live' && <LiveFormLazy onSuccess={() => setFormDialogOpen(false)} />}
-          </Box>
-        </Dialog>
+          <PublishStepper activeStep={0} />
+          {selectedType === 'picture-album' && <ImageFormLazy onSuccess={() => setShowTypePicker(true)} />}
+          {selectedType === 'picture-mv' && <ImageMvFormLazy onSuccess={() => setShowTypePicker(true)} />}
+          {selectedType === 'article' && <ArticleFormLazy onSuccess={() => setShowTypePicker(true)} />}
+          {selectedType === 'novel' && <NovelFormLazy onSuccess={() => setShowTypePicker(true)} />}
+          {selectedType === 'news' && <NewsFormLazy onSuccess={() => setShowTypePicker(true)} />}
+          {selectedType === 'music' && <MusicFormLazy onSuccess={() => setShowTypePicker(true)} />}
+          {selectedType === 'comics' && <ComicsFormLazy onSuccess={() => setShowTypePicker(true)} />}
+          {selectedType === 'vshow' && <VshowFormLazy onSuccess={() => setShowTypePicker(true)} />}
+          {selectedType === 'teleplay' && <TeleplayFormLazy onSuccess={() => setShowTypePicker(true)} />}
+          {selectedType === 'film' && <FilmFormLazy onSuccess={() => setShowTypePicker(true)} />}
+          {selectedType === 'animation' && <AnimationFormLazy onSuccess={() => setShowTypePicker(true)} />}
+          {selectedType === 'live' && <LiveFormLazy onSuccess={() => setShowTypePicker(true)} />}
+        </Box>
       )}
 
       {/* 非 VIDEO 内容的统一详情 Drawer */}
@@ -779,21 +758,6 @@ export default function HdPublishPage() {
         payload={unifiedDetail}
         onClose={() => setUnifiedDetail(null)}
       />
-
-      {/* 非 VIDEO 列表区:按下文判定显隐 */}
-      {selectedType !== 'video' && (
-        <UnifiedContentList
-          selectedType={selectedType === 'all' ? 'video' : selectedType}
-          onSelectItem={(item) => {
-            // VIDEO 类型走原 drawer;其它用统一 drawer
-            if (item.contentType === 'VIDEO') {
-              setDetailId(String(item.id));
-            } else {
-              setUnifiedDetail(item);
-            }
-          }}
-        />
-      )}
 
       {/* Stat cards */}
       <Box
@@ -805,9 +769,7 @@ export default function HdPublishPage() {
       >
         {[
           { label: '今日上传', value: String(stats.todayUploads), suffix: '个', icon: <CloudUploadRoundedIcon />, color: '#FE2C55', bg: 'rgba(254, 44, 85, 0.12)' },
-          { label: 'HD 作品总数', value: String(stats.hdCount), suffix: '部', icon: <HdRoundedIcon />, color: '#25F4EE', bg: 'rgba(37, 244, 238, 0.12)' },
           { label: '极速通道剩余', value: `${stats.fastChannelQuota}`, suffix: `/${stats.fastChannelMonthly} 次`, icon: <RocketLaunchRoundedIcon />, color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)' },
-          { label: '今日审核', value: stats.todayReviewed > 0 ? `${stats.passRate.toFixed(0)}%` : '—', suffix: stats.todayReviewed > 0 ? `通过率 (${stats.todayReviewed} 部)` : '暂无审核记录', icon: <RateReviewRoundedIcon />, color: stats.passRate >= 80 ? '#5DDB96' : stats.passRate >= 50 ? '#FFB400' : '#FE2C55', bg: stats.passRate >= 80 ? 'rgba(93, 219, 150, 0.12)' : stats.passRate >= 50 ? 'rgba(255, 180, 0, 0.12)' : 'rgba(254, 44, 85, 0.12)' },
         ].map((s) => (
           <Box
             key={s.label}
@@ -870,9 +832,9 @@ export default function HdPublishPage() {
           gap: 2,
         }}
       >
-        {/* Upload area */}
+        {/* Upload area — click 直接触发 file input,不再弹窗 */}
         <Box
-          onClick={() => setUploadOpen(true)}
+          onClick={() => fileInputRef.current?.click()}
           sx={{
             borderRadius: 2,
             border: '2px dashed',
@@ -925,7 +887,14 @@ export default function HdPublishPage() {
                 />
               </Box>
               <Typography sx={{ fontSize: 12, color: 'text.secondary', lineHeight: 1.6 }}>
-                点击或拖拽视频文件到此区域 · 单文件最大 10GB · 支持 MP4 / MOV / MKV / WebM
+                {uploadFileName
+                  ? `已选: ${uploadFileName} · ${uploadFileSizeMB} MB · ${
+                      uploadStatus === 'uploading' ? '上传中…'
+                      : uploadStatus === 'uploaded' ? '已上传,可以提交了'
+                      : uploadStatus === 'failed' ? '上传失败,请重试'
+                      : '等待选择'
+                    }`
+                  : '点击或拖拽视频文件到此区域 · 单文件最大 10GB · 支持 MP4 / MOV / MKV / WebM'}
               </Typography>
               <Box sx={{ display: 'flex', gap: 1.5, mt: 1.5, flexWrap: 'wrap' }}>
                 {['4K 60fps', 'HDR 10bit', '杜比全景声', '多音轨多字幕'].map((t) => (
@@ -1010,666 +979,41 @@ export default function HdPublishPage() {
         </Box>
       </Box>
 
-      {/* Video list */}
+      {/* VIDEO 上传元数据表单 — 内联(原 Dialog 内容),分步:基础信息 → 质量/特性 → 音轨/字幕 */}
       <Box
         sx={{
           bgcolor: 'background.paper',
           borderRadius: 2,
-          p: 2.5,
+          p: 3,
           border: '1px solid',
           borderColor: 'divider',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 2.5,
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2, flexWrap: 'wrap' }}>
-          <Tabs
-            value={tab}
-            onChange={(_, v) => setTab(v)}
-            sx={{
-              minHeight: 0,
-              '& .MuiTab-root': { minHeight: 0, py: 0.5, px: 1.5, fontSize: 12, textTransform: 'none' },
-            }}
-          >
-            <Tab value="all" label={`全部 ${videos.length}`} />
-            <Tab value="transcoding" label={`转码中 ${videos.filter((v) => v.status === 'transcoding').length}`} />
-            <Tab value="reviewing" label={`审核中 ${videos.filter((v) => v.status === 'reviewing').length}`} />
-            <Tab value="review_failed" label={`审核未通过 ${videos.filter((v) => v.status === 'review_failed').length}`} />
-            <Tab value="published" label={`已发布 ${videos.filter((v) => v.status === 'published').length}`} />
-            <Tab value="failed" label={`转码失败 ${videos.filter((v) => v.status === 'failed').length}`} />
-          </Tabs>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Typography sx={{ fontSize: 14, fontWeight: 700, color: 'text.primary' }}>
+            上传参数
+          </Typography>
           <Box sx={{ flex: 1 }} />
-          <Button
-            size="small"
-            startIcon={<HistoryRoundedIcon sx={{ fontSize: 14 }} />}
-            onClick={() => setReviewHistoryOpen(true)}
-            sx={{
-              textTransform: 'none',
-              fontSize: 11,
-              minWidth: 0,
-              px: 1.25,
-              color: 'text.secondary',
-              border: '1px solid',
-              borderColor: 'divider',
-              borderRadius: 1.5,
-            }}
-          >
-            审核历史
-          </Button>
-          <TextField
-            size="small"
-            placeholder="搜索视频标题…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            sx={{
-              minWidth: 220,
-              '& .MuiOutlinedInput-root': {
-                fontSize: 12,
-                bgcolor: 'action.hover',
-                '& fieldset': { borderColor: 'divider' },
-              },
-            }}
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Box sx={{ fontSize: 14, color: 'text.disabled' }}>🔍</Box>
-                  </InputAdornment>
-                ),
-              },
-            }}
-          />
+          {uploadFileName && (
+            <Chip
+              size="small"
+              label={
+                uploadStatus === 'uploading' ? '上传中…'
+                : uploadStatus === 'uploaded' ? `已上传 · ${uploadFileSizeMB} MB`
+                : uploadStatus === 'failed' ? '上传失败'
+                : '已选择'
+              }
+              color={uploadStatus === 'uploaded' ? 'success' : uploadStatus === 'failed' ? 'error' : 'default'}
+              sx={{ height: 22, fontSize: 11, fontWeight: 600 }}
+            />
+          )}
         </Box>
 
-        {filtered.length === 0 ? (
-          <Box sx={{ textAlign: 'center', py: 6, color: 'text.disabled', fontSize: 13 }}>
-            暂无符合条件的视频
-          </Box>
-        ) : (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-            {filtered.map((v) => {
-              const sm = STATUS_META[v.status];
-              const rm = RESOLUTION_META[v.resolution];
-              return (
-                <Box
-                  key={v.id}
-                  sx={{
-                    p: 1.5,
-                    borderRadius: 1.5,
-                    bgcolor: 'background.paper',
-                    border: '1px solid',
-                    borderColor: v.status === 'failed' ? 'rgba(254, 44, 85, 0.3)' : 'divider',
-                    display: 'flex',
-                    gap: 2,
-                    transition: 'border-color 0.15s',
-                    '&:hover': { borderColor: sm.color },
-                  }}
-                >
-                  {/* Cover */}
-                  <Box
-                    onClick={() => setDetailId(v.id)}
-                    sx={{
-                      width: 140,
-                      height: 80,
-                      borderRadius: 1,
-                      background: v.cover,
-                      flexShrink: 0,
-                      position: 'relative',
-                      overflow: 'hidden',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    {v.hasCover ? (
-                      <>
-                        {/* DEBUG-2: gradient 完全去掉(只保留 absolute 容器),确认黑遮挡源头 */}
-                        <Box
-                          sx={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            pointerEvents: 'none',
-                          }}
-                        />
-                        <Typography
-                          sx={{
-                            position: 'absolute',
-                            bottom: 4,
-                            right: 4,
-                            fontSize: 10,
-                            color: '#fff',
-                            fontWeight: 600,
-                            bgcolor: 'rgba(0,0,0,0.6)',
-                            px: 0.5,
-                            borderRadius: 0.5,
-                          }}
-                        >
-                          {v.duration}
-                        </Typography>
-                      </>
-                    ) : (
-                      <VideoFileRoundedIcon sx={{ fontSize: 32, color: 'rgba(255,255,255,0.3)' }} />
-                    )}
-                    {/* Resolution badge */}
-                    <Box
-                      sx={{
-                        position: 'absolute',
-                        top: 4,
-                        left: 4,
-                        display: 'flex',
-                        gap: 0.5,
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          px: 0.5,
-                          py: 0.1,
-                          borderRadius: 0.5,
-                          bgcolor: rm.bg,
-                          color: rm.color,
-                          fontSize: 9,
-                          fontWeight: 700,
-                        }}
-                      >
-                        {rm.label}
-                      </Box>
-                      {v.hdr && (
-                        <Box
-                          sx={{
-                            px: 0.5,
-                            py: 0.1,
-                            borderRadius: 0.5,
-                            bgcolor: 'rgba(255, 180, 0, 0.8)',
-                            color: '#000',
-                            fontSize: 9,
-                            fontWeight: 700,
-                          }}
-                        >
-                          HDR
-                        </Box>
-                      )}
-                    </Box>
-                  </Box>
-
-                  {/* Info */}
-                  <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                      <Box
-                        sx={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: 0.25,
-                          px: 0.5,
-                          py: 0.1,
-                          borderRadius: 0.5,
-                          bgcolor: sm.bg,
-                          color: sm.color,
-                          fontSize: 9,
-                          fontWeight: 700,
-                        }}
-                      >
-                        {sm.icon}
-                        {sm.label}
-                      </Box>
-                      <Typography
-                        sx={{
-                          fontSize: 9,
-                          color: 'text.disabled',
-                          fontVariantNumeric: 'tabular-nums',
-                        }}
-                      >
-                        {v.fps}fps · {formatSize(v.sizeMB)} · {v.subtitles.length} 字幕 · {v.audioTracks.length} 音轨
-                      </Typography>
-                    </Box>
-                    <Typography
-                      onClick={() => setDetailId(v.id)}
-                      sx={{
-                        fontSize: 13,
-                        fontWeight: 600,
-                        color: 'text.primary',
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        '&:hover': { color: 'primary.main' },
-                      }}
-                    >
-                      {v.title}
-                    </Typography>
-
-                    {/* Status-specific row */}
-                    {v.status === 'transcoding' && (
-                      <Box sx={{ mt: 0.5 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <LinearProgress
-                            variant="determinate"
-                            value={v.progress ?? 0}
-                            sx={{
-                              flex: 1,
-                              height: 4,
-                              borderRadius: 1,
-                              bgcolor: 'action.hover',
-                              '& .MuiLinearProgress-bar': { bgcolor: '#25F4EE' },
-                            }}
-                          />
-                          <Typography sx={{ fontSize: 10, color: 'text.disabled', fontVariantNumeric: 'tabular-nums', minWidth: 32 }}>
-                            {v.progress}%
-                          </Typography>
-                        </Box>
-                        <Typography sx={{ fontSize: 10, color: 'text.disabled', mt: 0.25 }}>
-                          预计 {formatDuration(Math.floor(((100 - (v.progress ?? 0)) * 8)))} 完成
-                        </Typography>
-                      </Box>
-                    )}
-
-                    {v.status === 'reviewing' && v.review && (
-                      <Box sx={{ mt: 0.75 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5, flexWrap: 'wrap' }}>
-                          <RateReviewRoundedIcon sx={{ fontSize: 12, color: '#FFB400' }} />
-                          <Typography sx={{ fontSize: 10, color: '#FFB400', fontWeight: 600 }}>
-                            审核中 · {v.review.checks.filter((c) => c.status === 'passed').length}/{v.review.checks.length} 项通过
-                            {v.review.useFastChannel && (
-                              <Box component="span" sx={{ ml: 0.75, color: '#FE2C55', fontWeight: 700 }}>
-                                · ⚡ 极速
-                              </Box>
-                            )}
-                          </Typography>
-                          {(() => {
-                            const r = getReviewer(v.review.assignedReviewerId);
-                            if (!r) return null;
-                            return (
-                              <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, ml: 'auto' }}>
-                                <Box
-                                  sx={{
-                                    width: 14,
-                                    height: 14,
-                                    borderRadius: '50%',
-                                    background: r.avatarColor,
-                                    color: '#fff',
-                                    fontSize: 8,
-                                    fontWeight: 700,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                  }}
-                                >
-                                  {r.initials}
-                                </Box>
-                                <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
-                                  {v.review.queuePosition !== undefined
-                                    ? `${r.name} · 队列第 ${v.review.queuePosition} 位`
-                                    : r.online
-                                    ? `${r.name} · 正在审核`
-                                    : r.name}
-                                </Typography>
-                              </Box>
-                            );
-                          })()}
-                        </Box>
-                        <Box sx={{ display: 'flex', gap: 0.4, flexWrap: 'wrap' }}>
-                          {v.review.checks.map((c) => {
-                            const cs: { bg: string | ((t: any) => string); color: string | ((t: any) => string) } =
-                              c.status === 'passed'
-                                ? { bg: 'rgba(93, 219, 150, 0.12)', color: '#5DDB96' }
-                                : c.status === 'failed'
-                                ? { bg: 'rgba(254, 44, 85, 0.12)', color: '#FE2C55' }
-                                : c.status === 'running'
-                                ? { bg: 'rgba(37, 244, 238, 0.12)', color: '#25F4EE' }
-                                : { bg: (theme: any) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'action.hover', color: (theme: any) => theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.4)' : 'text.secondary' };
-                            return (
-                              <Box
-                                key={c.id}
-                                sx={{
-                                  px: 0.5,
-                                  py: 0.1,
-                                  borderRadius: 0.5,
-                                  bgcolor: cs.bg,
-                                  color: cs.color,
-                                  fontSize: 9,
-                                  fontWeight: 600,
-                                }}
-                              >
-                                {c.label}
-                                {c.status === 'passed' ? ' ✓' : c.status === 'failed' ? ' ✕' : c.status === 'running' ? ' …' : ''}
-                              </Box>
-                            );
-                          })}
-                        </Box>
-                      </Box>
-                    )}
-
-                    {v.status === 'review_failed' && v.review?.rejections && (
-                      <Box
-                        sx={{
-                          mt: 0.5,
-                          p: 1,
-                          borderRadius: 0.75,
-                          bgcolor: 'rgba(254, 44, 85, 0.06)',
-                          border: '1px solid rgba(254, 44, 85, 0.2)',
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.25 }}>
-                          <Typography sx={{ fontSize: 10, color: 'primary.main', fontWeight: 600 }}>
-                            ⚠ {v.review.rejections[0].category}
-                            {v.review.rejections.length > 1 && ` 等 ${v.review.rejections.length} 项`}
-                          </Typography>
-                          {(() => {
-                            const r = getReviewer(v.review.assignedReviewerId);
-                            if (!r) return null;
-                            return (
-                              <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, ml: 'auto' }}>
-                                <Box
-                                  sx={{
-                                    width: 14,
-                                    height: 14,
-                                    borderRadius: '50%',
-                                    background: r.avatarColor,
-                                    color: '#fff',
-                                    fontSize: 8,
-                                    fontWeight: 700,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                  }}
-                                >
-                                  {r.initials}
-                                </Box>
-                                <Typography sx={{ fontSize: 9, color: 'text.disabled' }}>
-                                  由 {r.name} 判定
-                                </Typography>
-                              </Box>
-                            );
-                          })()}
-                        </Box>
-                        <Typography sx={{ fontSize: 10, color: 'text.secondary', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                          {v.review.rejections[0].detail}
-                        </Typography>
-                      </Box>
-                    )}
-
-                    {v.status === 'published' && (
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 0.5 }}>
-                        <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
-                          👁 {formatCount(v.views ?? 0)} 播放
-                        </Typography>
-                        <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
-                          ❤ {formatCount(v.likes ?? 0)} 点赞
-                        </Typography>
-                        <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
-                          发布于 {v.publishedAt && <RelativeTime ts={v.publishedAt} fallback="" />}
-                        </Typography>
-                      </Box>
-                    )}
-
-                    {v.status === 'failed' && (
-                      <Box sx={{ mt: 0.5, p: 1, borderRadius: 0.75, bgcolor: 'rgba(254, 44, 85, 0.08)' }}>
-                        <Typography sx={{ fontSize: 10, color: 'primary.main' }}>
-                          ⚠ {v.failedReason}
-                        </Typography>
-                      </Box>
-                    )}
-
-                    {v.status === 'scheduled' && (
-                      <Typography sx={{ fontSize: 10, color: '#8B5CF6', mt: 0.5 }}>
-                        🚀 将在 {v.scheduledAt && <RelativeTime ts={v.scheduledAt} fallback="" />} 自动发布
-                      </Typography>
-                    )}
-                  </Box>
-
-                  {/* Actions */}
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
-                    {isReviewer && (v.status === 'reviewing' || v.status === 'review_failed') && (
-                      <Tooltip title="作为审核员审核此视频">
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          startIcon={<RateReviewRoundedIcon sx={{ fontSize: 14 }} />}
-                          onClick={() => {
-                            const params: Record<string, string> = { video: v.id };
-                            const rid = v.review?.assignedReviewerId;
-                            if (rid) params.reviewer = rid;
-                            setActiveTab('hd-review', params);
-                          }}
-                          sx={{
-                            textTransform: 'none',
-                            fontSize: 11,
-                            minWidth: 0,
-                            px: 1,
-                            py: 0.25,
-                            borderColor: 'rgba(91, 141, 239, 0.5)',
-                            color: '#5B8DEF',
-                            '&:hover': { borderColor: '#5B8DEF', bgcolor: 'rgba(91, 141, 239, 0.08)' },
-                          }}
-                        >
-                          去审核
-                        </Button>
-                      </Tooltip>
-                    )}
-                    {v.status === 'published' && (
-                      <Button
-                        size="small"
-                        startIcon={<VisibilityRoundedIcon sx={{ fontSize: 14 }} />}
-                        onClick={() => handleViewPublished(v.id)}
-                        sx={{ textTransform: 'none', fontSize: 11, color: 'text.secondary', minWidth: 0, px: 1 }}
-                      >
-                        查看
-                      </Button>
-                    )}
-                    {v.status === 'failed' && (
-                      <Button
-                        size="small"
-                        startIcon={<RefreshRoundedIcon sx={{ fontSize: 14 }} />}
-                        onClick={() => handleRetry(v.id)}
-                        sx={{
-                          textTransform: 'none',
-                          fontSize: 11,
-                          minWidth: 0,
-                          px: 1,
-                          color: 'primary.main',
-                        }}
-                      >
-                        重试
-                      </Button>
-                    )}
-                    {v.status === 'reviewing' && !v.review?.useFastChannel && (
-                      <Tooltip title={fastChannelQuota > 0 ? '消耗 1 次极速通道,优先审核' : '本月极速通道已用完'}>
-                        <Box component="span">
-                          <Button
-                            size="small"
-                            disabled={fastChannelQuota <= 0}
-                            startIcon={<BoltRoundedIcon sx={{ fontSize: 14 }} />}
-                            onClick={() => handleFastTrackReview(v.id)}
-                            sx={{
-                              textTransform: 'none',
-                              fontSize: 11,
-                              minWidth: 0,
-                              px: 1,
-                              color: fastChannelQuota > 0 ? '#FE2C55' : 'text.disabled',
-                            }}
-                          >
-                            极速送审
-                          </Button>
-                        </Box>
-                      </Tooltip>
-                    )}
-                    {v.status === 'review_failed' && (
-                      <Button
-                        size="small"
-                        startIcon={<RefreshRoundedIcon sx={{ fontSize: 14 }} />}
-                        onClick={() => handleResubmitReview(v.id)}
-                        sx={{
-                          textTransform: 'none',
-                          fontSize: 11,
-                          minWidth: 0,
-                          px: 1,
-                          color: 'primary.main',
-                        }}
-                      >
-                        重新送审
-                      </Button>
-                    )}
-                    {v.status === 'scheduled' && (
-                      <Button
-                        size="small"
-                        onClick={() => handlePublishNow(v.id)}
-                        sx={{
-                          textTransform: 'none',
-                          fontSize: 11,
-                          minWidth: 0,
-                          px: 1,
-                          color: '#5DDB96',
-                        }}
-                      >
-                        立即发布
-                      </Button>
-                    )}
-                    <IconButton
-                      size="small"
-                      onClick={(e) => handleMenuOpen(e, v.id)}
-                      sx={{ p: 0.5 }}
-                      aria-label="更多"
-                    >
-                      <MoreHorizIcon sx={{ fontSize: 16 }} />
-                    </IconButton>
-                  </Box>
-                </Box>
-              );
-            })}
-          </Box>
-        )}
-      </Box>
-
-      {/* Row action menu */}
-      <Menu
-        anchorEl={menuAnchor?.el ?? null}
-        open={!!menuAnchor}
-        onClose={handleMenuClose}
-        slotProps={{
-          paper: {
-            sx: { bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', minWidth: 140 },
-          },
-        }}
-      >
-        <MenuItem
-          onClick={() => {
-            if (menuAnchor) setDetailId(menuAnchor.id);
-            handleMenuClose();
-          }}
-          sx={{ fontSize: 12 }}
-        >
-          <VisibilityRoundedIcon sx={{ fontSize: 14, mr: 1 }} />
-          详情
-        </MenuItem>
-        {menuAnchor && videos.find((v) => v.id === menuAnchor.id)?.status === 'failed' && (
-          <MenuItem
-            onClick={() => menuAnchor && handleRetry(menuAnchor.id)}
-            sx={{ fontSize: 12 }}
-          >
-            <RefreshRoundedIcon sx={{ fontSize: 14, mr: 1 }} />
-            重新转码
-          </MenuItem>
-        )}
-        {menuAnchor && videos.find((v) => v.id === menuAnchor.id)?.status === 'reviewing' && !videos.find((v) => v.id === menuAnchor.id)?.review?.useFastChannel && (
-          <MenuItem
-            onClick={() => menuAnchor && handleFastTrackReview(menuAnchor.id)}
-            disabled={fastChannelQuota <= 0}
-            sx={{ fontSize: 12, color: '#FE2C55' }}
-          >
-            <BoltRoundedIcon sx={{ fontSize: 14, mr: 1 }} />
-            极速送审
-          </MenuItem>
-        )}
-        {menuAnchor && videos.find((v) => v.id === menuAnchor.id)?.status === 'review_failed' && (
-          <MenuItem
-            onClick={() => menuAnchor && handleResubmitReview(menuAnchor.id)}
-            sx={{ fontSize: 12, color: 'primary.main' }}
-          >
-            <RefreshRoundedIcon sx={{ fontSize: 14, mr: 1 }} />
-            重新送审
-          </MenuItem>
-        )}
-        {menuAnchor && (
-          <MenuItem
-            onClick={() => menuAnchor && handleOpenCoverPicker(menuAnchor.id)}
-            sx={{ fontSize: 12 }}
-          >
-            <ImageRoundedIcon sx={{ fontSize: 14, mr: 1 }} />
-            更换封面
-          </MenuItem>
-        )}
-        <Divider sx={{ my: 0.5, borderColor: 'divider' }} />
-        <MenuItem
-          onClick={() => menuAnchor && handleDelete(menuAnchor.id)}
-          sx={{ fontSize: 12, color: 'primary.main' }}
-        >
-          <DeleteOutlineRoundedIcon sx={{ fontSize: 14, mr: 1 }} />
-          删除
-        </MenuItem>
-      </Menu>
-
-      {/* Upload dialog */}
-      <Dialog
-        open={uploadOpen}
-        onClose={() => setUploadOpen(false)}
-        maxWidth="sm"
-        fullWidth
-        slotProps={{
-          paper: {
-            sx: { bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' },
-          },
-        }}
-      >
-        <Box sx={{ p: 3, pb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box
-              sx={{
-                width: 32,
-                height: 32,
-                borderRadius: 1,
-                background: 'linear-gradient(135deg, #FE2C55 0%, #FFB400 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#fff',
-              }}
-            >
-              <CloudUploadRoundedIcon sx={{ fontSize: 18 }} />
-            </Box>
-            <Typography sx={{ fontSize: 16, fontWeight: 600, color: 'text.primary' }}>上传高清视频</Typography>
-          </Box>
-          <IconButton size="small" onClick={() => setUploadOpen(false)}>
-            <CloseRoundedIcon sx={{ fontSize: 18 }} />
-          </IconButton>
-        </Box>
-        <Divider sx={{ borderColor: 'divider' }} />
-
-        <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-          {/* File picker */}
-          <Box
-            onClick={handlePickFile}
-            sx={{
-              p: 3,
-              borderRadius: 1.5,
-              border: '1.5px dashed',
-              borderColor: 'divider',
-              textAlign: 'center',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              '&:hover': { borderColor: 'primary.main', bgcolor: 'rgba(254, 44, 85, 0.04)' },
-            }}
-          >
-            <CloudUploadRoundedIcon sx={{ fontSize: 32, color: 'primary.main', mb: 1 }} />
-            <Typography sx={{ fontSize: 13, color: 'text.primary', fontWeight: 500 }}>
-              点击选择视频文件
-            </Typography>
-            <Typography sx={{ fontSize: 11, color: 'text.disabled', mt: 0.5 }}>
-              MP4 / MOV / MKV / WebM · 最大 10GB
-            </Typography>
-          </Box>
-
-          {/* Title */}
+        {/* 标题 + 质量(2 列) */}
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
           <TextField
             label="视频标题"
             size="small"
@@ -1678,21 +1022,15 @@ export default function HdPublishPage() {
             slotProps={{
               inputLabel: { sx: { fontSize: 12 } },
               input: { sx: { fontSize: 13 } },
+              formHelperText: { sx: { fontSize: 10, mt: 0.5 } },
             }}
+            helperText="提交后可在作品管理中修改"
           />
-
-          {/* Quality preset */}
           <Box>
             <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary', mb: 1 }}>
               输出质量
             </Typography>
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, 1fr)',
-                gap: 1,
-              }}
-            >
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1 }}>
               {QUALITY_PRESETS.map((q) => {
                 const selected = uploadResolution === q.id;
                 return (
@@ -1700,7 +1038,7 @@ export default function HdPublishPage() {
                     key={q.id}
                     onClick={() => setUploadResolution(q.id)}
                     sx={{
-                      p: 1.5,
+                      p: 1.25,
                       borderRadius: 1.5,
                       border: '1.5px solid',
                       borderColor: selected ? 'primary.main' : 'divider',
@@ -1740,63 +1078,138 @@ export default function HdPublishPage() {
               })}
             </Box>
           </Box>
+        </Box>
 
-          {/* Toggles */}
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            <FormControlLabel
-              control={
-                <Switch
-                  size="small"
-                  checked={uploadHdr}
-                  onChange={(e) => setUploadHdr(e.target.checked)}
-                />
-              }
-              label={
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                  <HighQualityRoundedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                  <Typography sx={{ fontSize: 12, color: 'text.primary' }}>启用 HDR 增强</Typography>
-                </Box>
-              }
-            />
-            <FormControlLabel
-              control={
-                <Switch
-                  size="small"
-                  checked={uploadAutoCover}
-                  onChange={(e) => setUploadAutoCover(e.target.checked)}
-                />
-              }
-              label={
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                  <AutoAwesomeRoundedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                  <Typography sx={{ fontSize: 12, color: 'text.primary' }}>AI 智能抽取封面</Typography>
-                </Box>
-              }
-            />
+        {/* 特性开关 */}
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
+          <FormControlLabel
+            control={<Switch size="small" checked={uploadHdr} onChange={(e) => setUploadHdr(e.target.checked)} />}
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                <HighQualityRoundedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                <Typography sx={{ fontSize: 12, color: 'text.primary' }}>启用 HDR 增强</Typography>
+              </Box>
+            }
+          />
+          <FormControlLabel
+            control={<Switch size="small" checked={uploadAutoCover} onChange={(e) => setUploadAutoCover(e.target.checked)} />}
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                <AutoAwesomeRoundedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                <Typography sx={{ fontSize: 12, color: 'text.primary' }}>AI 智能抽取封面</Typography>
+              </Box>
+            }
+          />
+        </Box>
+
+        {/* 音轨 */}
+        <Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, gap: 0.5 }}>
+            <RecordVoiceOverRoundedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+            <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary' }}>音轨</Typography>
+            <Box sx={{ flex: 1 }} />
+            <Button
+              size="small"
+              startIcon={<AddRoundedIcon sx={{ fontSize: 14 }} />}
+              onClick={handleAddAudio}
+              sx={{ textTransform: 'none', fontSize: 11, minWidth: 0, px: 1 }}
+            >
+              添加
+            </Button>
           </Box>
-
-          {/* Audio tracks */}
-          <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, gap: 0.5 }}>
-              <RecordVoiceOverRoundedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-              <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary' }}>音轨</Typography>
-              <Box sx={{ flex: 1 }} />
-              <Button
-                size="small"
-                startIcon={<AddRoundedIcon sx={{ fontSize: 14 }} />}
-                onClick={handleAddAudio}
-                sx={{ textTransform: 'none', fontSize: 11, minWidth: 0, px: 1 }}
+          <Stack spacing={0.75}>
+            {uploadAudios.map((a) => (
+              <Box
+                key={a.id}
+                sx={{
+                  p: 1,
+                  borderRadius: 1,
+                  bgcolor: 'action.hover',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 1,
+                }}
               >
-                添加
-              </Button>
-            </Box>
-            <Stack spacing={0.75}>
-              {uploadAudios.map((a) => (
+                <Typography sx={{ fontSize: 12, color: 'text.primary', flex: 1 }}>
+                  {a.label} <Box component="span" sx={{ color: 'text.disabled', fontSize: 10 }}>· {a.codec}</Box>
+                </Typography>
+                {!a.isDefault && (
+                  <Button
+                    size="small"
+                    onClick={() => handleSetDefaultAudio(a.id)}
+                    sx={{ textTransform: 'none', fontSize: 10, minWidth: 0, px: 0.75, color: 'text.secondary' }}
+                  >
+                    设为默认
+                  </Button>
+                )}
+                {a.isDefault && (
+                  <Chip
+                    size="small"
+                    label="默认"
+                    sx={{
+                      height: 16,
+                      fontSize: 9,
+                      bgcolor: 'rgba(93, 219, 150, 0.12)',
+                      color: '#5DDB96',
+                      '& .MuiChip-label': { px: 0.5 },
+                    }}
+                  />
+                )}
+                {uploadAudios.length > 1 && (
+                  <IconButton size="small" onClick={() => handleRemoveAudio(a.id)} sx={{ p: 0.25 }}>
+                    <CloseRoundedIcon sx={{ fontSize: 12 }} />
+                  </IconButton>
+                )}
+              </Box>
+            ))}
+          </Stack>
+        </Box>
+
+        {/* 字幕 */}
+        <Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, gap: 0.5 }}>
+            <ClosedCaptionRoundedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+            <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary' }}>字幕轨</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+            <TextField
+              size="small"
+              placeholder="语言 (zh-CN)"
+              value={newSubLang}
+              onChange={(e) => setNewSubLang(e.target.value)}
+              sx={{ flex: 1, '& .MuiOutlinedInput-root': { fontSize: 11 } }}
+            />
+            <TextField
+              size="small"
+              placeholder="标签 (简体中文)"
+              value={newSubLabel}
+              onChange={(e) => setNewSubLabel(e.target.value)}
+              sx={{ flex: 1.5, '& .MuiOutlinedInput-root': { fontSize: 11 } }}
+            />
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={handleAddSubtitle}
+              disabled={!newSubLang || !newSubLabel}
+              sx={{ textTransform: 'none', fontSize: 11, minWidth: 0, px: 1.5, borderColor: 'divider' }}
+            >
+              添加
+            </Button>
+          </Box>
+          {uploadSubtitles.length === 0 ? (
+            <Typography sx={{ fontSize: 10, color: 'text.disabled', py: 0.5 }}>
+              暂未添加字幕
+            </Typography>
+          ) : (
+            <Stack spacing={0.5}>
+              {uploadSubtitles.map((s) => (
                 <Box
-                  key={a.id}
+                  key={s.id}
                   sx={{
-                    p: 1,
-                    borderRadius: 1,
+                    p: 0.75,
+                    borderRadius: 0.75,
                     bgcolor: 'action.hover',
                     border: '1px solid',
                     borderColor: 'divider',
@@ -1805,112 +1218,35 @@ export default function HdPublishPage() {
                     gap: 1,
                   }}
                 >
-                  <Typography sx={{ fontSize: 12, color: 'text.primary', flex: 1 }}>
-                    {a.label} <Box component="span" sx={{ color: 'text.disabled', fontSize: 10 }}>· {a.codec}</Box>
+                  <Typography sx={{ fontSize: 11, color: 'text.primary', flex: 1 }}>
+                    {s.label} <Box component="span" sx={{ color: 'text.disabled', fontSize: 10 }}>· {s.lang}</Box>
                   </Typography>
-                  {!a.isDefault && (
-                    <Button
-                      size="small"
-                      onClick={() => handleSetDefaultAudio(a.id)}
-                      sx={{ textTransform: 'none', fontSize: 10, minWidth: 0, px: 0.75, color: 'text.secondary' }}
-                    >
-                      设为默认
-                    </Button>
-                  )}
-                  {a.isDefault && (
-                    <Chip
-                      size="small"
-                      label="默认"
-                      sx={{
-                        height: 16,
-                        fontSize: 9,
-                        bgcolor: 'rgba(93, 219, 150, 0.12)',
-                        color: '#5DDB96',
-                        '& .MuiChip-label': { px: 0.5 },
-                      }}
-                    />
-                  )}
-                  {uploadAudios.length > 1 && (
-                    <IconButton size="small" onClick={() => handleRemoveAudio(a.id)} sx={{ p: 0.25 }}>
-                      <CloseRoundedIcon sx={{ fontSize: 12 }} />
-                    </IconButton>
-                  )}
+                  <IconButton size="small" onClick={() => handleRemoveSubtitle(s.id)} sx={{ p: 0.25 }}>
+                    <CloseRoundedIcon sx={{ fontSize: 12 }} />
+                  </IconButton>
                 </Box>
               ))}
             </Stack>
-          </Box>
-
-          {/* Subtitles */}
-          <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, gap: 0.5 }}>
-              <ClosedCaptionRoundedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-              <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary' }}>字幕轨</Typography>
-            </Box>
-            <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
-              <TextField
-                size="small"
-                placeholder="语言 (zh-CN)"
-                value={newSubLang}
-                onChange={(e) => setNewSubLang(e.target.value)}
-                sx={{ flex: 1, '& .MuiOutlinedInput-root': { fontSize: 11 } }}
-              />
-              <TextField
-                size="small"
-                placeholder="标签 (简体中文)"
-                value={newSubLabel}
-                onChange={(e) => setNewSubLabel(e.target.value)}
-                sx={{ flex: 1.5, '& .MuiOutlinedInput-root': { fontSize: 11 } }}
-              />
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={handleAddSubtitle}
-                disabled={!newSubLang || !newSubLabel}
-                sx={{ textTransform: 'none', fontSize: 11, minWidth: 0, px: 1.5, borderColor: 'divider' }}
-              >
-                添加
-              </Button>
-            </Box>
-            {uploadSubtitles.length === 0 ? (
-              <Typography sx={{ fontSize: 10, color: 'text.disabled', py: 0.5 }}>
-                暂未添加字幕
-              </Typography>
-            ) : (
-              <Stack spacing={0.5}>
-                {uploadSubtitles.map((s) => (
-                  <Box
-                    key={s.id}
-                    sx={{
-                      p: 0.75,
-                      borderRadius: 0.75,
-                      bgcolor: 'action.hover',
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1,
-                    }}
-                  >
-                    <Typography sx={{ fontSize: 11, color: 'text.primary', flex: 1 }}>
-                      {s.label} <Box component="span" sx={{ color: 'text.disabled', fontSize: 10 }}>· {s.lang}</Box>
-                    </Typography>
-                    <IconButton size="small" onClick={() => handleRemoveSubtitle(s.id)} sx={{ p: 0.25 }}>
-                      <CloseRoundedIcon sx={{ fontSize: 12 }} />
-                    </IconButton>
-                  </Box>
-                ))}
-              </Stack>
-            )}
-          </Box>
+          )}
         </Box>
 
-        <Divider sx={{ borderColor: 'divider' }} />
-        <Box sx={{ p: 2, display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+        {/* Sticky-ish 提交栏 */}
+        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
           <Button
-            onClick={() => setUploadOpen(false)}
+            onClick={() => {
+              setUploadFileName(null);
+              setUploadFileSizeMB(0);
+              setUploadFileUrl(null);
+              setUploadStatus('idle');
+              setUploadTitle('');
+              setUploadHdr(true);
+              setUploadAutoCover(true);
+              setUploadSubtitles([]);
+              setUploadAudios([{ id: 'a1', label: '原声', codec: 'AAC 320kbps', isDefault: true }]);
+            }}
             sx={{ textTransform: 'none', fontSize: 12, color: 'text.secondary' }}
           >
-            取消
+            清空
           </Button>
           <Button
             variant="contained"
@@ -1922,7 +1258,9 @@ export default function HdPublishPage() {
             }
             sx={{
               textTransform: 'none',
-              fontSize: 12,
+              fontSize: 13,
+              fontWeight: 600,
+              px: 3,
               background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)',
               '&:hover': {
                 background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)',
@@ -1937,7 +1275,8 @@ export default function HdPublishPage() {
                 : '提交上传'}
           </Button>
         </Box>
-      </Dialog>
+      </Box>
+
 
       {/* Detail drawer */}
       <Drawer
@@ -2996,6 +2335,7 @@ export default function HdPublishPage() {
         </Box>
       </Dialog>
 
+      </>)}
       <Snackbar
         open={!!snack}
         autoHideDuration={snack?.severity === 'error' ? 5000 : 2400}

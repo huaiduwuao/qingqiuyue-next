@@ -2,8 +2,6 @@
 // 注意:这里不放业务数据(活动列表/我的作品),全部从后端 /api/core/creator/* 拉。
 // 真实数据接入见 ../activity/page.tsx。
 
-import { gradient2 } from '@/constants/gradients';
-
 export type ActivityStatus =
   | 'upcoming'
   | 'signup'
@@ -143,26 +141,6 @@ export interface MyWork {
   hashtags: string[];
 }
 
-// 一些可重用的色板(给"我的作品"列表缺 cover 时 fallback)
-export const G_RED = gradient2('#FE2C55', '#FFB400');
-export const G_CYAN = gradient2('#25F4EE', '#5DF7F2');
-export const G_PURPLE = gradient2('#8B5CF6', '#FE2C55');
-export const G_AMBER = gradient2('#FFB400', '#FFD566');
-export const G_GREEN = gradient2('#5DDB96', '#25F4EE');
-
-export function relativeTime(ts: number, ref = Date.now()): string {
-  const diff = ref - ts;
-  const abs = Math.abs(diff);
-  const future = diff < 0;
-  const m = Math.floor(abs / 60000);
-  const h = Math.floor(m / 60);
-  const d = Math.floor(h / 24);
-  if (d > 0) return future ? `${d} 天后` : `${d} 天前`;
-  if (h > 0) return future ? `${h} 小时后` : `${h} 小时前`;
-  if (m > 0) return future ? `${m} 分钟后` : `${m} 分钟前`;
-  return future ? '即将' : '刚刚';
-}
-
 export function formatBigNumber(n: number): string {
   if (n >= 100_000_000) return `${(n / 100_000_000).toFixed(1)}亿`;
   if (n >= 10_000) return `${(n / 10_000).toFixed(1)}w`;
@@ -173,6 +151,20 @@ export function formatDuration(sec: number): string {
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
   return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+/**
+ * ensureArray — 后端字段防御。
+ *
+ * 后端老 DTO 经常把数组字段返成 null/对象/字符串(尤其 mock 阶段),
+ * 直接 `.map()` 会炸"xxx.map is not a function"。在数据入口处一次性
+ * 规范化,下游所有 `.map/.some/.length` 都安全。`?? []` 只挡 null/undefined,
+ * 挡不住"传成别的类型"——必须用 Array.isArray 判定。
+ *
+ * 用法:const rules = ensureArray<string>(a.rules);
+ */
+export function ensureArray<T>(x: unknown): T[] {
+  return Array.isArray(x) ? (x as T[]) : [];
 }
 
 

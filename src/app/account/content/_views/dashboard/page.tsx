@@ -10,7 +10,6 @@ import DataOverviewCard from '../../_components/DataOverviewCard';
 import ContentDistributionChart from '../../_components/ContentDistributionChart';
 import TrendChart from '../../_components/TrendChart';
 import FanPortrait from '../../_components/FanPortrait';
-import WorksManager from '../../_components/WorksManager';
 import HotTopicsCarousel from '../../_components/HotTopicsCarousel';
 
 function SectionHeader({
@@ -110,12 +109,6 @@ export default function CreatorHomePage() {
           <TrendChart />
           <FanPortrait />
         </Box>
-      </Box>
-
-      {/* Step 4 · 作品管理(增删改查) */}
-      <Box>
-        <SectionHeader step={4} title="作品管理" subtitle="编辑 · 设置可见性 · 批量操作" hint="新增 CRUD" />
-        <WorksManager />
       </Box>
     </Box>
   );

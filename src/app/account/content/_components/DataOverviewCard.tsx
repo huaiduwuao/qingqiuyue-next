@@ -5,8 +5,9 @@ import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import ShareOutlinedIcon from '@mui/icons-material/ShareOutlined';
 import ModeCommentIcon from '@mui/icons-material/ModeComment';
+import VideoLibraryRoundedIcon from '@mui/icons-material/VideoLibraryRounded';
+import Chip from '@mui/material/Chip';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import TrendingFlatIcon from '@mui/icons-material/TrendingFlat';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
@@ -14,14 +15,37 @@ import { accountClient, isAuthError } from '@/lib/api/client';
 import { AsyncState } from '@/components/common/AsyncState';
 
 type DataOverview = {
+  totalWorks: number;
   totalViews: number;
   totalLikes: number;
   totalComments: number;
   totalShares: number;
+  // 7 日 delta = 本周累加 - 上周累加(后端计算,绝对增量)
+  viewsDelta: number;
+  likesDelta: number;
+  commentsDelta: number;
+  sharesDelta: number;
   todayViews: number;
   weekViews: number;
   monthViews: number;
+  // 统计周期(本地时区 7 天窗口,后端 Date 序列化为 ISO 字符串)
+  periodStart: string;
+  periodEnd: string;
 };
+
+function formatPeriod(start: string, end: string): string {
+  // 后端给的是完整 ISO 时间戳,只要 MM.DD 部分
+  const fmt = (s: string) => {
+    if (!s) return '';
+    // 直接取 "YYYY-MM-DD" 前 10 段,转 "YYYY.MM.DD"
+    const d = s.substring(0, 10);
+    return d.replace(/-/g, '.');
+  };
+  const s = fmt(start);
+  const e = fmt(end);
+  if (!s || !e) return '';
+  return `${s} - ${e}`;
+}
 
 function DeltaIndicator({ delta }: { delta: number }) {
   const isUp = delta > 0;
@@ -41,9 +65,10 @@ function DeltaIndicator({ delta }: { delta: number }) {
 
 type Metric = { id: string; label: string; value: number; delta: number; icon: React.ReactNode; color: string };
 
+// 401/未登录 fallback 用 —— label/icon 与下方 live 数组保持一致,刷新后布局不跳
 const METRICS: Metric[] = [
   { id: 'play', label: '播放量', value: 0, delta: 0, icon: <VisibilityIcon sx={{ fontSize: 20 }} />, color: 'primary.main' },
-  { id: 'share', label: '作品分享', value: 0, delta: 0, icon: <ShareOutlinedIcon sx={{ fontSize: 20 }} />, color: 'secondary.main' },
+  { id: 'work', label: '作品', value: 0, delta: 0, icon: <VideoLibraryRoundedIcon sx={{ fontSize: 20 }} />, color: '#8B5CF6' },
   { id: 'comment', label: '作品评论', value: 0, delta: 0, icon: <ModeCommentIcon sx={{ fontSize: 20 }} />, color: 'warning.main' },
 ];
 
@@ -101,7 +126,7 @@ function MetricCard({ m, valueText, showDelta }: { m: Metric; valueText: React.R
   );
 }
 
-function DataOverviewShell({ children }: { children: React.ReactNode }) {
+function DataOverviewShell({ children, totalWorks, periodText }: { children: React.ReactNode; totalWorks?: number; periodText: string }) {
   return (
     <Box
       sx={{
@@ -112,13 +137,27 @@ function DataOverviewShell({ children }: { children: React.ReactNode }) {
         borderColor: 'divider',
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2.5 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2.5, flexWrap: 'wrap', gap: 1 }}>
         <Typography sx={{ fontSize: 18, fontWeight: 600, color: 'text.primary' }}>
           数据中心
         </Typography>
+        {typeof totalWorks === 'number' && (
+          <Chip
+            size="small"
+            label={`共 ${totalWorks} 件作品`}
+            sx={{
+              ml: 1,
+              height: 22,
+              bgcolor: 'action.hover',
+              color: 'text.secondary',
+              fontSize: 11,
+              fontWeight: 600,
+            }}
+          />
+        )}
         <Box sx={{ flex: 1 }} />
         <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-          统计周期:2026.05.25 - 2026.05.31
+          统计周期:{periodText}
         </Typography>
       </Box>
       <Box
@@ -171,7 +210,7 @@ export default function DataOverviewCard() {
   // 401 静默兜底:KPI 卡片布局不变,数值位置显示「登录后查看」,不显示红色 alert
   if (query.isError && isAuthError(query.error)) {
     return (
-      <DataOverviewShell>
+      <DataOverviewShell periodText="登录后查看">
         {METRICS.map((m) => (
           <MetricCard
             key={m.id}
@@ -191,19 +230,28 @@ export default function DataOverviewCard() {
   return (
     <AsyncState query={query} skeletonCount={1} skeletonHeight={220}>
       {(data) => {
+        // 真实数据:delta、totalWorks、统计周期全部来自后端聚合。
+        // 字段全 `?? 0` 兜底:旧后端没重编时只返老字段,新字段为 undefined,
+        // 直接喂 .toLocaleString() 会炸;归 0 让 UI 正常显示。
+        const n = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
         const live: Metric[] = [
-          { id: 'play', label: '播放量', value: data.totalViews, delta: 12, icon: <VisibilityIcon sx={{ fontSize: 20 }} />, color: 'primary.main' },
-          { id: 'share', label: '作品分享', value: data.totalShares, delta: 8, icon: <ShareOutlinedIcon sx={{ fontSize: 20 }} />, color: 'secondary.main' },
-          { id: 'comment', label: '作品评论', value: data.totalComments, delta: -3, icon: <ModeCommentIcon sx={{ fontSize: 20 }} />, color: 'warning.main' },
+          { id: 'play', label: '播放量', value: n(data.totalViews), delta: n(data.viewsDelta), icon: <VisibilityIcon sx={{ fontSize: 20 }} />, color: 'primary.main' },
+          { id: 'work', label: '作品', value: n(data.totalWorks), delta: 0, icon: <VideoLibraryRoundedIcon sx={{ fontSize: 20 }} />, color: '#8B5CF6' },
+          { id: 'comment', label: '作品评论', value: n(data.totalComments), delta: n(data.commentsDelta), icon: <ModeCommentIcon sx={{ fontSize: 20 }} />, color: 'warning.main' },
         ];
+        const totalWorks = n(data.totalWorks);
         return (
-          <DataOverviewShell>
+          <DataOverviewShell
+            totalWorks={totalWorks}
+            periodText={formatPeriod(data.periodStart, data.periodEnd) || '近 7 日'}
+          >
             {live.map((m) => (
               <MetricCard
                 key={m.id}
                 m={m}
                 valueText={m.value.toLocaleString()}
-                showDelta
+                // 作品卡展示累计数即可,环比意义不大(作品数是离散值)
+                showDelta={m.id !== 'work'}
               />
             ))}
           </DataOverviewShell>

@@ -5,7 +5,7 @@ import { expect, type Page } from '@playwright/test';
  *   goto /account/content → 点 sidebar item → 等视图切换
  *
  * label 对应 CreatorSidebar.MENU_GROUPS 里 item.label:
- *   '工作台' / '高清发布' / '审核员工作台' / '活动管理' / '共创中心' / '合集管理'
+ *   '工作台' / '发布' / '审核员工作台' / '活动管理' / '共创中心' / '合集管理'
  *   '作品管理' / '爬虫管理' / '抓取内容' / '原创保护'
  *   '数据中心' / '等级勋章' / '变现中心'
  *

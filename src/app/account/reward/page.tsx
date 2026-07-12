@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -23,26 +23,29 @@ import CloseIcon from '@mui/icons-material/Close';
 import MenuIcon from '@mui/icons-material/Menu';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import ViewKanbanIcon from '@mui/icons-material/ViewKanban';
+import DashboardIcon from '@mui/icons-material/Dashboard';
 import { listGroups, type GroupInfo } from '@/apis/reward-group';
 
 const menuItems = [
   { key: '1', label: '赏金广场', icon: <HomeIcon sx={{ fontSize: 20 }} />, accent: 'primary.main' },
-  { key: '2', label: '需求管理', icon: <AssignmentIcon sx={{ fontSize: 20 }} />, accent: 'warning.main' },
-  { key: '3', label: '实现管理', icon: <HandshakeIcon sx={{ fontSize: 20 }} />, accent: 'secondary.main' },
-  { key: '4', label: '项目管理', icon: <FolderIcon sx={{ fontSize: 20 }} />, accent: '#8B5CF6' },
-  { key: '5', label: '意境管理', icon: <AutoAwesomeIcon sx={{ fontSize: 20 }} />, accent: 'success.main' },
-  { key: '6', label: '团队管理', icon: <GroupsIcon sx={{ fontSize: 20 }} />, accent: '#F59E0B' },
-  { key: '7', label: '协作看板', icon: <ViewKanbanIcon sx={{ fontSize: 20 }} />, accent: '#06B6D4' },
+  { key: '2', label: '我的工作台', icon: <DashboardIcon sx={{ fontSize: 20 }} />, accent: 'primary.main' },
+  { key: '3', label: '需求管理', icon: <AssignmentIcon sx={{ fontSize: 20 }} />, accent: 'warning.main' },
+  { key: '4', label: '实现管理', icon: <HandshakeIcon sx={{ fontSize: 20 }} />, accent: 'secondary.main' },
+  { key: '5', label: '项目管理', icon: <FolderIcon sx={{ fontSize: 20 }} />, accent: '#8B5CF6' },
+  { key: '6', label: '意境管理', icon: <AutoAwesomeIcon sx={{ fontSize: 20 }} />, accent: 'success.main' },
+  { key: '7', label: '团队管理', icon: <GroupsIcon sx={{ fontSize: 20 }} />, accent: '#F59E0B' },
+  { key: '8', label: '协作看板', icon: <ViewKanbanIcon sx={{ fontSize: 20 }} />, accent: '#06B6D4' },
 ];
 
 const componentMap: Record<string, React.LazyExoticComponent<React.ComponentType<any>>> = {
   '1': React.lazy(() => import('./_components/dashboard/page')),
-  '2': React.lazy(() => import('./_components/demand/page')),
-  '3': React.lazy(() => import('./_components/realization/page')),
-  '4': React.lazy(() => import('./_components/project/page')),
-  '5': React.lazy(() => import('./_components/conception/page')),
-  '6': React.lazy(() => import('./_components/group/page')),
-  '7': React.lazy(() => import('./_components/taskboard/page')),
+  '2': React.lazy(() => import('./_components/personal/page')),
+  '3': React.lazy(() => import('./_components/demand/page')),
+  '4': React.lazy(() => import('./_components/realization/page')),
+  '5': React.lazy(() => import('./_components/project/page')),
+  '6': React.lazy(() => import('./_components/conception/page')),
+  '7': React.lazy(() => import('./_components/group/page')),
+  '8': React.lazy(() => import('./_components/taskboard/page')),
 };
 
 // 已有对应子路由时走 router.push,否则保持原 tab 状态切换
@@ -84,37 +87,51 @@ export default function AccountRewardPage() {
   }, [tabKey]);
 
   const ContentComponent = componentMap[tabKey];
+  // 我的工作台单独懒加载(因为它接的 props 与其它页不同,放 componentMap 里类型对不上)
+  const PersonalWorkspaceLazy = React.lazy(() => import('./_components/personal/page'));
   const activeItem = menuItems.find((m) => m.key === tabKey) || menuItems[0];
 
   const openTaskboardFor = (projectId: number) => {
     setTaskboardProjectId(projectId);
     setTaskboardGroupId(null);
     setTaskboardDemandId(null);
-    setTabKey('7');
+    setTabKey('8');
   };
 
   const openTaskboardForGroup = (groupId: number) => {
     setTaskboardGroupId(groupId);
     setTaskboardProjectId(null);
     setTaskboardDemandId(null);
-    setTabKey('7');
+    setTabKey('8');
   };
 
   const openTaskboardForDemand = (demandId: number) => {
     setTaskboardDemandId(demandId);
     setTaskboardProjectId(null);
     setTaskboardGroupId(null);
-    setTabKey('7');
+    setTabKey('8');
   };
 
   const openConceptionForDemand = (demandId: number) => {
     setConceptionDemandId(demandId);
-    setTabKey('5');
+    setTabKey('6');
   };
 
-  const openRealizationForDemand = (demandId: number) => {
-    setRealizationDemandId(demandId);
-    setTabKey('3');
+  // 我的工作台 -> 其它模块跳转(切 tabKey + 同步 selectedGroupId)
+  const jumpToTabWithGroup = (tab: string, groupId: number) => {
+    if (groupId && typeof groupId === 'number') setSelectedGroupId(groupId);
+    setTabKey(tab);
+  };
+  const openDemandTab = (groupId: number) => jumpToTabWithGroup('3', groupId);
+  const openRealizationTab = (groupId: number) => jumpToTabWithGroup('4', groupId);
+  const openProjectTab = (groupId: number) => jumpToTabWithGroup('5', groupId);
+  const openGroupTab = (groupId: number) => jumpToTabWithGroup('7', groupId);
+  const openTaskboardTab = (groupId: number) => {
+    if (groupId && typeof groupId === 'number') setSelectedGroupId(groupId);
+    setTaskboardGroupId(groupId);
+    setTaskboardProjectId(null);
+    setTaskboardDemandId(null);
+    setTabKey('8');
   };
 
   const SidebarContent = () => (
@@ -345,13 +362,32 @@ export default function AccountRewardPage() {
               </TextField>
             </Box>
           ) : (
-            tabKey !== '6' && (
+            tabKey !== '7' && (
               <Typography sx={{ fontSize: 12, color: 'text.disabled', mb: 2 }}>
                 还没有团队,请先在「团队管理」中创建,需求/项目/意境/实现模块需要归属团队。
               </Typography>
             )
           )}
-          {ContentComponent ? (
+          {tabKey === '2' ? (
+            <React.Suspense
+              fallback={
+                <Box sx={{ p: 4, textAlign: 'center' }}>
+                  <Typography sx={{ color: 'text.secondary', fontSize: 13 }}>加载中...</Typography>
+                </Box>
+              }
+            >
+              <PersonalWorkspaceLazy
+                groups={groups}
+                selectedGroupId={selectedGroupId}
+                onOpenDemandTab={openDemandTab}
+                onOpenDemandDetail={(gid: number, did: number) => { jumpToTabWithGroup('3', gid); setTaskboardDemandId(did); setTaskboardProjectId(null); setTaskboardGroupId(null); setTabKey('8'); }}
+                onOpenRealizationTab={openRealizationTab}
+                onOpenProjectTab={openProjectTab}
+                onOpenTaskboardTab={openTaskboardTab}
+                onOpenGroupTab={openGroupTab}
+              />
+            </React.Suspense>
+          ) : ContentComponent ? (
             <React.Suspense
               fallback={
                 <Box sx={{ p: 4, textAlign: 'center' }}>
@@ -363,21 +399,21 @@ export default function AccountRewardPage() {
                 groupId={selectedGroupId}
                 groupData={groups}
                 onOpenTaskboard={
-                  tabKey === '4' ? openTaskboardFor :
-                  tabKey === '6' ? openTaskboardForGroup :
-                  tabKey === '2' ? openTaskboardForDemand :
+                  tabKey === '5' ? openTaskboardFor :
+                  tabKey === '7' ? openTaskboardForGroup :
+                  tabKey === '3' ? openTaskboardForDemand :
                   undefined
                 }
                 onOpenDemandDetail={
-                  tabKey === '7' ? openTaskboardForDemand :
-                  tabKey === '3' ? openTaskboardForDemand :
-                  tabKey === '5' ? openTaskboardForDemand :
+                  tabKey === '8' ? openTaskboardForDemand :
+                  tabKey === '4' ? openTaskboardForDemand :
+                  tabKey === '6' ? openTaskboardForDemand :
                   undefined
                 }
-                onOpenConceptionForDemand={tabKey === '2' ? openConceptionForDemand : undefined}
-                initialProjectId={tabKey === '7' ? taskboardProjectId : null}
-                initialGroupId={tabKey === '7' ? taskboardGroupId : null}
-                initialDemandId={tabKey === '7' ? taskboardDemandId : tabKey === '5' ? conceptionDemandId : tabKey === '3' ? realizationDemandId : null}
+                onOpenConceptionForDemand={tabKey === '3' ? openConceptionForDemand : undefined}
+                initialProjectId={tabKey === '8' ? taskboardProjectId : null}
+                initialGroupId={tabKey === '8' ? taskboardGroupId : null}
+                initialDemandId={tabKey === '8' ? taskboardDemandId : tabKey === '6' ? conceptionDemandId : tabKey === '4' ? realizationDemandId : null}
               />
             </React.Suspense>
           ) : (
