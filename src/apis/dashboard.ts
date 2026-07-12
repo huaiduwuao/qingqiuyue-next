@@ -261,6 +261,18 @@ export async function getLikesPreview() {
   return unwrap<PageData<LikePreview>>(await accountClient('/account/likes/preview'));
 }
 
+// ========== 个人中心 5 大分区真实计数 ==========
+export interface AccountStats {
+  likesCount: number;
+  favoritesCount: number;
+  historyCount: number;
+  watchlaterCount: number;
+  worksCount: number;
+}
+export async function getAccountStats() {
+  return unwrap<AccountStats>(await accountClient('/account/stats'));
+}
+
 export interface VipTier {
   id: string;
   name: string;

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getLikesPreview } from '@/apis/dashboard';
+import { getLikesPreview, getAccountStats } from '@/apis/dashboard';
 import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -37,14 +37,45 @@ interface Section {
   href: string;
 }
 
-const SECTIONS: Section[] = [
-  { key: 'favorites', label: '我的收藏', count: '49', icon: <StarRoundedIcon sx={{ fontSize: 18, color: 'warning.main' }} />, href: '/home/recommend?tab=me&mainTab=collect' },
-  { key: 'history', label: '观看历史', count: '30天内', icon: <HistoryRoundedIcon sx={{ fontSize: 18, color: 'secondary.main' }} />, href: '/home/recommend?tab=me&mainTab=history' },
-  { key: 'watchlater', label: '稍后再看', count: '2', icon: <WatchLaterIcon sx={{ fontSize: 18, color: '#8B5CF6' }} />, href: '/home/recommend?tab=me&mainTab=later' },
-  { key: 'works', label: '我的作品', count: '0', icon: <VideoLibraryIcon sx={{ fontSize: 18, color: 'primary.main' }} />, href: '/account/content' },
-  { key: 'reservation', label: '我的预约', icon: <EventNoteRoundedIcon sx={{ fontSize: 18, color: 'success.main' }} />, href: '/home/recommend?tab=me&mainTab=order' },
-  { key: 'orders', label: '我的订单', icon: <ReceiptLongIcon sx={{ fontSize: 18, color: '#5B8DEF' }} />, href: '/account/orders' },
+// SECTIONS 改为"模板",count 在渲染时由 stats 实时注入(避免硬编码 '49'/'30天内'/'2'/'0' 跟实际不符)。
+// 渲染函数 buildSections() 接收 stats,返回带 count 的 Section[]。
+interface SectionTemplate {
+  key: 'likes' | 'favorites' | 'history' | 'watchlater' | 'works' | 'reservation' | 'orders';
+  label: string;
+  icon: React.ReactNode;
+  href: string;
+  /** 取 stats 哪个字段;undefined 表示不展示 count */
+  statKey?: 'likesCount' | 'favoritesCount' | 'historyCount' | 'watchlaterCount' | 'worksCount';
+  /** 特殊文案(如"30天内"),不为空时直接覆盖数字 */
+  display?: string;
+}
+const SECTION_TPLS: SectionTemplate[] = [
+  { key: 'likes',      label: '我的喜欢', icon: <FavoriteRoundedIcon sx={{ fontSize: 18, color: 'error.main' }} />,       href: '/home/recommend?tab=me&mainTab=likes',     statKey: 'likesCount' },
+  { key: 'favorites',  label: '我的收藏', icon: <StarRoundedIcon sx={{ fontSize: 18, color: 'warning.main' }} />,         href: '/home/recommend?tab=me&mainTab=collect',  statKey: 'favoritesCount' },
+  { key: 'history',    label: '观看历史', icon: <HistoryRoundedIcon sx={{ fontSize: 18, color: 'secondary.main' }} />,      href: '/home/recommend?tab=me&mainTab=history',  statKey: 'historyCount', display: '30天内' },
+  { key: 'watchlater', label: '稍后再看', icon: <WatchLaterIcon sx={{ fontSize: 18, color: '#8B5CF6' }} />,                href: '/home/recommend?tab=me&mainTab=later',    statKey: 'watchlaterCount' },
+  { key: 'works',      label: '我的作品', icon: <VideoLibraryIcon sx={{ fontSize: 18, color: 'primary.main' }} />,         href: '/account/content',                         statKey: 'worksCount' },
+  { key: 'reservation',label: '我的预约', icon: <EventNoteRoundedIcon sx={{ fontSize: 18, color: 'success.main' }} />,     href: '/home/recommend?tab=me&mainTab=order' },
+  { key: 'orders',     label: '我的订单', icon: <ReceiptLongIcon sx={{ fontSize: 18, color: '#5B8DEF' }} />,                href: '/account/orders' },
 ];
+
+function buildSections(stats: { likesCount?: number; favoritesCount?: number; historyCount?: number; watchlaterCount?: number; worksCount?: number } | undefined): Section[] {
+  return SECTION_TPLS.map((t) => {
+    const out: Section = { key: t.key, label: t.label, icon: t.icon, href: t.href };
+    if (t.statKey) {
+      const n = stats?.[t.statKey];
+      if (n != null) {
+        // 0 不显示数字(避免视觉噪音);>0 才展示
+        if (n > 0) {
+          out.count = t.display ? t.display : String(n);
+        } else if (t.display) {
+          out.count = t.display;
+        }
+      }
+    }
+    return out;
+  });
+}
 
 export interface PersonalCenterCardProps {
   compact?: boolean;
@@ -64,6 +95,13 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
     queryKey: ['account-likes-preview'],
     queryFn: () => getLikesPreview(),
     staleTime: 30 * 1000,
+  });
+  // 真实计数:likes/favorites/history/watchlater/works —— 后端 GET /api/core/account/stats
+  const { data: accountStats } = useQuery({
+    queryKey: ['account-stats'],
+    queryFn: () => getAccountStats(),
+    staleTime: 30 * 1000,
+    enabled: !!currentUser?.id,
   });
   const LIKES_PREVIEW = (likesResp?.records ?? likesResp?.list ?? []).map((l) => ({
     id: l.id, title: l.title, cover: l.cover || gradient2('#C8A882', '#8B6F47'),
@@ -313,7 +351,7 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
 
       {/* === 折叠列表 === */}
       <Box>
-        {SECTIONS.map((s, idx) => (
+        {buildSections(accountStats).map((s, idx) => (
           <Box
             key={s.key}
             onClick={() => go(s.href)}
