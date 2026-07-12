@@ -67,6 +67,12 @@ export default function FloatingDigitalHuman() {
   // 默认收起(只显示小图标)— 之前默认展开常驻占屏,新版默认折叠
   // 用户主动点图标才展开大窗口。折叠状态大小见下方 IconButton。
   const [open, setOpen] = React.useState(false);
+  // 防御性 mount 兜底:HMR / 浏览器 state cache 可能让老 mount 实例仍
+  // 持有 `open=true` — 强制一次关闭,避免「点哪里都不对 + 黑色遮挡」(老的
+  // 320x480 浮窗画布覆盖在 publish 页面上,看起来是一块黑板)。
+  React.useEffect(() => {
+    setOpen(false);
+  }, []);
   const [autoRotate, setAutoRotate] = React.useState(false);  // 默认不自动转圈, 数字人有自己的 idle 动画
 
   const app = useApp();
