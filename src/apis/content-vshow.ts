@@ -1,5 +1,5 @@
 import { contentClient } from '@/lib/api/client';
-import {FilmItem, VideoItem} from "@/beans/content";
+import {FilmItem} from "@/beans/content";
 
 export async function process(params: Record<string, unknown>) {
   return contentClient("client-content/vshow/process", {
@@ -38,7 +38,7 @@ export async function update(params: FilmItem) {
   });
 }
 
-export async function detail(params: VideoItem) {
+export async function detail(params: { id?: string | number }) {
   return contentClient("client-content/vshow/detail", {
     params
   });

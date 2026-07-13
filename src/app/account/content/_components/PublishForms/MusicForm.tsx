@@ -72,7 +72,14 @@ export default function MusicForm({ onSuccess }: PublishFormProps) {
     buildPayload: () => ({
       title: f.title.trim(),
       subtitle: artist.trim().slice(0, MAX_ARTIST) || undefined,
-      content: lyric, // LRC 歌词存 content
+      content: JSON.stringify({
+        audioUrl: audio?.uploadedUrl,
+        audioSizeMB: audio?.sizeMB,
+        audioDurationSec: audio?.durationSec,
+        artist: artist.trim() || undefined,
+        album: album.trim() || undefined,
+        lyrics: lyric,
+      }),
       contentType: 'MUSIC',
       coverUrl: cover?.uploadedUrl,
       audioUrl: audio?.uploadedUrl,

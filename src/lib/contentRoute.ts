@@ -14,6 +14,7 @@ export const TYPE_TO_ROUTE: Record<string, string> = {
   NEWS: '/detail/news-detail',
   // 图集 / 图片 MV 还没有对应 detail 路由,先用占位;DetailDrawer 的「查看详情页」
   // 跳转若命中 null 会 fallback 到 window.open fallbackUrl(由 caller 决定)。
+  PICTURE: '/detail/image-detail',
   PICTURE_ALBUM: '/detail/image-detail',
   PICTURE_MV: '/detail/image-detail',
 };
@@ -23,7 +24,7 @@ export const TYPE_TO_ROUTE: Record<string, string> = {
 export const TYPE_LABEL: Record<string, string> = {
   NOVEL: '小说', MUSIC: '音乐', FILM: '电影', TELEPLAY: '电视剧',
   ANIMATION: '动漫', COMICS: '漫画', VIDEO: '视频', VSHOW: '短剧',
-  LIVE: '直播', ARTICLE: '文章', NEWS: '新闻',
+  LIVE: '直播', ARTICLE: '文章', NEWS: '新闻', PICTURE: '图文',
   // 图集 / 图片 MV 是 image-publish 和 image-mv-publish 的内部细分,统一显示成「图文」。
   PICTURE_ALBUM: '图文', PICTURE_MV: '图文',
 };

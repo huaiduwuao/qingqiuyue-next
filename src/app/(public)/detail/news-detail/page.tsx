@@ -52,7 +52,7 @@ function NewsDetailContent() {
 
   const query = useQuery({
     queryKey: ['detail', 'news', id],
-    queryFn: () => contentDetail({ id: Number(id) }).then((r) => r.data as Partial<News>),
+    queryFn: () => contentDetail({ id: id! }).then((r) => r.data as Partial<News>),
     enabled: !!id,
   });
 
@@ -88,7 +88,7 @@ function NewsDetailContent() {
     const next = !favorited;
     setFavorited(next);
     try {
-      await collectContent({ contentId: Number(id), action: next ? 'collect' : 'cancel_collect' });
+      await collectContent({ contentId: id, action: next ? 'collect' : 'cancel_collect' });
     } catch (err) {
       setFavorited(!next);
       notify(formatApiError(err), 'error');

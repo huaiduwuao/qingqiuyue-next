@@ -52,6 +52,8 @@ interface Live {
   title: string;
   subtitle?: string;
   cover: string;
+  videoUrl?: string;
+  replayUrl?: string;
   author: string;
   hostId: number;
   hostName: string;
@@ -95,7 +97,7 @@ function LiveDetailContent() {
 
   const query = useQuery({
     queryKey: ['detail', 'live', id],
-    queryFn: () => contentDetail({ id: Number(id) }).then((r) => r.data as Partial<Live>),
+    queryFn: () => contentDetail({ id: id! }).then((r) => r.data as Partial<Live>),
     enabled: !!id,
   });
 
@@ -178,7 +180,7 @@ function LiveDetailContent() {
     if (!id) return;
     setChatSending(true);
     try {
-      await sendComment({ contentId: Number(id), content: text });
+      await sendComment({ contentId: id, content: text });
     } catch (err) {
       notify(formatApiError(err), 'error');
     } finally {
@@ -196,7 +198,7 @@ function LiveDetailContent() {
     const next = !favorited;
     setFavorited(next);
     try {
-      await collectContent({ contentId: Number(id), action: next ? 'collect' : 'cancel_collect' });
+      await collectContent({ contentId: id, action: next ? 'collect' : 'cancel_collect' });
     } catch (err) {
       setFavorited(!next);
       notify(formatApiError(err), 'error');
@@ -265,7 +267,7 @@ function LiveDetailContent() {
     try {
       await accountClient('/account/gift/send', {
         method: 'POST',
-        data: { liveId: Number(id), giftId: gift.id, count: 1 },
+        data: { liveId: id, giftId: gift.id, count: 1 },
       });
       setSendCount((n) => n + 1);
       setPickingGift(null);
@@ -295,7 +297,7 @@ function LiveDetailContent() {
     }
     setReportBusy(true);
     try {
-      await reportContent({ contentId: Number(id), reason });
+      await reportContent({ contentId: id, reason });
       setReportOpen(false);
       setReportReason('');
       notify('举报已提交，我们会尽快处理');
@@ -352,6 +354,15 @@ function LiveDetailContent() {
                     transition: 'aspect-ratio 0.3s',
                   }}
                 >
+                  {(data.videoUrl || data.replayUrl) && (
+                    <Box
+                      component="video"
+                      controls
+                      src={data.videoUrl || data.replayUrl}
+                      poster={data.cover}
+                      sx={{ width: '100%', height: '100%', objectFit: 'contain', bgcolor: '#000' }}
+                    />
+                  )}
                   {/* LIVE 徽章 + 房间号 + 清晰度 */}
                   <Box sx={{ position: 'absolute', top: 12, left: 12, display: 'flex', gap: 1, alignItems: 'center', zIndex: 2 }}>
                     {data.isLive && (

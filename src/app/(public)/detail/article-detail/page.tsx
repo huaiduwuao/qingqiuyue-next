@@ -55,7 +55,7 @@ function ArticleDetailContent() {
 
   const query = useQuery({
     queryKey: ['detail', 'article', id],
-    queryFn: () => contentDetail({ id: Number(id) }).then((r) => r.data as Partial<Article>),
+    queryFn: () => contentDetail({ id: id! }).then((r) => r.data as Partial<Article>),
     enabled: !!id,
   });
 
@@ -93,7 +93,7 @@ function ArticleDetailContent() {
     const next = !favorited;
     setFavorited(next);
     try {
-      await moduleContentAction({ contentId: Number(id), action: next ? 'agree' : 'cancel_agree' });
+      await moduleContentAction({ contentId: id, action: next ? 'agree' : 'cancel_agree' });
     } catch (err) {
       setFavorited(!next);
       notify(formatApiError(err), 'error');
@@ -112,7 +112,7 @@ function ArticleDetailContent() {
     const next = !bookmarked;
     setBookmarked(next);
     try {
-      await collectContent({ contentId: Number(id), action: next ? 'collect' : 'cancel_collect' });
+      await collectContent({ contentId: id, action: next ? 'collect' : 'cancel_collect' });
     } catch (err) {
       setBookmarked(!next);
       notify(formatApiError(err), 'error');

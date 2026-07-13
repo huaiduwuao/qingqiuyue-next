@@ -18,8 +18,8 @@ import BookmarkAddedIcon from '@mui/icons-material/BookmarkAdded';
 import Brightness6Icon from '@mui/icons-material/Brightness6';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { detail as chapterDetail } from '@/apis/system-module-content-item';
-import { getNovel, addShelf } from '@/apis/content-novel-chapter';
+import { detail as contentDetail } from '@/apis/content-video';
+import { page as chapterPage, getNovel, addShelf } from '@/apis/content-novel-chapter';
 import { ReadingSettings, DEFAULT_PAGE_STYLE } from '@/components/detail/ReadingSettings';
 import type { PageStyle } from '@/components/detail/ReadingSettings';
 import { ReadingContainer } from '@/components/detail/ReadingContainer';
@@ -57,14 +57,46 @@ function NovelDetailContent() {
 
   const initialQuery = useQuery({
     queryKey: ['detail', 'novel', id],
-    queryFn: () => chapterDetail({ id }).then((r) => r.data),
+    queryFn: async () => {
+      const detailResponse = await contentDetail('novel', { id: id! });
+      const detail = detailResponse.data as any;
+      const chapterResponse = await chapterPage({ moduleContentId: id!, page: 1, page_size: 100 });
+      let items = chapterResponse?.data?.records ?? chapterResponse?.data?.list ?? [];
+
+      // Compatibility for works created before child-row persistence was deployed.
+      if (!items.length && typeof detail?.content === 'string') {
+        try {
+          const parsed = JSON.parse(detail.content);
+          items = Array.isArray(parsed?.chapters)
+            ? parsed.chapters.map((item: any, index: number) => ({
+                id: `${id}:${index + 1}`,
+                title: item.title,
+                content: item.body,
+                sort: item.index ?? index + 1,
+              }))
+            : [];
+        } catch {
+          items = [];
+        }
+      }
+
+      return {
+        detail,
+        chapters: items.map((item: any, index: number) => ({
+          id: item.id ?? `${id}:${index + 1}`,
+          name: item.title || `第 ${index + 1} 章`,
+          content: { content: item.content || item.body || '' },
+        })),
+      };
+    },
     enabled: !!id,
   });
 
   useEffect(() => {
     if (initialQuery.data && chapters.length === 0) {
-      setChapters([initialQuery.data]);
-      setChapter(initialQuery.data);
+      setChapters(initialQuery.data.chapters);
+      setChapter(initialQuery.data.chapters[0] ?? null);
+      setHasMore(false);
     }
   }, [initialQuery.data, chapters.length]);
 

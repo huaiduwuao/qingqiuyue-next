@@ -48,7 +48,7 @@ function FilmDetailContent() {
 
   const query = useQuery({
     queryKey: ['detail', 'film', id],
-    queryFn: () => contentDetail('film', { id: Number(id) }).then((r) => r.data as Partial<Film>),
+    queryFn: () => contentDetail('film', { id: id! }).then((r) => r.data as Partial<Film>),
     enabled: !!id,
   });
 
@@ -108,7 +108,7 @@ function FilmDetailContent() {
     const next = !favorited;
     setFavorited(next);
     try {
-      await collectContent({ contentId: Number(id), action: next ? 'collect' : 'cancel_collect' });
+      await collectContent({ contentId: id, action: next ? 'collect' : 'cancel_collect' });
     } catch (err) {
       setFavorited(!next);
       notify(formatApiError(err), 'error');
@@ -157,7 +157,7 @@ function FilmDetailContent() {
           <>
             <Box sx={{ bgcolor: '#000' }}>
               <Container maxWidth="lg" sx={{ py: 0 }}>
-                <VideoPlayer src={videoSrc} poster={data.cover} initialDuration={(data.duration || 0) * 60} autoPlay={false} />
+                <VideoPlayer src={videoSrc || data.videoUrl || ''} poster={data.cover} initialDuration={(data.duration || 0) * 60} autoPlay={false} />
               </Container>
             </Box>
 

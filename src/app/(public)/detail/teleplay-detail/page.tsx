@@ -26,7 +26,7 @@ import { AsyncState } from '@/components/common/AsyncState';
 import { track, recordHistory } from '@/lib/track';
 
 interface Episode {
-  id: number;
+  id: string | number;
   title: string;
   num: string;
   url?: string;
@@ -55,7 +55,7 @@ function TeleplayDetailContent() {
 
   const query = useQuery({
     queryKey: ['detail', 'teleplay', id],
-    queryFn: () => contentDetail({ id: Number(id) }).then((r) => r.data as Partial<Teleplay>),
+    queryFn: () => contentDetail({ id: id! }).then((r) => r.data as Partial<Teleplay>),
     enabled: !!id,
   });
 
@@ -77,7 +77,7 @@ function TeleplayDetailContent() {
     }
   }, [id]);
 
-  const [activeEp, setActiveEp] = useState<number>(episodeId ? Number(episodeId) : 1);
+  const [activeEp, setActiveEp] = useState<string | number>(episodeId ? Number(episodeId) : 1);
   const [favorited, setFavorited] = useState(false);
   const [collectBusy, setCollectBusy] = useState(false);
   const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
@@ -100,7 +100,7 @@ function TeleplayDetailContent() {
     const next = !favorited;
     setFavorited(next);
     try {
-      await collectContent({ contentId: Number(id), action: next ? 'collect' : 'cancel_collect' });
+      await collectContent({ contentId: id, action: next ? 'collect' : 'cancel_collect' });
     } catch (err) {
       setFavorited(!next);
       notify(formatApiError(err), 'error');
@@ -127,6 +127,11 @@ function TeleplayDetailContent() {
       }
     }
   };
+
+  const activeEpisode = useMemo(() => {
+    const episodes = episodesQuery.data || [];
+    return episodes.find((episode) => String(episode.id) === String(activeEp)) || episodes[0];
+  }, [episodesQuery.data, activeEp]);
 
   const grouped = useMemo(() => {
     const eps = episodesQuery.data || [];
@@ -162,7 +167,7 @@ function TeleplayDetailContent() {
           <>
             <Box sx={{ bgcolor: '#000' }}>
               <Container maxWidth="lg" sx={{ py: 0 }}>
-                <VideoPlayer src="" poster={data.cover} initialDuration={45 * 60} autoPlay={false} />
+                <VideoPlayer src={activeEpisode?.url || ''} poster={data.cover} initialDuration={45 * 60} autoPlay={false} />
               </Container>
             </Box>
 

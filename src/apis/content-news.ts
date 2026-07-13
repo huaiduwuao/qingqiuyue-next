@@ -38,7 +38,7 @@ export async function update(params: ArticleItem) {
   });
 }
 
-export async function detail(params: ArticleItem) {
+export async function detail(params: { id?: string | number }) {
   return contentClient("client-content/news/detail", {
     params
   });

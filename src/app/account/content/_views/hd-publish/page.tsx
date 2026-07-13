@@ -640,6 +640,14 @@ export default function HdPublishPage() {
         contentType: 'VIDEO',
         status: 'reviewing',
         subtitle: `分辨率:${uploadResolution} · HDR:${uploadHdr ? '是' : '否'}`,
+        content: JSON.stringify({
+          videoUrl: uploadFileUrl,
+          resolution: uploadResolution,
+          hdr: uploadHdr,
+          sizeMB: uploadFileSizeMB,
+          subtitles: uploadSubtitles,
+          audioTracks: uploadAudios,
+        }),
       } as ModuleContentItem),
   });
 

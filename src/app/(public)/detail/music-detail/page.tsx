@@ -33,6 +33,16 @@ interface LyricLine {
   text: string;
 }
 
+function normalizeLyrics(value: unknown): LyricLine[] {
+  if (Array.isArray(value)) return value as LyricLine[];
+  if (typeof value !== 'string') return [];
+  return value.split(/\r?\n/).flatMap((line) => {
+    const match = line.match(/^\[(\d+):(\d+(?:\.\d+)?)\](.*)$/);
+    if (!match) return [];
+    return [{ time: Number(match[1]) * 60 + Number(match[2]), text: match[3].trim() }];
+  });
+}
+
 function fmtTime(s: number) {
   if (!isFinite(s) || s < 0) return '0:00';
   const m = Math.floor(s / 60);
@@ -48,7 +58,7 @@ function MusicDetailContent() {
 
   const query = useQuery({
     queryKey: ['detail', 'music', id],
-    queryFn: () => contentDetail('music', { id: Number(id) }).then((r) => r.data as any),
+    queryFn: () => contentDetail('music', { id: id! }).then((r) => r.data as any),
     enabled: !!id,
   });
 
@@ -72,8 +82,8 @@ function MusicDetailContent() {
     severity: 'success',
   });
   const lyricRef = useRef<HTMLDivElement>(null);
-  const duration = query.data?.duration ?? 180;
-  const lyrics: LyricLine[] = (query.data?.lyrics as LyricLine[] | undefined) || [];
+  const duration = query.data?.audioDurationSec ?? query.data?.duration ?? 180;
+  const lyrics = normalizeLyrics(query.data?.lyrics);
 
   const notify = useCallback((message: string, severity: 'success' | 'error' | 'info' = 'success') => {
     setSnack({ open: true, message, severity });
@@ -89,7 +99,7 @@ function MusicDetailContent() {
     const next = !favorited;
     setFavorited(next);
     try {
-      await collectContent({ contentId: Number(id), action: next ? 'collect' : 'cancel_collect' });
+      await collectContent({ contentId: id, action: next ? 'collect' : 'cancel_collect' });
     } catch (err) {
       setFavorited(!next);
       notify(formatApiError(err), 'error');
@@ -232,6 +242,12 @@ function MusicDetailContent() {
                 )}
               </Box>
             </Box>
+
+            {data.audioUrl && (
+              <Box component="audio" controls src={data.audioUrl} sx={{ width: '100%', mb: 2 }}>
+                当前浏览器不支持音频播放。
+              </Box>
+            )}
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
               <Typography sx={{ fontSize: 11, color: 'text.secondary', minWidth: 36, textAlign: 'right' }}>

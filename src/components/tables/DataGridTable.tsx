@@ -273,6 +273,8 @@ export function DataGridTable({
             columns={centeredColumns}
             loading={loading}
             autoHeight
+            paginationMode="server"
+            rowCount={rowCount}
             paginationModel={paginationModel}
             onPaginationModelChange={handlePaginationModelChange}
             pageSizeOptions={[10, 20, 50, 100]}

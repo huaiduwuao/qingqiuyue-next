@@ -30,7 +30,7 @@ export async function update(params: ArticleItem) {
   return contentClient("client-content/article/update", { method: "POST", data: params });
 }
 
-export async function detail(params: ArticleItem) {
+export async function detail(params: { id?: string | number }) {
   const { contentClient } = await import('@/lib/api/client');
   return contentClient("client-content/article/detail", { params });
 }

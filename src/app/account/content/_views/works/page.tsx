@@ -58,6 +58,7 @@ const STATUS_OPTIONS = [
 const CONTENT_TYPE_LABEL: Record<string, string> = {
   NOVEL: '小说', VIDEO: '视频', ARTICLE: '文章', MUSIC: '音乐',
   FILM: '电影', TELEPLAY: '电视剧', ANIMATION: '动画', COMICS: '漫画',
+  PICTURE: '图文', NEWS: '新闻', VSHOW: '短剧', LIVE: '直播',
 };
 
 const SOURCE_OPTIONS = [

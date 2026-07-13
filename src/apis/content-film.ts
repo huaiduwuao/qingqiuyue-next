@@ -45,8 +45,8 @@ export async function page(contentType: ContentType, params: ContentPageParams) 
 }
 
 // 获取内容详情
-export async function detail(contentType: ContentType, params: { id: number } | number) {
-  const id = typeof params === 'number' ? params : params.id;
+export async function detail(contentType: ContentType, params: { id: string | number } | string | number) {
+  const id = typeof params === 'object' ? params.id : params;
   return contentClient(`client-content/${contentType}/detail`, {
     method: 'GET',
     params: { id },

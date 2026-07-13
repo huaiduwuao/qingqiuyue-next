@@ -58,7 +58,7 @@ export default function ImageForm({ onSuccess }: PublishFormProps) {
       return {
         title: f.title.trim(),
         subtitle: f.desc.trim().slice(0, 200),
-        content: f.desc.trim().slice(0, 200),
+        content: JSON.stringify({ kind: 'album', text: f.desc.trim().slice(0, 200), images: urls }),
         contentType: 'PICTURE',
         coverUrl: urls[0],
         status: 'reviewing',

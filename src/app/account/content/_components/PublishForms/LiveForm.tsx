@@ -74,7 +74,15 @@ export default function LiveForm({ onSuccess }: PublishFormProps) {
     buildPayload: () => ({
       title: f.title.trim(),
       subtitle: f.desc.trim().slice(0, 200),
-      content: f.desc.trim().slice(0, 200),
+      content: JSON.stringify({
+        description: f.desc.trim().slice(0, 200),
+        replayUrl: video?.uploadedUrl,
+        videoSizeMB: video?.sizeMB,
+        startedAt: new Date(liveStartedAt).getTime(),
+        viewers: peakViewers || 0,
+        danmakuEnabled,
+        isLive: false,
+      }),
       contentType: 'LIVE',
       coverUrl: cover?.uploadedUrl,
       videoUrl: video?.uploadedUrl,

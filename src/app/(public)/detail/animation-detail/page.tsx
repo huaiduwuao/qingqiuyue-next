@@ -26,7 +26,7 @@ import { AsyncState } from '@/components/common/AsyncState';
 import { track, recordHistory } from '@/lib/track';
 
 interface AnimeItem {
-  id: number;
+  id: string | number;
   title: string;
   num: string;
   url?: string;
@@ -54,7 +54,7 @@ function AnimationDetailContent() {
 
   const query = useQuery({
     queryKey: ['detail', 'animation', id],
-    queryFn: () => contentDetail('animation', { id: Number(id) }).then((r) => r.data as Partial<Animation>),
+    queryFn: () => contentDetail('animation', { id: id! }).then((r) => r.data as Partial<Animation>),
     enabled: !!id,
   });
 
@@ -76,7 +76,7 @@ function AnimationDetailContent() {
     }
   }, [id]);
 
-  const [activeEp, setActiveEp] = useState<number>(1);
+  const [activeEp, setActiveEp] = useState<string | number>(1);
   const [videoSrc, setVideoSrc] = useState<string>('');
   const [favorited, setFavorited] = useState(false);
   const [collectBusy, setCollectBusy] = useState(false);
@@ -91,23 +91,23 @@ function AnimationDetailContent() {
   }, []);
 
   const loadEpisode = useCallback(
-    async (epId: number) => {
+    async (epId: string | number) => {
       if (!id) return;
       try {
         const res = await contentClient.get<{ url: string; cover?: string; title?: string }>('/detail/animation/play', {
           params: { id, episodeId: epId },
         });
-        setVideoSrc(res?.data?.url || '');
+        setVideoSrc(res?.data?.url || itemsQuery.data?.find((item) => String(item.id) === String(activeEp))?.url || itemsQuery.data?.[0]?.url || '');
       } catch (err) {
         if (isNetworkError(err)) {
-          setVideoSrc('');
+          setVideoSrc(itemsQuery.data?.find((item) => String(item.id) === String(activeEp))?.url || itemsQuery.data?.[0]?.url || '');
         } else {
           notify(formatApiError(err), 'error');
           setVideoSrc('');
         }
       }
     },
-    [id, notify],
+    [id, notify, itemsQuery.data, activeEp],
   );
 
   React.useEffect(() => {
@@ -124,7 +124,7 @@ function AnimationDetailContent() {
     const next = !favorited;
     setFavorited(next);
     try {
-      await collectContent({ contentId: Number(id), action: next ? 'collect' : 'cancel_collect' });
+      await collectContent({ contentId: id, action: next ? 'collect' : 'cancel_collect' });
     } catch (err) {
       setFavorited(!next);
       notify(formatApiError(err), 'error');

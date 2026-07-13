@@ -38,6 +38,7 @@ interface Video {
   fans: number;
   description: string;
   duration: number;
+  videoUrl?: string;
   viewCount: number;
   likeCount: number;
   commentCount: number;
@@ -53,7 +54,7 @@ function VideoDetailContent() {
 
   const query = useQuery({
     queryKey: ['detail', 'video', id],
-    queryFn: () => contentDetail('video', { id: Number(id) }).then((r) => r.data as Partial<Video>),
+    queryFn: () => contentDetail('video', { id: id! }).then((r) => r.data as Partial<Video>),
     enabled: !!id,
   });
 
@@ -90,7 +91,7 @@ function VideoDetailContent() {
     const next = !favorited;
     setFavorited(next);
     try {
-      await collectContent({ contentId: Number(id), action: next ? 'collect' : 'cancel_collect' });
+      await collectContent({ contentId: id, action: next ? 'collect' : 'cancel_collect' });
     } catch (err) {
       setFavorited(!next);
       notify(formatApiError(err), 'error');
@@ -166,7 +167,7 @@ function VideoDetailContent() {
             <Box sx={{ bgcolor: '#000' }}>
               <Container maxWidth="lg" sx={{ py: 0 }}>
                 <VideoPlayer
-                  src=""
+                  src={data.videoUrl || ''}
                   poster={data.cover}
                   initialDuration={data.duration}
                   autoPlay={false}
