@@ -529,6 +529,34 @@ export async function getRewardCategories() {
   return unwrap<PageData<RewardCategory>>(await accountClient('/reward/categories'));
 }
 
+// ============ 我的工作台统计 ============
+
+export interface MyPointRecord {
+  id: number;
+  type: string;
+  point: number;
+  info: string;
+  createTime: string;
+}
+
+export interface MyStats {
+  completedDemands: number;   // 我参与且最终 COMPLETED 的需求数
+  settledDemands: number;     // 我参与且已 SETTLED 的需求数
+  approvedTasks: number;      // 我的已 approved 任务数
+  pendingTasks: number;       // 我正在做(claimed/submitted)的任务数
+  totalIncomeYuan: number;    // 累计收入(元)
+  pendingIncomeYuan: number;  // 待收收入(元)
+  currentPoint: number;       // 当前可用灵气
+  totalPoint: number;         // 累计获得灵气
+  level: number;
+  levelName: string;
+  recentRecords: MyPointRecord[];
+}
+
+export async function getMyStats(): Promise<MyStats> {
+  return unwrap<MyStats>(await accountClient('/reward/my-stats'));
+}
+
 // ========== 后台 dashboard(/admin/system/dashboard/analysis) ==========
 
 export interface AdminStats {

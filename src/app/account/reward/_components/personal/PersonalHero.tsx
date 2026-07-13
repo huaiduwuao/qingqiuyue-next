@@ -21,7 +21,9 @@ import HandshakeIcon from '@mui/icons-material/Handshake';
 import ViewKanbanIcon from '@mui/icons-material/ViewKanban';
 import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { userPointMe } from '@/apis/global';
+import { getMyStats, type MyStats } from '@/apis/dashboard';
 import { listGroups } from '@/apis/reward-group';
 import { listDemands } from '@/apis/reward-demand';
 import { listProjects } from '@/apis/reward-project';
@@ -144,6 +146,21 @@ export default function PersonalHero({ groups }: Props) {
     placeholderData: 0,
   });
 
+  // 我的收入统计(已完成/已结算需求数 + approved 任务数 + 累计/待收收入 + 当前/累计灵气)
+  const myStatsQuery = useQuery({
+    queryKey: ['personal', 'my-stats', currentUserId],
+    queryFn: () => getMyStats(),
+    enabled: !!currentUserId,
+    placeholderData: {} as MyStats,
+    refetchOnMount: 'always',
+    staleTime: 30 * 1000,
+  });
+  const myStats: Partial<MyStats> = myStatsQuery.data || {};
+  const completedDemands = Number(myStats.completedDemands || 0);
+  const totalIncomeYuan = Number(myStats.totalIncomeYuan || 0);
+  const pendingIncomeYuan = Number(myStats.pendingIncomeYuan || 0);
+  const approvedTasksCount = Number(myStats.approvedTasks || 0);
+
   return (
     <Box
       sx={{
@@ -247,13 +264,45 @@ export default function PersonalHero({ groups }: Props) {
             color="#06B6D4"
             loading={myTasksQuery.isLoading}
           />
+          <KpiCard
+            icon={<CheckCircleIcon sx={{ fontSize: 18 }} />}
+            label="已完成需求"
+            value={completedDemands}
+            color="#5DDB96"
+            loading={myStatsQuery.isLoading}
+          />
+          <KpiCard
+            icon={<CardGiftcardIcon sx={{ fontSize: 18 }} />}
+            label="累计赚取"
+            value={'¥' + totalIncomeYuan.toLocaleString('zh-CN')}
+            color="#FE2C55"
+            loading={myStatsQuery.isLoading}
+          />
         </Box>
       </Box>
 
-      {/* 底部:快捷入口 */}
-      <Box sx={{ mt: 1.5, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-        <EmojiEventsIcon sx={{ fontSize: 12, color: 'warning.main' }} />
-        <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
+      {/* 底部:我的收入摘要 + 最近一条积分记录 + 快捷入口 */}
+      <Box sx={{ mt: 1.5, display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1, py: 0.5, borderRadius: 1, bgcolor: alpha('#FE2C55', 0.08) }}>
+          <CardGiftcardIcon sx={{ fontSize: 12, color: '#FE2C55' }} />
+          <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
+            累计已结 <Box component="span" sx={{ color: '#FE2C55', fontWeight: 700, fontFamily: 'monospace' }}>¥{totalIncomeYuan.toLocaleString('zh-CN')}</Box>
+            {pendingIncomeYuan > 0 && (
+              <> · 待结 <Box component="span" sx={{ color: 'warning.main', fontWeight: 600, fontFamily: 'monospace' }}>¥{pendingIncomeYuan.toLocaleString('zh-CN')}</Box></>
+            )}
+            {approvedTasksCount > 0 && (
+              <> · 已完成 {approvedTasksCount} 单</>
+            )}
+          </Typography>
+        </Box>
+        {myStats.recentRecords && myStats.recentRecords.length > 0 && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: 10, color: 'text.secondary' }}>
+            <EmojiEventsIcon sx={{ fontSize: 12, color: 'warning.main' }} />
+            <span>最近: {myStats.recentRecords[0].info} · +{myStats.recentRecords[0].point} 灵气 · {myStats.recentRecords[0].createTime}</span>
+          </Box>
+        )}
+        <Box sx={{ flex: 1 }} />
+        <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
           点击右侧各面板标题旁的 → 按钮可一键跳到对应管理模块
         </Typography>
       </Box>
