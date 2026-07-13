@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React from 'react';
 import {
@@ -102,10 +102,10 @@ function useWorkplace() {
   const quickActions = useQuery<QuickAction[]>({
     queryKey: ['workplace', 'quick-actions'],
     queryFn: async () => [
-      { id: 'publish', label: '发布内容', icon: 'publish', color: '#FE2C55', path: '/system/content/list' },
+      { id: 'publish', label: '发布内容', icon: 'publish', color: '#FE2C55', path: '/system/app-config' },
       { id: 'userAdd', label: '添加用户', icon: 'userAdd', color: '#5B8DEF', path: '/system/user' },
       { id: 'bot', label: '数字人', icon: 'bot', color: '#8B5CF6', path: '/system/digital-human' },
-      { id: 'dict', label: '字典管理', icon: 'dict', color: '#25F4EE', path: '/system/dict' },
+      { id: 'dict', label: '字典管理', icon: 'dict', color: '#25F4EE', path: '/system/dict/dict-type' },
       { id: 'log', label: '操作日志', icon: 'log', color: '#5DDB96', path: '/system/log' },
       { id: 'monitor', label: '服务监控', icon: 'monitor', color: '#FFB400', path: '/system/app' },
       { id: 'spider', label: '爬虫管理', icon: 'spider', color: '#FE2C55', path: '/system/hermes' },

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Admin (system) seed data — user/role/menu/dict/app/area 等。
  */
 
@@ -128,7 +128,7 @@ export const SYS_MENU = {
   records: range(15).map((i) => ({
     id: 1 + i,
     name: ['首页', '内容管理', '系统管理', '用户管理', '角色管理', '菜单管理', '字典管理', '应用管理', '资源管理', '权限管理', '数据权限', '公众号', '爬虫管理', '悬赏中心', '个人中心'][i],
-    path: ['/home', '/account/content', '/system', '/system/user', '/system/role', '/system/menu', '/system/dict', '/system/app', '/system/resource', '/system/permission', '/system/data-permission', '/wx', '/account/content/spider', '/account/reward', '/account/center'][i],
+    path: ['/home', '/account/content', '/system', '/system/user', '/system/role', '/system/menu', '/system/dict', '/system/app', '/system/resource', '/system/permission', '/system/data-permission', '/system/wx/mp/menu', '/account/content', '/account/reward', '/account/center'][i],
     icon: ['home', 'content', 'system', 'user', 'role', 'menu', 'dict', 'app', 'resource', 'permission', 'data', 'wx', 'spider', 'reward', 'center'][i],
     parentId: i === 0 || i === 1 || i === 2 || i === 11 ? 0 : Math.floor(i / 3) + 1,
     sort: i,
@@ -778,7 +778,7 @@ export const WORKPLACE_USER = {
 };
 
 export const WORKPLACE_QUICK_ACTIONS = [
-  { id: 'content', label: '发布内容', icon: 'publish', color: '#FE2C55', path: '/account/content/works' },
+  { id: 'content', label: '发布内容', icon: 'publish', color: '#FE2C55', path: '/account/content' },
   { id: 'user', label: '添加用户', icon: 'userAdd', color: '#5B8DEF', path: '/system/user' },
   { id: 'hermes', label: '管理智能体', icon: 'bot', color: '#07C160', path: '/system/hermes' },
   { id: 'dict', label: '字典配置', icon: 'dict', color: '#FF8A3D', path: '/system/dict/dict-type' },

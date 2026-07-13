@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Content module seed data — banner/category/module + 18 个内容端点 + module 子域。
  */
 
@@ -27,8 +27,8 @@ export const CATEGORIES = [
 export const MODULE_MENUS = [
   { id: 1, name: '首页', path: '/home', icon: 'home', sort: 1, updateTime: TS },
   { id: 2, name: '内容管理', path: '/account/content', icon: 'content', sort: 2, updateTime: TS },
-  { id: 3, name: '模块列表', path: '/account/content/modules', icon: 'module', sort: 3, updateTime: TS },
-  { id: 4, name: '数据统计', path: '/account/content/data', icon: 'data', sort: 4, updateTime: TS },
+  { id: 3, name: '模块列表', path: '/account/content', icon: 'module', sort: 3, updateTime: TS },
+  { id: 4, name: '数据统计', path: '/account/content', icon: 'data', sort: 4, updateTime: TS },
 ];
 
 export const MODULE_LISTS = [
