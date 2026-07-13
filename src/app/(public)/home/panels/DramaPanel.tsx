@@ -67,6 +67,22 @@ const STATUS_COLOR: Record<DramaSeries['status'], { bg: string; fg: string }> = 
   EXCLUSIVE: { bg: 'rgba(255, 180, 0, 0.18)', fg: 'warning.main' },
 };
 
+// Safe lookups: backend module_content.status / genre are free-form VARCHAR,
+// so unknown values (e.g. "ONLINE", "", lowercase "hot") would crash on
+// Record[key].bg. Normalize + fall back to a default palette.
+function statusKey(s: string | undefined | null): DramaSeries['status'] | null {
+	const v = String(s ?? '').trim().toUpperCase();
+	if (v === 'HOT' || v === 'DONE' || v === 'EXCLUSIVE') return v;
+	return null;
+}
+function genreKey(g: string | undefined | null): DramaSeries['genre'] | null {
+	const v = String(g ?? '').trim();
+	if (v === '言情' || v === '悬疑' || v === '都市' || v === '爱情' || v === '校园' || v === '逆袭') return v;
+	return null;
+}
+const DEFAULT_STATUS_COLOR = { bg: 'rgba(255,255,255,0.06)', fg: 'text.secondary' } as const;
+const DEFAULT_GENRE_COLOR = 'var(--text-muted, rgba(255,255,255,0.4))';
+
 const GENRE_COLOR: Record<DramaSeries['genre'], string> = {
   言情: 'primary.main',
   悬疑: '#8B5CF6',
@@ -258,7 +274,7 @@ function Top10Podium({ list, genre, status, sort }: { list: DramaSeries[]; genre
   const subtitle = sort === 'rating' ? '按评分排序' : sort === 'new' ? '最新上线' : '按播放量排序';
   const titleParts: string[] = [];
   if (genre !== 'all') titleParts.push(genre);
-  if (status !== 'ALL') titleParts.push(STATUS_LABEL[status]);
+  if (status !== 'ALL') titleParts.push(STATUS_LABEL[statusKey(status) ?? 'HOT']);
   const title = titleParts.length === 0 ? '本周热门' : titleParts.join('·');
 
   const top3 = list.filter((d) => (d.hotRank || 0) >= 1 && (d.hotRank || 0) <= 3);
@@ -333,9 +349,15 @@ function PodiumCard({ item }: { item: DramaSeries }) {
         <CoverImage src={item.cover} alt={item.title} sx={{ width: '100%', height: '100%' }} />
         <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.HEAVY }} />
         <Box sx={{ position: 'absolute', top: 8, right: 8, display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-end' }}>
-          <Box sx={{ px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: STATUS_COLOR[item.status].bg, color: STATUS_COLOR[item.status].fg, fontSize: 9, fontWeight: 700 }}>
-            {STATUS_LABEL[item.status]}
-          </Box>
+          {(() => {
+            const k = statusKey(item.status);
+            const c = k ? STATUS_COLOR[k] : DEFAULT_STATUS_COLOR;
+            return (
+              <Box sx={{ px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: c.bg, color: c.fg, fontSize: 9, fontWeight: 700 }}>
+                {k ? STATUS_LABEL[k] : (item.status || '其他')}
+              </Box>
+            );
+          })()}
           {item.rating !== undefined && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: 'warning.main', fontSize: 9, fontWeight: 700 }}>
               <StarRoundedIcon sx={{ fontSize: 9 }} />{(item.rating ?? 0).toFixed(1)}
@@ -410,9 +432,15 @@ function DramaCard({ item }: { item: DramaSeries }) {
           <PlayArrowRoundedIcon sx={{ fontSize: 48, color: 'var(--text-primary, #ffffff)' }} />
         </Box>
         <Box sx={{ position: 'absolute', top: 8, right: 8, display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-end' }}>
-          <Box sx={{ px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: STATUS_COLOR[item.status].bg, color: STATUS_COLOR[item.status].fg, fontSize: 9, fontWeight: 700 }}>
-            {STATUS_LABEL[item.status]}
-          </Box>
+          {(() => {
+            const k = statusKey(item.status);
+            const c = k ? STATUS_COLOR[k] : DEFAULT_STATUS_COLOR;
+            return (
+              <Box sx={{ px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: c.bg, color: c.fg, fontSize: 9, fontWeight: 700 }}>
+                {k ? STATUS_LABEL[k] : (item.status || '其他')}
+              </Box>
+            );
+          })()}
           {item.rating !== undefined && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: 'warning.main', fontSize: 10, fontWeight: 700 }}>
               <StarRoundedIcon sx={{ fontSize: 10 }} />{(item.rating ?? 0).toFixed(1)}
@@ -433,8 +461,8 @@ function DramaCard({ item }: { item: DramaSeries }) {
       </Box>
       <Box sx={{ p: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.25 }}>
-          <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(255,255,255,0.04)', color: GENRE_COLOR[item.genre], fontSize: 9, fontWeight: 600 }}>
-            {item.genre}
+          <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(255,255,255,0.04)', color: genreKey(item.genre) ? GENRE_COLOR[item.genre as DramaSeries['genre']] : DEFAULT_GENRE_COLOR, fontSize: 9, fontWeight: 600 }}>
+            {item.genre || '其他'}
           </Box>
           <Typography sx={{ fontSize: 9, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>· {formatViews(item.views)} 播放</Typography>
         </Box>

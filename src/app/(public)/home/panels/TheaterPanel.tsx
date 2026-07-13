@@ -52,6 +52,23 @@ const CAT_LABEL: Record<TheaterItem['category'], string> = {
   variety: '综艺',
 };
 
+// Defensive lookups: backend module_content.content_type is free-form and
+// the hard-coded 'movie' | 'drama' | 'anime' | 'variety' union can be
+// violated (e.g. 'film', 'tvshow', ''). Fall back to a neutral palette
+// instead of throwing on .bg / undefined.
+function catKey(c: string | undefined | null): TheaterItem['category'] | null {
+	const v = String(c ?? '').trim().toLowerCase();
+	if (v === 'movie' || v === 'drama' || v === 'anime' || v === 'variety') return v;
+	return null;
+}
+const DEFAULT_CAT_COLOR = 'var(--text-muted, rgba(255,255,255,0.4))';
+function safeCatLabel(c: string | undefined | null): string {
+	return catKey(c) ? CAT_LABEL[c as TheaterItem['category']] : (c || '其他');
+}
+function safeCatColor(c: string | undefined | null): string {
+	return catKey(c) ? CAT_COLOR[c as TheaterItem['category']] : DEFAULT_CAT_COLOR;
+}
+
 const CAT_COLOR: Record<TheaterItem['category'], string> = {
   movie: 'primary.main',
   drama: '#8B5CF6',
@@ -411,8 +428,8 @@ function TheaterPodiumCard({ item }: { item: TheaterItem }) {
       <Box sx={{ position: 'relative', aspectRatio: '16/9' }}>
         <CoverImage src={item.cover} alt={item.title} sx={{ width: '100%', height: '100%' }} />
         <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.MID }} />
-        <Box sx={{ position: 'absolute', top: 8, right: 8, px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: CAT_COLOR[item.category], fontSize: 9, fontWeight: 600 }}>
-          {CAT_LABEL[item.category]}
+        <Box sx={{ position: 'absolute', top: 8, right: 8, px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: safeCatColor(item.category), fontSize: 9, fontWeight: 600 }}>
+          {safeCatLabel(item.category)}
         </Box>
         <Box sx={{ position: 'absolute', bottom: 8, left: 8, right: 8 }}>
           <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#fff', mb: 0.25, lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
@@ -442,7 +459,7 @@ function TheaterRankRow({ item }: { item: TheaterItem }) {
           {item.title}
         </Typography>
         <Typography sx={{ fontSize: 9, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
-          {CAT_LABEL[item.category]} · {formatViews(item.views)}
+          {safeCatLabel(item.category)} · {formatViews(item.views)}
         </Typography>
       </Box>
     </Box>
@@ -485,8 +502,8 @@ function TheaterCard({ item }: { item: TheaterItem }) {
           <StarRoundedIcon sx={{ fontSize: 12 }} />
           {(item.rating ?? 0).toFixed(1)}
         </Box>
-        <Box sx={{ position: 'absolute', top: 8, right: 8, px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.7)', color: CAT_COLOR[item.category], fontSize: 10, fontWeight: 600 }}>
-          {CAT_LABEL[item.category]}
+        <Box sx={{ position: 'absolute', top: 8, right: 8, px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.7)', color: safeCatColor(item.category), fontSize: 10, fontWeight: 600 }}>
+          {safeCatLabel(item.category)}
         </Box>
         <Box sx={{ position: 'absolute', bottom: 8, right: 8, px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.7)', color: 'var(--text-primary, #ffffff)', fontSize: 10 }}>
           {item.durationMin ?? '-'} 分钟
