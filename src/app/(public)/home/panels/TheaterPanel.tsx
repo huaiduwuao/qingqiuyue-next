@@ -164,6 +164,10 @@ export function TheaterPanel() {
         </Box>
       </Box>
 
+      <AsyncState query={topQuery} skeletonCount={0} isEmpty={() => false}>
+        {(data) => <TheaterTop10 list={data.list} category={category} sort={sort} />}
+      </AsyncState>
+
       <Box sx={{ mb: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
           <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', width: 48, flexShrink: 0 }}>分类</Typography>
@@ -263,10 +267,6 @@ export function TheaterPanel() {
           </Box>
         </Box>
       </Box>
-
-      <AsyncState query={topQuery} skeletonCount={0} isEmpty={() => false}>
-        {(data) => <TheaterTop10 list={data.list} category={category} sort={sort} />}
-      </AsyncState>
 
       <Box sx={{ mt: 4, mb: 2, display: 'flex', alignItems: 'baseline', gap: 1 }}>
         <Typography sx={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>
