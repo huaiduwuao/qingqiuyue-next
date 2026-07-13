@@ -27,6 +27,7 @@ interface WSClientMsg {
   text?: string;
   history?: Array<{ role: string; content: string }>;
   agentId?: string;
+  conversationId?: string; // 002:服务端会话 id,空 → server 创建
   pcm?: string;
   energy?: number;
   language?: string;
@@ -51,6 +52,10 @@ interface WSServerMsg {
   pose?: number[];
   expressions?: number[];
   seq?: number;
+  /** 后端在 done 消息里携带的工具调用(Hermes/数字人用) */
+  toolCalls?: Array<{ name: string; args?: Record<string, any> }>;
+  /** 002:服务端创建/复用后回传的会话 id,前端写 localStorage */
+  conversationId?: string;
 }
 
 // ─── WebSocket 连接管理 ───
@@ -204,7 +209,17 @@ function disconnect(conn: WSConnection) {
 
 // ─── Hook ───
 
-export function useChatAvatarWS(agentId: string = 'digital_human'): ChatAvatarState {
+export interface UseChatAvatarWSOptions {
+  /**
+   * 当后端 done 消息里带回 tool_calls 时触发(数字人 → 后端 → 前端)。
+   * 父组件拿到后用 dispatchToolCalls 把工具调用串到 BlenderAvatar / VrmStage。
+   *
+   * 兼容字段:后端仍可能只下发 emotion/action(旧协议),此时不调本回调。
+   */
+  onToolCalls?: (calls: Array<{ name: string; args: Record<string, any> }>) => void;
+}
+
+export function useChatAvatarWS(agentId: string = 'digital_human', options: UseChatAvatarWSOptions = {}): ChatAvatarState {
   // 状态(与 useChatAvatar 完全一致)
   const [text, setText] = React.useState('');
   const [chatBusy, setChatBusy] = React.useState(false);
@@ -220,6 +235,44 @@ export function useChatAvatarWS(agentId: string = 'digital_human'): ChatAvatarSt
   const connRef = React.useRef<WSConnection | null>(null);
   const agentRef = React.useRef(agentId);
   agentRef.current = agentId;
+  const onToolCallsRef = React.useRef(options.onToolCalls);
+  onToolCallsRef.current = options.onToolCalls;
+
+  // 002:conversationId 持久化(会话维度历史)
+  const [conversationId, setConversationId] = React.useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      return localStorage.getItem('dhConversationId');
+    } catch {
+      return null;
+    }
+  });
+  const conversationIdRef = React.useRef(conversationId);
+  React.useEffect(() => { conversationIdRef.current = conversationId; }, [conversationId]);
+
+  // 新对话:清空本地 ID + 清 chatLog(后续消息会带空 convId,server 新建)
+  const newConversation = React.useCallback(() => {
+    try { localStorage.removeItem('dhConversationId'); } catch {}
+    setConversationId(null);
+    setChatLog([]);
+    setEmotion({});
+    setViseme({});
+    setAction('idle');
+    fullTextRef.current = '';
+    setText('');
+  }, []);
+
+  // 切换到指定会话(供历史面板调用)
+  const switchConversation = React.useCallback((cid: string) => {
+    try { localStorage.setItem('dhConversationId', cid); } catch {}
+    setConversationId(cid);
+    setChatLog([]);
+    setEmotion({});
+    setViseme({});
+    setAction('idle');
+    fullTextRef.current = '';
+    setText('');
+  }, []);
 
   // AudioContext 用于播放流式音频 chunk
   const audioCtxRef = React.useRef<AudioContext | null>(null);
@@ -369,6 +422,22 @@ export function useChatAvatarWS(agentId: string = 'digital_human'): ChatAvatarSt
               }
               if (msg.emotion) setEmotion(emotionToVRM(msg.emotion));
               if (msg.action) setAction(msg.action);
+              // Hermes/数字人 tool_calls 透传:把后端下发的工具调用抛给父组件,
+              // 由父组件用 dispatchToolCalls 串到 BlenderAvatar / VrmStage。
+              if (msg.toolCalls && msg.toolCalls.length > 0 && onToolCallsRef.current) {
+                try {
+                  onToolCallsRef.current(
+                    msg.toolCalls.map((tc) => ({ name: tc.name, args: tc.args || {} })),
+                  );
+                } catch (e) {
+                  console.warn('[useChatAvatarWS] onToolCalls threw:', e);
+                }
+              }
+              // 002:服务端回传 conversationId → 持久化 + 更新 state
+              if (msg.conversationId && msg.conversationId !== conversationIdRef.current) {
+                try { localStorage.setItem('dhConversationId', msg.conversationId); } catch {}
+                setConversationId(msg.conversationId);
+              }
             }
             if (msg.audioDone) {
               setViseme({});
@@ -457,6 +526,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human'): ChatAvatarSt
         type: 'chat',
         text: t,
         agentId: agentRef.current,
+        conversationId: conversationIdRef.current || undefined,
         history: chatLog.map((m) => ({
           role: m.who === 'user' ? 'user' : 'assistant',
           content: m.text,
@@ -471,6 +541,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human'): ChatAvatarSt
           body: JSON.stringify({
             text: t,
             agentId: agentRef.current,
+            conversationId: conversationIdRef.current || undefined,
             history: chatLog.map((m) => ({
               role: m.who === 'user' ? 'user' : 'assistant',
               content: m.text,
@@ -517,6 +588,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human'): ChatAvatarSt
           type: 'chat',
           text: t,
           agentId: agentRef.current,
+          conversationId: conversationIdRef.current || undefined,
           history: chatLog.map((m) => ({
             role: m.who === 'user' ? 'user' : 'assistant',
             content: m.text,
@@ -634,6 +706,9 @@ export function useChatAvatarWS(agentId: string = 'digital_human'): ChatAvatarSt
     isAIGenerated,
     send,
     sendText,
+    conversationId,
+    newConversation,
+    switchConversation,
     setEmotion: setEmotionExternal,
     setAction: setActionExternal,
     audioRef: audioRef as React.MutableRefObject<HTMLAudioElement | null>,

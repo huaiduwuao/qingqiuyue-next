@@ -64,6 +64,12 @@ export interface ChatAvatarState {
   send: () => Promise<void>;
   /** 直接发送指定文本 (给 voice agent / 外部触发用, 绕过 text state) */
   sendText: (v: string) => Promise<void>;
+  /** 当前会话 id(002 hermeschat);null 表示未启用会话级 chat 或未创建 */
+  conversationId: string | null;
+  /** 开始新会话(清 localStorage + 切回无 ID 状态;下次 send 时 server 会新建) */
+  newConversation: () => void;
+  /** 切换到指定历史会话 */
+  switchConversation: (cid: string) => void;
   /** LLM 驱动的情绪 (chat/回答后调用,驱动 VRM 表情) */
   setEmotion: (e: string) => void;
   /** LLM 驱动的动作 (驱动 VRM bone rotation) */
@@ -519,6 +525,9 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
     isAIGenerated,
     send,
     sendText,
+    conversationId: null,
+    newConversation: () => {},
+    switchConversation: () => {},
     setEmotion: setEmotionExternal,
     setAction: setActionExternal,
     audioRef,

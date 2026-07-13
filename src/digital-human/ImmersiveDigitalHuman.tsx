@@ -23,6 +23,7 @@ import { useRouter } from 'next/navigation';
 import { alpha } from '@mui/material/styles';
 import { VrmStage, type VrmStageHandle } from './VrmStage';
 import { useChatAvatarWS } from './useChatAvatarWS';
+import { dispatchToolCalls, type ToolCall as DhToolCall } from './tools/dispatcher';
 import { useVoiceAgent } from '@/hooks/useVoiceAgent';
 import { VoiceIndicator, type VoiceIndicatorState } from '@/components/VoiceIndicator';
 import { useThemeMode } from '@/contexts/ThemeContext';
@@ -81,12 +82,38 @@ if (typeof window !== 'undefined') {
 export default function ImmersiveDigitalHuman() {
   const router = useRouter();
   const { setTheme } = useThemeMode();
-  const chat = useChatAvatarWS();
-  const { chatBusy, chatLog, emotion, viseme, action, send, sendText, audioRef,
-    text, setText } = chat;
-
   // VrmStage sinks 引用（用 state 而非 ref，避免首次渲染时 ref.current 还没填的坑）
   const [stageHandle, setStageHandle] = React.useState<VrmStageHandle | null>(null);
+  const chat = useChatAvatarWS(undefined, {
+    onToolCalls: (calls) => {
+      // 把 Hermes/数字人下发的 tool_calls 串到 VrmStage handle。
+      // stageHandle 为 null 时(还没就绪)只 log,不动 avatar。
+      if (!stageHandle) {
+        console.log('[Immersive] tool_calls arrived before stageHandle ready:', calls);
+        return;
+      }
+      const h = stageHandle;
+      const results = dispatchToolCalls(
+        calls as unknown as DhToolCall[],
+        {
+          setEmotion: (bs) => h.setEmotion(bs),
+          setAction: (name) => h.setAction(name),
+          setViseme: () => {},
+          setVisemeTimeline: () => {},
+          setJawOpen: () => {},
+          speak: (text, audioUrl) => h.speak(text, audioUrl),
+          move: (target, opts) => h.move(target as Parameters<typeof h.move>[0], opts),
+          camera: () => {},
+          setScene: (name) => h.setScene(name),
+          setCameraPreset: (name) => h.setCameraPreset(name),
+          setPose: (name) => h.setPose(name as Parameters<typeof h.setPose>[0]),
+        },
+      );
+      console.log('[Immersive] dispatched tool_calls:', results);
+    },
+  });
+  const { chatBusy, chatLog, emotion, viseme, action, send, sendText, audioRef,
+    text, setText } = chat;
   // 诊断：监听 stageHandle 变化
   React.useEffect(() => { console.log('[Immersive] stageHandle 变化:', stageHandle); }, [stageHandle]);
   const [panelOpen, setPanelOpen] = React.useState(false);
