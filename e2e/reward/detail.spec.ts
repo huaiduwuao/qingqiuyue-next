@@ -20,7 +20,7 @@ test.describe('悬赏中心 · 页内弹层（不跳转）', () => {
     await expect(dialog).toBeVisible({ timeout: 5_000 });
     // exact:true —— "正在加载悬赏详情…"含子串"悬赏详情"会触发 strict mode
     await expect(dialog.getByText('悬赏详情', { exact: true })).toBeVisible();
-    await expect(dialog.getByText('总悬赏金')).toBeVisible();
+    await expect(dialog.getByText('总赏金')).toBeVisible();
     await expect(dialog.getByText('已接悬赏')).toBeVisible();
     await expect(page).toHaveURL(/\/account\/reward$/);
   });
