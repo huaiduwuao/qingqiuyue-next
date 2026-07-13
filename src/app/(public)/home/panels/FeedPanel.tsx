@@ -27,6 +27,9 @@ import ShareOutlinedIcon from '@mui/icons-material/ShareOutlined';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
+import WhatshotIcon from '@mui/icons-material/Whatshot';
+import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import { homeClient, formatApiError } from '@/lib/api/client';
 import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
@@ -100,6 +103,17 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
   useEffect(() => { setSectionState(urlSection); }, [urlSection]);
+  // sort + time for home tab; default = hot
+  const urlSort = (searchParams.get('sort') as 'views' | 'new' | 'hot') || 'views';
+  const [sort, setSortState] = useState<'views' | 'new' | 'hot'>(urlSort);
+  const setSort = (next: 'views' | 'new' | 'hot') => {
+    setSortState(next);
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === 'views') params.delete('sort');
+    else params.set('sort', next);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+  useEffect(() => { setSortState(urlSort); }, [urlSort]);
   const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false, message: '', severity: 'success',
   });
@@ -111,11 +125,12 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
   const isFriend = tab === 'friend';
 
   const query = useQuery({
-    queryKey: ['home', 'feed', tab, isPersonal ? 'all' : section],
+    queryKey: ['home', 'feed', tab, isPersonal ? 'all' : section, sort],
     queryFn: () => {
       const params = new URLSearchParams({ tab });
       if (!isPersonal) {
         params.set('section', section);
+        params.set('sort', sort);
       }
       return homeClient.get<FeedResp>(`/feed?${params.toString()}`).then((r) => r.data);
     },
@@ -135,11 +150,42 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
       {isFollow && (
         <FollowSubHeader value={followSub} onChange={setFollowSub} />
       )}
-      {!isPersonal && (
+      {tab === 'home' && !isPersonal && (
         <Box
           sx={{
             position: 'sticky',
             top: 0,
+            zIndex: 11,
+            bgcolor: 'var(--bg-topbar, rgba(10, 10, 15, 0.85))',
+            backdropFilter: 'blur(12px)',
+            borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+            flexShrink: 0,
+            px: 2,
+            pt: 1.5,
+            pb: 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1.5,
+          }}
+        >
+          <Box sx={{ width: 32, height: 32, borderRadius: 1.5, background: 'linear-gradient(135deg, #FE2C55 0%, #FFB400 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(254,44,85,0.32)', flexShrink: 0 }}>
+            <LocalFireDepartmentIcon sx={{ fontSize: 18, color: '#fff' }} />
+          </Box>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography sx={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary, #ffffff)', letterSpacing: 0.3 }}>为你推荐</Typography>
+            <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>多分类聚合 · 实时热度排序</Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'warning.main' }}>
+            <TrendingUpIcon sx={{ fontSize: 14 }} />
+            <Typography sx={{ fontSize: 11, fontWeight: 700 }}>实时榜</Typography>
+          </Box>
+        </Box>
+      )}
+      {!isPersonal && (
+        <Box
+          sx={{
+            position: 'sticky',
+            top: tab === 'home' ? 64 : 0,
             zIndex: 10,
             bgcolor: 'var(--bg-topbar, rgba(10, 10, 15, 0.85))',
             backdropFilter: 'blur(12px)',
@@ -147,6 +193,40 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
             flexShrink: 0,
           }}
         >
+          {tab === 'home' && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1.5, pt: 0.75, pb: 0.25, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' } }}>
+              <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>排序</Typography>
+              {[
+                { key: 'views', label: '人气榜' },
+                { key: 'hot', label: '热度' },
+                { key: 'new', label: '最新' },
+              ].map((s) => {
+                const active = sort === s.key;
+                return (
+                  <Box
+                    key={s.key}
+                    onClick={() => setSort(s.key as any)}
+                    sx={{
+                      flexShrink: 0,
+                      px: 1.25,
+                      py: 0.35,
+                      borderRadius: 999,
+                      cursor: 'pointer',
+                      fontSize: 11.5,
+                      fontWeight: active ? 700 : 500,
+                      color: active ? '#fff' : 'var(--text-secondary, rgba(255,255,255,0.65))',
+                      bgcolor: active ? 'var(--brand-color, #FE2C55)' : 'transparent',
+                      border: '1px solid',
+                      borderColor: active ? 'transparent' : 'var(--border-color, rgba(255,255,255,0.08))',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {s.label}
+                  </Box>
+                );
+              })}
+            </Box>
+          )}
           <Tabs
             value={section}
             onChange={(_, v) => setSection(v)}

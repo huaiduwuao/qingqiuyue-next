@@ -49,6 +49,7 @@ import { track } from '@/lib/track';
 
 interface VideoItem {
   id: number;
+  idString?: string; // 瀛楃涓插舰 id,閬垮厤 JS 2^53 绮剧‘搴︽崯澶?鍚庣 home/recommend 杩斿洖)
   title: string;
   contentType: string;
   cover: string;
@@ -75,6 +76,18 @@ function formatTime(sec: number): string {
 function formatCount(n: number = 0): string {
   if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
   return n.toString();
+}
+
+// hashId: stable 32-bit hash of an arbitrary string id. Used to derive
+// a deterministic but well-distributed duration (30..89s) per video,
+// since the raw id is a >2^53 int64 and Number(id) % 60 would collide.
+function hashId(s: string): number {
+	let h = 0x811c9dc5 >>> 0; // FNV-1a 32-bit basis
+	for (let i = 0; i < s.length; i++) {
+		h ^= s.charCodeAt(i);
+		h = Math.imul(h, 0x01000193) >>> 0;
+	}
+	return h | 0;
 }
 
 function getContentTypeColor(type: string) {
@@ -108,14 +121,18 @@ export function RecommendVideoFeed() {
         (r: any) => {
           const list = (r?.data?.list ?? []) as any[];
           return list.map((it): VideoItem => ({
+            // Prefer the lossless string id from the backend; fall back to Number(id).
+            // React keys derived from idString remain stable when the feed reorders,
+            // while id stays useful for numeric navigation/track() calls.
             id: Number(it.id) || 0,
+            idString: typeof it.idString === 'string' && it.idString ? it.idString : String(it.id ?? ''),
             title: it.title || '',
             contentType: (it.category || 'NOVEL').toUpperCase(),
             cover: it.cover || '',
             author: it.author || '未知作者',
             authorAvatar: it.authorAvatar || '',
             authorId: Number(it.authorId) || 0,
-            durationSec: 30 + (Number(it.id) % 60),
+            durationSec: 30 + (hashId(it.idString ?? String(it.id)) % 60),
             views: Number(it.views) || 0,
             likes: Number(it.likes) || 0,
             comments: Number(it.comments) || 0,
@@ -495,7 +512,9 @@ export function RecommendVideoFeed() {
         >
           {videos.map((v, i) => (
             <Box
-              key={v.id}
+              // Use the lossless string id (idString) for stable identity on reorder.
+              // Falls back to composite `${i}-${v.id}` if the backend omits it.
+              key={v.idString ? `s-${v.idString}` : `${i}-${v.id}`}
               sx={{
                 position: 'absolute',
                 left: 0,

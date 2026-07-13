@@ -10,14 +10,16 @@ import LiveTvRoundedIcon from '@mui/icons-material/LiveTvRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
+import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import { homeClient } from '@/lib/api/client';
 import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
 import { useContentNavigate } from '@/lib/contentRoute';
-import { IMAGE_OVERLAY, MEDAL, SECTION_TINT } from '@/constants/gradients';
+import { IMAGE_OVERLAY, MEDAL, SECTION_TINT, gradient2 } from '@/constants/gradients';
 
 type LiveStatus = 'all' | 'live' | 'offline';
 type LiveSort = 'hot' | 'new';
+type LiveCategory = 'all' | 'knowledge' | 'game' | 'music' | 'outdoor' | 'anime';
 
 type Room = {
   id: number;
@@ -43,13 +45,22 @@ const STATUSES: { key: LiveStatus; label: string }[] = [
   { key: 'offline', label: '已下播' },
 ];
 
-const SORTS: { key: LiveSort; label: string }[] = [
-  { key: 'hot', label: '人气' },
-  { key: 'new', label: '最新开播' },
+const SORTS: { key: LiveSort; label: string; icon: React.ReactNode }[] = [
+  { key: 'hot', label: '人气榜', icon: <WhatshotIcon sx={{ fontSize: 14 }} /> },
+  { key: 'new', label: '最新开播', icon: <AccessTimeRoundedIcon sx={{ fontSize: 14 }} /> },
+];
+
+const CATEGORIES: { key: LiveCategory; label: string; gradient: string }[] = [
+  { key: 'all', label: '全部分类', gradient: gradient2('#FE2C55', '#FFB400') },
+  { key: 'knowledge', label: '知识', gradient: gradient2('#FFB400', '#FFD566') },
+  { key: 'game', label: '游戏', gradient: gradient2('#8B5CF6', '#C4B5FD') },
+  { key: 'music', label: '音乐', gradient: gradient2('#06B6D4', '#5DF7F2') },
+  { key: 'outdoor', label: '户外', gradient: gradient2('#5DDB96', '#25F4EE') },
+  { key: 'anime', label: '二次元', gradient: gradient2('#FF8A3D', '#FFB400') },
 ];
 
 const CAT_COLOR: Record<string, string> = {
-  颜值: 'primary.main',
+  情感: 'primary.main',
   游戏: '#8B5CF6',
   音乐: 'secondary.main',
   户外: 'success.main',
@@ -64,13 +75,16 @@ export function LivePanel() {
   const navigate = useContentNavigate();
   const urlStatus = (searchParams.get('liveStatus') as LiveStatus) || 'all';
   const urlSort = (searchParams.get('sort') as LiveSort) || 'hot';
+  const urlCategory = (searchParams.get('category') as LiveCategory) || 'all';
   const [status, setStatusState] = useState<LiveStatus>(urlStatus);
   const [sort, setSortState] = useState<LiveSort>(urlSort);
+  const [category, setCategoryState] = useState<LiveCategory>(urlCategory);
 
   useEffect(() => { setStatusState(urlStatus); }, [urlStatus]);
   useEffect(() => { setSortState(urlSort); }, [urlSort]);
+  useEffect(() => { setCategoryState(urlCategory); }, [urlCategory]);
 
-  const updateParam = (next: { liveStatus?: LiveStatus; sort?: LiveSort }) => {
+  const updateParam = (next: { liveStatus?: LiveStatus; sort?: LiveSort; category?: LiveCategory }) => {
     const params = new URLSearchParams(searchParams.toString());
     if (next.liveStatus !== undefined) {
       if (next.liveStatus === 'all') params.delete('liveStatus');
@@ -80,44 +94,114 @@ export function LivePanel() {
       if (next.sort === 'hot') params.delete('sort');
       else params.set('sort', next.sort);
     }
+    if (next.category !== undefined) {
+      if (next.category === 'all') params.delete('category');
+      else params.set('category', next.category);
+    }
     const qs = params.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
 
   const setStatus = (s: LiveStatus) => { setStatusState(s); updateParam({ liveStatus: s }); };
   const setSort = (s: LiveSort) => { setSortState(s); updateParam({ sort: s }); };
+  const setCategory = (c: LiveCategory) => { setCategoryState(c); updateParam({ category: c }); };
 
   const query = useQuery({
-    queryKey: ['home', 'live', 'rooms', status, sort],
+    queryKey: ['home', 'live', 'rooms', status, sort, category],
     queryFn: () => {
       const params = new URLSearchParams();
       if (status !== 'all') params.set('status', status);
       if (sort !== 'hot') params.set('sort', sort);
-      return homeClient.get<Resp>(`/live/rooms?${params.toString()}`).then((r) => r.data);
+      if (category !== 'all') params.set('category', category);
+      return homeClient.get<Resp>(`/live/rooms${params.toString() ? '?' + params.toString() : ''}`).then((r) => r.data);
     },
   });
 
   const topQuery = useQuery({
-    queryKey: ['home', 'live', 'top'],
-    queryFn: () => homeClient.get<Resp & { updatedAt: number }>('/live/top').then((r) => r.data),
+    queryKey: ['home', 'live', 'top', category],
+    queryFn: () => homeClient.get<Resp & { updatedAt: number }>(`/live/top${category !== 'all' ? '?category=' + category : ''}`).then((r) => r.data),
   });
 
   return (
-    <Box sx={{ p: 2 }}>
-      {/* 标题 + 简介 */}
-      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 2.5 }}>
-        <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary, #ffffff)' }}>直播</Typography>
-        <Typography sx={{ fontSize: 12, color: 'var(--text-muted, rgba(255,255,255,0.5))' }}>实时高热榜 · 在线主播</Typography>
+    <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
+      {/* Hero */}
+      <Box
+        sx={{
+          position: 'relative',
+          mb: 3,
+          p: { xs: 2, md: 3 },
+          borderRadius: 3,
+          background: SECTION_TINT.RED_YELLOW_PURPLE,
+          border: '1px solid rgba(255,255,255,0.06)',
+          overflow: 'hidden',
+        }}
+      >
+        <Box sx={{ position: 'absolute', right: -20, top: -20, width: 180, height: 180, borderRadius: '50%', background: 'radial-gradient(circle, rgba(254,44,85,0.18), transparent 70%)' }} />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, position: 'relative' }}>
+          <Box sx={{ width: 36, height: 36, borderRadius: 2, background: gradient2('#FE2C55', '#FFB400'), display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 18px rgba(254,44,85,0.32)' }}>
+            <LiveTvRoundedIcon sx={{ fontSize: 20, color: '#fff' }} />
+          </Box>
+          <Box>
+            <Typography sx={{ fontSize: { xs: 18, md: 22 }, fontWeight: 800, color: 'var(--text-primary, #ffffff)', letterSpacing: 0.5 }}>直播</Typography>
+            <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.5))', mt: 0.25 }}>实时热门榜 · 在线主播 · 24h 全天候</Typography>
+          </Box>
+        </Box>
       </Box>
 
-      {/* TOP 10 人气榜(领奖台) */}
+      {/* TOP 10 人气榜 (领奖台) */}
       <AsyncState query={topQuery} skeletonCount={0} isEmpty={() => false}>
         {(data) => <LiveTop10 list={data.list} onSelect={(r) => navigate('LIVE', r.id)} />}
       </AsyncState>
 
-      {/* 多维筛选 chips */}
-      <Box sx={{ mt: 4, mb: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1, flexWrap: 'wrap' }}>
+      {/* Categories (gradient chips) */}
+      <Box sx={{ mt: 4, mb: 1.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+          <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', width: 48, flexShrink: 0 }}>分类</Typography>
+          <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
+            {CATEGORIES.map((c) => {
+              const active = category === c.key;
+              return (
+                <Box
+                  key={c.key}
+                  onClick={() => setCategory(c.key)}
+                  sx={{
+                    px: 1.5,
+                    py: 0.625,
+                    borderRadius: 999,
+                    cursor: 'pointer',
+                    fontSize: 12.5,
+                    fontWeight: active ? 700 : 500,
+                    color: active ? '#fff' : 'var(--text-secondary, rgba(255,255,255,0.7))',
+                    background: active ? c.gradient : 'var(--bg-input, rgba(255,255,255,0.04))',
+                    border: '1px solid',
+                    borderColor: active ? 'transparent' : 'var(--border-color, rgba(255,255,255,0.08))',
+                    boxShadow: active ? '0 4px 12px rgba(0,0,0,0.3)' : 'none',
+                    transition: 'all 0.15s',
+                    '&:hover': { transform: 'translateY(-1px)' },
+                  }}
+                >
+                  {c.label}
+                </Box>
+              );
+            })}
+          </Box>
+        </Box>
+      </Box>
+
+      {/* Filters: status + sort */}
+      <Box
+        sx={{
+          mb: 2,
+          p: 1.5,
+          borderRadius: 2,
+          bgcolor: 'var(--bg-input, rgba(255,255,255,0.03))',
+          border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: 1.5,
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1, flexWrap: 'wrap' }}>
           <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', width: 36, flexShrink: 0 }}>状态</Typography>
           <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
             {STATUSES.map((s) => (
@@ -128,11 +212,45 @@ export function LivePanel() {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
           <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', width: 36, flexShrink: 0 }}>排序</Typography>
           <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-            {SORTS.map((s) => (
-              <FilterChip key={s.key} active={sort === s.key} label={s.label} onClick={() => setSort(s.key)} />
-            ))}
+            {SORTS.map((s) => {
+              const active = sort === s.key;
+              return (
+                <Box
+                  key={s.key}
+                  onClick={() => setSort(s.key)}
+                  sx={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 0.5,
+                    px: 1,
+                    py: 0.4,
+                    borderRadius: 1,
+                    cursor: 'pointer',
+                    fontSize: 11.5,
+                    fontWeight: active ? 700 : 500,
+                    color: active ? 'primary.main' : 'var(--text-secondary, rgba(255,255,255,0.6))',
+                    bgcolor: active ? 'rgba(254,44,85,0.12)' : 'transparent',
+                    border: '1px solid',
+                    borderColor: active ? 'rgba(254,44,85,0.4)' : 'transparent',
+                  }}
+                >
+                  {s.icon}
+                  {s.label}
+                </Box>
+              );
+            })}
           </Box>
         </Box>
+      </Box>
+
+      {/* List header */}
+      <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'baseline', gap: 1 }}>
+        <Typography sx={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>
+          {category === 'all' ? '全部' : CATEGORIES.find((c) => c.key === category)?.label}直播间
+        </Typography>
+        <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
+          共 {query.data?.list?.length ?? 0} 间
+        </Typography>
       </Box>
 
       {/* 直播间网格 */}
@@ -142,7 +260,7 @@ export function LivePanel() {
         skeletonHeight={320}
         isEmpty={(d) => d.list.length === 0}
         emptyText="该筛选下暂无直播间"
-        emptyHint="试试切回全部"
+        emptyHint="尝试切回全部分类或调整状态"
       >
         {(data) => (
           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
@@ -162,7 +280,7 @@ function FilterChip({ active, label, onClick }: { active: boolean; label: string
       onClick={onClick}
       sx={{
         px: 1.25,
-        py: 0.5,
+        py: 0.4,
         borderRadius: 1.5,
         cursor: 'pointer',
         fontSize: 12,
@@ -179,7 +297,7 @@ function FilterChip({ active, label, onClick }: { active: boolean; label: string
   );
 }
 
-// ─── TOP 10 人气榜(领奖台) ───
+// ----- TOP 10 人气榜 (领奖台) -----
 function LiveTop10({ list, onSelect }: { list: Room[]; onSelect: (r: Room) => void }) {
   if (list.length === 0) return null;
   const top3 = list.filter((r) => r.hotRank >= 1 && r.hotRank <= 3);
@@ -208,7 +326,6 @@ function LiveTop10({ list, onSelect }: { list: Room[]; onSelect: (r: Room) => vo
         <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))', ml: 1 }}>按在线观看人数</Typography>
       </Box>
 
-      {/* 前三名:领奖台 */}
       {top3.length === 3 && (
         <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1fr', gap: 1.5, mb: 2, mt: 1 }}>
           {top3
@@ -219,7 +336,6 @@ function LiveTop10({ list, onSelect }: { list: Room[]; onSelect: (r: Room) => vo
         </Box>
       )}
 
-      {/* 4-10 列表 */}
       {rest.length > 0 && (
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 1, pt: 1.5, borderTop: '1px dashed', borderTopColor: 'divider' }}>
           {rest.map((r) => (
@@ -306,8 +422,8 @@ function RoomCard({ room, onClick }: { room: Room; onClick: () => void }) {
         borderRadius: 2,
         overflow: 'hidden',
         cursor: 'pointer',
-        transition: 'transform 0.2s',
-        '&:hover': { transform: 'scale(1.02)' },
+        transition: 'transform 0.2s, box-shadow 0.2s',
+        '&:hover': { transform: 'translateY(-3px)', boxShadow: '0 12px 32px rgba(0,0,0,0.4)' },
       }}
     >
       <img src={room.cover || undefined} alt={room.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -424,7 +540,7 @@ function RoomCard({ room, onClick }: { room: Room; onClick: () => void }) {
 
 function formatViewers(n?: number | null): string {
   const num = Number(n) || 0;
-  if (num >= 10000) return `${(num / 10000).toFixed(1)}万`;
+  if (num >= 10000) return `${(num / 10000).toFixed(1)}w`;
   if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
   return num.toString();
 }
