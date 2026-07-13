@@ -342,8 +342,9 @@ export default function AccountRewardPage() {
         </Box>
 
         <Box sx={{ p: { xs: 1.5, md: 3 } }}>
-          {/* 团队切换器:需求/项目/意境/实现模块的数据域。无团队时提示先去团队管理创建。 */}
-          {groups.length > 0 ? (
+          {/* 团队切换器:仅需求/项目/意境/实现 tab 需要(数据按 teamId 隔离);
+              赏金广场(tabKey='1')与协作看板(tabKey='8')不依赖当前团队,故隐藏。 */}
+          {groups.length > 0 && tabKey !== '1' && tabKey !== '8' ? (
             <Box sx={{ mb: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
               <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>当前团队</Typography>
               <TextField
@@ -362,7 +363,7 @@ export default function AccountRewardPage() {
               </TextField>
             </Box>
           ) : (
-            tabKey !== '7' && (
+            tabKey !== '1' && tabKey !== '7' && tabKey !== '8' && (
               <Typography sx={{ fontSize: 12, color: 'text.disabled', mb: 2 }}>
                 还没有团队,请先在「团队管理」中创建,需求/项目/意境/实现模块需要归属团队。
               </Typography>

@@ -1,12 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import { userPointMe } from '@/apis/global';
 import RewardHero from './RewardHero';
 import RewardCategoryRow from './RewardCategoryRow';
-import RewardFilterBar from './RewardFilterBar';
 import RewardHotGrid from './RewardHotGrid';
 import RewardRanking from './RewardRanking';
 import RewardActivity from './RewardActivity';
@@ -16,12 +15,9 @@ interface DashboardProps {
   groupData: any;
 }
 
-export default function DashboardPage({ groupId, groupData }: DashboardProps) {
-  const [search, setSearch] = useState('');
-  const [order, setOrder] = useState('reward');
-  // 分类过滤统一用 code('' = 全部);分类行点击直接驱动同一状态
-  const [filter, setFilter] = useState('');
-
+// 赏金广场不依赖 groupId/groupData(赏金是公共数据,跨团队共享),
+// 仅保留 props 接口以便父组件(AccountRewardPage)用同一 componentMap 装载 8 个 tab。
+export default function DashboardPage(_props: DashboardProps) {
   const pointQuery = useQuery({
     queryKey: ['user-point', 'me', 'reward'],
     queryFn: () => userPointMe({ type: 'reward' }).then((r: any) => r.data || {}),
@@ -37,15 +33,8 @@ export default function DashboardPage({ groupId, groupData }: DashboardProps) {
         levelName={myPoint.levelName}
         needPoint={myPoint.needPoint}
       />
-      <RewardCategoryRow onSelect={(code) => setFilter(code)} selectedCode={filter} />
-      <RewardFilterBar
-        search={search}
-        onSearchChange={setSearch}
-        order={order}
-        onOrderChange={setOrder}
-        filter={filter}
-        onFilterChange={setFilter}
-      />
+      <RewardCategoryRow />
+
       <Box
         sx={{
           display: 'grid',
@@ -53,12 +42,15 @@ export default function DashboardPage({ groupId, groupData }: DashboardProps) {
           gap: 2,
         }}
       >
+        {/* 左侧:全部悬赏(分页,无「查看全部」跳转) */}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-          <RewardHotGrid search={search} order={order as any} filter={filter} />
-          <RewardActivity />
+          <RewardHotGrid mode='all' />
         </Box>
-        <Box sx={{ display: { xs: 'none', lg: 'block' }, width: 360, minWidth: 0 }}>
+
+        {/* 右侧:达人榜 + 最近动态 */}
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
           <RewardRanking />
+          <RewardActivity />
         </Box>
       </Box>
     </Box>
