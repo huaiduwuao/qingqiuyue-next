@@ -29,6 +29,7 @@ import PersonalDemandPanel from './PersonalDemandPanel';
 import PersonalRealizationPanel from './PersonalRealizationPanel';
 import PersonalProjectPanel from './PersonalProjectPanel';
 import PersonalTaskPanel from './PersonalTaskPanel';
+import PointRecordPanel from './PointRecordPanel';
 
 export interface PersonalWorkspaceProps {
   groups: GroupInfo[];
@@ -105,6 +106,7 @@ export default function PersonalWorkspace({
             groups={groups}
             onOpenTaskboard={onOpenTaskboardTab}
           />
+          <PointRecordPanel currentUserId={currentUserId} />
         </Box>
       </Box>
     </Box>

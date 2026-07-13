@@ -557,6 +557,32 @@ export async function getMyStats(): Promise<MyStats> {
   return unwrap<MyStats>(await accountClient('/reward/my-stats'));
 }
 
+export interface PointRecord {
+  id: number;
+  userId: number;
+  point: number;
+  type: string;
+  info: string;
+  sourceType: string;     // demand_settle/achievement/...
+  sourceId: number;
+  createTime: string;
+  sourceTitle?: string;   // 来源标题(需求名/任务名)
+  sourceUrl?: string;     // 前端跳转路径
+}
+
+export interface PointRecordList {
+  list: PointRecord[];
+  records: PointRecord[];
+  total: number;
+  totalRow: number;
+  page: number;
+  size: number;
+}
+
+export async function listMyPointRecords(params?: { page?: number; pageSize?: number }): Promise<PointRecordList> {
+  return unwrap<PointRecordList>(await accountClient('/reward/point-records', { params }));
+}
+
 // ========== 后台 dashboard(/admin/system/dashboard/analysis) ==========
 
 export interface AdminStats {
