@@ -23,6 +23,7 @@ export interface DemandItem extends TableListItem {
   content?: any;
   cover?: string;
   pay?: number;
+  category?: string;
   status?: DemandStatus | string;
   realizations?: any;
   myRealizations?: any;

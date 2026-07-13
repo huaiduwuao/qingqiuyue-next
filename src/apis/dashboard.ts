@@ -6,6 +6,9 @@
  * 注:axios 拦截器统一包成 {code, msg, data},这里每个 API 都通过 unwrap() 拆出真正的 data。
  */
 import { accountClient } from '@/lib/api/client';
+import { DemandItem } from '@/beans/reward';
+import { gradient2 } from '@/constants/gradients';
+import { ACCENT } from '@/constants/accents';
 
 /** 解开 axios 拦截器的包装层,拿到真正的后端 body */
 function unwrap<T = any>(resp: any): T {
@@ -228,7 +231,58 @@ export async function getHotBounties(params?: {
   page?: number;
   size?: number;
 }) {
-  return unwrap<PageData<Bounty>>(await accountClient('/reward/bounty/hot', { params }));
+  // 后端暂无 /reward/bounty/hot，从 demand/client/page 爬取真实数据并映射为 Bounty
+  const page = params?.page ?? 1;
+  const size = params?.size ?? params?.limit ?? 6;
+  const demandParams: any = {
+    page,
+    pageSize: size,
+    status: 'PUBLISHED',
+  };
+  if (params?.category) demandParams.category = params.category;
+  if (params?.keyword) demandParams.keyword = params.keyword;
+  const resp = unwrap<PageData<DemandItem>>(await accountClient('/demand/client/page', { params: demandParams }));
+  const list = (resp?.list ?? resp?.records ?? []).map((d) => bountyFromDemand(d));
+  return { list, total: resp?.total ?? list.length, page, size } as PageData<Bounty>;
+}
+
+export async function getBountyDetail(id: string | number) {
+  const demand = unwrap<DemandItem>(await accountClient(`/demand/${id}`));
+  if (!demand) return undefined;
+  return bountyFromDemand(demand);
+}
+
+const CATEGORY_GRADIENT: Record<string, string> = {
+  video: gradient2('#25F4EE', '#5DF7F2'),
+  image: gradient2('#FFB400', '#FFD566'),
+  novel: gradient2('#8B5CF6', '#C4B5FD'),
+  art: gradient2('#FE2C55', '#FF6B8A'),
+  music: gradient2('#5DDB96', '#25F4EE'),
+  film: gradient2(ACCENT.purple.main, '#FE2C55'),
+  script: gradient2('#FE2C55', '#FFB400'),
+  live: gradient2('#25F4EE', '#FFB400'),
+  voice: gradient2('#EC4899', '#F9A8D4'),
+};
+
+function bountyFromDemand(demand: DemandItem): Bounty {
+  const payNum = Number(demand.pay ?? 0);
+  const reward = payNum > 0 ? Math.round(payNum * 100) : 0;
+  const endTime = demand.endTime ? new Date(demand.endTime).getTime() : 0;
+  const now = Date.now();
+  const daysLeft = endTime > now ? Math.max(1, Math.ceil((endTime - now) / (1000 * 60 * 60 * 24))) : (endTime === 0 ? 14 : 0);
+  const applicants = demand.completedCount ?? 0;
+  const category = demand.category || 'video';
+  return {
+    id: String(demand.id),
+    title: demand.title || '',
+    category,
+    reward,
+    applicants,
+    daysLeft,
+    sponsor: demand.username || '青丘',
+    gradient: CATEGORY_GRADIENT[category] ?? gradient2('#FE2C55', '#8B5CF6'),
+    cover: demand.cover,
+  };
 }
 
 export async function getRewardActivities() {

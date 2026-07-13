@@ -16,7 +16,7 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import GroupIcon from '@mui/icons-material/Group';
 import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
 import { alpha } from '@mui/material/styles';
-import { getHotBounties, type Bounty } from '@/apis/dashboard';
+import { getBountyDetail, type Bounty } from '@/apis/dashboard';
 
 /**
  * 悬赏详情弹层 —— 在悬赏中心 tab 内打开,不跳转任何路由。
@@ -34,14 +34,13 @@ export default function BountyDetailDialog({
   bountyId: string | null;
   onClose: () => void;
 }) {
-  const hotQuery = useQuery({
-    queryKey: ['reward', 'bounty', 'hot', 'detail-pool'],
-    queryFn: () => getHotBounties({ limit: 50 }),
+  const detailQuery = useQuery({
+    queryKey: ['reward', 'bounty', 'detail', bountyId],
+    queryFn: () => (bountyId ? getBountyDetail(bountyId) : Promise.resolve(undefined)),
     staleTime: 30 * 1000,
-    enabled: open,
+    enabled: open && !!bountyId,
   });
-  const pool: Bounty[] = (hotQuery.data?.records ?? hotQuery.data?.list ?? []) as Bounty[];
-  const found = bountyId ? pool.find((b) => b.id === bountyId) : undefined;
+  const found = detailQuery.data;
 
   return (
     <Dialog
@@ -59,7 +58,7 @@ export default function BountyDetailDialog({
       </Box>
 
       <DialogContent sx={{ pt: 1 }}>
-        {hotQuery.isLoading ? (
+        {detailQuery.isLoading ? (
           <Box sx={{ py: 2 }}>
             <LinearProgress sx={{ borderRadius: 1 }} />
             <Typography sx={{ mt: 2, color: 'text.secondary', fontSize: 13 }}>正在加载悬赏详情…</Typography>

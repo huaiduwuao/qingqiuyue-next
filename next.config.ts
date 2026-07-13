@@ -9,6 +9,9 @@ const nextConfig: NextConfig = {
   // standalone 模式:Dockerfile 期望 .next/standalone 存在,生产部署必须开。
   // dev 模式 `next dev` 仍正常工作(standalone 只影响 `next build` 输出)。
   output: "standalone",
+  // 允许 127.0.0.1 跨源访问 dev 资源(dev 模式 HMR 需要)
+  // 见:https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+  allowedDevOrigins: ['127.0.0.1', 'localhost'],
   // 内存治理(5.37 GB dev server 反复泄漏的根因之一):
   // 1) 关闭客户端 source map(浏览器加载时不会再持有完整 sourcemap payload)
   // 2) 关闭 server source map(Next dev 不再为每个 route 缓存 sourcemap)

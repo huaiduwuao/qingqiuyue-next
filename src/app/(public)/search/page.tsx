@@ -27,8 +27,6 @@ import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import VerifiedIcon from '@mui/icons-material/Verified';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
-import { ThemeProvider } from '@mui/material/styles';
-import { darkTheme } from '@/styles/theme';
 import { ACCENT } from '@/constants/accents';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { searchContent } from '@/apis/global';
@@ -103,18 +101,16 @@ const TYPE_ACCENT: Record<SearchContentItem['contentType'], string> = {
 
 export default function SearchPage() {
   return (
-    <ThemeProvider theme={darkTheme}>
-      <Suspense fallback={<SearchLoadingShell />}>
-        <SearchPageContent />
-      </Suspense>
-    </ThemeProvider>
+    <Suspense fallback={<SearchLoadingShell />}>
+      <SearchPageContent />
+    </Suspense>
   );
 }
 
 function SearchLoadingShell() {
   return (
-    <Box sx={{ minHeight: '100dvh', bgcolor: '#0a0a0f', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <Skeleton variant="text" width={200} sx={{ bgcolor: 'rgba(255,255,255,0.06)' }} />
+    <Box sx={{ minHeight: '100dvh', bgcolor: 'var(--bg-body, #0a0a0f)', color: 'var(--text-primary, #fff)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Skeleton variant="text" width={200} sx={{ bgcolor: 'var(--bg-input, rgba(255,255,255,0.06))' }} />
     </Box>
   );
 }
@@ -338,8 +334,8 @@ function SearchPageContent() {
     <Box
       sx={{
         minHeight: '100dvh',
-        bgcolor: '#0a0a0f',
-        color: 'rgba(255,255,255,0.92)',
+        bgcolor: 'var(--bg-body, #0a0a0f)',
+        color: 'var(--text-primary, rgba(255,255,255,0.92))',
         overflowX: 'hidden',
         position: 'relative',
       }}
@@ -356,12 +352,12 @@ function SearchPageContent() {
           gap: 1.5,
           height: 68,
           px: { xs: 2, md: 3 },
-          bgcolor: 'rgba(10, 10, 15, 0.85)',
+          bgcolor: 'var(--bg-topbar, rgba(10, 10, 15, 0.85))',
           backdropFilter: 'blur(16px)',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.06))',
         }}
       >
-        <IconButton onClick={handleBack} size="small" aria-label="返回" sx={{ color: 'rgba(255,255,255,0.75)' }}>
+        <IconButton onClick={handleBack} size="small" aria-label="返回" sx={{ color: 'var(--text-secondary, rgba(255,255,255,0.75))' }}>
           <ArrowBackIcon fontSize="small" />
         </IconButton>
         <TextField
@@ -383,7 +379,7 @@ function SearchPageContent() {
             input: {
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchIcon sx={{ fontSize: 16, color: 'rgba(255,255,255,0.5)' }} />
+                  <SearchIcon sx={{ fontSize: 16, color: 'var(--text-muted, rgba(255,255,255,0.5))' }} />
                 </InputAdornment>
               ),
               endAdornment: query ? (
@@ -392,21 +388,21 @@ function SearchPageContent() {
                     size="small"
                     onClick={handleClear}
                     aria-label="清空"
-                    sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: '#fff' } }}
+                    sx={{ color: 'var(--text-muted, rgba(255,255,255,0.5))', '&:hover': { color: 'var(--text-primary, #fff)' } }}
                   >
                     <CloseIcon sx={{ fontSize: 14 }} />
                   </IconButton>
                 </InputAdornment>
               ) : undefined,
               sx: {
-                bgcolor: 'rgba(255,255,255,0.06)',
-                color: '#fff',
+                bgcolor: 'var(--bg-input, rgba(255,255,255,0.06))',
+                color: 'var(--text-primary, #fff)',
                 fontSize: 14,
                 borderRadius: 2,
-                '& input::placeholder': { color: 'rgba(255,255,255,0.4)', opacity: 1 },
-                '& fieldset': { borderColor: 'rgba(255,255,255,0.1)' },
-                '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.2)' },
-                '&.Mui-focused fieldset': { borderColor: '#FE2C55' },
+                '& input::placeholder': { color: 'var(--text-muted, rgba(255,255,255,0.4))', opacity: 1 },
+                '& fieldset': { borderColor: 'var(--border-color, rgba(255,255,255,0.1))' },
+                '&:hover fieldset': { borderColor: 'var(--border-strong, rgba(255,255,255,0.2))' },
+                '&.Mui-focused fieldset': { borderColor: 'var(--brand-color, #FE2C55)' },
               },
             },
           }}
@@ -424,15 +420,15 @@ function SearchPageContent() {
             py: 0.75,
             borderRadius: 2,
             bgcolor: 'primary.main',
-            color: '#fff',
+            color: 'var(--text-primary, #fff)',
             fontSize: 13,
             fontWeight: 700,
             textTransform: 'none',
             boxShadow: 'none',
             // 让涟漪在 primary.main 上更明显
-            '& .MuiTouchRipple-child': { bgcolor: 'rgba(255,255,255,0.45)' },
+            '& .MuiTouchRipple-child': { bgcolor: 'var(--text-muted, rgba(255,255,255,0.45))' },
             '&:hover': { bgcolor: 'primary.main', filter: 'brightness(1.1)' },
-            '&.Mui-disabled': { bgcolor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)' },
+            '&.Mui-disabled': { bgcolor: 'var(--bg-active, rgba(255,255,255,0.08))', color: 'var(--text-muted, rgba(255,255,255,0.4))' },
           }}
         >
           搜索
@@ -460,7 +456,7 @@ function SearchPageContent() {
                   background: 'linear-gradient(180deg, #FE2C55 0%, #FFB400 100%)',
                 }}
               />
-              <Typography sx={{ fontSize: 15, fontWeight: 700, color: '#fff' }}>
+              <Typography sx={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>
                 搜索:<Box component="span" sx={{ color: 'primary.main' }}>{q}</Box>
               </Typography>
               {!loading && (
@@ -470,8 +466,8 @@ function SearchPageContent() {
                     px: 0.75,
                     py: 0.25,
                     borderRadius: 0.75,
-                    bgcolor: 'rgba(255,255,255,0.06)',
-                    color: 'rgba(255,255,255,0.7)',
+                    bgcolor: 'var(--bg-input, rgba(255,255,255,0.06))',
+                    color: 'var(--text-secondary, rgba(255,255,255,0.7))',
                     fontSize: 11,
                   }}
                 >
@@ -479,7 +475,7 @@ function SearchPageContent() {
                 </Box>
               )}
               {loading && (
-                <Box sx={{ ml: 0.5, fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>搜索中…</Box>
+                <Box sx={{ ml: 0.5, fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.45))' }}>搜索中…</Box>
               )}
             </Box>
 
@@ -489,13 +485,13 @@ function SearchPageContent() {
               onChange={(_, v) => setTab(v)}
               sx={{
                 minHeight: 36,
-                borderBottom: '1px solid rgba(255,255,255,0.06)',
+                borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.06))',
                 mb: 3,
                 '& .MuiTab-root': {
                   minHeight: 36,
                   fontSize: 13,
                   fontWeight: 500,
-                  color: 'rgba(255,255,255,0.55)',
+                  color: 'var(--text-muted, rgba(255,255,255,0.55))',
                   textTransform: 'none',
                   py: 1,
                 },
@@ -564,9 +560,9 @@ function SearchPageContent() {
         )}
       </Box>
 
-      <Divider sx={{ borderColor: 'rgba(255,255,255,0.06)' }} />
+      <Divider sx={{ borderColor: 'var(--border-color, rgba(255,255,255,0.06))' }} />
       <Box sx={{ py: 4, px: { xs: 2, md: 3 }, textAlign: 'center' }}>
-        <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>
+        <Typography sx={{ fontSize: 12, color: 'var(--text-disabled, rgba(255,255,255,0.35))' }}>
           © 2026 清秋月 · 按 Enter 搜索 · Esc 返回
         </Typography>
       </Box>
@@ -593,15 +589,15 @@ function Section({ title, count, children }: { title: string; count: number; chi
           sx={{
             fontSize: 12,
             fontWeight: 700,
-            color: 'rgba(255,255,255,0.55)',
+            color: 'var(--text-muted, rgba(255,255,255,0.55))',
             letterSpacing: 1,
             textTransform: 'uppercase',
           }}
         >
           {title}
         </Typography>
-        <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.3)' }} />
-        <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>{count} 条</Typography>
+        <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: 'var(--text-muted, rgba(255,255,255,0.3))' }} />
+        <Typography sx={{ fontSize: 11, color: 'var(--text-disabled, rgba(255,255,255,0.35))' }}>{count} 条</Typography>
       </Box>
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>{children}</Box>
     </Box>
@@ -629,7 +625,7 @@ function ContentResult({
         cursor: 'pointer',
         transition: 'all 0.15s',
         border: '1px solid transparent',
-        '&:hover': { bgcolor: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.06)' },
+        '&:hover': { bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))', borderColor: 'var(--border-color, rgba(255,255,255,0.06))' },
       }}
     >
       <Box
@@ -662,7 +658,7 @@ function ContentResult({
             borderRadius: 0.5,
             bgcolor: 'rgba(0,0,0,0.4)',
             backdropFilter: 'blur(4px)',
-            color: '#fff',
+            color: 'var(--text-primary, #fff)',
             fontSize: 9,
             fontWeight: 600,
           }}
@@ -675,7 +671,7 @@ function ContentResult({
           sx={{
             fontSize: 14,
             fontWeight: 600,
-            color: '#fff',
+            color: 'var(--text-primary, #fff)',
             lineHeight: 1.4,
             display: '-webkit-box',
             WebkitLineClamp: 1,
@@ -689,7 +685,7 @@ function ContentResult({
           <Typography
             sx={{
               fontSize: 12,
-              color: 'rgba(255,255,255,0.55)',
+              color: 'var(--text-muted, rgba(255,255,255,0.55))',
               lineHeight: 1.5,
               mt: 0.25,
               display: '-webkit-box',
@@ -701,7 +697,7 @@ function ContentResult({
             {renderHL(item.subtitle)}
           </Typography>
         )}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.75, color: 'rgba(255,255,255,0.45)' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.75, color: 'var(--text-muted, rgba(255,255,255,0.45))' }}>
           <Box
             sx={{
               width: 18,
@@ -710,7 +706,7 @@ function ContentResult({
               background: item.coverGradient,
               fontSize: 10,
               fontWeight: 700,
-              color: '#fff',
+              color: 'var(--text-primary, #fff)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -718,18 +714,18 @@ function ContentResult({
           >
             {item.author[0]}
           </Box>
-          <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>{item.author}</Typography>
-          <Box sx={{ width: 2, height: 2, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.25)' }} />
+          <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.55))' }}>{item.author}</Typography>
+          <Box sx={{ width: 2, height: 2, borderRadius: '50%', bgcolor: 'var(--text-disabled, rgba(255,255,255,0.25))' }} />
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
             <PlayArrowRoundedIcon sx={{ fontSize: 11 }} />
             <Typography sx={{ fontSize: 10 }}>{formatNumber(item.views)}</Typography>
           </Box>
-          <Box sx={{ width: 2, height: 2, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.25)' }} />
+          <Box sx={{ width: 2, height: 2, borderRadius: '50%', bgcolor: 'var(--text-disabled, rgba(255,255,255,0.25))' }} />
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
             <ChatBubbleOutlineIcon sx={{ fontSize: 10 }} />
             <Typography sx={{ fontSize: 10 }}>{formatNumber(item.comments)}</Typography>
           </Box>
-          <Box sx={{ width: 2, height: 2, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.25)' }} />
+          <Box sx={{ width: 2, height: 2, borderRadius: '50%', bgcolor: 'var(--text-disabled, rgba(255,255,255,0.25))' }} />
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
             <FavoriteBorderIcon sx={{ fontSize: 10 }} />
             <Typography sx={{ fontSize: 10 }}>{formatNumber(item.likes)}</Typography>
@@ -778,7 +774,7 @@ function CreatorResult({
         cursor: 'pointer',
         transition: 'all 0.15s',
         border: '1px solid transparent',
-        '&:hover': { bgcolor: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.06)' },
+        '&:hover': { bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))', borderColor: 'var(--border-color, rgba(255,255,255,0.06))' },
       }}
     >
       <Box
@@ -793,7 +789,7 @@ function CreatorResult({
           justifyContent: 'center',
           fontSize: 22,
           fontWeight: 800,
-          color: '#fff',
+          color: 'var(--text-primary, #fff)',
           boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
         }}
       >
@@ -801,7 +797,7 @@ function CreatorResult({
       </Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>
+          <Typography sx={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>
             {renderHL(item.name)}
           </Typography>
           {item.verified && <VerifiedIcon sx={{ fontSize: 14, color: 'primary.main' }} />}
@@ -809,7 +805,7 @@ function CreatorResult({
         <Typography
           sx={{
             fontSize: 11,
-            color: 'rgba(255,255,255,0.55)',
+            color: 'var(--text-muted, rgba(255,255,255,0.55))',
             mt: 0.25,
             lineHeight: 1.5,
             display: '-webkit-box',
@@ -840,10 +836,10 @@ function CreatorResult({
         </Box>
       </Box>
       <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
-        <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#fff' }}>
+        <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary, #fff)' }}>
           {formatNumber(item.followers)}
         </Typography>
-        <Typography sx={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>粉丝</Typography>
+        <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>粉丝</Typography>
       </Box>
       <Button
         size="small"
@@ -890,7 +886,7 @@ function TopicResult({
         cursor: 'pointer',
         transition: 'all 0.15s',
         border: '1px solid transparent',
-        '&:hover': { bgcolor: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.06)' },
+        '&:hover': { bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))', borderColor: 'var(--border-color, rgba(255,255,255,0.06))' },
       }}
     >
       <Box
@@ -903,7 +899,7 @@ function TopicResult({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#fff',
+          color: 'var(--text-primary, #fff)',
           position: 'relative',
           overflow: 'hidden',
         }}
@@ -924,7 +920,7 @@ function TopicResult({
       </Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>
+          <Typography sx={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>
             {renderHL(item.title)}
           </Typography>
           {item.hot && (
@@ -937,7 +933,7 @@ function TopicResult({
                 py: 0.1,
                 borderRadius: 0.5,
                 background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)',
-                color: '#fff',
+                color: 'var(--text-primary, #fff)',
                 fontSize: 9,
                 fontWeight: 700,
               }}
@@ -950,7 +946,7 @@ function TopicResult({
         <Typography
           sx={{
             fontSize: 11,
-            color: 'rgba(255,255,255,0.55)',
+            color: 'var(--text-muted, rgba(255,255,255,0.55))',
             mt: 0.25,
             lineHeight: 1.5,
             display: '-webkit-box',
@@ -961,9 +957,9 @@ function TopicResult({
         >
           {renderHL(item.description)}
         </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 0.5, color: 'rgba(255,255,255,0.45)' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 0.5, color: 'var(--text-muted, rgba(255,255,255,0.45))' }}>
           <Typography sx={{ fontSize: 10 }}>{formatNumber(item.viewCount)} 浏览</Typography>
-          <Box sx={{ width: 2, height: 2, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.25)' }} />
+          <Box sx={{ width: 2, height: 2, borderRadius: '50%', bgcolor: 'var(--text-disabled, rgba(255,255,255,0.25))' }} />
           <Typography sx={{ fontSize: 10 }}>{formatNumber(item.discussCount)} 讨论</Typography>
         </Box>
       </Box>
@@ -991,12 +987,12 @@ function EmptyState({
         {history.length > 0 ? (
           <Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-              <HistoryIcon sx={{ fontSize: 14, color: 'rgba(255,255,255,0.45)' }} />
+              <HistoryIcon sx={{ fontSize: 14, color: 'var(--text-muted, rgba(255,255,255,0.45))' }} />
               <Typography
                 sx={{
                   fontSize: 12,
                   fontWeight: 700,
-                  color: 'rgba(255,255,255,0.55)',
+                  color: 'var(--text-muted, rgba(255,255,255,0.55))',
                   letterSpacing: 1,
                   textTransform: 'uppercase',
                 }}
@@ -1011,8 +1007,8 @@ function EmptyState({
                   minWidth: 0,
                   textTransform: 'none',
                   fontSize: 11,
-                  color: 'rgba(255,255,255,0.4)',
-                  '&:hover': { color: '#fff', bgcolor: 'transparent' },
+                  color: 'var(--text-muted, rgba(255,255,255,0.4))',
+                  '&:hover': { color: 'var(--text-primary, #fff)', bgcolor: 'transparent' },
                 }}
               >
                 清空
@@ -1027,13 +1023,13 @@ function EmptyState({
                   onDelete={() => onRemoveHistory(h)}
                   deleteIcon={<CloseIcon sx={{ fontSize: 14 }} />}
                   sx={{
-                    bgcolor: 'rgba(255,255,255,0.05)',
-                    color: 'rgba(255,255,255,0.85)',
+                    bgcolor: 'var(--bg-input, rgba(255,255,255,0.05))',
+                    color: 'var(--text-primary, rgba(255,255,255,0.85))',
                     fontSize: 12,
                     fontWeight: 500,
-                    border: '1px solid rgba(255,255,255,0.06)',
-                    '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' },
-                    '& .MuiChip-deleteIcon': { color: 'rgba(255,255,255,0.4)', '&:hover': { color: '#fff' } },
+                    border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+                    '&:hover': { bgcolor: 'var(--bg-active, rgba(255,255,255,0.08))' },
+                    '& .MuiChip-deleteIcon': { color: 'var(--text-muted, rgba(255,255,255,0.4))', '&:hover': { color: 'var(--text-primary, #fff)' } },
                   }}
                 />
               ))}
@@ -1051,7 +1047,7 @@ function EmptyState({
             sx={{
               fontSize: 12,
               fontWeight: 700,
-              color: 'rgba(255,255,255,0.55)',
+              color: 'var(--text-muted, rgba(255,255,255,0.55))',
               letterSpacing: 1,
               textTransform: 'uppercase',
             }}
@@ -1072,7 +1068,7 @@ function EmptyState({
                 borderRadius: 1.5,
                 cursor: 'pointer',
                 transition: 'background 0.15s',
-                '&:hover': { bgcolor: 'rgba(255,255,255,0.04)' },
+                '&:hover': { bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))' },
               }}
             >
               <Box
@@ -1089,13 +1085,13 @@ function EmptyState({
                   background:
                     idx < 3
                       ? 'linear-gradient(135deg, #FE2C55 0%, #FFB400 100%)'
-                      : 'rgba(255,255,255,0.08)',
-                  color: idx < 3 ? '#fff' : 'rgba(255,255,255,0.55)',
+                      : 'var(--bg-active, rgba(255,255,255,0.08))',
+                  color: idx < 3 ? '#fff' : 'var(--text-muted, rgba(255,255,255,0.55))',
                 }}
               >
                 {idx + 1}
               </Box>
-              <Typography sx={{ fontSize: 13, fontWeight: 500, color: '#fff' }}>{kw}</Typography>
+              <Typography sx={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary, #fff)' }}>{kw}</Typography>
               {idx < 2 && (
                 <Box
                   sx={{
@@ -1112,7 +1108,7 @@ function EmptyState({
                 </Box>
               )}
               <Box sx={{ flex: 1 }} />
-              <TrendingUpIcon sx={{ fontSize: 12, color: 'rgba(255,255,255,0.25)' }} />
+              <TrendingUpIcon sx={{ fontSize: 12, color: 'var(--text-disabled, rgba(255,255,255,0.25))' }} />
             </Box>
           ))}
         </Box>
@@ -1153,19 +1149,19 @@ function NoResults({
           width: 88,
           height: 88,
           borderRadius: '50%',
-          bgcolor: 'rgba(255,255,255,0.04)',
-          border: '1px solid rgba(255,255,255,0.08)',
+          bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))',
+          border: '1px solid var(--border-color, rgba(255,255,255,0.08))',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <SearchOffIcon sx={{ fontSize: 40, color: 'rgba(255,255,255,0.3)' }} />
+        <SearchOffIcon sx={{ fontSize: 40, color: 'var(--text-muted, rgba(255,255,255,0.3))' }} />
       </Box>
-      <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.75)' }}>
+      <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'var(--text-secondary, rgba(255,255,255,0.75))' }}>
         没有找到与「{query}」相关的内容
       </Typography>
-      <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
+      <Typography sx={{ fontSize: 12, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
         换个关键词试试,或者看看热门搜索
       </Typography>
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mt: 1.5, justifyContent: 'center', maxWidth: 480 }}>
@@ -1175,10 +1171,10 @@ function NoResults({
             label={kw}
             onClick={() => onPickKeyword(kw)}
             sx={{
-              bgcolor: 'rgba(255,255,255,0.05)',
-              color: 'rgba(255,255,255,0.85)',
+              bgcolor: 'var(--bg-input, rgba(255,255,255,0.05))',
+              color: 'var(--text-primary, rgba(255,255,255,0.85))',
               fontSize: 12,
-              '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' },
+              '&:hover': { bgcolor: 'var(--bg-active, rgba(255,255,255,0.1))' },
             }}
           />
         ))}
@@ -1192,11 +1188,11 @@ function LoadingSkeleton() {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       {[0, 1, 2, 3].map((i) => (
         <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.25 }}>
-          <Skeleton variant="rectangular" width={72} height={90} sx={{ borderRadius: 1.5, bgcolor: 'rgba(255,255,255,0.06)' }} />
+          <Skeleton variant="rectangular" width={72} height={90} sx={{ borderRadius: 1.5, bgcolor: 'var(--bg-input, rgba(255,255,255,0.06))' }} />
           <Box sx={{ flex: 1 }}>
-            <Skeleton variant="text" width="60%" sx={{ bgcolor: 'rgba(255,255,255,0.06)' }} />
-            <Skeleton variant="text" width="40%" sx={{ bgcolor: 'rgba(255,255,255,0.04)' }} />
-            <Skeleton variant="text" width="30%" sx={{ bgcolor: 'rgba(255,255,255,0.04)' }} />
+            <Skeleton variant="text" width="60%" sx={{ bgcolor: 'var(--bg-input, rgba(255,255,255,0.06))' }} />
+            <Skeleton variant="text" width="40%" sx={{ bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))' }} />
+            <Skeleton variant="text" width="30%" sx={{ bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))' }} />
           </Box>
         </Box>
       ))}

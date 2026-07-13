@@ -33,6 +33,7 @@ yarn-error.log*
 # 本地 next dev 日志(后台启动 npm run dev 时生成)
 .dev.log
 .dev.log.err
+dev-restart.log
 
 # env files (can opt-in for committing if needed)
 .env*
