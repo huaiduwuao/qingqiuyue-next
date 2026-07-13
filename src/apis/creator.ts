@@ -28,7 +28,8 @@ export interface PageResponse<T> {
 }
 
 export interface WorksItem {
-  id: number;
+  /** Core API serializes BIGINT IDs outside JavaScript's safe range as strings. */
+  id: string | number;
   title: string;
   contentType: string;
   coverUrl: string;

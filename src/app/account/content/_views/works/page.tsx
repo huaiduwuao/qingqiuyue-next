@@ -20,8 +20,9 @@ import { DataGridTable } from '@/components/tables/DataGridTable';
 import DataOverviewCard from '../../_components/DataOverviewCard';
 import TopPerformingContent from '../../_components/TopPerformingContent';
 import ContentDistributionChart from '../../_components/ContentDistributionChart';
-import { getCreatorWorks, type WorksItem } from '@/apis/creator';
+import { getCreatorWorks } from '@/apis/creator';
 import { useActiveTab } from '../../ActiveTabContext';
+import { toWorksTableRows } from './rows';
 
 // 分布图/日历等组件切 tab 时透传的小写类型 → 本页大写枚举
 const PARAM_TYPE_MAP: Record<string, string> = {
@@ -138,9 +139,10 @@ export default function WorksPage() {
       page: params.pageNumber,
       pageSize: params.pageSize,
     });
+    const records = res.records || res.list || [];
     return {
       data: {
-        records: (res.records || res.list || []) as WorksItem[],
+        records: toWorksTableRows(records, params.pageNumber),
         totalRow: res.totalRow ?? res.total ?? 0,
       },
     };
