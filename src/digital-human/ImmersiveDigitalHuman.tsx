@@ -14,16 +14,19 @@
  */
 
 import React from 'react';
-import { Box, IconButton, TextField, Typography, CircularProgress } from '@mui/material';
+import { Box, IconButton, TextField, Typography, CircularProgress, Drawer, List, ListItemButton, ListItemText, Divider, Button } from '@mui/material';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import MicRoundedIcon from '@mui/icons-material/MicRounded';
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
+import ForumRoundedIcon from '@mui/icons-material/ForumRounded';
+import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import { useRouter } from 'next/navigation';
 import { alpha } from '@mui/material/styles';
 import { VrmStage, type VrmStageHandle } from './VrmStage';
 import { useChatAvatarWS } from './useChatAvatarWS';
 import { dispatchToolCalls, type ToolCall as DhToolCall } from './tools/dispatcher';
+import { useConversationHistory } from './useConversationHistory';
 import { useVoiceAgent } from '@/hooks/useVoiceAgent';
 import { VoiceIndicator, type VoiceIndicatorState } from '@/components/VoiceIndicator';
 import { useThemeMode } from '@/contexts/ThemeContext';
@@ -113,7 +116,10 @@ export default function ImmersiveDigitalHuman() {
     },
   });
   const { chatBusy, chatLog, emotion, viseme, action, send, sendText, audioRef,
-    text, setText } = chat;
+    text, setText, conversationId, newConversation, switchConversation } = chat;
+  // 002:全屏页体现多会话能力
+  const { history, refresh: refreshHistory } = useConversationHistory(20);
+  const [sessionDrawerOpen, setSessionDrawerOpen] = React.useState(true);
   // 诊断：监听 stageHandle 变化
   React.useEffect(() => { console.log('[Immersive] stageHandle 变化:', stageHandle); }, [stageHandle]);
   const [panelOpen, setPanelOpen] = React.useState(false);
@@ -259,7 +265,7 @@ export default function ImmersiveDigitalHuman() {
         sx={{ position: 'absolute', inset: 0 }}
       />
 
-      {/* 顶部:退出按钮 + 控制台切换 */}
+      {/* 顶部:退出按钮 + 会话列表切换 + 控制台切换 */}
       <IconButton
         onClick={() => router.back()}
         size="medium"
@@ -276,6 +282,23 @@ export default function ImmersiveDigitalHuman() {
         }}
       >
         <CloseRoundedIcon />
+      </IconButton>
+      <IconButton
+        onClick={() => setSessionDrawerOpen((o) => !o)}
+        size="medium"
+        aria-label="会话列表"
+        sx={{
+          position: 'absolute',
+          top: 12,
+          left: 60,
+          zIndex: 3,
+          color: sessionDrawerOpen ? '#25F4EE' : 'rgba(255,255,255,0.85)',
+          bgcolor: sessionDrawerOpen ? 'rgba(37,244,238,0.15)' : 'rgba(0,0,0,0.4)',
+          backdropFilter: 'blur(8px)',
+          '&:hover': { bgcolor: 'rgba(37,244,238,0.2)' },
+        }}
+      >
+        <ForumRoundedIcon />
       </IconButton>
       <IconButton
         onClick={() => setPanelOpen((o) => !o)}
@@ -428,6 +451,81 @@ export default function ImmersiveDigitalHuman() {
       )}
 
       <audio ref={audioRef} hidden />
+
+      {/* 002:左侧会话列表面板(多会话入口) */}
+      <Drawer
+        anchor="left"
+        open={sessionDrawerOpen}
+        onClose={() => setSessionDrawerOpen(false)}
+        slotProps={{
+          paper: {
+            sx: {
+              width: 280,
+              bgcolor: 'rgba(12,12,18,0.96)',
+              color: '#fff',
+              p: 1.5,
+              borderRight: '1px solid rgba(255,255,255,0.08)',
+            },
+          },
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+          <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
+            会话列表
+          </Typography>
+          <Button
+            size="small"
+            startIcon={<RefreshRoundedIcon sx={{ fontSize: 16 }} />}
+            onClick={() => {
+              newConversation?.();
+              refreshHistory();
+            }}
+            sx={{
+              fontSize: 11,
+              textTransform: 'none',
+              color: '#25F4EE',
+              borderColor: 'rgba(37,244,238,0.4)',
+              '&:hover': { borderColor: '#25F4EE', bgcolor: 'rgba(37,244,238,0.08)' },
+            }}
+            variant="outlined"
+          >
+            新会话
+          </Button>
+        </Box>
+        <Divider sx={{ bgcolor: 'rgba(255,255,255,0.1)', mb: 1 }} />
+        {history.length === 0 ? (
+          <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', p: 2, textAlign: 'center' }}>
+            还没有历史会话
+          </Typography>
+        ) : (
+          <List dense disablePadding>
+            {history.map((h) => (
+              <ListItemButton
+                key={h.id}
+                selected={h.id === conversationId}
+                onClick={() => {
+                  switchConversation?.(h.id);
+                }}
+                sx={{
+                  borderRadius: 1,
+                  mb: 0.5,
+                  '&.Mui-selected': { bgcolor: 'rgba(37,244,238,0.15)' },
+                  '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' },
+                }}
+              >
+                <ListItemText
+                  primary={h.title}
+                  secondary={h.lastMessageAt ? new Date(h.lastMessageAt).toLocaleString('zh-CN') : ''}
+                  slotProps={{
+                    primary: { sx: { fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } },
+                    secondary: { sx: { fontSize: 10, color: 'rgba(255,255,255,0.5)' } },
+                  }}
+                />
+              </ListItemButton>
+            ))}
+          </List>
+        )}
+      </Drawer>
     </Box>
   );
 }

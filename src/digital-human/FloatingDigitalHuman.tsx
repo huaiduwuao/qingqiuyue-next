@@ -16,15 +16,9 @@ import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import MicRoundedIcon from '@mui/icons-material/MicRounded';
 import NearMeRoundedIcon from '@mui/icons-material/NearMeRounded';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
-import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
-import Drawer from '@mui/material/Drawer';
-import List from '@mui/material/List';
-import ListItemButton from '@mui/material/ListItemButton';
-import ListItemText from '@mui/material/ListItemText';
-import Divider from '@mui/material/Divider';
 import { alpha } from '@mui/material/styles';
 import { useRouter, usePathname } from 'next/navigation';
 import BlenderAvatar from './BlenderAvatar';
@@ -135,29 +129,10 @@ export default function FloatingDigitalHuman() {
   const [voiceLogs, setVoiceLogs] = React.useState<VoiceLogEntry[]>([])
   const [showVoiceLogs, setShowVoiceLogs] = React.useState(false)
 
-  // 002:会话历史面板
-  const [showHistory, setShowHistory] = React.useState(false)
-  const [history, setHistory] = React.useState<Array<{
-    id: string; title: string; agentId: string;
-    lastMessageAt: string;
-  }>>([])
-  const historyLoadedRef = React.useRef(false)
-  const loadHistory = React.useCallback(async () => {
-    try {
-      const userId = 0 // 匿名:后端按 user_id=0 过滤;真实用户 ID 由 user 上下文注入
-      const r = await fetch(`/api/realtime/hermes/conversations?userId=${userId}&limit=20`)
-      if (!r.ok) return
-      const j = await r.json()
-      // 后端 SuccessPage 返回 {records, totalRow}
-      const records: any[] = j?.data?.records ?? j?.records ?? []
-      setHistory(records.map((r: any) => ({
-        id: r.id, title: r.title || '(无标题)', agentId: r.agentId,
-        lastMessageAt: r.lastMessageAt || '',
-      })))
-    } catch (e) {
-      console.warn('[FloatingDigitalHuman] load history:', e)
-    }
-  }, [])
+  // 002:会话历史面板(浮窗不显示会话列表,仅保留"新对话"按钮)
+  const handleNewConversation = React.useCallback(() => {
+    chat.newConversation?.();
+  }, [chat]);
 
   React.useEffect(() => {
     const onLog = (e: Event) => {
@@ -550,23 +525,10 @@ export default function FloatingDigitalHuman() {
           size="small"
           aria-label="新对话"
           title="开始新对话(清空当前会话历史)"
-          onClick={(e) => { e.stopPropagation(); chat.newConversation?.(); }}
+          onClick={(e) => { e.stopPropagation(); handleNewConversation(); }}
           sx={{ color: 'rgba(255,255,255,0.85)', bgcolor: 'rgba(0,0,0,0.4)' }}
         >
           <RefreshRoundedIcon sx={{ fontSize: 14 }} />
-        </IconButton>
-        <IconButton
-          size="small"
-          aria-label="历史对话"
-          title="查看历史对话"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (!historyLoadedRef.current) loadHistory();
-            setShowHistory((s) => !s);
-          }}
-          sx={{ color: 'rgba(255,255,255,0.85)', bgcolor: 'rgba(0,0,0,0.4)' }}
-        >
-          <HistoryRoundedIcon sx={{ fontSize: 14 }} />
         </IconButton>
         <MicTestButton />
         <Box sx={{ flex: 1 }} />
@@ -770,53 +732,6 @@ export default function FloatingDigitalHuman() {
           />
         )}
       </Box>
-
-      {/* 002:历史对话侧栏 */}
-      <Drawer
-        anchor="right"
-        open={showHistory}
-        onClose={() => setShowHistory(false)}
-        slotProps={{
-          paper: { sx: { width: 320, bgcolor: 'rgba(20,20,28,0.96)', color: '#fff', p: 1 } },
-        }}
-      >
-        <Typography sx={{ fontSize: 14, fontWeight: 600, mb: 1, color: 'rgba(255,255,255,0.9)' }}>
-          历史对话
-        </Typography>
-        <Divider sx={{ bgcolor: 'rgba(255,255,255,0.1)', mb: 1 }} />
-        {history.length === 0 ? (
-          <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', p: 2, textAlign: 'center' }}>
-            还没有历史对话
-          </Typography>
-        ) : (
-          <List dense disablePadding>
-            {history.map((h) => (
-              <ListItemButton
-                key={h.id}
-                data-no-drag
-                onClick={() => {
-                  chat.switchConversation?.(h.id);
-                  setShowHistory(false);
-                }}
-                sx={{
-                  borderRadius: 1,
-                  mb: 0.5,
-                  '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' },
-                }}
-              >
-                <ListItemText
-                  primary={h.title}
-                  secondary={h.lastMessageAt ? new Date(h.lastMessageAt).toLocaleString('zh-CN') : ''}
-                  slotProps={{
-                    primary: { sx: { fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } },
-                    secondary: { sx: { fontSize: 10, color: 'rgba(255,255,255,0.5)' } },
-                  }}
-                />
-              </ListItemButton>
-            ))}
-          </List>
-        )}
-      </Drawer>
 
       {/* ExternalViewer: 用户说"打开百度"等 → 弹 iframe 模态显示 */}
       {externalViewer && (
