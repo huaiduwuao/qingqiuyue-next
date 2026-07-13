@@ -37,6 +37,7 @@ import { WerewolfPlayer } from './WerewolfPlayer';
 import SendToSpider from '@/components/SendToSpider';
 import { FriendPanel } from './FriendPanel';
 import { useContentNavigate } from '@/lib/contentRoute';
+import { fetchSubcategories, type SubcategoryItem } from '@/apis/home-discover';
 
 type FeedItem = {
   id: number;
@@ -90,18 +91,20 @@ const SECTIONS: { key: FeedItem['section']; label: string }[] = [
   { key: 'finance', label: '财经' },
 ];
 
-// Quick-pick chip strip for the home tab. Key matches FeedItem.section.
-const HOME_QUICK_CATEGORIES: { key: FeedItem['section']; label: string }[] = [
-  { key: 'recommend', label: '精选' },
-  { key: 'novel', label: '小说' },
-  { key: 'comics', label: '漫画' },
-  { key: 'film', label: '电影' },
-  { key: 'teleplay', label: '短剧' },
-  { key: 'entertainment', label: '综艺' },
-  { key: 'music', label: '音乐' },
-  { key: 'anime', label: '动漫' },
-  { key: 'news', label: '资讯' },
-];
+// 顶部 Tabs 的「类型」(section)→ 后端子分类字典 parentType 枚举。
+// 选中某类型后,用它拉该类型下的子分类(题材),做二级筛选。
+// 'recommend'(精选)是聚合流,无单一父类,故不在表中 → 不展示子分类行。
+const SECTION_TO_PARENT_TYPE: Partial<Record<FeedItem['section'], string>> = {
+  novel: 'NOVEL',
+  comics: 'COMICS',
+  film: 'FILM',
+  teleplay: 'TELEPLAY',
+  entertainment: 'VSHOW',
+  music: 'MUSIC',
+  anime: 'ANIMATION',
+  news: 'NEWS',
+  game: 'VIDEO',
+};
 
 export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recommend' }) {
   const router = useRouter();
@@ -113,9 +116,36 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
     setSectionState(next);
     const params = new URLSearchParams(searchParams.toString());
     params.set('section', next);
+    // 切换类型时清空子分类(题材),避免把小说的题材带到影视上
+    params.delete('genre');
+    setGenreState('');
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
   useEffect(() => { setSectionState(urlSection); }, [urlSection]);
+  // 二级子分类(题材):选中某类型后按题材筛选;'' = 全部
+  const urlGenre = searchParams.get('genre') || '';
+  const [genre, setGenreState] = useState<string>(urlGenre);
+  const setGenre = (next: string) => {
+    setGenreState(next);
+    const params = new URLSearchParams(searchParams.toString());
+    if (!next) params.delete('genre');
+    else params.set('genre', next);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+  useEffect(() => { setGenreState(urlGenre); }, [urlGenre]);
+  const parentType = SECTION_TO_PARENT_TYPE[section];
+  const subcatQuery = useQuery({
+    queryKey: ['home', 'feed', 'subcategory', parentType],
+    queryFn: () =>
+      fetchSubcategories(parentType as string).then((r: any) => {
+        // 后端返回 { list: [...] } 或 { groups: { NOVEL: [...] } }
+        if (Array.isArray(r?.data?.list)) return r.data.list as SubcategoryItem[];
+        if (parentType && r?.data?.groups?.[parentType]) return r.data.groups[parentType] as SubcategoryItem[];
+        return [] as SubcategoryItem[];
+      }),
+    enabled: tab === 'home' && !!parentType,
+    staleTime: 10 * 60 * 1000,
+  });
   // sort + time for home tab; default = hot
   const urlSort = (searchParams.get('sort') as 'views' | 'new' | 'hot') || 'views';
   const [sort, setSortState] = useState<'views' | 'new' | 'hot'>(urlSort);
@@ -138,12 +168,13 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
   const isFriend = tab === 'friend';
 
   const query = useQuery({
-    queryKey: ['home', 'feed', tab, isPersonal ? 'all' : section, sort],
+    queryKey: ['home', 'feed', tab, isPersonal ? 'all' : section, sort, isPersonal ? '' : genre],
     queryFn: () => {
       const params = new URLSearchParams({ tab });
       if (!isPersonal) {
         params.set('section', section);
         params.set('sort', sort);
+        if (genre) params.set('genre', genre);
       }
       return homeClient.get<FeedResp>(`/feed?${params.toString()}`).then((r) => r.data);
     },
@@ -207,37 +238,73 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
           }}
         >
           {tab === 'home' && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1.5, pt: 0.75, pb: 0.25, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' } }}>
+            <Tabs
+              value={section}
+              onChange={(_, v) => setSection(v)}
+              variant="scrollable"
+              scrollButtons="auto"
+              allowScrollButtonsMobile
+              sx={{
+                minHeight: 44,
+                px: 1,
+                '& .MuiTab-root': {
+                  minHeight: 44,
+                  fontSize: 13,
+                  fontWeight: 500,
+                  color: 'var(--text-secondary, rgba(255,255,255,0.6))',
+                  textTransform: 'none',
+                  px: 1.75,
+                  py: 0,
+                  transition: 'color 0.15s',
+                  '&:hover': { color: 'var(--text-primary, #ffffff)' },
+                },
+                '& .Mui-selected': { color: 'var(--brand-color, #FE2C55) !important', fontWeight: 700 },
+                '& .MuiTabs-indicator': { backgroundColor: 'var(--brand-color, #FE2C55)', height: 2.5, borderRadius: 1.25 },
+                '& .MuiTabs-scrollButtons': { color: 'var(--text-secondary, rgba(255,255,255,0.55))' },
+              }}
+            >
+              {SECTIONS.map((s) => (
+                <Tab key={s.key} value={s.key} label={s.label} />
+              ))}
+            </Tabs>
+          )}
+          {/* 二级子分类(题材):选中某类型(如小说)后,展示该类型下的分类来筛选 */}
+          {tab === 'home' && parentType && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1.5, pt: 0.5, pb: 0.25, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' } }}>
               <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>分类</Typography>
-              {HOME_QUICK_CATEGORIES.map((c) => {
-                const active = section === c.key;
-                return (
-                  <Box
-                    key={c.key}
-                    onClick={() => setSection(c.key)}
-                    sx={{
-                      flexShrink: 0,
-                      px: 1.25,
-                      py: 0.35,
-                      borderRadius: 999,
-                      cursor: 'pointer',
-                      fontSize: 11.5,
-                      fontWeight: active ? 700 : 500,
-                      color: active ? '#000' : 'var(--text-secondary, rgba(255,255,255,0.85))',
-                      bgcolor: active ? 'rgba(255,255,255,0.95)' : 'transparent',
-                      border: '1px solid',
-                      borderColor: active ? 'transparent' : 'var(--border-color, rgba(255,255,255,0.12))',
-                      transition: 'all 0.15s',
-                    }}
-                  >
-                    {c.label}
-                  </Box>
-                );
-              })}
+              {subcatQuery.isLoading ? (
+                <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))', fontStyle: 'italic' }}>加载中…</Typography>
+              ) : (
+                [{ code: '', name: '全部' }, ...(subcatQuery.data ?? [])].map((s) => {
+                  const active = genre === s.code;
+                  return (
+                    <Box
+                      key={s.code || 'all'}
+                      onClick={() => setGenre(s.code)}
+                      sx={{
+                        flexShrink: 0,
+                        px: 1.25,
+                        py: 0.35,
+                        borderRadius: 999,
+                        cursor: 'pointer',
+                        fontSize: 11.5,
+                        fontWeight: active ? 700 : 500,
+                        color: active ? '#000' : 'var(--text-secondary, rgba(255,255,255,0.85))',
+                        bgcolor: active ? 'rgba(255,255,255,0.95)' : 'transparent',
+                        border: '1px solid',
+                        borderColor: active ? 'transparent' : 'var(--border-color, rgba(255,255,255,0.12))',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {s.name}
+                    </Box>
+                  );
+                })
+              )}
             </Box>
           )}
           {tab === 'home' && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1.5, pt: 0.5, pb: 0.25, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' } }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1.5, pt: 0.5, pb: 0.75, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' } }}>
               <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>排序</Typography>
               {[
                 { key: 'views', label: '人气榜' },
@@ -270,35 +337,6 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
               })}
             </Box>
           )}
-          <Tabs
-            value={section}
-            onChange={(_, v) => setSection(v)}
-            variant="scrollable"
-            scrollButtons="auto"
-            allowScrollButtonsMobile
-            sx={{
-              minHeight: 44,
-              px: 1,
-              '& .MuiTab-root': {
-                minHeight: 44,
-                fontSize: 13,
-                fontWeight: 500,
-                color: 'var(--text-secondary, rgba(255,255,255,0.6))',
-                textTransform: 'none',
-                px: 1.75,
-                py: 0,
-                transition: 'color 0.15s',
-                '&:hover': { color: 'var(--text-primary, #ffffff)' },
-              },
-              '& .Mui-selected': { color: 'var(--brand-color, #FE2C55) !important', fontWeight: 700 },
-              '& .MuiTabs-indicator': { backgroundColor: 'var(--brand-color, #FE2C55)', height: 2.5, borderRadius: 1.25 },
-              '& .MuiTabs-scrollButtons': { color: 'var(--text-secondary, rgba(255,255,255,0.55))' },
-            }}
-          >
-            {SECTIONS.map((s) => (
-              <Tab key={s.key} value={s.key} label={s.label} />
-            ))}
-          </Tabs>
         </Box>
       )}
 
