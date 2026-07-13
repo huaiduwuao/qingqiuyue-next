@@ -38,7 +38,7 @@ import QueueMusicRoundedIcon from '@mui/icons-material/QueueMusicRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import KeyboardArrowUpRoundedIcon from '@mui/icons-material/KeyboardArrowUpRounded';
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
-import { fetchRecommend } from '@/apis/home-discover';
+import { fetchRecommend, fetchSubcategories, type SubcategoryItem } from '@/apis/home-discover';
 import { sendComment, moduleContentAction } from '@/apis/home';
 import { reportContent, collectContent } from '@/apis/global';
 import { homeClient } from '@/lib/api/client';
@@ -131,6 +131,8 @@ export function RecommendVideoFeed() {
   const [moreDialogOpen, setMoreDialogOpen] = useState(false);
   // 顶部分类筛选(精选/小说/短剧/...)。默认 all = 全量推荐。
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  // 二级分类(子分类/题材):选了小说后可选奇幻/仙侠/古装等
+  const [selectedSubcategory, setSelectedSubcategory] = useState<string>('');
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   const ALL_TYPES = 'NOVEL,COMICS,FILM,VSHOW,MUSIC,TELEPLAY,ANIMATION,VIDEO,NEWS,ARTICLE';
@@ -139,9 +141,30 @@ export function RecommendVideoFeed() {
 		? ALL_TYPES
 		: RECOMMEND_CATEGORIES.find((c) => c.key === selectedCategory)?.key ?? '';
 
+  // 选中非“all”顶分类时,请求子分类字典
+  const subcatQuery = useQuery({
+    queryKey: ['home-recommend', 'subcategory', selectedCategory],
+    queryFn: () =>
+      fetchSubcategories(selectedCategory).then((r: any) => {
+        // 后端返回 { list: [...] } 或 { groups: { NOVEL: [...] } }
+        if (Array.isArray(r?.data?.list)) return r.data.list as SubcategoryItem[];
+        if (r?.data?.groups && selectedCategory && r.data.groups[selectedCategory]) {
+          return r.data.groups[selectedCategory] as SubcategoryItem[];
+        }
+        return [] as SubcategoryItem[];
+      }),
+    enabled: selectedCategory !== 'all',
+    staleTime: 10 * 60 * 1000,
+  });
+
   const { data: feed, isLoading } = useQuery({
-    queryKey: ['home-recommend', 'recommend-feed', selectedCategory],
-    queryFn: () => fetchRecommend({ types: typesParam, size: 24 }).then(
+    queryKey: ['home-recommend', 'recommend-feed', selectedCategory, selectedSubcategory],
+    queryFn: () =>
+      fetchRecommend({
+        types: typesParam,
+        size: 24,
+        ...(selectedSubcategory ? { genre: selectedSubcategory } : {}),
+      }).then(
         (r: any) => {
           const list = (r?.data?.list ?? []) as any[];
           return list.map((it): VideoItem => ({
@@ -172,7 +195,7 @@ export function RecommendVideoFeed() {
 
   const [index, setIndex] = useState(0);
   // 切换分类时回到第一条,并用 ref 触发即时重置。
-  useEffect(() => { setIndex(0); }, [selectedCategory]);
+  useEffect(() => { setIndex(0); setSelectedSubcategory(''); }, [selectedCategory]);
   const [slideDir, setSlideDir] = useState<1 | -1>(1);
   const navLock = useRef(false);
   const unlockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -555,6 +578,75 @@ export function RecommendVideoFeed() {
           );
         })}
       </Box>
+
+      {/* 二级分类(子分类):选中顶分类后展示该类别下的题材 */}
+      {selectedCategory !== 'all' && (
+        <Box
+          data-no-drag
+          sx={{
+            position: 'absolute',
+            top: 56,
+            left: 0,
+            right: 0,
+            zIndex: 6,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0.5,
+            px: { xs: 1.5, sm: 2 },
+            py: 0.5,
+            overflowX: 'auto',
+            background: 'linear-gradient(180deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0) 100%)',
+            '&::-webkit-scrollbar': { display: 'none' },
+          }}
+        >
+          {subcatQuery.isLoading ? (
+            <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontStyle: 'italic' }}>加载中…</Typography>
+          ) : (
+            <>
+              <Box
+                onClick={() => setSelectedSubcategory('')}
+                sx={{
+                  flexShrink: 0,
+                  px: 1,
+                  py: 0.3,
+                  borderRadius: 999,
+                  cursor: 'pointer',
+                  fontSize: 10.5,
+                  fontWeight: selectedSubcategory === '' ? 700 : 500,
+                  color: selectedSubcategory === '' ? '#000' : 'rgba(255,255,255,0.75)',
+                  bgcolor: selectedSubcategory === '' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.06)',
+                  transition: 'all 0.15s',
+                }}
+              >
+                全部
+              </Box>
+              {(subcatQuery.data ?? []).map((s) => {
+                const active = selectedSubcategory === s.code;
+                return (
+                  <Box
+                    key={s.code}
+                    onClick={() => setSelectedSubcategory(s.code)}
+                    sx={{
+                      flexShrink: 0,
+                      px: 1,
+                      py: 0.3,
+                      borderRadius: 999,
+                      cursor: 'pointer',
+                      fontSize: 10.5,
+                      fontWeight: active ? 700 : 500,
+                      color: active ? '#000' : 'rgba(255,255,255,0.75)',
+                      bgcolor: active ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.06)',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {s.name}
+                  </Box>
+                );
+              })}
+            </>
+          )}
+        </Box>
+      )}
 
       <Box
         ref={setViewportRef}
