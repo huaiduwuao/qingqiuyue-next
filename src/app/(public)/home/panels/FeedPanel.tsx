@@ -90,6 +90,19 @@ const SECTIONS: { key: FeedItem['section']; label: string }[] = [
   { key: 'finance', label: '财经' },
 ];
 
+// Quick-pick chip strip for the home tab. Key matches FeedItem.section.
+const HOME_QUICK_CATEGORIES: { key: FeedItem['section']; label: string }[] = [
+  { key: 'recommend', label: '精选' },
+  { key: 'novel', label: '小说' },
+  { key: 'comics', label: '漫画' },
+  { key: 'film', label: '电影' },
+  { key: 'teleplay', label: '短剧' },
+  { key: 'entertainment', label: '综艺' },
+  { key: 'music', label: '音乐' },
+  { key: 'anime', label: '动漫' },
+  { key: 'news', label: '资讯' },
+];
+
 export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recommend' }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -172,7 +185,7 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
             <LocalFireDepartmentIcon sx={{ fontSize: 18, color: '#fff' }} />
           </Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography sx={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary, #ffffff)', letterSpacing: 0.3 }}>为你推荐</Typography>
+            <Typography sx={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary, #ffffff)', letterSpacing: 0.3 }}>精选</Typography>
             <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>多分类聚合 · 实时热度排序</Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'warning.main' }}>
@@ -195,6 +208,36 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
         >
           {tab === 'home' && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1.5, pt: 0.75, pb: 0.25, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' } }}>
+              <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>分类</Typography>
+              {HOME_QUICK_CATEGORIES.map((c) => {
+                const active = section === c.key;
+                return (
+                  <Box
+                    key={c.key}
+                    onClick={() => setSection(c.key)}
+                    sx={{
+                      flexShrink: 0,
+                      px: 1.25,
+                      py: 0.35,
+                      borderRadius: 999,
+                      cursor: 'pointer',
+                      fontSize: 11.5,
+                      fontWeight: active ? 700 : 500,
+                      color: active ? '#000' : 'var(--text-secondary, rgba(255,255,255,0.85))',
+                      bgcolor: active ? 'rgba(255,255,255,0.95)' : 'transparent',
+                      border: '1px solid',
+                      borderColor: active ? 'transparent' : 'var(--border-color, rgba(255,255,255,0.12))',
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    {c.label}
+                  </Box>
+                );
+              })}
+            </Box>
+          )}
+          {tab === 'home' && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1.5, pt: 0.5, pb: 0.25, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' } }}>
               <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>排序</Typography>
               {[
                 { key: 'views', label: '人气榜' },

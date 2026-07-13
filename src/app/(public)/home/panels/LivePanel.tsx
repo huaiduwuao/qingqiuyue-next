@@ -300,8 +300,7 @@ function FilterChip({ active, label, onClick }: { active: boolean; label: string
 // ----- TOP 10 人气榜 (领奖台) -----
 function LiveTop10({ list, onSelect }: { list: Room[]; onSelect: (r: Room) => void }) {
   if (list.length === 0) return null;
-  const top3 = list.filter((r) => r.hotRank >= 1 && r.hotRank <= 3);
-  const rest = list.filter((r) => r.hotRank >= 4 && r.hotRank <= 10);
+  const ordered = [...list].sort((a, b) => (a.hotRank || 99) - (b.hotRank || 99)).slice(0, 10);
 
   return (
     <Box
@@ -319,73 +318,21 @@ function LiveTop10({ list, onSelect }: { list: Room[]; onSelect: (r: Room) => vo
         <LocalFireDepartmentIcon sx={{ fontSize: 18 }} />
         <Typography sx={{ fontSize: 13, fontWeight: 700, letterSpacing: 0.5 }}>TOP 10 人气榜</Typography>
       </Box>
-
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
         <WhatshotIcon sx={{ fontSize: 20, color: 'primary.main' }} />
         <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>本周人气最高</Typography>
         <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))', ml: 1 }}>按在线观看人数</Typography>
       </Box>
-
-      {top3.length === 3 && (
-        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1fr', gap: 1.5, mb: 2, mt: 1 }}>
-          {top3
-            .sort((a, b) => a.hotRank - b.hotRank)
-            .map((r) => (
-              <PodiumCard key={r.id} room={r} onClick={() => onSelect(r)} />
-            ))}
-        </Box>
-      )}
-
-      {rest.length > 0 && (
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' }, gap: 1.5, pt: 1.5, borderTop: '1px dashed', borderTopColor: 'divider' }}>
-          {rest.map((r) => (
-            <RankCard key={r.id} room={r} onClick={() => onSelect(r)} />
-          ))}
-        </Box>
-      )}
-    </Box>
-  );
-}
-
-function PodiumCard({ room, onClick }: { room: Room; onClick: () => void }) {
-  const rank = room.hotRank;
-  const rankStyle = MEDAL[rank] ?? MEDAL[3];
-
-  return (
-    <Box
-      onClick={onClick}
-      sx={{
-        position: 'relative',
-        borderRadius: 2,
-        overflow: 'hidden',
-        cursor: 'pointer',
-        background: rankStyle.bg,
-        border: '1px solid',
-        borderColor: rankStyle.border,
-        transition: 'transform 0.2s',
-        '&:hover': { transform: 'translateY(-3px)' },
-      }}
-    >
-      <Box sx={{ position: 'absolute', top: 8, left: 8, width: 28, height: 28, borderRadius: '50%', background: rankStyle.badge, color: rankStyle.txt, fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(0,0,0,0.4)', zIndex: 1 }}>
-        {rank}
-      </Box>
-      <Box sx={{ position: 'relative', aspectRatio: '3/4' }}>
-        <CoverImage src={room.cover} alt={room.title} sx={{ width: '100%', height: '100%' }} />
-        <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.MID }} />
-        {room.isLive && (
-          <Box sx={{ position: 'absolute', top: 8, right: 8, display: 'flex', alignItems: 'center', gap: 0.25, px: 0.75, py: 0.25, borderRadius: 0.5, bgcolor: 'primary.main', color: '#fff', fontSize: 9, fontWeight: 700 }}>
-            <LiveTvRoundedIcon sx={{ fontSize: 10, color: '#fff !important' }} />
-            LIVE
-          </Box>
-        )}
-        <Box sx={{ position: 'absolute', bottom: 8, left: 8, right: 8 }}>
-          <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#fff', mb: 0.25, lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-            {room.title}
-          </Typography>
-          <Typography sx={{ fontSize: 10, color: 'rgba(255,255,255,0.7)' }}>
-            {formatViewers(room.viewers)} 人气 · {room.category}
-          </Typography>
-        </Box>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' },
+          gap: 1.25,
+        }}
+      >
+        {ordered.map((r) => (
+          <RankCard key={r.id} room={r} onClick={() => onSelect(r)} />
+        ))}
       </Box>
     </Box>
   );
@@ -393,6 +340,15 @@ function PodiumCard({ room, onClick }: { room: Room; onClick: () => void }) {
 
 function RankCard({ room, onClick }: { room: Room; onClick: () => void }) {
   const rank = room.hotRank || 0;
+  const isTop3 = rank >= 1 && rank <= 3;
+  const medal = isTop3 ? MEDAL[rank] : null;
+  const badgeBg = isTop3
+    ? medal!.badge
+    : 'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 100%)';
+  const badgeColor = isTop3 ? medal!.txt : 'var(--text-primary, #fff)';
+  const cardBg = isTop3 ? medal!.bg : 'var(--bg-surface, rgba(20, 22, 32, 0.6))';
+  const cardBorder = isTop3 ? medal!.border : '1px solid var(--border-color, rgba(255,255,255,0.06))';
+
   return (
     <Box
       onClick={onClick}
@@ -401,16 +357,16 @@ function RankCard({ room, onClick }: { room: Room; onClick: () => void }) {
         borderRadius: 2,
         overflow: 'hidden',
         cursor: 'pointer',
-        bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))',
-        border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
-        transition: 'transform 0.2s, border-color 0.2s, box-shadow 0.2s',
-        '&:hover': { transform: 'translateY(-3px)', borderColor: 'var(--border-strong, rgba(255,255,255,0.16))', boxShadow: '0 12px 28px rgba(0,0,0,0.3)' },
+        background: cardBg,
+        border: cardBorder,
+        transition: 'transform 0.2s, box-shadow 0.2s',
+        '&:hover': { transform: 'translateY(-3px)', boxShadow: '0 10px 24px rgba(0,0,0,0.3)' },
       }}
     >
       <Box sx={{ position: 'relative', aspectRatio: '3/4' }}>
         <CoverImage src={room.cover} alt={room.title} sx={{ width: '100%', height: '100%' }} />
         <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.HEAVY }} />
-        <Box sx={{ position: 'absolute', top: 6, left: 6, minWidth: 24, height: 24, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 100%)', border: '1px solid rgba(255,255,255,0.2)', color: 'var(--text-primary, #fff)', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px', backdropFilter: 'blur(4px)', zIndex: 1, fontVariantNumeric: 'tabular-nums' }}>
+        <Box sx={{ position: 'absolute', top: 6, left: 6, minWidth: 24, height: 24, borderRadius: '50%', background: badgeBg, color: badgeColor, fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px', backdropFilter: isTop3 ? 'none' : 'blur(4px)', border: isTop3 ? 'none' : '1px solid rgba(255,255,255,0.2)', boxShadow: isTop3 ? '0 2px 6px rgba(0,0,0,0.4)' : 'none', zIndex: 1, fontVariantNumeric: 'tabular-nums' }}>
           {rank}
         </Box>
         {room.isLive && (
@@ -420,22 +376,18 @@ function RankCard({ room, onClick }: { room: Room; onClick: () => void }) {
           </Box>
         )}
         <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, p: 1, background: 'linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.85) 100%)' }}>
-          <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#fff', lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+          <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#fff', lineHeight: 1.2, mb: 0.25, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
             {room.title}
           </Typography>
+          <Typography sx={{ fontSize: 9, color: 'rgba(255,255,255,0.7)' }}>
+            {room.category} · {formatViewers(room.viewers)} 人气
+          </Typography>
         </Box>
-      </Box>
-      <Box sx={{ p: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.5 }}>
-        <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
-          {room.category}
-        </Typography>
-        <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
-          {formatViewers(room.viewers)} 人气
-        </Typography>
       </Box>
     </Box>
   );
 }
+
 
 function RoomCard({ room, onClick }: { room: Room; onClick: () => void }) {
   return (

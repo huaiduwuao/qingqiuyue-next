@@ -274,11 +274,9 @@ function Top10Podium({ list, genre, status, sort }: { list: DramaSeries[]; genre
   const subtitle = sort === 'rating' ? '按评分排序' : sort === 'new' ? '最新上线' : '按播放量排序';
   const titleParts: string[] = [];
   if (genre !== 'all') titleParts.push(genre);
-  if (status !== 'ALL') titleParts.push(STATUS_LABEL[statusKey(status) ?? 'HOT']);
+  if (status !== 'ALL') titleParts.push(STATUS_LABEL[status]);
   const title = titleParts.length === 0 ? '本周热门' : titleParts.join('·');
-
-  const top3 = list.filter((d) => (d.hotRank || 0) >= 1 && (d.hotRank || 0) <= 3);
-  const rest = list.filter((d) => (d.hotRank || 0) >= 4 && (d.hotRank || 0) <= 10);
+  const ordered = [...list].sort((a, b) => (a.hotRank || 99) - (b.hotRank || 99)).slice(0, 10);
 
   return (
     <Box
@@ -296,82 +294,21 @@ function Top10Podium({ list, genre, status, sort }: { list: DramaSeries[]; genre
         <LocalFireDepartmentIcon sx={{ fontSize: 18 }} />
         <Typography sx={{ fontSize: 13, fontWeight: 700, letterSpacing: 0.5 }}>TOP 10 热门榜</Typography>
       </Box>
-
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
         <WhatshotIcon sx={{ fontSize: 20, color: 'primary.main' }} />
         <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>{title}短剧</Typography>
         <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))', ml: 1 }}>{subtitle}</Typography>
       </Box>
-
-      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1fr', gap: 1.5, mb: 2, mt: 1 }}>
-        {top3
-          .sort((a, b) => (a.hotRank ?? 0) - (b.hotRank ?? 0))
-          .map((d) => (
-            <PodiumCard key={d.id} item={d} />
-          ))}
-      </Box>
-
-      {rest.length > 0 && (
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' }, gap: 1.5, pt: 1.5, borderTop: '1px dashed', borderTopColor: 'divider' }}>
-          {rest.map((d) => (
-            <RankCard key={d.id} item={d} />
-          ))}
-        </Box>
-      )}
-    </Box>
-  );
-}
-
-function PodiumCard({ item }: { item: DramaSeries }) {
-  const navigate = useContentNavigate();
-  const rank = item.hotRank;
-  const rankStyle = rank === 1 ? MEDAL[1] : rank === 2 ? MEDAL[2] : MEDAL[3];
-
-  return (
-    <Box
-      onClick={() => navigate('TELEPLAY', item.id)}
-      sx={{
-        position: 'relative',
-        borderRadius: 2,
-        overflow: 'hidden',
-        cursor: 'pointer',
-        background: rankStyle.bg,
-        border: '1px solid',
-        borderColor: rankStyle.border,
-        transition: 'transform 0.2s',
-        '&:hover': { transform: 'translateY(-3px)' },
-      }}
-    >
-      <Box sx={{ position: 'absolute', top: 8, left: 8, width: 28, height: 28, borderRadius: '50%', background: rankStyle.badge, color: rankStyle.txt, fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(0,0,0,0.4)', zIndex: 1 }}>
-        {rank}
-      </Box>
-      <Box sx={{ position: 'relative', aspectRatio: '3/4' }}>
-        <CoverImage src={item.cover} alt={item.title} sx={{ width: '100%', height: '100%' }} />
-        <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.HEAVY }} />
-        <Box sx={{ position: 'absolute', top: 8, right: 8, display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-end' }}>
-          {(() => {
-            const k = statusKey(item.status);
-            const c = k ? STATUS_COLOR[k] : DEFAULT_STATUS_COLOR;
-            return (
-              <Box sx={{ px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: c.bg, color: c.fg, fontSize: 9, fontWeight: 700 }}>
-                {k ? STATUS_LABEL[k] : (item.status || '其他')}
-              </Box>
-            );
-          })()}
-          {item.rating !== undefined && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: 'warning.main', fontSize: 9, fontWeight: 700 }}>
-              <StarRoundedIcon sx={{ fontSize: 9 }} />{(item.rating ?? 0).toFixed(1)}
-            </Box>
-          )}
-        </Box>
-        <Box sx={{ position: 'absolute', bottom: 8, left: 8, right: 8 }}>
-          <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#fff', mb: 0.25, lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-            {item.title}
-          </Typography>
-          <Typography sx={{ fontSize: 9, color: 'rgba(255,255,255,0.7)' }}>
-            {formatViews(item.views)} 播放 · {item.episodes ?? '-'} 集
-          </Typography>
-        </Box>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' },
+          gap: 1.25,
+        }}
+      >
+        {ordered.map((d) => (
+          <RankCard key={d.id} item={d} />
+        ))}
       </Box>
     </Box>
   );
@@ -380,6 +317,18 @@ function PodiumCard({ item }: { item: DramaSeries }) {
 function RankCard({ item }: { item: DramaSeries }) {
   const navigate = useContentNavigate();
   const rank = item.hotRank || 0;
+  const isTop3 = rank >= 1 && rank <= 3;
+  const medal = isTop3 ? MEDAL[rank] : null;
+  const badgeBg = isTop3
+    ? medal!.badge
+    : 'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 100%)';
+  const badgeColor = isTop3 ? medal!.txt : 'var(--text-primary, #fff)';
+  const cardBg = isTop3 ? medal!.bg : 'var(--bg-surface, rgba(20, 22, 32, 0.6))';
+  const cardBorder = isTop3 ? medal!.border : '1px solid var(--border-color, rgba(255,255,255,0.06))';
+  const sk = statusKey(item.status);
+  const statusInfo = sk ? STATUS_COLOR[sk] : DEFAULT_STATUS_COLOR;
+  const statusLabel = sk ? STATUS_LABEL[sk] : (item.status || '其他');
+
   return (
     <Box
       onClick={() => navigate('TELEPLAY', item.id)}
@@ -388,21 +337,21 @@ function RankCard({ item }: { item: DramaSeries }) {
         borderRadius: 2,
         overflow: 'hidden',
         cursor: 'pointer',
-        bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))',
-        border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
-        transition: 'transform 0.2s, border-color 0.2s, box-shadow 0.2s',
-        '&:hover': { transform: 'translateY(-3px)', borderColor: 'var(--border-strong, rgba(255,255,255,0.16))', boxShadow: '0 12px 28px rgba(0,0,0,0.3)' },
+        background: cardBg,
+        border: cardBorder,
+        transition: 'transform 0.2s, box-shadow 0.2s',
+        '&:hover': { transform: 'translateY(-3px)', boxShadow: '0 10px 24px rgba(0,0,0,0.3)' },
       }}
     >
       <Box sx={{ position: 'relative', aspectRatio: '3/4' }}>
         <CoverImage src={item.cover} alt={item.title} sx={{ width: '100%', height: '100%' }} />
         <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.HEAVY }} />
-        <Box sx={{ position: 'absolute', top: 6, left: 6, minWidth: 24, height: 24, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 100%)', border: '1px solid rgba(255,255,255,0.2)', color: 'var(--text-primary, #fff)', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px', backdropFilter: 'blur(4px)', zIndex: 1, fontVariantNumeric: 'tabular-nums' }}>
+        <Box sx={{ position: 'absolute', top: 6, left: 6, minWidth: 24, height: 24, borderRadius: '50%', background: badgeBg, color: badgeColor, fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px', backdropFilter: isTop3 ? 'none' : 'blur(4px)', border: isTop3 ? 'none' : '1px solid rgba(255,255,255,0.2)', boxShadow: isTop3 ? '0 2px 6px rgba(0,0,0,0.4)' : 'none', zIndex: 1, fontVariantNumeric: 'tabular-nums' }}>
           {rank}
         </Box>
         <Box sx={{ position: 'absolute', top: 6, right: 6, display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-end' }}>
-          <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: STATUS_COLOR[statusKey(item.status) ?? 'HOT'].bg, color: STATUS_COLOR[statusKey(item.status) ?? 'HOT'].fg, fontSize: 9, fontWeight: 700 }}>
-            {STATUS_LABEL[statusKey(item.status) ?? 'HOT']}
+          <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: statusInfo.bg, color: statusInfo.fg, fontSize: 9, fontWeight: 700 }}>
+            {statusLabel}
           </Box>
           {item.rating !== undefined && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: 'warning.main', fontSize: 9, fontWeight: 700 }}>
@@ -411,22 +360,18 @@ function RankCard({ item }: { item: DramaSeries }) {
           )}
         </Box>
         <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, p: 1, background: 'linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.85) 100%)' }}>
-          <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#fff', lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+          <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#fff', lineHeight: 1.2, mb: 0.25, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
             {item.title}
           </Typography>
+          <Typography sx={{ fontSize: 9, color: 'rgba(255,255,255,0.7)' }}>
+            {item.genre || '其他'} · {formatViews(item.views)} 播放
+          </Typography>
         </Box>
-      </Box>
-      <Box sx={{ p: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.5 }}>
-        <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(255,255,255,0.04)', color: genreKey(item.genre) ? GENRE_COLOR[item.genre as DramaSeries['genre']] : DEFAULT_GENRE_COLOR, fontSize: 9, fontWeight: 600 }}>
-          {item.genre || '其他'}
-        </Box>
-        <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
-          {formatViews(item.views)} 播放
-        </Typography>
       </Box>
     </Box>
   );
 }
+
 
 function DramaCard({ item }: { item: DramaSeries }) {
   const navigate = useContentNavigate();

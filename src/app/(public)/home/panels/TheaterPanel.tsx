@@ -358,10 +358,10 @@ function FilterRow({
 
 function TheaterTop10({ list, category, sort }: { list: TheaterItem[]; category: 'all' | TheaterItem['category']; sort: string }) {
   if (list.length === 0) return null;
-  const top3 = list.filter((d) => (d.hotRank || 0) >= 1 && (d.hotRank || 0) <= 3);
-  const rest = list.filter((d) => (d.hotRank || 0) >= 4 && (d.hotRank || 0) <= 10);
   const subtitle = sort === 'rating' ? '按评分排序' : sort === 'new' ? '最新上线' : '按播放量排序';
   const title = category === 'all' ? '本周热门' : `${CAT_LABEL[category]}热门`;
+  // Sort by hotRank (1..10); missing ranks get pushed to the end
+  const ordered = [...list].sort((a, b) => (a.hotRank || 99) - (b.hotRank || 99)).slice(0, 10);
 
   return (
     <Box
@@ -384,61 +384,16 @@ function TheaterTop10({ list, category, sort }: { list: TheaterItem[]; category:
         <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>{title}</Typography>
         <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))', ml: 1 }}>{subtitle}</Typography>
       </Box>
-      {top3.length === 3 && (
-        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr 1fr', gap: 1.5, mb: 2, mt: 1 }}>
-          {top3.sort((a, b) => (a.hotRank || 0) - (b.hotRank || 0)).map((d) => (
-            <TheaterPodiumCard key={d.id} item={d} />
-          ))}
-        </Box>
-      )}
-      {rest.length > 0 && (
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' }, gap: 1.5, pt: 1.5, borderTop: '1px dashed', borderTopColor: 'divider' }}>
-          {rest.map((d) => (
-            <TheaterRankCard key={d.id} item={d} />
-          ))}
-        </Box>
-      )}
-    </Box>
-  );
-}
-
-function TheaterPodiumCard({ item }: { item: TheaterItem }) {
-  const navigate = useContentNavigate();
-  const rank = item.hotRank || 0;
-  const rankStyle = MEDAL[rank] ?? MEDAL[3];
-
-  return (
-    <Box
-      onClick={() => navigate(CAT_TO_TYPE[item.category], item.id)}
-      sx={{
-        position: 'relative',
-        borderRadius: 2,
-        overflow: 'hidden',
-        cursor: 'pointer',
-        background: rankStyle.bg,
-        border: '1px solid',
-        borderColor: rankStyle.border,
-        transition: 'transform 0.2s',
-        '&:hover': { transform: 'translateY(-3px)' },
-      }}
-    >
-      <Box sx={{ position: 'absolute', top: 8, left: 8, width: 28, height: 28, borderRadius: '50%', background: rankStyle.badge, color: rankStyle.txt, fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 6px rgba(0,0,0,0.4)', zIndex: 1 }}>
-        {rank}
-      </Box>
-      <Box sx={{ position: 'relative', aspectRatio: '16/9' }}>
-        <CoverImage src={item.cover} alt={item.title} sx={{ width: '100%', height: '100%' }} />
-        <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.MID }} />
-        <Box sx={{ position: 'absolute', top: 8, right: 8, px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: safeCatColor(item.category), fontSize: 9, fontWeight: 600 }}>
-          {safeCatLabel(item.category)}
-        </Box>
-        <Box sx={{ position: 'absolute', bottom: 8, left: 8, right: 8 }}>
-          <Typography sx={{ fontSize: 13, fontWeight: 700, color: '#fff', mb: 0.25, lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-            {item.title}
-          </Typography>
-          <Typography sx={{ fontSize: 10, color: 'rgba(255,255,255,0.7)' }}>
-            {formatViews(item.views)} 播放 · 评分 {(item.rating ?? 0).toFixed(1)}
-          </Typography>
-        </Box>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' },
+          gap: 1.25,
+        }}
+      >
+        {ordered.map((d) => (
+          <TheaterRankCard key={d.id} item={d} />
+        ))}
       </Box>
     </Box>
   );
@@ -447,6 +402,17 @@ function TheaterPodiumCard({ item }: { item: TheaterItem }) {
 function TheaterRankCard({ item }: { item: TheaterItem }) {
   const navigate = useContentNavigate();
   const rank = item.hotRank || 0;
+  // Top 3 use medal background; 4-10 use a neutral surface.
+  // All 10 share the same card size and inner layout so the grid is uniform.
+  const isTop3 = rank >= 1 && rank <= 3;
+  const medal = isTop3 ? MEDAL[rank] : null;
+  const badgeBg = isTop3
+    ? medal!.badge
+    : 'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 100%)';
+  const badgeColor = isTop3 ? medal!.txt : 'var(--text-primary, #fff)';
+  const cardBg = isTop3 ? medal!.bg : 'var(--bg-surface, rgba(20, 22, 32, 0.6))';
+  const cardBorder = isTop3 ? medal!.border : '1px solid var(--border-color, rgba(255,255,255,0.06))';
+
   return (
     <Box
       onClick={() => navigate(CAT_TO_TYPE[item.category], item.id)}
@@ -455,19 +421,19 @@ function TheaterRankCard({ item }: { item: TheaterItem }) {
         borderRadius: 2,
         overflow: 'hidden',
         cursor: 'pointer',
-        bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))',
-        border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
-        transition: 'transform 0.2s, border-color 0.2s, box-shadow 0.2s',
-        '&:hover': { transform: 'translateY(-3px)', borderColor: 'var(--border-strong, rgba(255,255,255,0.16))', boxShadow: '0 12px 28px rgba(0,0,0,0.3)' },
+        background: cardBg,
+        border: cardBorder,
+        transition: 'transform 0.2s, box-shadow 0.2s',
+        '&:hover': { transform: 'translateY(-3px)', boxShadow: '0 10px 24px rgba(0,0,0,0.3)' },
       }}
     >
-      <Box sx={{ position: 'relative', aspectRatio: '16/9' }}>
+      <Box sx={{ position: 'relative', aspectRatio: '3/4' }}>
         <CoverImage src={item.cover} alt={item.title} sx={{ width: '100%', height: '100%' }} />
-        <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.MID }} />
-        <Box sx={{ position: 'absolute', top: 6, left: 6, minWidth: 24, height: 24, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 100%)', border: '1px solid rgba(255,255,255,0.2)', color: 'var(--text-primary, #fff)', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px', backdropFilter: 'blur(4px)', zIndex: 1, fontVariantNumeric: 'tabular-nums' }}>
+        <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.HEAVY }} />
+        <Box sx={{ position: 'absolute', top: 6, left: 6, minWidth: 24, height: 24, borderRadius: '50%', background: badgeBg, color: badgeColor, fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px', backdropFilter: isTop3 ? 'none' : 'blur(4px)', border: isTop3 ? 'none' : '1px solid rgba(255,255,255,0.2)', boxShadow: isTop3 ? '0 2px 6px rgba(0,0,0,0.4)' : 'none', zIndex: 1, fontVariantNumeric: 'tabular-nums' }}>
           {rank}
         </Box>
-        <Box sx={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: 0.5 }}>
+        <Box sx={{ position: 'absolute', top: 6, right: 6, display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-end' }}>
           {item.rating !== undefined && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: 'warning.main', fontSize: 9, fontWeight: 700 }}>
               <StarRoundedIcon sx={{ fontSize: 9 }} />{(item.rating ?? 0).toFixed(1)}
@@ -478,22 +444,18 @@ function TheaterRankCard({ item }: { item: TheaterItem }) {
           </Box>
         </Box>
         <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, p: 1, background: 'linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.85) 100%)' }}>
-          <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#fff', lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+          <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#fff', lineHeight: 1.2, mb: 0.25, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
             {item.title}
           </Typography>
+          <Typography sx={{ fontSize: 9, color: 'rgba(255,255,255,0.7)' }}>
+            {formatViews(item.views)} 播放 · 评分 {(item.rating ?? 0).toFixed(1)}
+          </Typography>
         </Box>
-      </Box>
-      <Box sx={{ p: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.5 }}>
-        <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
-          {formatViews(item.views)} 播放
-        </Typography>
-        <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
-          {item.durationMin ?? '-'} 分钟
-        </Typography>
       </Box>
     </Box>
   );
 }
+
 
 function TheaterCard({ item }: { item: TheaterItem }) {
   const navigate = useContentNavigate();
