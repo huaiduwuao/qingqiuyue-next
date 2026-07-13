@@ -312,9 +312,9 @@ function Top10Podium({ list, genre, status, sort }: { list: DramaSeries[]; genre
       </Box>
 
       {rest.length > 0 && (
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 1, pt: 1.5, borderTop: '1px dashed', borderTopColor: 'divider' }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' }, gap: 1.5, pt: 1.5, borderTop: '1px dashed', borderTopColor: 'divider' }}>
           {rest.map((d) => (
-            <RankRow key={d.id} item={d} />
+            <RankCard key={d.id} item={d} />
           ))}
         </Box>
       )}
@@ -377,22 +377,51 @@ function PodiumCard({ item }: { item: DramaSeries }) {
   );
 }
 
-function RankRow({ item }: { item: DramaSeries }) {
+function RankCard({ item }: { item: DramaSeries }) {
   const navigate = useContentNavigate();
+  const rank = item.hotRank || 0;
   return (
-    <Box onClick={() => navigate('TELEPLAY', item.id)} sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.75, borderRadius: 1, cursor: 'pointer', transition: 'background 0.15s', '&:hover': { bgcolor: 'action.hover' } }}>
-      <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted, rgba(255,255,255,0.4))', width: 22, textAlign: 'right', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
-        {item.hotRank}
-      </Typography>
-      <Box sx={{ width: 32, height: 18, borderRadius: 0.5, overflow: 'hidden', flexShrink: 0 }}>
-        <CoverImage src={item.cover} alt="" sx={{ width: '100%', height: '100%' }} />
+    <Box
+      onClick={() => navigate('TELEPLAY', item.id)}
+      sx={{
+        position: 'relative',
+        borderRadius: 2,
+        overflow: 'hidden',
+        cursor: 'pointer',
+        bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))',
+        border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+        transition: 'transform 0.2s, border-color 0.2s, box-shadow 0.2s',
+        '&:hover': { transform: 'translateY(-3px)', borderColor: 'var(--border-strong, rgba(255,255,255,0.16))', boxShadow: '0 12px 28px rgba(0,0,0,0.3)' },
+      }}
+    >
+      <Box sx={{ position: 'relative', aspectRatio: '3/4' }}>
+        <CoverImage src={item.cover} alt={item.title} sx={{ width: '100%', height: '100%' }} />
+        <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.HEAVY }} />
+        <Box sx={{ position: 'absolute', top: 6, left: 6, minWidth: 24, height: 24, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 100%)', border: '1px solid rgba(255,255,255,0.2)', color: 'var(--text-primary, #fff)', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px', backdropFilter: 'blur(4px)', zIndex: 1, fontVariantNumeric: 'tabular-nums' }}>
+          {rank}
+        </Box>
+        <Box sx={{ position: 'absolute', top: 6, right: 6, display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-end' }}>
+          <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: STATUS_COLOR[statusKey(item.status) ?? 'HOT'].bg, color: STATUS_COLOR[statusKey(item.status) ?? 'HOT'].fg, fontSize: 9, fontWeight: 700 }}>
+            {STATUS_LABEL[statusKey(item.status) ?? 'HOT']}
+          </Box>
+          {item.rating !== undefined && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: 'warning.main', fontSize: 9, fontWeight: 700 }}>
+              <StarRoundedIcon sx={{ fontSize: 9 }} />{(item.rating ?? 0).toFixed(1)}
+            </Box>
+          )}
+        </Box>
+        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, p: 1, background: 'linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.85) 100%)' }}>
+          <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#fff', lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+            {item.title}
+          </Typography>
+        </Box>
       </Box>
-      <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography sx={{ fontSize: 11, fontWeight: 500, color: 'var(--text-primary, #fff)', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {item.title}
-        </Typography>
-        <Typography sx={{ fontSize: 9, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
-          {item.genre} · {formatViews(item.views)}
+      <Box sx={{ p: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.5 }}>
+        <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(255,255,255,0.04)', color: genreKey(item.genre) ? GENRE_COLOR[item.genre as DramaSeries['genre']] : DEFAULT_GENRE_COLOR, fontSize: 9, fontWeight: 600 }}>
+          {item.genre || '其他'}
+        </Box>
+        <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
+          {formatViews(item.views)} 播放
         </Typography>
       </Box>
     </Box>

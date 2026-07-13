@@ -81,6 +81,23 @@ function formatCount(n: number = 0): string {
 // hashId: stable 32-bit hash of an arbitrary string id. Used to derive
 // a deterministic but well-distributed duration (30..89s) per video,
 // since the raw id is a >2^53 int64 and Number(id) % 60 would collide.
+// 精选分类(驱动 /home/recommend 的 types 查询参数)。
+// key 是后端 /home/recommend?types= 的枚举值(去重且可拼成逗号串);
+// label 是给用户看的中文名。"all" 表示不传 types,走全量推荐。
+const RECOMMEND_CATEGORIES: { key: string; label: string }[] = [
+	{ key: 'all', label: '精选' },
+	{ key: 'NOVEL', label: '小说' },
+	{ key: 'COMICS', label: '漫画' },
+	{ key: 'FILM', label: '电影' },
+	{ key: 'TELEPLAY', label: '短剧' },
+	{ key: 'VSHOW', label: '综艺' },
+	{ key: 'ANIMATION', label: '动漫' },
+	{ key: 'MUSIC', label: '音乐' },
+	{ key: 'VIDEO', label: '视频' },
+	{ key: 'NEWS', label: '资讯' },
+	{ key: 'ARTICLE', label: '文章' },
+];
+
 function hashId(s: string): number {
 	let h = 0x811c9dc5 >>> 0; // FNV-1a 32-bit basis
 	for (let i = 0; i < s.length; i++) {
@@ -112,12 +129,19 @@ export function RecommendVideoFeed() {
   const [commentText, setCommentText] = useState('');
   const [commentSending, setCommentSending] = useState(false);
   const [moreDialogOpen, setMoreDialogOpen] = useState(false);
+  // 顶部分类筛选(精选/小说/短剧/...)。默认 all = 全量推荐。
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const containerRef = useRef<HTMLDivElement | null>(null);
 
+  const ALL_TYPES = 'NOVEL,COMICS,FILM,VSHOW,MUSIC,TELEPLAY,ANIMATION,VIDEO,NEWS,ARTICLE';
+  const typesParam =
+	selectedCategory === 'all'
+		? ALL_TYPES
+		: RECOMMEND_CATEGORIES.find((c) => c.key === selectedCategory)?.key ?? '';
+
   const { data: feed, isLoading } = useQuery({
-    queryKey: ['home-recommend', 'recommend-feed'],
-    queryFn: () =>
-      fetchRecommend({ types: 'NOVEL,COMICS,FILM,VSHOW,MUSIC,TELEPLAY,ANIMATION,VIDEO,NEWS,ARTICLE', size: 24 }).then(
+    queryKey: ['home-recommend', 'recommend-feed', selectedCategory],
+    queryFn: () => fetchRecommend({ types: typesParam, size: 24 }).then(
         (r: any) => {
           const list = (r?.data?.list ?? []) as any[];
           return list.map((it): VideoItem => ({
@@ -147,6 +171,8 @@ export function RecommendVideoFeed() {
   });
 
   const [index, setIndex] = useState(0);
+  // 切换分类时回到第一条,并用 ref 触发即时重置。
+  useEffect(() => { setIndex(0); }, [selectedCategory]);
   const [slideDir, setSlideDir] = useState<1 | -1>(1);
   const navLock = useRef(false);
   const unlockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -482,6 +508,54 @@ export function RecommendVideoFeed() {
         overflow: 'hidden',
       }}
     >
+      {/* 顶部分类条(玻璃感,全屏覆盖视频) */}
+      <Box
+        data-no-drag
+        sx={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 6,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 0.75,
+          px: { xs: 1.5, sm: 2 },
+          py: 1,
+          overflowX: 'auto',
+          background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 100%)',
+          backdropFilter: 'blur(6px)',
+          '&::-webkit-scrollbar': { display: 'none' },
+        }}
+      >
+        {RECOMMEND_CATEGORIES.map((c) => {
+          const active = selectedCategory === c.key;
+          return (
+            <Box
+              key={c.key}
+              onClick={() => setSelectedCategory(c.key)}
+              sx={{
+                flexShrink: 0,
+                px: 1.25,
+                py: 0.4,
+                borderRadius: 999,
+                cursor: 'pointer',
+                fontSize: 12.5,
+                fontWeight: active ? 700 : 500,
+                color: active ? '#000' : 'rgba(255,255,255,0.85)',
+                bgcolor: active ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.35)',
+                border: '1px solid',
+                borderColor: active ? 'transparent' : 'rgba(255,255,255,0.12)',
+                transition: 'all 0.15s',
+                '&:hover': { bgcolor: active ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.55)' },
+              }}
+            >
+              {c.label}
+            </Box>
+          );
+        })}
+      </Box>
+
       <Box
         ref={setViewportRef}
         onPointerDown={onPointerDown}

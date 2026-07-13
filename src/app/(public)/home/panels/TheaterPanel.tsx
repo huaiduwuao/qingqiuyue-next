@@ -392,9 +392,9 @@ function TheaterTop10({ list, category, sort }: { list: TheaterItem[]; category:
         </Box>
       )}
       {rest.length > 0 && (
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 1, pt: 1.5, borderTop: '1px dashed', borderTopColor: 'divider' }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' }, gap: 1.5, pt: 1.5, borderTop: '1px dashed', borderTopColor: 'divider' }}>
           {rest.map((d) => (
-            <TheaterRankRow key={d.id} item={d} />
+            <TheaterRankCard key={d.id} item={d} />
           ))}
         </Box>
       )}
@@ -444,22 +444,51 @@ function TheaterPodiumCard({ item }: { item: TheaterItem }) {
   );
 }
 
-function TheaterRankRow({ item }: { item: TheaterItem }) {
+function TheaterRankCard({ item }: { item: TheaterItem }) {
   const navigate = useContentNavigate();
+  const rank = item.hotRank || 0;
   return (
-    <Box onClick={() => navigate(CAT_TO_TYPE[item.category], item.id)} sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.75, borderRadius: 1, cursor: 'pointer', transition: 'background 0.15s', '&:hover': { bgcolor: 'action.hover' } }}>
-      <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted, rgba(255,255,255,0.4))', width: 22, textAlign: 'right', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
-        {item.hotRank}
-      </Typography>
-      <Box sx={{ width: 32, height: 18, borderRadius: 0.5, overflow: 'hidden', flexShrink: 0 }}>
-        <CoverImage src={item.cover} alt="" sx={{ width: '100%', height: '100%' }} />
+    <Box
+      onClick={() => navigate(CAT_TO_TYPE[item.category], item.id)}
+      sx={{
+        position: 'relative',
+        borderRadius: 2,
+        overflow: 'hidden',
+        cursor: 'pointer',
+        bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))',
+        border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+        transition: 'transform 0.2s, border-color 0.2s, box-shadow 0.2s',
+        '&:hover': { transform: 'translateY(-3px)', borderColor: 'var(--border-strong, rgba(255,255,255,0.16))', boxShadow: '0 12px 28px rgba(0,0,0,0.3)' },
+      }}
+    >
+      <Box sx={{ position: 'relative', aspectRatio: '16/9' }}>
+        <CoverImage src={item.cover} alt={item.title} sx={{ width: '100%', height: '100%' }} />
+        <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.MID }} />
+        <Box sx={{ position: 'absolute', top: 6, left: 6, minWidth: 24, height: 24, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 100%)', border: '1px solid rgba(255,255,255,0.2)', color: 'var(--text-primary, #fff)', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px', backdropFilter: 'blur(4px)', zIndex: 1, fontVariantNumeric: 'tabular-nums' }}>
+          {rank}
+        </Box>
+        <Box sx={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: 0.5 }}>
+          {item.rating !== undefined && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: 'warning.main', fontSize: 9, fontWeight: 700 }}>
+              <StarRoundedIcon sx={{ fontSize: 9 }} />{(item.rating ?? 0).toFixed(1)}
+            </Box>
+          )}
+          <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: safeCatColor(item.category), fontSize: 9, fontWeight: 600 }}>
+            {safeCatLabel(item.category)}
+          </Box>
+        </Box>
+        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, p: 1, background: 'linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.85) 100%)' }}>
+          <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#fff', lineHeight: 1.2, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+            {item.title}
+          </Typography>
+        </Box>
       </Box>
-      <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography sx={{ fontSize: 11, fontWeight: 500, color: 'var(--text-primary, #fff)', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {item.title}
+      <Box sx={{ p: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.5 }}>
+        <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
+          {formatViews(item.views)} 播放
         </Typography>
-        <Typography sx={{ fontSize: 9, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
-          {safeCatLabel(item.category)} · {formatViews(item.views)}
+        <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
+          {item.durationMin ?? '-'} 分钟
         </Typography>
       </Box>
     </Box>
