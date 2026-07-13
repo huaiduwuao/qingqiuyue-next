@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
+import { useRouter } from 'next/navigation';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import GroupIcon from '@mui/icons-material/Group';
@@ -69,6 +70,7 @@ export default function RewardHotGrid({
 } = {}) {
   // 详情/全部都在页内弹层打开,不跳转路由(悬赏中心是纯客户端 tab 体系)
   const [detailId, setDetailId] = useState<string | null>(null);
+  const router = useRouter();
   const [listOpen, setListOpen] = useState(false);
 
   // 真接口:热门悬赏(支持 keyword 搜索 + category 过滤 + order 排序)
@@ -125,7 +127,7 @@ export default function RewardHotGrid({
           </Box>
         </Box>
         <Box
-          onClick={() => setListOpen(true)}
+          onClick={() => router.push('/account/reward/bounties')}
           sx={{
             display: 'flex',
             alignItems: 'center',

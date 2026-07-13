@@ -34,19 +34,35 @@ test.describe('悬赏中心 · 页内弹层（不跳转）', () => {
     await expect(page).toHaveURL(/\/account\/reward$/);
   });
 
-  test('3 · 查看全部 -> 列表弹层 -> 行点击进详情弹层', async ({ page }) => {
-    await page.getByText('查看全部').click();
+    test('3 · 查看全部 -> 跳转到 /bounties 页面 -> 卡片点击进详情弹层', async ({ page }) => {
+    // 广场"查看全部 >" 现在跳转到独立路由,不是弹窗
+    await page.getByText('查看全部 >').first().click();
+    await page.waitForURL(/\/account\/reward\/bounties/, { timeout: 5_000 });
+    // 页面标题 + 至少 1 张卡
+    await expect(page.getByText('全部悬赏')).toBeVisible({ timeout: 10_000 });
+    const cards = page.getByText(/国风青丘|青丘月/);
+    await expect(cards.first()).toBeVisible({ timeout: 10_000 });
+    await cards.first().click();
+    // 详情弹窗叠在页面上
     const dialog = page.getByRole('dialog');
-    await expect(dialog).toBeVisible({ timeout: 5_000 });
-    await expect(dialog.getByText('全部悬赏')).toBeVisible();
-    await expect(page).toHaveURL(/\/account\/reward$/);
-    // 行点击 -> 详情弹层叠在列表之上，取最后一个 dialog
-    await dialog.getByText(/国风青丘/).first().click();
-    await expect(page.getByRole('dialog').last().getByText('悬赏详情', { exact: true })).toBeVisible({ timeout: 5_000 });
-    await expect(page).toHaveURL(/\/account\/reward$/);
+    await expect(dialog.getByText('悬赏详情', { exact: true })).toBeVisible({ timeout: 5_000 });
+    await expect(page).toHaveURL(/\/account\/reward\/bounties/);
   });
 
-  test('4 · 达人榜“查看完整榜单” -> 榜单弹层', async ({ page }) => {
+  test('3b · 全部悬赏页 · 分类筛选可点击', async ({ page }) => {
+    await page.goto('/account/reward/bounties');
+    await expect(page.getByText('全部悬赏')).toBeVisible({ timeout: 10_000 });
+    // 找一个非"全部"的分类 chip 点一下,URL 应带上 ?category=
+    const musicChip = page.getByRole('button', { name: /^音乐/ });
+    if (await musicChip.count() > 0) {
+      await musicChip.first().click();
+      await page.waitForURL(/category=music/, { timeout: 5_000 });
+    }
+    await page.goBack();
+    await expect(page).toHaveURL(/\/account\/reward/);
+  });
+
+test('4 · 达人榜“查看完整榜单” -> 榜单弹层', async ({ page }) => {
     await page.getByText('查看完整榜单 ->').click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible({ timeout: 5_000 });
