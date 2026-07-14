@@ -38,6 +38,7 @@ import SendToSpider from '@/components/SendToSpider';
 import { FriendPanel } from './FriendPanel';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { fetchSubcategories, type SubcategoryItem } from '@/apis/home-discover';
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 
 type FeedItem = {
   id: number;
@@ -167,19 +168,50 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
   const isPersonal = tab === 'follow' || tab === 'friend';
   const isFriend = tab === 'friend';
 
+  // 分页状态
+  const PAGE_SIZE = 12;
+  const [feedPage, setFeedPage] = useState(1);
+  const [feedList, setFeedList] = useState<FeedItem[]>([]);
+  const [feedHasMore, setFeedHasMore] = useState(true);
+
+  // 切换 tab 时重置分页
+  useEffect(() => {
+    setFeedPage(1);
+    setFeedList([]);
+    setFeedHasMore(true);
+  }, [tab]);
+
   const query = useQuery({
-    queryKey: ['home', 'feed', tab, isPersonal ? 'all' : section, sort, isPersonal ? '' : genre],
-    queryFn: () => {
-      const params = new URLSearchParams({ tab });
+    queryKey: ['home', 'feed', tab, isPersonal ? 'all' : section, sort, isPersonal ? '' : genre, feedPage],
+    queryFn: async () => {
+      const params = new URLSearchParams({ tab, page: String(feedPage), size: String(PAGE_SIZE) });
       if (!isPersonal) {
         params.set('section', section);
         params.set('sort', sort);
         if (genre) params.set('genre', genre);
       }
-      return homeClient.get<FeedResp>(`/feed?${params.toString()}`).then((r) => r.data);
+      const resp = await homeClient.get<FeedResp>(`/feed?${params.toString()}`).then((r) => r.data);
+      const records = resp?.list || [];
+      const total = resp?.total || 0;
+
+      setFeedList(prev => feedPage === 1 ? records : [...prev, ...records]);
+      setFeedHasMore(records.length === PAGE_SIZE && (feedPage * PAGE_SIZE) < total);
+
+      return resp;
     },
     enabled: tab !== 'recommend',
   });
+
+  // 无限滚动
+  const scroll = useInfiniteScroll({
+    enabled: !query.isLoading && feedHasMore && tab !== 'recommend',
+  });
+
+  useEffect(() => {
+    if (scroll.isNearBottom && feedHasMore && !query.isLoading) {
+      setFeedPage(p => p + 1);
+    }
+  }, [scroll.isNearBottom, feedHasMore, query.isLoading]);
 
   // 所有 Hook 调用完毕后再做条件分支(遵守 Rules of Hooks:Hook 顺序在每次渲染必须一致)
   if (tab === 'recommend') {
@@ -400,6 +432,23 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
                 </Box>
               ) : (
                 <EmptyHint tab={tab} section={section} />
+              )}
+
+              {/* Loading more */}
+              {query.isFetching && !query.isLoading && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                  <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>加载中...</Typography>
+                </Box>
+              )}
+
+              {/* Infinite scroll sentinel */}
+              <Box ref={scroll.sentinelRef} sx={{ height: 1 }} />
+
+              {/* No more data */}
+              {!query.isFetching && feedList.length > 0 && !feedHasMore && (
+                <Typography sx={{ textAlign: 'center', py: 3, color: 'text.disabled', fontSize: 12 }}>
+                  - 没有更多了 -
+                </Typography>
               )}
             </Box>
           )}

@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
@@ -18,6 +18,7 @@ import { track } from '@/lib/track';
 import { TYPE_GRADIENT, RANK_BG } from '@/constants/gradients';
 import { RecommendVideoFeed } from './components/RecommendVideoFeed';
 import { MeTabView } from './components/MeTabView';
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 
 interface ContentItem {
   id: number;
@@ -73,6 +74,8 @@ function formatCount(n: number = 0): string {
   return n.toString();
 }
 
+const PAGE_SIZE = 12;
+
 export default function HomeRecommendPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -80,6 +83,32 @@ export default function HomeRecommendPage() {
   const tabFromUrl = searchParams.get('tab') || 'all';
   const isSpecialTab = SPECIAL_TABS.has(tabFromUrl);
   const activeCategory = TAB_TO_CATEGORY[tabFromUrl] || '全部';
+
+  // 分页状态
+  const [contentPage, setContentPage] = useState(1);
+  const [contentList, setContentList] = useState<ContentItem[]>([]);
+  const [contentHasMore, setContentHasMore] = useState(true);
+
+  const [followPage, setFollowPage] = useState(1);
+  const [followList, setFollowList] = useState<RecommendWork[]>([]);
+  const [followHasMore, setFollowHasMore] = useState(true);
+
+  const [friendPage, setFriendPage] = useState(1);
+  const [friendList, setFriendList] = useState<RecommendWork[]>([]);
+  const [friendHasMore, setFriendHasMore] = useState(true);
+
+  // 切换 tab 时重置分页状态
+  useEffect(() => {
+    setContentPage(1);
+    setContentList([]);
+    setContentHasMore(true);
+    setFollowPage(1);
+    setFollowList([]);
+    setFollowHasMore(true);
+    setFriendPage(1);
+    setFriendList([]);
+    setFriendHasMore(true);
+  }, [tabFromUrl]);
 
   const setTab = (newTab: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -94,37 +123,97 @@ export default function HomeRecommendPage() {
   const setActiveCategory = (category: string) => setTab(CATEGORY_TO_TAB[category] || 'all');
   const setActiveSpecial = (tab: string) => setTab(tab);
 
+  // 内容查询（支持分页）
   const contentQuery = useQuery({
-    queryKey: ['home-recommend', 'content', activeCategory],
-    queryFn: () => moduleContentPage({
-      pageNum: 1,
-      pageSize: 12,
-      contentType: activeCategory === '全部' ? '' : CATEGORY_TO_TYPE[activeCategory] || activeCategory,
-      order: 'COLLECT',
-    }).then((r: any) => r.data?.list || []),
-    placeholderData: (prev) => prev || [],
+    queryKey: ['home-recommend', 'content', activeCategory, contentPage],
+    queryFn: async () => {
+      const resp = await moduleContentPage({
+        pageNum: contentPage,
+        pageSize: PAGE_SIZE,
+        contentType: activeCategory === '全部' ? '' : CATEGORY_TO_TYPE[activeCategory] || activeCategory,
+        order: 'COLLECT',
+      }) as any;
+      const records: ContentItem[] = resp?.data?.records || resp?.data?.list || [];
+      const total = resp?.data?.totalRow || resp?.data?.total || 0;
+
+      setContentList(prev => contentPage === 1 ? records : [...prev, ...records]);
+      setContentHasMore(records.length === PAGE_SIZE && (contentPage * PAGE_SIZE) < total);
+
+      return records;
+    },
+    placeholderData: (prev) => prev,
     enabled: !isSpecialTab && tabFromUrl !== 'recommend',
   });
 
+  // 关注查询（支持分页）
   const followQuery = useQuery({
-    queryKey: ['home-recommend', 'follow'],
-    queryFn: () => getHomeRecommendFollow({ page: 1, size: 12 }),
+    queryKey: ['home-recommend', 'follow', followPage],
+    queryFn: async () => {
+      const resp = await getHomeRecommendFollow({ page: followPage, size: PAGE_SIZE }) as any;
+      const records: RecommendWork[] = resp?.records || resp?.list || [];
+      const total = resp?.total || 0;
+
+      setFollowList(prev => followPage === 1 ? records : [...prev, ...records]);
+      setFollowHasMore(records.length === PAGE_SIZE && (followPage * PAGE_SIZE) < total);
+
+      return records;
+    },
+    placeholderData: (prev) => prev,
     enabled: tabFromUrl === 'follow',
-    refetchOnMount: 'always',
   });
 
+  // 朋友查询（支持分页）
   const friendQuery = useQuery({
-    queryKey: ['home-recommend', 'friend'],
-    queryFn: () => getHomeRecommendFriend({ page: 1, size: 12 }),
+    queryKey: ['home-recommend', 'friend', friendPage],
+    queryFn: async () => {
+      const resp = await getHomeRecommendFriend({ page: friendPage, size: PAGE_SIZE }) as any;
+      const records: RecommendWork[] = resp?.records || resp?.list || [];
+      const total = resp?.total || 0;
+
+      setFriendList(prev => friendPage === 1 ? records : [...prev, ...records]);
+      setFriendHasMore(records.length === PAGE_SIZE && (friendPage * PAGE_SIZE) < total);
+
+      return records;
+    },
+    placeholderData: (prev) => prev,
     enabled: tabFromUrl === 'friend',
-    refetchOnMount: 'always',
   });
 
-  let contentList: ContentItem[] = contentQuery.data || [];
+  // 无限滚动 sentinel
+  const contentScroll = useInfiniteScroll({
+    enabled: !contentQuery.isLoading && contentHasMore && !isSpecialTab && tabFromUrl !== 'recommend',
+  });
+  const followScroll = useInfiniteScroll({
+    enabled: !followQuery.isLoading && followHasMore && tabFromUrl === 'follow',
+  });
+  const friendScroll = useInfiniteScroll({
+    enabled: !friendQuery.isLoading && friendHasMore && tabFromUrl === 'friend',
+  });
+
+  // 监听滚动到底部，触发加载下一页
+  useEffect(() => {
+    if (contentScroll.isNearBottom && contentHasMore && !contentQuery.isLoading) {
+      setContentPage(p => p + 1);
+    }
+  }, [contentScroll.isNearBottom, contentHasMore, contentQuery.isLoading]);
+
+  useEffect(() => {
+    if (followScroll.isNearBottom && followHasMore && !followQuery.isLoading) {
+      setFollowPage(p => p + 1);
+    }
+  }, [followScroll.isNearBottom, followHasMore, followQuery.isLoading]);
+
+  useEffect(() => {
+    if (friendScroll.isNearBottom && friendHasMore && !friendQuery.isLoading) {
+      setFriendPage(p => p + 1);
+    }
+  }, [friendScroll.isNearBottom, friendHasMore, friendQuery.isLoading]);
+
+  // 转换数据格式
+  let displayContentList: ContentItem[] = contentList;
   if (tabFromUrl === 'follow') {
-    const raw = (followQuery.data?.records ?? followQuery.data?.list ?? []) as RecommendWork[];
-    contentList = raw.map((w) => ({
-      id: Number(w.id.replace(/^\D+/, '')) || 0,
+    displayContentList = followList.map((w) => ({
+      id: Number(String(w.id).replace(/^\D+/, '')) || 0,
       title: w.title,
       contentType: 'VIDEO',
       status: w.status,
@@ -132,9 +221,8 @@ export default function HomeRecommendPage() {
       viewCount: w.views,
     } as ContentItem));
   } else if (tabFromUrl === 'friend') {
-    const raw = (friendQuery.data?.records ?? friendQuery.data?.list ?? []) as RecommendWork[];
-    contentList = raw.map((w) => ({
-      id: Number(w.id.replace(/^\D+/, '')) || 0,
+    displayContentList = friendList.map((w) => ({
+      id: Number(String(w.id).replace(/^\D+/, '')) || 0,
       title: w.title,
       contentType: 'VIDEO',
       status: w.status,
@@ -144,10 +232,19 @@ export default function HomeRecommendPage() {
   }
 
   const loading = isSpecialTab
-    ? (tabFromUrl === 'follow' ? followQuery.isFetching : tabFromUrl === 'friend' ? friendQuery.isFetching : false)
+    ? (tabFromUrl === 'follow' ? followQuery.isLoading : tabFromUrl === 'friend' ? friendQuery.isLoading : false)
     : tabFromUrl === 'recommend'
       ? false
-      : contentQuery.isFetching;
+      : contentQuery.isLoading;
+
+  const loadingMore = isSpecialTab
+    ? (tabFromUrl === 'follow' ? followQuery.isFetching && !followQuery.isLoading : tabFromUrl === 'friend' ? friendQuery.isFetching && !friendQuery.isLoading : false)
+    : contentQuery.isFetching && !contentQuery.isLoading;
+
+  // 判断是否已加载完所有数据
+  const isNoMore = isSpecialTab
+    ? (tabFromUrl === 'follow' ? !followHasMore : tabFromUrl === 'friend' ? !friendHasMore : false)
+    : !contentHasMore;
 
   const handleCardClick = (item: ContentItem) => {
     track(item.id, 'click', item.contentType || 'novel');
@@ -156,15 +253,15 @@ export default function HomeRecommendPage() {
   };
 
   const displayList = React.useMemo(() => {
-    if (contentList.length >= 12) return contentList;
-    const placeholders: ContentItem[] = Array.from({ length: 12 - contentList.length }).map((_, i) => ({
-      id: -(contentList.length + i + 1),
+    if (displayContentList.length >= PAGE_SIZE) return displayContentList;
+    const placeholders: ContentItem[] = Array.from({ length: PAGE_SIZE - displayContentList.length }).map((_, i) => ({
+      id: -(displayContentList.length + i + 1),
       title: '',
       contentType: 'NOVEL',
       status: 'placeholder',
     } as ContentItem));
-    return [...contentList, ...placeholders];
-  }, [contentList]);
+    return [...displayContentList, ...placeholders];
+  }, [displayContentList]);
 
   if (tabFromUrl === 'me') {
     return <MeTabView />;
@@ -267,12 +364,12 @@ export default function HomeRecommendPage() {
         <Box sx={{ flex: 1 }} />
         {tabFromUrl === 'follow' && (
           <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-            {contentList.length === 0 ? (loading ? '加载中…' : '关注的人还没发作品') : `共 ${contentList.length} 部`}
+            {contentList.length === 0 ? (loading ? '加载中...' : '关注的人还没发作品') : `共 ${contentList.length} 部`}
           </Typography>
         )}
         {tabFromUrl === 'friend' && (
           <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-            {contentList.length === 0 ? (loading ? '加载中…' : '还没有互相关注的朋友') : `共 ${contentList.length} 部`}
+            {contentList.length === 0 ? (loading ? '加载中...' : '还没有互相关注的朋友') : `共 ${contentList.length} 部`}
           </Typography>
         )}
       </Box>
@@ -284,153 +381,189 @@ export default function HomeRecommendPage() {
           ))}
         </Box>
       ) : (
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: 1.5,
-          }}
-        >
-          {displayList.map((item, idx) => {
-            const rank = idx + 1;
-            const hasContent = item.id > 0;
-            const gradient = TYPE_GRADIENT[item.contentType] || TYPE_GRADIENT.NOVEL;
+        <Box>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: 1.5,
+            }}
+          >
+            {displayList.map((item, idx) => {
+              const rank = idx + 1;
+              const hasContent = item.id > 0;
+              const gradient = TYPE_GRADIENT[item.contentType] || TYPE_GRADIENT.NOVEL;
 
-            if (!hasContent) {
-              return <Box key={item.id} sx={{ aspectRatio: '4/5' }} />;
-            }
+              if (!hasContent) {
+                return <Box key={item.id} sx={{ aspectRatio: '4/5' }} />;
+              }
 
-            return (
-              <Box
-                key={item.id}
-                onClick={() => handleCardClick(item)}
-                sx={{
-                  position: 'relative',
-                  borderRadius: 2,
-                  overflow: 'hidden',
-                  cursor: 'pointer',
-                  aspectRatio: '4/5',
-                  background: gradient,
-                  transition: 'transform 0.2s, box-shadow 0.2s',
-                  '&:hover': {
-                    transform: 'translateY(-3px)',
-                    boxShadow: '0 12px 32px rgba(0,0,0,0.4)',
-                  },
-                }}
-              >
+              return (
                 <Box
+                  key={item.id}
+                  onClick={() => handleCardClick(item)}
                   sx={{
-                    position: 'absolute',
-                    inset: 0,
-                    background: 'radial-gradient(circle at 30% 20%, rgba(255,255,255,0.15), transparent 60%)',
-                  }}
-                />
-                {(item.cover || item.coverUrl) && (
-                  <CoverImage
-                    src={item.cover || item.coverUrl}
-                    alt={item.title}
-                    sx={{
-                      position: 'absolute',
-                      inset: 0,
-                      width: '100%',
-                      height: '100%',
-                    }}
-                  />
-                )}
-
-                <Box
-                  sx={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: 36,
-                    height: 36,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 18,
-                    fontWeight: 800,
-                    color: 'text.primary',
-                    fontFamily: 'monospace',
-                    background: rank <= 3
-                      ? RANK_BG[rank]
-                      : 'rgba(0,0,0,0.5)',
-                    backdropFilter: rank > 3 ? 'blur(4px)' : 'none',
-                    borderBottomRightRadius: 8,
-                    boxShadow: rank <= 3 ? '0 4px 12px rgba(0,0,0,0.3)' : 'none',
+                    position: 'relative',
+                    borderRadius: 2,
+                    overflow: 'hidden',
+                    cursor: 'pointer',
+                    aspectRatio: '4/5',
+                    background: gradient,
+                    transition: 'transform 0.2s, box-shadow 0.2s',
+                    '&:hover': {
+                      transform: 'translateY(-3px)',
+                      boxShadow: '0 12px 32px rgba(0,0,0,0.4)',
+                    },
                   }}
                 >
-                  {rank}
-                </Box>
-
-                {item.viewCount !== undefined && (
                   <Box
                     sx={{
                       position: 'absolute',
-                      top: 8,
-                      right: 8,
+                      inset: 0,
+                      background: 'radial-gradient(circle at 30% 20%, rgba(255,255,255,0.15), transparent 60%)',
+                    }}
+                  />
+                  {(item.cover || item.coverUrl) && (
+                    <CoverImage
+                      src={item.cover || item.coverUrl}
+                      alt={item.title}
+                      sx={{
+                        position: 'absolute',
+                        inset: 0,
+                        width: '100%',
+                        height: '100%',
+                      }}
+                    />
+                  )}
+
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: 36,
+                      height: 36,
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 0.25,
-                      px: 0.75,
-                      py: 0.25,
-                      borderRadius: 1,
-                      bgcolor: 'rgba(0,0,0,0.5)',
-                      backdropFilter: 'blur(4px)',
+                      justifyContent: 'center',
+                      fontSize: 18,
+                      fontWeight: 800,
                       color: 'text.primary',
-                      fontSize: 10,
                       fontFamily: 'monospace',
+                      background: rank <= 3
+                        ? RANK_BG[rank]
+                        : 'rgba(0,0,0,0.5)',
+                      backdropFilter: rank > 3 ? 'blur(4px)' : 'none',
+                      borderBottomRightRadius: 8,
+                      boxShadow: rank <= 3 ? '0 4px 12px rgba(0,0,0,0.3)' : 'none',
                     }}
                   >
-                    <PlayArrowRoundedIcon sx={{ fontSize: 11 }} />
-                    {formatCount(item.viewCount)}
+                    {rank}
                   </Box>
-                )}
 
-                <Box
-                  sx={{
-                    position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    p: 1.25,
-                    background: 'linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.7) 100%)',
-                  }}
-                >
-                  <Typography
-                    sx={{
-                      fontSize: 12,
-                      fontWeight: 500,
-                      color: 'text.primary',
-                      lineHeight: 1.3,
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                      minHeight: 32,
-                    }}
-                  >
-                    {item.title}
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                  {item.viewCount !== undefined && (
                     <Box
                       sx={{
-                        px: 0.5,
-                        py: 0.125,
-                        borderRadius: 0.5,
-                        bgcolor: 'rgba(255, 88, 88, 0.4)',
+                        position: 'absolute',
+                        top: 8,
+                        right: 8,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 0.25,
+                        px: 0.75,
+                        py: 0.25,
+                        borderRadius: 1,
+                        bgcolor: 'rgba(0,0,0,0.5)',
+                        backdropFilter: 'blur(4px)',
                         color: 'text.primary',
-                        fontSize: 9,
-                        fontWeight: 600,
+                        fontSize: 10,
+                        fontFamily: 'monospace',
                       }}
                     >
-                      {TYPE_TO_CHIP[item.contentType] ?? '推荐'}
+                      <PlayArrowRoundedIcon sx={{ fontSize: 11 }} />
+                      {formatCount(item.viewCount)}
+                    </Box>
+                  )}
+
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      p: 1.25,
+                      background: 'linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.7) 100%)',
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: 'text.primary',
+                        lineHeight: 1.3,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                        minHeight: 32,
+                      }}
+                    >
+                      {item.title}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
+                      <Box
+                        sx={{
+                          px: 0.5,
+                          py: 0.125,
+                          borderRadius: 0.5,
+                          bgcolor: 'rgba(255, 88, 88, 0.4)',
+                          color: 'text.primary',
+                          fontSize: 9,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {TYPE_TO_CHIP[item.contentType] ?? '推荐'}
+                      </Box>
                     </Box>
                   </Box>
                 </Box>
-              </Box>
-            );
-          })}
+              );
+            })}
+          </Box>
+
+          {/* Loading more skeleton */}
+          {loadingMore && (
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.5, mt: 1.5 }}>
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} variant="rounded" sx={{ aspectRatio: '4/5' }} />
+              ))}
+            </Box>
+          )}
+
+          {/* Infinite scroll sentinel */}
+          {!isSpecialTab && tabFromUrl !== 'recommend' && (
+            <Box ref={contentScroll.sentinelRef} sx={{ height: 1, mt: 2 }} />
+          )}
+          {tabFromUrl === 'follow' && (
+            <Box ref={followScroll.sentinelRef} sx={{ height: 1, mt: 2 }} />
+          )}
+          {tabFromUrl === 'friend' && (
+            <Box ref={friendScroll.sentinelRef} sx={{ height: 1, mt: 2 }} />
+          )}
+
+          {/* Empty state */}
+          {displayContentList.length === 0 && !loading && (
+            <Typography sx={{ textAlign: 'center', py: 4, color: 'text.secondary', fontSize: 13 }}>
+              暂无内容
+            </Typography>
+          )}
+
+          {/* No more data */}
+          {!loadingMore && displayContentList.length > 0 && isNoMore && (
+            <Typography sx={{ textAlign: 'center', py: 3, color: 'text.disabled', fontSize: 12 }}>
+              - 没有更多了 -
+            </Typography>
+          )}
         </Box>
       )}
     </Box>

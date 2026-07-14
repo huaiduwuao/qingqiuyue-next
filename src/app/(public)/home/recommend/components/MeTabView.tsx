@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import Box from "@mui/material/Box";
@@ -9,14 +9,18 @@ import Chip from "@mui/material/Chip";
 import Button from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
 import { CoverImage } from "@/components/common/CoverImage";
+import { accountClient } from "@/lib/api/client";
+import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
+import type {
+  MePageItem,
+  MePageResp,
+} from "@/apis/dashboard";
 import {
   getFavoritesPage,
   getHistoryPage,
   getLikesPage,
   getWatchlaterPage,
   getReservationsPage,
-  type MePageItem,
-  type MePageResp,
 } from "@/apis/dashboard";
 
 // 5 个分区配置:label / API / 渲染规则 / 空态文案
@@ -24,22 +28,23 @@ type MainTab = "likes" | "collect" | "history" | "later" | "order";
 
 const SECTION_CONFIG: Record<MainTab, {
   label: string;
-  fetcher: () => Promise<MePageResp>;
+  fetcher: (page: number, pageSize: number) => Promise<MePageResp<MePageItem>>;
   emptyHint: string;
 }> = {
-  likes:       { label: "我的喜欢",     fetcher: getLikesPage,        emptyHint: "后端真点赞机制尚未上线,暂无内容" },
-  collect:     { label: "我的收藏",     fetcher: getFavoritesPage,    emptyHint: "还没有收藏任何内容,去推荐页看看吧" },
-  history:     { label: "观看历史",     fetcher: getHistoryPage,      emptyHint: "还没有观看记录,刷一刷推荐吧" },
-  later:       { label: "稍后再看",     fetcher: getWatchlaterPage,   emptyHint: "稍后再看列表为空" },
-  order:       { label: "我的预约",     fetcher: getReservationsPage, emptyHint: "后端预约模块尚未上线,暂无内容" },
+  likes:       { label: "我的喜欢",     fetcher: (p, s) => accountClient.get(`/account/likes/page?page=${p}&pageSize=${s}`).then(r => r.data),        emptyHint: "后端真点赞机制尚未上线,暂无内容" },
+  collect:     { label: "我的收藏",     fetcher: (p, s) => accountClient.get(`/account/favorites/page?page=${p}&pageSize=${s}`).then(r => r.data),    emptyHint: "还没有收藏任何内容,去推荐页看看吧" },
+  history:     { label: "观看历史",     fetcher: (p, s) => accountClient.get(`/account/history/page?page=${p}&pageSize=${s}`).then(r => r.data),      emptyHint: "还没有观看记录,刷一刷推荐吧" },
+  later:       { label: "稍后再看",     fetcher: (p, s) => accountClient.get(`/account/watchlater/page?page=${p}&pageSize=${s}`).then(r => r.data),   emptyHint: "稍后再看列表为空" },
+  order:       { label: "我的预约",     fetcher: (p, s) => accountClient.get(`/account/reservations/page?page=${p}&pageSize=${s}`).then(r => r.data), emptyHint: "后端预约模块尚未上线,暂无内容" },
 };
 
-function useSectionData(tab: MainTab) {
+const PAGE_SIZE = 12;
+
+function useSectionData(tab: MainTab, page: number) {
   const cfg = SECTION_CONFIG[tab];
-  // 同一个 queryKey 都用 ["me", tab],30s stale
   return useQuery({
-    queryKey: ["me", tab],
-    queryFn: () => cfg.fetcher(),
+    queryKey: ["me", tab, page],
+    queryFn: () => cfg.fetcher(page, PAGE_SIZE),
     staleTime: 30 * 1000,
   });
 }
@@ -122,7 +127,40 @@ export function MeTabView() {
     : "collect") as MainTab;
 
   const cfg = SECTION_CONFIG[mainTab];
-  const { data, isLoading } = useSectionData(mainTab);
+
+  // 分页状态
+  const [mePage, setMePage] = useState(1);
+  const [meList, setMeList] = useState<MePageItem[]>([]);
+  const [meHasMore, setMeHasMore] = useState(true);
+
+  // 切换 tab 时重置分页
+  useEffect(() => {
+    setMePage(1);
+    setMeList([]);
+    setMeHasMore(true);
+  }, [mainTab]);
+
+  const { data, isLoading, isFetching } = useSectionData(mainTab, mePage);
+
+  // 合并数据
+  useEffect(() => {
+    if (data?.list) {
+      setMeList(prev => mePage === 1 ? data.list! : [...prev, ...data.list!]);
+      const total = data.total || data.totalRow || 0;
+      setMeHasMore(data.list!.length === PAGE_SIZE && (mePage * PAGE_SIZE) < total);
+    }
+  }, [data, mePage]);
+
+  // 无限滚动
+  const scroll = useInfiniteScroll({
+    enabled: !isLoading && meHasMore,
+  });
+
+  useEffect(() => {
+    if (scroll.isNearBottom && meHasMore && !isLoading) {
+      setMePage(p => p + 1);
+    }
+  }, [scroll.isNearBottom, meHasMore, isLoading]);
 
   // 5 个子 tab 切换条
   return (
@@ -146,8 +184,27 @@ export function MeTabView() {
 
       {isLoading ? (
         <GridSkeleton count={6} />
-      ) : data && data.list && data.list.length > 0 ? (
-        <GridView items={data.list} tab={mainTab} />
+      ) : meList.length > 0 ? (
+        <Box>
+          <GridView items={meList} tab={mainTab} />
+
+          {/* Loading more */}
+          {isFetching && !isLoading && (
+            <Box sx={{ display: "flex", justifyContent: "center", py: 2 }}>
+              <Typography sx={{ color: "text.secondary", fontSize: 12 }}>加载中...</Typography>
+            </Box>
+          )}
+
+          {/* Infinite scroll sentinel */}
+          <Box ref={scroll.sentinelRef} sx={{ height: 1 }} />
+
+          {/* No more data */}
+          {!isFetching && meList.length > 0 && !meHasMore && (
+            <Typography sx={{ textAlign: "center", py: 3, color: "text.disabled", fontSize: 12 }}>
+              - 没有更多了 -
+            </Typography>
+          )}
+        </Box>
       ) : (
         <EmptyState hint={cfg.emptyHint} />
       )}
