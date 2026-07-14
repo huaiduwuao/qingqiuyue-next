@@ -119,7 +119,6 @@ export default function WxConfigPage() {
   };
 
   const confirmReauthorize = () => {
-    // 触发微信授权：跳转后端授权入口（带当前页回调）
     const callback = encodeURIComponent(window.location.href);
     window.open(`/api/core/wxConfig/authorize?callback=${callback}`, '_blank', 'noopener,noreferrer');
     setAuthDialogOpen(false);
@@ -142,86 +141,85 @@ export default function WxConfigPage() {
       </Box>
 
       <Box sx={{ display: 'flex', gap: 3, flex: 1, minHeight: 0, overflow: 'hidden' }}>
-        {/* 左侧公众号列表 */}
         <Box sx={{ width: 320, flexShrink: 0, overflow: 'auto' }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-          <TextField
-            size="small"
-            placeholder="搜索公众号名称 / AppID"
-            value={nameFilter}
-            onChange={(e) => setNameFilter(e.target.value)}
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchRoundedIcon fontSize="small" sx={{ color: 'text.secondary' }} />
-                  </InputAdornment>
-                ),
-              },
-            }}
-          />
-          {filteredConfigs.length === 0 && (
-            <Typography sx={{ fontSize: 12, color: 'text.secondary', textAlign: 'center', py: 2 }}>
-              暂无匹配的公众号
-            </Typography>
-          )}
-          {filteredConfigs.map((c) => {
-            const isSel = selected?.id === c.id;
-            return (
-              <Box
-                key={c.id}
-                onClick={() => setSelected(c)}
-                sx={{
-                  p: 2,
-                  borderRadius: 2,
-                  bgcolor: 'background.paper',
-                  border: `1px solid ${isSel ? 'success.main' : 'divider'}`,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s',
-                  '&:hover': { borderColor: '#5DDB9680' },
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                  <Box
-                    sx={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: '50%',
-                      bgcolor: '#5DDB9620',
-                      color: 'success.main',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <ChatIcon />
+            <TextField
+              size="small"
+              placeholder="搜索公众号名称 / AppID"
+              value={nameFilter}
+              onChange={(e) => setNameFilter(e.target.value)}
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchRoundedIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
+            {filteredConfigs.length === 0 && (
+              <Typography sx={{ fontSize: 12, color: 'text.secondary', textAlign: 'center', py: 2 }}>
+                暂无匹配的公众号
+              </Typography>
+            )}
+            {filteredConfigs.map((c) => {
+              const isSel = selected?.id === c.id;
+              return (
+                <Box
+                  key={c.id}
+                  onClick={() => setSelected(c)}
+                  sx={{
+                    p: 2,
+                    borderRadius: 2,
+                    bgcolor: 'background.paper',
+                    border: `1px solid ${isSel ? 'success.main' : 'divider'}`,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    '&:hover': { borderColor: '#5DDB9680' },
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Box
+                      sx={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: '50%',
+                        bgcolor: '#5DDB9620',
+                        color: 'success.main',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <ChatIcon />
+                    </Box>
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'text.primary' }} noWrap>
+                        {c.appName}
+                      </Typography>
+                      <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.5 }} noWrap>
+                        {c.appId}
+                      </Typography>
+                    </Box>
+                    {c.status === 'active' ? (
+                      <CheckCircleIcon sx={{ fontSize: 18, color: 'success.main' }} />
+                    ) : (
+                      <ErrorIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+                    )}
                   </Box>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'text.primary' }} noWrap>
-                      {c.appName}
-                    </Typography>
-                    <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.5 }} noWrap>
-                      {c.appId}
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1.5 }}>
+                    <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>粉丝</Typography>
+                    <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'success.main' }}>
+                      {c.fans.toLocaleString()}
                     </Typography>
                   </Box>
-                  {c.status === 'active' ? (
-                    <CheckCircleIcon sx={{ fontSize: 18, color: 'success.main' }} />
-                  ) : (
-                    <ErrorIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
-                  )}
                 </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1.5 }}>
-                  <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>粉丝</Typography>
-                  <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'success.main' }}>
-                    {c.fans.toLocaleString()}
-                  </Typography>
-                </Box>
-              </Box>
-            );
-          })}
+              );
+            })}
+          </Box>
         </Box>
 
-        {/* 右侧详情 */}
         {selected && (
           <Box sx={{ flex: 1, minWidth: 0, p: 3, borderRadius: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', overflow: 'auto' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
@@ -342,8 +340,15 @@ export default function WxConfigPage() {
         </DialogActions>
       </Dialog>
 
-      <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={() => setSnackbar((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
-        <Alert severity={snackbar.severity} sx={{ width: '100%' }}>{snackbar.message}</Alert>
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert severity={snackbar.severity} sx={{ width: '100%' }}>
+          {snackbar.message}
+        </Alert>
       </Snackbar>
     </Box>
   );
