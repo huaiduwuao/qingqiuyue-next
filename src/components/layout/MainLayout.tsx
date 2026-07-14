@@ -161,7 +161,7 @@ export function MainLayout({ children }: { children: ReactNode }) {
   ), [menuData, pathname]);
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }} suppressHydrationWarning>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100dvh', overflow: 'hidden' }} suppressHydrationWarning>
       {/* Top Header */}
       <AppBar position="fixed" elevation={0} sx={{ bgcolor: 'background.paper', color: 'text.primary' }}>
         <Toolbar sx={{ gap: 2 }}>

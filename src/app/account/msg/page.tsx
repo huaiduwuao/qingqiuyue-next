@@ -124,7 +124,7 @@ export default function MsgPage() {
   const mainTab = useMsgUi((s) => s.mainTab);
   const setMainTab = useMsgUi((s) => s.setMainTab);
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - var(--appbar-h, 66px))', bgcolor: 'background.default' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100dvh', bgcolor: 'background.default' }}>
       {/* 顶部 Tab 导航 */}
       <Box sx={{ borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.default', flexShrink: 0, px: 3 }}>
         <Tabs

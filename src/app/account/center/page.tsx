@@ -7,7 +7,7 @@ import { LoginGate } from '@/components/auth/LoginGate';
 
 export default function AccountCenterPage() {
   return (
-    <Box sx={{ height: 'calc(100dvh - var(--appbar-h, 66px))', overflow: 'auto', overscrollBehavior: 'contain' }}>
+    <Box sx={{ height: '100dvh', overflow: 'auto', overscrollBehavior: 'contain' }}>
       <Box sx={{ maxWidth: 720, mx: 'auto', px: { xs: 2, md: 3 }, py: { xs: 2, md: 3 } }}>
         <LoginGate mode="replace" message="登录后查看个人中心">
           <PersonalCenterCard />

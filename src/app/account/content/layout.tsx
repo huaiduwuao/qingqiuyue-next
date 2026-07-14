@@ -87,7 +87,7 @@ function CreatorLayoutInner({ children }: { children: React.ReactNode }) {
           bgcolor: 'background.default',
           color: 'text.primary',
           overflow: { md: 'hidden' },
-          height: 'calc(100dvh - var(--appbar-h, 66px))',
+          height: '100dvh',
           minHeight: 0,
         }}
       >

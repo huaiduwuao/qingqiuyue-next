@@ -260,7 +260,7 @@ export default function AccountRewardPage() {
   );
 
   return (
-    <Box sx={{ display: 'flex', height: 'calc(100dvh - var(--appbar-h, 66px))', minHeight: 0, minWidth: 0 }}>
+    <Box sx={{ display: 'flex', height: '100dvh', minHeight: 0, minWidth: 0 }}>
       {/* Mobile drawer for sidebar */}
       <Drawer
         anchor="left"
@@ -287,14 +287,14 @@ export default function AccountRewardPage() {
           flexDirection: 'column',
           width: 220,
           flexShrink: 0,
-          height: 'calc(100dvh - var(--appbar-h, 66px))',
+          height: '100dvh',
         }}
       >
         <SidebarContent />
       </Box>
 
       {/* Main content */}
-      <Box sx={{ flex: 1, height: 'calc(100dvh - var(--appbar-h, 66px))', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'auto', overscrollBehavior: 'contain' }}>
+      <Box sx={{ flex: 1, height: '100dvh', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'auto', overscrollBehavior: 'contain' }}>
         {/* Mobile-only sidebar trigger + page header */}
         <Box
           sx={{

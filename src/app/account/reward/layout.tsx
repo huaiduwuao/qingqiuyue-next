@@ -16,7 +16,8 @@ export default function RewardLayout({ children }: { children: React.ReactNode }
         sx={{
           bgcolor: 'background.default',
           color: 'text.primary',
-          minHeight: '100vh',
+          height: '100dvh',
+          overflow: 'hidden',
         }}
       >
         {children}

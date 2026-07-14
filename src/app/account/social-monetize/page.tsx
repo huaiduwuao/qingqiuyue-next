@@ -439,7 +439,7 @@ export default function SocialMonetizePage() {
   return (
     <Box
       sx={{
-        height: 'calc(100dvh - var(--appbar-h, 66px))',
+        height: '100dvh',
         overflow: 'auto',
         overscrollBehavior: 'contain',
       }}

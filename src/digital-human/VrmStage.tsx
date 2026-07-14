@@ -183,6 +183,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   // Phase 2：父组件可以传 config prop 覆盖
   // 用 useState 保持引用稳定，async loader 完成后一次性更新，避免每次 render 产生新对象
   const [configBundle, setConfigBundle] = useState(() => configProp ?? loadConfigBundle());
+  const [currentScene, setCurrentScene] = useState<string>('concert');  // 默认场景
   useEffect(() => {
     if (configProp) {
       setConfigBundle(configProp);
@@ -195,10 +196,10 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   }, [configProp]);
 
   // 当前激活的 scene config（从 bundle.scenes 找 name === 当前 scene）
+  // 通过 setCurrentScene(name) 从外部切换场景，或内部默认使用 'concert'
   const currentSceneConfig = useMemo(() => {
-    return configBundle.scenes.find((s) => s.name === 'concert') || configBundle.scenes[0];
-    // TODO: 读 stageState.scene
-  }, [configBundle]);
+    return configBundle.scenes.find((s) => s.name === currentScene) || configBundle.scenes[0];
+  }, [configBundle, currentScene]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const vrmSceneRef = useRef<any>(null);  // THREE.Object3D of the loaded VRM

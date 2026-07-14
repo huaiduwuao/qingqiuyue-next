@@ -127,7 +127,7 @@ export default function DigitalHumanInstructionsPage() {
         </Box>
         <Button
           variant="contained" startIcon={<AddRoundedIcon />}
-          onClick={handleNew} disabled={isOpen}
+          onClick={handleNew}
         >
           新建指令
         </Button>
@@ -153,7 +153,7 @@ export default function DigitalHumanInstructionsPage() {
                 borderColor: editing?.agentId === row.agentId ? 'primary.main' : 'divider',
                 borderWidth: editing?.agentId === row.agentId ? 2 : 1,
               }}
-              onClick={() => !isOpen && handleEdit(row)}
+              onClick={() => handleEdit(row)}
             >
               <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
                 <Stack direction="row" sx={{ mb: 1, justifyContent: 'space-between', alignItems: 'flex-start' }}>
