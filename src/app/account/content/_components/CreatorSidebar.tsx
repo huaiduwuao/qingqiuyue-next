@@ -22,6 +22,7 @@ import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import TravelExploreIcon from '@mui/icons-material/TravelExplore';
 import EmojiEventsRoundedIcon from '@mui/icons-material/EmojiEventsRounded';
 import RateReviewRoundedIcon from '@mui/icons-material/RateReviewRounded';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 import { useAuthority } from '@/contexts/AuthContext';
 
 interface MenuItem {
@@ -85,6 +86,7 @@ export const MENU_GROUPS: MenuGroup[] = [
     title: '变现',
     items: [
       { id: 'monetize', label: '变现中心', icon: <MonetizationOnIcon />, badge: '3', route: 'monetize' },
+      { id: 'bot', label: '假人管理', icon: <SmartToyIcon />, route: 'bot', requireAuthority: ['ADMIN', 'SUPER_ADMIN'] },
     ],
   },
 ];

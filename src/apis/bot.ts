@@ -5,6 +5,7 @@ export interface BotListParams {
   pageSize?: number;
   pageNumber?: number;
   name?: string;
+  keyword?: string;  // 模糊搜索 name/nickname
   status?: string;
 }
 
@@ -47,4 +48,28 @@ export async function pause(id: number) {
 
 export async function resume(id: number) {
   return adminClient(`/bot/${id}/resume`, { method: 'POST' });
+}
+
+// 批量创建假人
+export interface BatchCreateBotParams {
+  count: number;                   // 数量 1-100
+  prefix?: string;                 // 名称前缀
+  personaPrompt?: string;          // 统一人设
+  commentTemplates?: string[];     // 统一评论模板
+  useLlmForComments?: boolean;     // 是否用 LLM
+  llmModel?: string;               // LLM 模型
+  commentIntervalMinutes?: number; // 评论间隔(分钟)
+  initBalance?: number;            // 初始积分(分)
+}
+
+export interface BatchCreateBotResponse {
+  successCount: number;
+  failedCount: number;
+  createdIds: number[];
+  failedNames: string[];
+}
+
+export async function batchCreate(params: BatchCreateBotParams): Promise<BatchCreateBotResponse> {
+  const res = await adminClient('/bot/batch', { method: 'POST', data: params });
+  return res?.data ?? res;
 }

@@ -4,7 +4,7 @@
  */
 
 export type SpiderTab = {
-  key: 'dashboard' | 'batch' | 'workers' | 'sites' | 'sources' | 'templates' | 'tasks' | 'proxies';
+  key: 'dashboard' | 'batch' | 'workers' | 'sites' | 'sources' | 'templates' | 'tasks' | 'proxies' | 'bot';
   label: string;
 };
 
@@ -17,4 +17,5 @@ export const SPIDER_TABS: SpiderTab[] = [
   { key: 'templates', label: '模板管理' },
   { key: 'tasks', label: '单任务' },
   { key: 'proxies', label: '代理池' },
+  { key: 'bot', label: '假人管理' },
 ];

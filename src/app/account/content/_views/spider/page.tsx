@@ -25,6 +25,7 @@ const SourcesPage = lazy(() => import('./sources/page'));
 const TemplatesPage = lazy(() => import('./templates/page'));
 const TasksPage = lazy(() => import('./tasks/page'));
 const ProxiesPage = lazy(() => import('./proxies/page'));
+const BotPage = lazy(() => import('./bot/page'));
 
 const componentMap: Record<string, React.LazyExoticComponent<React.ComponentType<any>>> = {
   dashboard: DashboardPage,
@@ -35,6 +36,7 @@ const componentMap: Record<string, React.LazyExoticComponent<React.ComponentType
   templates: TemplatesPage,
   tasks: TasksPage,
   proxies: ProxiesPage,
+  bot: BotPage,
 };
 
 export default function SpiderPage() {
