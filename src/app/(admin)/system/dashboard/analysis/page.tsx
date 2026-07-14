@@ -122,7 +122,7 @@ function useDashboard() {
     queryFn: async () => {
       const r: any = await adminClient('/admin/dashboard/content-distribution');
       const list = (r?.data?.data?.list ?? r?.data?.list ?? r?.list ?? []) as Array<{
-        type: string; count: number; percent: number; color: string;
+        type: string; label?: string; count: number; percent: number; color: string;
       }>;
       return list.map((d) => ({ type: d.type, label: d.label, count: d.count, percent: d.percent, color: d.color }));
     },
@@ -495,7 +495,7 @@ export default function DashboardAnalysisPage() {
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: item.color }} />
-                            <Typography variant="body2">{item.type}</Typography>
+                            <Typography variant="body2">{item.label || item.type}</Typography>
                           </Box>
                           <Typography variant="body2" sx={{ fontWeight: 600 }}>{item.percent}%</Typography>
                         </Box>
