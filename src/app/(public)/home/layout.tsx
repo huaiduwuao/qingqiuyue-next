@@ -592,8 +592,8 @@ function RightSidebar() {
 
       {/* 全网热搜:Phase 3 从 Doris 拉全量热榜,每小时自动刷新 */}
       <HotRankingBar
-        contentType="NEWS"
-        title="全网热搜"
+        defaultType="NOVEL"
+        title="内容榜单"
         maxItems={10}
         expandable
       />

@@ -1,34 +1,47 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
 import Skeleton from '@mui/material/Skeleton';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { fetchHot, HotItem } from '@/apis/home-discover';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { useRouter } from 'next/navigation';
 
 interface Props {
-  contentType?: string; // 默认 NEWS,后端会按 contentType 过滤
+  defaultType?: string; // 默认类型
   title?: string;
   maxItems?: number;
   expandable?: boolean;
+  showTypeTabs?: boolean; // 是否显示类型切换 tabs
 }
 
+// 内容类型配置
+const CONTENT_TYPES = [
+  { value: 'NOVEL', label: '小说' },
+  { value: 'VIDEO', label: '视频' },
+  { value: 'MUSIC', label: '音乐' },
+  { value: 'ANIMATION', label: '动漫' },
+];
+
 export default function HotRankingBar({
-  contentType = 'NEWS',
-  title = '实时热搜',
+  defaultType = 'NOVEL',
+  title = '内容榜单',
   maxItems = 12,
   expandable = false,
+  showTypeTabs = true,
 }: Props) {
   const router = useRouter();
-  const [expanded, setExpanded] = React.useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [activeType, setActiveType] = useState(defaultType);
+
   const { data, isLoading } = useQuery({
-    queryKey: ['hot-ranking', contentType],
-    queryFn: () => fetchHot({ type: contentType, size: 30 }).then((r: any) => (r?.data?.list ?? []) as HotItem[]),
+    queryKey: ['hot-ranking', activeType],
+    queryFn: () => fetchHot({ type: activeType, size: 30 }).then((r: any) => (r?.data?.list ?? []) as HotItem[]),
     staleTime: 60_000,
   });
 
@@ -37,7 +50,7 @@ export default function HotRankingBar({
 
   const handleClick = (item: HotItem) => {
     if (!item.id) return;
-    const route = getDetailRoute((item.category || contentType).toUpperCase(), item.id);
+    const route = getDetailRoute((item.category || activeType).toUpperCase(), item.id);
     if (route) router.push(route);
   };
 
@@ -61,6 +74,24 @@ export default function HotRankingBar({
         </Typography>
       </Box>
 
+      {/* 类型切换 Tabs */}
+      {showTypeTabs && (
+        <Tabs
+          value={activeType}
+          onChange={(_, v) => setActiveType(v)}
+          sx={{
+            minHeight: 28,
+            mb: 1,
+            '& .MuiTab-root': { minHeight: 28, py: 0, fontSize: 11 },
+            '& .MuiTabs-indicator': { height: 2 },
+          }}
+        >
+          {CONTENT_TYPES.map((t) => (
+            <Tab key={t.value} value={t.value} label={t.label} />
+          ))}
+        </Tabs>
+      )}
+
       {isLoading ? (
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 0.75 }}>
           {Array.from({ length: maxItems }).map((_, i) => (
@@ -69,7 +100,7 @@ export default function HotRankingBar({
         </Box>
       ) : items.length === 0 ? (
         <Typography variant="caption" sx={{ color: 'text.secondary', py: 1, display: 'block' }}>
-          暂无热搜数据(等待每小时抓取入 Doris 后自动出现)
+          暂无{activeType}数据
         </Typography>
       ) : (
         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 0.5 }}>
@@ -131,7 +162,7 @@ export default function HotRankingBar({
                     flexShrink: 0,
                   }}
                 >
-                  {(item.source || '').replace(' [爬取测试]', '').slice(0, 8)}
+                  {(item.source || '').replace(' [定时刷新]', '').replace(' [爬取测试]', '').slice(0, 8)}
                 </Typography>
               )}
             </Box>
