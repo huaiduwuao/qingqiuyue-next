@@ -268,7 +268,7 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
     if (actionState) {
       const actionCfg = lookups.actionByName.get(actionState.name);
       if (actionCfg) {
-        const t = (performance.now() - actionState.startedAtMs) / 1000;
+        const t = (performance.now() - actionState.startedMs) / 1000;
         if (!actionCfg.loopable && actionCfg.duration > 0 && t > actionCfg.duration) {
           smRef.current.remove('action');
         } else {
