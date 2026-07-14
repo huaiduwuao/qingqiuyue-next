@@ -49,6 +49,21 @@ export async function moduleContentActionPage(params: Record<string, unknown>) {
   });
 }
 
+// 支付密码 API
+export async function setPayPassword(password: string): Promise<void> {
+  await adminClient('/user/pay-password', { method: 'POST', data: { password } });
+}
+
+export async function verifyPayPassword(password: string): Promise<boolean> {
+  const res = await adminClient('/user/verify-pay-password', { method: 'POST', data: { password } });
+  return res?.code === 0;
+}
+
+export async function hasPayPassword(): Promise<boolean> {
+  const res = await adminClient('/user/has-pay-password');
+  return (res as any)?.data?.hasPayPassword ?? false;
+}
+
 export async function novelBookshelf(params: Record<string, unknown>) {
   return contentClient("/novelBookshelf/my", {
     params
