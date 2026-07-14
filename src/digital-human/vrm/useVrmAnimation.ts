@@ -76,14 +76,6 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
   const smRef = useRef<AnimationStateMachine>(new AnimationStateMachine());
   const lookups = useMemo(() => buildLookups(configBundle), [configBundle]);
 
-  // 调试：打印 lookups 内容
-  console.log('[useVrmAnimation] 配置加载完成:', {
-    actions: lookups.actionByName.size,
-    poses: lookups.poseByName.size,
-    dances: lookups.danceByName.size,
-    poseNames: [...lookups.poseByName.keys()],
-  });
-
   const [dancing, setDancingState] = useState(false);
   const [style, setStyleState] = useState<DanceStyle>('groove');
   const [bpm, setBpmState] = useState(120);
@@ -191,15 +183,11 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
     if (blend <= 0) return;
     for (const [boneName, rot] of Object.entries(cfg.boneRotations)) {
       const o = H(boneName);
-      if (!o || !o.rotation) {
-        if (!applyPose._warnedBones) { console.warn('[applyPose] 骨骼未找到:', boneName); applyPose._warnedBones = true; }
-        continue;
-      }
+      if (!o || !o.rotation) continue;
       o.rotation.x = o.rotation.x * (1 - blend) + rot[0] * blend;
       o.rotation.y = o.rotation.y * (1 - blend) + rot[1] * blend;
       o.rotation.z = o.rotation.z * (1 - blend) + rot[2] * blend;
     }
-    applyPose._warnedBones = false;
   }
 
   function resetBonesToNatural(H: (n: string) => any) {
@@ -235,22 +223,9 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
 
   function tick(elapsed: number, dt: number) {
     const vrm = vrmRef.current;
-    if (!vrm?.humanoid) {
-      // 只在首次或变化时打印，避免刷屏
-      if (tick._warned !== true) { console.warn('[useVrmAnimation.tick] vrm.humanoid 未就绪'); tick._warned = true; }
-      return;
-    }
-    tick._warned = false;
+    if (!vrm?.humanoid) return;
     const H = (n: string) => getBone(vrm.humanoid, n);
     const sceneObj = vrm.scene;
-
-    // 调试：检查骨骼是否正确获取
-    if (tick._dbgCount === undefined) tick._dbgCount = 0;
-    tick._dbgCount++;
-    if (tick._dbgCount <= 1) {
-      const testBone = H('leftUpperArm');
-      console.log('[useVrmAnimation.tick] 骨骼测试 leftUpperArm:', testBone ? '✓ 找到' : '✗ 未找到');
-    }
 
     // 1. 归位到自然姿势
     resetBonesToNatural(H);

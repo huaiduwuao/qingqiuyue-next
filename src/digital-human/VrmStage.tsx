@@ -110,9 +110,25 @@ export interface VrmStageProps {
 }
 
 const EXPRESSION_PASSTHROUGH = new Set([
+  // VRM 1.0 / ARKit 52 维表情
+  'browDownLeft', 'browDownRight', 'browInnerUp', 'browOuterUpLeft', 'browOuterUpRight',
+  'eyeLookDownLeft', 'eyeLookDownRight', 'eyeLookInLeft', 'eyeLookInRight',
+  'eyeLookOutLeft', 'eyeLookOutRight', 'eyeLookUpLeft', 'eyeLookUpRight',
+  'eyeBlinkLeft', 'eyeBlinkRight', 'eyeSquintLeft', 'eyeSquintRight',
+  'eyeWideLeft', 'eyeWideRight',
+  'cheekPuff', 'cheekSquintLeft', 'cheekSquintRight',
+  'jawOpen', 'jawForward', 'jawLeft', 'jawRight',
+  'mouthFunnel', 'mouthPucker', 'mouthLeft', 'mouthRight',
+  'mouthSmileLeft', 'mouthSmileRight', 'mouthFrownLeft', 'mouthFrownRight',
+  'mouthDimpleLeft', 'mouthDimpleRight', 'mouthStretchLeft', 'mouthStretchRight',
+  'mouthRollLower', 'mouthRollUpper', 'mouthShrugLower', 'mouthShrugUpper',
+  'mouthPressLeft', 'mouthPressRight',
+  'noseSneerLeft', 'noseSneerRight',
+  // VRM 1.0 预设表情
   'happy', 'angry', 'sad', 'relaxed', 'surprised', 'neutral',
-  'aa', 'ih', 'ou', 'ee', 'oh', 'blink', 'blinkLeft', 'blinkRight',
-  'joy', 'sorrow', 'fun',  // 兼容 VRM 0.0 旧名
+  // VRM 0.0 表情（兼容）
+  'joy', 'sorrow', 'fun', 'aa', 'ih', 'ou', 'ee', 'oh',
+  'blink', 'blinkLeft', 'blinkRight',
   'viseme_sil', 'viseme_aa', 'viseme_E', 'viseme_I', 'viseme_O', 'viseme_U', 'viseme_ou', 'viseme_ih',
   'viseme_PP', 'viseme_FF', 'viseme_TH', 'viseme_DD', 'viseme_kk', 'viseme_CH', 'viseme_SS', 'viseme_nn', 'viseme_RR',
 ]);
