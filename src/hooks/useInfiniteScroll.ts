@@ -9,6 +9,8 @@ interface UseInfiniteScrollOptions {
   rootMargin?: string;
   /** 是否启用 */
   enabled?: boolean;
+  /** 滚动容器，默认是窗口。传入 ref 以支持内部滚动容器 */
+  containerRef?: React.RefObject<HTMLElement | null>;
 }
 
 /**
@@ -18,6 +20,7 @@ interface UseInfiniteScrollOptions {
  * @example
  * const { sentinelRef, isNearBottom } = useInfiniteScroll({
  *   enabled: !isLoading && hasMore,
+ *   containerRef: scrollContainerRef, // 可选，指定滚动容器
  * });
  * // 在列表底部添加 <Box ref={sentinelRef} />
  */
@@ -26,6 +29,7 @@ export function useInfiniteScroll(options: UseInfiniteScrollOptions = {}) {
     threshold = 0.1,
     rootMargin = '100px',
     enabled = true,
+    containerRef,
   } = options;
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -43,17 +47,69 @@ export function useInfiniteScroll(options: UseInfiniteScrollOptions = {}) {
 
     observerRef.current?.disconnect();
 
+    const root = containerRef?.current ?? null;
+
     observerRef.current = new IntersectionObserver(
       (entries) => {
         setIsNearBottom(entries[0].isIntersecting);
       },
-      { threshold, rootMargin }
+      { threshold, rootMargin, root }
     );
 
     observerRef.current.observe(sentinel);
 
     return () => observerRef.current?.disconnect();
-  }, [enabled, threshold, rootMargin]);
+  }, [enabled, threshold, rootMargin, containerRef]);
+
+  return { sentinelRef, isNearBottom };
+}
+
+/**
+ * 基于滚动事件的无穷滚动 Hook
+ * 适用于 IntersectionObserver 无法正确工作的场景（如嵌套滚动容器）
+ *
+ * @example
+ * const { sentinelRef, isNearBottom } = useScrollToBottom({
+ *   enabled: !isLoading && hasMore,
+ *   containerRef: scrollContainerRef,
+ * });
+ */
+export function useScrollToBottom(options: { enabled?: boolean; containerRef?: React.RefObject<HTMLElement | null> } = {}) {
+  const { enabled = true, containerRef } = options;
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const [isNearBottom, setIsNearBottom] = useState(false);
+
+  useEffect(() => {
+    if (!enabled) {
+      setIsNearBottom(false);
+      return;
+    }
+
+    const container = containerRef?.current ?? window;
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const handleScroll = () => {
+      const scrollTop = container === window
+        ? window.scrollY
+        : (container as HTMLElement).scrollTop;
+      const scrollHeight = container === window
+        ? document.documentElement.scrollHeight
+        : (container as HTMLElement).scrollHeight;
+      const clientHeight = container === window
+        ? window.innerHeight
+        : (container as HTMLElement).clientHeight;
+
+      const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+      setIsNearBottom(distanceFromBottom < 150);
+    };
+
+    const element = container === window ? window : container as HTMLElement;
+    element.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll(); // 初始化
+
+    return () => element.removeEventListener('scroll', handleScroll);
+  }, [enabled, containerRef]);
 
   return { sentinelRef, isNearBottom };
 }

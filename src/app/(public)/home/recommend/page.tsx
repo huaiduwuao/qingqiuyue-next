@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
@@ -18,7 +18,7 @@ import { track } from '@/lib/track';
 import { TYPE_GRADIENT, RANK_BG } from '@/constants/gradients';
 import { RecommendVideoFeed } from './components/RecommendVideoFeed';
 import { MeTabView } from './components/MeTabView';
-import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
+import { useScrollToBottom } from '@/hooks/useInfiniteScroll';
 
 interface ContentItem {
   id: number;
@@ -180,14 +180,18 @@ export default function HomeRecommendPage() {
   });
 
   // 无限滚动 sentinel
-  const contentScroll = useInfiniteScroll({
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const contentScroll = useScrollToBottom({
     enabled: !contentQuery.isLoading && contentHasMore && !isSpecialTab && tabFromUrl !== 'recommend',
+    containerRef: scrollContainerRef,
   });
-  const followScroll = useInfiniteScroll({
+  const followScroll = useScrollToBottom({
     enabled: !followQuery.isLoading && followHasMore && tabFromUrl === 'follow',
+    containerRef: scrollContainerRef,
   });
-  const friendScroll = useInfiniteScroll({
+  const friendScroll = useScrollToBottom({
     enabled: !friendQuery.isLoading && friendHasMore && tabFromUrl === 'friend',
+    containerRef: scrollContainerRef,
   });
 
   // 监听滚动到底部，触发加载下一页
@@ -381,7 +385,7 @@ export default function HomeRecommendPage() {
           ))}
         </Box>
       ) : (
-        <Box>
+        <Box ref={scrollContainerRef} sx={{ overflow: 'auto', maxHeight: 'calc(100vh - 180px)' }}>
           <Box
             sx={{
               display: 'grid',
