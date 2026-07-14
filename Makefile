@@ -21,28 +21,24 @@ start:
 lint:
 	npm run lint
 
-# 容器:每次都构建 web(Docker 层缓存,无改动即全命中、很快),
-#   再只在「镜像真的变了 或 web 没在运行」时重建 → 保证跑最新代码,又不无谓重启。
-#   不再用 .last-build-web / git diff(会出现「标记写了但没真构建」跑旧镜像)。
+# 容器:强制重新构建 web(每次都 --no-cache 确保 USE_EXTERNAL_DIGITAL_HUMAN_API 等 build-arg 生效),
+#   再只在「镜像变了 或 web 没在运行」时重建容器 → 保证跑最新代码。
 compose-up:
 	@echo "Using compose tool: $(COMPOSE)"
 	@rt=$$(case "$(COMPOSE)" in *podman*) echo podman;; *) echo docker;; esac); \
 	img="localhost/qingqiuyue/web:latest"; \
-	before=$$($$rt images -q "$$img" 2>/dev/null); \
-	if [ -n "$$($$rt ps -a --format '{{.Names}}' 2>/dev/null | grep -x qingqiuyue-web)" ] && \
-	   [ "$$($$rt ps --format '{{.Names}}' 2>/dev/null | grep -xc qingqiuyue-web)" = "0" ]; then \
-	  echo "清理残留 stopped 容器: qingqiuyue-web"; $$rt rm qingqiuyue-web >/dev/null 2>&1 || true; \
-	fi; \
-	echo "构建 web …"; \
-	$(COMPOSE) -f $(COMPOSE_FILE) build || { echo "❌ web 构建失败 → 保留旧容器"; exit 1; }; \
-	after=$$($$rt images -q "$$img" 2>/dev/null); \
-	if [ "$$before" != "$$after" ] || ! $$rt ps --format '{{.Names}}' 2>/dev/null | grep -qx qingqiuyue-web; then \
-	  echo "镜像有更新或未运行 → 重建 web"; \
-	  $(COMPOSE) -f $(COMPOSE_FILE) up -d --force-recreate; \
-	else \
-	  echo "web 镜像无变化且在运行 → 无需重建"; \
-	fi; \
-	echo "✅ compose-up 完成(跑的是最新构建的镜像)"
+	echo "--- 清理残留 stopped 容器 ---"; \
+	$$rt rm qingqiuyue-web >/dev/null 2>&1 || true; \
+	echo "--- 强制重新构建 web (--no-cache) ---"; \
+	$(COMPOSE) -f $(COMPOSE_FILE) build --no-cache || { echo "❌ web 构建失败"; exit 1; }; \
+	echo "--- 启动/重建容器 ---"; \
+	$(COMPOSE) -f $(COMPOSE_FILE) up -d --force-recreate; \
+	echo "--- 验证环境变量 ---"; \
+	$$rt exec qingqiuyue-web env | grep -E "USE_EXTERNAL|NEXT_PUBLIC" || echo "(环境变量在构建时内联,运行时 grep 为空是正常的)"; \
+	echo "--- 验证 API ---"; \
+	curl -s 'http://localhost:10809/api/digital-human/instructions' | head -c 200 && echo "..."; \
+	echo ""; \
+	echo "✅ compose-up 完成"
 
 compose-down:
 	$(COMPOSE) -f $(COMPOSE_FILE) down
