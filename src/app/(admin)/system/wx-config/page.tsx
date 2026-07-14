@@ -132,8 +132,8 @@ export default function WxConfigPage() {
   const isSubmitting = updateMutation.isPending;
 
   return (
-    <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3, maxWidth: 1200, mx: 'auto' }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+    <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minHeight: 0, overflow: 'hidden' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexShrink: 0 }}>
         <ChatIcon sx={{ color: 'success.main', fontSize: 28 }} />
         <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary' }}>
           微信配置
@@ -141,9 +141,10 @@ export default function WxConfigPage() {
         <Chip label="服务号" size="small" sx={{ bgcolor: '#5DDB9620', color: 'success.main' }} />
       </Box>
 
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '320px 1fr' }, gap: 3 }}>
+      <Box sx={{ display: 'flex', gap: 3, flex: 1, minHeight: 0, overflow: 'hidden' }}>
         {/* 左侧公众号列表 */}
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        <Box sx={{ width: 320, flexShrink: 0, overflow: 'auto' }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
           <TextField
             size="small"
             placeholder="搜索公众号名称 / AppID"
@@ -222,7 +223,7 @@ export default function WxConfigPage() {
 
         {/* 右侧详情 */}
         {selected && (
-          <Box sx={{ p: 3, borderRadius: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
+          <Box sx={{ flex: 1, minWidth: 0, p: 3, borderRadius: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', overflow: 'auto' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
               <Typography variant="h6" sx={{ color: 'text.primary' }}>
                 {selected.appName}

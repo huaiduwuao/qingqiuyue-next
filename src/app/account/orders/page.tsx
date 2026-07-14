@@ -176,7 +176,7 @@ export default function OrdersPage() {
   const totalSpent = orders.filter((o) => o.status === 'paid').reduce((s, o) => s + o.amount, 0);
 
   return (
-    <Box sx={{ height: '100dvh', overflow: 'auto', overscrollBehavior: 'contain' }}>
+    <Box sx={{ height: 'calc(100dvh - var(--appbar-h, 66px))', overflow: 'auto', overscrollBehavior: 'contain' }}>
       <Container maxWidth="md" sx={{ py: { xs: 2, md: 4 } }}>
         <Typography variant="h5" sx={{ fontWeight: 700, mb: 3 }}>我的订单</Typography>
 

@@ -104,7 +104,7 @@ export default function AccountSettingsPage() {
   };
 
   return (
-    <Container maxWidth="lg" sx={{ height: '100dvh', overflow: 'auto', overscrollBehavior: 'contain', px: { xs: 1.5, md: 3 } }}>
+    <Container maxWidth="lg" sx={{ height: 'calc(100dvh - var(--appbar-h, 66px))', overflow: 'auto', overscrollBehavior: 'contain', px: { xs: 1.5, md: 3 } }}>
       <Box sx={{ py: { xs: 2, md: 4 } }}>
         <Typography variant="h4" sx={{ mb: 3 }}>设置</Typography>
         <LoginGate mode="replace" message="登录后查看设置">

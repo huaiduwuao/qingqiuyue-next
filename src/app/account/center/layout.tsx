@@ -12,7 +12,7 @@ export default function CenterLayout({ children }: { children: React.ReactNode }
   return (
     <ThemeProvider theme={(mode === 'light' ? douyinLightTheme : douyinDarkTheme)(primaryColor)}>
       <CssBaseline />
-      <Box sx={{ bgcolor: 'background.default', color: 'text.primary', height: '100dvh', overflow: 'hidden' }}>
+      <Box sx={{ bgcolor: 'background.default', color: 'text.primary', minHeight: '100%' }}>
         {children}
       </Box>
     </ThemeProvider>

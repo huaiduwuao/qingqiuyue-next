@@ -308,7 +308,7 @@ export default function CreatorDashboardPage() {
   const [tab, setTab] = useState(0);
 
   return (
-    <Box sx={{ height: '100dvh', overflow: 'auto', overscrollBehavior: 'contain' }}>
+    <Box sx={{ height: 'calc(100dvh - var(--appbar-h, 66px))', overflow: 'auto', overscrollBehavior: 'contain' }}>
       <Box sx={{ maxWidth: 900, mx: 'auto', px: { xs: 2, md: 3 }, py: { xs: 2, md: 3 } }}>
         <LoginGate mode="replace" message="登录后查看数据大盘">
           <Typography variant="h5" sx={{ mb: 2, fontWeight: 700 }}>📊 创作者数据大盘</Typography>

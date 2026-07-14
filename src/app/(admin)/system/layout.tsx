@@ -86,7 +86,8 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
       sx={{
         display: 'flex',
         flexDirection: 'column',
-        minHeight: '100vh',
+        height: '100vh',
+        overflow: 'hidden',
         bgcolor: 'var(--bg-body, transparent)',
         color: 'var(--text-primary, currentColor)',
       }}
@@ -235,7 +236,7 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
 
       {/* 主体:侧栏 + 内容 */}
       <Box sx={{ display: 'flex', flex: 1, minHeight: 0 }}>
-        {/* 左侧导航 — 与 home LeftSidebar 同一套(220px / rgba 半透明 / 细白边) */}
+        {/* 左侧导航 */}
         <Box
           component="nav"
           sx={{
@@ -245,9 +246,7 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
             borderRight: '1px solid var(--border-color, transparent)',
             display: { xs: 'none', md: 'flex' },
             flexDirection: 'column',
-            height: 'calc(100vh - 60px)',
-            position: 'sticky',
-            top: 60,
+            height: '100%',
           }}
         >
           <Box sx={{ flex: 1, py: 1.5, overflow: 'auto' }}>
@@ -326,8 +325,10 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
         </Box>
 
         {/* 内容 */}
-        <Box component="main" sx={{ flex: 1, minWidth: 0, overflow: 'auto', p: 3, bgcolor: 'var(--bg-body, transparent)' }}>
-          {children}
+        <Box component="main" sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
+            {children}
+          </Box>
         </Box>
       </Box>
     </Box>

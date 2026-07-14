@@ -117,7 +117,7 @@ export default function DigitalHumanInstructionsPage() {
   const isOpen = editing !== null || creating;
 
   return (
-    <Box sx={{ p: 3, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ p: 3, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       <Stack direction="row" sx={{ mb: 3, justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 700 }}>数字人指令维护</Typography>
@@ -133,76 +133,66 @@ export default function DigitalHumanInstructionsPage() {
         </Button>
       </Stack>
 
-      {/* 列表 + 编辑器 — 用 CSS grid 代替 Grid container/item,因为项目没装 @mui/material/Grid (only @mui/x-data-grid) */}
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', md: `${LIST_FRACTION} 1fr` },
-          gap: 2,
-          flex: 1,
-          minHeight: 0,  // 允许 flex 子元素收缩
-          overflow: 'hidden',
-        }}
-      >
-        {/* 左栏: 列表 */}
-        <Stack spacing={1.5} sx={{ overflow: 'auto', pr: 1, pb: 1 }}>
-          {(listQuery.data || []).map((row) => (
-            <Card key={row.agentId} variant="outlined"
-              sx={{
-                cursor: 'pointer',
-                borderColor: editing?.agentId === row.agentId ? 'primary.main' : 'divider',
-                borderWidth: editing?.agentId === row.agentId ? 2 : 1,
-              }}
-              onClick={() => handleEdit(row)}
-            >
-              <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                <Stack direction="row" sx={{ mb: 1, justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <Box>
-                    <Stack direction="row" spacing={0.5} sx={{ mb: 0.5 }}>
-                      {row.isDefault && <Chip label="默认" size="small" color="primary" variant="outlined" />}
-                      <Chip label={`v${row.version}`} size="small" variant="outlined" />
+      <Box sx={{ display: 'flex', gap: 2, flex: 1, minHeight: 0, overflow: 'hidden' }}>
+        <Box sx={{ width: LIST_FRACTION, flexShrink: 0, overflow: 'auto' }}>
+          <Stack spacing={1.5}>
+            {(listQuery.data || []).map((row) => (
+              <Card key={row.agentId} variant="outlined"
+                sx={{
+                  cursor: 'pointer',
+                  borderColor: editing?.agentId === row.agentId ? 'primary.main' : 'divider',
+                  borderWidth: editing?.agentId === row.agentId ? 2 : 1,
+                }}
+                onClick={() => handleEdit(row)}
+              >
+                <CardContent sx={{ p: 2 }}>
+                  <Stack direction="row" sx={{ mb: 1, justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <Box>
+                      <Stack direction="row" spacing={0.5} sx={{ mb: 0.5 }}>
+                        {row.isDefault && <Chip label="默认" size="small" color="primary" variant="outlined" />}
+                        <Chip label={`v${row.version}`} size="small" variant="outlined" />
+                      </Stack>
+                      <Typography variant="subtitle2">{row.name}</Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'ui-monospace, monospace' }}>
+                        {row.agentId}
+                      </Typography>
+                    </Box>
+                    <Stack direction="row">
+                      <Tooltip title="编辑"><IconButton size="small" onClick={(e) => { e.stopPropagation(); handleEdit(row); }}><EditRoundedIcon fontSize="small" /></IconButton></Tooltip>
+                      <Tooltip title="复制"><IconButton size="small" onClick={(e) => { e.stopPropagation(); handleDuplicate(row); }}><ContentCopyRoundedIcon fontSize="small" /></IconButton></Tooltip>
+                      <Tooltip title={row.isDefault ? '默认模板不可删' : '删除'}>
+                        <span>
+                          <IconButton size="small" disabled={row.isDefault} onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm(`确定删除 ${row.name}?`)) deleteMutation.mutate(row.agentId);
+                          }}>
+                            <DeleteOutlineRoundedIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
                     </Stack>
-                    <Typography variant="subtitle2">{row.name}</Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'ui-monospace, monospace' }}>
-                      {row.agentId}
-                    </Typography>
-                  </Box>
-                  <Stack direction="row">
-                    <Tooltip title="编辑"><IconButton size="small" onClick={(e) => { e.stopPropagation(); handleEdit(row); }}><EditRoundedIcon fontSize="small" /></IconButton></Tooltip>
-                    <Tooltip title="复制"><IconButton size="small" onClick={(e) => { e.stopPropagation(); handleDuplicate(row); }}><ContentCopyRoundedIcon fontSize="small" /></IconButton></Tooltip>
-                    <Tooltip title={row.isDefault ? '默认模板不可删' : '删除'}>
-                      <span>
-                        <IconButton size="small" disabled={row.isDefault} onClick={(e) => {
-                          e.stopPropagation();
-                          if (confirm(`确定删除 ${row.name}?`)) deleteMutation.mutate(row.agentId);
-                        }}>
-                          <DeleteOutlineRoundedIcon fontSize="small" />
-                        </IconButton>
-                      </span>
-                    </Tooltip>
                   </Stack>
-                </Stack>
-                {row.description && (
-                  <Typography variant="caption" color="text.secondary">{row.description}</Typography>
-                )}
-                <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 1 }}>
-                  {row.updatedAt && new Date(row.updatedAt).toLocaleString()}
-                </Typography>
-              </CardContent>
-            </Card>
-          ))}
-        </Stack>
+                  {row.description && (
+                    <Typography variant="caption" color="text.secondary">{row.description}</Typography>
+                  )}
+                  <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 1 }}>
+                    {row.updatedAt && new Date(row.updatedAt).toLocaleString()}
+                  </Typography>
+                </CardContent>
+              </Card>
+            ))}
+          </Stack>
+        </Box>
 
-        {/* 右栏: 编辑面板 */}
-        <Card sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
+        <Card sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {isOpen ? (
-            <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto' }}>
-              <Tabs value={tab} onChange={(_, v) => setTab(v)}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+              <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ flexShrink: 0 }}>
                 <Tab label="提示词" />
                 <Tab label="表情预览" />
                 <Tab label="工具清单" />
               </Tabs>
-              <CardContent sx={{ p: 3, flex: 1, minHeight: 0, overflow: 'auto' }}>
+              <CardContent sx={{ flex: 1, minHeight: 0, overflow: 'auto', pt: 3 }}>
                 {tab === 0 && (
                   <Stack spacing={2}>
                     <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>

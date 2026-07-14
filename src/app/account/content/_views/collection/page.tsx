@@ -325,7 +325,7 @@ export default function CollectionPage() {
   };
 
   return (
-    <Box sx={{ height: '100dvh', overflow: 'auto', overscrollBehavior: 'contain' }}>
+    <Box sx={{ height: 'calc(100dvh - var(--appbar-h, 66px))', overflow: 'auto', overscrollBehavior: 'contain' }}>
       <Box sx={{ maxWidth: 1200, mx: 'auto', p: { xs: 2, md: 3 } }}>
         <DetailHeader
           title="合集管理"

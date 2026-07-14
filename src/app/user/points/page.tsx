@@ -52,7 +52,7 @@ export default function PointsPage() {
   const progress = Math.min(100, (point.points / nextLevelPoints) * 100);
 
   return (
-    <Box sx={{ height: '100dvh', overflow: 'auto', overscrollBehavior: 'contain' }}>
+    <Box sx={{ height: 'calc(100dvh - var(--appbar-h, 66px))', overflow: 'auto', overscrollBehavior: 'contain' }}>
       <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3, maxWidth: 1400, mx: 'auto' }}>
         {/* 页面标题 */}
         <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>

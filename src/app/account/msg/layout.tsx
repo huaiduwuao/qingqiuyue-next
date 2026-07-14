@@ -12,7 +12,7 @@ export default function MsgLayout({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider theme={(mode === 'light' ? douyinLightTheme : douyinDarkTheme)(primaryColor)}>
       <CssBaseline />
-      <Box sx={{ bgcolor: 'background.default', height: '100dvh', overflow: 'hidden', color: 'text.primary' }}>
+      <Box sx={{ bgcolor: 'background.default', minHeight: 'calc(100dvh - var(--appbar-h, 66px))', color: 'text.primary' }}>
         {children}
       </Box>
     </ThemeProvider>

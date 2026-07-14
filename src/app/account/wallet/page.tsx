@@ -178,7 +178,7 @@ export default function WalletPage() {
   const monthOut = records.filter((r) => r.amount < 0).reduce((s, r) => s + Math.abs(r.amount), 0) / 10;
 
   return (
-    <Box sx={{ height: '100dvh', overflow: 'auto', overscrollBehavior: 'contain' }}>
+    <Box sx={{ height: 'calc(100dvh - var(--appbar-h, 66px))', overflow: 'auto', overscrollBehavior: 'contain' }}>
       <Container maxWidth="md" sx={{ py: { xs: 2, md: 4 } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
           <Typography variant="h5" sx={{ fontWeight: 700, flex: 1 }}>我的钱包</Typography>

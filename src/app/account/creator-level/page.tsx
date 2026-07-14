@@ -335,7 +335,7 @@ export default function CreatorLevelPage() {
   return (
     <Box
       sx={{
-        height: '100dvh',
+        height: 'calc(100dvh - var(--appbar-h, 66px))',
         overflow: 'auto',
         overscrollBehavior: 'contain',
       }}
