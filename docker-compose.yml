@@ -14,7 +14,7 @@ services:
         # === 数字人指令存储模式 (必须在 build 时传入,Next.js API route 构建时读取) ===
         # false: 使用 Next.js 本地文件系统存储指令(默认,自托管)
         # true: 透传到 Go 后端(需要 Go 后端实现 /api/realtime/digital-human/* 路由)
-        - USE_EXTERNAL_DIGITAL_HUMAN_API=false
+        - USE_EXTERNAL_DIGITAL_HUMAN_API=true
     image: localhost/qingqiuyue/web:latest
     container_name: qingqiuyue-web
     restart: unless-stopped
