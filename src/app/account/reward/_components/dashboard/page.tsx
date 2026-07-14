@@ -4,6 +4,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import { userPointMe } from '@/apis/global';
+import { getMyStats, type MyStats } from '@/apis/dashboard';
 import RewardHero from './RewardHero';
 import RewardCategoryRow from './RewardCategoryRow';
 import RewardHotGrid from './RewardHotGrid';
@@ -25,6 +26,15 @@ export default function DashboardPage(_props: DashboardProps) {
   });
   const myPoint: any = pointQuery.data || {};
 
+  // 我的赏金统计(真实数据,替代硬编码)
+  const myStatsQuery = useQuery({
+    queryKey: ['reward', 'my-stats', 'dashboard'],
+    queryFn: () => getMyStats(),
+    placeholderData: {} as MyStats,
+    staleTime: 30 * 1000,
+  });
+  const myStats: Partial<MyStats> = myStatsQuery.data || {};
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <RewardHero
@@ -32,6 +42,11 @@ export default function DashboardPage(_props: DashboardProps) {
         level={myPoint.level}
         levelName={myPoint.levelName}
         needPoint={myPoint.needPoint}
+        // 真实 KPI 数据
+        todayRewardYuan={myStats.todayRewardYuan}
+        adoptedCount={myStats.adoptedCount}
+        rankingPosition={myStats.rankingPosition}
+        totalIncomeYuan={myStats.totalIncomeYuan}
       />
       <RewardCategoryRow />
 

@@ -478,6 +478,14 @@ export const SCENE_PRESETS: ScenePresetName[] = ['concert', 'idol', 'garden', 'n
 export const SCENE_LABELS: Record<ScenePresetName, string> = {
   concert: '演唱会主舞台', idol: '偶像练习室', garden: '月光花园', neon: '赛博霓虹', studio: '摄影棚白底', lawn: '白天草坪',
 };
+export const SCENE_DESCRIPTIONS: Record<ScenePresetName, string> = {
+  concert: '粉/青聚光 + 桁架 + LED 屏',
+  idol: '镜面地板 + 偶像练习室',
+  garden: '月光 + 树木 + 花草',
+  neon: '赛博朋克 + 霓虹灯光',
+  studio: '纯白背景 + 专业灯光',
+  lawn: '户外草坪 + 蓝天白云',
+};
 
 /** 向后兼容：name → build* 的旧 API（Phase 2 切到 buildScene(config)） */
 export function buildSceneByName(THREE_NS: typeof THREE, sceneGroup: THREE.Group, name: ScenePresetName): SceneHandle {

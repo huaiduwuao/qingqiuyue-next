@@ -17,9 +17,23 @@ interface RewardHeroProps {
   level: number;
   levelName: string;
   needPoint: number;
+  // 真实 KPI 数据(替代硬编码)
+  todayRewardYuan?: number;
+  adoptedCount?: number;
+  rankingPosition?: number;
+  totalIncomeYuan?: number;
 }
 
-export default function RewardHero({ totalPoint, level, levelName, needPoint }: RewardHeroProps) {
+export default function RewardHero({
+  totalPoint,
+  level,
+  levelName,
+  needPoint,
+  todayRewardYuan = 0,
+  adoptedCount = 0,
+  rankingPosition = 0,
+  totalIncomeYuan = 0,
+}: RewardHeroProps) {
   const target = totalPoint + needPoint;
   const percent = target > 0 ? (totalPoint / target) * 100 : 0;
 
@@ -135,10 +149,10 @@ export default function RewardHero({ totalPoint, level, levelName, needPoint }: 
           }}
         >
           {[
-            { icon: <WhatshotIcon sx={{ fontSize: 18 }} />, label: '今日赏金', value: '¥1,280', color: 'primary.main' },
-            { icon: <StarIcon sx={{ fontSize: 18 }} />, label: '已采纳', value: '24', color: 'warning.main' },
-            { icon: <EmojiEventsIcon sx={{ fontSize: 18 }} />, label: '排行榜', value: '#18', color: 'secondary.main' },
-            { icon: <TrendingUpIcon sx={{ fontSize: 18 }} />, label: '累计收入', value: '¥12,460', color: 'success.main' },
+            { icon: <WhatshotIcon sx={{ fontSize: 18 }} />, label: '今日赏金', value: todayRewardYuan > 0 ? `¥${todayRewardYuan.toLocaleString('zh-CN')}` : '¥0', color: 'primary.main' },
+            { icon: <StarIcon sx={{ fontSize: 18 }} />, label: '已采纳', value: String(adoptedCount || 0), color: 'warning.main' },
+            { icon: <EmojiEventsIcon sx={{ fontSize: 18 }} />, label: '排行榜', value: rankingPosition > 0 ? `#${rankingPosition}` : '—', color: 'secondary.main' },
+            { icon: <TrendingUpIcon sx={{ fontSize: 18 }} />, label: '累计收入', value: totalIncomeYuan > 0 ? `¥${totalIncomeYuan.toLocaleString('zh-CN')}` : '¥0', color: 'success.main' },
           ].map((s) => (
             <Box
               key={s.label}

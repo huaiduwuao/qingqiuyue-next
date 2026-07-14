@@ -17,11 +17,12 @@ import React from 'react';
 import {
   Box, Typography, Stack, Card, CardContent, Button, Chip, IconButton,
   TextField, Tabs, Tab, MenuItem, Select, FormControl, InputLabel,
-  Switch, FormControlLabel,
+  Switch, FormControlLabel, Divider, Accordion, AccordionSummary, AccordionDetails,
 } from '@mui/material';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   listModels, createModel, updateModel, deleteModel,
@@ -566,15 +567,239 @@ function ScenesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
 }
 
 function SceneEditor({ value, onChange, onCancel, onSave }: any) {
+  const update = (patch: any) => onChange({ ...value, ...patch });
+  const updateNested = (key: string, patch: any) => onChange({ ...value, [key]: { ...value[key], ...patch } });
+
+  // 灯光操作
+  const addLight = () => {
+    const lights = [...(value.lights || [])];
+    lights.push({ id: `light-${Date.now()}`, type: 'point', color: 0xffffff, intensity: 1, position: [0, 3, 0] });
+    onChange({ ...value, lights });
+  };
+  const updateLight = (index: number, patch: any) => {
+    const lights = [...value.lights];
+    lights[index] = { ...lights[index], ...patch };
+    onChange({ ...value, lights });
+  };
+  const removeLight = (index: number) => {
+    const lights = value.lights.filter((_: any, i: number) => i !== index);
+    onChange({ ...value, lights });
+  };
+
+  // 装饰物操作
+  const addDecoration = () => {
+    const decorations = [...(value.decorations || [])];
+    decorations.push({ id: `deco-${Date.now()}`, type: 'truss', position: [0, 0, -2], params: { width: 10, depth: 4 } });
+    onChange({ ...value, decorations });
+  };
+  const updateDecoration = (index: number, patch: any) => {
+    const decorations = [...value.decorations];
+    decorations[index] = { ...decorations[index], ...patch };
+    onChange({ ...value, decorations });
+  };
+  const removeDecoration = (index: number) => {
+    const decorations = value.decorations.filter((_: any, i: number) => i !== index);
+    onChange({ ...value, decorations });
+  };
+
   return (
     <Stack spacing={2}>
       <Typography variant="subtitle1">{value.id ? '编辑场景' : '新建场景'}</Typography>
-      <Stack direction="row" spacing={2}>
-        <TextField label="name" value={value.name} onChange={(e) => onChange({ ...value, name: e.target.value })} size="small" />
-        <TextField label="label" value={value.label} onChange={(e) => onChange({ ...value, label: e.target.value })} size="small" />
-        <FormControlLabel control={<Switch checked={!!value.isDefault} onChange={(_, v) => onChange({ ...value, isDefault: v })} />} label="default" />
-      </Stack>
-      <JsonEditor label="config JSON (SceneConfig 整树)" value={value} onChange={onChange} minRows={24} />
+
+      {/* 基础信息 */}
+      <Accordion defaultExpanded>
+        <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>基础信息</AccordionSummary>
+        <AccordionDetails>
+          <Stack direction="row" spacing={2}>
+            <TextField label="name (英文标识)" value={value.name} onChange={(e) => update({ name: e.target.value })} size="small" sx={{ flex: 1 }} />
+            <TextField label="label (中文名)" value={value.label} onChange={(e) => update({ label: e.target.value })} size="small" sx={{ flex: 1 }} />
+            <FormControlLabel control={<Switch checked={!!value.isDefault} onChange={(_, v) => update({ isDefault: v })} />} label="默认场景" />
+          </Stack>
+          <TextField label="description" value={value.description} onChange={(e) => update({ description: e.target.value })} size="small" fullWidth sx={{ mt: 1 }} />
+        </AccordionDetails>
+      </Accordion>
+
+      {/* 背景 */}
+      <Accordion defaultExpanded>
+        <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>背景</AccordionSummary>
+        <AccordionDetails>
+          <Stack direction="row" spacing={2}>
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <InputLabel>类型</InputLabel>
+              <Select value={value.background?.type || 'color'} label="类型"
+                onChange={(e) => updateNested('background', { type: e.target.value })}>
+                <MenuItem value="sky_dome">天空穹</MenuItem>
+                <MenuItem value="color">纯色</MenuItem>
+              </Select>
+            </FormControl>
+            {value.background?.type === 'sky_dome' ? (
+              <>
+                <TextField label="天空顶部颜色" type="color" value={'#' + ((value.background?.skyTopColor ?? 0x0a0a1a).toString(16).padStart(6, '0'))}
+                  onChange={(e) => updateNested('background', { skyTopColor: parseInt(e.target.value.replace('#', ''), 16) })} size="small" />
+                <TextField label="天空底部颜色" type="color" value={'#' + ((value.background?.skyBottomColor ?? 0x1a1a3a).toString(16).padStart(6, '0'))}
+                  onChange={(e) => updateNested('background', { skyBottomColor: parseInt(e.target.value.replace('#', ''), 16) })} size="small" />
+              </>
+            ) : (
+              <TextField label="背景颜色" type="color" value={'#' + ((value.background?.color ?? 0x000000).toString(16).padStart(6, '0'))}
+                onChange={(e) => updateNested('background', { color: parseInt(e.target.value.replace('#', ''), 16) })} size="small" />
+            )}
+          </Stack>
+        </AccordionDetails>
+      </Accordion>
+
+      {/* 地面 */}
+      <Accordion defaultExpanded>
+        <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>地面</AccordionSummary>
+        <AccordionDetails>
+          <Stack direction="row" spacing={2}>
+            <FormControl size="small" sx={{ minWidth: 100 }}>
+              <InputLabel>类型</InputLabel>
+              <Select value={value.floor?.type || 'plane'} label="类型"
+                onChange={(e) => updateNested('floor', { type: e.target.value })}>
+                <MenuItem value="circle">圆形</MenuItem>
+                <MenuItem value="plane">方形</MenuItem>
+                <MenuItem value="none">无</MenuItem>
+              </Select>
+            </FormControl>
+            {value.floor?.type === 'circle' && (
+              <TextField label="半径" type="number" value={value.floor?.radius ?? 6}
+                onChange={(e) => updateNested('floor', { radius: parseFloat(e.target.value) })} size="small" sx={{ width: 80 }} />
+            )}
+            {value.floor?.type === 'plane' && (
+              <>
+                <TextField label="宽度" type="number" value={value.floor?.width ?? 10}
+                  onChange={(e) => updateNested('floor', { width: parseFloat(e.target.value) })} size="small" sx={{ width: 80 }} />
+                <TextField label="深度" type="number" value={value.floor?.depth ?? 10}
+                  onChange={(e) => updateNested('floor', { depth: parseFloat(e.target.value) })} size="small" sx={{ width: 80 }} />
+              </>
+            )}
+            <TextField label="颜色" type="color" value={'#' + ((value.floor?.color ?? 0x222222).toString(16).padStart(6, '0'))}
+              onChange={(e) => updateNested('floor', { color: parseInt(e.target.value.replace('#', ''), 16) })} size="small" />
+            <TextField label="粗糙度" type="number" value={value.floor?.roughness ?? 0.9}
+              onChange={(e) => updateNested('floor', { roughness: parseFloat(e.target.value) })} size="small" sx={{ width: 80 }} />
+            <TextField label="金属度" type="number" value={value.floor?.metalness ?? 0}
+              onChange={(e) => updateNested('floor', { metalness: parseFloat(e.target.value) })} size="small" sx={{ width: 80 }} />
+          </Stack>
+        </AccordionDetails>
+      </Accordion>
+
+      {/* 灯光 */}
+      <Accordion defaultExpanded>
+        <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
+          灯光 ({value.lights?.length ?? 0})
+        </AccordionSummary>
+        <AccordionDetails>
+          <Stack spacing={1}>
+            {value.lights?.map((light: any, idx: number) => (
+              <Card key={light.id} variant="outlined" sx={{ p: 1 }}>
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                  <FormControl size="small" sx={{ minWidth: 90 }}>
+                    <InputLabel>类型</InputLabel>
+                    <Select value={light.type} label="类型" onChange={(e) => updateLight(idx, { type: e.target.value })}>
+                      <MenuItem value="ambient">环境光</MenuItem>
+                      <MenuItem value="directional">方向光</MenuItem>
+                      <MenuItem value="point">点光源</MenuItem>
+                      <MenuItem value="spot">聚光灯</MenuItem>
+                      <MenuItem value="hemisphere">半球光</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <TextField label="颜色" type="color" value={'#' + (light.color?.toString(16).padStart(6, '0') ?? 'ffffff')}
+                    onChange={(e) => updateLight(idx, { color: parseInt(e.target.value.replace('#', ''), 16) })} size="small" sx={{ width: 70 }} />
+                  <TextField label="强度" type="number" value={light.intensity}
+                    onChange={(e) => updateLight(idx, { intensity: parseFloat(e.target.value) })} size="small" sx={{ width: 70 }} />
+                  {light.type !== 'ambient' && light.type !== 'hemisphere' && (
+                    <TextField label="位置 X" type="number" value={light.position?.[0] ?? 0}
+                      onChange={(e) => updateLight(idx, { position: [parseFloat(e.target.value), light.position?.[1] ?? 0, light.position?.[2] ?? 0] })} size="small" sx={{ width: 70 }} />
+                  )}
+                  <TextField label="Y" type="number" value={light.position?.[1] ?? 3}
+                    onChange={(e) => updateLight(idx, { position: [light.position?.[0] ?? 0, parseFloat(e.target.value), light.position?.[2] ?? 0] })} size="small" sx={{ width: 60 }} />
+                  <TextField label="Z" type="number" value={light.position?.[2] ?? 0}
+                    onChange={(e) => updateLight(idx, { position: [light.position?.[0] ?? 0, light.position?.[1] ?? 0, parseFloat(e.target.value)] })} size="small" sx={{ width: 60 }} />
+                  <IconButton size="small" onClick={() => removeLight(idx)}><DeleteOutlineRoundedIcon fontSize="small" /></IconButton>
+                </Stack>
+              </Card>
+            ))}
+            <Button size="small" startIcon={<AddRoundedIcon />} onClick={addLight}>添加灯光</Button>
+          </Stack>
+        </AccordionDetails>
+      </Accordion>
+
+      {/* 装饰物 */}
+      <Accordion>
+        <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>
+          装饰物 ({value.decorations?.length ?? 0})
+        </AccordionSummary>
+        <AccordionDetails>
+          <Stack spacing={1}>
+            {value.decorations?.map((deco: any, idx: number) => (
+              <Card key={deco.id} variant="outlined" sx={{ p: 1 }}>
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                  <FormControl size="small" sx={{ minWidth: 100 }}>
+                    <InputLabel>类型</InputLabel>
+                    <Select value={deco.type} label="类型" onChange={(e) => updateDecoration(idx, { type: e.target.value })}>
+                      <MenuItem value="truss">桁架</MenuItem>
+                      <MenuItem value="backdrop">背景幕</MenuItem>
+                      <MenuItem value="tree">树</MenuItem>
+                      <MenuItem value="flower">花</MenuItem>
+                      <MenuItem value="box">箱子</MenuItem>
+                      <MenuItem value="mirror">镜子</MenuItem>
+                      <MenuItem value="column">柱子</MenuItem>
+                      <MenuItem value="screen">屏幕</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <TextField label="X" type="number" value={deco.position?.[0] ?? 0}
+                    onChange={(e) => updateDecoration(idx, { position: [parseFloat(e.target.value), deco.position?.[1] ?? 0, deco.position?.[2] ?? 0] })} size="small" sx={{ width: 70 }} />
+                  <TextField label="Y" type="number" value={deco.position?.[1] ?? 0}
+                    onChange={(e) => updateDecoration(idx, { position: [deco.position?.[0] ?? 0, parseFloat(e.target.value), deco.position?.[2] ?? 0] })} size="small" sx={{ width: 70 }} />
+                  <TextField label="Z" type="number" value={deco.position?.[2] ?? 0}
+                    onChange={(e) => updateDecoration(idx, { position: [deco.position?.[0] ?? 0, deco.position?.[1] ?? 0, parseFloat(e.target.value)] })} size="small" sx={{ width: 70 }} />
+                  <IconButton size="small" onClick={() => removeDecoration(idx)}><DeleteOutlineRoundedIcon fontSize="small" /></IconButton>
+                </Stack>
+              </Card>
+            ))}
+            <Button size="small" startIcon={<AddRoundedIcon />} onClick={addDecoration}>添加装饰物</Button>
+          </Stack>
+        </AccordionDetails>
+      </Accordion>
+
+      {/* 粒子 */}
+      <Accordion>
+        <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>粒子效果</AccordionSummary>
+        <AccordionDetails>
+          <Stack direction="row" spacing={2}>
+            <TextField label="粒子数量" type="number" value={value.particles?.count ?? 0}
+              onChange={(e) => update({ particles: { ...value.particles, count: parseInt(e.target.value) || 0 } })} size="small" sx={{ width: 100 }} />
+            <TextField label="分布范围" type="number" value={value.particles?.area ?? 20}
+              onChange={(e) => update({ particles: { ...value.particles, area: parseFloat(e.target.value) || 20 } })} size="small" sx={{ width: 100 }} />
+          </Stack>
+        </AccordionDetails>
+      </Accordion>
+
+      {/* 物理边界 */}
+      <Accordion>
+        <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>物理边界</AccordionSummary>
+        <AccordionDetails>
+          <Stack direction="row" spacing={2}>
+            <TextField label="最小 X" type="number" value={value.physics?.bounds?.minX ?? -6}
+              onChange={(e) => update({ physics: { ...value.physics, bounds: { ...value.physics?.bounds, minX: parseFloat(e.target.value) } } })} size="small" sx={{ width: 80 }} />
+            <TextField label="最大 X" type="number" value={value.physics?.bounds?.maxX ?? 6}
+              onChange={(e) => update({ physics: { ...value.physics, bounds: { ...value.physics?.bounds, maxX: parseFloat(e.target.value) } } })} size="small" sx={{ width: 80 }} />
+            <TextField label="最小 Z" type="number" value={value.physics?.bounds?.minZ ?? -6}
+              onChange={(e) => update({ physics: { ...value.physics, bounds: { ...value.physics?.bounds, minZ: parseFloat(e.target.value) } } })} size="small" sx={{ width: 80 }} />
+            <TextField label="最大 Z" type="number" value={value.physics?.bounds?.maxZ ?? 6}
+              onChange={(e) => update({ physics: { ...value.physics, bounds: { ...value.physics?.bounds, maxZ: parseFloat(e.target.value) } } })} size="small" sx={{ width: 80 }} />
+          </Stack>
+        </AccordionDetails>
+      </Accordion>
+
+      {/* JSON 编辑器（保留用于高级编辑） */}
+      <Accordion>
+        <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />}>完整 JSON 编辑器</AccordionSummary>
+        <AccordionDetails>
+          <JsonEditor label="SceneConfig JSON" value={value} onChange={onChange} minRows={18} />
+        </AccordionDetails>
+      </Accordion>
+
       <Stack direction="row" spacing={1}>
         <Button variant="contained" onClick={() => onSave(value)}>保存</Button>
         <Button onClick={onCancel}>取消</Button>

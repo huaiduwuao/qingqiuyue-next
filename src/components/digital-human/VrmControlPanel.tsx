@@ -27,7 +27,7 @@ import {
   DANCE_STYLES, DANCE_LABELS,
   type ScenePresetName, type CameraPresetName, type DanceStyle,
 } from '@/digital-human/vrm/types';
-import { SCENE_PRESETS, SCENE_LABELS } from '@/digital-human/vrm/sceneBuilders';
+import { SCENE_PRESETS, SCENE_LABELS, SCENE_DESCRIPTIONS } from '@/digital-human/vrm/sceneBuilders';
 import type { VrmStageHandle } from '@/digital-human/VrmStage';
 
 interface Props {
@@ -150,6 +150,38 @@ export default function VrmControlPanel({ open, onClose, handle, state, onChange
             </ToggleButton>
           ))}
         </ToggleButtonGroup>
+
+        {/* 场景预览缩略图 */}
+        <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{
+            width: 80, height: 45,
+            borderRadius: 1,
+            overflow: 'hidden',
+            bgcolor: 'rgba(0,0,0,0.3)',
+            border: '1px solid',
+            borderColor: 'divider',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+            {handle?.getScreenshot ? (
+              <img
+                src={handle.getScreenshot() || undefined}
+                alt={state.scene}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            ) : (
+              <Typography sx={{ fontSize: 20 }}>🏟</Typography>
+            )}
+          </Box>
+          <Box sx={{ flex: 1 }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 600 }}>{SCENE_LABELS[state.scene]}</Typography>
+            <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
+              {SCENE_DESCRIPTIONS[state.scene] || '点击上方按钮切换场景'}
+            </Typography>
+          </Box>
+        </Box>
 
         {/* 相机视角 */}
         {sectionLabel('相机视角')}
