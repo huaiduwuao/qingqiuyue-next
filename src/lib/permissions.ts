@@ -133,6 +133,32 @@ export const PERMISSIONS = {
     TRAIN: 'system:wake-word:train',
     RESET: 'system:wake-word:reset',
   },
+  // 数字人/VRM 管理
+  SYSTEM_DIGITAL_HUMAN: {
+    MODEL_LIST: 'system:digital-human:model:list',
+    MODEL_CREATE: 'system:digital-human:model:create',
+    MODEL_UPDATE: 'system:digital-human:model:update',
+    MODEL_DELETE: 'system:digital-human:model:delete',
+    ACTION_LIST: 'system:digital-human:action:list',
+    ACTION_CREATE: 'system:digital-human:action:create',
+    ACTION_UPDATE: 'system:digital-human:action:update',
+    ACTION_DELETE: 'system:digital-human:action:delete',
+    EXPRESSION_LIST: 'system:digital-human:expression:list',
+    EXPRESSION_CREATE: 'system:digital-human:expression:create',
+    EXPRESSION_UPDATE: 'system:digital-human:expression:update',
+    EXPRESSION_DELETE: 'system:digital-human:expression:delete',
+    VISEME_LIST: 'system:digital-human:viseme:list',
+    VISEME_CREATE: 'system:digital-human:viseme:create',
+    VISEME_UPDATE: 'system:digital-human:viseme:update',
+    VISEME_DELETE: 'system:digital-human:viseme:delete',
+  },
+  // 场景管理
+  SYSTEM_SCENE: {
+    LIST: 'system:scene:list',
+    CREATE: 'system:scene:create',
+    UPDATE: 'system:scene:update',
+    DELETE: 'system:scene:delete',
+  },
 } as const;
 
 export type PermissionCode = string;

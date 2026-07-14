@@ -168,7 +168,7 @@ export function buildConcert(THREE_NS: typeof THREE, sceneGroup: THREE.Group): S
   let particles: THREE.Points | undefined;
 
   sceneGroup.add(makeSkyDome(THREE_NS, 0x1a0a2e, 0x07060d));
-  const ambient = new THREE_NS.AmbientLight(0x9988cc, 1.0);
+  const ambient = new THREE_NS.AmbientLight(0x9988cc, 2.0);
   sceneGroup.add(ambient); lights.push(ambient);
   // 移除了所有灯光束和聚光灯，只保留环境光
 
@@ -177,6 +177,7 @@ export function buildConcert(THREE_NS: typeof THREE, sceneGroup: THREE.Group): S
   sceneGroup.add(truss);
 
   backdrop = makeBackdrop(THREE_NS, 13, 6, 2.5);
+  backdrop.position.set(0, 2.5, -5); // 往后移避免遮挡人物
   sceneGroup.add(backdrop);
 
   sceneGroup.add(makeStageFloor(THREE_NS, 6, 0x0a0814));
