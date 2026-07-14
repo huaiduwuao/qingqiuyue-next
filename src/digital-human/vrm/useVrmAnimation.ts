@@ -181,8 +181,10 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
 
   function applyPose(cfg: PoseConfig, blend: number, H: (n: string) => any) {
     if (blend <= 0) return;
+    console.log('[applyPose]', cfg.name, 'blend=' + blend, 'bones:', Object.keys(cfg.boneRotations).join(','));
     for (const [boneName, rot] of Object.entries(cfg.boneRotations)) {
       const o = H(boneName);
+      console.log('[applyPose] bone:', boneName, 'found:', !!o, 'rotation:', !!o?.rotation);
       if (!o || !o.rotation) continue;
       o.rotation.x = o.rotation.x * (1 - blend) + rot[0] * blend;
       o.rotation.y = o.rotation.y * (1 - blend) + rot[1] * blend;
@@ -236,8 +238,14 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
 
     // 3. pose 平滑混合
     poseBlendRef.current = Math.min(1, poseBlendRef.current + dt * 3);
-    const poseCfg = lookups.poseByName.get(poseRef.current);
-    if (poseCfg) applyPose(poseCfg, poseBlendRef.current, H);
+    const currentPose = poseRef.current;
+    const poseCfg = lookups.poseByName.get(currentPose);
+    if (poseCfg) {
+      console.log('[tick] applying pose:', currentPose);
+      applyPose(poseCfg, poseBlendRef.current, H);
+    } else {
+      console.log('[tick] pose not found:', currentPose, 'available:', [...lookups.poseByName.keys()].join(','));
+    }
 
     // 4. walk 步态
     const w = walkRef.current;

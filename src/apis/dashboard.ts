@@ -539,6 +539,14 @@ export interface MyPointRecord {
   createTime: string;
 }
 
+export interface LevelInfo {
+  level: number;              // 等级 0-5
+  levelName: string;         // 等级名称
+  totalSpendYuan: number;    // 累计消费(元)
+  nextLevelSpendYuan: number; // 下一等级所需消费(元)
+  progressPercent: number;    // 当前等级进度百分比
+}
+
 export interface MyStats {
   completedDemands: number;    // 我参与且最终 COMPLETED 的需求数
   settledDemands: number;      // 我参与且已 SETTLED 的需求数
@@ -549,10 +557,7 @@ export interface MyStats {
   todayRewardYuan: number;     // 今日赏金(元)
   rankingPosition: number;     // 排行榜名次(0=未上榜)
   adoptedCount: number;        // 已采纳数(= approvedTasks)
-  currentPoint: number;        // 当前可用灵气
-  totalPoint: number;          // 累计获得灵气
-  level: number;
-  levelName: string;
+  levelInfo: LevelInfo;       // 用户等级信息(基于累计消费)
   recentRecords: MyPointRecord[];
 }
 
