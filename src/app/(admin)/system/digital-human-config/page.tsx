@@ -34,6 +34,7 @@ import {
   listVisemes, createViseme, updateViseme, deleteViseme,
   listScenes, createScene, updateScene, deleteScene,
 } from '@/digital-human/api/digitalHumanConfig';
+import { PoseBoneEditor } from '@/components/digital-human/PoseBoneEditor';
 import { list as listMenus, save as saveMenu, update as updateMenu, remove as deleteMenu } from '@/apis/menu';
 import type { MenuItem as DbMenuItem } from '@/beans/system';
 
@@ -401,7 +402,37 @@ function PoseEditor({ value, onChange, onSave, onCancel }: any) {
   return (
     <Stack spacing={2}>
       <Typography variant="subtitle1">{value.id ? '编辑姿势' : '新建姿势'}</Typography>
-      <JsonEditor label="整姿势 JSON" value={value} onChange={onChange} minRows={18} />
+      {/* 基本信息 */}
+      <Stack direction="row" spacing={2}>
+        <TextField
+          label="名称 (name)"
+          value={value.name || ''}
+          onChange={(e) => onChange({ ...value, name: e.target.value })}
+          size="small"
+          sx={{ flex: 1 }}
+          helperText="英文标识，如 pray, idle, wave"
+        />
+        <TextField
+          label="标签 (label)"
+          value={value.label || ''}
+          onChange={(e) => onChange({ ...value, label: e.target.value })}
+          size="small"
+          sx={{ flex: 1 }}
+          helperText="显示名称，如 🙏 比心"
+        />
+        <TextField
+          label="描述 (description)"
+          value={value.description || ''}
+          onChange={(e) => onChange({ ...value, description: e.target.value })}
+          size="small"
+          sx={{ flex: 2 }}
+        />
+      </Stack>
+      {/* 骨骼编辑器 */}
+      <PoseBoneEditor
+        initialRotations={value.boneRotations || {}}
+        onChange={(boneRotations) => onChange({ ...value, boneRotations })}
+      />
       <Stack direction="row" spacing={1}>
         <Button variant="contained" onClick={() => onSave(value)}>保存</Button>
         <Button onClick={onCancel}>取消</Button>

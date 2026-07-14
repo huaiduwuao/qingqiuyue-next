@@ -132,6 +132,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
     items: [
       { id: 'dh-studio', label: '数字人工作台', path: '/system/digital-human', icon: <StarsRoundedIcon2 sx={{ fontSize: 18 }} />, accent: '#8B5CF6' },
       { id: 'dh-instructions', label: '数字人指令维护', path: '/system/digital-human-instructions', icon: <StarsRoundedIcon2 sx={{ fontSize: 18 }} />, accent: '#07C160' },
+      { id: 'dh-config', label: '数字人配置', path: '/system/digital-human-config', icon: <StarsRoundedIcon2 sx={{ fontSize: 18 }} />, accent: '#FF6B6B' },
       { id: 'wake-word-train', label: '唤醒词训练', path: '/system/record-wake', icon: <RecordVoiceOverRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
     ],
   },

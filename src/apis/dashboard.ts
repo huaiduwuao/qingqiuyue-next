@@ -5,7 +5,7 @@
  *
  * 注:axios 拦截器统一包成 {code, msg, data},这里每个 API 都通过 unwrap() 拆出真正的 data。
  */
-import { accountClient } from '@/lib/api/client';
+import { accountClient, adminClient } from '@/lib/api/client';
 import { DemandItem } from '@/beans/reward';
 import { gradient2 } from '@/constants/gradients';
 import { ACCENT } from '@/constants/accents';
@@ -882,4 +882,98 @@ export interface DiamondActivity {
 }
 export async function getDiamondActivity() {
   return unwrap<DiamondActivity>(await accountClient('/recharge/activity'));
+}
+
+// ========== 创作者数据大盘 ==========
+
+export interface CreatorStats {
+  totalViews: number;
+  totalLikes: number;
+  totalFavorites: number;
+  totalShares: number;
+  totalEarnings: number;
+  todayViews: number;
+  weekViews: number;
+  monthViews: number;
+  newFans: number;
+}
+
+export interface TrendData {
+  date: string;
+  views: number;
+  likes: number;
+  share: number;
+}
+
+export interface ContentStats {
+  contentId: number;
+  title: string;
+  coverUrl: string;
+  views: number;
+  likes: number;
+  favorites: number;
+  shares: number;
+  duration: number;
+  publishTime: string;
+}
+
+export interface FanProfile {
+  totalFans: number;
+  activeFans: number;
+  totalFollows: number;
+  fanSource: Record<string, number>;
+  genderRatio: Record<string, number>;
+  ageDist: Record<string, number>;
+}
+
+export interface RankInfo {
+  categoryRank: number;
+  categoryTotal: number;
+  cityRank: number;
+  cityTotal: number;
+  weekGrowthRank: number;
+  growthPercent: number;
+}
+
+export interface DashboardOverview {
+  stats: CreatorStats;
+  trend: TrendData[];
+  contents: ContentStats[];
+  fans: FanProfile;
+}
+
+export async function getDashboardOverview(): Promise<DashboardOverview> {
+  return unwrap<DashboardOverview>(await adminClient('/creator-stats/overview'));
+}
+
+export async function getCreatorStats(): Promise<CreatorStats> {
+  return unwrap<CreatorStats>(await adminClient('/creator-stats/stats'));
+}
+
+export async function getTrendData(days: number = 7): Promise<{ trend: TrendData[] }> {
+  return unwrap<{ trend: TrendData[] }>(await adminClient('/creator-stats/trend', { params: { days } }));
+}
+
+export async function getContentStats(limit: number = 10): Promise<{ contents: ContentStats[] }> {
+  return unwrap<{ contents: ContentStats[] }>(await adminClient('/creator-stats/content', { params: { limit } }));
+}
+
+export async function getFanProfile(): Promise<FanProfile> {
+  return unwrap<FanProfile>(await adminClient('/creator-stats/fans'));
+}
+
+export async function getRankInfo(category: string = 'general'): Promise<RankInfo> {
+  return unwrap<RankInfo>(await adminClient('/creator-stats/rank', { params: { category } }));
+}
+
+// 格式化数字
+export function formatCount(n: number): string {
+  if (n >= 100000000) return (n / 100000000).toFixed(1) + '亿';
+  if (n >= 10000) return (n / 10000).toFixed(1) + '万';
+  return n.toLocaleString();
+}
+
+// 格式化金额（分→元）
+export function formatMoney(fen: number): string {
+  return (fen / 100).toFixed(2);
 }

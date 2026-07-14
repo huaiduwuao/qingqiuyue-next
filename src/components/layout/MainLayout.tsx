@@ -34,6 +34,9 @@ import StarIcon from '@mui/icons-material/Star';
 import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import LiveTvIcon from '@mui/icons-material/LiveTv';
 import MenuIcon from '@mui/icons-material/Menu';
+import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
+import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
+import BarChartIcon from '@mui/icons-material/BarChart';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeMode } from '@/contexts/ThemeContext';
@@ -231,6 +234,18 @@ export function MainLayout({ children }: { children: ReactNode }) {
             <MenuItem component={Link} href="/account/content" onClick={handleMenuClose}>
               <ListItemIcon><HomeIcon fontSize="small" /></ListItemIcon>
               内容管理
+            </MenuItem>
+            <MenuItem component={Link} href="/account/creator-level" onClick={handleMenuClose}>
+              <ListItemIcon><EmojiEventsIcon fontSize="small" /></ListItemIcon>
+              创作者等级
+            </MenuItem>
+            <MenuItem component={Link} href="/account/social-monetize" onClick={handleMenuClose}>
+              <ListItemIcon><MonetizationOnIcon fontSize="small" /></ListItemIcon>
+              收益中心
+            </MenuItem>
+            <MenuItem component={Link} href="/account/dashboard" onClick={handleMenuClose}>
+              <ListItemIcon><BarChartIcon fontSize="small" /></ListItemIcon>
+              数据大盘
             </MenuItem>
             <MenuItem component={Link} href="/account/reward" onClick={handleMenuClose}>
               <ListItemIcon><WhatshotIcon fontSize="small" /></ListItemIcon>
