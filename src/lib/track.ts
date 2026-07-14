@@ -33,3 +33,21 @@ export function recordHistory(contentId: number | string) {
     /* 静默 */
   }
 }
+
+// trackPageView 上报页面曝光埋点(统计 PV/UV)。
+// 在 layout 或页面组件 mount 时调用,fire-and-forget。
+export function trackPageView(pathname: string, search = '') {
+  const uid = currentUserId();
+  const page = search ? `${pathname}${search}` : pathname;
+  try {
+    void homeClient.post('/behavior', {
+      userId: uid,
+      itemId: 0,
+      itemType: 'PAGE',
+      action: 'pageview',
+      duration: 0,
+    }).catch(() => {});
+  } catch {
+    /* 静默 */
+  }
+}

@@ -121,10 +121,8 @@ function useDashboard() {
     queryKey: ['dashboard', 'content-distribution'],
     queryFn: async () => {
       const r: any = await adminClient('/admin/dashboard/content-distribution');
-      const list = (r?.data?.data?.list ?? r?.data?.list ?? r?.list ?? []) as Array<{
-        type: string; label?: string; count: number; percent: number; color: string;
-      }>;
-      return list.map((d) => ({ type: d.type, label: d.label, count: d.count, percent: d.percent, color: d.color }));
+      const list = (r?.data?.data?.records ?? r?.data?.records ?? []) as any;
+      return (list as any[]).map((d: any) => ({ type: d.type, label: d.label, count: d.count, percent: d.percent, color: d.color }));
     },
     staleTime: 60_000,
   });

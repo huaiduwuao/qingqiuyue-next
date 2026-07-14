@@ -25,6 +25,9 @@ import DnsRoundedIcon from '@mui/icons-material/DnsRounded';
 import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 import LanguageRoundedIcon from '@mui/icons-material/LanguageRounded';
+import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
+import ShowChartRoundedIcon from '@mui/icons-material/ShowChartRounded';
+import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import LocationOnRoundedIcon from '@mui/icons-material/LocationOnRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded';
@@ -114,6 +117,14 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
       { id: 'dash-analysis', label: '分析页', path: '/system/dashboard/analysis', icon: <AccountTreeRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
       { id: 'dash-monitor', label: '监控页', path: '/system/dashboard/monitor', icon: <StorageRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D' },
       { id: 'dash-workplace', label: '工作台', path: '/system/dashboard/workplace', icon: <AppsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'success.main' },
+    ],
+  },
+  {
+    title: '访问统计',
+    items: [
+      { id: 'stats-visitor', label: '站点流量', path: '/system/stats/visitor', icon: <ShowChartRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
+      { id: 'stats-active', label: '用户活跃', path: '/system/stats/active', icon: <HistoryRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FFB400' },
+      { id: 'stats-content', label: '内容热度', path: '/system/stats/content', icon: <BarChartRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6' },
     ],
   },
   {

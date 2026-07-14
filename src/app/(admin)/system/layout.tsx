@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { useState, useEffect, type ReactNode } from 'react';
+import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import ListItemIcon from '@mui/material/ListItemIcon';
@@ -15,6 +15,7 @@ import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import { useAuthority } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
+import { trackPageView } from '@/lib/track';
 import { MENU_GROUPS } from './menu-config';
 
 const ROLE_LABEL: Record<string, { label: string; color: string }> = {
@@ -41,6 +42,14 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
   const { isAdmin, can } = useAuthority();
   const { currentUser } = useApp();
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
+  const searchParams = useSearchParams();
+
+  // 页面曝光埋点
+  useEffect(() => {
+    if (pathname) {
+      trackPageView(pathname, searchParams?.toString() ?? '');
+    }
+  }, [pathname, searchParams]);
 
   if (!isAdmin) {
     return (
