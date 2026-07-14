@@ -17,7 +17,11 @@
  */
 
 export function isExternalDigitalHumanAPI(): boolean {
-  return process.env.USE_EXTERNAL_DIGITAL_HUMAN_API === 'true';
+  // 支持两种写法:
+  // 1. NEXT_PUBLIC_USE_EXTERNAL_DIGITAL_HUMAN_API=true (Vercel/Docker)
+  // 2. USE_EXTERNAL_DIGITAL_HUMAN_API=true (PM2/直接运行)
+  const v = process.env.NEXT_PUBLIC_USE_EXTERNAL_DIGITAL_HUMAN_API ?? process.env.USE_EXTERNAL_DIGITAL_HUMAN_API;
+  return v === 'true';
 }
 
 export function digitalHumanBaseURL(): string {
