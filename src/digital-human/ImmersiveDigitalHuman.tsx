@@ -1,5 +1,7 @@
 'use client';
 
+import { devLog } from '@/lib/dev-log';
+
 /**
  * ImmersiveDigitalHuman —— /digital-human 沉浸式全屏页面
  *
@@ -55,12 +57,12 @@ const loadFlags = (): Record<string, boolean> => {
 };
 const saveFlags = (f: Record<string, boolean>) => {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(f));
-  console.log('[debug] flags saved:', f, '(刷新页面生效)');
+  devLog.log('[debug] flags saved:', f, '(刷新页面生效)');
 };
 if (typeof window !== 'undefined') {
   const flags = loadFlags();
   (window as any).__DIGITAL_HUMAN_DEBUG = { noThree: !!flags.noThree, noVoice: !!flags.noVoice, noWake: !!flags.noWake };
-  console.log('[debug] current flags:', (window as any).__DIGITAL_HUMAN_DEBUG, '| 按 1/2/3 切换, 0 清除, 需刷新生效');
+  devLog.log('[debug] current flags:', (window as any).__DIGITAL_HUMAN_DEBUG, '| 按 1/2/3 切换, 0 清除, 需刷新生效');
 
   window.addEventListener('keydown', (e) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return; // 不在输入框里触发
@@ -69,7 +71,7 @@ if (typeof window !== 'undefined') {
       case '1': f.noThree = !f.noThree; saveFlags(f); break;
       case '2': f.noVoice = !f.noVoice; saveFlags(f); break;
       case '3': f.noWake  = !f.noWake;  saveFlags(f); break;
-      case '0': localStorage.removeItem(STORAGE_KEY); console.log('[debug] all flags cleared'); break;
+      case '0': localStorage.removeItem(STORAGE_KEY); devLog.log('[debug] all flags cleared'); break;
     }
   });
 
@@ -79,7 +81,7 @@ if (typeof window !== 'undefined') {
   window.requestAnimationFrame = (cb: FrameRequestCallback) => origRAF(() => { rAFCount++; cb(performance.now()); });
   const timer = setInterval(() => {
     if (rAFCount > 0 || audioFrameCount > 0) {
-      console.log(`[debug] rAF=${rAFCount}/2s (~${Math.round(rAFCount/2)}fps) audioFrame=${audioFrameCount}/2s`);
+      devLog.debug(`[debug] rAF=${rAFCount}/2s (~${Math.round(rAFCount/2)}fps) audioFrame=${audioFrameCount}/2s`);
       rAFCount = 0; audioFrameCount = 0;
     }
   }, 2000);
@@ -96,7 +98,7 @@ export default function ImmersiveDigitalHuman() {
       // 把 Hermes/数字人下发的 tool_calls 串到 VrmStage handle。
       // stageHandle 为 null 时(还没就绪)只 log,不动 avatar。
       if (!stageHandle) {
-        console.log('[Immersive] tool_calls arrived before stageHandle ready:', calls);
+        devLog.warn('[Immersive] tool_calls arrived before stageHandle ready:', calls);
         return;
       }
       const h = stageHandle;
@@ -116,7 +118,7 @@ export default function ImmersiveDigitalHuman() {
           setPose: (name) => h.setPose(name as Parameters<typeof h.setPose>[0]),
         },
       );
-      console.log('[Immersive] dispatched tool_calls:', results);
+      devLog.debug('[Immersive] dispatched tool_calls:', results);
     },
   });
   const { chatBusy, chatLog, emotion, viseme, action, send, sendText, audioRef,
@@ -125,7 +127,7 @@ export default function ImmersiveDigitalHuman() {
   const { history, refresh: refreshHistory } = useConversationHistory(20);
   const [sessionDrawerOpen, setSessionDrawerOpen] = React.useState(true);
   // 诊断：监听 stageHandle 变化
-  React.useEffect(() => { console.log('[Immersive] stageHandle 变化:', stageHandle); }, [stageHandle]);
+  React.useEffect(() => { devLog.debug('[Immersive] stageHandle 变化:', stageHandle); }, [stageHandle]);
   const [panelOpen, setPanelOpen] = React.useState(false);
 
   // 模型选择
@@ -175,19 +177,19 @@ export default function ImmersiveDigitalHuman() {
   }, [stageHandle]);
 
   // 把 UI state 推到 VrmStage.handle（每条都打日志，方便排查哪条没生效）
-  React.useEffect(() => { console.log('[Immersive→handle] setScene', stageState.scene, '| handle:', !!stageHandle); stageHandle?.setScene(stageState.scene); }, [stageHandle, stageState.scene]);
-  React.useEffect(() => { console.log('[Immersive→handle] setCameraPreset', stageState.camera, '| handle:', !!stageHandle); stageHandle?.setCameraPreset(stageState.camera); }, [stageHandle, stageState.camera]);
-  React.useEffect(() => { console.log('[Immersive→handle] setDanceStyle', stageState.danceStyle, '| handle:', !!stageHandle); stageHandle?.setDanceStyle(stageState.danceStyle); }, [stageHandle, stageState.danceStyle]);
-  React.useEffect(() => { console.log('[Immersive→handle] setDancing', stageState.dancing, '| handle:', !!stageHandle); stageHandle?.setDancing(stageState.dancing); }, [stageHandle, stageState.dancing]);
-  React.useEffect(() => { console.log('[Immersive→handle] setBpm', stageState.bpm, '| handle:', !!stageHandle); stageHandle?.setBpm(stageState.bpm); }, [stageHandle, stageState.bpm]);
-  React.useEffect(() => { console.log('[Immersive→handle] setDanceAmp', stageState.danceAmp, '| handle:', !!stageHandle); stageHandle?.setDanceAmp(stageState.danceAmp); }, [stageHandle, stageState.danceAmp]);
-  React.useEffect(() => { console.log('[Immersive→handle] setConfetti', stageState.confetti, '| handle:', !!stageHandle); stageHandle?.setConfetti(stageState.confetti); }, [stageHandle, stageState.confetti]);
+  React.useEffect(() => { devLog.debug('[Immersive→handle] setScene', stageState.scene, '| handle:', !!stageHandle); stageHandle?.setScene(stageState.scene); }, [stageHandle, stageState.scene]);
+  React.useEffect(() => { devLog.debug('[Immersive→handle] setCameraPreset', stageState.camera, '| handle:', !!stageHandle); stageHandle?.setCameraPreset(stageState.camera); }, [stageHandle, stageState.camera]);
+  React.useEffect(() => { devLog.debug('[Immersive→handle] setDanceStyle', stageState.danceStyle, '| handle:', !!stageHandle); stageHandle?.setDanceStyle(stageState.danceStyle); }, [stageHandle, stageState.danceStyle]);
+  React.useEffect(() => { devLog.debug('[Immersive→handle] setDancing', stageState.dancing, '| handle:', !!stageHandle); stageHandle?.setDancing(stageState.dancing); }, [stageHandle, stageState.dancing]);
+  React.useEffect(() => { devLog.debug('[Immersive→handle] setBpm', stageState.bpm, '| handle:', !!stageHandle); stageHandle?.setBpm(stageState.bpm); }, [stageHandle, stageState.bpm]);
+  React.useEffect(() => { devLog.debug('[Immersive→handle] setDanceAmp', stageState.danceAmp, '| handle:', !!stageHandle); stageHandle?.setDanceAmp(stageState.danceAmp); }, [stageHandle, stageState.danceAmp]);
+  React.useEffect(() => { devLog.debug('[Immersive→handle] setConfetti', stageState.confetti, '| handle:', !!stageHandle); stageHandle?.setConfetti(stageState.confetti); }, [stageHandle, stageState.confetti]);
   React.useEffect(() => { stageHandle?.setYOffset(stageState.yOffset); }, [stageHandle, stageState.yOffset]);
-  React.useEffect(() => { console.log('[Immersive→handle] setAutoBlink', stageState.autoBlink); }, [stageState.autoBlink]);  // autoBlink 走 prop，不走 handle
-  React.useEffect(() => { console.log('[Immersive→handle] setLookAtCamera', stageState.lookAtCamera); }, [stageState.lookAtCamera]);  // lookAtCamera 走 prop
+  React.useEffect(() => { devLog.debug('[Immersive→handle] setAutoBlink', stageState.autoBlink); }, [stageState.autoBlink]);  // autoBlink 走 prop，不走 handle
+  React.useEffect(() => { devLog.debug('[Immersive→handle] setLookAtCamera', stageState.lookAtCamera); }, [stageState.lookAtCamera]);  // lookAtCamera 走 prop
   // 唱歌/麦克风：on 触发 start，off 触发 stop
-  React.useEffect(() => { console.log('[Immersive→handle] songOn', stageState.songOn, '| handle:', !!stageHandle); if (stageHandle) stageState.songOn ? stageHandle.startSong() : stageHandle.stopSong(); }, [stageHandle, stageState.songOn]);
-  React.useEffect(() => { console.log('[Immersive→handle] micOn', stageState.micOn, '| handle:', !!stageHandle); if (stageHandle) stageState.micOn ? stageHandle.startMic() : stageHandle.stopMic(); }, [stageHandle, stageState.micOn]);
+  React.useEffect(() => { devLog.debug('[Immersive→handle] songOn', stageState.songOn, '| handle:', !!stageHandle); if (stageHandle) stageState.songOn ? stageHandle.startSong() : stageHandle.stopSong(); }, [stageHandle, stageState.songOn]);
+  React.useEffect(() => { devLog.debug('[Immersive→handle] micOn', stageState.micOn, '| handle:', !!stageHandle); if (stageHandle) stageState.micOn ? stageHandle.startMic() : stageHandle.stopMic(); }, [stageHandle, stageState.micOn]);
 
   // system 意图: 音量/主题/全屏/刷新/登出等实际浏览器操作
   const preMuteVolumeRef = React.useRef<number | null>(null)
@@ -277,7 +279,7 @@ export default function ImmersiveDigitalHuman() {
     <Box sx={{ position: 'fixed', inset: 0, zIndex: 1, background: '#05060B' }}>
       {/* 全屏 VRM 角色（与浮窗同一个 character.vrm） — 用 VrmStage 替代 BlenderAvatar */}
       <VrmStage
-        onReady={(h) => { console.log('[Immersive] onReady 被调用, h=', h); setStageHandle(h); }}
+        onReady={(h) => { devLog.debug('[Immersive] onReady 被调用, h=', h); setStageHandle(h); }}
         modelUrl={selectedModel?.url ?? '/avatars/character.vrm'}
         currentAction={action}
         emotion={emotion}

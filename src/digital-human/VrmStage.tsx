@@ -1,5 +1,7 @@
 'use client';
 
+import { devLog } from '@/lib/dev-log';
+
 /**
  * VrmStage.tsx — 全身取景 + 多场景 + 5 hooks 编排的 VRM 舞台
  *
@@ -191,7 +193,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     }
     loadConfigBundleAsync().then((b) => {
       setConfigBundle(b);
-      console.log(`[VrmStage] async config updated: ${b.actions.length} actions, ${b.scenes.length} scenes`);
+      devLog.debug(`[VrmStage] async config updated: ${b.actions.length} actions, ${b.scenes.length} scenes`);
     });
   }, [configProp]);
 
@@ -317,7 +319,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         const ver = detectVrmVersion(cached.vrm);
         vrmVersionRef.current = ver;
         const available = listAvailableExpressions(cached.expressionManager);
-        console.log(`[VrmStage] VRM 版本: ${ver}, 可用 expressions (${available.length}):`, available.slice(0, 30));
+        devLog.debug(`[VrmStage] VRM 版本: ${ver}, 可用 expressions (${available.length}):`, available.slice(0, 30));
         cached.scene.traverse((o: any) => { o.castShadow = true; o.frustumCulled = false; });
         rendererState.scene.add(cached.scene);
         // 贴地：信任模型自然原点（VRM 标准：feet 在 y=0），用 yOffset 手动微调
@@ -325,7 +327,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         const box = new THREE_NS.Box3().setFromObject(cached.scene);
         const autoYOffset = -box.min.y;
         yOffsetRef.current = autoYOffset;
-        console.log(`[VrmStage] Box3 minY=${box.min.y.toFixed(3)} maxY=${box.max.y.toFixed(3)} => auto yOffset=${autoYOffset.toFixed(3)}`);
+        devLog.debug(`[VrmStage] Box3 minY=${box.min.y.toFixed(3)} maxY=${box.max.y.toFixed(3)} => auto yOffset=${autoYOffset.toFixed(3)}`);
         cached.scene.position.y = yOffsetRef.current;
         const height = box.max.y - box.min.y;
         const radius = Math.max(0.15, (box.max.x - box.min.x) * 0.5, (box.max.z - box.min.z) * 0.5) * 0.35;
@@ -341,7 +343,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         setNaturalPose(cached.vrm);
         setLoading(false);
       } catch (e: any) {
-        console.error('[VrmStage] load failed', e);
+        devLog.error('[VrmStage] load failed', e);
         setError(e?.message || String(e));
         setLoading(false);
       }
@@ -517,12 +519,12 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         const sess = await getMySession(useSessionStore.getState().session.userId);
         if (mounted && sess) {
           useSessionStore.getState().setSession(sess);
-          console.log('[VrmStage] session restored:', sess);
+          devLog.debug('[VrmStage] session restored:', sess);
           // 恢复位置
           handleInternalRef.current?.setPosition(sess.positionX, sess.positionZ);
           handleInternalRef.current?.setYOffset(sess.yOffset);
         }
-      } catch (e) { console.warn('[VrmStage] session restore failed:', e); }
+      } catch (e) { devLog.warn('[VrmStage] session restore failed:', e); }
     })();
     const flushId = setInterval(() => {
       import('./store/session').then(m => m.useSessionStore.getState().flush()).catch(() => {});
@@ -543,10 +545,10 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   // 暴露 handle — 用 useMemo 直接构造（不用 useImperativeHandle，React 19 行为不稳）
   // handle 引用稳定（deps=[] 只跑一次），方法内部用 ref 读最新值
   const handle: VrmStageHandle = useMemo(() => {
-    console.log('[VrmStage] handle 已构造（useMemo, 只跑一次）');
+    devLog.debug('[VrmStage] handle 已构造（useMemo, 只跑一次）');
     return {
       setEmotion: (dict) => {
-        if (!vrmDataRef.current?.expressionManager) { console.warn('[VrmStage.setEmotion] expressionManager 未就绪'); return; }
+        if (!vrmDataRef.current?.expressionManager) { devLog.warn('[VrmStage.setEmotion] expressionManager 未就绪'); return; }
         // Phase 3.2: 走 lerp，不再直接 setValue
         // （chat / 适配规则也走同一个 lerp 通道）
         const filtered: Record<string, number> = {};
@@ -556,8 +558,8 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         emotionLerp.setTarget(filtered);
       },
       setViseme: (dict) => {
-        if (!vrmDataRef.current?.expressionManager) { console.warn('[VrmStage.setViseme] expressionManager 未就绪'); return; }
-        console.log('[VrmStage.setViseme] ver=' + vrmVersionRef.current, dict);
+        if (!vrmDataRef.current?.expressionManager) { devLog.warn('[VrmStage.setViseme] expressionManager 未就绪'); return; }
+        devLog.debug('[VrmStage.setViseme] ver=' + vrmVersionRef.current, dict);
         const filtered: Record<string, number> = {};
         for (const [k, v] of Object.entries(dict)) {
           if (EXPRESSION_PASSTHROUGH.has(k)) filtered[k] = v;
@@ -565,7 +567,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         visemeLerp.setTarget(filtered);
       },
       setAction: (name) => {
-        console.log('[VrmStage.setAction]', name);
+        devLog.debug('[VrmStage.setAction]', name);
         animStateRef.current.currentAction = name;
         animApiRef.current?.playAction(name);
         // Phase 5: auto-emotion/viseme 适配
@@ -588,29 +590,29 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         }
       },
       setScene: (name) => {
-        console.log('[VrmStage.setScene]', name);
+        devLog.debug('[VrmStage.setScene]', name);
         sceneApiRef.current?.setPreset(name);
         rebuildConfetti(name);
       },
-      setCameraPreset: (name) => { console.log('[VrmStage.setCameraPreset]', name); camApiRef.current?.switchTo(name); },
-      setDanceStyle: (s) => { console.log('[VrmStage.setDanceStyle]', s); animApiRef.current?.setStyle(s); },
-      setDanceAmp: (v) => { console.log('[VrmStage.setDanceAmp]', v); animApiRef.current?.setAmp(v); },
-      setBpm: (v) => { console.log('[VrmStage.setBpm]', v); animApiRef.current?.setBpm(v); },
-      setDancing: (on) => { console.log('[VrmStage.setDancing]', on); animApiRef.current?.setDancing(on); },
-      setPose: (name) => { console.log('[VrmStage.setPose]', name); animApiRef.current?.setPose(name); },
-      speak: (text, audioUrl) => { console.log('[VrmStage.speak]', text, audioUrl); },
-      setUserLipOverride: (on) => { console.log('[VrmStage.setUserLipOverride]', on); userLipOverrideRef.current = on; },
-      setUserBlinkOverride: (on) => { console.log('[VrmStage.setUserBlinkOverride]', on); userBlinkOverrideRef.current = on; },
+      setCameraPreset: (name) => { devLog.debug('[VrmStage.setCameraPreset]', name); camApiRef.current?.switchTo(name); },
+      setDanceStyle: (s) => { devLog.debug('[VrmStage.setDanceStyle]', s); animApiRef.current?.setStyle(s); },
+      setDanceAmp: (v) => { devLog.debug('[VrmStage.setDanceAmp]', v); animApiRef.current?.setAmp(v); },
+      setBpm: (v) => { devLog.debug('[VrmStage.setBpm]', v); animApiRef.current?.setBpm(v); },
+      setDancing: (on) => { devLog.debug('[VrmStage.setDancing]', on); animApiRef.current?.setDancing(on); },
+      setPose: (name) => { devLog.debug('[VrmStage.setPose]', name); animApiRef.current?.setPose(name); },
+      speak: (text, audioUrl) => { devLog.debug('[VrmStage.speak]', text, audioUrl); },
+      setUserLipOverride: (on) => { devLog.debug('[VrmStage.setUserLipOverride]', on); userLipOverrideRef.current = on; },
+      setUserBlinkOverride: (on) => { devLog.debug('[VrmStage.setUserBlinkOverride]', on); userBlinkOverrideRef.current = on; },
       setConfetti: (on) => {
-        console.log('[VrmStage.setConfetti]', on);
+        devLog.debug('[VrmStage.setConfetti]', on);
         setConfettiOn(on);
         if (on) rebuildConfetti(sceneApiRef.current?.preset ?? 'concert');
         else removeConfetti();
       },
-      startSong: () => { console.log('[VrmStage.startSong]'); lipApiRef.current?.startSong(); },
-      stopSong: () => { console.log('[VrmStage.stopSong]'); lipApiRef.current?.stopSong(); },
-      startMic: async () => { console.log('[VrmStage.startMic]'); const ok = await lipApiRef.current?.startMic() ?? false; console.log('[VrmStage.startMic] result=', ok); return ok; },
-      stopMic: () => { console.log('[VrmStage.stopMic]'); lipApiRef.current?.stopMic(); },
+      startSong: () => { devLog.debug('[VrmStage.startSong]'); lipApiRef.current?.startSong(); },
+      stopSong: () => { devLog.debug('[VrmStage.stopSong]'); lipApiRef.current?.stopSong(); },
+      startMic: async () => { devLog.debug('[VrmStage.startMic]'); const ok = await lipApiRef.current?.startMic() ?? false; devLog.debug('[VrmStage.startMic] result=', ok); return ok; },
+      stopMic: () => { devLog.debug('[VrmStage.stopMic]'); lipApiRef.current?.stopMic(); },
       move: (target, opts = {}) => {
         const durationMs = opts.durationMs ?? 1500;
         const style = opts.style ?? 'walk';
@@ -625,7 +627,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         // 边界：限制在 ±6
         tx = Math.max(-6, Math.min(6, tx));
         tz = Math.max(-6, Math.min(6, tz));
-        console.log(`[VrmStage.move] style=${style} duration=${durationMs}ms from=(${positionRef.current.x.toFixed(2)}, ${positionRef.current.z.toFixed(2)}) to=(${tx.toFixed(2)}, ${tz.toFixed(2)})`);
+        devLog.debug(`[VrmStage.move] style=${style} duration=${durationMs}ms from=(${positionRef.current.x.toFixed(2)}, ${positionRef.current.z.toFixed(2)}) to=(${tx.toFixed(2)}, ${tz.toFixed(2)})`);
         walkRef.current.style = style;
         if (style === 'teleport') {
           positionRef.current.prevX = positionRef.current.x;
@@ -648,7 +650,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         walkStepRef.current = 0;
       },
       setPosition: (x, z) => {
-        console.log(`[VrmStage.setPosition] (${x}, ${z})`);
+        devLog.debug(`[VrmStage.setPosition] (${x}, ${z})`);
         positionRef.current.prevX = positionRef.current.x;
         positionRef.current.prevZ = positionRef.current.z;
         positionRef.current.x = Math.max(-6, Math.min(6, x));
@@ -656,7 +658,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         walkRef.current.moving = false;
       },
       setYOffset: (y) => {
-        console.log(`[VrmStage.setYOffset] y=${y}`);
+        devLog.debug(`[VrmStage.setYOffset] y=${y}`);
         yOffsetRef.current = y;
         // 同步给物理世界：否则下一帧 step 会用旧的 footOffsetY 覆盖回来
         if (modelMetricsRef.current) {
