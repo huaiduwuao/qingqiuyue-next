@@ -19,6 +19,10 @@ services:
     environment:
       # 直连后端 APISIX(同一容器网络,DNS 名 apisix,内部端口 9080),不绕宿主机
       - API_PROXY_TARGET=http://apisix:9080
+      # === 数字人指令存储模式 ===
+      # false: 使用 Next.js 本地文件系统存储指令(默认,自托管)
+      # true: 透传到 Go 后端(需要 Go 后端实现 /api/realtime/digital-human/* 路由)
+      - USE_EXTERNAL_DIGITAL_HUMAN_API=false
       # audio-gateway 与 web 同属 qingqiuyue 网络,服务端代理用服务名访问
       - AUDIO_GATEWAY_BASE_URL=http://audio-gateway:8001/v1
       # === LLM (chat 路由 /api/avatar/chat 与 /api/digital-human/chat 用) ===
