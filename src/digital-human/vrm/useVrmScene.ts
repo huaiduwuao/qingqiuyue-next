@@ -44,6 +44,13 @@ export function useVrmScene(opts: UseVrmSceneOptions) {
       const vrmSceneLocal = vrmSceneRef.current;
       if (vrmSceneLocal && vrmSceneLocal.parent) vrmSceneLocal.parent.remove(vrmSceneLocal);
       handleRef.current = buildSceneByName(THREE_NS, grp, p);
+      if (handleRef.current.backgroundColor !== undefined) {
+        scene.background = new THREE_NS.Color(handleRef.current.backgroundColor);
+        scene.fog = new THREE_NS.FogExp2(handleRef.current.backgroundColor, 0.008);
+      } else {
+        scene.background = null;
+        scene.fog = new THREE_NS.FogExp2(0x0a0612, 0.015);
+      }
       if (vrmSceneLocal) scene.add(vrmSceneLocal);
     }
     applyPreset(preset);
@@ -65,6 +72,13 @@ export function useVrmScene(opts: UseVrmSceneOptions) {
     const vrmSceneLocal = vrmSceneRef.current;
     if (vrmSceneLocal && vrmSceneLocal.parent) vrmSceneLocal.parent.remove(vrmSceneLocal);
     handleRef.current = buildSceneByName(THREE_NS, grp, p);
+    if (handleRef.current.backgroundColor !== undefined) {
+      scene.background = new THREE_NS.Color(handleRef.current.backgroundColor);
+      scene.fog = new THREE_NS.FogExp2(handleRef.current.backgroundColor, 0.008);
+    } else {
+      scene.background = null;
+      scene.fog = new THREE_NS.FogExp2(0x0a0612, 0.015);
+    }
     if (vrmSceneLocal) scene.add(vrmSceneLocal);
   }, [rendererState]);
 
@@ -77,7 +91,11 @@ export function useVrmScene(opts: UseVrmSceneOptions) {
     if (dancing) {
       // 跳舞时聚光跟节拍呼吸（强度围绕 spotPowerMul 上下浮动）
       for (const l of h.lights) {
-        if ((l as any).isSpotLight) (l as any).intensity = 1.2 * dance * spotPowerMul;
+        if ((l as any).isSpotLight) {
+          const base = (l as any).userData?.baseIntensity ?? 1;
+          // 以配置强度为基准做 ±60% 脉冲，不再绝对覆盖
+          (l as any).intensity = base * spotPowerMul * (0.7 + 0.6 * dance);
+        }
       }
       for (let i = 0; i < h.beams.length; i++) {
         const beam = h.beams[i];
@@ -102,6 +120,13 @@ export function useVrmScene(opts: UseVrmSceneOptions) {
         }
       }
     } else {
+      // 停舞后把聚光还原到配置强度（否则亮度会卡在最后一帧的脉冲值）
+      for (const l of h.lights) {
+        if ((l as any).isSpotLight) {
+          const base = (l as any).userData?.baseIntensity ?? 1;
+          (l as any).intensity = base * spotPowerMul;
+        }
+      }
       // 不跳舞时让 LED 环慢速转 + 半透（保活，不压暗）
       if (h.ledRing) {
         const m = h.ledRing as any;

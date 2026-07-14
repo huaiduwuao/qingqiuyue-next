@@ -169,23 +169,14 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
     if (!cfg.formula) return;
     const result = safeEvalFormula(cfg.formula, { t, blend: 1 });
     if (result.bones) applyBoneRotations(result.bones, H);
-    if (typeof result.scenePosY === 'number') {
-      const hips = H('hips');
-      if (hips) hips.position.y = result.scenePosY;
-    }
-    if (typeof result.scenePosX === 'number') {
-      const hips = H('hips');
-      if (hips) hips.position.x = result.scenePosX;
-    }
+    // Ignore scenePosY/scenePosX/hipsPosY: world position is driven by the physics capsule;
+    // action formulas only drive bone rotations to avoid clipping through the floor.
   }
 
   function applyDanceFormula(cfg: DanceStyleConfig, danceT: number, b: number, A: number, bass: number, phase: number, H: (n: string) => any) {
     const result = safeEvalFormula(cfg.formula, { t: danceT, b, blend: 1, A, bass, phase });
     if (result.bones) applyBoneRotations(result.bones, H);
-    if (typeof result.hipsPosY === 'number') {
-      const hips = H('hips');
-      if (hips) hips.position.y = result.hipsPosY;
-    }
+    // Ignore hipsPosY: world height is owned by the physics capsule to keep feet grounded.
   }
 
   function applyPose(cfg: PoseConfig, blend: number, H: (n: string) => any) {
@@ -200,22 +191,14 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
   }
 
   function resetBonesToNatural(H: (n: string) => any) {
-    const lu = H('leftUpperArm');
-    const ru = H('rightUpperArm');
-    const ll = H('leftLowerArm');
-    const rl = H('rightLowerArm');
-    const lh = H('leftHand');
-    const rh = H('rightHand');
-    if (lu) lu.rotation.set(0, 0, -1.4);
-    if (ru) ru.rotation.set(0, 0, 1.4);
-    if (ll) ll.rotation.set(0.3, 0, 0);
-    if (rl) rl.rotation.set(0.3, 0, 0);
-    if (lh) lh.rotation.set(0.3, 0, 0);
-    if (rh) rh.rotation.set(0.3, 0, 0);
-    const lul = H('leftUpperLeg');
-    const rul = H('rightUpperLeg');
-    if (lul) lul.rotation.set(-0.1, 0, 0);
-    if (rul) rul.rotation.set(-0.1, 0, 0);
+    // Use the configured idle pose as the natural baseline instead of hardcoded angles.
+    const idle = lookups.poseByName.get('idle');
+    if (idle) {
+      for (const [boneName, rot] of Object.entries(idle.boneRotations)) {
+        const o = H(boneName);
+        if (o && o.rotation) o.rotation.set(rot[0], rot[1], rot[2]);
+      }
+    }
   }
 
   function applyFootIK(dt: number, H: (n: string) => any) {
@@ -228,7 +211,7 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
       const pos = new THREE.Vector3();
       foot.getWorldPosition(pos);
       const groundY = physics.raycastGround({ x: pos.x, y: pos.y + 1, z: pos.z }, 2);
-      if (groundY == null) continue;
+      if (groundY == null || !Number.isFinite(groundY)) continue;
       const desiredY = groundY + footOffset;
       const diff = desiredY - pos.y;
       if (Math.abs(diff) > 0.005) {

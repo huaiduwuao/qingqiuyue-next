@@ -186,6 +186,8 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   // 角色位置（x, z，y 由 yOffset 控制）
   const positionRef = useRef({ x: 0, z: 0, prevX: 0, prevZ: 0 });
   const yOffsetRef = useRef(0);  // 手动 Y 偏移
+  // 由模型包围盒推导的物理胶囊尺寸（setYOffset 时同步给物理世界）
+  const modelMetricsRef = useRef<{ height: number; radius: number; footOffsetY: number } | null>(null);
   // 行走状态（useVrmDance 通过 walkRef 读这个来播放行走动画）
   // 移动动画状态
   const moveAnimRef = useRef<{ active: boolean; startTime: number; duration: number; fromX: number; fromZ: number; toX: number; toZ: number; style: 'walk' | 'run' | 'teleport' }>({
@@ -271,8 +273,14 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         // 贴地：信任模型自然原点（VRM 标准：feet 在 y=0），用 yOffset 手动微调
         const THREE_NS = (rendererState as any).THREE_NS as typeof import('three');
         const box = new THREE_NS.Box3().setFromObject(cached.scene);
-        console.log(`[VrmStage] Box3 minY=${box.min.y.toFixed(3)} maxY=${box.max.y.toFixed(3)} (yOffset=${yOffsetRef.current})`);
+        const autoYOffset = -box.min.y;
+        yOffsetRef.current = autoYOffset;
+        console.log(`[VrmStage] Box3 minY=${box.min.y.toFixed(3)} maxY=${box.max.y.toFixed(3)} => auto yOffset=${autoYOffset.toFixed(3)}`);
         cached.scene.position.y = yOffsetRef.current;
+        const height = box.max.y - box.min.y;
+        const radius = Math.max(0.15, (box.max.x - box.min.x) * 0.5, (box.max.z - box.min.z) * 0.5) * 0.35;
+        modelMetricsRef.current = { height, radius, footOffsetY: autoYOffset };
+        physics.setModelMetrics(modelMetricsRef.current);
         // 视线
         if (cached.vrm.lookAt) {
           cached.vrm.lookAt.target = lookAtCamera ? rendererState.camera : null;
@@ -591,6 +599,11 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       setYOffset: (y) => {
         console.log(`[VrmStage.setYOffset] y=${y}`);
         yOffsetRef.current = y;
+        // 同步给物理世界：否则下一帧 step 会用旧的 footOffsetY 覆盖回来
+        if (modelMetricsRef.current) {
+          modelMetricsRef.current.footOffsetY = y;
+          physics.setModelMetrics(modelMetricsRef.current);
+        }
         if (vrmDataRef.current?.scene) vrmDataRef.current.scene.position.y = y;
       },
       getPosition: () => ({ x: positionRef.current.x, z: positionRef.current.z }),

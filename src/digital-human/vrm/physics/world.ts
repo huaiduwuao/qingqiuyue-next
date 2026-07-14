@@ -35,6 +35,8 @@ export interface PhysicsWorld {
   step: (dt: number, targetPos: { x: number; y: number; z: number }, scene: THREE.Object3D) => { x: number; y: number; z: number };
   /** 从某点向下射线检测地面高度（Foot IK 用） */
   raycastGround: (origin: { x: number; y: number; z: number }, maxDistance?: number) => number | null;
+  /** 按实际加载模型的包围盒更新胶囊尺寸与贴地偏移（重建 collider） */
+  setModelMetrics: (metrics: { height: number; radius: number; footOffsetY: number }) => void;
   /** 清理 */
   dispose: () => void;
 }
@@ -80,12 +82,14 @@ export async function createPhysicsWorld(
   }
 
   // 角色 capsule
+  const metrics = { height: model.capsule.height, radius: model.capsule.radius, footOffsetY: model.footOffsetY };
   const charDesc = RAPIER.RigidBodyDesc.kinematicPositionBased()
-    .setTranslation(0, model.footOffsetY + model.capsule.height / 2, 0);
+    .setTranslation(0, metrics.height / 2, 0);
   const character = world.createRigidBody(charDesc);
-  const capDesc = RAPIER.ColliderDesc.capsule(model.capsule.height / 2, model.capsule.radius)
-    .setFriction(0.7);
-  const characterCollider = world.createCollider(capDesc, character);
+  let characterCollider = world.createCollider(
+    RAPIER.ColliderDesc.capsule(metrics.height / 2, metrics.radius).setFriction(0.7),
+    character,
+  );
 
   // step + sync
   const step = (dt: number, targetPos: { x: number; y: number; z: number }, sceneObj: THREE.Object3D) => {
@@ -94,7 +98,7 @@ export async function createPhysicsWorld(
     const cur = character.translation();
     const desiredX = targetPos.x;
     const desiredZ = targetPos.z;
-    const desiredY = model.footOffsetY + model.capsule.height / 2;  // 始终贴地
+    const desiredY = metrics.height / 2;  // 胶囊底部贴地（地面 y=0）
     character.setNextKinematicTranslation({ x: desiredX, y: desiredY, z: desiredZ });
 
     // step physics
@@ -104,7 +108,8 @@ export async function createPhysicsWorld(
     // 读实际位置（撞墙后被物理推回）
     const t = character.translation();
     sceneObj.position.x = t.x;
-    sceneObj.position.y = t.y - model.capsule.height / 2 - model.footOffsetY;  // 角色脚底
+    // 胶囊中心 → 模型原点：脚底(y=0) + 模型自身偏移（脚不在原点时为正）
+    sceneObj.position.y = t.y - metrics.height / 2 + metrics.footOffsetY;
     sceneObj.position.z = t.z;
     return { x: t.x, y: t.y, z: t.z };
   };
@@ -128,5 +133,20 @@ export async function createPhysicsWorld(
     return null;
   };
 
-  return { rapier: RAPIER, world, character, characterCollider, ground, walls, step, raycastGround, dispose };
+  const setModelMetrics = (m: { height: number; radius: number; footOffsetY: number }) => {
+    const sizeChanged = m.height !== metrics.height || m.radius !== metrics.radius;
+    metrics.height = m.height;
+    metrics.radius = m.radius;
+    metrics.footOffsetY = m.footOffsetY;
+    // 尺寸变了就重建 capsule collider（Rapier collider 形状不可变）
+    if (sizeChanged) {
+      world.removeCollider(characterCollider, false);
+      characterCollider = world.createCollider(
+        RAPIER.ColliderDesc.capsule(metrics.height / 2, metrics.radius).setFriction(0.7),
+        character,
+      );
+    }
+  };
+
+  return { rapier: RAPIER, world, character, characterCollider, ground, walls, step, raycastGround, setModelMetrics, dispose };
 }

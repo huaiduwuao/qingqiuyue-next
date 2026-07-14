@@ -49,6 +49,7 @@ interface TrendPoint {
 
 interface ContentDist {
   type: string;
+  label: string;
   count: number;
   percent: number;
   color: string;
@@ -123,7 +124,7 @@ function useDashboard() {
       const list = (r?.data?.data?.list ?? r?.data?.list ?? r?.list ?? []) as Array<{
         type: string; count: number; percent: number; color: string;
       }>;
-      return list.map((d) => ({ type: d.type, count: d.count, percent: d.percent, color: d.color }));
+      return list.map((d) => ({ type: d.type, label: d.label, count: d.count, percent: d.percent, color: d.color }));
     },
     staleTime: 60_000,
   });

@@ -24,6 +24,7 @@ export interface SceneHandle {
   particles?: THREE.Points;
   preset: string;
   dispose: () => void;
+  backgroundColor?: number;
 }
 
 // ============================================================================
@@ -343,30 +344,33 @@ function buildLight(THREE_NS: typeof THREE, cfg: LightConfig): THREE.Light | nul
   const pos = cfg.position ? new THREE_NS.Vector3(...cfg.position) : new THREE_NS.Vector3();
   const target = cfg.target ? new THREE_NS.Vector3(...cfg.target) : new THREE_NS.Vector3(0, 0.9, 0);
   const color = new THREE_NS.Color(cfg.color);
+  let l: THREE.Light | null = null;
   switch (cfg.type) {
-    case 'ambient': return new THREE_NS.AmbientLight(color, cfg.intensity);
-    case 'hemisphere': return new THREE_NS.HemisphereLight(color, new THREE_NS.Color(cfg.groundColor || 0), cfg.intensity);
+    case 'ambient': l = new THREE_NS.AmbientLight(color, cfg.intensity); break;
+    case 'hemisphere': l = new THREE_NS.HemisphereLight(color, new THREE_NS.Color(cfg.groundColor || 0), cfg.intensity); break;
     case 'directional': {
-      const l = new THREE_NS.DirectionalLight(color, cfg.intensity);
-      l.position.copy(pos); l.target.position.copy(target);
+      const dl = new THREE_NS.DirectionalLight(color, cfg.intensity);
+      dl.position.copy(pos); dl.target.position.copy(target);
       if (cfg.castShadow) {
-        l.castShadow = true;
-        l.shadow.mapSize.set(cfg.shadowMapSize || 1024, cfg.shadowMapSize || 1024);
+        dl.castShadow = true;
+        dl.shadow.mapSize.set(cfg.shadowMapSize || 1024, cfg.shadowMapSize || 1024);
       }
-      return l;
+      l = dl; break;
     }
     case 'point': {
-      const l = new THREE_NS.PointLight(color, cfg.intensity, cfg.distance || 0, cfg.decay || 2);
-      l.position.copy(pos);
-      return l;
+      const pl = new THREE_NS.PointLight(color, cfg.intensity, cfg.distance || 0, cfg.decay || 2);
+      pl.position.copy(pos);
+      l = pl; break;
     }
     case 'spot': {
-      const l = new THREE_NS.SpotLight(color, cfg.intensity, cfg.distance || 0, cfg.angle || 0.5, cfg.penumbra || 0.5, cfg.decay || 1);
-      l.position.copy(pos); l.target.position.copy(target);
-      return l;
+      const sl = new THREE_NS.SpotLight(color, cfg.intensity, cfg.distance || 0, cfg.angle || 0.5, cfg.penumbra || 0.5, cfg.decay || 1);
+      sl.position.copy(pos); sl.target.position.copy(target);
+      l = sl; break;
     }
     default: return null;
   }
+  if (l) (l as any).userData.baseIntensity = cfg.intensity;
+  return l;
 }
 
 // ============================================================================
@@ -380,6 +384,7 @@ export function buildScene(THREE_NS: typeof THREE, sceneGroup: THREE.Group, conf
   let ledRing: THREE.Mesh | undefined, ledRing2: THREE.Mesh | undefined;
   let backdrop: THREE.Mesh | undefined;
   let particles: THREE.Points | undefined;
+  let backgroundColor: number | undefined;
 
   // 背景
   if (config.background.type === 'sky_dome') {
@@ -389,6 +394,7 @@ export function buildScene(THREE_NS: typeof THREE, sceneGroup: THREE.Group, conf
   } else if (config.background.type === 'color' && config.background.color !== undefined) {
     // 通过 clear color 实现（useVrmRenderer 设 scene.background）
     // 这里不直接加 mesh，留给 useVrmScene 调 scene.background
+    backgroundColor = config.background.color;
   }
 
   // 地面
@@ -445,6 +451,7 @@ export function buildScene(THREE_NS: typeof THREE, sceneGroup: THREE.Group, conf
   return {
     lights, beams, ledRing, ledRing2, backdrop, particles,
     preset: config.name,
+    backgroundColor,
     dispose: () => disposers.forEach((d) => d()),
   };
 }

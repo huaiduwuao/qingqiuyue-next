@@ -68,5 +68,10 @@ export function useVrmPhysics(opts: UseVrmPhysicsOptions) {
     return worldRef.current?.raycastGround(origin, maxDistance) ?? null;
   }
 
-  return { ready, step, raycastGround, world: worldRef };
+  /** 按实际加载模型动态更新物理胶囊尺寸与贴地偏移 */
+  function setModelMetrics(metrics: { height: number; radius: number; footOffsetY: number }) {
+    worldRef.current?.setModelMetrics?.(metrics);
+  }
+
+  return { ready, step, raycastGround, setModelMetrics, world: worldRef };
 }

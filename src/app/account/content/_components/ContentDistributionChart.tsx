@@ -33,7 +33,24 @@ export default function ContentDistributionChart() {
     refetchOnMount: 'always',
   });
 
-  const data = ((query.data?.records ?? query.data?.list ?? []) as ContentStat[]);
+  // The backend groups by the raw database value before normalizing content types.
+  // Values such as `NOVEL` and `novel` can therefore arrive as separate rows that
+  // both normalize to `type: "novel"`. Merge them so each rendered category has
+  // one stable identity and its count/percentage remains accurate.
+  const data = useMemo(() => {
+    const records = (query.data?.records ?? query.data?.list ?? []) as ContentStat[];
+    const byType = new Map<string, ContentStat>();
+
+    records.forEach((item) => {
+      const existing = byType.get(item.type);
+      byType.set(
+        item.type,
+        existing ? { ...existing, count: existing.count + item.count } : { ...item }
+      );
+    });
+
+    return Array.from(byType.values());
+  }, [query.data]);
   const total = data.reduce((acc, d) => acc + d.count, 0);
 
   // 计算百分比(避免后端/前端不一致)
