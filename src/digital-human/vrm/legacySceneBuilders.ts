@@ -170,20 +170,7 @@ export function buildConcert(THREE_NS: typeof THREE, sceneGroup: THREE.Group): S
   sceneGroup.add(makeSkyDome(THREE_NS, 0x1a0a2e, 0x07060d));
   const ambient = new THREE_NS.AmbientLight(0x9988cc, 1.0);
   sceneGroup.add(ambient); lights.push(ambient);
-  // 移除了 directional / hemisphere / spot 复杂灯光，只保留环境光
-
-  // 保留灯光束效果（装饰用，不影响光照）
-  const colors = [0xff4fd8, 0x4fd8ff, 0x9b6bff, 0xffb74f, 0x4fff9b, 0xff6b9b];
-  const positions: [number, number, number][] = [
-    [-3, 4.2, 1.5], [3, 4.2, 1.5], [-4, 4.5, -1], [4, 4.5, -1], [0, 5, 2.5], [0, 4.5, -2.5],
-  ];
-  positions.forEach((p, i) => {
-    const beam = makeLightBeam(THREE_NS, colors[i], 5, 0.7);
-    beam.position.set(p[0] * 0.55, p[1] / 2, p[2] * 0.5);
-    beam.lookAt(0, 0.9, 0);
-    beam.rotateX(Math.PI / 2);
-    sceneGroup.add(beam); beams.push(beam);
-  });
+  // 移除了所有灯光束和聚光灯，只保留环境光
 
   const truss = makeTruss(THREE_NS, 11, 5);
   truss.position.set(0, 0, -0.3);
