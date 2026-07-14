@@ -17,6 +17,8 @@ import CircularProgress from '@mui/material/CircularProgress';
 import { DataGridTable } from '@/components/tables/DataGridTable';
 import HermesFormDialog from '@/components/hermes/HermesFormDialog';
 import InstancesPanel from '@/components/hermes/InstancesPanel';
+import MemoryPanel from '@/components/hermes/MemoryPanel';
+import ConversationPanel from '@/components/hermes/ConversationPanel';
 import { hermesApi } from '@/apis/hermes';
 import type { HermesAgentItem, HermesInstanceStatus } from '@/beans/system';
 import type { GridColDef } from '@mui/x-data-grid';
@@ -29,7 +31,7 @@ import SyncIcon from '@mui/icons-material/Sync';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 
-type TabKey = 'agents' | 'instances';
+type TabKey = 'agents' | 'instances' | 'memory' | 'conversation';
 
 const AGENT_LIST_KEY = ['system', 'hermes', 'agents'];
 
@@ -364,10 +366,14 @@ export default function SystemHermesPage() {
       >
         <Tab value="agents" label="Agent 管理" />
         <Tab value="instances" label="实例管理" />
+        <Tab value="memory" label="记忆管理" />
+        <Tab value="conversation" label="会话管理" />
       </Tabs>
 
       {tab === 'agents' && <AgentsPanel />}
       {tab === 'instances' && <InstancesPanel />}
+      {tab === 'memory' && <MemoryPanel />}
+      {tab === 'conversation' && <ConversationPanel />}
     </Box>
   );
 }

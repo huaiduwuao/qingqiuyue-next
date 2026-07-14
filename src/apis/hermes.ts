@@ -167,6 +167,98 @@ export async function instanceDiscover() {
   return adminClient<HermesDiscoverResult>('/hermes/instance/discover', { method: 'POST' });
 }
 
+// ===== Memory Admin (/api/core/hermes/memory/*) =====
+
+export interface HermesMemoryAdminItem {
+  id: number;
+  userId: number;
+  agentId: string;
+  scope: string;
+  content: string;
+  sourceNodeId: string;
+  sourceHermesInstanceId: number;
+  metadata?: Record<string, any>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HermesMemoryAdminListParams {
+  page?: number;
+  pageSize?: number;
+  userId?: number;
+  agentId?: string;
+  scope?: string;
+  keyword?: string;
+}
+
+export async function memoryAdminPage(params: HermesMemoryAdminListParams = {}) {
+  const res = await adminClient('/hermes/memory/list', { params });
+  return normalizePage(res);
+}
+
+export async function memoryAdminDelete(id: number) {
+  return adminClient(`/hermes/memory/${id}`, { method: 'DELETE' });
+}
+
+export async function memoryAdminBatchDelete(ids: number[]) {
+  return adminClient('/hermes/memory/batch', { method: 'DELETE', data: { ids } });
+}
+
+// ===== Conversation Admin (/api/core/hermes/conversation/*) =====
+
+export interface HermesConversationAdminItem {
+  id: string;
+  userId: number;
+  agentId: string;
+  title: string;
+  hermesSessionId: string;
+  summary?: string;
+  metadata?: Record<string, any>;
+  lastMessageAt: string | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface HermesConversationAdminListParams {
+  page?: number;
+  pageSize?: number;
+  userId?: number;
+  agentId?: string;
+}
+
+export async function conversationAdminPage(params: HermesConversationAdminListParams = {}) {
+  const res = await adminClient('/hermes/conversation/list', { params });
+  return normalizePage(res);
+}
+
+export interface HermesConversationMessage {
+  id: number;
+  role: 'user' | 'assistant' | 'system' | 'tool';
+  content: string;
+  emotion?: Record<string, number>;
+  action?: string;
+  toolCalls?: any[];
+  createTime: string;
+}
+
+export interface HermesConversationMessagesResp {
+  conversationId: string;
+  messages: HermesConversationMessage[];
+  totalRow: number;
+}
+
+export async function conversationAdminMessages(conversationId: string, limit = 50) {
+  const res = await adminClient<HermesConversationMessagesResp>(
+    `/hermes/conversation/${conversationId}/messages`,
+    { params: { limit } },
+  );
+  return res?.data ?? res;
+}
+
+export async function conversationAdminDelete(conversationId: string) {
+  return adminClient(`/hermes/conversation/${conversationId}`, { method: 'DELETE' });
+}
+
 // ===== Client (/api/content/hermes/client/*) =====
 export async function clientPage(params: Record<string, unknown>) {
   const res = await contentClient('/hermes/client/page', { params });
@@ -218,6 +310,14 @@ export const hermesApi = {
   clientGreeting,
   clientHistory,
   chat,
+  // Memory Admin
+  memoryAdminPage,
+  memoryAdminDelete,
+  memoryAdminBatchDelete,
+  // Conversation Admin
+  conversationAdminPage,
+  conversationAdminMessages,
+  conversationAdminDelete,
 };
 
 export default hermesApi;
