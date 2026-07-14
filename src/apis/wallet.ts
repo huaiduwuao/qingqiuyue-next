@@ -1,65 +1,118 @@
-/**
- * 钱包 / 充值 / 流水 域 API。
- *
- * 后端实现见 qingqiuyue-go/internal/walletapp/walletapp.go
- * 全部走 /api/core/wallet/*:
- *   GET    /wallet                 当前余额(分)
- *   GET    /wallet/transactions    流水(分页)
- *   POST   /wallet/recharge        发起充值,返回 {orderNo, amount, payTip}
- *   POST   /wallet/recharge/callback  模拟支付回调(传入 orderNo 即可标记已付)
- *
- * 注:钱包侧金额统一以「分」存储 + 传输,前端展示时除以 100 得到元。
- */
 import { accountClient } from '@/lib/api/client';
 
-function unwrap<T = any>(resp: any): T {
-  if (!resp) return resp as T;
-  const body = resp?.data ?? resp;
-  if (body && typeof body === 'object' && 'code' in body && 'data' in body) {
-    return body.data as T;
-  }
-  return body as T;
-}
+// ========== 钱包相关 API ==========
 
-export interface Wallet {
+// 钱包余额
+export interface WalletBalance {
   id: number;
   userId: number;
   balance: number; // 分
-  frozen: number;
+  frozen: number;  // 冻结金额(分)
   updateTime: string;
 }
 
-export interface WalletTx {
+// 钱包流水
+export interface WalletTransaction {
   id: number;
   userId: number;
-  amount: number; // 分,正=入,负=出
-  type: 'recharge' | 'consume' | 'reward' | 'refund' | string;
-  balanceAfter: number;
+  amount: number;       // 分,正=入,负=出
+  type: string;         // recharge/consume/tip_in/tip_out/withdraw
+  balanceAfter: number;  // 分
   refId: string;
   remark: string;
   createTime: string;
 }
 
+// 提现申请
+export interface WithdrawRequest {
+  id: number;
+  userId: number;
+  amount: number;       // 分
+  status: 'pending' | 'approved' | 'rejected';
+  bankInfo: string;
+  rejectNote?: string;
+  createTime: string;
+  updateTime: string;
+}
+
+// 获取钱包余额
+export async function getWalletBalance(): Promise<WalletBalance> {
+  const resp = await accountClient('/wallet');
+  return resp?.data ?? resp;
+}
+
+// 别名:兼容旧代码
+export const getWallet = getWalletBalance;
+
+// 获取钱包流水
+export async function getWalletTransactions(params?: { page?: number; size?: number }) {
+  return accountClient('/wallet/transactions', { params });
+}
+
+// 打赏创作者
+export async function tipCreator(data: {
+  targetUserId: number;
+  contentId?: number;
+  amount: number;  // 分
+  remark?: string;
+}) {
+  return accountClient('/wallet/tip', { method: 'POST', data });
+}
+
+// 申请提现
+export async function applyWithdraw(data: {
+  amount: number;   // 分
+  bankInfo: string; // 收款信息
+}) {
+  return accountClient('/wallet/withdraw', { method: 'POST', data });
+}
+
+// 获取提现列表(后台审核)
+export async function getWithdrawList(params?: { page?: number; size?: number; status?: string }) {
+  return accountClient('/wallet/withdraw/list', { params });
+}
+
+// 审核提现(后台)
+export async function reviewWithdraw(data: {
+  id: number;
+  approved: boolean;
+  rejectNote?: string;
+}) {
+  return accountClient('/wallet/withdraw/review', { method: 'POST', data });
+}
+
+// ========== 充值相关 API ==========
+
+// 充值套餐
+export interface RechargePackage {
+  id: number;
+  diamonds: number;
+  price: number;      // 元
+  bonus?: number;     // 赠送钻石
+}
+
+// 充值订单响应
 export interface RechargeOrderResp {
   orderNo: string;
-  amount: number; // 分
-  payTip: string;
+  amount: number;
+  payTip?: string;
 }
 
-export async function getWallet(): Promise<Wallet> {
-  return unwrap(await accountClient('/wallet'));
+// 获取充值套餐
+export async function getRechargePackages(): Promise<RechargePackage[]> {
+  const resp = await accountClient('/payment/diamond-packages');
+  return resp?.data ?? [];
 }
 
-export async function getWalletTransactions(params?: { page?: number; size?: number }) {
-  return unwrap<{ list: WalletTx[]; total: number; page: number }>(
-    await accountClient('/wallet/transactions', { params })
-  );
+// 发起充值
+export async function createRechargeOrder(data: { amount: number; channel?: string }): Promise<RechargeOrderResp> {
+  const resp = await accountClient('/wallet/recharge', { method: 'POST', data });
+  return resp?.data ?? resp;
 }
 
-export async function createRechargeOrder(body: { amount: number; channel: string }) {
-  return unwrap<RechargeOrderResp>(await accountClient.post('/wallet/recharge', body));
-}
-
-export async function confirmRecharge(body: { orderNo: string }) {
-  return unwrap(await accountClient.post('/wallet/recharge/callback', body));
+// 确认充值(模拟回调)
+export async function confirmRecharge(data: { orderNo: string }): Promise<{ msg: string }> {
+  const resp = await accountClient('/wallet/recharge/callback', { method: 'POST', data });
+  const d = resp?.data;
+  return { msg: d?.msg ?? 'OK' };
 }

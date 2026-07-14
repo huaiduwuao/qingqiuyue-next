@@ -33,7 +33,7 @@ import { darkTheme } from '@/styles/theme';
 import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2, gradient3 } from '@/constants/gradients';
 import { accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
-import { getWallet, getWalletTransactions, createRechargeOrder, confirmRecharge, type WalletTx } from '@/apis/wallet';
+import { getWalletBalance, getWalletTransactions, createRechargeOrder, confirmRecharge, type WalletTransaction } from '@/apis/wallet';
 import {
   getDiamondPackages,
   getDiamondBenefits,
@@ -188,7 +188,7 @@ function RechargePageContent() {
   // 真接口:当前钱包余额
   const walletQ = useQuery({
     queryKey: ['wallet'],
-    queryFn: () => getWallet(),
+    queryFn: () => getWalletBalance(),
     refetchOnMount: 'always',
     staleTime: 0,
   });
@@ -202,7 +202,7 @@ function RechargePageContent() {
     staleTime: 0,
   });
   // 把 wallet_tx 转成页面用的 DiamondRecord 形态
-  const records: DiamondRecord[] = (txQ.data?.list ?? []).map((t: WalletTx, idx: number) => {
+  const records: DiamondRecord[] = (txQ.data?.data?.list ?? []).map((t: WalletTransaction, idx: number) => {
     const diamonds = Math.floor(Math.abs(t.amount) / 10);
     const isRecharge = t.type === 'recharge' || t.amount > 0;
     return {
@@ -235,7 +235,7 @@ function RechargePageContent() {
     const diamonds = pkg.diamonds + (pkg.bonus ?? 0);
     try {
       // 真接口:钱包充值订单(后端 walletapp 已实现)
-      let res: { orderNo: string; amount: number; payTip: string };
+      let res: { orderNo?: string; amount?: number; payTip?: string } = {};
       try {
         res = await createRechargeOrder({
           amount: amountFen,
@@ -255,9 +255,10 @@ function RechargePageContent() {
         throw err;
       }
       // 把 orderNo + 支付方式显示到弹窗;payTip 字段是后端的 mock 提示
-      const qrData = JSON.stringify({ orderNo: res.orderNo, amount: res.amount, method: payMethod });
+      const orderId = res.orderNo || `ORD${Date.now()}`;
+      const qrData = JSON.stringify({ orderNo: orderId, amount: res.amount, method: payMethod });
       const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrData)}`;
-      setOrder({ id: res.orderNo, amount: amountYuan, diamonds, method: payMethod, qrUrl });
+      setOrder({ id: res.orderNo || `ORD${Date.now()}`, amount: amountYuan, diamonds, method: payMethod, qrUrl });
       setPayDialogOpen(true);
     } catch (err) {
       if (isAuthError(err)) {

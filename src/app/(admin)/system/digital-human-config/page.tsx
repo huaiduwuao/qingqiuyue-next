@@ -18,6 +18,7 @@ import {
   Box, Typography, Stack, Card, CardContent, Button, Chip, IconButton,
   TextField, Tabs, Tab, MenuItem, Select, FormControl, InputLabel,
   Switch, FormControlLabel, Divider, Accordion, AccordionSummary, AccordionDetails,
+  Dialog, DialogTitle, DialogContent, DialogActions,
 } from '@mui/material';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
@@ -33,8 +34,13 @@ import {
   listVisemes, createViseme, updateViseme, deleteViseme,
   listScenes, createScene, updateScene, deleteScene,
 } from '@/digital-human/api/digitalHumanConfig';
+import { list as listMenus, save as saveMenu, update as updateMenu, remove as deleteMenu } from '@/apis/menu';
+import type { MenuItem as DbMenuItem } from '@/beans/system';
 
-type TabKey = 'models' | 'actions' | 'dances' | 'poses' | 'expressions' | 'visemes' | 'scenes';
+// 复用 DbMenuItem 引用
+type MenuItem = DbMenuItem;
+
+type TabKey = 'models' | 'actions' | 'dances' | 'poses' | 'expressions' | 'visemes' | 'scenes' | 'menus';
 
 const tabs: { key: TabKey; label: string }[] = [
   { key: 'models', label: '模型 (Models)' },
@@ -44,6 +50,7 @@ const tabs: { key: TabKey; label: string }[] = [
   { key: 'expressions', label: '表情 (Expressions)' },
   { key: 'visemes', label: '口型 (Visemes)' },
   { key: 'scenes', label: '场景 (Scenes)' },
+  { key: 'menus', label: '菜单配置 (Menus)' },
 ];
 
 export default function DigitalHumanConfigPage() {
@@ -71,6 +78,7 @@ export default function DigitalHumanConfigPage() {
           {tab === 'expressions' && <ExpressionsTab qc={qc} />}
           {tab === 'visemes' && <VisemesTab qc={qc} />}
           {tab === 'scenes' && <ScenesTab qc={qc} />}
+          {tab === 'menus' && <MenusTab qc={qc} />}
         </CardContent>
       </Card>
     </Box>
@@ -842,5 +850,216 @@ function JsonEditor({ label, value, onChange, minRows = 12 }: { label: string; v
       helperText={error || '实时解析；只有合法 JSON 时才会写回对象'}
       sx={{ '& textarea': { fontFamily: 'ui-monospace, monospace', fontSize: 12 } }}
     />
+  );
+}
+
+// ============================================================================
+// 菜单配置
+// ============================================================================
+function MenusTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
+  const [editing, setEditing] = React.useState<MenuItem | null>(null);
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+
+  const { data: menuList, isLoading } = useQuery({
+    queryKey: ['system', 'menus'],
+    queryFn: () => listMenus({ pageSize: 100 }),
+  });
+
+  const menus: MenuItem[] = menuList?.data?.records || [];
+
+  const saveMutation = useMutation({
+    mutationFn: (menu: MenuItem) => menu.id ? updateMenu(menu.id, menu) : saveMenu(menu),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['system', 'menus'] });
+      setDialogOpen(false);
+      setEditing(null);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => deleteMenu(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['system', 'menus'] }),
+  });
+
+  const openEditor = (menu?: MenuItem) => {
+    setEditing(menu ? { ...menu } : {
+      pid: 0,
+      name: '',
+      code: '',
+      path: '',
+      sort: menus.length + 1,
+      icon: '',
+      type: 'menu',
+    });
+    setDialogOpen(true);
+  };
+
+  const handleSave = () => {
+    if (!editing) return;
+    saveMutation.mutate(editing);
+  };
+
+  // 扁平菜单转树形
+  const buildTree = (items: MenuItem[]): MenuItem[] => {
+    const map = new Map<number, MenuItem>();
+    const roots: MenuItem[] = [];
+    items.forEach(item => {
+      if (item.id) map.set(item.id, { ...item, children: [] });
+    });
+    items.forEach(item => {
+      if (!item.id) return;
+      const node = map.get(item.id)!;
+      if (item.pid && map.has(item.pid)) {
+        map.get(item.pid)!.children!.push(node);
+      } else {
+        roots.push(node);
+      }
+    });
+    return roots;
+  };
+
+  const renderMenuItem = (menu: MenuItem, level = 0) => (
+    <React.Fragment key={menu.id}>
+      <Card variant="outlined" sx={{ mb: 0.5, ml: level * 2 }}>
+        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', p: 1 }}>
+          <Typography sx={{ fontWeight: 600, fontSize: 13, minWidth: 100 }}>
+            {menu.name}
+          </Typography>
+          <Chip label={menu.type || 'menu'} size="small" />
+          <Typography sx={{ fontSize: 12, color: 'text.secondary', flex: 1 }}>
+            {menu.path}
+          </Typography>
+          {menu.code && (
+            <Chip label={menu.code} size="small" variant="outlined" />
+          )}
+          <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>
+            sort: {menu.sort}
+          </Typography>
+          <IconButton size="small" onClick={() => openEditor(menu)}>
+            <EditRoundedIcon fontSize="small" />
+          </IconButton>
+          <IconButton size="small" onClick={() => {
+            if (confirm(`删除菜单 "${menu.name}"?`)) deleteMutation.mutate(menu.id!);
+          }}>
+            <DeleteOutlineRoundedIcon fontSize="small" />
+          </IconButton>
+        </Stack>
+      </Card>
+      {menu.children?.map(child => renderMenuItem(child, level + 1))}
+    </React.Fragment>
+  );
+
+  const treeData = buildTree(menus);
+
+  return (
+    <Stack spacing={1}>
+      <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
+        <Button startIcon={<AddRoundedIcon />} variant="contained" onClick={() => openEditor()}>
+          新建菜单
+        </Button>
+      </Stack>
+
+      {isLoading ? (
+        <Typography sx={{ p: 2, color: 'text.secondary' }}>加载中...</Typography>
+      ) : menus.length === 0 ? (
+        <Typography sx={{ p: 2, color: 'text.secondary' }}>暂无菜单配置，点击"新建菜单"添加</Typography>
+      ) : (
+        <Box sx={{ maxHeight: 600, overflow: 'auto' }}>
+          {treeData.map(menu => renderMenuItem(menu))}
+        </Box>
+      )}
+
+      {/* 菜单编辑对话框 */}
+      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>{editing?.id ? '编辑菜单' : '新建菜单'}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              label="菜单名称"
+              value={editing?.name || ''}
+              onChange={(e) => setEditing(prev => prev ? { ...prev, name: e.target.value } : null)}
+              size="small"
+              fullWidth
+            />
+            <Stack direction="row" spacing={2}>
+              <FormControl size="small" sx={{ minWidth: 100 }}>
+                <InputLabel>类型</InputLabel>
+                <Select
+                  value={editing?.type || 'menu'}
+                  label="类型"
+                  onChange={(e) => setEditing(prev => prev ? { ...prev, type: e.target.value } : null)}
+                >
+                  <MenuItem value="menu">菜单</MenuItem>
+                  <MenuItem value="button">按钮</MenuItem>
+                  <MenuItem value="link">链接</MenuItem>
+                </Select>
+              </FormControl>
+              <TextField
+                label="权限码"
+                value={editing?.code || ''}
+                onChange={(e) => setEditing(prev => prev ? { ...prev, code: e.target.value } : null)}
+                size="small"
+                sx={{ flex: 1 }}
+                placeholder="如: SYSTEM_USER.VIEW"
+              />
+            </Stack>
+            <TextField
+              label="路径"
+              value={editing?.path || ''}
+              onChange={(e) => setEditing(prev => prev ? { ...prev, path: e.target.value } : null)}
+              size="small"
+              fullWidth
+              placeholder="/system/xxx"
+            />
+            <Stack direction="row" spacing={2}>
+              <FormControl size="small" sx={{ minWidth: 120 }}>
+                <InputLabel>父级菜单</InputLabel>
+                <Select
+                  value={editing?.pid || 0}
+                  label="父级菜单"
+                  onChange={(e) => setEditing(prev => prev ? { ...prev, pid: e.target.value as number } : null)}
+                >
+                  <MenuItem value={0}>无（顶级）</MenuItem>
+                  {menus.filter(m => m.type !== 'button').map(m => (
+                    <MenuItem key={m.id} value={m.id}>{m.name}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <TextField
+                label="排序"
+                type="number"
+                value={editing?.sort || 0}
+                onChange={(e) => setEditing(prev => prev ? { ...prev, sort: parseInt(e.target.value) || 0 } : null)}
+                size="small"
+                sx={{ width: 80 }}
+              />
+            </Stack>
+            <TextField
+              label="图标"
+              value={editing?.icon || ''}
+              onChange={(e) => setEditing(prev => prev ? { ...prev, icon: e.target.value } : null)}
+              size="small"
+              fullWidth
+              placeholder="MUI 图标组件名，如: StarsRounded"
+            />
+            <TextField
+              label="备注"
+              value={editing?.info || ''}
+              onChange={(e) => setEditing(prev => prev ? { ...prev, info: e.target.value } : null)}
+              size="small"
+              fullWidth
+              multiline
+              rows={2}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDialogOpen(false)}>取消</Button>
+          <Button variant="contained" onClick={handleSave} disabled={saveMutation.isPending}>
+            保存
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Stack>
   );
 }
