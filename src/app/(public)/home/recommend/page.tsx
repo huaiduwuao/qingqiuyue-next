@@ -120,12 +120,6 @@ export default function HomeRecommendPage() {
     refetchOnMount: 'always',
   });
 
-  React.useEffect(() => {
-    if (tabFromUrl === 'ai') {
-      router.replace('/search?q=' + encodeURIComponent('推荐'));
-    }
-  }, [tabFromUrl, router]);
-
   let contentList: ContentItem[] = contentQuery.data || [];
   if (tabFromUrl === 'follow') {
     const raw = (followQuery.data?.records ?? followQuery.data?.list ?? []) as RecommendWork[];

@@ -126,7 +126,8 @@ export function AIRecommendPanel() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && q.trim()) submit(q);
+            // 确保只有 AI 搜索框获得焦点时才处理 Enter
+            if (e.key === 'Enter' && e.currentTarget.contains(document.activeElement) && q.trim()) submit(q);
           }}
           placeholder="告诉我你想看什么..."
           slotProps={{

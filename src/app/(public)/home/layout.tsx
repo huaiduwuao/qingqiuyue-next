@@ -74,6 +74,9 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
   const [activeNav, setActiveNav] = useState(urlTab);
   const [meOpen, setMeOpen] = useState(false);
   const mainRef = useRef<HTMLDivElement | null>(null);
+  // 搜索框状态提升到 Layout，便于导航时清空
+  const [searchDraft, setSearchDraft] = useState('');
+  const searchDraftRef = useRef('');
 
   // 同步 URL ?tab= → activeNav,这样从详情页返回时保留 tab
   useEffect(() => {
@@ -96,10 +99,15 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
   }, [pathname, searchParams]);
 
   const handleNavChange = useCallback((key: string) => {
+    // 导航前清空搜索框状态
+    setSearchDraft('');
+    searchDraftRef.current = '';
     setActiveNav(key);
-    const next = pathname + '?tab=' + key;
-    router.replace(next, { scroll: false });
-  }, [pathname, router]);
+    const nav = SIDE_NAV.find(n => n.key === key);
+    if (nav?.path) {
+      router.push(nav.path, { scroll: false });
+    }
+  }, [router]);
 
   useEffect(() => {
     const html = document.documentElement;
@@ -124,7 +132,11 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <Box sx={{ height: '100dvh', bgcolor: 'var(--bg-body, transparent)', color: 'var(--text-primary, currentColor)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <TopBar />
+      <TopBar
+        searchDraft={searchDraft}
+        setSearchDraft={setSearchDraft}
+        searchDraftRef={searchDraftRef}
+      />
       <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
         <LeftSidebar activeNav={activeNav} onNavChange={handleNavChange} meOpen={meOpen} onMeOpenChange={setMeOpen} />
         <Box component="main" ref={mainRef} sx={{ flex: 1, minWidth: 0, overflow: 'auto', overscrollBehavior: 'contain' }}>
@@ -146,13 +158,20 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
   );
 }
 
-function TopBar() {
+function TopBar({
+  searchDraft,
+  setSearchDraft,
+  searchDraftRef,
+}: {
+  searchDraft: string;
+  setSearchDraft: (v: string) => void;
+  searchDraftRef: React.MutableRefObject<string>;
+}) {
   const { currentUser } = useApp();
   const router = useRouter();
-  const [draft, setDraft] = useState('');
 
   const submit = () => {
-    const q = draft.trim();
+    const q = searchDraftRef.current.trim();
     if (!q) return;
     router.push(`/search?q=${encodeURIComponent(q)}`);
   };
@@ -180,8 +199,8 @@ function TopBar() {
         <TextField
           fullWidth
           size="small"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          value={searchDraft}
+          onChange={(e) => { setSearchDraft(e.target.value); searchDraftRef.current = e.target.value; }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
               e.preventDefault();
@@ -489,7 +508,15 @@ function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activ
                 <Divider sx={{ my: 1, mx: 2, borderColor: 'var(--border-color, transparent)' }} />
               )}
               <Box
-                onClick={() => (isFullRoute && n.path ? router.push(n.path) : onNavChange(n.key))}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  if (isFullRoute && n.path) {
+                    router.push(n.path);
+                  } else {
+                    onNavChange(n.key);
+                  }
+                }}
                 sx={itemSx}
               >
                 {inner}
