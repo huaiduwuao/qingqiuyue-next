@@ -17,7 +17,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ agentId: st
   const agentId = decodeURIComponent(raw);
   try {
     const r = await fetchDigitalHuman(`/api/realtime/digital-human/instructions/${encodeURIComponent(agentId)}`, { method: 'GET' });
-    const data = await r.json();
+    const payload = await r.json();
+    const data = payload?.data || payload;
     return NextResponse.json(data, { status: r.status });
   } catch (e: any) {
     return NextResponse.json({ error: `upstream Go: ${e?.message || e}` }, { status: 502 });
@@ -33,7 +34,8 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ agentId: st
       method: 'PUT',
       body,
     });
-    const data = await r.json();
+    const payload = await r.json();
+    const data = payload?.data || payload;
     return NextResponse.json(data, { status: r.status });
   } catch (e: any) {
     return NextResponse.json({ error: `upstream Go: ${e?.message || e}` }, { status: 502 });
@@ -45,7 +47,8 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ agentId:
   const agentId = decodeURIComponent(raw);
   try {
     const r = await fetchDigitalHuman(`/api/realtime/digital-human/instructions/${encodeURIComponent(agentId)}`, { method: 'DELETE' });
-    const data = await r.json();
+    const payload = await r.json();
+    const data = payload?.data || payload;
     return NextResponse.json(data, { status: r.status });
   } catch (e: any) {
     return NextResponse.json({ error: `upstream Go: ${e?.message || e}` }, { status: 502 });
