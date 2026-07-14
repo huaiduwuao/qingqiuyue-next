@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -15,6 +15,7 @@ import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT, gradient2 } from '@/constants/gradients';
+import { useScrollToBottom } from '@/hooks/useInfiniteScroll';
 
 type DramaSeries = {
   id: number;
@@ -106,18 +107,54 @@ export function DramaPanel() {
   const [sort, setSort] = useState('hot');
 
   const qs = buildQs({ genre, status, sort });
-  const seriesUrl = `/drama/series${qs ? '?' + qs : ''}`;
+
+  // 分页状态
+  const PAGE_SIZE = 12;
+  const [dramaPage, setDramaPage] = useState(1);
+  const [dramaList, setDramaList] = useState<DramaSeries[]>([]);
+  const [dramaHasMore, setDramaHasMore] = useState(true);
+
+  // 切换筛选时重置分页
+  useEffect(() => {
+    setDramaPage(1);
+    setDramaList([]);
+    setDramaHasMore(true);
+  }, [genre, status, sort]);
+
+  const seriesUrl = `/drama/series${qs ? '?' + qs + '&' : '?'}page=${dramaPage}&pageSize=${PAGE_SIZE}`;
   const topUrl = `/drama/top${qs ? '?' + qs : ''}`;
 
   const seriesQuery = useQuery({
-    queryKey: ['home', 'drama', 'series', genre, status, sort],
-    queryFn: () => homeClient.get<{ list: DramaSeries[]; total: number }>(seriesUrl).then((r) => r.data),
+    queryKey: ['home', 'drama', 'series', genre, status, sort, dramaPage],
+    queryFn: async () => {
+      const resp = await homeClient.get<{ list: DramaSeries[]; total: number }>(seriesUrl).then((r) => r.data);
+      const records = resp?.list || [];
+      const total = resp?.total || 0;
+
+      setDramaList(prev => dramaPage === 1 ? records : [...prev, ...records]);
+      setDramaHasMore(records.length === PAGE_SIZE && (dramaPage * PAGE_SIZE) < total);
+
+      return resp;
+    },
   });
 
   const topQuery = useQuery({
     queryKey: ['home', 'drama', 'top', genre, status, sort],
     queryFn: () => homeClient.get<{ list: DramaSeries[]; total: number }>(topUrl).then((r) => r.data),
   });
+
+  // 无限滚动
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scroll = useScrollToBottom({
+    enabled: !seriesQuery.isLoading && dramaHasMore,
+    containerRef: scrollContainerRef,
+  });
+
+  useEffect(() => {
+    if (scroll.isNearBottom && dramaHasMore && !seriesQuery.isLoading) {
+      setDramaPage(p => p + 1);
+    }
+  }, [scroll.isNearBottom, dramaHasMore, seriesQuery.isLoading]);
 
   return (
     <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
@@ -228,21 +265,35 @@ export function DramaPanel() {
         </Typography>
       </Box>
 
-      <AsyncState
-        query={seriesQuery}
-        skeletonCount={10}
-        skeletonHeight={260}
-        isEmpty={(d) => d.list.length === 0}
-        emptyText="该筛选下暂无短剧。可清空筛选或切换题材"
-      >
-        {(data) => (
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 1.5 }}>
-            {data.list.map((s) => (
-              <DramaCard key={s.id} item={s} />
-            ))}
-          </Box>
-        )}
-      </AsyncState>
+      <Box ref={scrollContainerRef} sx={{ overflow: 'auto', maxHeight: 'calc(100vh - 320px)' }}>
+        <AsyncState
+          query={seriesQuery}
+          skeletonCount={10}
+          skeletonHeight={260}
+          isEmpty={(d) => d.list.length === 0}
+          emptyText="该筛选下暂无短剧。可清空筛选或切换题材"
+        >
+          {(data) => (
+            <Box>
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 1.5 }}>
+                {dramaList.map((s) => (
+                  <DramaCard key={s.id} item={s} />
+                ))}
+              </Box>
+
+              {/* Loading more */}
+              {seriesQuery.isFetching && !seriesQuery.isLoading && (
+                <Typography sx={{ textAlign: 'center', py: 2, color: 'text.secondary', fontSize: 12 }}>加载中...</Typography>
+              )}
+
+              {/* No more */}
+              {!seriesQuery.isFetching && dramaList.length > 0 && !dramaHasMore && (
+                <Typography sx={{ textAlign: 'center', py: 3, color: 'text.disabled', fontSize: 12 }}>- 没有更多了 -</Typography>
+              )}
+            </Box>
+          )}
+        </AsyncState>
+      </Box>
     </Box>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import Box from '@mui/material/Box';
@@ -16,6 +16,7 @@ import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT, gradient2 } from '@/constants/gradients';
+import { useScrollToBottom } from '@/hooks/useInfiniteScroll';
 
 type LiveStatus = 'all' | 'live' | 'offline';
 type LiveSort = 'hot' | 'new';
@@ -106,16 +107,49 @@ export function LivePanel() {
   const setSort = (s: LiveSort) => { setSortState(s); updateParam({ sort: s }); };
   const setCategory = (c: LiveCategory) => { setCategoryState(c); updateParam({ category: c }); };
 
+  // 分页状态
+  const PAGE_SIZE = 12;
+  const [livePage, setLivePage] = useState(1);
+  const [liveList, setLiveList] = useState<Room[]>([]);
+  const [liveHasMore, setLiveHasMore] = useState(true);
+
+  // 切换筛选时重置分页
+  useEffect(() => {
+    setLivePage(1);
+    setLiveList([]);
+    setLiveHasMore(true);
+  }, [status, sort, category]);
+
   const query = useQuery({
-    queryKey: ['home', 'live', 'rooms', status, sort, category],
-    queryFn: () => {
-      const params = new URLSearchParams();
+    queryKey: ['home', 'live', 'rooms', status, sort, category, livePage],
+    queryFn: async () => {
+      const params = new URLSearchParams({ page: String(livePage), size: String(PAGE_SIZE) });
       if (status !== 'all') params.set('status', status);
       if (sort !== 'hot') params.set('sort', sort);
       if (category !== 'all') params.set('category', category);
-      return homeClient.get<Resp>(`/live/rooms${params.toString() ? '?' + params.toString() : ''}`).then((r) => r.data);
+      const resp = await homeClient.get<Resp>(`/live/rooms?${params.toString()}`).then((r) => r.data);
+      const records = resp?.list || [];
+      const total = resp?.total || 0;
+
+      setLiveList(prev => livePage === 1 ? records : [...prev, ...records]);
+      setLiveHasMore(records.length === PAGE_SIZE && (livePage * PAGE_SIZE) < total);
+
+      return resp;
     },
   });
+
+  // 无限滚动
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scroll = useScrollToBottom({
+    enabled: !query.isLoading && liveHasMore,
+    containerRef: scrollContainerRef,
+  });
+
+  useEffect(() => {
+    if (scroll.isNearBottom && liveHasMore && !query.isLoading) {
+      setLivePage(p => p + 1);
+    }
+  }, [scroll.isNearBottom, liveHasMore, query.isLoading]);
 
   const topQuery = useQuery({
     queryKey: ['home', 'live', 'top', category],
@@ -254,22 +288,36 @@ export function LivePanel() {
       </Box>
 
       {/* 直播间网格 */}
-      <AsyncState
-        query={query}
-        skeletonCount={6}
-        skeletonHeight={320}
-        isEmpty={(d) => d.list.length === 0}
-        emptyText="该筛选下暂无直播间"
-        emptyHint="尝试切回全部分类或调整状态"
-      >
-        {(data) => (
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
-            {data.list.map((room) => (
-              <RoomCard key={room.id} room={room} onClick={() => navigate('LIVE', room.id)} />
-            ))}
-          </Box>
-        )}
-      </AsyncState>
+      <Box ref={scrollContainerRef} sx={{ overflow: 'auto', maxHeight: 'calc(100vh - 320px)' }}>
+        <AsyncState
+          query={query}
+          skeletonCount={6}
+          skeletonHeight={320}
+          isEmpty={(d) => d.list.length === 0}
+          emptyText="该筛选下暂无直播间"
+          emptyHint="尝试切回全部分类或调整状态"
+        >
+          {(data) => (
+            <Box>
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
+                {liveList.map((room) => (
+                  <RoomCard key={room.id} room={room} onClick={() => navigate('LIVE', room.id)} />
+                ))}
+              </Box>
+
+              {/* Loading more */}
+              {query.isFetching && !query.isLoading && (
+                <Typography sx={{ textAlign: 'center', py: 2, color: 'text.secondary', fontSize: 12 }}>加载中...</Typography>
+              )}
+
+              {/* No more */}
+              {!query.isFetching && liveList.length > 0 && !liveHasMore && (
+                <Typography sx={{ textAlign: 'center', py: 3, color: 'text.disabled', fontSize: 12 }}>- 没有更多了 -</Typography>
+              )}
+            </Box>
+          )}
+        </AsyncState>
+      </Box>
     </Box>
   );
 }

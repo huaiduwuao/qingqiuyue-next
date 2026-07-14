@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -14,6 +14,7 @@ import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT, gradient2 } from '@/constants/gradients';
+import { useScrollToBottom } from '@/hooks/useInfiniteScroll';
 
 const CAT_TO_TYPE: Record<TheaterItem['category'], string> = {
   movie: 'FILM',
@@ -126,18 +127,54 @@ export function TheaterPanel() {
   const [sort, setSort] = useState('hot');
 
   const qs = buildQs({ category, region, year, minRating, sort });
-  const listUrl = `/theater/items${qs ? '?' + qs : ''}`;
+
+  // 分页状态
+  const PAGE_SIZE = 12;
+  const [theaterPage, setTheaterPage] = useState(1);
+  const [theaterList, setTheaterList] = useState<TheaterItem[]>([]);
+  const [theaterHasMore, setTheaterHasMore] = useState(true);
+
+  // 切换筛选时重置分页
+  useEffect(() => {
+    setTheaterPage(1);
+    setTheaterList([]);
+    setTheaterHasMore(true);
+  }, [category, region, year, minRating, sort]);
+
+  const listUrl = `/theater/items${qs ? '?' + qs + '&' : '?'}page=${theaterPage}&pageSize=${PAGE_SIZE}`;
   const topUrl = `/theater/top?${qs ? qs + '&' : ''}category=${category}`;
 
   const query = useQuery({
-    queryKey: ['home', 'theater', category, region, year, minRating, sort],
-    queryFn: () => homeClient.get<Resp>(listUrl).then((r) => r.data),
+    queryKey: ['home', 'theater', category, region, year, minRating, sort, theaterPage],
+    queryFn: async () => {
+      const resp = await homeClient.get<Resp>(listUrl).then((r) => r.data);
+      const records = resp?.list || [];
+      const total = resp?.total || 0;
+
+      setTheaterList(prev => theaterPage === 1 ? records : [...prev, ...records]);
+      setTheaterHasMore(records.length === PAGE_SIZE && (theaterPage * PAGE_SIZE) < total);
+
+      return resp;
+    },
   });
 
   const topQuery = useQuery({
     queryKey: ['home', 'theater', 'top', category, region, year, minRating, sort],
     queryFn: () => homeClient.get<Resp>(topUrl).then((r) => r.data),
   });
+
+  // 无限滚动
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scroll = useScrollToBottom({
+    enabled: !query.isLoading && theaterHasMore,
+    containerRef: scrollContainerRef,
+  });
+
+  useEffect(() => {
+    if (scroll.isNearBottom && theaterHasMore && !query.isLoading) {
+      setTheaterPage(p => p + 1);
+    }
+  }, [scroll.isNearBottom, theaterHasMore, query.isLoading]);
 
   return (
     <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
@@ -281,23 +318,37 @@ export function TheaterPanel() {
         </Typography>
       </Box>
 
-      <AsyncState
-        query={query}
-        skeletonCount={8}
-        skeletonHeight={260}
-        isEmpty={(d) => d.list.length === 0}
-        emptyText="该分类暂无内容。可调宽上述属性，或切换到其他分类"
-      >
-        {(data) => {
-          return (
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 2 }}>
-              {data.list.map((item) => (
-                <TheaterCard key={item.id} item={item} />
-              ))}
-            </Box>
-          );
-        }}
-      </AsyncState>
+      <Box ref={scrollContainerRef} sx={{ overflow: 'auto', maxHeight: 'calc(100vh - 320px)' }}>
+        <AsyncState
+          query={query}
+          skeletonCount={8}
+          skeletonHeight={260}
+          isEmpty={(d) => d.list.length === 0}
+          emptyText="该分类暂无内容。可调宽上述属性，或切换到其他分类"
+        >
+          {(data) => {
+            return (
+              <Box>
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 2 }}>
+                  {theaterList.map((item) => (
+                    <TheaterCard key={item.id} item={item} />
+                  ))}
+                </Box>
+
+                {/* Loading more */}
+                {query.isFetching && !query.isLoading && (
+                  <Typography sx={{ textAlign: 'center', py: 2, color: 'text.secondary', fontSize: 12 }}>加载中...</Typography>
+                )}
+
+                {/* No more */}
+                {!query.isFetching && theaterList.length > 0 && !theaterHasMore && (
+                  <Typography sx={{ textAlign: 'center', py: 3, color: 'text.disabled', fontSize: 12 }}>- 没有更多了 -</Typography>
+                )}
+              </Box>
+            );
+          }}
+        </AsyncState>
+      </Box>
     </Box>
   );
 }
