@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, type ReactNode } from 'react';
+import { useState, useEffect, Suspense, type ReactNode } from 'react';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -42,14 +42,17 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
   const { isAdmin, can } = useAuthority();
   const { currentUser } = useApp();
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
-  const searchParams = useSearchParams();
 
-  // 页面曝光埋点
-  useEffect(() => {
-    if (pathname) {
-      trackPageView(pathname, searchParams?.toString() ?? '');
-    }
-  }, [pathname, searchParams]);
+  // useSearchParams 必须在 Suspense 内,单独抽成组件避免顶层调用触发静态生成错误
+  const TrackPageView = () => {
+    const sp = useSearchParams();
+    useEffect(() => {
+      if (pathname) {
+        trackPageView(pathname, sp?.toString() ?? '');
+      }
+    }, [pathname, sp]);
+    return null;
+  };
 
   if (!isAdmin) {
     return (
@@ -88,6 +91,8 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
         color: 'var(--text-primary, currentColor)',
       }}
     >
+      {/* 页面曝光埋点 */}
+      <Suspense>{pathname && pathname.startsWith('/system') && <TrackPageView />}</Suspense>
       {/* 顶部条 — 与 home TopBar 同一套(60px / rgba 背景 / blur / 细白边) */}
       <Box
         component="header"
