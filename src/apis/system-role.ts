@@ -130,3 +130,23 @@ export async function userAdd(params: Record<string, unknown>) {
     data: params
   });
 }
+
+// 获取角色详情 - GET /role/:id
+export async function get(id: number) {
+  return adminClient(`/role/${id}`, { method: 'GET' });
+}
+
+// 获取角色已有权限列表 - GET /role/:id/permissions
+export async function getPermissions(roleId: number) {
+  return adminClient(`/role/${roleId}/permissions`, { method: 'GET' });
+}
+
+// 获取角色已有菜单列表 - GET /menu/:id/role-menus
+export async function getMenus(roleId: number) {
+  return adminClient(`/menu/${roleId}/role-menus`, { method: 'GET' });
+}
+
+// 获取角色已有数据权限列表 - GET /role/:id/data-permissions
+export async function getDataPermissions(roleId: number) {
+  return adminClient(`/role/${roleId}/data-permissions`, { method: 'GET' });
+}

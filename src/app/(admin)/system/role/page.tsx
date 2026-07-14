@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -19,6 +20,7 @@ import type { GridColDef } from '@mui/x-data-grid';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
+import SettingsIcon from '@mui/icons-material/Settings';
 import { PermissionGuard } from '@/components/auth/PermissionGuard';
 import { useAuthority } from '@/contexts/AuthContext';
 import { PERMISSIONS } from '@/lib/permissions';
@@ -26,6 +28,7 @@ import { PERMISSIONS } from '@/lib/permissions';
 const LIST_KEY = ['system', 'role'];
 
 export default function SystemRolePage() {
+  const router = useRouter();
   const qc = useQueryClient();
   const [writeVisible, setWriteVisible] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
@@ -97,14 +100,18 @@ export default function SystemRolePage() {
     {
       field: 'actions',
       headerName: '操作',
-      width: 150,
+      width: 200,
       sortable: false,
       disableColumnMenu: true,
       renderCell: (params) => {
         if (params.row.system) return null;
-        if (!can(PERMISSIONS.SYSTEM_ROLE.UPDATE) && !can(PERMISSIONS.SYSTEM_ROLE.DELETE)) return null;
         return (
           <Box sx={{ display: 'flex', gap: 0.5 }}>
+            {can(PERMISSIONS.SYSTEM_ROLE.UPDATE) && (
+              <Tooltip title="配置">
+                <IconButton size="small" onClick={() => router.push(`/system/role/${params.row.id}`)}><SettingsIcon /></IconButton>
+              </Tooltip>
+            )}
             {can(PERMISSIONS.SYSTEM_ROLE.UPDATE) && (
               <Tooltip title="编辑">
                 <IconButton size="small" onClick={() => handleEdit(params.row)}><EditIcon /></IconButton>

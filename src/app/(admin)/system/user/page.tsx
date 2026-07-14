@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -11,8 +11,16 @@ import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
+import Select from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
+import OutlinedInput from '@mui/material/OutlinedInput';
+import Checkbox from '@mui/material/Checkbox';
+import ListItemText from '@mui/material/ListItemText';
 import { DataGridTable } from '@/components/tables/DataGridTable';
-import { page, remove, save, update } from '@/apis/system-user';
+import { page as getUsers, remove, save, update } from '@/apis/system-user';
+import { page as getRoles } from '@/apis/system-role';
 import type { UserItem } from '@/beans/system';
 import type { GridColDef } from '@mui/x-data-grid';
 import AddIcon from '@mui/icons-material/Add';
@@ -125,7 +133,7 @@ export default function SystemUserPage() {
         title="用户管理"
         columns={columns}
         fetchData={async (params) => {
-          const res = await page(params);
+          const res = await getUsers(params);
           return {
             data: {
               records: res.data?.records || [],
@@ -196,7 +204,15 @@ interface OperationModalProps {
 }
 
 function OperationModal({ open, onClose, onSubmit, record, isSubmitting }: OperationModalProps) {
-  const [values, setValues] = useState<Record<string, string>>({});
+  const [values, setValues] = useState<Record<string, any>>({});
+  const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
+
+  // 获取角色列表
+  const { data: rolesData } = useQuery({
+    queryKey: ['system', 'role', 'all'],
+    queryFn: () => getRoles({ pageNumber: 1, pageSize: 100 }),
+    enabled: open,
+  });
 
   React.useEffect(() => {
     if (record) {
@@ -207,8 +223,16 @@ function OperationModal({ open, onClose, onSubmit, record, isSubmitting }: Opera
         email: record.email || '',
         info: record.info || '',
       });
+      // 如果记录有 roles 字段，解析角色ID
+      if (record.roles && typeof record.roles === 'string') {
+        // 假设 roles 格式为 "1,2,3" 或类似格式
+        setSelectedRoles(record.roles.split(',').map(Number).filter(Boolean));
+      } else if (Array.isArray(record.roles)) {
+        setSelectedRoles(record.roles);
+      }
     } else {
       setValues({});
+      setSelectedRoles([]);
     }
   }, [record]);
 
@@ -216,9 +240,16 @@ function OperationModal({ open, onClose, onSubmit, record, isSubmitting }: Opera
     setValues((v) => ({ ...v, [field]: e.target.value }));
   };
 
-  const handleSubmit = () => {
-    onSubmit(values);
+  const handleRoleChange = (event: any) => {
+    const value = event.target.value as number[];
+    setSelectedRoles(typeof value === 'number' ? [value] : value);
   };
+
+  const handleSubmit = () => {
+    onSubmit({ ...values, roleIds: selectedRoles });
+  };
+
+  const roles = rolesData?.data?.records || rolesData?.data?.list || [];
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -257,6 +288,28 @@ function OperationModal({ open, onClose, onSubmit, record, isSubmitting }: Opera
             multiline
             rows={3}
           />
+          <FormControl fullWidth>
+            <InputLabel id="roles-select-label">角色</InputLabel>
+            <Select
+              labelId="roles-select-label"
+              multiple
+              value={selectedRoles}
+              onChange={handleRoleChange}
+              input={<OutlinedInput label="角色" />}
+              renderValue={(selected) =>
+                (selected as number[])
+                  .map((id) => roles.find((r: any) => r.id === id)?.name || id)
+                  .join(', ')
+              }
+            >
+              {roles.map((role: any) => (
+                <MenuItem key={role.id} value={role.id}>
+                  <Checkbox checked={selectedRoles.includes(role.id)} />
+                  <ListItemText primary={role.name} secondary={role.code} />
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
         </Box>
       </DialogContent>
       <DialogActions>

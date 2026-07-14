@@ -55,3 +55,8 @@ export async function removeRole(ids?: number[]) {
 export async function roleAdd(params: Record<string, unknown>) {
   return adminClient('/user/roleAdd', { method: 'POST', data: params });
 }
+
+// 获取用户已有角色 - GET /user/:id/roles
+export async function getRoles(userId: number) {
+  return adminClient(`/user/${userId}/roles`, { method: 'GET' });
+}

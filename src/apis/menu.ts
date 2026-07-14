@@ -42,3 +42,8 @@ export async function remove(id: number) {
 export async function assign(id: number, menuIds: number[]) {
   return adminClient(`/menu/${id}/assign`, { method: 'POST', data: { menuIds } });
 }
+
+// 获取角色已有菜单 - GET /api/core/menu/{id}/role-menus
+export async function getMenus(roleId: number) {
+  return adminClient(`/menu/${roleId}/role-menus`, { method: 'GET' });
+}
