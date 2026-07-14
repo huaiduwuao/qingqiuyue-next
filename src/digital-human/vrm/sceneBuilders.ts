@@ -364,7 +364,10 @@ function buildLight(THREE_NS: typeof THREE, cfg: LightConfig): THREE.Light | nul
     }
     case 'spot': {
       const sl = new THREE_NS.SpotLight(color, cfg.intensity, cfg.distance || 0, cfg.angle || 0.5, cfg.penumbra || 0.5, cfg.decay || 1);
-      sl.position.copy(pos); sl.target.position.copy(target);
+      sl.position.copy(pos);
+      // 使用 lookAt 直接设置方向，避免依赖 target object 加入 scene
+      sl.target.position.copy(target);
+      sl.target.updateMatrixWorld();
       l = sl; break;
     }
     default: return null;

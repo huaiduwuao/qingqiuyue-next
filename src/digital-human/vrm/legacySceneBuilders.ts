@@ -168,28 +168,16 @@ export function buildConcert(THREE_NS: typeof THREE, sceneGroup: THREE.Group): S
   let particles: THREE.Points | undefined;
 
   sceneGroup.add(makeSkyDome(THREE_NS, 0x1a0a2e, 0x07060d));
-  const ambient = new THREE_NS.AmbientLight(0x9988cc, 0.7);
+  const ambient = new THREE_NS.AmbientLight(0x9988cc, 1.0);
   sceneGroup.add(ambient); lights.push(ambient);
-  const key = new THREE_NS.DirectionalLight(0xffffff, 1.8);
-  key.position.set(-2, 4, 4);
-  key.target.position.set(0, 0.9, 0);
-  key.castShadow = true;
-  key.shadow.mapSize.set(1024, 1024);
-  sceneGroup.add(key, key.target); lights.push(key);
-  const fill = new THREE_NS.DirectionalLight(0xfff0d8, 0.9);
-  fill.position.set(2, 2.5, 4);
-  sceneGroup.add(fill); lights.push(fill);
-  const hemi = new THREE_NS.HemisphereLight(0xa0a8ff, 0x2a1a3a, 0.5);
-  sceneGroup.add(hemi); lights.push(hemi);
+  // 移除了 directional / hemisphere / spot 复杂灯光，只保留环境光
 
+  // 保留灯光束效果（装饰用，不影响光照）
   const colors = [0xff4fd8, 0x4fd8ff, 0x9b6bff, 0xffb74f, 0x4fff9b, 0xff6b9b];
   const positions: [number, number, number][] = [
     [-3, 4.2, 1.5], [3, 4.2, 1.5], [-4, 4.5, -1], [4, 4.5, -1], [0, 5, 2.5], [0, 4.5, -2.5],
   ];
   positions.forEach((p, i) => {
-    const s = new THREE_NS.SpotLight(colors[i], 1.2, 14, Math.PI / 6, 0.6, 1.5);
-    s.position.set(p[0], p[1], p[2]); s.target.position.set(0, 0.9, 0);
-    sceneGroup.add(s, s.target); lights.push(s);
     const beam = makeLightBeam(THREE_NS, colors[i], 5, 0.7);
     beam.position.set(p[0] * 0.55, p[1] / 2, p[2] * 0.5);
     beam.lookAt(0, 0.9, 0);

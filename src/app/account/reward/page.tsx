@@ -24,6 +24,9 @@ import MenuIcon from '@mui/icons-material/Menu';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import ViewKanbanIcon from '@mui/icons-material/ViewKanban';
 import DashboardIcon from '@mui/icons-material/Dashboard';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import PeopleIcon from '@mui/icons-material/People';
+import DiamondIcon from '@mui/icons-material/Diamond';
 import { listGroups, type GroupInfo } from '@/apis/reward-group';
 
 const menuItems = [
@@ -35,6 +38,9 @@ const menuItems = [
   { key: '6', label: '意境管理', icon: <AutoAwesomeIcon sx={{ fontSize: 20 }} />, accent: 'success.main' },
   { key: '7', label: '团队管理', icon: <GroupsIcon sx={{ fontSize: 20 }} />, accent: '#F59E0B' },
   { key: '8', label: '协作看板', icon: <ViewKanbanIcon sx={{ fontSize: 20 }} />, accent: '#06B6D4' },
+  { key: '9', label: '每日任务', icon: <CheckCircleIcon sx={{ fontSize: 20 }} />, accent: 'success.main' },
+  { key: '10', label: '邀请奖励', icon: <PeopleIcon sx={{ fontSize: 20 }} />, accent: 'info.main' },
+  { key: '11', label: '会员福利', icon: <DiamondIcon sx={{ fontSize: 20 }} />, accent: 'warning.main' },
 ];
 
 const componentMap: Record<string, React.LazyExoticComponent<React.ComponentType<any>>> = {
@@ -46,6 +52,9 @@ const componentMap: Record<string, React.LazyExoticComponent<React.ComponentType
   '6': React.lazy(() => import('./_components/conception/page')),
   '7': React.lazy(() => import('./_components/group/page')),
   '8': React.lazy(() => import('./_components/taskboard/page')),
+  '9': React.lazy(() => import('./_components/daily-task/page')),
+  '10': React.lazy(() => import('./_components/invite/page')),
+  '11': React.lazy(() => import('./_components/monthly-benefit/page')),
 };
 
 // 已有对应子路由时走 router.push,否则保持原 tab 状态切换

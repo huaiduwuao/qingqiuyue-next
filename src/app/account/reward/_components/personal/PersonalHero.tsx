@@ -22,7 +22,7 @@ import ViewKanbanIcon from '@mui/icons-material/ViewKanban';
 import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import { userPointMe } from '@/apis/global';
+import { getWalletSummary } from '@/apis/reward-center';
 import { getMyStats, type MyStats } from '@/apis/dashboard';
 import { listGroups } from '@/apis/reward-group';
 import { listDemands } from '@/apis/reward-demand';
@@ -94,19 +94,16 @@ export default function PersonalHero({ groups }: Props) {
   const { currentUser } = useApp();
   const currentUserId = currentUser?.id ?? 0;
 
-  // 积分(赏金类型)
-  const pointQuery = useQuery({
-    queryKey: ['personal', 'point', 'me'],
-    queryFn: () => userPointMe({ type: 'reward' }).then((r: any) => r.data || {}),
-    placeholderData: {},
+  // 积分余额(统一使用 wallet 表)
+  const walletQuery = useQuery({
+    queryKey: ['personal', 'wallet-summary', currentUserId],
+    queryFn: () => getWalletSummary(),
+    enabled: !!currentUserId,
+    placeholderData: { balance: 0, totalIncome: 0, totalSpend: 0, todayReward: 0 },
   });
-  const myPoint: any = pointQuery.data || {};
-  const totalPoint = Number(myPoint.totalPoint || 0);
-  const level = Number(myPoint.level || 0);
-  const levelName = myPoint.levelName || '赏金新手';
-  const needPoint = Number(myPoint.needPoint || 0);
-  const progressTarget = totalPoint + needPoint;
-  const progressPercent = progressTarget > 0 ? (totalPoint / progressTarget) * 100 : 0;
+  const wallet = walletQuery.data || { balance: 0, totalIncome: 0, totalSpend: 0, todayReward: 0 };
+  const totalPoint = wallet.totalIncome; // 累计收入作为总积分
+  const currentBalance = wallet.balance; // 当前可用余额
 
   // 团队数:取 props.groups 长度(父组件已拉过,不重复请求)
   const groupsCount = groups.length;
@@ -187,7 +184,7 @@ export default function PersonalHero({ groups }: Props) {
             <Typography sx={{ fontSize: 18, fontWeight: 700, color: 'text.primary' }}>
               {currentUser?.nickname || currentUser?.name || '我'}
             </Typography>
-            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{levelName}</Typography>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>积分账户</Typography>
             <Box
               sx={{
                 px: 1,
@@ -200,14 +197,14 @@ export default function PersonalHero({ groups }: Props) {
                 fontFamily: 'monospace',
               }}
             >
-              Lv {level}
+              统一积分
             </Box>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
             <Box sx={{ flex: 1, maxWidth: 280 }}>
               <LinearProgress
                 variant="determinate"
-                value={progressPercent}
+                value={100}
                 sx={{
                   height: 5,
                   borderRadius: 3,
@@ -220,11 +217,11 @@ export default function PersonalHero({ groups }: Props) {
               />
             </Box>
             <Typography sx={{ fontSize: 10, color: 'text.secondary', fontFamily: 'monospace' }}>
-              {totalPoint.toLocaleString()} / {progressTarget.toLocaleString()}
+              可用 {currentBalance.toLocaleString()} / 累计 {totalPoint.toLocaleString()}
             </Typography>
           </Box>
           <Typography sx={{ fontSize: 10, color: 'text.secondary', mt: 0.5 }}>
-            距离 Lv {level + 1} 还需 <Box component="span" sx={{ color: 'primary.main', fontWeight: 600 }}>{needPoint.toLocaleString()}</Box> 灵气
+            今日收益 <Box component="span" sx={{ color: 'success.main', fontWeight: 600 }}>+{wallet.todayReward.toLocaleString()}</Box> 积分
           </Typography>
         </Box>
 

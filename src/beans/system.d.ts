@@ -169,6 +169,7 @@ export interface UserItem extends TableListItem {
   tags?: string;
   title?: string;
   nickname?: string;
+  roles?: string | number[]; // 角色ID列表,格式 "1,2,3" 或 [1,2,3]
 }
 
 export interface BotItem extends TableListItem {
