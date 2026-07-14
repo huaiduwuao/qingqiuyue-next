@@ -14,13 +14,14 @@
  */
 
 import React from 'react';
-import { Box, IconButton, TextField, Typography, CircularProgress, Drawer, List, ListItemButton, ListItemText, Divider, Button } from '@mui/material';
+import { Box, IconButton, TextField, Typography, CircularProgress, Drawer, List, ListItemButton, ListItemText, Divider, Button, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import MicRoundedIcon from '@mui/icons-material/MicRounded';
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import ForumRoundedIcon from '@mui/icons-material/ForumRounded';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
+import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import { useRouter } from 'next/navigation';
 import { alpha } from '@mui/material/styles';
 import { VrmStage, type VrmStageHandle } from './VrmStage';
@@ -31,9 +32,12 @@ import { useVoiceAgent } from '@/hooks/useVoiceAgent';
 import { VoiceIndicator, type VoiceIndicatorState } from '@/components/VoiceIndicator';
 import { useThemeMode } from '@/contexts/ThemeContext';
 import { logout } from '@/apis/user';
+import { useQuery } from '@tanstack/react-query';
 import VrmControlPanel from '@/components/digital-human/VrmControlPanel';
 import VrmEmotionChips from '@/components/digital-human/VrmEmotionChips';
 import VrmPoseChips from '@/components/digital-human/VrmPoseChips';
+import { listModels } from './api/digitalHumanConfig';
+import type { VrmModelConfig } from './vrm/config/types';
 import type { ScenePresetName, CameraPresetName, DanceStyle } from './vrm/types';
 
 // ── 调试：排查 runtime.lastError 来源 ──
@@ -123,6 +127,24 @@ export default function ImmersiveDigitalHuman() {
   // 诊断：监听 stageHandle 变化
   React.useEffect(() => { console.log('[Immersive] stageHandle 变化:', stageHandle); }, [stageHandle]);
   const [panelOpen, setPanelOpen] = React.useState(false);
+
+  // 模型选择
+  const modelsQuery = useQuery({
+    queryKey: ['dhc', 'models'],
+    queryFn: listModels,
+    staleTime: 5 * 60 * 1000,
+  });
+  const models: VrmModelConfig[] = modelsQuery.data ?? [];
+  const defaultModel = models.find((m) => m.isDefault) ?? models[0];
+  const [selectedModel, setSelectedModel] = React.useState<VrmModelConfig | null>(null);
+
+  // 初始化 selectedModel
+  React.useEffect(() => {
+    if (defaultModel && !selectedModel) {
+      setSelectedModel(defaultModel);
+    }
+  }, [defaultModel, selectedModel]);
+
   const [stageState, setStageState] = React.useState({
     dancing: false,
     danceStyle: 'groove' as DanceStyle,
@@ -256,7 +278,7 @@ export default function ImmersiveDigitalHuman() {
       {/* 全屏 VRM 角色（与浮窗同一个 character.vrm） — 用 VrmStage 替代 BlenderAvatar */}
       <VrmStage
         onReady={(h) => { console.log('[Immersive] onReady 被调用, h=', h); setStageHandle(h); }}
-        modelUrl="/avatars/character.vrm"
+        modelUrl={selectedModel?.url ?? '/avatars/character.vrm'}
         currentAction={action}
         emotion={emotion}
         viseme={viseme}
@@ -265,7 +287,7 @@ export default function ImmersiveDigitalHuman() {
         sx={{ position: 'absolute', inset: 0 }}
       />
 
-      {/* 顶部:退出按钮 + 会话列表切换 + 控制台切换 */}
+      {/* 顶部:退出按钮 + 模型选择 + 会话列表切换 + 控制台切换 */}
       <IconButton
         onClick={() => router.back()}
         size="medium"
@@ -283,6 +305,49 @@ export default function ImmersiveDigitalHuman() {
       >
         <CloseRoundedIcon />
       </IconButton>
+
+      {/* 模型选择器 */}
+      {models.length > 1 && (
+        <FormControl
+          size="small"
+          sx={{
+            position: 'absolute',
+            top: 12,
+            left: 60,
+            zIndex: 3,
+            minWidth: 120,
+            '& .MuiOutlinedInput-root': {
+              color: 'rgba(255,255,255,0.85)',
+              bgcolor: 'rgba(0,0,0,0.4)',
+              backdropFilter: 'blur(8px)',
+              '& fieldset': { borderColor: 'rgba(255,255,255,0.2)' },
+              '&:hover fieldset': { borderColor: 'rgba(255,255,255,0.4)' },
+              '&.Mui-focused fieldset': { borderColor: '#25F4EE' },
+            },
+            '& .MuiSelect-icon': { color: 'rgba(255,255,255,0.7)' },
+          }}
+        >
+          <Select
+            value={selectedModel?.id ?? ''}
+            onChange={(e) => {
+              const m = models.find((m) => m.id === e.target.value);
+              if (m) setSelectedModel(m);
+            }}
+            displayEmpty
+            startAdornment={
+              <PersonRoundedIcon sx={{ fontSize: 18, mr: 0.5, color: 'rgba(255,255,255,0.7)' }} />
+            }
+            sx={{ fontSize: 13 }}
+          >
+            {models.map((m) => (
+              <MenuItem key={m.id} value={m.id} sx={{ fontSize: 13 }}>
+                {m.name}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+      )}
+
       <IconButton
         onClick={() => setSessionDrawerOpen((o) => !o)}
         size="medium"
@@ -290,7 +355,7 @@ export default function ImmersiveDigitalHuman() {
         sx={{
           position: 'absolute',
           top: 12,
-          left: 60,
+          left: { xs: 60, sm: models.length > 1 ? 190 : 60 },
           zIndex: 3,
           color: sessionDrawerOpen ? '#25F4EE' : 'rgba(255,255,255,0.85)',
           bgcolor: sessionDrawerOpen ? 'rgba(37,244,238,0.15)' : 'rgba(0,0,0,0.4)',
