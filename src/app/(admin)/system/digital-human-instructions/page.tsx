@@ -117,8 +117,8 @@ export default function DigitalHumanInstructionsPage() {
   const isOpen = editing !== null || creating;
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Stack direction="row" sx={{ mb: 3, justifyContent: 'space-between', alignItems: 'center' }}>
+    <Box sx={{ p: 3, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <Stack direction="row" sx={{ mb: 3, justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
         <Box>
           <Typography variant="h5" sx={{ fontWeight: 700 }}>数字人指令维护</Typography>
           <Typography variant="body2" color="text.secondary">
@@ -139,10 +139,13 @@ export default function DigitalHumanInstructionsPage() {
           display: 'grid',
           gridTemplateColumns: { xs: '1fr', md: `${LIST_FRACTION} 1fr` },
           gap: 2,
+          flex: 1,
+          minHeight: 0,  // 允许 flex 子元素收缩
+          overflow: 'hidden',
         }}
       >
         {/* 左栏: 列表 */}
-        <Stack spacing={1.5}>
+        <Stack spacing={1.5} sx={{ overflow: 'auto', pr: 1, pb: 1 }}>
           {(listQuery.data || []).map((row) => (
             <Card key={row.agentId} variant="outlined"
               sx={{
@@ -191,15 +194,15 @@ export default function DigitalHumanInstructionsPage() {
         </Stack>
 
         {/* 右栏: 编辑面板 */}
-        <Card>
+        <Card sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
           {isOpen ? (
-            <Box>
+            <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'auto' }}>
               <Tabs value={tab} onChange={(_, v) => setTab(v)}>
                 <Tab label="提示词" />
                 <Tab label="表情预览" />
                 <Tab label="工具清单" />
               </Tabs>
-              <CardContent sx={{ p: 3 }}>
+              <CardContent sx={{ p: 3, flex: 1, minHeight: 0, overflow: 'auto' }}>
                 {tab === 0 && (
                   <Stack spacing={2}>
                     <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
@@ -222,13 +225,13 @@ export default function DigitalHumanInstructionsPage() {
                       onChange={(e) => setDraft({ ...draft, description: e.target.value })}
                     />
                     <TextField
-                      label="System Prompt (JSON / 纯文本)" multiline fullWidth minRows={20}
+                      label="System Prompt (JSON / 纯文本)" multiline fullWidth minRows={12} maxRows={20}
                       value={draft.prompt}
                       onChange={(e) => setDraft({ ...draft, prompt: e.target.value })}
                       sx={{ '& textarea': { fontFamily: 'ui-monospace, monospace', fontSize: 12.5 } }}
                       helperText="支持多行, 写完后点 [保存] — 保存即生效, LLM 会按这里的内容输出 tool_calls"
                     />
-                    <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end' }}>
+                    <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end', flexShrink: 0 }}>
                       <Button onClick={handleClose}>取消</Button>
                       <Button
                         variant="contained"
@@ -241,7 +244,7 @@ export default function DigitalHumanInstructionsPage() {
                   </Stack>
                 )}
                 {tab === 1 && (
-                  <Box>
+                  <Box sx={{ overflow: 'auto' }}>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                       把下面这些情绪写进 prompt 时, 数字人就会用对应表情。这里可以预览长什么样。
                     </Typography>
