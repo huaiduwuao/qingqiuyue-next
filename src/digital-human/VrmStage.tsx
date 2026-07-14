@@ -39,7 +39,7 @@ import { useVrmAnimation } from './vrm/useVrmAnimation';
 import { useVrmCamera } from './vrm/useVrmCamera';
 import { makeConfetti, updateConfetti } from './vrm/particles';
 import { createAudioHandle, type AudioHandle } from './vrm/audio';
-import { detectVrmVersion, setExpression, setExpressionDict, listAvailableExpressions } from './vrm/vrmCompat';
+import { detectVrmVersion, setExpression, setExpressionDict, listAvailableExpressions, getBone } from './vrm/vrmCompat';
 import { lookupAutoExpression } from './vrm/config/types';
 import type { ScenePresetName, CameraPresetName, DanceStyle, PoseName } from './vrm/types';
 
@@ -123,6 +123,8 @@ const EXPRESSION_PASSTHROUGH = new Set([
   'mouthDimpleLeft', 'mouthDimpleRight', 'mouthStretchLeft', 'mouthStretchRight',
   'mouthRollLower', 'mouthRollUpper', 'mouthShrugLower', 'mouthShrugUpper',
   'mouthPressLeft', 'mouthPressRight',
+  'mouthUpperUpLeft', 'mouthUpperUpRight', 'mouthLowerDownLeft', 'mouthLowerDownRight',
+  'mouthOpen',
   'noseSneerLeft', 'noseSneerRight',
   // VRM 1.0 预设表情
   'happy', 'angry', 'sad', 'relaxed', 'surprised', 'neutral',
@@ -132,6 +134,36 @@ const EXPRESSION_PASSTHROUGH = new Set([
   'viseme_sil', 'viseme_aa', 'viseme_E', 'viseme_I', 'viseme_O', 'viseme_U', 'viseme_ou', 'viseme_ih',
   'viseme_PP', 'viseme_FF', 'viseme_TH', 'viseme_DD', 'viseme_kk', 'viseme_CH', 'viseme_SS', 'viseme_nn', 'viseme_RR',
 ]);
+
+/**
+ * 设置自然姿态：让 VRM 模型从 T-pose 变为自然站立姿势
+ * VRM 模型默认是 T-pose，手臂水平外伸
+ * 大臂 rotation.z ≈ ±1.4 rad 让手臂垂到身体两侧
+ */
+function setNaturalPose(vrm: any) {
+  if (!vrm?.humanoid) return;
+  const lUpper = getBone(vrm.humanoid, 'leftUpperArm');
+  const rUpper = getBone(vrm.humanoid, 'rightUpperArm');
+  const lLower = getBone(vrm.humanoid, 'leftLowerArm');
+  const rLower = getBone(vrm.humanoid, 'rightLowerArm');
+  const lHand = getBone(vrm.humanoid, 'leftHand');
+  const rHand = getBone(vrm.humanoid, 'rightHand');
+  const lUpperLeg = getBone(vrm.humanoid, 'leftUpperLeg');
+  const rUpperLeg = getBone(vrm.humanoid, 'rightUpperLeg');
+
+  // 大臂往下垂 (rotation.z = -1.4 ≈ -80° 让手臂从水平外伸 → 垂到身体两侧)
+  if (lUpper) lUpper.rotation.z = -1.4;
+  if (rUpper) rUpper.rotation.z = 1.4;
+  // 小臂微弯 (手肘往前)
+  if (lLower) lLower.rotation.x = 0.3;
+  if (rLower) rLower.rotation.x = 0.3;
+  // 手自然下垂
+  if (lHand) lHand.rotation.x = 0.3;
+  if (rHand) rHand.rotation.x = 0.3;
+  // 腿直立微张
+  if (lUpperLeg) lUpperLeg.rotation.x = -0.1;
+  if (rUpperLeg) rUpperLeg.rotation.x = -0.1;
+}
 
 export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmStage(props, ref) {
   const {
@@ -174,11 +206,13 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   const expressionManagerRef = useRef<any>(null);
   const vrmRef = useRef<any>(null);
   const handleInternalRef = useRef<VrmStageHandle | null>(null);  // useImperativeHandle 工厂里同步存 handle
+  const vrmVersionRef = useRef<0 | 1>(1);  // VRM 0.0/1.0 — 0 用 joy/sorrow/fun/viseme_aa，1 用 happy/aa
 
   // Phase 3.2: 表情/口型/动作的 lerp 平滑过渡
   // emotionLerp / visemeLerp 用 ref 拿 em（vrm 异步加载后才就绪）
-  const emotionLerp = useExpressionLerp({ emRef: expressionManagerRef, speed: 6 });
-  const visemeLerp = useExpressionLerp({ emRef: expressionManagerRef, speed: 10 });
+  // 注意：vrmVersionRef 必须在 emotionLerp 之前定义
+  const emotionLerp = useExpressionLerp({ emRef: expressionManagerRef, vrmVersionRef, speed: 6 });
+  const visemeLerp = useExpressionLerp({ emRef: expressionManagerRef, vrmVersionRef, speed: 10 });
 
   // Phase 4: 统一动画状态机（auto-emotion/viseme 适配）
   const animStateRef = useRef<{ currentAction: string; currentPose: string }>({
@@ -198,7 +232,6 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   const [error, setError] = useState<string | null>(null);
   const [confettiOn, setConfettiOn] = useState(false);
   const confettiRef = useRef<any>(null);
-  const vrmVersionRef = useRef<0 | 1>(1);  // VRM 0.0/1.0 — 0 用 joy/sorrow/fun/viseme_aa，1 用 happy/aa
   // 角色位置（x, z，y 由 yOffset 控制）
   const positionRef = useRef({ x: 0, z: 0, prevX: 0, prevZ: 0 });
   const yOffsetRef = useRef(0);  // 手动 Y 偏移
@@ -301,6 +334,10 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         if (cached.vrm.lookAt) {
           cached.vrm.lookAt.target = lookAtCamera ? rendererState.camera : null;
         }
+        // 设置自然姿态：让手臂从 T-pose 自然下垂
+        // VRM 模型默认是 T-pose，手臂水平外伸
+        // 大臂 rotation.z ≈ ±1.4 rad 让手臂垂到身体两侧
+        setNaturalPose(cached.vrm);
         setLoading(false);
       } catch (e: any) {
         console.error('[VrmStage] load failed', e);
@@ -363,6 +400,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       }
       // 3. 把 chat 推过来的 emotion / viseme 喂给 lerp
       //    （不是直接 setValue —— 走 emotionLerp / visemeLerp 平滑）
+      //    注意：只有当 props.emotion 非空时才覆盖用户通过 handle.setEmotion 设置的值
       if (vrmDataRef.current?.expressionManager) {
         // 合并 emotion: chat emotion + 适配规则（autoEmotion）
         // 适配规则在 Phase 4.1 落地；目前先只用 chat
@@ -370,13 +408,18 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         for (const [k, v] of Object.entries(emotion)) {
           if (EXPRESSION_PASSTHROUGH.has(k)) emotionTarget[k] = v;
         }
+        // 只有当 chat emotion 有值时才更新 lerp target（避免覆盖用户手动设置的值）
+        if (Object.keys(emotionTarget).length > 0) {
+          emotionLerp.setTarget(emotionTarget);
+        }
         // 视口（viseme）直接走 chat
         const visemeTarget: Record<string, number> = {};
         for (const [k, v] of Object.entries(viseme)) {
           if (EXPRESSION_PASSTHROUGH.has(k)) visemeTarget[k] = v;
         }
-        emotionLerp.setTarget(emotionTarget);
-        visemeLerp.setTarget(visemeTarget);
+        if (Object.keys(visemeTarget).length > 0) {
+          visemeLerp.setTarget(visemeTarget);
+        }
         // 注意：emotionManager 是在 vrm 加载后才就绪的；
         // useExpressionLerp 用的是 ref 拿到的 em — 加载后会即时生效
         emotionLerp.tick(dt);
@@ -503,7 +546,6 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     return {
       setEmotion: (dict) => {
         if (!vrmDataRef.current?.expressionManager) { console.warn('[VrmStage.setEmotion] expressionManager 未就绪'); return; }
-        console.log('[VrmStage.setEmotion] ver=' + vrmVersionRef.current, dict);
         // Phase 3.2: 走 lerp，不再直接 setValue
         // （chat / 适配规则也走同一个 lerp 通道）
         const filtered: Record<string, number> = {};

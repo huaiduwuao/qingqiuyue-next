@@ -202,7 +202,7 @@ export default function RoleDetailPage() {
   const dataPermissions = dataPermsData?.data?.records || dataPermsData?.data?.list || [];
 
   return (
-    <Box>
+    <Box sx={{ overflow: 'auto', maxHeight: 'calc(100vh - 120px)' }}>
       {/* 顶部标题栏 */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
         <Button

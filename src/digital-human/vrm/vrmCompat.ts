@@ -15,6 +15,32 @@
 
 import type { VRMExpressionPresetName } from '@pixiv/three-vrm-core';
 
+/** ARKit 52 维 → VRM 1.0 预设表情的映射 */
+const ARKIT_TO_VRM1_PRESET: Record<string, string> = {
+  // 嘴型
+  mouthSmileLeft: 'happy',
+  mouthSmileRight: 'happy',
+  mouthOpen: 'surprised',  // 张嘴 ≈ 惊讶
+  mouthPucker: 'surprised', // 嘟嘴 ≈ 惊讶
+  // 眼型
+  eyeSquintLeft: 'happy',
+  eyeSquintRight: 'happy',
+  eyeWideLeft: 'surprised',
+  eyeWideRight: 'surprised',
+  eyeBlinkLeft: 'happy',
+  eyeBlinkRight: 'happy',
+  // 脸颊
+  cheekSquintLeft: 'happy',
+  cheekSquintRight: 'happy',
+  // 眉毛
+  browOuterUpLeft: 'happy',
+  browOuterUpRight: 'happy',
+  browDownLeft: 'angry',
+  browDownRight: 'angry',
+  // 其他
+  jawOpen: 'surprised',
+};
+
 /** ARKit 52 维 → VRM 0.0 预设/viseme 的映射（仅 0.0 缺时才需要映射） */
 const ARKIT_TO_VRM0: Record<string, string> = {
   // 表情
@@ -57,9 +83,13 @@ export function detectVrmVersion(vrm: any): 0 | 1 {
 /** 在 expressionManager 上 setValue，兼容 0.0/1.0 命名 */
 export function setExpression(em: any, name: string, value: number, version: 0 | 1): boolean {
   if (!em) return false;
-  // 1.0 直接用
+  // 1.0：先尝试直接设置 ARKit 名称（如果模型支持），再尝试映射到预设
   if (version === 1) {
     em.setValue(name, value);
+    // 如果直接设置失败，尝试映射到 VRM 1.0 预设
+    if (ARKIT_TO_VRM1_PRESET[name]) {
+      em.setValue(ARKIT_TO_VRM1_PRESET[name], value);
+    }
     return true;
   }
   // 0.0：先试原名（如 0.0 也定义了 52 维 ARKit 自定义通道），再映射

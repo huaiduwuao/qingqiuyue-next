@@ -179,12 +179,17 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
     // Ignore hipsPosY: world height is owned by the physics capsule to keep feet grounded.
   }
 
+  // Track last pose name for logging
+  let lastPoseName = '';
   function applyPose(cfg: PoseConfig, blend: number, H: (n: string) => any) {
     if (blend <= 0) return;
-    console.log('[applyPose]', cfg.name, 'blend=' + blend, 'bones:', Object.keys(cfg.boneRotations).join(','));
+    // Only log when pose name changes
+    if (lastPoseName !== cfg.name) {
+      console.log('[applyPose]', cfg.name, 'blend=' + blend.toFixed(2));
+      lastPoseName = cfg.name;
+    }
     for (const [boneName, rot] of Object.entries(cfg.boneRotations)) {
       const o = H(boneName);
-      console.log('[applyPose] bone:', boneName, 'found:', !!o, 'rotation:', !!o?.rotation);
       if (!o || !o.rotation) continue;
       o.rotation.x = o.rotation.x * (1 - blend) + rot[0] * blend;
       o.rotation.y = o.rotation.y * (1 - blend) + rot[1] * blend;
@@ -229,8 +234,7 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
     const H = (n: string) => getBone(vrm.humanoid, n);
     const sceneObj = vrm.scene;
 
-    // 1. 归位到自然姿势
-    resetBonesToNatural(H);
+    // 注意：不再每帧调用 resetBonesToNatural，否则会覆盖 pose 的骨骼值
 
     // 2. idle 基准（呼吸 + 微动）
     const idleCfg = lookups.actionByName.get('idle');
@@ -241,10 +245,8 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
     const currentPose = poseRef.current;
     const poseCfg = lookups.poseByName.get(currentPose);
     if (poseCfg) {
-      console.log('[tick] applying pose:', currentPose);
+      console.log('[tick] blend=', poseBlendRef.current.toFixed(3), 'pose=', currentPose);
       applyPose(poseCfg, poseBlendRef.current, H);
-    } else {
-      console.log('[tick] pose not found:', currentPose, 'available:', [...lookups.poseByName.keys()].join(','));
     }
 
     // 4. walk 步态
@@ -276,7 +278,7 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
     if (actionState) {
       const actionCfg = lookups.actionByName.get(actionState.name);
       if (actionCfg) {
-        const t = (performance.now() - actionState.startedMs) / 1000;
+        const t = (performance.now() - actionState.startedAtMs) / 1000;
         if (!actionCfg.loopable && actionCfg.duration > 0 && t > actionCfg.duration) {
           smRef.current.remove('action');
         } else {

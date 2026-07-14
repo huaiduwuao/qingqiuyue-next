@@ -20,12 +20,27 @@ import { useCallback, useRef } from 'react';
 export interface UseExpressionLerpOptions {
   /** expressionManager ref（从 vrmDataRef）—— 异步加载，render 时可能为 null */
   emRef: React.MutableRefObject<any>;
+  /** VRM 版本 ref（0 = VRM 0.0, 1 = VRM 1.0） */
+  vrmVersionRef?: React.MutableRefObject<0 | 1>;
   /** 过渡速度（1=慢, 8=快, 默认 6 = ~150ms 完成） */
   speed?: number;
 }
 
+// ARKit → VRM 1.0 预设的映射（用于 setExpression）
+const ARKIT_TO_VRM1: Record<string, string> = {
+  mouthSmileLeft: 'happy', mouthSmileRight: 'happy',
+  mouthOpen: 'surprised', mouthPucker: 'surprised',
+  eyeSquintLeft: 'happy', eyeSquintRight: 'happy',
+  eyeWideLeft: 'surprised', eyeWideRight: 'surprised',
+  eyeBlinkLeft: 'happy', eyeBlinkRight: 'happy',
+  cheekSquintLeft: 'happy', cheekSquintRight: 'happy',
+  browOuterUpLeft: 'happy', browOuterUpRight: 'happy',
+  browDownLeft: 'angry', browDownRight: 'angry',
+  jawOpen: 'surprised',
+};
+
 export function useExpressionLerp(opts: UseExpressionLerpOptions) {
-  const { emRef, speed = 6 } = opts;
+  const { emRef, vrmVersionRef, speed = 6 } = opts;
   const targetRef = useRef<Record<string, number>>({});
   const currentRef = useRef<Record<string, number>>({});
 
@@ -64,6 +79,7 @@ export function useExpressionLerp(opts: UseExpressionLerpOptions) {
   function tick(dt: number) {
     const em = emRef.current;
     if (!em) return;
+    const version = vrmVersionRef?.current ?? 1; // 默认 VRM 1.0
     const target = targetRef.current;
     const current = currentRef.current;
     const k = Math.min(1, speed * dt);
@@ -73,9 +89,20 @@ export function useExpressionLerp(opts: UseExpressionLerpOptions) {
       const next = Math.abs(tv - cv) < 0.001 ? tv : cv + (tv - cv) * k;
       current[kk] = next;
       if (Math.abs(next) > 0.001) {
-        em.setValue(kk, next);
+        // VRM 1.0：如果直接设置失败，尝试映射到预设
+        if (version === 1 && !(kk in (em._expressionMap || {}))) {
+          em.setValue(kk, next);
+          if (ARKIT_TO_VRM1[kk]) {
+            em.setValue(ARKIT_TO_VRM1[kk], next);
+          }
+        } else {
+          em.setValue(kk, next);
+        }
       } else if (kk in current && Math.abs(cv) > 0.001) {
         em.setValue(kk, 0);
+        if (version === 1 && ARKIT_TO_VRM1[kk]) {
+          em.setValue(ARKIT_TO_VRM1[kk], 0);
+        }
       }
     }
     for (const kk of Object.keys(current)) {
