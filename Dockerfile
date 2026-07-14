@@ -17,9 +17,6 @@ ARG NEXT_PUBLIC_USE_MOCK=0
 ENV NEXT_PUBLIC_USE_MOCK=$NEXT_PUBLIC_USE_MOCK
 ENV NEXT_PUBLIC_API_BASE_URL=""
 ENV NEXT_TELEMETRY_DISABLED=1
-# === 数字人指令存储模式 (Next.js API route 在构建时读取,必须在 build 前设置) ===
-ARG USE_EXTERNAL_DIGITAL_HUMAN_API=true
-ENV USE_EXTERNAL_DIGITAL_HUMAN_API=$USE_EXTERNAL_DIGITAL_HUMAN_API
 # 关键:next.config.ts 里 API_PROXY_TARGET 在 build 期被内联进 rewrites,
 # 必须在 build 时就有,否则 rewrite 目标会回退到默认 http://localhost:10000。
 # 默认值与 docker-compose.yml 里的同网络目标保持一致(可直接覆盖)。

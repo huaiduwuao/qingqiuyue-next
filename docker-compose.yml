@@ -10,11 +10,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        # === 数字人指令存储模式 (必须在 build 时传入,Next.js API route 构建时读取) ===
-        # false: 使用 Next.js 本地文件系统存储指令(默认,自托管)
-        # true: 透传到 Go 后端(需要 Go 后端实现 /api/realtime/digital-human/* 路由)
-        - USE_EXTERNAL_DIGITAL_HUMAN_API=true
     image: localhost/qingqiuyue/web:latest
     container_name: qingqiuyue-web
     restart: unless-stopped
@@ -45,6 +40,8 @@ services:
       - MAX_CONCURRENT_PIPELINES=${MAX_CONCURRENT_PIPELINES:-2}
       - AVATAR_JOB_TTL_MIN=${AVATAR_JOB_TTL_MIN:-30}
       - JWT_SECRET=${JWT_SECRET:-please-change-me-to-a-long-random-string}
+      # === 数字人 API (Go 后端数据库) ===
+      - DIGITAL_HUMAN_API_URL=http://apisix:9080
     networks:
       - backend
     volumes:
