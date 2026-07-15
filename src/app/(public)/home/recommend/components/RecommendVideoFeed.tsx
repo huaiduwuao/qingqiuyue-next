@@ -205,28 +205,28 @@ export function RecommendVideoFeed() {
   indexRef.current = index;
   const video = uniqueVideos[index];
 
-  // 合并完成后检查是否需要继续预加载
-  useEffect(() => {
-    const currentItems = allItems.length;
-    const remaining = currentItems - index;
-    // 如果合并后还在倒数第3条附近，且还有更多数据，则继续加载
-    if (remaining <= 3 && remaining > 0 && hasMore && !isFetchingMoreRef.current) {
-      isFetchingMoreRef.current = true;
-      setPage(p => p + 1);
-    }
-  }, [allItems.length, index, hasMore]);
-
   // 全屏布局：滑动时预加载下一页
   useEffect(() => {
     const currentItems = allItems.length;
     const remaining = currentItems - index;
-    const shouldTrigger = !alreadyTriggeredRef.current && !isFetchingMoreRef.current && hasMore && currentItems > 0 && remaining <= 3 && remaining > 0;
-    if (shouldTrigger) {
-      alreadyTriggeredRef.current = true;
+    // 只有在倒数第3条时才触发，且没有正在进行的请求
+    const shouldTrigger = remaining <= 3 && remaining > 0 && hasMore && !isFetching;
+    if (shouldTrigger && !isFetchingMoreRef.current) {
       isFetchingMoreRef.current = true;
       setPage(p => p + 1);
     }
-  }, [index, allItems.length, hasMore, page]);
+  }, [index, allItems.length, hasMore, isFetching]);
+
+  // 合并完成后检查是否需要继续预加载
+  useEffect(() => {
+    const currentItems = allItems.length;
+    const remaining = currentItems - index;
+    // 合并完成后，如果还在倒数第3条附近，且有更多数据，且没有正在进行的请求
+    if (remaining <= 3 && remaining > 0 && hasMore && !isFetching && !isFetchingMoreRef.current) {
+      isFetchingMoreRef.current = true;
+      setPage(p => p + 1);
+    }
+  }, [allItems.length, index, hasMore, isFetching]);
 
   const lockNav = useCallback((ms = 380) => {
     navLock.current = true;
