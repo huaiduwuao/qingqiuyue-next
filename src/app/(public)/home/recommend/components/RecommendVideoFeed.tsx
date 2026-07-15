@@ -110,7 +110,7 @@ export function RecommendVideoFeed() {
   const [moreDialogOpen, setMoreDialogOpen] = useState(false);
 
   // 分页状态
-  const PAGE_SIZE = 24;
+  const PAGE_SIZE = 10;
   const [page, setPage] = useState(1);
   const [allItems, setAllItems] = useState<VideoItem[]>([]);
   const [hasMore, setHasMore] = useState(true);
@@ -192,18 +192,24 @@ export function RecommendVideoFeed() {
   indexRef.current = index;
   const video = uniqueVideos[index];
 
-  // 无限滚动：当数据接近末尾时预加载下一页
+  // 全屏布局：滑动到倒数第3条时预加载下一页（只触发一次）
   useEffect(() => {
     const currentItems = allItems.length;
     const remaining = currentItems - index;
-    console.log('[RecommendVideoFeed] check: index=', index, 'items=', currentItems, 'remaining=', remaining, 'hasMore=', hasMore, 'fetching=', isFetchingMoreRef.current);
-    // 如果剩余少于5条且还有更多数据，则加载下一页
-    if (remaining <= 5 && hasMore && !isFetchingMoreRef.current) {
+    console.log('[RecommendVideoFeed] check trigger: index=', index, 'items=', currentItems, 'remaining=', remaining, 'hasMore=', hasMore, 'fetching=', isFetchingMoreRef.current);
+    // 已经触发过或正在加载，跳过
+    if (alreadyTriggeredRef.current || isFetchingMoreRef.current) return;
+    // 如果没有下一页，跳过
+    if (!hasMore || currentItems === 0) return;
+
+    // 只有正好剩余3条时才触发
+    if (remaining === 3) {
+      alreadyTriggeredRef.current = true;
       isFetchingMoreRef.current = true;
       console.log('[RecommendVideoFeed] TRIGGER: loading more, page:', page + 1);
       setPage(p => p + 1);
     }
-  }, [index, allItems.length, hasMore, page]);
+  }, [index, allItems.length, hasMore]);
 
   const lockNav = useCallback((ms = 380) => {
     navLock.current = true;
