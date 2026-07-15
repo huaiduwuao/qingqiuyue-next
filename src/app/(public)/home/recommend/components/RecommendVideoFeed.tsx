@@ -112,6 +112,7 @@ export function RecommendVideoFeed() {
 
   // 分页状态
   const PAGE_SIZE = 10;
+  const WINDOW_SIZE = 50; // 当前索引前后各保留 50 条
   const [page, setPage] = useState(1);
   const [allItems, setAllItems] = useState<VideoItem[]>([]);
   const [hasMore, setHasMore] = useState(true);
@@ -164,21 +165,29 @@ export function RecommendVideoFeed() {
     placeholderData: (prev) => prev, // loading 时保持旧数据，防止闪烁
   });
 
-  // 合并数据到 allItems
+  // 合并数据到 allItems，保留当前索引前后各 WINDOW_SIZE 条
   useEffect(() => {
     if (!feed) return;
     setAllItems(prev => {
-      if (page === 1) return feed.items;
-      // 去重追加
-      const existingIds = new Set(prev.map(v => v.idString || String(v.id)));
-      const newItems = feed.items.filter(v => !existingIds.has(v.idString || String(v.id)));
-      return [...prev, ...newItems];
+      let merged: VideoItem[];
+      if (page === 1) {
+        merged = feed.items;
+      } else {
+        // 去重追加
+        const existingIds = new Set(prev.map(v => v.idString || String(v.id)));
+        const newItems = feed.items.filter(v => !existingIds.has(v.idString || String(v.id)));
+        merged = [...prev, ...newItems];
+      }
+      // 裁剪：只保留当前索引前后各 WINDOW_SIZE 条
+      const keepStart = Math.max(0, index - WINDOW_SIZE);
+      const keepEnd = Math.min(merged.length, index + WINDOW_SIZE + 1);
+      return merged.slice(keepStart, keepEnd);
     });
     setHasMore(feed.hasMore);
     // 数据加载完成后重置触发标志，允许下次触发
     isFetchingMoreRef.current = false;
     alreadyTriggeredRef.current = false;
-  }, [feed, page]);
+  }, [feed, page, index]);
 
   const uniqueVideos = allItems;
 
