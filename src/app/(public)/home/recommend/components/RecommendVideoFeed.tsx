@@ -37,7 +37,6 @@ import MicNoneRoundedIcon from '@mui/icons-material/MicNoneRounded';
 import QueueMusicRoundedIcon from '@mui/icons-material/QueueMusicRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { fetchRecommend } from '@/apis/home-discover';
-import { useScrollToBottom } from '@/hooks/useInfiniteScroll';
 import { sendComment, moduleContentAction } from '@/apis/home';
 import { reportContent, collectContent } from '@/apis/global';
 import { homeClient } from '@/lib/api/client';
@@ -193,37 +192,18 @@ export function RecommendVideoFeed() {
   indexRef.current = index;
   const video = uniqueVideos[index];
 
-  // 无限滚动翻页
-  const scroll = useScrollToBottom({
-    enabled: !isLoading && hasMore && allItems.length > 0,
-  });
-
-  // 滚动到底部时加载更多
-  useEffect(() => {
-    if (scroll.isNearBottom && hasMore && !isFetchingMoreRef.current) {
-      isFetchingMoreRef.current = true;
-      setPage(p => p + 1);
-    }
-  }, [scroll.isNearBottom, hasMore]);
-
-  // 全屏布局：滑动到倒数第3条时预加载下一页（只触发一次）
+  // 无限滚动：当数据接近末尾时预加载下一页
   useEffect(() => {
     const currentItems = allItems.length;
     const remaining = currentItems - index;
-    console.log('[RecommendVideoFeed] check trigger: index=', index, 'items=', currentItems, 'remaining=', remaining, 'hasMore=', hasMore, 'fetching=', isFetchingMoreRef.current);
-    // 已经触发过或正在加载，跳过
-    if (alreadyTriggeredRef.current || isFetchingMoreRef.current) return;
-    // 如果没有下一页，跳过
-    if (!hasMore || currentItems === 0) return;
-
-    // 只有正好剩余3条时才触发
-    if (remaining === 3) {
-      alreadyTriggeredRef.current = true;
+    console.log('[RecommendVideoFeed] check: index=', index, 'items=', currentItems, 'remaining=', remaining, 'hasMore=', hasMore, 'fetching=', isFetchingMoreRef.current);
+    // 如果剩余少于5条且还有更多数据，则加载下一页
+    if (remaining <= 5 && hasMore && !isFetchingMoreRef.current) {
       isFetchingMoreRef.current = true;
       console.log('[RecommendVideoFeed] TRIGGER: loading more, page:', page + 1);
       setPage(p => p + 1);
     }
-  }, [index, allItems.length, hasMore]);
+  }, [index, allItems.length, hasMore, page]);
 
   const lockNav = useCallback((ms = 380) => {
     navLock.current = true;
