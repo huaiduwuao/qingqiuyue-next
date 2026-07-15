@@ -115,18 +115,8 @@ export function RecommendVideoFeed() {
   const [allItems, setAllItems] = useState<VideoItem[]>([]);
   const [hasMore, setHasMore] = useState(true);
 
-  // 防重复触发 refs（必须在组件顶层，useEffect 之前）
+  // 防重复触发 refs
   const isFetchingMoreRef = useRef(false);
-  const alreadyTriggeredRef = useRef(false); // 标记本轮是否已触发过
-
-  // 分类变化时重置
-  useEffect(() => {
-    setPage(1);
-    setAllItems([]);
-    setHasMore(true);
-    alreadyTriggeredRef.current = false;
-    isFetchingMoreRef.current = false;
-  }, [page]);
 
   // 用于追踪当前请求的 page（避免闭包问题）
   const pageRef = useRef(page);
@@ -191,7 +181,6 @@ export function RecommendVideoFeed() {
     setHasMore(feed.hasMore);
     // 数据加载完成后重置触发标志
     isFetchingMoreRef.current = false;
-    alreadyTriggeredRef.current = false;
   }, [feed]);
 
   const uniqueVideos = allItems;
