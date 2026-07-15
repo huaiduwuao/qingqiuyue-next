@@ -37,6 +37,7 @@ import MicNoneRoundedIcon from '@mui/icons-material/MicNoneRounded';
 import QueueMusicRoundedIcon from '@mui/icons-material/QueueMusicRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { fetchRecommend } from '@/apis/home-discover';
+import { useScrollToBottom } from '@/hooks/useInfiniteScroll';
 import { sendComment, moduleContentAction } from '@/apis/home';
 import { reportContent, collectContent } from '@/apis/global';
 import { homeClient } from '@/lib/api/client';
@@ -189,6 +190,19 @@ export function RecommendVideoFeed() {
   const indexRef = useRef(0);
   indexRef.current = index;
   const video = uniqueVideos[index];
+
+  // 无限滚动翻页
+  const scroll = useScrollToBottom({
+    enabled: !isLoading && hasMore && allItems.length > 0,
+  });
+
+  // 滚动到底部时加载更多
+  useEffect(() => {
+    if (scroll.isNearBottom && hasMore && !isFetchingMoreRef.current) {
+      isFetchingMoreRef.current = true;
+      setPage(p => p + 1);
+    }
+  }, [scroll.isNearBottom, hasMore]);
 
   // 全屏布局：滑动到倒数第3条时预加载下一页（只触发一次）
   useEffect(() => {
