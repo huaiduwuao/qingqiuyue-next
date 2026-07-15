@@ -116,9 +116,18 @@ export default function HermesChatPage() {
     }
   }, [initMessages]);
 
-  // 自动滚到底部
-  useEffect(() => {
+  // 自动滚动:只在有追加消息时触发,用户手动滚动时避免打断
+  const scrollRef = useRef(false);
+  const handleScroll = useCallback(() => {
     if (listRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = listRef.current;
+      const atBottom = scrollHeight - scrollTop - clientHeight < 80;
+      scrollRef.current = atBottom;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (scrollRef.current && listRef.current) {
       listRef.current.scrollTop = listRef.current.scrollHeight;
     }
   }, [messages]);
@@ -140,6 +149,13 @@ export default function HermesChatPage() {
         setMessages((cur) => [...cur, { role: 'assistant', content: reply }]);
       }
       qc.invalidateQueries({ queryKey: ['hermes', 'history', id] });
+    },
+    onError: (err: Error) => {
+      // 失败时追加错误消息提示
+      setMessages((cur) => [
+        ...cur,
+        { role: 'assistant', content: `请求失败: ${err.message}` },
+      ]);
     },
   });
 
@@ -239,6 +255,7 @@ export default function HermesChatPage() {
 
         <Paper
           ref={listRef as any}
+          onScroll={handleScroll}
           sx={{
             flex: 1,
             minHeight: 360,

@@ -45,12 +45,18 @@ export function isBusinessError(error: unknown): boolean {
  * 将后端返回的各种字段命名统一为标准格式
  */
 function normalizePaginationPayload(payload: Record<string, any>): void {
-  // 数据列表归一：优先使用 list，兼容 records
+  // 数据列表归一：优先使用 list，兼容 records/items
   if ('list' in payload && !('records' in payload)) {
     payload.records = payload.list;
   }
+  if ('list' in payload && !('items' in payload)) {
+    payload.items = payload.list;
+  }
   if ('records' in payload && !('list' in payload)) {
     payload.list = payload.records;
+  }
+  if ('records' in payload && !('items' in payload)) {
+    payload.items = payload.records;
   }
 
   // 总数归一：优先使用 total，兼容 totalRow

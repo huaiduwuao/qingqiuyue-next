@@ -164,11 +164,17 @@ export function RecommendVideoFeed() {
   const [allItems, setAllItems] = useState<VideoItem[]>([]);
   const [hasMore, setHasMore] = useState(true);
 
+  // 防重复触发 refs（必须在组件顶层，useEffect 之前）
+  const isFetchingMoreRef = useRef(false);
+  const alreadyTriggeredRef = useRef(false); // 标记本轮是否已触发过
+
   // 分类变化时重置
   useEffect(() => {
     setPage(1);
     setAllItems([]);
     setHasMore(true);
+    alreadyTriggeredRef.current = false;
+    isFetchingMoreRef.current = false;
   }, [selectedCategory, selectedSubcategory]);
 
   const { data: feed, isLoading } = useQuery({
@@ -204,9 +210,10 @@ export function RecommendVideoFeed() {
       const hasMore = resp?.data?.hasMore ?? false;
       return { items, total, hasMore };
     },
+    placeholderData: (prev) => prev, // loading 时保持旧数据，防止闪烁
   });
 
-  // 合并数据到 allItems
+  // 合并数据到 allItems（限制最多100条）
   useEffect(() => {
     if (!feed) return;
     setAllItems(prev => {
@@ -214,17 +221,18 @@ export function RecommendVideoFeed() {
       // 去重追加
       const existingIds = new Set(prev.map(v => v.idString || String(v.id)));
       const newItems = feed.items.filter(v => !existingIds.has(v.idString || String(v.id)));
-      return [...prev, ...newItems];
+      const combined = [...prev, ...newItems];
+      // 只保留最近的100条
+      return combined.slice(-100);
     });
     setHasMore(feed.hasMore);
+    // 数据加载完成后重置触发标志，允许下次触发
+    isFetchingMoreRef.current = false;
+    alreadyTriggeredRef.current = false;
   }, [feed, page]);
 
   const uniqueVideos = allItems;
   const feedHasMore = hasMore;
-
-  // 防重复触发 refs（必须在组件顶层，不能在 useEffect 内）
-  const pendingRef = useRef(false);
-  const alreadyTriggeredRef = useRef(false); // 标记本轮是否已触发过
 
   // 视频导航状态
   const [index, setIndex] = useState(0);
@@ -237,27 +245,22 @@ export function RecommendVideoFeed() {
 
   // 全屏布局：滑动到倒数第3条时预加载下一页（只触发一次）
   useEffect(() => {
-    // 已经触发过，跳过
-    if (alreadyTriggeredRef.current) return;
-    // 如果已经在等待中或没有下一页，跳过
-    if (pendingRef.current || !hasMore || uniqueVideos.length === 0) return;
+    const currentItems = allItems.length;
+    const remaining = currentItems - index;
+    console.log('[RecommendVideoFeed] check trigger: index=', index, 'items=', currentItems, 'remaining=', remaining, 'hasMore=', hasMore, 'fetching=', isFetchingMoreRef.current);
+    // 已经触发过或正在加载，跳过
+    if (alreadyTriggeredRef.current || isFetchingMoreRef.current) return;
+    // 如果没有下一页，跳过
+    if (!hasMore || currentItems === 0) return;
 
-    const remaining = uniqueVideos.length - index;
     // 只有正好剩余3条时才触发
     if (remaining === 3) {
       alreadyTriggeredRef.current = true;
-      pendingRef.current = true;
-      console.log('[RecommendVideoFeed] Near end, loading more, page:', page + 1);
+      isFetchingMoreRef.current = true;
+      console.log('[RecommendVideoFeed] TRIGGER: loading more, page:', page + 1);
       setPage(p => p + 1);
     }
-  }, [index, uniqueVideos.length, hasMore]);
-
-  // 数据返回后重置
-  useEffect(() => {
-    if (feed) {
-      pendingRef.current = false;
-    }
-  }, [feed]);
+  }, [index, allItems.length, hasMore]);
 
   // 分类变化时重置触发标志
   useEffect(() => {
