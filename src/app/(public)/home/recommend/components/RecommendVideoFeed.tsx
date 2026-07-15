@@ -156,8 +156,12 @@ export function RecommendVideoFeed() {
     if (!feed) return;
 
     // 跳过已处理的数据
-    if (page <= processedPageRef.current) return;
+    if (page <= processedPageRef.current) {
+      console.log('[VideoFeed] skip merge: page=', page, 'processed=', processedPageRef.current);
+      return;
+    }
 
+    console.log('[VideoFeed] MERGE page:', page, 'items:', feed.items.length);
     processedPageRef.current = page;
 
     setAllItems(prev => {
@@ -196,13 +200,11 @@ export function RecommendVideoFeed() {
 
   // 全屏布局：滑动时预加载下一页
   useEffect(() => {
-    // 只有在没有正在进行的请求时才触发
-    if (isFetching) return;
-
     const currentItems = allItems.length;
     const remaining = currentItems - index;
-    // 只有在倒数第3条时才触发
-    if (remaining <= 3 && remaining > 0 && hasMore) {
+    console.log('[VideoFeed] check: idx=', index, 'items=', currentItems, 'rem=', remaining, 'hasMore=', hasMore, 'fetching=', isFetching, 'page=', page);
+    if (remaining <= 3 && remaining > 0 && hasMore && !isFetching) {
+      console.log('[VideoFeed] TRIGGER next page');
       setPage(p => p + 1);
     }
   }, [index, allItems.length, hasMore, isFetching]);
