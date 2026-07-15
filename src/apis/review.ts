@@ -1,4 +1,6 @@
 import { adminClient } from '@/lib/api/client';
+import type { PageParams, PageResult } from '@/beans/pagination';
+import { normalizeLegacyPageResponse } from '@/hooks/usePagination';
 
 // 审核请求结构
 export interface ReviewRequest {
@@ -53,14 +55,12 @@ export async function submitReview(params: {
 }
 
 // 获取待审队列
-export async function getReviewQueue(params: {
-  page?: number;
-  pageSize?: number;
+export async function getReviewQueue(params?: PageParams & {
   status?: string;
   contentType?: string;
-}): Promise<{ records: ReviewRequest[]; totalRow: number; page: number; pageSize: number }> {
+}): Promise<PageResult<ReviewRequest>> {
   const res = await adminClient('/review/queue', { params });
-  return res?.data ?? res;
+  return normalizeLegacyPageResponse((res as any)?.data ?? res);
 }
 
 // 审核内容
@@ -83,12 +83,9 @@ export async function doReview(params: {
 }
 
 // 获取我的审核记录
-export async function getMyReviews(params: {
-  page?: number;
-  pageSize?: number;
-}): Promise<{ records: ReviewRequest[]; totalRow: number; page: number; pageSize: number }> {
+export async function getMyReviews(params?: PageParams): Promise<PageResult<ReviewRequest>> {
   const res = await adminClient('/review/my', { params });
-  return res?.data ?? res;
+  return normalizeLegacyPageResponse((res as any)?.data ?? res);
 }
 
 // 获取审核统计

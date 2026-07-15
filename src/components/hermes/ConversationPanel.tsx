@@ -111,10 +111,10 @@ export default function ConversationPanel() {
           });
           return {
             data: {
-              records: res.data?.records || [],
-              totalRow: res.data?.totalRow || 0,
+              records: res.list || [],
+              totalRow: res.total || 0,
             },
-            success: res.success ?? true,
+            success: true,
           };
         }}
         onDelete={handleDelete}

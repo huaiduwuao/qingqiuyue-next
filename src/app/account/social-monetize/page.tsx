@@ -158,7 +158,7 @@ function TipsTab() {
         <Box sx={{ textAlign: 'center', py: 4 }}>加载中...</Box>
       ) : (
         <Stack spacing={1}>
-          {data?.records?.map((tip: Tip) => (
+          {data?.list?.map((tip: Tip) => (
             <Box
               key={tip.id}
               sx={{
@@ -198,7 +198,7 @@ function TipsTab() {
               </Typography>
             </Box>
           ))}
-          {(!data?.records || data.records.length === 0) && (
+          {(!data?.list || data.list.length === 0) && (
             <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
               暂无打赏记录
             </Box>
@@ -245,7 +245,7 @@ function EarningsHistoryTab() {
         <Box sx={{ textAlign: 'center', py: 4 }}>加载中...</Box>
       ) : (
         <Stack spacing={1}>
-          {data?.records?.map((e: Earning) => (
+          {data?.list?.map((e: Earning) => (
             <Box
               key={e.id}
               sx={{
@@ -285,7 +285,7 @@ function EarningsHistoryTab() {
               />
             </Box>
           ))}
-          {(!data?.records || data.records.length === 0) && (
+          {(!data?.list || data.list.length === 0) && (
             <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
               暂无收益记录
             </Box>
@@ -317,7 +317,7 @@ function PaidContentsTab() {
         <Box sx={{ textAlign: 'center', py: 4 }}>加载中...</Box>
       ) : (
         <Stack spacing={1}>
-          {data?.records?.map((content: PaidContent) => (
+          {data?.list?.map((content: PaidContent) => (
             <Box
               key={content.id}
               sx={{
@@ -351,7 +351,7 @@ function PaidContentsTab() {
               />
             </Box>
           ))}
-          {(!data?.records || data.records.length === 0) && (
+          {(!data?.list || data.list.length === 0) && (
             <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
               暂无付费内容
             </Box>
@@ -378,7 +378,7 @@ function PurchasesTab() {
         <Box sx={{ textAlign: 'center', py: 4 }}>加载中...</Box>
       ) : (
         <Stack spacing={1}>
-          {data?.records?.map((p: Purchase) => (
+          {data?.list?.map((p: Purchase) => (
             <Box
               key={p.id}
               sx={{
@@ -416,7 +416,7 @@ function PurchasesTab() {
               </Typography>
             </Box>
           ))}
-          {(!data?.records || data.records.length === 0) && (
+          {(!data?.list || data.list.length === 0) && (
             <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
               暂无购买记录
             </Box>

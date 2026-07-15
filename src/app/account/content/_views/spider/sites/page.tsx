@@ -175,7 +175,7 @@ export default function SpiderSitesPage() {
           try {
             const [listRes, statsRes] = await Promise.all([listSiteSlots(), getSiteSlotStats()]);
             setStats(statsRes.data);
-            const rows = listRes.data?.list || [];
+            const rows = listRes.list || [];
             return { data: { records: rows, totalRow: rows.length }, success: true };
           } catch (err: any) {
             showMessage(err.message || '获取数据失败', 'error');

@@ -166,7 +166,7 @@ export default function SpiderProxiesPage() {
               const statsRes = await getProxyStats();
               setStats(statsRes.data);
               return {
-                data: { records: res.data?.list || [], totalRow: res.data?.total || 0 },
+                data: { records: res.list || [], totalRow: res.total || 0 },
                 success: true,
               };
             } catch (err: any) {

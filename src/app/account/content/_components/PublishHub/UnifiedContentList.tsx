@@ -81,7 +81,7 @@ export default function UnifiedContentList({ selectedType, onSelectItem }: Props
         const res = await myPage(
         wantBackendType ? { contentType: wantBackendType.toUpperCase(), pageSize: 50 } : { pageSize: 50 },
       );
-      return (res.data?.records ?? []) as ModuleContentItem[];
+      return (res.list ?? []) as ModuleContentItem[];
     },
     enabled,
     staleTime: 30_000,

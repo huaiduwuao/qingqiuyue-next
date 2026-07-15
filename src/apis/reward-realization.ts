@@ -1,4 +1,5 @@
 import { rewardClient } from '@/lib/api/client';
+import type { PageParams } from '@/beans/pagination';
 
 // 实现信息
 export interface RealizationInfo {
@@ -10,11 +11,8 @@ export interface RealizationInfo {
   createTime?: string;
 }
 
-// 实现查询参数
-export interface RealizationQuery {
-  page?: number;
-  pageSize?: number;
-  pageNumber?: number;
+// 实现查询参数（扩展统一分页类型）
+export interface RealizationQuery extends PageParams {
   demandId?: number;
   userId?: number;
   groupId?: number;

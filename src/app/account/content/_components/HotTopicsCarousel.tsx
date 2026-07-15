@@ -35,12 +35,12 @@ export default function HotTopicsCarousel() {
 
   const query = useQuery({
     queryKey: ['creator-hot-topics'],
-    queryFn: () => getCreatorHotTopics({ limit: 10 }),
+    queryFn: () => getCreatorHotTopics({ pageSize: 10 }),
     staleTime: 60 * 1000,
     refetchOnMount: 'always',
   });
 
-  const topics = ((query.data?.records ?? query.data?.list ?? []) as HotTopic[]);
+  const topics = ((query.data?.list ?? []) as HotTopic[]);
 
   const scroll = (dir: 1 | -1) => {
     if (!scrollRef.current) return;

@@ -16,6 +16,7 @@ import { CoverImage } from '@/components/common/CoverImage';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT, gradient2 } from '@/constants/gradients';
 import { useScrollToBottom } from '@/hooks/useInfiniteScroll';
+import Masonry from 'react-masonry-css';
 
 type DramaSeries = {
   id: number;
@@ -273,11 +274,15 @@ export function DramaPanel() {
       >
         {(data) => (
           <Box>
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 1.5 }}>
+            <Masonry
+              breakpointCols={{ default: 6, 1400: 5, 1100: 4, 800: 3, 600: 2, 400: 1 }}
+              className="my-masonry-grid"
+              columnClassName="my-masonry-grid_column"
+            >
               {dramaList.map((s) => (
                 <DramaCard key={s.id} item={s} />
               ))}
-            </Box>
+            </Masonry>
 
             {/* 滚动触发器 */}
             <Box ref={scroll.sentinelRef} sx={{ height: 1 }} />

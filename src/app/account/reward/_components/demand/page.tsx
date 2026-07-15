@@ -99,7 +99,7 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
 
   const query = useQuery({
     queryKey: ['reward-demand', tab, page, groupId, keyword],
-    queryFn: () => myPage({ pageNumber: page, pageSize, groupId, status: tab || undefined, keyword }).then((r) => ({
+    queryFn: () => myPage({ page, pageSize, groupId, status: tab || undefined, keyword }).then((r) => ({
       records: r.data?.records || [],
       totalRow: r.data?.totalRow || 0,
     })),

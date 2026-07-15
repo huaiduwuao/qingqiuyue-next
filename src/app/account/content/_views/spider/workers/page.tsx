@@ -108,12 +108,12 @@ export default function SpiderWorkersPage() {
         columns={columns}
         fetchData={async (params) => {
           try {
-            const res = await listWorkers({ ...params, pageNumber: params.pageNumber });
+            const res = await listWorkers({ page: params.pageNumber, pageSize: params.pageSize });
             const statsRes = await getWorkerStats();
             setStats(statsRes.data);
             return {
-              data: { records: res.data?.records || [], totalRow: res.data?.totalRow || 0 },
-              success: res.data?.success ?? true,
+              data: { records: res.list || [], totalRow: res.total || 0 },
+              success: true,
             };
           } catch (err: any) {
             showMessage(err.message || '获取数据失败', 'error');

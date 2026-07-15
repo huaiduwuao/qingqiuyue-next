@@ -1,4 +1,5 @@
 import { rewardClient } from '@/lib/api/client';
+import type { PageParams } from '@/beans/pagination';
 
 // 分组用户信息
 export interface GroupUserInfo {
@@ -9,10 +10,8 @@ export interface GroupUserInfo {
   createTime?: string;
 }
 
-// 分组用户查询参数
-export interface GroupUserQuery {
-  page?: number;
-  pageSize?: number;
+// 分组用户查询参数（扩展统一分页类型）
+export interface GroupUserQuery extends PageParams {
   userId?: number;
   groupId?: number;
   status?: string;

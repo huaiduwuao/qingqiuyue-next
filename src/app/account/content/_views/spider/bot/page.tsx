@@ -102,8 +102,8 @@ export default function BotManagementPage() {
         keyword: search || undefined,
         status: statusFilter || undefined,
       });
-      setBots(res?.data?.records || []);
-      setTotal(res?.data?.totalRow || 0);
+      setBots(res?.list || []);
+      setTotal(res?.total || 0);
     } catch (err) {
       console.error('Load bots failed:', err);
     } finally {

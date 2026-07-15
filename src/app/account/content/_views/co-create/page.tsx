@@ -111,28 +111,28 @@ export default function CoCreatePage() {
   // 真实 API
   const collabsQuery = useQuery({
     queryKey: ['co-create-collabs'],
-    queryFn: () => getCoCreateCollabs().then((r) => r.records || r.list || []),
+    queryFn: () => getCoCreateCollabs().then((r) => r.list || []),
     placeholderData: [],
   });
   const collabs: Collaboration[] = collabsQuery.data ?? [];
 
   const incomingQuery = useQuery({
     queryKey: ['co-create-invites', 'incoming'],
-    queryFn: () => getCoCreateInvites('incoming').then((r) => r.records || r.list || []),
+    queryFn: () => getCoCreateInvites('incoming').then((r) => r.list || []),
     placeholderData: [],
   });
   const incoming: Invite[] = incomingQuery.data ?? [];
 
   const outgoingQuery = useQuery({
     queryKey: ['co-create-invites', 'outgoing'],
-    queryFn: () => getCoCreateInvites('outgoing').then((r) => r.records || r.list || []),
+    queryFn: () => getCoCreateInvites('outgoing').then((r) => r.list || []),
     placeholderData: [],
   });
   const outgoing: Invite[] = outgoingQuery.data ?? [];
 
   const recQuery = useQuery({
     queryKey: ['co-create-recommend', keyword],
-    queryFn: () => getRecommendedCoCreatePartners({ keyword: keyword || undefined }).then((r) => r.records || r.list || []),
+    queryFn: () => getRecommendedCoCreatePartners({ keyword: keyword || undefined }).then((r) => r.list || []),
     placeholderData: [],
   });
   const recommended: Partner[] = recQuery.data ?? [];

@@ -1,24 +1,15 @@
 import { adminClient } from '@/lib/api/client';
+import { PageParams } from '@/beans/pagination';
 
-export interface RoleListParams {
-  page?: number;
-  pageSize?: number;
-  pageNumber?: number;
+export interface RoleListParams extends PageParams {
   name?: string;
   code?: string;
   status?: number;
 }
 
-// 后端分页响应 { list, total } 归一成 UI 期望的 { records, totalRow }
-function normalizePage(res: any) {
-  const d = res?.data ?? {};
-  return { ...res, data: { records: d.records ?? d.list ?? [], totalRow: d.totalRow ?? d.total ?? 0 } };
-}
-
-// 角色分页 -> 后端 GET /role/list
+// 角色分页 -> 后端 GET /role/list (client.ts 已自动归一化分页响应)
 export async function page(params: RoleListParams) {
-  const res = await adminClient('/role/list', { params });
-  return normalizePage(res);
+  return adminClient('/role/list', { params });
 }
 
 // ⚠️ 以下细粒度赋权端点(listMenu/listPermission/suggest*/menuChange/userAdd 及对应 ...Remove)

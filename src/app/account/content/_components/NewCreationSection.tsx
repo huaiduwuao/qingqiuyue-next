@@ -234,11 +234,11 @@ export default function NewCreationSection() {
   const qc = useQueryClient();
   const { data: wipResp } = useQuery({
     queryKey: ['creator-wip'],
-    queryFn: () => getCreatorWipList({ page: 1, size: 50 }),
+    queryFn: () => getCreatorWipList({ page: 1, pageSize: 50 }),
     staleTime: 30 * 1000,
     refetchOnMount: 'always',
   });
-  const wip: WipItem[] = (wipResp?.records ?? wipResp?.list ?? []).map((w) => ({
+  const wip: WipItem[] = (wipResp?.list ?? []).map((w: any) => ({
     id: w.id,
     kind: w.stage === 'draft' ? 'draft' : w.stage === 'transcoding' || w.stage === 'reviewing' ? 'uploading' : 'scheduled',
     type: (w.type as WipItem['type']) ?? 'video',

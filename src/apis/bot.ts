@@ -1,28 +1,16 @@
 import { adminClient } from '@/lib/api/client';
+import type { PageParams, PageResult } from '@/beans/pagination';
+import { normalizeLegacyPageResponse } from '@/hooks/usePagination';
 
-export interface BotListParams {
-  page?: number;
-  pageSize?: number;
-  pageNumber?: number;
+export interface BotListParams extends PageParams {
   name?: string;
   keyword?: string;  // 模糊搜索 name/nickname
   status?: string;
 }
 
-function normalizePage(res: any) {
-  const d = res?.data ?? {};
-  return {
-    ...res,
-    data: {
-      records: d.records ?? d.list ?? [],
-      totalRow: d.totalRow ?? d.total ?? 0,
-    },
-  };
-}
-
-export async function page(params: BotListParams) {
+export async function page(params: BotListParams): Promise<PageResult<any>> {
   const res = await adminClient('/bot/list', { params });
-  return normalizePage(res);
+  return normalizeLegacyPageResponse((res as any)?.data ?? res);
 }
 
 export async function get(id: number) {

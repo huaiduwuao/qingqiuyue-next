@@ -103,8 +103,8 @@ const RISK_META: Record<RiskLevel, { label: string; color: string; bg: string }>
 export default function HdReviewPage() {
   const { tabParams, setActiveTab } = useActiveTab();
   // 真接口:HD 视频 + 审核员,tab 切换时强制 refetch
-  const { data: hdResp } = useQuery({ queryKey: ['creator-hd-videos'], queryFn: () => getHdVideoList({ page: 1, size: 50 }), staleTime: 30 * 1000, refetchOnMount: 'always' });
-  const apiVideos: HdVideo[] = (hdResp?.records ?? hdResp?.list ?? []).map((v: any) => ({
+  const { data: hdResp } = useQuery({ queryKey: ['creator-hd-videos'], queryFn: () => getHdVideoList({ page: 1, pageSize: 50 }), staleTime: 30 * 1000, refetchOnMount: 'always' });
+  const apiVideos: HdVideo[] = (hdResp?.list ?? []).map((v: any) => ({
     id: v.id, title: v.title, cover: v.cover,
     resolution: v.resolution, fps: v.fps, hdr: v.hdr, duration: v.duration, sizeMB: v.sizeMB,
     status: v.status, progress: v.progress, uploadedAt: v.uploadedAt,
@@ -113,7 +113,7 @@ export default function HdReviewPage() {
   }));
   const [videos, setVideos] = useState<HdVideo[]>(apiVideos);
   const { data: reviewerResp } = useQuery({ queryKey: ['creator-hd-reviewers'], queryFn: () => getReviewerList(), staleTime: 5 * 60 * 1000, refetchOnMount: 'always' });
-  const apiReviewers: Reviewer[] = (reviewerResp?.records ?? reviewerResp?.list ?? []).map((r: ApiReviewer) => ({
+  const apiReviewers: Reviewer[] = (reviewerResp?.list ?? []).map((r: ApiReviewer) => ({
     id: r.id, name: r.name, initials: r.initials, avatarColor: r.avatarColor,
     team: r.team, level: r.level as 1 | 2 | 3, title: r.title,
     reviewCount: r.reviewCount, avgReviewSec: 300, passRate: r.passRate,
@@ -139,7 +139,7 @@ export default function HdReviewPage() {
     queryKey: ['module-content', 'reviewing'],
     queryFn: async () => {
       const res = await myPage({ status: 'reviewing', contentType: 'VIDEO', pageSize: 100 });
-      return res.data?.records || [];
+      return res.list || [];
     },
     staleTime: 30_000,
     refetchOnMount: 'always',

@@ -91,7 +91,7 @@ export default function RewardHotGrid({
     queryFn: () =>
       getHotBounties({
         page: isAll ? page : 1,
-        size: isAll ? PAGE_SIZE : 6,
+        pageSize: isAll ? PAGE_SIZE : 6,
         keyword: effectiveSearch || undefined,
         category: effectiveFilter || undefined,
         order: effectiveOrder as any,
@@ -99,7 +99,7 @@ export default function RewardHotGrid({
     staleTime: 30 * 1000,
     refetchOnMount: 'always',
   });
-  const list: Bounty[] = ((query.data?.records ?? query.data?.list ?? []) as any[]).map((b) => ({
+  const list: Bounty[] = ((query.data?.list ?? []) as any[]).map((b) => ({
     id: b.id,
     title: b.title,
     category: (b.category as Bounty['category']) ?? 'video',

@@ -15,6 +15,7 @@ import { CoverImage } from '@/components/common/CoverImage';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT, gradient2 } from '@/constants/gradients';
 import { useScrollToBottom } from '@/hooks/useInfiniteScroll';
+import Masonry from 'react-masonry-css';
 
 const CAT_TO_TYPE: Record<TheaterItem['category'], string> = {
   movie: 'FILM',
@@ -327,11 +328,15 @@ export function TheaterPanel() {
         {(data) => {
           return (
             <Box>
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 2 }}>
+              <Masonry
+                breakpointCols={{ default: 5, 1400: 4, 1100: 3, 800: 2, 500: 1 }}
+                className="my-masonry-grid"
+                columnClassName="my-masonry-grid_column"
+              >
                 {theaterList.map((item) => (
                   <TheaterCard key={item.id} item={item} />
                 ))}
-              </Box>
+              </Masonry>
 
               {/* 滚动触发器 */}
               <Box ref={scroll.sentinelRef} sx={{ height: 1 }} />

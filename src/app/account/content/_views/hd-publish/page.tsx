@@ -236,7 +236,7 @@ export default function HdPublishPage() {
   // 真接口:HD 视频列表(uid 隔离)
   const { data: hdResp } = useQuery({
     queryKey: ['creator-hd-videos'],
-    queryFn: () => getHdVideoList({ page: 1, size: 50 }),
+    queryFn: () => getHdVideoList({ page: 1, pageSize: 50 }),
     staleTime: 30 * 1000,
     refetchOnMount: 'always',
   });
@@ -246,7 +246,7 @@ export default function HdPublishPage() {
   // 「界面下部分黑色遮罩 + 点哪都出现视频详情」)。Map 去重即可消除该现象。
   const apiVideos: HdVideo[] = Array.from(
     new Map(
-      (hdResp?.records ?? hdResp?.list ?? [])
+      (hdResp?.list ?? [])
         .filter((v: any) => v && v.id !== undefined && v.id !== null)
         .map((v: any) => [String(v.id), v] as const),
     ).values(),
@@ -290,7 +290,7 @@ export default function HdPublishPage() {
     queryKey: ['module-content', 'hd-publish', 'videos'],
     queryFn: async () => {
       const res = await myPage({ contentType: 'VIDEO', pageSize: 100 });
-      return (res.data?.records || []) as ModuleContentItem[];
+      return (res.list || []) as ModuleContentItem[];
     },
     staleTime: 30_000,
     refetchOnMount: 'always',

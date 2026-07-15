@@ -1,23 +1,14 @@
 import { adminClient } from '@/lib/api/client';
 import { ResourceItem } from "@/beans/system";
+import { PageParams } from '@/beans/pagination';
 
-export interface ResourceListParams {
-  page?: number;
-  pageSize?: number;
-  pageNumber?: number;
+export interface ResourceListParams extends PageParams {
   name?: string;
 }
 
-// 后端分页响应 { list, total } 归一成 UI 期望的 { records, totalRow }
-function normalizePage(res: any) {
-  const d = res?.data ?? {};
-  return { ...res, data: { records: d.records ?? d.list ?? [], totalRow: d.totalRow ?? d.total ?? 0 } };
-}
-
-// 资源分页 -> 后端 GET /resource/list
+// 资源分页 -> 后端 GET /resource/list (client.ts 已自动归一化分页响应)
 export async function page(params: ResourceListParams) {
-  const res = await adminClient('/resource/list', { params });
-  return normalizePage(res);
+  return adminClient('/resource/list', { params });
 }
 
 // 同步资源 -> 后端 GET /resource/sync

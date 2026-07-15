@@ -213,13 +213,10 @@ export default function SpiderBatchPage() {
       <DataGridTable
         columns={columns}
         fetchData={async (params) => {
-          const res = await listBatch({ ...params, pageNumber: params.pageNumber });
-          // Handle mock data format (list/total) vs real API format (records/totalRow)
-          const list = res.data?.list || res.data?.records || [];
-          const total = res.data?.total || res.data?.totalRow || 0;
+          const res = await listBatch({ page: params.pageNumber, pageSize: params.pageSize });
           return {
-            data: { records: list, totalRow: total },
-            success: res.data?.success ?? true,
+            data: { records: res.list || [], totalRow: res.total || 0 },
+            success: true,
           };
         }}
         toolBarRender={() => (

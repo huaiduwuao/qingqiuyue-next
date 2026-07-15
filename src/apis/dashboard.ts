@@ -9,6 +9,8 @@ import { accountClient, adminClient } from '@/lib/api/client';
 import { DemandItem } from '@/beans/reward';
 import { gradient2 } from '@/constants/gradients';
 import { ACCENT } from '@/constants/accents';
+import type { PageParams, PageResult } from '@/beans/pagination';
+import { normalizeLegacyPageResponse } from '@/hooks/usePagination';
 
 /** 解开 axios 拦截器的包装层,拿到真正的后端 body */
 function unwrap<T = any>(resp: any): T {
@@ -32,8 +34,9 @@ export interface Order {
   payMethod: string;
 }
 export interface PageData<T> { list: T[]; records?: T[]; total?: number; totalRow?: number; page?: number; size?: number }
-export async function getOrderList(params?: { page?: number; size?: number }) {
-  return unwrap<PageData<Order>>(await accountClient('/order/list', { params }));
+export async function getOrderList(params?: PageParams): Promise<PageResult<Order>> {
+  const res = await unwrap<PageData<Order>>(await accountClient('/order/list', { params }));
+  return normalizeLegacyPageResponse(res as any);
 }
 
 export interface WipItem {
@@ -45,8 +48,9 @@ export interface WipItem {
   updatedAt: number;
   cover: string;
 }
-export async function getCreatorWipList(params?: { page?: number; size?: number }) {
-  return unwrap<PageData<WipItem>>(await accountClient('/creator/wip/list', { params }));
+export async function getCreatorWipList(params?: PageParams): Promise<PageResult<WipItem>> {
+  const res = await unwrap<PageData<WipItem>>(await accountClient('/creator/wip/list', { params }));
+  return normalizeLegacyPageResponse(res as any);
 }
 
 export interface CollectionWork {
@@ -72,8 +76,9 @@ export interface Collection {
   updateTime: number;
   works?: CollectionWork[];
 }
-export async function getCollectionList(params?: { page?: number; size?: number }) {
-  return unwrap<PageData<Collection>>(await accountClient('/creator/collection/list', { params }));
+export async function getCollectionList(params?: PageParams): Promise<PageResult<Collection>> {
+  const res = await unwrap<PageData<Collection>>(await accountClient('/creator/collection/list', { params }));
+  return normalizeLegacyPageResponse(res as any);
 }
 
 export interface ProtectedWork {
@@ -142,8 +147,9 @@ export interface HdVideo {
   scheduledAt?: number;
   publishedAt?: number;
 }
-export async function getHdVideoList(params?: { page?: number; size?: number }) {
-  return unwrap<PageData<HdVideo>>(await accountClient('/creator/hd/videos', { params }));
+export async function getHdVideoList(params?: PageParams): Promise<PageResult<HdVideo>> {
+  const res = await unwrap<PageData<HdVideo>>(await accountClient('/creator/hd/videos', { params }));
+  return normalizeLegacyPageResponse(res as any);
 }
 
 export interface Reviewer {
@@ -193,8 +199,9 @@ export interface Activity {
   submissions?: any[];
   leaderboard?: any[];
 }
-export async function getActivityList(params?: { category?: string; status?: string }) {
-  return unwrap<PageData<Activity>>(await accountClient('/creator/activity/list', { params }));
+export async function getActivityList(params?: { category?: string; status?: string }): Promise<PageResult<Activity>> {
+  const res = await unwrap<PageData<Activity>>(await accountClient('/creator/activity/list', { params }));
+  return normalizeLegacyPageResponse(res as any);
 }
 
 export interface MyWork {
@@ -223,27 +230,25 @@ export interface Bounty {
   gradient: string;
   cover?: string;
 }
-export async function getHotBounties(params?: {
+export async function getHotBounties(params?: PageParams & {
   limit?: number;
   category?: string;
   keyword?: string;
   order?: 'reward' | 'deadline' | 'hot' | 'newest';
-  page?: number;
-  size?: number;
-}) {
+}): Promise<PageResult<Bounty>> {
   // 后端暂无 /reward/bounty/hot，从 demand/client/page 爬取真实数据并映射为 Bounty
   const page = params?.page ?? 1;
-  const size = params?.size ?? params?.limit ?? 6;
+  const pageSize = params?.pageSize ?? params?.limit ?? 6;
   const demandParams: any = {
     page,
-    pageSize: size,
+    pageSize,
     status: 'PUBLISHED',
   };
   if (params?.category) demandParams.category = params.category;
   if (params?.keyword) demandParams.keyword = params.keyword;
   const resp = unwrap<PageData<DemandItem>>(await accountClient('/demand/client/page', { params: demandParams }));
   const list = (resp?.list ?? resp?.records ?? []).map((d) => bountyFromDemand(d));
-  return { list, total: resp?.total ?? list.length, page, size } as PageData<Bounty>;
+  return normalizeLegacyPageResponse({ list, total: resp?.total ?? resp?.totalRow ?? list.length, page, pageSize } as any);
 }
 
 export async function getBountyDetail(id: string | number) {
@@ -285,12 +290,14 @@ function bountyFromDemand(demand: DemandItem): Bounty {
   };
 }
 
-export async function getRewardActivities() {
-  return unwrap<PageData<Activity>>(await accountClient('/reward/activity/list'));
+export async function getRewardActivities(): Promise<PageResult<Activity>> {
+  const res = await unwrap<PageData<Activity>>(await accountClient('/reward/activity/list'));
+  return normalizeLegacyPageResponse(res as any);
 }
 
-export async function getContentActivityFeed(params?: { limit?: number }) {
-  return unwrap<{ list: Activity[]; records?: Activity[] }>(await accountClient('/content/activity/feed', { params }));
+export async function getContentActivityFeed(params?: { limit?: number }): Promise<PageResult<Activity>> {
+  const res = await unwrap<PageData<Activity>>(await accountClient('/content/activity/feed', { params }));
+  return normalizeLegacyPageResponse(res as any);
 }
 
 export interface GiftItem {
@@ -301,8 +308,9 @@ export interface GiftItem {
   effect: 'small' | 'medium' | 'large' | 'huge';
   combo: boolean;
 }
-export async function getGiftList() {
-  return unwrap<PageData<GiftItem>>(await accountClient('/live/gifts'));
+export async function getGiftList(): Promise<PageResult<GiftItem>> {
+  const res = await unwrap<PageData<GiftItem>>(await accountClient('/live/gifts'));
+  return normalizeLegacyPageResponse(res as any);
 }
 
 export interface LikePreview {
@@ -311,8 +319,9 @@ export interface LikePreview {
   cover: string;
   type: string;
 }
-export async function getLikesPreview() {
-  return unwrap<PageData<LikePreview>>(await accountClient('/account/likes/preview'));
+export async function getLikesPreview(): Promise<PageResult<LikePreview>> {
+  const res = await unwrap<PageData<LikePreview>>(await accountClient('/account/likes/preview'));
+  return normalizeLegacyPageResponse(res as any);
 }
 
 // ========== 个人中心 5 大分区真实计数 ==========
@@ -389,8 +398,9 @@ export interface TrendPoint {
   comments: number;
   fans: number;
 }
-export async function getCreatorTrend(params: { range: '7d' | '30d' }) {
-  return unwrap<PageData<TrendPoint>>(await accountClient('/creator/trend', { params }));
+export async function getCreatorTrend(params: { range: '7d' | '30d' }): Promise<PageResult<TrendPoint>> {
+  const res = await unwrap<PageData<TrendPoint>>(await accountClient('/creator/trend', { params }));
+  return normalizeLegacyPageResponse(res as any);
 }
 
 // 内容分布(各类型作品数量)
@@ -429,8 +439,9 @@ export interface HotTopic {
   color: string;
   gradient: string;
 }
-export async function getCreatorHotTopics(params?: { limit?: number }) {
-  return unwrap<PageData<HotTopic>>(await accountClient('/creator/hot-topics', { params }));
+export async function getCreatorHotTopics(params?: PageParams): Promise<PageResult<HotTopic>> {
+  const res = await unwrap<PageData<HotTopic>>(await accountClient('/creator/hot-topics', { params }));
+  return normalizeLegacyPageResponse(res as any);
 }
 
 // ========== 创作者档案(CreatorProfileHeader) ==========
@@ -512,8 +523,9 @@ export interface RewardRanker {
   income: number; // 累计收益(分)
   color: string;
 }
-export async function getRewardRanking(params?: { limit?: number }) {
-  return unwrap<PageData<RewardRanker>>(await accountClient('/reward/ranking', { params }));
+export async function getRewardRanking(params?: PageParams): Promise<PageResult<RewardRanker>> {
+  const res = await unwrap<PageData<RewardRanker>>(await accountClient('/reward/ranking', { params }));
+  return normalizeLegacyPageResponse(res as any);
 }
 
 export interface RewardCategory {
@@ -587,8 +599,9 @@ export interface PointRecordList {
   size: number;
 }
 
-export async function listMyPointRecords(params?: { page?: number; pageSize?: number }): Promise<PointRecordList> {
-  return unwrap<PointRecordList>(await accountClient('/reward/point-records', { params }));
+export async function listMyPointRecords(params?: PageParams): Promise<PageResult<PointRecord>> {
+  const res = await unwrap<PointRecordList>(await accountClient('/reward/point-records', { params }));
+  return normalizeLegacyPageResponse(res as any);
 }
 
 // ========== 后台 dashboard(/admin/system/dashboard/analysis) ==========
@@ -618,8 +631,9 @@ export interface AdminTrendPoint {
   orders: number;
   activeUsers: number;
 }
-export async function getAdminTrend(params?: { days?: number }) {
-  return unwrap<PageData<AdminTrendPoint>>(await accountClient('/admin/dashboard/trend', { params }));
+export async function getAdminTrend(params?: { days?: number }): Promise<PageResult<AdminTrendPoint>> {
+  const res = await unwrap<PageData<AdminTrendPoint>>(await accountClient('/admin/dashboard/trend', { params }));
+  return normalizeLegacyPageResponse(res as any);
 }
 
 export interface AdminContentDist {
@@ -628,8 +642,9 @@ export interface AdminContentDist {
   percent: number;
   color: string;
 }
-export async function getAdminContentDistribution() {
-  return unwrap<PageData<AdminContentDist>>(await accountClient('/admin/dashboard/content-distribution'));
+export async function getAdminContentDistribution(): Promise<PageResult<AdminContentDist>> {
+  const res = await unwrap<PageData<AdminContentDist>>(await accountClient('/admin/dashboard/content-distribution'));
+  return normalizeLegacyPageResponse(res as any);
 }
 
 // ========== 首页推荐(关注 / 朋友) ==========
@@ -645,15 +660,13 @@ export interface RecommendWork {
   status: string;
   hashtags: string; // 逗号分隔
 }
-export async function getHomeRecommendFollow(params?: { page?: number; size?: number }) {
-  return unwrap<PageData<RecommendWork>>(
-    await accountClient('/home/recommend/follow', { params })
-  );
+export async function getHomeRecommendFollow(params?: PageParams): Promise<PageResult<RecommendWork>> {
+  const res = await unwrap<PageData<RecommendWork>>(await accountClient('/home/recommend/follow', { params }));
+  return normalizeLegacyPageResponse(res as any);
 }
-export async function getHomeRecommendFriend(params?: { page?: number; size?: number }) {
-  return unwrap<PageData<RecommendWork>>(
-    await accountClient('/home/recommend/friend', { params })
-  );
+export async function getHomeRecommendFriend(params?: PageParams): Promise<PageResult<RecommendWork>> {
+  const res = await unwrap<PageData<RecommendWork>>(await accountClient('/home/recommend/friend', { params }));
+  return normalizeLegacyPageResponse(res as any);
 }
 
 // ========== CMS 后台配置(8 张公共表 CRUD) ==========
@@ -767,10 +780,9 @@ export interface TopPerformingItem {
   publishedAt: string;
   duration?: string;
 }
-export async function getTopPerformingContent(params?: { days?: 7 | 30; limit?: number }) {
-  return unwrap<PageData<TopPerformingItem>>(
-    await accountClient('/creator/content/top-performing', { params })
-  );
+export async function getTopPerformingContent(params?: PageParams & { days?: 7 | 30 }): Promise<PageResult<TopPerformingItem>> {
+  const res = await unwrap<PageData<TopPerformingItem>>(await accountClient('/creator/content/top-performing', { params }));
+  return normalizeLegacyPageResponse(res as any);
 }
 
 // ========== 共创中心(co-create) ==========
@@ -809,18 +821,17 @@ export interface CoCreateInvite {
   createdAt: number;
 }
 
-export async function getCoCreateCollabs() {
-  return unwrap<PageData<CoCreateCollab>>(await accountClient('/co-create/collabs'));
+export async function getCoCreateCollabs(): Promise<PageResult<CoCreateCollab>> {
+  const res = await unwrap<PageData<CoCreateCollab>>(await accountClient('/co-create/collabs'));
+  return normalizeLegacyPageResponse(res as any);
 }
-export async function getCoCreateInvites(direction: 'incoming' | 'outgoing') {
-  return unwrap<PageData<CoCreateInvite>>(
-    await accountClient(`/co-create/invites`, { params: { direction } })
-  );
+export async function getCoCreateInvites(direction: 'incoming' | 'outgoing'): Promise<PageResult<CoCreateInvite>> {
+  const res = await unwrap<PageData<CoCreateInvite>>(await accountClient(`/co-create/invites`, { params: { direction } }));
+  return normalizeLegacyPageResponse(res as any);
 }
-export async function getRecommendedCoCreatePartners(params?: { keyword?: string }) {
-  return unwrap<PageData<CoCreatePartner>>(
-    await accountClient('/co-create/recommend', { params })
-  );
+export async function getRecommendedCoCreatePartners(params?: PageParams & { keyword?: string }): Promise<PageResult<CoCreatePartner>> {
+  const res = await unwrap<PageData<CoCreatePartner>>(await accountClient('/co-create/recommend', { params }));
+  return normalizeLegacyPageResponse(res as any);
 }
 
 export async function acceptCoCreateInvite(id: number) {

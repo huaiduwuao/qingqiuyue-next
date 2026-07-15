@@ -1,4 +1,6 @@
 import { contentClient } from '@/lib/api/client';
+import type { PageParams } from '@/beans/pagination';
+import { normalizeLegacyPageResponse } from '@/hooks/usePagination';
 // 内容类型
 export type ContentType = 'music' | 'novel' | 'video' | 'film' | 'teleplay' | 'animation' | 'comics' | 'article' | 'news' | 'picture-album' | 'picture-detail' | 'live' | 'website' | 'pan' | 'vshow' | 'animation-item' | 'teleplay-item' | 'comics-item' | 'film-item' | 'vshow-item';
 
@@ -22,25 +24,13 @@ export interface ContentItem {
   groupId?: number;
 }
 
-// 通用分页参数
-export interface ContentPageParams {
-  page?: number;
-  pageNumber?: number;
-  pageSize?: number;
-  current?: number;
-  groupId?: number;
-  status?: string;
-  keyword?: string;
-}
-
-// Mock data for animation content type
-
 // 分页获取内容
-export async function page(contentType: ContentType, params: ContentPageParams) {
-  return contentClient(`client-content/${contentType}/page`, {
+export async function page<T = ContentItem>(contentType: ContentType, params: PageParams) {
+  const res = await contentClient(`client-content/${contentType}/page`, {
     method: 'GET',
     params,
   });
+  return normalizeLegacyPageResponse<T>((res as any)?.data ?? res);
 }
 
 // 获取内容详情
@@ -85,4 +75,4 @@ export async function remove(contentType: ContentType, ids: number[]) {
 // Aliases
 export const save = (contentType: ContentType, data: Record<string, unknown>) => saveOrUpdate(contentType, data);
 export const update = (contentType: ContentType, data: Record<string, unknown>) => saveOrUpdate(contentType, data);
-export const myPage = (contentType: ContentType, params: ContentPageParams) => page(contentType, params);
+export const myPage = (contentType: ContentType, params: PageParams) => page(contentType, params);

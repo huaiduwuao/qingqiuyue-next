@@ -17,6 +17,7 @@ import { CoverImage } from '@/components/common/CoverImage';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT, gradient2 } from '@/constants/gradients';
 import { useScrollToBottom } from '@/hooks/useInfiniteScroll';
+import Masonry from 'react-masonry-css';
 
 type LiveStatus = 'all' | 'live' | 'offline';
 type LiveSort = 'hot' | 'new';
@@ -300,11 +301,15 @@ export function LivePanel() {
       >
         {(data) => (
           <Box>
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
+            <Masonry
+              breakpointCols={{ default: 4, 1200: 3, 900: 2, 600: 1 }}
+              className="my-masonry-grid"
+              columnClassName="my-masonry-grid_column"
+            >
               {liveList.map((room) => (
                 <RoomCard key={room.id} room={room} onClick={() => navigate('LIVE', room.id)} />
               ))}
-            </Box>
+            </Masonry>
 
             {/* 滚动触发器 - 放在可滚动的 MAIN 底部 */}
             <Box ref={scroll.sentinelRef} sx={{ height: 1 }} />

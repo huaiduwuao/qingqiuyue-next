@@ -94,7 +94,7 @@ export default function ConceptionPage({ groupId, groupData, initialDemandId, on
 
   const query = useQuery({
     queryKey: [...LIST_KEY, filter.status, page, groupId],
-    queryFn: () => listConceptions({ pageNumber: page, pageSize, groupId, status: filter.status || undefined }).then((r) => {
+    queryFn: () => listConceptions({ page, pageSize, groupId, status: filter.status || undefined }).then((r) => {
       const records = r.data?.records || [];
       return { records, totalRow: r.data?.totalRow || records.length };
     }),

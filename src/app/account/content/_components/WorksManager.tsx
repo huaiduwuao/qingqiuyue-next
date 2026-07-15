@@ -153,7 +153,7 @@ export default function WorksManager() {
     staleTime: 30 * 1000,
     refetchOnMount: 'always',
   });
-  const apiWorks: Work[] = (worksResp?.records ?? worksResp?.list ?? []).map((w: any) => ({
+  const apiWorks: Work[] = (worksResp?.list ?? []).map((w: any) => ({
     id: w.id,
     title: w.title,
     type: (String(w.contentType || 'video').toLowerCase()) as WorkType,

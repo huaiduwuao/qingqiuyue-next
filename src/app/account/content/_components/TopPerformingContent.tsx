@@ -46,7 +46,7 @@ export default function TopPerformingContent() {
   // 优质作品榜 — 真接口
   const itemsQuery = useQuery({
     queryKey: ['creator-content-top-performing', 7],
-    queryFn: () => getTopPerformingContent({ days: 7, limit: 5 }).then((r) => r.records || r.list || []),
+    queryFn: () => getTopPerformingContent({ days: 7, pageSize: 5 }).then((r) => r.list || []),
     placeholderData: [],
   });
   const ITEMS: Item[] = (itemsQuery.data ?? []) as Item[];

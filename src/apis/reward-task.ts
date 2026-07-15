@@ -16,10 +16,9 @@
 
 import { rewardClient } from '@/lib/api/client';
 import type { RewardTask, RewardTaskStatus, TaskPriority } from '@/beans/reward';
+import type { PageParams } from '@/beans/pagination';
 
-export interface TaskQuery {
-  page?: number;
-  pageSize?: number;
+export interface TaskQuery extends PageParams {
   projectId?: number;
   groupId?: number;
   demandId?: number;

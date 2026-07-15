@@ -112,7 +112,7 @@ export default function ActivityPage() {
     // 后端不保证这些字段是数组(老 DTO 有时返 null/对象),用 ensureArray 兜底
     // —— 单纯 `?? []` 只挡 null/undefined,挡不住"传成字符串/对象"的情况
     // (eligibleWorks 的 .map/.some 已踩过这种雷)
-    return (actResp?.records ?? actResp?.list ?? []).map((a: ApiActivity) => ({
+    return (actResp?.list ?? []).map((a: ApiActivity) => ({
       ...a,
       rules: ensureArray<string>(a.rules),
       requirements: ensureArray<string>(a.requirements),
@@ -122,7 +122,7 @@ export default function ActivityPage() {
     }));
   }, [actResp]);
   // apiMyWorks 同理:hashtags 字段也要防御。后端没保证是数组
-  const apiMyWorks: MyWork[] = (worksResp?.records ?? worksResp?.list ?? []).map((w: any) => ({
+  const apiMyWorks: MyWork[] = (worksResp?.list ?? (worksResp as any)?.records ?? []).map((w: any) => ({
     ...w,
     hashtags: ensureArray<string>(w?.hashtags),
   }));

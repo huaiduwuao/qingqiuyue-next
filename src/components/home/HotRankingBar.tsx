@@ -18,6 +18,7 @@ interface Props {
   maxItems?: number;
   expandable?: boolean;
   showTypeTabs?: boolean; // 是否显示类型切换 tabs
+  columns?: number; // 列数，默认 2
 }
 
 // 内容类型配置
@@ -34,6 +35,7 @@ export default function HotRankingBar({
   maxItems = 12,
   expandable = false,
   showTypeTabs = true,
+  columns = 2,
 }: Props) {
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
@@ -93,7 +95,7 @@ export default function HotRankingBar({
       )}
 
       {isLoading ? (
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 0.75 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: 0.75 }}>
           {Array.from({ length: maxItems }).map((_, i) => (
             <Skeleton key={i} variant="rounded" height={28} sx={{ bgcolor: 'action.hover' }} />
           ))}
@@ -103,7 +105,7 @@ export default function HotRankingBar({
           暂无{activeType}数据
         </Typography>
       ) : (
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 0.5 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: 0.5 }}>
           {items.map((item, i) => (
             <Box
               key={item.id || i}

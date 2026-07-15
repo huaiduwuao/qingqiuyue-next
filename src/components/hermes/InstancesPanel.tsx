@@ -231,10 +231,10 @@ export default function InstancesPanel() {
           const res = await hermesApi.instancePage(params);
           return {
             data: {
-              records: res.data?.records || [],
-              totalRow: res.data?.totalRow || 0,
+              records: res.list || [],
+              totalRow: res.total || 0,
             },
-            success: res.success ?? true,
+            success: true,
           };
         }}
         onEdit={handleEdit}

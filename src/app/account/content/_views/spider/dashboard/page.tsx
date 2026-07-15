@@ -76,7 +76,7 @@ export default function SpiderDashboardPage() {
     queryFn: async () => {
       const { listWorkers } = await import('@/apis/spider');
       const res = await listWorkers();
-      return res.data?.list || [];
+      return res.list || [];
     },
     refetchInterval: 10000,
   });

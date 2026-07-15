@@ -1,15 +1,6 @@
 import { adminClient, contentClient, imClient } from '@/lib/api/client';
-
-function normalizePage(res: any) {
-  const d = res?.data ?? {};
-  return {
-    ...res,
-    data: {
-      records: d.records ?? d.list ?? [],
-      totalRow: d.totalRow ?? d.total ?? 0,
-    },
-  };
-}
+import type { PageParams, PageResult } from '@/beans/pagination';
+import { normalizeLegacyPageResponse } from '@/hooks/usePagination';
 
 // ===== Types =====
 export interface HermesInstanceItem {
@@ -64,19 +55,15 @@ export interface HermesDiscoverResult {
 
 // ===== Admin (/api/core/hermes/*) =====
 // --- Agent ---
-export interface HermesListParams {
-  page?: number;
-  pageSize?: number;
-  pageNumber?: number;
+export interface HermesListParams extends PageParams {
   name?: string;
   status?: string;
   instanceId?: number;
 }
 
-export async function page(params: HermesListParams) {
-  // 后端 GET /list 接受 instance_id 作为过滤参数
+export async function page(params: HermesListParams): Promise<PageResult<HermesInstanceItem>> {
   const res = await adminClient('/hermes/list', { params });
-  return normalizePage(res);
+  return normalizeLegacyPageResponse((res as any)?.data ?? res);
 }
 
 export async function get(id: number) {
@@ -124,19 +111,15 @@ export async function instanceSync() {
 }
 
 // --- Instance (CRUD on hermes containers) ---
-export interface HermesInstanceListParams {
-  page?: number;
-  pageSize?: number;
-  pageNumber?: number;
-  current?: number;
+export interface HermesInstanceListParams extends PageParams {
   name?: string;
   status?: string;
   [key: string]: any;
 }
 
-export async function instancePage(params: HermesInstanceListParams = {}) {
+export async function instancePage(params: HermesInstanceListParams = {}): Promise<PageResult<HermesInstanceItem>> {
   const res = await adminClient('/hermes/instance/list', { params });
-  return normalizePage(res);
+  return normalizeLegacyPageResponse((res as any)?.data ?? res);
 }
 
 export async function instanceGet(id: number) {
@@ -182,18 +165,16 @@ export interface HermesMemoryAdminItem {
   updatedAt: string;
 }
 
-export interface HermesMemoryAdminListParams {
-  page?: number;
-  pageSize?: number;
+export interface HermesMemoryAdminListParams extends PageParams {
   userId?: number;
   agentId?: string;
   scope?: string;
   keyword?: string;
 }
 
-export async function memoryAdminPage(params: HermesMemoryAdminListParams = {}) {
+export async function memoryAdminPage(params: HermesMemoryAdminListParams = {}): Promise<PageResult<HermesMemoryAdminItem>> {
   const res = await adminClient('/hermes/memory/list', { params });
-  return normalizePage(res);
+  return normalizeLegacyPageResponse((res as any)?.data ?? res);
 }
 
 export async function memoryAdminDelete(id: number) {
@@ -219,16 +200,14 @@ export interface HermesConversationAdminItem {
   updatedAt?: string;
 }
 
-export interface HermesConversationAdminListParams {
-  page?: number;
-  pageSize?: number;
+export interface HermesConversationAdminListParams extends PageParams {
   userId?: number;
   agentId?: string;
 }
 
-export async function conversationAdminPage(params: HermesConversationAdminListParams = {}) {
+export async function conversationAdminPage(params: HermesConversationAdminListParams = {}): Promise<PageResult<HermesConversationAdminItem>> {
   const res = await adminClient('/hermes/conversation/list', { params });
-  return normalizePage(res);
+  return normalizeLegacyPageResponse((res as any)?.data ?? res);
 }
 
 export interface HermesConversationMessage {
@@ -260,9 +239,9 @@ export async function conversationAdminDelete(conversationId: string) {
 }
 
 // ===== Client (/api/content/hermes/client/*) =====
-export async function clientPage(params: Record<string, unknown>) {
+export async function clientPage(params: PageParams): Promise<PageResult<any>> {
   const res = await contentClient('/hermes/client/page', { params });
-  return normalizePage(res);
+  return normalizeLegacyPageResponse((res as any)?.data ?? res);
 }
 
 export async function clientDetail(id: number | string) {

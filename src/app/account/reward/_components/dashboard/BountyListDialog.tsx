@@ -63,7 +63,7 @@ export default function BountyListDialog({
     queryFn: () =>
       getHotBounties({
         page,
-        size: PAGE_SIZE,
+        pageSize: PAGE_SIZE,
         keyword: search || undefined,
         category: category || undefined,
         order: order as any,
@@ -72,7 +72,7 @@ export default function BountyListDialog({
     enabled: open,
   });
 
-  const list: Bounty[] = (listQuery.data?.records ?? listQuery.data?.list ?? []) as Bounty[];
+  const list: Bounty[] = (listQuery.data?.list ?? []) as Bounty[];
   const total = (listQuery.data?.total as number) ?? list.length;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 

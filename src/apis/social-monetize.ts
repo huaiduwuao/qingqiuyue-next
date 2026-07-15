@@ -1,4 +1,6 @@
 import { adminClient } from '@/lib/api/client';
+import type { PageParams, PageResult } from '@/beans/pagination';
+import { normalizeLegacyPageResponse } from '@/hooks/usePagination';
 
 // ── 打赏 API ──
 
@@ -29,12 +31,11 @@ export async function sendTip(params: TipRequest): Promise<void> {
 }
 
 // 获取打赏记录
-export async function getTips(params?: {
-  page?: number;
-  pageSize?: number;
-}): Promise<{ records: Tip[]; totalRow: number; page: number; pageSize: number }> {
+export async function getTips(params?: PageParams): Promise<PageResult<Tip>> {
   const res = await adminClient('/social/tips', { params });
-  return res?.data ?? res;
+  const data = res?.data;
+  if (!data) return normalizeLegacyPageResponse({ records: [], totalRow: 0, page: 1, pageSize: 20 } as any);
+  return normalizeLegacyPageResponse(data);
 }
 
 // ── 订阅 API ──
@@ -113,21 +114,19 @@ export async function purchasePaidContent(paidContentId: number): Promise<void> 
 }
 
 // 获取我的付费内容
-export async function getMyPaidContents(params?: {
-  page?: number;
-  pageSize?: number;
-}): Promise<{ records: PaidContent[]; totalRow: number }> {
+export async function getMyPaidContents(params?: PageParams): Promise<PageResult<PaidContent>> {
   const res = await adminClient('/social/my-paid-contents', { params });
-  return res?.data ?? res;
+  const data = res?.data;
+  if (!data) return normalizeLegacyPageResponse({ records: [], totalRow: 0, page: 1, pageSize: 20 } as any);
+  return normalizeLegacyPageResponse(data);
 }
 
 // 获取我的购买记录
-export async function getMyPurchases(params?: {
-  page?: number;
-  pageSize?: number;
-}): Promise<{ records: Purchase[]; totalRow: number }> {
+export async function getMyPurchases(params?: PageParams): Promise<PageResult<Purchase>> {
   const res = await adminClient('/social/my-purchases', { params });
-  return res?.data ?? res;
+  const data = res?.data;
+  if (!data) return normalizeLegacyPageResponse({ records: [], totalRow: 0, page: 1, pageSize: 20 } as any);
+  return normalizeLegacyPageResponse(data);
 }
 
 // ── 收益 API ──
@@ -161,13 +160,11 @@ export async function getEarnings(): Promise<EarningsStats> {
 }
 
 // 获取收益明细
-export async function getEarningHistory(params?: {
-  page?: number;
-  pageSize?: number;
-  type?: string;
-}): Promise<{ records: Earning[]; totalRow: number }> {
+export async function getEarningHistory(params?: PageParams & { type?: string }): Promise<PageResult<Earning>> {
   const res = await adminClient('/social/earning-history', { params });
-  return res?.data ?? res;
+  const data = res?.data;
+  if (!data) return normalizeLegacyPageResponse({ records: [], totalRow: 0, page: 1, pageSize: 20 } as any);
+  return normalizeLegacyPageResponse(data);
 }
 
 // ── 提现 API ──
@@ -198,12 +195,11 @@ export async function applyWithdraw(params: WithdrawRequest): Promise<void> {
 }
 
 // 获取提现记录
-export async function getWithdrawHistory(params?: {
-  page?: number;
-  pageSize?: number;
-}): Promise<{ records: Withdraw[]; totalRow: number }> {
+export async function getWithdrawHistory(params?: PageParams): Promise<PageResult<Withdraw>> {
   const res = await adminClient('/social/withdraw-history', { params });
-  return res?.data ?? res;
+  const data = res?.data;
+  if (!data) return normalizeLegacyPageResponse({ records: [], totalRow: 0, page: 1, pageSize: 20 } as any);
+  return normalizeLegacyPageResponse(data);
 }
 
 // 格式化金额（分 -> 元）

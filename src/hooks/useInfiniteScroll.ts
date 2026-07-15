@@ -110,56 +110,48 @@ export function useScrollToBottom(options: { enabled?: boolean; containerRef?: R
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
 
-    const handleScroll = () => {
-      // 查找可滚动的祖先容器
-      let scrollEl: Element = document.documentElement;
+    // 查找可滚动的容器
+    const findScrollable = (el: Element | null): HTMLElement | null => {
+      while (el) {
+        const style = window.getComputedStyle(el);
+        if (el.scrollHeight > el.clientHeight + 10 &&
+            (style.overflow === 'auto' || style.overflow === 'scroll' ||
+             style.overflowY === 'auto' || style.overflowY === 'scroll')) {
+          return el as HTMLElement;
+        }
+        el = el.parentElement;
+      }
+      return null;
+    };
 
-      if (containerRef?.current) {
-        const el = containerRef.current;
-        // 检查指定容器是否可以滚动
-        if (el.scrollHeight > el.clientHeight + 10) {
-          scrollEl = el;
-        } else {
-          // 容器不可滚动，向上查找
-          let parent = el.parentElement;
-          while (parent) {
-            const style = window.getComputedStyle(parent);
-            if (parent.scrollHeight > parent.clientHeight + 10 &&
-                (style.overflow === 'auto' || style.overflow === 'scroll' || style.overflowY === 'auto' || style.overflowY === 'scroll')) {
-              scrollEl = parent;
-              break;
-            }
-            parent = parent.parentElement;
-          }
-        }
-      } else {
-        // 没有指定容器，向上查找
-        let el = sentinel.parentElement;
-        while (el) {
-          const style = window.getComputedStyle(el);
-          if (el.scrollHeight > el.clientHeight + 10 &&
-              (style.overflow === 'auto' || style.overflow === 'scroll' || style.overflowY === 'auto' || style.overflowY === 'scroll')) {
-            scrollEl = el;
-            break;
-          }
-          el = el.parentElement;
-        }
+    const scrollEl = containerRef?.current ? findScrollable(containerRef.current) : findScrollable(sentinel);
+
+    const handleScroll = () => {
+      if (!scrollEl) {
+        // 如果找不到滚动容器，使用窗口
+        const scrollTop = window.scrollY;
+        const scrollHeight = document.documentElement.scrollHeight;
+        const clientHeight = window.innerHeight;
+        const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+        setIsNearBottom(distanceFromBottom < 150);
+        return;
       }
 
-      const scrollTop = scrollEl === document.documentElement ? window.scrollY : (scrollEl as HTMLElement).scrollTop;
-      const scrollHeight = scrollEl === document.documentElement ? document.documentElement.scrollHeight : (scrollEl as HTMLElement).scrollHeight;
-      const clientHeight = scrollEl === document.documentElement ? window.innerHeight : (scrollEl as HTMLElement).clientHeight;
-
+      const { scrollTop, scrollHeight, clientHeight } = scrollEl;
       const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
       setIsNearBottom(distanceFromBottom < 150);
     };
 
-    // 监听找到的滚动容器
-    const scrollHandler = () => handleScroll();
-    window.addEventListener('scroll', scrollHandler, { passive: true });
-    handleScroll(); // 初始化
-
-    return () => window.removeEventListener('scroll', scrollHandler);
+    if (scrollEl) {
+      scrollEl.addEventListener('scroll', handleScroll, { passive: true });
+      handleScroll(); // 初始化
+      return () => scrollEl.removeEventListener('scroll', handleScroll);
+    } else {
+      // 如果找不到滚动容器，使用窗口
+      window.addEventListener('scroll', handleScroll, { passive: true });
+      handleScroll();
+      return () => window.removeEventListener('scroll', handleScroll);
+    }
   }, [enabled, containerRef]);
 
   return { sentinelRef, isNearBottom };

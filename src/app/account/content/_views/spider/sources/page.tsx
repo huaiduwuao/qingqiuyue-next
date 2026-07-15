@@ -172,12 +172,11 @@ export default function SourcesPage() {
         columns={columns}
         fetchData={async (params) => {
           return listSources({
-            pageNumber: params.page + 1,
+            page: params.page + 1,
             pageSize: params.pageSize,
           }).then((r) => {
-            const p = r.data || {};
             return {
-              data: { records: p.records || p.list || [], totalRow: p.totalRow ?? p.total ?? 0 },
+              data: { records: r.list || [], totalRow: r.total || 0 },
               success: true,
             };
           });

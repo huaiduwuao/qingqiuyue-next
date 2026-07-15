@@ -1,4 +1,6 @@
 import { accountClient } from '@/lib/api/client';
+import type { PageParams, PageResult } from '@/beans/pagination';
+import { normalizeLegacyPageResponse } from '@/hooks/usePagination';
 
 /** 解开 axios 拦截器的包装层(返回真正的 body) */
 function unwrap<T = any>(resp: any): T {
@@ -10,21 +12,10 @@ function unwrap<T = any>(resp: any): T {
   return body as T;
 }
 
-export interface WorksPageParams {
+export interface WorksPageParams extends PageParams {
   contentType?: string;
   status?: string;
   source?: string;
-  page?: number;
-  pageSize?: number;
-}
-
-export interface PageResponse<T> {
-  records: T[];
-  totalRow: number;
-  total: number;
-  list: T[];
-  page: number;
-  pageSize: number;
 }
 
 export interface WorksItem {
@@ -67,18 +58,21 @@ export interface ActivityItem {
   remark?: string;
 }
 
-export async function getCreatorWorks(params?: WorksPageParams): Promise<PageResponse<WorksItem>> {
-  return unwrap(await accountClient('/account/works', { params }));
+export async function getCreatorWorks(params?: WorksPageParams): Promise<PageResult<WorksItem>> {
+  const res = await unwrap(await accountClient('/account/works', { params }));
+  return normalizeLegacyPageResponse(res as any);
 }
 
 export async function getCreatorMonetizeSummary(): Promise<MonetizeSummary> {
   return unwrap(await accountClient('/account/monetize/summary'));
 }
 
-export async function getCreatorInteractions(params?: { page?: number; pageSize?: number }): Promise<PageResponse<InteractionItem>> {
-  return unwrap(await accountClient('/account/interaction/comments', { params }));
+export async function getCreatorInteractions(params?: PageParams): Promise<PageResult<InteractionItem>> {
+  const res = await unwrap(await accountClient('/account/interaction/comments', { params }));
+  return normalizeLegacyPageResponse(res as any);
 }
 
-export async function getCreatorActivities(params?: { page?: number; pageSize?: number }): Promise<PageResponse<ActivityItem>> {
-  return unwrap(await accountClient('/account/activity/list', { params }));
+export async function getCreatorActivities(params?: PageParams): Promise<PageResult<ActivityItem>> {
+  const res = await unwrap(await accountClient('/account/activity/list', { params }));
+  return normalizeLegacyPageResponse(res as any);
 }

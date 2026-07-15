@@ -135,8 +135,8 @@ export default function SystemRolePage() {
         actionPermissions={{ edit: PERMISSIONS.SYSTEM_ROLE.UPDATE, delete: PERMISSIONS.SYSTEM_ROLE.DELETE }}
         hasPermission={can}
         fetchData={async (params) => {
-          const res = await page({ ...params, pageNumber: params.pageNumber });
-          return { data: { records: res.data?.records || [], totalRow: res.data?.totalRow || 0 }, success: res.data?.success ?? true };
+          const res = await page({ ...params });
+          return { data: { records: res.data?.list || [], totalRow: res.data?.total || 0 }, success: res.data?.success ?? true };
         }}
         onEdit={handleEdit}
         onDelete={handleDelete}

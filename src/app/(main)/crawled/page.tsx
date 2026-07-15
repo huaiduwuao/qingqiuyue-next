@@ -42,9 +42,9 @@ export default function CrawledPage() {
 
   // 加载来源下拉框（从 spider-api 的 source 列表取可读名称）
   useEffect(() => {
-    listSources({ pageNumber: 1, pageSize: 200 })
+    listSources({ page: 1, pageSize: 200 })
       .then((res) => {
-        const list = res.data?.list || [];
+        const list = res.list || [];
         const opts: SourceOption[] = list
           .filter((s: any) => s.name)
           .map((s: any) => ({ label: s.name, value: s.name }));
@@ -61,13 +61,13 @@ export default function CrawledPage() {
         const pageNumber = (params.pageNumber || 0) + 1;
         const pageSize = params.pageSize || 20;
         const res = await myPage({
-          pageNumber,
+          page: pageNumber,
           pageSize,
           sourceLabel: sourceFilter || undefined,
           title: titleQ || undefined,
         });
-        const records: ModuleContentItem[] = res.data.records || [];
-        const total = res.data.totalRow || 0;
+        const records: ModuleContentItem[] = res.list || [];
+        const total = res.total || 0;
         setTotalCount(total);
 
         // 类型分布与发布数基于当前页统计；数据量大时可改由后端聚合

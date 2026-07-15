@@ -17,12 +17,12 @@ export default function RewardRanking() {
 
   const query = useQuery({
     queryKey: ['reward-ranking', 8],
-    queryFn: () => getRewardRanking({ limit: 8 }),
+    queryFn: () => getRewardRanking({ pageSize: 8 }),
     staleTime: 60 * 1000,
     refetchOnMount: 'always',
   });
 
-  const rankers = ((query.data?.records ?? query.data?.list ?? []) as RewardRanker[]);
+  const rankers = ((query.data?.list ?? []) as RewardRanker[]);
 
   return (
     <Box

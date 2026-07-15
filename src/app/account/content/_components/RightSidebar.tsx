@@ -42,11 +42,11 @@ export default function RightSidebar() {
   // 真接口:内容侧栏活动 feed
   const { data: feed } = useQuery({
     queryKey: ['content-activity-feed'],
-    queryFn: () => getContentActivityFeed({ limit: 5 }),
+    queryFn: () => getContentActivityFeed({ limit: 5 } as any),
     staleTime: 60 * 1000,
     refetchOnMount: 'always',
   });
-  const activitiesRaw = (feed?.records ?? feed?.list ?? []) as Activity[];
+  const activitiesRaw = (feed?.list ?? []) as Activity[];
   const ACTIVITIES = activitiesRaw.map((a) => ({
     id: a.id,
     title: a.title,

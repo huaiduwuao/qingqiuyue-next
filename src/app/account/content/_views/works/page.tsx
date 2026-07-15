@@ -140,11 +140,11 @@ export default function WorksPage() {
       page: params.pageNumber,
       pageSize: params.pageSize,
     });
-    const records = res.records || res.list || [];
+    const records = res.list || [];
     return {
       data: {
         records: toWorksTableRows(records, params.pageNumber),
-        totalRow: res.totalRow ?? res.total ?? 0,
+        totalRow: res.total ?? 0,
       },
     };
   };

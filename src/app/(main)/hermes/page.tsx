@@ -44,10 +44,10 @@ export default function HomeHermesPage() {
     queryKey: ['hermes', 'list', selectedTag, page],
     queryFn: () =>
       hermesApi
-        .clientPage({ page, pageSize, tag: selectedTag || undefined })
+        .clientPage({ page, pageSize, tag: selectedTag || undefined } as any)
         .then((r: any) => ({
-          records: r.data?.records || [],
-          totalRow: r.data?.totalRow || 0,
+          records: r.list || [],
+          totalRow: r.total || 0,
           page,
         })),
   });

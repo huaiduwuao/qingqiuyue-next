@@ -76,7 +76,7 @@ export default function SpiderTasksPage() {
 
   const refresh = useCallback(() => qc.invalidateQueries({ queryKey: LIST_KEY }), [qc]);
 
-  const sourcesQuery = useQuery({ queryKey: ['spider', 'sources-list'], queryFn: () => listSources().then((r) => r.data) });
+  const sourcesQuery = useQuery({ queryKey: ['spider', 'sources-list'], queryFn: () => listSources().then((r) => r.list || []) });
 
   const createMutation = useMutation({
     mutationFn: (vals: any) => createTask(vals),
@@ -205,9 +205,9 @@ export default function SpiderTasksPage() {
         extraParams={{ wsRevision: revision }}
         fetchData={async (params) => {
           try {
-            const res = await listTasks({ ...params, pageNumber: params.pageNumber });
-            const sourceMap = new Map((sourcesQuery.data?.list || []).map((s: SpiderSource) => [s.id, s.name]));
-            const list = (res.data?.list || []).map((task: any) => ({
+            const res = await listTasks({ page: params.pageNumber, pageSize: params.pageSize });
+            const sourceMap = new Map((sourcesQuery.data || []).map((s: SpiderSource) => [s.id, s.name]));
+            const list = (res.list || []).map((task: any) => ({
               ...task,
               startUrl: task.start_url,
               maxDepth: task.max_depth,
@@ -220,7 +220,7 @@ export default function SpiderTasksPage() {
               sourceName: task.source_name || sourceMap.get(task.source_id) || '-',
             }));
             return {
-              data: { records: list, totalRow: res.data?.total || 0 },
+              data: { records: list, totalRow: res.total || 0 },
               success: true,
             };
           } catch (err: any) {
@@ -244,7 +244,7 @@ export default function SpiderTasksPage() {
             sx={{ mt: 1, mb: 1.5 }}
           >
             <MenuItem value="">不指定</MenuItem>
-            {(sourcesQuery.data?.list || []).map((s: SpiderSource) => (
+            {(sourcesQuery.data || []).map((s: SpiderSource) => (
               <MenuItem key={s.id} value={s.id}>{s.name} ({s.domain})</MenuItem>
             ))}
           </TextField>
@@ -275,12 +275,12 @@ function TaskDetailDialog({ viewing, onClose, onOpenInContent }: { viewing: Craw
   const open = !!viewing;
   const itemsQ = useQuery({
     queryKey: ['spider', 'task-items', viewing?.id],
-    queryFn: () => getTaskItems(viewing!.id).then((r) => r.data),
+    queryFn: () => getTaskItems(viewing!.id).then((r) => r.list || []),
     enabled: open && tab === 0,
   });
   const linksQ = useQuery({
     queryKey: ['spider', 'task-links', viewing?.id],
-    queryFn: () => getTaskLinks(viewing!.id).then((r) => r.data),
+    queryFn: () => getTaskLinks(viewing!.id).then((r) => r.list || []),
     enabled: open && tab === 1,
   });
 
@@ -337,11 +337,11 @@ function TaskDetailDialog({ viewing, onClose, onOpenInContent }: { viewing: Craw
 
             {tab === 0 && (
               <Box sx={{ mt: 1.5 }}>
-                {(itemsQ.data?.list || []).length === 0 ? (
+                {(itemsQ.data?.length === 0) ? (
                   <Typography sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>暂无抓取项</Typography>
                 ) : (
                   <Box sx={{ maxHeight: 360, overflow: 'auto' }}>
-                    {(itemsQ.data?.list || []).map((it: any) => (
+                    {(itemsQ.data || []).map((it: any) => (
                       <Box key={it.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, borderBottom: '1px dashed', borderBottomColor: 'divider' }}>
                         {it.cover && <img src={it.cover} alt="" style={{ width: 40, height: 24, objectFit: 'cover', borderRadius: 4 }} />}
                         <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -358,11 +358,11 @@ function TaskDetailDialog({ viewing, onClose, onOpenInContent }: { viewing: Craw
 
             {tab === 1 && (
               <Box sx={{ mt: 1.5 }}>
-                {(linksQ.data?.list || []).length === 0 ? (
+                {(linksQ.data?.length === 0) ? (
                   <Typography sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>暂无链接</Typography>
                 ) : (
                   <Box sx={{ maxHeight: 360, overflow: 'auto' }}>
-                    {(linksQ.data?.list || []).map((l: any) => (
+                    {(linksQ.data || []).map((l: any) => (
                       <Box key={l.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, borderBottom: '1px dashed', borderBottomColor: 'divider' }}>
                         <Chip label={`D${l.depth}`} size="small" sx={{ height: 18, fontSize: 10 }} color="default" />
                         <Typography sx={{ fontSize: 11, fontFamily: 'monospace', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.url}</Typography>

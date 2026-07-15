@@ -69,7 +69,7 @@ export default function ProjectPage({ groupId, groupData, onOpenTaskboard }: { g
 
   const query = useQuery({
     queryKey: ['reward-project', tab, page, groupId],
-    queryFn: () => myPage({ pageNumber: page, pageSize, groupId, status: tab || undefined }).then((r) => ({
+    queryFn: () => myPage({ page, pageSize, groupId, status: tab || undefined }).then((r) => ({
       records: r.data?.records || [],
       totalRow: r.data?.totalRow || 0,
     })),

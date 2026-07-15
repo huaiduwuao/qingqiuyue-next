@@ -64,7 +64,7 @@ export default function RewardActivity() {
     staleTime: 30 * 1000,
     refetchOnMount: 'always',
   });
-  const list = (data?.records ?? data?.list ?? []) as ActivityItem[];
+  const list = (data?.list ?? []) as ActivityItem[];
 
   const ACTIVITIES: Activity[] = list.map((a, idx) => ({
     id: String(a.refId ?? idx),

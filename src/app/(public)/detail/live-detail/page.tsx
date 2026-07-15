@@ -108,7 +108,7 @@ function LiveDetailContent() {
     staleTime: 5 * 60 * 1000,
     refetchOnMount: 'always',
   });
-  const apiGifts: GiftItem[] = (giftResp?.records ?? giftResp?.list ?? []).map((g: ApiGift) => ({
+  const apiGifts: GiftItem[] = (giftResp?.list ?? []).map((g: ApiGift) => ({
     id: g.id, name: g.name, emoji: g.icon, price: g.price / 100, desc: g.effect,
   }));
   const GIFT_CATALOG: GiftItem[] = apiGifts.length ? apiGifts : FALLBACK_GIFTS;

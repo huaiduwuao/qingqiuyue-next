@@ -1,21 +1,15 @@
 import { adminClient } from '@/lib/api/client';
+import { PageParams } from '@/beans/pagination';
 
-// 后端分页响应 { list, total } 归一成 UI 期望的 { records, totalRow }
-function normalizePage(res: any) {
-  const d = res?.data ?? {};
-  return {
-    ...res,
-    data: {
-      records: d.records ?? d.list ?? [],
-      totalRow: d.totalRow ?? d.total ?? 0,
-    },
-  };
+export interface UserListParams extends PageParams {
+  name?: string;
+  username?: string;
+  status?: number;
 }
 
-// 用户分页 -> 后端 GET /user/list
-export async function page(params: Record<string, unknown>) {
-  const res = await adminClient('/user/list', { params });
-  return normalizePage(res);
+// 用户分页 -> 后端 GET /user/list (client.ts 已自动归一化分页响应)
+export async function page(params: UserListParams) {
+  return adminClient('/user/list', { params });
 }
 
 // 删除用户 -> 后端 DELETE /user/:id (批量循环)

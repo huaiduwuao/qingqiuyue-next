@@ -214,9 +214,9 @@ export default function TemplatesPage() {
         columns={columns}
         fetchData={async (params) => {
           try {
-            const res = await listTemplates({ ...params, pageNumber: params.pageNumber });
-            const records = res.data?.records || res.data?.list || [];
-            const total = res.data?.totalRow || res.data?.total || records.length;
+            const res = await listTemplates({ page: params.pageNumber, pageSize: params.pageSize });
+            const records = res.list || [];
+            const total = res.total || records.length;
             return { data: { records, totalRow: total }, success: true };
           } catch (err: any) {
             showMessage(err.message || '获取数据失败', 'error');

@@ -11,6 +11,8 @@
  */
 
 import { contentClient } from '@/lib/api/client';
+import type { PageParams, PageResult } from '@/beans/pagination';
+import { normalizeLegacyPageResponse } from '@/hooks/usePagination';
 
 export interface ModuleContentItem {
   id: number;
@@ -40,10 +42,7 @@ export interface ModuleContentItem {
   updateTime?: string;
 }
 
-export interface ModuleContentQuery {
-  pageNumber?: number;
-  pageSize?: number;
-  page?: number;
+export interface ModuleContentQuery extends PageParams {
   moduleId?: number | string;
   groupId?: number | string;
   contentType?: string;
@@ -55,16 +54,9 @@ export interface ModuleContentQuery {
   sortOrder?: string;
 }
 
-export interface ModuleContentPageResp {
-  records: ModuleContentItem[];
-  totalRow: number;
-  page: number;
-  pageSize: number;
-}
-
 function toBackendParams(q: ModuleContentQuery) {
   return {
-    page: q.pageNumber ?? q.page ?? 1,
+    page: q.page ?? 1,
     pageSize: q.pageSize ?? 20,
     moduleId: q.moduleId,
     groupId: q.groupId,
@@ -78,8 +70,9 @@ function toBackendParams(q: ModuleContentQuery) {
   };
 }
 
-export async function myPage(params: ModuleContentQuery = {}): Promise<{ code: number; data: ModuleContentPageResp }> {
-  return contentClient('/module/content/list', { params: toBackendParams(params) }) as any;
+export async function myPage(params: ModuleContentQuery = {}): Promise<PageResult<ModuleContentItem>> {
+  const res = await contentClient('/module/content/list', { params: toBackendParams(params) });
+  return normalizeLegacyPageResponse(res as any);
 }
 
 export async function getById(id: number): Promise<{ code: number; data: ModuleContentItem }> {

@@ -1,5 +1,6 @@
 import { rewardClient } from '@/lib/api/client';
 import type { ConceptionItem } from '@/beans/reward';
+import type { PageParams } from '@/beans/pagination';
 
 // 概念信息(API 返回的完整字段 = ConceptionItem 视图的全部可选字段)
 export interface ConceptionInfo extends ConceptionItem {
@@ -8,11 +9,8 @@ export interface ConceptionInfo extends ConceptionItem {
   description?: string;
 }
 
-// 概念查询参数
-export interface ConceptionQuery {
-  page?: number;
-  pageSize?: number;
-  pageNumber?: number;
+// 概念查询参数（扩展统一分页类型）
+export interface ConceptionQuery extends PageParams {
   name?: string;
   groupId?: number;
   demandId?: number;

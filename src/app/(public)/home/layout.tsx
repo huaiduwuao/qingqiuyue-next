@@ -50,6 +50,7 @@ import { DramaPanel } from './panels/DramaPanel';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { ACCENT } from '@/constants/accents';
 import { gradient2, IMAGE_OVERLAY } from '@/constants/gradients';
+import HomeRecommendPage from './recommend/page';
 
 const SIDE_NAV: { key: string; label: string; path?: string; icon: React.ReactNode; accent: string; dividerBefore?: boolean }[] = [
   { key: 'home', label: '精选', path: '/home/recommend?tab=home', icon: <HomeRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
@@ -143,14 +144,15 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
           {activeNav === 'me' ? <MyHomePage />
            : activeNav === 'ai' ? <AIRecommendPanel />
            : activeNav === 'home' ? <FeedPanel tab="home" />
-           : activeNav === 'recommend' ? children
+           : activeNav === 'recommend' ? <HomeRecommendPage />
            : activeNav === 'follow' ? <FeedPanel tab="follow" />
            : activeNav === 'friend' ? <FeedPanel tab="friend" />
            : activeNav === 'live' ? <LivePanel />
            : activeNav === 'theater' ? <TheaterPanel />
            : activeNav === 'drama' ? <DramaPanel />
-           : children}
+           : <Box sx={{ p: 3 }}>{children}</Box>}
         </Box>
+        {/* recommend 页面自己处理右侧栏，home 使用外部侧边栏 */}
         {activeNav === 'home' && <RightSidebar />}
       </Box>
       <MockStatusBadge />

@@ -40,6 +40,53 @@ export function isBusinessError(error: unknown): boolean {
   return isApiError(error) && error.category === 'business';
 }
 
+/**
+ * 分页响应归一化
+ * 将后端返回的各种字段命名统一为标准格式
+ */
+function normalizePaginationPayload(payload: Record<string, any>): void {
+  // 数据列表归一：优先使用 list，兼容 records
+  if ('list' in payload && !('records' in payload)) {
+    payload.records = payload.list;
+  }
+  if ('records' in payload && !('list' in payload)) {
+    payload.list = payload.records;
+  }
+
+  // 总数归一：优先使用 total，兼容 totalRow
+  if ('total' in payload && !('totalRow' in payload)) {
+    payload.totalRow = payload.total;
+  }
+  if ('totalRow' in payload && !('total' in payload)) {
+    payload.total = payload.totalRow;
+  }
+
+  // 页码归一：兼容 pageNumber / current
+  if (!('page' in payload)) {
+    if ('pageNumber' in payload) {
+      payload.page = payload.pageNumber;
+    } else if ('current' in payload) {
+      payload.page = payload.current;
+    }
+  }
+
+  // 每页条数归一：兼容 size
+  if (!('pageSize' in payload) && 'size' in payload) {
+    payload.pageSize = payload.size;
+  }
+
+  // 计算 totalPages 和 hasMore（如果后端没有返回）
+  if (typeof payload.total === 'number' && typeof payload.pageSize === 'number' && payload.pageSize > 0) {
+    if (!('totalPages' in payload) || typeof payload.totalPages !== 'number') {
+      payload.totalPages = Math.ceil(payload.total / payload.pageSize);
+    }
+    if (!('hasMore' in payload) || typeof payload.hasMore !== 'boolean') {
+      const page = payload.page ?? 1;
+      payload.hasMore = page < payload.totalPages;
+    }
+  }
+}
+
 export function formatApiError(error: unknown): string {
   if (isApiError(error)) {
     if (error.category === 'auth') return '登录已过期,请重新登录';
@@ -174,12 +221,10 @@ function createApiClient(baseURL: string) {
         // 分页响应归一(同原逻辑)
         const payload = (data as any)?.data;
         if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
-          if ('list' in payload && !('records' in payload)) payload.records = payload.list;
-          if ('records' in payload && !('list' in payload)) payload.list = payload.records;
-          if ('total' in payload && !('totalRow' in payload)) payload.totalRow = payload.total;
-          if ('totalRow' in payload && !('total' in payload)) payload.total = payload.totalRow;
           // 字段别名:对分页响应里的 data.data 整个对象做一次
           applyAliases(payload);
+          // 分页字段归一
+          normalizePaginationPayload(payload);
         }
         return data;
       }
@@ -193,10 +238,7 @@ function createApiClient(baseURL: string) {
       };
       // 列表分页归一:flat { items } 也提供 list 别名
       if (data && typeof data === 'object' && !Array.isArray(data)) {
-        if ('items' in data && !('list' in data)) (wrapped.data as any).list = (data as any).items;
-        if ('list' in data && !('records' in data)) (wrapped.data as any).records = (data as any).list;
-        if ('total' in data && !('totalRow' in data)) (wrapped.data as any).totalRow = (data as any).total;
-        if ('totalRow' in data && !('total' in data)) (wrapped.data as any).total = (data as any).totalRow;
+        normalizePaginationPayload(data as Record<string, any>);
         // 字段别名归一(递归)
         applyAliases(wrapped.data);
       }

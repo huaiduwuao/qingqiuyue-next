@@ -103,7 +103,7 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
     staleTime: 30 * 1000,
     enabled: !!currentUser?.id,
   });
-  const LIKES_PREVIEW = (likesResp?.records ?? likesResp?.list ?? []).map((l) => ({
+  const LIKES_PREVIEW: Array<{ id: string | number; title?: string; cover?: string }> = (likesResp?.list ?? []).map((l: any) => ({
     id: l.id, title: l.title, cover: l.cover || gradient2('#C8A882', '#8B6F47'),
   }));
 

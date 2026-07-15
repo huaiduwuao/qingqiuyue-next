@@ -1,5 +1,6 @@
 import { rewardClient } from '@/lib/api/client';
 import type { DemandItem } from '@/beans/reward';
+import type { PageParams } from '@/beans/pagination';
 
 // 需求信息(API 返回的完整字段 = DemandItem 视图的全部可选字段)
 export interface DemandInfo extends DemandItem {
@@ -10,11 +11,8 @@ export interface DemandInfo extends DemandItem {
   groupId?: number;
 }
 
-// 需求查询参数
-export interface DemandQuery {
-  page?: number;
-  pageSize?: number;
-  pageNumber?: number;
+// 需求查询参数（扩展统一分页类型）
+export interface DemandQuery extends PageParams {
   title?: string;
   status?: string;
   groupId?: number;

@@ -1,5 +1,6 @@
 import { rewardClient } from '@/lib/api/client';
 import type { ProjectItem } from '@/beans/reward';
+import type { PageParams } from '@/beans/pagination';
 
 // 项目信息(API 返回的完整字段 = ProjectItem 视图的全部可选字段)
 export interface ProjectInfo extends ProjectItem {
@@ -8,11 +9,8 @@ export interface ProjectInfo extends ProjectItem {
   description?: string;
 }
 
-// 项目查询参数
-export interface ProjectQuery {
-  page?: number;
-  pageSize?: number;
-  pageNumber?: number;
+// 项目查询参数（扩展统一分页类型）
+export interface ProjectQuery extends PageParams {
   name?: string;
   status?: string;
   groupId?: number;

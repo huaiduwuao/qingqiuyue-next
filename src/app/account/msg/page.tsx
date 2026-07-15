@@ -41,6 +41,7 @@ import { adminClient, homeClient, contentClient, formatApiError } from '@/lib/ap
 import { getDetailRoute } from '@/lib/contentRoute';
 import { fileUpload } from '@/apis/global';
 import { useMsgUi } from './store';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Session {
   id: number;
@@ -464,6 +465,7 @@ function SystemNoticeItem({ item }: { item: any }) {
 
 // ─── 私信面板(原 私信 页内容) ───
 function DmPanel() {
+  const { isAuthenticated } = useAuth();
   const selectedId = useMsgUi((s) => s.selectedId);
   const setSelectedId = useMsgUi((s) => s.setSelectedId);
   const [keyword, setKeyword] = useState('');
@@ -482,6 +484,7 @@ function DmPanel() {
   const { data: sessionData, isLoading: loadingSessions } = useQuery({
     queryKey: ['dm-sessions-page'],
     queryFn: async () => (await adminClient('/msg/session/list')).data,
+    enabled: isAuthenticated,  // 未登录不发请求(否则 401 刷屏)
   });
   const sessions: Session[] = sessionData?.list || [];
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
@@ -39,6 +39,7 @@ import { FriendPanel } from './FriendPanel';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { fetchSubcategories, type SubcategoryItem } from '@/apis/home-discover';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
+import Masonry from 'react-masonry-css';
 
 type FeedItem = {
   id: number;
@@ -194,6 +195,16 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
       const records = resp?.list || [];
       const total = resp?.total || 0;
 
+      console.log('[FeedPanel] API response:', {
+        tab,
+        section,
+        feedPage,
+        recordsCount: records.length,
+        total,
+        PAGE_SIZE,
+        hasMore: records.length === PAGE_SIZE && (feedPage * PAGE_SIZE) < total,
+      });
+
       setFeedList(prev => feedPage === 1 ? records : [...prev, ...records]);
       setFeedHasMore(records.length === PAGE_SIZE && (feedPage * PAGE_SIZE) < total);
 
@@ -202,16 +213,37 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
     enabled: tab !== 'recommend',
   });
 
-  // 无限滚动
-  const scroll = useInfiniteScroll({
-    enabled: !query.isLoading && feedHasMore && tab !== 'recommend',
-  });
+  // 简化分页：使用单一 sentinel ref
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
+  // 监听滚动到底部
   useEffect(() => {
-    if (scroll.isNearBottom && feedHasMore && !query.isLoading) {
-      setFeedPage(p => p + 1);
-    }
-  }, [scroll.isNearBottom, feedHasMore, query.isLoading]);
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        console.log('[FeedPanel] IntersectionObserver:', {
+          tab,
+          section,
+          isIntersecting: entry.isIntersecting,
+          feedHasMore,
+          isLoading: query.isLoading,
+          feedPage,
+        });
+
+        if (entry.isIntersecting && feedHasMore && !query.isLoading) {
+          console.log('[FeedPanel] Loading next page');
+          setFeedPage(p => p + 1);
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [tab, section, feedHasMore, query.isLoading]);
 
   // 所有 Hook 调用完毕后再做条件分支(遵守 Rules of Hooks:Hook 顺序在每次渲染必须一致)
   if (tab === 'recommend') {
@@ -425,11 +457,15 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
                   </Box>
                 </Box>
               ) : data.list.length > 0 ? (
-                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 2 }}>
+                <Masonry
+                  breakpointCols={{ default: 3, 1200: 2, 900: 2, 600: 1 }}
+                  className="my-masonry-grid"
+                  columnClassName="my-masonry-grid_column"
+                >
                   {data.list.map((item) => (
                     <FeedCard key={item.id} item={item} tab={tab} onSnack={(m, s) => setSnack({ open: true, message: m, severity: s })} />
                   ))}
-                </Box>
+                </Masonry>
               ) : (
                 <EmptyHint tab={tab} section={section} />
               )}
@@ -442,7 +478,7 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
               )}
 
               {/* Infinite scroll sentinel */}
-              <Box ref={scroll.sentinelRef} sx={{ height: 1 }} />
+              <Box ref={sentinelRef} sx={{ height: 20, bgcolor: 'red', opacity: 0.3, borderRadius: 1 }} />
 
               {/* No more data */}
               {!query.isFetching && feedList.length > 0 && !feedHasMore && (

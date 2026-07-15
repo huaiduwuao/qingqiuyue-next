@@ -142,7 +142,7 @@ export default function CollectionPage() {
   // 真接口拉作品合集(uid 隔离),失败时 fallback 到 SEED 兜底
   const { data: colResp } = useQuery({
     queryKey: ['creator-collections'],
-    queryFn: () => getCollectionList({ page: 1, size: 50 }),
+    queryFn: () => getCollectionList({ page: 1, pageSize: 50 }),
     staleTime: 30 * 1000,
     refetchOnMount: 'always',
   });
@@ -150,7 +150,7 @@ export default function CollectionPage() {
   // 真接口拉当前创作者的所有作品(供「添加作品」选择器使用)
   const { data: myWorksResp } = useQuery({
     queryKey: ['creator-my-works-all'],
-    queryFn: () => getMyWorks().then((r) => r.records || r.list || []),
+    queryFn: () => getMyWorks().then((r: any) => r.list || r.records || []),
     staleTime: 30 * 1000,
     refetchOnMount: 'always',
   });
@@ -162,7 +162,7 @@ export default function CollectionPage() {
     views: w.views ?? 0,
     type: (w.hashtags?.includes('article') ? 'article' : w.duration > 0 ? 'video' : 'image') as WorkRef['type'],
   }));
-  const apiCollections: Collection[] = (colResp?.records ?? colResp?.list ?? []).map((c: ApiCollection) => ({
+  const apiCollections: Collection[] = (colResp?.list ?? []).map((c: ApiCollection) => ({
     id: Number(c.id) || 0,
     title: c.title,
     description: c.description ?? '',

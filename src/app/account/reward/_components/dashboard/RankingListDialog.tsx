@@ -26,11 +26,11 @@ export default function RankingListDialog({
 }) {
   const query = useQuery({
     queryKey: ['reward-ranking', 'all', 50],
-    queryFn: () => getRewardRanking({ limit: 50 }),
+    queryFn: () => getRewardRanking({ pageSize: 50 }),
     staleTime: 60 * 1000,
     enabled: open,
   });
-  const rankers = (query.data?.records ?? query.data?.list ?? []) as RewardRanker[];
+  const rankers = (query.data?.list ?? []) as RewardRanker[];
 
   return (
     <Dialog

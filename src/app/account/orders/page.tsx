@@ -77,12 +77,12 @@ export default function OrdersPage() {
   // 真接口拉订单(uid 已从 JWT 取,后端按用户隔离)
   const ordersQuery = useQuery({
     queryKey: ['order-list'],
-    queryFn: () => getOrderList({ page: 1, size: 100 }),
+    queryFn: () => getOrderList({ page: 1, pageSize: 100 }),
     staleTime: 30 * 1000,
     refetchOnMount: 'always',
   });
   // 后端 ApiOrder.payMethod 是 string,本地 Order 限定为枚举 → 在边界处 narrow
-  const orders = (ordersQuery.data?.records ?? ordersQuery.data?.list ?? []).map((o: ApiOrder) => ({
+  const orders: Order[] = (ordersQuery.data?.list ?? []).map((o: any) => ({
     ...o,
     payMethod: (['wechat', 'alipay', 'apple', 'card'].includes(o.payMethod) ? o.payMethod : 'wechat') as Order['payMethod'],
   }));

@@ -52,7 +52,7 @@ export default function TrendChart() {
   const baselineY = PAD.top + innerH;
 
   const { linePath, areaPath, points, yTicks, xLabelStep, isEmpty } = useMemo(() => {
-    const list = ((query.data?.records ?? query.data?.list ?? []) as TrendPoint[]);
+    const list = ((query.data?.list ?? []) as TrendPoint[]);
     if (list.length === 0) {
       return { linePath: '', areaPath: '', points: [] as Array<{ x: number; y: number; raw: TrendPoint }>, yTicks: [], xLabelStep: 1, isEmpty: true };
     }

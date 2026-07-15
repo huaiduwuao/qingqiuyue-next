@@ -2,11 +2,13 @@
  * Home MSW handlers — Phase 3 改造:
  * 已接入真实后端的社交/me/侧边栏/AI 搜索/内容类面板端点走 passthrough,
  * 狼人杀暂无真实业务表,仍由 MSW 兜底。
+ * /feed 在后端数据不完整时使用 mock 数据兜底。
  */
 
 import { http, HttpResponse, passthrough } from 'msw';
 import {
   WEREWOLF_PLAYERS, WEREWOLF_VIDEO, WEREWOLF_FEED,
+  FEED,
 } from '../db/home';
 
 const ok = <T,>(data: T) => HttpResponse.json({ code: 200, msg: 'OK', data });
