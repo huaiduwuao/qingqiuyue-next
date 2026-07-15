@@ -128,14 +128,16 @@ export function RecommendVideoFeed() {
     isFetchingMoreRef.current = false;
   }, [page]);
 
-  const { data: feed, isLoading } = useQuery({
+  const { data: feed, isLoading, isError, error } = useQuery({
     queryKey: ['home-recommend', 'recommend-feed', page],
     queryFn: async () => {
+      console.log('[RecommendVideoFeed] fetching page:', page);
       const resp = await fetchRecommend({
         types: 'VIDEO',
         size: PAGE_SIZE,
         page: page,
       }) as any;
+      console.log('[RecommendVideoFeed] fetched page:', page, 'items:', resp?.data?.list?.length);
       const list = (resp?.data?.list ?? []) as any[];
       const items = list.map((it): VideoItem => ({
         id: Number(it.id) || 0,
@@ -161,7 +163,15 @@ export function RecommendVideoFeed() {
       return { items, total, hasMore };
     },
     placeholderData: (prev) => prev, // loading 时保持旧数据，防止闪烁
+    retry: 1,
   });
+
+  // 打印错误
+  useEffect(() => {
+    if (isError) {
+      console.error('[RecommendVideoFeed] query error:', error);
+    }
+  }, [isError, error]);
 
   // 合并数据到 allItems（限制最多100条）
   useEffect(() => {
