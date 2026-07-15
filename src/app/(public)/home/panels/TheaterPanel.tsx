@@ -367,7 +367,7 @@ function Top10Section({ category }: { category: string }) {
   if (topQuery.isLoading) return null;
   if (!topQuery.data?.list?.length) return null;
 
-  return <TheaterTop10 list={topQuery.data.list} category={category} sort="hot" />;
+  return <TheaterTop10 list={topQuery.data.list} category={category as 'all' | TheaterItem['category']} sort="hot" />;
 }
 
 function FilterRow({
