@@ -207,7 +207,6 @@ export function RecommendVideoFeed() {
   }, [feed, page]);
 
   const uniqueVideos = allItems;
-  console.log('[RecommendVideoFeed] render: index=', index, 'allItems.length=', allItems.length, 'uniqueVideos.length=', uniqueVideos.length);
 
   // 视频导航状态
   const [index, setIndex] = useState(0);
@@ -217,6 +216,8 @@ export function RecommendVideoFeed() {
   const indexRef = useRef(0);
   indexRef.current = index;
   const video = uniqueVideos[index];
+
+  console.log('[RecommendVideoFeed] render: index=', index, 'allItems.length=', allItems.length, 'uniqueVideos.length=', uniqueVideos.length);
 
   // 全屏布局：滑动到倒数第3条时预加载下一页
   useEffect(() => {
