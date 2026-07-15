@@ -111,7 +111,7 @@ export function RecommendVideoFeed() {
   const [moreDialogOpen, setMoreDialogOpen] = useState(false);
 
   // 分页状态
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 24;
   const [page, setPage] = useState(1);
   const [allItems, setAllItems] = useState<VideoItem[]>([]);
   const [hasMore, setHasMore] = useState(true);
