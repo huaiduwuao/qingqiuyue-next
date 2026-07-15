@@ -170,18 +170,6 @@ export function RecommendVideoFeed() {
       return [...prev, ...newItems];
     });
     setHasMore(feed.hasMore);
-
-    // 合并完成后检查是否需要继续加载
-    setTimeout(() => {
-      setAllItems(current => {
-        if (processedPageRef.current !== page) return current; // 已经被后续页码覆盖
-        const remaining = current.length - indexRef.current;
-        if (remaining <= 3 && remaining > 0 && feed.hasMore) {
-          setPage(p => p + 1);
-        }
-        return current;
-      });
-    }, 0);
   }, [feed, page]);
 
   const uniqueVideos = allItems;
@@ -194,6 +182,15 @@ export function RecommendVideoFeed() {
   const indexRef = useRef(0);
   indexRef.current = index;
   const video = uniqueVideos[index];
+
+  // 滑动时预加载下一页
+  useEffect(() => {
+    const remaining = allItems.length - index;
+    // 只在滑动到倒数第3条且没有正在请求时触发
+    if (remaining <= 3 && remaining > 0 && hasMore && !isFetching) {
+      setPage(p => p + 1);
+    }
+  }, [index]); // 只监听 index 变化，不监听 isFetching
 
   const lockNav = useCallback((ms = 380) => {
     navLock.current = true;
