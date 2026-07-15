@@ -205,18 +205,22 @@ export function RecommendVideoFeed() {
   indexRef.current = index;
   const video = uniqueVideos[index];
 
-  // 确保 index 不会越界
+  // 合并完成后检查是否需要继续预加载
   useEffect(() => {
-    if (index >= uniqueVideos.length && uniqueVideos.length > 0) {
-      setIndex(Math.max(0, uniqueVideos.length - 1));
+    const currentItems = allItems.length;
+    const remaining = currentItems - index;
+    // 如果合并后还在倒数第3条附近，且还有更多数据，则继续加载
+    if (remaining <= 3 && remaining > 0 && hasMore && !isFetchingMoreRef.current) {
+      isFetchingMoreRef.current = true;
+      setPage(p => p + 1);
     }
-  }, [uniqueVideos.length]);
+  }, [allItems.length, index, hasMore]);
 
   // 全屏布局：滑动时预加载下一页
   useEffect(() => {
     const currentItems = allItems.length;
     const remaining = currentItems - index;
-    const shouldTrigger = !alreadyTriggeredRef.current && !isFetchingMoreRef.current && hasMore && currentItems > 0 && remaining <= 3;
+    const shouldTrigger = !alreadyTriggeredRef.current && !isFetchingMoreRef.current && hasMore && currentItems > 0 && remaining <= 3 && remaining > 0;
     if (shouldTrigger) {
       alreadyTriggeredRef.current = true;
       isFetchingMoreRef.current = true;
