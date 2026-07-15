@@ -130,7 +130,6 @@ export function RecommendVideoFeed() {
 
   // 用于追踪当前请求的 page（避免闭包问题）
   const pageRef = useRef(page);
-  const prevFetchingRef = useRef(false);
 
   // 更新 pageRef
   useEffect(() => {
@@ -174,34 +173,29 @@ export function RecommendVideoFeed() {
     placeholderData: (prev) => prev,
   });
 
-  // 合并数据到 allItems（监听 isFetching 从 true 变为 false）
+  // 合并数据到 allItems
   useEffect(() => {
-    // 只有当请求完成且有新数据时才合并
     if (!feed) return;
 
-    // 检测 isFetching 从 true 变为 false（请求完成）
-    if (prevFetchingRef.current && !isFetching) {
-      const currentPage = pageRef.current;
-      console.log('[RecommendVideoFeed] merging on fetch complete: page=', currentPage);
-      setAllItems(prev => {
-        console.log('[RecommendVideoFeed] merging: page=', currentPage, 'prev.length=', prev.length, 'feed.items=', feed.items.length);
-        if (currentPage === 1) {
-          return feed.items;
-        }
-        // 去重追加
-        const existingIds = new Set(prev.map(v => v.idString || String(v.id)));
-        const newItems = feed.items.filter(v => !existingIds.has(v.idString || String(v.id)));
-        const result = [...prev, ...newItems];
-        console.log('[RecommendVideoFeed] merged result.length=', result.length);
-        return result;
-      });
-      setHasMore(feed.hasMore);
-      // 数据加载完成后重置触发标志，允许下次触发
-      isFetchingMoreRef.current = false;
-      alreadyTriggeredRef.current = false;
-    }
-    prevFetchingRef.current = isFetching;
-  }, [feed, isFetching]);
+    const currentPage = pageRef.current;
+    console.log('[RecommendVideoFeed] merging: page=', currentPage, 'isFetching=', isFetching);
+    setAllItems(prev => {
+      console.log('[RecommendVideoFeed] merging: page=', currentPage, 'prev.length=', prev.length, 'feed.items=', feed.items.length);
+      if (currentPage === 1) {
+        return feed.items;
+      }
+      // 去重追加
+      const existingIds = new Set(prev.map(v => v.idString || String(v.id)));
+      const newItems = feed.items.filter(v => !existingIds.has(v.idString || String(v.id)));
+      const result = [...prev, ...newItems];
+      console.log('[RecommendVideoFeed] merged result.length=', result.length);
+      return result;
+    });
+    setHasMore(feed.hasMore);
+    // 数据加载完成后重置触发标志，允许下次触发
+    isFetchingMoreRef.current = false;
+    alreadyTriggeredRef.current = false;
+  }, [feed]);
 
   const uniqueVideos = allItems;
 
