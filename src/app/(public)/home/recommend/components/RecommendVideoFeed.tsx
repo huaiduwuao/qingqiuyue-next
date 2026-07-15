@@ -132,35 +132,41 @@ export function RecommendVideoFeed() {
     queryKey: ['home-recommend', 'recommend-feed', page],
     queryFn: async () => {
       console.log('[RecommendVideoFeed] fetching page:', page);
-      const resp = await fetchRecommend({
-        types: 'VIDEO',
-        size: PAGE_SIZE,
-        page: page,
-      }) as any;
-      console.log('[RecommendVideoFeed] fetched page:', page, 'items:', resp?.data?.list?.length);
-      const list = (resp?.data?.list ?? []) as any[];
-      const items = list.map((it): VideoItem => ({
-        id: Number(it.id) || 0,
-        idString: typeof it.idString === 'string' && it.idString ? it.idString : String(it.id ?? ''),
-        title: it.title || '',
-        contentType: (it.category || 'NOVEL').toUpperCase(),
-        cover: it.cover || '',
-        author: it.author || '未知作者',
-        authorAvatar: it.authorAvatar || '',
-        authorId: Number(it.authorId) || 0,
-        durationSec: 30 + (hashId(it.idString ?? String(it.id)) % 60),
-        views: Number(it.views) || 0,
-        likes: Number(it.likes) || 0,
-        comments: Number(it.comments) || 0,
-        collects: Number(it.collects) || 0,
-        shares: Number(it.shares) || 0,
-        caption: it.title || '',
-        verified: false,
-        brand: TYPE_LABEL[(it.category || 'NOVEL').toUpperCase()] || '推荐',
-      }));
-      const total = resp?.data?.total || 0;
-      const hasMore = resp?.data?.hasMore ?? false;
-      return { items, total, hasMore };
+      try {
+        const resp = await fetchRecommend({
+          types: 'VIDEO',
+          size: PAGE_SIZE,
+          page: page,
+        }) as any;
+        console.log('[RecommendVideoFeed] raw response:', JSON.stringify(resp)?.slice(0, 500));
+        const list = (resp?.data?.list ?? []) as any[];
+        const items = list.map((it): VideoItem => ({
+          id: Number(it.id) || 0,
+          idString: typeof it.idString === 'string' && it.idString ? it.idString : String(it.id ?? ''),
+          title: it.title || '',
+          contentType: (it.category || 'NOVEL').toUpperCase(),
+          cover: it.cover || '',
+          author: it.author || '未知作者',
+          authorAvatar: it.authorAvatar || '',
+          authorId: Number(it.authorId) || 0,
+          durationSec: 30 + (hashId(it.idString ?? String(it.id)) % 60),
+          views: Number(it.views) || 0,
+          likes: Number(it.likes) || 0,
+          comments: Number(it.comments) || 0,
+          collects: Number(it.collects) || 0,
+          shares: Number(it.shares) || 0,
+          caption: it.title || '',
+          verified: false,
+          brand: TYPE_LABEL[(it.category || 'NOVEL').toUpperCase()] || '推荐',
+        }));
+        const total = resp?.data?.total || 0;
+        const hasMore = resp?.data?.hasMore ?? false;
+        console.log('[RecommendVideoFeed] mapped items:', items.length, 'hasMore:', hasMore);
+        return { items, total, hasMore };
+      } catch (err) {
+        console.error('[RecommendVideoFeed] fetch error:', err);
+        throw err;
+      }
     },
     placeholderData: (prev) => prev, // loading 时保持旧数据，防止闪烁
     retry: 1,
