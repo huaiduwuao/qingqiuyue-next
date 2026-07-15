@@ -140,11 +140,9 @@ export function LivePanel() {
     },
   });
 
-  // 无限滚动
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  // 无限滚动 - 自动查找可滚动祖先容器
   const scroll = useScrollToBottom({
     enabled: !query.isLoading && liveHasMore,
-    containerRef: scrollContainerRef,
   });
 
   useEffect(() => {
@@ -291,40 +289,38 @@ export function LivePanel() {
         </Typography>
       </Box>
 
-      {/* 直播间网格 */}
-      <Box ref={scrollContainerRef} sx={{ overflow: 'auto', maxHeight: 'calc(100vh - 320px)' }}>
-        <AsyncState
-          query={query}
-          skeletonCount={6}
-          skeletonHeight={320}
-          isEmpty={(d) => d.list.length === 0}
-          emptyText="该筛选下暂无直播间"
-          emptyHint="尝试切回全部分类或调整状态"
-        >
-          {(data) => (
-            <Box>
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
-                {liveList.map((room) => (
-                  <RoomCard key={room.id} room={room} onClick={() => navigate('LIVE', room.id)} />
-                ))}
-              </Box>
-
-              {/* 滚动触发器 */}
-              <Box ref={scroll.sentinelRef} sx={{ height: 1 }} />
-
-              {/* Loading more */}
-              {query.isFetching && !query.isLoading && (
-                <Typography sx={{ textAlign: 'center', py: 2, color: 'text.secondary', fontSize: 12 }}>加载中...</Typography>
-              )}
-
-              {/* No more */}
-              {!query.isFetching && liveList.length > 0 && !liveHasMore && (
-                <Typography sx={{ textAlign: 'center', py: 3, color: 'text.disabled', fontSize: 12 }}>- 没有更多了 -</Typography>
-              )}
+      {/* 直播间网格 - 不使用内部滚动容器，让内容流入外部可滚动的 MAIN */}
+      <AsyncState
+        query={query}
+        skeletonCount={6}
+        skeletonHeight={320}
+        isEmpty={(d) => d.list.length === 0}
+        emptyText="该筛选下暂无直播间"
+        emptyHint="尝试切回全部分类或调整状态"
+      >
+        {(data) => (
+          <Box>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
+              {liveList.map((room) => (
+                <RoomCard key={room.id} room={room} onClick={() => navigate('LIVE', room.id)} />
+              ))}
             </Box>
-          )}
-        </AsyncState>
-      </Box>
+
+            {/* 滚动触发器 - 放在可滚动的 MAIN 底部 */}
+            <Box ref={scroll.sentinelRef} sx={{ height: 1 }} />
+
+            {/* Loading more */}
+            {query.isFetching && !query.isLoading && (
+              <Typography sx={{ textAlign: 'center', py: 2, color: 'text.secondary', fontSize: 12 }}>加载中...</Typography>
+            )}
+
+            {/* No more */}
+            {!query.isFetching && liveList.length > 0 && !liveHasMore && (
+              <Typography sx={{ textAlign: 'center', py: 3, color: 'text.disabled', fontSize: 12 }}>- 没有更多了 -</Typography>
+            )}
+          </Box>
+        )}
+      </AsyncState>
     </Box>
   );
 }
