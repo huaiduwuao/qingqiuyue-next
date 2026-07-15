@@ -117,8 +117,6 @@ export function RecommendVideoFeed() {
 
   // 追踪当前已处理的页码
   const processedPageRef = useRef(0);
-  // 追踪 fetching 状态
-  const isFetchingRef = useRef(false);
 
   const { data: feed, isLoading, isFetching } = useQuery({
     queryKey: ['home-recommend', 'recommend-feed', page],
@@ -161,7 +159,6 @@ export function RecommendVideoFeed() {
     if (page <= processedPageRef.current) return;
 
     processedPageRef.current = page;
-    isFetchingRef.current = false;
 
     setAllItems(prev => {
       if (page === 1) {
