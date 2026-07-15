@@ -115,19 +115,11 @@ export function RecommendVideoFeed() {
   const [allItems, setAllItems] = useState<VideoItem[]>([]);
   const [hasMore, setHasMore] = useState(true);
 
-  // 防重复触发 refs
-  const isFetchingMoreRef = useRef(false);
-
-  // 用于追踪当前请求的 page
-  const pageRef = useRef(page);
-
-  // 更新 pageRef
-  useEffect(() => {
-    pageRef.current = page;
-  }, [page]);
-
-  // 追踪已处理的 page
+  // 追踪当前已处理的页码
   const processedPageRef = useRef(0);
+
+  // 追踪是否正在加载
+  const isLoadingRef = useRef(false);
 
   const { data: feed, isLoading, isFetching } = useQuery({
     queryKey: ['home-recommend', 'recommend-feed', page],
@@ -135,7 +127,7 @@ export function RecommendVideoFeed() {
       const resp = await fetchRecommend({
         types: 'VIDEO',
         size: PAGE_SIZE,
-        page: pageRef.current,
+        page: page,
       }) as any;
       const list = (resp?.data?.list ?? []) as any[];
       const items = list.map((it): VideoItem => ({
@@ -164,15 +156,16 @@ export function RecommendVideoFeed() {
 
   // 合并数据到 allItems
   useEffect(() => {
-    if (!feed) return;
+    if (!feed || isLoadingRef.current) return;
 
-    // 只有当新数据对应的 page 与已处理的不同时才合并
-    const currentPage = pageRef.current;
-    if (currentPage <= processedPageRef.current) return;
-    processedPageRef.current = currentPage;
+    // 跳过已处理的数据
+    if (page <= processedPageRef.current) return;
+
+    isLoadingRef.current = true;
+    processedPageRef.current = page;
 
     setAllItems(prev => {
-      if (currentPage === 1) {
+      if (page === 1) {
         return feed.items;
       }
       // 去重追加
@@ -181,9 +174,12 @@ export function RecommendVideoFeed() {
       return [...prev, ...newItems];
     });
     setHasMore(feed.hasMore);
-    // 数据加载完成后重置触发标志
-    isFetchingMoreRef.current = false;
-  }, [feed]);
+
+    // 重置加载状态
+    setTimeout(() => {
+      isLoadingRef.current = false;
+    }, 100);
+  }, [feed, page]);
 
   const uniqueVideos = allItems;
 
@@ -202,22 +198,10 @@ export function RecommendVideoFeed() {
     const remaining = currentItems - index;
     // 只有在倒数第3条时才触发，且没有正在进行的请求
     const shouldTrigger = remaining <= 3 && remaining > 0 && hasMore && !isFetching;
-    if (shouldTrigger && !isFetchingMoreRef.current) {
-      isFetchingMoreRef.current = true;
+    if (shouldTrigger) {
       setPage(p => p + 1);
     }
   }, [index, allItems.length, hasMore, isFetching]);
-
-  // 合并完成后检查是否需要继续预加载
-  useEffect(() => {
-    const currentItems = allItems.length;
-    const remaining = currentItems - index;
-    // 合并完成后，如果还在倒数第3条附近，且有更多数据，且没有正在进行的请求
-    if (remaining <= 3 && remaining > 0 && hasMore && !isFetching && !isFetchingMoreRef.current) {
-      isFetchingMoreRef.current = true;
-      setPage(p => p + 1);
-    }
-  }, [allItems.length, index, hasMore, isFetching]);
 
   const lockNav = useCallback((ms = 380) => {
     navLock.current = true;
