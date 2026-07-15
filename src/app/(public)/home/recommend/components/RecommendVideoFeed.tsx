@@ -183,16 +183,22 @@ export function RecommendVideoFeed() {
   useEffect(() => {
     if (!feed) return;
     setAllItems(prev => {
-      if (page === 1) return feed.items;
-      // 去重追加
-      const existingIds = new Set(prev.map(v => v.idString || String(v.id)));
-      const newItems = feed.items.filter(v => !existingIds.has(v.idString || String(v.id)));
-      const combined = [...prev, ...newItems];
-      // 最多保留 200 条，避免内存过大
-      if (combined.length > 200) {
-        return combined.slice(-200);
+      let result;
+      if (page === 1) {
+        result = feed.items;
+      } else {
+        // 去重追加
+        const existingIds = new Set(prev.map(v => v.idString || String(v.id)));
+        const newItems = feed.items.filter(v => !existingIds.has(v.idString || String(v.id)));
+        result = [...prev, ...newItems];
       }
-      return combined;
+      console.log('[RecommendVideoFeed] merging: page=', page, 'prev.length=', prev.length, 'feed.items=', feed.items.length, 'result.length=', result.length);
+      // 最多保留 200 条
+      if (result.length > 200) {
+        result = result.slice(-200);
+        console.log('[RecommendVideoFeed] trimmed to:', result.length);
+      }
+      return result;
     });
     setHasMore(feed.hasMore);
     // 数据加载完成后重置触发标志，允许下次触发
@@ -201,6 +207,7 @@ export function RecommendVideoFeed() {
   }, [feed, page]);
 
   const uniqueVideos = allItems;
+  console.log('[RecommendVideoFeed] render: index=', index, 'allItems.length=', allItems.length, 'uniqueVideos.length=', uniqueVideos.length);
 
   // 视频导航状态
   const [index, setIndex] = useState(0);
