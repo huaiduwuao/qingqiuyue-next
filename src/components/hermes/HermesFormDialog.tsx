@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -18,78 +18,115 @@ import CircularProgress from '@mui/material/CircularProgress';
 import type { HermesAgentItem } from '@/beans/system';
 import { hermesApi, type HermesInstanceItem } from '@/apis/hermes';
 
+// 类型定义
 interface HermesFormDialogProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (values: any) => void;
+  onSubmit: (values: Record<string, unknown>) => void;
   record: HermesAgentItem | null;
   isSubmitting?: boolean;
 }
 
+type HermesFormValues = {
+  agentId: string;
+  name: string;
+  role: string;
+  avatarUrl: string;
+  description: string;
+  systemPrompt: string;
+  greeting: string;
+  status: string;
+  published: boolean;
+  sortOrder: number;
+  instanceId: number;
+};
+
+type InstancePageResp = {
+  list?: HermesInstanceItem[];
+  data?: { records?: HermesInstanceItem[] };
+};
+
 const STATUS_OPTIONS = ['active', 'paused', 'draft'];
 const UNASSIGNED = 0;
 
+// 纯函数:从 record 计算初始表单值
+function buildInitialValues(record: HermesAgentItem | null): HermesFormValues {
+  if (record) {
+    return {
+      agentId: record.agentId || '',
+      name: record.name || '',
+      role: record.role || '',
+      avatarUrl: record.avatarUrl || '',
+      description: record.description || '',
+      systemPrompt: record.systemPrompt || '',
+      greeting: record.greeting || '',
+      status: record.status || 'active',
+      published: !!record.published,
+      sortOrder: record.sortOrder ?? 0,
+      instanceId: record.instanceId ?? UNASSIGNED,
+    };
+  }
+  return {
+    agentId: '',
+    name: '',
+    role: '',
+    avatarUrl: '',
+    description: '',
+    systemPrompt: '',
+    greeting: '',
+    status: 'active',
+    published: false,
+    sortOrder: 0,
+    instanceId: UNASSIGNED,
+  };
+}
+
+// 纯函数:从 record 计算初始 tagsRaw
+function buildInitialTagsRaw(record: HermesAgentItem | null): string {
+  if (!record) return '';
+  const recordTags = record.tags as string[] | string;
+  const tags = Array.isArray(recordTags)
+    ? recordTags
+    : typeof recordTags === 'string'
+    ? recordTags.split(',').filter(Boolean)
+    : [];
+  return tags.join(', ');
+}
+
 export default function HermesFormDialog({ open, onClose, onSubmit, record, isSubmitting }: HermesFormDialogProps) {
   const isEdit = !!record?.id;
-  const [values, setValues] = useState<Record<string, any>>({});
-  const [tagsRaw, setTagsRaw] = useState('');
+
+  // 初始化标记:每次 dialog open 或 record 变化时触发一次初始化
+  const initKeyRef = useRef(`init-${open}-${isEdit ? (record?.id ?? 'new') : 'new'}`);
+  const [values, setValues] = useState<HermesFormValues>(() => buildInitialValues(record));
+  const [tagsRaw, setTagsRaw] = useState<string>(() => buildInitialTagsRaw(record));
   const [error, setError] = useState('');
 
   // 拉取实例列表(供下拉框),只取前 100 条
-  const instancesQuery = useQuery<{ list: HermesInstanceItem[]; totalRow: number }>({
+  const instancesQuery = useQuery<InstancePageResp>({
     queryKey: ['system', 'hermes', 'instances', 'for-select'],
-    queryFn: () => hermesApi.instancePage({ pageSize: 100, pageNumber: 1, current: 1 }) as any,
+    queryFn: () => hermesApi.instancePage({ pageSize: 100, pageNumber: 1, current: 1 }) as Promise<InstancePageResp>,
     enabled: open,
     staleTime: 30_000,
   });
-  const instances = (instancesQuery.data as any)?.list || (instancesQuery.data as any)?.data?.records || [];
+  const instances = instancesQuery.data?.list || instancesQuery.data?.data?.records || [];
   const instancesLoaded = !instancesQuery.isLoading;
 
+  // 初始化:仅在 open/record 变化导致 initKeyRef 变化时同步 state
+  // 用 ref 比较而非 setState 避免级联渲染
   useEffect(() => {
-    if (record) {
-      setValues({
-        agentId: record.agentId || '',
-        name: record.name || '',
-        role: record.role || '',
-        avatarUrl: record.avatarUrl || '',
-        description: record.description || '',
-        systemPrompt: record.systemPrompt || '',
-        greeting: record.greeting || '',
-        status: record.status || 'active',
-        published: !!record.published,
-        sortOrder: record.sortOrder ?? 0,
-        instanceId: record.instanceId ?? UNASSIGNED,
-      });
-      const recordTags = record.tags as string[] | string;
-      const tags = Array.isArray(recordTags) ? recordTags : typeof recordTags === 'string' ? recordTags.split(',').filter(Boolean) : [];
-      setTagsRaw(tags.join(', '));
-    } else {
-      setValues({
-        agentId: '',
-        name: '',
-        role: '',
-        avatarUrl: '',
-        description: '',
-        systemPrompt: '',
-        greeting: '',
-        status: 'active',
-        published: false,
-        sortOrder: 0,
-        instanceId: UNASSIGNED,
-      });
-      setTagsRaw('');
-    }
+    const newKey = `init-${open}-${isEdit ? (record?.id ?? 'new') : 'new'}`;
+    if (newKey === initKeyRef.current) return;
+    initKeyRef.current = newKey;
+    setValues(buildInitialValues(record));
+    setTagsRaw(buildInitialTagsRaw(record));
     setError('');
-  }, [record, open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, record?.id, isEdit]);
 
-  const set = (k: string, v: any) => setValues((s) => ({ ...s, [k]: v }));
+  const set = (k: keyof HermesFormValues, v: string | number | boolean) => setValues((s) => ({ ...s, [k]: v }));
 
   const handleSubmit = () => {
-    const tags = tagsRaw
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-
     if (!values.agentId || !String(values.agentId).trim()) {
       setError('agentId 不能为空');
       return;
@@ -100,8 +137,12 @@ export default function HermesFormDialog({ open, onClose, onSubmit, record, isSu
     }
     setError('');
 
+    const tags = tagsRaw
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
     const instanceId = Number(values.instanceId);
-    const payload: any = {
+    const payload = {
       agentId: String(values.agentId).trim(),
       name: String(values.name).trim(),
       role: values.role || '',
@@ -113,11 +154,8 @@ export default function HermesFormDialog({ open, onClose, onSubmit, record, isSu
       sortOrder: Number(values.sortOrder) || 0,
       // 0 表示未分配 — 后端可以接收 0 或忽略
       instanceId: Number.isFinite(instanceId) ? instanceId : UNASSIGNED,
+      ...(isEdit ? { status: values.status || 'active', published: !!values.published } : {}),
     };
-    if (isEdit) {
-      payload.status = values.status || 'active';
-      payload.published = !!values.published;
-    }
     onSubmit(payload);
   };
 

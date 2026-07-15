@@ -10,6 +10,10 @@ import { DataGridTable } from '@/components/tables/DataGridTable';
 import { hermesApi, HermesMemoryAdminItem } from '@/apis/hermes';
 import type { GridColDef } from '@mui/x-data-grid';
 
+interface ErrorWithMessage {
+  message?: string;
+}
+
 const scopeColor: Record<string, 'primary' | 'secondary' | 'default'> = {
   user: 'primary',
   agent: 'secondary',
@@ -63,7 +67,7 @@ const memoryColumns: GridColDef<HermesMemoryAdminItem>[] = [
 
 export default function MemoryPanel() {
   const qc = useQueryClient();
-  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
 
   const showMessage = (message: string, severity: 'success' | 'error' = 'success') =>
@@ -75,7 +79,7 @@ export default function MemoryPanel() {
       showMessage('删除成功');
       qc.invalidateQueries({ queryKey: ['system', 'hermes', 'memory'] });
     },
-    onError: (err: any) => showMessage(err.message || '删除失败', 'error'),
+    onError: (err: ErrorWithMessage) => showMessage(err.message || '删除失败', 'error'),
   });
 
   const handleDelete = (row: HermesMemoryAdminItem) => {

@@ -19,6 +19,18 @@ import type { HermesAgentItem } from '@/beans/system';
 import { AsyncState } from '@/components/common/AsyncState';
 import { LoginGate } from '@/components/auth/LoginGate';
 
+// 类型定义
+interface PageResponse {
+  records: HermesAgentItem[];
+  totalRow: number;
+}
+
+interface PageParams {
+  page: number;
+  pageSize: number;
+  tag?: string;
+}
+
 type HermesCardItem = HermesAgentItem & { coverUrl?: string };
 
 export default function HomeHermesPage() {
@@ -40,16 +52,19 @@ export default function HomeHermesPage() {
     return Array.from(set);
   }, [allQuery.data]);
 
-  const listQuery = useQuery<{ records: HermesAgentItem[]; totalRow: number; page: number }>({
+  const listQuery = useQuery<PageResponse>({
     queryKey: ['hermes', 'list', selectedTag, page],
     queryFn: () =>
       hermesApi
-        .clientPage({ page, pageSize, tag: selectedTag || undefined } as any)
-        .then((r: any) => ({
-          records: r.list || [],
-          totalRow: r.total || 0,
-          page,
-        })),
+        .clientPage({ page, pageSize, tag: selectedTag || undefined } as PageParams)
+        .then((r) => {
+          const resp = r as { list?: HermesAgentItem[]; total?: number };
+          return {
+            records: resp.list || [],
+            totalRow: resp.total || 0,
+            page,
+          };
+        }),
   });
 
   const handleTagClick = (tag: string) => {
@@ -87,9 +102,9 @@ export default function HomeHermesPage() {
           </Box>
         )}
 
-        <AsyncState
-          query={listQuery as any}
-          isEmpty={(d: any) => !d.records || d.records.length === 0}
+        <AsyncState<PageResponse>
+          query={listQuery}
+          isEmpty={(d) => !d.records || d.records.length === 0}
           emptyText={selectedTag ? `标签「${selectedTag}」下暂无智能体` : '暂无可用智能体'}
           emptyHint="试试切换其他标签,或稍后再来"
         >

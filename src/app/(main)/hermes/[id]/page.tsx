@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
@@ -28,10 +28,20 @@ import type { HermesAgentItem } from '@/beans/system';
 import { AsyncState } from '@/components/common/AsyncState';
 import { LoginGate } from '@/components/auth/LoginGate';
 
+// 类型定义
 interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   createTime?: string;
+}
+
+interface ChatApiResp {
+  text?: string;
+  conversationId?: string;
+}
+
+interface ErrorWithMessage {
+  message?: string;
 }
 
 function formatTime(t?: string) {
@@ -48,7 +58,6 @@ export default function HermesChatPage() {
   const id = params?.id;
   const router = useRouter();
   const searchParams = useSearchParams();
-  const qc = useQueryClient();
 
   // conversationId: 从 URL 读取，undefined 表示新对话/legacy
   const [conversationId, setConversationId] = useState<string | undefined>(() =>
@@ -56,16 +65,15 @@ export default function HermesChatPage() {
   );
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
-  const listRef = useRef<HTMLDivElement | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   // 新建会话:重置所有状态并清 URL
   const startNewConversation = useCallback(() => {
     setConversationId(undefined);
     setMessages([]);
-    // conversationId 变会触发 initDoneRef 重置,无需手动处理
+    // conversationId 变会触发 initDoneRef 重置 + historyQuery 重新 fetch,无需手动 invalidate
     router.replace(`/hermes/${id}`);
-    qc.invalidateQueries({ queryKey: ['hermes', 'history', id] });
-  }, [id, router, qc]);
+  }, [id, router]);
 
   // 同步 conversationId 到 URL
   useEffect(() => {
@@ -78,17 +86,25 @@ export default function HermesChatPage() {
 
   const detailQuery = useQuery<HermesAgentItem>({
     queryKey: ['hermes', 'detail', id],
-    queryFn: () => hermesApi.clientDetail(id as any).then((r: any) => r.data),
+    queryFn: () => hermesApi.clientDetail(id!).then((r) => (r as { data?: HermesAgentItem }).data!),
     enabled: !!id,
   });
 
   const historyQuery = useQuery<ChatMessage[]>({
-    queryKey: ['hermes', 'history', id, conversationId],
+    queryKey: ['hermes', 'history', id, conversationId ?? 'none'],
     queryFn: () =>
       hermesApi
-        .clientHistory(id as any, conversationId)
-        .then((r: any) => r.data?.messages || r.data || []),
-    enabled: !!id,
+        .clientHistory(id!, conversationId)
+        .then((r) => {
+          // r 可能是直接数组或包装对象 {messages} 或 {data: {messages}}
+          const raw = r as { messages?: ChatMessage[] } | { data?: { messages?: ChatMessage[] } } | ChatMessage[];
+          if (Array.isArray(raw)) return raw;
+          if ('messages' in raw && raw.messages) return raw.messages;
+          if ('data' in raw && raw.data?.messages) return raw.data.messages;
+          return [];
+        }),
+    // 客户端专用:useSearchParams 在 SSR 返回空,避免 hydration 不匹配
+    enabled: typeof window !== 'undefined' && !!id,
   });
 
   // 初始化消息:基于 historyQuery + detailQuery 计算初始消息(无 effect/cascading render)
@@ -138,19 +154,19 @@ export default function HermesChatPage() {
       if (!agent) throw new Error('智能体未加载');
       return hermesApi.chat(agent.agentId, text, conversationId);
     },
-    onSuccess: (res: any) => {
-      const reply = res?.text ?? res?.data?.text ?? '';
-      // 后端返回新的 conversationId(新会话时)
-      const newConvId = res?.conversationId ?? res?.data?.conversationId;
+    onSuccess: (_res) => {
+      // 响应可能是直接结构 {text, conversationId} 或包装 {data: {text, conversationId}}
+      const res = _res as ChatApiResp & { data?: ChatApiResp };
+      const reply = res.text ?? res.data?.text ?? '';
+      const newConvId = res.conversationId ?? res.data?.conversationId;
       if (newConvId && !conversationId) {
         setConversationId(newConvId);
       }
       if (reply) {
         setMessages((cur) => [...cur, { role: 'assistant', content: reply }]);
       }
-      qc.invalidateQueries({ queryKey: ['hermes', 'history', id] });
     },
-    onError: (err: Error) => {
+    onError: (err: ErrorWithMessage) => {
       // 失败时追加错误消息提示
       setMessages((cur) => [
         ...cur,
@@ -162,7 +178,6 @@ export default function HermesChatPage() {
   const handleSend = () => {
     const text = input.trim();
     if (!text || sendMutation.isPending) return;
-    setMessages((cur) => [...cur, { role: 'user', content: text }]);
     setInput('');
     sendMutation.mutate(text);
   };
@@ -209,9 +224,9 @@ export default function HermesChatPage() {
           </Box>
         )}
 
-        <AsyncState
-          query={detailQuery as any}
-          isEmpty={(d: any) => !d}
+        <AsyncState<HermesAgentItem>
+          query={detailQuery}
+          isEmpty={(d) => !d}
           emptyText="智能体不存在"
         >
           {(data) => {
@@ -254,7 +269,7 @@ export default function HermesChatPage() {
         <LoginGate mode="replace" message="登录后开始对话">
 
         <Paper
-          ref={listRef as any}
+          ref={listRef}
           onScroll={handleScroll}
           sx={{
             flex: 1,
@@ -275,11 +290,12 @@ export default function HermesChatPage() {
             </Typography>
           ) : (
             <List disablePadding>
-              {messages.map((m, i) => {
+              {messages.map((m) => {
                 const isUser = m.role === 'user';
+                const msgKey = `${m.createTime ?? ''}-${m.content.slice(0, 20)}`;
                 return (
                   <ListItem
-                    key={i}
+                    key={msgKey}
                     disableGutters
                     sx={{
                       justifyContent: isUser ? 'flex-end' : 'flex-start',

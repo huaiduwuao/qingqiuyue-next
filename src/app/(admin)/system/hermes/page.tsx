@@ -31,6 +31,36 @@ import SyncIcon from '@mui/icons-material/Sync';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 
+// 类型定义
+interface ErrorWithMessage {
+  message?: string;
+}
+
+interface AgentFormValues {
+  agentId?: string;
+  name?: string;
+  role?: string;
+  tags?: string[];
+  avatarUrl?: string;
+  description?: string;
+  systemPrompt?: string;
+  greeting?: string;
+  status?: string;
+  published?: boolean;
+  sortOrder?: number;
+  instanceId?: number;
+}
+
+interface InstanceStatusResp {
+  ok?: boolean;
+  baseUrl?: string;
+  containerAgents?: string[];
+  message?: string;
+  agentCount?: number;
+  instanceId?: number;
+  error?: string;
+}
+
 type TabKey = 'agents' | 'instances' | 'memory' | 'conversation';
 
 const AGENT_LIST_KEY = ['system', 'hermes', 'agents'];
@@ -106,7 +136,7 @@ function AgentsPanel() {
   const qc = useQueryClient();
   const [modalVisible, setModalVisible] = useState(false);
   const [record, setRecord] = useState<HermesAgentItem | null>(null);
-  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -116,55 +146,56 @@ function AgentsPanel() {
   const showMessage = (message: string, severity: 'success' | 'error' = 'success') =>
     setSnackbar({ open: true, message, severity });
 
-  const instanceStatusQuery = useQuery<HermesInstanceStatus>({
+  const instanceStatusQuery = useQuery<InstanceStatusResp>({
     queryKey: ['system', 'hermes', 'legacy-instance'],
-    queryFn: () => hermesApi.instanceStatus() as any,
+    queryFn: () => hermesApi.instanceStatus() as Promise<InstanceStatusResp>,
     refetchInterval: 30_000,
   });
 
   const saveMutation = useMutation({
-    mutationFn: (vals: any) => hermesApi.save(vals),
+    mutationFn: (vals: Record<string, unknown>) => hermesApi.save(vals),
     onSuccess: () => { showMessage('创建成功'); handleModalClose(); qc.invalidateQueries({ queryKey: AGENT_LIST_KEY }); },
-    onError: (err: any) => showMessage(err.message || '创建失败', 'error'),
+    onError: (err: ErrorWithMessage) => showMessage(err.message || '创建失败', 'error'),
   });
   const updateMutation = useMutation({
-    mutationFn: (vals: any) => hermesApi.update({ ...vals, id: record?.id }),
+    mutationFn: (vals: Record<string, unknown>) => hermesApi.update({ id: record?.id ?? 0, ...vals }),
     onSuccess: () => { showMessage('更新成功'); handleModalClose(); qc.invalidateQueries({ queryKey: AGENT_LIST_KEY }); },
-    onError: (err: any) => showMessage(err.message || '更新失败', 'error'),
+    onError: (err: ErrorWithMessage) => showMessage(err.message || '更新失败', 'error'),
   });
   const deleteMutation = useMutation({
     mutationFn: (ids: number[]) => hermesApi.remove(ids),
     onSuccess: () => { showMessage('删除成功'); qc.invalidateQueries({ queryKey: AGENT_LIST_KEY }); },
-    onError: (err: any) => showMessage(err.message || '删除失败', 'error'),
+    onError: (err: ErrorWithMessage) => showMessage(err.message || '删除失败', 'error'),
   });
   const publishMutation = useMutation({
     mutationFn: (id: number) => hermesApi.publish(id),
     onSuccess: () => { showMessage('已发布'); qc.invalidateQueries({ queryKey: AGENT_LIST_KEY }); },
-    onError: (err: any) => showMessage(err.message || '发布失败', 'error'),
+    onError: (err: ErrorWithMessage) => showMessage(err.message || '发布失败', 'error'),
   });
   const unpublishMutation = useMutation({
     mutationFn: (id: number) => hermesApi.unpublish(id),
     onSuccess: () => { showMessage('已下线'); qc.invalidateQueries({ queryKey: AGENT_LIST_KEY }); },
-    onError: (err: any) => showMessage(err.message || '下线失败', 'error'),
+    onError: (err: ErrorWithMessage) => showMessage(err.message || '下线失败', 'error'),
   });
   const pauseMutation = useMutation({
     mutationFn: (id: number) => hermesApi.pause(id),
     onSuccess: () => { showMessage('已暂停'); qc.invalidateQueries({ queryKey: AGENT_LIST_KEY }); },
-    onError: (err: any) => showMessage(err.message || '暂停失败', 'error'),
+    onError: (err: ErrorWithMessage) => showMessage(err.message || '暂停失败', 'error'),
   });
   const resumeMutation = useMutation({
     mutationFn: (id: number) => hermesApi.resume(id),
     onSuccess: () => { showMessage('已恢复'); qc.invalidateQueries({ queryKey: AGENT_LIST_KEY }); },
-    onError: (err: any) => showMessage(err.message || '恢复失败', 'error'),
+    onError: (err: ErrorWithMessage) => showMessage(err.message || '恢复失败', 'error'),
   });
   const syncMutation = useMutation({
     mutationFn: () => hermesApi.instanceSync(),
-    onSuccess: (res: any) => {
-      const imported = res?.data?.imported;
+    onSuccess: (res) => {
+      const r = res as { data?: { imported?: number } };
+      const imported = r?.data?.imported;
       showMessage(imported != null ? `已同步,导入 ${imported} 个 agent` : '同步完成');
       qc.invalidateQueries({ queryKey: AGENT_LIST_KEY });
     },
-    onError: (err: any) => showMessage(err.message || '同步失败', 'error'),
+    onError: (err: ErrorWithMessage) => showMessage(err.message || '同步失败', 'error'),
   });
 
   const isSubmitting = saveMutation.isPending || updateMutation.isPending;
@@ -175,9 +206,10 @@ function AgentsPanel() {
   };
   const handleEdit = (row: HermesAgentItem) => {
     hermesApi.get(row.id as number).then((res) => {
-      setRecord((res?.data as HermesAgentItem) || row);
+      const r = res as { data?: HermesAgentItem };
+      setRecord(r?.data || row);
       setModalVisible(true);
-    }).catch((err) => showMessage(err.message || '加载失败', 'error'));
+    }).catch((err: ErrorWithMessage) => showMessage(err.message || '加载失败', 'error'));
   };
   const handleDelete = (row: HermesAgentItem) => {
     if (!confirm(`确定删除 Hermes「${row.name}」?`)) return;

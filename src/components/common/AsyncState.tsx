@@ -25,12 +25,12 @@ function describeError(err: unknown): string {
   return '未知错误';
 }
 
-// 支持 isFetching 的类型
+// 支持 useQuery 返回类型 (UseQueryResult) + 自定义 AsyncQuery
 type AsyncQuery<T> = {
-  isLoading: boolean;
-  isFetching: boolean;
-  isError: boolean;
-  refetch: () => void;
+  isLoading?: boolean;
+  isFetching?: boolean;
+  isError?: boolean;
+  refetch: () => unknown;
   data: T | undefined;
   error?: unknown;
 };

@@ -19,6 +19,25 @@ import { hermesApi, type HermesDiscoverResult, type HermesInstanceItem } from '@
 import type { GridColDef } from '@mui/x-data-grid';
 import { RelativeTime } from '@/components/common/RelativeTime';
 
+// 类型定义
+type InstanceFormValues = {
+  name: string;
+  code: string;
+  baseUrl: string;
+  description?: string;
+  region?: string;
+  maxConcurrent?: number;
+};
+
+interface ErrorWithMessage {
+  message?: string;
+}
+
+type InstanceSyncResp = {
+  imported?: number;
+  skipped?: number;
+};
+
 const LIST_KEY = ['system', 'hermes', 'instances'];
 
 const statusColor: Record<HermesInstanceItem['status'], 'success' | 'warning' | 'error' | 'default'> = {
@@ -50,28 +69,28 @@ export default function InstancesPanel() {
     message: '',
     severity: 'success',
   });
-  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
 
   const showMessage = (message: string, severity: 'success' | 'error' | 'info' = 'success') =>
     setSnackbar({ open: true, message, severity });
 
   const saveMutation = useMutation({
-    mutationFn: (vals: any) => hermesApi.instanceSave(vals),
+    mutationFn: (vals: InstanceFormValues) => hermesApi.instanceSave(vals),
     onSuccess: () => {
       showMessage('创建成功');
       handleModalClose();
       qc.invalidateQueries({ queryKey: LIST_KEY });
     },
-    onError: (err: any) => showMessage(err.message || '创建失败', 'error'),
+    onError: (err: ErrorWithMessage) => showMessage(err.message || '创建失败', 'error'),
   });
   const updateMutation = useMutation({
-    mutationFn: (vals: any) => hermesApi.instanceUpdate({ ...vals, id: record?.id }),
+    mutationFn: (vals: InstanceFormValues) => hermesApi.instanceUpdate({ ...vals, id: record?.id ?? 0 }),
     onSuccess: () => {
       showMessage('更新成功');
       handleModalClose();
       qc.invalidateQueries({ queryKey: LIST_KEY });
     },
-    onError: (err: any) => showMessage(err.message || '更新失败', 'error'),
+    onError: (err: ErrorWithMessage) => showMessage(err.message || '更新失败', 'error'),
   });
   const deleteMutation = useMutation({
     mutationFn: (id: number) => hermesApi.instanceRemove(id),
@@ -79,44 +98,42 @@ export default function InstancesPanel() {
       showMessage('删除成功');
       qc.invalidateQueries({ queryKey: LIST_KEY });
     },
-    onError: (err: any) => showMessage(err.message || '删除失败', 'error'),
+    onError: (err: ErrorWithMessage) => showMessage(err.message || '删除失败', 'error'),
   });
   const healthMutation = useMutation({
     mutationFn: (id: number) => hermesApi.instanceHealth(id),
-    onSuccess: (res: any, id) => {
-      const data = res?.data ?? res;
+    onSuccess: (res) => {
+      const data = (res?.data ?? res) as { ok?: boolean; message?: string };
       const msg = data?.message || (data?.ok ? '健康检查通过' : '健康检查失败');
       showMessage(`${data?.ok ? 'OK' : 'FAIL'} · ${msg}`, data?.ok ? 'success' : 'error');
-      // 刷新本表 + 全局 agents(同步按钮会触发此 invalidation)
       qc.invalidateQueries({ queryKey: LIST_KEY });
     },
-    onError: (err: any) => showMessage(err.message || '健康检查失败', 'error'),
+    onError: (err: ErrorWithMessage) => showMessage(err.message || '健康检查失败', 'error'),
   });
   const discoverMutation = useMutation({
     mutationFn: () => hermesApi.instanceDiscover(),
-    onSuccess: (res: any) => {
+    onSuccess: (res) => {
       const data = (res?.data ?? res) as HermesDiscoverResult;
       const msg = `扫描 ${data.scanned} 个容器,发现 ${data.candidates} 个候选:新增 ${data.imported} / 更新 ${data.updated} / 跳过 ${data.skipped}`;
       showMessage(msg, data.imported + data.updated > 0 ? 'success' : 'info');
       qc.invalidateQueries({ queryKey: LIST_KEY });
       qc.invalidateQueries({ queryKey: ['system', 'hermes', 'agents'] });
     },
-    onError: (err: any) => showMessage(err.message || '发现失败', 'error'),
+    onError: (err: ErrorWithMessage) => showMessage(err.message || '发现失败', 'error'),
   });
 
   const syncMutation = useMutation({
     mutationFn: (id: number) => hermesApi.instanceSyncAgents(id),
-    onSuccess: (res: any) => {
-      const data = res?.data ?? res;
+    onSuccess: (res) => {
+      const data = (res?.data ?? res) as InstanceSyncResp;
       const imported = data?.imported ?? 0;
       const skipped = data?.skipped ?? 0;
       showMessage(`已导入 ${imported} 个,跳过 ${skipped} 个`, 'success');
-      // 同步会创建新 agent,刷新实例表 + agent 表
       qc.invalidateQueries({ queryKey: LIST_KEY });
       qc.invalidateQueries({ queryKey: ['system', 'hermes', 'agents'] });
       qc.invalidateQueries({ queryKey: ['system', 'hermes'] });
     },
-    onError: (err: any) => showMessage(err.message || '同步失败', 'error'),
+    onError: (err: ErrorWithMessage) => showMessage(err.message || '同步失败', 'error'),
   });
 
   const isSubmitting = saveMutation.isPending || updateMutation.isPending;
@@ -129,7 +146,7 @@ export default function InstancesPanel() {
     hermesApi.instanceGet(row.id).then((res) => {
       setRecord((res?.data as HermesInstanceItem) || row);
       setModalVisible(true);
-    }).catch((err) => showMessage(err.message || '加载失败', 'error'));
+    }).catch((err: ErrorWithMessage) => showMessage(err.message || '加载失败', 'error'));
   };
   const handleDelete = (row: HermesInstanceItem) => {
     if (!confirm(`确定删除实例「${row.name}」?该实例下的 agent 关联会被清空。`)) return;
@@ -143,7 +160,7 @@ export default function InstancesPanel() {
     setRecord(null);
   };
 
-  const handleSubmit = (vals: any) => {
+  const handleSubmit = (vals: InstanceFormValues) => {
     if (record?.id) {
       updateMutation.mutate(vals);
     } else {

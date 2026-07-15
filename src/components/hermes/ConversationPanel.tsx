@@ -23,11 +23,17 @@ import {
 import type { GridColDef } from '@mui/x-data-grid';
 import ChatIcon from '@mui/icons-material/Chat';
 
-const roleLabel: Record<string, { text: string; color: 'primary' | 'secondary' }> = {
+type ChipColor = 'primary' | 'secondary' | 'default' | 'error' | 'info' | 'success' | 'warning';
+
+interface ErrorWithMessage {
+  message?: string;
+}
+
+const roleLabel: Record<string, { text: string; color: ChipColor }> = {
   user: { text: '用户', color: 'primary' },
   assistant: { text: '助手', color: 'secondary' },
-  system: { text: '系统', color: 'default' as any },
-  tool: { text: '工具', color: 'default' as any },
+  system: { text: '系统', color: 'default' },
+  tool: { text: '工具', color: 'default' },
 };
 
 const conversationColumns: GridColDef<HermesConversationAdminItem>[] = [
@@ -60,7 +66,7 @@ const conversationColumns: GridColDef<HermesConversationAdminItem>[] = [
 
 export default function ConversationPanel() {
   const qc = useQueryClient();
-  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
+  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
 
   // 会话详情 Dialog 状态
@@ -79,7 +85,7 @@ export default function ConversationPanel() {
       showMessage('删除成功');
       qc.invalidateQueries({ queryKey: ['system', 'hermes', 'conversation'] });
     },
-    onError: (err: any) => showMessage(err.message || '删除失败', 'error'),
+    onError: (err: ErrorWithMessage) => showMessage(err.message || '删除失败', 'error'),
   });
 
   // 消息查询
@@ -154,7 +160,7 @@ export default function ConversationPanel() {
           ) : messagesQuery.data?.messages && messagesQuery.data.messages.length > 0 ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, py: 1 }}>
               {messagesQuery.data.messages.map((msg: HermesConversationMessage) => {
-                const role = roleLabel[msg.role] || { text: msg.role, color: 'default' as any };
+                const role = roleLabel[msg.role] || { text: msg.role, color: 'default' as ChipColor };
                 return (
                   <Paper
                     key={msg.id}

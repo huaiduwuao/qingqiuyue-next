@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -15,44 +15,64 @@ import type { HermesInstanceItem } from '@/apis/hermes';
 interface HermesInstanceFormDialogProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (values: any) => void;
+  onSubmit: (values: InstanceFormValues) => void;
   record: HermesInstanceItem | null;
   isSubmitting?: boolean;
 }
 
+type InstanceFormValues = {
+  name: string;
+  code: string;
+  baseUrl: string;
+  description?: string;
+  region?: string;
+  maxConcurrent?: number;
+  status?: string;
+};
+
 const STATUS_OPTIONS: Array<HermesInstanceItem['status']> = ['active', 'paused', 'offline'];
+
+// 纯函数:从 record 计算初始表单值
+function buildInitialValues(record: HermesInstanceItem | null): InstanceFormValues {
+  if (record) {
+    return {
+      name: record.name || '',
+      code: record.code || '',
+      baseUrl: record.baseUrl || '',
+      description: record.description || '',
+      region: record.region || '',
+      maxConcurrent: record.maxConcurrent ?? 10,
+      status: record.status || 'active',
+    };
+  }
+  return {
+    name: '',
+    code: '',
+    baseUrl: '',
+    description: '',
+    region: 'default',
+    maxConcurrent: 10,
+    status: 'active',
+  };
+}
 
 export default function HermesInstanceFormDialog({ open, onClose, onSubmit, record, isSubmitting }: HermesInstanceFormDialogProps) {
   const isEdit = !!record?.id;
-  const [values, setValues] = useState<Record<string, any>>({});
+  const initKeyRef = useRef(`init-${open}-${isEdit ? (record?.id ?? 'new') : 'new'}`);
+  const [values, setValues] = useState<InstanceFormValues>(() => buildInitialValues(record));
   const [error, setError] = useState('');
 
+  // 初始化:仅在 key 变化时同步 state,避免级联渲染
   useEffect(() => {
-    if (record) {
-      setValues({
-        name: record.name || '',
-        code: record.code || '',
-        baseUrl: record.baseUrl || '',
-        description: record.description || '',
-        region: record.region || '',
-        maxConcurrent: record.maxConcurrent ?? 10,
-        status: record.status || 'active',
-      });
-    } else {
-      setValues({
-        name: '',
-        code: '',
-        baseUrl: '',
-        description: '',
-        region: 'default',
-        maxConcurrent: 10,
-        status: 'active',
-      });
-    }
+    const newKey = `init-${open}-${isEdit ? (record?.id ?? 'new') : 'new'}`;
+    if (newKey === initKeyRef.current) return;
+    initKeyRef.current = newKey;
+    setValues(buildInitialValues(record));
     setError('');
-  }, [record, open]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, record?.id, isEdit]);
 
-  const set = (k: string, v: any) => setValues((s) => ({ ...s, [k]: v }));
+  const set = (k: keyof InstanceFormValues, v: string | number) => setValues((s) => ({ ...s, [k]: v }));
 
   const handleSubmit = () => {
     if (!values.name || !String(values.name).trim()) {
