@@ -170,7 +170,6 @@ export function RecommendVideoFeed() {
       console.log('[RecommendVideoFeed] fetched page', pageRef.current, 'items:', items.length, 'hasMore:', hasMore);
       return { items, total, hasMore };
     },
-    placeholderData: (prev) => prev,
   });
 
   // 合并数据到 allItems
