@@ -128,76 +128,55 @@ export function RecommendVideoFeed() {
     isFetchingMoreRef.current = false;
   }, [page]);
 
-  const { data: feed, isLoading, isError, error } = useQuery({
+  const { data: feed, isLoading } = useQuery({
     queryKey: ['home-recommend', 'recommend-feed', page],
     queryFn: async () => {
       console.log('[RecommendVideoFeed] fetching page:', page);
-      try {
-        const resp = await fetchRecommend({
-          types: 'VIDEO',
-          size: PAGE_SIZE,
-          page: page,
-        }) as any;
-        console.log('[RecommendVideoFeed] raw response:', JSON.stringify(resp)?.slice(0, 500));
-        const list = (resp?.data?.list ?? []) as any[];
-        const items = list.map((it): VideoItem => ({
-          id: Number(it.id) || 0,
-          idString: typeof it.idString === 'string' && it.idString ? it.idString : String(it.id ?? ''),
-          title: it.title || '',
-          contentType: (it.category || 'NOVEL').toUpperCase(),
-          cover: it.cover || '',
-          author: it.author || '未知作者',
-          authorAvatar: it.authorAvatar || '',
-          authorId: Number(it.authorId) || 0,
-          durationSec: 30 + (hashId(it.idString ?? String(it.id)) % 60),
-          views: Number(it.views) || 0,
-          likes: Number(it.likes) || 0,
-          comments: Number(it.comments) || 0,
-          collects: Number(it.collects) || 0,
-          shares: Number(it.shares) || 0,
-          caption: it.title || '',
-          verified: false,
-          brand: TYPE_LABEL[(it.category || 'NOVEL').toUpperCase()] || '推荐',
-        }));
-        const total = resp?.data?.total || 0;
-        const hasMore = resp?.data?.hasMore ?? false;
-        console.log('[RecommendVideoFeed] mapped items:', items.length, 'hasMore:', hasMore);
-        return { items, total, hasMore };
-      } catch (err) {
-        console.error('[RecommendVideoFeed] fetch error:', err);
-        throw err;
-      }
+      const resp = await fetchRecommend({
+        types: 'VIDEO',
+        size: PAGE_SIZE,
+        page: page,
+      }) as any;
+      const list = (resp?.data?.list ?? []) as any[];
+      const items = list.map((it): VideoItem => ({
+        id: Number(it.id) || 0,
+        idString: typeof it.idString === 'string' && it.idString ? it.idString : String(it.id ?? ''),
+        title: it.title || '',
+        contentType: (it.category || 'NOVEL').toUpperCase(),
+        cover: it.cover || '',
+        author: it.author || '未知作者',
+        authorAvatar: it.authorAvatar || '',
+        authorId: Number(it.authorId) || 0,
+        durationSec: 30 + (hashId(it.idString ?? String(it.id)) % 60),
+        views: Number(it.views) || 0,
+        likes: Number(it.likes) || 0,
+        comments: Number(it.comments) || 0,
+        collects: Number(it.collects) || 0,
+        shares: Number(it.shares) || 0,
+        caption: it.title || '',
+        verified: false,
+        brand: TYPE_LABEL[(it.category || 'NOVEL').toUpperCase()] || '推荐',
+      }));
+      const total = resp?.data?.total || 0;
+      const hasMore = resp?.data?.hasMore ?? false;
+      console.log('[RecommendVideoFeed] page', page, 'items:', items.length, 'hasMore:', hasMore);
+      return { items, total, hasMore };
     },
-    placeholderData: (prev) => prev, // loading 时保持旧数据，防止闪烁
-    retry: 1,
   });
-
-  // 打印错误
-  useEffect(() => {
-    if (isError) {
-      console.error('[RecommendVideoFeed] query error:', error);
-    }
-  }, [isError, error]);
 
   // 合并数据到 allItems
   useEffect(() => {
     if (!feed) return;
     setAllItems(prev => {
-      let result;
+      console.log('[RecommendVideoFeed] merging: page=', page, 'prev.length=', prev.length, 'feed.items=', feed.items.length);
       if (page === 1) {
-        result = feed.items;
-      } else {
-        // 去重追加
-        const existingIds = new Set(prev.map(v => v.idString || String(v.id)));
-        const newItems = feed.items.filter(v => !existingIds.has(v.idString || String(v.id)));
-        result = [...prev, ...newItems];
+        return feed.items;
       }
-      console.log('[RecommendVideoFeed] merging: page=', page, 'prev.length=', prev.length, 'feed.items=', feed.items.length, 'result.length=', result.length);
-      // 最多保留 200 条
-      if (result.length > 200) {
-        result = result.slice(-200);
-        console.log('[RecommendVideoFeed] trimmed to:', result.length);
-      }
+      // 去重追加
+      const existingIds = new Set(prev.map(v => v.idString || String(v.id)));
+      const newItems = feed.items.filter(v => !existingIds.has(v.idString || String(v.id)));
+      const result = [...prev, ...newItems];
+      console.log('[RecommendVideoFeed] merged result.length=', result.length);
       return result;
     });
     setHasMore(feed.hasMore);
