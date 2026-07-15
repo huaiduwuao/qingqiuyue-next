@@ -89,6 +89,7 @@ export function calculatePaginationState(
 export function normalizePageResponse<T>(data: LegacyPageResult<T>): PageResult<T> {
   const list = data.list ?? data.records ?? [];
   const total = data.total ?? data.totalRow ?? 0;
+  const page = data.page ?? 1;
   const pageSize = data.pageSize ?? 20;
   const totalPages = data.totalPages ?? Math.ceil(total / pageSize);
   const hasMore = data.hasMore ?? page < totalPages;
