@@ -149,6 +149,7 @@ export function RecommendVideoFeed() {
       const hasMore = resp?.data?.hasMore ?? false;
       return { items, hasMore };
     },
+    placeholderData: (prev) => prev, // 避免闪烁
   });
 
   // 合并数据到 allItems
