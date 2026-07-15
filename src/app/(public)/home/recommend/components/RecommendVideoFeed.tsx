@@ -118,9 +118,6 @@ export function RecommendVideoFeed() {
   // 追踪当前已处理的页码
   const processedPageRef = useRef(0);
 
-  // 追踪是否正在加载
-  const isLoadingRef = useRef(false);
-
   const { data: feed, isLoading, isFetching } = useQuery({
     queryKey: ['home-recommend', 'recommend-feed', page],
     queryFn: async () => {
@@ -156,12 +153,15 @@ export function RecommendVideoFeed() {
 
   // 合并数据到 allItems
   useEffect(() => {
-    if (!feed || isLoadingRef.current) return;
+    if (!feed) return;
 
     // 跳过已处理的数据
-    if (page <= processedPageRef.current) return;
+    if (page <= processedPageRef.current) {
+      console.log('[RecommendVideoFeed] skip merge: page=', page, 'processed=', processedPageRef.current);
+      return;
+    }
 
-    isLoadingRef.current = true;
+    console.log('[RecommendVideoFeed] MERGE: page=', page, 'items=', feed.items.length);
     processedPageRef.current = page;
 
     setAllItems(prev => {
@@ -174,11 +174,6 @@ export function RecommendVideoFeed() {
       return [...prev, ...newItems];
     });
     setHasMore(feed.hasMore);
-
-    // 重置加载状态
-    setTimeout(() => {
-      isLoadingRef.current = false;
-    }, 100);
   }, [feed, page]);
 
   const uniqueVideos = allItems;
@@ -196,12 +191,13 @@ export function RecommendVideoFeed() {
   useEffect(() => {
     const currentItems = allItems.length;
     const remaining = currentItems - index;
-    // 只有在倒数第3条时才触发，且没有正在进行的请求
-    const shouldTrigger = remaining <= 3 && remaining > 0 && hasMore && !isFetching;
-    if (shouldTrigger) {
+    console.log('[RecommendVideoFeed] trigger: idx=', index, 'rem=', remaining, 'hasMore=', hasMore, 'fetching=', isFetching, 'page=', page);
+    // 只有在倒数第3条时才触发
+    if (remaining <= 3 && remaining > 0 && hasMore && !isFetching) {
+      console.log('[RecommendVideoFeed] TRIGGER setPage to', page + 1);
       setPage(p => p + 1);
     }
-  }, [index, allItems.length, hasMore, isFetching]);
+  }, [index, allItems.length, hasMore, isFetching, page]);
 
   const lockNav = useCallback((ms = 380) => {
     navLock.current = true;
