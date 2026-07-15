@@ -192,7 +192,7 @@ export function RecommendVideoFeed() {
   indexRef.current = index;
   const video = uniqueVideos[index];
 
-  // 全屏布局：滑动到倒数第3条时预加载下一页（只触发一次）
+  // 全屏布局：滑动到倒数第3条时预加载下一页
   useEffect(() => {
     const currentItems = allItems.length;
     const remaining = currentItems - index;
@@ -202,14 +202,14 @@ export function RecommendVideoFeed() {
     // 如果没有下一页，跳过
     if (!hasMore || currentItems === 0) return;
 
-    // 只有正好剩余3条时才触发
-    if (remaining === 3) {
+    // 剩余条数少于等于3条时触发预加载
+    if (remaining <= 3) {
       alreadyTriggeredRef.current = true;
       isFetchingMoreRef.current = true;
       console.log('[RecommendVideoFeed] TRIGGER: loading more, page:', page + 1);
       setPage(p => p + 1);
     }
-  }, [index, allItems.length, hasMore]);
+  }, [index, allItems.length, hasMore, page]);
 
   const lockNav = useCallback((ms = 380) => {
     navLock.current = true;
