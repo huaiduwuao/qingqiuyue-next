@@ -139,7 +139,6 @@ export function RecommendVideoFeed() {
   const { data: feed, isLoading, isFetching } = useQuery({
     queryKey: ['home-recommend', 'recommend-feed', page],
     queryFn: async () => {
-      console.log('[RecommendVideoFeed] fetching page:', pageRef.current);
       const resp = await fetchRecommend({
         types: 'VIDEO',
         size: PAGE_SIZE,
@@ -165,30 +164,23 @@ export function RecommendVideoFeed() {
         verified: false,
         brand: TYPE_LABEL[(it.category || 'NOVEL').toUpperCase()] || '推荐',
       }));
-      const total = resp?.data?.total || 0;
       const hasMore = resp?.data?.hasMore ?? false;
-      console.log('[RecommendVideoFeed] fetched page', pageRef.current, 'items:', items.length, 'hasMore:', hasMore);
-      return { items, total, hasMore };
+      return { items, hasMore };
     },
   });
 
   // 合并数据到 allItems
   useEffect(() => {
     if (!feed) return;
-
     const currentPage = pageRef.current;
-    console.log('[RecommendVideoFeed] merging: page=', currentPage, 'isFetching=', isFetching);
     setAllItems(prev => {
-      console.log('[RecommendVideoFeed] merging: page=', currentPage, 'prev.length=', prev.length, 'feed.items=', feed.items.length);
       if (currentPage === 1) {
         return feed.items;
       }
       // 去重追加
       const existingIds = new Set(prev.map(v => v.idString || String(v.id)));
       const newItems = feed.items.filter(v => !existingIds.has(v.idString || String(v.id)));
-      const result = [...prev, ...newItems];
-      console.log('[RecommendVideoFeed] merged result.length=', result.length);
-      return result;
+      return [...prev, ...newItems];
     });
     setHasMore(feed.hasMore);
     // 数据加载完成后重置触发标志，允许下次触发
@@ -207,18 +199,14 @@ export function RecommendVideoFeed() {
   indexRef.current = index;
   const video = uniqueVideos[index];
 
-  console.log('[RecommendVideoFeed] render: index=', index, 'allItems.length=', allItems.length, 'uniqueVideos.length=', uniqueVideos.length);
-
   // 全屏布局：滑动时预加载下一页
   useEffect(() => {
     const currentItems = allItems.length;
     const remaining = currentItems - index;
     const shouldTrigger = !alreadyTriggeredRef.current && !isFetchingMoreRef.current && hasMore && currentItems > 0 && remaining <= 3;
-    console.log('[RecommendVideoFeed] trigger check: index=', index, 'items=', currentItems, 'remaining=', remaining, 'hasMore=', hasMore, 'alreadyTriggered=', alreadyTriggeredRef.current, 'isFetching=', isFetchingMoreRef.current, 'shouldTrigger=', shouldTrigger);
     if (shouldTrigger) {
       alreadyTriggeredRef.current = true;
       isFetchingMoreRef.current = true;
-      console.log('[RecommendVideoFeed] TRIGGER: setPage to', page + 1);
       setPage(p => p + 1);
     }
   }, [index, allItems.length, hasMore, page]);
