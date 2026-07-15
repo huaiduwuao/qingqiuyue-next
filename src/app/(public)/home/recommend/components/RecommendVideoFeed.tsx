@@ -169,9 +169,14 @@ export function RecommendVideoFeed() {
     },
   });
 
-  // 合并数据到 allItems
+  // 合并数据到 allItems（使用 useRef 追踪上一次的数据）
+  const prevFeedRef = useRef<typeof feed | null>(null);
+
   useEffect(() => {
-    if (!feed) return;
+    // 等待新数据到达（feed 变化且不是同一个引用）
+    if (!feed || feed === prevFeedRef.current) return;
+    prevFeedRef.current = feed;
+
     const currentPage = pageRef.current;
     setAllItems(prev => {
       if (currentPage === 1) {
@@ -180,10 +185,11 @@ export function RecommendVideoFeed() {
       // 去重追加
       const existingIds = new Set(prev.map(v => v.idString || String(v.id)));
       const newItems = feed.items.filter(v => !existingIds.has(v.idString || String(v.id)));
-      return [...prev, ...newItems];
+      const result = [...prev, ...newItems];
+      return result;
     });
     setHasMore(feed.hasMore);
-    // 数据加载完成后重置触发标志，允许下次触发
+    // 数据加载完成后重置触发标志
     isFetchingMoreRef.current = false;
     alreadyTriggeredRef.current = false;
   }, [feed]);
@@ -198,6 +204,13 @@ export function RecommendVideoFeed() {
   const indexRef = useRef(0);
   indexRef.current = index;
   const video = uniqueVideos[index];
+
+  // 确保 index 不会越界
+  useEffect(() => {
+    if (index >= uniqueVideos.length && uniqueVideos.length > 0) {
+      setIndex(Math.max(0, uniqueVideos.length - 1));
+    }
+  }, [uniqueVideos.length]);
 
   // 全屏布局：滑动时预加载下一页
   useEffect(() => {
