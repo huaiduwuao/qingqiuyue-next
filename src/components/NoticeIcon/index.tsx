@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,7 +17,7 @@ import Snackbar from '@mui/material/Snackbar';
 import CloseIcon from '@mui/icons-material/Close';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import ModeCommentOutlinedIcon from '@mui/icons-material/ModeCommentOutlined';
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CommentOutlinedIcon from '@mui/icons-material/CommentOutlined';
 import AlternateEmailIcon from '@mui/icons-material/AlternateEmail';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
@@ -66,6 +66,7 @@ function mapNoticeTargetType(targetType?: string): string | null {
   return map[targetType.toLowerCase()] || null;
 }
 
+// 通知图标组件
 export default function NoticeIconView() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
@@ -74,36 +75,37 @@ export default function NoticeIconView() {
   const [subType, setSubType] = useState('all');
   const [toast, setToast] = useState<string | null>(null);
 
-  // 从后端拉未读数(用于 badge)—— 未登录不发请求(否则会 401 刷屏)
+  // 基础 hooks
   const { data: countData } = useQuery({
     queryKey: ['notice-count'],
     queryFn: async () => (await adminClient('/notice/count')).data,
-    refetchInterval: 30000,
     enabled: isAuthenticated,
+    staleTime: 60000,
+    gcTime: 300000,
   });
 
   const { data: interactionData, isLoading: loadingInter } = useQuery({
     queryKey: ['notice-interaction', subType],
     queryFn: async () => (await adminClient('/notice/interaction/list', { params: { subType } })).data,
-    enabled: tab === 'interaction' && Boolean(anchorEl),
+    enabled: isAuthenticated && tab === 'interaction' && Boolean(anchorEl),
   });
 
   const { data: systemData, isLoading: loadingSystem } = useQuery({
     queryKey: ['notice-system'],
     queryFn: async () => (await adminClient('/notice/system/list')).data,
-    enabled: tab === 'system' && Boolean(anchorEl),
+    enabled: isAuthenticated && tab === 'system' && Boolean(anchorEl),
   });
+
+  // 未登录不渲染任何内容
+  if (!isAuthenticated) {
+    return null;
+  }
 
   const list = tab === 'interaction' ? interactionData?.list || [] : systemData?.list || [];
   const loading = tab === 'interaction' ? loadingInter : loadingSystem;
   const unread = countData?.total || 0;
   const interactionUnread = countData?.interaction || 0;
   const systemUnread = countData?.system || 0;
-
-  const filteredList = useMemo(() => list, [list]);
-
-  const open = Boolean(anchorEl);
-  const id = open ? 'notice-popover' : undefined;
 
   return (
     <>
@@ -119,8 +121,7 @@ export default function NoticeIconView() {
         </IconButton>
       </Tooltip>
       <Popover
-        id={id}
-        open={open}
+        open={Boolean(anchorEl)}
         anchorEl={anchorEl}
         onClose={() => setAnchorEl(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
@@ -234,7 +235,7 @@ export default function NoticeIconView() {
                   <Skeleton key={i} variant="rounded" height={64} sx={{ bgcolor: 'action.hover' }} />
                 ))}
               </Box>
-            ) : filteredList.length === 0 ? (
+            ) : list.length === 0 ? (
               <Box sx={{ py: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
                 <Box
                   sx={{
@@ -247,12 +248,12 @@ export default function NoticeIconView() {
                     justifyContent: 'center',
                   }}
                 >
-                  <CheckCircleOutlineIcon sx={{ fontSize: 28, color: 'text.disabled' }} />
+                  <CheckCircleIcon sx={{ fontSize: 28, color: 'text.disabled' }} />
                 </Box>
                 <Typography sx={{ fontSize: 13, color: 'text.disabled' }}>暂无消息</Typography>
               </Box>
             ) : (
-              filteredList.map((item: any) => (
+              list.map((item: any) => (
                 <InteractionItem
                   key={item.id}
                   item={item}
@@ -412,19 +413,26 @@ function InteractionItem({ item, onClose, onMessage }: { item: any; onClose: () 
   );
 }
 
-// 私信图标(DM 入口) — 走 useQuery 拿未读数
+// 私信图标(DM 入口) — 登录后才渲染
 export function DmIconView() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
+
   const { data: sessions } = useQuery({
     queryKey: ['dm-sessions-badge'],
     queryFn: async () => (await adminClient('/msg/session/list')).data,
-    enabled: isAuthenticated,  // 未登录不发请求(否则 401 刷屏)
+    enabled: isAuthenticated,
   });
+
+  // useMemo 必须在条件返回之前，保持 hooks 顺序一致
   const unread = useMemo(() => {
     const list = sessions?.list || [];
     return list.reduce((sum: number, s: any) => sum + (s.unread || 0), 0);
   }, [sessions]);
+
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <Tooltip title="私信">

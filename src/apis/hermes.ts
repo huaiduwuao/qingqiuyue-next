@@ -252,15 +252,17 @@ export async function clientGreeting(id: number | string) {
   return contentClient(`/hermes/client/${id}/greeting`);
 }
 
-export async function clientHistory(id: number | string) {
-  return contentClient(`/hermes/client/${id}/history`);
+export async function clientHistory(id: number | string, conversationId?: string) {
+  return contentClient(`/hermes/client/${id}/history`, {
+    params: conversationId ? { conversationId } : {},
+  });
 }
 
 // ===== Chat (/api/realtime/hermes/*) =====
-export async function chat(agentId: string, message: string) {
-  return imClient<{ text: string; code?: string | number; msg?: string; data?: { text: string } }>(
+export async function chat(agentId: string, message: string, conversationId?: string) {
+  return imClient<{ text: string; conversationId?: string; code?: string | number; msg?: string; data?: { text: string; conversationId?: string } }>(
     '/hermes/chat',
-    { method: 'POST', data: { agentId, message } },
+    { method: 'POST', data: { agentId, message, conversationId } },
   );
 }
 

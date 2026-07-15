@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import StarRoundedIcon from '@mui/icons-material/StarRounded';
@@ -10,11 +10,9 @@ import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import { homeClient } from '@/lib/api/client';
-import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT, gradient2 } from '@/constants/gradients';
-import { useScrollToBottom } from '@/hooks/useInfiniteScroll';
 import Masonry from 'react-masonry-css';
 
 const CAT_TO_TYPE: Record<TheaterItem['category'], string> = {
@@ -110,16 +108,6 @@ const SORTS = [
   { key: 'new', label: '最新', icon: <AccessTimeRoundedIcon sx={{ fontSize: 14 }} /> },
 ];
 
-function buildQs(filters: { category: string; region: string; year: number; minRating: number; sort: string }) {
-  const p = new URLSearchParams();
-  if (filters.category && filters.category !== 'all') p.set('category', filters.category);
-  if (filters.region) p.set('region', filters.region);
-  if (filters.year > 0) p.set('year', String(filters.year));
-  if (filters.minRating > 0) p.set('minRating', String(filters.minRating));
-  if (filters.sort && filters.sort !== 'hot') p.set('sort', filters.sort);
-  return p.toString();
-}
-
 export function TheaterPanel() {
   const [category, setCategory] = useState<'all' | TheaterItem['category']>('all');
   const [region, setRegion] = useState('');
@@ -127,53 +115,64 @@ export function TheaterPanel() {
   const [minRating, setMinRating] = useState(0);
   const [sort, setSort] = useState('hot');
 
-  const qs = buildQs({ category, region, year, minRating, sort });
-
   // 分页状态
   const PAGE_SIZE = 12;
-  const [theaterPage, setTheaterPage] = useState(1);
-  const [theaterList, setTheaterList] = useState<TheaterItem[]>([]);
-  const [theaterHasMore, setTheaterHasMore] = useState(true);
 
-  // 切换筛选时重置分页
-  useEffect(() => {
-    setTheaterPage(1);
-    setTheaterList([]);
-    setTheaterHasMore(true);
-  }, [category, region, year, minRating, sort]);
-
-  const listUrl = `/theater/items${qs ? '?' + qs + '&' : '?'}page=${theaterPage}&pageSize=${PAGE_SIZE}`;
-  const topUrl = `/theater/top?${qs ? qs + '&' : ''}category=${category}`;
-
-  const query = useQuery({
-    queryKey: ['home', 'theater', category, region, year, minRating, sort, theaterPage],
-    queryFn: async () => {
-      const resp = await homeClient.get<Resp>(listUrl).then((r) => r.data);
+  // 使用 useInfiniteQuery 实现无限滚动分页
+  const {
+    data: theaterData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+  } = useInfiniteQuery({
+    queryKey: ['home', 'theater', category, region, year, minRating, sort],
+    queryFn: async ({ pageParam = 1 }) => {
+      const params = new URLSearchParams({ page: String(pageParam), size: String(PAGE_SIZE) });
+      if (category && category !== 'all') params.set('category', category);
+      if (region) params.set('region', region);
+      if (year > 0) params.set('year', String(year));
+      if (minRating > 0) params.set('minRating', String(minRating));
+      if (sort && sort !== 'hot') params.set('sort', sort);
+      const resp = await homeClient.get<Resp>(`/theater/items?${params.toString()}`).then((r) => r.data);
       const records = resp?.list || [];
       const total = resp?.total || 0;
-
-      setTheaterList(prev => theaterPage === 1 ? records : [...prev, ...records]);
-      setTheaterHasMore(records.length === PAGE_SIZE && (theaterPage * PAGE_SIZE) < total);
-
-      return resp;
+      return { records, total, page: pageParam };
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      const { records, total, page } = lastPage;
+      if (records.length === PAGE_SIZE && page * PAGE_SIZE < total) {
+        return page + 1;
+      }
+      return undefined;
     },
   });
 
-  const topQuery = useQuery({
-    queryKey: ['home', 'theater', 'top', category, region, year, minRating, sort],
-    queryFn: () => homeClient.get<Resp>(topUrl).then((r) => r.data),
-  });
+  // 合并所有页面的数据
+  const theaterList = theaterData?.pages.flatMap(page => page.records) || [];
 
-  // 无限滚动 - 自动查找可滚动祖先容器
-  const scroll = useScrollToBottom({
-    enabled: !query.isLoading && theaterHasMore,
-  });
+  // 简化：使用单一 sentinel ref
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
+  // 监听滚动到底部
   useEffect(() => {
-    if (scroll.isNearBottom && theaterHasMore && !query.isLoading) {
-      setTheaterPage(p => p + 1);
-    }
-  }, [scroll.isNearBottom, theaterHasMore, query.isLoading]);
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry.isIntersecting && hasNextPage && !isFetchingNextPage && !isLoading) {
+          fetchNextPage();
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, isLoading, fetchNextPage]);
 
   return (
     <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
@@ -200,9 +199,8 @@ export function TheaterPanel() {
         </Box>
       </Box>
 
-      <AsyncState query={topQuery} skeletonCount={0} isEmpty={() => false}>
-        {(data) => <TheaterTop10 list={data.list} category={category} sort={sort} />}
-      </AsyncState>
+      {/* Top 10 */}
+      <Top10Section category={category} />
 
       <Box sx={{ mb: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
@@ -313,49 +311,63 @@ export function TheaterPanel() {
         </Typography>
         <Box sx={{ flex: 1 }} />
         <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
-          共 {query.data?.total ?? 0} 部
+          共 {theaterList.length} 部
         </Typography>
       </Box>
 
-      {/* 放映厅网格 - 不使用内部滚动容器，让内容流入外部可滚动的 MAIN */}
-      <AsyncState
-        query={query}
-        skeletonCount={8}
-        skeletonHeight={260}
-        isEmpty={(d) => d.list.length === 0}
-        emptyText="该分类暂无内容。可调宽上述属性，或切换到其他分类"
-      >
-        {(data) => {
-          return (
-            <Box>
-              <Masonry
-                breakpointCols={{ default: 5, 1400: 4, 1100: 3, 800: 2, 500: 1 }}
-                className="my-masonry-grid"
-                columnClassName="my-masonry-grid_column"
-              >
-                {theaterList.map((item) => (
-                  <TheaterCard key={item.id} item={item} />
-                ))}
-              </Masonry>
-
-              {/* 滚动触发器 */}
-              <Box ref={scroll.sentinelRef} sx={{ height: 1 }} />
-
-              {/* Loading more */}
-              {query.isFetching && !query.isLoading && (
-                <Typography sx={{ textAlign: 'center', py: 2, color: 'text.secondary', fontSize: 12 }}>加载中...</Typography>
-              )}
-
-              {/* No more */}
-              {!query.isFetching && theaterList.length > 0 && !theaterHasMore && (
-                <Typography sx={{ textAlign: 'center', py: 3, color: 'text.disabled', fontSize: 12 }}>- 没有更多了 -</Typography>
-              )}
+      {/* 放映厅网格 */}
+      {isLoading ? (
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)', lg: 'repeat(5, 1fr)' }, gap: 2 }}>
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Box key={i} sx={{ aspectRatio: '16/9', borderRadius: 2, bgcolor: 'action.hover' }} />
+          ))}
+        </Box>
+      ) : (
+        <Box>
+          {theaterList.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 6 }}>
+              <Typography sx={{ color: 'text.secondary' }}>该分类暂无内容</Typography>
             </Box>
-          );
-        }}
-      </AsyncState>
+          ) : (
+            <Masonry
+              breakpointCols={{ default: 5, 1400: 4, 1100: 3, 800: 2, 500: 1 }}
+              className="my-masonry-grid"
+              columnClassName="my-masonry-grid_column"
+            >
+              {theaterList.map((item) => (
+                <TheaterCard key={item.id} item={item} />
+              ))}
+            </Masonry>
+          )}
+
+          {/* Loading more */}
+          {isFetchingNextPage && (
+            <Typography sx={{ textAlign: 'center', py: 2, color: 'text.secondary', fontSize: 12 }}>加载中...</Typography>
+          )}
+
+          {/* No more */}
+          {!isFetchingNextPage && theaterList.length > 0 && !hasNextPage && (
+            <Typography sx={{ textAlign: 'center', py: 3, color: 'text.disabled', fontSize: 12 }}>- 没有更多了 -</Typography>
+          )}
+
+          {/* Scroll sentinel */}
+          <Box ref={sentinelRef} sx={{ height: 1 }} />
+        </Box>
+      )}
     </Box>
   );
+}
+
+function Top10Section({ category }: { category: string }) {
+  const topQuery = useQuery({
+    queryKey: ['home', 'theater', 'top', category],
+    queryFn: () => homeClient.get<Resp>(`/theater/top?category=${category}`).then((r) => r.data),
+  });
+
+  if (topQuery.isLoading) return null;
+  if (!topQuery.data?.list?.length) return null;
+
+  return <TheaterTop10 list={topQuery.data.list} category={category} sort="hot" />;
 }
 
 function FilterRow({

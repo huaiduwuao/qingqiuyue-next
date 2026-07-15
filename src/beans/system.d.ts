@@ -214,12 +214,17 @@ export interface HermesAgentItem extends TableListItem {
 
 export interface HermesChatResp {
   text: string;
+  conversationId?: string;
 }
 
 export interface HermesInstanceStatus {
   ok: boolean;
   baseUrl: string;
   containerAgents: string[];
+  message?: string;
+  agentCount?: number;
+  instanceId?: number;
+  error?: string;
 }
 
 export interface UserChangeType {

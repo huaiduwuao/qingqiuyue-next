@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import Skeleton from '@mui/material/Skeleton';
 import Avatar from '@mui/material/Avatar';
 import Chip from '@mui/material/Chip';
 import Tabs from '@mui/material/Tabs';
@@ -171,21 +172,18 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
 
   // 分页状态
   const PAGE_SIZE = 12;
-  const [feedPage, setFeedPage] = useState(1);
-  const [feedList, setFeedList] = useState<FeedItem[]>([]);
-  const [feedHasMore, setFeedHasMore] = useState(true);
 
-  // 切换 tab 时重置分页
-  useEffect(() => {
-    setFeedPage(1);
-    setFeedList([]);
-    setFeedHasMore(true);
-  }, [tab]);
-
-  const query = useQuery({
-    queryKey: ['home', 'feed', tab, isPersonal ? 'all' : section, sort, isPersonal ? '' : genre, feedPage],
-    queryFn: async () => {
-      const params = new URLSearchParams({ tab, page: String(feedPage), size: String(PAGE_SIZE) });
+  // 使用 useInfiniteQuery 实现真正的无限滚动分页
+  const {
+    data: feedData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+  } = useInfiniteQuery({
+    queryKey: ['home', 'feed', tab, isPersonal ? 'all' : section, sort, isPersonal ? '' : genre],
+    queryFn: async ({ pageParam = 1 }) => {
+      const params = new URLSearchParams({ tab, page: String(pageParam), size: String(PAGE_SIZE) });
       if (!isPersonal) {
         params.set('section', section);
         params.set('sort', sort);
@@ -194,24 +192,21 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
       const resp = await homeClient.get<FeedResp>(`/feed?${params.toString()}`).then((r) => r.data);
       const records = resp?.list || [];
       const total = resp?.total || 0;
-
-      console.log('[FeedPanel] API response:', {
-        tab,
-        section,
-        feedPage,
-        recordsCount: records.length,
-        total,
-        PAGE_SIZE,
-        hasMore: records.length === PAGE_SIZE && (feedPage * PAGE_SIZE) < total,
-      });
-
-      setFeedList(prev => feedPage === 1 ? records : [...prev, ...records]);
-      setFeedHasMore(records.length === PAGE_SIZE && (feedPage * PAGE_SIZE) < total);
-
-      return resp;
+      return { records, total, page: pageParam };
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      const { records, total, page } = lastPage;
+      if (records.length === PAGE_SIZE && page * PAGE_SIZE < total) {
+        return page + 1;
+      }
+      return undefined;
     },
     enabled: tab !== 'recommend',
   });
+
+  // 合并所有页面的数据
+  const feedList = feedData?.pages.flatMap(page => page.records) || [];
 
   // 简化分页：使用单一 sentinel ref
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -224,18 +219,9 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
     const observer = new IntersectionObserver(
       (entries) => {
         const entry = entries[0];
-        console.log('[FeedPanel] IntersectionObserver:', {
-          tab,
-          section,
-          isIntersecting: entry.isIntersecting,
-          feedHasMore,
-          isLoading: query.isLoading,
-          feedPage,
-        });
-
-        if (entry.isIntersecting && feedHasMore && !query.isLoading) {
+        if (entry.isIntersecting && hasNextPage && !isFetchingNextPage && !isLoading) {
           console.log('[FeedPanel] Loading next page');
-          setFeedPage(p => p + 1);
+          fetchNextPage();
         }
       },
       { threshold: 0.1, rootMargin: '100px' }
@@ -243,7 +229,7 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [tab, section, feedHasMore, query.isLoading]);
+  }, [hasNextPage, isFetchingNextPage, isLoading, fetchNextPage]);
 
   // 所有 Hook 调用完毕后再做条件分支(遵守 Rules of Hooks:Hook 顺序在每次渲染必须一致)
   if (tab === 'recommend') {
@@ -408,8 +394,17 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
         {isFollow && followSub === 'list' ? (
           <FollowList onSnack={(m, severity) => setSnack({ open: true, message: m, severity: severity || 'success' })} />
         ) : (
-        <AsyncState query={query} skeletonCount={4} skeletonHeight={420} isEmpty={() => false}>
-          {(data) => (
+        <>
+          {/* 加载状态 */}
+          {isLoading ? (
+            <Box sx={{ p: 2 }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} variant="rounded" sx={{ height: 200, bgcolor: 'action.hover' }} />
+                ))}
+              </Box>
+            </Box>
+          ) : (
             <Box sx={{ p: 2 }}>
               {/* 仅 home 顶部抓取工具条 (follow 是个人页,不放;recommend 已被 WerewolfPlayer 接管) */}
               {tab === 'home' && !isPersonal && section === 'recommend' && (
@@ -434,9 +429,9 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
                 // 关注/朋友:中间是 feed(倒序),右侧是推荐用户(sticky,lg+ 才显示)
                 <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
                   <Box sx={{ flex: 1, minWidth: 0 }}>
-                    {data.list.length > 0 ? (
+                    {feedList.length > 0 ? (
                       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
-                        {data.list.map((item) => (
+                        {feedList.map((item) => (
                           <FeedCard key={item.id} item={item} tab={tab} onSnack={(m, s) => setSnack({ open: true, message: m, severity: s })} />
                         ))}
                       </Box>
@@ -456,13 +451,13 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
                     <RecommendSection tab={tab} onSnack={(m, s) => setSnack({ open: true, message: m, severity: s })} />
                   </Box>
                 </Box>
-              ) : data.list.length > 0 ? (
+              ) : feedList.length > 0 ? (
                 <Masonry
                   breakpointCols={{ default: 3, 1200: 2, 900: 2, 600: 1 }}
                   className="my-masonry-grid"
                   columnClassName="my-masonry-grid_column"
                 >
-                  {data.list.map((item) => (
+                  {feedList.map((item) => (
                     <FeedCard key={item.id} item={item} tab={tab} onSnack={(m, s) => setSnack({ open: true, message: m, severity: s })} />
                   ))}
                 </Masonry>
@@ -471,7 +466,7 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
               )}
 
               {/* Loading more */}
-              {query.isFetching && !query.isLoading && (
+              {isFetchingNextPage && (
                 <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
                   <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>加载中...</Typography>
                 </Box>
@@ -481,14 +476,14 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
               <Box ref={sentinelRef} sx={{ height: 20, bgcolor: 'red', opacity: 0.3, borderRadius: 1 }} />
 
               {/* No more data */}
-              {!query.isFetching && feedList.length > 0 && !feedHasMore && (
+              {!isFetchingNextPage && feedList.length > 0 && !hasNextPage && (
                 <Typography sx={{ textAlign: 'center', py: 3, color: 'text.disabled', fontSize: 12 }}>
                   - 没有更多了 -
                 </Typography>
               )}
             </Box>
           )}
-        </AsyncState>
+        </>
         )}
       </Box>
 

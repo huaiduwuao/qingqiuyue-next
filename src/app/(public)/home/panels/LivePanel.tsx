@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -16,7 +16,6 @@ import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT, gradient2 } from '@/constants/gradients';
-import { useScrollToBottom } from '@/hooks/useInfiniteScroll';
 import Masonry from 'react-masonry-css';
 
 type LiveStatus = 'all' | 'live' | 'offline';
@@ -110,49 +109,60 @@ export function LivePanel() {
 
   // 分页状态
   const PAGE_SIZE = 12;
-  const [livePage, setLivePage] = useState(1);
-  const [liveList, setLiveList] = useState<Room[]>([]);
-  const [liveHasMore, setLiveHasMore] = useState(true);
 
-  // 切换筛选时重置分页
-  useEffect(() => {
-    setLivePage(1);
-    setLiveList([]);
-    setLiveHasMore(true);
-  }, [status, sort, category]);
-
-  const query = useQuery({
-    queryKey: ['home', 'live', 'rooms', status, sort, category, livePage],
-    queryFn: async () => {
-      const params = new URLSearchParams({ page: String(livePage), size: String(PAGE_SIZE) });
+  // 使用 useInfiniteQuery 实现无限滚动分页
+  const {
+    data: liveData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+  } = useInfiniteQuery({
+    queryKey: ['home', 'live', 'rooms', status, sort, category],
+    queryFn: async ({ pageParam = 1 }) => {
+      const params = new URLSearchParams({ page: String(pageParam), size: String(PAGE_SIZE) });
       if (status !== 'all') params.set('status', status);
       if (sort !== 'hot') params.set('sort', sort);
       if (category !== 'all') params.set('category', category);
       const resp = await homeClient.get<Resp>(`/live/rooms?${params.toString()}`).then((r) => r.data);
       const records = resp?.list || [];
       const total = resp?.total || 0;
-
-      console.log('[LivePanel] page:', livePage, 'records:', records.length, 'total:', total, 'hasMore:', records.length === PAGE_SIZE && (livePage * PAGE_SIZE) < total);
-
-      setLiveList(prev => livePage === 1 ? records : [...prev, ...records]);
-      setLiveHasMore(records.length === PAGE_SIZE && (livePage * PAGE_SIZE) < total);
-
-      return resp;
+      return { records, total, page: pageParam };
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      const { records, total, page } = lastPage;
+      if (records.length === PAGE_SIZE && page * PAGE_SIZE < total) {
+        return page + 1;
+      }
+      return undefined;
     },
   });
 
-  // 无限滚动 - 自动查找可滚动祖先容器
-  const scroll = useScrollToBottom({
-    enabled: !query.isLoading && liveHasMore,
-  });
+  // 合并所有页面的数据
+  const liveList = liveData?.pages.flatMap(page => page.records) || [];
 
+  // 简化：使用单一 sentinel ref
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // 监听滚动到底部
   useEffect(() => {
-    console.log('[LivePanel] scroll.isNearBottom:', scroll.isNearBottom, 'liveHasMore:', liveHasMore, 'query.isLoading:', query.isLoading);
-    if (scroll.isNearBottom && liveHasMore && !query.isLoading) {
-      console.log('[LivePanel] triggering page load...');
-      setLivePage(p => p + 1);
-    }
-  }, [scroll.isNearBottom, liveHasMore, query.isLoading]);
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry.isIntersecting && hasNextPage && !isFetchingNextPage && !isLoading) {
+          fetchNextPage();
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, isLoading, fetchNextPage]);
 
   const topQuery = useQuery({
     queryKey: ['home', 'live', 'top', category],
@@ -286,21 +296,24 @@ export function LivePanel() {
           {category === 'all' ? '全部' : CATEGORIES.find((c) => c.key === category)?.label}直播间
         </Typography>
         <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
-          共 {query.data?.list?.length ?? 0} 间
+          共 {liveList.length} 间
         </Typography>
       </Box>
 
-      {/* 直播间网格 - 不使用内部滚动容器，让内容流入外部可滚动的 MAIN */}
-      <AsyncState
-        query={query}
-        skeletonCount={6}
-        skeletonHeight={320}
-        isEmpty={(d) => d.list.length === 0}
-        emptyText="该筛选下暂无直播间"
-        emptyHint="尝试切回全部分类或调整状态"
-      >
-        {(data) => (
-          <Box>
+      {/* 直播间网格 */}
+      {isLoading ? (
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2 }}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Box key={i} sx={{ aspectRatio: '3/4', borderRadius: 2, bgcolor: 'action.hover' }} />
+          ))}
+        </Box>
+      ) : (
+        <Box>
+          {liveList.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 6 }}>
+              <Typography sx={{ color: 'text.secondary' }}>该筛选下暂无直播间</Typography>
+            </Box>
+          ) : (
             <Masonry
               breakpointCols={{ default: 4, 1200: 3, 900: 2, 600: 1 }}
               className="my-masonry-grid"
@@ -310,22 +323,22 @@ export function LivePanel() {
                 <RoomCard key={room.id} room={room} onClick={() => navigate('LIVE', room.id)} />
               ))}
             </Masonry>
+          )}
 
-            {/* 滚动触发器 - 放在可滚动的 MAIN 底部 */}
-            <Box ref={scroll.sentinelRef} sx={{ height: 1 }} />
+          {/* Loading more */}
+          {isFetchingNextPage && (
+            <Typography sx={{ textAlign: 'center', py: 2, color: 'text.secondary', fontSize: 12 }}>加载中...</Typography>
+          )}
 
-            {/* Loading more */}
-            {query.isFetching && !query.isLoading && (
-              <Typography sx={{ textAlign: 'center', py: 2, color: 'text.secondary', fontSize: 12 }}>加载中...</Typography>
-            )}
+          {/* No more */}
+          {!isFetchingNextPage && liveList.length > 0 && !hasNextPage && (
+            <Typography sx={{ textAlign: 'center', py: 3, color: 'text.disabled', fontSize: 12 }}>- 没有更多了 -</Typography>
+          )}
 
-            {/* No more */}
-            {!query.isFetching && liveList.length > 0 && !liveHasMore && (
-              <Typography sx={{ textAlign: 'center', py: 3, color: 'text.disabled', fontSize: 12 }}>- 没有更多了 -</Typography>
-            )}
-          </Box>
-        )}
-      </AsyncState>
+          {/* Scroll sentinel */}
+          <Box ref={sentinelRef} sx={{ height: 1 }} />
+        </Box>
+      )}
     </Box>
   );
 }

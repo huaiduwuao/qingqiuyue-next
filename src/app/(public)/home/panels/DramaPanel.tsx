@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import LockRoundedIcon from '@mui/icons-material/LockRounded';
@@ -11,11 +11,9 @@ import WhatshotIcon from '@mui/icons-material/Whatshot';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import { homeClient } from '@/lib/api/client';
-import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT, gradient2 } from '@/constants/gradients';
-import { useScrollToBottom } from '@/hooks/useInfiniteScroll';
 import Masonry from 'react-masonry-css';
 
 type DramaSeries = {
@@ -94,66 +92,67 @@ const GENRE_COLOR: Record<DramaSeries['genre'], string> = {
   逆袭: 'warning.main',
 };
 
-function buildQs(filters: { genre: string; status: string; sort: string }) {
-  const p = new URLSearchParams();
-  if (filters.genre && filters.genre !== 'all') p.set('genre', filters.genre);
-  if (filters.status && filters.status !== 'ALL') p.set('status', filters.status);
-  if (filters.sort && filters.sort !== 'hot') p.set('sort', filters.sort);
-  return p.toString();
-}
-
 export function DramaPanel() {
   const [genre, setGenre] = useState<DramaSeries['genre'] | 'all'>('all');
   const [status, setStatus] = useState<DramaSeries['status'] | 'ALL'>('ALL');
   const [sort, setSort] = useState('hot');
 
-  const qs = buildQs({ genre, status, sort });
-
   // 分页状态
   const PAGE_SIZE = 12;
-  const [dramaPage, setDramaPage] = useState(1);
-  const [dramaList, setDramaList] = useState<DramaSeries[]>([]);
-  const [dramaHasMore, setDramaHasMore] = useState(true);
 
-  // 切换筛选时重置分页
-  useEffect(() => {
-    setDramaPage(1);
-    setDramaList([]);
-    setDramaHasMore(true);
-  }, [genre, status, sort]);
-
-  const seriesUrl = `/drama/series${qs ? '?' + qs + '&' : '?'}page=${dramaPage}&pageSize=${PAGE_SIZE}`;
-  const topUrl = `/drama/top${qs ? '?' + qs : ''}`;
-
-  const seriesQuery = useQuery({
-    queryKey: ['home', 'drama', 'series', genre, status, sort, dramaPage],
-    queryFn: async () => {
-      const resp = await homeClient.get<{ list: DramaSeries[]; total: number }>(seriesUrl).then((r) => r.data);
+  // 使用 useInfiniteQuery 实现无限滚动分页
+  const {
+    data: dramaData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+  } = useInfiniteQuery({
+    queryKey: ['home', 'drama', genre, status, sort],
+    queryFn: async ({ pageParam = 1 }) => {
+      const params = new URLSearchParams({ page: String(pageParam), pageSize: String(PAGE_SIZE) });
+      if (genre && genre !== 'all') params.set('genre', genre);
+      if (status && status !== 'ALL') params.set('status', status);
+      if (sort && sort !== 'hot') params.set('sort', sort);
+      const resp = await homeClient.get<{ list: DramaSeries[]; total: number }>(`/drama/series?${params.toString()}`).then((r) => r.data);
       const records = resp?.list || [];
       const total = resp?.total || 0;
-
-      setDramaList(prev => dramaPage === 1 ? records : [...prev, ...records]);
-      setDramaHasMore(records.length === PAGE_SIZE && (dramaPage * PAGE_SIZE) < total);
-
-      return resp;
+      return { records, total, page: pageParam };
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      const { records, total, page } = lastPage;
+      if (records.length === PAGE_SIZE && page * PAGE_SIZE < total) {
+        return page + 1;
+      }
+      return undefined;
     },
   });
 
-  const topQuery = useQuery({
-    queryKey: ['home', 'drama', 'top', genre, status, sort],
-    queryFn: () => homeClient.get<{ list: DramaSeries[]; total: number }>(topUrl).then((r) => r.data),
-  });
+  // 合并所有页面的数据
+  const dramaList = dramaData?.pages.flatMap(page => page.records) || [];
 
-  // 无限滚动 - 自动查找可滚动祖先容器
-  const scroll = useScrollToBottom({
-    enabled: !seriesQuery.isLoading && dramaHasMore,
-  });
+  // 简化：使用单一 sentinel ref
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
+  // 监听滚动到底部
   useEffect(() => {
-    if (scroll.isNearBottom && dramaHasMore && !seriesQuery.isLoading) {
-      setDramaPage(p => p + 1);
-    }
-  }, [scroll.isNearBottom, dramaHasMore, seriesQuery.isLoading]);
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry.isIntersecting && hasNextPage && !isFetchingNextPage && !isLoading) {
+          fetchNextPage();
+        }
+      },
+      { threshold: 0.1, rootMargin: '100px' }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, isLoading, fetchNextPage]);
 
   return (
     <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
@@ -182,11 +181,9 @@ export function DramaPanel() {
       </Box>
 
       {/* Top 10 */}
-      <AsyncState query={topQuery} skeletonCount={0} isEmpty={() => false}>
-        {(data) => <Top10Podium list={data.list} genre={genre} status={status} sort={sort} />}
-      </AsyncState>
+      <Top10Section genre={genre} status={status} sort={sort} />
 
-      {/* Filters panel: genre + status + sort */}
+      {/* Filters panel */}
       <Box
         sx={{
           mt: 4,
@@ -260,20 +257,24 @@ export function DramaPanel() {
         </Typography>
         <Box sx={{ flex: 1 }} />
         <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
-          共 {seriesQuery.data?.list?.length ?? 0} 部
+          共 {dramaList.length} 部
         </Typography>
       </Box>
 
-      {/* 短剧网格 - 不使用内部滚动容器，让内容流入外部可滚动的 MAIN */}
-      <AsyncState
-        query={seriesQuery}
-        skeletonCount={10}
-        skeletonHeight={260}
-        isEmpty={(d) => d.list.length === 0}
-        emptyText="该筛选下暂无短剧。可清空筛选或切换题材"
-      >
-        {(data) => (
-          <Box>
+      {/* 短剧网格 */}
+      {isLoading ? (
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)', lg: 'repeat(6, 1fr)' }, gap: 2 }}>
+          {Array.from({ length: 10 }).map((_, i) => (
+            <Box key={i} sx={{ aspectRatio: '3/4', borderRadius: 2, bgcolor: 'action.hover' }} />
+          ))}
+        </Box>
+      ) : (
+        <Box>
+          {dramaList.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 6 }}>
+              <Typography sx={{ color: 'text.secondary' }}>该筛选下暂无短剧</Typography>
+            </Box>
+          ) : (
             <Masonry
               breakpointCols={{ default: 6, 1400: 5, 1100: 4, 800: 3, 600: 2, 400: 1 }}
               className="my-masonry-grid"
@@ -283,24 +284,41 @@ export function DramaPanel() {
                 <DramaCard key={s.id} item={s} />
               ))}
             </Masonry>
+          )}
 
-            {/* 滚动触发器 */}
-            <Box ref={scroll.sentinelRef} sx={{ height: 1 }} />
+          {/* Loading more */}
+          {isFetchingNextPage && (
+            <Typography sx={{ textAlign: 'center', py: 2, color: 'text.secondary', fontSize: 12 }}>加载中...</Typography>
+          )}
 
-            {/* Loading more */}
-            {seriesQuery.isFetching && !seriesQuery.isLoading && (
-              <Typography sx={{ textAlign: 'center', py: 2, color: 'text.secondary', fontSize: 12 }}>加载中...</Typography>
-            )}
+          {/* No more */}
+          {!isFetchingNextPage && dramaList.length > 0 && !hasNextPage && (
+            <Typography sx={{ textAlign: 'center', py: 3, color: 'text.disabled', fontSize: 12 }}>- 没有更多了 -</Typography>
+          )}
 
-            {/* No more */}
-            {!seriesQuery.isFetching && dramaList.length > 0 && !dramaHasMore && (
-              <Typography sx={{ textAlign: 'center', py: 3, color: 'text.disabled', fontSize: 12 }}>- 没有更多了 -</Typography>
-            )}
-          </Box>
-        )}
-      </AsyncState>
+          {/* Scroll sentinel */}
+          <Box ref={sentinelRef} sx={{ height: 1 }} />
+        </Box>
+      )}
     </Box>
   );
+}
+
+function Top10Section({ genre, status, sort }: { genre: string; status: string; sort: string }) {
+  const topQuery = useQuery({
+    queryKey: ['home', 'drama', 'top', genre, status, sort],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (genre && genre !== 'all') params.set('genre', genre);
+      if (status && status !== 'ALL') params.set('status', status);
+      return homeClient.get<{ list: DramaSeries[] }>(`/drama/top?${params.toString()}`).then((r) => r.data);
+    },
+  });
+
+  if (topQuery.isLoading) return null;
+  if (!topQuery.data?.list?.length) return null;
+
+  return <Top10Podium list={topQuery.data.list} genre={genre as any} status={status as any} sort={sort} />;
 }
 
 function Chip({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {

@@ -477,6 +477,9 @@ function DmPanel() {
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState('');
   const [reporting, setReporting] = useState(false);
+  // hydration 完成前不判断 auth，避免 localStorage 读取时序问题导致未登录也发请求
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const qc = useQueryClient();
@@ -484,7 +487,7 @@ function DmPanel() {
   const { data: sessionData, isLoading: loadingSessions } = useQuery({
     queryKey: ['dm-sessions-page'],
     queryFn: async () => (await adminClient('/msg/session/list')).data,
-    enabled: isAuthenticated,  // 未登录不发请求(否则 401 刷屏)
+    enabled: mounted && isAuthenticated,  // 未登录不发请求(否则 401 刷屏)
   });
   const sessions: Session[] = sessionData?.list || [];
 

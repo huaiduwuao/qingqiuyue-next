@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
@@ -17,8 +17,10 @@ import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import Paper from '@mui/material/Paper';
 import CircularProgress from '@mui/material/CircularProgress';
+import Tooltip from '@mui/material/Tooltip';
 import SendIcon from '@mui/icons-material/Send';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import AddIcon from '@mui/icons-material/Add';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import PersonIcon from '@mui/icons-material/Person';
 import * as hermesApi from '@/apis/hermes';
@@ -45,11 +47,34 @@ export default function HermesChatPage() {
   const params = useParams<{ id: string }>();
   const id = params?.id;
   const router = useRouter();
+  const searchParams = useSearchParams();
   const qc = useQueryClient();
 
+  // conversationId: 从 URL 读取，undefined 表示新对话/legacy
+  const [conversationId, setConversationId] = useState<string | undefined>(() =>
+    searchParams.get('conversationId') || undefined,
+  );
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const listRef = useRef<HTMLDivElement | null>(null);
+
+  // 新建会话:重置所有状态并清 URL
+  const startNewConversation = useCallback(() => {
+    setConversationId(undefined);
+    setMessages([]);
+    // conversationId 变会触发 initDoneRef 重置,无需手动处理
+    router.replace(`/hermes/${id}`);
+    qc.invalidateQueries({ queryKey: ['hermes', 'history', id] });
+  }, [id, router, qc]);
+
+  // 同步 conversationId 到 URL
+  useEffect(() => {
+    if (conversationId) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('conversationId', conversationId);
+      window.history.replaceState(null, '', url.toString());
+    }
+  }, [conversationId]);
 
   const detailQuery = useQuery<HermesAgentItem>({
     queryKey: ['hermes', 'detail', id],
@@ -58,23 +83,38 @@ export default function HermesChatPage() {
   });
 
   const historyQuery = useQuery<ChatMessage[]>({
-    queryKey: ['hermes', 'history', id],
-    queryFn: () => hermesApi.clientHistory(id as any).then((r: any) => r.data?.messages || r.data || []),
+    queryKey: ['hermes', 'history', id, conversationId],
+    queryFn: () =>
+      hermesApi
+        .clientHistory(id as any, conversationId)
+        .then((r: any) => r.data?.messages || r.data || []),
     enabled: !!id,
   });
 
-  // 初始化消息:历史为空则塞入 greeting;有历史则展示历史
-  useEffect(() => {
-    if (!historyQuery.data) return;
+  // 初始化消息:基于 historyQuery + detailQuery 计算初始消息(无 effect/cascading render)
+  const initMessages = useMemo<ChatMessage[] | null>(() => {
+    if (!historyQuery.data || !detailQuery.data) return null;
     if (historyQuery.data.length === 0) {
       const greeting = detailQuery.data?.greeting;
-      if (greeting) {
-        setMessages([{ role: 'assistant', content: greeting }]);
-      }
-    } else {
-      setMessages(historyQuery.data as ChatMessage[]);
+      return greeting ? [{ role: 'assistant', content: greeting }] : [];
     }
+    return historyQuery.data as ChatMessage[];
   }, [historyQuery.data, detailQuery.data]);
+
+  // initDone 用 useRef + conversationId 依赖驱动重初始化(新对话时 conversationId 变)
+  const initDoneRef = useRef(false);
+  useEffect(() => {
+    // conversationId 变时重置
+    initDoneRef.current = false;
+  }, [conversationId]);
+
+  // initMessages 变化时一次性同步到 messages state
+  useEffect(() => {
+    if (initMessages !== null && !initDoneRef.current) {
+      initDoneRef.current = true;
+      setMessages(initMessages);
+    }
+  }, [initMessages]);
 
   // 自动滚到底部
   useEffect(() => {
@@ -87,10 +127,15 @@ export default function HermesChatPage() {
     mutationFn: (text: string) => {
       const agent = detailQuery.data;
       if (!agent) throw new Error('智能体未加载');
-      return hermesApi.chat(agent.agentId, text);
+      return hermesApi.chat(agent.agentId, text, conversationId);
     },
     onSuccess: (res: any) => {
       const reply = res?.text ?? res?.data?.text ?? '';
+      // 后端返回新的 conversationId(新会话时)
+      const newConvId = res?.conversationId ?? res?.data?.conversationId;
+      if (newConvId && !conversationId) {
+        setConversationId(newConvId);
+      }
       if (reply) {
         setMessages((cur) => [...cur, { role: 'assistant', content: reply }]);
       }
@@ -118,12 +163,35 @@ export default function HermesChatPage() {
   return (
     <Container maxWidth="md">
       <Box sx={{ py: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {/* 顶部栏 */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <IconButton size="small" onClick={() => router.push('/hermes')}>
             <ArrowBackIcon />
           </IconButton>
-          <Typography variant="h6">Hermes 智能体</Typography>
+          <Typography variant="h6" sx={{ flex: 1 }}>Hermes 智能体</Typography>
+          <Tooltip title="新建对话">
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<AddIcon />}
+              onClick={startNewConversation}
+            >
+              新对话
+            </Button>
+          </Tooltip>
         </Box>
+
+        {/* 会话 ID 标签(如果有) */}
+        {conversationId && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Chip
+              label={`会话: ${conversationId.substring(0, 8)}...`}
+              size="small"
+              variant="outlined"
+              sx={{ fontFamily: 'monospace', fontSize: 11 }}
+            />
+          </Box>
+        )}
 
         <AsyncState
           query={detailQuery as any}
@@ -186,7 +254,7 @@ export default function HermesChatPage() {
             </Box>
           ) : messages.length === 0 ? (
             <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 4 }}>
-              发送第一条消息开始对话
+              {conversationId ? '暂无消息' : '发送第一条消息开始对话'}
             </Typography>
           ) : (
             <List disablePadding>

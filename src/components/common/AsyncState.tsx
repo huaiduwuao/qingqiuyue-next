@@ -25,6 +25,16 @@ function describeError(err: unknown): string {
   return '未知错误';
 }
 
+// 支持 isFetching 的类型
+type AsyncQuery<T> = {
+  isLoading: boolean;
+  isFetching: boolean;
+  isError: boolean;
+  refetch: () => void;
+  data: T | undefined;
+  error?: unknown;
+};
+
 export function AsyncState<T>({
   query,
   isEmpty,
@@ -36,7 +46,7 @@ export function AsyncState<T>({
   errorHint,
   children,
 }: {
-  query: { isLoading: boolean; isError: boolean; refetch: () => void; data: T | undefined; error?: unknown };
+  query: AsyncQuery<T>;
   isEmpty?: (data: T) => boolean;
   emptyText?: string;
   emptyHint?: string;
@@ -46,6 +56,7 @@ export function AsyncState<T>({
   errorHint?: string;
   children: (data: T) => ReactNode;
 }) {
+  // 初始加载骨架屏
   if (query.isLoading) {
     return (
       <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
@@ -61,6 +72,7 @@ export function AsyncState<T>({
     );
   }
 
+  // 错误状态
   if (query.isError) {
     const msg = describeError(query.error);
     return (
@@ -94,7 +106,7 @@ export function AsyncState<T>({
         >
           <Box>
             <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
-              {errorHint ?? '加载失败,请稍后重试'}
+              {errorHint ?? '加载失败，请稍后重试'}
             </Typography>
             <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.25, fontFamily: 'monospace' }}>
               {msg}
@@ -105,13 +117,18 @@ export function AsyncState<T>({
     );
   }
 
-  if (isEmpty && query.data && isEmpty(query.data)) {
-    return <EmptyState text={emptyText} hint={emptyHint} variant={emptyVariant} />;
+  // 有数据：加载更多时保留旧数据
+  if (query.data) {
+    // 空状态检查
+    if (isEmpty?.(query.data)) {
+      return <EmptyState text={emptyText} hint={emptyHint} variant={emptyVariant} />;
+    }
+    // 渲染数据（加载更多时也保留显示）
+    return <>{children(query.data)}</>;
   }
 
-  if (!query.data) return null;
-
-  return <>{children(query.data)}</>;
+  // 无数据且无加载
+  return <EmptyState text={emptyText} hint={emptyHint} variant={emptyVariant} />;
 }
 
 export function EmptyState({

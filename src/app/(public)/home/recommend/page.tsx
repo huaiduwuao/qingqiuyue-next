@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
@@ -14,7 +14,7 @@ import WhatshotIcon from '@mui/icons-material/Whatshot';
 import Avatar from '@mui/material/Avatar';
 import FavoriteBorderRoundedIcon from '@mui/icons-material/FavoriteBorderRounded';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { moduleContentPage } from '@/apis/home';
 import { getHomeRecommendFollow, getHomeRecommendFriend, type RecommendWork } from '@/apis/dashboard';
 import { CoverImage } from '@/components/common/CoverImage';
@@ -24,7 +24,6 @@ import { TYPE_GRADIENT, RANK_BG, IMAGE_OVERLAY } from '@/constants/gradients';
 import { RecommendVideoFeed } from './components/RecommendVideoFeed';
 import { MeTabView } from './components/MeTabView';
 import { useScrollToBottom } from '@/hooks/useInfiniteScroll';
-import Masonry from 'react-masonry-css';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { homeClient } from '@/lib/api/client';
 import HotRankingBar from '@/components/home/HotRankingBar';
@@ -104,11 +103,7 @@ export default function HomeRecommendPage() {
   const isSpecialTab = SPECIAL_TABS.has(tabFromUrl);
   const activeCategory = TAB_TO_CATEGORY[tabFromUrl] || '全部';
 
-  // 分页状态
-  const [contentPage, setContentPage] = useState(1);
-  const [contentList, setContentList] = useState<ContentItem[]>([]);
-  const [contentHasMore, setContentHasMore] = useState(true);
-
+  // follow 和 friend 分页状态
   const [followPage, setFollowPage] = useState(1);
   const [followList, setFollowList] = useState<RecommendWork[]>([]);
   const [followHasMore, setFollowHasMore] = useState(true);
@@ -117,11 +112,8 @@ export default function HomeRecommendPage() {
   const [friendList, setFriendList] = useState<RecommendWork[]>([]);
   const [friendHasMore, setFriendHasMore] = useState(true);
 
-  // 切换 tab 时重置分页状态
+  // 切换 tab 时重置 follow/friend 状态
   useEffect(() => {
-    setContentPage(1);
-    setContentList([]);
-    setContentHasMore(true);
     setFollowPage(1);
     setFollowList([]);
     setFollowHasMore(true);
@@ -143,34 +135,54 @@ export default function HomeRecommendPage() {
   const setActiveCategory = (category: string) => setTab(CATEGORY_TO_TAB[category] || 'all');
   const setActiveSpecial = (tab: string) => setTab(tab);
 
-  // 内容查询（支持分页）
-  const contentQuery = useQuery({
-    queryKey: ['home-recommend', 'content', activeCategory, contentPage],
-    queryFn: async () => {
+  // 使用 useInfiniteQuery 实现真正的无限滚动分页
+  const {
+    data: contentData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading,
+  } = useInfiniteQuery({
+    queryKey: ['home-recommend', 'content', activeCategory],
+    queryFn: async ({ pageParam = 1 }) => {
       const contentType = activeCategory === '全部' || activeCategory === '' ? undefined : (CATEGORY_TO_TYPE[activeCategory] || activeCategory);
       try {
         const resp = await moduleContentPage({
-          pageNum: contentPage,
+          page: pageParam,
           pageSize: PAGE_SIZE,
           ...(contentType ? { contentType } : {}),
           order: 'COLLECT',
         }) as any;
-        const records: ContentItem[] = resp?.data?.records || resp?.data?.list || [];
-        const total = resp?.data?.totalRow || resp?.data?.total || 0;
-
-        setContentList(prev => contentPage === 1 ? records : [...prev, ...records]);
-        setContentHasMore(records.length === PAGE_SIZE && (contentPage * PAGE_SIZE) < total);
-
-        return records;
+        const records: ContentItem[] = resp?.data?.list || resp?.data?.records || [];
+        const total = resp?.data?.total || resp?.data?.totalRow || 0;
+        return { records, total, page: pageParam };
       } catch (err) {
         console.error('[HomeRecommend] contentQuery error:', err);
-        setContentList([]);
-        setContentHasMore(false);
         throw err;
       }
     },
-    retry: 1,
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      const { records, total, page } = lastPage;
+      if (records.length === PAGE_SIZE && page * PAGE_SIZE < total) {
+        return page + 1;
+      }
+      return undefined;
+    },
     enabled: !isSpecialTab && tabFromUrl !== 'recommend',
+  });
+
+  // 合并所有页面的数据
+  const contentList = contentData?.pages.flatMap(page => page.records) || [];
+
+  // 调试：监控数据变化
+  console.log('[HomeRecommend] data changed:', {
+    pagesCount: contentData?.pages.length,
+    totalItems: contentList.length,
+    hasNextPage,
+    isFetchingNextPage,
+    activeCategory,
+    tabFromUrl,
   });
 
   // 关注查询（支持分页）
@@ -180,15 +192,28 @@ export default function HomeRecommendPage() {
       const resp = await getHomeRecommendFollow({ page: followPage, pageSize: PAGE_SIZE }) as any;
       const records: RecommendWork[] = resp?.list || [];
       const total = resp?.total || 0;
-
-      setFollowList(prev => followPage === 1 ? records : [...prev, ...records]);
-      setFollowHasMore(records.length === PAGE_SIZE && (followPage * PAGE_SIZE) < total);
-
-      return records;
+      return { records, total, page: followPage };
     },
-    placeholderData: (prev) => prev,
     enabled: tabFromUrl === 'follow',
   });
+
+  useEffect(() => {
+    if (followQuery.data && !followQuery.isFetching) {
+      const { records, total, page } = followQuery.data;
+
+      setFollowList(prev => {
+        if (page === 1) {
+          return records;
+        }
+        // 去重追加
+        const existingIds = new Set(prev.map(item => item.id));
+        const newItems = records.filter(item => !existingIds.has(item.id));
+        if (newItems.length === 0) return prev;
+        return [...prev, ...newItems];
+      });
+      setFollowHasMore(records.length === PAGE_SIZE && (page * PAGE_SIZE) < total);
+    }
+  }, [followQuery.data, followQuery.isFetching]);
 
   // 朋友查询（支持分页）
   const friendQuery = useQuery({
@@ -197,54 +222,28 @@ export default function HomeRecommendPage() {
       const resp = await getHomeRecommendFriend({ page: friendPage, pageSize: PAGE_SIZE }) as any;
       const records: RecommendWork[] = resp?.list || [];
       const total = resp?.total || 0;
-
-      setFriendList(prev => friendPage === 1 ? records : [...prev, ...records]);
-      setFriendHasMore(records.length === PAGE_SIZE && (friendPage * PAGE_SIZE) < total);
-
-      return records;
+      return { records, total, page: friendPage };
     },
-    placeholderData: (prev) => prev,
     enabled: tabFromUrl === 'friend',
   });
 
-  // 简化：使用单一 sentinel ref
-  const sentinelRef = useRef<HTMLDivElement>(null);
-
-  // 监听滚动到底部
   useEffect(() => {
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
+    if (friendQuery.data && !friendQuery.isFetching) {
+      const { records, total, page } = friendQuery.data;
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const entry = entries[0];
-        console.log('[HomeRecommend] IntersectionObserver:', {
-          tab: tabFromUrl,
-          isIntersecting: entry.isIntersecting,
-          contentHasMore,
-          isLoading: contentQuery.isLoading,
-          contentPage,
-        });
-
-        if (entry.isIntersecting) {
-          if (!isSpecialTab && tabFromUrl !== 'recommend' && contentHasMore && !contentQuery.isLoading) {
-            console.log('[HomeRecommend] Loading next page');
-            setContentPage(p => p + 1);
-          } else if (tabFromUrl === 'follow' && followHasMore && !followQuery.isLoading) {
-            console.log('[HomeRecommend] Loading follow page');
-            setFollowPage(p => p + 1);
-          } else if (tabFromUrl === 'friend' && friendHasMore && !friendQuery.isLoading) {
-            console.log('[HomeRecommend] Loading friend page');
-            setFriendPage(p => p + 1);
-          }
+      setFriendList(prev => {
+        if (page === 1) {
+          return records;
         }
-      },
-      { threshold: 0.1, rootMargin: '100px' }
-    );
-
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [tabFromUrl, isSpecialTab, contentHasMore, contentQuery.isLoading, followHasMore, followQuery.isLoading, friendHasMore, friendQuery.isLoading]);
+        // 去重追加
+        const existingIds = new Set(prev.map(item => item.id));
+        const newItems = records.filter(item => !existingIds.has(item.id));
+        if (newItems.length === 0) return prev;
+        return [...prev, ...newItems];
+      });
+      setFriendHasMore(records.length === PAGE_SIZE && (page * PAGE_SIZE) < total);
+    }
+  }, [friendQuery.data, friendQuery.isFetching]);
 
   // 转换数据格式
   let displayContentList: ContentItem[] = contentList;
@@ -268,27 +267,7 @@ export default function HomeRecommendPage() {
     } as ContentItem));
   }
 
-  const loading = isSpecialTab
-    ? (tabFromUrl === 'follow' ? followQuery.isLoading : tabFromUrl === 'friend' ? friendQuery.isLoading : false)
-    : tabFromUrl === 'recommend'
-      ? false
-      : contentQuery.isLoading;
-
-  const loadingMore = isSpecialTab
-    ? (tabFromUrl === 'follow' ? followQuery.isFetching && !followQuery.isLoading : tabFromUrl === 'friend' ? friendQuery.isFetching && !friendQuery.isLoading : false)
-    : contentQuery.isFetching && !contentQuery.isLoading;
-
-  // 判断是否已加载完所有数据
-  const isNoMore = isSpecialTab
-    ? (tabFromUrl === 'follow' ? !followHasMore : tabFromUrl === 'friend' ? !friendHasMore : false)
-    : !contentHasMore;
-
-  const handleCardClick = (item: ContentItem) => {
-    track(item.id, 'click', item.contentType || 'novel');
-    const route = getDetailRoute(item.contentType, item.id);
-    if (route) router.push(route);
-  };
-
+  // 填充到 PAGE_SIZE 个以便瀑布流显示
   const displayList = React.useMemo(() => {
     if (displayContentList.length >= PAGE_SIZE) return displayContentList;
     const placeholders: ContentItem[] = Array.from({ length: PAGE_SIZE - displayContentList.length }).map((_, i) => ({
@@ -300,6 +279,55 @@ export default function HomeRecommendPage() {
     return [...displayContentList, ...placeholders];
   }, [displayContentList]);
 
+  const loading = isSpecialTab
+    ? (tabFromUrl === 'follow' ? followQuery.isLoading : tabFromUrl === 'friend' ? friendQuery.isLoading : false)
+    : tabFromUrl === 'recommend'
+      ? false
+      : isLoading;
+
+  // 初始加载完成后，加载更多时不显示骨架屏
+  const loadingMore = (() => {
+    if (isSpecialTab) {
+      if (tabFromUrl === 'follow') return followQuery.isFetching && !followQuery.isLoading && followList.length > 0;
+      if (tabFromUrl === 'friend') return friendQuery.isFetching && !friendQuery.isLoading && friendList.length > 0;
+      return false;
+    }
+    return isFetchingNextPage && contentList.length > 0;
+  })();
+
+  // 判断是否已加载完所有数据
+  const isNoMore = isSpecialTab
+    ? (tabFromUrl === 'follow' ? !followHasMore : tabFromUrl === 'friend' ? !friendHasMore : false)
+    : !hasNextPage;
+
+  const handleCardClick = (item: ContentItem) => {
+    track(item.id, 'click', item.contentType || 'novel');
+    const route = getDetailRoute(item.contentType, item.id);
+    if (route) router.push(route);
+  };
+
+  // 使用 hook 监听滚动到底部（必须在 early return 之前调用）
+  const scroll = useScrollToBottom({
+    enabled: !loading && !loadingMore && (
+      (!isSpecialTab && hasNextPage) ||
+      (tabFromUrl === 'follow' && followHasMore) ||
+      (tabFromUrl === 'friend' && friendHasMore)
+    ),
+  });
+
+  // 滚动触发加载更多
+  useEffect(() => {
+    if (scroll.isNearBottom) {
+      if (!isSpecialTab && hasNextPage && !isFetchingNextPage) {
+        fetchNextPage();
+      } else if (tabFromUrl === 'follow' && followHasMore && !followQuery.isLoading) {
+        setFollowPage(p => p + 1);
+      } else if (tabFromUrl === 'friend' && friendHasMore && !friendQuery.isLoading) {
+        setFriendPage(p => p + 1);
+      }
+    }
+  }, [scroll.isNearBottom, isSpecialTab, hasNextPage, followHasMore, friendHasMore, followQuery.isLoading, friendQuery.isLoading, tabFromUrl, fetchNextPage]);
+
   if (tabFromUrl === 'me') {
     return <MeTabView />;
   }
@@ -307,9 +335,6 @@ export default function HomeRecommendPage() {
   if (tabFromUrl === 'recommend') {
     return <RecommendVideoFeed />;
   }
-
-  // Masonry breakpoint 配置
-  const masonryBreakpoints = { default: 3, 1200: 2, 800: 1 };
 
   return (
     <Box sx={{ display: 'flex', gap: 2, px: 3, py: 2, minHeight: 0 }}>
@@ -418,24 +443,25 @@ export default function HomeRecommendPage() {
           )}
         </Box>
 
-        {/* 内容瀑布流 */}
+        {/* 内容瀑布流 - 使用 CSS Grid 避免 Masonry 数据丢失问题 */}
         {loading ? (
-          <Masonry
-            breakpointCols={masonryBreakpoints}
-            className="my-masonry-grid"
-            columnClassName="my-masonry-grid_column"
-          >
+          <Box sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
+            gap: 2
+          }}>
             {Array.from({ length: 6 }).map((_, i) => (
               <Skeleton key={i} variant="rounded" sx={{ aspectRatio: '4/5', bgcolor: 'action.hover' }} />
             ))}
-          </Masonry>
+          </Box>
         ) : (
           <Box>
-            <Masonry
-              breakpointCols={masonryBreakpoints}
-              className="my-masonry-grid"
-              columnClassName="my-masonry-grid_column"
-            >
+            {/* 瀑布流使用 CSS Grid + masonry 布局 */}
+            <Box sx={{
+              columns: { xs: 1, sm: 2, md: 3 },
+              columnGap: 16,
+              '& > *': { mb: 2, breakInside: 'avoid' }
+            }}>
               {displayList.map((item, idx) => {
                 const rank = idx + 1;
                 const hasContent = item.id > 0;
@@ -447,7 +473,7 @@ export default function HomeRecommendPage() {
 
                 return (
                   <Box
-                    key={`content-${item.id}-${contentPage}`}
+                    key={`content-${item.id}`}
                     onClick={() => handleCardClick(item)}
                     sx={{
                       position: 'relative',
@@ -575,27 +601,23 @@ export default function HomeRecommendPage() {
                   </Box>
                 );
               })}
-            </Masonry>
+            </Box>
 
             {/* Loading more skeleton */}
             {loadingMore && (
-              <Box sx={{ mt: 1.5 }}>
-                <Masonry
-                  breakpointCols={masonryBreakpoints}
-                  className="my-masonry-grid"
-                  columnClassName="my-masonry-grid_column"
-                >
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <Skeleton key={i} variant="rounded" sx={{ aspectRatio: '4/5' }} />
-                  ))}
-                </Masonry>
+              <Box sx={{
+                display: 'grid',
+                gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
+                gap: 2,
+                mt: 2
+              }}>
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} variant="rounded" sx={{ aspectRatio: '4/5' }} />
+                ))}
               </Box>
             )}
 
-            {/* Infinite scroll sentinel */}
-            <Box ref={sentinelRef} sx={{ height: 20, mt: 2, bgcolor: 'red', opacity: 0.5, borderRadius: 1 }} />
-
-            {/* Empty state */}
+            {/* 空状态和底部提示 */}
             {displayContentList.length === 0 && !loading && (
               <Typography sx={{ textAlign: 'center', py: 4, color: 'text.secondary', fontSize: 13 }}>
                 暂无内容

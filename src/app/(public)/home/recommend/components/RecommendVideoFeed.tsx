@@ -136,7 +136,7 @@ export function RecommendVideoFeed() {
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>('');
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const ALL_TYPES = 'NOVEL,COMICS,FILM,VSHOW,MUSIC,TELEPLAY,ANIMATION,VIDEO,NEWS,ARTICLE';
+  const ALL_TYPES = 'VIDEO';
   const typesParam =
 	selectedCategory === 'all'
 		? ALL_TYPES
@@ -159,25 +159,25 @@ export function RecommendVideoFeed() {
   });
 
   // 分页状态
-  const PAGE_SIZE = 24;
-  const [feedPage, setFeedPage] = useState(1);
-  const [feedList, setFeedList] = useState<VideoItem[]>([]);
-  const [feedHasMore, setFeedHasMore] = useState(true);
+  const PAGE_SIZE = 10;
+  const [page, setPage] = useState(1);
+  const [allItems, setAllItems] = useState<VideoItem[]>([]);
+  const [hasMore, setHasMore] = useState(true);
 
-  // 切换分类时重置分页
+  // 分类变化时重置
   useEffect(() => {
-    setFeedPage(1);
-    setFeedList([]);
-    setFeedHasMore(true);
+    setPage(1);
+    setAllItems([]);
+    setHasMore(true);
   }, [selectedCategory, selectedSubcategory]);
 
   const { data: feed, isLoading } = useQuery({
-    queryKey: ['home-recommend', 'recommend-feed', selectedCategory, selectedSubcategory, feedPage],
+    queryKey: ['home-recommend', 'recommend-feed', selectedCategory, selectedSubcategory, page],
     queryFn: async () => {
       const resp = await fetchRecommend({
         types: typesParam,
         size: PAGE_SIZE,
-        page: feedPage,
+        page: page,
         ...(selectedSubcategory ? { genre: selectedSubcategory } : {}),
       }) as any;
       const list = (resp?.data?.list ?? []) as any[];
@@ -200,29 +200,31 @@ export function RecommendVideoFeed() {
         verified: false,
         brand: TYPE_LABEL[(it.category || 'NOVEL').toUpperCase()] || '推荐',
       }));
-
-      const total = resp?.data?.total || resp?.data?.totalRow || 0;
-      setFeedList(prev => feedPage === 1 ? items : [...prev, ...items]);
-      setFeedHasMore(items.length === PAGE_SIZE && (feedPage * PAGE_SIZE) < total);
-
-      return items;
+      const total = resp?.data?.total || 0;
+      const hasMore = resp?.data?.hasMore ?? false;
+      return { items, total, hasMore };
     },
-    placeholderData: (prev) => prev,
   });
 
-  // 无限滚动
-  const scroll = useScrollToBottom({
-    enabled: !isLoading && feedHasMore,
-  });
-
+  // 合并数据到 allItems
   useEffect(() => {
-    if (scroll.isNearBottom && feedHasMore && !isLoading) {
-      console.log('[RecommendVideoFeed] Loading more, page:', feedPage + 1);
-      setFeedPage(p => p + 1);
-    }
-  }, [scroll.isNearBottom, feedHasMore, isLoading, feedPage]);
+    if (!feed) return;
+    setAllItems(prev => {
+      if (page === 1) return feed.items;
+      // 去重追加
+      const existingIds = new Set(prev.map(v => v.idString || String(v.id)));
+      const newItems = feed.items.filter(v => !existingIds.has(v.idString || String(v.id)));
+      return [...prev, ...newItems];
+    });
+    setHasMore(feed.hasMore);
+  }, [feed, page]);
 
-  const videos = feedList.length > 0 ? feedList : (feed ?? []);
+  const uniqueVideos = allItems;
+  const feedHasMore = hasMore;
+
+  // 防重复触发 refs（必须在组件顶层，不能在 useEffect 内）
+  const pendingRef = useRef(false);
+  const alreadyTriggeredRef = useRef(false); // 标记本轮是否已触发过
 
   // 视频导航状态
   const [index, setIndex] = useState(0);
@@ -231,7 +233,36 @@ export function RecommendVideoFeed() {
   const unlockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const indexRef = useRef(0);
   indexRef.current = index;
-  const video = videos[index];
+  const video = uniqueVideos[index];
+
+  // 全屏布局：滑动到倒数第3条时预加载下一页（只触发一次）
+  useEffect(() => {
+    // 已经触发过，跳过
+    if (alreadyTriggeredRef.current) return;
+    // 如果已经在等待中或没有下一页，跳过
+    if (pendingRef.current || !hasMore || uniqueVideos.length === 0) return;
+
+    const remaining = uniqueVideos.length - index;
+    // 只有正好剩余3条时才触发
+    if (remaining === 3) {
+      alreadyTriggeredRef.current = true;
+      pendingRef.current = true;
+      console.log('[RecommendVideoFeed] Near end, loading more, page:', page + 1);
+      setPage(p => p + 1);
+    }
+  }, [index, uniqueVideos.length, hasMore]);
+
+  // 数据返回后重置
+  useEffect(() => {
+    if (feed) {
+      pendingRef.current = false;
+    }
+  }, [feed]);
+
+  // 分类变化时重置触发标志
+  useEffect(() => {
+    alreadyTriggeredRef.current = false;
+  }, [selectedCategory, selectedSubcategory]);
 
   // 切换分类时回到第一条
   useEffect(() => { setIndex(0); setSelectedSubcategory(''); }, [selectedCategory]);
@@ -246,12 +277,12 @@ export function RecommendVideoFeed() {
     (dir: 1 | -1) => {
       if (navLock.current) return;
       const next = indexRef.current + dir;
-      if (next < 0 || next >= videos.length) return;
+      if (next < 0 || next >= uniqueVideos.length) return;
       setSlideDir(dir);
       setIndex(next);
       lockNav();
     },
-    [videos.length, lockNav],
+    [uniqueVideos.length, lockNav],
   );
 
   useEffect(() => {
@@ -489,7 +520,7 @@ export function RecommendVideoFeed() {
     if (!s.active) return;
     let d = e.clientY - s.startY;
     s.moved = Math.max(s.moved, Math.abs(d));
-    if ((d > 0 && index === 0) || (d < 0 && index === videos.length - 1)) d *= 0.32;
+    if ((d > 0 && index === 0) || (d < 0 && index === uniqueVideos.length - 1)) d *= 0.32;
     setDragY(d);
   };
   const endDrag = () => {
@@ -504,7 +535,7 @@ export function RecommendVideoFeed() {
       return;
     }
     const threshold = (vh || 600) * 0.2;
-    if (!navLock.current && d <= -threshold && index < videos.length - 1) {
+    if (!navLock.current && d <= -threshold && index < uniqueVideos.length - 1) {
       setSlideDir(1);
       setIndex((i) => i + 1);
       setDragY(0);
@@ -702,13 +733,13 @@ export function RecommendVideoFeed() {
             left: 0,
             right: 0,
             top: 0,
-            height: vh ? vh * videos.length : '100%',
+            height: vh ? vh * uniqueVideos.length : '100%',
             transform: `translateY(${-index * (vh || 0) + dragY}px)`,
             transition: dragging ? 'none' : 'transform 0.34s cubic-bezier(0.22, 0.61, 0.36, 1)',
             willChange: 'transform',
           }}
         >
-          {videos.map((v, i) => (
+          {uniqueVideos.map((v, i) => (
             <Box
               // Use the lossless string id (idString) for stable identity on reorder.
               // Falls back to composite `${i}-${v.id}` if the backend omits it.
@@ -764,7 +795,7 @@ export function RecommendVideoFeed() {
                       <span>
                         <IconButton
                           onClick={(e) => { e.stopPropagation(); go(1); }}
-                          disabled={index >= videos.length - 1}
+                          disabled={index >= uniqueVideos.length - 1}
                           sx={navBtnSx}
                         >
                           <KeyboardArrowDownRoundedIcon sx={{ fontSize: 26 }} />
@@ -785,7 +816,7 @@ export function RecommendVideoFeed() {
                       zIndex: 3,
                     }}
                   >
-                    {videos.map((_, i) => (
+                    {uniqueVideos.map((_, i) => (
                       <Box
                         key={i}
                         sx={{
