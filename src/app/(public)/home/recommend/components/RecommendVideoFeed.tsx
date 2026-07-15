@@ -187,8 +187,10 @@ export function RecommendVideoFeed() {
   useEffect(() => {
     const currentItems = allItems.length;
     const remaining = currentItems - index;
+    console.log('[RecommendVideoFeed] check: idx=', index, 'rem=', remaining, 'hasMore=', hasMore, 'fetching=', isFetching);
     // 只有在倒数第3条时才触发
     if (remaining <= 3 && remaining > 0 && hasMore && !isFetching) {
+      console.log('[RecommendVideoFeed] TRIGGER page:', page + 1);
       setPage(p => p + 1);
     }
   }, [index, allItems.length, hasMore, isFetching, page]);
