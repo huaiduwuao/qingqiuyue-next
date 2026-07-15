@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useRouter, useSearchParams, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -36,10 +36,7 @@ import HighQualityOutlinedIcon from '@mui/icons-material/HighQualityOutlined';
 import MicNoneRoundedIcon from '@mui/icons-material/MicNoneRounded';
 import QueueMusicRoundedIcon from '@mui/icons-material/QueueMusicRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import KeyboardArrowUpRoundedIcon from '@mui/icons-material/KeyboardArrowUpRounded';
-import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
-import { fetchRecommend, fetchSubcategories, type SubcategoryItem } from '@/apis/home-discover';
-import { useScrollToBottom } from '@/hooks/useInfiniteScroll';
+import { fetchRecommend } from '@/apis/home-discover';
 import { sendComment, moduleContentAction } from '@/apis/home';
 import { reportContent, collectContent } from '@/apis/global';
 import { homeClient } from '@/lib/api/client';
@@ -79,25 +76,6 @@ function formatCount(n: number = 0): string {
   return n.toString();
 }
 
-// hashId: stable 32-bit hash of an arbitrary string id. Used to derive
-// a deterministic but well-distributed duration (30..89s) per video,
-// since the raw id is a >2^53 int64 and Number(id) % 60 would collide.
-// 精选分类(驱动 /home/recommend 的 types 查询参数)。
-// key 是后端 /home/recommend?types= 的枚举值(去重且可拼成逗号串);
-// label 是给用户看的中文名。"all" 表示不传 types,走全量推荐。
-const RECOMMEND_CATEGORIES: { key: string; label: string }[] = [
-	{ key: 'all', label: '精选' },
-	{ key: 'NOVEL', label: '小说' },
-	{ key: 'COMICS', label: '漫画' },
-	{ key: 'FILM', label: '电影' },
-	{ key: 'TELEPLAY', label: '短剧' },
-	{ key: 'VSHOW', label: '综艺' },
-	{ key: 'ANIMATION', label: '动漫' },
-	{ key: 'MUSIC', label: '音乐' },
-	{ key: 'VIDEO', label: '视频' },
-	{ key: 'NEWS', label: '资讯' },
-	{ key: 'ARTICLE', label: '文章' },
-];
 
 function hashId(s: string): number {
 	let h = 0x811c9dc5 >>> 0; // FNV-1a 32-bit basis
@@ -130,33 +108,6 @@ export function RecommendVideoFeed() {
   const [commentText, setCommentText] = useState('');
   const [commentSending, setCommentSending] = useState(false);
   const [moreDialogOpen, setMoreDialogOpen] = useState(false);
-  // 顶部分类筛选(精选/小说/短剧/...)。默认 all = 全量推荐。
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  // 二级分类(子分类/题材):选了小说后可选奇幻/仙侠/古装等
-  const [selectedSubcategory, setSelectedSubcategory] = useState<string>('');
-  const containerRef = useRef<HTMLDivElement | null>(null);
-
-  const ALL_TYPES = 'VIDEO';
-  const typesParam =
-	selectedCategory === 'all'
-		? ALL_TYPES
-		: RECOMMEND_CATEGORIES.find((c) => c.key === selectedCategory)?.key ?? '';
-
-  // 选中非“all”顶分类时,请求子分类字典
-  const subcatQuery = useQuery({
-    queryKey: ['home-recommend', 'subcategory', selectedCategory],
-    queryFn: () =>
-      fetchSubcategories(selectedCategory).then((r: any) => {
-        // 后端返回 { list: [...] } 或 { groups: { NOVEL: [...] } }
-        if (Array.isArray(r?.data?.list)) return r.data.list as SubcategoryItem[];
-        if (r?.data?.groups && selectedCategory && r.data.groups[selectedCategory]) {
-          return r.data.groups[selectedCategory] as SubcategoryItem[];
-        }
-        return [] as SubcategoryItem[];
-      }),
-    enabled: selectedCategory !== 'all',
-    staleTime: 10 * 60 * 1000,
-  });
 
   // 分页状态
   const PAGE_SIZE = 10;
@@ -175,16 +126,15 @@ export function RecommendVideoFeed() {
     setHasMore(true);
     alreadyTriggeredRef.current = false;
     isFetchingMoreRef.current = false;
-  }, [selectedCategory, selectedSubcategory]);
+  }, [page]);
 
   const { data: feed, isLoading } = useQuery({
-    queryKey: ['home-recommend', 'recommend-feed', selectedCategory, selectedSubcategory, page],
+    queryKey: ['home-recommend', 'recommend-feed', page],
     queryFn: async () => {
       const resp = await fetchRecommend({
-        types: typesParam,
+        types: 'VIDEO',
         size: PAGE_SIZE,
         page: page,
-        ...(selectedSubcategory ? { genre: selectedSubcategory } : {}),
       }) as any;
       const list = (resp?.data?.list ?? []) as any[];
       const items = list.map((it): VideoItem => ({
@@ -213,7 +163,7 @@ export function RecommendVideoFeed() {
     placeholderData: (prev) => prev, // loading 时保持旧数据，防止闪烁
   });
 
-  // 合并数据到 allItems（限制最多100条）
+  // 合并数据到 allItems
   useEffect(() => {
     if (!feed) return;
     setAllItems(prev => {
@@ -221,9 +171,7 @@ export function RecommendVideoFeed() {
       // 去重追加
       const existingIds = new Set(prev.map(v => v.idString || String(v.id)));
       const newItems = feed.items.filter(v => !existingIds.has(v.idString || String(v.id)));
-      const combined = [...prev, ...newItems];
-      // 只保留最近的100条
-      return combined.slice(-100);
+      return [...prev, ...newItems];
     });
     setHasMore(feed.hasMore);
     // 数据加载完成后重置触发标志，允许下次触发
@@ -232,7 +180,6 @@ export function RecommendVideoFeed() {
   }, [feed, page]);
 
   const uniqueVideos = allItems;
-  const feedHasMore = hasMore;
 
   // 视频导航状态
   const [index, setIndex] = useState(0);
@@ -261,14 +208,6 @@ export function RecommendVideoFeed() {
       setPage(p => p + 1);
     }
   }, [index, allItems.length, hasMore]);
-
-  // 分类变化时重置触发标志
-  useEffect(() => {
-    alreadyTriggeredRef.current = false;
-  }, [selectedCategory, selectedSubcategory]);
-
-  // 切换分类时回到第一条
-  useEffect(() => { setIndex(0); setSelectedSubcategory(''); }, [selectedCategory]);
 
   const lockNav = useCallback((ms = 380) => {
     navLock.current = true;
@@ -569,23 +508,8 @@ export function RecommendVideoFeed() {
     );
   }
 
-  const progress = (currentTime / video.durationSec) * 100;
-
-  const navBtnSx = {
-    width: 40,
-    height: 40,
-    bgcolor: 'rgba(0,0,0,0.45)',
-    color: '#fff',
-    backdropFilter: 'blur(8px)',
-    border: '1px solid rgba(255,255,255,0.12)',
-    transition: 'background 0.15s, transform 0.15s',
-    '&:hover': { bgcolor: 'rgba(0,0,0,0.65)', transform: 'scale(1.06)' },
-    '&.Mui-disabled': { opacity: 0.3, color: 'rgba(255,255,255,0.5)' },
-  } as const;
-
   return (
     <Box
-      ref={containerRef}
       onWheel={handleWheel}
       sx={{
         position: 'relative',
@@ -597,123 +521,6 @@ export function RecommendVideoFeed() {
         overflow: 'hidden',
       }}
     >
-      {/* 顶部分类条(玻璃感,全屏覆盖视频) */}
-      <Box
-        data-no-drag
-        sx={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 6,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 0.75,
-          px: { xs: 1.5, sm: 2 },
-          py: 1,
-          overflowX: 'auto',
-          background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 100%)',
-          backdropFilter: 'blur(6px)',
-          '&::-webkit-scrollbar': { display: 'none' },
-        }}
-      >
-        {RECOMMEND_CATEGORIES.map((c) => {
-          const active = selectedCategory === c.key;
-          return (
-            <Box
-              key={c.key}
-              onClick={() => setSelectedCategory(c.key)}
-              sx={{
-                flexShrink: 0,
-                px: 1.25,
-                py: 0.4,
-                borderRadius: 999,
-                cursor: 'pointer',
-                fontSize: 12.5,
-                fontWeight: active ? 700 : 500,
-                color: active ? '#000' : 'rgba(255,255,255,0.85)',
-                bgcolor: active ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.35)',
-                border: '1px solid',
-                borderColor: active ? 'transparent' : 'rgba(255,255,255,0.12)',
-                transition: 'all 0.15s',
-                '&:hover': { bgcolor: active ? 'rgba(255,255,255,0.95)' : 'rgba(0,0,0,0.55)' },
-              }}
-            >
-              {c.label}
-            </Box>
-          );
-        })}
-      </Box>
-
-      {/* 二级分类(子分类):选中顶分类后展示该类别下的题材 */}
-      {selectedCategory !== 'all' && (
-        <Box
-          data-no-drag
-          sx={{
-            position: 'absolute',
-            top: 56,
-            left: 0,
-            right: 0,
-            zIndex: 6,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 0.5,
-            px: { xs: 1.5, sm: 2 },
-            py: 0.5,
-            overflowX: 'auto',
-            background: 'linear-gradient(180deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0) 100%)',
-            '&::-webkit-scrollbar': { display: 'none' },
-          }}
-        >
-          {subcatQuery.isLoading ? (
-            <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontStyle: 'italic' }}>加载中…</Typography>
-          ) : (
-            <>
-              <Box
-                onClick={() => setSelectedSubcategory('')}
-                sx={{
-                  flexShrink: 0,
-                  px: 1,
-                  py: 0.3,
-                  borderRadius: 999,
-                  cursor: 'pointer',
-                  fontSize: 10.5,
-                  fontWeight: selectedSubcategory === '' ? 700 : 500,
-                  color: selectedSubcategory === '' ? '#000' : 'rgba(255,255,255,0.75)',
-                  bgcolor: selectedSubcategory === '' ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.06)',
-                  transition: 'all 0.15s',
-                }}
-              >
-                全部
-              </Box>
-              {(subcatQuery.data ?? []).map((s) => {
-                const active = selectedSubcategory === s.code;
-                return (
-                  <Box
-                    key={s.code}
-                    onClick={() => setSelectedSubcategory(s.code)}
-                    sx={{
-                      flexShrink: 0,
-                      px: 1,
-                      py: 0.3,
-                      borderRadius: 999,
-                      cursor: 'pointer',
-                      fontSize: 10.5,
-                      fontWeight: active ? 700 : 500,
-                      color: active ? '#000' : 'rgba(255,255,255,0.75)',
-                      bgcolor: active ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.06)',
-                      transition: 'all 0.15s',
-                    }}
-                  >
-                    {s.name}
-                  </Box>
-                );
-              })}
-            </>
-          )}
-        </Box>
-      )}
-
       <Box
         ref={setViewportRef}
         onPointerDown={onPointerDown}
@@ -783,55 +590,8 @@ export function RecommendVideoFeed() {
                       zIndex: 4,
                     }}
                   >
-                    <Tooltip title="上一个 (↑)" placement="left">
-                      <span>
-                        <IconButton
-                          onClick={(e) => { e.stopPropagation(); go(-1); }}
-                          disabled={index <= 0}
-                          sx={navBtnSx}
-                        >
-                          <KeyboardArrowUpRoundedIcon sx={{ fontSize: 26 }} />
-                        </IconButton>
-                      </span>
-                    </Tooltip>
-                    <Tooltip title="下一个 (↓)" placement="left">
-                      <span>
-                        <IconButton
-                          onClick={(e) => { e.stopPropagation(); go(1); }}
-                          disabled={index >= uniqueVideos.length - 1}
-                          sx={navBtnSx}
-                        >
-                          <KeyboardArrowDownRoundedIcon sx={{ fontSize: 26 }} />
-                        </IconButton>
-                      </span>
-                    </Tooltip>
                   </Box>
 
-                  <Box
-                    sx={{
-                      position: 'absolute',
-                      right: 4,
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      display: { xs: 'none', md: 'flex' },
-                      flexDirection: 'column',
-                      gap: 0.5,
-                      zIndex: 3,
-                    }}
-                  >
-                    {uniqueVideos.map((_, i) => (
-                      <Box
-                        key={i}
-                        sx={{
-                          width: 3,
-                          height: i === index ? 18 : 8,
-                          borderRadius: 2,
-                          bgcolor: i === index ? 'var(--brand-color, #FE2C55)' : 'rgba(255,255,255,0.3)',
-                          transition: 'all 0.2s',
-                        }}
-                      />
-                    ))}
-                  </Box>
 
                   <Box
                     sx={{
