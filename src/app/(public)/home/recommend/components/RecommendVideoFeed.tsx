@@ -187,11 +187,11 @@ export function RecommendVideoFeed() {
   useEffect(() => {
     const currentItems = allItems.length;
     const remaining = currentItems - index;
-    // 只有在倒数第3条时才触发，且没有正在进行的请求
-    if (remaining <= 3 && remaining > 0 && hasMore && !isFetchingRef.current) {
+    // 只有在倒数第3条时才触发
+    if (remaining <= 3 && remaining > 0 && hasMore && !isFetching) {
       setPage(p => p + 1);
     }
-  }, [index, allItems.length, hasMore, page]);
+  }, [index, allItems.length, hasMore, isFetching, page]);
 
   const lockNav = useCallback((ms = 380) => {
     navLock.current = true;
