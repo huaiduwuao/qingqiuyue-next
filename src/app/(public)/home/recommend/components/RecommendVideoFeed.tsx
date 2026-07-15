@@ -173,7 +173,7 @@ export function RecommendVideoFeed() {
     }
   }, [isError, error]);
 
-  // 合并数据到 allItems（限制最多100条）
+  // 合并数据到 allItems
   useEffect(() => {
     if (!feed) return;
     setAllItems(prev => {
@@ -182,8 +182,11 @@ export function RecommendVideoFeed() {
       const existingIds = new Set(prev.map(v => v.idString || String(v.id)));
       const newItems = feed.items.filter(v => !existingIds.has(v.idString || String(v.id)));
       const combined = [...prev, ...newItems];
-      // 只保留最近的100条
-      return combined.slice(-100);
+      // 最多保留 200 条，避免内存过大
+      if (combined.length > 200) {
+        return combined.slice(-200);
+      }
+      return combined;
     });
     setHasMore(feed.hasMore);
     // 数据加载完成后重置触发标志，允许下次触发
