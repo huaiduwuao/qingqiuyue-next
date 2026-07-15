@@ -118,6 +118,14 @@ export function RecommendVideoFeed() {
   // 追踪当前已处理的页码
   const processedPageRef = useRef(0);
 
+  // 追踪 fetching 状态
+  const isFetchingRef = useRef(false);
+
+  // 追踪 fetching 状态变化
+  useEffect(() => {
+    isFetchingRef.current = isFetching;
+  }, [isFetching]);
+
   const { data: feed, isLoading, isFetching } = useQuery({
     queryKey: ['home-recommend', 'recommend-feed', page],
     queryFn: async () => {
@@ -156,12 +164,8 @@ export function RecommendVideoFeed() {
     if (!feed) return;
 
     // 跳过已处理的数据
-    if (page <= processedPageRef.current) {
-      console.log('[RecommendVideoFeed] skip merge: page=', page, 'processed=', processedPageRef.current);
-      return;
-    }
+    if (page <= processedPageRef.current) return;
 
-    console.log('[RecommendVideoFeed] MERGE: page=', page, 'items=', feed.items.length);
     processedPageRef.current = page;
 
     setAllItems(prev => {
@@ -191,13 +195,11 @@ export function RecommendVideoFeed() {
   useEffect(() => {
     const currentItems = allItems.length;
     const remaining = currentItems - index;
-    console.log('[RecommendVideoFeed] trigger: idx=', index, 'rem=', remaining, 'hasMore=', hasMore, 'fetching=', isFetching, 'page=', page);
-    // 只有在倒数第3条时才触发
-    if (remaining <= 3 && remaining > 0 && hasMore && !isFetching) {
-      console.log('[RecommendVideoFeed] TRIGGER setPage to', page + 1);
+    // 只有在倒数第3条时才触发，且没有正在进行的请求
+    if (remaining <= 3 && remaining > 0 && hasMore && !isFetchingRef.current) {
       setPage(p => p + 1);
     }
-  }, [index, allItems.length, hasMore, isFetching, page]);
+  }, [index, allItems.length, hasMore, page]);
 
   const lockNav = useCallback((ms = 380) => {
     navLock.current = true;
