@@ -115,8 +115,10 @@ export function RecommendVideoFeed() {
   const [allItems, setAllItems] = useState<VideoItem[]>([]);
   const [hasMore, setHasMore] = useState(true);
 
-  // 追踪当前已处理的页码
+  // 追踪已处理的页码（用于合并）
   const processedPageRef = useRef(0);
+  // 追踪已触发的页码（用于预加载）
+  const triggeredPageRef = useRef(0);
 
   const { data: feed, isLoading, isFetching } = useQuery({
     queryKey: ['home-recommend', 'recommend-feed', page],
@@ -187,10 +189,9 @@ export function RecommendVideoFeed() {
   useEffect(() => {
     const currentItems = allItems.length;
     const remaining = currentItems - index;
-    console.log('[RecommendVideoFeed] check: idx=', index, 'rem=', remaining, 'hasMore=', hasMore, 'fetching=', isFetching);
-    // 只有在倒数第3条时才触发
-    if (remaining <= 3 && remaining > 0 && hasMore && !isFetching) {
-      console.log('[RecommendVideoFeed] TRIGGER page:', page + 1);
+    // 只有在倒数第3条时才触发，且还没有触发过这个页码
+    if (remaining <= 3 && remaining > 0 && hasMore && !isFetching && page >= triggeredPageRef.current) {
+      triggeredPageRef.current = page + 1;
       setPage(p => p + 1);
     }
   }, [index, allItems.length, hasMore, isFetching, page]);
