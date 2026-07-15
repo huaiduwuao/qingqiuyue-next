@@ -179,19 +179,15 @@ export default function HomeRecommendPage() {
     enabled: tabFromUrl === 'friend',
   });
 
-  // 无限滚动 sentinel
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  // 无限滚动 - 自动查找可滚动祖先容器（MAIN）
   const contentScroll = useScrollToBottom({
     enabled: !contentQuery.isLoading && contentHasMore && !isSpecialTab && tabFromUrl !== 'recommend',
-    containerRef: scrollContainerRef,
   });
   const followScroll = useScrollToBottom({
     enabled: !followQuery.isLoading && followHasMore && tabFromUrl === 'follow',
-    containerRef: scrollContainerRef,
   });
   const friendScroll = useScrollToBottom({
     enabled: !friendQuery.isLoading && friendHasMore && tabFromUrl === 'friend',
-    containerRef: scrollContainerRef,
   });
 
   // 监听滚动到底部，触发加载下一页
@@ -385,7 +381,7 @@ export default function HomeRecommendPage() {
           ))}
         </Box>
       ) : (
-        <Box ref={scrollContainerRef} sx={{ overflow: 'auto', maxHeight: 'calc(100vh - 180px)' }}>
+        <Box>
           <Box
             sx={{
               display: 'grid',
