@@ -128,14 +128,18 @@ export function RecommendVideoFeed() {
     isFetchingMoreRef.current = false;
   }, [page]);
 
-  const { data: feed, isLoading } = useQuery({
+  // 用于追踪当前请求的 page（避免闭包问题）
+  const pageRef = useRef(page);
+  pageRef.current = page;
+
+  const { data: feed, isLoading, isFetching } = useQuery({
     queryKey: ['home-recommend', 'recommend-feed', page],
     queryFn: async () => {
-      console.log('[RecommendVideoFeed] fetching page:', page);
+      console.log('[RecommendVideoFeed] fetching page:', pageRef.current);
       const resp = await fetchRecommend({
         types: 'VIDEO',
         size: PAGE_SIZE,
-        page: page,
+        page: pageRef.current,
       }) as any;
       const list = (resp?.data?.list ?? []) as any[];
       const items = list.map((it): VideoItem => ({
@@ -159,17 +163,20 @@ export function RecommendVideoFeed() {
       }));
       const total = resp?.data?.total || 0;
       const hasMore = resp?.data?.hasMore ?? false;
-      console.log('[RecommendVideoFeed] page', page, 'items:', items.length, 'hasMore:', hasMore);
+      console.log('[RecommendVideoFeed] page', pageRef.current, 'items:', items.length, 'hasMore:', hasMore);
       return { items, total, hasMore };
     },
+    placeholderData: (prev) => prev, // loading 时保持旧数据，防止闪烁
   });
 
-  // 合并数据到 allItems
+  // 合并数据到 allItems（只有在新数据真正到达时才执行）
   useEffect(() => {
-    if (!feed) return;
+    // 跳过初始加载状态（isFetching 但还没有新数据）
+    if (!feed || isFetching) return;
+    const currentPage = pageRef.current;
     setAllItems(prev => {
-      console.log('[RecommendVideoFeed] merging: page=', page, 'prev.length=', prev.length, 'feed.items=', feed.items.length);
-      if (page === 1) {
+      console.log('[RecommendVideoFeed] merging: page=', currentPage, 'prev.length=', prev.length, 'feed.items=', feed.items.length);
+      if (currentPage === 1) {
         return feed.items;
       }
       // 去重追加
@@ -183,7 +190,7 @@ export function RecommendVideoFeed() {
     // 数据加载完成后重置触发标志，允许下次触发
     isFetchingMoreRef.current = false;
     alreadyTriggeredRef.current = false;
-  }, [feed, page]);
+  }, [feed, isFetching]);
 
   const uniqueVideos = allItems;
 
