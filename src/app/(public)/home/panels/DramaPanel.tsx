@@ -143,11 +143,9 @@ export function DramaPanel() {
     queryFn: () => homeClient.get<{ list: DramaSeries[]; total: number }>(topUrl).then((r) => r.data),
   });
 
-  // 无限滚动
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  // 无限滚动 - 自动查找可滚动祖先容器
   const scroll = useScrollToBottom({
     enabled: !seriesQuery.isLoading && dramaHasMore,
-    containerRef: scrollContainerRef,
   });
 
   useEffect(() => {
@@ -265,38 +263,37 @@ export function DramaPanel() {
         </Typography>
       </Box>
 
-      <Box ref={scrollContainerRef} sx={{ overflow: 'auto', maxHeight: 'calc(100vh - 320px)' }}>
-        <AsyncState
-          query={seriesQuery}
-          skeletonCount={10}
-          skeletonHeight={260}
-          isEmpty={(d) => d.list.length === 0}
-          emptyText="该筛选下暂无短剧。可清空筛选或切换题材"
-        >
-          {(data) => (
-            <Box>
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 1.5 }}>
-                {dramaList.map((s) => (
-                  <DramaCard key={s.id} item={s} />
-                ))}
-              </Box>
-
-              {/* 滚动触发器 */}
-              <Box ref={scroll.sentinelRef} sx={{ height: 1 }} />
-
-              {/* Loading more */}
-              {seriesQuery.isFetching && !seriesQuery.isLoading && (
-                <Typography sx={{ textAlign: 'center', py: 2, color: 'text.secondary', fontSize: 12 }}>加载中...</Typography>
-              )}
-
-              {/* No more */}
-              {!seriesQuery.isFetching && dramaList.length > 0 && !dramaHasMore && (
-                <Typography sx={{ textAlign: 'center', py: 3, color: 'text.disabled', fontSize: 12 }}>- 没有更多了 -</Typography>
-              )}
+      {/* 短剧网格 - 不使用内部滚动容器，让内容流入外部可滚动的 MAIN */}
+      <AsyncState
+        query={seriesQuery}
+        skeletonCount={10}
+        skeletonHeight={260}
+        isEmpty={(d) => d.list.length === 0}
+        emptyText="该筛选下暂无短剧。可清空筛选或切换题材"
+      >
+        {(data) => (
+          <Box>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 1.5 }}>
+              {dramaList.map((s) => (
+                <DramaCard key={s.id} item={s} />
+              ))}
             </Box>
-          )}
-        </AsyncState>
-      </Box>
+
+            {/* 滚动触发器 */}
+            <Box ref={scroll.sentinelRef} sx={{ height: 1 }} />
+
+            {/* Loading more */}
+            {seriesQuery.isFetching && !seriesQuery.isLoading && (
+              <Typography sx={{ textAlign: 'center', py: 2, color: 'text.secondary', fontSize: 12 }}>加载中...</Typography>
+            )}
+
+            {/* No more */}
+            {!seriesQuery.isFetching && dramaList.length > 0 && !dramaHasMore && (
+              <Typography sx={{ textAlign: 'center', py: 3, color: 'text.disabled', fontSize: 12 }}>- 没有更多了 -</Typography>
+            )}
+          </Box>
+        )}
+      </AsyncState>
     </Box>
   );
 }
