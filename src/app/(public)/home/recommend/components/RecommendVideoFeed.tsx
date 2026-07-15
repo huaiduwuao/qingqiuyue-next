@@ -118,13 +118,16 @@ export function RecommendVideoFeed() {
   // 防重复触发 refs
   const isFetchingMoreRef = useRef(false);
 
-  // 用于追踪当前请求的 page（避免闭包问题）
+  // 用于追踪当前请求的 page
   const pageRef = useRef(page);
 
   // 更新 pageRef
   useEffect(() => {
     pageRef.current = page;
   }, [page]);
+
+  // 追踪已处理的 page
+  const processedPageRef = useRef(0);
 
   const { data: feed, isLoading, isFetching } = useQuery({
     queryKey: ['home-recommend', 'recommend-feed', page],
@@ -159,15 +162,15 @@ export function RecommendVideoFeed() {
     },
   });
 
-  // 合并数据到 allItems（使用 useRef 追踪上一次的数据）
-  const prevFeedRef = useRef<typeof feed | null>(null);
-
+  // 合并数据到 allItems
   useEffect(() => {
-    // 等待新数据到达（feed 变化且不是同一个引用）
-    if (!feed || feed === prevFeedRef.current) return;
-    prevFeedRef.current = feed;
+    if (!feed) return;
 
+    // 只有当新数据对应的 page 与已处理的不同时才合并
     const currentPage = pageRef.current;
+    if (currentPage <= processedPageRef.current) return;
+    processedPageRef.current = currentPage;
+
     setAllItems(prev => {
       if (currentPage === 1) {
         return feed.items;
@@ -175,8 +178,7 @@ export function RecommendVideoFeed() {
       // 去重追加
       const existingIds = new Set(prev.map(v => v.idString || String(v.id)));
       const newItems = feed.items.filter(v => !existingIds.has(v.idString || String(v.id)));
-      const result = [...prev, ...newItems];
-      return result;
+      return [...prev, ...newItems];
     });
     setHasMore(feed.hasMore);
     // 数据加载完成后重置触发标志
