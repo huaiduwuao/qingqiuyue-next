@@ -131,6 +131,8 @@ export function LivePanel() {
       const records = resp?.list || [];
       const total = resp?.total || 0;
 
+      console.log('[LivePanel] page:', livePage, 'records:', records.length, 'total:', total, 'hasMore:', records.length === PAGE_SIZE && (livePage * PAGE_SIZE) < total);
+
       setLiveList(prev => livePage === 1 ? records : [...prev, ...records]);
       setLiveHasMore(records.length === PAGE_SIZE && (livePage * PAGE_SIZE) < total);
 
@@ -146,7 +148,9 @@ export function LivePanel() {
   });
 
   useEffect(() => {
+    console.log('[LivePanel] scroll.isNearBottom:', scroll.isNearBottom, 'liveHasMore:', liveHasMore, 'query.isLoading:', query.isLoading);
     if (scroll.isNearBottom && liveHasMore && !query.isLoading) {
+      console.log('[LivePanel] triggering page load...');
       setLivePage(p => p + 1);
     }
   }, [scroll.isNearBottom, liveHasMore, query.isLoading]);
@@ -304,6 +308,9 @@ export function LivePanel() {
                   <RoomCard key={room.id} room={room} onClick={() => navigate('LIVE', room.id)} />
                 ))}
               </Box>
+
+              {/* 滚动触发器 */}
+              <Box ref={scroll.sentinelRef} sx={{ height: 1 }} />
 
               {/* Loading more */}
               {query.isFetching && !query.isLoading && (

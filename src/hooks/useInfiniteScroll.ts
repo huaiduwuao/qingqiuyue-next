@@ -85,30 +85,42 @@ export function useScrollToBottom(options: { enabled?: boolean; containerRef?: R
       return;
     }
 
-    const container = containerRef?.current ?? window;
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
 
     const handleScroll = () => {
-      const scrollTop = container === window
-        ? window.scrollY
-        : (container as HTMLElement).scrollTop;
-      const scrollHeight = container === window
-        ? document.documentElement.scrollHeight
-        : (container as HTMLElement).scrollHeight;
-      const clientHeight = container === window
-        ? window.innerHeight
-        : (container as HTMLElement).clientHeight;
+      // 如果指定容器不可滚动或没有内容溢出，则监听窗口滚动
+      let scrollTop, scrollHeight, clientHeight;
+
+      if (containerRef?.current) {
+        const el = containerRef.current;
+        const canScroll = el.scrollHeight > el.clientHeight + 10;
+
+        if (canScroll) {
+          scrollTop = el.scrollTop;
+          scrollHeight = el.scrollHeight;
+          clientHeight = el.clientHeight;
+        } else {
+          // 容器不可滚动，监听窗口
+          scrollTop = window.scrollY;
+          scrollHeight = document.documentElement.scrollHeight;
+          clientHeight = window.innerHeight;
+        }
+      } else {
+        scrollTop = window.scrollY;
+        scrollHeight = document.documentElement.scrollHeight;
+        clientHeight = window.innerHeight;
+      }
 
       const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
       setIsNearBottom(distanceFromBottom < 150);
     };
 
-    const element = container === window ? window : container as HTMLElement;
-    element.addEventListener('scroll', handleScroll, { passive: true });
+    // 始终监听窗口滚动（因为内容可能溢出到页面级别）
+    window.addEventListener('scroll', handleScroll, { passive: true });
     handleScroll(); // 初始化
 
-    return () => element.removeEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
   }, [enabled, containerRef]);
 
   return { sentinelRef, isNearBottom };

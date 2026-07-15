@@ -281,6 +281,9 @@ export function DramaPanel() {
                 ))}
               </Box>
 
+              {/* 滚动触发器 */}
+              <Box ref={scroll.sentinelRef} sx={{ height: 1 }} />
+
               {/* Loading more */}
               {seriesQuery.isFetching && !seriesQuery.isLoading && (
                 <Typography sx={{ textAlign: 'center', py: 2, color: 'text.secondary', fontSize: 12 }}>加载中...</Typography>
