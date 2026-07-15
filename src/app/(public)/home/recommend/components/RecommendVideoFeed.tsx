@@ -210,21 +210,16 @@ export function RecommendVideoFeed() {
 
   console.log('[RecommendVideoFeed] render: index=', index, 'allItems.length=', allItems.length, 'uniqueVideos.length=', uniqueVideos.length);
 
-  // 全屏布局：滑动到倒数第3条时预加载下一页
+  // 全屏布局：滑动时预加载下一页
   useEffect(() => {
     const currentItems = allItems.length;
     const remaining = currentItems - index;
-    console.log('[RecommendVideoFeed] check trigger: index=', index, 'items=', currentItems, 'remaining=', remaining, 'hasMore=', hasMore, 'fetching=', isFetchingMoreRef.current);
-    // 已经触发过或正在加载，跳过
-    if (alreadyTriggeredRef.current || isFetchingMoreRef.current) return;
-    // 如果没有下一页，跳过
-    if (!hasMore || currentItems === 0) return;
-
-    // 剩余条数少于等于3条时触发预加载
-    if (remaining <= 3) {
+    const shouldTrigger = !alreadyTriggeredRef.current && !isFetchingMoreRef.current && hasMore && currentItems > 0 && remaining <= 3;
+    console.log('[RecommendVideoFeed] trigger check: index=', index, 'items=', currentItems, 'remaining=', remaining, 'hasMore=', hasMore, 'alreadyTriggered=', alreadyTriggeredRef.current, 'isFetching=', isFetchingMoreRef.current, 'shouldTrigger=', shouldTrigger);
+    if (shouldTrigger) {
       alreadyTriggeredRef.current = true;
       isFetchingMoreRef.current = true;
-      console.log('[RecommendVideoFeed] TRIGGER: loading more, page:', page + 1);
+      console.log('[RecommendVideoFeed] TRIGGER: setPage to', page + 1);
       setPage(p => p + 1);
     }
   }, [index, allItems.length, hasMore, page]);
