@@ -118,6 +118,8 @@ export function RecommendVideoFeed() {
   // 追踪已处理的页码
   const processedPageRef = useRef(0);
   // 追踪已加载的页码
+  const loadedPageRef = useRef(0);
+  // 追踪已加载的页码
   const { data: feed, isLoading, isFetching } = useQuery({
     queryKey: ['home-recommend', 'recommend-feed', page],
     queryFn: async () => {
