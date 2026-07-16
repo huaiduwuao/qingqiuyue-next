@@ -660,9 +660,12 @@ function WallpaperPageContent() {
             </Box>
             <Box
               sx={{
-                display: 'grid',
-                gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' },
-                gap: 1.5,
+                columns: { xs: 2, sm: 3, md: 4 },
+                columnGap: 1.5,
+                '& > *': {
+                  breakInside: 'avoid',
+                  marginBottom: 1.5,
+                },
               }}
             >
               {myWallpapers.map((m) => {
@@ -706,9 +709,13 @@ function WallpaperPageContent() {
           </Box>
           <Box
             sx={{
-              display: 'grid',
-              gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' },
-              gap: 1.5,
+              // CSS columns 瀑布流布局
+              columns: { xs: 2, sm: 3, md: 4, lg: 5 },
+              columnGap: 1.5,
+              '& > *': {
+                breakInside: 'avoid',
+                marginBottom: 1.5,
+              },
             }}
           >
             {filtered.map((wp) => (
