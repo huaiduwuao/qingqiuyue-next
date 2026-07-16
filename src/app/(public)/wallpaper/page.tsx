@@ -62,7 +62,14 @@ const WALLPAPER_CATEGORIES: Array<{
   label: string;
   sub: string;
   accent: string;
-}> = [];
+}> = [
+  { key: 'all', label: '全部', sub: 'All', accent: '#8B5CF6' },
+  { key: 'anime', label: '动漫', sub: 'Anime', accent: '#EC4899' },
+  { key: 'scenery', label: '风景', sub: 'Scenery', accent: '#10B981' },
+  { key: 'stars', label: '星空', sub: 'Stars', accent: '#3B82F6' },
+  { key: 'minimal', label: '简约', sub: 'Minimal', accent: '#F59E0B' },
+  { key: 'cyber', label: '赛博', sub: 'Cyber', accent: '#EF4444' },
+];
 const WALLPAPERS: Wallpaper[] = [];
 const MY_WALLPAPERS: MyWallpaper[] = [];
 
@@ -104,10 +111,16 @@ function WallpaperPageContent() {
     let cancelled = false;
     const load = async () => {
       try {
-        let payload: { categories?: any[]; items?: any[] };
+        let payload: { list?: any[]; items?: any[]; categories?: any[]; total?: number };
         try {
-          const apiRes = await adminClient.get<{ categories: any[]; items: any[] }>('/wallpaper/list');
-          payload = apiRes.data ?? (apiRes as any);
+          const apiRes = await adminClient.get<typeof payload>('/wallpaper/list');
+          // 兼容两种响应格式：{ list } 或 { items }
+          const raw = apiRes.data ?? apiRes as any;
+          payload = {
+            items: raw.list ?? raw.items ?? [],
+            categories: raw.categories,
+            total: raw.total,
+          };
         } catch (err) {
           // 网络层失败 → 保持空数组 + 提示
           if (isNetworkError(err)) {
@@ -121,12 +134,15 @@ function WallpaperPageContent() {
           throw err;
         }
         if (cancelled) return;
-        const cats = (payload.categories ?? []).map((c: any) => ({
-          key: (c.key ?? c.id) as WallpaperCategory,
-          label: String(c.label ?? c.name ?? c.key ?? ''),
-          sub: String(c.sub ?? c.subtitle ?? ''),
-          accent: String(c.accent ?? '#8B5CF6'),
-        }));
+        // 如果后端没有返回 categories，使用默认分类
+        const cats = (payload.categories?.length ?? 0) > 0
+          ? (payload.categories ?? []).map((c: any) => ({
+              key: (c.key ?? c.id) as WallpaperCategory,
+              label: String(c.label ?? c.name ?? c.key ?? ''),
+              sub: String(c.sub ?? c.subtitle ?? ''),
+              accent: String(c.accent ?? '#8B5CF6'),
+            }))
+          : WALLPAPER_CATEGORIES;
         const items = (payload.items ?? []) as Wallpaper[];
         setCategories(cats);
         setWallpapers(items);
