@@ -111,8 +111,9 @@ function WallpaperPageContent() {
     let cancelled = false;
     const load = async () => {
       try {
-        const apiRes = await adminClient.get<{ list?: any[]; items?: any[]; categories?: any[]; total?: number }>('/wallpaper/list');
-        // axios interceptor 返回 { code, data } 包装，apiRes.data 包含 code + data
+        // axios interceptor 返回 { code, data }，apiRes.data 包含 { code, data }
+        // 后端 response.SuccessPage 返回 { code: 0, data: { list, total, page } }
+        const apiRes = await adminClient.get<{ code?: number; data?: { list?: any[]; items?: any[]; categories?: any[]; total?: number }; list?: any[]; items?: any[]; categories?: any[]; total?: number }>('/wallpaper/list');
         const raw = apiRes.data;
         // 实际数据在 raw.data 里（interceptor 把后端 body 包了一层）
         const payload = {
