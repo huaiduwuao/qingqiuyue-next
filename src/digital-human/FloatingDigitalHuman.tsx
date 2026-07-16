@@ -110,7 +110,10 @@ export default function FloatingDigitalHuman() {
           setEmotion: (bs) => chat.setEmotion?.(Object.keys(bs)[0] || 'neutral'),
           setAction: (name) => chat.setAction?.(name),
           setViseme: () => {},
-          setVisemeTimeline: () => {},
+          setVisemeTimeline: (frames) => {
+            // BlenderAvatar 不支持 viseme timeline，保留空实现
+            // 如果未来切换到 VrmStage，这里可以改为: h?.setVisemeTimeline?.(frames)
+          },
           setJawOpen: () => {},
           speak: () => {},
           move: () => {},

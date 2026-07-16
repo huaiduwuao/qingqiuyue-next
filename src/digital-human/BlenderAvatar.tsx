@@ -487,11 +487,29 @@ async function applyVRMAction(vrm: any, action: string) {
       break
     }
     case 'walk': {
+      // 行走: 腿部交替 + 手臂摆动
       const l1 = vrm.humanoid.getNormalizedBoneNode(bone('LeftUpperLeg', 'leftUpperLeg'))
       const r1 = vrm.humanoid.getNormalizedBoneNode(bone('RightUpperLeg', 'rightUpperLeg'))
+      const lUL = vrm.humanoid.getNormalizedBoneNode(bone('LeftUpperLeg', 'leftUpperLeg'))
+      const rUL = vrm.humanoid.getNormalizedBoneNode(bone('RightUpperLeg', 'rightUpperLeg'))
+      const lLL = vrm.humanoid.getNormalizedBoneNode(bone('LeftLowerLeg', 'leftLowerLeg'))
+      const rLL = vrm.humanoid.getNormalizedBoneNode(bone('RightLowerLeg', 'rightLowerLeg'))
+      const lUA = vrm.humanoid.getNormalizedBoneNode(bone('LeftUpperArm', 'leftUpperArm'))
+      const rUA = vrm.humanoid.getNormalizedBoneNode(bone('RightUpperArm', 'rightUpperArm'))
+      // 腿部交替
       if (l1) l1.rotation.x = phase * 0.4
       if (r1) r1.rotation.x = -phase * 0.4
-      vrm.scene.position.y = Math.abs(phase) * 0.02
+      // 小腿自然弯曲
+      if (lUL) lUL.rotation.x = phase * 0.4
+      if (rUL) rUL.rotation.x = -phase * 0.4
+      if (lLL) lLL.rotation.x = Math.max(0, -phase * 0.3)
+      if (rLL) rLL.rotation.x = Math.max(0, phase * 0.3)
+      // 手臂自然摆动(与腿反向)
+      if (lUA) lUA.rotation.x = -phase * 0.3
+      if (rUA) rUA.rotation.x = phase * 0.3
+      // 身体上下颠 + 轻微横移(模拟走路)
+      vrm.scene.position.y = Math.abs(Math.sin(t * 4)) * 0.02
+      vrm.scene.position.x = Math.sin(t * 2) * 0.03
       break
     }
     case 'run': {
@@ -534,25 +552,6 @@ async function applyVRMAction(vrm: any, action: string) {
       const rU2 = vrm.humanoid.getNormalizedBoneNode(bone('RightUpperArm', 'rightUpperArm'))
       if (rU2) rU2.rotation.z = 1.0  // 手到胸前
       vrm.scene.position.y = Math.abs(Math.sin(t * 2.5)) * 0.025
-      break
-    }
-    case 'walk': {
-      // 原地踏步(不是真的在走路,但看着在动)
-      const lUL = vrm.humanoid.getNormalizedBoneNode(bone('LeftUpperLeg', 'leftUpperLeg'))
-      const rUL = vrm.humanoid.getNormalizedBoneNode(bone('RightUpperLeg', 'rightUpperLeg'))
-      const lLL = vrm.humanoid.getNormalizedBoneNode(bone('LeftLowerLeg', 'leftLowerLeg'))
-      const rLL = vrm.humanoid.getNormalizedBoneNode(bone('RightLowerLeg', 'rightLowerLeg'))
-      if (lUL) lUL.rotation.x = phase * 0.5
-      if (rUL) rUL.rotation.x = -phase * 0.5
-      if (lLL) lLL.rotation.x = Math.max(0, -phase * 0.3)
-      if (rLL) rLL.rotation.x = Math.max(0, phase * 0.3)
-      // 双臂自然摆
-      const lUA = vrm.humanoid.getNormalizedBoneNode(bone('LeftUpperArm', 'leftUpperArm'))
-      const rUA = vrm.humanoid.getNormalizedBoneNode(bone('RightUpperArm', 'rightUpperArm'))
-      if (lUA) lUA.rotation.x = -phase * 0.3
-      if (rUA) rUA.rotation.x = phase * 0.3
-      vrm.scene.position.y = Math.abs(Math.sin(t * 4)) * 0.04
-      vrm.scene.position.x = Math.sin(t * 2) * 0.06  // 看似在挪动
       break
     }
     case 'sit': {

@@ -108,7 +108,7 @@ export default function ImmersiveDigitalHuman() {
           setEmotion: (bs) => h.setEmotion(bs),
           setAction: (name) => h.setAction(name),
           setViseme: () => {},
-          setVisemeTimeline: () => {},
+          setVisemeTimeline: (frames) => h.setVisemeTimeline(frames),
           setJawOpen: () => {},
           speak: (text, audioUrl) => h.speak(text, audioUrl),
           move: (target, opts) => h.move(target as Parameters<typeof h.move>[0], opts),

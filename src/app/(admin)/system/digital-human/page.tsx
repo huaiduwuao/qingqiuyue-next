@@ -1,9 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Box,
-  Container,
   Typography,
   Card,
   CardContent,
@@ -20,8 +19,6 @@ import {
   Skeleton,
   Alert,
   Button,
-  IconButton,
-  Tooltip,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -29,145 +26,210 @@ import {
   Snackbar,
   Tabs,
   Tab,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
-import StopRoundedIcon from '@mui/icons-material/StopRounded';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
-import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
-import FileDownloadRoundedIcon from '@mui/icons-material/FileDownloadRounded';
-import AutoFixHighRoundedIcon from '@mui/icons-material/AutoFixHighRounded';
-import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
+import HourglassEmptyRoundedIcon from '@mui/icons-material/HourglassEmptyRounded';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import QueueRoundedIcon from '@mui/icons-material/QueueRounded';
-import HourglassEmptyRoundedIcon from '@mui/icons-material/HourglassEmptyRounded';
-import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
-import FaceRoundedIcon from '@mui/icons-material/FaceRounded';
-import Face2RoundedIcon from '@mui/icons-material/Face2Rounded';
-import MicExternalOnRoundedIcon from '@mui/icons-material/MicExternalOnRounded';
-import GestureRoundedIcon from '@mui/icons-material/GestureRounded';
-import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
+import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
 
-// ── 类型 ──
+// ── 类型 (对齐 Go studio.go) ──
 interface DHAsset {
-  id: number;
+  id: string;
   name: string;
-  style: string;
-  status: string;
-  statusLabel: string;
+  mode: '3dgs' | '2d';
+  status: 'ready' | 'training' | 'failed';
+  active: boolean;
+  published: boolean;
   thumbnail: string;
-  modelFile: string;
-  blendShapeCount: number;
-  animationCount: number;
-  outfitCount: number;
-  sceneCount: number;
+  sizeMB: number;
+  joints: number;
+  hasFlame: boolean;
+  assetUrl: string;
   createdAt: string;
-  updatedAt: string;
-  pipelineStage: string;
-  quality: number;
-  size: number;
-  conversations: number;
 }
 
 interface DHJob {
-  id: number;
+  id: string;
   name: string;
-  type: string;
-  status: string;
+  method: string;
+  source?: string;
+  status: 'queued' | 'running' | 'done' | 'failed' | 'canceled';
+  stage: string;
   progress: number;
+  logs: string[];
+  assetId?: string;
   createdAt: string;
-  finishedAt?: string;
-  log: string;
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  online: '在线', training: '训练中', offline: '离线', draft: '草稿', deployed: '已部署',
+const STAGE_LABELS: Record<string, string> = {
+  capture: '采集素材',
+  preprocess: '预处理',
+  train: '训练',
+  export: '导出',
+  deploy: '部署',
 };
-const STATUS_CHIP_COLORS: Record<string, 'success' | 'info' | 'warning' | 'default'> = {
-  online: 'success', training: 'warning', draft: 'default', deployed: 'success', offline: 'default',
+
+const STATUS_LABELS: Record<string, string> = {
+  queued: '队列中',
+  running: '运行中',
+  done: '已完成',
+  failed: '失败',
+  canceled: '已取消',
 };
+
+const JOB_STATUS_COLORS: Record<string, 'warning' | 'success' | 'error' | 'default'> = {
+  queued: 'default',
+  running: 'warning',
+  done: 'success',
+  failed: 'error',
+  canceled: 'default',
+};
+
 const JOB_STATUS_ICONS: Record<string, React.ReactNode> = {
-  running: <HourglassEmptyRoundedIcon sx={{ fontSize: 16, color: '#FFB400' }} />,
-  completed: <CheckCircleRoundedIcon sx={{ fontSize: 16, color: '#5DDB96' }} />,
-  failed: <ErrorOutlineRoundedIcon sx={{ fontSize: 16, color: '#FE2C55' }} />,
   queued: <QueueRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />,
+  running: <HourglassEmptyRoundedIcon sx={{ fontSize: 16, color: '#FFB400' }} />,
+  done: <CheckCircleRoundedIcon sx={{ fontSize: 16, color: '#5DDB96' }} />,
+  failed: <ErrorOutlineRoundedIcon sx={{ fontSize: 16, color: '#FE2C55' }} />,
+  canceled: <CancelRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />,
 };
 
-function useDigitalHuman() {
-  const assets = useQuery<DHAsset[]>({
-    queryKey: ['digital-human', 'assets'],
-    queryFn: async (): Promise<DHAsset[]> => [
-      { id: 1, name: '清秋月·标准', style: '二次元', status: 'online', statusLabel: '在线', thumbnail: '', modelFile: 'qingqiuyue.vrm', blendShapeCount: 52, animationCount: 15, outfitCount: 3, sceneCount: 2, createdAt: '2026-01-15T08:00:00', updatedAt: '2026-07-03T10:30:00', pipelineStage: 'deployed', quality: 96, size: 48, conversations: 12850 },
-      { id: 2, name: '小助手·Pro', style: '写实', status: 'online', statusLabel: '在线', thumbnail: '', modelFile: 'assistant-pro.vrm', blendShapeCount: 52, animationCount: 20, outfitCount: 5, sceneCount: 3, createdAt: '2026-03-20T10:00:00', updatedAt: '2026-07-03T09:15:00', pipelineStage: 'deployed', quality: 92, size: 72, conversations: 8320 },
-      { id: 3, name: '配音员·A', style: '广播剧', status: 'online', statusLabel: '在线', thumbnail: '', modelFile: 'voice-actor-a.vrm', blendShapeCount: 52, animationCount: 10, outfitCount: 2, sceneCount: 1, createdAt: '2026-05-10T14:00:00', updatedAt: '2026-07-02T22:00:00', pipelineStage: 'deployed', quality: 88, size: 36, conversations: 5600 },
-      { id: 4, name: '小说家·Beta', style: '文学', status: 'training', statusLabel: '训练中', thumbnail: '', modelFile: 'novelist-beta.vrm', blendShapeCount: 40, animationCount: 8, outfitCount: 1, sceneCount: 1, createdAt: '2026-06-28T09:00:00', updatedAt: '2026-07-03T06:00:00', pipelineStage: 'blendshape', quality: 74, size: 55, conversations: 1200 },
-      { id: 5, name: '小悠·V2', style: '二次元', status: 'offline', statusLabel: '离线', thumbnail: '', modelFile: 'xiaoyou-v2.vrm', blendShapeCount: 52, animationCount: 12, outfitCount: 4, sceneCount: 2, createdAt: '2026-04-05T11:00:00', updatedAt: '2026-06-20T16:00:00', pipelineStage: 'deployed', quality: 85, size: 61, conversations: 4200 },
-      { id: 6, name: '客服Bot', style: '商务', status: 'online', statusLabel: '在线', thumbnail: '', modelFile: 'cs-bot.vrm', blendShapeCount: 52, animationCount: 6, outfitCount: 2, sceneCount: 1, createdAt: '2026-02-10T08:00:00', updatedAt: '2026-07-03T11:00:00', pipelineStage: 'deployed', quality: 90, size: 28, conversations: 25100 },
-      { id: 7, name: '虚拟主播·星', style: '二次元', status: 'training', statusLabel: '训练中', thumbnail: '', modelFile: 'vtuber-star.vrm', blendShapeCount: 30, animationCount: 15, outfitCount: 3, sceneCount: 2, createdAt: '2026-07-01T15:00:00', updatedAt: '2026-07-01T20:00:00', pipelineStage: 'rig', quality: 62, size: 89, conversations: 350 },
-      { id: 8, name: '口型测试·C', style: '写实', status: 'offline', statusLabel: '离线', thumbnail: '', modelFile: 'lip-test-c.vrm', blendShapeCount: 20, animationCount: 3, outfitCount: 1, sceneCount: 0, createdAt: '2026-06-10T09:00:00', updatedAt: '2026-06-15T12:00:00', pipelineStage: 'mesh', quality: 55, size: 104, conversations: 80 },
-    ],
-    refetchInterval: 15_000,
-    staleTime: 10_000,
-  });
-  const jobs = useQuery<DHJob[]>({
-    queryKey: ['digital-human', 'recent-jobs'],
-    queryFn: async (): Promise<DHJob[]> => [
-      { id: 1, name: '清秋月·标准 — 语音合成', type: '合成', status: 'completed', progress: 100, createdAt: '2026-07-03T10:25:00', log: '' },
-      { id: 2, name: '小助手·Pro — 口型校准', type: '校准', status: 'completed', progress: 100, createdAt: '2026-07-03T09:10:00', log: '' },
-      { id: 3, name: '虚拟主播·星 — 动作绑定', type: '动作', status: 'running', progress: 65, createdAt: '2026-07-03T11:00:00', log: '' },
-      { id: 4, name: '小说家·Beta — 表情生成', type: '表情', status: 'running', progress: 42, createdAt: '2026-07-03T10:30:00', log: '' },
-      { id: 5, name: '客服Bot — 知识库更新', type: '数据', status: 'queued', progress: 0, createdAt: '2026-07-03T11:15:00', log: '' },
-      { id: 6, name: '配音员·A — 模型微调', type: '训练', status: 'completed', progress: 100, createdAt: '2026-07-02T18:00:00', log: '' },
-    ],
-    refetchInterval: 10_000,
-    staleTime: 5_000,
-  });
-  return { assets, jobs };
-}
-
-// ── 格式化 ──
 function fmtDate(s: string) {
   return new Date(s).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
-function fmt(n: number): string {
-  if (n >= 10000) return (n / 10000).toFixed(1) + '万';
-  if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
-  return String(n);
+// ── API ──
+async function fetchAssets(): Promise<{ list: DHAsset[] }> {
+  const r = await fetch('/api/avatar/assets');
+  if (!r.ok) throw new Error(`获取资产列表失败: ${r.status}`);
+  return r.json();
+}
+
+async function deleteAsset(id: string): Promise<void> {
+  const r = await fetch(`/api/avatar/assets/${id}`, { method: 'DELETE' });
+  if (!r.ok) throw new Error(`删除失败: ${r.status}`);
+}
+
+async function activateAsset(id: string): Promise<void> {
+  const r = await fetch(`/api/avatar/assets/${id}/activate`, { method: 'POST' });
+  if (!r.ok) throw new Error(`激活失败: ${r.status}`);
+}
+
+async function fetchJobs(): Promise<{ list: DHJob[] }> {
+  const r = await fetch('/api/avatar/jobs');
+  if (!r.ok) throw new Error(`获取任务列表失败: ${r.status}`);
+  return r.json();
+}
+
+async function cancelJob(id: string): Promise<void> {
+  const r = await fetch(`/api/avatar/jobs/${id}/cancel`, { method: 'POST' });
+  if (!r.ok) throw new Error(`取消失败: ${r.status}`);
+}
+
+async function startTraining(name: string, method: string, source: string): Promise<{ jobId: string }> {
+  const r = await fetch('/api/avatar/train', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, method, source }),
+  });
+  if (!r.ok) throw new Error(`启动训练失败: ${r.status}`);
+  return r.json();
 }
 
 export default function SystemDigitalHumanPage() {
-  const { assets, jobs } = useDigitalHuman();
-  const router = useRouter();
   const queryClient = useQueryClient();
-  const [tab, setTab] = React.useState(0);
-  const [snack, setSnack] = React.useState('');
-  const [detailAsset, setDetailAsset] = React.useState<DHAsset | null>(null);
-  const [confirmDelete, setConfirmDelete] = React.useState<DHAsset | null>(null);
+  const router = useRouter();
+  const [tab, setTab] = useState(0);
+  const [snack, setSnack] = useState<{ msg: string; severity: 'success' | 'error' } | null>(null);
+  const [detailAsset, setDetailAsset] = useState<DHAsset | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<DHAsset | null>(null);
+  const [showJobLogs, setShowJobLogs] = useState<DHJob | null>(null);
 
-  const startJob = useMutation({
-    mutationFn: (type: string) => {
-      // 本地模拟:添加一个新任务到列表
-      const typeNames: Record<string, string> = { synthesize: '合成', calibrate: '校准', motion: '动作', emotion: '表情', train: '训练', data: '数据' };
-      const current = queryClient.getQueryData<DHJob[]>(['digital-human', 'recent-jobs']) || [];
-      const newJob: DHJob = { id: Date.now(), name: `新任务 — ${typeNames[type] || type}`, type: typeNames[type] || type, status: 'queued', progress: 0, createdAt: new Date().toISOString(), log: '' };
-      queryClient.setQueryData(['digital-human', 'recent-jobs'], [newJob, ...current]);
-      return Promise.resolve();
-    },
-    onSuccess: () => { setSnack('任务已提交'); },
-    onError: () => { setSnack('任务提交失败'); },
+  // 查询资产列表
+  const { data: assetsData, isLoading: assetsLoading, isError: assetsError, refetch: refetchAssets } = useQuery({
+    queryKey: ['avatar-assets'],
+    queryFn: fetchAssets,
+    refetchInterval: 15_000,
+    staleTime: 10_000,
   });
 
-  const onlineCount = (assets.data || []).filter((a: DHAsset) => a.status === 'online').length;
-  const trainingCount = (assets.data || []).filter((a: DHAsset) => a.status === 'training').length;
-  const totalConversations = (assets.data || []).reduce((acc: number, a: DHAsset) => acc + a.conversations, 0);
-  const totalSize = (assets.data || []).reduce((acc: number, a: DHAsset) => acc + a.size, 0);
+  // 查询任务列表
+  const { data: jobsData, isLoading: jobsLoading, isError: jobsError, refetch: refetchJobs } = useQuery({
+    queryKey: ['avatar-jobs'],
+    queryFn: fetchJobs,
+    refetchInterval: 5_000, // 任务状态变化快，更频繁轮询
+    staleTime: 3_000,
+  });
+
+  // 删除资产
+  const deleteMutation = useMutation({
+    mutationFn: deleteAsset,
+    onSuccess: () => {
+      setSnack({ msg: '删除成功', severity: 'success' });
+      setConfirmDelete(null);
+      setDetailAsset(null);
+      queryClient.invalidateQueries({ queryKey: ['avatar-assets'] });
+    },
+    onError: (e: Error) => {
+      setSnack({ msg: e.message, severity: 'error' });
+    },
+  });
+
+  // 激活资产
+  const activateMutation = useMutation({
+    mutationFn: activateAsset,
+    onSuccess: () => {
+      setSnack({ msg: '已设为当前形象', severity: 'success' });
+      queryClient.invalidateQueries({ queryKey: ['avatar-assets'] });
+    },
+    onError: (e: Error) => {
+      setSnack({ msg: e.message, severity: 'error' });
+    },
+  });
+
+  // 取消任务
+  const cancelMutation = useMutation({
+    mutationFn: cancelJob,
+    onSuccess: () => {
+      setSnack({ msg: '任务已取消', severity: 'success' });
+      queryClient.invalidateQueries({ queryKey: ['avatar-jobs'] });
+    },
+    onError: (e: Error) => {
+      setSnack({ msg: e.message, severity: 'error' });
+    },
+  });
+
+  // 启动训练
+  const trainMutation = useMutation({
+    mutationFn: ({ name, method, source }: { name: string; method: string; source: string }) =>
+      startTraining(name, method, source),
+    onSuccess: () => {
+      setSnack({ msg: '训练任务已提交', severity: 'success' });
+      queryClient.invalidateQueries({ queryKey: ['avatar-jobs'] });
+    },
+    onError: (e: Error) => {
+      setSnack({ msg: e.message, severity: 'error' });
+    },
+  });
+
+  const assets = assetsData?.list || [];
+  const jobs = jobsData?.list || [];
+  const onlineCount = assets.filter(a => a.status === 'ready' && a.published).length;
+  const trainingCount = assets.filter(a => a.status === 'training').length;
+
+  const handleRefresh = useCallback(() => {
+    refetchAssets();
+    refetchJobs();
+  }, [refetchAssets, refetchJobs]);
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 }, display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -186,7 +248,7 @@ export default function SystemDigitalHumanPage() {
             size="small"
             variant="outlined"
             startIcon={<RefreshRoundedIcon />}
-            onClick={() => { assets.refetch(); jobs.refetch(); }}
+            onClick={handleRefresh}
           >
             刷新
           </Button>
@@ -202,51 +264,58 @@ export default function SystemDigitalHumanPage() {
       </Box>
 
       {/* ── 概览卡片 ── */}
-      {assets.isLoading ? (
-        <Box sx={{ display: 'flex', gap: 2 }}>{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} variant="rounded" width={200} height={100} />)}</Box>
-      ) : assets.isError ? (
-        <Alert severity="warning">资产数据加载中,请确认后端 API 已启动</Alert>
+      {assetsLoading ? (
+        <Box sx={{ display: 'flex', gap: 2 }}>{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} variant="rounded" width={200} height={100} />)}</Box>
+      ) : assetsError ? (
+        <Alert severity="error">资产数据加载失败，请确认后端 API 已启动</Alert>
       ) : (
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 2 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(3, 1fr)' }, gap: 2 }}>
           <Card variant="outlined"><CardContent sx={{ py: 2, textAlign: 'center' }}>
             <Typography variant="overline" color="text.secondary">资产总数</Typography>
-            <Typography variant="h4" sx={{ fontWeight: 700 }}>{(assets.data || []).length}</Typography>
+            <Typography variant="h4" sx={{ fontWeight: 700 }}>{assets.length}</Typography>
           </CardContent></Card>
           <Card variant="outlined"><CardContent sx={{ py: 2, textAlign: 'center' }}>
-            <Typography variant="overline" color="text.secondary">在线</Typography>
+            <Typography variant="overline" color="text.secondary">已就绪</Typography>
             <Typography variant="h4" sx={{ fontWeight: 700, color: 'success.main' }}>{onlineCount}</Typography>
           </CardContent></Card>
           <Card variant="outlined"><CardContent sx={{ py: 2, textAlign: 'center' }}>
             <Typography variant="overline" color="text.secondary">训练中</Typography>
             <Typography variant="h4" sx={{ fontWeight: 700, color: 'warning.main' }}>{trainingCount}</Typography>
           </CardContent></Card>
-          <Card variant="outlined"><CardContent sx={{ py: 2, textAlign: 'center' }}>
-            <Typography variant="overline" color="text.secondary">总对话数</Typography>
-            <Typography variant="h4" sx={{ fontWeight: 700, color: '#8B5CF6' }}>{totalConversations.toLocaleString()}</Typography>
-          </CardContent></Card>
         </Box>
       )}
 
-      {/* ── Tab: 资产管理 / 任务管线 ── */}
+      {/* ── Tab ── */}
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
         <Tab label="我的数字人" />
-        <Tab label="任务管线" />
+        <Tab label="训练任务" />
       </Tabs>
 
       {/* ── 资产列表 ── */}
       {tab === 0 && (
-        assets.isLoading ? (
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' }, gap: 2 }}>
+        assetsLoading ? (
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)' }, gap: 2 }}>
             {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} variant="rounded" height={280} />)}
           </Box>
+        ) : assets.length === 0 ? (
+          <Card>
+            <CardContent sx={{ textAlign: 'center', py: 6 }}>
+              <Typography color="text.secondary" sx={{ mb: 2 }}>暂无数字人资产</Typography>
+              <Button variant="contained" onClick={() => router.push('/avatar-pipeline')}>
+                创建第一个数字人
+              </Button>
+            </CardContent>
+          </Card>
         ) : (
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' }, gap: 2 }}>
-            {(assets.data || []).map((a: DHAsset) => (
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)' }, gap: 2 }}>
+            {assets.map((a) => (
               <Card
                 key={a.id}
                 sx={{
                   cursor: 'pointer',
                   transition: 'all 0.2s',
+                  borderColor: a.active ? 'primary.main' : 'divider',
+                  borderWidth: a.active ? 2 : 1,
                   '&:hover': { transform: 'translateY(-2px)', boxShadow: 4 },
                 }}
                 onClick={() => setDetailAsset(a)}
@@ -254,43 +323,38 @@ export default function SystemDigitalHumanPage() {
                 <Box sx={{ position: 'relative', pt: '75%', bgcolor: 'grey.100', overflow: 'hidden' }}>
                   <CardMedia
                     component="img"
-                    image={a.thumbnail}
+                    image={a.thumbnail || 'https://picsum.photos/seed/default-avatar/200/300'}
                     alt={a.name}
                     sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
                   />
-                  <Box sx={{ position: 'absolute', top: 8, right: 8 }}>
+                  <Box sx={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 0.5 }}>
+                    {a.active && <Chip label="当前" size="small" color="primary" sx={{ fontWeight: 600, fontSize: 10 }} />}
                     <Chip
-                      label={a.statusLabel}
+                      label={a.status === 'ready' ? '就绪' : a.status === 'training' ? '训练中' : '失败'}
                       size="small"
-                      color={STATUS_CHIP_COLORS[a.status]}
-                      sx={{ fontWeight: 600, fontSize: 11 }}
+                      color={a.status === 'ready' ? 'success' : a.status === 'training' ? 'warning' : 'error'}
+                      sx={{ fontWeight: 600, fontSize: 10 }}
                     />
                   </Box>
                   <Box sx={{ position: 'absolute', bottom: 8, left: 8 }}>
                     <Chip
-                      label={a.style}
+                      label={a.mode === '3dgs' ? '3DGS' : '2D'}
                       size="small"
                       variant="outlined"
-                      sx={{ bgcolor: 'rgba(0,0,0,0.5)', color: 'white', borderColor: 'transparent', fontSize: 11 }}
+                      sx={{ bgcolor: 'rgba(0,0,0,0.5)', color: 'white', borderColor: 'transparent', fontSize: 10 }}
                     />
                   </Box>
                 </Box>
                 <CardContent sx={{ py: 1.5, px: 2 }}>
                   <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>{a.name}</Typography>
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
-                    <Chip size="small" label={`BS×${a.blendShapeCount}`} variant="outlined" sx={{ height: 20, fontSize: 10 }} />
-                    <Chip size="small" label={`动作×${a.animationCount}`} variant="outlined" sx={{ height: 20, fontSize: 10 }} />
-                    <Chip size="small" label={`换装×${a.outfitCount}`} variant="outlined" sx={{ height: 20, fontSize: 10 }} />
+                    <Chip size="small" label={`骨骼×${a.joints}`} variant="outlined" sx={{ height: 20, fontSize: 10 }} />
+                    {a.hasFlame && <Chip size="small" label="表情" variant="outlined" sx={{ height: 20, fontSize: 10 }} />}
                   </Box>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Typography variant="caption" color="text.secondary">{a.size}MB</Typography>
-                    <Typography variant="caption" color="text.secondary">{fmt(a.conversations)} 对话</Typography>
+                    <Typography variant="caption" color="text.secondary">{a.sizeMB}MB</Typography>
+                    <Typography variant="caption" color="text.secondary">{fmtDate(a.createdAt)}</Typography>
                   </Box>
-                  <LinearProgress
-                    variant="determinate"
-                    value={a.quality}
-                    sx={{ mt: 1, height: 4, borderRadius: 2, bgcolor: alpha('#8B5CF6', 0.1), '& .MuiLinearProgress-bar': { bgcolor: a.quality >= 80 ? '#5DDB96' : a.quality >= 50 ? '#FFB400' : '#FE2C55', borderRadius: 2 } }}
-                  />
                 </CardContent>
               </Card>
             ))}
@@ -298,79 +362,127 @@ export default function SystemDigitalHumanPage() {
         )
       )}
 
-      {/* ── 任务管线 ── */}
+      {/* ── 任务列表 ── */}
       {tab === 1 && (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {/* 快捷操作按钮 */}
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            {[
-              { label: '二次元生成', icon: <FaceRoundedIcon />, type: 'generate-anime', color: '#8B5CF6' },
-              { label: '真人重建', icon: <Face2RoundedIcon />, type: 'rebuild-real', color: '#5B8DEF' },
-              { label: '导入 Mixamo 动作', icon: <GestureRoundedIcon />, type: 'import-mixamo', color: '#FFB400' },
-              { label: 'BlendShape 雕刻', icon: <AutoFixHighRoundedIcon />, type: 'sculpt-blendshape', color: '#FE2C55' },
-            ].map((btn) => (
-              <Button
-                key={btn.type}
-                variant="outlined"
-                size="small"
-                startIcon={btn.icon}
-                disabled={startJob.isPending}
-                onClick={() => startJob.mutate(btn.type)}
-                sx={{ borderColor: alpha(btn.color, 0.3), color: btn.color, '&:hover': { borderColor: btn.color, bgcolor: alpha(btn.color, 0.05) } }}
-              >
-                {btn.label}
-              </Button>
-            ))}
-          </Box>
+          {/* 快捷启动 */}
+          <Card variant="outlined">
+            <CardContent>
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1.5 }}>快速启动训练</Typography>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  disabled={trainMutation.isPending}
+                  onClick={() => trainMutation.mutate({ name: '新数字人-' + Date.now(), method: 'ExAvatar', source: '' })}
+                  sx={{ borderColor: alpha('#8B5CF6', 0.5), color: '#8B5CF6' }}
+                >
+                  启动训练 (ExAvatar)
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  disabled={trainMutation.isPending}
+                  onClick={() => trainMutation.mutate({ name: '新数字人-' + Date.now(), method: 'Gaussian', source: '' })}
+                  sx={{ borderColor: alpha('#5B8DEF', 0.5), color: '#5B8DEF' }}
+                >
+                  启动训练 (Gaussian)
+                </Button>
+              </Box>
+            </CardContent>
+          </Card>
 
-          {/* 最近任务列表 */}
+          {/* 任务列表 */}
           <Card>
             <CardContent>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 2 }}>最近任务</Typography>
-              {jobs.isLoading ? (
-                Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} variant="rounded" height={48} sx={{ mb: 1 }} />)
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 2 }}>训练任务</Typography>
+              {jobsLoading ? (
+                Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} variant="rounded" height={60} sx={{ mb: 1 }} />)
+              ) : jobs.length === 0 ? (
+                <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 3 }}>
+                  暂无训练任务
+                </Typography>
               ) : (
                 <List dense disablePadding>
-                  {(jobs.data || []).map((j: DHJob) => (
+                  {jobs.map((j) => (
                     <React.Fragment key={j.id}>
-                      <ListItem sx={{ px: 0, py: 1 }}>
-                        <ListItemAvatar sx={{ minWidth: 36 }}>
-                          <Avatar sx={{ width: 28, height: 28, bgcolor: 'action.hover' }}>
+                      <ListItem
+                        sx={{ px: 0, py: 1.5 }}
+                        secondaryAction={
+                          j.status === 'running' && (
+                            <Button
+                              size="small"
+                              color="error"
+                              onClick={() => cancelMutation.mutate(j.id)}
+                              disabled={cancelMutation.isPending}
+                              sx={{ mr: 1 }}
+                            >
+                              取消
+                            </Button>
+                          )
+                        }
+                      >
+                        <ListItemAvatar sx={{ minWidth: 40 }}>
+                          <Avatar sx={{ width: 32, height: 32, bgcolor: 'action.hover' }}>
                             {JOB_STATUS_ICONS[j.status]}
                           </Avatar>
                         </ListItemAvatar>
                         <ListItemText
-                          primary={<Typography variant="body2" sx={{ fontSize: 13, fontWeight: 500 }}>{j.name}</Typography>}
-                          secondary={
+                          primary={
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 500 }}>{j.name}</Typography>
                               <Chip
-                                label={{ running: '运行中', completed: '已完成', failed: '失败', queued: '队列中' }[j.status]}
+                                label={j.method}
                                 size="small"
-                                color={{ running: 'warning', completed: 'success', failed: 'error', queued: 'default' }[j.status] as any}
+                                variant="outlined"
+                                sx={{ height: 18, fontSize: 10 }}
+                              />
+                            </Box>
+                          }
+                          secondary={
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                              <Chip
+                                label={STATUS_LABELS[j.status]}
+                                size="small"
+                                color={JOB_STATUS_COLORS[j.status]}
                                 sx={{ height: 20, fontSize: 10 }}
                               />
-                              <Typography variant="caption" color="text.secondary">{fmtDate(j.createdAt)}</Typography>
-                              {j.finishedAt && <Typography variant="caption" color="text.secondary">· 完成于 {fmtDate(j.finishedAt)}</Typography>}
+                              <Typography variant="caption" color="text.secondary">
+                                {j.stage ? STAGE_LABELS[j.stage] || j.stage : '准备中'}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                · {fmtDate(j.createdAt)}
+                              </Typography>
+                              {j.logs?.length > 0 && (
+                                <Button
+                                  size="small"
+                                  sx={{ ml: 'auto', fontSize: 10, minWidth: 'auto', px: 1 }}
+                                  onClick={() => setShowJobLogs(j)}
+                                >
+                                  日志
+                                </Button>
+                              )}
                             </Box>
                           }
                         />
-                        <Box sx={{ textAlign: 'right', minWidth: 100 }}>
+                        <Box sx={{ minWidth: 100, textAlign: 'right', mr: 2 }}>
                           {j.status === 'running' ? (
                             <>
-                              <LinearProgress variant="determinate" value={j.progress} sx={{ width: 80, height: 6, borderRadius: 3, mb: 0.3 }} />
+                              <LinearProgress
+                                variant="determinate"
+                                value={j.progress}
+                                sx={{ width: 80, height: 6, borderRadius: 3, mx: 'auto', mb: 0.3 }}
+                              />
                               <Typography variant="caption" sx={{ fontSize: 10 }}>{j.progress}%</Typography>
                             </>
-                          ) : j.status === 'completed' ? (
-                            <Chip icon={<CheckCircleRoundedIcon />} label="100%" size="small" color="success" variant="outlined" sx={{ height: 22, fontSize: 10 }} />
+                          ) : j.status === 'done' ? (
+                            <Chip icon={<CheckCircleRoundedIcon />} label="完成" size="small" color="success" variant="outlined" sx={{ height: 22, fontSize: 10 }} />
                           ) : null}
                         </Box>
                       </ListItem>
                       <Divider component="li" />
                     </React.Fragment>
                   ))}
-                  {(jobs.data || []).length === 0 && (
-                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 3 }}>暂无任务</Typography>
-                  )}
                 </List>
               )}
             </CardContent>
@@ -378,88 +490,68 @@ export default function SystemDigitalHumanPage() {
         </Box>
       )}
 
-      {/* ── 管线文档(折叠) ── */}
-      <Card variant="outlined" sx={{ mt: 1 }}>
-        <CardContent sx={{ py: 2 }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>管线概览</Typography>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1 }}>
-            <Box sx={{ p: 1.5, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
-              <Typography variant="caption" sx={{ fontWeight: 600, color: '#8B5CF6' }}>方式 A — Web UI (推荐)</Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                二次元: 5 分钟 · 从 10 个预制角色选 → 命名 → 完成<br />
-                真人: 30~60 分钟 · 上传视频 → COLMAP + 3DGS + Blender 绑骨
-              </Typography>
-            </Box>
-            <Box sx={{ p: 1.5, borderRadius: 1, border: '1px solid', borderColor: 'divider' }}>
-              <Typography variant="caption" sx={{ fontWeight: 600, color: '#5B8DEF' }}>方式 B — 命令行 (CI/CD)</Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                bash scripts/avatar-pipeline.sh --input &lt;video&gt; --name &lt;name&gt;
-              </Typography>
-            </Box>
-          </Box>
-          <Button size="small" sx={{ mt: 1 }} onClick={() => router.push('/avatar-pipeline')}>
-            打开 Web UI 创建数字人 →
-          </Button>
-        </CardContent>
-      </Card>
-
       {/* ── 详情弹窗 ── */}
       <Dialog open={!!detailAsset} onClose={() => setDetailAsset(null)} maxWidth="sm" fullWidth>
         {detailAsset && (
           <>
             <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               {detailAsset.name}
-              <Chip label={detailAsset.statusLabel} size="small" color={STATUS_CHIP_COLORS[detailAsset.status]} />
+              <Chip
+                label={detailAsset.status === 'ready' ? '就绪' : detailAsset.status === 'training' ? '训练中' : '失败'}
+                size="small"
+                color={detailAsset.status === 'ready' ? 'success' : detailAsset.status === 'training' ? 'warning' : 'error'}
+              />
             </DialogTitle>
             <DialogContent dividers>
               <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                <Avatar src={detailAsset.thumbnail} variant="rounded" sx={{ width: 120, height: 120 }} />
-                <Box>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>质量评分</Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
-                    <LinearProgress
-                      variant="determinate"
-                      value={detailAsset.quality}
-                      sx={{ width: 100, height: 8, borderRadius: 4, bgcolor: alpha('#8B5CF6', 0.1), '& .MuiLinearProgress-bar': { bgcolor: detailAsset.quality >= 80 ? '#5DDB96' : detailAsset.quality >= 50 ? '#FFB400' : '#FE2C55', borderRadius: 4 } }}
-                    />
-                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{detailAsset.quality}%</Typography>
-                  </Box>
-                  <Typography variant="body2" sx={{ fontWeight: 600, mt: 1.5 }}>规格</Typography>
+                <Avatar
+                  src={detailAsset.thumbnail || 'https://picsum.photos/seed/default-avatar/200/300'}
+                  variant="rounded"
+                  sx={{ width: 120, height: 160 }}
+                />
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>规格</Typography>
                   <Typography variant="caption" color="text.secondary" component="div">
-                    BlendShape: {detailAsset.blendShapeCount} · 动作: {detailAsset.animationCount}
+                    类型: {detailAsset.mode === '3dgs' ? '3DGS 动态' : '2D 片段'}
                   </Typography>
                   <Typography variant="caption" color="text.secondary" component="div">
-                    换装: {detailAsset.outfitCount} · 场景: {detailAsset.sceneCount}
+                    骨骼: {detailAsset.joints}
                   </Typography>
                   <Typography variant="caption" color="text.secondary" component="div">
-                    文件大小: {detailAsset.size}MB
+                    表情系统: {detailAsset.hasFlame ? '已启用' : '未启用'}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" component="div">
+                    大小: {detailAsset.sizeMB}MB
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 1 }}>
+                    创建: {fmtDate(detailAsset.createdAt)}
                   </Typography>
                 </Box>
               </Box>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>管线阶段</Typography>
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                {['mesh', 'rig', 'blendshape', 'outfit', 'deployed'].map((stage, i) => {
-                  const done = ['mesh', 'rig', 'blendshape', 'outfit', 'deployed'].indexOf(detailAsset.pipelineStage) >= i;
-                  return (
-                    <Chip
-                      key={stage}
-                      label={{ mesh: '网格重建', rig: '骨骼绑定', blendshape: '表情雕刻', outfit: '换装配置', deployed: '已部署' }[stage]}
-                      size="small"
-                      color={done ? 'primary' : 'default'}
-                      variant={done ? 'filled' : 'outlined'}
-                      sx={{ fontSize: 10 }}
-                    />
-                  );
-                })}
+              <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+                {detailAsset.published && <Chip label="已发布" size="small" color="success" />}
+                {detailAsset.active && <Chip label="当前形象" size="small" color="primary" />}
               </Box>
-              <Typography variant="subtitle2" sx={{ mt: 2, mb: 1 }}>统计</Typography>
-              <Box sx={{ display: 'flex', gap: 3 }}>
-                <Box><Typography variant="h6" sx={{ fontWeight: 700 }}>{detailAsset.conversations.toLocaleString()}</Typography><Typography variant="caption" color="text.secondary">对话</Typography></Box>
-                <Box><Typography variant="h6" sx={{ fontWeight: 700 }}>{fmtDate(detailAsset.updatedAt)}</Typography><Typography variant="caption" color="text.secondary">最后更新</Typography></Box>
-              </Box>
+              {detailAsset.assetUrl && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', wordBreak: 'break-all' }}>
+                  模型地址: {detailAsset.assetUrl}
+                </Typography>
+              )}
             </DialogContent>
             <DialogActions>
-              <Button size="small" onClick={() => setConfirmDelete(detailAsset)} color="error" startIcon={<DeleteOutlineRoundedIcon />}>删除</Button>
+              {!detailAsset.active && detailAsset.status === 'ready' && (
+                <Button
+                  size="small"
+                  variant="contained"
+                  onClick={() => activateMutation.mutate(detailAsset.id)}
+                  disabled={activateMutation.isPending}
+                >
+                  设为当前形象
+                </Button>
+              )}
+              <Button size="small" color="error" onClick={() => setConfirmDelete(detailAsset)} startIcon={<DeleteOutlineRoundedIcon />}>
+                删除
+              </Button>
               <Button size="small" onClick={() => setDetailAsset(null)}>关闭</Button>
             </DialogActions>
           </>
@@ -470,16 +562,64 @@ export default function SystemDigitalHumanPage() {
       <Dialog open={!!confirmDelete} onClose={() => setConfirmDelete(null)}>
         <DialogTitle>确认删除</DialogTitle>
         <DialogContent>
-          <Typography>确定要删除数字人 「{confirmDelete?.name}」 吗?此操作不可撤销。</Typography>
+          <Typography>确定要删除数字人 「{confirmDelete?.name}」 吗？此操作不可撤销。</Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setConfirmDelete(null)}>取消</Button>
-          <Button color="error" onClick={() => { setSnack(`已删除 ${confirmDelete?.name}`); setConfirmDelete(null); setDetailAsset(null); }}>确认删除</Button>
+          <Button
+            color="error"
+            onClick={() => deleteMutation.mutate(confirmDelete!.id)}
+            disabled={deleteMutation.isPending}
+          >
+            确认删除
+          </Button>
         </DialogActions>
       </Dialog>
 
+      {/* ── 任务日志 ── */}
+      <Dialog open={!!showJobLogs} onClose={() => setShowJobLogs(null)} maxWidth="md" fullWidth>
+        {showJobLogs && (
+          <>
+            <DialogTitle>
+              任务日志: {showJobLogs.name}
+            </DialogTitle>
+            <DialogContent>
+              <Box
+                component="pre"
+                sx={{
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  bgcolor: 'grey.900',
+                  color: 'grey.100',
+                  p: 2,
+                  borderRadius: 1,
+                  maxHeight: 400,
+                  overflow: 'auto',
+                  whiteSpace: 'pre-wrap',
+                  wordBreak: 'break-all',
+                }}
+              >
+                {showJobLogs.logs?.join('\n') || '暂无日志'}
+              </Box>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setShowJobLogs(null)}>关闭</Button>
+            </DialogActions>
+          </>
+        )}
+      </Dialog>
+
       {/* Snackbar */}
-      <Snackbar open={!!snack} autoHideDuration={3000} onClose={() => setSnack('')} message={snack} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} />
+      <Snackbar
+        open={!!snack}
+        autoHideDuration={3000}
+        onClose={() => setSnack(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity={snack?.severity || 'info'} onClose={() => setSnack(null)} sx={{ width: '100%' }}>
+          {snack?.msg}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }

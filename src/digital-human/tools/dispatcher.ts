@@ -132,6 +132,20 @@ export function dispatchToolCall(call: ToolCall, sinks: DigitalHumanSinks): Disp
 
       case 'body.move': {
         const target = call.params?.target || { x: 0 };
+        // 校验 target 参数
+        if (typeof target === 'string') {
+          const validTargets = ['left', 'right', 'center', 'forward', 'back'];
+          if (!validTargets.includes(target)) {
+            return { ok: false, toolName: 'body.move', error: `invalid target string: "${target}". Must be one of: ${validTargets.join(', ')}` };
+          }
+        } else if (typeof target === 'object') {
+          if (typeof target.x !== 'number' || isNaN(target.x)) {
+            return { ok: false, toolName: 'body.move', error: 'target.x must be a number' };
+          }
+          if (target.z !== undefined && (typeof target.z !== 'number' || isNaN(target.z))) {
+            return { ok: false, toolName: 'body.move', error: 'target.z must be a number' };
+          }
+        }
         const durationMs = call.params?.durationMs ?? 1500;
         const style = call.params?.style ?? 'walk';
         sinks.move(target, { durationMs, style });

@@ -37,6 +37,52 @@ import { EXPRESSION_PRESET_LABELS } from '@/digital-human/tools/expressions';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+// 音频缓存清理：保留最近 24 小时内访问的文件，最多保留 500 个
+const CACHE_MAX_FILES = 500;
+const CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24 小时
+
+async function cleanupAudioCache(): Promise<void> {
+  const audioDir = path.join(process.cwd(), 'public', 'avatars', 'audio-cache');
+  try {
+    const files = await fs.readdir(audioDir);
+    const now = Date.now();
+    const fileInfos: { name: string; atime: number; size: number }[] = [];
+
+    for (const file of files) {
+      const filePath = path.join(audioDir, file);
+      try {
+        const stat = await fs.stat(filePath);
+        fileInfos.push({ name: file, atime: stat.atimeMs, size: stat.size });
+      } catch {
+        // 文件可能被其他进程删除了，跳过
+      }
+    }
+
+    // 按访问时间排序（旧的文件优先删除）
+    fileInfos.sort((a, b) => a.atime - b.atime);
+
+    // 删除超过最大数量限制或超过 24 小时的
+    let deletedCount = 0;
+    for (const fi of fileInfos) {
+      if (fileInfos.length - deletedCount <= CACHE_MAX_FILES && (now - fi.atime) < CACHE_MAX_AGE_MS) {
+        break;
+      }
+      try {
+        await fs.unlink(path.join(audioDir, fi.name));
+        deletedCount++;
+      } catch {
+        // 忽略删除失败
+      }
+    }
+
+    if (deletedCount > 0) {
+      console.log(`[audio-cache] cleaned ${deletedCount} files`);
+    }
+  } catch (e) {
+    // 缓存目录可能不存在，静默跳过
+  }
+}
+
 const OLLAMA_URL = process.env.NEXT_PUBLIC_OLLAMA_URL || 'http://localhost:11434';
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || '';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
@@ -216,7 +262,6 @@ async function tts(text: string, voice = 'zh-CN-XiaoxiaoNeural'): Promise<Buffer
     headers: {
       'Content-Type': 'application/ssml+xml',
       'X-Microsoft-OutputFormat': 'audio-24khz-48kbitrate-mono-mp3',
-      'Ocp-Apim-Subscription-Key': '',
     },
     body: ssml,
     signal: AbortSignal.timeout(15000),
@@ -255,6 +300,9 @@ function generateVisemeTimeline(text: string, charMs = 150): Array<{ t: number; 
 
 export async function POST(req: NextRequest) {
   try {
+    // 清理过期音频缓存（每次请求时检查）
+    cleanupAudioCache().catch(() => {});
+
     const body = await req.json();
     const text: string = (body.text || '').trim();
     const history: Array<{ role: string; content: string }> = body.history || [];

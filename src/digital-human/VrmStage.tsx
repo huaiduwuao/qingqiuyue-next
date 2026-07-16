@@ -57,7 +57,9 @@ export interface VrmStageHandle {
   setDancing: (on: boolean) => void;
   setPose: (name: PoseName) => void;
   /** 触发口型时间线（TTS+viseme） */
-  speak: (text: string, audioUrl?: string) => void;
+  speak: (text: string, audioUrl?: string, visemes?: { t: number; shape: string; weight: number }[]) => void;
+  /** 设置口型时间线数据（由 chat hook 调用） */
+  setVisemeTimeline: (timeline: { t: number; shape: string; weight: number }[]) => void;
   /** 切换"是否被手动 UI 覆盖"（表情/口型/眨眼滑杆时） */
   setUserLipOverride: (on: boolean) => void;
   setUserBlinkOverride: (on: boolean) => void;
@@ -270,6 +272,11 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   const blinkTRef = useRef(1.5);
   const blinkVRef = useRef(0);
 
+  // 口型时间线状态（speak 方法设置，tick 循环消费）
+  const visemeTimelineRef = useRef<{ t: number; shape: string; weight: number }[]>([]);
+  const visemeStartTimeRef = useRef<number>(0);
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
+
   // 0. 共享 audio handle（dance 需要它来同步 BPM）
   const audioRef = useRef<AudioHandle | null>(null);
   if (!audioRef.current) audioRef.current = createAudioHandle();
@@ -419,6 +426,50 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         const visemeTarget: Record<string, number> = {};
         for (const [k, v] of Object.entries(viseme)) {
           if (EXPRESSION_PASSTHROUGH.has(k)) visemeTarget[k] = v;
+        }
+        // 口型时间线处理（覆盖静态 viseme）
+        const timeline = visemeTimelineRef.current;
+        if (timeline.length > 0 && !userLipOverrideRef.current) {
+          const elapsedSec = (performance.now() - visemeStartTimeRef.current) / 1000;
+          // 找到当前时间对应的 viseme 帧
+          let currentFrame = timeline[timeline.length - 1];
+          for (const frame of timeline) {
+            if (frame.t <= elapsedSec) {
+              currentFrame = frame;
+            } else {
+              break;
+            }
+          }
+          // 将 viseme 帧应用到 lerp target
+          if (currentFrame) {
+            const shape = currentFrame.shape;
+            const weight = currentFrame.weight;
+            // 映射到对应的 VRM blendshape
+            const vrmVersion = vrmVersionRef.current;
+            if (vrmVersion === 0) {
+              // VRM 0.0: 使用 viseme_ 前缀
+              visemeTarget[`viseme_${shape.toLowerCase()}`] = weight;
+            } else {
+              // VRM 1.0: 直接用形状名
+              // 常见的 viseme 映射
+              const visemeMap: Record<string, string[]> = {
+                'aa': ['aa', 'jawOpen'],
+                'ih': ['ih', 'mouthFunnel'],
+                'ou': ['ou', 'mouthPucker'],
+                'oh': ['oh'],
+                'ee': ['ih'],
+                'O': ['oh', 'jawOpen'],
+                'U': ['ou', 'mouthPucker'],
+                'closed': ['jawOpen'],
+              };
+              const shapes = visemeMap[shape.toLowerCase()] || [shape];
+              for (const s of shapes) {
+                if (EXPRESSION_PASSTHROUGH.has(s)) {
+                  visemeTarget[s] = weight;
+                }
+              }
+            }
+          }
         }
         if (Object.keys(visemeTarget).length > 0) {
           visemeLerp.setTarget(visemeTarget);
@@ -600,7 +651,38 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       setBpm: (v) => { devLog.debug('[VrmStage.setBpm]', v); animApiRef.current?.setBpm(v); },
       setDancing: (on) => { devLog.debug('[VrmStage.setDancing]', on); animApiRef.current?.setDancing(on); },
       setPose: (name) => { devLog.debug('[VrmStage.setPose]', name); animApiRef.current?.setPose(name); },
-      speak: (text, audioUrl) => { devLog.debug('[VrmStage.speak]', text, audioUrl); },
+      speak: (text, audioUrl, visemes) => {
+        devLog.debug('[VrmStage.speak]', text, audioUrl, visemes?.length ? `${visemes.length} frames` : '');
+        // 设置口型时间线
+        if (visemes && visemes.length > 0) {
+          visemeTimelineRef.current = visemes;
+          visemeStartTimeRef.current = performance.now();
+        }
+        // 播放音频
+        if (audioUrl) {
+          // 确保 audio element 存在
+          if (!audioElRef.current) {
+            audioElRef.current = document.createElement('audio');
+            audioElRef.current.crossOrigin = 'anonymous';
+          }
+          const el = audioElRef.current;
+          // 连接 audio element 到 WebAudio 分析器（用于口型同步）
+          lipApiRef.current?.connectElement(el);
+          el.onended = () => {
+            // 播放结束后清空口型
+            visemeTimelineRef.current = [];
+          };
+          el.src = audioUrl;
+          el.play().catch((e) => {
+            devLog.warn('[VrmStage.speak] audio play failed:', e);
+          });
+        }
+      },
+      setVisemeTimeline: (timeline) => {
+        devLog.debug('[VrmStage.setVisemeTimeline]', timeline.length, 'frames');
+        visemeTimelineRef.current = timeline;
+        visemeStartTimeRef.current = performance.now();
+      },
       setUserLipOverride: (on) => { devLog.debug('[VrmStage.setUserLipOverride]', on); userLipOverrideRef.current = on; },
       setUserBlinkOverride: (on) => { devLog.debug('[VrmStage.setUserBlinkOverride]', on); userBlinkOverrideRef.current = on; },
       setConfetti: (on) => {

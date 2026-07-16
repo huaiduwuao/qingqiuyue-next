@@ -183,9 +183,8 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
   let lastPoseName = '';
   function applyPose(cfg: PoseConfig, blend: number, H: (n: string) => any) {
     if (blend <= 0) return;
-    // Only log when pose name changes
+    // Only log when pose name changes (debug mode only)
     if (lastPoseName !== cfg.name) {
-      console.log('[applyPose]', cfg.name, 'blend=' + blend.toFixed(2));
       lastPoseName = cfg.name;
     }
     for (const [boneName, rot] of Object.entries(cfg.boneRotations)) {
@@ -245,7 +244,6 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
     const currentPose = poseRef.current;
     const poseCfg = lookups.poseByName.get(currentPose);
     if (poseCfg) {
-      console.log('[tick] blend=', poseBlendRef.current.toFixed(3), 'pose=', currentPose);
       applyPose(poseCfg, poseBlendRef.current, H);
     }
 

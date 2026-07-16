@@ -493,6 +493,9 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     connectWS();
     return () => {
       if (connRef.current) disconnect(connRef.current);
+      // 清理情绪/动作 timeout
+      if (emotionTimerRef.current) clearTimeout(emotionTimerRef.current);
+      if (actionTimerRef.current) clearTimeout(actionTimerRef.current);
     };
   }, [connectWS]);
 
@@ -658,17 +661,37 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
   }, [isAvatarPlaying]);
 
   // 情绪 + 动作驱动(LLM 驱动的外部接口)
+  // 使用 ref 跟踪 timeout ID，组件卸载时清理防止内存泄漏
+  const emotionTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const actionTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const setEmotionExternal = React.useCallback(
     (name: string) => {
+      // 清除之前的 timeout
+      if (emotionTimerRef.current) {
+        clearTimeout(emotionTimerRef.current);
+        emotionTimerRef.current = null;
+      }
       setEmotion(emotionToVRM(name));
-      setTimeout(() => setEmotion({}), 5000);
+      emotionTimerRef.current = setTimeout(() => {
+        setEmotion({});
+        emotionTimerRef.current = null;
+      }, 5000);
     },
     [emotionToVRM],
   );
 
   const setActionExternal = React.useCallback((name: string) => {
+    // 清除之前的 timeout
+    if (actionTimerRef.current) {
+      clearTimeout(actionTimerRef.current);
+      actionTimerRef.current = null;
+    }
     setAction(name);
-    setTimeout(() => setAction('idle'), 6000);
+    actionTimerRef.current = setTimeout(() => {
+      setAction('idle');
+      actionTimerRef.current = null;
+    }, 6000);
   }, []);
 
   // recording (简化: 通过 voice agent 直接走 WS asr)
