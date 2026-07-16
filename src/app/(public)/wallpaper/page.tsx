@@ -34,7 +34,7 @@ import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2 } from '@/constants/gradients';
 
 // 壁纸域占位:后端 `/api/core/wallpaper/*` 就绪后,以下数据/类型替换为 API 调用
-type WallpaperCategory = 'abstract' | 'anime' | 'scenery' | 'stars' | 'minimal' | 'cyber';
+type WallpaperCategory = 'all' | 'abstract' | 'anime' | 'scenery' | 'stars' | 'minimal' | 'cyber';
 type WallpaperSize = 'desktop' | 'tablet' | 'mobile' | 'all';
 interface Wallpaper {
   id: string;
@@ -155,9 +155,27 @@ function WallpaperPageContent() {
 
   const currentApplied = myWallpapers.find((m) => m.appliedTo === 'home');
   const currentWallpaper = useMemo(
-    () => wallpapers.find((w) => w.id === currentApplied?.id) ?? wallpapers[0],
+    () => wallpapers.find((w) => w.id === currentApplied?.id) ?? wallpapers[0] ?? null,
     [currentApplied, wallpapers],
   );
+
+  // 无数据时的默认展示
+  const defaultWallpaper: Wallpaper = useMemo(() => ({
+    id: 'default',
+    title: '青丘阅官方壁纸',
+    category: 'abstract' as WallpaperCategory,
+    tags: ['官方', '默认'],
+    source: 'gradient' as const,
+    bg: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)',
+    accent: '#8B5CF6',
+    author: '清秋月官方',
+    usage: 0,
+    sizeMb: 0,
+    desc: '暂无壁纸数据，请稍后再试',
+    sizes: ['all'] as WallpaperSize[],
+    official: true,
+    releaseTime: new Date().toISOString(),
+  }), []);
 
   const filtered = useMemo(() => {
     let list = activeCat === 'all' ? wallpapers : wallpapers.filter((w) => w.category === activeCat);
@@ -274,13 +292,6 @@ function WallpaperPageContent() {
     }
   };
 
-  if (!currentWallpaper) {
-    return (
-      <Box sx={{ minHeight: '100dvh', bgcolor: '#0a0a0f', color: 'rgba(255,255,255,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Typography sx={{ color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>暂无壁纸数据</Typography>
-      </Box>
-    );
-  }
 
   return (
     <Box
@@ -410,7 +421,7 @@ function WallpaperPageContent() {
                 maxWidth: 480,
               }}
             >
-              6 大主题、{WALLPAPERS.length} 款精选壁纸,覆盖桌面 / 平板 / 手机全尺寸,一键应用到主页或个人中心。
+              6 大主题、{wallpapers.length} 款精选壁纸,覆盖桌面 / 平板 / 手机全尺寸,一键应用到主页或个人中心。
             </Typography>
 
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
@@ -464,7 +475,7 @@ function WallpaperPageContent() {
                 aspectRatio: '16/10',
                 borderRadius: 2.5,
                 overflow: 'hidden',
-                background: currentWallpaper.bg,
+                background: (currentWallpaper ?? defaultWallpaper).bg,
                 boxShadow: '0 12px 32px rgba(0,0,0,0.4)',
                 mb: 2,
               }}
@@ -508,14 +519,14 @@ function WallpaperPageContent() {
               >
                 <Box>
                   <Typography sx={{ fontSize: 18, fontWeight: 700, color: '#fff', textShadow: '0 2px 8px rgba(0,0,0,0.4)' }}>
-                    {currentWallpaper.title}
+                    {(currentWallpaper ?? defaultWallpaper).title}
                   </Typography>
                   <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>
-                    {currentWallpaper.author}
+                    {(currentWallpaper ?? defaultWallpaper).author}
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', gap: 0.5 }}>
-                  {currentWallpaper.sizes.map((s) => {
+                  {(currentWallpaper ?? defaultWallpaper).sizes.map((s) => {
                     const { Icon } = SIZE_ICON[s];
                     return (
                       <Box
@@ -541,7 +552,7 @@ function WallpaperPageContent() {
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', flex: 1 }}>
-                {formatCount(currentWallpaper.usage)} 人正在使用 · {currentWallpaper.sizeMb.toFixed(1)} MB
+                {formatCount((currentWallpaper ?? defaultWallpaper).usage)} 人正在使用 · {(currentWallpaper ?? defaultWallpaper).sizeMb.toFixed(1)} MB
               </Typography>
               {currentApplied && (
                 <Typography sx={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>
@@ -573,7 +584,7 @@ function WallpaperPageContent() {
           >
             全部
             <Box component="span" sx={{ ml: 0.5, fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>
-              {WALLPAPERS.length}
+              {wallpapers.length}
             </Box>
           </Box>
           {WALLPAPER_CATEGORIES.map((c) => (
@@ -601,7 +612,7 @@ function WallpaperPageContent() {
               <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: c.accent, boxShadow: `0 0 6px ${c.accent}99` }} />
               {c.label}
               <Box component="span" sx={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>
-                {WALLPAPERS.filter((w) => w.category === c.key).length}
+                {wallpapers.filter((w) => w.category === c.key).length}
               </Box>
             </Box>
           ))}
@@ -668,7 +679,7 @@ function WallpaperPageContent() {
               }}
             >
               {myWallpapers.map((m) => {
-                const wp = WALLPAPERS.find((w) => w.id === m.id);
+                const wp = wallpapers.find((w) => w.id === m.id);
                 if (!wp) return null;
                 return (
                   <MyWallpaperCard
@@ -788,6 +799,29 @@ function WallpaperPageContent() {
           {toast.msg}
         </Alert>
       </Snackbar>
+
+      {/* Loading 遮罩 */}
+      {loading && (
+        <Box
+          sx={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 2,
+            bgcolor: 'rgba(10, 10, 15, 0.9)',
+            backdropFilter: 'blur(8px)',
+          }}
+        >
+          <CircularProgress size={40} sx={{ color: '#8B5CF6' }} />
+          <Typography sx={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>
+            加载壁纸库...
+          </Typography>
+        </Box>
+      )}
     </Box>
   );
 }
