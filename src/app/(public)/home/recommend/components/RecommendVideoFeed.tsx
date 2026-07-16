@@ -157,8 +157,11 @@ export function RecommendVideoFeed() {
   // 合并数据到 allItems
   useEffect(() => {
     // 使用 loadedPageRef 追踪当前请求的页码
-    if (!feed || page !== loadedPageRef.current) return;
-    loadedPageRef.current = 0; // 重置
+    if (!feed) return;
+    // 检查是否是对应页码的数据（loadedPageRef=0 表示没有待处理页码，直接跳过）
+    if (loadedPageRef.current > 0 && loadedPageRef.current !== page) return;
+    // 匹配成功后，设为0表示当前没有待处理的页码
+    loadedPageRef.current = 0;
 
     setAllItems(prev => {
       if (page === 1) {
