@@ -29,7 +29,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import { darkTheme } from '@/styles/theme';
 import { useApp } from '@/contexts/AppContext';
 import { updateUser } from '@/apis/account';
-import { contentClient, accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
+import { adminClient, accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
 import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2 } from '@/constants/gradients';
 
@@ -106,7 +106,7 @@ function WallpaperPageContent() {
       try {
         let payload: { categories?: any[]; items?: any[] };
         try {
-          const apiRes = await contentClient.get<{ categories: any[]; items: any[] }>('/wallpaper/list');
+          const apiRes = await adminClient.get<{ categories: any[]; items: any[] }>('/wallpaper/list');
           payload = apiRes.data ?? (apiRes as any);
         } catch (err) {
           // 网络层失败 → 保持空数组 + 提示
