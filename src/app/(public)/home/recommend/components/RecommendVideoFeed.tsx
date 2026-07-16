@@ -115,10 +115,8 @@ export function RecommendVideoFeed() {
   const [allItems, setAllItems] = useState<VideoItem[]>([]);
   const [hasMore, setHasMore] = useState(true);
 
-  // 追踪已处理的页码
-  const processedPageRef = useRef(0);
-  // 追踪正在等待的页码，初始为1以便第一页能合并
-  const waitingPageRef = useRef(1);
+  // 追踪正在请求的页码（使用 ref 避免 React 状态延迟问题）
+  const requestingPageRef = useRef(0);
   // 锁：是否正在等待下一页数据
   const loadingLockRef = useRef(false);
   const { data: feed, isLoading, isFetching } = useQuery({
@@ -157,30 +155,33 @@ export function RecommendVideoFeed() {
 
   // 合并数据到 allItems（使用 isFetching 来判断是否真正收到新数据）
   useEffect(() => {
+    console.log('[DEBUG] merge effect:', { isFetching, page, requestingPageRef: requestingPageRef.current, feedItems: feed?.items?.length, hasMore: feed?.hasMore });
     // 当 isFetching 变为 false 时，说明请求完成
     if (isFetching) return;
     if (!feed) return;
-    // 检查页码匹配
-    if (waitingPageRef.current > 0 && waitingPageRef.current !== page) return;
+    // 检查页码匹配：确保合并的是当前请求的页
+    if (requestingPageRef.current > 0 && requestingPageRef.current !== page) {
+      console.log('[DEBUG] 页码不匹配，拒绝合并:', { waiting: requestingPageRef.current, current: page });
+      return;
+    }
 
+    console.log('[DEBUG] 开始合并数据, page:', page, 'items:', feed.items.length);
     setAllItems(prev => {
       if (page === 1) {
+        console.log('[DEBUG] 第一页，替换数据');
         return feed.items;
       }
       // 去重追加
       const existingIds = new Set(prev.map(v => v.idString || String(v.id)));
       const newItems = feed.items.filter(v => !existingIds.has(v.idString || String(v.id)));
+      console.log('[DEBUG] 追加模式，prev:', prev.length, 'newItems:', newItems.length);
       return [...prev, ...newItems];
     });
     setHasMore(feed.hasMore);
 
-    // 检查是否还在倒数第3条位置，如果在则不释放锁，继续等待
-    const remaining = allItemsRef.current.length - indexRef.current;
-    if (remaining > 3 || remaining <= 0) {
-      // 不在倒数第3条，释放锁
-      waitingPageRef.current = 0;
-      loadingLockRef.current = false;
-    }
+    // 释放锁：只有在数据成功合并后才释放
+    requestingPageRef.current = 0;
+    loadingLockRef.current = false;
   }, [isFetching, feed, page]);
 
   // 追踪已加载的页码
@@ -197,27 +198,21 @@ export function RecommendVideoFeed() {
   allItemsRef.current = allItems;
   const video = uniqueVideos[index];
 
-  // 释放锁：当滑出倒数第3条位置时
+  // 滑动时预加载下一页：只在刚好滑到倒数第三条时触发
   useEffect(() => {
     const remaining = allItemsRef.current.length - indexRef.current;
-    if (!loadingLockRef.current) return;
-    if (remaining > 3 || remaining <= 0) {
-      waitingPageRef.current = 0;
-      loadingLockRef.current = false;
-    }
-  }, [index]);
-
-  // 滑动时预加载下一页
-  useEffect(() => {
+    console.log('[DEBUG] preload effect:', { index: indexRef.current, allItems: allItemsRef.current.length, remaining, hasMore, locked: loadingLockRef.current });
     // 有锁时不触发
     if (loadingLockRef.current) return;
-    const remaining = allItemsRef.current.length - indexRef.current;
-    if (remaining <= 3 && remaining > 0 && hasMore) {
+    // 只在刚好倒数第3条时请求（remaining === 3）
+    if (remaining === 3 && hasMore) {
+      console.log('[DEBUG] 触发预加载下一页，current page:', page);
       loadingLockRef.current = true;
-      waitingPageRef.current = page + 1;
-      setPage(p => p + 1);
+      const nextPage = page + 1;
+      requestingPageRef.current = nextPage;
+      setPage(nextPage);
     }
-  }, [index]); // 只监听 index 变化
+  }, [index, page, hasMore]);
 
   const lockNav = useCallback((ms = 380) => {
     navLock.current = true;
