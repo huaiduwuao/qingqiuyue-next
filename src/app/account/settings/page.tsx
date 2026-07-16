@@ -477,9 +477,11 @@ function WechatDialog({
   // 获取授权 URL
   const fetchAuthUrl = async () => {
     try {
-      const res = await accountClient.get<{ data?: { authUrl?: string } }>('/oauth/bind/wechat');
-      if (res?.data?.authUrl) {
-        setAuthUrl(res.data.authUrl);
+      const res = await accountClient.get<{ authUrl: string }>('/oauth/bind/wechat');
+      // accountClient 拦截器返回 { code, msg, data }，实际数据在 res.data?.data 中
+      const authUrl = (res as any)?.data?.data?.authUrl;
+      if (authUrl) {
+        setAuthUrl(authUrl);
         return true;
       }
       return false;

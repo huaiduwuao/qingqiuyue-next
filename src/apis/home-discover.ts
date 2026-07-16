@@ -18,9 +18,9 @@ export async function fetchHot(params: { type?: string; size?: number; genre?: s
   return contentClient('/home/hot', { params });
 }
 
-// GET /api/content/home/recommend?types=&size=&genre=&page=   多类型混合推荐(可选 genre 子分类)
+// GET /api/content/recommend/feed?types=&size=&genre=&page=   多类型混合推荐(可选 genre 子分类)
 export async function fetchRecommend(params: { types?: string; size?: number; genre?: string; page?: number } = {}) {
-  return contentClient('/home/recommend', { params });
+  return contentClient('/recommend/feed', { params });
 }
 
 // GET /api/content/home/detail?id=   单条详情 catch-all(供详情页)

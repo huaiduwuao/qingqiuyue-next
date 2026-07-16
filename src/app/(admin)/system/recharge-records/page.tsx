@@ -24,7 +24,6 @@ import InputLabel from '@mui/material/InputLabel';
 import Pagination from '@mui/material/Pagination';
 import Alert from '@mui/material/Alert';
 import TextField from '@mui/material/TextField';
-import Stack from '@mui/material/Stack';
 import { getRechargeRecords, formatMoney, statusLabels, channelLabels, type RechargeRecord } from '@/apis/admin-recharge';
 
 // 状态 Chip 组件
@@ -119,7 +118,7 @@ export default function RechargeRecordsPage() {
 
       {/* 筛选栏 */}
       <Paper sx={{ p: 2 }}>
-        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="flex-start">
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
           <FormControl size="small" sx={{ minWidth: 120 }}>
             <InputLabel>状态</InputLabel>
             <Select
@@ -164,7 +163,6 @@ export default function RechargeRecordsPage() {
             value={startDateFilter}
             onChange={(e) => { setStartDateFilter(e.target.value); }}
             onBlur={handleFilterChange}
-            InputLabelProps={{ shrink: true }}
             sx={{ minWidth: 150 }}
           />
 
@@ -175,7 +173,6 @@ export default function RechargeRecordsPage() {
             value={endDateFilter}
             onChange={(e) => { setEndDateFilter(e.target.value); }}
             onBlur={handleFilterChange}
-            InputLabelProps={{ shrink: true }}
             sx={{ minWidth: 150 }}
           />
 
@@ -193,7 +190,7 @@ export default function RechargeRecordsPage() {
               />
             )}
           </Box>
-        </Stack>
+        </Box>
       </Paper>
 
       {error && <Alert severity="error">加载失败</Alert>}

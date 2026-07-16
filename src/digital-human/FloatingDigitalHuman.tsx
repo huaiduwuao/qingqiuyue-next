@@ -58,14 +58,17 @@ export default function FloatingDigitalHuman() {
   const hidden = HIDE_ON.some((p) => pathname.startsWith(p));
 
   const wrapRef = React.useRef<HTMLDivElement>(null);
-  const dragRef = React.useRef({ active: false, sx: 0, sy: 0, ox: 0, oy: 0 });
+  const dragRef = React.useRef({ active: false, sx: 0, sy: 0, ox: 0, oy: 0, clickX: 0, clickY: 0 });
   // 位置: 用 left/top + transform: translate() 做 GPU 加速动画
   // 数字人"在页面上走": 走的过程 transform 平滑过渡
   const [pos, setPos] = React.useState<{ left: number; top: number }>(() =>
     typeof window !== 'undefined'
-      ? { left: Math.max(0, window.innerWidth - 320 - 24), top: Math.max(0, window.innerHeight - 520 - 24) }
+      ? { left: Math.max(0, window.innerWidth - 40 - 24), top: Math.max(0, window.innerHeight - 40 - 24) }
       : { left: 0, top: 0 }
   );
+  // 用 ref 存储位置，避免 onDown 依赖 pos 导致每次拖动后重新创建
+  const posRef = React.useRef(pos);
+  React.useEffect(() => { posRef.current = pos; }, [pos]);
   // 默认收起(只显示小图标)— 之前默认展开常驻占屏,新版默认折叠
   // 用户主动点图标才展开大窗口。折叠状态大小见下方 IconButton。
   const [open, setOpen] = React.useState(false);
@@ -75,6 +78,17 @@ export default function FloatingDigitalHuman() {
   React.useEffect(() => {
     setOpen(false);
   }, []);
+  // 展开时确保位置在可视范围内(收起时是 40x40,展开后是 320x520)
+  React.useEffect(() => {
+    if (open) {
+      const maxLeft = Math.max(0, window.innerWidth - 320 - 24);
+      const maxTop = Math.max(0, window.innerHeight - 520 - 24);
+      setPos(prev => ({
+        left: Math.min(prev.left, maxLeft),
+        top: Math.min(prev.top, maxTop),
+      }));
+    }
+  }, [open]);
   const [autoRotate, setAutoRotate] = React.useState(false);  // 默认不自动转圈, 数字人有自己的 idle 动画
 
   const app = useApp();
@@ -330,23 +344,50 @@ export default function FloatingDigitalHuman() {
       active: true,
       sx: e.clientX,
       sy: e.clientY,
-      ox: pos.left,
-      oy: pos.top,
+      ox: posRef.current.left,
+      oy: posRef.current.top,
+      clickX: e.clientX,
+      clickY: e.clientY,
     };
-    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
     setAutoRotate(false);
-  }, [pos.left, pos.top]);
-  const onMove = React.useCallback((e: React.PointerEvent) => {
-    const d = dragRef.current;
-    if (!d.active) return;
-    setPos({
-      left: Math.max(0, d.ox + (e.clientX - d.sx)),
-      top: Math.max(0, d.oy + (e.clientY - d.sy)),
-    });
   }, []);
-  const onUp = React.useCallback(() => {
-    dragRef.current.active = false;
-  }, []);
+
+  // 统一用 window 事件处理拖动（避免 Canvas 拦截 pointermove/pointerup）
+  React.useEffect(() => {
+    const handleMove = (e: PointerEvent) => {
+      const d = dragRef.current;
+      if (!d.active) return;
+      const fw = open ? 320 : 40;
+      const fh = open ? 520 : 40;
+      const maxLeft = Math.max(0, window.innerWidth - fw);
+      const maxTop = Math.max(0, window.innerHeight - fh);
+      setPos({
+        left: Math.max(0, Math.min(maxLeft, d.ox + (e.clientX - d.sx))),
+        top: Math.max(0, Math.min(maxTop, d.oy + (e.clientY - d.sy))),
+      });
+    };
+    const handleUp = (e: PointerEvent) => {
+      const d = dragRef.current;
+      if (!d.active) return;
+      dragRef.current.active = false;
+      // 检查移动距离，小于5px认为是点击
+      const dx = e.clientX - d.clickX;
+      const dy = e.clientY - d.clickY;
+      if (Math.sqrt(dx * dx + dy * dy) < 5) {
+        // 这是点击事件，触发自定义 click
+        const target = e.target as HTMLElement;
+        target?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      }
+    };
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+    window.addEventListener('pointercancel', handleUp);
+    return () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+      window.removeEventListener('pointercancel', handleUp);
+    };
+  }, [open]);
 
   // 数字人"走路": 平滑移动到目标坐标
   // duration 默认 1500ms(像正常步速走 200-400px)
@@ -420,10 +461,13 @@ export default function FloatingDigitalHuman() {
       <Box
         sx={{
           position: 'fixed',
-          right: 24,
-          bottom: 24,
+          left: pos.left,
+          top: pos.top,
           zIndex: 1500,
+          width: 40,
+          height: 40,
         }}
+        onPointerDown={onDown}
       >
         <IconButton
           aria-label="展开数字人"
@@ -437,6 +481,7 @@ export default function FloatingDigitalHuman() {
             boxShadow: (t) => `0 4px 12px ${alpha(t.palette.primary.main, 0.4)}`,
             '&:hover': { bgcolor: (t) => t.palette.primary.main },
             transition: 'all 0.2s',
+            cursor: 'grab',
           }}
         >
           <PersonRoundedIcon sx={{ fontSize: 22 }} />
@@ -467,9 +512,6 @@ export default function FloatingDigitalHuman() {
         flexDirection: 'column',
       }}
       onPointerDown={onDown}
-      onPointerMove={onMove}
-      onPointerUp={onUp}
-      onPointerCancel={onUp}
     >
       {/* 数字人本体 */}
       <Box sx={{
