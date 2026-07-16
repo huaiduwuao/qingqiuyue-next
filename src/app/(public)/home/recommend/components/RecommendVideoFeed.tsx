@@ -114,6 +114,8 @@ export function RecommendVideoFeed() {
   const [page, setPage] = useState(1);
   const [allItems, setAllItems] = useState<VideoItem[]>([]);
   const [hasMore, setHasMore] = useState(true);
+  // 追踪正在加载的页码，避免重复触发
+  const loadingPageRef = useRef(0);
 
   const { data: feed, isLoading, isFetching } = useQuery({
     queryKey: ['home-recommend', 'recommend-feed', page],
@@ -152,6 +154,9 @@ export function RecommendVideoFeed() {
   // 合并数据到 allItems
   useEffect(() => {
     if (!feed) return;
+    // 确保只有对应页码的数据才合并
+    if (loadingPageRef.current > 0 && loadingPageRef.current !== page) return;
+    loadingPageRef.current = 0; // 重置
 
     setAllItems(prev => {
       if (prev.length === 0) {
@@ -163,7 +168,7 @@ export function RecommendVideoFeed() {
       return [...prev, ...newItems];
     });
     setHasMore(feed.hasMore);
-  }, [feed]);
+  }, [feed, page]);
 
   const uniqueVideos = allItems;
 
@@ -181,9 +186,11 @@ export function RecommendVideoFeed() {
     const remaining = allItems.length - index;
     // 只在滑动到倒数第3条且没有正在请求时触发
     if (remaining <= 3 && remaining > 0 && hasMore && !isFetching) {
+      // 标记正在加载下一页
+      loadingPageRef.current = page + 1;
       setPage(p => p + 1);
     }
-  }, [index]);
+  }, [index, page, hasMore, isFetching, allItems.length]);
 
   const lockNav = useCallback((ms = 380) => {
     navLock.current = true;
