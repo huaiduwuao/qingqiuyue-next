@@ -119,6 +119,8 @@ export function RecommendVideoFeed() {
   const processedPageRef = useRef(0);
   // 追踪已加载的页码，初始为1以便第一页能合并
   const loadedPageRef = useRef(1);
+  // 追踪是否正在等待下一页数据
+  const waitingForPageRef = useRef(false);
   // 追踪已加载的页码
   const { data: feed, isLoading, isFetching } = useQuery({
     queryKey: ['home-recommend', 'recommend-feed', page],
@@ -162,6 +164,8 @@ export function RecommendVideoFeed() {
     if (loadedPageRef.current > 0 && loadedPageRef.current !== page) return;
     // 匹配成功后，设为0表示当前没有待处理的页码
     loadedPageRef.current = 0;
+    // 数据合并完成，可以触发下一次预加载
+    waitingForPageRef.current = false;
 
     setAllItems(prev => {
       if (page === 1) {
@@ -191,7 +195,9 @@ export function RecommendVideoFeed() {
   useEffect(() => {
     const remaining = allItems.length - index;
     // 只在滑动到倒数第3条且没有正在请求时触发
-    if (remaining <= 3 && remaining > 0 && hasMore && !isFetching) {
+    // waitingForPageRef 防止在等待数据期间重复触发
+    if (remaining <= 3 && remaining > 0 && hasMore && !isFetching && !waitingForPageRef.current) {
+      waitingForPageRef.current = true;
       loadedPageRef.current = page + 1;
       setPage(p => p + 1);
     }
