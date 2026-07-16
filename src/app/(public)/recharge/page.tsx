@@ -174,6 +174,10 @@ function RechargePageContent() {
     endsAt: new Date(Date.now() + 30 * 86_400_000).toISOString(),
     rules: [],
   };
+  // 防御:确保 rules 始终是数组
+  if (!Array.isArray(DIAMOND_ACTIVITY.rules)) {
+    (DIAMOND_ACTIVITY as any).rules = [];
+  }
 
   // 选中默认值:首次加载完后默认选 recommend
   useEffect(() => {
