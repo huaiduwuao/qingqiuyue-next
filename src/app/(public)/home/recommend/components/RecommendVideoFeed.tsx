@@ -119,8 +119,6 @@ export function RecommendVideoFeed() {
   const processedPageRef = useRef(0);
   // 追踪已加载的页码，初始为1以便第一页能合并
   const loadedPageRef = useRef(1);
-  // 追踪是否正在等待下一页数据
-  const waitingForPageRef = useRef(false);
   // 追踪已加载的页码
   const { data: feed, isLoading, isFetching } = useQuery({
     queryKey: ['home-recommend', 'recommend-feed', page],
@@ -160,12 +158,10 @@ export function RecommendVideoFeed() {
   useEffect(() => {
     // 使用 loadedPageRef 追踪当前请求的页码
     if (!feed) return;
-    // 检查是否是对应页码的数据（loadedPageRef=0 表示没有待处理页码，直接跳过）
+    // 检查是否是对应页码的数据（loadedPageRef=0 表示没有待处理页码，直接合并）
     if (loadedPageRef.current > 0 && loadedPageRef.current !== page) return;
     // 匹配成功后，设为0表示当前没有待处理的页码
     loadedPageRef.current = 0;
-    // 数据合并完成，可以触发下一次预加载
-    waitingForPageRef.current = false;
 
     setAllItems(prev => {
       if (page === 1) {
@@ -188,20 +184,20 @@ export function RecommendVideoFeed() {
   const navLock = useRef(false);
   const unlockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const indexRef = useRef(0);
+  const allItemsRef = useRef<VideoItem[]>([]);
   indexRef.current = index;
+  allItemsRef.current = allItems;
   const video = uniqueVideos[index];
 
   // 滑动时预加载下一页
   useEffect(() => {
-    const remaining = allItems.length - index;
-    // 只在滑动到倒数第3条且没有正在请求时触发
-    // waitingForPageRef 防止在等待数据期间重复触发
-    if (remaining <= 3 && remaining > 0 && hasMore && !isFetching && !waitingForPageRef.current) {
-      waitingForPageRef.current = true;
+    const remaining = allItemsRef.current.length - indexRef.current;
+    // 只在倒数第3条、没有待处理页码、有更多数据、且没有正在请求时触发
+    if (remaining <= 3 && remaining > 0 && hasMore && !isFetching && loadedPageRef.current === 0) {
       loadedPageRef.current = page + 1;
       setPage(p => p + 1);
     }
-  }, [index]); // 只监听 index 变化，不监听 isFetching
+  }, [index]); // 只监听 index 变化
 
   const lockNav = useCallback((ms = 380) => {
     navLock.current = true;
