@@ -23,6 +23,7 @@ import TravelExploreIcon from '@mui/icons-material/TravelExplore';
 import EmojiEventsRoundedIcon from '@mui/icons-material/EmojiEventsRounded';
 import RateReviewRoundedIcon from '@mui/icons-material/RateReviewRounded';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
+import VideoLibraryIcon from '@mui/icons-material/VideoLibrary';
 import { useAuthority } from '@/contexts/AuthContext';
 
 interface MenuItem {
@@ -58,6 +59,7 @@ export const MENU_GROUPS: MenuGroup[] = [
     items: [
       { id: 'hd-publish', label: '发布', icon: <PublishRoundedIcon />, route: 'hd-publish' },
       { id: 'hd-review', label: '审核员工作台', icon: <RateReviewRoundedIcon />, route: 'hd-review', requireAuthority: ['REVIEWER', 'ADMIN', 'SUPER_ADMIN'] },
+      { id: 'shortdrama-gen', label: '短剧生成工作流', icon: <VideoLibraryIcon />, route: 'shortdrama-gen', badge: 'NEW' },
       { id: 'activity', label: '活动管理', icon: <EventIcon />, route: 'activity' },
       { id: 'co-create', label: '共创中心', icon: <GroupsIcon />, route: 'co-create' },
       { id: 'collection', label: '合集管理', icon: <CollectionsIcon />, route: 'collection' },

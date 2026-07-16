@@ -20,6 +20,7 @@ const OriginalView = dynamic(() => import('./_views/original/page'), { ssr: fals
 const DataView = dynamic(() => import('./_views/data/page'), { ssr: false });
 const CreatorView = dynamic(() => import('./_views/creator/page'), { ssr: false });
 const MonetizeView = dynamic(() => import('./_views/monetize/page'), { ssr: false });
+const ShortdramaGenView = dynamic(() => import('./_views/shortdrama-gen/page'), { ssr: false });
 
 /**
  * Single entry point for the creator workspace. Sub-pages used to live at
@@ -78,6 +79,8 @@ export default function CreatorContentPage() {
         return <CreatorView />;
       case 'monetize':
         return <MonetizeView />;
+      case 'shortdrama-gen':
+        return <ShortdramaGenView />;
       case 'content':
       default:
         return <DashboardView />;
