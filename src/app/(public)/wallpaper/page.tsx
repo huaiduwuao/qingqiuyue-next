@@ -141,8 +141,7 @@ function WallpaperPageContent() {
           } else {
             setToast({ open: true, msg: formatApiError(err) || '加载壁纸失败' });
           }
-          setCategories([]);
-          setWallpapers([]);
+          // 保留默认分类
         }
       } finally {
         if (!cancelled) setLoading(false);
