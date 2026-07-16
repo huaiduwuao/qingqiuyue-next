@@ -111,28 +111,16 @@ function WallpaperPageContent() {
     let cancelled = false;
     const load = async () => {
       try {
-        let payload: { list?: any[]; items?: any[]; categories?: any[]; total?: number };
-        try {
-          const apiRes = await adminClient.get<typeof payload>('/wallpaper/list');
-          // 兼容两种响应格式：{ list } 或 { items }
-          const raw = apiRes.data ?? apiRes as any;
-          payload = {
-            items: raw.list ?? raw.items ?? [],
-            categories: raw.categories,
-            total: raw.total,
-          };
-        } catch (err) {
-          // 网络层失败 → 保持空数组 + 提示
-          if (isNetworkError(err)) {
-            if (!cancelled) {
-              setCategories([]);
-              setWallpapers([]);
-              setToast({ open: true, msg: '网络异常,壁纸库暂不可用' });
-            }
-            return;
-          }
-          throw err;
-        }
+        const apiRes = await adminClient.get<{ list?: any[]; items?: any[]; categories?: any[]; total?: number }>('/wallpaper/list');
+        // axios interceptor 返回 { code, data } 包装，apiRes.data 包含 code + data
+        const raw = apiRes.data;
+        // 实际数据在 raw.data 里（interceptor 把后端 body 包了一层）
+        const payload = {
+          list: raw?.data?.list ?? raw?.list ?? [],
+          items: raw?.data?.items ?? raw?.items ?? [],
+          categories: raw?.data?.categories ?? raw?.categories ?? null,
+          total: raw?.data?.total ?? raw?.total ?? 0,
+        };
         if (cancelled) return;
         // 如果后端没有返回 categories，使用默认分类
         const cats = (payload.categories?.length ?? 0) > 0
@@ -143,7 +131,7 @@ function WallpaperPageContent() {
               accent: String(c.accent ?? '#8B5CF6'),
             }))
           : WALLPAPER_CATEGORIES;
-        const items = (payload.items ?? []) as Wallpaper[];
+        const items = (payload.list ?? payload.items ?? []) as Wallpaper[];
         setCategories(cats);
         setWallpapers(items);
       } catch (err) {
