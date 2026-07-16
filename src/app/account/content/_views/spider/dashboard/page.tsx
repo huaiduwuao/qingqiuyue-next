@@ -27,6 +27,7 @@ import {
   getProxyStats,
   getCrawlTimeseries,
   getRecentActivity,
+  getHourlyStats,
 } from '@/apis/spider';
 import type {
   CrawlTimeseriesPoint,
@@ -68,6 +69,8 @@ export default function SpiderDashboardPage() {
   const proxies = useQuery({ queryKey: ['spider', 'proxy-stats'], queryFn: () => getProxyStats().then((r) => r.data), ...common });
   const timeseries = useQuery({ queryKey: ['spider', 'timeseries'], queryFn: () => getCrawlTimeseries().then((r) => r.data), ...common });
   const activity = useQuery({ queryKey: ['spider', 'activity'], queryFn: () => getRecentActivity().then((r) => r.data), ...common });
+  // 小时调度状态
+  const hourly = useQuery({ queryKey: ['spider', 'hourly-stats'], queryFn: () => getHourlyStats().then((r) => r.data), ...common });
   // 单独的 top workers(不轮询)
   const topWorkers = useQuery({ queryKey: ['spider', 'top-workers'], queryFn: () => getWorkerStats().then(() => null) });
   // 拿原始 workers list 抽 top 5
@@ -170,8 +173,8 @@ export default function SpiderDashboardPage() {
         <TimeseriesChart hourly={timeseries.data?.hourly} loading={timeseries.isLoading} />
       </Paper>
 
-      {/* 4 列 mini section: Worker 池 / 站点槽位 / 批量任务 / 代理池 */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2, mb: 2 }}>
+      {/* 5 列 mini section: Worker 池 / 站点槽位 / 批量任务 / 代理池 / 小时调度 */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)', lg: 'repeat(5, 1fr)' }, gap: 2, mb: 2 }}>
         <Paper sx={{ p: 2 }}>
           <Typography variant="subtitle1" sx={{ mb: 1.5 }}>Worker 池</Typography>
           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1, mb: 1.5 }}>
@@ -297,6 +300,45 @@ export default function SpiderDashboardPage() {
               {proxies.data ? `${(proxies.data.successRate * 100).toFixed(1)}%` : '—'}
             </Typography>
           </Box>
+        </Paper>
+
+        {/* 小时调度状态 */}
+        <Paper sx={{ p: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+            <Typography variant="subtitle1">小时调度</Typography>
+            <Chip
+              label={hourly.data?.enabled ? '已启用' : '已禁用'}
+              size="small"
+              color={hourly.data?.enabled ? 'success' : 'default'}
+            />
+          </Box>
+          {hourly.data?.enabled ? (
+            <>
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1, mb: 1.5 }}>
+                {[
+                  { l: '间隔', v: `${(hourly.data.intervalSec / 60).toFixed(0)}分钟`, c: 'primary' },
+                  { l: '源数', v: hourly.data.sourceCount, c: 'info' },
+                  { l: '健康源', v: hourly.data.healthySources, c: 'success' },
+                  { l: '冷却中', v: hourly.data.skippedSources, c: 'warning' },
+                ].map((c) => (
+                  <Box key={c.l} sx={{ textAlign: 'center', px: 1, py: 0.5, borderRadius: 1, bgcolor: 'action.hover' }}>
+                    <Typography sx={{ fontSize: 18, fontWeight: 700 }} color={`${c.c}.main`}>{c.v}</Typography>
+                    <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>{c.l}</Typography>
+                  </Box>
+                ))}
+              </Box>
+              <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                上次: {hourly.data.lastTickUtc ? new Date(hourly.data.lastTickUtc).toLocaleString() : '从未'}
+              </Typography>
+              <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+                下次: {hourly.data.nextTickUtc ? new Date(hourly.data.nextTickUtc).toLocaleString() : '—'}
+              </Typography>
+            </>
+          ) : (
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+              小时调度已禁用，通过环境变量 HOURLY_REFRESH_DISABLED=1 控制
+            </Typography>
+          )}
         </Paper>
       </Box>
 

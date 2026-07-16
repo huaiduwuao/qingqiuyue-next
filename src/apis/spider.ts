@@ -14,6 +14,44 @@ import { spiderClient } from '@/lib/api/client';
 import type { PageParams, PageResult } from '@/beans/pagination';
 import { normalizeLegacyPageResponse } from '@/hooks/usePagination';
 
+// Hourly Stats API
+export interface HourlyStats {
+  lastTickUtc: string;
+  nextTickUtc: string;
+  intervalSec: number;
+  enabled: boolean;
+  sourceCount: number;
+  perSourceLimit: number;
+  concurrency: number;
+  categoryConcurrency: number;
+  cooldownErrors: number;
+  cooldownMinutes: number;
+  healthySources: number;
+  skippedSources: number;
+  sources?: Array<{
+    sourceId: number;
+    name: string;
+    category: string;
+    apiName: string;
+    lastRunAt: string;
+    lastSuccessAt: string;
+    lastErrorAt: string;
+    lastError: string;
+    consecErrors: number;
+    totalRuns: number;
+    totalNewItems: number;
+    skippedCooldown: boolean;
+  }>;
+}
+
+export async function getHourlyStats(): Promise<{ code: number; data: HourlyStats }> {
+  return spiderClient('/hourly/stats', { method: 'GET' });
+}
+
+export async function triggerHourlyRefresh(): Promise<any> {
+  return spiderClient('/hourly/refresh', { method: 'POST' });
+}
+
 // Batch Job APIs
 export async function createBatch(params: { name: string; domain: string; url: string; type: string }): Promise<any> {
   return spiderClient('/batch', { method: 'POST', data: params });
