@@ -192,7 +192,7 @@ export function RecommendVideoFeed() {
 
   // 滑动时预加载下一页
   useEffect(() => {
-    // 检查是否应该预加载：有锁时不触发
+    // 有锁时不触发
     if (loadingLockRef.current) return;
     const remaining = allItemsRef.current.length - indexRef.current;
     if (remaining <= 3 && remaining > 0 && hasMore) {
@@ -201,19 +201,6 @@ export function RecommendVideoFeed() {
       setPage(p => p + 1);
     }
   }, [index]); // 只监听 index 变化
-
-  // 数据合并后检查是否需要预加载
-  useEffect(() => {
-    // 检查是否应该预加载：有锁时不触发
-    if (loadingLockRef.current) return;
-    const remaining = allItemsRef.current.length - indexRef.current;
-    if (remaining <= 3 && remaining > 0 && hasMore) {
-      loadingLockRef.current = true;
-      waitingPageRef.current = page + 1;
-      setPage(p => p + 1);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allItems.length]); // 只在数据合并后检查
 
   const lockNav = useCallback((ms = 380) => {
     navLock.current = true;
