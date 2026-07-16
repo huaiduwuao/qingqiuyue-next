@@ -183,6 +183,16 @@ export function RecommendVideoFeed() {
     }
   }, [isFetching, feed, page]);
 
+  // 释放锁：当滑出倒数第3条位置时
+  useEffect(() => {
+    const remaining = allItemsRef.current.length - indexRef.current;
+    if (!loadingLockRef.current) return;
+    if (remaining > 3 || remaining <= 0) {
+      waitingPageRef.current = 0;
+      loadingLockRef.current = false;
+    }
+  }, [index]);
+
   // 追踪已加载的页码
   const uniqueVideos = allItems;
 
