@@ -168,16 +168,19 @@ function RechargePageContent() {
     title: b.title,
     desc: b.desc,
   }));
-  const DIAMOND_ACTIVITY: DiamondActivity = activityQ.data ?? {
-    title: '',
-    subtitle: '',
-    endsAt: new Date(Date.now() + 30 * 86_400_000).toISOString(),
-    rules: [],
-  };
-  // 防御:确保 rules 始终是数组
-  if (!Array.isArray(DIAMOND_ACTIVITY.rules)) {
-    (DIAMOND_ACTIVITY as any).rules = [];
-  }
+  // 防御:确保 activityQ.data 是有效对象
+  const rawActivity = activityQ.data;
+  const DIAMOND_ACTIVITY: DiamondActivity =
+    rawActivity && typeof rawActivity === 'object' && !Array.isArray(rawActivity)
+      ? rawActivity
+      : {
+          title: '',
+          subtitle: '',
+          endsAt: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+          rules: [],
+        };
+  // 确保 rules 始终是数组
+  const activityRules: string[] = Array.isArray(DIAMOND_ACTIVITY.rules) ? DIAMOND_ACTIVITY.rules : [];
 
   // 选中默认值:首次加载完后默认选 recommend
   useEffect(() => {
@@ -1119,7 +1122,7 @@ function RechargePageContent() {
             </Typography>
           </Box>
           <Box component="ul" sx={{ pl: 2.5, m: 0, color: 'rgba(255,255,255,0.5)', fontSize: 12, lineHeight: 1.8 }}>
-            {DIAMOND_ACTIVITY.rules.map((r, i) => (
+            {activityRules.map((r, i) => (
               <li key={i}>{r}</li>
             ))}
           </Box>
