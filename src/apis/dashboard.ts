@@ -5,7 +5,7 @@
  *
  * 注:axios 拦截器统一包成 {code, msg, data},这里每个 API 都通过 unwrap() 拆出真正的 data。
  */
-import { accountClient, adminClient } from '@/lib/api/client';
+import { accountClient, homeClient, adminClient } from '@/lib/api/client';
 import { DemandItem } from '@/beans/reward';
 import { gradient2 } from '@/constants/gradients';
 import { ACCENT } from '@/constants/accents';
@@ -650,22 +650,29 @@ export async function getAdminContentDistribution(): Promise<PageResult<AdminCon
 // ========== 首页推荐(关注 / 朋友) ==========
 
 export interface RecommendWork {
-  id: string;
+  id: number;
+  idString?: string;
   title: string;
   cover: string;
-  duration: number;
+  category: string;      // 原始小写 content_type
+  contentType: string;   // 归一化大写类型
   views: number;
   likes: number;
-  publishedAt: number;
+  comments?: number;
+  shares?: number;
+  name?: string;         // 作者名
+  authorId?: number;
+  authorAvatar?: string;
+  episodes?: number;     // 章节数
   status: string;
-  hashtags: string; // 逗号分隔
+  hashtags?: string;
 }
 export async function getHomeRecommendFollow(params?: PageParams): Promise<PageResult<RecommendWork>> {
-  const res = await unwrap<PageData<RecommendWork>>(await accountClient('/home/recommend/follow', { params }));
+  const res = await unwrap<PageData<RecommendWork>>(await homeClient('/follow/list', { params }));
   return normalizeLegacyPageResponse(res as any);
 }
 export async function getHomeRecommendFriend(params?: PageParams): Promise<PageResult<RecommendWork>> {
-  const res = await unwrap<PageData<RecommendWork>>(await accountClient('/home/recommend/friend', { params }));
+  const res = await unwrap<PageData<RecommendWork>>(await homeClient('/friend/list', { params }));
   return normalizeLegacyPageResponse(res as any);
 }
 

@@ -1,18 +1,9 @@
 /**
  * Home MSW handlers — Phase 3 改造:
- * 已接入真实后端的社交/me/侧边栏/AI 搜索/内容类面板端点走 passthrough,
- * 狼人杀暂无真实业务表,仍由 MSW 兜底。
- * /feed 在后端数据不完整时使用 mock 数据兜底。
+ * 所有接口走 passthrough 让后端接管。
  */
 
-import { http, HttpResponse, passthrough } from 'msw';
-import {
-  WEREWOLF_PLAYERS, WEREWOLF_VIDEO, WEREWOLF_FEED,
-  FEED,
-} from '../db/home';
-
-const ok = <T,>(data: T) => HttpResponse.json({ code: 200, msg: 'OK', data });
-const okList = <T,>(list: T[], total: number) => ok({ list, total });
+import { http, passthrough } from 'msw';
 
 export const homeHandlers = [
   // ─── 已接入真实后端:me / 社交 / 好友 ───
@@ -54,11 +45,4 @@ export const homeHandlers = [
   http.get('*/api/content/home/drama/episodes', () => passthrough()),
   http.get('*/api/content/home/drama/series', () => passthrough()),
   http.get('*/api/content/home/drama/top', () => passthrough()),
-
-  // 狼人杀(暂无真实业务表,仍 mock)
-  http.get('*/api/content/home/werewolf/video', () => ok(WEREWOLF_VIDEO)),
-  http.get('*/api/content/home/werewolf/feed', () => okList(WEREWOLF_FEED, WEREWOLF_FEED.length)),
-  http.get('*/api/content/home/werewolf/players', () => okList(WEREWOLF_PLAYERS, WEREWOLF_PLAYERS.length)),
-  http.post('*/api/content/home/werewolf/like', () => ok({ liked: true, likes: WEREWOLF_VIDEO.likes + 1 })),
-  http.post('*/api/content/home/werewolf/collect', () => ok({ collected: true, collects: WEREWOLF_VIDEO.collects + 1 })),
 ];

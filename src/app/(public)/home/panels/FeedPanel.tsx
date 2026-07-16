@@ -34,9 +34,8 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import { homeClient, formatApiError } from '@/lib/api/client';
 import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
-import { WerewolfPlayer } from './WerewolfPlayer';
-import SendToSpider from '@/components/SendToSpider';
 import { FriendPanel } from './FriendPanel';
+import SendToSpider from '@/components/SendToSpider';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { fetchSubcategories, type SubcategoryItem } from '@/apis/home-discover';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
@@ -232,9 +231,6 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
   }, [hasNextPage, isFetchingNextPage, isLoading, fetchNextPage]);
 
   // 所有 Hook 调用完毕后再做条件分支(遵守 Rules of Hooks:Hook 顺序在每次渲染必须一致)
-  if (tab === 'recommend') {
-    return <WerewolfPlayer />;
-  }
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
@@ -406,7 +402,7 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
             </Box>
           ) : (
             <Box sx={{ p: 2 }}>
-              {/* 仅 home 顶部抓取工具条 (follow 是个人页,不放;recommend 已被 WerewolfPlayer 接管) */}
+              {/* 仅 home 顶部抓取工具条 (follow 是个人页,不放) */}
               {tab === 'home' && !isPersonal && section === 'recommend' && (
                 <Box sx={{ mb: 2, p: 1.5, borderRadius: 2, border: '1px dashed', borderColor: 'divider', bgcolor: 'action.hover' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
@@ -533,7 +529,7 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
 }
 
 // ─── 卡片 ───
-function FeedCard({ item, tab, onSnack }: { item: FeedItem; tab: 'home' | 'follow' | 'friend'; onSnack?: (m: string, s: 'success' | 'error') => void }) {
+function FeedCard({ item, tab, onSnack }: { item: FeedItem; tab: 'home' | 'follow' | 'friend' | 'recommend'; onSnack?: (m: string, s: 'success' | 'error') => void }) {
   const qc = useQueryClient();
   const navigate = useContentNavigate();
   const [busy, setBusy] = useState(false);
@@ -922,7 +918,7 @@ function formatViews(n: number): string {
 }
 
 // ─── 空态文案(轻量) ───
-function EmptyHint({ tab, section }: { tab: 'home' | 'follow' | 'friend'; section: FeedItem['section'] }) {
+function EmptyHint({ tab, section }: { tab: 'home' | 'follow' | 'friend' | 'recommend'; section: FeedItem['section'] }) {
   const isRec = section === 'recommend';
   let title = '该分类暂无内容';
   let hint = '试试切换到其他分类';

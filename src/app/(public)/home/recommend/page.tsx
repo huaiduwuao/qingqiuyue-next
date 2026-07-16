@@ -249,18 +249,18 @@ export default function HomeRecommendPage() {
   let displayContentList: ContentItem[] = contentList;
   if (tabFromUrl === 'follow') {
     displayContentList = followList.map((w) => ({
-      id: Number(String(w.id).replace(/^\D+/, '')) || 0,
+      id: w.id,
       title: w.title,
-      contentType: 'VIDEO',
+      contentType: w.contentType || w.category?.toUpperCase() || 'VIDEO',
       status: w.status,
       cover: w.cover,
       viewCount: w.views,
     } as ContentItem));
   } else if (tabFromUrl === 'friend') {
     displayContentList = friendList.map((w) => ({
-      id: Number(String(w.id).replace(/^\D+/, '')) || 0,
+      id: w.id,
       title: w.title,
-      contentType: 'VIDEO',
+      contentType: w.contentType || w.category?.toUpperCase() || 'VIDEO',
       status: w.status,
       cover: w.cover,
       viewCount: w.views,
