@@ -58,7 +58,6 @@ interface Scene {
 }
 
 const DEFAULTS = {
-  positivePrompt: '',
   negativePrompt: '',
   seed: 42,
   width: 720,
