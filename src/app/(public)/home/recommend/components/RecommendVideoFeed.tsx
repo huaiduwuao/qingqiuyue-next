@@ -197,7 +197,17 @@ export function RecommendVideoFeed() {
       loadedPageRef.current = page + 1;
       setPage(p => p + 1);
     }
-  }, [index, allItems.length, hasMore, isFetching, page]);
+  }, [index]); // 只监听 index 变化
+
+  // 数据合并后检查是否需要预加载
+  useEffect(() => {
+    const remaining = allItemsRef.current.length - indexRef.current;
+    if (remaining <= 3 && remaining > 0 && hasMore && !isFetching && loadedPageRef.current === 0) {
+      loadedPageRef.current = page + 1;
+      setPage(p => p + 1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allItems.length]); // 只在数据合并后检查
 
   const lockNav = useCallback((ms = 380) => {
     navLock.current = true;
