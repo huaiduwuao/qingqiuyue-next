@@ -767,457 +767,374 @@ export default function HdPublishPage() {
         onClose={() => setUnifiedDetail(null)}
       />
 
-      {/* Stat cards */}
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
-          gap: 2,
-        }}
-      >
-        {[
-          { label: '今日上传', value: String(stats.todayUploads), suffix: '个', icon: <CloudUploadRoundedIcon />, color: '#FE2C55', bg: 'rgba(254, 44, 85, 0.12)' },
-          { label: '极速通道剩余', value: `${stats.fastChannelQuota}`, suffix: `/${stats.fastChannelMonthly} 次`, icon: <RocketLaunchRoundedIcon />, color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)' },
-        ].map((s) => (
+      {/* VIDEO 类型:统计卡片 + 上传区 + 元数据表单 */}
+      {selectedType === 'video' && (
+        <>
+        {/* Stat cards */}
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
+            gap: 2,
+          }}
+        >
+          {[
+            { label: '今日上传', value: String(stats.todayUploads), suffix: '个', icon: <CloudUploadRoundedIcon />, color: '#FE2C55', bg: 'rgba(254, 44, 85, 0.12)' },
+            { label: '极速通道剩余', value: `${stats.fastChannelQuota}`, suffix: `/${stats.fastChannelMonthly} 次`, icon: <RocketLaunchRoundedIcon />, color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)' },
+          ].map((s) => (
+            <Box
+              key={s.label}
+              sx={{
+                p: 2.5,
+                borderRadius: 2,
+                bgcolor: 'background.paper',
+                border: '1px solid',
+                borderColor: 'divider',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+            >
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: -20,
+                  right: -20,
+                  width: 80,
+                  height: 80,
+                  borderRadius: '50%',
+                  bgcolor: s.bg,
+                  filter: 'blur(20px)',
+                }}
+              />
+              <Box sx={{ position: 'relative' }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                  <Box
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 1,
+                      bgcolor: s.bg,
+                      color: s.color,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {s.icon}
+                  </Box>
+                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{s.label}</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+                  <Typography sx={{ fontSize: 26, fontWeight: 700, color: 'text.primary', fontVariantNumeric: 'tabular-nums' }}>
+                    {s.value}
+                  </Typography>
+                  <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>{s.suffix}</Typography>
+                </Box>
+              </Box>
+            </Box>
+          ))}
+        </Box>
+
+        {/* Upload trigger + benefits */}
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' },
+            gap: 2,
+          }}
+        >
+          {/* Upload area — click 直接触发 file input,不再弹窗 */}
           <Box
-            key={s.label}
+            onClick={() => fileInputRef.current?.click()}
+            sx={{
+              borderRadius: 2,
+              border: '2px dashed',
+              borderColor: 'primary.main',
+              p: { xs: 3, md: 4 },
+              cursor: 'pointer',
+              position: 'relative',
+              overflow: 'hidden',
+              background: 'linear-gradient(135deg, rgba(254, 44, 85, 0.06) 0%, rgba(37, 244, 238, 0.06) 100%)',
+              transition: 'all 0.2s',
+              '&:hover': {
+                borderColor: 'primary.main',
+                background: 'linear-gradient(135deg, rgba(254, 44, 85, 0.10) 0%, rgba(37, 244, 238, 0.10) 100%)',
+                transform: 'translateY(-2px)',
+              },
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+              <Box
+                sx={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: 2,
+                  background: 'linear-gradient(135deg, #FE2C55 0%, #FFB400 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  flexShrink: 0,
+                }}
+              >
+                <CloudUploadRoundedIcon sx={{ fontSize: 32 }} />
+              </Box>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
+                  <Typography sx={{ fontSize: 18, fontWeight: 600, color: 'text.primary' }}>
+                    上传高清视频
+                  </Typography>
+                  <Chip
+                    size="small"
+                    label="支持 4K 60fps · HDR"
+                    sx={{
+                      height: 18,
+                      fontSize: 10,
+                      fontWeight: 700,
+                      bgcolor: 'rgba(254, 44, 85, 0.12)',
+                      color: 'primary.main',
+                      '& .MuiChip-label': { px: 0.75 },
+                    }}
+                  />
+                </Box>
+                <Typography sx={{ fontSize: 12, color: 'text.secondary', lineHeight: 1.6 }}>
+                  {uploadFileName
+                    ? `已选: ${uploadFileName} · ${uploadFileSizeMB} MB · ${
+                        uploadStatus === 'uploading' ? '上传中…'
+                        : uploadStatus === 'uploaded' ? '已上传,可以提交了'
+                        : uploadStatus === 'failed' ? '上传失败,请重试'
+                        : '等待选择'
+                      }`
+                    : '点击或拖拽视频文件到此区域 · 单文件最大 10GB · 支持 MP4 / MOV / MKV / WebM'}
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1.5, mt: 1.5, flexWrap: 'wrap' }}>
+                  {['4K 60fps', 'HDR 10bit', '杜比全景声', '多音轨多字幕'].map((t) => (
+                    <Box
+                      key={t}
+                      sx={{
+                        px: 1,
+                        py: 0.25,
+                        borderRadius: 0.5,
+                        bgcolor: 'action.hover',
+                        color: 'text.secondary',
+                        fontSize: 10,
+                      }}
+                    >
+                      {t}
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+            </Box>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="video/*"
+              onChange={handleFileChange}
+              style={{ display: 'none' }}
+            />
+          </Box>
+
+          {/* HD 权益 panel */}
+          <Box
             sx={{
               p: 2.5,
               borderRadius: 2,
               bgcolor: 'background.paper',
               border: '1px solid',
               borderColor: 'divider',
-              position: 'relative',
-              overflow: 'hidden',
             }}
           >
-            <Box
-              sx={{
-                position: 'absolute',
-                top: -20,
-                right: -20,
-                width: 80,
-                height: 80,
-                borderRadius: '50%',
-                bgcolor: s.bg,
-                filter: 'blur(20px)',
-              }}
-            />
-            <Box sx={{ position: 'relative' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                <Box
-                  sx={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 1,
-                    bgcolor: s.bg,
-                    color: s.color,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  {s.icon}
-                </Box>
-                <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{s.label}</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
+              <Box
+                sx={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: 0.75,
+                  background: 'linear-gradient(135deg, #FE2C55 0%, #FFB400 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff',
+                  mr: 1,
+                }}
+              >
+                <HdRoundedIcon sx={{ fontSize: 14 }} />
               </Box>
-              <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
-                <Typography sx={{ fontSize: 26, fontWeight: 700, color: 'text.primary', fontVariantNumeric: 'tabular-nums' }}>
-                  {s.value}
-                </Typography>
-                <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>{s.suffix}</Typography>
-              </Box>
+              <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'text.primary' }}>HD 创作特权</Typography>
             </Box>
-          </Box>
-        ))}
-      </Box>
-
-      {/* Upload trigger + benefits */}
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', md: '2fr 1fr' },
-          gap: 2,
-        }}
-      >
-        {/* Upload area — click 直接触发 file input,不再弹窗 */}
-        <Box
-          onClick={() => fileInputRef.current?.click()}
-          sx={{
-            borderRadius: 2,
-            border: '2px dashed',
-            borderColor: 'primary.main',
-            p: { xs: 3, md: 4 },
-            cursor: 'pointer',
-            position: 'relative',
-            overflow: 'hidden',
-            background: 'linear-gradient(135deg, rgba(254, 44, 85, 0.06) 0%, rgba(37, 244, 238, 0.06) 100%)',
-            transition: 'all 0.2s',
-            '&:hover': {
-              borderColor: 'primary.main',
-              background: 'linear-gradient(135deg, rgba(254, 44, 85, 0.10) 0%, rgba(37, 244, 238, 0.10) 100%)',
-              transform: 'translateY(-2px)',
-            },
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-            <Box
-              sx={{
-                width: 64,
-                height: 64,
-                borderRadius: 2,
-                background: 'linear-gradient(135deg, #FE2C55 0%, #FFB400 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#fff',
-                flexShrink: 0,
-              }}
-            >
-              <CloudUploadRoundedIcon sx={{ fontSize: 32 }} />
-            </Box>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
-                <Typography sx={{ fontSize: 18, fontWeight: 600, color: 'text.primary' }}>
-                  上传高清视频
-                </Typography>
-                <Chip
-                  size="small"
-                  label="支持 4K 60fps · HDR"
-                  sx={{
-                    height: 18,
-                    fontSize: 10,
-                    fontWeight: 700,
-                    bgcolor: 'rgba(254, 44, 85, 0.12)',
-                    color: 'primary.main',
-                    '& .MuiChip-label': { px: 0.75 },
-                  }}
-                />
-              </Box>
-              <Typography sx={{ fontSize: 12, color: 'text.secondary', lineHeight: 1.6 }}>
-                {uploadFileName
-                  ? `已选: ${uploadFileName} · ${uploadFileSizeMB} MB · ${
-                      uploadStatus === 'uploading' ? '上传中…'
-                      : uploadStatus === 'uploaded' ? '已上传,可以提交了'
-                      : uploadStatus === 'failed' ? '上传失败,请重试'
-                      : '等待选择'
-                    }`
-                  : '点击或拖拽视频文件到此区域 · 单文件最大 10GB · 支持 MP4 / MOV / MKV / WebM'}
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 1.5, mt: 1.5, flexWrap: 'wrap' }}>
-                {['4K 60fps', 'HDR 10bit', '杜比全景声', '多音轨多字幕'].map((t) => (
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1.25 }}>
+              {BENEFITS.map((b) => (
+                <Tooltip key={b.title} title={b.desc} placement="top" arrow>
                   <Box
-                    key={t}
-                    sx={{
-                      px: 1,
-                      py: 0.25,
-                      borderRadius: 0.5,
-                      bgcolor: 'action.hover',
-                      color: 'text.secondary',
-                      fontSize: 10,
-                    }}
-                  >
-                    {t}
-                  </Box>
-                ))}
-              </Box>
-            </Box>
-          </Box>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="video/*"
-            onChange={handleFileChange}
-            style={{ display: 'none' }}
-          />
-        </Box>
-
-        {/* HD 权益 panel */}
-        <Box
-          sx={{
-            p: 2.5,
-            borderRadius: 2,
-            bgcolor: 'background.paper',
-            border: '1px solid',
-            borderColor: 'divider',
-          }}
-        >
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
-            <Box
-              sx={{
-                width: 24,
-                height: 24,
-                borderRadius: 0.75,
-                background: 'linear-gradient(135deg, #FE2C55 0%, #FFB400 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#fff',
-                mr: 1,
-              }}
-            >
-              <HdRoundedIcon sx={{ fontSize: 14 }} />
-            </Box>
-            <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'text.primary' }}>HD 创作特权</Typography>
-          </Box>
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1.25 }}>
-            {BENEFITS.map((b) => (
-              <Tooltip key={b.title} title={b.desc} placement="top" arrow>
-                <Box
-                  sx={{
-                    p: 1.25,
-                    borderRadius: 1.5,
-                    bgcolor: 'action.hover',
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                    transition: 'all 0.15s',
-                    cursor: 'help',
-                    '&:hover': { borderColor: b.color, bgcolor: `${b.color}08` },
-                  }}
-                >
-                  <Box sx={{ color: b.color, display: 'flex' }}>{b.icon}</Box>
-                  <Typography sx={{ fontSize: 11, color: 'text.primary', fontWeight: 500 }}>{b.title}</Typography>
-                </Box>
-              </Tooltip>
-            ))}
-          </Box>
-        </Box>
-      </Box>
-
-      {/* VIDEO 上传元数据表单 — 内联(原 Dialog 内容),分步:基础信息 → 质量/特性 → 音轨/字幕 */}
-      <Box
-        sx={{
-          bgcolor: 'background.paper',
-          borderRadius: 2,
-          p: 3,
-          border: '1px solid',
-          borderColor: 'divider',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 2.5,
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Typography sx={{ fontSize: 14, fontWeight: 700, color: 'text.primary' }}>
-            上传参数
-          </Typography>
-          <Box sx={{ flex: 1 }} />
-          {uploadFileName && (
-            <Chip
-              size="small"
-              label={
-                uploadStatus === 'uploading' ? '上传中…'
-                : uploadStatus === 'uploaded' ? `已上传 · ${uploadFileSizeMB} MB`
-                : uploadStatus === 'failed' ? '上传失败'
-                : '已选择'
-              }
-              color={uploadStatus === 'uploaded' ? 'success' : uploadStatus === 'failed' ? 'error' : 'default'}
-              sx={{ height: 22, fontSize: 11, fontWeight: 600 }}
-            />
-          )}
-        </Box>
-
-        {/* 标题 + 质量(2 列) */}
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
-          <TextField
-            label="视频标题"
-            size="small"
-            value={uploadTitle}
-            onChange={(e) => setUploadTitle(e.target.value)}
-            slotProps={{
-              inputLabel: { sx: { fontSize: 12 } },
-              input: { sx: { fontSize: 13 } },
-              formHelperText: { sx: { fontSize: 10, mt: 0.5 } },
-            }}
-            helperText="提交后可在作品管理中修改"
-          />
-          <Box>
-            <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary', mb: 1 }}>
-              输出质量
-            </Typography>
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1 }}>
-              {QUALITY_PRESETS.map((q) => {
-                const selected = uploadResolution === q.id;
-                return (
-                  <Box
-                    key={q.id}
-                    onClick={() => setUploadResolution(q.id)}
                     sx={{
                       p: 1.25,
                       borderRadius: 1.5,
-                      border: '1.5px solid',
-                      borderColor: selected ? 'primary.main' : 'divider',
-                      bgcolor: selected ? 'rgba(254, 44, 85, 0.06)' : 'transparent',
-                      cursor: 'pointer',
-                      position: 'relative',
+                      bgcolor: 'action.hover',
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
                       transition: 'all 0.15s',
+                      cursor: 'help',
+                      '&:hover': { borderColor: b.color, bgcolor: `${b.color}08` },
                     }}
                   >
-                    {q.popular && (
-                      <Box
-                        sx={{
-                          position: 'absolute',
-                          top: -8,
-                          right: 8,
-                          px: 0.5,
-                          py: 0.1,
-                          borderRadius: 0.5,
-                          bgcolor: 'primary.main',
-                          color: '#fff',
-                          fontSize: 9,
-                          fontWeight: 700,
-                        }}
-                      >
-                        推荐
-                      </Box>
-                    )}
-                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.25 }}>
-                      <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary' }}>{q.label}</Typography>
-                      {selected && <CheckRoundedIcon sx={{ fontSize: 14, color: 'primary.main' }} />}
-                    </Box>
-                    <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
-                      {q.bitrate} · {q.size}
-                    </Typography>
+                    <Box sx={{ color: b.color, display: 'flex' }}>{b.icon}</Box>
+                    <Typography sx={{ fontSize: 11, color: 'text.primary', fontWeight: 500 }}>{b.title}</Typography>
                   </Box>
-                );
-              })}
+                </Tooltip>
+              ))}
             </Box>
           </Box>
         </Box>
 
-        {/* 特性开关 */}
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
-          <FormControlLabel
-            control={<Switch size="small" checked={uploadHdr} onChange={(e) => setUploadHdr(e.target.checked)} />}
-            label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                <HighQualityRoundedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                <Typography sx={{ fontSize: 12, color: 'text.primary' }}>启用 HDR 增强</Typography>
-              </Box>
-            }
-          />
-          <FormControlLabel
-            control={<Switch size="small" checked={uploadAutoCover} onChange={(e) => setUploadAutoCover(e.target.checked)} />}
-            label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                <AutoAwesomeRoundedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                <Typography sx={{ fontSize: 12, color: 'text.primary' }}>AI 智能抽取封面</Typography>
-              </Box>
-            }
-          />
-        </Box>
-
-        {/* 音轨 */}
-        <Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, gap: 0.5 }}>
-            <RecordVoiceOverRoundedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-            <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary' }}>音轨</Typography>
-            <Box sx={{ flex: 1 }} />
-            <Button
-              size="small"
-              startIcon={<AddRoundedIcon sx={{ fontSize: 14 }} />}
-              onClick={handleAddAudio}
-              sx={{ textTransform: 'none', fontSize: 11, minWidth: 0, px: 1 }}
-            >
-              添加
-            </Button>
-          </Box>
-          <Stack spacing={0.75}>
-            {uploadAudios.map((a) => (
-              <Box
-                key={a.id}
-                sx={{
-                  p: 1,
-                  borderRadius: 1,
-                  bgcolor: 'action.hover',
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                }}
-              >
-                <Typography sx={{ fontSize: 12, color: 'text.primary', flex: 1 }}>
-                  {a.label} <Box component="span" sx={{ color: 'text.disabled', fontSize: 10 }}>· {a.codec}</Box>
-                </Typography>
-                {!a.isDefault && (
-                  <Button
-                    size="small"
-                    onClick={() => handleSetDefaultAudio(a.id)}
-                    sx={{ textTransform: 'none', fontSize: 10, minWidth: 0, px: 0.75, color: 'text.secondary' }}
-                  >
-                    设为默认
-                  </Button>
-                )}
-                {a.isDefault && (
-                  <Chip
-                    size="small"
-                    label="默认"
-                    sx={{
-                      height: 16,
-                      fontSize: 9,
-                      bgcolor: 'rgba(93, 219, 150, 0.12)',
-                      color: '#5DDB96',
-                      '& .MuiChip-label': { px: 0.5 },
-                    }}
-                  />
-                )}
-                {uploadAudios.length > 1 && (
-                  <IconButton size="small" onClick={() => handleRemoveAudio(a.id)} sx={{ p: 0.25 }}>
-                    <CloseRoundedIcon sx={{ fontSize: 12 }} />
-                  </IconButton>
-                )}
-              </Box>
-            ))}
-          </Stack>
-        </Box>
-
-        {/* 字幕 */}
-        <Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, gap: 0.5 }}>
-            <ClosedCaptionRoundedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-            <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary' }}>字幕轨</Typography>
-          </Box>
-          <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
-            <TextField
-              size="small"
-              placeholder="语言 (zh-CN)"
-              value={newSubLang}
-              onChange={(e) => setNewSubLang(e.target.value)}
-              sx={{ flex: 1, '& .MuiOutlinedInput-root': { fontSize: 11 } }}
-            />
-            <TextField
-              size="small"
-              placeholder="标签 (简体中文)"
-              value={newSubLabel}
-              onChange={(e) => setNewSubLabel(e.target.value)}
-              sx={{ flex: 1.5, '& .MuiOutlinedInput-root': { fontSize: 11 } }}
-            />
-            <Button
-              size="small"
-              variant="outlined"
-              onClick={handleAddSubtitle}
-              disabled={!newSubLang || !newSubLabel}
-              sx={{ textTransform: 'none', fontSize: 11, minWidth: 0, px: 1.5, borderColor: 'divider' }}
-            >
-              添加
-            </Button>
-          </Box>
-          {uploadSubtitles.length === 0 ? (
-            <Typography sx={{ fontSize: 10, color: 'text.disabled', py: 0.5 }}>
-              暂未添加字幕
+        {/* VIDEO 上传元数据表单 — 内联(原 Dialog 内容),分步:基础信息 → 质量/特性 → 音轨/字幕 */}
+        <Box
+          sx={{
+            bgcolor: 'background.paper',
+            borderRadius: 2,
+            p: 3,
+            border: '1px solid',
+            borderColor: 'divider',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2.5,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Typography sx={{ fontSize: 14, fontWeight: 700, color: 'text.primary' }}>
+              上传参数
             </Typography>
-          ) : (
-            <Stack spacing={0.5}>
-              {uploadSubtitles.map((s) => (
+            <Box sx={{ flex: 1 }} />
+            {uploadFileName && (
+              <Chip
+                size="small"
+                label={
+                  uploadStatus === 'uploading' ? '上传中…'
+                  : uploadStatus === 'uploaded' ? `已上传 · ${uploadFileSizeMB} MB`
+                  : uploadStatus === 'failed' ? '上传失败'
+                  : '已选择'
+                }
+                color={uploadStatus === 'uploaded' ? 'success' : uploadStatus === 'failed' ? 'error' : 'default'}
+                sx={{ height: 22, fontSize: 11, fontWeight: 600 }}
+              />
+            )}
+          </Box>
+
+          {/* 标题 + 质量(2 列) */}
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
+            <TextField
+              label="视频标题"
+              size="small"
+              value={uploadTitle}
+              onChange={(e) => setUploadTitle(e.target.value)}
+              slotProps={{
+                inputLabel: { sx: { fontSize: 12 } },
+                input: { sx: { fontSize: 13 } },
+                formHelperText: { sx: { fontSize: 10, mt: 0.5 } },
+              }}
+              helperText="提交后可在作品管理中修改"
+            />
+            <Box>
+              <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary', mb: 1 }}>
+                输出质量
+              </Typography>
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1 }}>
+                {QUALITY_PRESETS.map((q) => {
+                  const selected = uploadResolution === q.id;
+                  return (
+                    <Box
+                      key={q.id}
+                      onClick={() => setUploadResolution(q.id)}
+                      sx={{
+                        p: 1.25,
+                        borderRadius: 1.5,
+                        border: '1.5px solid',
+                        borderColor: selected ? 'primary.main' : 'divider',
+                        bgcolor: selected ? 'rgba(254, 44, 85, 0.06)' : 'transparent',
+                        cursor: 'pointer',
+                        position: 'relative',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {q.popular && (
+                        <Box
+                          sx={{
+                            position: 'absolute',
+                            top: -8,
+                            right: 8,
+                            px: 0.5,
+                            py: 0.1,
+                            borderRadius: 0.5,
+                            bgcolor: 'primary.main',
+                            color: '#fff',
+                            fontSize: 9,
+                            fontWeight: 700,
+                          }}
+                        >
+                          推荐
+                        </Box>
+                      )}
+                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.25 }}>
+                        <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary' }}>{q.label}</Typography>
+                        {selected && <CheckRoundedIcon sx={{ fontSize: 14, color: 'primary.main' }} />}
+                      </Box>
+                      <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
+                        {q.bitrate} · {q.size}
+                      </Typography>
+                    </Box>
+                  );
+                })}
+              </Box>
+            </Box>
+          </Box>
+
+          {/* 特性开关 */}
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
+            <FormControlLabel
+              control={<Switch size="small" checked={uploadHdr} onChange={(e) => setUploadHdr(e.target.checked)} />}
+              label={
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                  <HighQualityRoundedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                  <Typography sx={{ fontSize: 12, color: 'text.primary' }}>启用 HDR 增强</Typography>
+                </Box>
+              }
+            />
+            <FormControlLabel
+              control={<Switch size="small" checked={uploadAutoCover} onChange={(e) => setUploadAutoCover(e.target.checked)} />}
+              label={
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                  <AutoAwesomeRoundedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                  <Typography sx={{ fontSize: 12, color: 'text.primary' }}>AI 智能抽取封面</Typography>
+                </Box>
+              }
+            />
+          </Box>
+
+          {/* 音轨 */}
+          <Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, gap: 0.5 }}>
+              <RecordVoiceOverRoundedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+              <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary' }}>音轨</Typography>
+              <Box sx={{ flex: 1 }} />
+              <Button
+                size="small"
+                startIcon={<AddRoundedIcon sx={{ fontSize: 14 }} />}
+                onClick={handleAddAudio}
+                sx={{ textTransform: 'none', fontSize: 11, minWidth: 0, px: 1 }}
+              >
+                添加
+              </Button>
+            </Box>
+            <Stack spacing={0.75}>
+              {uploadAudios.map((a) => (
                 <Box
-                  key={s.id}
+                  key={a.id}
                   sx={{
-                    p: 0.75,
-                    borderRadius: 0.75,
+                    p: 1,
+                    borderRadius: 1,
                     bgcolor: 'action.hover',
                     border: '1px solid',
                     borderColor: 'divider',
@@ -1226,65 +1143,152 @@ export default function HdPublishPage() {
                     gap: 1,
                   }}
                 >
-                  <Typography sx={{ fontSize: 11, color: 'text.primary', flex: 1 }}>
-                    {s.label} <Box component="span" sx={{ color: 'text.disabled', fontSize: 10 }}>· {s.lang}</Box>
+                  <Typography sx={{ fontSize: 12, color: 'text.primary', flex: 1 }}>
+                    {a.label} <Box component="span" sx={{ color: 'text.disabled', fontSize: 10 }}>· {a.codec}</Box>
                   </Typography>
-                  <IconButton size="small" onClick={() => handleRemoveSubtitle(s.id)} sx={{ p: 0.25 }}>
-                    <CloseRoundedIcon sx={{ fontSize: 12 }} />
-                  </IconButton>
+                  {!a.isDefault && (
+                    <Button
+                      size="small"
+                      onClick={() => handleSetDefaultAudio(a.id)}
+                      sx={{ textTransform: 'none', fontSize: 10, minWidth: 0, px: 0.75, color: 'text.secondary' }}
+                    >
+                      设为默认
+                    </Button>
+                  )}
+                  {a.isDefault && (
+                    <Chip
+                      size="small"
+                      label="默认"
+                      sx={{
+                        height: 16,
+                        fontSize: 9,
+                        bgcolor: 'rgba(93, 219, 150, 0.12)',
+                        color: '#5DDB96',
+                        '& .MuiChip-label': { px: 0.5 },
+                      }}
+                    />
+                  )}
+                  {uploadAudios.length > 1 && (
+                    <IconButton size="small" onClick={() => handleRemoveAudio(a.id)} sx={{ p: 0.25 }}>
+                      <CloseRoundedIcon sx={{ fontSize: 12 }} />
+                    </IconButton>
+                  )}
                 </Box>
               ))}
             </Stack>
-          )}
-        </Box>
+          </Box>
 
-        {/* Sticky-ish 提交栏 */}
-        <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
-          <Button
-            onClick={() => {
-              setUploadFileName(null);
-              setUploadFileSizeMB(0);
-              setUploadFileUrl(null);
-              setUploadStatus('idle');
-              setUploadTitle('');
-              setUploadHdr(true);
-              setUploadAutoCover(true);
-              setUploadSubtitles([]);
-              setUploadAudios([{ id: 'a1', label: '原声', codec: 'AAC 320kbps', isDefault: true }]);
-            }}
-            sx={{ textTransform: 'none', fontSize: 12, color: 'text.secondary' }}
-          >
-            清空
-          </Button>
-          <Button
-            variant="contained"
-            onClick={handleSubmitUpload}
-            disabled={
-              !uploadTitle.trim() ||
-              uploadStatus !== 'uploaded' ||
-              createMutation.isPending
-            }
-            sx={{
-              textTransform: 'none',
-              fontSize: 13,
-              fontWeight: 600,
-              px: 3,
-              background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)',
-              '&:hover': {
+          {/* 字幕 */}
+          <Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, gap: 0.5 }}>
+              <ClosedCaptionRoundedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+              <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary' }}>字幕轨</Typography>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
+              <TextField
+                size="small"
+                placeholder="语言 (zh-CN)"
+                value={newSubLang}
+                onChange={(e) => setNewSubLang(e.target.value)}
+                sx={{ flex: 1, '& .MuiOutlinedInput-root': { fontSize: 11 } }}
+              />
+              <TextField
+                size="small"
+                placeholder="标签 (简体中文)"
+                value={newSubLabel}
+                onChange={(e) => setNewSubLabel(e.target.value)}
+                sx={{ flex: 1.5, '& .MuiOutlinedInput-root': { fontSize: 11 } }}
+              />
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={handleAddSubtitle}
+                disabled={!newSubLang || !newSubLabel}
+                sx={{ textTransform: 'none', fontSize: 11, minWidth: 0, px: 1.5, borderColor: 'divider' }}
+              >
+                添加
+              </Button>
+            </Box>
+            {uploadSubtitles.length === 0 ? (
+              <Typography sx={{ fontSize: 10, color: 'text.disabled', py: 0.5 }}>
+                暂未添加字幕
+              </Typography>
+            ) : (
+              <Stack spacing={0.5}>
+                {uploadSubtitles.map((s) => (
+                  <Box
+                    key={s.id}
+                    sx={{
+                      p: 0.75,
+                      borderRadius: 0.75,
+                      bgcolor: 'action.hover',
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 1,
+                    }}
+                  >
+                    <Typography sx={{ fontSize: 11, color: 'text.primary', flex: 1 }}>
+                      {s.label} <Box component="span" sx={{ color: 'text.disabled', fontSize: 10 }}>· {s.lang}</Box>
+                    </Typography>
+                    <IconButton size="small" onClick={() => handleRemoveSubtitle(s.id)} sx={{ p: 0.25 }}>
+                      <CloseRoundedIcon sx={{ fontSize: 12 }} />
+                    </IconButton>
+                  </Box>
+                ))}
+              </Stack>
+            )}
+          </Box>
+
+          {/* Sticky-ish 提交栏 */}
+          <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
+            <Button
+              onClick={() => {
+                setUploadFileName(null);
+                setUploadFileSizeMB(0);
+                setUploadFileUrl(null);
+                setUploadStatus('idle');
+                setUploadTitle('');
+                setUploadHdr(true);
+                setUploadAutoCover(true);
+                setUploadSubtitles([]);
+                setUploadAudios([{ id: 'a1', label: '原声', codec: 'AAC 320kbps', isDefault: true }]);
+              }}
+              sx={{ textTransform: 'none', fontSize: 12, color: 'text.secondary' }}
+            >
+              清空
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleSubmitUpload}
+              disabled={
+                !uploadTitle.trim() ||
+                uploadStatus !== 'uploaded' ||
+                createMutation.isPending
+              }
+              sx={{
+                textTransform: 'none',
+                fontSize: 13,
+                fontWeight: 600,
+                px: 3,
                 background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)',
-                filter: 'brightness(1.1)',
-              },
-            }}
-          >
-            {createMutation.isPending
-              ? '提交中...'
-              : uploadStatus !== 'uploaded'
-                ? '请先上传文件'
-                : '提交上传'}
-          </Button>
+                '&:hover': {
+                  background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)',
+                  filter: 'brightness(1.1)',
+                },
+              }}
+            >
+              {createMutation.isPending
+                ? '提交中...'
+                : uploadStatus !== 'uploaded'
+                  ? '请先上传文件'
+                  : '提交上传'}
+            </Button>
+          </Box>
         </Box>
-      </Box>
-
+        </>
+      )}
 
       {/* Detail drawer */}
       <Drawer
