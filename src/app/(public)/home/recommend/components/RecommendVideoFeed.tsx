@@ -152,10 +152,13 @@ export function RecommendVideoFeed() {
       const hasMore = resp?.data?.hasMore ?? false;
       return { items, hasMore };
     },
+    placeholderData: (prev) => prev, // 避免闪烁
   });
 
-  // 合并数据到 allItems
+  // 合并数据到 allItems（使用 isFetching 来判断是否真正收到新数据）
   useEffect(() => {
+    // 当 isFetching 变为 false 时，说明请求完成
+    if (isFetching) return;
     if (!feed) return;
     // 检查页码匹配
     if (waitingPageRef.current > 0 && waitingPageRef.current !== page) return;
@@ -173,7 +176,7 @@ export function RecommendVideoFeed() {
     // 释放锁
     waitingPageRef.current = 0;
     loadingLockRef.current = false;
-  }, [feed, page]);
+  }, [isFetching, feed, page]);
 
   // 追踪已加载的页码
   const uniqueVideos = allItems;
