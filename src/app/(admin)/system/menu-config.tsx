@@ -31,6 +31,7 @@ import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import LocationOnRoundedIcon from '@mui/icons-material/LocationOnRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded';
+import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
 import { PERMISSIONS } from '@/lib/permissions';
 
 export interface MenuItemDef {
@@ -117,6 +118,13 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
       { id: 'dash-analysis', label: '分析页', path: '/system/dashboard/analysis', icon: <AccountTreeRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
       { id: 'dash-monitor', label: '监控页', path: '/system/dashboard/monitor', icon: <StorageRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D' },
       { id: 'dash-workplace', label: '工作台', path: '/system/dashboard/workplace', icon: <AppsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'success.main' },
+    ],
+  },
+  {
+    title: '财务中心',
+    items: [
+      { id: 'recharge-records', label: '充值记录', path: '/system/recharge-records', icon: <AccountBalanceWalletRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
+      { id: 'withdraw-review', label: '提现审核', path: '/system/withdraw-review', icon: <AccountBalanceWalletRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FFB400' },
     ],
   },
   {

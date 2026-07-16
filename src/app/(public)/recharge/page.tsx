@@ -43,7 +43,7 @@ import {
   type DiamondActivity as ApiDiamondActivity,
 } from '@/apis/dashboard';
 
-type PayMethod = 'wechat' | 'alipay' | 'apple' | 'card';
+type PayMethod = 'wechat' | 'alipay';
 interface DiamondPackage {
   id: string;
   diamonds: number;
@@ -74,11 +74,9 @@ interface DiamondActivity {
   endsAt: string;
   rules: string[];
 }
-const PAY_METHODS: Array<{ key: PayMethod; label: string; sub: string; iconKey: 'wechat' | 'alipay' | 'apple' | 'card'; recommended?: boolean }> = [
+const PAY_METHODS: Array<{ key: PayMethod; label: string; sub: string; iconKey: 'wechat' | 'alipay'; recommended?: boolean }> = [
   { key: 'wechat', label: '微信支付', sub: '推荐', iconKey: 'wechat', recommended: true },
   { key: 'alipay', label: '支付宝', sub: '快捷', iconKey: 'alipay' },
-  { key: 'apple', label: 'Apple Pay', sub: 'iOS 用户', iconKey: 'apple' },
-  { key: 'card', label: '银行卡', sub: '储蓄卡/信用卡', iconKey: 'card' },
 ];
 
 const BENEFIT_ICON_MAP: Record<string, React.ComponentType<{ sx?: any }>> = {
@@ -93,8 +91,6 @@ const BENEFIT_ICON_MAP: Record<string, React.ComponentType<{ sx?: any }>> = {
 const PAY_ICON: Record<string, { color: string; bg: string; label: string }> = {
   wechat: { color: '#07C160', bg: 'rgba(7, 193, 96, 0.12)', label: '微' },
   alipay: { color: '#1677FF', bg: 'rgba(22, 119, 255, 0.12)', label: '支' },
-  apple: { color: '#fff', bg: 'rgba(255,255,255,0.1)', label: '' },
-  card: { color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)', label: '卡' },
 };
 
 const RECORD_TYPE_LABEL: Record<DiamondRecord['type'], { text: string; color: string }> = {
@@ -698,7 +694,7 @@ function RechargePageContent() {
                   <Typography sx={{ fontSize: 10 }}>支付链路加密</Typography>
                 </Box>
               </Box>
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' }, gap: 1.5 }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr' }, gap: 1.5 }}>
                 {PAY_METHODS.map((m) => {
                   const isSelected = payMethod === m.key;
                   const meta = PAY_ICON[m.iconKey];
@@ -750,20 +746,10 @@ function RechargePageContent() {
                             justifyContent: 'center',
                             fontSize: 14,
                             fontWeight: 800,
-                            border: m.iconKey === 'apple' ? '1px solid rgba(255,255,255,0.2)' : 'none',
                             flexShrink: 0,
                           }}
                         >
-                          {m.iconKey === 'apple' ? '' : meta.label}
-                          {m.iconKey === 'apple' && (
-                            <Box
-                              component="svg"
-                              viewBox="0 0 24 24"
-                              sx={{ width: 16, height: 16, fill: '#fff' }}
-                            >
-                              <path d="M17.05 20.28c-.98.95-2.05.86-3.08.42-1.09-.45-2.09-.46-3.24 0-1.44.62-2.2.44-3.06-.42C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" />
-                            </Box>
-                          )}
+                          {meta.label}
                         </Box>
                         <Box sx={{ minWidth: 0 }}>
                           <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#fff' }}>
@@ -1165,31 +1151,15 @@ function RechargePageContent() {
                 <Typography sx={{ fontSize: 32, fontWeight: 800, color: '#FFD566' }}>¥ {order.amount}</Typography>
                 <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>获得 {order.diamonds} 钻 · 订单号 {order.id}</Typography>
               </Box>
-              {order.method === 'wechat' || order.method === 'alipay' ? (
-                <Box sx={{ textAlign: 'center' }}>
-                  <Box
-                    component="img"
-                    src={order.qrUrl}
-                    alt="支付二维码"
-                    sx={{ width: 180, height: 180, borderRadius: 2, bgcolor: '#fff', p: 1 }}
-                  />
-                  <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', mt: 1 }}>请使用{PAY_METHODS.find((m) => m.key === order.method)?.label}扫码支付</Typography>
-                </Box>
-              ) : (
+              <Box sx={{ textAlign: 'center' }}>
                 <Box
-                  sx={{
-                    width: '100%',
-                    p: 2,
-                    borderRadius: 2,
-                    bgcolor: 'rgba(255,255,255,0.04)',
-                    border: '1px solid rgba(255,255,255,0.08)',
-                    textAlign: 'center',
-                  }}
-                >
-                  <Typography sx={{ fontSize: 13, color: 'rgba(255,255,255,0.85)' }}>请在对应 App 或网银完成支付</Typography>
-                  <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', mt: 0.5 }}>{PAY_METHODS.find((m) => m.key === order.method)?.label}</Typography>
-                </Box>
-              )}
+                  component="img"
+                  src={order.qrUrl}
+                  alt="支付二维码"
+                  sx={{ width: 180, height: 180, borderRadius: 2, bgcolor: '#fff', p: 1 }}
+                />
+                <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', mt: 1 }}>请使用{PAY_METHODS.find((m) => m.key === order.method)?.label}扫码支付</Typography>
+              </Box>
             </Box>
           )}
         </DialogContent>

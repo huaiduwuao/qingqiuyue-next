@@ -41,8 +41,10 @@ import { useApp } from '@/contexts/AppContext';
 import type { CurrentUser } from '@/beans/account';
 import { updateUser, upload } from '@/apis/account';
 import { sendSmsCode, verifySmsCode } from '@/apis/user';
-import { formatApiError } from '@/lib/api/client';
+import { accountClient, formatApiError } from '@/lib/api/client';
 import { LoginGate } from '@/components/auth/LoginGate';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -72,6 +74,16 @@ export default function AccountSettingsPage() {
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [phoneOpen, setPhoneOpen] = useState(false);
   const [wechatOpen, setWechatOpen] = useState(false);
+
+  // 检测 URL 参数中的绑定成功标识
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('bind') === 'success') {
+      showMessage('微信绑定成功');
+      // 清除 URL 参数
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   const showMessage = (message: string, severity: 'success' | 'error' = 'success') => {
     setSnackbar({ open: true, message, severity });
@@ -457,17 +469,101 @@ function WechatDialog({
   onSaved: (msg: string, severity?: 'success' | 'error') => void;
 }) {
   const [loading, setLoading] = useState(false);
+  const [authUrl, setAuthUrl] = useState<string | null>(null);
+  const [bindStatus, setBindStatus] = useState<'idle' | 'scanning' | 'success' | 'error'>('idle');
+  const popupRef = React.useRef<Window | null>(null);
+  const pollIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const handleBind = async () => {
+  // 获取授权 URL
+  const fetchAuthUrl = async () => {
+    try {
+      const res = await accountClient.get<{ data?: { authUrl?: string } }>('/oauth/bind/wechat');
+      if (res?.data?.authUrl) {
+        setAuthUrl(res.data.authUrl);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  };
+
+  // 打开微信授权窗口
+  const openAuthWindow = () => {
+    if (!authUrl) return;
+    const width = 600;
+    const height = 700;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    popupRef.current = window.open(
+      authUrl,
+      'wechat_auth',
+      `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes`,
+    );
+    setBindStatus('scanning');
+    // 轮询检查窗口是否关闭
+    pollIntervalRef.current = setInterval(() => {
+      if (popupRef.current?.closed) {
+        if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+        checkBindStatus();
+      }
+    }, 1000);
+  };
+
+  // 检查绑定状态
+  const checkBindStatus = async () => {
     setLoading(true);
     try {
-      await updateUser({ wechatOpenid: `wx_${Date.now()}` } as Record<string, unknown>);
-      onSaved('微信绑定成功');
-      onClose();
-    } catch (err) {
-      onSaved(formatApiError(err) ||'微信绑定失败', 'error');
+      // 调用获取当前用户信息接口，检查是否已绑定微信
+      const res = await accountClient.get('/user/current');
+      // 检查 social_user 表中是否有 wechat 绑定（通过 user/current 响应判断）
+      if (res?.data?.wechatOpenid || res?.data?.wechatOpenId) {
+        setBindStatus('success');
+        onSaved('微信绑定成功');
+        setTimeout(() => {
+          onClose();
+          setBindStatus('idle');
+          setAuthUrl(null);
+        }, 1500);
+      } else {
+        setBindStatus('error');
+        onSaved('绑定超时或失败，请重试', 'error');
+      }
+    } catch {
+      setBindStatus('error');
+      onSaved('检查绑定状态失败', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 初始化时获取授权 URL
+  useEffect(() => {
+    if (open && bindStatus === 'idle') {
+      fetchAuthUrl();
+    }
+  }, [open, bindStatus]);
+
+  // 清理
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      popupRef.current?.close();
+    };
+  }, []);
+
+  const getStatusMessage = () => {
+    switch (bindStatus) {
+      case 'idle':
+        return '点击下方按钮打开微信授权';
+      case 'scanning':
+        return '请在打开的窗口中完成授权...';
+      case 'success':
+        return '绑定成功！';
+      case 'error':
+        return '绑定失败，请重试';
+      default:
+        return '';
     }
   };
 
@@ -483,33 +579,57 @@ function WechatDialog({
               mx: 'auto',
               mb: 2,
               borderRadius: 2,
-              bgcolor: 'action.hover',
+              bgcolor: bindStatus === 'success' ? 'success.light' : bindStatus === 'error' ? 'error.light' : 'action.hover',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               border: '1px dashed',
-              borderColor: 'divider',
+              borderColor: bindStatus === 'success' ? 'success.main' : bindStatus === 'error' ? 'error.main' : 'divider',
             }}
           >
-            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-              微信扫码授权占位
-            </Typography>
+            {bindStatus === 'success' ? (
+              <CheckCircleIcon sx={{ fontSize: 64, color: 'success.main' }} />
+            ) : bindStatus === 'scanning' ? (
+              <QrCodeScannerIcon sx={{ fontSize: 64, color: 'primary.main' }} />
+            ) : (
+              <Typography sx={{ fontSize: 13, color: 'text.secondary', p: 2 }}>
+                微信扫码授权
+              </Typography>
+            )}
           </Box>
           <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-            请在微信中完成授权后点击下方按钮
+            {getStatusMessage()}
           </Typography>
         </Box>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={loading}>取消</Button>
-        <Button
-          variant="contained"
-          onClick={handleBind}
-          disabled={loading}
-          startIcon={loading ? <CircularProgress size={14} color="inherit" /> : null}
-        >
-          我已完成授权
-        </Button>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={onClose} disabled={loading || bindStatus === 'scanning'}>取消</Button>
+        {bindStatus === 'scanning' ? (
+          <Button variant="contained" disabled>
+            <CircularProgress size={14} sx={{ mr: 1 }} />
+            授权中...
+          </Button>
+        ) : (
+          <Button
+            variant="contained"
+            onClick={() => {
+              if (bindStatus === 'idle') {
+                openAuthWindow();
+              } else {
+                // error 或 success 后的重试
+                setBindStatus('idle');
+                fetchAuthUrl().then((ok) => {
+                  if (ok) openAuthWindow();
+                });
+              }
+            }}
+            disabled={loading || !authUrl}
+            startIcon={loading ? <CircularProgress size={14} color="inherit" /> : null}
+            sx={{ bgcolor: 'success.main', '&:hover': { bgcolor: '#4FC986' } }}
+          >
+            {bindStatus === 'success' ? '已绑定' : bindStatus === 'error' ? '重新授权' : '打开微信授权'}
+          </Button>
+        )}
       </DialogActions>
     </Dialog>
   );
