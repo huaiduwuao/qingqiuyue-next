@@ -173,9 +173,14 @@ export function RecommendVideoFeed() {
       return [...prev, ...newItems];
     });
     setHasMore(feed.hasMore);
-    // 释放锁
-    waitingPageRef.current = 0;
-    loadingLockRef.current = false;
+
+    // 检查是否还在倒数第3条位置，如果在则不释放锁，继续等待
+    const remaining = allItemsRef.current.length - indexRef.current;
+    if (remaining > 3 || remaining <= 0) {
+      // 不在倒数第3条，释放锁
+      waitingPageRef.current = 0;
+      loadingLockRef.current = false;
+    }
   }, [isFetching, feed, page]);
 
   // 追踪已加载的页码
