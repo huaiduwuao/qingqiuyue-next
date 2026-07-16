@@ -117,9 +117,10 @@ export function RecommendVideoFeed() {
 
   // 追踪已处理的页码
   const processedPageRef = useRef(0);
-  // 追踪已加载的页码，初始为1以便第一页能合并
-  const loadedPageRef = useRef(1);
-  // 追踪已加载的页码
+  // 追踪正在等待的页码，初始为1以便第一页能合并
+  const waitingPageRef = useRef(1);
+  // 锁：是否正在等待下一页数据
+  const loadingLockRef = useRef(false);
   const { data: feed, isLoading, isFetching } = useQuery({
     queryKey: ['home-recommend', 'recommend-feed', page],
     queryFn: async () => {
@@ -156,12 +157,9 @@ export function RecommendVideoFeed() {
 
   // 合并数据到 allItems
   useEffect(() => {
-    // 使用 loadedPageRef 追踪当前请求的页码
     if (!feed) return;
-    // 检查是否是对应页码的数据（loadedPageRef=0 表示没有待处理页码，直接合并）
-    if (loadedPageRef.current > 0 && loadedPageRef.current !== page) return;
-    // 匹配成功后，设为0表示当前没有待处理的页码
-    loadedPageRef.current = 0;
+    // 检查页码匹配
+    if (waitingPageRef.current > 0 && waitingPageRef.current !== page) return;
 
     setAllItems(prev => {
       if (page === 1) {
@@ -173,6 +171,9 @@ export function RecommendVideoFeed() {
       return [...prev, ...newItems];
     });
     setHasMore(feed.hasMore);
+    // 释放锁
+    waitingPageRef.current = 0;
+    loadingLockRef.current = false;
   }, [feed, page]);
 
   // 追踪已加载的页码
@@ -191,19 +192,24 @@ export function RecommendVideoFeed() {
 
   // 滑动时预加载下一页
   useEffect(() => {
+    // 检查是否应该预加载：有锁时不触发
+    if (loadingLockRef.current) return;
     const remaining = allItemsRef.current.length - indexRef.current;
-    // 只在倒数第3条、没有待处理页码、有更多数据、且没有正在请求时触发
-    if (remaining <= 3 && remaining > 0 && hasMore && !isFetching && loadedPageRef.current === 0) {
-      loadedPageRef.current = page + 1;
+    if (remaining <= 3 && remaining > 0 && hasMore) {
+      loadingLockRef.current = true;
+      waitingPageRef.current = page + 1;
       setPage(p => p + 1);
     }
   }, [index]); // 只监听 index 变化
 
   // 数据合并后检查是否需要预加载
   useEffect(() => {
+    // 检查是否应该预加载：有锁时不触发
+    if (loadingLockRef.current) return;
     const remaining = allItemsRef.current.length - indexRef.current;
-    if (remaining <= 3 && remaining > 0 && hasMore && !isFetching && loadedPageRef.current === 0) {
-      loadedPageRef.current = page + 1;
+    if (remaining <= 3 && remaining > 0 && hasMore) {
+      loadingLockRef.current = true;
+      waitingPageRef.current = page + 1;
       setPage(p => p + 1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
