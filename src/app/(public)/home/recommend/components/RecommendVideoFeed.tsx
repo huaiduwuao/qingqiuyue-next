@@ -197,7 +197,7 @@ export function RecommendVideoFeed() {
       loadedPageRef.current = page + 1;
       setPage(p => p + 1);
     }
-  }, [index]); // 只监听 index 变化
+  }, [index, allItems.length, hasMore, isFetching, page]);
 
   const lockNav = useCallback((ms = 380) => {
     navLock.current = true;
