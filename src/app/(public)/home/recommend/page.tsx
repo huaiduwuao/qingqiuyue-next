@@ -704,7 +704,6 @@ function RecommendRightSidebar() {
 
       {/* 内容榜单 - 单列 */}
       <HotRankingBar
-        defaultType="NOVEL"
         title="内容榜单"
         maxItems={8}
         expandable

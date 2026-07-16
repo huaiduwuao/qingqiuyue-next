@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -12,8 +12,41 @@ import { fetchHot, HotItem } from '@/apis/home-discover';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { useRouter } from 'next/navigation';
 
+// section → contentType 映射（recommend/空时不映射，返回全类型）
+export const SECTION_TO_CONTENT_TYPE: Record<string, string> = {
+  novel: 'NOVEL',
+  comics: 'COMICS',
+  film: 'FILM',
+  teleplay: 'TELEPLAY',
+  entertainment: 'VSHOW',
+  music: 'MUSIC',
+  anime: 'ANIMATION',
+  news: 'NEWS',
+  game: 'VIDEO',
+  // 其他类型暂用 VIDEO
+  tech: 'VIDEO',
+  food: 'VIDEO',
+  knowledge: 'NOVEL',
+  sports: 'VIDEO',
+  finance: 'NOVEL',
+};
+
+// 内容类型配置（ALL 表示全类型混合排行）
+const CONTENT_TYPES = [
+  { value: 'ALL', label: '全部' },
+  { value: 'NOVEL', label: '小说' },
+  { value: 'COMICS', label: '漫画' },
+  { value: 'FILM', label: '影视' },
+  { value: 'TELEPLAY', label: '小剧场' },
+  { value: 'VSHOW', label: '综艺' },
+  { value: 'MUSIC', label: '音乐' },
+  { value: 'ANIMATION', label: '动漫' },
+  { value: 'NEWS', label: '资讯' },
+  { value: 'VIDEO', label: '视频' },
+];
+
 interface Props {
-  defaultType?: string; // 默认类型
+  section?: string;     // 当前 section 参数，用于自动切换默认类型；空时显示"全部"
   title?: string;
   maxItems?: number;
   expandable?: boolean;
@@ -21,16 +54,8 @@ interface Props {
   columns?: number; // 列数，默认 2
 }
 
-// 内容类型配置
-const CONTENT_TYPES = [
-  { value: 'NOVEL', label: '小说' },
-  { value: 'VIDEO', label: '视频' },
-  { value: 'MUSIC', label: '音乐' },
-  { value: 'ANIMATION', label: '动漫' },
-];
-
 export default function HotRankingBar({
-  defaultType = 'NOVEL',
+  section,
   title = '内容榜单',
   maxItems = 12,
   expandable = false,
@@ -39,11 +64,26 @@ export default function HotRankingBar({
 }: Props) {
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
-  const [activeType, setActiveType] = useState(defaultType);
 
+  // 根据 section 自动确定默认类型：
+  // - 空/recommend → ALL（全类型混合排行，默认）
+  // - 具体类型 → 对应类型
+  const resolvedDefaultType = section && section !== 'recommend' ? (SECTION_TO_CONTENT_TYPE[section] || 'NOVEL') : 'ALL';
+  const [activeType, setActiveType] = useState(resolvedDefaultType);
+
+  // 当 section 变化时，自动切换到对应的内容类型
+  useEffect(() => {
+    if (section && section !== 'recommend') {
+      setActiveType(SECTION_TO_CONTENT_TYPE[section] || 'NOVEL');
+    } else {
+      setActiveType('ALL');
+    }
+  }, [section]);
+
+  // ALL 类型不传 type 参数，获取全类型混合排行
   const { data, isLoading } = useQuery({
     queryKey: ['hot-ranking', activeType],
-    queryFn: () => fetchHot({ type: activeType, size: 30 }).then((r: any) => (r?.data?.list ?? []) as HotItem[]),
+    queryFn: () => fetchHot(activeType === 'ALL' ? { size: 30 } : { type: activeType, size: 30 }).then((r: any) => (r?.data?.list ?? []) as HotItem[]),
     staleTime: 60_000,
   });
 

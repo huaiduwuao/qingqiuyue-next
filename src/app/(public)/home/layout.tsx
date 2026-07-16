@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { homeClient } from '@/lib/api/client';
 import Link from 'next/link';
@@ -13,8 +12,6 @@ import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
 import Tooltip from '@mui/material/Tooltip';
 import Divider from '@mui/material/Divider';
-import Tabs from '@mui/material/Tabs';
-import Tab from '@mui/material/Tab';
 import Button from '@mui/material/Button';
 import { HomeSettingsDrawer } from '@/components/home/HomeSettingsDrawer';
 import { MyHomePage } from '@/components/home/MyHomePage';
@@ -26,7 +23,6 @@ import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import RecommendRoundedIcon from '@mui/icons-material/RecommendRounded';
 import TravelExploreRoundedIcon from '@mui/icons-material/TravelExploreRounded';
 import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
-import FavoriteBorderRoundedIcon from '@mui/icons-material/FavoriteBorderRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import LiveTvRoundedIcon from '@mui/icons-material/LiveTvRounded';
@@ -35,7 +31,6 @@ import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
 import MovieRoundedIcon from '@mui/icons-material/MovieRounded';
 import TheatersRoundedIcon from '@mui/icons-material/TheatersRounded';
 import SettingsIcon from '@mui/icons-material/Settings';
-import WhatshotIcon from '@mui/icons-material/Whatshot';
 import { useApp } from '@/contexts/AppContext';
 import { AvatarHoverPopup } from '@/components/account/AvatarHoverPopup';
 import NoticeIconView, { DmIconView } from '@/components/NoticeIcon';
@@ -47,9 +42,8 @@ import HotRankingBar from '@/components/home/HotRankingBar';
 import { LivePanel } from './panels/LivePanel';
 import { TheaterPanel } from './panels/TheaterPanel';
 import { DramaPanel } from './panels/DramaPanel';
-import { useContentNavigate } from '@/lib/contentRoute';
 import { ACCENT } from '@/constants/accents';
-import { gradient2, IMAGE_OVERLAY } from '@/constants/gradients';
+import { gradient2 } from '@/constants/gradients';
 import HomeRecommendPage from './recommend/page';
 
 const SIDE_NAV: { key: string; label: string; path?: string; icon: React.ReactNode; accent: string; dividerBefore?: boolean }[] = [
@@ -72,6 +66,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const urlTab = searchParams.get('tab') || 'home';
+  const urlSection = searchParams.get('section') || 'recommend';
   const [activeNav, setActiveNav] = useState(urlTab);
   const [meOpen, setMeOpen] = useState(false);
   const mainRef = useRef<HTMLDivElement | null>(null);
@@ -153,7 +148,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
            : <Box sx={{ p: 3 }}>{children}</Box>}
         </Box>
         {/* recommend 页面自己处理右侧栏，home 使用外部侧边栏 */}
-        {activeNav === 'home' && <RightSidebar />}
+        {activeNav === 'home' && <RightSidebar section={urlSection} />}
       </Box>
       <MockStatusBadge />
     </Box>
@@ -554,11 +549,7 @@ function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activ
   );
 }
 
-type SideTab = 'hot' | 'comment' | 'related';
-
-function RightSidebar() {
-  const [tab, setTab] = useState<SideTab>('hot');
-
+function RightSidebar({ section }: { section: string }) {
   return (
     <Box
       component="aside"
@@ -573,353 +564,14 @@ function RightSidebar() {
         gap: 1.5,
       }}
     >
-      <Box
-        sx={{
-          borderRadius: 2,
-          bgcolor: 'var(--bg-surface, transparent)',
-          border: '1px solid var(--border-color, transparent)',
-          overflow: 'hidden',
-        }}
-      >
-        {/* 头部 + tab 切换 */}
-        <Box sx={{ display: 'flex', alignItems: 'center', px: 2, pt: 1.5, pb: 0.5 }}>
-          <WhatshotIcon sx={{ fontSize: 16, color: 'primary.main', mr: 0.75 }} />
-          <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary, currentColor)', flex: 1 }}>
-            实时动态
-          </Typography>
-          <Typography sx={{ fontSize: 10, color: 'var(--text-muted, currentColor)' }}>实时</Typography>
-        </Box>
-        <Tabs
-          value={tab}
-          onChange={(_, v) => setTab(v)}
-          variant="fullWidth"
-          sx={{
-            minHeight: 32,
-            '& .MuiTab-root': {
-              minHeight: 32,
-              fontSize: 12,
-              fontWeight: 500,
-              color: 'var(--text-secondary, currentColor)',
-              textTransform: 'none',
-              py: 0.5,
-            },
-            '& .Mui-selected': { color: 'var(--brand-color, currentColor) !important', fontWeight: 700 },
-            '& .MuiTabs-indicator': { backgroundColor: 'primary.main', height: 2 },
-          }}
-        >
-          <Tab value="hot" label="热门" />
-          <Tab value="comment" label="评论" />
-          <Tab value="related" label="相关" />
-        </Tabs>
-
-        <Box sx={{ p: 1.5, pt: 1 }}>
-          {tab === 'hot' && <HotTab />}
-          {tab === 'comment' && <CommentTab />}
-          {tab === 'related' && <RelatedTab />}
-        </Box>
-      </Box>
-
       {/* 全网热搜:Phase 3 从 Doris 拉全量热榜,每小时自动刷新 */}
       <HotRankingBar
-        defaultType="NOVEL"
+        section={section === 'recommend' ? undefined : section}
         title="内容榜单"
         maxItems={10}
         expandable
+        showTypeTabs={false}
       />
     </Box>
   );
 }
-
-function HotTab() {
-  const navigate = useContentNavigate();
-  const { data, isLoading } = useQuery({
-    queryKey: ['home', 'side', 'hot'],
-    queryFn: () =>
-      homeClient
-        .get<{
-          list: Array<{
-            id: number;
-            title: string;
-            category: string;
-            cover: string;
-            views: number;
-          }>;
-        }>('/side/hot')
-        .then((r) => r.data),
-    staleTime: 60_000,
-  });
-  const items = data?.list ?? [];
-
-  if (isLoading) {
-    return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-        {[0, 1, 2].map((i) => (
-          <Box
-            key={i}
-            sx={{
-              aspectRatio: '16/9',
-              borderRadius: 1.5,
-              bgcolor: 'action.hover',
-            }}
-          />
-        ))}
-      </Box>
-    );
-  }
-
-  if (items.length === 0) {
-    return (
-      <Typography variant="caption" sx={{ color: 'text.secondary', p: 1, display: 'block' }}>
-        暂无热门
-      </Typography>
-    );
-  }
-
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-      {items.map((c, i) => (
-        <Box
-          key={c.id}
-          onClick={() => navigate(c.category.toUpperCase(), c.id)}
-          sx={{
-            position: 'relative',
-            aspectRatio: '16/9',
-            borderRadius: 1.5,
-            background: gradientByType(c.category),
-            overflow: 'hidden',
-            cursor: 'pointer',
-            transition: 'transform 0.2s',
-            '&:hover': { transform: 'translateY(-2px)' },
-          }}
-        >
-          <Box
-            sx={{
-              position: 'absolute',
-              inset: 0,
-              background: 'radial-gradient(circle at 30% 30%, rgba(0,0,0,0.18), transparent 60%)',
-            }}
-          />
-          <Box
-            sx={{
-              position: 'absolute',
-              top: 6,
-              left: 6,
-              width: 20,
-              height: 20,
-              borderRadius: '50%',
-              background: i === 0 ? 'primary.main' : i === 1 ? '#FF8A3D' : 'warning.main',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 11,
-              fontWeight: 800,
-              color: 'text.primary',
-              boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
-            }}
-          >
-            {i + 1}
-          </Box>
-          <Box
-            sx={{
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              right: 0,
-              p: 1,
-              background: IMAGE_OVERLAY.TO_TOP,
-            }}
-          >
-            <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary, currentColor)', lineHeight: 1.2 }}>
-              {c.title}
-            </Typography>
-            <Typography
-              sx={{
-                fontSize: 10,
-                color: 'var(--text-secondary, currentColor)',
-                mt: 0.25,
-                lineHeight: 1.2,
-                display: '-webkit-box',
-                WebkitLineClamp: 1,
-                WebkitBoxOrient: 'vertical',
-                overflow: 'hidden',
-              }}
-            >
-              {c.views >= 10000 ? `${(c.views / 10000).toFixed(1)}万播放` : `${c.views} 播放`}
-            </Typography>
-          </Box>
-        </Box>
-      ))}
-    </Box>
-  );
-}
-
-const GRADIENT_BY_TYPE: Record<string, string> = {
-  film: 'linear-gradient(135deg, #FE2C55 0%, #8B5CF6 100%)',
-  teleplay: 'linear-gradient(135deg, #8B5CF6 0%, #2D1B4E 100%)',
-  music: 'linear-gradient(135deg, #FFB400 0%, #8B0000 100%)',
-};
-
-function gradientByType(contentType: string): string {
-  return GRADIENT_BY_TYPE[contentType] ?? 'linear-gradient(135deg, #2D1B4E 0%, transparent 100%)';
-}
-
-function CommentTab() {
-  const { data, isLoading } = useQuery({
-    queryKey: ['home', 'side', 'comments'],
-    queryFn: () => homeClient.get<{ list: any[] }>('/side/comments').then((r) => r.data),
-  });
-  const list = data?.list || [];
-
-  if (isLoading) {
-    return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-        {[0, 1, 2].map((i) => (
-          <Box key={i} sx={{ display: 'flex', gap: 1 }}>
-            <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: 'var(--bg-hover, transparent)' }} />
-            <Box sx={{ flex: 1 }}>
-              <Box sx={{ width: '60%', height: 10, borderRadius: 0.5, bgcolor: 'var(--bg-hover, transparent)', mb: 0.5 }} />
-              <Box sx={{ width: '90%', height: 10, borderRadius: 0.5, bgcolor: 'var(--bg-hover, transparent)' }} />
-            </Box>
-          </Box>
-        ))}
-      </Box>
-    );
-  }
-
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-      {list.map((c) => (
-        <Box key={c.id} sx={{ display: 'flex', gap: 1 }}>
-          <Avatar src={c.avatar} sx={{ width: 28, height: 28, fontSize: 11, bgcolor: 'var(--border-color, transparent)' }}>
-            {c.user?.[0] || 'U'}
-          </Avatar>
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.25 }}>
-              <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary, currentColor)' }}>
-                {c.user}
-              </Typography>
-              <Typography sx={{ fontSize: 9, color: 'var(--text-muted, currentColor)' }}>{c.time}</Typography>
-            </Box>
-            <Typography sx={{ fontSize: 11, color: 'var(--text-secondary, currentColor)', lineHeight: 1.4, mb: 0.25 }}>
-              {c.text}
-            </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'var(--text-muted, currentColor)' }}>
-              <FavoriteBorderRoundedIcon sx={{ fontSize: 11 }} />
-              <Typography sx={{ fontSize: 10 }}>{c.likes}</Typography>
-            </Box>
-          </Box>
-        </Box>
-      ))}
-    </Box>
-  );
-}
-
-function RelatedTab() {
-  const { data, isLoading } = useQuery({
-    queryKey: ['home', 'side', 'related'],
-    queryFn: () => homeClient.get<{ list: any[] }>('/side/related').then((r) => r.data),
-  });
-  const list = data?.list || [];
-
-  if (isLoading) {
-    return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-        {[0, 1, 2].map((i) => (
-          <Box key={i} sx={{ height: 70, borderRadius: 1.5, bgcolor: 'var(--bg-hover, transparent)' }} />
-        ))}
-      </Box>
-    );
-  }
-
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-      {list.map((item) => (
-        <Box
-          key={item.id}
-          sx={{
-            display: 'flex',
-            gap: 1.25,
-            cursor: 'pointer',
-            p: 0.5,
-            borderRadius: 1.5,
-            transition: 'background 0.15s',
-            '&:hover': { bgcolor: 'var(--bg-hover, transparent)' },
-          }}
-        >
-          <Box
-            sx={{
-              position: 'relative',
-              width: 72,
-              height: 96,
-              flexShrink: 0,
-              borderRadius: 1.25,
-              overflow: 'hidden',
-              bgcolor: 'var(--border-color, transparent)',
-            }}
-          >
-            <Box
-              component="img"
-              src={item.cover || undefined}
-              alt={item.title}
-              sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            />
-            <Box
-              sx={{
-                position: 'absolute',
-                bottom: 2,
-                right: 2,
-                px: 0.5,
-                py: 0.05,
-                borderRadius: 0.5,
-                bgcolor: 'rgba(0, 0, 0, 0.6)',
-                color: 'var(--text-primary, currentColor)',
-                fontSize: 9,
-                fontVariantNumeric: 'tabular-nums',
-              }}
-            >
-              {Math.floor(item.durationSec / 60)}:{(item.durationSec % 60).toString().padStart(2, '0')}
-            </Box>
-          </Box>
-          <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-            <Typography
-              sx={{
-                fontSize: 12,
-                fontWeight: 600,
-                color: 'var(--text-primary, currentColor)',
-                lineHeight: 1.3,
-                display: '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical',
-                overflow: 'hidden',
-              }}
-            >
-              {item.title}
-            </Typography>
-            <Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.25 }}>
-                <Avatar src={item.authorAvatar} sx={{ width: 14, height: 14, fontSize: 8 }}>
-                  {item.author?.[0]}
-                </Avatar>
-                <Typography sx={{ fontSize: 10, color: 'var(--text-secondary, currentColor)' }}>{item.author}</Typography>
-              </Box>
-              <Typography sx={{ fontSize: 9, color: 'var(--text-muted, currentColor)' }}>
-                {formatViews(item.views)} 播放 · {formatLikes(item.likes)} 赞
-              </Typography>
-            </Box>
-          </Box>
-        </Box>
-      ))}
-    </Box>
-  );
-}
-
-function formatViews(n: number): string {
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
-  return n.toString();
-}
-function formatLikes(n: number): string {
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return n.toString();
-}
-
