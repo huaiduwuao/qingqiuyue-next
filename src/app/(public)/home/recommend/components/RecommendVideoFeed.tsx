@@ -154,7 +154,7 @@ export function RecommendVideoFeed() {
   // 合并数据到 allItems
   useEffect(() => {
     if (!feed) return;
-    // 确保只有对应页码的数据才合并
+    // 检查是否是对应页码的数据
     if (loadingPageRef.current > 0 && loadingPageRef.current !== page) return;
     loadingPageRef.current = 0; // 重置
 
@@ -190,7 +190,7 @@ export function RecommendVideoFeed() {
       loadingPageRef.current = page + 1;
       setPage(p => p + 1);
     }
-  }, [index, page, hasMore, isFetching, allItems.length]);
+  }, [index]); // 只监听 index 变化，避免 allItems.length 变化导致重复触发
 
   const lockNav = useCallback((ms = 380) => {
     navLock.current = true;
