@@ -110,14 +110,15 @@ const API_GATEWAY = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
 
 // 各模块 API 基地址 —— 前缀按 4 个合并服务收口:
 //   core(admin+wx+reward)/ content(content+home)/ realtime(im+avatar)/ spider
+// 注意:core-api(cmd/core-api/main.go)用 /api/core 前缀,router.go 是独立 admin-api 用 /api/admin
 export const API_BASE = {
-  admin: `${API_GATEWAY}/api/core`,
+  admin: `${API_GATEWAY}/api/core`,     // core-api 合并服务:用户/角色/菜单/字典/通知等
   content: `${API_GATEWAY}/api/content`,
-  reward: `${API_GATEWAY}/api/core`,
-  wx: `${API_GATEWAY}/api/core`,
+  reward: `${API_GATEWAY}/api/core`,    // 悬赏/任务等 reward 模块
+  wx: `${API_GATEWAY}/api/core`,        // 微信相关 wxUser/wxMsg 等
   spider: `${API_GATEWAY}/api/spider`,
   im: `${API_GATEWAY}/api/realtime`,
-  account: `${API_GATEWAY}/api/core`,
+  account: `${API_GATEWAY}/api/core`,   // 用户个人中心相关
   home: `${API_GATEWAY}/api/content/home`,
 };
 
