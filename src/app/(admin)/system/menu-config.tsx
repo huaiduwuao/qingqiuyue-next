@@ -32,6 +32,7 @@ import LocationOnRoundedIcon from '@mui/icons-material/LocationOnRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded';
 import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
+import PaymentRoundedIcon from '@mui/icons-material/PaymentRounded';
 import { PERMISSIONS } from '@/lib/permissions';
 
 export interface MenuItemDef {
@@ -123,6 +124,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
   {
     title: '财务中心',
     items: [
+      { id: 'payment-config', label: '支付配置', path: '/system/payment-config', icon: <PaymentRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
       { id: 'recharge-records', label: '充值记录', path: '/system/recharge-records', icon: <AccountBalanceWalletRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
       { id: 'withdraw-review', label: '提现审核', path: '/system/withdraw-review', icon: <AccountBalanceWalletRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FFB400' },
     ],
