@@ -1,12 +1,12 @@
 'use client'
 
 /**
- * ClawManager 对话页面
+ * AgentManager 对话页面
  * 完整的 AI 对话体验
  */
 
 import { useState, useRef, useEffect } from 'react'
-import { clawmAPI, type Instance } from './api'
+import { agentmAPI, type Instance } from './api'
 
 interface Message {
   id: string
@@ -38,14 +38,14 @@ export default function ChatPage() {
 
   // 加载模型列表
   useEffect(() => {
-    clawmAPI.listModels()
+    agentmAPI.listModels()
       .then(res => setModels(res.models || []))
       .catch(console.error)
   }, [])
 
   const handleLogin = async () => {
     try {
-      await clawmAPI.login(username, password)
+      await agentmAPI.login(username, password)
       setIsLoggedIn(true)
     } catch (e: any) {
       setError(e.message)
@@ -69,7 +69,7 @@ export default function ChatPage() {
     setError(null)
 
     try {
-      const response = await clawmAPI.chatCompletions(
+      const response = await agentmAPI.chatCompletions(
         selectedModel,
         messages.concat(userMessage).map(m => ({
           role: m.role,

@@ -1,12 +1,12 @@
 'use client'
 
 /**
- * ClawManager Chat 对话组件
+ * AgentManager Chat 对话组件
  * 用于与 Agent 进行对话
  */
 
 import { useState, useRef, useEffect } from 'react'
-import { clawmAPI } from './api'
+import { agentmAPI } from './api'
 
 interface Message {
   id: string
@@ -53,7 +53,7 @@ export function ChatPanel({ agentId = 'xiaoyue', title = 'AI 助手', onClose }:
     setError(null)
 
     try {
-      const response = await clawmAPI.chatCompletions(
+      const response = await agentmAPI.chatCompletions(
         agentId,
         messages.concat(userMessage).map(m => ({
           role: m.role,

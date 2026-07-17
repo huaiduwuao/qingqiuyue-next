@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { clawmAPI, type Instance, type Agent, type AuditLog, type Skill, type MonitoringOverview, type InstanceStats, type AgentStats, type UsageStats } from './api'
+import { agentmAPI, type Instance, type Agent, type AuditLog, type Skill, type MonitoringOverview, type InstanceStats, type AgentStats, type UsageStats } from './api'
 
 type Tab = 'dashboard' | 'instances' | 'agents' | 'audit' | 'skills' | 'gateway'
 
@@ -36,7 +36,7 @@ export default function AgentManagerConsole() {
     setLoading(true)
     setError(null)
     try {
-      await clawmAPI.login(username, password)
+      await agentmAPI.login(username, password)
       setIsLoggedIn(true)
       loadData()
     } catch (e: any) {
@@ -51,11 +51,11 @@ export default function AgentManagerConsole() {
     setLoading(true)
     try {
       const [instRes, overviewRes, instStatsRes, agentStatsRes, usageRes] = await Promise.all([
-        clawmAPI.listInstances().catch(() => ({ list: [] })),
-        clawmAPI.getMonitoringOverview().catch(() => null),
-        clawmAPI.getInstancesStats().catch(() => ({ instances: [] })),
-        clawmAPI.getAgentsStats().catch(() => ({ agents: [] })),
-        clawmAPI.getUsageStats('week').catch(() => null),
+        agentmAPI.listInstances().catch(() => ({ list: [] })),
+        agentmAPI.getMonitoringOverview().catch(() => null),
+        agentmAPI.getInstancesStats().catch(() => ({ instances: [] })),
+        agentmAPI.getAgentsStats().catch(() => ({ agents: [] })),
+        agentmAPI.getUsageStats('week').catch(() => null),
       ])
       setInstances(instRes.list || [])
       setOverview(overviewRes)
@@ -73,7 +73,7 @@ export default function AgentManagerConsole() {
   const loadAuditLogs = async () => {
     setLoading(true)
     try {
-      const res = await clawmAPI.getAuditLog({ limit: 50 })
+      const res = await agentmAPI.getAuditLog({ limit: 50 })
       setAuditLogs(res.list || [])
     } catch (e: any) {
       console.error('Load audit error:', e)
@@ -86,7 +86,7 @@ export default function AgentManagerConsole() {
   const loadSkills = async () => {
     setLoading(true)
     try {
-      const res = await clawmAPI.listSkills()
+      const res = await agentmAPI.listSkills()
       setSkills(res.list || [])
     } catch (e: any) {
       console.error('Load skills error:', e)
@@ -297,7 +297,7 @@ export default function AgentManagerConsole() {
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold">实例管理</h2>
               <button
-                onClick={() => clawmAPI.discoverInstances().then(loadData)}
+                onClick={() => agentmAPI.discoverInstances().then(loadData)}
                 className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-sm"
               >
                 自动发现

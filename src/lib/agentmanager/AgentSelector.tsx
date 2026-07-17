@@ -1,12 +1,12 @@
 'use client'
 
 /**
- * ClawManager Agent 选择器组件
+ * AgentManager Agent 选择器组件
  * 用于选择不同的 AI Agent 进行对话
  */
 
 import { useState, useEffect } from 'react'
-import { clawmAPI, type Agent } from './api'
+import { agentmAPI, type Agent } from './api'
 
 interface AgentSelectorProps {
   onSelect: (agent: Agent) => void
@@ -25,10 +25,10 @@ export function AgentSelector({ onSelect, selected }: AgentSelectorProps) {
   const loadAgents = async () => {
     setLoading(true)
     try {
-      const res = await clawmAPI.listInstances()
+      const res = await agentmAPI.listInstances()
       // TODO: 从 /api/v1/agents 获取真实的 Agent 列表
       // 目前使用内置的模型列表作为演示
-      const modelRes = await clawmAPI.listModels()
+      const modelRes = await agentmAPI.listModels()
       const mockAgents: Agent[] = modelRes.models.map((m, i) => ({
         id: i + 1,
         agent_id: m.id,

@@ -33,6 +33,7 @@ import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineR
 import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded';
 import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
 import PaymentRoundedIcon from '@mui/icons-material/PaymentRounded';
+import HubRoundedIcon from '@mui/icons-material/HubRounded';
 import { PERMISSIONS } from '@/lib/permissions';
 
 export interface MenuItemDef {
@@ -144,6 +145,13 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
       { id: 'dh-instructions', label: '数字人指令维护', path: '/system/digital-human-instructions', icon: <StarsRoundedIcon2 sx={{ fontSize: 18 }} />, accent: '#07C160' },
       { id: 'dh-config', label: '数字人配置', path: '/system/digital-human-config', icon: <StarsRoundedIcon2 sx={{ fontSize: 18 }} />, accent: '#FF6B6B' },
       { id: 'wake-word-train', label: '唤醒词训练', path: '/system/record-wake', icon: <RecordVoiceOverRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
+    ],
+  },
+  {
+    title: 'Agent 管理',
+    items: [
+      { id: 'agent-manager', label: 'Agent 管理台', path: '/agentmanager', icon: <HubRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
+      { id: 'agent-chat', label: 'AI 对话', path: '/chat', icon: <ChatBubbleOutlineRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
     ],
   },
   {

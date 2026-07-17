@@ -1,5 +1,5 @@
 /**
- * ClawManager API 客户端
+ * AgentManager API 客户端
  */
 
 export interface Instance {
@@ -27,7 +27,7 @@ interface ChatCompletionsResponse {
   choices: { message: { content: string } }[]
 }
 
-const BASE_URL = process.env.NEXT_PUBLIC_CLAWM_API_URL || '/api/clawm'
+const BASE_URL = process.env.NEXT_PUBLIC_AGENTM_API_URL || '/api/agentm'
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -45,7 +45,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json()
 }
 
-export const clawmAPI = {
+export const agentmAPI = {
   listModels: () => request<ListModelsResponse>('/models'),
 
   listInstances: () => request<ListInstancesResponse>('/instances'),

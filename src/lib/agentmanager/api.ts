@@ -9,7 +9,7 @@ interface RequestOptions extends RequestInit {
   token?: string
 }
 
-class ClawManagerAPI {
+class AgentManagerAPI {
   private token: string | null = null
 
   setToken(token: string) {
@@ -493,4 +493,4 @@ export interface InstanceLatency {
 }
 
 // Export singleton
-export const clawmAPI = new ClawManagerAPI()
+export const agentmAPI = new AgentManagerAPI()

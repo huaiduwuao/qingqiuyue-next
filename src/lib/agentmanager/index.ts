@@ -1,8 +1,8 @@
 /**
- * ClawManager 客户端导出
+ * AgentManager 客户端导出
  */
 
-export { clawmAPI } from './api'
+export { agentmAPI } from './api'
 export type {
   Instance,
   Agent,
