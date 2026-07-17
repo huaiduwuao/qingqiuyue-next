@@ -10,15 +10,12 @@ import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
-import FavoriteIcon from '@mui/icons-material/Favorite';
-import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
 import ShareIcon from '@mui/icons-material/Share';
 import StarIcon from '@mui/icons-material/Star';
 import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-film';
-import { collectContent } from '@/apis/global';
 import { moduleContentAction } from '@/apis/home';
 import { contentClient, formatApiError, isNetworkError } from '@/lib/api/client';
 import VideoPlayer from '@/components/detail/VideoPlayer';
@@ -27,6 +24,7 @@ import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
 import { track, recordHistory } from '@/lib/track';
 import { DetailComments } from '@/components/detail/DetailComments';
+import { CollectButton } from '@/components/detail/CollectButton';
 
 interface Film {
   id: number;
@@ -64,11 +62,9 @@ function FilmDetailContent() {
     }
   }, [id]);
 
-  const [favorited, setFavorited] = React.useState(false);
   const [liked, setLiked] = React.useState(false);
   const [likeBusy, setLikeBusy] = React.useState(false);
   const [optimisticLikes, setOptimisticLikes] = React.useState(0);
-  const [collectBusy, setCollectBusy] = React.useState(false);
   const [videoSrc, setVideoSrc] = React.useState<string>('');
   const [snack, setSnack] = React.useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
     open: false,
@@ -126,25 +122,6 @@ function FilmDetailContent() {
     };
   }, [id, notify]);
 
-  const handleCollect = async () => {
-    if (!id) {
-      notify('内容 ID 缺失', 'error');
-      return;
-    }
-    if (collectBusy) return;
-    setCollectBusy(true);
-    const next = !favorited;
-    setFavorited(next);
-    try {
-      await collectContent({ contentId: id, action: next ? 'collect' : 'cancel_collect' });
-    } catch (err) {
-      setFavorited(!next);
-      notify(formatApiError(err), 'error');
-    } finally {
-      setCollectBusy(false);
-    }
-  };
-
   const handleShare = async () => {
     const url = typeof window !== 'undefined' ? window.location.href : '';
     const title = query.data?.title || '电影详情';
@@ -177,9 +154,7 @@ function FilmDetailContent() {
             >
               {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
             </IconButton>
-            <IconButton disabled={collectBusy} onClick={handleCollect} sx={{ color: favorited ? 'primary.main' : 'text.tertiary' }}>
-              {favorited ? <FavoriteIcon /> : <FavoriteBorderIcon />}
-            </IconButton>
+            <CollectButton contentId={id!} contentType="film" />
             <IconButton onClick={handleShare} sx={{ color: 'text.tertiary' }}>
               <ShareIcon />
             </IconButton>
@@ -225,12 +200,7 @@ function FilmDetailContent() {
                         {Math.max(0, (data.likeCount || 0) + optimisticLikes).toLocaleString()}
                       </Typography>
                     </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
-                      <FavoriteIcon sx={{ fontSize: 14, color: favorited ? 'primary.main' : 'text.secondary' }} />
-                      <Typography sx={{ fontSize: 12, color: favorited ? 'primary.main' : 'text.secondary' }}>
-                        {data.collectCount || 0}
-                      </Typography>
-                    </Box>
+                    <CollectButton contentId={id!} contentType="film" variant="button" compact />
                   </Box>
                 </Box>
               </Box>
