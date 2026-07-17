@@ -17,6 +17,13 @@
   --text-secondary: rgba(0, 0, 0, 0.65);
   --text-muted: rgba(0, 0, 0, 0.45);
   --text-disabled: rgba(0, 0, 0, 0.3);
+
+  /* Safe Area 变量 - iOS/Android 全面屏适配 */
+  --sat: env(safe-area-inset-top, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --bottom-nav-height: calc(56px + var(--sab));
 }
 
 html[data-theme='dark'] {
@@ -85,4 +92,54 @@ a {
 
 .my-masonry-grid_column > div {
   margin-bottom: 12px;
+}
+
+/* ==================== 移动端优化 ==================== */
+
+/* 触摸设备取消高亮 */
+@media (hover: none) and (pointer: coarse) {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button,
+  [role="button"] {
+    cursor: pointer;
+    user-select: none;
+  }
+}
+
+/* 用户偏好：减少动画 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* 移动端滚动优化 */
+@media (hover: none) and (pointer: coarse) {
+  body {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* iOS 安全区域填充 */
+.safe-area-top {
+  padding-top: var(--sat);
+}
+
+.safe-area-bottom {
+  padding-bottom: var(--sab);
+}
+
+.safe-area-left {
+  padding-left: var(--sal);
+}
+
+.safe-area-right {
+  padding-right: var(--sar);
 }

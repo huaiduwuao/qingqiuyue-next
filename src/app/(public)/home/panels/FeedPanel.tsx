@@ -449,7 +449,7 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
                 </Box>
               ) : feedList.length > 0 ? (
                 <Masonry
-                  breakpointCols={{ default: 3, 1200: 2, 900: 2, 600: 1 }}
+                  breakpointCols={{ default: 4, 1400: 3, 1100: 2, 768: 2, 600: 1, 480: 1 }}
                   className="my-masonry-grid"
                   columnClassName="my-masonry-grid_column"
                 >

@@ -45,6 +45,8 @@ import { DramaPanel } from './panels/DramaPanel';
 import { ACCENT } from '@/constants/accents';
 import { gradient2 } from '@/constants/gradients';
 import HomeRecommendPage from './recommend/page';
+import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
+import { useResponsive } from '@/hooks/useResponsive';
 
 const SIDE_NAV: { key: string; label: string; path?: string; icon: React.ReactNode; accent: string; dividerBefore?: boolean }[] = [
   { key: 'home', label: '精选', path: '/home/recommend?tab=home', icon: <HomeRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
@@ -73,6 +75,9 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
   // 搜索框状态提升到 Layout，便于导航时清空
   const [searchDraft, setSearchDraft] = useState('');
   const searchDraftRef = useRef('');
+
+  // 响应式 Hook
+  const { isMobile, isTablet, isLandscape, isDesktop } = useResponsive();
 
   // 同步 URL ?tab= → activeNav,这样从详情页返回时保留 tab
   useEffect(() => {
@@ -126,16 +131,36 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
     };
   }, []);
 
+  // 是否显示底部导航（移动端或平板竖屏）
+  const showBottomNav = isMobile || (isTablet && !isLandscape);
+  // 平板横屏时隐藏左侧栏
+  const hideLeftSidebar = isTablet && isLandscape;
+
   return (
     <Box sx={{ height: '100dvh', bgcolor: 'var(--bg-body, transparent)', color: 'var(--text-primary, currentColor)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <TopBar
         searchDraft={searchDraft}
         setSearchDraft={setSearchDraft}
         searchDraftRef={searchDraftRef}
+        isMobile={isMobile}
+        isTablet={isTablet}
       />
       <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
-        <LeftSidebar activeNav={activeNav} onNavChange={handleNavChange} meOpen={meOpen} onMeOpenChange={setMeOpen} />
-        <Box component="main" ref={mainRef} sx={{ flex: 1, minWidth: 0, overflow: 'auto', overscrollBehavior: 'contain' }}>
+        <LeftSidebar
+          activeNav={activeNav}
+          onNavChange={handleNavChange}
+          meOpen={meOpen}
+          onMeOpenChange={setMeOpen}
+          hideOnLandscape={hideLeftSidebar}
+        />
+        <Box component="main" ref={mainRef} sx={{
+          flex: 1,
+          minWidth: 0,
+          overflow: 'auto',
+          overscrollBehavior: 'contain',
+          // 移动端底部留出滚动空间（避免被底部导航遮挡）
+          pb: showBottomNav ? 'calc(var(--bottom-nav-height, 56px) + 8px)' : 0,
+        }}>
           {activeNav === 'me' ? <MyHomePage />
            : activeNav === 'ai' ? <AIRecommendPanel />
            : activeNav === 'home' ? <FeedPanel tab="home" />
@@ -148,8 +173,11 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
            : <Box sx={{ p: 3 }}>{children}</Box>}
         </Box>
         {/* recommend 页面自己处理右侧栏，home 使用外部侧边栏 */}
-        {activeNav === 'home' && <RightSidebar section={urlSection} />}
+        {/* 移动端隐藏右侧栏 */}
+        {activeNav === 'home' && !isMobile && <RightSidebar section={urlSection} />}
       </Box>
+      {/* 底部导航栏（移动端） */}
+      <MobileBottomNav activeNav={activeNav} onNavChange={handleNavChange} />
       <MockStatusBadge />
     </Box>
   );
@@ -159,10 +187,14 @@ function TopBar({
   searchDraft,
   setSearchDraft,
   searchDraftRef,
+  isMobile,
+  isTablet,
 }: {
   searchDraft: string;
   setSearchDraft: (v: string) => void;
   searchDraftRef: React.MutableRefObject<string>;
+  isMobile: boolean;
+  isTablet: boolean;
 }) {
   const { currentUser } = useApp();
   const router = useRouter();
@@ -173,6 +205,9 @@ function TopBar({
     router.push(`/search?q=${encodeURIComponent(q)}`);
   };
 
+  // 移动端隐藏次要按钮
+  const showExtraButtons = !isMobile;
+
   return (
     <Box
       component="header"
@@ -182,17 +217,19 @@ function TopBar({
         zIndex: 100,
         display: 'flex',
         alignItems: 'center',
-        gap: 2,
-        height: 60,
-        px: 3,
+        gap: 1.5,
+        height: { xs: 52, md: 60 },
+        px: { xs: 1.5, sm: 2, md: 3 },
         bgcolor: 'var(--bg-topbar, transparent)',
         backdropFilter: 'blur(12px)',
         borderBottom: '1px solid var(--border-color, transparent)',
         flexShrink: 0,
+        // Safe Area 顶部适配
+        paddingTop: 'var(--sat)',
       }}
     >
-      <Logo />
-      <Box sx={{ flex: 1, maxWidth: 480, mx: 2 }}>
+      <Logo isCompact={isMobile} />
+      <Box sx={{ flex: 1, maxWidth: { xs: 'none', md: 480 }, mx: { xs: 1, md: 2 }, minWidth: 0 }}>
         <TextField
           fullWidth
           size="small"
@@ -204,7 +241,7 @@ function TopBar({
               submit();
             }
           }}
-          placeholder="搜索你感兴趣的内容、创作者或话题"
+          placeholder={isMobile ? "搜索..." : "搜索你感兴趣的内容、创作者或话题"}
           slotProps={{
             input: {
               startAdornment: (
@@ -242,7 +279,7 @@ function TopBar({
               sx: {
                 bgcolor: 'var(--border-color, transparent)',
                 color: 'var(--text-primary, currentColor)',
-                fontSize: 13,
+                fontSize: { xs: 12, md: 13 },
                 borderRadius: 2,
                 '& input::placeholder': { color: 'var(--text-muted, currentColor)', opacity: 1 },
                 '& fieldset': { borderColor: 'var(--border-strong, transparent)' },
@@ -253,14 +290,15 @@ function TopBar({
           }}
         />
       </Box>
-      <Box sx={{ flex: 1 }} />
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+      <Box sx={{ flex: { xs: 0, md: 1 } }} />
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.25, sm: 0.5, md: 0.5 } }}>
+        {/* 充钻石 - 仅桌面端显示 */}
         <Tooltip title="充钻石">
           <Box
             component={Link}
             href="/recharge"
             sx={{
-              display: 'inline-flex',
+              display: showExtraButtons ? 'inline-flex' : 'none',
               alignItems: 'center',
               gap: 0.5,
               px: 1,
@@ -280,7 +318,7 @@ function TopBar({
             href="/download"
             prefetch={false}
             sx={{
-              display: 'inline-flex',
+              display: showExtraButtons ? 'inline-flex' : 'none',
               alignItems: 'center',
               gap: 0.5,
               px: 1,
@@ -299,7 +337,7 @@ function TopBar({
             component={Link}
             href="/wallpaper"
             sx={{
-              display: 'inline-flex',
+              display: showExtraButtons ? 'inline-flex' : 'none',
               alignItems: 'center',
               gap: 0.5,
               px: 1,
@@ -318,14 +356,14 @@ function TopBar({
         {currentUser ? (
           <AvatarHoverPopup
             anchor={
-              <IconButton size="small" sx={{ p: 0.5, ml: 1 }}>
+              <IconButton size="small" sx={{ p: 0.5, ml: 0.5 }}>
                 <Avatar
                   src={currentUser?.avatar}
                   sx={{
-                    width: 32,
-                    height: 32,
+                    width: { xs: 28, md: 32 },
+                    height: { xs: 28, md: 32 },
                     background: gradient2('#FE2C55', ACCENT.purple.main),
-                    fontSize: 13,
+                    fontSize: { xs: 11, md: 13 },
                     fontWeight: 700,
                   }}
                 >
@@ -361,7 +399,7 @@ function TopBar({
   );
 }
 
-function Logo() {
+function Logo({ isCompact = false }: { isCompact?: boolean }) {
   return (
     <Box
       component={Link}
@@ -370,14 +408,14 @@ function Logo() {
         display: 'flex',
         alignItems: 'center',
         gap: 1,
-        minWidth: 180,
+        minWidth: isCompact ? 'auto' : 180,
         position: 'relative',
         cursor: 'pointer',
         textDecoration: 'none',
         flexShrink: 0,
       }}
     >
-      <Box sx={{ position: 'relative', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Box sx={{ position: 'relative', width: isCompact ? 32 : 40, height: isCompact ? 32 : 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {[0, 1, 2].map((i) => (
           <Box
             key={i}
@@ -397,8 +435,8 @@ function Logo() {
         ))}
         <Box
           sx={{
-            width: 22,
-            height: 22,
+            width: isCompact ? 18 : 22,
+            height: isCompact ? 18 : 22,
             borderRadius: '50%',
             background: 'radial-gradient(circle at 35% 35%, #F5E6A8 0%, #D4AF37 60%, #8B6F1F 100%)',
             boxShadow: '0 0 12px rgba(212, 175, 55, 0.5), inset -3px -3px 6px rgba(0,0,0,0.4)',
@@ -407,39 +445,42 @@ function Logo() {
           }}
         />
       </Box>
-      <Box sx={{ lineHeight: 1.1, position: 'relative' }}>
-        <Box
-          sx={{
-            fontFamily: '"Ma Shan Zheng", "STKaiti", "KaiTi", "STXingkai", "华文行楷", serif',
-            fontSize: 22,
-            color: 'var(--text-primary, currentColor)',
-            lineHeight: 1,
-            letterSpacing: 4,
-            textShadow: '0 0 8px rgba(212, 175, 55, 0.3)',
-          }}
-        >
-          清秋月
+      {/* 移动端隐藏文字 */}
+      {!isCompact && (
+        <Box sx={{ lineHeight: 1.1, position: 'relative' }}>
+          <Box
+            sx={{
+              fontFamily: '"Ma Shan Zheng", "STKaiti", "KaiTi", "STXingkai", "华文行楷", serif',
+              fontSize: 22,
+              color: 'var(--text-primary, currentColor)',
+              lineHeight: 1,
+              letterSpacing: 4,
+              textShadow: '0 0 8px rgba(212, 175, 55, 0.3)',
+            }}
+          >
+            清秋月
+          </Box>
+          <Box
+            sx={{
+              fontFamily: '"ZCOOL XiaoWei", "Songti SC", "STSong", "SimSun", serif',
+              fontSize: 9,
+              color: 'var(--brand-color, currentColor)',
+              letterSpacing: 1.5,
+              mt: 0.25,
+              lineHeight: 1,
+              fontStyle: 'italic',
+            }}
+          >
+            十年清秋 · 问心明月
+          </Box>
         </Box>
-        <Box
-          sx={{
-            fontFamily: '"ZCOOL XiaoWei", "Songti SC", "STSong", "SimSun", serif',
-            fontSize: 9,
-            color: 'var(--brand-color, currentColor)',
-            letterSpacing: 1.5,
-            mt: 0.25,
-            lineHeight: 1,
-            fontStyle: 'italic',
-          }}
-        >
-          十年清秋 · 问心明月
-        </Box>
-      </Box>
+      )}
     </Box>
   );
 }
 
 
-function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activeNav: string; onNavChange: (k: string) => void; meOpen: boolean; onMeOpenChange: (v: boolean) => void }) {
+function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange, hideOnLandscape = false }: { activeNav: string; onNavChange: (k: string) => void; meOpen: boolean; onMeOpenChange: (v: boolean) => void; hideOnLandscape?: boolean }) {
   const router = useRouter();
   const settingsBtnRef = React.useRef<HTMLDivElement | null>(null);
   return (
@@ -449,7 +490,7 @@ function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activ
         width: 220,
         flexShrink: 0,
         height: 'calc(100dvh - 60px)',
-        display: { xs: 'none', md: 'flex' },
+        display: { xs: 'none', md: hideOnLandscape ? 'none' : 'flex' },
         flexDirection: 'column',
         borderRight: '1px solid var(--border-color, transparent)',
         bgcolor: 'var(--bg-sidebar, transparent)',
