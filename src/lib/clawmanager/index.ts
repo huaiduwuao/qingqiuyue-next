@@ -14,6 +14,5 @@ export type {
   InstanceSkill,
 } from './api'
 export { default as Console } from './Console'
-export { default as ChatPage } from '../../app/chat/page'
 export { ChatPanel } from './ChatPanel'
 export { AgentSelector, AgentCard } from './AgentSelector'

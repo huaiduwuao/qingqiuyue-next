@@ -16,11 +16,7 @@ interface Message {
   model?: string
 }
 
-interface ChatPageProps {
-  defaultModel?: string
-}
-
-export default function ChatPage({ defaultModel = 'xiaoyue' }: ChatPageProps) {
+export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -29,7 +25,7 @@ export default function ChatPage({ defaultModel = 'xiaoyue' }: ChatPageProps) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [models, setModels] = useState<{ id: string; name: string }[]>([])
-  const [selectedModel, setSelectedModel] = useState(defaultModel)
+  const [selectedModel, setSelectedModel] = useState('xiaoyue')
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => {
