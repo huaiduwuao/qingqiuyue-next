@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * ClawManager 管理控制台 - 完整版
+ * AgentManager 管理控制台 - 完整版
  * 多 Agent 管理平面前端界面
  */
 
@@ -10,7 +10,7 @@ import { clawmAPI, type Instance, type Agent, type AuditLog, type Skill, type Mo
 
 type Tab = 'dashboard' | 'instances' | 'agents' | 'audit' | 'skills' | 'gateway'
 
-export default function ClawManagerConsole() {
+export default function AgentManagerConsole() {
   const [activeTab, setActiveTab] = useState<Tab>('dashboard')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -115,7 +115,7 @@ export default function ClawManagerConsole() {
     return (
       <div className="min-h-screen bg-gray-900 text-white p-8">
         <div className="max-w-md mx-auto">
-          <h1 className="text-3xl font-bold mb-8 text-center">🤖 ClawManager</h1>
+          <h1 className="text-3xl font-bold mb-8 text-center">🤖 AgentManager</h1>
           <div className="bg-gray-800 rounded-lg p-6">
             <h2 className="text-xl mb-4">登录</h2>
             {error && (
@@ -166,7 +166,7 @@ export default function ClawManagerConsole() {
       {/* Header */}
       <header className="bg-gray-800 border-b border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">🤖 ClawManager</h1>
+          <h1 className="text-2xl font-bold">🤖 AgentManager</h1>
           <div className="flex items-center gap-4">
             {overview && (
               <div className="flex gap-4 text-sm">

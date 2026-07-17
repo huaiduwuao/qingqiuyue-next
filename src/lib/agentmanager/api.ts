@@ -1,9 +1,9 @@
 /**
- * ClawManager API Client
+ * AgentManager API Client
  * 多 Agent 管理平面前端 SDK
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_CLAWM_URL || 'http://localhost:10081/api/v1'
+const API_BASE = process.env.NEXT_PUBLIC_AGENTM_URL || 'http://localhost:10081/api/v1'
 
 interface RequestOptions extends RequestInit {
   token?: string
