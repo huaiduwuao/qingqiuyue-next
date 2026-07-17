@@ -27,7 +27,7 @@ import { dispatchToolCalls, type ToolCall as DhToolCall } from './tools/dispatch
 import { useVoiceAgent } from '@/hooks/useVoiceAgent';
 import { VoiceIndicator, type VoiceIndicatorState } from '@/components/VoiceIndicator';
 import { MicTestButton } from '@/components/MicTestButton';
-import { AgentSelector } from '@/components/hermes/AgentSelector';
+import { AgentSelector } from '@/lib/agentmanager/AgentSelector';
 import { useApp } from '@/contexts/AppContext';
 import { useThemeMode } from '@/contexts/ThemeContext';
 import { routeIntent } from '@/lib/intent/router';
