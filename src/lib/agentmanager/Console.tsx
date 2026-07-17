@@ -3,14 +3,18 @@
 /**
  * AgentManager 管理控制台 - 完整版
  * 多 Agent 管理平面前端界面
+ *
+ * 使用现有的 AuthContext 进行身份认证
  */
 
 import { useState, useEffect, useCallback } from 'react'
 import { agentmAPI, type Instance, type Agent, type AuditLog, type Skill, type MonitoringOverview, type InstanceStats, type AgentStats, type UsageStats } from './api'
+import { useAuth } from '@/contexts/AuthContext'
 
 type Tab = 'dashboard' | 'instances' | 'agents' | 'audit' | 'skills' | 'gateway'
 
 export default function AgentManagerConsole() {
+  const { token, isAuthenticated, permissions } = useAuth()
   const [activeTab, setActiveTab] = useState<Tab>('dashboard')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -26,30 +30,15 @@ export default function AgentManagerConsole() {
   const [agentStats, setAgentStats] = useState<AgentStats[]>([])
   const [usageStats, setUsageStats] = useState<UsageStats | null>(null)
 
-  // Auth state
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-
-  // Login
-  const handleLogin = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      await agentmAPI.login(username, password)
-      setIsLoggedIn(true)
-      loadData()
-    } catch (e: any) {
-      setError(e.message || 'Login failed')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   // Load data
   const loadData = useCallback(async () => {
+    if (!token) return
+
     setLoading(true)
     try {
+      // 设置 API token
+      agentmAPI.setToken(token)
+
       const [instRes, overviewRes, instStatsRes, agentStatsRes, usageRes] = await Promise.all([
         agentmAPI.listInstances().catch(() => ({ list: [] })),
         agentmAPI.getMonitoringOverview().catch(() => null),
@@ -67,10 +56,13 @@ export default function AgentManagerConsole() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [token])
 
   // Load audit logs
   const loadAuditLogs = async () => {
+    if (!token) return
+    agentmAPI.setToken(token)
+
     setLoading(true)
     try {
       const res = await agentmAPI.getAuditLog({ limit: 50 })
@@ -84,6 +76,9 @@ export default function AgentManagerConsole() {
 
   // Load skills
   const loadSkills = async () => {
+    if (!token) return
+    agentmAPI.setToken(token)
+
     setLoading(true)
     try {
       const res = await agentmAPI.listSkills()
@@ -96,56 +91,34 @@ export default function AgentManagerConsole() {
   }
 
   useEffect(() => {
-    if (isLoggedIn) {
+    if (isAuthenticated && token) {
       loadData()
     }
-  }, [isLoggedIn, loadData])
+  }, [isAuthenticated, token, loadData])
 
   useEffect(() => {
-    if (isLoggedIn && activeTab === 'audit') {
+    if (isAuthenticated && activeTab === 'audit') {
       loadAuditLogs()
     }
-    if (isLoggedIn && activeTab === 'skills') {
+    if (isAuthenticated && activeTab === 'skills') {
       loadSkills()
     }
-  }, [isLoggedIn, activeTab])
+  }, [isAuthenticated, activeTab])
 
-  // Login form
-  if (!isLoggedIn) {
+  // 未登录状态 - 使用 LoginGate 处理重定向
+  if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-gray-900 text-white p-8">
-        <div className="max-w-md mx-auto">
-          <h1 className="text-3xl font-bold mb-8 text-center">🤖 AgentManager</h1>
-          <div className="bg-gray-800 rounded-lg p-6">
-            <h2 className="text-xl mb-4">登录</h2>
-            {error && (
-              <div className="bg-red-900/50 border border-red-500 rounded p-3 mb-4">
-                {error}
-              </div>
-            )}
-            <input
-              type="text"
-              placeholder="用户名"
-              value={username}
-              onChange={e => setUsername(e.target.value)}
-              className="w-full bg-gray-700 rounded px-4 py-2 mb-4"
-            />
-            <input
-              type="password"
-              placeholder="密码"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              className="w-full bg-gray-700 rounded px-4 py-2 mb-4"
-              onKeyDown={e => e.key === 'Enter' && handleLogin()}
-            />
-            <button
-              onClick={handleLogin}
-              disabled={loading}
-              className="w-full bg-blue-600 hover:bg-blue-700 rounded px-4 py-2 disabled:opacity-50"
-            >
-              {loading ? '登录中...' : '登录'}
-            </button>
-          </div>
+        <div className="max-w-md mx-auto text-center">
+          <div className="text-6xl mb-4">🔐</div>
+          <h2 className="text-2xl font-bold mb-4">需要登录</h2>
+          <p className="text-gray-400 mb-6">请先登录以访问 Agent 管理控制台</p>
+          <a
+            href="/user/login?redirect=/agentmanager"
+            className="inline-block bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg font-medium"
+          >
+            去登录
+          </a>
         </div>
       </div>
     )
@@ -178,12 +151,6 @@ export default function AgentManagerConsole() {
                 </span>
               </div>
             )}
-            <button
-              onClick={() => setIsLoggedIn(false)}
-              className="text-gray-400 hover:text-white"
-            >
-              退出
-            </button>
           </div>
         </div>
       </header>
