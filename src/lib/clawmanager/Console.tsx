@@ -1,17 +1,17 @@
 'use client'
 
 /**
- * ClawManager 管理控制台
+ * ClawManager 管理控制台 - 完整版
  * 多 Agent 管理平面前端界面
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { clawmAPI, type Instance, type Agent, type AuditLog, type Skill } from './api'
+import { clawmAPI, type Instance, type Agent, type AuditLog, type Skill, type MonitoringOverview, type InstanceStats, type AgentStats, type UsageStats } from './api'
 
-type Tab = 'instances' | 'agents' | 'audit' | 'skills' | 'gateway'
+type Tab = 'dashboard' | 'instances' | 'agents' | 'audit' | 'skills' | 'gateway'
 
 export default function ClawManagerConsole() {
-  const [activeTab, setActiveTab] = useState<Tab>('instances')
+  const [activeTab, setActiveTab] = useState<Tab>('dashboard')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -21,7 +21,10 @@ export default function ClawManagerConsole() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
   const [skills, setSkills] = useState<Skill[]>([])
   const [quota, setQuota] = useState<any>(null)
-  const [governance, setGovernance] = useState<any>(null)
+  const [overview, setOverview] = useState<MonitoringOverview | null>(null)
+  const [instanceStats, setInstanceStats] = useState<InstanceStats[]>([])
+  const [agentStats, setAgentStats] = useState<AgentStats[]>([])
+  const [usageStats, setUsageStats] = useState<UsageStats | null>(null)
 
   // Auth state
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -47,16 +50,18 @@ export default function ClawManagerConsole() {
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const [instRes, skillRes, quotaRes, govRes] = await Promise.all([
+      const [instRes, overviewRes, instStatsRes, agentStatsRes, usageRes] = await Promise.all([
         clawmAPI.listInstances().catch(() => ({ list: [] })),
-        clawmAPI.listSkills().catch(() => ({ list: [] })),
-        clawmAPI.getQuota().catch(() => null),
-        clawmAPI.getLLMGovernance().catch(() => null),
+        clawmAPI.getMonitoringOverview().catch(() => null),
+        clawmAPI.getInstancesStats().catch(() => ({ instances: [] })),
+        clawmAPI.getAgentsStats().catch(() => ({ agents: [] })),
+        clawmAPI.getUsageStats('week').catch(() => null),
       ])
       setInstances(instRes.list || [])
-      setSkills(skillRes.list || [])
-      setQuota(quotaRes)
-      setGovernance(govRes)
+      setOverview(overviewRes)
+      setInstanceStats(instStatsRes.instances || [])
+      setAgentStats(agentStatsRes.agents || [])
+      setUsageStats(usageRes)
     } catch (e: any) {
       console.error('Load data error:', e)
     } finally {
@@ -77,6 +82,19 @@ export default function ClawManagerConsole() {
     }
   }
 
+  // Load skills
+  const loadSkills = async () => {
+    setLoading(true)
+    try {
+      const res = await clawmAPI.listSkills()
+      setSkills(res.list || [])
+    } catch (e: any) {
+      console.error('Load skills error:', e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (isLoggedIn) {
       loadData()
@@ -87,19 +105,10 @@ export default function ClawManagerConsole() {
     if (isLoggedIn && activeTab === 'audit') {
       loadAuditLogs()
     }
-  }, [isLoggedIn, activeTab])
-
-  // Health check
-  const handleHealthCheck = async (instance: Instance) => {
-    try {
-      const status = await clawmAPI.getInstanceStatus(instance.id)
-      setInstances(prev =>
-        prev.map(i => i.id === instance.id ? { ...i, health_status: status.health_status as any } : i)
-      )
-    } catch (e: any) {
-      alert(`Health check failed: ${e.message}`)
+    if (isLoggedIn && activeTab === 'skills') {
+      loadSkills()
     }
-  }
+  }, [isLoggedIn, activeTab])
 
   // Login form
   if (!isLoggedIn) {
@@ -144,11 +153,12 @@ export default function ClawManagerConsole() {
 
   // Tabs
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'instances', label: '实例' },
-    { key: 'agents', label: 'Agent' },
-    { key: 'audit', label: '审计' },
-    { key: 'skills', label: '技能' },
-    { key: 'gateway', label: '网关' },
+    { key: 'dashboard', label: '📊 总览' },
+    { key: 'instances', label: '🖥️ 实例' },
+    { key: 'agents', label: '🤖 Agent' },
+    { key: 'audit', label: '📝 审计' },
+    { key: 'skills', label: '🛠️ 技能' },
+    { key: 'gateway', label: '🌐 网关' },
   ]
 
   return (
@@ -158,10 +168,14 @@ export default function ClawManagerConsole() {
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">🤖 ClawManager</h1>
           <div className="flex items-center gap-4">
-            {governance && (
+            {overview && (
               <div className="flex gap-4 text-sm">
-                <span>实例: <span className="text-green-400">{governance.instances?.healthy || 0}/{governance.instances?.total || 0}</span></span>
-                <span>Agent: <span className="text-blue-400">{governance.agents || 0}</span></span>
+                <span className="px-2 py-1 bg-green-900/50 text-green-400 rounded">
+                  ✓ 健康: {overview.instances.healthy}/{overview.instances.total}
+                </span>
+                <span className="px-2 py-1 bg-blue-900/50 text-blue-400 rounded">
+                  🤖 Agent: {overview.agents.active}/{overview.agents.total}
+                </span>
               </div>
             )}
             <button
@@ -197,6 +211,86 @@ export default function ClawManagerConsole() {
       <main className="p-6">
         {loading && <div className="text-center py-8 text-gray-400">加载中...</div>}
 
+        {/* Dashboard Tab */}
+        {activeTab === 'dashboard' && !loading && overview && (
+          <div className="space-y-6">
+            {/* Stats Cards */}
+            <div className="grid grid-cols-4 gap-4">
+              <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <div className="text-gray-400 text-sm">实例</div>
+                <div className="text-3xl font-bold mt-1">{overview.instances.total}</div>
+                <div className="text-sm text-green-400 mt-1">
+                  {overview.instances.healthy} 健康
+                </div>
+              </div>
+              <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <div className="text-gray-400 text-sm">Agent</div>
+                <div className="text-3xl font-bold mt-1">{overview.agents.total}</div>
+                <div className="text-sm text-blue-400 mt-1">
+                  {overview.agents.active} 活跃
+                </div>
+              </div>
+              <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <div className="text-gray-400 text-sm">今日对话</div>
+                <div className="text-3xl font-bold mt-1">{overview.agents.today_chats}</div>
+                <div className="text-sm text-gray-400 mt-1">次</div>
+              </div>
+              <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <div className="text-gray-400 text-sm">平均延迟</div>
+                <div className="text-3xl font-bold mt-1">
+                  {overview.usage.avg_latency_ms.toFixed(0)}ms
+                </div>
+                <div className="text-sm text-gray-400 mt-1">响应时间</div>
+              </div>
+            </div>
+
+            {/* Usage Chart */}
+            {usageStats && (
+              <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <h3 className="font-semibold mb-4">📈 使用趋势（本周）</h3>
+                <div className="flex items-end gap-2 h-32">
+                  {usageStats.daily.map((day, i) => {
+                    const maxTokens = Math.max(...usageStats.daily.map(d => d.tokens), 1)
+                    const height = (day.tokens / maxTokens) * 100
+                    return (
+                      <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                        <div
+                          className="w-full bg-blue-600 rounded-t transition-all"
+                          style={{ height: `${Math.max(height, 4)}%` }}
+                          title={`${day.tokens.toLocaleString()} tokens`}
+                        />
+                        <span className="text-xs text-gray-500">{day.date.slice(5)}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Recent Activity */}
+            <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+              <h3 className="font-semibold mb-4">📋 实例状态</h3>
+              <div className="space-y-2">
+                {instanceStats.slice(0, 5).map(inst => (
+                  <div key={inst.id} className="flex items-center justify-between p-2 bg-gray-700/50 rounded">
+                    <div className="flex items-center gap-3">
+                      <span className={`w-2 h-2 rounded-full ${
+                        inst.health_status === 'healthy' ? 'bg-green-500' :
+                        inst.health_status === 'unhealthy' ? 'bg-red-500' : 'bg-gray-500'
+                      }`} />
+                      <span className="font-medium">{inst.name}</span>
+                    </div>
+                    <div className="flex gap-4 text-sm text-gray-400">
+                      <span>连接: {inst.active_conns}/{inst.max_concurrent}</span>
+                      <span>延迟: {inst.avg_latency_ms}ms</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Instances Tab */}
         {activeTab === 'instances' && !loading && (
           <div>
@@ -226,13 +320,6 @@ export default function ClawManagerConsole() {
                         {inst.health_status === 'healthy' ? '✓ 健康' :
                          inst.health_status === 'unhealthy' ? '✗ 异常' : '? 未知'}
                       </span>
-                      <span className={`px-2 py-1 rounded text-xs ${
-                        inst.status === 'active' ? 'bg-green-900/50 text-green-400' :
-                        inst.status === 'offline' ? 'bg-red-900/50 text-red-400' :
-                        'bg-gray-700 text-gray-400'
-                      }`}>
-                        {inst.status}
-                      </span>
                     </div>
                   </div>
                   <div className="mt-3 grid grid-cols-4 gap-4 text-sm text-gray-400">
@@ -240,17 +327,6 @@ export default function ClawManagerConsole() {
                     <div>权重: <span className="text-white">{inst.weight}</span></div>
                     <div>最大并发: <span className="text-white">{inst.max_concurrent}</span></div>
                     <div>运行时: <span className="text-white">{inst.runtime_type}</span></div>
-                  </div>
-                  <div className="mt-3 flex gap-2">
-                    <button
-                      onClick={() => handleHealthCheck(inst)}
-                      className="text-blue-400 hover:text-blue-300 text-sm"
-                    >
-                      健康检查
-                    </button>
-                    <button className="text-gray-400 hover:text-white text-sm">
-                      编辑
-                    </button>
                   </div>
                 </div>
               ))}
@@ -262,7 +338,31 @@ export default function ClawManagerConsole() {
         {activeTab === 'agents' && !loading && (
           <div>
             <h2 className="text-xl font-semibold mb-4">Agent 管理</h2>
-            <p className="text-gray-400">Agent 数据将从 clawm_agents 表加载（当前为空）</p>
+            <div className="grid gap-4 md:grid-cols-3">
+              {agentStats.map(agent => (
+                <div key={agent.id} className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-lg font-bold">
+                      {agent.name.charAt(0)}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold">{agent.name}</h3>
+                      <span className="text-xs text-gray-400">{agent.agent_id}</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="bg-gray-700/50 rounded p-2">
+                      <div className="text-gray-400">对话数</div>
+                      <div className="font-medium">{agent.chat_count.toLocaleString()}</div>
+                    </div>
+                    <div className="bg-gray-700/50 rounded p-2">
+                      <div className="text-gray-400">Token</div>
+                      <div className="font-medium">{agent.total_tokens.toLocaleString()}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
@@ -293,8 +393,7 @@ export default function ClawManagerConsole() {
                         <td className="px-4 py-3">{log.latency_ms}ms</td>
                         <td className="px-4 py-3">
                           <span className={`px-2 py-1 rounded text-xs ${
-                            log.status === 'success' ? 'bg-green-900 text-green-400' :
-                            'bg-red-900 text-red-400'
+                            log.status === 'success' ? 'bg-green-900 text-green-400' : 'bg-red-900 text-red-400'
                           }`}>
                             {log.status}
                           </span>
@@ -333,40 +432,36 @@ export default function ClawManagerConsole() {
         {activeTab === 'gateway' && !loading && (
           <div>
             <h2 className="text-xl font-semibold mb-4">AI 网关</h2>
-            {quota && (
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                  <h3 className="font-semibold mb-3">配额使用</h3>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <h3 className="font-semibold mb-3">配额使用</h3>
+                {overview && (
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
                       <span className="text-gray-400">Token 配额</span>
-                      <span>{quota.quota_used?.toLocaleString()} / {quota.quota_limit?.toLocaleString()}</span>
+                      <span>{overview.quota.used.toLocaleString()} / {overview.quota.total.toLocaleString()}</span>
                     </div>
                     <div className="w-full bg-gray-700 rounded-full h-2">
                       <div
                         className="bg-blue-500 h-2 rounded-full"
-                        style={{ width: `${(quota.quota_used / quota.quota_limit) * 100}%` }}
+                        style={{ width: `${Math.min(overview.quota.usage_percent, 100)}%` }}
                       />
                     </div>
-                    <div className="flex justify-between mt-4">
-                      <span className="text-gray-400">请求次数</span>
-                      <span>{quota.requests_used?.toLocaleString()} / {quota.requests_limit?.toLocaleString()}</span>
+                  </div>
+                )}
+              </div>
+              <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <h3 className="font-semibold mb-3">可用模型</h3>
+                <div className="space-y-2">
+                  {['xiaoyue', 'backend-dev', 'frontend-dev', 'ops'].map(model => (
+                    <div key={model} className="flex items-center gap-2 text-sm">
+                      <span className="w-2 h-2 bg-green-500 rounded-full" />
+                      {model}
                     </div>
-                  </div>
-                </div>
-                <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                  <h3 className="font-semibold mb-3">可用模型</h3>
-                  <div className="space-y-2">
-                    {['xiaoyue', 'backend-dev', 'frontend-dev', 'ops'].map(model => (
-                      <div key={model} className="flex items-center gap-2 text-sm">
-                        <span className="w-2 h-2 bg-green-500 rounded-full" />
-                        {model}
-                      </div>
-                    ))}
-                  </div>
+                  ))}
                 </div>
               </div>
-            )}
+            </div>
           </div>
         )}
       </main>

@@ -275,6 +275,27 @@ class ClawManagerAPI {
 
     return this.request<{ list: AuditLog[]; total: number }>(`/admin/audit?${query}`)
   }
+
+  // ========== Monitoring ==========
+  async getMonitoringOverview() {
+    return this.request<MonitoringOverview>('/monitoring/overview')
+  }
+
+  async getInstancesStats() {
+    return this.request<{ instances: InstanceStats[] }>('/monitoring/instances')
+  }
+
+  async getAgentsStats() {
+    return this.request<{ agents: AgentStats[] }>('/monitoring/agents')
+  }
+
+  async getUsageStats(period: 'day' | 'week' | 'month' = 'week') {
+    return this.request<UsageStats>(`/monitoring/usage?period=${period}`)
+  }
+
+  async getLatencyStats() {
+    return this.request<LatencyStats>('/monitoring/latency')
+  }
 }
 
 // Types
@@ -386,6 +407,89 @@ export interface InstanceSkill {
   skill_id: number
   enabled: boolean
   config: Record<string, any>
+}
+
+// ========== Monitoring Types ==========
+
+export interface MonitoringOverview {
+  instances: {
+    total: number
+    healthy: number
+    unhealthy: number
+    unknown: number
+  }
+  agents: {
+    total: number
+    active: number
+    paused: number
+    today_chats: number
+  }
+  usage: {
+    today_tokens: number
+    today_requests: number
+    avg_latency_ms: number
+  }
+  quota: {
+    total: number
+    used: number
+    usage_percent: number
+  }
+}
+
+export interface InstanceStats {
+  id: number
+  name: string
+  code: string
+  status: string
+  health_status: string
+  region: string
+  weight: number
+  max_concurrent: number
+  active_conns: number
+  total_requests: number
+  avg_latency_ms: number
+  last_health_at?: string
+}
+
+export interface AgentStats {
+  id: number
+  agent_id: string
+  name: string
+  role: string
+  status: string
+  chat_count: number
+  total_tokens: number
+  last_chat_at?: string
+}
+
+export interface UsageStats {
+  period: string
+  total_tokens: number
+  total_requests: number
+  avg_latency_ms: number
+  daily: DailyUsage[]
+}
+
+export interface DailyUsage {
+  date: string
+  tokens: number
+  requests: number
+  avg_latency_ms: number
+}
+
+export interface LatencyStats {
+  avg_latency_ms: number
+  p50_latency_ms: number
+  p95_latency_ms: number
+  p99_latency_ms: number
+  by_instance: InstanceLatency[]
+}
+
+export interface InstanceLatency {
+  instance_id: number
+  instance_name: string
+  avg_latency_ms: number
+  total_requests: number
 }
 
 // Export singleton
