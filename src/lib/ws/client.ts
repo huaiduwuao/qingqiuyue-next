@@ -371,10 +371,21 @@ let wsInstance: WSClient | null = null;
 
 /**
  * 获取全局 WebSocket 实例
+ * WebSocket 连接通过 API 网关，支持通知和私信
+ *
+ * 连接地址: ws(s)://host/ws/notify
+ * 后端路由: core-api /ws/notify (wsnotify.ClientHandler)
+ * APISIX 路由: /ws -> core-api (enable_websocket: true)
  */
 export function getWSClient(): WSClient {
   if (!wsInstance) {
-    const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
+    // 根据当前页面协议选择 WS 或 WSS
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    // 通过 API 网关访问后端 WebSocket
+    // APISIX 路由: /ws/* -> core-api (:10001) /ws/notify
+    const host = window.location.host;
+    // 生产环境: ws://host/ws/notify -> APISIX (:9080) -> core-api (:10001) /ws/notify
+    const wsUrl = `${protocol}//${host}/ws/notify`;
 
     wsInstance = new WSClient({
       url: wsUrl,
