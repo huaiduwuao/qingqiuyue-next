@@ -1,6 +1,7 @@
 'use client';
 
 import { devLog } from '@/lib/dev-log';
+import { safeErrorLog } from '@/lib/error-handler';
 
 /**
  * VrmStage.tsx — 全身取景 + 多场景 + 5 hooks 编排的 VRM 舞台
@@ -578,17 +579,17 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       } catch (e) { devLog.warn('[VrmStage] session restore failed:', e); }
     })();
     const flushId = setInterval(() => {
-      import('./store/session').then(m => m.useSessionStore.getState().flush()).catch(() => {});
+      import('./store/session').then(m => m.useSessionStore.getState().flush()).catch((e) => safeErrorLog('session flush', e));
     }, 5000);
     const onUnload = () => {
-      import('./store/session').then(m => m.useSessionStore.getState().flush()).catch(() => {});
+      import('./store/session').then(m => m.useSessionStore.getState().flush()).catch((e) => safeErrorLog('session flush', e));
     };
     window.addEventListener('beforeunload', onUnload);
     return () => {
       mounted = false;
       clearInterval(flushId);
       window.removeEventListener('beforeunload', onUnload);
-      import('./store/session').then(m => m.useSessionStore.getState().flush()).catch(() => {});
+      import('./store/session').then(m => m.useSessionStore.getState().flush()).catch((e) => safeErrorLog('session flush', e));
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

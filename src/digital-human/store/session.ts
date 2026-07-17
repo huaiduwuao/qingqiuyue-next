@@ -8,6 +8,7 @@
 
 import { create } from 'zustand';
 import type { CharacterSession } from '../vrm/config/types';
+import { safeErrorLog } from '@/lib/error-handler';
 
 const USER_ID_KEY = 'qingqiuyue:digital-human:userId';
 
@@ -46,6 +47,10 @@ const DEFAULT_SESSION: CharacterSession = {
   updatedAt: new Date().toISOString(),
 };
 
+// 防抖定时器，防止频繁 flush
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingFlush = false;
+
 interface SessionStore {
   session: CharacterSession;
   /** 部分更新（VrmStage 调） */
@@ -54,6 +59,8 @@ interface SessionStore {
   setSession: (s: CharacterSession) => void;
   /** 立即 flush 到服务端（VrmStage unmount / window beforeunload 调） */
   flush: () => Promise<void>;
+  /** 防抖 flush（用于定期保存，避免频繁请求） */
+  flushDebounced: () => void;
   /** 重置到默认值（debug 用） */
   reset: () => void;
   /** 切换 userId（auth 接入时调） */
@@ -65,19 +72,36 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   update: (patch) => set((s) => ({ session: { ...s.session, ...patch, updatedAt: new Date().toISOString() } })),
   setSession: (sess) => set({ session: sess }),
   flush: async () => {
-    const s = get().session;
+    // 防止并发 flush
+    if (pendingFlush) return
+    pendingFlush = true
+
+    // 获取当前快照，避免竞态
+    const snapshot = get().session
     try {
       const { upsertMySession } = await import('../api/digitalHumanConfig');
-      await upsertMySession(s);
+      await upsertMySession(snapshot);
       console.log('[session] flushed to server');
     } catch (e) {
-      console.warn('[session] flush failed:', e);
+      safeErrorLog('session flush failed', e)
+    } finally {
+      pendingFlush = false
     }
+  },
+  // 防抖 flush，延迟 1 秒后执行
+  flushDebounced: () => {
+    if (flushTimer) {
+      clearTimeout(flushTimer)
+    }
+    flushTimer = setTimeout(() => {
+      flushTimer = null
+      get().flush()
+    }, 1000)
   },
   reset: () => set({ session: { ...DEFAULT_SESSION, updatedAt: new Date().toISOString() } }),
   setUserId: (userId) => {
     if (typeof window !== 'undefined') {
-      try { window.localStorage.setItem(USER_ID_KEY, userId); } catch {}
+      try { window.localStorage.setItem(USER_ID_KEY, userId); } catch { /* ignore */ }
     }
     set((s) => ({ session: { ...s.session, userId, id: '' } }));  // 清 id 强制重新拉
   },

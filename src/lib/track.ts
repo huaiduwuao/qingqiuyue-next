@@ -1,5 +1,6 @@
 import { reportBehavior } from '@/apis/recommend';
 import { homeClient } from '@/lib/api/client';
+import { safeErrorLog } from './error-handler';
 
 // 推荐/大数据的源头:前端行为埋点(fire-and-forget,失败不影响业务)。
 // userId 取本地存储(匿名则 0,后端会回退热门 feed)。
@@ -52,7 +53,7 @@ export function recordHistory(contentId: number | string) {
   const id = Number(contentId);
   if (!id) return;
   try {
-    void homeClient.post('/history/record', { contentId: id }).catch(() => {});
+    void homeClient.post('/history/record', { contentId: id }).catch((e) => safeErrorLog('recordHistory', e));
   } catch {
     /* 静默 */
   }
@@ -70,7 +71,7 @@ export function trackPageView(pathname: string, search = '') {
       itemType: 'PAGE',
       action: 'pageview',
       duration: 0,
-    }).catch(() => {});
+    }).catch((e) => safeErrorLog('trackPageView', e));
   } catch {
     /* 静默 */
   }

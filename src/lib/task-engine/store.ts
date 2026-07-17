@@ -13,6 +13,7 @@ import { randomUUID } from 'crypto'
 import { eq } from 'drizzle-orm'
 import { db } from '@/lib/db/client'
 import { tasks } from '@/lib/db/schema'
+import { safeErrorLog } from '@/lib/error-handler'
 import type {
   TaskState,
   TaskStatus,
@@ -115,7 +116,7 @@ export function createTask(opts: CreateTaskOptions): TaskState {
     createdAt: nowMs(),
   }
   taskMap.set(id, state)
-  insertToDb(state).catch(() => {})
+  insertToDb(state).catch((e) => safeErrorLog('insertToDb', e))
   return state
 }
 
@@ -143,7 +144,7 @@ export function updateTask(taskId: string, update: TaskUpdate): TaskState | null
     event: 'status',
     data: { status: state.status, progress: state.progress, t: nowMs() },
   })
-  persistToDb(state).catch(() => {})
+  persistToDb(state).catch((e) => safeErrorLog('persistToDb', e))
   return state
 }
 
@@ -156,7 +157,7 @@ export function setStatus(taskId: string, status: TaskStatus): TaskState | null 
     event: 'status',
     data: { status, progress: state.progress, t: nowMs() },
   })
-  persistToDb(state).catch(() => {})
+  persistToDb(state).catch((e) => safeErrorLog('persistToDb', e))
   return state
 }
 
@@ -181,7 +182,7 @@ export function setStage(
   else state.stages.push(stage)
 
   emit(taskId, { event: 'stage', data: stage })
-  persistToDb(state).catch(() => {})
+  persistToDb(state).catch((e) => safeErrorLog('persistToDb', e))
   return state
 }
 
@@ -190,7 +191,7 @@ export function setProgress(taskId: string, progress: number): TaskState | null 
   if (!state) return null
   state.progress = Math.max(0, Math.min(100, progress))
   emit(taskId, { event: 'progress', data: { progress: state.progress, t: nowMs() } })
-  persistToDb(state).catch(() => {})
+  persistToDb(state).catch((e) => safeErrorLog('persistToDb', e))
   return state
 }
 
@@ -209,7 +210,7 @@ export function setResult(taskId: string, result: Record<string, unknown> | null
   if (!state) return null
   state.result = result
   emit(taskId, { event: 'result', data: { result, t: nowMs() } })
-  persistToDb(state).catch(() => {})
+  persistToDb(state).catch((e) => safeErrorLog('persistToDb', e))
   return state
 }
 
@@ -228,7 +229,7 @@ export function markDone(taskId: string, result?: Record<string, unknown>): Task
     event: 'done',
     data: { result: state.result ?? null, progress: 100, t: nowMs() },
   })
-  persistToDb(state).catch(() => {})
+  persistToDb(state).catch((e) => safeErrorLog('persistToDb', e))
   return state
 }
 
@@ -242,7 +243,7 @@ export function markFailed(taskId: string, error: string | Error, stage?: string
     event: 'error',
     data: { message: state.error, stage, t: nowMs() },
   })
-  persistToDb(state).catch(() => {})
+  persistToDb(state).catch((e) => safeErrorLog('persistToDb', e))
   return state
 }
 
@@ -252,7 +253,7 @@ export function markCancelled(taskId: string): TaskState | null {
   state.status = 'cancelled'
   state.completedAt = nowMs()
   emit(taskId, { event: 'cancelled', data: { t: nowMs() } })
-  persistToDb(state).catch(() => {})
+  persistToDb(state).catch((e) => safeErrorLog('persistToDb', e))
   return state
 }
 
