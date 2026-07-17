@@ -1,13 +1,10 @@
 'use client'
 
-import { useCallback, useState } from 'react'
-import { Snackbar, Alert, AlertColor } from '@mui/material'
+import { useCallback, useState, ReactNode } from 'react'
+import Snackbar from '@mui/material/Snackbar'
+import Alert, { type AlertColor } from '@mui/material/Alert'
 import { safeErrorLog } from '@/lib/error-handler'
 
-/**
- * 通用错误处理 Hook
- * 提供一致的错误提示和日志记录
- */
 export function useErrorHandler() {
   const [snackbar, setSnackbar] = useState<{
     open: boolean
@@ -51,7 +48,8 @@ export function useErrorHandler() {
     showSnackbar(message, 'success')
   }, [showSnackbar])
 
-  const SnackbarComponent = useCallback(() => (
+  // 返回 Snackbar 组件
+  const renderSnackbar = (): ReactNode => (
     <Snackbar
       open={snackbar.open}
       autoHideDuration={4000}
@@ -67,14 +65,14 @@ export function useErrorHandler() {
         {snackbar.message}
       </Alert>
     </Snackbar>
-  ), [snackbar, handleClose])
+  )
 
   return {
     handleError,
     handleBusinessError,
     handleSuccess,
     showSnackbar,
-    SnackbarComponent,
+    renderSnackbar,
   }
 }
 

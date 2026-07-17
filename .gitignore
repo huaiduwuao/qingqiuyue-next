@@ -104,6 +104,9 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 
+# Tauri 构建产物
+/src-tauri/target/
+
 # 临时草稿/消息文件
 /_msg*.txt
 
