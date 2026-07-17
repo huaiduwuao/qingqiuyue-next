@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useState, ReactNode } from 'react'
-import Snackbar from '@mui/material/Snackbar'
+import { Snackbar as MuiSnackbar } from '@mui/material'
 import Alert, { type AlertColor } from '@mui/material/Alert'
 import { safeErrorLog } from '@/lib/error-handler'
 
@@ -50,7 +50,7 @@ export function useErrorHandler() {
 
   // 返回 Snackbar 组件
   const renderSnackbar = (): ReactNode => (
-    <Snackbar
+    <MuiSnackbar
       open={snackbar.open}
       autoHideDuration={4000}
       onClose={handleClose}
@@ -64,7 +64,7 @@ export function useErrorHandler() {
       >
         {snackbar.message}
       </Alert>
-    </Snackbar>
+    </MuiSnackbar>
   )
 
   return {
