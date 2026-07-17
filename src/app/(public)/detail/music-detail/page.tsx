@@ -19,14 +19,18 @@ import SkipPreviousIcon from '@mui/icons-material/SkipPrevious';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
+import ThumbUpIcon from '@mui/icons-material/ThumbUp';
+import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
 import ShareIcon from '@mui/icons-material/Share';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-music';
 import { collectContent } from '@/apis/global';
+import { moduleContentAction } from '@/apis/home';
 import { formatApiError } from '@/lib/api/client';
 import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
 import { track, recordHistory } from '@/lib/track';
+import { DetailComments } from '@/components/detail/DetailComments';
 
 interface LyricLine {
   time: number;
@@ -74,6 +78,9 @@ function MusicDetailContent() {
   const [currentTime, setCurrentTime] = useState(0);
   const [volume, setVolume] = useState(70);
   const [favorited, setFavorited] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [likeBusy, setLikeBusy] = useState(false);
+  const [optimisticLikes, setOptimisticLikes] = useState(0);
   const [collectBusy, setCollectBusy] = useState(false);
   const [activeLyric, setActiveLyric] = useState(0);
   const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
@@ -88,6 +95,27 @@ function MusicDetailContent() {
   const notify = useCallback((message: string, severity: 'success' | 'error' | 'info' = 'success') => {
     setSnack({ open: true, message, severity });
   }, []);
+
+  const handleLike = async () => {
+    if (!id) {
+      notify('内容 ID 缺失', 'error');
+      return;
+    }
+    if (likeBusy) return;
+    setLikeBusy(true);
+    const next = !liked;
+    setLiked(next);
+    setOptimisticLikes((prev) => Math.max(0, prev + (next ? 1 : -1)));
+    try {
+      await moduleContentAction({ contentId: id, action: next ? 'agree' : 'cancel_agree' });
+    } catch (err) {
+      setLiked(!next);
+      setOptimisticLikes((prev) => Math.max(0, prev + (next ? -1 : 1)));
+      notify(formatApiError(err), 'error');
+    } finally {
+      setLikeBusy(false);
+    }
+  };
 
   const handleCollect = async () => {
     if (!id) {
@@ -293,6 +321,13 @@ function MusicDetailContent() {
                 sx={{ color: 'primary.main', width: 100, ml: 1 }}
               />
               <Box sx={{ flex: 1 }} />
+              <IconButton
+                onClick={handleLike}
+                disabled={likeBusy}
+                sx={{ color: liked ? 'primary.main' : 'text.secondary' }}
+              >
+                {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
+              </IconButton>
               <IconButton disabled={collectBusy} onClick={handleCollect} sx={{ color: favorited ? 'primary.main' : 'text.secondary' }}>
                 {favorited ? <FavoriteIcon /> : <FavoriteBorderIcon />}
               </IconButton>
@@ -309,6 +344,8 @@ function MusicDetailContent() {
             <Typography sx={{ color: 'text.tertiary', fontSize: 14, lineHeight: 1.8, mb: 3 }}>
               {data.info}
             </Typography>
+
+            <DetailComments contentId={id!} initialCount={data.commentCount || 0} />
           </Container>
         )}
       </AsyncState>

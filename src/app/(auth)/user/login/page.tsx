@@ -401,25 +401,30 @@ export default function LoginPage() {
               <DarkTextField
                 label="手机号"
                 value={mobile}
-                onChange={(e) => setMobile(e.target.value)}
+                onChange={(e) => setMobile(e.target.value.replace(/\D/g, '').slice(0, 11))}
                 autoComplete="tel"
-                inputMode="numeric"
+                inputMode="tel"
+                slotProps={{ htmlInput: { maxLength: 11 } }}
+                placeholder="请输入手机号"
               />
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <Box sx={{ flex: 1 }}>
                   <DarkTextField
                     label="验证码"
                     value={captcha}
-                    onChange={(e) => setCaptcha(e.target.value)}
+                    onChange={(e) => setCaptcha(e.target.value.replace(/\D/g, '').slice(0, 6))}
                     inputMode="numeric"
+                    slotProps={{ htmlInput: { maxLength: 6 } }}
+                    placeholder="请输入验证码"
                   />
                 </Box>
-                <Box
+                <Button
                   onClick={countdown > 0 ? undefined : handleGetCaptcha}
+                  disabled={countdown > 0}
                   sx={{
                     flexShrink: 0,
                     width: 120,
-                    height: 56,
+                    minHeight: 56,
                     borderRadius: 1.5,
                     bgcolor: countdown > 0 ? 'action.hover' : 'rgba(254, 44, 85, 0.12)',
                     border: '1px solid',
@@ -427,16 +432,12 @@ export default function LoginPage() {
                     color: countdown > 0 ? 'text.disabled' : BRAND,
                     fontSize: 13,
                     fontWeight: 500,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: countdown > 0 ? 'not-allowed' : 'pointer',
-                    transition: 'all 0.15s',
+                    textTransform: 'none',
                     '&:hover': countdown > 0 ? {} : { bgcolor: 'rgba(254, 44, 85, 0.18)' },
                   }}
                 >
                   {countdown > 0 ? `${countdown}s 后重试` : '获取验证码'}
-                </Box>
+                </Button>
               </Box>
 
               <BrandButton onClick={handleMobileLogin} loading={loading} disabled={!mobile || !captcha}>
@@ -453,22 +454,34 @@ export default function LoginPage() {
 
           <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
             <Box
+              component={Button}
               onClick={() => {
                 window.location.href = '/api/core/oauth/login/wechat?from=' + encodeURIComponent(window.location.pathname + window.location.search);
               }}
-              sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5, cursor: 'pointer' }}
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 0.5,
+                p: 2,
+                borderRadius: 2,
+                minWidth: 64,
+                minHeight: 64,
+                cursor: 'pointer',
+                '&:hover': { bgcolor: 'action.hover' },
+                '&:active': { bgcolor: 'action.selected' },
+              }}
             >
               <Box
                 sx={{
-                  width: 36,
-                  height: 36,
+                  width: 44,
+                  height: 44,
                   borderRadius: '50%',
                   bgcolor: '#07C160',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   transition: 'transform 0.15s',
-                  '&:hover': { transform: 'scale(1.1)' },
                 }}
               >
                 <WechatIcon />

@@ -27,14 +27,40 @@ export default function DetailHeader({ title, rightActions }: Props) {
         backdropFilter: 'blur(8px)',
         borderBottom: '1px solid',
         borderColor: 'divider',
-        px: 1.5,
+        px: { xs: 'max(env(safe-area-inset-left, 12px), 12px)', md: 1.5 },
+        pr: { xs: 'max(env(safe-area-inset-right, 12px), 12px)', md: 1.5 },
         py: 1,
+        // Safe Area 顶部适配
+        paddingTop: 'max(env(safe-area-inset-top, 8px), 8px)',
       }}
     >
-      <IconButton onClick={() => router.back()} sx={{ color: 'text.tertiary' }}>
+      <IconButton
+        onClick={() => router.back()}
+        aria-label="返回"
+        sx={{
+          color: 'text.tertiary',
+          minWidth: 44,
+          minHeight: 44,
+          p: 1,
+          borderRadius: 1.5,
+          '&:hover': { bgcolor: 'action.hover' },
+        }}
+      >
         <ArrowBackIcon />
       </IconButton>
-      <Typography sx={{ fontSize: 15, fontWeight: 600, color: 'text.primary', ml: 1, flex: 1 }} noWrap>
+      <Typography
+        sx={{
+          fontSize: { xs: 14, md: 15 },
+          fontWeight: 600,
+          color: 'text.primary',
+          ml: 1,
+          flex: 1,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+        noWrap
+      >
         {title}
       </Typography>
       {rightActions}

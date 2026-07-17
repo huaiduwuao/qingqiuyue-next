@@ -496,7 +496,7 @@ export default function VipPage() {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
           <Typography sx={{ fontSize: 14, fontWeight: 600, flex: 1 }}>会员专享特权</Typography>
         </Box>
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1 }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' }, gap: 1 }}>
           {BENEFITS.map((b) => (
             <Box
               key={b.title}

@@ -12,6 +12,8 @@ import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
+import ThumbUpIcon from '@mui/icons-material/ThumbUp';
+import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
 import ShareIcon from '@mui/icons-material/Share';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
@@ -21,6 +23,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-news';
 import { collectContent } from '@/apis/global';
+import { moduleContentAction } from '@/apis/home';
 import { formatApiError } from '@/lib/api/client';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
@@ -28,6 +31,7 @@ import { CoverImage } from '@/components/common/CoverImage';
 import { track, recordHistory } from '@/lib/track';
 import { ReadingSettings, DEFAULT_PAGE_STYLE, type PageStyle } from '@/components/detail/ReadingSettings';
 import { ReadingContainer } from '@/components/detail/ReadingContainer';
+import { DetailComments } from '@/components/detail/DetailComments';
 
 interface News {
   id: number;
@@ -40,10 +44,12 @@ interface News {
   publishTime: string;
   viewCount: number;
   likeCount: number;
+  collectCount?: number;
   category: string;
   tags: string[];
   content: string;
   sourceUrl?: string;
+  commentCount?: number;
 }
 
 function NewsDetailContent() {
@@ -65,6 +71,9 @@ function NewsDetailContent() {
   }, [id]);
 
   const [favorited, setFavorited] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [likeBusy, setLikeBusy] = useState(false);
+  const [optimisticLikes, setOptimisticLikes] = useState(0);
   const [collectBusy, setCollectBusy] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pageStyle, setPageStyle] = useState<PageStyle>(DEFAULT_PAGE_STYLE);
@@ -77,6 +86,27 @@ function NewsDetailContent() {
   const notify = useCallback((message: string, severity: 'success' | 'error' | 'info' = 'success') => {
     setSnack({ open: true, message, severity });
   }, []);
+
+  const handleLike = async () => {
+    if (!id) {
+      notify('内容 ID 缺失', 'error');
+      return;
+    }
+    if (likeBusy) return;
+    setLikeBusy(true);
+    const next = !liked;
+    setLiked(next);
+    setOptimisticLikes((prev) => Math.max(0, prev + (next ? 1 : -1)));
+    try {
+      await moduleContentAction({ contentId: id, action: next ? 'agree' : 'cancel_agree' });
+    } catch (err) {
+      setLiked(!next);
+      setOptimisticLikes((prev) => Math.max(0, prev + (next ? -1 : 1)));
+      notify(formatApiError(err), 'error');
+    } finally {
+      setLikeBusy(false);
+    }
+  };
 
   const handleCollect = async () => {
     if (!id) {
@@ -128,6 +158,13 @@ function NewsDetailContent() {
             <IconButton onClick={() => setSettingsOpen(true)} sx={{ color: 'text.tertiary' }}>
               <SettingsIcon />
             </IconButton>
+            <IconButton
+              onClick={handleLike}
+              disabled={likeBusy}
+              sx={{ color: liked ? 'primary.main' : 'text.tertiary' }}
+            >
+              {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
+            </IconButton>
             <IconButton disabled={collectBusy} onClick={handleCollect} sx={{ color: favorited ? 'primary.main' : 'text.tertiary' }}>
               {favorited ? <FavoriteIcon /> : <FavoriteBorderIcon />}
             </IconButton>
@@ -147,7 +184,7 @@ function NewsDetailContent() {
               sx={{ bgcolor: 'rgba(254, 44, 85, 0.12)', color: 'primary.main', fontWeight: 600, mb: 2 }}
             />
 
-            <Typography variant="h4" sx={{ fontWeight: 800, color: 'text.primary', mb: 1.5, lineHeight: 1.4 }}>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: 20, sm: 24, md: 32 }, color: 'text.primary', mb: 1.5, lineHeight: 1.4 }}>
               {data.title}
             </Typography>
             {data.subtitle && (
@@ -172,9 +209,21 @@ function NewsDetailContent() {
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3 }}>
               <VisibilityIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
               <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>阅读 {((data.viewCount || 0) / 10000).toFixed(1)}万</Typography>
-              <Typography sx={{ fontSize: 12, color: 'text.secondary', ml: 2 }}>
-                点赞 {(data.likeCount || 0).toLocaleString()}
-              </Typography>
+              <Box
+                onClick={handleLike}
+                sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer', '&:hover': { opacity: 0.8 } }}
+              >
+                {liked ? <ThumbUpIcon sx={{ fontSize: 14, color: 'primary.main' }} /> : <ThumbUpOutlinedIcon sx={{ fontSize: 14 }} />}
+                <Typography sx={{ fontSize: 12, color: liked ? 'primary.main' : 'text.secondary' }}>
+                  {Math.max(0, (data.likeCount || 0) + optimisticLikes).toLocaleString()}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                <FavoriteIcon sx={{ fontSize: 14, color: favorited ? 'primary.main' : 'text.secondary' }} />
+                <Typography sx={{ fontSize: 12, color: favorited ? 'primary.main' : 'text.secondary' }}>
+                  {data.collectCount || 0}
+                </Typography>
+              </Box>
             </Box>
 
             {data.cover && (
@@ -225,7 +274,7 @@ function NewsDetailContent() {
               </Box>
             )}
 
-            <Divider sx={{ borderColor: 'divider', my: 3 }} />
+            <DetailComments contentId={id!} initialCount={data.commentCount || 0} />
           </Container>
         )}
       </AsyncState>

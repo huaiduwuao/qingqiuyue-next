@@ -22,8 +22,10 @@ import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-video';
 import { collectContent } from '@/apis/global';
 import { homeClient, formatApiError } from '@/lib/api/client';
+import { moduleContentAction } from '@/apis/home';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import DetailHeader from '@/components/detail/DetailHeader';
+import { DetailComments } from '@/components/detail/DetailComments';
 import { AsyncState } from '@/components/common/AsyncState';
 import { track, recordHistory } from '@/lib/track';
 import AIGCBadge from '@/components/AIGCBadge';
@@ -67,6 +69,9 @@ function VideoDetailContent() {
   }, [id]);
 
   const [favorited, setFavorited] = React.useState(false);
+  const [liked, setLiked] = React.useState(false);
+  const [likeBusy, setLikeBusy] = React.useState(false);
+  const [optimisticLikes, setOptimisticLikes] = React.useState(0);
   const [collectBusy, setCollectBusy] = React.useState(false);
   const [followOverride, setFollowOverride] = React.useState<boolean | null>(null);
   const followed = followOverride ?? !!(query.data as any)?.isFollowing;
@@ -80,6 +85,23 @@ function VideoDetailContent() {
   const notify = React.useCallback((message: string, severity: 'success' | 'error' | 'info' = 'success') => {
     setSnack({ open: true, message, severity });
   }, []);
+
+  const handleLike = async () => {
+    if (!id) {
+      notify('内容 ID 缺失', 'error');
+      return;
+    }
+    const next = !liked;
+    setLiked(next);
+    setOptimisticLikes((prev) => Math.max(0, prev + (next ? 1 : -1)));
+    try {
+      await moduleContentAction({ contentId: id, action: next ? 'agree' : 'cancel_agree' });
+    } catch (err) {
+      setLiked(!next);
+      setOptimisticLikes((prev) => Math.max(0, prev + (next ? -1 : 1)));
+      notify(formatApiError(err), 'error');
+    }
+  };
 
   const handleCollect = async () => {
     if (!id) {
@@ -188,10 +210,26 @@ function VideoDetailContent() {
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
                   <VisibilityIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
                   <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{((data.viewCount || 0) / 10000).toFixed(1)}万</Typography>
-                  <ThumbUpIcon sx={{ fontSize: 14, color: 'text.secondary', ml: 1 }} />
-                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{(data.likeCount || 0).toLocaleString()}</Typography>
+                  <ThumbUpIcon sx={{ fontSize: 14, color: liked ? 'primary.main' : 'text.secondary', ml: 1 }} />
+                  <Typography sx={{ fontSize: 12, color: liked ? 'primary.main' : 'text.secondary' }}>
+                    {Math.max(0, (data.likeCount || 0) + optimisticLikes).toLocaleString()}
+                  </Typography>
                   <CommentIcon sx={{ fontSize: 14, color: 'text.secondary', ml: 1 }} />
-                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{data.commentCount || 0}</Typography>
+                  <Typography
+                    component="button"
+                    onClick={() => document.getElementById('video-comments')?.scrollIntoView({ behavior: 'smooth' })}
+                    sx={{
+                      fontSize: 12,
+                      color: 'text.secondary',
+                      cursor: 'pointer',
+                      border: 'none',
+                      bgcolor: 'transparent',
+                      p: 0,
+                      '&:hover': { color: 'primary.main' },
+                    }}
+                  >
+                    {data.commentCount || 0}
+                  </Typography>
                 </Box>
                 <Box sx={{ flex: 1 }} />
                 <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{data.publishTime}</Typography>
@@ -249,15 +287,7 @@ function VideoDetailContent() {
                 ))}
               </Box>
 
-              <Divider sx={{ borderColor: 'divider', my: 3 }} />
-
-              <Typography variant="h6" sx={{ color: 'text.primary', mb: 2, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <CommentIcon sx={{ color: 'primary.main' }} />
-                热门评论 (0)
-              </Typography>
-              <Box sx={{ p: 4, textAlign: 'center', color: 'text.secondary', fontSize: 13, mb: 3 }}>
-                暂无评论
-              </Box>
+              <DetailComments contentId={id!} initialCount={data.commentCount || 0} />
             </Container>
           </>
         )}

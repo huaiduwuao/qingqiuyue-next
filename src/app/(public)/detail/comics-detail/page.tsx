@@ -13,6 +13,8 @@ import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
+import ThumbUpIcon from '@mui/icons-material/ThumbUp';
+import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
 import ShareIcon from '@mui/icons-material/Share';
 import StarIcon from '@mui/icons-material/Star';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
@@ -22,11 +24,13 @@ import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-comics';
 import { page as itemPage } from '@/apis/content-comics-item';
 import { collectContent } from '@/apis/global';
+import { moduleContentAction } from '@/apis/home';
 import { formatApiError } from '@/lib/api/client';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
 import { track, recordHistory } from '@/lib/track';
+import { DetailComments } from '@/components/detail/DetailComments';
 
 interface Chapter {
   id: number;
@@ -48,6 +52,9 @@ interface Comics {
   rating: number;
   description: string;
   totalChapters: number;
+  likeCount?: number;
+  collectCount?: number;
+  commentCount?: number;
 }
 
 function ComicsDetailContent() {
@@ -81,6 +88,9 @@ function ComicsDetailContent() {
   const [activeChapter, setActiveChapter] = useState<number>(1);
   const [activePage, setActivePage] = useState<number>(1);
   const [favorited, setFavorited] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [likeBusy, setLikeBusy] = useState(false);
+  const [optimisticLikes, setOptimisticLikes] = useState(0);
   const [collectBusy, setCollectBusy] = useState(false);
   const [readerOpen, setReaderOpen] = useState(false);
   const readerRef = useRef<HTMLDivElement>(null);
@@ -93,6 +103,27 @@ function ComicsDetailContent() {
   const notify = useCallback((message: string, severity: 'success' | 'error' | 'info' = 'success') => {
     setSnack({ open: true, message, severity });
   }, []);
+
+  const handleLike = async () => {
+    if (!id) {
+      notify('内容 ID 缺失', 'error');
+      return;
+    }
+    if (likeBusy) return;
+    setLikeBusy(true);
+    const next = !liked;
+    setLiked(next);
+    setOptimisticLikes((prev) => Math.max(0, prev + (next ? 1 : -1)));
+    try {
+      await moduleContentAction({ contentId: id, action: next ? 'agree' : 'cancel_agree' });
+    } catch (err) {
+      setLiked(!next);
+      setOptimisticLikes((prev) => Math.max(0, prev + (next ? -1 : 1)));
+      notify(formatApiError(err), 'error');
+    } finally {
+      setLikeBusy(false);
+    }
+  };
 
   const handleCollect = async () => {
     if (!id) {
@@ -147,6 +178,13 @@ function ComicsDetailContent() {
         title={query.data?.title || '漫画详情'}
         rightActions={
           <Box sx={{ display: 'flex', gap: 0.5 }}>
+            <IconButton
+              onClick={handleLike}
+              disabled={likeBusy}
+              sx={{ color: liked ? 'primary.main' : 'text.tertiary' }}
+            >
+              {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
+            </IconButton>
             <IconButton disabled={collectBusy} onClick={handleCollect} sx={{ color: favorited ? 'primary.main' : 'text.tertiary' }}>
               {favorited ? <FavoriteIcon /> : <FavoriteBorderIcon />}
             </IconButton>
@@ -203,6 +241,23 @@ function ComicsDetailContent() {
                     <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'warning.main' }}>{data.rating}</Typography>
                     <Typography sx={{ fontSize: 10, color: 'text.secondary', ml: 0.5 }}>读者评分</Typography>
                   </Box>
+                  <Box sx={{ display: 'flex', gap: 2, mt: 1.5 }}>
+                    <Box
+                      onClick={handleLike}
+                      sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'pointer', '&:hover': { opacity: 0.8 } }}
+                    >
+                      {liked ? <ThumbUpIcon sx={{ fontSize: 16, color: 'primary.main' }} /> : <ThumbUpOutlinedIcon sx={{ fontSize: 16 }} />}
+                      <Typography sx={{ fontSize: 13, color: liked ? 'primary.main' : 'text.secondary' }}>
+                        {Math.max(0, (data.likeCount || 0) + optimisticLikes).toLocaleString()}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <FavoriteIcon sx={{ fontSize: 16, color: favorited ? 'primary.main' : 'text.secondary' }} />
+                      <Typography sx={{ fontSize: 13, color: favorited ? 'primary.main' : 'text.secondary' }}>
+                        {data.collectCount || 0}
+                      </Typography>
+                    </Box>
+                  </Box>
                 </Box>
               </Box>
 
@@ -248,6 +303,8 @@ function ComicsDetailContent() {
                   </Box>
                 ))}
               </Box>
+
+              <DetailComments contentId={id!} initialCount={data.commentCount || 0} />
 
               <Divider sx={{ borderColor: 'divider', my: 3 }} />
 

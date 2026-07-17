@@ -9,10 +9,13 @@ import IconButton from '@mui/material/IconButton';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import LinearProgress from '@mui/material/LinearProgress';
+import Divider from '@mui/material/Divider';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SettingsIcon from '@mui/icons-material/Settings';
+import ThumbUpIcon from '@mui/icons-material/ThumbUp';
+import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
 import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
 import BookmarkAddedIcon from '@mui/icons-material/BookmarkAdded';
 import Brightness6Icon from '@mui/icons-material/Brightness6';
@@ -27,6 +30,8 @@ import { useScrollProgress } from '@/hooks/useScrollProgress';
 import { track, recordHistory } from '@/lib/track';
 import { LoginGate } from '@/components/auth/LoginGate';
 import { formatApiError } from '@/lib/api/client';
+import { DetailComments } from '@/components/detail/DetailComments';
+import { moduleContentAction } from '@/apis/home';
 
 function NovelDetailContent() {
   const router = useRouter();
@@ -40,6 +45,9 @@ function NovelDetailContent() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pageStyle, setPageStyle] = useState<PageStyle>(DEFAULT_PAGE_STYLE);
   const [collected, setCollected] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [likeBusy, setLikeBusy] = useState(false);
+  const [optimisticLikes, setOptimisticLikes] = useState(0);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -148,6 +156,25 @@ function NovelDetailContent() {
     collectMutation.mutate({ novelId, chapterId: chapter.id });
   };
 
+  const handleLike = async () => {
+    const nid = novelId || id;
+    if (!nid) return;
+    if (likeBusy) return;
+    setLikeBusy(true);
+    const next = !liked;
+    setLiked(next);
+    setOptimisticLikes((prev) => Math.max(0, prev + (next ? 1 : -1)));
+    try {
+      await moduleContentAction({ contentId: nid, action: next ? 'agree' : 'cancel_agree' });
+    } catch (err) {
+      setLiked(!next);
+      setOptimisticLikes((prev) => Math.max(0, prev + (next ? -1 : 1)));
+      setErrMsg(formatApiError(err) || '操作失败');
+    } finally {
+      setLikeBusy(false);
+    }
+  };
+
   const updatePageStyle = (updates: Partial<PageStyle>) => {
     setPageStyle((prev) => ({ ...prev, ...updates }));
   };
@@ -226,6 +253,15 @@ function NovelDetailContent() {
         >
           <Brightness6Icon fontSize="small" />
         </IconButton>
+        <IconButton
+          onClick={handleLike}
+          disabled={likeBusy}
+          size="small"
+          aria-label="点赞"
+          sx={{ color: liked ? 'primary.main' : 'inherit' }}
+        >
+          {liked ? <ThumbUpIcon fontSize="small" /> : <ThumbUpOutlinedIcon fontSize="small" />}
+        </IconButton>
         <LoginGate mode="overlay" message="登录后收藏" overlayOpacity={1}>
           <IconButton
             onClick={handleCollect}
@@ -302,7 +338,7 @@ function NovelDetailContent() {
               </Box>
             )}
 
-            {!hasMore && (
+            {!hasMore && chapters.length > 0 && (
               <Box sx={{ textAlign: 'center', py: 4 }}>
                 <Box
                   sx={{
@@ -322,6 +358,9 @@ function NovelDetailContent() {
                 </Box>
               </Box>
             )}
+
+            <Divider sx={{ borderColor: 'divider', my: 3 }} />
+            <DetailComments contentId={novelId || id!} initialCount={initialQuery.data?.detail?.commentCount || 0} />
           </Box>
         )}
       </Box>

@@ -130,7 +130,7 @@ export default function AccountSettingsPage() {
             </Tabs>
 
             <TabPanel value={tab} index={0}>
-              <Box sx={{ display: 'flex', gap: 4 }}>
+              <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: { xs: 3, md: 4 } }}>
                 <Box sx={{ flex: 1, maxWidth: { xs: '100%', md: 500 } }}>
                   <Box sx={{ mb: 3 }}>
                     <TextField
@@ -163,11 +163,11 @@ export default function AccountSettingsPage() {
                     保存
                   </Button>
                 </Box>
-                <Box sx={{ textAlign: 'center' }}>
+                <Box sx={{ textAlign: 'center', order: { xs: -1, md: 0 } }}>
                   <Typography variant="subtitle2" sx={{ mb: 1 }}>头像</Typography>
                   <Avatar
                     src={currentUser?.avatar || '/no_avatar.webp'}
-                    sx={{ width: 100, height: 100, mb: 2 }}
+                    sx={{ width: { xs: 80, md: 100 }, height: { xs: 80, md: 100 }, mb: 2 }}
                   />
                   <Button variant="outlined" component="label">
                     上传头像

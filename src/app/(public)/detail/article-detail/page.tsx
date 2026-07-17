@@ -30,6 +30,7 @@ import { CoverImage } from '@/components/common/CoverImage';
 import { track, recordHistory } from '@/lib/track';
 import { ReadingSettings, DEFAULT_PAGE_STYLE, type PageStyle } from '@/components/detail/ReadingSettings';
 import { ReadingContainer } from '@/components/detail/ReadingContainer';
+import { DetailComments } from '@/components/detail/DetailComments';
 
 interface Article {
   id: number;
@@ -234,7 +235,7 @@ function ArticleDetailContent() {
               ))}
             </Box>
 
-            <Divider sx={{ borderColor: 'divider', my: 3 }} />
+            <DetailComments contentId={id!} initialCount={data.commentCount || 0} />
           </Container>
         )}
       </AsyncState>

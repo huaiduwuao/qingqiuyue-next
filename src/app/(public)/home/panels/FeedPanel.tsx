@@ -275,7 +275,7 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
         <Box
           sx={{
             position: 'sticky',
-            top: tab === 'home' ? 64 : 0,
+            top: tab === 'home' ? 'calc(56px + var(--sat, 0px))' : 0,
             zIndex: 10,
             bgcolor: 'var(--bg-topbar, rgba(10, 10, 15, 0.85))',
             backdropFilter: 'blur(12px)',
@@ -316,17 +316,18 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
           )}
           {/* 二级子分类(题材):选中某类型(如小说)后,展示该类型下的分类来筛选 */}
           {tab === 'home' && parentType && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1.5, pt: 0.5, pb: 0.25, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' } }}>
-              <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>分类</Typography>
-              {subcatQuery.isLoading ? (
-                <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))', fontStyle: 'italic' }}>加载中…</Typography>
-              ) : (
-                [{ code: '', name: '全部' }, ...(subcatQuery.data ?? [])].map((s) => {
-                  const active = genre === s.code;
-                  return (
-                    <Box
-                      key={s.code || 'all'}
-                      onClick={() => setGenre(s.code)}
+            <Box sx={{ position: 'relative', px: 1.5, pt: 0.5, pb: 0.25 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' }, pr: 3 }}>
+                <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>分类</Typography>
+                {subcatQuery.isLoading ? (
+                  <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))', fontStyle: 'italic' }}>加载中…</Typography>
+                ) : (
+                  [{ code: '', name: '全部' }, ...(subcatQuery.data ?? [])].map((s) => {
+                    const active = genre === s.code;
+                    return (
+                      <Box
+                        key={s.code || 'all'}
+                        onClick={() => setGenre(s.code)}
                       sx={{
                         flexShrink: 0,
                         px: 1.25,
@@ -348,11 +349,15 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
                 })
               )}
             </Box>
+            {/* 右侧渐变遮罩提示可滚动 */}
+            <Box sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 24, background: 'linear-gradient(to right, transparent, var(--bg-body, #F5F5F7))', pointerEvents: 'none' }} />
+          </Box>
           )}
           {tab === 'home' && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1.5, pt: 0.5, pb: 0.75, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' } }}>
-              <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>排序</Typography>
-              {[
+            <Box sx={{ position: 'relative', px: 1.5, pt: 0.5, pb: 0.75 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' }, pr: 3 }}>
+                <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>排序</Typography>
+                {[
                 { key: 'views', label: '人气榜' },
                 { key: 'hot', label: '热度' },
                 { key: 'new', label: '最新' },
@@ -382,6 +387,9 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
                 );
               })}
             </Box>
+            {/* 右侧渐变遮罩提示可滚动 */}
+            <Box sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 24, background: 'linear-gradient(to right, transparent, var(--bg-body, #F5F5F7))', pointerEvents: 'none' }} />
+          </Box>
           )}
         </Box>
       )}
@@ -469,7 +477,7 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
               )}
 
               {/* Infinite scroll sentinel */}
-              <Box ref={sentinelRef} sx={{ height: 20, bgcolor: 'red', opacity: 0.3, borderRadius: 1 }} />
+              <Box ref={sentinelRef} sx={{ height: 1, minHeight: 1 }} />
 
               {/* No more data */}
               {!isFetchingNextPage && feedList.length > 0 && !hasNextPage && (
