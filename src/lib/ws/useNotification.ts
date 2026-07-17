@@ -8,7 +8,7 @@
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getWSClient, type WSMessage, type NotificationPayload } from './client';
-import { homeClient } from '@/lib/api/client';
+import { adminClient } from '@/lib/api/client';
 
 // 通知未读数
 interface NoticeCount {
@@ -54,8 +54,11 @@ export interface UseNotificationReturn {
  */
 async function fetchNoticeCount(): Promise<NoticeCount> {
   try {
-    const resp = await homeClient.get<NoticeCount>('/notice/count');
-    return resp.data ?? { notification: 0, message: 0, event: 0, total: 0 };
+    const resp = await adminClient.get<NoticeCount>('/notice/count');
+    // resp.data 是 axios 拦截器包装的 { code, msg, data }
+    // data.data 才是实际的 NoticeCount
+    const count = (resp.data as any)?.data;
+    return count ?? { notification: 0, message: 0, event: 0, total: 0 };
   } catch {
     return { notification: 0, message: 0, event: 0, total: 0 };
   }
@@ -66,10 +69,12 @@ async function fetchNoticeCount(): Promise<NoticeCount> {
  */
 async function fetchNotifications(page = 1, size = 20): Promise<{ list: NotificationPayload[]; total: number }> {
   try {
-    const resp = await homeClient.get<{ list: NotificationPayload[]; total: number }>('/notice/list', {
+    const resp = await adminClient.get<{ list: NotificationPayload[]; total: number }>('/notice/list', {
       params: { page, size },
     });
-    return resp.data ?? { list: [], total: 0 };
+    // resp.data 是 axios 拦截器包装的 { code, msg, data }
+    const result = (resp.data as any)?.data;
+    return result ?? { list: [], total: 0 };
   } catch {
     return { list: [], total: 0 };
   }
@@ -80,7 +85,7 @@ async function fetchNotifications(page = 1, size = 20): Promise<{ list: Notifica
  */
 async function markNoticeRead(id?: number): Promise<void> {
   if (id) {
-    await homeClient.post(`/notice/read/${id}`);
+    await adminClient.post(`/notice/interaction/read/${id}`);
   }
 }
 
@@ -88,7 +93,7 @@ async function markNoticeRead(id?: number): Promise<void> {
  * 标记全部已读
  */
 async function markAllNoticeRead(): Promise<void> {
-  await homeClient.post('/notice/read/all');
+  await adminClient.post('/notice/interaction/readAll');
 }
 
 /**

@@ -63,8 +63,10 @@ export interface UseDirectMessageReturn {
  */
 async function fetchSessions(): Promise<DMSession[]> {
   try {
-    const resp = await imClient.get<{ list: DMSession[] }>('/sessions');
-    return resp.data?.list ?? [];
+    const resp = await imClient.get<{ list: DMSession[] }>('/msg/session/list');
+    // resp.data 是 axios 拦截器包装的 { code, msg, data }
+    const list = (resp.data as any)?.data?.list;
+    return list ?? [];
   } catch {
     return [];
   }
@@ -75,10 +77,11 @@ async function fetchSessions(): Promise<DMSession[]> {
  */
 async function fetchMessages(sessionId: number, page = 1, size = 50): Promise<{ list: DMPayload[]; hasMore: boolean }> {
   try {
-    const resp = await imClient.get<{ list: DMPayload[]; hasMore: boolean }>(`/messages/${sessionId}`, {
-      params: { page, size },
+    const resp = await imClient.get<{ list: DMPayload[]; hasMore: boolean }>('/msg/message/list', {
+      params: { sessionId, page, size },
     });
-    return resp.data ?? { list: [], hasMore: false };
+    const result = (resp.data as any)?.data;
+    return result ?? { list: [], hasMore: false };
   } catch {
     return { list: [], hasMore: false };
   }
@@ -88,15 +91,15 @@ async function fetchMessages(sessionId: number, page = 1, size = 50): Promise<{ 
  * 标记会话已读
  */
 async function markRead(sessionId: number): Promise<void> {
-  await imClient.post(`/sessions/${sessionId}/read`);
+  await imClient.post('/msg/session/read', { sessionId });
 }
 
 /**
  * 发送消息
  */
 async function sendDM(sessionId: number, content: string, type: 'text' | 'image' | 'audio' = 'text'): Promise<DMPayload> {
-  const resp = await imClient.post<DMPayload>(`/messages/${sessionId}`, { content, type });
-  return resp.data;
+  const resp = await imClient.post<DMPayload>('/msg/message/send', { sessionId, content, type });
+  return (resp.data as any)?.data;
 }
 
 /**
