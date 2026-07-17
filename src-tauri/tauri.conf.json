@@ -1,13 +1,13 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "清秋月",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "identifier": "app.qingqiuyue.desktop",
   "build": {
-    "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:3000",
-    "beforeBuildCommand": "pnpm build",
-    "frontendDist": "../out"
+    "frontendDist": "../.next",
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build"
   },
   "app": {
     "withGlobalTauri": true,
@@ -20,11 +20,12 @@
         "minHeight": 600,
         "resizable": true,
         "fullscreen": false,
-        "center": true
+        "center": true,
+        "url": "https://qingqiuyue.com"
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://qingqiuyue.com wss://qingqiuyue.com http://localhost:* https://* ws://localhost:*; img-src 'self' data: https://*; frame-src https://qingqiuyue.com https://*"
     }
   },
   "bundle": {
@@ -37,10 +38,65 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "publisher": "qingqiuyue.com",
+    "category": "Entertainment",
+    "shortDescription": "清秋月 - 数字人互动平台",
+    "longDescription": "清秋月是一款创新的数字人互动平台，提供丰富的数字人资源、智能对话、创作工具等功能。",
+    "copyright": "Copyright © 2024 qingqiuyue.com",
     "windows": {
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
+      },
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": ""
+    },
+    "macOS": {
+      "entitlements": null,
+      "exceptionDomain": "",
+      "frameworks": [],
+      "minimumSystemVersion": "10.15",
+      "signingIdentity": "-",
+      "providerShortName": null,
+      "website": "https://qingqiuyue.com"
+    },
+    "ios": {
+      "entitlements": null,
+      "minimumOSVersion": "13.0",
+      "signingIdentity": "-",
+      "profileFile": null,
+      "devices": ["iphone", "ipad"],
+      "targets": "all"
+    },
+    "android": {
+      "minSdkVersion": 24,
+      "targetSdkVersion": 34,
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "ACCESS_WIFI_STATE"
+      ],
+      "signingConfigs": {
+        "release": {
+          "keystore": "qingqiuyue.keystore",
+          "alias": "qingqiuyue",
+          "storePassword": "qingqiuyue123",
+          "keyPassword": "qingqiuyue123"
+        }
+      },
+      "abiFilters": ["armeabi-v7a", "arm64-v8a", "x86", "x86_64"]
+    },
+    "linux": {
+      "appimage": {
+        "bundleMediaFramework": true
+      },
+      "deb": {
+        "depends": []
+      },
+      "rpm": {
+        "depends": []
       }
     }
-  }
+  },
+  "plugins": {}
 }

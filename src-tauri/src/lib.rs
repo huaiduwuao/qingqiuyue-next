@@ -2,8 +2,9 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use std::runtime::Version;
 use tauri::Manager;
+
+const DEFAULT_API_BASE: &str = "http://localhost:9080";
 
 // 应用配置
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -16,11 +17,11 @@ pub struct AppConfig {
 pub struct SystemInfo {
     os: String,
     arch: String,
-    #[serde(rename = "goVersion")]
+    #[serde(rename = "rustVersion")]
     rust_version: String,
     #[serde(rename = "numCpu")]
     num_cpu: usize,
-    #[serde(rename = "wailsBuild")]
+    #[serde(rename = "tauriBuild")]
     tauri_build: bool,
 }
 
@@ -46,11 +47,11 @@ fn read_config() -> AppConfig {
     let path = get_config_path();
     if let Ok(data) = fs::read_to_string(&path) {
         serde_json::from_str(&data).unwrap_or(AppConfig {
-            api_base: "http://localhost:9080".to_string(),
+            api_base: DEFAULT_API_BASE.to_string(),
         })
     } else {
         AppConfig {
-            api_base: "http://localhost:9080".to_string(),
+            api_base: DEFAULT_API_BASE.to_string(),
         }
     }
 }
@@ -68,7 +69,7 @@ fn get_system_info() -> SystemInfo {
     SystemInfo {
         os: std::env::consts::OS.to_string(),
         arch: std::env::consts::ARCH.to_string(),
-        rust_version: Version::new().to_string(),
+        rust_version: env!("CARGO_PKG_VERSION").to_string(),
         num_cpu: num_cpus(),
         tauri_build: true,
     }
@@ -125,9 +126,8 @@ pub fn run() {
             get_version,
             is_dev,
         ])
-        .setup(|app| {
+        .setup(|_app| {
             log::info!("[qingqiuyue-desktop] setup complete");
-            let _window = app.get_webview_window("main").unwrap();
             Ok(())
         })
         .run(tauri::generate_context!())
