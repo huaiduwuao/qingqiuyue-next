@@ -6,9 +6,9 @@ import type { NextConfig } from "next";
 const API_PROXY_TARGET = process.env.API_PROXY_TARGET || "http://localhost:10005";
 
 const nextConfig: NextConfig = {
-  // standalone 模式:Dockerfile 期望 .next/standalone 存在,生产部署必须开。
-  // dev 模式 `next dev` 仍正常工作(standalone 只影响 `next build` 输出)。
-  output: "standalone",
+  // Tauri/桌面打包时用 output: "export" 生成静态文件到 out/ 目录
+  // Docker 部署时用 standalone 模式
+  output: process.env.NEXT_EXPORT_STATIC === 'true' ? 'export' : 'standalone',
   // 允许 127.0.0.1 跨源访问 dev 资源(dev 模式 HMR 需要)
   // 见:https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
   allowedDevOrigins: ['127.0.0.1', 'localhost'],
