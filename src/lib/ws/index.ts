@@ -36,3 +36,4 @@ export {
   type LiveRoom,
   type LiveRankingItem,
 } from './useLiveStats';
+export type { NotificationItem } from './useNotification';

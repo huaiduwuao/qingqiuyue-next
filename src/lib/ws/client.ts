@@ -36,14 +36,14 @@ export interface WSMessage<T = unknown> {
   id?: string;       // 消息唯一 ID
 }
 
-// 通知消息负载
+// 通知消息负载 (对齐后端 NotifyMessage)
 export interface NotificationPayload {
-  id: number;
-  type: 'comment' | 'like' | 'mention' | 'follow' | 'friend' | 'system';
+  id?: number;
+  type: 'tip' | 'review' | 'message' | 'subscription' | 'achievement' | 'system' | 'reward';
   title: string;
   content: string;
-  status?: 'unread' | 'read';
-  createTime: number;
+  data?: Record<string, unknown>;
+  timestamp: number;
 }
 
 // 私信消息负载
@@ -330,14 +330,42 @@ export class WSClient {
 
   /**
    * 处理收到的消息
+   * 兼容两种消息格式：
+   * 1. 后端扁平格式: { type, title, content, data, timestamp }
+   * 2. 前端包装格式: { type, payload, timestamp }
    */
   private handleMessage(event: MessageEvent): void {
     try {
       const data = JSON.parse(event.data);
-      const message = data as WSMessage;
 
       // 忽略 pong 消息
-      if (message.type === 'pong') return;
+      if (data.type === 'pong') return;
+
+      // 统一消息格式：如果是扁平格式，转换为包装格式
+      let message: WSMessage;
+      if ('payload' in data) {
+        // 已经是包装格式
+        message = data as WSMessage;
+      } else {
+        // 扁平格式转换：后端 NotifyMessage -> 前端 WSMessage
+        // 后端类型: tip|review|message|subscription|achievement|system|reward
+        // 前端类型映射
+        const typeMap: Record<string, WSMessageType> = {
+          tip: 'notification',
+          review: 'notification',
+          message: 'dm',
+          subscription: 'notification',
+          achievement: 'notification',
+          system: 'system',
+          reward: 'notification',
+        };
+        const mappedType = typeMap[data.type] || 'notification';
+        message = {
+          type: mappedType,
+          payload: data,
+          timestamp: data.timestamp || Date.now(),
+        };
+      }
 
       // 分发到对应的监听器
       const typeListeners = this.listeners.get(message.type);

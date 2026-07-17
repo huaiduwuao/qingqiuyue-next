@@ -7,7 +7,7 @@
 
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { getWSClient, type WSMessage, type NotificationPayload } from './client';
+import { getWSClient, type WSMessage } from './client';
 import { adminClient } from '@/lib/api/client';
 
 // 通知未读数
@@ -18,6 +18,16 @@ interface NoticeCount {
   total: number;
 }
 
+// HTTP API 通知项格式
+export interface NotificationItem {
+  id: number;
+  type: string;
+  title: string;
+  content: string;
+  status?: 'unread' | 'read';
+  createTime: number;
+}
+
 // 通知 Hook 返回类型
 export interface UseNotificationOptions {
   /** 启用 WebSocket 实时推送 */
@@ -25,7 +35,7 @@ export interface UseNotificationOptions {
   /** WebSocket 未连接时的轮询间隔 (ms) */
   pollInterval?: number;
   /** 新通知到达时的回调 */
-  onNewNotification?: (notification: NotificationPayload) => void;
+  onNewNotification?: (notification: NotificationItem) => void;
 }
 
 export interface UseNotificationReturn {
@@ -42,7 +52,7 @@ export interface UseNotificationReturn {
   /** 标记单条已读 */
   markRead: (id: number) => Promise<void>;
   /** 通知列表 */
-  notifications: NotificationPayload[];
+  notifications: NotificationItem[];
   /** 标记加载更多 */
   loadMore: () => Promise<void>;
   /** 是否有更多 */
@@ -67,9 +77,9 @@ async function fetchNoticeCount(): Promise<NoticeCount> {
 /**
  * 获取通知列表
  */
-async function fetchNotifications(page = 1, size = 20): Promise<{ list: NotificationPayload[]; total: number }> {
+async function fetchNotifications(page = 1, size = 20): Promise<{ list: NotificationItem[]; total: number }> {
   try {
-    const resp = await adminClient.get<{ list: NotificationPayload[]; total: number }>('/notice/list', {
+    const resp = await adminClient.get<{ list: NotificationItem[]; total: number }>('/notice/list', {
       params: { page, size },
     });
     // resp.data 是 axios 拦截器包装的 { code, msg, data }
@@ -109,7 +119,7 @@ export function useNotification(options: UseNotificationOptions = {}): UseNotifi
   const queryClient = useQueryClient();
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [isWSConnected, setIsWSConnected] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationPayload[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [hasMore, setHasMore] = useState(true);
   const [counts, setCounts] = useState<NoticeCount>({ notification: 0, message: 0, event: 0, total: 0 });
   const [isLoading, setIsLoading] = useState(true);
@@ -194,8 +204,18 @@ export function useNotification(options: UseNotificationOptions = {}): UseNotifi
     });
 
     // 监听通知消息
-    const unsubNotification = wsClient.subscribe<NotificationPayload>('notification', (message: WSMessage<NotificationPayload>) => {
-      const notification = message.payload;
+    // WS 消息格式: { type, title, content, data, timestamp }
+    // 转换为 NotificationItem 格式
+    const unsubNotification = wsClient.subscribe('notification', (message: WSMessage) => {
+      const payload = message.payload as any;
+      const notification: NotificationItem = {
+        id: payload.id || Date.now(),
+        type: payload.type,
+        title: payload.title,
+        content: payload.content,
+        status: 'unread',
+        createTime: payload.timestamp || Date.now(),
+      };
 
       // 更新未读数
       setCounts(prev => ({
