@@ -11,19 +11,18 @@ import IconButton from '@mui/material/IconButton';
 import Slider from '@mui/material/Slider';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
-import FavoriteIcon from '@mui/icons-material/Favorite';
-import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
+import { CollectButton } from '@/components/detail/CollectButton';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
 import ShareIcon from '@mui/icons-material/Share';
 import StarIcon from '@mui/icons-material/Star';
+import FavoriteIcon from '@mui/icons-material/Favorite';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import LockIcon from '@mui/icons-material/Lock';
 import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-comics';
 import { page as itemPage } from '@/apis/content-comics-item';
-import { collectContent } from '@/apis/global';
 import { moduleContentAction } from '@/apis/home';
 import { formatApiError } from '@/lib/api/client';
 import DetailHeader from '@/components/detail/DetailHeader';
@@ -87,11 +86,9 @@ function ComicsDetailContent() {
 
   const [activeChapter, setActiveChapter] = useState<number>(1);
   const [activePage, setActivePage] = useState<number>(1);
-  const [favorited, setFavorited] = useState(false);
   const [liked, setLiked] = useState(false);
   const [likeBusy, setLikeBusy] = useState(false);
   const [optimisticLikes, setOptimisticLikes] = useState(0);
-  const [collectBusy, setCollectBusy] = useState(false);
   const [readerOpen, setReaderOpen] = useState(false);
   const readerRef = useRef<HTMLDivElement>(null);
   const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
@@ -122,25 +119,6 @@ function ComicsDetailContent() {
       notify(formatApiError(err), 'error');
     } finally {
       setLikeBusy(false);
-    }
-  };
-
-  const handleCollect = async () => {
-    if (!id) {
-      notify('内容 ID 缺失', 'error');
-      return;
-    }
-    if (collectBusy) return;
-    setCollectBusy(true);
-    const next = !favorited;
-    setFavorited(next);
-    try {
-      await collectContent({ contentId: id, action: next ? 'collect' : 'cancel_collect' });
-    } catch (err) {
-      setFavorited(!next);
-      notify(formatApiError(err), 'error');
-    } finally {
-      setCollectBusy(false);
     }
   };
 
@@ -185,9 +163,7 @@ function ComicsDetailContent() {
             >
               {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
             </IconButton>
-            <IconButton disabled={collectBusy} onClick={handleCollect} sx={{ color: favorited ? 'primary.main' : 'text.tertiary' }}>
-              {favorited ? <FavoriteIcon /> : <FavoriteBorderIcon />}
-            </IconButton>
+            <CollectButton contentId={id!} contentType="comics" />
             <IconButton onClick={handleShare} sx={{ color: 'text.tertiary' }}>
               <ShareIcon />
             </IconButton>
@@ -252,8 +228,8 @@ function ComicsDetailContent() {
                       </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <FavoriteIcon sx={{ fontSize: 16, color: favorited ? 'primary.main' : 'text.secondary' }} />
-                      <Typography sx={{ fontSize: 13, color: favorited ? 'primary.main' : 'text.secondary' }}>
+                      <FavoriteIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                      <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
                         {data.collectCount || 0}
                       </Typography>
                     </Box>

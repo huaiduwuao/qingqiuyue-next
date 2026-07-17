@@ -16,6 +16,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
+import { CollectButton } from '@/components/detail/CollectButton';
 import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
 import BookmarkAddedIcon from '@mui/icons-material/BookmarkAdded';
 import Brightness6Icon from '@mui/icons-material/Brightness6';
@@ -139,23 +140,6 @@ function NovelDetailContent() {
     setHasMore(true);
   };
 
-  const collectMutation = useMutation({
-    mutationFn: (params: { novelId: string; chapterId: number | string }) =>
-      addShelf({ id: params.novelId, chapterId: params.chapterId }),
-    onSuccess: () => {
-      setCollected(true);
-      qc.invalidateQueries({ queryKey: ['detail', 'novel', id] });
-    },
-    onError: (err) => {
-      setErrMsg(formatApiError(err) || '收藏失败,请稍后重试');
-    },
-  });
-
-  const handleCollect = () => {
-    if (!novelId || !chapter) return;
-    collectMutation.mutate({ novelId, chapterId: chapter.id });
-  };
-
   const handleLike = async () => {
     const nid = novelId || id;
     if (!nid) return;
@@ -173,6 +157,23 @@ function NovelDetailContent() {
     } finally {
       setLikeBusy(false);
     }
+  };
+
+  const collectMutation = useMutation({
+    mutationFn: (params: { novelId: string; chapterId: number | string }) =>
+      addShelf({ id: params.novelId, chapterId: params.chapterId }),
+    onSuccess: () => {
+      setCollected(true);
+      qc.invalidateQueries({ queryKey: ['detail', 'novel', id] });
+    },
+    onError: (err) => {
+      setErrMsg(formatApiError(err) || '收藏失败,请稍后重试');
+    },
+  });
+
+  const handleCollect = () => {
+    if (!novelId || !chapter) return;
+    collectMutation.mutate({ novelId, chapterId: chapter.id });
   };
 
   const updatePageStyle = (updates: Partial<PageStyle>) => {
@@ -263,14 +264,7 @@ function NovelDetailContent() {
           {liked ? <ThumbUpIcon fontSize="small" /> : <ThumbUpOutlinedIcon fontSize="small" />}
         </IconButton>
         <LoginGate mode="overlay" message="登录后收藏" overlayOpacity={1}>
-          <IconButton
-            onClick={handleCollect}
-            size="small"
-            aria-label="收藏"
-            sx={{ color: collected ? 'primary.main' : 'inherit' }}
-          >
-            {collected ? <BookmarkAddedIcon fontSize="small" /> : <BookmarkAddIcon fontSize="small" />}
-          </IconButton>
+          <CollectButton contentId={novelId || id!} contentType="novel" />
         </LoginGate>
         <IconButton onClick={() => setSettingsOpen(true)} size="small" aria-label="设置">
           <SettingsIcon fontSize="small" />

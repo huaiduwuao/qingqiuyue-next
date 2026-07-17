@@ -17,14 +17,12 @@ import PauseIcon from '@mui/icons-material/Pause';
 import SkipNextIcon from '@mui/icons-material/SkipNext';
 import SkipPreviousIcon from '@mui/icons-material/SkipPrevious';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
-import FavoriteIcon from '@mui/icons-material/Favorite';
-import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
+import { CollectButton } from '@/components/detail/CollectButton';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
 import ShareIcon from '@mui/icons-material/Share';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-music';
-import { collectContent } from '@/apis/global';
 import { moduleContentAction } from '@/apis/home';
 import { formatApiError } from '@/lib/api/client';
 import { AsyncState } from '@/components/common/AsyncState';
@@ -77,11 +75,9 @@ function MusicDetailContent() {
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [volume, setVolume] = useState(70);
-  const [favorited, setFavorited] = useState(false);
   const [liked, setLiked] = useState(false);
   const [likeBusy, setLikeBusy] = useState(false);
   const [optimisticLikes, setOptimisticLikes] = useState(0);
-  const [collectBusy, setCollectBusy] = useState(false);
   const [activeLyric, setActiveLyric] = useState(0);
   const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
     open: false,
@@ -114,25 +110,6 @@ function MusicDetailContent() {
       notify(formatApiError(err), 'error');
     } finally {
       setLikeBusy(false);
-    }
-  };
-
-  const handleCollect = async () => {
-    if (!id) {
-      notify('内容 ID 缺失', 'error');
-      return;
-    }
-    if (collectBusy) return;
-    setCollectBusy(true);
-    const next = !favorited;
-    setFavorited(next);
-    try {
-      await collectContent({ contentId: id, action: next ? 'collect' : 'cancel_collect' });
-    } catch (err) {
-      setFavorited(!next);
-      notify(formatApiError(err), 'error');
-    } finally {
-      setCollectBusy(false);
     }
   };
 
@@ -328,9 +305,7 @@ function MusicDetailContent() {
               >
                 {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
               </IconButton>
-              <IconButton disabled={collectBusy} onClick={handleCollect} sx={{ color: favorited ? 'primary.main' : 'text.secondary' }}>
-                {favorited ? <FavoriteIcon /> : <FavoriteBorderIcon />}
-              </IconButton>
+              <CollectButton contentId={id!} contentType="music" />
               <IconButton onClick={handleShare} sx={{ color: 'text.secondary' }}>
                 <ShareIcon />
               </IconButton>

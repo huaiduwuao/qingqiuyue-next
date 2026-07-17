@@ -26,8 +26,6 @@ import DialogActions from '@mui/material/DialogActions';
 import Drawer from '@mui/material/Drawer';
 import LiveTvRoundedIcon from '@mui/icons-material/LiveTvRounded';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
-import FavoriteIcon from '@mui/icons-material/Favorite';
-import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import ShareIcon from '@mui/icons-material/Share';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import AddIcon from '@mui/icons-material/Add';
@@ -40,9 +38,10 @@ import FlipIcon from '@mui/icons-material/Flip';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-live';
 import { sendComment } from '@/apis/home';
-import { collectContent, reportContent } from '@/apis/global';
+import { reportContent } from '@/apis/global';
 import { homeClient, accountClient, formatApiError } from '@/lib/api/client';
 import DetailHeader from '@/components/detail/DetailHeader';
+import { CollectButton } from '@/components/detail/CollectButton';
 import { AsyncState } from '@/components/common/AsyncState';
 import { track, recordHistory } from '@/lib/track';
 import { LivePlayerSettings, DEFAULT_LIVE_SETTINGS, type LivePlayerSettingsState } from '@/components/detail/LivePlayerSettings';
@@ -124,8 +123,6 @@ function LiveDetailContent() {
   const [followOverride, setFollowOverride] = useState<boolean | null>(null);
   const followed = followOverride ?? !!(query.data as any)?.isFollowing;
   const [followBusy, setFollowBusy] = useState(false);
-  const [favorited, setFavorited] = useState(false);
-  const [collectBusy, setCollectBusy] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [chat, setChat] = useState<Array<{ id: number; user: string; avatar: string; text: string; time: string }>>([]);
   const [chatSending, setChatSending] = useState(false);
@@ -185,25 +182,6 @@ function LiveDetailContent() {
       notify(formatApiError(err), 'error');
     } finally {
       setChatSending(false);
-    }
-  };
-
-  const handleCollect = async () => {
-    if (!id) {
-      notify('内容 ID 缺失', 'error');
-      return;
-    }
-    if (collectBusy) return;
-    setCollectBusy(true);
-    const next = !favorited;
-    setFavorited(next);
-    try {
-      await collectContent({ contentId: id, action: next ? 'collect' : 'cancel_collect' });
-    } catch (err) {
-      setFavorited(!next);
-      notify(formatApiError(err), 'error');
-    } finally {
-      setCollectBusy(false);
     }
   };
 
@@ -321,9 +299,7 @@ function LiveDetailContent() {
         title={query.data?.title?.replace(/【直播中】/, '') || '直播'}
         rightActions={
           <Box sx={{ display: 'flex', gap: 0.5 }}>
-            <IconButton disabled={collectBusy} onClick={handleCollect} sx={{ color: favorited ? 'primary.main' : 'text.tertiary' }} aria-label="收藏">
-              {favorited ? <FavoriteIcon /> : <FavoriteBorderIcon />}
-            </IconButton>
+            <CollectButton contentId={id!} contentType="live" />
             <IconButton onClick={() => setSettingsOpen(true)} sx={{ color: 'text.tertiary' }} aria-label="直播设置">
               <SettingsIcon />
             </IconButton>

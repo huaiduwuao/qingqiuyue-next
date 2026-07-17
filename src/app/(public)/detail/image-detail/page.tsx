@@ -10,14 +10,11 @@ import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
-import FavoriteIcon from '@mui/icons-material/Favorite';
-import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
 import ShareIcon from '@mui/icons-material/Share';
 import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-video';
-import { collectContent } from '@/apis/global';
 import { moduleContentAction } from '@/apis/home';
 import { formatApiError } from '@/lib/api/client';
 import DetailHeader from '@/components/detail/DetailHeader';
@@ -25,6 +22,7 @@ import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
 import { track, recordHistory } from '@/lib/track';
 import { DetailComments } from '@/components/detail/DetailComments';
+import { CollectButton } from '@/components/detail/CollectButton';
 
 type PictureDetail = {
   id: string | number;
@@ -88,11 +86,9 @@ function ImageDetailContent() {
     };
   }, [query.data]);
 
-  const [favorited, setFavorited] = useState(false);
   const [liked, setLiked] = useState(false);
   const [likeBusy, setLikeBusy] = useState(false);
   const [optimisticLikes, setOptimisticLikes] = useState(0);
-  const [collectBusy, setCollectBusy] = useState(false);
   const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
     open: false,
     message: '',
@@ -121,25 +117,6 @@ function ImageDetailContent() {
       notify(formatApiError(err), 'error');
     } finally {
       setLikeBusy(false);
-    }
-  };
-
-  const handleCollect = async () => {
-    if (!id) {
-      notify('内容 ID 缺失', 'error');
-      return;
-    }
-    if (collectBusy) return;
-    setCollectBusy(true);
-    const next = !favorited;
-    setFavorited(next);
-    try {
-      await collectContent({ contentId: id, action: next ? 'collect' : 'cancel_collect' });
-    } catch (err) {
-      setFavorited(!next);
-      notify(formatApiError(err), 'error');
-    } finally {
-      setCollectBusy(false);
     }
   };
 
@@ -175,9 +152,7 @@ function ImageDetailContent() {
             >
               {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
             </IconButton>
-            <IconButton disabled={collectBusy} onClick={handleCollect} sx={{ color: favorited ? 'primary.main' : 'text.tertiary' }}>
-              {favorited ? <FavoriteIcon /> : <FavoriteBorderIcon />}
-            </IconButton>
+            <CollectButton contentId={id!} contentType="picture" />
             <IconButton onClick={handleShare} sx={{ color: 'text.tertiary' }}>
               <ShareIcon />
             </IconButton>
@@ -226,10 +201,7 @@ function ImageDetailContent() {
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                <FavoriteIcon sx={{ fontSize: 18, color: favorited ? 'primary.main' : 'text.secondary' }} />
-                <Typography sx={{ fontSize: 13, color: favorited ? 'primary.main' : 'text.secondary' }}>
-                  {data.collectCount || 0}
-                </Typography>
+                <CollectButton contentId={id!} contentType="picture" variant="button" compact />
               </Box>
             </Box>
 

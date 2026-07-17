@@ -11,18 +11,16 @@ import IconButton from '@mui/material/IconButton';
 import Avatar from '@mui/material/Avatar';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
-import FavoriteIcon from '@mui/icons-material/Favorite';
-import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
+import { CollectButton } from '@/components/detail/CollectButton';
 import ShareIcon from '@mui/icons-material/Share';
+import ThumbUpIcon from '@mui/icons-material/ThumbUp';
+import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import BookmarkIcon from '@mui/icons-material/Bookmark';
-import BookmarkBorderIcon from '@mui/icons-material/BookmarkBorder';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-article';
 import { moduleContentAction } from '@/apis/home';
-import { collectContent } from '@/apis/global';
 import { formatApiError } from '@/lib/api/client';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
@@ -68,10 +66,8 @@ function ArticleDetailContent() {
     }
   }, [id]);
 
-  const [favorited, setFavorited] = useState(false);
-  const [bookmarked, setBookmarked] = useState(false);
+  const [liked, setLiked] = useState(false);
   const [likeBusy, setLikeBusy] = useState(false);
-  const [collectBusy, setCollectBusy] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pageStyle, setPageStyle] = useState<PageStyle>(DEFAULT_PAGE_STYLE);
   const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
@@ -91,34 +87,15 @@ function ArticleDetailContent() {
     }
     if (likeBusy) return;
     setLikeBusy(true);
-    const next = !favorited;
-    setFavorited(next);
+    const next = !liked;
+    setLiked(next);
     try {
       await moduleContentAction({ contentId: id, action: next ? 'agree' : 'cancel_agree' });
     } catch (err) {
-      setFavorited(!next);
+      setLiked(!next);
       notify(formatApiError(err), 'error');
     } finally {
       setLikeBusy(false);
-    }
-  };
-
-  const handleBookmark = async () => {
-    if (!id) {
-      notify('内容 ID 缺失', 'error');
-      return;
-    }
-    if (collectBusy) return;
-    setCollectBusy(true);
-    const next = !bookmarked;
-    setBookmarked(next);
-    try {
-      await collectContent({ contentId: id, action: next ? 'collect' : 'cancel_collect' });
-    } catch (err) {
-      setBookmarked(!next);
-      notify(formatApiError(err), 'error');
-    } finally {
-      setCollectBusy(false);
     }
   };
 
@@ -153,12 +130,10 @@ function ArticleDetailContent() {
             <IconButton onClick={() => setSettingsOpen(true)} sx={{ color: 'text.tertiary' }}>
               <SettingsIcon />
             </IconButton>
-            <IconButton disabled={likeBusy} onClick={handleLike} sx={{ color: favorited ? 'primary.main' : 'text.tertiary' }}>
-              {favorited ? <FavoriteIcon /> : <FavoriteBorderIcon />}
+            <IconButton disabled={likeBusy} onClick={handleLike} sx={{ color: liked ? 'primary.main' : 'text.tertiary' }}>
+              {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
             </IconButton>
-            <IconButton disabled={collectBusy} onClick={handleBookmark} sx={{ color: bookmarked ? 'warning.main' : 'text.tertiary' }}>
-              {bookmarked ? <BookmarkIcon /> : <BookmarkBorderIcon />}
-            </IconButton>
+            <CollectButton contentId={id!} contentType="article" />
             <IconButton onClick={handleShare} sx={{ color: 'text.tertiary' }}>
               <ShareIcon />
             </IconButton>

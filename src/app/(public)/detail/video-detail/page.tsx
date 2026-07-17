@@ -11,8 +11,6 @@ import IconButton from '@mui/material/IconButton';
 import Avatar from '@mui/material/Avatar';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
-import FavoriteIcon from '@mui/icons-material/Favorite';
-import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import ShareIcon from '@mui/icons-material/Share';
 import CommentIcon from '@mui/icons-material/Comment';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -20,12 +18,12 @@ import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import AddIcon from '@mui/icons-material/Add';
 import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-video';
-import { collectContent } from '@/apis/global';
 import { homeClient, formatApiError } from '@/lib/api/client';
 import { moduleContentAction } from '@/apis/home';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { DetailComments } from '@/components/detail/DetailComments';
+import { CollectButton } from '@/components/detail/CollectButton';
 import { AsyncState } from '@/components/common/AsyncState';
 import { track, recordHistory } from '@/lib/track';
 import AIGCBadge from '@/components/AIGCBadge';
@@ -72,7 +70,6 @@ function VideoDetailContent() {
   const [liked, setLiked] = React.useState(false);
   const [likeBusy, setLikeBusy] = React.useState(false);
   const [optimisticLikes, setOptimisticLikes] = React.useState(0);
-  const [collectBusy, setCollectBusy] = React.useState(false);
   const [followOverride, setFollowOverride] = React.useState<boolean | null>(null);
   const followed = followOverride ?? !!(query.data as any)?.isFollowing;
   const [followBusy, setFollowBusy] = React.useState(false);
@@ -100,25 +97,6 @@ function VideoDetailContent() {
       setLiked(!next);
       setOptimisticLikes((prev) => Math.max(0, prev + (next ? -1 : 1)));
       notify(formatApiError(err), 'error');
-    }
-  };
-
-  const handleCollect = async () => {
-    if (!id) {
-      notify('内容 ID 缺失', 'error');
-      return;
-    }
-    if (collectBusy) return;
-    setCollectBusy(true);
-    const next = !favorited;
-    setFavorited(next);
-    try {
-      await collectContent({ contentId: id, action: next ? 'collect' : 'cancel_collect' });
-    } catch (err) {
-      setFavorited(!next);
-      notify(formatApiError(err), 'error');
-    } finally {
-      setCollectBusy(false);
     }
   };
 
@@ -173,9 +151,7 @@ function VideoDetailContent() {
         title={query.data?.title || '视频详情'}
         rightActions={
           <Box sx={{ display: 'flex', gap: 0.5 }}>
-            <IconButton disabled={collectBusy} onClick={handleCollect} sx={{ color: favorited ? 'primary.main' : 'text.tertiary' }}>
-              {favorited ? <FavoriteIcon /> : <FavoriteBorderIcon />}
-            </IconButton>
+            <CollectButton contentId={id!} contentType="video" />
             <IconButton onClick={handleShare} sx={{ color: 'text.tertiary' }}>
               <ShareIcon />
             </IconButton>

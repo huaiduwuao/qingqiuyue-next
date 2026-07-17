@@ -51,7 +51,7 @@ interface SectionTemplate {
 }
 const SECTION_TPLS: SectionTemplate[] = [
   { key: 'likes',      label: '我的喜欢', icon: <FavoriteRoundedIcon sx={{ fontSize: 18, color: 'error.main' }} />,       href: '/home/recommend?tab=me&mainTab=likes',     statKey: 'likesCount' },
-  { key: 'favorites',  label: '我的收藏', icon: <StarRoundedIcon sx={{ fontSize: 18, color: 'warning.main' }} />,         href: '/home/recommend?tab=me&mainTab=collect',  statKey: 'favoritesCount' },
+  { key: 'favorites',  label: '我的收藏', icon: <StarRoundedIcon sx={{ fontSize: 18, color: 'warning.main' }} />,         href: '/account/my-lists',                    statKey: 'favoritesCount' },
   { key: 'history',    label: '观看历史', icon: <HistoryRoundedIcon sx={{ fontSize: 18, color: 'secondary.main' }} />,      href: '/home/recommend?tab=me&mainTab=history',  statKey: 'historyCount', display: '30天内' },
   { key: 'watchlater', label: '稍后再看', icon: <WatchLaterIcon sx={{ fontSize: 18, color: '#8B5CF6' }} />,                href: '/home/recommend?tab=me&mainTab=later',    statKey: 'watchlaterCount' },
   { key: 'works',      label: '我的作品', icon: <VideoLibraryIcon sx={{ fontSize: 18, color: 'primary.main' }} />,         href: '/account/content',                         statKey: 'worksCount' },
