@@ -129,7 +129,7 @@ export default function PaymentConfigPage() {
   };
 
   const toggleSecret = (field: string) => {
-    setShowSecrets((prev) => ({ ...prev, [field]: !prev[prev[field as keyof typeof prev] }));
+    setShowSecrets((prev) => ({ ...prev, [field]: !prev[field] }));
   };
 
   const isWxLoginValid = () => config.wxLoginAppId && config.wxLoginAppSecret;
@@ -220,8 +220,10 @@ export default function PaymentConfigPage() {
                 fullWidth
                 placeholder="在开放平台应用详情页获取"
                 helperText="微信开放平台网站应用的 AppID"
-                InputProps={{
-                  startAdornment: <InputAdornment position="start"><LinkIcon sx={{ fontSize: 18, color: 'text.secondary' }} /></InputAdornment>,
+                slotProps={{
+                  input: {
+                    startAdornment: <InputAdornment position="start"><LinkIcon sx={{ fontSize: 18, color: 'text.secondary' }} /></InputAdornment>,
+                  },
                 }}
               />
 
