@@ -3,7 +3,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react'
 import { Box, Typography, Button, Paper } from '@mui/material'
 import RefreshIcon from '@mui/icons-material/Refresh'
-import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline'
+import ErrorOutlinedIcon from '@mui/icons-material/ErrorOutlined'
 
 interface Props {
   children: ReactNode
@@ -74,7 +74,7 @@ export class ErrorBoundary extends Component<Props, State> {
             borderColor: 'error.light'
           }}
         >
-          <ErrorOutlineIcon sx={{ fontSize: 64, color: 'error.main', mb: 2 }} />
+          <ErrorOutlinedIcon sx={{ fontSize: 64, color: 'error.main', mb: 2 }} />
 
           <Typography variant="h5" component="h2" gutterBottom color="error.dark">
             出现了一些问题
@@ -160,7 +160,7 @@ export function PageErrorFallback({
         p: 3
       }}
     >
-      <ErrorOutlineIcon sx={{ fontSize: 80, color: 'error.main', mb: 2 }} />
+      <ErrorOutlinedIcon sx={{ fontSize: 80, color: 'error.main', mb: 2 }} />
 
       <Typography variant="h4" component="h1" gutterBottom>
         页面加载失败
