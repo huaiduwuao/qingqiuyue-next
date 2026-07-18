@@ -1,5 +1,5 @@
 /**
- * /api/agentm/* — AgentManager API 代理
+ * /api/agentmanager/* — AgentManager API 代理
  *
  * 所有请求转发到后端 APISIX 网关 (http://apisix:9080/api/agentmanager/*)
  * 避免前端跨域问题，统一入口。
@@ -7,12 +7,12 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 
-const AGENTM_BASE = process.env.NEXT_PUBLIC_AGENTM_URL || 'http://localhost:10005/api/agentmanager'
+const AGENTM_BASE = process.env.NEXT_PUBLIC_AGENTM_URL || 'http://apisix:9080/api/agentmanager'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-// 匹配 /api/agentm/* 的所有路径
+// 匹配 /api/agentmanager/* 的所有路径
 export async function GET(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params
   const pathStr = path.join('/')
