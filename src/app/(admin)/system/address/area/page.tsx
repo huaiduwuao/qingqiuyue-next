@@ -112,7 +112,7 @@ export default function SystemAddressAreaPage() {
         columns={columns}
         fetchData={async (params) => {
           const res = await page({ ...params, pageNumber: params.pageNumber });
-          const list = res.data?.records || res.data?.list || [];
+          const list = res.data?.records || [];
           const total = res.data?.totalRow || res.data?.total || 0;
           return { data: { records: list, totalRow: total }, success: true };
         }}
