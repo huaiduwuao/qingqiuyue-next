@@ -1,33 +1,45 @@
 'use client'
 
 /**
- * AgentManager 管理控制台 - 完整版
+ * AgentManager 管理控制台 - MUI 版本
  * 多 Agent 管理平面前端界面
- *
- * 使用现有的 AuthContext 进行身份认证
  */
 
 import { useState, useEffect, useCallback } from 'react'
+import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
+import Tabs from '@mui/material/Tabs'
+import Tab from '@mui/material/Tab'
+import Paper from '@mui/material/Paper'
+import Chip from '@mui/material/Chip'
+import Card from '@mui/material/Card'
+import CardContent from '@mui/material/CardContent'
+import Table from '@mui/material/Table'
+import TableBody from '@mui/material/TableBody'
+import TableCell from '@mui/material/TableCell'
+import TableContainer from '@mui/material/TableContainer'
+import TableHead from '@mui/material/TableHead'
+import TableRow from '@mui/material/TableRow'
+import Button from '@mui/material/Button'
+import CircularProgress from '@mui/material/CircularProgress'
+import Alert from '@mui/material/Alert'
 import { agentmAPI, type Instance, type Agent, type AuditLog, type Skill, type MonitoringOverview, type InstanceStats, type AgentStats, type UsageStats } from './api'
 import { useAuth } from '@/contexts/AuthContext'
 
 type Tab = 'dashboard' | 'instances' | 'agents' | 'audit' | 'skills' | 'gateway'
 
 export default function AgentManagerConsole() {
-  const { token, isAuthenticated, permissions } = useAuth()
+  const { token, isAuthenticated } = useAuth()
   const [activeTab, setActiveTab] = useState<Tab>('dashboard')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
   // Data states
   const [instances, setInstances] = useState<Instance[]>([])
-  const [agents, setAgents] = useState<Agent[]>([])
+  const [agentStats, setAgentStats] = useState<AgentStats[]>([])
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
   const [skills, setSkills] = useState<Skill[]>([])
-  const [quota, setQuota] = useState<any>(null)
   const [overview, setOverview] = useState<MonitoringOverview | null>(null)
   const [instanceStats, setInstanceStats] = useState<InstanceStats[]>([])
-  const [agentStats, setAgentStats] = useState<AgentStats[]>([])
   const [usageStats, setUsageStats] = useState<UsageStats | null>(null)
 
   // Load data
@@ -36,7 +48,6 @@ export default function AgentManagerConsole() {
 
     setLoading(true)
     try {
-      // 设置 API token
       agentmAPI.setToken(token)
 
       const [instRes, overviewRes, instStatsRes, agentStatsRes, usageRes] = await Promise.all([
@@ -62,7 +73,6 @@ export default function AgentManagerConsole() {
   const loadAuditLogs = async () => {
     if (!token) return
     agentmAPI.setToken(token)
-
     setLoading(true)
     try {
       const res = await agentmAPI.getAuditLog({ limit: 50 })
@@ -78,7 +88,6 @@ export default function AgentManagerConsole() {
   const loadSkills = async () => {
     if (!token) return
     agentmAPI.setToken(token)
-
     setLoading(true)
     try {
       const res = await agentmAPI.listSkills()
@@ -105,26 +114,24 @@ export default function AgentManagerConsole() {
     }
   }, [isAuthenticated, activeTab])
 
-  // 未登录状态 - 使用 LoginGate 处理重定向
+  // 未登录状态
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gray-900 text-white p-8">
-        <div className="max-w-md mx-auto text-center">
-          <div className="text-6xl mb-4">🔐</div>
-          <h2 className="text-2xl font-bold mb-4">需要登录</h2>
-          <p className="text-gray-400 mb-6">请先登录以访问 Agent 管理控制台</p>
-          <a
-            href="/user/login?redirect=/agentmanager"
-            className="inline-block bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg font-medium"
-          >
+      <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', p: 4 }}>
+        <Box sx={{ maxWidth: 400, mx: 'auto', textAlign: 'center' }}>
+          <Typography variant="h4" sx={{ mb: 2 }}>🔐</Typography>
+          <Typography variant="h5" sx={{ mb: 2 }}>需要登录</Typography>
+          <Typography sx={{ color: 'text.secondary', mb: 3 }}>
+            请先登录以访问 Agent 管理控制台
+          </Typography>
+          <Button variant="contained" href="/user/login?redirect=/agentmanager">
             去登录
-          </a>
-        </div>
-      </div>
+          </Button>
+        </Box>
+      </Box>
     )
   }
 
-  // Tabs
   const tabs: { key: Tab; label: string }[] = [
     { key: 'dashboard', label: '📊 总览' },
     { key: 'instances', label: '🖥️ 实例' },
@@ -135,303 +142,401 @@ export default function AgentManagerConsole() {
   ]
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       {/* Header */}
-      <header className="bg-gray-800 border-b border-gray-700 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold">🤖 AgentManager</h1>
-          <div className="flex items-center gap-4">
-            {overview && (
-              <div className="flex gap-4 text-sm">
-                <span className="px-2 py-1 bg-green-900/50 text-green-400 rounded">
-                  ✓ 健康: {overview.instances.healthy}/{overview.instances.total}
-                </span>
-                <span className="px-2 py-1 bg-blue-900/50 text-blue-400 rounded">
-                  🤖 Agent: {overview.agents.active}/{overview.agents.total}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
+      <Box
+        sx={{
+          bgcolor: 'background.paper',
+          borderBottom: 1,
+          borderColor: 'divider',
+          px: 3,
+          py: 2,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
+        <Typography variant="h5" sx={{ fontWeight: 600 }}>
+          🤖 AgentManager
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          {overview && (
+            <>
+              <Chip
+                size="small"
+                label={`✓ 健康: ${overview.instances.healthy}/${overview.instances.total}`}
+                color="success"
+                variant="outlined"
+              />
+              <Chip
+                size="small"
+                label={`🤖 Agent: ${overview.agents.active}/${overview.agents.total}`}
+                color="primary"
+                variant="outlined"
+              />
+            </>
+          )}
+        </Box>
+      </Box>
 
       {/* Tabs */}
-      <div className="bg-gray-800 border-b border-gray-700 px-6">
-        <nav className="flex gap-1">
+      <Box sx={{ bgcolor: 'background.paper', borderBottom: 1, borderColor: 'divider', px: 3 }}>
+        <Tabs
+          value={activeTab}
+          onChange={(_, v) => setActiveTab(v)}
+          textColor="primary"
+          indicatorColor="primary"
+        >
           {tabs.map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={`px-4 py-3 text-sm font-medium transition-colors ${
-                activeTab === tab.key
-                  ? 'text-blue-400 border-b-2 border-blue-400'
-                  : 'text-gray-400 hover:text-white'
-              }`}
-            >
-              {tab.label}
-            </button>
+            <Tab key={tab.key} label={tab.label} value={tab.key} />
           ))}
-        </nav>
-      </div>
+        </Tabs>
+      </Box>
 
       {/* Content */}
-      <main className="p-6">
-        {loading && <div className="text-center py-8 text-gray-400">加载中...</div>}
+      <Box sx={{ p: 3 }}>
+        {loading && (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+            <CircularProgress />
+          </Box>
+        )}
 
         {/* Dashboard Tab */}
         {activeTab === 'dashboard' && !loading && overview && (
-          <div className="space-y-6">
+          <Box>
             {/* Stats Cards */}
-            <div className="grid grid-cols-4 gap-4">
-              <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                <div className="text-gray-400 text-sm">实例</div>
-                <div className="text-3xl font-bold mt-1">{overview.instances.total}</div>
-                <div className="text-sm text-green-400 mt-1">
-                  {overview.instances.healthy} 健康
-                </div>
-              </div>
-              <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                <div className="text-gray-400 text-sm">Agent</div>
-                <div className="text-3xl font-bold mt-1">{overview.agents.total}</div>
-                <div className="text-sm text-blue-400 mt-1">
-                  {overview.agents.active} 活跃
-                </div>
-              </div>
-              <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                <div className="text-gray-400 text-sm">今日对话</div>
-                <div className="text-3xl font-bold mt-1">{overview.agents.today_chats}</div>
-                <div className="text-sm text-gray-400 mt-1">次</div>
-              </div>
-              <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                <div className="text-gray-400 text-sm">平均延迟</div>
-                <div className="text-3xl font-bold mt-1">
-                  {overview.usage.avg_latency_ms.toFixed(0)}ms
-                </div>
-                <div className="text-sm text-gray-400 mt-1">响应时间</div>
-              </div>
-            </div>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2, mb: 3 }}>
+              <Card>
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary">实例</Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 600, mt: 1 }}>
+                    {overview.instances.total}
+                  </Typography>
+                  <Typography variant="body2" color="success.main" sx={{ mt: 1 }}>
+                    {overview.instances.healthy} 健康
+                  </Typography>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary">Agent</Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 600, mt: 1 }}>
+                    {overview.agents.total}
+                  </Typography>
+                  <Typography variant="body2" color="primary.main" sx={{ mt: 1 }}>
+                    {overview.agents.active} 活跃
+                  </Typography>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary">今日对话</Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 600, mt: 1 }}>
+                    {overview.agents.today_chats}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    次
+                  </Typography>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent>
+                  <Typography variant="body2" color="text.secondary">平均延迟</Typography>
+                  <Typography variant="h4" sx={{ fontWeight: 600, mt: 1 }}>
+                    {overview.usage.avg_latency_ms.toFixed(0)}ms
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    响应时间
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Box>
 
             {/* Usage Chart */}
             {usageStats?.daily?.length ? (
-              <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                <h3 className="font-semibold mb-4">📈 使用趋势（本周）</h3>
-                <div className="flex items-end gap-2 h-32">
-                  {usageStats.daily.map((day, i) => {
-                    const maxTokens = Math.max(...usageStats.daily.map(d => d.tokens), 1)
-                    const height = (day.tokens / maxTokens) * 100
-                    return (
-                      <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                        <div
-                          className="w-full bg-blue-600 rounded-t transition-all"
-                          style={{ height: `${Math.max(height, 4)}%` }}
-                          title={`${day.tokens.toLocaleString()} tokens`}
-                        />
-                        <span className="text-xs text-gray-500">{day.date.slice(5)}</span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
+              <Card sx={{ mb: 3 }}>
+                <CardContent>
+                  <Typography variant="h6" sx={{ mb: 2 }}>📈 使用趋势（本周）</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1, height: 120 }}>
+                    {usageStats.daily.map((day, i) => {
+                      const maxTokens = Math.max(...usageStats.daily.map(d => d.tokens), 1)
+                      const height = (day.tokens / maxTokens) * 100
+                      return (
+                        <Box key={i} sx={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.5 }}>
+                          <Box
+                            sx={{
+                              width: '100%',
+                              bgcolor: 'primary.main',
+                              borderRadius: '4px 4px 0 0',
+                              minHeight: 4,
+                              height: `${Math.max(height, 4)}%`,
+                            }}
+                            title={`${day.tokens.toLocaleString()} tokens`}
+                          />
+                          <Typography variant="caption" color="text.secondary">
+                            {day.date.slice(5)}
+                          </Typography>
+                        </Box>
+                      )
+                    })}
+                  </Box>
+                </CardContent>
+              </Card>
             ) : null}
 
-            {/* Recent Activity */}
-            <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-              <h3 className="font-semibold mb-4">📋 实例状态</h3>
-              <div className="space-y-2">
-                {instanceStats.slice(0, 5).map(inst => (
-                  <div key={inst.id} className="flex items-center justify-between p-2 bg-gray-700/50 rounded">
-                    <div className="flex items-center gap-3">
-                      <span className={`w-2 h-2 rounded-full ${
-                        inst.health_status === 'healthy' ? 'bg-green-500' :
-                        inst.health_status === 'unhealthy' ? 'bg-red-500' : 'bg-gray-500'
-                      }`} />
-                      <span className="font-medium">{inst.name}</span>
-                    </div>
-                    <div className="flex gap-4 text-sm text-gray-400">
-                      <span>连接: {inst.active_conns}/{inst.max_concurrent}</span>
-                      <span>延迟: {inst.avg_latency_ms}ms</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+            {/* Instance Status */}
+            <Card>
+              <CardContent>
+                <Typography variant="h6" sx={{ mb: 2 }}>📋 实例状态</Typography>
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>名称</TableCell>
+                        <TableCell>状态</TableCell>
+                        <TableCell>连接</TableCell>
+                        <TableCell>延迟</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {instanceStats.slice(0, 5).map(inst => (
+                        <TableRow key={inst.id}>
+                          <TableCell>{inst.name}</TableCell>
+                          <TableCell>
+                            <Chip
+                              size="small"
+                              label={inst.health_status === 'healthy' ? '✓ 健康' :
+                                     inst.health_status === 'unhealthy' ? '✗ 异常' : '? 未知'}
+                              color={inst.health_status === 'healthy' ? 'success' : 'error'}
+                            />
+                          </TableCell>
+                          <TableCell>{inst.active_conns}/{inst.max_concurrent}</TableCell>
+                          <TableCell>{inst.avg_latency_ms}ms</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </CardContent>
+            </Card>
+          </Box>
         )}
 
         {/* Instances Tab */}
         {activeTab === 'instances' && !loading && (
-          <div>
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">实例管理</h2>
-              <button
+          <Box>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+              <Typography variant="h6">实例管理</Typography>
+              <Button
+                variant="contained"
+                size="small"
                 onClick={() => agentmAPI.discoverInstances().then(loadData)}
-                className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-sm"
               >
                 自动发现
-              </button>
-            </div>
-            <div className="grid gap-4">
+              </Button>
+            </Box>
+            <Box sx={{ display: 'grid', gap: 2 }}>
               {instances.map(inst => (
-                <div key={inst.id} className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-semibold text-lg">{inst.name}</h3>
-                      <p className="text-gray-400 text-sm">{inst.code} • {inst.base_url}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2 py-1 rounded text-xs ${
-                        inst.health_status === 'healthy' ? 'bg-green-900 text-green-400' :
-                        inst.health_status === 'unhealthy' ? 'bg-red-900 text-red-400' :
-                        'bg-gray-700 text-gray-400'
-                      }`}>
-                        {inst.health_status === 'healthy' ? '✓ 健康' :
-                         inst.health_status === 'unhealthy' ? '✗ 异常' : '? 未知'}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="mt-3 grid grid-cols-4 gap-4 text-sm text-gray-400">
-                    <div>区域: <span className="text-white">{inst.region}</span></div>
-                    <div>权重: <span className="text-white">{inst.weight}</span></div>
-                    <div>最大并发: <span className="text-white">{inst.max_concurrent}</span></div>
-                    <div>运行时: <span className="text-white">{inst.runtime_type}</span></div>
-                  </div>
-                </div>
+                <Card key={inst.id}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <Box>
+                        <Typography variant="h6">{inst.name}</Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {inst.code} • {inst.base_url}
+                        </Typography>
+                      </Box>
+                      <Chip
+                        size="small"
+                        label={inst.health_status === 'healthy' ? '✓ 健康' :
+                               inst.health_status === 'unhealthy' ? '✗ 异常' : '? 未知'}
+                        color={inst.health_status === 'healthy' ? 'success' : 'error'}
+                      />
+                    </Box>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1, mt: 2 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        区域: <Box component="span" color="text.primary">{inst.region}</Box>
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        权重: <Box component="span" color="text.primary">{inst.weight}</Box>
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        最大并发: <Box component="span" color="text.primary">{inst.max_concurrent}</Box>
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        运行时: <Box component="span" color="text.primary">{inst.runtime_type}</Box>
+                      </Typography>
+                    </Box>
+                  </CardContent>
+                </Card>
               ))}
-            </div>
-          </div>
+            </Box>
+          </Box>
         )}
 
         {/* Agents Tab */}
         {activeTab === 'agents' && !loading && (
-          <div>
-            <h2 className="text-xl font-semibold mb-4">Agent 管理</h2>
-            <div className="grid gap-4 md:grid-cols-3">
+          <Box>
+            <Typography variant="h6" sx={{ mb: 3 }}>Agent 管理</Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2 }}>
               {agentStats.map(agent => (
-                <div key={agent.id} className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-lg font-bold">
-                      {agent.name.charAt(0)}
-                    </div>
-                    <div>
-                      <h3 className="font-semibold">{agent.name}</h3>
-                      <span className="text-xs text-gray-400">{agent.agent_id}</span>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="bg-gray-700/50 rounded p-2">
-                      <div className="text-gray-400">对话数</div>
-                      <div className="font-medium">{agent.chat_count.toLocaleString()}</div>
-                    </div>
-                    <div className="bg-gray-700/50 rounded p-2">
-                      <div className="text-gray-400">Token</div>
-                      <div className="font-medium">{agent.total_tokens.toLocaleString()}</div>
-                    </div>
-                  </div>
-                </div>
+                <Card key={agent.id}>
+                  <CardContent>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                      <Box
+                        sx={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: '50%',
+                          bgcolor: 'primary.main',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 600,
+                          fontSize: 18,
+                        }}
+                      >
+                        {agent.name.charAt(0)}
+                      </Box>
+                      <Box>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{agent.name}</Typography>
+                        <Typography variant="caption" color="text.secondary">{agent.agent_id}</Typography>
+                      </Box>
+                    </Box>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1 }}>
+                      <Paper sx={{ p: 1, textAlign: 'center' }}>
+                        <Typography variant="body2" color="text.secondary">对话数</Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                          {agent.chat_count.toLocaleString()}
+                        </Typography>
+                      </Paper>
+                      <Paper sx={{ p: 1, textAlign: 'center' }}>
+                        <Typography variant="body2" color="text.secondary">Token</Typography>
+                        <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                          {agent.total_tokens.toLocaleString()}
+                        </Typography>
+                      </Paper>
+                    </Box>
+                  </CardContent>
+                </Card>
               ))}
-            </div>
-          </div>
+            </Box>
+          </Box>
         )}
 
         {/* Audit Tab */}
         {activeTab === 'audit' && !loading && (
-          <div>
-            <h2 className="text-xl font-semibold mb-4">审计日志</h2>
+          <Box>
+            <Typography variant="h6" sx={{ mb: 3 }}>审计日志</Typography>
             {auditLogs.length > 0 ? (
-              <div className="bg-gray-800 rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-700">
-                    <tr>
-                      <th className="px-4 py-3 text-left">时间</th>
-                      <th className="px-4 py-3 text-left">用户</th>
-                      <th className="px-4 py-3 text-left">模型</th>
-                      <th className="px-4 py-3 text-left">Token</th>
-                      <th className="px-4 py-3 text-left">延迟</th>
-                      <th className="px-4 py-3 text-left">状态</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+              <TableContainer component={Paper}>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>时间</TableCell>
+                      <TableCell>用户</TableCell>
+                      <TableCell>模型</TableCell>
+                      <TableCell>Token</TableCell>
+                      <TableCell>延迟</TableCell>
+                      <TableCell>状态</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
                     {auditLogs.map(log => (
-                      <tr key={log.id} className="border-t border-gray-700">
-                        <td className="px-4 py-3">{new Date(log.create_time).toLocaleString()}</td>
-                        <td className="px-4 py-3">{log.user_id}</td>
-                        <td className="px-4 py-3">{log.model}</td>
-                        <td className="px-4 py-3">{log.total_tokens}</td>
-                        <td className="px-4 py-3">{log.latency_ms}ms</td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2 py-1 rounded text-xs ${
-                            log.status === 'success' ? 'bg-green-900 text-green-400' : 'bg-red-900 text-red-400'
-                          }`}>
-                            {log.status}
-                          </span>
-                        </td>
-                      </tr>
+                      <TableRow key={log.id}>
+                        <TableCell>{new Date(log.create_time).toLocaleString()}</TableCell>
+                        <TableCell>{log.user_id}</TableCell>
+                        <TableCell>{log.model}</TableCell>
+                        <TableCell>{log.total_tokens}</TableCell>
+                        <TableCell>{log.latency_ms}ms</TableCell>
+                        <TableCell>
+                          <Chip
+                            size="small"
+                            label={log.status}
+                            color={log.status === 'success' ? 'success' : 'error'}
+                          />
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
-              </div>
+                  </TableBody>
+                </Table>
+              </TableContainer>
             ) : (
-              <p className="text-gray-400">暂无审计日志</p>
+              <Alert severity="info">暂无审计日志</Alert>
             )}
-          </div>
+          </Box>
         )}
 
         {/* Skills Tab */}
         {activeTab === 'skills' && !loading && (
-          <div>
-            <h2 className="text-xl font-semibold mb-4">技能管理</h2>
-            <div className="grid gap-4 md:grid-cols-3">
+          <Box>
+            <Typography variant="h6" sx={{ mb: 3 }}>技能管理</Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2 }}>
               {skills.map(skill => (
-                <div key={skill.id} className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                  <h3 className="font-semibold">{skill.name}</h3>
-                  <p className="text-gray-400 text-sm mt-1">{skill.description}</p>
-                  <div className="mt-3 flex gap-2">
-                    <span className="text-xs bg-gray-700 px-2 py-1 rounded">{skill.category}</span>
-                    <span className="text-xs bg-blue-900/50 text-blue-400 px-2 py-1 rounded">{skill.source}</span>
-                  </div>
-                </div>
+                <Card key={skill.id}>
+                  <CardContent>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{skill.name}</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                      {skill.description}
+                    </Typography>
+                    <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                      <Chip size="small" label={skill.category} />
+                      <Chip size="small" label={skill.source} color="primary" variant="outlined" />
+                    </Box>
+                  </CardContent>
+                </Card>
               ))}
-            </div>
-          </div>
+            </Box>
+          </Box>
         )}
 
         {/* Gateway Tab */}
         {activeTab === 'gateway' && !loading && (
-          <div>
-            <h2 className="text-xl font-semibold mb-4">AI 网关</h2>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                <h3 className="font-semibold mb-3">配额使用</h3>
-                {overview && (
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">Token 配额</span>
-                      <span>{overview.quota.used.toLocaleString()} / {overview.quota.total.toLocaleString()}</span>
-                    </div>
-                    <div className="w-full bg-gray-700 rounded-full h-2">
-                      <div
-                        className="bg-blue-500 h-2 rounded-full"
-                        style={{ width: `${Math.min(overview.quota.usage_percent, 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                <h3 className="font-semibold mb-3">可用模型</h3>
-                <div className="space-y-2">
-                  {['xiaoyue', 'backend-dev', 'frontend-dev', 'ops'].map(model => (
-                    <div key={model} className="flex items-center gap-2 text-sm">
-                      <span className="w-2 h-2 bg-green-500 rounded-full" />
-                      {model}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
+          <Box>
+            <Typography variant="h6" sx={{ mb: 3 }}>AI 网关</Typography>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2 }}>
+              <Card>
+                <CardContent>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>配额使用</Typography>
+                  {overview && (
+                    <Box>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                        <Typography variant="body2" color="text.secondary">Token 配额</Typography>
+                        <Typography variant="body2">
+                          {overview.quota.used.toLocaleString()} / {overview.quota.total.toLocaleString()}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ bgcolor: 'grey.700', borderRadius: 1, height: 8, overflow: 'hidden' }}>
+                        <Box
+                          sx={{
+                            bgcolor: 'primary.main',
+                            height: '100%',
+                            width: `${Math.min(overview.quota.usage_percent, 100)}%`,
+                            borderRadius: 1,
+                          }}
+                        />
+                      </Box>
+                    </Box>
+                  )}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>可用模型</Typography>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    {['xiaoyue', 'backend-dev', 'frontend-dev', 'ops'].map(model => (
+                      <Box key={model} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'success.main' }} />
+                        <Typography variant="body2">{model}</Typography>
+                      </Box>
+                    ))}
+                  </Box>
+                </CardContent>
+              </Card>
+            </Box>
+          </Box>
         )}
-      </main>
-    </div>
+      </Box>
+    </Box>
   )
 }
