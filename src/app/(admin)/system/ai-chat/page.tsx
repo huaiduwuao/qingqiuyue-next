@@ -37,8 +37,15 @@ export default function AIChatPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [models, setModels] = useState<{ id: string; name: string }[]>([])
-  const [selectedModel, setSelectedModel] = useState('xiaoyue')
+  const [selectedModel, setSelectedModel] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // 模型加载后设置默认模型
+  useEffect(() => {
+    if (models.length > 0 && !selectedModel) {
+      setSelectedModel(models[0].id)
+    }
+  }, [models, selectedModel])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -57,7 +64,7 @@ export default function AIChatPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim() || loading) return
+    if (!input.trim() || loading || !selectedModel) return
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -111,7 +118,7 @@ export default function AIChatPage() {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <Typography variant="h6">🤖 AI 对话</Typography>
 
-          <FormControl size="small" sx={{ minWidth: 150 }}>
+          <FormControl size="small" sx={{ minWidth: 150 }} disabled={models.length === 0}>
             <InputLabel>模型</InputLabel>
             <Select
               value={selectedModel}
@@ -123,6 +130,9 @@ export default function AIChatPage() {
               ))}
             </Select>
           </FormControl>
+          {models.length === 0 && (
+            <Typography variant="body2" color="text.secondary">加载中...</Typography>
+          )}
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
