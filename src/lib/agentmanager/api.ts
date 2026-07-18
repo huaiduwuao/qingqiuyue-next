@@ -3,7 +3,7 @@
  * 多 Agent 管理平面前端 SDK
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_AGENTM_URL || 'http://localhost:10005/api/agentmanager'
+const API_BASE = '/api/agentm'
 
 interface RequestOptions extends RequestInit {
   token?: string
