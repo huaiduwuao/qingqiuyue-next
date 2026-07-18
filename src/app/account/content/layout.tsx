@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { usePathname } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Drawer from '@mui/material/Drawer';
 import IconButton from '@mui/material/IconButton';
@@ -24,7 +23,6 @@ export default function CreatorLayout({ children }: { children: React.ReactNode 
 }
 
 function CreatorLayoutInner({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const { activeTab, setActiveTab } = useActiveTab();
   const { mode, primaryColor } = useThemeMode();
@@ -32,7 +30,7 @@ function CreatorLayoutInner({ children }: { children: React.ReactNode }) {
   // The right sidebar (notifications / activities / calendar) is only useful on
   // the dashboard home. Work-heavy sub-pages bring their own dense UI and don't
   // need the duplicate context strip.
-  const showRightSidebar = pathname === '/account/content';
+  const showRightSidebar = activeTab === 'content';
 
   const handleSelect = (id: string) => {
     setActiveTab(id);

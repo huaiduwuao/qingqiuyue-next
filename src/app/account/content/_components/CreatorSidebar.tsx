@@ -18,11 +18,8 @@ import GroupsIcon from '@mui/icons-material/Groups';
 import CopyrightIcon from '@mui/icons-material/Copyright';
 import InsightsIcon from '@mui/icons-material/Insights';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
-import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
-import TravelExploreIcon from '@mui/icons-material/TravelExplore';
 import EmojiEventsRoundedIcon from '@mui/icons-material/EmojiEventsRounded';
 import RateReviewRoundedIcon from '@mui/icons-material/RateReviewRounded';
-import SmartToyIcon from '@mui/icons-material/SmartToy';
 import VideoLibraryIcon from '@mui/icons-material/VideoLibrary';
 import { useAuthority } from '@/contexts/AuthContext';
 
@@ -70,8 +67,6 @@ export const MENU_GROUPS: MenuGroup[] = [
     title: '内容',
     items: [
       { id: 'works', label: '作品管理', icon: <MovieIcon />, route: 'works' },
-      { id: 'spider', label: '爬虫管理', icon: <TravelExploreIcon />, badge: 'NEW', route: 'spider' },
-      { id: 'crawled', label: '抓取内容', icon: <CloudDownloadIcon />, badge: 'NEW', route: 'crawled' },
       { id: 'original', label: '原创保护', icon: <CopyrightIcon />, route: 'original' },
     ],
   },
@@ -88,7 +83,6 @@ export const MENU_GROUPS: MenuGroup[] = [
     title: '变现',
     items: [
       { id: 'monetize', label: '变现中心', icon: <MonetizationOnIcon />, badge: '3', route: 'monetize' },
-      { id: 'bot', label: '假人管理', icon: <SmartToyIcon />, route: 'bot', requireAuthority: ['ADMIN', 'SUPER_ADMIN'] },
     ],
   },
 ];

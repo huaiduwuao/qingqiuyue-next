@@ -113,7 +113,9 @@ export default function SystemResourcePage() {
         columns={columns}
         fetchData={async (params) => {
           const res = await page({ ...params });
-          return { data: { records: res.data?.list || [], totalRow: res.data?.total || 0 }, success: res.data?.success ?? true };
+          const list = res.data?.records || res.data?.list || [];
+          const total = res.data?.totalRow || res.data?.total || 0;
+          return { data: { records: list, totalRow: total }, success: true };
         }}
         onEdit={handleEdit}
         onDelete={handleDelete}

@@ -148,12 +148,14 @@ export default function ModerationReportsPage() {
             page: params.pageNumber,
             pageSize: params.pageSize,
           });
+          const list = res.data?.records || res.data?.list || [];
+          const total = res.data?.totalRow || res.data?.total || 0;
           return {
             data: {
-              records: res.data?.records || [],
-              totalRow: res.data?.totalRow || 0,
+              records: list,
+              totalRow: total,
             },
-            success: res.status >= 200 && res.status < 300,
+            success: true,
           };
         }}
         filters={{

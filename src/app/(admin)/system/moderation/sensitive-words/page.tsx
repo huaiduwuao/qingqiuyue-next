@@ -117,10 +117,10 @@ export default function ModerationSensitiveWordsPage() {
           const res = await listSensitiveWords();
           return {
             data: {
-              records: res.data?.list || [],
-              totalRow: res.data?.total || 0,
+              records: res.data?.records || res.data?.list || [],
+              totalRow: res.data?.totalRow || res.data?.total || 0,
             },
-            success: res.status >= 200 && res.status < 300,
+            success: true,
           };
         }}
         onDelete={canDelete ? handleDelete : undefined}

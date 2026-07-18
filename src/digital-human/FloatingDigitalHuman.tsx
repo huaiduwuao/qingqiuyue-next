@@ -46,6 +46,10 @@ interface QingqiuyueWindow extends Window {
   __qingqiuyueSetSummonMode?: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
+interface DraggableElement extends HTMLElement {
+  __dragged?: boolean;
+}
+
 interface AgentPayload {
   agentId: string;
   name: string;
@@ -370,13 +374,15 @@ export default function FloatingDigitalHuman() {
       const d = dragRef.current;
       if (!d.active) return;
       dragRef.current.active = false;
-      // 检查移动距离，小于5px认为是点击
+      // 检查移动距离，大于5px认为是拖动，不触发点击
       const dx = e.clientX - d.clickX;
       const dy = e.clientY - d.clickY;
-      if (Math.sqrt(dx * dx + dy * dy) < 5) {
-        // 这是点击事件，触发自定义 click
+      const isDrag = Math.sqrt(dx * dx + dy * dy) >= 5;
+      // 如果是拖动，给目标元素设置标志位，后续 click 事件检查此标志位
+      if (isDrag && e.target) {
         const target = e.target as HTMLElement;
-        target?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        target.__dragged = true;
+        setTimeout(() => { target.__dragged = false; }, 50);
       }
     };
     window.addEventListener('pointermove', handleMove);
@@ -471,7 +477,11 @@ export default function FloatingDigitalHuman() {
       >
         <IconButton
           aria-label="展开数字人"
-          onClick={() => setOpen(true)}
+          onClick={(e) => {
+            // 检查是否刚从拖动恢复，避免触发点击
+            if ((e.target as DraggableElement).__dragged) return;
+            setOpen(true);
+          }}
           sx={{
             width: 40,
             height: 40,

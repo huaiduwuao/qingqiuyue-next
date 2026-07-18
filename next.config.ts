@@ -111,6 +111,11 @@ const nextConfig: NextConfig = {
     const contentTarget = process.env.CONTENT_API_PROXY_TARGET || target;
     return [
       pipelineNoop,
+      // avatar 路由指向 realtime-api (端口 10003)
+      {
+        source: "/api/avatar/:path*",
+        destination: "http://localhost:10003/api/realtime/:path*",
+      },
       // audio 网关代理 (/api/audio/* → audio-gateway :8001),
       // 不能被反代劫到 Go 后端
       {

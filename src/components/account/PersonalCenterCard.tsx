@@ -415,7 +415,7 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
             onNavigate?.();
             const fullPath = window.location.pathname + window.location.search;
             sessionStorage.setItem('admin_entry_path', fullPath);
-            router.push('/system/role');
+            router.push('/system');
           }}
           sx={{
             display: 'flex',

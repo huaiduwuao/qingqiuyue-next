@@ -123,7 +123,9 @@ export default function SystemMenuPage() {
         hasPermission={can}
         fetchData={async (params) => {
           const res = await list(params);
-          return { data: { records: res.data || [], totalRow: res.data?.length || 0 }, success: res.data?.success ?? true };
+          const list = res.data?.records || res.data?.list || res.data || [];
+          const total = res.data?.totalRow || res.data?.total || list.length;
+          return { data: { records: list, totalRow: total }, success: true };
         }}
         onEdit={handleEdit}
         onDelete={handleDelete}

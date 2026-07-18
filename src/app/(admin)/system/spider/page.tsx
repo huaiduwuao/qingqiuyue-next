@@ -1,5 +1,9 @@
 'use client';
 
+/**
+ * 管理平台爬虫管理中心
+ */
+
 import React, { Suspense, lazy, useState } from 'react';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
@@ -11,11 +15,14 @@ import Skeleton from '@mui/material/Skeleton';
 import { useTheme, alpha } from '@mui/material/styles';
 import TravelExploreIcon from '@mui/icons-material/TravelExplore';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
-import HomeIcon from '@mui/icons-material/Home';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import Link from 'next/link';
-import { SPIDER_TABS } from '@/beans/spider-tabs';
-import { SpiderRealtimeProvider, useSpiderRealtime } from './SpiderRealtimeContext';
+import DnsRoundedIcon from '@mui/icons-material/DnsRounded';
+import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
+import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
+import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
+import ListAltRoundedIcon from '@mui/icons-material/ListAltRounded';
+import SettingsEthernetRoundedIcon from '@mui/icons-material/SettingsEthernetRounded';
+import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
+import { useSpiderWebSocket } from '@/hooks/useSpiderWebSocket';
 
 const DashboardPage = lazy(() => import('./dashboard/page'));
 const BatchPage = lazy(() => import('./batch/page'));
@@ -25,9 +32,27 @@ const SourcesPage = lazy(() => import('./sources/page'));
 const TemplatesPage = lazy(() => import('./templates/page'));
 const TasksPage = lazy(() => import('./tasks/page'));
 const ProxiesPage = lazy(() => import('./proxies/page'));
-const BotPage = lazy(() => import('./bot/page'));
 
-const componentMap: Record<string, React.LazyExoticComponent<React.ComponentType<any>>> = {
+export type SpiderTabKey = 'dashboard' | 'batch' | 'workers' | 'sites' | 'sources' | 'templates' | 'tasks' | 'proxies';
+
+interface SpiderTabConfig {
+  key: SpiderTabKey;
+  label: string;
+  icon: React.ReactNode;
+}
+
+const SPIDER_TABS: SpiderTabConfig[] = [
+  { key: 'dashboard', label: 'Dashboard', icon: <TravelExploreIcon fontSize="small" /> },
+  { key: 'batch', label: '批量任务', icon: <AccountTreeRoundedIcon fontSize="small" /> },
+  { key: 'workers', label: 'Worker 池', icon: <DnsRoundedIcon fontSize="small" /> },
+  { key: 'sites', label: '站点调度', icon: <StorageRoundedIcon fontSize="small" /> },
+  { key: 'sources', label: '源管理', icon: <MenuBookRoundedIcon fontSize="small" /> },
+  { key: 'templates', label: '模板管理', icon: <ListAltRoundedIcon fontSize="small" /> },
+  { key: 'tasks', label: '单任务', icon: <SettingsEthernetRoundedIcon fontSize="small" /> },
+  { key: 'proxies', label: '代理池', icon: <SmartToyRoundedIcon fontSize="small" /> },
+];
+
+const componentMap: Record<string, React.ComponentType<any>> = {
   dashboard: DashboardPage,
   batch: BatchPage,
   workers: WorkersPage,
@@ -36,15 +61,10 @@ const componentMap: Record<string, React.LazyExoticComponent<React.ComponentType
   templates: TemplatesPage,
   tasks: TasksPage,
   proxies: ProxiesPage,
-  bot: BotPage,
 };
 
-export default function SpiderPage() {
-  return (
-    <SpiderRealtimeProvider>
-      <SpiderPageInner />
-    </SpiderRealtimeProvider>
-  );
+export default function SpiderAdminPage() {
+  return <SpiderPageInner />;
 }
 
 function SpiderPageInner() {
@@ -54,7 +74,7 @@ function SpiderPageInner() {
   const currentType = SPIDER_TABS[tab];
   const ContentComponent = componentMap[currentType?.key];
 
-  const { health, stats, connected } = useSpiderRealtime();
+  const { health, stats, connected } = useSpiderWebSocket();
 
   const isHealthy = health?.status === 'healthy';
   const accent = theme.palette.primary.main;
@@ -62,29 +82,6 @@ function SpiderPageInner() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 1400, mx: 'auto', width: '100%' }}>
-      {/* Breadcrumb */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary', fontSize: 13 }}>
-        <Box
-          component={Link}
-          href="/account/content"
-          sx={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 0.5,
-            color: 'inherit',
-            textDecoration: 'none',
-            '&:hover': { color: accent },
-          }}
-        >
-          <HomeIcon sx={{ fontSize: 16 }} />
-          <Typography component="span" sx={{ fontSize: 13 }}>创作中心</Typography>
-        </Box>
-        <ChevronRightIcon sx={{ fontSize: 16, opacity: 0.5 }} />
-        <Typography component="span" sx={{ fontSize: 13, color: 'text.primary', fontWeight: 600 }}>
-          爬虫管理中心
-        </Typography>
-      </Box>
-
       {/* Hero banner */}
       <Paper
         sx={{
@@ -99,7 +96,6 @@ function SpiderPageInner() {
             : `linear-gradient(135deg, ${alpha(accent, 0.10)} 0%, ${alpha(cyan, 0.08)} 60%, ${alpha(theme.palette.text.primary, 0.6)} 100%)`,
         }}
       >
-        {/* Decorative orbs */}
         <Box
           aria-hidden
           sx={{
@@ -137,7 +133,6 @@ function SpiderPageInner() {
             justifyContent: 'space-between',
           }}
         >
-          {/* Left: title + subtitle */}
           <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
             <Box
               sx={{
@@ -167,7 +162,6 @@ function SpiderPageInner() {
             </Box>
           </Box>
 
-          {/* Right: live status */}
           <Box
             sx={{
               display: 'flex',
@@ -183,10 +177,6 @@ function SpiderPageInner() {
                   sx={{
                     fontSize: '14px !important',
                     color: isHealthy ? 'success.main' : 'primary.main',
-                    '@keyframes pulse-dot': {
-                      '0%, 100%': { opacity: 1 },
-                      '50%': { opacity: 0.4 },
-                    },
                     animation: 'pulse-dot 1.8s ease-in-out infinite',
                   }}
                 />
@@ -263,7 +253,7 @@ function SpiderPageInner() {
           }}
         >
           {SPIDER_TABS.map((type) => (
-            <Tab key={type.key} label={type.label} />
+            <Tab key={type.key} label={type.label} icon={type.icon} iconPosition="start" />
           ))}
         </Tabs>
       </Paper>

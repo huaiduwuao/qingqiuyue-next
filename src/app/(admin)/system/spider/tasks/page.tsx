@@ -1,5 +1,10 @@
 'use client';
 
+/**
+ * 单任务管理
+ * 从 account/content/_views/spider/tasks/ 迁移
+ */
+
 import React, { useState, useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
@@ -25,57 +30,31 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import AddIcon from '@mui/icons-material/Add';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { DataGridTable } from '@/components/tables/DataGridTable';
-import {
-  listTasks,
-  createTask,
-  createRuleTask,
-  stopTask as apiStopTask,
-  deleteTask as apiDeleteTask,
-  getTaskDetail,
-  getTaskItems,
-  getTaskLinks,
-  listSources,
-} from '@/apis/spider';
+import { listTasks, createTask, createRuleTask, stopTask as apiStopTask, deleteTask as apiDeleteTask, getTaskDetail, getTaskItems, getTaskLinks, listSources } from '@/apis/spider';
+import { useSpiderWebSocket } from '@/hooks/useSpiderWebSocket';
 import type { GridColDef } from '@mui/x-data-grid';
 import type { CrawlTask, CrawlTaskDetail, SpiderSource } from '@/beans/spider';
-import { useActiveTab } from '../../../ActiveTabContext';
-import { useSpiderRealtime } from '../SpiderRealtimeContext';
 
 const STATUS_COLORS: Record<string, 'default' | 'info' | 'warning' | 'success' | 'error'> = {
-  pending: 'default',
-  running: 'info',
-  stopped: 'warning',
-  completed: 'success',
-  failed: 'error',
+  pending: 'default', running: 'info', stopped: 'warning', completed: 'success', failed: 'error',
 };
-
 const STATUS_LABELS: Record<string, string> = {
-  pending: '等待中',
-  running: '运行中',
-  stopped: '已停止',
-  completed: '已完成',
-  failed: '失败',
+  pending: '等待中', running: '运行中', stopped: '已停止', completed: '已完成', failed: '失败',
 };
 
 const LIST_KEY = ['spider', 'tasks'];
 
 export default function SpiderTasksPage() {
-  const { setActiveTab } = useActiveTab();
   const qc = useQueryClient();
-  const { revision } = useSpiderRealtime();
+  const { revision } = useSpiderWebSocket();
   const [writeVisible, setWriteVisible] = useState(false);
   const [viewing, setViewing] = useState<CrawlTaskDetail | null>(null);
   const [form, setForm] = useState({ sourceId: '', startUrl: '', maxDepth: '2', maxPages: '100' });
-  const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
+  const [snack, setSnack] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
 
-  const showMsg = useCallback((message: string, severity: 'success' | 'error' = 'success') => {
-    setSnack({ open: true, message, severity });
-  }, []);
-
+  const showMsg = useCallback((message: string, severity: 'success' | 'error' = 'success') => setSnack({ open: true, message, severity }), []);
   const refresh = useCallback(() => qc.invalidateQueries({ queryKey: LIST_KEY }), [qc]);
-
   const sourcesQuery = useQuery({ queryKey: ['spider', 'sources-list'], queryFn: () => listSources().then((r) => r.list || []) });
 
   const createMutation = useMutation({
@@ -104,33 +83,11 @@ export default function SpiderTasksPage() {
 
   const handleCreate = () => {
     if (!form.startUrl) return showMsg('起始 URL 必填', 'error');
-
-    // 选择了来源 → 走基于 Source + Template 的规则爬虫（适合豆瓣这类配置化站点）
     if (form.sourceId) {
-      createRuleMutation.mutate({
-        source_id: Number(form.sourceId),
-        start_url: form.startUrl,
-        max_pages: Number(form.maxPages) || 100,
-      });
-      return;
+      createRuleMutation.mutate({ source_id: Number(form.sourceId), start_url: form.startUrl, max_pages: Number(form.maxPages) || 100 });
+    } else {
+      createMutation.mutate({ source_id: undefined, start_url: form.startUrl, max_depth: Number(form.maxDepth) || 2, max_pages: Number(form.maxPages) || 100 });
     }
-
-    // 未选择来源 → 走 colly 通用爬虫
-    createMutation.mutate({
-      source_id: undefined,
-      start_url: form.startUrl,
-      max_depth: Number(form.maxDepth) || 2,
-      max_pages: Number(form.maxPages) || 100,
-    });
-  };
-
-  const handleStop = (id: string) => {
-    stopMutation.mutate(id);
-  };
-
-  const handleDelete = (id: string) => {
-    if (!confirm('确定要删除该任务吗?')) return;
-    deleteMutation.mutate(id);
   };
 
   const handleView = async (id: string) => {
@@ -146,12 +103,7 @@ export default function SpiderTasksPage() {
     { field: 'id', headerName: 'ID', width: 100 },
     { field: 'sourceName', headerName: '来源', width: 120 },
     { field: 'startUrl', headerName: '起始 URL', width: 300, renderCell: (p) => <Tooltip title={p.value}><span style={{ fontFamily: 'monospace', fontSize: 11 }}>{(p.value || '').slice(0, 40)}…</span></Tooltip> },
-    {
-      field: 'status',
-      headerName: '状态',
-      width: 100,
-      renderCell: (p) => <Chip label={STATUS_LABELS[p.value] || p.value} color={STATUS_COLORS[p.value] || 'default'} size="small" />,
-    },
+    { field: 'status', headerName: '状态', width: 100, renderCell: (p) => <Chip label={STATUS_LABELS[p.value] || p.value} color={STATUS_COLORS[p.value] || 'default'} size="small" /> },
     { field: 'maxDepth', headerName: '深度', width: 70, type: 'number' },
     { field: 'maxPages', headerName: '目标页', width: 90, type: 'number' },
     { field: 'pagesCrawled', headerName: '已抓取', width: 90, type: 'number' },
@@ -159,31 +111,16 @@ export default function SpiderTasksPage() {
     { field: 'itemsSaved', headerName: '已入库', width: 90, type: 'number' },
     { field: 'createdAt', headerName: '创建时间', width: 160, valueFormatter: (v) => v ? new Date(v).toLocaleString() : '-' },
     {
-      field: 'actions',
-      headerName: '操作',
-      width: 180,
-      sortable: false,
+      field: 'actions', headerName: '操作', width: 180, sortable: false,
       renderCell: (p) => {
         const t = p.row as CrawlTask;
         return (
           <Box sx={{ display: 'flex', gap: 0.5 }}>
             {(t.status === 'running' || t.status === 'pending') && (
-              <Tooltip title="停止">
-                <IconButton size="small" color="warning" onClick={() => handleStop(t.id)}>
-                  <StopIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
+              <Tooltip title="停止"><IconButton size="small" color="warning" onClick={() => stopMutation.mutate(t.id)}><StopIcon fontSize="small" /></IconButton></Tooltip>
             )}
-            <Tooltip title="查看">
-              <IconButton size="small" onClick={() => handleView(t.id)}>
-                <VisibilityOutlinedIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="删除">
-              <IconButton size="small" color="error" onClick={() => handleDelete(t.id)}>
-                <DeleteOutlineIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
+            <Tooltip title="查看"><IconButton size="small" onClick={() => handleView(t.id)}><VisibilityOutlinedIcon fontSize="small" /></IconButton></Tooltip>
+            <Tooltip title="删除"><IconButton size="small" color="error" onClick={() => { if (confirm('确定删除?')) deleteMutation.mutate(t.id); }}><DeleteOutlineIcon fontSize="small" /></IconButton></Tooltip>
           </Box>
         );
       },
@@ -191,13 +128,10 @@ export default function SpiderTasksPage() {
   ];
 
   return (
-    <Box sx={{ p: { xs: 1.5, md: 2 } }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h5">单任务管理</Typography>
-        <Box sx={{ flex: 1 }} />
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setWriteVisible(true)}>
-          新建任务
-        </Button>
+    <Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+        <Typography variant="h6">单任务</Typography>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setWriteVisible(true)}>新建任务</Button>
       </Box>
 
       <DataGridTable
@@ -209,20 +143,12 @@ export default function SpiderTasksPage() {
             const sourceMap = new Map((sourcesQuery.data || []).map((s: SpiderSource) => [s.id, s.name]));
             const list = (res.list || []).map((task: any) => ({
               ...task,
-              startUrl: task.start_url,
-              maxDepth: task.max_depth,
-              maxPages: task.max_pages,
-              pagesCrawled: task.pages_crawled,
-              linksFound: task.links_found,
-              itemsSaved: task.items_saved,
-              createdAt: task.created_at,
-              updatedAt: task.updated_at,
+              startUrl: task.start_url, maxDepth: task.max_depth, maxPages: task.max_pages,
+              pagesCrawled: task.pages_crawled, linksFound: task.links_found, itemsSaved: task.items_saved,
+              createdAt: task.created_at, updatedAt: task.updated_at,
               sourceName: task.source_name || sourceMap.get(task.source_id) || '-',
             }));
-            return {
-              data: { records: list, totalRow: res.total || 0 },
-              success: true,
-            };
+            return { data: { records: list, totalRow: res.total || 0 }, success: true };
           } catch (err: any) {
             showMsg(err.message || '获取数据失败', 'error');
             return { data: { records: [], totalRow: 0 }, success: false };
@@ -234,19 +160,9 @@ export default function SpiderTasksPage() {
       <Dialog open={writeVisible} onClose={() => setWriteVisible(false)} maxWidth="sm" fullWidth>
         <DialogTitle>新建单任务</DialogTitle>
         <DialogContent>
-          <TextField
-            select
-            label="选择来源(可选)"
-            value={form.sourceId}
-            onChange={(e) => setForm({ ...form, sourceId: e.target.value })}
-            fullWidth
-            size="small"
-            sx={{ mt: 1, mb: 1.5 }}
-          >
+          <TextField select label="选择来源(可选)" value={form.sourceId} onChange={(e) => setForm({ ...form, sourceId: e.target.value })} fullWidth size="small" sx={{ mt: 1, mb: 1.5 }}>
             <MenuItem value="">不指定</MenuItem>
-            {(sourcesQuery.data || []).map((s: SpiderSource) => (
-              <MenuItem key={s.id} value={s.id}>{s.name} ({s.domain})</MenuItem>
-            ))}
+            {(sourcesQuery.data || []).map((s: SpiderSource) => <MenuItem key={s.id} value={s.id}>{s.name} ({s.domain})</MenuItem>)}
           </TextField>
           <TextField label="起始 URL" value={form.startUrl} onChange={(e) => setForm({ ...form, startUrl: e.target.value })} fullWidth size="small" sx={{ mb: 1.5 }} required />
           <Box sx={{ display: 'flex', gap: 1.5 }}>
@@ -261,16 +177,16 @@ export default function SpiderTasksPage() {
       </Dialog>
 
       {/* 详情 */}
-      <TaskDetailDialog viewing={viewing} onClose={() => setViewing(null)} onOpenInContent={(source) => setActiveTab('crawled', source ? { source } : undefined)} />
+      <TaskDetailDialog viewing={viewing} onClose={() => setViewing(null)} />
 
-      <Snackbar open={snack.open} autoHideDuration={2500} onClose={() => setSnack({ ...snack, open: false })}>
+      <Snackbar open={snack.open} autoHideDuration={2500} onClose={() => setSnack((s) => ({ ...s, open: false }))}>
         <Alert severity={snack.severity} variant="filled">{snack.message}</Alert>
       </Snackbar>
     </Box>
   );
 }
 
-function TaskDetailDialog({ viewing, onClose, onOpenInContent }: { viewing: CrawlTaskDetail | null; onClose: () => void; onOpenInContent: (source?: string) => void }) {
+function TaskDetailDialog({ viewing, onClose }: { viewing: CrawlTaskDetail | null; onClose: () => void }) {
   const [tab, setTab] = useState(0);
   const open = !!viewing;
   const itemsQ = useQuery({
@@ -292,12 +208,9 @@ function TaskDetailDialog({ viewing, onClose, onOpenInContent }: { viewing: Craw
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography variant="h6">任务详情 · {viewing?.id}</Typography>
           {viewing && (
-            <Chip
-              icon={<FiberManualRecordIcon sx={{ fontSize: 10 }} />}
+            <Chip icon={<FiberManualRecordIcon sx={{ fontSize: 10 }} />}
               label={viewing.isRunning ? '运行中' : STATUS_LABELS[viewing.status] || viewing.status}
-              color={viewing.isRunning ? 'info' : STATUS_COLORS[viewing.status] || 'default'}
-              size="small"
-            />
+              color={viewing.isRunning ? 'info' : STATUS_COLORS[viewing.status] || 'default'} size="small" />
           )}
         </Box>
       </DialogTitle>
@@ -324,10 +237,9 @@ function TaskDetailDialog({ viewing, onClose, onOpenInContent }: { viewing: Craw
                 </Typography>
               </CardContent></Card>
             </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, p: 1, borderRadius: 1, bgcolor: 'action.hover' }}>
+            <Box sx={{ mb: 1.5, p: 1, borderRadius: 1, bgcolor: 'action.hover' }}>
               <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>起始 URL:</Typography>
-              <Typography sx={{ fontSize: 12, fontFamily: 'monospace', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis' }}>{viewing.startUrl}</Typography>
-              <Button size="small" startIcon={<OpenInNewIcon />} onClick={() => onOpenInContent(viewing.sourceName)}>在内容管理查看</Button>
+              <Typography sx={{ fontSize: 12, fontFamily: 'monospace' }}>{viewing.startUrl}</Typography>
             </Box>
 
             <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
@@ -337,48 +249,46 @@ function TaskDetailDialog({ viewing, onClose, onOpenInContent }: { viewing: Craw
 
             {tab === 0 && (
               <Box sx={{ mt: 1.5 }}>
-                {(itemsQ.data?.length === 0) ? (
-                  <Typography sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>暂无抓取项</Typography>
-                ) : (
-                  <Box sx={{ maxHeight: 360, overflow: 'auto' }}>
-                    {(itemsQ.data || []).map((it: any) => (
-                      <Box key={it.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, borderBottom: '1px dashed', borderBottomColor: 'divider' }}>
-                        {it.cover && <img src={it.cover} alt="" style={{ width: 40, height: 24, objectFit: 'cover', borderRadius: 4 }} />}
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography sx={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.title}</Typography>
-                          <Typography sx={{ fontSize: 10, color: 'text.secondary', fontFamily: 'monospace' }}>{it.url}</Typography>
+                {itemsQ.isLoading ? <Typography sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>加载中…</Typography>
+                  : itemsQ.data?.length === 0 ? <Typography sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>暂无抓取项</Typography>
+                  : (
+                    <Box sx={{ maxHeight: 360, overflow: 'auto' }}>
+                      {itemsQ.data.map((it: any) => (
+                        <Box key={it.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, borderBottom: '1px dashed', borderBottomColor: 'divider' }}>
+                          {it.cover && <img src={it.cover} alt="" style={{ width: 40, height: 24, objectFit: 'cover', borderRadius: 4 }} />}
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography sx={{ fontSize: 12, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.title}</Typography>
+                            <Typography sx={{ fontSize: 10, color: 'text.secondary', fontFamily: 'monospace' }}>{it.url}</Typography>
+                          </Box>
+                          {it.source && <Chip label={it.source} size="small" sx={{ height: 18, fontSize: 10 }} />}
                         </Box>
-                        {it.source && <Chip label={it.source} size="small" sx={{ height: 18, fontSize: 10 }} />}
-                      </Box>
-                    ))}
-                  </Box>
-                )}
+                      ))}
+                    </Box>
+                  )}
               </Box>
             )}
 
             {tab === 1 && (
               <Box sx={{ mt: 1.5 }}>
-                {(linksQ.data?.length === 0) ? (
-                  <Typography sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>暂无链接</Typography>
-                ) : (
-                  <Box sx={{ maxHeight: 360, overflow: 'auto' }}>
-                    {(linksQ.data || []).map((l: any) => (
-                      <Box key={l.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, borderBottom: '1px dashed', borderBottomColor: 'divider' }}>
-                        <Chip label={`D${l.depth}`} size="small" sx={{ height: 18, fontSize: 10 }} color="default" />
-                        <Typography sx={{ fontSize: 11, fontFamily: 'monospace', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.url}</Typography>
-                        {l.source && <Chip label={l.source} size="small" sx={{ height: 18, fontSize: 10 }} variant="outlined" />}
-                      </Box>
-                    ))}
-                  </Box>
-                )}
+                {linksQ.isLoading ? <Typography sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>加载中…</Typography>
+                  : linksQ.data?.length === 0 ? <Typography sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>暂无链接</Typography>
+                  : (
+                    <Box sx={{ maxHeight: 360, overflow: 'auto' }}>
+                      {linksQ.data.map((l: any) => (
+                        <Box key={l.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, borderBottom: '1px dashed', borderBottomColor: 'divider' }}>
+                          <Chip label={`D${l.depth}`} size="small" sx={{ height: 18, fontSize: 10 }} color="default" />
+                          <Typography sx={{ fontSize: 11, fontFamily: 'monospace', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.url}</Typography>
+                          {l.source && <Chip label={l.source} size="small" sx={{ height: 18, fontSize: 10 }} variant="outlined" />}
+                        </Box>
+                      ))}
+                    </Box>
+                  )}
               </Box>
             )}
           </>
         )}
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>关闭</Button>
-      </DialogActions>
+      <DialogActions><Button onClick={onClose}>关闭</Button></DialogActions>
     </Dialog>
   );
 }

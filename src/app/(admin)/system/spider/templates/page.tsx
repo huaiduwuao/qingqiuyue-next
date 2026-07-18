@@ -1,6 +1,11 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+/**
+ * 模板管理
+ * 从 account/content/_views/spider/templates/ 迁移
+ */
+
+import React, { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -20,14 +25,7 @@ import Divider from '@mui/material/Divider';
 import Paper from '@mui/material/Paper';
 import CircularProgress from '@mui/material/CircularProgress';
 import { DataGridTable } from '@/components/tables/DataGridTable';
-import { listTemplates,
-  createTemplate,
-  updateTemplate,
-  deleteTemplate,
-  getTemplateDetail,
-  addTemplateAttr,
-  deleteTemplateAttr,
-  autoGenerateTemplate } from '@/apis/spider';
+import { listTemplates, createTemplate, updateTemplate, deleteTemplate, getTemplateDetail, addTemplateAttr, deleteTemplateAttr, autoGenerateTemplate } from '@/apis/spider';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -37,15 +35,12 @@ import type { GridColDef } from '@mui/x-data-grid';
 import type { TemplateAttr, AutoTemplateRule, AutoTemplateResult } from '@/beans/spider';
 
 const TYPE_LABELS: Record<string, string> = {
-  novel: '小说',
-  video: '视频',
-  news: '新闻',
-  music: '音乐',
-  animation: '动漫',
-  film: '电影',
-  tv: '电视剧',
-  html: '通用',
+  novel: '小说', video: '视频', news: '新闻', music: '音乐',
+  animation: '动漫', film: '电影', tv: '电视剧', html: '通用',
 };
+
+const ATTR_TYPES = ['text', 'link', 'image', 'element', 'meta'];
+const ATTR_CODES = ['title', 'link', 'cover', 'content', 'description', 'date', 'container', 'item'];
 
 interface TemplateFormData {
   name: string;
@@ -53,59 +48,40 @@ interface TemplateFormData {
   source: string;
 }
 
-const ATTR_TYPES = ['text', 'link', 'image', 'element', 'meta'];
-const ATTR_CODES = ['title', 'link', 'cover', 'content', 'description', 'date', 'container', 'item'];
-
-export default function TemplatesPage() {
+export default function SpiderTemplatesPage() {
   const qc = useQueryClient();
   const [writeVisible, setWriteVisible] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
   const [formValues, setFormValues] = useState<TemplateFormData>({ name: '', type: 'novel', source: '' });
-  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
   const [autoOpen, setAutoOpen] = useState(false);
   const [autoUrl, setAutoUrl] = useState('');
   const [autoResult, setAutoResult] = useState<AutoTemplateResult | null>(null);
 
-  const showMessage = useCallback((message: string, severity: 'success' | 'error' = 'success') => {
-    setSnackbar({ open: true, message, severity });
-  }, []);
-
+  const showMessage = useCallback((message: string, severity: 'success' | 'error' = 'success') => setSnackbar({ open: true, message, severity }), []);
   const refresh = useCallback(() => qc.invalidateQueries({ queryKey: ['spider', 'templates'] }), [qc]);
 
   const createMutation = useMutation({
     mutationFn: (values: TemplateFormData) => createTemplate(values),
-    onSuccess: () => {
-      showMessage('创建成功');
-      setWriteVisible(false);
-      refresh();
-    },
+    onSuccess: () => { showMessage('创建成功'); setWriteVisible(false); refresh(); },
     onError: (err: any) => showMessage(err.message || '创建失败', 'error'),
   });
 
   const updateMutation = useMutation({
     mutationFn: (vars: { id: number; values: TemplateFormData }) => updateTemplate(vars.id, vars.values),
-    onSuccess: () => {
-      showMessage('更新成功');
-      setWriteVisible(false);
-      refresh();
-    },
+    onSuccess: () => { showMessage('更新成功'); setWriteVisible(false); refresh(); },
     onError: (err: any) => showMessage(err.message || '更新失败', 'error'),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteTemplate(id),
-    onSuccess: () => {
-      showMessage('删除成功');
-      refresh();
-    },
+    onSuccess: () => { showMessage('删除成功'); refresh(); },
     onError: (err: any) => showMessage(err.message || '删除失败', 'error'),
   });
 
   const autoGenMutation = useMutation({
     mutationFn: (url: string) => autoGenerateTemplate({ url }),
-    onSuccess: (res: any) => {
-      setAutoResult(res.data);
-    },
+    onSuccess: (res: any) => setAutoResult(res.data),
     onError: (err: any) => showMessage(err.message || '生成失败', 'error'),
   });
 
@@ -124,8 +100,6 @@ export default function TemplatesPage() {
     onError: (err: any) => showMessage(err.message || '应用失败', 'error'),
   });
 
-  const isSubmitting = createMutation.isPending || updateMutation.isPending;
-
   const handleCreate = () => {
     setEditingTemplate(null);
     setFormValues({ name: '', type: 'novel', source: '' });
@@ -136,10 +110,6 @@ export default function TemplatesPage() {
     setEditingTemplate(record);
     setFormValues({ name: record.name, type: record.type, source: record.source });
     setWriteVisible(true);
-  };
-
-  const handleFormChange = (field: keyof TemplateFormData) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormValues((prev) => ({ ...prev, [field]: e.target.value }));
   };
 
   const handleSubmit = () => {
@@ -155,18 +125,12 @@ export default function TemplatesPage() {
     deleteMutation.mutate(record.id);
   };
 
-  const openAutoGenerate = () => {
-    setAutoUrl('');
-    setAutoResult(null);
-    setAutoOpen(true);
-  };
-
+  const openAutoGenerate = () => { setAutoUrl(''); setAutoResult(null); setAutoOpen(true); };
   const handleAutoGenerate = () => {
     if (!autoUrl) return showMessage('请输入 URL', 'error');
     if (!editingTemplate) return showMessage('请先选择模板', 'error');
     autoGenMutation.mutate(autoUrl);
   };
-
   const handleApplyRule = (rule: AutoTemplateRule) => {
     if (!editingTemplate) return;
     applyRuleMutation.mutate({ templateId: editingTemplate.id, rule });
@@ -175,59 +139,40 @@ export default function TemplatesPage() {
   const columns: GridColDef[] = [
     { field: 'id', headerName: 'ID', width: 80 },
     { field: 'name', headerName: '名称', width: 150 },
-    {
-      field: 'type',
-      headerName: '类型',
-      width: 100,
-      renderCell: (params) => <Chip label={TYPE_LABELS[params.value] || params.value} size="small" variant="outlined" />,
-    },
+    { field: 'type', headerName: '类型', width: 100, renderCell: (p) => <Chip label={TYPE_LABELS[p.value] || p.value} size="small" variant="outlined" /> },
     { field: 'source', headerName: '来源', width: 120 },
     { field: 'attrs', headerName: '属性数', width: 100 },
     { field: 'items', headerName: '条目数', width: 100 },
-    { field: 'createTime', headerName: '创建时间', width: 180, valueFormatter: (value) => value ? new Date(value).toLocaleString() : '-' },
+    { field: 'createTime', headerName: '创建时间', width: 180, valueFormatter: (v) => v ? new Date(v).toLocaleString() : '-' },
     {
-      field: 'actions',
-      headerName: '操作',
-      width: 130,
-      sortable: false,
-      renderCell: (params) => (
+      field: 'actions', headerName: '操作', width: 130, sortable: false,
+      renderCell: (p) => (
         <Box sx={{ display: 'flex', gap: 0.5 }}>
-          <Tooltip title="编辑/属性">
-            <IconButton size="small" color="primary" onClick={() => handleEdit(params.row)}>
-              <EditIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="删除">
-            <IconButton size="small" color="error" onClick={() => handleDelete(params.row)}>
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+          <Tooltip title="编辑/属性"><IconButton size="small" color="primary" onClick={() => handleEdit(p.row)}><EditIcon fontSize="small" /></IconButton></Tooltip>
+          <Tooltip title="删除"><IconButton size="small" color="error" onClick={() => handleDelete(p.row)}><DeleteIcon fontSize="small" /></IconButton></Tooltip>
         </Box>
       ),
     },
   ];
 
   return (
-    <Box sx={{ p: { xs: 1.5, md: 2 } }}>
-      <Typography variant="h5" sx={{ mb: 2 }}>模板管理</Typography>
+    <Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+        <Typography variant="h6">模板管理</Typography>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={handleCreate}>新建模板</Button>
+      </Box>
+
       <DataGridTable
         columns={columns}
         fetchData={async (params) => {
           try {
             const res = await listTemplates({ page: params.pageNumber, pageSize: params.pageSize });
-            const records = res.list || [];
-            const total = res.total || records.length;
-            return { data: { records, totalRow: total }, success: true };
+            return { data: { records: res.list || [], totalRow: res.total || 0 }, success: true };
           } catch (err: any) {
             showMessage(err.message || '获取数据失败', 'error');
             return { data: { records: [], totalRow: 0 }, success: false };
           }
         }}
-        toolBarRender={() => (
-          <Button variant="contained" startIcon={<AddIcon />} onClick={handleCreate}>
-            新建模板
-          </Button>
-        )}
       />
 
       {/* 编辑/新建模板 Dialog */}
@@ -236,21 +181,18 @@ export default function TemplatesPage() {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography variant="h6">{editingTemplate ? '编辑模板' : '新建模板'}</Typography>
             {editingTemplate && (
-              <Button size="small" startIcon={<AutoFixHighIcon />} onClick={openAutoGenerate} sx={{ ml: 'auto' }}>
-                智能生成属性
-              </Button>
+              <Button size="small" startIcon={<AutoFixHighIcon />} onClick={openAutoGenerate} sx={{ ml: 'auto' }}>智能生成属性</Button>
             )}
           </Box>
         </DialogTitle>
         <DialogContent dividers>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            <TextField label="名称" value={formValues.name} onChange={handleFormChange('name')} size="small" fullWidth required />
-            <TextField select label="类型" value={formValues.type} onChange={handleFormChange('type')} size="small" fullWidth>
+            <TextField label="名称" value={formValues.name} onChange={(e) => setFormValues({ ...formValues, name: e.target.value })} size="small" fullWidth required />
+            <TextField select label="类型" value={formValues.type} onChange={(e) => setFormValues({ ...formValues, type: e.target.value })} size="small" fullWidth>
               {Object.entries(TYPE_LABELS).map(([k, v]) => <MenuItem key={k} value={k}>{v}</MenuItem>)}
             </TextField>
-            <TextField label="来源" value={formValues.source} onChange={handleFormChange('source')} size="small" fullWidth placeholder="关联的源名称" />
+            <TextField label="来源" value={formValues.source} onChange={(e) => setFormValues({ ...formValues, source: e.target.value })} size="small" fullWidth placeholder="关联的源名称" />
           </Box>
-
           {editingTemplate && (
             <>
               <Divider sx={{ my: 2 }} />
@@ -260,7 +202,7 @@ export default function TemplatesPage() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setWriteVisible(false)}>取消</Button>
-          <Button variant="contained" onClick={handleSubmit} disabled={isSubmitting}>{editingTemplate ? '更新' : '创建'}</Button>
+          <Button variant="contained" onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending}>{editingTemplate ? '更新' : '创建'}</Button>
         </DialogActions>
       </Dialog>
 
@@ -274,80 +216,40 @@ export default function TemplatesPage() {
         </DialogTitle>
         <DialogContent dividers>
           <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 2 }}>
-            输入一个示例 URL,LLM 会分析其 DOM 结构,推荐最匹配的字段选择器(标题/链接/封面/容器/列表项)。
-            <br />
-            <em>注:当前为 mock 模拟,真实接入路径为 <code>POST /api/spider/tasks/rule</code>。</em>
+            输入一个示例 URL,LLM 会分析其 DOM 结构,推荐最匹配的字段选择器。
           </Typography>
           <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-            <TextField
-              label="示例 URL"
-              value={autoUrl}
-              onChange={(e) => setAutoUrl(e.target.value)}
-              size="small"
-              fullWidth
-              placeholder="https://www.biquge.tw/book/1234"
-              disabled={autoGenMutation.isPending}
-            />
+            <TextField label="示例 URL" value={autoUrl} onChange={(e) => setAutoUrl(e.target.value)} size="small" fullWidth placeholder="https://www.example.com"
+              disabled={autoGenMutation.isPending} />
             <Button variant="contained" onClick={handleAutoGenerate} disabled={autoGenMutation.isPending || !autoUrl} startIcon={autoGenMutation.isPending ? <CircularProgress size={14} /> : <AutoFixHighIcon />}>
               {autoGenMutation.isPending ? '分析中' : '分析'}
             </Button>
           </Box>
-
           {autoResult && (
             <Box>
               <Typography sx={{ fontSize: 13, fontWeight: 600, mb: 1 }}>提取的规则 ({autoResult.rules.length})</Typography>
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mb: 2 }}>
                 {autoResult.rules.map((r, i) => (
                   <Paper key={i} sx={{ p: 1.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                    <Chip
-                      label={r.code}
-                      size="small"
-                      color={r.source === 'llm' ? 'primary' : r.source === 'heuristic' ? 'warning' : 'default'}
-                      sx={{ minWidth: 80 }}
-                    />
+                    <Chip label={r.code} size="small" color={r.source === 'llm' ? 'primary' : r.source === 'heuristic' ? 'warning' : 'default'} sx={{ minWidth: 80 }} />
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Typography sx={{ fontSize: 12, fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {r.selector} {r.attr ? `[${r.attr}]` : ''} {r.isArray ? '(列表)' : ''}
                       </Typography>
-                      <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
-                        置信度: {(r.confidence * 100).toFixed(0)}% · 来源: {r.source}
-                      </Typography>
+                      <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>置信度: {(r.confidence * 100).toFixed(0)}% · 来源: {r.source}</Typography>
                     </Box>
                     <Button size="small" startIcon={<CheckIcon />} onClick={() => handleApplyRule(r)}>应用</Button>
                   </Paper>
                 ))}
               </Box>
-              {autoResult.previewItems.length > 0 && (
-                <>
-                  <Typography sx={{ fontSize: 13, fontWeight: 600, mb: 1 }}>预览条目</Typography>
-                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1 }}>
-                    {autoResult.previewItems.map((p, i) => (
-                      <Box key={i} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
-                        {p.cover && <img src={p.cover} alt="" style={{ width: '100%', height: 80, objectFit: 'cover' }} />}
-                        <Box sx={{ p: 1 }}>
-                          <Typography sx={{ fontSize: 11, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title}</Typography>
-                          <Typography sx={{ fontSize: 10, color: 'text.secondary', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.link}</Typography>
-                        </Box>
-                      </Box>
-                    ))}
-                  </Box>
-                </>
-              )}
             </Box>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setAutoOpen(false)}>关闭</Button>
-        </DialogActions>
+        <DialogActions><Button onClick={() => setAutoOpen(false)}>关闭</Button></DialogActions>
       </Dialog>
 
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={3000}
-        onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
-        <Alert severity={snackbar.severity} sx={{ width: '100%' }}>{snackbar.message}</Alert>
+      <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={() => setSnackbar((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+        <Alert severity={snackbar.severity}>{snackbar.message}</Alert>
       </Snackbar>
     </Box>
   );
@@ -367,56 +269,37 @@ function TemplateAttrsSection({ templateId, onMsg }: { templateId: number; onMsg
 
   const addAttrMutation = useMutation({
     mutationFn: (attr: typeof draft) => addTemplateAttr(templateId, attr),
-    onSuccess: () => {
-      onMsg('已新增');
-      setAdding(false);
-      setDraft({ name: '', type: 'text', code: 'title', content: '{"selector":""}', remark: '' });
-      refresh();
-    },
+    onSuccess: () => { onMsg('已新增'); setAdding(false); setDraft({ name: '', type: 'text', code: 'title', content: '{"selector":""}', remark: '' }); refresh(); },
     onError: (err: any) => onMsg(err.message || '新增失败', 'error'),
   });
 
   const deleteAttrMutation = useMutation({
     mutationFn: (attrId: number) => deleteTemplateAttr(attrId),
-    onSuccess: () => {
-      onMsg('已删除');
-      refresh();
-    },
+    onSuccess: () => { onMsg('已删除'); refresh(); },
     onError: (err: any) => onMsg(err.message || '删除失败', 'error'),
   });
-
-  const handleAdd = () => {
-    addAttrMutation.mutate(draft);
-  };
-
-  const handleDelete = (attr: TemplateAttr) => {
-    if (!confirm(`删除属性 "${attr.name}"?`)) return;
-    deleteAttrMutation.mutate(attr.id);
-  };
 
   return (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
-        <Typography variant="subtitle1">模板属性 ({(data?.attrs || []).length})</Typography>
+        <Typography variant="subtitle2">模板属性 ({attrs.length})</Typography>
         <Box sx={{ flex: 1 }} />
-        <Button size="small" startIcon={<AddIcon />} onClick={() => setAdding(true)} disabled={adding}>新增属性</Button>
+        <Button size="small" startIcon={<AddIcon />} onClick={() => setAdding(true)}>新增属性</Button>
       </Box>
 
       {isLoading ? (
-        <Typography sx={{ color: 'text.secondary', fontSize: 12, p: 1 }}>加载中…</Typography>
+        <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>加载中…</Typography>
       ) : attrs.length === 0 ? (
-        <Typography sx={{ color: 'text.secondary', fontSize: 12, p: 1 }}>该模板暂无属性,点击右上"新增属性"或使用上方"智能生成"。</Typography>
+        <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>该模板暂无属性</Typography>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
           {attrs.map((a) => (
             <Box key={a.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, borderRadius: 1, bgcolor: 'action.hover' }}>
               <Chip label={a.code} size="small" color="primary" sx={{ minWidth: 70 }} />
               <Typography sx={{ fontSize: 12, fontWeight: 500, minWidth: 80 }}>{a.name}</Typography>
-              <Typography sx={{ fontSize: 10, color: 'text.secondary', fontFamily: 'monospace', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {a.content}
-              </Typography>
+              <Typography sx={{ fontSize: 10, color: 'text.secondary', fontFamily: 'monospace', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.content}</Typography>
               <Typography sx={{ fontSize: 10, color: 'text.secondary', minWidth: 40 }}>{a.type}</Typography>
-              <IconButton size="small" color="error" onClick={() => handleDelete(a)}>
+              <IconButton size="small" color="error" onClick={() => { if (confirm(`删除属性 "${a.name}"?`)) deleteAttrMutation.mutate(a.id); }}>
                 <DeleteIcon sx={{ fontSize: 16 }} />
               </IconButton>
             </Box>
@@ -436,10 +319,9 @@ function TemplateAttrsSection({ templateId, onMsg }: { templateId: number; onMsg
             </TextField>
           </Box>
           <TextField size="small" label="content (JSON)" value={draft.content} onChange={(e) => setDraft({ ...draft, content: e.target.value })} fullWidth sx={{ mb: 1 }} />
-          <TextField size="small" label="备注" value={draft.remark} onChange={(e) => setDraft({ ...draft, remark: e.target.value })} fullWidth sx={{ mb: 1 }} />
           <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
             <Button size="small" onClick={() => setAdding(false)}>取消</Button>
-            <Button size="small" variant="contained" onClick={handleAdd}>保存</Button>
+            <Button size="small" variant="contained" onClick={() => addAttrMutation.mutate(draft)}>保存</Button>
           </Box>
         </Box>
       )}

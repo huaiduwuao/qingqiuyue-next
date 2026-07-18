@@ -28,10 +28,15 @@ import {
   Tab,
   IconButton,
   Tooltip,
+  Drawer,
+  TextField,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useRouter } from 'next/navigation';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
@@ -109,34 +114,34 @@ function fmtDate(s: string) {
 
 // ── API ──
 async function fetchAssets(): Promise<{ list: DHAsset[] }> {
-  const r = await fetch('/api/avatar/assets');
+  const r = await fetch('/api/realtime/assets');
   if (!r.ok) throw new Error(`获取资产列表失败: ${r.status}`);
   return r.json();
 }
 
 async function deleteAsset(id: string): Promise<void> {
-  const r = await fetch(`/api/avatar/assets/${id}`, { method: 'DELETE' });
+  const r = await fetch(`/api/realtime/assets/${id}`, { method: 'DELETE' });
   if (!r.ok) throw new Error(`删除失败: ${r.status}`);
 }
 
 async function activateAsset(id: string): Promise<void> {
-  const r = await fetch(`/api/avatar/assets/${id}/activate`, { method: 'POST' });
+  const r = await fetch(`/api/realtime/assets/${id}/activate`, { method: 'POST' });
   if (!r.ok) throw new Error(`激活失败: ${r.status}`);
 }
 
 async function fetchJobs(): Promise<{ list: DHJob[] }> {
-  const r = await fetch('/api/avatar/jobs');
+  const r = await fetch('/api/realtime/jobs');
   if (!r.ok) throw new Error(`获取任务列表失败: ${r.status}`);
   return r.json();
 }
 
 async function cancelJob(id: string): Promise<void> {
-  const r = await fetch(`/api/avatar/jobs/${id}/cancel`, { method: 'POST' });
+  const r = await fetch(`/api/realtime/jobs/${id}/cancel`, { method: 'POST' });
   if (!r.ok) throw new Error(`取消失败: ${r.status}`);
 }
 
 async function startTraining(name: string, method: string, source: string): Promise<{ jobId: string }> {
-  const r = await fetch('/api/avatar/train', {
+  const r = await fetch('/api/realtime/train', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, method, source }),
@@ -147,12 +152,26 @@ async function startTraining(name: string, method: string, source: string): Prom
 
 export default function SystemDigitalHumanPage() {
   const queryClient = useQueryClient();
-  const router = useRouter();
   const [tab, setTab] = useState(0);
   const [snack, setSnack] = useState<{ msg: string; severity: 'success' | 'error' } | null>(null);
   const [detailAsset, setDetailAsset] = useState<DHAsset | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<DHAsset | null>(null);
   const [showJobLogs, setShowJobLogs] = useState<DHJob | null>(null);
+  const [showCreatePanel, setShowCreatePanel] = useState(false);
+  const [createName, setCreateName] = useState('');
+  const [createMethod, setCreateMethod] = useState('ExAvatar');
+
+  // 创建数字人
+  const handleCreate = () => {
+    if (!createName.trim()) {
+      setSnack({ msg: '请输入名称', severity: 'error' });
+      return;
+    }
+    trainMutation.mutate({ name: createName, method: createMethod, source: '' });
+    setShowCreatePanel(false);
+    setCreateName('');
+    setTab(1); // 切换到训练任务页
+  };
 
   // 查询资产列表
   const { data: assetsData, isLoading: assetsLoading, isError: assetsError, refetch: refetchAssets } = useQuery({
@@ -256,7 +275,7 @@ export default function SystemDigitalHumanPage() {
             size="small"
             variant="contained"
             startIcon={<AddRoundedIcon />}
-            onClick={() => router.push('/avatar-pipeline')}
+            onClick={() => setShowCreatePanel(true)}
           >
             创建数字人
           </Button>
@@ -301,7 +320,7 @@ export default function SystemDigitalHumanPage() {
           <Card>
             <CardContent sx={{ textAlign: 'center', py: 6 }}>
               <Typography color="text.secondary" sx={{ mb: 2 }}>暂无数字人资产</Typography>
-              <Button variant="contained" onClick={() => router.push('/avatar-pipeline')}>
+              <Button variant="contained" onClick={() => setShowCreatePanel(true)}>
                 创建第一个数字人
               </Button>
             </CardContent>
@@ -620,6 +639,57 @@ export default function SystemDigitalHumanPage() {
           {snack?.msg}
         </Alert>
       </Snackbar>
+
+      {/* 创建数字人面板 */}
+      <Drawer
+        anchor="right"
+        open={showCreatePanel}
+        onClose={() => setShowCreatePanel(false)}
+        PaperProps={{ sx: { width: 400, p: 3 } }}
+      >
+        <Typography variant="h6" sx={{ mb: 3 }}>创建数字人</Typography>
+
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+          <TextField
+            label="数字人名称"
+            value={createName}
+            onChange={(e) => setCreateName(e.target.value)}
+            placeholder="如：我的数字人"
+            fullWidth
+            autoFocus
+          />
+
+          <FormControl fullWidth>
+            <InputLabel>训练方法</InputLabel>
+            <Select
+              value={createMethod}
+              label="训练方法"
+              onChange={(e) => setCreateMethod(e.target.value)}
+            >
+              <MenuItem value="ExAvatar">ExAvatar（快速）</MenuItem>
+              <MenuItem value="Gaussian">Gaussian（高质量）</MenuItem>
+            </Select>
+          </FormControl>
+
+          <Alert severity="info" sx={{ fontSize: 12 }}>
+            训练过程大约需要 30-60 分钟，完成后可在「我的数字人」中查看。
+          </Alert>
+
+          <Box sx={{ display: 'flex', gap: 1, mt: 2 }}>
+            <Button variant="outlined" onClick={() => setShowCreatePanel(false)} sx={{ flex: 1 }}>
+              取消
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleCreate}
+              disabled={trainMutation.isPending}
+              sx={{ flex: 1 }}
+            >
+              {trainMutation.isPending ? '创建中...' : '开始训练'}
+            </Button>
+          </Box>
+        </Box>
+      </Drawer>
     </Box>
   );
 }

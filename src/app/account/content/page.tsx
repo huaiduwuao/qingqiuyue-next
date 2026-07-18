@@ -14,8 +14,6 @@ const ActivityView = dynamic(() => import('./_views/activity/page'), { ssr: fals
 const CoCreateView = dynamic(() => import('./_views/co-create/page'), { ssr: false });
 const CollectionView = dynamic(() => import('./_views/collection/page'), { ssr: false });
 const WorksView = dynamic(() => import('./_views/works/page'), { ssr: false });
-const SpiderView = dynamic(() => import('./_views/spider/page'), { ssr: false });
-const CrawledView = dynamic(() => import('./_views/crawled/page'), { ssr: false });
 const OriginalView = dynamic(() => import('./_views/original/page'), { ssr: false });
 const DataView = dynamic(() => import('./_views/data/page'), { ssr: false });
 const CreatorView = dynamic(() => import('./_views/creator/page'), { ssr: false });
@@ -35,6 +33,8 @@ const ShortdramaGenView = dynamic(() => import('./_views/shortdrama-gen/page'), 
  *
  * 重构后:所有 12 个 publish-* 旧 tab id 都已重定向到 'hd-publish' dispatcher。
  * 现在 tab 列表只剩 12 条业务 tab + hd-publish,switch 分支大幅减少。
+ *
+ * 注意:爬虫管理/抓取内容/假人管理 已迁移到管理平台(/system/spider),不再在此渲染。
  */
 export default function CreatorContentPage() {
   const { activeTab } = useActiveTab();
@@ -67,10 +67,6 @@ export default function CreatorContentPage() {
         return <CollectionView />;
       case 'works':
         return <WorksView />;
-      case 'spider':
-        return <SpiderView />;
-      case 'crawled':
-        return <CrawledView />;
       case 'original':
         return <OriginalView />;
       case 'data':

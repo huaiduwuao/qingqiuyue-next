@@ -34,6 +34,9 @@ import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded';
 import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
 import PaymentRoundedIcon from '@mui/icons-material/PaymentRounded';
 import HubRoundedIcon from '@mui/icons-material/HubRounded';
+import TravelExploreIcon from '@mui/icons-material/TravelExplore';
+import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
+import PsychologyAltRoundedIcon from '@mui/icons-material/PsychologyAltRounded';
 import { PERMISSIONS } from '@/lib/permissions';
 
 export interface MenuItemDef {
@@ -157,6 +160,20 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
     title: '运维监控',
     items: [
       { id: 'log', label: '服务日志', path: '/system/log', icon: <TerminalRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
+    ],
+  },
+  {
+    title: '爬虫运营',
+    items: [
+      { id: 'spider', label: '爬虫管理', path: '/system/spider', icon: <TravelExploreIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
+      { id: 'crawled', label: '抓取内容', path: '/system/crawled', icon: <CloudDownloadIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D' },
+    ],
+  },
+  {
+    title: '沙盒管理',
+    items: [
+      { id: 'sandbox-images', label: '镜像管理', path: '/system/sandbox', icon: <TerminalRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
+      { id: 'sandbox-tasks', label: '任务管理', path: '/system/sandbox/tasks', icon: <PsychologyAltRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6' },
     ],
   },
 ]

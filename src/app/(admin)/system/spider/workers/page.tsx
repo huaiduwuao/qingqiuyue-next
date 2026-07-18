@@ -1,5 +1,10 @@
 'use client';
 
+/**
+ * Worker 池状态
+ * 从 account/content/_views/spider/workers/ 迁移
+ */
+
 import React, { useState, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -12,8 +17,6 @@ import { DataGridTable } from '@/components/tables/DataGridTable';
 import { listWorkers, getWorkerStats } from '@/apis/spider';
 import type { GridColDef } from '@mui/x-data-grid';
 import type { WorkerStats } from '@/beans/spider';
-
-const LIST_KEY = ['spider', 'workers'];
 
 const STATUS_COLORS: Record<string, 'default' | 'info' | 'warning' | 'success' | 'error'> = {
   idle: 'success',
@@ -29,15 +32,6 @@ const STATUS_LABELS: Record<string, string> = {
 
 export default function SpiderWorkersPage() {
   const [stats, setStats] = useState<WorkerStats | null>(null);
-  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
-    open: false,
-    message: '',
-    severity: 'success',
-  });
-
-  const showMessage = useCallback((message: string, severity: 'success' | 'error' = 'success') => {
-    setSnackbar({ open: true, message, severity });
-  }, []);
 
   const columns: GridColDef[] = [
     { field: 'id', headerName: 'Worker ID', width: 150 },
@@ -67,12 +61,12 @@ export default function SpiderWorkersPage() {
   ];
 
   return (
-    <Box sx={{ p: { xs: 1.5, md: 2 } }}>
-      <Typography variant="h5" sx={{ mb: 2 }}>Worker池状态</Typography>
+    <Box>
+      <Typography variant="h6" sx={{ mb: 2 }}>Worker 池状态</Typography>
 
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 3 }}>
         {statCards.map((stat) => (
-          <Box key={stat.label} sx={{ width: { xs: 'calc(50% - 8px)', sm: 'calc(25% - 12px)' } }}>
+          <Box key={stat.label} sx={{ minWidth: 140 }}>
             <Card>
               <CardContent sx={{ textAlign: 'center' }}>
                 <Typography variant="h4" color={`${stat.color}.main`}>
@@ -87,19 +81,18 @@ export default function SpiderWorkersPage() {
         ))}
       </Box>
 
-      <Paper sx={{ p: { xs: 1.5, md: 2 }, mb: 2 }}>
-        <Typography variant="subtitle1" sx={{ mb: 1 }}>实时状态</Typography>
-        <Box sx={{ display: 'flex', gap: 2 }}>
+      <Paper sx={{ p: 2, mb: 2 }}>
+        <Typography variant="subtitle2" sx={{ mb: 1 }}>利用率</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <Box sx={{ flex: 1 }}>
-            <Typography variant="body2" color="text.secondary">利用率</Typography>
             <LinearProgress
               variant="determinate"
-              value={stats ? (stats.busyWorkers / stats.totalWorkers) * 100 : 0}
+              value={stats && stats.totalWorkers > 0 ? (stats.busyWorkers / stats.totalWorkers) * 100 : 0}
               sx={{ height: 8, borderRadius: 4 }}
             />
           </Box>
           <Typography variant="body2">
-            {stats ? `${((stats.busyWorkers / stats.totalWorkers) * 100).toFixed(1)}%` : '0%'}
+            {stats && stats.totalWorkers > 0 ? `${((stats.busyWorkers / stats.totalWorkers) * 100).toFixed(1)}%` : '0%'}
           </Typography>
         </Box>
       </Paper>
@@ -116,7 +109,6 @@ export default function SpiderWorkersPage() {
               success: true,
             };
           } catch (err: any) {
-            showMessage(err.message || '获取数据失败', 'error');
             return { data: { records: [], totalRow: 0 }, success: false };
           }
         }}

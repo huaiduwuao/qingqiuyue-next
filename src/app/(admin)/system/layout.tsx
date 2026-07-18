@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, Suspense, type ReactNode } from 'react';
-import { usePathname, useSearchParams, useRouter } from 'next/navigation';
+import { useState, useMemo, Suspense, useEffect, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import ListItemIcon from '@mui/material/ListItemIcon';
@@ -15,8 +16,8 @@ import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import { useAuthority } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
-import { trackPageView } from '@/lib/track';
-import { MENU_GROUPS } from './menu-config';
+import { SystemTabProvider, useSystemTab, type SystemTab } from './SystemTabContext';
+import { MENU_GROUPS, type MenuItemDef } from './menu-config';
 
 const ROLE_LABEL: Record<string, { label: string; color: string }> = {
   SUPER_ADMIN: { label: '超级管理员', color: 'primary.main' },
@@ -36,22 +37,108 @@ function getPrimaryRole(authorities?: string[]): { label: string; color: string 
   return { label: authorities[0], color: 'text.secondary' };
 }
 
+// 懒加载所有页面组件
+const PageComponents: Record<string, React.ComponentType<any>> = {
+  '/system': dynamic(() => import('./role/page'), { ssr: false }),
+  '/system/role': dynamic(() => import('./role/page'), { ssr: false }),
+  '/system/menu': dynamic(() => import('./menu/page'), { ssr: false }),
+  '/system/permission': dynamic(() => import('./permission/page'), { ssr: false }),
+  '/system/data-permission': dynamic(() => import('./data-permission/page'), { ssr: false }),
+  '/system/user': dynamic(() => import('./user/page'), { ssr: false }),
+  '/system/bot': dynamic(() => import('./bot/page'), { ssr: false }),
+  '/system/user-level': dynamic(() => import('./user-level/page'), { ssr: false }),
+  '/system/user-point': dynamic(() => import('./user-point/page'), { ssr: false }),
+  '/system/moderation/reports': dynamic(() => import('./moderation/reports/page'), { ssr: false }),
+  '/system/moderation/sensitive-words': dynamic(() => import('./moderation/sensitive-words/page'), { ssr: false }),
+  '/system/app': dynamic(() => import('./app/page'), { ssr: false }),
+  '/system/app-config': dynamic(() => import('./app-config/page'), { ssr: false }),
+  '/system/app-service': dynamic(() => import('./app-service/page'), { ssr: false }),
+  '/system/resource': dynamic(() => import('./resource/page'), { ssr: false }),
+  '/system/dict/dict-type': dynamic(() => import('./dict/dict-type/page'), { ssr: false }),
+  '/system/dict/dict-data': dynamic(() => import('./dict/dict-data/page'), { ssr: false }),
+  '/system/website-dict': dynamic(() => import('./website-dict/page'), { ssr: false }),
+  '/system/address/province': dynamic(() => import('./address/province/page'), { ssr: false }),
+  '/system/address/city': dynamic(() => import('./address/city/page'), { ssr: false }),
+  '/system/address/area': dynamic(() => import('./address/area/page'), { ssr: false }),
+  '/system/address/street': dynamic(() => import('./address/street/page'), { ssr: false }),
+  '/system/wx-config': dynamic(() => import('./wx-config/page'), { ssr: false }),
+  '/system/wx/mp/menu': dynamic(() => import('./wx/mp/menu/page'), { ssr: false }),
+  '/system/wx/mp/auto-reply': dynamic(() => import('./wx/mp/auto-reply/page'), { ssr: false }),
+  '/system/wx/mp/msg': dynamic(() => import('./wx/mp/msg/page'), { ssr: false }),
+  '/system/wx/mp/user': dynamic(() => import('./wx/mp/user/page'), { ssr: false }),
+  '/system/dashboard/analysis': dynamic(() => import('./dashboard/analysis/page'), { ssr: false }),
+  '/system/dashboard/monitor': dynamic(() => import('./dashboard/monitor/page'), { ssr: false }),
+  '/system/dashboard/workplace': dynamic(() => import('./dashboard/workplace/page'), { ssr: false }),
+  '/system/payment-config': dynamic(() => import('./payment-config/page'), { ssr: false }),
+  '/system/recharge-records': dynamic(() => import('./recharge-records/page'), { ssr: false }),
+  '/system/withdraw-review': dynamic(() => import('./withdraw-review/page'), { ssr: false }),
+  '/system/stats/visitor': dynamic(() => import('./stats/visitor/page'), { ssr: false }),
+  '/system/stats/active': dynamic(() => import('./stats/active/page'), { ssr: false }),
+  '/system/stats/content': dynamic(() => import('./stats/content/page'), { ssr: false }),
+  '/system/digital-human': dynamic(() => import('./digital-human/page'), { ssr: false }),
+  '/system/digital-human-instructions': dynamic(() => import('./digital-human-instructions/page'), { ssr: false }),
+  '/system/digital-human-config': dynamic(() => import('./digital-human-config/page'), { ssr: false }),
+  '/system/record-wake': dynamic(() => import('./record-wake/page'), { ssr: false }),
+  '/system/agentmanager': dynamic(() => import('./agentmanager/page'), { ssr: false }),
+  '/system/ai-chat': dynamic(() => import('./ai-chat/page'), { ssr: false }),
+  '/system/log': dynamic(() => import('./log/page'), { ssr: false }),
+  '/system/spider': dynamic(() => import('./spider/page'), { ssr: false }),
+  '/system/crawled': dynamic(() => import('./crawled/page'), { ssr: false }),
+  '/system/sandbox': dynamic(() => import('./sandbox/page'), { ssr: false }),
+  '/system/sandbox/tasks': dynamic(() => import('./sandbox/tasks/page'), { ssr: false }),
+};
+
 export default function SystemLayout({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
+  return (
+    <SystemTabProvider>
+      <SystemLayoutInner>{children}</SystemLayoutInner>
+    </SystemTabProvider>
+  );
+}
+
+function SystemLayoutInner({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { isAdmin, can } = useAuthority();
   const { currentUser } = useApp();
+  const { activeTab, setActiveTab } = useSystemTab();
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
 
-  // useSearchParams 必须在 Suspense 内,单独抽成组件避免顶层调用触发静态生成错误
-  const TrackPageView = () => {
-    const sp = useSearchParams();
-    useEffect(() => {
-      if (pathname) {
-        trackPageView(pathname, sp?.toString() ?? '');
-      }
-    }, [pathname, sp]);
-    return null;
+  // 获取第一个可见菜单项作为默认
+  const firstMenuItem = MENU_GROUPS[0]?.items[0];
+  const defaultTab: SystemTab | null = firstMenuItem
+    ? { id: firstMenuItem.id, label: firstMenuItem.label, path: firstMenuItem.path }
+    : null;
+
+  // 初始化默认 tab
+  useEffect(() => {
+    if (!activeTab && defaultTab) {
+      setActiveTab(defaultTab);
+    }
+  }, [activeTab, defaultTab, setActiveTab]);
+
+  // 过滤有权限的菜单项
+  const visibleGroups = useMemo(() => {
+    return MENU_GROUPS
+      .map((g) => ({ ...g, items: g.items.filter((it) => !it.permission || can(it.permission)) }))
+      .filter((g) => g.items.length > 0);
+  }, [can]);
+
+  // 将 MenuItemDef 转换为 SystemTab
+  const toSystemTab = (item: MenuItemDef): SystemTab => ({
+    id: item.id,
+    label: item.label,
+    path: item.path,
+  });
+
+  const handleMenuClick = (item: MenuItemDef) => {
+    setActiveTab(toSystemTab(item));
+  };
+
+  const handleReturnToFront = () => {
+    setUserMenuAnchor(null);
+    const entry = sessionStorage.getItem('admin_entry_path');
+    sessionStorage.removeItem('admin_entry_path');
+    router.push(entry && entry !== '/system/role' ? entry : '/home/recommend');
   };
 
   if (!isAdmin) {
@@ -66,20 +153,8 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  const activeItem = MENU_GROUPS.flatMap((g) => g.items).find(
-    (it) => pathname === it.path || pathname?.startsWith(it.path + '/'),
-  );
-
-  const visibleGroups = MENU_GROUPS
-    .map((g) => ({ ...g, items: g.items.filter((it) => !it.permission || can(it.permission)) }))
-    .filter((g) => g.items.length > 0);
-
-  const handleReturnToFront = () => {
-    setUserMenuAnchor(null);
-    const entry = sessionStorage.getItem('admin_entry_path');
-    sessionStorage.removeItem('admin_entry_path');
-    router.push(entry && entry !== '/system/role' ? entry : '/home/recommend');
-  };
+  // 获取当前要渲染的页面组件
+  const ActivePage = activeTab ? PageComponents[activeTab.path] : null;
 
   return (
     <Box
@@ -92,9 +167,7 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
         color: 'var(--text-primary, currentColor)',
       }}
     >
-      {/* 页面曝光埋点 */}
-      <Suspense>{pathname && pathname.startsWith('/system') && <TrackPageView />}</Suspense>
-      {/* 顶部条 — 与 home TopBar 同一套(60px / rgba 背景 / blur / 细白边) */}
+      {/* 顶部条 */}
       <Box
         component="header"
         sx={{
@@ -137,11 +210,9 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
           </Box>
         </Box>
 
-        <Typography sx={{ fontSize: 13, color: 'var(--text-muted, currentColor)' }}>
-          /
-        </Typography>
+        <Typography sx={{ fontSize: 13, color: 'var(--text-muted, currentColor)' }}>/</Typography>
         <Typography sx={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary, currentColor)' }}>
-          {activeItem?.label || '控制台'}
+          {activeTab?.label || '控制台'}
         </Typography>
 
         <Box sx={{ flex: 1 }} />
@@ -258,11 +329,11 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
                   </Typography>
                 </Box>
                 {group.items.map((item) => {
-                  const isActive = pathname === item.path || pathname?.startsWith(item.path + '/');
+                  const isActive = activeTab?.path === item.path;
                   return (
                     <Box
                       key={item.id}
-                      onClick={() => router.push(item.path)}
+                      onClick={() => handleMenuClick(item)}
                       sx={{
                         position: 'relative',
                         display: 'flex',
@@ -327,7 +398,7 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
         {/* 内容 */}
         <Box component="main" sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
-            {children}
+            {ActivePage ? <ActivePage /> : children}
           </Box>
         </Box>
       </Box>

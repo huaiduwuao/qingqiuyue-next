@@ -136,10 +136,10 @@ export default function SystemUserPage() {
           const res = await getUsers(params);
           return {
             data: {
-              records: res.data?.list || [],
-              totalRow: res.data?.total || 0,
+              records: res.data?.records || res.data?.list || [],
+              totalRow: res.data?.totalRow || res.data?.total || 0,
             },
-            success: res.data?.success ?? true,
+            success: true,
           };
         }}
         onEdit={handleEdit}

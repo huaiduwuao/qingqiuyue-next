@@ -1,6 +1,11 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+/**
+ * 代理池管理
+ * 从 account/content/_views/spider/proxies/ 迁移
+ */
+
+import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -43,8 +48,8 @@ export default function SpiderProxiesPage() {
   const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
   const [stats, setStats] = useState<{ total: number; active: number; successRate: number; failCount: number } | null>(null);
 
-  const showMsg = useCallback((m: string, s: 'success' | 'error' = 'success') => setSnack({ open: true, message: m, severity: s }), []);
-  const refresh = useCallback(() => qc.invalidateQueries({ queryKey: LIST_KEY }), [qc]);
+  const showMsg = (m: string, s: 'success' | 'error' = 'success') => setSnack({ open: true, message: m, severity: s });
+  const refresh = () => qc.invalidateQueries({ queryKey: LIST_KEY });
 
   const addMutation = useMutation({
     mutationFn: (vals: typeof form) => addProxy(vals),
@@ -54,7 +59,7 @@ export default function SpiderProxiesPage() {
 
   const toggleMutation = useMutation({
     mutationFn: (p: Proxy) => toggleProxy(p.id, !p.active),
-    onSuccess: () => { refresh(); },
+    onSuccess: () => refresh(),
     onError: (err: any) => showMsg(err.message || '切换失败', 'error'),
   });
 
@@ -69,16 +74,11 @@ export default function SpiderProxiesPage() {
     addMutation.mutate(form);
   };
 
-  const handleToggle = (p: Proxy) => {
-    toggleMutation.mutate(p);
-  };
-
+  const handleToggle = (p: Proxy) => toggleMutation.mutate(p);
   const handleDelete = (p: Proxy) => {
     if (!confirm(`确定要删除代理 ${p.url}?`)) return;
     deleteMutation.mutate(p.id);
   };
-
-  const isSubmitting = addMutation.isPending;
 
   const columns: GridColDef[] = [
     { field: 'id', headerName: 'ID', width: 100 },
@@ -87,7 +87,7 @@ export default function SpiderProxiesPage() {
       field: 'type',
       headerName: '类型',
       width: 100,
-      renderCell: (p) => <Chip label={p.value.toUpperCase()} color={TYPE_COLORS[p.value] || 'default'} size="small" />,
+      renderCell: (p) => <Chip label={(p.value as string).toUpperCase()} color={TYPE_COLORS[p.value as string] || 'default'} size="small" />,
     },
     {
       field: 'active',
@@ -101,7 +101,7 @@ export default function SpiderProxiesPage() {
       field: 'successRate',
       headerName: '成功率',
       width: 180,
-      valueGetter: (v, r) => {
+      valueGetter: (_v, r) => {
         const total = (r.successCount || 0) + (r.failCount || 0);
         return total > 0 ? ((r.successCount / total) * 100).toFixed(1) + '%' : '—';
       },
@@ -132,10 +132,9 @@ export default function SpiderProxiesPage() {
   ];
 
   return (
-    <Box sx={{ p: { xs: 1.5, md: 2 } }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h5">代理池</Typography>
-        <Box sx={{ flex: 1 }} />
+    <Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+        <Typography variant="h6">代理池</Typography>
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => setWriteVisible(true)}>
           新增代理
         </Button>
@@ -148,7 +147,7 @@ export default function SpiderProxiesPage() {
           { l: '整体成功率', v: stats ? `${(stats.successRate * 100).toFixed(1)}%` : '—', c: 'info' },
           { l: '总失败次数', v: stats?.failCount ?? 0, c: 'error' },
         ].map((c) => (
-          <Box key={c.l} sx={{ width: { xs: 'calc(50% - 8px)', sm: 'calc(25% - 12px)' } }}>
+          <Box key={c.l} sx={{ minWidth: 140 }}>
             <Card><CardContent sx={{ textAlign: 'center' }}>
               <Typography variant="h5" color={`${c.c}.main`}>{c.v}</Typography>
               <Typography variant="body2" color="text.secondary">{c.l}</Typography>
@@ -157,7 +156,7 @@ export default function SpiderProxiesPage() {
         ))}
       </Box>
 
-      <Paper sx={{ p: { xs: 1.5, md: 2 } }}>
+      <Paper sx={{ p: 2 }}>
         <DataGridTable
           columns={columns}
           fetchData={async () => {
@@ -169,8 +168,7 @@ export default function SpiderProxiesPage() {
                 data: { records: res.list || [], totalRow: res.total || 0 },
                 success: true,
               };
-            } catch (err: any) {
-              showMsg(err.message || '获取失败', 'error');
+            } catch {
               return { data: { records: [], totalRow: 0 }, success: false };
             }
           }}
@@ -180,8 +178,20 @@ export default function SpiderProxiesPage() {
       <Dialog open={writeVisible} onClose={() => setWriteVisible(false)} maxWidth="sm" fullWidth>
         <DialogTitle>新增代理</DialogTitle>
         <DialogContent>
-          <TextField label="代理 URL" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} fullWidth size="small" sx={{ mt: 1, mb: 1.5 }} placeholder="http://127.0.0.1:8888" />
-          <TextField select label="类型" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as any })} fullWidth size="small">
+          <TextField
+            label="代理 URL"
+            value={form.url}
+            onChange={(e) => setForm({ ...form, url: e.target.value })}
+            fullWidth size="small"
+            sx={{ mt: 1, mb: 1.5 }}
+            placeholder="http://127.0.0.1:8888"
+          />
+          <TextField
+            select label="类型"
+            value={form.type}
+            onChange={(e) => setForm({ ...form, type: e.target.value as any })}
+            fullWidth size="small"
+          >
             <MenuItem value="http">HTTP</MenuItem>
             <MenuItem value="https">HTTPS</MenuItem>
             <MenuItem value="socks5">SOCKS5</MenuItem>
@@ -189,7 +199,7 @@ export default function SpiderProxiesPage() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setWriteVisible(false)}>取消</Button>
-          <Button variant="contained" onClick={handleAdd} disabled={isSubmitting}>新增</Button>
+          <Button variant="contained" onClick={handleAdd} disabled={addMutation.isPending}>新增</Button>
         </DialogActions>
       </Dialog>
 

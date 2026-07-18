@@ -1,6 +1,11 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+/**
+ * 源管理
+ * 从 account/content/_views/spider/sources/ 迁移
+ */
+
+import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -16,12 +21,7 @@ import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import Chip from '@mui/material/Chip';
 import { DataGridTable } from '@/components/tables/DataGridTable';
-import {
-  listSources,
-  createSource,
-  updateSource,
-  deleteSource,
-} from '@/apis/spider';
+import { listSources, createSource, updateSource, deleteSource } from '@/apis/spider';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -48,22 +48,15 @@ interface SourceFormData {
   type: string;
 }
 
-export default function SourcesPage() {
+export default function SpiderSourcesPage() {
   const qc = useQueryClient();
   const [writeVisible, setWriteVisible] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
   const [formValues, setFormValues] = useState<SourceFormData>({ name: '', domain: '', url: '', type: 'html' });
-  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
-    open: false,
-    message: '',
-    severity: 'success',
-  });
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
 
-  const showMessage = useCallback((message: string, severity: 'success' | 'error' = 'success') => {
-    setSnackbar({ open: true, message, severity });
-  }, []);
-
-  const invalidate = useCallback(() => qc.invalidateQueries({ queryKey: LIST_KEY }), [qc]);
+  const showMessage = (message: string, severity: 'success' | 'error' = 'success') => setSnackbar({ open: true, message, severity });
+  const invalidate = () => qc.invalidateQueries({ queryKey: LIST_KEY });
 
   const saveMutation = useMutation({
     mutationFn: (vals: SourceFormData) => createSource(vals),
@@ -83,25 +76,10 @@ export default function SourcesPage() {
     onError: (err: any) => showMessage(err.message || '删除失败', 'error'),
   });
 
-  const handleCreate = () => {
-    setSelectedRecord(null);
-    setFormValues({ name: '', domain: '', url: '', type: 'html' });
-    setWriteVisible(true);
-  };
-
   const handleEdit = (record: any) => {
     setSelectedRecord(record);
-    setFormValues({
-      name: record.name,
-      domain: record.domain,
-      url: record.url,
-      type: record.type,
-    });
+    setFormValues({ name: record.name, domain: record.domain, url: record.url, type: record.type });
     setWriteVisible(true);
-  };
-
-  const handleFormChange = (field: keyof SourceFormData) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormValues((prev) => ({ ...prev, [field]: e.target.value }));
   };
 
   const handleSubmit = () => {
@@ -117,8 +95,6 @@ export default function SourcesPage() {
     deleteMutation.mutate(record.id);
   };
 
-  const isSubmitting = saveMutation.isPending || updateMutation.isPending;
-
   const columns: GridColDef[] = [
     { field: 'id', headerName: 'ID', width: 80 },
     { field: 'name', headerName: '名称', width: 120 },
@@ -130,11 +106,7 @@ export default function SourcesPage() {
       headerName: '状态',
       width: 100,
       renderCell: (params) => (
-        <Chip
-          label={STATUS_LABELS[params.value] || params.value}
-          color={STATUS_COLORS[params.value] || 'default'}
-          size="small"
-        />
+        <Chip label={STATUS_LABELS[params.value] || params.value} color={STATUS_COLORS[params.value] || 'default'} size="small" />
       ),
     },
     { field: 'itemCount', headerName: '条目数', width: 100 },
@@ -145,100 +117,52 @@ export default function SourcesPage() {
       width: 160,
       sortable: false,
       disableColumnMenu: true,
-      renderCell: (params) => {
-        const record = params.row;
-        return (
-          <Box sx={{ display: 'flex', gap: 0.5 }}>
-            <Tooltip title="编辑">
-              <IconButton size="small" color="primary" onClick={() => handleEdit(record)}>
-                <EditIcon />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="删除">
-              <IconButton size="small" color="error" onClick={() => handleDelete(record)}>
-                <DeleteIcon />
-              </IconButton>
-            </Tooltip>
-          </Box>
-        );
-      },
+      renderCell: (params) => (
+        <Box sx={{ display: 'flex', gap: 0.5 }}>
+          <Tooltip title="编辑"><IconButton size="small" color="primary" onClick={() => handleEdit(params.row)}><EditIcon /></IconButton></Tooltip>
+          <Tooltip title="删除"><IconButton size="small" color="error" onClick={() => handleDelete(params.row)}><DeleteIcon /></IconButton></Tooltip>
+        </Box>
+      ),
     },
   ];
 
   return (
-    <Box sx={{ p: { xs: 1.5, md: 2 } }}>
-      <Typography variant="h6" sx={{ mb: 2 }}>源管理</Typography>
+    <Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+        <Typography variant="h6">源管理</Typography>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setSelectedRecord(null); setFormValues({ name: '', domain: '', url: '', type: 'html' }); setWriteVisible(true); }}>
+          新建源
+        </Button>
+      </Box>
+
       <DataGridTable
         columns={columns}
         fetchData={async (params) => {
-          return listSources({
-            page: params.page + 1,
-            pageSize: params.pageSize,
-          }).then((r) => {
-            return {
-              data: { records: r.list || [], totalRow: r.total || 0 },
-              success: true,
-            };
-          });
+          const r = await listSources({ page: params.page + 1, pageSize: params.pageSize });
+          return { data: { records: r.list || [], totalRow: r.total || 0 }, success: true };
         }}
-        toolBarRender={() => (
-          <Button variant="contained" startIcon={<AddIcon />} onClick={handleCreate}>
-            新建源
-          </Button>
-        )}
       />
 
       <Dialog open={writeVisible} onClose={() => setWriteVisible(false)} maxWidth="md" fullWidth>
         <DialogTitle>{selectedRecord ? '编辑源' : '新建源'}</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-            <TextField
-              label="名称"
-              value={formValues.name}
-              onChange={handleFormChange('name')}
-              fullWidth
-              required
-            />
-            <TextField
-              label="域名"
-              value={formValues.domain}
-              onChange={handleFormChange('domain')}
-              fullWidth
-              required
-            />
-            <TextField
-              label="URL"
-              value={formValues.url}
-              onChange={handleFormChange('url')}
-              fullWidth
-              required
-            />
-            <TextField
-              label="类型"
-              value={formValues.type}
-              onChange={handleFormChange('type')}
-              fullWidth
-              placeholder="例如：novel, video, news"
-            />
+            <TextField label="名称" value={formValues.name} onChange={(e) => setFormValues({ ...formValues, name: e.target.value })} fullWidth required />
+            <TextField label="域名" value={formValues.domain} onChange={(e) => setFormValues({ ...formValues, domain: e.target.value })} fullWidth required />
+            <TextField label="URL" value={formValues.url} onChange={(e) => setFormValues({ ...formValues, url: e.target.value })} fullWidth required />
+            <TextField label="类型" value={formValues.type} onChange={(e) => setFormValues({ ...formValues, type: e.target.value })} fullWidth placeholder="例如：novel, video, news" />
           </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setWriteVisible(false)}>取消</Button>
-          <Button variant="contained" onClick={handleSubmit} disabled={isSubmitting}>
+          <Button variant="contained" onClick={handleSubmit} disabled={saveMutation.isPending || updateMutation.isPending}>
             {selectedRecord ? '更新' : '创建'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={3000}
-        onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
-        <Alert severity={snackbar.severity} sx={{ width: '100%' }}>
-          {snackbar.message}
-        </Alert>
+      <Snackbar open={snackbar.open} autoHideDuration={3000} onClose={() => setSnackbar((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+        <Alert severity={snackbar.severity}>{snackbar.message}</Alert>
       </Snackbar>
     </Box>
   );

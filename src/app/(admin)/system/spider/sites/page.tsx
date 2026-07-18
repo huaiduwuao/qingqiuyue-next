@@ -1,6 +1,11 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+/**
+ * 站点调度管理
+ * 从 account/content/_views/spider/sites/ 迁移
+ */
+
+import React, { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -16,12 +21,7 @@ import Alert from '@mui/material/Alert';
 import PauseIcon from '@mui/icons-material/Pause';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { DataGridTable } from '@/components/tables/DataGridTable';
-import {
-  listSiteSlots,
-  getSiteSlotStats,
-  pauseSite,
-  resumeSite,
-} from '@/apis/spider';
+import { listSiteSlots, getSiteSlotStats, pauseSite, resumeSite } from '@/apis/spider';
 import type { SiteSlot, SiteSlotStats } from '@/beans/spider';
 import type { GridColDef } from '@mui/x-data-grid';
 
@@ -43,11 +43,7 @@ export default function SpiderSitesPage() {
   const qc = useQueryClient();
   const [stats, setStats] = useState<SiteSlotStats | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
-    open: false,
-    message: '',
-    severity: 'success',
-  });
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
 
   const showMessage = (message: string, severity: 'success' | 'error') => setSnackbar({ open: true, message, severity });
   const invalidate = () => qc.invalidateQueries({ queryKey: LIST_KEY });
@@ -65,10 +61,6 @@ export default function SpiderSitesPage() {
     onError: (e: any) => showMessage(e?.message || '操作失败', 'error'),
   });
 
-  const handleToggle = (row: SiteSlot) => {
-    toggleMutation.mutate(row);
-  };
-
   const columns: GridColDef[] = [
     { field: 'id', headerName: 'ID', width: 70 },
     { field: 'siteName', headerName: '站点', flex: 1, minWidth: 140 },
@@ -77,9 +69,7 @@ export default function SpiderSitesPage() {
       field: 'status',
       headerName: '状态',
       width: 110,
-      renderCell: (p) => (
-        <Chip size="small" label={STATUS_LABELS[p.value] || p.value} color={STATUS_COLORS[p.value] || 'default'} />
-      ),
+      renderCell: (p) => <Chip size="small" label={STATUS_LABELS[p.value] || p.value} color={STATUS_COLORS[p.value] || 'default'} />,
     },
     {
       field: 'slots',
@@ -120,7 +110,7 @@ export default function SpiderSitesPage() {
       filterable: false,
       renderCell: (p) => (
         <Tooltip title={p.row.status === 'inactive' ? '恢复' : '暂停'}>
-          <IconButton size="small" onClick={() => handleToggle(p.row)}>
+          <IconButton size="small" onClick={() => toggleMutation.mutate(p.row)}>
             {p.row.status === 'inactive' ? <PlayArrowIcon fontSize="small" /> : <PauseIcon fontSize="small" />}
           </IconButton>
         </Tooltip>
@@ -129,12 +119,9 @@ export default function SpiderSitesPage() {
   ];
 
   return (
-    <Box sx={{ p: { xs: 1.5, md: 2 } }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-        <Typography variant="h5">站点调度管理</Typography>
-      </Box>
+    <Box>
+      <Typography variant="h6" sx={{ mb: 2 }}>站点调度</Typography>
 
-      {/* Stats cards */}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 1.5, mb: 2 }}>
         {[
           { label: '站点总数', value: stats?.totalSites ?? '—' },
@@ -151,8 +138,8 @@ export default function SpiderSitesPage() {
         ))}
       </Box>
 
-      <Paper sx={{ p: { xs: 1.5, md: 2 }, mb: 2 }}>
-        <Typography variant="subtitle1" sx={{ mb: 1 }}>槽位利用率</Typography>
+      <Paper sx={{ p: 2, mb: 2 }}>
+        <Typography variant="subtitle2" sx={{ mb: 1 }}>槽位利用率</Typography>
         <Box sx={{ display: 'flex', gap: 2 }}>
           <Box sx={{ flex: 1 }}>
             <Typography variant="body2" color="text.secondary">总槽位使用率</Typography>
@@ -184,13 +171,8 @@ export default function SpiderSitesPage() {
         }}
       />
 
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={2500}
-        onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
-        <Alert severity={snackbar.severity} sx={{ width: '100%' }}>{snackbar.message}</Alert>
+      <Snackbar open={snackbar.open} autoHideDuration={2500} onClose={() => setSnackbar((s) => ({ ...s, open: false }))} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
+        <Alert severity={snackbar.severity}>{snackbar.message}</Alert>
       </Snackbar>
     </Box>
   );
