@@ -212,7 +212,7 @@ export default function AgentManagerConsole() {
             </div>
 
             {/* Usage Chart */}
-            {usageStats && (
+            {usageStats?.daily?.length ? (
               <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
                 <h3 className="font-semibold mb-4">📈 使用趋势（本周）</h3>
                 <div className="flex items-end gap-2 h-32">
@@ -232,7 +232,7 @@ export default function AgentManagerConsole() {
                   })}
                 </div>
               </div>
-            )}
+            ) : null}
 
             {/* Recent Activity */}
             <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
