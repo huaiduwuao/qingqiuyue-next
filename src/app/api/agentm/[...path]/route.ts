@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 
-const AGENTM_BASE = process.env.NEXT_PUBLIC_AGENTM_URL || 'http://apisix:9080/api/agentmanager'
+const AGENTM_BASE = process.env.NEXT_PUBLIC_AGENTM_URL || 'http://localhost:10005/api/agentmanager'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
