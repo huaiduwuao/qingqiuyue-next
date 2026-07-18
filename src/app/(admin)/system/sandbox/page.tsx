@@ -24,7 +24,7 @@ export type SandboxTabKey = 'images' | 'tasks';
 interface SandboxTabConfig {
   key: SandboxTabKey;
   label: string;
-  icon: React.ReactNode;
+  icon?: React.ReactElement;
 }
 
 const SANDBOX_TABS: SandboxTabConfig[] = [

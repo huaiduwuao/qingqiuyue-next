@@ -1,5 +1,5 @@
 // 快速测试脚本
-const { chromium } = require('playwright');
+import { chromium } from 'playwright';
 
 async function test() {
   const browser = await chromium.launch({ headless: true });

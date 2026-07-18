@@ -21,9 +21,9 @@ export interface AgentRuntime extends AgentSpec {
 }
 
 declare global {
-  // eslint-disable-next-line no-var
+   
   var __agentRegistry: Map<string, AgentRuntime> | undefined
-  // eslint-disable-next-line no-var
+   
   var __agentRegistryLoadedAt: number | undefined
 }
 

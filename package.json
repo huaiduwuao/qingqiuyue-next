@@ -11,7 +11,8 @@
     "test:digital-human": "vitest run src/digital-human/__tests__/commands.parametric.test.ts",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "prepare": "husky"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",
@@ -65,7 +66,9 @@
     "@vitejs/plugin-react": "^6.0.3",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.9",
+    "husky": "^9.1.7",
     "jsdom": "^29.1.1",
+    "lint-staged": "^17.1.0",
     "msw": "^2.14.6",
     "playwright": "^1.61.1",
     "typescript": "^5",

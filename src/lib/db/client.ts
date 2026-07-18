@@ -13,7 +13,7 @@ const DATABASE_URL = process.env.DATABASE_URL
   || 'postgresql://qingqiuyue:qingqiuyue123@localhost:5432/digital_human'
 
 declare global {
-  // eslint-disable-next-line no-var
+   
   var __pgPool: Pool | undefined
 }
 

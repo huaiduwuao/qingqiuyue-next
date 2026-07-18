@@ -40,7 +40,7 @@ export interface ConversationContext {
 }
 
 declare global {
-  // eslint-disable-next-line no-var
+   
   var __sharedContextCache: Map<string, ConversationContext> | undefined
 }
 

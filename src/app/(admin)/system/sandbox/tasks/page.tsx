@@ -281,7 +281,7 @@ function CreateTaskDialog({ open, onClose, onSubmit, loading, images }: CreateTa
               type="number"
               value={form.timeoutSec}
               onChange={handleChange('timeoutSec')}
-              inputProps={{ min: 10, max: 3600 }}
+              slotProps={{ htmlInput: { min: 10, max: 3600 } }}
               sx={{ flex: 1 }}
             />
             <TextField

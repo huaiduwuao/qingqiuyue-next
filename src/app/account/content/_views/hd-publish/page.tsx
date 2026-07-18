@@ -205,7 +205,7 @@ export default function HdPublishPage() {
   const handleTypeClick = React.useCallback((next: PublishHubType) => {
     if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
       // dev self-check:每次 chip 点击都打印,确认 handleTypeClick 路径活跃
-      // eslint-disable-next-line no-console
+       
       console.debug('[hd-publish.dispatcher] chip click →', next);
     }
     setSelectedType(next);

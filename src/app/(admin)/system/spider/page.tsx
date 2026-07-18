@@ -38,7 +38,7 @@ export type SpiderTabKey = 'dashboard' | 'batch' | 'workers' | 'sites' | 'source
 interface SpiderTabConfig {
   key: SpiderTabKey;
   label: string;
-  icon: React.ReactNode;
+  icon?: React.ReactElement;
 }
 
 const SPIDER_TABS: SpiderTabConfig[] = [

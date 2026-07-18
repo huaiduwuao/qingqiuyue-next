@@ -239,7 +239,7 @@ function CreateImageDialog({ open, onClose, onSubmit, loading }: CreateImageDial
               type="number"
               value={form.cpuCount}
               onChange={handleChange('cpuCount')}
-              slotProps={{ input: { min: 0.5, max: 16, step: 0.5 } }}
+              slotProps={{ htmlInput: { min: 0.5, max: 16, step: 0.5 } }}
               sx={{ flex: 1 }}
             />
             <TextField
@@ -247,7 +247,7 @@ function CreateImageDialog({ open, onClose, onSubmit, loading }: CreateImageDial
               type="number"
               value={form.timeoutSec}
               onChange={handleChange('timeoutSec')}
-              slotProps={{ input: { min: 10, max: 3600 } }}
+              slotProps={{ htmlInput: { min: 10, max: 3600 } }}
               sx={{ flex: 1 }}
             />
           </Box>

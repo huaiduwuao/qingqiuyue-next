@@ -380,7 +380,7 @@ export default function FloatingDigitalHuman() {
       const isDrag = Math.sqrt(dx * dx + dy * dy) >= 5;
       // 如果是拖动，给目标元素设置标志位，后续 click 事件检查此标志位
       if (isDrag && e.target) {
-        const target = e.target as HTMLElement;
+        const target = e.target as DraggableElement;
         target.__dragged = true;
         setTimeout(() => { target.__dragged = false; }, 50);
       }

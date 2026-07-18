@@ -43,6 +43,7 @@ export interface SandboxImageResp {
   pullCount: number;
   status: string;
   createTime: string;
+  dockerfile?: string;
 }
 
 // ============ 任务管理 ============
@@ -82,6 +83,7 @@ export interface SandboxTaskResp {
   imageName: string;
   language: string;
   exitCode: number;
+  code?: string;
   stdout?: string;
   stderr?: string;
   outputFiles?: FileOutput[];

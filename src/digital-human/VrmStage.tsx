@@ -591,7 +591,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       window.removeEventListener('beforeunload', onUnload);
       import('./store/session').then(m => m.useSessionStore.getState().flush()).catch((e) => safeErrorLog('session flush', e));
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, []);
 
   // 暴露 handle — 用 useMemo 直接构造（不用 useImperativeHandle，React 19 行为不稳）

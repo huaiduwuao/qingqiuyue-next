@@ -253,7 +253,7 @@ function TaskDetailDialog({ viewing, onClose }: { viewing: CrawlTaskDetail | nul
                   : itemsQ.data?.length === 0 ? <Typography sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>暂无抓取项</Typography>
                   : (
                     <Box sx={{ maxHeight: 360, overflow: 'auto' }}>
-                      {itemsQ.data.map((it: any) => (
+                      {itemsQ.data!.map((it: any) => (
                         <Box key={it.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, borderBottom: '1px dashed', borderBottomColor: 'divider' }}>
                           {it.cover && <img src={it.cover} alt="" style={{ width: 40, height: 24, objectFit: 'cover', borderRadius: 4 }} />}
                           <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -274,7 +274,7 @@ function TaskDetailDialog({ viewing, onClose }: { viewing: CrawlTaskDetail | nul
                   : linksQ.data?.length === 0 ? <Typography sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>暂无链接</Typography>
                   : (
                     <Box sx={{ maxHeight: 360, overflow: 'auto' }}>
-                      {linksQ.data.map((l: any) => (
+                      {linksQ.data!.map((l: any) => (
                         <Box key={l.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.75, borderBottom: '1px dashed', borderBottomColor: 'divider' }}>
                           <Chip label={`D${l.depth}`} size="small" sx={{ height: 18, fontSize: 10 }} color="default" />
                           <Typography sx={{ fontSize: 11, fontFamily: 'monospace', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.url}</Typography>
