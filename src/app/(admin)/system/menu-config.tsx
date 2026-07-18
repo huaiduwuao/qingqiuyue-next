@@ -150,7 +150,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
     title: 'Agent 管理',
     items: [
       { id: 'agent-manager', label: 'Agent 管理台', path: '/system/agentmanager', icon: <HubRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
-      { id: 'agent-chat', label: 'AI 对话', path: '/chat', icon: <ChatBubbleOutlineRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
+      { id: 'agent-chat', label: 'AI 对话', path: '/system/ai-chat', icon: <ChatBubbleOutlineRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
     ],
   },
   {
