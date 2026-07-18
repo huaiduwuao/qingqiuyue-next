@@ -10,6 +10,8 @@ RUN pnpm install --frozen-lockfile
 # ===== builder:构建 standalone 产物 =====
 FROM docker.io/library/node:22-alpine AS builder
 WORKDIR /app
+# 启用 corepack (node:22 内置) 以使用 pnpm
+RUN corepack enable && corepack prepare pnpm@9 --activate
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # 容器内前端同源(/api 走 Next rewrites 反代),默认关闭浏览器端 MSW mock。
