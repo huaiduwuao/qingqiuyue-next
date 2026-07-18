@@ -13,7 +13,7 @@
  *   - getBone(humanoid, name)  → 兼容 camelCase/PascalCase
  */
 
-import type { VRMExpressionPresetName } from '@pixiv/three-vrm-core';
+import type { VRMExpressionPresetName } from '@pixiv/three-vrm';
 
 /** ARKit 52 维 → VRM 1.0 预设表情的映射 */
 const ARKIT_TO_VRM1_PRESET: Record<string, string> = {
