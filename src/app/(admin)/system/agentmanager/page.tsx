@@ -11,11 +11,14 @@ import dynamic from 'next/dynamic'
 const Console = dynamic(() => import('@/lib/agentmanager/Console').then(m => m.default), {
   ssr: false,
   loading: () => (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div>加载 AgentManager...</div>
-    </div>
+    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+      <CircularProgress />
+    </Box>
   ),
 })
+
+import Box from '@mui/material/Box'
+import CircularProgress from '@mui/material/CircularProgress'
 
 export default function AgentManagerPage() {
   return <Console />

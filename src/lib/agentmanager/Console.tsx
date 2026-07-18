@@ -124,7 +124,7 @@ export default function AgentManagerConsole() {
           <Typography sx={{ color: 'text.secondary', mb: 3 }}>
             请先登录以访问 Agent 管理控制台
           </Typography>
-          <Button variant="contained" href="/user/login?redirect=/agentmanager">
+          <Button variant="contained" href="/user/login?redirect=/system/agentmanager">
             去登录
           </Button>
         </Box>

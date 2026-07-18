@@ -780,7 +780,7 @@ export const WORKPLACE_USER = {
 export const WORKPLACE_QUICK_ACTIONS = [
   { id: 'content', label: '发布内容', icon: 'publish', color: '#FE2C55', path: '/account/content' },
   { id: 'user', label: '添加用户', icon: 'userAdd', color: '#5B8DEF', path: '/system/user' },
-  { id: 'agent-manager', label: '管理智能体', icon: 'bot', color: '#5B8DEF', path: '/agentmanager' },
+  { id: 'agent-manager', label: '管理智能体', icon: 'bot', color: '#5B8DEF', path: '/system/agentmanager' },
   { id: 'dict', label: '字典配置', icon: 'dict', color: '#FF8A3D', path: '/system/dict/dict-type' },
   { id: 'log', label: '查看日志', icon: 'log', color: '#25F4EE', path: '/system/log' },
   { id: 'monitor', label: '系统监控', icon: 'monitor', color: '#8B5CF6', path: '/system/dashboard/monitor' },

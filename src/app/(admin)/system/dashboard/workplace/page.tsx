@@ -108,7 +108,7 @@ function useWorkplace() {
       { id: 'dict', label: '字典管理', icon: 'dict', color: '#25F4EE', path: '/system/dict/dict-type' },
       { id: 'log', label: '操作日志', icon: 'log', color: '#5DDB96', path: '/system/log' },
       { id: 'monitor', label: '服务监控', icon: 'monitor', color: '#FFB400', path: '/system/app' },
-      { id: 'agent-manager', label: 'Agent 管理', icon: 'bot', color: '#5B8DEF', path: '/agentmanager' },
+      { id: 'agent-manager', label: 'Agent 管理', icon: 'bot', color: '#5B8DEF', path: '/system/agentmanager' },
       { id: 'chart', label: '数据分析', icon: 'chart', color: '#8B5CF6', path: '/system/dashboard/analysis' },
     ],
     // 之前:staleTime: Infinity → dev 模式 query cache 永不释放,内存持续上涨
