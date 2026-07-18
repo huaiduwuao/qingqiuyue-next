@@ -39,7 +39,7 @@ export async function getStreets(areaCode: string) {
 // Aliases for missing exports (CRUD pattern)
 // Paginated list for DataGridTable
 export const page = async (params?: { pageNumber?: number; pageSize?: number; sortField?: string; sortOrder?: string }) => {
-  return adminClient<{ records: AreaInfo[]; totalRow: number; success?: boolean }>('/area/page', {
+  return adminClient<{ list: AreaInfo[]; page: number; total: number; success?: boolean }>('/area/page', {
     method: 'GET',
     params,
   });
