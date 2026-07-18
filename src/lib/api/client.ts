@@ -146,6 +146,17 @@ function createApiClient(baseURL: string) {
           config.headers.Authorization = `Bearer ${token}`;
         }
       }
+      // 转换分页参数: pageNumber → page, pageSize → page_size (兼容后端 form tag)
+      if (config.params) {
+        if ('pageNumber' in config.params && !('page' in config.params)) {
+          config.params.page = config.params.pageNumber;
+          delete config.params.pageNumber;
+        }
+        if ('pageSize' in config.params && !('page_size' in config.params)) {
+          config.params.page_size = config.params.pageSize;
+          delete config.params.pageSize;
+        }
+      }
       return config;
     },
     (error) => {
