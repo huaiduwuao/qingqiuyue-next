@@ -37,7 +37,7 @@ const PUBLIC_PREFIXES = [
 ];
 
 // 仅限管理员 / 已登录用户的路由前缀
-const ADMIN_PREFIXES = ['/system', '/admin'];
+const ADMIN_PREFIXES = ['/system', '/admin', '/agentmanager'];
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + '/') || (p === '/detail' && pathname.startsWith('/detail')));
