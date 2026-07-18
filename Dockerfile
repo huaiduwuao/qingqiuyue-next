@@ -1,9 +1,11 @@
 # ===== deps:安装依赖 =====
 FROM docker.io/library/node:22-alpine AS deps
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY package.json pnpm-lock.yaml ./
+# 安装 pnpm
+RUN corepack enable && corepack prepare pnpm@9 --activate
 # --legacy-peer-deps 兜底: 防止 peer dep 冲突(如 three-vrm 与 three 主版本不一致)
-RUN npm ci --legacy-peer-deps
+RUN pnpm install --frozen-lockfile
 
 # ===== builder:构建 standalone 产物 =====
 FROM docker.io/library/node:22-alpine AS builder
@@ -22,7 +24,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # 默认值与 docker-compose.yml 里的同网络目标保持一致(可直接覆盖)。
 ARG API_PROXY_TARGET=http://apisix:9080
 ENV API_PROXY_TARGET=$API_PROXY_TARGET
-RUN npm run build
+RUN pnpm run build
 
 # ===== runner:最小运行镜像 =====
 FROM docker.io/library/node:22-alpine AS runner
