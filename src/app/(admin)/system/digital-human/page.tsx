@@ -645,7 +645,7 @@ export default function SystemDigitalHumanPage() {
         anchor="right"
         open={showCreatePanel}
         onClose={() => setShowCreatePanel(false)}
-        PaperProps={{ sx: { width: 400, p: 3 } }}
+        slotProps={{ paper: { sx: { width: 400, p: 3 } } }}
       >
         <Typography variant="h6" sx={{ mb: 3 }}>创建数字人</Typography>
 
