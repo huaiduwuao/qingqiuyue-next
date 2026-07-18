@@ -3,7 +3,7 @@
  * 多 Agent 管理平面前端 SDK
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_AGENTM_URL || 'http://localhost:10081/api/v1'
+const API_BASE = process.env.NEXT_PUBLIC_AGENTM_URL || 'http://localhost:9080/api/v1'
 
 interface RequestOptions extends RequestInit {
   token?: string
@@ -80,9 +80,9 @@ class AgentManagerAPI {
     if (params?.region) query.set('region', params.region)
     if (params?.status) query.set('status', params.status)
 
-    return this.request<{ list: Instance[]; total: number; page: number; limit: number }>(
-      `/instances?${query}`
-    )
+    const queryString = query.toString()
+    const path = queryString ? `/instances?${queryString}` : '/instances'
+    return this.request<{ list: Instance[]; total: number; page: number; limit: number }>(path)
   }
 
   async getInstance(id: number) {
