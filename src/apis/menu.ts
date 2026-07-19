@@ -16,12 +16,7 @@ export async function getMenuData(params?: any) {
 
 // 获取菜单列表 - GET /api/core/menu/list
 export async function list(params?: MenuListParams) {
-  // 转换参数名: pageNumber→page, pageSize→size
-  const { pageNumber, pageSize, ...rest } = params || {};
-  const query: Record<string, any> = { ...rest };
-  if (pageNumber !== undefined) query.page = pageNumber;
-  if (pageSize !== undefined) query.size = pageSize;
-  return adminClient('/menu/list', { params: query });
+  return adminClient('/menu/list', { params });
 }
 
 // 获取菜单详情 - GET /api/core/menu/{id}
