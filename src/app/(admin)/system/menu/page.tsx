@@ -123,8 +123,8 @@ export default function SystemMenuPage() {
         hasPermission={can}
         fetchData={async (params) => {
           const res = await list(params);
-          const items = res.data?.records || res.data?.list || res.data || [];
-          const total = res.data?.totalRow || res.data?.total || items.length;
+          const items = res.data?.list || res.data?.records || res.data || [];
+          const total = res.data?.total || res.data?.totalRow || items.length;
           return { data: { records: items, totalRow: total }, success: true };
         }}
         onEdit={handleEdit}
