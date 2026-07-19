@@ -33,6 +33,7 @@ import {
   getCrawlTimeseries,
   getRecentActivity,
   getHourlyStats,
+  triggerHourlyRefresh,
 } from '@/apis/spider';
 import type {
   CrawlTimeseriesPoint,
@@ -300,6 +301,9 @@ export default function SpiderDashboardPage() {
               </Box>
               <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>上次: {hourly.data.lastTickUtc ? new Date(hourly.data.lastTickUtc).toLocaleString() : '从未'}</Typography>
               <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>下次: {hourly.data.nextTickUtc ? new Date(hourly.data.nextTickUtc).toLocaleString() : '—'}</Typography>
+              <Box sx={{ mt: 1.5 }}>
+                <TriggerRefreshButton />
+              </Box>
             </>
           ) : (
             <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>小时调度已禁用</Typography>
@@ -457,3 +461,61 @@ function formatRelativeTime(iso: string): string {
   if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h 前`;
   return `${Math.floor(diff / 86_400_000)}d 前`;
 }
+
+// 触发爬取按钮
+function TriggerRefreshButton() {
+  const [loading, setLoading] = React.useState(false);
+  const [msg, setMsg] = React.useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const qc = useQueryClient();
+
+  const handleTrigger = async () => {
+    if (loading) return;
+    setLoading(true);
+    setMsg(null);
+    try {
+      await triggerHourlyRefresh();
+      setMsg({ type: 'success', text: '✅ 爬取已触发，请关注源健康状态' });
+      // 5秒后刷新数据
+      setTimeout(() => qc.invalidateQueries({ queryKey: ['spider', 'hourly-stats'] }), 3000);
+    } catch (e: any) {
+      setMsg({ type: 'error', text: `❌ 触发失败: ${e?.message || e}` });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+        <Button
+          size="small"
+          variant="contained"
+          color="primary"
+          disabled={loading}
+          onClick={handleTrigger}
+          sx={{ fontSize: 12, py: 0.75 }}
+        >
+          {loading ? '触发中…' : '🚀 立即爬取全网内容'}
+        </Button>
+        <Button
+          size="small"
+          variant="outlined"
+          disabled={loading}
+          onClick={() => qc.invalidateQueries({ queryKey: ['spider', 'hourly-stats'] })}
+          sx={{ fontSize: 12, py: 0.75 }}
+        >
+          刷新状态
+        </Button>
+      </Box>
+      {msg && (
+        <Typography sx={{ fontSize: 11, color: msg.type === 'success' ? 'success.main' : 'error.main' }}>
+          {msg.text}
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
+// 导入需要的 hooks 和组件
+import { useQueryClient } from '@tanstack/react-query';
+import Button from '@mui/material/Button';
