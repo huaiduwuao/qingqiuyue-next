@@ -4,6 +4,7 @@ import { MenuItem } from '@/beans/system';
 export interface MenuListParams {
   page?: number;
   pageSize?: number;
+  size?: number;
   pageNumber?: number;
   name?: string;
 }
@@ -15,7 +16,12 @@ export async function getMenuData(params?: any) {
 
 // 获取菜单列表 - GET /api/core/menu/list
 export async function list(params?: MenuListParams) {
-  return adminClient('/menu/list', { params });
+  // 转换参数名: pageNumber→page, pageSize→size
+  const { pageNumber, pageSize, ...rest } = params || {};
+  const query: Record<string, any> = { ...rest };
+  if (pageNumber !== undefined) query.page = pageNumber;
+  if (pageSize !== undefined) query.size = pageSize;
+  return adminClient('/menu/list', { params: query });
 }
 
 // 获取菜单详情 - GET /api/core/menu/{id}
