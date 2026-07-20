@@ -6,8 +6,14 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_EXPORT_STATIC=true
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 RUN corepack enable && corepack prepare pnpm@9 --activate
+
+# 先复制 lockfile 和 package.json，只安装依赖（利用 Docker 缓存）
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+# 再复制源码，这样只有源码变化时才重新构建
 COPY . .
-RUN pnpm install --frozen-lockfile && pnpm run build
+RUN pnpm run build
 
 # ===== nginx 运行镜像 =====
 FROM docker.io/library/nginx:alpine AS runner
