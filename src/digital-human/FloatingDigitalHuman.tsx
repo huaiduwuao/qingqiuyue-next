@@ -101,7 +101,7 @@ export default function FloatingDigitalHuman() {
   const [availableAgents, setAvailableAgents] = React.useState<HermesAgentItem[]>([]);
 
   React.useEffect(() => {
-    fetch('/api/agents')
+    fetch('/api/agentmanager/agents')
       .then((r) => r.json())
       .then((data) => {
         const agents = (data.agents || []).map((a: AgentPayload) => ({
