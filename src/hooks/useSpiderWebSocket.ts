@@ -55,10 +55,10 @@ function buildWsUrl(): string {
   // 生产环境: 相对路径, 经 nginx/APISIX 代理(enable_websocket: true)
   const devBase = process.env.NEXT_PUBLIC_WS_BASE || '';
   if (devBase) {
-    return `${devBase}/api/spider/ws`;
+    return `${devBase}/ws/spider`;
   }
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${window.location.host}/api/spider/ws`;
+  // 统一到 /ws/spider
+  return '/ws/spider';
 }
 
 export function useSpiderWebSocket(): SpiderWSState {

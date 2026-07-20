@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack",
+    "dev": "next dev",
     "build": "next build",
     "build:static": "cross-env NEXT_EXPORT_STATIC=true next build --webpack",
     "start": "next start",

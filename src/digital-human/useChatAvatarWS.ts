@@ -341,10 +341,8 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     // dev 模式: NEXT_PUBLIC_WS_BASE 直连后端(Next.js rewrites 不支持 WS 升级)
     // 生产环境: 相对路径, 经 nginx/APISIX 代理(enable_websocket: true)
     const base = process.env.NEXT_PUBLIC_WS_BASE || '';
-    // 数字人 WS 路径是 /api/realtime/ws (avatarapp.Setup 注册, NOT /imws)
-    // /api/realtime/imws 是 imapp 留给即时通讯的 user_id 聊天用,
-    // 跟 avatar 数字人无关,不要混用 — 2026-07-08 修过。
-    const wsPath = '/api/realtime/ws';
+    // 数字人 WS 路径统一到 /ws/realtime
+    const wsPath = '/ws/realtime';
     const wsUrl = base
       ? `${base}${wsPath}?agentId=${encodeURIComponent(agentRef.current)}`
       : `${wsPath}?agentId=${encodeURIComponent(agentRef.current)}`;
