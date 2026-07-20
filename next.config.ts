@@ -74,73 +74,7 @@ const nextConfig: NextConfig = {
     }
     return config;
   },
-  // 数字人 GLB 资源:dev 模式强制 no-store,避免浏览器 HTTP cache 卡住旧文件
   // (改完 Blender 脚本重生成 GLB 后,普通 F5 刷新就能拿新版,不用 Ctrl+Shift+R)
-  async headers() {
-    return [
-      {
-        source: '/avatars/:path*',
-        headers: [
-          { key: 'Cache-Control', value: 'no-store, must-revalidate' },
-        ],
-      },
-    ];
-  },
-  async rewrites() {
-    // avatar pipeline 路由必须在本地处理(Next.js spawn 脚本 + MinIO 客户端),
-    // 不能被反代到 Go 后端。Next.js 路由优先匹配,理论上不需要显式 exclusion,
-    // 但加一个 no-op rewrite 让规则显式可见,免得未来有人把 avatar pipeline
-    // 路由挪走之后被反代劫掉。
-    const pipelineNoop = {
-      source: '/api/avatar/pipeline/:path*',
-      destination: '/api/avatar/pipeline/:path*',
-    };
-    // 没有真后端网关时:设置 API_PROXY_TARGET=disabled 完全跳过 /api/* 和 /logs/* 反代,
-    // 避免 500 / ECONNREFUSED 让客户端 fetch 直接 404,防止 react-query 重试循环拖垮 dev server。
-    // 默认已指向 localhost:10005(容器/真网关用 API_PROXY_TARGET 覆盖)。
-    if (API_PROXY_TARGET === 'disabled') {
-      return [
-        pipelineNoop,
-        // audio 网关代理 noop
-        { source: '/api/audio/:path*', destination: '/api/audio/:path*' },
-        { source: '/api/:path*', destination: '/api-stub/:path*' },
-        { source: '/logs/:path*', destination: '/logs-stub/:path*' },
-      ];
-    }
-    const target = API_PROXY_TARGET;
-    const contentTarget = process.env.CONTENT_API_PROXY_TARGET || target;
-    return [
-      pipelineNoop,
-      // avatar 路由指向 realtime-api (端口 10003)
-      {
-        source: "/api/avatar/:path*",
-        destination: "http://localhost:10003/api/realtime/:path*",
-      },
-      // audio 网关代理 (/api/audio/* → audio-gateway :8001),
-      // 不能被反代劫到 Go 后端
-      {
-        source: "/api/audio/:path*",
-        destination: "/api/audio/:path*",
-      },
-      // 内容类接口可单独指向 content-api(本地或网关)
-      {
-        source: "/api/content/:path*",
-        destination: `${contentTarget}/api/content/:path*`,
-      },
-      {
-        source: "/api/spider/:path*",
-        destination: `${target}/api/spider/:path*`,
-      },
-      {
-        source: "/api/:path*",
-        destination: `${target}/api/:path*`,
-      },
-      {
-        source: "/logs/:path*",
-        destination: `${target}/logs/:path*`,
-      },
-    ];
-  },
 };
 
 export default nextConfig;
