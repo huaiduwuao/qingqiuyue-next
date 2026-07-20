@@ -22,8 +22,6 @@ const nextConfig: NextConfig = {
   // 这 4 项不会改变 dev 行为,只减少常驻内存。
   productionBrowserSourceMaps: false,
   experimental: {
-    serverSourceMaps: false,
-    preloadEntriesOnStart: false,
     webpackBuildWorker: true,
     // Next 15+:开启后降低 webpack 编译阶段最大内存峰值,代价是编译稍慢。
     webpackMemoryOptimizations: true,
