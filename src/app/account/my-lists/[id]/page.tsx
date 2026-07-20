@@ -1,9 +1,8 @@
-'use client';
-
+// Server Component - 支持静态导出
+import { generateStaticParams as listGenerateStaticParams } from '@/app/account/my-lists/[id]/page.utils';
 import MyListDetailClient from './MyListDetailClient';
 
-// Next.js 15: 允许动态路由在静态导出模式下不使用 generateStaticParams
-export const dynamicParams = true;
+export { listGenerateStaticParams as generateStaticParams };
 
 export default function MyListDetailPage() {
   return <MyListDetailClient />;
