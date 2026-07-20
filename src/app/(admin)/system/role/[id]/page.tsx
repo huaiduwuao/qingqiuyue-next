@@ -1,11 +1,15 @@
-import { notFound } from 'next/navigation';
+'use client';
 
-export const revalidate = 0;
-
-export function generateStaticParams() {
-  return [];
-}
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import RoleDetailClient from './RoleDetailClient';
 
 export default function RoleDetailPage() {
-  notFound();
+  const router = useRouter();
+
+  useEffect(() => {
+    // 客户端渲染，避免 SSR 阶段执行
+  }, []);
+
+  return <RoleDetailClient />;
 }

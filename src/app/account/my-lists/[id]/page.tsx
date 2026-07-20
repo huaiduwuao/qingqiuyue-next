@@ -1,11 +1,12 @@
-import { notFound } from 'next/navigation';
+'use client';
 
-export const revalidate = 0;
-
-export function generateStaticParams() {
-  return [];
-}
+import { useEffect } from 'react';
+import MyListDetailClient from './MyListDetailClient';
 
 export default function MyListDetailPage() {
-  notFound();
+  useEffect(() => {
+    // 客户端渲染，避免 SSR 阶段执行
+  }, []);
+
+  return <MyListDetailClient />;
 }
