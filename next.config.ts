@@ -5,6 +5,7 @@ import type { NextConfig } from "next";
 // - Tauri 构建：output: export 静态导出，移动端/桌面端专用
 // - 本地开发：standalone 模式
 const isStaticExport = process.env.NEXT_EXPORT_STATIC === 'true';
+const apiTarget = process.env.API_PROXY_TARGET;
 
 const nextConfig: NextConfig = {
   // Tauri/桌面打包时用 output: "export" 生成静态文件到 out/ 目录
@@ -14,19 +15,15 @@ const nextConfig: NextConfig = {
     // 所有动态路由不预渲染，客户端处理
     trailingSlash: false,
   }),
-  // API 反代配置
-  async rewrites() {
-    const apiTarget = process.env.API_PROXY_TARGET;
-    if (!apiTarget) {
-      return [];
-    }
-    return [
+  // API 反代配置（仅 standalone 模式有效，静态导出无需反代）
+  ...(apiTarget && {
+    rewrites: async () => [
       {
         source: '/api/:path*',
         destination: `${apiTarget}/api/:path*`,
       },
-    ];
-  },
+    ],
+  }),
   // 允许 127.0.0.1 跨源访问 dev 资源(dev 模式 HMR 需要)
   // 见:https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
   allowedDevOrigins: ['127.0.0.1', 'localhost'],
