@@ -5,9 +5,9 @@
   "identifier": "app.qingqiuyue.desktop",
   "build": {
     "devUrl": "http://localhost:3000",
-    "frontendDist": "../.next",
+    "frontendDist": "../out",
     "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": "pnpm build"
+    "beforeBuildCommand": "pnpm build:static"
   },
   "app": {
     "withGlobalTauri": true,

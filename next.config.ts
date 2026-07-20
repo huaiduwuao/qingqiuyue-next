@@ -1,14 +1,14 @@
 import type { NextConfig } from "next";
 
-// 容器/生产部署:前端同源,把 /api/* 反代到后端网关。
-// 容器内默认指向宿主机已发布的网关端口(host.docker.internal:10005,podman/docker 均可),
-// 可用 API_PROXY_TARGET 覆盖(如同 compose 网络内 http://apisix:9080)。
-const API_PROXY_TARGET = process.env.API_PROXY_TARGET || "http://localhost:10005";
+// 构建模式：
+// - Web 部署（默认）：standalone 模式，支持 SSR 和动态渲染
+// - Tauri 构建：output: export 静态导出，移动端/桌面端专用
+// - 本地开发：standalone 模式
+const isStaticExport = process.env.NEXT_EXPORT_STATIC === 'true';
 
 const nextConfig: NextConfig = {
   // Tauri/桌面打包时用 output: "export" 生成静态文件到 out/ 目录
-  // Docker 部署时用 standalone 模式
-  output: process.env.NEXT_EXPORT_STATIC === 'true' ? 'export' : 'standalone',
+  output: isStaticExport ? 'export' : 'standalone',
   // 允许 127.0.0.1 跨源访问 dev 资源(dev 模式 HMR 需要)
   // 见:https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
   allowedDevOrigins: ['127.0.0.1', 'localhost'],

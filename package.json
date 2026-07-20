@@ -5,13 +5,14 @@
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build --webpack",
+    "build:static": "NEXT_EXPORT_STATIC=true next build --webpack",
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
     "test:digital-human": "vitest run src/digital-human/__tests__/commands.parametric.test.ts",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build",
+    "tauri:build": "bash scripts/pre-tauri-build.sh && NEXT_EXPORT_STATIC=true next build --webpack && bash scripts/post-tauri-build.sh && tauri build",
     "prepare": "husky"
   },
   "dependencies": {

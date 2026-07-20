@@ -1,11 +1,26 @@
-// 服务端组件:(public) 组内多为依赖 URL search params 的客户端 SPA 页面,
-// 强制动态渲染,避免 useSearchParams() 在静态预渲染时的 CSR bailout。
-// (route segment config 仅在服务端组件中生效,故此 layout 不能带 'use client'。)
+'use client';
+
+import { Suspense, type ReactNode } from 'react';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+
+function LoadingFallback() {
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
+      <Typography color="text.secondary">加载中...</Typography>
+    </Box>
+  );
+}
 
 export default function PublicLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
-  return <>{children}</>;
+  // 包裹所有子页面以支持 useSearchParams() 等需要 Suspense 的 hooks
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      {children}
+    </Suspense>
+  );
 }
