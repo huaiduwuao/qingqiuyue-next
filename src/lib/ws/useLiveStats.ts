@@ -180,7 +180,9 @@ export function useLiveStats(options: UseLiveStatsOptions = {}): UseLiveStatsRet
 
     // 监听直播数据更新
     const unsubLive = wsClient.subscribe<LiveStatsPayload>('live_stats', (message: WSMessage<LiveStatsPayload>) => {
-      const { roomId: updateRoomId, viewers, likes, hotRank } = message.payload;
+      const stats = message.payload;
+        if (!stats) return;
+        const { roomId: updateRoomId, viewers, likes, hotRank } = stats;
 
       // 如果指定了 roomId，只处理对应的更新
       if (roomId && updateRoomId !== roomId) return;
@@ -311,7 +313,9 @@ export function useLiveRanking(options: UseLiveRankingOptions = {}): UseLiveRank
 
     // 监听直播数据更新（用于更新榜单）
     const unsubLive = wsClient.subscribe<LiveStatsPayload>('live_stats', (message: WSMessage<LiveStatsPayload>) => {
-      const { roomId, hotRank } = message.payload;
+      const stats = message.payload;
+        if (!stats) return;
+        const { roomId, hotRank } = stats;
 
       if (hotRank === undefined) return;
 

@@ -227,6 +227,7 @@ export function useDirectMessage(options: UseDirectMessageOptions = {}): UseDire
     // 监听私信消息
     const unsubDM = wsClient.subscribe<DMPayload>('dm', (message: WSMessage<DMPayload>) => {
       const dmMessage = message.payload;
+      if (!dmMessage) return;
       const session = sessions.find(s => s.id === dmMessage.sessionId);
 
       if (session) {
