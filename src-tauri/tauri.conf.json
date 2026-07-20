@@ -5,9 +5,10 @@
   "identifier": "app.qingqiuyue.desktop",
   "build": {
     "devUrl": "http://localhost:3000",
-    "frontendDist": "../out",
+    "frontendDist": "../.next/standalone",
     "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": "pnpm build:static"
+    "beforeBuildCommand": "pnpm build",
+    "devtools": true
   },
   "app": {
     "withGlobalTauri": true,
@@ -21,11 +22,11 @@
         "resizable": true,
         "fullscreen": false,
         "center": true,
-        "url": "https://qingqiuyue.com"
+        "url": "http://localhost:3000"
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://qingqiuyue.com wss://qingqiuyue.com http://localhost:* https://* ws://localhost:*; img-src 'self' data: https://*; frame-src https://qingqiuyue.com https://*"
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://* wss://* http://localhost:* https://localhost:* ws://localhost:*; img-src 'self' data: https://*; frame-src https://*"
     }
   },
   "bundle": {
@@ -41,7 +42,7 @@
     "publisher": "qingqiuyue.com",
     "category": "Entertainment",
     "shortDescription": "清秋月 - 数字人互动平台",
-    "longDescription": "清秋月是一款创新的数字人互动平台，提供丰富的数字人资源、智能对话、创作工具等功能。",
+    "longDescription": "青伙月是一款创新的数字人互动平台，提供丰富的数字人资源、智能对话、创作工具等功能。",
     "copyright": "Copyright © 2024 qingqiuyue.com",
     "windows": {
       "webviewInstallMode": {
@@ -54,7 +55,7 @@
     "macOS": {
       "entitlements": null,
       "exceptionDomain": "",
-      "frameworks": [],
+      "frame": true,
       "minimumSystemVersion": "10.15",
       "signingIdentity": "-",
       "providerShortName": null,

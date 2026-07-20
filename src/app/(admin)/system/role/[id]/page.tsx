@@ -1,12 +1,10 @@
 import type { Metadata } from 'next';
-import RoleDetailPageClient from './RoleDetailPageClient';
+import RoleDetailClient from './RoleDetailClient';
 
-export function generateStaticParams() {
-  return [{ id: '0' }];
-}
+export const generateStaticParams = (() => []) as () => { id: string }[];
 
-export const metadata: Metadata = { title: '角色配置' };
+export const metadata: Metadata = { title: 'Role Config' };
 
 export default function RoleDetailPage() {
-  return <RoleDetailPageClient />;
+  return <RoleDetailClient />;
 }
