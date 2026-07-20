@@ -109,7 +109,7 @@ export default function SystemRolePage() {
           <Box sx={{ display: 'flex', gap: 0.5 }}>
             {can(PERMISSIONS.SYSTEM_ROLE.UPDATE) && (
               <Tooltip title="配置">
-                <IconButton size="small" onClick={() => router.push(`/system/role/${params.row.id}`)}><SettingsIcon /></IconButton>
+                <IconButton size="small" onClick={() => router.push(`/system/role/detail?id=${params.row.id}`)}><SettingsIcon /></IconButton>
               </Tooltip>
             )}
             {can(PERMISSIONS.SYSTEM_ROLE.UPDATE) && (

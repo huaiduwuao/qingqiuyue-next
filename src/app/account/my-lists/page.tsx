@@ -56,7 +56,7 @@ function MyListCard({ item, onEdit, onDelete }: { item: MyListItem; onEdit: () =
 
   return (
     <Box
-      onClick={() => router.push(`/account/my-lists/${item.id}`)}
+      onClick={() => router.push(`/account/my-lists/detail?id=${item.id}`)}
       sx={{
         bgcolor: 'background.paper',
         border: '1px solid',
