@@ -5,14 +5,15 @@
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build --webpack",
-    "build:static": "NEXT_EXPORT_STATIC=true next build --webpack",
+    "build:static": "cross-env NEXT_EXPORT_STATIC=true next build --webpack",
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run",
     "test:digital-human": "vitest run src/digital-human/__tests__/commands.parametric.test.ts",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "pnpm build && tauri build",
+    "build:tauri": "pnpm build && node scripts/tauri-build.js",
+    "tauri:build": "pnpm build:tauri && tauri build",
     "prepare": "husky"
   },
   "dependencies": {
@@ -66,6 +67,7 @@
     "@types/three": "^0.184.1",
     "@types/uuid": "^10.0.0",
     "@vitejs/plugin-react": "^6.0.3",
+    "cross-env": "^10.1.0",
     "eslint": "^9.39.4",
     "eslint-config-next": "^16.2.9",
     "husky": "^9.1.7",

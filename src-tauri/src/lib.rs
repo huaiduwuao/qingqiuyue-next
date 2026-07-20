@@ -1,12 +1,9 @@
-// src/lib.rs - Tauri 应用逻辑
+// src/lib.rs - Tauri 应用逻辑 (CSR 静态模式)
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use std::process::Command;
-use tauri::Manager;
 
 const DEFAULT_API_BASE: &str = "http://localhost:9080";
-const SERVER_PORT: u16 = 3000;
 
 // 应用配置
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -65,39 +62,6 @@ fn write_config(config: &AppConfig) -> Result<(), String> {
     fs::write(path, data).map_err(|e| e.to_string())
 }
 
-// 启动 Node.js 服务器
-fn start_server(exe_dir: PathBuf) -> Option<std::process::Child> {
-    let server_path = exe_dir.join("server.js");
-    if !server_path.exists() {
-        log::warn!("server.js not found at {:?}", server_path);
-        return None;
-    }
-
-    // 设置环境变量
-    let mut env_vars = std::env::vars().collect::<std::collections::HashMap<_, _>>();
-    env_vars.insert("PORT".to_string(), SERVER_PORT.to_string());
-    env_vars.insert("HOSTNAME".to_string(), "127.0.0.1".to_string());
-    env_vars.insert("NODE_ENV".to_string(), "production".to_string());
-
-    log::info!("Starting Next.js server from {:?}", server_path);
-
-    match Command::new("node")
-        .arg(server_path)
-        .envs(&env_vars)
-        .current_dir(&exe_dir)
-        .spawn()
-    {
-        Ok(child) => {
-            log::info!("Next.js server started successfully");
-            Some(child)
-        }
-        Err(e) => {
-            log::error!("Failed to start Next.js server: {}", e);
-            None
-        }
-    }
-}
-
 // Tauri 命令
 #[tauri::command]
 fn get_system_info() -> SystemInfo {
@@ -146,13 +110,10 @@ fn num_cpus() -> usize {
         .unwrap_or(1)
 }
 
-// 服务器进程管理
-struct ServerChild(Option<std::process::Child>);
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-    log::info!("qingqiuyue-desktop starting...");
+    log::info!("qingqiuyue-desktop starting (CSR mode)...");
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -164,7 +125,7 @@ pub fn run() {
             get_version,
             is_dev,
         ])
-        .setup(|app| {
+        .setup(|_app| {
             log::info!("[qingqiuyue-desktop] setup complete");
 
             // 获取可执行文件所在目录
@@ -175,24 +136,11 @@ pub fn run() {
                 .to_path_buf();
 
             log::info!("Executable directory: {:?}", exe_dir);
-
-            // 启动 Node.js 服务器
-            if let Some(child) = start_server(exe_dir) {
-                app.manage(ServerChild(Some(child)));
-                log::info!("Server process managed by Tauri");
-            } else {
-                log::warn!("Server not started, will use embedded server");
-            }
-
-            // 等待服务器启动
-            std::thread::sleep(std::time::Duration::from_secs(2));
-
             Ok(())
         })
-        .on_window_event(|window, event| {
+        .on_window_event(|_window, event| {
             if let tauri::WindowEvent::CloseRequested { .. } = event {
-                log::info!("Window close requested, cleaning up...");
-                // 窗口关闭时，服务器进程会被自动清理
+                log::info!("Window close requested");
             }
         })
         .run(tauri::generate_context!())

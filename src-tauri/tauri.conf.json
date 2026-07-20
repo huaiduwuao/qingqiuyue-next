@@ -5,8 +5,8 @@
   "identifier": "app.qingqiuyue.desktop",
   "build": {
     "devUrl": "http://localhost:3000",
-    "frontendDist": "../.next/standalone",
-    "beforeBuildCommand": "pnpm build"
+    "frontendDist": "../out",
+    "beforeBuildCommand": "pnpm build:static"
   },
   "app": {
     "withGlobalTauri": true,
@@ -19,14 +19,13 @@
         "minHeight": 600,
         "resizable": true,
         "fullscreen": false,
-        "center": true,
-        "url": "http://localhost:3000"
+        "center": true
       }
     ]
   },
   "bundle": {
     "active": true,
-    "targets": ["msi", "nsis"],
+    "targets": ["nsis"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
