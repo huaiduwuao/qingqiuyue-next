@@ -14,6 +14,19 @@ const nextConfig: NextConfig = {
     // 所有动态路由不预渲染，客户端处理
     trailingSlash: false,
   }),
+  // API 反代配置
+  async rewrites() {
+    const apiTarget = process.env.API_PROXY_TARGET;
+    if (!apiTarget) {
+      return [];
+    }
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${apiTarget}/api/:path*`,
+      },
+    ];
+  },
   // 允许 127.0.0.1 跨源访问 dev 资源(dev 模式 HMR 需要)
   // 见:https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
   allowedDevOrigins: ['127.0.0.1', 'localhost'],

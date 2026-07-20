@@ -1,26 +1,19 @@
-# ===== builder:构建 SSR 产物 =====
+# ===== CSR 静态构建 =====
 FROM docker.io/library/node:22-alpine AS builder
 WORKDIR /app
+ARG NEXT_PUBLIC_API_BASE_URL=https://qingqiuyue.com
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_EXPORT_STATIC=true
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 RUN corepack enable && corepack prepare pnpm@9 --activate
 COPY . .
-ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm install --frozen-lockfile && pnpm run build
 
-# ===== runner:SSR 运行镜像 =====
-FROM docker.io/library/node:22-alpine AS runner
-WORKDIR /app
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV PORT=3000
-ENV HOSTNAME=0.0.0.0
-
-RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
-
-# standalone 输出 + 静态资源
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
-
-USER nextjs
-EXPOSE 3000
-CMD ["node", "server.js"]
+# ===== nginx 运行镜像 =====
+FROM docker.io/library/nginx:alpine AS runner
+# 复制静态文件到 nginx
+COPY --from=builder /app/out /usr/share/nginx/html
+# 复制 nginx 配置
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
