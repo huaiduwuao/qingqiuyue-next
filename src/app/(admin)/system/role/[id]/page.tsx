@@ -2,6 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+
+export function generateStaticParams() {
+  return [];
+}
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Tabs from '@mui/material/Tabs';
