@@ -1,16 +1,14 @@
 /**
  * 统一 WebSocket 客户端
- * 支持多路复用、心跳重连、自动降级、权限验证
+ * 支持多路复用，心跳重连、自动降级、权限验证
+ * 统一 WebSocket 网关: ws(s)://host/ws/gateway
  */
 
 // 获取认证 token
 function getAuthToken(): string | null {
-  // 从 localStorage 获取
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem('token');
     if (token) return token;
-
-    // 从 cookie 获取
     const match = document.cookie.match(/(?:^|;\s*)auth-token=([^;]*)/);
     if (match) return decodeURIComponent(match[1]);
   }
@@ -23,20 +21,33 @@ export type WSMessageType =
   | 'dm'            // 私信消息
   | 'live_stats'    // 直播数据
   | 'crawl_progress' // 爬虫进度
+  | 'avatar'        // 数字人
   | 'system'        // 系统消息
   | 'ping'          // 心跳
-  | 'pong';         // 心跳响应
+  | 'pong'          // 心跳响应
+  | 'connected';     // 连接成功
+
+// Channel 常量（与后端 wsgateway 一致）
+export const WSChannel = {
+  AVATAR: 'avatar',
+  SPIDER: 'spider',
+  NOTIFY: 'notify',
+} as const;
+export type WSChannel = typeof WSChannel[keyof typeof WSChannel];
 
 // 通用消息格式
 export interface WSMessage<T = unknown> {
+  channel?: WSChannel;  // 服务通道
   type: WSMessageType;
-  payload: T;
-  timestamp: number;
+  payload?: T;
+  data?: T;
+  timestamp?: number;
+  ts?: number;
   seq?: number;      // 消息序列号，用于排序
   id?: string;       // 消息唯一 ID
 }
 
-// 通知消息负载 (对齐后端 NotifyMessage)
+// 通知消息负载
 export interface NotificationPayload {
   id?: number;
   type: 'tip' | 'review' | 'message' | 'subscription' | 'achievement' | 'system' | 'reward';
@@ -75,9 +86,9 @@ type WSEventCallback<T = unknown> = (message: WSMessage<T>) => void;
 interface WSClientOptions {
   url: string;
   token?: string;
-  heartbeatInterval?: number;  // 心跳间隔 ms
-  reconnectDelay?: number;    // 基础重连延迟 ms
-  maxReconnectDelay?: number; // 最大重连延迟 ms
+  heartbeatInterval?: number;
+  reconnectDelay?: number;
+  maxReconnectDelay?: number;
   maxReconnectAttempts?: number;
   onConnect?: () => void;
   onDisconnect?: () => void;
@@ -101,6 +112,7 @@ export class WSClient {
   private manualClose = false;
 
   private listeners: Map<WSMessageType, Set<WSEventCallback>> = new Map();
+  private channelListeners: Map<WSChannel, Set<WSEventCallback>> = new Map();
   private stateListeners: Set<(state: WSConnectionState) => void> = new Set();
 
   private state: WSConnectionState = 'disconnected';
@@ -114,23 +126,14 @@ export class WSClient {
     this.maxReconnectAttempts = options.maxReconnectAttempts || 10;
   }
 
-  /**
-   * 获取当前连接状态
-   */
   getState(): WSConnectionState {
     return this.state;
   }
 
-  /**
-   * 是否已连接
-   */
   isConnected(): boolean {
     return this.state === 'connected';
   }
 
-  /**
-   * 连接服务器
-   */
   connect(): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       return;
@@ -140,7 +143,6 @@ export class WSClient {
     this.setState('connecting');
 
     try {
-      // 构建 URL，添加 token 参数
       const wsUrl = this.token
         ? `${this.url}?token=${encodeURIComponent(this.token)}`
         : this.url;
@@ -158,9 +160,6 @@ export class WSClient {
     }
   }
 
-  /**
-   * 断开连接
-   */
   disconnect(): void {
     this.manualClose = true;
     this.stopHeartbeat();
@@ -174,10 +173,7 @@ export class WSClient {
     this.setState('disconnected');
   }
 
-  /**
-   * 发送消息
-   */
-  send<T>(type: WSMessageType, payload: T): boolean {
+  send<T>(type: WSMessageType, payload: T, channel?: WSChannel): boolean {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
       console.warn('[WS] Cannot send, not connected');
       return false;
@@ -185,6 +181,7 @@ export class WSClient {
 
     try {
       const message: WSMessage<T> = {
+        channel,
         type,
         payload,
         timestamp: Date.now(),
@@ -198,24 +195,29 @@ export class WSClient {
     }
   }
 
-  /**
-   * 订阅消息类型
-   */
   subscribe<T>(type: WSMessageType, callback: WSEventCallback<T>): () => void {
     if (!this.listeners.has(type)) {
       this.listeners.set(type, new Set());
     }
     this.listeners.get(type)!.add(callback as WSEventCallback);
 
-    // 返回取消订阅函数
     return () => {
       this.listeners.get(type)?.delete(callback as WSEventCallback);
     };
   }
 
-  /**
-   * 订阅连接状态变化
-   */
+  // 按 channel 订阅
+  subscribeByChannel<T>(channel: WSChannel, callback: WSEventCallback<T>): () => void {
+    if (!this.channelListeners.has(channel)) {
+      this.channelListeners.set(channel, new Set());
+    }
+    this.channelListeners.get(channel)!.add(callback as WSEventCallback);
+
+    return () => {
+      this.channelListeners.get(channel)?.delete(callback as WSEventCallback);
+    };
+  }
+
   onStateChange(callback: (state: WSConnectionState) => void): () => void {
     this.stateListeners.add(callback);
     return () => {
@@ -223,16 +225,10 @@ export class WSClient {
     };
   }
 
-  /**
-   * 发送心跳
-   */
   private sendHeartbeat(): void {
     this.send('ping', { time: Date.now() });
   }
 
-  /**
-   * 启动心跳
-   */
   private startHeartbeat(): void {
     this.stopHeartbeat();
     this.heartbeatTimer = setInterval(() => {
@@ -240,9 +236,6 @@ export class WSClient {
     }, this.heartbeatInterval);
   }
 
-  /**
-   * 停止心跳
-   */
   private stopHeartbeat(): void {
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer);
@@ -250,9 +243,6 @@ export class WSClient {
     }
   }
 
-  /**
-   * 安排重连
-   */
   private scheduleReconnect(): void {
     if (this.manualClose) return;
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
@@ -263,7 +253,6 @@ export class WSClient {
 
     this.setState('reconnecting');
 
-    // 指数退避
     const delay = Math.min(
       this.reconnectDelay * Math.pow(2, this.reconnectAttempts),
       this.maxReconnectDelay
@@ -277,9 +266,6 @@ export class WSClient {
     }, delay);
   }
 
-  /**
-   * 清除重连定时器
-   */
   private clearReconnectTimer(): void {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -287,23 +273,16 @@ export class WSClient {
     }
   }
 
-  /**
-   * 处理连接打开
-   */
   private handleOpen(): void {
-    console.log('[WS] Connected');
+    console.log('[WS] Connected to', this.url);
     this.setState('connected');
     this.reconnectAttempts = 0;
     this.startHeartbeat();
 
-    // 触发连接回调
     const listeners = Array.from(this.stateListeners);
     listeners.forEach(cb => cb('connected'));
   }
 
-  /**
-   * 处理连接关闭
-   */
   private handleClose(event: CloseEvent): void {
     console.log('[WS] Disconnected:', event.code, event.reason);
     this.stopHeartbeat();
@@ -311,15 +290,11 @@ export class WSClient {
     const listeners = Array.from(this.stateListeners);
     listeners.forEach(cb => cb('disconnected'));
 
-    // 非正常关闭则重连
     if (!this.manualClose && event.code !== 1000) {
       this.scheduleReconnect();
     }
   }
 
-  /**
-   * 处理错误
-   */
   private handleError(error: Event): void {
     console.error('[WS] Error:', error);
     this.setState('error');
@@ -328,12 +303,6 @@ export class WSClient {
     listeners.forEach(cb => cb('error'));
   }
 
-  /**
-   * 处理收到的消息
-   * 兼容两种消息格式：
-   * 1. 后端扁平格式: { type, title, content, data, timestamp }
-   * 2. 前端包装格式: { type, payload, timestamp }
-   */
   private handleMessage(event: MessageEvent): void {
     try {
       const data = JSON.parse(event.data);
@@ -341,39 +310,29 @@ export class WSClient {
       // 忽略 pong 消息
       if (data.type === 'pong') return;
 
-      // 统一消息格式：如果是扁平格式，转换为包装格式
-      let message: WSMessage;
-      if ('payload' in data) {
-        // 已经是包装格式
-        message = data as WSMessage;
-      } else {
-        // 扁平格式转换：后端 NotifyMessage -> 前端 WSMessage
-        // 后端类型: tip|review|message|subscription|achievement|system|reward
-        // 前端类型映射
-        const typeMap: Record<string, WSMessageType> = {
-          tip: 'notification',
-          review: 'notification',
-          message: 'dm',
-          subscription: 'notification',
-          achievement: 'notification',
-          system: 'system',
-          reward: 'notification',
-        };
-        const mappedType = typeMap[data.type] || 'notification';
-        message = {
-          type: mappedType,
-          payload: data,
-          timestamp: data.timestamp || Date.now(),
-        };
-      }
+      // 构建消息对象
+      const message: WSMessage = {
+        channel: data.channel,
+        type: data.type,
+        payload: data.payload || data.data,
+        timestamp: data.timestamp || data.ts || Date.now(),
+      };
 
-      // 分发到对应的监听器
+      // 按 type 分发
       const typeListeners = this.listeners.get(message.type);
       if (typeListeners) {
         typeListeners.forEach(cb => cb(message));
       }
 
-      // 同时通知所有监听器
+      // 按 channel 分发
+      if (message.channel) {
+        const channelListeners = this.channelListeners.get(message.channel);
+        if (channelListeners) {
+          channelListeners.forEach(cb => cb(message));
+        }
+      }
+
+      // 全局监听
       const allListeners = this.listeners.get('*' as WSMessageType);
       if (allListeners) {
         allListeners.forEach(cb => cb(message));
@@ -383,9 +342,6 @@ export class WSClient {
     }
   }
 
-  /**
-   * 设置状态
-   */
   private setState(state: WSConnectionState): void {
     if (this.state !== state) {
       this.state = state;
@@ -399,21 +355,13 @@ let wsInstance: WSClient | null = null;
 
 /**
  * 获取全局 WebSocket 实例
- * WebSocket 连接通过 API 网关，支持通知和私信
- *
- * 连接地址: ws(s)://host/ws/notify
- * 后端路由: core-api /ws/notify (wsnotify.ClientHandler)
- * APISIX 路由: /ws -> core-api (enable_websocket: true)
+ * 统一 WebSocket 网关: ws(s)://host/ws/gateway
  */
 export function getWSClient(): WSClient {
   if (!wsInstance) {
-    // 根据当前页面协议选择 WS 或 WSS
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    // 通过 API 网关访问后端 WebSocket
-    // APISIX 路由: /ws/* -> core-api (:10001) /ws/notify
     const host = window.location.host;
-    // 生产环境: ws://host/ws/notify -> APISIX (:9080) -> core-api (:10001) /ws/notify
-    const wsUrl = `${protocol}//${host}/ws/notify`;
+    const wsUrl = `${protocol}//${host}/ws/gateway`;
 
     wsInstance = new WSClient({
       url: wsUrl,
@@ -426,9 +374,6 @@ export function getWSClient(): WSClient {
   return wsInstance;
 }
 
-/**
- * 销毁全局实例
- */
 export function destroyWSClient(): void {
   if (wsInstance) {
     wsInstance.disconnect();
