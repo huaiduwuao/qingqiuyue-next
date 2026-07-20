@@ -9,6 +9,11 @@ const isStaticExport = process.env.NEXT_EXPORT_STATIC === 'true';
 const nextConfig: NextConfig = {
   // Tauri/桌面打包时用 output: "export" 生成静态文件到 out/ 目录
   output: isStaticExport ? 'export' : 'standalone',
+  // 静态导出时的配置
+  ...(isStaticExport && {
+    // 所有动态路由不预渲染，客户端处理
+    trailingSlash: false,
+  }),
   // 允许 127.0.0.1 跨源访问 dev 资源(dev 模式 HMR 需要)
   // 见:https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
   allowedDevOrigins: ['127.0.0.1', 'localhost'],

@@ -1,10 +1,9 @@
-import type { Metadata } from 'next';
-import MyListDetailClient from './MyListDetailClient';
+import { notFound } from 'next/navigation';
 
-export const generateStaticParams = (() => []) as () => { id: string }[];
-
-export const metadata: Metadata = { title: 'My List' };
+export function generateStaticParams() {
+  return [];
+}
 
 export default function MyListDetailPage() {
-  return <MyListDetailClient />;
+  notFound();
 }

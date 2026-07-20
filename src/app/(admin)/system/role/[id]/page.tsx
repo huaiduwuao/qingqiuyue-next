@@ -1,10 +1,9 @@
-import type { Metadata } from 'next';
-import RoleDetailClient from './RoleDetailClient';
+import { notFound } from 'next/navigation';
 
-export const generateStaticParams = (() => []) as () => { id: string }[];
-
-export const metadata: Metadata = { title: 'Role Config' };
+export function generateStaticParams() {
+  return [];
+}
 
 export default function RoleDetailPage() {
-  return <RoleDetailClient />;
+  notFound();
 }
