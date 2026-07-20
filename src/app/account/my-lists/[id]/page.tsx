@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import MyListDetailPageClient from './MyListDetailPageClient';
 
 export function generateStaticParams() {
   return [{ id: '0' }];
@@ -7,5 +8,5 @@ export function generateStaticParams() {
 export const metadata: Metadata = { title: 'Loading...' };
 
 export default function MyListDetailPage() {
-  return null;
+  return <MyListDetailPageClient />;
 }
