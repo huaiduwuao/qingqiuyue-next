@@ -178,14 +178,14 @@ pub fn run() {
 
             // 启动 Node.js 服务器
             if let Some(child) = start_server(exe_dir) {
-                app.manage(ServerChild(Some(child));
+                app.manage(ServerChild(Some(child)));
                 log::info!("Server process managed by Tauri");
             } else {
                 log::warn!("Server not started, will use embedded server");
             }
 
             // 等待服务器启动
-            std::thread::sleep(std::time::Duration::from_secs(2);
+            std::thread::sleep(std::time::Duration::from_secs(2));
 
             Ok(())
         })

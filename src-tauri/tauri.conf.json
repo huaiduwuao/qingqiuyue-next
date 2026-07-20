@@ -7,8 +7,7 @@
     "devUrl": "http://localhost:3000",
     "frontendDist": "../.next/standalone",
     "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": "pnpm build",
-    "devtools": true
+    "beforeBuildCommand": "pnpm build"
   },
   "app": {
     "withGlobalTauri": true,
@@ -47,56 +46,16 @@
     "windows": {
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
-      },
-      "certificateThumbprint": null,
-      "digestAlgorithm": "sha256",
-      "timestampUrl": ""
+      }
     },
     "macOS": {
-      "entitlements": null,
-      "exceptionDomain": "",
-      "frame": true,
-      "minimumSystemVersion": "10.15",
-      "signingIdentity": "-",
-      "providerShortName": null,
-      "website": "https://qingqiuyue.com"
+      "minimum-system-version": "10.15"
     },
     "ios": {
-      "entitlements": null,
-      "minimumOSVersion": "13.0",
-      "signingIdentity": "-",
-      "profileFile": null,
-      "devices": ["iphone", "ipad"],
-      "targets": "all"
+      "minimum-system-version": "13.0"
     },
     "android": {
-      "minSdkVersion": 24,
-      "targetSdkVersion": 34,
-      "permissions": [
-        "INTERNET",
-        "ACCESS_NETWORK_STATE",
-        "ACCESS_WIFI_STATE"
-      ],
-      "signingConfigs": {
-        "release": {
-          "keystore": "qingqiuyue.keystore",
-          "alias": "qingqiuyue",
-          "storePassword": "qingqiuyue123",
-          "keyPassword": "qingqiuyue123"
-        }
-      },
-      "abiFilters": ["armeabi-v7a", "arm64-v8a", "x86", "x86_64"]
-    },
-    "linux": {
-      "appimage": {
-        "bundleMediaFramework": true
-      },
-      "deb": {
-        "depends": []
-      },
-      "rpm": {
-        "depends": []
-      }
+      "minSdkVersion": 24
     }
   },
   "plugins": {}
