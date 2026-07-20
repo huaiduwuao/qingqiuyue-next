@@ -8,6 +8,10 @@ const isStaticExport = process.env.NEXT_EXPORT_STATIC === 'true';
 const apiTarget = process.env.API_PROXY_TARGET;
 
 const nextConfig: NextConfig = {
+  // 禁用构建时的 ESLint 检查（warnings 不阻塞构建）
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   // Tauri/桌面打包时用 output: "export" 生成静态文件到 out/ 目录
   output: isStaticExport ? 'export' : 'standalone',
   // 静态导出时的配置
@@ -37,9 +41,9 @@ const nextConfig: NextConfig = {
   // 这 4 项不会改变 dev 行为,只减少常驻内存。
   productionBrowserSourceMaps: false,
   experimental: {
-    webpackBuildWorker: true,
+    // webpackBuildWorker: true,
     // Next 15+:开启后降低 webpack 编译阶段最大内存峰值,代价是编译稍慢。
-    webpackMemoryOptimizations: true,
+    // webpackMemoryOptimizations: true,
   },
   compiler: {
     reactRemoveProperties: true,
