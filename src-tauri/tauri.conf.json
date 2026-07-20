@@ -6,7 +6,7 @@
   "build": {
     "devUrl": "http://localhost:3000",
     "frontendDist": "../out",
-    "beforeBuildCommand": "pnpm build:static"
+    "beforeBuildCommand": "NEXT_PUBLIC_API_BASE_URL=https://qingqiuyue.com pnpm build:static"
   },
   "app": {
     "withGlobalTauri": true,
