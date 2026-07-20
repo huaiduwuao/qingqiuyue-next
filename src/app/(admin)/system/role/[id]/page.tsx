@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 
+export const dynamicParams = true;
+
 export function generateStaticParams() {
   return [];
 }
