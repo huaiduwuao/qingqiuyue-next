@@ -67,6 +67,14 @@ function normalizePaginationPayload(payload: Record<string, any>): void {
     payload.total = payload.totalRow;
   }
 
+  // 列表归一
+  if ('list' in payload && !('records' in payload)) {
+    payload.records = payload.list;
+  }
+  if ('records' in payload && !('list' in payload)) {
+    payload.list = payload.records;
+  }
+
   // 页码归一：兼容 pageNumber / current
   if (!('page' in payload)) {
     if ('pageNumber' in payload) {

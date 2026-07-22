@@ -72,7 +72,7 @@ function toBackendParams(q: ModuleContentQuery) {
 
 export async function myPage(params: ModuleContentQuery = {}): Promise<PageResult<ModuleContentItem>> {
   const res = await contentClient('/module/content/list', { params: toBackendParams(params) });
-  return normalizeLegacyPageResponse(res as any);
+  return normalizeLegacyPageResponse(res.data as any);
 }
 
 export async function getById(id: number): Promise<{ code: number; data: ModuleContentItem }> {
