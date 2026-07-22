@@ -348,18 +348,43 @@ export default function AgentManagerConsole() {
                 <Card key={inst.id}>
                   <CardContent>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <Box>
-                        <Typography variant="h6">{inst.name}</Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {inst.code} • {inst.base_url}
-                        </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Box
+                          sx={{
+                            width: 48,
+                            height: 48,
+                            borderRadius: 2,
+                            bgcolor: inst.runtime_type === 'hermes' ? 'primary.main' :
+                                      inst.runtime_type === 'openclaw' ? 'warning.main' : 'grey.500',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 24,
+                          }}
+                        >
+                          {inst.runtime_type === 'hermes' ? '🖥️' : inst.runtime_type === 'openclaw' ? '🦞' : '🤖'}
+                        </Box>
+                        <Box>
+                          <Typography variant="h6">{inst.name}</Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {inst.code} • {inst.base_url || 'N/A'}
+                          </Typography>
+                        </Box>
                       </Box>
-                      <Chip
-                        size="small"
-                        label={inst.health_status === 'healthy' ? '✓ 健康' :
-                               inst.health_status === 'unhealthy' ? '✗ 异常' : '? 未知'}
-                        color={inst.health_status === 'healthy' ? 'success' : 'error'}
-                      />
+                      <Box sx={{ display: 'flex', gap: 1 }}>
+                        <Chip
+                          size="small"
+                          label={inst.runtime_type?.toUpperCase() || 'HERMES'}
+                          color="primary"
+                          variant="outlined"
+                        />
+                        <Chip
+                          size="small"
+                          label={inst.health_status === 'healthy' ? '✓ 健康' :
+                                 inst.health_status === 'unhealthy' ? '✗ 异常' : '? 未知'}
+                          color={inst.health_status === 'healthy' ? 'success' : 'warning'}
+                        />
+                      </Box>
                     </Box>
                     <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1, mt: 2 }}>
                       <Typography variant="body2" color="text.secondary">
@@ -372,7 +397,7 @@ export default function AgentManagerConsole() {
                         最大并发: <Box component="span" color="text.primary">{inst.max_concurrent}</Box>
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        运行时: <Box component="span" color="text.primary">{inst.runtime_type}</Box>
+                        总请求: <Box component="span" color="text.primary">{inst.total_requests}</Box>
                       </Typography>
                     </Box>
                   </CardContent>

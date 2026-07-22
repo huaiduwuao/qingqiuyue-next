@@ -449,6 +449,8 @@ export interface InstanceStats {
   total_requests: number
   avg_latency_ms: number
   last_health_at?: string
+  runtime_type?: string
+  base_url?: string
 }
 
 export interface AgentStats {
