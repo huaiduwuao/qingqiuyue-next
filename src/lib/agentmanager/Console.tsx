@@ -24,9 +24,13 @@ import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
 import { agentmAPI, type Instance, type Agent, type AuditLog, type Skill, type MonitoringOverview, type InstanceStats, type AgentStats, type UsageStats } from './api'
+import KanbanBoard from './kanban/KanbanBoard'
+import MCPManager from './mcp/MCPManager'
+import SandboxMonitor from './sandbox/SandboxMonitor'
+import AgentTerminal from './terminal/AgentTerminal'
 import { useAuth } from '@/contexts/AuthContext'
 
-type Tab = 'dashboard' | 'instances' | 'agents' | 'audit' | 'skills' | 'gateway'
+type Tab = 'dashboard' | 'instances' | 'agents' | 'audit' | 'skills' | 'gateway' | 'kanban' | 'mcp' | 'sandbox' | 'terminal'
 
 export default function AgentManagerConsole() {
   const { token, isAuthenticated } = useAuth()
@@ -139,6 +143,10 @@ export default function AgentManagerConsole() {
     { key: 'audit', label: '📝 审计' },
     { key: 'skills', label: '🛠️ 技能' },
     { key: 'gateway', label: '🌐 网关' },
+    { key: 'kanban', label: '📋 看板' },
+    { key: 'mcp', label: '🔌 MCP' },
+    { key: 'sandbox', label: '🐳 沙盒' },
+    { key: 'terminal', label: '🖥️ 终端' },
   ]
 
   return (
@@ -534,6 +542,32 @@ export default function AgentManagerConsole() {
                 </CardContent>
               </Card>
             </Box>
+          </Box>
+        )}
+
+        {/* Kanban Tab */}
+        {activeTab === 'kanban' && token && (
+          <KanbanBoard boardId={1} token={token} />
+        )}
+
+        {/* MCP Tab */}
+        {activeTab === 'mcp' && token && (
+          <MCPManager token={token} />
+        )}
+
+        {/* Sandbox Tab */}
+        {activeTab === 'sandbox' && token && (
+          <SandboxMonitor token={token} />
+        )}
+
+        {/* Terminal Tab */}
+        {activeTab === 'terminal' && (
+          <Box>
+            <Typography variant="h6" sx={{ mb: 2 }}>🖥️ Agent 远程终端</Typography>
+            <Alert severity="info" sx={{ mb: 2 }}>
+              连接远程 Hermes Agent / Claude Code / OpenClaw，实时查看输出结果
+            </Alert>
+            <AgentTerminal token={token ?? undefined} />
           </Box>
         )}
       </Box>
