@@ -65,13 +65,15 @@ interface VideoItem {
   authorId?: number;
 }
 
-function formatTime(sec: number): string {
+function formatTime(sec?: number): string {
+  if (sec == null || isNaN(sec)) return '00:00';
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
-function formatCount(n: number = 0): string {
+function formatCount(n?: number): string {
+  if (n == null || isNaN(n)) return '0';
   if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
   return n.toString();
 }
