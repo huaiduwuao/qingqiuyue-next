@@ -28,9 +28,10 @@ import KanbanBoard from './kanban/KanbanBoard'
 import MCPManager from './mcp/MCPManager'
 import SandboxMonitor from './sandbox/SandboxMonitor'
 import AgentTerminal from './terminal/AgentTerminal'
+import SessionManager from './session/SessionManager'
 import { useAuth } from '@/contexts/AuthContext'
 
-type Tab = 'dashboard' | 'instances' | 'agents' | 'audit' | 'skills' | 'gateway' | 'kanban' | 'mcp' | 'sandbox' | 'terminal'
+type Tab = 'dashboard' | 'instances' | 'agents' | 'sessions' | 'audit' | 'skills' | 'gateway' | 'kanban' | 'mcp' | 'sandbox' | 'terminal'
 
 export default function AgentManagerConsole() {
   const { token, isAuthenticated } = useAuth()
@@ -140,6 +141,7 @@ export default function AgentManagerConsole() {
     { key: 'dashboard', label: '📊 总览' },
     { key: 'instances', label: '🖥️ 实例' },
     { key: 'agents', label: '🤖 Agent' },
+    { key: 'sessions', label: '💬 会话' },
     { key: 'audit', label: '📝 审计' },
     { key: 'skills', label: '🛠️ 技能' },
     { key: 'gateway', label: '🌐 网关' },
@@ -455,6 +457,11 @@ export default function AgentManagerConsole() {
               ))}
             </Box>
           </Box>
+        )}
+
+        {/* Sessions Tab */}
+        {activeTab === 'sessions' && token && (
+          <SessionManager token={token} />
         )}
 
         {/* Audit Tab */}
