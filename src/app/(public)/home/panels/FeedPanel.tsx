@@ -31,13 +31,14 @@ import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import { homeClient, formatApiError } from '@/lib/api/client';
+import { homeClient, contentClient, formatApiError } from '@/lib/api/client';
 import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
 import { FriendPanel } from './FriendPanel';
 import SendToSpider from '@/components/SendToSpider';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { fetchSubcategories, type SubcategoryItem } from '@/apis/home-discover';
+import { moduleContentPage } from '@/apis/home';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import Masonry from 'react-masonry-css';
 
@@ -172,7 +173,28 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
   // 分页状态
   const PAGE_SIZE = 12;
 
+  // section 到 contentType 的映射
+  const SECTION_TO_TYPE: Record<string, string> = {
+    novel: 'NOVEL',
+    comics: 'COMICS',
+    film: 'FILM',
+    teleplay: 'TELEPLAY',
+    entertainment: 'VSHOW',
+    music: 'MUSIC',
+    anime: 'ANIMATION',
+    news: 'NEWS',
+    tech: 'ARTICLE',
+    food: 'VIDEO',
+    game: 'VIDEO',
+    knowledge: 'ARTICLE',
+    sports: 'VIDEO',
+    finance: 'ARTICLE',
+    // recommend 是聚合流，不传 contentType 获取所有类型
+    recommend: '',
+  };
+
   // 使用 useInfiniteQuery 实现真正的无限滚动分页
+  // 个人内容(follow/friend)用 /home/feed，分类内容用 /module/content/list
   const {
     data: feedData,
     fetchNextPage,
@@ -182,15 +204,73 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
   } = useInfiniteQuery({
     queryKey: ['home', 'feed', tab, isPersonal ? 'all' : section, sort, isPersonal ? '' : genre],
     queryFn: async ({ pageParam = 1 }) => {
-      const params = new URLSearchParams({ tab, page: String(pageParam), size: String(PAGE_SIZE) });
-      if (!isPersonal) {
-        params.set('section', section);
-        params.set('sort', sort);
-        if (genre) params.set('genre', genre);
+      // 个人内容使用 /home/feed
+      if (isPersonal) {
+        const params = new URLSearchParams({ tab, page: String(pageParam), size: String(PAGE_SIZE) });
+        const resp = await homeClient.get<any>(`/feed?${params.toString()}`).then((r) => r.data);
+        // homeClient 拦截器返回 { code, data: { list, total, pageSize }, msg }
+        const rawRecords = resp?.data?.list || [];
+        const records = rawRecords.map((item: any) => ({
+          ...item,
+          id: Number(item.id) || item.id,
+          cover: item.cover || item.coverUrl || '',
+          authorName: item.authorName || item.author || '',
+          authorAvatar: item.authorAvatar || item.avatar || '',
+          views: item.views || item.readNum || 0,
+          likes: item.likes || item.agreeNum || 0,
+          comments: item.comments || item.commentNum || 0,
+          shares: item.shares || item.shareNum || 0,
+          postedAgoMin: item.postedAgoMin || 0,
+        }));
+        const total = resp?.data?.total || 0;
+        return { records, total, page: pageParam };
       }
-      const resp = await homeClient.get<FeedResp>(`/feed?${params.toString()}`).then((r) => r.data);
-      const records = resp?.list || [];
-      const total = resp?.total || 0;
+      // recommend 聚合流使用 /recommend/feed
+      if (section === 'recommend') {
+        const resp = await contentClient.get(`/recommend/feed?size=${PAGE_SIZE}&page=${pageParam}`).then((r: any) => r.data);
+        // contentClient 拦截器返回原始 { code, data: { list, total, hasMore }, msg }
+        const rawRecords = resp?.data?.list || [];
+        const records = rawRecords.map((item: any) => ({
+          ...item,
+          id: Number(item.id) || item.id,
+          cover: item.cover || item.coverUrl || '',
+          authorName: item.authorName || item.author || '',
+          authorAvatar: item.authorAvatar || item.avatar || '',
+          views: item.views || item.readNum || 0,
+          likes: item.likes || item.agreeNum || 0,
+          comments: item.comments || item.commentNum || 0,
+          shares: item.shares || item.shareNum || 0,
+          durationSec: item.durationSec || item.duration || 0,
+          postedAgoMin: item.postedAgoMin || 0,
+          category: item.category || item.contentType?.toLowerCase() || 'video',
+        }));
+        const total = resp?.data?.total || 0;
+        return { records, total, page: pageParam };
+      }
+      // 分类内容使用 /module/content/list
+      const contentType = SECTION_TO_TYPE[section];
+      const resp = await moduleContentPage({
+        page: pageParam,
+        pageSize: PAGE_SIZE,
+        ...(contentType ? { contentType } : {}),
+        order: sort === 'new' ? 'CREATE_TIME' : 'COLLECT',
+      }) as any;
+      // moduleContentPage 内部用 contentClient 包装, resp 同上是 { code, data: { list, total }, msg }
+      const rawRecords = resp?.data?.list || resp?.data?.records || [];
+      // 字段适配:后端 entity 用 coverUrl/author/readNum/agreeNum → FeedCard 期望 cover/authorName/views/likes
+      const records = rawRecords.map((item: any) => ({
+        ...item,
+        id: Number(item.id) || item.id,
+        cover: item.cover || item.coverUrl || '',
+        authorName: item.authorName || item.author || '',
+        authorAvatar: item.authorAvatar || item.avatar || '',
+        views: item.views || item.readNum || 0,
+        likes: item.likes || item.agreeNum || 0,
+        comments: item.comments || item.commentNum || 0,
+        shares: item.shares || item.shareNum || 0,
+        postedAgoMin: item.postedAgoMin || 0,
+      }));
+      const total = resp?.data?.total || resp?.data?.totalRow || 0;
       return { records, total, page: pageParam };
     },
     initialPageParam: 1,
@@ -219,7 +299,6 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
       (entries) => {
         const entry = entries[0];
         if (entry.isIntersecting && hasNextPage && !isFetchingNextPage && !isLoading) {
-          console.log('[FeedPanel] Loading next page');
           fetchNextPage();
         }
       },
@@ -914,6 +993,7 @@ function Stat({ icon, value }: { icon: React.ReactNode; value: number }) {
 }
 
 function formatDuration(sec: number): string {
+  if (sec == null || isNaN(sec) || sec < 0) return '0:00';
   if (sec < 60) return `${sec}秒`;
   const m = Math.floor(sec / 60);
   const s = sec % 60;
@@ -921,6 +1001,7 @@ function formatDuration(sec: number): string {
 }
 
 function formatViews(n: number): string {
+  if (n == null || isNaN(n) || n < 0) return '0';
   if (n >= 10000) return `${(n / 10000).toFixed(1)}万`;
   return n.toString();
 }

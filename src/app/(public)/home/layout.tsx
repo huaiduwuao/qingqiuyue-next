@@ -67,9 +67,11 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const urlTab = searchParams.get('tab') || 'home';
-  const urlSection = searchParams.get('section') || 'recommend';
-  const [activeNav, setActiveNav] = useState(urlTab);
+  const urlTab = searchParams.get('tab');
+  const urlSection = searchParams.get('section');
+  // 兼容 section 参数：优先用 tab，如果只有 section=recommend 则导航到 recommend
+  const effectiveTab = urlTab || (urlSection === 'recommend' ? 'recommend' : 'home');
+  const [activeNav, setActiveNav] = useState(effectiveTab);
   const [meOpen, setMeOpen] = useState(false);
   const mainRef = useRef<HTMLDivElement | null>(null);
   // 搜索框状态提升到 Layout，便于导航时清空
@@ -81,7 +83,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
 
   // 同步 URL ?tab= → activeNav,这样从详情页返回时保留 tab
   useEffect(() => {
-    setActiveNav(urlTab);
+    setActiveNav(urlTab || effectiveTab);
   }, [urlTab]);
 
   // 离开 home 时把主滚动条位置存到 sessionStorage,回来时还原(无动画,即设即生效)
@@ -174,7 +176,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
         </Box>
         {/* recommend 页面自己处理右侧栏，home 使用外部侧边栏 */}
         {/* 移动端隐藏右侧栏 */}
-        {activeNav === 'home' && !isMobile && <RightSidebar section={urlSection} />}
+        {activeNav === 'home' && !isMobile && <RightSidebar section={urlSection || 'recommend'} />}
       </Box>
       {/* 底部导航栏（移动端） */}
       <MobileBottomNav activeNav={activeNav} onNavChange={handleNavChange} />

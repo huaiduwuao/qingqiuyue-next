@@ -120,6 +120,7 @@ const DATE_RANGES = [
 ];
 
 function formatViews(n: number): string {
+  if (n == null || isNaN(n) || n < 0) return '0';
   if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
   return n.toString();
@@ -139,6 +140,7 @@ function formatRelativeTime(ts: number): string {
 }
 
 function formatDuration(sec: number): string {
+  if (sec == null || isNaN(sec) || sec < 0) return '0:00';
   if (sec < 60) return `${sec}秒`;
   const m = Math.floor(sec / 60);
   const s = sec % 60;

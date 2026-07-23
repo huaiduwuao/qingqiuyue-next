@@ -88,6 +88,7 @@ const SPECIAL_TAB_LABEL: Record<string, { label: string; icon: React.ReactNode }
 };
 
 function formatCount(n: number = 0): string {
+  if (n == null || isNaN(n) || n < 0) return '0';
   if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
   return n.toString();
@@ -99,7 +100,10 @@ export default function HomeRecommendPage() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const tabFromUrl = searchParams.get('tab') || 'all';
+  // 兼容 tab 和 section 两种 URL 参数名（后端用 section，前端导航用 tab）
+  const tabParam = searchParams.get('tab');
+  const sectionParam = searchParams.get('section');
+  const tabFromUrl = tabParam || sectionParam || 'all';
   const isSpecialTab = SPECIAL_TABS.has(tabFromUrl);
   const activeCategory = TAB_TO_CATEGORY[tabFromUrl] || '全部';
 
@@ -315,19 +319,6 @@ export default function HomeRecommendPage() {
     ),
   });
 
-  // 滚动触发加载更多
-  useEffect(() => {
-    if (scroll.isNearBottom) {
-      if (!isSpecialTab && hasNextPage && !isFetchingNextPage) {
-        fetchNextPage();
-      } else if (tabFromUrl === 'follow' && followHasMore && !followQuery.isLoading) {
-        setFollowPage(p => p + 1);
-      } else if (tabFromUrl === 'friend' && friendHasMore && !friendQuery.isLoading) {
-        setFriendPage(p => p + 1);
-      }
-    }
-  }, [scroll.isNearBottom, isSpecialTab, hasNextPage, followHasMore, friendHasMore, followQuery.isLoading, friendQuery.isLoading, tabFromUrl, fetchNextPage]);
-
   if (tabFromUrl === 'me') {
     return <MeTabView />;
   }
@@ -336,6 +327,7 @@ export default function HomeRecommendPage() {
     return <RecommendVideoFeed />;
   }
 
+  // 默认分类内容
   return (
     <Box sx={{ display: 'flex', gap: 2, px: 3, py: 2, minHeight: 0 }}>
       {/* 左侧内容区 */}
