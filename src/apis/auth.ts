@@ -8,8 +8,7 @@ export interface LoginReq {
 
 // 登录响应
 export interface LoginResp {
-  token: string;
-  session_id: string;  // 用于跨服务认证
+  session_id: string;
   user: UserInfo;
 }
 

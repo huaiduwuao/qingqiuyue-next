@@ -71,7 +71,7 @@ export default function LoginPage() {
     setError(null);
     try {
       const res = await accountLogin({ name, password });
-      login(res.data.token, res.data.session_id);
+      login(res.data.session_id);
       // 记住账号(不存密码)
       if (rememberMe) {
         localStorage.setItem('login_remembered_name', name);
@@ -122,7 +122,7 @@ export default function LoginPage() {
     setError(null);
     try {
       const res = await mobileLogin({ mobile, captcha });
-      login(res.data.token, res.data.session_id);
+      login(res.data.session_id);
       router.push('/home/recommend');
     } catch (err: any) {
       setError(err.message || '登录失败');
