@@ -34,7 +34,7 @@ import { useAuth } from '@/contexts/AuthContext'
 type Tab = 'dashboard' | 'instances' | 'agents' | 'sessions' | 'audit' | 'skills' | 'gateway' | 'kanban' | 'mcp' | 'sandbox' | 'terminal'
 
 export default function AgentManagerConsole() {
-  const { token, isAuthenticated } = useAuth()
+  const { sessionId: token, isAuthenticated } = useAuth()
   const [activeTab, setActiveTab] = useState<Tab>('dashboard')
   const [loading, setLoading] = useState(false)
 

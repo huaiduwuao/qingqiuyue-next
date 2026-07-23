@@ -4,13 +4,15 @@
  * 统一 WebSocket 网关: ws(s)://host/ws/gateway
  */
 
-// 获取认证 token
+// 获取认证 token（优先 session_id）
 function getAuthToken(): string | null {
   if (typeof window !== 'undefined') {
+    // 优先使用 session_id
+    const sessionId = localStorage.getItem('session_id');
+    if (sessionId) return sessionId;
+    // 兼容旧的 token
     const token = localStorage.getItem('token');
     if (token) return token;
-    const match = document.cookie.match(/(?:^|;\s*)auth-token=([^;]*)/);
-    if (match) return decodeURIComponent(match[1]);
   }
   return null;
 }
