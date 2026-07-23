@@ -157,8 +157,8 @@ export default function HomeRecommendPage() {
           ...(contentType ? { contentType } : {}),
           order: 'COLLECT',
         }) as any;
-        const records: ContentItem[] = resp?.data?.list || resp?.data?.records || [];
-        const total = resp?.data?.total || resp?.data?.totalRow || 0;
+        const records: ContentItem[] = resp?.data?.data?.list || resp?.data?.data?.records || [];
+        const total = resp?.data?.data?.total || resp?.data?.data?.totalRow || 0;
         return { records, total, page: pageParam };
       } catch (err) {
         console.error('[HomeRecommend] contentQuery error:', err);

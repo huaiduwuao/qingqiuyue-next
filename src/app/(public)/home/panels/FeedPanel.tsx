@@ -42,6 +42,17 @@ import { moduleContentPage } from '@/apis/home';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import Masonry from 'react-masonry-css';
 
+// 后端 pkg/jsonfix 已将 BIGINT > Number.MAX_SAFE_INTEGER (2^53) 转为字符串。
+// 前端不可再 Number() 转换，否则精度再次丢失导致详情页 404。
+// 此函数在 id 超出安全范围时保留原始形式（数字或字符串）。
+const safeId = (id: any): string | number => {
+  if (id === null || id === undefined) return id as any;
+  const n = Number(id);
+  if (Number.isSafeInteger(n)) return n;
+  // 超出安全范围:保留原始值（后端已转 string）
+  return String(id);
+};
+
 type FeedItem = {
   id: number;
   authorId: number;
@@ -207,14 +218,14 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
       // 个人内容使用 /home/feed
       if (isPersonal) {
         const params = new URLSearchParams({ tab, page: String(pageParam), size: String(PAGE_SIZE) });
-        const resp = await homeClient.get<any>(`/feed?${params.toString()}`).then((r) => r.data);
         // homeClient 拦截器返回 { code, data: { list, total, pageSize }, msg }
+        const resp = await homeClient.get<any>(`/feed?${params.toString()}`);
         const rawRecords = resp?.data?.list || [];
         const records = rawRecords.map((item: any) => ({
           ...item,
-          id: Number(item.id) || item.id,
+          id: safeId(item.id),
           cover: item.cover || item.coverUrl || '',
-          authorName: item.authorName || item.author || '',
+          authorName: item.authorName || item.author || item.name || '',
           authorAvatar: item.authorAvatar || item.avatar || '',
           views: item.views || item.readNum || 0,
           likes: item.likes || item.agreeNum || 0,
@@ -225,27 +236,56 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
         const total = resp?.data?.total || 0;
         return { records, total, page: pageParam };
       }
-      // recommend 聚合流使用 /recommend/feed
+      // recommend 精选流:多类型聚合,每类型取 Top,按 agree_num 混排
       if (section === 'recommend') {
-        const resp = await contentClient.get(`/recommend/feed?size=${PAGE_SIZE}&page=${pageParam}`).then((r: any) => r.data);
-        // contentClient 拦截器返回原始 { code, data: { list, total, hasMore }, msg }
-        const rawRecords = resp?.data?.list || [];
-        const records = rawRecords.map((item: any) => ({
-          ...item,
-          id: Number(item.id) || item.id,
-          cover: item.cover || item.coverUrl || '',
-          authorName: item.authorName || item.author || '',
-          authorAvatar: item.authorAvatar || item.avatar || '',
-          views: item.views || item.readNum || 0,
-          likes: item.likes || item.agreeNum || 0,
-          comments: item.comments || item.commentNum || 0,
-          shares: item.shares || item.shareNum || 0,
-          durationSec: item.durationSec || item.duration || 0,
-          postedAgoMin: item.postedAgoMin || 0,
-          category: item.category || item.contentType?.toLowerCase() || 'video',
-        }));
-        const total = resp?.data?.total || 0;
-        return { records, total, page: pageParam };
+        const TYPES = ['VIDEO', 'NOVEL', 'FILM', 'MUSIC', 'ANIMATION', 'COMICS', 'TELEPLAY'];
+        const perType = Math.ceil(PAGE_SIZE / TYPES.length);
+        // 并发请求各类型
+        const results = await Promise.all(
+          TYPES.map(type =>
+            moduleContentPage({
+              page: 1,
+              pageSize: perType,
+              contentType: type,
+              order: 'agree_num',
+            })
+          )
+        );
+        // 合并各类型数据,按 agree_num 全局排序,取当前页
+        const allRecords: any[] = [];
+        for (const result of results) {
+          const raw = (result as any)?.data?.list || (result as any)?.data?.records || [];
+          for (const item of raw) {
+            allRecords.push(item);
+          }
+        }
+        allRecords.sort((a, b) =>
+          ((b as any).agreeNum || (b as any).agree_num || 0) -
+          ((a as any).agreeNum || (a as any).agree_num || 0)
+        );
+        const pageRecords = allRecords.slice(0, PAGE_SIZE);
+        const records = pageRecords.map((item: any) => {
+          const id = safeId(item.id);
+          let postedAgoMin = item.postedAgoMin || 0;
+          if (!postedAgoMin && item.createTime) {
+            const diff = Date.now() - new Date(item.createTime).getTime();
+            postedAgoMin = Math.floor(diff / 60000);
+          }
+          return {
+            ...item,
+            id,
+            cover: item.cover || item.coverUrl || '',
+            authorName: item.authorName || item.author || '',
+            authorAvatar: item.authorAvatar || item.avatar || '',
+            views: item.views || item.readNum || 0,
+            likes: item.likes || item.agreeNum || 0,
+            comments: item.comments || item.commentNum || 0,
+            shares: item.shares || item.shareNum || 0,
+            postedAgoMin,
+            category: item.category || item.contentType?.toLowerCase() || 'video',
+          };
+        });
+        return { records, total: allRecords.length, page: 1 };
       }
       // 分类内容使用 /module/content/list
       const contentType = SECTION_TO_TYPE[section];
@@ -257,19 +297,39 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
       }) as any;
       // moduleContentPage 内部用 contentClient 包装, resp 同上是 { code, data: { list, total }, msg }
       const rawRecords = resp?.data?.list || resp?.data?.records || [];
-      // 字段适配:后端 entity 用 coverUrl/author/readNum/agreeNum → FeedCard 期望 cover/authorName/views/likes
-      const records = rawRecords.map((item: any) => ({
-        ...item,
-        id: Number(item.id) || item.id,
-        cover: item.cover || item.coverUrl || '',
-        authorName: item.authorName || item.author || '',
-        authorAvatar: item.authorAvatar || item.avatar || '',
-        views: item.views || item.readNum || 0,
-        likes: item.likes || item.agreeNum || 0,
-        comments: item.comments || item.commentNum || 0,
-        shares: item.shares || item.shareNum || 0,
-        postedAgoMin: item.postedAgoMin || 0,
-      }));
+      // 字段适配:后端 entity 用 coverUrl/author/readNum/agreeNum → FeedCard 期望字段
+      const records = rawRecords.map((item: any) => {
+        const id = safeId(item.id);
+        // postedAgoMin:从 createTime 计算分钟数
+        let postedAgoMin = item.postedAgoMin || 0;
+        if (!postedAgoMin && item.createTime) {
+          const diff = Date.now() - new Date(item.createTime).getTime();
+          postedAgoMin = Math.floor(diff / 60000);
+        }
+        // durationSec:从 content 字段提取(如 "01:23:45" → 5025秒)
+        let durationSec = item.durationSec || item.duration || 0;
+        if (!durationSec && item.content) {
+          const match = item.content.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+          if (match) {
+            const [, h, m, s] = match;
+            durationSec = (parseInt(h) * 3600) + (parseInt(m) * 60) + (parseInt(s || '0'));
+          }
+        }
+        return {
+          ...item,
+          id,
+          cover: item.cover || item.coverUrl || '',
+          authorName: item.authorName || item.author || '',
+          authorAvatar: item.authorAvatar || item.avatar || '',
+          views: item.views || item.readNum || 0,
+          likes: item.likes || item.agreeNum || 0,
+          comments: item.comments || item.commentNum || 0,
+          shares: item.shares || item.shareNum || 0,
+          postedAgoMin,
+          durationSec,
+          category: item.category || item.contentType?.toLowerCase() || 'video',
+        };
+      });
       const total = resp?.data?.total || resp?.data?.totalRow || 0;
       return { records, total, page: pageParam };
     },

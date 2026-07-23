@@ -32,7 +32,30 @@ export function CoverImage({
   loading = 'lazy',
 }: CoverImageProps) {
   const [failed, setFailed] = useState(false);
-  const url = !src || failed ? fallback : src;
+  const [fallbackFailed, setFallbackFailed] = useState(false);
+  // 若 src 加载失败用 fallback;fallback 也失败则用纯色占位
+  const url = !src || failed
+    ? fallbackFailed
+      ? null
+      : fallback
+    : src;
+
+  if (!url) {
+    return (
+      <Box
+        sx={{
+          width: '100%',
+          height: '100%',
+          bgcolor: 'var(--bg-input, rgba(255,255,255,0.04))',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          ...sx,
+        }}
+      />
+    );
+  }
+
   return (
     <Box
       component="img"
@@ -42,6 +65,7 @@ export function CoverImage({
       referrerPolicy={referrerPolicy}
       onError={() => {
         if (!failed) setFailed(true);
+        else if (!fallbackFailed) setFallbackFailed(true);
       }}
       sx={{ objectFit: 'cover', display: 'block', ...sx }}
     />

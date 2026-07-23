@@ -188,6 +188,7 @@ function createApiClient(baseURL: string) {
         audioUrl: 'audio',
         // 作者/来源
         authorAvatar: 'avatar',
+        author_avatar: 'avatar',
         authorName: 'author',
         sourceUrl: 'source',
         sourceLabel: 'source',
