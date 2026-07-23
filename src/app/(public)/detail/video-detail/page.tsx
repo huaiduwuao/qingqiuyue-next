@@ -39,7 +39,6 @@ interface Video {
   description: string;
   duration: number;
   videoUrl?: string;
-  source?: string;
   viewCount: number;
   likeCount: number;
   commentCount: number;
@@ -167,7 +166,6 @@ function VideoDetailContent() {
               <Container maxWidth="lg" sx={{ py: 0 }}>
                 <VideoPlayer
                   src={data.videoUrl || ''}
-                  sourceUrl={data.source || ''}
                   poster={data.cover}
                   initialDuration={data.duration}
                   autoPlay={false}
