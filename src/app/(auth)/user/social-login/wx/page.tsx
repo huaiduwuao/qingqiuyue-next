@@ -9,7 +9,7 @@ import Alert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress';
 import { useAuth } from '@/contexts/AuthContext';
 
-// 微信扫码登录回调落地页:从 URL 拿 ?token=&from=,写 token 后跳 from。
+// 微信扫码登录回调落地页:从 URL 拿 ?session_id=&from=,写 session_id 后跳 from。
 // 后端 OAuth callback 已 302 到这里(/api/core/oauth/wechat/callback → /user/social-login/wx)。
 // Next.js 16 要求 useSearchParams() 包在 <Suspense> 里,否则静态导出时报 "should be wrapped in a suspense boundary"。
 export default function SocialLoginWxPage() {
@@ -40,19 +40,19 @@ function SocialLoginWxContent() {
 
   useEffect(() => {
     if (doneRef.current) return;
-    const token = sp?.get('token') || '';
+    const sessionId = sp?.get('session_id') || '';
     const from = sp?.get('from') || '/home/recommend';
     const err = sp?.get('error') || '';
     if (err) {
       setErrMsg(err);
       return;
     }
-    if (!token) {
-      setErrMsg('缺少 token,请重新登录');
+    if (!sessionId) {
+      setErrMsg('缺少 session_id,请重新登录');
       return;
     }
     doneRef.current = true;
-    login(token);
+    login(sessionId);
     // 用 replace 避免回退到此页
     router.replace(from);
   }, [sp, login, router]);
