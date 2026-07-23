@@ -31,6 +31,7 @@ interface Film {
   title: string;
   cover: string;
   videoUrl?: string;
+  source?: string;
   director: string;
   actors: string[];
   genre: string[];
@@ -167,7 +168,7 @@ function FilmDetailContent() {
           <>
             <Box sx={{ bgcolor: '#000' }}>
               <Container maxWidth="lg" sx={{ py: 0 }}>
-                <VideoPlayer src={videoSrc || data.videoUrl || ''} poster={data.cover} initialDuration={(data.duration || 0) * 60} autoPlay={false} />
+                <VideoPlayer src={videoSrc || data.videoUrl || ''} sourceUrl={data.source || ''} poster={data.cover} initialDuration={(data.duration || 0) * 60} autoPlay={false} />
               </Container>
             </Box>
 
