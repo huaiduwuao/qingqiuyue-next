@@ -20,6 +20,17 @@ class AgentManagerAPI {
     this.token = null
   }
 
+  // 获取认证 token（优先 session_id，其次 token）
+  private getAuthToken(): string | null {
+    if (typeof window === 'undefined') return this.token
+    // 优先使用 session_id
+    const sessionId = localStorage.getItem('session_id')
+    if (sessionId) return sessionId
+    const token = localStorage.getItem('token')
+    if (token) return token
+    return this.token
+  }
+
   private async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
     const { token, ...fetchOpts } = options
 
@@ -28,7 +39,7 @@ class AgentManagerAPI {
       ...(options.headers as Record<string, string>),
     }
 
-    const authToken = token || this.token
+    const authToken = token || this.getAuthToken()
     if (authToken) {
       headers['Authorization'] = `Bearer ${authToken}`
     }
@@ -47,7 +58,17 @@ class AgentManagerAPI {
   }
 
   // ========== Auth ==========
+  // 同步 session_id（从 core-api 登录后调用）
+  syncSessionId(sessionId: string) {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('session_id', sessionId)
+    }
+    this.token = sessionId
+  }
+
+  // 登录时同步 session_id（向后兼容）
   async login(username: string, password: string) {
+    // AgentManager 有自己的登录接口，但也要同步 session_id
     const data = await this.request<{
       access_token: string
       refresh_token: string

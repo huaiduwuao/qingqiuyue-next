@@ -144,12 +144,9 @@ function createApiClient(baseURL: string) {
   client.interceptors.request.use(
     (config) => {
       if (typeof window !== 'undefined') {
-        // 优先 cookie(供 middleware 同步),localStorage 兜底
-        const fromCookie = document.cookie
-          .split('; ')
-          .find((r) => r.startsWith('auth-token='))
-          ?.split('=')[1];
-        const token = fromCookie || localStorage.getItem('token');
+        // 优先使用 session_id（用于跨服务认证），其次使用 token
+        const sessionId = localStorage.getItem('session_id');
+        const token = sessionId || localStorage.getItem('token');
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }

@@ -10,8 +10,9 @@ import { useApp } from './AppContext';
 interface AuthContextValue {
   isAuthenticated: boolean;
   token: string | null;
+  sessionId: string | null;  // 用于跨服务认证
   permissions: string[];
-  login: (newToken: string) => void;
+  login: (newToken: string, newSessionId?: string) => void;
   logout: () => void;
   checkAuth: () => Promise<void>;
 }
@@ -34,6 +35,7 @@ function setTokenCookie(token: string | null) {
 
 export function AuthContextProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hydrated, setHydrated] = useState(false);
@@ -42,18 +44,24 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
   const { setCurrentUser, setMenuData, setDict } = useApp();
   const prevTokenRef = useRef<string | null>(null);
 
-  // 客户端 hydration 后从 localStorage 读 token,避免 SSR 闪烁
+  // 客户端 hydration 后从 localStorage 读 token 和 session_id
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const saved = localStorage.getItem('token');
-    if (saved) setToken(saved);
+    const savedToken = localStorage.getItem('token');
+    const savedSessionId = localStorage.getItem('session_id');
+    if (savedToken) setToken(savedToken);
+    if (savedSessionId) setSessionId(savedSessionId);
     setHydrated(true);
   }, []);
 
-  const login = useCallback((newToken: string) => {
+  const login = useCallback((newToken: string, newSessionId?: string) => {
     localStorage.setItem('token', newToken);
     setTokenCookie(newToken);
     setToken(newToken);
+    if (newSessionId) {
+      localStorage.setItem('session_id', newSessionId);
+      setSessionId(newSessionId);
+    }
   }, []);
 
   const logout = useCallback(async () => {
@@ -63,8 +71,10 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
       // Ignore
     }
     localStorage.removeItem('token');
+    localStorage.removeItem('session_id');
     setTokenCookie(null);
     setToken(null);
+    setSessionId(null);
     setPermissions([]);
     setCurrentUser(null);
     prevTokenRef.current = null;
@@ -116,6 +126,7 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
   const value: AuthContextValue = {
     isAuthenticated: !!token,
     token,
+    sessionId,
     permissions,
     login,
     logout,
