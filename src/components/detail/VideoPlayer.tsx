@@ -11,61 +11,22 @@ import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import Replay10Icon from '@mui/icons-material/Replay10';
 import Forward10Icon from '@mui/icons-material/Forward10';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import CircularProgress from '@mui/material/CircularProgress';
 import AIGCBadge from '@/components/AIGCBadge';
 
-/** 将各平台视频页 URL 转换为 iframe embed URL */
-function toEmbedUrl(url: string): string | null {
-  if (!url) return null;
-
-  // B站: BV号 → player.bilibili.com
-  const bvMatch = url.match(/bilibili\.com\/video\/(BV[\w]+)/);
-  if (bvMatch) return `https://player.bilibili.com/player.html?bvid=${bvMatch[1]}&autoplay=0`;
-
-  // B站: av号
-  const avMatch = url.match(/bilibili\.com\/video\/av(\d+)/);
-  if (avMatch) return `https://player.bilibili.com/player.html?aid=${avMatch[1]}&autoplay=0`;
-
-  // 腾讯视频: vid → v.qq.com/iframe/player
-  const txVidMatch = url.match(/v\.qq\.com\/.*?vid=([^&/?#]+)/);
-  if (txVidMatch) {
-    return `https://v.qq.com/iframe/player.html?vid=${txVidMatch[1]}&width=100%&height=100%&autoplay=0`;
-  }
-  // 腾讯视频 cover 格式: /x/cover/{vid}.html
-  const txCoverMatch = url.match(/v\.qq\.com\/x\/cover\/([^/.?#]+)/);
-  if (txCoverMatch) {
-    return `https://v.qq.com/iframe/player.html?vid=${txCoverMatch[1]}&width=100%&height=100%&autoplay=0`;
-  }
-
-  // 芒果 TV: /b/{bid}/{cid}.html → player.mgtv.com iframe play
-  const mgMatch = url.match(/mgtv\.com\/b\/(\d+)\/(\d+)/);
-  if (mgMatch) return `https://player.mgtv.com/mgtv-iframe-play/?bid=${mgMatch[1]}&cid=${mgMatch[2]}`;
-
-  // 芒果 TV 短格式: /b/{bid}/
-  const mgBidMatch = url.match(/mgtv\.com\/b\/(\d+)/);
-  if (mgBidMatch) return `https://player.mgtv.com/mgtv-iframe-play/?bid=${mgBidMatch[1]}`;
-
-  // 虎牙直播
-  const hyMatch = url.match(/huya\.com\/(\w+)/);
-  if (hyMatch) return `https://live.huya.com/l/${hyMatch[1]}`;
-
-  // 网易云音乐
-  const wyMatch = url.match(/music\.163\.com\/song\?id=(\d+)/);
-  if (wyMatch) return `https://music.163.com/outchain/player?id=${wyMatch[1]}&type=0&height=90`;
-
-  return null;
-}
-
-/** 检测 source URL 是否来自禁止 iframe 的平台 */
-function isIframeBlocked(url: string): boolean {
-  if (!url) return true;
-  return /douyin\.com/i.test(url);
+interface StreamInfo {
+  name: string;
+  quality: string;
+  resolution: string;
+  url: string;
+  needPay: boolean;
+  format: string;
 }
 
 interface Props {
   src?: string;
-  /** 外部平台视频页 URL（如 https://www.bilibili.com/video/BVxxx ） */
-  sourceUrl?: string;
+  /** 芒果 TV 视频页 URL（如 https://www.mgtv.com/b/512201/19551235.html ）*/
+  mgtvUrl?: string;
   poster?: string;
   initialDuration?: number;
   onEnded?: () => void;
@@ -81,22 +42,152 @@ function fmt(s: number) {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
-export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false }: Props) {
+/** 从芒果 TV URL 提取 bid 和 cid */
+function parseMgtvUrl(url: string): { bid: string; cid: string } | null {
+  const match = url.match(/mgtv\.com\/b\/(\d+)\/(\d+)/);
+  if (match) return { bid: match[1], cid: match[2] };
+  const bidMatch = url.match(/mgtv\.com\/b\/(\d+)/);
+  if (bidMatch) return { bid: bidMatch[1], cid: '' };
+  return null;
+}
+
+export default function VideoPlayer({ src, mgtvUrl, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<any>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(initialDuration);
   const [volume, setVolume] = useState(80);
   const [muted, setMuted] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [streamError, setStreamError] = useState<string | null>(null);
+  const [streams, setStreams] = useState<StreamInfo[]>([]);
+  const [currentStream, setCurrentStream] = useState<number>(0);
 
-  // 优先用 sourceUrl iframe 嵌入播放；无 sourceUrl 则用直接 src
-  const embedUrl = sourceUrl ? toEmbedUrl(sourceUrl) : null;
-  const iframeMode = !!embedUrl && !src;
-  const iframeBlocked = sourceUrl && isIframeBlocked(sourceUrl);
-
+  // 加载芒果 TV 流
   useEffect(() => {
-    if (autoPlay && videoRef.current) {
+    if (!mgtvUrl) return;
+
+    const parsed = parseMgtvUrl(mgtvUrl);
+    if (!parsed) return;
+
+    setLoading(true);
+    setStreamError(null);
+    setStreams([]);
+
+    const { bid, cid } = parsed;
+
+    // 如果没有 cid，先获取视频详情
+    if (!cid) {
+      // 尝试从 page 获取 cid
+      fetch(`https://www.mgtv.com/b/${bid}/info.html`)
+        .then(r => r.text())
+        .then(html => {
+          const cidMatch = html.match(/\"cid\":\s*(\d+)/);
+          if (cidMatch) {
+            loadStream(bid, cidMatch[1]);
+          } else {
+            setStreamError('无法获取视频信息');
+            setLoading(false);
+          }
+        })
+        .catch(() => {
+          setStreamError('网络请求失败');
+          setLoading(false);
+        });
+    } else {
+      loadStream(bid, cid);
+    }
+  }, [mgtvUrl]);
+
+  const loadStream = async (bid: string, cid: string) => {
+    try {
+      const resp = await fetch(`/api/mgtv-stream?bid=${bid}&cid=${cid}`);
+      const data = await resp.json();
+
+      if (data.code === 0 && data.data?.streams?.length > 0) {
+        setStreams(data.data.streams);
+        setCurrentStream(0);
+        playStream(data.data.streams[0].url);
+      } else {
+        setStreamError(data.msg || '无法解析视频流');
+      }
+    } catch (e) {
+      setStreamError('解析失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const playStream = (url: string) => {
+    if (!videoRef.current) return;
+
+    // 清理旧的 HLS 实例
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    // 动态导入 hls.js
+    import('hls.js').then(({ default: Hls }) => {
+      if (!videoRef.current) return;
+
+      if (Hls.isSupported()) {
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: false,
+        });
+
+        hlsRef.current = hls;
+
+        hls.loadSource(url);
+        hls.attachMedia(videoRef.current);
+
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          if (autoPlay) {
+            videoRef.current?.play().catch(() => {});
+          }
+          setPlaying(!!videoRef.current && !videoRef.current.paused);
+        });
+
+        hls.on(Hls.Events.ERROR, (event: any, data: any) => {
+          if (data.fatal) {
+            console.error('HLS fatal error:', data);
+            setStreamError('播放失败，请尝试切换清晰度');
+          }
+        });
+      } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+        // Safari 原生支持 HLS
+        videoRef.current.src = url;
+        if (autoPlay) {
+          videoRef.current.play().catch(() => {});
+        }
+      } else {
+        setStreamError('当前浏览器不支持 HLS 播放');
+      }
+    });
+  };
+
+  // 切换清晰度
+  const switchStream = (index: number) => {
+    if (!streams[index]) return;
+    setCurrentStream(index);
+    playStream(streams[index].url);
+  };
+
+  // 清理
+  useEffect(() => {
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+      }
+    };
+  }, []);
+
+  // 自动播放
+  useEffect(() => {
+    if (autoPlay && videoRef.current && src) {
       videoRef.current.play().catch(() => {});
     }
   }, [autoPlay, src]);
@@ -153,6 +244,8 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
     }
   };
 
+  const hasVideo = src || streams.length > 0;
+
   return (
     <Box
       onMouseMove={() => setControlsVisible(true)}
@@ -166,30 +259,61 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
         '&:hover .controls': { opacity: 1 },
       }}
     >
-      {/* iframe 嵌入模式:sourceUrl 有可嵌入播放器时使用 */}
-      {iframeMode ? (
-        <iframe
-          src={embedUrl!}
-          allowFullScreen
-          allow="autoplay; fullscreen"
-          style={{ width: '100%', height: '100%', border: 'none' }}
-          title="视频播放器"
-        />
-      ) : src ? (
-        <video
-          ref={videoRef}
-          src={src}
-          poster={poster}
-          onTimeUpdate={handleTimeUpdate}
-          onLoadedMetadata={handleLoaded}
-          onPlay={() => setPlaying(true)}
-          onPause={() => setPlaying(false)}
-          onEnded={() => {
-            setPlaying(false);
-            onEnded?.();
-          }}
-          style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }}
-        />
+      {/* 视频元素（HLS 或直接源） */}
+      {hasVideo ? (
+        <>
+          <video
+            ref={videoRef}
+            src={src || undefined}
+            poster={poster}
+            onTimeUpdate={handleTimeUpdate}
+            onLoadedMetadata={handleLoaded}
+            onPlay={() => setPlaying(true)}
+            onPause={() => setPlaying(false)}
+            onEnded={() => {
+              setPlaying(false);
+              onEnded?.();
+            }}
+            style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }}
+          />
+
+          {/* 清晰度选择器 */}
+          {streams.length > 1 && (
+            <Box
+              className="quality-selector"
+              sx={{
+                position: 'absolute',
+                top: 10,
+                right: 10,
+                zIndex: 10,
+              }}
+            >
+              <Box
+                component="select"
+                value={currentStream}
+                onChange={(e: any) => switchStream(parseInt(e.target.value))}
+                sx={{
+                  bgcolor: 'rgba(0,0,0,0.7)',
+                  color: '#fff',
+                  border: '1px solid rgba(255,255,255,0.3)',
+                  borderRadius: 1,
+                  px: 1,
+                  py: 0.5,
+                  fontSize: 12,
+                  cursor: 'pointer',
+                  outline: 'none',
+                  '& option': { bgcolor: '#333' },
+                }}
+              >
+                {streams.map((s, i) => (
+                  <option key={i} value={i}>
+                    {s.quality} {s.needPay ? '🔒' : ''}
+                  </option>
+                ))}
+              </Box>
+            </Box>
+          )}
+        </>
       ) : (
         <Box
           sx={{
@@ -205,14 +329,39 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
             gap: 2,
           }}
         >
-          {/* iframe 被平台禁止时:显示封面 + 跳转按钮 */}
-          {iframeBlocked ? (
-            <Box sx={{ textAlign: 'center' }}>
+          {loading ? (
+            <CircularProgress sx={{ color: '#fff' }} />
+          ) : streamError ? (
+            <Box sx={{ textAlign: 'center', color: 'rgba(255,255,255,0.7)', p: 2 }}>
+              <Box sx={{ fontSize: 14, mb: 1 }}>{streamError}</Box>
+              {streams.length > 0 && (
+                <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  {streams.map((s, i) => (
+                    <Box
+                      key={i}
+                      component="button"
+                      onClick={() => switchStream(i)}
+                      sx={{
+                        bgcolor: 'rgba(255,255,255,0.1)',
+                        border: '1px solid rgba(255,255,255,0.3)',
+                        borderRadius: 1,
+                        color: '#fff',
+                        px: 2,
+                        py: 0.5,
+                        cursor: 'pointer',
+                        fontSize: 12,
+                      }}
+                    >
+                      {s.quality}
+                    </Box>
+                  ))}
+                </Box>
+              )}
+            </Box>
+          ) : (
+            !playing && (
               <IconButton
-                component="a"
-                href={sourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+                onClick={togglePlay}
                 sx={{
                   bgcolor: 'rgba(254, 44, 85, 0.9)',
                   color: '#fff',
@@ -221,34 +370,18 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
                   height: 80,
                 }}
               >
-                <OpenInNewIcon sx={{ fontSize: 36 }} />
+                <PlayArrowIcon sx={{ fontSize: 48 }} />
               </IconButton>
-              <Box sx={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, mt: 1 }}>
-                跳转到平台播放
-              </Box>
-            </Box>
-          ) : !playing ? (
-            <IconButton
-              onClick={togglePlay}
-              sx={{
-                bgcolor: 'rgba(254, 44, 85, 0.9)',
-                color: 'text.primary',
-                '&:hover': { bgcolor: 'primary.main' },
-                width: 80,
-                height: 80,
-              }}
-            >
-              <PlayArrowIcon sx={{ fontSize: 48 }} />
-            </IconButton>
-          ) : null}
+            )
+          )}
         </Box>
       )}
 
-      {/* AIGC 合规角标:视频左上角,只在 isAIGenerated=true 时出现 */}
+      {/* AIGC 合规角标 */}
       {isAIGenerated && <AIGCBadge variant="overlay" top={10} left={10} label="AI 生成视频" />}
 
-      {/* 中心播放按钮 (视频模式,暂停时显示;iframe 模式由外部播放器控制) */}
-      {src && !playing && !iframeMode && (
+      {/* 中心播放按钮 */}
+      {hasVideo && !playing && (
         <Box
           onClick={togglePlay}
           sx={{
@@ -274,13 +407,13 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
               boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
             }}
           >
-            <PlayArrowIcon sx={{ fontSize: 44, color: 'text.primary' }} />
+            <PlayArrowIcon sx={{ fontSize: 44, color: '#fff' }} />
           </Box>
         </Box>
       )}
 
-      {/* 控制条 (iframe 模式由外部播放器控制,不显示) */}
-      {src && !iframeMode && (
+      {/* 控制条 */}
+      {hasVideo && (
         <Box
           className="controls"
           sx={{
@@ -297,34 +430,34 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
           <Slider
             size="small"
             value={currentTime}
-            max={duration}
+            max={duration || 100}
             onChange={handleSeek}
-            sx={{ color: 'primary.main', mb: 1, py: 0.5 }}
+            sx={{ color: '#FE2C55', mb: 1, py: 0.5 }}
           />
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: 'text.primary' }}>
-            <IconButton onClick={togglePlay} size="small" sx={{ color: 'text.primary' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#fff' }}>
+            <IconButton onClick={togglePlay} size="small" sx={{ color: '#fff' }}>
               {playing ? <PauseIcon /> : <PlayArrowIcon />}
             </IconButton>
-            <IconButton onClick={() => seek(-10)} size="small" sx={{ color: 'text.primary' }}>
+            <IconButton onClick={() => seek(-10)} size="small" sx={{ color: '#fff' }}>
               <Replay10Icon fontSize="small" />
             </IconButton>
-            <IconButton onClick={() => seek(10)} size="small" sx={{ color: 'text.primary' }}>
+            <IconButton onClick={() => seek(10)} size="small" sx={{ color: '#fff' }}>
               <Forward10Icon fontSize="small" />
             </IconButton>
             <Box sx={{ fontSize: 12, minWidth: 80 }}>
               {fmt(currentTime)} / {fmt(duration)}
             </Box>
             <Box sx={{ flex: 1 }} />
-            <IconButton onClick={() => setMuted((m) => !m)} size="small" sx={{ color: 'text.primary' }}>
+            <IconButton onClick={() => setMuted((m) => !m)} size="small" sx={{ color: '#fff' }}>
               {muted ? <VolumeOffIcon fontSize="small" /> : <VolumeUpIcon fontSize="small" />}
             </IconButton>
             <Slider
               size="small"
               value={muted ? 0 : volume}
               onChange={handleVolume}
-              sx={{ color: 'primary.main', width: 80, mx: 1 }}
+              sx={{ color: '#FE2C55', width: 80, mx: 1 }}
             />
-            <IconButton onClick={goFullscreen} size="small" sx={{ color: 'text.primary' }}>
+            <IconButton onClick={goFullscreen} size="small" sx={{ color: '#fff' }}>
               <FullscreenIcon fontSize="small" />
             </IconButton>
           </Box>
