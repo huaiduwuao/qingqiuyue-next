@@ -167,7 +167,7 @@ function VideoDetailContent() {
               <Container maxWidth="lg" sx={{ py: 0 }}>
                 <VideoPlayer
                   src={data.videoUrl || ''}
-                  mgtvUrl={data.source || ''}
+                  sourceUrl={data.source || ''}
                   poster={data.cover}
                   initialDuration={data.duration}
                   autoPlay={false}

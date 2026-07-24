@@ -15,7 +15,6 @@ import CircularProgress from '@mui/material/CircularProgress';
 import AIGCBadge from '@/components/AIGCBadge';
 
 interface StreamInfo {
-  name: string;
   quality: string;
   resolution: string;
   url: string;
@@ -24,9 +23,10 @@ interface StreamInfo {
 }
 
 interface Props {
+  /** 直接的视频文件 URL（优先级最高） */
   src?: string;
-  /** 芒果 TV 视频页 URL（如 https://www.mgtv.com/b/512201/19551235.html ）*/
-  mgtvUrl?: string;
+  /** 外部平台视频页 URL，自动匹配解析器获取 m3u8 */
+  sourceUrl?: string;
   poster?: string;
   initialDuration?: number;
   onEnded?: () => void;
@@ -42,16 +42,7 @@ function fmt(s: number) {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
-/** 从芒果 TV URL 提取 bid 和 cid */
-function parseMgtvUrl(url: string): { bid: string; cid: string } | null {
-  const match = url.match(/mgtv\.com\/b\/(\d+)\/(\d+)/);
-  if (match) return { bid: match[1], cid: match[2] };
-  const bidMatch = url.match(/mgtv\.com\/b\/(\d+)/);
-  if (bidMatch) return { bid: bidMatch[1], cid: '' };
-  return null;
-}
-
-export default function VideoPlayer({ src, mgtvUrl, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false }: Props) {
+export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<any>(null);
   const [playing, setPlaying] = useState(false);
@@ -63,62 +54,36 @@ export default function VideoPlayer({ src, mgtvUrl, poster, initialDuration = 60
   const [loading, setLoading] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
   const [streams, setStreams] = useState<StreamInfo[]>([]);
-  const [currentStream, setCurrentStream] = useState<number>(0);
+  const [currentStream, setCurrentStream] = useState(0);
+  const [platformName, setPlatformName] = useState<string>('');
 
-  // 加载芒果 TV 流
+  // 加载外部平台流（通过通用 API 解析）
   useEffect(() => {
-    if (!mgtvUrl) return;
-
-    const parsed = parseMgtvUrl(mgtvUrl);
-    if (!parsed) return;
+    if (!sourceUrl || src) return;
 
     setLoading(true);
     setStreamError(null);
     setStreams([]);
+    setPlatformName('');
 
-    const { bid, cid } = parsed;
-
-    // 如果没有 cid，先获取视频详情
-    if (!cid) {
-      // 尝试从 page 获取 cid
-      fetch(`https://www.mgtv.com/b/${bid}/info.html`)
-        .then(r => r.text())
-        .then(html => {
-          const cidMatch = html.match(/\"cid\":\s*(\d+)/);
-          if (cidMatch) {
-            loadStream(bid, cidMatch[1]);
-          } else {
-            setStreamError('无法获取视频信息');
-            setLoading(false);
-          }
-        })
-        .catch(() => {
-          setStreamError('网络请求失败');
-          setLoading(false);
-        });
-    } else {
-      loadStream(bid, cid);
-    }
-  }, [mgtvUrl]);
-
-  const loadStream = async (bid: string, cid: string) => {
-    try {
-      const resp = await fetch(`/api/mgtv-stream?bid=${bid}&cid=${cid}`);
-      const data = await resp.json();
-
-      if (data.code === 0 && data.data?.streams?.length > 0) {
-        setStreams(data.data.streams);
-        setCurrentStream(0);
-        playStream(data.data.streams[0].url);
-      } else {
-        setStreamError(data.msg || '无法解析视频流');
-      }
-    } catch (e) {
-      setStreamError('解析失败');
-    } finally {
-      setLoading(false);
-    }
-  };
+    fetch(`/api/stream?url=${encodeURIComponent(sourceUrl)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.code === 0 && data.data?.streams?.length > 0) {
+          setStreams(data.data.streams);
+          setPlatformName(data.data.platformName || data.data.platform || '');
+          setCurrentStream(0);
+          playStream(data.data.streams[0].url);
+        } else {
+          setStreamError(data.msg || '无法解析视频流');
+        }
+      })
+      .catch(e => {
+        console.error('Stream parse error:', e);
+        setStreamError('解析失败');
+      })
+      .finally(() => setLoading(false));
+  }, [sourceUrl, src]);
 
   const playStream = (url: string) => {
     if (!videoRef.current) return;
@@ -357,6 +322,10 @@ export default function VideoPlayer({ src, mgtvUrl, poster, initialDuration = 60
                   ))}
                 </Box>
               )}
+            </Box>
+          ) : platformName ? (
+            <Box sx={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>
+              正在解析 {platformName} 视频流...
             </Box>
           ) : (
             !playing && (

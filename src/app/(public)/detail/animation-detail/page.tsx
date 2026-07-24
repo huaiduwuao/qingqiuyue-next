@@ -187,7 +187,7 @@ function AnimationDetailContent() {
           <>
             <Box sx={{ bgcolor: '#000' }}>
               <Container maxWidth="lg" sx={{ py: 0 }}>
-                <VideoPlayer src={videoSrc} mgtvUrl={data.source || ''} poster={data.cover} initialDuration={24 * 60} autoPlay={false} />
+                <VideoPlayer src={videoSrc} sourceUrl={data.source || ''} poster={data.cover} initialDuration={24 * 60} autoPlay={false} />
               </Container>
             </Box>
 
