@@ -101,9 +101,13 @@ export default function FloatingDigitalHuman() {
   const [availableAgents, setAvailableAgents] = React.useState<HermesAgentItem[]>([]);
 
   React.useEffect(() => {
-    fetch('/api/agentmanager/agents')
+    // StrictMode/依赖变化都可能重跑,加 cancelled + AbortController 避免 stale state 与未取消请求。
+    const controller = new AbortController();
+    let cancelled = false;
+    fetch('/api/agentmanager/agents', { signal: controller.signal })
       .then((r) => r.json())
       .then((data) => {
+        if (cancelled) return;
         const agents = (data.agents || []).map((a: AgentPayload) => ({
           agentId: a.agentId,
           name: a.name,
@@ -114,7 +118,14 @@ export default function FloatingDigitalHuman() {
           setActiveAgent(agents[0].agentId);
         }
       })
-      .catch((e) => console.error('[FloatingDigitalHuman] 加载 agents 失败:', e));
+      .catch((e) => {
+        if (cancelled || e?.name === 'AbortError') return;
+        console.error('[FloatingDigitalHuman] 加载 agents 失败:', e);
+      });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
   }, [activeAgentId, setActiveAgent]);
 
   const chat = useChatAvatarWS(activeAgentId || 'digital_human', {
