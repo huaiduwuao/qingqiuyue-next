@@ -11,7 +11,15 @@ function currentUserId(): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** 检查用户是否已登录 */
+function isLoggedIn(): boolean {
+  if (typeof window === 'undefined') return false;
+  return !!(localStorage.getItem('token') || localStorage.getItem('session_id'));
+}
+
 export function track(itemId: number | string, action: string, itemType = 'NOVEL', duration = 0) {
+  // 未登录不发送埋点（隐私保护）
+  if (!isLoggedIn()) return;
   const id = Number(itemId);
   if (!id) return;
   try {
@@ -50,6 +58,7 @@ export function useWatchDuration(contentId: number | string, itemType = 'NOVEL')
 // 观看历史:写 Doris user_content_collect(type=history),供 /me 历史 tab 读取。
 // fire-and-forget,失败静默(未登录后端返 FailWithMsg,前端拦截器 reject 被这里吞掉)。
 export function recordHistory(contentId: number | string) {
+  if (!isLoggedIn()) return; // 未登录不记录历史
   const id = Number(contentId);
   if (!id) return;
   try {
@@ -62,6 +71,7 @@ export function recordHistory(contentId: number | string) {
 // trackPageView 上报页面曝光埋点(统计 PV/UV)。
 // 在 layout 或页面组件 mount 时调用,fire-and-forget.
 export function trackPageView(pathname: string, search = '') {
+  if (!isLoggedIn()) return; // 未登录不发送埋点
   const uid = currentUserId();
   const page = search ? `${pathname}${search}` : pathname;
   try {

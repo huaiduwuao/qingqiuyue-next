@@ -21,19 +21,6 @@ interface StreamParser {
   priority: number;
 }
 
-interface ParsedConfig {
-  headers: Record<string, string>;
-  params: Record<string, string>;
-  extractors: {
-    streamsExpr: string;
-    urlPath: string;
-    qualityPath: string;
-    resPath?: string;
-    needpayPath?: string;
-    domainPath?: string;
-  };
-}
-
 /**
  * 获取解析器配置（带缓存）
  */
@@ -44,7 +31,6 @@ async function getParsers(): Promise<StreamParser[]> {
   }
 
   try {
-    // 通过 content-api 后端查询配置
     const resp = await fetch('http://10.9.1.2:8080/api/content/stream-parser/list', {
       headers: { 'Content-Type': 'application/json' },
     });
@@ -58,17 +44,18 @@ async function getParsers(): Promise<StreamParser[]> {
     console.error('Failed to fetch parsers from backend:', e);
   }
 
-  // Fallback: 返回内置默认配置
   return getDefaultParsers();
 }
 
+// 使用模板字符串避免正则转义问题
 function getDefaultParsers(): StreamParser[] {
   return [
     {
       id: 1,
       name: '芒果TV',
       platform: 'mgtv',
-      url_pattern: 'mgtv\\.com/b/(\\d+)/(\\d+)',
+      // 模板字符串中 \d 就是字面量 \d，正则引擎会解释为数字
+      url_pattern: String.raw`(mgtv\.com|www\.mgtv\.com)/b/(\d+)/(\d+)`,
       api_endpoint: 'https://pcweb.api.mgtv.com/video/streamList',
       method: 'GET',
       headers: JSON.stringify({
@@ -80,7 +67,6 @@ function getDefaultParsers(): StreamParser[] {
         'playType': '1',
         'auth_mode': '1',
         'definitionType': '2',
-        'definition': '2',
         'video_id': '$2',
         'did': '$random32',
         'suuid': '$random36',
@@ -108,7 +94,7 @@ function getDefaultParsers(): StreamParser[] {
       id: 2,
       name: 'B站',
       platform: 'bilibili',
-      url_pattern: 'bilibili\\.com/video/(BV[\\w]+|av\\d+)',
+      url_pattern: String.raw`(bilibili\.com|www\.bilibili\.com)/video/(BV[\w]+|av\d+)`,
       api_endpoint: 'https://api.bilibili.com/x/player/playurl',
       method: 'GET',
       headers: JSON.stringify({
@@ -139,7 +125,7 @@ function getDefaultParsers(): StreamParser[] {
       id: 3,
       name: '腾讯视频',
       platform: 'qq',
-      url_pattern: 'v\\.qq\\.com.*?vid=([^&]+)',
+      url_pattern: String.raw`(v\.qq\.com|www\.v\.qq\.com).*?vid=([^&]+)`,
       api_endpoint: 'https://vd.l.qq.com/proxyhttp',
       method: 'POST',
       headers: JSON.stringify({
@@ -162,7 +148,7 @@ function getDefaultParsers(): StreamParser[] {
       id: 4,
       name: '网易云音乐',
       platform: 'music163',
-      url_pattern: 'music\\.163\\.com/song\\?id=(\\d+)',
+      url_pattern: String.raw`(music\.163\.com|www\.music\.163\.com)/song\?id=(\d+)`,
       api_endpoint: 'https://music.163.com/api/song/enhance/play/url',
       method: 'GET',
       headers: JSON.stringify({
@@ -184,7 +170,7 @@ function getDefaultParsers(): StreamParser[] {
       id: 5,
       name: '虎牙直播',
       platform: 'huya',
-      url_pattern: 'huya\\.com/(\\w+)',
+      url_pattern: String.raw`(huya\.com|www\.huya\.com)/(\w+)`,
       api_endpoint: 'https://www.huya.com/live-share/live-detail',
       method: 'GET',
       headers: JSON.stringify({
@@ -206,20 +192,38 @@ function getDefaultParsers(): StreamParser[] {
 }
 
 /**
- * 匹配 URL 对应的解析器
+ * 生成随机 ID
  */
-function matchParser(parsers: StreamParser[], url: string): StreamParser | null {
-  for (const parser of parsers) {
-    try {
-      const regex = new RegExp(parser.url_pattern);
-      if (regex.test(url)) {
-        return parser;
+function generateRandomId(length: number): string {
+  const chars = '0123456789abcdef';
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return result;
+}
+
+/**
+ * 获取嵌套属性值
+ */
+function getNestedValue(obj: any, path: string): any {
+  if (!path || !obj) return undefined;
+  const parts = path.split('.');
+  let result = obj;
+  for (const part of parts) {
+    if (result == null) return undefined;
+    // 处理数组索引如 items[0]
+    const indexMatch = part.match(/^(\w+)\[(\d+)\]$/);
+    if (indexMatch) {
+      result = result[indexMatch[1]];
+      if (Array.isArray(result)) {
+        result = result[parseInt(indexMatch[2])];
       }
-    } catch (e) {
-      console.error(`Invalid regex for parser ${parser.platform}:`, e);
+    } else {
+      result = result[part];
     }
   }
-  return null;
+  return result;
 }
 
 /**
@@ -227,38 +231,37 @@ function matchParser(parsers: StreamParser[], url: string): StreamParser | null 
  */
 function extractParams(parser: StreamParser, url: string): Record<string, string> {
   const params: Record<string, string> = {};
-  const regex = new RegExp(parser.url_pattern);
-  const matches = url.match(regex);
+  try {
+    const regex = new RegExp(parser.url_pattern);
+    const matches = url.match(regex);
+    if (!matches) return params;
 
-  if (!matches) return params;
-
-  const template = JSON.parse(parser.params_template);
-  for (const [key, value] of Object.entries(template)) {
-    let v = value as string;
-    if (typeof v === 'string') {
-      // 替换 $1, $2 等捕获组
-      for (let i = 1; i < matches.length; i++) {
-        v = v.replace(`$${i}`, matches[i] || '');
+    const template = JSON.parse(parser.params_template);
+    for (const [key, value] of Object.entries(template)) {
+      let v = value as string;
+      if (typeof v === 'string') {
+        // 替换 $1, $2 等捕获组
+        for (let i = 1; i < matches.length; i++) {
+          v = v.replace(`$${i}`, matches[i] || '');
+        }
+        // 替换特殊变量
+        v = v.replace('$random32', generateRandomId(32));
+        v = v.replace('$random36', generateRandomId(36));
+        // B站 bv/av
+        if (v === '$bv_or_av' && matches[1]) {
+          v = matches[1].startsWith('BV') ? matches[1] : matches[1].replace('av', '');
+        }
+        // 歌曲 ID
+        if (v === '$song_id' && matches[1]) v = matches[1];
+        // 房间 ID
+        if (v === '$room_id' && matches[1]) v = matches[1];
+        // 腾讯视频 vid
+        if (v === '$vid' && matches[1]) v = matches[1];
       }
-      // 替换特殊变量
-      v = v.replace('$random32', generateRandomId(32));
-      v = v.replace('$random36', generateRandomId(36));
-      // 提取 bv_or_av
-      if (v === '$bv_or_av' && matches[1]) {
-        v = matches[1].startsWith('BV') ? matches[1] : matches[1].replace('av', '');
-      }
-      // 歌曲 ID
-      if (v === '$song_id' && matches[1]) {
-        v = matches[1];
-      }
-      // 房间 ID
-      if (v === '$room_id' && matches[1]) {
-        v = matches[1];
-      }
+      if (v && v !== '') params[key] = v;
     }
-    if (v && v !== '') {
-      params[key] = v;
-    }
+  } catch (e) {
+    console.error('Extract params error:', e);
   }
   return params;
 }
@@ -270,16 +273,9 @@ function extractStreams(parser: StreamParser, apiResponse: any): any[] {
   try {
     const script = JSON.parse(parser.response_parse_script);
     const { streamsExpr, urlPath, qualityPath, resPath, needpayPath, domainPath } = script;
-
-    // 使用简单的路径表达式解析
     const data = apiResponse.data || apiResponse;
-    const streamsExprClean = streamsExpr.replace(/^data\./, '');
 
-    // 分割表达式
-    const parts = streamsExprClean.split('.');
     let items: any[] = [];
-
-    // 简单处理: data.stream.concat(data.stream_h265)
     if (streamsExpr.includes('concat')) {
       const concatMatch = streamsExpr.match(/data\.(\w+)\.concat\(data\.(\w+)\)/);
       if (concatMatch) {
@@ -296,65 +292,35 @@ function extractStreams(parser: StreamParser, apiResponse: any): any[] {
     const domain = domainPath ? getNestedValue(data, domainPath) : '';
 
     return items.map((item: any) => {
-      const url = getNestedValue(item, urlPath) || '';
+      // 芒果 TV: 优先从 disp.info 获取完整 m3u8 URL
+      let url = '';
+      const disp = item.disp || item.Disp || {};
+      const dispInfo = disp.info || disp.Info || disp.DISP_INFO || '';
+      if (dispInfo) {
+        url = dispInfo;
+      } else {
+        url = getNestedValue(item, urlPath) || '';
+        if (url && !url.startsWith('http') && domain) {
+          url = domain + url;
+        }
+      }
+
       const quality = getNestedValue(item, qualityPath) || '';
       const resolution = resPath ? getNestedValue(item, resPath) || '' : '';
       const needPay = needpayPath ? getNestedValue(item, needpayPath) : false;
 
-      // 构建完整 URL
-      let fullUrl = url;
-      if (url && !url.startsWith('http') && domain) {
-        fullUrl = domain + url;
-      }
-
       return {
         quality: quality || resolution,
         resolution: resolution,
-        url: fullUrl,
+        url: url,
         needPay: needPay === 1 || needPay === true,
         format: 'm3u8'
       };
-    }).filter((s: any) => s.url && s.url.length > 10);
+    }).filter((s: any) => s.url && (s.url.includes('.m3u8') || s.url.includes('m3u8?')));
   } catch (e) {
-    console.error('Parse streams error:', e);
+    console.error('Extract streams error:', e);
     return [];
   }
-}
-
-/**
- * 获取嵌套属性值
- */
-function getNestedValue(obj: any, path: string): any {
-  if (!path || !obj) return undefined;
-  const parts = path.split('.');
-
-  // 处理数组索引如 items[0]
-  const current = parts[0].replace(/\[\d+\]/, '');
-  const indexMatch = parts[0].match(/\[(\d+)\]/);
-  let result = obj[current];
-
-  if (indexMatch && Array.isArray(result)) {
-    result = result[parseInt(indexMatch[1])];
-  }
-
-  for (let i = 1; i < parts.length; i++) {
-    if (result == null) return undefined;
-    const part = parts[i].replace(/\[\d+\]/, '');
-    result = result[part];
-  }
-  return result;
-}
-
-/**
- * 生成随机 ID
- */
-function generateRandomId(length: number): string {
-  const chars = '0123456789abcdef';
-  let result = '';
-  for (let i = 0; i < length; i++) {
-    result += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return result;
 }
 
 /**
@@ -376,9 +342,24 @@ export async function GET(request: NextRequest) {
     // 获取解析器配置
     const parsers = await getParsers();
 
-    // 匹配解析器
-    const parser = matchParsers(parsers, url);
-    if (!parser) {
+    // 匹配解析器（按优先级排序）
+    const sortedParsers = [...parsers].sort((a, b) => a.priority - b.priority);
+    let matchedParser: StreamParser | null = null;
+    let urlWithoutProtocol = url.replace(/^https?:\/\//, '');
+
+    for (const parser of sortedParsers) {
+      try {
+        const regex = new RegExp(parser.url_pattern);
+        if (regex.test(urlWithoutProtocol) || regex.test(url)) {
+          matchedParser = parser;
+          break;
+        }
+      } catch (e) {
+        console.error(`Invalid regex for parser ${parser.platform}:`, e);
+      }
+    }
+
+    if (!matchedParser) {
       return NextResponse.json({
         code: 404,
         msg: '不支持的URL平台',
@@ -387,35 +368,40 @@ export async function GET(request: NextRequest) {
     }
 
     // 提取参数
-    const params = extractParamsFromParser(parser, url);
+    const params = extractParams(matchedParser, urlWithoutProtocol);
 
     // 调用平台 API
-    const headers = JSON.parse(parser.headers);
+    const headers = JSON.parse(matchedParser.headers);
     let apiResponse: any;
 
-    if (parser.method === 'POST') {
-      apiResponse = await fetch(parser.api_endpoint, {
+    console.log('[stream] Calling API:', matchedParser.api_endpoint);
+    console.log('[stream] Params:', params);
+
+    if (matchedParser.method === 'POST') {
+      apiResponse = await fetch(matchedParser.api_endpoint, {
         method: 'POST',
         headers,
         body: JSON.stringify(params)
       }).then(r => r.json());
     } else {
       const queryString = new URLSearchParams(params).toString();
-      const apiUrl = parser.api_endpoint.includes('?')
-        ? `${parser.api_endpoint}&${queryString}`
-        : `${parser.api_endpoint}?${queryString}`;
+      const apiUrl = matchedParser.api_endpoint.includes('?')
+        ? `${matchedParser.api_endpoint}&${queryString}`
+        : `${matchedParser.api_endpoint}?${queryString}`;
 
       apiResponse = await fetch(apiUrl, { headers }).then(r => r.json());
     }
 
     // 提取流
-    const streams = extractStreamsFromParser(parser, apiResponse);
+    console.log('[stream] API Response keys:', Object.keys(apiResponse).slice(0, 5));
+    const streams = extractStreams(matchedParser, apiResponse);
+    console.log('[stream] Extracted streams:', streams.length);
 
     if (streams.length === 0) {
       return NextResponse.json({
         code: 0,
         msg: '该视频可能需要VIP或无法解析',
-        data: { url, platform: parser.platform, streams: [] }
+        data: { url, platform: matchedParser.platform, streams: [] }
       });
     }
 
@@ -431,8 +417,8 @@ export async function GET(request: NextRequest) {
       msg: 'success',
       data: {
         url,
-        platform: parser.platform,
-        platformName: parser.name,
+        platform: matchedParser.platform,
+        platformName: matchedParser.name,
         streams,
         defaultStream: streams[0]
       }
@@ -444,97 +430,5 @@ export async function GET(request: NextRequest) {
       { code: 500, msg: `解析失败: ${error instanceof Error ? error.message : '未知错误'}` },
       { status: 500 }
     );
-  }
-}
-
-// 辅助函数
-function matchParsers(parsers: StreamParser[], url: string): StreamParser | null {
-  for (const parser of parsers.sort((a, b) => a.priority - b.priority)) {
-    try {
-      const regex = new RegExp(parser.url_pattern);
-      if (regex.test(url)) {
-        return parser;
-      }
-    } catch (e) {
-      // ignore
-    }
-  }
-  return null;
-}
-
-function extractParamsFromParser(parser: StreamParser, url: string): Record<string, string> {
-  const params: Record<string, string> = {};
-  try {
-    const regex = new RegExp(parser.url_pattern);
-    const matches = url.match(regex);
-    if (!matches) return params;
-
-    const template = JSON.parse(parser.params_template);
-    for (const [key, value] of Object.entries(template)) {
-      let v = value as string;
-      if (typeof v === 'string') {
-        for (let i = 1; i < matches.length; i++) {
-          v = v.replace(`$${i}`, matches[i] || '');
-        }
-        v = v.replace('$random32', generateRandomId(32));
-        v = v.replace('$random36', generateRandomId(36));
-        if (v === '$bv_or_av' && matches[1]) {
-          v = matches[1].startsWith('BV') ? matches[1] : matches[1].replace('av', '');
-        }
-        if (v === '$song_id' && matches[1]) v = matches[1];
-        if (v === '$room_id' && matches[1]) v = matches[1];
-      }
-      if (v && v !== '') params[key] = v;
-    }
-  } catch (e) {
-    console.error('Extract params error:', e);
-  }
-  return params;
-}
-
-function extractStreamsFromParser(parser: StreamParser, apiResponse: any): any[] {
-  try {
-    const script = JSON.parse(parser.response_parse_script);
-    const { streamsExpr, urlPath, qualityPath, resPath, needpayPath, domainPath } = script;
-    const data = apiResponse.data || apiResponse;
-
-    let items: any[] = [];
-    if (streamsExpr.includes('concat')) {
-      const concatMatch = streamsExpr.match(/data\.(\w+)\.concat\(data\.(\w+)\)/);
-      if (concatMatch) {
-        const arr1 = getNestedValue(data, concatMatch[1]) || [];
-        const arr2 = getNestedValue(data, concatMatch[2]) || [];
-        items = [...arr1, ...arr2];
-      }
-    } else {
-      items = getNestedValue(data, streamsExpr) || [];
-    }
-
-    if (!Array.isArray(items)) return [];
-
-    const domain = domainPath ? getNestedValue(data, domainPath) : '';
-
-    return items.map((item: any) => {
-      const url = getNestedValue(item, urlPath) || '';
-      const quality = getNestedValue(item, qualityPath) || '';
-      const resolution = resPath ? getNestedValue(item, resPath) || '' : '';
-      const needPay = needpayPath ? getNestedValue(item, needpayPath) : false;
-
-      let fullUrl = url;
-      if (url && !url.startsWith('http') && domain) {
-        fullUrl = domain + url;
-      }
-
-      return {
-        quality: quality || resolution,
-        resolution: resolution,
-        url: fullUrl,
-        needPay: needPay === 1 || needPay === true,
-        format: 'm3u8'
-      };
-    }).filter((s: any) => s.url && s.url.length > 10);
-  } catch (e) {
-    console.error('Extract streams error:', e);
-    return [];
   }
 }
