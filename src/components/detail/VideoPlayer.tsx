@@ -61,6 +61,9 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
   useEffect(() => {
     if (!sourceUrl || src) return;
 
+    // React StrictMode 下 effect 会跑两次,用 cancelled 标志避免重复请求/竞态
+    let cancelled = false;
+
     setLoading(true);
     setStreamError(null);
     setStreams([]);
@@ -69,6 +72,7 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
     fetch(`/api/stream?url=${encodeURIComponent(sourceUrl)}`)
       .then(r => r.json())
       .then(data => {
+        if (cancelled) return;
         if (data.code === 0 && data.data?.streams?.length > 0) {
           setStreams(data.data.streams);
           setPlatformName(data.data.platformName || data.data.platform || '');
@@ -79,14 +83,28 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
         }
       })
       .catch(e => {
+        if (cancelled) return;
         console.error('Stream parse error:', e);
         setStreamError('解析失败');
       })
-      .finally(() => setLoading(false));
+      .finally(() => { if (!cancelled) setLoading(false); });
+
+    return () => { cancelled = true; };
   }, [sourceUrl, src]);
+
+  // 外部平台流(m3u8)走同源代理,注入平台 Referer 绕过防盗链+CORS;
+  // 直链 src(同源/已签名)不代理。
+  const toPlayableUrl = (url: string) => {
+    if (!url) return url;
+    if (/^https?:\/\//i.test(url)) {
+      return `/api/proxy?url=${encodeURIComponent(url)}`;
+    }
+    return url;
+  };
 
   const playStream = (url: string) => {
     if (!videoRef.current) return;
+    const playUrl = toPlayableUrl(url);
 
     // 清理旧的 HLS 实例
     if (hlsRef.current) {
@@ -106,7 +124,7 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
 
         hlsRef.current = hls;
 
-        hls.loadSource(url);
+        hls.loadSource(playUrl);
         hls.attachMedia(videoRef.current);
 
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -124,7 +142,7 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
         });
       } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
         // Safari 原生支持 HLS
-        videoRef.current.src = url;
+        videoRef.current.src = playUrl;
         if (autoPlay) {
           videoRef.current.play().catch(() => {});
         }
@@ -164,8 +182,11 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
       return;
     }
     if (v.paused) {
-      v.play();
-      setPlaying(true);
+      v.play().then(() => setPlaying(true)).catch((e) => {
+        console.error('play() rejected:', e);
+        setStreamError('播放被浏览器拦截，请再点一次');
+        setPlaying(false);
+      });
     } else {
       v.pause();
       setPlaying(false);
