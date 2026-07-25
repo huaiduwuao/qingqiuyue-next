@@ -14,7 +14,11 @@ function currentUserId(): number {
 /** 检查用户是否已登录 */
 function isLoggedIn(): boolean {
   if (typeof window === 'undefined') return false;
-  return !!(localStorage.getItem('token') || localStorage.getItem('session_id'));
+  const hasToken = !!(localStorage.getItem('token') || localStorage.getItem('session_id'));
+  if (!hasToken) {
+    console.debug('[track] 未登录，跳过埋点');
+  }
+  return hasToken;
 }
 
 export function track(itemId: number | string, action: string, itemType = 'NOVEL', duration = 0) {
@@ -47,6 +51,7 @@ export function useWatchDuration(contentId: number | string, itemType = 'NOVEL')
   const id = Number(contentId);
 
   return () => {
+    if (!isLoggedIn()) return; // 未登录不记录
     const duration = Math.round((Date.now() - startTime) / 1000);
     if (id && duration > 5) {
       track(id, 'view', itemType, duration);
