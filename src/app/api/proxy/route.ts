@@ -73,7 +73,10 @@ export async function GET(request: NextRequest) {
 
   if (isM3u8) {
     const text = await resp.text();
-    const rewritten = rewriteM3u8(text, target);
+    // 必须用绝对 URL —— hls.js 会以 manifest URL 为 base 解析分片,
+    // 相对路径(/api/proxy?url=...)会导致 query 被错误解析成 base 的 query。
+    const origin = new URL(request.url).origin;
+    const rewritten = rewriteM3u8(text, target, origin);
     return new NextResponse(rewritten, {
       status: 200,
       headers: {
@@ -97,7 +100,7 @@ export async function GET(request: NextRequest) {
 }
 
 // 把 m3u8 里的分片/子播放列表地址改写成走代理的绝对地址
-function rewriteM3u8(text: string, baseUrl: string): string {
+function rewriteM3u8(text: string, baseUrl: string, origin: string): string {
   const base = new URL(baseUrl);
   const lines = text.split('\n');
   const out: string[] = [];
@@ -109,7 +112,7 @@ function rewriteM3u8(text: string, baseUrl: string): string {
     if (trimmed.startsWith('#') && trimmed.includes('URI="')) {
       out.push(line.replace(/URI="([^"]+)"/g, (_m, uri) => {
         const abs = resolveUrl(uri, base);
-        return `URI="${toProxy(abs)}"`;
+        return `URI="${toProxy(abs, origin)}"`;
       }));
       continue;
     }
@@ -122,7 +125,7 @@ function rewriteM3u8(text: string, baseUrl: string): string {
 
     // 分片或子播放列表地址行
     const abs = resolveUrl(trimmed, base);
-    out.push(toProxy(abs));
+    out.push(toProxy(abs, origin));
   }
   return out.join('\n');
 }
@@ -136,6 +139,6 @@ function resolveUrl(uri: string, base: URL): string {
   }
 }
 
-function toProxy(absUrl: string): string {
-  return `/api/proxy?url=${encodeURIComponent(absUrl)}`;
+function toProxy(absUrl: string, origin: string): string {
+  return `${origin}/api/proxy?url=${encodeURIComponent(absUrl)}`;
 }

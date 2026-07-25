@@ -61,15 +61,18 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
   useEffect(() => {
     if (!sourceUrl || src) return;
 
-    // React StrictMode 下 effect 会跑两次,用 cancelled 标志避免重复请求/竞态
+    // React StrictMode 下 effect 会跑两次,且 unmount 可能晚于异步回调;
+    // 用 AbortController 真正取消未完成的请求 + cancelled 标志避免 setState 写已 unmount 组件。
+    const controller = new AbortController();
     let cancelled = false;
+    const hlsLocal: { current: any } = { current: null };
 
     setLoading(true);
     setStreamError(null);
     setStreams([]);
     setPlatformName('');
 
-    fetch(`/api/stream?url=${encodeURIComponent(sourceUrl)}`)
+    fetch(`/api/stream?url=${encodeURIComponent(sourceUrl)}`, { signal: controller.signal })
       .then(r => r.json())
       .then(data => {
         if (cancelled) return;
@@ -77,19 +80,27 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
           setStreams(data.data.streams);
           setPlatformName(data.data.platformName || data.data.platform || '');
           setCurrentStream(0);
-          playStream(data.data.streams[0].url);
+          playStream(data.data.streams[0].url, hlsLocal);
         } else {
           setStreamError(data.msg || '无法解析视频流');
         }
       })
       .catch(e => {
-        if (cancelled) return;
+        if (cancelled || e?.name === 'AbortError') return;
         console.error('Stream parse error:', e);
         setStreamError('解析失败');
       })
       .finally(() => { if (!cancelled) setLoading(false); });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      controller.abort();
+      // 卸载时立即销毁 hls,防止 MANIFEST_PARSED 写已 unmount 组件
+      if (hlsLocal.current) {
+        try { hlsLocal.current.destroy(); } catch {}
+        hlsLocal.current = null;
+      }
+    };
   }, [sourceUrl, src]);
 
   // 外部平台流(m3u8)走同源代理,注入平台 Referer 绕过防盗链+CORS;
@@ -102,7 +113,7 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
     return url;
   };
 
-  const playStream = (url: string) => {
+  const playStream = (url: string, hlsBag?: { current: any }) => {
     if (!videoRef.current) return;
     const playUrl = toPlayableUrl(url);
 
@@ -123,18 +134,22 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
         });
 
         hlsRef.current = hls;
+        if (hlsBag) hlsBag.current = hls;
 
         hls.loadSource(playUrl);
         hls.attachMedia(videoRef.current);
 
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          // 关键守卫:卸载后回调不应再触发
+          if (!videoRef.current) return;
           if (autoPlay) {
-            videoRef.current?.play().catch(() => {});
+            videoRef.current.play().catch(() => {});
           }
-          setPlaying(!!videoRef.current && !videoRef.current.paused);
+          setPlaying(!videoRef.current.paused);
         });
 
-        hls.on(Hls.Events.ERROR, (event: any, data: any) => {
+        hls.on(Hls.Events.ERROR, (_event: any, data: any) => {
+          if (!videoRef.current) return;
           if (data.fatal) {
             console.error('HLS fatal error:', data);
             setStreamError('播放失败，请尝试切换清晰度');
