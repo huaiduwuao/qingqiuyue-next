@@ -65,7 +65,6 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
     // 用 AbortController 真正取消未完成的请求 + cancelled 标志避免 setState 写已 unmount 组件。
     const controller = new AbortController();
     let cancelled = false;
-    const hlsLocal: { current: any } = { current: null };
 
     setLoading(true);
     setStreamError(null);
@@ -80,7 +79,8 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
           setStreams(data.data.streams);
           setPlatformName(data.data.platformName || data.data.platform || '');
           setCurrentStream(0);
-          playStream(data.data.streams[0].url, hlsLocal);
+          // 注意:不直接调 playStream —— 此时 hasVideo=false, <video> 还没挂载。
+          // 播放由下面"streams/currentStream 变化"的 effect 启动。
         } else {
           setStreamError(data.msg || '无法解析视频流');
         }
@@ -95,11 +95,6 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
     return () => {
       cancelled = true;
       controller.abort();
-      // 卸载时立即销毁 hls,防止 MANIFEST_PARSED 写已 unmount 组件
-      if (hlsLocal.current) {
-        try { hlsLocal.current.destroy(); } catch {}
-        hlsLocal.current = null;
-      }
     };
   }, [sourceUrl, src]);
 
@@ -113,7 +108,7 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
     return url;
   };
 
-  const playStream = (url: string, hlsBag?: { current: any }) => {
+  const playStream = (url: string) => {
     if (!videoRef.current) return;
     const playUrl = toPlayableUrl(url);
 
@@ -134,7 +129,6 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
         });
 
         hlsRef.current = hls;
-        if (hlsBag) hlsBag.current = hls;
 
         hls.loadSource(playUrl);
         hls.attachMedia(videoRef.current);
@@ -187,6 +181,20 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
     setCurrentStream(index);
     playStream(streams[index].url);
   };
+
+  // streams 拿到后,异步请求解析完成时 <video> 还没渲染(videoRef.current = null);
+  // 等到 streams 变化触发重渲染后再启动播放。这里依赖 currentStream 保证清晰度切换也走这条路。
+  useEffect(() => {
+    const url = streams[currentStream]?.url;
+    if (!url) return;
+    // 等下一帧,确保 hasVideo=true 的分支已挂载 <video>
+    const raf = requestAnimationFrame(() => {
+      if (videoRef.current) {
+        playStream(url);
+      }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [streams, currentStream]);
 
   // 清理
   useEffect(() => {
