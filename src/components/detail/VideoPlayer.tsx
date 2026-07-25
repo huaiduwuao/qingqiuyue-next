@@ -151,8 +151,22 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
         hls.on(Hls.Events.ERROR, (_event: any, data: any) => {
           if (!videoRef.current) return;
           if (data.fatal) {
-            console.error('HLS fatal error:', data);
-            setStreamError('播放失败，请尝试切换清晰度');
+            console.error('[VideoPlayer] HLS fatal error:', {
+              type: data.type,
+              details: data.details,
+              err: data.error?.message || data.error,
+              url: data.context?.url,
+            });
+            const msg = data.details === 'manifestLoadError'
+              ? '清单加载失败（代理可能被防火墙拦截）'
+              : data.details === 'manifestParsingError'
+              ? '清单解析失败'
+              : data.details === 'levelLoadError'
+              ? '清晰度加载失败'
+              : data.details === 'fragmentLoadError'
+              ? `分片加载失败: ${data.context?.url || ''}`
+              : '播放失败，请尝试切换清晰度';
+            setStreamError(msg);
           }
         });
       } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
@@ -265,7 +279,9 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
         <>
           <video
             ref={videoRef}
-            src={src || undefined}
+            // 不设 src —— hls.js 通过 attachMedia(MediaSource API) 完全控制 video。
+            // 否则原生 src 会与 hls.js 冲突,hls.js 解析失败导致视频静止。
+            src={undefined}
             poster={poster}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoaded}
