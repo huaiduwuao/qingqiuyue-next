@@ -44,10 +44,11 @@ import { getDetailRoute } from '@/lib/contentRoute';
 import { TYPE_LABEL } from '@/lib/contentRoute';
 import { TYPE_GRADIENT } from '@/constants/gradients';
 import { track } from '@/lib/track';
+import VideoPlayer from '@/components/detail/VideoPlayer';
 
 interface VideoItem {
   id: number;
-  idString?: string; // 瀛楃涓插舰 id,閬垮厤 JS 2^53 绮剧‘搴︽崯澶?鍚庣 home/recommend 杩斿洖)
+  idString?: string; // 字符串形 id,避免 JS 2^53 精度损失,后端 home/recommend 返回)
   title: string;
   contentType: string;
   cover: string;
@@ -63,6 +64,7 @@ interface VideoItem {
   verified?: boolean;
   brand?: string;
   authorId?: number;
+  sourceUrl?: string; // 源页面 URL,供播放器解析真实视频流
 }
 
 function formatTime(sec?: number): string {
@@ -110,6 +112,10 @@ export function RecommendVideoFeed() {
   const [commentText, setCommentText] = useState('');
   const [commentSending, setCommentSending] = useState(false);
   const [moreDialogOpen, setMoreDialogOpen] = useState(false);
+  // 短视频播放状态:sourceUrl 解析出的视频地址
+  const [videoSrc, setVideoSrc] = useState<string>('');
+  const [streamLoading, setStreamLoading] = useState(false);
+  const [streamError, setStreamError] = useState<string>('');
 
   // 分页状态
   const PAGE_SIZE = 10;
@@ -148,6 +154,7 @@ export function RecommendVideoFeed() {
         caption: it.title || '',
         verified: false,
         brand: TYPE_LABEL[(it.category || 'NOVEL').toUpperCase()] || '推荐',
+        sourceUrl: it.sourceUrl || '',
       }));
       const hasMore = resp?.data?.hasMore ?? false;
       return { items, hasMore };
@@ -239,9 +246,26 @@ export function RecommendVideoFeed() {
     setPlaying(true);
     setLiked(false);
     setCollected(false);
+    setVideoSrc('');
+    setStreamError('');
     if (video) {
       setLikedCount(video.likes);
       setCollectedCount(video.collects);
+      // 有 sourceUrl 时解析真实视频流
+      if (video.sourceUrl) {
+        setStreamLoading(true);
+        fetch(`/api/stream?url=${encodeURIComponent(video.sourceUrl)}`)
+          .then(r => r.json())
+          .then(data => {
+            if (data.code === 0 && data.data?.streams?.length > 0) {
+              setVideoSrc(data.data.streams[0].url || '');
+            } else {
+              setStreamError(data.msg || '解析失败');
+            }
+          })
+          .catch(() => setStreamError('解析失败'))
+          .finally(() => setStreamLoading(false));
+      }
     }
   }, [index, video]);
 
@@ -571,7 +595,6 @@ export function RecommendVideoFeed() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                background: `url(${v.cover}) center/cover`,
                 '&::after': {
                   content: '""',
                   position: 'absolute',
@@ -582,6 +605,27 @@ export function RecommendVideoFeed() {
                 },
               }}
             >
+              {/* 视频播放器或封面 */}
+              {i === index && videoSrc ? (
+                <Box sx={{ position: 'absolute', inset: 0, zIndex: 1 }}>
+                  <VideoPlayer
+                    src={videoSrc}
+                    poster={v.cover}
+                    initialDuration={video?.durationSec || 60}
+                    autoPlay={playing}
+                    onEnded={() => setCurrentTime(0)}
+                  />
+                </Box>
+              ) : (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    background: `url(${v.cover}) center/cover`,
+                  }}
+                />
+              )}
+
               {i === index && (
                 <>
                   <Box
