@@ -108,7 +108,7 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
     return url;
   };
 
-  const playStream = (url: string) => {
+  const playStream = (url: string, format?: string) => {
     if (!videoRef.current) return;
     const playUrl = toPlayableUrl(url);
 
@@ -116,6 +116,16 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
     if (hlsRef.current) {
       hlsRef.current.destroy();
       hlsRef.current = null;
+    }
+
+    // mp4 直链走原生播放(抖音等),m3u8 走 hls.js
+    const isMp4 = /\.mp4(\?|$)/i.test(playUrl) || playUrl.includes('mime_type=video_mp4') || playUrl.includes('mime_type=video');
+    if (isMp4) {
+      videoRef.current.src = playUrl;
+      if (autoPlay) {
+        videoRef.current.play().catch(() => {});
+      }
+      return;
     }
 
     // 动态导入 hls.js
@@ -179,18 +189,18 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
   const switchStream = (index: number) => {
     if (!streams[index]) return;
     setCurrentStream(index);
-    playStream(streams[index].url);
+    playStream(streams[index].url, streams[index].format);
   };
 
   // streams 拿到后,异步请求解析完成时 <video> 还没渲染(videoRef.current = null);
   // 等到 streams 变化触发重渲染后再启动播放。这里依赖 currentStream 保证清晰度切换也走这条路。
   useEffect(() => {
-    const url = streams[currentStream]?.url;
-    if (!url) return;
+    const s = streams[currentStream];
+    if (!s) return;
     // 等下一帧,确保 hasVideo=true 的分支已挂载 <video>
     const raf = requestAnimationFrame(() => {
       if (videoRef.current) {
-        playStream(url);
+        playStream(s.url, s.format);
       }
     });
     return () => cancelAnimationFrame(raf);
