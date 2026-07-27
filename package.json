@@ -2,6 +2,9 @@
   "name": "qingqiuyue-next",
   "version": "0.1.0",
   "private": true,
+  "pnpm": {
+    "workspaces": []
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
