@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // 通用流解析入口:解析引擎已下沉到后端 content-api(配置驱动,Doris module_stream_parser)。
 // 本路由只做转发;后端不可用时降级用本地默认解析器跑同一套逻辑。
+export const dynamic = 'force-static';
 
 const BACKEND = process.env.CONTENT_API_BASE || 'http://10.9.1.2:8080';
 
