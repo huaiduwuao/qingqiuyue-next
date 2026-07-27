@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// 静态导出模式需要标记为动态路由
-export const dynamic = 'force-dynamic';
+// 静态导出模式: API 路由需要 force-static
+export const dynamic = 'force-static';
 
 interface MgtvStreamResponse {
   code: number;
