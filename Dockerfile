@@ -8,6 +8,8 @@ ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 # 设置国内镜像解决 corepack/pnpm 下载问题
 ENV COREPACK_NPM_REGISTRY=https://registry.npmmirror.com
 ENV HUSKY=0
+# 跳过 workspace 检测
+ENV PNPM_CONFIG_IGNORE_WORKSPACE=true
 RUN corepack enable && corepack prepare pnpm@9 --activate
 
 # 先复制 lockfile 和 package.json，只安装依赖（利用 Docker 缓存）
