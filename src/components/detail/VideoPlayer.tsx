@@ -13,6 +13,7 @@ import Replay10Icon from '@mui/icons-material/Replay10';
 import Forward10Icon from '@mui/icons-material/Forward10';
 import CircularProgress from '@mui/material/CircularProgress';
 import AIGCBadge from '@/components/AIGCBadge';
+import { parseStream } from '@/apis/stream';
 
 interface StreamInfo {
   quality: string;
@@ -71,16 +72,13 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
     setStreams([]);
     setPlatformName('');
 
-    fetch(`/api/stream?url=${encodeURIComponent(sourceUrl)}`, { signal: controller.signal })
-      .then(r => r.json())
+    parseStream(sourceUrl)
       .then(data => {
         if (cancelled) return;
         if (data.code === 0 && data.data?.streams?.length > 0) {
           setStreams(data.data.streams);
           setPlatformName(data.data.platformName || data.data.platform || '');
           setCurrentStream(0);
-          // 注意:不直接调 playStream —— 此时 hasVideo=false, <video> 还没挂载。
-          // 播放由下面"streams/currentStream 变化"的 effect 启动。
         } else {
           setStreamError(data.msg || '无法解析视频流');
         }
@@ -103,7 +101,7 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
   const toPlayableUrl = (url: string) => {
     if (!url) return url;
     if (/^https?:\/\//i.test(url)) {
-      return `/api/proxy?url=${encodeURIComponent(url)}`;
+      return url; // 直接返回,由 nginx 代理处理
     }
     return url;
   };

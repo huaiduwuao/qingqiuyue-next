@@ -39,6 +39,7 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { fetchRecommend } from '@/apis/home-discover';
 import { sendComment, moduleContentAction } from '@/apis/home';
 import { reportContent, collectContent } from '@/apis/global';
+import { parseStream } from '@/apis/stream';
 import { homeClient } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { TYPE_LABEL } from '@/lib/contentRoute';
@@ -254,8 +255,7 @@ export function RecommendVideoFeed() {
       // 有 sourceUrl 时解析真实视频流
       if (video.sourceUrl) {
         setStreamLoading(true);
-        fetch(`/api/stream?url=${encodeURIComponent(video.sourceUrl)}`)
-          .then(r => r.json())
+        parseStream(video.sourceUrl)
           .then(data => {
             if (data.code === 0 && data.data?.streams?.length > 0) {
               setVideoSrc(data.data.streams[0].url || '');
