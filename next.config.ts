@@ -6,6 +6,8 @@ import type { NextConfig } from "next";
 // 生产 output:'export' 时 rewrites 被忽略,仍由 nginx/APISIX 转发,互不影响。
 const isDev = process.env.NODE_ENV === "development";
 const API_PROXY_TARGET = process.env.API_PROXY_TARGET ?? "http://10.9.1.2:10005";
+// audio-gateway(ASR/TTS)独立代理:/api/audio/* 不走 agentmanager,走 8001
+const AUDIO_GATEWAY = process.env.AUDIO_GATEWAY_BASE_URL ?? "http://10.9.1.2:8001/v1";
 
 // 纯 CSR 模式:静态导出
 const nextConfig: NextConfig = {
@@ -14,6 +16,9 @@ const nextConfig: NextConfig = {
   ...(isDev && {
     async rewrites() {
       return [
+        // /api/audio/* → audio-gateway(去掉 /api 前缀,拼到 .../v1 下)
+        // 必须放在通用 /api 规则之前,rewrites 按顺序匹配
+        { source: "/api/audio/:path*", destination: `${AUDIO_GATEWAY}/audio/:path*` },
         { source: "/api/:path*", destination: `${API_PROXY_TARGET}/api/:path*` },
         // 注意:rewrites 不支持 WebSocket 升级,/ws 仅代理普通 HTTP 轮询请求
         { source: "/ws/:path*", destination: `${API_PROXY_TARGET}/ws/:path*` },
