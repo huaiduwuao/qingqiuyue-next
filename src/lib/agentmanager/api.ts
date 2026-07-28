@@ -264,6 +264,13 @@ class AgentManagerAPI {
     })
   }
 
+  async updateSkill(id: number, data: Partial<Skill>) {
+    return this.request<Skill>(`/skills/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
   async deleteSkill(id: number) {
     return this.request<{ message: string }>(`/skills/${id}`, { method: 'DELETE' })
   }
@@ -332,6 +339,17 @@ class AgentManagerAPI {
       method: 'PUT',
       body: JSON.stringify(data),
     })
+  }
+
+  async createAgent(data: Record<string, any>) {
+    return this.request<any>('/agents', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async deleteAgent(id: number) {
+    return this.request<{ message: string }>(`/agents/${id}`, { method: 'DELETE' })
   }
 }
 

@@ -30,9 +30,15 @@ import SandboxMonitor from './sandbox/SandboxMonitor'
 import AgentTerminal from './terminal/AgentTerminal'
 import SessionManager from './session/SessionManager'
 import WorkflowsOverview from './WorkflowsOverview'
+import dynamic from 'next/dynamic'
 import { useAuth } from '@/contexts/AuthContext'
 
-type Tab = 'dashboard' | 'instances' | 'agents' | 'sessions' | 'audit' | 'skills' | 'gateway' | 'kanban' | 'mcp' | 'sandbox' | 'terminal' | 'workflows'
+// 工作室组件(含 React Flow)客户端渲染
+const WorkflowStudio = dynamic(() => import('./studio/WorkflowStudio'), { ssr: false })
+const SkillStudio = dynamic(() => import('./studio/SkillStudio'), { ssr: false })
+const AgentStudio = dynamic(() => import('./studio/AgentStudio'), { ssr: false })
+
+type Tab = 'dashboard' | 'instances' | 'agents' | 'sessions' | 'audit' | 'skills' | 'gateway' | 'kanban' | 'mcp' | 'sandbox' | 'terminal' | 'workflows' | 'workflow-studio' | 'skill-studio' | 'agent-studio'
 
 export default function AgentManagerConsole() {
   const { sessionId: token, isAuthenticated } = useAuth()
@@ -150,7 +156,10 @@ export default function AgentManagerConsole() {
     { key: 'mcp', label: '🔌 MCP' },
     { key: 'sandbox', label: '🐳 沙盒' },
     { key: 'terminal', label: '🖥️ 终端' },
-    { key: 'workflows', label: '🔀 工作流' },
+    { key: 'agent-studio', label: '🤖 Agent 工作室' },
+    { key: 'skill-studio', label: '⚡ 技能工作室' },
+    { key: 'workflow-studio', label: '🔀 工作流工作室' },
+    { key: 'workflows', label: '📑 工作流总览' },
   ]
 
   return (
@@ -611,6 +620,11 @@ export default function AgentManagerConsole() {
             <WorkflowsOverview />
           </Box>
         )}
+
+        {/* 工作室:左聊天 + 右画布,增删改查 */}
+        {activeTab === 'agent-studio' && <AgentStudio />}
+        {activeTab === 'skill-studio' && <SkillStudio />}
+        {activeTab === 'workflow-studio' && <WorkflowStudio />}
       </Box>
     </Box>
   )

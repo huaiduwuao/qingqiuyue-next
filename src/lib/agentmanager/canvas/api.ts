@@ -88,6 +88,12 @@ export const canvasAPI = {
       body: JSON.stringify(data),
     }),
 
+  updateWorkflow: (agentId: number, workflowId: number, data: { name?: string; description?: string; workflow_json?: string; workflow_type?: string; status?: string }) =>
+    request<AgentWorkflowInfo>(`/canvas/${agentId}/workflows/${workflowId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
   deleteWorkflow: (agentId: number, workflowId: number) =>
     request(`/canvas/${agentId}/workflows/${workflowId}`, { method: 'DELETE' }),
 
