@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // m3u8 文本内的相对分片路径会被重写成代理地址,保证整条链路都走同源。
 
 export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+export const dynamic = 'force-static';
 
 // 平台域 → 需要的 Referer
 const REFERER_MAP: Array<[RegExp, string]> = [
