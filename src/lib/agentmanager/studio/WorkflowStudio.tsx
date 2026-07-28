@@ -114,14 +114,22 @@ export default function WorkflowStudio({ editingId = null }: { editingId?: numbe
     setDirty(false)
   }
 
-  // 对话生成:只灌草稿,不落库
+  // 对话生成/修改:把当前画布草稿一并传给 LLM,让它基于现有画布按指令修改;结果只灌草稿,不落库
   const handleSend = async (text: string) => {
     setMessages((m) => [...m, { role: 'user', text }])
     setGenerating(true)
     try {
       const agent = agents.find((a) => a.id === targetAgentId)
       const ctx = agent ? `Agent名称: ${agent.name}\n描述: ${agent.description ?? ''}` : undefined
-      const result: WorkflowResult = await canvasAPI.generateWorkflow(text, ctx)
+      // 当前画布(已有节点/边)传给后端,LLM 在其基础上修改 → 实现「连线下所有节点」这类操作
+      const draft = graphRef.current?.getData() ?? draftRef.current
+      const currentCanvas = draft.nodes.length
+        ? {
+            nodes: draft.nodes.map((n) => ({ id: n.id, type: n.kind ?? 'step', name: n.label, config: n.config ?? {}, position: { x: n.x, y: n.y } })),
+            edges: draft.edges.map((e) => ({ id: e.id, source: e.source, target: e.target, condition: e.label })),
+          }
+        : undefined
+      const result: WorkflowResult = await canvasAPI.generateWorkflow(text, ctx, currentCanvas)
       if (result.success) {
         // 灌入草稿,用户确认后再保存
         setName(result.name)

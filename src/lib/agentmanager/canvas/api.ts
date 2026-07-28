@@ -111,10 +111,11 @@ export const canvasAPI = {
     request(`/canvas/${agentId}/memories/${memoryId}`, { method: 'DELETE' }),
 
   // ========== LLM 生成 ==========
-  generateWorkflow: (prompt: string, agentContext?: string) =>
+  // currentCanvas:当前画布 {nodes,edges},传入后 LLM 在其基础上按 prompt 修改(对话操作画布)
+  generateWorkflow: (prompt: string, agentContext?: string, currentCanvas?: { nodes: any[]; edges: any[] }) =>
     request<WorkflowResult>('/canvas/generate-workflow', {
       method: 'POST',
-      body: JSON.stringify({ prompt, agent_context: agentContext }),
+      body: JSON.stringify({ prompt, agent_context: agentContext, current_canvas: currentCanvas }),
     }),
 
   generateSkill: (prompt: string, skillType: SkillKind) =>
