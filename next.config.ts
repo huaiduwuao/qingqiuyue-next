@@ -1,40 +1,9 @@
 import type { NextConfig } from "next";
 
-// 构建模式：
-// - Web 部署（默认）：standalone 模式，支持 SSR 和动态渲染
-// - Tauri 构建：output: export 静态导出，移动端/桌面端专用
-// - 本地开发：standalone 模式
-const isStaticExport = process.env.NEXT_EXPORT_STATIC === 'true';
-const apiTarget = process.env.API_PROXY_TARGET;
-
+// 纯 CSR 模式:静态导出
 const nextConfig: NextConfig = {
-  // 禁用构建时的 ESLint 检查（warnings 不阻塞构建）
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  // 关闭 React StrictMode:dev 模式下避免 effect 双跑导致的重复请求
-  // (production 构建默认就只跑一次,本配置仅影响 dev)。
-  // 见:https://nextjs.org/docs/app/api-reference/config/next-config-js/reactStrictMode
-  reactStrictMode: false,
-  // 使用 standalone 模式支持 API 路由
-  output: 'standalone',
-  // 静态导出时的配置
-  ...(isStaticExport && {
-    // 所有动态路由不预渲染，客户端处理
-    trailingSlash: false,
-  }),
-  // API 反代配置（仅 standalone 模式有效，静态导出无需反代）
-  ...(apiTarget && {
-    rewrites: async () => [
-      {
-        source: '/api/:path*',
-        destination: `${apiTarget}/api/:path*`,
-      },
-    ],
-  }),
-  // 允许 127.0.0.1 跨源访问 dev 资源(dev 模式 HMR 需要)
-  // 见:https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
-  allowedDevOrigins: ['127.0.0.1', 'localhost'],
+  output: 'export',
+  trailingSlash: false,
   // 内存治理(5.37 GB dev server 反复泄漏的根因之一):
   // 1) 关闭客户端 source map(浏览器加载时不会再持有完整 sourcemap payload)
   // 2) 关闭 server source map(Next dev 不再为每个 route 缓存 sourcemap)
