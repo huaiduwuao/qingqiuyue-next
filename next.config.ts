@@ -16,8 +16,8 @@ const nextConfig: NextConfig = {
   // (production 构建默认就只跑一次,本配置仅影响 dev)。
   // 见:https://nextjs.org/docs/app/api-reference/config/next-config-js/reactStrictMode
   reactStrictMode: false,
-  // Tauri/桌面打包时用 output: "export" 生成静态文件到 out/ 目录
-  output: isStaticExport ? 'export' : 'standalone',
+  // 使用 standalone 模式支持 API 路由
+  output: 'standalone',
   // 静态导出时的配置
   ...(isStaticExport && {
     // 所有动态路由不预渲染，客户端处理
