@@ -32,12 +32,13 @@ const KIND_LABEL: Record<SkillKind, string> = {
 
 const CATEGORIES = ['图像/视觉处理', '内容生成/写作', '数据/信息处理', '其他']
 
-export default function SkillStudio() {
+export default function SkillStudio({ editingId = null }: { editingId?: number | null }) {
   const [skills, setSkills] = useState<Skill[]>([])
   const [selected, setSelected] = useState<Skill | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [generating, setGenerating] = useState(false)
-  const [genKind, setGenKind] = useState<SkillKind>('tool')
+  // 对话创建固定按「工具」类型生成,不再让用户选
+  const genKind: SkillKind = 'tool'
   const [editing, setEditing] = useState<Skill | null>(null)
 
   // 手动表单
@@ -54,6 +55,17 @@ export default function SkillStudio() {
   useEffect(() => {
     load()
   }, [load])
+
+  // 编辑模式:带 id 进入,skills 就绪后自动预填表单并选中(画布显示该技能)
+  useEffect(() => {
+    if (!editingId || skills.length === 0) return
+    const target = skills.find((s) => s.id === editingId)
+    if (target) {
+      startEdit(target)
+      setSelected(target)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingId, skills])
 
   // 对话生成
   const handleSend = async (text: string) => {
@@ -186,6 +198,9 @@ export default function SkillStudio() {
     </Box>
   )
 
+  // 编辑或新建某条时隐藏右侧全部列表,只留画布
+  const inDetail = editing !== null || editingId !== null
+
   return (
     <StudioLayout
       title="⚡ 技能工作室"
@@ -195,20 +210,8 @@ export default function SkillStudio() {
       onSend={handleSend}
       manualForm={manualForm}
       listPanel={listPanel}
+      showList={!inDetail}
       graph={<StudioGraph nodes={graph.nodes} edges={graph.edges} emptyHint="选中一个技能查看结构图,或用左侧创建一个" />}
-      chatExtra={
-        <TextField
-          select
-          size="small"
-          fullWidth
-          label="生成类型"
-          value={genKind}
-          onChange={(e) => setGenKind(e.target.value as SkillKind)}
-          sx={{ mb: 1 }}
-        >
-          {Object.entries(KIND_LABEL).map(([v, l]) => <MenuItem key={v} value={v}>{l}</MenuItem>)}
-        </TextField>
-      }
     />
   )
 }

@@ -22,7 +22,7 @@ import type { AgentAssociations } from '../canvas/types'
 import StudioLayout, { type ChatMessage } from './StudioLayout'
 import StudioGraph, { type GraphNode, type GraphEdge } from './StudioGraph'
 
-export default function AgentStudio() {
+export default function AgentStudio({ editingId = null }: { editingId?: number | null }) {
   const [agents, setAgents] = useState<Agent[]>([])
   const [selected, setSelected] = useState<Agent | null>(null)
   const [assoc, setAssoc] = useState<AgentAssociations | null>(null)
@@ -45,6 +45,17 @@ export default function AgentStudio() {
   useEffect(() => {
     load()
   }, [load])
+
+  // 编辑模式:带 id 进入,agents 就绪后自动预填表单并选中(画布显示该 Agent 关联图)
+  useEffect(() => {
+    if (!editingId || agents.length === 0) return
+    const target = agents.find((a) => a.id === editingId)
+    if (target) {
+      startEdit(target)
+      setSelected(target)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingId, agents])
 
   // 选中 Agent 时加载其关联
   useEffect(() => {
@@ -209,6 +220,9 @@ export default function AgentStudio() {
     </Box>
   )
 
+  // 编辑或新建某条时隐藏右侧全部列表,只留画布
+  const inDetail = editing !== null || editingId !== null
+
   return (
     <StudioLayout
       title="🤖 Agent 工作室"
@@ -218,6 +232,7 @@ export default function AgentStudio() {
       onSend={handleSend}
       manualForm={manualForm}
       listPanel={listPanel}
+      showList={!inDetail}
       graph={<StudioGraph nodes={graph.nodes} edges={graph.edges} emptyHint="选中一个 Agent 查看它的技能/工作流/MCP/记忆关联图" />}
     />
   )

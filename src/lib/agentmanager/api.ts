@@ -331,7 +331,9 @@ class AgentManagerAPI {
   }
 
   async listAgents() {
-    return this.request<any[]>('/agents')
+    // 后端返回 { list, total, page, limit },这里取出数组
+    const res = await this.request<{ list: Agent[]; total: number }>('/agents')
+    return res.list || []
   }
 
   async updateAgent(id: number, data: Record<string, any>) {
@@ -350,6 +352,30 @@ class AgentManagerAPI {
 
   async deleteAgent(id: number) {
     return this.request<{ message: string }>(`/agents/${id}`, { method: 'DELETE' })
+  }
+
+  // ========== 模型供应商配置 ==========
+  async listModelProviders(type?: string) {
+    const q = type ? `?type=${type}` : ''
+    return this.request<{ list: ModelProvider[]; total: number }>(`/model-providers${q}`)
+  }
+
+  async createModelProvider(data: Partial<ModelProvider>) {
+    return this.request<ModelProvider>('/model-providers', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async updateModelProvider(id: number, data: Partial<ModelProvider>) {
+    return this.request<ModelProvider>(`/model-providers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async deleteModelProvider(id: number) {
+    return this.request<{ message: string }>(`/model-providers/${id}`, { method: 'DELETE' })
   }
 }
 
@@ -462,6 +488,23 @@ export interface InstanceSkill {
   skill_id: number
   enabled: boolean
   config: Record<string, any>
+}
+
+export type ModelProviderType = 'llm' | 'tts' | 'asr' | 'diffusion' | 'codingplan'
+
+export interface ModelProvider {
+  id: number
+  type: ModelProviderType
+  name: string
+  base_url?: string
+  api_key?: string
+  model?: string
+  website?: string
+  remark?: string
+  enabled: boolean
+  is_default: boolean
+  create_time?: string
+  update_time?: string
 }
 
 // ========== Monitoring Types ==========

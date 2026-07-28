@@ -23,7 +23,10 @@ import TableRow from '@mui/material/TableRow'
 import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
-import { agentmAPI, type Instance, type Agent, type AuditLog, type Skill, type MonitoringOverview, type InstanceStats, type AgentStats, type UsageStats } from './api'
+import IconButton from '@mui/material/IconButton'
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
+import { agentmAPI, type Instance, type Agent, type AuditLog, type Skill, type MonitoringOverview, type InstanceStats, type UsageStats } from './api'
 import KanbanBoard from './kanban/KanbanBoard'
 import MCPManager from './mcp/MCPManager'
 import SandboxMonitor from './sandbox/SandboxMonitor'
@@ -37,22 +40,49 @@ import { useAuth } from '@/contexts/AuthContext'
 const WorkflowStudio = dynamic(() => import('./studio/WorkflowStudio'), { ssr: false })
 const SkillStudio = dynamic(() => import('./studio/SkillStudio'), { ssr: false })
 const AgentStudio = dynamic(() => import('./studio/AgentStudio'), { ssr: false })
+const ModelProviderManager = dynamic(() => import('./models/ModelProviderManager'), { ssr: false })
 
-type Tab = 'dashboard' | 'instances' | 'agents' | 'sessions' | 'audit' | 'skills' | 'gateway' | 'kanban' | 'mcp' | 'sandbox' | 'terminal' | 'workflows' | 'workflow-studio' | 'skill-studio' | 'agent-studio'
+type Tab = 'dashboard' | 'instances' | 'agents' | 'sessions' | 'audit' | 'skills' | 'gateway' | 'kanban' | 'mcp' | 'sandbox' | 'terminal' | 'workflows' | 'models'
 
 export default function AgentManagerConsole() {
   const { sessionId: token, isAuthenticated } = useAuth()
   const [activeTab, setActiveTab] = useState<Tab>('dashboard')
+  // 工作室(创建/编辑页):非空时整体替换 tab 视图;editingId 表示编辑模式
+  const [studio, setStudio] = useState<'agent' | 'skill' | 'workflow' | null>(null)
+  const [studioEditId, setStudioEditId] = useState<number | null>(null)
+  const [agentsList, setAgentsList] = useState<Agent[]>([])
   const [loading, setLoading] = useState(false)
+
+  // 打开工作室:kind + 可选编辑 id
+  const openStudio = (kind: 'agent' | 'skill' | 'workflow', editId: number | null = null) => {
+    setStudioEditId(editId)
+    setStudio(kind)
+  }
+  const closeStudio = () => {
+    setStudio(null)
+    setStudioEditId(null)
+    loadData() // 返回后刷新列表
+  }
 
   // Data states
   const [instances, setInstances] = useState<Instance[]>([])
-  const [agentStats, setAgentStats] = useState<AgentStats[]>([])
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
   const [skills, setSkills] = useState<Skill[]>([])
   const [overview, setOverview] = useState<MonitoringOverview | null>(null)
   const [instanceStats, setInstanceStats] = useState<InstanceStats[]>([])
   const [usageStats, setUsageStats] = useState<UsageStats | null>(null)
+
+  // 删除 Agent / 技能
+  const handleDeleteAgent = async (a: Agent) => {
+    if (!confirm(`删除 Agent「${a.name}」?此操作不可恢复。`)) return
+    await agentmAPI.deleteAgent(a.id).catch((e) => alert(`删除失败: ${e.message}`))
+    loadData()
+  }
+  const handleDeleteSkill = async (s: Skill) => {
+    if (!confirm(`删除技能「${s.name}」?`)) return
+    await agentmAPI.deleteSkill(s.id).catch((e) => alert(`删除失败: ${e.message}`))
+    loadData()
+  }
 
   // Load data
   const loadData = useCallback(async () => {
@@ -62,18 +92,18 @@ export default function AgentManagerConsole() {
     try {
       agentmAPI.setToken(token)
 
-      const [instRes, overviewRes, instStatsRes, agentStatsRes, usageRes] = await Promise.all([
+      const [instRes, overviewRes, instStatsRes, usageRes, agentsRes] = await Promise.all([
         agentmAPI.listInstances().catch(() => ({ list: [] })),
         agentmAPI.getMonitoringOverview().catch(() => null),
         agentmAPI.getInstancesStats().catch(() => ({ instances: [] })),
-        agentmAPI.getAgentsStats().catch(() => ({ agents: [] })),
         agentmAPI.getUsageStats('week').catch(() => null),
+        agentmAPI.listAgents().catch(() => [] as Agent[]),
       ])
       setInstances(instRes.list || [])
       setOverview(overviewRes)
       setInstanceStats(instStatsRes.instances || [])
-      setAgentStats(agentStatsRes.agents || [])
       setUsageStats(usageRes)
+      setAgentsList(agentsRes || [])
     } catch (e: any) {
       console.error('Load data error:', e)
     } finally {
@@ -152,18 +182,16 @@ export default function AgentManagerConsole() {
     { key: 'audit', label: '📝 审计' },
     { key: 'skills', label: '🛠️ 技能' },
     { key: 'gateway', label: '🌐 网关' },
+    { key: 'models', label: '🧠 模型管理' },
     { key: 'kanban', label: '📋 看板' },
     { key: 'mcp', label: '🔌 MCP' },
     { key: 'sandbox', label: '🐳 沙盒' },
     { key: 'terminal', label: '🖥️ 终端' },
-    { key: 'agent-studio', label: '🤖 Agent 工作室' },
-    { key: 'skill-studio', label: '⚡ 技能工作室' },
-    { key: 'workflow-studio', label: '🔀 工作流工作室' },
-    { key: 'workflows', label: '📑 工作流总览' },
+    { key: 'workflows', label: '🔀 工作流' },
   ]
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
+    <Box sx={{ bgcolor: 'background.default', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 60px - 48px)', overflow: 'hidden' }}>
       {/* Header */}
       <Box
         sx={{
@@ -204,7 +232,10 @@ export default function AgentManagerConsole() {
       <Box sx={{ bgcolor: 'background.paper', borderBottom: 1, borderColor: 'divider', px: 3 }}>
         <Tabs
           value={activeTab}
-          onChange={(_, v) => setActiveTab(v)}
+          onChange={(_, v) => {
+            setActiveTab(v)
+            closeStudio() // 切换 tab 时退出工作室,回到对应列表
+          }}
           textColor="primary"
           indicatorColor="primary"
         >
@@ -215,7 +246,27 @@ export default function AgentManagerConsole() {
       </Box>
 
       {/* Content */}
-      <Box sx={{ p: 3 }}>
+      <Box sx={{ p: 3, flex: 1, minHeight: 0, overflow: 'auto' }}>
+        {studio ? (
+          /* 工作室:创建/编辑页(左聊天 + 右画布),整体替换 tab 视图 */
+          <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, flex: '0 0 auto' }}>
+              <Button size="small" variant="outlined" onClick={closeStudio}>
+                ← 返回
+              </Button>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                {studio === 'agent' ? '🤖 Agent 工作室' : studio === 'skill' ? '⚡ 技能工作室' : '🔀 工作流工作室'}
+                {studioEditId ? ' · 编辑' : ' · 新建'}
+              </Typography>
+            </Box>
+            <Box sx={{ flex: 1, minHeight: 0 }}>
+              {studio === 'agent' && <AgentStudio editingId={studioEditId} />}
+              {studio === 'skill' && <SkillStudio editingId={studioEditId} />}
+              {studio === 'workflow' && <WorkflowStudio editingId={studioEditId} />}
+            </Box>
+          </Box>
+        ) : (
+        <>
         {loading && (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
             <CircularProgress />
@@ -423,9 +474,12 @@ export default function AgentManagerConsole() {
         {/* Agents Tab */}
         {activeTab === 'agents' && !loading && (
           <Box>
-            <Typography variant="h6" sx={{ mb: 3 }}>Agent 管理</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+              <Typography variant="h6">Agent 管理</Typography>
+              <Button size="small" variant="contained" onClick={() => setStudio('agent')}>➕ 新建 Agent</Button>
+            </Box>
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2 }}>
-              {agentStats.map(agent => (
+              {agentsList.map(agent => (
                 <Card key={agent.id}>
                   <CardContent>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
@@ -444,28 +498,30 @@ export default function AgentManagerConsole() {
                       >
                         {agent.name.charAt(0)}
                       </Box>
-                      <Box>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{agent.name}</Typography>
-                        <Typography variant="caption" color="text.secondary">{agent.agent_id}</Typography>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 600 }} noWrap>{agent.name}</Typography>
+                        <Typography variant="caption" color="text.secondary">{agent.role} · {agent.model}</Typography>
                       </Box>
+                      <IconButton size="small" onClick={() => openStudio('agent', agent.id)} title="编辑">
+                        <EditOutlinedIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton size="small" color="error" onClick={() => handleDeleteAgent(agent)} title="删除">
+                        <DeleteOutlineIcon fontSize="small" />
+                      </IconButton>
                     </Box>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1 }}>
-                      <Paper sx={{ p: 1, textAlign: 'center' }}>
-                        <Typography variant="body2" color="text.secondary">对话数</Typography>
-                        <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                          {agent.chat_count.toLocaleString()}
-                        </Typography>
-                      </Paper>
-                      <Paper sx={{ p: 1, textAlign: 'center' }}>
-                        <Typography variant="body2" color="text.secondary">Token</Typography>
-                        <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                          {agent.total_tokens.toLocaleString()}
-                        </Typography>
-                      </Paper>
+                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <Chip size="small" label={agent.status} color={agent.status === 'active' ? 'success' : 'default'} />
+                      {agent.published && <Chip size="small" label="已发布" color="info" variant="outlined" />}
+                      <Typography variant="caption" color="text.secondary" sx={{ ml: 'auto' }}>
+                        对话 {agent.chat_count?.toLocaleString?.() ?? 0}
+                      </Typography>
                     </Box>
                   </CardContent>
                 </Card>
               ))}
+              {agentsList.length === 0 && (
+                <Typography variant="body2" color="text.secondary">暂无 Agent,点右上角「新建 Agent」创建。</Typography>
+              )}
             </Box>
           </Box>
         )}
@@ -521,15 +577,28 @@ export default function AgentManagerConsole() {
         {/* Skills Tab */}
         {activeTab === 'skills' && !loading && (
           <Box>
-            <Typography variant="h6" sx={{ mb: 3 }}>技能管理</Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+              <Typography variant="h6">技能管理</Typography>
+              <Button size="small" variant="contained" onClick={() => setStudio('skill')}>➕ 新建技能</Button>
+            </Box>
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2 }}>
               {skills.map(skill => (
                 <Card key={skill.id}>
                   <CardContent>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{skill.name}</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                      {skill.description}
-                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{skill.name}</Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                          {skill.description}
+                        </Typography>
+                      </Box>
+                      <IconButton size="small" onClick={() => openStudio('skill', skill.id)} title="编辑">
+                        <EditOutlinedIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton size="small" color="error" onClick={() => handleDeleteSkill(skill)} title="删除">
+                        <DeleteOutlineIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
                     <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
                       <Chip size="small" label={skill.category} />
                       <Chip size="small" label={skill.source} color="primary" variant="outlined" />
@@ -617,14 +686,21 @@ export default function AgentManagerConsole() {
         {/* Workflows Tab:跨所有 Agent 的工作流总览 */}
         {activeTab === 'workflows' && (
           <Box>
-            <WorkflowsOverview />
+            <WorkflowsOverview
+              onCreate={() => openStudio('workflow')}
+              onEdit={(row) => openStudio('workflow', row.id)}
+            />
           </Box>
         )}
 
-        {/* 工作室:左聊天 + 右画布,增删改查 */}
-        {activeTab === 'agent-studio' && <AgentStudio />}
-        {activeTab === 'skill-studio' && <SkillStudio />}
-        {activeTab === 'workflow-studio' && <WorkflowStudio />}
+        {/* 模型供应商管理 Tab */}
+        {activeTab === 'models' && (
+          <Box>
+            <ModelProviderManager />
+          </Box>
+        )}
+        </>
+        )}
       </Box>
     </Box>
   )

@@ -21,6 +21,9 @@ import TableRow from '@mui/material/TableRow'
 import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
+import IconButton from '@mui/material/IconButton'
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import { agentmAPI, type Agent } from './api'
 import { canvasAPI } from './canvas/api'
 import type { AgentWorkflowInfo, WorkflowType } from './canvas/types'
@@ -43,8 +46,9 @@ const STATUS_COLOR: Record<string, 'success' | 'default' | 'warning' | 'error'> 
 interface WorkflowRow extends AgentWorkflowInfo {
   agent_name: string
 }
+export type { WorkflowRow }
 
-export default function WorkflowsOverview() {
+export default function WorkflowsOverview({ onCreate, onEdit }: { onCreate?: () => void; onEdit?: (row: WorkflowRow) => void }) {
   const [rows, setRows] = useState<WorkflowRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -75,6 +79,12 @@ export default function WorkflowsOverview() {
     }
   }, [])
 
+  const handleDelete = async (w: WorkflowRow) => {
+    if (!confirm(`删除工作流「${w.name}」?`)) return
+    await canvasAPI.deleteWorkflow(w.agent_id, w.id).catch((e) => alert(`删除失败: ${e.message}`))
+    load()
+  }
+
   useEffect(() => {
     load()
   }, [load])
@@ -83,9 +93,16 @@ export default function WorkflowsOverview() {
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Typography variant="h6">全部工作流({rows.length})</Typography>
-        <Button size="small" onClick={load} disabled={loading}>
-          刷新
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          {onCreate && (
+            <Button size="small" variant="contained" onClick={onCreate}>
+              ➕ 新建工作流
+            </Button>
+          )}
+          <Button size="small" onClick={load} disabled={loading}>
+            刷新
+          </Button>
+        </Box>
       </Box>
 
       {error && (
@@ -114,6 +131,7 @@ export default function WorkflowsOverview() {
                 <TableCell>版本</TableCell>
                 <TableCell align="right">执行次数</TableCell>
                 <TableCell>最近执行</TableCell>
+                <TableCell align="right">操作</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -139,6 +157,16 @@ export default function WorkflowsOverview() {
                   <TableCell>v{w.version}</TableCell>
                   <TableCell align="right">{w.exec_count}</TableCell>
                   <TableCell>{w.last_exec_at ? new Date(w.last_exec_at).toLocaleString() : '—'}</TableCell>
+                  <TableCell align="right">
+                    {onEdit && (
+                      <IconButton size="small" onClick={() => onEdit(w)} title="编辑">
+                        <EditOutlinedIcon fontSize="small" />
+                      </IconButton>
+                    )}
+                    <IconButton size="small" color="error" onClick={() => handleDelete(w)} title="删除">
+                      <DeleteOutlineIcon fontSize="small" />
+                    </IconButton>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

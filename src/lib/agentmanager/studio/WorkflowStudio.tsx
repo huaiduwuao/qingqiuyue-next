@@ -34,7 +34,7 @@ interface Row extends AgentWorkflowInfo {
   agent_name: string
 }
 
-export default function WorkflowStudio() {
+export default function WorkflowStudio({ editingId = null }: { editingId?: number | null }) {
   const [agents, setAgents] = useState<Agent[]>([])
   const [targetAgentId, setTargetAgentId] = useState<number | ''>('')
   const [rows, setRows] = useState<Row[]>([])
@@ -71,6 +71,17 @@ export default function WorkflowStudio() {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // 编辑模式:列表点「编辑」带 id 进入,rows 就绪后自动预填表单并选中(画布显示该工作流)
+  useEffect(() => {
+    if (!editingId || rows.length === 0) return
+    const target = rows.find((r) => r.id === editingId)
+    if (target) {
+      startEdit(target)
+      setSelected(target)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingId, rows])
 
   // 对话生成
   const handleSend = async (text: string) => {
@@ -191,22 +202,27 @@ export default function WorkflowStudio() {
     return { nodes, edges }
   }, [selected])
 
+  // 目标 Agent 选择器(新建/对话生成时用)
+  const agentSelector = (
+    <TextField
+      select
+      size="small"
+      label="目标 Agent"
+      value={targetAgentId}
+      onChange={(e) => setTargetAgentId(Number(e.target.value))}
+      sx={{ minWidth: 180 }}
+    >
+      {agents.map((a) => (
+        <MenuItem key={a.id} value={a.id}>{a.name}</MenuItem>
+      ))}
+    </TextField>
+  )
+
   const listPanel = (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
         <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>全部工作流({rows.length})</Typography>
-        <TextField
-          select
-          size="small"
-          label="目标 Agent"
-          value={targetAgentId}
-          onChange={(e) => setTargetAgentId(Number(e.target.value))}
-          sx={{ minWidth: 180 }}
-        >
-          {agents.map((a) => (
-            <MenuItem key={a.id} value={a.id}>{a.name}</MenuItem>
-          ))}
-        </TextField>
+        {agentSelector}
       </Box>
       {rows.length === 0 && <Typography variant="body2" color="text.secondary">暂无工作流,用左侧对话或手动添加创建。</Typography>}
       {rows.map((r) => (
@@ -249,6 +265,9 @@ export default function WorkflowStudio() {
     </Box>
   )
 
+  // 编辑或新建某条时隐藏右侧全部列表,只留画布;画布上方保留目标 Agent 选择与当前项提示
+  const inDetail = editing !== null || editingId !== null
+
   return (
     <StudioLayout
       title="🔀 工作流工作室"
@@ -258,7 +277,24 @@ export default function WorkflowStudio() {
       onSend={handleSend}
       manualForm={manualForm}
       listPanel={listPanel}
-      graph={<StudioGraph nodes={graph.nodes} edges={graph.edges} emptyHint="选中一个工作流查看流程图,或用左侧创建一个" />}
+      showList={!inDetail}
+      graph={
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 1 }}>
+          {inDetail && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: '0 0 auto' }}>
+              {!editing && agentSelector}
+              {selected && (
+                <Typography variant="body2" color="text.secondary">
+                  当前:{selected.name}({selected.agent_name})
+                </Typography>
+              )}
+            </Box>
+          )}
+          <Box sx={{ flex: 1, minHeight: 0 }}>
+            <StudioGraph nodes={graph.nodes} edges={graph.edges} emptyHint="选中一个工作流查看流程图,或用左侧创建一个" />
+          </Box>
+        </Box>
+      }
     />
   )
 }

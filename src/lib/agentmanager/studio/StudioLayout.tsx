@@ -37,6 +37,8 @@ interface StudioLayoutProps {
   graph: ReactNode
   /** 聊天框下方附加区(如类型选择) */
   chatExtra?: ReactNode
+  /** 是否显示右侧实体列表;编辑/创建某条时传 false,只留画布 */
+  showList?: boolean
 }
 
 export default function StudioLayout({
@@ -49,6 +51,7 @@ export default function StudioLayout({
   listPanel,
   graph,
   chatExtra,
+  showList = true,
 }: StudioLayoutProps) {
   const [input, setInput] = useState('')
   const [mode, setMode] = useState<'chat' | 'manual'>('chat')
@@ -60,8 +63,9 @@ export default function StudioLayout({
     setInput('')
   }
 
+  // 高度由父容器(Console 工作室容器,flex:1)撑满,内部固定不溢出
   return (
-    <Box sx={{ display: 'flex', gap: 2, height: 'calc(100vh - 200px)', minHeight: 560 }}>
+    <Box sx={{ display: 'flex', gap: 2, height: '100%', minHeight: 0 }}>
       {/* 左:创建面板 */}
       <Box
         sx={{
@@ -155,11 +159,13 @@ export default function StudioLayout({
         )}
       </Box>
 
-      {/* 右:列表 + 画布 */}
+      {/* 右:列表(可选)+ 画布 */}
       <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-        <Box sx={{ flex: '0 0 auto', maxHeight: '42%', overflowY: 'auto', border: '1px solid #eee', borderRadius: 2, bgcolor: '#fff', p: 1.5 }}>
-          {listPanel}
-        </Box>
+        {showList && (
+          <Box sx={{ flex: '0 0 auto', maxHeight: '42%', overflowY: 'auto', border: '1px solid #eee', borderRadius: 2, bgcolor: '#fff', p: 1.5 }}>
+            {listPanel}
+          </Box>
+        )}
         <Box sx={{ flex: 1, minHeight: 0 }}>{graph}</Box>
       </Box>
     </Box>
