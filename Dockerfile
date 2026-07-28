@@ -3,7 +3,7 @@ FROM docker.io/library/node:22-alpine AS builder
 WORKDIR /app
 ARG NEXT_PUBLIC_API_BASE_URL=https://qingqiuyue.com
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV NEXT_EXPORT_STATIC=true
+# ENV NEXT_EXPORT_STATIC=true  # 注释掉,静态导出不支持 API 路由
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 # 设置国内镜像解决 corepack/pnpm 下载问题
 ENV COREPACK_NPM_REGISTRY=https://registry.npmmirror.com
