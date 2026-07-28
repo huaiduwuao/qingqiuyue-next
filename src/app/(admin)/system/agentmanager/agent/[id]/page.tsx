@@ -1,34 +1,19 @@
-'use client'
-
 /**
- * Agent 详情页
+ * Agent 详情页(server 外壳)
  * 访问路径: /system/agentmanager/agent/[id]
+ *
+ * output:'export' 静态导出:动态段 [id] 必须声明 generateStaticParams。
+ * generateStaticParams 不能和 'use client' 同文件,因此拆成:
+ * 本文件(server)导出占位 id,实际渲染交给 client 组件 AgentDetailClient。
+ * 导出一个占位 id(-1),真实 id 由客户端 useParams 解析。
  */
 
-import { use } from 'react'
-import dynamic from 'next/dynamic'
-import Box from '@mui/material/Box'
-import CircularProgress from '@mui/material/CircularProgress'
+import AgentDetailClient from './AgentDetailClient'
 
-const AgentDetail = dynamic(
-  () => import('@/lib/agentmanager/canvas/AgentDetail').then((m) => m.default),
-  {
-    ssr: false,
-    loading: () => (
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-        <CircularProgress />
-      </Box>
-    ),
-  },
-)
+export function generateStaticParams() {
+  return [{ id: '-1' }]
+}
 
-export default function AgentDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
-  const agentId = parseInt(id, 10)
-
-  if (isNaN(agentId)) {
-    return <Box sx={{ p: 4 }}>无效的 Agent ID</Box>
-  }
-
-  return <AgentDetail agentId={agentId} />
+export default function AgentDetailPage() {
+  return <AgentDetailClient />
 }
