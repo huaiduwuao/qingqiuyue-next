@@ -12,3 +12,6 @@ Dockerfile
 # 本地开发 env(含 NEXT_PUBLIC_USE_MOCK=true 等),绝不能进生产镜像
 .env.local
 .env*.local
+
+# 本包非 workspace,该文件会让 pnpm 误判并报 packages field missing
+pnpm-workspace.yaml

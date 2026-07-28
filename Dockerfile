@@ -19,7 +19,8 @@ RUN pnpm install --frozen-lockfile --ignore-workspace
 
 # 再复制源码，这样只有源码变化时才重新构建
 COPY . .
-RUN pnpm run build
+# 本包非 workspace:--ignore-workspace 避免残留的 pnpm-workspace.yaml 触发 packages 校验
+RUN pnpm run build --ignore-workspace
 
 # ===== nginx 运行镜像 =====
 FROM docker.io/library/nginx:alpine AS runner
