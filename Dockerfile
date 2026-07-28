@@ -19,8 +19,6 @@ RUN pnpm install --frozen-lockfile --ignore-workspace
 
 # 再复制源码，这样只有源码变化时才重新构建
 COPY . .
-# 静态导出模式不支持 API 路由,删除避免构建错误
-RUN rm -rf src/app/api
 RUN pnpm run build
 
 # ===== nginx 运行镜像 =====
