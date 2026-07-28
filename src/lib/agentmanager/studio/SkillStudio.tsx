@@ -29,7 +29,7 @@ const NODE_PALETTE = [
   { kind: 'io', label: '输出' },
 ]
 
-export default function SkillStudio({ editingId = null }: { editingId?: number | null }) {
+export default function SkillStudio({ editingId = null, onLoaded }: { editingId?: number | null; onLoaded?: (name: string) => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -57,6 +57,7 @@ export default function SkillStudio({ editingId = null }: { editingId?: number |
   const loadIntoDraft = (s: Skill) => {
     setSkillId(s.id)
     setName(s.name)
+    onLoaded?.(s.name)
     setDesc(s.description ?? '')
     setCategory(s.category || CATEGORIES[0])
     setConfig(JSON.stringify(s.config ?? {}, null, 2))
@@ -75,12 +76,20 @@ export default function SkillStudio({ editingId = null }: { editingId?: number |
     setDirty(false)
   }
 
-  // 对话生成:只灌草稿,不落库
+  // 对话生成:流式边生成边显示,结束后灌草稿;不落库
   const handleSend = async (text: string) => {
     setMessages((m) => [...m, { role: 'user', text }])
     setGenerating(true)
-    try {
-      const result: SkillResult = await canvasAPI.generateSkill(text, 'tool')
+    let streamText = ''
+    setMessages((m) => [...m, { role: 'assistant', text: '⏳ 生成中…' }])
+    const updateStream = () => {
+      setMessages((m) => {
+        const copy = [...m]
+        copy[copy.length - 1] = { role: 'assistant', text: '⏳ 生成中…\n' + streamText.slice(-800) }
+        return copy
+      })
+    }
+    const applyResult = (result: SkillResult) => {
       if (result.success) {
         setName(result.name)
         setDesc(result.description)
@@ -99,12 +108,28 @@ export default function SkillStudio({ editingId = null }: { editingId?: number |
           ],
         )
         setDirty(true)
-        setMessages((m) => [...m, { role: 'assistant', text: `已生成草稿「${result.name}」(${result.category}),已填入表单与画布。请检查修改后点「保存」。` }])
-      } else {
-        setMessages((m) => [...m, { role: 'assistant', text: `生成失败: ${result.error ?? '未知错误'}` }])
+        return `已生成草稿「${result.name}」(${result.category}),已填入表单与画布。请检查修改后点「保存」。`
       }
+      return `生成失败: ${result.error ?? '未知错误'}`
+    }
+    const setLast = (text: string) => {
+      setMessages((m) => {
+        const copy = [...m]
+        copy[copy.length - 1] = { role: 'assistant', text }
+        return copy
+      })
+    }
+    try {
+      await canvasAPI.generateSkillStream(text, 'tool', {
+        onDelta: (t) => {
+          streamText += t
+          updateStream()
+        },
+        onResult: (r) => setLast(applyResult(r)),
+        onError: (e) => setLast(`生成失败: ${e}`),
+      })
     } catch (e: any) {
-      setMessages((m) => [...m, { role: 'assistant', text: `生成失败: ${e.message}` }])
+      setLast(`生成失败: ${e.message}`)
     } finally {
       setGenerating(false)
     }
@@ -147,10 +172,12 @@ export default function SkillStudio({ editingId = null }: { editingId?: number |
 
   const manualForm = (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      <Typography variant="body2" color="text.secondary">
-        {skillId ? `编辑技能 #${skillId}` : '新技能草稿'}
-        {dirty && <Chip size="small" label="未保存" color="warning" sx={{ ml: 1 }} />}
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Typography variant="body2" color="text.secondary">
+          {skillId ? `编辑技能 #${skillId}` : '新技能草稿'}
+        </Typography>
+        {dirty && <Chip size="small" label="未保存" color="warning" />}
+      </Box>
       <TextField size="small" label="名称" value={name} onChange={(e) => { setName(e.target.value); setDirty(true) }} />
       <TextField size="small" label="描述" value={desc} onChange={(e) => { setDesc(e.target.value); setDirty(true) }} multiline rows={2} />
       <TextField select size="small" label="分类" value={category} onChange={(e) => { setCategory(e.target.value); setDirty(true) }}>

@@ -36,6 +36,73 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json()
 }
 
+/**
+ * SSE 流式请求
+ * 后端按 event: delta(增量文本)/ result(最终结果)/ error 推送。
+ * onDelta 收增量,onResult 收最终对象,onError 收错误。
+ */
+async function requestStream<TResult = any>(
+  path: string,
+  body: any,
+  handlers: {
+    onDelta?: (text: string) => void
+    onResult?: (result: TResult) => void
+    onError?: (err: string) => void
+  },
+): Promise<void> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  const token = getAuthToken()
+  if (token) headers['Authorization'] = `Bearer ${token}`
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: res.statusText }))
+    handlers.onError?.(error.error || `HTTP ${res.status}`)
+    return
+  }
+  if (!res.body) {
+    handlers.onError?.('响应无流内容')
+    return
+  }
+
+  const reader = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let event = 'message'
+
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+
+    // 按行解析 SSE:event: xxx / data: {...} / 空行结束一条
+    let idx
+    while ((idx = buffer.indexOf('\n')) !== -1) {
+      const line = buffer.slice(0, idx).replace(/\r$/, '')
+      buffer = buffer.slice(idx + 1)
+      if (line.startsWith('event:')) {
+        event = line.slice(6).trim()
+      } else if (line.startsWith('data:')) {
+        const dataStr = line.slice(5).trim()
+        try {
+          const data = JSON.parse(dataStr)
+          if (event === 'delta') handlers.onDelta?.(data.text ?? '')
+          else if (event === 'result') handlers.onResult?.(data as TResult)
+          else if (event === 'error') handlers.onError?.(data.error ?? 'unknown')
+        } catch {
+          /* 忽略无法解析的行 */
+        }
+      } else if (line === '') {
+        event = 'message'
+      }
+    }
+  }
+}
+
 export const canvasAPI = {
   // ========== 画布 ==========
   getCanvas: (agentId: number) =>
@@ -118,9 +185,33 @@ export const canvasAPI = {
       body: JSON.stringify({ prompt, agent_context: agentContext, current_canvas: currentCanvas }),
     }),
 
+  // 流式生成工作流(SSE):onDelta 收增量文本,onResult 收最终 WorkflowResult
+  generateWorkflowStream: (
+    prompt: string,
+    agentContext: string | undefined,
+    currentCanvas: { nodes: any[]; edges: any[] } | undefined,
+    handlers: { onDelta?: (text: string) => void; onResult?: (r: WorkflowResult) => void; onError?: (e: string) => void },
+  ) =>
+    requestStream<WorkflowResult>('/canvas/generate-workflow-stream', {
+      prompt,
+      agent_context: agentContext,
+      current_canvas: currentCanvas,
+    }, handlers),
+
   generateSkill: (prompt: string, skillType: SkillKind) =>
     request<SkillResult>('/canvas/generate-skill', {
       method: 'POST',
       body: JSON.stringify({ prompt, skill_type: skillType }),
     }),
+
+  // 流式生成技能(SSE)
+  generateSkillStream: (
+    prompt: string,
+    skillType: SkillKind,
+    handlers: { onDelta?: (text: string) => void; onResult?: (r: SkillResult) => void; onError?: (e: string) => void },
+  ) =>
+    requestStream<SkillResult>('/canvas/generate-skill-stream', {
+      prompt,
+      skill_type: skillType,
+    }, handlers),
 }

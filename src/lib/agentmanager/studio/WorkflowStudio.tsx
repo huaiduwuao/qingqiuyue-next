@@ -38,7 +38,7 @@ const NODE_PALETTE = [
   { kind: 'end', label: '结束' },
 ]
 
-export default function WorkflowStudio({ editingId = null }: { editingId?: number | null }) {
+export default function WorkflowStudio({ editingId = null, onLoaded }: { editingId?: number | null; onLoaded?: (name: string) => void }) {
   const [agents, setAgents] = useState<Agent[]>([])
   const [targetAgentId, setTargetAgentId] = useState<number | ''>('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -87,6 +87,7 @@ export default function WorkflowStudio({ editingId = null }: { editingId?: numbe
     setWfId(w.id)
     setTargetAgentId(agentId)
     setName(w.name)
+    onLoaded?.(w.name)
     setDesc(w.description ?? '')
     setWtype(w.workflow_type)
     let def: any = {}
@@ -114,14 +115,23 @@ export default function WorkflowStudio({ editingId = null }: { editingId?: numbe
     setDirty(false)
   }
 
-  // 对话生成/修改:把当前画布草稿一并传给 LLM,让它基于现有画布按指令修改;结果只灌草稿,不落库
+  // 对话生成/修改:把当前画布草稿一并传给 LLM,流式边生成边显示,结束后灌草稿;不落库
   const handleSend = async (text: string) => {
     setMessages((m) => [...m, { role: 'user', text }])
     setGenerating(true)
+    // 先插一条占位的流式消息,边收边更新
+    let streamText = ''
+    setMessages((m) => [...m, { role: 'assistant', text: '⏳ 生成中…' }])
+    const updateStream = () => {
+      setMessages((m) => {
+        const copy = [...m]
+        copy[copy.length - 1] = { role: 'assistant', text: '⏳ 生成中…\n' + streamText.slice(-800) }
+        return copy
+      })
+    }
     try {
       const agent = agents.find((a) => a.id === targetAgentId)
       const ctx = agent ? `Agent名称: ${agent.name}\n描述: ${agent.description ?? ''}` : undefined
-      // 当前画布(已有节点/边)传给后端,LLM 在其基础上修改 → 实现「连线下所有节点」这类操作
       const draft = graphRef.current?.getData() ?? draftRef.current
       const currentCanvas = draft.nodes.length
         ? {
@@ -129,35 +139,61 @@ export default function WorkflowStudio({ editingId = null }: { editingId?: numbe
             edges: draft.edges.map((e) => ({ id: e.id, source: e.source, target: e.target, condition: e.label })),
           }
         : undefined
-      const result: WorkflowResult = await canvasAPI.generateWorkflow(text, ctx, currentCanvas)
-      if (result.success) {
-        // 灌入草稿,用户确认后再保存
-        setName(result.name)
-        setDesc(result.description)
-        setWtype(result.workflow_type)
-        const nodes: DraftNode[] = (result.nodes ?? []).map((n, i) => ({
-          id: String(n.id ?? `n${i}`),
-          label: n.name ?? String(n.id ?? `节点${i}`),
-          sub: n.type,
-          kind: n.type ?? 'step',
-          x: n.position?.x ?? 80 + (i % 3) * 200,
-          y: n.position?.y ?? 60 + Math.floor(i / 3) * 120,
-          config: (n as any).config ?? {},
-        }))
-        const edges: DraftEdge[] = (result.edges ?? []).map((e: any, i: number) => ({
-          id: String(e.id ?? `e${i}`),
-          source: String(e.source),
-          target: String(e.target),
-          label: e.condition ?? e.label,
-        }))
-        graphRef.current?.setData(nodes, edges)
-        setDirty(true)
-        setMessages((m) => [...m, { role: 'assistant', text: `已生成草稿「${result.name}」(${nodes.length} 节点 / ${edges.length} 边),已放到右侧画布。请在画布上调整,确认后点「保存」。` }])
-      } else {
-        setMessages((m) => [...m, { role: 'assistant', text: `生成失败: ${result.error ?? '未知错误'}` }])
-      }
+
+      await canvasAPI.generateWorkflowStream(text, ctx, currentCanvas, {
+        onDelta: (t) => {
+          streamText += t
+          updateStream()
+        },
+        onResult: (result) => {
+          if (result.success) {
+            setName(result.name)
+            setDesc(result.description)
+            setWtype(result.workflow_type)
+            const nodes: DraftNode[] = (result.nodes ?? []).map((n, i) => ({
+              id: String(n.id ?? `n${i}`),
+              label: n.name ?? String(n.id ?? `节点${i}`),
+              sub: n.type,
+              kind: n.type ?? 'step',
+              x: n.position?.x ?? 80 + (i % 3) * 200,
+              y: n.position?.y ?? 60 + Math.floor(i / 3) * 120,
+              config: (n as any).config ?? {},
+            }))
+            const edges: DraftEdge[] = (result.edges ?? []).map((e: any, i: number) => ({
+              id: String(e.id ?? `e${i}`),
+              source: String(e.source),
+              target: String(e.target),
+              label: e.condition ?? e.label,
+            }))
+            graphRef.current?.setData(nodes, edges)
+            setDirty(true)
+            setMessages((m) => {
+              const copy = [...m]
+              copy[copy.length - 1] = { role: 'assistant', text: `已生成草稿「${result.name}」(${nodes.length} 节点 / ${edges.length} 边),已放到右侧画布。请调整确认后点「保存」。` }
+              return copy
+            })
+          } else {
+            setMessages((m) => {
+              const copy = [...m]
+              copy[copy.length - 1] = { role: 'assistant', text: `生成失败: ${result.error ?? '未知错误'}` }
+              return copy
+            })
+          }
+        },
+        onError: (err) => {
+          setMessages((m) => {
+            const copy = [...m]
+            copy[copy.length - 1] = { role: 'assistant', text: `生成失败: ${err}` }
+            return copy
+          })
+        },
+      })
     } catch (e: any) {
-      setMessages((m) => [...m, { role: 'assistant', text: `生成失败: ${e.message}` }])
+      setMessages((m) => {
+        const copy = [...m]
+        copy[copy.length - 1] = { role: 'assistant', text: `生成失败: ${e.message}` }
+        return copy
+      })
     } finally {
       setGenerating(false)
     }
@@ -243,10 +279,12 @@ export default function WorkflowStudio({ editingId = null }: { editingId?: numbe
   // 左侧面板:名称/描述/类型 + 保存(对话协助 + 表单共用一份草稿)
   const manualForm = (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      <Typography variant="body2" color="text.secondary">
-        {wfId ? `编辑工作流 #${wfId}` : '新工作流草稿'}
-        {dirty && <Chip size="small" label="未保存" color="warning" sx={{ ml: 1 }} />}
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Typography variant="body2" color="text.secondary">
+          {wfId ? `编辑工作流 #${wfId}` : '新工作流草稿'}
+        </Typography>
+        {dirty && <Chip size="small" label="未保存" color="warning" />}
+      </Box>
       <TextField size="small" label="名称" value={name} onChange={(e) => { setName(e.target.value); setDirty(true) }} />
       <TextField size="small" label="描述" value={desc} onChange={(e) => { setDesc(e.target.value); setDirty(true) }} multiline rows={2} />
       <TextField select size="small" label="类型" value={wtype} onChange={(e) => { setWtype(e.target.value as WorkflowType); setDirty(true) }}>

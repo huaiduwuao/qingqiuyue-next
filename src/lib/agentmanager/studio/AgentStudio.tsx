@@ -26,7 +26,7 @@ const NODE_PALETTE = [
   { kind: 'memory', label: '记忆' },
 ]
 
-export default function AgentStudio({ editingId = null }: { editingId?: number | null }) {
+export default function AgentStudio({ editingId = null, onLoaded }: { editingId?: number | null; onLoaded?: (name: string) => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -74,6 +74,7 @@ export default function AgentStudio({ editingId = null }: { editingId?: number |
   const loadIntoDraft = (a: Agent) => {
     setAgentId(a.id)
     setName(a.name)
+    onLoaded?.(a.name)
     setRole(a.role ?? 'assistant')
     setModel(a.model ?? '')
     setDesc(a.description ?? '')
@@ -142,10 +143,12 @@ export default function AgentStudio({ editingId = null }: { editingId?: number |
 
   const manualForm = (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      <Typography variant="body2" color="text.secondary">
-        {agentId ? `编辑 Agent #${agentId}` : '新 Agent 草稿'}
-        {dirty && <Chip size="small" label="未保存" color="warning" sx={{ ml: 1 }} />}
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Typography variant="body2" color="text.secondary">
+          {agentId ? `编辑 Agent #${agentId}` : '新 Agent 草稿'}
+        </Typography>
+        {dirty && <Chip size="small" label="未保存" color="warning" />}
+      </Box>
       <TextField size="small" label="名称" value={name} onChange={(e) => { setName(e.target.value); setDirty(true) }} />
       <TextField size="small" label="角色" value={role} onChange={(e) => { setRole(e.target.value); setDirty(true) }} />
       <TextField

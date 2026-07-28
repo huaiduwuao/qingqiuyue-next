@@ -50,6 +50,9 @@ const EMPTY: Partial<ModelProvider> = {
   remark: '',
   enabled: true,
   is_default: false,
+  context_length: 0,
+  api_format: 'openai',
+  auth_field: 'authorization',
 }
 
 export default function ModelProviderManager() {
@@ -191,6 +194,41 @@ export default function ModelProviderManager() {
           <TextField label="API Key" size="small" value={form.api_key ?? ''} onChange={(e) => setForm({ ...form, api_key: e.target.value })} placeholder="sk-..." type="password" autoComplete="new-password" />
           <TextField label="模型名 (model)" size="small" value={form.model ?? ''} onChange={(e) => setForm({ ...form, model: e.target.value })} placeholder="deepseek-chat" />
           <TextField label="官网链接" size="small" value={form.website ?? ''} onChange={(e) => setForm({ ...form, website: e.target.value })} placeholder="https://..." />
+          {/* 调用配置:上下文长度 / API 格式 / 认证字段 */}
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <TextField
+              label="上下文长度"
+              size="small"
+              type="number"
+              sx={{ flex: 1 }}
+              value={form.context_length ?? 0}
+              onChange={(e) => setForm({ ...form, context_length: parseInt(e.target.value, 10) || 0 })}
+              helperText="0=模型默认"
+            />
+            <TextField
+              select
+              label="API 格式"
+              size="small"
+              sx={{ flex: 1 }}
+              value={form.api_format ?? 'openai'}
+              onChange={(e) => setForm({ ...form, api_format: e.target.value as any })}
+            >
+              <MenuItem value="openai">OpenAI 兼容</MenuItem>
+              <MenuItem value="anthropic">Anthropic</MenuItem>
+            </TextField>
+            <TextField
+              select
+              label="认证字段"
+              size="small"
+              sx={{ flex: 1 }}
+              value={form.auth_field ?? 'authorization'}
+              onChange={(e) => setForm({ ...form, auth_field: e.target.value as any })}
+            >
+              <MenuItem value="authorization">Authorization: Bearer</MenuItem>
+              <MenuItem value="x-api-key">x-api-key</MenuItem>
+              <MenuItem value="api-key">api-key (查询参数)</MenuItem>
+            </TextField>
+          </Box>
           <TextField label="备注" size="small" value={form.remark ?? ''} onChange={(e) => setForm({ ...form, remark: e.target.value })} />
           <Box sx={{ display: 'flex', gap: 2 }}>
             <FormControlLabel control={<Switch checked={form.enabled ?? true} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} />} label="启用" />

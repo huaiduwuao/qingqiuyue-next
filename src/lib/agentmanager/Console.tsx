@@ -50,17 +50,20 @@ export default function AgentManagerConsole() {
   // 工作室(创建/编辑页):非空时整体替换 tab 视图;editingId 表示编辑模式
   const [studio, setStudio] = useState<'agent' | 'skill' | 'workflow' | null>(null)
   const [studioEditId, setStudioEditId] = useState<number | null>(null)
+  const [studioEditName, setStudioEditName] = useState<string>('')
   const [agentsList, setAgentsList] = useState<Agent[]>([])
   const [loading, setLoading] = useState(false)
 
   // 打开工作室:kind + 可选编辑 id
   const openStudio = (kind: 'agent' | 'skill' | 'workflow', editId: number | null = null) => {
     setStudioEditId(editId)
+    setStudioEditName('')
     setStudio(kind)
   }
   const closeStudio = () => {
     setStudio(null)
     setStudioEditId(null)
+    setStudioEditName('')
     loadData() // 返回后刷新列表
   }
 
@@ -256,13 +259,13 @@ export default function AgentManagerConsole() {
               </Button>
               <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                 {studio === 'agent' ? '🤖 Agent 工作室' : studio === 'skill' ? '⚡ 技能工作室' : '🔀 工作流工作室'}
-                {studioEditId ? ' · 编辑' : ' · 新建'}
+                {studioEditId ? (studioEditName ? ` · ${studioEditName}` : ' · 编辑') : ' · 新建'}
               </Typography>
             </Box>
             <Box sx={{ flex: 1, minHeight: 0 }}>
-              {studio === 'agent' && <AgentStudio editingId={studioEditId} />}
-              {studio === 'skill' && <SkillStudio editingId={studioEditId} />}
-              {studio === 'workflow' && <WorkflowStudio editingId={studioEditId} />}
+              {studio === 'agent' && <AgentStudio editingId={studioEditId} onLoaded={setStudioEditName} />}
+              {studio === 'skill' && <SkillStudio editingId={studioEditId} onLoaded={setStudioEditName} />}
+              {studio === 'workflow' && <WorkflowStudio editingId={studioEditId} onLoaded={setStudioEditName} />}
             </Box>
           </Box>
         ) : (

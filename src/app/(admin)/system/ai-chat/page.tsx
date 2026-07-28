@@ -73,31 +73,44 @@ export default function AIChatPage() {
       timestamp: new Date(),
     }
 
+    const history = messages.concat(userMessage).map(m => ({ role: m.role, content: m.content }))
     setMessages(prev => [...prev, userMessage])
     setInput('')
     setLoading(true)
     setError(null)
 
+    // 先插一条占位的流式回复,边收边更新
+    const assistantId = (Date.now() + 1).toString()
+    setMessages(prev => [...prev, {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date(),
+      model: selectedModel,
+    }])
+
+    let acc = ''
+    const update = () => {
+      setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: acc } : m))
+    }
+
     try {
-      const response = await agentmAPI.chatCompletions(
-        selectedModel,
-        messages.concat(userMessage).map(m => ({
-          role: m.role,
-          content: m.content,
-        }))
-      )
-
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: extractContent(response),
-        timestamp: new Date(),
-        model: selectedModel,
+      await agentmAPI.chatCompletionsStream(selectedModel, history, {
+        onDelta: (t) => {
+          acc += t
+          update()
+        },
+        onError: (err) => {
+          setError(err)
+          setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: acc || `❌ ${err}` } : m))
+        },
+      })
+      if (!acc) {
+        setMessages(prev => prev.filter(m => m.id !== assistantId))
       }
-
-      setMessages(prev => [...prev, assistantMessage])
     } catch (e: any) {
       setError(e.message || '发送失败')
+      setMessages(prev => prev.filter(m => m.id !== assistantId))
     } finally {
       setLoading(false)
     }

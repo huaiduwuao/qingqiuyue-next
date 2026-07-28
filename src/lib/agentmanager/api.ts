@@ -168,6 +168,66 @@ class AgentManagerAPI {
     })
   }
 
+  /**
+   * 流式聊天(SSE):stream=true 触发后端流式转发,
+   * onDelta 边收文本,onDone 收结束,onError 收错误。
+   */
+  async chatCompletionsStream(
+    model: string,
+    messages: { role: string; content: string }[],
+    handlers: { onDelta?: (text: string) => void; onDone?: () => void; onError?: (e: string) => void },
+  ): Promise<void> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    const authToken = this.getAuthToken()
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`
+
+    const res = await fetch(`${API_BASE}/gateway/llm/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ model, messages, stream: true }),
+    })
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ error: res.statusText }))
+      handlers.onError?.(error.error || `HTTP ${res.status}`)
+      return
+    }
+    if (!res.body) {
+      handlers.onError?.('响应无流内容')
+      return
+    }
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let event = 'message'
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      let idx
+      while ((idx = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.slice(0, idx).replace(/\r$/, '')
+        buffer = buffer.slice(idx + 1)
+        if (line.startsWith('event:')) {
+          event = line.slice(6).trim()
+        } else if (line.startsWith('data:')) {
+          const dataStr = line.slice(5).trim()
+          try {
+            const data = JSON.parse(dataStr)
+            if (event === 'delta') handlers.onDelta?.(data.text ?? '')
+            else if (event === 'done') handlers.onDone?.()
+            else if (event === 'error') handlers.onError?.(data.error ?? 'unknown')
+          } catch {
+            /* 忽略无法解析的行 */
+          }
+        } else if (line === '') {
+          event = 'message'
+        }
+      }
+    }
+    handlers.onDone?.()
+  }
+
   async getQuota() {
     return this.request<{
       user_id: number
@@ -503,6 +563,12 @@ export interface ModelProvider {
   remark?: string
   enabled: boolean
   is_default: boolean
+  /** 上下文长度(0=默认/不限) */
+  context_length?: number
+  /** API 格式:openai(/chat/completions) / anthropic(/messages) */
+  api_format?: 'openai' | 'anthropic'
+  /** 认证字段:authorization(Bearer) / x-api-key / api-key(查询参数) */
+  auth_field?: 'authorization' | 'x-api-key' | 'api-key'
   create_time?: string
   update_time?: string
 }
