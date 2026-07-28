@@ -317,6 +317,22 @@ class AgentManagerAPI {
   async getLatencyStats() {
     return this.request<LatencyStats>('/monitoring/latency')
   }
+
+  // ========== Agents 管理 ==========
+  async getAgentById(id: number) {
+    return this.request<any>(`/agents/${id}`)
+  }
+
+  async listAgents() {
+    return this.request<any[]>('/agents')
+  }
+
+  async updateAgent(id: number, data: Record<string, any>) {
+    return this.request<any>(`/agents/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
 }
 
 // Types
