@@ -3,7 +3,8 @@ FROM docker.io/library/node:22-alpine AS builder
 WORKDIR /app
 ARG NEXT_PUBLIC_API_BASE_URL=https://qingqiuyue.com
 ENV NEXT_TELEMETRY_DISABLED=1
-# ENV NEXT_EXPORT_STATIC=true  # 注释掉,静态导出不支持 API 路由
+# 静态导出模式:Next.js 会生成 out/ 目录
+ENV NEXT_EXPORT_STATIC=true
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 # 设置国内镜像解决 corepack/pnpm 下载问题
 ENV COREPACK_NPM_REGISTRY=https://registry.npmmirror.com
@@ -18,6 +19,8 @@ RUN pnpm install --frozen-lockfile --ignore-workspace
 
 # 再复制源码，这样只有源码变化时才重新构建
 COPY . .
+# 删除 API 路由(静态导出模式不支持)
+RUN rm -rf src/app/api
 RUN pnpm run build
 
 # ===== nginx 运行镜像 =====
