@@ -1,9 +1,25 @@
 import type { NextConfig } from "next";
 
+// dev 模式(localhost:3000)没有 nginx 在前面转发 /api,
+// 纯 CSR 静态导出自身也不带 API 路由 → 浏览器直连 /api/* 全 404。
+// 这里只在 development 下加 rewrites,把 /api、/ws 代理到真后端(API_PROXY_TARGET),
+// 生产 output:'export' 时 rewrites 被忽略,仍由 nginx/APISIX 转发,互不影响。
+const isDev = process.env.NODE_ENV === "development";
+const API_PROXY_TARGET = process.env.API_PROXY_TARGET ?? "http://10.9.1.2:10005";
+
 // 纯 CSR 模式:静态导出
 const nextConfig: NextConfig = {
   output: 'export',
   trailingSlash: false,
+  ...(isDev && {
+    async rewrites() {
+      return [
+        { source: "/api/:path*", destination: `${API_PROXY_TARGET}/api/:path*` },
+        // 注意:rewrites 不支持 WebSocket 升级,/ws 仅代理普通 HTTP 轮询请求
+        { source: "/ws/:path*", destination: `${API_PROXY_TARGET}/ws/:path*` },
+      ];
+    },
+  }),
   // 禁用构建时的 ESLint 检查和类型检查
   eslint: {
     // 忽略 ESLint 警告，避免构建失败

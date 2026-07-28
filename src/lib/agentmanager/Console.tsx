@@ -29,9 +29,10 @@ import MCPManager from './mcp/MCPManager'
 import SandboxMonitor from './sandbox/SandboxMonitor'
 import AgentTerminal from './terminal/AgentTerminal'
 import SessionManager from './session/SessionManager'
+import WorkflowsOverview from './WorkflowsOverview'
 import { useAuth } from '@/contexts/AuthContext'
 
-type Tab = 'dashboard' | 'instances' | 'agents' | 'sessions' | 'audit' | 'skills' | 'gateway' | 'kanban' | 'mcp' | 'sandbox' | 'terminal'
+type Tab = 'dashboard' | 'instances' | 'agents' | 'sessions' | 'audit' | 'skills' | 'gateway' | 'kanban' | 'mcp' | 'sandbox' | 'terminal' | 'workflows'
 
 export default function AgentManagerConsole() {
   const { sessionId: token, isAuthenticated } = useAuth()
@@ -149,6 +150,7 @@ export default function AgentManagerConsole() {
     { key: 'mcp', label: '🔌 MCP' },
     { key: 'sandbox', label: '🐳 沙盒' },
     { key: 'terminal', label: '🖥️ 终端' },
+    { key: 'workflows', label: '🔀 工作流' },
   ]
 
   return (
@@ -600,6 +602,13 @@ export default function AgentManagerConsole() {
               连接远程 Hermes Agent / Claude Code / OpenClaw，实时查看输出结果
             </Alert>
             <AgentTerminal token={token ?? undefined} />
+          </Box>
+        )}
+
+        {/* Workflows Tab:跨所有 Agent 的工作流总览 */}
+        {activeTab === 'workflows' && (
+          <Box>
+            <WorkflowsOverview />
           </Box>
         )}
       </Box>
