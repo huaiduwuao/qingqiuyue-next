@@ -19,6 +19,9 @@ const nextConfig: NextConfig = {
         // /api/audio/* → audio-gateway(去掉 /api 前缀,拼到 .../v1 下)
         // 必须放在通用 /api 规则之前,rewrites 按顺序匹配
         { source: "/api/audio/:path*", destination: `${AUDIO_GATEWAY}/audio/:path*` },
+        // /api/digital-human/* 真实路由在 realtime-api 的 /api/realtime/digital-human/*
+        // 前端写的是短路径,这里补 realtime 前缀
+        { source: "/api/digital-human/:path*", destination: `${API_PROXY_TARGET}/api/realtime/digital-human/:path*` },
         { source: "/api/:path*", destination: `${API_PROXY_TARGET}/api/:path*` },
         // 注意:rewrites 不支持 WebSocket 升级,/ws 仅代理普通 HTTP 轮询请求
         { source: "/ws/:path*", destination: `${API_PROXY_TARGET}/ws/:path*` },
