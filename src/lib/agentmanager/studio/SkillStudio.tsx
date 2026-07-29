@@ -135,18 +135,22 @@ export default function SkillStudio({ editingId = null, onLoaded }: { editingId?
     }
   }
 
-  // 保存:新建 create / 编辑 update
+  // 保存:新建 create / 编辑 update。config 取画布中 skill(处理)节点的 config
   const handleSave = async () => {
     if (!name.trim()) {
       alert('请填写技能名称')
       return
     }
-    let cfg: any = {}
-    try {
-      cfg = JSON.parse(config || '{}')
-    } catch {
-      alert('config 不是合法 JSON')
-      return
+    // 从画布找处理节点(kind=skill)的 config;找不到用原表单值兜底
+    const draft = graphRef.current?.getData()
+    const skillNode = draft?.nodes.find((n) => n.kind === 'skill')
+    let cfg: any = skillNode?.config ?? {}
+    if (!skillNode) {
+      try {
+        cfg = JSON.parse(config || '{}')
+      } catch {
+        cfg = {}
+      }
     }
     setSaving(true)
     try {
@@ -170,21 +174,16 @@ export default function SkillStudio({ editingId = null, onLoaded }: { editingId?
     setDirty(true)
   }, [])
 
-  const manualForm = (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Typography variant="body2" color="text.secondary">
-          {skillId ? `编辑技能 #${skillId}` : '新技能草稿'}
-        </Typography>
-        {dirty && <Chip size="small" label="未保存" color="warning" />}
-      </Box>
-      <TextField size="small" label="名称" value={name} onChange={(e) => { setName(e.target.value); setDirty(true) }} />
-      <TextField size="small" label="描述" value={desc} onChange={(e) => { setDesc(e.target.value); setDirty(true) }} multiline rows={2} />
-      <TextField select size="small" label="分类" value={category} onChange={(e) => { setCategory(e.target.value); setDirty(true) }}>
+  // 画布上方:技能整体属性(名称/描述/分类)+ 保存;config 双击「处理」节点编辑
+  const propBar = (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', flex: '0 0 auto' }}>
+      <TextField size="small" label="名称" value={name} onChange={(e) => { setName(e.target.value); setDirty(true) }} sx={{ minWidth: 150 }} />
+      <TextField size="small" label="描述" value={desc} onChange={(e) => { setDesc(e.target.value); setDirty(true) }} sx={{ flex: 1, minWidth: 160 }} />
+      <TextField select size="small" label="分类" value={category} onChange={(e) => { setCategory(e.target.value); setDirty(true) }} sx={{ minWidth: 130 }}>
         {CATEGORIES.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
       </TextField>
-      <TextField size="small" label="config (JSON)" value={config} onChange={(e) => { setConfig(e.target.value); setDirty(true) }} multiline rows={6} slotProps={{ input: { sx: { fontFamily: 'monospace', fontSize: 12 } } }} />
-      <Button variant="contained" onClick={handleSave} disabled={saving || !name.trim()}>
+      {dirty && <Chip size="small" label="未保存" color="warning" variant="outlined" />}
+      <Button size="small" variant="contained" onClick={handleSave} disabled={saving || !name.trim()}>
         {saving ? '保存中…' : skillId ? '💾 保存修改' : '💾 保存技能'}
       </Button>
     </Box>
@@ -197,24 +196,17 @@ export default function SkillStudio({ editingId = null, onLoaded }: { editingId?
       generating={generating}
       messages={messages}
       onSend={handleSend}
-      manualForm={manualForm}
       listPanel={null}
       showList={false}
       graph={
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 1 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: '0 0 auto' }}>
-            <Box sx={{ flex: 1 }} />
-            {dirty && <Chip size="small" label="有未保存修改" color="warning" variant="outlined" />}
-            <Button size="small" variant="contained" onClick={handleSave} disabled={saving || !name.trim()}>
-              {saving ? '保存中…' : '💾 保存'}
-            </Button>
-          </Box>
+          {propBar}
           <Box sx={{ flex: 1, minHeight: 0 }}>
             <EditableGraph
               ref={graphRef}
               palette={NODE_PALETTE}
               onChange={markDirty}
-              emptyHint="用左侧对话生成草稿,或点上方按钮添加节点;改完点「保存」"
+              emptyHint="用左侧对话生成草稿,或点上方按钮添加节点;双击「处理」节点改 config,改完点「保存」"
             />
           </Box>
         </Box>

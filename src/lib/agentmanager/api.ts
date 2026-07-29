@@ -437,6 +437,23 @@ class AgentManagerAPI {
   async deleteModelProvider(id: number) {
     return this.request<{ message: string }>(`/model-providers/${id}`, { method: 'DELETE' })
   }
+
+  // ========== 节点类型(可维护) ==========
+  async listNodeTypes() {
+    return this.request<{ list: NodeType[]; total: number }>('/node-types')
+  }
+
+  async createNodeType(data: Partial<NodeType>) {
+    return this.request<NodeType>('/node-types', { method: 'POST', body: JSON.stringify(data) })
+  }
+
+  async updateNodeType(id: number, data: Partial<NodeType>) {
+    return this.request<NodeType>(`/node-types/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+  }
+
+  async deleteNodeType(id: number) {
+    return this.request<{ message: string }>(`/node-types/${id}`, { method: 'DELETE' })
+  }
 }
 
 // Types
@@ -551,6 +568,21 @@ export interface InstanceSkill {
 }
 
 export type ModelProviderType = 'llm' | 'tts' | 'asr' | 'diffusion' | 'codingplan'
+
+/** 工作流/画布节点类型(后端 node_types 表,可维护) */
+export interface NodeType {
+  id: number
+  kind: string
+  label: string
+  icon?: string
+  color?: string
+  category?: 'flow' | 'entity' | 'io'
+  allow_source?: boolean
+  allow_target?: boolean
+  default_config?: Record<string, any>
+  sort_order?: number
+  enabled?: boolean
+}
 
 export interface ModelProvider {
   id: number

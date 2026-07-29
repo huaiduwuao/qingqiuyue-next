@@ -24,9 +24,13 @@ import {
   useNodesState,
   useEdgesState,
   MarkerType,
+  Handle,
+  Position,
   type Connection,
   type Edge,
   type Node,
+  type NodeProps,
+  type NodeTypes,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import Box from '@mui/material/Box'
@@ -37,6 +41,7 @@ import Dialog from '@mui/material/Dialog'
 import DialogTitle from '@mui/material/DialogTitle'
 import DialogContent from '@mui/material/DialogContent'
 import DialogActions from '@mui/material/DialogActions'
+import { agentmAPI, type NodeType } from '../api'
 
 export interface DraftNode {
   id: string
@@ -63,24 +68,25 @@ export interface EditableGraphRef {
 }
 
 interface EditableGraphProps {
-  /** 工具条可添加的节点类型 */
-  palette: { kind: string; label: string }[]
+  /** 工具条可添加的节点类型 kind 列表(可选;不传则用接口返回的全部类型) */
+  palette?: { kind: string; label: string }[]
   /** 草稿变化回调 */
   onChange?: (nodes: DraftNode[], edges: DraftEdge[]) => void
   emptyHint?: string
 }
 
-const KIND_COLOR: Record<string, { bg: string; border: string; fg: string }> = {
-  start: { bg: '#e8f5e9', border: '#66bb6a', fg: '#2e7d32' },
-  end: { bg: '#ffebee', border: '#ef5350', fg: '#c62828' },
-  agent: { bg: '#e3f2fd', border: '#42a5f5', fg: '#1565c0' },
-  skill: { bg: '#f3e5f5', border: '#ab47bc', fg: '#6a1b9a' },
-  workflow: { bg: '#fff3e0', border: '#ffa726', fg: '#e65100' },
-  mcp: { bg: '#e0f7fa', border: '#26c6da', fg: '#00838f' },
-  memory: { bg: '#fffde7', border: '#ffee58', fg: '#f9a825' },
-  step: { bg: '#eceff1', border: '#90a4ae', fg: '#37474f' },
+// 配色兜底(接口未返回 color 时按 category)
+const CATEGORY_COLOR: Record<string, { bg: string; border: string; fg: string }> = {
+  flow: { bg: '#eceff1', border: '#90a4ae', fg: '#37474f' },
+  entity: { bg: '#e3f2fd', border: '#42a5f5', fg: '#1565c0' },
   io: { bg: '#fafafa', border: '#bdbdbd', fg: '#616161' },
-  condition: { bg: '#fce4ec', border: '#f06292', fg: '#ad1457' },
+  default: { bg: '#eceff1', border: '#90a4ae', fg: '#37474f' },
+}
+
+// 由 hex 主色派生浅底/深字(简单算法,接口 color 是主色)
+function deriveColor(main?: string, category?: string) {
+  if (!main) return CATEGORY_COLOR[category ?? 'default'] ?? CATEGORY_COLOR.default
+  return { bg: main + '1a', border: main, fg: main } // 1a = 10% 透明度浅底
 }
 
 let idSeq = 1
@@ -95,6 +101,24 @@ const EditableGraph = forwardRef<EditableGraphRef, EditableGraphProps>(function 
   const [editingNode, setEditingNode] = useState<Node | null>(null)
   const [editLabel, setEditLabel] = useState('')
   const [editConfig, setEditConfig] = useState('{}')
+  // 节点类型(从 /node-types 接口读,可维护)
+  const [nodeTypes, setNodeTypes] = useState<NodeType[]>([])
+
+  useEffect(() => {
+    agentmAPI.listNodeTypes().then((res) => setNodeTypes(res.list || [])).catch(() => {})
+  }, [])
+
+  const typeMap = useMemo(() => {
+    const m: Record<string, NodeType> = {}
+    nodeTypes.forEach((t) => { m[t.kind] = t })
+    return m
+  }, [nodeTypes])
+
+  // 工具条:优先用传入 palette,否则用接口全部类型
+  const paletteItems = useMemo(() => {
+    if (palette && palette.length) return palette
+    return nodeTypes.map((t) => ({ kind: t.kind, label: `${t.icon ?? ''} ${t.label}`.trim() }))
+  }, [palette, nodeTypes])
 
   // 把 RF 状态转成草稿
   const toDraft = useCallback((): { nodes: DraftNode[]; edges: DraftEdge[] } => {
@@ -134,7 +158,7 @@ const EditableGraph = forwardRef<EditableGraphRef, EditableGraphProps>(function 
         })),
       )
     },
-    [setNodes, setEdges],
+    [setNodes, setEdges, typeMap],
   )
 
   useImperativeHandle(ref, () => ({ setData, getData: toDraft }), [setData, toDraft])
@@ -164,12 +188,33 @@ const EditableGraph = forwardRef<EditableGraphRef, EditableGraphProps>(function 
           kind,
           x: 120 + Math.random() * 240,
           y: 80 + Math.random() * 160,
-          config: {},
+          config: typeMap[kind]?.default_config ?? {},
         }),
       ])
     },
-    [setNodes],
+    [setNodes, typeMap],
   )
+
+  // 由草稿节点构造 RF 节点:配色/图标/连线规则从接口 typeMap 读
+  function makeRFNode(n: DraftNode): Node {
+    const t = typeMap[n.kind ?? '']
+    const color = deriveColor(t?.color, t?.category)
+    return {
+      id: n.id,
+      type: 'studioNode',
+      position: { x: n.x, y: n.y },
+      data: {
+        label: n.label,
+        sub: n.sub ?? t?.label,
+        kind: n.kind,
+        icon: t?.icon,
+        config: n.config ?? t?.default_config ?? {},
+        _color: color,
+        _allowSource: t?.allow_source !== false,
+        _allowTarget: t?.allow_target !== false,
+      },
+    }
+  }
 
   // 双击节点编辑
   const onNodeDoubleClick = useCallback((_: any, node: Node) => {
@@ -207,7 +252,7 @@ const EditableGraph = forwardRef<EditableGraphRef, EditableGraphProps>(function 
       {/* 工具条 */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', flex: '0 0 auto' }}>
         <Typography variant="caption" color="text.secondary">添加节点:</Typography>
-        {palette.map((p) => (
+        {paletteItems.map((p) => (
           <Button key={p.kind} size="small" variant="outlined" onClick={() => addNode(p.kind, p.label)}>
             + {p.label}
           </Button>
@@ -232,6 +277,7 @@ const EditableGraph = forwardRef<EditableGraphRef, EditableGraphProps>(function 
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onNodeDoubleClick={onNodeDoubleClick}
+            nodeTypes={rfNodeTypes}
             fitView
             deleteKeyCode={['Backspace', 'Delete']}
             proOptions={{ hideAttribution: true }}
@@ -270,23 +316,37 @@ const EditableGraph = forwardRef<EditableGraphRef, EditableGraphProps>(function 
   )
 })
 
-function makeRFNode(n: DraftNode): Node {
-  const c = KIND_COLOR[n.kind ?? 'step'] ?? KIND_COLOR.step
-  return {
-    id: n.id,
-    position: { x: n.x, y: n.y },
-    data: { label: n.label, sub: n.sub, kind: n.kind, config: n.config ?? {} },
-    type: 'default',
-    style: {
-      background: c.bg,
-      border: `1.5px solid ${c.border}`,
-      color: c.fg,
-      borderRadius: 8,
-      padding: '8px 12px',
-      minWidth: 120,
-      fontSize: 12,
-    },
-  }
+// 自定义节点:渲染 图标+名称+属性(sub),带上下连线 Handle
+function StudioNode({ data, selected }: NodeProps) {
+  const c = (data._color as { bg: string; border: string; fg: string }) ?? CATEGORY_COLOR.default
+  const allowTarget = data._allowTarget !== false
+  const allowSource = data._allowSource !== false
+  return (
+    <div
+      style={{
+        background: c.bg,
+        border: `1.5px solid ${selected ? '#1976d2' : c.border}`,
+        color: c.fg,
+        borderRadius: 8,
+        padding: '8px 12px',
+        minWidth: 130,
+        fontSize: 12,
+        boxShadow: selected ? '0 0 0 3px rgba(25,118,210,0.25)' : '0 1px 4px rgba(0,0,0,0.12)',
+      }}
+    >
+      {allowTarget && <Handle type="target" position={Position.Top} style={{ background: c.border }} />}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        {data.icon ? <span style={{ fontSize: 15 }}>{data.icon as string}</span> : null}
+        <div style={{ fontWeight: 600 }}>{(data.label as string) ?? ''}</div>
+      </div>
+      {data.sub ? (
+        <div style={{ fontSize: 11, opacity: 0.75, marginTop: 2 }}>{data.sub as string}</div>
+      ) : null}
+      {allowSource && <Handle type="source" position={Position.Bottom} style={{ background: c.border }} />}
+    </div>
+  )
 }
+
+const rfNodeTypes: NodeTypes = { studioNode: StudioNode }
 
 export default EditableGraph

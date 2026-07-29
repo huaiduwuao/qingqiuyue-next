@@ -28,13 +28,15 @@ const TYPE_LABEL: Record<WorkflowType, string> = {
   plan_execute: '规划执行',
 }
 
+// 工作流可用的节点类型(取自后端 node_types,这里只挑流程/实体相关)
 const NODE_PALETTE = [
   { kind: 'start', label: '开始' },
-  { kind: 'step', label: '步骤' },
+  { kind: 'action', label: '动作' },
   { kind: 'agent', label: 'Agent' },
   { kind: 'skill', label: '技能' },
   { kind: 'mcp', label: 'MCP' },
   { kind: 'condition', label: '条件' },
+  { kind: 'parallel', label: '并行' },
   { kind: 'end', label: '结束' },
 ]
 
@@ -276,24 +278,18 @@ export default function WorkflowStudio({ editingId = null, onLoaded }: { editing
     </TextField>
   )
 
-  // 左侧面板:名称/描述/类型 + 保存(对话协助 + 表单共用一份草稿)
-  const manualForm = (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Typography variant="body2" color="text.secondary">
-          {wfId ? `编辑工作流 #${wfId}` : '新工作流草稿'}
-        </Typography>
-        {dirty && <Chip size="small" label="未保存" color="warning" />}
-      </Box>
-      <TextField size="small" label="名称" value={name} onChange={(e) => { setName(e.target.value); setDirty(true) }} />
-      <TextField size="small" label="描述" value={desc} onChange={(e) => { setDesc(e.target.value); setDirty(true) }} multiline rows={2} />
-      <TextField select size="small" label="类型" value={wtype} onChange={(e) => { setWtype(e.target.value as WorkflowType); setDirty(true) }}>
+  // 画布上方:工作流整体属性(名称/描述/类型)紧凑一行 + 目标 Agent + 保存
+  const propBar = (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', flex: '0 0 auto' }}>
+      <TextField size="small" label="名称" value={name} onChange={(e) => { setName(e.target.value); setDirty(true) }} sx={{ minWidth: 160 }} />
+      <TextField size="small" label="描述" value={desc} onChange={(e) => { setDesc(e.target.value); setDirty(true) }} sx={{ flex: 1, minWidth: 160 }} />
+      <TextField select size="small" label="类型" value={wtype} onChange={(e) => { setWtype(e.target.value as WorkflowType); setDirty(true) }} sx={{ minWidth: 110 }}>
         {Object.entries(TYPE_LABEL).map(([v, l]) => <MenuItem key={v} value={v}>{l}</MenuItem>)}
       </TextField>
-      <Typography variant="caption" color="text.disabled">
-        结构(节点/连线)在右侧画布上编辑;双击节点可改名称与配置。
-      </Typography>
-      <Button variant="contained" onClick={handleSave} disabled={saving || !name.trim()}>
+      {agentSelector}
+      <Box sx={{ flex: '0 0 auto' }} />
+      {dirty && <Chip size="small" label="未保存" color="warning" variant="outlined" />}
+      <Button size="small" variant="contained" onClick={handleSave} disabled={saving || !name.trim()}>
         {saving ? '保存中…' : wfId ? '💾 保存修改' : '💾 保存工作流'}
       </Button>
     </Box>
@@ -306,25 +302,17 @@ export default function WorkflowStudio({ editingId = null, onLoaded }: { editing
       generating={generating}
       messages={messages}
       onSend={handleSend}
-      manualForm={manualForm}
       listPanel={null}
       showList={false}
       graph={
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 1 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flex: '0 0 auto' }}>
-            {agentSelector}
-            <Box sx={{ flex: 1 }} />
-            {dirty && <Chip size="small" label="有未保存修改" color="warning" variant="outlined" />}
-            <Button size="small" variant="contained" onClick={handleSave} disabled={saving || !name.trim()}>
-              {saving ? '保存中…' : '💾 保存'}
-            </Button>
-          </Box>
+          {propBar}
           <Box sx={{ flex: 1, minHeight: 0 }}>
             <EditableGraph
               ref={graphRef}
               palette={NODE_PALETTE}
               onChange={markDirty}
-              emptyHint="用左侧对话生成草稿,或点上方按钮手动添加节点;改完点「保存」"
+              emptyHint="用左侧对话生成草稿,或点上方按钮添加节点;双击节点改配置,改完点「保存」"
             />
           </Box>
         </Box>
