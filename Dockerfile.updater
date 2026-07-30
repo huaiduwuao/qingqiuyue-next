@@ -1,0 +1,26 @@
+# =============================================================================
+# 前端 Updater 服务 Dockerfile
+# 用于自动检测前端代码更新并重建镜像
+# =============================================================================
+FROM alpine:3.19
+
+RUN apk add --no-cache \
+    git \
+    docker-cli \
+    ca-certificates \
+    tzdata
+
+RUN apk add --no-cache go
+
+WORKDIR /app
+
+COPY cmd/updater/ ./cmd/updater/
+
+RUN CGO_ENABLED=0 go build -o /app/updater ./cmd/updater/
+
+RUN rm -rf /root/go
+
+EXPOSE 8080
+
+ENTRYPOINT ["/app/updater"]
+CMD ["-port", "8080"]
