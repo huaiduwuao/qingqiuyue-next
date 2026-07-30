@@ -36,6 +36,7 @@ import PaymentRoundedIcon from '@mui/icons-material/PaymentRounded';
 import HubRoundedIcon from '@mui/icons-material/HubRounded';
 import TravelExploreIcon from '@mui/icons-material/TravelExplore';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
+import CloudSyncIcon from '@mui/icons-material/CloudSync';
 import PsychologyAltRoundedIcon from '@mui/icons-material/PsychologyAltRounded';
 import { PERMISSIONS } from '@/lib/permissions';
 
@@ -159,6 +160,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
   {
     title: '运维监控',
     items: [
+      { id: 'deployment', label: '部署管理', path: '/system/deployment', icon: <CloudSyncIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
       { id: 'log', label: '服务日志', path: '/system/log', icon: <TerminalRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
     ],
   },
