@@ -41,8 +41,9 @@ const WorkflowStudio = dynamic(() => import('./studio/WorkflowStudio'), { ssr: f
 const SkillStudio = dynamic(() => import('./studio/SkillStudio'), { ssr: false })
 const AgentStudio = dynamic(() => import('./studio/AgentStudio'), { ssr: false })
 const ModelProviderManager = dynamic(() => import('./models/ModelProviderManager'), { ssr: false })
+const WorkflowRunsManager = dynamic(() => import('./WorkflowRunsManager'), { ssr: false })
 
-type Tab = 'dashboard' | 'instances' | 'agents' | 'sessions' | 'audit' | 'skills' | 'gateway' | 'kanban' | 'mcp' | 'sandbox' | 'terminal' | 'workflows' | 'models'
+type Tab = 'dashboard' | 'instances' | 'agents' | 'sessions' | 'audit' | 'skills' | 'gateway' | 'kanban' | 'mcp' | 'sandbox' | 'terminal' | 'workflows' | 'models' | 'workflow-runs'
 
 export default function AgentManagerConsole() {
   const { sessionId: token, isAuthenticated } = useAuth()
@@ -191,6 +192,7 @@ export default function AgentManagerConsole() {
     { key: 'sandbox', label: '🐳 沙盒' },
     { key: 'terminal', label: '🖥️ 终端' },
     { key: 'workflows', label: '🔀 工作流' },
+    { key: 'workflow-runs', label: '📋 任务' },
   ]
 
   return (
@@ -700,6 +702,13 @@ export default function AgentManagerConsole() {
         {activeTab === 'models' && (
           <Box>
             <ModelProviderManager />
+          </Box>
+        )}
+
+        {/* 工作流任务管理 Tab:执行记录 + 步骤日志 + 定时调度 */}
+        {activeTab === 'workflow-runs' && (
+          <Box>
+            <WorkflowRunsManager />
           </Box>
         )}
         </>

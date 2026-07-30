@@ -454,6 +454,53 @@ class AgentManagerAPI {
   async deleteNodeType(id: number) {
     return this.request<{ message: string }>(`/node-types/${id}`, { method: 'DELETE' })
   }
+
+  // ========== 工作流执行 / 调度 / 执行记录 ==========
+  async executeWorkflow(workflowId: number, input?: Record<string, any>) {
+    return this.request<{ run: WorkflowRun; error?: string }>(`/workflows/${workflowId}/execute`, {
+      method: 'POST',
+      body: JSON.stringify({ input: input ?? {} }),
+    })
+  }
+
+  async createSchedule(workflowId: number, data: Partial<WorkflowSchedule>) {
+    return this.request<WorkflowSchedule>(`/workflows/${workflowId}/schedule`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async listSchedules(workflowId: number) {
+    return this.request<{ list: WorkflowSchedule[]; total: number }>(`/workflows/${workflowId}/schedules`)
+  }
+
+  async listAllSchedules() {
+    return this.request<{ list: WorkflowSchedule[]; total: number }>('/workflow-schedules')
+  }
+
+  async updateSchedule(id: number, data: Partial<WorkflowSchedule>) {
+    return this.request<WorkflowSchedule>(`/workflow-schedules/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async deleteSchedule(id: number) {
+    return this.request<{ message: string }>(`/workflow-schedules/${id}`, { method: 'DELETE' })
+  }
+
+  async listWorkflowRuns(params?: { workflow_id?: number; status?: string; limit?: number }) {
+    const q = new URLSearchParams()
+    if (params?.workflow_id) q.set('workflow_id', String(params.workflow_id))
+    if (params?.status) q.set('status', params.status)
+    if (params?.limit) q.set('limit', String(params.limit))
+    const qs = q.toString()
+    return this.request<{ list: WorkflowRun[]; total: number }>(`/workflow-runs${qs ? `?${qs}` : ''}`)
+  }
+
+  async getWorkflowRun(id: number) {
+    return this.request<{ run: WorkflowRun; steps: WorkflowRunStep[] }>(`/workflow-runs/${id}`)
+  }
 }
 
 // Types
@@ -582,6 +629,56 @@ export interface NodeType {
   default_config?: Record<string, any>
   sort_order?: number
   enabled?: boolean
+}
+
+// ========== 工作流执行 / 调度 ==========
+export interface WorkflowSchedule {
+  id: number
+  workflow_id: number
+  kind: 'at' | 'every' | 'cron'
+  cron_expr?: string
+  every_sec?: number
+  at_time?: string
+  timezone?: string
+  overlap_policy?: 'skip' | 'replace'
+  max_runs?: number
+  ends_at?: string
+  next_run_at?: string
+  last_run_at?: string
+  last_status?: string
+  run_count?: number
+  trigger_input?: Record<string, any>
+  enabled?: boolean
+}
+
+export interface WorkflowRun {
+  id: number
+  workflow_id: number
+  schedule_id?: number
+  source: 'manual' | 'scheduled'
+  status: 'claimed' | 'running' | 'completed' | 'failed' | 'unknown'
+  trigger_input?: Record<string, any>
+  final_state?: Record<string, any>
+  error?: string
+  claimed_at?: string
+  started_at?: string
+  finished_at?: string
+  duration_ms?: number
+}
+
+export interface WorkflowRunStep {
+  id: number
+  run_id: number
+  node_id: string
+  node_type: string
+  phase: 'start' | 'complete' | 'error' | 'skip'
+  start_time?: string
+  end_time?: string
+  duration_ms?: number
+  input?: Record<string, any>
+  output?: Record<string, any>
+  error?: string
+  attempt?: number
 }
 
 export interface ModelProvider {

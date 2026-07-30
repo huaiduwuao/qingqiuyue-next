@@ -24,6 +24,14 @@ import Alert from '@mui/material/Alert'
 import IconButton from '@mui/material/IconButton'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
+import PlayArrowIcon from '@mui/icons-material/PlayArrow'
+import ScheduleIcon from '@mui/icons-material/Schedule'
+import Dialog from '@mui/material/Dialog'
+import DialogTitle from '@mui/material/DialogTitle'
+import DialogContent from '@mui/material/DialogContent'
+import DialogActions from '@mui/material/DialogActions'
+import TextField from '@mui/material/TextField'
+import MenuItem from '@mui/material/MenuItem'
 import { agentmAPI, type Agent } from './api'
 import { canvasAPI } from './canvas/api'
 import type { AgentWorkflowInfo, WorkflowType } from './canvas/types'
@@ -52,6 +60,11 @@ export default function WorkflowsOverview({ onCreate, onEdit }: { onCreate?: () 
   const [rows, setRows] = useState<WorkflowRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // 执行/定时
+  const [runningId, setRunningId] = useState<number | null>(null)
+  const [scheduleFor, setScheduleFor] = useState<WorkflowRow | null>(null)
+  const [cronExpr, setCronExpr] = useState('0 * * * *')
+  const [overlap, setOverlap] = useState<'skip' | 'replace'>('skip')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -83,6 +96,41 @@ export default function WorkflowsOverview({ onCreate, onEdit }: { onCreate?: () 
     if (!confirm(`删除工作流「${w.name}」?`)) return
     await canvasAPI.deleteWorkflow(w.agent_id, w.id).catch((e) => alert(`删除失败: ${e.message}`))
     load()
+  }
+
+  // 立即执行
+  const handleExecute = async (w: WorkflowRow) => {
+    setRunningId(w.id)
+    try {
+      const res = await agentmAPI.executeWorkflow(w.id, {})
+      if (res.error) {
+        alert(`执行失败: ${res.error}`)
+      } else {
+        alert(`执行完成: ${res.run?.status ?? ''}${res.run?.error ? '\n' + res.run.error : ''}`)
+      }
+      load()
+    } catch (e: any) {
+      alert(`执行失败: ${e.message}`)
+    } finally {
+      setRunningId(null)
+    }
+  }
+
+  // 保存定时配置
+  const handleSaveSchedule = async () => {
+    if (!scheduleFor) return
+    try {
+      await agentmAPI.createSchedule(scheduleFor.id, {
+        kind: 'cron',
+        cron_expr: cronExpr,
+        overlap_policy: overlap,
+        enabled: true,
+      })
+      setScheduleFor(null)
+      alert('定时调度已创建,可在「📋 任务」tab 查看')
+    } catch (e: any) {
+      alert(`创建失败: ${e.message}`)
+    }
   }
 
   useEffect(() => {
@@ -158,6 +206,12 @@ export default function WorkflowsOverview({ onCreate, onEdit }: { onCreate?: () 
                   <TableCell align="right">{w.exec_count}</TableCell>
                   <TableCell>{w.last_exec_at ? new Date(w.last_exec_at).toLocaleString() : '—'}</TableCell>
                   <TableCell align="right">
+                    <IconButton size="small" color="primary" onClick={() => handleExecute(w)} disabled={runningId === w.id} title="立即执行">
+                      <PlayArrowIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton size="small" onClick={() => { setScheduleFor(w); setCronExpr('0 * * * *'); setOverlap('skip') }} title="定时调度">
+                      <ScheduleIcon fontSize="small" />
+                    </IconButton>
                     {onEdit && (
                       <IconButton size="small" onClick={() => onEdit(w)} title="编辑">
                         <EditOutlinedIcon fontSize="small" />
@@ -173,6 +227,28 @@ export default function WorkflowsOverview({ onCreate, onEdit }: { onCreate?: () 
           </Table>
         </TableContainer>
       )}
+
+      {/* 定时调度配置弹窗 */}
+      <Dialog open={!!scheduleFor} onClose={() => setScheduleFor(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>⏰ 定时调度「{scheduleFor?.name}」</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+          <TextField
+            size="small"
+            label="cron 表达式"
+            value={cronExpr}
+            onChange={(e) => setCronExpr(e.target.value)}
+            helperText="5 字段(分 时 日 月 周),如 0 * * * * = 每小时;支持 6 字段带秒"
+          />
+          <TextField select size="small" label="上次未跑完时(重叠策略)" value={overlap} onChange={(e) => setOverlap(e.target.value as any)}>
+            <MenuItem value="skip">跳过本次(skip)</MenuItem>
+            <MenuItem value="replace">取消上次,执行本次(replace)</MenuItem>
+          </TextField>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setScheduleFor(null)}>取消</Button>
+          <Button variant="contained" onClick={handleSaveSchedule}>创建调度</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }
