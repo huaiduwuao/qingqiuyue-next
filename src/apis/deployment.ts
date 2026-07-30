@@ -3,7 +3,10 @@
  * 从 updater 服务获取部署状态和历史
  */
 
-const UPDATER_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.9.1.2:10082';
+// Updater 服务地址（管理后台直接访问服务器）
+// 开发环境: localhost:10082
+// 生产环境: 10.9.1.2:10082
+const UPDATER_BASE_URL = process.env.NEXT_PUBLIC_UPDATER_URL || 'http://localhost:10082';
 
 /**
  * 获取所有服务状态

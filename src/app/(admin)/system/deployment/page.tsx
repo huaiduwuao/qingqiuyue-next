@@ -283,7 +283,17 @@ export default function DeploymentPage() {
         </Box>
       ) : servicesError ? (
         <Alert severity="error" sx={{ mb: 2 }}>
-          获取服务状态失败，请检查 updater 服务是否运行
+          <Typography variant="body2">
+            <strong>获取服务状态失败</strong><br/>
+            请检查 updater 服务是否运行: <code>http://localhost:10082</code><br/>
+            错误: {String(servicesError)}
+          </Typography>
+        </Alert>
+      ) : services.length === 0 ? (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          <Typography variant="body2">
+            未检测到服务，可能 updater 服务未运行或网络不可达
+          </Typography>
         </Alert>
       ) : (
         <TableContainer component={Paper} sx={{ mb: 4 }}>
