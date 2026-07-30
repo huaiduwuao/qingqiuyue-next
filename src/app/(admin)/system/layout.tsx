@@ -86,6 +86,7 @@ const PageComponents: Record<string, React.ComponentType<any>> = {
   '/system/crawled': dynamic(() => import('./crawled/page'), { ssr: false }),
   '/system/sandbox': dynamic(() => import('./sandbox/page'), { ssr: false }),
   '/system/sandbox/tasks': dynamic(() => import('./sandbox/tasks/page'), { ssr: false }),
+  '/system/deployment': dynamic(() => import('./deployment/page'), { ssr: false }),
 };
 
 export default function SystemLayout({ children }: { children: ReactNode }) {
@@ -115,6 +116,19 @@ function SystemLayoutInner({ children }: { children: ReactNode }) {
       setActiveTab(defaultTab);
     }
   }, [activeTab, defaultTab, setActiveTab]);
+
+  // 根据 URL 路径同步 activeTab
+  useEffect(() => {
+    const currentPath = window.location.pathname;
+    // 在所有菜单项中查找匹配的路径
+    for (const group of MENU_GROUPS) {
+      const item = group.items.find((it) => it.path === currentPath);
+      if (item) {
+        setActiveTab(toSystemTab(item));
+        break;
+      }
+    }
+  }, [setActiveTab]);
 
   // 过滤有权限的菜单项
   const visibleGroups = useMemo(() => {
