@@ -20,29 +20,6 @@ services:
     volumes:
       - ${CODE_DIR:-.}:/app/code:ro
 
-  # 🔄 Auto-Updater: 前端自动更新服务
-  # 监控前端代码更新，自动重建镜像
-  updater:
-    build:
-      context: ../qingqiuyue-go/web-updater
-      dockerfile: Dockerfile
-    image: localhost/qingqiuyue/web-updater:latest
-    container_name: qingqiuyue-web-updater
-    volumes:
-      # 🔄 挂载宿主 docker socket
-      - /var/run/docker.sock:/var/run/docker.sock
-      # 🔄 挂载代码目录
-      - ${CODE_DIR:-.}:/app/code:ro
-    environment:
-      - CODE_DIR=/app/code
-      - COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-qingqiuyue}
-      - TZ=Asia/Shanghai
-    ports:
-      - "10810:8080"  # Webhook API 端口
-    restart: unless-stopped
-    networks:
-      - backend
-
 networks:
   # 接入基础设施创建的 qingqiuyue 网络
   backend:
