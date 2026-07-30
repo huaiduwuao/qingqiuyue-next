@@ -24,7 +24,7 @@ services:
   # 监控前端代码更新，自动重建镜像
   updater:
     build:
-      context: ../web-updater
+      context: ../qingqiuyue-go/web-updater
       dockerfile: Dockerfile
     image: localhost/qingqiuyue/web-updater:latest
     container_name: qingqiuyue-web-updater
