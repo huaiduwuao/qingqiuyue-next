@@ -1,17 +1,14 @@
 // logtail 日志平台前端调用。
 //
-// 链路:
-//   - 生产:浏览器同源 /logs/* → nginx → APISIX(/logs/* → logtail-server)
-//   - dev :浏览器直连 http://10.9.1.2:8089,失败时 fetcher try-catch 返回 []
-//          (Next.js rewrites 不可达目标会 500,所以 dev 不走 rewrite)
+// 链路(统一走 APISIX,跟生产一致):
+//   浏览器同源 /logs/* → nginx(生产) / Next.js rewrites(dev) → APISIX
+//   APISIX(/logs/* → logtail-server 容器内网 8080) → logtail-server
 //
 // ⚠️ logtail 返回裸 JSON(数组 / { lines, truncated, total }),不是后端统一的
 //    { code, msg, data } 信封,所以这里用原生 fetch,不能复用 src/lib/api/client
 //    的 axios 实例(其响应拦截器会因缺少 code 字段而把成功响应判为失败)。
 
-// dev 模式直连地址:logtail-server 宿主机映射端口(8089 → 容器 8080)
-// 生产走 nginx,这里不影响
-const LOGTAIL_BASE = 'http://10.9.1.2:8089';
+const BASE = '/logs';
 
 export interface LogSearchResult {
   lines: string[];
@@ -38,10 +35,10 @@ async function getJSON<T>(url: string): Promise<T> {
 }
 
 /** 项目列表(= 各服务名,扫描 logtail-server 的 logs 目录得到)
- *  dev 模式直连 10.9.1.2:8089,失败 try-catch 返回 [] 让页面降级 */
+ *  logtail 不可达时返回 [],页面降级显示「无项目」而不是报错 */
 export async function getProjects(): Promise<string[]> {
   try {
-    return await getJSON<string[]>(`${LOGTAIL_BASE}/api/projects`);
+    return await getJSON<string[]>(`${BASE}/api/projects`);
   } catch (e) {
     console.warn('[logtail] getProjects 失败,返回空数组:', e);
     return [];
@@ -51,7 +48,7 @@ export async function getProjects(): Promise<string[]> {
 /** 拉取某项目最新 n 行(实时模式按间隔轮询此接口) */
 export async function tailLogs(project: string, n = 500): Promise<LogSearchResult> {
   try {
-    const u = `${LOGTAIL_BASE}/api/logs?project=${encodeURIComponent(project)}&tail=${n}`;
+    const u = `${BASE}/api/logs?project=${encodeURIComponent(project)}&tail=${n}`;
     return await getJSON<LogSearchResult>(u);
   } catch (e) {
     return { lines: [], truncated: false, total: 0 };
@@ -67,7 +64,7 @@ export async function searchLogs(
 ): Promise<LogSearchResult> {
   try {
     const p = new URLSearchParams({ project, start, end, q });
-    return await getJSON<LogSearchResult>(`${LOGTAIL_BASE}/api/logs?${p.toString()}`);
+    return await getJSON<LogSearchResult>(`${BASE}/api/logs?${p.toString()}`);
   } catch (e) {
     return { lines: [], truncated: false, total: 0 };
   }
