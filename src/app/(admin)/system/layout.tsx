@@ -115,7 +115,8 @@ function SystemLayoutInner({ children }: { children: ReactNode }) {
     if (!activeTab && defaultTab) {
       setActiveTab(defaultTab);
     }
-  }, [activeTab, defaultTab, setActiveTab]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab?.path, defaultTab?.path]);
 
   // 根据 URL 路径同步 activeTab
   useEffect(() => {
@@ -124,10 +125,16 @@ function SystemLayoutInner({ children }: { children: ReactNode }) {
     for (const group of MENU_GROUPS) {
       const item = group.items.find((it) => it.path === currentPath);
       if (item) {
-        setActiveTab(toSystemTab(item));
+        const next = toSystemTab(item);
+        // ⚠️ 必须比较当前 activeTab,否则无条件 setActiveTab 会触发死循环
+        //    (setState → render → useEffect → setState ...)
+        if (!activeTab || activeTab.path !== next.path) {
+          setActiveTab(next);
+        }
         break;
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [setActiveTab]);
 
   // 过滤有权限的菜单项

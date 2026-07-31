@@ -29,11 +29,9 @@ const nextConfig: NextConfig = {
         // 前端写的是短路径,这里补 realtime 前缀
         { source: "/api/digital-human/:path*", destination: `${API_PROXY_TARGET}/api/realtime/digital-human/:path*` },
         { source: "/api/:path*", destination: `${API_PROXY_TARGET}/api/:path*` },
-        // /logs/* → logtail-server (APISIX 上游)
-        //   logtail 是独立服务,聚合各业务服务的日志
-        //   Next.js dev 进程在 Windows 上跑,无法解析 docker DNS,
-        //   所以直接连宿主机映射的端口 8089 (logtail-server:0.0.0.0:8089)
-        { source: "/logs/:path*", destination: `${LOGTAIL_BASE_URL}/:path*` },
+        // /logs/* 在 dev 模式下不写 rewrite,前端直接调绝对 URL(见 src/apis/logtail.ts),
+        //   这样 logtail 不可达时 fetch try-catch 返回 [],而不是 Next.js 返 500。
+        //   生产由 nginx.conf 转给 APISIX,与 dev 无关。
         // 注意:rewrites 不支持 WebSocket 升级,/ws 仅代理普通 HTTP 轮询请求
         { source: "/ws/:path*", destination: `${API_PROXY_TARGET}/ws/:path*` },
       ];

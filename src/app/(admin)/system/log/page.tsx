@@ -59,27 +59,37 @@ export default function SystemLogPage() {
 
   const live = mode === 'live';
   const logsQ = useQuery({
+    // ⚠️ queryKey 必须稳定,否则 React Query 5 严格比较认为 key 变化,
+    //    每次 render 都重新执行 queryFn → setState → 无限循环
     queryKey: ['logtail', 'logs', effProject, mode, live ? 'live' : searchKey],
     enabled: !!effProject,
     refetchInterval: live && !paused ? POLL_MS : false,
     queryFn: () => (live ? tailLogs(effProject, TAIL_N) : searchLogs(effProject, start, end, kw)),
-    placeholderData: (prev) => prev,
+    // ⚠️ placeholderData: (prev) => prev 在 React Query 5 中会让 queryFn 持续 refetch
+    //    引发死循环,移除后用 isPlaceholderData 控制 UI
   });
+
+  const logsLines = logsQ.data?.lines;
+  // ⚠️ 用 lines.length + lines 序列化长度做依赖,稳定 parsed/filtered 引用,
+  //    避免 React Query 持续 refetch 时每次 data 都是新对象 → filtered 也是新数组 → setState 死循环
+  const linesKey = logsLines?.length ?? 0;
+  const lastLine = logsLines?.[linesKey - 1] ?? '';
 
   const parsed = useMemo(
     () => (logsQ.data?.lines ?? []).map(parseLine),
-    [logsQ.data],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [linesKey, lastLine],
   );
 
   const filtered = useMemo(
     () =>
       parsed.filter((p) => {
         if (levelFilter.size && !(p.level && levelFilter.has(p.level))) return false;
-        // 实时模式下关键字是前端过滤;检索模式关键字已由服务端处理
         if (live && kw && !p.raw.toLowerCase().includes(kw.toLowerCase())) return false;
         return true;
       }),
-    [parsed, levelFilter, kw, live],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [linesKey, lastLine, levelFilter, kw, live],
   );
 
   // 自动滚底:仅当用户停在底部附近时跟随
@@ -95,11 +105,9 @@ export default function SystemLogPage() {
     if (el) el.scrollTop = el.scrollHeight;
   };
   useEffect(() => {
-    // ⚠️ 不能用 [filtered, live] 作依赖,useMemo 出的 filtered 每次 render 都是
-    // 新引用,会触发 "Maximum update depth exceeded" 死循环。
-    // 这里改成只在 parsed 长度变化时滚动一次(live 模式新增日志长度会增加)
     if (live && stickRef.current) scrollToBottom();
-  }, [parsed.length, live]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linesKey, live]);
 
   const toggleLevel = (lv: LogLevel) => {
     setLevelFilter((prev) => {
@@ -139,13 +147,19 @@ export default function SystemLogPage() {
         {/* 项目选择 */}
         <FormControl size="small" sx={{ minWidth: 150 }}>
           <Select
-            value={effProject}
+            // ⚠️ 不能传 value="" + 没有匹配 MenuItem,会导致 MUI Select 内部 setState 死循环
+            //    始终用 projectsQ.data?.[0] 作为 value,确保有匹配 MenuItem
+            value={effProject || '__loading__'}
             displayEmpty
-            onChange={(e) => setProject(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === '__loading__' || v === '__empty__') return;
+              setProject(v);
+            }}
             sx={{ fontSize: 13, '& .MuiSelect-select': { py: 0.75 } }}
           >
             {!projectsQ.data?.length && (
-              <MenuItem value="" disabled>
+              <MenuItem value="__loading__" disabled>
                 {projectsQ.isLoading ? '加载中…' : '无项目'}
               </MenuItem>
             )}

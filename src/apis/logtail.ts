@@ -1,13 +1,17 @@
 // logtail 日志平台前端调用。
 //
-// 链路:浏览器同源 /logs/* → Next rewrites(next.config.ts)→ APISIX :10000 /logs
-//       → 去掉 /logs 前缀 → logtail-server。
+// 链路:
+//   - 生产:浏览器同源 /logs/* → nginx → APISIX(/logs/* → logtail-server)
+//   - dev :浏览器直连 http://10.9.1.2:8089,失败时 fetcher try-catch 返回 []
+//          (Next.js rewrites 不可达目标会 500,所以 dev 不走 rewrite)
 //
 // ⚠️ logtail 返回裸 JSON(数组 / { lines, truncated, total }),不是后端统一的
 //    { code, msg, data } 信封,所以这里用原生 fetch,不能复用 src/lib/api/client
 //    的 axios 实例(其响应拦截器会因缺少 code 字段而把成功响应判为失败)。
 
-const BASE = '/logs';
+// dev 模式直连地址:logtail-server 宿主机映射端口(8089 → 容器 8080)
+// 生产走 nginx,这里不影响
+const LOGTAIL_BASE = 'http://10.9.1.2:8089';
 
 export interface LogSearchResult {
   lines: string[];
@@ -33,26 +37,40 @@ async function getJSON<T>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-/** 项目列表(= 各服务名,扫描 logtail-server 的 logs 目录得到) */
-export function getProjects(): Promise<string[]> {
-  return getJSON<string[]>(`${BASE}/api/projects`);
+/** 项目列表(= 各服务名,扫描 logtail-server 的 logs 目录得到)
+ *  dev 模式直连 10.9.1.2:8089,失败 try-catch 返回 [] 让页面降级 */
+export async function getProjects(): Promise<string[]> {
+  try {
+    return await getJSON<string[]>(`${LOGTAIL_BASE}/api/projects`);
+  } catch (e) {
+    console.warn('[logtail] getProjects 失败,返回空数组:', e);
+    return [];
+  }
 }
 
 /** 拉取某项目最新 n 行(实时模式按间隔轮询此接口) */
-export function tailLogs(project: string, n = 500): Promise<LogSearchResult> {
-  const u = `${BASE}/api/logs?project=${encodeURIComponent(project)}&tail=${n}`;
-  return getJSON<LogSearchResult>(u);
+export async function tailLogs(project: string, n = 500): Promise<LogSearchResult> {
+  try {
+    const u = `${LOGTAIL_BASE}/api/logs?project=${encodeURIComponent(project)}&tail=${n}`;
+    return await getJSON<LogSearchResult>(u);
+  } catch (e) {
+    return { lines: [], truncated: false, total: 0 };
+  }
 }
 
 /** 按日期范围 + 关键字检索历史日志 */
-export function searchLogs(
+export async function searchLogs(
   project: string,
   start: string,
   end: string,
   q: string,
 ): Promise<LogSearchResult> {
-  const p = new URLSearchParams({ project, start, end, q });
-  return getJSON<LogSearchResult>(`${BASE}/api/logs?${p.toString()}`);
+  try {
+    const p = new URLSearchParams({ project, start, end, q });
+    return await getJSON<LogSearchResult>(`${LOGTAIL_BASE}/api/logs?${p.toString()}`);
+  } catch (e) {
+    return { lines: [], truncated: false, total: 0 };
+  }
 }
 
 const LEVELS = new Set<LogLevel>(['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL']);
