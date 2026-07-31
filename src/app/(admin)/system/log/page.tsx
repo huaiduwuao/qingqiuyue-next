@@ -95,8 +95,11 @@ export default function SystemLogPage() {
     if (el) el.scrollTop = el.scrollHeight;
   };
   useEffect(() => {
+    // ⚠️ 不能用 [filtered, live] 作依赖,useMemo 出的 filtered 每次 render 都是
+    // 新引用,会触发 "Maximum update depth exceeded" 死循环。
+    // 这里改成只在 parsed 长度变化时滚动一次(live 模式新增日志长度会增加)
     if (live && stickRef.current) scrollToBottom();
-  }, [filtered, live]);
+  }, [parsed.length, live]);
 
   const toggleLevel = (lv: LogLevel) => {
     setLevelFilter((prev) => {
