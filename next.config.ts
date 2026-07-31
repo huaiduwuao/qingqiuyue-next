@@ -8,6 +8,12 @@ const isDev = process.env.NODE_ENV === "development";
 const API_PROXY_TARGET = process.env.API_PROXY_TARGET ?? "http://10.9.1.2:10005";
 // audio-gateway(ASR/TTS)独立代理:/api/audio/* 不走 agentmanager,走 8001
 const AUDIO_GATEWAY = process.env.AUDIO_GATEWAY_BASE_URL ?? "http://10.9.1.2:8001/v1";
+// logtail-server 暴露地址(APISIX 内网 DNS 名为 qingqiuyue-logtail-server:8080,
+// 但 Next.js dev 进程跑在 Windows 上,无法解析 docker 网络 DNS,
+// 所以用宿主机映射的端口 8089 直连;APISIX 配置同)
+// 如果 logtail 没起,代理会失败 → dev 模式吞掉错误返回 500,
+// 这是已知的 dev-only 限制,生产 APISIX 是另一条路
+const LOGTAIL_BASE_URL = process.env.LOGTAIL_BASE_URL ?? "http://10.9.1.2:8089";
 
 // 纯 CSR 模式:静态导出
 const nextConfig: NextConfig = {
@@ -23,9 +29,11 @@ const nextConfig: NextConfig = {
         // 前端写的是短路径,这里补 realtime 前缀
         { source: "/api/digital-human/:path*", destination: `${API_PROXY_TARGET}/api/realtime/digital-human/:path*` },
         { source: "/api/:path*", destination: `${API_PROXY_TARGET}/api/:path*` },
-        // /logs/* → logtail-server (宿主机 8089 端口,APISIX 内网 DNS)
-        //   logtail 是独立服务,APISIX 上游可以是 qingqiuyue-logtail-server:8080
-        { source: "/logs/:path*", destination: `http://qingqiuyue-logtail-server:8080/:path*` },
+        // /logs/* → logtail-server (APISIX 上游)
+        //   logtail 是独立服务,聚合各业务服务的日志
+        //   Next.js dev 进程在 Windows 上跑,无法解析 docker DNS,
+        //   所以直接连宿主机映射的端口 8089 (logtail-server:0.0.0.0:8089)
+        { source: "/logs/:path*", destination: `${LOGTAIL_BASE_URL}/:path*` },
         // 注意:rewrites 不支持 WebSocket 升级,/ws 仅代理普通 HTTP 轮询请求
         { source: "/ws/:path*", destination: `${API_PROXY_TARGET}/ws/:path*` },
       ];
