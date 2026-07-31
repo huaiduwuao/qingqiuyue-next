@@ -23,6 +23,9 @@ const nextConfig: NextConfig = {
         // 前端写的是短路径,这里补 realtime 前缀
         { source: "/api/digital-human/:path*", destination: `${API_PROXY_TARGET}/api/realtime/digital-human/:path*` },
         { source: "/api/:path*", destination: `${API_PROXY_TARGET}/api/:path*` },
+        // /logs/* → logtail-server (宿主机 8089 端口,APISIX 内网 DNS)
+        //   logtail 是独立服务,APISIX 上游可以是 qingqiuyue-logtail-server:8080
+        { source: "/logs/:path*", destination: `http://qingqiuyue-logtail-server:8080/:path*` },
         // 注意:rewrites 不支持 WebSocket 升级,/ws 仅代理普通 HTTP 轮询请求
         { source: "/ws/:path*", destination: `${API_PROXY_TARGET}/ws/:path*` },
       ];
