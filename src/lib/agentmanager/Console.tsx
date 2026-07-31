@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Tabs from '@mui/material/Tabs'
@@ -47,6 +48,7 @@ type Tab = 'dashboard' | 'instances' | 'agents' | 'sessions' | 'audit' | 'skills
 
 export default function AgentManagerConsole() {
   const { sessionId: token, isAuthenticated } = useAuth()
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState<Tab>('dashboard')
   // 工作室(创建/编辑页):非空时整体替换 tab 视图;editingId 表示编辑模式
   const [studio, setStudio] = useState<'agent' | 'skill' | 'workflow' | null>(null)
@@ -503,7 +505,10 @@ export default function AgentManagerConsole() {
                       >
                         {agent.name.charAt(0)}
                       </Box>
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Box
+                        sx={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
+                        onClick={() => router.push(`/system/agentmanager/agents/${agent.id}`)}
+                      >
                         <Typography variant="subtitle1" sx={{ fontWeight: 600 }} noWrap>{agent.name}</Typography>
                         <Typography variant="caption" color="text.secondary">{agent.role} · {agent.model}</Typography>
                       </Box>
