@@ -507,7 +507,7 @@ export default function AgentManagerConsole() {
                       </Box>
                       <Box
                         sx={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
-                        onClick={() => router.push(`/system/agentmanager/agents/${agent.id}`)}
+                        onClick={() => router.push(`/system/agentmanager/agent-detail?id=${agent.id}`)}
                       >
                         <Typography variant="subtitle1" sx={{ fontWeight: 600 }} noWrap>{agent.name}</Typography>
                         <Typography variant="caption" color="text.secondary">{agent.role} · {agent.model}</Typography>
