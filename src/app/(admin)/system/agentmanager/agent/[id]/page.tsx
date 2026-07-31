@@ -1,19 +1,41 @@
+'use client'
+
 /**
- * Agent 详情页(server 外壳)
+ * Agent 详情页
  * 访问路径: /system/agentmanager/agent/[id]
  *
- * output:'export' 静态导出:动态段 [id] 必须声明 generateStaticParams。
- * generateStaticParams 不能和 'use client' 同文件,因此拆成:
- * 本文件(server)导出占位 id,实际渲染交给 client 组件 AgentDetailClient。
- * 导出一个占位 id(-1),真实 id 由客户端 useParams 解析。
+ * output:'export' 静态导出下,动态段 [id] 必须有 generateStaticParams,
+ * 但 generateStaticParams 不能和 'use client' 同文件。
+ *
+ * 解决:把 generateStaticParams 放父级 [id]/layout.tsx(允许 server 段做静态壳),
+ * page.tsx 本身是 client 组件,运行时通过 useParams 读真实 id。
+ * 这样避免"server 外壳 + client wrapper"两层结构,真正的内容渲染全部在 client。
  */
 
-import AgentDetailClient from './AgentDetailClient'
+import { useParams } from 'next/navigation'
+import dynamic from 'next/dynamic'
+import Box from '@mui/material/Box'
+import CircularProgress from '@mui/material/CircularProgress'
 
-export function generateStaticParams() {
-  return [{ id: '-1' }]
-}
+const AgentDetail = dynamic(
+  () => import('@/lib/agentmanager/canvas/AgentDetail').then((m) => m.default),
+  {
+    ssr: false,
+    loading: () => (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+        <CircularProgress />
+      </Box>
+    ),
+  },
+)
 
 export default function AgentDetailPage() {
-  return <AgentDetailClient />
+  const params = useParams<{ id: string }>()
+  const agentId = parseInt(params?.id ?? '', 10)
+
+  if (isNaN(agentId) || agentId < 0) {
+    return <Box sx={{ p: 4 }}>无效的 Agent ID</Box>
+  }
+
+  return <AgentDetail agentId={agentId} />
 }
