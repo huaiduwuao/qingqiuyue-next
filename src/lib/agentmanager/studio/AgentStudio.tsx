@@ -14,6 +14,9 @@ import TextField from '@mui/material/TextField'
 import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
 import MenuItem from '@mui/material/MenuItem'
+import FormControlLabel from '@mui/material/FormControlLabel'
+import Switch from '@mui/material/Switch'
+import Tooltip from '@mui/material/Tooltip'
 
 import { agentmAPI, type Agent, type ModelProvider, type Skill } from '../api'
 import { agentmExtendedAPI } from '../api-extended'
@@ -51,6 +54,8 @@ export default function AgentStudio({ editingId = null, onLoaded }: { editingId?
   const [providers, setProviders] = useState<ModelProvider[]>([])
   const [desc, setDesc] = useState('')
   const [prompt, setPrompt] = useState('')
+  // 2026-08: Hermes 路由开关
+  const [routeToHermes, setRouteToHermes] = useState(false)
 
   // 关联图
   const [assoc, setAssoc] = useState<AgentAssociations | null>(null)
@@ -105,6 +110,8 @@ export default function AgentStudio({ editingId = null, onLoaded }: { editingId?
     setModel(a.model ?? '')
     setDesc(a.description ?? '')
     setPrompt((a as any).system_prompt ?? '')
+    // 2026-08: 加载 Hermes 路由开关
+    setRouteToHermes((a as any).route_to_hermes ?? false)
     setAssoc(assocData)
 
     const nodes: DraftNode[] = [
@@ -188,6 +195,8 @@ export default function AgentStudio({ editingId = null, onLoaded }: { editingId?
         model,
         description: cfg.description ?? desc,
         system_prompt: cfg.system_prompt ?? prompt,
+        // 2026-08: Hermes 路由开关
+        route_to_hermes: routeToHermes,
       }
       let aid = agentId
       if (aid) {
@@ -275,6 +284,29 @@ export default function AgentStudio({ editingId = null, onLoaded }: { editingId?
         <MenuItem value=""><em>选 MCP…</em></MenuItem>
         {allMcps.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
       </TextField>
+
+      {/* 2026-08: Hermes 路由开关 */}
+      <Tooltip title="开启后,数字人对话时走 Hermes dashboard(可使用 Hermes Skills)">
+        <FormControlLabel
+          control={
+            <Switch
+              size="small"
+              checked={routeToHermes}
+              onChange={(e) => { setRouteToHermes(e.target.checked); setDirty(true) }}
+            />
+          }
+          label={
+            <Chip
+              size="small"
+              label="Hermes"
+              icon={<span style={{ fontSize: 12 }}>🤖</span>}
+              color={routeToHermes ? 'primary' : 'default'}
+              variant={routeToHermes ? 'filled' : 'outlined'}
+            />
+          }
+          sx={{ ml: 1 }}
+        />
+      </Tooltip>
 
       {dirty && <Chip size="small" label="未保存" color="warning" variant="outlined" />}
       <Button size="small" variant="contained" onClick={handleSave} disabled={saving || !name.trim()}>

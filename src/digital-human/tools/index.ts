@@ -10,3 +10,4 @@ export * from './actions';
 export * from './visemes';
 export * from './tools';
 export * from './dispatcher';
+export * from './intent-ui-tools';
