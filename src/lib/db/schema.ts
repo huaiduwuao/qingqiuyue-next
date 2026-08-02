@@ -1,6 +1,7 @@
 /**
- * Drizzle schema — 对应 docker/sql/postgresql/digital_human_schema.sql
- * 与 PG schema 严格对齐, 改 PG 时同步改这里.
+ * Drizzle schema — 数字人独立库表结构
+ * (原对应 docker/sql/postgresql/digital_human_schema.sql, 该文件已并入
+ *  qingqiuyue-go/sql/postgresql/schema.sql, 这里是前端 Drizzle 独立定义)
  */
 
 import {
