@@ -90,22 +90,28 @@ const RECONNECT_MAX_MS = 15000;
 // G2: 解析数字人形象指令 <emotion:x/> / <action:y/> / <mouth:speak/>,
 // 映射成 onToolCalls 能识别的 DhToolCall(face.setExpression / body.playAction / mouth.speak)。
 function parseAvatarDirectives(text: string, options: UseChatAvatarWSOptions) {
+  // I1: LLM 可能把 < > 转义成 </>,先还原再解析
+  const raw = text
+    .replace(/\\u003c/g, '<')
+    .replace(/\\u003e/g, '>')
+    .replace(/\\u0026/g, '&')
+    .replace(/\\"/g, '"');
   const calls: Array<{ name: string; args: Record<string, any> }> = [];
   // 表情 <emotion:xxx/>
   const emoRe = /<emotion:([a-zA-Z_]+)\/>/g;
   let m: RegExpExecArray | null;
-  while ((m = emoRe.exec(text))) {
+  while ((m = emoRe.exec(raw))) {
     calls.push({ name: 'face.setExpression', args: { name: m[1] } });
   }
   // 动作 <action:xxx/>
   const actRe = /<action:([a-zA-Z_]+)\/>/g;
-  while ((m = actRe.exec(text))) {
+  while ((m = actRe.exec(raw))) {
     calls.push({ name: 'body.playAction', args: { name: m[1] } });
   }
   // H1: 动态 UI 指令 <ui:{json}/>——数字员工干活后弹结果面板
   if (options.onUI) {
     const uiRe = /<ui:((?:[^{}]|\{[^{}]*\})*)\/>/g;
-    while ((m = uiRe.exec(text))) {
+    while ((m = uiRe.exec(raw))) {
       try {
         const ui = JSON.parse(m[1]);
         if (ui && typeof ui === 'object' && ui.type) {

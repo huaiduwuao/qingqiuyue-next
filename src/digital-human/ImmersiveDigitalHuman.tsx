@@ -31,6 +31,8 @@ import { useChatAvatarWS } from './useChatAvatarWS';
 import { DynamicUIModal } from './dynamic-ui/DynamicUIModal';
 import type { DynamicUI, UIAction } from './dynamic-ui/types';
 import { dispatchToolCalls, type ToolCall as DhToolCall } from './tools/dispatcher';
+import { parseIframeUI, iframeToolToTarget, type IframeOpenTarget } from './virtual-browser';
+import { VirtualBrowser } from './VirtualBrowser';
 import { useConversationHistory } from './useConversationHistory';
 import { useVoiceAgent } from '@/hooks/useVoiceAgent';
 import { VoiceIndicator, type VoiceIndicatorState } from '@/components/VoiceIndicator';
@@ -98,20 +100,34 @@ export default function ImmersiveDigitalHuman() {
   // H1: 动态 UI(数字员工干活后弹结果面板)
   const [dynamicUI, setDynamicUI] = React.useState<DynamicUI | null>(null);
   // I1: 虚拟浏览器 iframe 显示器(真实加载网页,零后端)
+  // 统一显示器组件(地址栏/视频原声/fallback/新标签), 取代旧的 inline iframe
   const [browserFrame, setBrowserFrame] = React.useState<{ url: string; title?: string } | null>(null);
+  const [browserTarget, setBrowserTarget] = React.useState<IframeOpenTarget | null>(null);
   const chat = useChatAvatarWS(undefined, {
     // G1: 数字人走 agentmanager 的数字员工(AG-UI),形象/动作仍由 dispatcher 驱动
     useAgui: true,
     aguiAgent: 'worker',
     // H1: 接收动态 UI 指令并渲染;I1: iframe 指令走独立显示器
     onUI: (ui: any) => {
-      if (ui?.type === 'iframe' && ui.url) {
-        setBrowserFrame({ url: ui.url, title: ui.title });
-      } else {
-        setDynamicUI(ui as DynamicUI);
+      // I1: iframe 指令 → 统一解析器产出目标, 弹显示器
+      const target = parseIframeUI(ui);
+      if (target) {
+        setBrowserTarget(target);
+        setBrowserFrame({ url: target.url, title: ui.title });
+        return;
       }
+      setDynamicUI(ui as DynamicUI);
     },
     onToolCalls: (calls) => {
+      // I1.2: 数字人/用户要看网页或视频 → 弹统一显示器 (工具兜底, 与 <ui:iframe/> 指令同源)
+      // 注意: 必须先于 stageHandle 早退处理, 否则 stage 未就绪时网页/视频指令被丢弃
+      for (const c of calls as unknown as DhToolCall[]) {
+        const target = iframeToolToTarget(c);
+        if (target) {
+          setBrowserTarget(target);
+          setBrowserFrame({ url: target.url, title: target.rawUrl });
+        }
+      }
       // 把 Hermes/数字人下发的 tool_calls 串到 VrmStage handle。
       // stageHandle 为 null 时(还没就绪)只 log,不动 avatar。
       if (!stageHandle) {
@@ -555,52 +571,13 @@ export default function ImmersiveDigitalHuman() {
         />
       )}
 
-      {/* I1: 虚拟浏览器显示器(真实 iframe 加载网页,零后端) */}
-      {browserFrame && (
-        <Box
-          sx={{
-            position: 'absolute',
-            top: 60,
-            right: 520,
-            width: 560,
-            height: 420,
-            zIndex: 4,
-            bgcolor: 'rgba(10,12,20,0.92)',
-            borderRadius: 3,
-            border: '2px solid rgba(37,244,238,0.3)',
-            boxShadow: '0 8px 40px rgba(0,0,0,0.6)',
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            backdropFilter: 'blur(8px)',
-          }}
-        >
-          {/* 显示器顶部:地址栏 + 关闭 */}
-          <Box sx={{
-            display: 'flex', alignItems: 'center', gap: 1,
-            px: 1.5, py: 0.75, borderBottom: '1px solid rgba(255,255,255,0.08)',
-            bgcolor: 'rgba(20,24,40,0.6)',
-          }}>
-            <Box sx={{
-              flex: 1, px: 1.5, py: 0.5, borderRadius: 1,
-              bgcolor: 'rgba(255,255,255,0.06)', fontFamily: 'monospace',
-              fontSize: 12, color: 'rgba(255,255,255,0.7)',
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>
-              {browserFrame.url}
-            </Box>
-            <Button size="small" color="error" onClick={() => setBrowserFrame(null)} sx={{ minWidth: 24, px: 1 }}>
-              ✕
-            </Button>
-          </Box>
-          {/* iframe 内容(真实加载,同源策略下被拒的站会白屏) */}
-          <iframe
-            src={browserFrame.url}
-            title={browserFrame.title || '虚拟浏览器'}
-            style={{ flex: 1, border: 'none', width: '100%' }}
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-          />
-        </Box>
+      {/* I1: 虚拟浏览器显示器(统一组件: 地址栏 / 视频原声 / fallback / 新标签) */}
+      {browserTarget && (
+        <VirtualBrowser
+          target={browserTarget}
+          title={browserFrame?.title}
+          onClose={() => { setBrowserTarget(null); setBrowserFrame(null); }}
+        />
       )}
 
       {/* 002:左侧会话列表面板(多会话入口) */}

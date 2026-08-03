@@ -11,7 +11,6 @@ import React from 'react';
 import { Box, IconButton, TextField, Typography, CircularProgress, Collapse } from '@mui/material';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import OpenInFullRoundedIcon from '@mui/icons-material/OpenInFullRounded';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import MicRoundedIcon from '@mui/icons-material/MicRounded';
 import NearMeRoundedIcon from '@mui/icons-material/NearMeRounded';
@@ -24,6 +23,8 @@ import { useRouter, usePathname } from 'next/navigation';
 import BlenderAvatar from './BlenderAvatar';
 import { useChatAvatarWS } from './useChatAvatarWS';
 import { dispatchToolCalls, type ToolCall as DhToolCall } from './tools/dispatcher';
+import { parseIframeUI, iframeToolToTarget, type IframeOpenTarget } from './virtual-browser';
+import { VirtualBrowser } from './VirtualBrowser';
 import { useVoiceAgent } from '@/hooks/useVoiceAgent';
 import { VoiceIndicator, type VoiceIndicatorState } from '@/components/VoiceIndicator';
 import { MicTestButton } from '@/components/MicTestButton';
@@ -133,7 +134,17 @@ export default function FloatingDigitalHuman() {
     // G1: 数字人走 agentmanager 的数字员工(AG-UI),形象/语音/动作仍由 dispatcher 驱动
     useAgui: true,
     aguiAgent: activeAgentId || 'worker',
+    // I1: 数字人要看网页/视频 → 统一显示器 (浮窗内弹窗)
+    onUI: (ui: any) => {
+      const target = parseIframeUI(ui);
+      if (target) setIframeTarget(target);
+    },
     onToolCalls: (calls) => {
+      // I1.2: 工具兜底(openUrl/video.*) → 统一显示器
+      for (const c of calls as unknown as DhToolCall[]) {
+        const target = iframeToolToTarget(c);
+        if (target) setIframeTarget(target);
+      }
       // Hermes/数字人下发的工具调用 — 用 dispatcher 映射到 BlenderAvatar 的
       // emotion/action/viseme/jawOpen。BlenderAvatar 没有 sinks handle,这里
       // 用本地 wrapper 把工具调用串到现有 setEmotion/setAction state。
@@ -262,14 +273,15 @@ export default function FloatingDigitalHuman() {
   // "Rendered fewer hooks than expected"(pathname 切换时 hidden 翻转会导致
   // 下方的 useEffect 被跳过,hook 数量变化 → 崩)
 
-  // ExternalViewer: 监听 executor 的 'digital-human-open-external' 事件,
-  // 弹 iframe 模态显示用户想看的外部 URL(百度/知乎等)
-  const [externalViewer, setExternalViewer] = React.useState<{ url: string; label: string } | null>(null)
+  // I1: 统一显示器(取代旧 ExternalViewer 内联 iframe 模态)
+  const [iframeTarget, setIframeTarget] = React.useState<IframeOpenTarget | null>(null)
+  // 兼容旧事件 'digital-human-open-external'(executor 的 open_external 意图也走统一显示器)
   React.useEffect(() => {
     const onOpen = (e: Event) => {
       const detail = (e as CustomEvent<{ url: string; label: string; mode: string }>).detail
       if (!detail) return
-      setExternalViewer({ url: detail.url, label: detail.label })
+      // 复用统一显示器(解析器处理视频/嵌入判定), 不另起模态
+      setIframeTarget(parseIframeUI({ type: 'iframe', url: detail.url, title: detail.label }))
     }
     window.addEventListener('digital-human-open-external', onOpen)
     return () => window.removeEventListener('digital-human-open-external', onOpen)
@@ -803,48 +815,14 @@ export default function FloatingDigitalHuman() {
         )}
       </Box>
 
-      {/* ExternalViewer: 用户说"打开百度"等 → 弹 iframe 模态显示 */}
-      {externalViewer && (
-        <Box data-no-drag sx={{
-          position: 'fixed', inset: 0, zIndex: 9999,
-          bgcolor: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          p: { xs: 1, md: 4 },
-        }}>
-          <Box sx={{
-            width: '100%', maxWidth: 1200, height: '100%', maxHeight: 800,
-            bgcolor: 'background.paper', borderRadius: 2, overflow: 'hidden',
-            display: 'flex', flexDirection: 'column',
-            boxShadow: '0 24px 48px rgba(0,0,0,0.5)',
-          }}>
-            {/* 顶部工具栏 */}
-            <Box sx={{
-              display: 'flex', alignItems: 'center', gap: 1, p: 1, pl: 2,
-              borderBottom: 1, borderColor: 'divider',
-              bgcolor: 'grey.100',
-            }}>
-              <Box sx={{ flex: 1, fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                🌐 {externalViewer.label}
-              </Box>
-              <IconButton size="small" onClick={() => window.open(externalViewer.url, '_blank', 'noopener,noreferrer')} title="新标签打开">
-                <OpenInNewIcon fontSize="small" />
-              </IconButton>
-              <IconButton size="small" onClick={() => setExternalViewer(null)} title="关闭">
-                <CloseRoundedIcon />
-              </IconButton>
-            </Box>
-            {/* iframe 内容 */}
-            <Box sx={{ flex: 1, position: 'relative', bgcolor: '#fafafa' }}>
-              <iframe
-                src={externalViewer.url}
-                title={externalViewer.label}
-                style={{ width: '100%', height: '100%', border: 'none' }}
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                referrerPolicy="no-referrer"
-              />
-            </Box>
-          </Box>
-        </Box>
+      {/* I1: 统一显示器(视频原声/地址栏/fallback/新标签), 取代旧 ExternalViewer */}
+      {iframeTarget && (
+        <VirtualBrowser
+          target={iframeTarget}
+          title={iframeTarget.rawUrl}
+          onClose={() => setIframeTarget(null)}
+          placement="modal"
+        />
       )}
     </Box>
   );
