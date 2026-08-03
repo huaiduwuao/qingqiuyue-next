@@ -798,6 +798,20 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
             },
             onDone: () => {
               setChatBusy(false);
+              // G3: 数字人语音输出——用 Web Speech API 朗读清洗后的完整回答
+              const cleanFull = fullTextRef.current
+                .replace(/<emotion:[a-zA-Z_]+\/>/g, '')
+                .replace(/<action:[a-zA-Z_]+\/>/g, '')
+                .trim();
+              if (cleanFull && typeof window !== 'undefined' && 'speechSynthesis' in window) {
+                try {
+                  window.speechSynthesis.cancel();
+                  const utter = new SpeechSynthesisUtterance(cleanFull);
+                  utter.lang = 'zh-CN';
+                  utter.rate = 1.05;
+                  window.speechSynthesis.speak(utter);
+                } catch { /* TTS 失败不影响文本 */ }
+              }
             },
             onError: (err) => {
               setChatLog((c) => [...c, { who: 'ai', text: `❌ ${err}` }]);
