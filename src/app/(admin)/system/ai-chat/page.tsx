@@ -32,6 +32,13 @@ interface Message {
   model?: string
 }
 
+// 工具执行日志条目
+interface ToolLog {
+  id: string
+  name: string
+  status: 'running' | 'done'
+}
+
 export default function AIChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
@@ -40,6 +47,7 @@ export default function AIChatPage() {
   const [models, setModels] = useState<{ id: string; name: string }[]>([])
   const [selectedModel, setSelectedModel] = useState('')
   const [aguiMode, setAguiMode] = useState(false) // 多Agent编排(AG-UI)模式
+  const [toolLogs, setToolLogs] = useState<ToolLog[]>([]) // 工具执行日志
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // 模型加载后设置默认模型
@@ -99,8 +107,8 @@ export default function AIChatPage() {
     try {
       if (aguiMode) {
         // 多Agent编排模式:走 AG-UI 协议流式对话。
-        // 选中的可能是 agent(如 xiaoyue),也可能是模型;agent 名传给后端可命中
-        // 已注册的 LLMAgent,否则后端按 model 动态构造。传 selectedModel 即可。
+        // 清空上次工具日志
+        setToolLogs([])
         await agentmAPI.aguiChat({
           model: selectedModel,
           prompt: input.trim(),
@@ -112,6 +120,13 @@ export default function AIChatPage() {
           onError: (err) => {
             setError(err)
             setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: acc || `❌ ${err}` } : m))
+          },
+          // 工具执行过程(F1:数字员工干活可视化)
+          onToolCall: (name, toolCallId) => {
+            setToolLogs(prev => [...prev, { id: toolCallId || Date.now().toString(), name, status: 'running' }])
+          },
+          onToolEnd: (toolCallId) => {
+            setToolLogs(prev => prev.map(t => t.id === toolCallId ? { ...t, status: 'done' } : t))
           },
         })
       } else {
@@ -292,6 +307,28 @@ export default function AIChatPage() {
                 </Box>
               </Paper>
             </Box>
+          )}
+
+          {/* 工具执行日志(F1:数字员工干活可视化) */}
+          {toolLogs.length > 0 && (
+            <Paper sx={{ p: 1.5, bgcolor: 'background.paper', mb: 2, border: '1px solid', borderColor: 'divider' }}>
+              <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                🔧 工具执行过程
+              </Typography>
+              {toolLogs.map((t, i) => (
+                <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5 }}>
+                  {t.status === 'running'
+                    ? <CircularProgress size={12} />
+                    : <Typography variant="body2" sx={{ color: 'success.main' }}>✓</Typography>}
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                    {t.name}
+                  </Typography>
+                  {t.status === 'running' && (
+                    <Typography variant="caption" color="text.secondary">执行中...</Typography>
+                  )}
+                </Box>
+              ))}
+            </Paper>
           )}
 
           {/* Error */}

@@ -246,7 +246,13 @@ class AgentManagerAPI {
    */
   async aguiChat(
     params: { model?: string; agent?: string; prompt: string; system?: string },
-    handlers: { onDelta?: (text: string) => void; onDone?: () => void; onError?: (e: string) => void },
+    handlers: {
+      onDelta?: (text: string) => void
+      onDone?: () => void
+      onError?: (e: string) => void
+      onToolCall?: (name: string, toolCallId: string) => void
+      onToolEnd?: (toolCallId: string) => void
+    },
   ): Promise<void> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     const authToken = this.getAuthToken()
@@ -291,6 +297,10 @@ class AgentManagerAPI {
             handlers.onDone?.()
           } else if (type === 'RUN_ERROR') {
             handlers.onError?.(data.message || 'run error')
+          } else if (type === 'TOOL_CALL_START') {
+            handlers.onToolCall?.(data.toolCallName ?? '', data.toolCallId ?? '')
+          } else if (type === 'TOOL_CALL_END') {
+            handlers.onToolEnd?.(data.toolCallId ?? '')
           }
         } catch {
           /* 忽略无法解析的行 */
