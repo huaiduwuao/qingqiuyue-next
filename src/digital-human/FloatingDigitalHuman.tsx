@@ -104,11 +104,12 @@ export default function FloatingDigitalHuman() {
     // StrictMode/依赖变化都可能重跑,加 cancelled + AbortController 避免 stale state 与未取消请求。
     const controller = new AbortController();
     let cancelled = false;
-    fetch('/api/agentmanager/agents', { signal: controller.signal })
+    fetch('/api/agentmanager/multi-agent/staff', { signal: controller.signal })
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
-        const agents = (data.agents || []).map((a: AgentPayload) => ({
+        // 数字员工列表:agentId=角色名(frontend/backend/ops/qa/worker),name=显示名,description=描述
+        const agents = (data.agents || []).map((a: any) => ({
           agentId: a.agentId,
           name: a.name,
           role: a.description || a.agentId,
