@@ -28,6 +28,8 @@ import { useRouter } from 'next/navigation';
 import { alpha } from '@mui/material/styles';
 import { VrmStage, type VrmStageHandle } from './VrmStage';
 import { useChatAvatarWS } from './useChatAvatarWS';
+import { DynamicUIModal } from './dynamic-ui/DynamicUIModal';
+import type { DynamicUI, UIAction } from './dynamic-ui/types';
 import { dispatchToolCalls, type ToolCall as DhToolCall } from './tools/dispatcher';
 import { useConversationHistory } from './useConversationHistory';
 import { useVoiceAgent } from '@/hooks/useVoiceAgent';
@@ -93,10 +95,14 @@ export default function ImmersiveDigitalHuman() {
   const { setTheme } = useThemeMode();
   // VrmStage sinks 引用（用 state 而非 ref，避免首次渲染时 ref.current 还没填的坑）
   const [stageHandle, setStageHandle] = React.useState<VrmStageHandle | null>(null);
+  // H1: 动态 UI(数字员工干活后弹结果面板)
+  const [dynamicUI, setDynamicUI] = React.useState<DynamicUI | null>(null);
   const chat = useChatAvatarWS(undefined, {
     // G1: 数字人走 agentmanager 的数字员工(AG-UI),形象/动作仍由 dispatcher 驱动
     useAgui: true,
     aguiAgent: 'worker',
+    // H1: 接收动态 UI 指令并渲染
+    onUI: (ui) => setDynamicUI(ui as DynamicUI),
     onToolCalls: (calls) => {
       // 把 Hermes/数字人下发的 tool_calls 串到 VrmStage handle。
       // stageHandle 为 null 时(还没就绪)只 log,不动 avatar。
@@ -521,6 +527,25 @@ export default function ImmersiveDigitalHuman() {
       )}
 
       <audio ref={audioRef} hidden />
+
+      {/* H1: 动态 UI(数字员工干活后弹结果面板) */}
+      {dynamicUI && (
+        <DynamicUIModal
+          ui={dynamicUI}
+          onClose={() => setDynamicUI(null)}
+          onAction={(action: UIAction) => {
+            if (action.handler === 'navigate') {
+              // 导航类动作:跳转
+              const target = action.target as string;
+              if (target) window.location.href = target;
+            } else if (action.handler === 'tool' && action.target) {
+              // 工具类动作:回灌对话
+              chat.sendText(String(action.target));
+            }
+            setDynamicUI(null);
+          }}
+        />
+      )}
 
       {/* 002:左侧会话列表面板(多会话入口) */}
       <Drawer

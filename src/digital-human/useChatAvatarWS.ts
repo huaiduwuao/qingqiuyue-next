@@ -90,7 +90,6 @@ const RECONNECT_MAX_MS = 15000;
 // G2: 解析数字人形象指令 <emotion:x/> / <action:y/> / <mouth:speak/>,
 // 映射成 onToolCalls 能识别的 DhToolCall(face.setExpression / body.playAction / mouth.speak)。
 function parseAvatarDirectives(text: string, options: UseChatAvatarWSOptions) {
-  if (!options.onToolCalls) return;
   const calls: Array<{ name: string; args: Record<string, any> }> = [];
   // 表情 <emotion:xxx/>
   const emoRe = /<emotion:([a-zA-Z_]+)\/>/g;
@@ -103,7 +102,19 @@ function parseAvatarDirectives(text: string, options: UseChatAvatarWSOptions) {
   while ((m = actRe.exec(text))) {
     calls.push({ name: 'body.playAction', args: { name: m[1] } });
   }
-  if (calls.length > 0) options.onToolCalls(calls);
+  // H1: 动态 UI 指令 <ui:{json}/>——数字员工干活后弹结果面板
+  if (options.onUI) {
+    const uiRe = /<ui:((?:[^{}]|\{[^{}]*\})*)\/>/g;
+    while ((m = uiRe.exec(text))) {
+      try {
+        const ui = JSON.parse(m[1]);
+        if (ui && typeof ui === 'object' && ui.type) {
+          options.onUI(ui);
+        }
+      } catch { /* JSON 解析失败:整段丢弃,不阻断对话 */ }
+    }
+  }
+  if (calls.length > 0 && options.onToolCalls) options.onToolCalls(calls);
 }
 
 interface WSConnection {
@@ -267,6 +278,8 @@ export interface UseChatAvatarWSOptions {
   useAgui?: boolean;
   /** AG-UI 模式下的 agent 名(如 frontend/backend/ops/qa/worker),默认 worker */
   aguiAgent?: string;
+  /** H1:从 AG-UI 文本流解析出的动态 UI(数字员工干活后弹结果),入口组件渲染 */
+  onUI?: (ui: any) => void;
 }
 
 export function useChatAvatarWS(agentId: string = 'digital_human', options: UseChatAvatarWSOptions = {}): ChatAvatarState {
@@ -801,8 +814,11 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
               fullTextRef.current += t;
               // G2 数字人形象指令:解析 <emotion:x/>/<action:y/> 标记,驱动形象
               parseAvatarDirectives(t, options);
-              // 清洗掉形象指令标记,只显示纯文本
-              const cleanText = fullTextRef.current.replace(/<emotion:[a-zA-Z_]+\/>/g, '').replace(/<action:[a-zA-Z_]+\/>/g, '');
+              // 清洗掉形象指令 + 动态UI标记,只显示纯文本
+              const cleanText = fullTextRef.current
+                .replace(/<emotion:[a-zA-Z_]+\/>/g, '')
+                .replace(/<action:[a-zA-Z_]+\/>/g, '')
+                .replace(/<ui:((?:[^{}]|\{[^{}]*\})*)\/>/g, '');
               // 打字机效果
               setChatLog((c) => {
                 const last = c[c.length - 1];
@@ -826,6 +842,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
               const cleanFull = fullTextRef.current
                 .replace(/<emotion:[a-zA-Z_]+\/>/g, '')
                 .replace(/<action:[a-zA-Z_]+\/>/g, '')
+                .replace(/<ui:((?:[^{}]|\{[^{}]*\})*)\/>/g, '')
                 .trim();
               if (cleanFull) {
                 speakWithTTS(cleanFull, audioRef);
