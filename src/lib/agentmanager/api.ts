@@ -245,7 +245,7 @@ class AgentManagerAPI {
    * onDelta 收文本增量,onDone 收结束,onError 收错误。
    */
   async aguiChat(
-    params: { model?: string; agent?: string; prompt: string; system?: string; session_id?: string },
+    params: { model?: string; agent?: string; prompt: string; system?: string; session_id?: string; avatar_mode?: boolean },
     handlers: {
       onDelta?: (text: string) => void
       onDone?: () => void

@@ -63,6 +63,25 @@ interface WSServerMsg {
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 15000;
 
+// G2: 解析数字人形象指令 <emotion:x/> / <action:y/> / <mouth:speak/>,
+// 映射成 onToolCalls 能识别的 DhToolCall(face.setExpression / body.playAction / mouth.speak)。
+function parseAvatarDirectives(text: string, options: UseChatAvatarWSOptions) {
+  if (!options.onToolCalls) return;
+  const calls: Array<{ name: string; args: Record<string, any> }> = [];
+  // 表情 <emotion:xxx/>
+  const emoRe = /<emotion:([a-zA-Z_]+)\/>/g;
+  let m: RegExpExecArray | null;
+  while ((m = emoRe.exec(text))) {
+    calls.push({ name: 'face.setExpression', args: { name: m[1] } });
+  }
+  // 动作 <action:xxx/>
+  const actRe = /<action:([a-zA-Z_]+)\/>/g;
+  while ((m = actRe.exec(text))) {
+    calls.push({ name: 'body.playAction', args: { name: m[1] } });
+  }
+  if (calls.length > 0) options.onToolCalls(calls);
+}
+
 interface WSConnection {
   ws: WebSocket;
   url: string;
@@ -750,17 +769,23 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
             agent: aguiAgent || 'worker',
             prompt: userText,
             session_id: conversationIdRef.current || undefined,
+            // G2: 数字人模式,后端注入形象指令模板,回答内嵌 <emotion:x/>/<action:y/>
+            avatar_mode: true,
           },
           {
             onDelta: (t) => {
               fullTextRef.current += t;
+              // G2 数字人形象指令:解析 <emotion:x/>/<action:y/> 标记,驱动形象
+              parseAvatarDirectives(t, options);
+              // 清洗掉形象指令标记,只显示纯文本
+              const cleanText = fullTextRef.current.replace(/<emotion:[a-zA-Z_]+\/>/g, '').replace(/<action:[a-zA-Z_]+\/>/g, '');
               // 打字机效果
               setChatLog((c) => {
                 const last = c[c.length - 1];
                 if (last && last.who === 'ai') {
-                  return [...c.slice(0, -1), { who: 'ai', text: fullTextRef.current }];
+                  return [...c.slice(0, -1), { who: 'ai', text: cleanText }];
                 }
-                return [...c, { who: 'ai', text: fullTextRef.current }];
+                return [...c, { who: 'ai', text: cleanText }];
               });
             },
             onToolCall: (name, toolCallId) => {
