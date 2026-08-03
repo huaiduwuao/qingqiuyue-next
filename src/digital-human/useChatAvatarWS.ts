@@ -60,8 +60,32 @@ interface WSServerMsg {
 
 // ─── WebSocket 连接管理 ───
 
+// G3: 用 audio-gateway 真实 TTS 说话(OpenAI 兼容 /audio/speech)。
+// audioRef: 隐藏 audio 元素,拿到 mp3 后播放。
+async function speakWithTTS(text: string, audioRef: React.MutableRefObject<HTMLAudioElement | null>) {
+  try {
+    const res = await fetch('/api/audio/audio/speech', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'tts',
+        input: text,
+        voice: 'default',
+      }),
+    });
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    if (audioRef.current) {
+      audioRef.current.src = url;
+      audioRef.current.play().catch(() => {});
+    }
+  } catch { /* TTS 失败不影响文本 */ }
+}
+
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 15000;
+
 
 // G2: 解析数字人形象指令 <emotion:x/> / <action:y/> / <mouth:speak/>,
 // 映射成 onToolCalls 能识别的 DhToolCall(face.setExpression / body.playAction / mouth.speak)。
@@ -798,19 +822,13 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
             },
             onDone: () => {
               setChatBusy(false);
-              // G3: 数字人语音输出——用 Web Speech API 朗读清洗后的完整回答
+              // G3: 数字人语音输出——用 audio-gateway 真实 TTS(非 Web Speech API)
               const cleanFull = fullTextRef.current
                 .replace(/<emotion:[a-zA-Z_]+\/>/g, '')
                 .replace(/<action:[a-zA-Z_]+\/>/g, '')
                 .trim();
-              if (cleanFull && typeof window !== 'undefined' && 'speechSynthesis' in window) {
-                try {
-                  window.speechSynthesis.cancel();
-                  const utter = new SpeechSynthesisUtterance(cleanFull);
-                  utter.lang = 'zh-CN';
-                  utter.rate = 1.05;
-                  window.speechSynthesis.speak(utter);
-                } catch { /* TTS 失败不影响文本 */ }
+              if (cleanFull) {
+                speakWithTTS(cleanFull, audioRef);
               }
             },
             onError: (err) => {
