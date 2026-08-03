@@ -239,6 +239,91 @@ class AgentManagerAPI {
     }>('/gateway/quota')
   }
 
+  /**
+   * AG-UI 流式对话(SSE):POST /agui,解析 AG-UI 事件流。
+   * 事件序列:RunStarted → TextMessageStart → TextMessageContent(多段) → TextMessageEnd → RunFinished
+   * onDelta 收文本增量,onDone 收结束,onError 收错误。
+   */
+  async aguiChat(
+    params: { model?: string; agent?: string; prompt: string; system?: string },
+    handlers: { onDelta?: (text: string) => void; onDone?: () => void; onError?: (e: string) => void },
+  ): Promise<void> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    const authToken = this.getAuthToken()
+    if (authToken) headers['Authorization'] = `Bearer ${authToken}`
+
+    const res = await fetch(`${API_BASE}/agui`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(params),
+    })
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ error: res.statusText }))
+      handlers.onError?.(error.error || `HTTP ${res.status}`)
+      return
+    }
+    if (!res.body) {
+      handlers.onError?.('响应无流内容')
+      return
+    }
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      let idx
+      while ((idx = buffer.indexOf('\n\n')) !== -1) {
+        const block = buffer.slice(0, idx).replace(/\r/g, '')
+        buffer = buffer.slice(idx + 2)
+        // 取 data: 行
+        const dataLine = block.split('\n').find(l => l.startsWith('data:'))
+        if (!dataLine) continue
+        const dataStr = dataLine.slice(5).trim()
+        try {
+          const data = JSON.parse(dataStr)
+          const type = data.type
+          if (type === 'TEXT_MESSAGE_CONTENT') {
+            handlers.onDelta?.(data.delta ?? '')
+          } else if (type === 'RUN_FINISHED') {
+            handlers.onDone?.()
+          } else if (type === 'RUN_ERROR') {
+            handlers.onError?.(data.message || 'run error')
+          }
+        } catch {
+          /* 忽略无法解析的行 */
+        }
+      }
+    }
+    handlers.onDone?.()
+  }
+
+  /**
+   * 多 Agent 编排:单 agent / 链式 / 并行。
+   */
+  async multiAgentRun(params: { model?: string; agent?: string; prompt: string; system?: string }) {
+    return this.request<{ agent: string; output: string }>('/multi-agent/run', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    })
+  }
+
+  async multiAgentChain(params: { agents: string[]; prompt: string }) {
+    return this.request<{ agents: string[]; output: string }>('/multi-agent/chain', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    })
+  }
+
+  async multiAgentParallel(params: { agents: string[]; prompt: string }) {
+    return this.request<{ agents: string[]; output: string }>('/multi-agent/parallel', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    })
+  }
+
   async getAuditLog(params?: { page?: number; limit?: number }) {
     const query = new URLSearchParams()
     if (params?.page) query.set('page', String(params.page))

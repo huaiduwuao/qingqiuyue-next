@@ -19,6 +19,7 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Button from '@mui/material/Button'
 import Avatar from '@mui/material/Avatar'
 import Chip from '@mui/material/Chip'
+import Switch from '@mui/material/Switch'
 import SendIcon from '@mui/icons-material/Send'
 import ClearIcon from '@mui/icons-material/Clear'
 import { agentmAPI } from '@/lib/agentmanager/api'
@@ -38,6 +39,7 @@ export default function AIChatPage() {
   const [error, setError] = useState<string | null>(null)
   const [models, setModels] = useState<{ id: string; name: string }[]>([])
   const [selectedModel, setSelectedModel] = useState('')
+  const [aguiMode, setAguiMode] = useState(false) // 多Agent编排(AG-UI)模式
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // 模型加载后设置默认模型
@@ -95,16 +97,35 @@ export default function AIChatPage() {
     }
 
     try {
-      await agentmAPI.chatCompletionsStream(selectedModel, history, {
-        onDelta: (t) => {
-          acc += t
-          update()
-        },
-        onError: (err) => {
-          setError(err)
-          setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: acc || `❌ ${err}` } : m))
-        },
-      })
+      if (aguiMode) {
+        // 多Agent编排模式:走 AG-UI 协议流式对话。
+        // 选中的可能是 agent(如 xiaoyue),也可能是模型;agent 名传给后端可命中
+        // 已注册的 LLMAgent,否则后端按 model 动态构造。传 selectedModel 即可。
+        await agentmAPI.aguiChat({
+          model: selectedModel,
+          prompt: input.trim(),
+        }, {
+          onDelta: (t) => {
+            acc += t
+            update()
+          },
+          onError: (err) => {
+            setError(err)
+            setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: acc || `❌ ${err}` } : m))
+          },
+        })
+      } else {
+        await agentmAPI.chatCompletionsStream(selectedModel, history, {
+          onDelta: (t) => {
+            acc += t
+            update()
+          },
+          onError: (err) => {
+            setError(err)
+            setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, content: acc || `❌ ${err}` } : m))
+          },
+        })
+      }
       if (!acc) {
         setMessages(prev => prev.filter(m => m.id !== assistantId))
       }
@@ -143,6 +164,14 @@ export default function AIChatPage() {
               ))}
             </Select>
           </FormControl>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Typography variant="body2" color="text.secondary">多Agent编排</Typography>
+            <Switch
+              checked={aguiMode}
+              onChange={(e) => setAguiMode(e.target.checked)}
+              size="small"
+            />
+          </Box>
           {models.length === 0 && (
             <Typography variant="body2" color="text.secondary">加载中...</Typography>
           )}
