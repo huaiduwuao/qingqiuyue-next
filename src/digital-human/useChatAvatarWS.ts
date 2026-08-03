@@ -801,6 +801,14 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
       try {
         const { agentmAPI } = await import('@/lib/agentmanager/api');
         const toolStarted: string[] = [];
+        // H4: 从当前对话日志构造历史上下文(用户/助手交替),让 agent 延续上下文
+        const history = chatLog
+          .filter((m) => m.who === 'user' || m.who === 'ai')
+          .slice(-10)
+          .map((m) => ({
+            role: m.who === 'user' ? 'user' : 'assistant',
+            content: m.text,
+          }));
         await agentmAPI.aguiChat(
           {
             agent: aguiAgent || 'worker',
@@ -808,6 +816,8 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
             session_id: conversationIdRef.current || undefined,
             // G2: 数字人模式,后端注入形象指令模板,回答内嵌 <emotion:x/>/<action:y/>
             avatar_mode: true,
+            // H4: 携带历史上下文
+            history,
           },
           {
             onDelta: (t) => {
