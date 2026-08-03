@@ -24,6 +24,7 @@ import SettingsApplicationsRoundedIcon from '@mui/icons-material/SettingsApplica
 import DnsRoundedIcon from '@mui/icons-material/DnsRounded';
 import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
+import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import LanguageRoundedIcon from '@mui/icons-material/LanguageRounded';
 import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
 import ShowChartRoundedIcon from '@mui/icons-material/ShowChartRounded';
@@ -104,6 +105,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
     items: [
       { id: 'dict', label: '字典管理', path: '/system/dict/dict-type', icon: <MenuBookRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_DICT.VIEW },
       { id: 'website-dict', label: '网站字典', path: '/system/website-dict', icon: <LanguageRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D', permission: PERMISSIONS.SYSTEM_WEBSITE_DICT.VIEW },
+      { id: 'filter', label: '筛选配置', path: '/system/filter', icon: <TuneRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
       { id: 'address', label: '地址管理', path: '/system/address/province', icon: <LocationOnRoundedIcon sx={{ fontSize: 18 }} />, accent: 'success.main', permission: PERMISSIONS.SYSTEM_ADDRESS.VIEW },
       { id: 'wx-config', label: '微信配置', path: '/system/wx-config', icon: <ChatBubbleOutlineRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
     ],

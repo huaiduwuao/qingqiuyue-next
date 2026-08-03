@@ -161,9 +161,9 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
     staleTime: 10 * 60 * 1000,
   });
   // sort + time for home tab; default = hot
-  const urlSort = (searchParams.get('sort') as 'views' | 'new' | 'hot') || 'views';
-  const [sort, setSortState] = useState<'views' | 'new' | 'hot'>(urlSort);
-  const setSort = (next: 'views' | 'new' | 'hot') => {
+  const urlSort = (searchParams.get('sort') as 'views' | 'new' | 'hot' | 'rating') || 'views';
+  const [sort, setSortState] = useState<'views' | 'new' | 'hot' | 'rating'>(urlSort);
+  const setSort = (next: 'views' | 'new' | 'hot' | 'rating') => {
     setSortState(next);
     const params = new URLSearchParams(searchParams.toString());
     if (next === 'views') params.delete('sort');
@@ -171,6 +171,27 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
   useEffect(() => { setSortState(urlSort); }, [urlSort]);
+  // 评分/年份筛选(分类内容页):rating=最低分, year=上映年份
+  const urlRatingMin = searchParams.get('rating') || '';
+  const [ratingMin, setRatingMin] = useState<string>(urlRatingMin);
+  const setRating = (next: string) => {
+    setRatingMin(next);
+    const params = new URLSearchParams(searchParams.toString());
+    if (!next) params.delete('rating');
+    else params.set('rating', next);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+  useEffect(() => { setRatingMin(urlRatingMin); }, [urlRatingMin]);
+  const urlYear = searchParams.get('year') || '';
+  const [year, setYearState] = useState<string>(urlYear);
+  const setYear = (next: string) => {
+    setYearState(next);
+    const params = new URLSearchParams(searchParams.toString());
+    if (!next) params.delete('year');
+    else params.set('year', next);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+  useEffect(() => { setYearState(urlYear); }, [urlYear]);
   const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false, message: '', severity: 'success',
   });
@@ -213,7 +234,7 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
     isFetchingNextPage,
     isLoading,
   } = useInfiniteQuery({
-    queryKey: ['home', 'feed', tab, isPersonal ? 'all' : section, sort, isPersonal ? '' : genre],
+    queryKey: ['home', 'feed', tab, isPersonal ? 'all' : section, sort, isPersonal ? '' : genre, ratingMin, year],
     queryFn: async ({ pageParam = 1 }) => {
       // 个人内容使用 /home/feed
       if (isPersonal) {
@@ -293,7 +314,9 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
         page: pageParam,
         pageSize: PAGE_SIZE,
         ...(contentType ? { contentType } : {}),
-        order: sort === 'new' ? 'CREATE_TIME' : 'COLLECT',
+        order: sort === 'new' ? 'CREATE_TIME' : sort === 'rating' ? 'rating' : 'COLLECT',
+        ...(ratingMin ? { ratingMin } : {}),
+        ...(year ? { releaseYear: year } : {}),
       }) as any;
       // moduleContentPage 内部用 contentClient 包装, resp 同上是 { code, data: { list, total }, msg }
       const rawRecords = resp?.data?.list || resp?.data?.records || [];
@@ -500,6 +523,7 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
                 { key: 'views', label: '人气榜' },
                 { key: 'hot', label: '热度' },
                 { key: 'new', label: '最新' },
+                { key: 'rating', label: '高评分' },
               ].map((s) => {
                 const active = sort === s.key;
                 return (
@@ -529,6 +553,67 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
             {/* 右侧渐变遮罩提示可滚动 */}
             <Box sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 24, background: 'linear-gradient(to right, transparent, var(--bg-body, #F5F5F7))', pointerEvents: 'none' }} />
           </Box>
+          )}
+          {/* 评分/年份筛选(分类内容页;仅影视类生效,推荐/关注不展示) */}
+          {tab === 'home' && !isPersonal && section !== 'recommend' && (
+            <Box sx={{ position: 'relative', px: 1.5, pb: 0.75 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' }, pr: 3 }}>
+                <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>筛选</Typography>
+                {['8', '9'].map((r) => {
+                  const active = ratingMin === r;
+                  return (
+                    <Box
+                      key={`r${r}`}
+                      onClick={() => setRating(active ? '' : r)}
+                      sx={{
+                        flexShrink: 0,
+                        px: 1.25,
+                        py: 0.35,
+                        borderRadius: 999,
+                        cursor: 'pointer',
+                        fontSize: 11.5,
+                        fontWeight: active ? 700 : 500,
+                        color: active ? '#fff' : 'var(--text-secondary, rgba(255,255,255,0.65))',
+                        bgcolor: active ? 'var(--brand-color, #FE2C55)' : 'transparent',
+                        border: '1px solid',
+                        borderColor: active ? 'transparent' : 'var(--border-color, rgba(255,255,255,0.08))',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {r}分+
+                    </Box>
+                  );
+                })}
+                <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.3))', flexShrink: 0, mx: 0.25 }}>|</Typography>
+                {[String(new Date().getFullYear()), String(new Date().getFullYear() - 1)].map((y) => {
+                  const active = year === y;
+                  return (
+                    <Box
+                      key={`y${y}`}
+                      onClick={() => setYear(active ? '' : y)}
+                      sx={{
+                        flexShrink: 0,
+                        px: 1.25,
+                        py: 0.35,
+                        borderRadius: 999,
+                        cursor: 'pointer',
+                        fontSize: 11.5,
+                        fontWeight: active ? 700 : 500,
+                        color: active ? '#fff' : 'var(--text-secondary, rgba(255,255,255,0.65))',
+                        bgcolor: active ? 'var(--brand-color, #FE2C55)' : 'transparent',
+                        border: '1px solid',
+                        borderColor: active ? 'transparent' : 'var(--border-color, rgba(255,255,255,0.08))',
+                        transition: 'all 0.15s',
+                      }}
+                    >
+                      {y}
+                    </Box>
+                  );
+                })}
+              </Box>
+              {/* 右侧渐变遮罩提示可滚动 */}
+              <Box sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 24, background: 'linear-gradient(to right, transparent, var(--bg-body, #F5F5F7))', pointerEvents: 'none' }} />
+            </Box>
           )}
         </Box>
       )}

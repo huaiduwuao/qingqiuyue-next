@@ -14,6 +14,8 @@ import Tab from '@mui/material/Tab';
 import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
 import Skeleton from '@mui/material/Skeleton';
+import Select from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SearchIcon from '@mui/icons-material/Search';
 import CloseIcon from '@mui/icons-material/Close';
@@ -29,7 +31,8 @@ import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import { ACCENT } from '@/constants/accents';
 import { useContentNavigate } from '@/lib/contentRoute';
-import { searchContent } from '@/apis/global';
+import { searchContent } from '@/apis/search';
+import { fetchContentTypes, fetchFacets, type ContentTypeItem, type FacetItem } from '@/apis/home-discover';
 import { topKeywordInThirdMonth } from '@/apis/home';
 import RecommendBoard from '@/components/home/RecommendBoard';
 import { adminClient, homeClient, formatApiError } from '@/lib/api/client';
@@ -122,6 +125,14 @@ function SearchPageContent() {
   const initialQ = searchParams.get('q') ?? '';
   const [query, setQuery] = useState(initialQ);
   const [tab, setTab] = useState<ResultTab>('all');
+  // 结构化筛选:类型/导演/演员/类型标签/年代(走后端 /search 的 metadata 结构化参数)
+  const [fType, setFType] = useState('');
+  const [fDirector, setFDirector] = useState('');
+  const [fActor, setFActor] = useState('');
+  const [fGenre, setFGenre] = useState('');
+  const [fYear, setFYear] = useState('');
+  // 动态聚合建议当前字段(聚焦导演/演员输入时拉取候选)
+  const [facetField, setFacetField] = useState('');
   const [history, setHistory] = useState<string[]>([]);
   const [creators, setCreators] = useState<SearchCreatorItem[]>([]);
   const [topics, setTopics] = useState<SearchTopicItem[]>([]);
@@ -207,12 +218,46 @@ function SearchPageContent() {
   });
   const hotKeywords = hotKeywordsQuery.data ?? [];
 
+  // 内容类型大类(后台可维护):搜索页类型下拉选项来源
+  const typesQuery = useQuery({
+    queryKey: ['dict', 'types'],
+    queryFn: async () => {
+      const res = (await fetchContentTypes()) as any;
+      const list = res?.data?.list || res?.data || [];
+      return (Array.isArray(list) ? list : []) as ContentTypeItem[];
+    },
+    staleTime: 10 * 60 * 1000,
+  });
+  const contentTypes = typesQuery.data ?? [];
+
+  // 演员/导演/歌手动态聚合建议(聚焦输入时拉取,按频次降序)
+  const facetsQuery = useQuery({
+    queryKey: ['dict', 'facets', fType, facetField],
+    queryFn: async () => {
+      if (!facetField) return [] as FacetItem[];
+      const res = (await fetchFacets({ type: fType || undefined, field: facetField, limit: 20 })) as any;
+      const list = res?.data?.list || [];
+      return (Array.isArray(list) ? list : []) as FacetItem[];
+    },
+    enabled: !!facetField,
+    staleTime: 5 * 60 * 1000,
+  });
+  const facetSuggestions = facetsQuery.data ?? [];
+
   const searchQuery = useQuery({
-    queryKey: ['search-content', query.trim()],
+    queryKey: ['search-content', query.trim(), fType, fDirector, fActor, fGenre, fYear],
     queryFn: async () => {
       const q = query.trim();
-      if (!q) return [];
-      const res = (await searchContent({ keyword: q })) as any;
+      const hasFilter = !!(fType || fDirector || fActor || fGenre || fYear);
+      if (!q && !hasFilter) return [];
+      // 走统一 GET /search(kw + 结构化筛选参数),见 src/apis/search.ts
+      const res = (await searchContent(q, {
+        type: fType || undefined,
+        director: fDirector || undefined,
+        actor: fActor || undefined,
+        genre: fGenre || undefined,
+        year: fYear || undefined,
+      })) as any;
       const list = res?.data?.list || res?.data || [];
       return (Array.isArray(list) ? list : []).map((it: any) => ({
         id: it.id ?? 0,
@@ -227,7 +272,7 @@ function SearchPageContent() {
         matchField: (it.matchField || 'title') as SearchContentItem['matchField'],
       })) as SearchContentItem[];
     },
-    enabled: query.trim().length > 0,
+    enabled: query.trim().length > 0 || !!(fType || fDirector || fActor || fGenre || fYear),
     staleTime: 60 * 1000,
   });
 
@@ -433,6 +478,81 @@ function SearchPageContent() {
         >
           搜索
         </Button>
+      </Box>
+
+      {/* 结构化筛选:类型/导演/演员/类型标签/年代(走后端 /search metadata 筛选) */}
+      <Box
+        sx={{
+          position: 'sticky',
+          top: 68,
+          zIndex: 9,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          px: { xs: 2, md: 3 },
+          py: 1,
+          overflowX: 'auto',
+          bgcolor: 'var(--bg-topbar, rgba(10,10,15,0.9))',
+          backdropFilter: 'blur(12px)',
+          borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+          '&::-webkit-scrollbar': { display: 'none' },
+        }}
+      >
+        <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', flexShrink: 0, textTransform: 'uppercase', letterSpacing: 0.5 }}>筛选</Typography>
+        <Select
+          size="small"
+          value={fType}
+          displayEmpty
+          onChange={(e) => setFType(e.target.value)}
+          sx={{ flexShrink: 0, minWidth: 96, height: 30, fontSize: 12, color: 'var(--text-primary, #fff)' }}
+        >
+          <MenuItem value="">全部分类</MenuItem>
+          {contentTypes.map((ct) => (
+            <MenuItem key={ct.code} value={ct.code}>{ct.name}</MenuItem>
+          ))}
+        </Select>
+        <FilterField
+          value={fDirector}
+          onChange={setFDirector}
+          onFocus={() => setFacetField('director')}
+          placeholder="导演"
+          suggestions={facetField === 'director' ? facetSuggestions : []}
+        />
+        <FilterField
+          value={fActor}
+          onChange={setFActor}
+          onFocus={() => setFacetField('cast')}
+          placeholder="演员"
+          suggestions={facetField === 'cast' ? facetSuggestions : []}
+        />
+        <FilterField
+          value={fGenre}
+          onChange={setFGenre}
+          onFocus={() => setFacetField('genre')}
+          placeholder="类型(科幻/喜剧)"
+          suggestions={facetField === 'genre' ? facetSuggestions : []}
+        />
+        <FilterField value={fYear} onChange={setFYear} placeholder="年代(2020)" inputMode="numeric" />
+        {(fType || fDirector || fActor || fGenre || fYear) && (
+          <Box
+            component="button"
+            onClick={() => { setFType(''); setFDirector(''); setFActor(''); setFGenre(''); setFYear(''); }}
+            sx={{
+              flexShrink: 0,
+              px: 1.25,
+              py: 0.35,
+              borderRadius: 999,
+              border: '1px solid var(--border-color, rgba(255,255,255,0.12))',
+              bgcolor: 'transparent',
+              color: 'var(--text-muted, rgba(255,255,255,0.65))',
+              fontSize: 11.5,
+              cursor: 'pointer',
+              '&:hover': { color: 'var(--text-primary, #fff)' },
+            }}
+          >
+            清除
+          </Box>
+        )}
       </Box>
 
       <Box sx={{ maxWidth: 1200, mx: 'auto', px: { xs: 2, md: 3 }, py: { xs: 2, md: 3 } }}>
@@ -1196,6 +1316,91 @@ function LoadingSkeleton() {
           </Box>
         </Box>
       ))}
+    </Box>
+  );
+}
+
+// FilterField 结构化筛选小输入框(导演/演员/类型/年代),紧凑样式;支持聚焦时展示聚合候选。
+function FilterField({ value, onChange, placeholder, inputMode, onFocus, suggestions }: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  inputMode?: 'text' | 'numeric';
+  onFocus?: () => void;
+  suggestions?: FacetItem[];
+}) {
+  const [focused, setFocused] = useState(false);
+  const show = focused && (suggestions?.length ?? 0) > 0;
+  return (
+    <Box sx={{ position: 'relative', flexShrink: 0 }}>
+      <TextField
+        size="small"
+        value={value}
+        inputMode={inputMode}
+        onChange={(e) => onChange(e.target.value)}
+        onFocus={() => { setFocused(true); onFocus?.(); }}
+        onBlur={() => setTimeout(() => setFocused(false), 150)}
+        placeholder={placeholder}
+        sx={{
+          width: 132,
+          '& .MuiInputBase-root': {
+            height: 30,
+            fontSize: 12,
+            color: 'var(--text-primary, #fff)',
+            bgcolor: 'var(--bg-input, rgba(255,255,255,0.06))',
+            borderRadius: 2,
+          },
+          '& fieldset': { borderColor: 'var(--border-color, rgba(255,255,255,0.1))' },
+          '& input::placeholder': { color: 'var(--text-muted, rgba(255,255,255,0.4))', opacity: 1, fontSize: 12 },
+          '& .Mui-focused fieldset': { borderColor: 'var(--brand-color, #FE2C55)' },
+        }}
+      />
+      {show && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            zIndex: 20,
+            mt: 0.5,
+            minWidth: 180,
+            maxHeight: 220,
+            overflowY: 'auto',
+            borderRadius: 1.5,
+            border: '1px solid var(--border-color, rgba(255,255,255,0.1))',
+            bgcolor: 'var(--bg-panel, rgba(20,20,26,0.98))',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+            backdropFilter: 'blur(12px)',
+          }}
+        >
+          {suggestions!.map((s) => (
+            <Box
+              key={s.name}
+              component="button"
+              type="button"
+              onClick={() => { onChange(s.name); setFocused(false); }}
+              sx={{
+                display: 'block',
+                width: '100%',
+                px: 1.5,
+                py: 0.75,
+                border: 'none',
+                bgcolor: 'transparent',
+                color: 'var(--text-primary, #fff)',
+                fontSize: 12.5,
+                textAlign: 'left',
+                cursor: 'pointer',
+                '&:hover': { bgcolor: 'var(--bg-hover, rgba(255,255,255,0.06))' },
+              }}
+            >
+              {s.name}
+              <Box component="span" sx={{ ml: 1, color: 'var(--text-muted, rgba(255,255,255,0.4))', fontSize: 11 }}>
+                {s.count}
+              </Box>
+            </Box>
+          ))}
+        </Box>
+      )}
     </Box>
   );
 }

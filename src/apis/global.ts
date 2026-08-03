@@ -1,4 +1,5 @@
 import { adminClient, contentClient } from '@/lib/api/client';
+import { searchContent as searchApi, type SearchOptions } from '@/apis/search';
 
 export async function getNotices(params: Record<string, unknown>) {
   return adminClient('/notice/list', {
@@ -44,11 +45,9 @@ export async function reportContent(params: Record<string, unknown>) {
   });
 }
 
-export async function searchContent(params: Record<string, unknown>) {
-  return contentClient("/search", {
-    method: "POST",
-    data: params
-  });
+export async function searchContent(kw: string, opts?: SearchOptions) {
+  // 统一走 GET /api/content/search(后端是 GET kw 语义),见 src/apis/search.ts。
+  return searchApi(kw, opts);
 }
 
 export async function collectContent(params: Record<string, unknown>) {

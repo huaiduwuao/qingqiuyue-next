@@ -43,3 +43,32 @@ export interface SubcategoryItem {
 export async function fetchSubcategories(parent: string = 'all') {
   return contentClient('/dict/subcategory', { params: { parent } });
 }
+
+// =================== 筛选条件配置(可维护) ===================
+
+// 内容类型大类:前端 SECTIONS/tab、搜索类型下拉的选项来源,后台可维护。
+export interface ContentTypeItem {
+  id: number;
+  name: string;   // 电影/电视剧/动漫...
+  code: string;   // FILM/TELEPLAY/...
+  icon?: string;
+  color?: string;
+  sort: number;
+}
+
+// GET /api/content/dict/types —— 启用类型列表
+export async function fetchContentTypes() {
+  return contentClient('/dict/types');
+}
+
+// 动态筛选聚合项(演员/歌手/导演从内容 metadata 自动聚合,按频次降序)
+export interface FacetItem {
+  name: string;
+  count: number;
+}
+
+// GET /api/content/dict/facets?type=&field=&limit=
+// field: cast(演员)/director(导演)/artist(歌手)/album(专辑)/author(作者)/genre(类型)
+export async function fetchFacets(params: { type?: string; field?: string; limit?: number } = {}) {
+  return contentClient('/dict/facets', { params });
+}

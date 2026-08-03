@@ -299,6 +299,86 @@ function NovelDetailContent() {
           </Box>
         ) : (
           <Box>
+            {/* 小说信息卡:封面/标题/作者/评分/简介(详情接口返回,纯阅读模式顶部展示) */}
+            {initialQuery.data?.detail && (
+              <Box
+                sx={{
+                  display: 'flex',
+                  gap: 2,
+                  p: 2,
+                  mb: 3,
+                  borderRadius: 3,
+                  bgcolor: 'background.paper',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                }}
+              >
+                {initialQuery.data.detail.cover ? (
+                  <Box
+                    component="img"
+                    src={initialQuery.data.detail.cover}
+                    alt={initialQuery.data.detail.title || ''}
+                    sx={{ width: 96, height: 128, objectFit: 'cover', borderRadius: 2, flexShrink: 0 }}
+                  />
+                ) : (
+                  <Box
+                    sx={{
+                      width: 96,
+                      height: 128,
+                      borderRadius: 2,
+                      flexShrink: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      bgcolor: 'action.hover',
+                      color: 'text.secondary',
+                      fontSize: 40,
+                    }}
+                  >
+                    📖
+                  </Box>
+                )}
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontSize: 18, fontWeight: 700, mb: 0.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {initialQuery.data.detail.title || '未命名小说'}
+                  </Typography>
+                  {initialQuery.data.detail.author && (
+                    <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 0.5 }}>
+                      作者:{initialQuery.data.detail.author}
+                    </Typography>
+                  )}
+                  {typeof initialQuery.data.detail.rating === 'number' && initialQuery.data.detail.rating > 0 && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                      <Box component="span" sx={{ color: 'warning.main', fontSize: 13 }}>★</Box>
+                      <Typography sx={{ fontSize: 13, color: 'text.primary', fontWeight: 600 }}>
+                        {initialQuery.data.detail.rating.toFixed(1)}
+                      </Typography>
+                      {initialQuery.data.detail.chapterCount > 0 && (
+                        <Typography sx={{ fontSize: 12, color: 'text.secondary', ml: 1 }}>
+                          {initialQuery.data.detail.chapterCount} 章
+                        </Typography>
+                      )}
+                    </Box>
+                  )}
+                  {initialQuery.data.detail.content && (
+                    <Typography
+                      sx={{
+                        fontSize: 13,
+                        color: 'text.secondary',
+                        lineHeight: 1.6,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 3,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {typeof initialQuery.data.detail.content === 'string' ? initialQuery.data.detail.content : ''}
+                    </Typography>
+                  )}
+                </Box>
+              </Box>
+            )}
+
             {chapters.map((item, idx) => (
               <Box key={item.id || idx} sx={{ mb: 4 }} id={item.id?.toString()}>
                 <ReadingContainer

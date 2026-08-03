@@ -37,6 +37,10 @@ interface Chapter {
   num: string;
   pages: number;
   collected?: boolean;
+  /** 漫画章节图片:JSON 图片数组 或 单图 URL;后端 module_content_item.content/cover 透传 */
+  content?: string;
+  cover?: string;
+  minioKey?: string;
 }
 
 interface Comics {
@@ -149,6 +153,22 @@ function ComicsDetailContent() {
       readerRef.current?.scrollTo({ top: 0, behavior: 'auto' });
     }, 0);
   };
+
+  // 章节图片列表:content 为 JSON 图片数组(优先)或单图 URL;否则回退 cover。
+  const chapterImages = React.useCallback((ch: Chapter | undefined): string[] => {
+    if (!ch) return [];
+    if (ch.content) {
+      try {
+        const parsed = JSON.parse(ch.content);
+        if (Array.isArray(parsed)) return parsed.filter((s: any) => typeof s === 'string' && s);
+        if (typeof parsed === 'string') return parsed ? [parsed] : [];
+        if (parsed && Array.isArray(parsed.urls)) return parsed.urls.filter((s: any) => typeof s === 'string' && s);
+      } catch {
+        return ch.content ? [ch.content] : [];
+      }
+    }
+    return ch.cover ? [ch.cover] : [];
+  }, []);
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -312,9 +332,27 @@ function ComicsDetailContent() {
                     ref={readerRef}
                     sx={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
                   >
-                    <Box sx={{ p: 4, color: '#fff', textAlign: 'center', fontSize: 14 }}>
-                      暂无内容
-                    </Box>
+                    {(() => {
+                      const ch = chapters.find((c) => c.id === activeChapter);
+                      const imgs = chapterImages(ch);
+                      if (imgs.length === 0) {
+                        return (
+                          <Box sx={{ p: 4, color: '#fff', textAlign: 'center', fontSize: 14 }}>
+                            暂无内容
+                          </Box>
+                        );
+                      }
+                      const idx = Math.min(activePage - 1, imgs.length - 1);
+                      return (
+                        <Box sx={{ width: '100%', maxWidth: 560, display: 'flex', justifyContent: 'center', p: 1 }}>
+                          <img
+                            src={imgs[idx]}
+                            alt={`${ch?.title || ''} 第 ${activePage} 页`}
+                            style={{ maxWidth: '100%', maxHeight: '75vh', objectFit: 'contain', borderRadius: 4 }}
+                          />
+                        </Box>
+                      );
+                    })()}
                   </Box>
 
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1.5, borderTop: '1px solid', borderTopColor: 'divider' }}>
@@ -325,7 +363,7 @@ function ComicsDetailContent() {
                       size="small"
                       value={activePage}
                       min={1}
-                      max={Math.max(1, activePage)}
+                      max={Math.max(1, chapterImages(chapters.find((c) => c.id === activeChapter)).length)}
                       onChange={(_, v) => setActivePage(v as number)}
                       sx={{ color: 'primary.main', mx: 1 }}
                     />
