@@ -43,6 +43,7 @@ import VrmControlPanel from '@/components/digital-human/VrmControlPanel';
 import VrmEmotionChips from '@/components/digital-human/VrmEmotionChips';
 import VrmPoseChips from '@/components/digital-human/VrmPoseChips';
 import { listModels } from './api/digitalHumanConfig';
+import { clearAvatarCache } from './vrm/loadAvatar';
 import type { VrmModelConfig } from './vrm/config/types';
 import type { ScenePresetName, CameraPresetName, DanceStyle } from './vrm/types';
 
@@ -138,9 +139,12 @@ export default function ImmersiveDigitalHuman() {
       const results = dispatchToolCalls(
         calls as unknown as DhToolCall[],
         {
-          setEmotion: (bs) => h.setEmotion(bs),
+          setEmotion: (bs) => { h.setEmotion(bs); chat.setEmotion?.(bs); },
           setAction: (name) => h.setAction(name),
-          setViseme: () => {},
+          setViseme: (shape, weight) => {
+            // AG-UI 文本模式无 ASR 音频数据，无法做真实 viseme 对齐
+            // 说话时表情跟随由 <emotion:x/> 驱动，已通过 setEmotion 覆盖
+          },
           setVisemeTimeline: (frames) => h.setVisemeTimeline(frames),
           setJawOpen: () => {},
           speak: (text, audioUrl) => h.speak(text, audioUrl),
@@ -149,19 +153,70 @@ export default function ImmersiveDigitalHuman() {
           setScene: (name) => h.setScene(name),
           setCameraPreset: (name) => h.setCameraPreset(name),
           setPose: (name) => h.setPose(name as Parameters<typeof h.setPose>[0]),
+          // 换装:查模型列表 → 切 selectedModel(VrmStage 用 modelUrl=selectedModel.url 重载)
+          setModel: (modelId) => {
+            listModels().then((models) => {
+              const list = models || [];
+              const m = list.find(x => x.id === modelId) || list.find(x => x.url === modelId);
+              if (m) {
+                clearAvatarCache(m.url);
+                setSelectedModel(m);
+                setChatLog((prev) => [...prev, { who: 'ai', text: `已为你换装成「${m.name}」。` }]);
+              } else {
+                const options = list.map(x => x.name).join('、');
+                setChatLog((prev) => [...prev, { who: 'ai', text: options ? `暂时没有「${modelId}」这个模型。可选：${options}` : `暂时没有可换的服装模型。` }]);
+              }
+            });
+            return true;
+          },
         },
       );
+      // 未知动作/表情 → 追加提示到聊天记录
+      for (const r of results) {
+        if (!r.ok && r.error) {
+          const msg = r.error.includes('unknown action') || r.error.includes('unknown expression')
+            ? `⚠️ ${r.error}，试试说「挥手」「跳舞」等其他动作吧~`
+            : `⚠️ ${r.error}`;
+          setChatLog((prev) => [...prev, { who: 'ai', text: msg }]);
+        }
+      }
       devLog.debug('[Immersive] dispatched tool_calls:', results);
     },
   });
   const { chatBusy, chatLog, emotion, viseme, action, send, sendText, audioRef,
-    text, setText, conversationId, newConversation, switchConversation } = chat;
+    text, setText, conversationId, newConversation, switchConversation,
+    loadConversationMessages, setEmotion, setViseme, setChatLog } = chat;
   // 002:全屏页体现多会话能力
   const { history, refresh: refreshHistory } = useConversationHistory(20);
   const [sessionDrawerOpen, setSessionDrawerOpen] = React.useState(true);
   // 诊断：监听 stageHandle 变化
   React.useEffect(() => { devLog.debug('[Immersive] stageHandle 变化:', stageHandle); }, [stageHandle]);
   const [panelOpen, setPanelOpen] = React.useState(false);
+  // 002:聊天消息区自动滚动到底
+  const chatScrollRef = React.useRef<HTMLDivElement | null>(null);
+  React.useEffect(() => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatLog]);
+
+  // 002:刚进入时自动加载最近会话的历史消息
+  //   - 有 conversationId(localStorage)→ 加载它;没有 → 加载列表最后一个
+  const autoLoadedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (autoLoadedRef.current) return;
+    if (history.length === 0) return; // 无会话,等用户新建
+    autoLoadedRef.current = true;
+    const target = conversationId && history.some((h) => h.id === conversationId)
+      ? conversationId
+      : history[0].id;
+    // 切换过去(清空 + 设 ID)+ 加载历史
+    if (conversationId !== target) {
+      switchConversation?.(target);
+    }
+    loadConversationMessages?.(target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [history, conversationId]);
 
   // 模型选择
   const modelsQuery = useQuery({
@@ -457,14 +512,17 @@ export default function ImmersiveDigitalHuman() {
         boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
       }}>
         {chatLog.length > 0 && (
-          <Box sx={{
-            maxHeight: 120,
-            overflowY: 'auto',
-            background: 'rgba(0,0,0,0.35)',
-            borderRadius: 1,
-            p: 0.75,
-          }}>
-            {chatLog.slice(-4).map((m, i) => (
+          <Box
+            ref={chatScrollRef}
+            sx={{
+              maxHeight: 260,
+              overflowY: 'auto',
+              background: 'rgba(0,0,0,0.35)',
+              borderRadius: 1,
+              p: 0.75,
+            }}
+          >
+            {chatLog.map((m, i) => (
               <Typography
                 key={i}
                 sx={{
@@ -478,6 +536,17 @@ export default function ImmersiveDigitalHuman() {
                 <strong>{m.who === 'user' ? '我' : 'AI'}:</strong> {m.text}
               </Typography>
             ))}
+          </Box>
+        )}
+        {chatLog.length === 0 && (
+          <Box sx={{ px: 0.5, py: 0.5 }}>
+            <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textAlign: 'center' }}>
+              {conversationId
+                ? '这个会话还没有消息，说点什么开始吧~'
+                : history.length === 0
+                  ? '还没有历史会话，发条消息创建新会话吧~'
+                  : '正在加载历史会话…'}
+            </Typography>
           </Box>
         )}
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
@@ -633,6 +702,8 @@ export default function ImmersiveDigitalHuman() {
                 selected={h.id === conversationId}
                 onClick={() => {
                   switchConversation?.(h.id);
+                  // 切换会话 → 加载该会话的历史消息
+                  loadConversationMessages?.(h.id);
                 }}
                 sx={{
                   borderRadius: 1,

@@ -61,26 +61,95 @@ interface WSServerMsg {
 // ─── WebSocket 连接管理 ───
 
 // G3: 用 audio-gateway 真实 TTS 说话(OpenAI 兼容 /audio/speech)。
-// audioRef: 隐藏 audio 元素,拿到 mp3 后播放。
+// 流式:请求 stream=true → 上游按句切分 chunked 返回 → 用 MediaSource+SourceBuffer
+// 边收边播(不用等整段合成完)。Qwen3-TTS 模型不支持真流式,这是"按句模拟流式"。
+// audioRef: 隐藏 audio 元素,播放 MediaSource。
 async function speakWithTTS(text: string, audioRef: React.MutableRefObject<HTMLAudioElement | null>) {
   try {
-    const res = await fetch('/api/audio/audio/speech', {
+    const res = await fetch('/api/audio/speech', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'tts',
         input: text,
         voice: 'default',
+        stream: true,        // 流式:按句 chunked 返回
+        response_format: 'mp3',
       }),
     });
     if (!res.ok) return;
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    // MediaSource:把流式 mp3 chunk 追加到 SourceBuffer 边收边播。
+    // 浏览器对 mp3 的 SourceBuffer 支持好(mimeType audio/mpeg)。
+    if (typeof MediaSource !== 'undefined' && 'MediaSource' in window) {
+      const ms = new MediaSource();
+      audio.src = URL.createObjectURL(ms);
+      let sb: SourceBuffer | null = null;
+      const streamDone = res.body?.getReader();
+      if (!streamDone) return;
+
+      ms.addEventListener('sourceopen', async () => {
+        try {
+          sb = ms.addSourceBuffer('audio/mpeg');
+        } catch {
+          // 部分浏览器 mpeg 不支持 SourceBuffer,回退整段 blob
+          return fallbackBlob(res, audio);
+        }
+        const reader = streamDone;
+        // SourceBuffer 追加需要排队(updateend 后再 append,避免忙时抛错)
+        let appending = false;
+        let pendingBuf: ArrayBuffer | null = null;
+        const flush = () => {
+          if (!sb) return;
+          if (appending || !pendingBuf) return;
+          appending = true;
+          try {
+            sb.appendBuffer(pendingBuf);
+          } catch {
+            appending = false;
+            pendingBuf = null;
+          }
+        };
+        sb.addEventListener('updateend', () => {
+          appending = false;
+          pendingBuf = null;
+          flush();
+        });
+        const pump = async (): Promise<void> => {
+          const { done, value } = await reader.read();
+          if (done) {
+            if (ms.readyState === 'open') ms.endOfStream();
+            return;
+          }
+          // 每个 chunk 转 ArrayBuffer 后 append(mp3 流式可解析)
+          const buf = new Uint8Array(value.byteLength);
+          buf.set(value);
+          pendingBuf = buf.buffer as ArrayBuffer;
+          flush();
+          // 开始播放(等第一句进来就播,不等整段)
+          if (audio.paused && audio.readyState >= 2) audio.play().catch(() => {});
+          await pump();
+        };
+        void pump();
+      });
+      return;
+    }
+
+    // 无 MediaSource 环境:回退整段 blob
+    fallbackBlob(res, audio);
+  } catch { /* TTS 失败不影响文本 */ }
+}
+
+// 回退:整段下载后播放(非流式环境)
+async function fallbackBlob(res: Response, audio: HTMLAudioElement) {
+  try {
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
-    if (audioRef.current) {
-      audioRef.current.src = url;
-      audioRef.current.play().catch(() => {});
-    }
-  } catch { /* TTS 失败不影响文本 */ }
+    audio.src = url;
+    audio.play().catch(() => {});
+  } catch { /* ignore */ }
 }
 
 const RECONNECT_BASE_MS = 1000;
@@ -109,8 +178,9 @@ function parseAvatarDirectives(text: string, options: UseChatAvatarWSOptions) {
     calls.push({ name: 'body.playAction', args: { name: m[1] } });
   }
   // H1: 动态 UI 指令 <ui:{json}/>——数字员工干活后弹结果面板
+  // 支持带逗号分隔的复杂 JSON（多键值对），\}/> 兼容 "}," 这样的情况
   if (options.onUI) {
-    const uiRe = /<ui:((?:[^{}]|\{[^{}]*\})*)\/>/g;
+    const uiRe = /<ui:(\{[^}]*(?:,\s*"[^"]*"\s*:[^}]*)*\})\/>/g;
     while ((m = uiRe.exec(raw))) {
       try {
         const ui = JSON.parse(m[1]);
@@ -286,6 +356,10 @@ export interface UseChatAvatarWSOptions {
   aguiAgent?: string;
   /** H1:从 AG-UI 文本流解析出的动态 UI(数字员工干活后弹结果),入口组件渲染 */
   onUI?: (ui: any) => void;
+  /** 未知工具被调用时回调（用于告知用户动作不存在） */
+  onUnknownTool?: (toolName: string) => void;
+  /** 用户 ID，用于对话记录（仅已登录用户有效） */
+  userId?: number;
 }
 
 export function useChatAvatarWS(agentId: string = 'digital_human', options: UseChatAvatarWSOptions = {}): ChatAvatarState {
@@ -310,6 +384,9 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
   // G1: AG-UI 模式选项
   const useAgui = !!options.useAgui;
   const aguiAgent = options.aguiAgent || 'worker';
+  // 对话记录:用户 ID
+  const userIdRef = React.useRef(options.userId);
+  React.useEffect(() => { userIdRef.current = options.userId; }, [options.userId]);
 
   // 002:conversationId 持久化(会话维度历史)
   const [conversationId, setConversationId] = React.useState<string | null>(() => {
@@ -346,6 +423,26 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     fullTextRef.current = '';
     setText('');
   }, []);
+
+  // 加载指定会话的历史消息(从会话列表同源接口拉取),填充 chatLog
+  const loadConversationMessages = React.useCallback(async (cid: string) => {
+    try {
+      const res = await fetch(`/api/digital-human/conversations/${cid}/messages`).catch(() => null)
+      if (!res || !res.ok) return
+      const j = await res.json().catch(() => null)
+      const msgs = j?.messages ?? []
+      // 映射 role → who,过滤掉空内容占位消息(工具调用占位 content='' 不显示)
+      const items = msgs
+        .filter((m: any) => typeof m.content === 'string' && m.content.trim() !== '')
+        .map((m: any) => ({
+          who: (m.role === 'user' ? 'user' : 'ai') as 'user' | 'ai',
+          text: m.content,
+        }))
+      setChatLog(items)
+    } catch {
+      // 加载失败不阻塞(保持空列表)
+    }
+  }, [])
 
   // AudioContext 用于播放流式音频 chunk
   const audioCtxRef = React.useRef<AudioContext | null>(null);
@@ -749,17 +846,23 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
   const actionTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setEmotionExternal = React.useCallback(
-    (name: string) => {
+    (name: string | Record<string, number>) => {
       // 清除之前的 timeout
       if (emotionTimerRef.current) {
         clearTimeout(emotionTimerRef.current);
         emotionTimerRef.current = null;
       }
-      setEmotion(emotionToVRM(name));
-      emotionTimerRef.current = setTimeout(() => {
-        setEmotion({});
-        emotionTimerRef.current = null;
-      }, 5000);
+      // 传入 blendshape dict 时直接用，传入 emotion name 时走转换
+      if (typeof name === 'object') {
+        setEmotion(name);
+        // dict 形式不自动清除，由调用方控制
+      } else {
+        setEmotion(emotionToVRM(name));
+        emotionTimerRef.current = setTimeout(() => {
+          setEmotion({});
+          emotionTimerRef.current = null;
+        }, 5000);
+      }
     },
     [emotionToVRM],
   );
@@ -820,6 +923,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
             agent: aguiAgent || 'worker',
             prompt: userText,
             session_id: conversationIdRef.current || undefined,
+            user_id: userIdRef.current || undefined, // 仅已登录用户记录对话
             // G2: 数字人模式,后端注入形象指令模板,回答内嵌 <emotion:x/>/<action:y/>
             avatar_mode: true,
             // H4: 携带历史上下文
@@ -828,8 +932,8 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
           {
             onDelta: (t) => {
               fullTextRef.current += t;
-              // G2 数字人形象指令:解析 <emotion:x/>/<action:y/> 标记,驱动形象
-              parseAvatarDirectives(t, options);
+              // G2 数字人形象指令:在完整累积文本上解析（避免跨 chunk 截断导致 <ui:.../> 标签残缺）
+              parseAvatarDirectives(fullTextRef.current, options);
               // 清洗掉形象指令 + 动态UI标记,只显示纯文本
               const cleanText = fullTextRef.current
                 .replace(/<emotion:[a-zA-Z_]+\/>/g, '')
@@ -892,8 +996,11 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     conversationId,
     newConversation,
     switchConversation,
+    loadConversationMessages,
     setEmotion: setEmotionExternal,
     setAction: setActionExternal,
+    setViseme,
+    setChatLog,
     audioRef: audioRef as React.MutableRefObject<HTMLAudioElement | null>,
     recording,
     recordingError,

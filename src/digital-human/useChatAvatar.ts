@@ -70,8 +70,10 @@ export interface ChatAvatarState {
   newConversation: () => void;
   /** 切换到指定历史会话 */
   switchConversation: (cid: string) => void;
-  /** LLM 驱动的情绪 (chat/回答后调用,驱动 VRM 表情) */
-  setEmotion: (e: string) => void;
+  /** 加载指定会话的历史消息(从 agentmanager 会话记录拉取),填充 chatLog */
+  loadConversationMessages?: (cid: string) => Promise<void>;
+  /** LLM 驱动的情绪 (chat/回答后调用,驱动 VRM 表情); 接收 emotion name 或 blendshape dict) */
+  setEmotion: (e: string | Record<string, number>) => void;
   /** LLM 驱动的动作 (驱动 VRM bone rotation) */
   setAction: (a: string) => void;
   audioRef: React.MutableRefObject<HTMLAudioElement | null>;
@@ -84,6 +86,10 @@ export interface ChatAvatarState {
   cancel: () => void;
   /** 是否在说话 (audio 正在播, 用于打断检测) */
   isSpeaking: () => boolean;
+  /** 直接追加聊天消息（给外部注入未知动作提示用） */
+  setChatLog: (fn: React.SetStateAction<ChatLogItem[]>) => void;
+  /** 直接更新 viseme 状态（给 dispatcher 驱动口型用） */
+  setViseme: (v: Record<string, number>) => void;
 }
 
 export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarState {
@@ -492,17 +498,20 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
   }, [isAvatarPlaying])
 
   // LLM 驱动的表情: emotion name → 1.0 weight blend shape
-  const setEmotionExternal = React.useCallback((name: string) => {
+  const setEmotionExternal = React.useCallback((name: string | Record<string, number>) => {
     if (!name) return
+    if (typeof name === 'object') {
+      setEmotion(name)
+      return
+    }
     const map: Record<string, Record<string, number>> = {
       smile:     { smile: 1.0 },
       surprised: { surprised: 1.0 },
       angry:     { angry: 1.0 },
       sad:       { sad: 1.0 },
-      neutral:   { smile: 0, surprised: 0, angry: 0, sad: 0 },  // reset
+      neutral:   { smile: 0, surprised: 0, angry: 0, sad: 0 },
     }
     setEmotion(map[name] || map.neutral)
-    // 5 秒后回 idle 表情(避免长时间凝固)
     setTimeout(() => setEmotion({ smile: 0.1, blink: 0 }), 5000)
   }, [setEmotion])
 
@@ -530,6 +539,8 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
     switchConversation: () => {},
     setEmotion: setEmotionExternal,
     setAction: setActionExternal,
+    setChatLog,
+    setViseme: setEmotion, // viseme 复用 emotion 驱动(VrmStage 通过 emotion prop 驱动 blendshape)
     audioRef,
     recording,
     recordingError,
