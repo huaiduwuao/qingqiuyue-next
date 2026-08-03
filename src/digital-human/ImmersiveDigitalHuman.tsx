@@ -37,6 +37,7 @@ import { useConversationHistory } from './useConversationHistory';
 import { useVoiceAgent } from '@/hooks/useVoiceAgent';
 import { VoiceIndicator, type VoiceIndicatorState } from '@/components/VoiceIndicator';
 import { useThemeMode } from '@/contexts/ThemeContext';
+import { useApp } from '@/contexts/AppContext';
 import { logout } from '@/apis/user';
 import { useQuery } from '@tanstack/react-query';
 import VrmControlPanel from '@/components/digital-human/VrmControlPanel';
@@ -217,6 +218,32 @@ export default function ImmersiveDigitalHuman() {
     loadConversationMessages?.(target);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history, conversationId]);
+
+  // 002:点击"新会话" → 先调后端创建空会话(立即出现在列表),再切换过去
+  const { currentUser } = useApp();
+  const handleNewConversation = React.useCallback(async () => {
+    try {
+      const res = await fetch('/api/digital-human/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser?.id ?? 0,
+          agentId: 'worker',
+          title: '新会话',
+        }),
+      });
+      const j = await res.json().catch(() => null);
+      if (j?.id) {
+        switchConversation?.(j.id); // 切到新会话(清空 chatLog)
+        refreshHistory();           // 刷新列表,新会话立即出现
+        return;
+      }
+    } catch {
+      /* 创建失败则退回本地新会话 */
+    }
+    newConversation?.();
+    refreshHistory();
+  }, [currentUser?.id, switchConversation, refreshHistory, newConversation]);
 
   // 模型选择
   const modelsQuery = useQuery({
@@ -673,10 +700,7 @@ export default function ImmersiveDigitalHuman() {
           <Button
             size="small"
             startIcon={<RefreshRoundedIcon sx={{ fontSize: 16 }} />}
-            onClick={() => {
-              newConversation?.();
-              refreshHistory();
-            }}
+            onClick={handleNewConversation}
             sx={{
               fontSize: 11,
               textTransform: 'none',
