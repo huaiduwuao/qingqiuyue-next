@@ -217,6 +217,13 @@ export interface UseChatAvatarWSOptions {
    * 兼容字段:后端仍可能只下发 emotion/action(旧协议),此时不调本回调。
    */
   onToolCalls?: (calls: Array<{ name: string; args: Record<string, any> }>) => void;
+  /**
+   * AG-UI 模式(G1):true 时对话走 agentmanager 的 AG-UI(数字员工),
+   * 不再走 Hermes WebSocket。保留数字人形象/语音/动作驱动。
+   */
+  useAgui?: boolean;
+  /** AG-UI 模式下的 agent 名(如 frontend/backend/ops/qa/worker),默认 worker */
+  aguiAgent?: string;
 }
 
 export function useChatAvatarWS(agentId: string = 'digital_human', options: UseChatAvatarWSOptions = {}): ChatAvatarState {
@@ -237,6 +244,10 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
   agentRef.current = agentId;
   const onToolCallsRef = React.useRef(options.onToolCalls);
   onToolCallsRef.current = options.onToolCalls;
+
+  // G1: AG-UI 模式选项
+  const useAgui = !!options.useAgui;
+  const aguiAgent = options.aguiAgent || 'worker';
 
   // 002:conversationId 持久化(会话维度历史)
   const [conversationId, setConversationId] = React.useState<string | null>(() => {
@@ -520,6 +531,12 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     setIsAIGenerated(true);
     nextAudioTimeRef.current = 0;
 
+    // G1: AG-UI 模式(数字员工),替代 Hermes WS
+    if (useAgui) {
+      await aguiChatOnce(t);
+      return;
+    }
+
     const conn = connRef.current;
     if (conn && conn.connected) {
       // WS 模式
@@ -582,6 +599,12 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
       fullTextRef.current = '';
       setIsAIGenerated(true);
       nextAudioTimeRef.current = 0;
+
+      // G1: AG-UI 模式(数字员工)
+      if (useAgui) {
+        await aguiChatOnce(t);
+        return;
+      }
 
       const conn = connRef.current;
       if (conn && conn.connected) {
@@ -715,6 +738,55 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
   React.useEffect(() => {
     wsRef.current.connected = connRef.current?.connected ?? false;
   });
+
+  // G1: AG-UI 对话(数字员工)。替代 Hermes WS,保留数字人形象/语音/动作驱动。
+  const aguiChatOnce = React.useCallback(
+    async (userText: string) => {
+      try {
+        const { agentmAPI } = await import('@/lib/agentmanager/api');
+        const toolStarted: string[] = [];
+        await agentmAPI.aguiChat(
+          {
+            agent: aguiAgent || 'worker',
+            prompt: userText,
+            session_id: conversationIdRef.current || undefined,
+          },
+          {
+            onDelta: (t) => {
+              fullTextRef.current += t;
+              // 打字机效果
+              setChatLog((c) => {
+                const last = c[c.length - 1];
+                if (last && last.who === 'ai') {
+                  return [...c.slice(0, -1), { who: 'ai', text: fullTextRef.current }];
+                }
+                return [...c, { who: 'ai', text: fullTextRef.current }];
+              });
+            },
+            onToolCall: (name, toolCallId) => {
+              toolStarted.push(toolCallId || name);
+              // 复用 dispatcher 通路:数字人形象/动作驱动
+              options.onToolCalls?.([{ name, args: {} }]);
+            },
+            onToolEnd: () => {
+              // 工具结束(暂不额外处理)
+            },
+            onDone: () => {
+              setChatBusy(false);
+            },
+            onError: (err) => {
+              setChatLog((c) => [...c, { who: 'ai', text: `❌ ${err}` }]);
+              setChatBusy(false);
+            },
+          },
+        );
+      } catch (e: any) {
+        setChatLog((c) => [...c, { who: 'ai', text: `❌ ${e?.message || 'AG-UI 调用失败'}` }]);
+        setChatBusy(false);
+      }
+    },
+    [aguiAgent, options],
+  );
 
   return {
     text,

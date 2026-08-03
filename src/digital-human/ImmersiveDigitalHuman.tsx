@@ -94,6 +94,9 @@ export default function ImmersiveDigitalHuman() {
   // VrmStage sinks 引用（用 state 而非 ref，避免首次渲染时 ref.current 还没填的坑）
   const [stageHandle, setStageHandle] = React.useState<VrmStageHandle | null>(null);
   const chat = useChatAvatarWS(undefined, {
+    // G1: 数字人走 agentmanager 的数字员工(AG-UI),形象/动作仍由 dispatcher 驱动
+    useAgui: true,
+    aguiAgent: 'worker',
     onToolCalls: (calls) => {
       // 把 Hermes/数字人下发的 tool_calls 串到 VrmStage handle。
       // stageHandle 为 null 时(还没就绪)只 log,不动 avatar。

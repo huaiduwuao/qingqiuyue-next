@@ -129,6 +129,9 @@ export default function FloatingDigitalHuman() {
   }, [activeAgentId, setActiveAgent]);
 
   const chat = useChatAvatarWS(activeAgentId || 'digital_human', {
+    // G1: 数字人走 agentmanager 的数字员工(AG-UI),形象/语音/动作仍由 dispatcher 驱动
+    useAgui: true,
+    aguiAgent: activeAgentId || 'worker',
     onToolCalls: (calls) => {
       // Hermes/数字人下发的工具调用 — 用 dispatcher 映射到 BlenderAvatar 的
       // emotion/action/viseme/jawOpen。BlenderAvatar 没有 sinks handle,这里
