@@ -2,29 +2,27 @@ import type { NextConfig } from "next";
 
 // dev 模式(localhost:3000)没有 nginx 在前面转发 /api,
 // 纯 CSR 静态导出自身也不带 API 路由 → 浏览器直连 /api/* 全 404。
-// 这里只在 development 下加 rewrites,把 /api、/ws 代理到真后端(API_PROXY_TARGET),
+// 这里只在 development 下加 rewrites，把 /api、/ws 代理到真后端(API_PROXY_TARGET),
 // 生产 output:'export' 时 rewrites 被忽略,仍由 nginx/APISIX 转发,互不影响。
 const isDev = process.env.NODE_ENV === "development";
 const API_PROXY_TARGET = process.env.API_PROXY_TARGET ?? "http://10.9.1.2:10005";
-// audio-gateway(ASR/TTS)独立代理:/api/audio/* 不走 agentmanager,走 8001
-const AUDIO_GATEWAY = process.env.AUDIO_GATEWAY_BASE_URL ?? "http://10.9.1.2:8001/v1";
 
-// 纯 CSR 模式:静态导出
 const nextConfig: NextConfig = {
   output: 'export',
   trailingSlash: false,
   ...(isDev && {
     async rewrites() {
       return [
-        // /api/audio/* → audio-gateway(去掉 /api 前缀,拼到 .../v1 下)
-        // 必须放在通用 /api 规则之前,rewrites 按顺序匹配
-        { source: "/api/audio/:path*", destination: `${AUDIO_GATEWAY}/audio/:path*` },
+        // /api/audio/* → realtime-api (数字人 TTS/ASR 直连，不再走 audio-gateway)
+        //   /api/audio/speech → /api/realtime/tts
+        //   /api/audio/transcriptions → /api/realtime/asr
+        { source: "/api/audio/speech", destination: `${API_PROXY_TARGET}/api/realtime/tts` },
+        { source: "/api/audio/transcriptions", destination: `${API_PROXY_TARGET}/api/realtime/asr` },
         // /api/digital-human/* 真实路由在 realtime-api 的 /api/realtime/digital-human/*
         // 前端写的是短路径,这里补 realtime 前缀
         { source: "/api/digital-human/:path*", destination: `${API_PROXY_TARGET}/api/realtime/digital-human/:path*` },
         { source: "/api/:path*", destination: `${API_PROXY_TARGET}/api/:path*` },
         // /logs/* → APISIX (统一网关,与生产链路一致)
-        //   APISIX 上有 /logs/* → logtail-server 的路由
         { source: "/logs/:path*", destination: `${API_PROXY_TARGET}/logs/:path*` },
         // 注意:rewrites 不支持 WebSocket 升级,/ws 仅代理普通 HTTP 轮询请求
         { source: "/ws/:path*", destination: `${API_PROXY_TARGET}/ws/:path*` },

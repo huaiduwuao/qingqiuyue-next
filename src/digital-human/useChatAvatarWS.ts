@@ -552,7 +552,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     // 生产环境: 相对路径, 经 nginx/APISIX 代理(enable_websocket: true)
     const base = process.env.NEXT_PUBLIC_WS_BASE || '';
     // 数字人 WS 路径统一到 /ws/realtime
-    const wsPath = '/ws/realtime';
+    const wsPath = '/api/avatar/ws';
     const wsUrl = base
       ? `${base}${wsPath}?agentId=${encodeURIComponent(agentRef.current)}`
       : `${wsPath}?agentId=${encodeURIComponent(agentRef.current)}`;
