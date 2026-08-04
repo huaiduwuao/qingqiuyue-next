@@ -2,7 +2,7 @@
  * api/digitalHumanConfig.ts — 数字人配置 + 会话 API 客户端
  *
  * Phase 2.4：7 套 CRUD + sessions/me 的 fetch 封装。
- * 默认 baseURL 走 /api/realtime/digital-human（与 Next.js 现有路由一致）。
+ * 默认 baseURL 走 /api/digital-human（与 Next.js rewrite 一致）。
  * 失败时调用方应 fallback 到本地 seed JSON（loader.ts 已处理）。
  */
 
@@ -11,7 +11,7 @@ import type {
   ExpressionPresetConfig, VisemeConfig, SceneConfig,
 } from '../vrm/config/types';
 
-const BASE = '/api/realtime/digital-human';
+const BASE = '/api/digital-human';
 
 async function jget<T>(url: string): Promise<T | null> {
   try {

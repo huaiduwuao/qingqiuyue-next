@@ -2,7 +2,7 @@
  * vrm/config/loader.ts — 配置加载器
  *
  * Phase 1：从 src/data/seed/ 静态 import JSON
- * Phase 2：先 fetch /api/realtime/digital-human/* → 失败时 fallback 到静态 JSON
+ * Phase 2：先 fetch /api/digital-human/* → 失败时 fallback 到静态 JSON
  *
  * 返回完整的 ConfigBundle（model + scenes + actions + dances + poses + expressions + visemes）
  * 一次拉齐，VrmStage 整个生命周期不重新加载。

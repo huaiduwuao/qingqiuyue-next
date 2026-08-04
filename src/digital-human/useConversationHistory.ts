@@ -28,7 +28,7 @@ export interface UseConversationHistoryResult {
 }
 
 const DEFAULT_USER_ID = 0;
-const API_BASE = '/api/realtime/digital-human';
+const API_BASE = '/api/digital-human';
 
 export function useConversationHistory(
   limit: number = 20,
@@ -58,9 +58,9 @@ export function useConversationHistory(
         if (cancelled) return;
         setHistory(
           records.map((r: any) => ({
-            id: r.session_uuid ?? '',
+            id: String(r.id ?? ''),
             title: sanitizeTitle(r.title),
-            agentId: r.agent_id || '',
+            agentId: String(r.agentId || ''),
             lastMessageAt: r.update_time || '',
           })),
         );
