@@ -223,6 +223,7 @@ export default function ImmersiveDigitalHuman() {
   const { currentUser } = useApp();
   const handleNewConversation = React.useCallback(async () => {
     try {
+      // APISIX 代理: /api/digital-human/* → /api/realtime/digital-human/*
       const res = await fetch('/api/digital-human/conversations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -244,6 +245,42 @@ export default function ImmersiveDigitalHuman() {
     newConversation?.();
     refreshHistory();
   }, [currentUser?.id, switchConversation, refreshHistory, newConversation]);
+
+  // 003:发消息后更新会话标题(第一条用户消息前50字)
+  // 需要 realtime-api 部署后支持 PUT /conversations/:id 路由
+  const updateConversationTitle = React.useCallback(async (convId: string, title: string) => {
+    if (!convId || convId.startsWith('local-')) return;
+    try {
+      const truncated = title.length > 50 ? title.slice(0, 50) + '…' : title;
+      const res = await fetch(`/api/digital-human/conversations/${encodeURIComponent(convId)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: truncated }),
+      });
+      if (!res.ok) {
+        devLog.warn('[updateTitle] failed:', res.status, convId);
+        return;
+      }
+      refreshHistory(); // 标题变了就刷新列表
+    } catch (e) {
+      devLog.warn('[updateTitle] error:', e);
+    }
+  }, [refreshHistory]);
+
+  // 监听 chatLog 变化,在发送第一条用户消息后更新标题
+  const prevChatLogLenRef = React.useRef(0);
+  React.useEffect(() => {
+    const currentLen = chatLog.length;
+    if (currentLen > prevChatLogLenRef.current) {
+      // 有新消息加入 chatLog,找到新增的用户消息
+      const added = chatLog.slice(prevChatLogLenRef.current);
+      const firstUserMsg = added.find((m) => m.who === 'user');
+      if (firstUserMsg && conversationId && !conversationId.startsWith('local-')) {
+        updateConversationTitle(conversationId, firstUserMsg.text);
+      }
+    }
+    prevChatLogLenRef.current = currentLen;
+  }, [chatLog, conversationId, updateConversationTitle]);
 
   // 模型选择
   const modelsQuery = useQuery({
