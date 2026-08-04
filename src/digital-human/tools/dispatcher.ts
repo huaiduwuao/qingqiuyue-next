@@ -55,6 +55,8 @@ export interface DigitalHumanSinks {
   setDancing?: (on: boolean) => void;
   /** 姿势（VRM 舞台新增，独立于动作系统） */
   setPose?: (name: string) => void;
+  /** 换装:切换到指定 VRM 模型。返回 boolean/Promise<boolean> 表示是否找到模型 */
+  setModel?: (modelId: string) => boolean | Promise<boolean>;
 }
 
 export interface DispatchResult {
@@ -170,6 +172,23 @@ export function dispatchToolCall(call: ToolCall, sinks: DigitalHumanSinks): Disp
         if (sinks.setCameraPreset) sinks.setCameraPreset(name);
         else console.warn('[dispatcher] camera.preset: sinks.setCameraPreset 未实现 (旧 BlenderAvatar)');
         return { ok: true, toolName: 'camera.preset', result: { name, applied: !!sinks.setCameraPreset } };
+      }
+
+      case 'avatar.swapModel': {
+        const modelId = call.params?.modelId || '';
+        if (!sinks.setModel) {
+          return { ok: false, toolName: 'avatar.swapModel', error: 'setModel 未实现,当前环境不支持换装' };
+        }
+        // setModel 可能同步返回 boolean 或异步返回 Promise<boolean>
+        const ret = sinks.setModel(modelId);
+        if (ret && typeof (ret as Promise<boolean>).then === 'function') {
+          return { ok: true, toolName: 'avatar.swapModel', result: { modelId, pending: true } };
+        }
+        return {
+          ok: ret as boolean,
+          toolName: 'avatar.swapModel',
+          result: ret ? { modelId, swapped: true } : { modelId, error: `no model: ${modelId}` },
+        };
       }
 
       default:

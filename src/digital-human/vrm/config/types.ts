@@ -234,27 +234,6 @@ export interface SceneConfig {
 // 角色会话状态（持久化）
 // ============================================================================
 
-export interface CharacterSession {
-  id: string;
-  userId: string;
-  modelId: string;
-  sceneId: string;
-  positionX: number;
-  positionY: number;
-  positionZ: number;
-  rotationY: number;
-  yOffset: number;
-  currentAction?: string;
-  currentPose?: string;
-  danceStyle?: string;
-  bpm: number;
-  danceAmp: number;
-  cameraPreset?: string;
-  customExpression?: Record<string, number>;
-  customPose?: Record<string, [number, number, number]>;
-  updatedAt: string;
-}
-
 // ============================================================================
 // 一次拉齐的完整配置包（前端 mount 时一锅端）
 // ============================================================================

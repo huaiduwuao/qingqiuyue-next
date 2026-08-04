@@ -133,14 +133,11 @@ export function resolveIframeUrl(
   if (m === 'video') {
     targetUrl = toEmbedUrl(raw) || raw
   } else if (m === 'normal') {
-    const ok = isEmbeddable(raw)
-    if (!ok) {
-      // 非白名单站: 默认先试视频(可能有嵌入播放器), 不行再 fallback
-      const embed = toEmbedUrl(raw)
-      if (embed) {
-        targetUrl = embed
-        m = 'video'
-      }
+    // 普通 URL: 若能映射到视频播放器则自动升级 video 模式(如 B站 BV→player.bilibili.com)
+    const embed = toEmbedUrl(raw)
+    if (embed) {
+      targetUrl = embed
+      m = 'video'
     }
   }
 
@@ -169,7 +166,11 @@ export interface IframeToolCallLike {
   args?: Record<string, any>
 }
 
-const IFRAME_TOOL_NAMES = new Set(['browser.open', 'browser.openUrl', 'openUrl', 'video.open', 'video.watch'])
+const IFRAME_TOOL_NAMES = new Set([
+  'browser.open', 'browser.openUrl', 'openUrl',
+  'browser.watch', 'video.open', 'video.watch', 'video.play',
+  'browser.browse', 'web.open', 'web.browse',
+])
 
 /**
  * 从 tool_call 里识别「打开网页/看视频」工具, 转成显示器目标。

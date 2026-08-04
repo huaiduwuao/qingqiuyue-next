@@ -25,6 +25,8 @@ import { useChatAvatarWS } from './useChatAvatarWS';
 import { dispatchToolCalls, type ToolCall as DhToolCall } from './tools/dispatcher';
 import { parseIframeUI, iframeToolToTarget, type IframeOpenTarget } from './virtual-browser';
 import { VirtualBrowser } from './VirtualBrowser';
+import { listModels } from './api/digitalHumanConfig';
+import { clearAvatarCache } from './vrm/loadAvatar';
 import { useVoiceAgent } from '@/hooks/useVoiceAgent';
 import { VoiceIndicator, type VoiceIndicatorState } from '@/components/VoiceIndicator';
 import { MicTestButton } from '@/components/MicTestButton';
@@ -98,8 +100,12 @@ export default function FloatingDigitalHuman() {
 
   const app = useApp();
   const { setTheme } = useThemeMode();
-  const { activeAgentId, agentStack, setActiveAgent, popAgent } = app;
+  const { activeAgentId, agentStack, setActiveAgent, popAgent, currentUser } = app;
   const [availableAgents, setAvailableAgents] = React.useState<HermesAgentItem[]>([]);
+  // 换装:当前 VRM 模型 URL(默认 character)。avatar.swapModel 工具切到其他模型
+  const [modelUrl, setModelUrl] = React.useState('/avatars/character.vrm');
+  // 意图拦截 ref:preSendText 从 hook 内部调用,用 ref 避免 hook 定义顺序循环依赖
+  const intentHandlerRef = React.useRef<((text: string) => Promise<boolean>) | null>(null);
 
   React.useEffect(() => {
     // StrictMode/依赖变化都可能重跑,加 cancelled + AbortController 避免 stale state 与未取消请求。
@@ -134,6 +140,13 @@ export default function FloatingDigitalHuman() {
     // G1: 数字人走 agentmanager 的数字员工(AG-UI),形象/语音/动作仍由 dispatcher 驱动
     useAgui: true,
     aguiAgent: activeAgentId || 'worker',
+    // A4: 对话记录（仅已登录用户）
+    userId: currentUser?.id,
+    // 意图拦截:文字输入也走本地意图路由(走/换/切/去/打开 等),纯聊天放行 AG-UI
+    preSendText: async (text) => {
+      if (intentHandlerRef.current) return intentHandlerRef.current(text);
+      return false; // handler 未就绪时放行 AG-UI
+    },
     // I1: 数字人要看网页/视频 → 统一显示器 (浮窗内弹窗)
     onUI: (ui: any) => {
       const target = parseIframeUI(ui);
@@ -160,8 +173,41 @@ export default function FloatingDigitalHuman() {
           },
           setJawOpen: () => {},
           speak: () => {},
-          move: () => {},
+          // 移动:复用 __qingqiuyueWalkTo CSS 定位(与语音 walk_to 同机制)
+          move: (target, opts) => {
+            const w = (typeof window !== 'undefined' ? window : null) as QingqiuyueWindow | null;
+            if (!w || !w.__qingqiuyueWalkTo) return;
+            let left: number, top: number;
+            const baseTop = Math.max(0, w.innerHeight - 560);
+            if (typeof target === 'string') {
+              if (target === 'left') { left = 8; top = baseTop; }
+              else if (target === 'right') { left = Math.max(0, w.innerWidth - 328); top = baseTop; }
+              else if (target === 'center') { left = Math.max(0, (w.innerWidth - 320) / 2); top = baseTop; }
+              else { left = 8; top = baseTop; }
+            } else {
+              // {x,y,z}:x 横向,y 竖向,z 深度(粗略映射到屏幕偏移)
+              left = Math.max(0, Math.min(w.innerWidth - 320, 8 + (target.x || 0) * 1));
+              top = Math.max(0, baseTop - (target.y || 0) * 10 - (target.z || 0) * 0);
+            }
+            w.__qingqiuyueWalkTo({ left, top }, opts?.durationMs || 1500);
+          },
           camera: () => {},
+          // 换装:查模型列表 → 清缓存 → 切 modelUrl(触发 BlenderAvatar 重载)
+          setModel: (modelId) => {
+            listModels().then((models) => {
+              const list = models || [];
+              const m = list.find(x => x.id === modelId) || list.find(x => x.url === modelId);
+              if (m) {
+                clearAvatarCache(m.url);
+                setModelUrl(m.url);
+                chat.setText(`已为你换装成「${m.name}」。`);
+              } else {
+                const options = list.map(x => x.name).join('、');
+                chat.setText(options ? `暂时没有「${modelId}」这个模型。可选：${options}` : `暂时没有可换的服装模型。`);
+              }
+            });
+            return true;
+          },
         },
       );
       console.log('[FloatingDigitalHuman] dispatched tool_calls:', result);
@@ -268,6 +314,54 @@ export default function FloatingDigitalHuman() {
     isAvatarSpeaking: () => chat.isSpeaking(),
     onInterrupt: () => chat.cancel(),
   })
+
+  // 意图拦截实现(文字输入):非聊天意图本地处理,聊天放行 AG-UI
+  React.useEffect(() => {
+    intentHandlerRef.current = async (text: string): Promise<boolean> => {
+      // 仅含动作关键词才走 LLM 意图路由(避免每次打字都调 LLM 慢+耗 token)
+      const ACTION_KEYWORDS = ['走', '换', '切', '去', '打开', '返回', '点一下', '去往']
+      if (!ACTION_KEYWORDS.some((k) => text.includes(k))) return false
+      const conversationId = app.activeConversationId || 'default'
+      let intentResult: Awaited<ReturnType<typeof routeIntent>>
+      try {
+        const r = await fetch('/api/intent/route', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text,
+            availableAgents: availableAgents.map((a) => ({
+              id: a.agentId,
+              displayName: a.name,
+              description: a.role || '',
+              tools: [],
+            })),
+          }),
+        })
+        intentResult = r.ok
+          ? await r.json()
+          : await routeIntent(text, { availableAgents: availableAgents.map((a) => ({ id: a.agentId, displayName: a.name, description: a.role || '', tools: [] })) })
+      } catch {
+        intentResult = await routeIntent(text, { availableAgents: availableAgents.map((a) => ({ id: a.agentId, displayName: a.name, description: a.role || '', tools: [] })) })
+      }
+      const { intent, replyText } = intentResult
+      if (intent.type === 'chat') return false // 纯聊天 → 放行 AG-UI
+      // 非聊天意图 → 本地处理
+      if (intent.type === 'switch') {
+        setActiveAgent(intent.agentId)
+        chat.setText(replyText || `已切换到 ${availableAgents.find((a) => a.agentId === intent.agentId)?.name || intent.agentId}`)
+      } else if (intent.type === 'return') {
+        const prev = popAgent()
+        if (prev) chat.setText(replyText || `已返回 ${availableAgents.find((a) => a.agentId === app.activeAgentId)?.name || app.activeAgentId}`)
+      } else if (intent.type === 'delegate' || intent.type === 'navigate' || intent.type === 'open_external' || intent.type === 'walk_to' || intent.type === 'system' || intent.type === 'cron' || intent.type === 'query') {
+        const res = await executeIntent(intent, { conversationId })
+        chat.setText(replyText || res.message)
+      } else {
+        return false // 未知类型放行
+      }
+      return true
+    }
+    return () => { intentHandlerRef.current = null }
+  }, [availableAgents, activeAgentId, app.activeConversationId, popAgent, setActiveAgent, chat])
 
   // 注意:必须在所有 hook 之后才能 return null,否则 React Rules of Hooks 报错
   // "Rendered fewer hooks than expected"(pathname 切换时 hidden 翻转会导致
@@ -558,7 +652,7 @@ export default function FloatingDigitalHuman() {
         '& canvas': { width: '100% !important', height: '100% !important' },
       }}>
         <BlenderAvatar
-          modelUrl="/avatars/character.vrm"
+          modelUrl={modelUrl}
           currentAction={action}
           emotion={emotion}
           viseme={viseme}

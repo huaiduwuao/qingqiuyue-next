@@ -208,8 +208,8 @@ export function VirtualBrowser({ target, title, onClose, placement = 'stage' }: 
           />
         )}
 
-        {/* 嵌入被拒 fallback 条: 站点禁止 iframe 嵌入(如头条)时, 提示去新标签看或走代理 */}
-        {!isVideo && target.support === 'no' && (
+        {/* 嵌入被拒 fallback 条: 站点禁止 iframe 嵌入 或 未确认可嵌入 → 都给 fallback */}
+        {!isVideo && target.support !== 'yes' && (
           <Box
             sx={{
               position: 'absolute', left: 0, right: 0, bottom: 0, p: 1,
@@ -218,7 +218,7 @@ export function VirtualBrowser({ target, title, onClose, placement = 'stage' }: 
             }}
           >
             <Typography sx={{ flex: 1, fontSize: 11, color: '#ffb35c' }}>
-              该站点禁止在页面内嵌入, 可能白屏 — 建议「新标签打开」或「代理打开」
+              该站点可能不支持在页面内嵌入, 可能白屏 — 建议「新标签打开」或「代理打开」
             </Typography>
             <Box
               component="button"

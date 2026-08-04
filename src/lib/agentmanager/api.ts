@@ -245,12 +245,12 @@ class AgentManagerAPI {
    * onDelta 收文本增量,onDone 收结束,onError 收错误。
    */
   async aguiChat(
-    params: { model?: string; agent?: string; prompt: string; system?: string; session_id?: string; avatar_mode?: boolean; history?: Array<{ role: string; content: string }> },
+    params: { model?: string; agent?: string; prompt: string; system?: string; session_id?: string; user_id?: number; avatar_mode?: boolean; history?: Array<{ role: string; content: string }> },
     handlers: {
       onDelta?: (text: string) => void
       onDone?: () => void
       onError?: (e: string) => void
-      onToolCall?: (name: string, toolCallId: string) => void
+      onToolCall?: (name: string, toolCallId: string, args?: string) => void
       onToolEnd?: (toolCallId: string) => void
     },
   ): Promise<void> {
@@ -274,12 +274,15 @@ class AgentManagerAPI {
     }
 
     const reader = res.body.getReader()
-    const decoder = new TextDecoder()
+    const decoder = new TextDecoder('utf-8', { fatal: false })
     let buffer = ''
+    let finished = false  // 防止 RUN_FINISHED 与流结束重复触发 onDone
     for (;;) {
       const { done, value } = await reader.read()
       if (done) break
-      buffer += decoder.decode(value, { stream: true })
+      // 过滤掉 U+FFFD (Unicode replacement char) — DeepSeek LLM 偶尔输出无效 UTF-8 字节流
+      const raw = decoder.decode(value, { stream: true })
+      buffer += raw.replace(/�/g, '')
       let idx
       while ((idx = buffer.indexOf('\n\n')) !== -1) {
         const block = buffer.slice(0, idx).replace(/\r/g, '')
@@ -292,13 +295,20 @@ class AgentManagerAPI {
           const data = JSON.parse(dataStr)
           const type = data.type
           if (type === 'TEXT_MESSAGE_CONTENT') {
-            handlers.onDelta?.(data.delta ?? '')
+            // 过滤掉 U+FFFD：json.Marshal 把 LLM 非法 UTF-8 转成了 � 转义序列
+            handlers.onDelta?.((data.delta ?? '').replace(/�/g, ''))
           } else if (type === 'RUN_FINISHED') {
-            handlers.onDone?.()
+            if (!finished) {
+              finished = true
+              handlers.onDone?.()
+            }
           } else if (type === 'RUN_ERROR') {
             handlers.onError?.(data.message || 'run error')
           } else if (type === 'TOOL_CALL_START') {
             handlers.onToolCall?.(data.toolCallName ?? '', data.toolCallId ?? '')
+          } else if (type === 'TOOL_CALL_CHUNK') {
+            // 携带工具参数(args JSON 存于 delta)。Start 已触发一次,这里补 args。
+            handlers.onToolCall?.(data.toolCallName ?? '', data.toolCallId ?? '', data.delta ?? '')
           } else if (type === 'TOOL_CALL_END') {
             handlers.onToolEnd?.(data.toolCallId ?? '')
           }
@@ -307,7 +317,9 @@ class AgentManagerAPI {
         }
       }
     }
-    handlers.onDone?.()
+    if (!finished) {
+      handlers.onDone?.()
+    }
   }
 
   /**
@@ -596,6 +608,38 @@ class AgentManagerAPI {
   async getWorkflowRun(id: number) {
     return this.request<{ run: WorkflowRun; steps: WorkflowRunStep[] }>(`/workflow-runs/${id}`)
   }
+
+  // ========== 对话记录与复现 ==========
+  async listConversations(params?: { user_id?: string; page?: number; limit?: number }) {
+    const query = new URLSearchParams()
+    if (params?.user_id) query.set('user_id', params.user_id)
+    if (params?.page) query.set('page', String(params.page))
+    if (params?.limit) query.set('limit', String(params.limit))
+    return this.request<{ list: Conversation[]; total: number; page: number; limit: number }>(`/conversations?${query}`)
+  }
+
+  async getConversation(uuid: string) {
+    return this.request<Conversation>(`/conversations/${uuid}`)
+  }
+
+  async getConversationMessages(uuid: string) {
+    return this.request<{ messages: ConversationMessage[] }>(`/conversations/${uuid}/messages`)
+  }
+
+  async getConversationCheckpoints(uuid: string) {
+    return this.request<{ checkpoints: ConversationCheckpoint[] }>(`/conversations/${uuid}/checkpoints`)
+  }
+
+  async replayConversation(uuid: string, params?: { from_checkpoint?: string; from_seq?: number; skip_tool_calls?: boolean }) {
+    return this.request<ReplayResult>(`/conversations/${uuid}/replay`, {
+      method: 'POST',
+      body: JSON.stringify(params ?? {}),
+    })
+  }
+
+  async deleteConversation(uuid: string) {
+    return this.request<{ message: string }>(`/conversations/${uuid}`, { method: 'DELETE' })
+  }
 }
 
 // Types
@@ -880,6 +924,75 @@ export interface InstanceLatency {
   instance_name: string
   avg_latency_ms: number
   total_requests: number
+}
+
+// ========== 对话记录类型 ==========
+export interface Conversation {
+  id: number
+  session_uuid: string
+  user_id: number
+  tenant_id: number
+  title: string
+  agent_id: string
+  agent_db_id: number
+  agent_name: string
+  model: string
+  mode: string
+  status: 'active' | 'completed' | 'interrupted'
+  message_count: number
+  total_tokens: number
+  checkpoint_count: number
+  create_time: string
+  update_time: string
+  end_time?: string
+}
+
+export interface ConversationMessage {
+  id: number
+  conversation_id: number
+  seq: number
+  role: 'user' | 'assistant' | 'system' | 'tool'
+  content: string
+  agent_id: string
+  agent_db_id: number
+  model: string
+  input_tokens: number
+  output_tokens: number
+  total_tokens: number
+  tool_calls?: Record<string, any>
+  tool_call_count: number
+  reasoning_steps?: Record<string, any>
+  is_checkpoint: boolean
+  status: 'success' | 'error' | 'partial'
+  error_msg?: string
+  latency_ms: number
+  create_time: string
+}
+
+export interface ConversationCheckpoint {
+  id: number
+  conversation_id: number
+  name: string
+  description: string
+  last_message_seq: number
+  last_message_id: number
+  create_time: string
+}
+
+export interface ReplayResult {
+  conversation_id: number
+  session_uuid: string
+  title: string
+  agent_id: string
+  agent_db_id: number
+  agent_name: string
+  model: string
+  mode: string
+  messages: ConversationMessage[]
+  checkpoints: ConversationCheckpoint[]
+  total_messages: number
+  total_tokens: number
+  duration: number
 }
 
 // Export singleton

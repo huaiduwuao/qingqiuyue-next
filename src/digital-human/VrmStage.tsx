@@ -1,7 +1,6 @@
 'use client';
 
 import { devLog } from '@/lib/dev-log';
-import { safeErrorLog } from '@/lib/error-handler';
 
 /**
  * VrmStage.tsx — 全身取景 + 多场景 + 5 hooks 编排的 VRM 舞台
@@ -559,39 +558,14 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     return () => clearInterval(id);
   }, []);
 
-  // Phase 2.5: 加载/保存 session
-  // mount 时拉服务端 session → 恢复；每 5s 自动 flush；unmount 立即 flush
+  // 数字人位置不做持久化:用户重新进来回到初始位置(0,0,0)。
+  // 之前 Phase 2.5 的 session 持久化(mount 拉取恢复 + 每 5s flush + unmount 保存)
+  // 已按产品决策移除——数字人状态不跨会话保留,初始位置即默认。
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    let mounted = true;
-    (async () => {
-      try {
-        const { getMySession } = await import('./api/digitalHumanConfig');
-        const { useSessionStore } = await import('./store/session');
-        const sess = await getMySession(useSessionStore.getState().session.userId);
-        if (mounted && sess) {
-          useSessionStore.getState().setSession(sess);
-          devLog.debug('[VrmStage] session restored:', sess);
-          // 恢复位置
-          handleInternalRef.current?.setPosition(sess.positionX, sess.positionZ);
-          handleInternalRef.current?.setYOffset(sess.yOffset);
-        }
-      } catch (e) { devLog.warn('[VrmStage] session restore failed:', e); }
-    })();
-    const flushId = setInterval(() => {
-      import('./store/session').then(m => m.useSessionStore.getState().flush()).catch((e) => safeErrorLog('session flush', e));
-    }, 5000);
-    const onUnload = () => {
-      import('./store/session').then(m => m.useSessionStore.getState().flush()).catch((e) => safeErrorLog('session flush', e));
-    };
-    window.addEventListener('beforeunload', onUnload);
-    return () => {
-      mounted = false;
-      clearInterval(flushId);
-      window.removeEventListener('beforeunload', onUnload);
-      import('./store/session').then(m => m.useSessionStore.getState().flush()).catch((e) => safeErrorLog('session flush', e));
-    };
-   
+    // 复位到初始位置(默认 modelId/sceneId 已在 VrmStage 内部处理)
+    handleInternalRef.current?.setPosition(0, 0);
+    handleInternalRef.current?.setYOffset(0);
   }, []);
 
   // 暴露 handle — 用 useMemo 直接构造（不用 useImperativeHandle，React 19 行为不稳）

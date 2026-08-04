@@ -8,7 +8,7 @@
 
 import type {
   VrmModelConfig, ActionConfig, DanceStyleConfig, PoseConfig,
-  ExpressionPresetConfig, VisemeConfig, SceneConfig, CharacterSession,
+  ExpressionPresetConfig, VisemeConfig, SceneConfig,
 } from '../vrm/config/types';
 
 const BASE = '/api/realtime/digital-human';
@@ -97,11 +97,3 @@ export const createScene = (e: SceneConfig) => jsend<SceneConfig>('POST', `${BAS
 export const updateScene = (id: string, e: SceneConfig) => jsend<SceneConfig>('PUT', `${BASE}/scenes/${id}`, e);
 export const deleteScene = (id: string) => jsend<{ deleted: string }>('DELETE', `${BASE}/scenes/${id}`);
 
-// ---------- Sessions ----------
-export async function getMySession(userId: string): Promise<CharacterSession | null> {
-  if (!userId) return null;
-  const r = await jget<{ session: CharacterSession | null }>(`${BASE}/sessions/me?userId=${encodeURIComponent(userId)}`);
-  return r?.session ?? null;
-}
-export const upsertMySession = (s: CharacterSession) =>
-  jsend<{ session: CharacterSession }>('PUT', `${BASE}/sessions/me`, s);

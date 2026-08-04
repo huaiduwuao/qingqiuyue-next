@@ -39,6 +39,21 @@ export async function sendComment(params: Record<string, unknown>) {
   });
 }
 
+// 评论操作（点赞/点踩/收藏）- POST /api/content/module/content/comment/action
+export async function commentAction(params: { commentId: string | number; action: 'agree' | 'disagree' | 'collect' }) {
+  return contentClient("/module/content/comment/action", {
+    method: "POST",
+    data: params
+  });
+}
+
+// 获取用户对评论的操作状态 - GET /api/content/module/content/comment/actions
+export async function getUserCommentActions(commentIds: (string | number)[]) {
+  return contentClient("/module/content/comment/actions", {
+    params: { commentIds: commentIds.join(',') }
+  });
+}
+
 // ========== Reward APIs (use rewardClient) ==========
 
 // 项目列表 - GET /api/core/project/list

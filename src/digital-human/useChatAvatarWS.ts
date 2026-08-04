@@ -360,6 +360,11 @@ export interface UseChatAvatarWSOptions {
   onUnknownTool?: (toolName: string) => void;
   /** 用户 ID，用于对话记录（仅已登录用户有效） */
   userId?: number;
+  /**
+   * 发送前拦截(AG-UI 模式):返回 true 表示已处理(不再发往 AG-UI),false/undefined 继续发。
+   * 用于文字输入也走本地意图路由(walk_to/换装/切agent),纯聊天放行给 AG-UI。
+   */
+  preSendText?: (text: string) => boolean | Promise<boolean>;
 }
 
 export function useChatAvatarWS(agentId: string = 'digital_human', options: UseChatAvatarWSOptions = {}): ChatAvatarState {
@@ -425,7 +430,10 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
   }, []);
 
   // 加载指定会话的历史消息(从会话列表同源接口拉取),填充 chatLog
+  const isLoadingMessagesRef = React.useRef(false);
+
   const loadConversationMessages = React.useCallback(async (cid: string) => {
+    isLoadingMessagesRef.current = true;
     try {
       const res = await fetch(`/api/digital-human/conversations/${cid}/messages`).catch(() => null)
       if (!res || !res.ok) return
@@ -441,8 +449,40 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
       setChatLog(items)
     } catch {
       // 加载失败不阻塞(保持空列表)
+    } finally {
+      isLoadingMessagesRef.current = false;
     }
   }, [])
+
+  // 002:AI 消息持久化 — chatLog 增长时,追加 AI 消息到后端
+  // (用户消息已在 send() 里直接写;这里只处理 AI 回复)
+  const prevChatLogLenRef = React.useRef(0);
+  React.useEffect(() => {
+    const currentLen = chatLog.length;
+    if (currentLen <= prevChatLogLenRef.current) {
+      prevChatLogLenRef.current = currentLen;
+      return;
+    }
+    if (isLoadingMessagesRef.current) {
+      prevChatLogLenRef.current = currentLen;
+      return; // 正在从后端加载历史,跳过本次持久化
+    }
+    const cid = conversationIdRef.current;
+    if (!cid || cid.startsWith('local-')) {
+      prevChatLogLenRef.current = currentLen;
+      return;
+    }
+    // 取本轮新增的消息(最后一条)
+    const added = chatLog[currentLen - 1];
+    if (added && added.who === 'ai') {
+      fetch(`/api/digital-human/conversations/${cid}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'assistant', content: added.text }),
+      }).catch(() => {});
+    }
+    prevChatLogLenRef.current = currentLen;
+  }, [chatLog]);
 
   // AudioContext 用于播放流式音频 chunk
   const audioCtxRef = React.useRef<AudioContext | null>(null);
@@ -690,8 +730,23 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     setIsAIGenerated(true);
     nextAudioTimeRef.current = 0;
 
+    // 002:持久化用户消息到后端(digital_human_conversation.messages)
+    const cid = conversationIdRef.current;
+    if (cid && !cid.startsWith('local-')) {
+      fetch(`/api/digital-human/conversations/${cid}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: 'user', content: t }),
+      }).catch(() => {}); // fire-and-forget
+    }
+
     // G1: AG-UI 模式(数字员工),替代 Hermes WS
     if (useAgui) {
+      // 发送前拦截(本地意图路由):返回 true 表示已处理,不再发 AG-UI
+      if (options.preSendText) {
+        const handled = await options.preSendText(t);
+        if (handled) { setChatBusy(false); return; }
+      }
       await aguiChatOnce(t);
       return;
     }
@@ -761,6 +816,11 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
 
       // G1: AG-UI 模式(数字员工)
       if (useAgui) {
+        // 发送前拦截(本地意图路由):返回 true 表示已处理,不再发 AG-UI
+        if (options.preSendText) {
+          const handled = await options.preSendText(t);
+          if (handled) { setChatBusy(false); return; }
+        }
         await aguiChatOnce(t);
         return;
       }
@@ -910,6 +970,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
       try {
         const { agentmAPI } = await import('@/lib/agentmanager/api');
         const toolStarted: string[] = [];
+        const toolCallArgsCache: Record<string, Record<string, any>> = {}; // toolCallId -> args
         // H4: 从当前对话日志构造历史上下文(用户/助手交替),让 agent 延续上下文
         const history = chatLog
           .filter((m) => m.who === 'user' || m.who === 'ai')
@@ -948,10 +1009,24 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
                 return [...c, { who: 'ai', text: cleanText }];
               });
             },
-            onToolCall: (name, toolCallId) => {
-              toolStarted.push(toolCallId || name);
-              // 复用 dispatcher 通路:数字人形象/动作驱动
-              options.onToolCalls?.([{ name, args: {} }]);
+            onToolCall: (name, toolCallId, argsDelta) => {
+              // START 事件先到(无 args),CHUNK 事件后到(带 args)。用 id 缓冲去重补参。
+              const id = toolCallId || name;
+              if (!argsDelta) {
+                // 工具开始:登记,先不发(等 CHUNK 补 args;无 CHUNK 的纯动作工具由 parseAvatarDirectives 走 UI)
+                toolStarted.push(id);
+                toolCallArgsCache[id] = {};
+                return;
+              }
+              // 工具参数 chunk:解析 args 后分发
+              let args: Record<string, any> = {};
+              try {
+                const p = JSON.parse(argsDelta);
+                if (p && typeof p === 'object') args = p;
+              } catch { /* 解析失败退化为空参数 */ }
+              toolCallArgsCache[id] = args;
+              // 复用 dispatcher 通路:数字人形象/动作/换装/移动驱动
+              options.onToolCalls?.([{ name, args }]);
             },
             onToolEnd: () => {
               // 工具结束(暂不额外处理)

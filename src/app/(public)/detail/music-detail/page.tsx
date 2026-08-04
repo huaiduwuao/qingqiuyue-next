@@ -29,6 +29,7 @@ import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
 import { track, recordHistory } from '@/lib/track';
 import { DetailComments } from '@/components/detail/DetailComments';
+import { spiderClient } from '@/lib/api/client';
 
 interface LyricLine {
   time: number;
@@ -72,8 +73,10 @@ function MusicDetailContent() {
     }
   }, [id]);
 
+  const audioRef = useRef<HTMLAudioElement>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(180);
   const [volume, setVolume] = useState(70);
   const [liked, setLiked] = useState(false);
   const [likeBusy, setLikeBusy] = useState(false);
@@ -85,8 +88,12 @@ function MusicDetailContent() {
     severity: 'success',
   });
   const lyricRef = useRef<HTMLDivElement>(null);
-  const duration = query.data?.audioDurationSec ?? query.data?.duration ?? 180;
-  const lyrics = normalizeLyrics(query.data?.lyrics);
+  // 实时获取的音频URL和歌词
+  const [realAudioUrl, setRealAudioUrl] = useState<string>('');
+  const [realLyrics, setRealLyrics] = useState<LyricLine[]>([]);
+  const [audioLoading, setAudioLoading] = useState(false);
+
+  const lyrics = realLyrics.length > 0 ? realLyrics : normalizeLyrics(query.data?.lyrics);
 
   const notify = useCallback((message: string, severity: 'success' | 'error' | 'info' = 'success') => {
     setSnack({ open: true, message, severity });
@@ -132,30 +139,88 @@ function MusicDetailContent() {
     }
   };
 
-  useEffect(() => {
-    const t = setInterval(() => {
-      if (playing) {
-        setCurrentTime((p) => {
-          const next = p + 1;
-          if (next >= duration) {
-            setPlaying(false);
-            return 0;
-          }
-          return next;
-        });
-      }
-    }, 1000);
-    return () => clearInterval(t);
-  }, [playing, duration]);
-
-  useEffect(() => {
-    if (!lyrics.length) return;
-    const idx = lyrics.findIndex((l, i) => {
-      const next = lyrics[i + 1];
-      return currentTime >= l.time && (!next || currentTime < next.time);
+  // 解析 LRC 格式歌词
+  const parseLrcLyrics = (lrcText: string): LyricLine[] => {
+    if (!lrcText) return [];
+    return lrcText.split(/\r?\n/).flatMap((line) => {
+      const match = line.match(/^\[(\d+):(\d+(?:\.\d+)?)\](.*)$/);
+      if (!match) return [];
+      return [{ time: Number(match[1]) * 60 + Number(match[2]), text: match[3].trim() }];
     });
-    if (idx >= 0) setActiveLyric(idx);
-  }, [currentTime, lyrics]);
+  };
+
+  // 提取 hash 从 playSources 或 source
+  const extractHash = (): string | null => {
+    const playSources = query.data?.playSources as Array<{ source?: string; sourceUrl?: string }>;
+    const source = query.data?.source as string;
+    const sourceUrl = query.data?.sourceUrl as string;
+
+    const urls = [source, sourceUrl, ...(playSources || []).map(p => p.source || p.sourceUrl)].filter(Boolean);
+    for (const url of urls) {
+      const match = String(url).match(/hash=([a-f0-9]+)/i);
+      if (match) return match[1];
+    }
+    return null;
+  };
+
+  // 实时获取音频URL和歌词
+  useEffect(() => {
+    if (!id || !query.data) return;
+
+    const fetchAudioAndLyrics = async () => {
+      // 优先使用已有的 audioUrl
+      if (query.data?.audioUrl) {
+        setRealAudioUrl(query.data.audioUrl);
+        return; // 已有音频URL，不需要再请求
+      }
+
+      // 尝试从后端获取音频URL
+      const hash = extractHash();
+      if (hash) {
+        setAudioLoading(true);
+        try {
+          // 调用爬虫 API 获取音频 URL
+          const audioRes = await spiderClient(`/music/audio/${hash}`);
+          const audioData = (audioRes as any)?.data;
+          if (audioData?.audio_url) {
+            setRealAudioUrl(audioData.audio_url);
+          }
+          // 获取歌词
+          const detailRes = await spiderClient(`/music/detail/${hash}`);
+          const detailData = (detailRes as any)?.data;
+          if (detailData?.lyrics_lrc || detailData?.lyrics) {
+            const lrcText = detailData?.lyrics_lrc || detailData?.lyrics;
+            const parsed = parseLrcLyrics(lrcText);
+            if (parsed.length > 0) {
+              setRealLyrics(parsed);
+            }
+          }
+          // 如果歌词也在详情数据里
+          if (detailData?.lyrics) {
+            const parsed = parseLrcLyrics(detailData.lyrics);
+            if (parsed.length > 0 && realLyrics.length === 0) {
+              setRealLyrics(parsed);
+            }
+          }
+        } catch (err) {
+          console.error('获取音频/歌词失败:', err);
+        } finally {
+          setAudioLoading(false);
+        }
+      }
+    };
+
+    fetchAudioAndLyrics();
+  }, [id, query.data, query.isSuccess]);
+
+  const togglePlay = () => {
+    if (!audioRef.current) return;
+    if (playing) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play().catch(() => {});
+    }
+  };
 
   useEffect(() => {
     if (lyricRef.current) {
@@ -165,8 +230,6 @@ function MusicDetailContent() {
       }
     }
   }, [activeLyric]);
-
-  const togglePlay = () => setPlaying((p) => !p);
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -248,10 +311,35 @@ function MusicDetailContent() {
               </Box>
             </Box>
 
-            {data.audioUrl && (
-              <Box component="audio" controls src={data.audioUrl} sx={{ width: '100%', mb: 2 }}>
-                当前浏览器不支持音频播放。
-              </Box>
+            {(realAudioUrl || data.audioUrl) && (
+              <audio
+                ref={audioRef}
+                src={realAudioUrl || data.audioUrl}
+                onTimeUpdate={() => {
+                  setCurrentTime(audioRef.current?.currentTime ?? 0);
+                  // 歌词同步
+                  if (lyrics.length > 0) {
+                    const ct = audioRef.current?.currentTime ?? 0;
+                    const idx = lyrics.findIndex((l, i) => {
+                      const next = lyrics[i + 1];
+                      return ct >= l.time && (!next || ct < next.time);
+                    });
+                    if (idx >= 0) setActiveLyric(idx);
+                  }
+                }}
+                onLoadedMetadata={() => setDuration(audioRef.current?.duration ?? 180)}
+                onEnded={() => { setPlaying(false); setCurrentTime(0); }}
+                onPlay={() => setPlaying(true)}
+                onPause={() => setPlaying(false)}
+                style={{ display: 'none' }}
+              />
+            )}
+
+            {/* 音频加载提示 */}
+            {audioLoading && (
+              <Typography sx={{ fontSize: 12, color: 'text.secondary', textAlign: 'center', mb: 1 }}>
+                正在加载音频...
+              </Typography>
             )}
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
@@ -261,17 +349,20 @@ function MusicDetailContent() {
               <Slider
                 size="small"
                 value={currentTime}
-                max={duration}
-                onChange={(_, v) => setCurrentTime(v as number)}
+                max={duration || 180}
+                onChange={(_, v) => {
+                  setCurrentTime(v as number);
+                  if (audioRef.current) audioRef.current.currentTime = v as number;
+                }}
                 sx={{ color: 'primary.main' }}
               />
               <Typography sx={{ fontSize: 11, color: 'text.secondary', minWidth: 36 }}>
-                {fmtTime(duration)}
+                {fmtTime(duration || 180)}
               </Typography>
             </Box>
 
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 2 }}>
-              <IconButton onClick={() => setCurrentTime(0)} sx={{ color: 'text.tertiary' }}>
+              <IconButton onClick={() => { if (audioRef.current) { audioRef.current.currentTime = 0; audioRef.current.play().catch(() => {}); } }} sx={{ color: 'text.tertiary' }}>
                 <SkipPreviousIcon fontSize="large" />
               </IconButton>
               <IconButton
@@ -286,7 +377,7 @@ function MusicDetailContent() {
               >
                 {playing ? <PauseIcon fontSize="large" /> : <PlayArrowIcon fontSize="large" />}
               </IconButton>
-              <IconButton onClick={() => setCurrentTime(duration)} sx={{ color: 'text.tertiary' }}>
+              <IconButton onClick={() => { if (audioRef.current) audioRef.current.currentTime = audioRef.current.duration || 0; }} sx={{ color: 'text.tertiary' }}>
                 <SkipNextIcon fontSize="large" />
               </IconButton>
               <Box sx={{ width: 16 }} />
@@ -294,7 +385,10 @@ function MusicDetailContent() {
               <Slider
                 size="small"
                 value={volume}
-                onChange={(_, v) => setVolume(v as number)}
+                onChange={(_, v) => {
+                  setVolume(v as number);
+                  if (audioRef.current) audioRef.current.volume = (v as number) / 100;
+                }}
                 sx={{ color: 'primary.main', width: 100, ml: 1 }}
               />
               <Box sx={{ flex: 1 }} />

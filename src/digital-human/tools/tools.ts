@@ -266,6 +266,24 @@ export const cameraPreset: ToolDefinition<{ name: CameraPresetToolName }> = {
   handler: ({ name }) => ({ name }),
 };
 
+/** 换装:切换到数字人模型列表里的另一个 VRM 模型(等价于换一套服装)。 */
+export const avatarSwapModel: ToolDefinition<{ modelId: string }> = {
+  name: 'avatar.swapModel',
+  category: 'system',
+  description: [
+    '给数字人换装(切换到指定的 VRM 模型)。modelId 是数字人模型列表里的 id 或 url。',
+    '换装会清缓存并重新加载场景。如果 modelId 不存在,如实告知可选模型。',
+  ].join('\n'),
+  parameters: {
+    type: 'object',
+    properties: {
+      modelId: { type: 'string', description: '模型 id 或 url(来自数字人模型列表)' },
+    },
+    required: ['modelId'],
+  },
+  handler: ({ modelId }) => ({ modelId }),
+};
+
 /* ────────────── 全量注册 ────────────── */
 
 export const ALL_TOOLS: ToolDefinition<any>[] = [
@@ -278,6 +296,7 @@ export const ALL_TOOLS: ToolDefinition<any>[] = [
   cameraControl,
   sceneChange,
   cameraPreset,
+  avatarSwapModel,
 ];
 
 export const TOOLS_BY_NAME: Record<string, ToolDefinition> = Object.fromEntries(
