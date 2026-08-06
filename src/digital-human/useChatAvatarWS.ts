@@ -435,7 +435,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
   const loadConversationMessages = React.useCallback(async (cid: string) => {
     isLoadingMessagesRef.current = true;
     try {
-      const res = await fetch(`/api/digital-human/conversations/${cid}/messages`).catch(() => null)
+      const res = await fetch(`/api/agentmanager/conversations/${cid}/messages`).catch(() => null)
       if (!res || !res.ok) return
       const j = await res.json().catch(() => null)
       const msgs = j?.messages ?? []
@@ -475,7 +475,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     // 取本轮新增的消息(最后一条)
     const added = chatLog[currentLen - 1];
     if (added && added.who === 'ai') {
-      fetch(`/api/digital-human/conversations/${cid}/messages`, {
+      fetch(`/api/agentmanager/conversations/${cid}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role: 'assistant', content: added.text }),

@@ -28,7 +28,7 @@ export interface UseConversationHistoryResult {
 }
 
 const DEFAULT_USER_ID = 0;
-const API_BASE = '/api/digital-human';
+const API_BASE = '/api/agentmanager';
 
 export function useConversationHistory(
   limit: number = 20,

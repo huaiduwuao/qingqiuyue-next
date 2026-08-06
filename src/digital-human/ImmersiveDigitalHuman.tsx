@@ -223,8 +223,7 @@ export default function ImmersiveDigitalHuman() {
   const { currentUser } = useApp();
   const handleNewConversation = React.useCallback(async () => {
     try {
-      // APISIX 代理: /api/digital-human/* → /api/realtime/digital-human/*
-      const res = await fetch('/api/digital-human/conversations', {
+      const res = await fetch('/api/agentmanager/conversations', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -252,7 +251,7 @@ export default function ImmersiveDigitalHuman() {
     if (!convId || convId.startsWith('local-')) return;
     try {
       const truncated = title.length > 50 ? title.slice(0, 50) + '…' : title;
-      const res = await fetch(`/api/digital-human/conversations/${encodeURIComponent(convId)}`, {
+      const res = await fetch(`/api/agentmanager/conversations/${encodeURIComponent(convId)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: truncated }),
