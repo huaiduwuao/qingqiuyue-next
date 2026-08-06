@@ -348,30 +348,6 @@ class AgentManagerAPI {
           /* 忽略无法解析的行 */
         }
       }
-        try {
-          const data = JSON.parse(dataStr)
-          const type = data.type
-          if (type === 'TEXT_MESSAGE_CONTENT') {
-            // 过滤掉 U+FFFD：json.Marshal 把 LLM 非法 UTF-8 转成了 � 转义序列
-            handlers.onDelta?.((data.delta ?? '').replace(/�/g, ''))
-          } else if (type === 'RUN_FINISHED') {
-            if (!finished) {
-              finished = true
-              handlers.onDone?.()
-            }
-          } else if (type === 'RUN_ERROR') {
-            handlers.onError?.(data.message || 'run error')
-          } else if (type === 'TOOL_CALL_START') {
-            handlers.onToolCall?.(data.toolCallName ?? '', data.toolCallId ?? '')
-          } else if (type === 'TOOL_CALL_CHUNK') {
-            // 携带工具参数(args JSON 存于 delta)。Start 已触发一次,这里补 args。
-            handlers.onToolCall?.(data.toolCallName ?? '', data.toolCallId ?? '', data.delta ?? '')
-          } else if (type === 'TOOL_CALL_END') {
-            handlers.onToolEnd?.(data.toolCallId ?? '')
-          }
-        } catch {
-          /* 忽略无法解析的行 */
-        }
       }
     }
     if (!finished) {
