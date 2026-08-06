@@ -468,7 +468,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
       return; // 正在从后端加载历史,跳过本次持久化
     }
     const cid = conversationIdRef.current;
-    if (!cid || cid.startsWith('local-')) {
+    if (!cid || typeof cid !== 'string' || cid.startsWith('local-')) {
       prevChatLogLenRef.current = currentLen;
       return;
     }
@@ -732,8 +732,8 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
 
     // 002:持久化用户消息到后端(digital_human_conversation.messages)
     const cid = conversationIdRef.current;
-    if (cid && !cid.startsWith('local-')) {
-      fetch(`/api/digital-human/conversations/${cid}/messages`, {
+    if (cid && typeof cid === 'string' && !cid.startsWith('local-')) {
+      fetch(`/api/agentmanager/conversations/${cid}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role: 'user', content: t }),
