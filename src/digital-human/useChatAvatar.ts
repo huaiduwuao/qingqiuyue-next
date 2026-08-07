@@ -88,6 +88,9 @@ export interface ChatAvatarState {
   isSpeaking: () => boolean;
   /** 直接追加聊天消息（给外部注入未知动作提示用） */
   setChatLog: (fn: React.SetStateAction<ChatLogItem[]>) => void;
+  /** 思考过程日志（<think> 内容） */
+  thinkingLog: string;
+  setThinkingLog: (v: string) => void;
   /** 直接更新 viseme 状态（给 dispatcher 驱动口型用） */
   setViseme: (v: Record<string, number>) => void;
 }

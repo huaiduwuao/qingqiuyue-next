@@ -488,6 +488,8 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
   const audioCtxRef = React.useRef<AudioContext | null>(null);
   const nextAudioTimeRef = React.useRef<number>(0);
   const fullTextRef = React.useRef('');
+  const thinkingTextRef = React.useRef('');
+  const [thinkingLog, setThinkingLog] = React.useState('');
 
   // 获取或创建 AudioContext
   const getAudioCtx = React.useCallback(() => {
@@ -726,6 +728,8 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     setChatBusy(true);
     setChatLog((c) => [...c, { who: 'user', text: t }]);
     fullTextRef.current = '';
+    thinkingTextRef.current = '';
+    setThinkingLog('');
     setText('');
     setIsAIGenerated(true);
     nextAudioTimeRef.current = 0;
@@ -811,6 +815,8 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
       setChatBusy(true);
       setChatLog((c) => [...c, { who: 'user', text: t }]);
       fullTextRef.current = '';
+      thinkingTextRef.current = '';
+      setThinkingLog('');
       setIsAIGenerated(true);
       nextAudioTimeRef.current = 0;
 
@@ -991,6 +997,11 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
             history,
           },
           {
+            onThinking: (t) => {
+              // 思考过程:累积到 thinkingLog,显示为思考面板
+              thinkingTextRef.current += t;
+              setThinkingLog(thinkingTextRef.current);
+            },
             onDelta: (t) => {
               fullTextRef.current += t;
               // G2 数字人形象指令:在完整累积文本上解析（避免跨 chunk 截断导致 <ui:.../> 标签残缺）
@@ -1076,6 +1087,8 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     setAction: setActionExternal,
     setViseme,
     setChatLog,
+    thinkingLog,
+    setThinkingLog,
     audioRef: audioRef as React.MutableRefObject<HTMLAudioElement | null>,
     recording,
     recordingError,
