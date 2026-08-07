@@ -40,13 +40,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pat
   const body = await req.text()
 
   try {
+    // 过滤掉会导致问题的请求头
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    req.headers.forEach((value, key) => {
+      const k = key.toLowerCase()
+      // 不转发 Accept(可能导致后端返回非流式)、Host、Content-Length
+      if (!['accept', 'host', 'content-length', 'connection'].includes(k)) {
+        headers[key] = value
+      }
+    })
+
     const response = await fetch(targetUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...Object.fromEntries(req.headers.entries()),
-        'Host': undefined as any,
-      },
+      headers,
       body,
     })
 
