@@ -248,6 +248,7 @@ class AgentManagerAPI {
     params: { model?: string; agent?: string; prompt: string; system?: string; session_id?: string; user_id?: number; avatar_mode?: boolean; history?: Array<{ role: string; content: string }> },
     handlers: {
       onDelta?: (text: string) => void
+      onThinking?: (text: string) => void
       onDone?: () => void
       onError?: (e: string) => void
       onToolCall?: (name: string, toolCallId: string, args?: string) => void
@@ -297,6 +298,8 @@ class AgentManagerAPI {
           if (type === 'TEXT_MESSAGE_CONTENT') {
             // 过滤掉 U+FFFD：json.Marshal 把 LLM 非法 UTF-8 转成了 � 转义序列
             handlers.onDelta?.((data.delta ?? '').replace(/�/g, ''))
+          } else if (type === 'THINKING_CONTENT') {
+            handlers.onThinking?.((data.delta ?? '').replace(/�/g, ''))
           } else if (type === 'RUN_FINISHED') {
             if (!finished) {
               finished = true
