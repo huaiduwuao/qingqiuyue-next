@@ -186,7 +186,7 @@ export default function ImmersiveDigitalHuman() {
   });
   const { chatBusy, chatLog, emotion, viseme, action, send, sendText, audioRef,
     text, setText, conversationId, newConversation, switchConversation,
-    loadConversationMessages, setEmotion, setViseme, setChatLog } = chat;
+    loadConversationMessages, setEmotion, setViseme, setChatLog, thinkingLog } = chat;
   // 002:全屏页体现多会话能力
   const { history, refresh: refreshHistory } = useConversationHistory(20);
   const [sessionDrawerOpen, setSessionDrawerOpen] = React.useState(true);
@@ -585,6 +585,20 @@ export default function ImmersiveDigitalHuman() {
               p: 0.75,
             }}
           >
+            {/* 思考面板:显示 THINKING_CONTENT */}
+            {thinkingLog && (
+              <Box sx={{
+                mb: 1,
+                p: 1,
+                background: 'rgba(100,100,255,0.1)',
+                borderRadius: 1,
+                border: '1px solid rgba(100,100,255,0.2)',
+              }}>
+                <Typography sx={{ fontSize: 11, color: 'rgba(200,200,255,0.9)', fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>
+                  💭 {thinkingLog.replace(/<think>|<\/think>/g, '').trim()}
+                </Typography>
+              </Box>
+            )}
             {chatLog.map((m, i) => (
               <Typography
                 key={i}
