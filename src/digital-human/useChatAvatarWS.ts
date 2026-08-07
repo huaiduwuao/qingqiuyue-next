@@ -700,6 +700,8 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
 
   // 初始化连接
   React.useEffect(() => {
+    // G1: AG-UI 模式不需要 WS 连接（走 HTTP SSE）
+    if (options.useAgui) return;
     connectWS();
     return () => {
       if (connRef.current) disconnect(connRef.current);
@@ -707,10 +709,11 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
       if (emotionTimerRef.current) clearTimeout(emotionTimerRef.current);
       if (actionTimerRef.current) clearTimeout(actionTimerRef.current);
     };
-  }, [connectWS]);
+  }, [connectWS, options.useAgui]);
 
   // 心跳: 每 30s 发一次 ping,防止 APISIX/nginx 60s 空闲超时断连
   React.useEffect(() => {
+    if (options.useAgui) return; // AG-UI 模式不需要心跳
     const timer = setInterval(() => {
       const conn = connRef.current;
       if (conn && conn.connected) {
@@ -718,7 +721,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
       }
     }, 30000);
     return () => clearInterval(timer);
-  }, []);
+  }, [options.useAgui]);
 
   // send: 发送聊天消息
   const send = React.useCallback(async () => {

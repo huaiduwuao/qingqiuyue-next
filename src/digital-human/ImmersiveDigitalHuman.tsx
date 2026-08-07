@@ -622,7 +622,7 @@ export default function ImmersiveDigitalHuman() {
                 ? '这个会话还没有消息，说点什么开始吧~'
                 : history.length === 0
                   ? '还没有历史会话，发条消息创建新会话吧~'
-                  : '正在加载历史会话…'}
+                  : '加载中…'}
             </Typography>
           </Box>
         )}
