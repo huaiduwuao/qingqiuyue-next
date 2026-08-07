@@ -283,12 +283,10 @@ class AgentManagerAPI {
       // 过滤掉 U+FFFD (Unicode replacement char) — DeepSeek LLM 偶尔输出无效 UTF-8 字节流
       const raw = decoder.decode(value, { stream: true })
       buffer += raw.replace(/�/g, '')
-      // 支持两种分隔符: \r\n\r\n (后端新格式) 或 \n\n (旧格式)
-      // 优先匹配 \r\n\r\n，因为 \n\n 可能是 \r\n\r\n 的一部分
       let idx
-      while ((idx = buffer.indexOf('\r\n\r\n')) !== -1) {
+      while ((idx = buffer.indexOf('\n\n')) !== -1) {
         const block = buffer.slice(0, idx).replace(/\r/g, '')
-        buffer = buffer.slice(idx + 4)
+        buffer = buffer.slice(idx + 2)
         // 取 data: 行
         const dataLine = block.split('\n').find(l => l.startsWith('data:'))
         if (!dataLine) continue
@@ -317,37 +315,6 @@ class AgentManagerAPI {
         } catch {
           /* 忽略无法解析的行 */
         }
-      }
-      // 处理旧格式 \n\n (如果没有 \r\n\r\n)
-      while ((idx = buffer.indexOf('\n\n')) !== -1) {
-        const block = buffer.slice(0, idx).replace(/\r/g, '')
-        buffer = buffer.slice(idx + 2)
-        const dataLine = block.split('\n').find(l => l.startsWith('data:'))
-        if (!dataLine) continue
-        const dataStr = dataLine.slice(5).trim()
-        try {
-          const data = JSON.parse(dataStr)
-          const type = data.type
-          if (type === 'TEXT_MESSAGE_CONTENT') {
-            handlers.onDelta?.((data.delta ?? '').replace(/�/g, ''))
-          } else if (type === 'RUN_FINISHED') {
-            if (!finished) {
-              finished = true
-              handlers.onDone?.()
-            }
-          } else if (type === 'RUN_ERROR') {
-            handlers.onError?.(data.message || 'run error')
-          } else if (type === 'TOOL_CALL_START') {
-            handlers.onToolCall?.(data.toolCallName ?? '', data.toolCallId ?? '')
-          } else if (type === 'TOOL_CALL_CHUNK') {
-            handlers.onToolCall?.(data.toolCallName ?? '', data.toolCallId ?? '', data.delta ?? '')
-          } else if (type === 'TOOL_CALL_END') {
-            handlers.onToolEnd?.(data.toolCallId ?? '')
-          }
-        } catch {
-          /* 忽略无法解析的行 */
-        }
-      }
       }
     }
     if (!finished) {
