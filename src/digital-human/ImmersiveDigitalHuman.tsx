@@ -234,7 +234,9 @@ export default function ImmersiveDigitalHuman() {
       });
       const j = await res.json().catch(() => null);
       if (j?.id) {
-        switchConversation?.(j.id); // 切到新会话(清空 chatLog)
+        // 后端返回数字 ID，前端用字符串
+        const cid = String(j.id);
+        switchConversation?.(cid); // 切到新会话(清空 chatLog)
         refreshHistory();           // 刷新列表,新会话立即出现
         return;
       }
@@ -555,78 +557,142 @@ export default function ImmersiveDigitalHuman() {
         posDisplay={posDisplay}
       />
 
-      {/* 右下角:聊天输入 + 记录(不再用底部全宽遮挡 avatar) */}
+      {/* 右侧控制面板 */}
+      <VrmControlPanel
+        open={panelOpen}
+        onClose={() => setPanelOpen(false)}
+        handle={stageHandle}
+        state={stageState}
+        onChange={updateStageState}
+        posDisplay={posDisplay}
+      />
+
+      {/* 完全自由场景:左侧会话列表(可折叠) + 底部聊天区(气泡式) */}
+      {/* 会话列表 */}
       <Box sx={{
         position: 'absolute',
-        bottom: 16,
-        right: 16,
-        left: { xs: 16, md: 'auto' },     // 移动端也到边
-        width: { xs: 'auto', md: 480 },
-        maxWidth: '100%',
+        top: 16,
+        left: 16,
+        width: 260,
+        maxHeight: 'calc(100vh - 120px)',
         zIndex: 3,
-        p: 1.5,
-        background: 'rgba(0,0,0,0.65)',
+        background: 'rgba(0,0,0,0.5)',
         borderRadius: 2,
         backdropFilter: 'blur(12px)',
         border: '1px solid rgba(255,255,255,0.08)',
-        display: 'flex',
+        display: { xs: 'none', md: 'flex' },
         flexDirection: 'column',
-        gap: 1,
-        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+        overflow: 'hidden',
       }}>
-        {chatLog.length > 0 && (
-          <Box
-            ref={chatScrollRef}
-            sx={{
-              maxHeight: 260,
-              overflowY: 'auto',
-              background: 'rgba(0,0,0,0.35)',
-              borderRadius: 1,
-              p: 0.75,
-            }}
-          >
-            {/* 思考面板:显示 THINKING_CONTENT */}
-            {thinkingLog && (
-              <Box sx={{
-                mb: 1,
-                p: 1,
-                background: 'rgba(100,100,255,0.1)',
-                borderRadius: 1,
-                border: '1px solid rgba(100,100,255,0.2)',
-              }}>
-                <Typography sx={{ fontSize: 11, color: 'rgba(200,200,255,0.9)', fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>
-                  💭 {thinkingLog.replace(/<think>|<\/think>/g, '').trim()}
-                </Typography>
-              </Box>
-            )}
-            {chatLog.map((m, i) => (
-              <Typography
-                key={i}
+        <Box sx={{ p: 1.5, borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>会话</Typography>
+          <Button size="small" onClick={handleNewConversation} sx={{ fontSize: 11, color: '#25F4EE', textTransform: 'none' }}>
+            + 新会话
+          </Button>
+        </Box>
+        <Box sx={{ overflowY: 'auto', flex: 1 }}>
+          {history.length === 0 ? (
+            <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', p: 2, textAlign: 'center' }}>
+              还没有会话
+            </Typography>
+          ) : (
+            history.map((h) => (
+              <ListItemButton
+                key={h.id}
+                selected={conversationId === h.id}
+                onClick={() => switchConversation?.(h.id)}
                 sx={{
-                  fontSize: 12,
-                  color: m.who === 'user' ? '#a0c4ff' : '#fff',
-                  mb: 0.25,
-                  wordBreak: 'break-word',
-                  lineHeight: 1.4,
+                  py: 1,
+                  px: 1.5,
+                  borderBottom: '1px solid rgba(255,255,255,0.05)',
+                  '&.Mui-selected': { bgcolor: 'rgba(37,244,238,0.15)' },
                 }}
               >
-                <strong>{m.who === 'user' ? '我' : 'AI'}:</strong> {m.text}
-              </Typography>
-            ))}
-          </Box>
-        )}
-        {chatLog.length === 0 && (
-          <Box sx={{ px: 0.5, py: 0.5 }}>
-            <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', textAlign: 'center' }}>
-              {conversationId
-                ? '这个会话还没有消息，说点什么开始吧~'
-                : history.length === 0
-                  ? '还没有历史会话，发条消息创建新会话吧~'
-                  : '加载中…'}
+                <ListItemText
+                  primary={h.title}
+                  primaryTypographyProps={{ fontSize: 12, color: '#fff', noWrap: true }}
+                />
+              </ListItemButton>
+            ))
+          )}
+        </Box>
+      </Box>
+
+      {/* 底部聊天区:全宽气泡式 */}
+      <Box sx={{
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: '40vh',
+        maxHeight: 400,
+        zIndex: 3,
+        background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.6) 70%, transparent 100%)',
+        display: 'flex',
+        flexDirection: 'column',
+      }}>
+        {/* 思考面板 */}
+        {thinkingLog && (
+          <Box sx={{
+            mx: 2,
+            mb: 1,
+            p: 1.5,
+            background: 'rgba(100,100,255,0.12)',
+            borderRadius: 2,
+            border: '1px solid rgba(100,100,255,0.25)',
+          }}>
+            <Typography sx={{ fontSize: 12, color: 'rgba(200,200,255,0.95)', fontStyle: 'italic', whiteSpace: 'pre-wrap' }}>
+              💭 {thinkingLog.replace(/<think>|<\/think>/g, '').trim()}
             </Typography>
           </Box>
         )}
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+
+        {/* 聊天消息区 */}
+        <Box
+          ref={chatScrollRef}
+          sx={{
+            flex: 1,
+            overflowY: 'auto',
+            px: 2,
+            pb: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1,
+          }}
+        >
+          {chatLog.length === 0 ? (
+            <Typography sx={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', textAlign: 'center', mt: 4 }}>
+              {conversationId ? '这个会话还没有消息，说点什么开始吧~' : '发条消息创建新会话吧~'}
+            </Typography>
+          ) : (
+            chatLog.map((m, i) => (
+              <Box
+                key={i}
+                sx={{
+                  alignSelf: m.who === 'user' ? 'flex-end' : 'flex-start',
+                  maxWidth: '70%',
+                  p: 1.5,
+                  borderRadius: m.who === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                  background: m.who === 'user' ? 'rgba(37,244,238,0.2)' : 'rgba(255,255,255,0.12)',
+                  border: m.who === 'user' ? '1px solid rgba(37,244,238,0.3)' : '1px solid rgba(255,255,255,0.1)',
+                }}
+              >
+                <Typography sx={{ fontSize: 13, color: '#fff', lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                  {m.text}
+                </Typography>
+              </Box>
+            ))
+          )}
+          {/* AI 思考中 */}
+          {chatBusy && (
+            <Box sx={{ alignSelf: 'flex-start', p: 1.5, borderRadius: '16px 16px 16px 4px', background: 'rgba(255,255,255,0.1)' }}>
+              <CircularProgress size={16} sx={{ color: 'rgba(255,255,255,0.7)' }} />
+            </Box>
+          )}
+        </Box>
+
+        {/* 输入区 */}
+        <Box sx={{ px: 2, pb: 2, display: 'flex', gap: 1, alignItems: 'center' }}>
           <TextField
             fullWidth
             placeholder={voiceEnabled ? (voice.state === 'recording' ? '我在听…' : '说"小月"唤醒') : '跟数字人说点什么…'}
@@ -634,52 +700,50 @@ export default function ImmersiveDigitalHuman() {
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), send())}
             disabled={chatBusy}
+            size="small"
             sx={{
               '& .MuiOutlinedInput-root': {
                 color: 'white',
-                bgcolor: 'rgba(255,255,255,0.08)',
-                backdropFilter: 'blur(8px)',
+                bgcolor: 'rgba(255,255,255,0.1)',
+                borderRadius: 2,
                 '& fieldset': { borderColor: voiceEnabled ? (voice.state === 'recording' ? '#3b82f6' : '#a855f7') : 'rgba(255,255,255,0.2)' },
               },
               '& .MuiOutlinedInput-input::placeholder': { color: 'rgba(255,255,255,0.5)', opacity: 1 },
             }}
           />
           <IconButton
-            size="large"
             onClick={(e) => {
               e.stopPropagation();
               setVoiceEnabled(v => {
                 const newVal = !v;
-                // 直接在 click 里调 (保留 user gesture 上下文, AudioContext 才能创建)
                 if (newVal) voice.start();
                 else voice.stop();
                 return newVal;
               });
             }}
             sx={{
-              bgcolor: voiceEnabled ? '#a855f7' : (t) => alpha(t.palette.common.white, 0.1),
+              bgcolor: voiceEnabled ? '#a855f7' : 'rgba(255,255,255,0.1)',
               color: voiceEnabled ? 'white' : 'rgba(255,255,255,0.7)',
-              '&:hover': { bgcolor: voiceEnabled ? '#9333ea' : (t) => alpha(t.palette.common.white, 0.2) },
+              '&:hover': { bgcolor: voiceEnabled ? '#9333ea' : 'rgba(255,255,255,0.2)' },
             }}
           >
-            <MicRoundedIcon sx={{ fontSize: 26, animation: voiceEnabled ? 'pulse 1.2s infinite' : 'none' }} />
+            <MicRoundedIcon sx={{ fontSize: 22, animation: voiceEnabled ? 'pulse 1.2s infinite' : 'none' }} />
           </IconButton>
           <IconButton
-            size="large"
-            disabled={chatBusy || !text.trim()}
             onClick={send}
+            disabled={chatBusy || !text.trim()}
             sx={{
-              bgcolor: (t) => alpha(t.palette.primary.main, 0.8),
-              color: 'white',
-              '&:hover': { bgcolor: (t) => t.palette.primary.main },
-              '&.Mui-disabled': { color: 'rgba(255,255,255,0.3)' },
+              bgcolor: 'rgba(37,244,238,0.2)',
+              color: '#25F4EE',
+              '&:hover': { bgcolor: 'rgba(37,244,238,0.3)' },
+              '&.Mui-disabled': { color: 'rgba(255,255,255,0.3)', bgcolor: 'rgba(255,255,255,0.05)' },
             }}
           >
             {chatBusy ? <CircularProgress size={18} sx={{ color: 'white' }} /> : <SendRoundedIcon />}
           </IconButton>
         </Box>
         {voice.error && (
-          <Typography sx={{ fontSize: 10, color: 'error.main', mt: 0.5, textAlign: 'center' }}>
+          <Typography sx={{ fontSize: 10, color: 'error.main', textAlign: 'center', pb: 1 }}>
             {voice.error}
           </Typography>
         )}
@@ -725,80 +789,6 @@ export default function ImmersiveDigitalHuman() {
           onClose={() => { setBrowserTarget(null); setBrowserFrame(null); }}
         />
       )}
-
-      {/* 002:左侧会话列表面板(多会话入口) */}
-      <Drawer
-        anchor="left"
-        open={sessionDrawerOpen}
-        onClose={() => setSessionDrawerOpen(false)}
-        slotProps={{
-          paper: {
-            sx: {
-              width: 280,
-              bgcolor: 'rgba(12,12,18,0.96)',
-              color: '#fff',
-              p: 1.5,
-              borderRight: '1px solid rgba(255,255,255,0.08)',
-            },
-          },
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-          <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
-            会话列表
-          </Typography>
-          <Button
-            size="small"
-            startIcon={<RefreshRoundedIcon sx={{ fontSize: 16 }} />}
-            onClick={handleNewConversation}
-            sx={{
-              fontSize: 11,
-              textTransform: 'none',
-              color: '#25F4EE',
-              borderColor: 'rgba(37,244,238,0.4)',
-              '&:hover': { borderColor: '#25F4EE', bgcolor: 'rgba(37,244,238,0.08)' },
-            }}
-            variant="outlined"
-          >
-            新会话
-          </Button>
-        </Box>
-        <Divider sx={{ bgcolor: 'rgba(255,255,255,0.1)', mb: 1 }} />
-        {history.length === 0 ? (
-          <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', p: 2, textAlign: 'center' }}>
-            还没有历史会话
-          </Typography>
-        ) : (
-          <List dense disablePadding>
-            {history.map((h) => (
-              <ListItemButton
-                key={h.id}
-                selected={h.id === conversationId}
-                onClick={() => {
-                  switchConversation?.(h.id);
-                  // 切换会话 → 加载该会话的历史消息
-                  loadConversationMessages?.(h.id);
-                }}
-                sx={{
-                  borderRadius: 1,
-                  mb: 0.5,
-                  '&.Mui-selected': { bgcolor: 'rgba(37,244,238,0.15)' },
-                  '&:hover': { bgcolor: 'rgba(255,255,255,0.08)' },
-                }}
-              >
-                <ListItemText
-                  primary={h.title}
-                  secondary={h.lastMessageAt ? new Date(h.lastMessageAt).toLocaleString('zh-CN') : ''}
-                  slotProps={{
-                    primary: { sx: { fontSize: 12, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } },
-                    secondary: { sx: { fontSize: 10, color: 'rgba(255,255,255,0.5)' } },
-                  }}
-                />
-              </ListItemButton>
-            ))}
-          </List>
-        )}
-      </Drawer>
     </Box>
   );
 }
