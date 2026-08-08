@@ -724,10 +724,17 @@ export default function ImmersiveDigitalHuman() {
           <IconButton
             onClick={(e) => {
               e.stopPropagation();
+              console.log('[mic] click, voiceEnabled=', voiceEnabled, 'voice.state=', voice.state);
               setVoiceEnabled(v => {
                 const newVal = !v;
-                if (newVal) voice.start();
-                else voice.stop();
+                console.log('[mic] toggling to', newVal);
+                if (newVal) {
+                  console.log('[mic] calling voice.start()');
+                  voice.start();
+                } else {
+                  console.log('[mic] calling voice.stop()');
+                  voice.stop();
+                }
                 return newVal;
               });
             }}
