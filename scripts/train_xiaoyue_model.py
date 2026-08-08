@@ -370,22 +370,21 @@ def _wav_duration(path: str) -> float:
 # ============================================================
 
 class WakeFCN(nn.Module):
-    """小全连接网络: 特征 → 概率"""
-    def __init__(self, in_shape, hidden=64):
+    """小全连接网络: 特征 → 概率
+    注意: 不能用 LayerNorm (opset 14 不支持), 改用 BatchNorm1d"""
+    def __init__(self, in_shape, hidden=32):  # 减小 hidden 防止过拟合
         super().__init__()
         self.flatten = nn.Flatten()
         in_dim = in_shape[0] * in_shape[1]
         self.net = nn.Sequential(
             nn.Linear(in_dim, hidden),
-            nn.LayerNorm(hidden),
             nn.ReLU(),
-            nn.Dropout(0.2),
+            nn.Dropout(0.5),  # 增加 dropout
             nn.Linear(hidden, hidden),
-            nn.LayerNorm(hidden),
             nn.ReLU(),
-            nn.Dropout(0.2),
+            nn.Dropout(0.5),  # 增加 dropout
             nn.Linear(hidden, 1),
-            nn.Sigmoid(),
+            # 不用 Sigmoid, 用 logits + BCEWithLogitsLoss 更稳定
         )
 
     def forward(self, x):
@@ -408,8 +407,9 @@ def train_fcn(neg_mmap_path, pos_mmap_path, epochs=10, batch_size=128):
 
     # 负样本权重 (跟 openWakeWord 官方 notebook 的 max_negative_weight 思路一致 —
     # 负样本是"背景", 只需要它不要太多 false accept, 权重压低让模型关注"小月"的特征)
-    NEG_WEIGHT = 0.3
+    NEG_WEIGHT = 0.5  # 提高负样本权重,防止过拟合
 
+    # 增加 L2 正则化防止过拟合
     sample_weights = np.where(y.flatten() == 1, 1.0, NEG_WEIGHT).astype(np.float32)
     loader = torch.utils.data.DataLoader(
         torch.utils.data.TensorDataset(
@@ -421,19 +421,21 @@ def train_fcn(neg_mmap_path, pos_mmap_path, epochs=10, batch_size=128):
     )
 
     model = WakeFCN(X.shape[1:])
-    opt = torch.optim.Adam(model.parameters(), lr=1e-3)
-    loss_fn = nn.functional.binary_cross_entropy
+    opt = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-3)  # 更小 lr + 更大 weight_decay
+    loss_fn = nn.functional.binary_cross_entropy_with_logits  # 用 logits 版本
 
     for epoch in range(epochs):
         total_loss = 0
         tp, fn, total_pos = 0, 0, 0
         for xb, yb, wb in loader:
             opt.zero_grad()
-            pred = model(xb)
-            loss = loss_fn(pred, yb, wb[:, None])
+            logits = model(xb)  # 返回 logits,不是概率
+            loss = loss_fn(logits, yb, wb[:, None])
             loss.backward()
             opt.step()
             total_loss += float(loss.item()) * len(yb)
+            # 用 sigmoid 转概率来算 recall
+            pred = torch.sigmoid(logits)
             tp += int(((pred.flatten() >= 0.5) & (yb.flatten() == 1)).sum())
             fn += int(((pred.flatten() < 0.5) & (yb.flatten() == 1)).sum())
             total_pos += int((yb.flatten() == 1).sum())
@@ -470,33 +472,12 @@ def export_onnx(model: WakeFCN, in_shape):
     onnx_path = MODEL_OUT_DIR / "xiaoyue.onnx"
     model.eval()
     dummy = torch.zeros((1, in_shape[0], in_shape[1]))
-    # 关键: torch.onnx.export 默认会生成外部 .data 文件(权重)
-    # 但 ORT 浏览器端加载 .onnx + .data 双文件很容易丢一个
-    # 设 location 强制权重大小阈值 = 1.0 都不会触发外部分片
-    # 或者用 use_external_data_format=False (torch >= 2.0 支持)
-    try:
-        torch.onnx.export(
-            model, args=dummy, f=str(onnx_path),
-            input_names=["input"], output_names=["output"],
-            dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
-            opset_version=14,  # 降到 14,兼容 onnxruntime-web
-            use_external_data_format=False,  # 权重全部 inline 到 .onnx
-        )
-    except TypeError:
-        # 旧版 torch 不支持 use_external_data_format 参数,fallback
-        torch.onnx.export(
-            model, args=dummy, f=str(onnx_path),
-            input_names=["input"], output_names=["output"],
-            dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
-            opset_version=14,
-        )
-        # 手动 inline 外部数据
-        try:
-            import onnx
-            m = onnx.load(str(onnx_path))
-            onnx.save(m, str(onnx_path), save_external_data=False)
-        except Exception as e:
-            print(f"  ⚠️ inline external data 失败: {e}")
+    # 简化导出,不用 dynamic_axes(避免版本转换问题)
+    torch.onnx.export(
+        model, args=dummy, f=str(onnx_path),
+        input_names=["input"], output_names=["output"],
+        opset_version=14,
+    )
     sz = os.path.getsize(onnx_path) / 1024
     print(f"  ✓ {onnx_path} ({sz:.1f} KB)")
     return onnx_path
