@@ -6,6 +6,8 @@ import type { NextConfig } from "next";
 // 生产 output:'export' 时 rewrites 被忽略,仍由 nginx/APISIX 转发,互不影响。
 const isDev = process.env.NODE_ENV === "development";
 const API_PROXY_TARGET = process.env.API_PROXY_TARGET ?? "http://10.9.1.2:10005";
+const AGENTM_TARGET = process.env.AGENTM_TARGET ?? "http://10.9.1.2:10081";
+const REALTIME_TARGET = process.env.REALTIME_TARGET ?? "http://10.9.1.2:10003";
 
 const nextConfig: NextConfig = {
   output: 'export',
@@ -13,14 +15,13 @@ const nextConfig: NextConfig = {
   ...(isDev && {
     async rewrites() {
       return [
-        // /api/audio/* → realtime-api (数字人 TTS/ASR 直连，不再走 audio-gateway)
-        //   /api/audio/speech → /api/realtime/tts
-        //   /api/audio/transcriptions → /api/realtime/asr
-        { source: "/api/audio/speech", destination: `${API_PROXY_TARGET}/api/realtime/tts` },
-        { source: "/api/audio/transcriptions", destination: `${API_PROXY_TARGET}/api/realtime/asr` },
-        // /api/digital-human/* 真实路由在 realtime-api 的 /api/realtime/digital-human/*
-        // 前端写的是短路径,这里补 realtime 前缀
-        { source: "/api/digital-human/:path*", destination: `${API_PROXY_TARGET}/api/realtime/digital-human/:path*` },
+        // /api/agentmanager/* → agentmanager-api (10081)
+        { source: "/api/agentmanager/:path*", destination: `${AGENTM_TARGET}/api/agentmanager/:path*` },
+        // /api/audio/* → realtime-api (10003)
+        { source: "/api/audio/:path*", destination: `${REALTIME_TARGET}/api/audio/:path*` },
+        // /api/digital-human/* → realtime-api digital-human
+        { source: "/api/digital-human/:path*", destination: `${REALTIME_TARGET}/api/realtime/digital-human/:path*` },
+        // 其他 /api/* → APISIX (10005)
         { source: "/api/:path*", destination: `${API_PROXY_TARGET}/api/:path*` },
         // /logs/* → APISIX (统一网关,与生产链路一致)
         { source: "/logs/:path*", destination: `${API_PROXY_TARGET}/logs/:path*` },
