@@ -31,6 +31,7 @@ import { useChatAvatarWS } from './useChatAvatarWS';
 import { DynamicUIModal } from './dynamic-ui/DynamicUIModal';
 import type { DynamicUI, UIAction } from './dynamic-ui/types';
 import { dispatchToolCalls, type ToolCall as DhToolCall } from './tools/dispatcher';
+import { textToVisemeTimeline } from './tools/visemes';
 import { parseIframeUI, iframeToolToTarget, type IframeOpenTarget } from './virtual-browser';
 import { VirtualBrowser } from './VirtualBrowser';
 import { useConversationHistory } from './useConversationHistory';
@@ -148,7 +149,11 @@ export default function ImmersiveDigitalHuman() {
           },
           setVisemeTimeline: (frames) => h.setVisemeTimeline(frames),
           setJawOpen: () => {},
-          speak: (text, audioUrl) => h.speak(text, audioUrl),
+          speak: (text, audioUrl) => {
+            // 口型:从文本生成 viseme 时间线
+            const visemes = textToVisemeTimeline(text, 150); // 每个 viseme 150ms
+            h.speak(text, audioUrl, visemes);
+          },
           move: (target, opts) => h.move(target as Parameters<typeof h.move>[0], opts),
           camera: () => {},
           setScene: (name) => h.setScene(name),
