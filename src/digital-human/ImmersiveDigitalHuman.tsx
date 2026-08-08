@@ -238,14 +238,17 @@ export default function ImmersiveDigitalHuman() {
         }),
       });
       const j = await res.json().catch(() => null);
+      console.log('[handleNewConversation] response:', j);
       if (j?.id) {
         // 后端返回数字 ID，前端用字符串
         const cid = String(j.id);
+        console.log('[handleNewConversation] switching to:', cid);
         switchConversation?.(cid); // 切到新会话(清空 chatLog)
         refreshHistory();           // 刷新列表,新会话立即出现
         return;
       }
-    } catch {
+    } catch (e) {
+      console.error('[handleNewConversation] error:', e);
       /* 创建失败则退回本地新会话 */
     }
     newConversation?.();
