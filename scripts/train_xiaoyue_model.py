@@ -479,7 +479,7 @@ def export_onnx(model: WakeFCN, in_shape):
             model, args=dummy, f=str(onnx_path),
             input_names=["input"], output_names=["output"],
             dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
-            opset_version=18,
+            opset_version=14,  # 降到 14,兼容 onnxruntime-web
             use_external_data_format=False,  # 权重全部 inline 到 .onnx
         )
     except TypeError:
@@ -488,7 +488,7 @@ def export_onnx(model: WakeFCN, in_shape):
             model, args=dummy, f=str(onnx_path),
             input_names=["input"], output_names=["output"],
             dynamic_axes={"input": {0: "batch"}, "output": {0: "batch"}},
-            opset_version=18,
+            opset_version=14,
         )
         # 手动 inline 外部数据
         try:
