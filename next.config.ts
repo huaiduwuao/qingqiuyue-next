@@ -10,7 +10,8 @@ const AGENTM_TARGET = process.env.AGENTM_TARGET ?? "http://10.9.1.2:10081";
 const REALTIME_TARGET = process.env.REALTIME_TARGET ?? "http://10.9.1.2:10003";
 
 const nextConfig: NextConfig = {
-  output: 'export',
+  // 生产静态导出，开发模式动态
+  ...(isDev ? {} : { output: 'export' }),
   trailingSlash: false,
   ...(isDev && {
     async rewrites() {
