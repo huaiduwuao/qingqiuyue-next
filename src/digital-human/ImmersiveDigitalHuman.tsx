@@ -618,7 +618,9 @@ export default function ImmersiveDigitalHuman() {
               >
                 <ListItemText
                   primary={h.title}
-                  primaryTypographyProps={{ fontSize: 12, color: '#fff', noWrap: true }}
+                  slotProps={{
+                    primary: { sx: { fontSize: 12, color: '#fff', noWrap: true } }
+                  }}
                 />
               </ListItemButton>
             ))
