@@ -220,15 +220,26 @@ class OpenWakeWordEngine {
       // 解析 mel 输出形状, 得到 nMels
       let nMels = 0
       let frameFeatures: Float32Array
+      // 打印 shape 调试
+      if (!this.runFrameErrorLogged) {
+        voiceLog('info', 'wake', 'mel output shape:', melShape, 'data length:', melData.length)
+      }
       if (melShape.length === 1) {
         nMels = melShape[0]
         frameFeatures = melData
       } else if (melShape.length === 2) {
         nMels = melShape[0] * melShape[1] === melData.length ? melShape[1] : melShape[0]
         frameFeatures = melData.slice(0, nMels)
+      } else if (melShape.length === 3) {
+        // 3D: [batch, frames, nMels] 或 [batch, nMels, frames]
+        const [b, d1, d2] = melShape
+        nMels = Math.min(d1, d2)  // 通常 nMels 是较小的那个
+        frameFeatures = melData.slice(0, nMels)
+        if (!this.runFrameErrorLogged) {
+          voiceLog('info', 'wake', `3D shape: [${b}, ${d1}, ${d2}], nMels=${nMels}`)
+        }
       } else {
-        // 3D: [batch, nMels, 1] 或 [batch, 1, nMels]
-        nMels = melShape.length >= 2 ? (melShape[1] > melShape[2] ? melShape[2] : melShape[1]) : 32
+        nMels = 32
         frameFeatures = melData.slice(0, nMels)
       }
 
