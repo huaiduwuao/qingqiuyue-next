@@ -602,7 +602,11 @@ export default function ImmersiveDigitalHuman() {
           </Button>
         </Box>
         <Box sx={{ overflowY: 'auto', flex: 1 }}>
-          {history.length === 0 ? (
+          {!mounted ? (
+            <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', p: 2, textAlign: 'center' }}>
+              加载中…
+            </Typography>
+          ) : history.length === 0 ? (
             <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', p: 2, textAlign: 'center' }}>
               还没有会话
             </Typography>
