@@ -98,6 +98,9 @@ if (typeof window !== 'undefined') {
 export default function ImmersiveDigitalHuman() {
   const router = useRouter();
   const { setTheme } = useThemeMode();
+  // 修复 hydration mismatch: 等客户端 mount 后再渲染动态内容
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => { setMounted(true); }, []);
   // VrmStage sinks 引用（用 state 而非 ref，避免首次渲染时 ref.current 还没填的坑）
   const [stageHandle, setStageHandle] = React.useState<VrmStageHandle | null>(null);
   // H1: 动态 UI(数字员工干活后弹结果面板)
@@ -672,7 +675,7 @@ export default function ImmersiveDigitalHuman() {
         >
           {chatLog.length === 0 ? (
             <Typography sx={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', textAlign: 'center', mt: 4 }}>
-              {conversationId ? '这个会话还没有消息，说点什么开始吧~' : '发条消息创建新会话吧~'}
+              {mounted ? (conversationId ? '这个会话还没有消息，说点什么开始吧~' : '发条消息创建新会话吧~') : '加载中…'}
             </Typography>
           ) : (
             chatLog.map((m, i) => (

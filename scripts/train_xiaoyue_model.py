@@ -472,12 +472,34 @@ def export_onnx(model: WakeFCN, in_shape):
     onnx_path = MODEL_OUT_DIR / "xiaoyue.onnx"
     model.eval()
     dummy = torch.zeros((1, in_shape[0], in_shape[1]))
-    # 简化导出,不用 dynamic_axes(避免版本转换问题)
+
+    # 先导出到临时文件
+    tmp_path = MODEL_OUT_DIR / "xiaoyue_tmp.onnx"
+    # 如果已存在先删除
+    if tmp_path.exists():
+        tmp_path.unlink()
+    if onnx_path.exists():
+        onnx_path.unlink()
+
     torch.onnx.export(
-        model, args=dummy, f=str(onnx_path),
+        model, args=dummy, f=str(tmp_path),
         input_names=["input"], output_names=["output"],
         opset_version=14,
     )
+
+    # 加载并重新保存,强制 inline 外部数据
+    import onnx
+    m = onnx.load(str(tmp_path))
+    # 检查是否有外部数据
+    has_external = any(t.data_location == onnx.TensorProto.EXTERNAL for t in m.graph.initializer)
+    if has_external:
+        print(f"  检测到外部数据, 强制 inline...")
+        onnx.save(m, str(onnx_path), save_as_external_data=False)
+        tmp_path.unlink()  # 删除临时文件
+    else:
+        # 直接移动
+        tmp_path.rename(onnx_path)
+
     sz = os.path.getsize(onnx_path) / 1024
     print(f"  ✓ {onnx_path} ({sz:.1f} KB)")
     return onnx_path
