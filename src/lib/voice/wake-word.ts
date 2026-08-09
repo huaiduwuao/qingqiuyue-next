@@ -98,9 +98,10 @@ class OpenWakeWordEngine {
 
       voiceLog('info', 'wake', 'loading wake word model:', this.cfg.modelUrl)
       try {
+        // 尝试降低 graphOptimizationLevel,兼容更多模型
         this.wakeSession = await ort.InferenceSession.create(this.cfg.modelUrl, {
           executionProviders: ['wasm'],
-          graphOptimizationLevel: 'all',
+          graphOptimizationLevel: 'disabled', // 禁用优化,兼容性更好
         })
         voiceLog('info', 'wake', 'wake word model loaded OK')
       } catch (e) {
