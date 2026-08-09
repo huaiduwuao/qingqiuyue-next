@@ -149,6 +149,9 @@ export async function startVAD(cbs: VADCallbacks, userOpts: VadOptions = {}): Pr
     const input = e.inputBuffer.getChannelData(0)
     const now = performance.now()
 
+    // 持续喂音频给 openWakeWord (唤醒词检测需要连续流)
+    callbacks.onAudioFrame?.(new Float32Array(input))
+
     // === 1. 计算特征 ===
     const energy = emphasizedRms(input)   // 预加重后能量
     const zcr = zeroCrossingRate(input)   // 过零率

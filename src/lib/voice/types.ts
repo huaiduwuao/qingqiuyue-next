@@ -36,6 +36,7 @@ export interface WakeWordConfig {
 export interface VADCallbacks {
   onSpeechStart: () => void
   onSpeechEnd: (audio: Float32Array) => void
+  onAudioFrame?: (audio: Float32Array) => void  // 每帧音频,用于 openWakeWord 连续流
   onVadScore?: (score: number) => void
 }
 

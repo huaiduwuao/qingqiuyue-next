@@ -144,6 +144,12 @@ export class AlwaysListening {
         if (Date.now() < this.muteVadUntilMs) return
         this.onSpeechEnd(audio)
       },
+      onAudioFrame: (audio: Float32Array) => {
+        // 持续喂音频给 openWakeWord (唤醒词检测需要连续流)
+        if (this.wakeMode === 'openwakeword') {
+          processAudioChunk(audio)
+        }
+      },
     }, {
       // 段结束静默 800ms(原默认 700ms,稍微放宽抗噪,延迟仍可控)
       silenceMs: 800,

@@ -384,7 +384,7 @@ class WakeFCN(nn.Module):
             nn.ReLU(),
             nn.Dropout(0.5),  # 增加 dropout
             nn.Linear(hidden, 1),
-            # 不用 Sigmoid, 用 logits + BCEWithLogitsLoss 更稳定
+            nn.Sigmoid(),  # 必须有 Sigmoid,openWakeWord 期望概率输出
         )
 
     def forward(self, x):
@@ -422,20 +422,18 @@ def train_fcn(neg_mmap_path, pos_mmap_path, epochs=10, batch_size=128):
 
     model = WakeFCN(X.shape[1:])
     opt = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-3)  # 更小 lr + 更大 weight_decay
-    loss_fn = nn.functional.binary_cross_entropy_with_logits  # 用 logits 版本
+    loss_fn = nn.functional.binary_cross_entropy  # 用 BCE (输出已经是概率)
 
     for epoch in range(epochs):
         total_loss = 0
         tp, fn, total_pos = 0, 0, 0
         for xb, yb, wb in loader:
             opt.zero_grad()
-            logits = model(xb)  # 返回 logits,不是概率
-            loss = loss_fn(logits, yb, wb[:, None])
+            pred = model(xb)  # 输出已经是概率(有 Sigmoid)
+            loss = loss_fn(pred, yb, wb[:, None])
             loss.backward()
             opt.step()
             total_loss += float(loss.item()) * len(yb)
-            # 用 sigmoid 转概率来算 recall
-            pred = torch.sigmoid(logits)
             tp += int(((pred.flatten() >= 0.5) & (yb.flatten() == 1)).sum())
             fn += int(((pred.flatten() < 0.5) & (yb.flatten() == 1)).sum())
             total_pos += int((yb.flatten() == 1).sum())
