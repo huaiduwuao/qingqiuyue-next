@@ -85,16 +85,28 @@ class OpenWakeWordEngine {
       // melspectrogram 路径: cfg 可覆盖,默认 /wake/melspectrogram.onnx
       const melUrl = (this.cfg as WakeWordConfig & { melModelUrl?: string }).melModelUrl || '/wake/melspectrogram.onnx'
       voiceLog('info', 'wake', 'loading melspectrogram model:', melUrl)
-      this.melSession = await ort.InferenceSession.create(melUrl, {
-        executionProviders: ['wasm'],
-        graphOptimizationLevel: 'all',
-      })
+      try {
+        this.melSession = await ort.InferenceSession.create(melUrl, {
+          executionProviders: ['wasm'],
+          graphOptimizationLevel: 'all',
+        })
+        voiceLog('info', 'wake', 'melspectrogram loaded OK')
+      } catch (e) {
+        voiceLog('error', 'wake', 'melspectrogram load failed:', e)
+        throw e
+      }
 
       voiceLog('info', 'wake', 'loading wake word model:', this.cfg.modelUrl)
-      this.wakeSession = await ort.InferenceSession.create(this.cfg.modelUrl, {
-        executionProviders: ['wasm'],
-        graphOptimizationLevel: 'all',
-      })
+      try {
+        this.wakeSession = await ort.InferenceSession.create(this.cfg.modelUrl, {
+          executionProviders: ['wasm'],
+          graphOptimizationLevel: 'all',
+        })
+        voiceLog('info', 'wake', 'wake word model loaded OK')
+      } catch (e) {
+        voiceLog('error', 'wake', 'wake word model load failed:', e)
+        throw e
+      }
 
       this.ready = true
       voiceLog('info', 'wake', 'openWakeWord init success, label=', this.cfg.label)

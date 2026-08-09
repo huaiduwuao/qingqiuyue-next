@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ONNX Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js"></script>
+</head>
+<body>
+    <h1>ONNX Model Test</h1>
+    <div id="result"></div>
+    <script>
+        async function test() {
+            const result = document.getElementById('result');
+            try {
+                result.innerHTML += 'Loading melspectrogram...<br>';
+                const mel = await ort.InferenceSession.create('/wake/melspectrogram.onnx', {
+                    executionProviders: ['wasm'],
+                });
+                result.innerHTML += 'melspectrogram loaded!<br>';
+
+                result.innerHTML += 'Loading xiaoyue...<br>';
+                const wake = await ort.InferenceSession.create('/wake/xiaoyue.onnx', {
+                    executionProviders: ['wasm'],
+                });
+                result.innerHTML += 'xiaoyue loaded!<br>';
+
+                result.innerHTML += '<br>All models loaded successfully!';
+            } catch (e) {
+                result.innerHTML += '<br>Error: ' + e.message;
+                console.error(e);
+            }
+        }
+        test();
+    </script>
+</body>
+</html>
