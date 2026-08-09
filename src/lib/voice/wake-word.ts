@@ -99,9 +99,18 @@ class OpenWakeWordEngine {
       voiceLog('info', 'wake', 'loading wake word model:', this.cfg.modelUrl)
       try {
         // 尝试降低 graphOptimizationLevel,兼容更多模型
+        // 先试用官方 hey_jarvis 测试是否是模型问题
+        const testModelUrl = '/wake/hey_jarvis.onnx';
+        voiceLog('info', 'wake', 'testing with official model:', testModelUrl);
+        this.wakeSession = await ort.InferenceSession.create(testModelUrl, {
+          executionProviders: ['wasm'],
+          graphOptimizationLevel: 'disabled',
+        })
+        voiceLog('info', 'wake', 'official model loaded OK, now loading xiaoyue...')
+        // 官方模型 OK,再加载我们的
         this.wakeSession = await ort.InferenceSession.create(this.cfg.modelUrl, {
           executionProviders: ['wasm'],
-          graphOptimizationLevel: 'disabled', // 禁用优化,兼容性更好
+          graphOptimizationLevel: 'disabled',
         })
         voiceLog('info', 'wake', 'wake word model loaded OK')
       } catch (e) {
