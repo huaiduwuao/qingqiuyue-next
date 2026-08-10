@@ -227,6 +227,11 @@ function parseAvatarDirectives(text: string, options: UseChatAvatarWSOptions) {
   while ((m = actRe.exec(raw))) {
     calls.push({ name: 'body.playAction', args: { name: m[1] } });
   }
+  // 口型 <mouth:speak/> — 用当前文本生成 viseme 时间线
+  const mouthRe = /<mouth:speak\/>/g;
+  while ((m = mouthRe.exec(raw))) {
+    calls.push({ name: 'mouth.speak', args: { text: raw } });
+  }
   // H1: 动态 UI 指令 <ui:{json}/>——数字员工干活后弹结果面板
   // 支持带逗号分隔的复杂 JSON（多键值对），\}/> 兼容 "}," 这样的情况
   if (options.onUI) {
@@ -1097,6 +1102,8 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
             },
             onDone: () => {
               setChatBusy(false);
+              // 最终解析一次完整文本,确保所有指令都被处理
+              parseAvatarDirectives(fullTextRef.current, options);
               // G3: 数字人语音输出——用 audio-gateway 真实 TTS(非 Web Speech API)
               const cleanFull = fullTextRef.current
                 .replace(/<emotion:[a-zA-Z_]+\/>/g, '')
