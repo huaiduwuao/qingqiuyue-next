@@ -29,7 +29,7 @@ const SAMPLE_RATE = 16000
 const FRAME_MS = 80
 const FRAME_SAMPLES = (SAMPLE_RATE * FRAME_MS) / 1000 // 1280
 const N_FEATURE_FRAMES = 31 // openWakeWord 默认特征帧数 (约 2.48s)
-const DEFAULT_SENSITIVITY = 0.5
+const DEFAULT_SENSITIVITY = 0.3  // 降低灵敏度,更容易触发 (原 0.5)
 
 let engine: OpenWakeWordEngine | null = null
 
@@ -195,6 +195,11 @@ class OpenWakeWordEngine {
       if (score !== null && score > (this.cfg.sensitivity ?? DEFAULT_SENSITIVITY)) {
         voiceLog('info', 'wake', `detected "${this.cfg.label}" confidence=${score.toFixed(3)}`)
         this.cbs.onWake(this.cfg.label, score)
+      }
+
+      // 打印每帧分数(前 20 帧)
+      if (this.audioBufferLen < 5000) {  // 只在开始时打印
+        voiceLog('debug', 'wake', `frame score: ${score?.toFixed(3) ?? 'null'}`)
       }
 
       // 50% overlap 滑动: 左移半帧
