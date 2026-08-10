@@ -244,13 +244,14 @@ class OpenWakeWordEngine {
           voiceLog('info', 'wake', `3D shape: [${b}, ${d1}, ${d2}], nMels=${nMels}`)
         }
       } else if (melShape.length === 4) {
-        // 4D: [batch, 1, frames, nMels] 或 [batch, 1, nMels, frames]
-        const [b, c, d1, d2] = melShape
-        nMels = Math.min(d1, d2)  // nMels 通常是 32 (较小的)
-        // 数据布局: [b, c, d1, d2],我们需要展平成 [nMels]
-        frameFeatures = melData.slice(0, nMels)
+        // 4D: [batch, 1, frames, nMels] — mel 模型输出 [1, 1, 5, 32]
+        // 最后一个维度 32 是 mel bands,第三个维度 5 是帧数
+        const [b, c, frames, nMelsDim] = melShape
+        nMels = nMelsDim  // 32
+        // 数据布局: [b, c, frames, nMels],我们取第一个 batch, 第一个 channel, 第一帧
+        frameFeatures = melData.slice(0, nMels)  // 取前 32 个 mel bands
         if (!this.runFrameErrorLogged) {
-          voiceLog('info', 'wake', `4D shape: [${b}, ${c}, ${d1}, ${d2}], nMels=${nMels}`)
+          voiceLog('info', 'wake', `4D shape: [${b}, ${c}, ${frames}, ${nMelsDim}], nMels=${nMels}`)
         }
       } else {
         nMels = 32
