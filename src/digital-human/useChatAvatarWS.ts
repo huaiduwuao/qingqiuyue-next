@@ -60,6 +60,56 @@ interface WSServerMsg {
 
 // ─── WebSocket 连接管理 ───
 
+// 智能过滤 TTS 内容:跳过代码块、复杂数据、URL、文件路径等
+function filterTTSContent(text: string): string {
+  if (!text) return '';
+
+  // 按行分割
+  const lines = text.split('\n');
+  const filtered: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // 跳过空行
+    if (!trimmed) continue;
+
+    // 跳过代码块标记
+    if (trimmed.startsWith('```') || trimmed.startsWith('`') && trimmed.endsWith('`')) continue;
+
+    // 跳过纯代码行(包含大量编程符号)
+    if (/^[\s]*[{}();=<>!@#$%^&*+\[\]|\\\/~`"'-][\s]*$/.test(trimmed) && trimmed.length > 3) continue;
+
+    // 跳过 URL
+    if (/^https?:\/\//.test(trimmed) || /^www\./.test(trimmed)) continue;
+
+    // 跳过文件路径
+    if (/^[A-Za-z]:\\/.test(trimmed) || /^\/[a-z]/.test(trimmed)) continue;
+
+    // 跳过 markdown 标题
+    if (/^#{1,6}\s/.test(trimmed)) continue;
+
+    // 跳过列表标记开头的复杂内容(如 "- [x] task")
+    if (/^[-*+]\s*\[/.test(trimmed)) continue;
+
+    // 跳过 JSON/XML 片段
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) continue;
+    if (trimmed.startsWith('<') && trimmed.endsWith('>')) continue;
+
+    // 跳过数字列表项(如 "1. item")
+    if (/^\d+\.\s/.test(trimmed) && trimmed.length < 5) continue;
+
+    // 保留有意义的文本
+    filtered.push(trimmed);
+  }
+
+  // 合并并限制长度
+  const result = filtered.join(' ').trim();
+  // 如果过滤后太短,返回空(不读)
+  if (result.length < 3) return '';
+  // 限制 TTS 长度 (避免读太长)
+  return result.slice(0, 500);
+}
+
 // G3: 用 audio-gateway 真实 TTS 说话(OpenAI 兼容 /audio/speech)。
 // 流式:请求 stream=true → 上游按句切分 chunked 返回 → 用 MediaSource+SourceBuffer
 // 边收边播(不用等整段合成完)。Qwen3-TTS 模型不支持真流式,这是"按句模拟流式"。
@@ -1053,8 +1103,10 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
                 .replace(/<action:[a-zA-Z_]+\/>/g, '')
                 .replace(/<ui:((?:[^{}]|\{[^{}]*\})*)\/>/g, '')
                 .trim();
-              if (cleanFull) {
-                speakWithTTS(cleanFull, audioRef);
+              // 智能过滤:只读用户友好的内容,跳过复杂数据/代码/列表
+              const ttsText = filterTTSContent(cleanFull);
+              if (ttsText) {
+                speakWithTTS(ttsText, audioRef);
               }
             },
             onError: (err) => {
