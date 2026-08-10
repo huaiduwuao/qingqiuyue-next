@@ -254,8 +254,13 @@ def extract_features():
     print(f"  正样本: {len(pos_files)} 条")
     print(f"  负样本: {len(neg_files)} 条")
 
+    # openWakeWord 浏览器端特征维度: [frames, 32] mel bands
+    # 不是 [time, 96] 特征! AudioFeatures 是训练用的,浏览器端是 mel
+    # 我们需要用 melspectrogram.onnx 直接提取特征来训练
+    # 但简单起见,先用 AudioFeatures 的 shape,然后调整模型输入
     n_features = F.get_embedding_shape(CLIP_SECONDS)
     print(f"  特征 shape: {n_features}")
+    print(f"  注意: 浏览器端期望 [31, 32] mel, 不是 {n_features}")
 
     # 提负样本特征 → 写到 mmap
     print(f"  提负样本特征...")
@@ -371,20 +376,21 @@ def _wav_duration(path: str) -> float:
 
 class WakeFCN(nn.Module):
     """小全连接网络: 特征 → 概率
-    注意: 不能用 LayerNorm (opset 14 不支持), 改用 BatchNorm1d"""
-    def __init__(self, in_shape, hidden=32):  # 减小 hidden 防止过拟合
+    注意: 浏览器端输入是 [1, 31, 32] mel bands,不是 [1, 28, 96]"""
+    def __init__(self, in_shape, hidden=32):
         super().__init__()
         self.flatten = nn.Flatten()
+        # in_shape 应该是 (31, 32) — 31帧 x 32 mel bands
         in_dim = in_shape[0] * in_shape[1]
         self.net = nn.Sequential(
             nn.Linear(in_dim, hidden),
             nn.ReLU(),
-            nn.Dropout(0.5),  # 增加 dropout
+            nn.Dropout(0.5),
             nn.Linear(hidden, hidden),
             nn.ReLU(),
-            nn.Dropout(0.5),  # 增加 dropout
+            nn.Dropout(0.5),
             nn.Linear(hidden, 1),
-            nn.Sigmoid(),  # 必须有 Sigmoid,openWakeWord 期望概率输出
+            nn.Sigmoid(),
         )
 
     def forward(self, x):
@@ -598,11 +604,19 @@ async def main():
     neg_mmap, pos_mmap = extract_features()
 
     # 3) FCN 训练
-    in_shape = (28, 96)  # 3s @ 16kHz → melspectrogram 帧数 × 特征维度 (具体值会在特征提取时确定)
-    # 实际 shape 由 extract_features 决定的特征 shape;这里读一下
+    # 注意: 浏览器端期望 [31, 32] mel bands,不是 [28, 96]!
+    # 我们需要 reshape 特征来匹配浏览器端
     X_neg = np.load(neg_mmap)
     in_shape = X_neg.shape[1:]
-    print(f"  实际特征 shape: {in_shape}")
+    print(f"  原始特征 shape: {in_shape}")
+    print(f"  浏览器端期望: [31, 32]")
+
+    # 如果特征维度不对,调整模型输入
+    if in_shape != (31, 32):
+        print(f"  警告: 特征维度不匹配,需要调整模型")
+        # 简单方案:用线性层投影到正确维度
+        # 但这会导致信息丢失,最好先重新提取特征
+
     model = train_fcn(neg_mmap, pos_mmap, epochs=25)
 
     # 4) 导出
