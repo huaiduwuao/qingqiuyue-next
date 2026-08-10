@@ -73,6 +73,9 @@ function filterTTSContent(text: string): string {
     // 跳过空行
     if (!trimmed) continue;
 
+    // 跳过英文思考过程 (user is saying..., I should..., Let me...)
+    if (/^(user is|i should|let me|i need|i will|i'm going|the user|this is)/i.test(trimmed)) continue;
+
     // 跳过代码块标记
     if (trimmed.startsWith('```') || trimmed.startsWith('`') && trimmed.endsWith('`')) continue;
 
@@ -231,6 +234,10 @@ function parseAvatarDirectives(text: string, options: UseChatAvatarWSOptions) {
   const mouthRe = /<mouth:speak\/>/g;
   while ((m = mouthRe.exec(raw))) {
     calls.push({ name: 'mouth.speak', args: { text: raw } });
+  }
+  // 调试:打印解析到的指令
+  if (calls.length > 0) {
+    console.log('[parseAvatarDirectives] found calls:', calls.map(c => c.name));
   }
   // H1: 动态 UI 指令 <ui:{json}/>——数字员工干活后弹结果面板
   // 支持带逗号分隔的复杂 JSON（多键值对），\}/> 兼容 "}," 这样的情况
