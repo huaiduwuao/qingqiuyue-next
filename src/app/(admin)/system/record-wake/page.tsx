@@ -306,17 +306,43 @@ export default function RecordWakePage() {
       if (!data.ok) {
         setError(data.error || '训练失败')
         setTrainStatus(null)
-      } else {
-        setTrainStatus(`✓ 训练完成! ${data.saved} 样本, 用时 ${(data.duration / 1000).toFixed(1)}s. 刷新页面加载新模型`)
-        // 重新加载模型状态
-        fetch('/api/core/train-wake-word').then(r => r.json()).then(d => {
-          if (d.ok) setCurrentModel(d.model)
-        })
+        setIsTraining(false)
+        return
       }
+      // 沙盒异步训练: POST 返回 taskId,轮询 GET 直到训练完成 + 模型自动部署
+      if (!data.training || !data.taskId) {
+        setTrainStatus(`✓ 已上传 ${data.saved} 样本`)
+        setIsTraining(false)
+        return
+      }
+      setTrainStatus(`样本已提交,沙盒训练中(约1-2分钟)...`)
+      const deadline = Date.now() + 8 * 60 * 1000
+      let done = false
+      while (Date.now() < deadline) {
+        await new Promise(res => setTimeout(res, 5000))
+        try {
+          const sr = await fetch('/api/core/train-wake-word')
+          const sd = await sr.json()
+          if (!sd.ok) continue
+          if (sd.taskStatus === 'succeeded') {
+            setTrainStatus(`✓ 训练完成,模型已自动部署! recall 见训练日志. 刷新页面即可用新模型唤醒`)
+            fetch('/api/core/train-wake-word').then(r => r.json()).then(d => { if (d.ok) setCurrentModel(d.model) })
+            done = true
+            break
+          }
+          if (sd.taskStatus === 'failed' || sd.taskStatus === 'timeout') {
+            setError(`训练失败(${sd.taskStatus}),查看沙盒任务日志`)
+            done = true
+            break
+          }
+          setTrainStatus(`沙盒训练中... (${sd.taskStatus || 'running'})`)
+        } catch { /* 轮询失败继续 */ }
+      }
+      if (!done) setError('训练超时(8分钟未完成),请到沙盒任务页查看')
+      setIsTraining(false)
     } catch (e: any) {
       setError(`处理失败: ${e.message}`)
       setTrainStatus(null)
-    } finally {
       setIsTraining(false)
     }
   }, [clips])
