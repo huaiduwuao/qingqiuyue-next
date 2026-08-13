@@ -95,6 +95,22 @@ if (typeof window !== 'undefined') {
   (window as any).__DEBUG_audioFrameInc = () => { audioFrameCount++; };
 }
 
+// 相对时间:刚建的会话显示「刚刚」,让"点了新会话"立刻可见
+function relativeTime(iso: string): string {
+  if (!iso) return '';
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return '';
+  const diff = Date.now() - t;
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return '刚刚';
+  if (min < 60) return `${min}分钟前`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}小时前`;
+  const day = Math.floor(hr / 24);
+  if (day < 30) return `${day}天前`;
+  return new Date(t).toLocaleDateString('zh-CN');
+}
+
 export default function ImmersiveDigitalHuman() {
   const router = useRouter();
   const { setTheme } = useThemeMode();
@@ -596,7 +612,12 @@ export default function ImmersiveDigitalHuman() {
         overflow: 'hidden',
       }}>
         <Box sx={{ p: 1.5, borderBottom: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>会话</Typography>
+          <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
+            会话
+            <Box component="span" sx={{ ml: 0.75, fontSize: 10, color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>
+              {mounted ? history.length : ''}
+            </Box>
+          </Typography>
           <Button size="small" onClick={handleNewConversation} sx={{ fontSize: 11, color: '#25F4EE', textTransform: 'none' }}>
             + 新会话
           </Button>
@@ -611,26 +632,44 @@ export default function ImmersiveDigitalHuman() {
               还没有会话
             </Typography>
           ) : (
-            history.map((h) => (
+            history.map((h) => {
+              const isCurrent = conversationId === h.id;
+              const timeStr = relativeTime(h.lastMessageAt || h.createTime);
+              return (
               <ListItemButton
                 key={h.id}
-                selected={conversationId === h.id}
+                selected={isCurrent}
                 onClick={() => switchConversation?.(h.id)}
                 sx={{
                   py: 1,
                   px: 1.5,
                   borderBottom: '1px solid rgba(255,255,255,0.05)',
+                  borderLeft: isCurrent ? '2px solid #25F4EE' : '2px solid transparent',
                   '&.Mui-selected': { bgcolor: 'rgba(37,244,238,0.15)' },
                 }}
               >
                 <ListItemText
-                  primary={h.title}
+                  primary={
+                    <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+                      <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                        {h.title}
+                      </Box>
+                      {isCurrent && (
+                        <Box component="span" sx={{ fontSize: 9, color: '#25F4EE', flexShrink: 0, border: '1px solid rgba(37,244,238,0.5)', borderRadius: 0.5, px: 0.5, lineHeight: 1.6 }}>
+                          当前
+                        </Box>
+                      )}
+                    </Box>
+                  }
+                  secondary={timeStr}
                   slotProps={{
-                    primary: { sx: { fontSize: 12, color: '#fff', noWrap: true } }
+                    primary: { sx: { fontSize: 12, color: '#fff' }, component: 'div' },
+                    secondary: { sx: { fontSize: 10, color: 'rgba(255,255,255,0.35)' } },
                   }}
                 />
               </ListItemButton>
-            ))
+              );
+            })
           )}
         </Box>
       </Box>

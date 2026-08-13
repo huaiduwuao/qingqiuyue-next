@@ -18,6 +18,7 @@ export interface ConversationItem {
   title: string;
   agentId: string;
   lastMessageAt: string;
+  createTime: string;   // 会话创建时间(新会话 lastMsgAt 为空时用它算相对时间)
 }
 
 export interface UseConversationHistoryResult {
@@ -61,7 +62,8 @@ export function useConversationHistory(
             id: String(r.id ?? ''),
             title: sanitizeTitle(r.title),
             agentId: String(r.agentId || ''),
-            lastMessageAt: r.update_time || '',
+            lastMessageAt: r.update_time || r.updateTime || '',
+            createTime: r.create_time || r.createTime || '',
           })),
         );
       })

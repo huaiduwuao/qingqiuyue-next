@@ -6,7 +6,7 @@
  * 流程:
  *   1. 点 [开始录音] → 浏览器用 MediaRecorder 录 1.5s
  *   2. 自动回放 + 推进下一条(用户可重新录或跳过)
- *   3. 录到 30+ 条 → 点 [开始训练] → POST /api/train-wake-word
+ *   3. 录到 30+ 条 → 点 [开始训练] → POST /api/core/train-wake-word
  *   4. 后端跑 Python 训练脚本, 返回新模型
  *   5. 浏览器刷新, 新模型生效
  *
@@ -139,7 +139,7 @@ export default function RecordWakePage() {
   // 加载当前模型状态
   const loadModelStatus = useCallback(async () => {
     try {
-      const r = await fetch('/api/train-wake-word')
+      const r = await fetch('/api/core/train-wake-word')
       const d = await r.json()
       if (d.ok) {
         setCurrentModel(d.model || '未部署')
@@ -301,7 +301,7 @@ export default function RecordWakePage() {
       wavBlobs.forEach(({ blob, name }) => {
         fd.append('files', blob, name)
       })
-      const r = await fetch('/api/train-wake-word', { method: 'POST', body: fd })
+      const r = await fetch('/api/core/train-wake-word', { method: 'POST', body: fd })
       const data = await r.json()
       if (!data.ok) {
         setError(data.error || '训练失败')
@@ -309,7 +309,7 @@ export default function RecordWakePage() {
       } else {
         setTrainStatus(`✓ 训练完成! ${data.saved} 样本, 用时 ${(data.duration / 1000).toFixed(1)}s. 刷新页面加载新模型`)
         // 重新加载模型状态
-        fetch('/api/train-wake-word').then(r => r.json()).then(d => {
+        fetch('/api/core/train-wake-word').then(r => r.json()).then(d => {
           if (d.ok) setCurrentModel(d.model)
         })
       }
