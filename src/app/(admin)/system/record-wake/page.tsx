@@ -324,7 +324,7 @@ export default function RecordWakePage() {
           const sr = await fetch('/api/core/train-wake-word')
           const sd = await sr.json()
           if (!sd.ok) continue
-          if (sd.taskStatus === 'succeeded') {
+          if (sd.taskStatus === 'succeeded' || sd.taskStatus === 'completed') {
             setTrainStatus(`✓ 训练完成,模型已自动部署! recall 见训练日志. 刷新页面即可用新模型唤醒`)
             fetch('/api/core/train-wake-word').then(r => r.json()).then(d => { if (d.ok) setCurrentModel(d.model) })
             done = true
