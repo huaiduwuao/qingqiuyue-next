@@ -23,6 +23,7 @@ import { track } from '@/lib/track';
 import { TYPE_GRADIENT, RANK_BG, IMAGE_OVERLAY } from '@/constants/gradients';
 import { RecommendVideoFeed } from './components/RecommendVideoFeed';
 import { MeTabView } from './components/MeTabView';
+import TeleplayCard from './components/TeleplayCard';
 import { useScrollToBottom } from '@/hooks/useInfiniteScroll';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { homeClient } from '@/lib/api/client';
@@ -458,9 +459,24 @@ export default function HomeRecommendPage() {
                 const rank = idx + 1;
                 const hasContent = item.id > 0;
                 const gradient = TYPE_GRADIENT[item.contentType] || TYPE_GRADIENT.NOVEL;
+                const isTeleplay = item.contentType === 'TELEPLAY'; // 短剧:支持内嵌播第一集
 
                 if (!hasContent) {
                   return <Box key={`placeholder-${idx}`} sx={{ aspectRatio: '4/5' }} />;
+                }
+
+                // 短剧卡片:默认与普通卡片一致,但支持「▶ 第一集」就地内嵌播放
+                if (isTeleplay) {
+                  return (
+                    <TeleplayCard
+                      key={`content-${item.id}`}
+                      item={item}
+                      rank={rank}
+                      gradient={gradient}
+                      typeChip={TYPE_TO_CHIP[item.contentType] ?? '短剧'}
+                      onOpen={() => handleCardClick(item)}
+                    />
+                  );
                 }
 
                 return (

@@ -32,6 +32,7 @@ interface Episode {
   title: string;
   num: string;
   url?: string;
+  playUrl?: string; // 后端回填的直链(hls/mp4);空则对 url 实时解析
   collected?: boolean;
 }
 
@@ -180,7 +181,13 @@ function TeleplayDetailContent() {
           <>
             <Box sx={{ bgcolor: '#000' }}>
               <Container maxWidth="lg" sx={{ py: 0 }}>
-                <VideoPlayer src={activeEpisode?.url || ''} poster={data.cover} initialDuration={45 * 60} autoPlay={false} />
+                <VideoPlayer
+                  src={activeEpisode?.playUrl || ''}
+                  sourceUrl={activeEpisode?.playUrl ? undefined : activeEpisode?.url}
+                  poster={data.cover}
+                  initialDuration={45 * 60}
+                  autoPlay={false}
+                />
               </Container>
             </Box>
 

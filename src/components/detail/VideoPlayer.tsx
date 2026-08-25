@@ -96,12 +96,13 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
     };
   }, [sourceUrl, src]);
 
-  // 外部平台流(m3u8)走同源代理,注入平台 Referer 绕过防盗链+CORS;
-  // 直链 src(同源/已签名)不代理。
+  // 外部平台流(m3u8)走同源 /api/proxy 代理,注入平台 Referer 绕过防盗链+CORS;
+  // 抖音 mp4 直链等可直连的不代理。
   const toPlayableUrl = (url: string) => {
     if (!url) return url;
-    if (/^https?:\/\//i.test(url)) {
-      return url; // 直接返回,由 nginx 代理处理
+    // 防盗链平台(mgtv/bilibili/qq/网易/虎牙)的 m3u8/ts 需走同源代理注入 Referer
+    if (/(mgtv\.com|bilivideo\.com|hdslb\.com|bilibili\.com|gtimg\.com|v\.qq\.com|126\.net|huya\.com)/i.test(url)) {
+      return `/api/proxy?url=${encodeURIComponent(url)}`;
     }
     return url;
   };

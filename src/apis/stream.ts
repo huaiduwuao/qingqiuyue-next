@@ -156,15 +156,16 @@ async function extractStreams(parser: StreamParser, apiResponse: any): Promise<a
  * GET /api/stream?url=xxx
  */
 export async function parseStream(url: string) {
-  // 1) 后端通用解析引擎
+  // 1) 后端统一实时解析(缓存+平台分发:配置驱动/代码层/浏览器层)。推荐页短视频/短剧第一集走这里。
   try {
-    const resp = await fetch(`${BACKEND}/api/content/stream-parser/parse?url=${encodeURIComponent(url)}`, {
+    const resp = await fetch(`${BACKEND}/api/content/stream/resolve?url=${encodeURIComponent(url)}`, {
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(30000),
     });
     if (resp.ok) {
       const data = await resp.json();
-      return data;
+      // 兼容:后端未解析出流时返回 code=200 但 streams 为空,交给本地降级再试一次
+      if (data?.data?.streams?.length) return data;
     }
   } catch (e) {
     console.error('[stream] backend parse failed, fallback to local:', e);
