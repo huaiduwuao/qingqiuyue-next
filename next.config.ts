@@ -5,9 +5,11 @@ import type { NextConfig } from "next";
 // 这里只在 development 下加 rewrites，把 /api、/ws 代理到真后端(API_PROXY_TARGET),
 // 生产 output:'export' 时 rewrites 被忽略,仍由 nginx/APISIX 转发,互不影响。
 const isDev = process.env.NODE_ENV === "development";
+// ⚠️ 2026-09:统一走 APISIX(10005),不再直接暴露各服务端口
+const CONTENT_API_TARGET = process.env.CONTENT_API_TARGET ?? "http://10.9.1.2:10005";
 const API_PROXY_TARGET = process.env.API_PROXY_TARGET ?? "http://10.9.1.2:10005";
-const AGENTM_TARGET = process.env.AGENTM_TARGET ?? "http://10.9.1.2:10081";
-const REALTIME_TARGET = process.env.REALTIME_TARGET ?? "http://10.9.1.2:10003";
+const AGENTM_TARGET = process.env.AGENTM_TARGET ?? "http://10.9.1.2:10005";
+const REALTIME_TARGET = process.env.REALTIME_TARGET ?? "http://10.9.1.2:10005";
 
 const nextConfig: NextConfig = {
   // 生产静态导出，开发模式动态
@@ -16,6 +18,8 @@ const nextConfig: NextConfig = {
   ...(isDev && {
     async rewrites() {
       return [
+        // /api/content/* → content-api (10002) — stream/resolve 等内容接口走这里
+        { source: "/api/content/:path*", destination: `${CONTENT_API_TARGET}/api/content/:path*` },
         // /api/agentmanager/* → agentmanager-api (10081)
         { source: "/api/agentmanager/:path*", destination: `${AGENTM_TARGET}/api/agentmanager/:path*` },
         // /api/audio/* → realtime-api (10003)

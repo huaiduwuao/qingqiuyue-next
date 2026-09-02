@@ -20,7 +20,11 @@ export async function fetchHot(params: { type?: string; size?: number; genre?: s
 
 // GET /api/content/recommend/feed?types=&size=&genre=&page=   多类型混合推荐(可选 genre 子分类)
 export async function fetchRecommend(params: { types?: string; size?: number; genre?: string; page?: number } = {}) {
-  return contentClient('/recommend/feed', { params });
+  // 直接调用本地的 API route（会自动包装并添加 sourceUrl）
+  const resp = await fetch(`/api/content/recommend/feed?${new URLSearchParams(params as Record<string, string>).toString()}`, {
+    cache: 'no-store',
+  });
+  return resp.json();
 }
 
 // GET /api/content/home/detail?id=   单条详情 catch-all(供详情页)
