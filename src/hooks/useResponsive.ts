@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useTheme } from '@mui/material/styles';
 import { useMediaQuery } from '@mui/material';
 
@@ -40,13 +41,31 @@ export function useResponsive(): UseResponsiveResult {
   const isXl = useMediaQuery(theme.breakpoints.up('xl'));
 
   // 设备类型判断 (< 768px 为移动端，768-1023px 为平板)
-  const isMobile = useMediaQuery('(max-width: 767px)');
-  const isTablet = useMediaQuery('(min-width: 768px) and (max-width: 1023px)');
-  const isDesktop = useMediaQuery('(min-width: 1024px)');
+  const isMobileQuery = useMediaQuery('(max-width: 767px)');
+  const isTabletQuery = useMediaQuery('(min-width: 768px) and (max-width: 1023px)');
+  const isDesktopQuery = useMediaQuery('(min-width: 1024px)');
 
   // 屏幕方向判断
-  const isLandscape = useMediaQuery('(orientation: landscape)');
-  const isPortrait = useMediaQuery('(orientation: portrait)');
+  const isLandscapeQuery = useMediaQuery('(orientation: landscape)');
+  const isPortraitQuery = useMediaQuery('(orientation: portrait)');
+
+  // 挂载前(含 SSR 首屏)一律用固定的桌面端默认值,挂载后才切到 matchMedia 真实值。
+  // 注意:上面每个 useMediaQuery 调用本身在挂载前后都无条件执行,数量和顺序完全
+  // 不变——变的只是下面这一步对返回值的取舍,不会引发 hooks 数量不一致的报错。
+  // 之前这里直接用 useMediaQuery 的返回值,在这个 React 19 + MUI v9 组合下,同一个
+  // useMediaQuery 调用在 SSR 首屏和客户端 hydrate 之间的内部 hook 数量本身就可能不
+  // 一致(疑似 useSyncExternalStore 的服务端快照路径与客户端不同),表现为
+  // "Rendered more hooks than during the previous render",且与调用方(如
+  // MobileBottomNav)自己是否规范调用 hooks 无关——挂载门控从根上避免依赖这段
+  // 首屏行为是否一致。
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  const isMobile = mounted ? isMobileQuery : false;
+  const isTablet = mounted ? isTabletQuery : false;
+  const isDesktop = mounted ? isDesktopQuery : true;
+  const isLandscape = mounted ? isLandscapeQuery : true;
+  const isPortrait = mounted ? isPortraitQuery : false;
 
   // 确定当前断点
   let breakpoint: Breakpoint = 'xs';

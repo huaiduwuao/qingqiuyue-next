@@ -132,7 +132,7 @@ export function RecommendVideoFeed() {
     queryKey: ['home-recommend', 'recommend-feed', page],
     queryFn: async () => {
       const resp = await fetchRecommend({
-        types: 'VIDEO',
+        types: 'VIDEO,TELEPLAY',
         size: PAGE_SIZE,
         page: page,
       }) as any;
@@ -141,7 +141,7 @@ export function RecommendVideoFeed() {
         id: Number(it.id) || 0,
         idString: typeof it.idString === 'string' && it.idString ? it.idString : String(it.id ?? ''),
         title: it.title || '',
-        contentType: (it.category || 'NOVEL').toUpperCase(),
+        contentType: (it.contentType || 'VIDEO').toUpperCase(),
         cover: it.cover || '',
         author: it.author || '未知作者',
         authorAvatar: it.authorAvatar || '',
@@ -154,7 +154,7 @@ export function RecommendVideoFeed() {
         shares: Number(it.shares) || 0,
         caption: it.title || '',
         verified: false,
-        brand: TYPE_LABEL[(it.category || 'NOVEL').toUpperCase()] || '推荐',
+        brand: TYPE_LABEL[(it.contentType || 'VIDEO').toUpperCase()] || '推荐',
         sourceUrl: it.sourceUrl || '',
       }));
       const hasMore = resp?.data?.hasMore ?? false;
@@ -208,14 +208,15 @@ export function RecommendVideoFeed() {
   allItemsRef.current = allItems;
   const video = uniqueVideos[index];
 
-  // 滑动时预加载下一页：只在刚好滑到倒数第三条时触发
+  // 滑动时预加载下一页：临近末尾几条时触发
   useEffect(() => {
     const remaining = allItemsRef.current.length - indexRef.current;
     console.log('[DEBUG] preload effect:', { index: indexRef.current, allItems: allItemsRef.current.length, remaining, hasMore, locked: loadingLockRef.current });
     // 有锁时不触发
     if (loadingLockRef.current) return;
-    // 只在刚好倒数第3条时请求（remaining === 3）
-    if (remaining === 3 && hasMore) {
+    // remaining<=3 而非 ===3:严格相等在去重后 allItems 增量不是整数页大小时容易被跳过
+    // (比如追加时因重复被过滤掉几条,remaining 从 4 直接跳到 2),导致预加载永远不触发。
+    if (remaining <= 3 && remaining >= 0 && hasMore) {
       console.log('[DEBUG] 触发预加载下一页，current page:', page);
       loadingLockRef.current = true;
       const nextPage = page + 1;
@@ -230,16 +231,33 @@ export function RecommendVideoFeed() {
     unlockTimer.current = setTimeout(() => { navLock.current = false; }, ms);
   }, []);
 
+  const endToastCooldown = useRef(0);
   const go = useCallback(
     (dir: 1 | -1) => {
       if (navLock.current) return;
       const next = indexRef.current + dir;
-      if (next < 0 || next >= uniqueVideos.length) return;
+      if (next < 0 || next >= uniqueVideos.length) {
+        // 划到底了:要么下一页还没加载完(hasMore 为真,prefetch 正在路上,
+        // 用户划得比网络快),要么是真的没有更多了。两种情况都给个提示,
+        // 不要让滑动手势悄无声息地"什么也没发生"。
+        if (dir === 1 && next >= uniqueVideos.length) {
+          const now = Date.now();
+          if (now - endToastCooldown.current > 1500) {
+            endToastCooldown.current = now;
+            setSnack({
+              open: true,
+              message: hasMore ? '正在加载更多…' : '已经到底啦，稍后再来看看',
+              severity: 'info',
+            });
+          }
+        }
+        return;
+      }
       setSlideDir(dir);
       setIndex(next);
       lockNav();
     },
-    [uniqueVideos.length, lockNav],
+    [uniqueVideos.length, lockNav, hasMore],
   );
 
   useEffect(() => {
@@ -257,7 +275,13 @@ export function RecommendVideoFeed() {
         setStreamLoading(true);
         parseStream(video.sourceUrl)
           .then(data => {
-            if (data.code === 0 && data.data?.streams?.length > 0) {
+            // 后端 /api/content/stream/resolve 成功时 code=200,本地降级解析器
+            // (parseStream 的 fallback 分支)成功时 code=0——两套约定不一致。
+            // 之前这里只认 code===0,导致走后端(真正播放绝大多数抖音/B站/快手等
+            // 条目)那条路径时永远被判定为"解析失败",只有极少数命中本地
+            // MGTV 专用兜底解析器的条目才能真正播放。是否有可播放流,看
+            // streams 数组本身就够了,不该再关心 code 具体是哪个约定的"成功"。
+            if (data.data?.streams?.length > 0) {
               setVideoSrc(data.data.streams[0].url || '');
             } else {
               setStreamError(data.msg || '解析失败');
@@ -271,6 +295,10 @@ export function RecommendVideoFeed() {
 
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
+      // 必须吃掉滚轮事件,否则浏览器仍会把它当页面滚动处理——在到达内容边界时
+      // 持续的滚轮输入可能被浏览器/系统识别为下拉刷新手势,导致整页重新加载,
+      // 白白丢掉已加载的 allItems/index 状态,体验上像"刷着刷着突然从头开始"。
+      e.preventDefault();
       if (Math.abs(e.deltaY) < 8) return;
       if (navLock.current) {
         lockNav(220);
@@ -550,6 +578,9 @@ export function RecommendVideoFeed() {
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
+        // 双保险:即便某个滚轮/触摸事件漏掉了 preventDefault,也不让浏览器把
+        // 溢出滚动/回弹链传到父级或触发原生下拉刷新。
+        overscrollBehavior: 'contain',
       }}
     >
       <Box

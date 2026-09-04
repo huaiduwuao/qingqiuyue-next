@@ -7,7 +7,6 @@ const DEMO_VIDEO_URL = "https://www.bilibili.com/video/BV1ZG4y1v7TL";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
-  const types = searchParams.get('types')?.toUpperCase();
   const size = parseInt(searchParams.get('size') || '10');
 
   // 转发请求到后端
@@ -23,18 +22,21 @@ export async function GET(request: NextRequest) {
 
   const data = await resp.json();
 
-  // 如果是 VIDEO 类型，尝试获取真实播放地址
-  if (types === 'VIDEO' && data?.data?.list) {
+  // 为每条item补充可播放地址:凡是带 metadata.source_url 的条目(短视频/短剧等,
+  // 不局限于单一 contentType)都尝试实时解析。平台分发交给后端 stream/resolve
+  // (配置驱动 module_stream_parser),这里不再按域名白名单预筛——新平台入库即用,
+  // 不用同步改前端。
+  if (data?.data?.list) {
     const processedList = await Promise.all(
       data.data.list.slice(0, size).map(async (item: any) => {
-        // 从 metadata 提取 sourceUrl
-        let sourceUrl = DEMO_VIDEO_URL;
-        let cover = item.cover || 'https://picsum.photos/800/450';
+        let sourceUrl = '';
+        let cover = item.cover || '';
 
         if (item.metadata) {
           try {
             const meta = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
-            if (meta.source_url && (meta.source_url.includes('douyin.com') || meta.source_url.includes('bilibili.com'))) {
+            if (meta.source_url) {
+              sourceUrl = meta.source_url; // 兜底:即便解析失败也保留原页面URL,而不是替换成无关的演示视频
               // 调用 stream resolve API 获取真实播放地址
               const resolveResp = await fetch(
                 `${API_TARGET}/api/content/stream/resolve?url=${encodeURIComponent(meta.source_url)}`,
@@ -52,8 +54,17 @@ export async function GET(request: NextRequest) {
               cover = meta.cover_url;
             }
           } catch (e) {
-            // 解析 metadata 失败，使用默认值
+            // 解析 metadata 失败，保留上面已设置的兜底值
           }
+        }
+
+        // 完全没有 source_url 时(极少数缺元数据的旧条目)才用演示视频兜底，
+        // 保证播放器至少有内容可展示，而不是让真实条目被顶替。
+        if (!sourceUrl) {
+          sourceUrl = DEMO_VIDEO_URL;
+        }
+        if (!cover) {
+          cover = 'https://picsum.photos/800/450';
         }
 
         return {

@@ -1,7 +1,9 @@
 // 通用流解析入口:解析引擎已下沉到后端 content-api(配置驱动,Doris module_stream_parser)。
 // 本模块只做转发;后端不可用时降级用本地默认解析器跑同一套逻辑。
-
-const BACKEND = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://10.9.1.2:8080';
+//
+// 走同源相对路径,由 next.config.ts 的 dev rewrites(或生产环境 nginx/APISIX)代理到真后端,
+// 与本仓库其余 API 客户端(src/lib/api/client.ts 等)保持一致的连接方式,避免跨域和端口硬编码。
+const BACKEND = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
 
 interface StreamParser {
   id: number;

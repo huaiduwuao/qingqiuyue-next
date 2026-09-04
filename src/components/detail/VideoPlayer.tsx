@@ -75,7 +75,10 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
     parseStream(sourceUrl)
       .then(data => {
         if (cancelled) return;
-        if (data.code === 0 && data.data?.streams?.length > 0) {
+        // 后端 stream/resolve 成功返回 code=200,本地降级解析器成功返回 code=0——
+        // 两套约定不一致(同类问题也出现在 RecommendVideoFeed 里,已一并修正)。
+        // 有没有可播放流看 streams 数组即可,不用关心具体是哪个 code。
+        if (data.data?.streams?.length > 0) {
           setStreams(data.data.streams);
           setPlatformName(data.data.platformName || data.data.platform || '');
           setCurrentStream(0);
@@ -117,8 +120,14 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
       hlsRef.current = null;
     }
 
-    // mp4 直链走原生播放(抖音等),m3u8 走 hls.js
-    const isMp4 = /\.mp4(\?|$)/i.test(playUrl) || playUrl.includes('mime_type=video_mp4') || playUrl.includes('mime_type=video');
+    // mp4 直链走原生播放(抖音等),m3u8 走 hls.js。
+    // ⚠️ 必须用原始 url 判断,不能用 playUrl——B 站等防盗链域名会被 toPlayableUrl()
+    // 包成 /api/proxy?url=encodeURIComponent(原始url),encodeURIComponent 会把
+    // ".mp4?e=..." 里的 "?" 转义成 "%3F",导致 /\.mp4(\?|$)/ 永远匹配不上 playUrl。
+    // 结果是所有经代理的 B 站 mp4 直链都被误判成"不是 mp4",走进 hls.js 分支——
+    // 拿一个真正的 mp4 二进制文件当 m3u8 清单解析,播放器卡在 readyState=0 不动,
+    // 界面上却显示"正在播放"(进度条是独立于视频本身的模拟状态)。
+    const isMp4 = /\.mp4(\?|$)/i.test(url) || url.includes('mime_type=video_mp4') || url.includes('mime_type=video');
     if (isMp4) {
       videoRef.current.src = playUrl;
       if (autoPlay) {
@@ -204,6 +213,22 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
     });
     return () => cancelAnimationFrame(raf);
   }, [streams, currentStream]);
+
+  // 调用方直接传入已解析好的 src(如推荐流:上层自己调 parseStream 拿到播放地址
+  // 再传下来)时,上面那个 effect 不会跑——它只在走 sourceUrl 内部解析、
+  // streams 被填充时才触发。之前这种用法下 hasVideo 判定为 true、<video> 标签
+  // 确实挂载了,但从没有任何代码把 src 真正喂给 playStream()/videoRef,导致
+  // 播放器界面看着在播(进度条、暂停图标都是独立于视频本身的模拟状态),实际
+  // 视频从未加载。这里补上:src prop 变化时直接播放它。
+  useEffect(() => {
+    if (!src) return;
+    const raf = requestAnimationFrame(() => {
+      if (videoRef.current) {
+        playStream(src);
+      }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [src]);
 
   // 清理
   useEffect(() => {

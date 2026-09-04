@@ -48,14 +48,17 @@ export const MobileBottomNav = memo(function MobileBottomNav({
   const shouldShow = isMobile || (isTablet && !isLandscape);
   const shouldHide = !shouldShow;
 
-  if (shouldHide) {
-    return null;
-  }
-
   // 找到当前激活的 Tab 索引
   const currentIndex = MOBILE_TABS.findIndex((t) => t.key === activeNav);
   const value = currentIndex >= 0 ? currentIndex : 0;
 
+  // ⚠️ Hooks 必须在任何条件 return 之前无条件调用(Rules of Hooks)。
+  // 之前 `if (shouldHide) return null` 写在这个 useCallback 前面:当
+  // shouldShow 在两次渲染之间翻转(窗口尺寸/横竖屏变化,或 dev 模式下的
+  // StrictMode 双重渲染)时,本组件两次渲染调用的 hook 数量就会不一致,
+  // 直接触发 React "Rendered more hooks than during the previous render"
+  // 崩溃,被上层 ErrorBoundary 捕获后 Next dev 会整页刷新恢复——这正是
+  // 之前"划着划着推荐流状态突然清空"的真正原因,和滚轮/触屏手势无关。
   const handleChange = useCallback(
     (_: React.SyntheticEvent, newValue: number) => {
       const tab = MOBILE_TABS[newValue];
@@ -66,6 +69,10 @@ export const MobileBottomNav = memo(function MobileBottomNav({
     },
     [onNavChange]
   );
+
+  if (shouldHide) {
+    return null;
+  }
 
   return (
     <Paper
