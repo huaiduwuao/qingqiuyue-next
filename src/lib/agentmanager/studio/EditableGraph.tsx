@@ -24,24 +24,20 @@ import {
   useNodesState,
   useEdgesState,
   MarkerType,
-  Handle,
-  Position,
   type Connection,
   type Edge,
   type Node,
-  type NodeProps,
-  type NodeTypes,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Button from '@mui/material/Button'
 import TextField from '@mui/material/TextField'
+import { useTheme } from '@mui/material/styles'
 import Dialog from '@mui/material/Dialog'
 import DialogTitle from '@mui/material/DialogTitle'
 import DialogContent from '@mui/material/DialogContent'
 import DialogActions from '@mui/material/DialogActions'
-import { agentmAPI, type NodeType } from '../api'
 
 export interface DraftNode {
   id: string
@@ -68,26 +64,40 @@ export interface EditableGraphRef {
 }
 
 interface EditableGraphProps {
-  /** 工具条可添加的节点类型 kind 列表(可选;不传则用接口返回的全部类型) */
-  palette?: { kind: string; label: string }[]
+  /** 工具条可添加的节点类型 */
+  palette: { kind: string; label: string }[]
   /** 草稿变化回调 */
   onChange?: (nodes: DraftNode[], edges: DraftEdge[]) => void
   emptyHint?: string
 }
 
-// 配色兜底(接口未返回 color 时按 category)
-const CATEGORY_COLOR: Record<string, { bg: string; border: string; fg: string }> = {
-  flow: { bg: '#eceff1', border: '#90a4ae', fg: '#37474f' },
-  entity: { bg: '#e3f2fd', border: '#42a5f5', fg: '#1565c0' },
+const KIND_COLOR: Record<string, { bg: string; border: string; fg: string }> = {
+  start: { bg: '#e8f5e9', border: '#66bb6a', fg: '#2e7d32' },
+  end: { bg: '#ffebee', border: '#ef5350', fg: '#c62828' },
+  agent: { bg: '#e3f2fd', border: '#42a5f5', fg: '#1565c0' },
+  skill: { bg: '#f3e5f5', border: '#ab47bc', fg: '#6a1b9a' },
+  workflow: { bg: '#fff3e0', border: '#ffa726', fg: '#e65100' },
+  mcp: { bg: '#e0f7fa', border: '#26c6da', fg: '#00838f' },
+  memory: { bg: '#fffde7', border: '#ffee58', fg: '#f9a825' },
+  step: { bg: '#eceff1', border: '#90a4ae', fg: '#37474f' },
   io: { bg: '#fafafa', border: '#bdbdbd', fg: '#616161' },
-  default: { bg: '#eceff1', border: '#90a4ae', fg: '#37474f' },
+  condition: { bg: '#fce4ec', border: '#f06292', fg: '#ad1457' },
 }
 
-// 由 hex 主色派生浅底/深字(简单算法,接口 color 是主色)
-function deriveColor(main?: string, category?: string) {
-  if (!main) return CATEGORY_COLOR[category ?? 'default'] ?? CATEGORY_COLOR.default
-  return { bg: main + '1a', border: main, fg: main } // 1a = 10% 透明度浅底
+// 深色模式节点配色:深底 + 浅字,保持同色系色相
+const KIND_COLOR_DARK: Record<string, { bg: string; border: string; fg: string }> = {
+  start: { bg: '#1b3a24', border: '#66bb6a', fg: '#a5d6a7' },
+  end: { bg: '#3a1d1f', border: '#ef5350', fg: '#ef9a9a' },
+  agent: { bg: '#1a2f42', border: '#42a5f5', fg: '#90caf9' },
+  skill: { bg: '#2d1f38', border: '#ab47bc', fg: '#ce93d8' },
+  workflow: { bg: '#3a2a18', border: '#ffa726', fg: '#ffcc80' },
+  mcp: { bg: '#173338', border: '#26c6da', fg: '#80deea' },
+  memory: { bg: '#37350f', border: '#ffee58', fg: '#fff59d' },
+  step: { bg: '#26313a', border: '#90a4ae', fg: '#b0bec5' },
+  io: { bg: '#262626', border: '#757575', fg: '#bdbdbd' },
+  condition: { bg: '#38182a', border: '#f06292', fg: '#f48fb1' },
 }
+
 
 let idSeq = 1
 const nid = () => `n${Date.now().toString(36)}${idSeq++}`
@@ -96,29 +106,13 @@ const EditableGraph = forwardRef<EditableGraphRef, EditableGraphProps>(function 
   { palette, onChange, emptyHint },
   ref,
 ) {
+  const theme = useTheme()
+  const dark = theme.palette.mode === 'dark'
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([])
   const [editingNode, setEditingNode] = useState<Node | null>(null)
   const [editLabel, setEditLabel] = useState('')
   const [editConfig, setEditConfig] = useState('{}')
-  // 节点类型(从 /node-types 接口读,可维护)
-  const [nodeTypes, setNodeTypes] = useState<NodeType[]>([])
-
-  useEffect(() => {
-    agentmAPI.listNodeTypes().then((res) => setNodeTypes(res.list || [])).catch(() => {})
-  }, [])
-
-  const typeMap = useMemo(() => {
-    const m: Record<string, NodeType> = {}
-    nodeTypes.forEach((t) => { m[t.kind] = t })
-    return m
-  }, [nodeTypes])
-
-  // 工具条:优先用传入 palette,否则用接口全部类型
-  const paletteItems = useMemo(() => {
-    if (palette && palette.length) return palette
-    return nodeTypes.map((t) => ({ kind: t.kind, label: `${t.icon ?? ''} ${t.label}`.trim() }))
-  }, [palette, nodeTypes])
 
   // 把 RF 状态转成草稿
   const toDraft = useCallback((): { nodes: DraftNode[]; edges: DraftEdge[] } => {
@@ -144,8 +138,9 @@ const EditableGraph = forwardRef<EditableGraphRef, EditableGraphProps>(function 
   // 灌入草稿
   const setData = useCallback(
     (dns: DraftNode[], des: DraftEdge[]) => {
+      console.log('EditableGraph setData called:', { nodes: dns.length, edges: des.length })
       setNodes(
-        dns.map((n) => makeRFNode(n)),
+        dns.map((n) => makeRFNode(n, dark)),
       )
       setEdges(
         des.map((e) => ({
@@ -154,14 +149,15 @@ const EditableGraph = forwardRef<EditableGraphRef, EditableGraphProps>(function 
           target: e.target,
           label: e.label,
           markerEnd: { type: MarkerType.ArrowClosed },
-          style: { stroke: '#90a4ae' },
+          style: { stroke: theme.palette.text.secondary },
         })),
       )
     },
-    [setNodes, setEdges, typeMap],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [setNodes, setEdges, dark, theme],
   )
 
-  useImperativeHandle(ref, () => ({ setData, getData: toDraft }), [setData, toDraft])
+  useImperativeHandle(ref, () => ({ setData, getData: toDraft }), [])
 
   // 草稿变化通知父组件
   useEffect(() => {
@@ -172,8 +168,8 @@ const EditableGraph = forwardRef<EditableGraphRef, EditableGraphProps>(function 
 
   const onConnect = useCallback(
     (conn: Connection) =>
-      setEdges((eds) => addEdge({ ...conn, markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: '#90a4ae' } }, eds)),
-    [setEdges],
+      setEdges((eds) => addEdge({ ...conn, markerEnd: { type: MarkerType.ArrowClosed }, style: { stroke: theme.palette.text.secondary } }, eds)),
+    [setEdges, theme],
   )
 
   // 工具条加节点
@@ -188,33 +184,12 @@ const EditableGraph = forwardRef<EditableGraphRef, EditableGraphProps>(function 
           kind,
           x: 120 + Math.random() * 240,
           y: 80 + Math.random() * 160,
-          config: typeMap[kind]?.default_config ?? {},
-        }),
+          config: {},
+        }, dark),
       ])
     },
-    [setNodes, typeMap],
+    [setNodes, dark],
   )
-
-  // 由草稿节点构造 RF 节点:配色/图标/连线规则从接口 typeMap 读
-  function makeRFNode(n: DraftNode): Node {
-    const t = typeMap[n.kind ?? '']
-    const color = deriveColor(t?.color, t?.category)
-    return {
-      id: n.id,
-      type: 'studioNode',
-      position: { x: n.x, y: n.y },
-      data: {
-        label: n.label,
-        sub: n.sub ?? t?.label,
-        kind: n.kind,
-        icon: t?.icon,
-        config: n.config ?? t?.default_config ?? {},
-        _color: color,
-        _allowSource: t?.allow_source !== false,
-        _allowTarget: t?.allow_target !== false,
-      },
-    }
-  }
 
   // 双击节点编辑
   const onNodeDoubleClick = useCallback((_: any, node: Node) => {
@@ -252,7 +227,7 @@ const EditableGraph = forwardRef<EditableGraphRef, EditableGraphProps>(function 
       {/* 工具条 */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', flex: '0 0 auto' }}>
         <Typography variant="caption" color="text.secondary">添加节点:</Typography>
-        {paletteItems.map((p) => (
+        {palette.map((p) => (
           <Button key={p.kind} size="small" variant="outlined" onClick={() => addNode(p.kind, p.label)}>
             + {p.label}
           </Button>
@@ -264,9 +239,9 @@ const EditableGraph = forwardRef<EditableGraphRef, EditableGraphProps>(function 
       </Box>
 
       {/* 画布 */}
-      <Box sx={{ flex: 1, minHeight: 0, border: '1px solid #eee', borderRadius: 1, overflow: 'hidden', bgcolor: '#fdfdfd' }}>
+      <Box sx={{ flex: 1, minHeight: 0, border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden', bgcolor: 'background.paper' }}>
         {nodes.length === 0 ? (
-          <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9e9e9e', fontSize: 14 }}>
+          <Box sx={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'text.secondary', fontSize: 14 }}>
             {emptyHint ?? '用左侧对话生成草稿,或点上方按钮手动添加节点'}
           </Box>
         ) : (
@@ -277,10 +252,13 @@ const EditableGraph = forwardRef<EditableGraphRef, EditableGraphProps>(function 
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onNodeDoubleClick={onNodeDoubleClick}
-            nodeTypes={rfNodeTypes}
             fitView
+            fitViewOptions={{ padding: 0.2 }}
+            minZoom={0.1}
+            maxZoom={2}
             deleteKeyCode={['Backspace', 'Delete']}
             proOptions={{ hideAttribution: true }}
+            colorMode={dark ? 'dark' : 'light'}
           >
             <Background gap={16} />
             <Controls />
@@ -316,37 +294,24 @@ const EditableGraph = forwardRef<EditableGraphRef, EditableGraphProps>(function 
   )
 })
 
-// 自定义节点:渲染 图标+名称+属性(sub),带上下连线 Handle
-function StudioNode({ data, selected }: NodeProps) {
-  const c = (data._color as { bg: string; border: string; fg: string }) ?? CATEGORY_COLOR.default
-  const allowTarget = data._allowTarget !== false
-  const allowSource = data._allowSource !== false
-  return (
-    <div
-      style={{
-        background: c.bg,
-        border: `1.5px solid ${selected ? '#1976d2' : c.border}`,
-        color: c.fg,
-        borderRadius: 8,
-        padding: '8px 12px',
-        minWidth: 130,
-        fontSize: 12,
-        boxShadow: selected ? '0 0 0 3px rgba(25,118,210,0.25)' : '0 1px 4px rgba(0,0,0,0.12)',
-      }}
-    >
-      {allowTarget && <Handle type="target" position={Position.Top} style={{ background: c.border }} />}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        {data.icon ? <span style={{ fontSize: 15 }}>{data.icon as string}</span> : null}
-        <div style={{ fontWeight: 600 }}>{(data.label as string) ?? ''}</div>
-      </div>
-      {data.sub ? (
-        <div style={{ fontSize: 11, opacity: 0.75, marginTop: 2 }}>{data.sub as string}</div>
-      ) : null}
-      {allowSource && <Handle type="source" position={Position.Bottom} style={{ background: c.border }} />}
-    </div>
-  )
+function makeRFNode(n: DraftNode, dark = false): Node {
+  const palette = dark ? KIND_COLOR_DARK : KIND_COLOR
+  const c = palette[n.kind ?? 'step'] ?? palette.step
+  return {
+    id: n.id,
+    position: { x: n.x, y: n.y },
+    data: { label: n.label, sub: n.sub, kind: n.kind, config: n.config ?? {} },
+    type: 'default',
+    style: {
+      background: c.bg,
+      border: `1.5px solid ${c.border}`,
+      color: c.fg,
+      borderRadius: 8,
+      padding: '8px 12px',
+      minWidth: 120,
+      fontSize: 12,
+    },
+  }
 }
-
-const rfNodeTypes: NodeTypes = { studioNode: StudioNode }
 
 export default EditableGraph

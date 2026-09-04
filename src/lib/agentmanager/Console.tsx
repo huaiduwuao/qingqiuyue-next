@@ -6,7 +6,6 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Tabs from '@mui/material/Tabs'
@@ -42,20 +41,18 @@ const WorkflowStudio = dynamic(() => import('./studio/WorkflowStudio'), { ssr: f
 const SkillStudio = dynamic(() => import('./studio/SkillStudio'), { ssr: false })
 const AgentStudio = dynamic(() => import('./studio/AgentStudio'), { ssr: false })
 const ModelProviderManager = dynamic(() => import('./models/ModelProviderManager'), { ssr: false })
-const WorkflowRunsManager = dynamic(() => import('./WorkflowRunsManager'), { ssr: false })
 
-type Tab = 'dashboard' | 'instances' | 'agents' | 'sessions' | 'audit' | 'skills' | 'gateway' | 'kanban' | 'mcp' | 'sandbox' | 'terminal' | 'workflows' | 'models' | 'workflow-runs'
+type Tab = 'dashboard' | 'instances' | 'agents' | 'sessions' | 'audit' | 'skills' | 'gateway' | 'kanban' | 'mcp' | 'sandbox' | 'terminal' | 'workflows' | 'models'
 
 export default function AgentManagerConsole() {
   const { sessionId: token, isAuthenticated } = useAuth()
-  const router = useRouter()
   const [activeTab, setActiveTab] = useState<Tab>('dashboard')
   // 工作室(创建/编辑页):非空时整体替换 tab 视图;editingId 表示编辑模式
   const [studio, setStudio] = useState<'agent' | 'skill' | 'workflow' | null>(null)
   const [studioEditId, setStudioEditId] = useState<number | null>(null)
   const [studioEditName, setStudioEditName] = useState<string>('')
   const [agentsList, setAgentsList] = useState<Agent[]>([])
-  const [loading, setLoading] = useState(false)
+    const [loading, setLoading] = useState(false)
 
   // 打开工作室:kind + 可选编辑 id
   const openStudio = (kind: 'agent' | 'skill' | 'workflow', editId: number | null = null) => {
@@ -194,7 +191,6 @@ export default function AgentManagerConsole() {
     { key: 'sandbox', label: '🐳 沙盒' },
     { key: 'terminal', label: '🖥️ 终端' },
     { key: 'workflows', label: '🔀 工作流' },
-    { key: 'workflow-runs', label: '📋 任务' },
   ]
 
   return (
@@ -255,7 +251,7 @@ export default function AgentManagerConsole() {
       {/* Content */}
       <Box sx={{ p: 3, flex: 1, minHeight: 0, overflow: 'auto' }}>
         {studio ? (
-          /* 工作室:创建/编辑页(左聊天 + 右画布),整体替换 tab 视图 */
+          /* 工作室:创建/编辑页(包含关联资源管理),整体替换 tab 视图 */
           <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, flex: '0 0 auto' }}>
               <Button size="small" variant="outlined" onClick={closeStudio}>
@@ -273,12 +269,12 @@ export default function AgentManagerConsole() {
             </Box>
           </Box>
         ) : (
-        <>
-        {loading && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
-            <CircularProgress />
-          </Box>
-        )}
+          <>
+            {loading && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                <CircularProgress />
+              </Box>
+            )}
 
         {/* Dashboard Tab */}
         {activeTab === 'dashboard' && !loading && overview && (
@@ -505,14 +501,11 @@ export default function AgentManagerConsole() {
                       >
                         {agent.name.charAt(0)}
                       </Box>
-                      <Box
-                        sx={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
-                        onClick={() => router.push(`/system/agentmanager/agent-detail?id=${agent.id}`)}
-                      >
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
                         <Typography variant="subtitle1" sx={{ fontWeight: 600 }} noWrap>{agent.name}</Typography>
                         <Typography variant="caption" color="text.secondary">{agent.role} · {agent.model}</Typography>
                       </Box>
-                      <IconButton size="small" onClick={() => openStudio('agent', agent.id)} title="编辑">
+                      <IconButton size="small" onClick={() => openStudio('agent', agent.id)} title="编辑(包含关联资源管理)">
                         <EditOutlinedIcon fontSize="small" />
                       </IconButton>
                       <IconButton size="small" color="error" onClick={() => handleDeleteAgent(agent)} title="删除">
@@ -709,14 +702,7 @@ export default function AgentManagerConsole() {
             <ModelProviderManager />
           </Box>
         )}
-
-        {/* 工作流任务管理 Tab:执行记录 + 步骤日志 + 定时调度 */}
-        {activeTab === 'workflow-runs' && (
-          <Box>
-            <WorkflowRunsManager />
-          </Box>
-        )}
-        </>
+          </>
         )}
       </Box>
     </Box>

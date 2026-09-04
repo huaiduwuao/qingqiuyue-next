@@ -572,6 +572,10 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   // handle 引用稳定（deps=[] 只跑一次），方法内部用 ref 读最新值
   const handle: VrmStageHandle = useMemo(() => {
     devLog.debug('[VrmStage] handle 已构造（useMemo, 只跑一次）');
+    // 全局调试：方便在控制台测试
+    if (typeof window !== 'undefined') {
+      (window as any).__vrmStageHandle = null; // 先清空，等下面赋值
+    }
     return {
       setEmotion: (dict) => {
         if (!vrmDataRef.current?.expressionManager) { devLog.warn('[VrmStage.setEmotion] expressionManager 未就绪'); return; }
@@ -737,6 +741,10 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   // 同步给内部 ref（让 forwardRef 的 ref 也能拿到 —— 即使父组件没传 ref）
   handleInternalRef.current = handle;
   if (ref) (ref as React.MutableRefObject<VrmStageHandle | null>).current = handle;
+  // 全局调试变量（方便在控制台测试）
+  if (typeof window !== 'undefined') {
+    (window as any).__vrmStageHandle = handle;
+  }
 
   // useEffect: handle 构造后通知父组件（只触发一次）
   const onReadyCalledRef = useRef(false);

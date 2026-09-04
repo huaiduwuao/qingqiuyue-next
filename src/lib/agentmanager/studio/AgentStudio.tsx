@@ -1,52 +1,341 @@
 'use client'
 
 /**
- * Agent 工作室 —— 关联图编辑
- * 画布即「Agent 关联图」:Agent 居中,技能/MCP/工作流/记忆节点。
- * 从 Agent 节点连一条线到实体节点 = 建立关联;删除该线 = 解除关联。
- * 保存时:先存 Agent 基本信息,再把当前连线 diff 已有关联,批量 link/unlink。
- * 可添加实体(技能/MCP)从全局列表选择加入画布;工作流/记忆为 per-agent,经对话或后续在详情页建。
+ * Agent 工作室
+ * 对话只是协助:生成的名称/描述/提示词先进表单与画布草稿,
+ * 用户修改后点「保存」才落库。画布(Agent 关联结构)可编辑。
+ * 关联资源(技能/MCP/记忆/工作流)直接在右侧面板管理。
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Box from '@mui/material/Box'
+import Typography from '@mui/material/Typography'
 import TextField from '@mui/material/TextField'
 import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
 import MenuItem from '@mui/material/MenuItem'
-import FormControlLabel from '@mui/material/FormControlLabel'
-import Switch from '@mui/material/Switch'
-import Tooltip from '@mui/material/Tooltip'
+import IconButton from '@mui/material/IconButton'
+import Dialog from '@mui/material/Dialog'
+import DialogTitle from '@mui/material/DialogTitle'
+import DialogContent from '@mui/material/DialogContent'
+import DialogActions from '@mui/material/DialogActions'
+import List from '@mui/material/List'
+import ListItem from '@mui/material/ListItem'
+import ListItemButton from '@mui/material/ListItemButton'
+import ListItemText from '@mui/material/ListItemText'
+import AddIcon from '@mui/icons-material/Add'
+import DeleteIcon from '@mui/icons-material/Delete'
+import CloseIcon from '@mui/icons-material/Close'
 
-import { agentmAPI, type Agent, type ModelProvider, type Skill } from '../api'
+import { agentmAPI, type Agent, type ModelProvider } from '../api'
 import { agentmExtendedAPI } from '../api-extended'
 import { canvasAPI } from '../canvas/api'
 import type { AgentAssociations } from '../canvas/types'
-import StudioLayout, { type ChatMessage } from './StudioLayout'
+import StudioLayout from './StudioLayout'
 import EditableGraph, { type EditableGraphRef, type DraftNode, type DraftEdge } from './EditableGraph'
 
 const NODE_PALETTE = [
+  { kind: 'agent', label: 'Agent' },
   { kind: 'skill', label: '技能' },
   { kind: 'workflow', label: '工作流' },
   { kind: 'mcp', label: 'MCP' },
   { kind: 'memory', label: '记忆' },
 ]
 
-// 实体节点 id 规则:entityKind-refId,与关联 id 对应
-const eid = (kind: string, refId: number) => `${kind}-${refId}`
+// 选择弹窗类型
+type SelectDialogType = 'skill' | 'mcp' | null
 
-interface MCPServerLite {
-  id: number
-  name: string
+// 选择弹窗
+function SelectDialog({ type, onClose, onSelect }: { type: SelectDialogType; onClose: () => void; onSelect: (id: number) => void }) {
+  const [list, setList] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!type) return
+    ;(async () => {
+      setLoading(true)
+      try {
+        if (type === 'skill') {
+          const res = await agentmAPI.listSkills({ limit: 200 })
+          setList(res.list || [])
+        } else if (type === 'mcp') {
+          const res = await agentmExtendedAPI.listMCPServers()
+          setList(res.list || [])
+        }
+      } catch {
+        setList([])
+      } finally {
+        setLoading(false)
+      }
+    })()
+  }, [type])
+
+  const title = type === 'skill' ? '选择技能' : '选择 MCP 服务器'
+
+  return (
+    <Dialog open={!!type} onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        {title}
+        <IconButton size="small" onClick={onClose}><CloseIcon /></IconButton>
+      </DialogTitle>
+      <DialogContent sx={{ p: 0, maxHeight: 400 }}>
+        {loading ? (
+          <Box sx={{ p: 3, textAlign: 'center' }}>加载中…</Box>
+        ) : list.length === 0 ? (
+          <Box sx={{ p: 3, textAlign: 'center', color: 'text.secondary' }}>暂无可用选项</Box>
+        ) : (
+          <List dense>
+            {list.map((item) => (
+              <ListItem key={item.id} disablePadding>
+                <ListItemButton onClick={() => onSelect(item.id)}>
+                  <ListItemText
+                    primary={item.name}
+                    secondary={type === 'skill' ? item.category : `${item.tool_count} 个工具`}
+                  />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
+        )}
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// 创建工作流弹窗
+function CreateWorkflowDialog({ agentId, open, onClose, onCreated }: { agentId: number; open: boolean; onClose: () => void; onCreated: () => void }) {
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const handleCreate = async () => {
+    if (!name.trim()) return
+    setSaving(true)
+    try {
+      await canvasAPI.createWorkflow(agentId, {
+        name: name.trim(),
+        description: description.trim(),
+        workflow_json: '{}',
+        workflow_type: 'sequential',
+      })
+      onCreated()
+      onClose()
+    } catch (e: any) {
+      alert(`创建失败: ${e.message}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle>创建工作流</DialogTitle>
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+        <TextField label="名称" size="small" fullWidth value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+        <TextField label="描述" size="small" fullWidth value={description} onChange={(e) => setDescription(e.target.value)} multiline rows={2} />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>取消</Button>
+        <Button variant="contained" onClick={handleCreate} disabled={saving || !name.trim()}>
+          {saving ? '创建中…' : '创建'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
+// 创建记忆弹窗
+function CreateMemoryDialog({ agentId, open, onClose, onCreated }: { agentId: number; open: boolean; onClose: () => void; onCreated: () => void }) {
+  const [name, setName] = useState('')
+  const [content, setContent] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const handleCreate = async () => {
+    if (!name.trim()) return
+    setSaving(true)
+    try {
+      await canvasAPI.setMemory(agentId, { name: name.trim(), content: content.trim(), memory_type: 'long_term' })
+      onCreated()
+      onClose()
+    } catch (e: any) {
+      alert(`创建失败: ${e.message}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle>添加记忆</DialogTitle>
+      <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+        <TextField label="名称" size="small" fullWidth value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+        <TextField label="内容" size="small" fullWidth value={content} onChange={(e) => setContent(e.target.value)} multiline rows={3} />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>取消</Button>
+        <Button variant="contained" onClick={handleCreate} disabled={saving || !name.trim()}>
+          {saving ? '添加中…' : '添加'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
+// 关联资源面板
+function AssociationPanel({ agentId, onMsg }: { agentId: number; onMsg: (msg: string) => void }) {
+  const [assoc, setAssoc] = useState<AgentAssociations | null>(null)
+  const [selectDialog, setSelectDialog] = useState<SelectDialogType>(null)
+  const [createWorkflowDialog, setCreateWorkflowDialog] = useState(false)
+  const [createMemoryDialog, setCreateMemoryDialog] = useState(false)
+
+  const refresh = useCallback(async () => {
+    try {
+      const data = await canvasAPI.getAssociations(agentId)
+      setAssoc(data)
+    } catch { /* ignore */ }
+  }, [agentId])
+
+  useEffect(() => { refresh() }, [refresh])
+
+  // 绑定技能
+  const handleLinkSkill = async (skillId: number) => {
+    try {
+      await canvasAPI.linkSkill(agentId, skillId)
+      await refresh()
+      onMsg('✅ 技能已绑定')
+    } catch (e: any) { onMsg(`绑定失败: ${e.message}`) }
+  }
+
+  // 解绑技能
+  const handleUnlinkSkill = async (skillId: number) => {
+    try {
+      await canvasAPI.unlinkSkill(agentId, skillId)
+      await refresh()
+      onMsg('✅ 技能已解绑')
+    } catch (e: any) { onMsg(`解绑失败: ${e.message}`) }
+  }
+
+  // 绑定 MCP
+  const handleLinkMCP = async (mcpId: number) => {
+    try {
+      await canvasAPI.linkMCP(agentId, mcpId)
+      await refresh()
+      onMsg('✅ MCP 已绑定')
+    } catch (e: any) { onMsg(`绑定失败: ${e.message}`) }
+  }
+
+  // 解绑 MCP
+  const handleUnlinkMCP = async (mcpId: number) => {
+    try {
+      await canvasAPI.unlinkMCP(agentId, mcpId)
+      await refresh()
+      onMsg('✅ MCP 已解绑')
+    } catch (e: any) { onMsg(`解绑失败: ${e.message}`) }
+  }
+
+  // 删除记忆
+  const handleDeleteMemory = async (memoryId: number) => {
+    try {
+      await canvasAPI.deleteMemory(agentId, memoryId)
+      await refresh()
+      onMsg('✅ 记忆已删除')
+    } catch (e: any) { onMsg(`删除失败: ${e.message}`) }
+  }
+
+  // 删除工作流
+  const handleDeleteWorkflow = async (workflowId: number) => {
+    try {
+      await canvasAPI.deleteWorkflow(agentId, workflowId)
+      await refresh()
+      onMsg('✅ 工作流已删除')
+    } catch (e: any) { onMsg(`删除失败: ${e.message}`) }
+  }
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>关联资源</Typography>
+
+      {/* 技能 */}
+      <Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+          <Typography variant="caption" sx={{ fontWeight: 600 }}>⚡ 技能</Typography>
+          <Typography variant="caption" color="text.secondary">({assoc?.skills?.length ?? 0})</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          {(assoc?.skills || []).map((s) => (
+            <Box key={s.skill_id} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 0.5, bgcolor: 'action.hover', borderRadius: 1 }}>
+              <Typography variant="caption" sx={{ flex: 1 }}>{s.skill_name}</Typography>
+              <IconButton size="small" color="error" onClick={() => handleUnlinkSkill(s.skill_id)}><DeleteIcon fontSize="small" /></IconButton>
+            </Box>
+          ))}
+          <Button size="small" variant="outlined" onClick={() => setSelectDialog('skill')} startIcon={<AddIcon />}>绑定技能</Button>
+        </Box>
+      </Box>
+
+      {/* MCP */}
+      <Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+          <Typography variant="caption" sx={{ fontWeight: 600 }}>🔌 MCP</Typography>
+          <Typography variant="caption" color="text.secondary">({assoc?.mcps?.length ?? 0})</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          {(assoc?.mcps || []).map((m) => (
+            <Box key={m.mcp_server_id} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 0.5, bgcolor: 'action.hover', borderRadius: 1 }}>
+              <Typography variant="caption" sx={{ flex: 1 }}>{m.mcp_server_name}</Typography>
+              <IconButton size="small" color="error" onClick={() => handleUnlinkMCP(m.mcp_server_id)}><DeleteIcon fontSize="small" /></IconButton>
+            </Box>
+          ))}
+          <Button size="small" variant="outlined" onClick={() => setSelectDialog('mcp')} startIcon={<AddIcon />}>绑定 MCP</Button>
+        </Box>
+      </Box>
+
+      {/* 记忆 */}
+      <Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+          <Typography variant="caption" sx={{ fontWeight: 600 }}>🧠 记忆</Typography>
+          <Typography variant="caption" color="text.secondary">({assoc?.memories?.length ?? 0})</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          {(assoc?.memories || []).map((mm) => (
+            <Box key={mm.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 0.5, bgcolor: 'action.hover', borderRadius: 1 }}>
+              <Typography variant="caption" sx={{ flex: 1 }}>{mm.name}</Typography>
+              <IconButton size="small" color="error" onClick={() => handleDeleteMemory(mm.id)}><DeleteIcon fontSize="small" /></IconButton>
+            </Box>
+          ))}
+          <Button size="small" variant="outlined" onClick={() => setCreateMemoryDialog(true)} startIcon={<AddIcon />}>添加记忆</Button>
+        </Box>
+      </Box>
+
+      {/* 工作流 */}
+      <Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+          <Typography variant="caption" sx={{ fontWeight: 600 }}>🔀 工作流</Typography>
+          <Typography variant="caption" color="text.secondary">({assoc?.workflows?.length ?? 0})</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          {(assoc?.workflows || []).map((w) => (
+            <Box key={w.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 0.5, bgcolor: 'action.hover', borderRadius: 1 }}>
+              <Typography variant="caption" sx={{ flex: 1 }}>{w.name}</Typography>
+              <IconButton size="small" color="error" onClick={() => handleDeleteWorkflow(w.id)}><DeleteIcon fontSize="small" /></IconButton>
+            </Box>
+          ))}
+          <Button size="small" variant="outlined" onClick={() => setCreateWorkflowDialog(true)} startIcon={<AddIcon />}>创建工作流</Button>
+        </Box>
+      </Box>
+
+      {/* 弹窗 */}
+      <SelectDialog type={selectDialog} onClose={() => setSelectDialog(null)} onSelect={(id) => { if (selectDialog === 'skill') handleLinkSkill(id); else if (selectDialog === 'mcp') handleLinkMCP(id); setSelectDialog(null) }} />
+      <CreateWorkflowDialog agentId={agentId} open={createWorkflowDialog} onClose={() => setCreateWorkflowDialog(false)} onCreated={refresh} />
+      <CreateMemoryDialog agentId={agentId} open={createMemoryDialog} onClose={() => setCreateMemoryDialog(false)} onCreated={refresh} />
+    </Box>
+  )
 }
 
 export default function AgentStudio({ editingId = null, onLoaded }: { editingId?: number | null; onLoaded?: (name: string) => void }) {
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [generating, setGenerating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
 
-  // Agent 基本信息草稿
+  // 草稿
   const [agentId, setAgentId] = useState<number | null>(null)
   const [name, setName] = useState('')
   const [role, setRole] = useState('assistant')
@@ -54,20 +343,10 @@ export default function AgentStudio({ editingId = null, onLoaded }: { editingId?
   const [providers, setProviders] = useState<ModelProvider[]>([])
   const [desc, setDesc] = useState('')
   const [prompt, setPrompt] = useState('')
-  // 2026-08: Hermes 路由开关
-  const [routeToHermes, setRouteToHermes] = useState(false)
-
-  // 关联图
-  const [assoc, setAssoc] = useState<AgentAssociations | null>(null)
-  const [allSkills, setAllSkills] = useState<Skill[]>([])
-  const [allMcps, setAllMcps] = useState<MCPServerLite[]>([])
-  const [addSkillId, setAddSkillId] = useState<number | ''>('')
-  const [addMcpId, setAddMcpId] = useState<number | ''>('')
-
   const graphRef = useRef<EditableGraphRef>(null)
   const draftRef = useRef<{ nodes: DraftNode[]; edges: DraftEdge[] }>({ nodes: [], edges: [] })
 
-  // 加载模型供应商 + 全局技能/MCP 列表
+  // 加载可用模型供应商(llm/codingplan),供 Agent 绑定
   useEffect(() => {
     ;(async () => {
       const [llm, cp] = await Promise.all([
@@ -76,33 +355,80 @@ export default function AgentStudio({ editingId = null, onLoaded }: { editingId?
       ])
       const all = [...(cp.list || []), ...(llm.list || [])].filter((p) => p.enabled)
       setProviders(all)
+      // 默认选默认供应商的模型
       if (!model && all.length) {
         const def = all.find((p) => p.is_default) ?? all[0]
         if (def?.model) setModel(def.model)
       }
-      // 全局技能 / MCP
-      const sk = await agentmAPI.listSkills().catch(() => ({ list: [] as Skill[], total: 0 }))
-      setAllSkills(sk.list || [])
-      const mc = await agentmExtendedAPI.listMCPServers().catch(() => ({ list: [] as any[] }))
-      setAllMcps((mc.list || []).map((s: any) => ({ id: s.id, name: s.name ?? s.server_name ?? `MCP #${s.id}` })))
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 编辑模式:加载 Agent + 关联,灌入画布
+  // 编辑模式:按 id 拉 Agent 灌入草稿
   useEffect(() => {
     if (!editingId) return
     ;(async () => {
       const a = await agentmAPI.getAgentById(editingId).catch(() => null)
-      if (!a) return
-      const assocData = await canvasAPI.getAssociations(editingId).catch(() => null)
-      loadIntoDraft(a, assocData)
+      if (a) loadIntoDraft(a)
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingId])
 
-  // 把 Agent + 关联灌入画布(Agent 居中,实体环绕,已关联的连线)
-  const loadIntoDraft = (a: Agent, assocData: AgentAssociations | null) => {
+  // 加载关联资源到画布
+  const loadAssociationsToGraph = useCallback(async (aId: number) => {
+    try {
+      const assoc = await canvasAPI.getAssociations(aId)
+      console.log('加载关联资源:', assoc)
+      const newNodes: DraftNode[] = []
+      const newEdges: DraftEdge[] = []
+
+      // Agent 节点（中心顶部）
+      const agentY = 80
+      newNodes.push({ id: 'agent', label: name || 'Agent', sub: role, kind: 'agent', x: 400, y: agentY, config: {} })
+
+      // 技能节点（Agent 上方，水平排列）
+      let xPos = 50
+      const skillY = 250
+      for (const s of assoc.skills || []) {
+        newNodes.push({ id: `skill-${s.skill_id}`, label: s.skill_name, sub: s.skill_category, kind: 'skill', x: xPos, y: skillY, config: {} })
+        newEdges.push({ id: `e-skill-${s.skill_id}`, source: `skill-${s.skill_id}`, target: 'agent' })
+        xPos += 160
+      }
+
+      // MCP 节点（Agent 下方，水平排列）
+      xPos = 50
+      const mcpY = 420
+      for (const m of assoc.mcps || []) {
+        newNodes.push({ id: `mcp-${m.mcp_server_id}`, label: m.mcp_server_name, sub: 'MCP', kind: 'mcp', x: xPos, y: mcpY, config: {} })
+        newEdges.push({ id: `e-mcp-${m.mcp_server_id}`, source: 'agent', target: `mcp-${m.mcp_server_id}` })
+        xPos += 160
+      }
+
+      // 记忆节点（MCP 下方，水平排列）
+      xPos = 50
+      const memY = 590
+      for (const mm of assoc.memories || []) {
+        newNodes.push({ id: `memory-${mm.id}`, label: mm.name, sub: '记忆', kind: 'memory', x: xPos, y: memY, config: {} })
+        xPos += 160
+      }
+
+      // 工作流节点（记忆下方，水平排列）
+      xPos = 50
+      const wfY = 760
+      for (const w of assoc.workflows || []) {
+        newNodes.push({ id: `workflow-${w.id}`, label: w.name, sub: '工作流', kind: 'workflow', x: xPos, y: wfY, config: {} })
+        xPos += 160
+      }
+
+      console.log('设置画布数据:', { nodes: newNodes.length, edges: newEdges.length })
+      graphRef.current?.setData(newNodes, newEdges)
+      console.log('画布数据已设置')
+    } catch (e) {
+      console.error('加载关联失败:', e)
+    }
+  }, [name, role])
+
+  const loadIntoDraft = (a: Agent) => {
     setAgentId(a.id)
     setName(a.name)
     onLoaded?.(a.name)
@@ -110,74 +436,12 @@ export default function AgentStudio({ editingId = null, onLoaded }: { editingId?
     setModel(a.model ?? '')
     setDesc(a.description ?? '')
     setPrompt((a as any).system_prompt ?? '')
-    // 2026-08: 加载 Hermes 路由开关
-    setRouteToHermes((a as any).route_to_hermes ?? false)
-    setAssoc(assocData)
-
-    const nodes: DraftNode[] = [
-      { id: 'agent', label: a.name, sub: a.role, kind: 'agent', x: 360, y: 220, config: { description: a.description, system_prompt: (a as any).system_prompt } },
-    ]
-    const edges: DraftEdge[] = []
-    let angle = -90
-    const R = 240
-    const place = (kind: string, refId: number, label: string, sub?: string) => {
-      const rad = (angle * Math.PI) / 180
-      const id = eid(kind, refId)
-      nodes.push({
-        id,
-        label,
-        sub: sub ?? kind,
-        kind,
-        x: 360 + R * Math.cos(rad),
-        y: 220 + R * Math.sin(rad),
-        config: { refId },
-      })
-      edges.push({ id: `e-${id}`, source: 'agent', target: id })
-      angle += 40
-    }
-    ;(assocData?.skills ?? []).forEach((s) => place('skill', s.skill_id, s.skill_name, s.skill_category))
-    ;(assocData?.mcps ?? []).forEach((m) => place('mcp', m.mcp_server_id, m.mcp_server_name, `${m.mcp_tool_count} 工具`))
-    ;(assocData?.workflows ?? []).forEach((w) => place('workflow', w.id, w.name, w.workflow_type))
-    ;(assocData?.memories ?? []).forEach((m) => place('memory', m.id, m.name, m.memory_type))
-
-    graphRef.current?.setData(nodes, edges)
     setDirty(false)
+    // 延迟加载关联资源
+    setTimeout(() => loadAssociationsToGraph(a.id), 100)
   }
 
-  // 对话协助:把需求转成名称/描述/提示词草稿,不落库
-  const handleSend = async (text: string) => {
-    setMessages((m) => [...m, { role: 'user', text }])
-    setGenerating(true)
-    try {
-      const genName = text.split(/[\n,。.]/)[0].slice(0, 20) || '新 Agent'
-      if (!name) setName(genName)
-      setDesc(text)
-      setPrompt((p) => p || `你是 ${genName}。${text}`)
-      // 新建模式还没有关联,先放 Agent 节点
-      if (!agentId) {
-        graphRef.current?.setData(
-          [{ id: 'agent', label: genName, sub: role, kind: 'agent', x: 360, y: 220, config: { description: text, system_prompt: `你是 ${genName}。${text}` } }],
-          [],
-        )
-      }
-      setDirty(true)
-      setMessages((m) => [...m, { role: 'assistant', text: `已根据描述填好「${genName}」的草稿。在右侧画布连线关联技能/MCP 后点「保存」。` }])
-    } finally {
-      setGenerating(false)
-    }
-  }
-
-  // 从全局列表加入实体节点(未连线,用户再连线建立关联)
-  const addEntityNode = (kind: string, refId: number, label: string, sub?: string) => {
-    const d = graphRef.current?.getData() ?? draftRef.current
-    const id = eid(kind, refId)
-    if (d.nodes.some((n) => n.id === id)) return // 已在画布
-    const nodes = [...d.nodes, { id, label, sub: sub ?? kind, kind, x: 360 + (Math.random() * 320 - 160), y: 60 + Math.random() * 80, config: { refId } }]
-    graphRef.current?.setData(nodes, d.edges)
-    setDirty(true)
-  }
-
-  // 保存:存 Agent 基本信息 + 按连线 diff 关联(link/unlink)
+    // 保存:新建 create / 编辑 update
   const handleSave = async () => {
     if (!name.trim()) {
       alert('请填写 Agent 名称')
@@ -185,35 +449,20 @@ export default function AgentStudio({ editingId = null, onLoaded }: { editingId?
     }
     setSaving(true)
     try {
-      // 1. 存基本信息(从 Agent 节点 config 读描述/Prompt,可能被双击改过)
-      const draft = graphRef.current?.getData() ?? draftRef.current
-      const agentNode = draft.nodes.find((n) => n.id === 'agent')
-      const cfg = agentNode?.config ?? {}
       const payload = {
         name,
         role: role || 'assistant',
         model,
-        description: cfg.description ?? desc,
-        system_prompt: cfg.system_prompt ?? prompt,
-        // 2026-08: Hermes 路由开关
-        route_to_hermes: routeToHermes,
+        description: desc,
+        system_prompt: prompt,
       }
-      let aid = agentId
-      if (aid) {
-        await agentmAPI.updateAgent(aid, payload)
+      if (agentId) {
+        await agentmAPI.updateAgent(agentId, payload)
       } else {
         const created = await agentmAPI.createAgent({ ...payload, role_type: 'general', status: 'draft', published: false, tags: [], capabilities: [] })
-        aid = created.id
-        setAgentId(aid)
+        setAgentId(created.id)
       }
-
-      // 2. 按连线 diff 关联:画布上 agent→实体 的线 = 期望关联
-      if (aid) {
-        await syncAssociations(aid, draft)
-      }
-
       setDirty(false)
-      setMessages((m) => [...m, { role: 'assistant', text: `✅ Agent「${name}」已保存,关联已同步。` }])
     } catch (e: any) {
       alert(`保存失败: ${e.message}`)
     } finally {
@@ -221,122 +470,125 @@ export default function AgentStudio({ editingId = null, onLoaded }: { editingId?
     }
   }
 
-  // 把画布连线同步到后端关联(link 新增,unlink 移除)
-  const syncAssociations = async (aid: number, draft: { nodes: DraftNode[]; edges: DraftEdge[] }) => {
-    // 画布上 agent→实体 的关联集合
-    const want = { skill: new Set<number>(), mcp: new Set<number>() }
-    draft.edges.forEach((e) => {
-      if (e.source !== 'agent') return
-      const node = draft.nodes.find((n) => n.id === e.target)
-      if (!node?.config?.refId) return
-      if (node.kind === 'skill') want.skill.add(node.config.refId)
-      if (node.kind === 'mcp') want.mcp.add(node.config.refId)
-    })
-    // 已有关联
-    const have = {
-      skill: new Set((assoc?.skills ?? []).map((s) => s.skill_id)),
-      mcp: new Set((assoc?.mcps ?? []).map((m) => m.mcp_server_id)),
-    }
-    // link:想要但没有
-    for (const id of want.skill) if (!have.skill.has(id)) await canvasAPI.linkSkill(aid, id).catch(() => {})
-    for (const id of want.mcp) if (!have.mcp.has(id)) await canvasAPI.linkMCP(aid, id).catch(() => {})
-    // unlink:有但不想要
-    for (const id of have.skill) if (!want.skill.has(id)) await canvasAPI.unlinkSkill(aid, id).catch(() => {})
-    for (const id of have.mcp) if (!want.mcp.has(id)) await canvasAPI.unlinkMCP(aid, id).catch(() => {})
-    // 刷新关联快照
-    const fresh = await canvasAPI.getAssociations(aid).catch(() => null)
-    setAssoc(fresh)
-  }
-
   const markDirty = useCallback((nodes: DraftNode[], edges: DraftEdge[]) => {
     draftRef.current = { nodes, edges }
     setDirty(true)
   }, [])
 
-  // 画布上方:名称/角色/绑定模型 + 添加技能/MCP + 保存
-  const propBar = (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', flex: '0 0 auto' }}>
-      <TextField size="small" label="名称" value={name} onChange={(e) => { setName(e.target.value); setDirty(true) }} sx={{ minWidth: 130 }} />
-      <TextField size="small" label="角色" value={role} onChange={(e) => { setRole(e.target.value); setDirty(true) }} sx={{ minWidth: 100 }} />
-      <TextField select size="small" label="绑定模型" value={model} onChange={(e) => { setModel(e.target.value); setDirty(true) }} sx={{ minWidth: 170 }}>
+  const manualForm = (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Typography variant="body2" color="text.secondary">
+          {agentId ? `编辑 Agent #${agentId}` : '新 Agent 草稿'}
+        </Typography>
+        {dirty && <Chip size="small" label="未保存" color="warning" />}
+      </Box>
+      <TextField size="small" label="名称" value={name} onChange={(e) => { setName(e.target.value); setDirty(true) }} />
+      <TextField size="small" label="角色" value={role} onChange={(e) => { setRole(e.target.value); setDirty(true) }} />
+      <TextField
+        select
+        size="small"
+        label="绑定模型(大脑)"
+        value={model}
+        onChange={(e) => { setModel(e.target.value); setDirty(true) }}
+        helperText={providers.length === 0 ? '未配置模型供应商,请先到「🧠 模型管理」添加' : '来自模型管理的 LLM / CodingPlan 供应商'}
+      >
         {providers.map((p) => (
-          <MenuItem key={p.id} value={p.model}>{p.name} · {p.model}{p.is_default ? ' (默认)' : ''}</MenuItem>
+          <MenuItem key={p.id} value={p.model}>
+            {p.name} · {p.model}{p.is_default ? ' (默认)' : ''}
+          </MenuItem>
         ))}
-        {model && !providers.some((p) => p.model === model) && <MenuItem value={model}>{model}(当前)</MenuItem>}
+        {model && !providers.some((p) => p.model === model) && (
+          <MenuItem value={model}>{model}(当前)</MenuItem>
+        )}
       </TextField>
-
-      {/* 添加技能 / MCP 到画布(再连线建立关联) */}
-      <TextField select size="small" label="+ 技能" value={addSkillId} onChange={(e) => {
-        const id = Number(e.target.value)
-        const s = allSkills.find((x) => x.id === id)
-        if (s) addEntityNode('skill', s.id, s.name, s.category)
-        setAddSkillId('')
-      }} sx={{ minWidth: 130 }}>
-        <MenuItem value=""><em>选技能…</em></MenuItem>
-        {allSkills.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
-      </TextField>
-      <TextField select size="small" label="+ MCP" value={addMcpId} onChange={(e) => {
-        const id = Number(e.target.value)
-        const s = allMcps.find((x) => x.id === id)
-        if (s) addEntityNode('mcp', s.id, s.name, 'MCP')
-        setAddMcpId('')
-      }} sx={{ minWidth: 130 }}>
-        <MenuItem value=""><em>选 MCP…</em></MenuItem>
-        {allMcps.map((s) => <MenuItem key={s.id} value={s.id}>{s.name}</MenuItem>)}
-      </TextField>
-
-      {/* 2026-08: Hermes 路由开关 */}
-      <Tooltip title="开启后,数字人对话时走 Hermes dashboard(可使用 Hermes Skills)">
-        <FormControlLabel
-          control={
-            <Switch
-              size="small"
-              checked={routeToHermes}
-              onChange={(e) => { setRouteToHermes(e.target.checked); setDirty(true) }}
-            />
-          }
-          label={
-            <Chip
-              size="small"
-              label="Hermes"
-              icon={<span style={{ fontSize: 12 }}>🤖</span>}
-              color={routeToHermes ? 'primary' : 'default'}
-              variant={routeToHermes ? 'filled' : 'outlined'}
-            />
-          }
-          sx={{ ml: 1 }}
-        />
-      </Tooltip>
-
-      {dirty && <Chip size="small" label="未保存" color="warning" variant="outlined" />}
-      <Button size="small" variant="contained" onClick={handleSave} disabled={saving || !name.trim()}>
+      <TextField size="small" label="描述" value={desc} onChange={(e) => { setDesc(e.target.value); setDirty(true) }} multiline rows={2} />
+      <TextField size="small" label="System Prompt" value={prompt} onChange={(e) => { setPrompt(e.target.value); setDirty(true) }} multiline rows={5} />
+      <Button variant="contained" onClick={handleSave} disabled={saving || !name.trim()}>
         {saving ? '保存中…' : agentId ? '💾 保存修改' : '💾 保存 Agent'}
       </Button>
     </Box>
   )
 
+  // 消息回调
+  const [studioMsg, setStudioMsg] = useState('')
+
+  const showMsg = (msg: string) => {
+    setStudioMsg(msg)
+    setTimeout(() => setStudioMsg(''), 3000)
+  }
+
   return (
-    <StudioLayout
-      title="🤖 Agent 工作室"
-      chatPlaceholder="描述你想要的 Agent,例如:一个帮我整理每日新闻摘要并推送的助手"
-      generating={generating}
-      messages={messages}
-      onSend={handleSend}
-      listPanel={null}
-      showList={false}
-      graph={
-        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 1 }}>
-          {propBar}
+    <Box sx={{ display: 'flex', gap: 2, height: '100%', minHeight: 0 }}>
+      {/* 左:对话 + 手动表单 */}
+      <Box sx={{ width: 400, flexShrink: 0, display: 'flex', flexDirection: 'column', border: 1, borderColor: 'divider', borderRadius: 2, overflow: 'hidden', bgcolor: 'background.paper' }}>
+        <Box sx={{ px: 2, py: 1.5, borderBottom: 1, borderColor: 'divider' }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>🤖 Agent 工作室</Typography>
+        </Box>
+        <Box sx={{ flex: 1, overflowY: 'auto', p: 2 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Typography variant="body2" color="text.secondary">
+                {agentId ? `编辑 Agent #${agentId}` : '新 Agent 草稿'}
+              </Typography>
+              {dirty && <Chip size="small" label="未保存" color="warning" />}
+            </Box>
+            <TextField size="small" label="名称" value={name} onChange={(e) => { setName(e.target.value); setDirty(true) }} />
+            <TextField size="small" label="角色" value={role} onChange={(e) => { setRole(e.target.value); setDirty(true) }} />
+            <TextField
+              select
+              size="small"
+              label="绑定模型(大脑)"
+              value={model}
+              onChange={(e) => { setModel(e.target.value); setDirty(true) }}
+              helperText={providers.length === 0 ? '未配置模型供应商' : ''}
+            >
+              {providers.map((p) => (
+                <MenuItem key={p.id} value={p.model}>{p.name} · {p.model}{p.is_default ? ' (默认)' : ''}</MenuItem>
+              ))}
+            </TextField>
+            <TextField size="small" label="描述" value={desc} onChange={(e) => { setDesc(e.target.value); setDirty(true) }} multiline rows={2} />
+            <TextField size="small" label="System Prompt" value={prompt} onChange={(e) => { setPrompt(e.target.value); setDirty(true) }} multiline rows={5} />
+            <Button variant="contained" onClick={handleSave} disabled={saving || !name.trim()}>
+              {saving ? '保存中…' : agentId ? '💾 保存修改' : '💾 保存 Agent'}
+            </Button>
+          </Box>
+        </Box>
+      </Box>
+
+      {/* 右:关联资源 + 画布 */}
+      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+        {agentId ? (
+          <Box sx={{ flex: '0 0 200px', overflowY: 'auto', border: 1, borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper', p: 2 }}>
+            <AssociationPanel agentId={agentId} onMsg={showMsg} />
+          </Box>
+        ) : (
+          <Box sx={{ flex: '0 0 auto', p: 2, textAlign: 'center', color: 'text.secondary' }}>
+            先保存 Agent 后才能管理关联资源
+          </Box>
+        )}
+
+        {/* 画布 */}
+        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1, minHeight: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Typography variant="subtitle2">工作流画布</Typography>
+            <Box sx={{ flex: 1 }} />
+            {studioMsg && <Typography variant="caption" color={studioMsg.startsWith('✅') ? 'success.main' : 'error'}>{studioMsg}</Typography>}
+            {dirty && <Chip size="small" label="有未保存修改" color="warning" variant="outlined" />}
+            <Button size="small" variant="contained" onClick={handleSave} disabled={saving || !name.trim()}>
+              {saving ? '保存中…' : '💾 保存'}
+            </Button>
+          </Box>
           <Box sx={{ flex: 1, minHeight: 0 }}>
             <EditableGraph
               ref={graphRef}
               palette={NODE_PALETTE}
               onChange={markDirty}
-              emptyHint="对话生成 Agent 节点后,从上方加技能/MCP,再从 Agent 节点拖线连到它们即关联;改完点「保存」"
+              emptyHint="用左侧表单完善 Agent 信息,或点上方按钮添加关联节点"
             />
           </Box>
         </Box>
-      }
-    />
+      </Box>
+    </Box>
   )
 }
