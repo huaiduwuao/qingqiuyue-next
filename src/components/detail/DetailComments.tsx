@@ -102,7 +102,11 @@ export function DetailComments({ contentId, initialCount = 0, compact = false, c
   const [replyingTo, setReplyingTo] = useState<{ id: number; name: string } | null>(null);
   const [replyText, setReplyText] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
-  const [snack, setSnack] = useState({ open: false, message: '', severity: 'success' as const });
+  const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
+    open: false,
+    message: '',
+    severity: 'success',
+  });
   const [displayCount, setDisplayCount] = useState(initialCount);
   const [emojiAnchor, setEmojiAnchor] = useState<HTMLElement | null>(null);
   const [gifAnchor, setGifAnchor] = useState<HTMLElement | null>(null);
@@ -115,7 +119,7 @@ export function DetailComments({ contentId, initialCount = 0, compact = false, c
   const fetchComments = useCallback(async () => {
     setCommentsLoading(true);
     try {
-      const res = await getComments(contentId as string | number);
+      const res = await getComments(Number(contentId));
       const payload = (res as { data?: { list?: CommentItem[] } | CommentItem[] })?.data;
       const list: CommentItem[] = Array.isArray(payload) ? payload : payload?.list ?? [];
       setComments(list.map(c => ({ ...c, repliesExpanded: false, replies: [], replyCount: 0 })));
@@ -462,8 +466,8 @@ function CommentInput({
   onChange: (v: string) => void;
   onSend: () => void;
   sending: boolean;
-  onEmojiClick: (e: React.MouseEvent) => void;
-  onGifClick: (e: React.MouseEvent) => void;
+  onEmojiClick: (e: React.MouseEvent<HTMLElement>) => void;
+  onGifClick: (e: React.MouseEvent<HTMLElement>) => void;
   compact?: boolean;
 }) {
   return (

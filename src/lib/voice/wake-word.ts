@@ -199,7 +199,7 @@ class OpenWakeWordEngine {
 
       // 打印每帧分数(前 20 帧)
       if (this.audioBufferLen < 5000) {  // 只在开始时打印
-        voiceLog('debug', 'wake', `frame score: ${score?.toFixed(3) ?? 'null'}`)
+        voiceLog('info', 'wake', `frame score: ${score?.toFixed(3) ?? 'null'}`)
       }
 
       // 50% overlap 滑动: 左移半帧
@@ -211,6 +211,11 @@ class OpenWakeWordEngine {
   private async runFrame(frame: Float32Array): Promise<number | null> {
     if (!this.melSession || !this.wakeSession) return null
 
+    // 声明在 try 外面,这样 catch 块打印调试信息时(哪怕在拿到 shape 之后的
+    // 后续步骤才出错)也能引用到当时已解析出的 melShape/nMels,而不是 TDZ 报错
+    let melShape: readonly number[] | undefined
+    let nMels = 0
+
     try {
       // 1. melspectrogram
       const melInputName = this.melSession.inputNames[0]
@@ -220,10 +225,9 @@ class OpenWakeWordEngine {
       const melResult = await this.melSession.run(melFeeds)
       const melOut = melResult[melOutputName]
       const melData = melOut.data as Float32Array
-      const melShape = melOut.dims
+      melShape = melOut.dims
 
       // 解析 mel 输出形状, 得到 nMels
-      let nMels = 0
       let frameFeatures: Float32Array
       // 打印 shape 调试
       if (!this.runFrameErrorLogged) {

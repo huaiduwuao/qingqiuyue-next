@@ -106,6 +106,9 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
   const [isAIGenerated, setIsAIGenerated] = useStateSafe(false);
   /** 数字人是否在说话: 用于 voice agent 决定 VAD 段是否要丢 */
   const [isAvatarPlaying, setIsAvatarPlaying] = React.useState(false);
+  /** 思考过程日志;此 hook 走一次性 HTTP 响应,不像 useChatAvatarWS 那样流式拆出
+   *  <think> 片段,故这里始终为空,仅为满足 ChatAvatarState 接口一致性而保留 */
+  const [thinkingLog, setThinkingLog] = useStateSafe('');
 
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   const visemeTimelineRef = React.useRef<VisemeFrame[]>([]);
@@ -542,6 +545,8 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
     switchConversation: () => {},
     setEmotion: setEmotionExternal,
     setAction: setActionExternal,
+    thinkingLog,
+    setThinkingLog,
     setChatLog,
     setViseme: setEmotion, // viseme 复用 emotion 驱动(VrmStage 通过 emotion prop 驱动 blendshape)
     audioRef,
