@@ -11,6 +11,7 @@ import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import Replay10Icon from '@mui/icons-material/Replay10';
 import Forward10Icon from '@mui/icons-material/Forward10';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlineRounded';
 import CircularProgress from '@mui/material/CircularProgress';
 import AIGCBadge from '@/components/AIGCBadge';
 import { parseStream } from '@/apis/stream';
@@ -39,6 +40,13 @@ interface Props {
    * 而不是详情页那种固定 16:9 卡片。
    */
   fill?: boolean;
+  /**
+   * sourceUrl 解析失败时回调(拿到 streamError 那一刻触发)。VideoPlayer 本身不知道
+   * 调用方的 contentId/contentType 是什么,不在这里直接调举报接口——由调用方决定
+   * 要不要、以及怎么把"这条播不出来"这件事记下来(比如自动提交举报,让"暂时无法
+   * 播放"不只是前端一句提示,而是后台真能看到、能处理的信号)。
+   */
+  onPlaybackError?: (message: string) => void;
 }
 
 export interface VideoPlayerHandle {
@@ -55,7 +63,7 @@ function fmt(s: number) {
 }
 
 const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
-  { src, sourceUrl, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false, fill = false },
+  { src, sourceUrl, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false, fill = false, onPlaybackError },
   ref,
 ) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -97,13 +105,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
           setPlatformName(data.data.platformName || data.data.platform || '');
           setCurrentStream(0);
         } else {
-          setStreamError(data.msg || '无法解析视频流');
+          const msg = data.msg || '无法解析视频流';
+          setStreamError(msg);
+          onPlaybackError?.(msg);
         }
       })
       .catch(e => {
         if (cancelled || e?.name === 'AbortError') return;
         console.error('Stream parse error:', e);
         setStreamError('解析失败');
+        onPlaybackError?.('解析失败');
       })
       .finally(() => { if (!cancelled) setLoading(false); });
 
@@ -193,6 +204,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
               ? `分片加载失败: ${data.context?.url || ''}`
               : '播放失败，请尝试切换清晰度';
             setStreamError(msg);
+            onPlaybackError?.(msg);
           }
         });
       } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
@@ -365,6 +377,17 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
               setPlaying(false);
               onEnded?.();
             }}
+            onError={() => {
+              // mp4 直链模式(videoRef.current.src = playUrl)完全没有错误处理——
+              // 签名过期/链接失效时浏览器原生 <video> 会静默地一直停在黑屏、
+              // readyState=0,不报错也不重试,用户分不清是加载慢还是这条内容
+              // 根本放不出来。原生 error 事件是唯一能捕捉到这个的地方(hls.js
+              // 那条路径有自己的 Hls.Events.ERROR,mp4 直链没有等价物)。
+              const code = videoRef.current?.error?.code;
+              const msg = code === 4 ? '视频地址已失效' : '视频加载失败';
+              setStreamError(msg);
+              onPlaybackError?.(msg);
+            }}
             style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }}
           />
 
@@ -424,7 +447,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
             <CircularProgress sx={{ color: '#fff' }} />
           ) : streamError ? (
             <Box sx={{ textAlign: 'center', color: 'rgba(255,255,255,0.7)', p: 2 }}>
-              <Box sx={{ fontSize: 14, mb: 1 }}>{streamError}</Box>
+              <ErrorOutlineIcon sx={{ fontSize: 32, color: 'warning.main', mb: 0.5 }} />
+              <Box sx={{ fontSize: 14, fontWeight: 600, color: '#fff', mb: 0.5 }}>该内容暂时无法播放</Box>
+              <Box sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', mb: 1 }}>{streamError} · 已记录,尽快修复</Box>
               {streams.length > 0 && (
                 <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'center' }}>
                   {streams.map((s, i) => (
@@ -476,8 +501,41 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
       {/* AIGC 合规角标 */}
       {isAIGenerated && <AIGCBadge variant="overlay" top={10} left={10} label="AI 生成视频" />}
 
+      {/* hasVideo 为 true 时播放失败(mp4 直链签名过期、hls.js 致命错误等)——
+          之前 streamError 的文字提示只在 !hasVideo 分支里渲染,这种情况下
+          <video> 元素明明已经挂载、彻底放不出来,却没有任何反馈,用户看到的
+          就是一块卡死的黑屏,分不清是加载慢还是这条内容根本坏了。 */}
+      {hasVideo && streamError && (
+        <Box
+          data-no-drag
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 0.5,
+            px: 3,
+            py: 2,
+            borderRadius: 2,
+            bgcolor: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            textAlign: 'center',
+            maxWidth: 280,
+            zIndex: 5,
+          }}
+        >
+          <ErrorOutlineIcon sx={{ fontSize: 32, color: 'warning.main' }} />
+          <Box sx={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>该内容暂时无法播放</Box>
+          <Box sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>{streamError} · 已记录,尽快修复</Box>
+        </Box>
+      )}
+
       {/* 中心播放按钮 */}
-      {hasVideo && !playing && (
+      {hasVideo && !playing && !streamError && (
         <Box
           data-no-drag
           onClick={togglePlay}

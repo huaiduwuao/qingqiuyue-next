@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import CircularProgress from '@mui/material/CircularProgress';
 import Avatar from '@mui/material/Avatar';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
@@ -25,6 +26,7 @@ import StarRoundedIcon from '@mui/icons-material/StarRounded';
 import VerifiedRoundedIcon from '@mui/icons-material/VerifiedRounded';
 import QueueMusicRoundedIcon from '@mui/icons-material/QueueMusicRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import { fetchRecommend } from '@/apis/home-discover';
 import { sendComment, moduleContentAction } from '@/apis/home';
 import { reportContent, collectContent } from '@/apis/global';
@@ -75,6 +77,26 @@ function hashId(s: string): number {
 
 function getContentTypeColor(type: string) {
   return TYPE_GRADIENT[type] || TYPE_GRADIENT.NOVEL;
+}
+
+// 播放解析失败时自动举报,给"暂时无法播放"这句话一个真实的落点——不只是
+// 前端提示一下就完了,而是真的进了内容举报/审核队列,后台能看到、能处理。
+// 模块级 Set 去重:同一条内容这个会话里只报一次,不会因为用户来回划/组件
+// 重新挂载就反复提交重复举报。
+const reportedBrokenIds = new Set<string>();
+function reportBrokenContent(video: { id: number; idString?: string; contentType: string }, reason: string) {
+  const key = video.idString || String(video.id);
+  if (reportedBrokenIds.has(key)) return;
+  reportedBrokenIds.add(key);
+  reportContent({
+    targetId: video.id,
+    targetType: video.contentType || 'VIDEO',
+    reason: `[自动] 播放解析失败: ${reason}`,
+  }).catch(() => {
+    // 举报本身失败不影响播放体验,静默即可;下次这条内容再触发解析失败时,
+    // reportedBrokenIds 已经标记过,不会重试——但这只是同一会话内的最佳努力,
+    // 不是强保证,可以接受。
+  });
 }
 
 export function RecommendVideoFeed() {
@@ -249,30 +271,60 @@ export function RecommendVideoFeed() {
     setCollected(false);
     setVideoSrc('');
     setStreamError('');
-    if (video) {
-      setLikedCount(video.likes);
-      setCollectedCount(video.collects);
-      // 有 sourceUrl 时解析真实视频流
-      if (video.sourceUrl) {
-        setStreamLoading(true);
-        parseStream(video.sourceUrl)
-          .then(data => {
-            // 后端 /api/content/stream/resolve 成功时 code=200,本地降级解析器
-            // (parseStream 的 fallback 分支)成功时 code=0——两套约定不一致。
-            // 之前这里只认 code===0,导致走后端(真正播放绝大多数抖音/B站/快手等
-            // 条目)那条路径时永远被判定为"解析失败",只有极少数命中本地
-            // MGTV 专用兜底解析器的条目才能真正播放。是否有可播放流,看
-            // streams 数组本身就够了,不该再关心 code 具体是哪个约定的"成功"。
-            if (data.data?.streams?.length > 0) {
-              setVideoSrc(data.data.streams[0].url || '');
-            } else {
-              setStreamError(data.msg || '解析失败');
-            }
-          })
-          .catch(() => setStreamError('解析失败'))
-          .finally(() => setStreamLoading(false));
-      }
-    }
+    if (!video) return;
+    setLikedCount(video.likes);
+    setCollectedCount(video.collects);
+    if (!video.sourceUrl) return;
+
+    // 有 sourceUrl 时解析真实视频流。cancelled 防止划走之后一个慢响应才回来,
+    // 把结果错设到已经不是它的那个 videoSrc/streamError 上。
+    let cancelled = false;
+    setStreamLoading(true);
+
+    // parseStream 内部对后端主解析用的是 30s 超时,加上失败后还有一整套本地
+    // 降级解析器要跑一遍,最坏情况用户能等上一分钟都不一定等到结果——"划不动、
+    // 也不知道是卡住还是真没有"。这里用一个更短的客户端超时抢跑:8s 内没结果
+    // 就直接判定成"暂时无法播放",没必要让用户为了一条内容干等那么久;
+    // 真正的请求仍在后台跑完(不 abort),只是不再等它决定 UI 该显示什么。
+    const TIMEOUT_MS = 8000;
+    const timeoutPromise = new Promise<{ timedOut: true }>((resolve) => {
+      setTimeout(() => resolve({ timedOut: true }), TIMEOUT_MS);
+    });
+
+    Promise.race([parseStream(video.sourceUrl), timeoutPromise])
+      .then((data: any) => {
+        if (cancelled) return;
+        if (data?.timedOut) {
+          setStreamError('解析超时');
+          reportBrokenContent(video, '解析超时,长时间未返回可播放流');
+          return;
+        }
+        // 后端 /api/content/stream/resolve 成功时 code=200,本地降级解析器
+        // (parseStream 的 fallback 分支)成功时 code=0——两套约定不一致。
+        // 之前这里只认 code===0,导致走后端(真正播放绝大多数抖音/B站/快手等
+        // 条目)那条路径时永远被判定为"解析失败",只有极少数命中本地
+        // MGTV 专用兜底解析器的条目才能真正播放。是否有可播放流,看
+        // streams 数组本身就够了,不该再关心 code 具体是哪个约定的"成功"。
+        if (data.data?.streams?.length > 0) {
+          setVideoSrc(data.data.streams[0].url || '');
+        } else {
+          const msg = data.msg || '解析失败';
+          setStreamError(msg);
+          reportBrokenContent(video, msg);
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setStreamError('解析失败');
+        reportBrokenContent(video, '解析请求异常');
+      })
+      .finally(() => {
+        if (!cancelled) setStreamLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [index, video]);
 
   const handleWheel = useCallback(
@@ -612,6 +664,7 @@ export function RecommendVideoFeed() {
                   poster={v.cover}
                   initialDuration={video?.durationSec || 60}
                   autoPlay={playing}
+                  onPlaybackError={(message) => reportBrokenContent(v, message)}
                 />
               ) : (
                 <Box
@@ -621,6 +674,59 @@ export function RecommendVideoFeed() {
                     background: `url(${v.cover}) center/cover`,
                   }}
                 />
+              )}
+
+              {/* 之前 streamLoading/streamError 两个状态只写进 state,JSX 里从没渲染过——
+                  解析失败时用户看到的就是静止封面图,和"正常但没有视频只是一张图"的内容
+                  长得一模一样,分不清是坏的还是就该这样,只能干等或者不明所以地划走。
+                  这里补上明确反馈:解析中给个不遮挡滑动的小转圈,解析失败给一个显眼的
+                  "暂时无法播放"标记,让用户立刻知道这条不是卡住了,划走就行,不用等。 */}
+              {i === index && !videoSrc && streamLoading && (
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    pointerEvents: 'none',
+                    zIndex: 2,
+                  }}
+                >
+                  <CircularProgress size={32} sx={{ color: 'rgba(255,255,255,0.75)' }} />
+                </Box>
+              )}
+              {i === index && !videoSrc && !streamLoading && streamError && (
+                <Box
+                  data-no-drag
+                  sx={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 1,
+                    px: 3,
+                    py: 2,
+                    borderRadius: 2,
+                    bgcolor: 'rgba(0, 0, 0, 0.55)',
+                    backdropFilter: 'blur(8px)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    zIndex: 2,
+                    textAlign: 'center',
+                    maxWidth: 260,
+                  }}
+                >
+                  <ErrorOutlineRoundedIcon sx={{ fontSize: 32, color: 'warning.main' }} />
+                  <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'text.primary' }}>
+                    该内容暂时无法播放
+                  </Typography>
+                  <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
+                    已记录,尽快修复 · 上滑看下一个
+                  </Typography>
+                </Box>
               )}
 
               {i === index && (

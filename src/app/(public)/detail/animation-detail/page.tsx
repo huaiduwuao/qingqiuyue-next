@@ -19,6 +19,7 @@ import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-animation';
 import { page as itemPage } from '@/apis/content-animation-item';
 import { moduleContentAction } from '@/apis/home';
+import { reportContent } from '@/apis/global';
 import { formatApiError } from '@/lib/api/client';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import DetailHeader from '@/components/detail/DetailHeader';
@@ -140,6 +141,23 @@ function AnimationDetailContent() {
     [itemsQuery.data, notify],
   );
 
+  // 某一集解析播放失败时自动举报,给"暂时无法播放"一个真实落点(后台审核队列
+  // 能看到、能处理),不只是前端提示一下就完事。用 ref 去重,同一集这个页面
+  // 生命周期内只报一次,避免用户来回切集/重试时反复提交。
+  const reportedEpisodes = React.useRef(new Set<string | number>());
+  const handlePlaybackError = useCallback(
+    (message: string) => {
+      if (!id || reportedEpisodes.current.has(activeEp)) return;
+      reportedEpisodes.current.add(activeEp);
+      reportContent({
+        targetId: id,
+        targetType: 'ANIMATION',
+        reason: `[自动] 第${activeEp}集播放解析失败: ${message}`,
+      }).catch(() => {});
+    },
+    [id, activeEp],
+  );
+
   React.useEffect(() => {
     void loadEpisode(activeEp);
   }, [loadEpisode, activeEp]);
@@ -204,7 +222,14 @@ function AnimationDetailContent() {
                     parseStream 解析,不能塞进 src(src 是"这就是能播的地址,直接
                     喂给 <video>"那条路径,拿一个网页 URL 当直链用,播放器会真的
                     去请求这个网页当视频流,自然播不出来)。 */}
-                <VideoPlayer key={videoSrc} sourceUrl={videoSrc || data.source || ''} poster={data.cover} initialDuration={24 * 60} autoPlay={false} />
+                <VideoPlayer
+                  key={videoSrc}
+                  sourceUrl={videoSrc || data.source || ''}
+                  poster={data.cover}
+                  initialDuration={24 * 60}
+                  autoPlay={false}
+                  onPlaybackError={handlePlaybackError}
+                />
               </Container>
             </Box>
 
