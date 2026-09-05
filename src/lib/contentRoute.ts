@@ -5,6 +5,8 @@ export const TYPE_TO_ROUTE: Record<string, string> = {
   MUSIC: '/detail/music-detail',
   FILM: '/detail/film-detail',
   TELEPLAY: '/detail/teleplay-detail',
+  // 短剧没有独立 detail 页,复用 teleplay-detail(同为分集剧集形态)
+  SHORT_DRAMA: '/detail/teleplay-detail',
   ANIMATION: '/detail/animation-detail',
   COMICS: '/detail/comics-detail',
   VIDEO: '/detail/video-detail',
@@ -23,7 +25,7 @@ export const TYPE_TO_ROUTE: Record<string, string> = {
 // 统一列表 + Drawer 渲染时优先用 _label(contentType) 内部映射到本表更友好的中文。
 export const TYPE_LABEL: Record<string, string> = {
   NOVEL: '小说', MUSIC: '音乐', FILM: '电影', TELEPLAY: '电视剧',
-  ANIMATION: '动漫', COMICS: '漫画', VIDEO: '视频', VSHOW: '短剧',
+  ANIMATION: '动漫', COMICS: '漫画', VIDEO: '视频', VSHOW: '综艺', SHORT_DRAMA: '短剧',
   LIVE: '直播', ARTICLE: '文章', NEWS: '新闻', PICTURE: '图文',
   // 图集 / 图片 MV 是 image-publish 和 image-mv-publish 的内部细分,统一显示成「图文」。
   PICTURE_ALBUM: '图文', PICTURE_MV: '图文',
