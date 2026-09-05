@@ -5,9 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import IconButton from '@mui/material/IconButton';
-import Slider from '@mui/material/Slider';
-import Tooltip from '@mui/material/Tooltip';
 import Avatar from '@mui/material/Avatar';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
@@ -17,11 +14,6 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
-import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
-import PauseRoundedIcon from '@mui/icons-material/PauseRounded';
-import FullscreenRoundedIcon from '@mui/icons-material/FullscreenRounded';
-import FullscreenExitRoundedIcon from '@mui/icons-material/FullscreenExitRounded';
-import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import FavoriteBorderRoundedIcon from '@mui/icons-material/FavoriteBorderRounded';
@@ -31,9 +23,6 @@ import ModeCommentOutlinedIcon from '@mui/icons-material/ModeCommentOutlined';
 import ReplyRoundedIcon from '@mui/icons-material/ReplyRounded';
 import StarRoundedIcon from '@mui/icons-material/StarRounded';
 import VerifiedRoundedIcon from '@mui/icons-material/VerifiedRounded';
-import SpeedRoundedIcon from '@mui/icons-material/SpeedRounded';
-import HighQualityOutlinedIcon from '@mui/icons-material/HighQualityOutlined';
-import MicNoneRoundedIcon from '@mui/icons-material/MicNoneRounded';
 import QueueMusicRoundedIcon from '@mui/icons-material/QueueMusicRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { fetchRecommend } from '@/apis/home-discover';
@@ -45,7 +34,7 @@ import { getDetailRoute } from '@/lib/contentRoute';
 import { TYPE_LABEL } from '@/lib/contentRoute';
 import { TYPE_GRADIENT } from '@/constants/gradients';
 import { track } from '@/lib/track';
-import VideoPlayer from '@/components/detail/VideoPlayer';
+import VideoPlayer, { type VideoPlayerHandle } from '@/components/detail/VideoPlayer';
 
 interface VideoItem {
   id: number;
@@ -66,13 +55,6 @@ interface VideoItem {
   brand?: string;
   authorId?: number;
   sourceUrl?: string; // 源页面 URL,供播放器解析真实视频流
-}
-
-function formatTime(sec?: number): string {
-  if (sec == null || isNaN(sec)) return '00:00';
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
 function formatCount(n?: number): string {
@@ -97,13 +79,14 @@ function getContentTypeColor(type: string) {
 
 export function RecommendVideoFeed() {
   const router = useRouter();
+  // 初始自动播放意图,真正的播放/暂停状态由 VideoPlayer 内部的 <video> 元素持有,
+  // 这里只通过 videoPlayerRef 转发操作(切换/快进快退),不再维护一份平行的假状态。
   const [playing, setPlaying] = useState(true);
-  const [currentTime, setCurrentTime] = useState(0);
+  const videoPlayerRef = useRef<VideoPlayerHandle>(null);
   const [liked, setLiked] = useState(false);
   const [collected, setCollected] = useState(false);
   const [following, setFollowing] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [likedCount, setLikedCount] = useState(0);
   const [collectedCount, setCollectedCount] = useState(0);
   const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
@@ -261,7 +244,6 @@ export function RecommendVideoFeed() {
   );
 
   useEffect(() => {
-    setCurrentTime(0);
     setPlaying(true);
     setLiked(false);
     setCollected(false);
@@ -457,40 +439,27 @@ export function RecommendVideoFeed() {
   };
 
   useEffect(() => {
-    if (!playing || !video) return;
-    const t = setInterval(() => {
-      setCurrentTime((s) => {
-        const next = s + 1;
-        return next >= video.durationSec ? 0 : next;
-      });
-    }, 1000);
-    return () => clearInterval(t);
-  }, [playing, video]);
-
-  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
       if (e.key === ' ' || e.key === 'k') {
         e.preventDefault();
-        setPlaying((p) => !p);
+        videoPlayerRef.current?.togglePlay();
       } else if (e.key === 'ArrowRight') {
-        setCurrentTime((t) => Math.min(video?.durationSec || 0, t + 5));
+        videoPlayerRef.current?.seek(5);
       } else if (e.key === 'ArrowLeft') {
-        setCurrentTime((t) => Math.max(0, t - 5));
+        videoPlayerRef.current?.seek(-5);
       } else if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === 'j') {
         e.preventDefault();
         go(1);
       } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
         e.preventDefault();
         go(-1);
-      } else if (e.key === 'f') {
-        setIsFullscreen((v) => !v);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [video, go]);
+  }, [go]);
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const roRef = useRef<ResizeObserver | null>(null);
@@ -532,7 +501,8 @@ export function RecommendVideoFeed() {
     const d = dragY;
     if (s.moved < 6) {
       setDragY(0);
-      setPlaying((p) => !p);
+      // 单击(非拖拽)= 切换真实 <video> 的播放/暂停,而不是一份脱节的界面假状态。
+      videoPlayerRef.current?.togglePlay();
       return;
     }
     const threshold = (vh || 600) * 0.2;
@@ -626,27 +596,23 @@ export function RecommendVideoFeed() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                '&::after': {
-                  content: '""',
-                  position: 'absolute',
-                  inset: 0,
-                  background: getContentTypeColor(v.contentType),
-                  opacity: 0.35,
-                  pointerEvents: 'none',
-                },
+                // 纯黑背景:之前这里叠了一层按内容类型着色的渐变(::after,
+                // opacity 0.35),把整个未被视频覆盖的区域染成对应色调,而不是
+                // TikTok 那种沉浸式纯黑。视频本身通过 VideoPlayer 的 fill 模式
+                // 居中撑满、黑底信封边(letterbox),不再需要这层色块打底。
+                bgcolor: '#000',
               }}
             >
               {/* 视频播放器或封面 */}
               {i === index && videoSrc ? (
-                <Box sx={{ position: 'absolute', inset: 0, zIndex: 1 }}>
-                  <VideoPlayer
-                    src={videoSrc}
-                    poster={v.cover}
-                    initialDuration={video?.durationSec || 60}
-                    autoPlay={playing}
-                    onEnded={() => setCurrentTime(0)}
-                  />
-                </Box>
+                <VideoPlayer
+                  ref={videoPlayerRef}
+                  fill
+                  src={videoSrc}
+                  poster={v.cover}
+                  initialDuration={video?.durationSec || 60}
+                  autoPlay={playing}
+                />
               ) : (
                 <Box
                   sx={{
@@ -710,63 +676,9 @@ export function RecommendVideoFeed() {
                     <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.primary' }}>{video.brand}</Typography>
                   </Box>
 
-                  <Box
-                    sx={{
-                      position: 'relative',
-                      zIndex: 2,
-                      textAlign: 'center',
-                      color: 'text.primary',
-                      textShadow: '0 4px 16px rgba(0, 0, 0, 0.6)',
-                      px: 4,
-                      pointerEvents: 'none',
-                    }}
-                  >
-                    <Typography
-                      sx={{
-                        fontSize: { xs: 32, md: 48 },
-                        fontWeight: 800,
-                        lineHeight: 1.2,
-                        letterSpacing: 1,
-                        mb: 1,
-                      }}
-                    >
-                      {video.title}
-                    </Typography>
-                    <Typography sx={{ fontSize: { xs: 14, md: 18 }, fontWeight: 500, color: 'rgba(255,255,255,0.92)' }}>
-                      {TYPE_LABEL[video.contentType] || '推荐'}
-                    </Typography>
-                  </Box>
-
-                  {!playing && (
-                    <Box
-                      sx={{
-                        position: 'absolute',
-                        inset: 0,
-                        zIndex: 4,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        bgcolor: 'rgba(0, 0, 0, 0.3)',
-                        pointerEvents: 'none',
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          width: 88,
-                          height: 88,
-                          borderRadius: '50%',
-                          bgcolor: 'rgba(0, 0, 0, 0.55)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          backdropFilter: 'blur(8px)',
-                          border: '1px solid rgba(255, 255, 255, 0.1)',
-                        }}
-                      >
-                        <PlayArrowRoundedIcon sx={{ fontSize: 56, color: 'text.primary', ml: 1 }} />
-                      </Box>
-                    </Box>
-                  )}
+                  {/* 播放/暂停状态由 VideoPlayer 自己的中心播放按钮体现(那是真实
+                      播放状态,不是这里另一份脱节的模拟状态),标题已经在下方
+                      左下角的作者信息区展示,这里不再重复一份铺满屏幕的大标题。 */}
 
                   <Box
                     data-no-drag
@@ -904,67 +816,6 @@ export function RecommendVideoFeed() {
         </Box>
       </Box>
 
-      <Box
-        sx={{
-          position: 'relative',
-          zIndex: 5,
-          bgcolor: 'rgba(0, 0, 0, 0.85)',
-          backdropFilter: 'blur(12px)',
-          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-          px: 2.5,
-          py: 1,
-        }}
-      >
-        <Slider
-          value={currentTime}
-          min={0}
-          max={video.durationSec}
-          step={1}
-          onChange={(_, v) => setCurrentTime(v as number)}
-          sx={{
-            color: 'primary.main',
-            height: 3,
-            padding: '6px 0 !important',
-            '& .MuiSlider-thumb': { width: 10, height: 10, boxShadow: '0 0 0 4px rgba(254, 44, 85, 0.18)' },
-            '& .MuiSlider-rail': { color: 'rgba(255, 255, 255, 0.18)' },
-          }}
-        />
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mt: 0.25 }}>
-          <IconButton
-            size="small"
-            onClick={() => setPlaying((p) => !p)}
-            sx={{ color: 'text.primary' }}
-          >
-            {playing ? <PauseRoundedIcon sx={{ fontSize: 22 }} /> : <PlayArrowRoundedIcon sx={{ fontSize: 22 }} />}
-          </IconButton>
-
-          <Typography sx={{ fontSize: 11, color: 'rgba(255, 255, 255, 0.85)', fontVariantNumeric: 'tabular-nums', minWidth: 90 }}>
-            {formatTime(currentTime)} / {formatTime(video.durationSec)}
-          </Typography>
-
-          <Box sx={{ flex: 1 }} />
-
-          <ControlChip icon={<SpeedRoundedIcon sx={{ fontSize: 14 }} />} label="倍速" />
-          <ControlChip icon={<HighQualityOutlinedIcon sx={{ fontSize: 14 }} />} label="画质" />
-          <ControlChip icon={<MicNoneRoundedIcon sx={{ fontSize: 14 }} />} label="智能" />
-          <ControlChip icon={<QueueMusicRoundedIcon sx={{ fontSize: 14 }} />} label="跟唱" />
-          <Tooltip title="设置">
-            <IconButton size="small" sx={{ color: 'rgba(255, 255, 255, 0.85)' }}>
-              <SettingsRoundedIcon sx={{ fontSize: 18 }} />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="全屏 (F)">
-            <IconButton
-              size="small"
-              onClick={() => setIsFullscreen((v) => !v)}
-              sx={{ color: 'rgba(255, 255, 255, 0.85)' }}
-            >
-              {isFullscreen ? <FullscreenExitRoundedIcon sx={{ fontSize: 18 }} /> : <FullscreenRoundedIcon sx={{ fontSize: 18 }} />}
-            </IconButton>
-          </Tooltip>
-        </Box>
-      </Box>
-
       <Snackbar
         open={snack.open}
         autoHideDuration={2500}
@@ -1085,32 +936,6 @@ function SideAction({
           {value}
         </Typography>
       )}
-    </Box>
-  );
-}
-
-function ControlChip({ icon, label }: { icon: React.ReactNode; label: string }) {
-  return (
-    <Box
-      sx={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 0.5,
-        px: 1,
-        py: 0.4,
-        borderRadius: 1,
-        bgcolor: 'rgba(255, 255, 255, 0.06)',
-        border: '1px solid rgba(255, 255, 255, 0.08)',
-        color: 'rgba(255, 255, 255, 0.85)',
-        fontSize: 11,
-        fontWeight: 500,
-        cursor: 'pointer',
-        transition: 'all 0.15s',
-        '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.12)' },
-      }}
-    >
-      {icon}
-      <span>{label}</span>
     </Box>
   );
 }

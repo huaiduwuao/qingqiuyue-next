@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import Slider from '@mui/material/Slider';
@@ -34,6 +34,17 @@ interface Props {
   autoPlay?: boolean;
   /** 国家网信办 AIGC 合规:当视频内容由 AI 生成时,显示「AI 生成」角标 */
   isAIGenerated?: boolean;
+  /**
+   * 沉浸式短视频流模式(RecommendVideoFeed 等):撑满父容器高度、纯黑背景居中,
+   * 而不是详情页那种固定 16:9 卡片。
+   */
+  fill?: boolean;
+}
+
+export interface VideoPlayerHandle {
+  togglePlay: () => void;
+  seek: (deltaSeconds: number) => void;
+  isPlaying: () => boolean;
 }
 
 function fmt(s: number) {
@@ -43,7 +54,10 @@ function fmt(s: number) {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
-export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false }: Props) {
+const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
+  { src, sourceUrl, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false, fill = false },
+  ref,
+) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<any>(null);
   const [playing, setPlaying] = useState(false);
@@ -301,12 +315,30 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
     }
   };
 
+  // 供外层(如 RecommendVideoFeed 的沉浸式竖滑手势)在不知道内部实现的情况下
+  // 直接控制真实播放状态——之前 feed 侧维护了一份完全独立、只做界面模拟的
+  // playing/currentTime,点击画面切换的是那份假状态,和这里真正的 <video>
+  // 播放/暂停毫无关联。
+  useImperativeHandle(ref, () => ({
+    togglePlay,
+    seek,
+    isPlaying: () => playing,
+  }));
+
   const hasVideo = src || streams.length > 0;
 
   return (
     <Box
       onMouseMove={() => setControlsVisible(true)}
-      sx={{
+      sx={fill ? {
+        position: 'absolute',
+        inset: 0,
+        width: '100%',
+        height: '100%',
+        bgcolor: '#000',
+        overflow: 'hidden',
+        '&:hover .controls': { opacity: 1 },
+      } : {
         position: 'relative',
         width: '100%',
         aspectRatio: '16/9',
@@ -424,6 +456,7 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
           ) : (
             !playing && (
               <IconButton
+                data-no-drag
                 onClick={togglePlay}
                 sx={{
                   bgcolor: 'rgba(254, 44, 85, 0.9)',
@@ -446,6 +479,7 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
       {/* 中心播放按钮 */}
       {hasVideo && !playing && (
         <Box
+          data-no-drag
           onClick={togglePlay}
           sx={{
             position: 'absolute',
@@ -478,6 +512,7 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
       {/* 控制条 */}
       {hasVideo && (
         <Box
+          data-no-drag
           className="controls"
           sx={{
             position: 'absolute',
@@ -528,4 +563,6 @@ export default function VideoPlayer({ src, sourceUrl, poster, initialDuration = 
       )}
     </Box>
   );
-}
+});
+
+export default VideoPlayer;

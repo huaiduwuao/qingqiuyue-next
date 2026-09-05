@@ -23,7 +23,7 @@ import Brightness6Icon from '@mui/icons-material/Brightness6';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-video';
-import { page as chapterPage, getNovel, addShelf } from '@/apis/content-novel-chapter';
+import { page as chapterPage, get as getChapterDetail, getNovel, addShelf } from '@/apis/content-novel-chapter';
 import { ReadingSettings, DEFAULT_PAGE_STYLE } from '@/components/detail/ReadingSettings';
 import type { PageStyle } from '@/components/detail/ReadingSettings';
 import { ReadingContainer } from '@/components/detail/ReadingContainer';
@@ -108,6 +108,51 @@ function NovelDetailContent() {
       setHasMore(false);
     }
   }, [initialQuery.data, chapters.length]);
+
+  // 列表接口(novel-chapter/page)返回的 item.content 就是数据库 content 列的原样
+  // 值——真实抓取的小说正文实际存在 MinIO(module_content_item.minio_key),
+  // content 列本身是空的,只有走单章详情接口(novel-chapter/detail)才会触发
+  // 后端的 MinIO 懒加载填充。之前这里直接拿列表接口的空 content 渲染,阅读区
+  // 看着"打开成功"实际一个字都没有。这里对内容仍为空的已加载章节补一次单章
+  // 详情请求。
+  const contentFetchAttempted = useRef(new Set<string>());
+  useEffect(() => {
+    const missing = chapters.filter(
+      (c) => !c.content?.content && !contentFetchAttempted.current.has(String(c.id)),
+    );
+    if (missing.length === 0) return;
+    missing.forEach((c) => contentFetchAttempted.current.add(String(c.id)));
+    let cancelled = false;
+    (async () => {
+      const results = await Promise.allSettled(
+        missing.map((c) => getChapterDetail({ id: c.id })),
+      );
+      if (cancelled) return;
+      const byId = new Map<string, string>();
+      results.forEach((r, i) => {
+        if (r.status === 'fulfilled') {
+          const body = (r.value as any)?.data;
+          const text = body?.content ?? body?.body ?? '';
+          if (text) byId.set(String(missing[i].id), text);
+        }
+      });
+      if (byId.size === 0) return;
+      setChapters((prev) =>
+        prev.map((c) =>
+          byId.has(String(c.id)) ? { ...c, content: { content: byId.get(String(c.id))! } } : c,
+        ),
+      );
+      setChapter((prev: any) =>
+        prev && byId.has(String(prev.id))
+          ? { ...prev, content: { content: byId.get(String(prev.id))! } }
+          : prev,
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chapters]);
 
   const nextChapterMutation = useMutation({
     mutationFn: (params: { chapterId: number | string; novelId: string }) =>

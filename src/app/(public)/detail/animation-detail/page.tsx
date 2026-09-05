@@ -19,7 +19,7 @@ import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-animation';
 import { page as itemPage } from '@/apis/content-animation-item';
 import { moduleContentAction } from '@/apis/home';
-import { contentClient, formatApiError, isNetworkError } from '@/lib/api/client';
+import { formatApiError } from '@/lib/api/client';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
@@ -118,29 +118,41 @@ function AnimationDetailContent() {
     }
   };
 
+  // 之前这里先打一个后端根本没实现的 /detail/animation/play(必 404),
+  // 404 分支又把 videoSrc 清空——而不是空 catch 之外还有兜底可用:所选那一集
+  // 的真实播放地址其实已经在 itemsQuery.data 里(module_content_item.url,
+  // crawl-episodes 抓的时候就写好了)。videoSrc 一旦被清空,VideoPlayer 会
+  // 退回用父内容的 sourceUrl(整季的 bangumi/play/ss{id} 页面)去解析,
+  // 拿不到任何分集,页面上直接显示"不支持的URL平台"——选哪一集播的都是
+  // 同一个(解析不出来的)链接。直接从已加载的分集列表里取,不用等一个
+  // 不存在的接口先失败一次。
   const loadEpisode = useCallback(
-    async (epId: string | number) => {
-      if (!id) return;
-      try {
-        const res = await contentClient.get<{ url: string; cover?: string; title?: string }>('/detail/animation/play', {
-          params: { id, episodeId: epId },
-        });
-        setVideoSrc(res?.data?.url || itemsQuery.data?.find((item) => String(item.id) === String(activeEp))?.url || itemsQuery.data?.[0]?.url || '');
-      } catch (err) {
-        if (isNetworkError(err)) {
-          setVideoSrc(itemsQuery.data?.find((item) => String(item.id) === String(activeEp))?.url || itemsQuery.data?.[0]?.url || '');
-        } else {
-          notify(formatApiError(err), 'error');
-          setVideoSrc('');
-        }
+    (epId: string | number) => {
+      const url =
+        itemsQuery.data?.find((item) => String(item.id) === String(epId))?.url ||
+        itemsQuery.data?.[0]?.url ||
+        '';
+      setVideoSrc(url);
+      if (!url) {
+        notify('该集暂无可播放地址', 'info');
       }
     },
-    [id, notify, itemsQuery.data, activeEp],
+    [itemsQuery.data, notify],
   );
 
   React.useEffect(() => {
     void loadEpisode(activeEp);
   }, [loadEpisode, activeEp]);
+
+  // activeEp 初始值是字面量 1,真实分集 id 是雪花 ID,永远不会等于 1——
+  // 播放本身没问题(loadEpisode 找不到匹配时会退到第一集),但选集格子的
+  // "当前选中"高亮永远对不上任何一集。数据到了之后把 activeEp 对齐到真正
+  // 的第一集 id。
+  React.useEffect(() => {
+    if (itemsQuery.data && itemsQuery.data.length > 0 && activeEp === 1) {
+      setActiveEp(itemsQuery.data[0].id);
+    }
+  }, [itemsQuery.data, activeEp]);
 
   const handleShare = async () => {
     const url = typeof window !== 'undefined' ? window.location.href : '';
@@ -187,7 +199,12 @@ function AnimationDetailContent() {
           <>
             <Box sx={{ bgcolor: '#000' }}>
               <Container maxWidth="lg" sx={{ py: 0 }}>
-                <VideoPlayer src={videoSrc} sourceUrl={data.source || ''} poster={data.cover} initialDuration={24 * 60} autoPlay={false} />
+                {/* videoSrc 是分集自己的 bilibili 页面 URL(module_content_item.url),
+                    不是已经解析好的直链——要走 sourceUrl 触发 VideoPlayer 内部的
+                    parseStream 解析,不能塞进 src(src 是"这就是能播的地址,直接
+                    喂给 <video>"那条路径,拿一个网页 URL 当直链用,播放器会真的
+                    去请求这个网页当视频流,自然播不出来)。 */}
+                <VideoPlayer key={videoSrc} sourceUrl={videoSrc || data.source || ''} poster={data.cover} initialDuration={24 * 60} autoPlay={false} />
               </Container>
             </Box>
 
