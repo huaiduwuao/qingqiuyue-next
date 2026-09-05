@@ -1,35 +1,16 @@
 import { useRouter } from 'next/navigation';
 
-export const TYPE_TO_ROUTE: Record<string, string> = {
-  NOVEL: '/detail/novel-detail',
-  MUSIC: '/detail/music-detail',
-  FILM: '/detail/film-detail',
-  TELEPLAY: '/detail/teleplay-detail',
-  // 短剧没有独立 detail 页,复用 teleplay-detail(同为分集剧集形态)
-  SHORT_DRAMA: '/detail/teleplay-detail',
-  ANIMATION: '/detail/animation-detail',
-  COMICS: '/detail/comics-detail',
-  VIDEO: '/detail/video-detail',
-  VSHOW: '/detail/vshow-detail',
-  LIVE: '/detail/live-detail',
-  ARTICLE: '/detail/article-detail',
-  NEWS: '/detail/news-detail',
-  // 图集 / 图片 MV 还没有对应 detail 路由,先用占位;DetailDrawer 的「查看详情页」
-  // 跳转若命中 null 会 fallback 到 window.open fallbackUrl(由 caller 决定)。
-  PICTURE: '/detail/image-detail',
-  PICTURE_ALBUM: '/detail/image-detail',
-  PICTURE_MV: '/detail/image-detail',
-};
 
-// 已发布时实际写到后端的图片枚举是 PICTURE(PICTURE_ALBUM / PICTURE_MV 通过 content JSON 区分)。
-// 统一列表 + Drawer 渲染时优先用 _label(contentType) 内部映射到本表更友好的中文。
-export const TYPE_LABEL: Record<string, string> = {
-  NOVEL: '小说', MUSIC: '音乐', FILM: '电影', TELEPLAY: '电视剧',
-  ANIMATION: '动漫', COMICS: '漫画', VIDEO: '视频', VSHOW: '综艺', SHORT_DRAMA: '短剧',
-  LIVE: '直播', ARTICLE: '文章', NEWS: '新闻', PICTURE: '图文',
-  // 图集 / 图片 MV 是 image-publish 和 image-mv-publish 的内部细分,统一显示成「图文」。
-  PICTURE_ALBUM: '图文', PICTURE_MV: '图文',
-};
+// TYPE_TO_ROUTE / TYPE_LABEL 现在从生成物再导出,不再在这里手写一份。
+// 这两张表以前和后端 internal/crawler 的常量各写各的,靠注释提醒同步 ——
+// 结果 VSHOW 在这里被标成「短剧」,而后端 VSHOW 的源是芒果TV综艺/爱奇艺综艺,
+// 线上 59 条综艺内容一直挂着「短剧」标签展示给用户。
+// 现在唯一事实来源是 qingqiuyue-go 的 contracts/content_type.yaml,
+// 两侧生成物由 make check-contract 校验,漂不了。
+export { TYPE_TO_ROUTE, TYPE_LABEL, CONTENT_TYPES } from './contentType.gen';
+export type { ContentType } from './contentType.gen';
+
+import { TYPE_TO_ROUTE } from './contentType.gen';
 
 /**
  * 创作者中心 chip 上展示的「卡片 id」→ 后端 contentType 映射。
