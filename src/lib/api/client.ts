@@ -1,4 +1,5 @@
 import axios, { AxiosError, AxiosResponse } from 'axios';
+import { normalizeMediaUrls } from '@/lib/media';
 
 export type ApiErrorCategory = 'network' | 'auth' | 'business' | 'timeout' | 'unknown';
 
@@ -247,6 +248,8 @@ function createApiClient(baseURL: string) {
           // 分页字段归一
           normalizePaginationPayload(payload);
         }
+        // MinIO 内网直链 → 网关地址(整个 payload 深度遍历,不限字段名)
+        normalizeMediaUrls(payload);
         return data;
       }
 
@@ -263,6 +266,8 @@ function createApiClient(baseURL: string) {
         // 字段别名归一(递归)
         applyAliases(wrapped.data);
       }
+      // flat shape 也要改写(数组直返的接口走这条路径)
+      normalizeMediaUrls(wrapped.data);
       return wrapped;
     },
     (error: AxiosError) => {

@@ -33,6 +33,7 @@ import { reportContent, collectContent } from '@/apis/global';
 import { parseStream } from '@/apis/stream';
 import { homeClient } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
+import { mediaUrl } from '@/lib/media';
 import { TYPE_LABEL } from '@/lib/contentRoute';
 import { TYPE_GRADIENT } from '@/constants/gradients';
 import { track } from '@/lib/track';
@@ -147,9 +148,13 @@ export function RecommendVideoFeed() {
         idString: typeof it.idString === 'string' && it.idString ? it.idString : String(it.id ?? ''),
         title: it.title || '',
         contentType: (it.contentType || 'VIDEO').toUpperCase(),
-        cover: it.cover || '',
+        // 封面统一过一遍网关改写:库里存量是 MinIO 内网直链
+        // (http://10.9.1.2:10000/qq-media/...,外网超时),抓来的又多是
+        // 外站图(混合内容 + 防盗链 403)。改写后 poster / background-url
+        // 两处引用都跟着变。
+        cover: mediaUrl(it.cover),
         author: it.author || '未知作者',
-        authorAvatar: it.authorAvatar || '',
+        authorAvatar: mediaUrl(it.authorAvatar),
         authorId: Number(it.authorId) || 0,
         durationSec: 30 + (hashId(it.idString ?? String(it.id)) % 60),
         views: Number(it.views) || 0,

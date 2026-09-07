@@ -15,6 +15,7 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlineRounded';
 import CircularProgress from '@mui/material/CircularProgress';
 import AIGCBadge from '@/components/AIGCBadge';
 import { parseStream } from '@/apis/stream';
+import { mediaUrl } from '@/lib/media';
 
 interface StreamInfo {
   quality: string;
@@ -66,6 +67,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
   { src, sourceUrl, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false, fill = false, onPlaybackError },
   ref,
 ) {
+  // 封面同样经网关:调用方传进来的可能是 MinIO 内网直链或外站防盗链图。
+  const posterUrl = mediaUrl(poster);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<any>(null);
   const [playing, setPlaying] = useState(false);
@@ -128,8 +131,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
   // 抖音 mp4 直链等可直连的不代理。
   const toPlayableUrl = (url: string) => {
     if (!url) return url;
-    // 防盗链平台(mgtv/bilibili/qq/网易/虎牙)的 m3u8/ts 需走同源代理注入 Referer
-    if (/(mgtv\.com|bilivideo\.com|hdslb\.com|bilibili\.com|gtimg\.com|v\.qq\.com|126\.net|huya\.com)/i.test(url)) {
+    // 防盗链平台(mgtv/bilibili/qq/网易/虎牙)的 m3u8/ts 需走同源代理注入 Referer。
+    // ⚠️ B 站不止 bilivideo.com:playurl 下发的还有 PCDN/MCDN 节点
+    // (*.edge.mountaintoys.cn:4483、*.mcdn.bilivideo.cn:4483)和 Akamai 镜像
+    // (upos-*.akamaized.net)。这几个域名以前漏在名单外 → 直连播放,而它们
+    // 同样校验 Referer,浏览器里就是一片 403(推荐流里这类地址还占多数)。
+    if (/(mgtv\.com|bilivideo\.com|bilivideo\.cn|mountaintoys\.cn|akamaized\.net|hdslb\.com|bilibili\.com|gtimg\.com|v\.qq\.com|126\.net|huya\.com)/i.test(url)) {
       return `/api/proxy?url=${encodeURIComponent(url)}`;
     }
     return url;
@@ -368,7 +375,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
             // 不设 src —— hls.js 通过 attachMedia(MediaSource API) 完全控制 video。
             // 否则原生 src 会与 hls.js 冲突,hls.js 解析失败导致视频静止。
             src={undefined}
-            poster={poster}
+            poster={posterUrl}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoaded}
             onPlay={() => setPlaying(true)}
@@ -433,7 +440,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
           sx={{
             width: '100%',
             height: '100%',
-            backgroundImage: poster ? `url(${poster})` : 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+            backgroundImage: posterUrl ? `url(${posterUrl})` : 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             display: 'flex',

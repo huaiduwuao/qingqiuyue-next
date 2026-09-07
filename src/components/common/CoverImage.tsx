@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Box from '@mui/material/Box';
 import type { SxProps, Theme } from '@mui/material/styles';
 import { fallbackImg as DEFAULT_FALLBACK } from '@/lib/utils';
+import { mediaUrl } from '@/lib/media';
 
 type CoverImageProps = {
   /** 图片地址;组件内部按真值取,空串/null/undefined 直接走 fallback。 */
@@ -33,12 +34,15 @@ export function CoverImage({
 }: CoverImageProps) {
   const [failed, setFailed] = useState(false);
   const [fallbackFailed, setFallbackFailed] = useState(false);
+  // mediaUrl:MinIO 内网直链(10.9.1.2:10000,外网不可达)改成同源 /qq-media/...,
+  // 外站封面包成 /api/proxy?url=——两者都经 APISIX,线上只有它对外暴露。
+  const resolved = mediaUrl(src);
   // 若 src 加载失败用 fallback;fallback 也失败则用纯色占位
-  const url = !src || failed
+  const url = !resolved || failed
     ? fallbackFailed
       ? null
       : fallback
-    : src;
+    : resolved;
 
   if (!url) {
     return (

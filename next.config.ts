@@ -32,6 +32,16 @@ const nextConfig: NextConfig = {
         { source: "/logs/:path*", destination: `${API_PROXY_TARGET}/logs/:path*` },
         // 注意:rewrites 不支持 WebSocket 升级,/ws 仅代理普通 HTTP 轮询请求
         { source: "/ws/:path*", destination: `${API_PROXY_TARGET}/ws/:path*` },
+        // MinIO public bucket 静态资源 → APISIX → minio:9000。
+        // 生产由 nginx.conf 的同名 location 转发,dev 这里对齐,保证
+        // 后端返回的 /qq-media/... 直链在 localhost:3000 下也打得开。
+        { source: "/qq-media/:path*", destination: `${API_PROXY_TARGET}/qq-media/:path*` },
+        { source: "/qq-audio/:path*", destination: `${API_PROXY_TARGET}/qq-audio/:path*` },
+        { source: "/qq-video/:path*", destination: `${API_PROXY_TARGET}/qq-video/:path*` },
+        { source: "/qq-text/:path*", destination: `${API_PROXY_TARGET}/qq-text/:path*` },
+        // private bucket:presigned URL 的签名按对外域名算,dev 下同样从这里进网关
+        { source: "/qq-avatar/:path*", destination: `${API_PROXY_TARGET}/qq-avatar/:path*` },
+        { source: "/qq-tmp/:path*", destination: `${API_PROXY_TARGET}/qq-tmp/:path*` },
       ];
     },
   }),
