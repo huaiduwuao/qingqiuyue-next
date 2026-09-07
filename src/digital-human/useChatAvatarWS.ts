@@ -14,11 +14,41 @@
  */
 
 import React from 'react';
+import { devLog } from '@/lib/dev-log';
 import type {
   ChatAvatarState,
   ChatLogItem,
   VisemeFrame,
 } from './useChatAvatar';
+import {
+  SCENE_PANEL_DISMISS_TOOL,
+  SCENE_PANEL_TOOLS,
+  scenePanelFromToolCall,
+  type ScenePanel,
+} from './scene-ui/types';
+
+/** 业务工具执行时给用户的可见反馈(否则一次搜索十几秒界面是死的) */
+const TOOL_RUNNING_HINT: Record<string, string> = {
+  resource_search: '正在搜资源…',
+  bounty_list: '正在查悬赏…',
+  bounty_create: '正在发布悬赏…',
+  workflow_execute: '正在跑工作流…',
+  browser_open: '正在打开网页…',
+};
+
+/** 句末标点:流式朗读按这些切句 */
+const SENTENCE_END = /[。！？!?；;\n]/;
+
+/**
+ * 返回 text 中最后一个句末标点之后的位置(没有则返回 0)。
+ * 用于「攒够一整句就先读出来」——首次出声不必等整段生成完。
+ */
+function lastSentenceEnd(text: string): number {
+  for (let i = text.length - 1; i >= 0; i--) {
+    if (SENTENCE_END.test(text[i])) return i + 1;
+  }
+  return 0;
+}
 
 // ─── WS 消息类型(对齐 Go wsmux.go) ───
 
@@ -205,12 +235,160 @@ async function fallbackBlob(res: Response, audio: HTMLAudioElement) {
   } catch { /* ignore */ }
 }
 
+// ─── TTS 播放队列 ───
+//
+// 现在是「攒够一句就送去合成」,一轮回复会调好几次 TTS。而 speakWithTTS 每次都
+// 直接改写同一个 <audio> 的 src —— 不排队的话后一句会把前一句掐掉,只听见最后一句。
+// 这里串行化:一句播完(或失败)再起下一句;打断时清空队列。
+const ttsQueue: Array<{
+  text: string;
+  audioRef: React.MutableRefObject<HTMLAudioElement | null>;
+  signal?: AbortSignal;
+}> = [];
+let ttsRunning = false;
+
+function enqueueTTS(
+  text: string,
+  audioRef: React.MutableRefObject<HTMLAudioElement | null>,
+  signal?: AbortSignal,
+) {
+  ttsQueue.push({ text, audioRef, signal });
+  void runTTSQueue();
+}
+
+/** 打断时调:丢掉还没播的句子。 */
+export function clearTTSQueue() {
+  ttsQueue.length = 0;
+}
+
+async function runTTSQueue() {
+  if (ttsRunning) return;
+  ttsRunning = true;
+  try {
+    while (ttsQueue.length > 0) {
+      const job = ttsQueue.shift()!;
+      if (job.signal?.aborted) continue;
+      const audio = job.audioRef.current;
+      if (!audio) continue;
+      await speakWithTTS(job.text, job.audioRef);
+      if (job.signal?.aborted) break;
+      // 等这一句放完再放下一句(加超时兜底,避免 ended 永远不来时卡死队列)
+      await waitForAudioEnd(audio, job.signal);
+    }
+  } finally {
+    ttsRunning = false;
+  }
+}
+
+function waitForAudioEnd(audio: HTMLAudioElement, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      audio.removeEventListener('ended', finish);
+      audio.removeEventListener('error', finish);
+      signal?.removeEventListener('abort', finish);
+      clearTimeout(timer);
+      resolve();
+    };
+    // 60s 兜底:上游卡住时不要把整条队列堵死
+    const timer = setTimeout(finish, 60_000);
+    audio.addEventListener('ended', finish);
+    audio.addEventListener('error', finish);
+    signal?.addEventListener('abort', finish);
+  });
+}
+
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 15000;
 
 
 // G2: 解析数字人形象指令 <emotion:x/> / <action:y/> / <mouth:speak/>,
 // 映射成 onToolCalls 能识别的 DhToolCall(face.setExpression / body.playAction / mouth.speak)。
+/**
+ * 扫出文本里的 <ui:{json}/> 指令(目前只剩 iframe 一种用法:让数字人开网页/视频)。
+ *
+ * 用花括号配对扫描,不用正则。旧代码这里有两条写法不一致的正则:
+ *   解析用 /<ui:(\{[^}]*(?:,\s*"[^"]*"\s*:[^}]*)*\})\/>/  —— [^}] 跨不过嵌套花括号
+ *   剥离用 /<ui:((?:[^{}]|\{[^{}]*\})*)\/>/                —— 能跨一层
+ * 于是带嵌套的 UI 指令「既解析不出来、也剥不掉」,原始 JSON 直接漏进聊天气泡,
+ * 还会被 TTS 一字一句念出来。
+ *
+ * 列表/表单/网格已改走 AG-UI 工具调用(ui_show_list 等),不再从这条文本通道走。
+ *
+ * 返回解析出的对象和剥掉指令后的文本,保证「解析到的」与「剥掉的」永远是同一批。
+ */
+function extractUiDirectives(text: string): { uis: unknown[]; stripped: string } {
+  const TAG = '<ui:';
+  const uis: unknown[] = [];
+  let out = '';
+  let i = 0;
+
+  while (i < text.length) {
+    const start = text.indexOf(TAG, i);
+    if (start < 0) { out += text.slice(i); break; }
+
+    // 从 '{' 开始做花括号配对(跳过字符串字面量里的括号)
+    let j = start + TAG.length;
+    if (text[j] !== '{') { out += text.slice(i, j); i = j; continue; }
+    let depth = 0;
+    let inStr = false;
+    let esc = false;
+    let end = -1;
+    for (; j < text.length; j++) {
+      const ch = text[j];
+      if (inStr) {
+        if (esc) esc = false;
+        else if (ch === '\\') esc = true;
+        else if (ch === '"') inStr = false;
+        continue;
+      }
+      if (ch === '"') inStr = true;
+      else if (ch === '{') depth++;
+      else if (ch === '}') {
+        depth--;
+        if (depth === 0) { end = j; break; }
+      }
+    }
+    // 没闭合(还在流式传输中)→ 原样保留,等后续 chunk
+    if (end < 0) { out += text.slice(i); break; }
+    if (text.slice(end + 1, end + 3) !== '/>') {
+      out += text.slice(i, end + 1);
+      i = end + 1;
+      continue;
+    }
+
+    out += text.slice(i, start);
+    try {
+      const parsed = JSON.parse(text.slice(start + TAG.length, end + 1));
+      if (parsed && typeof parsed === 'object') uis.push(parsed);
+    } catch { /* JSON 坏了就整条丢弃,不阻断对话 */ }
+    i = end + 3;
+  }
+
+  return { uis, stripped: out };
+}
+
+/**
+ * 剥掉形象指令标签,得到可显示 / 可朗读的纯文本。
+ * <emotion:x/> / <action:x/> / <mouth:speak/> 用正则,<ui:{json}/> 用上面的配对扫描。
+ */
+export function stripAvatarDirectives(text: string): string {
+  return extractUiDirectives(text).stripped
+    .replace(/<emotion:[a-zA-Z_]+\/>/g, '')
+    .replace(/<action:[a-zA-Z_]+\/>/g, '')
+    .replace(/<mouth:speak\/>/g, '');
+}
+
+/**
+ * 解析形象指令。
+ *
+ * ⚠️ 必须只喂「新到达的那一段文本」,不能喂累积全文。
+ * 旧代码每收到一个 delta 就把 fullText 整段重解析一遍,于是开头的
+ * <action:wave/> 会在每一片上重复触发一次 —— 一条回复分 N 片就派发 N 次动作,
+ * 动画被反复打断重启,动态 UI 面板也会重复弹 N 次。
+ */
 function parseAvatarDirectives(text: string, options: UseChatAvatarWSOptions) {
   // I1: LLM 可能把 < > 转义成 </>,先还原再解析
   const raw = text
@@ -235,24 +413,36 @@ function parseAvatarDirectives(text: string, options: UseChatAvatarWSOptions) {
   while ((m = mouthRe.exec(raw))) {
     calls.push({ name: 'mouth.speak', args: { text: raw } });
   }
-  // 调试:打印解析到的指令
-  if (calls.length > 0) {
-    console.log('[parseAvatarDirectives] found calls:', calls.map(c => c.name));
-  }
-  // H1: 动态 UI 指令 <ui:{json}/>——数字员工干活后弹结果面板
-  // 支持带逗号分隔的复杂 JSON（多键值对），\}/> 兼容 "}," 这样的情况
+  // <ui:{json}/>:目前只剩 iframe 用法(开网页/视频),交给入口组件的虚拟浏览器
   if (options.onUI) {
-    const uiRe = /<ui:(\{[^}]*(?:,\s*"[^"]*"\s*:[^}]*)*\})\/>/g;
-    while ((m = uiRe.exec(raw))) {
-      try {
-        const ui = JSON.parse(m[1]);
-        if (ui && typeof ui === 'object' && ui.type) {
-          options.onUI(ui);
-        }
-      } catch { /* JSON 解析失败:整段丢弃,不阻断对话 */ }
+    for (const ui of extractUiDirectives(raw).uis) {
+      if (ui && typeof ui === 'object' && (ui as { type?: unknown }).type) options.onUI(ui);
     }
   }
-  if (calls.length > 0 && options.onToolCalls) options.onToolCalls(calls);
+  if (calls.length > 0) {
+    devLog.debug('[parseAvatarDirectives] found calls:', calls.map(c => c.name));
+    options.onToolCalls?.(calls);
+  }
+}
+
+/**
+ * 从流式文本里增量取出「刚补全的完整指令标签」。
+ *
+ * 只在标签闭合(出现 `/>`)之后才交给解析器,并记住已消费到哪个下标,
+ * 保证同一个标签只派发一次 —— 既不会因为分片截断丢标签,也不会重复触发。
+ */
+function makeDirectiveScanner() {
+  let consumed = 0;
+  return (fullText: string): string => {
+    // 最后一个完整闭合标签的结束位置
+    const tail = fullText.lastIndexOf('/>');
+    if (tail < 0) return '';
+    const end = tail + 2;
+    if (end <= consumed) return '';
+    const segment = fullText.slice(consumed, end);
+    consumed = end;
+    return segment;
+  };
 }
 
 interface WSConnection {
@@ -418,7 +608,18 @@ export interface UseChatAvatarWSOptions {
   aguiAgent?: string;
   /** H1:从 AG-UI 文本流解析出的动态 UI(数字员工干活后弹结果),入口组件渲染 */
   onUI?: (ui: any) => void;
-  /** 未知工具被调用时回调（用于告知用户动作不存在） */
+  /**
+   * 数字人调 ui_show_list / ui_show_grid / ui_show_form 时下发的 3D 场景面板。
+   * 传 null 表示关闭面板(ui_dismiss)。
+   *
+   * 取代了原来的 <ui:{json}/> 文本标记:那条路要求 LLM 在散文里手写嵌套 JSON,
+   * 而前端用正则去捞 —— 正则跨不过嵌套花括号,列表/表单一条都捞不出来。
+   */
+  onScenePanel?: (panel: ScenePanel | null) => void;
+  /**
+   * 未知工具被调用时回调（用于告知用户动作不存在）。
+   * 目前没有实现方:未知动作/表情的提示由入口组件读 dispatchToolCalls 的返回值给出。
+   */
   onUnknownTool?: (toolName: string) => void;
   /** 用户 ID，用于对话记录（仅已登录用户有效） */
   userId?: number;
@@ -442,6 +643,8 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
   const [wsFailed, setWsFailed] = React.useState(false);
 
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
+  // AG-UI 模式下当前这轮请求的中断控制器(barge-in 用)
+  const abortRef = React.useRef<AbortController | null>(null);
   const connRef = React.useRef<WSConnection | null>(null);
   const agentRef = React.useRef(agentId);
   agentRef.current = agentId;
@@ -502,12 +705,18 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
       const j = await res.json().catch(() => null)
       const msgs = j?.messages ?? []
       // 映射 role → who,过滤掉空内容占位消息(工具调用占位 content='' 不显示)
+      //
+      // 落库的是 LLM 的原始输出,里面还带着 <emotion:x/> / <action:x/> /
+      // <mouth:speak/> 这些形象指令。直播时前端会剥掉再显示,读历史时之前没剥 ——
+      // 于是翻旧会话就能看见一行行 "<mouth:speak/>你发送了一个字母…"。
+      // 剥完可能变成空串(整条消息只有指令),这类一并过滤掉。
       const items = msgs
         .filter((m: any) => typeof m.content === 'string' && m.content.trim() !== '')
         .map((m: any) => ({
           who: (m.role === 'user' ? 'user' : 'ai') as 'user' | 'ai',
-          text: m.content,
+          text: stripAvatarDirectives(m.content).trim(),
         }))
+        .filter((m: ChatLogItem) => m.text !== '')
       setChatLog(items)
     } catch {
       // 加载失败不阻塞(保持空列表)
@@ -953,6 +1162,12 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     if (conn && conn.connected) {
       sendRaw(conn, { type: 'cancel' });
     }
+    // AG-UI 模式没有 WS 连接:必须真的把 SSE 请求 abort 掉。
+    // 之前只暂停了音频,流照跑、onDone 照触发,TTS 又把整段重念一遍 ——
+    // 用户打断了个寂寞。
+    abortRef.current?.abort();
+    abortRef.current = null;
+    clearTTSQueue();
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
@@ -1038,11 +1253,20 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
   // G1: AG-UI 对话(数字员工)。替代 Hermes WS,保留数字人形象/语音/动作驱动。
   const aguiChatOnce = React.useCallback(
     async (userText: string) => {
+      // 打断用:每轮对话一个 AbortController。
+      // 之前 cancel() 只发 WS 的 cancel 消息,而 AG-UI 模式压根没有 WS 连接 ——
+      // 用户打断时音频暂停了,SSE 却照跑,onDone 一到 TTS 又开口把整段念一遍。
+      abortRef.current?.abort();
+      const ac = new AbortController();
+      abortRef.current = ac;
+
       try {
         const { agentmAPI } = await import('@/lib/agentmanager/api');
-        const toolStarted: string[] = [];
-        const toolCallArgsCache: Record<string, Record<string, any>> = {}; // toolCallId -> args
-        // H4: 从当前对话日志构造历史上下文(用户/助手交替),让 agent 延续上下文
+        // 增量扫描器:保证同一个 <action:.../> 只派发一次(旧代码每片重解析全文)
+        const scanDirectives = makeDirectiveScanner();
+        // 已朗读到的位置:边流边按句读,不用等整段生成完
+        let spokenUpto = 0;
+        // H4 从当前对话日志构造历史上下文(用户/助手交替),让 agent 延续上下文
         const history = chatLog
           .filter((m) => m.who === 'user' || m.who === 'ai')
           .slice(-10)
@@ -1050,6 +1274,22 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
             role: m.who === 'user' ? 'user' : 'assistant',
             content: m.text,
           }));
+
+        // 流式朗读:文本攒够一个完整句子就送去 TTS,首次出声不用等整段写完。
+        const speakReady = (final: boolean) => {
+          if (ac.signal.aborted) return;
+          const clean = stripAvatarDirectives(fullTextRef.current);
+          const pending = clean.slice(spokenUpto);
+          if (!pending) return;
+          // 找最后一个句末标点;final 时不挑了,剩下的一次读完
+          const cut = final ? pending.length : lastSentenceEnd(pending);
+          if (cut <= 0) return;
+          const say = pending.slice(0, cut);
+          spokenUpto += cut;
+          const ttsText = filterTTSContent(say);
+          if (ttsText) enqueueTTS(ttsText, audioRef, ac.signal);
+        };
+
         await agentmAPI.aguiChat(
           {
             agent: aguiAgent || 'worker',
@@ -1069,13 +1309,11 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
             },
             onDelta: (t) => {
               fullTextRef.current += t;
-              // G2 数字人形象指令:在完整累积文本上解析（避免跨 chunk 截断导致 <ui:.../> 标签残缺）
-              parseAvatarDirectives(fullTextRef.current, options);
-              // 清洗掉形象指令 + 动态UI标记,只显示纯文本
-              const cleanText = fullTextRef.current
-                .replace(/<emotion:[a-zA-Z_]+\/>/g, '')
-                .replace(/<action:[a-zA-Z_]+\/>/g, '')
-                .replace(/<ui:((?:[^{}]|\{[^{}]*\})*)\/>/g, '');
+              // 只把「本次新闭合的标签段」交给解析器,避免重复派发动作/表情
+              const segment = scanDirectives(fullTextRef.current);
+              if (segment) parseAvatarDirectives(segment, options);
+              // 清洗掉形象指令,只显示纯文本
+              const cleanText = stripAvatarDirectives(fullTextRef.current);
               // 打字机效果
               setChatLog((c) => {
                 const last = c[c.length - 1];
@@ -1084,57 +1322,64 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
                 }
                 return [...c, { who: 'ai', text: cleanText }];
               });
+              // 攒够一整句就先读出来
+              speakReady(false);
             },
-            onToolCall: (name, toolCallId, argsDelta) => {
-              // START 事件先到(无 args),CHUNK 事件后到(带 args)。用 id 缓冲去重补参。
-              const id = toolCallId || name;
-              if (!argsDelta) {
-                // 工具开始:登记,先不发(等 CHUNK 补 args;无 CHUNK 的纯动作工具由 parseAvatarDirectives 走 UI)
-                toolStarted.push(id);
-                toolCallArgsCache[id] = {};
+            onToolStart: (name) => {
+              // 业务工具开始执行时给个可见反馈,免得用户以为卡住了
+              const hint = TOOL_RUNNING_HINT[name];
+              if (hint) setThinkingLog(hint);
+            },
+            onToolCall: (name, toolCallId, argsJSON) => {
+              // 到这里 args 已经由 api.ts 攒完整了(TOOL_CALL_END 才交付),
+              // 不用再自己缓冲补参、也不会拿到半截 JSON。
+              let args: Record<string, any> = {};
+              if (argsJSON) {
+                try {
+                  const parsed = JSON.parse(argsJSON);
+                  if (parsed && typeof parsed === 'object') args = parsed;
+                } catch {
+                  devLog.warn('[agui] 工具参数解析失败:', name, argsJSON?.slice(0, 200));
+                }
+              }
+
+              // 生成式 UI 工具 → 3D 场景面板(列表 / 网格 / 表单)
+              if (name === SCENE_PANEL_DISMISS_TOOL) {
+                options.onScenePanel?.(null);
                 return;
               }
-              // 工具参数 chunk:解析 args 后分发
-              let args: Record<string, any> = {};
-              try {
-                const p = JSON.parse(argsDelta);
-                if (p && typeof p === 'object') args = p;
-              } catch { /* 解析失败退化为空参数 */ }
-              toolCallArgsCache[id] = args;
-              // 复用 dispatcher 通路:数字人形象/动作/换装/移动驱动
+              if (SCENE_PANEL_TOOLS[name]) {
+                const panel = scenePanelFromToolCall(name, args, toolCallId);
+                if (panel) options.onScenePanel?.(panel);
+                else devLog.warn('[agui] UI 工具参数不合法,不弹面板:', name, args);
+                return;
+              }
+
+              // 其余工具走 dispatcher 通路:数字人形象/动作/换装/移动驱动
               options.onToolCalls?.([{ name, args }]);
             },
             onToolEnd: () => {
-              // 工具结束(暂不额外处理)
+              setThinkingLog('');
             },
             onDone: () => {
               setChatBusy(false);
-              // 最终解析一次完整文本,确保所有指令都被处理
-              parseAvatarDirectives(fullTextRef.current, options);
-              // G3: 数字人语音输出——用 audio-gateway 真实 TTS(非 Web Speech API)
-              const cleanFull = fullTextRef.current
-                .replace(/<emotion:[a-zA-Z_]+\/>/g, '')
-                .replace(/<action:[a-zA-Z_]+\/>/g, '')
-                .replace(/<ui:((?:[^{}]|\{[^{}]*\})*)\/>/g, '')
-                .trim();
-              // 智能过滤:只读用户友好的内容,跳过复杂数据/代码/列表
-              const ttsText = filterTTSContent(cleanFull);
-              if (ttsText) {
-                speakWithTTS(ttsText, audioRef);
-              }
+              // 收尾:把最后一段还没闭合成句的文本读掉
+              speakReady(true);
             },
             onError: (err) => {
               setChatLog((c) => [...c, { who: 'ai', text: `❌ ${err}` }]);
               setChatBusy(false);
             },
           },
+          ac.signal,
         );
       } catch (e: any) {
+        if (e?.name === 'AbortError') return; // 主动打断,不算错误
         setChatLog((c) => [...c, { who: 'ai', text: `❌ ${e?.message || 'AG-UI 调用失败'}` }]);
         setChatBusy(false);
       }
     },
-    [aguiAgent, options],
+    [aguiAgent, options, chatLog],
   );
 
   return {

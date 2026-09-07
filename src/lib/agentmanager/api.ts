@@ -242,7 +242,17 @@ class AgentManagerAPI {
   /**
    * AG-UI 流式对话(SSE):POST /agui,解析 AG-UI 事件流。
    * 事件序列:RunStarted → TextMessageStart → TextMessageContent(多段) → TextMessageEnd → RunFinished
-   * onDelta 收文本增量,onDone 收结束,onError 收错误。
+   *
+   * 工具调用按 AG-UI 协议分三段到达:
+   *   TOOL_CALL_START(有 id/name, 无参数)
+   *   TOOL_CALL_CHUNK(参数分片, 可能多次)
+   *   TOOL_CALL_END  (结束)
+   * 这里按 toolCallId 把分片攒齐,END 时才把「一个完整的工具调用」交给 onToolCall。
+   * 之前是 START 和每个 CHUNK 都各调一次 onToolCall,下游只好自己去重补参,
+   * 参数分多片时还会拿半截 JSON 去 parse。
+   *
+   * signal:用于打断(barge-in)。用户说话打断数字人时,连接要真的断掉 ——
+   * 否则流照跑,onDone 照样触发,TTS 又开口说了一遍。
    */
   async aguiChat(
     params: { model?: string; agent?: string; prompt: string; system?: string; session_id?: string; user_id?: number; avatar_mode?: boolean; history?: Array<{ role: string; content: string }> },
@@ -251,19 +261,32 @@ class AgentManagerAPI {
       onThinking?: (text: string) => void
       onDone?: () => void
       onError?: (e: string) => void
+      /** 一个参数完整的工具调用(TOOL_CALL_END 时触发一次) */
       onToolCall?: (name: string, toolCallId: string, args?: string) => void
       onToolEnd?: (toolCallId: string) => void
+      /** 工具刚开始执行(还没有参数),用于显示「正在搜索…」这类状态 */
+      onToolStart?: (name: string, toolCallId: string) => void
     },
+    signal?: AbortSignal,
   ): Promise<void> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     const authToken = this.getAuthToken()
     if (authToken) headers['Authorization'] = `Bearer ${authToken}`
 
-    const res = await fetch(`${API_BASE}/agui`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(params),
-    })
+    let res: Response
+    try {
+      res = await fetch(`${API_BASE}/agui`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(params),
+        signal,
+      })
+    } catch (e: any) {
+      // 主动打断不是错误,静默结束,别在聊天记录里留一条 ❌
+      if (e?.name === 'AbortError') return
+      handlers.onError?.(e?.message || '请求失败')
+      return
+    }
     if (!res.ok) {
       const error = await res.json().catch(() => ({ error: res.statusText }))
       handlers.onError?.(error.error || `HTTP ${res.status}`)
@@ -278,48 +301,88 @@ class AgentManagerAPI {
     const decoder = new TextDecoder('utf-8', { fatal: false })
     let buffer = ''
     let finished = false  // 防止 RUN_FINISHED 与流结束重复触发 onDone
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) break
-      // 过滤掉 U+FFFD (Unicode replacement char) — DeepSeek LLM 偶尔输出无效 UTF-8 字节流
-      const raw = decoder.decode(value, { stream: true })
-      buffer += raw.replace(/�/g, '')
-      let idx
-      while ((idx = buffer.indexOf('\n\n')) !== -1) {
-        const block = buffer.slice(0, idx).replace(/\r/g, '')
-        buffer = buffer.slice(idx + 2)
-        // 取 data: 行
-        const dataLine = block.split('\n').find(l => l.startsWith('data:'))
-        if (!dataLine) continue
-        const dataStr = dataLine.slice(5).trim()
-        try {
-          const data = JSON.parse(dataStr)
-          const type = data.type
-          if (type === 'TEXT_MESSAGE_CONTENT') {
-            // 过滤掉 U+FFFD：json.Marshal 把 LLM 非法 UTF-8 转成了 � 转义序列
-            handlers.onDelta?.((data.delta ?? '').replace(/�/g, ''))
-          } else if (type === 'THINKING_CONTENT') {
-            handlers.onThinking?.((data.delta ?? '').replace(/�/g, ''))
-          } else if (type === 'RUN_FINISHED') {
-            if (!finished) {
-              finished = true
-              handlers.onDone?.()
-            }
-          } else if (type === 'RUN_ERROR') {
-            handlers.onError?.(data.message || 'run error')
-          } else if (type === 'TOOL_CALL_START') {
-            handlers.onToolCall?.(data.toolCallName ?? '', data.toolCallId ?? '')
-          } else if (type === 'TOOL_CALL_CHUNK') {
-            // 携带工具参数(args JSON 存于 delta)。Start 已触发一次,这里补 args。
-            handlers.onToolCall?.(data.toolCallName ?? '', data.toolCallId ?? '', data.delta ?? '')
-          } else if (type === 'TOOL_CALL_END') {
-            handlers.onToolEnd?.(data.toolCallId ?? '')
+    // 工具调用累积区:toolCallId → { name, args 分片拼接 }
+    const pendingTools = new Map<string, { name: string; args: string }>()
+
+    const flushTool = (id: string) => {
+      const t = pendingTools.get(id)
+      if (!t) return
+      pendingTools.delete(id)
+      handlers.onToolCall?.(t.name, id, t.args)
+    }
+
+    try {
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        // 过滤掉 U+FFFD (Unicode replacement char) — DeepSeek LLM 偶尔输出无效 UTF-8 字节流
+        const raw = decoder.decode(value, { stream: true })
+        buffer += raw.replace(/�/g, '')
+        let idx
+        while ((idx = buffer.indexOf('\n\n')) !== -1) {
+          const block = buffer.slice(0, idx).replace(/\r/g, '')
+          buffer = buffer.slice(idx + 2)
+          // 取 data: 行
+          const dataLine = block.split('\n').find(l => l.startsWith('data:'))
+          if (!dataLine) continue
+          const dataStr = dataLine.slice(5).trim()
+          let data: any
+          try {
+            data = JSON.parse(dataStr)
+          } catch {
+            continue // 忽略无法解析的行
           }
-        } catch {
-          /* 忽略无法解析的行 */
+          switch (data.type) {
+            case 'TEXT_MESSAGE_CONTENT':
+              // 过滤掉 U+FFFD：json.Marshal 把 LLM 非法 UTF-8 转成了 � 转义序列
+              handlers.onDelta?.((data.delta ?? '').replace(/�/g, ''))
+              break
+            case 'THINKING_CONTENT':
+              handlers.onThinking?.((data.delta ?? '').replace(/�/g, ''))
+              break
+            case 'RUN_FINISHED':
+              if (!finished) {
+                finished = true
+                handlers.onDone?.()
+              }
+              break
+            case 'RUN_ERROR':
+              handlers.onError?.(data.message || 'run error')
+              break
+            case 'TOOL_CALL_START': {
+              const id = data.toolCallId ?? ''
+              const name = data.toolCallName ?? ''
+              pendingTools.set(id, { name, args: '' })
+              handlers.onToolStart?.(name, id)
+              break
+            }
+            case 'TOOL_CALL_CHUNK': {
+              // 参数分片:攒着,END 时一次性交付(单片可能是半截 JSON)
+              const id = data.toolCallId ?? ''
+              const prev = pendingTools.get(id) ?? { name: data.toolCallName ?? '', args: '' }
+              if (!prev.name && data.toolCallName) prev.name = data.toolCallName
+              prev.args += data.delta ?? ''
+              pendingTools.set(id, prev)
+              break
+            }
+            case 'TOOL_CALL_END': {
+              const id = data.toolCallId ?? ''
+              flushTool(id)
+              handlers.onToolEnd?.(id)
+              break
+            }
+          }
         }
       }
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return // 打断:静默结束,不触发 onDone/onError
+      handlers.onError?.(e?.message || '读取流失败')
+      return
     }
+
+    // 流结束时还有没收到 END 的工具调用,补交付一次,免得参数丢了
+    for (const id of [...pendingTools.keys()]) flushTool(id)
+
     if (!finished) {
       handlers.onDone?.()
     }

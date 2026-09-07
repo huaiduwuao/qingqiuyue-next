@@ -204,11 +204,23 @@ export function createAudioHandle(): AudioHandle {
     if (micSrc) { try { micSrc.disconnect(); } catch {} micSrc = null; }
     if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
   }
+  // ⚠️ createMediaElementSource 对同一个 <audio> 只能调一次,第二次直接抛
+  // InvalidStateError,而且抛出后这个元素的声音会被静音(它已经被接进图里了)。
+  // 记住已接过的元素,重复调用变成空操作。
+  let connectedEl: HTMLAudioElement | null = null;
   function connectElement(el: HTMLAudioElement) {
+    if (connectedEl === el) return;
     ensureAudio();
     if (!audioCtx || !analyser || !masterGain) return;
     if (elemSrc) { try { elemSrc.disconnect(); } catch {} }
-    elemSrc = audioCtx.createMediaElementSource(el);
+    try {
+      elemSrc = audioCtx.createMediaElementSource(el);
+    } catch (e) {
+      // 元素已被别的 AudioContext 接管:放弃分析,至少别把声音弄没了
+      console.warn('[audio] connectElement failed, lip sync will fall back to timeline', e);
+      return;
+    }
+    connectedEl = el;
     elemSrc.connect(analyser);
     elemSrc.connect(masterGain);
   }

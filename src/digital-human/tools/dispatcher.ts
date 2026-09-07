@@ -18,10 +18,43 @@ import type { BlendshapeDict, ExpressionTemplateName } from './expressions';
 import type { VisemeName } from './visemes';
 import { ALL_VISEME_NAMES, textToVisemeTimeline } from './visemes';
 
-/** tool_call (LLM 输出格式) */
+/**
+ * tool_call (LLM 输出格式)
+ *
+ * ⚠️ 历史坑:调用方有两套字段名 —— 本地工具目录用 `params`,AG-UI / Hermes 事件流
+ * 用 `args`。之前 dispatcher 只读 `params`,而运行时两个入口(parseAvatarDirectives、
+ * aguiChatOnce 的 onToolCall)传的都是 `args`,还都被 `as unknown as ToolCall` 强转
+ * 骗过了编译器。结果:每个 body.playAction 都读到 undefined 退化成 'idle',
+ * 每个 face.setExpression 都退化成 'neutral',而且照样返回 ok:true —— 数字人
+ * 从 AG-UI 收到的表情/动作一个都没生效过,还查不出错。
+ *
+ * 现在两个名字都接受,由 readParams() 统一取。
+ */
 export interface ToolCall {
   name: string;
-  params: Record<string, any>;
+  params?: Record<string, any>;
+  args?: Record<string, any>;
+}
+
+/** 取工具参数:兼容 params / args 两种字段名。 */
+function readParams(call: ToolCall): Record<string, any> {
+  return call.params ?? call.args ?? {};
+}
+
+/**
+ * 这个工具名归前端管吗?
+ *
+ * AG-UI 的工具事件是「后端执行了什么」的全量回显 —— 里面既有该由浏览器驱动形象的
+ * 工具(face.setExpression / body.playAction 等),也有纯在服务端跑完的(resource_search / shell_exec /
+ * workflow_execute…)。后者本来就不该进 dispatcher。
+ *
+ * 之前没有这道判断:每个后端工具都会落到 default 分支返回
+ * `handler not registered: xxx`,调用方再把它当错误贴进聊天记录,
+ * 用户搜一次资源就看见一条「⚠️ unknown tool: resource_search」。
+ * 现在由调用方先用这个函数过滤,只把形象类工具交给 dispatcher。
+ */
+export function isAvatarTool(name: string): boolean {
+  return name in TOOLS_BY_NAME;
 }
 
 export interface DigitalHumanSinks {
@@ -71,46 +104,48 @@ export function dispatchToolCall(call: ToolCall, sinks: DigitalHumanSinks): Disp
   if (!tool) {
     return { ok: false, toolName: call.name, error: `unknown tool: ${call.name}` };
   }
+  const p = readParams(call);
 
   try {
     switch (call.name) {
       case 'face.setExpression': {
-        const params = call.params || {};
-        const template = (params.template || 'neutral') as ExpressionTemplateName;
+        // `template` 是工具 schema 的字段名;`name` 是 <emotion:x/> 指令的字段名。
+        // 两边都收,否则文本指令来的表情永远落到 neutral。
+        const template = (p.template || p.name || 'neutral') as ExpressionTemplateName;
         if (!EXPRESSION_PRESETS[template]) {
           return { ok: false, toolName: 'face.setExpression', error: `unknown expression template: ${template}` };
         }
         const built = buildExpressionFromPreset(
           template,
-          params.intensity ?? 1,
-          params.blendshapes || {},
+          p.intensity ?? 1,
+          p.blendshapes || {},
         );
         sinks.setEmotion(built);
-        if (params.durationMs && params.durationMs > 0) {
-          setTimeout(() => sinks.setEmotion({}), params.durationMs);
+        if (p.durationMs && p.durationMs > 0) {
+          setTimeout(() => sinks.setEmotion({}), p.durationMs);
         }
         return { ok: true, toolName: 'face.setExpression', result: { applied: template } };
       }
 
       case 'face.mouthOpen': {
-        const v = call.params?.value ?? 0;
+        const v = p.value ?? 0;
         sinks.setJawOpen(v);
         return { ok: true, toolName: 'face.mouthOpen', result: { value: v } };
       }
 
       case 'mouth.setViseme': {
-        const shape = (call.params?.shape || 'closed') as VisemeName;
+        const shape = (p.shape || 'closed') as VisemeName;
         if (!ALL_VISEME_NAMES.includes(shape)) {
           return { ok: false, toolName: 'mouth.setViseme', error: `unknown viseme: ${shape}` };
         }
-        const weight = call.params?.weight ?? 1;
+        const weight = p.weight ?? 1;
         sinks.setViseme(shape, weight);
         return { ok: true, toolName: 'mouth.setViseme', result: { shape, weight } };
       }
 
       case 'mouth.speak': {
-        const text = call.params?.text || '';
-        const audioUrl = call.params?.audioUrl;
+        const text = p.text || '';
+        const audioUrl = p.audioUrl;
         if (text) {
           const timeline = textToVisemeTimeline(text);
           sinks.setVisemeTimeline(timeline);
@@ -122,18 +157,18 @@ export function dispatchToolCall(call: ToolCall, sinks: DigitalHumanSinks): Disp
       }
 
       case 'body.playAction': {
-        const name = call.params?.name || 'idle';
+        const name = p.name || 'idle';
         if (!ALL_ACTIONS.includes(name)) {
           return { ok: false, toolName: 'body.playAction', error: `unknown action: ${name}` };
         }
-        const speed = call.params?.speed ?? 1;
-        const repeat = call.params?.repeat ?? 1;
+        const speed = p.speed ?? 1;
+        const repeat = p.repeat ?? 1;
         sinks.setAction(name);
         return { ok: true, toolName: 'body.playAction', result: { name, speed, repeat } };
       }
 
       case 'body.move': {
-        const target = call.params?.target || { x: 0 };
+        const target = p.target || { x: 0 };
         // 校验 target 参数
         if (typeof target === 'string') {
           const validTargets = ['left', 'right', 'center', 'forward', 'back'];
@@ -148,34 +183,34 @@ export function dispatchToolCall(call: ToolCall, sinks: DigitalHumanSinks): Disp
             return { ok: false, toolName: 'body.move', error: 'target.z must be a number' };
           }
         }
-        const durationMs = call.params?.durationMs ?? 1500;
-        const style = call.params?.style ?? 'walk';
+        const durationMs = p.durationMs ?? 1500;
+        const style = p.style ?? 'walk';
         sinks.move(target, { durationMs, style });
         return { ok: true, toolName: 'body.move', result: { target, durationMs, style } };
       }
 
       case 'camera.control': {
-        const action = call.params?.action || 'reset';
+        const action = p.action || 'reset';
         sinks.camera(action);
         return { ok: true, toolName: 'camera.control', result: { action } };
       }
 
       case 'scene.change': {
-        const name = call.params?.name || 'concert';
+        const name = p.name || 'concert';
         if (sinks.setScene) sinks.setScene(name);
         else console.warn('[dispatcher] scene.change: sinks.setScene 未实现 (旧 BlenderAvatar)');
         return { ok: true, toolName: 'scene.change', result: { name, applied: !!sinks.setScene } };
       }
 
       case 'camera.preset': {
-        const name = call.params?.name || 'front';
+        const name = p.name || 'front';
         if (sinks.setCameraPreset) sinks.setCameraPreset(name);
         else console.warn('[dispatcher] camera.preset: sinks.setCameraPreset 未实现 (旧 BlenderAvatar)');
         return { ok: true, toolName: 'camera.preset', result: { name, applied: !!sinks.setCameraPreset } };
       }
 
       case 'avatar.swapModel': {
-        const modelId = call.params?.modelId || '';
+        const modelId = p.modelId || '';
         if (!sinks.setModel) {
           return { ok: false, toolName: 'avatar.swapModel', error: 'setModel 未实现,当前环境不支持换装' };
         }
@@ -204,5 +239,7 @@ export function dispatchToolCall(call: ToolCall, sinks: DigitalHumanSinks): Disp
  * (处理顺序: 先 setEmotion, 再 setAction, 最后 speak)
  */
 export function dispatchToolCalls(calls: ToolCall[], sinks: DigitalHumanSinks): DispatchResult[] {
-  return calls.map(c => dispatchToolCall(c, sinks));
+  // 只派发形象类工具:后端自己跑完的业务工具(搜索/发悬赏/shell/工作流)不归这里管,
+  // 混进来只会变成一条「unknown tool」错误贴到聊天记录里。
+  return calls.filter(c => isAvatarTool(c.name)).map(c => dispatchToolCall(c, sinks));
 }

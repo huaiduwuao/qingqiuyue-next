@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import { ALL_ACTIONS } from '../tools/actions';
 import { ALL_EXPRESSION_TEMPLATE_NAMES } from '../tools/expressions';
 import { ALL_VISEME_NAMES, VISEME_NAMES } from '../tools/visemes';
-import { dispatchToolCall } from '../tools/dispatcher';
+import { dispatchToolCall, dispatchToolCalls, isAvatarTool } from '../tools/dispatcher';
 import { loadConfigBundle, safeEvalFormula } from '../vrm/config/loader';
 import {
   faceSetExpression,
@@ -75,7 +75,9 @@ function makeMockSinks() {
 }
 
 const goToolsSource = readRepoFile('qingqiuyue-go/internal/digitalhuman/tools.go');
-const seedSQL = readRepoFile('qingqiuyue-go/internal/digitalhuman/migrations/001_vrm_seed.sql');
+// VRM 种子数据已从 internal/digitalhuman/migrations/001_vrm_seed.sql 并进统一 schema,
+// 老路径已不存在(这个套件此前一直是 ENOENT 起不来的)。
+const seedSQL = readRepoFile('qingqiuyue-go/sql/postgresql/schema.sql');
 
 const actionsJson = JSON.parse(
   readRepoFile('qingqiuyue-next/src/data/seed/actions/character.json'),
@@ -173,6 +175,102 @@ describe('dispatcher 参数化验证', () => {
     );
     expect(r.ok).toBe(false);
     expect(sinks.setViseme).not.toHaveBeenCalled();
+  });
+});
+
+// AG-UI / <emotion:x/> 指令走的是 `args` 字段,本地工具目录走 `params`。
+// 之前 dispatcher 只认 params,两个运行时入口传的又都是 args,还被 as-unknown 强转
+// 骗过了编译器 —— 结果动作全退化成 idle、表情全退化成 neutral,而且返回 ok:true。
+// 这组用例锁住"两种字段名都要生效"。
+describe('dispatcher 接受 args 与 params 两种字段名', () => {
+  it.each(ALL_ACTIONS)('body.playAction args:{name:"%s"} 生效', (name) => {
+    const sinks = makeMockSinks();
+    const r = dispatchToolCall({ name: 'body.playAction', args: { name } }, sinks);
+    expect(r.ok).toBe(true);
+    expect(sinks.setAction).toHaveBeenCalledWith(name);
+  });
+
+  it.each(ALL_EXPRESSION_TEMPLATE_NAMES)('face.setExpression args:{template:"%s"} 生效', (template) => {
+    const sinks = makeMockSinks();
+    const r = dispatchToolCall({ name: 'face.setExpression', args: { template } }, sinks);
+    expect(r.ok).toBe(true);
+    expect(sinks.setEmotion).toHaveBeenCalled();
+  });
+
+  // <emotion:happy/> 解析出来的是 { name: 'happy' },不是 { template: 'happy' }
+  it.each(ALL_EXPRESSION_TEMPLATE_NAMES)('face.setExpression args:{name:"%s"} 也生效', (name) => {
+    const sinks = makeMockSinks();
+    const r = dispatchToolCall({ name: 'face.setExpression', args: { name } }, sinks);
+    expect(r.ok).toBe(true);
+    expect(sinks.setEmotion).toHaveBeenCalled();
+  });
+
+  it('args 里的非法动作仍然要报错,不能静默退化成 idle', () => {
+    const sinks = makeMockSinks();
+    const r = dispatchToolCall({ name: 'body.playAction', args: { name: 'notAnAction' } }, sinks);
+    expect(r.ok).toBe(false);
+    expect(sinks.setAction).not.toHaveBeenCalled();
+  });
+
+  it('args 里的非法表情仍然要报错,不能静默退化成 neutral', () => {
+    const sinks = makeMockSinks();
+    const r = dispatchToolCall({ name: 'face.setExpression', args: { template: 'nope' } }, sinks);
+    expect(r.ok).toBe(false);
+    expect(sinks.setEmotion).not.toHaveBeenCalled();
+  });
+
+  it('params 优先于 args(两者都给时)', () => {
+    const sinks = makeMockSinks();
+    const r = dispatchToolCall(
+      { name: 'body.playAction', params: { name: 'wave' }, args: { name: 'bow' } },
+      sinks,
+    );
+    expect(r.ok).toBe(true);
+    expect(sinks.setAction).toHaveBeenCalledWith('wave');
+  });
+});
+
+// AG-UI 会把后端跑的每个工具都回显给前端。这些工具不归 dispatcher 管,
+// 混进来会落到 default 分支变成一条 error,调用方再贴成
+// 「⚠️ unknown tool: resource_search」—— 用户搜一次资源就看见一条报错。
+describe('dispatchToolCalls 只处理形象类工具', () => {
+  const backendOnly = [
+    'resource_search', 'bounty_list', 'bounty_create',
+    'ui_show_list', 'ui_show_form', 'ui_show_grid', 'ui_dismiss',
+    'shell_exec', 'file_read', 'http_request', 'workflow_execute',
+  ];
+
+  it.each(backendOnly)('后端工具 "%s" 被静默跳过,不产生错误结果', (name) => {
+    const sinks = makeMockSinks();
+    const results = dispatchToolCalls([{ name, args: {} }], sinks);
+    expect(results).toHaveLength(0);
+    expect(sinks.setAction).not.toHaveBeenCalled();
+    expect(sinks.setEmotion).not.toHaveBeenCalled();
+  });
+
+  it.each(backendOnly)('isAvatarTool("%s") 为 false', (name) => {
+    expect(isAvatarTool(name)).toBe(false);
+  });
+
+  it('形象类工具仍然被识别', () => {
+    for (const n of ['face.setExpression', 'body.playAction', 'mouth.setViseme', 'scene.change']) {
+      expect(isAvatarTool(n)).toBe(true);
+    }
+  });
+
+  it('混合列表里只派发形象类工具,后端工具不干扰', () => {
+    const sinks = makeMockSinks();
+    const results = dispatchToolCalls(
+      [
+        { name: 'resource_search', args: { keyword: '科幻' } },
+        { name: 'body.playAction', args: { name: 'wave' } },
+        { name: 'ui_show_list', args: { title: 'x' } },
+      ],
+      sinks,
+    );
+    expect(results).toHaveLength(1);
+    expect(results[0].ok).toBe(true);
+    expect(sinks.setAction).toHaveBeenCalledWith('wave');
   });
 });
 

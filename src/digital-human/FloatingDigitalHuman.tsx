@@ -25,6 +25,8 @@ import { useChatAvatarWS } from './useChatAvatarWS';
 import { dispatchToolCalls, type ToolCall as DhToolCall } from './tools/dispatcher';
 import { parseIframeUI, iframeToolToTarget, type IframeOpenTarget } from './virtual-browser';
 import { VirtualBrowser } from './VirtualBrowser';
+import { ScenePanel } from './scene-ui/ScenePanel';
+import type { ScenePanel as ScenePanelModel } from './scene-ui/types';
 import { listModels } from './api/digitalHumanConfig';
 import { clearAvatarCache } from './vrm/loadAvatar';
 import { useVoiceAgent } from '@/hooks/useVoiceAgent';
@@ -152,6 +154,8 @@ export default function FloatingDigitalHuman() {
       const target = parseIframeUI(ui);
       if (target) setIframeTarget(target);
     },
+    // 生成式 UI:浮窗没有 3D 舞台,用普通弹层承接同一份面板
+    onScenePanel: (panel) => setScenePanel(panel),
     onToolCalls: (calls) => {
       // I1.2: 工具兜底(openUrl/video.*) → 统一显示器
       for (const c of calls as unknown as DhToolCall[]) {
@@ -369,6 +373,8 @@ export default function FloatingDigitalHuman() {
 
   // I1: 统一显示器(取代旧 ExternalViewer 内联 iframe 模态)
   const [iframeTarget, setIframeTarget] = React.useState<IframeOpenTarget | null>(null)
+  // 数字人下发的列表/网格/表单(ui_show_* 工具)
+  const [scenePanel, setScenePanel] = React.useState<ScenePanelModel | null>(null)
   // 兼容旧事件 'digital-human-open-external'(executor 的 open_external 意图也走统一显示器)
   React.useEffect(() => {
     const onOpen = (e: Event) => {
@@ -917,6 +923,34 @@ export default function FloatingDigitalHuman() {
           onClose={() => setIframeTarget(null)}
           placement="modal"
         />
+      )}
+
+      {/* 数字人下发的列表/网格/表单。
+          浮窗没有 3D 舞台(那是 /digital-human 全屏页的 CSS3D 面板),这里用普通弹层承接
+          同一份 ScenePanel —— 否则用户在浮窗里让它搜资源,工具跑完了却什么都看不到。 */}
+      {scenePanel && (
+        <Box
+          data-no-drag
+          sx={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 2000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(0,0,0,0.45)',
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setScenePanel(null); }}
+        >
+          <Box sx={{ width: 'min(520px, 92vw)', height: 'min(680px, 86vh)' }}>
+            <ScenePanel
+              key={scenePanel.id}
+              panel={scenePanel}
+              onClose={() => setScenePanel(null)}
+              onSend={(t) => { setScenePanel(null); void chat.sendText(t); }}
+            />
+          </Box>
+        </Box>
       )}
     </Box>
   );

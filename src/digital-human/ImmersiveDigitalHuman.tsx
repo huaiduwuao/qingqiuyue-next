@@ -28,8 +28,11 @@ import { useRouter } from 'next/navigation';
 import { alpha } from '@mui/material/styles';
 import { VrmStage, type VrmStageHandle } from './VrmStage';
 import { useChatAvatarWS } from './useChatAvatarWS';
+import { createPortal } from 'react-dom';
 import { DynamicUIModal } from './dynamic-ui/DynamicUIModal';
 import type { DynamicUI, UIAction } from './dynamic-ui/types';
+import { ScenePanel } from './scene-ui/ScenePanel';
+import type { ScenePanel as ScenePanelModel } from './scene-ui/types';
 import { dispatchToolCalls, type ToolCall as DhToolCall } from './tools/dispatcher';
 import { textToVisemeTimeline } from './tools/visemes';
 import { parseIframeUI, iframeToolToTarget, type IframeOpenTarget } from './virtual-browser';
@@ -121,6 +124,10 @@ export default function ImmersiveDigitalHuman() {
   const [stageHandle, setStageHandle] = React.useState<VrmStageHandle | null>(null);
   // H1: 动态 UI(数字员工干活后弹结果面板)
   const [dynamicUI, setDynamicUI] = React.useState<DynamicUI | null>(null);
+  // 3D 场景内的 UI 面板:数字人调 ui_show_list/grid/form 时下发,
+  // 由 CSS3DRenderer 摆在角色身旁,内容用 portal 渲染进 VrmStage 给的宿主元素
+  const [scenePanel, setScenePanel] = React.useState<ScenePanelModel | null>(null);
+  const [panelHost, setPanelHost] = React.useState<HTMLDivElement | null>(null);
   // I1: 虚拟浏览器 iframe 显示器(真实加载网页,零后端)
   // 统一显示器组件(地址栏/视频原声/fallback/新标签), 取代旧的 inline iframe
   const [browserFrame, setBrowserFrame] = React.useState<{ url: string; title?: string } | null>(null);
@@ -140,6 +147,8 @@ export default function ImmersiveDigitalHuman() {
       }
       setDynamicUI(ui as DynamicUI);
     },
+    // 生成式 UI:数字人把列表/网格/表单推到 3D 场景面板
+    onScenePanel: (panel) => setScenePanel(panel),
     onToolCalls: (calls) => {
       // I1.2: 数字人/用户要看网页或视频 → 弹统一显示器 (工具兜底, 与 <ui:iframe/> 指令同源)
       // 注意: 必须先于 stageHandle 早退处理, 否则 stage 未就绪时网页/视频指令被丢弃
@@ -216,6 +225,28 @@ export default function ImmersiveDigitalHuman() {
   const [sessionDrawerOpen, setSessionDrawerOpen] = React.useState(true);
   // 诊断：监听 stageHandle 变化
   React.useEffect(() => { devLog.debug('[Immersive] stageHandle 变化:', stageHandle); }, [stageHandle]);
+
+  // 有面板就让 3D 面板层可见,没有就收起来
+  React.useEffect(() => {
+    stageHandle?.setScenePanelVisible(!!scenePanel);
+  }, [stageHandle, scenePanel]);
+
+  // 开发期调试:控制台 __showScenePanel({...}) 直接弹一块面板,
+  // 不用真的跑通「LLM → 工具调用 → SSE」整条链路就能调面板样式/交互。
+  // 与文件顶部 __DIGITAL_HUMAN_DEBUG / __vrmStageHandle 同一套调试口子。
+  React.useEffect(() => {
+    if (process.env.NODE_ENV === 'production' || typeof window === 'undefined') return;
+    (window as any).__showScenePanel = (p: ScenePanelModel | null) => setScenePanel(p);
+    return () => { delete (window as any).__showScenePanel; };
+  }, []);
+
+  // 把 TTS 用的 <audio> 接到舞台分析器上 —— 说话时的口型才会跟着真实语音走,
+  // 而不是按「每字 150ms」硬猜。两者本来在两个不同的 audio 元素上,分析器听不到 TTS。
+  React.useEffect(() => {
+    const el = audioRef.current;
+    if (!stageHandle || !el) return;
+    stageHandle.connectAudioElement(el);
+  }, [stageHandle, audioRef]);
   const [panelOpen, setPanelOpen] = React.useState(false);
   // 002:聊天消息区自动滚动到底
   const chatScrollRef = React.useRef<HTMLDivElement | null>(null);
@@ -466,8 +497,25 @@ export default function ImmersiveDigitalHuman() {
         viseme={viseme}
         autoBlink={stageState.autoBlink}
         lookAtCamera={stageState.lookAtCamera}
+        onScenePanelHost={setPanelHost}
         sx={{ position: 'absolute', inset: 0 }}
       />
+
+      {/* 3D 场景内的 UI 面板:CSS3D 把这块 DOM 摆到角色身旁(跟着走、随相机转),
+          内容是真 DOM,所以列表能点、表单能填。点/提交都会回灌成新一轮对话。 */}
+      {panelHost && scenePanel && createPortal(
+        <ScenePanel
+          // key 绑到面板 id:换一块面板要重挂组件,否则上一张表单填的值会留在新表单里
+          key={scenePanel.id}
+          panel={scenePanel}
+          onClose={() => setScenePanel(null)}
+          onSend={(t) => {
+            setScenePanel(null);
+            void sendText(t);
+          }}
+        />,
+        panelHost,
+      )}
 
       {/* 顶部:退出按钮 + 模型选择 + 会话列表切换 + 控制台切换 */}
       <IconButton
@@ -574,17 +622,7 @@ export default function ImmersiveDigitalHuman() {
         <VrmPoseChips handle={stageHandle} />
       </Box>
 
-      {/* 右侧控制面板 */}
-      <VrmControlPanel
-        open={panelOpen}
-        onClose={() => setPanelOpen(false)}
-        handle={stageHandle}
-        state={stageState}
-        onChange={updateStageState}
-        posDisplay={posDisplay}
-      />
-
-      {/* 右侧控制面板 */}
+      {/* 右侧控制面板（这里原来重复渲染了两份完全一样的实例） */}
       <VrmControlPanel
         open={panelOpen}
         onClose={() => setPanelOpen(false)}

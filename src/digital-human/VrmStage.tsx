@@ -39,6 +39,7 @@ import { useVrmScene } from './vrm/useVrmScene';
 import { useVrmLipSync } from './vrm/useVrmLipSync';
 import { useVrmAnimation } from './vrm/useVrmAnimation';
 import { useVrmCamera } from './vrm/useVrmCamera';
+import { useVrmScenePanel } from './vrm/useVrmScenePanel';
 import { makeConfetti, updateConfetti } from './vrm/particles';
 import { createAudioHandle, type AudioHandle } from './vrm/audio';
 import { detectVrmVersion, setExpression, setExpressionDict, listAvailableExpressions, getBone } from './vrm/vrmCompat';
@@ -65,6 +66,16 @@ export interface VrmStageHandle {
   setUserBlinkOverride: (on: boolean) => void;
   /** 彩屑开关 */
   setConfetti: (on: boolean) => void;
+  /** 场景内 UI 面板的显示开关（内容由父组件 portal 进 onScenePanelHost 给的宿主元素） */
+  setScenePanelVisible: (on: boolean) => void;
+  /**
+   * 把外部的 <audio>（TTS 输出）接到舞台的 WebAudio 分析器上，让口型跟着真实语音走。
+   *
+   * 不接的话，说话时的嘴型只能靠 textToVisemeTimeline 按「每字 150ms」猜，
+   * 跟实际语速对不上；TTS 音频本来就在另一个 <audio> 元素上，分析器根本听不到。
+   * 同一个元素重复调用是安全的（内部幂等）。
+   */
+  connectAudioElement: (el: HTMLAudioElement) => void;
   /** 演示歌曲 */
   startSong: () => void;
   stopSong: () => void;
@@ -111,6 +122,14 @@ export interface VrmStageProps {
    * - 传：父组件可以注入从 API 拉来的 config（Phase 2 用）
    */
   config?: ConfigBundle;
+  /**
+   * 3D 场景内 UI 面板的宿主元素就绪回调。
+   *
+   * 面板由 CSS3DRenderer 摆在场景里(跟着角色走、随相机转),但内容是真 DOM,
+   * 父组件拿到这个 host 后用 createPortal 往里渲染 React —— 列表能点、表单能填。
+   * 传 null 表示面板层被卸载了。
+   */
+  onScenePanelHost?: (host: HTMLDivElement | null) => void;
 }
 
 const EXPRESSION_PASSTHROUGH = new Set([
@@ -182,6 +201,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     debugNoThree,
     onReady,
     config: configProp,
+    onScenePanelHost,
   } = props;
   // Phase 1：模块加载时已 loadConfigBundle()，所有子模块（expressions/visemes/actions）已用
   // Phase 2：父组件可以传 config prop 覆盖
@@ -206,6 +226,8 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   }, [configBundle, currentScene]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // CSS3D 面板层挂在 canvas 的父容器上(与 canvas 同尺寸、同坐标系)
+  const [stageEl, setStageEl] = useState<HTMLDivElement | null>(null);
   const vrmSceneRef = useRef<any>(null);  // THREE.Object3D of the loaded VRM
   const vrmDataRef = useRef<Cached | null>(null);
   const expressionManagerRef = useRef<any>(null);
@@ -291,6 +313,17 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   // 2. scene
   const sceneApi = useVrmScene({ rendererState, vrmScene: vrmSceneRef.current, initialPreset: 'concert' });
   sceneApiRef.current = sceneApi;
+
+  // 2.5 场景内 UI 面板层(CSS3D):与 WebGL 共用 camera,面板站在场景里跟着角色
+  const panelApi = useVrmScenePanel({
+    container: stageEl,
+    camera: rendererState?.camera ?? null,
+    THREE_NS: (rendererState as any)?.THREE_NS ?? null,
+  });
+  const panelApiRef = useRef(panelApi);
+  panelApiRef.current = panelApi;
+  // host 就绪/卸载时通知父组件(父组件据此 createPortal)
+  useEffect(() => { onScenePanelHost?.(panelApi.host); }, [panelApi.host, onScenePanelHost]);
 
   // 3. 统一动画状态机（替代 useVrmDance）
   const animApi = useVrmAnimation({ vrmRef, audio, walkRef, configBundle, physics });
@@ -545,6 +578,9 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       }
       // 8. VRM 内部更新（spring bone / lookAt）
       vrmDataRef.current?.vrm?.update?.(dt);
+      // 9. 场景内 UI 面板:摆到角色身侧并朝向相机，然后渲染 CSS3D 层。
+      //    放在最后，位置用的是本帧物理修正后的最终坐标，面板不会比角色慢一帧。
+      panelApiRef.current.tick({ x: pos.x, y: yOffsetRef.current, z: pos.z });
     });
     rendererApi.start();
     return () => rendererApi.stop();
@@ -664,6 +700,14 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       },
       setUserLipOverride: (on) => { devLog.debug('[VrmStage.setUserLipOverride]', on); userLipOverrideRef.current = on; },
       setUserBlinkOverride: (on) => { devLog.debug('[VrmStage.setUserBlinkOverride]', on); userBlinkOverrideRef.current = on; },
+      setScenePanelVisible: (on) => {
+        devLog.debug('[VrmStage.setScenePanelVisible]', on);
+        panelApiRef.current.setVisible(on);
+      },
+      connectAudioElement: (el) => {
+        devLog.debug('[VrmStage.connectAudioElement]');
+        lipApiRef.current?.connectElement(el);
+      },
       setConfetti: (on) => {
         devLog.debug('[VrmStage.setConfetti]', on);
         setConfettiOn(on);
@@ -773,14 +817,17 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     }
   }
 
-  // resize 容器
+  // resize 容器（WebGL 与 CSS3D 两层要一起跟着容器尺寸走，否则面板会错位）
   useEffect(() => {
-    const id = setInterval(() => rendererApi.resize(), 250);
+    const id = setInterval(() => {
+      rendererApi.resize();
+      panelApiRef.current.resize();
+    }, 250);
     return () => clearInterval(id);
   }, [rendererApi]);
 
   return (
-    <Box sx={{ position: 'relative', width: '100%', height: '100%', background, ...sx }}>
+    <Box ref={setStageEl} sx={{ position: 'relative', width: '100%', height: '100%', background, ...sx }}>
       <canvas
         ref={canvasRef}
         style={{ width: '100%', height: '100%', display: 'block', outline: 'none', touchAction: 'none' }}
