@@ -27,6 +27,7 @@ import VerifiedRoundedIcon from '@mui/icons-material/VerifiedRounded';
 import QueueMusicRoundedIcon from '@mui/icons-material/QueueMusicRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
+import BedtimeRoundedIcon from '@mui/icons-material/BedtimeRounded';
 import { fetchRecommend } from '@/apis/home-discover';
 import { sendComment, moduleContentAction } from '@/apis/home';
 import { reportContent, collectContent } from '@/apis/global';
@@ -58,6 +59,14 @@ interface VideoItem {
   brand?: string;
   authorId?: number;
   sourceUrl?: string; // 源页面 URL,供播放器解析真实视频流
+  // ── 播放性(后端 internal/playability 判定后随 feed 一起下发)──
+  // 后端以前在解析不出播放流时会塞一条写死的 B 站演示视频当兜底,用户点开
+  // 看到的是跟标题封面完全对不上的无关内容 —— 那不是兜底,是把故障伪装成
+  // 正常。现在后端明确告诉前端"这条播不了、原因是什么、该怎么跟用户说",
+  // sourceUrl 在这种情况下是空的。
+  playable?: boolean;
+  playbackStatus?: 'playable' | 'pending_repair' | 'live_offline' | 'not_applicable' | 'unknown';
+  repairNotice?: string; // 面向用户的中文提示。pending_repair 是故障文案,live_offline 是"主播未开播"
 }
 
 function formatCount(n?: number): string {
@@ -166,6 +175,9 @@ export function RecommendVideoFeed() {
         verified: false,
         brand: TYPE_LABEL[(it.contentType || 'VIDEO').toUpperCase()] || '推荐',
         sourceUrl: it.sourceUrl || '',
+        playable: Boolean(it.playable),
+        playbackStatus: it.playbackStatus || 'unknown',
+        repairNotice: it.repairNotice || '',
       }));
       const hasMore = resp?.data?.hasMore ?? false;
       return { items, hasMore };
@@ -279,6 +291,22 @@ export function RecommendVideoFeed() {
     if (!video) return;
     setLikedCount(video.likes);
     setCollectedCount(video.collects);
+
+    // 后端已经判定这条播不了 —— 直接把它的提示语显示出来,不要再去解析一遍。
+    // 后端的判定用的就是同一个解析器(internal/playability 走 StreamResolver),
+    // 前端再试一次只会得到同一个结果,代价是用户白等 8 秒超时。
+    // 也不用 reportBrokenContent 再报一次:这条不是"前端发现的新故障",
+    // 后端早已知道并写进了 content_playability。
+    if (video.playbackStatus === 'pending_repair') {
+      setStreamError(video.repairNotice || '内容修复中,暂时无法播放');
+      return;
+    }
+    // 直播间没人开播。跟上面那条分开处理:那是故障,这是正常状态 ——
+    // 同样不用再解析一次,但文案不能带"修复"。
+    if (video.playbackStatus === 'live_offline') {
+      setStreamError(video.repairNotice || '主播当前未开播');
+      return;
+    }
     if (!video.sourceUrl) return;
 
     // 有 sourceUrl 时解析真实视频流。cancelled 防止划走之后一个慢响应才回来,
@@ -724,12 +752,31 @@ export function RecommendVideoFeed() {
                     maxWidth: 260,
                   }}
                 >
-                  <ErrorOutlineRoundedIcon sx={{ fontSize: 32, color: 'warning.main' }} />
+                  {/* 图标也分故障和非故障:直播间没开播用中性的"休息中",
+                      不能用警告色 —— 那会让用户以为我们坏了。 */}
+                  {v.playbackStatus === 'live_offline' ? (
+                    <BedtimeRoundedIcon sx={{ fontSize: 32, color: 'rgba(255,255,255,0.55)' }} />
+                  ) : (
+                    <ErrorOutlineRoundedIcon sx={{ fontSize: 32, color: 'warning.main' }} />
+                  )}
                   <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'text.primary' }}>
-                    该内容暂时无法播放
+                    {v.playbackStatus === 'live_offline'
+                      ? '主播未开播'
+                      : v.playbackStatus === 'pending_repair'
+                        ? '内容修复中'
+                        : '该内容暂时无法播放'}
                   </Typography>
+                  {/* 后端判定为待修复时,直接显示它给出的具体原因("该内容只存了
+                      剧集总览页,正在补齐分集播放地址"之类),比一句笼统的
+                      "已记录,尽快修复"有用得多 —— 用户知道这不是自己网络的问题,
+                      运营也能从用户反馈里对上是哪一类故障。
+                      直播未开播则完全不提"修复":没有任何东西坏了。 */}
                   <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
-                    已记录,尽快修复 · 上滑看下一个
+                    {v.playbackStatus === 'live_offline'
+                      ? '上滑看下一个'
+                      : v.playbackStatus === 'pending_repair' && v.repairNotice
+                        ? `${v.repairNotice} · 上滑看下一个`
+                        : `${streamError} · 已记录,尽快修复 · 上滑看下一个`}
                   </Typography>
                 </Box>
               )}

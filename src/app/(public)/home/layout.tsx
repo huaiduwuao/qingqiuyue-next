@@ -37,6 +37,7 @@ import NoticeIconView, { DmIconView } from '@/components/NoticeIcon';
 import { FeedPanel } from './panels/FeedPanel';
 import { AIRecommendPanel } from './panels/AIRecommendPanel';
 import HotRankingBar from '@/components/home/HotRankingBar';
+import TrendingBoard from '@/components/home/TrendingBoard';
 // 客户端下载入口:跳到独立 /download 介绍页
 import { LivePanel } from './panels/LivePanel';
 import { TheaterPanel } from './panels/TheaterPanel';
@@ -606,7 +607,13 @@ function RightSidebar({ section }: { section: string }) {
         gap: 1.5,
       }}
     >
-      {/* 全网热搜:Phase 3 从 Doris 拉全量热榜,每小时自动刷新 */}
+      {/* 全网热榜:跨平台热度索引(后端 internal/trending),每条带来源平台,
+          可按平台筛选。筛选项来自索引本身,爬虫接入新平台后自动多一项。 */}
+      <TrendingBoard title="全网热榜" defaultPeriod="day" maxItems={12} />
+
+      {/* 站内内容榜单:按内容类型分的站内热度(/home/hot)。
+          跟上面那个不是一回事 —— 这里的"热"只看站内行为,不含源站榜位。
+          (这里原本的注释写的是"全网热搜",但它读的一直是站内榜。) */}
       <HotRankingBar
         section={section === 'recommend' ? undefined : section}
         title="内容榜单"
