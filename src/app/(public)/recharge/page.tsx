@@ -33,7 +33,8 @@ import { darkTheme } from '@/styles/theme';
 import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2, gradient3 } from '@/constants/gradients';
 import { accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
-import { getWalletBalance, getWalletTransactions, createRechargeOrder, confirmRecharge, type WalletTransaction } from '@/apis/wallet';
+import { getWalletBalance, getWalletTransactions, type WalletTransaction } from '@/apis/wallet';
+import { createOrder } from '@/apis/payment';
 import {
   getDiamondPackages,
   getDiamondBenefits,
@@ -128,7 +129,15 @@ function RechargePageContent() {
   const [payMethod, setPayMethod] = useState<PayMethod>('wechat');
   const [paying, setPaying] = useState(false);
   const [payDialogOpen, setPayDialogOpen] = useState(false);
-  const [order, setOrder] = useState<{ id: string; amount: number; diamonds: number; method: PayMethod; qrUrl?: string } | null>(null);
+  // payParams 是支付网关返回的原始支付参数(微信 Native 的 code_url / JSAPI 参数,
+  // 或支付宝的 form)。以前这里是 qrUrl —— 一张用订单 JSON 现画的、扫了也付不了钱的图。
+  const [order, setOrder] = useState<{
+    id: string;
+    amount: number;
+    diamonds: number;
+    method: PayMethod;
+    payParams?: { code_url?: string; codeUrl?: string; [k: string]: unknown };
+  } | null>(null);
   const [toast, setToast] = useState<{ open: boolean; msg: string; severity: 'success' | 'info' }>({ open: false, msg: '', severity: 'success' });
 
   // 真接口:充值包 / 权益 / 活动
@@ -230,38 +239,42 @@ function RechargePageContent() {
     }
   };
 
+  // 下单:走 paymentapp 的真实订单接口,支付码由支付网关返回。
+  //
+  // 这里原来有三层假货,全部删掉了:
+  //   1. 下单打的是 /wallet/recharge —— 一个没有任何验签的自助充值端点(已从后端删除)。
+  //   2. 二维码是拿订单 JSON 去 api.qrserver.com 现画的图片。它长得像收款码,
+  //      但任何支付 App 扫出来都只是一段 JSON,永远付不了款。
+  //   3. 网络失败时伪造一个本地订单号继续弹出二维码,提示「已切换到本地二维码演示」。
+  //
+  // 真实支付参数(微信 JSAPI / Native code_url、支付宝 form)由后端 GetPayParams 返回,
+  // 到账由支付网关回调 /api/core/payment/notify/* 验签后入账,前端不参与记账。
   const handlePay = async () => {
     if (!pkg || paying) return;
+    if (payMethod !== 'wechat' && payMethod !== 'alipay') {
+      setToast({ open: true, msg: '请选择微信或支付宝', severity: 'info' });
+      return;
+    }
     setPaying(true);
     const amountYuan = pkg.price; // 元
-    const amountFen = Math.round(amountYuan * 100); // 分
     const diamonds = pkg.diamonds + (pkg.bonus ?? 0);
     try {
-      // 真接口:钱包充值订单(后端 walletapp 已实现)
-      let res: { orderNo?: string; amount?: number; payTip?: string } = {};
-      try {
-        res = await createRechargeOrder({
-          amount: amountFen,
-          channel: payMethod === 'wechat' ? 'wechat' : payMethod === 'alipay' ? 'alipay' : 'mock',
-        });
-      } catch (err) {
-        // 网络层失败 → 回退到本地 mock 二维码(保留 UX,网络好了会自动恢复)
-        if (isNetworkError(err)) {
-          const orderId = `ORD${Date.now()}`;
-          const qrData = JSON.stringify({ orderId, amount: amountYuan, method: payMethod, diamonds });
-          const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrData)}`;
-          setOrder({ id: orderId, amount: amountYuan, diamonds, method: payMethod, qrUrl });
-          setPayDialogOpen(true);
-          setToast({ open: true, msg: '网络异常,已切换到本地二维码演示', severity: 'info' });
-          return;
-        }
-        throw err;
+      const res = await createOrder({
+        orderType: 'diamond',
+        productId: Number(pkg.id),
+        channel: payMethod,
+      });
+      if (!res?.orderNo) {
+        setToast({ open: true, msg: '创建订单失败:后端未返回订单号', severity: 'info' });
+        return;
       }
-      // 把 orderNo + 支付方式显示到弹窗;payTip 字段是后端的 mock 提示
-      const orderId = res.orderNo || `ORD${Date.now()}`;
-      const qrData = JSON.stringify({ orderNo: orderId, amount: res.amount, method: payMethod });
-      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(qrData)}`;
-      setOrder({ id: res.orderNo || `ORD${Date.now()}`, amount: amountYuan, diamonds, method: payMethod, qrUrl });
+      setOrder({
+        id: res.orderNo,
+        amount: amountYuan,
+        diamonds,
+        method: payMethod,
+        payParams: res.payParams,
+      });
       setPayDialogOpen(true);
     } catch (err) {
       if (isAuthError(err)) {
@@ -274,28 +287,18 @@ function RechargePageContent() {
     }
   };
 
+  // 「我已完成支付」只刷新余额,不再自己给自己入账。
+  //
+  // 以前这个按钮调 /wallet/recharge/callback —— 那是个无验签的回调端点,
+  // 点一下就把订单标记已付并加钱,等于前端可以凭空充值。到账现在只可能来自
+  // 支付网关的异步回调,前端能做的只有重新拉一次余额。
   const handlePaySuccess = async () => {
     if (!order || !pkg) return;
-    const orderId = order.id;
-    const gained = order.diamonds;
     try {
-      // 真接口:确认支付 → 后端 walletapp 标记已付 + 入账,前端只刷新缓存
-      try {
-        await confirmRecharge({ orderNo: orderId });
-      } catch (err) {
-        if (isNetworkError(err)) {
-          setPayDialogOpen(false);
-          setOrder(null);
-          setToast({ open: true, msg: `网络异常,稍后到账 +${gained} 钻`, severity: 'success' });
-          return;
-        }
-        throw err;
-      }
-      // 触发余额 + 流水刷新
       await Promise.all([walletQ.refetch(), txQ.refetch()]);
       setPayDialogOpen(false);
       setOrder(null);
-      setToast({ open: true, msg: `充值成功!+${gained} 钻`, severity: 'success' });
+      setToast({ open: true, msg: '已刷新余额。若支付已完成但未到账,请稍候或联系客服', severity: 'info' });
     } catch (err) {
       if (isAuthError(err)) {
         setToast({ open: true, msg: '登录已过期,请重新登录', severity: 'info' });
@@ -1151,15 +1154,38 @@ function RechargePageContent() {
                 <Typography sx={{ fontSize: 32, fontWeight: 800, color: '#FFD566' }}>¥ {order.amount}</Typography>
                 <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>获得 {order.diamonds} 钻 · 订单号 {order.id}</Typography>
               </Box>
-              <Box sx={{ textAlign: 'center' }}>
-                <Box
-                  component="img"
-                  src={order.qrUrl}
-                  alt="支付二维码"
-                  sx={{ width: 180, height: 180, borderRadius: 2, bgcolor: '#fff', p: 1 }}
-                />
-                <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', mt: 1 }}>请使用{PAY_METHODS.find((m) => m.key === order.method)?.label}扫码支付</Typography>
-              </Box>
+              {(() => {
+                // 只在支付网关真的给了 code_url 时才渲染二维码。
+                // 拿不到就如实说明未接通,不再自己画一张扫不出结果的图。
+                const codeUrl = (order.payParams?.code_url ?? order.payParams?.codeUrl) as string | undefined;
+                const methodLabel = PAY_METHODS.find((m) => m.key === order.method)?.label;
+                if (!codeUrl) {
+                  return (
+                    <Box sx={{ textAlign: 'center', px: 2 }}>
+                      <Typography sx={{ fontSize: 13, color: '#FFB4B4', fontWeight: 600 }}>
+                        支付未接通
+                      </Typography>
+                      <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', mt: 1 }}>
+                        订单已创建,但后端没有返回{methodLabel}的支付参数
+                        —— 支付渠道尚未配置完成。订单号 {order.id} 可在「我的订单」中取消。
+                      </Typography>
+                    </Box>
+                  );
+                }
+                return (
+                  <Box sx={{ textAlign: 'center' }}>
+                    <Box
+                      component="img"
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(codeUrl)}`}
+                      alt="支付二维码"
+                      sx={{ width: 180, height: 180, borderRadius: 2, bgcolor: '#fff', p: 1 }}
+                    />
+                    <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', mt: 1 }}>
+                      请使用{methodLabel}扫码支付
+                    </Typography>
+                  </Box>
+                );
+              })()}
             </Box>
           )}
         </DialogContent>
@@ -1178,7 +1204,7 @@ function RechargePageContent() {
             onClick={handlePaySuccess}
             sx={{ borderRadius: 2, textTransform: 'none', background: CTA_GRADIENT.RED_YELLOW, color: '#fff' }}
           >
-            已完成支付
+            我已完成支付,刷新余额
           </Button>
         </DialogActions>
       </Dialog>

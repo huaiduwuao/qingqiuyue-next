@@ -1,5 +1,5 @@
 /**
- * module_content API — 走 MSW mock(mockEnabled 时)或真后端。
+ * module_content API。
  *
  * 端点路径对齐 Go 后端 internal/handler/module.go:
  *   GET    /api/content/module/content/list

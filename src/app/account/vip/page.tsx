@@ -224,21 +224,13 @@ export default function VipPage() {
       setSnack('请输入有效的充值金额');
       return;
     }
-    setRecharging(true);
-    try {
-      await adminClient('/wallet/recharge', {
-        method: 'POST',
-        data: { amount: amountNum, method: rechargeMethod },
-      });
-      setSnack('充值申请已提交');
-      markTaskCompleted('recharge');
-    } catch (err) {
-      setSnack(formatApiError(err) || '充值提交失败');
-    } finally {
-      setRecharging(false);
-      setRechargeOpen(false);
-      setRechargeAmount('');
-    }
+    // 同 /account/wallet:原先直接 POST /wallet/recharge(无验签自助充值端点,
+    // 已从后端删除)并弹「充值申请已提交」,但既没有支付码也没有到账确认,
+    // 而且顺手把「充值」任务标记成已完成 —— 一分钱没付,任务奖励先拿了。
+    // 改为跳转到真实下单页。
+    setRechargeOpen(false);
+    setRechargeAmount('');
+    window.location.href = '/recharge';
   };
 
   const handleCopyInvite = async () => {

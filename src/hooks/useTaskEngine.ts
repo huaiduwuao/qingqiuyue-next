@@ -15,6 +15,7 @@ import type {
   TaskLogEntry,
   SseEvent,
 } from '@/lib/task-engine/types'
+import { jobEventsURL } from '@/apis/gen'
 
 interface State {
   task: TaskState | null
@@ -44,11 +45,32 @@ function reducer(state: State, action: Action): State {
         case 'connected':
           return { ...state, connection: 'open' }
         case 'status': {
-          if (task) {
-            task.status = e.data.status
-            task.progress = e.data.progress
+          // gen-api 只发 status 事件,而且第一条就是初始状态 —— 它没有 snapshot/connected。
+          // 原来这里要求 task 已存在才更新,但 task 只由 SNAPSHOT 赋值、而 SNAPSHOT
+          // 从没被派发过,于是 task 恒为 null,进度条永远是 0。这里改成首条 status
+          // 就地建出 task。
+          const next: TaskState = task ?? {
+            id: String(e.data.jobId ?? ''),
+            taskType: 'video' as TaskState['taskType'],
+            status: e.data.status,
+            payload: {},
+            progress: e.data.progress ?? 0,
+            stages: [],
+            logs: [],
+            createdAt: Date.now(),
           }
-          return { ...state, task }
+          next.status = e.data.status
+          next.progress = e.data.progress ?? next.progress
+          // 后端把失败原因放在 errorMsg 里
+          if (e.data.errorMsg) next.error = e.data.errorMsg
+          const failed = e.data.status === 'failed'
+          const finished = failed || e.data.status === 'completed'
+          return {
+            ...state,
+            task: next,
+            error: failed ? { message: e.data.errorMsg || '生成失败' } : state.error,
+            connection: finished ? 'closed' : state.connection,
+          }
         }
         case 'stage': {
           if (task) {
@@ -123,7 +145,9 @@ export function useTaskEngine(taskId: string | null) {
     dispatch({ type: 'RESET' })
     dispatch({ type: 'CONNECTION', connection: 'connecting' })
 
-    const src = new EventSource(`/api/tasks/${taskId}/events`)
+    // 之前这里是 `/api/tasks/${taskId}/events` —— 网关上没有这个路由(404),
+    // 所以 EventSource 一直在对着一个不存在的地址重连。真实地址见 apis/gen.ts。
+    const src = new EventSource(jobEventsURL(taskId))
     sourceRef.current = src
 
     src.onopen = () => {
@@ -151,15 +175,16 @@ export function useTaskEngine(taskId: string | null) {
     }
   }, [taskId])
 
-  const cancel = useCallback(async () => {
-    if (!taskId) return
-    await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' })
-  }, [taskId])
+  // 没有 cancel。
+  //
+  // 原来这里是 `DELETE /api/tasks/${taskId}` —— 后端从未提供过取消接口,
+  // 网关上是 404。留着一个点了必定失败的取消按钮,不如不给。
+  // gen-api 要支持取消,需要先能把 ComfyUI 的 prompt 中断掉(POST /interrupt),
+  // 并在中断后退回预扣的额度。
 
   return {
     ...state,
     progress: state.task?.progress ?? 0,
-    cancel,
   }
 }
 

@@ -104,15 +104,11 @@ export async function getRechargePackages(): Promise<RechargePackage[]> {
   return resp?.data ?? [];
 }
 
-// 发起充值
-export async function createRechargeOrder(data: { amount: number; channel?: string }): Promise<RechargeOrderResp> {
-  const resp = await accountClient('/wallet/recharge', { method: 'POST', data });
-  return resp?.data ?? resp;
-}
-
-// 确认充值(模拟回调)
-export async function confirmRecharge(data: { orderNo: string }): Promise<{ msg: string }> {
-  const resp = await accountClient('/wallet/recharge/callback', { method: 'POST', data });
-  const d = resp?.data;
-  return { msg: d?.msg ?? 'OK' };
-}
+// createRechargeOrder / confirmRecharge 已删除。
+//
+// 它们对应后端 POST /wallet/recharge 和 POST /wallet/recharge/callback。
+// 后者只凭一个 orderNo 就把订单标记已付并入账,没有任何验签 —— 前端先下一笔
+// 任意金额的订单、再自己调一次回调,就是凭空充值。两个后端端点已删除。
+//
+// 充值请走 @/apis/payment 的 createOrder():下单拿支付网关的支付参数,
+// 到账由网关异步回调 /api/core/payment/notify/*(验签)入账,前端不参与记账。

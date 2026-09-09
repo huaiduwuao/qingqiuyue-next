@@ -36,7 +36,6 @@ import { AvatarHoverPopup } from '@/components/account/AvatarHoverPopup';
 import NoticeIconView, { DmIconView } from '@/components/NoticeIcon';
 import { FeedPanel } from './panels/FeedPanel';
 import { AIRecommendPanel } from './panels/AIRecommendPanel';
-import { MockStatusBadge } from '@/components/debug/MockStatusBadge';
 import HotRankingBar from '@/components/home/HotRankingBar';
 // 客户端下载入口:跳到独立 /download 介绍页
 import { LivePanel } from './panels/LivePanel';
@@ -180,7 +179,6 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
       </Box>
       {/* 底部导航栏（移动端） */}
       <MobileBottomNav activeNav={activeNav} onNavChange={handleNavChange} />
-      <MockStatusBadge />
     </Box>
   );
 }

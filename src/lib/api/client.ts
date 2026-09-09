@@ -129,6 +129,10 @@ export const API_BASE = {
   im: `${API_GATEWAY}/api/realtime`,
   account: `${API_GATEWAY}/api/core`,   // 用户个人中心相关
   home: `${API_GATEWAY}/api/content/home`,
+  // gen-api(AI 视频生成)。它自己注册的前缀就是 /api/ai(cmd/gen-api/main.go),
+  // APISIX 也只转发 /api/ai/*。此前前端写死 fetch('/api/video/generate'),
+  // 网关上根本没有这个路由,所以视频生成从来没通过。
+  ai: `${API_GATEWAY}/api/ai`,
 };
 
 // 创建指定baseURL的axios实例
@@ -328,6 +332,7 @@ export const spiderClient = createApiClient(API_BASE.spider);
 export const imClient = createApiClient(API_BASE.im);
 export const accountClient = createApiClient(API_BASE.account);
 export const homeClient = createApiClient(API_BASE.home);
+export const aiClient = createApiClient(API_BASE.ai);
 
 // 默认导出admin客户端（兼容现有代码）
 export const apiClient = adminClient;

@@ -5,7 +5,6 @@ import { defineConfig, devices } from '@playwright/test';
  * 前置：
  *  - .env.development.local 已配 API_PROXY_TARGET=http://10.9.1.2:10005（next dev 自读，勿在此覆盖）
  *  - .env.local 配 E2E_OWNER_NAME / E2E_OWNER_PASSWORD（owner 账号，本地不入库）
- *  - NEXT_PUBLIC_USE_MOCK=0（默认；为 1 会卡 providers.tsx 的 mockReady 白屏）
  */
 export default defineConfig({
   testDir: './e2e',
@@ -48,6 +47,6 @@ export default defineConfig({
     timeout: 120_000,
     stdout: 'pipe',
     stderr: 'pipe',
-    env: { ...process.env, NEXT_PUBLIC_USE_MOCK: '0' },
+    env: { ...process.env } as Record<string, string>,
   },
 });

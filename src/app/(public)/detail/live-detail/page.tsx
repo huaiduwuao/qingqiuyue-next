@@ -77,15 +77,12 @@ interface GiftItem {
   desc: string;
 }
 
-// 后端 /api/core/live/gifts 真接口拉礼物列表(uid 不限,公共数据)
-const FALLBACK_GIFTS: GiftItem[] = [
-  { id: 'rose', name: '玫瑰', emoji: '🌹', price: 1, desc: '表达心意' },
-  { id: 'rocket', name: '火箭', emoji: '🚀', price: 99, desc: '冲人气' },
-  { id: 'car', name: '跑车', emoji: '🏎️', price: 199, desc: '豪华座驾' },
-  { id: 'medal', name: '金牌', emoji: '🏅', price: 299, desc: '实力认证' },
-  { id: 'ring', name: '钻戒', emoji: '💍', price: 999, desc: '真爱之选' },
-  { id: 'castle', name: '城堡', emoji: '🏰', price: 9999, desc: '壕气冲天' },
-];
+// 礼物列表只认后端 /api/core/live/gifts。
+//
+// 这里原来有一份 FALLBACK_GIFTS 硬编码兜底(玫瑰 ¥1 ... 城堡 ¥9999),
+// 接口失败或返空时就拿它顶上。问题是这些 id(rose/rocket/castle)后端并不存在:
+// 用户看到的是一份带价格的礼物面板,点下去要么报错,要么拿着一个查无此物的
+// 礼物 id 去扣钱。涉及金额的清单不能靠前端猜,拉不到就不展示。
 
 function LiveDetailContent() {
   const searchParams = useSearchParams();
@@ -99,17 +96,16 @@ function LiveDetailContent() {
     enabled: !!id,
   });
 
-  // 礼物列表:真接口拉,失败 fallback 到 FALLBACK_GIFTS
+  // 礼物列表:只用后端返回的,拉不到就是空面板(见上方注释)。
   const { data: giftResp } = useQuery({
     queryKey: ['live-gifts'],
     queryFn: () => getGiftList(),
     staleTime: 5 * 60 * 1000,
     refetchOnMount: 'always',
   });
-  const apiGifts: GiftItem[] = (giftResp?.list ?? []).map((g: ApiGift) => ({
+  const GIFT_CATALOG: GiftItem[] = (giftResp?.list ?? []).map((g: ApiGift) => ({
     id: g.id, name: g.name, emoji: g.icon, price: g.price / 100, desc: g.effect,
   }));
-  const GIFT_CATALOG: GiftItem[] = apiGifts.length ? apiGifts : FALLBACK_GIFTS;
 
   // 进入详情:行为埋点(供榜单/推荐)+ 写观看历史。itemType 大写以匹配 Doris content_type。
   React.useEffect(() => {
@@ -693,6 +689,12 @@ function LiveDetailContent() {
           </Box>
 
           {!pickingGift ? (
+            <>
+            {GIFT_CATALOG.length === 0 && (
+              <Typography variant="body2" color="text.secondary" sx={{ py: 3, textAlign: 'center' }}>
+                暂时拉不到礼物列表,请稍后再试
+              </Typography>
+            )}
             <Box
               sx={{
                 display: 'grid',
@@ -747,6 +749,7 @@ function LiveDetailContent() {
                 </Box>
               ))}
             </Box>
+            </>
           ) : (
             <Box>
               <Box

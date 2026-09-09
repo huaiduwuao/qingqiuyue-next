@@ -6,7 +6,7 @@
  *  - resource: role / menu / permission / data-permission / user / ...
  *  - action: list / view / create / update / delete / export
  *
- * 配套 mock 数据在 `mocks/db/user.ts:CURRENT_USER.permissions`,
+ * 权限码由后端下发:
  * 后端 `/api/admin/user/current` 返 authorities + permissions。
  *
  * 注:行级数据权限不由这里管,后端 GORM 插件根据角色绑定的

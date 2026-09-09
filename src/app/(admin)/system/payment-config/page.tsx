@@ -26,21 +26,22 @@ import CloudDoneIcon from '@mui/icons-material/CloudDone';
 import CloudOffIcon from '@mui/icons-material/CloudOff';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import LinkIcon from '@mui/icons-material/Link';
+import { adminClient, formatApiError } from '@/lib/api/client';
 
 // 支付配置 API
+//
+// 之前这里裸 fetch('/api/admin/payment/config') —— 网关上没有 /api/admin 这个前缀
+// (那是早已下线的独立 admin-api 的老路径),真实地址是 core-api 的
+// /api/core/payment/config,而且需要登录态。裸 fetch 还有一个问题:不带
+// Authorization 头,所以就算路径对了也是 401。改走 adminClient(base=/api/core,
+// 拦截器统一注入 session)。
 const paymentConfigAPI = {
-  get: async () => {
-    const res = await fetch('/api/admin/payment/config');
-    return res.json();
+  // 拦截器把 {code,msg,data} 放在 axios 响应的 .data 上,这里统一剥一层再返回配置对象。
+  get: async (): Promise<Partial<PaymentConfig> | null> => {
+    const res: any = await adminClient('/payment/config');
+    return res?.data?.data ?? res?.data ?? null;
   },
-  save: async (data: any) => {
-    const res = await fetch('/api/admin/payment/config', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    return res.json();
-  },
+  save: async (data: any) => adminClient('/payment/config', { method: 'POST', data }),
 };
 
 interface PaymentConfig {
@@ -101,12 +102,15 @@ export default function PaymentConfigPage() {
   const loadConfig = async () => {
     setLoading(true);
     try {
-      const res = await paymentConfigAPI.get();
-      if (res.code === 0 && res.data) {
-        setConfig({ ...DEFAULT_CONFIG, ...res.data });
+      const cfg = await paymentConfigAPI.get();
+      if (cfg) {
+        setConfig({ ...DEFAULT_CONFIG, ...cfg });
       }
     } catch (err) {
+      // 以前这里只 console.error,页面照常显示一张全空的表单 ——
+      // "还没配过" 和 "接口 404 / 没权限" 长得一模一样。现在提示出来。
       console.error('加载支付配置失败:', err);
+      showMessage('加载支付配置失败:' + formatApiError(err), 'error');
     } finally {
       setLoading(false);
     }

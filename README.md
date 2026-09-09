@@ -1,16 +1,20 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## 架构约定:MOCK 与真实后端切换(2026-06-17)
+## 数据来源:只连真实后端(2026-09-08)
 
-后端永不 mock。所有假数据都走前端 MSW(`src/mocks/*`),通过单一开关切换:
+前端不再自带任何假数据。原先的 MSW 影子 API(`src/mocks/*`,约 5200 行 / 360 个假端点)
+和 `NEXT_PUBLIC_USE_MOCK` 开关已删除 —— 它让「功能做完了」和「功能没做、mock 顶着」
+在界面上无法区分,没人说得清切到真后端会剩下什么。
 
-| 场景 | `NEXT_PUBLIC_USE_MOCK` | `NEXT_PUBLIC_API_BASE_URL` | 数据来源 |
-|---|---|---|---|
-| **纯前端开发** | `1` / `true` | 不设 | MSW Service Worker 拦截 `/api/*`(`src/mocks/handlers/*` + `src/mocks/db/*`) |
-| **联调真实后端** | `0` / 不设 | 留空(同源) | Next.js `rewrites` 把 `/api/*` 反代到 `API_PROXY_TARGET`(默认 `http://apisix:9080`) |
-| **指向具体网关** | `0` / 不设 | `http://gateway.xxx` | axios 直连,不走 rewrites |
+现在只有两种连法:
 
-切换**只改环境变量**,业务代码零改动。详见 `../qingqiuyue-go/docs/IMPLEMENTATION-GAPS.md`。
+| 场景 | `NEXT_PUBLIC_API_BASE_URL` | 数据来源 |
+|---|---|---|
+| **本地联调** | 留空(同源) | Next.js `rewrites` 把 `/api/*` 反代到 `API_PROXY_TARGET`(默认见 `next.config.ts`) |
+| **指向具体网关** | `http://gateway.xxx` | axios 直连,不走 rewrites |
+
+后端未实现的接口统一返回 **501**(body 里带 `msg` 说明缺什么),前端应据此渲染
+「此功能尚未开放」而不是空列表。已知缺口清单见 `../qingqiuyue-go/docs/IMPLEMENTATION-GAPS.md`。
 
 ## Getting Started
 

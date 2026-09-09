@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { AppContextProvider } from '@/contexts/AppContext';
 import { AuthContextProvider } from '@/contexts/AuthContext';
-import { startMock, stopMock, mockEnabled } from '@/mocks/init';
 import EmotionProvider from '@/lib/emotion-provider';
 
 // 延迟加载 three.js(避免 Turbopack 首次编译整个 app 时卡在 three 大依赖上)。
@@ -37,29 +36,24 @@ export function Providers({ children }: { children: React.ReactNode }) {
       })
   );
 
-  const [mockReady, setMockReady] = useState(!mockEnabled);
   const [mountFloating, setMountFloating] = useState(false);
 
+  // MSW(src/mocks/*,约 5200 行、360 个假端点)已删除。
+  //
+  // 它撑起了一整套影子 API:未实现的后端接口由 Service Worker 在浏览器里
+  // 返回假数据,于是「功能做完了」和「功能没做但 mock 顶着」在界面上无法区分,
+  // 谁也说不清切到真后端会剩下什么。现在前端只连真后端,后端没做的接口返 501。
+  //
+  // 这里保留一次性注销:老用户浏览器里可能还注册着 mockServiceWorker.js,
+  // 不注销它会继续拦截真实请求。等一个发布周期后可以删掉。
   useEffect(() => {
-    if (!mockEnabled) {
-      // 生产 / compose 构建:注销可能残留的 mock service worker,避免其继续拦截真实请求
-      stopMock().finally(() => setMockReady(true));
-      return;
-    }
-    let cancelled = false;
-    startMock()
-      .then(() => {
-        if (!cancelled) setMockReady(true);
-      })
-      .catch((err) => {
-        // MSW 启动失败时也不要锁死 UI —— 让页面继续渲染,
-        // 失败的请求会自然返回 404,UI 走错误态
-        console.error('[MSW] startMock failed, continuing without mock:', err);
-        if (!cancelled) setMockReady(true);
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+    navigator.serviceWorker
+      .getRegistration('/mockServiceWorker.js')
+      .then((reg) => reg?.unregister())
+      .catch(() => {
+        /* 注销失败无所谓:SW 无激活客户端时本就放行 */
       });
-    return () => {
-      cancelled = true;
-    };
   }, []);
 
   // 浏览器空闲时再挂载浮窗数字人(等首次交互后再加载,避免阻塞 SSR)
@@ -70,13 +64,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
     const t = setTimeout(() => setMountFloating(true), 200)
     return () => clearTimeout(t)
   }, []);
-
-  if (!mockReady) {
-    if (typeof document !== 'undefined') {
-      document.documentElement.setAttribute('data-mock-loading', '1');
-    }
-    return null;
-  }
 
   return (
     <QueryClientProvider client={queryClient}>

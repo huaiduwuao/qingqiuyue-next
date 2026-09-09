@@ -11,6 +11,9 @@
  */
 
 import React, { useState, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { listWorkflows, createVideoJob, getJob } from '@/apis/gen';
+import { formatApiError } from '@/lib/api/client';
 import {
   Box,
   Button,
@@ -74,6 +77,11 @@ export default function ShortdramaGenPage() {
   const [taskId, setTaskId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const { task, progress, logs, error } = useTaskEngine(taskId);
+  const [genError, setGenError] = useState<string | null>(null);
+
+  // 可用工作流(后端占位模板已 seed 成 draft,通常为空 = 尚未配置)
+  const wfQuery = useQuery({ queryKey: ['gen-workflows'], queryFn: listWorkflows, staleTime: 5 * 60 * 1000 });
+  const workflowName = wfQuery.data?.[0]?.name ?? '';
 
   // 步骤 1: 解析剧本为场景
   const handleParseScript = useCallback(() => {
@@ -98,46 +106,71 @@ export default function ShortdramaGenPage() {
       prev.map((s) => (s.id === scene.id ? { ...s, status: 'generating' as const, progress: 0 } : s)),
     );
 
+    // 之前这里 POST /api/video/generate 再轮询 /api/task/:id —— 两条路径网关上都是 404
+    // (注意轮询那条还把 tasks 写成了 task,就算后端有也对不上)。请求体字段也全是
+    // 后端不认的名字。改走 apis/gen.ts 的真实契约。
+    if (!workflowName) {
+      setScenes((prev) =>
+        prev.map((s) => (s.id === scene.id ? { ...s, status: 'failed' as const } : s)),
+      );
+      setGenError('暂无可用的生成工作流:后端预置模板还是占位内容,需管理员导入真实 ComfyUI 工作流并启用。');
+      return;
+    }
     try {
-      const r = await fetch('/api/video/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          kind: 'text-to-video',
-          positivePrompt: scene.prompt,
-          ...DEFAULTS,
-          seed: DEFAULTS.seed + Math.floor(Math.random() * 1000),
-        }),
+      const { jobId } = await createVideoJob({
+        workflowName,
+        prompt: scene.prompt,
+        negativePrompt: DEFAULTS.negativePrompt,
+        params: {
+          seed: String(DEFAULTS.seed + Math.floor(Math.random() * 1000)),
+          width: String(DEFAULTS.width),
+          height: String(DEFAULTS.height),
+          frames: String(DEFAULTS.frames),
+          steps: String(DEFAULTS.steps),
+          cfg: String(DEFAULTS.cfg),
+        },
       });
-      const data = await r.json();
-      if (data.taskId) {
-        // 轮询进度
-        const poll = setInterval(async () => {
-          const res = await fetch(`/api/task/${data.taskId}`);
-          const t = await res.json();
-          if (t.data?.status === 'done') {
+      setTaskId(String(jobId));
+      // 轮询任务状态。后端状态词是 completed / failed(不是 done)。
+      const poll = setInterval(async () => {
+        try {
+          const t = await getJob(jobId);
+          if (t?.status === 'completed') {
             clearInterval(poll);
+            const urls: string[] = t.resultUrls ? JSON.parse(t.resultUrls) : [];
             setScenes((prev) =>
               prev.map((s) =>
                 s.id === scene.id
-                  ? { ...s, status: 'done' as const, videoUrl: t.data.result?.url, progress: 100 }
+                  ? { ...s, status: 'done' as const, videoUrl: urls[0], progress: 100 }
                   : s,
               ),
             );
-          } else if (t.data?.status === 'failed') {
+          } else if (t?.status === 'failed') {
             clearInterval(poll);
+            setGenError(t.errorMsg || '生成失败');
             setScenes((prev) =>
               prev.map((s) => (s.id === scene.id ? { ...s, status: 'failed' as const } : s)),
             );
+          } else if (t) {
+            setScenes((prev) =>
+              prev.map((s) => (s.id === scene.id ? { ...s, progress: t.progress ?? s.progress } : s)),
+            );
           }
-        }, 2000);
-      }
+        } catch {
+          clearInterval(poll);
+          setScenes((prev) =>
+            prev.map((s) => (s.id === scene.id ? { ...s, status: 'failed' as const } : s)),
+          );
+        }
+      }, 2000);
     } catch (e) {
+      // 提交失败的原因(工作流未配置 / 余额不足)必须显示出来,不能只把场景标红
+      setGenError(formatApiError(e) || '提交失败');
       setScenes((prev) =>
         prev.map((s) => (s.id === scene.id ? { ...s, status: 'failed' as const } : s)),
       );
     }
-  }, []);
+  }, [workflowName]);
 
   const handleGenerateAll = useCallback(async () => {
     for (const scene of scenes.filter((s) => s.status === 'pending')) {
@@ -212,6 +245,18 @@ export default function ShortdramaGenPage() {
       {/* 步骤 2: 生成视频 */}
       {activeStep === 1 && (
         <Box>
+          {/* 没有可用工作流时先说清楚,别让用户逐个场景点了才知道生成不了 */}
+          {!wfQuery.isLoading && !workflowName && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              暂无可用的生成工作流:后端预置模板的 ComfyUI 工作流 JSON 还是占位内容,
+              需要管理员导入真实工作流并启用后才能生成。
+            </Alert>
+          )}
+          {genError && (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setGenError(null)}>
+              {genError}
+            </Alert>
+          )}
           <Paper sx={{ p: 3, mb: 3 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
               <Typography variant="h6">场景列表 ({doneCount}/{scenes.length} 已完成)</Typography>

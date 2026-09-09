@@ -119,20 +119,17 @@ export default function WalletPage() {
       setSnack('请输入有效的充值金额');
       return;
     }
-    setRecharging(true);
-    try {
-      await adminClient('/wallet/recharge', {
-        method: 'POST',
-        data: { amount: amountNum, method: rechargeMethod },
-      });
-      setSnack('充值申请已提交');
-    } catch (err) {
-      setSnack(formatApiError(err) || '充值提交失败');
-    } finally {
-      setRecharging(false);
-      setRechargeOpen(false);
-      setRechargeAmount('');
-    }
+    // 跳到 /recharge 走真实下单流程。
+    //
+    // 这里原来直接 POST /wallet/recharge 然后弹「充值申请已提交」,有三个问题:
+    //   1. 那个端点(以及配套的无验签回调)已从后端删除;
+    //   2. 它传的字段叫 method,后端读的是 channel —— 永远匹配不上,
+    //      渠道恒定落成 "mock";
+    //   3. 它只建了一张 pending 订单就提示成功,没有支付码、没有轮询、
+    //      也没有任何后续,用户以为钱付出去了,实际上什么都没发生。
+    setRechargeOpen(false);
+    setRechargeAmount('');
+    window.location.href = '/recharge';
   };
 
   const handleWithdraw = async () => {

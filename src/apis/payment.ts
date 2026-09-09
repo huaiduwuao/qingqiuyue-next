@@ -95,7 +95,9 @@ export async function getMembershipStatus(): Promise<MembershipStatus> {
   return res?.data ?? { status: 'none' };
 }
 
-// 模拟支付（测试用）
-export async function mockPay(orderNo: string): Promise<void> {
-  await accountClient('/payment/mock-pay', { method: 'POST', data: { orderNo } });
-}
+// mockPay 已删除。
+//
+// 它打的是后端 POST /api/core/payment/mock-pay —— 一个跳过支付网关、直接把订单
+// 标记为已付并发放钻石/会员的端点,而且是无条件注册在生产路由里的。任何登录
+// 用户都能给自己开会员。后端端点和这个函数一并移除,到账只能来自网关回调
+// (/api/core/payment/notify/wechat|alipay,带验签)。
