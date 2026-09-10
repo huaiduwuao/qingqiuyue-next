@@ -76,6 +76,42 @@ type FeedItem = {
 
 type FeedResp = { list: FeedItem[]; total: number; page: number; size: number };
 
+// 精选流参与交错的类型。NEWS 不在内:它基本是热搜词条,没有封面。
+const RECOMMEND_TYPES = ['VIDEO', 'FILM', 'TELEPLAY', 'ANIMATION', 'VSHOW', 'COMICS', 'MUSIC', 'NOVEL', 'SHORT_DRAMA', 'ARTICLE', 'LIVE'];
+const RECOMMEND_PER_TYPE = 2;
+
+// 字段适配:后端 entity 用 coverUrl/author/readNum/agreeNum → FeedCard 期望字段
+function toFeedRecord(item: any) {
+  // postedAgoMin:从 createTime 计算分钟数
+  let postedAgoMin = item.postedAgoMin || 0;
+  if (!postedAgoMin && item.createTime) {
+    postedAgoMin = Math.floor((Date.now() - new Date(item.createTime).getTime()) / 60000);
+  }
+  // durationSec:从 content 字段提取(如 "01:23:45" → 5025秒)
+  let durationSec = item.durationSec || item.duration || 0;
+  if (!durationSec && typeof item.content === 'string') {
+    const match = item.content.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    if (match) {
+      const [, h, m, s] = match;
+      durationSec = (parseInt(h) * 3600) + (parseInt(m) * 60) + (parseInt(s || '0'));
+    }
+  }
+  return {
+    ...item,
+    id: safeId(item.id),
+    cover: item.cover || item.coverUrl || '',
+    authorName: item.authorName || item.author || '',
+    authorAvatar: item.authorAvatar || item.avatar || '',
+    views: item.views || item.readNum || 0,
+    likes: item.likes || item.agreeNum || 0,
+    comments: item.comments || item.commentNum || 0,
+    shares: item.shares || item.shareNum || 0,
+    postedAgoMin,
+    durationSec,
+    category: item.category || item.contentType?.toLowerCase() || 'video',
+  };
+}
+
 type SuggestUser = {
   id: number;
   name: string;
@@ -257,56 +293,39 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
         const total = resp?.data?.total || 0;
         return { records, total, page: pageParam };
       }
-      // recommend 精选流:多类型聚合,每类型取 Top,按 agree_num 混排
+      // recommend 精选流:多类型交错,真正按页翻。
+      //
+      // 原先每类型固定取第 1 页 2 条、返回值里 page 恒为 1:首屏最多 12 条,
+      // 往下滚 getNextPageParam 永远算出 page=2 却又拿回同一批(重复 key),
+      // 某类型没数据(FILM/NOVEL 曾为 0)就更少 —— 这就是精选页"没几条"的原因。
+      // 现在每页从每个类型各取第 pageParam 页,按轮转交错,任一类型还有剩就继续翻。
       if (section === 'recommend') {
-        const TYPES = ['VIDEO', 'NOVEL', 'FILM', 'MUSIC', 'ANIMATION', 'COMICS', 'TELEPLAY'];
-        const perType = Math.ceil(PAGE_SIZE / TYPES.length);
-        // 并发请求各类型
         const results = await Promise.all(
-          TYPES.map(type =>
+          RECOMMEND_TYPES.map((type) =>
             moduleContentPage({
-              page: 1,
-              pageSize: perType,
+              page: pageParam,
+              pageSize: RECOMMEND_PER_TYPE,
               contentType: type,
-              order: 'agree_num',
-            })
-          )
+              // 定时刷新会刷新仍在各平台热榜上的条目,update_time 越近越"正在热"。
+              orderBy: 'update_time',
+              // 只要有封面的条目:资讯热搜这类纯文字条目在瀑布流里是一片空白卡片。
+              hasCover: true,
+            }).catch(() => null),
+          ),
         );
-        // 合并各类型数据,按 agree_num 全局排序,取当前页
-        const allRecords: any[] = [];
-        for (const result of results) {
-          const raw = (result as any)?.data?.list || (result as any)?.data?.records || [];
-          for (const item of raw) {
-            allRecords.push(item);
+        const lists: any[][] = results.map((r: any) => r?.data?.list || r?.data?.records || []);
+        const totals = results.map((r: any) => Number(r?.data?.total || r?.data?.totalRow || 0));
+        const merged: any[] = [];
+        for (let i = 0; i < RECOMMEND_PER_TYPE; i++) {
+          for (const list of lists) {
+            if (list[i]) merged.push(list[i]);
           }
         }
-        allRecords.sort((a, b) =>
-          ((b as any).agreeNum || (b as any).agree_num || 0) -
-          ((a as any).agreeNum || (a as any).agree_num || 0)
+        const hasMore = lists.some(
+          (list, i) => list.length === RECOMMEND_PER_TYPE && pageParam * RECOMMEND_PER_TYPE < totals[i],
         );
-        const pageRecords = allRecords.slice(0, PAGE_SIZE);
-        const records = pageRecords.map((item: any) => {
-          const id = safeId(item.id);
-          let postedAgoMin = item.postedAgoMin || 0;
-          if (!postedAgoMin && item.createTime) {
-            const diff = Date.now() - new Date(item.createTime).getTime();
-            postedAgoMin = Math.floor(diff / 60000);
-          }
-          return {
-            ...item,
-            id,
-            cover: item.cover || item.coverUrl || '',
-            authorName: item.authorName || item.author || '',
-            authorAvatar: item.authorAvatar || item.avatar || '',
-            views: item.views || item.readNum || 0,
-            likes: item.likes || item.agreeNum || 0,
-            comments: item.comments || item.commentNum || 0,
-            shares: item.shares || item.shareNum || 0,
-            postedAgoMin,
-            category: item.category || item.contentType?.toLowerCase() || 'video',
-          };
-        });
-        return { records, total: allRecords.length, page: 1 };
+        const total = totals.reduce((a, b) => a + b, 0);
+        return { records: merged.map(toFeedRecord), total, page: pageParam, hasMore };
       }
       // 分类内容使用 /module/content/list
       const contentType = SECTION_TO_TYPE[section];
@@ -314,51 +333,21 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
         page: pageParam,
         pageSize: PAGE_SIZE,
         ...(contentType ? { contentType } : {}),
-        order: sort === 'new' ? 'CREATE_TIME' : sort === 'rating' ? 'rating' : 'COLLECT',
+        // 后端认的参数名是 orderBy;之前传 order 被静默丢弃,"最新/高评分"排序从未生效。
+        orderBy: sort === 'new' ? 'CREATE_TIME' : sort === 'rating' ? 'rating' : 'COLLECT',
         ...(ratingMin ? { ratingMin } : {}),
         ...(year ? { releaseYear: year } : {}),
       }) as any;
       // moduleContentPage 内部用 contentClient 包装, resp 同上是 { code, data: { list, total }, msg }
       const rawRecords = resp?.data?.list || resp?.data?.records || [];
-      // 字段适配:后端 entity 用 coverUrl/author/readNum/agreeNum → FeedCard 期望字段
-      const records = rawRecords.map((item: any) => {
-        const id = safeId(item.id);
-        // postedAgoMin:从 createTime 计算分钟数
-        let postedAgoMin = item.postedAgoMin || 0;
-        if (!postedAgoMin && item.createTime) {
-          const diff = Date.now() - new Date(item.createTime).getTime();
-          postedAgoMin = Math.floor(diff / 60000);
-        }
-        // durationSec:从 content 字段提取(如 "01:23:45" → 5025秒)
-        let durationSec = item.durationSec || item.duration || 0;
-        if (!durationSec && item.content) {
-          const match = item.content.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
-          if (match) {
-            const [, h, m, s] = match;
-            durationSec = (parseInt(h) * 3600) + (parseInt(m) * 60) + (parseInt(s || '0'));
-          }
-        }
-        return {
-          ...item,
-          id,
-          cover: item.cover || item.coverUrl || '',
-          authorName: item.authorName || item.author || '',
-          authorAvatar: item.authorAvatar || item.avatar || '',
-          views: item.views || item.readNum || 0,
-          likes: item.likes || item.agreeNum || 0,
-          comments: item.comments || item.commentNum || 0,
-          shares: item.shares || item.shareNum || 0,
-          postedAgoMin,
-          durationSec,
-          category: item.category || item.contentType?.toLowerCase() || 'video',
-        };
-      });
+      const records = rawRecords.map(toFeedRecord);
       const total = resp?.data?.total || resp?.data?.totalRow || 0;
       return { records, total, page: pageParam };
     },
     initialPageParam: 1,
     getNextPageParam: (lastPage) => {
       const { records, total, page } = lastPage;
+      if ('hasMore' in lastPage) return lastPage.hasMore ? page + 1 : undefined;
       if (records.length === PAGE_SIZE && page * PAGE_SIZE < total) {
         return page + 1;
       }

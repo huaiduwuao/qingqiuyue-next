@@ -68,7 +68,7 @@ const CATEGORY_TO_TYPE: Record<string, string> = {
 
 const TYPE_TO_CHIP: Record<string, string> = {
   NOVEL: '小说', COMICS: '漫画', FILM: '影视', VSHOW: '综艺', MUSIC: '音乐',
-  TELEPLAY: '短剧', ANIMATION: '二次元', VIDEO: '游戏', NEWS: '资讯',
+  TELEPLAY: '电视剧', SHORT_DRAMA: '短剧', ANIMATION: '二次元', VIDEO: '游戏', NEWS: '资讯',
   ARTICLE: '文章', LIVE: '直播',
 };
 
@@ -156,7 +156,7 @@ export default function HomeRecommendPage() {
           page: pageParam,
           pageSize: PAGE_SIZE,
           ...(contentType ? { contentType } : {}),
-          order: 'COLLECT',
+          orderBy: 'COLLECT',
         }) as any;
         const records: ContentItem[] = resp?.data?.data?.list || resp?.data?.data?.records || [];
         const total = resp?.data?.data?.total || resp?.data?.data?.totalRow || 0;
