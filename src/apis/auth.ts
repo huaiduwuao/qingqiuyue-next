@@ -26,10 +26,41 @@ export interface UserInfo {
   permissions: string[];
 }
 
+/** 验证码用途:login 手机号登录(未注册自动注册)/ reset 找回密码 / bind 绑定手机号。 */
+export type SmsType = 'login' | 'reset' | 'bind';
+
 // SMS 发送请求
 export interface SmsSendReq {
   mobile: string;
-  type?: string;
+  type?: SmsType;
+}
+
+/** 当前真正可用的登录/注册方式(后端 /auth/options)。短信通道未接入时 sms=false。 */
+export interface AuthOptions {
+  password: boolean;
+  register: boolean;
+  sms: boolean;
+  wechat: boolean;
+}
+
+// 可用登录方式 - GET /api/core/auth/options
+export async function getAuthOptions() {
+  return adminClient<AuthOptions>('/auth/options');
+}
+
+// 用户名密码注册,成功即登录 - POST /api/core/register
+export async function register(data: { name: string; password: string; nickname?: string }) {
+  return adminClient<LoginResp>('/register', { method: 'POST', data });
+}
+
+// 手机号 + 验证码登录(未注册自动注册)- POST /api/core/user/mobile/login
+export async function mobileLogin(data: { mobile: string; code: string }) {
+  return adminClient<LoginResp>('/user/mobile/login', { method: 'POST', data });
+}
+
+// 手机号 + 验证码重置密码 - POST /api/core/user/forgot/password
+export async function resetPassword(data: { mobile: string; code: string; password: string }) {
+  return adminClient('/user/forgot/password', { method: 'POST', data });
 }
 
 // SMS 验证请求

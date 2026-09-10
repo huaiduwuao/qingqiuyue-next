@@ -2,111 +2,184 @@
 
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
 import { queryCurrent, logout as apiLogout } from '@/apis/user';
 import { getMenuData } from '@/apis/menu';
 import { listAllDictData } from '@/apis/global';
+import { AUTH_EXPIRED_EVENT, isAuthError } from '@/lib/api/client';
+import { isProtectedPath } from '@/lib/auth/routes';
+import { LOGIN_PATH, loginHref } from '@/lib/auth/redirect';
 import { useApp } from './AppContext';
 
+const SESSION_KEY = 'session_id';
+
+/**
+ * 登录态三个阶段:
+ *   loading       —— 还没读出本地会话,或正在用会话拉取当前用户
+ *   authenticated —— 会话有效
+ *   anonymous     —— 没有会话,或会话已失效
+ *
+ * 此前只有 isAuthenticated = !!sessionId:首屏 hydration 之前一律为 false,需要登录的
+ * 组件先渲染成"未登录"再闪回;会话过期后接口返回 401,但判断条件是错误文案里含
+ * ' unauthorized'(实际文案是中文),永远匹配不上,前端一直显示已登录。
+ */
+export type AuthStatus = 'loading' | 'authenticated' | 'anonymous';
+
 interface AuthContextValue {
+  status: AuthStatus;
   isAuthenticated: boolean;
-  sessionId: string | null;  // 统一用 session_id
+  sessionId: string | null;
   permissions: string[];
-  login: (sessionId: string) => void;
-  logout: () => void;
-  checkAuth: () => Promise<void>;
+  /** 登录/注册成功后调用:保存会话并拉取当前用户,完成后再跳转。 */
+  login: (sessionId: string) => Promise<void>;
+  logout: () => Promise<void>;
+  /** 重新拉取当前用户(修改资料后)。 */
+  refresh: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-// Public paths that don't require authentication
-export const PUBLIC_PATHS = ['/user/login', '/user/social-login', '/home'];
+function readSession(): string | null {
+  try {
+    return localStorage.getItem(SESSION_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeSession(sessionId: string | null) {
+  try {
+    if (sessionId) localStorage.setItem(SESSION_KEY, sessionId);
+    else localStorage.removeItem(SESSION_KEY);
+  } catch {
+    /* 隐私模式等不可用时只保留内存态 */
+  }
+}
 
 export function AuthContextProvider({ children }: { children: React.ReactNode }) {
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [permissions, setPermissions] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [hydrated, setHydrated] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  const queryClient = useQueryClient();
   const { setCurrentUser, setMenuData, setDict } = useApp();
-  const prevSessionIdRef = useRef<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [status, setStatus] = useState<AuthStatus>('loading');
+  const [permissions, setPermissions] = useState<string[]>([]);
+  // 每次登录/登出/重新加载递增;异步结果回来时序号不一致就丢弃,避免旧请求覆盖新状态。
+  const loadSeq = useRef(0);
 
-  // 客户端 hydration 后从 localStorage 读 session_id
+  const clearLocal = useCallback(() => {
+    loadSeq.current++;
+    writeSession(null);
+    setSessionId(null);
+    setPermissions([]);
+    setCurrentUser(null);
+    setMenuData([]);
+    setStatus('anonymous');
+  }, [setCurrentUser, setMenuData]);
+
+  const loadUser = useCallback(
+    async (sid: string) => {
+      const seq = ++loadSeq.current;
+      setSessionId(sid);
+      setStatus('loading');
+      try {
+        const user = (await queryCurrent())?.data;
+        if (seq !== loadSeq.current) return;
+        if (!user) {
+          clearLocal();
+          return;
+        }
+        setCurrentUser(user);
+        setPermissions(user.permissions ?? []);
+        setStatus('authenticated');
+      } catch (err) {
+        if (seq !== loadSeq.current) return;
+        if (isAuthError(err)) {
+          clearLocal();
+        } else {
+          // 网络抖动等暂时性错误:保留会话,不因为断网把用户登出。
+          setStatus('authenticated');
+        }
+        return;
+      }
+      // 菜单、字典各自独立:任何一个失败都不影响登录态(此前 Promise.all 一起失败)。
+      const [menu, dict] = await Promise.allSettled([getMenuData({}), listAllDictData({})]);
+      if (seq !== loadSeq.current) return;
+      if (menu.status === 'fulfilled') setMenuData(menu.value?.data ?? []);
+      if (dict.status === 'fulfilled') setDict(dict.value?.data ?? []);
+    },
+    [clearLocal, setCurrentUser, setMenuData, setDict],
+  );
+
+  // 启动:读本地会话 → 有则校验并拉取用户,无则直接匿名。
+  const booted = useRef(false);
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const savedSessionId = localStorage.getItem('session_id');
-    if (savedSessionId) setSessionId(savedSessionId);
-    setHydrated(true);
-  }, []);
+    if (booted.current) return;
+    booted.current = true;
+    const sid = readSession();
+    if (sid) void loadUser(sid);
+    else setStatus('anonymous');
+  }, [loadUser]);
 
-  const login = useCallback((newSessionId: string) => {
-    localStorage.setItem('session_id', newSessionId);
-    setSessionId(newSessionId);
-  }, []);
+  // 受保护页面只在确定是匿名后才跳登录,并带上回跳地址。
+  useEffect(() => {
+    if (status === 'anonymous' && pathname && isProtectedPath(pathname)) {
+      router.replace(loginHref());
+    }
+  }, [status, pathname, router]);
+
+  // 任意接口带着会话返回 401 → 会话已失效;其它标签页登录/登出 → 同步。
+  useEffect(() => {
+    const onExpired = () => {
+      if (readSession()) clearLocal();
+    };
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== SESSION_KEY) return;
+      if (e.newValue) void loadUser(e.newValue);
+      else clearLocal();
+    };
+    window.addEventListener(AUTH_EXPIRED_EVENT, onExpired);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener(AUTH_EXPIRED_EVENT, onExpired);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [clearLocal, loadUser]);
+
+  const login = useCallback(
+    async (newSessionId: string) => {
+      writeSession(newSessionId);
+      await loadUser(newSessionId);
+      // 匿名时缓存的数据(付费墙、相关推荐等)按登录身份重新拉取。
+      await queryClient.invalidateQueries();
+    },
+    [loadUser, queryClient],
+  );
 
   const logout = useCallback(async () => {
     try {
       await apiLogout();
-    } catch (e) {
-      // Ignore
+    } catch {
+      /* 服务端注销失败也要清掉本地会话 */
     }
-    localStorage.removeItem('session_id');
-    setSessionId(null);
-    setPermissions([]);
-    setCurrentUser(null);
-    prevSessionIdRef.current = null;
-    router.push('/user/login');
-  }, [router, setCurrentUser]);
+    clearLocal();
+    queryClient.clear();
+    router.push(LOGIN_PATH);
+  }, [clearLocal, queryClient, router]);
 
-  const checkAuth = useCallback(async () => {
-    if (prevSessionIdRef.current === sessionId) return;
-    prevSessionIdRef.current = sessionId;
-
-    if (!sessionId) {
-      if (!PUBLIC_PATHS.some((p) => pathname?.startsWith(p))) {
-        router.push('/user/login');
-      }
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const [userRes, menuRes, dictRes] = await Promise.all([
-        queryCurrent(),
-        getMenuData({}),
-        listAllDictData({}),
-      ]);
-
-      if (userRes.data) {
-        setCurrentUser(userRes.data);
-        setPermissions(userRes.data.permissions || []);
-      }
-      if (menuRes.data) {
-        setMenuData(menuRes.data || []);
-      }
-      if (dictRes.data) {
-        setDict(dictRes.data || []);
-      }
-    } catch (error) {
-      if (error instanceof Error && error.message.includes(' unauthorized')) {
-        logout();
-      }
-    } finally {
-      setIsLoading(false);
-    }
-  }, [sessionId, pathname, router, logout, setCurrentUser, setMenuData, setDict]);
-
-  useEffect(() => {
-    if (hydrated) checkAuth();
-  }, [hydrated, sessionId, checkAuth]);
+  const refresh = useCallback(async () => {
+    const sid = readSession();
+    if (sid) await loadUser(sid);
+  }, [loadUser]);
 
   const value: AuthContextValue = {
-    isAuthenticated: !!sessionId,
+    status,
+    isAuthenticated: status === 'authenticated',
     sessionId,
     permissions,
     login,
     logout,
-    checkAuth,
+    refresh,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

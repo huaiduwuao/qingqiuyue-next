@@ -29,6 +29,7 @@ import { track, recordHistory } from '@/lib/track';
 import { ReadingSettings, DEFAULT_PAGE_STYLE, type PageStyle } from '@/components/detail/ReadingSettings';
 import { ReadingContainer } from '@/components/detail/ReadingContainer';
 import { DetailComments } from '@/components/detail/DetailComments';
+import { DetailFooter } from '@/components/detail/DetailFooter';
 
 interface Article {
   id: number;
@@ -210,6 +211,7 @@ function ArticleDetailContent() {
               ))}
             </Box>
 
+            <DetailFooter contentId={id!} detail={data} kind="read" />
             <DetailComments contentId={id!} initialCount={data.commentCount || 0} />
           </Container>
         )}

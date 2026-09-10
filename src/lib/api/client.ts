@@ -102,6 +102,19 @@ function normalizePaginationPayload(payload: Record<string, any>): void {
   }
 }
 
+/**
+ * 会话失效事件:带着会话的请求收到 401 时在 window 上派发,AuthContext 据此清掉本地会话。
+ * 不带会话的请求(登录接口本身、匿名浏览)返回 401 不派发。
+ */
+export const AUTH_EXPIRED_EVENT = 'auth:expired';
+
+function notifyAuthExpired(headers: unknown) {
+  const auth = (headers as Record<string, unknown> | undefined)?.Authorization;
+  if (typeof window !== 'undefined' && auth) {
+    window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+  }
+}
+
 export function formatApiError(error: unknown): string {
   if (isApiError(error)) {
     if (error.category === 'auth') return '登录已过期,请重新登录';
@@ -235,6 +248,7 @@ function createApiClient(baseURL: string) {
       if (data && typeof data === 'object' && 'code' in data) {
         if (data.code !== 200 && data.code !== '200' && data.code !== 0) {
           const isAuth = status === 401 || data.code === 401 || data.code === '401';
+          if (isAuth) notifyAuthExpired(response.config.headers);
           const error = new ApiError({
             message: data.msg || '请求失败',
             category: isAuth ? 'auth' : 'business',
@@ -293,6 +307,7 @@ function createApiClient(baseURL: string) {
       }
 
       if (status === 401) {
+        notifyAuthExpired(error.config?.headers);
         return Promise.reject(new ApiError({
           message: '登录已过期,请重新登录',
           category: 'auth',

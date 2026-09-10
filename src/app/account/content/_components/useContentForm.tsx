@@ -6,6 +6,7 @@ import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import { updateShare } from '@/apis/module-content';
 import { accountClient, formatApiError, isAuthError, isNetworkError } from '@/lib/api/client';
+import { PricingFields } from './PricingFields';
 
 /**
  * useContentForm — 创作者中心发布表单的共享基础 hook。
@@ -17,7 +18,7 @@ import { accountClient, formatApiError, isAuthError, isNetworkError } from '@/li
  *
  *   1. 共享:title/desc(可选)/tags/snack Alert/submit mutation/后端
  *      调 updateShare 的 contentType + payload 构造 + 失败错误处理
- *      + 成功后跳回工作台
+ *      + 成功后跳回工作台 + 付费定价
  *   2. 各自管:PublishForms/ImageForm 管 images[]、ArticleForm 管 body +
  *      cover、NovelForm 管 chapters[]、MusicForm 管 audioFile +
  *      lrcLyrics、ComicsForm 管 pages[] 等
@@ -33,7 +34,7 @@ import { accountClient, formatApiError, isAuthError, isNetworkError } from '@/li
  *     buildPayload: () => ({ title: f.title, contentType: 'PICTURE', ... }),
  *   });
  *   // f.title / f.setTitle / f.tags / f.snack / f.setSnack / f.submit
- *   // f.canSubmit / f.isPending / f.renderSnackbar()  (放到 JSX 末尾)
+ *   // f.canSubmit / f.isPending / f.renderPricing() / f.renderSnackbar()
  */
 
 export type SnackSeverity = 'success' | 'error' | 'info' | 'warning';
@@ -76,6 +77,9 @@ export interface UseContentFormReturn<TPayload> {
   isPending: boolean;
   canSubmit: boolean;
 
+  /** 付费定价区块。serial=true 时额外提供"免费章节/分集数"。放在提交按钮之前。 */
+  renderPricing: (opts?: { serial?: boolean }) => React.ReactElement;
+
   // snack(Alert 风格,error 自动 5s,其他 2.4s)
   snack: SnackMsg | null;
   setSnack: (s: string | SnackMsg) => void;
@@ -84,14 +88,24 @@ export interface UseContentFormReturn<TPayload> {
   renderSnackbar: () => React.ReactElement;
 }
 
+/** 后端保存后返回的状态 → 给创作者的结果提示。 */
+function savedMessage(status: string | undefined): string {
+  switch (status) {
+    case 'PUBLISH':
+      return '发布成功';
+    case 'UN_PUBLISH':
+      return '已保存为草稿';
+    default:
+      return '已提交审核,通过后自动发布';
+  }
+}
+
 export function useContentForm<TPayload = Record<string, unknown>>(
   opts: UseContentFormOptions<TPayload>,
 ): UseContentFormReturn<TPayload> {
   const {
-    contentType,
     maxTitle = 30,
     maxDesc = 200,
-    maxTags = 8,
     validate,
     buildPayload,
     redirectOnSuccess = true,
@@ -103,6 +117,9 @@ export function useContentForm<TPayload = Record<string, unknown>>(
   const [title, setTitleRaw] = useState('');
   const [desc, setDescRaw] = useState('');
   const [tags, setTagsRaw] = useState('');
+  // 定价(分):0 = 免费。freeItems 仅对章节/分集类内容有意义。
+  const [price, setPrice] = useState(0);
+  const [freeItems, setFreeItems] = useState(0);
 
   const setTitle = useCallback(
     (v: string) => setTitleRaw(maxTitle > 0 ? v.slice(0, maxTitle) : v),
@@ -121,7 +138,8 @@ export function useContentForm<TPayload = Record<string, unknown>>(
   }, []);
 
   const createMutation = useMutation({
-    mutationFn: () => updateShare(buildPayload() as any),
+    mutationFn: () =>
+      updateShare({ ...(buildPayload() as object), price, freeItems: price > 0 ? freeItems : 0 } as any),
   });
 
   // canSubmit 不包含 validate 校验结果(validate 由各 view 在 setState 后
@@ -139,8 +157,9 @@ export function useContentForm<TPayload = Record<string, unknown>>(
       setSnack({ msg: validationError, severity: 'warning' });
       return { ok: false, error: validationError };
     }
+    let saved: { status?: string } | undefined;
     try {
-      await createMutation.mutateAsync();
+      saved = (await createMutation.mutateAsync())?.data as { status?: string } | undefined;
     } catch (e: any) {
       if (isAuthError(e)) {
         setSnack({ msg: '请重新登录', severity: 'error' });
@@ -151,7 +170,7 @@ export function useContentForm<TPayload = Record<string, unknown>>(
       }
       return { ok: false, error: e?.message };
     }
-    setSnack({ msg: '已提交审核', severity: 'success' });
+    setSnack({ msg: savedMessage(saved?.status), severity: 'success' });
     if (onSuccess) {
       onSuccess();
     } else if (redirectOnSuccess) {
@@ -161,6 +180,19 @@ export function useContentForm<TPayload = Record<string, unknown>>(
     }
     return { ok: true };
   }, [validate, createMutation, setSnack, onSuccess, redirectOnSuccess]);
+
+  const renderPricing = useCallback(
+    (o?: { serial?: boolean }) => (
+      <PricingFields
+        price={price}
+        onPriceChange={setPrice}
+        freeItems={freeItems}
+        onFreeItemsChange={setFreeItems}
+        serial={o?.serial}
+      />
+    ),
+    [price, freeItems],
+  );
 
   // 公开的 snack 渲染器(view 末尾放 {f.renderSnackbar()})
   const renderSnackbar = useCallback(
@@ -196,6 +228,7 @@ export function useContentForm<TPayload = Record<string, unknown>>(
     submit,
     isPending: createMutation.isPending,
     canSubmit,
+    renderPricing,
     snack,
     setSnack,
     dismissSnack,

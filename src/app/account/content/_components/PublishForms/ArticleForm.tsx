@@ -520,6 +520,8 @@ export default function ArticleForm({ onSuccess }: PublishFormProps) {
             </Typography>
           </Box>
 
+          {f.renderPricing()}
+
           <Button
             variant="contained"
             size="large"

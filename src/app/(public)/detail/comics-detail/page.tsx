@@ -30,6 +30,7 @@ import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
 import { track, recordHistory } from '@/lib/track';
 import { DetailComments } from '@/components/detail/DetailComments';
+import { DetailFooter } from '@/components/detail/DetailFooter';
 
 interface Chapter {
   id: number;
@@ -300,6 +301,7 @@ function ComicsDetailContent() {
                 ))}
               </Box>
 
+              <DetailFooter contentId={id!} detail={data} kind="read" />
               <DetailComments contentId={id!} initialCount={data.commentCount || 0} />
 
               <Divider sx={{ borderColor: 'divider', my: 3 }} />

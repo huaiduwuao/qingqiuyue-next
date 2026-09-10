@@ -404,6 +404,8 @@ export default function ImageForm({ onSuccess }: PublishFormProps) {
             </Typography>
           </Box>
 
+          {f.renderPricing()}
+
           <Button
             variant="contained"
             size="large"

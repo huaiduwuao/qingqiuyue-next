@@ -373,6 +373,8 @@ export default function ComicsForm({ onSuccess }: PublishFormProps) {
             </Typography>
           </Box>
 
+          {f.renderPricing({ serial: true })}
+
           <Button
             variant="contained"
             size="large"

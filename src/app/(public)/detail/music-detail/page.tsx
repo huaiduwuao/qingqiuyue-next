@@ -29,6 +29,7 @@ import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
 import { track, recordHistory } from '@/lib/track';
 import { DetailComments } from '@/components/detail/DetailComments';
+import { DetailFooter } from '@/components/detail/DetailFooter';
 import { spiderClient } from '@/lib/api/client';
 
 interface LyricLine {
@@ -414,6 +415,7 @@ function MusicDetailContent() {
               {data.info}
             </Typography>
 
+            <DetailFooter contentId={id!} detail={data} kind="watch" />
             <DetailComments contentId={id!} initialCount={data.commentCount || 0} />
           </Container>
         )}

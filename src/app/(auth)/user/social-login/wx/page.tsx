@@ -8,6 +8,7 @@ import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress';
 import { useAuth } from '@/contexts/AuthContext';
+import { consumeRedirect, safeRedirectPath } from '@/lib/auth/redirect';
 
 // 微信扫码登录回调落地页:从 URL 拿 ?session_id=&from=,写 session_id 后跳 from。
 // 后端 OAuth callback 已 302 到这里(/api/core/oauth/wechat/callback → /user/social-login/wx)。
@@ -41,7 +42,6 @@ function SocialLoginWxContent() {
   useEffect(() => {
     if (doneRef.current) return;
     const sessionId = sp?.get('session_id') || '';
-    const from = sp?.get('from') || '/home/recommend';
     const err = sp?.get('error') || '';
     if (err) {
       setErrMsg(err);
@@ -52,9 +52,9 @@ function SocialLoginWxContent() {
       return;
     }
     doneRef.current = true;
-    login(sessionId);
-    // 用 replace 避免回退到此页
-    router.replace(from);
+    // 先完成登录(拉取当前用户)再跳转;from 只接受站内路径,防开放跳转。
+    const target = safeRedirectPath(sp?.get('from')) ?? consumeRedirect();
+    void login(sessionId).then(() => router.replace(target));
   }, [sp, login, router]);
 
   return (

@@ -32,6 +32,7 @@ import { track, recordHistory } from '@/lib/track';
 import { LoginGate } from '@/components/auth/LoginGate';
 import { formatApiError } from '@/lib/api/client';
 import { DetailComments } from '@/components/detail/DetailComments';
+import { DetailFooter } from '@/components/detail/DetailFooter';
 import { moduleContentAction } from '@/apis/home';
 
 function NovelDetailContent() {
@@ -478,6 +479,7 @@ function NovelDetailContent() {
               </Box>
             )}
 
+            <DetailFooter contentId={novelId || id!} detail={initialQuery.data?.detail} kind="read" />
             <Divider sx={{ borderColor: 'divider', my: 3 }} />
             <DetailComments contentId={novelId || id!} initialCount={initialQuery.data?.detail?.commentCount || 0} />
           </Box>

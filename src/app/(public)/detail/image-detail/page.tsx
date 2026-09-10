@@ -22,6 +22,7 @@ import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
 import { track, recordHistory } from '@/lib/track';
 import { DetailComments } from '@/components/detail/DetailComments';
+import { DetailFooter } from '@/components/detail/DetailFooter';
 import { CollectButton } from '@/components/detail/CollectButton';
 
 type PictureDetail = {
@@ -205,6 +206,7 @@ function ImageDetailContent() {
               </Box>
             </Box>
 
+            <DetailFooter contentId={id!} detail={data} kind="read" />
             <DetailComments contentId={id!} initialCount={data.commentCount || 0} />
           </Container>
         )}

@@ -1,8 +1,8 @@
 import { adminClient } from '@/lib/api/client';
-import { login, sendSmsCode, verifySmsCode, getCurrentUser, LoginReq, LoginResp, UserInfo } from './auth';
+import { login, sendSmsCode, verifySmsCode, getCurrentUser, mobileLogin, LoginReq, LoginResp, UserInfo } from './auth';
 
 // Re-export auth functions for convenience
-export { login, sendSmsCode, verifySmsCode, getCurrentUser };
+export { login, sendSmsCode, verifySmsCode, getCurrentUser, mobileLogin };
 export type { LoginReq, LoginResp, UserInfo };
 
 // 登出 - POST /api/core/user/logout
@@ -15,14 +15,6 @@ export async function logout() {
 // 账户登录
 export async function accountLogin(params: { name: string; password: string }) {
   return login(params);
-}
-
-// 手机号登录 - POST /api/core/user/mobile/login
-export async function mobileLogin(params: { mobile: string; captcha: string }) {
-  return adminClient<LoginResp>('/user/mobile/login', {
-    method: 'POST',
-    data: params,
-  });
 }
 
 // 获取当前用户

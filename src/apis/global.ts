@@ -70,28 +70,13 @@ export async function listDataPermission(params: Record<string, unknown>) {
   });
 }
 
-export async function payUnlock(params: Record<string, unknown>) {
-  return contentClient("/module/payUnlock", {
-    params
-  });
+// 合集解锁。有副作用的操作走 POST;单条内容的付费解锁见 @/apis/paywall。
+export async function payUnlock(data: { moduleId: number }) {
+  return contentClient("/module/payUnlock", { method: "POST", data });
 }
 
-export async function passwordUnlock(params: Record<string, unknown>) {
-  return contentClient("/module/passwordUnlock", {
-    params
-  });
-}
-
-export async function contentPayUnlock(params: Record<string, unknown>) {
-  return contentClient("/module/content/payUnlock", {
-    params
-  });
-}
-
-export async function contentPasswordUnlock(params: Record<string, unknown>) {
-  return contentClient("/module/content/passwordUnlock", {
-    params
-  });
+export async function passwordUnlock(data: { moduleId: number; password: string }) {
+  return contentClient("/module/passwordUnlock", { method: "POST", data });
 }
 
 export async function userPointMe(params: Record<string, unknown>) {

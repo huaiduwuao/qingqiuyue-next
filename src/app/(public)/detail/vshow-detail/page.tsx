@@ -25,6 +25,7 @@ import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
 import { track, recordHistory } from '@/lib/track';
 import { DetailComments } from '@/components/detail/DetailComments';
+import { DetailFooter } from '@/components/detail/DetailFooter';
 import { CollectButton } from '@/components/detail/CollectButton';
 
 interface ShowItem {
@@ -269,6 +270,7 @@ function VShowDetailContent() {
                 ))}
               </Box>
 
+              <DetailFooter contentId={id!} detail={data} kind="watch" />
               <DetailComments contentId={id!} initialCount={data.commentCount || 0} />
             </Container>
           </>

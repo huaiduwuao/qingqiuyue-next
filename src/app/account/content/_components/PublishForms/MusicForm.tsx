@@ -376,6 +376,8 @@ export default function MusicForm({ onSuccess }: PublishFormProps) {
             </Typography>
           </Box>
 
+          {f.renderPricing()}
+
           <Button
             variant="contained"
             size="large"

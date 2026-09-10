@@ -62,8 +62,10 @@ export const getPersonalFeed = (params: { userId: number; type?: string; size?: 
   contentClient('/recommend/personal', { params });
 
 // 相关推荐 → GET /api/content/recommend/related?seedId=
-export const getRelated = (params: { seedId: number; userId?: number; types?: string; size?: number }) =>
-  contentClient('/recommend/related', { params });
+// 以种子内容为中心的 i2i 召回(向量相似 + 同作者/同标签),已排除种子自身。
+// seedId 用字符串:内容 id 是超出 2^53 的雪花 id。
+export const getRelated = (params: { seedId: string | number; userId?: number; types?: string; size?: number }) =>
+  contentClient<FeedResult>('/recommend/related', { params });
 
 // 热榜 → GET /api/content/analytics/hot
 export const getHotRanking = (params: { type?: string; limit?: number }) =>

@@ -285,6 +285,8 @@ export default function FilmForm({ onSuccess }: PublishFormProps) {
             </Typography>
           </Box>
 
+          {f.renderPricing()}
+
           <Button
             variant="contained"
             size="large"

@@ -17,6 +17,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import LogoutIcon from '@mui/icons-material/Logout';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { loginHref } from '@/lib/auth/redirect';
 
 interface UserMenuProps {
   variant?: 'icon' | 'full';
@@ -38,14 +39,13 @@ export function UserMenu({ variant = 'icon' }: UserMenuProps) {
 
   const handleLogout = () => {
     handleMenuClose();
-    logout();
-    router.push('/user/login');
+    void logout(); // logout 内部会跳登录页
   };
 
   if (!currentUser) {
     return (
       <Box sx={{ display: 'flex', gap: 1 }}>
-        <IconButton onClick={() => router.push('/user/login')} aria-label="登录">
+        <IconButton onClick={() => router.push(loginHref())} aria-label="登录">
           <Avatar
             sx={{
               width: 36,

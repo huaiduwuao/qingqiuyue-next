@@ -1,0 +1,36 @@
+// 路由访问策略的唯一来源。
+//
+// 站点生产环境是静态导出(next.config.ts 的 output: 'export'),Next 的 middleware /
+// proxy 在生产根本不执行。此前 src/proxy.ts 维护着一份完整的公开路由表却从未生效,
+// 真正在跑的是 AuthContext 里另一份只有三项的 PUBLIC_PATHS —— 未登录用户打开任何
+// 详情、搜索、分享链接都会被踢去登录页。
+//
+// 现在只有这一张表:不在公开前缀里的路由需要登录;页面里局部需要登录的功能用 <LoginGate>。
+
+const PUBLIC_PREFIXES = [
+  '/home',
+  '/detail',
+  '/search',
+  '/share',
+  '/recharge',
+  '/download',
+  '/wallpaper',
+  '/gouji',
+  '/kf-chat',
+  '/digital-human',
+  '/crawled',
+  // 个人中心 / 积分:整页由 <LoginGate> 替换内容(看得到入口,登录后才有数据)
+  '/account',
+  // 登录、第三方登录回调、积分
+  '/user',
+];
+
+export function isPublicPath(pathname: string): boolean {
+  if (pathname === '/') return true;
+  return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
+/** 未登录访问时需要跳登录页的路由(后台 /system、AI 创作工具等)。 */
+export function isProtectedPath(pathname: string): boolean {
+  return !isPublicPath(pathname);
+}

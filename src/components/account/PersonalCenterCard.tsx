@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getLikesPreview, getAccountStats } from '@/apis/dashboard';
 import { useRouter } from 'next/navigation';
+import { loginHref } from '@/lib/auth/redirect';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Switch from '@mui/material/Switch';
@@ -165,9 +166,7 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
             variant="contained"
             onClick={() => {
               onNavigate?.();
-              const here = typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/home/recommend';
-              sessionStorage.setItem('login_redirect', here);
-              router.push('/user/login');
+              router.push(loginHref());
             }}
             sx={{
               mt: 0.5,

@@ -24,6 +24,7 @@ import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
 import { track, recordHistory } from '@/lib/track';
 import { DetailComments } from '@/components/detail/DetailComments';
+import { DetailFooter } from '@/components/detail/DetailFooter';
 import { CollectButton } from '@/components/detail/CollectButton';
 
 interface Film {
@@ -247,6 +248,7 @@ function FilmDetailContent() {
                 ))}
               </Box>
 
+              <DetailFooter contentId={id!} detail={data} kind="watch" />
               <DetailComments contentId={id!} initialCount={data.commentCount || 0} />
             </Container>
           </>

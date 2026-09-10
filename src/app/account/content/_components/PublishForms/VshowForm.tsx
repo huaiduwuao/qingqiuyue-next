@@ -323,6 +323,8 @@ export default function VshowForm({ onSuccess }: PublishFormProps) {
             </Typography>
           </Box>
 
+          {f.renderPricing({ serial: true })}
+
           <Button
             variant="contained"
             size="large"

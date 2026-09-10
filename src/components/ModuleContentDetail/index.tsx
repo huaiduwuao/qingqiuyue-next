@@ -76,10 +76,11 @@ export default function ModuleContentDetail({ detail, onClose }: ModuleContentDe
   const contentInfo = detail.info ?? '';
   const authorName = detail.author ?? detail.username ?? '清秋月';
   const authorId = detail.authorId ?? detail.userId;
-  const baseViews = Number(detail.views ?? detail.readNum ?? 12384) || 0;
-  const baseLikes = Number(detail.likes ?? detail.agreeNum ?? 1268) || 0;
-  const baseComments = Number(detail.comments ?? detail.commentNum ?? 84) || 0;
-  const baseCollects = Number(detail.collects ?? detail.collectNum ?? 234) || 0;
+  // 计数缺失时显示 0。此前兜底成 12384 / 1268 / 84 / 234 这样的假数字,冒充真实热度。
+  const baseViews = Number(detail.views ?? detail.readNum ?? 0) || 0;
+  const baseLikes = Number(detail.likes ?? detail.agreeNum ?? 0) || 0;
+  const baseComments = Number(detail.comments ?? detail.commentNum ?? 0) || 0;
+  const baseCollects = Number(detail.collects ?? detail.collectNum ?? 0) || 0;
 
   const [liked, setLiked] = useState(false);
   const [disliked, setDisliked] = useState(false);
@@ -373,7 +374,6 @@ export default function ModuleContentDetail({ detail, onClose }: ModuleContentDe
           </Avatar>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{authorName}</Typography>
-            <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>签约创作者 · 10.2w 粉丝</Typography>
           </Box>
           <Button
             variant="contained"

@@ -1,11 +1,13 @@
 'use client';
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { useApp } from '@/contexts/AppContext';
 import Box from '@mui/material/Box';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import Button from '@mui/material/Button';
+import CircularProgress from '@mui/material/CircularProgress';
 import Typography from '@mui/material/Typography';
+import { useAuth } from '@/contexts/AuthContext';
+import { loginHref } from '@/lib/auth/redirect';
 
 export interface LoginGateProps {
   children: React.ReactNode;
@@ -19,21 +21,28 @@ export interface LoginGateProps {
   overlayOpacity?: number;
 }
 
+/**
+ * 登录门禁。登录态还在确认中(status=loading)时不下结论:replace 模式显示加载占位,
+ * overlay 模式先照常渲染 —— 避免已登录用户每次刷新都先看到一闪而过的锁。
+ */
 export function LoginGate({ children, mode = 'overlay', message = '登录后查看', icon, overlayOpacity = 0.5 }: LoginGateProps) {
-  const { currentUser } = useApp();
+  const { status } = useAuth();
   const router = useRouter();
-  const loggedIn = !!currentUser;
 
-  if (loggedIn) {
+  if (status === 'authenticated') {
     return <>{children}</>;
   }
+  if (status === 'loading') {
+    return mode === 'replace' ? (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 240 }}>
+        <CircularProgress size={28} />
+      </Box>
+    ) : (
+      <>{children}</>
+    );
+  }
 
-  const goLogin = () => {
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('login_redirect', window.location.pathname + window.location.search);
-    }
-    router.push('/user/login');
-  };
+  const goLogin = () => router.push(loginHref());
 
   if (mode === 'replace') {
     return (
@@ -71,11 +80,14 @@ export function LoginGate({ children, mode = 'overlay', message = '登录后查�
   // overlay mode
   return (
     <Box sx={{ position: 'relative' }}>
-      <Box sx={{ opacity: overlayOpacity, pointerEvents: 'none', filter: 'blur(1px)' }}>
+      <Box sx={{ opacity: overlayOpacity, pointerEvents: 'none', filter: 'blur(1px)' }} aria-hidden>
         {children}
       </Box>
       <Box
+        component="button"
+        type="button"
         onClick={goLogin}
+        aria-label={message}
         sx={{
           position: 'absolute',
           inset: 0,
@@ -85,7 +97,10 @@ export function LoginGate({ children, mode = 'overlay', message = '登录后查�
           justifyContent: 'center',
           gap: 0.5,
           cursor: 'pointer',
+          border: 0,
           bgcolor: 'transparent',
+          color: 'inherit',
+          font: 'inherit',
           '&:hover': { bgcolor: 'action.hover' },
           transition: 'background 0.15s',
         }}

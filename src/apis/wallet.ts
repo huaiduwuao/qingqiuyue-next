@@ -52,7 +52,7 @@ export async function getWalletTransactions(params?: { page?: number; size?: num
 // 打赏创作者
 export async function tipCreator(data: {
   targetUserId: number;
-  contentId?: number;
+  contentId?: string | number; // 雪花 id,传字符串避免精度丢失
   amount: number;  // 分
   remark?: string;
 }) {

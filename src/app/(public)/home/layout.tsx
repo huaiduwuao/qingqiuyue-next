@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { loginHref } from '@/lib/auth/redirect';
 import { homeClient } from '@/lib/api/client';
 import Link from 'next/link';
 import Box from '@mui/material/Box';
@@ -379,11 +380,7 @@ function TopBar({
             size="small"
             variant="contained"
             color="primary"
-            onClick={() => {
-              const here = typeof window !== 'undefined' ? window.location.pathname + window.location.search : '/home/recommend';
-              sessionStorage.setItem('login_redirect', here);
-              router.push('/user/login');
-            }}
+            onClick={() => router.push(loginHref())}
             sx={{
               ml: 1.5,
               textTransform: 'none',
