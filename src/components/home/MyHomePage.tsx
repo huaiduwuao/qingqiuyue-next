@@ -1122,13 +1122,7 @@ function AppointmentListView({ list, onClick, onCancel }: { list: MyItem[]; onCl
             <Box sx={{ display: 'flex', gap: 1, fontSize: 11, color: 'text.secondary', alignItems: 'center' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
                 <EventNoteRoundedIcon sx={{ fontSize: 11 }} />
-                {(() => {
-                  const start = (it as any).startAt || (it as any).liveStartAt;
-                  if (typeof start === 'number' && start > Date.now()) {
-                    return <>预计开播: {new Date(start).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</>;
-                  }
-                  return <>已开播 · 预约观看</>;
-                })()}
+                等待开播 · 开播后站内通知
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
                 <VisibilityRoundedIcon sx={{ fontSize: 11 }} />
