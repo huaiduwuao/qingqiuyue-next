@@ -18,7 +18,7 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import StarIcon from '@mui/icons-material/Star';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { alpha } from '@mui/material/styles';
-import { accountClient } from '@/lib/api/client';
+import { adminClient } from '@/lib/api/client';
 import { useApp } from '@/contexts/AppContext';
 
 // 成就类型定义
@@ -28,22 +28,16 @@ interface Achievement {
   info: string;
   icon: string;
   unlocked: boolean;
-  unlock_time?: string;
+  unlock_time?: number; // Unix 秒
   reward_point?: number;
 }
 
-// 获取成就列表 API
+// 我的成就(GET /api/core/point/achievements,后端按登录用户返回)。
+// 成就由平台授予,用户不能自己点亮,所以这里只展示。
 async function fetchAchievements(): Promise<Achievement[]> {
-  const resp = await accountClient('/reward/point/achievements');
-  return resp?.data ?? resp ?? [];
-}
-
-// 解锁成就 API
-async function unlockAchievement(achievementId: number): Promise<void> {
-  await accountClient('/reward/point/unlock', {
-    method: 'POST',
-    params: { achievementId },
-  });
+  const resp = await adminClient('/point/achievements');
+  const data = resp?.data ?? resp;
+  return Array.isArray(data) ? data : [];
 }
 
 // 成就图标映射
@@ -57,9 +51,7 @@ const ACHIEVEMENT_ICONS: Record<string, React.ReactNode> = {
 export default function AchievementPage() {
   const { currentUser } = useApp();
   const currentUserId = currentUser?.id ?? 0;
-  const [unlockingId, setUnlockingId] = useState<number | null>(null);
-
-  const { data: achievements = [], isLoading, refetch } = useQuery({
+  const { data: achievements = [], isLoading } = useQuery({
     queryKey: ['achievements', currentUserId],
     queryFn: fetchAchievements,
     enabled: !!currentUserId,
@@ -69,19 +61,6 @@ export default function AchievementPage() {
   const unlockedCount = achievements.filter(a => a.unlocked).length;
   const totalCount = achievements.length;
   const progressPercent = totalCount > 0 ? (unlockedCount / totalCount) * 100 : 0;
-
-  const handleUnlock = async (achievementId: number) => {
-    if (unlockingId) return;
-    setUnlockingId(achievementId);
-    try {
-      await unlockAchievement(achievementId);
-      refetch();
-    } catch (err) {
-      console.error('解锁成就失败:', err);
-    } finally {
-      setUnlockingId(null);
-    }
-  };
 
   if (!currentUserId) {
     return (
@@ -234,7 +213,7 @@ export default function AchievementPage() {
                   ) : (
                     <Chip
                       icon={<StarIcon />}
-                      label={`奖励 ${achievement.reward_point || 0} 灵气`}
+                      label={`奖励 ${achievement.reward_point || 0} 积分`}
                       size="small"
                       variant="outlined"
                       sx={{ borderColor: 'warning.main', color: 'warning.main' }}
@@ -242,7 +221,7 @@ export default function AchievementPage() {
                   )}
                   {achievement.unlocked && achievement.unlock_time && (
                     <Typography variant="caption" sx={{ color: 'text.disabled' }}>
-                      {achievement.unlock_time}
+                      {new Date(achievement.unlock_time * 1000).toLocaleDateString('zh-CN')}
                     </Typography>
                   )}
                 </Box>
