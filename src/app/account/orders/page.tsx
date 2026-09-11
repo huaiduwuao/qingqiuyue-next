@@ -1,10 +1,7 @@
 'use client';
 
-
-// 该页依赖 client context + 后端实时数据,SSR/pre-render 时 TIERS/orders 等未就绪 →
-// 报 "Cannot read properties of undefined"。强制 dynamic 跳过预渲染。
-
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo } from 'react';
+import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
@@ -20,421 +17,323 @@ import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
 import Drawer from '@mui/material/Drawer';
 import Divider from '@mui/material/Divider';
-import FormControl from '@mui/material/FormControl';
-import InputLabel from '@mui/material/InputLabel';
-import Select from '@mui/material/Select';
-import MenuItem from '@mui/material/MenuItem';
 import CircularProgress from '@mui/material/CircularProgress';
 import DiamondIcon from '@mui/icons-material/Diamond';
 import WorkspacePremiumRoundedIcon from '@mui/icons-material/WorkspacePremiumRounded';
-import MovieFilterRoundedIcon from '@mui/icons-material/MovieFilterRounded';
-import CardGiftcardRoundedIcon from '@mui/icons-material/CardGiftcardRounded';
+import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import { LoginGate } from '@/components/auth/LoginGate';
-import { accountClient, isBusinessError, isAuthError, formatApiError } from '@/lib/api/client';
-import { getOrderList, type Order as ApiOrder } from '@/apis/dashboard';
+import { isAuthError, formatApiError } from '@/lib/api/client';
+import { getOrderList, cancelOrder, refundOrder, type PaymentOrder } from '@/apis/payment';
 
-type OrderStatus = 'paid' | 'pending' | 'refunded' | 'cancelled';
-type OrderType = 'recharge' | 'vip' | 'content' | 'gift';
+/**
+ * 我的订单 —— 读 paymentapp 的 payment_order(GET /payment/orders)。
+ * 到账只来自支付网关验签回调,这里不做「确认支付」;待支付订单可以取消,或回到下单页重新下单。
+ */
 
-interface Order {
-  id: string;
-  type: OrderType;
-  title: string;
-  subtitle: string;
-  amount: number;
-  status: OrderStatus;
-  createdAt: number;
-  payMethod: 'wechat' | 'alipay' | 'apple' | 'card';
-}
-
-const TYPE_META: Record<OrderType, { icon: React.ReactNode; color: string; label: string }> = {
-  recharge: { icon: <DiamondIcon sx={{ fontSize: 18 }} />, color: '#FFB400', label: '充值' },
-  vip: { icon: <WorkspacePremiumRoundedIcon sx={{ fontSize: 18 }} />, color: '#FE2C55', label: 'VIP' },
-  content: { icon: <MovieFilterRoundedIcon sx={{ fontSize: 18 }} />, color: '#5B8DEF', label: '内容' },
-  gift: { icon: <CardGiftcardRoundedIcon sx={{ fontSize: 18 }} />, color: '#8B5CF6', label: '打赏' },
+const TYPE_META: Record<string, { icon: React.ReactNode; color: string; label: string; reorder: string }> = {
+  diamond: { icon: <DiamondIcon sx={{ fontSize: 18 }} />, color: '#FFB400', label: '钻石充值', reorder: '/recharge' },
+  membership: { icon: <WorkspacePremiumRoundedIcon sx={{ fontSize: 18 }} />, color: '#FE2C55', label: '会员', reorder: '/account/vip' },
 };
+const OTHER_TYPE = { icon: <ReceiptLongRoundedIcon sx={{ fontSize: 18 }} />, color: '#5B8DEF', label: '其他', reorder: '' };
 
-const STATUS_META: Record<OrderStatus, { label: string; color: string; bg: string }> = {
-  paid: { label: '已完成', color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.12)' },
+const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
+  paid: { label: '已支付', color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.12)' },
   pending: { label: '待支付', color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)' },
+  refunding: { label: '退款中', color: '#5B8DEF', bg: 'rgba(91, 141, 239, 0.12)' },
   refunded: { label: '已退款', color: 'text.secondary', bg: 'action.hover' },
   cancelled: { label: '已取消', color: 'text.secondary', bg: 'action.hover' },
 };
+const statusMeta = (s: string) => STATUS_META[s] ?? { label: s, color: 'text.secondary', bg: 'action.hover' };
 
-function formatTime(ts: number): string {
-  const d = new Date(ts);
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const CHANNEL_LABEL: Record<string, string> = { wechat: '微信支付', alipay: '支付宝' };
+
+function yuan(cents: number) {
+  return `¥${(cents / 100).toFixed(2)}`;
 }
+
+function formatTime(iso?: string) {
+  if (!iso) return '-';
+  return new Date(iso).toLocaleString('zh-CN', { hour12: false });
+}
+
+const TABS = [
+  { label: '全部', match: (_: PaymentOrder) => true },
+  { label: '充值', match: (o: PaymentOrder) => o.orderType === 'diamond' },
+  { label: '会员', match: (o: PaymentOrder) => o.orderType === 'membership' },
+  { label: '待支付', match: (o: PaymentOrder) => o.status === 'pending' },
+];
 
 export default function OrdersPage() {
   const qc = useQueryClient();
   const [tab, setTab] = useState(0);
   const [snack, setSnack] = useState<string | null>(null);
+  const [refundTarget, setRefundTarget] = useState<PaymentOrder | null>(null);
+  const [refundReason, setRefundReason] = useState('');
+  const [detail, setDetail] = useState<PaymentOrder | null>(null);
+  const [processing, setProcessing] = useState(false);
 
-  // 真接口拉订单(uid 已从 JWT 取,后端按用户隔离)
   const ordersQuery = useQuery({
-    queryKey: ['order-list'],
+    queryKey: ['payment-orders'],
     queryFn: () => getOrderList({ page: 1, pageSize: 100 }),
     staleTime: 30 * 1000,
     refetchOnMount: 'always',
   });
-  // 后端 ApiOrder.payMethod 是 string,本地 Order 限定为枚举 → 在边界处 narrow
-  const orders: Order[] = (ordersQuery.data?.list ?? []).map((o: any) => ({
-    ...o,
-    payMethod: (['wechat', 'alipay', 'apple', 'card'].includes(o.payMethod) ? o.payMethod : 'wechat') as Order['payMethod'],
-  }));
+  const orders: PaymentOrder[] = (ordersQuery.data?.list ?? []) as PaymentOrder[];
+  const filtered = useMemo(() => orders.filter(TABS[tab].match), [orders, tab]);
+  const paidCents = orders.filter((o) => o.status === 'paid').reduce((s, o) => s + o.amountCents, 0);
 
-  const [activeOrder, setActiveOrder] = useState<Order | null>(null);
-  const [dialogMode, setDialogMode] = useState<'pay' | 'refund' | null>(null);
-  const [detailOrder, setDetailOrder] = useState<Order | null>(null);
-  const [payMethod, setPayMethod] = useState<Order['payMethod']>('wechat');
-  const [refundReason, setRefundReason] = useState('');
-  const [processing, setProcessing] = useState(false);
+  const report = (err: unknown, fallback: string) =>
+    setSnack(isAuthError(err) ? '登录已过期,请重新登录' : formatApiError(err) || fallback);
 
-  const openPayDialog = (order: Order) => {
-    setActiveOrder(order);
-    setPayMethod(order.payMethod);
-    setDialogMode('pay');
-  };
-
-  const openRefundDialog = (order: Order) => {
-    setActiveOrder(order);
-    setRefundReason('');
-    setDialogMode('refund');
-  };
-
-  const openDetailDrawer = (order: Order) => {
-    setDetailOrder(order);
-  };
-
-  const handlePayConfirm = useCallback(async () => {
-    if (!activeOrder) return;
-    setProcessing(true);
-    const orderId = activeOrder.id;
-    const method = payMethod;
+  const handleCancel = async (o: PaymentOrder) => {
+    if (!window.confirm(`确定取消订单 ${o.orderNo}?`)) return;
     try {
-      // 真实网络请求:支付订单(失败直接抛到外层 catch,不做 mock 假成功)
-      await accountClient.post(`/account/orders/${orderId}/pay`, { payMethod: method });
-      // 真实接口成功后让 query 重新拉,而不是改本地 state
-      qc.invalidateQueries({ queryKey: ['order-list'] });
-      setProcessing(false);
-      setDialogMode(null);
-      setActiveOrder(null);
-      setSnack('支付成功');
+      await cancelOrder(o.orderNo);
+      setSnack('订单已取消');
+      qc.invalidateQueries({ queryKey: ['payment-orders'] });
     } catch (err) {
-      setProcessing(false);
-      if (isAuthError(err)) {
-        setSnack('登录已过期,请重新登录');
-      } else if (isBusinessError(err)) {
-        setSnack(formatApiError(err) || '支付失败,请检查账户余额');
-      } else {
-        setSnack(formatApiError(err));
-      }
+      report(err, '取消失败');
     }
-  }, [activeOrder, payMethod, qc]);
+  };
 
-  const handleRefundSubmit = useCallback(async () => {
-    if (!activeOrder) return;
+  const handleRefundSubmit = async () => {
+    if (!refundTarget) return;
     if (!refundReason.trim()) {
       setSnack('请填写退款原因');
       return;
     }
     setProcessing(true);
-    const orderId = activeOrder.id;
-    const reason = refundReason.trim();
     try {
-      // 真实网络请求:申请退款(失败直接抛到外层 catch,不做 mock 假成功)
-      await accountClient.post(`/account/orders/${orderId}/refund`, { reason });
-      qc.invalidateQueries({ queryKey: ['order-list'] });
-      setProcessing(false);
-      setDialogMode(null);
-      setActiveOrder(null);
+      await refundOrder(refundTarget.orderNo, refundReason.trim());
       setSnack('退款申请已提交');
+      setRefundTarget(null);
+      qc.invalidateQueries({ queryKey: ['payment-orders'] });
     } catch (err) {
+      report(err, '退款申请失败');
+    } finally {
       setProcessing(false);
-      if (isAuthError(err)) {
-        setSnack('登录已过期,请重新登录');
-      } else if (isBusinessError(err)) {
-        setSnack(formatApiError(err) || '退款失败');
-      } else {
-        setSnack(formatApiError(err));
-      }
     }
-  }, [activeOrder, refundReason, qc]);
+  };
 
-  const filtered = useMemo(() => {
-    if (tab === 0) return orders;
-    if (tab === 1) return orders.filter((o) => o.type === 'recharge');
-    if (tab === 2) return orders.filter((o) => o.type === 'vip');
-    if (tab === 3) return orders.filter((o) => o.status === 'pending');
-    return orders;
-  }, [tab, orders]);
-
-  const totalSpent = orders.filter((o) => o.status === 'paid').reduce((s, o) => s + o.amount, 0);
+  const copy = (text: string) => navigator.clipboard?.writeText(text).then(() => setSnack('订单号已复制'));
 
   return (
     <Box sx={{ height: 'calc(100dvh - var(--appbar-h, 66px))', overflow: 'auto', overscrollBehavior: 'contain' }}>
       <Container maxWidth="md" sx={{ py: { xs: 2, md: 4 } }}>
         <Typography variant="h5" sx={{ fontWeight: 700, mb: 3 }}>我的订单</Typography>
 
-      <LoginGate mode="replace" message="登录后查看我的订单">
+        <LoginGate mode="replace" message="登录后查看我的订单">
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.5, mb: 3 }}>
+            <Summary label="累计订单" value={String(orders.length)} />
+            <Summary label="已支付金额" value={yuan(paidCents)} color="primary.main" />
+            <Summary label="待支付" value={String(orders.filter((o) => o.status === 'pending').length)} color="#FFB400" />
+          </Box>
 
-      {/* 概览 */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.5, mb: 3 }}>
-        <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))', border: '1px solid var(--border-color, rgba(255,255,255,0.06))' }}>
-          <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.5 }}>累计订单</Typography>
-          <Typography sx={{ fontSize: 20, fontWeight: 700 }}>{orders.length}</Typography>
-        </Box>
-        <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))', border: '1px solid var(--border-color, rgba(255,255,255,0.06))' }}>
-          <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.5 }}>累计消费(钻)</Typography>
-          <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'primary.main' }}>{totalSpent}</Typography>
-        </Box>
-        <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))', border: '1px solid var(--border-color, rgba(255,255,255,0.06))' }}>
-          <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.5 }}>待支付</Typography>
-          <Typography sx={{ fontSize: 20, fontWeight: 700, color: '#FFB400' }}>{orders.filter((o) => o.status === 'pending').length}</Typography>
-        </Box>
-      </Box>
+          <Tabs
+            value={tab}
+            onChange={(_, v) => setTab(v)}
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{ mb: 2, borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { textTransform: 'none', fontSize: 13, minHeight: 40 } }}
+          >
+            {TABS.map((t) => (
+              <Tab key={t.label} label={t.label} />
+            ))}
+          </Tabs>
 
-      <Tabs
-        value={tab}
-        onChange={(_, v) => setTab(v)}
-        variant="scrollable"
-        scrollButtons="auto"
-        sx={{ mb: 2, borderBottom: 1, borderColor: 'divider', '& .MuiTab-root': { textTransform: 'none', fontSize: 13, minHeight: 40 } }}
-      >
-        <Tab label="全部" />
-        <Tab label="充值" />
-        <Tab label="VIP" />
-        <Tab label="待支付" />
-      </Tabs>
-
-      {ordersQuery.isLoading ? (
-        <Box sx={{ textAlign: 'center', py: 8 }}>
-          <CircularProgress size={32} />
-        </Box>
-      ) : filtered.length === 0 ? (
-        <Box sx={{ textAlign: 'center', py: 8 }}>
-          <Box sx={{ fontSize: 48, opacity: 0.3, mb: 1 }}>📋</Box>
-          <Typography sx={{ fontSize: 13, color: 'text.disabled' }}>暂无订单</Typography>
-        </Box>
-      ) : (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-          {filtered.map((o) => {
-            const tm = TYPE_META[o.type];
-            const sm = STATUS_META[o.status];
-            return (
-              <Box
-                key={o.id}
-                sx={{
-                  p: 2,
-                  borderRadius: 2,
-                  bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))',
-                  border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 1.5 }}>
+          {ordersQuery.isLoading ? (
+            <Box sx={{ textAlign: 'center', py: 8 }}>
+              <CircularProgress size={32} />
+            </Box>
+          ) : ordersQuery.isError ? (
+            <Box sx={{ textAlign: 'center', py: 8 }}>
+              <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>订单加载失败</Typography>
+              <Button size="small" onClick={() => ordersQuery.refetch()}>重试</Button>
+            </Box>
+          ) : filtered.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 8 }}>
+              <Typography sx={{ fontSize: 13, color: 'text.disabled', mb: 1.5 }}>暂无订单</Typography>
+              <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                <Button size="small" variant="outlined" component={Link} href="/recharge">充值钻石</Button>
+                <Button size="small" variant="outlined" component={Link} href="/account/vip">开通会员</Button>
+              </Box>
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              {filtered.map((o) => {
+                const tm = TYPE_META[o.orderType] ?? OTHER_TYPE;
+                const sm = statusMeta(o.status);
+                return (
                   <Box
+                    key={o.orderNo}
                     sx={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 1.5,
-                      bgcolor: `${tm.color}1A`,
-                      color: tm.color,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
+                      p: 2,
+                      borderRadius: 2,
+                      bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))',
+                      border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
                     }}
                   >
-                    {tm.icon}
-                  </Box>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
-                      <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary' }}>{o.title}</Typography>
-                      <Box sx={{ px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: tm.color + '22', color: tm.color, fontSize: 9, fontWeight: 700 }}>
-                        {tm.label}
-                      </Box>
-                      <Box sx={{ px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: sm.bg, color: sm.color, fontSize: 9, fontWeight: 700 }}>
-                        {sm.label}
-                      </Box>
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography
-                        sx={{ fontSize: 10, color: 'text.disabled', fontFamily: 'monospace', cursor: 'pointer' }}
-                        onClick={() => {
-                          navigator.clipboard?.writeText(o.id).then(() => setSnack('订单号已复制'));
+                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, mb: 1.5 }}>
+                      <Box
+                        sx={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: 1.5,
+                          bgcolor: `${tm.color}1A`,
+                          color: tm.color,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
                         }}
                       >
-                        {o.id}
+                        {tm.icon}
+                      </Box>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
+                          <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{o.productName || tm.label}</Typography>
+                          <Tag text={tm.label} color={tm.color} bg={`${tm.color}22`} />
+                          <Tag text={sm.label} color={sm.color} bg={sm.bg} />
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                          <Typography
+                            sx={{ fontSize: 10, color: 'text.disabled', fontFamily: 'monospace', cursor: 'pointer' }}
+                            onClick={() => copy(o.orderNo)}
+                          >
+                            {o.orderNo}
+                          </Typography>
+                          <ContentCopyRoundedIcon sx={{ fontSize: 11, color: 'text.disabled', cursor: 'pointer' }} onClick={() => copy(o.orderNo)} />
+                          <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>· {formatTime(o.createdAt)}</Typography>
+                        </Box>
+                      </Box>
+                      <Typography sx={{ fontSize: 16, fontWeight: 700, fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
+                        {yuan(o.amountCents)}
                       </Typography>
-                      <ContentCopyRoundedIcon sx={{ fontSize: 11, color: 'text.disabled', cursor: 'pointer' }} onClick={() => { navigator.clipboard?.writeText(o.id).then(() => setSnack('订单号已复制')); }} />
-                      <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>· {o.subtitle}</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', pt: 1.5, borderTop: 1, borderColor: 'divider' }}>
+                      {o.status === 'pending' && (
+                        <>
+                          <Button size="small" variant="outlined" onClick={() => handleCancel(o)} sx={{ textTransform: 'none', fontSize: 11 }}>
+                            取消订单
+                          </Button>
+                          {tm.reorder && (
+                            <Button size="small" variant="contained" component={Link} href={tm.reorder} sx={{ textTransform: 'none', fontSize: 11 }}>
+                              重新下单
+                            </Button>
+                          )}
+                        </>
+                      )}
+                      {o.status === 'paid' && (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          onClick={() => {
+                            setRefundTarget(o);
+                            setRefundReason('');
+                          }}
+                          sx={{ textTransform: 'none', fontSize: 11 }}
+                        >
+                          申请退款
+                        </Button>
+                      )}
+                      <Button size="small" variant="outlined" onClick={() => setDetail(o)} sx={{ textTransform: 'none', fontSize: 11 }}>
+                        订单详情
+                      </Button>
                     </Box>
                   </Box>
-                  <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
-                    <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'text.primary', fontVariantNumeric: 'tabular-nums' }}>
-                      {o.amount} 钻
-                    </Typography>
-                    <Typography sx={{ fontSize: 9, color: 'text.disabled' }}>≈ ¥ {(o.amount * 0.01).toFixed(2)}</Typography>
-                  </Box>
-                </Box>
-                <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', pt: 1.5, borderTop: 1, borderColor: 'divider' }}>
-                  {o.status === 'pending' && (
-                    <Button size="small" variant="contained" onClick={() => openPayDialog(o)} sx={{ textTransform: 'none', fontSize: 11, borderRadius: 1.5 }}>
-                      继续支付
-                    </Button>
-                  )}
-                  {o.status === 'paid' && (
-                    <Button size="small" variant="outlined" onClick={() => openRefundDialog(o)} sx={{ textTransform: 'none', fontSize: 11, borderRadius: 1.5 }}>
-                      申请退款
-                    </Button>
-                  )}
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={() => openDetailDrawer(o)}
-                    sx={{ textTransform: 'none', fontSize: 11, borderRadius: 1.5 }}
-                  >
-                    订单详情
-                  </Button>
-                </Box>
-              </Box>
-            );
-          })}
-        </Box>
-      )}
-
-      <Snackbar
-        open={!!snack}
-        autoHideDuration={2200}
-        onClose={() => setSnack(null)}
-        message={snack}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      />
-
-      <Dialog
-        open={!!dialogMode}
-        onClose={() => !processing && setDialogMode(null)}
-        maxWidth="xs"
-        fullWidth
-      >
-        <DialogTitle>{dialogMode === 'pay' ? '继续支付' : '申请退款'}</DialogTitle>
-        <DialogContent>
-          {dialogMode === 'pay' && activeOrder && (
-            <Box sx={{ pt: 1 }}>
-              <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>
-                {activeOrder.title}
-              </Typography>
-              <Typography sx={{ fontSize: 20, fontWeight: 800, mb: 2 }}>
-                {activeOrder.amount} 钻
-              </Typography>
-              <FormControl fullWidth>
-                <InputLabel>支付方式</InputLabel>
-                <Select
-                  value={payMethod}
-                  label="支付方式"
-                  onChange={(e) => setPayMethod(e.target.value as Order['payMethod'])}
-                >
-                  <MenuItem value="wechat">微信支付</MenuItem>
-                  <MenuItem value="alipay">支付宝</MenuItem>
-                  <MenuItem value="apple">Apple Pay</MenuItem>
-                  <MenuItem value="card">银行卡</MenuItem>
-                </Select>
-              </FormControl>
+                );
+              })}
             </Box>
           )}
-          {dialogMode === 'refund' && activeOrder && (
-            <Box sx={{ pt: 1 }}>
-              <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>
-                {activeOrder.title}
-              </Typography>
-              <TextField
-                fullWidth
-                multiline
-                minRows={3}
-                label="退款原因"
-                placeholder="请简要说明退款原因"
-                value={refundReason}
-                onChange={(e) => setRefundReason(e.target.value)}
-              />
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDialogMode(null)} disabled={processing}>
-            取消
-          </Button>
-          <Button
-            variant="contained"
-            onClick={dialogMode === 'pay' ? handlePayConfirm : handleRefundSubmit}
-            disabled={processing}
-            startIcon={processing ? <CircularProgress size={14} color="inherit" /> : null}
-          >
-            {dialogMode === 'pay' ? '确认支付' : '提交申请'}
-          </Button>
-        </DialogActions>
-      </Dialog>
 
-      <Drawer
-        anchor="right"
-        open={!!detailOrder}
-        onClose={() => setDetailOrder(null)}
-        slotProps={{
-          paper: {
-            sx: {
-              width: { xs: '100%', sm: 420 },
-              p: 3,
-            },
-          },
-        }}
-      >
-        {detailOrder && (
-          <Box>
-            <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>
-              订单详情
-            </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>订单号</Typography>
-                <Typography sx={{ fontSize: 13, fontFamily: 'monospace' }}>{detailOrder.id}</Typography>
+          <Dialog open={!!refundTarget} onClose={() => !processing && setRefundTarget(null)} maxWidth="xs" fullWidth>
+            <DialogTitle>申请退款</DialogTitle>
+            <DialogContent>
+              {refundTarget && (
+                <Box sx={{ pt: 1 }}>
+                  <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1 }}>
+                    {refundTarget.productName} · {yuan(refundTarget.amountCents)}
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    multiline
+                    minRows={3}
+                    label="退款原因"
+                    placeholder="请简要说明退款原因"
+                    value={refundReason}
+                    onChange={(e) => setRefundReason(e.target.value)}
+                  />
+                </Box>
+              )}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setRefundTarget(null)} disabled={processing}>取消</Button>
+              <Button
+                variant="contained"
+                onClick={handleRefundSubmit}
+                disabled={processing}
+                startIcon={processing ? <CircularProgress size={14} color="inherit" /> : null}
+              >
+                提交申请
+              </Button>
+            </DialogActions>
+          </Dialog>
+
+          <Drawer anchor="right" open={!!detail} onClose={() => setDetail(null)} slotProps={{ paper: { sx: { width: { xs: '100%', sm: 420 }, p: 3 } } }}>
+            {detail && (
+              <Box>
+                <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>订单详情</Typography>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                  <Row label="订单号" value={detail.orderNo} mono />
+                  <Row label="商品" value={detail.productName || (TYPE_META[detail.orderType] ?? OTHER_TYPE).label} />
+                  <Row label="金额" value={yuan(detail.amountCents)} />
+                  <Row label="状态" value={statusMeta(detail.status).label} />
+                  <Row label="支付方式" value={CHANNEL_LABEL[detail.channel] ?? (detail.channel || '-')} />
+                  <Row label="下单时间" value={formatTime(detail.createdAt)} />
+                  <Row label="支付时间" value={formatTime(detail.paidAt)} />
+                </Box>
+                <Divider sx={{ my: 2 }} />
+                <Button fullWidth variant="contained" onClick={() => setDetail(null)} sx={{ textTransform: 'none' }}>
+                  关闭
+                </Button>
               </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>商品</Typography>
-                <Typography sx={{ fontSize: 13, maxWidth: 240, textAlign: 'right' }}>{detailOrder.title}</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>金额</Typography>
-                <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{detailOrder.amount} 钻</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>状态</Typography>
-                <Typography sx={{ fontSize: 13, color: STATUS_META[detailOrder.status].color }}>{STATUS_META[detailOrder.status].label}</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>支付方式</Typography>
-                <Typography sx={{ fontSize: 13 }}>{detailOrder.payMethod}</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>下单时间</Typography>
-                <Typography sx={{ fontSize: 13 }}>{formatTime(detailOrder.createdAt)}</Typography>
-              </Box>
-            </Box>
-            <Divider sx={{ my: 2 }}></Divider>
-            <Button
-              fullWidth
-              variant="contained"
-              onClick={() => setDetailOrder(null)}
-              sx={{ textTransform: 'none', borderRadius: 1.5 }}
-            >
-              关闭
-            </Button>
-          </Box>
-        )}
-      </Drawer>
-      </LoginGate>
+            )}
+          </Drawer>
+        </LoginGate>
+
+        <Snackbar
+          open={!!snack}
+          autoHideDuration={2200}
+          onClose={() => setSnack(null)}
+          message={snack}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        />
       </Container>
+    </Box>
+  );
+}
+
+function Summary({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))', border: '1px solid var(--border-color, rgba(255,255,255,0.06))' }}>
+      <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.5 }}>{label}</Typography>
+      <Typography sx={{ fontSize: 20, fontWeight: 700, color }}>{value}</Typography>
+    </Box>
+  );
+}
+
+function Tag({ text, color, bg }: { text: string; color: string; bg: string }) {
+  return (
+    <Box sx={{ px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: bg, color, fontSize: 9, fontWeight: 700 }}>{text}</Box>
+  );
+}
+
+function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+      <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>{label}</Typography>
+      <Typography sx={{ fontSize: 13, textAlign: 'right', fontFamily: mono ? 'monospace' : undefined, wordBreak: 'break-all' }}>{value}</Typography>
     </Box>
   );
 }

@@ -22,22 +22,8 @@ function unwrap<T = any>(resp: any): T {
   return body as T;
 }
 
-// ========== 我的订单 ==========
-export interface Order {
-  id: string;
-  type: 'recharge' | 'vip' | 'content' | 'gift';
-  title: string;
-  subtitle: string;
-  amount: number;
-  status: 'paid' | 'pending' | 'refunded' | 'cancelled';
-  createdAt: number;
-  payMethod: string;
-}
+// 我的订单见 apis/payment.ts(GET /payment/orders)。
 export interface PageData<T> { list: T[]; records?: T[]; total?: number; totalRow?: number; page?: number; size?: number }
-export async function getOrderList(params?: PageParams): Promise<PageResult<Order>> {
-  const res = await unwrap<PageData<Order>>(await accountClient('/order/list', { params }));
-  return normalizeLegacyPageResponse(res as any);
-}
 
 export interface WipItem {
   id: string;
@@ -331,9 +317,16 @@ export interface LikePreview {
   cover: string;
   type: string;
 }
-export async function getLikesPreview(): Promise<PageResult<LikePreview>> {
-  const res = await unwrap<PageData<LikePreview>>(await accountClient('/account/likes/preview'));
-  return normalizeLegacyPageResponse(res as any);
+/** 我赞过的内容(取 /account/likes/page 的最近几条作预览)。 */
+export async function getLikesPreview(limit = 6): Promise<PageResult<LikePreview>> {
+  const res = unwrap<PageData<any>>(await accountClient('/account/likes/page'));
+  const list: LikePreview[] = (res?.list ?? []).slice(0, limit).map((c: any) => ({
+    id: String(c.id),
+    title: c.title ?? '',
+    cover: c.cover ?? c.coverUrl ?? '',
+    type: c.category ?? c.contentType ?? '',
+  }));
+  return normalizeLegacyPageResponse({ list, total: res?.total ?? list.length } as any);
 }
 
 // ========== 个人中心 5 大分区真实计数 ==========
@@ -345,7 +338,7 @@ export interface AccountStats {
   worksCount: number;
 }
 export async function getAccountStats() {
-  return unwrap<AccountStats>(await accountClient('/account/stats'));
+  return unwrap<AccountStats>(await accountClient('/dashboard/account/stats'));
 }
 
 // ========== 个人中心 5 分区真实列表(给悬浮卡 → /home/recommend?tab=me 调) ==========
@@ -373,30 +366,6 @@ export const getHistoryPage     = () => meGet('/account/history/page');
 export const getLikesPage       = () => meGet('/account/likes/page');
 export const getWatchlaterPage  = () => meGet('/account/watchlater/page');
 export const getReservationsPage= () => meGet('/account/reservations/page');
-
-export interface VipTier {
-  id: string;
-  name: string;
-  price: number;
-  origPrice: number;
-  badge: string;
-  color: string;
-  benefits: string[];
-}
-export interface VipTask {
-  id: string;
-  title: string;
-  reward: string;
-  done: boolean;
-}
-export interface VipInfo {
-  tiers: VipTier[];
-  tasks: VipTask[];
-  benefits: string[];
-}
-export async function getVipInfo() {
-  return unwrap<VipInfo>(await accountClient('/vip/tiers'));
-}
 
 // ========== 创作者数据洞察 ==========
 
