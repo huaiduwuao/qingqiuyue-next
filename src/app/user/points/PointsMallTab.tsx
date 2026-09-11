@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import TextField from '@mui/material/TextField';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -47,6 +48,7 @@ interface MallItem {
   stock: number;
   totalRedeemed: number;
   tag?: 'HOT' | 'NEW' | '限时' | '独家';
+  deliverType?: 'diamond' | 'physical';
 }
 
 interface RedemptionRecord {
@@ -61,7 +63,6 @@ interface RedemptionRecord {
   serial?: string;
 }
 
-const FLASH_SALE_IDS: number[] = [401, 102, 105]; // 后端可在 /user/point/mall/items 上用 tag='限时' 或 isFlash 字段控制,此处保留兜底
 
 const CATEGORY_META: Record<Category, { label: string }> = {
   all: { label: '全部' },
@@ -77,7 +78,6 @@ const STATUS_META: Record<RedemptionRecord['status'], { label: string; color: st
   completed: { label: '已完成', color: '#5DDB96', icon: <CheckCircleRoundedIcon sx={{ fontSize: 12 }} /> },
 };
 
-const USER_ID = 0; // 0 = 走 context 里的 currentUser,这里只是兼容旧 fallback;正式路径用 useApp().currentUser?.id
 
 function formatStock(stock: number): { text: string; tone: 'unlimited' | 'plenty' | 'low' | 'gone' } {
   if (stock < 0) return { text: '充足', tone: 'unlimited' };
@@ -86,25 +86,6 @@ function formatStock(stock: number): { text: string; tone: 'unlimited' | 'plenty
   if (stock < 1000) return { text: `剩 ${stock}`, tone: 'plenty' };
   return { text: '充足', tone: 'plenty' };
 }
-
-function useCountdown(target: Date) {
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(id);
-  }, []);
-  const diff = Math.max(0, target.getTime() - now.getTime());
-  const h = Math.floor(diff / 3_600_000);
-  const m = Math.floor((diff % 3_600_000) / 60_000);
-  const s = Math.floor((diff % 60_000) / 1000);
-  return { h, m, s, expired: diff === 0 };
-}
-
-const FLASH_END = (() => {
-  const d = new Date();
-  d.setHours(23, 59, 59, 999);
-  return d;
-})();
 
 interface Props {
   initialPoints: number;
@@ -115,18 +96,19 @@ export function PointsMallTab({ initialPoints }: Props) {
   const [tab, setTab] = useState<'items' | 'orders'>('items');
   const [cat, setCat] = useState<Category>('all');
   const [confirmItem, setConfirmItem] = useState<MallItem | null>(null);
+  const [address, setAddress] = useState('');
   const [toast, setToast] = useState<string | null>(null);
   const qc = useQueryClient();
-  const countdown = useCountdown(FLASH_END);
 
   // 当前用户积分(优先 context,fallback 0 → 由 initialPoints 兜底)
-  const userId = currentUser?.id ?? USER_ID;
+  const userId = currentUser?.id ?? 0;
+  // 积分余额(后端按登录用户返回 user_point,没有积分账户时为 null)
   const pointQuery = useQuery({
     queryKey: ['user-point', userId],
-    queryFn: () => getUserPoint(userId).then((r: any) => r.data || { userId, points: initialPoints }),
-    placeholderData: { userId, points: initialPoints },
+    queryFn: () => getUserPoint().then((r: any) => r?.data ?? null),
+    enabled: !!userId,
   });
-  const currentPoints = pointQuery.data?.points ?? initialPoints;
+  const currentPoints: number = pointQuery.data?.point ?? initialPoints;
 
   // 积分商城商品 — 真接口
   const itemsQuery = useQuery({
@@ -142,10 +124,11 @@ export function PointsMallTab({ initialPoints }: Props) {
     emoji: it.emoji,
     gradient: it.gradient,
     points: it.points,
-    originalPoints: it.originalPoints,
+    originalPoints: it.originalPoints || undefined, // 0 表示没有原价,避免渲染出一个 "0"
     stock: it.stock,
     totalRedeemed: it.totalRedeemed,
     tag: it.tag,
+    deliverType: it.deliverType,
   }));
 
   // 我的兑换历史 — 真接口
@@ -172,11 +155,8 @@ export function PointsMallTab({ initialPoints }: Props) {
     [cat, MALL_ITEMS]
   );
 
-  // 限时秒杀:tag 含 '限时' 的;若后端没标记,fallback 到 FLASH_SALE_IDS 兜底
-  const flashItems = useMemo(() => {
-    const tagged = MALL_ITEMS.filter((i) => i.tag === '限时');
-    return tagged.length > 0 ? tagged : MALL_ITEMS.filter((i) => FLASH_SALE_IDS.includes(i.id));
-  }, [MALL_ITEMS]);
+  // 限时商品:运营在后台打了「限时」标签的商品
+  const flashItems = useMemo(() => MALL_ITEMS.filter((i) => i.tag === '限时'), [MALL_ITEMS]);
 
   const handleRedeem = (item: MallItem) => {
     if (item.stock === 0) {
@@ -191,25 +171,13 @@ export function PointsMallTab({ initialPoints }: Props) {
   };
 
   const redeemMutation = useMutation({
-    mutationFn: (itemId: number) => redeemPointMallItem(itemId),
-    onSuccess: (resp) => {
-      // 服务端返回新记录 + 最新余额,直接用真实数据
-      const data = (resp as any)?.data ?? resp;
-      if (data?.record) {
-        qc.invalidateQueries({ queryKey: ['point-mall-history', userId] });
-      }
-      if (typeof data?.balance === 'number') {
-        qc.setQueryData(['user-point', userId], (old: any) => ({
-          ...(old || { userId }),
-          points: data.balance,
-        }));
-      } else {
-        // 兜底:服务端没返回余额,本地减一下
-        qc.setQueryData(['user-point', userId], (old: any) => ({
-          ...(old || { userId }),
-          points: Math.max(0, (old?.points ?? currentPoints) - (confirmItem?.points ?? 0)),
-        }));
-      }
+    mutationFn: (vars: { itemId: number; address?: string }) => redeemPointMallItem(vars.itemId, vars.address),
+    onSuccess: () => {
+      // 余额、库存、兑换记录都以服务端为准,全部重新拉取
+      qc.invalidateQueries({ queryKey: ['user-point', userId] });
+      qc.invalidateQueries({ queryKey: ['point-mall-history', userId] });
+      qc.invalidateQueries({ queryKey: ['point-mall-items'] });
+      setAddress('');
       setConfirmItem(null);
       setToast(`兑换成功 · 消耗 ${confirmItem?.points.toLocaleString() ?? 0} 积分`);
     },
@@ -220,7 +188,14 @@ export function PointsMallTab({ initialPoints }: Props) {
 
   const confirmRedeem = () => {
     if (!confirmItem) return;
-    redeemMutation.mutate(confirmItem.id);
+    if (confirmItem.deliverType === 'physical' && !address.trim()) {
+      setToast('请填写收货人、手机号和详细地址');
+      return;
+    }
+    redeemMutation.mutate({
+      itemId: confirmItem.id,
+      address: confirmItem.deliverType === 'physical' ? address.trim() : undefined,
+    });
   };
 
   return (
@@ -261,7 +236,8 @@ export function PointsMallTab({ initialPoints }: Props) {
         </Box>
       </Box>
 
-      {/* 限时秒杀 */}
+      {/* 限时兑换:运营给商品打「限时」标签,没有就不展示 */}
+      {flashItems.length > 0 && (
       <Box
         sx={{
           p: 2.5,
@@ -286,27 +262,8 @@ export function PointsMallTab({ initialPoints }: Props) {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
             <LocalFireDepartmentRoundedIcon sx={{ color: 'warning.main', fontSize: 20 }} />
             <Typography sx={{ fontSize: 15, fontWeight: 700, color: 'warning.main' }}>
-              限时秒杀
+              限时兑换
             </Typography>
-            <Chip
-              label="今日 24:00 截止"
-              size="small"
-              sx={{ height: 18, fontSize: 10, bgcolor: 'rgba(255, 180, 0, 0.2)', color: 'warning.main' }}
-            />
-            <Box sx={{ flex: 1 }} />
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <AccessTimeRoundedIcon sx={{ fontSize: 14, color: 'warning.main' }} />
-              <Box sx={{ display: 'flex', gap: 0.5 }}>
-                {[countdown.h, countdown.m, countdown.s].map((n, i) => (
-                  <Box key={i} sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
-                    <Box sx={{ minWidth: 26, px: 0.75, py: 0.25, borderRadius: 0.75, bgcolor: '#1a1a1f', color: 'warning.main', fontSize: 13, fontWeight: 700, fontFamily: 'monospace', textAlign: 'center' }}>
-                      {n.toString().padStart(2, '0')}
-                    </Box>
-                    {i < 2 && <Typography sx={{ fontSize: 12, color: 'warning.main', fontWeight: 700 }}>:</Typography>}
-                  </Box>
-                ))}
-              </Box>
-            </Box>
           </Box>
           <Box
             sx={{
@@ -391,6 +348,7 @@ export function PointsMallTab({ initialPoints }: Props) {
           </Box>
         </Box>
       </Box>
+      )}
 
       {/* Tab + 分类切换 */}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
@@ -774,6 +732,19 @@ export function PointsMallTab({ initialPoints }: Props) {
                   </Typography>
                 </Box>
               </Box>
+              {confirmItem.deliverType === 'physical' && (
+                <TextField
+                  label="收货信息"
+                  placeholder="收货人、手机号、详细地址"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  fullWidth
+                  multiline
+                  minRows={2}
+                  size="small"
+                  sx={{ mt: 2 }}
+                />
+              )}
               <Box sx={{ display: 'flex', gap: 1.5, mt: 3 }}>
                 <Button
                   fullWidth

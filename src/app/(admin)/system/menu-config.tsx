@@ -34,6 +34,7 @@ import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineR
 import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded';
 import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
 import PaymentRoundedIcon from '@mui/icons-material/PaymentRounded';
+import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
 import HubRoundedIcon from '@mui/icons-material/HubRounded';
 import TravelExploreIcon from '@mui/icons-material/TravelExplore';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
@@ -133,6 +134,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
       { id: 'payment-config', label: '支付配置', path: '/system/payment-config', icon: <PaymentRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
       { id: 'recharge-records', label: '充值记录', path: '/system/recharge-records', icon: <AccountBalanceWalletRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
       { id: 'withdraw-review', label: '提现审核', path: '/system/withdraw-review', icon: <AccountBalanceWalletRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FFB400' },
+      { id: 'shop', label: '商城与礼物', path: '/system/shop', icon: <StorefrontRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6' },
     ],
   },
   {

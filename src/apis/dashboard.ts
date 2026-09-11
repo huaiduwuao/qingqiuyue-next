@@ -723,6 +723,8 @@ export interface PointMallItem {
   stock: number; // -1 = 无限
   totalRedeemed: number;
   tag?: 'HOT' | 'NEW' | '限时' | '独家';
+  /** diamond:兑换后立即发放钻石;physical:实物,需要填写收货信息 */
+  deliverType?: 'diamond' | 'physical';
 }
 export async function getPointMallItems() {
   return unwrap<{ list: PointMallItem[]; total: number }>(
@@ -734,9 +736,10 @@ export async function getPointMallHistory() {
     await accountClient('/user/point/mall/history')
   );
 }
-export async function redeemPointMallItem(itemId: number) {
+/** 兑换商品;实物商品需要 address(收货人、电话、地址) */
+export async function redeemPointMallItem(itemId: number, address?: string) {
   return unwrap<{ record: PointMallRecord; balance: number }>(
-    await accountClient.post('/user/point/mall/redeem', { itemId })
+    await accountClient.post('/user/point/mall/redeem', { itemId, address })
   );
 }
 
@@ -750,6 +753,8 @@ export interface PointMallRecord {
   status: 'pending' | 'shipped' | 'completed';
   redeemedAt: string;
   serial?: string;
+  address?: string;
+  tracking?: string;
 }
 
 // ========== 创作者 · 优质作品榜 ==========
