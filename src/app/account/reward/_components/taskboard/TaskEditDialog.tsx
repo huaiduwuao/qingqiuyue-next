@@ -12,27 +12,31 @@ import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
-import Chip from '@mui/material/Chip';
 import Typography from '@mui/material/Typography';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import { alpha } from '@mui/material/styles';
 import { createTask, updateTask } from '@/apis/reward-task';
-import { myPage as listDemandsApi } from '@/apis/reward-demand';
+import { myPage as listMyDemands } from '@/apis/reward-demand';
 import type { RewardTask, TaskPriority, DemandItem } from '@/beans/reward';
+import { normalizeRewardTaskStatus } from './status';
 
 interface Props {
   open: boolean;
   record: RewardTask | null;
   projectId: number;
-  groupId?: number | null;
-  groups?: Array<{ id: number; name: string }>;
+  /** 从需求进入看板时预选该需求 */
+  defaultDemandId?: number | null;
   onClose: () => void;
   onSaved: (task: RewardTask) => void;
   onError: (msg: string) => void;
 }
 
-export function TaskEditDialog({ open, record, projectId, groupId, groups = [], onClose, onSaved, onError }: Props) {
+/**
+ * 新建 / 编辑任务。挂到需求下的任务由需求发布者拆分,可以标价,赏金从需求托管中支付;
+ * 不挂需求的是团队内部的独立任务,没有赏金。任务被认领后不能再改所属需求和标价。
+ */
+export function TaskEditDialog({ open, record, projectId, defaultDemandId, onClose, onSaved, onError }: Props) {
   // 后端成功 code 为 0（client.ts 拦截器兼容 0/200），业务层判定需同时认 0 与 200
   const isOk = (res: any) => res?.code === 200 || res?.code === 0 || res?.code === '200' || res?.code === '0';
   const [title, setTitle] = useState('');
@@ -40,61 +44,57 @@ export function TaskEditDialog({ open, record, projectId, groupId, groups = [], 
   const [priority, setPriority] = useState<TaskPriority>('P1');
   const [deadline, setDeadline] = useState('');
   const [demandId, setDemandId] = useState<number | ''>('');
-  const [groupIds, setGroupIds] = useState<number[]>([]);
+  const [reward, setReward] = useState('');
   const [demands, setDemands] = useState<DemandItem[]>([]);
   const [saving, setSaving] = useState(false);
+  const locked = !!record?.id && normalizeRewardTaskStatus(record.status) !== 'OPEN';
 
   useEffect(() => {
-    if (open) {
-      setTitle(record?.title || '');
-      setDescription(record?.description || '');
-      setPriority((record?.priority as TaskPriority) || 'P1');
-      setDeadline(record?.deadline ? record.deadline.slice(0, 10) : '');
-      setDemandId(record?.demandId ?? '');
-      // 团队:record.groupIds 优先,否则从 record.groupId / 入参 groupId 兜底
-      const initialGroups = Array.isArray(record?.groupIds) && record!.groupIds!.length > 0
-        ? record!.groupIds!
-        : (record?.groupId != null ? [record.groupId] : (groupId != null ? [groupId] : []));
-      setGroupIds(initialGroups);
-      // 自拉需求列表
-      (async () => {
-        try {
-          const res: any = await listDemandsApi({ groupId: groupId ?? undefined, pageSize: 100 });
-          const records = res?.data?.records || res?.data?.list || [];
-          // 过滤掉已结账的(SETTLED 后不可添加新任务)
-          setDemands(records.filter((d: DemandItem) => d.status !== 'SETTLED' && d.status !== 'CLOSED'));
-        } catch (e) {
-          console.error('Failed to load demands', e);
-          setDemands([]);
-        }
-      })();
-    }
-  }, [open, record, groupId]);
+    if (!open) return;
+    setTitle(record?.title || '');
+    setDescription(record?.description || '');
+    setPriority((record?.priority as TaskPriority) || 'P1');
+    setDeadline(record?.deadline ? record.deadline.slice(0, 10) : '');
+    setDemandId(record?.demandId || defaultDemandId || '');
+    setReward(record?.reward ? String(record.reward) : '');
+    // 只能把任务挂到自己发布、仍在进行中的需求下(myPage 只返回当前用户发布的需求)
+    let alive = true;
+    listMyDemands({ pageSize: 100 })
+      .then((res: any) => {
+        if (!alive) return;
+        const records: DemandItem[] = res?.data?.records || res?.data?.list || [];
+        setDemands(records.filter((d) => d.status === 'PENDING' || d.status === 'PUBLISHED' || d.id === record?.demandId));
+      })
+      .catch(() => alive && setDemands([]));
+    return () => {
+      alive = false;
+    };
+  }, [open, record, defaultDemandId]);
+
+  const selectedDemand = demands.find((d) => d.id === demandId);
 
   const handleSave = async () => {
     if (!title.trim()) {
       onError('请填写任务标题');
       return;
     }
-    if (groupIds.length === 0) {
-      onError('请至少选择一个所属团队');
+    const rewardNum = reward.trim() === '' ? 0 : Number(reward);
+    if (!Number.isInteger(rewardNum) || rewardNum < 0) {
+      onError('标价请填写不小于 0 的整数(元)');
       return;
     }
     setSaving(true);
     try {
-      const data: any = {
-        projectId,
-        groupId: groupIds[0],
-        groupIds,
+      const data = {
+        ...(record?.id ? {} : { projectId }),
         title: title.trim(),
         description: description.trim(),
         priority,
-        deadline: deadline ? new Date(deadline).toISOString() : null,
-      };
-      if (demandId) data.demandId = Number(demandId);
-      const res: any = record?.id
-        ? await updateTask(record.id, data)
-        : await createTask(data);
+        deadline: deadline ? new Date(`${deadline}T23:59:59`).toISOString() : null,
+        demandId: demandId ? Number(demandId) : 0,
+        reward: demandId ? rewardNum : 0,
+      } as Partial<RewardTask>;
+      const res: any = record?.id ? await updateTask(record.id, data) : await createTask(data);
       if (isOk(res)) onSaved(res.data);
       else onError(res?.msg || '保存失败');
     } catch (e: any) {
@@ -111,14 +111,7 @@ export function TaskEditDialog({ open, record, projectId, groupId, groups = [], 
       </DialogTitle>
       <DialogContent dividers sx={{ borderColor: 'divider' }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-          <TextField
-            label="任务标题"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            required
-            fullWidth
-            size="small"
-          />
+          <TextField label="任务标题" value={title} onChange={(e) => setTitle(e.target.value)} required fullWidth size="small" />
           <TextField
             label="任务描述"
             value={description}
@@ -127,6 +120,7 @@ export function TaskEditDialog({ open, record, projectId, groupId, groups = [], 
             multiline
             minRows={3}
             size="small"
+            placeholder="要交付什么、验收标准是什么"
           />
           <Box sx={{ display: 'flex', gap: 2 }}>
             <Box sx={{ flex: 1 }}>
@@ -144,11 +138,12 @@ export function TaskEditDialog({ open, record, projectId, groupId, groups = [], 
                     borderColor: 'divider',
                     color: 'text.secondary',
                     '&.Mui-selected': {
-                      bgcolor: (theme) => priority === 'P0'
-                        ? alpha(theme.palette.primary.main, 0.18)
-                        : priority === 'P1'
-                          ? alpha(theme.palette.warning.main, 0.18)
-                          : alpha(theme.palette.text.secondary, 0.18),
+                      bgcolor: (theme) =>
+                        priority === 'P0'
+                          ? alpha(theme.palette.primary.main, 0.18)
+                          : priority === 'P1'
+                            ? alpha(theme.palette.warning.main, 0.18)
+                            : alpha(theme.palette.text.secondary, 0.18),
                       color: priority === 'P0' ? 'primary.main' : priority === 'P1' ? 'warning.main' : 'text.tertiary',
                     },
                   },
@@ -169,49 +164,35 @@ export function TaskEditDialog({ open, record, projectId, groupId, groups = [], 
               slotProps={{ inputLabel: { shrink: true } }}
             />
           </Box>
-          <FormControl size="small" fullWidth>
-            <InputLabel>所属团队(可多选)</InputLabel>
-            <Select
-              multiple
-              value={groupIds}
-              label="所属团队(可多选)"
-              onChange={(e) => setGroupIds(typeof e.target.value === 'string' ? [Number(e.target.value)] : (e.target.value as number[]))}
-              renderValue={(selected) => (
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                  {(selected as number[]).map((id) => {
-                    const g = groups.find((x) => x.id === id);
-                    return (
-                      <Chip
-                        key={id}
-                        label={g?.name || `团队 ${id}`}
-                        size="small"
-                        sx={{ height: 20, fontSize: 10, bgcolor: 'rgba(6,182,212,0.18)', color: '#06B6D4' }}
-                      />
-                    );
-                  })}
-                </Box>
-              )}
-            >
-              {groups.map((g) => (
-                <MenuItem key={g.id} value={g.id}>{g.name || `团队 ${g.id}`}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl size="small" fullWidth>
-            <InputLabel>所属需求(可选)</InputLabel>
-            <Select
-              value={demandId}
-              label="所属需求(可选)"
-              onChange={(e) => setDemandId(e.target.value as number | '')}
-            >
-              <MenuItem value="">不关联</MenuItem>
+          <FormControl size="small" fullWidth disabled={locked}>
+            <InputLabel>所属需求</InputLabel>
+            <Select value={demandId} label="所属需求" onChange={(e) => setDemandId(e.target.value as number | '')}>
+              <MenuItem value="">不挂需求(团队内部任务,无赏金)</MenuItem>
               {demands.map((d) => (
                 <MenuItem key={d.id} value={d.id}>
-                  #{d.id} {d.title} · ¥{d.pay || 0}
+                  #{d.id} {d.title} · 赏金 ¥{d.pay || 0}
                 </MenuItem>
               ))}
             </Select>
           </FormControl>
+          <TextField
+            label="任务标价(元,可选)"
+            type="number"
+            value={reward}
+            onChange={(e) => setReward(e.target.value)}
+            size="small"
+            fullWidth
+            disabled={!demandId || locked}
+            helperText={
+              !demandId
+                ? '挂到需求下才能标价,赏金从需求托管中支付'
+                : `不填则与其他未标价任务均分剩余赏金;所有任务标价合计不能超过 ¥${selectedDemand?.pay ?? 0}`
+            }
+            slotProps={{ htmlInput: { min: 0, step: 1 } }}
+          />
+          {locked && (
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>任务已被认领,所属需求与标价不能再修改。</Typography>
+          )}
         </Box>
       </DialogContent>
       <DialogActions sx={{ borderTop: '1px solid', borderColor: 'divider', px: 2, py: 1.5 }}>

@@ -69,7 +69,6 @@ function RewardCenter() {
   const [groups, setGroups] = useState<GroupInfo[]>([]);
   const [groupId, setGroupId] = useState<number | ''>('');
   const [boardFocus, setBoardFocus] = useState<BoardFocus>({});
-  const [conceptionDemandId, setConceptionDemandId] = useState<number | null>(null);
 
   // 需求/意境/实现/项目的列表与创建都依赖团队:拉取我的团队并默认选中第一个。
   // 切换子页面时重拉,保证「团队」里新建的团队即时生效。
@@ -132,17 +131,10 @@ function RewardCenter() {
             tab === 'board' || tab === 'realizations' || tab === 'conceptions'
               ? (did: number) => openBoard({ demandId: did })
               : undefined,
-          onOpenConceptionForDemand:
-            tab === 'demands'
-              ? (did: number) => {
-                  setConceptionDemandId(did);
-                  setTab('conceptions');
-                }
-              : undefined,
           initialProjectId: tab === 'board' ? boardFocus.projectId ?? null : null,
           initialGroupId: tab === 'board' ? boardFocus.groupId ?? null : null,
           initialDemandId:
-            tab === 'board' ? boardFocus.demandId ?? null : tab === 'conceptions' ? conceptionDemandId : null,
+            tab === 'board' ? boardFocus.demandId ?? null : null,
         };
 
   return (

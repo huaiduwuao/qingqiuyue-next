@@ -403,7 +403,9 @@ function BountyCard({ bounty, onClick }: { bounty: Bounty; onClick: () => void }
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
             <AccessTimeIcon sx={{ fontSize: 12 }} />
-            <Typography sx={{ fontSize: 11 }}>剩 {bounty.daysLeft} 天</Typography>
+            <Typography sx={{ fontSize: 11 }}>
+              {bounty.daysLeft == null ? '长期' : bounty.daysLeft === 0 ? '已截止' : `剩 ${bounty.daysLeft} 天`}
+            </Typography>
           </Box>
           <Box
             sx={{

@@ -333,7 +333,7 @@ function DialogBountyCard({ bounty, onClick }: { bounty: Bounty; onClick: () => 
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
             <AccessTimeIcon sx={{ fontSize: 11 }} />
-            <span>{bounty.daysLeft} 天</span>
+            <span>{bounty.daysLeft == null ? '长期' : bounty.daysLeft === 0 ? '已截止' : `${bounty.daysLeft} 天`}</span>
           </Box>
           <Box sx={{ flex: 1 }} />
           <span>{bounty.sponsor}</span>

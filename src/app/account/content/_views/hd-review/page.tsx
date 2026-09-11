@@ -7,6 +7,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { getHdVideoList, getReviewerList, type Reviewer as ApiReviewer } from '@/apis/dashboard';
 import { useAuthority } from '@/contexts/AuthContext';
+import { useApp } from '@/contexts/AppContext';
 import { useActiveTab } from '../../ActiveTabContext';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -52,6 +53,28 @@ import {
 import { RelativeTime } from '@/components/common/RelativeTime';
 
 type ReviewTab = 'pending' | 'reviewed';
+
+/** 审核员就是登录用户;他不在审核团队列表里(例如只有系统超管标记)时,用登录信息兜底。 */
+function selfAsReviewer(id: string, user: any): Reviewer | undefined {
+  if (!id) return undefined;
+  const name: string = user?.nickname || user?.name || user?.username || '我';
+  return {
+    id,
+    name,
+    initials: name.slice(0, 1),
+    avatarColor: '#8B5CF6',
+    team: '内容运营',
+    level: 1,
+    title: '审核员',
+    reviewCount: 0,
+    avgReviewSec: 0,
+    passRate: 0,
+    online: true,
+    currentLoad: 0,
+    maxLoad: 0,
+    specialties: [],
+  };
+}
 
 const PRESET_REJECT_REASONS = [
   '画面含违规内容',
@@ -115,18 +138,13 @@ export default function HdReviewPage() {
   const apiReviewers: Reviewer[] = (reviewerResp?.list ?? []).map((r: ApiReviewer) => ({
     id: r.id, name: r.name, initials: r.initials, avatarColor: r.avatarColor,
     team: r.team, level: r.level as 1 | 2 | 3, title: r.title,
-    reviewCount: r.reviewCount, avgReviewSec: 300, passRate: r.passRate,
+    reviewCount: r.reviewCount, avgReviewSec: 0, passRate: r.passRate,
     online: r.online, currentLoad: r.currentLoad, maxLoad: r.maxLoad, specialties: r.specialties,
   }));
   const reviewers = apiReviewers;
-  // 默认审核员:tabParams 优先,否则从拉到的列表里取第一个在线的
-  const [currentReviewerId, setCurrentReviewerId] = useState(tabParams.reviewer || '');
-  React.useEffect(() => {
-    if (!currentReviewerId && reviewers.length) {
-      const online = reviewers.find((r) => r.online);
-      setCurrentReviewerId(online?.id || reviewers[0].id);
-    }
-  }, [currentReviewerId, reviewers]);
+  // 审核员就是当前登录用户;审核团队列表只用来展示工作量
+  const { currentUser } = useApp();
+  const currentReviewerId = currentUser?.id ? String(currentUser.id) : '';
   const [tab, setTab] = useState<ReviewTab>('pending');
   const [selectedVideoId, setSelectedVideoId] = useState<string | null>(tabParams.video || null);
   const [verdictNote, setVerdictNote] = useState('');
@@ -182,8 +200,8 @@ export default function HdReviewPage() {
   }, [tabParams.video]);
 
   const currentReviewer: Reviewer | undefined = useMemo(
-    () => reviewers.find((r) => r.id === currentReviewerId),
-    [currentReviewerId],
+    () => reviewers.find((r) => r.id === currentReviewerId) ?? selfAsReviewer(currentReviewerId, currentUser),
+    [currentReviewerId, reviewers, currentUser],
   );
 
   const selectedVideo = useMemo(
@@ -315,7 +333,8 @@ export default function HdReviewPage() {
   };
 
   const { hasAuthority } = useAuthority();
-  const isReviewer = hasAuthority('REVIEWER') || hasAuthority('ADMIN') || hasAuthority('SUPER_ADMIN');
+  // 与后端 middleware.RequireContentStaff 的角色一致
+  const isReviewer = ['AUDITOR', 'OPERATOR', 'ADMIN', 'SUPER_ADMIN'].some((code) => hasAuthority(code));
 
   if (!isReviewer) {
     return (
@@ -386,100 +405,41 @@ export default function HdReviewPage() {
             审核员工作台
           </Typography>
           <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
-            模拟审核员视角 · 处理分配给你的视频
+            处理待审核的视频
           </Typography>
         </Box>
 
         <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
 
-        {/* 切换身份 */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>我是</Typography>
-          <Select
-            size="small"
-            value={currentReviewerId}
-            onChange={(e) => {
-              setCurrentReviewerId(e.target.value);
-              setSelectedVideoId(null);
-            }}
-            sx={{
-              minWidth: 200,
-              fontSize: 12,
-              '& .MuiOutlinedInput-root': { fontSize: 12 },
-            }}
-            renderValue={(id) => {
-              const r = reviewers.find((r) => r.id === id);
-              if (!r) return id;
-              return (
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                  <Box
-                    sx={{
-                      width: 18,
-                      height: 18,
-                      borderRadius: '50%',
-                      background: r.avatarColor,
-                      color: '#fff',
-                      fontSize: 9,
-                      fontWeight: 700,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    {r.initials}
-                  </Box>
-                  <span>{r.name} · {REVIEWER_LEVEL_META[r.level].label} · {r.team}</span>
-                </Box>
-              );
-            }}
-          >
-            {reviewers.map((r) => (
-              <MenuItem key={r.id} value={r.id} sx={{ fontSize: 12 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, width: '100%' }}>
-                  <Box
-                    sx={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: '50%',
-                      background: r.avatarColor,
-                      color: '#fff',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {r.initials}
-                  </Box>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{r.name}</Typography>
-                      <Box
-                        sx={{
-                          px: 0.4,
-                          py: 0.05,
-                          borderRadius: 0.4,
-                          bgcolor: REVIEWER_LEVEL_META[r.level].bg,
-                          color: REVIEWER_LEVEL_META[r.level].color,
-                          fontSize: 8,
-                          fontWeight: 700,
-                        }}
-                      >
-                        {REVIEWER_LEVEL_META[r.level].label}
-                      </Box>
-                      <Typography sx={{ fontSize: 9, color: 'text.disabled' }}>{r.team}</Typography>
-                    </Box>
-                    <Typography sx={{ fontSize: 9, color: 'text.disabled' }}>
-                      当前 {r.currentLoad}/{r.maxLoad} · 通过率 {r.passRate}% · {r.online ? '在线' : '离线'}
-                    </Typography>
-                  </Box>
-                </Box>
-              </MenuItem>
-            ))}
-          </Select>
-        </Box>
+        {/* 审核员就是登录用户:展示本人与审核团队的真实工作量 */}
+        {currentReviewer && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            <Box
+              sx={{
+                width: 22,
+                height: 22,
+                borderRadius: '50%',
+                background: currentReviewer.avatarColor,
+                color: '#fff',
+                fontSize: 10,
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {currentReviewer.initials}
+            </Box>
+            <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{currentReviewer.name}</Typography>
+            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+              {currentReviewer.title} · 待审 {currentReviewer.currentLoad} · 通过率{' '}
+              {currentReviewer.reviewCount > 0 ? `${currentReviewer.passRate}%` : '—'}
+            </Typography>
+            <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>
+              审核团队 {reviewers.length} 人 · 近 30 分钟有审核 {reviewers.filter((r) => r.online).length} 人
+            </Typography>
+          </Box>
+        )}
 
         <Box sx={{ flex: 1 }} />
 
@@ -539,7 +499,7 @@ export default function HdReviewPage() {
                 <EmptyQueueState
                   icon={<AssignmentTurnedInRoundedIcon sx={{ fontSize: 32, color: '#5DDB96' }} />}
                   title="队列已清空"
-                  desc={currentReviewer?.online ? '暂无待审视频,可主动领取或稍后查看' : '当前离线,无法接单'}
+                  desc="暂无待审视频,稍后再来看看"
                 />
               ) : (
                 <Stack spacing={1}>

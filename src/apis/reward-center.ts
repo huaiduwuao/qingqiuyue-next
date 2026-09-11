@@ -135,7 +135,7 @@ export async function createInviteCode(): Promise<{ code: string }> {
 
 /** 绑定邀请码 */
 export async function bindInviteCode(code: string): Promise<{ msg: string }> {
-  return accountClient('/invite/bind', { method: 'POST', data: { code } });
+  return accountClient('/invite/bind', { method: 'POST', data: { inviteCode: code } });
 }
 
 /** 获取邀请记录 */

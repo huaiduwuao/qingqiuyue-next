@@ -18,6 +18,9 @@ export interface DemandQuery extends PageParams {
   groupId?: number;
   projectId?: number;
   keyword?: string;
+  /** market = 赏金广场,列出所有人进行中的需求;不传只列当前用户发布的需求 */
+  scope?: 'market';
+  order?: 'reward' | 'deadline' | 'hot' | 'newest';
 }
 
 // 需求列表响应
@@ -99,12 +102,7 @@ export const update = (data: { id?: number; _id?: number } & Record<string, unkn
   return updateDemand(data._id!, data as any);
 };
 
-// 触发结账(需求状态 COMPLETED → SETTLED,生成结算单)
+// 结账:把托管赏金付给验收通过任务的认领人,剩余退回发布者(→ SETTLED,不可撤销)
 export async function settleDemand(id: number) {
   return rewardClient(`/demand/${id}/settle`, { method: 'POST' });
-}
-
-// 反结账(SETTLED → COMPLETED,回滚 contribution、清空 settlement)
-export async function unsettleDemand(id: number) {
-  return rewardClient(`/demand/${id}/unsettle`, { method: 'POST' });
 }

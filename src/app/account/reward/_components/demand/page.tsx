@@ -33,11 +33,11 @@ import EditIcon from '@mui/icons-material/Edit';
 import CloseIcon from '@mui/icons-material/Close';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import { myPage, process, remove, save, update, settleDemand, unsettleDemand } from '@/apis/reward-demand';
+import { myPage, process, remove, save, update, settleDemand } from '@/apis/reward-demand';
 import { listTasks } from '@/apis/reward-task';
+import { mapRewardTaskListFromBackend, normalizeRewardTaskStatus, REWARD_TASK_STATUS_LABEL } from '../taskboard/status';
 import { SettlementDialog } from './SettlementDialog';
-import type { DemandItem, DemandStatus, RewardTask, RewardTaskStatus, ConceptionItem } from '@/beans/reward';
+import type { DemandItem, DemandStatus, RewardTask, RewardTaskStatus } from '@/beans/reward';
 
 const STATUS_OPTIONS: Array<{ value: DemandStatus | ''; label: string }> = [
   { value: '', label: '全部' },
@@ -72,7 +72,7 @@ interface Props {
   initialConceptionDemandId?: number | null;
 }
 
-export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionForDemand }: Props) {
+export default function DemandPage({ groupId, onOpenTaskboard }: Props) {
   const [tab, setTab] = useState<DemandStatus | ''>('');
   const [writeVisible, setWriteVisible] = useState(false);
   const [detailVisible, setDetailVisible] = useState(false);
@@ -81,7 +81,6 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
   const [settling, setSettling] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<DemandItem | null>(null);
   const [relatedTasks, setRelatedTasks] = useState<RewardTask[]>([]);
-  const [relatedConceptions, setRelatedConceptions] = useState<ConceptionItem[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [formValues, setFormValues] = useState<any>({});
   const [page, setPage] = useState(1);
@@ -111,17 +110,11 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
   const loadRelatedTasks = useCallback(async (demandId: number) => {
     setLoadingTasks(true);
     try {
-      const [taskRes, conceptionRes]: any[] = await Promise.all([
-        listTasks({ demandId, pageSize: 100 }),
-        fetch(`/api/reward/conception/client/page?demandId=${demandId}`).then((r) => r.json()).catch(() => null),
-      ]);
-      setRelatedTasks(taskRes?.data?.records || []);
-      // conception 接口实时化(后端会按 demandId 过滤)
-      setRelatedConceptions(conceptionRes?.data?.records || []);
+      const taskRes: any = await listTasks({ demandId, pageSize: 100 });
+      setRelatedTasks(mapRewardTaskListFromBackend(taskRes?.data?.records || []));
     } catch (e) {
       console.error('Failed to load related tasks', e);
       setRelatedTasks([]);
-      setRelatedConceptions([]);
     } finally {
       setLoadingTasks(false);
     }
@@ -136,6 +129,7 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
       content: record?.content || '',
       cover: record?.cover || '',
       tags: record?.tags || '',
+      endTime: record?.endTime ? String(record.endTime).slice(0, 10) : '',
     });
     setWriteVisible(true);
   };
@@ -143,11 +137,7 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
   const handleDetail = (record: DemandItem) => {
     setSelectedRecord(record);
     setDetailVisible(true);
-    if (record.taskIds && record.taskIds.length > 0) {
-      loadRelatedTasks(record.id as number);
-    } else {
-      setRelatedTasks([]);
-    }
+    loadRelatedTasks(record.id as number);
   };
 
   const handleSettle = (record: DemandItem) => {
@@ -162,7 +152,7 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
     try {
       const res: any = await settleDemand(selectedRecord.id);
       if (res?.code === 200 || res?.code === 0) {
-        showMessage('结账成功');
+        showMessage('结账成功,赏金已发放给贡献者');
         setSettleVisible(false);
         setDetailVisible(false);
         query.refetch();
@@ -176,43 +166,28 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
     }
   };
 
-  const handleConfirmUnsettle = async () => {
-    if (!selectedRecord?.id) return;
-    if (!confirm('确定要反结账吗?将回滚所有贡献者的贡献度,该操作不可撤销。')) return;
-    setSettling(true);
-    try {
-      const res: any = await unsettleDemand(selectedRecord.id);
-      if (res?.code === 200 || res?.code === 0) {
-        showMessage('反结账成功,已回到待结账状态');
-        setSettleVisible(false);
-        // 同步刷新详情 + 列表
-        setSelectedRecord(res.data);
-        setDetailVisible(true);
-        query.refetch();
-        // 重新拉关联任务(状态可能从 APPROVED 退回)
-        if (res.data?.id) loadRelatedTasks(res.data.id);
-      } else {
-        showMessage(res?.msg || '反结账失败', 'error');
-      }
-    } catch (err: any) {
-      showMessage(err?.message || '反结账失败', 'error');
-    } finally {
-      setSettling(false);
-    }
-  };
-
   const handleFormChange = (field: string, value: any) => {
     setFormValues((prev: any) => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = async () => {
+    if (!String(formValues.title || '').trim()) {
+      showMessage('请填写标题', 'error');
+      return;
+    }
+    // 截止日期按当天 23:59:59 计;不填表示长期有效
+    const payload = {
+      ...formValues,
+      pay: Number(formValues.pay) || 0,
+      endTime: formValues.endTime ? new Date(`${formValues.endTime}T23:59:59`).toISOString() : null,
+    };
     try {
       if (selectedRecord?.id) {
-        await update({ ...selectedRecord, ...formValues });
+        await update({ ...selectedRecord, ...payload });
         showMessage('更新成功');
       } else {
-        await save({ ...formValues, groupId, status: 'PENDING' });
-        showMessage('创建成功');
+        await save({ ...payload, groupId });
+        showMessage('已创建为待发布,发布时赏金将从钱包托管');
       }
       setWriteVisible(false);
       query.refetch();
@@ -233,12 +208,20 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
   };
 
   const handleStatusChange = async (record: DemandItem, status: DemandStatus) => {
+    const pay = Number(record.pay) || 0;
+    const tip =
+      status === 'PUBLISHED'
+        ? pay > 0
+          ? `发布后将从你的钱包托管赏金 ¥${pay},结账时付给验收通过的贡献者,未分配的部分退回。确定发布?`
+          : '确定发布这条需求?'
+        : '关闭后托管的赏金会退回你的钱包,已认领的任务将不能再提交。确定关闭?';
+    if (!confirm(tip)) return;
     try {
-      await process({ id: record.id, status });
-      showMessage('操作成功');
+      const res: any = await process({ id: record.id, status });
+      showMessage(status === 'PUBLISHED' ? '已发布' : '已关闭,托管赏金已退回');
       query.refetch();
       if (detailVisible && selectedRecord?.id === record.id) {
-        setSelectedRecord({ ...selectedRecord, status });
+        setSelectedRecord(res?.data ?? { ...selectedRecord, status });
       }
     } catch (err: any) {
       showMessage(err.message || '操作失败', 'error');
@@ -334,7 +317,7 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
                   </Box>
                 </CardContent>
                 <Box sx={{ p: 1, display: 'flex', justifyContent: 'flex-end', gap: 0.5 }} onClick={(e) => e.stopPropagation()}>
-                  {onOpenTaskboard && (item.taskIds?.length || 0) > 0 && (
+                  {onOpenTaskboard && ((item.taskIds?.length || 0) > 0 || item.status === 'PENDING' || item.status === 'PUBLISHED') && (
                     <Button
                       size="small"
                       startIcon={<ViewKanbanIcon sx={{ fontSize: 14 }} />}
@@ -344,7 +327,7 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
                       }}
                       sx={{ color: '#06B6D4', textTransform: 'none', fontSize: 12 }}
                     >
-                      查看任务
+                      {(item.taskIds?.length || 0) > 0 ? '查看任务' : '拆分任务'}
                     </Button>
                   )}
                   {item.status === 'SETTLED' ? (
@@ -418,11 +401,27 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
               fullWidth
             />
             <TextField
-              label="酬劳积分"
+              label="赏金(元)"
               type="number"
-              value={formValues.pay || 0}
-              onChange={(e) => handleFormChange('pay', Number(e.target.value))}
+              value={formValues.pay ?? 0}
+              onChange={(e) => handleFormChange('pay', e.target.value)}
               fullWidth
+              disabled={!!selectedRecord?.id && selectedRecord.status !== 'PENDING'}
+              helperText={
+                selectedRecord?.id && selectedRecord.status !== 'PENDING'
+                  ? '发布后赏金已托管,不能再修改'
+                  : '发布时从你的钱包托管这笔赏金;拆分任务后,验收通过的贡献者在结账时分得'
+              }
+              slotProps={{ htmlInput: { min: 0, step: 0.01 } }}
+            />
+            <TextField
+              label="截止日期(可选)"
+              type="date"
+              value={formValues.endTime || ''}
+              onChange={(e) => handleFormChange('endTime', e.target.value)}
+              fullWidth
+              slotProps={{ inputLabel: { shrink: true } }}
+              helperText="过了截止日期就不能再认领任务;不填表示长期有效"
             />
             <TextField
               select
@@ -485,7 +484,16 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
                 sx={{ bgcolor: STATUS_META[selectedRecord.status as DemandStatus].bg, color: STATUS_META[selectedRecord.status as DemandStatus].color, fontWeight: 600 }}
               />
             )}
-            <Chip label={`酬劳: ${selectedRecord?.pay || 0}`} variant="outlined" />
+            <Chip label={`赏金 ¥${selectedRecord?.pay || 0}`} variant="outlined" />
+            {(selectedRecord?.escrowCents ?? 0) > 0 && (
+              <Chip
+                label={`托管中 ¥${((selectedRecord?.escrowCents ?? 0) / 100).toFixed(2)}`}
+                sx={{ bgcolor: 'rgba(93, 219, 150, 0.12)', color: 'success.main' }}
+              />
+            )}
+            {selectedRecord?.endTime && (
+              <Chip label={`截止 ${new Date(selectedRecord.endTime).toLocaleDateString()}`} variant="outlined" />
+            )}
             {isSettled && selectedRecord?.settledAt && (
               <Chip
                 icon={<CheckCircleIcon sx={{ fontSize: 14 }} />}
@@ -571,7 +579,7 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
                     gap: 1,
                   }}
                 >
-                  <Box sx={{ width: 6, height: 28, borderRadius: 1, bgcolor: TASK_STATUS_COLOR[t.status || 'OPEN'] }} />
+                  <Box sx={{ width: 6, height: 28, borderRadius: 1, bgcolor: TASK_STATUS_COLOR[normalizeRewardTaskStatus(t.status)] }} />
                   <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }} noWrap>
                     {t.title}
                   </Typography>
@@ -581,13 +589,13 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
                     </Typography>
                   )}
                   <Chip
-                    label={(t.status || 'OPEN').toLowerCase()}
+                    label={REWARD_TASK_STATUS_LABEL[normalizeRewardTaskStatus(t.status)]}
                     size="small"
                     sx={{
                       height: 18,
                       fontSize: 10,
-                      bgcolor: `${TASK_STATUS_COLOR[t.status || 'OPEN']}20`,
-                      color: TASK_STATUS_COLOR[t.status || 'OPEN'],
+                      bgcolor: `${TASK_STATUS_COLOR[normalizeRewardTaskStatus(t.status)]}20`,
+                      color: TASK_STATUS_COLOR[normalizeRewardTaskStatus(t.status)],
                       fontWeight: 600,
                     }}
                   />
@@ -595,55 +603,6 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
               ))}
             </Box>
           ) : null}
-
-          {/* 关联意境 */}
-          <Divider sx={{ my: 2 }} />
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
-            <AutoAwesomeIcon sx={{ fontSize: 16, color: 'success.main' }} />
-            <Typography variant="subtitle2">
-              关联意境 ({relatedConceptions.length})
-            </Typography>
-            {onOpenConceptionForDemand && (
-              <Button
-                size="small"
-                onClick={() => onOpenConceptionForDemand(selectedRecord!.id as number)}
-                sx={{ color: 'success.main', textTransform: 'none', fontSize: 12, ml: 'auto' }}
-              >
-                在意境管理中查看 →
-              </Button>
-            )}
-          </Box>
-          {relatedConceptions.length > 0 ? (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, maxHeight: 160, overflowY: 'auto' }}>
-              {relatedConceptions.map((c) => (
-                <Box
-                  key={c.id}
-                  sx={{
-                    p: 1,
-                    bgcolor: 'action.hover',
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderRadius: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                  }}
-                >
-                  <AutoAwesomeIcon sx={{ fontSize: 14, color: 'success.main' }} />
-                  <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }} noWrap>
-                    {c.name || (c as any).title}
-                  </Typography>
-                  <Chip
-                    label={c.status || 'OPEN'}
-                    size="small"
-                    sx={{ height: 18, fontSize: 10, bgcolor: 'rgba(93, 219, 150, 0.12)', color: 'success.main', fontWeight: 600 }}
-                  />
-                </Box>
-              ))}
-            </Box>
-          ) : (
-            <Typography variant="caption" color="text.secondary">该需求下暂无关联意境</Typography>
-          )}
 
           <Box sx={{ mt: 3, display: 'flex', gap: 1, alignItems: 'center' }}>
             <Avatar sx={{ width: 32, height: 32 }} src={selectedRecord?.avatar} />
@@ -664,7 +623,7 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
               关闭需求
             </Button>
           )}
-          {isCompleted && (
+          {(isCompleted || (isPublished && completedCount > 0)) && (
             <Button
               variant="contained"
               startIcon={<CheckCircleIcon />}
@@ -695,7 +654,6 @@ export default function DemandPage({ groupId, onOpenTaskboard, onOpenConceptionF
         loading={settling}
         onClose={() => setSettleVisible(false)}
         onConfirm={settleReadonly ? undefined : handleConfirmSettle}
-        onUnsettle={settleReadonly ? handleConfirmUnsettle : undefined}
       />
 
       <Snackbar

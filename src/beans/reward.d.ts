@@ -2,9 +2,13 @@ import {TableListItem} from "@/beans/system";
 
 export type DemandStatus = 'PENDING' | 'PUBLISHED' | 'COMPLETED' | 'SETTLED' | 'CLOSED';
 
+/** 分账单(后端 DemandView.settlement)。金额单位:元。 */
 export interface DemandSettlement {
   demandId: number;
+  /** 付给认领人的赏金合计 */
   totalPay: number;
+  /** 退回发布者的未分配赏金 */
+  refundPay?: number;
   approvedCount: number;
   distribution: Array<{
     assigneeId: number;
@@ -12,8 +16,10 @@ export interface DemandSettlement {
     taskCount: number;
     amount: number;
   }>;
-  completedAt: string;
-  settledAt: string;
+  completedAt?: string | null;
+  settledAt?: string | null;
+  /** true = 尚未结账,是按当前验收结果算出的预估 */
+  preview?: boolean;
 }
 
 export interface DemandItem extends TableListItem {
@@ -32,8 +38,15 @@ export interface DemandItem extends TableListItem {
   username?: string;
   avatar?: string;
   taskIds?: number[];
+  /** 验收通过的任务数 */
   completedCount?: number;
   totalTaskCount?: number;
+  /** 还没人认领的任务数 */
+  openTaskCount?: number;
+  /** 认领过任务的人数 */
+  applicants?: number;
+  /** 发布时从钱包托管、尚未发出的赏金(分) */
+  escrowCents?: number;
   settledAt?: string | null;
   settlement?: DemandSettlement | null;
 }
@@ -120,4 +133,10 @@ export interface RewardTask extends TableListItem {
   claimedAt?: string | null;
   submittedAt?: string | null;
   reviewedAt?: string | null;
+  /** 任务标价(元);0 表示与其他未标价任务均分需求剩余赏金 */
+  reward?: number;
+  /** 有权编辑、验收此任务的用户:需求发布者,或独立任务的负责人 */
+  managerId?: number;
+  demandTitle?: string;
+  demandStatus?: string;
 }

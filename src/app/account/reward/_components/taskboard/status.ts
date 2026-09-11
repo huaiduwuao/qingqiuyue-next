@@ -54,18 +54,18 @@ export function denormalizeRewardTaskStatus(status: RewardTaskStatus): string {
 }
 
 /**
- * 后端字段名约定：RewardTaskEntity gorm 用 `claimer_id` / `reviewer_id` / `owner_id`,
- * json tag 与前端 beans/reward.d.ts 的 `assigneeId` / `reviewerId` / `ownerId` 命名不一致。
- * 这里在 API 入口把后端 camelCase 拉到前端 camelCase 上,不污染 beans 类型。
- *
- * 一次走全 → /task/page list / task/{id}/claim|/submit|/review response,
- * 让 TaskDetailDialog/TaskCard/page 的 isAssignee 判定与 assignee filter 真正生效。
+ * 后端 TaskView 字段(claimerId/claimerName/claimerAvatar/submission/createUser)
+ * 映射到前端 bean 命名(assigneeId/assigneeName/assigneeAvatar/deliverable/createdBy)。
+ * /task/page 列表与 claim/submit/review 的返回都要经过这里。
  */
 export function mapRewardTaskFromBackend(raw: any): any {
   if (!raw || typeof raw !== 'object') return raw;
   const r = { ...raw };
-  if (r.assigneeId == null && r.claimerId != null) r.assigneeId = r.claimerId;
-  // claimerName/Avatar 等后端不输出,UI fallback 用任务列表外的用户池（暂不动）
+  if (r.assigneeId == null && r.claimerId != null) r.assigneeId = r.claimerId || null;
+  if (r.assigneeName == null && r.claimerName) r.assigneeName = r.claimerName;
+  if (r.assigneeAvatar == null && r.claimerAvatar) r.assigneeAvatar = r.claimerAvatar;
+  if (r.deliverable == null && r.submission) r.deliverable = r.submission;
+  if (r.createdBy == null && r.createUser != null) r.createdBy = r.createUser;
   return r;
 }
 

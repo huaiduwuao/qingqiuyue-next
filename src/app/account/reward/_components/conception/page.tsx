@@ -57,14 +57,13 @@ interface Props {
   onOpenDemandDetail?: (demandId: number) => void;
 }
 
-export default function ConceptionPage({ groupId, groupData, initialDemandId, onOpenDemandDetail }: Props) {
+export default function ConceptionPage({ groupId, groupData }: Props) {
   const { currentUser } = useApp();
   const [writeVisible, setWriteVisible] = useState(false);
   const [detailVisible, setDetailVisible] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<ConceptionItem | null>(null);
   const [formValues, setFormValues] = useState<any>({});
   const [filter, setFilter] = useState<FilterType>({ status: '', keyword: '' });
-  const [demandFilter, setDemandFilter] = useState<number | ''>(initialDemandId ?? '');
   const [page, setPage] = useState(1);
   const [pageSize] = useState(12);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
@@ -80,18 +79,6 @@ export default function ConceptionPage({ groupId, groupData, initialDemandId, on
   const qc = useQueryClient();
   const LIST_KEY = ['reward-conception'];
 
-  // 需求过滤响应外部入参
-  useEffect(() => {
-    if (initialDemandId != null) setDemandFilter(initialDemandId);
-  }, [initialDemandId]);
-
-  const demandsQuery = useQuery({
-    queryKey: [...LIST_KEY, 'demands'],
-    queryFn: () => listConceptions({ pageSize: 100 }).then((r: any) => r.data?.records || r.data?.list || []),
-    placeholderData: [],
-  });
-  const demands: DemandItem[] = demandsQuery.data || [];
-
   const query = useQuery({
     queryKey: [...LIST_KEY, filter.status, page, groupId],
     queryFn: () => listConceptions({ page, pageSize, groupId, status: filter.status || undefined }).then((r) => {
@@ -105,14 +92,6 @@ export default function ConceptionPage({ groupId, groupData, initialDemandId, on
   const list = query.data?.records || [];
   const total = query.data?.totalRow || 0;
   const loading = query.isFetching;
-
-  const demandTitleMap = React.useMemo(() => {
-    const m = new Map<number, string>();
-    demands.forEach((d) => {
-      if (d.id != null) m.set(d.id, d.title || `需求 ${d.id}`);
-    });
-    return m;
-  }, [demands]);
 
   const handleSearch = () => {
     setPage(1);
@@ -226,19 +205,6 @@ export default function ConceptionPage({ groupId, groupData, initialDemandId, on
             },
           }}
         />
-        <FormControl size="small" sx={{ minWidth: 180 }}>
-          <InputLabel>按需求过滤</InputLabel>
-          <Select
-            value={demandFilter}
-            label="按需求过滤"
-            onChange={(e) => setDemandFilter(e.target.value as number | '')}
-          >
-            <MenuItem value="">全部需求</MenuItem>
-            {demands.map((d) => (
-              <MenuItem key={d.id} value={d.id}>#{d.id} {d.title}</MenuItem>
-            ))}
-          </Select>
-        </FormControl>
         <Tabs
           value={filter.status}
           onChange={(_, v) => { setFilter({ ...filter, status: v }); setPage(1); }}
@@ -293,18 +259,6 @@ export default function ConceptionPage({ groupId, groupData, initialDemandId, on
                   {item.info || '暂无描述'}
                 </Typography>
                 <Box sx={{ mt: 1, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                  {item.demandId != null && (
-                    <Chip
-                      icon={<AssignmentIcon sx={{ fontSize: '12px !important' }} />}
-                      label={demandTitleMap.get(item.demandId) || `需求 ${item.demandId}`}
-                      size="small"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOpenDemandDetail?.(item.demandId!);
-                      }}
-                      sx={{ height: 20, fontSize: 10, bgcolor: 'rgba(139, 92, 246, 0.12)', color: '#8B5CF6', cursor: 'pointer' }}
-                    />
-                  )}
                   {item.tags && String(item.tags).split(',').slice(0, 3).map((tag, idx) => (
                     <Chip key={idx} label={tag} size="small" variant="outlined" sx={{ height: 20, fontSize: 10 }} />
                   ))}

@@ -54,10 +54,12 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
   // 后端原样存小写 pending/claimed/submitted/approved/rejected；前端用 OPEN/CLAIMED/... → 归一化
   const status = normalizeRewardTaskStatus(task.status);
   const isAssignee = task.assigneeId === currentUserId;
-  const canClaim = status === 'OPEN' && !task.assigneeId;
+  // isOwner = 当前用户是任务管理者(task.managerId):需求发布者或独立任务的负责人
+  const canClaim = status === 'OPEN' && !task.assigneeId && !isOwner;
   const canSubmit = (status === 'CLAIMED' || status === 'REJECTED') && isAssignee;
   const canReview = status === 'SUBMITTED' && isOwner;
-  const canDelete = isOwner;
+  const canDelete = isOwner && (status === 'OPEN' || status === 'REJECTED');
+  const waitingReview = status === 'SUBMITTED' && isAssignee && !isOwner;
 
   const handleClaim = async () => {
     setSubmitting(true);
@@ -155,6 +157,17 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
         </Typography>
       </DialogTitle>
       <DialogContent dividers sx={{ borderColor: 'divider' }}>
+        {(task.demandTitle || task.demandId) && (
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1.5 }}>
+            <Chip size="small" variant="outlined" label={`需求:${task.demandTitle || `#${task.demandId}`}`} />
+            <Chip
+              size="small"
+              sx={{ bgcolor: 'rgba(255,180,0,0.12)', color: 'warning.main', fontWeight: 600 }}
+              label={task.reward ? `标价 ¥${task.reward}` : '均分需求剩余赏金'}
+            />
+          </Box>
+        )}
+
         {/* Assignee */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
           {task.assigneeId ? (
@@ -256,7 +269,7 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
             <TextField
               value={reviewNote}
               onChange={(e) => setReviewNote(e.target.value)}
-              placeholder="审稿意见(可选)"
+              placeholder="验收意见(驳回时必填)"
               fullWidth
               multiline
               minRows={2}
@@ -282,7 +295,7 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
                 size="small"
                 startIcon={<CloseIcon sx={{ fontSize: 14 }} />}
                 onClick={() => handleReview(false)}
-                disabled={submitting}
+                disabled={submitting || !reviewNote.trim()}
                 sx={{
                   borderColor: 'primary.main',
                   color: 'primary.main',
@@ -292,6 +305,15 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
                 驳回
               </Button>
             </Box>
+          </Box>
+        )}
+
+        {waitingReview && (
+          <Box sx={{ p: 1.5, bgcolor: 'rgba(255,180,0,0.08)', border: '1px solid rgba(255,180,0,0.3)', borderRadius: 1, mb: 2 }}>
+            <Typography sx={{ fontSize: 12, color: 'warning.main', mb: task.deliverable ? 0.5 : 0 }}>已提交,等待发布者验收</Typography>
+            {task.deliverable && (
+              <Typography sx={{ fontSize: 11, color: 'text.tertiary', wordBreak: 'break-all' }}>交付物: {task.deliverable}</Typography>
+            )}
           </Box>
         )}
 

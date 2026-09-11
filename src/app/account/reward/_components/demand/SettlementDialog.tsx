@@ -10,12 +10,11 @@ import DialogActions from '@mui/material/DialogActions';
 import Typography from '@mui/material/Typography';
 import Avatar from '@mui/material/Avatar';
 import Divider from '@mui/material/Divider';
-import LinearProgress from '@mui/material/LinearProgress';
+import Alert from '@mui/material/Alert';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import EventIcon from '@mui/icons-material/Event';
-import UndoIcon from '@mui/icons-material/Undo';
-import type { DemandItem, DemandSettlement } from '@/beans/reward';
+import type { DemandItem } from '@/beans/reward';
 
 interface Props {
   open: boolean;
@@ -23,7 +22,6 @@ interface Props {
   readonly?: boolean;
   onClose: () => void;
   onConfirm?: () => void | Promise<void>;
-  onUnsettle?: () => void | Promise<void>;
   loading?: boolean;
 }
 
@@ -32,11 +30,25 @@ function fmtDate(iso?: string | null) {
   return new Date(iso).toLocaleString('zh-CN', { hour12: false });
 }
 
-export function SettlementDialog({ open, demand, readonly, onClose, onConfirm, onUnsettle, loading }: Props) {
+function fmtYuan(v?: number | null) {
+  return `¥${(v ?? 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/**
+ * 结账确认 / 结算单,数据来自后端 DemandView.settlement:
+ * - 结账前是预估:标价任务按标价付,剩余赏金在未标价任务间均分;
+ * - 结账后是钱包里真实到账的流水。
+ * 结账从发布时托管的赏金里付款,未分配部分退回发布者,不可撤销。
+ */
+export function SettlementDialog({ open, demand, readonly, onClose, onConfirm, loading }: Props) {
   if (!demand) return null;
-  const settlement: DemandSettlement | null | undefined = demand.settlement;
-  const pay = settlement?.totalPay ?? demand.pay ?? 0;
-  const count = settlement?.approvedCount ?? demand.completedCount ?? 0;
+  const settlement = demand.settlement;
+  const budget = Number(demand.pay ?? 0);
+  const paid = settlement?.totalPay ?? 0;
+  const refund = settlement?.refundPay ?? 0;
+  const approved = settlement?.approvedCount ?? demand.completedCount ?? 0;
+  const unfinished = Math.max(0, (demand.totalTaskCount ?? approved) - approved);
+  const distribution = settlement?.distribution ?? [];
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -52,35 +64,25 @@ export function SettlementDialog({ open, demand, readonly, onClose, onConfirm, o
         </Box>
       </DialogTitle>
       <DialogContent dividers>
-        {/* 总金额 + 任务数 */}
-        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 3, mb: 2 }}>
-          <Box>
-            <Typography variant="caption" color="text.secondary">总酬劳</Typography>
-            <Typography variant="h4" sx={{ fontWeight: 700, color: 'warning.main', lineHeight: 1.1 }}>
-              ¥{pay}
-            </Typography>
-          </Box>
-          <Box>
-            <Typography variant="caption" color="text.secondary">已通过任务</Typography>
-            <Typography variant="h5" sx={{ fontWeight: 700, color: 'success.main', lineHeight: 1.1 }}>
-              {count}
-            </Typography>
-          </Box>
-          <Box sx={{ flex: 1 }}>
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>贡献者</Typography>
-            <Typography variant="h5" sx={{ fontWeight: 700, color: '#8B5CF6', lineHeight: 1.1 }}>
-              {settlement?.distribution?.length ?? '-'}
-            </Typography>
-          </Box>
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.5, mb: 2 }}>
+          <Amount label="需求赏金" value={fmtYuan(budget)} color="text.primary" />
+          <Amount label={readonly ? '已付给贡献者' : '将付给贡献者'} value={fmtYuan(paid)} color="warning.main" />
+          <Amount label={readonly ? '已退回发布者' : '将退回你的钱包'} value={fmtYuan(refund)} color="text.secondary" />
         </Box>
 
-        <Divider sx={{ mb: 2 }} />
+        {!readonly && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            赏金从发布时托管的资金中支付,结账后不可撤销。
+            {unfinished > 0 && ` 还有 ${unfinished} 个任务未验收通过,结账后这些任务将不能再提交。`}
+          </Alert>
+        )}
 
-        {/* 贡献者分账明细 */}
-        <Typography variant="subtitle2" sx={{ mb: 1 }}>分账明细</Typography>
-        {settlement?.distribution && settlement.distribution.length > 0 ? (
+        <Typography variant="subtitle2" sx={{ mb: 1 }}>
+          分账明细 · {approved} 个任务验收通过
+        </Typography>
+        {distribution.length > 0 ? (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            {settlement.distribution.map((d) => (
+            {distribution.map((d) => (
               <Box
                 key={d.assigneeId}
                 sx={{
@@ -102,11 +104,11 @@ export function SettlementDialog({ open, demand, readonly, onClose, onConfirm, o
                     {d.assigneeName}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    {d.taskCount} 张任务 × (¥{pay} / {count}) = ¥{d.amount}
+                    完成 {d.taskCount} 个任务
                   </Typography>
                 </Box>
                 <Typography variant="h6" sx={{ fontWeight: 700, color: 'warning.main' }}>
-                  ¥{d.amount}
+                  {fmtYuan(d.amount)}
                 </Typography>
               </Box>
             ))}
@@ -114,47 +116,22 @@ export function SettlementDialog({ open, demand, readonly, onClose, onConfirm, o
         ) : (
           <Box sx={{ p: 2, textAlign: 'center', bgcolor: 'action.hover', borderRadius: 1, border: '1px dashed', borderColor: 'divider' }}>
             <Typography variant="caption" color="text.secondary">
-              {readonly ? '无分账记录' : '确认结账后将自动按任务数等额分账给所有贡献者'}
+              {readonly ? '没有分账记录' : '还没有验收通过的任务'}
             </Typography>
           </Box>
         )}
 
-        {/* 进度条:100% since 全部 APPROVED */}
-        <Box sx={{ mt: 2 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-            <Typography variant="caption" color="text.secondary">完成度</Typography>
-            <Typography variant="caption" sx={{ fontWeight: 600, color: 'success.main' }}>
-              {count}/{count} (100%)
-            </Typography>
-          </Box>
-          <LinearProgress
-            variant="determinate"
-            value={100}
-            sx={{ height: 6, borderRadius: 3, bgcolor: 'divider', '& .MuiLinearProgress-bar': { bgcolor: 'success.main', borderRadius: 3 } }}
-          />
-        </Box>
-
         <Divider sx={{ my: 2 }} />
 
-        {/* 时间轴 */}
         <Typography variant="subtitle2" sx={{ mb: 1 }}>时间线</Typography>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
           <TimelineRow label="需求创建" value={fmtDate(demand.createTime as any)} />
-          {settlement?.completedAt && <TimelineRow label="最后审批通过" value={fmtDate(settlement.completedAt)} />}
+          {demand.publishTime && <TimelineRow label="发布并托管" value={fmtDate(demand.publishTime)} />}
+          {settlement?.completedAt && <TimelineRow label="最后验收通过" value={fmtDate(settlement.completedAt)} />}
           {settlement?.settledAt && <TimelineRow label="结账时间" value={fmtDate(settlement.settledAt)} highlight />}
         </Box>
       </DialogContent>
       <DialogActions>
-        {readonly && onUnsettle && (
-          <Button
-            startIcon={<UndoIcon />}
-            onClick={onUnsettle}
-            disabled={loading}
-            sx={{ color: 'primary.main', mr: 'auto' }}
-          >
-            反结账
-          </Button>
-        )}
         <Button onClick={onClose} disabled={loading}>
           {readonly ? '关闭' : '取消'}
         </Button>
@@ -162,7 +139,7 @@ export function SettlementDialog({ open, demand, readonly, onClose, onConfirm, o
           <Button
             variant="contained"
             onClick={onConfirm}
-            disabled={loading}
+            disabled={loading || distribution.length === 0}
             sx={{ bgcolor: 'success.main', '&:hover': { bgcolor: '#4AC97F' } }}
           >
             {loading ? '结账中…' : '确认结账'}
@@ -170,6 +147,15 @@ export function SettlementDialog({ open, demand, readonly, onClose, onConfirm, o
         )}
       </DialogActions>
     </Dialog>
+  );
+}
+
+function Amount({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <Box sx={{ p: 1.5, borderRadius: 1, bgcolor: 'action.hover' }}>
+      <Typography variant="caption" color="text.secondary">{label}</Typography>
+      <Typography sx={{ fontSize: 18, fontWeight: 700, color, lineHeight: 1.3, fontFamily: 'monospace' }}>{value}</Typography>
+    </Box>
   );
 }
 

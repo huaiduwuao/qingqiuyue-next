@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -69,15 +69,6 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
   const { currentUser } = useApp();
   const currentUserId = currentUser?.id ?? 0;
 
-  // ?owner=1 query 用于演示/测试时切换为 owner 视角
-  const [isOwner, setIsOwner] = useState(false);
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      setIsOwner(params.get('owner') === '1');
-    }
-  }, []);
-
   // 视图模式 — 初始化逻辑:外部传 initialViewMode 优先,否则按 initial props 推断
   const [viewMode, setViewMode] = useState<ViewMode>(
     initialViewMode || (initialGroupId ? 'team' : initialProjectId ? 'project' : 'project')
@@ -94,9 +85,6 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
   // 筛选
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority | ''>('');
   const [assigneeFilter, setAssigneeFilter] = useState<number | ''>('');
-
-  const isOwnerRef = useRef(isOwner);
-  isOwnerRef.current = isOwner;
 
   const qc = useQueryClient();
 
@@ -138,7 +126,8 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
         params.claimerId = currentUserId;
       } else if (viewMode === 'team') {
         params.groupId = groupId;
-      } else if (viewMode === 'project') {
+      } else if (viewMode === 'project' && !initialDemandId) {
+        // 从需求进入时只按需求过滤,不再叠加项目条件
         params.projectId = projectId;
       }
       if (initialDemandId) params.demandId = initialDemandId;
@@ -147,6 +136,7 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
       return mapRewardTaskListFromBackend(res?.data?.records || []);
     },
     enabled:
+      !!initialDemandId ||
       (viewMode === 'mine' && !!currentUserId) ||
       (viewMode === 'project' && !!projectId) ||
       (viewMode === 'team' && !!groupId),
@@ -276,8 +266,13 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
     if (targetStatus === currentStatus) return;
 
     const isAssignee = task.assigneeId === currentUserId;
+    // 任务管理者(需求发布者 / 独立任务负责人)由后端 TaskView.managerId 给出
+    const isManager = task.managerId === currentUserId;
     if (targetStatus === 'CLAIMED' && currentStatus === 'OPEN') {
-      // 任意人都能领
+      if (isManager) {
+        showMessage('不能认领自己发布的任务', 'error');
+        return;
+      }
     } else if (targetStatus === 'CLAIMED' && currentStatus === 'REJECTED') {
       if (!isAssignee) {
         showMessage('只有原负责人可以重新认领', 'error');
@@ -289,8 +284,8 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
         return;
       }
     } else if (targetStatus === 'APPROVED' || targetStatus === 'REJECTED') {
-      if (!isOwnerRef.current) {
-        showMessage('只有项目主/团队长可以审稿', 'error');
+      if (!isManager) {
+        showMessage('只有任务发布者可以验收', 'error');
         return;
       }
     } else {
@@ -444,21 +439,18 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
 
         <Box sx={{ flex: 1 }} />
 
-        {isOwner && (
-          <Button
-            variant="contained"
-            size="small"
-            startIcon={<AddIcon />}
-            onClick={() => {
-              setEditRecord(null);
-              setEditOpen(true);
-            }}
-            disabled={!activeProjectIdForCreate}
-            sx={{ bgcolor: 'primary.main', '&:hover': { bgcolor: '#E61E47' } }}
-          >
-            新建任务
-          </Button>
-        )}
+        <Button
+          variant="contained"
+          size="small"
+          startIcon={<AddIcon />}
+          onClick={() => {
+            setEditRecord(null);
+            setEditOpen(true);
+          }}
+          sx={{ bgcolor: 'primary.main', '&:hover': { bgcolor: '#E61E47' } }}
+        >
+          新建任务
+        </Button>
 
         <Button
           size="small"
@@ -546,7 +538,7 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
       <TaskDetailDialog
         open={!!detailTask}
         task={detailTask}
-        isOwner={isOwner}
+        isOwner={!!detailTask && detailTask.managerId === currentUserId}
         currentUserId={currentUserId}
         onClose={() => setDetailTask(null)}
         onChanged={handleTaskChanged}
@@ -558,8 +550,7 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
         open={editOpen}
         record={editRecord}
         projectId={activeProjectIdForCreate}
-        groupId={groupId}
-        groups={groups}
+        defaultDemandId={initialDemandId}
         onClose={() => {
           setEditOpen(false);
           setEditRecord(null);
