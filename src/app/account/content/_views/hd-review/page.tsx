@@ -41,7 +41,7 @@ import LightbulbRoundedIcon from '@mui/icons-material/LightbulbRounded';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { gradient2 } from '@/constants/gradients';
-import { myPage, process as updateContentStatus } from '@/apis/module-content';
+import { getReviewQueue, doReview, type ReviewRequest } from '@/apis/review';
 import {
   HdVideo,
   Reviewer,
@@ -151,16 +151,30 @@ export default function HdReviewPage() {
   const [selectedRejectReasons, setSelectedRejectReasons] = useState<string[]>([]);
   const [snack, setSnack] = useState<string | null>(null);
 
-  // 拉取真实待审核内容(VIDEO 类型 + reviewing 状态)
-  const { data: realReviewing } = useQuery({
-    queryKey: ['module-content', 'reviewing'],
+  // 待审队列来自审核系统(content_review_request,仅内容运营可见);结论经 /review/:id/review
+  // 提交,由后端同步上线 / 驳回内容。以前这里拉的是「我的」内容,结论也发到一个不存在的状态接口。
+  const { data: reviewQueue, refetch: refetchQueue } = useQuery({
+    queryKey: ['review-queue', 'pending'],
     queryFn: async () => {
-      const res = await myPage({ status: 'reviewing', contentType: 'VIDEO', pageSize: 100 });
-      return res.list || [];
+      // 新提交(pending)与作者修改后重新提交(resubmit)的审核单都需要处理
+      const [pending, resubmit] = await Promise.all([
+        getReviewQueue({ status: 'pending', pageSize: 100 }),
+        getReviewQueue({ status: 'resubmit', pageSize: 100 }),
+      ]);
+      return [...(resubmit.list ?? []), ...(pending.list ?? [])] as ReviewRequest[];
     },
     staleTime: 30_000,
     refetchOnMount: 'always',
   });
+  const realReviewing = useMemo(
+    () => (reviewQueue ?? []).map((r) => ({ id: r.contentId, title: r.title, coverUrl: r.coverUrl, createTime: r.createdAt })),
+    [reviewQueue],
+  );
+  // 内容 id → 审核单 id,提交结论时用
+  const reviewIdByContent = useMemo(
+    () => new Map((reviewQueue ?? []).map((r) => [String(r.contentId), r.id])),
+    [reviewQueue],
+  );
 
   // 把真实内容合并到本地 simulator 列表(去重)
   useEffect(() => {
@@ -283,18 +297,23 @@ export default function HdReviewPage() {
     const completedAt = Date.now();
     const isPass = decision === 'pass';
 
-    // 真实内容(数字 ID)同步更新后端状态
-    const numericId = Number(selectedVideo.id);
-    if (!isNaN(numericId) && numericId > 0) {
-      try {
-        await updateContentStatus({
-          ids: [numericId],
-          status: isPass ? 'PUBLISH' : 'UN_PUBLISH',
-        });
-      } catch (e: any) {
-        setSnack(`后端状态更新失败:${e.message || '未知错误'}`);
-        return;
-      }
+    // 结论提交给审核系统:通过 → 内容上线,驳回 → 内容标记为未通过,要求修改 → 退回作者
+    const reviewId = reviewIdByContent.get(selectedVideo.id);
+    if (!reviewId) {
+      setSnack('这条内容没有待处理的审核单');
+      return;
+    }
+    try {
+      await doReview({
+        id: reviewId,
+        action: isPass ? 'approve' : decision === 'reject' ? 'reject' : 'revise',
+        note,
+        categoryName: selectedRejectReasons.join('、') || undefined,
+      });
+      refetchQueue();
+    } catch (e: any) {
+      setSnack(`提交审核结论失败:${e.message || '未知错误'}`);
+      return;
     }
 
     setVideos((p) =>

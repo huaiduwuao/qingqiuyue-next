@@ -41,6 +41,9 @@ const statusColor: Record<string, 'warning' | 'success' | 'error' | 'default'> =
   rejected: 'error',
 };
 
+/** 这些类型的举报「通过」时后端会下架目标内容(见 moderationapp.ReviewReport) */
+const TAKEDOWN_TYPES = new Set(['copyright', 'video', 'image']);
+
 const statusLabel: Record<string, string> = {
   pending: '待审核',
   resolved: '已通过',
@@ -196,6 +199,12 @@ export default function ModerationReportsPage() {
             <Box>
               <strong>举报原因:</strong> {reviewModal.record?.reason}
             </Box>
+            {reviewModal.record && TAKEDOWN_TYPES.has(reviewModal.record.targetType) && (
+              <Alert severity="warning">
+                「通过」会同时下架被举报的内容(#{reviewModal.record.targetId}),
+                {reviewModal.record.targetType === 'copyright' ? '并把原创保护申诉标记为成立。' : '作者将看不到它在前台展示。'}
+              </Alert>
+            )}
             <TextField
               label="审核备注"
               value={reviewNote}

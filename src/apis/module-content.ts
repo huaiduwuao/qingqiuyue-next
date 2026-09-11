@@ -102,9 +102,6 @@ export async function remove(ids: number[]): Promise<void> {
   }
 }
 
-export async function process(params: { ids: number[]; status?: string; moduleContentStatus?: string; moduleContentSearch?: boolean }) {
-  return contentClient('/module/content/action', { method: 'POST', data: params });
-}
 
 export async function suggest(params: { title: string; contentType?: string }) {
   return contentClient('/module/content/suggest', { params });

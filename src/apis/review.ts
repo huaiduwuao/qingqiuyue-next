@@ -49,6 +49,8 @@ export async function submitReview(params: {
   title?: string;
   coverUrl?: string;
   priority?: number;
+  /** 被驳回后重新提交(申诉)时给审核员的说明 */
+  reason?: string;
 }): Promise<{ id: number; status: string }> {
   const res = await adminClient('/review/submit', { method: 'POST', data: params });
   return res?.data ?? res;

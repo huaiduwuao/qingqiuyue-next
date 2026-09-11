@@ -83,7 +83,8 @@ import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { myPage, updateShare, process as contentProcess } from '@/apis/module-content';
+import { myPage, updateShare } from '@/apis/module-content';
+import { submitReview } from '@/apis/review';
 import type { ModuleContentItem } from '@/apis/module-content';
 import { fileUpload } from '@/apis/global';
 import { useContentNavigate } from '@/lib/contentRoute';
@@ -530,12 +531,15 @@ export default function HdPublishPage() {
       return;
     }
     try {
-      await contentProcess({
-        ids: [contentId],
-        status: 'appeal',
-        moduleContentStatus: 'appeal',
+      // 申诉 = 带着说明重新提交审核,进入内容运营的待审队列
+      await submitReview({
+        contentId,
+        contentType: 'VIDEO',
+        title: detail.title,
+        coverUrl: detail.cover?.startsWith('http') ? detail.cover : undefined,
+        reason: appealReason.trim(),
       });
-      setSnack('申诉已提交,审核员将在 72 小时内复审');
+      setSnack('已重新提交审核,审核结论会通知你');
       setAppealOpen(false);
     } catch (e) {
       setSnack(`申诉提交失败:${formatApiError(e)}`);
