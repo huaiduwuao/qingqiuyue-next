@@ -144,7 +144,7 @@ export function MicTestButton() {
       `设备: ${deviceName || '未知'}`,
       `实时能量 (RMS): ${energy.toFixed(6)} ${energy > 0.01 ? '✅ OK' : '⚠️ 偏低'}`,
       `2秒峰值: ${peak.toFixed(6)}`,
-      `模拟音量: ${Math.round(level)}/100`,
+      `音量电平: ${Math.round(level)}/100`,
       `强制关 AGC/降噪: ${bypassAgc ? '开' : '关'}`,
       `录音状态: ${recording ? '录音中 (5秒自动停)' : (recordedUrl ? '已停止, 回放已生成' : '已停止, 无回放')}`,
       settings ? '设备设置:' : '设备设置: 未获取',

@@ -34,6 +34,8 @@ import EmojiEmotionsRoundedIcon from '@mui/icons-material/EmojiEmotionsRounded';
 import SettingsIcon from '@mui/icons-material/Settings';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import FlipIcon from '@mui/icons-material/Flip';
+import EventNoteRoundedIcon from '@mui/icons-material/EventNoteRounded';
+import { getMarkStatus, setMark } from '@/apis/content-mark';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-live';
 import { sendComment } from '@/apis/home';
@@ -118,6 +120,15 @@ function LiveDetailContent() {
   const [followOverride, setFollowOverride] = useState<boolean | null>(null);
   const followed = followOverride ?? !!(query.data as any)?.isFollowing;
   const [followBusy, setFollowBusy] = useState(false);
+  // 开播预约:未开播的直播间可预约,列表在个人中心「我的预约」
+  const markQuery = useQuery({
+    queryKey: ['mark', Number(id)],
+    queryFn: () => getMarkStatus(Number(id)),
+    enabled: !!id,
+  });
+  const [reserveOverride, setReserveOverride] = useState<boolean | null>(null);
+  const reserved = reserveOverride ?? !!markQuery.data?.reserve;
+  const [reserveBusy, setReserveBusy] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [chat, setChat] = useState<Array<{ id: number; user: string; avatar: string; text: string; time: string }>>([]);
   const [chatSending, setChatSending] = useState(false);
@@ -196,6 +207,21 @@ function LiveDetailContent() {
       if ((err as Error)?.name !== 'AbortError') {
         notify('分享失败', 'error');
       }
+    }
+  };
+
+  const handleReserve = async () => {
+    if (!id || reserveBusy) return;
+    setReserveBusy(true);
+    const next = !reserved;
+    try {
+      await setMark(Number(id), 'reserve', next);
+      setReserveOverride(next);
+      notify(next ? '已预约,可在个人中心「我的预约」查看' : '已取消预约');
+    } catch (err) {
+      notify(formatApiError(err), 'error');
+    } finally {
+      setReserveBusy(false);
     }
   };
 
@@ -460,6 +486,16 @@ function LiveDetailContent() {
                   </Box>
                   <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>粉丝 {((data.views || 0) / 10000).toFixed(1)}万 · 累计 {((data.likes || 0) / 10000).toFixed(1)}万 赞</Typography>
                 </Box>
+                {!data.isLive && (
+                  <Chip
+                    icon={<EventNoteRoundedIcon sx={{ fontSize: 14 }} />}
+                    label={reserved ? '已预约' : '预约开播'}
+                    onClick={handleReserve}
+                    disabled={reserveBusy}
+                    variant={reserved ? 'outlined' : 'filled'}
+                    sx={{ fontWeight: 700 }}
+                  />
+                )}
                 <Chip
                   icon={followed ? <CheckRoundedIcon sx={{ fontSize: 14 }} /> : <AddIcon sx={{ fontSize: 14 }} />}
                   label={followed ? '已关注' : '关注'}

@@ -63,7 +63,8 @@ interface TopCreator {
   fans: number;
   works: number;
   totalViews: number;
-  growth: number;
+  /** 近 30 天新作品数 */
+  recentWorks: number;
 }
 
 interface Activity {
@@ -128,41 +129,18 @@ function useDashboard() {
   });
   const topCreators = useQuery<TopCreator[]>({
     queryKey: ['dashboard', 'top-creators'],
-    queryFn: async () => [
-      { rank: 1, id: 1, name: '风月无边', avatar: '', fans: 128000, works: 245, totalViews: 12500000, growth: 15.3 },
-      { rank: 2, id: 2, name: '青云直上', avatar: '', fans: 96000, works: 180, totalViews: 8900000, growth: 22.1 },
-      { rank: 3, id: 3, name: '墨染青衣', avatar: '', fans: 82000, works: 312, totalViews: 7600000, growth: 8.7 },
-      { rank: 4, id: 4, name: '听雨轩主', avatar: '', fans: 75000, works: 156, totalViews: 6200000, growth: -2.1 },
-      { rank: 5, id: 5, name: '落笔惊风', avatar: '', fans: 68000, works: 203, totalViews: 5800000, growth: 11.5 },
-      { rank: 6, id: 6, name: '半盏流年', avatar: '', fans: 61000, works: 178, totalViews: 5100000, growth: 5.8 },
-      { rank: 7, id: 7, name: '月下独酌', avatar: '', fans: 55000, works: 132, totalViews: 4500000, growth: 18.2 },
-      { rank: 8, id: 8, name: '清风徐来', avatar: '', fans: 48000, works: 198, totalViews: 3900000, growth: -0.5 },
-      { rank: 9, id: 9, name: '星河万里', avatar: '', fans: 42000, works: 165, totalViews: 3400000, growth: 9.4 },
-      { rank: 10, id: 10, name: '雨后初晴', avatar: '', fans: 38000, works: 140, totalViews: 2800000, growth: 14.6 },
-    ],
-    // 之前:staleTime: Infinity → dev 模式下 query cache 永不释放,叠加 HMR 内存增长
-    // 改:用 1h 长 stale,既保留 admin dashboard 长时间停留不重查,又给 GC 留窗口
-    staleTime: 60 * 60 * 1000,
+    queryFn: async () => {
+      const r: any = await adminClient('/admin/dashboard/top-creators');
+      return (r?.data?.data?.list ?? r?.data?.list ?? []) as TopCreator[];
+    },
+    staleTime: 5 * 60_000,
   });
   const activities = useQuery<Activity[]>({
     queryKey: ['dashboard', 'recent-activities'],
-    queryFn: async () => [
-      { id: 1, user: '风月无边', avatar: '', action: '发布了新文章', target: '《AI 绘画实战指南》', time: '2026-07-03T10:30:00' },
-      { id: 2, user: '青云直上', avatar: '', action: '更新了视频', target: '《Go 微服务架构》第12集', time: '2026-07-03T09:45:00' },
-      { id: 3, user: '墨染青衣', avatar: '', action: '上传了音频', target: '《夜的第七章》翻唱', time: '2026-07-03T08:20:00' },
-      { id: 4, user: '听雨轩主', avatar: '', action: '创建了合集', target: '「古典诗词鉴赏」', time: '2026-07-03T07:15:00' },
-      { id: 5, user: '落笔惊风', avatar: '', action: '回复了评论', target: '在《前端工程化》下', time: '2026-07-02T22:50:00' },
-      { id: 6, user: '半盏流年', avatar: '', action: '发布了小说章节', target: '《长安十二时辰》第28章', time: '2026-07-02T21:30:00' },
-      { id: 7, user: '月下独酌', avatar: '', action: '获得成就', target: '「万赞作者」勋章', time: '2026-07-02T20:00:00' },
-      { id: 8, user: '清风徐来', avatar: '', action: '分享了帖子', target: '「数字人技术展望」', time: '2026-07-02T18:40:00' },
-      { id: 9, user: '星河万里', avatar: '', action: '完成了认证', target: '「原创作者」认证', time: '2026-07-02T17:20:00' },
-      { id: 10, user: '雨后初晴', avatar: '', action: '更新了专栏', target: '《摄影后期处理》系列', time: '2026-07-02T16:00:00' },
-      { id: 11, user: '李前端', avatar: '', action: '提交了代码', target: 'dashboard v2 重构 PR', time: '2026-07-02T15:30:00' },
-      { id: 12, user: '王后端', avatar: '', action: '部署了服务', target: 'Hermes 实例管理上线', time: '2026-07-02T14:00:00' },
-      { id: 13, user: '陈设计', avatar: '', action: '上传了设计稿', target: '「首页改版 v3」', time: '2026-07-02T13:20:00' },
-      { id: 14, user: '赵运维', avatar: '', action: '完成数据库迁移', target: 'PostgreSQL 向量索引', time: '2026-07-02T11:00:00' },
-      { id: 15, user: '刘产品', avatar: '', action: '更新了需求文档', target: '「创作者中心 MVP」', time: '2026-07-02T10:00:00' },
-    ],
+    queryFn: async () => {
+      const r: any = await adminClient('/admin/dashboard/recent-activities');
+      return (r?.data?.data?.list ?? r?.data?.list ?? []) as Activity[];
+    },
     staleTime: 60_000,
   });
   return { stats, trend, contentDist, topCreators, activities };
@@ -297,7 +275,7 @@ export default function DashboardAnalysisPage() {
   const s = stats.data;
   const loading = stats.isLoading;
 
-  // 为趋势图生成模拟数据点(30 个)
+  // 近 30 天趋势(后端 /admin/dashboard/trend 按天聚合)
   const trendData = (trend.data || []).map((p: TrendPoint) => p[trendKey]);
   const trendMax = Math.max(...trendData, 1);
 
@@ -530,7 +508,7 @@ export default function DashboardAnalysisPage() {
               <CardContent>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                   <Typography variant="h6">创作者排行</Typography>
-                  <Chip label="本月" size="small" />
+                  <Chip label="按累计播放" size="small" />
                 </Box>
                 {topCreators.isLoading ? (
                   Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} variant="rounded" height={48} sx={{ mb: 1 }} />)
@@ -560,10 +538,10 @@ export default function DashboardAnalysisPage() {
                           <Box sx={{ textAlign: 'right' }}>
                             <Typography variant="body2" sx={{ fontWeight: 600, fontSize: 13 }}>{fmt(c.totalViews)} 播放</Typography>
                             <Chip
-                              icon={c.growth >= 0 ? <TrendingUpRoundedIcon /> : <TrendingDownRoundedIcon />}
-                              label={`${c.growth >= 0 ? '+' : ''}${c.growth}%`}
+                              icon={<TrendingUpRoundedIcon />}
+                              label={`近30天 +${c.recentWorks} 作品`}
                               size="small"
-                              color={c.growth >= 0 ? 'success' : 'error'}
+                              color={c.recentWorks > 0 ? 'success' : 'default'}
                               variant="outlined"
                               sx={{ height: 18, fontSize: 10, mt: 0.3 }}
                             />
@@ -572,6 +550,9 @@ export default function DashboardAnalysisPage() {
                         <Divider component="li" />
                       </React.Fragment>
                     ))}
+                    {(topCreators.data || []).length === 0 && (
+                      <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: 'center' }}>暂无已上线作品</Typography>
+                    )}
                   </List>
                 )}
               </CardContent>

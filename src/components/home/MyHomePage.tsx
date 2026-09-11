@@ -49,7 +49,8 @@ import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import { useApp } from '@/contexts/AppContext';
-import { homeClient, contentClient, adminClient } from '@/lib/api/client';
+import { homeClient, adminClient, formatApiError } from '@/lib/api/client';
+import { setMark } from '@/apis/content-mark';
 import { ACCENT } from '@/constants/accents';
 import { useContentNavigate } from '@/lib/contentRoute';
 
@@ -283,18 +284,14 @@ export function MyHomePage() {
   });
 
   const cancelAppointmentMutation = useMutation({
-    mutationFn: (item: MyItem) =>
-      contentClient.post('/live/appointment/cancel', { liveId: item.id }).then((r) => r.data),
+    mutationFn: (item: MyItem) => setMark(item.id, 'reserve', false),
     onSuccess: () => {
       setToast('已取消预约');
       setCancelDialog(null);
       qc.invalidateQueries({ queryKey: ['home', 'me', 'list'] });
     },
-    onError: () => {
-      // 后端若无该接口,仍按本地成功处理并刷新列表,保证交互可用
-      setToast('已取消预约');
-      setCancelDialog(null);
-      qc.invalidateQueries({ queryKey: ['home', 'me', 'list'] });
+    onError: (err) => {
+      setToast(formatApiError(err));
     },
   });
 

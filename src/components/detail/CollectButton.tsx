@@ -25,7 +25,10 @@ import PhotoAlbumRoundedIcon from '@mui/icons-material/PhotoAlbumRounded';
 import TopicRoundedIcon from '@mui/icons-material/TopicRounded';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
+import WatchLaterIcon from '@mui/icons-material/WatchLater';
+import WatchLaterOutlinedIcon from '@mui/icons-material/WatchLaterOutlined';
 import { collectContent } from '@/apis/global';
+import { getMarkStatus, setMark } from '@/apis/content-mark';
 import { getMyLists, createMyList, addToMyList, quickCollect, checkCollected, type MyListType, type MyListItem } from '@/apis/my-list';
 import { formatApiError } from '@/lib/api/client';
 
@@ -124,6 +127,25 @@ export function CollectButton({
   });
 
   const isCollected = collectedData?.collected ?? initialCollected;
+
+  // 稍后再看:和收藏夹相互独立,列表在个人中心「稍后再看」
+  const { data: markData } = useQuery({
+    queryKey: ['mark', numId],
+    queryFn: () => getMarkStatus(numId),
+    staleTime: 10 * 1000,
+    enabled: !!numId,
+  });
+  const inWatchLater = !!markData?.watchlater;
+  const watchLaterMutation = useMutation({
+    mutationFn: () => setMark(numId, 'watchlater', !inWatchLater),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['mark', numId] });
+      notify(inWatchLater ? '已移出稍后再看' : '已加入稍后再看');
+    },
+    onError: (err) => {
+      notify(formatApiError(err), 'error');
+    },
+  });
 
   // 快捷收藏
   const quickCollectMutation = useMutation({
@@ -246,6 +268,9 @@ export function CollectButton({
           }}
           quickCollecting={quickCollectMutation.isPending}
           addingToList={addToListMutation.isPending}
+          inWatchLater={inWatchLater}
+          onToggleWatchLater={() => watchLaterMutation.mutate()}
+          watchLaterBusy={watchLaterMutation.isPending}
         />
 
         <CreateListDialog
@@ -293,6 +318,9 @@ export function CollectButton({
         }}
         quickCollecting={quickCollectMutation.isPending}
         addingToList={addToListMutation.isPending}
+        inWatchLater={inWatchLater}
+        onToggleWatchLater={() => watchLaterMutation.mutate()}
+        watchLaterBusy={watchLaterMutation.isPending}
       />
 
       <CreateListDialog
@@ -333,6 +361,9 @@ interface CollectMenuProps {
   onCreateNew: () => void;
   quickCollecting: boolean;
   addingToList: boolean;
+  inWatchLater: boolean;
+  onToggleWatchLater: () => void;
+  watchLaterBusy: boolean;
 }
 
 function CollectMenu({
@@ -348,6 +379,9 @@ function CollectMenu({
   onCreateNew,
   quickCollecting,
   addingToList,
+  inWatchLater,
+  onToggleWatchLater,
+  watchLaterBusy,
 }: CollectMenuProps) {
   const meta = LIST_TYPE_META[listType] || LIST_TYPE_META.topic;
   const Icon = meta.Icon;
@@ -399,6 +433,27 @@ function CollectMenu({
             {`添加到"我的${meta.label}"`}
           </Typography>
         </Box>
+      </MenuItem>
+
+      {/* 稍后再看 */}
+      <MenuItem
+        onClick={() => {
+          onToggleWatchLater();
+          onClose();
+        }}
+        disabled={watchLaterBusy}
+        sx={{ py: 1.25 }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', mr: 1, minWidth: 24 }}>
+          {inWatchLater ? (
+            <WatchLaterIcon sx={{ color: '#8B5CF6', fontSize: 20 }} />
+          ) : (
+            <WatchLaterOutlinedIcon sx={{ fontSize: 20 }} />
+          )}
+        </Box>
+        <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary' }}>
+          {inWatchLater ? '移出稍后再看' : '稍后再看'}
+        </Typography>
       </MenuItem>
 
       <Divider />

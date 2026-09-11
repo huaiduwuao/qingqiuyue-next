@@ -42,8 +42,6 @@ interface CreationItem {
   desc: string;
   icon: React.ReactNode;
   gradient: string;
-  /** true = 真实表单已上线,可点;false = 仍是 placeholder,显示"开发中" */
-  ready: boolean;
   /** 后端 contentType 枚举(用于埋点/未来 payload 预填) */
   contentType: string;
 }
@@ -55,7 +53,6 @@ const CREATION_ITEMS: CreationItem[] = [
     desc: '支持常用格式，推荐mp4、webm',
     icon: <VideocamIcon sx={{ fontSize: 32 }} />,
     gradient: gradient2('#FE2C55', '#FF6B8A'),
-    ready: true,
     contentType: 'VIDEO',
   },
   {
@@ -64,7 +61,6 @@ const CREATION_ITEMS: CreationItem[] = [
     desc: '支持常用图片格式，png、jpg',
     icon: <ImageIcon sx={{ fontSize: 32 }} />,
     gradient: gradient2('#25F4EE', '#5DF7F2'),
-    ready: true,
     contentType: 'PICTURE',
   },
   {
@@ -73,7 +69,6 @@ const CREATION_ITEMS: CreationItem[] = [
     desc: '多图轮播 + 背景音乐',
     icon: <PhotoLibraryRoundedIcon sx={{ fontSize: 32 }} />,
     gradient: gradient2('#22D3EE', '#67E8F9'),
-    ready: true,
     contentType: 'PICTURE',
   },
   {
@@ -82,7 +77,6 @@ const CREATION_ITEMS: CreationItem[] = [
     desc: '支持 8000 字文本和 30 个图片素材',
     icon: <DescriptionIcon sx={{ fontSize: 32 }} />,
     gradient: gradient2('#8B5CF6', '#C4B5FD'),
-    ready: true,
     contentType: 'ARTICLE',
   },
   {
@@ -91,7 +85,6 @@ const CREATION_ITEMS: CreationItem[] = [
     desc: '章节连载，单本可超 10 万字',
     icon: <MenuBookRoundedIcon sx={{ fontSize: 32 }} />,
     gradient: gradient2('#A78BFA', '#DDD6FE'),
-    ready: true,
     contentType: 'NOVEL',
   },
   {
@@ -100,7 +93,6 @@ const CREATION_ITEMS: CreationItem[] = [
     desc: '摘要 + 配图 + 来源',
     icon: <ArticleRoundedIcon sx={{ fontSize: 32 }} />,
     gradient: gradient2('#F87171', '#FCA5A5'),
-    ready: true,
     contentType: 'NEWS',
   },
   {
@@ -109,7 +101,6 @@ const CREATION_ITEMS: CreationItem[] = [
     desc: '音频 + 封面 + LRC 歌词',
     icon: <LibraryMusicRoundedIcon sx={{ fontSize: 32 }} />,
     gradient: gradient2('#34D399', '#6EE7B7'),
-    ready: true,
     contentType: 'MUSIC',
   },
   {
@@ -118,7 +109,6 @@ const CREATION_ITEMS: CreationItem[] = [
     desc: '分镜列表，每页图片 + 旁白',
     icon: <AutoStoriesRoundedIcon sx={{ fontSize: 32 }} />,
     gradient: gradient2('#FB923C', '#FDBA74'),
-    ready: true,
     contentType: 'COMICS',
   },
   {
@@ -127,7 +117,6 @@ const CREATION_ITEMS: CreationItem[] = [
     desc: '竖屏短剧，支持选集',
     icon: <MovieFilterRoundedIcon sx={{ fontSize: 32 }} />,
     gradient: gradient2('#F472B6', '#F9A8D4'),
-    ready: true,
     contentType: 'VSHOW',
   },
   {
@@ -136,7 +125,6 @@ const CREATION_ITEMS: CreationItem[] = [
     desc: '季 / 集，每集独立视频',
     icon: <TvRoundedIcon sx={{ fontSize: 32 }} />,
     gradient: gradient2('#60A5FA', '#93C5FD'),
-    ready: true,
     contentType: 'TELEPLAY',
   },
   {
@@ -145,7 +133,6 @@ const CREATION_ITEMS: CreationItem[] = [
     desc: '长视频,海报+导演+演员+时长',
     icon: <LocalMoviesRoundedIcon sx={{ fontSize: 32 }} />,
     gradient: gradient2('#1E40AF', '#3B82F6'),
-    ready: true,
     contentType: 'FILM',
   },
   {
@@ -154,7 +141,6 @@ const CREATION_ITEMS: CreationItem[] = [
     desc: '2D/3D/定格,选集+制作公司+监督',
     icon: <AnimationRoundedIcon sx={{ fontSize: 32 }} />,
     gradient: gradient2('#A855F7', '#C084FC'),
-    ready: true,
     contentType: 'ANIMATION',
   },
   {
@@ -163,7 +149,6 @@ const CREATION_ITEMS: CreationItem[] = [
     desc: '直播录制+开始时间+弹幕开关',
     icon: <LiveTvRoundedIcon sx={{ fontSize: 32 }} />,
     gradient: gradient2('#DC2626', '#EF4444'),
-    ready: true,
     contentType: 'LIVE',
   },
 ];
@@ -316,10 +301,6 @@ export default function NewCreationSection() {
     // dispatcher 接住 tabParams.type 自动切 chip + 弹对应表单 dialog。
     const item = CREATION_ITEMS.find((c) => c.id === id);
     if (!item) return;
-    if (!item.ready) {
-      setSnack(`「${item.title}」正在开发中,暂未开放`);
-      return;
-    }
     const tab = TYPE_TO_TAB[id] ?? 'hd-publish';
     // type 用 chip 用的 kebab-case;chip 内部 PUBLISH_HUB_TYPE_TO_CONTENT_TYPE 再转后端枚举
     setActiveTab(tab, { type: id === 'panorama' ? 'video' : id });
@@ -360,7 +341,7 @@ export default function NewCreationSection() {
         </Box>
       </Box>
 
-      {/* 10 个发布入口(2 行 × 5 列);ready=false 的灰显并加「开发中」徽标 */}
+      {/* 发布入口(2 行 × 5 列),每个都直达对应的发布表单 */}
       <Box
         sx={{
           display: 'grid',
@@ -382,36 +363,16 @@ export default function NewCreationSection() {
               transition: 'all 0.25s ease-in-out',
               position: 'relative',
               overflow: 'hidden',
-              opacity: item.ready ? 1 : 0.55,
-              '&:hover': item.ready
-                ? {
-                    transform: 'translateY(-4px)',
-                    borderColor: 'primary.main',
-                    boxShadow: '0 8px 24px rgba(254, 44, 85, 0.15)',
-                    '& .creation-icon': {
-                      transform: 'scale(1.1) rotate(-5deg)',
-                    },
-                  }
-                : { borderColor: 'text.disabled' },
+              '&:hover': {
+                transform: 'translateY(-4px)',
+                borderColor: 'primary.main',
+                boxShadow: '0 8px 24px rgba(254, 44, 85, 0.15)',
+                '& .creation-icon': {
+                  transform: 'scale(1.1) rotate(-5deg)',
+                },
+              },
             }}
           >
-            {!item.ready && (
-              <Chip
-                size="small"
-                label="开发中"
-                sx={{
-                  position: 'absolute',
-                  top: 8,
-                  right: 8,
-                  height: 18,
-                  fontSize: 10,
-                  fontWeight: 700,
-                  bgcolor: 'rgba(255, 180, 0, 0.16)',
-                  color: '#FFB400',
-                  '& .MuiChip-label': { px: 0.75 },
-                }}
-              />
-            )}
             <Box
               className="creation-icon"
               sx={{
