@@ -1,138 +1,67 @@
 'use client';
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import Box from '@mui/material/Box';
-import Drawer from '@mui/material/Drawer';
-import IconButton from '@mui/material/IconButton';
-import { ThemeProvider, alpha } from '@mui/material/styles';
+import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import MenuIcon from '@mui/icons-material/Menu';
-import CloseIcon from '@mui/icons-material/Close';
 import { douyinDarkTheme, douyinLightTheme } from '@/styles/creatorTheme';
 import { useThemeMode } from '@/contexts/ThemeContext';
-import CreatorSidebar from './_components/CreatorSidebar';
+import { WorkspaceShell } from '../components/WorkspaceShell';
 import RightSidebar from './_components/RightSidebar';
 import { ActiveTabProvider, useActiveTab } from './ActiveTabContext';
+import { CONTENT_HOME_TAB, contentNavFor, useIsContentStaff } from './navigation';
 
 export default function CreatorLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <ActiveTabProvider>
-      <CreatorLayoutInner>{children}</CreatorLayoutInner>
-    </ActiveTabProvider>
-  );
-}
-
-function CreatorLayoutInner({ children }: { children: React.ReactNode }) {
-  const [drawerOpen, setDrawerOpen] = React.useState(false);
-  const { activeTab, setActiveTab } = useActiveTab();
   const { mode, primaryColor } = useThemeMode();
-
-  // The right sidebar (notifications / activities / calendar) is only useful on
-  // the dashboard home. Work-heavy sub-pages bring their own dense UI and don't
-  // need the duplicate context strip.
-  const showRightSidebar = activeTab === 'content';
-
-  const handleSelect = (id: string) => {
-    setActiveTab(id);
-    setDrawerOpen(false);
-  };
-
   return (
     <ThemeProvider theme={(mode === 'light' ? douyinLightTheme : douyinDarkTheme)(primaryColor)}>
       <CssBaseline />
-      {/* Mobile hamburger - floating button */}
-      <IconButton
-        onClick={() => setDrawerOpen(true)}
-        sx={{
-          display: { xs: 'inline-flex', md: 'none' },
-          position: 'fixed',
-          bottom: 16,
-          left: 16,
-          zIndex: 1100,
-          bgcolor: 'primary.main',
-          color: 'text.primary',
-          width: 48,
-          height: 48,
-          boxShadow: (theme) => `0 4px 16px ${alpha(theme.palette.primary.main, 0.4)}`,
-          '&:hover': { bgcolor: 'primary.dark' },
-        }}
-      >
-        <MenuIcon />
-      </IconButton>
-
-      {/* Mobile Drawer for sidebar */}
-      <Drawer
-        anchor="left"
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        sx={{
-          display: { xs: 'block', md: 'none' },
-          '& .MuiDrawer-paper': { width: 220, bgcolor: 'background.paper' },
-        }}
-      >
-        <Box sx={{ position: 'absolute', right: 8, top: 8 }}>
-          <IconButton size="small" onClick={() => setDrawerOpen(false)} sx={{ color: 'text.secondary' }}>
-            <CloseIcon fontSize="small" />
-          </IconButton>
-        </Box>
-        <CreatorSidebar selected={activeTab} onSelect={handleSelect} />
-      </Drawer>
-
-      <Box
-        sx={{
-          display: 'flex',
-          flexDirection: { xs: 'column', md: 'row' },
-          bgcolor: 'background.default',
-          color: 'text.primary',
-          overflow: { md: 'hidden' },
-          height: 'calc(100dvh - var(--appbar-h, 66px))',
-          minHeight: 0,
-        }}
-      >
-        {/* Desktop sidebar - hidden on mobile */}
-        <Box sx={{ display: { xs: 'none', md: 'block' }, flexShrink: 0, height: '100%' }}>
-          <CreatorSidebar selected={activeTab} onSelect={handleSelect} />
-        </Box>
-
-        {/* Main content area */}
-        <Box
-          sx={{
-            flex: 1,
-            minWidth: 0,
-            minHeight: 0,
-            overflow: 'auto',
-            p: { xs: 1.5, md: 3 },
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 2,
-          }}
-        >
-          {children}
-        </Box>
-
-        {/* Right sidebar - only on dashboard home */}
-        {showRightSidebar && (
-          <Box
-            sx={{
-              display: { xs: 'none', lg: 'block' },
-              p: 3,
-              pl: 0,
-              overflow: 'auto',
-              height: '100%',
-              flexShrink: 0,
-            }}
-          >
-            <RightSidebar />
-          </Box>
-        )}
-      </Box>
-
-      {/* Mobile right sidebar (below content) - only on dashboard home */}
-      {showRightSidebar && (
-        <Box sx={{ display: { xs: 'block', lg: 'none' }, px: 1.5, pb: 3, bgcolor: 'background.default' }}>
-          <RightSidebar />
-        </Box>
-      )}
+      {/* useUrlTab 读取 ?tab=,静态导出要求放在 Suspense 边界内 */}
+      <Suspense fallback={null}>
+        <ActiveTabProvider>
+          <CreatorWorkspace>{children}</CreatorWorkspace>
+        </ActiveTabProvider>
+      </Suspense>
     </ThemeProvider>
+  );
+}
+
+function CreatorLogo() {
+  return (
+    <Box
+      aria-hidden
+      sx={{
+        width: 32,
+        height: 32,
+        borderRadius: 1,
+        background: 'linear-gradient(135deg, #25F4EE 0%, #FE2C55 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontWeight: 700,
+        fontSize: 18,
+        color: 'background.default',
+      }}
+    >
+      清
+    </Box>
+  );
+}
+
+function CreatorWorkspace({ children }: { children: React.ReactNode }) {
+  const { activeTab, setActiveTab } = useActiveTab();
+  const isStaff = useIsContentStaff();
+  return (
+    <WorkspaceShell
+      title="创作者中心"
+      logo={<CreatorLogo />}
+      groups={contentNavFor(isStaff)}
+      selected={activeTab}
+      onSelect={(id) => setActiveTab(id)}
+      // 通知 / 活动 / 日历只在工作台首页展示,其它子页面自带密集的操作界面。
+      aside={activeTab === CONTENT_HOME_TAB ? <RightSidebar /> : undefined}
+    >
+      {children}
+    </WorkspaceShell>
   );
 }

@@ -97,7 +97,7 @@ export default function MobileNavDrawer({ open, onClose, pages, currentPath }: P
                 {currentUser?.name || '未登录'}
               </Typography>
               <Typography sx={{ fontSize: 10, color: 'text.secondary', lineHeight: 1.2 }}>
-                {currentUser?.email || 'ID: 10086'}
+                {currentUser?.email || (currentUser?.id ? `ID: ${currentUser.id}` : '')}
               </Typography>
             </Box>
           </Box>

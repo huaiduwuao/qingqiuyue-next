@@ -23,7 +23,7 @@ import MobileNavDrawer from './components/MobileNavDrawer';
 const ACCOUNT_PAGES = [
   { key: 'center', label: '个人中心', sub: '个人空间', path: '/account/center', icon: <PersonIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
   { key: 'content', label: '内容管理', sub: '创作者工作台', path: '/account/content', icon: <VideoLibraryIcon sx={{ fontSize: 18 }} />, accent: 'secondary.main' },
-  { key: 'reward', label: '悬赏中心', sub: '赏金猎人工作台', path: '/account/reward', icon: <CardGiftcardIcon sx={{ fontSize: 18 }} />, accent: 'warning.main' },
+  { key: 'reward', label: '奖励中心', sub: '任务 · 邀请 · 悬赏协作', path: '/account/reward', icon: <CardGiftcardIcon sx={{ fontSize: 18 }} />, accent: 'warning.main' },
   { key: 'settings', label: '设置', sub: '账号与隐私', path: '/account/settings', icon: <SettingsIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6' },
 ];
 

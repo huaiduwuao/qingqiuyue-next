@@ -5,6 +5,7 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
 import CreatorProfileHeader from '../../_components/CreatorProfileHeader';
+import CreatorOnboarding from '../../_components/CreatorOnboarding';
 import NewCreationSection from '../../_components/NewCreationSection';
 import DataOverviewCard from '../../_components/DataOverviewCard';
 import ContentDistributionChart from '../../_components/ContentDistributionChart';
@@ -72,6 +73,9 @@ export default function CreatorHomePage() {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, maxWidth: 1400, mx: 'auto', width: '100%', pb: 4 }}>
       {/* Hero — 创作者档案 */}
       <CreatorProfileHeader />
+
+      {/* 新创作者:从资料到第一笔收入的指引(全部完成后自动隐藏) */}
+      <CreatorOnboarding />
 
       {/* Step 1 · 灵感 → 选题 */}
       <Box>
