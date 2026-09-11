@@ -179,17 +179,10 @@ export default function ShortdramaGenPage() {
     setActiveStep(2);
   }, [scenes, handleGenerateScene]);
 
-  // 步骤 3: 合成
-  const handleCompose = useCallback(() => {
-    // TODO: 实现视频合成逻辑
-    setActiveStep(3);
-  }, []);
-
-  // 步骤 4: 导出
-  const handleExport = useCallback(() => {
-    // TODO: 实现导出逻辑
-    alert('导出功能开发中');
-  }, []);
+  // 步骤 3/4 只使用已生成完成的场景片段:按顺序连播预览,再逐段导出
+  const doneScenes = scenes.filter((s) => s.status === 'done' && s.videoUrl);
+  const [playIndex, setPlayIndex] = useState(0);
+  const current = doneScenes.length > 0 ? doneScenes[Math.min(playIndex, doneScenes.length - 1)] : undefined;
 
   const doneCount = scenes.filter((s) => s.status === 'done').length;
   const totalProgress = scenes.length > 0 ? Math.round((doneCount / scenes.length) * 100) : 0;
@@ -328,48 +321,81 @@ export default function ShortdramaGenPage() {
           <Typography variant="h6" gutterBottom>
             合成剪辑
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            将所有场景视频按顺序拼接成完整短剧
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            按场景顺序连续播放已生成的片段,检查衔接后再导出
           </Typography>
+          {current ? (
+            <Box sx={{ mb: 2 }}>
+              <video
+                key={current.id}
+                src={current.videoUrl}
+                controls
+                autoPlay
+                onEnded={() => setPlayIndex((i) => (i + 1 < doneScenes.length ? i + 1 : i))}
+                style={{ width: '100%', maxHeight: 420, background: '#000', borderRadius: 8 }}
+              />
+              <Typography variant="caption" color="text.secondary">
+                第 {doneScenes.indexOf(current) + 1} / {doneScenes.length} 段:{current.title}
+              </Typography>
+            </Box>
+          ) : (
+            <Alert severity="info" sx={{ mb: 2 }}>还没有生成完成的场景</Alert>
+          )}
           <List>
-            {scenes.map((scene, idx) => (
-              <ListItem key={scene.id} secondaryAction={
-                <Typography variant="caption" color="text.secondary">{idx + 1}</Typography>
-              }>
-                <ListItemText
-                  primary={scene.title}
-                  secondary={scene.videoUrl ? '已生成' : '未生成'}
-                />
-              </ListItem>
-            ))}
+            {scenes.map((scene, idx) => {
+              const pos = doneScenes.findIndex((d) => d.id === scene.id);
+              return (
+                <ListItem
+                  key={scene.id}
+                  onClick={() => pos >= 0 && setPlayIndex(pos)}
+                  sx={{
+                    cursor: pos >= 0 ? 'pointer' : 'default',
+                    borderRadius: 1,
+                    bgcolor: current && current.id === scene.id ? 'action.selected' : undefined,
+                  }}
+                  secondaryAction={<Typography variant="caption" color="text.secondary">{idx + 1}</Typography>}
+                >
+                  <ListItemText primary={scene.title} secondary={pos >= 0 ? '已生成,点击播放' : '未生成'} />
+                </ListItem>
+              );
+            })}
           </List>
           <Divider sx={{ my: 2 }} />
           <Box sx={{ display: 'flex', gap: 2 }}>
             <Button onClick={() => setActiveStep(1)}>上一步</Button>
             <Box sx={{ flex: 1 }} />
-            <Button variant="contained" onClick={handleCompose}>
-              开始合成
+            <Button variant="contained" onClick={() => setActiveStep(3)} disabled={doneScenes.length === 0}>
+              下一步:导出
             </Button>
           </Box>
         </Paper>
       )}
 
-      {/* 步骤 4: 导出发布 */}
+      {/* 步骤 4: 导出 */}
       {activeStep === 3 && (
         <Paper sx={{ p: 3 }}>
           <Typography variant="h6" gutterBottom>
-            导出发布
+            导出
           </Typography>
-          <Alert severity="success" sx={{ mb: 3 }}>
-            短剧合成完成！可以导出或直接发布到平台。
+          <Alert severity="info" sx={{ mb: 2 }}>
+            平台暂不在服务端把片段拼接成单个文件。请按顺序下载各段视频,合成后到「发布作品」上传。
           </Alert>
+          <List>
+            {doneScenes.map((s, idx) => (
+              <ListItem
+                key={s.id}
+                secondaryAction={
+                  <Button size="small" component="a" href={s.videoUrl} target="_blank" rel="noopener noreferrer">
+                    下载
+                  </Button>
+                }
+              >
+                <ListItemText primary={`${idx + 1}. ${s.title}`} />
+              </ListItem>
+            ))}
+          </List>
           <Box sx={{ display: 'flex', gap: 2 }}>
             <Button onClick={() => setActiveStep(2)}>上一步</Button>
-            <Box sx={{ flex: 1 }} />
-            <Button variant="outlined">导出视频</Button>
-            <Button variant="contained" onClick={handleExport} startIcon={<SendIcon />}>
-              发布到平台
-            </Button>
           </Box>
         </Paper>
       )}

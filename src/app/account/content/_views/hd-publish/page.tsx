@@ -526,7 +526,7 @@ export default function HdPublishPage() {
     }
     const contentId = Number(detail.id);
     if (!contentId) {
-      setSnack('演示内容不支持提交申诉');
+      setSnack('作品还没有有效的内容编号,无法提交申诉');
       return;
     }
     try {

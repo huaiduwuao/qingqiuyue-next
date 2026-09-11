@@ -1767,22 +1767,8 @@ export default function OriginalPage() {
                           setSnack('证书 PDF 已生成（本地下载）');
                         }
                       } catch (err) {
-                        if (isNetworkError(err)) {
-                          // 网络错 fallback:本地生成一个简单 text 占位
-                          const blob = new Blob(
-                            [
-                              `作品：${p.title}\n登记号：${p.id}\n证书编号：${p.certificateNo}\n登记日期：${new Date(p.registeredAt).toISOString().slice(0, 10)}\n本证书由青丘阅原创登记中心颁发`,
-                            ],
-                            { type: 'application/pdf' }
-                          );
-                          const url = URL.createObjectURL(blob);
-                          const a = document.createElement('a');
-                          a.href = url;
-                          a.download = `${p.title}-证书.pdf`;
-                          a.click();
-                          URL.revokeObjectURL(url);
-                          setSnack('证书已下载（离线模式）');
-                        } else if (isAuthError(err)) {
+                        // 下载失败不再本地伪造一份「证书」(以前是把纯文本存成 .pdf)
+                        if (isAuthError(err)) {
                           setSnack('请重新登录');
                         } else {
                           setSnack(formatApiError(err));

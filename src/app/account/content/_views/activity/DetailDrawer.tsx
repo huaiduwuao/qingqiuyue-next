@@ -587,9 +587,9 @@ function LeaderboardTabContent({ activity }: { activity: Activity }) {
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, justifyContent: 'flex-end' }}>
-                <HowToVoteRoundedIcon sx={{ fontSize: 11, color: 'text.disabled' }} />
+                <FavoriteRoundedIcon sx={{ fontSize: 11, color: 'text.disabled' }} />
                 <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-                  {formatBigNumber(e.votes)}
+                  {formatBigNumber(e.likes)}
                 </Typography>
               </Box>
             </Box>
@@ -684,12 +684,6 @@ function MyWorkTabContent({ activity }: { activity: Activity }) {
                   <FavoriteRoundedIcon sx={{ fontSize: 11, color: 'text.disabled' }} />
                   <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>
                     {formatBigNumber(s.likes)}
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
-                  <HowToVoteRoundedIcon sx={{ fontSize: 11, color: 'text.disabled' }} />
-                  <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>
-                    {formatBigNumber(s.votes)} 票
                   </Typography>
                 </Box>
               </Box>

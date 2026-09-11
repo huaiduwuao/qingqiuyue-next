@@ -82,12 +82,13 @@ export interface ActivitySubmission {
   workDuration: number;
   views: number;
   likes: number;
-  votes: number;
+  /** 当前按真实点赞数排的名次 */
   rank?: number;
   prize?: string;
   submittedAt: number;
 }
 
+/** 排行榜:按投稿作品的真实点赞数排序 */
 export interface LeaderboardEntry {
   rank: number;
   creatorName: string;
@@ -95,7 +96,7 @@ export interface LeaderboardEntry {
   initials: string;
   workTitle: string;
   views: number;
-  votes: number;
+  likes: number;
   isMe?: boolean;
 }
 

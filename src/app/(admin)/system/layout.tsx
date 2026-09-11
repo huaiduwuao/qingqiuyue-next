@@ -73,6 +73,7 @@ const PageComponents: Record<string, React.ComponentType<any>> = {
   '/system/recharge-records': dynamic(() => import('./recharge-records/page'), { ssr: false }),
   '/system/withdraw-review': dynamic(() => import('./withdraw-review/page'), { ssr: false }),
   '/system/shop': dynamic(() => import('./shop/page'), { ssr: false }),
+  '/system/activity': dynamic(() => import('./activity/page'), { ssr: false }),
   '/system/stats/visitor': dynamic(() => import('./stats/visitor/page'), { ssr: false }),
   '/system/stats/active': dynamic(() => import('./stats/active/page'), { ssr: false }),
   '/system/stats/content': dynamic(() => import('./stats/content/page'), { ssr: false }),

@@ -266,10 +266,8 @@ export default function NewCreationSection() {
       setWip((p) => p.filter((w) => w.id !== item.id));
       setSnack('已取消');
     } catch (err) {
-      if (isNetworkError(err)) {
-        setWip((p) => p.filter((w) => w.id !== item.id));
-        setSnack('已取消(离线模式)');
-      } else if (isAuthError(err)) {
+      // 失败就是失败:以前网络错时本地把条目删掉并提示「已取消(离线模式)」,服务端其实没动
+      if (isAuthError(err)) {
         setSnack('请重新登录');
       } else {
         setSnack(formatApiError(err));
@@ -281,10 +279,7 @@ export default function NewCreationSection() {
       await accountClient.post('/account/content/wip/pause', { id: item.id, paused: !item.paused });
       setWip((p) => p.map((w) => (w.id === item.id ? { ...w, paused: !w.paused } : w)));
     } catch (err) {
-      if (isNetworkError(err)) {
-        setWip((p) => p.map((w) => (w.id === item.id ? { ...w, paused: !w.paused } : w)));
-        setSnack(item.paused ? '已继续(离线模式)' : '已暂停(离线模式)');
-      } else if (isAuthError(err)) {
+      if (isAuthError(err)) {
         setSnack('请重新登录');
       } else {
         setSnack(formatApiError(err));
@@ -297,10 +292,7 @@ export default function NewCreationSection() {
       setWip((p) => p.filter((w) => w.id !== item.id));
       setSnack('已发布');
     } catch (err) {
-      if (isNetworkError(err)) {
-        setWip((p) => p.filter((w) => w.id !== item.id));
-        setSnack('已发布(离线模式)');
-      } else if (isAuthError(err)) {
+      if (isAuthError(err)) {
         setSnack('请重新登录');
       } else {
         setSnack(formatApiError(err));

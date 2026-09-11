@@ -93,7 +93,7 @@ export default function ActivityPage() {
   const [snack, setSnack] = useState<{ msg: string; sev: 'success' | 'info' | 'warning' } | null>(null);
 
   // 真接口拉活动列表 + 我的可投稿作品
-  const { data: actResp } = useQuery({
+  const { data: actResp, refetch: refetchActivities } = useQuery({
     queryKey: ['creator-activities', category],
     queryFn: () => getActivityList({ category: category === 'all' ? undefined : category }),
     staleTime: 30 * 1000,
@@ -237,37 +237,14 @@ export default function ActivityPage() {
   const confirmSubmit = async () => {
     if (!submitTarget || submitSelected.length === 0) return;
     try {
-      await accountClient('/activity/submit', { method: 'POST', data: { activityId: submitTarget.id } });
-      const newSubs: ActivitySubmission[] = submitSelected.map((wid, idx) => {
-        const w = apiMyWorks.find((x) => x.id === wid)!;
-        return {
-          id: `sub-${Date.now()}-${idx}`,
-          workId: w.id,
-          workTitle: w.title,
-          workCover: w.cover,
-          workDuration: w.duration,
-          views: w.views,
-          likes: w.likes,
-          votes: Math.floor(w.likes * 0.6),
-          submittedAt: Date.now(),
-        };
+      // 投稿记录、名次、投稿数都以服务端为准,提交后重新拉取(以前本地拼一条假投稿,票数 = 点赞 × 0.6)
+      const res: any = await accountClient('/activity/submit', {
+        method: 'POST',
+        data: { activityId: submitTarget.id, workIds: submitSelected, caption: submitCaption.trim() },
       });
-      setItems((prev) =>
-        prev.map((a) =>
-          a.id === submitTarget.id
-            ? {
-                ...a,
-                participation: 'submitted',
-                submissions: [...a.submissions, ...newSubs],
-                submissionCount: a.submissionCount + newSubs.length,
-              }
-            : a,
-        ),
-      );
-      setSnack({
-        msg: `已提交 ${newSubs.length} 部作品到《${submitTarget.title}》`,
-        sev: 'success',
-      });
+      const count = res?.data?.submitted ?? submitSelected.length;
+      await refetchActivities();
+      setSnack({ msg: `已提交 ${count} 部作品到《${submitTarget.title}》`, sev: 'success' });
       closeSubmit();
     } catch (e) {
       setSnack({ msg: `投稿失败:${e instanceof Error ? e.message : '网络异常'}`, sev: 'warning' });

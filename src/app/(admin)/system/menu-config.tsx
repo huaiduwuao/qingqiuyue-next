@@ -35,6 +35,7 @@ import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded';
 import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
 import PaymentRoundedIcon from '@mui/icons-material/PaymentRounded';
 import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
+import EventRoundedIcon from '@mui/icons-material/EventRounded';
 import HubRoundedIcon from '@mui/icons-material/HubRounded';
 import TravelExploreIcon from '@mui/icons-material/TravelExplore';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
@@ -126,6 +127,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
       { id: 'dash-analysis', label: '分析页', path: '/system/dashboard/analysis', icon: <AccountTreeRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
       { id: 'dash-monitor', label: '监控页', path: '/system/dashboard/monitor', icon: <StorageRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D' },
       { id: 'dash-workplace', label: '工作台', path: '/system/dashboard/workplace', icon: <AppsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'success.main' },
+      { id: 'activity', label: '创作者活动', path: '/system/activity', icon: <EventRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
     ],
   },
   {
