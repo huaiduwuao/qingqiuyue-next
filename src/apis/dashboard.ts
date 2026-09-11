@@ -67,49 +67,6 @@ export async function getCollectionList(params?: PageParams): Promise<PageResult
   return normalizeLegacyPageResponse(res as any);
 }
 
-export interface ProtectedWork {
-  id: string;
-  title: string;
-  cover: string;
-  fingerprint: string;
-  status: 'monitoring' | 'disputed' | 'takenDown';
-  monitorAt: number;
-  takedowns: number;
-  income: number;
-}
-export async function getProtectedList() {
-  return unwrap<PageData<ProtectedWork>>(await accountClient('/creator/original/protected'));
-}
-
-export interface Infringement {
-  id: string;
-  workTitle: string;
-  infringer: string;
-  platform: string;
-  url: string;
-  status: 'detected' | 'noticed' | 'takedown' | 'pending';
-  detectedAt: number;
-  income: number;
-}
-export async function getInfringementList() {
-  return unwrap<PageData<Infringement>>(await accountClient('/creator/original/infringements'));
-}
-
-export interface TakedownRecord {
-  id: string;
-  workTitle: string;
-  infringer: string;
-  platform: string;
-  reason: string;
-  reqAt: number;
-  completedAt: number;
-  status: 'takenDown' | 'rejected' | 'appealing';
-  refund: number;
-}
-export async function getTakedownList() {
-  return unwrap<PageData<TakedownRecord>>(await accountClient('/creator/original/takedowns'));
-}
-
 export interface HdVideo {
   id: string;
   title: string;
@@ -462,34 +419,6 @@ export async function getCreatorProfile(): Promise<{
     }
   }
   return data;
-}
-
-// ========== 存证(original 页面用) ==========
-
-export interface Certificate {
-  id: string;
-  userId: number;
-  contentId: number;
-  contentTitle: string;
-  cover: string;
-  contentType: string;
-  fingerprint: string; // sha256 hex
-  blockchainHash: string; // sha256 hex
-  certificateNo: string; // QY-DBC-2026-XXXXXXXX
-  level: string;
-  status: string;
-  infringeCount: number;
-  totalViews: number;
-  duration: string;
-  registeredAt: number;
-}
-export async function applyOriginalCertificate(contentIds: number[]) {
-  return unwrap<PageData<Certificate>>(
-    await accountClient.post('/original/apply', { contentIds })
-  );
-}
-export async function getCertificateList() {
-  return unwrap<PageData<Certificate>>(await accountClient('/certificate/list'));
 }
 
 // ========== 悬赏榜 + 分类 ==========

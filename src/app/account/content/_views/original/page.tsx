@@ -1,1927 +1,354 @@
 'use client';
 
-
-// 该页依赖 client context + 后端实时数据,SSR/pre-render 时 TIERS/orders 等未就绪 →
-// 报 "Cannot read properties of undefined"。强制 dynamic 跳过预渲染。
-
-import React, { useState, useMemo, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { getProtectedList, getInfringementList, getTakedownList, getMyWorks, type Certificate } from '@/apis/dashboard';
+import React, { useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
-import IconButton from '@mui/material/IconButton';
 import TextField from '@mui/material/TextField';
-import InputAdornment from '@mui/material/InputAdornment';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
-import Menu from '@mui/material/Menu';
-import MenuItem from '@mui/material/MenuItem';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
-import Drawer from '@mui/material/Drawer';
-import Stack from '@mui/material/Stack';
 import Snackbar from '@mui/material/Snackbar';
-import Switch from '@mui/material/Switch';
-import FormControlLabel from '@mui/material/FormControlLabel';
 import Chip from '@mui/material/Chip';
-import LinearProgress from '@mui/material/LinearProgress';
-import Tooltip from '@mui/material/Tooltip';
-import Divider from '@mui/material/Divider';
-import RadioGroup from '@mui/material/RadioGroup';
-import Radio from '@mui/material/Radio';
-import FormControl from '@mui/material/FormControl';
-import VerifiedRoundedIcon from '@mui/icons-material/VerifiedRounded';
+import Checkbox from '@mui/material/Checkbox';
+import Alert from '@mui/material/Alert';
+import CircularProgress from '@mui/material/CircularProgress';
 import CopyrightRoundedIcon from '@mui/icons-material/CopyrightRounded';
-import ShieldRoundedIcon from '@mui/icons-material/ShieldRounded';
-import GavelRoundedIcon from '@mui/icons-material/GavelRounded';
-import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
-import FingerprintRoundedIcon from '@mui/icons-material/FingerprintRounded';
-import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
-import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
-import ErrorRoundedIcon from '@mui/icons-material/ErrorRounded';
-import HourglassEmptyRoundedIcon from '@mui/icons-material/HourglassEmptyRounded';
-import BlockRoundedIcon from '@mui/icons-material/BlockRounded';
-import HandshakeRoundedIcon from '@mui/icons-material/HandshakeRounded';
-import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
-import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
-import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
-import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
-import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
-import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import SearchIcon from '@mui/icons-material/Search';
-import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
-import RocketLaunchRoundedIcon from '@mui/icons-material/RocketLaunchRounded';
-import TravelExploreRoundedIcon from '@mui/icons-material/TravelExploreRounded';
-import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
-import NotificationsActiveRoundedIcon from '@mui/icons-material/NotificationsActiveRounded';
-import SecurityRoundedIcon from '@mui/icons-material/SecurityRounded';
-import { gradient2, gradient3 } from '@/constants/gradients';
-import { adminClient, accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
-import { RelativeTime } from '@/components/common/RelativeTime';
-
-type ProtectLevel = 'full' | 'standard' | 'light';
-type OriginalStatus = 'monitoring' | 'infringing' | 'whitelisted' | 'paused';
-type InfringeAction = 'pending' | 'submitted' | 'takenDown' | 'appealed' | 'rejected' | 'settled';
-type SourcePlatform = 'douyin' | 'kuaishou' | 'weibo' | 'bilibili' | 'xiaohongshu' | 'other';
-
-interface ProtectedWork {
-  id: string;
-  title: string;
-  cover: string;
-  type: 'video' | 'image' | 'article';
-  fingerprint: string;
-  blockchainHash: string;
-  certificateNo: string;
-  registeredAt: number;
-  level: ProtectLevel;
-  status: OriginalStatus;
-  infringeCount: number;
-  totalViews: number; // 我的作品播放
-  duration?: string;
-}
-
-interface Infringement {
-  id: string;
-  workId: string;
-  workTitle: string;
-  workCover: string;
-  infractorName: string;
-  infractorAvatar: string;
-  infractorFans: number;
-  similarity: number; // 0-100
-  platform: SourcePlatform;
-  sourceUrl: string;
-  detectedAt: number;
-  views: number;
-  status: InfringeAction;
-  resolution?: string;
-  whitelisted?: boolean;
-}
-
-interface TakedownRecord {
-  id: string;
-  workTitle: string;
-  workCover: string;
-  infractorName: string;
-  platform: SourcePlatform;
-  status: InfringeAction;
-  submittedAt: number;
-  resolvedAt?: number;
-  reason: string;
-  proofHash?: string;
-}
-
-const LEVEL_META: Record<ProtectLevel, { label: string; color: string; bg: string; desc: string; cycles: string }> = {
-  full: { label: '全网监测', color: '#FE2C55', bg: 'rgba(254, 44, 85, 0.12)', desc: '全网比对 + 跨平台追踪 + 自动维权', cycles: '实时' },
-  standard: { label: '标准监测', color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)', desc: '主流平台 1 小时比对一次', cycles: '1 小时' },
-  light: { label: '轻度监测', color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.12)', desc: '主流平台 24 小时比对一次', cycles: '24 小时' },
-};
-
-const STATUS_META: Record<OriginalStatus, { label: string; color: string; bg: string }> = {
-  monitoring: { label: '监测中', color: '#25F4EE', bg: 'rgba(37, 244, 238, 0.12)' },
-  infringing: { label: '发现侵权', color: '#FE2C55', bg: 'rgba(254, 44, 85, 0.12)' },
-  whitelisted: { label: '已白名单', color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)' },
-  paused: { label: '已暂停', color: 'rgba(255,255,255,0.5)', bg: 'rgba(255,255,255,0.06)' },
-};
-
-const INFRINGE_STATUS_META: Record<InfringeAction, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
-  pending: { label: '待处理', color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)', icon: <HourglassEmptyRoundedIcon sx={{ fontSize: 12 }} /> },
-  submitted: { label: '已提交申诉', color: '#25F4EE', bg: 'rgba(37, 244, 238, 0.12)', icon: <RocketLaunchRoundedIcon sx={{ fontSize: 12 }} /> },
-  takenDown: { label: '已下架', color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.12)', icon: <CheckCircleRoundedIcon sx={{ fontSize: 12 }} /> },
-  appealed: { label: '对方申诉中', color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.12)', icon: <GavelRoundedIcon sx={{ fontSize: 12 }} /> },
-  rejected: { label: '申诉被驳回', color: '#FE2C55', bg: 'rgba(254, 44, 85, 0.12)', icon: <ErrorRoundedIcon sx={{ fontSize: 12 }} /> },
-  settled: { label: '已和解', color: '#5B8DEF', bg: 'rgba(91, 141, 239, 0.12)', icon: <HandshakeRoundedIcon sx={{ fontSize: 12 }} /> },
-};
+import { formatApiError } from '@/lib/api/client';
+import { getMyWorks } from '@/apis/dashboard';
+import {
+  listCerts,
+  listSuspects,
+  listTakedowns,
+  listWhitelist,
+  applyCerts,
+  setCertStatus,
+  removeCert,
+  appealCase,
+  caseAction,
+  removeWhitelist,
+  type OriginalCert,
+  type OriginalCase,
+} from '@/apis/original';
 
 /**
- * 后端 status/platform 可能返回前端枚举外的值(新状态先发后端的常态),
- * 直接索引 META 再读 .color/.label 会整页白屏(侵权监测 tab 已踩过)。统一兜底。
+ * 原创保护:给自己已发布的作品登记存证;监测中的存证会在站内比对同名作品,
+ * 其他用户发布的同名内容出现在「疑似侵权」,可以发起下架申诉(进入平台举报审核)、忽略或加入白名单。
+ * 平台只比对站内内容,不做跨平台监测。
  */
-const STATUS_META_FALLBACK = { label: '未知状态', color: 'text.disabled', bg: 'action.hover', icon: null as React.ReactNode };
-const PLATFORM_META_FALLBACK = { label: '未知平台', color: '#9CA3AF' };
-const LEVEL_META_FALLBACK = { label: '—', color: 'text.disabled', bg: 'action.hover', desc: '', cycles: '' };
 
-const PLATFORM_META: Record<SourcePlatform, { label: string; color: string }> = {
-  douyin: { label: '抖音', color: '#FE2C55' },
-  kuaishou: { label: '快手', color: '#FFB400' },
-  weibo: { label: '微博', color: '#FF6B8A' },
-  bilibili: { label: 'B站', color: '#06B6D4' },
-  xiaohongshu: { label: '小红书', color: '#FE2C55' },
-  other: { label: '其他', color: '#8B8FA3' },
+const CASE_STATUS: Record<OriginalCase['status'], { label: string; color: 'default' | 'warning' | 'info' | 'success' | 'error' }> = {
+  pending: { label: '待处理', color: 'warning' },
+  ignored: { label: '已忽略', color: 'default' },
+  submitted: { label: '申诉审核中', color: 'info' },
+  takenDown: { label: '申诉成立', color: 'success' },
+  rejected: { label: '申诉被驳回', color: 'error' },
 };
 
+const fmtDate = (ms: number) => (ms ? new Date(ms).toLocaleString('zh-CN', { hour12: false }) : '-');
+const shortHash = (h: string) => (h.length > 16 ? `${h.slice(0, 8)}…${h.slice(-6)}` : h);
+const esc = (s: string) => s.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch] as string);
 
-
-
-function formatCount(n: number): string {
-  if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  return String(n);
-}
-
-function shortHash(hash: string, head = 6, tail = 4): string {
-  if (hash.length <= head + tail + 3) return hash;
-  return `${hash.slice(0, head)}…${hash.slice(-tail)}`;
-}
-
-// relativeTime() 已废弃:SSR/CSR Date.now() 不同会引发 hydration mismatch。
-// 改用 <RelativeTime ts={...} /> 组件。
-
-function CertRow({ label, value, copyable }: { label: string; value: string; copyable?: boolean }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5 }}>
-      <Typography sx={{ fontSize: 11, color: 'text.disabled', width: 88, flexShrink: 0 }}>{label}</Typography>
-      <Typography
-        sx={{
-          fontSize: 11,
-          color: 'text.primary',
-          fontFamily: 'monospace',
-          flex: 1,
-          minWidth: 0,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {value}
-      </Typography>
-      {copyable && (
-        <Tooltip title={copied ? '已复制' : '复制'}>
-          <IconButton
-            size="small"
-            onClick={() => {
-              navigator.clipboard?.writeText(value);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1200);
-            }}
-            sx={{ p: 0.25 }}
-          >
-            <ContentCopyRoundedIcon sx={{ fontSize: 12 }} />
-          </IconButton>
-        </Tooltip>
-      )}
-    </Box>
-  );
+/** 打开一张可打印的存证证书,浏览器里可直接「另存为 PDF」 */
+function printCertificate(c: OriginalCert) {
+  const w = window.open('', '_blank', 'width=720,height=900');
+  if (!w) return false;
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>原创存证证书 ${esc(c.certificateNo)}</title>
+<style>body{font-family:system-ui,"PingFang SC","Microsoft YaHei",sans-serif;padding:48px;color:#222}
+.card{border:3px double #c8102e;padding:40px;border-radius:8px}h1{text-align:center;color:#c8102e;letter-spacing:8px;margin:0 0 32px}
+table{width:100%;border-collapse:collapse}td{padding:10px 4px;border-bottom:1px solid #eee;font-size:14px;vertical-align:top}
+td:first-child{color:#888;width:110px}.mono{font-family:Consolas,monospace;word-break:break-all}.foot{margin-top:32px;font-size:12px;color:#888;text-align:center}</style>
+</head><body><div class="card"><h1>原创存证证书</h1><table>
+<tr><td>证书编号</td><td class="mono">${esc(c.certificateNo)}</td></tr>
+<tr><td>作品名称</td><td>${esc(c.title)}</td></tr>
+<tr><td>作品编号</td><td class="mono">${esc(c.contentId)}</td></tr>
+<tr><td>内容指纹</td><td class="mono">SHA-256 ${esc(c.fingerprint)}</td></tr>
+<tr><td>登记时间</td><td>${esc(fmtDate(c.registeredAt))}</td></tr>
+</table><div class="foot">本证书记录作品在青丘阅平台的原创登记信息,指纹由作品编号、作者、标题与发布时间计算得出。</div></div>
+<script>window.onload=function(){window.print()}</script></body></html>`);
+  w.document.close();
+  return true;
 }
 
 export default function OriginalPage() {
+  const qc = useQueryClient();
   const [tab, setTab] = useState(0);
   const [snack, setSnack] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
-  const [detailId, setDetailId] = useState<string | null>(null);
-  const [menuAnchor, setMenuAnchor] = useState<{ el: HTMLElement; id: string } | null>(null);
-  const [infringeMenuAnchor, setInfringeMenuAnchor] = useState<{ el: HTMLElement; id: string } | null>(null);
-  const [search, setSearch] = useState('');
   const [addSelected, setAddSelected] = useState<string[]>([]);
-  const [addLevel, setAddLevel] = useState<ProtectLevel>('full');
-  const [appealTarget, setAppealTarget] = useState<Infringement | null>(null);
+  const [appealTarget, setAppealTarget] = useState<OriginalCase | null>(null);
   const [appealReason, setAppealReason] = useState('');
-  const [progressTarget, setProgressTarget] = useState<Infringement | null>(null);
-  // settings
-  const [autoTakedown, setAutoTakedown] = useState(true);
-  const [notifyInfringe, setNotifyInfringe] = useState(true);
-  const [notifyResolved, setNotifyResolved] = useState(false);
-  const [monitorScope, setMonitorScope] = useState<SourcePlatform[]>(['douyin', 'kuaishou', 'weibo', 'bilibili', 'xiaohongshu']);
-  const [whitelist, setWhitelist] = useState<string[]>(['科技评测菌', 'MCN 联合出品']);
+  const [busy, setBusy] = useState(false);
 
-  // 真接口:3 类维权数据(uid 隔离),tab 切换强制 refetch
-  const protectedQ = useQuery({ queryKey: ['creator-original-protected'], queryFn: () => getProtectedList(), staleTime: 30 * 1000, refetchOnMount: 'always' });
-  const infringeQ = useQuery({ queryKey: ['creator-original-infringements'], queryFn: () => getInfringementList(), staleTime: 30 * 1000, refetchOnMount: 'always' });
-  const takedownQ = useQuery({ queryKey: ['creator-original-takedowns'], queryFn: () => getTakedownList(), staleTime: 30 * 1000, refetchOnMount: 'always' });
-  // "加入监测"对话框的候选作品:从我的可投稿作品接口拉(已有的 dashboard 端点)
-  const myWorksQ = useQuery({ queryKey: ['creator-my-works'], queryFn: () => getMyWorks(), staleTime: 30 * 1000, refetchOnMount: 'always' });
-  const apiProtected = (protectedQ.data?.records ?? protectedQ.data?.list ?? []).map((p: any) => ({
-    id: p.id, title: p.title, cover: p.cover, fingerprint: p.fingerprint,
-    status: p.status, monitorAt: p.monitorAt, takedowns: p.takedowns, income: p.income,
-    level: 'full', matchRate: 92, platforms: [], lastCheck: Date.now(),
-  })) as unknown as ProtectedWork[];
-  const apiInfringe = (infringeQ.data?.records ?? infringeQ.data?.list ?? []).map((i: any) => ({
-    id: i.id, workTitle: i.workTitle, infringer: i.infringer, platform: i.platform, url: i.url,
-    status: i.status, detectedAt: i.detectedAt, income: i.income,
-    level: 'medium', evidence: [], autoTakedownEligible: i.income > 0,
-  })) as unknown as Infringement[];
-  const apiTakedowns = (takedownQ.data?.records ?? takedownQ.data?.list ?? []).map((t: any) => ({
-    id: t.id, workTitle: t.workTitle, infringer: t.infringer, platform: t.platform,
-    reason: t.reason, reqAt: t.reqAt, completedAt: t.completedAt, status: t.status, refund: t.refund,
-    appealCount: 0,
-  })) as unknown as TakedownRecord[];
-  const [protected_, setProtected] = useState<ProtectedWork[]>(apiProtected as ProtectedWork[]);
-  const [infringe, setInfringe] = useState<Infringement[]>(apiInfringe as Infringement[]);
-  const takedowns = apiTakedowns as TakedownRecord[];
-  useEffect(() => { if (apiInfringe.length) setInfringe(apiInfringe); }, [apiInfringe.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const certsQ = useQuery({ queryKey: ['original', 'certs'], queryFn: listCerts, refetchOnMount: 'always' });
+  const suspectsQ = useQuery({ queryKey: ['original', 'suspects'], queryFn: listSuspects, refetchOnMount: 'always' });
+  const takedownsQ = useQuery({ queryKey: ['original', 'takedowns'], queryFn: listTakedowns, enabled: tab === 2 });
+  const whitelistQ = useQuery({ queryKey: ['original', 'whitelist'], queryFn: listWhitelist, enabled: tab === 3 });
+  const worksQ = useQuery({ queryKey: ['creator-my-works'], queryFn: () => getMyWorks(), enabled: addOpen });
 
-  const stats = useMemo(() => {
-    return {
-      protected: protected_.length,
-      monitoring: protected_.filter((p) => p.status === 'monitoring' || p.status === 'infringing').length,
-      infringes: infringe.filter((i) => i.status === 'pending' || i.status === 'submitted' || i.status === 'appealed').length,
-      takenDown: takedowns.filter((t) => t.status === 'takenDown').length,
-    };
-  }, [protected_, infringe, takedowns]);
+  const certs = certsQ.data ?? [];
+  const suspects = suspectsQ.data ?? [];
+  const registered = useMemo(() => new Set(certs.map((c) => c.contentId)), [certs]);
+  const candidates = ((worksQ.data as any)?.list ?? (worksQ.data as any)?.records ?? []).filter(
+    (w: any) => !registered.has(String(w.id)),
+  );
 
-  const filteredProtected = useMemo(() => {
-    if (!search) return protected_;
-    const k = search.toLowerCase();
-    return protected_.filter((p) => p.title.toLowerCase().includes(k) || p.certificateNo.toLowerCase().includes(k));
-  }, [protected_, search]);
-
-  const filteredInfringe = useMemo(() => {
-    if (!search) return infringe;
-    const k = search.toLowerCase();
-    return infringe.filter(
-      (i) =>
-        i.workTitle.toLowerCase().includes(k) ||
-        i.infractorName.toLowerCase().includes(k) ||
-        (PLATFORM_META[i.platform] ?? PLATFORM_META_FALLBACK).label.toLowerCase().includes(k),
-    );
-  }, [infringe, search]);
-
-  const handleMenuOpen = (e: React.MouseEvent<HTMLElement>, id: string) => {
-    setMenuAnchor({ el: e.currentTarget, id });
-  };
-  const handleMenuClose = () => setMenuAnchor(null);
-
-  const handleInfringeMenuOpen = (e: React.MouseEvent<HTMLElement>, id: string) => {
-    setInfringeMenuAnchor({ el: e.currentTarget, id });
-  };
-  const handleInfringeMenuClose = () => setInfringeMenuAnchor(null);
-
-  const handlePause = (id: string) => {
-    setProtected((p) => p.map((x) => (x.id === id ? { ...x, status: 'paused' as OriginalStatus } : x)));
-    setSnack('监测已暂停');
-    handleMenuClose();
-  };
-  const handleResume = (id: string) => {
-    setProtected((p) => p.map((x) => (x.id === id ? { ...x, status: 'monitoring' as OriginalStatus } : x)));
-    setSnack('监测已恢复');
-    handleMenuClose();
-  };
-  const handleDelete = async (id: string) => {
+  const act = async (fn: () => Promise<unknown>, ok: string) => {
+    setBusy(true);
     try {
-      await adminClient('/original/remove', { method: 'POST', data: { id } });
-      setProtected((p) => p.filter((x) => x.id !== id));
-      setSnack('已移除存证');
+      await fn();
+      setSnack(ok);
+      qc.invalidateQueries({ queryKey: ['original'] });
+      return true;
     } catch (err) {
-      setSnack(formatApiError(err) || '移除失败,请稍后重试');
+      setSnack(formatApiError(err) || '操作失败,请稍后重试');
+      return false;
+    } finally {
+      setBusy(false);
     }
-    handleMenuClose();
   };
 
-  const handleTakedown = (i: Infringement) => {
-    setAppealTarget(i);
-    setAppealReason('');
-  };
-
-  const submitAppeal = async () => {
-    if (!appealTarget || !appealReason.trim()) return;
-    try {
-      await adminClient('/original/appeal', {
-        method: 'POST',
-        data: { id: appealTarget.id, reason: appealReason.trim() },
-      });
-      setInfringe((arr) => arr.map((i) => (i.id === appealTarget.id ? { ...i, status: 'submitted' as InfringeAction } : i)));
-      setSnack('申诉已提交,等待平台审核');
-    } catch (err) {
-      setSnack(formatApiError(err) || '申诉提交失败,请稍后重试');
-    }
-    setAppealTarget(null);
-    setAppealReason('');
-  };
-  const handleWhitelist = (id: string) => {
-    const item = infringe.find((i) => i.id === id);
-    if (!item) return;
-    setInfringe((arr) =>
-      arr.map((i) => (i.id === id ? { ...i, whitelisted: true, status: 'settled' as InfringeAction, resolution: '已加入白名单' } : i)),
-    );
-    setWhitelist((w) => (w.includes(item.infractorName) ? w : [...w, item.infractorName]));
-    setSnack(`已添加 ${item.infractorName} 到白名单`);
-    handleInfringeMenuClose();
-  };
-  const handleIgnore = (id: string) => {
-    setInfringe((arr) => arr.filter((i) => i.id !== id));
-    setSnack('已忽略');
-    handleInfringeMenuClose();
-  };
-
-  const toggleAddSelected = (id: string) => {
-    setAddSelected((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
-  };
-
-  const handleSubmitAdd = async () => {
-    if (addSelected.length === 0) {
-      setSnack('请选择要存证的作品');
-      return;
-    }
-    try {
-      await Promise.all(
-        addSelected.map((contentId) =>
-          adminClient('/original/apply', { method: 'POST', data: { contentId } }),
-        ),
-      );
-    } catch {
-      // still update local state
-    }
-    const works = (myWorksQ.data?.records ?? myWorksQ.data?.list ?? []).filter((c: any) => addSelected.includes(String(c.id)));
-    // 真接口:批量查后端 /original/apply 一次性返回所有证书(后端真生成 hash)
-    const contentIds = works.map((w: any) => Number(w.id));
-    let realCerts: Certificate[] = [];
-    try {
-      const resp = await adminClient.post('/original/apply', { contentIds });
-      const raw = (resp as any)?.data?.data ?? (resp as any)?.data ?? resp;
-      realCerts = (raw?.list ?? raw?.records ?? []) as Certificate[];
-    } catch {
-      // 网络失败时明确提示,不再用 Math.random 凑假数据
-      setSnack('存证服务暂时不可用,请稍后重试');
-      return;
-    }
-
-    const newItems: ProtectedWork[] = works.map((w: any, idx: number) => {
-      const cert = realCerts[idx];
-      return {
-        id: cert?.id ?? `p-new-${Date.now()}-${idx}`,
-        title: w.title,
-        cover: w.cover,
-        type: (w.contentType || 'video') as ProtectedWork['type'],
-        fingerprint: cert?.fingerprint ?? '',
-        blockchainHash: cert?.blockchainHash ?? '',
-        certificateNo: cert?.certificateNo ?? '',
-        registeredAt: cert?.registeredAt ?? Date.now(),
-        level: addLevel,
-        status: 'monitoring',
-        infringeCount: 0,
-        totalViews: w.views || 0,
-        duration: typeof w.duration === 'string' ? w.duration : (w.duration ? String(w.duration) : '00:00'),
-      };
-    });
-    setProtected((p) => [...newItems, ...p]);
-    setSnack(`已成功存证 ${newItems.length} 个作品`);
-    setAddOpen(false);
-    setAddSelected([]);
-    setAddLevel('full');
-  };
-
-  const toggleMonitorPlatform = (p: SourcePlatform) => {
-    setMonitorScope((s) => (s.includes(p) ? s.filter((x) => x !== p) : [...s, p]));
-  };
-
-  const removeWhitelist = (name: string) => {
-    setWhitelist((w) => w.filter((n) => n !== name));
-    setSnack(`已移除白名单 ${name}`);
-  };
+  const stats = [
+    { label: '已存证作品', value: certs.length },
+    { label: '监测中', value: certs.filter((c) => c.status === 'monitoring').length },
+    { label: '待处理疑似侵权', value: suspects.length },
+    { label: '申诉成立', value: (takedownsQ.data ?? []).filter((t) => t.status === 'takenDown').length },
+  ];
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-      {/* Stat cards */}
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
-          gap: 2,
-        }}
-      >
-        {[
-          { label: '已存证作品', value: String(stats.protected), suffix: '个', icon: <ShieldRoundedIcon />, color: '#FE2C55', bg: 'rgba(254, 44, 85, 0.12)' },
-          { label: '监测中', value: String(stats.monitoring), suffix: '个', icon: <TravelExploreRoundedIcon />, color: '#25F4EE', bg: 'rgba(37, 244, 238, 0.12)' },
-          { label: '待处理侵权', value: String(stats.infringes), suffix: '条', icon: <WarningAmberRoundedIcon />, color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)' },
-          { label: '累计下架', value: String(stats.takenDown), suffix: '条', icon: <CheckCircleRoundedIcon />, color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.12)' },
-        ].map((s) => (
-          <Box
-            key={s.label}
-            sx={{
-              p: 2.5,
-              borderRadius: 2,
-              bgcolor: 'background.paper',
-              border: '1px solid',
-              borderColor: 'divider',
-              position: 'relative',
-              overflow: 'hidden',
-            }}
-          >
-            <Box
-              sx={{
-                position: 'absolute',
-                top: -20,
-                right: -20,
-                width: 80,
-                height: 80,
-                borderRadius: '50%',
-                bgcolor: s.bg,
-                filter: 'blur(20px)',
-              }}
-            />
-            <Box sx={{ position: 'relative' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                <Box
-                  sx={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 1,
-                    bgcolor: s.bg,
-                    color: s.color,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  {s.icon}
-                </Box>
-                <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{s.label}</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
-                <Typography sx={{ fontSize: 26, fontWeight: 700, color: 'text.primary', fontVariantNumeric: 'tabular-nums' }}>
-                  {s.value}
-                </Typography>
-                <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>{s.suffix}</Typography>
-              </Box>
-            </Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <CopyrightRoundedIcon sx={{ color: 'primary.main' }} />
+        <Typography sx={{ fontSize: 18, fontWeight: 700, flex: 1 }}>原创保护</Typography>
+        <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => { setAddSelected([]); setAddOpen(true); }} sx={{ textTransform: 'none' }}>
+          登记作品
+        </Button>
+      </Box>
+      <Alert severity="info">
+        给已发布的作品登记原创存证后,平台会在站内比对同名作品:其他用户发布的同名内容会出现在「疑似侵权」。
+        发起下架申诉后由平台审核,结论会同步到「维权记录」。目前只比对本平台内容。
+      </Alert>
+
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 1.5 }}>
+        {stats.map((s) => (
+          <Box key={s.label} sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{s.label}</Typography>
+            <Typography sx={{ fontSize: 24, fontWeight: 700 }}>{s.value}</Typography>
           </Box>
         ))}
       </Box>
 
-      {/* Top action bar */}
-      <Box
-        sx={{
-          bgcolor: 'background.paper',
-          borderRadius: 2,
-          p: 2.5,
-          border: '1px solid',
-          borderColor: 'divider',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 2,
-          flexWrap: 'wrap',
-        }}
-      >
-        <Box
-          sx={{
-            width: 48,
-            height: 48,
-            borderRadius: 1.5,
-            background: 'linear-gradient(135deg, #FE2C55 0%, #FFB400 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff',
-            flexShrink: 0,
-          }}
-        >
-          <ShieldRoundedIcon sx={{ fontSize: 24 }} />
-        </Box>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.25 }}>
-            <Typography sx={{ fontSize: 15, fontWeight: 600, color: 'text.primary' }}>原创保护中心</Typography>
-            <Chip
-              size="small"
-              icon={<VerifiedRoundedIcon sx={{ fontSize: '14px !important' }} />}
-              label="已认证作者"
-              sx={{
-                height: 18,
-                fontSize: 10,
-                fontWeight: 700,
-                bgcolor: 'rgba(93, 219, 150, 0.12)',
-                color: '#5DDB96',
-                '& .MuiChip-label': { px: 0.5 },
-                '& .MuiChip-icon': { color: '#5DDB96' },
-              }}
-            />
-          </Box>
-          <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-            区块链存证 · 跨平台监测 · 一键维权 · 已为 12,832 位创作者保护 ¥ 8,432w 收益
-          </Typography>
-        </Box>
-        <Button
-          variant="contained"
-          startIcon={<AddRoundedIcon sx={{ fontSize: 16 }} />}
-          onClick={() => setAddOpen(true)}
-          sx={{
-            textTransform: 'none',
-            fontSize: 12,
-            background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)',
-            '&:hover': {
-              background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)',
-              filter: 'brightness(1.1)',
-            },
-          }}
-        >
-          添加存证
-        </Button>
-      </Box>
+      <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
+        <Tab label={`我的存证 (${certs.length})`} />
+        <Tab label={`疑似侵权 (${suspects.length})`} />
+        <Tab label="维权记录" />
+        <Tab label="白名单" />
+      </Tabs>
 
-      {/* Tabs */}
-      <Box
-        sx={{
-          bgcolor: 'background.paper',
-          borderRadius: 2,
-          border: '1px solid',
-          borderColor: 'divider',
-          overflow: 'hidden',
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid', borderColor: 'divider', px: 1 }}>
-          <Tabs
-            value={tab}
-            onChange={(_, v) => {
-              setTab(v);
-              setSearch('');
-            }}
-            sx={{
-              minHeight: 0,
-              '& .MuiTab-root': { minHeight: 0, py: 1.5, px: 2, fontSize: 13, textTransform: 'none' },
-            }}
-          >
-            <Tab value={0} label={`存证管理 ${protected_.length}`} icon={<ShieldRoundedIcon sx={{ fontSize: 16 }} />} iconPosition="start" />
-            <Tab value={1} label={`侵权监测 ${infringe.length}`} icon={<TravelExploreRoundedIcon sx={{ fontSize: 16 }} />} iconPosition="start" />
-            <Tab value={2} label={`维权记录 ${takedowns.length}`} icon={<GavelRoundedIcon sx={{ fontSize: 16 }} />} iconPosition="start" />
-            <Tab value={3} label="监测设置" icon={<SecurityRoundedIcon sx={{ fontSize: 16 }} />} iconPosition="start" />
-          </Tabs>
-          <Box sx={{ flex: 1 }} />
-          {tab !== 3 && (
-            <TextField
-              size="small"
-              placeholder={tab === 0 ? '搜索作品 / 证书编号…' : tab === 1 ? '搜索作品 / 搬运方…' : '搜索记录…'}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              sx={{
-                minWidth: 240,
-                mr: 1,
-                '& .MuiOutlinedInput-root': {
-                  fontSize: 12,
-                  bgcolor: 'action.hover',
-                  '& fieldset': { borderColor: 'divider' },
-                },
-              }}
-              slotProps={{
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon sx={{ fontSize: 14, color: 'text.disabled' }} />
-                    </InputAdornment>
-                  ),
-                },
-              }}
-            />
-          )}
-        </Box>
-
-        {/* Tab 0: 存证管理 */}
-        {tab === 0 && (
-          <Box sx={{ p: 2 }}>
-            {filteredProtected.length === 0 ? (
-              <Box sx={{ textAlign: 'center', py: 6, color: 'text.disabled', fontSize: 13 }}>
-                暂未存证任何作品
-              </Box>
-            ) : (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-                {filteredProtected.map((p) => {
-                  const lm = LEVEL_META[p.level] ?? LEVEL_META_FALLBACK;
-                  const sm = STATUS_META[p.status] ?? STATUS_META_FALLBACK;
-                  return (
-                    <Box
-                      key={p.id}
-                      sx={{
-                        p: 1.5,
-                        borderRadius: 1.5,
-                        bgcolor: 'background.paper',
-                        border: '1px solid',
-                        borderColor: p.status === 'infringing' ? 'rgba(254, 44, 85, 0.3)' : 'divider',
-                        display: 'flex',
-                        gap: 2,
-                        transition: 'border-color 0.15s',
-                        '&:hover': { borderColor: sm.color },
-                      }}
-                    >
-                      <Box
-                        onClick={() => setDetailId(p.id)}
-                        sx={{
-                          width: 100,
-                          height: 64,
-                          borderRadius: 1,
-                          background: p.cover,
-                          flexShrink: 0,
-                          position: 'relative',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        {p.duration && (
-                          <Typography
-                            sx={{
-                              position: 'absolute',
-                              bottom: 4,
-                              right: 4,
-                              fontSize: 9,
-                              color: '#fff',
-                              fontWeight: 600,
-                              bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.4)',
-                              px: 0.5,
-                              borderRadius: 0.5,
-                            }}
-                          >
-                            {p.duration}
-                          </Typography>
-                        )}
-                      </Box>
-                      <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5, flexWrap: 'wrap' }}>
-                          <Box
-                            sx={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 0.25,
-                              px: 0.5,
-                              py: 0.1,
-                              borderRadius: 0.5,
-                              bgcolor: lm.bg,
-                              color: lm.color,
-                              fontSize: 9,
-                              fontWeight: 700,
-                            }}
-                          >
-                            {lm.label}
-                          </Box>
-                          <Box
-                            sx={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 0.25,
-                              px: 0.5,
-                              py: 0.1,
-                              borderRadius: 0.5,
-                              bgcolor: sm.bg,
-                              color: sm.color,
-                              fontSize: 9,
-                              fontWeight: 700,
-                            }}
-                          >
-                            {sm.label}
-                          </Box>
-                          {p.infringeCount > 0 && (
-                            <Chip
-                              size="small"
-                              icon={<WarningAmberRoundedIcon sx={{ fontSize: '12px !important' }} />}
-                              label={`发现 ${p.infringeCount} 处侵权`}
-                              sx={{
-                                height: 16,
-                                fontSize: 9,
-                                fontWeight: 700,
-                                bgcolor: 'rgba(254, 44, 85, 0.12)',
-                                color: 'primary.main',
-                                '& .MuiChip-label': { px: 0.5 },
-                                '& .MuiChip-icon': { color: 'primary.main' },
-                              }}
-                            />
-                          )}
-                        </Box>
-                        <Typography
-                          onClick={() => setDetailId(p.id)}
-                          sx={{
-                            fontSize: 13,
-                            fontWeight: 600,
-                            color: 'text.primary',
-                            cursor: 'pointer',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            '&:hover': { color: 'primary.main' },
-                          }}
-                        >
-                          {p.title}
-                        </Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 0.5, flexWrap: 'wrap' }}>
-                          <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
-                            📜 {p.certificateNo}
-                          </Typography>
-                          <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
-                            🔗 {shortHash(p.blockchainHash, 8, 6)}
-                          </Typography>
-                          <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
-                            存证于 {<RelativeTime ts={p.registeredAt} fallback="" />}
-                          </Typography>
-                        </Box>
-                      </Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
-                        <Button
-                          size="small"
-                          startIcon={<VisibilityRoundedIcon sx={{ fontSize: 14 }} />}
-                          onClick={() => setDetailId(p.id)}
-                          sx={{ textTransform: 'none', fontSize: 11, color: 'text.secondary', minWidth: 0, px: 1 }}
-                        >
-                          证书
-                        </Button>
-                        <IconButton size="small" onClick={(e) => handleMenuOpen(e, p.id)} sx={{ p: 0.5 }} aria-label="更多">
-                          <MoreHorizIcon sx={{ fontSize: 16 }} />
-                        </IconButton>
-                      </Box>
-                    </Box>
-                  );
-                })}
-              </Box>
-            )}
-          </Box>
-        )}
-
-        {/* Tab 1: 侵权监测 */}
-        {tab === 1 && (
-          <Box sx={{ p: 2 }}>
-            {filteredInfringe.length === 0 ? (
-              <Box sx={{ textAlign: 'center', py: 6, color: 'text.disabled', fontSize: 13 }}>
-                暂未发现侵权内容
-              </Box>
-            ) : (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-                {filteredInfringe.map((i) => {
-                  const sm = INFRINGE_STATUS_META[i.status] ?? STATUS_META_FALLBACK;
-                  const pm = PLATFORM_META[i.platform] ?? PLATFORM_META_FALLBACK;
-                  return (
-                    <Box
-                      key={i.id}
-                      sx={{
-                        p: 1.5,
-                        borderRadius: 1.5,
-                        bgcolor: 'background.paper',
-                        border: '1px solid',
-                        borderColor: i.status === 'pending' ? 'rgba(255, 180, 0, 0.3)' : 'divider',
-                        display: 'flex',
-                        gap: 2,
-                        transition: 'border-color 0.15s',
-                        '&:hover': { borderColor: sm.color },
-                      }}
-                    >
-                      {/* Source + target side-by-side */}
-                      <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
-                        <Box sx={{ position: 'relative' }}>
-                          <Box
-                            sx={{
-                              width: 72,
-                              height: 48,
-                              borderRadius: 0.75,
-                              background: i.workCover,
-                            }}
-                          />
-                          <Typography
-                            sx={{
-                              position: 'absolute',
-                              bottom: 2,
-                              left: 2,
-                              fontSize: 8,
-                              color: '#fff',
-                              fontWeight: 700,
-                              bgcolor: (theme) => theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.55)' : 'rgba(0,0,0,0.4)',
-                              px: 0.5,
-                              borderRadius: 0.25,
-                            }}
-                          >
-                            原
-                          </Typography>
-                        </Box>
-                        <Box
-                          sx={{
-                            alignSelf: 'center',
-                            fontSize: 12,
-                            color: 'text.disabled',
-                          }}
-                        >
-                          →
-                        </Box>
-                        <Box sx={{ position: 'relative' }}>
-                          <Box
-                            sx={{
-                              width: 72,
-                              height: 48,
-                              borderRadius: 0.75,
-                              background: gradient2('#FE2C55', '#FFB400'),
-                              opacity: 0.85,
-                            }}
-                          />
-                          <Typography
-                            sx={{
-                              position: 'absolute',
-                              bottom: 2,
-                              left: 2,
-                              fontSize: 8,
-                              color: '#fff',
-                              fontWeight: 700,
-                              bgcolor: 'rgba(254, 44, 85, 0.8)',
-                              px: 0.5,
-                              borderRadius: 0.25,
-                            }}
-                          >
-                            搬运
-                          </Typography>
-                        </Box>
-                      </Box>
-
-                      <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
-                          <Box
-                            sx={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 0.25,
-                              px: 0.5,
-                              py: 0.1,
-                              borderRadius: 0.5,
-                              bgcolor: sm.bg,
-                              color: sm.color,
-                              fontSize: 9,
-                              fontWeight: 700,
-                            }}
-                          >
-                            {sm.icon}
-                            {sm.label}
-                          </Box>
-                          <Box
-                            sx={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 0.25,
-                              px: 0.5,
-                              py: 0.1,
-                              borderRadius: 0.5,
-                              bgcolor: `${pm.color}20`,
-                              color: pm.color,
-                              fontSize: 9,
-                              fontWeight: 700,
-                            }}
-                          >
-                            {pm.label}
-                          </Box>
-                          <Chip
-                            size="small"
-                            label={`相似度 ${i.similarity}%`}
-                            sx={{
-                              height: 16,
-                              fontSize: 9,
-                              fontWeight: 700,
-                              bgcolor: i.similarity >= 90 ? 'rgba(254, 44, 85, 0.15)' : 'rgba(255, 180, 0, 0.12)',
-                              color: i.similarity >= 90 ? 'primary.main' : '#FFB400',
-                              '& .MuiChip-label': { px: 0.5 },
-                            }}
-                          />
-                        </Box>
-                        <Typography sx={{ fontSize: 12, color: 'text.primary', fontWeight: 500 }}>
-                          {i.workTitle}
-                        </Typography>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-                          <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
-                            搬运方:<Box component="span" sx={{ color: 'text.primary' }}>{i.infractorName}</Box> · {formatCount(i.infractorFans)} 粉丝
-                          </Typography>
-                          <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
-                            已播放 {formatCount(i.views)} · 发现于 {<RelativeTime ts={i.detectedAt} fallback="" />}
-                          </Typography>
-                        </Box>
-                        {i.resolution && (
-                          <Typography sx={{ fontSize: 10, color: 'text.secondary', mt: 0.25 }}>
-                            ✓ {i.resolution}
-                          </Typography>
-                        )}
-                      </Box>
-
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
-                        {i.status === 'pending' && (
-                          <>
-                            <Button
-                              size="small"
-                              variant="contained"
-                              startIcon={<GavelRoundedIcon sx={{ fontSize: 14 }} />}
-                              onClick={() => handleTakedown(i)}
-                              sx={{
-                                textTransform: 'none',
-                                fontSize: 11,
-                                minWidth: 0,
-                                px: 1,
-                                background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)',
-                                '&:hover': {
-                                  background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)',
-                                  filter: 'brightness(1.1)',
-                                },
-                              }}
-                            >
-                              一键维权
-                            </Button>
-                            <Button
-                              size="small"
-                              onClick={() => handleWhitelist(i.id)}
-                              sx={{ textTransform: 'none', fontSize: 11, color: '#FFB400', minWidth: 0, px: 1 }}
-                            >
-                              白名单
-                            </Button>
-                          </>
-                        )}
-                        {i.status === 'submitted' && (
-                          <Button
-                            size="small"
-                            startIcon={<OpenInNewRoundedIcon sx={{ fontSize: 14 }} />}
-                            onClick={() => setProgressTarget(i)}
-                            sx={{ textTransform: 'none', fontSize: 11, color: 'text.secondary', minWidth: 0, px: 1 }}
-                          >
-                            查看进度
-                          </Button>
-                        )}
-                        <IconButton size="small" onClick={(e) => handleInfringeMenuOpen(e, i.id)} sx={{ p: 0.5 }} aria-label="更多">
-                          <MoreHorizIcon sx={{ fontSize: 16 }} />
-                        </IconButton>
-                      </Box>
-                    </Box>
-                  );
-                })}
-              </Box>
-            )}
-          </Box>
-        )}
-
-        {/* Tab 2: 维权记录 */}
-        {tab === 2 && (
-          <Box sx={{ p: 2 }}>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
-              {takedowns.map((t) => {
-                const sm = INFRINGE_STATUS_META[t.status] ?? STATUS_META_FALLBACK;
-                const pm = PLATFORM_META[t.platform] ?? PLATFORM_META_FALLBACK;
-                return (
-                  <Box
-                    key={t.id}
-                    sx={{
-                      p: 1.5,
-                      borderRadius: 1.5,
-                      bgcolor: 'background.paper',
-                      border: '1px solid',
-                      borderColor: 'divider',
-                    }}
-                  >
-                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
-                      <Box
-                        sx={{
-                          width: 56,
-                          height: 56,
-                          borderRadius: 1,
-                          background: t.workCover,
-                          flexShrink: 0,
-                        }}
-                      />
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5, flexWrap: 'wrap' }}>
-                          <Box
-                            sx={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 0.25,
-                              px: 0.5,
-                              py: 0.1,
-                              borderRadius: 0.5,
-                              bgcolor: sm.bg,
-                              color: sm.color,
-                              fontSize: 9,
-                              fontWeight: 700,
-                            }}
-                          >
-                            {sm.icon}
-                            {sm.label}
-                          </Box>
-                          <Box
-                            sx={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 0.25,
-                              px: 0.5,
-                              py: 0.1,
-                              borderRadius: 0.5,
-                              bgcolor: `${pm.color}20`,
-                              color: pm.color,
-                              fontSize: 9,
-                              fontWeight: 700,
-                            }}
-                          >
-                            {pm.label}
-                          </Box>
-                          <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
-                            提交于 {<RelativeTime ts={t.submittedAt} fallback="" />}
-                            {t.resolvedAt && ` · 处理用时 ${Math.ceil((t.resolvedAt - t.submittedAt) / 86400000)} 天`}
-                          </Typography>
-                        </Box>
-                        <Typography sx={{ fontSize: 12, color: 'text.primary', fontWeight: 500, mb: 0.25 }}>
-                          {t.workTitle}
-                        </Typography>
-                        <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-                          申诉对象:<Box component="span" sx={{ color: 'text.primary' }}>{t.infractorName}</Box>
-                        </Typography>
-                        <Typography sx={{ fontSize: 11, color: 'text.disabled', mt: 0.5, lineHeight: 1.5 }}>
-                          申诉理由:{t.reason}
-                        </Typography>
-                        {t.proofHash && (
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                            <FingerprintRoundedIcon sx={{ fontSize: 11, color: 'text.disabled' }} />
-                            <Typography sx={{ fontSize: 10, color: 'text.disabled', fontFamily: 'monospace' }}>
-                              {shortHash(t.proofHash, 10, 8)}
-                            </Typography>
-                          </Box>
-                        )}
-                      </Box>
-                    </Box>
-
-                    {/* Progress timeline */}
-                    {(t.status === 'submitted' || t.status === 'appealed') && (
-                      <Box sx={{ mt: 1.5, pt: 1.5, borderTop: '1px dashed', borderColor: 'divider' }}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, position: 'relative' }}>
-                          {['提交申诉', '平台初审', '通知对方', '终审裁定'].map((step, idx) => {
-                            const stepStatus = t.status === 'appealed' && idx === 2 ? 'done' : idx === 0 ? 'done' : idx === 1 ? 'current' : 'pending';
-                            return (
-                              <Box key={step} sx={{ display: 'flex', alignItems: 'center', flex: idx < 3 ? 1 : 0, gap: 0.5 }}>
-                                <Box
-                                  sx={{
-                                    width: 16,
-                                    height: 16,
-                                    borderRadius: '50%',
-                                    bgcolor: stepStatus === 'done' ? 'primary.main' : stepStatus === 'current' ? '#FFB400' : 'action.hover',
-                                    color: stepStatus === 'pending' ? 'text.primary' : '#fff',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    fontSize: 9,
-                                    fontWeight: 700,
-                                    flexShrink: 0,
-                                  }}
-                                >
-                                  {stepStatus === 'done' ? '✓' : idx + 1}
-                                </Box>
-                                <Typography
-                                  sx={{
-                                    fontSize: 10,
-                                    color: stepStatus === 'pending' ? 'text.disabled' : 'text.primary',
-                                    whiteSpace: 'nowrap',
-                                  }}
-                                >
-                                  {step}
-                                </Typography>
-                                {idx < 3 && (
-                                  <Box
-                                    sx={{
-                                      flex: 1,
-                                      height: 1,
-                                      bgcolor: stepStatus === 'done' ? 'primary.main' : 'action.hover',
-                                      minWidth: 12,
-                                    }}
-                                  />
-                                )}
-                              </Box>
-                            );
-                          })}
-                        </Box>
-                      </Box>
-                    )}
-                  </Box>
-                );
-              })}
-            </Box>
-          </Box>
-        )}
-
-        {/* Tab 3: 监测设置 */}
-        {tab === 3 && (
-          <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <Box
-              sx={{
-                p: 2,
-                borderRadius: 1.5,
-                bgcolor: 'background.paper',
-                border: '1px solid',
-                borderColor: 'divider',
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                <TravelExploreRoundedIcon sx={{ fontSize: 16, color: 'primary.main' }} />
-                <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary' }}>监测范围</Typography>
-              </Box>
-              <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 1.5 }}>
-                选择需要监测侵权内容的平台,默认覆盖主流短视频与内容平台
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                {(Object.keys(PLATFORM_META) as SourcePlatform[]).map((p) => {
-                  const meta = PLATFORM_META[p];
-                  const selected = monitorScope.includes(p);
-                  return (
-                    <Chip
-                      key={p}
-                      label={meta.label}
-                      onClick={() => toggleMonitorPlatform(p)}
-                      sx={{
-                        fontSize: 12,
-                        fontWeight: 600,
-                        bgcolor: selected ? `${meta.color}20` : 'action.hover',
-                        color: selected ? meta.color : 'text.disabled',
-                        border: '1px solid',
-                        borderColor: selected ? meta.color : 'divider',
-                        '&:hover': { bgcolor: `${meta.color}30` },
-                      }}
-                    />
-                  );
-                })}
-              </Box>
-            </Box>
-
-            <Box
-              sx={{
-                p: 2,
-                borderRadius: 1.5,
-                bgcolor: 'background.paper',
-                border: '1px solid',
-                borderColor: 'divider',
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                <GavelRoundedIcon sx={{ fontSize: 16, color: '#FFB400' }} />
-                <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary' }}>自动维权</Typography>
-              </Box>
-              <Stack spacing={0.5}>
-                <FormControlLabel
-                  control={<Switch size="small" checked={autoTakedown} onChange={(e) => setAutoTakedown(e.target.checked)} />}
-                  label={
-                    <Box>
-                      <Typography sx={{ fontSize: 12, color: 'text.primary' }}>自动提交申诉</Typography>
-                      <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
-                        发现相似度 ≥ 90% 的搬运内容时,自动提交平台申诉
-                      </Typography>
-                    </Box>
-                  }
-                />
-                <FormControlLabel
-                  control={<Switch size="small" checked={notifyInfringe} onChange={(e) => setNotifyInfringe(e.target.checked)} />}
-                  label={
-                    <Box>
-                      <Typography sx={{ fontSize: 12, color: 'text.primary' }}>侵权通知</Typography>
-                      <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
-                        发现侵权时,推送 App 通知 + 邮件
-                      </Typography>
-                    </Box>
-                  }
-                />
-                <FormControlLabel
-                  control={<Switch size="small" checked={notifyResolved} onChange={(e) => setNotifyResolved(e.target.checked)} />}
-                  label={
-                    <Box>
-                      <Typography sx={{ fontSize: 12, color: 'text.primary' }}>处理结果通知</Typography>
-                      <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
-                        申诉有进展时(下架/驳回/和解)发送通知
-                      </Typography>
-                    </Box>
-                  }
-                />
-              </Stack>
-            </Box>
-
-            <Box
-              sx={{
-                p: 2,
-                borderRadius: 1.5,
-                bgcolor: 'background.paper',
-                border: '1px solid',
-                borderColor: 'divider',
-              }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                <LinkRoundedIcon sx={{ fontSize: 16, color: '#25F4EE' }} />
-                <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary' }}>白名单</Typography>
-                <Box sx={{ flex: 1 }} />
-                <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>已授权转载的账号,自动跳过监测</Typography>
-              </Box>
-              {whitelist.length === 0 ? (
-                <Typography sx={{ fontSize: 11, color: 'text.disabled', textAlign: 'center', py: 2 }}>
-                  暂无白名单账号
+      {tab === 0 && (
+        <Section loading={certsQ.isLoading} empty={certs.length === 0} emptyText="还没有登记存证的作品">
+          {certs.map((c) => (
+            <Row key={c.id} cover={c.cover}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                  <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{c.title}</Typography>
+                  <Chip size="small" label={c.status === 'monitoring' ? '监测中' : '已暂停'} color={c.status === 'monitoring' ? 'info' : 'default'} />
+                  {c.infringeCount > 0 && <Chip size="small" color="warning" label={`疑似侵权 ${c.infringeCount}`} />}
+                </Box>
+                <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.5, fontFamily: 'monospace' }}>
+                  {c.certificateNo} · 指纹 {shortHash(c.fingerprint)}
                 </Typography>
-              ) : (
-                <Stack spacing={0.5}>
-                  {whitelist.map((name) => (
-                    <Box
-                      key={name}
-                      sx={{
-                        p: 1,
-                        borderRadius: 0.75,
-                        bgcolor: 'action.hover',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 1,
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          width: 24,
-                          height: 24,
-                          borderRadius: '50%',
-                          background: gradient2('#FFB400', '#FE2C55'),
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: 11,
-                          color: '#fff',
-                          fontWeight: 700,
-                        }}
-                      >
-                        {name[0]}
-                      </Box>
-                      <Typography sx={{ fontSize: 12, color: 'text.primary', flex: 1 }}>{name}</Typography>
-                      <IconButton size="small" onClick={() => removeWhitelist(name)} sx={{ p: 0.25 }}>
-                        <CloseRoundedIcon sx={{ fontSize: 14 }} />
-                      </IconButton>
-                    </Box>
-                  ))}
-                </Stack>
-              )}
-            </Box>
-          </Box>
-        )}
-      </Box>
+                <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>
+                  登记于 {fmtDate(c.registeredAt)} · 播放 {c.totalViews}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <Button size="small" onClick={() => { if (!printCertificate(c)) setSnack('浏览器拦截了弹窗,请允许后重试'); }}>证书</Button>
+                <Button
+                  size="small"
+                  disabled={busy}
+                  onClick={() => act(() => setCertStatus(c.id, c.status === 'monitoring' ? 'paused' : 'monitoring'), c.status === 'monitoring' ? '已暂停比对' : '已恢复比对')}
+                >
+                  {c.status === 'monitoring' ? '暂停' : '恢复'}
+                </Button>
+                <Button
+                  size="small"
+                  color="error"
+                  disabled={busy}
+                  onClick={() => { if (window.confirm(`撤销《${c.title}》的存证?未处理的疑似侵权记录会一并清除。`)) act(() => removeCert(c.id), '已撤销存证'); }}
+                >
+                  撤销
+                </Button>
+              </Box>
+            </Row>
+          ))}
+        </Section>
+      )}
 
-      {/* Add 存证 dialog */}
-      <Dialog
-        open={addOpen}
-        onClose={() => setAddOpen(false)}
-        maxWidth="sm"
-        fullWidth
-        slotProps={{
-          paper: { sx: { bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' } },
-        }}
-      >
-        <Box sx={{ p: 3, pb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box
-              sx={{
-                width: 32,
-                height: 32,
-                borderRadius: 1,
-                background: 'linear-gradient(135deg, #FE2C55 0%, #FFB400 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#fff',
-              }}
-            >
-              <ShieldRoundedIcon sx={{ fontSize: 18 }} />
-            </Box>
-            <Typography sx={{ fontSize: 16, fontWeight: 600, color: 'text.primary' }}>添加原创存证</Typography>
-          </Box>
-          <IconButton size="small" onClick={() => setAddOpen(false)}>
-            <CloseRoundedIcon sx={{ fontSize: 18 }} />
-          </IconButton>
-        </Box>
-        <Divider sx={{ borderColor: 'divider' }} />
+      {tab === 1 && (
+        <Section loading={suspectsQ.isLoading} empty={suspects.length === 0} emptyText="没有发现站内同名作品">
+          {suspects.map((s) => (
+            <Row key={s.id} cover={s.suspectCover}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{s.suspectTitle || `作品 ${s.suspectContentId}`}</Typography>
+                <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.5 }}>
+                  发布者 {s.infractorName} · 播放 {s.views} · 与我的《{s.workTitle}》同名
+                </Typography>
+                <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>发现于 {fmtDate(s.detectedAt)}</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <Button size="small" variant="contained" disabled={busy} onClick={() => { setAppealTarget(s); setAppealReason(''); }} sx={{ textTransform: 'none' }}>
+                  申诉下架
+                </Button>
+                <Button size="small" disabled={busy} onClick={() => act(() => caseAction(s.id, 'ignore'), '已忽略')}>忽略</Button>
+                <Button size="small" disabled={busy} onClick={() => act(() => caseAction(s.id, 'whitelist'), `已把 ${s.infractorName} 加入白名单`)}>
+                  加白名单
+                </Button>
+              </Box>
+            </Row>
+          ))}
+        </Section>
+      )}
 
-        <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-          <Box>
-            <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary', mb: 1 }}>
-              选择要保护的作品
-            </Typography>
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(2, 1fr)',
-                gap: 1.25,
-                maxHeight: 280,
-                overflow: 'auto',
-                pr: 0.5,
-              }}
-            >
-              {(myWorksQ.data?.records ?? myWorksQ.data?.list ?? []).map((w: any) => {
-                const selected = addSelected.includes(w.id);
+      {tab === 2 && (
+        <Section loading={takedownsQ.isLoading} empty={(takedownsQ.data ?? []).length === 0} emptyText="还没有发起过下架申诉">
+          {(takedownsQ.data ?? []).map((t) => (
+            <Row key={t.id} cover={t.suspectCover}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                  <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{t.suspectTitle || `作品 ${t.suspectContentId}`}</Typography>
+                  <Chip size="small" label={CASE_STATUS[t.status]?.label ?? t.status} color={CASE_STATUS[t.status]?.color ?? 'default'} />
+                </Box>
+                <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.5 }}>
+                  发布者 {t.infractorName} · 我的存证 {t.certificateNo}
+                </Typography>
+                {t.reason && <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>申诉理由:{t.reason}</Typography>}
+                {t.reviewNote && <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>审核意见:{t.reviewNote}</Typography>}
+                <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>更新于 {fmtDate(t.updatedAt)}</Typography>
+              </Box>
+            </Row>
+          ))}
+        </Section>
+      )}
+
+      {tab === 3 && (
+        <Section loading={whitelistQ.isLoading} empty={(whitelistQ.data ?? []).length === 0} emptyText="白名单为空。白名单里的作者发布同名作品不会被提示。">
+          {(whitelistQ.data ?? []).map((w) => (
+            <Row key={w.userId}>
+              <Typography sx={{ flex: 1, fontSize: 14 }}>{w.name}</Typography>
+              <Button size="small" disabled={busy} onClick={() => act(() => removeWhitelist(w.userId), `已把 ${w.name} 移出白名单`)}>
+                移出
+              </Button>
+            </Row>
+          ))}
+        </Section>
+      )}
+
+      {/* 登记作品 */}
+      <Dialog open={addOpen} onClose={() => setAddOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>登记原创存证</DialogTitle>
+        <DialogContent>
+          {worksQ.isLoading ? (
+            <Box sx={{ textAlign: 'center', py: 3 }}><CircularProgress size={24} /></Box>
+          ) : candidates.length === 0 ? (
+            <Typography sx={{ fontSize: 13, color: 'text.secondary', py: 2 }}>没有可以登记的已发布作品(已登记的不会重复显示)。</Typography>
+          ) : (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, maxHeight: 360, overflowY: 'auto' }}>
+              {candidates.map((w: any) => {
+                const id = String(w.id);
+                const checked = addSelected.includes(id);
                 return (
                   <Box
-                    key={w.id}
-                    onClick={() => toggleAddSelected(w.id)}
-                    sx={{
-                      p: 1.25,
-                      borderRadius: 1.5,
-                      border: '1.5px solid',
-                      borderColor: selected ? 'primary.main' : 'divider',
-                      bgcolor: selected ? 'rgba(254, 44, 85, 0.06)' : 'action.hover',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1,
-                      transition: 'all 0.15s',
-                    }}
+                    key={id}
+                    onClick={() => setAddSelected((p) => (checked ? p.filter((x) => x !== id) : [...p, id]))}
+                    sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, borderRadius: 1, cursor: 'pointer', border: '1px solid', borderColor: checked ? 'primary.main' : 'divider' }}
                   >
-                    <Box
-                      sx={{
-                        width: 48,
-                        height: 32,
-                        borderRadius: 0.5,
-                        background: w.cover,
-                        flexShrink: 0,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#fff',
-                        fontSize: 9,
-                        fontWeight: 700,
-                        position: 'relative',
-                      }}
-                    >
-                      {w.duration && (
-                        <Typography
-                          sx={{
-                            position: 'absolute',
-                            bottom: 1,
-                            right: 2,
-                            fontSize: 8,
-                            fontWeight: 600,
-                            textShadow: '0 0 2px rgba(0,0,0,0.8)',
-                          }}
-                        >
-                          {w.duration}
-                        </Typography>
-                      )}
-                    </Box>
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography
-                        sx={{
-                          fontSize: 11,
-                          color: 'text.primary',
-                          fontWeight: 500,
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                        }}
-                      >
-                        {w.title}
-                      </Typography>
-                      <Typography sx={{ fontSize: 9, color: 'text.disabled' }}>
-                        {w.type === 'video' ? '视频' : w.type === 'image' ? '图文' : '文章'}
-                      </Typography>
-                    </Box>
-                    {selected && (
-                      <CheckRoundedIcon sx={{ fontSize: 16, color: 'primary.main' }} />
-                    )}
+                    <Checkbox checked={checked} size="small" sx={{ p: 0 }} />
+                    <Typography sx={{ fontSize: 13, flex: 1 }}>{w.title}</Typography>
+                    <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>播放 {w.views ?? 0}</Typography>
                   </Box>
                 );
               })}
             </Box>
-          </Box>
-
-          <FormControl>
-            <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary', mb: 1 }}>
-              监测等级
-            </Typography>
-            <RadioGroup
-              value={addLevel}
-              onChange={(e) => setAddLevel(e.target.value as ProtectLevel)}
-            >
-              {(Object.keys(LEVEL_META) as ProtectLevel[]).map((l) => {
-                const meta = LEVEL_META[l];
-                return (
-                  <Box
-                    key={l}
-                    sx={{
-                      p: 1.25,
-                      mb: 0.75,
-                      borderRadius: 1,
-                      border: '1.5px solid',
-                      borderColor: addLevel === l ? meta.color : 'divider',
-                      bgcolor: addLevel === l ? `${meta.color}10` : 'transparent',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1,
-                    }}
-                  >
-                    <Radio size="small" value={l} sx={{ p: 0 }} />
-                    <Box sx={{ flex: 1 }}>
-                      <Typography sx={{ fontSize: 12, color: 'text.primary', fontWeight: 600 }}>{meta.label}</Typography>
-                      <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
-                        {meta.desc} · 比对周期 {meta.cycles}
-                      </Typography>
-                    </Box>
-                  </Box>
-                );
-              })}
-            </RadioGroup>
-          </FormControl>
-        </Box>
-
-        <Divider sx={{ borderColor: 'divider' }} />
-        <Box sx={{ p: 2, display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-          <Button onClick={() => setAddOpen(false)} sx={{ textTransform: 'none', fontSize: 12, color: 'text.secondary' }}>
-            取消
-          </Button>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAddOpen(false)}>取消</Button>
           <Button
             variant="contained"
-            startIcon={<ShieldRoundedIcon sx={{ fontSize: 14 }} />}
-            onClick={handleSubmitAdd}
-            disabled={addSelected.length === 0}
-            sx={{
-              textTransform: 'none',
-              fontSize: 12,
-              background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)',
-              '&:hover': {
-                background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)',
-                filter: 'brightness(1.1)',
-              },
-            }}
+            disabled={busy || addSelected.length === 0}
+            onClick={async () => { if (await act(() => applyCerts(addSelected), `已登记 ${addSelected.length} 个作品`)) setAddOpen(false); }}
           >
-            立即存证 {addSelected.length > 0 ? `(${addSelected.length})` : ''}
+            登记 {addSelected.length} 个作品
           </Button>
-        </Box>
+        </DialogActions>
       </Dialog>
 
-      {/* Row action menus */}
-      <Menu
-        anchorEl={menuAnchor?.el ?? null}
-        open={!!menuAnchor}
-        onClose={handleMenuClose}
-        slotProps={{
-          paper: { sx: { bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', minWidth: 140 } },
-        }}
-      >
-        <MenuItem
-          onClick={() => {
-            if (menuAnchor) setDetailId(menuAnchor.id);
-            handleMenuClose();
-          }}
-          sx={{ fontSize: 12 }}
-        >
-          <VisibilityRoundedIcon sx={{ fontSize: 14, mr: 1 }} />
-          查看证书
-        </MenuItem>
-        {menuAnchor &&
-          (() => {
-            const p = protected_.find((x) => x.id === menuAnchor.id);
-            if (!p) return null;
-            return p.status === 'paused' ? (
-              <MenuItem onClick={() => handleResume(menuAnchor.id)} sx={{ fontSize: 12 }}>
-                <TravelExploreRoundedIcon sx={{ fontSize: 14, mr: 1 }} />
-                恢复监测
-              </MenuItem>
-            ) : (
-              <MenuItem onClick={() => handlePause(menuAnchor.id)} sx={{ fontSize: 12 }}>
-                <BlockRoundedIcon sx={{ fontSize: 14, mr: 1 }} />
-                暂停监测
-              </MenuItem>
-            );
-          })()}
-        <Divider sx={{ my: 0.5, borderColor: 'divider' }} />
-        <MenuItem
-          onClick={() => menuAnchor && handleDelete(menuAnchor.id)}
-          sx={{ fontSize: 12, color: 'primary.main' }}
-        >
-          <DeleteOutlineRoundedIcon sx={{ fontSize: 14, mr: 1 }} />
-          移除存证
-        </MenuItem>
-      </Menu>
-
-      <Menu
-        anchorEl={infringeMenuAnchor?.el ?? null}
-        open={!!infringeMenuAnchor}
-        onClose={handleInfringeMenuClose}
-        slotProps={{
-          paper: { sx: { bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', minWidth: 140 } },
-        }}
-      >
-        <MenuItem
-          onClick={() => {
-            const item = infringeMenuAnchor ? infringe.find((i) => i.id === infringeMenuAnchor.id) : null;
-            if (item?.sourceUrl) {
-              navigator.clipboard.writeText(item.sourceUrl).then(() => setSnack('链接已复制'));
-            } else {
-              setSnack('暂无链接');
-            }
-            handleInfringeMenuClose();
-          }}
-          sx={{ fontSize: 12 }}
-        >
-          <LinkRoundedIcon sx={{ fontSize: 14, mr: 1 }} />
-          复制搬运链接
-        </MenuItem>
-        {infringeMenuAnchor && (
-          <MenuItem
-            onClick={() => handleWhitelist(infringeMenuAnchor.id)}
-            sx={{ fontSize: 12 }}
+      {/* 下架申诉 */}
+      <Dialog open={!!appealTarget} onClose={() => setAppealTarget(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>申诉下架《{appealTarget?.suspectTitle}》</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 2 }}>
+            申诉会提交给平台内容审核,并附上你的存证 {appealTarget?.certificateNo}。审核结论会显示在「维权记录」。
+          </Typography>
+          <TextField
+            label="申诉理由"
+            placeholder="说明作品为你原创,以及对方作品的问题"
+            value={appealReason}
+            onChange={(e) => setAppealReason(e.target.value)}
+            multiline
+            minRows={3}
+            fullWidth
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAppealTarget(null)}>取消</Button>
+          <Button
+            variant="contained"
+            disabled={busy || !appealReason.trim()}
+            onClick={async () => {
+              if (appealTarget && (await act(() => appealCase(appealTarget.id, appealReason.trim()), '申诉已提交,等待平台审核'))) setAppealTarget(null);
+            }}
           >
-            <LinkRoundedIcon sx={{ fontSize: 14, mr: 1 }} />
-            加入白名单
-          </MenuItem>
-        )}
-        <Divider sx={{ my: 0.5, borderColor: 'divider' }} />
-        <MenuItem
-          onClick={() => infringeMenuAnchor && handleIgnore(infringeMenuAnchor.id)}
-          sx={{ fontSize: 12, color: 'text.disabled' }}
-        >
-          <CloseRoundedIcon sx={{ fontSize: 14, mr: 1 }} />
-          忽略此条
-        </MenuItem>
-      </Menu>
+            提交申诉
+          </Button>
+        </DialogActions>
+      </Dialog>
 
-      {/* Detail drawer */}
-      <Drawer
-        anchor="right"
-        open={!!detailId}
-        onClose={() => setDetailId(null)}
-        slotProps={{
-          paper: { sx: { width: { xs: '100%', sm: 520 }, bgcolor: 'background.paper' } },
-        }}
-      >
-        {detailId &&
-          (() => {
-            const p = protected_.find((x) => x.id === detailId);
-            if (!p) return null;
-            const lm = LEVEL_META[p.level] ?? LEVEL_META_FALLBACK;
-            const sm = STATUS_META[p.status] ?? STATUS_META_FALLBACK;
-            const relatedInfringe = infringe.filter((i) => i.workId === p.id);
-            return (
-              <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                <Box
-                  sx={{
-                    p: 2.5,
-                    pb: 2,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    borderBottom: '1px solid',
-                    borderColor: 'divider',
-                  }}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <VerifiedRoundedIcon sx={{ fontSize: 18, color: '#5DDB96' }} />
-                    <Typography sx={{ fontSize: 15, fontWeight: 600, color: 'text.primary' }}>原创存证证书</Typography>
-                  </Box>
-                  <IconButton size="small" onClick={() => setDetailId(null)}>
-                    <CloseRoundedIcon sx={{ fontSize: 18 }} />
-                  </IconButton>
-                </Box>
-
-                <Box sx={{ flex: 1, overflow: 'auto', p: 2.5, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <Box sx={{ display: 'flex', gap: 1.5 }}>
-                    <Box
-                      sx={{
-                        width: 120,
-                        aspectRatio: '16/9',
-                        borderRadius: 1.5,
-                        background: p.cover,
-                        flexShrink: 0,
-                      }}
-                    />
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5, flexWrap: 'wrap' }}>
-                        <Box
-                          sx={{
-                            px: 0.5,
-                            py: 0.1,
-                            borderRadius: 0.5,
-                            bgcolor: lm.bg,
-                            color: lm.color,
-                            fontSize: 9,
-                            fontWeight: 700,
-                          }}
-                        >
-                          {lm.label}
-                        </Box>
-                        <Box
-                          sx={{
-                            px: 0.5,
-                            py: 0.1,
-                            borderRadius: 0.5,
-                            bgcolor: sm.bg,
-                            color: sm.color,
-                            fontSize: 9,
-                            fontWeight: 700,
-                          }}
-                        >
-                          {sm.label}
-                        </Box>
-                      </Box>
-                      <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'text.primary', mb: 0.5 }}>
-                        {p.title}
-                      </Typography>
-                      <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>
-                        存证于 {<RelativeTime ts={p.registeredAt} fallback="" />} · 累计播放 {formatCount(p.totalViews)}
-                      </Typography>
-                    </Box>
-                  </Box>
-
-                  <Box
-                    sx={{
-                      p: 1.5,
-                      borderRadius: 1.5,
-                      background: 'linear-gradient(135deg, rgba(93, 219, 150, 0.08) 0%, rgba(37, 244, 238, 0.08) 100%)',
-                      border: '1px solid',
-                      borderColor: 'rgba(93, 219, 150, 0.3)',
-                    }}
-                  >
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
-                      <AccountTreeRoundedIcon sx={{ fontSize: 14, color: '#5DDB96' }} />
-                      <Typography sx={{ fontSize: 11, color: 'text.primary', fontWeight: 600 }}>区块链存证信息</Typography>
-                    </Box>
-                    <CertRow label="证书编号" value={p.certificateNo} copyable />
-                    <CertRow label="内容指纹" value={p.fingerprint} copyable />
-                    <CertRow label="区块哈希" value={p.blockchainHash} copyable />
-                    <CertRow label="存证时间" value={new Date(p.registeredAt).toISOString().replace('T', ' ').slice(0, 19)} />
-                  </Box>
-
-                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1 }}>
-                    {[
-                      { label: '存证天数', value: `${Math.floor((Date.now() - p.registeredAt) / 86400000)} 天` },
-                      { label: '监测次数', value: `${Math.floor((Date.now() - p.registeredAt) / 86400000) * 24} 次` },
-                      { label: '发现侵权', value: `${p.infringeCount} 次`, color: p.infringeCount > 0 ? 'primary.main' : undefined },
-                    ].map((m) => (
-                      <Box
-                        key={m.label}
-                        sx={{
-                          p: 1.25,
-                          borderRadius: 1,
-                          bgcolor: 'action.hover',
-                          border: '1px solid',
-                          borderColor: 'divider',
-                          textAlign: 'center',
-                        }}
-                      >
-                        <Typography sx={{ fontSize: 9, color: 'text.disabled' }}>{m.label}</Typography>
-                        <Typography sx={{ fontSize: 14, fontWeight: 700, color: m.color || 'text.primary', mt: 0.25 }}>
-                          {m.value}
-                        </Typography>
-                      </Box>
-                    ))}
-                  </Box>
-
-                  {relatedInfringe.length > 0 && (
-                    <Box>
-                      <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary', mb: 1 }}>
-                        关联侵权记录
-                      </Typography>
-                      <Stack spacing={0.75}>
-                        {relatedInfringe.map((i) => {
-                          const ism = INFRINGE_STATUS_META[i.status] ?? STATUS_META_FALLBACK;
-                          return (
-                            <Box
-                              key={i.id}
-                              sx={{
-                                p: 1,
-                                borderRadius: 1,
-                                bgcolor: 'action.hover',
-                                border: '1px solid',
-                                borderColor: 'divider',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 1,
-                              }}
-                            >
-                              <Box
-                                sx={{
-                                  width: 32,
-                                  height: 22,
-                                  borderRadius: 0.5,
-                                  background: gradient2('#FE2C55', '#FFB400'),
-                                  flexShrink: 0,
-                                }}
-                              />
-                              <Box sx={{ flex: 1, minWidth: 0 }}>
-                                <Typography sx={{ fontSize: 11, color: 'text.primary' }} noWrap>
-                                  {i.infractorName} · {(PLATFORM_META[i.platform] ?? PLATFORM_META_FALLBACK).label}
-                                </Typography>
-                                <Typography sx={{ fontSize: 9, color: 'text.disabled' }}>
-                                  相似度 {i.similarity}%
-                                </Typography>
-                              </Box>
-                              <Box
-                                sx={{
-                                  px: 0.5,
-                                  py: 0.1,
-                                  borderRadius: 0.5,
-                                  bgcolor: ism.bg,
-                                  color: ism.color,
-                                  fontSize: 9,
-                                  fontWeight: 700,
-                                }}
-                              >
-                                {ism.label}
-                              </Box>
-                            </Box>
-                          );
-                        })}
-                      </Stack>
-                    </Box>
-                  )}
-                </Box>
-
-                <Box sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider', display: 'flex', gap: 1 }}>
-                  <Button
-                    fullWidth
-                    variant="contained"
-                    startIcon={<OpenInNewRoundedIcon sx={{ fontSize: 14 }} />}
-                    onClick={async () => {
-                      try {
-                        const dateStr = new Date(p.registeredAt).toISOString().slice(0, 10);
-                        const res = await accountClient.post<{ url: string; filename: string }>(
-                          '/account/original/certificate',
-                          { id: p.id, title: p.title, date: dateStr }
-                        );
-                        const payload = (res as any)?.data ?? res;
-                        if (payload?.url) {
-                          const a = document.createElement('a');
-                          a.href = payload.url;
-                          a.download = payload.filename || `${p.title}-证书.pdf`;
-                          a.click();
-                          setSnack('证书 PDF 已生成');
-                        } else {
-                          setSnack('证书 PDF 已生成（本地下载）');
-                        }
-                      } catch (err) {
-                        // 下载失败不再本地伪造一份「证书」(以前是把纯文本存成 .pdf)
-                        if (isAuthError(err)) {
-                          setSnack('请重新登录');
-                        } else {
-                          setSnack(formatApiError(err));
-                        }
-                      }
-                    }}
-                    sx={{
-                      textTransform: 'none',
-                      fontSize: 12,
-                      background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)',
-                      '&:hover': {
-                        background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)',
-                        filter: 'brightness(1.1)',
-                      },
-                    }}
-                  >
-                    下载证书
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      handleDelete(p.id);
-                      setDetailId(null);
-                    }}
-                    sx={{ textTransform: 'none', fontSize: 12, color: 'text.secondary' }}
-                  >
-                    移除
-                  </Button>
-                </Box>
-              </Box>
-            );
-          })()}
-      </Drawer>
-
-      <AppealDialog target={appealTarget} reason={appealReason} onReasonChange={setAppealReason} onClose={() => setAppealTarget(null)} onSubmit={submitAppeal} />
-      <ProgressDialog target={progressTarget} onClose={() => setProgressTarget(null)} />
-
-      <Snackbar
-        open={!!snack}
-        autoHideDuration={2200}
-        onClose={() => setSnack(null)}
-        message={snack}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      />
+      <Snackbar open={!!snack} autoHideDuration={3000} onClose={() => setSnack(null)} message={snack} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} />
     </Box>
   );
 }
 
-function AppealDialog({
-  target,
-  reason,
-  onReasonChange,
-  onClose,
-  onSubmit,
-}: {
-  target: Infringement | null;
-  reason: string;
-  onReasonChange: (v: string) => void;
-  onClose: () => void;
-  onSubmit: () => void;
-}) {
-  return (
-    <Dialog open={!!target} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle sx={{ fontSize: 15, fontWeight: 700 }}>提交申诉</DialogTitle>
-      <DialogContent>
-        <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1.5 }}>
-          {target && `针对《${target.workTitle}》的侵权内容提交平台申诉`}
-        </Typography>
-        <TextField
-          autoFocus
-          fullWidth
-          multiline
-          minRows={3}
-          maxRows={5}
-          label="申诉理由"
-          placeholder="说明侵权情况,例如:未经授权搬运,画面/音频高度相似..."
-          value={reason}
-          onChange={(e) => onReasonChange(e.target.value)}
-          sx={{ '& .MuiInputBase-root': { fontSize: 13 } }}
-        />
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose} sx={{ textTransform: 'none' }}>取消</Button>
-        <Button variant="contained" disabled={!reason.trim()} onClick={onSubmit} sx={{ textTransform: 'none' }}>提交申诉</Button>
-      </DialogActions>
-    </Dialog>
-  );
+function Section({ loading, empty, emptyText, children }: { loading: boolean; empty: boolean; emptyText: string; children: React.ReactNode }) {
+  if (loading) return <Box sx={{ textAlign: 'center', py: 4 }}><CircularProgress size={24} /></Box>;
+  if (empty) return <Typography sx={{ fontSize: 13, color: 'text.secondary', py: 3, textAlign: 'center' }}>{emptyText}</Typography>;
+  return <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>{children}</Box>;
 }
 
-function ProgressDialog({ target, onClose }: { target: Infringement | null; onClose: () => void }) {
-  if (!target) return null;
-  const steps = ['提交申诉', '平台初审', '通知对方', '终审裁定'];
+function Row({ cover, children }: { cover?: string; children: React.ReactNode }) {
   return (
-    <Dialog open={!!target} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ fontSize: 15, fontWeight: 700 }}>申诉进度</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Box sx={{ width: 48, height: 32, borderRadius: 0.75, background: target.workCover }} />
-            <Box>
-              <Typography sx={{ fontSize: 12, fontWeight: 600 }}>{target.workTitle}</Typography>
-              <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>搬运方: {target.infractorName}</Typography>
-            </Box>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, position: 'relative' }}>
-            {steps.map((step, idx) => {
-              const stepStatus = target.status === 'appealed' && idx === 2 ? 'done' : idx === 0 ? 'done' : idx === 1 ? 'current' : 'pending';
-              return (
-                <Box key={step} sx={{ display: 'flex', alignItems: 'center', flex: idx < 3 ? 1 : 0, gap: 0.5 }}>
-                  <Box
-                    sx={{
-                      width: 16,
-                      height: 16,
-                      borderRadius: '50%',
-                      bgcolor: stepStatus === 'done' ? 'primary.main' : stepStatus === 'current' ? '#FFB400' : 'action.hover',
-                      color: stepStatus === 'pending' ? 'text.primary' : '#fff',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 9,
-                      fontWeight: 700,
-                      flexShrink: 0,
-                    }}
-                  >
-                    {stepStatus === 'done' ? '✓' : idx + 1}
-                  </Box>
-                  <Typography sx={{ fontSize: 10, color: stepStatus === 'pending' ? 'text.disabled' : 'text.primary', whiteSpace: 'nowrap' }}>{step}</Typography>
-                  {idx < 3 && (
-                    <Box
-                      sx={{
-                        flex: 1,
-                        height: 1,
-                        bgcolor: stepStatus === 'done' ? 'primary.main' : 'action.hover',
-                        minWidth: 12,
-                      }}
-                    />
-                  )}
-                </Box>
-              );
-            })}
-          </Box>
-          <Box sx={{ p: 1.5, borderRadius: 1, bgcolor: 'action.hover' }}>
-            <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1.6 }}>
-              当前状态:{' '}
-              <Box component="span" sx={{ fontWeight: 600, color: 'text.primary' }}>{INFRINGE_STATUS_META[target.status].label}</Box>
-            </Typography>
-            <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1.6 }}>发现时间: {new Date(target.detectedAt).toLocaleString()}</Typography>
-            <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1.6 }}>相似度: {target.similarity}%</Typography>
-          </Box>
-        </Stack>
-      </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
-        <Button onClick={onClose} sx={{ textTransform: 'none' }}>关闭</Button>
-      </DialogActions>
-    </Dialog>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+      {cover !== undefined && (
+        <Box
+          sx={{
+            width: 64,
+            height: 64,
+            flexShrink: 0,
+            borderRadius: 1,
+            bgcolor: 'action.hover',
+            backgroundImage: cover ? `url(${cover})` : undefined,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        />
+      )}
+      {children}
+    </Box>
   );
 }

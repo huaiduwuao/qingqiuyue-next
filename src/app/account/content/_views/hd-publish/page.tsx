@@ -690,7 +690,8 @@ export default function HdPublishPage() {
       duration: '00:00',
       sizeMB: uploadFileSizeMB,
       status: 'transcoding',
-      progress: 5,
+      // 进度以服务端为准,刚提交时未知
+      progress: undefined,
       uploadedAt: Date.now(),
       hasCover: uploadAutoCover,
       subtitles: uploadSubtitles,
@@ -1909,11 +1910,11 @@ export default function HdPublishPage() {
                       转码进度
                     </Typography>
                     <Typography sx={{ fontSize: 11, color: 'text.primary', fontWeight: 600 }}>
-                      {detail.progress}%
+                      {detail.progress != null ? `${detail.progress}%` : '处理中'}
                     </Typography>
                   </Box>
                   <LinearProgress
-                    variant="determinate"
+                    variant={detail.progress != null ? 'determinate' : 'indeterminate'}
                     value={detail.progress ?? 0}
                     sx={{
                       height: 6,
