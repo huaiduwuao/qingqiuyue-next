@@ -42,23 +42,6 @@ export function detectPlatform(): ClientPlatform | 'unknown' {
   return 'unknown';
 }
 
-const fakeSha256 = (): string =>
-  Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-
-/** 触发浏览器下载一个 Blob(占位文件用)。 */
-export function downloadBlob(filename: string, content: string, mime = 'text/plain;charset=utf-8') {
-  if (typeof window === 'undefined') return;
-  const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
 /** 触发浏览器从 URL 下载。 */
 export function downloadFromUrl(url: string, filename: string) {
   if (typeof window === 'undefined') return;
@@ -74,43 +57,17 @@ export function downloadFromUrl(url: string, filename: string) {
 export interface DownloadOptions {
   platform: ClientPlatform;
   version: string;
+  /** 真实安装包地址(环境变量 NEXT_PUBLIC_CLIENT_URL_*);未配置表示该平台尚未发布 */
   installUrl?: string;
-  /** 安装包占位文件大小(MB),仅占位文件使用 */
-  sizeMb?: number;
 }
 
-/** 统一下载入口:有 installUrl 走 URL,否则生成占位 .txt。 */
-export function triggerClientDownload({ platform, version, installUrl, sizeMb }: DownloadOptions) {
+/**
+ * 统一下载入口:只从真实安装包地址下载。
+ * 未配置地址时返回 false,由调用方提示「暂未发布」,不生成任何占位文件。
+ */
+export function triggerClientDownload({ platform, version, installUrl }: DownloadOptions): boolean {
   const info = PLATFORMS.find((p) => p.key === platform);
-  if (!info) return;
-  const ext = info.ext;
-  const filename = `qingqiuyue-client-${version}-${platform}.${ext}`;
-
-  if (installUrl) {
-    downloadFromUrl(installUrl, filename);
-    return;
-  }
-  const now = new Date().toISOString();
-  const sha = fakeSha256();
-  const size = (sizeMb ?? Math.random() * 80 + 40).toFixed(1);
-  const content = [
-    '============================================',
-    '  清秋月(qingqiuyue) 桌面/移动客户端 · 占位文件',
-    '============================================',
-    '',
-    `  平台:   ${info.label} (${platform})`,
-    `  版本:   ${version}`,
-    `  类型:   ${ext} (placeholder)`,
-    `  大小:   ${size} MB`,
-    `  SHA256: ${sha}`,
-    `  下载时间: ${now}`,
-    '',
-    '  说明: 真实安装包 URL 尚未配置,本文件为前端占位产物。',
-    '  后端接入后请将 installUrls.windows/macos/ios/android',
-    '  配置到环境变量 NEXT_PUBLIC_CLIENT_URL_* 即可。',
-    '',
-    '============================================',
-    '',
-  ].join('\n');
-  downloadBlob(`${filename}.txt`, content);
+  if (!info || !installUrl) return false;
+  downloadFromUrl(installUrl, `qingqiuyue-client-${version}-${platform}.${info.ext}`);
+  return true;
 }

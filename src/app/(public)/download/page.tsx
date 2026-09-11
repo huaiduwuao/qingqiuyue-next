@@ -38,14 +38,8 @@ import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2, gradient3 } from '@/constants/gradients';
 
 const VERSION = '1.0.0';
-const RELEASE_DATE = '2026-05-20';
-const FILE_SIZE_MB: Record<ClientPlatform, number> = {
-  windows: 86.4,
-  macos: 92.1,
-  ios: 64.8,
-  android: 58.2,
-};
 
+// 真实安装包地址;未配置的平台按「暂未发布」展示,不提供任何占位下载。
 const CLIENT_INSTALL_URLS: Record<ClientPlatform, string | undefined> = {
   windows: process.env.NEXT_PUBLIC_CLIENT_URL_WINDOWS,
   macos: process.env.NEXT_PUBLIC_CLIENT_URL_MACOS,
@@ -149,14 +143,14 @@ function DownloadPageContent() {
 
   const handleDownload = (p: PlatformInfo) => {
     if (downloading) return;
-    setDownloading(p.key);
-    setTimeout(() => setDownloading(null), 1200);
-    triggerClientDownload({
+    const started = triggerClientDownload({
       platform: p.key,
       version: VERSION,
-      sizeMb: FILE_SIZE_MB[p.key],
       installUrl: CLIENT_INSTALL_URLS[p.key],
     });
+    if (!started) return;
+    setDownloading(p.key);
+    setTimeout(() => setDownloading(null), 1200);
   };
 
   const handleBack = () => {
@@ -328,7 +322,7 @@ function DownloadPageContent() {
                 <Button
                   size="large"
                   onClick={() => handleDownload(detectedInfo)}
-                  disabled={!!downloading}
+                  disabled={!!downloading || !CLIENT_INSTALL_URLS[detectedInfo.key]}
                   startIcon={
                     <CloudDownloadIcon sx={{ fontSize: 22 }} />
                   }
@@ -357,9 +351,11 @@ function DownloadPageContent() {
                     transition: 'transform 0.15s, filter 0.15s',
                   }}
                 >
-                  {downloading === detectedInfo.key
-                    ? '正在准备…'
-                    : `下载 ${detectedInfo.label} 客户端`}
+                  {!CLIENT_INSTALL_URLS[detectedInfo.key]
+                    ? `${detectedInfo.label} 客户端暂未发布`
+                    : downloading === detectedInfo.key
+                      ? '正在准备…'
+                      : `下载 ${detectedInfo.label} 客户端`}
                 </Button>
               ) : (
                 <Button
@@ -424,18 +420,6 @@ function DownloadPageContent() {
                   color: 'rgba(255,255,255,0.85)',
                   fontSize: 11,
                   fontWeight: 600,
-                  height: 24,
-                  '& .MuiChip-label': { px: 1.25 },
-                }}
-              />
-              <Chip
-                size="small"
-                label={`${RELEASE_DATE} 发布`}
-                sx={{
-                  bgcolor: 'rgba(255,255,255,0.05)',
-                  color: 'rgba(255,255,255,0.65)',
-                  fontSize: 11,
-                  fontWeight: 500,
                   height: 24,
                   '& .MuiChip-label': { px: 1.25 },
                 }}
@@ -561,7 +545,7 @@ function DownloadPageContent() {
             {PLATFORMS.map((p) => {
               const Icon = PLATFORM_ICONS[p.key];
               const detail = PLATFORM_DETAIL[p.key];
-              const size = FILE_SIZE_MB[p.key].toFixed(1);
+              const released = !!CLIENT_INSTALL_URLS[p.key];
               const isBusy = downloading === p.key;
               const isDetected = detected === p.key;
               return (
@@ -636,7 +620,7 @@ function DownloadPageContent() {
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                       <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.3)' }} />
-                      <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>{size} MB · .{p.ext}</Typography>
+                      <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>.{p.ext} · {released ? '已发布' : '暂未发布'}</Typography>
                     </Box>
                   </Box>
 
@@ -656,7 +640,7 @@ function DownloadPageContent() {
                     fullWidth
                     variant={isDetected ? 'contained' : 'outlined'}
                     onClick={() => handleDownload(p)}
-                    disabled={!!downloading}
+                    disabled={!!downloading || !released}
                     startIcon={<CloudDownloadIcon sx={{ fontSize: 16 }} />}
                     sx={{
                       textTransform: 'none',
@@ -678,7 +662,7 @@ function DownloadPageContent() {
                           }),
                     }}
                   >
-                    {isBusy ? '准备中…' : `下载 .${p.ext}`}
+                    {!released ? '暂未发布' : isBusy ? '准备中…' : `下载 .${p.ext}`}
                   </Button>
                 </Box>
               );
@@ -695,8 +679,8 @@ function DownloadPageContent() {
             }}
           >
             {Object.values(CLIENT_INSTALL_URLS).some(Boolean)
-              ? '客户端安装包已配置 CDN,点击下方按钮即可下载对应平台安装包。'
-              : '提示:后端真实安装包 URL 尚未配置,目前下载为占位文本文件(可正常打开)。接入后将自动替换为真实 CDN 包,请在环境变量中配置 NEXT_PUBLIC_CLIENT_URL_*。'}
+              ? '标记「暂未发布」的平台安装包还在准备中,发布后即可在这里下载。'
+              : '各平台客户端安装包还在准备中,发布后即可在这里下载;现在可以直接使用网页版。'}
           </Typography>
         </Box>
       </Box>
