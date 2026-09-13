@@ -1,16 +1,18 @@
 'use client';
 
 /**
- * 月度福利页面
- * 展示VIP会员月度福利领取状态和历史记录
+ * 会员福利页面
+ * 有效会员(user_membership)每月自动发放钻石到钱包;这里展示本月发放状态和历史记录。
  */
 
 import React from 'react';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
+import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import DiamondIcon from '@mui/icons-material/Diamond';
@@ -21,15 +23,11 @@ import { alpha } from '@mui/material/styles';
 import { useApp } from '@/contexts/AppContext';
 import { getMonthlyBenefitStatus, getMonthlyBenefitRecords } from '@/apis/reward-center';
 
-// VIP等级名称映射
-const VIP_LEVEL_NAMES: Record<number, string> = {
-  0: '普通会员',
-  1: '青铜会员',
-  2: '白银会员',
-  3: '黄金会员',
-  4: '铂金会员',
-  5: '钻石会员',
-};
+/** 分 → "¥1.00" */
+const yuan = (cents?: number) => `¥${((cents ?? 0) / 100).toFixed(2)}`;
+
+/** Unix 秒 → "2026/9/13" */
+const dateOf = (sec?: number) => (sec ? new Date(sec * 1000).toLocaleDateString('zh-CN') : '');
 
 export default function MonthlyBenefitPage() {
   const { currentUser } = useApp();
@@ -64,11 +62,12 @@ export default function MonthlyBenefitPage() {
   }
 
   const isVip = status?.isVip ?? false;
-  const vipLevelName = VIP_LEVEL_NAMES[status?.vipLevel ?? 0] || '普通会员';
+  const granted = status?.status === 'granted';
+  const list = Array.isArray(records) ? records : [];
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      {/* VIP状态卡片 */}
+      {/* 会员状态卡片 */}
       <Card sx={{
         background: (theme) =>
           theme.palette.mode === 'dark'
@@ -82,10 +81,12 @@ export default function MonthlyBenefitPage() {
             <DiamondIcon sx={{ fontSize: 32, color: 'warning.main' }} />
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                {isVip ? 'VIP 会员福利' : '月度福利'}
+                {isVip ? '会员月度福利' : '月度福利'}
               </Typography>
               <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                {isVip ? `${vipLevelName} · 每月可领取专属福利` : '升级VIP解锁月度福利'}
+                {isVip
+                  ? `${status?.planName || '会员'} · 有效期至 ${dateOf(status?.expiresAt)}`
+                  : `开通会员后,每月自动发放 ${yuan(status?.monthlyReward)} 钻石到钱包`}
               </Typography>
             </Box>
           </Box>
@@ -100,10 +101,10 @@ export default function MonthlyBenefitPage() {
                 textAlign: 'center',
               }}>
                 <Typography variant="h4" sx={{ fontWeight: 700, color: 'warning.main' }}>
-                  +{status?.monthlyReward ?? 0}
+                  {yuan(status?.monthlyReward)}
                 </Typography>
                 <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                  本月可领积分
+                  每月发放到钱包
                 </Typography>
               </Box>
               <Box sx={{
@@ -116,15 +117,15 @@ export default function MonthlyBenefitPage() {
                 justifyContent: 'center',
                 gap: 1,
               }}>
-                {status?.currentStatus === 'sent' ? (
+                {granted ? (
                   <>
                     <CheckCircleIcon sx={{ color: 'success.main' }} />
                     <Box>
                       <Typography sx={{ fontWeight: 600, color: 'success.main' }}>
-                        本月已领取
+                        本月已发放
                       </Typography>
                       <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                        +{status?.lastBenefitAmount ?? 0} 积分
+                        {yuan(status?.diamondCount)} · {dateOf(status?.grantTime)}
                       </Typography>
                     </Box>
                   </>
@@ -133,10 +134,10 @@ export default function MonthlyBenefitPage() {
                     <PendingIcon sx={{ color: 'warning.main' }} />
                     <Box>
                       <Typography sx={{ fontWeight: 600, color: 'warning.main' }}>
-                        本月待领取
+                        本月待发放
                       </Typography>
                       <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                        次月1日自动发放
+                        开通后一小时内到账,之后每月初自动发放
                       </Typography>
                     </Box>
                   </>
@@ -145,96 +146,65 @@ export default function MonthlyBenefitPage() {
             </Box>
           ) : (
             <Box sx={{ textAlign: 'center', py: 2 }}>
-              <Typography sx={{ color: 'text.secondary', mb: 1 }}>
-                成为VIP会员后,每月可领取专属积分福利
-              </Typography>
-              <Chip
-                label="升级VIP"
-                sx={{
-                  bgcolor: alpha('#FFD700', 0.2),
-                  color: 'warning.main',
-                  fontWeight: 600,
-                }}
-              />
+              <Button component={Link} href="/account/vip" variant="contained" color="warning" sx={{ fontWeight: 600 }}>
+                开通会员
+              </Button>
             </Box>
           )}
         </CardContent>
       </Card>
 
-      {/* VIP等级说明 */}
-      {isVip && (
-        <Card variant="outlined">
-          <CardContent>
-            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>
-              VIP 等级权益
-            </Typography>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-              {[1, 2, 3, 4, 5].map((level) => (
-                <Chip
-                  key={level}
-                  label={`${VIP_LEVEL_NAMES[level]} · ${level * 100}+/月`}
-                  size="small"
-                  variant={status?.vipLevel ?? 0 >= level ? 'filled' : 'outlined'}
-                  sx={{
-                    bgcolor: status?.vipLevel ?? 0 >= level ? alpha('#FFD700', 0.2) : 'transparent',
-                    borderColor: 'divider',
-                    color: status?.vipLevel ?? 0 >= level ? 'warning.main' : 'text.secondary',
-                  }}
-                />
-              ))}
-            </Box>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* 历史记录 */}
+      {/* 发放记录 */}
       <Card variant="outlined">
         <CardContent>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
             <CardGiftcardIcon sx={{ color: 'primary.main' }} />
             <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-              领取记录
+              发放记录
             </Typography>
           </Box>
 
-          {records.length > 0 ? (
+          {list.length > 0 ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              {records.map((record) => (
-                <Box key={record.id} sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 2,
-                  p: 1.5,
-                  borderRadius: 1,
-                  bgcolor: 'action.hover',
-                }}>
-                  <Box sx={{ flex: 1 }}>
-                    <Typography sx={{ fontWeight: 500, fontSize: 14 }}>
-                      {record.yearMonth} 月度福利
+              {list.map((record) => {
+                const ok = record.status === 'granted';
+                return (
+                  <Box key={record.id} sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 2,
+                    p: 1.5,
+                    borderRadius: 1,
+                    bgcolor: 'action.hover',
+                  }}>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography sx={{ fontWeight: 500, fontSize: 14 }}>
+                        {record.yearMonth} 月度福利
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                        {record.vipLevel || '会员'}
+                      </Typography>
+                    </Box>
+                    <Typography sx={{ fontWeight: 600, color: 'success.main' }}>
+                      +{yuan(record.diamondCount)}
                     </Typography>
-                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                      {VIP_LEVEL_NAMES[record.vipLevel] || '普通会员'}
-                    </Typography>
+                    <Chip
+                      icon={ok ? <CheckCircleIcon sx={{ fontSize: 14 }} /> : <PendingIcon sx={{ fontSize: 14 }} />}
+                      label={ok ? '已发放' : '发放失败'}
+                      size="small"
+                      sx={{
+                        bgcolor: ok ? alpha('#4CAF50', 0.15) : alpha('#FF9800', 0.15),
+                        color: ok ? '#4CAF50' : '#FF9800',
+                      }}
+                    />
                   </Box>
-                  <Typography sx={{ fontWeight: 600, color: 'success.main' }}>
-                    +{record.diamondReward}
-                  </Typography>
-                  <Chip
-                    icon={record.status === 'sent' ? <CheckCircleIcon sx={{ fontSize: 14 }} /> : <PendingIcon sx={{ fontSize: 14 }} />}
-                    label={record.status === 'sent' ? '已发放' : '待发放'}
-                    size="small"
-                    sx={{
-                      bgcolor: record.status === 'sent' ? alpha('#4CAF50', 0.15) : alpha('#FF9800', 0.15),
-                      color: record.status === 'sent' ? '#4CAF50' : '#FF9800',
-                    }}
-                  />
-                </Box>
-              ))}
+                );
+              })}
             </Box>
           ) : (
             <Box sx={{ textAlign: 'center', py: 3 }}>
               <Typography sx={{ color: 'text.secondary' }}>
-                暂无领取记录
+                暂无发放记录
               </Typography>
             </Box>
           )}

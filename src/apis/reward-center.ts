@@ -149,26 +149,29 @@ export async function getInviteRecords(params?: { page?: number; size?: number }
 
 // ========== 月度福利 ==========
 
-/** 月度福利状态 */
+/** 月度福利状态(GET /monthly-benefit/current;会员身份以 user_membership 为准) */
 export interface MonthlyBenefitStatus {
-  isVip: boolean;           // 是否VIP会员
-  vipLevel: number;         // VIP等级
-  vipLevelName: string;     // VIP等级名称
-  monthlyReward: number;    // 本月应发奖励(分)
-  lastBenefitMonth: string; // 上次发放月份
-  lastBenefitAmount: number; // 上次发放金额(分)
-  lastBenefitTime: string;  // 上次发放时间
-  currentStatus: string;    // pending/sent
+  userId: number;
+  yearMonth: string;       // 2026-09
+  isVip: boolean;          // 是否有效会员
+  planName: string;        // 会员套餐名
+  expiresAt: number;       // 会员到期时间(Unix 秒,非会员为 0)
+  monthlyReward: number;   // 每月发放金额(分)
+  diamondCount: number;    // 本月已发放金额(分)
+  vipLevel: string;        // 发放时的套餐名
+  grantTime: number;       // 本月发放时间(Unix 秒,未发放为 0)
+  status: string;          // pending / granted
 }
 
-/** 月度福利记录 */
+/** 月度福利发放记录 */
 export interface MonthlyBenefitRecord {
   id: number;
   userId: number;
   yearMonth: string;
-  diamondReward: number; // 分
-  vipLevel: number;
-  status: string;        // pending/sent
+  diamondCount: number; // 分
+  vipLevel: string;     // 发放时的套餐名
+  grantTime: string;
+  status: string;       // granted / failed
   createTime: string;
 }
 
