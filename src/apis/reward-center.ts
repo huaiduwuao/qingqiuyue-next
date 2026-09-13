@@ -73,10 +73,12 @@ export interface DailyTaskStats {
   claimableCount: number;
 }
 
-/** 获取今日任务列表 */
+/** 获取今日任务列表。后端返回 { tasks: [...] },此前把整个对象当数组返回,任务中心页 tasks.filter 直接崩溃。 */
 export async function getDailyTaskList(): Promise<DailyTask[]> {
-  const resp = await accountClient<DailyTask[]>('/daily-task/list');
-  return resp?.data ?? resp ?? [];
+  const resp = await accountClient('/daily-task/list');
+  const d: any = resp?.data;
+  const list = Array.isArray(d) ? d : d?.tasks;
+  return Array.isArray(list) ? list : [];
 }
 
 /** 获取任务统计 */
