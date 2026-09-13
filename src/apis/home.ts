@@ -27,7 +27,8 @@ export async function moduleContentAction(params: Record<string, unknown>) {
 }
 
 // 获取评论 - GET /api/content/module/content/comment/{contentId}
-export async function getComments(contentId: number, params?: any) {
+// contentId 传字符串:内容 id 超过 JS 安全整数,转 Number 会查成另一条(不存在的)内容。
+export async function getComments(contentId: string | number, params?: any) {
   return contentClient(`/module/content/comment/${contentId}`, { params });
 }
 

@@ -115,7 +115,7 @@ export default function ModuleContentDetail({ detail, onClose }: ModuleContentDe
     if (!contentId) return;
     setCommentsLoading(true);
     try {
-      const res = await getComments(Number(contentId));
+      const res = await getComments(contentId);
       const payload = (res as { data?: { list?: CommentItem[] } | CommentItem[] })?.data;
       const list = Array.isArray(payload) ? payload : payload?.list ?? [];
       setComments(list);
