@@ -472,7 +472,8 @@ function NovelDetailContent() {
                       body
                     ) : (
                       <Box sx={{ py: 4, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5 }}>
-                        本章正文尚未收录
+                        {/* 起点等正版站只收目录,正文在原站读 */}
+                        {chapter?.url && /^https?:\/\//.test(chapter.url) ? '本章正文请在原站阅读' : '本章正文尚未收录'}
                         {chapter?.url && /^https?:\/\//.test(chapter.url) && (
                           <Button size="small" variant="outlined" href={chapter.url} target="_blank" rel="noopener noreferrer" endIcon={<OpenInNewIcon sx={{ fontSize: 14 }} />}>
                             去原站阅读本章

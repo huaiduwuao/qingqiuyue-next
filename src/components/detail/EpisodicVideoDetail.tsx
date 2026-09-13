@@ -29,7 +29,7 @@ import { DetailComments } from '@/components/detail/DetailComments';
 import { DetailFooter } from '@/components/detail/DetailFooter';
 import { CollectButton } from '@/components/detail/CollectButton';
 import { EpisodeList } from '@/components/detail/EpisodeList';
-import { useContentItems, type ContentItem } from '@/hooks/useContentItems';
+import { episodeTitle, useContentItems, type ContentItem } from '@/hooks/useContentItems';
 
 /** 分集类视频详情(电视剧/短剧、动漫、综艺)的接口字段;爬虫数据经常缺字段,全部可选。 */
 export interface EpisodicDetail {
@@ -277,7 +277,7 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
                     {active && (
                       <Typography sx={{ fontSize: 13, color: 'text.secondary', mt: 1.5 }} noWrap>
                         正在播放:第{activeIndex + 1}{config.unit}
-                        {active.title ? ` · ${active.title}` : ''}
+                        {episodeTitle(active, activeIndex) ? ` · ${episodeTitle(active, activeIndex)}` : ''}
                       </Typography>
                     )}
                   </Box>

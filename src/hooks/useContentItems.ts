@@ -20,6 +20,16 @@ export interface ContentItem {
   locked?: boolean;
 }
 
+/**
+ * 分集/章节的展示标题。源站没有分集名时 title 只是序号("1"、"第1集"),
+ * 和界面上的"第N集"重复,当作没有标题。index 从 0 开始。
+ */
+export function episodeTitle(item: Pick<ContentItem, 'title'>, index: number): string {
+  const t = (item.title || '').trim();
+  if (!t || t === String(index + 1) || /^第?\s*\d+\s*[集话期章]?$/.test(t)) return '';
+  return t;
+}
+
 export interface ContentItemsResult {
   items: ContentItem[];
   total: number;

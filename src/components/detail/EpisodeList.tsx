@@ -7,7 +7,7 @@ import Chip from '@mui/material/Chip';
 import Tooltip from '@mui/material/Tooltip';
 import CircularProgress from '@mui/material/CircularProgress';
 import LockIcon from '@mui/icons-material/Lock';
-import type { ContentItem } from '@/hooks/useContentItems';
+import { episodeTitle, type ContentItem } from '@/hooks/useContentItems';
 
 interface EpisodeListProps {
   title: string;
@@ -118,12 +118,13 @@ export function EpisodeList({
               const index = (current?.start ?? 0) + i;
               const active = it.id === activeId;
               const label = `第${index + 1}${unit}`;
+              const title = episodeTitle(it, index);
               const cell = (
                 <Box
                   role="button"
                   tabIndex={0}
                   aria-current={active ? 'true' : undefined}
-                  aria-label={it.title ? `${label} ${it.title}` : label}
+                  aria-label={title ? `${label} ${title}` : label}
                   onClick={() => onSelect(it, index)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
@@ -157,14 +158,14 @@ export function EpisodeList({
                     <>
                       <Typography sx={{ fontSize: 11, color: active ? 'primary.main' : 'text.secondary' }}>{label}</Typography>
                       <Typography noWrap sx={{ fontSize: 13, fontWeight: 600 }}>
-                        {it.title || label}
+                        {title || label}
                       </Typography>
                     </>
                   )}
                 </Box>
               );
-              return variant === 'grid' && it.title ? (
-                <Tooltip key={it.id} title={`${label} ${it.title}`} placement="top" enterDelay={400}>
+              return variant === 'grid' && title ? (
+                <Tooltip key={it.id} title={`${label} ${title}`} placement="top" enterDelay={400}>
                   {cell}
                 </Tooltip>
               ) : (
