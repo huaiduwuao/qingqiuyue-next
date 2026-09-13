@@ -1,6 +1,7 @@
 import { reportBehavior } from '@/apis/recommend';
 import { homeClient } from '@/lib/api/client';
 import { safeErrorLog } from './error-handler';
+import { toEntityId } from './id';
 
 // 推荐/大数据的源头:前端行为埋点(fire-and-forget,失败不影响业务)。
 // userId 取本地存储(匿名则 0,后端会回退热门 feed)。
@@ -24,8 +25,9 @@ function isLoggedIn(): boolean {
 export function track(itemId: number | string, action: string, itemType = 'NOVEL', duration = 0) {
   // 未登录不发送埋点（隐私保护）
   if (!isLoggedIn()) return;
-  const id = Number(itemId);
-  if (!id) return;
+  // 内容 id 超 2^53,Number() 会截断成另一条内容;按字符串原样上报(见 lib/id.ts)
+  const id = toEntityId(itemId);
+  if (id === null) return;
   try {
     // itemType 统一大写:Doris module_content.content_type 为大写规范值,
     // user_behavior_log.target_type 必须与之同口径,榜单(按 target_type 聚合)才能匹配。
@@ -48,12 +50,12 @@ export function trackFinish(contentId: number | string, itemType = 'NOVEL', dura
 // 当用户离开页面或调用 stop() 时自动上报观看时长 + finish
 export function useWatchDuration(contentId: number | string, itemType = 'NOVEL') {
   const startTime = Date.now();
-  const id = Number(contentId);
+  const id = toEntityId(contentId);
 
   return () => {
     if (!isLoggedIn()) return; // 未登录不记录
     const duration = Math.round((Date.now() - startTime) / 1000);
-    if (id && duration > 5) {
+    if (id !== null && duration > 5) {
       track(id, 'view', itemType, duration);
       recordHistory(id);
     }
@@ -64,8 +66,8 @@ export function useWatchDuration(contentId: number | string, itemType = 'NOVEL')
 // fire-and-forget,失败静默(未登录后端返 FailWithMsg,前端拦截器 reject 被这里吞掉)。
 export function recordHistory(contentId: number | string) {
   if (!isLoggedIn()) return; // 未登录不记录历史
-  const id = Number(contentId);
-  if (!id) return;
+  const id = toEntityId(contentId);
+  if (id === null) return;
   try {
     void homeClient.post('/history/record', { contentId: id }).catch((e) => safeErrorLog('recordHistory', e));
   } catch {
@@ -94,8 +96,8 @@ export function trackPageView(pathname: string, search = '') {
 
 // trackRewardAction 悬赏相关行为埋点
 export function trackRewardAction(action: 'view_demand' | 'claim_task' | 'submit_task' | 'review_task', targetId: number | string) {
-  const id = Number(targetId);
-  if (!id) return;
+  const id = toEntityId(targetId);
+  if (id === null) return;
   try {
     void reportBehavior({
       userId: currentUserId(),
@@ -111,8 +113,8 @@ export function trackRewardAction(action: 'view_demand' | 'claim_task' | 'submit
 
 // trackCreatorAction 创作者相关行为埋点
 export function trackCreatorAction(action: 'follow' | 'unfollow', targetUserId: number | string) {
-  const id = Number(targetUserId);
-  if (!id) return;
+  const id = toEntityId(targetUserId);
+  if (id === null) return;
   try {
     void reportBehavior({
       userId: currentUserId(),

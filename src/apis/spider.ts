@@ -169,11 +169,13 @@ export async function getTaskDetail(id: string): Promise<{ code: number; data: C
   return spiderClient(`/tasks/${id}`, { method: 'GET' });
 }
 
-export async function createTask(params: { source_id?: number; start_url: string; max_depth?: number; max_pages?: number; proxy_url?: string }): Promise<any> {
+// source_id:后端 CrawlRequest / RuleCrawlRequest 声明为字符串(源 id 是超 2^53 的
+// BIGINT)。以前传 number,JSON 解码直接失败,带源的任务一律创建不了。
+export async function createTask(params: { source_id?: string; start_url: string; max_depth?: number; max_pages?: number; proxy_url?: string }): Promise<any> {
   return spiderClient('/tasks', { method: 'POST', data: params });
 }
 
-export async function createRuleTask(params: { source_id: number; start_url: string; max_pages?: number; incremental?: boolean }): Promise<any> {
+export async function createRuleTask(params: { source_id: string; start_url: string; max_pages?: number; incremental?: boolean }): Promise<any> {
   return spiderClient('/tasks/rule', { method: 'POST', data: params });
 }
 

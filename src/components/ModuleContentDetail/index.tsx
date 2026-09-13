@@ -31,6 +31,7 @@ import { gradient2, gradient3 } from '@/constants/gradients';
 import { moduleContentAction, sendComment, getComments } from '@/apis/home';
 import { collectContent } from '@/apis/global';
 import { homeClient, formatApiError } from '@/lib/api/client';
+import { toEntityId } from '@/lib/id';
 
 interface CommentItem {
   id: number;
@@ -166,7 +167,7 @@ export default function ModuleContentDetail({ detail, onClose }: ModuleContentDe
     if (disliked) setDisliked(false);
     setOptimisticLikes((prev) => Math.max(0, prev + (next ? 1 : -1)));
     try {
-      await moduleContentAction({ contentId: Number(contentId), action: next ? 'agree' : 'cancel_agree' });
+      await moduleContentAction({ contentId: toEntityId(contentId), action: next ? 'agree' : 'cancel_agree' });
     } catch (err) {
       setLiked(!next);
       setOptimisticLikes((prev) => Math.max(0, prev + (next ? -1 : 1)));
@@ -186,7 +187,7 @@ export default function ModuleContentDetail({ detail, onClose }: ModuleContentDe
       setOptimisticLikes((prev) => Math.max(0, prev - 1));
     }
     try {
-      await moduleContentAction({ contentId: Number(contentId), action: next ? 'disagree' : 'cancel_disagree' });
+      await moduleContentAction({ contentId: toEntityId(contentId), action: next ? 'disagree' : 'cancel_disagree' });
     } catch (err) {
       setDisliked(!next);
       notify(formatApiError(err), 'error');
@@ -202,7 +203,7 @@ export default function ModuleContentDetail({ detail, onClose }: ModuleContentDe
     setStarred(next);
     setOptimisticCollects((prev) => Math.max(0, prev + (next ? 1 : -1)));
     try {
-      await collectContent({ contentId: Number(contentId), action: next ? 'collect' : 'cancel_collect' });
+      await collectContent({ contentId: toEntityId(contentId), action: next ? 'collect' : 'cancel_collect' });
     } catch (err) {
       setStarred(!next);
       setOptimisticCollects((prev) => Math.max(0, prev + (next ? -1 : 1)));
@@ -214,7 +215,7 @@ export default function ModuleContentDetail({ detail, onClose }: ModuleContentDe
     if (!contentId || !commentText.trim()) return;
     setSendingComment(true);
     try {
-      await sendComment({ contentId: Number(contentId), content: commentText.trim() });
+      await sendComment({ contentId: toEntityId(contentId), content: commentText.trim() });
       setCommentText('');
       notify('评论已发送');
       await fetchComments();

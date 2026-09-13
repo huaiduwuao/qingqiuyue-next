@@ -1,8 +1,10 @@
 import { contentClient } from '@/lib/api/client';
+import type { EntityId } from '@/lib/id';
 
 // 行为上报 → content-api POST /api/content/behavior
+// itemId 是内容 id(超 2^53 的 BIGINT),按字符串原样上报,后端 jsonfix.Int64 接收。
 export const reportBehavior = (data: {
-  userId?: number; itemId: number; itemType?: string; action?: string; duration?: number;
+  userId?: number; itemId: EntityId; itemType?: string; action?: string; duration?: number;
 }) => contentClient('/behavior', { method: 'POST', data });
 
 // 内容播放状态。后端 internal/playability 判定后随 feed / trending 一起下发。

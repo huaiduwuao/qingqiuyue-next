@@ -33,7 +33,8 @@ function ShareModuleContentDetailContent() {
 
   const contentQuery = useQuery({
     queryKey,
-    queryFn: async () => (await contentDetailApi({ id: Number(id) })).data as ShareContent,
+    // id 是超 2^53 的 BIGINT 字符串,Number() 会截断成另一条内容 → 分享页 404
+    queryFn: async () => (await contentDetailApi({ id: id ?? '' })).data as ShareContent,
     enabled: !!id,
   });
   const content = contentQuery.data;

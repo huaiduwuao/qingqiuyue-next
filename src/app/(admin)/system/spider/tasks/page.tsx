@@ -84,7 +84,7 @@ export default function SpiderTasksPage() {
   const handleCreate = () => {
     if (!form.startUrl) return showMsg('起始 URL 必填', 'error');
     if (form.sourceId) {
-      createRuleMutation.mutate({ source_id: Number(form.sourceId), start_url: form.startUrl, max_pages: Number(form.maxPages) || 100 });
+      createRuleMutation.mutate({ source_id: String(form.sourceId).trim(), start_url: form.startUrl, max_pages: Number(form.maxPages) || 100 });
     } else {
       createMutation.mutate({ source_id: undefined, start_url: form.startUrl, max_depth: Number(form.maxDepth) || 2, max_pages: Number(form.maxPages) || 100 });
     }

@@ -1,4 +1,5 @@
 import { contentClient } from '@/lib/api/client';
+import type { EntityId } from '@/lib/id';
 
 /**
  * 收藏夹类型
@@ -10,8 +11,10 @@ import { contentClient } from '@/lib/api/client';
 export type MyListType = 'playlist' | 'album' | 'topic' | 'bookshelf';
 
 // 收藏夹基本信息
+// 收藏夹 id / 内容 id 都是后端 idgen 发的 BIGINT(> 2^53),响应里是字符串,
+// 调用这里的函数时原样回传,不要 Number()。见 lib/id.ts。
 export interface MyListItem {
-  id: number;
+  id: EntityId;
   userId: number;
   name: string;
   description: string;
@@ -26,8 +29,8 @@ export interface MyListItem {
 
 // 收藏夹中的内容项
 export interface MyListContentItem {
-  id: number;
-  contentId: number;
+  id: EntityId;
+  contentId: EntityId;
   title: string;
   coverUrl: string;
   type: string;
@@ -63,7 +66,7 @@ export async function createMyList(data: {
   coverUrl?: string;
   type: MyListType;
   isPublic?: boolean;
-}): Promise<{ ok: boolean; id: number }> {
+}): Promise<{ ok: boolean; id: EntityId }> {
   const res = await contentClient('/my-list', {
     method: 'POST',
     data,
@@ -73,7 +76,7 @@ export async function createMyList(data: {
 
 // 更新收藏夹
 export async function updateMyList(
-  id: number,
+  id: EntityId,
   data: {
     name?: string;
     description?: string;
@@ -89,7 +92,7 @@ export async function updateMyList(
 }
 
 // 删除收藏夹
-export async function deleteMyList(id: number): Promise<{ ok: boolean }> {
+export async function deleteMyList(id: EntityId): Promise<{ ok: boolean }> {
   const res = await contentClient(`/my-list/${id}`, {
     method: 'DELETE',
   });
@@ -97,7 +100,7 @@ export async function deleteMyList(id: number): Promise<{ ok: boolean }> {
 }
 
 // 获取收藏夹内容列表
-export async function getMyListContent(listId: number): Promise<MyListContentResponse> {
+export async function getMyListContent(listId: EntityId): Promise<MyListContentResponse> {
   const res = await contentClient('/my-list/content/page', {
     params: { listId },
   });
@@ -106,8 +109,8 @@ export async function getMyListContent(listId: number): Promise<MyListContentRes
 
 // 添加内容到收藏夹
 export async function addToMyList(
-  listId: number,
-  contentIds: number[]
+  listId: EntityId,
+  contentIds: EntityId[]
 ): Promise<{ ok: boolean; added: number }> {
   const res = await contentClient('/my-list/content/add', {
     method: 'POST',
@@ -118,8 +121,8 @@ export async function addToMyList(
 
 // 从收藏夹移除内容
 export async function removeFromMyList(
-  listId: number,
-  contentId: number
+  listId: EntityId,
+  contentId: EntityId
 ): Promise<{ ok: boolean }> {
   const res = await contentClient('/my-list/content/remove', {
     method: 'POST',
@@ -130,9 +133,9 @@ export async function removeFromMyList(
 
 // 快捷收藏(自动归类到对应收藏夹)
 export async function quickCollect(
-  contentId: number,
+  contentId: EntityId,
   contentType: string
-): Promise<{ ok: boolean; collected: boolean; listId?: number }> {
+): Promise<{ ok: boolean; collected: boolean; listId?: EntityId }> {
   const res = await contentClient('/quick-collect', {
     method: 'POST',
     data: { contentId, type: contentType },
@@ -141,7 +144,7 @@ export async function quickCollect(
 }
 
 // 检查内容是否已收藏
-export async function checkCollected(contentId: number): Promise<{ collected: boolean }> {
+export async function checkCollected(contentId: EntityId): Promise<{ collected: boolean }> {
   const res = await contentClient('/is-collected', {
     params: { contentId },
   });

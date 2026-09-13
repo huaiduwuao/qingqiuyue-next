@@ -25,6 +25,7 @@ import TopicRoundedIcon from '@mui/icons-material/TopicRounded';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 import PlaylistPlayRoundedIcon from '@mui/icons-material/PlaylistPlayRounded';
 import { getMyLists, createMyList, updateMyList, deleteMyList, type MyListType, type MyListItem } from '@/apis/my-list';
+import type { EntityId } from '@/lib/id';
 
 type ListMeta = {
   label: string;
@@ -331,7 +332,7 @@ function EditListDrawer({
 }: {
   list: MyListItem | null;
   onClose: () => void;
-  onSave: (id: number, data: { name?: string; description?: string; isPublic?: boolean }) => void;
+  onSave: (id: EntityId, data: { name?: string; description?: string; isPublic?: boolean }) => void;
 }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -433,7 +434,7 @@ export default function MyListsPage() {
 
   const lists: MyListItem[] = (listsData?.list ?? []).map((l: any) => ({
     ...l,
-    id: Number(l.id),
+    id: l.id, // 收藏夹 id 超 2^53,后端给字符串;Number() 会截断成别的收藏夹
     userId: Number(l.userId),
     itemCount: l.itemCount ?? 0,
     totalViews: l.totalViews ?? 0,
@@ -453,7 +454,7 @@ export default function MyListsPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Parameters<typeof updateMyList>[1] }) => updateMyList(id, data),
+    mutationFn: ({ id, data }: { id: EntityId; data: Parameters<typeof updateMyList>[1] }) => updateMyList(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-lists'] });
       setSnack({ open: true, message: '已保存', severity: 'success' });
@@ -492,14 +493,14 @@ export default function MyListsPage() {
   );
 
   const handleSave = useCallback(
-    (id: number, data: { name?: string; description?: string; isPublic?: boolean }) => {
+    (id: EntityId, data: { name?: string; description?: string; isPublic?: boolean }) => {
       updateMutation.mutate({ id, data });
     },
     [updateMutation],
   );
 
   const handleDelete = useCallback(
-    (id: number) => {
+    (id: EntityId) => {
       if (confirm('确定要删除这个收藏夹吗？')) {
         deleteMutation.mutate(id);
       }

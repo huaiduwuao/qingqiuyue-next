@@ -41,13 +41,15 @@ import ArrowDownwardRoundedIcon from '@mui/icons-material/ArrowDownwardRounded';
 import ArrowUpwardRoundedIcon from '@mui/icons-material/ArrowUpwardRounded';
 import { gradient2, gradient3 } from '@/constants/gradients';
 import { accountClient } from '@/lib/api/client';
+import { toEntityId, type EntityId } from '@/lib/id';
 
 type CollectionStatus = 'active' | 'finished' | 'draft';
 type CollectionVisibility = 'public' | 'fansOnly' | 'private';
 type CollectionCategory = 'vlog' | 'tutorial' | 'music' | 'fashion' | 'travel' | 'review' | 'other';
 
+// 作品 / 合集 id 都是超 2^53 的 BIGINT,后端给的是字符串,原样保留(见 lib/id.ts)
 interface WorkRef {
-  id: number;
+  id: EntityId;
   title: string;
   cover: string;
   duration?: string;
@@ -56,7 +58,7 @@ interface WorkRef {
 }
 
 interface Collection {
-  id: number;
+  id: EntityId;
   title: string;
   description: string;
   cover: string;
@@ -154,7 +156,7 @@ export default function CollectionPage() {
     refetchOnMount: 'always',
   });
   const myWorks: WorkRef[] = (myWorksResp ?? []).map((w: ApiMyWork) => ({
-    id: Number(w.id) || 0,
+    id: toEntityId(w.id) ?? 0,
     title: w.title,
     cover: w.cover,
     duration: typeof w.duration === 'number' ? formatDuration(w.duration) : undefined,
@@ -162,7 +164,7 @@ export default function CollectionPage() {
     type: (w.hashtags?.includes('article') ? 'article' : w.duration > 0 ? 'video' : 'image') as WorkRef['type'],
   }));
   const apiCollections: Collection[] = (colResp?.list ?? []).map((c: ApiCollection) => ({
-    id: Number(c.id) || 0,
+    id: toEntityId(c.id) ?? 0,
     title: c.title,
     description: c.description ?? '',
     cover: c.cover || '',
@@ -170,7 +172,7 @@ export default function CollectionPage() {
     visibility: c.isPublic ? 'public' : 'private',
     category: (c.category as CollectionCategory) ?? ('travel' as any),
     works: (c.works ?? []).map((w) => ({
-      id: Number(w.id) || 0,
+      id: toEntityId(w.id) ?? 0,
       title: w.title,
       cover: w.cover ?? '',
       duration: typeof w.duration === 'number' ? formatDuration(w.duration) : w.duration,
@@ -190,7 +192,7 @@ export default function CollectionPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<Collection | null>(null);
   const [snack, setSnack] = useState<string | null>(null);
-  const [anchorEl, setAnchorEl] = useState<{ id: number; el: HTMLElement } | null>(null);
+  const [anchorEl, setAnchorEl] = useState<{ id: EntityId; el: HTMLElement } | null>(null);
 
   const counts = useMemo(() => ({
     all: collections.length,
@@ -244,7 +246,7 @@ export default function CollectionPage() {
     }
   };
 
-  const handleUpdate = async (id: number, patch: Partial<Collection>) => {
+  const handleUpdate = async (id: EntityId, patch: Partial<Collection>) => {
     const current = collections.find((c) => c.id === id);
     if (!current) return;
     const changed = (
@@ -290,7 +292,7 @@ export default function CollectionPage() {
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: EntityId) => {
     const target = collections.find((c) => c.id === id);
     if (!target) return;
     // 乐观更新
@@ -566,7 +568,7 @@ function CreateCollectionDialog({
   const [category, setCategory] = useState<CollectionCategory>('vlog');
   const [visibility, setVisibility] = useState<CollectionVisibility>('public');
   const [autoSort, setAutoSort] = useState(true);
-  const [pickedWorks, setPickedWorks] = useState<Set<number>>(new Set());
+  const [pickedWorks, setPickedWorks] = useState<Set<EntityId>>(new Set());
 
   React.useEffect(() => {
     if (open) {
@@ -816,7 +818,7 @@ function EditCollectionDrawer({
     [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
     setWorks(next);
   };
-  const removeWork = (id: number) => setWorks((p) => p.filter((w) => w.id !== id));
+  const removeWork = (id: EntityId) => setWorks((p) => p.filter((w) => w.id !== id));
 
   const availableToAdd = allWorks.filter((w) => !works.some((x) => x.id === w.id));
 

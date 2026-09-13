@@ -1,6 +1,7 @@
 import { adminClient } from '@/lib/api/client';
 import type { PageParams, PageResult } from '@/beans/pagination';
 import { normalizeLegacyPageResponse } from '@/hooks/usePagination';
+import type { EntityId } from '@/lib/id';
 
 // 审核请求结构
 export interface ReviewRequest {
@@ -44,7 +45,8 @@ export interface ReviewStats {
 
 // 提交内容审核
 export async function submitReview(params: {
-  contentId: number;
+  /** 内容 id 超 2^53,按字符串原样传(后端 jsonfix.Int64) */
+  contentId: EntityId;
   contentType: string;
   title?: string;
   coverUrl?: string;

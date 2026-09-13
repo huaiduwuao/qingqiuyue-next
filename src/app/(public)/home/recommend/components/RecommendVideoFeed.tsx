@@ -462,7 +462,8 @@ export function RecommendVideoFeed() {
     if (!commentText.trim() || !video?.id) return;
     setCommentSending(true);
     try {
-      await sendComment({ contentId: video.id, content: commentText.trim() });
+      // id 是 Number() 过的,超 2^53 时已截断;回传后端一律用无损的 idString
+      await sendComment({ contentId: video.idString || video.id, content: commentText.trim() });
       notify('评论已发送');
       setCommentText('');
       setCommentDialogOpen(false);
@@ -476,7 +477,7 @@ export function RecommendVideoFeed() {
   const handleReport = async () => {
     if (!video?.id) return;
     try {
-      await reportContent({ targetId: video.id, targetType: 'VIDEO', reason: '违规/低俗内容' });
+      await reportContent({ targetId: video.idString || video.id, targetType: 'VIDEO', reason: '违规/低俗内容' });
       notify('举报已提交,我们会尽快处理');
       setMoreDialogOpen(false);
     } catch {
@@ -518,8 +519,10 @@ export function RecommendVideoFeed() {
   };
 
   const handleCardClick = (item: VideoItem) => {
-    track(item.id, 'click', item.contentType || 'novel');
-    const route = getDetailRoute(item.contentType, item.id);
+    // item.id 已被 Number() 截断,跳详情 / 埋点用无损的 idString,否则打开的是另一条内容
+    const id = item.idString || item.id;
+    track(id, 'click', item.contentType || 'novel');
+    const route = getDetailRoute(item.contentType, id);
     if (route) router.push(route);
   };
 

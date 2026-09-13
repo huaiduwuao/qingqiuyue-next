@@ -31,6 +31,7 @@ import { collectContent } from '@/apis/global';
 import { getMarkStatus, setMark } from '@/apis/content-mark';
 import { getMyLists, createMyList, addToMyList, quickCollect, checkCollected, type MyListType, type MyListItem } from '@/apis/my-list';
 import { formatApiError } from '@/lib/api/client';
+import { toEntityId, type EntityId } from '@/lib/id';
 
 type ListMeta = {
   label: string;
@@ -88,7 +89,8 @@ export function CollectButton({
   onCollectedChange,
 }: CollectButtonProps) {
   const queryClient = useQueryClient();
-  const numId = Number(contentId);
+  // 内容 id 超 2^53,Number() 会截断成另一条内容 —— 收藏 / 稍后再看会记到别处
+  const cid: EntityId = toEntityId(contentId) ?? 0;
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newListName, setNewListName] = useState('');
@@ -111,7 +113,7 @@ export function CollectButton({
 
   const lists: MyListItem[] = (listsData?.list ?? []).map((l: any) => ({
     ...l,
-    id: Number(l.id),
+    id: l.id,
   }));
 
   // 按类型分组的收藏夹
@@ -120,26 +122,26 @@ export function CollectButton({
 
   // 检查是否已收藏（查询第一个匹配的收藏夹）
   const { data: collectedData } = useQuery({
-    queryKey: ['check-collected', numId],
-    queryFn: () => checkCollected(numId),
+    queryKey: ['check-collected', cid],
+    queryFn: () => checkCollected(cid),
     staleTime: 10 * 1000,
-    enabled: !!numId,
+    enabled: !!cid,
   });
 
   const isCollected = collectedData?.collected ?? initialCollected;
 
   // 稍后再看:和收藏夹相互独立,列表在个人中心「稍后再看」
   const { data: markData } = useQuery({
-    queryKey: ['mark', numId],
-    queryFn: () => getMarkStatus(numId),
+    queryKey: ['mark', cid],
+    queryFn: () => getMarkStatus(cid),
     staleTime: 10 * 1000,
-    enabled: !!numId,
+    enabled: !!cid,
   });
   const inWatchLater = !!markData?.watchlater;
   const watchLaterMutation = useMutation({
-    mutationFn: () => setMark(numId, 'watchlater', !inWatchLater),
+    mutationFn: () => setMark(cid, 'watchlater', !inWatchLater),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['mark', numId] });
+      queryClient.invalidateQueries({ queryKey: ['mark', cid] });
       notify(inWatchLater ? '已移出稍后再看' : '已加入稍后再看');
     },
     onError: (err) => {
@@ -149,12 +151,12 @@ export function CollectButton({
 
   // 快捷收藏
   const quickCollectMutation = useMutation({
-    mutationFn: () => quickCollect(numId, contentType),
+    mutationFn: () => quickCollect(cid, contentType),
     onSuccess: (res) => {
       const collected = res.collected;
       onCollectedChange?.(collected);
       setAnchorEl(null);
-      queryClient.invalidateQueries({ queryKey: ['check-collected', numId] });
+      queryClient.invalidateQueries({ queryKey: ['check-collected', cid] });
       notify(collected ? '已收藏' : '已取消收藏');
     },
     onError: (err) => {
@@ -164,11 +166,11 @@ export function CollectButton({
 
   // 添加到指定收藏夹
   const addToListMutation = useMutation({
-    mutationFn: (listId: number) => addToMyList(listId, [numId]),
+    mutationFn: (listId: EntityId) => addToMyList(listId, [cid]),
     onSuccess: () => {
       onCollectedChange?.(true);
       setAnchorEl(null);
-      queryClient.invalidateQueries({ queryKey: ['check-collected', numId] });
+      queryClient.invalidateQueries({ queryKey: ['check-collected', cid] });
       notify('已添加到收藏夹');
     },
     onError: (err) => {
@@ -186,7 +188,7 @@ export function CollectButton({
         isPublic: false,
       });
       if (res.id) {
-        await addToMyList(res.id, [numId]);
+        await addToMyList(res.id, [cid]);
       }
       return res;
     },
@@ -196,7 +198,7 @@ export function CollectButton({
       setNewListName('');
       setAnchorEl(null);
       queryClient.invalidateQueries({ queryKey: ['my-lists'] });
-      queryClient.invalidateQueries({ queryKey: ['check-collected', numId] });
+      queryClient.invalidateQueries({ queryKey: ['check-collected', cid] });
       notify('已创建并添加');
     },
     onError: (err) => {
@@ -216,7 +218,7 @@ export function CollectButton({
     quickCollectMutation.mutate();
   };
 
-  const handleAddToList = (listId: number) => {
+  const handleAddToList = (listId: EntityId) => {
     addToListMutation.mutate(listId);
   };
 
@@ -357,7 +359,7 @@ interface CollectMenuProps {
   listType: MyListType;
   isCollected: boolean;
   onQuickCollect: () => void;
-  onAddToList: (listId: number) => void;
+  onAddToList: (listId: EntityId) => void;
   onCreateNew: () => void;
   quickCollecting: boolean;
   addingToList: boolean;

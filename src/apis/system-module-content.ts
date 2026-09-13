@@ -1,4 +1,5 @@
 import { contentClient } from '@/lib/api/client';
+import type { EntityId } from '@/lib/id';
 
 // 模块内容信息
 export interface ModuleContentInfo {
@@ -66,8 +67,9 @@ export async function listModuleContents(params?: ModuleContentQuery) {
 }
 
 // 获取模块内容详情
-export async function detail(params: { id: number } | number) {
-  const id = typeof params === 'number' ? params : params.id;
+// 内容 id 超 2^53,调用方按字符串原样传,不要 Number()(见 lib/id.ts)
+export async function detail(params: { id: EntityId } | EntityId) {
+  const id = typeof params === 'object' ? params.id : params;
   return contentClient<ModuleContentInfo>(`/module/content/client/detail`, {
     method: 'GET',
     params: { id },

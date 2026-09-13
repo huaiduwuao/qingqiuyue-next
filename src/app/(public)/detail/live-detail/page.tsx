@@ -45,6 +45,7 @@ import DetailHeader from '@/components/detail/DetailHeader';
 import { CollectButton } from '@/components/detail/CollectButton';
 import { AsyncState } from '@/components/common/AsyncState';
 import { track, recordHistory } from '@/lib/track';
+import { toEntityId } from '@/lib/id';
 import { LivePlayerSettings, DEFAULT_LIVE_SETTINGS, type LivePlayerSettingsState } from '@/components/detail/LivePlayerSettings';
 
 interface Live {
@@ -121,9 +122,11 @@ function LiveDetailContent() {
   const followed = followOverride ?? !!(query.data as any)?.isFollowing;
   const [followBusy, setFollowBusy] = useState(false);
   // 开播预约:未开播的直播间可预约,列表在个人中心「我的预约」
+  // 直播间 id 超 2^53,Number(id) 会截断成另一个直播间 —— 预约会记到别处
+  const markId = toEntityId(id) ?? 0;
   const markQuery = useQuery({
-    queryKey: ['mark', Number(id)],
-    queryFn: () => getMarkStatus(Number(id)),
+    queryKey: ['mark', markId],
+    queryFn: () => getMarkStatus(markId),
     enabled: !!id,
   });
   const [reserveOverride, setReserveOverride] = useState<boolean | null>(null);
@@ -215,7 +218,7 @@ function LiveDetailContent() {
     setReserveBusy(true);
     const next = !reserved;
     try {
-      await setMark(Number(id), 'reserve', next);
+      await setMark(markId, 'reserve', next);
       setReserveOverride(next);
       notify(next ? '已预约,可在个人中心「我的预约」查看' : '已取消预约');
     } catch (err) {

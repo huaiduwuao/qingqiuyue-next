@@ -89,6 +89,7 @@ import type { ModuleContentItem } from '@/apis/module-content';
 import { fileUpload } from '@/apis/global';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { formatApiError, accountClient } from '@/lib/api/client';
+import { toEntityId } from '@/lib/id';
 import { RelativeTime } from '@/components/common/RelativeTime';
 import { gradient2, gradient3 } from '@/constants/gradients';
 import { HdResolution,
@@ -506,9 +507,10 @@ export default function HdPublishPage() {
   };
 
   const handleViewPublished = (id: string) => {
-    const numericId = Number(id);
-    if (numericId) {
-      navigateToContent('VIDEO', numericId);
+    // 作品 id 是超 2^53 的 BIGINT 字符串,Number() 会截断成另一条内容
+    const contentId = toEntityId(id);
+    if (contentId !== null) {
+      navigateToContent('VIDEO', contentId);
     } else {
       router.push(`/detail/video-detail?id=${encodeURIComponent(id)}`);
     }
@@ -525,8 +527,8 @@ export default function HdPublishPage() {
       setSnack('请输入申诉理由');
       return;
     }
-    const contentId = Number(detail.id);
-    if (!contentId) {
+    const contentId = toEntityId(detail.id);
+    if (contentId === null) {
       setSnack('作品还没有有效的内容编号,无法提交申诉');
       return;
     }

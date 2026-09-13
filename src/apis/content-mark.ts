@@ -1,4 +1,5 @@
 import { contentClient } from '@/lib/api/client';
+import type { EntityId } from '@/lib/id';
 
 /**
  * 内容轻量标记(后端 Doris user_content_collect,按 type 区分):
@@ -9,13 +10,13 @@ export type MarkKind = 'watchlater' | 'reserve';
 
 export type MarkStatus = Record<MarkKind, boolean>;
 
-export async function getMarkStatus(contentId: number): Promise<MarkStatus> {
+export async function getMarkStatus(contentId: EntityId): Promise<MarkStatus> {
   const res: any = await contentClient('/mark/status', { params: { contentId } });
   const d = res?.data ?? res;
   return { watchlater: !!d?.watchlater, reserve: !!d?.reserve };
 }
 
 /** 幂等:on=true 加上标记,on=false 去掉。 */
-export async function setMark(contentId: number, kind: MarkKind, on: boolean) {
+export async function setMark(contentId: EntityId, kind: MarkKind, on: boolean) {
   return contentClient('/mark', { method: 'POST', data: { contentId, kind, on } });
 }
