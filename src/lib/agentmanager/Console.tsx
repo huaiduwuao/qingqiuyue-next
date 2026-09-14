@@ -405,7 +405,14 @@ export default function AgentManagerConsole() {
               <Button
                 variant="contained"
                 size="small"
-                onClick={() => agentmAPI.discoverInstances().then(loadData)}
+                onClick={() =>
+                  agentmAPI
+                    .discoverInstances()
+                    .then(loadData)
+                    // 后端容器自动发现未接 podman/docker,返 501;此前没 catch,
+                    // 成为未处理的 promise rejection,点了毫无反馈。这里如实提示。
+                    .catch((e) => alert(`自动发现不可用: ${e?.message || '后端未接入容器运行时,请手动登记实例'}`))
+                }
               >
                 自动发现
               </Button>

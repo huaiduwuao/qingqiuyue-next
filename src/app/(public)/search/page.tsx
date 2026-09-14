@@ -348,7 +348,9 @@ function SearchPageContent() {
   };
 
   const handleOpenTopic = (topic: SearchTopicItem) => {
-    router.push(`/search/topic?id=${topic.id}`);
+    // /search/topic 路由不存在(死链 404);话题详情页是 /detail/topic-detail,
+    // 与 TopicCard.tsx、home/recommend 处的跳转保持一致。
+    router.push(`/detail/topic-detail?id=${topic.id}`);
   };
 
   const renderHighlight = (text: string) => {

@@ -26,6 +26,7 @@ import {
   getMyPaidContents,
   getMyPurchases,
   applyWithdraw,
+  setPaidContent,
   formatMoney,
   type EarningsStats,
   type Earning,
@@ -42,7 +43,42 @@ const IconMoney = () => (
 );
 
 // 收益概览卡片
-function EarningsOverview({ stats }: { stats: EarningsStats }) {
+function EarningsOverview({ stats, onWithdrawn }: { stats: EarningsStats; onWithdrawn: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState('');
+  const [bankAccount, setBankAccount] = useState('');
+  const [bankName, setBankName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  // 可提现是"分",输入框是"元"
+  const availableYuan = stats.availableAmount / 100;
+  const amountYuan = parseFloat(amount) || 0;
+  const canSubmit =
+    amountYuan >= 1 && amountYuan <= availableYuan && bankAccount.trim() && bankName.trim() && !submitting;
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      await applyWithdraw({
+        amount: Math.round(amountYuan * 100), // 元 -> 分
+        bankAccount: bankAccount.trim(),
+        bankName: bankName.trim(),
+      });
+      setOpen(false);
+      setAmount('');
+      setBankAccount('');
+      setBankName('');
+      onWithdrawn();
+    } catch (e: any) {
+      setError(e?.message || '提现申请失败,请稍后重试');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <Paper sx={{ p: 3, borderRadius: 2, bgcolor: 'background.paper', mb: 2 }}>
       <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
@@ -85,6 +121,7 @@ function EarningsOverview({ stats }: { stats: EarningsStats }) {
       <Button
         variant="contained"
         fullWidth
+        onClick={() => setOpen(true)}
         sx={{
           mt: 2,
           bgcolor: 'linear-gradient(90deg, #5DDB96 0%, #25F4EE 100%)',
@@ -94,8 +131,56 @@ function EarningsOverview({ stats }: { stats: EarningsStats }) {
         }}
         disabled={stats.availableAmount < 100}
       >
-        申请提现
+        {stats.availableAmount < 100 ? `满 ¥1.00 可提现（还差 ¥${formatMoney(100 - stats.availableAmount)}）` : '申请提现'}
       </Button>
+
+      {/* 提现弹窗 */}
+      <Dialog open={open} onClose={() => !submitting && setOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>申请提现</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
+          <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+            当前可提现 ¥{formatMoney(stats.availableAmount)}
+          </Typography>
+          <TextField
+            label="提现金额"
+            type="number"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            fullWidth
+            size="small"
+            slotProps={{
+              htmlInput: { min: 1, max: availableYuan, step: 0.01 },
+              input: { startAdornment: <InputAdornment position="start">¥</InputAdornment> },
+            }}
+            helperText={`单次最少 ¥1.00,最多 ¥${availableYuan.toFixed(2)}`}
+          />
+          <TextField
+            label="开户行/支付渠道"
+            placeholder="如:招商银行 / 支付宝"
+            value={bankName}
+            onChange={(e) => setBankName(e.target.value)}
+            fullWidth
+            size="small"
+          />
+          <TextField
+            label="收款账号"
+            placeholder="银行卡号 / 支付宝账号"
+            value={bankAccount}
+            onChange={(e) => setBankAccount(e.target.value)}
+            fullWidth
+            size="small"
+          />
+          {error && (
+            <Typography sx={{ fontSize: 12, color: 'error.main' }}>{error}</Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpen(false)} disabled={submitting}>取消</Button>
+          <Button onClick={submit} variant="contained" disabled={!canSubmit}>
+            {submitting ? '提交中...' : '确认提现'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Paper>
   );
 }
@@ -297,10 +382,36 @@ function EarningsHistoryTab() {
 
 // 付费内容管理
 function PaidContentsTab() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['social-paid-contents'],
     queryFn: () => getMyPaidContents({ page: 1, pageSize: 50 }),
   });
+
+  const [open, setOpen] = useState(false);
+  const [contentId, setContentId] = useState('');
+  const [price, setPrice] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const priceFen = Math.round((parseFloat(price) || 0) * 100);
+  const canSubmit = /^\d+$/.test(contentId.trim()) && priceFen > 0 && !submitting;
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    setError('');
+    try {
+      await setPaidContent({ contentId: parseInt(contentId.trim(), 10), price: priceFen });
+      setOpen(false);
+      setContentId('');
+      setPrice('');
+      refetch();
+    } catch (e: any) {
+      setError(e?.message || '设置失败,请确认内容 ID 正确且属于你');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <Paper sx={{ p: 3, borderRadius: 2, bgcolor: 'background.paper' }}>
@@ -308,7 +419,7 @@ function PaidContentsTab() {
         <Typography variant="h6" sx={{ fontWeight: 600 }}>
           我的付费内容
         </Typography>
-        <Button size="small" variant="outlined">
+        <Button size="small" variant="outlined" onClick={() => setOpen(true)}>
           设置付费
         </Button>
       </Box>
@@ -357,10 +468,47 @@ function PaidContentsTab() {
           )}
         </Stack>
       )}
+
+      {/* 设置付费弹窗 */}
+      <Dialog open={open} onClose={() => !submitting && setOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>设置付费内容</DialogTitle>
+        <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
+          <TextField
+            label="内容 ID"
+            placeholder="要设为付费的内容 ID"
+            value={contentId}
+            onChange={(e) => setContentId(e.target.value)}
+            fullWidth
+            size="small"
+            slotProps={{ htmlInput: { inputMode: 'numeric' } }}
+            helperText="在「内容管理」里查看你的内容 ID"
+          />
+          <TextField
+            label="价格"
+            type="number"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            fullWidth
+            size="small"
+            slotProps={{
+              htmlInput: { min: 0.01, step: 0.01 },
+              input: { startAdornment: <InputAdornment position="start">¥</InputAdornment> },
+            }}
+          />
+          {error && (
+            <Typography sx={{ fontSize: 12, color: 'error.main' }}>{error}</Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpen(false)} disabled={submitting}>取消</Button>
+          <Button onClick={submit} variant="contained" disabled={!canSubmit}>
+            {submitting ? '提交中...' : '确认设置'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Paper>
   );
 }
-
 // 购买记录
 function PurchasesTab() {
   const { data, isLoading } = useQuery({
@@ -429,7 +577,7 @@ function PurchasesTab() {
 export default function SocialMonetizePage() {
   const [tab, setTab] = useState(0);
 
-  const { data: earnings, isLoading } = useQuery({
+  const { data: earnings, isLoading, refetch: refetchEarnings } = useQuery({
     queryKey: ['social-earnings'],
     queryFn: getEarnings,
     staleTime: 30 * 1000,
@@ -449,7 +597,7 @@ export default function SocialMonetizePage() {
             <Box sx={{ textAlign: 'center', py: 8 }}>加载中...</Box>
           ) : earnings ? (
             <>
-              <EarningsOverview stats={earnings} />
+              <EarningsOverview stats={earnings} onWithdrawn={() => refetchEarnings()} />
               <EarningsBreakdown />
 
               <Tabs

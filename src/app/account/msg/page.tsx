@@ -40,6 +40,7 @@ import VerifiedIcon from '@mui/icons-material/Verified';
 import { adminClient, homeClient, contentClient, formatApiError } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { fileUpload } from '@/apis/global';
+import { pinSession, unpinSession, removeSessions } from '@/apis/msg';
 import { useMsgUi } from './store';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -573,11 +574,10 @@ function DmPanel() {
   });
 
   const pinMutation = useMutation({
+    // 后端是路径式 /msg/session/:id/pin|unpin(apis/msg.ts 已封装),
+    // 之前这里内联写 body 风格的 /msg/session/pin,后端没这条路由 → 404。
     mutationFn: async ({ sessionId, pinned }: { sessionId: number; pinned: boolean }) =>
-      (await adminClient('/msg/session/pin', {
-        method: 'POST',
-        data: { sessionId, pinned },
-      })).data,
+      pinned ? pinSession(sessionId) : unpinSession(sessionId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['dm-sessions-page'] });
       setSnack({ open: true, msg: '置顶已更新', severity: 'success' });
@@ -585,25 +585,10 @@ function DmPanel() {
     onError: () => setSnack({ open: true, msg: '置顶更新失败', severity: 'error' }),
   });
 
-  const clearMutation = useMutation({
-    mutationFn: async () =>
-      (await adminClient('/msg/session/clear', {
-        method: 'POST',
-        data: { sessionId: selectedId },
-      })).data,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['dm-messages-page', selectedId] });
-      setSnack({ open: true, msg: '聊天记录已清空', severity: 'success' });
-    },
-    onError: () => setSnack({ open: true, msg: '清空失败', severity: 'error' }),
-  });
-
   const deleteMutation = useMutation({
-    mutationFn: async () =>
-      (await adminClient('/msg/session/delete', {
-        method: 'POST',
-        data: { sessionId: selectedId },
-      })).data,
+    // 后端是 DELETE /msg/session/removeByIds(apis/msg.ts removeSessions),
+    // 之前内联 POST /msg/session/delete → 404。
+    mutationFn: async () => removeSessions([selectedId as number]),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['dm-sessions-page'] });
       setSelectedId(null);
@@ -857,11 +842,13 @@ function DmPanel() {
                   anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
                   transformOrigin={{ vertical: 'top', horizontal: 'right' }}
                 >
-                  <MenuItem
-                    onClick={() => { setMoreAnchor(null); clearMutation.mutate(); }}
-                    sx={{ fontSize: 13, minWidth: 140 }}
-                  >
+                  {/* 后端暂无"清空聊天记录"接口(msgapp.go 未注册对应路由),禁用并标注,
+                      避免点了报 404。后端补 /msg/session/clear 后再放开。 */}
+                  <MenuItem disabled sx={{ fontSize: 13, minWidth: 140 }}>
                     清空聊天记录
+                    <Typography component="span" sx={{ fontSize: 10, color: 'text.disabled', ml: 1 }}>
+                      暂不支持
+                    </Typography>
                   </MenuItem>
                   <MenuItem
                     onClick={() => { setMoreAnchor(null); deleteMutation.mutate(); }}
