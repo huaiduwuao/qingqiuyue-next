@@ -205,17 +205,18 @@ git tag v1.0.0 && git push origin v1.0.0
 
 ## 发布到官网下载页
 
-`/download` 页面按构建时的环境变量显示下载按钮,未配置的平台显示「暂未发布」:
+CI 的 release job 会把安装包统一改名后发布到 GitHub Release:
 
-```
-NEXT_PUBLIC_CLIENT_URL_WINDOWS=https://.../清秋月_1.0.0_x64-setup.exe
-NEXT_PUBLIC_CLIENT_URL_MACOS=https://.../清秋月_1.0.0_universal.dmg
-NEXT_PUBLIC_CLIENT_URL_ANDROID=https://.../app-universal-release.apk
-NEXT_PUBLIC_CLIENT_URL_IOS=https://apps.apple.com/...
-```
+| 文件 | 平台 |
+|------|------|
+| `qingqiuyue-windows-x64-setup.exe` / `qingqiuyue-windows-x64.msi` | Windows |
+| `qingqiuyue-macos-universal.dmg` | macOS |
+| `qingqiuyue-android.apk` / `qingqiuyue-android.aab` | Android / Android TV / 应用商店 |
 
-把安装包传到 GitHub Release 或 MinIO `qq-media` 桶后,将地址作为网站镜像的构建参数传入
-(Dockerfile 需增加对应的 `ARG`/`ENV`),重新构建部署 web 容器即可。
+`/download` 页面默认链接到 `https://github.com/huaiduwuao/qingqiuyue-next/releases/latest/download/<文件名>`,
+**每次打 tag 发版后自动指向新版本,不需要重新部署网站**(页面上显示的版本号 `VERSION` 需要手动改)。
+要换成其他下载地址(比如国内 CDN / MinIO 镜像),在网站构建时设置同名环境变量覆盖:
+`NEXT_PUBLIC_CLIENT_URL_WINDOWS` / `_MACOS` / `_ANDROID` / `_IOS`;iOS 默认不显示,上架后填 App Store 链接。
 
 ## 常见问题
 

@@ -37,14 +37,16 @@ import {
 import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2, gradient3 } from '@/constants/gradients';
 
-const VERSION = '1.0.0';
+const VERSION = '1.0.2';
 
-// 真实安装包地址;未配置的平台按「暂未发布」展示,不提供任何占位下载。
+// 安装包由 CI 发布到 GitHub Release,并统一成固定文件名(.github/workflows/build.yml 的 release job),
+// latest/download 始终指向最新一次发版。同名环境变量可覆盖;设为空串则该平台显示「暂未发布」。
+const RELEASE_LATEST = 'https://github.com/huaiduwuao/qingqiuyue-next/releases/latest/download';
 const CLIENT_INSTALL_URLS: Record<ClientPlatform, string | undefined> = {
-  windows: process.env.NEXT_PUBLIC_CLIENT_URL_WINDOWS,
-  macos: process.env.NEXT_PUBLIC_CLIENT_URL_MACOS,
+  windows: process.env.NEXT_PUBLIC_CLIENT_URL_WINDOWS ?? `${RELEASE_LATEST}/qingqiuyue-windows-x64-setup.exe`,
+  macos: process.env.NEXT_PUBLIC_CLIENT_URL_MACOS ?? `${RELEASE_LATEST}/qingqiuyue-macos-universal.dmg`,
   ios: process.env.NEXT_PUBLIC_CLIENT_URL_IOS,
-  android: process.env.NEXT_PUBLIC_CLIENT_URL_ANDROID,
+  android: process.env.NEXT_PUBLIC_CLIENT_URL_ANDROID ?? `${RELEASE_LATEST}/qingqiuyue-android.apk`,
 };
 
 const PLATFORM_ICONS: Record<ClientPlatform, React.ComponentType<{ sx?: any }>> = {
@@ -58,7 +60,7 @@ const PLATFORM_DETAIL: Record<ClientPlatform, { arch: string; note: string }> = 
   windows: { arch: 'x64 · Win 10/11', note: '支持 Edge WebView2 渲染内核' },
   macos: { arch: 'Apple Silicon / Intel', note: 'Universal 二进制,免切换启动' },
   ios: { arch: 'iOS 15.0+', note: 'App Store 上架,TestFlight 内测同步' },
-  android: { arch: 'Android 8.0+', note: 'arm64-v8a · 适配折叠屏与画中画' },
+  android: { arch: 'Android 7.0+', note: '手机、平板与 Android TV 通用同一个安装包' },
 };
 
 const FEATURES = [

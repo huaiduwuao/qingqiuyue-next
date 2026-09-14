@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "清秋月",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "identifier": "app.qingqiuyue.desktop",
   "build": {
     "devUrl": "http://localhost:3000",

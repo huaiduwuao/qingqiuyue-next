@@ -214,6 +214,12 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      - name: Verify APK signature
+        if: env.HAS_KEYSTORE == 'true'
+        run: |
+          apk=$(ls src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk | head -1)
+          case "$apk" in *unsigned*) echo "::error::keystore configured but APK is unsigned: $apk"; exit 1;; esac
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$apk" | grep -E 'Signer #1 certificate (DN|SHA-256)'
       - uses: actions/upload-artifact@v4
         with:
           name: android
@@ -233,10 +239,23 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+      # GitHub 会吞掉资源名里的中文产品名(变成 _1.0.1_x64-setup.exe)。统一成固定的英文文件名,
+      # 官网下载页用 releases/latest/download/<文件名>,每次发版后自动指向最新版,无需改网站。
+      - name: Stable file names
+        run: |
+          mkdir dist
+          pick() {
+            f=$(find "artifacts/$1" -name "$2" | head -1)
+            [ -n "$f" ] || { echo "missing $1/$2"; exit 1; }
+            cp "$f" "dist/$3"
+          }
+          pick windows '*-setup.exe' qingqiuyue-windows-x64-setup.exe
+          pick windows '*.msi'       qingqiuyue-windows-x64.msi
+          pick macos   '*.dmg'       qingqiuyue-macos-universal.dmg
+          pick android '*.apk'       qingqiuyue-android.apk
+          pick android '*.aab'       qingqiuyue-android.aab
+          ls -l dist
       - uses: softprops/action-gh-release@v2
         with:
-          files: |
-            artifacts/windows/**
-            artifacts/macos/**
-            artifacts/android/**
+          files: dist/*
           generate_release_notes: true
