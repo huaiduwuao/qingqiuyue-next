@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React from 'react';
 import {
@@ -9,12 +9,10 @@ import {
   CardContent,
   Grid,
   Avatar,
-  AvatarGroup,
   Chip,
   LinearProgress,
   List,
   ListItem,
-  ListItemAvatar,
   ListItemText,
   Divider,
   Skeleton,
@@ -28,6 +26,7 @@ import { alpha } from '@mui/material/styles';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/contexts/AppContext';
+import { adminClient } from '@/lib/api/client';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
@@ -42,7 +41,6 @@ import PeopleAltRoundedIcon from '@mui/icons-material/PeopleAltRounded';
 import NotificationsRoundedIcon from '@mui/icons-material/NotificationsRounded';
 import DoneAllRoundedIcon from '@mui/icons-material/DoneAllRounded';
 import PendingActionsRoundedIcon from '@mui/icons-material/PendingActionsRounded';
-import HourglassEmptyRoundedIcon from '@mui/icons-material/HourglassEmptyRounded';
 import CircleIcon from '@mui/icons-material/Circle';
 import WbSunnyRoundedIcon from '@mui/icons-material/WbSunnyRounded';
 
@@ -51,16 +49,17 @@ interface WorkplaceUser {
   name: string; avatar: string; role: string; department: string; greeting: string;
 }
 interface QuickAction { id: string; label: string; icon: string; color: string; path: string; }
+// 后端返回: priority(P0/P1/P2), status(pending/claimed/submitted/reviewing/approved/rejected/completed)
 interface Todo {
-  id: number; title: string; description: string; priority: 'high' | 'medium' | 'low';
-  status: 'pending' | 'in_progress' | 'done'; assignee: string; dueDate: string; createTime: string;
+  id: number; title: string; description: string; priority: string;
+  status: string; assignee: string; dueDate: string | null; createTime: string;
 }
 interface Project {
   id: number; name: string; description: string; progress: number; status: string;
-  members: { name: string; avatar: string }[]; deadline: string; updateTime: string;
+  type?: string; updateTime?: string;
 }
 interface TeamMember {
-  id: number; name: string; avatar: string; role: string; status: 'online' | 'offline'; lastActive: string;
+  id: number; name: string; avatar: string; role?: string; status: string; lastActive: string;
 }
 
 // ── Icons ──
@@ -75,10 +74,17 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   chart: <BarChartRoundedIcon />,
 };
 
-const PRIORITY_COLORS = { high: '#FE2C55', medium: '#FFB400', low: '#5DDB96' };
-const PRIORITY_LABELS = { high: '高', medium: '中', low: '低' };
-const STATUS_LABELS: Record<string, string> = { pending: '待处理', in_progress: '进行中', done: '已完成' };
-const STATUS_COLORS: Record<string, 'warning' | 'info' | 'success'> = { pending: 'warning', in_progress: 'info', done: 'success' };
+const PRIORITY_COLORS: Record<string, string> = { P0: '#FE2C55', P1: '#FFB400', P2: '#5DDB96' };
+const PRIORITY_LABELS: Record<string, string> = { P0: '紧急', P1: '高', P2: '中' };
+const STATUS_LABELS: Record<string, string> = {
+  pending: '待领取', claimed: '进行中', submitted: '待审核', reviewing: '审核中',
+  approved: '已完成', rejected: '已拒绝', completed: '已完成',
+};
+const STATUS_COLORS: Record<string, 'warning' | 'info' | 'success' | 'error'> = {
+  pending: 'warning', claimed: 'info', submitted: 'info', reviewing: 'info',
+  approved: 'success', rejected: 'error', completed: 'success',
+};
+const DONE_STATUSES = new Set(['approved', 'completed', 'rejected']);
 
 function useWorkplace() {
   const { currentUser } = useApp();
@@ -111,28 +117,36 @@ function useWorkplace() {
       { id: 'agent-manager', label: 'Agent 管理', icon: 'bot', color: '#5B8DEF', path: '/system/agentmanager' },
       { id: 'chart', label: '数据分析', icon: 'chart', color: '#8B5CF6', path: '/system/dashboard/analysis' },
     ],
-    // 之前:staleTime: Infinity → dev 模式 query cache 永不释放,内存持续上涨
-    // 改:1h 上限,既保持 admin 长时间停留不重查,也允许 GC 释放
     staleTime: 60 * 60 * 1000,
   });
 
-  // TODO: 后端实现工作台待办/项目/团队 API 后替换以下三个 queryFn
-  // 当前返回空数组，避免展示虚假数据
+  // 待办列表 <- GET /api/core/workplace/todos
   const todos = useQuery<Todo[]>({
     queryKey: ['workplace', 'todos'],
-    queryFn: async () => [],
+    queryFn: async () => {
+      const res = await adminClient('/workplace/todos');
+      return ((res as any)?.data ?? []) as Todo[];
+    },
     staleTime: 5 * 60_000,
   });
 
+  // 项目列表 <- GET /api/core/workplace/projects
   const projects = useQuery<Project[]>({
     queryKey: ['workplace', 'projects'],
-    queryFn: async () => [],
+    queryFn: async () => {
+      const res = await adminClient('/workplace/projects');
+      return ((res as any)?.data ?? []) as Project[];
+    },
     staleTime: 5 * 60_000,
   });
 
+  // 团队成员 <- GET /api/core/workplace/team
   const team = useQuery<TeamMember[]>({
     queryKey: ['workplace', 'team'],
-    queryFn: async () => [],
+    queryFn: async () => {
+      const res = await adminClient('/workplace/team');
+      return ((res as any)?.data ?? []) as TeamMember[];
+    },
     staleTime: 5 * 60_000,
   });
 
@@ -144,13 +158,12 @@ export default function DashboardWorkplacePage() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  // TODO: 后端实现工作台待办 API 后替换 toggleTodo
   const toggleTodo = useMutation({
     mutationFn: (id: number) => {
-      // 本地状态更新，待后端实现后改为真实 API 调用
+      // 悬赏任务状态由后端 workflow 驱动,前端仅本地乐观更新
       const current = queryClient.getQueryData<Todo[]>(['workplace', 'todos']) || [];
       const updated = current.map((t: Todo) =>
-        t.id === id ? { ...t, status: t.status === 'done' ? ('pending' as const) : ('done' as const) } : t
+        t.id === id ? { ...t, status: DONE_STATUSES.has(t.status) ? 'pending' : 'completed' } : t
       );
       queryClient.setQueryData(['workplace', 'todos'], updated);
       return Promise.resolve();
@@ -158,12 +171,12 @@ export default function DashboardWorkplacePage() {
   });
 
   const u = user.data;
-  const pendingTodos = (todos.data || []).filter((t: Todo) => t.status !== 'done');
-  const doneTodos = (todos.data || []).filter((t: Todo) => t.status === 'done');
+  const pendingTodos = (todos.data || []).filter((t: Todo) => !DONE_STATUSES.has(t.status));
+  const doneTodos = (todos.data || []).filter((t: Todo) => DONE_STATUSES.has(t.status));
 
   if (user.isError && !user.isLoading) {
     return (
-      <Container maxWidth="lg"><Box sx={{ py: 4 }}><Alert severity="error">数据加载失败,请确认后端 API 已启动</Alert></Box></Container>
+      <Container maxWidth="lg"><Box sx={{ py: 4 }}><Alert severity="error">数据加载失败，请确认后端 API 已启动</Alert></Box></Container>
     );
   }
 
@@ -275,20 +288,22 @@ export default function DashboardWorkplacePage() {
                           }
                         >
                           <Box sx={{ mr: 1.5, minWidth: 8 }}>
-                            <CircleIcon sx={{ fontSize: 8, color: PRIORITY_COLORS[t.priority] }} />
+                            <CircleIcon sx={{ fontSize: 8, color: PRIORITY_COLORS[t.priority] || '#8B5CF6' }} />
                           </Box>
                           <ListItemText
                             primary={
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                 <Typography variant="body2" sx={{ fontWeight: 500, fontSize: 13 }}>{t.title}</Typography>
-                                <Chip label={PRIORITY_LABELS[t.priority]} size="small" sx={{ height: 18, fontSize: 10, bgcolor: alpha(PRIORITY_COLORS[t.priority], 0.1), color: PRIORITY_COLORS[t.priority] }} />
+                                <Chip label={PRIORITY_LABELS[t.priority] || t.priority} size="small" sx={{ height: 18, fontSize: 10, bgcolor: alpha(PRIORITY_COLORS[t.priority] || '#8B5CF6', 0.1), color: PRIORITY_COLORS[t.priority] || '#8B5CF6' }} />
                               </Box>
                             }
                             secondary={
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.3 }}>
                                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11 }}>{t.description}</Typography>
                                 <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11 }}>· {t.assignee}</Typography>
-                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11 }}>· {new Date(t.dueDate).toLocaleDateString('zh-CN')}</Typography>
+                                {t.dueDate && (
+                                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: 11 }}>· {new Date(t.dueDate).toLocaleDateString('zh-CN')}</Typography>
+                                )}
                               </Box>
                             }
                           />
@@ -363,18 +378,16 @@ export default function DashboardWorkplacePage() {
                             }}
                           />
                         </Box>
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <AvatarGroup max={4} sx={{ '& .MuiAvatar-root': { width: 24, height: 24, fontSize: 10 } }}>
-                            {p.members.map((m, j) => (
-                              <Tooltip key={j} title={m.name}><Avatar src={m.avatar} /></Tooltip>
-                            ))}
-                          </AvatarGroup>
+                        {p.updateTime && (
                           <Typography variant="caption" color="text.secondary" sx={{ fontSize: 10 }}>
-                            截止 {new Date(p.deadline).toLocaleDateString('zh-CN')}
+                            更新于 {new Date(p.updateTime).toLocaleDateString('zh-CN')}
                           </Typography>
-                        </Box>
+                        )}
                       </Box>
                     ))}
+                    {(!projects.data || projects.data.length === 0) && (
+                      <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>暂无项目</Typography>
+                    )}
                   </Box>
                 )}
               </CardContent>
@@ -414,12 +427,15 @@ export default function DashboardWorkplacePage() {
                           <Avatar src={m.avatar} sx={{ width: 48, height: 48, mx: 'auto', mb: 1 }} />
                         </Badge>
                         <Typography variant="body2" sx={{ fontWeight: 600, fontSize: 13 }}>{m.name}</Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: 11 }}>{m.role}</Typography>
+                        {m.role && <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: 11 }}>{m.role}</Typography>}
                         <Typography variant="caption" color={m.status === 'online' ? 'success.main' : 'text.secondary'} sx={{ fontSize: 10 }}>
                           {m.status === 'online' ? `在线 · ${m.lastActive}` : `离线 · ${m.lastActive}`}
                         </Typography>
                       </Box>
                     ))}
+                    {(!team.data || team.data.length === 0) && (
+                      <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2, width: '100%' }}>暂无团队成员</Typography>
+                    )}
                   </Box>
                 )}
               </CardContent>
