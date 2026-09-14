@@ -11,6 +11,7 @@ import Chip from '@mui/material/Chip';
 import Divider from '@mui/material/Divider';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
+import Button from '@mui/material/Button';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
@@ -27,6 +28,7 @@ import { useContentInteraction } from '@/hooks/useContentInteraction';
 import { formatApiError } from '@/lib/api/client';
 import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
+import { mediaUrl } from '@/lib/media';
 import { track, recordHistory } from '@/lib/track';
 import { DetailComments } from '@/components/detail/DetailComments';
 import { DetailFooter } from '@/components/detail/DetailFooter';
@@ -90,8 +92,19 @@ function MusicDetailContent() {
   const [realAudioUrl, setRealAudioUrl] = useState<string>('');
   const [realLyrics, setRealLyrics] = useState<LyricLine[]>([]);
   const [audioLoading, setAudioLoading] = useState(false);
+  // <audio> 加载失败(实时签名地址过期、源站拒绝)—— 和"压根没有音源"一样要让用户看见。
+  const [audioFailed, setAudioFailed] = useState(false);
 
   const lyrics = realLyrics.length > 0 ? realLyrics : normalizeLyrics(query.data?.lyrics);
+
+  // 音源一律经 mediaUrl:MinIO 直链换成同源网关地址,源站 http 直链包进 /api/proxy
+  // (补 Referer、避开 https 页面对混合内容的拦截)。
+  const audioSrc = mediaUrl(realAudioUrl || query.data?.audioUrl);
+  const sourcePage: string = query.data?.sourceUrl || query.data?.source || '';
+  const audioUnavailable = query.isSuccess && !audioLoading && (!audioSrc || audioFailed);
+  const audioNotice = audioFailed
+    ? '音源加载失败（可能已过期或受版权限制），请刷新重试或前往原平台收听'
+    : query.data?.audioNotice || '暂无可播放音源（版权或平台限制），可前往原平台收听';
 
   const notify = useCallback((message: string, severity: 'success' | 'error' | 'info' = 'success') => {
     setSnack({ open: true, message, severity });
@@ -146,6 +159,7 @@ function MusicDetailContent() {
   // 实时获取音频URL和歌词
   useEffect(() => {
     if (!id || !query.data) return;
+    setAudioFailed(false);
 
     const fetchAudioAndLyrics = async () => {
       // 优先使用已有的 audioUrl
@@ -194,7 +208,10 @@ function MusicDetailContent() {
   }, [id, query.data, query.isSuccess]);
 
   const togglePlay = () => {
-    if (!audioRef.current) return;
+    if (!audioRef.current || audioUnavailable) {
+      notify(audioNotice, 'info');
+      return;
+    }
     if (playing) {
       audioRef.current.pause();
     } else {
@@ -291,10 +308,14 @@ function MusicDetailContent() {
               </Box>
             </Box>
 
-            {(realAudioUrl || data.audioUrl) && (
+            {audioSrc && !audioFailed && (
               <audio
                 ref={audioRef}
-                src={realAudioUrl || data.audioUrl}
+                src={audioSrc}
+                onError={() => {
+                  setAudioFailed(true);
+                  setPlaying(false);
+                }}
                 onTimeUpdate={() => {
                   setCurrentTime(audioRef.current?.currentTime ?? 0);
                   // 歌词同步
@@ -322,6 +343,24 @@ function MusicDetailContent() {
               </Typography>
             )}
 
+            {/* 没有音源的歌照样收录、照样搜得到 —— 但必须明说放不了,并给出原平台入口 */}
+            {audioUnavailable && (
+              <Alert
+                severity="warning"
+                variant="outlined"
+                sx={{ mb: 2 }}
+                action={
+                  sourcePage ? (
+                    <Button color="inherit" size="small" href={sourcePage} target="_blank" rel="noopener noreferrer">
+                      去原平台收听
+                    </Button>
+                  ) : undefined
+                }
+              >
+                {audioNotice}
+              </Alert>
+            )}
+
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
               <Typography sx={{ fontSize: 11, color: 'text.secondary', minWidth: 36, textAlign: 'right' }}>
                 {fmtTime(currentTime)}
@@ -347,10 +386,13 @@ function MusicDetailContent() {
               </IconButton>
               <IconButton
                 onClick={togglePlay}
+                disabled={audioUnavailable}
+                aria-label={audioUnavailable ? audioNotice : playing ? '暂停' : '播放'}
                 sx={{
                   bgcolor: 'primary.main',
                   color: 'text.primary',
                   '&:hover': { bgcolor: '#E0264B' },
+                  '&.Mui-disabled': { bgcolor: 'action.disabledBackground', color: 'text.disabled' },
                   width: 56,
                   height: 56,
                 }}
