@@ -9,6 +9,7 @@ import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import { DataGridTable } from '@/components/tables/DataGridTable';
 import BotFormDialog from '@/components/bot/BotFormDialog';
+import BotConfigPanel from '@/components/bot/BotConfigPanel';
 import * as botApi from '@/apis/bot';
 import type { BotItem } from '@/beans/system';
 import type { GridColDef } from '@mui/x-data-grid';
@@ -154,6 +155,7 @@ export default function SystemBotPage() {
 
   return (
     <Box sx={{ p: { xs: 1.5, md: 3 } }}>
+      <BotConfigPanel onMessage={showMessage} />
       <DataGridTable
         title="假人管理"
         columns={columns}

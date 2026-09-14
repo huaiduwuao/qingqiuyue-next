@@ -38,6 +38,40 @@ export async function resume(id: number) {
   return adminClient(`/bot/${id}/resume`, { method: 'POST' });
 }
 
+// AI 用户运营参数(后台可改,content-api 调度器一分钟内生效)
+export interface BotConfig {
+  paused: boolean;
+  targetBotCount: number;
+  maxBotsPerTick: number;
+  dailyActionCap: number;
+  postGapSeconds: number;
+  maxPostsPerBotPerDay: number;
+  engageBudgetPerTick: number;
+  followDayCurve: boolean;
+}
+
+export interface BotConfigResponse {
+  config: BotConfig;
+  botCount: number;
+  activeCount: number;
+  llmEnabled: boolean;
+}
+
+export async function getConfig(): Promise<BotConfigResponse> {
+  const res: any = await adminClient('/bot/config');
+  return res?.data ?? res;
+}
+
+export async function saveConfig(cfg: BotConfig): Promise<BotConfig> {
+  const res: any = await adminClient('/bot/config', { method: 'PUT', data: cfg });
+  return res?.data ?? res;
+}
+
+export async function refreshPersonas(): Promise<{ updated: number }> {
+  const res: any = await adminClient('/bot/personas/refresh', { method: 'POST' });
+  return res?.data ?? res;
+}
+
 // 批量创建假人
 export interface BatchCreateBotParams {
   count: number;                   // 数量 1-100

@@ -34,7 +34,7 @@ export function CommunityPanel() {
       <Box sx={{ width: 300, flexShrink: 0, display: { xs: 'none', lg: 'flex' }, flexDirection: 'column', gap: 2, position: 'sticky', top: 16 }}>
         <HotTopicsCard />
         <Box sx={{ ...sideCardSx, fontSize: 12, color: 'var(--text-muted, rgba(255,255,255,0.5))', lineHeight: 1.7 }}>
-          带 <BotBadge /> 标记的是平台运营的 AI 虚拟用户,会参与点赞、评论和话题讨论,帮新社区热闹起来。
+          名字旁带 <BotBadge /> 标记的是平台运营的 AI 虚拟用户,会参与点赞、评论和话题讨论。
         </Box>
       </Box>
     </Box>
