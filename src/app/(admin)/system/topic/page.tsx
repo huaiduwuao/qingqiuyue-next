@@ -32,6 +32,7 @@ import {
   Avatar,
   ListItemSecondaryAction,
   Divider,
+  MenuItem,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -54,13 +55,36 @@ import {
   Topic,
   TopicWithContents,
   CreateTopicReq,
-  UpdateTopicReq,
+  TopicKind,
+  parseTopicRule,
 } from '@/apis/topic';
 import { moduleContentPage } from '@/apis/home';
 
-// 内容搜索结果类型
+// 自动收录规则可选的内容类型
+const RULE_CONTENT_TYPES: { value: string; label: string }[] = [
+  { value: 'FILM', label: '电影' },
+  { value: 'TELEPLAY', label: '剧集' },
+  { value: 'VIDEO', label: '视频' },
+  { value: 'ANIMATION', label: '动画' },
+  { value: 'COMICS', label: '漫画' },
+  { value: 'VSHOW', label: '综艺' },
+  { value: 'NOVEL', label: '小说' },
+  { value: 'MUSIC', label: '音乐' },
+  { value: 'ARTICLE', label: '文章' },
+  { value: 'WALLPAPER', label: '壁纸' },
+];
+
+interface RuleForm {
+  contentTypes: string[];
+  keywords: string;
+  orderBy: 'hot' | 'new';
+}
+
+const emptyRule: RuleForm = { contentTypes: [], keywords: '', orderBy: 'hot' };
+
+// 内容搜索结果类型(内容 id 超过 2^53 时是字符串)
 interface ContentItem {
-  id: number;
+  id: number | string;
   title: string;
   subtitle?: string;
   contentType: string;
@@ -83,7 +107,9 @@ export default function TopicAdminPage() {
     description: '',
     contentType: '',
     sort: 0,
+    kind: 'collection',
   });
+  const [ruleForm, setRuleForm] = useState<RuleForm>(emptyRule);
 
   // 内容搜索状态
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -119,7 +145,10 @@ export default function TopicAdminPage() {
         description: topic.description || '',
         contentType: topic.contentType || '',
         sort: topic.sort,
+        kind: topic.kind || 'collection',
       });
+      const r = parseTopicRule(topic.rule);
+      setRuleForm({ contentTypes: r.contentTypes || [], keywords: (r.keywords || []).join(','), orderBy: r.orderBy === 'new' ? 'new' : 'hot' });
     } else {
       setEditingTopic(null);
       setFormData({
@@ -129,7 +158,9 @@ export default function TopicAdminPage() {
         description: '',
         contentType: '',
         sort: 0,
+        kind: 'collection',
       });
+      setRuleForm(emptyRule);
     }
     setOpenDialog(true);
   };
@@ -140,11 +171,20 @@ export default function TopicAdminPage() {
   };
 
   const handleSubmit = async () => {
+    // 规则为空(没选类型也没填关键词)时后端会清除规则
+    const payload: CreateTopicReq = {
+      ...formData,
+      rule: {
+        contentTypes: ruleForm.contentTypes,
+        keywords: ruleForm.keywords.split(/[,，\s]+/).map((k) => k.trim()).filter(Boolean),
+        orderBy: ruleForm.orderBy,
+      },
+    };
     try {
       if (editingTopic) {
-        await updateTopic(editingTopic.id, formData as UpdateTopicReq);
+        await updateTopic(editingTopic.id, payload);
       } else {
-        await createTopic(formData);
+        await createTopic(payload);
       }
       handleCloseDialog();
       loadTopics();
@@ -199,7 +239,8 @@ export default function TopicAdminPage() {
         title: searchKeyword,
         status: 'PUBLISH',
       }) as any;
-      const list = res?.data?.data?.list || res?.data?.data?.records || [];
+      // 拦截器已解开一层 { code, data },列表在 res.data 下(以前多取了一层 .data,搜索永远为空)
+      const list = res?.data?.list || res?.data?.records || [];
       setSearchResults(list);
     } catch (error) {
       console.error('搜索内容失败:', error);
@@ -223,7 +264,7 @@ export default function TopicAdminPage() {
         setCurrentTopic(res.data);
       }
       // 从搜索结果中移除已添加的内容
-      setSearchResults(searchResults.filter((c) => c.id !== content.id));
+      setSearchResults(searchResults.filter((c) => String(c.id) !== String(content.id)));
     } catch (error) {
       console.error('添加内容失败:', error);
       alert('添加失败，请重试');
@@ -231,7 +272,7 @@ export default function TopicAdminPage() {
   };
 
   // 从专题移除内容
-  const handleRemoveContent = async (contentId: number) => {
+  const handleRemoveContent = async (contentId: number | string) => {
     if (!currentTopic) return;
     try {
       await removeTopicContent(currentTopic.id, contentId);
@@ -247,8 +288,8 @@ export default function TopicAdminPage() {
   };
 
   // 检查内容是否已在专题中
-  const isContentInTopic = (contentId: number) => {
-    return currentTopic?.contents?.some((c: any) => c.id === contentId) || false;
+  const isContentInTopic = (contentId: number | string) => {
+    return currentTopic?.contents?.some((c: any) => String(c.id) === String(contentId)) || false;
   };
 
   return (
@@ -273,8 +314,10 @@ export default function TopicAdminPage() {
               <TableCell>ID</TableCell>
               <TableCell>封面</TableCell>
               <TableCell>标题</TableCell>
+              <TableCell>类型</TableCell>
               <TableCell>副标题</TableCell>
               <TableCell>内容数</TableCell>
+              <TableCell>关注 / 讨论</TableCell>
               <TableCell>浏览量</TableCell>
               <TableCell>排序</TableCell>
               <TableCell>状态</TableCell>
@@ -284,13 +327,13 @@ export default function TopicAdminPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={9} align="center">
+                <TableCell colSpan={11} align="center">
                   加载中...
                 </TableCell>
               </TableRow>
             ) : topics.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} align="center">
+                <TableCell colSpan={11} align="center">
                   暂无专题
                 </TableCell>
               </TableRow>
@@ -324,6 +367,11 @@ export default function TopicAdminPage() {
                   </TableCell>
                   <TableCell>
                     <Typography variant="subtitle2">{topic.title}</Typography>
+                    {topic.ownerId ? <Typography variant="caption" color="text.secondary">用户创建</Typography> : null}
+                  </TableCell>
+                  <TableCell>
+                    <Chip size="small" variant="outlined" label={topic.kind === 'topic' ? '话题' : '合集'} />
+                    {topic.rule ? <Chip size="small" label="自动收录" sx={{ ml: 0.5 }} /> : null}
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 200 }}>
@@ -331,6 +379,7 @@ export default function TopicAdminPage() {
                     </Typography>
                   </TableCell>
                   <TableCell>{topic.contentCount}</TableCell>
+                  <TableCell>{topic.followerCount ?? 0} / {topic.postCount ?? 0}</TableCell>
                   <TableCell>{topic.viewCount}</TableCell>
                   <TableCell>{topic.sort}</TableCell>
                   <TableCell>
@@ -418,12 +467,54 @@ export default function TopicAdminPage() {
               rows={4}
             />
             <TextField
-              label="内容类型限制"
-              value={formData.contentType}
-              onChange={(e) => setFormData({ ...formData, contentType: e.target.value })}
+              select
+              label="类型"
+              value={formData.kind || 'collection'}
+              onChange={(e) => setFormData({ ...formData, kind: e.target.value as TopicKind })}
               fullWidth
-              placeholder="如: VIDEO, NOVEL, MUSIC (留空表示不限制)"
+              helperText="合集:以作品为主(手工收录 + 自动收录);话题:以讨论为主,用户发帖写 #话题名# 即可参与"
+            >
+              <MenuItem value="collection">合集</MenuItem>
+              <MenuItem value="topic">话题</MenuItem>
+            </TextField>
+            <Typography variant="subtitle2" sx={{ mt: 1 }}>
+              自动收录规则(可选)
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ mt: -1.5 }}>
+              手工收录的作品排在前面,满足规则的作品自动补在后面;类型和关键词都不填表示不自动收录。
+            </Typography>
+            <TextField
+              select
+              label="内容类型"
+              value={ruleForm.contentTypes}
+              onChange={(e) => {
+                const v = e.target.value as unknown as string[] | string;
+                setRuleForm({ ...ruleForm, contentTypes: typeof v === 'string' ? v.split(',') : v });
+              }}
+              slotProps={{ select: { multiple: true } }}
+              fullWidth
+            >
+              {RULE_CONTENT_TYPES.map((t) => (
+                <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              label="标题/标签关键词"
+              value={ruleForm.keywords}
+              onChange={(e) => setRuleForm({ ...ruleForm, keywords: e.target.value })}
+              fullWidth
+              placeholder="多个用逗号分隔,如:科幻, 悬疑"
             />
+            <TextField
+              select
+              label="自动收录排序"
+              value={ruleForm.orderBy}
+              onChange={(e) => setRuleForm({ ...ruleForm, orderBy: e.target.value as 'hot' | 'new' })}
+              fullWidth
+            >
+              <MenuItem value="hot">按热度</MenuItem>
+              <MenuItem value="new">按最近更新</MenuItem>
+            </TextField>
             <TextField
               label="排序"
               type="number"

@@ -328,6 +328,10 @@ function InteractionItem({ item, onClose, onMessage }: { item: any; onClose: () 
       }
       return;
     }
+    if (item.feedId) {
+      router.push(`/home/recommend?tab=feed&feedId=${item.feedId}`);
+      return;
+    }
     const targetType = mapNoticeTargetType(item.targetType);
     if (targetType && item.targetId) {
       const route = getDetailRoute(targetType, item.targetId);

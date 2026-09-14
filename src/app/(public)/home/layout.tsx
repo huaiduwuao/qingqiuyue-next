@@ -32,6 +32,7 @@ import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
 import MovieRoundedIcon from '@mui/icons-material/MovieRounded';
 import TheatersRoundedIcon from '@mui/icons-material/TheatersRounded';
 import CollectionsRoundedIcon from '@mui/icons-material/CollectionsRounded';
+import DynamicFeedRoundedIcon from '@mui/icons-material/DynamicFeedRounded';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { useApp } from '@/contexts/AppContext';
 import { AvatarHoverPopup } from '@/components/account/AvatarHoverPopup';
@@ -44,6 +45,8 @@ import TrendingBoard from '@/components/home/TrendingBoard';
 import { LivePanel } from './panels/LivePanel';
 import { TheaterPanel } from './panels/TheaterPanel';
 import { DramaPanel } from './panels/DramaPanel';
+import { CommunityPanel } from '@/components/community/CommunityPanel';
+import { TopicHub } from '@/components/community/TopicHub';
 import { ACCENT } from '@/constants/accents';
 import { gradient2 } from '@/constants/gradients';
 import HomeRecommendPage from './recommend/page';
@@ -58,7 +61,8 @@ const SIDE_NAV: { key: string; label: string; path?: string; icon: React.ReactNo
   { key: 'friend', label: '朋友', path: '/home/recommend?tab=friend', icon: <GroupsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'warning.main' },
   { key: 'me', label: '我的', path: '/home/recommend?tab=me', icon: <PersonRoundedIcon sx={{ fontSize: 18 }} />, accent: ACCENT.purple.main },
   { key: 'live', label: '直播', path: '/home/recommend?tab=live', icon: <LiveTvRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
-  { key: 'topic', label: '专题', path: '/topic', icon: <CollectionsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D' },
+  { key: 'feed', label: '动态', path: '/home/recommend?tab=feed', icon: <DynamicFeedRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
+  { key: 'topic', label: '专题', path: '/home/recommend?tab=topic', icon: <CollectionsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D' },
   // 内容管理/悬赏中心:router.push 同页跳转(不开新标签),保留历史栈可返回
   { key: 'content', label: '内容管理', path: '/account/content', icon: <VideoLibraryIcon sx={{ fontSize: 18 }} />, accent: 'secondary.main', dividerBefore: true },
   { key: 'reward', label: '悬赏中心', path: '/account/reward', icon: <CardGiftcardIcon sx={{ fontSize: 18 }} />, accent: 'warning.main' },
@@ -175,6 +179,8 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
            : activeNav === 'live' ? <LivePanel />
            : activeNav === 'theater' ? <TheaterPanel />
            : activeNav === 'drama' ? <DramaPanel />
+           : activeNav === 'feed' ? <CommunityPanel />
+           : activeNav === 'topic' ? <TopicHub />
            : <Box sx={{ p: 3 }}>{children}</Box>}
         </Box>
         {/* recommend 页面自己处理右侧栏，home 使用外部侧边栏 */}
