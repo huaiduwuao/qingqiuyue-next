@@ -23,6 +23,15 @@ import {
   Chip,
   Switch,
   Tooltip,
+  Autocomplete,
+  CircularProgress,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemAvatar,
+  Avatar,
+  ListItemSecondaryAction,
+  Divider,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -30,16 +39,33 @@ import {
   Delete as DeleteIcon,
   Visibility as VisibilityIcon,
   Article as ArticleIcon,
+  LibraryAdd as LibraryAddIcon,
+  Search as SearchIcon,
+  RemoveCircle as RemoveCircleIcon,
 } from '@mui/icons-material';
 import {
   listTopics,
   createTopic,
   updateTopic,
   deleteTopic,
+  getTopic,
+  addTopicContent,
+  removeTopicContent,
   Topic,
+  TopicWithContents,
   CreateTopicReq,
   UpdateTopicReq,
 } from '@/apis/topic';
+import { moduleContentPage } from '@/apis/home';
+
+// 内容搜索结果类型
+interface ContentItem {
+  id: number;
+  title: string;
+  subtitle?: string;
+  contentType: string;
+  coverUrl?: string;
+}
 
 export default function TopicAdminPage() {
   const [topics, setTopics] = useState<Topic[]>([]);
@@ -47,7 +73,9 @@ export default function TopicAdminPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [openDialog, setOpenDialog] = useState(false);
+  const [openContentDialog, setOpenContentDialog] = useState(false);
   const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
+  const [currentTopic, setCurrentTopic] = useState<TopicWithContents | null>(null);
   const [formData, setFormData] = useState<CreateTopicReq>({
     title: '',
     subtitle: '',
@@ -56,6 +84,11 @@ export default function TopicAdminPage() {
     contentType: '',
     sort: 0,
   });
+
+  // 内容搜索状态
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [searchResults, setSearchResults] = useState<ContentItem[]>([]);
+  const [searching, setSearching] = useState(false);
 
   useEffect(() => {
     loadTopics();
@@ -139,6 +172,83 @@ export default function TopicAdminPage() {
     } catch (error) {
       console.error('更新状态失败:', error);
     }
+  };
+
+  // 打开内容管理对话框
+  const handleOpenContentDialog = async (topic: Topic) => {
+    try {
+      const res = await getTopic(topic.id);
+      if (res.data) {
+        setCurrentTopic(res.data);
+        setOpenContentDialog(true);
+      }
+    } catch (error) {
+      console.error('加载专题详情失败:', error);
+      alert('加载失败，请重试');
+    }
+  };
+
+  // 搜索内容
+  const handleSearchContent = async () => {
+    if (!searchKeyword.trim()) return;
+    setSearching(true);
+    try {
+      const res = await moduleContentPage({
+        page: 1,
+        pageSize: 20,
+        title: searchKeyword,
+        status: 'PUBLISH',
+      }) as any;
+      const list = res?.data?.data?.list || res?.data?.data?.records || [];
+      setSearchResults(list);
+    } catch (error) {
+      console.error('搜索内容失败:', error);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  // 添加内容到专题
+  const handleAddContent = async (content: ContentItem) => {
+    if (!currentTopic) return;
+    try {
+      await addTopicContent(currentTopic.id, {
+        contentId: content.id,
+        contentType: content.contentType,
+        sort: (currentTopic.contents?.length || 0) + 1,
+      });
+      // 刷新专题内容
+      const res = await getTopic(currentTopic.id);
+      if (res.data) {
+        setCurrentTopic(res.data);
+      }
+      // 从搜索结果中移除已添加的内容
+      setSearchResults(searchResults.filter((c) => c.id !== content.id));
+    } catch (error) {
+      console.error('添加内容失败:', error);
+      alert('添加失败，请重试');
+    }
+  };
+
+  // 从专题移除内容
+  const handleRemoveContent = async (contentId: number) => {
+    if (!currentTopic) return;
+    try {
+      await removeTopicContent(currentTopic.id, contentId);
+      // 刷新专题内容
+      const res = await getTopic(currentTopic.id);
+      if (res.data) {
+        setCurrentTopic(res.data);
+      }
+    } catch (error) {
+      console.error('移除内容失败:', error);
+      alert('移除失败，请重试');
+    }
+  };
+
+  // 检查内容是否已在专题中
+  const isContentInTopic = (contentId: number) => {
+    return currentTopic?.contents?.some((c: any) => c.id === contentId) || false;
   };
 
   return (
@@ -231,6 +341,11 @@ export default function TopicAdminPage() {
                     />
                   </TableCell>
                   <TableCell>
+                    <Tooltip title="管理内容">
+                      <IconButton size="small" color="primary" onClick={() => handleOpenContentDialog(topic)}>
+                        <LibraryAddIcon />
+                      </IconButton>
+                    </Tooltip>
                     <Tooltip title="编辑">
                       <IconButton size="small" onClick={() => handleOpenDialog(topic)}>
                         <EditIcon />
@@ -270,7 +385,7 @@ export default function TopicAdminPage() {
         </Button>
       </Box>
 
-      {/* 编辑对话框 */}
+      {/* 编辑专题对话框 */}
       <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
         <DialogTitle>{editingTopic ? '编辑专题' : '新建专题'}</DialogTitle>
         <DialogContent>
@@ -323,6 +438,123 @@ export default function TopicAdminPage() {
           <Button onClick={handleSubmit} variant="contained" disabled={!formData.title}>
             保存
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 内容管理对话框 */}
+      <Dialog
+        open={openContentDialog}
+        onClose={() => setOpenContentDialog(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          管理专题内容 - {currentTopic?.title}
+        </DialogTitle>
+        <DialogContent>
+          {/* 搜索内容 */}
+          <Box sx={{ display: 'flex', gap: 1, mb: 3, mt: 1 }}>
+            <TextField
+              label="搜索内容"
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSearchContent()}
+              fullWidth
+              size="small"
+            />
+            <Button
+              variant="contained"
+              onClick={handleSearchContent}
+              disabled={searching}
+              startIcon={searching ? <CircularProgress size={20} /> : <SearchIcon />}
+            >
+              搜索
+            </Button>
+          </Box>
+
+          {/* 搜索结果 */}
+          {searchResults.length > 0 && (
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                搜索结果 (点击添加到专题)
+              </Typography>
+              <List dense>
+                {searchResults.map((content) => (
+                  <ListItem
+                    key={content.id}
+                    sx={{
+                      bgcolor: isContentInTopic(content.id) ? 'action.selected' : 'transparent',
+                      borderRadius: 1,
+                      mb: 0.5,
+                    }}
+                  >
+                    <ListItemAvatar>
+                      <Avatar src={content.coverUrl} variant="rounded">
+                        <ArticleIcon />
+                      </Avatar>
+                    </ListItemAvatar>
+                    <ListItemText
+                      primary={content.title}
+                      secondary={content.contentType}
+                    />
+                    <ListItemSecondaryAction>
+                      {isContentInTopic(content.id) ? (
+                        <Chip label="已添加" size="small" color="success" />
+                      ) : (
+                        <IconButton
+                          edge="end"
+                          color="primary"
+                          onClick={() => handleAddContent(content)}
+                        >
+                          <AddIcon />
+                        </IconButton>
+                      )}
+                    </ListItemSecondaryAction>
+                  </ListItem>
+                ))}
+              </List>
+            </Box>
+          )}
+
+          <Divider sx={{ my: 2 }} />
+
+          {/* 当前专题内容 */}
+          <Typography variant="subtitle2" gutterBottom>
+            当前专题内容 ({currentTopic?.contents?.length || 0})
+          </Typography>
+          {currentTopic?.contents && currentTopic.contents.length > 0 ? (
+            <List dense>
+              {currentTopic.contents.map((content: any) => (
+                <ListItem key={content.id}>
+                  <ListItemAvatar>
+                    <Avatar src={content.coverUrl} variant="rounded">
+                      <ArticleIcon />
+                    </Avatar>
+                  </ListItemAvatar>
+                  <ListItemText
+                    primary={content.title}
+                    secondary={`${content.contentType} · ${content.readNum || 0} 阅读`}
+                  />
+                  <ListItemSecondaryAction>
+                    <IconButton
+                      edge="end"
+                      color="error"
+                      onClick={() => handleRemoveContent(content.id)}
+                    >
+                      <RemoveCircleIcon />
+                    </IconButton>
+                  </ListItemSecondaryAction>
+                </ListItem>
+              ))}
+            </List>
+          ) : (
+            <Typography color="text.secondary" sx={{ py: 2 }}>
+              该专题暂无内容，请通过上方搜索添加
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenContentDialog(false)}>关闭</Button>
         </DialogActions>
       </Dialog>
     </Box>
