@@ -41,7 +41,7 @@ import { LoginGate } from '@/components/auth/LoginGate';
 import { formatApiError } from '@/lib/api/client';
 import { DetailComments } from '@/components/detail/DetailComments';
 import { DetailFooter } from '@/components/detail/DetailFooter';
-import { moduleContentAction } from '@/apis/home';
+import { useContentInteraction } from '@/hooks/useContentInteraction';
 
 interface NovelDetail {
   title?: string;
@@ -93,9 +93,8 @@ function NovelDetailContent() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pageStyle, setPageStyle] = useState<PageStyle>(DEFAULT_PAGE_STYLE);
   const [collected, setCollected] = useState(false);
-  const [liked, setLiked] = useState(false);
-  const [likeBusy, setLikeBusy] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
+  const [okMsg, setOkMsg] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const readProgress = useScrollProgress(scrollRef);
@@ -168,24 +167,17 @@ function NovelDetailContent() {
     [chapters, id, pathname, router],
   );
 
-  const handleLike = async () => {
-    if (!contentId || likeBusy) return;
-    setLikeBusy(true);
-    const nextLiked = !liked;
-    setLiked(nextLiked);
-    try {
-      await moduleContentAction({ contentId, action: nextLiked ? 'agree' : 'cancel_agree' });
-    } catch (err) {
-      setLiked(!nextLiked);
-      setErrMsg(formatApiError(err) || '操作失败');
-    } finally {
-      setLikeBusy(false);
-    }
-  };
+  // 赞:真实状态从 /interaction 读,操作后以服务端为准并给出提示(见 hooks/useContentInteraction)
+  const { liked, likeBusy, toggleLike: handleLike } = useContentInteraction(contentId, {
+    notify: (message, severity) => (severity === 'error' ? setErrMsg(message) : setOkMsg(message)),
+  });
 
   const shelfMutation = useMutation({
     mutationFn: (params: { novelId: string; chapterId: string }) => addShelf({ id: params.novelId, chapterId: params.chapterId }),
-    onSuccess: () => setCollected(true),
+    onSuccess: () => {
+      setCollected(true);
+      setOkMsg('已加入书架,可在「我的书架」查看');
+    },
     onError: (err) => setErrMsg(formatApiError(err) || '加入书架失败,请稍后重试'),
   });
 
@@ -232,6 +224,16 @@ function NovelDetailContent() {
       >
         <Alert severity="error" variant="filled" onClose={() => setErrMsg(null)}>
           {errMsg}
+        </Alert>
+      </Snackbar>
+      <Snackbar
+        open={!!okMsg && !errMsg}
+        autoHideDuration={2000}
+        onClose={() => setOkMsg(null)}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert severity="success" variant="filled" onClose={() => setOkMsg(null)}>
+          {okMsg}
         </Alert>
       </Snackbar>
       <Box

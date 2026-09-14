@@ -29,8 +29,9 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import BedtimeRoundedIcon from '@mui/icons-material/BedtimeRounded';
 import { fetchRecommend } from '@/apis/home-discover';
-import { sendComment, moduleContentAction } from '@/apis/home';
-import { reportContent, collectContent } from '@/apis/global';
+import { sendComment } from '@/apis/home';
+import { reportContent } from '@/apis/global';
+import { useContentInteraction } from '@/hooks/useContentInteraction';
 import { parseStream } from '@/apis/stream';
 import { homeClient } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
@@ -115,12 +116,8 @@ export function RecommendVideoFeed() {
   // 这里只通过 videoPlayerRef 转发操作(切换/快进快退),不再维护一份平行的假状态。
   const [playing, setPlaying] = useState(true);
   const videoPlayerRef = useRef<VideoPlayerHandle>(null);
-  const [liked, setLiked] = useState(false);
-  const [collected, setCollected] = useState(false);
   const [following, setFollowing] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
-  const [likedCount, setLikedCount] = useState(0);
-  const [collectedCount, setCollectedCount] = useState(0);
   const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
     open: false, message: '', severity: 'success',
   });
@@ -284,13 +281,9 @@ export function RecommendVideoFeed() {
 
   useEffect(() => {
     setPlaying(true);
-    setLiked(false);
-    setCollected(false);
     setVideoSrc('');
     setStreamError('');
     if (!video) return;
-    setLikedCount(video.likes);
-    setCollectedCount(video.collects);
 
     // 后端已经判定这条播不了 —— 直接把它的提示语显示出来,不要再去解析一遍。
     // 后端的判定用的就是同一个解析器(internal/playability 走 StreamResolver),
@@ -376,57 +369,24 @@ export function RecommendVideoFeed() {
     [go, lockNav],
   );
 
-  const likeMutation = useMutation({
-    // 字段对齐后端 moduleContentAction:{contentId, action:'agree'|'cancel_agree'}
-    // (旧 {type:'AGREE',value} 与后端 req.Action 不匹配→Action 空→每次 +1)。
-    mutationFn: (nextLiked: boolean) =>
-      moduleContentAction({ contentId: video?.id, action: nextLiked ? 'agree' : 'cancel_agree' }),
-  });
-
-  const collectMutation = useMutation({
-    // 后端 CollectToggle 不读 action、纯 toggle;onSuccess 用响应 collected 校正,避免无初始态时方向反。
-    mutationFn: (_nextCollected: boolean) => collectContent({ contentId: video?.id }),
-    onSuccess: (res: any) => {
-      const server = res?.data?.collected;
-      if (typeof server === 'boolean') setCollected(server);
-    },
-  });
-
-  const handleLike = async () => {
-    if (likeMutation.isPending) return;
-    const nextLiked = !liked;
-    const prevLiked = liked;
-    const prevCount = likedCount;
-    setLiked(nextLiked);
-    setLikedCount((c) => c + (nextLiked ? 1 : -1));
-    try {
-      await likeMutation.mutateAsync(nextLiked);
-    } catch {
-      setLiked(prevLiked);
-      setLikedCount(prevCount);
-      notify('操作失败,请稍后再试', 'error');
-    }
-  };
-
-  const handleCollect = async () => {
-    if (collectMutation.isPending) return;
-    const nextCollected = !collected;
-    const prevCollected = collected;
-    const prevCount = collectedCount;
-    setCollected(nextCollected);
-    setCollectedCount((c) => c + (nextCollected ? 1 : -1));
-    try {
-      await collectMutation.mutateAsync(nextCollected);
-    } catch {
-      setCollected(prevCollected);
-      setCollectedCount(prevCount);
-      notify('操作失败,请稍后再试', 'error');
-    }
-  };
-
   const notify = (message: string, severity: 'success' | 'error' | 'info' = 'success') => {
     setSnack({ open: true, message, severity });
   };
+
+  // 赞 / 收藏:当前这条视频的真实状态从 /interaction 读,操作后以服务端为准并给出提示
+  // (见 hooks/useContentInteraction)。id 用无损的 idString —— video.id 已被 Number() 截断,
+  // 以前赞和收藏都记到了另一条内容上。
+  const interaction = useContentInteraction(video ? video.idString || video.id : null, {
+    notify,
+    baseLikes: video?.likes,
+    baseCollects: video?.collects,
+  });
+  const liked = interaction.liked;
+  const collected = interaction.collected;
+  const likedCount = interaction.likeCount;
+  const collectedCount = interaction.collectCount;
+  const handleLike = () => interaction.toggleLike();
+  const handleCollect = () => interaction.toggleCollect();
 
   const handleFollow = async (e: React.MouseEvent) => {
     e.stopPropagation();

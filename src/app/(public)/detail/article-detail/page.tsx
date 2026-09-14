@@ -20,7 +20,7 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-article';
-import { moduleContentAction } from '@/apis/home';
+import { useContentInteraction } from '@/hooks/useContentInteraction';
 import { formatApiError } from '@/lib/api/client';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
@@ -67,8 +67,6 @@ function ArticleDetailContent() {
     }
   }, [id]);
 
-  const [liked, setLiked] = useState(false);
-  const [likeBusy, setLikeBusy] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pageStyle, setPageStyle] = useState<PageStyle>(DEFAULT_PAGE_STYLE);
   const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
@@ -81,24 +79,8 @@ function ArticleDetailContent() {
     setSnack({ open: true, message, severity });
   }, []);
 
-  const handleLike = async () => {
-    if (!id) {
-      notify('内容 ID 缺失', 'error');
-      return;
-    }
-    if (likeBusy) return;
-    setLikeBusy(true);
-    const next = !liked;
-    setLiked(next);
-    try {
-      await moduleContentAction({ contentId: id, action: next ? 'agree' : 'cancel_agree' });
-    } catch (err) {
-      setLiked(!next);
-      notify(formatApiError(err), 'error');
-    } finally {
-      setLikeBusy(false);
-    }
-  };
+  // 赞:真实状态从 /interaction 读,操作后以服务端为准并给出提示(见 hooks/useContentInteraction)
+  const { liked, likeDelta, likeBusy, toggleLike: handleLike } = useContentInteraction(id, { notify });
 
   const handleShare = async () => {
     const url = typeof window !== 'undefined' ? window.location.href : '';
@@ -183,7 +165,7 @@ function ArticleDetailContent() {
                 <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{((data.viewCount || 0) / 10000).toFixed(1)}万 阅读</Typography>
               </Box>
               <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>·</Typography>
-              <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{data.likeCount || 0} 点赞</Typography>
+              <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{Math.max(0, (data.likeCount || 0) + likeDelta)} 点赞</Typography>
               <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>·</Typography>
               <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{data.collectCount || 0} 收藏</Typography>
               <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>·</Typography>

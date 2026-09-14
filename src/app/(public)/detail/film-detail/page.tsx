@@ -16,7 +16,7 @@ import ShareIcon from '@mui/icons-material/Share';
 import StarIcon from '@mui/icons-material/Star';
 import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-film';
-import { moduleContentAction } from '@/apis/home';
+import { useContentInteraction } from '@/hooks/useContentInteraction';
 import { contentClient, formatApiError, isNetworkError } from '@/lib/api/client';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import DetailHeader from '@/components/detail/DetailHeader';
@@ -64,9 +64,6 @@ function FilmDetailContent() {
     }
   }, [id]);
 
-  const [liked, setLiked] = React.useState(false);
-  const [likeBusy, setLikeBusy] = React.useState(false);
-  const [optimisticLikes, setOptimisticLikes] = React.useState(0);
   const [videoSrc, setVideoSrc] = React.useState<string>('');
   const [snack, setSnack] = React.useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
     open: false,
@@ -78,26 +75,8 @@ function FilmDetailContent() {
     setSnack({ open: true, message, severity });
   }, []);
 
-  const handleLike = async () => {
-    if (!id) {
-      notify('内容 ID 缺失', 'error');
-      return;
-    }
-    if (likeBusy) return;
-    setLikeBusy(true);
-    const next = !liked;
-    setLiked(next);
-    setOptimisticLikes((prev) => Math.max(0, prev + (next ? 1 : -1)));
-    try {
-      await moduleContentAction({ contentId: id, action: next ? 'agree' : 'cancel_agree' });
-    } catch (err) {
-      setLiked(!next);
-      setOptimisticLikes((prev) => Math.max(0, prev + (next ? -1 : 1)));
-      notify(formatApiError(err), 'error');
-    } finally {
-      setLikeBusy(false);
-    }
-  };
+  // 赞:真实状态从 /interaction 读,操作后以服务端为准并给出提示(见 hooks/useContentInteraction)
+  const { liked, likeDelta: optimisticLikes, likeBusy, toggleLike: handleLike } = useContentInteraction(id, { notify });
 
   React.useEffect(() => {
     if (!id) return;

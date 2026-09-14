@@ -15,7 +15,7 @@ import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
 import ShareIcon from '@mui/icons-material/Share';
 import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-video';
-import { moduleContentAction } from '@/apis/home';
+import { useContentInteraction } from '@/hooks/useContentInteraction';
 import { formatApiError } from '@/lib/api/client';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
@@ -87,9 +87,6 @@ function ImageDetailContent() {
     };
   }, [query.data]);
 
-  const [liked, setLiked] = useState(false);
-  const [likeBusy, setLikeBusy] = useState(false);
-  const [optimisticLikes, setOptimisticLikes] = useState(0);
   const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
     open: false,
     message: '',
@@ -100,26 +97,8 @@ function ImageDetailContent() {
     setSnack({ open: true, message, severity });
   }, []);
 
-  const handleLike = async () => {
-    if (!id) {
-      notify('内容 ID 缺失', 'error');
-      return;
-    }
-    if (likeBusy) return;
-    setLikeBusy(true);
-    const next = !liked;
-    setLiked(next);
-    setOptimisticLikes((prev) => Math.max(0, prev + (next ? 1 : -1)));
-    try {
-      await moduleContentAction({ contentId: id, action: next ? 'agree' : 'cancel_agree' });
-    } catch (err) {
-      setLiked(!next);
-      setOptimisticLikes((prev) => Math.max(0, prev + (next ? -1 : 1)));
-      notify(formatApiError(err), 'error');
-    } finally {
-      setLikeBusy(false);
-    }
-  };
+  // 赞:真实状态从 /interaction 读,操作后以服务端为准并给出提示(见 hooks/useContentInteraction)
+  const { liked, likeDelta: optimisticLikes, likeBusy, toggleLike: handleLike } = useContentInteraction(id, { notify });
 
   const handleShare = async () => {
     const url = typeof window !== 'undefined' ? window.location.href : '';

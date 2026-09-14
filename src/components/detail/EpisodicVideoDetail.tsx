@@ -17,7 +17,7 @@ import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
 import ShareIcon from '@mui/icons-material/Share';
 import StarIcon from '@mui/icons-material/Star';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import { moduleContentAction } from '@/apis/home';
+import { useContentInteraction } from '@/hooks/useContentInteraction';
 import { reportContent } from '@/apis/global';
 import { formatApiError } from '@/lib/api/client';
 import { TYPE_LABEL } from '@/lib/contentType.gen';
@@ -121,9 +121,6 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
   const activeIndex = found >= 0 ? found : 0;
   const active: ContentItem | undefined = items[activeIndex];
 
-  const [liked, setLiked] = useState(false);
-  const [likeBusy, setLikeBusy] = useState(false);
-  const [optimisticLikes, setOptimisticLikes] = useState(0);
   const [snack, setSnack] = useState<{ open: boolean; message: string; severity: Severity }>({
     open: false,
     message: '',
@@ -133,22 +130,8 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
     setSnack({ open: true, message, severity });
   }, []);
 
-  const handleLike = async () => {
-    if (!id || likeBusy) return;
-    setLikeBusy(true);
-    const next = !liked;
-    setLiked(next);
-    setOptimisticLikes((prev) => Math.max(0, prev + (next ? 1 : -1)));
-    try {
-      await moduleContentAction({ contentId: id, action: next ? 'agree' : 'cancel_agree' });
-    } catch (err) {
-      setLiked(!next);
-      setOptimisticLikes((prev) => Math.max(0, prev + (next ? -1 : 1)));
-      notify(formatApiError(err), 'error');
-    } finally {
-      setLikeBusy(false);
-    }
-  };
+  // 赞:真实状态从 /interaction 读,操作后以服务端为准并给出提示(见 hooks/useContentInteraction)
+  const { liked, likeDelta: optimisticLikes, likeBusy, toggleLike: handleLike } = useContentInteraction(id, { notify });
 
   const handleShare = async () => {
     const url = typeof window !== 'undefined' ? window.location.href : '';

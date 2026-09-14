@@ -28,8 +28,8 @@ import SendIcon from '@mui/icons-material/Send';
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { gradient2, gradient3 } from '@/constants/gradients';
-import { moduleContentAction, sendComment, getComments } from '@/apis/home';
-import { collectContent } from '@/apis/global';
+import { sendComment, getComments } from '@/apis/home';
+import { useContentInteraction } from '@/hooks/useContentInteraction';
 import { homeClient, formatApiError } from '@/lib/api/client';
 import { toEntityId } from '@/lib/id';
 
@@ -83,9 +83,6 @@ export default function ModuleContentDetail({ detail, onClose }: ModuleContentDe
   const baseComments = Number(detail.comments ?? detail.commentNum ?? 0) || 0;
   const baseCollects = Number(detail.collects ?? detail.collectNum ?? 0) || 0;
 
-  const [liked, setLiked] = useState(false);
-  const [disliked, setDisliked] = useState(false);
-  const [starred, setStarred] = useState(false);
   const [following, setFollowing] = useState(() => !!detail.isFollowing);
   const [followBusy, setFollowBusy] = useState(false);
   const [commentText, setCommentText] = useState('');
@@ -98,19 +95,20 @@ export default function ModuleContentDetail({ detail, onClose }: ModuleContentDe
     message: '',
     severity: 'success',
   });
-  const [optimisticLikes, setOptimisticLikes] = useState(0);
-  const [optimisticCollects, setOptimisticCollects] = useState(0);
-
-  const stats = {
-    views: baseViews,
-    likes: Math.max(0, baseLikes + optimisticLikes),
-    comments: baseComments,
-    collects: Math.max(0, baseCollects + optimisticCollects),
-  };
-
   const notify = useCallback((message: string, severity: 'success' | 'error' | 'info' = 'success') => {
     setSnack({ open: true, message, severity });
   }, []);
+
+  // 赞 / 踩 / 收藏:真实状态从 /interaction 读,操作后以服务端为准并给出提示(见 hooks/useContentInteraction)
+  const interaction = useContentInteraction(contentId, { notify, baseLikes, baseCollects });
+  const { liked, disliked, collected: starred } = interaction;
+
+  const stats = {
+    views: baseViews,
+    likes: Math.max(0, baseLikes + interaction.likeDelta),
+    comments: baseComments,
+    collects: Math.max(0, baseCollects + interaction.collectDelta),
+  };
 
   const fetchComments = useCallback(async () => {
     if (!contentId) return;
@@ -157,59 +155,9 @@ export default function ModuleContentDetail({ detail, onClose }: ModuleContentDe
     }
   };
 
-  const handleLike = async () => {
-    if (!contentId) {
-      notify('内容 ID 缺失', 'error');
-      return;
-    }
-    const next = !liked;
-    setLiked(next);
-    if (disliked) setDisliked(false);
-    setOptimisticLikes((prev) => Math.max(0, prev + (next ? 1 : -1)));
-    try {
-      await moduleContentAction({ contentId: toEntityId(contentId), action: next ? 'agree' : 'cancel_agree' });
-    } catch (err) {
-      setLiked(!next);
-      setOptimisticLikes((prev) => Math.max(0, prev + (next ? -1 : 1)));
-      notify(formatApiError(err), 'error');
-    }
-  };
-
-  const handleDislike = async () => {
-    if (!contentId) {
-      notify('内容 ID 缺失', 'error');
-      return;
-    }
-    const next = !disliked;
-    setDisliked(next);
-    if (next && liked) {
-      setLiked(false);
-      setOptimisticLikes((prev) => Math.max(0, prev - 1));
-    }
-    try {
-      await moduleContentAction({ contentId: toEntityId(contentId), action: next ? 'disagree' : 'cancel_disagree' });
-    } catch (err) {
-      setDisliked(!next);
-      notify(formatApiError(err), 'error');
-    }
-  };
-
-  const handleStar = async () => {
-    if (!contentId) {
-      notify('内容 ID 缺失', 'error');
-      return;
-    }
-    const next = !starred;
-    setStarred(next);
-    setOptimisticCollects((prev) => Math.max(0, prev + (next ? 1 : -1)));
-    try {
-      await collectContent({ contentId: toEntityId(contentId), action: next ? 'collect' : 'cancel_collect' });
-    } catch (err) {
-      setStarred(!next);
-      setOptimisticCollects((prev) => Math.max(0, prev + (next ? -1 : 1)));
-      notify(formatApiError(err), 'error');
-    }
-  };
+  const handleLike = () => interaction.toggleLike();
+  const handleDislike = () => interaction.toggleDislike();
+  const handleStar = () => interaction.toggleCollect();
 
   const handleSendComment = async () => {
     if (!contentId || !commentText.trim()) return;
