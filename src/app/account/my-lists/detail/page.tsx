@@ -1,30 +1,16 @@
 'use client';
 
-import React, { Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
-import Box from '@mui/material/Box';
-import Typography from '@mui/material/Typography';
-import CircularProgress from '@mui/material/CircularProgress';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
-function MyListDetailContent() {
-  const searchParams = useSearchParams();
-  const listId = searchParams.get('id');
-
-  return (
-    <Box sx={{ p: 3 }}>
-      <Typography>My List Detail: {listId}</Typography>
-    </Box>
-  );
-}
-
-export default function MyListDetailPage() {
-  return (
-    <Suspense fallback={
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-        <CircularProgress />
-      </Box>
-    }>
-      <MyListDetailContent />
-    </Suspense>
-  );
+/**
+ * 收藏夹详情页已下线(依赖的 user_my_list_content 表线上不存在,见 ../page.tsx)。
+ * 旧链接统一转到「我的 · 收藏」。
+ */
+export default function MyListDetailRedirect() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace('/home/recommend?tab=me&mainTab=collect');
+  }, [router]);
+  return null;
 }
