@@ -19,6 +19,7 @@ import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { moduleContentPage } from '@/apis/home';
 import { getHomeRecommendFollow, getHomeRecommendFriend, type RecommendWork } from '@/apis/dashboard';
 import { getHotTopics, Topic } from '@/apis/topic';
+import TopicCover from '@/components/topic/TopicCover';
 import { CoverImage } from '@/components/common/CoverImage';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { track } from '@/lib/track';
@@ -810,29 +811,16 @@ function HotTopicsSection() {
                 borderRadius: 1,
                 overflow: 'hidden',
                 flexShrink: 0,
-                bgcolor: 'action.hover',
               }}
             >
-              {topic.cover ? (
-                <Box
-                  component="img"
-                  src={topic.cover}
-                  alt={topic.title}
-                  sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              ) : (
-                <Box
-                  sx={{
-                    width: '100%',
-                    height: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <CollectionsIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
-                </Box>
-              )}
+              <TopicCover
+                id={topic.id}
+                cover={topic.cover}
+                title={topic.title}
+                contentType={topic.contentType}
+                aspectRatio="4/3"
+                iconSize={18}
+              />
             </Box>
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <Typography
