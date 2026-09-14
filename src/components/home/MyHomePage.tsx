@@ -51,6 +51,7 @@ import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import { useApp } from '@/contexts/AppContext';
 import { homeClient, adminClient, formatApiError } from '@/lib/api/client';
 import { setMark } from '@/apis/content-mark';
+import { postShare } from '@/apis/behavior';
 import { ACCENT } from '@/constants/accents';
 import { useContentNavigate } from '@/lib/contentRoute';
 
@@ -1530,6 +1531,9 @@ function QrCodeDialog({
   };
 
   const handleShare = async () => {
+    // 分享主页:后端记录计数(供传播效果统计)
+    const uid = profile?.user?.id;
+    if (uid) postShare({ contentId: uid }).catch(() => {});
     if (typeof navigator !== 'undefined' && (navigator as any).share) {
       try {
         await (navigator as any).share({ title: `${nickname}的主页`, text: `来清秋月关注 ${nickname}`, url: profileUrl });

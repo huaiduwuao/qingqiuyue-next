@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+# 管理后台禁止爬取
+Disallow: /system/
+Disallow: /account/
+Disallow: /admin/
+
+Sitemap: https://qingqiuyue.com/sitemap.xml

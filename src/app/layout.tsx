@@ -3,11 +3,34 @@ import './globals.css';
 import { Providers } from './providers';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://qingqiuyue.com';
+
 export const metadata: Metadata = {
-  title: '清秋月',
-  description: '清秋月内容平台',
+  metadataBase: new URL(BASE_URL),
+  title: { default: '清秋月', template: '%s | 清秋月' },
+  description: '清秋月内容社区，发现并分享优质短视频、图文、音乐、影视等精彩内容',
+  keywords: ['内容社区', '短视频', '图文', '创作平台', '清秋月'],
+  authors: [{ name: '清秋月' }],
+  creator: '清秋月',
+  openGraph: {
+    type: 'website',
+    locale: 'zh_CN',
+    url: BASE_URL,
+    siteName: '清秋月',
+    title: '清秋月',
+    description: '发现并分享优质短视频、图文、音乐、影视等精彩内容',
+    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: '清秋月' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: '清秋月',
+    description: '发现并分享优质短视频、图文、音乐、影视等精彩内容',
+    images: ['/og-image.png'],
+  },
+  robots: { index: true, follow: true },
   icons: {
     icon: '/yue_icon.svg',
+    apple: '/yue_icon.svg',
   },
   other: {
     'mobile-web-app-capable': 'yes',

@@ -29,6 +29,7 @@ import FavoriteIcon from '@mui/icons-material/Favorite';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { gradient2, gradient3 } from '@/constants/gradients';
 import { sendComment, getComments } from '@/apis/home';
+import { postShare } from '@/apis/behavior';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
 import { homeClient, formatApiError } from '@/lib/api/client';
 import { toEntityId } from '@/lib/id';
@@ -177,6 +178,9 @@ export default function ModuleContentDetail({ detail, onClose }: ModuleContentDe
   const handleShare = async () => {
     const url = typeof window !== 'undefined' ? window.location.href : '';
     const title = contentName || '清秋月内容';
+    // 分享计数:后端记录(供排行榜/传播效果统计)
+    const shareId = contentId ? (toEntityId(contentId) ?? 0) : 0;
+    postShare({ contentId: shareId }).catch(() => {});
     try {
       if (navigator.share) {
         await navigator.share({ title, url });

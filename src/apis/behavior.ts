@@ -19,7 +19,7 @@ export interface DailyLimit {
 
 // 行为奖励请求
 export interface BehaviorRewardPayload {
-  contentId: number;
+  contentId: number | string;
   contentAuthorId?: number;
   readDuration?: number;  // 阅读时长(秒)
 }

@@ -19,6 +19,7 @@ import StarIcon from '@mui/icons-material/Star';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
 import { reportContent } from '@/apis/global';
+import { postShare } from '@/apis/behavior';
 import { formatApiError } from '@/lib/api/client';
 import { TYPE_LABEL } from '@/lib/contentType.gen';
 import VideoPlayer from '@/components/detail/VideoPlayer';
@@ -137,6 +138,8 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
     const url = typeof window !== 'undefined' ? window.location.href : '';
     const title = query.data?.title || `${config.typeLabel}详情`;
     try {
+      // 分享计数:后端记录(供排行榜/传播效果统计)
+      postShare({ contentId: id ? parseInt(id) : 0 }).catch(() => {});
       if (navigator.share) {
         await navigator.share({ title, url });
       } else if (navigator.clipboard?.writeText) {
