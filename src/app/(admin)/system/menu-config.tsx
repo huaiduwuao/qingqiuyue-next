@@ -41,6 +41,8 @@ import TravelExploreIcon from '@mui/icons-material/TravelExplore';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import CloudSyncIcon from '@mui/icons-material/CloudSync';
 import PsychologyAltRoundedIcon from '@mui/icons-material/PsychologyAltRounded';
+import CollectionsRoundedIcon from '@mui/icons-material/CollectionsRounded';
+import DynamicFeedRoundedIcon from '@mui/icons-material/DynamicFeedRounded';
 import { PERMISSIONS } from '@/lib/permissions';
 
 export interface MenuItemDef {
@@ -91,6 +93,13 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
         accent: '#8B5CF6',
         permission: PERMISSIONS.SYSTEM_MODERATION.SENSITIVE_WORD_LIST,
       },
+    ],
+  },
+  {
+    title: '内容管理',
+    items: [
+      { id: 'topic', label: '专题管理', path: '/system/topic', icon: <CollectionsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D' },
+      { id: 'feed', label: '动态管理', path: '/system/feed', icon: <DynamicFeedRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
     ],
   },
   {

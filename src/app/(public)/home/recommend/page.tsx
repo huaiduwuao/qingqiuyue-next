@@ -13,10 +13,12 @@ import SmartToyIcon from '@mui/icons-material/SmartToy';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
 import Avatar from '@mui/material/Avatar';
 import FavoriteBorderRoundedIcon from '@mui/icons-material/FavoriteBorderRounded';
+import CollectionsIcon from '@mui/icons-material/Collections';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { moduleContentPage } from '@/apis/home';
 import { getHomeRecommendFollow, getHomeRecommendFriend, type RecommendWork } from '@/apis/dashboard';
+import { getHotTopics, Topic } from '@/apis/topic';
 import { CoverImage } from '@/components/common/CoverImage';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { track } from '@/lib/track';
@@ -718,6 +720,148 @@ function RecommendRightSidebar() {
         showTypeTabs={false}
         columns={1}
       />
+
+      {/* 热门专题 */}
+      <HotTopicsSection />
+    </Box>
+  );
+}
+
+// 热门专题组件
+function HotTopicsSection() {
+  const router = useRouter();
+  const { data: topics, isLoading } = useQuery({
+    queryKey: ['home', 'hot-topics'],
+    queryFn: async () => {
+      const res = await getHotTopics(4);
+      return res.data || [];
+    },
+    staleTime: 60_000,
+  });
+
+  if (isLoading) {
+    return (
+      <Box
+        sx={{
+          borderRadius: 2,
+          bgcolor: 'var(--bg-surface, transparent)',
+          border: '1px solid var(--border-color, transparent)',
+          overflow: 'hidden',
+          p: 2,
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
+          <CollectionsIcon sx={{ fontSize: 16, color: 'primary.main', mr: 0.75 }} />
+          <Typography sx={{ fontSize: 13, fontWeight: 600 }}>热门专题</Typography>
+        </Box>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} variant="rectangular" height={60} sx={{ borderRadius: 1 }} />
+          ))}
+        </Box>
+      </Box>
+    );
+  }
+
+  if (!topics || topics.length === 0) {
+    return null;
+  }
+
+  return (
+    <Box
+      sx={{
+        borderRadius: 2,
+        bgcolor: 'var(--bg-surface, transparent)',
+        border: '1px solid var(--border-color, transparent)',
+        overflow: 'hidden',
+      }}
+    >
+      <Box sx={{ display: 'flex', alignItems: 'center', px: 2, pt: 1.5, pb: 1 }}>
+        <CollectionsIcon sx={{ fontSize: 16, color: 'primary.main', mr: 0.75 }} />
+        <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary, currentColor)', flex: 1 }}>
+          热门专题
+        </Typography>
+        <Typography
+          sx={{ fontSize: 10, color: 'var(--text-muted, currentColor)', cursor: 'pointer' }}
+          onClick={() => router.push('/topic')}
+        >
+          更多
+        </Typography>
+      </Box>
+      <Box sx={{ px: 1.5, pb: 1.5, display: 'flex', flexDirection: 'column', gap: 1 }}>
+        {topics.map((topic: Topic) => (
+          <Box
+            key={topic.id}
+            onClick={() => router.push(`/detail/topic-detail?id=${topic.id}`)}
+            sx={{
+              display: 'flex',
+              gap: 1.5,
+              p: 1,
+              borderRadius: 1.5,
+              cursor: 'pointer',
+              transition: 'background-color 0.15s',
+              '&:hover': { bgcolor: 'action.hover' },
+            }}
+          >
+            <Box
+              sx={{
+                width: 60,
+                height: 45,
+                borderRadius: 1,
+                overflow: 'hidden',
+                flexShrink: 0,
+                bgcolor: 'action.hover',
+              }}
+            >
+              {topic.cover ? (
+                <Box
+                  component="img"
+                  src={topic.cover}
+                  alt={topic.title}
+                  sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                <Box
+                  sx={{
+                    width: '100%',
+                    height: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <CollectionsIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
+                </Box>
+              )}
+            </Box>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography
+                sx={{
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: 'var(--text-primary, currentColor)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {topic.title}
+              </Typography>
+              <Typography
+                sx={{
+                  fontSize: 10,
+                  color: 'var(--text-muted, currentColor)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {topic.contentCount} 内容 · {topic.viewCount} 浏览
+              </Typography>
+            </Box>
+          </Box>
+        ))}
+      </Box>
     </Box>
   );
 }
