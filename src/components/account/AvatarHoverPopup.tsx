@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import Box from '@mui/material/Box';
 import { PersonalCenterCard } from './PersonalCenterCard';
 
@@ -12,11 +11,9 @@ export interface AvatarHoverPopupProps {
 
 export function AvatarHoverPopup({ anchor, width = 320 }: AvatarHoverPopupProps) {
   const [open, setOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    setMounted(true);
     return () => {
       if (closeTimer.current) clearTimeout(closeTimer.current);
     };
@@ -39,30 +36,31 @@ export function AvatarHoverPopup({ anchor, width = 320 }: AvatarHoverPopupProps)
       onMouseEnter={clearCloseTimer}
       onMouseLeave={scheduleClose}
       sx={{
-        position: 'fixed',
-        top: 60,
+        // 相对头像定位(父级是 relative 的 inline-flex),不再 fixed 贴屏幕右缘 ——
+        // 那样在导航用 Container 居中的页面(如 /topic)头像不在屏幕最右,
+        // 悬浮框却贴到屏幕最右,两者就错位了。
+        position: 'absolute',
+        top: 'calc(100% + 8px)',
         right: 0,
-        // 不再写 bottom:0(那样会强制撑满整个屏幕高度,内容短时空一大块),
-        // 改用 maxHeight + 自适应高度,内容多时才出现滚动条。
         width,
-        maxHeight: 'calc(100vh - 60px)',
+        maxWidth: 'calc(100vw - 24px)',
+        maxHeight: 'calc(100vh - 80px)',
         zIndex: 9999,
         bgcolor: (theme) =>
           theme.palette.mode === 'dark' ? 'rgba(10, 10, 15, 0.96)' : 'rgba(255, 255, 255, 0.96)',
         backdropFilter: 'blur(16px)',
-        borderLeft: (theme) =>
+        border: (theme) =>
           theme.palette.mode === 'dark'
             ? '1px solid rgba(255,255,255,0.08)'
             : '1px solid rgba(0,0,0,0.08)',
-        borderTopLeftRadius: 2,
-        borderBottomLeftRadius: 2,
-        boxShadow: '-12px 0 32px rgba(0,0,0,0.5)',
+        borderRadius: 2,
+        boxShadow: '0 12px 32px rgba(0,0,0,0.28)',
         p: 2,
         overflowY: 'auto',
-        animation: 'pc-slide-in 0.22s ease-out',
-        '@keyframes pc-slide-in': {
-          '0%': { transform: 'translateX(20px)', opacity: 0 },
-          '100%': { transform: 'translateX(0)', opacity: 1 },
+        animation: 'pc-fade-in 0.18s ease-out',
+        '@keyframes pc-fade-in': {
+          '0%': { transform: 'translateY(-6px)', opacity: 0 },
+          '100%': { transform: 'translateY(0)', opacity: 1 },
         },
       }}
     >
@@ -71,18 +69,16 @@ export function AvatarHoverPopup({ anchor, width = 320 }: AvatarHoverPopupProps)
   );
 
   return (
-    <>
-      <Box
-        onMouseEnter={() => {
-          clearCloseTimer();
-          setOpen(true);
-        }}
-        onMouseLeave={scheduleClose}
-        sx={{ display: 'inline-flex' }}
-      >
-        {anchor}
-      </Box>
-      {mounted && popup && createPortal(popup, document.body)}
-    </>
+    <Box
+      onMouseEnter={() => {
+        clearCloseTimer();
+        setOpen(true);
+      }}
+      onMouseLeave={scheduleClose}
+      sx={{ position: 'relative', display: 'inline-flex' }}
+    >
+      {anchor}
+      {popup}
+    </Box>
   );
 }
