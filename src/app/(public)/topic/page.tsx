@@ -12,6 +12,7 @@ import WhatshotRoundedIcon from '@mui/icons-material/WhatshotRounded';
 import CollectionsRoundedIcon from '@mui/icons-material/CollectionsRounded';
 import { getHotTopics, listTopics, Topic } from '@/apis/topic';
 import TopicCard from '@/components/topic/TopicCard';
+import PublicTopBar from '@/components/layout/PublicTopBar';
 
 /**
  * 专题广场 —— 抖音/榜单风。
@@ -91,6 +92,9 @@ export default function TopicPage() {
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'var(--bg-page, transparent)' }}>
+      {/* 顶部导航(返回 + 搜索 + 账号) */}
+      <PublicTopBar title="专题广场" showBack={false} />
+
       {/* Hero 条 */}
       <Box
         sx={{

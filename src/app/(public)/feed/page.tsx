@@ -24,6 +24,7 @@ import {
 } from '@mui/icons-material';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
+import PublicTopBar from '@/components/layout/PublicTopBar';
 
 // 动态类型图标
 const FeedIcon = ({ type }: { type: string }) => {
@@ -147,20 +148,20 @@ export default function FeedPage() {
   );
 
   return (
-    <Container maxWidth="sm" sx={{ py: 4 }}>
-      <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 'bold' }}>
-        动态
-      </Typography>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'var(--bg-page, transparent)' }}>
+      {/* 顶部导航(返回 + 搜索 + 账号) */}
+      <PublicTopBar title="动态" />
 
-      {/* 标签切换 */}
-      <Tabs
-        value={activeTab}
-        onChange={(_, v) => setActiveTab(v)}
-        sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}
-      >
-        <Tab label="关注" value="following" />
-        <Tab label="全部" value="all" />
-      </Tabs>
+      <Container maxWidth="sm" sx={{ py: 3 }}>
+        {/* 标签切换 */}
+        <Tabs
+          value={activeTab}
+          onChange={(_, v) => setActiveTab(v)}
+          sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}
+        >
+          <Tab label="关注" value="following" />
+          <Tab label="全部" value="all" />
+        </Tabs>
 
       {/* 动态列表 */}
       {loading ? (
@@ -209,6 +210,7 @@ export default function FeedPage() {
           )}
         </Box>
       )}
-    </Container>
+      </Container>
+    </Box>
   );
 }
