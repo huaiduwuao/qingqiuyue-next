@@ -14,11 +14,6 @@ export async function page(params: AppServiceListParams) {
   return adminClient('/app/service/list', { params });
 }
 
-// ⚠️ 后端 app-service 未提供 listApp，保留走 mock。
-export async function appList(params: Record<string, unknown>) {
-  return adminClient('/app/service/listApp', { params });
-}
-
 // 删除 -> 后端 DELETE /app/service/:id (批量循环)
 export async function remove(ids: number[]) {
   const list = Array.isArray(ids) ? ids : [ids];

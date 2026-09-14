@@ -342,7 +342,7 @@ export default function SystemDigitalHumanPage() {
                 <Box sx={{ position: 'relative', pt: '75%', bgcolor: 'grey.100', overflow: 'hidden' }}>
                   <CardMedia
                     component="img"
-                    image={a.thumbnail || 'https://picsum.photos/seed/default-avatar/200/300'}
+                    image={a.thumbnail || '/placeholder-cover.svg'}
                     alt={a.name}
                     sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
                   />
@@ -524,7 +524,7 @@ export default function SystemDigitalHumanPage() {
             <DialogContent dividers>
               <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
                 <Avatar
-                  src={detailAsset.thumbnail || 'https://picsum.photos/seed/default-avatar/200/300'}
+                  src={detailAsset.thumbnail || '/placeholder-cover.svg'}
                   variant="rounded"
                   sx={{ width: 120, height: 160 }}
                 />

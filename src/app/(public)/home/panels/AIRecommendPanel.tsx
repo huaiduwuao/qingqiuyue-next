@@ -34,40 +34,6 @@ type AIResp = {
 
 const SUGGESTIONS = ['最近好看的电影', 'AI 工具推荐', '晚安故事', '美食教程'];
 
-const buildFallback = (q: string): AIResp => ({
-  query: q,
-  items: [
-    {
-      id: 9001,
-      title: `与「${q}」相关的热门精选`,
-      cover: '/fallback/ai-recommend-1.svg',
-      reason: '基于全站热门趋势为你推荐',
-      source: 'fallback',
-    },
-    {
-      id: 9002,
-      title: '本周编辑精选:不容错过',
-      cover: '/fallback/ai-recommend-2.svg',
-      reason: '编辑团队近期高赞内容',
-      source: 'fallback',
-    },
-    {
-      id: 9003,
-      title: '相似用户也在看',
-      cover: '/fallback/ai-recommend-3.svg',
-      reason: '基于协同过滤的相似推荐',
-      source: 'fallback',
-    },
-    {
-      id: 9004,
-      title: '冷启动推荐:热门新作',
-      cover: '/fallback/ai-recommend-4.svg',
-      reason: '近期上线、热度上升快',
-      source: 'fallback',
-    },
-  ],
-});
-
 export function AIRecommendPanel() {
   const [q, setQ] = useState('');
   const [submitted, setSubmitted] = useState('');
@@ -76,15 +42,12 @@ export function AIRecommendPanel() {
   const mutation = useMutation<AIResp, Error, string>({
     mutationKey: ['home', 'ai', 'search'],
     mutationFn: async (keyword: string) => {
-      try {
-        const resp = await homeClient.post<AIResp>('/ai/search', { q: keyword });
-        const data = (resp as any)?.data ?? resp;
-        if (data && Array.isArray(data.items)) return data as AIResp;
-        return { ...buildFallback(keyword), query: keyword };
-      } catch (e) {
-        // fallback to local mock on any failure (network / 5xx / parsing)
-        return buildFallback(keyword);
+      const resp = await homeClient.post<AIResp>('/ai/search', { q: keyword });
+      const data = (resp as any)?.data ?? resp;
+      if (!data || !Array.isArray(data.items)) {
+        throw new Error('返回数据格式异常');
       }
+      return data as AIResp;
     },
   });
 

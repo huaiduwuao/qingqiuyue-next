@@ -64,7 +64,7 @@ export const toTree = (data: any[]): any[] => {
   return loop(null);
 };
 
-export const fallbackImg = 'https://picsum.photos/seed/qingqiu/400/300';
+export const fallbackImg = '/placeholder-cover.svg';
 
 export const groupBy = (array: any[], f: (item: any) => string): Record<string, any[]> => {
   const map: Record<string, any[]> = {};
