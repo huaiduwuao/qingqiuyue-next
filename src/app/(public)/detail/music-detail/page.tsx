@@ -105,6 +105,8 @@ function MusicDetailContent() {
   const audioNotice = audioFailed
     ? '音源加载失败（可能已过期或受版权限制），请刷新重试或前往原平台收听'
     : query.data?.audioNotice || '暂无可播放音源（版权或平台限制），可前往原平台收听';
+  // VIP 歌曲只拿得到试听片段:照常能播,但要说清楚这不是整首。
+  const audioIsPreview = !audioUnavailable && query.data?.audioStatus === 'preview';
 
   const notify = useCallback((message: string, severity: 'success' | 'error' | 'info' = 'success') => {
     setSnack({ open: true, message, severity });
@@ -344,9 +346,9 @@ function MusicDetailContent() {
             )}
 
             {/* 没有音源的歌照样收录、照样搜得到 —— 但必须明说放不了,并给出原平台入口 */}
-            {audioUnavailable && (
+            {(audioUnavailable || audioIsPreview) && (
               <Alert
-                severity="warning"
+                severity={audioIsPreview ? 'info' : 'warning'}
                 variant="outlined"
                 sx={{ mb: 2 }}
                 action={
