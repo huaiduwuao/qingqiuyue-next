@@ -361,9 +361,11 @@ let wsInstance: WSClient | null = null;
  */
 export function getWSClient(): WSClient {
   if (!wsInstance) {
+    // 客户端(Tauri)页面不在 qingqiuyue.com 源上,由 NEXT_PUBLIC_WS_BASE 指向网关
+    const base = process.env.NEXT_PUBLIC_WS_BASE;
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
-    const wsUrl = `${protocol}//${host}/ws/gateway`;
+    const wsUrl = base ? `${base}/ws/gateway` : `${protocol}//${host}/ws/gateway`;
 
     wsInstance = new WSClient({
       url: wsUrl,

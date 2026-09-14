@@ -105,8 +105,11 @@ next-env.d.ts
 /playwright-report/
 
 # Tauri 构建产物
+# gen/android、gen/apple 是要入库的原生工程(Manifest、签名配置、TV banner 都改在里面),
+# 它们各自的 .gitignore 已排除 build 输出和 keystore.properties
 /src-tauri/target/
-/src-tauri/gen/
+# 签名密钥不入库(历史上已提交的 src-tauri/qingqiuyue.keystore 需另行处理)
+*.jks
 
 # 临时草稿/消息文件
 /_msg*.txt

@@ -2,10 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- AndroidTV support -->
+    <!-- AndroidTV support:leanback 可选 + 不强制触屏,否则 Google Play 不会把应用分发给电视 -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
     <application
+        android:banner="@drawable/tv_banner"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:theme="@style/Theme.qingqiuyue_desktop"

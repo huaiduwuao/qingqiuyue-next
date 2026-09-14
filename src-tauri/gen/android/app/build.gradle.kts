@@ -13,6 +13,18 @@ val tauriProperties = Properties().apply {
     }
 }
 
+// release 签名:优先读 gen/android/keystore.properties(已 gitignore),其次读环境变量(CI 用)。
+// 两者都没有时 release 包保持未签名,构建照常通过。
+val keystoreProperties = Properties().apply {
+    val propFile = rootProject.file("keystore.properties")
+    if (propFile.exists()) {
+        propFile.inputStream().use { load(it) }
+    }
+}
+fun signingValue(key: String, env: String): String? =
+    keystoreProperties.getProperty(key) ?: System.getenv(env)?.takeIf { it.isNotEmpty() }
+val releaseStoreFile = signingValue("storeFile", "ANDROID_KEYSTORE_PATH")
+
 android {
     compileSdk = 36
     namespace = "app.qingqiuyue.desktop"
@@ -23,6 +35,16 @@ android {
         targetSdk = 36
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")
+    }
+    if (releaseStoreFile != null) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(releaseStoreFile)
+                storePassword = signingValue("storePassword", "ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = signingValue("keyAlias", "ANDROID_KEY_ALIAS")
+                keyPassword = signingValue("keyPassword", "ANDROID_KEY_PASSWORD")
+            }
+        }
     }
     buildTypes {
         getByName("debug") {
@@ -37,6 +59,9 @@ android {
             }
         }
         getByName("release") {
+            if (releaseStoreFile != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = true
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }

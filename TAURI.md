@@ -1,139 +1,50 @@
-# Tauri 桌面端
+# Tauri 客户端
 
-清秋月桌面端 — Tauri v2 + 复用 qingqiuyue-next 前端
+清秋月客户端 — Tauri v2 外壳 + 复用本仓库 Next.js 前端(静态导出)。
+**各平台打包步骤见 [TAURI_BUILD.md](TAURI_BUILD.md)。**
 
 ## 架构
 
 ```
 qingqiuyue-next/
-├── src/                      # Next.js 源码
-│   └── tauri/
-│       └── api.ts            # Tauri API 调用（替代 wailsjs）
-├── src-tauri/                 # ← Tauri Rust 后端
-│   ├── Cargo.toml            # Rust 依赖
-│   ├── tauri.conf.json       # Tauri 配置
-│   ├── build.rs              # 构建脚本
-│   ├── src/
-│   │   ├── lib.rs           # 应用逻辑 + Tauri 命令
-│   │   └── main.rs          # 入口点
-│   ├── capabilities/         # 权限配置
-│   └── icons/                # 应用图标
-├── out/                      # pnpm build 产出
-└── desktop/                  # (旧 Wails 代码，待删除)
+├── src/tauri/api.ts              # 前端调用 Rust 命令的封装
+├── scripts/app-frontend-build.mjs # 客户端用的前端构建(静态导出 + 线上网关地址)
+├── out/                          # 静态导出产物,打包进客户端
+└── src-tauri/
+    ├── tauri.conf.json           # 应用名、版本号、窗口、各平台打包配置
+    ├── Cargo.toml
+    ├── src/lib.rs                # Rust 命令(系统信息、打开外链等)
+    ├── capabilities/             # 前端可调用的权限
+    ├── icons/                    # 各平台图标(`pnpm tauri icon <1024px png>` 重新生成)
+    └── gen/
+        ├── android/              # Android 原生工程(Manifest、签名、TV banner)
+        └── apple/                # iOS Xcode 工程,Mac 上 `pnpm app:ios:init` 生成
 ```
 
-## 前置条件
+客户端里页面由 Tauri 从本地加载,接口和 WebSocket 通过构建时写入的
+`NEXT_PUBLIC_API_BASE_URL` / `NEXT_PUBLIC_WS_BASE` 直连线上网关(默认 `https://qingqiuyue.com`)。
+`lib.rs` 里的 `get_api_base` / `set_api_base` 目前前端没有使用。
 
-- **Node.js** 18+
-- **Rust** 1.70+
-- **pnpm** 8+
-- 各平台 SDK:
-  - **macOS**: Xcode CLI tools (`xcode-select --install`)
-  - **Windows**: WebView2 Runtime (Win11 自带, Win10 需装)
-  - **Linux**: `webkit2gtk-4.1` + `gtk-3`
-  - **Android**: Android Studio / Android SDK
-  - **iOS**: Xcode
-
-## 安装
+## 开发
 
 ```bash
-cd qingqiuyue-next
-
-# 安装 Rust（如果没有）
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# 安装 Tauri CLI
-pnpm add -D @tauri-apps/cli@latest
-
-# 安装 Tauri API
-pnpm add @tauri-apps/api@latest
+pnpm install
+pnpm app:dev      # 自动启动 next dev,并打开加载 localhost:3000 的桌面窗口
 ```
 
-## 开发流程
+前端改动 HMR 生效;Rust 改动会自动重编译重启。
 
-```bash
-# 1. 启动 Next.js dev server (终端 1)
-cd qingqiuyue-next
-pnpm dev
-# → http://localhost:3000
-
-# 2. 启动 Tauri dev 模式 (终端 2)
-pnpm tauri dev
-# → 自动打开桌面窗口，加载 localhost:3000
-# → 前端代码修改后 HMR 自动生效
-# → Rust 代码修改后自动重编译重启
-```
-
-## 生产构建
-
-```bash
-# 仅桌面端 (Windows/macOS/Linux)
-pnpm tauri build
-
-# 打包移动端
-pnpm tauri android build    # Android APK/AAB
-pnpm tauri ios build       # iOS（需 macOS + Xcode）
-```
-
-### 多平台交叉编译
-
-在 Windows 上打包 macOS 应用：
-```bash
-# 安装 macOS 交叉编译工具链
-rustup target add aarch64-apple-darwin x86_64-apple-darwin
-cargo install cross
-
-cross build --target aarch64-apple-darwin --release
-```
-
-## 暴露给前端的 API
-
-前端通过 `@tauri-apps/api/core` 调用 Rust 命令：
+## 暴露给前端的命令
 
 ```typescript
-import { getSystemInfo, getApiBase, openExternal, getVersion, isDev } from '@/tauri/api';
+import { getSystemInfo, openExternal, getVersion, isDev } from '@/tauri/api';
 
-// 系统信息
-const sys = await getSystemInfo();
-console.log('OS:', sys.os, 'Arch:', sys.arch);
-
-// API 地址
-const apiBase = await getApiBase();
-// 用作 axios baseURL
-
-// 用系统浏览器打开 URL
-await openExternal('https://example.com');
-
-// 版本
-const version = await getVersion();
-
-// 是否开发模式
-const dev = await isDev();
+const sys = await getSystemInfo();       // { os, arch, ... }
+await openExternal('https://example.com'); // 用系统浏览器打开
 ```
-
-## 配置
-
-API 地址默认 `http://localhost:9080`，存储在：
-
-| 平台 | 路径 |
-|------|------|
-| Windows | `%LOCALAPPDATA%\qingqiuyue-desktop\config.json` |
-| macOS | `~/Library/Application Support/qingqiuyue-desktop/config.json` |
-| Linux | `~/.config/qingqiuyue-desktop/config.json` |
 
 ## 已知限制
 
-1. **静态导出约束**: Next.js 16 部分 SSR 功能（动态路由 + cookies）会丢失。开发期用 `tauri dev`，生产期考虑 Tauri 的更好 SSR 支持。
-2. **macOS 签名**: 未签名 .app 会被 Gatekeeper 拦截，需企业证书 + `codesign --deep --sign`
-3. **首次启动配置**: `getApiBase()` 当前 hardcode 返回 `localhost:9080`，生产应读配置文件，首次启动 UI 引导用户填入
-
-## 排错
-
-```bash
-# 检查 Tauri 环境
-pnpm tauri info
-
-# 清理缓存重新构建
-pnpm tauri build --no-bundle
-rm -rf src-tauri/target
-```
+1. 静态导出:依赖服务端渲染 / API 路由的功能在客户端内不可用,所有数据都走网关接口。
+2. 电视端没有遥控器方向键焦点导航,见 TAURI_BUILD.md 的 Android TV 一节。
+3. 未签名的 Windows / macOS 安装包会被 SmartScreen / Gatekeeper 提示,签名方式见 TAURI_BUILD.md。
