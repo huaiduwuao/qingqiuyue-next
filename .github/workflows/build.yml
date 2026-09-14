@@ -22,6 +22,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # 同 .dockerignore:pnpm 9 读到没有 packages 字段的 workspace 文件会直接报错
+      # (setup-node 缓存步骤里的 `pnpm store path` 也会),CI 里和镜像构建一样去掉它
+      - name: Drop pnpm-workspace.yaml
+        shell: bash
+        run: rm -f pnpm-workspace.yaml
       - uses: pnpm/action-setup@v4
         with:
           version: 9
@@ -44,6 +49,11 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
+      # 同 .dockerignore:pnpm 9 读到没有 packages 字段的 workspace 文件会直接报错
+      # (setup-node 缓存步骤里的 `pnpm store path` 也会),CI 里和镜像构建一样去掉它
+      - name: Drop pnpm-workspace.yaml
+        shell: bash
+        run: rm -f pnpm-workspace.yaml
       - uses: pnpm/action-setup@v4
         with:
           version: 9
@@ -76,6 +86,11 @@ jobs:
       HAS_APPLE_CERT: ${{ secrets.APPLE_CERTIFICATE != '' }}
     steps:
       - uses: actions/checkout@v4
+      # 同 .dockerignore:pnpm 9 读到没有 packages 字段的 workspace 文件会直接报错
+      # (setup-node 缓存步骤里的 `pnpm store path` 也会),CI 里和镜像构建一样去掉它
+      - name: Drop pnpm-workspace.yaml
+        shell: bash
+        run: rm -f pnpm-workspace.yaml
       - uses: pnpm/action-setup@v4
         with:
           version: 9
@@ -123,6 +138,11 @@ jobs:
       IOS_MOBILE_PROVISION: ${{ secrets.IOS_MOBILE_PROVISION }}
     steps:
       - uses: actions/checkout@v4
+      # 同 .dockerignore:pnpm 9 读到没有 packages 字段的 workspace 文件会直接报错
+      # (setup-node 缓存步骤里的 `pnpm store path` 也会),CI 里和镜像构建一样去掉它
+      - name: Drop pnpm-workspace.yaml
+        shell: bash
+        run: rm -f pnpm-workspace.yaml
       - uses: pnpm/action-setup@v4
         with:
           version: 9
@@ -156,6 +176,11 @@ jobs:
       HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
     steps:
       - uses: actions/checkout@v4
+      # 同 .dockerignore:pnpm 9 读到没有 packages 字段的 workspace 文件会直接报错
+      # (setup-node 缓存步骤里的 `pnpm store path` 也会),CI 里和镜像构建一样去掉它
+      - name: Drop pnpm-workspace.yaml
+        shell: bash
+        run: rm -f pnpm-workspace.yaml
       - uses: pnpm/action-setup@v4
         with:
           version: 9
