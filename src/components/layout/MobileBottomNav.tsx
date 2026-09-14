@@ -11,6 +11,8 @@ import RecommendRoundedIcon from '@mui/icons-material/RecommendRounded';
 import TravelExploreRoundedIcon from '@mui/icons-material/TravelExploreRounded';
 import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
+import QueuePlayNextIcon from '@mui/icons-material/QueuePlayNext';
+import HeadsetMicIcon from '@mui/icons-material/HeadsetMic';
 import { useResponsive } from '@/hooks/useResponsive';
 
 // Tab 配置
@@ -25,7 +27,7 @@ interface TabItem {
 const MOBILE_TABS: TabItem[] = [
   { key: 'home', label: '精选', icon: <HomeRoundedIcon />, path: '/home/recommend?tab=home' },
   { key: 'recommend', label: '推荐', icon: <RecommendRoundedIcon />, path: '/home/recommend?tab=recommend' },
-  { key: 'ai', label: 'AI搜索', icon: <TravelExploreRoundedIcon />, path: '/home/recommend?tab=ai' },
+  { key: 'queue', label: '任务', icon: <QueuePlayNextIcon />, path: '/home/queue' },
   { key: 'follow', label: '关注', icon: <FavoriteRoundedIcon />, path: '/home/recommend?tab=follow' },
   { key: 'me', label: '我的', icon: <PersonRoundedIcon />, path: '/home/recommend?tab=me' },
 ];

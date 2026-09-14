@@ -37,6 +37,9 @@ import MenuIcon from '@mui/icons-material/Menu';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import BarChartIcon from '@mui/icons-material/BarChart';
+import QueuePlayNextIcon from '@mui/icons-material/QueuePlayNext';
+import AppsIcon from '@mui/icons-material/Apps';
+import HeadsetMicIcon from '@mui/icons-material/HeadsetMic';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeMode } from '@/contexts/ThemeContext';
@@ -51,12 +54,18 @@ const CATEGORY_ICON_MAP: Record<string, React.ReactNode> = {
   star: <StarIcon />,
   music: <MusicNoteIcon />,
   live: <LiveTvIcon />,
+  queue: <QueuePlayNextIcon />,
+  more: <AppsIcon />,
+  service: <HeadsetMicIcon />,
 };
 
 // Memoized category items to prevent unnecessary re-renders
 const CATEGORIES = [
   { id: 'home', name: '推荐', icon: 'home', path: '/home/recommend' },
   { id: 'reward', name: '悬赏', icon: 'hot', path: '/home/reward' },
+  { id: 'queue', name: '任务', icon: 'queue', path: '/home/queue' },
+  { id: 'service', name: '客服', icon: 'service', path: '/kf-chat' },
+  { id: 'more', name: '更多', icon: 'more', path: '/home/more' },
 ];
 
 // Memoized category button component

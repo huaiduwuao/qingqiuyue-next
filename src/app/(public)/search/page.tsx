@@ -31,11 +31,11 @@ import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import { ACCENT } from '@/constants/accents';
 import { useContentNavigate } from '@/lib/contentRoute';
-import { searchContent } from '@/apis/search';
+import { searchContent, suggestCreators, suggestTopics } from '@/apis/search';
 import { fetchContentTypes, fetchFacets, type ContentTypeItem, type FacetItem } from '@/apis/home-discover';
 import { topKeywordInThirdMonth } from '@/apis/home';
 import RecommendBoard from '@/components/home/RecommendBoard';
-import { adminClient, homeClient, formatApiError } from '@/lib/api/client';
+import { homeClient, formatApiError } from '@/lib/api/client';
 
 // 搜索域占位:后端 `/api/core/search/*` 就绪后,以下数据/函数替换为 API 调用
 type SearchContentItemContentType =
@@ -143,7 +143,7 @@ function SearchPageContent() {
   });
   const [followBusyId, setFollowBusyId] = useState<number | null>(null);
 
-  // 联想:创作者 + 话题(suggest API)
+  // 联想:创作者(suggestCreators) + 话题(suggestTopics),并行请求各自后端接口合并
   useEffect(() => {
     const kw = query.trim();
     if (!kw) {
@@ -152,52 +152,44 @@ function SearchPageContent() {
       return;
     }
     let cancelled = false;
-    (async () => {
-      try {
-        const res = (await adminClient('/search/suggest', {
-          params: { q: kw },
-        })) as any;
+
+    Promise.all([suggestCreators(kw), suggestTopics(kw)])
+      .then(([creatorList, topicList]) => {
         if (cancelled) return;
-        const payload = res?.data ?? res ?? {};
-        const creatorList: any[] = Array.isArray(payload.creators) ? payload.creators : [];
-        const topicList: any[] = Array.isArray(payload.topics) ? payload.topics : [];
         setCreators(
           creatorList.map((c) => ({
-            id: Number(c.id ?? 0),
-            name: c.name || c.username || c.userName || '创作者',
-            bio: c.bio || c.description || '',
+            id: c.id,
+            name: c.name || c.nickname || '创作者',
+            bio: c.bio || '',
             avatarGradient:
-              c.avatarGradient ||
-              c.coverGradient ||
-              'linear-gradient(135deg, #FE2C55, #8B5CF6)',
-            followers: Number(c.followers ?? c.fans ?? 0),
-            works: Number(c.works ?? c.workCount ?? 0),
+              c.avatar
+                ? `url(${c.avatar})`
+                : 'linear-gradient(135deg, #FE2C55, #8B5CF6)',
+            followers: c.followers ?? 0,
+            works: 0,
             verified: Boolean(c.verified),
-            tags: Array.isArray(c.tags) ? c.tags : [],
+            tags: [],
           })) as SearchCreatorItem[],
         );
         setTopics(
           topicList.map((t) => ({
-            id: Number(t.id ?? 0),
+            id: t.id,
             title: t.title || t.name || '话题',
-            description: t.description || t.info || '',
-            discussCount: Number(t.discussCount ?? t.commentNum ?? 0),
-            viewCount: Number(t.viewCount ?? t.views ?? 0),
+            description: t.description || '',
+            discussCount: t.discussCount ?? 0,
+            viewCount: t.viewCount ?? 0,
             hot: Boolean(t.hot),
-            gradient:
-              t.gradient ||
-              t.coverGradient ||
-              'linear-gradient(135deg, #FE2C55, #FFB400)',
+            gradient: t.coverGradient || 'linear-gradient(135deg, #FE2C55, #FFB400)',
           })) as SearchTopicItem[],
         );
-      } catch (err) {
+      })
+      .catch((err) => {
         if (cancelled) return;
-        // 后端未就绪时静默兜底,保持为空数组即可
-        console.warn('load search/suggest failed', formatApiError(err));
+        console.warn('load suggest failed', formatApiError(err));
         setCreators([]);
         setTopics([]);
-      }
-    })();
+      });
+
     return () => {
       cancelled = true;
     };
