@@ -9,7 +9,8 @@ import Chip from "@mui/material/Chip";
 import Button from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
 import { CoverImage } from "@/components/common/CoverImage";
-import { accountClient } from "@/lib/api/client";
+import { accountClient, isAuthError } from "@/lib/api/client";
+import { loginHref } from "@/lib/auth/redirect";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import type {
   MePageItem,
@@ -46,6 +47,8 @@ function useSectionData(tab: MainTab, page: number) {
     queryKey: ["me", tab, page],
     queryFn: () => cfg.fetcher(page, PAGE_SIZE),
     staleTime: 30 * 1000,
+    // 401(未登录/session 失效)重试无意义,直接走错误态;网络抖动由用户手动重试。
+    retry: false,
   });
 }
 
@@ -118,6 +121,61 @@ function EmptyState({ hint }: { hint: string }) {
   );
 }
 
+// 未登录 / session 失效(后端 401):引导去登录,登录后回跳到当前分区。
+// 之前这类失败会落到 EmptyState,把"未授权"误显示成"空列表",看起来像加载不出来。
+function LoginRequiredState({ label }: { label: string }) {
+  const router = useRouter();
+  const params = useSearchParams();
+  // 回跳带上当前 tab/mainTab,登录成功后直接回到本分区。
+  const returnTo = `/home/recommend?${params.toString()}`;
+  return (
+    <Box
+      sx={{
+        py: 6,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 1.5,
+        bgcolor: "action.hover",
+        borderRadius: 2,
+      }}
+    >
+      <Box sx={{ fontSize: 48, opacity: 0.5 }}>🔒</Box>
+      <Typography sx={{ fontSize: 13, color: "text.secondary" }}>
+        登录后查看{label}
+      </Typography>
+      <Button size="small" variant="contained" onClick={() => router.push(loginHref(returnTo))}>
+        去登录
+      </Button>
+    </Box>
+  );
+}
+
+// 其它加载失败(网络抖动 / 5xx / 404):如实提示并给重试,而不是装作"空列表"。
+function LoadErrorState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <Box
+      sx={{
+        py: 6,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 1.5,
+        bgcolor: "action.hover",
+        borderRadius: 2,
+      }}
+    >
+      <Box sx={{ fontSize: 48, opacity: 0.4 }}>⚠️</Box>
+      <Typography sx={{ fontSize: 13, color: "text.secondary" }}>加载失败,请检查网络后重试</Typography>
+      <Button size="small" variant="outlined" onClick={onRetry}>
+        重试
+      </Button>
+    </Box>
+  );
+}
+
 export function MeTabView() {
   const params = useSearchParams();
   const router = useRouter();
@@ -140,7 +198,7 @@ export function MeTabView() {
     setMeHasMore(true);
   }, [mainTab]);
 
-  const { data, isLoading, isFetching } = useSectionData(mainTab, mePage);
+  const { data, error, isLoading, isFetching, refetch } = useSectionData(mainTab, mePage);
 
   // 合并数据
   useEffect(() => {
@@ -184,6 +242,13 @@ export function MeTabView() {
 
       {isLoading ? (
         <GridSkeleton count={6} />
+      ) : error && meList.length === 0 ? (
+        // 第一页就失败:401 → 登录引导;其它错误 → 重试。两者都不再伪装成"空列表"。
+        isAuthError(error) ? (
+          <LoginRequiredState label={cfg.label} />
+        ) : (
+          <LoadErrorState onRetry={() => refetch()} />
+        )
       ) : meList.length > 0 ? (
         <Box>
           <GridView items={meList} tab={mainTab} />
