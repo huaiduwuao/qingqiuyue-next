@@ -146,7 +146,7 @@ export default function TopicPage() {
         </Container>
       </Box>
 
-      <Container maxWidth="lg" sx={{ pb: 6 }}>
+      <Container maxWidth="lg" sx={{ pb: { xs: 'calc(var(--sab, env(safe-area-inset-bottom, 0px)) + 56px)', md: 6 } }}>
         {/* 热门专题 */}
         <Box sx={{ mb: 5 }}>
           <SectionTitle
@@ -154,15 +154,15 @@ export default function TopicPage() {
             title="热门专题"
             extra={`${hotTopics.length} 个`}
           />
-          <Grid container spacing={2}>
+          <Grid container spacing={{ xs: 1.5, md: 2 }}>
             {loading
               ? Array.from({ length: 6 }).map((_, i) => (
-                  <Grid key={i} size={{ xs: 12, sm: 6, md: 4 }}>
+                  <Grid key={i} size={{ xs: 6, sm: 6, md: 4 }}>
                     <CardSkeleton />
                   </Grid>
                 ))
               : hotTopics.map((topic) => (
-                  <Grid key={topic.id} size={{ xs: 12, sm: 6, md: 4 }}>
+                  <Grid key={topic.id} size={{ xs: 6, sm: 6, md: 4 }}>
                     <TopicCard topic={topic} />
                   </Grid>
                 ))}
@@ -188,15 +188,15 @@ export default function TopicPage() {
               <Typography sx={{ fontSize: 13 }}>暂无专题，敬请期待</Typography>
             </Box>
           ) : (
-            <Grid container spacing={2}>
+            <Grid container spacing={{ xs: 1.5, md: 2 }}>
               {loading
                 ? Array.from({ length: 8 }).map((_, i) => (
-                    <Grid key={i} size={{ xs: 12, sm: 6, md: 3 }}>
+                    <Grid key={i} size={{ xs: 6, sm: 6, md: 3 }}>
                       <CardSkeleton />
                     </Grid>
                   ))
                 : topics.map((topic) => (
-                    <Grid key={topic.id} size={{ xs: 12, sm: 6, md: 3 }}>
+                    <Grid key={topic.id} size={{ xs: 6, sm: 6, md: 3 }}>
                       <TopicCard topic={topic} />
                     </Grid>
                   ))}

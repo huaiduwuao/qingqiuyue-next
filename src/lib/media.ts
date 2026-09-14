@@ -77,6 +77,20 @@ export function mediaUrl(raw?: string | null): string {
   return `${GATEWAY}/api/proxy?url=${encodeURIComponent(url)}`;
 }
 
+/**
+ * proxyMediaUrl —— 把"需要后端代理才能播"的地址(防盗链视频流/外站图)包成
+ * 经 APISIX 网关的 /api/proxy?url=。
+ *
+ * 为什么单独一个函数而不是各处自己拼 '/api/proxy?url=':Web 同源下相对路径
+ * 没问题,但 Tauri 打包后页面跑在 tauri.localhost / 自定义协议上,相对路径
+ * 会请求应用自身 → 404。这里统一带上 GATEWAY 前缀:Web 下 GATEWAY 为空串
+ * (仍是相对路径,行为不变),打包下是 https://qingqiuyue.com 绝对地址。
+ * VideoPlayer 的防盗链 m3u8/ts 代理就走这里,否则打包后所有需代理的视频全黑屏。
+ */
+export function proxyMediaUrl(raw: string): string {
+  return `${GATEWAY}/api/proxy?url=${encodeURIComponent(raw)}`;
+}
+
 /** 绝对 URL 且路径第一段是 public bucket —— 也就是"一条 MinIO 直链"。 */
 function isPublicBucketUrl(s: string): boolean {
   if (s.length > 2048 || !/^https?:\/\//i.test(s)) return false;

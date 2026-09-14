@@ -12,6 +12,7 @@ import Tooltip from '@mui/material/Tooltip';
 import Container from '@mui/material/Container';
 import SearchIcon from '@mui/icons-material/Search';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
+import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import CollectionsRoundedIcon from '@mui/icons-material/CollectionsRounded';
 import Avatar from '@mui/material/Avatar';
 import { useApp } from '@/contexts/AppContext';
@@ -28,6 +29,8 @@ interface Props {
   icon?: React.ReactNode;
   /** 内容最大宽度(与下方内容容器对齐),默认 lg。 */
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | false;
+  /** 点击 Logo / 首页键去的地址,默认首页推荐流。 */
+  homePath?: string;
 }
 
 /**
@@ -42,6 +45,7 @@ export default function PublicTopBar({
   showBack = true,
   icon,
   maxWidth = 'lg',
+  homePath = '/home/recommend?tab=home',
 }: Props) {
   const router = useRouter();
   const { currentUser } = useApp();
@@ -81,7 +85,16 @@ export default function PublicTopBar({
           {showBack && (
             <Tooltip title="返回">
               <IconButton
-                onClick={() => router.back()}
+                onClick={() => {
+                  // app/直接进该页时 history 里没有上一页,router.back() 会停在原地
+                  // (尤其在 Tauri webview 里不存在浏览器历史),这时兜底回首页,
+                  // 避免"返回键点了没反应"。
+                  if (typeof window !== 'undefined' && window.history.length > 1) {
+                    router.back();
+                  } else {
+                    router.push(homePath);
+                  }
+                }}
                 aria-label="返回"
                 sx={{
                   color: 'var(--text-secondary, currentColor)',
@@ -95,9 +108,27 @@ export default function PublicTopBar({
             </Tooltip>
           )}
 
-          {/* Logo 图标 + 标题 */}
+          {/* 回首页:无返回键时的固定入口,也作移动端的明确"回首页"按钮 */}
+          {!showBack && (
+            <Tooltip title="回到首页">
+              <IconButton
+                onClick={() => router.push(homePath)}
+                aria-label="回到首页"
+                sx={{
+                  color: 'var(--text-secondary, currentColor)',
+                  borderRadius: 1.5,
+                  flexShrink: 0,
+                  '&:hover': { bgcolor: 'action.hover' },
+                }}
+              >
+                <HomeRoundedIcon />
+              </IconButton>
+            </Tooltip>
+          )}
+
+          {/* Logo 图标 + 标题(点击回首页) */}
           <Box
-            onClick={() => router.push('/topic')}
+            onClick={() => router.push(homePath)}
             sx={{
               display: 'flex',
               alignItems: 'center',

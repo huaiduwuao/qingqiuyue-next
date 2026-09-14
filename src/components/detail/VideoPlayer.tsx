@@ -15,7 +15,7 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlineRounded';
 import CircularProgress from '@mui/material/CircularProgress';
 import AIGCBadge from '@/components/AIGCBadge';
 import { parseStream } from '@/apis/stream';
-import { mediaUrl } from '@/lib/media';
+import { mediaUrl, proxyMediaUrl } from '@/lib/media';
 
 interface StreamInfo {
   quality: string;
@@ -137,7 +137,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
     // (upos-*.akamaized.net)。这几个域名以前漏在名单外 → 直连播放,而它们
     // 同样校验 Referer,浏览器里就是一片 403(推荐流里这类地址还占多数)。
     if (/(mgtv\.com|bilivideo\.com|bilivideo\.cn|mountaintoys\.cn|akamaized\.net|hdslb\.com|bilibili\.com|gtimg\.com|v\.qq\.com|126\.net|huya\.com)/i.test(url)) {
-      return `/api/proxy?url=${encodeURIComponent(url)}`;
+      // 经 proxyMediaUrl 带上网关前缀:Web 下是相对 /api/proxy,Tauri 打包下是
+      // https://qingqiuyue.com/api/proxy 绝对地址,否则相对路径会请求应用自身 → 404 黑屏。
+      return proxyMediaUrl(url);
     }
     return url;
   };

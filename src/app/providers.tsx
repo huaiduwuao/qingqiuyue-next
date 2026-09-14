@@ -7,6 +7,28 @@ import { AppContextProvider } from '@/contexts/AppContext';
 import { AuthContextProvider } from '@/contexts/AuthContext';
 import EmotionProvider from '@/lib/emotion-provider';
 
+// React 19(≤19.3.0) estimateBandwidth 有一个 off-by-one:遍历
+// performance.getEntriesByType("resource") 时,若最后一个条目恰是静态资源
+// (img/css/script...),内层 for(i+=1;...) 会越界,overlapEntry 变成 undefined,
+// 读 .startTime 抛 "Cannot read properties of undefined (reading 'startTime')"。
+// 这是 React 内部代码,业务侧改不到;该函数由 Suspense 预加载决策调用,而
+// /topic 这类一次性并发加载几十张封面的页面最容易踩中(资源条目越多越可能
+// 让末尾元素满足静态资源条件)。
+//
+// 规避:把性能资源缓冲区设小并周期性清理,让 getEntriesByType 返回的数组
+// 始终很短,末尾几乎不会停在"静态资源 + 越界"那个临界点上。这不改变任何业务
+// 行为,只是限制 performance timeline 的条目数(默认上限本就 250+)。
+if (typeof window !== 'undefined' && typeof performance !== 'undefined') {
+  try {
+    // 收紧缓冲:默认 250 条很容易让末尾停在静态资源上,20 条基本不触发越界。
+    performance.setResourceTimingBufferSize?.(20);
+    // 页面加载早期清一次存量,去掉 SSR/预加载阶段已堆积的条目。
+    performance.clearResourceTimings?.();
+  } catch {
+    /* 某些 webview 不支持这两个方法,忽略即可 */
+  }
+}
+
 // 延迟加载 three.js(避免 Turbopack 首次编译整个 app 时卡在 three 大依赖上)。
 // 用户首次点击页面再 mount;非 /digital-human 路由永远不会触发。
 const FloatingDigitalHuman = lazy(() =>
