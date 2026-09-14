@@ -149,8 +149,8 @@ export default function FeedPage() {
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'var(--bg-page, transparent)' }}>
-      {/* 顶部导航(返回 + 搜索 + 账号) */}
-      <PublicTopBar title="动态" />
+      {/* 顶部导航(返回 + 搜索 + 账号),与下方 sm 容器对齐 */}
+      <PublicTopBar title="动态" maxWidth="sm" />
 
       <Container maxWidth="sm" sx={{ py: 3 }}>
         {/* 标签切换 */}
