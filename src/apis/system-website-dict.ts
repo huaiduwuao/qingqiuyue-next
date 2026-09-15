@@ -1,14 +1,22 @@
 import { adminClient } from '@/lib/api/client';
-import { AppItem } from "@/beans/system";
 
 export interface WebsiteDictListParams {
   page?: number;
   pageSize?: number;
   pageNumber?: number;
-  name?: string;
+  sitename?: string;
   type?: string;
 }
 
+/** 网站字典(core-api sys_website_dict 表):网站名 + 类型 + 关联的字典类型/字典项 ID */
+export interface WebsiteDictRecord {
+  id?: number;
+  sitename?: string;
+  type?: string;
+  dictTypeId?: number;
+  dictDataId?: number;
+  updateTime?: string;
+}
 
 export async function page(params: WebsiteDictListParams) {
   return adminClient("/sysWebsiteDict/client/page", {
@@ -23,14 +31,14 @@ export async function remove(ids: number[]) {
   });
 }
 
-export async function save(params: AppItem) {
+export async function save(params: WebsiteDictRecord) {
   return adminClient("/sysWebsiteDict/saveBatch", {
     method: "POST",
     data: params
   });
 }
 
-export async function update(params: AppItem) {
+export async function update(params: WebsiteDictRecord) {
   return adminClient("/sysWebsiteDict/updateById", {
     method: "POST",
     data: params

@@ -264,38 +264,21 @@ function WallpaperPageContent() {
     }
   };
 
-  // 真实 API:下载壁纸
-  const [downloading, setDownloading] = useState<string | null>(null);
-  const handleDownload = async (wp: Wallpaper) => {
-    if (downloading) return;
-    setDownloading(wp.id);
-    try {
-      // 后端没有 /wallpaper/download(只有 /wallpaper/list),壁纸图片地址就在列表数据里,直接下载。
-      const res = { url: wp.bg, filename: `${wp.title}.png` };
-      if (!res.url) {
-        setToast({ open: true, msg: '这张壁纸暂无可下载的图片' });
-        return;
-      }
-      if (typeof window !== 'undefined') {
-        const a = document.createElement('a');
-        a.href = res.url;
-        a.download = res.filename ?? `${wp.title}.png`;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-      }
-      setToast({ open: true, msg: `已下载《${wp.title}》` });
-    } catch (err) {
-      if (isAuthError(err)) {
-        setToast({ open: true, msg: '登录已过期,请重新登录' });
-      } else {
-        setToast({ open: true, msg: formatApiError(err) || '下载失败' });
-      }
-    } finally {
-      setDownloading(null);
+  // 下载壁纸:后端没有 /wallpaper/download(只有 /wallpaper/list),图片地址就在列表数据里。
+  const handleDownload = (wp: Wallpaper) => {
+    if (!wp.bg) {
+      setToast({ open: true, msg: '这张壁纸暂无可下载的图片' });
+      return;
     }
+    const a = document.createElement('a');
+    a.href = wp.bg;
+    a.download = `${wp.title}.png`;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setToast({ open: true, msg: `已下载《${wp.title}》` });
   };
 
 

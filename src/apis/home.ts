@@ -76,30 +76,6 @@ export async function queryActivities() {
   return rewardClient("/user-activity/list", {});
 }
 
-// 图表数据 - GET /api/core/chart/overview/list
-export async function listChartOverviews(params?: any) {
-  return rewardClient("/chart/overview/list", { params });
-}
-
-// 图表数据 - GET /api/core/chart/day-search/list
-export async function listChartDaySearches(params?: any) {
-  return rewardClient("/chart/day-search/list", { params });
-}
-
-// 雷达图 - GET /api/core/chart/radar/list
-export async function listChartContentRadars(params?: any) {
-  return rewardClient("/chart/radar/list", { params });
-}
-
-export async function queryRadar() {
-  return rewardClient("/chart/radar/list", {});
-}
-
-// 搜索建议 - GET /api/core/chart/search/list
-export async function searchSuggest(params?: any) {
-  return rewardClient("/chart/search/list", { params });
-}
-
 // 搜索页「热门搜索」:core-api 从没挂过 /chart/day-search/list(404),改用站内热榜
 // GET /api/content/analytics/hot,返回 { list: [{ title, ... }] },搜索页取 title 作热词。
 export async function topKeywordInThirdMonth(params?: any) {

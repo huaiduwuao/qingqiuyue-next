@@ -75,7 +75,7 @@ export default function WxConfigPage() {
 
   const updateMutation = useMutation({
     mutationFn: (vals: Partial<WxConfig> & { id: number }) => wxClient('/wxConfig/updateById', {
-      method: 'POST',
+      method: 'PUT',
       data: vals,
     }),
     onSuccess: () => {

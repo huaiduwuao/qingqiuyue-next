@@ -1,17 +1,5 @@
 import { adminClient, contentClient } from '@/lib/api/client';
 
-export async function checkPassword(params: Record<string, unknown>) {
-  return adminClient("/user/checkPassword", {
-    params
-  });
-}
-
-export async function connectList(params: Record<string, unknown>) {
-  return adminClient("/user/connectList", {
-    params
-  });
-}
-
 export async function queryProvince() {
   return adminClient("/area/provinces");
 }

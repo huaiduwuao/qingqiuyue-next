@@ -20,20 +20,6 @@ export interface ReviewRequest {
   updatedAt: string;
 }
 
-export interface ReviewLog {
-  id: number;
-  requestId: number;
-  reviewerId: number;
-  reviewerName: string;
-  action: string;
-  fromStatus: string;
-  toStatus: string;
-  note: string;
-  categoryId?: number;
-  categoryName?: string;
-  createdAt: string;
-}
-
 export interface ReviewStats {
   totalRequests: number;
   pendingCount: number;
@@ -98,8 +84,3 @@ export async function getReviewStats(): Promise<ReviewStats> {
   return res?.data ?? res;
 }
 
-// 获取审核日志
-export async function getReviewLogs(requestId: number): Promise<ReviewLog[]> {
-  const res = await adminClient(`/review/${requestId}/logs`);
-  return res?.data ?? res ?? [];
-}

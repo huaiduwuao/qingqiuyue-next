@@ -16,6 +16,7 @@ import Alert from '@mui/material/Alert';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import { DataGridTable } from '@/components/tables/DataGridTable';
+import { formatApiError } from '@/lib/api/client';
 import { page, remove, save, update, type ResourceRecord } from '@/apis/system-resource';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -50,19 +51,19 @@ export default function SystemResourcePage() {
   const deleteMutation = useMutation({
     mutationFn: (ids: number[]) => remove(ids),
     onSuccess: () => { showMessage('删除成功'); invalidate(); },
-    onError: (err: any) => showMessage(err?.message || '删除失败', 'error'),
+    onError: (err: any) => showMessage(formatApiError(err), 'error'),
   });
 
   const saveMutation = useMutation({
     mutationFn: (vals: ResourceRecord) => save(vals),
     onSuccess: () => { showMessage('创建成功'); setWriteVisible(false); invalidate(); },
-    onError: (err: any) => showMessage(err?.message || '创建失败', 'error'),
+    onError: (err: any) => showMessage(formatApiError(err), 'error'),
   });
 
   const updateMutation = useMutation({
     mutationFn: (vals: ResourceRecord) => update(vals),
     onSuccess: () => { showMessage('更新成功'); setWriteVisible(false); invalidate(); },
-    onError: (err: any) => showMessage(err?.message || '更新失败', 'error'),
+    onError: (err: any) => showMessage(formatApiError(err), 'error'),
   });
 
   const isSubmitting = saveMutation.isPending || updateMutation.isPending;
@@ -136,12 +137,7 @@ export default function SystemResourcePage() {
       <Typography variant="h5" sx={{ mb: 2 }}>资源管理</Typography>
       <DataGridTable
         columns={columns}
-        fetchData={async (params) => {
-          const res: any = await page({ ...params });
-          const list = res?.data?.records || res?.data?.list || [];
-          const total = res?.data?.totalRow || res?.data?.total || 0;
-          return { data: { records: list, totalRow: total }, success: true };
-        }}
+        fetchData={(params) => page(params)}
         onEdit={handleEdit}
         onDelete={handleDelete}
         filters={{

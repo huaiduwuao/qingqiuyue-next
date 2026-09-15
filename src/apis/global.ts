@@ -32,12 +32,6 @@ export async function listAllDictData(params: Record<string, unknown>) {
   });
 }
 
-export async function parseContent(params: Record<string, unknown>) {
-  return contentClient("/parse", {
-    params
-  });
-}
-
 export async function reportContent(params: Record<string, unknown>) {
   return contentClient("/report", {
     method: "POST",
@@ -81,37 +75,6 @@ export async function passwordUnlock(data: { moduleId: number; password: string 
 
 export async function userPointMe(params: Record<string, unknown>) {
   return adminClient("/point/user", {
-    params
-  });
-}
-
-export async function userRelationRecord(params: Record<string, unknown>) {
-  return adminClient("/user-relation/record", {
-    method: "POST",
-    data: params
-  });
-}
-
-export async function userRelationPage(params: Record<string, unknown>) {
-  return adminClient("/user-relation/list", {
-    params
-  });
-}
-
-export async function userHasSign(params: Record<string, unknown>) {
-  return adminClient("/user-sign/hasSign", {
-    params
-  });
-}
-
-export async function goSign(params: Record<string, unknown>) {
-  return adminClient("/user-sign/sign", {
-    params
-  });
-}
-
-export async function signRecord(params: Record<string, unknown>) {
-  return adminClient("/user-sign/record", {
     params
   });
 }

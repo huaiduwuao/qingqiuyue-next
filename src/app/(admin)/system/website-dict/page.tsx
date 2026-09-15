@@ -15,23 +15,14 @@ import Alert from '@mui/material/Alert';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import { DataGridTable } from '@/components/tables/DataGridTable';
-import { page, remove, save, update } from '@/apis/system-website-dict';
+import { formatApiError } from '@/lib/api/client';
+import { page, remove, save, update, type WebsiteDictRecord } from '@/apis/system-website-dict';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import type { GridColDef } from '@mui/x-data-grid';
 
 const LIST_KEY = ['system', 'website-dict'];
-
-/** 字段与 sys_website_dict 表一致:网站名 + 类型 + 关联的字典类型/字典项 ID。 */
-interface WebsiteDictRecord {
-  id?: number;
-  sitename?: string;
-  type?: string;
-  dictTypeId?: number;
-  dictDataId?: number;
-  updateTime?: string;
-}
 
 interface FormValues {
   sitename: string;
@@ -52,24 +43,23 @@ export default function SystemWebsiteDictPage() {
 
   const showMessage = (message: string, severity: 'success' | 'error' = 'success') => setSnackbar({ open: true, message, severity });
   const invalidate = () => qc.invalidateQueries({ queryKey: LIST_KEY });
-  const errMsg = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback);
 
   const deleteMutation = useMutation({
     mutationFn: (ids: number[]) => remove(ids),
     onSuccess: () => { showMessage('删除成功'); invalidate(); },
-    onError: (err: unknown) => showMessage(errMsg(err, '删除失败'), 'error'),
+    onError: (err: unknown) => showMessage(formatApiError(err), 'error'),
   });
 
   const saveMutation = useMutation({
-    mutationFn: (vals: WebsiteDictRecord) => save(vals as any),
+    mutationFn: (vals: WebsiteDictRecord) => save(vals),
     onSuccess: () => { showMessage('创建成功'); setWriteVisible(false); invalidate(); },
-    onError: (err: unknown) => showMessage(errMsg(err, '创建失败'), 'error'),
+    onError: (err: unknown) => showMessage(formatApiError(err), 'error'),
   });
 
   const updateMutation = useMutation({
-    mutationFn: (vals: WebsiteDictRecord) => update(vals as any),
+    mutationFn: (vals: WebsiteDictRecord) => update(vals),
     onSuccess: () => { showMessage('更新成功'); setWriteVisible(false); invalidate(); },
-    onError: (err: unknown) => showMessage(errMsg(err, '更新失败'), 'error'),
+    onError: (err: unknown) => showMessage(formatApiError(err), 'error'),
   });
 
   const handleEdit = (record: WebsiteDictRecord) => {
@@ -140,12 +130,7 @@ export default function SystemWebsiteDictPage() {
       <Typography variant="h5" sx={{ mb: 2 }}>网站字典</Typography>
       <DataGridTable
         columns={columns}
-        fetchData={async (params) => {
-          const res: any = await page({ ...params, pageNumber: params.pageNumber });
-          const list = res?.data?.records || res?.data?.list || [];
-          const total = res?.data?.totalRow || res?.data?.total || 0;
-          return { data: { records: list, totalRow: total }, success: true };
-        }}
+        fetchData={(params) => page(params)}
         onEdit={handleEdit}
         onDelete={handleDelete}
         filters={{

@@ -262,17 +262,6 @@ export interface PermissionChangeType {
   permissionIds?: number[];
 }
 
-export interface ResourceItem extends TableListItem {
-  serviceId?: number;
-  pid?: number;
-  name?: string;
-  url?: string;
-  method?: string;
-  serviceName?: string;
-  belong?: boolean;
-  children?: ResourceItem[];
-}
-
 export interface SystemModuleTemplateAttrItem extends TableListItem {
   name?: string;
   code?: string;

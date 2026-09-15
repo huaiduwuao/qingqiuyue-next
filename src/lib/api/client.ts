@@ -139,7 +139,6 @@ export const API_BASE = {
   reward: `${API_GATEWAY}/api/core`,    // 悬赏/任务等 reward 模块
   wx: `${API_GATEWAY}/api/core`,        // 微信相关 wxUser/wxMsg 等
   spider: `${API_GATEWAY}/api/spider`,
-  im: `${API_GATEWAY}/api/realtime`,
   account: `${API_GATEWAY}/api/core`,   // 用户个人中心相关
   home: `${API_GATEWAY}/api/content/home`,
   // gen-api(AI 视频生成)。它自己注册的前缀就是 /api/ai(cmd/gen-api/main.go),
@@ -171,12 +170,16 @@ function createApiClient(baseURL: string) {
           config.headers.Authorization = `Bearer ${token}`;
         }
       }
-      // 转换分页参数: pageNumber → page
-      // pageSize 保持原样，后端 Gin 会自动匹配 pageSize/page_size
+      // 转换分页参数: pageNumber → page,并补一份 page_size。
+      // Gin 的 form tag 只认逗号前的名字(`form:"page_size,pageSize"` 里的 pageSize 不是别名),
+      // 后端大多数分页结构体只绑 page_size,只发 pageSize 时分页大小会被忽略。
       if (config.params) {
         if ('pageNumber' in config.params && !('page' in config.params)) {
           config.params.page = config.params.pageNumber;
           delete config.params.pageNumber;
+        }
+        if ('pageSize' in config.params && !('page_size' in config.params)) {
+          config.params.page_size = config.params.pageSize;
         }
       }
       return config;
@@ -346,7 +349,6 @@ export const contentClient = createApiClient(API_BASE.content);
 export const rewardClient = createApiClient(API_BASE.reward);
 export const wxClient = createApiClient(API_BASE.wx);
 export const spiderClient = createApiClient(API_BASE.spider);
-export const imClient = createApiClient(API_BASE.im);
 export const accountClient = createApiClient(API_BASE.account);
 export const homeClient = createApiClient(API_BASE.home);
 export const aiClient = createApiClient(API_BASE.ai);

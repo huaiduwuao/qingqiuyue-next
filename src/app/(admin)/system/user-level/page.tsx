@@ -15,6 +15,7 @@ import Alert from '@mui/material/Alert';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import { DataGridTable } from '@/components/tables/DataGridTable';
+import { formatApiError } from '@/lib/api/client';
 import { page, remove, save, update } from '@/apis/system-user-level';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -69,19 +70,19 @@ export default function SystemUserLevelPage() {
   const deleteMutation = useMutation({
     mutationFn: (ids: number[]) => remove(ids),
     onSuccess: () => { showMessage('删除成功'); invalidate(); },
-    onError: (err: any) => showMessage(err?.message || '删除失败', 'error'),
+    onError: (err: any) => showMessage(formatApiError(err), 'error'),
   });
 
   const saveMutation = useMutation({
     mutationFn: (vals: Record<string, unknown>) => save(vals),
     onSuccess: () => { showMessage('创建成功'); setWriteVisible(false); invalidate(); },
-    onError: (err: any) => showMessage(err?.message || '创建失败', 'error'),
+    onError: (err: any) => showMessage(formatApiError(err), 'error'),
   });
 
   const updateMutation = useMutation({
     mutationFn: (vals: Record<string, unknown>) => update(vals),
     onSuccess: () => { showMessage('更新成功'); setWriteVisible(false); invalidate(); },
-    onError: (err: any) => showMessage(err?.message || '更新失败', 'error'),
+    onError: (err: any) => showMessage(formatApiError(err), 'error'),
   });
 
   const isSubmitting = saveMutation.isPending || updateMutation.isPending;
@@ -161,12 +162,7 @@ export default function SystemUserLevelPage() {
       <Typography variant="h5" sx={{ mb: 2 }}>用户等级</Typography>
       <DataGridTable
         columns={columns}
-        fetchData={async (params) => {
-          const res: any = await page({ ...params, pageNumber: params.pageNumber });
-          const list = res?.data?.records || res?.data?.list || [];
-          const total = res?.data?.totalRow || res?.data?.total || 0;
-          return { data: { records: list, totalRow: total }, success: true };
-        }}
+        fetchData={(params) => page(params)}
         onEdit={handleEdit}
         onDelete={handleDelete}
         filters={{
