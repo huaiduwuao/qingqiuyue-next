@@ -113,10 +113,18 @@ function fmtDate(s: string) {
 }
 
 // ── API ──
+// realtime-api 统一回 { code, msg, data },业务数据在 data 里(没有任务时 data.list 是 null)。
+// 以前直接读顶层 .list,列表永远是空的,训练任务提交成功也看不到。
+async function realtimeData<T>(r: Response, what: string): Promise<T> {
+  if (!r.ok) throw new Error(`${what}: ${r.status}`);
+  const body = await r.json();
+  return (body?.data ?? body) as T;
+}
+
 async function fetchAssets(): Promise<{ list: DHAsset[] }> {
   const r = await fetch('/api/realtime/assets');
-  if (!r.ok) throw new Error(`获取资产列表失败: ${r.status}`);
-  return r.json();
+  const data = await realtimeData<{ list: DHAsset[] | null }>(r, '获取资产列表失败');
+  return { list: data?.list ?? [] };
 }
 
 async function deleteAsset(id: string): Promise<void> {
@@ -131,8 +139,8 @@ async function activateAsset(id: string): Promise<void> {
 
 async function fetchJobs(): Promise<{ list: DHJob[] }> {
   const r = await fetch('/api/realtime/jobs');
-  if (!r.ok) throw new Error(`获取任务列表失败: ${r.status}`);
-  return r.json();
+  const data = await realtimeData<{ list: DHJob[] | null }>(r, '获取任务列表失败');
+  return { list: data?.list ?? [] };
 }
 
 async function cancelJob(id: string): Promise<void> {
@@ -146,8 +154,7 @@ async function startTraining(name: string, method: string, source: string): Prom
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, method, source }),
   });
-  if (!r.ok) throw new Error(`启动训练失败: ${r.status}`);
-  return r.json();
+  return realtimeData<{ jobId: string }>(r, '启动训练失败');
 }
 
 export default function SystemDigitalHumanPage() {

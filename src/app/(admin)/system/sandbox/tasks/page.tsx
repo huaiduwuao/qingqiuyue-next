@@ -157,7 +157,9 @@ export default function TasksPage() {
               status: filterValues.status || undefined,
               imageId: filterValues.imageId || undefined,
             });
-            return { data: { records: res.data?.records || res.data?.list || [], totalRow: res.data?.total || res.data?.totalRow || 0 }, success: true };
+            // DataGrid 要求每行有唯一 id,任务只有 taskId —— 不补的话有任务时整页直接崩
+            const records = (res.data?.records || res.data?.list || []).map((t) => ({ ...t, id: t.taskId }));
+            return { data: { records, totalRow: res.data?.total || res.data?.totalRow || 0 }, success: true };
           } catch (err: any) {
             showMsg(err.message || '获取数据失败', 'error');
             return { data: { records: [], totalRow: 0 }, success: false };

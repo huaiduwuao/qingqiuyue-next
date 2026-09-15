@@ -6,6 +6,7 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import { AppContextProvider } from '@/contexts/AppContext';
 import { AuthContextProvider } from '@/contexts/AuthContext';
 import EmotionProvider from '@/lib/emotion-provider';
+import PageViewTracker from '@/components/PageViewTracker';
 
 // React 19(≤19.3.0) estimateBandwidth 有一个 off-by-one:遍历
 // performance.getEntriesByType("resource") 时,若最后一个条目恰是静态资源
@@ -93,6 +94,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <CustomThemeProvider>
           <AppContextProvider>
             <AuthContextProvider>
+              <PageViewTracker />
               {children}
               {mountFloating && (
                 <Suspense fallback={null}>

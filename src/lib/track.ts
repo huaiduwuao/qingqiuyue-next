@@ -79,16 +79,15 @@ export function recordHistory(contentId: number | string) {
 // 在 layout 或页面组件 mount 时调用,fire-and-forget.
 export function trackPageView(pathname: string, search = '') {
   if (!isLoggedIn()) return; // 未登录不发送埋点
-  const uid = currentUserId();
   const page = search ? `${pathname}${search}` : pathname;
   try {
-    // 行为上报在 /api/content/behavior(recommendapp),homeClient 会拼成不存在的 /home/behavior
+    // 行为上报在 /api/content/behavior(recommendapp),homeClient 会拼成不存在的 /home/behavior。
+    // 用户由后端按会话认定;pageview 落 page_view 表,不进推荐用的 behavior_event。
     void contentClient.post('/behavior', {
-      userId: uid,
-      itemId: 0,
+      userId: currentUserId(),
       itemType: 'PAGE',
       action: 'pageview',
-      duration: 0,
+      page,
     }).catch((e) => safeErrorLog('trackPageView', e));
   } catch {
     /* 静默 */

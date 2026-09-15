@@ -66,6 +66,8 @@ function TrendChart({ data, height = 160, label }: { data: { date: string; pv: n
   const max = Math.max(...data.map(d => d.pv), 1);
   const stepX = 800 / (data.length - 1 || 1);
   const w = 800;
+  // 30 天时每个点都标日期会叠成一团,最多标 10 个
+  const labelStep = Math.max(1, Math.ceil(data.length / 10));
 
   const pvPoints = data.map((d, i) => `${i * stepX},${height - (d.pv / max) * (height - 8) - 4}`).join(' ');
   const uvPoints = data.map((d, i) => `${i * stepX},${height - (d.uv / max) * (height - 8) - 4}`).join(' ');
@@ -90,7 +92,7 @@ function TrendChart({ data, height = 160, label }: { data: { date: string; pv: n
         <polygon points={areaUv} fill="url(#gr-uv)" />
         <polyline points={pvPoints} fill="none" stroke="#5B8DEF" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
         <polyline points={uvPoints} fill="none" stroke="#FE2C55" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-        {data.map((d, i) => (
+        {data.map((d, i) => (i % labelStep === 0 || i === data.length - 1) && (
           <text key={i} x={i * stepX} y={height + 18} textAnchor="middle" fontSize={9} fill="#888">{d.date}</text>
         ))}
       </svg>
@@ -108,11 +110,11 @@ function TrendChart({ data, height = 160, label }: { data: { date: string; pv: n
   );
 }
 
-function useVisitorStats() {
+function useVisitorStats(range: '7d' | '30d') {
   return useQuery<VisitorStats>({
-    queryKey: ['stats', 'visitor'],
+    queryKey: ['stats', 'visitor', range],
     queryFn: async () => {
-      const r: any = await adminClient('/admin/dashboard/stats/visitor');
+      const r: any = await adminClient('/admin/dashboard/stats/visitor', { params: { days: range === '30d' ? 30 : 7 } });
       return (r?.data?.data ?? r?.data ?? r) as VisitorStats;
     },
     refetchInterval: 60_000,
@@ -121,8 +123,8 @@ function useVisitorStats() {
 }
 
 export default function VisitorStatsPage() {
-  const stats = useVisitorStats();
   const [range, setRange] = useState<'7d' | '30d'>('7d');
+  const stats = useVisitorStats(range);
 
   if (stats.isError && !stats.isLoading) {
     return (
