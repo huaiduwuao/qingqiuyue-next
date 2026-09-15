@@ -5,6 +5,10 @@ export type TimelineItem =
   | { kind: 'tool'; name: string; args?: string; result?: string; isError?: boolean; done: boolean }
   | { kind: 'note'; text: string; tone: 'info' | 'warning' | 'error' | 'success' }
 
+function clip(s: string, n: number): string {
+  return s.length > n ? `${s.slice(0, n)}…` : s
+}
+
 const DECISION: Record<string, string> = {
   approved: '已批准,继续执行',
   rejected: '已驳回,操作没有执行',
@@ -60,6 +64,18 @@ export function toTimeline(events: RunEvent[]): TimelineItem[] {
           text: DECISION[d.decision] ?? String(d.decision),
         })
         break
+      case 'agent.delegated':
+        items.push({ kind: 'note', tone: 'info', text: `交给 ${d.agent} 的子任务已开始:${clip(d.task ?? '', 120)}` })
+        break
+      case 'agent.returned': {
+        const ok = d.status === 'succeeded'
+        items.push({
+          kind: 'note',
+          tone: ok ? 'success' : 'warning',
+          text: `${d.agent} 的子任务${ok ? '完成' : d.status === 'cancelled' ? '被取消' : '失败'}${d.summary ? `:${clip(d.summary, 200)}` : ''}`,
+        })
+        break
+      }
       case 'run.finished':
         items.push({ kind: 'note', tone: 'success', text: '已完成' })
         break

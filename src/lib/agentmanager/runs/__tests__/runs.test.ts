@@ -39,6 +39,19 @@ describe('toTimeline', () => {
     expect(items[2]).toMatchObject({ kind: 'tool', name: 'sandbox_exec', done: true, isError: false })
   })
 
+  it('shows delegated sub-tasks as notes', () => {
+    const items = toTimeline([
+      ev(1, 'agent.delegated', { agent: 'qa', task: '跑一遍 e2e' }),
+      ev(2, 'agent.returned', { agent: 'qa', status: 'succeeded', summary: '12 通过' }),
+      ev(3, 'agent.returned', { agent: 'ops', status: 'failed', summary: '容器不存在' }),
+    ])
+    expect(items.map((i) => (i as { text: string }).text)).toEqual([
+      '交给 qa 的子任务已开始:跑一遍 e2e',
+      'qa 的子任务完成:12 通过',
+      'ops 的子任务失败:容器不存在',
+    ])
+  })
+
   it('shows approvals and failures as notes', () => {
     const items = toTimeline([
       ev(1, 'approval.requested', { tool: 'bounty_create' }),
