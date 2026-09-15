@@ -39,8 +39,10 @@ import { AvatarHoverPopup } from '@/components/account/AvatarHoverPopup';
 import NoticeIconView, { DmIconView } from '@/components/NoticeIcon';
 import { FeedPanel } from './panels/FeedPanel';
 import { AIRecommendPanel } from './panels/AIRecommendPanel';
-import HotRankingBar from '@/components/home/HotRankingBar';
 import TrendingBoard from '@/components/home/TrendingBoard';
+import { LeaderboardPanel } from '@/components/leaderboard/LeaderboardPanel';
+import LeaderboardMini, { SECTION_TO_TYPE } from '@/components/leaderboard/LeaderboardMini';
+import EmojiEventsRoundedIcon from '@mui/icons-material/EmojiEventsRounded';
 // 客户端下载入口:跳到独立 /download 介绍页
 import { LivePanel } from './panels/LivePanel';
 import { TheaterPanel } from './panels/TheaterPanel';
@@ -56,6 +58,7 @@ import { useResponsive } from '@/hooks/useResponsive';
 const SIDE_NAV: { key: string; label: string; path?: string; icon: React.ReactNode; accent: string; dividerBefore?: boolean }[] = [
   { key: 'home', label: '精选', path: '/home/recommend?tab=home', icon: <HomeRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
   { key: 'recommend', label: '推荐', path: '/home/recommend?tab=recommend', icon: <RecommendRoundedIcon sx={{ fontSize: 18 }} />, accent: 'secondary.main' },
+  { key: 'rank', label: '排行榜', path: '/home/recommend?tab=rank', icon: <EmojiEventsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'warning.main' },
   { key: 'ai', label: 'AI 搜索', path: '/home/recommend?tab=ai', icon: <TravelExploreRoundedIcon sx={{ fontSize: 18 }} />, accent: ACCENT.blue.main },
   { key: 'follow', label: '关注', path: '/home/recommend?tab=follow', icon: <FavoriteRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
   { key: 'friend', label: '朋友', path: '/home/recommend?tab=friend', icon: <GroupsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'warning.main' },
@@ -174,6 +177,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
            : activeNav === 'ai' ? <AIRecommendPanel />
            : activeNav === 'home' ? <FeedPanel tab="home" />
            : activeNav === 'recommend' ? <HomeRecommendPage />
+           : activeNav === 'rank' ? <LeaderboardPanel />
            : activeNav === 'follow' ? <FeedPanel tab="follow" />
            : activeNav === 'friend' ? <FeedPanel tab="friend" />
            : activeNav === 'live' ? <LivePanel />
@@ -612,20 +616,13 @@ function RightSidebar({ section }: { section: string }) {
         gap: 1.5,
       }}
     >
+      {/* 站内排行榜(internal/leaderboard):按类型出的热度日榜,跟随首页 section
+          切到对应类型,一键进完整榜单页(左侧导航「排行榜」)。 */}
+      <LeaderboardMini defaultType={SECTION_TO_TYPE[section] ?? 'ALL'} limit={10} />
+
       {/* 全网热榜:跨平台热度索引(后端 internal/trending),每条带来源平台,
           可按平台筛选。筛选项来自索引本身,爬虫接入新平台后自动多一项。 */}
       <TrendingBoard title="全网热榜" defaultPeriod="day" maxItems={12} />
-
-      {/* 站内内容榜单:按内容类型分的站内热度(/home/hot)。
-          跟上面那个不是一回事 —— 这里的"热"只看站内行为,不含源站榜位。
-          (这里原本的注释写的是"全网热搜",但它读的一直是站内榜。) */}
-      <HotRankingBar
-        section={section === 'recommend' ? undefined : section}
-        title="内容榜单"
-        maxItems={10}
-        expandable
-        showTypeTabs={false}
-      />
     </Box>
   );
 }

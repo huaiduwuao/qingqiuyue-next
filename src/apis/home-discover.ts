@@ -1,7 +1,9 @@
 import { contentClient } from '@/lib/api/client';
 
 // 数据的全部读 Doris module_content,Phase 3 启用后,24 类均有真实数据
-// GET /api/content/home/hot?type=&size=&genre=   某类型的热门 topN(可选 genre 子分类)
+// (站内热度榜 /home/hot 已并入排行榜,见 apis/leaderboard.ts)
+
+// 推荐流(fetchRecommend)与详情 related 的列表项形状。
 export interface HotItem {
   id: number;
   title: string;
@@ -12,10 +14,6 @@ export interface HotItem {
   likes?: number;
   author?: string;
   createdAt?: string;
-}
-
-export async function fetchHot(params: { type?: string; size?: number; genre?: string } = {}) {
-  return contentClient('/home/hot', { params });
 }
 
 // GET /api/content/recommend/feed?types=&size=&genre=&page=   多类型混合推荐(可选 genre 子分类)

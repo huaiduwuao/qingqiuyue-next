@@ -11,8 +11,6 @@ import PersonIcon from '@mui/icons-material/Person';
 import GroupIcon from '@mui/icons-material/Group';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
-import Avatar from '@mui/material/Avatar';
-import FavoriteBorderRoundedIcon from '@mui/icons-material/FavoriteBorderRounded';
 import CollectionsIcon from '@mui/icons-material/Collections';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
@@ -30,7 +28,7 @@ import TeleplayCard from './components/TeleplayCard';
 import { useScrollToBottom } from '@/hooks/useInfiniteScroll';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { homeClient } from '@/lib/api/client';
-import HotRankingBar from '@/components/home/HotRankingBar';
+import LeaderboardMini from '@/components/leaderboard/LeaderboardMini';
 
 // 右侧边栏渐变色映射
 const GRADIENT_BY_TYPE: Record<string, string> = {
@@ -713,15 +711,6 @@ function RecommendRightSidebar() {
         </Box>
       </Box>
 
-      {/* 内容榜单 - 单列 */}
-      <HotRankingBar
-        title="内容榜单"
-        maxItems={8}
-        expandable
-        showTypeTabs={false}
-        columns={1}
-      />
-
       {/* 热门专题 */}
       <HotTopicsSection />
     </Box>
@@ -973,58 +962,8 @@ function HotTabContent({ navigate }: { navigate: ReturnType<typeof useContentNav
   );
 }
 
-// 榜单 Tab
-type CommentItem = { id?: number; avatar?: string; user?: string; text?: string; time?: string; likes?: number };
-
+// 榜单 Tab:站内热度日榜(可切类型),与左侧导航「排行榜」同源。
+// (这里原来渲染的是 /side/comments —— 一串用户评论,并不是榜单。)
 function RankingTabContent() {
-  const { data, isLoading } = useQuery({
-    queryKey: ['home', 'side', 'comments'],
-    queryFn: () => homeClient.get<{ list: CommentItem[] }>('/side/comments').then((r) => r.data),
-  });
-  const list = data?.list || [];
-
-  if (isLoading) {
-    return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-        {[0, 1, 2, 3, 4].map((i) => (
-          <Box key={i} sx={{ height: 60, borderRadius: 1.5, bgcolor: 'action.hover' }} />
-        ))}
-      </Box>
-    );
-  }
-
-  if (list.length === 0) {
-    return (
-      <Typography variant="caption" sx={{ color: 'text.secondary', p: 1, display: 'block' }}>
-        暂无榜单
-      </Typography>
-    );
-  }
-
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-      {list.map((c: CommentItem, i: number) => (
-        <Box key={c.id ?? i} sx={{ display: 'flex', gap: 1 }}>
-          <Avatar src={c.avatar} sx={{ width: 28, height: 28, fontSize: 11, bgcolor: 'var(--border-color, transparent)' }}>
-            {c.user?.[0] || 'U'}
-          </Avatar>
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.25 }}>
-              <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary, currentColor)' }}>
-                {c.user}
-              </Typography>
-              <Typography sx={{ fontSize: 9, color: 'var(--text-muted, currentColor)' }}>{c.time}</Typography>
-            </Box>
-            <Typography sx={{ fontSize: 11, color: 'var(--text-secondary, currentColor)', lineHeight: 1.4, mb: 0.25 }}>
-              {c.text}
-            </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'var(--text-muted, currentColor)' }}>
-              <FavoriteBorderRoundedIcon sx={{ fontSize: 11 }} />
-              <Typography sx={{ fontSize: 10 }}>{c.likes}</Typography>
-            </Box>
-          </Box>
-        </Box>
-      ))}
-    </Box>
-  );
+  return <LeaderboardMini embedded limit={10} />;
 }

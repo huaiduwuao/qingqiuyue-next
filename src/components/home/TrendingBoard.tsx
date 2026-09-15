@@ -43,9 +43,9 @@ interface Props {
 /**
  * TrendingBoard —— 全网热门资源榜。
  *
- * 与 HotRankingBar 的区别:那个是按内容类型分的站内热度榜(/home/hot),
- * 这个是跨平台的全网热度索引(/trending)—— 每条都带来源平台归属,可以按平台
- * 筛选,热度里含源站榜位而不只是站内点击。
+ * 与排行榜(components/leaderboard)的区别:那个是按类型/分类出的站内榜单
+ * (/home/leaderboard),这个是跨平台的全网热度索引(/trending)—— 每条都带
+ * 来源平台归属,可以按平台筛选,热度里含源站榜位而不只是站内点击。
  *
  * 平台筛选项来自 /trending/platforms 而不是前端硬编码:爬虫接入新平台后
  * 筛选栏自动多一项,不用改这个文件。
