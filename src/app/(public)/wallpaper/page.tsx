@@ -124,7 +124,7 @@ function WallpaperPageContent() {
         };
         if (cancelled) return;
         // 如果后端没有返回 categories，使用默认分类
-        const cats = (payload.categories?.length ?? 0) > 0
+        let cats = (payload.categories?.length ?? 0) > 0
           ? (payload.categories ?? []).map((c: any) => ({
               key: (c.key ?? c.id) as WallpaperCategory,
               label: String(c.label ?? c.name ?? c.key ?? ''),
@@ -132,6 +132,9 @@ function WallpaperPageContent() {
               accent: String(c.accent ?? '#8B5CF6'),
             }))
           : WALLPAPER_CATEGORIES;
+        // 保证「全部」项始终存在且置顶(后端动态分类可能不含 all)
+        const allCat = WALLPAPER_CATEGORIES[0];
+        cats = [allCat, ...cats.filter((c) => c.key !== 'all')];
         const items = (payload.list ?? payload.items ?? []) as Wallpaper[];
         setCategories(cats);
         setWallpapers(items);
@@ -568,27 +571,32 @@ function WallpaperPageContent() {
       {/* 分类 + 排序 */}
       <Box sx={{ px: { xs: 2, md: 4 }, pb: 2, position: 'sticky', top: 60, zIndex: 5, bgcolor: 'rgba(10, 10, 15, 0.85)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <Box sx={{ maxWidth: 1200, mx: 'auto', display: 'flex', alignItems: 'center', gap: 1, py: 1.5, flexWrap: 'wrap' }}>
-          <Box
-            onClick={() => setActiveCat('all')}
-            sx={{
-              px: 1.5,
-              py: 0.6,
-              borderRadius: 1.5,
-              cursor: 'pointer',
-              fontSize: 13,
-              fontWeight: activeCat === 'all' ? 700 : 400,
-              color: activeCat === 'all' ? '#fff' : 'rgba(255,255,255,0.55)',
-              bgcolor: activeCat === 'all' ? 'rgba(255,255,255,0.1)' : 'transparent',
-              transition: 'all 0.15s',
-              '&:hover': { color: '#fff' },
-            }}
-          >
-            全部
-            <Box component="span" sx={{ ml: 0.5, fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>
-              {wallpapers.length}
+          {/* 分类统一由 categories state 驱动(含 all 项,支持后端动态返回),
+              不再硬编码单独的「全部」按钮 —— 此前与 categories[0] 重复渲染出两个「全部」。 */}
+          {categories.filter((c) => c.key === 'all').map((c) => (
+            <Box
+              key={c.key}
+              onClick={() => setActiveCat('all')}
+              sx={{
+                px: 1.5,
+                py: 0.6,
+                borderRadius: 1.5,
+                cursor: 'pointer',
+                fontSize: 13,
+                fontWeight: activeCat === 'all' ? 700 : 400,
+                color: activeCat === 'all' ? '#fff' : 'rgba(255,255,255,0.55)',
+                bgcolor: activeCat === 'all' ? 'rgba(255,255,255,0.1)' : 'transparent',
+                transition: 'all 0.15s',
+                '&:hover': { color: '#fff' },
+              }}
+            >
+              {c.label}
+              <Box component="span" sx={{ ml: 0.5, fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>
+                {wallpapers.length}
+              </Box>
             </Box>
-          </Box>
-          {WALLPAPER_CATEGORIES.map((c) => (
+          ))}
+          {categories.filter((c) => c.key !== 'all').map((c) => (
             <Box
               key={c.key}
               onClick={() => setActiveCat(c.key)}
