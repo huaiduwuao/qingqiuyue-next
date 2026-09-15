@@ -12,7 +12,7 @@
  * 现在改走工具调用:参数由 LLM 的结构化输出通道下发,schema 在服务端定义。
  */
 
-export type ScenePanelKind = 'list' | 'grid' | 'form';
+export type ScenePanelKind = 'list' | 'grid' | 'form' | 'operation';
 
 export interface ScenePanelListItem {
   id: string;
@@ -72,13 +72,23 @@ export interface ScenePanelForm extends ScenePanelBase {
   submitHint?: string;
 }
 
-export type ScenePanel = ScenePanelList | ScenePanelGrid | ScenePanelForm;
+/**
+ * 部署操作卡片(后端 ui_show_operation,见 engine/tools_ops.go)。
+ * 只带操作 id:卡片用看卡片那个人的会话向 Steward 取数据、批准或驳回,不经过 agent。
+ */
+export interface ScenePanelOperation extends ScenePanelBase {
+  kind: 'operation';
+  operationId: string;
+}
+
+export type ScenePanel = ScenePanelList | ScenePanelGrid | ScenePanelForm | ScenePanelOperation;
 
 /** 后端工具名 → 面板类型 */
 export const SCENE_PANEL_TOOLS: Record<string, ScenePanelKind> = {
   ui_show_list: 'list',
   ui_show_grid: 'grid',
   ui_show_form: 'form',
+  ui_show_operation: 'operation',
 };
 
 /** 关闭面板的工具名 */
@@ -146,6 +156,12 @@ export function scenePanelFromToolCall(
   const title = asString(args.title) || '结果';
   const subtitle = asString(args.subtitle) || undefined;
   const id = callId || `${toolName}-${Date.now()}`;
+
+  if (kind === 'operation') {
+    const operationId = asString(args.operation_id).trim();
+    if (!operationId) return null;
+    return { kind: 'operation', id, title: asString(args.title) || '部署操作', subtitle, operationId };
+  }
 
   if (kind === 'form') {
     const fields = normalizeFields(args.fields);

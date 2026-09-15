@@ -99,6 +99,13 @@ export interface OperationDetail extends Operation {
   approvals: Approval[];
 }
 
+export interface Automation {
+  paused: boolean;
+  reason: string;
+  updated_by: string;
+  updated_at: string | null;
+}
+
 export interface CreateOperation {
   kind: OpKind;
   node_id?: string;
@@ -129,3 +136,10 @@ export const approve = async (id: string, comment = '') =>
 
 export const reject = async (id: string, comment = '') =>
   payload<Operation>(await stewardClient.post(`/operations/${id}/reject`, { comment }));
+
+// 自动化开关:暂停后 AI 助手发起的操作一律等人批准(自动回滚不受影响)。
+export const automation = async () =>
+  payload<Automation>(await stewardClient.get('/automation'));
+
+export const setAutomation = async (paused: boolean, reason = '') =>
+  payload<Automation>(await stewardClient.post('/automation', { paused, reason }));

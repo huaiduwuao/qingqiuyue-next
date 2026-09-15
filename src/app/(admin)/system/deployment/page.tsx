@@ -82,6 +82,7 @@ export default function DeploymentPage() {
   const fleetQ = useQuery({ queryKey: ['steward', 'fleet'], queryFn: st.fleet, refetchInterval: 5000, retry: false });
   const opsQ = useQuery({ queryKey: ['steward', 'ops'], queryFn: () => st.operations(50), refetchInterval: 5000, retry: false });
   const relQ = useQuery({ queryKey: ['steward', 'releases'], queryFn: () => st.releases(20), refetchInterval: 15000, retry: false });
+  const autoQ = useQuery({ queryKey: ['steward', 'automation'], queryFn: st.automation, refetchInterval: 15000, retry: false });
   const refresh = () => qc.invalidateQueries({ queryKey: ['steward'] });
 
   if (errStatus(fleetQ.error) === 403) {
@@ -143,6 +144,15 @@ export default function DeploymentPage() {
           <Button onClick={() => setAction('adopt')}>接管基线</Button>
           <Button color="warning" onClick={() => setAction('detach')} disabled={!node?.desired_release_id}>脱离管控</Button>
         </Box>
+        <AutomationBar state={autoQ.data} onToggle={async (paused) => {
+          try {
+            await st.setAutomation(paused, paused ? '面板上手动暂停' : '');
+            toast(paused ? '已暂停自动化:AI 助手的操作都会等人批准' : '已恢复自动化');
+            refresh();
+          } catch (e) {
+            toast(errMsg(e), 'error');
+          }
+        }} />
         {busy && <LinearProgress />}
 
         {/* ── 待审批 ── */}
@@ -244,6 +254,25 @@ export default function DeploymentPage() {
         <Alert severity={snack?.sev ?? 'success'} onClose={() => setSnack(null)}>{snack?.msg}</Alert>
       </Snackbar>
     </Container>
+  );
+}
+
+function AutomationBar({ state, onToggle }: { state?: st.Automation; onToggle: (paused: boolean) => void }) {
+  if (!state) return null;
+  return (
+    <Alert
+      severity={state.paused ? 'warning' : 'info'}
+      variant="outlined"
+      action={
+        <Button color="inherit" size="small" onClick={() => onToggle(!state.paused)}>
+          {state.paused ? '恢复自动化' : '暂停自动化'}
+        </Button>
+      }
+    >
+      {state.paused
+        ? `自动化已暂停${state.reason ? `(${state.reason})` : ''}:AI 助手发起的操作一律等人批准。失败后的自动回滚不受影响。`
+        : 'AI 助手可以自主执行 T1(重启、构建、回滚到已验证版本),每个目标每小时最多 3 次,连续失败两次自动熔断;部署新版本始终要人批准。'}
+    </Alert>
   );
 }
 
