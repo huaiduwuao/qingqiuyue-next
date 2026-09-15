@@ -23,78 +23,99 @@ import type { GridColDef } from '@mui/x-data-grid';
 
 const LIST_KEY = ['system', 'website-dict'];
 
+/** 字段与 sys_website_dict 表一致:网站名 + 类型 + 关联的字典类型/字典项 ID。 */
 interface WebsiteDictRecord {
   id?: number;
   sitename?: string;
-  dictTypeName?: string;
-  dictDataValue?: string;
+  type?: string;
+  dictTypeId?: number;
+  dictDataId?: number;
   updateTime?: string;
 }
+
+interface FormValues {
+  sitename: string;
+  type: string;
+  dictTypeId: string;
+  dictDataId: string;
+}
+
+const EMPTY: FormValues = { sitename: '', type: '', dictTypeId: '', dictDataId: '' };
 
 export default function SystemWebsiteDictPage() {
   const qc = useQueryClient();
   const [writeVisible, setWriteVisible] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<WebsiteDictRecord | null>(null);
-  const [formValues, setFormValues] = useState<WebsiteDictRecord>({});
+  const [formValues, setFormValues] = useState<FormValues>(EMPTY);
   const [filterValues, setFilterValues] = useState<Record<string, string | number | undefined>>({});
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
 
   const showMessage = (message: string, severity: 'success' | 'error' = 'success') => setSnackbar({ open: true, message, severity });
-
   const invalidate = () => qc.invalidateQueries({ queryKey: LIST_KEY });
+  const errMsg = (err: unknown, fallback: string) => (err instanceof Error ? err.message : fallback);
 
   const deleteMutation = useMutation({
     mutationFn: (ids: number[]) => remove(ids),
     onSuccess: () => { showMessage('删除成功'); invalidate(); },
-    onError: (err: unknown) => showMessage(err instanceof Error ? err.message : '删除失败', 'error'),
+    onError: (err: unknown) => showMessage(errMsg(err, '删除失败'), 'error'),
   });
 
   const saveMutation = useMutation({
-    mutationFn: (vals: WebsiteDictRecord) => save(vals),
+    mutationFn: (vals: WebsiteDictRecord) => save(vals as any),
     onSuccess: () => { showMessage('创建成功'); setWriteVisible(false); invalidate(); },
-    onError: (err: unknown) => showMessage(err instanceof Error ? err.message : '创建失败', 'error'),
+    onError: (err: unknown) => showMessage(errMsg(err, '创建失败'), 'error'),
   });
 
   const updateMutation = useMutation({
-    mutationFn: (vals: WebsiteDictRecord) => update(vals),
+    mutationFn: (vals: WebsiteDictRecord) => update(vals as any),
     onSuccess: () => { showMessage('更新成功'); setWriteVisible(false); invalidate(); },
-    onError: (err: unknown) => showMessage(err instanceof Error ? err.message : '更新失败', 'error'),
+    onError: (err: unknown) => showMessage(errMsg(err, '更新失败'), 'error'),
   });
 
   const handleEdit = (record: WebsiteDictRecord) => {
     setSelectedRecord(record);
     setFormValues({
       sitename: record?.sitename || '',
-      dictTypeName: record?.dictTypeName || '',
-      dictDataValue: record?.dictDataValue || '',
+      type: record?.type || '',
+      dictTypeId: record?.dictTypeId ? String(record.dictTypeId) : '',
+      dictDataId: record?.dictDataId ? String(record.dictDataId) : '',
     });
     setWriteVisible(true);
   };
 
   const handleDelete = (record: WebsiteDictRecord) => {
-    if (!confirm('确定删除吗？')) return;
-    if (record.id) deleteMutation.mutate([record.id]);
+    if (!record.id || !confirm('确定删除吗？')) return;
+    deleteMutation.mutate([record.id]);
   };
 
   const handleSubmit = () => {
+    if (!formValues.sitename.trim()) return showMessage('网站名称必填', 'error');
+    const body: WebsiteDictRecord = {
+      sitename: formValues.sitename.trim(),
+      type: formValues.type.trim(),
+      dictTypeId: Number(formValues.dictTypeId) || 0,
+      dictDataId: Number(formValues.dictDataId) || 0,
+    };
     if (selectedRecord?.id) {
-      updateMutation.mutate({ ...formValues, id: selectedRecord.id });
+      updateMutation.mutate({ ...body, id: selectedRecord.id });
     } else {
-      saveMutation.mutate(formValues);
+      saveMutation.mutate(body);
     }
   };
 
-  const handleFormChange = (field: keyof WebsiteDictRecord, value: string) => {
-    setFormValues((prev: WebsiteDictRecord) => ({ ...prev, [field]: value }));
+  const handleFormChange = (field: keyof FormValues, value: string) => {
+    setFormValues((prev) => ({ ...prev, [field]: value }));
   };
 
   const isSubmitting = saveMutation.isPending || updateMutation.isPending;
 
   const columns: GridColDef[] = [
-    { field: 'sitename', headerName: '网站名称', width: 150 },
-    { field: 'dictTypeName', headerName: '字典类型', width: 150 },
-    { field: 'dictDataValue', headerName: '字典项', width: 150 },
-    { field: 'updateTime', headerName: '最后更新时间', width: 180, valueFormatter: (value) => value ? new Date(value).toLocaleString() : '-' },
+    { field: 'id', headerName: 'ID', width: 80 },
+    { field: 'sitename', headerName: '网站名称', width: 180 },
+    { field: 'type', headerName: '类型', width: 130 },
+    { field: 'dictTypeId', headerName: '字典类型ID', width: 120 },
+    { field: 'dictDataId', headerName: '字典项ID', width: 120 },
+    { field: 'updateTime', headerName: '最后更新时间', width: 180, valueFormatter: (value) => (value ? new Date(value).toLocaleString('zh-CN', { hour12: false }) : '-') },
     {
       field: 'actions',
       headerName: '操作',
@@ -120,16 +141,16 @@ export default function SystemWebsiteDictPage() {
       <DataGridTable
         columns={columns}
         fetchData={async (params) => {
-          const res = await page({ ...params, pageNumber: params.pageNumber });
-          const list = res.data?.records || res.data?.list || [];
-          const total = res.data?.totalRow || res.data?.total || 0;
+          const res: any = await page({ ...params, pageNumber: params.pageNumber });
+          const list = res?.data?.records || res?.data?.list || [];
+          const total = res?.data?.totalRow || res?.data?.total || 0;
           return { data: { records: list, totalRow: total }, success: true };
         }}
         onEdit={handleEdit}
         onDelete={handleDelete}
         filters={{
           fields: [
-            { key: 'name', label: '名称', type: 'text' },
+            { key: 'sitename', label: '网站名称', type: 'text' },
             { key: 'type', label: '类型', type: 'text' },
           ],
           values: filterValues,
@@ -141,32 +162,18 @@ export default function SystemWebsiteDictPage() {
         )}
       />
 
-      <Dialog open={writeVisible} onClose={() => setWriteVisible(false)} maxWidth="md" fullWidth>
+      <Dialog open={writeVisible} onClose={() => !isSubmitting && setWriteVisible(false)} maxWidth="sm" fullWidth>
         <DialogTitle>{selectedRecord?.id ? '编辑网站字典' : '新建网站字典'}</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-            <TextField
-              label="网站名称"
-              value={formValues.sitename || ''}
-              onChange={(e) => handleFormChange('sitename', e.target.value)}
-              fullWidth
-            />
-            <TextField
-              label="字典类型"
-              value={formValues.dictTypeName || ''}
-              onChange={(e) => handleFormChange('dictTypeName', e.target.value)}
-              fullWidth
-            />
-            <TextField
-              label="字典项"
-              value={formValues.dictDataValue || ''}
-              onChange={(e) => handleFormChange('dictDataValue', e.target.value)}
-              fullWidth
-            />
+            <TextField label="网站名称" value={formValues.sitename} onChange={(e) => handleFormChange('sitename', e.target.value)} fullWidth required />
+            <TextField label="类型" value={formValues.type} onChange={(e) => handleFormChange('type', e.target.value)} fullWidth />
+            <TextField label="字典类型ID" value={formValues.dictTypeId} onChange={(e) => handleFormChange('dictTypeId', e.target.value)} fullWidth />
+            <TextField label="字典项ID" value={formValues.dictDataId} onChange={(e) => handleFormChange('dictDataId', e.target.value)} fullWidth />
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setWriteVisible(false)}>取消</Button>
+          <Button onClick={() => setWriteVisible(false)} disabled={isSubmitting}>取消</Button>
           <Button variant="contained" onClick={handleSubmit} disabled={isSubmitting}>提交</Button>
         </DialogActions>
       </Dialog>
