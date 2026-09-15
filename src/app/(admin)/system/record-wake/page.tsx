@@ -29,6 +29,13 @@ const TARGET_PHRASE = '小月';
 const TARGET_COUNT = 50;  // 目标录音数(够 5 分钟训练)
 const RECORD_DURATION_MS = 1500;
 
+// 训练接口在 core-api 的登录保护下;裸 fetch 不带会话会 401。取法与 lib/api/client 的拦截器一致。
+function authHeaders(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  const token = localStorage.getItem('session_id') || localStorage.getItem('token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 interface RecordedClip {
   blob: Blob
   url: string
@@ -139,7 +146,7 @@ export default function RecordWakePage() {
   // 加载当前模型状态
   const loadModelStatus = useCallback(async () => {
     try {
-      const r = await fetch('/api/core/train-wake-word')
+      const r = await fetch('/api/core/train-wake-word', { headers: authHeaders() })
       const d = await r.json()
       if (d.ok) {
         setCurrentModel(d.model || '未部署')
@@ -301,7 +308,7 @@ export default function RecordWakePage() {
       wavBlobs.forEach(({ blob, name }) => {
         fd.append('files', blob, name)
       })
-      const r = await fetch('/api/core/train-wake-word', { method: 'POST', body: fd })
+      const r = await fetch('/api/core/train-wake-word', { method: 'POST', body: fd, headers: authHeaders() })
       const data = await r.json()
       if (!data.ok) {
         setError(data.error || '训练失败')
@@ -321,12 +328,12 @@ export default function RecordWakePage() {
       while (Date.now() < deadline) {
         await new Promise(res => setTimeout(res, 5000))
         try {
-          const sr = await fetch('/api/core/train-wake-word')
+          const sr = await fetch('/api/core/train-wake-word', { headers: authHeaders() })
           const sd = await sr.json()
           if (!sd.ok) continue
           if (sd.taskStatus === 'succeeded' || sd.taskStatus === 'completed') {
             setTrainStatus(`✓ 训练完成,模型已自动部署! recall 见训练日志. 刷新页面即可用新模型唤醒`)
-            fetch('/api/core/train-wake-word').then(r => r.json()).then(d => { if (d.ok) setCurrentModel(d.model) })
+            fetch('/api/core/train-wake-word', { headers: authHeaders() }).then(r => r.json()).then(d => { if (d.ok) setCurrentModel(d.model) })
             done = true
             break
           }
