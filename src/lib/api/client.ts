@@ -146,6 +146,8 @@ export const API_BASE = {
   // APISIX 也只转发 /api/ai/*。此前前端写死 fetch('/api/video/generate'),
   // 网关上根本没有这个路由,所以视频生成从来没通过。
   ai: `${API_GATEWAY}/api/ai`,
+  // Steward 部署控制面(cmd/steward,仅超管)。APISIX 只转发 /api/steward/*。
+  steward: `${API_GATEWAY}/api/steward/v1`,
 };
 
 // 创建指定baseURL的axios实例
@@ -348,6 +350,7 @@ export const imClient = createApiClient(API_BASE.im);
 export const accountClient = createApiClient(API_BASE.account);
 export const homeClient = createApiClient(API_BASE.home);
 export const aiClient = createApiClient(API_BASE.ai);
+export const stewardClient = createApiClient(API_BASE.steward);
 
 // 默认导出admin客户端（兼容现有代码）
 export const apiClient = adminClient;
