@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, Suspense, useEffect, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -103,6 +103,7 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
 
 function SystemLayoutInner({ children }: { children: ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { isAdmin, can } = useAuthority();
   const { currentUser } = useApp();
   const { activeTab, setActiveTab } = useSystemTab();
@@ -122,24 +123,29 @@ function SystemLayoutInner({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab?.path, defaultTab?.path]);
 
-  // 根据 URL 路径同步 activeTab
+  // 当前 URL 是不是标签页本身(/system、/system/role 等)。/system/role/detail 这类子路由不是:
+  // 它们要渲染路由给出的 children。此前只要有 activeTab 就一律渲染标签页组件,
+  // 子路由(角色配置页等)永远打不开。
+  const isTabRoute = !pathname || pathname === '/system' || Boolean(PageComponents[pathname]);
+
+  // 根据 URL 同步 activeTab。每次路径变化都同步(此前只在挂载时同步一次);
+  // 子路由高亮它所属的菜单(最长前缀匹配,/system/role/detail → 角色管理)。
   useEffect(() => {
-    const currentPath = window.location.pathname;
-    // 在所有菜单项中查找匹配的路径
+    if (!pathname) return;
+    let match: MenuItemDef | undefined;
     for (const group of MENU_GROUPS) {
-      const item = group.items.find((it) => it.path === currentPath);
-      if (item) {
-        const next = toSystemTab(item);
-        // ⚠️ 必须比较当前 activeTab,否则无条件 setActiveTab 会触发死循环
-        //    (setState → render → useEffect → setState ...)
-        if (!activeTab || activeTab.path !== next.path) {
-          setActiveTab(next);
-        }
-        break;
+      for (const it of group.items) {
+        const hit = pathname === it.path || pathname.startsWith(it.path + '/');
+        if (hit && (!match || it.path.length > match.path.length)) match = it;
       }
     }
+    // ⚠️ 必须比较当前 activeTab,否则无条件 setActiveTab 会触发死循环
+    //    (setState → render → useEffect → setState ...)
+    if (match && (!activeTab || activeTab.path !== match.path)) {
+      setActiveTab(toSystemTab(match));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setActiveTab]);
+  }, [pathname, setActiveTab]);
 
   // 过滤有权限的菜单项
   const visibleGroups = useMemo(() => {
@@ -157,6 +163,9 @@ function SystemLayoutInner({ children }: { children: ReactNode }) {
 
   const handleMenuClick = (item: MenuItemDef) => {
     setActiveTab(toSystemTab(item));
+    // 在子路由上点菜单要先回到标签页外壳,否则仍渲染子路由的页面。
+    // 回 /system 而不是 item.path:并非每个菜单都有独立路由,/system 一定有。
+    if (!isTabRoute) router.push('/system');
   };
 
   const handleReturnToFront = () => {
@@ -423,7 +432,7 @@ function SystemLayoutInner({ children }: { children: ReactNode }) {
         {/* 内容 */}
         <Box component="main" sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
-            {ActivePage ? <ActivePage /> : children}
+            {isTabRoute && ActivePage ? <ActivePage /> : children}
           </Box>
         </Box>
       </Box>
