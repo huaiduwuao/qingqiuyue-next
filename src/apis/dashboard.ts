@@ -707,23 +707,7 @@ export async function getTopPerformingContent(params?: PageParams & { days?: 7 |
   return normalizeLegacyPageResponse(res as any);
 }
 
-// ========== 充值包 / 权益 / 活动(recharge 页) ==========
-
-export interface DiamondPackage {
-  id: string;
-  diamonds: number;
-  bonus?: number;
-  price: number; // 元
-  originalPrice?: number;
-  badge?: 'recommend' | 'hot' | 'bonus' | 'first';
-  desc: string;
-  perDiamond: string;
-  sort?: number;
-  enabled?: boolean;
-}
-export async function getDiamondPackages() {
-  return unwrap<{ list: DiamondPackage[] }>(await accountClient('/recharge/packages'));
-}
+// ========== 权益 / 活动(recharge 页;套餐见 apis/payment.ts 的 getDiamondPackages) ==========
 
 export interface DiamondBenefit {
   icon: 'crown' | 'flash' | 'gift' | 'badge' | 'support' | 'theater';
@@ -741,8 +725,9 @@ export interface DiamondActivity {
   endsAt: string;
   rules: string[];
 }
+/** 没有折扣档位时后端返回 null,页面据此隐藏活动区块。 */
 export async function getDiamondActivity() {
-  return unwrap<DiamondActivity>(await accountClient('/recharge/activity'));
+  return unwrap<DiamondActivity | null>(await accountClient('/recharge/activity'));
 }
 
 // ========== 创作者数据大盘 ==========

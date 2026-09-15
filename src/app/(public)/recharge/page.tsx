@@ -34,15 +34,14 @@ import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2, gradient3 } from '@/constants/gradients';
 import { accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
 import { getWalletBalance, getWalletTransactions, type WalletTransaction } from '@/apis/wallet';
-import { createOrder } from '@/apis/payment';
+import { createOrder, getDiamondPackages, type DiamondPackage as ApiDiamondPackage } from '@/apis/payment';
 import {
-  getDiamondPackages,
   getDiamondBenefits,
   getDiamondActivity,
-  type DiamondPackage as ApiDiamondPackage,
   type DiamondBenefit as ApiDiamondBenefit,
-  type DiamondActivity as ApiDiamondActivity,
 } from '@/apis/dashboard';
+import { useAuth } from '@/contexts/AuthContext';
+import { loginHref } from '@/lib/auth/redirect';
 
 type PayMethod = 'wechat' | 'alipay';
 interface DiamondPackage {
@@ -125,6 +124,7 @@ function useCountdown(target: string) {
 
 function RechargePageContent() {
   const router = useRouter();
+  const { isAuthenticated } = useAuth();
   const [selectedPkg, setSelectedPkg] = useState<string>('');
   const [payMethod, setPayMethod] = useState<PayMethod>('wechat');
   const [paying, setPaying] = useState(false);
@@ -140,10 +140,12 @@ function RechargePageContent() {
   } | null>(null);
   const [toast, setToast] = useState<{ open: boolean; msg: string; severity: 'success' | 'info' }>({ open: false, msg: '', severity: 'success' });
 
-  // 真接口:充值包 / 权益 / 活动
+  // 套餐来自 diamond_package 表(/payment/diamond-packages):下单接口只认这张表的数字 id。
+  // 以前读的是 /recharge/packages 那份写死列表,id 形如 "pkg_6",Number() 后是 NaN,
+  // 每一单都被后端以「套餐不存在」拒掉;而且那条路由挂在认证组,未登录连档位都看不到。
   const pkgQ = useQuery({
     queryKey: ['recharge-packages'],
-    queryFn: () => getDiamondPackages().then((r) => r.list || []),
+    queryFn: () => getDiamondPackages(),
     staleTime: 5 * 60 * 1000,
     refetchOnMount: 'always',
   });
@@ -158,32 +160,44 @@ function RechargePageContent() {
     staleTime: 60 * 1000,
   });
 
-  const DIAMOND_PACKAGES: DiamondPackage[] = (pkgQ.data ?? []).map((p: ApiDiamondPackage) => ({
-    id: p.id,
-    diamonds: p.diamonds,
-    bonus: p.bonus,
-    price: p.price,
-    originalPrice: p.originalPrice,
-    badge: p.badge,
-    desc: p.desc,
-    perDiamond: p.perDiamond,
-  }));
+  const DIAMOND_PACKAGES: DiamondPackage[] = useMemo(() => {
+    const list = pkgQ.data ?? [];
+    // 折扣最大的档位标「推荐」并默认选中;表里没有加赠/角标字段,不凭空造。
+    let best = -1;
+    let bestSave = 0;
+    list.forEach((p: ApiDiamondPackage, i: number) => {
+      const save = (p.originalPriceCents ?? 0) - p.priceCents;
+      if (save > bestSave) {
+        bestSave = save;
+        best = i;
+      }
+    });
+    return list.map((p: ApiDiamondPackage, i: number) => ({
+      id: String(p.id),
+      diamonds: p.diamondAmount,
+      price: p.priceCents / 100,
+      originalPrice: p.originalPriceCents ? p.originalPriceCents / 100 : undefined,
+      badge: i === best ? ('recommend' as const) : undefined,
+      desc: p.name,
+      perDiamond: p.diamondAmount > 0 ? `¥${(p.priceCents / p.diamondAmount / 100).toFixed(2)}/钻` : '',
+    }));
+  }, [pkgQ.data]);
   const DIAMOND_BENEFITS: DiamondBenefit[] = (benefitQ.data ?? []).map((b: ApiDiamondBenefit) => ({
     icon: b.icon,
     title: b.title,
     desc: b.desc,
   }));
-  // 防御:确保 activityQ.data 是有效对象
+  // 后端没有折扣档位时返回 null:整块活动横幅和规则都不渲染,不再挂一个空标题的假倒计时。
   const rawActivity = activityQ.data;
-  const DIAMOND_ACTIVITY: DiamondActivity =
-    rawActivity && typeof rawActivity === 'object' && !Array.isArray(rawActivity)
-      ? rawActivity
-      : {
-          title: '',
-          subtitle: '',
-          endsAt: new Date(Date.now() + 30 * 86_400_000).toISOString(),
-          rules: [],
-        };
+  const hasActivity = !!rawActivity && typeof rawActivity === 'object' && !Array.isArray(rawActivity);
+  const DIAMOND_ACTIVITY: DiamondActivity = hasActivity
+    ? (rawActivity as DiamondActivity)
+    : {
+        title: '',
+        subtitle: '',
+        endsAt: new Date(Date.now() + 30 * 86_400_000).toISOString(),
+        rules: [],
+      };
   // 确保 rules 始终是数组
   const activityRules: string[] = Array.isArray(DIAMOND_ACTIVITY.rules) ? DIAMOND_ACTIVITY.rules : [];
 
@@ -251,6 +265,11 @@ function RechargePageContent() {
   // 到账由支付网关回调 /api/core/payment/notify/* 验签后入账,前端不参与记账。
   const handlePay = async () => {
     if (!pkg || paying) return;
+    // 未登录:档位和活动都看得到,但下单要会话——去登录页,登录后回到这页。
+    if (!isAuthenticated) {
+      router.push(loginHref());
+      return;
+    }
     if (payMethod !== 'wechat' && payMethod !== 'alipay') {
       setToast({ open: true, msg: '请选择微信或支付宝', severity: 'info' });
       return;
@@ -528,7 +547,8 @@ function RechargePageContent() {
         </Box>
       </Box>
 
-      {/* 活动 banner */}
+      {/* 活动 banner:只有后端给了折扣活动才显示 */}
+      {hasActivity && (
       <Box sx={{ px: { xs: 2, md: 4 }, py: 2 }}>
         <Box
           sx={{
@@ -612,6 +632,7 @@ function RechargePageContent() {
           </Box>
         </Box>
       </Box>
+      )}
 
       {/* 套餐 + 支付 + 记录 三栏 */}
       <Box sx={{ px: { xs: 2, md: 4 }, py: 4 }}>
@@ -1102,6 +1123,7 @@ function RechargePageContent() {
       </Box>
 
       {/* 活动规则 */}
+      {hasActivity && (
       <Box sx={{ px: { xs: 2, md: 4 }, py: 4 }}>
         <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
@@ -1117,6 +1139,7 @@ function RechargePageContent() {
           </Box>
         </Box>
       </Box>
+      )}
 
       <Divider sx={{ borderColor: 'rgba(255,255,255,0.06)' }} />
 
