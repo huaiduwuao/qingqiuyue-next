@@ -29,8 +29,6 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import { agentmAPI, type Instance, type Agent, type AuditLog, type Skill, type MonitoringOverview, type InstanceStats, type UsageStats } from './api'
 import KanbanBoard from './kanban/KanbanBoard'
 import MCPManager from './mcp/MCPManager'
-import SandboxMonitor from './sandbox/SandboxMonitor'
-import AgentTerminal from './terminal/AgentTerminal'
 import SessionManager from './session/SessionManager'
 import WorkflowsOverview from './WorkflowsOverview'
 import dynamic from 'next/dynamic'
@@ -42,7 +40,7 @@ const SkillStudio = dynamic(() => import('./studio/SkillStudio'), { ssr: false }
 const AgentStudio = dynamic(() => import('./studio/AgentStudio'), { ssr: false })
 const ModelProviderManager = dynamic(() => import('./models/ModelProviderManager'), { ssr: false })
 
-type Tab = 'dashboard' | 'instances' | 'agents' | 'sessions' | 'audit' | 'skills' | 'gateway' | 'kanban' | 'mcp' | 'sandbox' | 'terminal' | 'workflows' | 'models'
+type Tab = 'dashboard' | 'instances' | 'agents' | 'sessions' | 'audit' | 'skills' | 'gateway' | 'kanban' | 'mcp' | 'workflows' | 'models'
 
 export default function AgentManagerConsole() {
   const { sessionId: token, isAuthenticated } = useAuth()
@@ -188,8 +186,6 @@ export default function AgentManagerConsole() {
     { key: 'models', label: '🧠 模型管理' },
     { key: 'kanban', label: '📋 看板' },
     { key: 'mcp', label: '🔌 MCP' },
-    { key: 'sandbox', label: '🐳 沙盒' },
-    { key: 'terminal', label: '🖥️ 终端' },
     { key: 'workflows', label: '🔀 工作流' },
   ]
 
@@ -677,21 +673,9 @@ export default function AgentManagerConsole() {
           <MCPManager token={token} />
         )}
 
-        {/* Sandbox Tab */}
-        {activeTab === 'sandbox' && token && (
-          <SandboxMonitor token={token} />
-        )}
-
-        {/* Terminal Tab */}
-        {activeTab === 'terminal' && (
-          <Box>
-            <Typography variant="h6" sx={{ mb: 2 }}>🖥️ Agent 远程终端</Typography>
-            <Alert severity="info" sx={{ mb: 2 }}>
-              连接远程 Hermes Agent / Claude Code / OpenClaw，实时查看输出结果
-            </Alert>
-            <AgentTerminal token={token ?? undefined} />
-          </Box>
-        )}
+        {/* 沙盒 / 终端两个 Tab 已下线:沙盒 handler 没有 manager(acquire 空指针),
+            终端前端请求 /api/v1/agentmanager/* 而后端只挂 /api/agentmanager/*,
+            全部 404。真沙盒在 /system/sandbox(core-api),终端待基于沙盒重做。 */}
 
         {/* Workflows Tab:跨所有 Agent 的工作流总览 */}
         {activeTab === 'workflows' && (
