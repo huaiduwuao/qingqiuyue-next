@@ -50,8 +50,17 @@ export function isTerminal(status: RunStatus): boolean {
   return status === 'succeeded' || status === 'failed' || status === 'cancelled'
 }
 
+/** 传 null 时用浏览器里登录的会话(和 agentmAPI 同一个来源),数字人的场景卡片就不用知道 token。 */
 function authHeaders(token?: string | null): Record<string, string> {
-  return token ? { Authorization: `Bearer ${token}` } : {}
+  let t = token
+  if (!t && typeof window !== 'undefined') {
+    try {
+      t = localStorage.getItem('session_id')
+    } catch {
+      t = null
+    }
+  }
+  return t ? { Authorization: `Bearer ${t}` } : {}
 }
 
 async function call<T>(path: string, token: string | null | undefined, init: RequestInit = {}): Promise<T> {

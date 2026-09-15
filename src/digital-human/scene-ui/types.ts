@@ -12,7 +12,7 @@
  * 现在改走工具调用:参数由 LLM 的结构化输出通道下发,schema 在服务端定义。
  */
 
-export type ScenePanelKind = 'list' | 'grid' | 'form' | 'operation';
+export type ScenePanelKind = 'list' | 'grid' | 'form' | 'operation' | 'run';
 
 export interface ScenePanelListItem {
   id: string;
@@ -81,7 +81,16 @@ export interface ScenePanelOperation extends ScenePanelBase {
   operationId: string;
 }
 
-export type ScenePanel = ScenePanelList | ScenePanelGrid | ScenePanelForm | ScenePanelOperation;
+/**
+ * 后台运行卡片(后端 ui_show_run,见 runs/tool.go)。
+ * 只带运行 id:卡片用看卡片那个人的会话读事件流、批准或驳回,不经过 agent。
+ */
+export interface ScenePanelRun extends ScenePanelBase {
+  kind: 'run';
+  runId: string;
+}
+
+export type ScenePanel = ScenePanelList | ScenePanelGrid | ScenePanelForm | ScenePanelOperation | ScenePanelRun;
 
 /** 后端工具名 → 面板类型 */
 export const SCENE_PANEL_TOOLS: Record<string, ScenePanelKind> = {
@@ -89,6 +98,7 @@ export const SCENE_PANEL_TOOLS: Record<string, ScenePanelKind> = {
   ui_show_grid: 'grid',
   ui_show_form: 'form',
   ui_show_operation: 'operation',
+  ui_show_run: 'run',
 };
 
 /** 关闭面板的工具名 */
@@ -161,6 +171,12 @@ export function scenePanelFromToolCall(
     const operationId = asString(args.operation_id).trim();
     if (!operationId) return null;
     return { kind: 'operation', id, title: asString(args.title) || '部署操作', subtitle, operationId };
+  }
+
+  if (kind === 'run') {
+    const runId = asString(args.run_id).trim();
+    if (!runId) return null;
+    return { kind: 'run', id, title: asString(args.title) || '后台任务', subtitle, runId };
   }
 
   if (kind === 'form') {

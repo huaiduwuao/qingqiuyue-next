@@ -26,6 +26,7 @@ import RadioGroup from '@mui/material/RadioGroup';
 import Chip from '@mui/material/Chip';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import OperationPanel from './OperationPanel';
+import RunPanel from './RunPanel';
 import type {
   ScenePanel as ScenePanelModel,
   ScenePanelField,
@@ -104,6 +105,7 @@ export function ScenePanel({ panel, onSend, onClose }: ScenePanelProps) {
           />
         )}
         {panel.kind === 'operation' && <OperationPanel operationId={panel.operationId} onSend={onSend} />}
+        {panel.kind === 'run' && <RunPanel runId={panel.runId} onSend={onSend} />}
       </Box>
     </Box>
   );
