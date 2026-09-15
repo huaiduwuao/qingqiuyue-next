@@ -85,6 +85,17 @@ function formatDate(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+// bgCss 把 wp.bg 转成合法的 CSS background 值。
+// source === 'image' 时 bg 是图片 URL(MinIO),必须包成 url(...) 才能显示;
+// source === 'gradient' 时 bg 本身就是渐变字符串,直接当 CSS 值用。
+// 此前一律 `background: wp.bg`,图片 URL 是裸字符串、不是合法 CSS,导致图片壁纸显示不出来。
+function bgCss(wp: Pick<Wallpaper, 'bg' | 'source'>): string {
+  if (wp.source === 'image' && wp.bg) {
+    return `url("${wp.bg}") center/cover no-repeat`;
+  }
+  return wp.bg;
+}
+
 const SIZE_ICON: Record<Wallpaper['sizes'][number], { Icon: React.ComponentType<{ sx?: any }>; label: string }> = {
   desktop: { Icon: DesktopWindowsIcon, label: '桌面' },
   tablet: { Icon: TabletIcon, label: '平板' },
@@ -479,7 +490,7 @@ function WallpaperPageContent() {
                 aspectRatio: '16/10',
                 borderRadius: 2.5,
                 overflow: 'hidden',
-                background: (currentWallpaper ?? defaultWallpaper).bg,
+                background: bgCss(currentWallpaper ?? defaultWallpaper),
                 boxShadow: '0 12px 32px rgba(0,0,0,0.4)',
                 mb: 2,
               }}
@@ -857,7 +868,7 @@ function WallpaperCard({
         overflow: 'hidden',
         cursor: 'pointer',
         aspectRatio: '16/10',
-        background: wp.bg,
+        background: bgCss(wp),
         transition: 'all 0.2s',
         '&:hover': {
           transform: 'translateY(-3px)',
@@ -994,7 +1005,7 @@ function MyWallpaperCard({
         overflow: 'hidden',
         cursor: 'pointer',
         aspectRatio: '16/10',
-        background: wp.bg,
+        background: bgCss(wp),
         transition: 'all 0.2s',
         '&:hover': { transform: 'translateY(-2px)' },
         '&:hover .my-actions': { opacity: 1 },
@@ -1145,7 +1156,7 @@ function DetailContent({
         sx={{
           flex: 1.2,
           position: 'relative',
-          background: wp.bg,
+          background: bgCss(wp),
           minHeight: { xs: 220, md: 480 },
         }}
       >
