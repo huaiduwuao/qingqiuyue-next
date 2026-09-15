@@ -21,7 +21,7 @@ import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import ErrorRoundedIcon from '@mui/icons-material/ErrorRounded';
 import RocketLaunchRoundedIcon from '@mui/icons-material/RocketLaunchRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
-import { myPage } from '@/apis/module-content';
+import { managePage } from '@/apis/module-content';
 import type { ModuleContentItem } from '@/apis/module-content';
 import { RelativeTime } from '@/components/common/RelativeTime';
 import { TYPE_LABEL } from '@/lib/contentRoute';
@@ -78,7 +78,8 @@ export default function UnifiedContentList({ selectedType, onSelectItem }: Props
   const { data, isLoading } = useQuery({
     queryKey: ['publish-hub-list', wantBackendType],
     queryFn: async () => {
-        const res = await myPage(
+        // 管理列表:按数据权限过滤(默认只看自己的),此前拉的是全站公开列表
+        const res = await managePage(
         wantBackendType ? { contentType: wantBackendType.toUpperCase(), pageSize: 50 } : { pageSize: 50 },
       );
       return (res.list ?? []) as ModuleContentItem[];

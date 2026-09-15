@@ -19,19 +19,47 @@ import OutlinedInput from '@mui/material/OutlinedInput';
 import Checkbox from '@mui/material/Checkbox';
 import ListItemText from '@mui/material/ListItemText';
 import { DataGridTable } from '@/components/tables/DataGridTable';
+import Chip from '@mui/material/Chip';
 import { page as getUsers, remove, save, update } from '@/apis/system-user';
 import { page as getRoles } from '@/apis/system-role';
 import type { UserItem } from '@/beans/system';
 import type { GridColDef } from '@mui/x-data-grid';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
+import { PermissionGuard } from '@/components/auth/PermissionGuard';
+import { useAuthority } from '@/contexts/AuthContext';
+import { PERMISSIONS } from '@/lib/permissions';
 
 const LIST_KEY = ['system', 'user'];
+
+/** 用户列表里每行带的角色(后端 vo.RoleBrief) */
+interface RoleBrief {
+  id: number;
+  name: string;
+  code: string;
+  system: boolean;
+}
+
+const rolesOf = (row: any): RoleBrief[] => (Array.isArray(row?.roles) ? row.roles.filter((r: any) => r && typeof r === 'object') : []);
 
 const columns: GridColDef<UserItem>[] = [
   { field: 'name', headerName: '账户名', width: 150 },
   { field: 'nickname', headerName: '昵称', width: 150 },
-  { field: 'roles', headerName: '角色数', width: 100 },
+  {
+    field: 'roles',
+    headerName: '角色',
+    width: 220,
+    sortable: false,
+    renderCell: (params) => {
+      const roles = rolesOf(params.row);
+      if (roles.length === 0) return '-';
+      return (
+        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', alignItems: 'center', height: '100%' }}>
+          {roles.map((r) => <Chip key={r.id} size="small" label={r.name} color={r.system ? 'warning' : 'default'} />)}
+        </Box>
+      );
+    },
+  },
   { field: 'info', headerName: '简介', width: 200 },
   { field: 'mobile', headerName: '手机号', width: 130 },
   { field: 'email', headerName: '邮箱', width: 180 },
@@ -47,6 +75,7 @@ const columns: GridColDef<UserItem>[] = [
 
 export default function SystemUserPage() {
   const qc = useQueryClient();
+  const { can } = useAuthority();
   const [modalVisible, setModalVisible] = useState(false);
   const [record, setRecord] = useState<UserItem | null>(null);
   const [deleteIds, setDeleteIds] = useState<number[]>([]);
@@ -144,6 +173,8 @@ export default function SystemUserPage() {
         }}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        actionPermissions={{ edit: PERMISSIONS.SYSTEM_USER.UPDATE, delete: PERMISSIONS.SYSTEM_USER.DELETE }}
+        hasPermission={can}
         onSelectionChange={handleSelectionChange}
         filters={{
           fields: [
@@ -156,10 +187,12 @@ export default function SystemUserPage() {
         }}
         toolBarRender={() => (
           <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button variant="contained" startIcon={<AddIcon />} onClick={handleAdd}>
-              新建
-            </Button>
-            {deleteIds.length > 0 && (
+            <PermissionGuard need={PERMISSIONS.SYSTEM_USER.CREATE}>
+              <Button variant="contained" startIcon={<AddIcon />} onClick={handleAdd}>
+                新建
+              </Button>
+            </PermissionGuard>
+            {deleteIds.length > 0 && can(PERMISSIONS.SYSTEM_USER.DELETE) && (
               <Button
                 variant="outlined"
                 color="error"
@@ -204,6 +237,7 @@ interface OperationModalProps {
 }
 
 function OperationModal({ open, onClose, onSubmit, record, isSubmitting }: OperationModalProps) {
+  const { isSuperAdmin } = useAuthority();
   const [values, setValues] = useState<Record<string, any>>({});
   const [selectedRoles, setSelectedRoles] = useState<number[]>([]);
 
@@ -223,13 +257,8 @@ function OperationModal({ open, onClose, onSubmit, record, isSubmitting }: Opera
         email: record.email || '',
         info: record.info || '',
       });
-      // 如果记录有 roles 字段，解析角色ID
-      if (record.roles && typeof record.roles === 'string') {
-        // 假设 roles 格式为 "1,2,3" 或类似格式
-        setSelectedRoles(record.roles.split(',').map(Number).filter(Boolean));
-      } else if (Array.isArray(record.roles)) {
-        setSelectedRoles(record.roles);
-      }
+      // 列表每行带着用户当前的角色;此前这里读不到,保存时提交空数组把角色全清了。
+      setSelectedRoles(rolesOf(record).map((r) => r.id));
     } else {
       setValues({});
       setSelectedRoles([]);
@@ -246,20 +275,40 @@ function OperationModal({ open, onClose, onSubmit, record, isSubmitting }: Opera
   };
 
   const handleSubmit = () => {
-    onSubmit({ ...values, roleIds: selectedRoles });
+    if (!record?.id && (values.password || '').length < 6) {
+      alert('新用户的密码至少 6 位');
+      return;
+    }
+    const { password, ...rest } = values;
+    onSubmit({ ...rest, ...(password ? { password } : {}), roleIds: selectedRoles });
   };
 
   const roles = rolesData?.data?.records || rolesData?.data?.list || [];
+  // 内置角色(超级管理员)只有超级管理员能授予或收回,后端同样校验。
+  const lockedRole = (role: any) => Boolean(role?.system) && !isSuperAdmin;
+  const editingSuperAdmin = rolesOf(record).some((r) => r.system) && !isSuperAdmin;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
       <DialogTitle>{record?.id ? '编辑' : '新增'}</DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+          {editingSuperAdmin && (
+            <Alert severity="warning">这是超级管理员账号,只有超级管理员可以修改。</Alert>
+          )}
           <TextField
             label="账户名"
             value={values.name || ''}
             onChange={handleChange('name')}
+            fullWidth
+          />
+          <TextField
+            label={record?.id ? '新密码(留空不修改)' : '密码'}
+            type="password"
+            required={!record?.id}
+            autoComplete="new-password"
+            value={values.password || ''}
+            onChange={handleChange('password')}
             fullWidth
           />
           <TextField
@@ -303,9 +352,9 @@ function OperationModal({ open, onClose, onSubmit, record, isSubmitting }: Opera
               }
             >
               {roles.map((role: any) => (
-                <MenuItem key={role.id} value={role.id}>
+                <MenuItem key={role.id} value={role.id} disabled={lockedRole(role)}>
                   <Checkbox checked={selectedRoles.includes(role.id)} />
-                  <ListItemText primary={role.name} secondary={role.code} />
+                  <ListItemText primary={role.name} secondary={lockedRole(role) ? `${role.code} · 仅超级管理员可授予` : role.code} />
                 </MenuItem>
               ))}
             </Select>
@@ -314,7 +363,7 @@ function OperationModal({ open, onClose, onSubmit, record, isSubmitting }: Opera
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>取消</Button>
-        <Button onClick={handleSubmit} variant="contained" disabled={isSubmitting}>
+        <Button onClick={handleSubmit} variant="contained" disabled={isSubmitting || editingSuperAdmin}>
           提交
         </Button>
       </DialogActions>

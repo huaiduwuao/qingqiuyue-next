@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import Chip from '@mui/material/Chip';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -14,7 +15,7 @@ import Alert from '@mui/material/Alert';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import { DataGridTable } from '@/components/tables/DataGridTable';
-import { page, remove, save, update } from '@/apis/system-data-permission';
+import { meta, page, remove, save, update } from '@/apis/system-data-permission';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -25,7 +26,19 @@ import { PERMISSIONS } from '@/lib/permissions';
 
 const LIST_KEY = ['system', 'data-permission'];
 
+// 类型由代码推导(后端 pkg/dataper),这里只做展示
+const TYPE_LABEL: Record<string, string> = {
+  all: '全部数据',
+  self: '本人数据',
+  field: '字段范围',
+  content_scope: '受限内容可见',
+};
+
 export default function SystemDataPermissionPage() {
+  const { data: metaData } = useQuery({ queryKey: ['system', 'data-permission', 'meta'], queryFn: async () => (await meta()).data });
+  const fieldHint = (metaData?.resources ?? [])
+    .map((r) => `${r.label}:${r.fields.map((f) => `${f.key}(${f.label})`).join('、')}`)
+    .join(';');
   const qc = useQueryClient();
   const [writeVisible, setWriteVisible] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
@@ -60,7 +73,7 @@ export default function SystemDataPermissionPage() {
     setSelectedRecord(record);
     setFormValues({
       name: record?.name || '',
-      type: record?.type || '',
+      code: record?.code || '',
       info: record?.info || '',
     });
     setWriteVisible(true);
@@ -72,6 +85,10 @@ export default function SystemDataPermissionPage() {
   };
 
   const handleSubmit = () => {
+    if (!formValues.name?.trim() || !formValues.code?.trim()) {
+      showMessage('名称和代码都要填写', 'error');
+      return;
+    }
     if (selectedRecord?.id) {
       updateMutation.mutate({ ...formValues, id: selectedRecord.id });
     } else {
@@ -85,7 +102,20 @@ export default function SystemDataPermissionPage() {
 
   const columns: GridColDef[] = [
     { field: 'name', headerName: '名称', width: 150 },
-    { field: 'type', headerName: '类型', width: 120 },
+    {
+      field: 'code',
+      headerName: '代码',
+      width: 220,
+      renderCell: (params) => <Chip size="small" label={params.value} sx={{ fontFamily: 'monospace' }} />,
+    },
+    {
+      field: 'type',
+      headerName: '类型',
+      width: 130,
+      renderCell: (params) => TYPE_LABEL[params.value]
+        ? TYPE_LABEL[params.value]
+        : <Chip size="small" color="warning" variant="outlined" label="不生效" title="历史遗留代码,数据权限引擎不识别" />,
+    },
     { field: 'info', headerName: '描述', width: 200 },
     { field: 'updateTime', headerName: '最后更新时间', width: 180, valueFormatter: (value) => value ? new Date(value).toLocaleString() : '-' },
     {
@@ -96,12 +126,16 @@ export default function SystemDataPermissionPage() {
       disableColumnMenu: true,
       renderCell: (params) => (
         <Box sx={{ display: 'flex', gap: 0.5 }}>
-          <Tooltip title="编辑">
-            <IconButton size="small" onClick={() => handleEdit(params.row)}><EditIcon /></IconButton>
-          </Tooltip>
-          <Tooltip title="删除">
-            <IconButton size="small" color="error" onClick={() => handleDelete(params.row)}><DeleteIcon /></IconButton>
-          </Tooltip>
+          {can(PERMISSIONS.SYSTEM_DATA_PERMISSION.UPDATE) && (
+            <Tooltip title="编辑">
+              <IconButton size="small" onClick={() => handleEdit(params.row)}><EditIcon /></IconButton>
+            </Tooltip>
+          )}
+          {can(PERMISSIONS.SYSTEM_DATA_PERMISSION.DELETE) && (
+            <Tooltip title="删除(同时解除与所有角色的绑定)">
+              <IconButton size="small" color="error" onClick={() => handleDelete(params.row)}><DeleteIcon /></IconButton>
+            </Tooltip>
+          )}
         </Box>
       ),
     },
@@ -124,7 +158,7 @@ export default function SystemDataPermissionPage() {
         filters={{
           fields: [
             { key: 'name', label: '名称', type: 'text' },
-            { key: 'code', label: '代码', type: 'text' },
+            { key: 'type', label: '类型', type: 'select', options: Object.entries(TYPE_LABEL).map(([value, label]) => ({ label, value })) },
           ],
           values: filterValues,
           onChange: setFilterValues,
@@ -177,24 +211,39 @@ export default function SystemDataPermissionPage() {
         </DialogTitle>
         <DialogContent sx={{ pt: '16px !important' }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            {[
-              { field: 'name', label: '名称' },
-              { field: 'type', label: '类型' },
-            ].map((f) => (
-              <TextField
-                key={f.field}
-                label={f.label}
-                value={formValues[f.field] ?? ''}
-                onChange={(e) => handleFormChange(f.field, e.target.value)}
-                fullWidth
-                size="small"
-                slotProps={{
-                  inputLabel: { sx: { color: 'text.secondary', fontSize: 13 } },
-                  htmlInput: { sx: { color: 'text.primary' } },
-                }}
-                sx={textFieldSx}
-              />
-            ))}
+            <TextField
+              label="名称"
+              required
+              value={formValues.name ?? ''}
+              onChange={(e) => handleFormChange('name', e.target.value)}
+              fullWidth
+              size="small"
+              slotProps={{
+                inputLabel: { sx: { color: 'text.secondary', fontSize: 13 } },
+                htmlInput: { sx: { color: 'text.primary' } },
+              }}
+              sx={textFieldSx}
+            />
+            <TextField
+              label="代码"
+              required
+              value={formValues.code ?? ''}
+              onChange={(e) => handleFormChange('code', e.target.value)}
+              placeholder="ALL / SELF / MODULE:3,5 / CONTENT_TYPE:VIDEO / CONTENT_SCOPE:restricted"
+              helperText={
+                <>
+                  <b>ALL</b> 全部数据 · <b>SELF</b> 本人数据 · <b>字段:值1,值2</b> 按字段限定 · <b>CONTENT_SCOPE:范围</b> 可见受限内容。
+                  {fieldHint && <> 可用字段 —— {fieldHint}。</>} 类型由代码自动推导。
+                </>
+              }
+              fullWidth
+              size="small"
+              slotProps={{
+                inputLabel: { sx: { color: 'text.secondary', fontSize: 13 } },
+                htmlInput: { sx: { color: 'text.primary', fontFamily: 'monospace' } },
+              }}
+              sx={textFieldSx}
+            />
             <TextField
               label="描述"
               value={formValues.info || ''}
@@ -225,7 +274,7 @@ export default function SystemDataPermissionPage() {
           <Button
             variant="contained"
             onClick={handleSubmit}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !can(selectedRecord?.id ? PERMISSIONS.SYSTEM_DATA_PERMISSION.UPDATE : PERMISSIONS.SYSTEM_DATA_PERMISSION.CREATE)}
             sx={{
               bgcolor: 'primary.main',
               color: '#fff',

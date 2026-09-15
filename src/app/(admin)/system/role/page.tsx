@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -27,12 +28,15 @@ import { PERMISSIONS } from '@/lib/permissions';
 
 const LIST_KEY = ['system', 'role'];
 
+// 与后端 service.roleCodeRe 一致
+const ROLE_CODE_RE = /^[A-Z][A-Z0-9_]{1,49}$/;
+
 export default function SystemRolePage() {
   const router = useRouter();
   const qc = useQueryClient();
   const [writeVisible, setWriteVisible] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
-  const { can } = useAuthority();
+  const { can, isSuperAdmin } = useAuthority();
   const [formValues, setFormValues] = useState<any>({});
   const [filterValues, setFilterValues] = useState<Record<string, any>>({});
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
@@ -61,21 +65,32 @@ export default function SystemRolePage() {
 
   const isSubmitting = saveMutation.isPending || updateMutation.isPending;
 
+  // 内置角色(超级管理员)只有超级管理员能改,后端同样校验。
+  const canEditRole = (row: any) => can(PERMISSIONS.SYSTEM_ROLE.UPDATE) && (!row?.system || isSuperAdmin);
+
   const handleEdit = (record: any) => {
     setSelectedRecord(record);
     setFormValues({
       name: record?.name || '',
+      code: record?.code || '',
       info: record?.info || '',
     });
     setWriteVisible(true);
   };
 
   const handleDelete = (record: any) => {
-    if (!confirm('确定删除吗？')) return;
+    if (record.system) return;
+    if (!confirm(`确定删除角色「${record.name}」吗?它的成员会失去这个角色的全部权限。`)) return;
     deleteMutation.mutate([record.id]);
   };
 
+  const codeError = formValues.code && !ROLE_CODE_RE.test(formValues.code)
+    ? '大写字母开头,只含大写字母、数字、下划线,2~50 位'
+    : '';
+
   const handleSubmit = () => {
+    if (!formValues.name?.trim()) { showMessage('请填写名称', 'error'); return; }
+    if (!ROLE_CODE_RE.test(formValues.code || '')) { showMessage('请填写合法的角色编码', 'error'); return; }
     if (selectedRecord?.id) {
       updateMutation.mutate({ ...formValues, id: selectedRecord.id });
     } else {
@@ -88,43 +103,47 @@ export default function SystemRolePage() {
   };
 
   const columns: GridColDef[] = [
+    { field: 'name', headerName: '名称', width: 150 },
+    {
+      field: 'code',
+      headerName: '编码',
+      width: 160,
+      renderCell: (params) => params.value ? <Chip size="small" label={params.value} sx={{ fontFamily: 'monospace' }} /> : '-',
+    },
     {
       field: 'system',
-      headerName: '是否内置角色',
-      width: 120,
-      renderCell: (params) => params.value ? '是' : '否',
+      headerName: '内置',
+      width: 90,
+      renderCell: (params) => params.value ? <Chip size="small" color="warning" label="内置" /> : '否',
     },
-    { field: 'name', headerName: '名称', width: 150 },
-    { field: 'info', headerName: '描述', width: 200 },
+    { field: 'userCount', headerName: '成员数', width: 90 },
+    { field: 'info', headerName: '描述', width: 220 },
     { field: 'updateTime', headerName: '最后更新时间', width: 180, valueFormatter: (value) => value ? new Date(value).toLocaleString() : '-' },
     {
       field: 'actions',
       headerName: '操作',
-      width: 200,
+      width: 160,
       sortable: false,
       disableColumnMenu: true,
-      renderCell: (params) => {
-        if (params.row.system) return null;
-        return (
-          <Box sx={{ display: 'flex', gap: 0.5 }}>
-            {can(PERMISSIONS.SYSTEM_ROLE.UPDATE) && (
-              <Tooltip title="配置">
-                <IconButton size="small" onClick={() => router.push(`/system/role/detail?id=${params.row.id}`)}><SettingsIcon /></IconButton>
-              </Tooltip>
-            )}
-            {can(PERMISSIONS.SYSTEM_ROLE.UPDATE) && (
-              <Tooltip title="编辑">
-                <IconButton size="small" onClick={() => handleEdit(params.row)}><EditIcon /></IconButton>
-              </Tooltip>
-            )}
-            {can(PERMISSIONS.SYSTEM_ROLE.DELETE) && (
-              <Tooltip title="删除">
-                <IconButton size="small" color="error" onClick={() => handleDelete(params.row)}><DeleteIcon /></IconButton>
-              </Tooltip>
-            )}
-          </Box>
-        );
-      },
+      renderCell: (params) => (
+        <Box sx={{ display: 'flex', gap: 0.5 }}>
+          {can(PERMISSIONS.SYSTEM_ROLE.VIEW) && (
+            <Tooltip title="配置权限、菜单、成员">
+              <IconButton size="small" onClick={() => router.push(`/system/role/detail?id=${params.row.id}`)}><SettingsIcon /></IconButton>
+            </Tooltip>
+          )}
+          {canEditRole(params.row) && (
+            <Tooltip title="编辑">
+              <IconButton size="small" onClick={() => handleEdit(params.row)}><EditIcon /></IconButton>
+            </Tooltip>
+          )}
+          {!params.row.system && can(PERMISSIONS.SYSTEM_ROLE.DELETE) && (
+            <Tooltip title="删除">
+              <IconButton size="small" color="error" onClick={() => handleDelete(params.row)}><DeleteIcon /></IconButton>
+            </Tooltip>
+          )}
+        </Box>
+      ),
     },
   ];
 
@@ -132,7 +151,6 @@ export default function SystemRolePage() {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <DataGridTable
         columns={columns}
-        actionPermissions={{ edit: PERMISSIONS.SYSTEM_ROLE.UPDATE, delete: PERMISSIONS.SYSTEM_ROLE.DELETE }}
         hasPermission={can}
         fetchData={async (params) => {
           const res = await page({ ...params });
@@ -140,13 +158,10 @@ export default function SystemRolePage() {
           const total = res.data?.totalRow || res.data?.total || 0;
           return { data: { records: list, totalRow: total }, success: true };
         }}
-        onEdit={handleEdit}
-        onDelete={handleDelete}
         filters={{
           fields: [
             { key: 'name', label: '名称', type: 'text' },
-            { key: 'code', label: '代码', type: 'text' },
-            { key: 'status', label: '状态', type: 'select', options: [{ label: '启用', value: 1 }, { label: '禁用', value: 0 }] },
+            { key: 'code', label: '编码', type: 'text' },
           ],
           values: filterValues,
           onChange: setFilterValues,
@@ -178,7 +193,7 @@ export default function SystemRolePage() {
       <Dialog
         open={writeVisible}
         onClose={() => setWriteVisible(false)}
-        maxWidth="md"
+        maxWidth="sm"
         fullWidth
         slotProps={{
           paper: {
@@ -201,6 +216,7 @@ export default function SystemRolePage() {
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
             <TextField
               label="名称"
+              required
               value={formValues.name || ''}
               onChange={(e) => handleFormChange('name', e.target.value)}
               fullWidth
@@ -208,6 +224,22 @@ export default function SystemRolePage() {
               slotProps={{
                 inputLabel: { sx: { color: 'text.secondary', fontSize: 13 } },
                 htmlInput: { sx: { color: 'text.primary' } },
+              }}
+              sx={textFieldSx}
+            />
+            <TextField
+              label="编码"
+              required
+              value={formValues.code || ''}
+              onChange={(e) => handleFormChange('code', e.target.value.toUpperCase())}
+              disabled={Boolean(selectedRecord?.system)}
+              error={Boolean(codeError)}
+              helperText={codeError || '英文编码,如 CONTENT_EDITOR。按角色的后台守卫认的是编码(ADMIN、OPERATOR、AUDITOR 等)'}
+              fullWidth
+              size="small"
+              slotProps={{
+                inputLabel: { sx: { color: 'text.secondary', fontSize: 13 } },
+                htmlInput: { sx: { color: 'text.primary', fontFamily: 'monospace' } },
               }}
               sx={textFieldSx}
             />
@@ -241,7 +273,7 @@ export default function SystemRolePage() {
           <Button
             variant="contained"
             onClick={handleSubmit}
-            disabled={isSubmitting || (selectedRecord?.id ? !can(PERMISSIONS.SYSTEM_ROLE.UPDATE) : !can(PERMISSIONS.SYSTEM_ROLE.CREATE))}
+            disabled={isSubmitting || (selectedRecord?.id ? !canEditRole(selectedRecord) : !can(PERMISSIONS.SYSTEM_ROLE.CREATE))}
             sx={{
               bgcolor: 'primary.main',
               color: '#fff',

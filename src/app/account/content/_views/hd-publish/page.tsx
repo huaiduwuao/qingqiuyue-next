@@ -83,7 +83,7 @@ import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { myPage, updateShare } from '@/apis/module-content';
+import { managePage, updateShare } from '@/apis/module-content';
 import { submitReview } from '@/apis/review';
 import type { ModuleContentItem } from '@/apis/module-content';
 import { fileUpload } from '@/apis/global';
@@ -290,7 +290,8 @@ export default function HdPublishPage() {
   const { data: realVideos } = useQuery({
     queryKey: ['module-content', 'hd-publish', 'videos'],
     queryFn: async () => {
-      const res = await myPage({ contentType: 'VIDEO', pageSize: 100 });
+      // 管理列表:按数据权限过滤(默认只看自己的),含待审/驳回的视频
+      const res = await managePage({ contentType: 'VIDEO', pageSize: 100 });
       return (res.list || []) as ModuleContentItem[];
     },
     staleTime: 30_000,

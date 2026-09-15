@@ -244,6 +244,8 @@ export interface UserRoleItem extends TableListItem {
 
 export interface RoleItem extends TableListItem {
   name?: string;
+  code?: string;
+  userCount?: number;
   system?: boolean;
   rolePermissionId?: number;
   info?: string;

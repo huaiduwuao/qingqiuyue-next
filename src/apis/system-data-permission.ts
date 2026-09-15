@@ -81,6 +81,26 @@ export async function deleteDataPermission(id: number) {
   });
 }
 
+// 数据范围元信息:可用资源、字段与代码写法 -> GET /api/core/data-permission/meta
+export interface DataScopeField {
+  key: string;
+  label: string;
+}
+export interface DataScopeResource {
+  name: string;
+  label: string;
+  fields: DataScopeField[];
+  supportSelf: boolean;
+  defaultSelf: boolean;
+}
+export interface DataPermissionMeta {
+  resources: DataScopeResource[];
+  codes: { code: string; type: string; label: string }[];
+}
+export async function meta() {
+  return adminClient<DataPermissionMeta>('/data-permission/meta');
+}
+
 // Aliases for missing exports
 export const page = listDataPermissions;
 export const save = createDataPermission;

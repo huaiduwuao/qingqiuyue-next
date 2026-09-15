@@ -75,6 +75,16 @@ export async function myPage(params: ModuleContentQuery = {}): Promise<PageResul
   return normalizeLegacyPageResponse(res.data as any);
 }
 
+/**
+ * 内容管理列表(发布台等):后端按当前用户的数据权限过滤 ——
+ * 没配数据范围的只返回自己的内容(含待审/驳回/下架),持有 ALL 的返回全部。
+ * 公开浏览(首页、分类、已爬取)用 myPage,不受数据权限影响。
+ */
+export async function managePage(params: ModuleContentQuery = {}): Promise<PageResult<ModuleContentItem>> {
+  const res = await contentClient('/module/content/manage/page', { params: toBackendParams(params) });
+  return normalizeLegacyPageResponse(res.data as any);
+}
+
 export async function getById(id: number): Promise<{ code: number; data: ModuleContentItem }> {
   return contentClient(`/module/content/${id}`, { method: 'GET' }) as any;
 }
