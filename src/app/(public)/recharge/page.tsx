@@ -228,15 +228,20 @@ function RechargePageContent() {
     staleTime: 0,
   });
   // 把 wallet_tx 转成页面用的 DiamondRecord 形态
+  // 钱包流水的 type 远不止四种(migrate / monthly_benefit / point_exchange / author_* …),
+  // 页面只有四个标签:充值按 type,其余按金额正负归到「奖励」或「消费」,不再把原始
+  // type 直接当 RECORD_TYPE_LABEL 的 key(曾在这里炸出 reading 'color')。
   const records: DiamondRecord[] = (txQ.data?.data?.list ?? []).map((t: WalletTransaction, idx: number) => {
     const diamonds = Math.floor(Math.abs(t.amount) / 10);
-    const isRecharge = t.type === 'recharge' || t.amount > 0;
+    const isRecharge = t.type === 'recharge';
+    const isCredit = t.amount > 0;
+    const type: DiamondRecord['type'] = isRecharge ? 'recharge' : t.type === 'gift' ? 'gift' : isCredit ? 'reward' : 'consume';
     return {
       id: t.id ?? idx,
-      type: isRecharge ? 'recharge' : (t.type as any) || 'consume',
-      amount: diamonds,
+      type,
+      amount: isCredit ? diamonds : -diamonds,
       balance: Math.floor((t.balanceAfter ?? 0) / 10),
-      description: t.remark || (isRecharge ? `充值入账 +${diamonds} 钻` : `${t.type} -${diamonds} 钻`),
+      description: t.remark || (isCredit ? `${isRecharge ? '充值入账' : '钻石入账'} +${diamonds} 钻` : `${t.type || '消费'} -${diamonds} 钻`),
       payMethod: undefined,
       createTime: t.createTime,
     };
@@ -1040,7 +1045,7 @@ function RechargePageContent() {
               </Box>
             ) : (
               records.map((r) => {
-                const typeMeta = RECORD_TYPE_LABEL[r.type];
+                const typeMeta = RECORD_TYPE_LABEL[r.type] ?? RECORD_TYPE_LABEL.consume;
                 const payMeta = r.payMethod ? PAY_METHODS.find((m) => m.key === r.payMethod) : null;
                 const isPositive = r.amount > 0;
                 return (
