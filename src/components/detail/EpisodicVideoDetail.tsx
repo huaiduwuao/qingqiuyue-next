@@ -20,6 +20,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
 import { reportContent } from '@/apis/global';
 import { postShare } from '@/apis/behavior';
+import { usableDirectUrl } from '@/apis/stream';
 import { formatApiError } from '@/lib/api/client';
 import { TYPE_LABEL } from '@/lib/contentType.gen';
 import VideoPlayer from '@/components/detail/VideoPlayer';
@@ -224,6 +225,9 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
           const intro = (data.description || data.content || '').trim();
           // 还没有分集时退回整部内容的来源地址,能解析就先放着(比如单集番剧页)。
           const fallbackSource = items.length === 0 ? sourceLink : '';
+          // 分集页面地址:既是没有可用直链时的解析源,也是直链失效后重新解析的依据。
+          const episodePage = active?.url || fallbackSource;
+          const direct = usableDirectUrl(active?.playUrl, active?.url);
 
           return (
             <>
@@ -231,8 +235,9 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
                 <Container maxWidth="lg" sx={{ py: 0 }}>
                   <VideoPlayer
                     key={active?.id ?? 'source'}
-                    src={active?.playUrl || ''}
-                    sourceUrl={active?.playUrl ? undefined : active?.url || fallbackSource}
+                    src={direct}
+                    sourceUrl={direct ? undefined : episodePage}
+                    refreshSource={episodePage}
                     poster={active?.cover || data.cover}
                     initialDuration={config.initialDuration}
                     autoPlay={false}

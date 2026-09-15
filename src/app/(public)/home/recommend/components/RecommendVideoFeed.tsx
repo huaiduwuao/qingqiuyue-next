@@ -657,6 +657,7 @@ export function RecommendVideoFeed() {
                   ref={videoPlayerRef}
                   fill
                   src={videoSrc}
+                  refreshSource={v.sourceUrl}
                   poster={v.cover}
                   initialDuration={video?.durationSec || 60}
                   autoPlay={playing}

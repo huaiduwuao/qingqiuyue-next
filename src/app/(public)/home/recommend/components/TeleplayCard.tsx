@@ -11,6 +11,7 @@ import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 import { useQuery } from '@tanstack/react-query';
 import { page as episodePage } from '@/apis/content-teleplay-item';
 import VideoPlayer from '@/components/detail/VideoPlayer';
+import { usableDirectUrl } from '@/apis/stream';
 import { CoverImage } from '@/components/common/CoverImage';
 import { RANK_BG } from '@/constants/gradients';
 
@@ -106,8 +107,9 @@ export default function TeleplayCard({ item, rank, gradient, typeChip, onOpen }:
           ) : (
             <Box sx={{ position: 'absolute', inset: 0 }}>
               <VideoPlayer
-                src={first.playUrl || ''}
-                sourceUrl={first.playUrl ? undefined : first.url}
+                src={usableDirectUrl(first.playUrl, first.url)}
+                sourceUrl={usableDirectUrl(first.playUrl, first.url) ? undefined : first.url}
+                refreshSource={first.url}
                 poster={item.cover || item.coverUrl}
                 autoPlay
               />

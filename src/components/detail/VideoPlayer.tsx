@@ -30,6 +30,12 @@ interface Props {
   src?: string;
   /** 外部平台视频页 URL，自动匹配解析器获取 m3u8 */
   sourceUrl?: string;
+  /**
+   * 直链失效时用来重新解析的源站页面(不传则用 sourceUrl)。传 src(后端回填的直链、或
+   * 上层自己解析好的地址)时也应带上:签名过期 / 被源站回收后,播放器会用它强制重新解析,
+   * 从断点接着播;实在播不了时也用它给出「去原站观看」。
+   */
+  refreshSource?: string;
   poster?: string;
   initialDuration?: number;
   onEnded?: () => void;
@@ -46,6 +52,7 @@ interface Props {
    * 调用方的 contentId/contentType 是什么,不在这里直接调举报接口——由调用方决定
    * 要不要、以及怎么把"这条播不出来"这件事记下来(比如自动提交举报,让"暂时无法
    * 播放"不只是前端一句提示,而是后台真能看到、能处理的信号)。
+   * 直链失效后自动重新解析成功的情况不会触发。
    */
   onPlaybackError?: (message: string) => void;
 }
@@ -56,6 +63,13 @@ export interface VideoPlayerHandle {
   isPlaying: () => boolean;
 }
 
+/** 同一段播放里,直链失效后最多自动重新解析几次(防止解析出来的地址本身就坏,来回打转) */
+const MAX_RECOVER_ATTEMPTS = 2;
+/** 恢复后正常播放超过这么久,重置重试计数(长视频两小时后签名再次过期时还能再救) */
+const RECOVER_RESET_MS = 30_000;
+/** 签名到期前多久主动换一条新直链 */
+const PREEMPT_EXPIRY_MS = 60_000;
+
 function fmt(s: number) {
   if (!isFinite(s) || s < 0) return '0:00';
   const m = Math.floor(s / 60);
@@ -64,7 +78,7 @@ function fmt(s: number) {
 }
 
 const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
-  { src, sourceUrl, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false, fill = false, onPlaybackError },
+  { src, sourceUrl, refreshSource, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false, fill = false, onPlaybackError },
   ref,
 ) {
   // 封面同样经网关:调用方传进来的可能是 MinIO 内网直链或外站防盗链图。
@@ -82,6 +96,74 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
   const [streams, setStreams] = useState<StreamInfo[]>([]);
   const [currentStream, setCurrentStream] = useState(0);
   const [platformName, setPlatformName] = useState<string>('');
+  /** 当前流签名最早的过期时间(unix 秒,0 = 未知),由后端 stream/resolve 给出 */
+  const [expiresAt, setExpiresAt] = useState(0);
+  /** 正在为失效直链重新解析 */
+  const [refreshing, setRefreshing] = useState(false);
+
+  // 直链失效恢复:重新解析后从断点、按原播放状态接着播
+  const reparseUrl = sourceUrl || refreshSource || '';
+  const recoverAttempts = useRef(0);
+  const lastRecoverAt = useRef(0);
+  const resumeAt = useRef(0);
+  const resumePlaying = useRef(false);
+  const refreshingRef = useRef(false);
+
+  const fail = (msg: string) => {
+    setStreamError(msg);
+    onPlaybackError?.(msg);
+  };
+
+  /**
+   * 直链失效(签名过期、源站 403、分片加载失败)时带 refresh=1 重新解析,换上新地址
+   * 并从断点继续。以前这里直接显示「视频地址已失效」—— 缓存里的签名直链过期后,
+   * 同一条内容在缓存失效前谁点都放不了。proactive = 签名到期前主动换链,不计入重试次数。
+   */
+  const recover = (reason: string, proactive = false) => {
+    if (!reparseUrl || refreshingRef.current) {
+      if (!proactive && !refreshingRef.current) fail(reason);
+      return;
+    }
+    if (!proactive) {
+      if (recoverAttempts.current >= MAX_RECOVER_ATTEMPTS) {
+        fail(reason);
+        return;
+      }
+      recoverAttempts.current += 1;
+    }
+    const v = videoRef.current;
+    resumeAt.current = v?.currentTime || 0;
+    resumePlaying.current = v ? !v.paused || !proactive : autoPlay;
+    lastRecoverAt.current = Date.now();
+    refreshingRef.current = true;
+    setRefreshing(true);
+    if (!proactive) setStreamError(null);
+
+    parseStream(reparseUrl, { refresh: true })
+      .then((data) => {
+        const list: StreamInfo[] | undefined = data?.data?.streams;
+        if (list?.length) {
+          setExpiresAt(Number(data.data.expiresAt) || 0);
+          setPlatformName(data.data.platformName || data.data.platform || '');
+          setCurrentStream((i) => (i < list.length ? i : 0));
+          setStreams(list); // 新数组 → 下面的 streams effect 重新 playStream
+        } else if (!proactive) {
+          fail(data?.msg || reason);
+        }
+      })
+      .catch(() => {
+        if (!proactive) fail(reason);
+      })
+      .finally(() => {
+        refreshingRef.current = false;
+        setRefreshing(false);
+      });
+  };
+  // 播放器事件回调(hls.js / 定时器)里拿到的永远是最新的 recover
+  const recoverRef = useRef(recover);
+  useEffect(() => {
+    recoverRef.current = recover;
+  });
 
   // 加载外部平台流（通过通用 API 解析）
   useEffect(() => {
@@ -96,6 +178,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
     setStreamError(null);
     setStreams([]);
     setPlatformName('');
+    setExpiresAt(0);
+    recoverAttempts.current = 0;
 
     parseStream(sourceUrl)
       .then(data => {
@@ -106,18 +190,16 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
         if (data.data?.streams?.length > 0) {
           setStreams(data.data.streams);
           setPlatformName(data.data.platformName || data.data.platform || '');
+          setExpiresAt(Number(data.data.expiresAt) || 0);
           setCurrentStream(0);
         } else {
-          const msg = data.msg || '无法解析视频流';
-          setStreamError(msg);
-          onPlaybackError?.(msg);
+          fail(data.msg || '无法解析视频流');
         }
       })
       .catch(e => {
         if (cancelled || e?.name === 'AbortError') return;
         console.error('Stream parse error:', e);
-        setStreamError('解析失败');
-        onPlaybackError?.('解析失败');
+        fail('解析失败');
       })
       .finally(() => { if (!cancelled) setLoading(false); });
 
@@ -125,7 +207,22 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
       cancelled = true;
       controller.abort();
     };
+    // fail / onPlaybackError 是回调,不作为重新解析的触发条件
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceUrl, src]);
+
+  // 签名到期前一分钟主动换链:正在播放的长视频不会播到一半断掉。
+  // 暂停着的不换 —— 恢复播放时若已过期,走下面的出错恢复。
+  useEffect(() => {
+    if (!expiresAt || !reparseUrl) return;
+    const ms = expiresAt * 1000 - Date.now() - PREEMPT_EXPIRY_MS;
+    if (ms <= 0) return;
+    const t = setTimeout(() => {
+      const v = videoRef.current;
+      if (v && !v.paused) recoverRef.current('播放地址即将过期', true);
+    }, Math.min(ms, 2 ** 31 - 1));
+    return () => clearTimeout(t);
+  }, [expiresAt, reparseUrl]);
 
   // 外部平台流(m3u8)走同源 /api/proxy 代理,注入平台 Referer 绕过防盗链+CORS;
   // 抖音 mp4 直链等可直连的不代理。
@@ -147,6 +244,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
   const playStream = (url: string, format?: string) => {
     if (!videoRef.current) return;
     const playUrl = toPlayableUrl(url);
+    // 换链恢复时按原播放状态继续,否则按 autoPlay
+    const shouldPlay = resumeAt.current > 0 ? resumePlaying.current : autoPlay;
 
     // 清理旧的 HLS 实例
     if (hlsRef.current) {
@@ -161,10 +260,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
     // 结果是所有经代理的 B 站 mp4 直链都被误判成"不是 mp4",走进 hls.js 分支——
     // 拿一个真正的 mp4 二进制文件当 m3u8 清单解析,播放器卡在 readyState=0 不动,
     // 界面上却显示"正在播放"(进度条是独立于视频本身的模拟状态)。
-    const isMp4 = /\.mp4(\?|$)/i.test(url) || url.includes('mime_type=video_mp4') || url.includes('mime_type=video');
+    const isMp4 = format === 'mp4' || /\.mp4(\?|$)/i.test(url) || url.includes('mime_type=video_mp4') || url.includes('mime_type=video');
     if (isMp4) {
       videoRef.current.src = playUrl;
-      if (autoPlay) {
+      if (shouldPlay) {
         videoRef.current.play().catch(() => {});
       }
       return;
@@ -188,7 +287,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           // 关键守卫:卸载后回调不应再触发
           if (!videoRef.current) return;
-          if (autoPlay) {
+          if (shouldPlay) {
             videoRef.current.play().catch(() => {});
           }
           setPlaying(!videoRef.current.paused);
@@ -212,14 +311,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
               : data.details === 'fragmentLoadError'
               ? `分片加载失败: ${data.context?.url || ''}`
               : '播放失败，请尝试切换清晰度';
-            setStreamError(msg);
-            onPlaybackError?.(msg);
+            // 清单 / 分片拉不下来多半是签名过期:先重新解析换链,救不回来才报错
+            recoverRef.current(msg);
           }
         });
       } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
         // Safari 原生支持 HLS
         videoRef.current.src = playUrl;
-        if (autoPlay) {
+        if (shouldPlay) {
           videoRef.current.play().catch(() => {});
         }
       } else {
@@ -231,6 +330,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
   // 切换清晰度
   const switchStream = (index: number) => {
     if (!streams[index]) return;
+    setStreamError(null);
     setCurrentStream(index);
     playStream(streams[index].url, streams[index].format);
   };
@@ -247,6 +347,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
       }
     });
     return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [streams, currentStream]);
 
   // 调用方直接传入已解析好的 src(如推荐流:上层自己调 parseStream 拿到播放地址
@@ -257,12 +358,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
   // 视频从未加载。这里补上:src prop 变化时直接播放它。
   useEffect(() => {
     if (!src) return;
+    recoverAttempts.current = 0;
     const raf = requestAnimationFrame(() => {
       if (videoRef.current) {
         playStream(src);
       }
     });
     return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src]);
 
   // 清理
@@ -300,11 +403,23 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
   };
 
   const handleTimeUpdate = () => {
-    if (videoRef.current) setCurrentTime(videoRef.current.currentTime);
+    if (!videoRef.current) return;
+    setCurrentTime(videoRef.current.currentTime);
+    if (recoverAttempts.current > 0 && Date.now() - lastRecoverAt.current > RECOVER_RESET_MS) {
+      recoverAttempts.current = 0;
+    }
   };
 
   const handleLoaded = () => {
-    if (videoRef.current) setDuration(videoRef.current.duration || initialDuration);
+    const v = videoRef.current;
+    if (!v) return;
+    setDuration(v.duration || initialDuration);
+    // 换链后回到原来的进度
+    if (resumeAt.current > 0) {
+      v.currentTime = resumeAt.current;
+      resumeAt.current = 0;
+      if (resumePlaying.current) v.play().catch(() => {});
+    }
   };
 
   const handleSeek = (_: any, v: number | number[]) => {
@@ -347,6 +462,32 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
   }));
 
   const hasVideo = src || streams.length > 0;
+  // 实在播不了时给出原站链接(番剧 / 直播间等解析不出流、或需要源站会员的内容)
+  const originLink = /^https?:\/\//.test(reparseUrl) ? reparseUrl : '';
+  const originButton = originLink ? (
+    <Box
+      component="a"
+      href={originLink}
+      target="_blank"
+      rel="noopener noreferrer"
+      data-no-drag
+      sx={{
+        mt: 1,
+        display: 'inline-block',
+        px: 2,
+        py: 0.5,
+        borderRadius: 1,
+        fontSize: 12,
+        color: '#fff',
+        textDecoration: 'none',
+        border: '1px solid rgba(255,255,255,0.35)',
+        bgcolor: 'rgba(255,255,255,0.08)',
+        '&:hover': { bgcolor: 'rgba(255,255,255,0.18)' },
+      }}
+    >
+      去原站观看
+    </Box>
+  ) : null;
 
   return (
     <Box
@@ -387,15 +528,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
               onEnded?.();
             }}
             onError={() => {
-              // mp4 直链模式(videoRef.current.src = playUrl)完全没有错误处理——
-              // 签名过期/链接失效时浏览器原生 <video> 会静默地一直停在黑屏、
-              // readyState=0,不报错也不重试,用户分不清是加载慢还是这条内容
-              // 根本放不出来。原生 error 事件是唯一能捕捉到这个的地方(hls.js
-              // 那条路径有自己的 Hls.Events.ERROR,mp4 直链没有等价物)。
+              // mp4 直链签名过期 / 被回收时浏览器原生 <video> 只会停在黑屏(error.code=4,
+              // 经代理的 403 也是这个)。原生 error 事件是唯一能捕捉到的地方(hls.js 那条
+              // 路径有自己的 Hls.Events.ERROR)。先重新解析换链,救不回来再报错。
               const code = videoRef.current?.error?.code;
-              const msg = code === 4 ? '视频地址已失效' : '视频加载失败';
-              setStreamError(msg);
-              onPlaybackError?.(msg);
+              recoverRef.current(code === 4 ? '视频地址已失效' : '视频加载失败');
             }}
             style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }}
           />
@@ -459,6 +596,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
               <ErrorOutlineIcon sx={{ fontSize: 32, color: 'warning.main', mb: 0.5 }} />
               <Box sx={{ fontSize: 14, fontWeight: 600, color: '#fff', mb: 0.5 }}>该内容暂时无法播放</Box>
               <Box sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', mb: 1 }}>{streamError} · 已记录,尽快修复</Box>
+              {originButton}
               {streams.length > 0 && (
                 <Box sx={{ mt: 2, display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'center' }}>
                   {streams.map((s, i) => (
@@ -510,7 +648,33 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
       {/* AIGC 合规角标 */}
       {isAIGenerated && <AIGCBadge variant="overlay" top={10} left={10} label="AI 生成视频" />}
 
-      {/* hasVideo 为 true 时播放失败(mp4 直链签名过期、hls.js 致命错误等)——
+      {/* 直链失效,正在重新解析 */}
+      {hasVideo && refreshing && !streamError && (
+        <Box
+          data-no-drag
+          sx={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            px: 2,
+            py: 1,
+            borderRadius: 2,
+            bgcolor: 'rgba(0, 0, 0, 0.6)',
+            color: '#fff',
+            fontSize: 13,
+            zIndex: 5,
+          }}
+        >
+          <CircularProgress size={16} sx={{ color: '#fff' }} />
+          正在刷新播放地址…
+        </Box>
+      )}
+
+      {/* hasVideo 为 true 时播放失败(重新解析也救不回来)——
           之前 streamError 的文字提示只在 !hasVideo 分支里渲染,这种情况下
           <video> 元素明明已经挂载、彻底放不出来,却没有任何反馈,用户看到的
           就是一块卡死的黑屏,分不清是加载慢还是这条内容根本坏了。 */}
@@ -540,11 +704,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
           <ErrorOutlineIcon sx={{ fontSize: 32, color: 'warning.main' }} />
           <Box sx={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>该内容暂时无法播放</Box>
           <Box sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>{streamError} · 已记录,尽快修复</Box>
+          {originButton}
         </Box>
       )}
 
       {/* 中心播放按钮 */}
-      {hasVideo && !playing && !streamError && (
+      {hasVideo && !playing && !streamError && !refreshing && (
         <Box
           data-no-drag
           onClick={togglePlay}

@@ -154,13 +154,55 @@ async function extractStreams(parser: StreamParser, apiResponse: any): Promise<a
 }
 
 /**
- * 解析视频流
- * GET /api/stream?url=xxx
+ * 签名直链里的过期时间(unix 秒),读不出返回 0。与后端 pkg/media.LinkExpiry 口径一致:
+ * deadline / expires / x-expires / expire 为十进制,wsTime / txTime 为十六进制。
  */
-export async function parseStream(url: string) {
+export function linkExpiry(url: string): number {
+  let params: URLSearchParams;
+  try {
+    params = new URL(url).searchParams;
+  } catch {
+    return 0;
+  }
+  const now = Date.now() / 1000;
+  const plausible = (t: number) => Number.isFinite(t) && t >= now - 86400 && t <= now + 30 * 86400;
+  for (const k of ['deadline', 'expires', 'Expires', 'x-expires', 'expire']) {
+    const t = Number(params.get(k));
+    if (params.get(k) && plausible(t)) return t;
+  }
+  for (const k of ['wsTime', 'txTime']) {
+    const v = params.get(k);
+    if (!v) continue;
+    const hex = parseInt(v, 16);
+    if (plausible(hex)) return hex;
+    if (plausible(Number(v))) return Number(v);
+  }
+  return 0;
+}
+
+/**
+ * 后端回填的直链(分集的 playUrl 等)还能不能直接播:和源页面是同一个地址(回填把页面当直链
+ * 存了)、或者签名已过期 / 一分钟内过期,都不能用,返回空串 —— 调用方改为按源页面实时解析。
+ */
+export function usableDirectUrl(url?: string, pageUrl?: string): string {
+  if (!url) return '';
+  if (pageUrl && url.split('#')[0] === pageUrl.split('#')[0]) return '';
+  const exp = linkExpiry(url);
+  if (exp && exp * 1000 < Date.now() + 60_000) return '';
+  return url;
+}
+
+/**
+ * 解析视频流
+ * GET /api/content/stream/resolve?url=xxx[&refresh=1]
+ *
+ * refresh:播放器发现手里的直链已失效时传,后端绕过缓存重新解析。
+ */
+export async function parseStream(url: string, opts: { refresh?: boolean } = {}) {
   // 1) 后端统一实时解析(缓存+平台分发:配置驱动/代码层/浏览器层)。推荐页短视频/短剧第一集走这里。
   try {
-    const resp = await fetch(`${BACKEND}/api/content/stream/resolve?url=${encodeURIComponent(url)}`, {
+    const refresh = opts.refresh ? '&refresh=1' : '';
+    const resp = await fetch(`${BACKEND}/api/content/stream/resolve?url=${encodeURIComponent(url)}${refresh}`, {
       headers: { 'Content-Type': 'application/json' },
       signal: AbortSignal.timeout(30000),
     });
