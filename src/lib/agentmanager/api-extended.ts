@@ -46,18 +46,40 @@ export interface KanbanEvent {
 
 // ========== MCP ==========
 
+// 托管 MCP server 记录(后端 mcp_hosted.go / agentm_mcp_servers)
 export interface MCPServer {
   id: number
   name: string
-  transport: 'stdio' | 'sse' | 'streamable_http'
-  command?: string
-  args?: string[]
-  url?: string
-  headers?: Record<string, string>
-  timeout?: number
-  status: 'active' | 'paused'
+  transport: 'sse' | 'streamable_http'
+  docker_image?: string
+  server_url?: string
+  port?: number
+  path?: string
+  catalog_id?: string
+  enabled: boolean
+  status: 'stopped' | 'starting' | 'running' | 'error'
+  last_error?: string
   tool_count: number
-  created_at: string
+  create_time: string
+}
+
+export interface MCPCatalogEnv {
+  name: string
+  description: string
+  required: boolean
+  secret: boolean
+}
+
+export interface MCPCatalogEntry {
+  id: string
+  name: string
+  description: string
+  kind: 'container' | 'remote'
+  transport: 'sse' | 'streamable_http'
+  env?: MCPCatalogEnv[]
+  url_hint?: string
+  notes?: string
+  source?: string
 }
 
 export interface MCPTool {
