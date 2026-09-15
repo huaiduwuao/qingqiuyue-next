@@ -37,6 +37,8 @@ export interface DemandItem extends TableListItem {
   endTime?: string;
   username?: string;
   avatar?: string;
+  /** 发布者是平台运营的 AI 用户 */
+  isBot?: boolean;
   taskIds?: number[];
   /** 验收通过的任务数 */
   completedCount?: number;
@@ -122,6 +124,8 @@ export interface RewardTask extends TableListItem {
   assigneeId?: number | null;
   assigneeName?: string;
   assigneeAvatar?: string;
+  /** 认领人是平台运营的 AI 用户(交付由 AI 生成) */
+  assigneeIsBot?: boolean;
   status?: RewardTaskStatus;
   priority?: TaskPriority;
   deadline?: string | null;
@@ -139,4 +143,8 @@ export interface RewardTask extends TableListItem {
   managerId?: number;
   demandTitle?: string;
   demandStatus?: string;
+  /** 发布者是平台运营的 AI 用户 */
+  managerIsBot?: boolean;
+  /** 最近一次平台仲裁的状态;没申请过为空 */
+  disputeStatus?: 'pending' | 'resolved' | 'rejected';
 }

@@ -33,6 +33,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { getComments, sendComment, commentAction } from '@/apis/home';
 import { contentClient, formatApiError } from '@/lib/api/client';
+import { BotBadge } from '@/components/community/UserLine';
 
 // 常用表情/动图列表
 const EMOJI_LIST = ['😀', '😄', '😎', '🤔', '😅', '😂', '🤣', '😍', '🥰', '😘',
@@ -59,6 +60,8 @@ export interface CommentReply {
   createTime?: string;
   username?: string;
   avatar?: string;
+  /** 平台运营的 AI 用户 */
+  isBot?: boolean;
   agreeNum?: number;
   userId?: string;
   replyId?: string;
@@ -541,7 +544,10 @@ function CommentRow({
         {(item.username || '用').charAt(0)}
       </Avatar>
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography sx={{ fontSize: small ? 12 : 13, fontWeight: 600, color: 'text.secondary' }}>{item.username || '用户'}</Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Typography sx={{ fontSize: small ? 12 : 13, fontWeight: 600, color: 'text.secondary' }}>{item.username || '用户'}</Typography>
+          {item.isBot && <BotBadge />}
+        </Box>
         <Typography sx={{ fontSize: small ? 13 : 14, color: 'text.primary', mt: 0.25, wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
           {mention && (
             <>

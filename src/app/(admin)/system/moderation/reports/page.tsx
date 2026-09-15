@@ -44,6 +44,15 @@ const statusColor: Record<string, 'warning' | 'success' | 'error' | 'default'> =
 /** 这些类型的举报「通过」时后端会下架目标内容(见 moderationapp.ReviewReport) */
 const TAKEDOWN_TYPES = new Set(['copyright', 'video', 'image']);
 
+const targetLabel: Record<string, string> = {
+  bounty_task: '悬赏仲裁',
+  copyright: '版权',
+  video: '视频',
+  image: '图片',
+  chat: '聊天',
+  user: '用户',
+};
+
 const statusLabel: Record<string, string> = {
   pending: '待审核',
   resolved: '已通过',
@@ -52,7 +61,12 @@ const statusLabel: Record<string, string> = {
 
 const columns: GridColDef<ReportItem>[] = [
   { field: 'id', headerName: 'ID', width: 80 },
-  { field: 'targetType', headerName: '目标类型', width: 100 },
+  {
+    field: 'targetType',
+    headerName: '目标类型',
+    width: 100,
+    valueFormatter: (value) => targetLabel[value as string] || value,
+  },
   { field: 'targetId', headerName: '目标ID', width: 100 },
   { field: 'reason', headerName: '举报原因', width: 260 },
   {
@@ -191,7 +205,8 @@ export default function ModerationReportsPage() {
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
             <Box>
-              <strong>目标类型:</strong> {reviewModal.record?.targetType}
+              <strong>目标类型:</strong>{' '}
+              {targetLabel[reviewModal.record?.targetType ?? ''] || reviewModal.record?.targetType}
             </Box>
             <Box>
               <strong>目标ID:</strong> {reviewModal.record?.targetId}
@@ -203,6 +218,12 @@ export default function ModerationReportsPage() {
               <Alert severity="warning">
                 「通过」会同时下架被举报的内容(#{reviewModal.record.targetId}),
                 {reviewModal.record.targetType === 'copyright' ? '并把原创保护申诉标记为成立。' : '作者将看不到它在前台展示。'}
+              </Alert>
+            )}
+            {reviewModal.record?.targetType === 'bounty_task' && (
+              <Alert severity="info">
+                「通过」会把悬赏任务 #{reviewModal.record.targetId} 改判为验收通过,赏金在需求结账时发给认领人;
+                「驳回」维持发布者的驳回结论。仲裁处理完之前,该需求不能结账或关闭。
               </Alert>
             )}
             <TextField

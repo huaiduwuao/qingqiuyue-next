@@ -15,8 +15,9 @@ import Divider from '@mui/material/Divider';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import { alpha } from '@mui/material/styles';
-import { claimTask, submitTask, reviewTask } from '@/apis/reward-task';
+import { claimTask, submitTask, reviewTask, disputeTask } from '@/apis/reward-task';
 import type { RewardTask, RewardTaskStatus } from '@/beans/reward';
+import { BotBadge } from '@/components/community/UserLine';
 import { normalizeRewardTaskStatus, REWARD_TASK_STATUS_LABEL, REWARD_TASK_STATUS_COLOR } from './status';
 
 interface Props {
@@ -40,12 +41,14 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
   const isOk = (res: any) => res?.code === 200 || res?.code === 0 || res?.code === '200' || res?.code === '0';
   const [deliverable, setDeliverable] = useState('');
   const [reviewNote, setReviewNote] = useState('');
+  const [disputeReason, setDisputeReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (open) {
       setDeliverable(task?.deliverable || '');
       setReviewNote('');
+      setDisputeReason('');
     }
   }, [open, task]);
 
@@ -60,6 +63,22 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
   const canReview = status === 'SUBMITTED' && isOwner;
   const canDelete = isOwner && (status === 'OPEN' || status === 'REJECTED');
   const waitingReview = status === 'SUBMITTED' && isAssignee && !isOwner;
+  // 认领人对驳回有异议时可申请平台仲裁(只限挂在需求下、有赏金的任务)
+  const rejectedMine = status === 'REJECTED' && isAssignee && !!task.demandId;
+  const canDispute = rejectedMine && task.disputeStatus !== 'pending';
+
+  const handleDispute = async () => {
+    setSubmitting(true);
+    try {
+      const res: any = await disputeTask(task.id!, disputeReason);
+      if (isOk(res)) onChanged(res.data);
+      else onError(res?.msg || '申请仲裁失败');
+    } catch (e: any) {
+      onError(e?.message || '申请仲裁失败');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleClaim = async () => {
     setSubmitting(true);
@@ -159,7 +178,16 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
       <DialogContent dividers sx={{ borderColor: 'divider' }}>
         {(task.demandTitle || task.demandId) && (
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1.5 }}>
-            <Chip size="small" variant="outlined" label={`需求:${task.demandTitle || `#${task.demandId}`}`} />
+            <Chip
+              size="small"
+              variant="outlined"
+              label={
+                <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
+                  {`需求:${task.demandTitle || `#${task.demandId}`}`}
+                  {task.managerIsBot && <BotBadge />}
+                </Box>
+              }
+            />
             <Chip
               size="small"
               sx={{ bgcolor: 'rgba(255,180,0,0.12)', color: 'warning.main', fontWeight: 600 }}
@@ -176,7 +204,10 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
                 {task.assigneeName?.[0]}
               </Avatar>
               <Box>
-                <Typography sx={{ fontSize: 12, fontWeight: 500, color: 'text.primary' }}>{task.assigneeName}</Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Typography sx={{ fontSize: 12, fontWeight: 500, color: 'text.primary' }}>{task.assigneeName}</Typography>
+                  {task.assigneeIsBot && <BotBadge />}
+                </Box>
                 <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>负责人</Typography>
               </Box>
             </>
@@ -258,9 +289,46 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
           </Box>
         )}
 
+        {rejectedMine && task.disputeStatus === 'pending' && (
+          <Box sx={{ p: 1.5, bgcolor: 'rgba(255,180,0,0.08)', border: '1px solid rgba(255,180,0,0.3)', borderRadius: 1, mb: 2 }}>
+            <Typography sx={{ fontSize: 12, color: 'warning.main' }}>已申请平台仲裁,等待运营核实;有结论后会通知你</Typography>
+          </Box>
+        )}
+
+        {canDispute && (
+          <Box sx={{ p: 1.5, border: '1px dashed', borderColor: 'divider', borderRadius: 1, mb: 2 }}>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1 }}>
+              {task.disputeStatus === 'rejected'
+                ? '平台上次维持了驳回。如果修改后再次被驳回且仍有异议,可以再申请一次。'
+                : '认为交付符合要求?可以申请平台仲裁,运营核实后可改判通过。'}
+            </Typography>
+            <TextField
+              value={disputeReason}
+              onChange={(e) => setDisputeReason(e.target.value)}
+              placeholder="说明交付为什么符合任务要求"
+              fullWidth
+              multiline
+              minRows={2}
+              size="small"
+              sx={{
+                mb: 1,
+                '& .MuiOutlinedInput-root': { bgcolor: (theme) => theme.palette.mode === 'dark' ? '#0F1018' : '#FAFAFA', fontSize: 12 },
+              }}
+            />
+            <Button variant="outlined" size="small" onClick={handleDispute} disabled={submitting || !disputeReason.trim()}>
+              申请平台仲裁
+            </Button>
+          </Box>
+        )}
+
         {canReview && (
           <Box sx={{ p: 1.5, bgcolor: 'rgba(255,180,0,0.08)', border: '1px solid rgba(255,180,0,0.3)', borderRadius: 1, mb: 2 }}>
             <Typography sx={{ fontSize: 12, color: 'warning.main', mb: 1 }}>负责人已提交,等待审稿</Typography>
+            {task.assigneeIsBot && (
+              <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 1 }}>
+                这份交付由平台运营的 AI 用户生成。不满意可以直接驳回,任务会重新开放给其他人认领。
+              </Typography>
+            )}
             {task.deliverable && (
               <Typography sx={{ fontSize: 11, color: 'text.tertiary', mb: 1, wordBreak: 'break-all' }}>
                 交付物: {task.deliverable}

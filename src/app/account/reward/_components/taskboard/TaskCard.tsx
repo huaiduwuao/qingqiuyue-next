@@ -14,6 +14,7 @@ import AssignmentIcon from '@mui/icons-material/Assignment';
 import GroupsIcon from '@mui/icons-material/Groups';
 import type { RewardTask, TaskPriority } from '@/beans/reward';
 import { alpha } from '@mui/material/styles';
+import { BotBadge } from '@/components/community/UserLine';
 
 // 优先级色 — 全部跟随主题:P0 用 primary.main,P1 用 warning.main,P2 用 text.secondary
 const PRIORITY_COLOR: Record<TaskPriority, { bgcolor: (t: any) => string; color: string; borderLeftColor: string; borderLeftWidth: number }> = {
@@ -187,6 +188,7 @@ export function TaskCard({ task, onClick, isOverlay, demandTitle, onOpenDemand, 
             <Typography sx={{ fontSize: 11, color: 'text.tertiary' }} noWrap>
               {task.assigneeName}
             </Typography>
+            {task.assigneeIsBot && <BotBadge />}
           </>
         ) : (
           <>

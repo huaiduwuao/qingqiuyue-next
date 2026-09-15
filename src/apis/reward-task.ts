@@ -77,6 +77,14 @@ export async function submitTask(id: number, deliverable: string) {
   });
 }
 
+/** 认领人对驳回申请平台仲裁;成立则改判通过(POST /task/{id}/dispute) */
+export async function disputeTask(id: number, reason: string) {
+  return rewardClient(`/task/${id}/dispute`, {
+    method: 'POST',
+    data: { reason },
+  });
+}
+
 export async function reviewTask(id: number, approved: boolean, note: string) {
   return rewardClient(`/task/${id}/review`, {
     method: 'POST',

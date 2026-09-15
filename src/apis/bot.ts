@@ -48,6 +48,17 @@ export interface BotConfig {
   maxPostsPerBotPerDay: number;
   engageBudgetPerTick: number;
   followDayCurve: boolean;
+  // 悬赏中心:赏金是平台发放给 AI 用户的钻石
+  bountyPerDay: number;
+  bountyMinYuan: number;
+  bountyMaxYuan: number;
+  diamondGrantPerDayYuan: number;
+  /** 每个 AI 用户一次性发放的钻石(钱包单位),每人只发一次 */
+  initialDiamonds: number;
+  /** 每天最多认领几个真人发布、开放满 10 分钟没人接的任务(需 LLM),0 = 不接 */
+  botClaimsPerDay: number;
+  // 内容中心:短评文章,自动审核通过后上线
+  worksPerDay: number;
 }
 
 export interface BotConfigResponse {

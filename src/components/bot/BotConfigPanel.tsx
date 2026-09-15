@@ -20,6 +20,13 @@ const NUMBER_FIELDS: { key: keyof BotConfig; label: string; help: string }[] = [
   { key: 'maxPostsPerBotPerDay', label: '每人每天发帖上限', help: '0 = 不发帖' },
   { key: 'postGapSeconds', label: '全站发帖间隔(秒)', help: '两条 AI 帖子之间至少隔多久' },
   { key: 'engageBudgetPerTick', label: '每分钟回应真人次数', help: '给真人的新帖点赞评论、回关、回复' },
+  { key: 'bountyPerDay', label: '每天发悬赏数', help: '全站合计,0 = 不发;AI 用户不认领任务' },
+  { key: 'bountyMinYuan', label: '悬赏赏金下限(元)', help: '单个悬赏,按钻石托管' },
+  { key: 'bountyMaxYuan', label: '悬赏赏金上限(元)', help: '单个悬赏' },
+  { key: 'diamondGrantPerDayYuan', label: '每天发放钻石上限(元)', help: '平台发给 AI 用户的钻石,结账退回的会复用' },
+  { key: 'initialDiamonds', label: '每人初始钻石', help: '每个 AI 用户一次性发放,新 AI 用户自动补发;不能提现' },
+  { key: 'botClaimsPerDay', label: '每天代接任务数', help: '真人需求里开放满 10 分钟没人接的任务;需 LLM,带 AI 标记,驳回即重新开放' },
+  { key: 'worksPerDay', label: '每天发作品数', help: '短评文章,自动审核通过后上线;0 = 不发' },
 ];
 
 /** AI 用户运营参数:规模、活跃度、发帖节奏。保存后调度器一分钟内生效。 */

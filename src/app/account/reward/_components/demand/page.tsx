@@ -37,6 +37,7 @@ import { myPage, process, remove, save, update, settleDemand } from '@/apis/rewa
 import { listTasks } from '@/apis/reward-task';
 import { mapRewardTaskListFromBackend, normalizeRewardTaskStatus, REWARD_TASK_STATUS_LABEL } from '../taskboard/status';
 import { SettlementDialog } from './SettlementDialog';
+import { BotBadge } from '@/components/community/UserLine';
 import type { DemandItem, DemandStatus, RewardTask, RewardTaskStatus } from '@/beans/reward';
 
 const STATUS_OPTIONS: Array<{ value: DemandStatus | ''; label: string }> = [
@@ -607,6 +608,7 @@ export default function DemandPage({ groupId, onOpenTaskboard }: Props) {
           <Box sx={{ mt: 3, display: 'flex', gap: 1, alignItems: 'center' }}>
             <Avatar sx={{ width: 32, height: 32 }} src={selectedRecord?.avatar} />
             <Typography variant="caption">{selectedRecord?.username || '未知用户'}</Typography>
+            {selectedRecord?.isBot && <BotBadge />}
             <Typography variant="caption" color="text.secondary" sx={{ ml: 2 }}>
               {selectedRecord?.createTime ? new Date(selectedRecord.createTime).toLocaleString() : ''}
             </Typography>

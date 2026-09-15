@@ -64,6 +64,7 @@ export function mapRewardTaskFromBackend(raw: any): any {
   if (r.assigneeId == null && r.claimerId != null) r.assigneeId = r.claimerId || null;
   if (r.assigneeName == null && r.claimerName) r.assigneeName = r.claimerName;
   if (r.assigneeAvatar == null && r.claimerAvatar) r.assigneeAvatar = r.claimerAvatar;
+  if (r.assigneeIsBot == null && r.claimerIsBot != null) r.assigneeIsBot = !!r.claimerIsBot;
   if (r.deliverable == null && r.submission) r.deliverable = r.submission;
   if (r.createdBy == null && r.createUser != null) r.createdBy = r.createUser;
   return r;
