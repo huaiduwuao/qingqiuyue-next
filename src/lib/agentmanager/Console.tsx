@@ -29,6 +29,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import { agentmAPI, type Instance, type Agent, type AuditLog, type Skill, type MonitoringOverview, type InstanceStats, type UsageStats } from './api'
 import KanbanBoard from './kanban/KanbanBoard'
 import MCPManager from './mcp/MCPManager'
+import RunsPanel from './runs/RunsPanel'
 import SessionManager from './session/SessionManager'
 import WorkflowsOverview from './WorkflowsOverview'
 import dynamic from 'next/dynamic'
@@ -40,7 +41,7 @@ const SkillStudio = dynamic(() => import('./studio/SkillStudio'), { ssr: false }
 const AgentStudio = dynamic(() => import('./studio/AgentStudio'), { ssr: false })
 const ModelProviderManager = dynamic(() => import('./models/ModelProviderManager'), { ssr: false })
 
-type Tab = 'dashboard' | 'instances' | 'agents' | 'sessions' | 'audit' | 'skills' | 'gateway' | 'kanban' | 'mcp' | 'workflows' | 'models'
+type Tab = 'dashboard' | 'instances' | 'agents' | 'runs' | 'sessions' | 'audit' | 'skills' | 'gateway' | 'kanban' | 'mcp' | 'workflows' | 'models'
 
 export default function AgentManagerConsole() {
   const { sessionId: token, isAuthenticated } = useAuth()
@@ -179,6 +180,7 @@ export default function AgentManagerConsole() {
     { key: 'dashboard', label: '📊 总览' },
     { key: 'instances', label: '🖥️ 实例' },
     { key: 'agents', label: '🤖 Agent' },
+    { key: 'runs', label: '🏃 运行' },
     { key: 'sessions', label: '💬 会话' },
     { key: 'audit', label: '📝 审计' },
     { key: 'skills', label: '🛠️ 技能' },
@@ -662,6 +664,9 @@ export default function AgentManagerConsole() {
             </Box>
           </Box>
         )}
+
+        {/* Runs Tab:后台运行 + 审批 */}
+        {activeTab === 'runs' && token && <RunsPanel token={token} />}
 
         {/* Kanban Tab */}
         {activeTab === 'kanban' && token && (
