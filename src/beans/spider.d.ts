@@ -67,14 +67,39 @@ export interface CrawlTask {
   sourceId?: number;
   sourceName?: string;
   startUrl: string;
-  status: 'pending' | 'running' | 'stopped' | 'completed' | 'failed';
+  status: 'pending' | 'running' | 'stopping' | 'stopped' | 'completed' | 'failed';
   maxDepth: number;
   maxPages: number;
   pagesCrawled: number;
   linksFound: number;
   itemsSaved: number;
+  errorMsg?: string;
+  /** 规则任务才有:运行中为实时值,结束后为最终快照 */
+  progress?: CrawlProgress;
   createdAt: string;
   updatedAt: string;
+}
+
+/** 规则爬取进度(后端 ProgressSnapshot) */
+export interface CrawlProgress {
+  phase: 'queued' | 'discovering' | 'categories' | 'home' | 'incremental' | 'done' | 'stopped' | 'failed';
+  /** 0-100;-1 = 还估不出来 */
+  percent: number;
+  categoriesTotal: number;
+  categoriesDone: number;
+  currentUrl: string;
+  /** 实际发出的页面请求数 */
+  pagesCrawled: number;
+  /** 0 = 不限 */
+  pageBudget: number;
+  itemsFound: number;
+  itemsNew: number;
+  chaptersNew: number;
+  errors: number;
+  lastError?: string;
+  startedAt: string;
+  updatedAt: string;
+  elapsedSec: number;
 }
 
 export interface CrawlTaskStats {

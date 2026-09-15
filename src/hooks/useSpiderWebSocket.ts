@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
+import type { CrawlProgress } from '@/beans/spider';
 
 export interface SpiderHealth {
   status: 'healthy' | 'unhealthy';
@@ -28,8 +29,15 @@ export interface CrawlTaskFromWS {
   pages_crawled?: number;
   links_found?: number;
   items_saved?: number;
+  error_msg?: string;
   created_at?: string;
   updated_at?: string;
+  // 单条 task 推送用 camelCase
+  pagesCrawled?: number;
+  linksFound?: number;
+  itemsSaved?: number;
+  errorMsg?: string;
+  progress?: CrawlProgress;
 }
 
 export interface SpiderWSState {
@@ -76,6 +84,8 @@ export function useSpiderWebSocket(): SpiderWSState {
   // 上限重连次数,达到后停止。避免 WS 永远失败时反复重连耗尽 socket buffer
   // (ERR_NO_BUFFER_SPACE) 和浏览器连接池。
   const MAX_RECONNECT_ATTEMPTS = 5;
+  // 重连定时器通过 ref 调 connect:回调里直接引用自身会读到声明前的值
+  const connectRef = useRef<() => void>(() => {});
 
   const connect = useCallback(() => {
     if (typeof window === 'undefined' || unmountedRef.current) {
@@ -98,7 +108,6 @@ export function useSpiderWebSocket(): SpiderWSState {
       ws.onmessage = (event) => {
         try {
           const msg: WSMessage = JSON.parse(event.data);
-          const now = Date.now();
 
           setState((prev) => {
             const next = { ...prev };
@@ -125,7 +134,7 @@ export function useSpiderWebSocket(): SpiderWSState {
 
             return next;
           });
-        } catch (err) {
+        } catch {
           // ignore malformed message
         }
       };
@@ -157,13 +166,17 @@ export function useSpiderWebSocket(): SpiderWSState {
           clearTimeout(reconnectTimerRef.current);
         }
         reconnectTimerRef.current = setTimeout(() => {
-          connect();
+          connectRef.current();
         }, delay);
       };
-    } catch (err) {
+    } catch {
       // ignore connection errors; reconnect loop handles it
     }
   }, []);
+
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   useEffect(() => {
     unmountedRef.current = false;
