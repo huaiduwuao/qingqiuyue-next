@@ -30,10 +30,11 @@ import { agentmAPI, type Instance, type Agent, type AuditLog, type Skill, type M
 import KanbanBoard from './kanban/KanbanBoard'
 import MCPManager from './mcp/MCPManager'
 import RunsPanel from './runs/RunsPanel'
+import SkillHubPanel from './skill/SkillHubPanel'
 import SessionManager from './session/SessionManager'
 import WorkflowsOverview from './WorkflowsOverview'
 import dynamic from 'next/dynamic'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth, useAuthority } from '@/contexts/AuthContext'
 
 // 工作室组件(含 React Flow)客户端渲染
 const WorkflowStudio = dynamic(() => import('./studio/WorkflowStudio'), { ssr: false })
@@ -45,6 +46,7 @@ type Tab = 'dashboard' | 'instances' | 'agents' | 'runs' | 'sessions' | 'audit' 
 
 export default function AgentManagerConsole() {
   const { sessionId: token, isAuthenticated } = useAuth()
+  const { isAdmin } = useAuthority()
   const [activeTab, setActiveTab] = useState<Tab>('dashboard')
   // 工作室(创建/编辑页):非空时整体替换 tab 视图;editingId 表示编辑模式
   const [studio, setStudio] = useState<'agent' | 'skill' | 'workflow' | null>(null)
@@ -589,6 +591,7 @@ export default function AgentManagerConsole() {
               <Typography variant="h6">技能管理</Typography>
               <Button size="small" variant="contained" onClick={() => setStudio('skill')}>➕ 新建技能</Button>
             </Box>
+            <SkillHubPanel isAdmin={isAdmin} onInstalled={loadSkills} />
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2 }}>
               {skills.map(skill => (
                 <Card key={skill.id}>
