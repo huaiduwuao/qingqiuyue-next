@@ -34,7 +34,7 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import { homeClient, contentClient, formatApiError } from '@/lib/api/client';
 import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
-import { FriendPanel } from './FriendPanel';
+import { FriendPanel } from '@/components/community/FriendPanel';
 import { CommunityFeed } from '@/components/community/CommunityFeed';
 import SendToSpider from '@/components/SendToSpider';
 import { useContentNavigate } from '@/lib/contentRoute';
