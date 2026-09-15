@@ -337,7 +337,8 @@ function ServicesTable({ report, desired, onRestart }: {
           {report.containers.map((c) => {
             const w = want.get(c.service);
             const onTarget = !w || w.image_id === c.image_id;
-            const health: { label: string; color: ChipColor } = !c.exists ? { label: '不存在', color: 'error' }
+            const health: { label: string; color: ChipColor } = c.inspect_error ? { label: '状态未知', color: 'warning' }
+              : !c.exists ? { label: '不存在', color: 'error' }
               : !c.running ? { label: '已停止', color: 'error' }
               : c.health === 'unhealthy' ? { label: '不健康', color: 'error' }
               : c.health === 'starting' ? { label: '启动中', color: 'info' }

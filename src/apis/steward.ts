@@ -17,6 +17,7 @@ export interface ContainerStatus {
   running: boolean;
   health: string; // healthy | unhealthy | starting | ''(无 healthcheck)
   restarts: number;
+  inspect_error?: string; // 非空:这一轮 podman 没查到(忙/超时),不代表容器不存在
 }
 
 export interface NodeReport {
