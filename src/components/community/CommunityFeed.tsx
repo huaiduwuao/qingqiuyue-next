@@ -18,14 +18,14 @@ type Sort = 'hot' | 'new';
 
 /**
  * 动态流。四种用法:
- *  - 默认:广场 / 关注 两个页签(社区首页)
+ *  - 默认:广场(所有人)
  *  - topic:某个话题/专题下的讨论,发帖框预选该话题
  *  - userId:某个人的动态
- *  - circle:首页「关注」「好友」页签,只看关注的人 / 好友的动态(发帖、发布作品、评论、点赞…)
+ *  - circle:首页「动态」的「关注」「朋友」范围,只看关注的人 / 好友和自己的动态(发帖、发布作品、评论、点赞…)
+ * 广场/关注/朋友的切换在 CommunityPanel 上;切换时换 key 重挂,排序回到各自的默认值。
  */
 export function CommunityFeed({ topic, userId, focusFeedId, circle }: { topic?: TopicBrief; userId?: Id; focusFeedId?: string | null; circle?: 'follow' | 'friend' }) {
   const router = useRouter();
-  const [tab, setTab] = useState<'square' | 'following'>('square');
   const [sort, setSort] = useState<Sort>(topic || circle ? 'new' : 'hot');
   // 刚发出的帖子插在列表顶部;按列表 key 记,切换页签/排序后自然失效
   const [freshByKey, setFreshByKey] = useState<{ key: string; items: FeedItem[] }>({ key: '', items: [] });
@@ -33,7 +33,7 @@ export function CommunityFeed({ topic, userId, focusFeedId, circle }: { topic?: 
   const [snack, setSnack] = useState<{ msg: string; severity: 'success' | 'error' | 'info' } | null>(null);
   const notify: Notify = (msg, severity = 'success') => setSnack({ msg, severity });
 
-  const mode: FeedTab = circle ?? (topic ? 'topic' : userId ? 'user' : tab);
+  const mode: FeedTab = circle ?? (topic ? 'topic' : userId ? 'user' : 'square');
   const queryKey = ['community', 'feed', mode, sort, String(topic?.id ?? ''), String(userId ?? '')];
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, isError, refetch } = useInfiniteQuery({
     queryKey,
@@ -84,33 +84,10 @@ export function CommunityFeed({ topic, userId, focusFeedId, circle }: { topic?: 
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      {!userId && !circle && <PostComposer presetTopic={topic} notify={notify} onPosted={addFresh} />}
+      {/* 「关注」范围不含自己,发了也看不到,所以不放发帖框;「朋友」含自己 */}
+      {!userId && circle !== 'follow' && !needLogin && <PostComposer presetTopic={topic} notify={notify} onPosted={addFresh} />}
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        {!topic && !userId && !circle && (
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            {(['square', 'following'] as const).map((t) => (
-              <Typography
-                key={t}
-                component="button"
-                onClick={() => setTab(t)}
-                sx={{
-                  p: 0,
-                  border: 0,
-                  background: 'none',
-                  cursor: 'pointer',
-                  fontSize: 15,
-                  fontWeight: tab === t ? 800 : 500,
-                  color: tab === t ? 'var(--text-primary, #fff)' : 'var(--text-secondary, rgba(255,255,255,0.55))',
-                  borderBottom: tab === t ? '2px solid var(--brand-color, #FE2C55)' : '2px solid transparent',
-                  pb: 0.25,
-                }}
-              >
-                {t === 'square' ? '广场' : '关注'}
-              </Typography>
-            ))}
-          </Box>
-        )}
         <Box sx={{ flex: 1 }} />
         {(['hot', 'new'] as const).map((s) => (
           <Box
@@ -145,7 +122,7 @@ export function CommunityFeed({ topic, userId, focusFeedId, circle }: { topic?: 
       ) : needLogin ? (
         <Empty
           title={circle === 'friend' ? '登录后查看好友动态' : '登录后查看关注动态'}
-          hint={circle === 'friend' ? '好友的新动态会出现在这里' : circle ? '你关注的人的新动态会出现在这里' : '你关注的人和话题的新动态会出现在这里'}
+          hint={circle === 'friend' ? '好友和你自己的新动态会出现在这里' : '你关注的人的新动态会出现在这里'}
         >
           <Button size="small" variant="contained" onClick={() => router.push('/user/login')} sx={{ borderRadius: 999, bgcolor: 'var(--brand-color, #FE2C55)' }}>登录</Button>
         </Empty>
@@ -153,11 +130,7 @@ export function CommunityFeed({ topic, userId, focusFeedId, circle }: { topic?: 
         circle === 'follow' ? (
           <Empty title="还没有关注动态" hint="你关注的人发帖、发布作品、评论和点赞,都会出现在这里" />
         ) : circle === 'friend' ? (
-          <Empty title="好友还没有动态" hint="好友发帖、发布作品、评论和点赞,都会出现在这里" />
-        ) : mode === 'following' ? (
-          <Empty title="还没有关注动态" hint="关注感兴趣的人和话题,他们的新动态会出现在这里">
-            <Button size="small" onClick={() => router.push('/home/recommend?tab=topic')}>去逛逛话题</Button>
-          </Empty>
+          <Empty title="朋友圈还没有动态" hint="你和好友发帖、发布作品、评论和点赞,都会出现在这里" />
         ) : (
           <Empty title={topic ? '这里还没有讨论' : '还没有人发帖'} hint="来发第一条吧" />
         )

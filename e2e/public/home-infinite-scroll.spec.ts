@@ -38,53 +38,14 @@ test.describe('无限滚动加载', () => {
     expect(true).toBe(true);
   });
 
-  test('follow tab 应支持滚动加载', async ({ page }) => {
-    await page.goto('http://localhost:3000/home/recommend?tab=follow');
-    await page.waitForURL(/\/home\/recommend/, { timeout: 15_000 });
-
-    // 等待初始内容
-    await page.waitForTimeout(2000);
-
-    // 滚动触发加载
-    await page.evaluate(() => {
-      const containers = document.querySelectorAll('[style*="overflow"]');
-      containers.forEach((el: Element) => {
-        const htmlEl = el as HTMLElement;
-        if (htmlEl.style.overflow.includes('auto') || htmlEl.style.overflow.includes('scroll')) {
-          htmlEl.scrollTop = htmlEl.scrollHeight;
-        }
-      });
+  // 关注/朋友已并入「动态」页签,旧链接改写成 ?tab=feed&scope=…
+  for (const scope of ['follow', 'friend'] as const) {
+    test(`旧的 ?tab=${scope} 应打开动态的「${scope === 'follow' ? '关注' : '朋友'}」范围`, async ({ page }) => {
+      await page.goto(`http://localhost:3000/home/recommend?tab=${scope}`);
+      await page.waitForURL(new RegExp(`tab=feed.*scope=${scope}`), { timeout: 15_000 });
+      await expect(page.getByRole('tab', { name: scope === 'follow' ? '关注' : '朋友' })).toHaveAttribute('aria-selected', 'true');
     });
-    await page.waitForTimeout(1500);
-
-    // 页面应该响应滚动（无报错）
-    const hasContent = await page.locator('main').count() > 0;
-    expect(hasContent).toBe(true);
-  });
-
-  test('friend tab 应支持滚动加载', async ({ page }) => {
-    await page.goto('http://localhost:3000/home/recommend?tab=friend');
-    await page.waitForURL(/\/home\/recommend/, { timeout: 15_000 });
-
-    // 等待初始内容
-    await page.waitForTimeout(2000);
-
-    // 滚动触发加载
-    await page.evaluate(() => {
-      const containers = document.querySelectorAll('[style*="overflow"]');
-      containers.forEach((el: Element) => {
-        const htmlEl = el as HTMLElement;
-        if (htmlEl.style.overflow.includes('auto') || htmlEl.style.overflow.includes('scroll')) {
-          htmlEl.scrollTop = htmlEl.scrollHeight;
-        }
-      });
-    });
-    await page.waitForTimeout(1500);
-
-    // 页面应该响应滚动（无报错）
-    const hasContent = await page.locator('main').count() > 0;
-    expect(hasContent).toBe(true);
-  });
+  }
 
   test('直播 tab 应支持滚动加载', async ({ page }) => {
     await page.goto('http://localhost:3000/home/recommend?tab=live');

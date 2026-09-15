@@ -9,7 +9,7 @@ import Paper from '@mui/material/Paper';
 import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import RecommendRoundedIcon from '@mui/icons-material/RecommendRounded';
 import TravelExploreRoundedIcon from '@mui/icons-material/TravelExploreRounded';
-import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
+import DynamicFeedRoundedIcon from '@mui/icons-material/DynamicFeedRounded';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import EmojiEventsRoundedIcon from '@mui/icons-material/EmojiEventsRounded';
 import HeadsetMicIcon from '@mui/icons-material/HeadsetMic';
@@ -29,7 +29,8 @@ const MOBILE_TABS: TabItem[] = [
   { key: 'recommend', label: '推荐', icon: <RecommendRoundedIcon />, path: '/home/recommend?tab=recommend' },
   // 原来这里是「任务」→ /home/queue,但那个路由没有页面。换成排行榜,手机端也能进榜单。
   { key: 'rank', label: '榜单', icon: <EmojiEventsRoundedIcon />, path: '/home/recommend?tab=rank' },
-  { key: 'follow', label: '关注', icon: <FavoriteRoundedIcon />, path: '/home/recommend?tab=follow' },
+  // 关注/朋友已并入「动态」(页内切 广场/关注/朋友)
+  { key: 'feed', label: '动态', icon: <DynamicFeedRoundedIcon />, path: '/home/recommend?tab=feed' },
   { key: 'me', label: '我的', icon: <PersonRoundedIcon />, path: '/home/recommend?tab=me' },
 ];
 

@@ -23,8 +23,6 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import RecommendRoundedIcon from '@mui/icons-material/RecommendRounded';
 import TravelExploreRoundedIcon from '@mui/icons-material/TravelExploreRounded';
-import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
-import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import LiveTvRoundedIcon from '@mui/icons-material/LiveTvRounded';
 import VideoLibraryIcon from '@mui/icons-material/VideoLibrary';
@@ -60,8 +58,6 @@ const SIDE_NAV: { key: string; label: string; path?: string; icon: React.ReactNo
   { key: 'recommend', label: '推荐', path: '/home/recommend?tab=recommend', icon: <RecommendRoundedIcon sx={{ fontSize: 18 }} />, accent: 'secondary.main' },
   { key: 'rank', label: '排行榜', path: '/home/recommend?tab=rank', icon: <EmojiEventsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'warning.main' },
   { key: 'ai', label: 'AI 搜索', path: '/home/recommend?tab=ai', icon: <TravelExploreRoundedIcon sx={{ fontSize: 18 }} />, accent: ACCENT.blue.main },
-  { key: 'follow', label: '关注', path: '/home/recommend?tab=follow', icon: <FavoriteRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
-  { key: 'friend', label: '朋友', path: '/home/recommend?tab=friend', icon: <GroupsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'warning.main' },
   { key: 'me', label: '我的', path: '/home/recommend?tab=me', icon: <PersonRoundedIcon sx={{ fontSize: 18 }} />, accent: ACCENT.purple.main },
   { key: 'live', label: '直播', path: '/home/recommend?tab=live', icon: <LiveTvRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
   { key: 'feed', label: '动态', path: '/home/recommend?tab=feed', icon: <DynamicFeedRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
@@ -77,7 +73,10 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const urlTab = searchParams.get('tab');
+  const rawTab = searchParams.get('tab');
+  // 关注/朋友已并入「动态」页签(?tab=feed&scope=follow|friend),旧链接照样打开动态
+  const legacyCircle = rawTab === 'follow' || rawTab === 'friend' ? rawTab : null;
+  const urlTab = legacyCircle ? 'feed' : rawTab;
   const urlSection = searchParams.get('section');
   // 兼容 section 参数：优先用 tab，如果只有 section=recommend 则导航到 recommend
   const effectiveTab = urlTab || (urlSection === 'recommend' ? 'recommend' : 'home');
@@ -95,6 +94,15 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     setActiveNav(urlTab || effectiveTab);
   }, [urlTab]);
+
+  // 把旧的 ?tab=follow / ?tab=friend 改写成 ?tab=feed&scope=…,地址栏和页签对得上
+  useEffect(() => {
+    if (!legacyCircle) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', 'feed');
+    params.set('scope', legacyCircle);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [legacyCircle]);
 
   // 离开 home 时把主滚动条位置存到 sessionStorage,回来时还原(无动画,即设即生效)
   useEffect(() => {
@@ -178,8 +186,6 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
            : activeNav === 'home' ? <FeedPanel tab="home" />
            : activeNav === 'recommend' ? <HomeRecommendPage />
            : activeNav === 'rank' ? <LeaderboardPanel />
-           : activeNav === 'follow' ? <FeedPanel tab="follow" />
-           : activeNav === 'friend' ? <FeedPanel tab="friend" />
            : activeNav === 'live' ? <LivePanel />
            : activeNav === 'theater' ? <TheaterPanel />
            : activeNav === 'drama' ? <DramaPanel />
