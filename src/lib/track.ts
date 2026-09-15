@@ -22,6 +22,23 @@ function isLoggedIn(): boolean {
   return hasToken;
 }
 
+// 浏览器级匿名访客 id(随机生成,不含任何个人信息),只用于站点 UV 去重。
+function visitorId(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    let id = localStorage.getItem('qq_vid');
+    if (!id) {
+      id = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+      localStorage.setItem('qq_vid', id);
+    }
+    return id;
+  } catch {
+    return ''; // 隐私模式等拿不到存储时照常上报 PV,只是不参与 UV 去重
+  }
+}
+
 export function track(itemId: number | string, action: string, itemType = 'NOVEL', duration = 0) {
   // 未登录不发送埋点（隐私保护）
   if (!isLoggedIn()) return;
@@ -77,8 +94,8 @@ export function recordHistory(contentId: number | string) {
 
 // trackPageView 上报页面曝光埋点(统计 PV/UV)。
 // 在 layout 或页面组件 mount 时调用,fire-and-forget.
+// 站点流量要算上未登录访客,所以这里不做登录校验;UV 按匿名访客 id 去重。
 export function trackPageView(pathname: string, search = '') {
-  if (!isLoggedIn()) return; // 未登录不发送埋点
   const page = search ? `${pathname}${search}` : pathname;
   try {
     // 行为上报在 /api/content/behavior(recommendapp),homeClient 会拼成不存在的 /home/behavior。
@@ -88,6 +105,7 @@ export function trackPageView(pathname: string, search = '') {
       itemType: 'PAGE',
       action: 'pageview',
       page,
+      visitorId: visitorId(),
     }).catch((e) => safeErrorLog('trackPageView', e));
   } catch {
     /* 静默 */
