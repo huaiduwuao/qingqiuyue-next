@@ -48,8 +48,14 @@ export default function HotTopicsCarousel() {
     el.scrollBy({ left: dir * 280, behavior: 'smooth' });
   };
 
-  const handleTopicClick = (title: string) => {
-    router.push(`/search?q=${encodeURIComponent(title)}`);
+  // 后端返回的 id:topic-<id> 是真实话题(进话题页),hot-<id> 是热门作品(进详情),其它按标题搜索
+  const handleTopicClick = (t: HotTopic) => {
+    const id = String(t.id ?? '');
+    if (id.startsWith('topic-')) {
+      router.push(`/detail/topic-detail?id=${id.slice('topic-'.length)}`);
+      return;
+    }
+    router.push(`/search?q=${encodeURIComponent(t.title)}`);
   };
 
   return (
@@ -143,7 +149,7 @@ export default function HotTopicsCarousel() {
             return (
               <Box
                 key={t.id}
-                onClick={() => handleTopicClick(t.title)}
+                onClick={() => handleTopicClick(t)}
                 sx={{
                   flex: '0 0 240px',
                   minWidth: 240,

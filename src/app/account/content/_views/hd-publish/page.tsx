@@ -167,7 +167,7 @@ function mapContentStatusToHd(status?: string): HdStatus {
   const s = status?.toLowerCase() || '';
   if (s === 'reviewing' || s === 'review') return 'reviewing';
   if (s === 'publish' || s === 'published' || s === 'online') return 'published';
-  if (s === 'un_publish' || s === 'offline' || s === 'reject' || s === 'review_failed') return 'review_failed';
+  if (s === 'un_publish' || s === 'offline' || s === 'reject' || s === 'rejected' || s === 'review_failed') return 'review_failed';
   if (s === 'failed' || s === 'error') return 'failed';
   // 默认放在转码中,符合 HD 发布流程
   return 'transcoding';

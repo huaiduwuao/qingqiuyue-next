@@ -58,17 +58,23 @@ interface Comics {
 
 const INTERNAL_STATUS = new Set(['active', 'PUBLISH', 'UN_PUBLISH', 'REVIEWING', 'REJECTED', 'DRAFT']);
 
-/** 一话的分页图片:content 是 JSON 图片数组(爬虫 crawl-pages 写入)或单图 URL;还没抓图时为空。 */
+/**
+ * 一话的分页图片:content 是 JSON 图片数组(爬虫 crawl-pages 与发布表单都写这个格式)或单图 URL;
+ * 解析不出图片时退回章节封面(旧的发布表单一页一话,图只放在 cover 里),还没抓图时为空。
+ */
 function chapterImages(ch: ContentItem | undefined): string[] {
-  if (!ch?.content) return [];
+  if (!ch) return [];
+  const fallback = ch.cover ? [ch.cover] : [];
+  if (!ch.content) return fallback;
   try {
     const parsed = JSON.parse(ch.content);
-    if (Array.isArray(parsed)) return parsed.filter((s: unknown): s is string => typeof s === 'string' && !!s);
-    if (typeof parsed === 'string') return parsed ? [parsed] : [];
-    if (parsed && Array.isArray(parsed.urls)) return parsed.urls.filter((s: unknown): s is string => typeof s === 'string' && !!s);
-    return [];
+    let urls: string[] = [];
+    if (Array.isArray(parsed)) urls = parsed.filter((s: unknown): s is string => typeof s === 'string' && !!s);
+    else if (typeof parsed === 'string') urls = parsed ? [parsed] : [];
+    else if (parsed && Array.isArray(parsed.urls)) urls = parsed.urls.filter((s: unknown): s is string => typeof s === 'string' && !!s);
+    return urls.length ? urls : fallback;
   } catch {
-    return /^https?:\/\//.test(ch.content) ? [ch.content] : [];
+    return /^https?:\/\//.test(ch.content) ? [ch.content] : fallback;
   }
 }
 

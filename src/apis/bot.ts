@@ -57,8 +57,29 @@ export interface BotConfig {
   initialDiamonds: number;
   /** 每天最多认领几个真人发布、开放满 10 分钟没人接的任务(需 LLM),0 = 不接 */
   botClaimsPerDay: number;
-  // 内容中心:短评文章,自动审核通过后上线
+  // 内容中心:13 种类型按权重随机,自动审核通过后上线
   worksPerDay: number;
+  /** 置 true 保存后,调度器一分钟内让 13 个 AI 用户每人投一种类型的作品(跑起来后自动清回 false) */
+  seedWorksOnce?: boolean;
+}
+
+/** 「每种类型各发一篇」里一种类型的结果 */
+export interface WorkSeedResult {
+  kind: string;
+  contentType: string;
+  label: string;
+  botId: number;
+  botName: string;
+  contentId?: string;
+  status: 'published' | 'skipped' | 'failed';
+  error?: string;
+}
+
+export interface WorkSeedStatus {
+  running: boolean;
+  startedAt: string;
+  finishedAt?: string;
+  results: WorkSeedResult[];
 }
 
 export interface BotConfigResponse {
@@ -66,6 +87,9 @@ export interface BotConfigResponse {
   botCount: number;
   activeCount: number;
   llmEnabled: boolean;
+  /** 最近一次「每种类型各发一篇」的进度与结果 */
+  workSeed?: WorkSeedStatus;
+  workKinds?: string[];
 }
 
 export async function getConfig(): Promise<BotConfigResponse> {
