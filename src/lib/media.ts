@@ -46,6 +46,10 @@ export function mediaUrl(raw?: string | null): string {
 
   // data:/blob: 原样用。
   if (/^(data:|blob:)/i.test(url)) return url;
+  // 协议相对地址(//live-cover.msstatic.com/...,虎牙直播封面就是这样):按 https 处理。
+  // 不先挡住的话会被下面当成站内相对路径原样返回,浏览器再按页面协议补全,
+  // 结果既没走代理(防盗链),在 http 下还会解析成 http 外链。
+  if (url.startsWith('//')) return mediaUrl(`https:${url}`);
   // 已经是相对路径:public bucket 路径补网关前缀(桌面端需要绝对地址),
   // 其它相对路径(前端自己的 /images/xxx 等本地资源)不动。
   if (url.startsWith('/')) {

@@ -25,6 +25,11 @@ describe('mediaUrl', () => {
       .toBe('/api/proxy?url=' + encodeURIComponent('http://i2.hdslb.com/bfs/archive/x.jpg'));
   });
 
+  it('协议相对地址按 https 外站图片处理(虎牙直播封面)', () => {
+    expect(mediaUrl('//live-cover.msstatic.com/huyalive/a.jpg?x=1'))
+      .toBe('/api/proxy?url=' + encodeURIComponent('https://live-cover.msstatic.com/huyalive/a.jpg?x=1'));
+  });
+
   it('private bucket 的 presigned URL 原样返回(签名绑死 Host)', () => {
     const signed = 'https://qingqiuyue.com/qq-avatar/raw/a.mp4?X-Amz-Signature=deadbeef';
     expect(mediaUrl(signed)).toBe(signed);
