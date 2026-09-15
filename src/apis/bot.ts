@@ -78,6 +78,39 @@ export async function saveConfig(cfg: BotConfig): Promise<BotConfig> {
   return res?.data ?? res;
 }
 
+// 所有 AI 用户共用的大模型(OpenAI 兼容接口)。Key 只写不读:读回来只有 keySet 和末尾四位。
+export interface BotLLMView {
+  enabled: boolean;
+  baseUrl: string;
+  model: string;
+  keySet: boolean;
+  keyHint?: string;
+}
+
+export interface BotLLMInput {
+  enabled: boolean;
+  baseUrl: string;
+  model: string;
+  /** 留空表示不修改已保存的 Key */
+  apiKey?: string;
+}
+
+export async function getLLM(): Promise<BotLLMView> {
+  const res: any = await adminClient('/bot/llm');
+  return res?.data ?? res;
+}
+
+export async function saveLLM(input: BotLLMInput): Promise<BotLLMView> {
+  const res: any = await adminClient('/bot/llm', { method: 'PUT', data: input });
+  return res?.data ?? res;
+}
+
+/** 用表单里的配置试调一次,不保存 */
+export async function testLLM(input: BotLLMInput): Promise<{ reply: string; latencyMs: number }> {
+  const res: any = await adminClient('/bot/llm/test', { method: 'POST', data: input });
+  return res?.data ?? res;
+}
+
 export async function refreshPersonas(): Promise<{ updated: number }> {
   const res: any = await adminClient('/bot/personas/refresh', { method: 'POST' });
   return res?.data ?? res;
