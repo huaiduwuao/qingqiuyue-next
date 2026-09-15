@@ -166,15 +166,25 @@ export default function MsgPage() {
 function InteractionPanel() {
   const subType = useMsgUi((s) => s.subType);
   const setSubType = useMsgUi((s) => s.setSubType);
+  const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['notice-interaction-page', subType],
     queryFn: async () => (await adminClient('/notice/interaction/list', { params: { subType } })).data,
   });
   const records: any[] = data?.list || [];
+  const unreadCount = records.filter((r: any) => r.unread).length;
+
+  const readAllMutation = useMutation({
+    mutationFn: async () => (await adminClient.post('/notice/interaction/readAll')).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['notice-interaction-page'] });
+      qc.invalidateQueries({ queryKey: ['notice', 'count'] });
+    },
+  });
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ display: 'flex', gap: 0.75, px: 3, py: 1.5, borderBottom: '1px solid', borderColor: 'divider', flexShrink: 0, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' } }}>
+      <Box sx={{ display: 'flex', gap: 0.75, px: 3, py: 1.5, borderBottom: '1px solid', borderColor: 'divider', flexShrink: 0, overflowX: 'auto', alignItems: 'center', '&::-webkit-scrollbar': { display: 'none' } }}>
         {INTERACTION_SUB_TYPES.map((s) => (
           <Box
             key={s.key}
@@ -196,6 +206,17 @@ function InteractionPanel() {
             {s.label}
           </Box>
         ))}
+        <Box sx={{ flex: 1 }} />
+        {unreadCount > 0 && (
+          <Button
+            size="small"
+            onClick={() => readAllMutation.mutate()}
+            disabled={readAllMutation.isPending}
+            sx={{ textTransform: 'none', fontSize: 12, color: 'primary.main', whiteSpace: 'nowrap' }}
+          >
+            全部已读{unreadCount > 0 ? ` (${unreadCount})` : ''}
+          </Button>
+        )}
       </Box>
       <Box sx={{ flex: 1, overflowY: 'auto' }}>
         {isLoading ? (
@@ -225,7 +246,19 @@ function InteractionPanel() {
 
 function FullNoticeItem({ item }: { item: any }) {
   const router = useRouter();
+  const qc = useQueryClient();
   const [snack, setSnack] = useState<{ open: boolean; msg: string }>({ open: false, msg: '' });
+
+  // 点击时标记已读(若未读)
+  const markRead = async () => {
+    if (!item.unread || !item.id) return;
+    try {
+      await adminClient.post('/notice/interaction/read', { id: item.id });
+      qc.invalidateQueries({ queryKey: ['notice-interaction-page'] });
+      qc.invalidateQueries({ queryKey: ['notice', 'count'] });
+    } catch { /* 已读失败不影响跳转 */ }
+  };
+
   const typeIcon = (() => {
     if (item.type === 'comment') return <CommentOutlinedIcon sx={{ fontSize: 12, color: 'secondary.main' }} />;
     if (item.type === 'mention') return <AlternateEmailIcon sx={{ fontSize: 12, color: '#5B8DEF' }} />;
@@ -235,6 +268,7 @@ function FullNoticeItem({ item }: { item: any }) {
   })();
 
   const handleClick = async () => {
+    markRead(); // 点击即标记已读(异步,不阻塞后续操作)
     if (item.type === 'follow' && item.fromUserId) {
       const isFollowed = !!item.isFollowed;
       try {
@@ -355,37 +389,65 @@ function FullNoticeItem({ item }: { item: any }) {
 
 // ─── 系统消息面板 ───
 function SystemPanel() {
+  const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['notice-system-page'],
     queryFn: async () => (await adminClient('/notice/system/list')).data,
   });
   const records: any[] = data?.list || [];
+  // 系统消息无 unread 派生字段，用 status 推导未读数
+  const unreadCount = records.filter((r: any) => r.unread ?? (r.status !== 'READ' && r.status !== 'read')).length;
+
+  const readAllMutation = useMutation({
+    mutationFn: async () => (await adminClient.post('/notice/system/readAll')).data,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['notice-system-page'] });
+      qc.invalidateQueries({ queryKey: ['notice', 'count'] });
+    },
+  });
 
   return (
-    <Box sx={{ height: '100%', overflowY: 'auto' }}>
-      {isLoading ? (
-        <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} variant="rounded" height={84} sx={{ bgcolor: 'action.hover' }} />
-          ))}
-        </Box>
-      ) : records.length === 0 ? (
-        <Box sx={{ py: 10, textAlign: 'center' }}>
-          <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>暂无系统消息</Typography>
-        </Box>
-      ) : (
-        <Box sx={{ maxWidth: 900, mx: 'auto' }}>
-          {records.map((item) => (
-            <SystemNoticeItem key={item.id} item={item} />
-          ))}
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {unreadCount > 0 && (
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', px: 3, py: 1, borderBottom: '1px solid', borderColor: 'divider', flexShrink: 0 }}>
+          <Button
+            size="small"
+            onClick={() => readAllMutation.mutate()}
+            disabled={readAllMutation.isPending}
+            sx={{ textTransform: 'none', fontSize: 12, color: 'primary.main' }}
+          >
+            全部已读 ({unreadCount})
+          </Button>
         </Box>
       )}
+      <Box sx={{ flex: 1, overflowY: 'auto' }}>
+        {isLoading ? (
+          <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} variant="rounded" height={84} sx={{ bgcolor: 'action.hover' }} />
+            ))}
+          </Box>
+        ) : records.length === 0 ? (
+          <Box sx={{ py: 10, textAlign: 'center' }}>
+            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>暂无系统消息</Typography>
+          </Box>
+        ) : (
+          <Box sx={{ maxWidth: 900, mx: 'auto' }}>
+            {records.map((item) => (
+              <SystemNoticeItem key={item.id} item={item} />
+            ))}
+          </Box>
+        )}
+      </Box>
     </Box>
   );
 }
 
 function SystemNoticeItem({ item }: { item: any }) {
+  const qc = useQueryClient();
   const [snack, setSnack] = useState<{ open: boolean; msg: string }>({ open: false, msg: '' });
+  // 后端系统消息返回原始 NoticeEntity，无 unread 派生字段，用 status 推导
+  const isUnread = item.unread ?? (item.status !== 'READ' && item.status !== 'read');
   const config = (() => {
     if (item.level === 'success') return { color: 'success.main', bg: 'rgba(93, 219, 150, 0.12)', icon: <EventOutlinedIcon sx={{ fontSize: 18 }} /> };
     if (item.level === 'warning') return { color: 'warning.main', bg: 'rgba(255, 180, 0, 0.12)', icon: <ShieldOutlinedIcon sx={{ fontSize: 18 }} /> };
@@ -394,6 +456,13 @@ function SystemNoticeItem({ item }: { item: any }) {
   })();
 
   const handleClick = () => {
+    // 点击即标记已读(异步,不阻塞后续操作)
+    if (isUnread && item.id) {
+      adminClient.post('/notice/system/read', { id: item.id }).then(() => {
+        qc.invalidateQueries({ queryKey: ['notice-system-page'] });
+        qc.invalidateQueries({ queryKey: ['notice', 'count'] });
+      }).catch(() => { /* 已读失败不影响操作 */ });
+    }
     if (item.link) {
       window.open(item.link, '_blank');
       return;
@@ -419,7 +488,7 @@ function SystemNoticeItem({ item }: { item: any }) {
           '&:hover': { bgcolor: 'action.hover' },
         }}
       >
-        {item.unread && (
+        {isUnread && (
           <Box sx={{ position: 'absolute', left: 12, top: 22, width: 6, height: 6, borderRadius: '50%', bgcolor: 'primary.main' }} />
         )}
         <Box
@@ -443,7 +512,7 @@ function SystemNoticeItem({ item }: { item: any }) {
             <Box sx={{ display: 'inline-flex', alignItems: 'center', px: 0.75, py: 0.125, borderRadius: 0.75, bgcolor: config.bg, color: config.color, fontSize: 10, fontWeight: 600 }}>
               {item.typeName}
             </Box>
-            <Typography sx={{ fontSize: 14, fontWeight: item.unread ? 600 : 500, color: 'text.primary', flex: 1 }}>
+            <Typography sx={{ fontSize: 14, fontWeight: isUnread ? 600 : 500, color: 'text.primary', flex: 1 }}>
               {item.title}
             </Typography>
             <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>{systemTime(item.time)}</Typography>

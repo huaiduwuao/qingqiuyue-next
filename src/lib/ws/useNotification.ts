@@ -95,7 +95,8 @@ async function fetchNotifications(page = 1, size = 20): Promise<{ list: Notifica
  */
 async function markNoticeRead(id?: number): Promise<void> {
   if (id) {
-    await adminClient.post(`/notice/interaction/read/${id}`);
+    // 后端是 POST /notice/interaction/read，body 传 {id}，不是路径参数
+    await adminClient.post('/notice/interaction/read', { id });
   }
 }
 

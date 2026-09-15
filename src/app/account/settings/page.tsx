@@ -39,7 +39,8 @@ import PhoneIphoneRoundedIcon from '@mui/icons-material/PhoneIphoneRounded';
 import DoNotDisturbRoundedIcon from '@mui/icons-material/DoNotDisturbRounded';
 import { useApp } from '@/contexts/AppContext';
 import type { CurrentUser } from '@/beans/account';
-import { updateUser, upload } from '@/apis/account';
+import { updateUser } from '@/apis/account';
+import { fileUpload } from '@/apis/global';
 import { sendSmsCode, verifySmsCode } from '@/apis/user';
 import { accountClient, formatApiError } from '@/lib/api/client';
 import { LoginGate } from '@/components/auth/LoginGate';
@@ -99,8 +100,15 @@ export default function AccountSettingsPage() {
     const formData = new FormData();
     formData.append('file', file);
     try {
-      await upload(formData);
-      showMessage('头像上传成功');
+      // 上传到 /file/upload，回填返回的 URL 到头像字段
+      const res = (await fileUpload(formData as any)) as { data?: { url?: string } };
+      const url = res?.data?.url;
+      if (url) {
+        setFormValues((prev) => ({ ...prev, avatar: url }));
+        showMessage('头像上传成功，记得点击保存');
+      } else {
+        showMessage('上传失败，未返回图片地址', 'error');
+      }
     } catch (err) {
       showMessage(formatApiError(err) ||'上传失败', 'error');
     }
@@ -166,7 +174,7 @@ export default function AccountSettingsPage() {
                 <Box sx={{ textAlign: 'center', order: { xs: -1, md: 0 } }}>
                   <Typography variant="subtitle2" sx={{ mb: 1 }}>头像</Typography>
                   <Avatar
-                    src={currentUser?.avatar || '/no_avatar.webp'}
+                    src={formValues.avatar || currentUser?.avatar || '/no_avatar.webp'}
                     sx={{ width: { xs: 80, md: 100 }, height: { xs: 80, md: 100 }, mb: 2 }}
                   />
                   <Button variant="outlined" component="label">
