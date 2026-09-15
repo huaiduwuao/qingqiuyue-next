@@ -179,7 +179,8 @@ function RechargePageContent() {
       originalPrice: p.originalPriceCents ? p.originalPriceCents / 100 : undefined,
       badge: i === best ? ('recommend' as const) : undefined,
       desc: p.name,
-      perDiamond: p.diamondAmount > 0 ? `¥${(p.priceCents / p.diamondAmount / 100).toFixed(2)}/钻` : '',
+      // 订单摘要行自己包「¥ … / 钻」,这里只给数字
+      perDiamond: p.diamondAmount > 0 ? (p.priceCents / p.diamondAmount / 100).toFixed(2) : '',
     }));
   }, [pkgQ.data]);
   const DIAMOND_BENEFITS: DiamondBenefit[] = (benefitQ.data ?? []).map((b: ApiDiamondBenefit) => ({
