@@ -8,7 +8,7 @@
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getWSClient, type WSMessage, type DMPayload } from './client';
-import { imClient } from '@/lib/api/client';
+import { accountClient } from '@/lib/api/client';
 
 // 会话信息
 export interface DMSession {
@@ -63,7 +63,7 @@ export interface UseDirectMessageReturn {
  */
 async function fetchSessions(): Promise<DMSession[]> {
   try {
-    const resp = await imClient.get<{ list: DMSession[] }>('/msg/session/list');
+    const resp = await accountClient.get<{ list: DMSession[] }>('/msg/session/list');
     // resp.data 是 axios 拦截器包装的 { code, msg, data }
     const list = (resp.data as any)?.data?.list;
     return list ?? [];
@@ -77,7 +77,7 @@ async function fetchSessions(): Promise<DMSession[]> {
  */
 async function fetchMessages(sessionId: number, page = 1, size = 50): Promise<{ list: DMPayload[]; hasMore: boolean }> {
   try {
-    const resp = await imClient.get<{ list: DMPayload[]; hasMore: boolean }>('/msg/message/list', {
+    const resp = await accountClient.get<{ list: DMPayload[]; hasMore: boolean }>('/msg/message/list', {
       params: { sessionId, page, size },
     });
     const result = (resp.data as any)?.data;
@@ -91,14 +91,14 @@ async function fetchMessages(sessionId: number, page = 1, size = 50): Promise<{ 
  * 标记会话已读
  */
 async function markRead(sessionId: number): Promise<void> {
-  await imClient.post('/msg/session/read', { sessionId });
+  await accountClient.post('/msg/session/read', { sessionId });
 }
 
 /**
  * 发送消息
  */
 async function sendDM(sessionId: number, content: string, type: 'text' | 'image' | 'audio' = 'text'): Promise<DMPayload> {
-  const resp = await imClient.post<DMPayload>('/msg/message/send', { sessionId, content, type });
+  const resp = await accountClient.post<DMPayload>('/msg/message/send', { sessionId, content, type });
   return (resp.data as any)?.data;
 }
 

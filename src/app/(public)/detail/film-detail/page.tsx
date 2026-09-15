@@ -17,7 +17,6 @@ import StarIcon from '@mui/icons-material/Star';
 import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-film';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
-import { contentClient, formatApiError, isNetworkError } from '@/lib/api/client';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
@@ -64,7 +63,6 @@ function FilmDetailContent() {
     }
   }, [id]);
 
-  const [videoSrc, setVideoSrc] = React.useState<string>('');
   const [snack, setSnack] = React.useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
     open: false,
     message: '',
@@ -77,31 +75,6 @@ function FilmDetailContent() {
 
   // 赞:真实状态从 /interaction 读,操作后以服务端为准并给出提示(见 hooks/useContentInteraction)
   const { liked, likeDelta: optimisticLikes, likeBusy, toggleLike: handleLike } = useContentInteraction(id, { notify });
-
-  React.useEffect(() => {
-    if (!id) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await contentClient.get<{ url: string; cover?: string; title?: string }>('/detail/film/play', {
-          params: { id },
-        });
-        if (cancelled) return;
-        setVideoSrc(res?.data?.url || '');
-      } catch (err) {
-        if (cancelled) return;
-        if (isNetworkError(err)) {
-          setVideoSrc('');
-        } else {
-          notify(formatApiError(err), 'error');
-          setVideoSrc('');
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [id, notify]);
 
   const handleShare = async () => {
     const url = typeof window !== 'undefined' ? window.location.href : '';
@@ -148,7 +121,7 @@ function FilmDetailContent() {
           <>
             <Box sx={{ bgcolor: '#000' }}>
               <Container maxWidth="lg" sx={{ py: 0 }}>
-                <VideoPlayer src={videoSrc || data.videoUrl || ''} sourceUrl={data.source || ''} poster={data.cover} initialDuration={(data.duration || 0) * 60} autoPlay={false} />
+                <VideoPlayer src={data.videoUrl || ''} sourceUrl={data.source || ''} poster={data.cover} initialDuration={(data.duration || 0) * 60} autoPlay={false} />
               </Container>
             </Box>
 

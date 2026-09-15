@@ -100,9 +100,10 @@ export async function searchSuggest(params?: any) {
   return rewardClient("/chart/search/list", { params });
 }
 
-// 热词 - GET /api/core/chart/day-search/list
+// 搜索页「热门搜索」:core-api 从没挂过 /chart/day-search/list(404),改用站内热榜
+// GET /api/content/analytics/hot,返回 { list: [{ title, ... }] },搜索页取 title 作热词。
 export async function topKeywordInThirdMonth(params?: any) {
-  return rewardClient("/chart/day-search/list", { params });
+  return contentClient("/analytics/hot", { params: { limit: 10, ...params } });
 }
 
 // ========== Global/Other APIs ==========

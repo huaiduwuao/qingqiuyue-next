@@ -29,7 +29,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import { darkTheme } from '@/styles/theme';
 import { useApp } from '@/contexts/AppContext';
 import { updateUser } from '@/apis/account';
-import { adminClient, accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
+import { adminClient, isAuthError, formatApiError } from '@/lib/api/client';
 import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2 } from '@/constants/gradients';
 
@@ -270,22 +270,13 @@ function WallpaperPageContent() {
     if (downloading) return;
     setDownloading(wp.id);
     try {
-      let res: { url?: string; filename?: string } = {};
-      try {
-        const apiRes = await accountClient.post<typeof res>('/wallpaper/download', { id: wp.id });
-        res = apiRes.data ?? (apiRes as any);
-      } catch (err) {
-        // 网络错时 fallback 到直接打开预览(仅前端演示,非真实下载)
-        if (isNetworkError(err)) {
-          if (typeof window !== 'undefined' && wp.bg) {
-            window.open(wp.bg, '_blank');
-          }
-          setToast({ open: true, msg: '网络异常,已打开预览图' });
-          return;
-        }
-        throw err;
+      // 后端没有 /wallpaper/download(只有 /wallpaper/list),壁纸图片地址就在列表数据里,直接下载。
+      const res = { url: wp.bg, filename: `${wp.title}.png` };
+      if (!res.url) {
+        setToast({ open: true, msg: '这张壁纸暂无可下载的图片' });
+        return;
       }
-      if (res.url && typeof window !== 'undefined') {
+      if (typeof window !== 'undefined') {
         const a = document.createElement('a');
         a.href = res.url;
         a.download = res.filename ?? `${wp.title}.png`;

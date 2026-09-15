@@ -1,5 +1,5 @@
 import { reportBehavior } from '@/apis/recommend';
-import { homeClient } from '@/lib/api/client';
+import { contentClient, homeClient } from '@/lib/api/client';
 import { safeErrorLog } from './error-handler';
 import { toEntityId } from './id';
 
@@ -82,7 +82,8 @@ export function trackPageView(pathname: string, search = '') {
   const uid = currentUserId();
   const page = search ? `${pathname}${search}` : pathname;
   try {
-    void homeClient.post('/behavior', {
+    // 行为上报在 /api/content/behavior(recommendapp),homeClient 会拼成不存在的 /home/behavior
+    void contentClient.post('/behavior', {
       userId: uid,
       itemId: 0,
       itemType: 'PAGE',
