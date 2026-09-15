@@ -128,10 +128,21 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
     }
   }, [status, pathname, router]);
 
-  // 任意接口带着会话返回 401 → 会话已失效;其它标签页登录/登出 → 同步。
+  // 带着会话的接口返回 401 → 向 core-api 复核一次,确认失效才清会话;其它标签页登录/登出 → 同步。
+  // 此前任何一个 401 都直接清会话:Steward 等其它服务鉴权失败(与会话是否有效无关)时,
+  // 打开 /system 下的某些页就会被踢回登录页。
   useEffect(() => {
-    const onExpired = () => {
-      if (readSession()) clearLocal();
+    let checking = false;
+    const onExpired = async () => {
+      if (checking || !readSession()) return;
+      checking = true;
+      try {
+        await queryCurrent();
+      } catch (err) {
+        if (isAuthError(err)) clearLocal();
+      } finally {
+        checking = false;
+      }
     };
     const onStorage = (e: StorageEvent) => {
       if (e.key !== SESSION_KEY) return;
