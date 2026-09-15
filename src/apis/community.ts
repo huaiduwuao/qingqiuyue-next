@@ -6,7 +6,8 @@ import { contentClient } from '@/lib/api/client';
 export type Id = number | string;
 export type TopicKind = 'collection' | 'topic';
 export type FeedType = 'post' | 'publish' | 'comment' | 'like' | 'collect' | 'follow';
-export type FeedTab = 'square' | 'following' | 'topic' | 'user';
+/** follow / friend:首页「关注」「好友」页签,只看关注的人 / 好友的动态 */
+export type FeedTab = 'square' | 'following' | 'follow' | 'friend' | 'topic' | 'user';
 
 export interface CommunityUser {
   id: Id;

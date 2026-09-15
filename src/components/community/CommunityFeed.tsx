@@ -17,22 +17,23 @@ const PAGE_SIZE = 15;
 type Sort = 'hot' | 'new';
 
 /**
- * 动态流。三种用法:
+ * 动态流。四种用法:
  *  - 默认:广场 / 关注 两个页签(社区首页)
  *  - topic:某个话题/专题下的讨论,发帖框预选该话题
  *  - userId:某个人的动态
+ *  - circle:首页「关注」「好友」页签,只看关注的人 / 好友的动态(发帖、发布作品、评论、点赞…)
  */
-export function CommunityFeed({ topic, userId, focusFeedId }: { topic?: TopicBrief; userId?: Id; focusFeedId?: string | null }) {
+export function CommunityFeed({ topic, userId, focusFeedId, circle }: { topic?: TopicBrief; userId?: Id; focusFeedId?: string | null; circle?: 'follow' | 'friend' }) {
   const router = useRouter();
   const [tab, setTab] = useState<'square' | 'following'>('square');
-  const [sort, setSort] = useState<Sort>(topic ? 'new' : 'hot');
+  const [sort, setSort] = useState<Sort>(topic || circle ? 'new' : 'hot');
   // 刚发出的帖子插在列表顶部;按列表 key 记,切换页签/排序后自然失效
   const [freshByKey, setFreshByKey] = useState<{ key: string; items: FeedItem[] }>({ key: '', items: [] });
   const [removed, setRemoved] = useState<Set<string>>(new Set());
   const [snack, setSnack] = useState<{ msg: string; severity: 'success' | 'error' | 'info' } | null>(null);
   const notify: Notify = (msg, severity = 'success') => setSnack({ msg, severity });
 
-  const mode: FeedTab = topic ? 'topic' : userId ? 'user' : tab;
+  const mode: FeedTab = circle ?? (topic ? 'topic' : userId ? 'user' : tab);
   const queryKey = ['community', 'feed', mode, sort, String(topic?.id ?? ''), String(userId ?? '')];
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, isError, refetch } = useInfiniteQuery({
     queryKey,
@@ -47,7 +48,7 @@ export function CommunityFeed({ topic, userId, focusFeedId }: { topic?: TopicBri
   const focus = useQuery({
     queryKey: ['community', 'feed-one', focusFeedId],
     queryFn: () => fetchFeedItem(focusFeedId as string),
-    enabled: !!focusFeedId && !topic && !userId,
+    enabled: !!focusFeedId && !topic && !userId && !circle,
     retry: false,
   });
 
@@ -83,10 +84,10 @@ export function CommunityFeed({ topic, userId, focusFeedId }: { topic?: TopicBri
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      {!userId && <PostComposer presetTopic={topic} notify={notify} onPosted={addFresh} />}
+      {!userId && !circle && <PostComposer presetTopic={topic} notify={notify} onPosted={addFresh} />}
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        {!topic && !userId && (
+        {!topic && !userId && !circle && (
           <Box sx={{ display: 'flex', gap: 2 }}>
             {(['square', 'following'] as const).map((t) => (
               <Typography
@@ -142,11 +143,18 @@ export function CommunityFeed({ topic, userId, focusFeedId }: { topic?: TopicBri
           <Button size="small" onClick={() => refetch()}>重试</Button>
         </Empty>
       ) : needLogin ? (
-        <Empty title="登录后查看关注动态" hint="你关注的人和话题的新动态会出现在这里">
+        <Empty
+          title={circle === 'friend' ? '登录后查看好友动态' : '登录后查看关注动态'}
+          hint={circle === 'friend' ? '好友的新动态会出现在这里' : circle ? '你关注的人的新动态会出现在这里' : '你关注的人和话题的新动态会出现在这里'}
+        >
           <Button size="small" variant="contained" onClick={() => router.push('/user/login')} sx={{ borderRadius: 999, bgcolor: 'var(--brand-color, #FE2C55)' }}>登录</Button>
         </Empty>
       ) : items.length === 0 ? (
-        mode === 'following' ? (
+        circle === 'follow' ? (
+          <Empty title="还没有关注动态" hint="你关注的人发帖、发布作品、评论和点赞,都会出现在这里" />
+        ) : circle === 'friend' ? (
+          <Empty title="好友还没有动态" hint="好友发帖、发布作品、评论和点赞,都会出现在这里" />
+        ) : mode === 'following' ? (
           <Empty title="还没有关注动态" hint="关注感兴趣的人和话题,他们的新动态会出现在这里">
             <Button size="small" onClick={() => router.push('/home/recommend?tab=topic')}>去逛逛话题</Button>
           </Empty>

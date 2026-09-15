@@ -35,6 +35,7 @@ import { homeClient, contentClient, formatApiError } from '@/lib/api/client';
 import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
 import { FriendPanel } from './FriendPanel';
+import { CommunityFeed } from '@/components/community/CommunityFeed';
 import SendToSpider from '@/components/SendToSpider';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { fetchSubcategories, type SubcategoryItem } from '@/apis/home-discover';
@@ -353,7 +354,8 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
       }
       return undefined;
     },
-    enabled: tab !== 'recommend',
+    // 关注/好友页签由 CommunityFeed 渲染 user_feed 动态(发帖、发布作品、评论、点赞…),不走这条作品流
+    enabled: tab !== 'recommend' && !isPersonal,
   });
 
   // 合并所有页面的数据
@@ -645,16 +647,8 @@ export function FeedPanel({ tab }: { tab: 'home' | 'follow' | 'friend' | 'recomm
               {isPersonal ? (
                 // 关注/朋友:中间是 feed(倒序),右侧是推荐用户(sticky,lg+ 才显示)
                 <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    {feedList.length > 0 ? (
-                      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
-                        {feedList.map((item) => (
-                          <FeedCard key={item.id} item={item} tab={tab} onSnack={(m, s) => setSnack({ open: true, message: m, severity: s })} />
-                        ))}
-                      </Box>
-                    ) : (
-                      <EmptyHint tab={tab} section={section} />
-                    )}
+                  <Box sx={{ flex: 1, minWidth: 0, maxWidth: 720, mx: 'auto' }}>
+                    <CommunityFeed circle={tab === 'friend' ? 'friend' : 'follow'} />
                   </Box>
                   <Box
                     sx={{
@@ -1301,6 +1295,7 @@ function FollowList({ onSnack }: { onSnack: (msg: string, severity?: 'success' |
       await homeClient.delete(`/follow/${user.id}`);
       qc.invalidateQueries({ queryKey: ['home', 'follow', 'list'] });
       qc.invalidateQueries({ queryKey: ['home', 'feed'] });
+      qc.invalidateQueries({ queryKey: ['community', 'feed'] });
       qc.invalidateQueries({ queryKey: ['home', 'suggestions'] });
       onSnack(`已取消关注 ${user.name}`, 'success');
     } catch {
