@@ -8,7 +8,7 @@
  *   PUT    /api/core/task/{id}
  *   DELETE /api/core/task/{id}
  *   POST   /api/core/task/{id}/claim     OPEN → CLAIMED
- *   POST   /api/core/task/{id}/submit    CLAIMED → SUBMITTED
+ *   POST   /api/core/task/{id}/submit    CLAIMED → SUBMITTED {deliverable, workId?}
  *   POST   /api/core/task/{id}/review    SUBMITTED → APPROVED|REJECTED
  *
  * 响应通过 axios 拦截器解包为 { code, msg, data },这里直接返回 data。
@@ -70,10 +70,11 @@ export async function claimTask(id: number) {
   return rewardClient(`/task/${id}/claim`, { method: 'POST' });
 }
 
-export async function submitTask(id: number, deliverable: string) {
+/** 提交交付:文字说明与作品(我的作品里的一件,id 按字符串传,避免 BIGINT 精度丢失)至少有一样 */
+export async function submitTask(id: number, deliverable: string, workId?: string | number | null) {
   return rewardClient(`/task/${id}/submit`, {
     method: 'POST',
-    data: { deliverable },
+    data: { deliverable, ...(workId ? { workId: String(workId) } : {}) },
   });
 }
 

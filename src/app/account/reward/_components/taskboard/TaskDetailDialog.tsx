@@ -14,11 +14,14 @@ import Typography from '@mui/material/Typography';
 import Divider from '@mui/material/Divider';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
+import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutlineOutlined';
+import CollectionsOutlinedIcon from '@mui/icons-material/CollectionsOutlined';
 import { alpha } from '@mui/material/styles';
 import { claimTask, submitTask, reviewTask, disputeTask } from '@/apis/reward-task';
 import type { RewardTask, RewardTaskStatus } from '@/beans/reward';
 import { BotBadge } from '@/components/community/UserLine';
 import { normalizeRewardTaskStatus, REWARD_TASK_STATUS_LABEL, REWARD_TASK_STATUS_COLOR } from './status';
+import { DeliveredWork, useOpenDm, WorkPickerDialog, type TaskWorkRef } from './TaskLinks';
 
 interface Props {
   open: boolean;
@@ -43,10 +46,16 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
   const [reviewNote, setReviewNote] = useState('');
   const [disputeReason, setDisputeReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [pickedWork, setPickedWork] = useState<TaskWorkRef | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const dm = useOpenDm(onError);
 
   useEffect(() => {
     if (open) {
-      setDeliverable(task?.deliverable || '');
+      // 只选了作品时后端自动生成「提交作品《…》」,重新提交时不回填,免得和作品重复
+      const auto = !!task?.workId && (task?.deliverable || '').startsWith('提交作品《');
+      setDeliverable(auto ? '' : task?.deliverable || '');
+      setPickedWork(taskWork(task));
       setReviewNote('');
       setDisputeReason('');
     }
@@ -66,6 +75,10 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
   // 认领人对驳回有异议时可申请平台仲裁(只限挂在需求下、有赏金的任务)
   const rejectedMine = status === 'REJECTED' && isAssignee && !!task.demandId;
   const canDispute = rejectedMine && task.disputeStatus !== 'pending';
+  // 私信对象:认领人找发布者,发布者找认领人
+  const dmPeer = isAssignee ? task.managerId : isOwner ? task.assigneeId : null;
+  const dmLabel = isAssignee ? '私信发布者' : '私信认领人';
+  const deliveredWork = taskWork(task);
 
   const handleDispute = async () => {
     setSubmitting(true);
@@ -94,13 +107,13 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
   };
 
   const handleSubmit = async () => {
-    if (!deliverable.trim()) {
-      onError('请填写交付物链接或说明');
+    if (!deliverable.trim() && !pickedWork) {
+      onError('请选择交付的作品,或填写交付物链接/说明');
       return;
     }
     setSubmitting(true);
     try {
-      const res: any = await submitTask(task.id!, deliverable);
+      const res: any = await submitTask(task.id!, deliverable, pickedWork?.id);
       if (isOk(res)) onChanged(res.data);
       else onError(res?.msg || '提交失败');
     } catch (e: any) {
@@ -259,10 +272,23 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
             <Typography sx={{ fontSize: 12, color: 'secondary.main', mb: 1 }}>
               {status === 'REJECTED' ? '任务被驳回,请修改后重新提交' : '提交你的工作成果'}
             </Typography>
+            {pickedWork ? (
+              <DeliveredWork work={pickedWork} onRemove={() => setPickedWork(null)} />
+            ) : (
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<CollectionsOutlinedIcon sx={{ fontSize: 16 }} />}
+                onClick={() => setPickerOpen(true)}
+                sx={{ mb: 1, textTransform: 'none' }}
+              >
+                从我的作品选择
+              </Button>
+            )}
             <TextField
               value={deliverable}
               onChange={(e) => setDeliverable(e.target.value)}
-              placeholder="交付物链接 / 文本说明"
+              placeholder={pickedWork ? '补充说明(选填)' : '交付物链接 / 文本说明;也可以先选一件作品'}
               fullWidth
               multiline
               minRows={2}
@@ -329,9 +355,10 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
                 这份交付由平台运营的 AI 用户生成。不满意可以直接驳回,任务会重新开放给其他人认领。
               </Typography>
             )}
+            {deliveredWork && <DeliveredWork work={deliveredWork} />}
             {task.deliverable && (
-              <Typography sx={{ fontSize: 11, color: 'text.tertiary', mb: 1, wordBreak: 'break-all' }}>
-                交付物: {task.deliverable}
+              <Typography sx={{ fontSize: 11, color: 'text.tertiary', mb: 1, wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>
+                交付说明: {task.deliverable}
               </Typography>
             )}
             <TextField
@@ -379,6 +406,7 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
         {waitingReview && (
           <Box sx={{ p: 1.5, bgcolor: 'rgba(255,180,0,0.08)', border: '1px solid rgba(255,180,0,0.3)', borderRadius: 1, mb: 2 }}>
             <Typography sx={{ fontSize: 12, color: 'warning.main', mb: task.deliverable ? 0.5 : 0 }}>已提交,等待发布者验收</Typography>
+            {deliveredWork && <DeliveredWork work={deliveredWork} />}
             {task.deliverable && (
               <Typography sx={{ fontSize: 11, color: 'text.tertiary', wordBreak: 'break-all' }}>交付物: {task.deliverable}</Typography>
             )}
@@ -390,6 +418,7 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
             <Typography sx={{ fontSize: 11, color: '#8B5CF6' }}>✓ 已通过 · {task.reviewNote}</Typography>
           </Box>
         )}
+        {status === 'APPROVED' && deliveredWork && <DeliveredWork work={deliveredWork} />}
 
         {/* Timeline */}
         <Divider sx={{ borderColor: 'divider', my: 2 }} />
@@ -427,10 +456,38 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
         ) : (
           <Box />
         )}
-        <Button size="small" variant="outlined" onClick={onClose} sx={{ borderColor: 'divider', color: 'text.tertiary' }}>
-          关闭
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          {!!dmPeer && dmPeer !== currentUserId && (
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<ChatBubbleOutlineIcon sx={{ fontSize: 14 }} />}
+              disabled={dm.opening}
+              onClick={() => dm.open(dmPeer)}
+              sx={{ textTransform: 'none' }}
+            >
+              {dmLabel}
+            </Button>
+          )}
+          <Button size="small" variant="outlined" onClick={onClose} sx={{ borderColor: 'divider', color: 'text.tertiary' }}>
+            关闭
+          </Button>
+        </Box>
       </DialogActions>
+      <WorkPickerDialog
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onPick={(w) => {
+          setPickedWork(w);
+          setPickerOpen(false);
+        }}
+      />
     </Dialog>
   );
+}
+
+/** 任务上保存的交付作品快照 */
+function taskWork(task: RewardTask | null): TaskWorkRef | null {
+  if (!task?.workId || String(task.workId) === '0') return null;
+  return { id: task.workId, contentType: task.workType || '', title: task.workTitle || '', cover: task.workCover || undefined };
 }

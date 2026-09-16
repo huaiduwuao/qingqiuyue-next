@@ -45,6 +45,7 @@ import { blockUser, followUser, unblockUser, unfollowUser } from '@/apis/social'
 import { UserAvatarLink } from '@/components/common/UserAvatarLink';
 import { useMsgUi } from './store';
 import { useAuth } from '@/contexts/AuthContext';
+import { useApp } from '@/contexts/AppContext';
 
 interface Session {
   id: number;
@@ -58,7 +59,7 @@ interface Session {
   isOfficial?: boolean;
   unread: number;
   lastMessage: string;
-  lastMessageType: 'text' | 'image' | 'system' | 'recall';
+  lastMessageType: 'text' | 'image' | 'system' | 'recall' | 'bounty';
   lastTime: string;
   pinned: boolean;
 }
@@ -67,7 +68,8 @@ interface Message {
   id: number;
   sessionId: number;
   fromUserId: number;
-  type: 'text' | 'image' | 'system' | 'recall' | 'time';
+  /** bounty:悬赏任务流转卡片,content 是 JSON(后端 service.BountyCard),只能由服务端写入 */
+  type: 'text' | 'image' | 'system' | 'recall' | 'time' | 'bounty';
   content: string;
   time: string;
   status?: 'sent' | 'delivered' | 'read';
@@ -573,6 +575,8 @@ function SystemNoticeItem({ item }: { item: any }) {
 // ─── 私信面板(原 私信 页内容) ───
 function DmPanel() {
   const { isAuthenticated } = useAuth();
+  const { currentUser } = useApp();
+  const myId = currentUser?.id ?? 0;
   const selectedId = useMsgUi((s) => s.selectedId);
   const setSelectedId = useMsgUi((s) => s.setSelectedId);
   const [keyword, setKeyword] = useState('');
@@ -595,6 +599,7 @@ function DmPanel() {
     queryKey: ['dm-sessions-page'],
     queryFn: async () => (await adminClient('/msg/session/list')).data,
     enabled: mounted && isAuthenticated,  // 未登录不发请求(否则 401 刷屏)
+    refetchInterval: 15_000, // 没有推送通道,轮询新会话与未读
   });
   const sessions: Session[] = sessionData?.list || [];
 
@@ -618,8 +623,19 @@ function DmPanel() {
     queryKey: ['dm-messages-page', selectedId],
     queryFn: async () => (await adminClient('/msg/message/list', { params: { sessionId: selectedId } })).data,
     enabled: selectedId !== null,
+    refetchInterval: 5_000, // 对方的新消息靠轮询拉取
   });
   const messages: Message[] = msgData?.list || [];
+
+  // 打开的会话有未读就标记已读(包括停留期间新到的消息)
+  const selectedUnread = sessions.find((s) => s.id === selectedId)?.unread ?? 0;
+  useEffect(() => {
+    if (!selectedId || selectedUnread <= 0) return;
+    adminClient
+      .post('/msg/session/read', { id: selectedId })
+      .then(() => qc.invalidateQueries({ queryKey: ['dm-sessions-page'] }))
+      .catch(() => {});
+  }, [selectedId, selectedUnread, messages.length, qc]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -639,7 +655,7 @@ function DmPanel() {
         const optimistic: Message = {
           id: Date.now(),
           sessionId: selectedId!,
-          fromUserId: 2000,
+          fromUserId: myId,
           type: 'text',
           content: variables,
           time: new Date().toISOString(),
@@ -666,7 +682,7 @@ function DmPanel() {
         const optimistic: Message = {
           id: Date.now(),
           sessionId: selectedId!,
-          fromUserId: 2000,
+          fromUserId: myId,
           type: 'image',
           content: variables,
           time: new Date().toISOString(),
@@ -1046,7 +1062,7 @@ function DmPanel() {
                       key={m.id}
                       message={m}
                       avatar={selected.avatar}
-                      isMine={m.fromUserId === 2000}
+                      isMine={m.fromUserId === myId}
                       onRecall={() => recallMutation.mutate(m.id)}
                     />
                   ))
@@ -1223,11 +1239,130 @@ function SessionItem({ session, active, onClick }: { session: Session; active: b
             {session.nickname}
           </Typography>
           {session.isOfficial && <VerifiedIcon sx={{ fontSize: 12, color: 'secondary.main' }} />}
-          <Typography sx={{ fontSize: 10, color: 'text.disabled', flexShrink: 0 }}>{session.lastTime}</Typography>
+          <Typography sx={{ fontSize: 10, color: 'text.disabled', flexShrink: 0 }}>{fmtSessionTime(session.lastTime)}</Typography>
         </Box>
         <Typography sx={{ fontSize: 12, color: session.unread > 0 ? 'text.primary' : 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.4 }}>
-          {session.lastMessageType === 'image' ? '[图片]' : session.lastMessageType === 'recall' ? '你撤回了一条消息' : session.lastMessage}
+          {session.lastMessageType === 'image'
+            ? '[图片]'
+            : session.lastMessageType === 'bounty'
+              ? '[悬赏任务]'
+              : session.lastMessageType === 'recall'
+                ? '你撤回了一条消息'
+                : session.lastMessage}
         </Typography>
+      </Box>
+    </Box>
+  );
+}
+
+/** 会话列表时间:今天显示时分,更早显示月-日 */
+function fmtSessionTime(iso?: string) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return d.toDateString() === now.toDateString()
+    ? `${pad(d.getHours())}:${pad(d.getMinutes())}`
+    : `${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+interface BountyCardData {
+  event: 'claimed' | 'submitted' | 'approved' | 'rejected' | 'reopened';
+  taskId: number;
+  taskTitle: string;
+  demandId?: number;
+  demandTitle?: string;
+  reward?: number;
+  text?: string;
+  work?: { id: string | number; contentType: string; title: string; cover?: string };
+}
+
+const BOUNTY_EVENT: Record<BountyCardData['event'], { mine: string; theirs: string; color: string }> = {
+  claimed: { mine: '我认领了你的任务', theirs: '认领了你的任务', color: 'success.main' },
+  submitted: { mine: '我提交了交付', theirs: '提交了交付,等你验收', color: 'warning.main' },
+  approved: { mine: '我验收通过了你的交付', theirs: '验收通过了你的交付', color: '#8B5CF6' },
+  rejected: { mine: '我驳回了你的交付', theirs: '驳回了你的交付,请修改后重新提交', color: 'primary.main' },
+  reopened: { mine: '我驳回了交付,任务已重新开放', theirs: '驳回了交付,任务已重新开放', color: 'primary.main' },
+};
+
+/** 悬赏任务流转卡片:认领 / 提交 / 验收时由服务端以操作人的身份写进双方私信。 */
+function BountyCardBubble({ content, isMine }: { content: string; isMine: boolean }) {
+  let card: BountyCardData | null = null;
+  try {
+    card = JSON.parse(content);
+  } catch {
+    card = null;
+  }
+  if (!card?.taskId) {
+    return <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>[悬赏任务]</Typography>;
+  }
+  const ev = BOUNTY_EVENT[card.event] ?? { mine: card.event, theirs: card.event, color: 'text.secondary' };
+  const workHref = card.work ? getDetailRoute(card.work.contentType, card.work.id) : null;
+  return (
+    <Box
+      sx={{
+        width: 280,
+        maxWidth: '100%',
+        borderRadius: 2,
+        border: '1px solid',
+        borderColor: 'divider',
+        bgcolor: 'background.paper',
+        overflow: 'hidden',
+      }}
+    >
+      <Box sx={{ px: 1.5, py: 0.75, bgcolor: 'action.hover', display: 'flex', alignItems: 'center', gap: 0.75 }}>
+        <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: ev.color }} />
+        <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>悬赏任务 · {isMine ? ev.mine : ev.theirs}</Typography>
+      </Box>
+      <Box sx={{ px: 1.5, py: 1 }}>
+        <Typography sx={{ fontSize: 13, fontWeight: 600, lineHeight: 1.5 }}>{card.taskTitle}</Typography>
+        {card.demandTitle && (
+          <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+            需求:{card.demandTitle}
+            {card.reward ? ` · 标价 ¥${card.reward}` : ''}
+          </Typography>
+        )}
+        {card.work && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1, p: 0.75, borderRadius: 1, bgcolor: 'action.hover' }}>
+            <Box
+              sx={{
+                width: 36,
+                height: 36,
+                borderRadius: 0.75,
+                flexShrink: 0,
+                bgcolor: 'action.selected',
+                backgroundImage: card.work.cover ? `url("${card.work.cover}")` : undefined,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+              }}
+            />
+            <Typography noWrap sx={{ fontSize: 12, flex: 1, minWidth: 0 }}>
+              {card.work.title}
+            </Typography>
+            {workHref && (
+              <Button size="small" href={workHref} target="_blank" sx={{ minWidth: 0, fontSize: 11, textTransform: 'none' }}>
+                查看
+              </Button>
+            )}
+          </Box>
+        )}
+        {card.text && (
+          <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.75, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            {card.text}
+          </Typography>
+        )}
+      </Box>
+      <Box sx={{ px: 1.5, pb: 1 }}>
+        <Button
+          size="small"
+          variant="outlined"
+          fullWidth
+          href={`/account/reward?tab=board&task=${card.taskId}`}
+          sx={{ textTransform: 'none', fontSize: 12 }}
+        >
+          打开任务
+        </Button>
       </Box>
     </Box>
   );
@@ -1252,6 +1387,14 @@ function MessageBubble({ message, avatar, isMine, onRecall }: { message: Message
     return (
       <Box sx={{ alignSelf: 'center', py: 0.5 }}>
         <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>{message.content}</Typography>
+      </Box>
+    );
+  }
+  if (message.type === 'bounty') {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', gap: 1, alignItems: 'flex-end' }}>
+        {!isMine && <img src={avatar || undefined} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', display: 'block', flexShrink: 0 }} />}
+        <BountyCardBubble content={message.content} isMine={isMine} />
       </Box>
     );
   }

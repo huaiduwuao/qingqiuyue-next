@@ -37,7 +37,7 @@ import { TaskCard } from './TaskCard';
 import { TaskDetailDialog } from './TaskDetailDialog';
 import { TaskEditDialog } from './TaskEditDialog';
 import { normalizeRewardTaskStatus, mapRewardTaskListFromBackend, mapRewardTaskFromBackend } from './status';
-import { listTasks, claimTask, submitTask, reviewTask } from '@/apis/reward-task';
+import { listTasks, claimTask, submitTask, reviewTask, getTask } from '@/apis/reward-task';
 import { listProjects } from '@/apis/reward-project';
 import { listGroups } from '@/apis/reward-group';
 import { myPage as listDemands } from '@/apis/reward-demand';
@@ -90,6 +90,22 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
 
   const showMessage = (message: string, severity: 'success' | 'error' = 'success') =>
     setSnackbar({ open: true, message, severity });
+
+  // 私信里的悬赏卡片带 ?tab=board&task=<id> 过来:直接打开那个任务(打开后从地址栏去掉,刷新不再重复弹)
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const taskId = Number(url.searchParams.get('task'));
+    if (!taskId) return;
+    url.searchParams.delete('task');
+    window.history.replaceState(window.history.state, '', url.toString());
+    getTask(taskId)
+      .then((res: any) => {
+        if (res?.data) setDetailTask(mapRewardTaskFromBackend(res.data) as RewardTask);
+        else showMessage(res?.msg || '任务不存在或已删除', 'error');
+      })
+      .catch((e: any) => showMessage(e?.message || '任务加载失败', 'error'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 项目列表
   const projectsQuery = useQuery({

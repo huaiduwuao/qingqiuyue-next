@@ -147,4 +147,9 @@ export interface RewardTask extends TableListItem {
   managerIsBot?: boolean;
   /** 最近一次平台仲裁的状态;没申请过为空 */
   disputeStatus?: 'pending' | 'resolved' | 'rejected';
+  /** 交付的作品(我的作品里的一件)及提交时的快照;BIGINT 按字符串下发 */
+  workId?: string | number;
+  workType?: string;
+  workTitle?: string;
+  workCover?: string;
 }
