@@ -133,6 +133,10 @@ export default function BotConfigPanel({ onMessage }: { onMessage: (msg: string,
           label="按作息曲线调节(凌晨少、晚上多)"
         />
         <FormControlLabel
+          control={<Switch checked={form.hourlyFloor ?? true} onChange={(e) => setForm({ ...form, hourlyFloor: e.target.checked })} />}
+          label="每小时保底(发帖 / 动态评论 / 悬赏 / 作品各至少一次)"
+        />
+        <FormControlLabel
           control={<Switch color="warning" checked={form.paused} onChange={(e) => setForm({ ...form, paused: e.target.checked })} />}
           label="暂停全部 AI 用户"
         />
@@ -162,6 +166,9 @@ export default function BotConfigPanel({ onMessage }: { onMessage: (msg: string,
               return (
                 <Box key={r.kind} sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 13 }}>
                   <Chip size="small" label={meta.text} color={meta.color} variant="outlined" />
+                  {r.via === 'http' ? (
+                    <Chip size="small" label="发布接口" variant="outlined" sx={{ fontSize: 11 }} title="和创作者中心表单走同一条 HTTP 发布链路" />
+                  ) : null}
                   <Typography sx={{ fontSize: 13, fontWeight: 600, minWidth: 56 }}>{r.label}</Typography>
                   {route && r.status === 'published' ? (
                     <Link href={route} target="_blank" rel="noreferrer" sx={{ fontSize: 13 }}>打开作品</Link>

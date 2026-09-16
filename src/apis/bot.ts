@@ -61,6 +61,8 @@ export interface BotConfig {
   worksPerDay: number;
   /** 置 true 保存后,调度器一分钟内让 13 个 AI 用户每人投一种类型的作品(跑起来后自动清回 false) */
   seedWorksOnce?: boolean;
+  /** 每小时保底:发帖、动态评论、悬赏、作品每小时至少各一次,不占每天额度 */
+  hourlyFloor: boolean;
 }
 
 /** 「每种类型各发一篇」里一种类型的结果 */
@@ -73,6 +75,8 @@ export interface WorkSeedResult {
   contentId?: string;
   status: 'published' | 'skipped' | 'failed';
   error?: string;
+  /** http = 走了和创作者中心表单相同的发布接口;service = 服务内直接建内容 */
+  via?: 'http' | 'service';
 }
 
 export interface WorkSeedStatus {
