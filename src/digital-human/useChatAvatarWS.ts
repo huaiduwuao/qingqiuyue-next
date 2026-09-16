@@ -15,6 +15,7 @@
 
 import React from 'react';
 import { devLog } from '@/lib/dev-log';
+import { appendMessage, isServerConversationId, listMessages } from './conversationApi';
 import type {
   ChatAvatarState,
   ChatLogItem,
@@ -666,6 +667,12 @@ export interface UseChatAvatarWSOptions {
    * 用于文字输入也走本地意图路由(walk_to/换装/切agent),纯聊天放行给 AG-UI。
    */
   preSendText?: (text: string) => boolean | Promise<boolean>;
+  /**
+   * AG-UI 模式:当前还没有服务端会话时,发送前调用它建一个并返回 id(失败返回 null);
+   * firstText 是这条消息,可直接用作会话标题。
+   * 没有它,第一条消息的 session_id 为空,后端不落库、会话列表里也看不到这段对话。
+   */
+  ensureConversation?: (firstText: string) => Promise<string | null>;
 }
 
 export function useChatAvatarWS(agentId: string = 'digital_human', options: UseChatAvatarWSOptions = {}): ChatAvatarState {
@@ -732,15 +739,26 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     setText('');
   }, []);
 
+  // AG-UI 发送前确保有服务端会话:没有就建一个,只换 id、不清当前对话记录
+  const ensureConversationRef = React.useRef(options.ensureConversation);
+  ensureConversationRef.current = options.ensureConversation;
+  const ensureServerConversation = React.useCallback(async (firstText: string) => {
+    if (isServerConversationId(conversationIdRef.current)) return;
+    const cid = await ensureConversationRef.current?.(firstText).catch(() => null);
+    if (!isServerConversationId(cid)) return;
+    conversationIdRef.current = cid;
+    try { localStorage.setItem('dhConversationId', cid); } catch {}
+    setConversationId(cid);
+  }, []);
+
   // 加载指定会话的历史消息(从会话列表同源接口拉取),填充 chatLog
   const isLoadingMessagesRef = React.useRef(false);
 
   const loadConversationMessages = React.useCallback(async (cid: string) => {
     isLoadingMessagesRef.current = true;
     try {
-      const res = await fetch(`/api/agentmanager/conversations/${cid}/messages`).catch(() => null)
-      if (!res || !res.ok) return
-      const j = await res.json().catch(() => null)
+      if (!isServerConversationId(cid)) return
+      const j = await listMessages(cid).catch(() => null)
       const msgs = j?.messages ?? []
       // 映射 role → who,过滤掉空内容占位消息(工具调用占位 content='' 不显示)
       //
@@ -749,7 +767,8 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
       // 于是翻旧会话就能看见一行行 "<mouth:speak/>你发送了一个字母…"。
       // 剥完可能变成空串(整条消息只有指令),这类一并过滤掉。
       const items = msgs
-        .filter((m: any) => typeof m.content === 'string' && m.content.trim() !== '')
+        // 服务端记录里还有 tool 行(content 是工具名)和 system 行,不是对话气泡
+        .filter((m: any) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim() !== '')
         .map((m: any) => ({
           who: (m.role === 'user' ? 'user' : 'ai') as 'user' | 'ai',
           text: stripAvatarDirectives(m.content).trim(),
@@ -777,18 +796,15 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
       return; // 正在从后端加载历史,跳过本次持久化
     }
     const cid = conversationIdRef.current;
-    if (!cid || typeof cid !== 'string' || cid.startsWith('local-')) {
+    // AG-UI 模式由后端 recorder 记录整轮对话,前端再写一遍就是重复消息
+    if (useAgui || !isServerConversationId(cid)) {
       prevChatLogLenRef.current = currentLen;
       return;
     }
     // 取本轮新增的消息(最后一条)
     const added = chatLog[currentLen - 1];
     if (added && added.who === 'ai') {
-      fetch(`/api/agentmanager/conversations/${cid}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: 'assistant', content: added.text }),
-      }).catch(() => {});
+      appendMessage(cid, 'assistant', added.text).catch(() => {});
     }
     prevChatLogLenRef.current = currentLen;
   }, [chatLog]);
@@ -1047,13 +1063,10 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     nextAudioTimeRef.current = 0;
 
     // 002:持久化用户消息到后端(digital_human_conversation.messages)
+    // AG-UI 模式由后端 recorder 记录,这里只管 WS 模式
     const cid = conversationIdRef.current;
-    if (cid && typeof cid === 'string' && !cid.startsWith('local-')) {
-      fetch(`/api/agentmanager/conversations/${cid}/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role: 'user', content: t }),
-      }).catch(() => {}); // fire-and-forget
+    if (!useAgui && isServerConversationId(cid)) {
+      appendMessage(cid, 'user', t).catch(() => {}); // fire-and-forget
     }
 
     // G1: AG-UI 模式(数字员工),替代 Hermes WS
@@ -1063,6 +1076,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
         const handled = await options.preSendText(t);
         if (handled) { setChatBusy(false); return; }
       }
+      await ensureServerConversation(t);
       await aguiChatOnce(t);
       return;
     }
@@ -1139,6 +1153,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
           const handled = await options.preSendText(t);
           if (handled) { setChatBusy(false); return; }
         }
+        await ensureServerConversation(t);
         await aguiChatOnce(t);
         return;
       }

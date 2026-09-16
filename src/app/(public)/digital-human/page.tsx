@@ -1,6 +1,7 @@
 'use client';
 
 import ImmersiveDigitalHuman from '@/digital-human/ImmersiveDigitalHuman';
+import { DigitalHumanLoginGate } from '@/digital-human/DigitalHumanLoginPrompt';
 import RecommendBoard from '@/components/home/RecommendBoard';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
@@ -9,7 +10,9 @@ import Container from '@mui/material/Container';
 export default function DigitalHumanPage() {
   return (
     <Box>
-      <ImmersiveDigitalHuman />
+      <DigitalHumanLoginGate>
+        <ImmersiveDigitalHuman />
+      </DigitalHumanLoginGate>
       <Container maxWidth="lg" sx={{ py: 4 }}>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 360px' }, gap: 2 }}>
           <RecommendBoard

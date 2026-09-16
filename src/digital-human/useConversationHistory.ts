@@ -3,18 +3,18 @@
 /**
  * useConversationHistory —— 数字人会话历史列表
  *
- * 封装 GET /api/realtime/digital-human/conversations 调用,
- * 供 ImmersiveDigitalHuman 等需要会话列表的组件使用。
- * 匿名用户传 userId=0。
+ * GET /api/agentmanager/conversations,带登录态;后端按 session 只返回当前用户的会话。
+ * 未登录时不请求(接口必 401),列表为空、error 为 null,由页面给出登录提示。
  *
- * 数据源: agentm_conversations 表 (session_uuid / title / agent_id / update_time)
+ * 数据源: agentm_sessions 表 (id / title / agent_id / update_time)
  */
 
 import React from 'react';
-import { useApp } from '../contexts/AppContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { listConversations } from './conversationApi';
 
 export interface ConversationItem {
-  id: string;           // session_uuid, 用于 URL 路由
+  id: string;           // agentm_sessions.id,即 AG-UI 的 session_id
   title: string;
   agentId: string;
   lastMessageAt: string;
@@ -28,15 +28,9 @@ export interface UseConversationHistoryResult {
   refresh: () => void;
 }
 
-const DEFAULT_USER_ID = 0;
-const API_BASE = '/api/agentmanager';
-
-export function useConversationHistory(
-  limit: number = 20,
-  overrideUserId?: number,
-): UseConversationHistoryResult {
-  const { currentUser } = useApp();
-  const userId = overrideUserId ?? currentUser?.id ?? DEFAULT_USER_ID;
+export function useConversationHistory(limit: number = 20): UseConversationHistoryResult {
+  const { status } = useAuth();
+  const authed = status === 'authenticated';
 
   const [history, setHistory] = React.useState<ConversationItem[]>([]);
   const [loading, setLoading] = React.useState(false);
@@ -46,24 +40,26 @@ export function useConversationHistory(
   const refresh = React.useCallback(() => setTick((t) => t + 1), []);
 
   React.useEffect(() => {
+    if (!authed) {
+      setHistory([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     setError(null);
 
-    const url = `${API_BASE}/conversations?userId=${userId}&limit=${limit}`;
-    fetch(url)
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`status ${r.status}`);
-        const j = await r.json();
-        const records: any[] = j?.list ?? [];
+    listConversations(limit)
+      .then((j) => {
         if (cancelled) return;
         setHistory(
-          records.map((r: any) => ({
+          (j?.list ?? []).map((r) => ({
             id: String(r.id ?? ''),
             title: sanitizeTitle(r.title),
-            agentId: String(r.agentId || ''),
-            lastMessageAt: r.update_time || r.updateTime || '',
-            createTime: r.create_time || r.createTime || '',
+            agentId: String(r.agentId ?? ''),
+            lastMessageAt: r.updateTime || '',
+            createTime: r.createTime || '',
           })),
         );
       })
@@ -76,7 +72,7 @@ export function useConversationHistory(
       });
 
     return () => { cancelled = true; };
-  }, [limit, userId, tick]);
+  }, [limit, authed, tick]);
 
   return { history, loading, error, refresh };
 }

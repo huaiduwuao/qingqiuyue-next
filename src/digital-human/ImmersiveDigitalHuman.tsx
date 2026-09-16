@@ -47,10 +47,10 @@ import { textToVisemeTimeline } from './tools/visemes';
 import { parseIframeUI, iframeToolToTarget, type IframeOpenTarget } from './virtual-browser';
 import { VirtualBrowser } from './VirtualBrowser';
 import { useConversationHistory } from './useConversationHistory';
+import { createConversation, isServerConversationId, renameConversation } from './conversationApi';
 import { useVoiceAgent } from '@/hooks/useVoiceAgent';
 import { VoiceIndicator, type VoiceIndicatorState } from '@/components/VoiceIndicator';
 import { useThemeMode } from '@/contexts/ThemeContext';
-import { useApp } from '@/contexts/AppContext';
 import { logout } from '@/apis/user';
 import { useQuery } from '@tanstack/react-query';
 import VrmControlPanel from '@/components/digital-human/VrmControlPanel';
@@ -123,6 +123,15 @@ function relativeTime(iso: string): string {
   return new Date(t).toLocaleDateString('zh-CN');
 }
 
+// 后端/旧版本给会话起的默认名;还叫这些名字的会话,第一条消息到来时改用消息做标题
+const DEFAULT_TITLES = new Set(['新会话', '未命名会话', '(无标题)']);
+
+function conversationTitle(text: string): string {
+  const t = text.trim().replace(/\s+/g, ' ');
+  if (!t) return '新会话';
+  return t.length > 50 ? `${t.slice(0, 50)}…` : t;
+}
+
 export default function ImmersiveDigitalHuman() {
   const router = useRouter();
   const { setTheme } = useThemeMode();
@@ -184,9 +193,24 @@ export default function ImmersiveDigitalHuman() {
     fetch('/api/agentmanager/multi-agent/staff', { signal: ac.signal }).then((r) => r.json()).then((d) => setStaffList(d.agents || [])).catch(() => {});
     return () => ac.abort();
   }, []);
+  // 002:全屏页体现多会话能力(放在 chat 之前:发第一条消息建会话后要刷新它)
+  const { history, loading: historyLoading, error: historyError, refresh: refreshHistory } = useConversationHistory(20);
+  const [sessionError, setSessionError] = React.useState<string | null>(null);
   const chat = useChatAvatarWS(undefined, {
     // G1: 数字人走 agentmanager 的数字员工(AG-UI),形象/动作仍由 dispatcher 驱动
     useAgui: true,
+    // 还没有服务端会话就直接提问:先建一个(用这条消息当标题),对话才会落库、出现在列表里
+    ensureConversation: async (firstText) => {
+      try {
+        const conv = await createConversation(conversationTitle(firstText));
+        setSessionError(null);
+        refreshHistory();
+        return String(conv.id);
+      } catch (e) {
+        setSessionError(e instanceof Error ? e.message : '创建会话失败');
+        return null;
+      }
+    },
     aguiAgent,
     getSceneState: () => buildSceneState(sceneRef.current),
     // H1: 接收动态 UI 指令并渲染;I1: iframe 指令走独立显示器
@@ -272,10 +296,8 @@ export default function ImmersiveDigitalHuman() {
     },
   });
   const { chatBusy, chatLog, emotion, viseme, action, send, sendText, audioRef,
-    text, setText, conversationId, newConversation, switchConversation,
+    text, setText, conversationId, switchConversation,
     loadConversationMessages, setEmotion, setViseme, setChatLog, thinkingLog } = chat;
-  // 002:全屏页体现多会话能力
-  const { history, refresh: refreshHistory } = useConversationHistory(20);
   // 文本标签 <action:x/> 驱动的动作、面板、内嵌浏览器也要进快照,模型下一轮才看得到
   React.useEffect(() => { sceneRef.current.action = action || 'idle'; }, [action]);
   React.useEffect(() => { sceneRef.current.panel = scenePanel ? { kind: scenePanel.kind, title: scenePanel.title } : null; }, [scenePanel]);
@@ -292,7 +314,10 @@ export default function ImmersiveDigitalHuman() {
     return () => window.clearInterval(id);
   }, [audioRef]);
   const speakState: AvatarSpeakState = speaking ? 'speaking' : chatBusy ? 'thinking' : 'idle';
-  const [sessionDrawerOpen, setSessionDrawerOpen] = React.useState(true);
+  // 会话列表:宽屏默认展开,手机默认收起(否则挡住形象),顶部按钮切换
+  const [sessionDrawerOpen, setSessionDrawerOpen] = React.useState(
+    () => typeof window === 'undefined' || window.matchMedia('(min-width: 900px)').matches,
+  );
   // 诊断：监听 stageHandle 变化
   React.useEffect(() => { devLog.debug('[Immersive] stageHandle 变化:', stageHandle); }, [stageHandle]);
 
@@ -344,57 +369,45 @@ export default function ImmersiveDigitalHuman() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [history, conversationId]);
 
-  // 002:点击"新会话" → 先调后端创建空会话(立即出现在列表),再切换过去
-  const { currentUser } = useApp();
-  const handleNewConversation = React.useCallback(async () => {
+  // 002:点击"新会话" → 先调后端创建空会话(立即出现在列表),再切换过去。
+  // 失败要让用户看见:以前悄悄退回本地会话,之后的对话既不落库也不进列表。
+  const [creatingSession, setCreatingSession] = React.useState(false);
+  const handleNewConversation = async () => {
+    if (creatingSession) return;
+    setCreatingSession(true);
     try {
-      const res = await fetch('/api/agentmanager/conversations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: currentUser?.id ?? 0,
-          agentId: 'worker',
-          title: '新会话',
-        }),
-      });
-      const j = await res.json().catch(() => null);
-      console.log('[handleNewConversation] response:', j);
-      if (j?.id) {
-        // 后端返回数字 ID，前端用字符串
-        const cid = String(j.id);
-        console.log('[handleNewConversation] switching to:', cid);
-        switchConversation?.(cid); // 切到新会话(清空 chatLog)
-        refreshHistory();           // 刷新列表,新会话立即出现
-        return;
-      }
+      const conv = await createConversation('新会话');
+      setSessionError(null);
+      switchConversation?.(String(conv.id)); // 切到新会话(清空 chatLog)
+      refreshHistory();                        // 刷新列表,新会话立即出现
     } catch (e) {
-      console.error('[handleNewConversation] error:', e);
-      /* 创建失败则退回本地新会话 */
+      setSessionError(e instanceof Error ? e.message : '创建会话失败');
+    } finally {
+      setCreatingSession(false);
     }
-    newConversation?.();
-    refreshHistory();
-  }, [currentUser?.id, switchConversation, refreshHistory, newConversation]);
+  };
+
+  // 点历史会话:切过去并加载它的消息(之前只切 id,聊天区一直是空的)
+  const openConversation = (cid: string) => {
+    if (cid === conversationId) return;
+    switchConversation?.(cid);
+    loadConversationMessages?.(cid);
+  };
 
   // 003:发消息后更新会话标题(第一条用户消息前50字)
   // 需要 realtime-api 部署后支持 PUT /conversations/:id 路由
   const updateConversationTitle = React.useCallback(async (convId: string, title: string) => {
-    if (!convId || convId.startsWith('local-')) return;
+    if (!isServerConversationId(convId)) return;
+    // 只给还叫默认名的会话起标题,别每条消息都把标题改成最新一句
+    const item = history.find((h) => h.id === convId);
+    if (!item || !DEFAULT_TITLES.has(item.title)) return;
     try {
-      const truncated = title.length > 50 ? title.slice(0, 50) + '…' : title;
-      const res = await fetch(`/api/agentmanager/conversations/${encodeURIComponent(convId)}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: truncated }),
-      });
-      if (!res.ok) {
-        devLog.warn('[updateTitle] failed:', res.status, convId);
-        return;
-      }
+      await renameConversation(convId, conversationTitle(title));
       refreshHistory(); // 标题变了就刷新列表
     } catch (e) {
       devLog.warn('[updateTitle] error:', e);
     }
-  }, [refreshHistory]);
+  }, [history, refreshHistory]);
 
   // 监听 chatLog 变化,在发送第一条用户消息后更新标题
   const prevChatLogLenRef = React.useRef(0);
@@ -404,7 +417,7 @@ export default function ImmersiveDigitalHuman() {
       // 有新消息加入 chatLog,找到新增的用户消息
       const added = chatLog.slice(prevChatLogLenRef.current);
       const firstUserMsg = added.find((m) => m.who === 'user');
-      if (firstUserMsg && conversationId && !conversationId.startsWith('local-')) {
+      if (firstUserMsg && isServerConversationId(conversationId)) {
         updateConversationTitle(conversationId, firstUserMsg.text);
       }
     }
@@ -743,16 +756,18 @@ export default function ImmersiveDigitalHuman() {
       {/* 会话列表 */}
       <Box sx={{
         position: 'absolute',
-        top: 16,
-        left: 16,
-        width: 260,
-        maxHeight: 'calc(100vh - 120px)',
+        // 让出顶部的退出/模型/会话按钮;底部让出聊天区(高 40vh,最多 400px)
+        top: 64,
+        left: { xs: 12, sm: 16 },
+        width: { xs: 'calc(100vw - 24px)', sm: 260 },
+        maxWidth: 260,
+        maxHeight: 'calc(100vh - min(40vh, 400px) - 80px)',
         zIndex: 3,
         background: 'rgba(0,0,0,0.5)',
         borderRadius: 2,
         backdropFilter: 'blur(12px)',
         border: '1px solid rgba(255,255,255,0.08)',
-        display: { xs: 'none', md: 'flex' },
+        display: sessionDrawerOpen ? 'flex' : 'none',
         flexDirection: 'column',
         overflow: 'hidden',
       }}>
@@ -763,18 +778,28 @@ export default function ImmersiveDigitalHuman() {
               {mounted ? history.length : ''}
             </Box>
           </Typography>
-          <Button size="small" onClick={handleNewConversation} sx={{ fontSize: 11, color: '#25F4EE', textTransform: 'none' }}>
-            + 新会话
+          <Button size="small" disabled={creatingSession} onClick={handleNewConversation} sx={{ fontSize: 11, color: '#25F4EE', textTransform: 'none' }}>
+            {creatingSession ? '创建中…' : '+ 新会话'}
           </Button>
         </Box>
+        {(sessionError || historyError) && (
+          <Box sx={{ px: 1.5, py: 1, borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography role="alert" sx={{ fontSize: 11, color: '#ff8a80', flex: 1 }}>
+              {sessionError || `会话列表加载失败:${historyError}`}
+            </Typography>
+            <IconButton size="small" aria-label="重新加载会话" onClick={() => { setSessionError(null); refreshHistory(); }} sx={{ color: 'rgba(255,255,255,0.6)', p: 0.25 }}>
+              <RefreshRoundedIcon sx={{ fontSize: 16 }} />
+            </IconButton>
+          </Box>
+        )}
         <Box sx={{ overflowY: 'auto', flex: 1 }}>
-          {!mounted ? (
+          {!mounted || (historyLoading && history.length === 0) ? (
             <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', p: 2, textAlign: 'center' }}>
               加载中…
             </Typography>
           ) : history.length === 0 ? (
             <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', p: 2, textAlign: 'center' }}>
-              还没有会话
+              还没有会话,直接提问或点「新会话」开始
             </Typography>
           ) : (
             history.map((h) => {
@@ -784,7 +809,7 @@ export default function ImmersiveDigitalHuman() {
               <ListItemButton
                 key={h.id}
                 selected={isCurrent}
-                onClick={() => switchConversation?.(h.id)}
+                onClick={() => openConversation(h.id)}
                 sx={{
                   py: 1,
                   px: 1.5,
