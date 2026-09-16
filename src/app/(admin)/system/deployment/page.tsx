@@ -52,6 +52,7 @@ const STATUS: Record<st.OpStatus, { label: string; color: ChipColor }> = {
   failed: { label: '失败', color: 'error' },
   rejected: { label: '已驳回', color: 'default' },
   rolled_back: { label: '已回滚', color: 'error' },
+  superseded: { label: '已被取代', color: 'default' },
 };
 
 const TIER_COLOR: ChipColor[] = ['default', 'success', 'warning', 'error'];
@@ -226,7 +227,10 @@ export default function DeploymentPage() {
                       {o.target_release_id && <Box component="span" sx={{ ml: 1, fontFamily: 'monospace', fontSize: 11.5, color: 'text.secondary' }}>{o.target_release_id}</Box>}
                     </TableCell>
                     <TableCell><TierChip tier={o.tier} /></TableCell>
-                    <TableCell><StatusChip status={o.status} /></TableCell>
+                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
+                      <StatusChip status={o.status} />
+                      {o.older_than_live && <StaleChip why={o.older_than_live} />}
+                    </TableCell>
                     <TableCell sx={{ fontSize: 12.5 }}>{o.requester_type === 'system' ? 'Steward(自动)' : o.requester_name}</TableCell>
                     <TableCell sx={{ fontSize: 12.5, maxWidth: 360, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {o.message || o.reason || '—'}
@@ -279,6 +283,15 @@ function AutomationBar({ state, onToggle }: { state?: st.Automation; onToggle: (
 function StatusChip({ status }: { status: st.OpStatus }) {
   const s = STATUS[status] ?? { label: status, color: 'default' as ChipColor };
   return <Chip size="small" color={s.color} label={s.label} />;
+}
+
+// 待执行的部署目标不比线上新:批准它就是把线上退回旧代码(2026-09-17 事故)。
+function StaleChip({ why }: { why: string }) {
+  return (
+    <Tooltip title={why}>
+      <Chip size="small" color="error" variant="outlined" label="比线上旧" sx={{ ml: 0.5 }} />
+    </Tooltip>
+  );
 }
 
 function TierChip({ tier }: { tier: st.Tier }) {
@@ -373,11 +386,13 @@ function ApprovalCard({ op, onOpen, onDone }: {
 }) {
   const [comment, setComment] = React.useState('');
   const [busy, setBusy] = React.useState(false);
+  const stale = op.older_than_live;
   const decide = async (approve: boolean) => {
+    if (approve && stale && !window.confirm(`这个部署的目标${stale}。\n批准会把线上退回旧代码,确定要回退吗?`)) return;
     setBusy(true);
     try {
-      await (approve ? st.approve(op.id, comment) : st.reject(op.id, comment));
-      onDone(approve ? '已批准,开始执行' : '已驳回', 'success');
+      await (approve ? st.approve(op.id, comment, !!stale) : st.reject(op.id, comment));
+      onDone(approve ? (stale ? '已强制批准回退,开始执行' : '已批准,开始执行') : '已驳回', 'success');
     } catch (e) {
       onDone(errMsg(e), 'error');
     } finally {
@@ -385,20 +400,33 @@ function ApprovalCard({ op, onOpen, onDone }: {
     }
   };
   return (
-    <Card variant="outlined" sx={{ p: 2, display: 'grid', gap: 1, borderColor: 'warning.main' }}>
+    <Card variant="outlined" sx={{ p: 2, display: 'grid', gap: 1, borderColor: stale ? 'error.main' : 'warning.main' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
         <TierChip tier={op.tier} />
+        {stale && <StaleChip why={stale} />}
         <Typography sx={{ fontWeight: 700 }}>{KIND_LABEL[op.kind] ?? op.kind}</Typography>
         {op.target_release_id && <Typography sx={{ fontFamily: 'monospace', fontSize: 13 }}>{op.target_release_id}</Typography>}
         <Typography variant="body2" color="text.secondary">· {op.requester_name} · {fmtTime(op.created_at)}</Typography>
         <Button size="small" onClick={onOpen} sx={{ ml: 'auto' }}>查看详情</Button>
       </Box>
       {op.reason && <Typography variant="body2">{op.reason}</Typography>}
+      {stale && (
+        <Alert severity="error">目标{stale}。批准会把线上退回旧代码,通常应驳回;确需回退才「强制回退」。</Alert>
+      )}
       <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
         <TextField id={`approve-comment-${op.id}`} size="small" placeholder="审批意见(可选)" value={comment}
           onChange={(e) => setComment(e.target.value)} sx={{ flex: '1 1 240px' }} />
-        <Button variant="contained" color="success" disabled={busy} onClick={() => decide(true)}>批准</Button>
-        <Button variant="outlined" color="error" disabled={busy} onClick={() => decide(false)}>驳回</Button>
+        {stale ? (
+          <>
+            <Button variant="contained" color="error" disabled={busy} onClick={() => decide(false)}>驳回</Button>
+            <Button variant="outlined" color="warning" disabled={busy} onClick={() => decide(true)}>强制回退…</Button>
+          </>
+        ) : (
+          <>
+            <Button variant="contained" color="success" disabled={busy} onClick={() => decide(true)}>批准</Button>
+            <Button variant="outlined" color="error" disabled={busy} onClick={() => decide(false)}>驳回</Button>
+          </>
+        )}
       </Box>
     </Card>
   );
@@ -465,6 +493,7 @@ function OperationDialog({ id, onClose }: { id: string; onClose: () => void }) {
         {op ? KIND_LABEL[op.kind] ?? op.kind : '操作'}
         {op && <TierChip tier={op.tier} />}
         {op && <StatusChip status={op.status} />}
+        {op?.older_than_live && <StaleChip why={op.older_than_live} />}
         <Typography component="span" sx={{ fontFamily: 'monospace', fontSize: 12, color: 'text.secondary' }}>{id}</Typography>
       </DialogTitle>
       <DialogContent dividers sx={{ display: 'grid', gap: 1.5 }}>

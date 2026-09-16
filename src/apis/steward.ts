@@ -7,7 +7,8 @@ export type Tier = 0 | 1 | 2 | 3;
 export type OpKind = 'build' | 'adopt' | 'restart_service' | 'deploy_release' | 'rollback' | 'detach';
 export type OpStatus =
   | 'awaiting_approval' | 'queued' | 'running' | 'verifying'
-  | 'succeeded' | 'failed' | 'rejected' | 'rolled_back';
+  | 'succeeded' | 'failed' | 'rejected' | 'rolled_back'
+  | 'superseded'; // 待执行的部署被更新(或相同)的 release 取代,不会再执行
 
 export interface ContainerStatus {
   service: string;
@@ -75,6 +76,8 @@ export interface Operation {
   prev_release_id: string;
   result: string;
   message: string;
+  // 非空:待执行的部署目标不比线上 release 新(批准就是回退),内容是判断依据
+  older_than_live?: string;
   verify_until: string | null;
   finished_at: string | null;
   created_at: string;
@@ -132,8 +135,9 @@ export const operation = async (id: string) =>
 export const createOperation = async (body: CreateOperation) =>
   payload<Operation>(await stewardClient.post('/operations', body));
 
-export const approve = async (id: string, comment = '') =>
-  payload<Operation>(await stewardClient.post(`/operations/${id}/approve`, { comment }));
+// force:目标不比线上新时后端默认拒绝批准,明知是回退才传 true。
+export const approve = async (id: string, comment = '', force = false) =>
+  payload<Operation>(await stewardClient.post(`/operations/${id}/approve`, { comment, force }));
 
 export const reject = async (id: string, comment = '') =>
   payload<Operation>(await stewardClient.post(`/operations/${id}/reject`, { comment }));

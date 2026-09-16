@@ -34,6 +34,7 @@ const STATUS: Record<st.OpStatus, { label: string; color: string }> = {
   failed: { label: '失败', color: '#F87171' },
   rejected: { label: '已驳回', color: SUBTEXT },
   rolled_back: { label: '已回滚', color: '#F87171' },
+  superseded: { label: '已被取代', color: SUBTEXT },
 };
 const TIER_COLOR = [SUBTEXT, '#4ADE80', '#FFB547', '#F87171'];
 const ACTIVE: st.OpStatus[] = ['awaiting_approval', 'queued', 'running', 'verifying'];
@@ -68,13 +69,16 @@ export default function OperationPanel({ operationId, onSend }: { operationId: s
     return () => clearInterval(t);
   }, [status]);
 
+  const stale = op?.older_than_live;
   const decide = async (approve: boolean) => {
+    if (approve && stale && !window.confirm(`这个部署的目标${stale}。
+批准会把线上退回旧代码,确定要回退吗?`)) return;
     setBusy(true);
     try {
-      await (approve ? st.approve(operationId, comment) : st.reject(operationId, comment));
+      await (approve ? st.approve(operationId, comment, !!stale) : st.reject(operationId, comment));
       reload();
       onSend(approve
-        ? `我已批准操作 ${operationId},请跟进执行情况`
+        ? `我已${stale ? '强制批准回退' : '批准'}操作 ${operationId},请跟进执行情况`
         : `我驳回了操作 ${operationId}${comment.trim() ? `,原因:${comment.trim()}` : ''}`);
     } catch (e) {
       setError(errText(e));
@@ -99,6 +103,9 @@ export default function OperationPanel({ operationId, onSend }: { operationId: s
         {op.target_release_id && (
           <Typography sx={{ fontSize: 12.5, fontFamily: 'monospace', color: SUBTEXT }}>{op.target_release_id}</Typography>
         )}
+        {stale && (
+          <Chip size="small" label="比线上旧" variant="outlined" sx={{ color: '#F87171', borderColor: '#F87171', fontWeight: 600 }} />
+        )}
       </Box>
 
       {op.reason && <Typography sx={{ fontSize: 14 }}>{op.reason}</Typography>}
@@ -106,6 +113,11 @@ export default function OperationPanel({ operationId, onSend }: { operationId: s
         {op.requester_type === 'system' ? 'Steward(自动)' : op.requester_name} 发起 · {op.id}
       </Typography>
       {op.message && <Typography sx={{ fontSize: 13.5, color: s.color }}>{op.message}</Typography>}
+      {stale && op.status === 'awaiting_approval' && (
+        <Typography sx={{ fontSize: 13.5, color: '#F87171' }}>
+          目标{stale}。批准会把线上退回旧代码,通常应驳回。
+        </Typography>
+      )}
       {ACTIVE.includes(op.status) && op.status !== 'awaiting_approval' && (
         <LinearProgress sx={{ bgcolor: 'rgba(255,255,255,0.08)', '& .MuiLinearProgress-bar': { bgcolor: ACCENT } }} />
       )}
@@ -137,9 +149,11 @@ export default function OperationPanel({ operationId, onSend }: { operationId: s
             }}
           />
           <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button fullWidth variant="contained" disabled={busy} onClick={() => decide(true)}
-              sx={{ bgcolor: '#4ADE80', color: '#04121a', fontWeight: 600, '&:hover': { bgcolor: '#6ee7a0' } }}>
-              批准
+            <Button fullWidth variant={stale ? 'outlined' : 'contained'} disabled={busy} onClick={() => decide(true)}
+              sx={stale
+                ? { color: '#FFB547', borderColor: 'rgba(255,181,71,0.6)' }
+                : { bgcolor: '#4ADE80', color: '#04121a', fontWeight: 600, '&:hover': { bgcolor: '#6ee7a0' } }}>
+              {stale ? '强制回退…' : '批准'}
             </Button>
             <Button fullWidth variant="outlined" disabled={busy} onClick={() => decide(false)}
               sx={{ color: '#F87171', borderColor: 'rgba(248,113,113,0.6)' }}>
