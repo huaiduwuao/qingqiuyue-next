@@ -34,6 +34,7 @@ export interface KanbanTask {
   skills: string[]
   session_id?: string
   current_step_key?: string
+  run_id?: string
 }
 
 export interface KanbanEvent {

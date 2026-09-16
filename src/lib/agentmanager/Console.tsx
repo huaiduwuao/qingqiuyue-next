@@ -673,7 +673,7 @@ export default function AgentManagerConsole() {
 
         {/* Kanban Tab */}
         {activeTab === 'kanban' && token && (
-          <KanbanBoard boardId={1} token={token} />
+          <KanbanBoard boardId={1} token={token} onOpenRun={() => setActiveTab('runs')} />
         )}
 
         {/* MCP Tab */}

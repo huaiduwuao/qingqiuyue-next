@@ -34,20 +34,31 @@ const COLUMNS: { id: KanbanTask['status']; label: string; color: string }[] = [
   { id: 'done',      label: '✓ 完成',     color: '#22c55e' },
 ]
 
+const STAFF = [
+  { id: 'worker', label: '通用' },
+  { id: 'frontend', label: '前端' },
+  { id: 'backend', label: '后端' },
+  { id: 'ops', label: '运维' },
+  { id: 'qa', label: '测试' },
+]
+
 interface Props {
   boardId: number
   token: string
   workerId?: string
   onRunAgent?: (task: KanbanTask) => void
+  onOpenRun?: (runId: string) => void
 }
 
-export default function KanbanBoard({ boardId, token, workerId, onRunAgent }: Props) {
+export default function KanbanBoard({ boardId, token, workerId, onRunAgent, onOpenRun }: Props) {
   const [tasks, setTasks] = useState<KanbanTask[]>([])
   const [loading, setLoading] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newBody, setNewBody] = useState('')
   const [dragOver, setDragOver] = useState<string | null>(null)
+  const [agentFor, setAgentFor] = useState<Record<number, string>>({})
+  const [runError, setRunError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -92,6 +103,21 @@ export default function KanbanBoard({ boardId, token, workerId, onRunAgent }: Pr
     load()
   }
 
+  // 交给数字员工:卡片变成一次后台运行,结束后由后端回写 done / blocked
+  const runTask = async (task: KanbanTask) => {
+    setRunError(null)
+    const res = await fetch(`/api/agentmanager/kanban/tasks/${task.id}/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ agent: agentFor[task.id] || 'worker' }),
+    })
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      setRunError(body.error || `HTTP ${res.status}`)
+    }
+    load()
+  }
+
   // 拖拽: onDragStart → onDragOver → onDrop
   const handleDragStart = (e: React.DragEvent, task: KanbanTask) => {
     e.dataTransfer.setData('taskId', String(task.id))
@@ -121,6 +147,7 @@ export default function KanbanBoard({ boardId, token, workerId, onRunAgent }: Pr
           新建任务
         </Button>
       </Box>
+      {runError && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setRunError(null)}>{runError}</Alert>}
 
       {loading && <CircularProgress size={20} />}
 
@@ -178,10 +205,33 @@ export default function KanbanBoard({ boardId, token, workerId, onRunAgent }: Pr
                           <Chip label={`P${task.priority}`} size="small" color="error" sx={{ fontSize: 10 }} />
                         )}
                       </Box>
-                      {onRunAgent && task.status === 'ready' && (
-                        <Button size="small" variant="text" sx={{ mt: 1, fontSize: 11 }} onClick={() => onRunAgent(task)}>
-                          ▶ 执行
+                      {(task.status === 'todo' || task.status === 'ready' || task.status === 'blocked') && (
+                        <Box sx={{ display: 'flex', gap: 0.5, mt: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <select
+                            aria-label="数字员工"
+                            value={agentFor[task.id] || 'worker'}
+                            onChange={e => setAgentFor(m => ({ ...m, [task.id]: e.target.value }))}
+                            style={{ fontSize: 11, padding: '2px 4px' }}
+                          >
+                            {STAFF.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                          </select>
+                          <Button size="small" variant="text" sx={{ fontSize: 11, minWidth: 0 }} onClick={() => runTask(task)}>
+                            ▶ 交给数字员工
+                          </Button>
+                          {onRunAgent && (
+                            <Button size="small" variant="text" sx={{ fontSize: 11, minWidth: 0 }} onClick={() => onRunAgent(task)}>对话</Button>
+                          )}
+                        </Box>
+                      )}
+                      {task.status === 'running' && task.run_id && (
+                        <Button size="small" variant="text" sx={{ mt: 1, fontSize: 11, minWidth: 0 }} onClick={() => onOpenRun?.(task.run_id!)} disabled={!onOpenRun}>
+                          ● 运行中 · {task.run_id.slice(0, 8)}
                         </Button>
+                      )}
+                      {(task.status === 'done' || task.status === 'blocked') && task.result && (
+                        <Typography variant="caption" color={task.status === 'done' ? 'text.secondary' : 'error'} sx={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', mt: 0.5 }}>
+                          {task.result}
+                        </Typography>
                       )}
                     </CardContent>
                   </Card>
