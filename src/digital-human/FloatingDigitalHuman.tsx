@@ -40,9 +40,64 @@ import { executeIntent } from '@/lib/intent/executor';
 import { logout } from '@/apis/user';
 import type { VoiceLogEntry } from '@/lib/voice/logger';
 import type { HermesAgentItem } from '@/beans/system';
+import { getSafeAreaInsets } from '@/lib/safeArea';
 
 const FIG_W = 320;
 const FIG_H = 480;
+// 收起态气泡直径 / 展开窗与屏幕边缘的最小间距
+const BUBBLE = 48;
+const EDGE = 12;
+
+/**
+ * 底部被占掉的高度:移动端底部导航(含 Home 指示条安全区)或纯安全区。
+ * 之前气泡默认落在 innerHeight - 64,正好压在底部导航「我的」上面,把按钮挡死。
+ */
+function bottomReserved(): number {
+  if (typeof document === 'undefined') return 0;
+  const nav = document.querySelector('[data-mobile-bottom-nav]');
+  if (nav) return nav.getBoundingClientRect().height;
+  return getSafeAreaInsets().bottom;
+}
+
+/** 展开窗口的实际尺寸:窄屏按可用空间缩小,不再固定 320x480 撑出屏幕。 */
+function figSize(): { w: number; h: number } {
+  if (typeof window === 'undefined') return { w: FIG_W, h: FIG_H };
+  const ins = getSafeAreaInsets();
+  return {
+    w: Math.max(240, Math.min(FIG_W, window.innerWidth - ins.left - ins.right - EDGE * 2)),
+    h: Math.max(320, Math.min(FIG_H, window.innerHeight - ins.top - bottomReserved() - EDGE * 2)),
+  };
+}
+
+/** 把坐标夹在可视区内:避开顶部安全区、底部导航,展开态再留 EDGE 边距。 */
+function clampPos(p: { left: number; top: number }, open: boolean): { left: number; top: number } {
+  if (typeof window === 'undefined') return p;
+  const ins = getSafeAreaInsets();
+  const { w, h } = open ? figSize() : { w: BUBBLE, h: BUBBLE };
+  const pad = open ? EDGE : 0;
+  const minLeft = ins.left + pad;
+  const minTop = ins.top + pad;
+  const maxLeft = Math.max(minLeft, window.innerWidth - ins.right - w - pad);
+  const maxTop = Math.max(minTop, window.innerHeight - bottomReserved() - h - pad);
+  return {
+    left: Math.round(Math.max(minLeft, Math.min(maxLeft, p.left))),
+    top: Math.round(Math.max(minTop, Math.min(maxTop, p.top))),
+  };
+}
+
+/**
+ * 默认落点:右下角,底部导航之上再让开一截 —— 推荐视频流的播放器控制条(全屏键)
+ * 和各页的底部操作按钮都贴着底边,气泡直接压上去就把它们挡住了。用户仍可拖动。
+ */
+function defaultBubblePos(): { left: number; top: number } {
+  if (typeof window === 'undefined') return { left: 0, top: 0 };
+  const ins = getSafeAreaInsets();
+  const lift = bottomReserved() > 0 ? 88 : 24;
+  return clampPos(
+    { left: window.innerWidth - ins.right - BUBBLE - 12, top: window.innerHeight - bottomReserved() - BUBBLE - lift },
+    false,
+  );
+}
 
 const HIDE_ON = ['/user/login', '/digital-human'];  // /digital-human 是沉浸式大窗口, 不显示浮窗
 
@@ -70,34 +125,53 @@ export default function FloatingDigitalHuman() {
   const dragRef = React.useRef({ active: false, sx: 0, sy: 0, ox: 0, oy: 0, clickX: 0, clickY: 0 });
   // 位置: 用 left/top + transform: translate() 做 GPU 加速动画
   // 数字人"在页面上走": 走的过程 transform 平滑过渡
-  const [pos, setPos] = React.useState<{ left: number; top: number }>(() =>
-    typeof window !== 'undefined'
-      ? { left: Math.max(0, window.innerWidth - 40 - 24), top: Math.max(0, window.innerHeight - 40 - 24) }
-      : { left: 0, top: 0 }
-  );
+  const [pos, setPos] = React.useState<{ left: number; top: number }>(defaultBubblePos);
+  // 展开窗尺寸(随窗口/横竖屏变化)
+  const [fig, setFig] = React.useState<{ w: number; h: number }>(() => figSize());
   // 用 ref 存储位置，避免 onDown 依赖 pos 导致每次拖动后重新创建
   const posRef = React.useRef(pos);
   React.useEffect(() => { posRef.current = pos; }, [pos]);
   // 默认收起(只显示小图标)— 之前默认展开常驻占屏,新版默认折叠
   // 用户主动点图标才展开大窗口。折叠状态大小见下方 IconButton。
   const [open, setOpen] = React.useState(false);
+  const openRef = React.useRef(open);
+  openRef.current = open;
   // 防御性 mount 兜底:HMR / 浏览器 state cache 可能让老 mount 实例仍
   // 持有 `open=true` — 强制一次关闭,避免「点哪里都不对 + 黑色遮挡」(老的
   // 320x480 浮窗画布覆盖在 publish 页面上,看起来是一块黑板)。
   React.useEffect(() => {
     setOpen(false);
   }, []);
-  // 展开时确保位置在可视范围内(收起时是 40x40,展开后是 320x520)
+  // 展开/收起时把位置夹回可视范围(收起是 48x48 气泡,展开按 figSize 计算)
   React.useEffect(() => {
-    if (open) {
-      const maxLeft = Math.max(0, window.innerWidth - 320 - 24);
-      const maxTop = Math.max(0, window.innerHeight - 520 - 24);
-      setPos(prev => ({
-        left: Math.min(prev.left, maxLeft),
-        top: Math.min(prev.top, maxTop),
-      }));
-    }
+    setFig(figSize());
+    setPos((prev) => clampPos(prev, open));
   }, [open]);
+
+  // 窗口尺寸 / 横竖屏 / 底部导航出现或消失(它会往 :root 写 --bottom-nav-inset)→ 重新夹回。
+  // 底部导航要等 useResponsive 挂载后才渲染,所以再补一次延时重算。
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const reclamp = () => {
+      setFig(figSize());
+      setPos((prev) => clampPos(prev, openRef.current));
+    };
+    // 底部导航挂载后气泡要从桌面端默认位(贴底)抬到导航之上:重算默认落点而不只是夹回
+    const t = window.setTimeout(() => {
+      setFig(figSize());
+      setPos((prev) => (openRef.current ? clampPos(prev, true) : defaultBubblePos()));
+    }, 600);
+    window.addEventListener('resize', reclamp);
+    window.addEventListener('orientationchange', reclamp);
+    const mo = new MutationObserver(reclamp);
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] });
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener('resize', reclamp);
+      window.removeEventListener('orientationchange', reclamp);
+      mo.disconnect();
+    };
+  }, []);
   const [autoRotate, setAutoRotate] = React.useState(false);  // 默认不自动转圈, 数字人有自己的 idle 动画
 
   const app = useApp();
@@ -488,14 +562,7 @@ export default function FloatingDigitalHuman() {
     const handleMove = (e: PointerEvent) => {
       const d = dragRef.current;
       if (!d.active) return;
-      const fw = open ? 320 : 40;
-      const fh = open ? 520 : 40;
-      const maxLeft = Math.max(0, window.innerWidth - fw);
-      const maxTop = Math.max(0, window.innerHeight - fh);
-      setPos({
-        left: Math.max(0, Math.min(maxLeft, d.ox + (e.clientX - d.sx))),
-        top: Math.max(0, Math.min(maxTop, d.oy + (e.clientY - d.sy))),
-      });
+      setPos(clampPos({ left: d.ox + (e.clientX - d.sx), top: d.oy + (e.clientY - d.sy) }, open));
     };
     const handleUp = (e: PointerEvent) => {
       const d = dragRef.current;
@@ -526,13 +593,7 @@ export default function FloatingDigitalHuman() {
   // duration 默认 1500ms(像正常步速走 200-400px)
   const walkTo = React.useCallback((target: { left: number; top: number }, durationMs = 1500) => {
     if (typeof window === 'undefined') return
-    const w = window.innerWidth, h = window.innerHeight
-    const maxLeft = Math.max(0, w - 320)  // 浮窗宽 320
-    const maxTop = Math.max(0, h - 520)   // 浮窗高 520
-    const clamped = {
-      left: Math.max(0, Math.min(maxLeft, target.left)),
-      top: Math.max(0, Math.min(maxTop, target.top)),
-    }
+    const clamped = clampPos(target, true)
     // 触发动画: 设 CSS transition 后修改位置
     if (wrapRef.current) {
       wrapRef.current.style.transition = `left ${durationMs}ms ease-in-out, top ${durationMs}ms ease-in-out`
@@ -563,11 +624,7 @@ export default function FloatingDigitalHuman() {
       // 排除点击浮窗自身(避免点击浮窗就跳到自己位置)
       if (wrapRef.current?.contains(e.target as Node)) return
       // 数字人浮窗走到点击位置(浮窗左上角对齐点击位置 - 80px 偏移)
-      const FW = 320, FH = 520
-      const target = {
-        left: Math.max(0, Math.min(window.innerWidth - FW, e.clientX - 80)),
-        top: Math.max(0, Math.min(window.innerHeight - FH, e.clientY - 60)),
-      }
+      const target = clampPos({ left: e.clientX - 80, top: e.clientY - 60 }, true)
       walkTo(target, 1500)
     }
     window.addEventListener('click', onClick)
@@ -592,16 +649,35 @@ export default function FloatingDigitalHuman() {
   if (!open) {
     return (
       <Box
+        data-floating-digital-human
         sx={{
           position: 'fixed',
           left: pos.left,
           top: pos.top,
           zIndex: 1500,
-          width: 40,
-          height: 40,
+          width: BUBBLE,
+          height: BUBBLE,
+          touchAction: 'none',
+          // 轻微上下漂浮(React Bits 风格),减少动效偏好下静止
+          animation: 'rb-float 3.2s ease-in-out infinite',
+          '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
         }}
         onPointerDown={onDown}
       >
+        {/* 呼吸光环 */}
+        <Box
+          aria-hidden
+          sx={{
+            position: 'absolute',
+            inset: 0,
+            borderRadius: '50%',
+            border: '2px solid',
+            borderColor: (t) => alpha(t.palette.primary.main, 0.55),
+            animation: 'rb-pulse-ring 2.4s ease-out infinite',
+            pointerEvents: 'none',
+            '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
+          }}
+        />
         <IconButton
           aria-label="展开数字人"
           onClick={(e) => {
@@ -610,18 +686,20 @@ export default function FloatingDigitalHuman() {
             setOpen(true);
           }}
           sx={{
-            width: 40,
-            height: 40,
+            width: BUBBLE,
+            height: BUBBLE,
             borderRadius: '50%',
-            bgcolor: (t) => alpha(t.palette.primary.main, 0.85),
+            background: (t) => `linear-gradient(135deg, ${t.palette.primary.main} 0%, #8B5CF6 100%)`,
             color: 'white',
-            boxShadow: (t) => `0 4px 12px ${alpha(t.palette.primary.main, 0.4)}`,
-            '&:hover': { bgcolor: (t) => t.palette.primary.main },
-            transition: 'all 0.2s',
+            boxShadow: (t) => `0 8px 20px ${alpha(t.palette.primary.main, 0.45)}, inset 0 1px 0 rgba(255,255,255,0.35)`,
+            border: '2px solid rgba(255,255,255,0.85)',
+            transition: 'transform 0.2s, box-shadow 0.2s',
+            '&:hover': { transform: 'scale(1.06)' },
+            '&:active': { transform: 'scale(0.96)' },
             cursor: 'grab',
           }}
         >
-          <PersonRoundedIcon sx={{ fontSize: 22 }} />
+          <PersonRoundedIcon sx={{ fontSize: 24 }} />
         </IconButton>
       </Box>
     );
@@ -635,8 +713,9 @@ export default function FloatingDigitalHuman() {
         left: `${pos.left}px`,
         top: `${pos.top}px`,
         // transition 在 walkTo() 里动态设(平滑动画), 这里默认无
-        width: FIG_W,
-        height: FIG_H,
+        width: fig.w,
+        height: fig.h,
+        maxWidth: 'calc(100vw - 16px)',
         borderRadius: 3,
         overflow: 'hidden',
         cursor: 'grab',
@@ -649,6 +728,7 @@ export default function FloatingDigitalHuman() {
         flexDirection: 'column',
       }}
       onPointerDown={onDown}
+      data-floating-digital-human
     >
       {/* 数字人本体 */}
       <Box sx={{

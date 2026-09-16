@@ -29,6 +29,8 @@ import { useScrollToBottom } from '@/hooks/useInfiniteScroll';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { homeClient } from '@/lib/api/client';
 import LeaderboardMini from '@/components/leaderboard/LeaderboardMini';
+import SpotlightCard from '@/components/reactbits/SpotlightCard';
+import FadeContent from '@/components/reactbits/FadeContent';
 
 // 右侧边栏渐变色映射
 const GRADIENT_BY_TYPE: Record<string, string> = {
@@ -331,7 +333,7 @@ export default function HomeRecommendPage() {
 
   // 默认分类内容
   return (
-    <Box sx={{ display: 'flex', gap: 2, px: 3, py: 2, minHeight: 0 }}>
+    <Box sx={{ display: 'flex', gap: 2, px: { xs: 1.5, md: 3 }, py: { xs: 1.5, md: 2 }, minHeight: 0 }}>
       {/* 左侧内容区 */}
       <Box sx={{ flex: 1, minWidth: 0 }}>
         {/* 分类导航 */}
@@ -392,6 +394,7 @@ export default function HomeRecommendPage() {
             alignItems: 'center',
             gap: 1,
             mb: 2,
+            flexWrap: 'wrap',
           }}
         >
           {(['follow', 'friend', 'ai'] as const).map((k) => {
@@ -441,8 +444,8 @@ export default function HomeRecommendPage() {
         {loading ? (
           <Box sx={{
             display: 'grid',
-            gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
-            gap: 2
+            gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
+            gap: { xs: 1.25, md: 2 }
           }}>
             {Array.from({ length: 6 }).map((_, i) => (
               <Skeleton key={i} variant="rounded" sx={{ aspectRatio: '4/5', bgcolor: 'action.hover' }} />
@@ -452,9 +455,10 @@ export default function HomeRecommendPage() {
           <Box>
             {/* 瀑布流使用 CSS Grid + masonry 布局 */}
             <Box sx={{
-              columns: { xs: 1, sm: 2, md: 3 },
-              columnGap: 16,
-              '& > *': { mb: 2, breakInside: 'avoid' }
+              // 手机也走两列:一列 4:5 的大卡在 375px 上一屏只放一张,像没内容
+              columns: { xs: 2, md: 3 },
+              columnGap: { xs: 10, md: 16 },
+              '& > *': { mb: { xs: 1.25, md: 2 }, breakInside: 'avoid' }
             }}>
               {displayList.map((item, idx) => {
                 const rank = idx + 1;
@@ -481,8 +485,9 @@ export default function HomeRecommendPage() {
                 }
 
                 return (
-                  <Box
-                    key={`content-${item.id}`}
+                  <FadeContent key={`content-${item.id}`} distance={14} duration={480} delay={Math.min(idx % 9, 6) * 35}>
+                  <SpotlightCard
+                    spotlightColor="rgba(255,255,255,0.22)"
                     onClick={() => handleCardClick(item)}
                     sx={{
                       position: 'relative',
@@ -607,7 +612,8 @@ export default function HomeRecommendPage() {
                         </Box>
                       </Box>
                     </Box>
-                  </Box>
+                  </SpotlightCard>
+                  </FadeContent>
                 );
               })}
             </Box>

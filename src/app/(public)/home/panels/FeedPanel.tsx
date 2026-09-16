@@ -11,8 +11,6 @@ import Chip from '@mui/material/Chip';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Tooltip from '@mui/material/Tooltip';
-import Snackbar from '@mui/material/Snackbar';
-import Alert from '@mui/material/Alert';
 import LiveTvRoundedIcon from '@mui/icons-material/LiveTvRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import FavoriteBorderRoundedIcon from '@mui/icons-material/FavoriteBorderRounded';
@@ -22,12 +20,15 @@ import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import { CoverImage } from '@/components/common/CoverImage';
-import SendToSpider from '@/components/SendToSpider';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { fetchSubcategories, type SubcategoryItem } from '@/apis/home-discover';
 import { moduleContentPage } from '@/apis/home';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import Masonry from 'react-masonry-css';
+import FadeContent from '@/components/reactbits/FadeContent';
+import SpotlightCard from '@/components/reactbits/SpotlightCard';
+import SplitText from '@/components/reactbits/SplitText';
+import BlurText from '@/components/reactbits/BlurText';
 
 // 后端 pkg/jsonfix 已将 BIGINT > Number.MAX_SAFE_INTEGER (2^53) 转为字符串。
 // 前端不可再 Number() 转换，否则精度再次丢失导致详情页 404。
@@ -207,9 +208,6 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
   useEffect(() => { setYearState(urlYear); }, [urlYear]);
-  const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
-    open: false, message: '', severity: 'success',
-  });
   // 分页状态
   const PAGE_SIZE = 12;
 
@@ -338,15 +336,12 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
       {tab === 'home' && (
         <Box
           sx={{
-            position: 'sticky',
-            top: 0,
-            zIndex: 11,
-            bgcolor: 'var(--bg-topbar, rgba(10, 10, 15, 0.85))',
-            backdropFilter: 'blur(12px)',
-            borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+            // 不再 sticky:之前它 sticky top:0,下面的 Tabs 再 sticky top:calc(56px + sat)。
+            // 顶栏已经吃掉了安全区,这里再加一次就在刘海机上留出一条空缝,内容从缝里
+            // 穿过去("顶栏重叠")。现在标题随内容滚走,只有 Tabs 吸顶,手机上也省一截高度。
             flexShrink: 0,
-            px: 2,
-            pt: 1.5,
+            px: { xs: 1.5, md: 2 },
+            pt: { xs: 1.25, md: 1.5 },
             pb: 1,
             display: 'flex',
             alignItems: 'center',
@@ -357,8 +352,12 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
             <LocalFireDepartmentIcon sx={{ fontSize: 18, color: '#fff' }} />
           </Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography sx={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary, #ffffff)', letterSpacing: 0.3 }}>精选</Typography>
-            <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>多分类聚合 · 实时热度排序</Typography>
+            <Typography component="div" sx={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary, #ffffff)', letterSpacing: 0.3 }}>
+              <SplitText text="精选" delay={70} onView={false} />
+            </Typography>
+            <Typography component="div" sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
+              <BlurText text="多分类聚合 · 实时热度排序" delay={22} />
+            </Typography>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'warning.main' }}>
             <TrendingUpIcon sx={{ fontSize: 14 }} />
@@ -369,7 +368,7 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
         <Box
           sx={{
             position: 'sticky',
-            top: tab === 'home' ? 'calc(56px + var(--sat, 0px))' : 0,
+            top: 0,
             zIndex: 10,
             bgcolor: 'var(--bg-topbar, rgba(10, 10, 15, 0.85))',
             backdropFilter: 'blur(12px)',
@@ -561,33 +560,16 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
             </Box>
           ) : (
             <Box sx={{ p: 2 }}>
-              {/* 仅 home 顶部抓取工具条 */}
-              {tab === 'home' && section === 'recommend' && (
-                <Box sx={{ mb: 2, p: 1.5, borderRadius: 2, border: '1px dashed', borderColor: 'divider', bgcolor: 'action.hover' }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-                    <Typography sx={{ fontSize: 12, color: 'var(--text-secondary, rgba(255,255,255,0.6))' }}>
-                      没找到想看的?抓一个 URL 进来:
-                    </Typography>
-                    <Box sx={{ flex: 1 }} />
-                    <SendToSpider
-                      label="抓取 URL"
-                      defaultUrl="粘贴任意文章/视频 URL,自动入抓取队列"
-                      variant="inline"
-                      onSuccess={(m) => setSnack({ open: true, message: m, severity: 'success' })}
-                      onError={(m) => setSnack({ open: true, message: m, severity: 'error' })}
-                    />
-                  </Box>
-                </Box>
-              )}
-
               {feedList.length > 0 ? (
                 <Masonry
-                  breakpointCols={{ default: 4, 1400: 3, 1100: 2, 768: 2, 600: 1, 480: 1 }}
+                  breakpointCols={{ default: 4, 1400: 3, 1100: 2, 900: 2, 600: 2, 420: 1 }}
                   className="my-masonry-grid"
                   columnClassName="my-masonry-grid_column"
                 >
-                  {feedList.map((item) => (
-                    <FeedCard key={item.id} item={item} />
+                  {feedList.map((item, i) => (
+                    <FadeContent key={item.id} distance={14} duration={480} delay={Math.min(i % 8, 6) * 35}>
+                      <FeedCard item={item} />
+                    </FadeContent>
                   ))}
                 </Masonry>
               ) : (
@@ -613,18 +595,6 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
             </Box>
           )}
       </Box>
-
-      <Snackbar
-        open={snack.open}
-        autoHideDuration={2500}
-        onClose={() => setSnack((s) => ({ ...s, open: false }))}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
-        <Alert severity={snack.severity} variant="filled" sx={{ width: '100%' }}>
-          {snack.message}
-        </Alert>
-      </Snackbar>
-
     </Box>
   );
 }
@@ -644,7 +614,8 @@ function FeedCard({ item }: { item: FeedItem }) {
 
 
   return (
-    <Box
+    <SpotlightCard
+      spotlightColor="rgba(254, 44, 85, 0.14)"
       onClick={() => {
         if (targetType) navigate(targetType, item.id);
       }}
@@ -654,8 +625,10 @@ function FeedCard({ item }: { item: FeedItem }) {
         border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
         overflow: 'hidden',
         cursor: targetType ? 'pointer' : 'default',
-        transition: 'transform 0.2s, border-color 0.2s',
-        '&:hover': targetType ? { transform: 'translateY(-2px)', borderColor: 'var(--border-strong, rgba(255,255,255,0.12))' } : {},
+        transition: 'transform 0.2s, border-color 0.2s, box-shadow 0.2s',
+        '&:hover': targetType
+          ? { transform: 'translateY(-3px)', borderColor: 'var(--border-strong, rgba(255,255,255,0.12))', boxShadow: '0 14px 32px rgba(0,0,0,0.18)' }
+          : {},
       }}
     >
       <Box sx={{ position: 'relative', aspectRatio: '16/9', bgcolor: 'var(--bg-input, rgba(255,255,255,0.04))', overflow: 'hidden' }}>
@@ -775,7 +748,7 @@ function FeedCard({ item }: { item: FeedItem }) {
           </Typography>
         </Box>
       </Box>
-    </Box>
+    </SpotlightCard>
   );
 }
 

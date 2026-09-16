@@ -13,6 +13,7 @@ import PersonIcon from '@mui/icons-material/Person';
 import { useApp } from '@/contexts/AppContext';
 import { AvatarHoverPopup } from '@/components/account/AvatarHoverPopup';
 import NoticeIconView, { DmIconView } from '@/components/NoticeIcon';
+import GradientText from '@/components/reactbits/GradientText';
 
 const USER_PAGES = [
   { key: 'points', label: '我的积分', sub: '积分 · 成就 · 等级 · 商城', path: '/user/points', icon: <PersonIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
@@ -72,7 +73,7 @@ function UserLayoutContent({
     };
     html.style.overflow = 'hidden';
     body.style.overflow = 'hidden';
-    body.style.height = '100dvh';
+    body.style.height = 'var(--app-height, 100vh)';
     body.style.backgroundColor = 'var(--bg-body)';
     return () => {
       html.style.overflow = prev.htmlOverflow;
@@ -83,7 +84,7 @@ function UserLayoutContent({
   }, []);
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100dvh', bgcolor: 'transparent', overflow: 'hidden' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'var(--app-height, 100vh)', bgcolor: 'transparent', overflow: 'hidden' }}>
       <AppBar
         ref={appBarRef}
         position="sticky"
@@ -94,6 +95,7 @@ function UserLayoutContent({
           borderBottom: 'none',
           backdropFilter: 'blur(12px)',
           flexShrink: 0,
+          pt: 'var(--sat, 0px)',
         }}
       >
         <Toolbar
@@ -115,8 +117,8 @@ function UserLayoutContent({
               }}
             />
             <Box sx={{ minWidth: 0 }}>
-              <Typography sx={{ fontSize: 17, fontWeight: 700, color: 'text.primary', lineHeight: 1.2, whiteSpace: 'nowrap' }}>
-                {currentPage.label}
+              <Typography component="div" sx={{ fontSize: 17, fontWeight: 700, color: 'text.primary', lineHeight: 1.2, whiteSpace: 'nowrap' }}>
+                <GradientText animationSpeed={9}>{currentPage.label}</GradientText>
               </Typography>
               <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1.2, whiteSpace: 'nowrap' }}>
                 {currentPage.sub}
@@ -156,7 +158,7 @@ function UserLayoutContent({
 
           <Box sx={{ flex: 1 }} />
 
-          <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 0.25 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
             <IconButton
               onClick={handleBack}
               size="small"
@@ -165,8 +167,10 @@ function UserLayoutContent({
             >
               <ArrowBackIcon fontSize="small" />
             </IconButton>
-            <NoticeIconView />
-            <DmIconView />
+            <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center' }}>
+              <NoticeIconView />
+              <DmIconView />
+            </Box>
           </Box>
 
           <AvatarHoverPopup

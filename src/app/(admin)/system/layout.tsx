@@ -10,6 +10,9 @@ import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import Avatar from '@mui/material/Avatar';
 import Menu from '@mui/material/Menu';
+import Drawer from '@mui/material/Drawer';
+import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import MenuItem from '@mui/material/MenuItem';
 import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSettingsRounded';
 import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
@@ -108,6 +111,8 @@ function SystemLayoutInner({ children }: { children: ReactNode }) {
   const { currentUser } = useApp();
   const { activeTab, setActiveTab } = useSystemTab();
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
+  // 手机端抽屉菜单(< md 侧栏隐藏,之前后台在手机上根本没法切页面)
+  const [navOpen, setNavOpen] = useState(false);
 
   // 获取第一个可见菜单项作为默认
   const firstMenuItem = MENU_GROUPS[0]?.items[0];
@@ -190,12 +195,76 @@ function SystemLayoutInner({ children }: { children: ReactNode }) {
   // 获取当前要渲染的页面组件
   const ActivePage = activeTab ? PageComponents[activeTab.path] : null;
 
+  // 菜单分组:桌面端侧栏和手机端抽屉共用一份
+  const navGroups = (
+    <>
+        {visibleGroups.map((group) => (
+          <Box key={group.title} sx={{ mb: 0.5 }}>
+            <Box sx={{ px: 3, pt: 1.5, pb: 0.5 }}>
+              <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted, currentColor)', letterSpacing: 1, textTransform: 'uppercase' }}>
+                {group.title}
+              </Typography>
+            </Box>
+            {group.items.map((item) => {
+              const isActive = activeTab?.path === item.path;
+              return (
+                <Box
+                  key={item.id}
+                  onClick={() => {
+                    handleMenuClick(item);
+                    setNavOpen(false);
+                  }}
+                  sx={{
+                    position: 'relative',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1.25,
+                    mx: 1.5,
+                    px: 1.5,
+                    py: 1,
+                    borderRadius: 1.5,
+                    cursor: 'pointer',
+                    color: isActive ? 'var(--text-primary, currentColor)' : 'var(--text-secondary, currentColor)',
+                    bgcolor: isActive ? 'var(--border-color, transparent)' : 'transparent',
+                    transition: 'all 0.15s',
+                    '&:hover': { bgcolor: 'var(--bg-hover, transparent)', color: 'var(--text-primary, currentColor)' },
+                  }}
+                >
+                  {isActive && (
+                    <Box
+                      sx={{
+                        position: 'absolute',
+                        right: 6,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        width: 6,
+                        height: 6,
+                        borderRadius: '50%',
+                        bgcolor: 'var(--brand-color, #FE2C55)',
+                        boxShadow: '0 0 6px var(--brand-color, #FE2C55)',
+                      }}
+                    />
+                  )}
+                  <Box sx={{ display: 'flex', alignItems: 'center', color: isActive ? item.accent : 'inherit' }}>
+                    {item.icon}
+                  </Box>
+                  <Typography sx={{ fontSize: 13, fontWeight: isActive ? 600 : 400, flex: 1 }}>
+                    {item.label}
+                  </Typography>
+                </Box>
+              );
+            })}
+          </Box>
+        ))}
+    </>
+  );
+
   return (
     <Box
       sx={{
         display: 'flex',
         flexDirection: 'column',
-        height: '100vh',
+        height: 'var(--app-height, 100vh)',
         overflow: 'hidden',
         bgcolor: 'var(--bg-body, transparent)',
         color: 'var(--text-primary, currentColor)',
@@ -210,16 +279,25 @@ function SystemLayoutInner({ children }: { children: ReactNode }) {
           zIndex: 100,
           display: 'flex',
           alignItems: 'center',
-          gap: 2,
-          height: 60,
-          px: 3,
+          gap: { xs: 1, md: 2 },
+          minHeight: 60,
+          pt: 'var(--sat, 0px)',
+          px: { xs: 1.5, md: 3 },
           bgcolor: 'var(--bg-topbar, transparent)',
           backdropFilter: 'blur(12px)',
           borderBottom: '1px solid var(--border-color, transparent)',
           flexShrink: 0,
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 180 }}>
+        <IconButton
+          size="small"
+          aria-label="打开菜单"
+          onClick={() => setNavOpen(true)}
+          sx={{ display: { xs: 'inline-flex', md: 'none' }, color: 'var(--text-secondary, currentColor)' }}
+        >
+          <MenuRoundedIcon />
+        </IconButton>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: { xs: 0, md: 180 } }}>
           <Box
             sx={{
               width: 32,
@@ -238,14 +316,14 @@ function SystemLayoutInner({ children }: { children: ReactNode }) {
             <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'text.primary' }}>
               系统管理
             </Typography>
-            <Typography sx={{ fontSize: 10, color: 'var(--text-muted, currentColor)', mt: 0.25 }}>
+            <Typography sx={{ fontSize: 10, color: 'var(--text-muted, currentColor)', mt: 0.25, display: { xs: 'none', sm: 'block' } }}>
               Admin Console
             </Typography>
           </Box>
         </Box>
 
-        <Typography sx={{ fontSize: 13, color: 'var(--text-muted, currentColor)' }}>/</Typography>
-        <Typography sx={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary, currentColor)' }}>
+        <Typography sx={{ fontSize: 13, color: 'var(--text-muted, currentColor)', display: { xs: 'none', sm: 'block' } }}>/</Typography>
+        <Typography noWrap sx={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary, currentColor)', minWidth: 0 }}>
           {activeTab?.label || '控制台'}
         </Typography>
 
@@ -292,7 +370,7 @@ function SystemLayoutInner({ children }: { children: ReactNode }) {
             >
               {(currentUser?.nickname || currentUser?.name)?.[0]?.toUpperCase() || 'U'}
             </Avatar>
-            <Box sx={{ display: 'flex', flexDirection: 'column', lineHeight: 1.15 }}>
+            <Box sx={{ display: { xs: 'none', sm: 'flex' }, flexDirection: 'column', lineHeight: 1.15 }}>
               <Typography sx={{ fontSize: 12.5, color: 'var(--text-primary, currentColor)', fontWeight: 500 }}>
                 {currentUser?.nickname || currentUser?.name || '未登录'}
               </Typography>
@@ -341,6 +419,34 @@ function SystemLayoutInner({ children }: { children: ReactNode }) {
 
       {/* 主体:侧栏 + 内容 */}
       <Box sx={{ display: 'flex', flex: 1, minHeight: 0 }}>
+        {/* 手机端抽屉 */}
+        <Drawer
+          anchor="left"
+          open={navOpen}
+          onClose={() => setNavOpen(false)}
+          ModalProps={{ keepMounted: true }}
+          sx={{ display: { xs: 'block', md: 'none' } }}
+          slotProps={{
+            paper: {
+              sx: {
+                width: 272,
+                bgcolor: 'var(--bg-elevated, #111)',
+                color: 'var(--text-primary, currentColor)',
+                pt: 'var(--sat, 0px)',
+                pb: 'var(--sab, 0px)',
+              },
+            },
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', px: 2, py: 1.5, borderBottom: '1px solid var(--border-color, transparent)' }}>
+            <Typography sx={{ fontSize: 14, fontWeight: 700, flex: 1 }}>系统管理</Typography>
+            <IconButton size="small" onClick={() => setNavOpen(false)} aria-label="关闭菜单">
+              <CloseRoundedIcon fontSize="small" />
+            </IconButton>
+          </Box>
+          <Box sx={{ flex: 1, py: 1, overflow: 'auto' }}>{navGroups}</Box>
+        </Drawer>
+
         {/* 左侧导航 */}
         <Box
           component="nav"
@@ -355,61 +461,7 @@ function SystemLayoutInner({ children }: { children: ReactNode }) {
           }}
         >
           <Box sx={{ flex: 1, py: 1.5, overflow: 'auto' }}>
-            {visibleGroups.map((group) => (
-              <Box key={group.title} sx={{ mb: 0.5 }}>
-                <Box sx={{ px: 3, pt: 1.5, pb: 0.5 }}>
-                  <Typography sx={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted, currentColor)', letterSpacing: 1, textTransform: 'uppercase' }}>
-                    {group.title}
-                  </Typography>
-                </Box>
-                {group.items.map((item) => {
-                  const isActive = activeTab?.path === item.path;
-                  return (
-                    <Box
-                      key={item.id}
-                      onClick={() => handleMenuClick(item)}
-                      sx={{
-                        position: 'relative',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 1.25,
-                        mx: 1.5,
-                        px: 1.5,
-                        py: 1,
-                        borderRadius: 1.5,
-                        cursor: 'pointer',
-                        color: isActive ? 'var(--text-primary, currentColor)' : 'var(--text-secondary, currentColor)',
-                        bgcolor: isActive ? 'var(--border-color, transparent)' : 'transparent',
-                        transition: 'all 0.15s',
-                        '&:hover': { bgcolor: 'var(--bg-hover, transparent)', color: 'var(--text-primary, currentColor)' },
-                      }}
-                    >
-                      {isActive && (
-                        <Box
-                          sx={{
-                            position: 'absolute',
-                            right: 6,
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            width: 6,
-                            height: 6,
-                            borderRadius: '50%',
-                            bgcolor: 'var(--brand-color, #FE2C55)',
-                            boxShadow: '0 0 6px var(--brand-color, #FE2C55)',
-                          }}
-                        />
-                      )}
-                      <Box sx={{ display: 'flex', alignItems: 'center', color: isActive ? item.accent : 'inherit' }}>
-                        {item.icon}
-                      </Box>
-                      <Typography sx={{ fontSize: 13, fontWeight: isActive ? 600 : 400, flex: 1 }}>
-                        {item.label}
-                      </Typography>
-                    </Box>
-                  );
-                })}
-              </Box>
-            ))}
+            {navGroups}
           </Box>
 
           {/* 底部状态 */}
@@ -431,7 +483,7 @@ function SystemLayoutInner({ children }: { children: ReactNode }) {
 
         {/* 内容 */}
         <Box component="main" sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
+          <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 1.5, md: 3 }, WebkitOverflowScrolling: 'touch' }}>
             {isTabRoute && ActivePage ? <ActivePage /> : children}
           </Box>
         </Box>

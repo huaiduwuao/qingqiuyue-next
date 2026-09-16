@@ -77,8 +77,9 @@ export default function PublicTopBar({
             display: 'flex',
             alignItems: 'center',
             gap: 1.5,
-            height: { xs: 56, md: 64 },
-            px: { xs: 'max(env(safe-area-inset-left, 12px), 12px)', sm: 2, md: 3 },
+            minHeight: { xs: 56, md: 64 },
+            pl: { xs: 'max(var(--sal, 0px), 12px)', sm: 2, md: 3 },
+            pr: { xs: 'max(var(--sar, 0px), 12px)', sm: 2, md: 3 },
           }}
         >
           {/* 返回 */}

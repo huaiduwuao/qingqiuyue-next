@@ -7,6 +7,8 @@ import { AppContextProvider } from '@/contexts/AppContext';
 import { AuthContextProvider } from '@/contexts/AuthContext';
 import EmotionProvider from '@/lib/emotion-provider';
 import PageViewTracker from '@/components/PageViewTracker';
+import ViewportFix from '@/components/layout/ViewportFix';
+import ClickSpark from '@/components/reactbits/ClickSpark';
 
 // React 19(≤19.3.0) estimateBandwidth 有一个 off-by-one:遍历
 // performance.getEntriesByType("resource") 时,若最后一个条目恰是静态资源
@@ -95,7 +97,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <AppContextProvider>
             <AuthContextProvider>
               <PageViewTracker />
-              {children}
+              {/* 老 WebView 的 100dvh 兜底 + 全站点击火花(React Bits ClickSpark) */}
+              <ViewportFix />
+              <ClickSpark sparkColor="var(--brand-color, #FE2C55)">
+                {children}
+              </ClickSpark>
               {mountFloating && (
                 <Suspense fallback={null}>
                   <FloatingDigitalHuman />

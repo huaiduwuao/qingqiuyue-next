@@ -52,6 +52,9 @@ import { gradient2 } from '@/constants/gradients';
 import HomeRecommendPage from './recommend/page';
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { useResponsive } from '@/hooks/useResponsive';
+import { useTopbarHeight } from '@/hooks/useTopbarHeight';
+import GradientText from '@/components/reactbits/GradientText';
+import ShinyText from '@/components/reactbits/ShinyText';
 
 const SIDE_NAV: { key: string; label: string; path?: string; icon: React.ReactNode; accent: string; dividerBefore?: boolean }[] = [
   { key: 'home', label: '精选', path: '/home/recommend?tab=home', icon: <HomeRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
@@ -87,8 +90,8 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
   const [searchDraft, setSearchDraft] = useState('');
   const searchDraftRef = useRef('');
 
-  // 响应式 Hook
-  const { isMobile, isTablet, isLandscape, isDesktop } = useResponsive();
+  // 响应式 Hook(< md 用底部导航,>= md 用侧栏;同一条线,见 useResponsive)
+  const { isMobile } = useResponsive();
 
   // 同步 URL ?tab= → activeNav,这样从详情页返回时保留 tab
   useEffect(() => {
@@ -141,7 +144,8 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
     };
     html.style.overflow = 'hidden';
     body.style.overflow = 'hidden';
-    body.style.height = '100dvh';
+    // --app-height:支持 dvh 的浏览器是 100dvh,老 WebView 由 ViewportFix 写 innerHeight
+    body.style.height = 'var(--app-height, 100vh)';
     body.style.backgroundColor = 'var(--bg-body, transparent)';
     return () => {
       html.style.overflow = prev.htmlOverflow;
@@ -151,19 +155,13 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
     };
   }, []);
 
-  // 是否显示底部导航（移动端或平板竖屏）
-  const showBottomNav = isMobile || (isTablet && !isLandscape);
-  // 平板横屏时隐藏左侧栏
-  const hideLeftSidebar = isTablet && isLandscape;
-
   return (
-    <Box sx={{ height: '100dvh', bgcolor: 'var(--bg-body, transparent)', color: 'var(--text-primary, currentColor)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <Box sx={{ height: 'var(--app-height, 100vh)', bgcolor: 'var(--bg-body, transparent)', color: 'var(--text-primary, currentColor)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <TopBar
         searchDraft={searchDraft}
         setSearchDraft={setSearchDraft}
         searchDraftRef={searchDraftRef}
         isMobile={isMobile}
-        isTablet={isTablet}
       />
       <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
         <LeftSidebar
@@ -171,15 +169,21 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
           onNavChange={handleNavChange}
           meOpen={meOpen}
           onMeOpenChange={setMeOpen}
-          hideOnLandscape={hideLeftSidebar}
         />
         <Box component="main" ref={mainRef} sx={{
           flex: 1,
           minWidth: 0,
           overflow: 'auto',
           overscrollBehavior: 'contain',
-          // 移动端底部留出滚动空间（避免被底部导航遮挡）
-          pb: showBottomNav ? 'calc(var(--bottom-nav-height, 56px) + 8px)' : 0,
+          WebkitOverflowScrolling: 'touch',
+          // 底部导航挂载时会把自身高度写进 --bottom-nav-inset(含安全区),这里照抄,
+          // 不再各自猜 56px;桌面端该变量是 0。
+          pb: 'var(--bottom-nav-inset, 0px)',
+          // 推荐视频流要铺满剩余高度:main 自己是列向 flex,视频流 flex:1
+          display: 'flex',
+          flexDirection: 'column',
+          '& > *': { flexShrink: 0 },
+          '& > [data-fill-main]': { flex: 1, minHeight: 0 },
         }}>
           {activeNav === 'me' ? <MyHomePage />
            : activeNav === 'ai' ? <AIRecommendPanel />
@@ -208,16 +212,17 @@ function TopBar({
   setSearchDraft,
   searchDraftRef,
   isMobile,
-  isTablet,
 }: {
   searchDraft: string;
   setSearchDraft: (v: string) => void;
   searchDraftRef: React.MutableRefObject<string>;
   isMobile: boolean;
-  isTablet: boolean;
 }) {
   const { currentUser } = useApp();
   const router = useRouter();
+  const headerRef = useRef<HTMLDivElement | null>(null);
+  // 实际高度(含刘海安全区)写进 --topbar-h,面板内的 sticky 子栏按它对齐
+  useTopbarHeight(headerRef);
 
   const submit = () => {
     const q = searchDraftRef.current.trim();
@@ -230,6 +235,7 @@ function TopBar({
 
   return (
     <Box
+      ref={headerRef}
       component="header"
       sx={{
         position: 'sticky',
@@ -237,20 +243,23 @@ function TopBar({
         zIndex: 100,
         display: 'flex',
         alignItems: 'center',
-        gap: 1.5,
-        height: { xs: 56, md: 60 },
-        px: { xs: 'max(env(safe-area-inset-left, 12px), 12px)', sm: 2, md: 3 },
-        pr: { xs: 'max(env(safe-area-inset-right, 12px), 12px)', sm: 2, md: 3 },
+        gap: { xs: 1, md: 1.5 },
+        // 刘海屏:高度 = 内容高 + 顶部安全区。之前是 height:56 + paddingTop:sat,
+        // border-box 下安全区把 56px 吃掉一大半,顶栏内容被压扁/重叠。
+        minHeight: { xs: 'calc(56px + var(--sat, 0px))', md: 'calc(60px + var(--sat, 0px))' },
+        pl: { xs: 'max(var(--sal, 0px), 12px)', sm: 2, md: 3 },
+        pr: { xs: 'max(var(--sar, 0px), 12px)', sm: 2, md: 3 },
         bgcolor: 'var(--bg-topbar, transparent)',
-        backdropFilter: 'blur(12px)',
+        backdropFilter: 'blur(14px) saturate(1.4)',
+        WebkitBackdropFilter: 'blur(14px) saturate(1.4)',
         borderBottom: '1px solid var(--border-color, transparent)',
         flexShrink: 0,
         // Safe Area 顶部适配
-        paddingTop: 'var(--sat)',
+        paddingTop: 'var(--sat, 0px)',
       }}
     >
       <Logo isCompact={isMobile} />
-      <Box sx={{ flex: 1, maxWidth: { xs: 'none', md: 480 }, mx: { xs: 1, md: 2 }, minWidth: 0 }}>
+      <Box sx={{ flex: 1, maxWidth: { xs: 'none', md: 480 }, mx: { xs: 0.5, md: 2 }, minWidth: 0 }}>
         <TextField
           fullWidth
           size="small"
@@ -277,6 +286,7 @@ function TopBar({
                     size="small"
                     onClick={submit}
                     sx={{
+                      display: { xs: 'none', sm: 'inline-flex' },
                       minWidth: 0,
                       px: 1.25,
                       py: 0.25,
@@ -298,10 +308,12 @@ function TopBar({
                 </InputAdornment>
               ),
               sx: {
-                bgcolor: 'var(--border-color, transparent)',
+                bgcolor: 'var(--bg-input, transparent)',
                 color: 'var(--text-primary, currentColor)',
-                fontSize: { xs: 12, md: 13 },
-                borderRadius: 2,
+                fontSize: { xs: 13, md: 13 },
+                height: { xs: 38, md: 40 },
+                borderRadius: 999,
+                pr: { xs: 1, sm: 0.5 },
                 '& input::placeholder': { color: 'var(--text-muted, currentColor)', opacity: 1 },
                 '& fieldset': { borderColor: 'var(--border-strong, transparent)' },
                 '&:hover fieldset': { borderColor: 'var(--text-disabled, currentColor)' },
@@ -400,12 +412,16 @@ function TopBar({
             color="primary"
             onClick={() => router.push(loginHref())}
             sx={{
-              ml: 1.5,
+              ml: { xs: 0.5, md: 1.5 },
               textTransform: 'none',
               fontSize: 13,
               fontWeight: 600,
-              px: 2.25,
+              px: { xs: 1.5, md: 2.25 },
+              minWidth: 0,
+              whiteSpace: 'nowrap',
               borderRadius: 999,
+              background: 'linear-gradient(90deg, #FE2C55 0%, #FF6B3D 100%)',
+              boxShadow: '0 6px 16px rgba(254,44,85,0.28)',
             }}
           >
             登录
@@ -465,31 +481,35 @@ function Logo({ isCompact = false }: { isCompact?: boolean }) {
       {/* 移动端隐藏文字 */}
       {!isCompact && (
         <Box sx={{ lineHeight: 1.1, position: 'relative' }}>
-          <Box
+          <GradientText
+            colors={['#F5E6A8', '#D4AF37', '#FE2C55', '#8B5CF6', '#F5E6A8']}
+            animationSpeed={10}
             sx={{
               fontFamily: '"Ma Shan Zheng", "STKaiti", "KaiTi", "STXingkai", "华文行楷", serif',
               fontSize: 22,
-              color: 'var(--text-primary, currentColor)',
               lineHeight: 1,
               letterSpacing: 4,
-              textShadow: '0 0 8px rgba(212, 175, 55, 0.3)',
+              filter: 'drop-shadow(0 0 6px rgba(212, 175, 55, 0.25))',
             }}
           >
             清秋月
-          </Box>
-          <Box
+          </GradientText>
+          <ShinyText
+            speed={4}
+            color="var(--brand-color, currentColor)"
+            shineColor="rgba(255,255,255,0.95)"
             sx={{
               fontFamily: '"ZCOOL XiaoWei", "Songti SC", "STSong", "SimSun", serif',
               fontSize: 9,
-              color: 'var(--brand-color, currentColor)',
               letterSpacing: 1.5,
               mt: 0.25,
               lineHeight: 1,
               fontStyle: 'italic',
+              display: 'block',
             }}
           >
             十年清秋 · 问心明月
-          </Box>
+          </ShinyText>
         </Box>
       )}
     </Box>
@@ -497,17 +517,18 @@ function Logo({ isCompact = false }: { isCompact?: boolean }) {
 }
 
 
-function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange, hideOnLandscape = false }: { activeNav: string; onNavChange: (k: string) => void; meOpen: boolean; onMeOpenChange: (v: boolean) => void; hideOnLandscape?: boolean }) {
+function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activeNav: string; onNavChange: (k: string) => void; meOpen: boolean; onMeOpenChange: (v: boolean) => void }) {
   const router = useRouter();
   const settingsBtnRef = React.useRef<HTMLDivElement | null>(null);
   return (
     <Box
       component="nav"
       sx={{
-        width: 220,
+        width: { md: 200, lg: 220 },
         flexShrink: 0,
-        height: 'calc(100dvh - 60px)',
-        display: { xs: 'none', md: hideOnLandscape ? 'none' : 'flex' },
+        minHeight: 0,
+        // < md 由底部导航接管(MobileBottomNav 同一条线)
+        display: { xs: 'none', md: 'flex' },
         flexDirection: 'column',
         borderRight: '1px solid var(--border-color, transparent)',
         bgcolor: 'var(--bg-sidebar, transparent)',
@@ -616,7 +637,7 @@ function RightSidebar({ section }: { section: string }) {
         flexShrink: 0,
         display: { xs: 'none', lg: 'flex' },
         p: 2,
-        height: 'calc(100dvh - 60px)',
+        minHeight: 0,
         overflowY: 'auto',
         flexDirection: 'column',
         gap: 1.5,

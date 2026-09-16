@@ -64,7 +64,7 @@ export default function SendToSpider({
 
   if (variant === 'inline') {
     return (
-      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', width: '100%' }}>
         <TextField
           size="small"
           placeholder={placeholder}
@@ -74,7 +74,8 @@ export default function SendToSpider({
             if (e.key === 'Enter') handleSend();
           }}
           disabled={busy}
-          sx={{ minWidth: 240 }}
+          // 窄屏:输入框占满一行,按钮换行;之前 minWidth 240 把按钮挤成竖排文字
+          sx={{ flex: '1 1 200px', minWidth: 0 }}
         />
         <Button
           variant="contained"

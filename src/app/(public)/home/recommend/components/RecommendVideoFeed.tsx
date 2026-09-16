@@ -571,7 +571,7 @@ export function RecommendVideoFeed() {
 
   if (isLoading) {
     return (
-      <Box sx={{ width: '100%', height: '100%', bgcolor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Box data-fill-main sx={{ width: '100%', height: '100%', minHeight: 240, bgcolor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Typography sx={{ color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>加载推荐中…</Typography>
       </Box>
     );
@@ -579,7 +579,7 @@ export function RecommendVideoFeed() {
 
   if (!video) {
     return (
-      <Box sx={{ width: '100%', height: '100%', bgcolor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Box data-fill-main sx={{ width: '100%', height: '100%', minHeight: 240, bgcolor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Typography sx={{ color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>暂无推荐内容</Typography>
       </Box>
     );
@@ -587,11 +587,15 @@ export function RecommendVideoFeed() {
 
   return (
     <Box
+      // 首页 main 是列向 flex,带这个标记的直接子元素 flex:1 铺满剩余高度。
+      // 之前只靠 height:100%,在不支持 dvh 的 WebView 里父级没有确定高度 → 整个视频流 0 高。
+      data-fill-main
       onWheel={handleWheel}
       sx={{
         position: 'relative',
         width: '100%',
         height: '100%',
+        minHeight: 0,
         bgcolor: '#000000',
         display: 'flex',
         flexDirection: 'column',

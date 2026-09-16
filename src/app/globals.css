@@ -24,6 +24,22 @@
   --sab: env(safe-area-inset-bottom, 0px);
   --sal: env(safe-area-inset-left, 0px);
   --bottom-nav-height: calc(56px + var(--sab));
+  /* 底部导航占位:MobileBottomNav 挂载时写成实际高度,卸载后归零。
+     浮窗数字人 / 页面底部留白都读它,不再各自猜 56px。 */
+  --bottom-nav-inset: 0px;
+  /* 顶栏高度:各 layout 的 header 用 ResizeObserver 写入,内部 sticky 子栏按它偏移。 */
+  --topbar-h: 56px;
+  /* 全屏高度:老 WebView(Android 8/9、iOS < 15.4)不认 dvh,height:100dvh 直接失效 →
+     首页 main 没有确定高度 → 推荐视频流 height:100% 算成 0,整屏"没内容"。
+     这里先给 100vh 兜底,支持 dvh 的浏览器再覆盖;ViewportFix 会在不支持 dvh 的
+     环境里用 innerHeight 实时写入。 */
+  --app-height: 100vh;
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --app-height: 100dvh;
+  }
 }
 
 html[data-theme='dark'] {
@@ -142,4 +158,53 @@ a {
 
 .safe-area-right {
   padding-right: var(--sar);
+}
+
+/* ==================== 触屏输入不触发 iOS 自动缩放 ==================== */
+/* iOS Safari 对 font-size < 16px 的输入框会在聚焦时放大整页,退出后布局错位。
+   仅触屏设备生效,桌面端保持 MUI 的紧凑字号。 */
+@media (hover: none) and (pointer: coarse) {
+  .MuiInputBase-input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* ==================== React Bits 动效 keyframes ==================== */
+/* 组件在 src/components/reactbits,这里只放全局 keyframes(emotion 内联 keyframes
+   在 SSR 首帧会闪一下,放 CSS 文件里更稳)。 */
+@keyframes rb-shine {
+  0% { background-position: 100%; }
+  100% { background-position: -100%; }
+}
+
+@keyframes rb-gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes rb-star-movement-bottom {
+  0% { transform: translate(0%, 0%); opacity: 1; }
+  100% { transform: translate(-100%, 0%); opacity: 0; }
+}
+
+@keyframes rb-star-movement-top {
+  0% { transform: translate(0%, 0%); opacity: 1; }
+  100% { transform: translate(100%, 0%); opacity: 0; }
+}
+
+@keyframes rb-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes rb-pulse-ring {
+  0% { transform: scale(0.9); opacity: 0.7; }
+  100% { transform: scale(1.7); opacity: 0; }
+}
+
+@keyframes rb-spin {
+  to { transform: rotate(360deg); }
 }

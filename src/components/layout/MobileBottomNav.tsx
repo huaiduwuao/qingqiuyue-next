@@ -1,18 +1,15 @@
 'use client';
 
-import React, { memo, useCallback } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import React, { memo, useEffect } from 'react';
 import Box from '@mui/material/Box';
-import BottomNavigation from '@mui/material/BottomNavigation';
-import BottomNavigationAction from '@mui/material/BottomNavigationAction';
-import Paper from '@mui/material/Paper';
+import Typography from '@mui/material/Typography';
+import { alpha, useTheme } from '@mui/material/styles';
+import { motion, useReducedMotion } from 'motion/react';
 import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import RecommendRoundedIcon from '@mui/icons-material/RecommendRounded';
-import TravelExploreRoundedIcon from '@mui/icons-material/TravelExploreRounded';
 import DynamicFeedRoundedIcon from '@mui/icons-material/DynamicFeedRounded';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import EmojiEventsRoundedIcon from '@mui/icons-material/EmojiEventsRounded';
-import HeadsetMicIcon from '@mui/icons-material/HeadsetMic';
 import { useResponsive } from '@/hooks/useResponsive';
 
 // Tab 配置
@@ -21,7 +18,6 @@ interface TabItem {
   label: string;
   icon: React.ReactNode;
   path: string;
-  showOnDesktop?: boolean; // 部分 Tab 在桌面端侧边栏也显示
 }
 
 const MOBILE_TABS: TabItem[] = [
@@ -34,134 +30,140 @@ const MOBILE_TABS: TabItem[] = [
   { key: 'me', label: '我的', icon: <PersonRoundedIcon />, path: '/home/recommend?tab=me' },
 ];
 
+export const BOTTOM_NAV_HEIGHT = 56;
+
 interface MobileBottomNavProps {
   activeNav: string;
   onNavChange: (key: string) => void;
 }
 
-export const MobileBottomNav = memo(function MobileBottomNav({
-  activeNav,
-  onNavChange,
-}: MobileBottomNavProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const { isMobile, isTablet, isLandscape } = useResponsive();
-
-  // 判断是否应该显示底部导航
-  // 移动端始终显示，平板竖屏显示，平板横屏隐藏，桌面端隐藏
-  const shouldShow = isMobile || (isTablet && !isLandscape);
-  const shouldHide = !shouldShow;
-
-  // 找到当前激活的 Tab 索引
-  const currentIndex = MOBILE_TABS.findIndex((t) => t.key === activeNav);
-  const value = currentIndex >= 0 ? currentIndex : 0;
+/**
+ * 移动端底部导航。
+ *
+ * - 只在 < md(900px)显示,与侧栏 `{ xs:'none', md:'flex' }` 互补,不再有
+ *   "既没侧栏又没底栏"的中间地带(之前按 768/1024 + 横竖屏判断,平板横屏两个都没有)。
+ * - 挂载时把自身高度(56 + 底部安全区)写进 :root 的 --bottom-nav-inset,
+ *   浮窗数字人 / 首页 main 的底部留白都读这个变量,卸载后归零。
+ * - 选中态是一颗用 motion layoutId 在 tab 之间滑动的胶囊(React Bits 的 GooeyNav/Dock 思路),
+ *   图标带弹簧缩放;prefers-reduced-motion 下退化为瞬切。
+ */
+export const MobileBottomNav = memo(function MobileBottomNav({ activeNav, onNavChange }: MobileBottomNavProps) {
+  const { isMobile } = useResponsive();
+  const theme = useTheme();
+  const reduced = useReducedMotion();
 
   // ⚠️ Hooks 必须在任何条件 return 之前无条件调用(Rules of Hooks)。
-  // 之前 `if (shouldHide) return null` 写在这个 useCallback 前面:当
-  // shouldShow 在两次渲染之间翻转(窗口尺寸/横竖屏变化,或 dev 模式下的
-  // StrictMode 双重渲染)时,本组件两次渲染调用的 hook 数量就会不一致,
-  // 直接触发 React "Rendered more hooks than during the previous render"
-  // 崩溃,被上层 ErrorBoundary 捕获后 Next dev 会整页刷新恢复——这正是
-  // 之前"划着划着推荐流状态突然清空"的真正原因,和滚轮/触屏手势无关。
-  const handleChange = useCallback(
-    (_: React.SyntheticEvent, newValue: number) => {
-      const tab = MOBILE_TABS[newValue];
-      if (tab) {
-        onNavChange(tab.key);
-        // 路由已经在 HomeLayout 中通过 handleNavChange 处理
-      }
-    },
-    [onNavChange]
-  );
+  useEffect(() => {
+    if (!isMobile || typeof document === 'undefined') return;
+    const root = document.documentElement;
+    root.style.setProperty('--bottom-nav-inset', `calc(${BOTTOM_NAV_HEIGHT}px + var(--sab, 0px))`);
+    return () => {
+      root.style.setProperty('--bottom-nav-inset', '0px');
+    };
+  }, [isMobile]);
 
-  if (shouldHide) {
-    return null;
-  }
+  if (!isMobile) return null;
+
+  const pillColor = alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.22 : 0.14);
+  const spring = reduced ? { duration: 0 } : { type: 'spring' as const, stiffness: 520, damping: 36, mass: 0.8 };
 
   return (
-    <Paper
+    <Box
+      component="nav"
+      data-mobile-bottom-nav
+      aria-label="底部导航"
       sx={{
         position: 'fixed',
         bottom: 0,
         left: 0,
         right: 0,
         zIndex: 1100,
-        // Safe Area 底部适配
-        paddingBottom: 'var(--sab, env(safe-area-inset-bottom, 0px))',
-        // iOS Home Indicator 区域视觉提示
-        '&::after': {
-          content: '""',
-          position: 'absolute',
-          bottom: 0,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: isMobile ? 134 : 0,
-          height: isMobile ? 5 : 0,
-          borderRadius: '5px 5px 0 0',
-          bgcolor: 'rgba(128, 128, 128, 0.3)',
-          transition: 'all 0.3s ease',
-        },
+        // Safe Area:底部 Home 指示条 + 横屏时左右圆角区
+        pb: 'var(--sab, 0px)',
+        pl: 'var(--sal, 0px)',
+        pr: 'var(--sar, 0px)',
+        bgcolor: 'var(--bg-topbar, rgba(255, 255, 255, 0.92))',
+        backdropFilter: 'blur(18px) saturate(1.4)',
+        WebkitBackdropFilter: 'blur(18px) saturate(1.4)',
+        borderTop: '1px solid var(--border-color, rgba(0, 0, 0, 0.08))',
+        boxShadow: '0 -8px 24px rgba(0,0,0,0.06)',
       }}
-      elevation={0}
     >
-      <BottomNavigation
-        showLabels
-        value={value}
-        onChange={handleChange}
-        sx={{
-          height: 56,
-          bgcolor: 'var(--bg-topbar, rgba(255, 255, 255, 0.92))',
-          backdropFilter: 'blur(16px)',
-          borderTop: '1px solid var(--border-color, rgba(0, 0, 0, 0.08))',
-          // 暗色模式适配
-          [`.${/* OK */ ''}`]: {},
-          '& .MuiBottomNavigationAction-root': {
-            color: 'var(--text-muted, rgba(0, 0, 0, 0.45))',
-            minWidth: 'auto',
-            py: 1,
-            transition: 'color 0.2s ease',
-            '&.Mui-selected': {
-              color: 'var(--brand-color, #FE2C55)',
-            },
-            '&:hover': {
-              backgroundColor: 'var(--bg-hover, rgba(0, 0, 0, 0.04))',
-            },
-          },
-          '& .MuiBottomNavigationAction-label': {
-            fontSize: 10,
-            fontWeight: 500,
-            mt: 0.25,
-            letterSpacing: 0,
-            transition: 'font-size 0.2s ease, font-weight 0.2s ease',
-            '&.Mui-selected': {
-              fontSize: 10,
-              fontWeight: 700,
-            },
-          },
-          '& .MuiSvgIcon-root': {
-            fontSize: 24,
-            transition: 'font-size 0.2s ease',
-          },
-        }}
-      >
-        {MOBILE_TABS.map((tab) => (
-          <BottomNavigationAction
-            key={tab.key}
-            label={tab.label}
-            icon={tab.icon}
-            sx={{
-              flex: 1,
-              maxWidth: 'unset',
-              // 激活状态的图标放大效果
-              '&.Mui-selected': {
-                '& .MuiSvgIcon-root': {
-                  fontSize: 26,
-                },
-              },
-            }}
-          />
-        ))}
-      </BottomNavigation>
-    </Paper>
+      <Box sx={{ display: 'flex', alignItems: 'stretch', height: BOTTOM_NAV_HEIGHT }}>
+        {MOBILE_TABS.map((tab) => {
+          const active = tab.key === activeNav;
+          return (
+            <Box
+              key={tab.key}
+              component="button"
+              type="button"
+              onClick={() => onNavChange(tab.key)}
+              aria-current={active ? 'page' : undefined}
+              aria-label={tab.label}
+              sx={{
+                flex: 1,
+                minWidth: 0,
+                position: 'relative',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '2px',
+                border: 0,
+                background: 'transparent',
+                color: active ? 'var(--brand-color, #FE2C55)' : 'var(--text-muted, rgba(0, 0, 0, 0.45))',
+                cursor: 'pointer',
+                WebkitTapHighlightColor: 'transparent',
+                touchAction: 'manipulation',
+                transition: 'color 0.2s ease',
+                fontFamily: 'inherit',
+                '&:active': { color: 'var(--brand-color, #FE2C55)' },
+              }}
+            >
+              {active && (
+                <motion.span
+                  layoutId="qq-bottom-nav-pill"
+                  transition={spring}
+                  aria-hidden
+                  style={{
+                    position: 'absolute',
+                    top: 5,
+                    left: '50%',
+                    marginLeft: -24,
+                    width: 48,
+                    height: 30,
+                    borderRadius: 15,
+                    background: pillColor,
+                  }}
+                />
+              )}
+              <motion.span
+                animate={reduced ? undefined : { scale: active ? 1.12 : 1, y: active ? -1 : 0 }}
+                transition={reduced ? { duration: 0 } : { type: 'spring', stiffness: 480, damping: 22 }}
+                style={{ position: 'relative', zIndex: 1, display: 'flex', lineHeight: 0 }}
+              >
+                {React.isValidElement(tab.icon)
+                  ? React.cloneElement(tab.icon as React.ReactElement<{ sx?: object }>, { sx: { fontSize: 24 } })
+                  : tab.icon}
+              </motion.span>
+              <Typography
+                component="span"
+                sx={{
+                  position: 'relative',
+                  zIndex: 1,
+                  fontSize: 10,
+                  fontWeight: active ? 700 : 500,
+                  lineHeight: 1,
+                  letterSpacing: 0,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {tab.label}
+              </Typography>
+            </Box>
+          );
+        })}
+      </Box>
+    </Box>
   );
 });

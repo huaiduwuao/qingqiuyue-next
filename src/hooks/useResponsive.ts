@@ -15,20 +15,27 @@ export interface UseResponsiveResult {
   isLg: boolean;
   isXl: boolean;
   // 设备类型
-  isMobile: boolean;    // xs + sm (< 768px)
-  isTablet: boolean;    // md (768-1023px)
-  isDesktop: boolean;   // lg+ (>= 1024px)
+  isMobile: boolean;    // < md (900px):手机 + 小平板竖屏,显示底部导航
+  isTablet: boolean;    // md ~ lg (900-1199px):显示侧栏,不显示右栏
+  isDesktop: boolean;   // >= lg (1200px)
   // 屏幕方向
   isLandscape: boolean;
   isPortrait: boolean;
   // 类型
   deviceType: DeviceType;
   breakpoint: Breakpoint;
+  /** 是否已挂载(挂载前所有值都是桌面端默认值,用于避免首屏抖动) */
+  mounted: boolean;
 }
 
 /**
- * 统一的响应式判断 Hook
- * 使用 MUI 断点系统，支持移动端、平板、桌面端全尺寸适配
+ * 统一的响应式判断 Hook。
+ *
+ * 断点与 MUI theme.breakpoints 完全对齐(xs 0 / sm 600 / md 900 / lg 1200 / xl 1536):
+ * 之前这里自定义了 768/1024 两条线,而各 layout 的 sx 却用 `{ xs:'none', md:'flex' }`
+ * (900px)控制侧栏,结果 768~899px 既没侧栏也可能没底部导航,900~1023px 横屏则
+ * 侧栏、底部导航同时消失 —— 这就是平板/大屏手机上"导航不见了"的来源。
+ * 现在只有一条规则:< md 用底部导航,>= md 用侧栏。
  */
 export function useResponsive(): UseResponsiveResult {
   const theme = useTheme();
@@ -40,10 +47,9 @@ export function useResponsive(): UseResponsiveResult {
   const isLg = useMediaQuery(theme.breakpoints.only('lg'));
   const isXl = useMediaQuery(theme.breakpoints.up('xl'));
 
-  // 设备类型判断 (< 768px 为移动端，768-1023px 为平板)
-  const isMobileQuery = useMediaQuery('(max-width: 767px)');
-  const isTabletQuery = useMediaQuery('(min-width: 768px) and (max-width: 1023px)');
-  const isDesktopQuery = useMediaQuery('(min-width: 1024px)');
+  const isMobileQuery = useMediaQuery(theme.breakpoints.down('md'));
+  const isTabletQuery = useMediaQuery(theme.breakpoints.between('md', 'lg'));
+  const isDesktopQuery = useMediaQuery(theme.breakpoints.up('lg'));
 
   // 屏幕方向判断
   const isLandscapeQuery = useMediaQuery('(orientation: landscape)');
@@ -94,19 +100,20 @@ export function useResponsive(): UseResponsiveResult {
     isPortrait,
     deviceType,
     breakpoint,
+    mounted,
   };
 }
 
 /**
- * 简化版响应式判断 - 只判断是否显示底部导航
- * 用于不需要频繁切换的场景
+ * 简化版响应式判断 - 只判断是否显示底部导航(< md)。
+ * 与 useResponsive().isMobile 同一条线,别再各自定义阈值。
  */
 export function useShowBottomNav(): boolean {
   const theme = useTheme();
-  // 移动端 (xs/sm) 显示底部导航
-  // 平板横屏不显示 (特殊处理需要结合 useResponsive)
-  const isMobile = useMediaQuery('(max-width: 767px)');
-  return isMobile;
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  return mounted ? isMobile : false;
 }
 
 /**
@@ -117,4 +124,14 @@ export function useIsIpadLandscape(): boolean {
   const isTabletWidth = useMediaQuery('(min-width: 768px)');
   const isShortHeight = useMediaQuery('(max-height: 767px)');
   return isTabletWidth && isShortHeight;
+}
+
+/**
+ * 是否触屏设备(无 hover 能力)。用于关闭依赖鼠标的动效(Magnet / Spotlight)。
+ */
+export function useIsTouch(): boolean {
+  const coarse = useMediaQuery('(hover: none) and (pointer: coarse)');
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  return mounted ? coarse : false;
 }

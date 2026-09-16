@@ -388,9 +388,12 @@ function SearchPageContent() {
           zIndex: 10,
           display: 'flex',
           alignItems: 'center',
-          gap: 1.5,
-          height: 68,
-          px: { xs: 2, md: 3 },
+          gap: { xs: 1, md: 1.5 },
+          minHeight: 68,
+          // 刘海安全区:加在 padding 上,高度用 minHeight 撑开(不然 border-box 会把内容压扁)
+          pt: 'var(--sat, 0px)',
+          pl: { xs: 'max(var(--sal, 0px), 12px)', md: 3 },
+          pr: { xs: 'max(var(--sar, 0px), 12px)', md: 3 },
           bgcolor: 'var(--bg-topbar, rgba(10, 10, 15, 0.85))',
           backdropFilter: 'blur(16px)',
           borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.06))',
@@ -454,9 +457,10 @@ function SearchPageContent() {
           disabled={!q}
           sx={{
             flexShrink: 0,
-            minWidth: 80,
-            px: 2.5,
+            minWidth: { xs: 0, md: 80 },
+            px: { xs: 1.5, md: 2.5 },
             py: 0.75,
+            whiteSpace: 'nowrap',
             borderRadius: 2,
             bgcolor: 'primary.main',
             color: 'var(--text-primary, #fff)',
@@ -478,7 +482,7 @@ function SearchPageContent() {
       <Box
         sx={{
           position: 'sticky',
-          top: 68,
+          top: 'calc(68px + var(--sat, 0px))',
           zIndex: 9,
           display: 'flex',
           alignItems: 'center',

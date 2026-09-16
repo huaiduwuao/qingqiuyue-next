@@ -170,9 +170,13 @@ export function MainLayout({ children }: { children: ReactNode }) {
   ), [menuData, pathname]);
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }} suppressHydrationWarning>
+    <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: 'var(--app-height, 100vh)' }} suppressHydrationWarning>
       {/* Top Header */}
-      <AppBar position="fixed" elevation={0} sx={{ bgcolor: 'background.paper', color: 'text.primary' }}>
+      <AppBar
+        position="fixed"
+        elevation={0}
+        sx={{ bgcolor: 'background.paper', color: 'text.primary', pt: 'var(--sat, 0px)', borderBottom: '1px solid', borderColor: 'divider' }}
+      >
         <Toolbar sx={{ gap: 2 }}>
           {/* Mobile Menu Button */}
           <IconButton
@@ -187,7 +191,7 @@ export function MainLayout({ children }: { children: ReactNode }) {
 
           {/* Logo */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: { xs: 'auto', md: 160 } }}>
-            <Box component="img" src="/yue_icon.svg" sx={{ width: 56, height: 56 }} />
+            <Box component="img" src="/yue_icon.svg" sx={{ width: { xs: 40, sm: 56 }, height: { xs: 40, sm: 56 } }} />
           </Box>
 
           {/* Search - hide on mobile */}
@@ -273,7 +277,8 @@ export function MainLayout({ children }: { children: ReactNode }) {
         </Toolbar>
       </AppBar>
 
-      <Box sx={{ display: 'flex', flex: 1, pt: '64px' }}>
+      {/* 顶栏在 xs 是 56px、sm+ 是 64px,再加刘海安全区;之前固定 64 在手机上多留 8px 空缝 */}
+      <Box sx={{ display: 'flex', flex: 1, pt: { xs: 'calc(56px + var(--sat, 0px))', sm: 'calc(64px + var(--sat, 0px))' } }}>
         {/* Left Sidebar - Desktop only */}
         <Box
           sx={{
@@ -284,7 +289,7 @@ export function MainLayout({ children }: { children: ReactNode }) {
             borderColor: 'divider',
             bgcolor: 'background.paper',
             position: 'fixed',
-            top: 64,
+            top: 'calc(64px + var(--sat, 0px))',
             bottom: 0,
             left: 0,
             overflow: 'auto',
@@ -311,9 +316,10 @@ export function MainLayout({ children }: { children: ReactNode }) {
         <Box
           sx={{
             flex: 1,
-            minHeight: 'calc(100vh - 64px)',
+            minHeight: 'calc(var(--app-height, 100vh) - 64px)',
             bgcolor: 'background.default',
-            p: 3,
+            p: { xs: 1.5, sm: 2, md: 3 },
+            minWidth: 0,
             ml: { md: `${LEFT_SIDEBAR_WIDTH}px` },
           }}
         >

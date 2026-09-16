@@ -9,6 +9,11 @@ import Button from '@mui/material/Button';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
+import Aurora from '@/components/reactbits/Aurora';
+import SplitText from '@/components/reactbits/SplitText';
+import BlurText from '@/components/reactbits/BlurText';
+import GradientText from '@/components/reactbits/GradientText';
+import FadeContent from '@/components/reactbits/FadeContent';
 import { getAuthOptions, type AuthOptions } from '@/apis/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { consumeRedirect, rememberRedirect, safeRedirectPath, DEFAULT_AFTER_LOGIN } from '@/lib/auth/redirect';
@@ -66,7 +71,9 @@ export default function LoginPage() {
   return (
     <Box
       sx={{
-        minHeight: '100dvh',
+        minHeight: 'var(--app-height, 100vh)',
+        position: 'relative',
+        overflow: 'hidden',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -76,11 +83,24 @@ export default function LoginPage() {
             ? 'radial-gradient(ellipse 60% 50% at 20% 10%, rgba(139,92,246,0.22), transparent 60%), radial-gradient(ellipse 50% 40% at 85% 5%, rgba(254,44,85,0.14), transparent 60%)'
             : 'radial-gradient(ellipse 60% 50% at 20% 10%, rgba(139,92,246,0.10), transparent 60%), radial-gradient(ellipse 50% 40% at 85% 5%, rgba(254,44,85,0.06), transparent 60%)',
         px: 2,
+        py: 'max(var(--sat, 0px), 16px)',
       }}
     >
-      <Box
+      {/* React Bits Aurora:桌面端 WebGL 极光,触屏退化为静态渐变 */}
+      <Aurora
+        colorStops={['#FE2C55', '#8B5CF6', '#25F4EE']}
+        amplitude={1.2}
+        blend={0.6}
+        sx={{ opacity: (t) => (t.palette.mode === 'dark' ? 0.55 : 0.32) }}
+      />
+      <FadeContent
         component="main"
+        distance={24}
+        blur={6}
+        duration={700}
         sx={{
+          position: 'relative',
+          zIndex: 1,
           width: '100%',
           maxWidth: 420,
           borderRadius: 3,
@@ -88,17 +108,22 @@ export default function LoginPage() {
           border: '1px solid',
           borderColor: 'divider',
           boxShadow: '0 24px 48px rgba(0,0,0,0.12)',
+          backdropFilter: 'blur(12px)',
           overflow: 'hidden',
         }}
       >
         <Box sx={{ textAlign: 'center', pt: 4, pb: 1 }}>
           <Typography
             component="h1"
-            sx={{ fontFamily: '"Ma Shan Zheng", "STKaiti", "KaiTi", serif', fontSize: 28, letterSpacing: 4 }}
+            sx={{ fontFamily: '"Ma Shan Zheng", "STKaiti", "KaiTi", serif', fontSize: 30, letterSpacing: 4, lineHeight: 1.2 }}
           >
-            清秋月
+            <GradientText colors={['#F5E6A8', '#D4AF37', '#FE2C55', '#8B5CF6', '#F5E6A8']} animationSpeed={9}>
+              <SplitText text="清秋月" delay={110} onView={false} from={{ opacity: 0, y: 18 }} to={{ opacity: 1, y: 0 }} />
+            </GradientText>
           </Typography>
-          <Typography sx={{ fontSize: 11, color: 'text.secondary', letterSpacing: 2, mt: 0.5 }}>十年清秋 · 问心明月</Typography>
+          <Typography component="div" sx={{ fontSize: 11, color: 'text.secondary', letterSpacing: 2, mt: 0.5 }}>
+            <BlurText text="十年清秋 · 问心明月" delay={45} />
+          </Typography>
         </Box>
 
         <Tabs
@@ -149,7 +174,7 @@ export default function LoginPage() {
         >
           {mode === 'register' ? '注册' : '登录'}即代表同意《用户协议》与《隐私政策》
         </Typography>
-      </Box>
+      </FadeContent>
 
       <ForgotPasswordDialog
         open={forgotOpen}

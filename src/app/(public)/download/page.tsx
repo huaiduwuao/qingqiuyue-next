@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
+import Aurora from '@/components/reactbits/Aurora';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
@@ -166,7 +167,7 @@ function DownloadPageContent() {
   return (
     <Box
       sx={{
-        minHeight: '100dvh',
+        minHeight: 'var(--app-height, 100vh)',
         bgcolor: '#0a0a0f',
         color: 'rgba(255,255,255,0.92)',
         overflowX: 'hidden',
@@ -183,7 +184,8 @@ function DownloadPageContent() {
           display: 'flex',
           alignItems: 'center',
           gap: 1.5,
-          height: 60,
+          minHeight: 60,
+          pt: 'var(--sat, 0px)',
           px: { xs: 2, md: 4 },
           bgcolor: 'rgba(10, 10, 15, 0.7)',
           backdropFilter: 'blur(16px)',
@@ -227,6 +229,8 @@ function DownloadPageContent() {
           overflow: 'hidden',
         }}
       >
+        {/* React Bits Aurora:桌面端 WebGL 极光,触屏退化为静态渐变 */}
+        <Aurora colorStops={['#8B5CF6', '#25F4EE', '#FE2C55']} amplitude={1.1} blend={0.55} sx={{ opacity: 0.5 }} />
         {/* 背景光晕 */}
         <Box
           aria-hidden

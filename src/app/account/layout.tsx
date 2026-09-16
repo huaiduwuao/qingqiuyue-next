@@ -19,6 +19,7 @@ import { AccountContextProvider } from '@/contexts/AccountContext';
 import { AvatarHoverPopup } from '@/components/account/AvatarHoverPopup';
 import NoticeIconView, { DmIconView } from '@/components/NoticeIcon';
 import MobileNavDrawer from './components/MobileNavDrawer';
+import GradientText from '@/components/reactbits/GradientText';
 
 const ACCOUNT_PAGES = [
   { key: 'center', label: '个人中心', sub: '个人空间', path: '/account/center', icon: <PersonIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
@@ -88,7 +89,7 @@ function AccountLayoutContent({
     };
     html.style.overflow = 'hidden';
     body.style.overflow = 'hidden';
-    body.style.height = '100dvh';
+    body.style.height = 'var(--app-height, 100vh)';
     // 跟主题走:var(--bg-body) 由 ThemeContext 在切 light/dark 时写入;
     // 这里不再用 'transparent'(否则 AppBar 透到 html 根 --background,跟主题脱节)
     body.style.backgroundColor = 'var(--bg-body)';
@@ -105,7 +106,7 @@ function AccountLayoutContent({
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100dvh', bgcolor: 'transparent', overflow: 'hidden' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'var(--app-height, 100vh)', bgcolor: 'transparent', overflow: 'hidden' }}>
       <AppBar
         ref={appBarRef}
         position="sticky"
@@ -118,6 +119,8 @@ function AccountLayoutContent({
           borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.06))',
           backdropFilter: 'blur(12px)',
           flexShrink: 0,
+          // 刘海安全区
+          pt: 'var(--sat, 0px)',
         }}
       >
         <Toolbar
@@ -149,8 +152,8 @@ function AccountLayoutContent({
               }}
             />
             <Box sx={{ minWidth: 0 }}>
-              <Typography sx={{ fontSize: 17, fontWeight: 700, color: 'text.primary', lineHeight: 1.2, whiteSpace: 'nowrap' }}>
-                {currentPage.label}
+              <Typography component="div" sx={{ fontSize: 17, fontWeight: 700, color: 'text.primary', lineHeight: 1.2, whiteSpace: 'nowrap' }}>
+                <GradientText animationSpeed={9}>{currentPage.label}</GradientText>
               </Typography>
               <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1.2, whiteSpace: 'nowrap' }}>
                 {currentPage.sub}
@@ -185,14 +188,15 @@ function AccountLayoutContent({
                 lineHeight: 1,
               }}
             >
-              {currentPage.label}
+              {currentPage.sub}
             </Box>
           </Box>
 
           <Box sx={{ flex: 1 }} />
 
           {/* Right actions */}
-          <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 0.25 }}>
+          {/* 返回键手机端也要有(之前整组在 xs 隐藏,手机上没有回退入口);通知/私信图标只在 sm+ 显示 */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
             <IconButton
               onClick={handleBack}
               size="small"
@@ -202,10 +206,10 @@ function AccountLayoutContent({
               <ArrowBackIcon fontSize="small" />
             </IconButton>
             {!isMsgPage && (
-              <>
+              <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center' }}>
                 <NoticeIconView />
                 <DmIconView />
-              </>
+              </Box>
             )}
           </Box>
 
