@@ -288,7 +288,7 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
             <TextField
               value={deliverable}
               onChange={(e) => setDeliverable(e.target.value)}
-              placeholder={pickedWork ? '补充说明(选填)' : '交付物链接 / 文本说明;也可以先选一件作品'}
+              placeholder={pickedWork ? '补充说明(选填)' : '交付物链接 / 文本说明(会自动存为你的作品「交付稿」,验收通过后进入审核发布);也可以先选一件作品'}
               fullWidth
               multiline
               minRows={2}

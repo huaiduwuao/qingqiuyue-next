@@ -72,8 +72,20 @@ export interface Project {
   status: 'draft' | 'in_progress' | 'done';
   stage: string;
   cover_url: string;
+  /** 发布成的作品 id(module_content,SHORT_DRAMA);0 = 还没发布。再次发布更新同一件作品 */
+  content_id: number;
+  published_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** 发布结果 */
+export interface PublishResult {
+  content_id: number;
+  status: string;
+  episodes: number;
+  shots: number;
+  missing_render: number;
 }
 
 export interface Character {
@@ -303,6 +315,8 @@ export const dramaAPI = {
   overview: (id: number) => call<Overview>(`/projects/${id}`),
   updateProject: (id: number, fields: Partial<Project>) => call<{ project: Project }>(`/projects/${id}`, put(fields)),
   deleteProject: (id: number) => call<{ status: string }>(`/projects/${id}`, del),
+  /** 发布/更新为标准作品(走 content-api 投稿接口,进内容审核) */
+  publish: (id: number) => call<PublishResult>(`/projects/${id}/publish`, { method: 'POST' }),
 
   listTasks: async (pid: number, limit = 50) => call<{ list: Task[]; running: number }>(`/projects/${pid}/tasks?limit=${limit}`),
   startTask: (pid: number, step: Step, input: Record<string, unknown> = {}) =>

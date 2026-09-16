@@ -38,12 +38,16 @@ import ViewCarouselRoundedIcon from '@mui/icons-material/ViewCarouselRounded';
 import TaskAltRoundedIcon from '@mui/icons-material/TaskAltRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
+import PublishRoundedIcon from '@mui/icons-material/PublishRounded';
+import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { getDetailRoute } from '@/lib/contentRoute';
 import StopRoundedIcon from '@mui/icons-material/StopRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
 import { AGENT_LABELS, STEP_LABELS, dramaAPI, isTaskTerminal, type Step, type Task } from '@/apis/shortdrama';
 import { TaskStatusChip, fmtTime } from './common';
-import { useFeedback, useOverview, useProjectEvents, useStartTask } from './useProject';
+import { qk, useFeedback, useOverview, useProjectEvents, useStartTask } from './useProject';
 import OverviewSection from './sections/OverviewSection';
 import ScriptSection from './sections/ScriptSection';
 import EntitySection from './sections/EntitySection';
@@ -110,6 +114,15 @@ export default function Workbench({ projectId, onExit }: { projectId: number; on
   const p = overview.data?.project;
   const sectionProps: SectionProps = { projectId, setSection, setFeedbackTarget, episodeId, setEpisodeId };
 
+  // 发布成标准作品(module_content SHORT_DRAMA):进"我的作品"与内容审核,和普通投稿同一条路。
+  // 已发布过的项目再点是更新同一件作品(分集随镜头产出刷新)。
+  const queryClient = useQueryClient();
+  const publish = useMutation({
+    mutationFn: () => dramaAPI.publish(projectId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: qk.overview(projectId) }),
+  });
+  const publishedRoute = p?.content_id ? getDetailRoute('SHORT_DRAMA', p.content_id) : null;
+
   const [runMenu, setRunMenu] = useState<null | HTMLElement>(null);
   const projectSteps: Step[] = ['pipeline', 'screenwriter', 'visual_design'];
 
@@ -164,6 +177,18 @@ export default function Workbench({ projectId, onExit }: { projectId: number; on
               </Menu>
             </>
           )}
+          {p && (
+            <Tooltip title={p.content_id ? '更新已发布的作品(分集随最新镜头产出刷新)' : '发布成短剧作品:进入"我的作品"并提交内容审核'}>
+              <span>
+                <Button size="small" variant={p.content_id ? 'text' : 'outlined'} startIcon={<PublishRoundedIcon />} onClick={() => publish.mutate()} disabled={publish.isPending || !!running}>
+                  {publish.isPending ? '发布中…' : p.content_id ? '更新作品' : '发布为作品'}
+                </Button>
+              </span>
+            </Tooltip>
+          )}
+          {publishedRoute && (
+            <Chip size="small" variant="outlined" color="success" icon={<OpenInNewRoundedIcon />} label="已发布 · 查看作品" component="a" href={publishedRoute} target="_blank" clickable />
+          )}
           <Tooltip title={connected ? '实时连接正常' : '实时连接断开,重连中'}>
             <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: connected ? 'success.main' : 'warning.main' }} />
           </Tooltip>
@@ -174,6 +199,18 @@ export default function Workbench({ projectId, onExit }: { projectId: number; on
           )}
         </Stack>
         {running && <LinearProgress variant={running.progress > 0 ? 'determinate' : 'indeterminate'} value={running.progress} sx={{ mt: 1, borderRadius: 1 }} />}
+        {publish.isError && (
+          <Alert severity="error" sx={{ mt: 1 }} onClose={() => publish.reset()}>
+            发布失败:{(publish.error as Error).message}
+          </Alert>
+        )}
+        {publish.isSuccess && publish.data && (
+          <Alert severity="success" sx={{ mt: 1 }} onClose={() => publish.reset()}>
+            已作为短剧作品提交:{publish.data.episodes} 集、{publish.data.shots} 个镜头
+            {publish.data.missing_render > 0 ? `(${publish.data.missing_render} 个镜头还没有画面,出图后再点"更新作品"即可补上)` : ''}
+            ,状态 {publish.data.status === 'REVIEWING' ? '审核中' : publish.data.status}。
+          </Alert>
+        )}
         {start.isError && (
           <Alert severity="error" sx={{ mt: 1 }} onClose={() => start.reset()}>
             {(start.error as Error).message}
