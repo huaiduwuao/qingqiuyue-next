@@ -30,7 +30,7 @@ describe('safeRedirectPath', () => {
 
 describe('route policy', () => {
   it('keeps content pages public so logged-out visitors are not bounced', () => {
-    for (const p of ['/', '/home/recommend', '/detail/video-detail', '/search', '/share/qa', '/user/login', '/account/wallet']) {
+    for (const p of ['/', '/home/recommend', '/detail/video-detail', '/search', '/share/qa', '/user/login', '/account/wallet', '/u']) {
       expect(isPublicPath(p)).toBe(true);
     }
   });

@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import Avatar from '@mui/material/Avatar';
+import BlockRoundedIcon from '@mui/icons-material/BlockRounded';
 import Chip from '@mui/material/Chip';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
@@ -34,6 +34,8 @@ import HourglassTopRoundedIcon from '@mui/icons-material/HourglassTopRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import VerifiedRoundedIcon from '@mui/icons-material/VerifiedRounded';
 import { homeClient } from '@/lib/api/client';
+import { blockUser } from '@/apis/social';
+import { UserAvatarLink } from '@/components/common/UserAvatarLink';
 import { AsyncState } from '@/components/common/AsyncState';
 
 type FriendRequest = {
@@ -164,6 +166,19 @@ export function FriendPanel() {
     }
   };
 
+  // 拉黑好友:后端一并解除双向关注/好友,之后对方不能再关注/加好友/私信我
+  const [blockTarget, setBlockTarget] = useState<Friend | null>(null);
+  const blockFriend = async (u: Friend) => {
+    try {
+      await blockUser(u.id);
+      notify(`已拉黑 ${u.name},对方无法再关注你或给你发私信`);
+      setBlockTarget(null);
+      refreshAll();
+    } catch {
+      notify('操作失败,请稍后再试', 'error');
+    }
+  };
+
   const [removeTarget, setRemoveTarget] = useState<Friend | null>(null);
   const removeFriend = async (u: Friend) => {
     try {
@@ -276,6 +291,7 @@ export function FriendPanel() {
             <FriendsTab
               query={friendsQ}
               onRemove={(f) => setRemoveTarget(f)}
+              onBlock={(f) => setBlockTarget(f)}
             />
           )}
           {tab === 'sent' && (
@@ -304,6 +320,28 @@ export function FriendPanel() {
             sx={{ textTransform: 'none' }}
           >
             确认解除
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={!!blockTarget} onClose={() => setBlockTarget(null)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: 15, fontWeight: 600 }}>拉黑好友</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ fontSize: 13, color: 'var(--text-secondary, rgba(255,255,255,0.7))' }}>
+            拉黑 <b style={{ color: 'var(--text-primary, #fff)' }}>{blockTarget?.name}</b> 后会解除你们的好友和关注关系,
+            对方将无法关注你、加你好友或给你发私信。可在对方主页随时取消拉黑。
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setBlockTarget(null)} size="small" sx={{ textTransform: 'none' }}>取消</Button>
+          <Button
+            variant="contained"
+            color="error"
+            size="small"
+            onClick={() => blockTarget && blockFriend(blockTarget)}
+            sx={{ textTransform: 'none' }}
+          >
+            确认拉黑
           </Button>
         </DialogActions>
       </Dialog>
@@ -455,9 +493,7 @@ function RequestRow({
         '&:hover': { borderColor: 'var(--border-strong, rgba(255,255,255,0.12))' },
       }}
     >
-      <Avatar src={req.fromAvatar} sx={{ width: 48, height: 48, fontSize: 16, flexShrink: 0 }}>
-        {req.fromName[0]}
-      </Avatar>
+      <UserAvatarLink userId={req.fromId} name={req.fromName} src={req.fromAvatar} size={48} />
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
           <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #fff)' }}>
@@ -621,9 +657,7 @@ function SuggestionCard({
         '&:hover': { borderColor: 'var(--border-strong, rgba(255,255,255,0.12))' },
       }}
     >
-      <Avatar src={user.avatar} sx={{ width: 44, height: 44, fontSize: 15, flexShrink: 0 }}>
-        {user.name[0]}
-      </Avatar>
+      <UserAvatarLink userId={user.id} name={user.name} src={user.avatar} size={44} />
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           <Typography
@@ -712,9 +746,11 @@ function SuggestionCard({
 function FriendsTab({
   query,
   onRemove,
+  onBlock,
 }: {
   query: ReturnType<typeof useQuery<{ list: Friend[]; total: number }>>;
   onRemove: (f: Friend) => void;
+  onBlock: (f: Friend) => void;
 }) {
   return (
     <AsyncState query={query} skeletonCount={6} skeletonHeight={96}>
@@ -728,7 +764,7 @@ function FriendsTab({
         ) : (
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 1.5 }}>
             {data.list.map((f) => (
-              <FriendCard key={f.id} friend={f} onRemove={() => onRemove(f)} />
+              <FriendCard key={f.id} friend={f} onRemove={() => onRemove(f)} onBlock={() => onBlock(f)} />
             ))}
           </Box>
         )
@@ -737,7 +773,7 @@ function FriendsTab({
   );
 }
 
-function FriendCard({ friend, onRemove }: { friend: Friend; onRemove: () => void }) {
+function FriendCard({ friend, onRemove, onBlock }: { friend: Friend; onRemove: () => void; onBlock: () => void }) {
   const router = useRouter();
   return (
     <Box
@@ -753,9 +789,7 @@ function FriendCard({ friend, onRemove }: { friend: Friend; onRemove: () => void
         '&:hover': { borderColor: 'var(--border-strong, rgba(255,255,255,0.12))' },
       }}
     >
-      <Avatar src={friend.avatar} sx={{ width: 48, height: 48, fontSize: 16, flexShrink: 0 }}>
-        {friend.name[0]}
-      </Avatar>
+      <UserAvatarLink userId={friend.id} name={friend.name} src={friend.avatar} size={48} />
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           <Typography
@@ -823,6 +857,20 @@ function FriendCard({ friend, onRemove }: { friend: Friend; onRemove: () => void
             <PersonRemoveRoundedIcon sx={{ fontSize: 14 }} />
           </IconButton>
         </Tooltip>
+        <Tooltip title="拉黑">
+          <IconButton
+            size="small"
+            onClick={onBlock}
+            sx={{
+              color: 'var(--text-secondary, rgba(255,255,255,0.55))',
+              border: '1px solid var(--border-color, rgba(255,255,255,0.1))',
+              borderRadius: 1.5,
+              '&:hover': { color: 'error.main', borderColor: 'rgba(255, 80, 80, 0.4)' },
+            }}
+          >
+            <BlockRoundedIcon sx={{ fontSize: 14 }} />
+          </IconButton>
+        </Tooltip>
       </Box>
     </Box>
   );
@@ -870,9 +918,7 @@ function SentRow({ req, onCancel }: { req: SentRequest; onCancel: () => void }) 
         gap: 2,
       }}
     >
-      <Avatar src={req.toAvatar} sx={{ width: 48, height: 48, fontSize: 16, flexShrink: 0 }}>
-        {req.toName[0]}
-      </Avatar>
+      <UserAvatarLink userId={req.toId} name={req.toName} src={req.toAvatar} size={48} />
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
           <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #fff)' }}>

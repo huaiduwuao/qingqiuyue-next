@@ -1492,7 +1492,8 @@ function QrCodeDialog({
   // douyinId 没拉到时不伪造 ID,直接用 uid(后端有唯一性);不再使用硬编码 '84301022' 兜底
   const douyinId = user?.douyinId || user?.id || currentUser?.id || '';
   const avatarSrc = user?.avatar || currentUser?.avatar;
-  const profileUrl = `https://qingqiuyue.com/u/${encodeURIComponent(String(douyinId))}`;
+  // 主页路由是 /u?id=<uid>(静态导出没有动态段);二维码里编 uid 而不是抖音号
+  const profileUrl = `https://qingqiuyue.com/u?id=${encodeURIComponent(String(user?.id || currentUser?.id || douyinId))}`;
   const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=${encodeURIComponent(profileUrl)}`;
   const [refreshing, setRefreshing] = useState(false);
   const [qrKey, setQrKey] = useState(0);

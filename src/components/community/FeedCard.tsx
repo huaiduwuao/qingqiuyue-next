@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
-import Avatar from '@mui/material/Avatar';
 import AvatarGroup from '@mui/material/AvatarGroup';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
@@ -25,6 +24,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { formatApiError } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { CoverImage } from '@/components/common/CoverImage';
+import { UserAvatarLink } from '@/components/common/UserAvatarLink';
 import {
   addComment,
   deleteComment,
@@ -132,13 +132,11 @@ export function FeedCard({
         {aggregated ? (
           <AvatarGroup max={4} sx={{ '& .MuiAvatar-root': { width: 32, height: 32, fontSize: 12 } }}>
             {[item.user, ...item.actors].map((u) => (
-              <Avatar key={String(u.id)} src={u.avatar || undefined}>{u.name?.[0]}</Avatar>
+              <UserAvatarLink key={String(u.id)} userId={u.id} name={u.name} src={u.avatar} size={32} />
             ))}
           </AvatarGroup>
         ) : (
-          <Avatar src={item.user.avatar || undefined} sx={{ width: 40, height: 40 }}>
-            {item.user.name?.[0]}
-          </Avatar>
+          <UserAvatarLink userId={item.user.id} name={item.user.name} src={item.user.avatar} size={40} />
         )}
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
@@ -323,7 +321,7 @@ function FeedComments({ feedId, notify, onCountChange }: { feedId: Id; notify: N
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
           {list.map((c) => (
             <Box key={String(c.id)} sx={{ display: 'flex', gap: 1 }}>
-              <Avatar src={c.user.avatar || undefined} sx={{ width: 26, height: 26, fontSize: 11 }}>{c.user.name?.[0]}</Avatar>
+              <UserAvatarLink userId={c.user.id} name={c.user.name} src={c.user.avatar} size={26} />
               <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
                   <UserName user={c.user} size={12} />

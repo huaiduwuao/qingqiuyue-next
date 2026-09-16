@@ -37,10 +37,12 @@ import CampaignOutlinedIcon from '@mui/icons-material/CampaignOutlined';
 import EventOutlinedIcon from '@mui/icons-material/EventOutlined';
 import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
 import VerifiedIcon from '@mui/icons-material/Verified';
-import { adminClient, homeClient, contentClient, formatApiError } from '@/lib/api/client';
+import { adminClient, contentClient, formatApiError } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { fileUpload } from '@/apis/global';
 import { pinSession, unpinSession, removeSessions } from '@/apis/msg';
+import { blockUser, followUser, unblockUser, unfollowUser } from '@/apis/social';
+import { UserAvatarLink } from '@/components/common/UserAvatarLink';
 import { useMsgUi } from './store';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -51,6 +53,8 @@ interface Session {
   avatar: string;
   bio?: string;
   isFollowed?: boolean;
+  /** 我拉黑了对方(user_contact type=block);后端会拒收发给 TA 的消息 */
+  isBlocked?: boolean;
   isOfficial?: boolean;
   unread: number;
   lastMessage: string;
@@ -125,6 +129,16 @@ function mapNoticeTargetType(targetType?: string): string | null {
 export default function MsgPage() {
   const mainTab = useMsgUi((s) => s.mainTab);
   const setMainTab = useMsgUi((s) => s.setMainTab);
+  const setSelectedId = useMsgUi((s) => s.setSelectedId);
+  // 主页「私信」按钮带 ?tab=dm&session=<id> 进来:直接打开那个会话。
+  // 读 window.location 而不是 useSearchParams,省掉 Suspense 边界。
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const tab = sp.get('tab');
+    const session = Number(sp.get('session'));
+    if (tab === 'dm' || tab === 'interaction' || tab === 'system') setMainTab(tab);
+    if (session > 0) setSelectedId(session);
+  }, [setMainTab, setSelectedId]);
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - var(--appbar-h, 66px))', bgcolor: 'background.default' }}>
       {/* 顶部 Tab 导航 */}
@@ -248,6 +262,31 @@ function FullNoticeItem({ item }: { item: any }) {
   const router = useRouter();
   const qc = useQueryClient();
   const [snack, setSnack] = useState<{ open: boolean; msg: string }>({ open: false, msg: '' });
+  const [followed, setFollowed] = useState<boolean>(!!item.isFollowed);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setFollowed(!!item.isFollowed), [item.isFollowed]);
+
+  // 关注/取关只在这个按钮上发生,点消息本身不再动关注关系
+  const toggleFollow = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!item.fromUserId || busy) return;
+    setBusy(true);
+    const next = !followed;
+    setFollowed(next);
+    try {
+      if (next) await followUser(item.fromUserId);
+      else await unfollowUser(item.fromUserId);
+      setSnack({ open: true, msg: next ? '已关注' : '已取消关注' });
+      qc.invalidateQueries({ queryKey: ['notice-interaction-page'] });
+      qc.invalidateQueries({ queryKey: ['notice-interaction'] });
+      qc.invalidateQueries({ queryKey: ['home'] });
+    } catch (e2) {
+      setFollowed(!next);
+      setSnack({ open: true, msg: formatApiError(e2) || '操作失败,请稍后重试' });
+    } finally {
+      setBusy(false);
+    }
+  };
 
   // 点击时标记已读(若未读)
   const markRead = async () => {
@@ -269,18 +308,8 @@ function FullNoticeItem({ item }: { item: any }) {
 
   const handleClick = async () => {
     markRead(); // 点击即标记已读(异步,不阻塞后续操作)
-    if (item.type === 'follow' && item.fromUserId) {
-      const isFollowed = !!item.isFollowed;
-      try {
-        if (isFollowed) {
-          await homeClient.delete(`/follow/${item.fromUserId}`);
-        } else {
-          await homeClient.post(`/follow/${item.fromUserId}`);
-        }
-        setSnack({ open: true, msg: isFollowed ? '已取关' : '已关注' });
-      } catch (e) {
-        setSnack({ open: true, msg: formatApiError(e) || '操作失败,请稍后重试' });
-      }
+    if (item.type === 'follow') {
+      // 粉丝消息:已读即可,不自动回关;看主页点头像,回关点右侧按钮
       return;
     }
     const targetType = mapNoticeTargetType(item.targetType);
@@ -326,11 +355,7 @@ function FullNoticeItem({ item }: { item: any }) {
           />
         )}
         <Box sx={{ position: 'relative', flexShrink: 0, ml: 1.5 }}>
-          <img
-            src={item.avatar}
-            alt=""
-            style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', display: 'block' }}
-          />
+          <UserAvatarLink userId={item.fromUserId} name={item.nickname} src={item.avatar} size={44} />
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.25 }}>
@@ -366,6 +391,18 @@ function FullNoticeItem({ item }: { item: any }) {
             {item.content}
           </Typography>
         </Box>
+        {item.type === 'follow' && item.fromUserId && (
+          <Button
+            size="small"
+            variant={followed ? 'outlined' : 'contained'}
+            color={followed ? 'inherit' : 'primary'}
+            disabled={busy}
+            onClick={toggleFollow}
+            sx={{ alignSelf: 'center', flexShrink: 0, borderRadius: 999, textTransform: 'none', fontSize: 12, minWidth: 72 }}
+          >
+            {followed ? '已关注' : '回关'}
+          </Button>
+        )}
         {item.targetCover && (
           <Box sx={{ flexShrink: 0 }}>
             <img
@@ -676,12 +713,39 @@ function DmPanel() {
     },
   });
 
+  // 关注/取关写的是真实关系(user_contact),会话列表的 isFollowed 由后端从它派生;
+  // 以前只翻 dm_session.is_followed 这个快照,和首页/主页的关注态对不上,也没法取关。
   const followMutation = useMutation({
-    mutationFn: async () => (await adminClient('/msg/session/follow', { method: 'POST' })).data,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['dm-sessions-page'] });
-      setSnack({ open: true, msg: '已关注', severity: 'success' });
+    mutationFn: async () => {
+      if (!selected) return false;
+      if (selected.isFollowed) await unfollowUser(selected.userId);
+      else await followUser(selected.userId);
+      return !selected.isFollowed;
     },
+    onSuccess: (followed) => {
+      qc.invalidateQueries({ queryKey: ['dm-sessions-page'] });
+      qc.invalidateQueries({ queryKey: ['dm-sessions-badge'] });
+      qc.invalidateQueries({ queryKey: ['home'] });
+      setSnack({ open: true, msg: followed ? '已关注' : '已取消关注', severity: 'success' });
+    },
+    onError: (e) => setSnack({ open: true, msg: formatApiError(e) || '操作失败', severity: 'error' }),
+  });
+
+  const [blockOpen, setBlockOpen] = useState(false);
+  const blockMutation = useMutation({
+    mutationFn: async () => {
+      if (!selected) return false;
+      if (selected.isBlocked) await unblockUser(selected.userId);
+      else await blockUser(selected.userId);
+      return !selected.isBlocked;
+    },
+    onSuccess: (blocked) => {
+      setBlockOpen(false);
+      qc.invalidateQueries({ queryKey: ['dm-sessions-page'] });
+      qc.invalidateQueries({ queryKey: ['home'] });
+      setSnack({ open: true, msg: blocked ? '已拉黑,对方无法再给你发私信' : '已取消拉黑', severity: 'success' });
+    },
+    onError: (e) => setSnack({ open: true, msg: formatApiError(e) || '操作失败', severity: 'error' }),
   });
 
   const handleSend = () => {
@@ -855,10 +919,13 @@ function DmPanel() {
                 >
                   <ArrowBackIcon sx={{ fontSize: 18 }} />
                 </IconButton>
-                <img src={selected.avatar || undefined} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />
+                <UserAvatarLink userId={selected.userId} name={selected.nickname} src={selected.avatar} size={36} />
                 <Box sx={{ flex: 1, minWidth: 0 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <Typography sx={{ fontSize: 15, fontWeight: 600, color: 'text.primary' }}>{selected.nickname}</Typography>
+                    {selected.isBlocked && (
+                      <Box sx={{ px: 0.6, py: 0.1, borderRadius: 0.75, bgcolor: 'rgba(255, 80, 80, 0.12)', color: 'error.main', fontSize: 10, fontWeight: 600 }}>已拉黑</Box>
+                    )}
                     {selected.isOfficial && <VerifiedIcon sx={{ fontSize: 14, color: 'secondary.main' }} />}
                   </Box>
                   {selected.bio && (
@@ -867,9 +934,9 @@ function DmPanel() {
                     </Typography>
                   )}
                 </Box>
-                <Tooltip title={selected.isFollowed ? '已关注' : '关注'}>
+                <Tooltip title={selected.isFollowed ? '点击取消关注' : '关注'}>
                   <Box
-                    onClick={() => followMutation.mutate()}
+                    onClick={() => !followMutation.isPending && !selected.isBlocked && followMutation.mutate()}
                     sx={{
                       px: 1.25,
                       py: 0.4,
@@ -931,7 +998,27 @@ function DmPanel() {
                   >
                     举报
                   </MenuItem>
+                  <MenuItem
+                    onClick={() => { setMoreAnchor(null); if (selected.isBlocked) blockMutation.mutate(); else setBlockOpen(true); }}
+                    sx={{ fontSize: 13, minWidth: 140, color: selected.isBlocked ? 'text.primary' : 'error.main' }}
+                  >
+                    {selected.isBlocked ? '取消拉黑' : '拉黑'}
+                  </MenuItem>
                 </Menu>
+                <Dialog open={blockOpen} onClose={() => setBlockOpen(false)} maxWidth="xs" fullWidth>
+                  <DialogTitle sx={{ fontSize: 15, fontWeight: 600 }}>拉黑 {selected.nickname}</DialogTitle>
+                  <DialogContent>
+                    <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+                      拉黑后会解除你们之间的关注和好友关系,对方将无法关注你、加你好友或给你发私信。可在对方主页或这里随时取消。
+                    </Typography>
+                  </DialogContent>
+                  <DialogActions sx={{ px: 3, pb: 2 }}>
+                    <Button size="small" onClick={() => setBlockOpen(false)} sx={{ textTransform: 'none' }}>取消</Button>
+                    <Button size="small" variant="contained" color="error" disabled={blockMutation.isPending} onClick={() => blockMutation.mutate()} sx={{ textTransform: 'none' }}>
+                      确认拉黑
+                    </Button>
+                  </DialogActions>
+                </Dialog>
               </Box>
 
               <Box
@@ -1122,7 +1209,7 @@ function SessionItem({ session, active, onClick }: { session: Session; active: b
       }}
     >
       <Box sx={{ position: 'relative', flexShrink: 0 }}>
-        <img src={session.avatar || undefined} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />
+        <UserAvatarLink userId={session.userId} name={session.nickname} src={session.avatar} size={44} />
         {session.unread > 0 && (
           <Box sx={{ position: 'absolute', top: -2, right: -2, minWidth: 16, height: 16, borderRadius: 8, bgcolor: 'primary.main', color: 'text.primary', fontSize: 10, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', px: 0.5, border: '2px solid', borderColor: 'background.paper' }}>
             {session.unread > 99 ? '99+' : session.unread}

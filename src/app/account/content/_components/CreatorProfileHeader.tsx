@@ -78,7 +78,7 @@ export default function CreatorProfileHeader() {
   const handleStats = () => setActiveTab('data');
 
   const handleShare = async () => {
-    const url = `${window.location.origin}/u/${profile.userId}`;
+    const url = `${window.location.origin}/u?id=${profile.userId}`;
     try {
       await navigator.clipboard.writeText(url);
       setSnack('主页链接已复制');

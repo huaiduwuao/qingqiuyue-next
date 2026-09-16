@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import Avatar from '@mui/material/Avatar';
+import { UserAvatarLink } from '@/components/common/UserAvatarLink';
 import Button from '@mui/material/Button';
 import Tooltip from '@mui/material/Tooltip';
 import Snackbar from '@mui/material/Snackbar';
@@ -114,9 +114,7 @@ function SuggestUserRow({ user, circle, notify }: { user?: SuggestUser; circle: 
 
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-      <Avatar src={user.avatar || undefined} sx={{ width: 36, height: 36, fontSize: 13, flexShrink: 0 }}>
-        {user.name?.[0] ?? '?'}
-      </Avatar>
+      <UserAvatarLink userId={user.id} name={user.name} src={user.avatar} size={36} />
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary, #fff)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -256,9 +254,7 @@ function FollowedRow({ user, onUnfollow }: { user: FollowedUser; onUnfollow: (u:
           '&:hover': { borderColor: 'var(--border-strong, rgba(255,255,255,0.12))' },
         }}
       >
-        <Avatar src={user.avatar || undefined} sx={{ width: 48, height: 48, fontSize: 18 }}>
-          {user.name?.[0] ?? '?'}
-        </Avatar>
+        <UserAvatarLink userId={user.id} name={user.name} src={user.avatar} size={48} />
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #fff)' }}>

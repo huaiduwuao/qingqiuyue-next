@@ -19,6 +19,8 @@ const PUBLIC_PREFIXES = [
   '/kf-chat',
   '/digital-human',
   '/crawled',
+  // 用户主页:每个用户都有,未登录也能看(关注/私信等按钮点了再去登录)
+  '/u',
   // 个人中心 / 积分:整页由 <LoginGate> 替换内容(看得到入口,登录后才有数据)
   '/account',
   // 登录、第三方登录回调、积分

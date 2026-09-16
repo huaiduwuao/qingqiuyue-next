@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import Box from '@mui/material/Box';
 import Badge from '@mui/material/Badge';
@@ -23,8 +23,10 @@ import AlternateEmailIcon from '@mui/icons-material/AlternateEmail';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import PersonAddAlt1Icon from '@mui/icons-material/PersonAddAlt1';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import { adminClient, homeClient } from '@/lib/api/client';
+import { adminClient } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
+import { UserAvatarLink } from '@/components/common/UserAvatarLink';
+import { followUser, unfollowUser } from '@/apis/social';
 
 const SUB_TYPES = [
   { key: 'all', label: '最新' },
@@ -303,7 +305,11 @@ export default function NoticeIconView() {
 
 function InteractionItem({ item, onClose, onMessage }: { item: any; onClose: () => void; onMessage: (msg: string) => void }) {
   const router = useRouter();
-  const [followedBack, setFollowedBack] = useState(false);
+  const qc = useQueryClient();
+  // 关注态以后端 isFollowed 为准;按钮点击后本地先翻转,再刷新列表
+  const [followed, setFollowed] = useState<boolean>(!!item.isFollowed);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => setFollowed(!!item.isFollowed), [item.isFollowed]);
   const typeIcon = (() => {
     if (item.type === 'comment') return <CommentOutlinedIcon sx={{ fontSize: 12, color: 'secondary.main' }} />;
     if (item.type === 'mention') return <AlternateEmailIcon sx={{ fontSize: 12, color: '#5B8DEF' }} />;
@@ -312,20 +318,43 @@ function InteractionItem({ item, onClose, onMessage }: { item: any; onClose: () 
     return null;
   })();
 
+  // 点击消息只标记已读(再按类型跳转),不再自动关注;关注/取关走右侧按钮或对方主页。
+  const markRead = () => {
+    if (!item.unread || !item.id) return;
+    adminClient.post('/notice/interaction/read', { id: item.id }).then(() => {
+      qc.invalidateQueries({ queryKey: ['notice-interaction'] });
+      qc.invalidateQueries({ queryKey: ['notice-interaction-page'] });
+      qc.invalidateQueries({ queryKey: ['notice-count'] });
+      qc.invalidateQueries({ queryKey: ['notice', 'count'] });
+    }).catch(() => { /* 已读失败不影响跳转 */ });
+  };
+
+  const toggleFollow = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!item.fromUserId || busy) return;
+    setBusy(true);
+    const next = !followed;
+    setFollowed(next);
+    try {
+      if (next) await followUser(item.fromUserId);
+      else await unfollowUser(item.fromUserId);
+      onMessage(next ? `已关注 ${item.nickname || '用户'}` : `已取消关注 ${item.nickname || '用户'}`);
+      qc.invalidateQueries({ queryKey: ['notice-interaction'] });
+      qc.invalidateQueries({ queryKey: ['notice-interaction-page'] });
+      qc.invalidateQueries({ queryKey: ['home'] });
+    } catch {
+      setFollowed(!next);
+      onMessage('操作失败,请稍后再试');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleClick = async () => {
+    markRead();
     onClose();
-    if (item.type === 'follow' && item.fromUserId) {
-      if (followedBack) {
-        onMessage('已经回关过啦');
-        return;
-      }
-      try {
-        await homeClient.post(`/follow/${item.fromUserId}`);
-        setFollowedBack(true);
-        onMessage(`已回关 ${item.nickname || '用户'}`);
-      } catch {
-        onMessage('回关失败,请稍后再试');
-      }
+    if (item.type === 'follow') {
+      // 粉丝消息:已读即可;看对方主页点头像
       return;
     }
     if (item.feedId) {
@@ -373,11 +402,7 @@ function InteractionItem({ item, onClose, onMessage }: { item: any; onClose: () 
         />
       )}
       <Box sx={{ position: 'relative', flexShrink: 0, ml: 1 }}>
-        <img
-          src={item.avatar}
-          alt=""
-          style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', display: 'block' }}
-        />
+        <UserAvatarLink userId={item.fromUserId} name={item.nickname} src={item.avatar} size={40} />
       </Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.25 }}>
@@ -404,6 +429,31 @@ function InteractionItem({ item, onClose, onMessage }: { item: any; onClose: () 
           {item.content}
         </Typography>
       </Box>
+      {item.type === 'follow' && item.fromUserId && (
+        <Box
+          component="button"
+          type="button"
+          disabled={busy}
+          onClick={toggleFollow}
+          sx={{
+            alignSelf: 'center',
+            flexShrink: 0,
+            px: 1.25,
+            py: 0.4,
+            borderRadius: 999,
+            border: '1px solid',
+            borderColor: followed ? 'divider' : 'transparent',
+            bgcolor: followed ? 'transparent' : 'primary.main',
+            color: followed ? 'text.secondary' : '#fff',
+            fontSize: 11,
+            fontWeight: 600,
+            cursor: busy ? 'default' : 'pointer',
+            fontFamily: 'inherit',
+          }}
+        >
+          {followed ? '已关注' : '回关'}
+        </Box>
+      )}
       {item.targetCover && (
         <Box sx={{ flexShrink: 0, ml: 0.5 }}>
           <img

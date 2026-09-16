@@ -6,7 +6,6 @@ import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
-import Avatar from '@mui/material/Avatar';
 import Chip from '@mui/material/Chip';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
@@ -20,6 +19,7 @@ import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import { CoverImage } from '@/components/common/CoverImage';
+import { UserAvatarLink } from '@/components/common/UserAvatarLink';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { fetchSubcategories, type SubcategoryItem } from '@/apis/home-discover';
 import { moduleContentPage } from '@/apis/home';
@@ -711,9 +711,7 @@ function FeedCard({ item }: { item: FeedItem }) {
 
         {/* 作者行:头像 + 名字 + 状态徽章 + 关注/朋友按钮 */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.75 }}>
-          <Avatar src={item.authorAvatar || undefined} sx={{ width: 22, height: 22, fontSize: 10 }}>
-            {item.authorName?.[0] ?? '?'}
-          </Avatar>
+          <UserAvatarLink userId={item.authorId} name={item.authorName} src={item.authorAvatar} size={22} />
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <Typography sx={{ fontSize: 11, color: 'var(--text-secondary, rgba(255,255,255,0.85))', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
