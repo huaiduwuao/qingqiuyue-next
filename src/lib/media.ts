@@ -91,6 +91,26 @@ export function mediaUrl(raw?: string | null): string {
  * (仍是相对路径,行为不变),打包下是 https://qingqiuyue.com 绝对地址。
  * VideoPlayer 的防盗链 m3u8/ts 代理就走这里,否则打包后所有需代理的视频全黑屏。
  */
+export function isExternalStreamUrl(raw?: string | null): boolean {
+  // 这条播放地址是不是外站的(要先问后端能不能直连)。
+  // 本站存的(MinIO public bucket、同源相对路径、data/blob)直接播;外站绝对地址
+  // 才需要 streamaccess 判定。/api/proxy?url= 形态视作本站地址:老数据里可能存着
+  // 这种包装,后端会自己 302 或 403。
+  if (!raw) return false;
+  const url = raw.trim();
+  if (!/^https?:\/\//i.test(url)) return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  if (typeof window !== 'undefined' && parsed.origin === window.location.origin) return false;
+  if (GATEWAY && url.startsWith(GATEWAY + '/')) return false;
+  const bucket = bucketOf(parsed.pathname);
+  return !PUBLIC_BUCKETS.includes(bucket) && !PRIVATE_BUCKETS.includes(bucket);
+}
+
 export function proxyMediaUrl(raw: string): string {
   return `${GATEWAY}/api/proxy?url=${encodeURIComponent(raw)}`;
 }

@@ -198,6 +198,45 @@ export function usableDirectUrl(url?: string, pageUrl?: string): string {
  *
  * refresh:播放器发现手里的直链已失效时传,后端绕过缓存重新解析。
  */
+export type StreamAccessVerdict = 'direct' | 'referer_required' | 'cors_blocked' | 'unreachable';
+
+/**
+ * 流地址浏览器能不能直连(后端 GET /api/proxy/check,internal/streamaccess 实测)。
+ *
+ * 视频不经本站带宽:源站不校验 Referer 的流,浏览器自己去取;校验 Referer 的流
+ * 本站不中转,播放器直接显示"因带宽成本暂不支持站内播放"并给出去原站的入口。
+ * 后端 stream/resolve 返回的每条流已经带了 access 字段;这里给直接拿到直链
+ * (后端回填的 playUrl、推荐流的 src)的调用方补一次判定。
+ */
+export interface StreamAccess {
+  direct: boolean;
+  verdict: StreamAccessVerdict;
+  notice?: string;
+}
+
+/** 面向用户的带宽提示;后端 notice 缺失时的兜底文案,与 streamaccess.BandwidthNotice 一致。 */
+export const BANDWIDTH_NOTICE = '因带宽成本，该视频暂不支持站内播放，可前往原站观看';
+
+export async function checkStreamAccess(url: string): Promise<StreamAccess> {
+  try {
+    const resp = await fetch(`${BACKEND}/api/proxy/check?url=${encodeURIComponent(url)}`, {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      const a = data?.data;
+      if (a && typeof a.direct === 'boolean') {
+        return { direct: a.direct, verdict: a.verdict || (a.direct ? 'direct' : 'unreachable'), notice: a.notice || undefined };
+      }
+    }
+  } catch (e) {
+    console.warn('[stream] access check failed, assuming direct:', e);
+  }
+  // 探测接口本身不可用(老后端 / 网络抖动)时不拦着用户:按能直连处理,
+  // 真播不了会走播放器原有的出错路径。
+  return { direct: true, verdict: 'direct' };
+}
+
 export async function parseStream(url: string, opts: { refresh?: boolean } = {}) {
   // 1) 后端统一实时解析(缓存+平台分发:配置驱动/代码层/浏览器层)。推荐页短视频/短剧第一集走这里。
   try {

@@ -14,10 +14,13 @@ export const reportBehavior = (data: {
 //                     提示语刻意不含"修复"二字 —— 没有任何东西坏了
 //   not_applicable —— 小说/漫画/文章,不进播放器
 //   unknown        —— 尚未判定
+//   bandwidth_limited —— **不是故障**:流解析得出来,但源站校验 Referer,本站不替
+//                     它付视频带宽。提示"因带宽成本暂不支持站内播放",给去原站的入口
 export type PlaybackStatus =
   | 'playable'
   | 'pending_repair'
   | 'live_offline'
+  | 'bandwidth_limited'
   | 'not_applicable'
   | 'unknown';
 

@@ -12,6 +12,7 @@ import Typography from '@mui/material/Typography';
 import PublicIcon from '@mui/icons-material/PublicRounded';
 import BuildRoundedIcon from '@mui/icons-material/BuildRounded';
 import BedtimeRoundedIcon from '@mui/icons-material/BedtimeRounded';
+import CloudOffRoundedIcon from '@mui/icons-material/CloudOffRounded';
 import { useRouter } from 'next/navigation';
 
 import {
@@ -240,6 +241,12 @@ export default function TrendingBoard({
               {item.playbackStatus === 'live_offline' && (
                 <Tooltip title={item.repairNotice || '主播当前未开播'}>
                   <BedtimeRoundedIcon sx={{ fontSize: 13, color: 'text.disabled', flexShrink: 0 }} />
+                </Tooltip>
+              )}
+              {/* bandwidth_limited:内容没坏,本站只是不替源站付视频带宽 —— 中性图标,点进去有原站入口 */}
+              {item.playbackStatus === 'bandwidth_limited' && (
+                <Tooltip title={item.repairNotice || '因带宽成本暂不支持站内播放,可前往原站观看'}>
+                  <CloudOffRoundedIcon sx={{ fontSize: 13, color: 'text.disabled', flexShrink: 0 }} />
                 </Tooltip>
               )}
 

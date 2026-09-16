@@ -13,10 +13,11 @@ import PictureInPictureAltIcon from '@mui/icons-material/PictureInPictureAlt';
 import Replay10Icon from '@mui/icons-material/Replay10';
 import Forward10Icon from '@mui/icons-material/Forward10';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlineRounded';
+import CloudOffIcon from '@mui/icons-material/CloudOffRounded';
 import CircularProgress from '@mui/material/CircularProgress';
 import AIGCBadge from '@/components/AIGCBadge';
-import { parseStream } from '@/apis/stream';
-import { mediaUrl, proxyMediaUrl } from '@/lib/media';
+import { parseStream, checkStreamAccess, BANDWIDTH_NOTICE } from '@/apis/stream';
+import { mediaUrl, isExternalStreamUrl } from '@/lib/media';
 import { videoDock, destroyVideo, pipSupported, togglePip, inPip, claimMediaSession, mediaSessionPaused, type StreamInfo } from '@/lib/player/videoDock';
 
 interface Props {
@@ -108,6 +109,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
   const [expiresAt, setExpiresAt] = useState(0);
   /** 正在为失效直链重新解析 */
   const [refreshing, setRefreshing] = useState(false);
+  /** 视频不经本站带宽:这条流浏览器直连不了(源站校验 Referer),本站不中转 —— 显示的带宽提示 */
+  const [bandwidthLimited, setBandwidthLimited] = useState<string | null>(null);
+  /** 直连判定是异步的;切换内容/清晰度后忽略上一条的结论 */
+  const accessSeq = useRef(0);
 
   // 直链失效恢复:重新解析后从断点、按原播放状态接着播
   const reparseUrl = sourceUrl || refreshSource || '';
@@ -185,6 +190,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
 
     setLoading(true);
     setStreamError(null);
+    setBandwidthLimited(null);
     setStreams([]);
     setPlatformName('');
     setExpiresAt(0);
@@ -233,26 +239,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
     return () => clearTimeout(t);
   }, [expiresAt, reparseUrl]);
 
-  // 外部平台流(m3u8)走同源 /api/proxy 代理,注入平台 Referer 绕过防盗链+CORS;
-  // 抖音 mp4 直链等可直连的不代理。
-  const toPlayableUrl = (url: string) => {
-    if (!url) return url;
-    // 防盗链平台(mgtv/bilibili/qq/网易/虎牙)的 m3u8/ts 需走同源代理注入 Referer。
-    // ⚠️ B 站不止 bilivideo.com:playurl 下发的还有 PCDN/MCDN 节点
-    // (*.edge.mountaintoys.cn:4483、*.mcdn.bilivideo.cn:4483)和 Akamai 镜像
-    // (upos-*.akamaized.net)。这几个域名以前漏在名单外 → 直连播放,而它们
-    // 同样校验 Referer,浏览器里就是一片 403(推荐流里这类地址还占多数)。
-    if (/(mgtv\.com|bilivideo\.com|bilivideo\.cn|mountaintoys\.cn|akamaized\.net|hdslb\.com|bilibili\.com|gtimg\.com|v\.qq\.com|126\.net|huya\.com)/i.test(url)) {
-      // 经 proxyMediaUrl 带上网关前缀:Web 下是相对 /api/proxy,Tauri 打包下是
-      // https://qingqiuyue.com/api/proxy 绝对地址,否则相对路径会请求应用自身 → 404 黑屏。
-      return proxyMediaUrl(url);
-    }
-    return url;
-  };
-
-  const playStream = (url: string, format?: string) => {
+  // loadStream 真正把地址喂给 <video>/hls.js。外面的 playStream 先做直连判定。
+  const loadStream = (url: string, format?: string) => {
     if (!videoRef.current) return;
-    const playUrl = toPlayableUrl(url);
+    // 原地址直接播:视频不经本站带宽,不再包成 /api/proxy?url=(见 playStream)。
+    const playUrl = url;
     // 换链恢复时按原播放状态继续,否则按 autoPlay
     const shouldPlay = resumeAt.current > 0 ? resumePlaying.current : autoPlay;
 
@@ -336,12 +327,44 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
     });
   };
 
+  /**
+   * 视频不经本站带宽(后端 internal/streamaccess):
+   *   - 本站存的地址(MinIO / 同源)直接播;
+   *   - 外站流先看后端 stream/resolve 给的 access,没有就问一次 /api/proxy/check:
+   *     能直连(源站不校验 Referer)→ 原地址直接喂给播放器,本站一个字节都不经手;
+   *     不能直连(源站校验 Referer)→ 本站不再中转,显示"因带宽成本暂不支持站内播放"
+   *     并给出去原站的入口。
+   * 以前这里把防盗链域名包成 /api/proxy?url= 让后端注入 Referer 整条转发 ——
+   * 那是本站替源站付视频带宽,产品方向明确不做。带宽受限不是故障,不触发
+   * onPlaybackError,不进举报队列。
+   */
+  const playStream = (url: string, format?: string, access?: string) => {
+    if (!videoRef.current || !url) return;
+    setBandwidthLimited(null);
+    const seq = ++accessSeq.current;
+    if (!isExternalStreamUrl(url)) {
+      loadStream(url, format);
+      return;
+    }
+    if (access) {
+      if (access === 'direct') loadStream(url, format);
+      else setBandwidthLimited(BANDWIDTH_NOTICE);
+      return;
+    }
+    checkStreamAccess(url).then((res) => {
+      // 探测期间切了内容/清晰度:这份结论已经不是当前流的,丢掉
+      if (seq !== accessSeq.current || !videoRef.current) return;
+      if (res.direct) loadStream(url, format);
+      else setBandwidthLimited(res.notice || BANDWIDTH_NOTICE);
+    });
+  };
+
   // 切换清晰度
   const switchStream = (index: number) => {
     if (!streams[index]) return;
     setStreamError(null);
     setCurrentStream(index);
-    playStream(streams[index].url, streams[index].format);
+    playStream(streams[index].url, streams[index].format, streams[index].access);
   };
 
   // streams 变化(解析完成 / 换链)后启动播放。这里依赖 currentStream 保证清晰度切换也走这条路。
@@ -352,7 +375,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
     if (streams === restoredStreams.current) return;
     // <video> 在生命周期 layout effect 里就已创建(不用再等下一帧挂载);
     // 以前的 requestAnimationFrame 在后台标签页里不会触发,视频就一直不加载。
-    if (videoRef.current) playStream(s.url, s.format);
+    if (videoRef.current) playStream(s.url, s.format, s.access);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [streams, currentStream]);
 
@@ -549,6 +572,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
       v.playsInline = true;
       v.setAttribute('webkit-playsinline', '');
       v.preload = 'metadata';
+      // 直连外站流时不带本站 Referer:后端判"能直连"用的就是不带 Referer 的探测,
+      // 而不少 CDN 是"有 Referer 且不在白名单才拒",带上本站地址反而会被拒。
+      v.setAttribute('referrerpolicy', 'no-referrer');
     }
     v.style.cssText = 'width:100%;height:100%;object-fit:contain;background:#000;display:block;';
     // 推荐流(fill)自动连播:音乐在放时静音开播(见 lib/player/musicPlayer 的协调器)
@@ -662,7 +688,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
     isPlaying: () => playing,
   }));
 
-  const hasVideo = src || streams.length > 0;
+  // 带宽受限时不算"有视频":走下面的封面 + 提示分支,而不是一块黑屏。
+  const hasVideo = (src || streams.length > 0) && !bandwidthLimited;
   // 实在播不了时给出原站链接(番剧 / 直播间等解析不出流、或需要源站会员的内容)
   const originLink = /^https?:\/\//.test(reparseUrl) ? reparseUrl : '';
   const originButton = originLink ? (
@@ -787,6 +814,14 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
         >
           {loading ? (
             <CircularProgress sx={{ color: '#fff' }} />
+          ) : bandwidthLimited ? (
+            // 不是故障:内容没坏,本站只是不替源站付视频带宽。中性图标、说清原因、给去原站的路。
+            <Box data-no-drag sx={{ textAlign: 'center', color: 'rgba(255,255,255,0.7)', p: 2 }}>
+              <CloudOffIcon sx={{ fontSize: 32, color: 'rgba(255,255,255,0.55)', mb: 0.5 }} />
+              <Box sx={{ fontSize: 14, fontWeight: 600, color: '#fff', mb: 0.5 }}>暂不支持站内播放</Box>
+              <Box sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', mb: 1 }}>{bandwidthLimited}</Box>
+              {originButton}
+            </Box>
           ) : streamError ? (
             <Box sx={{ textAlign: 'center', color: 'rgba(255,255,255,0.7)', p: 2 }}>
               <ErrorOutlineIcon sx={{ fontSize: 32, color: 'warning.main', mb: 0.5 }} />

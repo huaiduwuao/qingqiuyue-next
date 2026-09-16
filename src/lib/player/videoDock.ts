@@ -19,6 +19,8 @@ export interface StreamInfo {
   url: string;
   needPay: boolean;
   format: string;
+  /** 浏览器能不能直连(后端 streamaccess:direct / referer_required / cors_blocked / unreachable) */
+  access?: string;
 }
 
 export interface DockEntry {

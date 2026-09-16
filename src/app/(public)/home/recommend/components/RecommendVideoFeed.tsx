@@ -28,11 +28,12 @@ import QueueMusicRoundedIcon from '@mui/icons-material/QueueMusicRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import BedtimeRoundedIcon from '@mui/icons-material/BedtimeRounded';
+import CloudOffRoundedIcon from '@mui/icons-material/CloudOffRounded';
 import { fetchRecommend } from '@/apis/home-discover';
 import { sendComment } from '@/apis/home';
 import { reportContent } from '@/apis/global';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
-import { parseStream } from '@/apis/stream';
+import { parseStream, BANDWIDTH_NOTICE } from '@/apis/stream';
 import { homeClient } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { mediaUrl } from '@/lib/media';
@@ -66,7 +67,7 @@ interface VideoItem {
   // 正常。现在后端明确告诉前端"这条播不了、原因是什么、该怎么跟用户说",
   // sourceUrl 在这种情况下是空的。
   playable?: boolean;
-  playbackStatus?: 'playable' | 'pending_repair' | 'live_offline' | 'not_applicable' | 'unknown';
+  playbackStatus?: 'playable' | 'pending_repair' | 'live_offline' | 'bandwidth_limited' | 'not_applicable' | 'unknown';
   repairNotice?: string; // 面向用户的中文提示。pending_repair 是故障文案,live_offline 是"主播未开播"
 }
 
@@ -298,6 +299,12 @@ export function RecommendVideoFeed() {
     // 同样不用再解析一次,但文案不能带"修复"。
     if (video.playbackStatus === 'live_offline') {
       setStreamError(video.repairNotice || '主播当前未开播');
+      return;
+    }
+    // 视频不经本站带宽:源站校验 Referer、本站不中转的内容,后端已判定 ——
+    // 不解析、不举报(不是故障),直接给带宽提示和去原站的入口。
+    if (video.playbackStatus === 'bandwidth_limited') {
+      setStreamError(video.repairNotice || BANDWIDTH_NOTICE);
       return;
     }
     if (!video.sourceUrl) return;
@@ -724,12 +731,16 @@ export function RecommendVideoFeed() {
                       不能用警告色 —— 那会让用户以为我们坏了。 */}
                   {v.playbackStatus === 'live_offline' ? (
                     <BedtimeRoundedIcon sx={{ fontSize: 32, color: 'rgba(255,255,255,0.55)' }} />
+                  ) : v.playbackStatus === 'bandwidth_limited' ? (
+                    <CloudOffRoundedIcon sx={{ fontSize: 32, color: 'rgba(255,255,255,0.55)' }} />
                   ) : (
                     <ErrorOutlineRoundedIcon sx={{ fontSize: 32, color: 'warning.main' }} />
                   )}
                   <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'text.primary' }}>
                     {v.playbackStatus === 'live_offline'
                       ? '主播未开播'
+                      : v.playbackStatus === 'bandwidth_limited'
+                        ? '暂不支持站内播放'
                       : v.playbackStatus === 'pending_repair'
                         ? '内容修复中'
                         : '该内容暂时无法播放'}
@@ -742,10 +753,34 @@ export function RecommendVideoFeed() {
                   <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
                     {v.playbackStatus === 'live_offline'
                       ? '上滑看下一个'
+                      : v.playbackStatus === 'bandwidth_limited'
+                        ? `${v.repairNotice || BANDWIDTH_NOTICE} · 上滑看下一个`
                       : v.playbackStatus === 'pending_repair' && v.repairNotice
                         ? `${v.repairNotice} · 上滑看下一个`
                         : `${streamError} · 已记录,尽快修复 · 上滑看下一个`}
                   </Typography>
+                  {v.playbackStatus === 'bandwidth_limited' && v.sourceUrl && (
+                    <Box
+                      component="a"
+                      href={v.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      data-no-drag
+                      sx={{
+                        mt: 0.5,
+                        px: 2,
+                        py: 0.5,
+                        borderRadius: 1,
+                        fontSize: 12,
+                        color: '#fff',
+                        textDecoration: 'none',
+                        border: '1px solid rgba(255,255,255,0.35)',
+                        bgcolor: 'rgba(255,255,255,0.08)',
+                      }}
+                    >
+                      去原站观看
+                    </Box>
+                  )}
                 </Box>
               )}
 

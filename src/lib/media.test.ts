@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mediaUrl, normalizeMediaUrls } from './media';
+import { mediaUrl, normalizeMediaUrls, isExternalStreamUrl } from './media';
 
 // jsdom 下 window.location.origin 是 http://localhost:3000,
 // NEXT_PUBLIC_API_BASE_URL 未设 → GATEWAY 为空串(同源部署那一档)。
@@ -50,6 +50,20 @@ describe('mediaUrl', () => {
   it('data/blob 原样返回', () => {
     expect(mediaUrl('data:image/png;base64,AAA')).toBe('data:image/png;base64,AAA');
     expect(mediaUrl('blob:http://localhost:3000/abc')).toBe('blob:http://localhost:3000/abc');
+  });
+});
+
+describe('isExternalStreamUrl', () => {
+  it('外站绝对地址要先问后端能不能直连', () => {
+    expect(isExternalStreamUrl('https://upos-sz.bilivideo.com/a.m4s?e=1')).toBe(true);
+    expect(isExternalStreamUrl('https://v3-web.douyinvod.com/x/?mime_type=video_mp4')).toBe(true);
+  });
+  it('本站存的视频直接播,不探测', () => {
+    expect(isExternalStreamUrl('/qq-video/a.mp4')).toBe(false);
+    expect(isExternalStreamUrl('http://10.9.1.2:10000/qq-video/a.mp4')).toBe(false);
+    expect(isExternalStreamUrl('https://cdn.example/qq-tmp/a.mp4?X-Amz-Signature=1')).toBe(false);
+    expect(isExternalStreamUrl('blob:https://x/1')).toBe(false);
+    expect(isExternalStreamUrl('')).toBe(false);
   });
 });
 
