@@ -47,3 +47,32 @@ export function pickClip(clips: Record<string, ClipEntry>, state: AvatarSpeakSta
   const first = Object.entries(clips)[0];
   return first ? { key: first[0], url: first[1].url, loop: true } : null;
 }
+
+/** 响应是不是视频:静态站找不到文件时会回退成 index.html(200 text/html),不能只看状态码。 */
+export function isVideoResponse(status: number, contentType: string | null): boolean {
+  return status >= 200 && status < 300 && /^video\//i.test((contentType || '').trim());
+}
+
+/**
+ * 片段表能不能用:表能读到,且 idle(没有就第一段)真的是视频。
+ * 返回 null 表示可用,否则是给人看的原因。
+ */
+export async function probeClips(clipsUrl: string, fetchFn: typeof fetch = fetch): Promise<string | null> {
+  let clips: Record<string, ClipEntry>;
+  try {
+    const r = await fetchFn(clipsUrl);
+    if (!r.ok) return `片段表 ${clipsUrl} 读取失败(HTTP ${r.status})`;
+    clips = normalizeClips(await r.json());
+  } catch {
+    return `片段表 ${clipsUrl} 读取失败`;
+  }
+  const pick = pickClip(clips, 'idle');
+  if (!pick) return '片段表是空的';
+  try {
+    const r = await fetchFn(pick.url, { method: 'HEAD' });
+    if (!isVideoResponse(r.status, r.headers.get('content-type'))) return `片段文件 ${pick.url} 不存在`;
+  } catch {
+    return `片段文件 ${pick.url} 无法访问`;
+  }
+  return null;
+}

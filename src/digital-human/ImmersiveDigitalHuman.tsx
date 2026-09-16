@@ -38,7 +38,7 @@ import { applyDispatchResults, buildSceneState, type SceneSnapshot } from './sce
 import { ToolCallCard, ThoughtBubble } from './scene-ui/ChatOpsEntry';
 import dynamic from 'next/dynamic';
 import ClipAvatar from './ClipAvatar';
-import type { AvatarSpeakState } from './clip-avatar';
+import { probeClips, type AvatarSpeakState } from './clip-avatar';
 // 3DGS 渲染器只能在浏览器里加载(three + WebGL)
 const GaussianSplatRenderer = dynamic(() => import('./gs/GaussianSplatRenderer'), { ssr: false });
 type AvatarMode = 'vrm' | '3dgs' | '2d';
@@ -150,6 +150,13 @@ export default function ImmersiveDigitalHuman() {
   const [gsAsset, setGsAsset] = React.useState('');
   const [gsBackdrop, setGsBackdrop] = React.useState('');
   const [speaking, setSpeaking] = React.useState(false);
+  // 2D 片段是否真的能播(mp4 不进仓库,没放文件时静态站回退成 index.html)
+  const [clipsProblem, setClipsProblem] = React.useState<string | null>('检查中');
+  React.useEffect(() => {
+    let alive = true;
+    probeClips('/avatar/clips.json').then((p) => { if (alive) setClipsProblem(p); });
+    return () => { alive = false; };
+  }, []);
   React.useEffect(() => {
     const ac = new AbortController();
     fetch('/api/realtime/assets', { signal: ac.signal }).then((r) => r.json()).then((d) => {
@@ -902,7 +909,7 @@ export default function ImmersiveDigitalHuman() {
           >
             <option value="vrm">VRM</option>
             <option value="3dgs" disabled={gsAssets.length === 0}>3DGS{gsAssets.length === 0 ? '(无资产)' : ''}</option>
-            <option value="2d">2D</option>
+            <option value="2d" disabled={!!clipsProblem} title={clipsProblem || ''}>2D{clipsProblem ? '(无片段)' : ''}</option>
           </select>
           {avatarMode === 'vrm' && gsAssets.length > 0 && (
             <select

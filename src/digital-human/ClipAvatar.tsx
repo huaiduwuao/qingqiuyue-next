@@ -56,19 +56,20 @@ export default function ClipAvatar({ clipsUrl = '/avatar/clips.json', state, act
 
   return (
     <Box sx={{ position: 'absolute', inset: 0, background: '#05060B', display: 'flex', alignItems: 'center', justifyContent: 'center', ...sx }}>
-      {pick ? (
+      {pick && !error ? (
         <video
           ref={videoRef}
           muted
           playsInline
           autoPlay
           onEnded={() => { if (pick && !pick.loop) setOneShotDone(pick.key); }}
+          onError={() => setError(`片段 ${pick.url} 无法播放(文件不存在或格式不支持)`)}
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           aria-label={`2D 数字人 · ${pick.key}`}
         />
       ) : (
         <Typography sx={{ color: 'rgba(255,255,255,0.6)', fontSize: 13 }}>
-          {error ? `2D 片段表加载失败:${error}` : '没有可用的 2D 片段(public/avatar/clips.json)'}
+          {error ? `2D 形象不可用:${error}。把视频片段放到 public/avatar/clips/(见 clips.example.json)后重新部署。` : '没有可用的 2D 片段(public/avatar/clips.json)'}
         </Typography>
       )}
     </Box>
