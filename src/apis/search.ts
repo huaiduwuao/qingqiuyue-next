@@ -15,6 +15,19 @@ export interface SearchOptions {
   year?: string | number;
 }
 
+// 站内结果少于 8 条时,后端把关键词交给全网检索(spider-api internal/discover),响应里带
+// discover 状态:queued/running 表示几秒后重搜会有新收录的作品,done 表示全网已找过。
+export interface DiscoverState {
+  keyword: string;
+  status: 'queued' | 'running' | 'done';
+  found: number;
+  indexed: number;
+  merged: number;
+  at: string;
+}
+
+export const isDiscoverPending = (d?: DiscoverState | null) => d?.status === 'queued' || d?.status === 'running';
+
 export const searchContent = (kw: string, opts?: SearchOptions) =>
   contentClient('/search', { params: { kw, ...opts } });
 

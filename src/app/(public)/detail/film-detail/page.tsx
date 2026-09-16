@@ -18,6 +18,7 @@ import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-film';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
 import VideoPlayer from '@/components/detail/VideoPlayer';
+import { PlatformLinks, UnavailablePlayer, platformsOf, playNoticeOf } from '@/components/detail/ExternalPlatforms';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
@@ -44,6 +45,8 @@ interface Film {
   likeCount?: number;
   collectCount?: number;
   commentCount?: number;
+  playNotice?: string;
+  platforms?: unknown;
 }
 
 function FilmDetailContent() {
@@ -121,7 +124,12 @@ function FilmDetailContent() {
           <>
             <Box sx={{ bgcolor: '#000' }}>
               <Container maxWidth="lg" sx={{ py: 0 }}>
-                <VideoPlayer src={data.videoUrl || ''} sourceUrl={data.source || ''} poster={data.cover} initialDuration={(data.duration || 0) * 60} autoPlay={false} />
+                {playNoticeOf(data) && !data.videoUrl ? (
+                  // 只有会员/付费平台有片源:如实说明,不把付费页交给播放器硬解析。
+                  <UnavailablePlayer notice={playNoticeOf(data)} platforms={platformsOf(data)} poster={data.cover} />
+                ) : (
+                  <VideoPlayer src={data.videoUrl || ''} sourceUrl={data.source || ''} poster={data.cover} initialDuration={(data.duration || 0) * 60} autoPlay={false} />
+                )}
               </Container>
             </Box>
 
@@ -158,6 +166,7 @@ function FilmDetailContent() {
                   </Box>
                 </Box>
               </Box>
+              <PlatformLinks platforms={platformsOf(data)} dense />
 
               <Divider sx={{ borderColor: 'divider', my: 2 }} />
 

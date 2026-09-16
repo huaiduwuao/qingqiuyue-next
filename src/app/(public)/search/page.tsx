@@ -1,7 +1,7 @@
 'use client';
 
 import React, { Suspense, useCallback, useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -22,6 +22,8 @@ import CloseIcon from '@mui/icons-material/Close';
 import HistoryIcon from '@mui/icons-material/History';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
 import SearchOffIcon from '@mui/icons-material/SearchOff';
+import TravelExploreIcon from '@mui/icons-material/TravelExplore';
+import CircularProgress from '@mui/material/CircularProgress';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutlineOutlined';
@@ -31,7 +33,7 @@ import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import { ACCENT } from '@/constants/accents';
 import { useContentNavigate } from '@/lib/contentRoute';
-import { searchContent, suggestCreators, suggestTopics } from '@/apis/search';
+import { isDiscoverPending, searchContent, suggestCreators, suggestTopics, type DiscoverState } from '@/apis/search';
 import { fetchContentTypes, fetchFacets, type ContentTypeItem, type FacetItem } from '@/apis/home-discover';
 import { topKeywordInThirdMonth } from '@/apis/home';
 import RecommendBoard from '@/components/home/RecommendBoard';
@@ -236,12 +238,16 @@ function SearchPageContent() {
   });
   const facetSuggestions = facetsQuery.data ?? [];
 
+  const searchKey = [query.trim(), fType, fDirector, fActor, fGenre, fYear].join('|');
+  const searchQueryKey = ['search-content', query.trim(), fType, fDirector, fActor, fGenre, fYear];
+  const queryClient = useQueryClient();
+
   const searchQuery = useQuery({
-    queryKey: ['search-content', query.trim(), fType, fDirector, fActor, fGenre, fYear],
-    queryFn: async () => {
+    queryKey: searchQueryKey,
+    queryFn: async (): Promise<{ items: SearchContentItem[]; discover: DiscoverState | null }> => {
       const q = query.trim();
       const hasFilter = !!(fType || fDirector || fActor || fGenre || fYear);
-      if (!q && !hasFilter) return [];
+      if (!q && !hasFilter) return { items: [], discover: null };
       // 走统一 GET /search(kw + 结构化筛选参数),见 src/apis/search.ts
       const res = (await searchContent(q, {
         type: fType || undefined,
@@ -251,7 +257,7 @@ function SearchPageContent() {
         year: fYear || undefined,
       })) as any;
       const list = res?.data?.list || res?.data || [];
-      return (Array.isArray(list) ? list : []).map((it: any) => ({
+      const items = (Array.isArray(list) ? list : []).map((it: any) => ({
         id: it.id ?? 0,
         title: it.title || it.name || '未命名',
         subtitle: it.subtitle || it.info || it.description,
@@ -263,9 +269,13 @@ function SearchPageContent() {
         likes: it.likes || it.agreeNum || 0,
         matchField: (it.matchField || 'title') as SearchContentItem['matchField'],
       })) as SearchContentItem[];
+      return { items, discover: (res?.data?.discover as DiscoverState | undefined) ?? null };
     },
     enabled: query.trim().length > 0 || !!(fType || fDirector || fActor || fGenre || fYear),
     staleTime: 60 * 1000,
+    // 全网检索进行中:定时重搜,新收录的作品随时出现;次数用完就停,不无限轮询。
+    refetchInterval: (qr) =>
+      isDiscoverPending(qr.state.data?.discover) && qr.state.dataUpdateCount < DISCOVER_MAX_POLLS ? DISCOVER_POLL_INTERVAL : false,
   });
 
   // URL ?q= → query 同步(支持深链 / 浏览器后退)
@@ -278,7 +288,15 @@ function SearchPageContent() {
   const q = query.trim();
   const hasQuery = q.length > 0;
 
-  const contents = searchQuery.data ?? [];
+  const contents = searchQuery.data?.items ?? [];
+  const discover = searchQuery.data?.discover ?? null;
+  const discovering =
+    isDiscoverPending(discover) &&
+    (queryClient.getQueryState(searchQueryKey)?.dataUpdateCount ?? 0) < DISCOVER_MAX_POLLS;
+  // 本次搜索里亲眼看到过"检索中",完成时才提示新收录了几条(缓存里的旧 done 不提示)。
+  const [sawDiscovering, setSawDiscovering] = useState('');
+  if (discovering && sawDiscovering !== searchKey) setSawDiscovering(searchKey);
+  const discoverJustDone = !discovering && discover?.status === 'done' && sawDiscovering === searchKey;
   const total = contents.length + creators.length + topics.length;
   const loading = searchQuery.isPending;
 
@@ -623,10 +641,25 @@ function SearchPageContent() {
               <Tab value="topic" label={`话题 ${topics.length}`} />
             </Tabs>
 
+            <DiscoverBanner
+              query={q}
+              discovering={discovering}
+              justDone={discoverJustDone}
+              indexed={(discover?.indexed ?? 0) + (discover?.merged ?? 0)}
+              empty={total === 0}
+            />
+
             {loading ? (
               <LoadingSkeleton />
             ) : total === 0 ? (
-              <NoResults query={q} hotKeywords={hotKeywords} onPickKeyword={handleKeywordPick} />
+              discovering ? null : (
+                <NoResults
+                  query={q}
+                  hotKeywords={hotKeywords}
+                  onPickKeyword={handleKeywordPick}
+                  searchedWeb={discover?.status === 'done'}
+                />
+              )
             ) : (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {(tab === 'all' || tab === 'content') && contents.length > 0 && (
@@ -695,6 +728,60 @@ function SearchPageContent() {
           {snack.message}
         </Alert>
       </Snackbar>
+    </Box>
+  );
+}
+
+// 全网检索进行中每 2.5 秒重搜一次,最多约 40 秒。
+const DISCOVER_POLL_INTERVAL = 2500;
+const DISCOVER_MAX_POLLS = 16;
+
+/**
+ * 全网检索提示。站内结果少时后端去各平台(360 影视/爱奇艺/网易云/酷我/QQ 音乐/七猫/纵横…)
+ * 找同名作品并收录,这里告诉用户正在找、找完了多了几条;收录的作品即使本站播不了,
+ * 详情页也会写明原因并给出原平台入口。
+ */
+function DiscoverBanner({
+  query,
+  discovering,
+  justDone,
+  indexed,
+  empty,
+}: {
+  query: string;
+  discovering: boolean;
+  justDone: boolean;
+  indexed: number;
+  empty: boolean;
+}) {
+  if (!discovering && !(justDone && indexed > 0)) return null;
+  return (
+    <Box
+      role="status"
+      aria-live="polite"
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1.25,
+        mb: 2,
+        px: 1.5,
+        py: empty && discovering ? 3 : 1.25,
+        borderRadius: 1.5,
+        border: '1px solid var(--border-color, rgba(255,255,255,0.08))',
+        bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))',
+        justifyContent: empty && discovering ? 'center' : 'flex-start',
+      }}
+    >
+      {discovering ? (
+        <CircularProgress size={16} thickness={5} sx={{ color: 'primary.main', flexShrink: 0 }} />
+      ) : (
+        <TravelExploreIcon sx={{ fontSize: 18, color: 'primary.main', flexShrink: 0 }} />
+      )}
+      <Typography sx={{ fontSize: 13, color: 'var(--text-secondary, rgba(255,255,255,0.75))' }}>
+        {discovering
+          ? `站内${empty ? '暂无' : '结果较少'}，正在全网检索「${query}」，新收录的作品会自动出现在这里…`
+          : `全网检索完成，已收录 ${indexed} 条相关作品`}
+      </Typography>
     </Box>
   );
 }
@@ -1246,10 +1333,13 @@ function NoResults({
   query,
   hotKeywords,
   onPickKeyword,
+  searchedWeb = false,
 }: {
   query: string;
   hotKeywords: string[];
   onPickKeyword: (k: string) => void;
+  /** 全网检索也跑过了,仍然没有 */
+  searchedWeb?: boolean;
 }) {
   return (
     <Box
@@ -1280,7 +1370,7 @@ function NoResults({
         没有找到与「{query}」相关的内容
       </Typography>
       <Typography sx={{ fontSize: 12, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
-        换个关键词试试,或者看看热门搜索
+        {searchedWeb ? "已在各大音乐/视频/小说平台检索过,仍未找到;换个写法(如作品全名、作者名)再试试" : "换个关键词试试,或者看看热门搜索"}
       </Typography>
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mt: 1.5, justifyContent: 'center', maxWidth: 480 }}>
         {hotKeywords.slice(0, 4).map((kw) => (

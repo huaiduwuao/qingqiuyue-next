@@ -29,6 +29,7 @@ import { formatApiError } from '@/lib/api/client';
 import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
 import { mediaUrl } from '@/lib/media';
+import { PlatformLinks, platformsOf } from '@/components/detail/ExternalPlatforms';
 import { track, recordHistory } from '@/lib/track';
 import { DetailComments } from '@/components/detail/DetailComments';
 import { DetailFooter } from '@/components/detail/DetailFooter';
@@ -361,6 +362,11 @@ function MusicDetailContent() {
               >
                 {audioNotice}
               </Alert>
+            )}
+            {audioUnavailable && platformsOf(query.data).length > 1 && (
+              <Box sx={{ mb: 2 }}>
+                <PlatformLinks platforms={platformsOf(query.data)} dense />
+              </Box>
             )}
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>

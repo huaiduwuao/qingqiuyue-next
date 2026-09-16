@@ -24,6 +24,7 @@ import { usableDirectUrl } from '@/apis/stream';
 import { formatApiError } from '@/lib/api/client';
 import { TYPE_LABEL } from '@/lib/contentType.gen';
 import VideoPlayer from '@/components/detail/VideoPlayer';
+import { PlatformLinks, UnavailablePlayer, platformsOf, playNoticeOf } from '@/components/detail/ExternalPlatforms';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
 import { track, recordHistory } from '@/lib/track';
@@ -57,6 +58,9 @@ export interface EpisodicDetail {
   likeCount?: number;
   collectCount?: number;
   commentCount?: number;
+  /** 全网检索收录:本站播不了的原因 + 各平台入口(见 ExternalPlatforms) */
+  playNotice?: string;
+  platforms?: unknown;
 }
 
 type PeopleKey = 'director' | 'actors' | 'host' | 'guests';
@@ -228,11 +232,17 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
           // 分集页面地址:既是没有可用直链时的解析源,也是直链失效后重新解析的依据。
           const episodePage = active?.url || fallbackSource;
           const direct = usableDirectUrl(active?.playUrl, active?.url);
+          const platforms = platformsOf(data);
+          // 没有分集、只有会员/付费平台:不交给播放器硬解析,直接说明原因。
+          const unavailable = items.length === 0 ? playNoticeOf(data) : '';
 
           return (
             <>
               <Box sx={{ bgcolor: '#000' }}>
                 <Container maxWidth="lg" sx={{ py: 0 }}>
+                  {unavailable ? (
+                    <UnavailablePlayer notice={unavailable} platforms={platforms} poster={data.cover} />
+                  ) : (
                   <VideoPlayer
                     key={active?.id ?? 'source'}
                     src={direct}
@@ -244,6 +254,7 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
                     onEnded={handleEnded}
                     onPlaybackError={handlePlaybackError}
                   />
+                  )}
                 </Container>
               </Box>
 
@@ -294,6 +305,8 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
                   </Box>
                 </Box>
 
+                <PlatformLinks platforms={platforms} dense />
+
                 {people.length > 0 && (
                   <>
                     <Divider sx={{ borderColor: 'divider', my: 2 }} />
@@ -333,7 +346,7 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
                   empty={
                     <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
                       暂无{config.unit}列表
-                      {sourceLink && (
+                      {!unavailable && sourceLink && platforms.length === 0 && (
                         <Button size="small" href={sourceLink} target="_blank" rel="noopener noreferrer" endIcon={<OpenInNewIcon sx={{ fontSize: 14 }} />}>
                           去原站观看
                         </Button>

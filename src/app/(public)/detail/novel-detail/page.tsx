@@ -41,6 +41,7 @@ import { LoginGate } from '@/components/auth/LoginGate';
 import { formatApiError } from '@/lib/api/client';
 import { DetailComments } from '@/components/detail/DetailComments';
 import { DetailFooter } from '@/components/detail/DetailFooter';
+import { PlatformLinks, platformsOf, playNoticeOf } from '@/components/detail/ExternalPlatforms';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
 
 interface NovelDetail {
@@ -55,6 +56,8 @@ interface NovelDetail {
   source?: string;
   sourceUrl?: string;
   commentCount?: number;
+  playNotice?: string;
+  platforms?: unknown;
 }
 
 interface ChapterBody {
@@ -449,9 +452,16 @@ function NovelDetailContent() {
               <Box sx={{ py: 5, px: 2, textAlign: 'center', color: 'text.secondary', borderRadius: 3, border: '1px dashed', borderColor: 'divider' }}>
                 <MenuBookIcon sx={{ fontSize: 36, mb: 1, opacity: 0.6 }} />
                 <Typography sx={{ fontSize: 14, mb: 1.5 }}>
-                  {tocQuery.data?.backfilling ? '正在获取章节目录…' : '这本书暂时没有可在线阅读的章节'}
+                  {tocQuery.data?.backfilling
+                    ? '正在获取章节目录…'
+                    : playNoticeOf(detail) || '这本书暂时没有可在线阅读的章节'}
                 </Typography>
-                {sourceLink && (
+                {platformsOf(detail).length > 0 && (
+                  <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                    <PlatformLinks platforms={platformsOf(detail)} title="" dense />
+                  </Box>
+                )}
+                {sourceLink && platformsOf(detail).length === 0 && (
                   <Button variant="outlined" size="small" href={sourceLink} target="_blank" rel="noopener noreferrer" endIcon={<OpenInNewIcon sx={{ fontSize: 14 }} />}>
                     去原站阅读
                   </Button>
