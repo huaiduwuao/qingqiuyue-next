@@ -264,6 +264,8 @@ class AgentManagerAPI {
       /** 一个参数完整的工具调用(TOOL_CALL_END 时触发一次) */
       onToolCall?: (name: string, toolCallId: string, args?: string) => void
       onToolEnd?: (toolCallId: string) => void
+      /** 工具结果(TOOL_CALL_RESULT):内容已在服务端截断;ERROR: 开头表示失败 */
+      onToolResult?: (toolCallId: string, content: string) => void
       /** 工具刚开始执行(还没有参数),用于显示「正在搜索…」这类状态 */
       onToolStart?: (name: string, toolCallId: string) => void
     },
@@ -365,6 +367,9 @@ class AgentManagerAPI {
               pendingTools.set(id, prev)
               break
             }
+            case 'TOOL_CALL_RESULT':
+              handlers.onToolResult?.(data.toolCallId ?? '', String(data.content ?? ''))
+              break
             case 'TOOL_CALL_END': {
               const id = data.toolCallId ?? ''
               flushTool(id)

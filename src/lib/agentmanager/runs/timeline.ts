@@ -1,7 +1,7 @@
 import type { RunEvent } from './api'
 
 export type TimelineItem =
-  | { kind: 'text'; text: string }
+  | { kind: 'text'; text: string; raw?: string }
   | { kind: 'tool'; name: string; args?: string; result?: string; isError?: boolean; done: boolean }
   | { kind: 'note'; text: string; tone: 'info' | 'warning' | 'error' | 'success' }
 
@@ -32,8 +32,8 @@ export function toTimeline(events: RunEvent[]): TimelineItem[] {
         break
       case 'msg.delta': {
         const last = items[items.length - 1]
-        if (last && last.kind === 'text') last.text += d.text ?? ''
-        else items.push({ kind: 'text', text: d.text ?? '' })
+        if (last && last.kind === 'text') { last.raw = (last.raw ?? '') + (d.text ?? ''); last.text = stripThink(last.raw) }
+        else { const raw = d.text ?? ''; items.push({ kind: 'text', text: stripThink(raw), raw }) }
         break
       }
       case 'tool.call':
@@ -88,4 +88,9 @@ export function toTimeline(events: RunEvent[]): TimelineItem[] {
     }
   }
   return items
+}
+
+/** 模型的 <think>…</think> 不进卡片正文:闭合的整段去掉,还没闭合的尾巴也先藏起来 */
+export function stripThink(s: string): string {
+  return s.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/<think>[\s\S]*$/, '').trim()
 }

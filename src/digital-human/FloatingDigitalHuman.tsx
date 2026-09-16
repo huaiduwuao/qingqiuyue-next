@@ -26,6 +26,7 @@ import { dispatchToolCalls, type ToolCall as DhToolCall } from './tools/dispatch
 import { parseIframeUI, iframeToolToTarget, type IframeOpenTarget } from './virtual-browser';
 import { VirtualBrowser } from './VirtualBrowser';
 import { ScenePanel } from './scene-ui/ScenePanel';
+import { ToolCallCard, ThoughtBubble } from './scene-ui/ChatOpsEntry';
 import type { ScenePanel as ScenePanelModel } from './scene-ui/types';
 import { listModels } from './api/digitalHumanConfig';
 import { clearAvatarCache } from './vrm/loadAvatar';
@@ -837,7 +838,10 @@ export default function FloatingDigitalHuman() {
             borderRadius: 1,
             p: 0.75,
           }}>
-            {chatLog.slice(-2).map((m, i) => (
+            {chatLog.slice(-3).map((m, i) => (
+              m.who === 'tool' && m.tool ? <ToolCallCard key={m.tool.id || i} entry={m.tool} compact />
+              : m.who === 'thought' ? <ThoughtBubble key={`t-${i}`} text={m.text} compact />
+              : (
               <Typography
                 key={i}
                 sx={{
@@ -849,6 +853,7 @@ export default function FloatingDigitalHuman() {
               >
                 <strong>{m.who === 'user' ? '我' : 'AI'}:</strong> {m.text}
               </Typography>
+              )
             ))}
           </Box>
         )}

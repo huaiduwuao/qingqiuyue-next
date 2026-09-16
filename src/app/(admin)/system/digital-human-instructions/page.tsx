@@ -45,6 +45,11 @@ export default function DigitalHumanInstructionsPage() {
   const [snack, setSnack] = React.useState<{ open: boolean; msg: string; severity: 'success' | 'error' }>({ open: false, msg: '', severity: 'success' });
   const [previewTemplate, setPreviewTemplate] = React.useState<ExpressionTemplateName>('happy');
   const [tab, setTab] = React.useState(0);
+  // 员工列表(内置 4 类 + worker + builder 发布的):agentId 从这里选,填错了指令就进不了对话链路
+  const [staff, setStaff] = React.useState<{ agentId: string; name: string; description: string }[]>([]);
+  React.useEffect(() => {
+    fetch('/api/agentmanager/multi-agent/staff').then((r) => r.json()).then((d) => setStaff(d.agents || [])).catch(() => setStaff([]));
+  }, []);
 
   const saveMutation = useMutation({
     mutationFn: (data: Instruction) =>
@@ -196,13 +201,27 @@ export default function DigitalHumanInstructionsPage() {
                 {tab === 0 && (
                   <Stack spacing={2}>
                     <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
-                      <TextField
-                        label="agentId" fullWidth size="small"
-                        value={draft.agentId}
-                        onChange={(e) => setDraft({ ...draft, agentId: e.target.value })}
-                        disabled={!!editing}
-                        helperText="Hermes agent id, 唯一不可重复"
-                      />
+                      <Stack sx={{ width: '100%' }} spacing={0.5}>
+                        <select
+                          aria-label="agentId"
+                          value={staff.some((s) => s.agentId === draft.agentId) ? draft.agentId : '__custom'}
+                          disabled={!!editing}
+                          onChange={(e) => setDraft({ ...draft, agentId: e.target.value === '__custom' ? '' : e.target.value })}
+                          style={{ padding: '8px 10px', fontSize: 14 }}
+                        >
+                          <option value="__custom">自定义 agentId…</option>
+                          {staff.map((s) => <option key={s.agentId} value={s.agentId}>{s.name}({s.agentId})</option>)}
+                        </select>
+                        {(!staff.some((s) => s.agentId === draft.agentId) || !!editing) && (
+                          <TextField
+                            label="agentId" fullWidth size="small"
+                            value={draft.agentId}
+                            onChange={(e) => setDraft({ ...draft, agentId: e.target.value })}
+                            disabled={!!editing}
+                            helperText="对话时按这个名字取指令:选一个已注册的数字员工,不匹配的指令不会生效"
+                          />
+                        )}
+                      </Stack>
                       <TextField
                         label="名称" fullWidth size="small"
                         value={draft.name}

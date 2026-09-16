@@ -45,10 +45,11 @@ const ModelProviderManager = dynamic(() => import('./models/ModelProviderManager
 
 type Tab = 'dashboard' | 'instances' | 'agents' | 'runs' | 'sessions' | 'audit' | 'skills' | 'drafts' | 'gateway' | 'kanban' | 'mcp' | 'workflows' | 'models'
 
-export default function AgentManagerConsole() {
+/** 后台各菜单页复用同一个控制台:tab 固定为该页的功能,embedded 时不显示 tab 条(菜单就是导航) */
+export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embedded?: boolean } = {}) {
   const { sessionId: token, isAuthenticated } = useAuth()
   const { isAdmin } = useAuthority()
-  const [activeTab, setActiveTab] = useState<Tab>('dashboard')
+  const [activeTab, setActiveTab] = useState<Tab>(tab ?? 'dashboard')
   // 工作室(创建/编辑页):非空时整体替换 tab 视图;editingId 表示编辑模式
   const [studio, setStudio] = useState<'agent' | 'skill' | 'workflow' | null>(null)
   const [studioEditId, setStudioEditId] = useState<number | null>(null)
@@ -211,8 +212,7 @@ export default function AgentManagerConsole() {
         }}
       >
         <Typography variant="h5" sx={{ fontWeight: 600 }}>
-          🤖 AgentManager
-        </Typography>
+          🤖 AgentManager        </Typography>
         <Box sx={{ display: 'flex', gap: 1 }}>
           {overview && (
             <>
@@ -234,7 +234,7 @@ export default function AgentManagerConsole() {
       </Box>
 
       {/* Tabs */}
-      <Box sx={{ bgcolor: 'background.paper', borderBottom: 1, borderColor: 'divider', px: 3 }}>
+      {!embedded && <Box sx={{ bgcolor: 'background.paper', borderBottom: 1, borderColor: 'divider', px: 3 }}>
         <Tabs
           value={activeTab}
           onChange={(_, v) => {
@@ -248,7 +248,7 @@ export default function AgentManagerConsole() {
             <Tab key={tab.key} label={tab.label} value={tab.key} />
           ))}
         </Tabs>
-      </Box>
+      </Box>}
 
       {/* Content */}
       <Box sx={{ p: 3, flex: 1, minHeight: 0, overflow: 'auto' }}>

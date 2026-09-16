@@ -156,20 +156,46 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
       { id: 'stats-content', label: '内容热度', path: '/system/stats/content', icon: <BarChartRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6' },
     ],
   },
+  // ── 数字员工闭环:定义 → 装备能力 → 执行 → 观测(每一页都是真接口,没有摆设项)──
   {
-    title: '数字人',
+    title: '数字员工',
     items: [
-      { id: 'dh-studio', label: '数字人工作台', path: '/system/digital-human', icon: <StarsRoundedIcon2 sx={{ fontSize: 18 }} />, accent: '#8B5CF6' },
-      { id: 'dh-instructions', label: '数字人指令维护', path: '/system/digital-human-instructions', icon: <StarsRoundedIcon2 sx={{ fontSize: 18 }} />, accent: '#07C160' },
-      { id: 'dh-config', label: '数字人配置', path: '/system/digital-human-config', icon: <StarsRoundedIcon2 sx={{ fontSize: 18 }} />, accent: '#FF6B6B' },
+      { id: 'staff', label: '员工列表', path: '/system/staff', icon: <SmartToyRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
+      { id: 'dh-config', label: '形象与场景', path: '/system/digital-human-config', icon: <StarsRoundedIcon2 sx={{ fontSize: 18 }} />, accent: '#FF6B6B' },
+      { id: 'dh-studio', label: '形象资产(3DGS / 2D)', path: '/system/digital-human', icon: <CollectionsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6' },
+      { id: 'dh-instructions', label: '人设指令', path: '/system/digital-human-instructions', icon: <MenuBookRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
       { id: 'wake-word-train', label: '唤醒词训练', path: '/system/record-wake', icon: <RecordVoiceOverRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
     ],
   },
   {
-    title: 'Agent 管理',
+    title: '能力',
     items: [
-      { id: 'agent-manager', label: 'Agent 管理台', path: '/system/agentmanager', icon: <HubRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
-      { id: 'agent-chat', label: 'AI 对话', path: '/system/ai-chat', icon: <ChatBubbleOutlineRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
+      { id: 'skills', label: '技能库', path: '/system/skills', icon: <TuneRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FFB400' },
+      { id: 'drafts', label: '草稿箱', path: '/system/drafts', icon: <PsychologyAltRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6' },
+      { id: 'mcp', label: 'MCP 服务', path: '/system/mcp', icon: <HubRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
+      { id: 'workflows', label: '工作流', path: '/system/workflows', icon: <AccountTreeRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D' },
+      { id: 'models', label: '模型', path: '/system/models', icon: <StorageRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
+      { id: 'gateway', label: 'LLM 网关', path: '/system/gateway', icon: <LanguageRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
+    ],
+  },
+  {
+    title: '执行',
+    items: [
+      { id: 'agent-chat', label: '对话调试', path: '/system/ai-chat', icon: <ChatBubbleOutlineRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
+      { id: 'runs', label: '后台运行', path: '/system/runs', icon: <DynamicFeedRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
+      { id: 'tasks', label: '任务看板', path: '/system/tasks', icon: <AppsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FFB400' },
+      { id: 'sandbox-images', label: '沙盒镜像', path: '/system/sandbox', icon: <TerminalRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
+      { id: 'sandbox-tasks', label: '沙盒任务', path: '/system/sandbox/tasks', icon: <TerminalRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6' },
+    ],
+  },
+  {
+    title: '观测与治理',
+    items: [
+      { id: 'agent-overview', label: '总览', path: '/system/agent-overview', icon: <BarChartRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
+      { id: 'conversations', label: '会话与复现', path: '/system/conversations', icon: <HistoryRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FFB400' },
+      { id: 'agent-audit', label: '审计与成本', path: '/system/agent-audit', icon: <ReportProblemRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
+      { id: 'instances', label: '运行时实例', path: '/system/instances', icon: <DnsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
+      { id: 'agent-manager', label: '总控台(全部页签)', path: '/system/agentmanager', icon: <HubRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
     ],
   },
   {
@@ -184,13 +210,6 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
     items: [
       { id: 'spider', label: '爬虫管理', path: '/system/spider', icon: <TravelExploreIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
       { id: 'crawled', label: '抓取内容', path: '/system/crawled', icon: <CloudDownloadIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D' },
-    ],
-  },
-  {
-    title: '沙盒管理',
-    items: [
-      { id: 'sandbox-images', label: '镜像管理', path: '/system/sandbox', icon: <TerminalRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
-      { id: 'sandbox-tasks', label: '任务管理', path: '/system/sandbox/tasks', icon: <PsychologyAltRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6' },
     ],
   },
 ]

@@ -35,6 +35,7 @@ import { ScenePanel } from './scene-ui/ScenePanel';
 import type { ScenePanel as ScenePanelModel } from './scene-ui/types';
 import { dispatchToolCalls, type ToolCall as DhToolCall } from './tools/dispatcher';
 import { applyDispatchResults, buildSceneState, type SceneSnapshot } from './scene-state';
+import { ToolCallCard, ThoughtBubble } from './scene-ui/ChatOpsEntry';
 import { textToVisemeTimeline } from './tools/visemes';
 import { parseIframeUI, iframeToolToTarget, type IframeOpenTarget } from './virtual-browser';
 import { VirtualBrowser } from './VirtualBrowser';
@@ -769,6 +770,11 @@ export default function ImmersiveDigitalHuman() {
             </Typography>
           ) : (
             chatLog.map((m, i) => (
+              m.who === 'tool' && m.tool ? (
+                <ToolCallCard key={m.tool.id || i} entry={m.tool} />
+              ) : m.who === 'thought' ? (
+                <ThoughtBubble key={`t-${i}`} text={m.text} />
+              ) : (
               <Box
                 key={i}
                 sx={{
@@ -784,6 +790,7 @@ export default function ImmersiveDigitalHuman() {
                   {m.text}
                 </Typography>
               </Box>
+              )
             ))
           )}
           {/* AI 思考中 */}

@@ -30,9 +30,20 @@
 
 import React from 'react';
 
+/** 一次工具调用在对话里的记录(操作日志:做了什么、结果是什么) */
+export interface ChatToolEntry {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+  status: 'running' | 'done' | 'error';
+  result?: string;
+}
+
 export interface ChatLogItem {
-  who: 'user' | 'ai';
+  /** user / ai 是气泡;tool 是操作日志卡;thought 是这轮的思考过程 */
+  who: 'user' | 'ai' | 'tool' | 'thought';
   text: string;
+  tool?: ChatToolEntry;
 }
 
 export interface VisemeFrame {

@@ -36,6 +36,42 @@ const TOOL_RUNNING_HINT: Record<string, string> = {
   browser_open: '正在打开网页…',
 };
 
+/** 工具参数 JSON → 对象(坏 JSON 就当空) */
+function safeParseArgs(argsJSON?: string): Record<string, unknown> {
+  if (!argsJSON) return {};
+  try {
+    const v = JSON.parse(argsJSON);
+    return v && typeof v === 'object' ? v : {};
+  } catch {
+    return {};
+  }
+}
+
+/** 本轮起点:最后一条用户消息之后 */
+function turnStart(c: ChatLogItem[]): number {
+  for (let i = c.length - 1; i >= 0; i--) if (c[i].who === 'user') return i + 1;
+  return 0;
+}
+
+/**
+ * 打字机:更新本轮的 AI 气泡(工具卡可能插在它后面,不能只看最后一条,否则每次
+ * 工具调用之后都会再开一个气泡、正文重复一遍)。
+ */
+export function upsertTurnText(c: ChatLogItem[], text: string): ChatLogItem[] {
+  const start = turnStart(c);
+  for (let i = c.length - 1; i >= start; i--) {
+    if (c[i].who === 'ai') return [...c.slice(0, i), { who: 'ai', text }, ...c.slice(i + 1)];
+  }
+  return [...c, { who: 'ai', text }];
+}
+
+/** 思考过程放在本轮第一条 AI / 工具记录之前 */
+export function insertThought(c: ChatLogItem[], thought: string): ChatLogItem[] {
+  const start = turnStart(c);
+  const item: ChatLogItem = { who: 'thought', text: thought };
+  return [...c.slice(0, start), item, ...c.slice(start)];
+}
+
 /** 句末标点:流式朗读按这些切句 */
 const SENTENCE_END = /[。！？!?；;\n]/;
 
@@ -1319,13 +1355,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
               // 清洗掉形象指令,只显示纯文本
               const cleanText = stripAvatarDirectives(fullTextRef.current);
               // 打字机效果
-              setChatLog((c) => {
-                const last = c[c.length - 1];
-                if (last && last.who === 'ai') {
-                  return [...c.slice(0, -1), { who: 'ai', text: cleanText }];
-                }
-                return [...c, { who: 'ai', text: cleanText }];
-              });
+              setChatLog((c) => upsertTurnText(c, cleanText));
               // 攒够一整句就先读出来
               speakReady(false);
             },
@@ -1335,6 +1365,8 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
               if (hint) setThinkingLog(hint);
             },
             onToolCall: (name, toolCallId, argsJSON) => {
+              // 操作日志:每个工具调用都在对话里留一张卡,结果回来后补上
+              setChatLog((c) => [...c, { who: 'tool', text: name, tool: { id: toolCallId || `${name}-${Date.now()}`, name, args: safeParseArgs(argsJSON), status: 'running' } }]);
               // 到这里 args 已经由 api.ts 攒完整了(TOOL_CALL_END 才交付),
               // 不用再自己缓冲补参、也不会拿到半截 JSON。
               let args: Record<string, any> = {};
@@ -1362,6 +1394,11 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
               // 其余工具走 dispatcher 通路:数字人形象/动作/换装/移动驱动
               options.onToolCalls?.([{ name, args }]);
             },
+            onToolResult: (toolCallId, content) => {
+              setChatLog((c) => c.map((m) => (m.who === 'tool' && m.tool?.id === toolCallId
+                ? { ...m, tool: { ...m.tool, status: content.startsWith('ERROR:') ? 'error' : 'done', result: content } }
+                : m)));
+            },
             onToolEnd: () => {
               setThinkingLog('');
             },
@@ -1369,6 +1406,10 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
               setChatBusy(false);
               // 收尾:把最后一段还没闭合成句的文本读掉
               speakReady(true);
+              // 这轮的思考过程从浮动面板挪进记录,用户回看时知道它为什么这么做
+              const thought = thinkingTextRef.current.replace(/<think>|<\/think>/g, '').trim();
+              if (thought) setChatLog((c) => insertThought(c, thought));
+              setThinkingLog('');
             },
             onError: (err) => {
               setChatLog((c) => [...c, { who: 'ai', text: `❌ ${err}` }]);

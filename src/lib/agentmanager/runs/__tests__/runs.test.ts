@@ -35,7 +35,7 @@ describe('toTimeline', () => {
       ev(7, 'run.finished', { status: 'succeeded' }),
     ])
     expect(items.map((i) => i.kind)).toEqual(['note', 'text', 'tool', 'text', 'note'])
-    expect(items[1]).toEqual({ kind: 'text', text: '我先算一下' })
+    expect(items[1]).toEqual({ kind: 'text', text: '我先算一下', raw: '我先算一下' })
     expect(items[2]).toMatchObject({ kind: 'tool', name: 'sandbox_exec', done: true, isError: false })
   })
 
