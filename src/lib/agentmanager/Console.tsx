@@ -55,6 +55,12 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
   const [studioEditId, setStudioEditId] = useState<number | null>(null)
   const [studioEditName, setStudioEditName] = useState<string>('')
   const [agentsList, setAgentsList] = useState<Agent[]>([])
+  // 运行时数字员工(/multi-agent/staff):内置 4 类 + worker + builder + 对话里发布的自定义员工
+  const [runtimeStaff, setRuntimeStaff] = useState<{ agentId: string; name: string; description: string }[]>([])
+  useEffect(() => {
+    if (activeTab !== 'agents') return
+    fetch('/api/agentmanager/multi-agent/staff').then(r => r.json()).then(d => setRuntimeStaff(d.agents || [])).catch(() => setRuntimeStaff([]))
+  }, [activeTab])
     const [loading, setLoading] = useState(false)
 
   // 打开工作室:kind + 可选编辑 id
@@ -212,7 +218,8 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
         }}
       >
         <Typography variant="h5" sx={{ fontWeight: 600 }}>
-          🤖 AgentManager        </Typography>
+          {embedded ? (tabs.find(t => t.key === activeTab)?.label ?? '🤖 AgentManager') : '🤖 AgentManager'}
+        </Typography>
         <Box sx={{ display: 'flex', gap: 1 }}>
           {overview && (
             <>
@@ -490,6 +497,22 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
               <Typography variant="h6">Agent 管理</Typography>
               <Button size="small" variant="contained" onClick={() => setStudio('agent')}>➕ 新建 Agent</Button>
             </Box>
+            {/* 运行时数字员工:能直接在数字人页面 / 后台运行里对话、接任务的员工 */}
+            <Card variant="outlined" sx={{ mb: 3 }}>
+              <CardContent>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 0.5 }}>运行时数字员工</Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                  内置员工 + 用 builder 对话起草、批准后发布的自定义员工;数字人页面和「任务看板」里选的就是这些名字。新员工到「草稿箱」或和 builder 对话创建。
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  {runtimeStaff.map(st => (
+                    <Chip key={st.agentId} label={`${st.name}(${st.agentId})`} title={st.description} variant={['frontend', 'backend', 'ops', 'qa', 'worker', 'builder'].includes(st.agentId) ? 'outlined' : 'filled'} color={['frontend', 'backend', 'ops', 'qa', 'worker', 'builder'].includes(st.agentId) ? 'default' : 'primary'} />
+                  ))}
+                  {runtimeStaff.length === 0 && <Typography variant="caption" color="text.secondary">运行服务未启用或未登录</Typography>}
+                </Box>
+              </CardContent>
+            </Card>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>画布 Agent(实例绑定)</Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2 }}>
               {agentsList.map(agent => (
                 <Card key={agent.id}>
