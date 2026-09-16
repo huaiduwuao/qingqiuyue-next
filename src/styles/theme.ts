@@ -82,6 +82,13 @@ const baseTheme: ThemeOptions = {
     borderRadius: 0,
   },
   components: {
+    // lg / md 容器随屏宽放宽(变量定义见 globals.css),宽屏不再只占中间一条
+    MuiContainer: {
+      styleOverrides: {
+        maxWidthLg: { '@media (min-width:1200px)': { maxWidth: 'var(--page-max, 1200px)' } },
+        maxWidthMd: { '@media (min-width:900px)': { maxWidth: 'var(--page-max-narrow, 900px)' } },
+      },
+    },
     MuiCard: {
       defaultProps: {
         elevation: 0,

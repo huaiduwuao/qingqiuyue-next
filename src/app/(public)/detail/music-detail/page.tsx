@@ -245,7 +245,7 @@ function MusicDetailContent() {
 
       <AsyncState query={query} isEmpty={(d) => !d}>
         {(data) => (
-          <Container maxWidth="md" sx={{ py: 3 }}>
+          <Container maxWidth="lg" sx={{ py: 3 }}>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '280px 1fr' }, gap: 3, mb: 3 }}>
               <Box>
                 <CoverImage

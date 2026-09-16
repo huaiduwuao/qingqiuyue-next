@@ -70,7 +70,7 @@ function SectionHeader({
 
 export default function CreatorHomePage() {
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, maxWidth: 1400, mx: 'auto', width: '100%', pb: 4 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, maxWidth: 'max(1400px, var(--page-max))', mx: 'auto', width: '100%', pb: 4 }}>
       {/* Hero — 创作者档案 */}
       <CreatorProfileHeader />
 

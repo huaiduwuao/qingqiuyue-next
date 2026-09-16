@@ -141,7 +141,7 @@ function ImageDetailContent() {
       />
       <AsyncState query={query} isEmpty={(data) => !data}>
         {(data) => (
-          <Container maxWidth="md" sx={{ py: 3 }}>
+          <Container maxWidth="lg" sx={{ py: 3 }}>
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 2, flexWrap: 'wrap' }}>
               <Typography variant="h5" sx={{ fontWeight: 800, color: 'text.primary', flex: 1 }}>
                 {data.title}

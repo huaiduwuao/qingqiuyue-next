@@ -814,7 +814,7 @@ function DmPanel() {
         sx={{
           display: 'flex',
           height: '100%',
-          maxWidth: 1200,
+          maxWidth: 'var(--page-max)',
           mx: 'auto',
           width: '100%',
           bgcolor: 'background.default',

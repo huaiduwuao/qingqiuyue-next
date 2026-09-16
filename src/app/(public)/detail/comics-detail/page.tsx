@@ -217,7 +217,7 @@ function ComicsDetailContent() {
           const intro = (data.description || data.content || '').trim();
           const sourceLink = [data.sourceUrl, data.source].find((u) => !!u && /^https?:\/\//.test(u));
           return (
-            <Container maxWidth="md" sx={{ py: 3 }}>
+            <Container maxWidth="lg" sx={{ py: 3 }}>
               <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
                 <CoverImage
                   src={data.cover}

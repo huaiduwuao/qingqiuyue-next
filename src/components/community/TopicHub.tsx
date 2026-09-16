@@ -44,7 +44,7 @@ export function TopicHub() {
   const collectionList = collections.data?.pages.flatMap((p) => p.list) ?? [];
 
   return (
-    <Box sx={{ px: { xs: 1.5, md: 3 }, py: 2, maxWidth: 1200, mx: 'auto' }}>
+    <Box sx={{ px: { xs: 1.5, md: 3 }, py: 2, maxWidth: 'var(--page-max)', mx: 'auto' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 2, flexWrap: 'wrap' }}>
         <Box sx={{ width: 34, height: 34, borderRadius: 1.5, background: 'linear-gradient(135deg, #FF8A3D 0%, #FE2C55 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <CollectionsRoundedIcon sx={{ fontSize: 19, color: '#fff' }} />

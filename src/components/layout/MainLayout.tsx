@@ -43,6 +43,7 @@ import HeadsetMicIcon from '@mui/icons-material/HeadsetMic';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeMode } from '@/contexts/ThemeContext';
+import { BrandSeal, BrandWordmark } from '@/components/brand/BrandLogo';
 import type { MenuItem as MenuItemType } from '@/beans/system';
 
 const LEFT_SIDEBAR_WIDTH = 200;
@@ -135,7 +136,8 @@ export function MainLayout({ children }: { children: ReactNode }) {
   const drawerContent = useMemo(() => (
     <Box sx={{ width: LEFT_SIDEBAR_WIDTH, height: '100%', bgcolor: 'background.paper' }}>
       <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Box component="img" src="/yue_icon.svg" sx={{ width: 40, height: 40 }} />
+        <BrandSeal size={30} />
+        <BrandWordmark height={26} sx={{ color: 'text.primary' }} />
       </Box>
       <Divider />
       <List sx={{ py: 2 }}>
@@ -191,7 +193,8 @@ export function MainLayout({ children }: { children: ReactNode }) {
 
           {/* Logo */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: { xs: 'auto', md: 160 } }}>
-            <Box component="img" src="/yue_icon.svg" sx={{ width: { xs: 40, sm: 56 }, height: { xs: 40, sm: 56 } }} />
+            <BrandSeal size={32} />
+            <BrandWordmark height={30} sx={{ display: { xs: 'none', sm: 'block' } }} />
           </Box>
 
           {/* Search - hide on mobile */}

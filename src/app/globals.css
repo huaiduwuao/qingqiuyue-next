@@ -34,6 +34,24 @@
      这里先给 100vh 兜底,支持 dvh 的浏览器再覆盖;ViewportFix 会在不支持 dvh 的
      环境里用 innerHeight 实时写入。 */
   --app-height: 100vh;
+  /* 正文最大宽度:宽屏逐级放宽,别在 2K/4K 屏上缩成中间一条。
+     MUI Container 的 lg / md 在 styles/theme.ts 里读这两个变量;
+     手写的 maxWidth 也用它们,保证导航与正文左右对齐。 */
+  --page-max: 1200px;
+  --page-max-narrow: 900px;
+}
+
+@media (min-width: 1440px) {
+  :root { --page-max: 1320px; --page-max-narrow: 1000px; }
+}
+@media (min-width: 1680px) {
+  :root { --page-max: 1520px; --page-max-narrow: 1100px; }
+}
+@media (min-width: 1920px) {
+  :root { --page-max: 1720px; --page-max-narrow: 1200px; }
+}
+@media (min-width: 2400px) {
+  :root { --page-max: 2080px; --page-max-narrow: 1320px; }
 }
 
 @supports (height: 100dvh) {

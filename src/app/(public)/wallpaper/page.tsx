@@ -356,7 +356,7 @@ function WallpaperPageContent() {
         <Box
           sx={{
             position: 'relative',
-            maxWidth: 1200,
+            maxWidth: 'var(--page-max)',
             mx: 'auto',
             display: 'grid',
             gridTemplateColumns: { xs: '1fr', md: '1fr 1.1fr' },
@@ -556,7 +556,7 @@ function WallpaperPageContent() {
 
       {/* 分类 + 排序 */}
       <Box sx={{ px: { xs: 2, md: 4 }, pb: 2, position: 'sticky', top: 60, zIndex: 5, bgcolor: 'rgba(10, 10, 15, 0.85)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <Box sx={{ maxWidth: 1200, mx: 'auto', display: 'flex', alignItems: 'center', gap: 1, py: 1.5, flexWrap: 'wrap' }}>
+        <Box sx={{ maxWidth: 'var(--page-max)', mx: 'auto', display: 'flex', alignItems: 'center', gap: 1, py: 1.5, flexWrap: 'wrap' }}>
           {/* 分类统一由 categories state 驱动(含 all 项,支持后端动态返回),
               不再硬编码单独的「全部」按钮 —— 此前与 categories[0] 重复渲染出两个「全部」。 */}
           {categories.filter((c) => c.key === 'all').map((c) => (
@@ -645,7 +645,7 @@ function WallpaperPageContent() {
       {/* 我的壁纸 */}
       {myWallpapers.length > 0 && (
         <Box sx={{ px: { xs: 2, md: 4 }, py: 3 }}>
-          <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
+          <Box sx={{ maxWidth: 'var(--page-max)', mx: 'auto' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
               <Box
                 sx={{
@@ -694,7 +694,7 @@ function WallpaperPageContent() {
 
       {/* 壁纸库网格 */}
       <Box sx={{ px: { xs: 2, md: 4 }, py: { xs: 4, md: 6 } }}>
-        <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
+        <Box sx={{ maxWidth: 'var(--page-max)', mx: 'auto' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
             <Box
               sx={{

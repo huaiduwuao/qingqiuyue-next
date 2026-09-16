@@ -262,7 +262,7 @@ function DownloadPageContent() {
         <Box
           sx={{
             position: 'relative',
-            maxWidth: 1200,
+            maxWidth: 'var(--page-max)',
             mx: 'auto',
             display: 'grid',
             gridTemplateColumns: { xs: '1fr', md: '1.1fr 1fr' },
@@ -516,7 +516,7 @@ function DownloadPageContent() {
 
       {/* 平台下载区 */}
       <Box id="platforms" sx={{ py: { xs: 6, md: 8 }, px: { xs: 2, md: 4 }, bgcolor: 'rgba(255,255,255,0.02)' }}>
-        <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
+        <Box sx={{ maxWidth: 'var(--page-max)', mx: 'auto' }}>
           <Box sx={{ textAlign: 'center', mb: 5 }}>
             <Typography
               sx={{
@@ -693,7 +693,7 @@ function DownloadPageContent() {
 
       {/* 特性区 */}
       <Box sx={{ py: { xs: 6, md: 8 }, px: { xs: 2, md: 4 } }}>
-        <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
+        <Box sx={{ maxWidth: 'var(--page-max)', mx: 'auto' }}>
           <Box sx={{ textAlign: 'center', mb: 5 }}>
             <Typography
               sx={{
@@ -777,7 +777,7 @@ function DownloadPageContent() {
 
       {/* 系统要求 */}
       <Box sx={{ py: { xs: 6, md: 8 }, px: { xs: 2, md: 4 }, bgcolor: 'rgba(255,255,255,0.02)' }}>
-        <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
+        <Box sx={{ maxWidth: 'var(--page-max)', mx: 'auto' }}>
           <Box sx={{ textAlign: 'center', mb: 5 }}>
             <Typography
               sx={{

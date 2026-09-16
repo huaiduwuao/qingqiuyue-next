@@ -80,7 +80,7 @@ export default function PointsPage() {
 
   return (
     <Box sx={{ height: 'calc(100dvh - var(--appbar-h, 66px))', overflow: 'auto', overscrollBehavior: 'contain' }}>
-      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3, maxWidth: 1400, mx: 'auto' }}>
+      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3, maxWidth: 'max(1400px, var(--page-max))', mx: 'auto' }}>
         <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
           我的积分
         </Typography>

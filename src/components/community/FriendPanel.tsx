@@ -201,7 +201,7 @@ export function FriendPanel() {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-        <Box sx={{ maxWidth: 1100, mx: 'auto', p: { xs: 1.5, md: 2.5 }, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Box sx={{ maxWidth: 'max(1100px, var(--page-max-narrow))', mx: 'auto', p: { xs: 1.5, md: 2.5 }, display: 'flex', flexDirection: 'column', gap: 2 }}>
           {/* Hero stats */}
           <StatsRow stats={statsQ.data} />
 

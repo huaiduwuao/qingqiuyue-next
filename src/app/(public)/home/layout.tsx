@@ -53,8 +53,7 @@ import HomeRecommendPage from './recommend/page';
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { useResponsive } from '@/hooks/useResponsive';
 import { useTopbarHeight } from '@/hooks/useTopbarHeight';
-import GradientText from '@/components/reactbits/GradientText';
-import ShinyText from '@/components/reactbits/ShinyText';
+import { BrandSeal, BrandWordmark } from '@/components/brand/BrandLogo';
 
 const SIDE_NAV: { key: string; label: string; path?: string; icon: React.ReactNode; accent: string; dividerBefore?: boolean }[] = [
   { key: 'home', label: '精选', path: '/home/recommend?tab=home', icon: <HomeRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
@@ -259,7 +258,7 @@ function TopBar({
       }}
     >
       <Logo isCompact={isMobile} />
-      <Box sx={{ flex: 1, maxWidth: { xs: 'none', md: 480 }, mx: { xs: 0.5, md: 2 }, minWidth: 0 }}>
+      <Box sx={{ flex: 1, maxWidth: { xs: 'none', md: 480, xl: 640 }, mx: { xs: 0.5, md: 2 }, minWidth: 0 }}>
         <TextField
           fullWidth
           size="small"
@@ -437,79 +436,40 @@ function Logo({ isCompact = false }: { isCompact?: boolean }) {
     <Box
       component={Link}
       href="/home/recommend?tab=home"
+      aria-label="清秋月 首页"
       sx={{
         display: 'flex',
         alignItems: 'center',
-        gap: 1,
+        gap: 1.25,
         minWidth: isCompact ? 'auto' : 180,
-        position: 'relative',
         cursor: 'pointer',
         textDecoration: 'none',
         flexShrink: 0,
+        '&:hover .brand-seal': { transform: 'rotate(-6deg)' },
       }}
     >
-      <Box sx={{ position: 'relative', width: isCompact ? 32 : 40, height: isCompact ? 32 : 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {[0, 1, 2].map((i) => (
-          <Box
-            key={i}
-            sx={{
-              position: 'absolute',
-              inset: 0,
-              borderRadius: '50%',
-              border: '1px solid',
-              borderColor: 'var(--brand-color, transparent)',
-              animation: `moon-ripple 3.6s ease-out ${i * 1.2}s infinite`,
-              '@keyframes moon-ripple': {
-                '0%': { transform: 'scale(0.4)', opacity: 0.8 },
-                '100%': { transform: 'scale(1.6)', opacity: 0 },
-              },
-            }}
-          />
-        ))}
-        <Box
-          sx={{
-            width: isCompact ? 18 : 22,
-            height: isCompact ? 18 : 22,
-            borderRadius: '50%',
-            background: 'radial-gradient(circle at 35% 35%, #F5E6A8 0%, #D4AF37 60%, #8B6F1F 100%)',
-            boxShadow: '0 0 12px rgba(212, 175, 55, 0.5), inset -3px -3px 6px rgba(0,0,0,0.4)',
-            position: 'relative',
-            zIndex: 1,
-          }}
-        />
-      </Box>
-      {/* 移动端隐藏文字 */}
+      <BrandSeal
+        className="brand-seal"
+        size={isCompact ? 30 : 34}
+        sx={{ transition: 'transform 0.3s ease', filter: 'drop-shadow(0 2px 4px rgba(184,38,46,0.25))' }}
+      />
+      {/* 移动端只留印章 */}
       {!isCompact && (
-        <Box sx={{ lineHeight: 1.1, position: 'relative' }}>
-          <GradientText
-            colors={['#F5E6A8', '#D4AF37', '#FE2C55', '#8B5CF6', '#F5E6A8']}
-            animationSpeed={10}
-            sx={{
-              fontFamily: '"Ma Shan Zheng", "STKaiti", "KaiTi", "STXingkai", "华文行楷", serif',
-              fontSize: 22,
-              lineHeight: 1,
-              letterSpacing: 4,
-              filter: 'drop-shadow(0 0 6px rgba(212, 175, 55, 0.25))',
-            }}
-          >
-            清秋月
-          </GradientText>
-          <ShinyText
-            speed={4}
-            color="var(--brand-color, currentColor)"
-            shineColor="rgba(255,255,255,0.95)"
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0.25 }}>
+          <BrandWordmark height={30} sx={{ color: 'var(--text-primary, currentColor)' }} />
+          <Box
+            component="span"
             sx={{
               fontFamily: '"ZCOOL XiaoWei", "Songti SC", "STSong", "SimSun", serif',
               fontSize: 9,
-              letterSpacing: 1.5,
-              mt: 0.25,
               lineHeight: 1,
-              fontStyle: 'italic',
-              display: 'block',
+              letterSpacing: 2.5,
+              color: 'var(--text-muted, currentColor)',
+              whiteSpace: 'nowrap',
             }}
           >
             十年清秋 · 问心明月
-          </ShinyText>
+          </Box>
         </Box>
       )}
     </Box>

@@ -426,7 +426,7 @@ function RechargePageContent() {
         <Box
           sx={{
             position: 'relative',
-            maxWidth: 1200,
+            maxWidth: 'var(--page-max)',
             mx: 'auto',
             display: 'grid',
             gridTemplateColumns: { xs: '1fr', md: '1.1fr 1fr' },
@@ -563,7 +563,7 @@ function RechargePageContent() {
         <Box
           sx={{
             position: 'relative',
-            maxWidth: 1200,
+            maxWidth: 'var(--page-max)',
             mx: 'auto',
             p: { xs: 2, md: 2.5 },
             borderRadius: 2.5,
@@ -648,7 +648,7 @@ function RechargePageContent() {
       <Box sx={{ px: { xs: 2, md: 4 }, py: 4 }}>
         <Box
           sx={{
-            maxWidth: 1200,
+            maxWidth: 'var(--page-max)',
             mx: 'auto',
             display: 'grid',
             gridTemplateColumns: { xs: '1fr', lg: '1.5fr 1fr' },
@@ -986,7 +986,7 @@ function RechargePageContent() {
 
       {/* 充值记录 */}
       <Box id="records" sx={{ px: { xs: 2, md: 4 }, py: { xs: 4, md: 6 }, bgcolor: 'rgba(255,255,255,0.02)' }}>
-        <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
+        <Box sx={{ maxWidth: 'var(--page-max)', mx: 'auto' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
             <Box
               sx={{
@@ -1135,7 +1135,7 @@ function RechargePageContent() {
       {/* 活动规则 */}
       {hasActivity && (
       <Box sx={{ px: { xs: 2, md: 4 }, py: 4 }}>
-        <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
+        <Box sx={{ maxWidth: 'var(--page-max)', mx: 'auto' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
             <ChatBubbleOutlineIcon sx={{ fontSize: 14, color: 'rgba(255,255,255,0.4)' }} />
             <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>

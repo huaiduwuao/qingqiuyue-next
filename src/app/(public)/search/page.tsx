@@ -571,7 +571,7 @@ function SearchPageContent() {
         )}
       </Box>
 
-      <Box sx={{ maxWidth: 1200, mx: 'auto', px: { xs: 2, md: 3 }, py: { xs: 2, md: 3 } }}>
+      <Box sx={{ maxWidth: 'var(--page-max)', mx: 'auto', px: { xs: 2, md: 3 }, py: { xs: 2, md: 3 } }}>
         {!hasQuery ? (
           <EmptyState
             hotKeywords={hotKeywords}

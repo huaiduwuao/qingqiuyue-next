@@ -13,6 +13,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import Link from 'next/link';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { BrandSeal, BrandWordmark } from '@/components/brand/BrandLogo';
 
 interface NavPage {
   key: string;
@@ -54,26 +55,9 @@ export default function MobileNavDrawer({ open, onClose, pages, currentPath }: P
           }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1.5 }}>
-            <Box
-              sx={{
-                width: 32,
-                height: 32,
-                borderRadius: 1,
-                background: 'linear-gradient(135deg, #FE2C55 0%, #FFB400 50%, #25F4EE 100%)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'text.primary',
-                fontWeight: 700,
-                fontSize: 14,
-                fontFamily: 'monospace',
-              }}
-            >
-              青
-            </Box>
-            <Box sx={{ flex: 1, lineHeight: 1.1 }}>
-              <Box sx={{ fontSize: 14, fontWeight: 700 }}>清秋月</Box>
-              <Box sx={{ fontSize: 10, color: 'text.secondary', letterSpacing: 0.5 }}>QINGQIUYUE</Box>
+            <BrandSeal size={32} />
+            <Box sx={{ flex: 1, ml: 0.5 }}>
+              <BrandWordmark height={26} sx={{ color: 'text.primary' }} />
             </Box>
             <IconButton onClick={onClose} size="small" aria-label="关闭">
               <CloseIcon fontSize="small" />
