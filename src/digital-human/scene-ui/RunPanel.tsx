@@ -192,8 +192,8 @@ export default function RunPanel({ runId, onSend }: { runId: string; onSend: (t:
       )}
       {run.status === 'failed' && run.error && <Typography sx={{ fontSize: 13.5, color: '#F87171' }}>{run.error}</Typography>}
       {error && <Typography sx={{ color: '#FFB547', fontSize: 13 }}>{error}</Typography>}
-      <Typography component="a" href="/system/agentmanager" sx={{ fontSize: 12.5, color: ACCENT, textDecoration: 'none' }}>
-        在 Agent 管理台的「运行」里查看完整过程 →
+      <Typography component="a" href="/system/runs" sx={{ fontSize: 12.5, color: ACCENT, textDecoration: 'none' }}>
+        在「后台运行」里查看完整过程 →
       </Typography>
     </Box>
   );

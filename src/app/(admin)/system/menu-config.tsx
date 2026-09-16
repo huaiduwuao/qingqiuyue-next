@@ -195,7 +195,6 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
       { id: 'conversations', label: '会话与复现', path: '/system/conversations', icon: <HistoryRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FFB400' },
       { id: 'agent-audit', label: '审计与成本', path: '/system/agent-audit', icon: <ReportProblemRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
       { id: 'instances', label: '运行时实例', path: '/system/instances', icon: <DnsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
-      { id: 'agent-manager', label: '总控台(全部页签)', path: '/system/agentmanager', icon: <HubRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
     ],
   },
   {
