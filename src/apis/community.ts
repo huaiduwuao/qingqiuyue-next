@@ -79,6 +79,10 @@ export interface CommunityTopic {
   viewCount: number;
   hasContents: boolean;
   isFollowing: boolean;
+  /** 数据自动生成的专题(按标签 / 平台热榜汇集),不是运营手建 */
+  auto?: boolean;
+  /** 数据驱动的热度分 */
+  hotScore?: number;
 }
 
 export interface TopicContentItem {

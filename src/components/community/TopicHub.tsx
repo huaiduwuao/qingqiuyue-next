@@ -150,6 +150,11 @@ function CollectionCard({ topic }: { topic: CommunityTopic }) {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           <Typography sx={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary, #fff)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{topic.title}</Typography>
           {topic.official && <VerifiedRoundedIcon sx={{ fontSize: 14, color: '#5B8DEF' }} />}
+          {topic.auto && (
+            <Box component="span" sx={{ fontSize: 10, lineHeight: 1, px: 0.5, py: 0.25, borderRadius: 0.5, bgcolor: 'rgba(91,141,239,0.15)', color: '#5B8DEF', whiteSpace: 'nowrap', flexShrink: 0 }}>
+              自动汇集
+            </Box>
+          )}
         </Box>
         <Typography sx={{ fontSize: 12, color: 'var(--text-secondary, rgba(255,255,255,0.6))', mt: 0.25, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
           {topic.subtitle || topic.description || ' '}

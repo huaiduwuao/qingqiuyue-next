@@ -23,6 +23,12 @@ export interface Topic {
   postCount?: number;
   /** 自动收录规则的 JSON 字符串,见 TopicRule */
   rule?: string;
+  /** 来源:manual 运营手建 / 用户话题;auto 由 internal/topiccurator 按数据自动生成 */
+  source?: 'manual' | 'auto';
+  /** 自动专题的幂等键(tag:<标签> / platform:<平台>) */
+  autoKey?: string;
+  /** 数据驱动的热度分(内容热度 + 近期新帖/新关注),专题广场按它排序 */
+  hotScore?: number;
   createTime: string;
   updateTime: string;
 }
@@ -33,6 +39,24 @@ export interface TopicRule {
   keywords?: string[];
   orderBy?: 'hot' | 'new';
   limit?: number;
+  /** 非空时作品直接取 trending 索引里该平台的热榜(自动生成的"<平台> 今日热门"专题) */
+  trendingPlatform?: string;
+  trendingPeriod?: 'realtime' | 'day' | 'week';
+}
+
+/** 一轮自动生成的结果(POST /topic/curate) */
+export interface CurateReport {
+  builtAt: string;
+  contents: number;
+  tagCandidates: number;
+  tagTopics: number;
+  platformTopics: number;
+  created: number;
+  updated: number;
+  skippedOff: number;
+  scored: number;
+  duration: string;
+  error?: string;
 }
 
 export function parseTopicRule(s?: string): TopicRule {
@@ -83,8 +107,13 @@ export interface AddContentReq {
 }
 
 // 获取专题列表
-export async function listTopics(params?: { page?: number; pageSize?: number; status?: number; kind?: TopicKind; keyword?: string }) {
+export async function listTopics(params?: { page?: number; pageSize?: number; status?: number; kind?: TopicKind; keyword?: string; source?: 'manual' | 'auto' }) {
   return contentClient.get('/topic/list', { params });
+}
+
+// 立即跑一轮专题自动生成(按内容标签 / trending 平台热榜建合集,刷新全部专题热度分)。仅内容运营。
+export async function curateTopics(): Promise<{ data?: CurateReport }> {
+  return contentClient.post('/topic/curate');
 }
 
 // 获取热门专题

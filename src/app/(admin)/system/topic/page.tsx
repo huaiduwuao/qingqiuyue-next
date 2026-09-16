@@ -43,6 +43,7 @@ import {
   LibraryAdd as LibraryAddIcon,
   Search as SearchIcon,
   RemoveCircle as RemoveCircleIcon,
+  AutoAwesome as AutoAwesomeIcon,
 } from '@mui/icons-material';
 import {
   listTopics,
@@ -57,6 +58,7 @@ import {
   CreateTopicReq,
   TopicKind,
   parseTopicRule,
+  curateTopics,
 } from '@/apis/topic';
 import { moduleContentPage } from '@/apis/home';
 
@@ -110,6 +112,9 @@ export default function TopicAdminPage() {
     kind: 'collection',
   });
   const [ruleForm, setRuleForm] = useState<RuleForm>(emptyRule);
+  // 自动生成:internal/topiccurator 每 30 分钟跑一轮;这里可以立即触发并看结果
+  const [curating, setCurating] = useState(false);
+  const [curateNote, setCurateNote] = useState('');
 
   // 内容搜索状态
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -119,6 +124,25 @@ export default function TopicAdminPage() {
   useEffect(() => {
     loadTopics();
   }, [page]);
+
+  const handleCurate = async () => {
+    setCurating(true);
+    setCurateNote('');
+    try {
+      const res = await curateTopics();
+      const r = res.data;
+      if (r) {
+        setCurateNote(
+          `已按 ${r.contents} 条内容生成:标签专题 ${r.tagTopics}(候选 ${r.tagCandidates})、平台专题 ${r.platformTopics};新建 ${r.created}、刷新 ${r.updated}、跳过已停用 ${r.skippedOff};热度分刷新 ${r.scored} 个,用时 ${r.duration}`,
+        );
+      }
+      loadTopics();
+    } catch (error: any) {
+      setCurateNote(`生成失败:${error?.message || error}`);
+    } finally {
+      setCurating(false);
+    }
+  };
 
   const loadTopics = async () => {
     setLoading(true);
@@ -298,14 +322,28 @@ export default function TopicAdminPage() {
         <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
           专题管理
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => handleOpenDialog()}
-        >
-          新建专题
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Tooltip title="按内容标签与各平台热榜自动生成合集,并刷新所有专题的热度分(后台每 30 分钟也会自动跑一轮)">
+            <span>
+              <Button variant="outlined" startIcon={<AutoAwesomeIcon />} onClick={handleCurate} disabled={curating}>
+                {curating ? '生成中…' : '立即生成'}
+              </Button>
+            </span>
+          </Tooltip>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpenDialog()}
+          >
+            新建专题
+          </Button>
+        </Box>
       </Box>
+      {curateNote && (
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          {curateNote}
+        </Typography>
+      )}
 
       <TableContainer component={Paper}>
         <Table>
@@ -371,7 +409,11 @@ export default function TopicAdminPage() {
                   </TableCell>
                   <TableCell>
                     <Chip size="small" variant="outlined" label={topic.kind === 'topic' ? '话题' : '合集'} />
-                    {topic.rule ? <Chip size="small" label="自动收录" sx={{ ml: 0.5 }} /> : null}
+                    {topic.source === 'auto' ? (
+                      <Tooltip title={`数据自动生成(${topic.autoKey || ''}),热度分 ${topic.hotScore ?? 0}。停用后不会再被自动复活`}>
+                        <Chip size="small" color="info" label="自动生成" sx={{ ml: 0.5 }} />
+                      </Tooltip>
+                    ) : topic.rule ? <Chip size="small" label="自动收录" sx={{ ml: 0.5 }} /> : null}
                   </TableCell>
                   <TableCell>
                     <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 200 }}>
