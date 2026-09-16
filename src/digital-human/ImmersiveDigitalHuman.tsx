@@ -136,10 +136,18 @@ export default function ImmersiveDigitalHuman() {
   const [browserTarget, setBrowserTarget] = React.useState<IframeOpenTarget | null>(null);
   // 场景动作协议:每轮随请求上报给模型的场景快照(只记前端真的执行了的指令)
   const sceneRef = React.useRef<SceneSnapshot>({});
+  // 选哪个数字员工对话(worker / frontend / … / builder / 自定义):以前写死 worker,builder 根本没法从这里用
+  const [staffList, setStaffList] = React.useState<{ agentId: string; name: string; description: string }[]>([]);
+  const [aguiAgent, setAguiAgent] = React.useState('worker');
+  React.useEffect(() => {
+    const ac = new AbortController();
+    fetch('/api/agentmanager/multi-agent/staff', { signal: ac.signal }).then((r) => r.json()).then((d) => setStaffList(d.agents || [])).catch(() => {});
+    return () => ac.abort();
+  }, []);
   const chat = useChatAvatarWS(undefined, {
     // G1: 数字人走 agentmanager 的数字员工(AG-UI),形象/动作仍由 dispatcher 驱动
     useAgui: true,
-    aguiAgent: 'worker',
+    aguiAgent,
     getSceneState: () => buildSceneState(sceneRef.current),
     // H1: 接收动态 UI 指令并渲染;I1: iframe 指令走独立显示器
     onUI: (ui: any) => {
@@ -803,6 +811,16 @@ export default function ImmersiveDigitalHuman() {
 
         {/* 输入区 */}
         <Box sx={{ px: 2, pb: 2, display: 'flex', gap: 1, alignItems: 'center' }}>
+          <select
+            aria-label="数字员工"
+            value={aguiAgent}
+            onChange={(e) => setAguiAgent(e.target.value)}
+            style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, padding: '8px 6px', fontSize: 12, maxWidth: 120 }}
+          >
+            {(staffList.length ? staffList : [{ agentId: 'worker', name: '全能数字员工', description: '' }]).map((st) => (
+              <option key={st.agentId} value={st.agentId}>{st.name}</option>
+            ))}
+          </select>
           <TextField
             fullWidth
             placeholder={voiceEnabled ? (voice.state === 'recording' ? '我在听…' : '说"小月"唤醒') : '跟数字人说点什么…'}
