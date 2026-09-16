@@ -12,7 +12,7 @@
  * 现在改走工具调用:参数由 LLM 的结构化输出通道下发,schema 在服务端定义。
  */
 
-export type ScenePanelKind = 'list' | 'grid' | 'form' | 'operation' | 'run';
+export type ScenePanelKind = 'list' | 'grid' | 'form' | 'operation' | 'run' | 'plan';
 
 export interface ScenePanelListItem {
   id: string;
@@ -90,7 +90,25 @@ export interface ScenePanelRun extends ScenePanelBase {
   runId: string;
 }
 
-export type ScenePanel = ScenePanelList | ScenePanelGrid | ScenePanelForm | ScenePanelOperation | ScenePanelRun;
+/**
+ * 任务板(后端 ui_show_plan,见 engine/tools_scene.go)。
+ * 同一个 id 再次下发 = 原地刷新步骤状态。
+ */
+export type ScenePlanStepStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped';
+
+export interface ScenePlanStep {
+  id: string;
+  title: string;
+  status: ScenePlanStepStatus;
+  detail?: string;
+}
+
+export interface ScenePanelPlan extends ScenePanelBase {
+  kind: 'plan';
+  steps: ScenePlanStep[];
+}
+
+export type ScenePanel = ScenePanelList | ScenePanelGrid | ScenePanelForm | ScenePanelOperation | ScenePanelRun | ScenePanelPlan;
 
 /** 后端工具名 → 面板类型 */
 export const SCENE_PANEL_TOOLS: Record<string, ScenePanelKind> = {
@@ -99,6 +117,7 @@ export const SCENE_PANEL_TOOLS: Record<string, ScenePanelKind> = {
   ui_show_form: 'form',
   ui_show_operation: 'operation',
   ui_show_run: 'run',
+  ui_show_plan: 'plan',
 };
 
 /** 关闭面板的工具名 */
@@ -177,6 +196,23 @@ export function scenePanelFromToolCall(
     const runId = asString(args.run_id).trim();
     if (!runId) return null;
     return { kind: 'run', id, title: asString(args.title) || '后台任务', subtitle, runId };
+  }
+
+  if (kind === 'plan') {
+    const allowed: ScenePlanStepStatus[] = ['pending', 'running', 'done', 'failed', 'skipped'];
+    const steps: ScenePlanStep[] = (Array.isArray(args.steps) ? args.steps : [])
+      .filter((x: unknown): x is Record<string, unknown> => !!x && typeof x === 'object')
+      .map((x: Record<string, unknown>, i: number) => ({
+        id: asString(x.id) || `step-${i}`,
+        title: asString(x.title),
+        status: (allowed.includes(x.status as ScenePlanStepStatus) ? x.status : 'pending') as ScenePlanStepStatus,
+        detail: asString(x.detail) || undefined,
+      }))
+      .filter((x: ScenePlanStep) => x.title);
+    if (steps.length === 0) return null;
+    // 面板 id 用任务板自己的 id:同一个任务再次下发时替换而不是叠一块新板子
+    const planId = asString(args.id).trim() || id;
+    return { kind: 'plan', id: planId, title: asString(args.title) || '任务进度', subtitle, steps };
   }
 
   if (kind === 'form') {

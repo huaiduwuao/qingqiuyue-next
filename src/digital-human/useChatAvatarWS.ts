@@ -606,6 +606,8 @@ export interface UseChatAvatarWSOptions {
   useAgui?: boolean;
   /** AG-UI 模式下的 agent 名(如 frontend/backend/ops/qa/worker),默认 worker */
   aguiAgent?: string;
+  /** 3D 场景动作协议:每轮随请求上报的场景状态(scene-state.ts),后端塞进 system prompt */
+  getSceneState?: () => unknown;
   /** H1:从 AG-UI 文本流解析出的动态 UI(数字员工干活后弹结果),入口组件渲染 */
   onUI?: (ui: any) => void;
   /**
@@ -1298,6 +1300,8 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
             user_id: userIdRef.current || undefined, // 仅已登录用户记录对话
             // G2: 数字人模式,后端注入形象指令模板,回答内嵌 <emotion:x/>/<action:y/>
             avatar_mode: true,
+            // 场景动作协议:让模型知道锚点/动作/机位,以及自己现在在哪
+            scene_state: options.getSceneState?.(),
             // H4: 携带历史上下文
             history,
           },

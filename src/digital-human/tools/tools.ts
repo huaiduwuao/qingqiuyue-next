@@ -284,6 +284,35 @@ export const avatarSwapModel: ToolDefinition<{ modelId: string }> = {
   handler: ({ modelId }) => ({ modelId }),
 };
 
+/* ────────────── scene_act(后端 engine/tools_scene.go 下发的场景动作协议)────────────── */
+
+export const SCENE_ACT_ACTIONS = ['play_action', 'set_expression', 'move_to', 'camera', 'scene', 'pose', 'dance'] as const;
+export type SceneActAction = typeof SCENE_ACT_ACTIONS[number];
+
+export const sceneAct: ToolDefinition<{
+  action: SceneActAction;
+  name?: string;
+  target?: string;
+  style?: 'walk' | 'run' | 'teleport';
+  duration_ms?: number;
+}> = {
+  name: 'scene_act',
+  category: 'system',
+  description: '场景动作协议:走位 / 机位 / 场景 / 姿势 / 跳舞 / 动作 / 表情,统一入口;由 dispatcher 拆到具体 sink。',
+  parameters: {
+    type: 'object',
+    properties: {
+      action: { type: 'string', enum: SCENE_ACT_ACTIONS as unknown as string[], description: '动作类别' },
+      name: { type: 'string', description: '动作/表情/机位/场景/姿势/舞蹈风格名' },
+      target: { type: 'string', description: 'move_to 目标:锚点名或 "x,z"' },
+      style: { type: 'string', enum: ['walk', 'run', 'teleport'], description: '走位方式' },
+      duration_ms: { type: 'integer', description: '走位时长(毫秒)' },
+    },
+    required: ['action'],
+  },
+  handler: (p) => p,
+};
+
 /* ────────────── 全量注册 ────────────── */
 
 export const ALL_TOOLS: ToolDefinition<any>[] = [
@@ -297,6 +326,7 @@ export const ALL_TOOLS: ToolDefinition<any>[] = [
   sceneChange,
   cameraPreset,
   avatarSwapModel,
+  sceneAct,
 ];
 
 export const TOOLS_BY_NAME: Record<string, ToolDefinition> = Object.fromEntries(

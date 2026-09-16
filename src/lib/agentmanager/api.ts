@@ -255,7 +255,7 @@ class AgentManagerAPI {
    * 否则流照跑,onDone 照样触发,TTS 又开口说了一遍。
    */
   async aguiChat(
-    params: { model?: string; agent?: string; prompt: string; system?: string; session_id?: string; user_id?: number; avatar_mode?: boolean; history?: Array<{ role: string; content: string }> },
+    params: { model?: string; agent?: string; prompt: string; system?: string; session_id?: string; user_id?: number; avatar_mode?: boolean; scene_state?: unknown; history?: Array<{ role: string; content: string }> },
     handlers: {
       onDelta?: (text: string) => void
       onThinking?: (text: string) => void

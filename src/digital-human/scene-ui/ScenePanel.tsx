@@ -27,6 +27,7 @@ import Chip from '@mui/material/Chip';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import OperationPanel from './OperationPanel';
 import RunPanel from './RunPanel';
+import PlanPanel from './PlanPanel';
 import type {
   ScenePanel as ScenePanelModel,
   ScenePanelField,
@@ -106,6 +107,7 @@ export function ScenePanel({ panel, onSend, onClose }: ScenePanelProps) {
         )}
         {panel.kind === 'operation' && <OperationPanel operationId={panel.operationId} onSend={onSend} />}
         {panel.kind === 'run' && <RunPanel runId={panel.runId} onSend={onSend} />}
+        {panel.kind === 'plan' && <PlanPanel steps={panel.steps} />}
       </Box>
     </Box>
   );

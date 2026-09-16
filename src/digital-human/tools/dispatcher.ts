@@ -11,7 +11,7 @@
  *   const result = dispatchToolCall(call, sinks);
  */
 
-import { TOOLS_BY_NAME, type ToolDefinition } from './tools';
+import { CAMERA_PRESET_NAMES, TOOLS_BY_NAME, type ToolDefinition } from './tools';
 import { ALL_ACTIONS, type ActionController } from './actions';
 import { buildExpressionFromPreset, EXPRESSION_PRESETS } from './expressions';
 import type { BlendshapeDict, ExpressionTemplateName } from './expressions';
@@ -224,6 +224,46 @@ export function dispatchToolCall(call: ToolCall, sinks: DigitalHumanSinks): Disp
           toolName: 'avatar.swapModel',
           result: ret ? { modelId, swapped: true } : { modelId, error: `no model: ${modelId}` },
         };
+      }
+
+      case 'scene_act': {
+        // 统一入口 → 拆到既有的形象工具,复用它们的校验;返回值统一标成 scene_act
+        const name = String(p.name ?? '');
+        const relay = (inner: ToolCall): DispatchResult => {
+          const r = dispatchToolCall(inner, sinks);
+          return { ...r, toolName: r.ok ? r.toolName : 'scene_act' };
+        };
+        switch (p.action) {
+          case 'play_action':
+            return relay({ name: 'body.playAction', args: { name } });
+          case 'set_expression':
+            return relay({ name: 'face.setExpression', args: { template: name } });
+          case 'move_to': {
+            const raw = String(p.target ?? '').trim();
+            let target: any = raw;
+            const m = raw.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+            if (m) target = { x: Number(m[1]), z: Number(m[2]) };
+            return relay({ name: 'body.move', args: { target, durationMs: p.duration_ms, style: p.style } });
+          }
+          case 'camera':
+            if ((CAMERA_PRESET_NAMES as readonly string[]).includes(name)) return relay({ name: 'camera.preset', args: { name } });
+            return relay({ name: 'camera.control', args: { action: name || 'reset' } });
+          case 'scene':
+            return relay({ name: 'scene.change', args: { name } });
+          case 'pose':
+            if (!sinks.setPose) return { ok: false, toolName: 'scene_act', error: 'setPose 未实现' };
+            sinks.setPose(name);
+            return { ok: true, toolName: 'scene_act', result: { pose: name } };
+          case 'dance': {
+            if (!sinks.setDancing) return { ok: false, toolName: 'scene_act', error: 'setDancing 未实现' };
+            const on = name !== 'stop' && name !== 'off';
+            if (on && (name === 'groove' || name === 'idol')) sinks.setDanceStyle?.(name);
+            sinks.setDancing(on);
+            return { ok: true, toolName: 'scene_act', result: { dancing: on, style: name } };
+          }
+          default:
+            return { ok: false, toolName: 'scene_act', error: `unknown scene action: ${p.action}` };
+        }
       }
 
       default:

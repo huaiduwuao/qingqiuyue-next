@@ -34,6 +34,7 @@ import type { DynamicUI, UIAction } from './dynamic-ui/types';
 import { ScenePanel } from './scene-ui/ScenePanel';
 import type { ScenePanel as ScenePanelModel } from './scene-ui/types';
 import { dispatchToolCalls, type ToolCall as DhToolCall } from './tools/dispatcher';
+import { applyDispatchResults, buildSceneState, type SceneSnapshot } from './scene-state';
 import { textToVisemeTimeline } from './tools/visemes';
 import { parseIframeUI, iframeToolToTarget, type IframeOpenTarget } from './virtual-browser';
 import { VirtualBrowser } from './VirtualBrowser';
@@ -132,10 +133,13 @@ export default function ImmersiveDigitalHuman() {
   // 统一显示器组件(地址栏/视频原声/fallback/新标签), 取代旧的 inline iframe
   const [browserFrame, setBrowserFrame] = React.useState<{ url: string; title?: string } | null>(null);
   const [browserTarget, setBrowserTarget] = React.useState<IframeOpenTarget | null>(null);
+  // 场景动作协议:每轮随请求上报给模型的场景快照(只记前端真的执行了的指令)
+  const sceneRef = React.useRef<SceneSnapshot>({});
   const chat = useChatAvatarWS(undefined, {
     // G1: 数字人走 agentmanager 的数字员工(AG-UI),形象/动作仍由 dispatcher 驱动
     useAgui: true,
     aguiAgent: 'worker',
+    getSceneState: () => buildSceneState(sceneRef.current),
     // H1: 接收动态 UI 指令并渲染;I1: iframe 指令走独立显示器
     onUI: (ui: any) => {
       // I1: iframe 指令 → 统一解析器产出目标, 弹显示器
@@ -205,6 +209,7 @@ export default function ImmersiveDigitalHuman() {
           },
         },
       );
+      sceneRef.current = applyDispatchResults(sceneRef.current, results);
       // 未知动作/表情 → 追加提示到聊天记录
       for (const r of results) {
         if (!r.ok && r.error) {
@@ -222,6 +227,10 @@ export default function ImmersiveDigitalHuman() {
     loadConversationMessages, setEmotion, setViseme, setChatLog, thinkingLog } = chat;
   // 002:全屏页体现多会话能力
   const { history, refresh: refreshHistory } = useConversationHistory(20);
+  // 文本标签 <action:x/> 驱动的动作、面板、内嵌浏览器也要进快照,模型下一轮才看得到
+  React.useEffect(() => { sceneRef.current.action = action || 'idle'; }, [action]);
+  React.useEffect(() => { sceneRef.current.panel = scenePanel ? { kind: scenePanel.kind, title: scenePanel.title } : null; }, [scenePanel]);
+  React.useEffect(() => { sceneRef.current.browser = browserFrame?.url ?? null; }, [browserFrame]);
   const [sessionDrawerOpen, setSessionDrawerOpen] = React.useState(true);
   // 诊断：监听 stageHandle 变化
   React.useEffect(() => { devLog.debug('[Immersive] stageHandle 变化:', stageHandle); }, [stageHandle]);
