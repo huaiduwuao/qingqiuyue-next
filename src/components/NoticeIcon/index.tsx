@@ -146,7 +146,7 @@ export default function NoticeIconView() {
       >
         <Box sx={{ display: 'flex', flexDirection: 'column', maxHeight: 540 }}>
           {/* 标题栏 */}
-          <Box sx={{ display: 'flex', alignItems: 'center', px: 2, pt: 1.5, pb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', px: 2, pt: 1.5, pb: 1, flexShrink: 0 }}>
             <Typography sx={{ fontSize: 15, fontWeight: 700, color: 'text.primary', flex: 1 }}>
               消息中心
             </Typography>
@@ -161,6 +161,7 @@ export default function NoticeIconView() {
             onChange={(_, v) => setTab(v)}
             sx={{
               minHeight: 32,
+              flexShrink: 0,
               px: 1.5,
               '& .MuiTabs-indicator': { bgcolor: 'primary.main', height: 2 },
               '& .MuiTab-root': {
@@ -204,7 +205,7 @@ export default function NoticeIconView() {
 
           {/* 互动消息子分类按钮(仅 interaction tab) */}
           {tab === 'interaction' && (
-            <Box sx={{ display: 'flex', gap: 0.75, px: 1.5, py: 1, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' } }}>
+            <Box sx={{ display: 'flex', flexShrink: 0, gap: 0.75, px: 1.5, py: 1, overflowX: 'auto', overflowY: 'hidden', '&::-webkit-scrollbar': { display: 'none' } }}>
               {SUB_TYPES.map((s) => (
                 <Box
                   key={s.key}
@@ -278,6 +279,7 @@ export default function NoticeIconView() {
               justifyContent: 'center',
               gap: 0.5,
               py: 1.25,
+              flexShrink: 0,
               borderTop: '1px solid var(--border-color, transparent)',
               color: 'primary.main',
               fontSize: 12,
