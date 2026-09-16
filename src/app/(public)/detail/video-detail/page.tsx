@@ -156,6 +156,7 @@ function VideoDetailContent() {
                   initialDuration={data.duration}
                   autoPlay={false}
                   isAIGenerated={data.isAIGenerated === true}
+                  dockTitle={data.title || "视频"}
                 />
               </Container>
             </Box>

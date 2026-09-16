@@ -177,7 +177,8 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
           WebkitOverflowScrolling: 'touch',
           // 底部导航挂载时会把自身高度写进 --bottom-nav-inset(含安全区),这里照抄,
           // 不再各自猜 56px;桌面端该变量是 0。
-          pb: 'var(--bottom-nav-inset, 0px)',
+          // 音乐底栏出现时再加上它的高度(--player-inset,由 GlobalMusicBar 写入)。
+          pb: 'calc(var(--bottom-nav-inset, 0px) + var(--player-inset, 0px))',
           // 推荐视频流要铺满剩余高度:main 自己是列向 flex,视频流 flex:1
           display: 'flex',
           flexDirection: 'column',

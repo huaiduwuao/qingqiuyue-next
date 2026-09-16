@@ -18,6 +18,8 @@ import PauseIcon from '@mui/icons-material/Pause';
 import SkipNextIcon from '@mui/icons-material/SkipNext';
 import SkipPreviousIcon from '@mui/icons-material/SkipPrevious';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
+import QueueMusicIcon from '@mui/icons-material/QueueMusic';
+import Tooltip from '@mui/material/Tooltip';
 import { CollectButton } from '@/components/detail/CollectButton';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
@@ -29,26 +31,12 @@ import { formatApiError } from '@/lib/api/client';
 import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
 import { mediaUrl } from '@/lib/media';
+import { resolveMusic, parseLrc, type LyricLine } from '@/lib/player/resolveMusic';
+import { useMusicPlayer, musicPlayer, currentTrack, type MusicTrack } from '@/lib/player/musicPlayer';
 import { PlatformLinks, platformsOf } from '@/components/detail/ExternalPlatforms';
 import { track, recordHistory } from '@/lib/track';
 import { DetailComments } from '@/components/detail/DetailComments';
 import { DetailFooter } from '@/components/detail/DetailFooter';
-import { spiderClient } from '@/lib/api/client';
-
-interface LyricLine {
-  time: number;
-  text: string;
-}
-
-function normalizeLyrics(value: unknown): LyricLine[] {
-  if (Array.isArray(value)) return value as LyricLine[];
-  if (typeof value !== 'string') return [];
-  return value.split(/\r?\n/).flatMap((line) => {
-    const match = line.match(/^\[(\d+):(\d+(?:\.\d+)?)\](.*)$/);
-    if (!match) return [];
-    return [{ time: Number(match[1]) * 60 + Number(match[2]), text: match[3].trim() }];
-  });
-}
 
 function fmtTime(s: number) {
   if (!isFinite(s) || s < 0) return '0:00';
@@ -77,12 +65,17 @@ function MusicDetailContent() {
     }
   }, [id]);
 
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [playing, setPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(180);
-  const [volume, setVolume] = useState(70);
-  const [activeLyric, setActiveLyric] = useState(0);
+  // 播放交给全局播放器(lib/player/musicPlayer):离开本页照样放,底栏接着控制。
+  // 本页正在展示的歌是不是全局正在放的那首 —— 是才显示真实进度/状态。
+  const isCurrent = useMusicPlayer((s) => currentTrack(s)?.id === id);
+  const playing = useMusicPlayer((s) => isCurrent && s.playing);
+  const currentTime = useMusicPlayer((s) => (isCurrent ? s.currentTime : 0));
+  const playerDuration = useMusicPlayer((s) => (isCurrent ? s.duration : 0));
+  const volume = useMusicPlayer((s) => Math.round((s.muted ? 0 : s.volume) * 100));
+  const playerError = useMusicPlayer((s) => (isCurrent ? s.error : null));
+  const inQueue = useMusicPlayer((s) => s.queue.some((q) => q.id === id));
+  const duration = playerDuration || Number(query.data?.duration) || 0;
+  const [scrub, setScrub] = useState<number | null>(null);
   const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
     open: false,
     message: '',
@@ -94,13 +87,21 @@ function MusicDetailContent() {
   const [realLyrics, setRealLyrics] = useState<LyricLine[]>([]);
   const [audioLoading, setAudioLoading] = useState(false);
   // <audio> 加载失败(实时签名地址过期、源站拒绝)—— 和"压根没有音源"一样要让用户看见。
-  const [audioFailed, setAudioFailed] = useState(false);
+  const audioFailed = !!playerError;
 
-  const lyrics = realLyrics.length > 0 ? realLyrics : normalizeLyrics(query.data?.lyrics);
+  const lyrics = realLyrics.length > 0 ? realLyrics : parseLrc(query.data?.lyrics);
+  // 歌词同步跟着全局播放进度走
+  const activeLyric = React.useMemo(() => {
+    const idx = lyrics.findIndex((l, i) => {
+      const next = lyrics[i + 1];
+      return currentTime >= l.time && (!next || currentTime < next.time);
+    });
+    return Math.max(0, idx);
+  }, [lyrics, currentTime]);
 
   // 音源一律经 mediaUrl:MinIO 直链换成同源网关地址,源站 http 直链包进 /api/proxy
   // (补 Referer、避开 https 页面对混合内容的拦截)。
-  const audioSrc = mediaUrl(realAudioUrl || query.data?.audioUrl);
+  const audioSrc = realAudioUrl || mediaUrl(query.data?.audioUrl);
   const sourcePage: string = query.data?.sourceUrl || query.data?.source || '';
   const audioUnavailable = query.isSuccess && !audioLoading && (!audioSrc || audioFailed);
   const audioNotice = audioFailed
@@ -135,91 +136,60 @@ function MusicDetailContent() {
     }
   };
 
-  // 解析 LRC 格式歌词
-  const parseLrcLyrics = (lrcText: string): LyricLine[] => {
-    if (!lrcText) return [];
-    return lrcText.split(/\r?\n/).flatMap((line) => {
-      const match = line.match(/^\[(\d+):(\d+(?:\.\d+)?)\](.*)$/);
-      if (!match) return [];
-      return [{ time: Number(match[1]) * 60 + Number(match[2]), text: match[3].trim() }];
-    });
-  };
-
-  // 提取 hash 从 playSources 或 source
-  const extractHash = (): string | null => {
-    const playSources = query.data?.playSources as Array<{ source?: string; sourceUrl?: string }>;
-    const source = query.data?.source as string;
-    const sourceUrl = query.data?.sourceUrl as string;
-
-    const urls = [source, sourceUrl, ...(playSources || []).map(p => p.source || p.sourceUrl)].filter(Boolean);
-    for (const url of urls) {
-      const match = String(url).match(/hash=([a-f0-9]+)/i);
-      if (match) return match[1];
-    }
-    return null;
-  };
-
-  // 实时获取音频URL和歌词
+  // 实时获取音频URL和歌词(详情里没有 audioUrl 时走爬虫按 hash 取)
   useEffect(() => {
     if (!id || !query.data) return;
-    setAudioFailed(false);
-
-    const fetchAudioAndLyrics = async () => {
-      // 优先使用已有的 audioUrl
-      if (query.data?.audioUrl) {
-        setRealAudioUrl(query.data.audioUrl);
-        return; // 已有音频URL，不需要再请求
-      }
-
-      // 尝试从后端获取音频URL
-      const hash = extractHash();
-      if (hash) {
-        setAudioLoading(true);
-        try {
-          // 调用爬虫 API 获取音频 URL
-          const audioRes = await spiderClient(`/music/audio/${hash}`);
-          const audioData = (audioRes as any)?.data;
-          if (audioData?.audio_url) {
-            setRealAudioUrl(audioData.audio_url);
-          }
-          // 获取歌词
-          const detailRes = await spiderClient(`/music/detail/${hash}`);
-          const detailData = (detailRes as any)?.data;
-          if (detailData?.lyrics_lrc || detailData?.lyrics) {
-            const lrcText = detailData?.lyrics_lrc || detailData?.lyrics;
-            const parsed = parseLrcLyrics(lrcText);
-            if (parsed.length > 0) {
-              setRealLyrics(parsed);
-            }
-          }
-          // 如果歌词也在详情数据里
-          if (detailData?.lyrics) {
-            const parsed = parseLrcLyrics(detailData.lyrics);
-            if (parsed.length > 0 && realLyrics.length === 0) {
-              setRealLyrics(parsed);
-            }
-          }
-        } catch (err) {
-          console.error('获取音频/歌词失败:', err);
-        } finally {
-          setAudioLoading(false);
-        }
-      }
+    let cancelled = false;
+    setAudioLoading(!query.data.audioUrl);
+    resolveMusic(query.data)
+      .then(({ src, lyrics: lrc }) => {
+        if (cancelled) return;
+        setRealAudioUrl(src);
+        if (lrc.length > 0) setRealLyrics(lrc);
+      })
+      .finally(() => {
+        if (!cancelled) setAudioLoading(false);
+      });
+    return () => {
+      cancelled = true;
     };
+  }, [id, query.data]);
 
-    fetchAudioAndLyrics();
-  }, [id, query.data, query.isSuccess]);
+  const toTrack = (): MusicTrack | null => {
+    if (!id || !audioSrc) return null;
+    const d = query.data || {};
+    return {
+      id,
+      title: d.title || '未知歌曲',
+      artist: d.artist || '',
+      album: d.album || '',
+      cover: mediaUrl(d.cover),
+      src: audioSrc,
+      href: `/detail/music-detail?id=${encodeURIComponent(id)}`,
+      preview: d.audioStatus === 'preview',
+    };
+  };
 
   const togglePlay = () => {
-    if (!audioRef.current || audioUnavailable) {
+    if (audioUnavailable) {
       notify(audioNotice, 'info');
       return;
     }
-    if (playing) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play().catch(() => {});
+    if (isCurrent) {
+      musicPlayer.toggle();
+      return;
     }
+    const t = toTrack();
+    if (t) musicPlayer.play(t);
+  };
+
+  const addToQueue = () => {
+    const t = toTrack();
+    if (!t) {
+      notify(audioNotice, 'info');
+      return;
+    }
+    notify(musicPlayer.enqueue(t) ? '已加入播放队列' : '已在播放队列中', 'info');
   };
 
   useEffect(() => {
@@ -311,34 +281,6 @@ function MusicDetailContent() {
               </Box>
             </Box>
 
-            {audioSrc && !audioFailed && (
-              <audio
-                ref={audioRef}
-                src={audioSrc}
-                onError={() => {
-                  setAudioFailed(true);
-                  setPlaying(false);
-                }}
-                onTimeUpdate={() => {
-                  setCurrentTime(audioRef.current?.currentTime ?? 0);
-                  // 歌词同步
-                  if (lyrics.length > 0) {
-                    const ct = audioRef.current?.currentTime ?? 0;
-                    const idx = lyrics.findIndex((l, i) => {
-                      const next = lyrics[i + 1];
-                      return ct >= l.time && (!next || ct < next.time);
-                    });
-                    if (idx >= 0) setActiveLyric(idx);
-                  }
-                }}
-                onLoadedMetadata={() => setDuration(audioRef.current?.duration ?? 180)}
-                onEnded={() => { setPlaying(false); setCurrentTime(0); }}
-                onPlay={() => setPlaying(true)}
-                onPause={() => setPlaying(false)}
-                style={{ display: 'none' }}
-              />
-            )}
-
             {/* 音频加载提示 */}
             {audioLoading && (
               <Typography sx={{ fontSize: 12, color: 'text.secondary', textAlign: 'center', mb: 1 }}>
@@ -371,25 +313,28 @@ function MusicDetailContent() {
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1 }}>
               <Typography sx={{ fontSize: 11, color: 'text.secondary', minWidth: 36, textAlign: 'right' }}>
-                {fmtTime(currentTime)}
+                {fmtTime(scrub ?? currentTime)}
               </Typography>
               <Slider
                 size="small"
-                value={currentTime}
-                max={duration || 180}
-                onChange={(_, v) => {
-                  setCurrentTime(v as number);
-                  if (audioRef.current) audioRef.current.currentTime = v as number;
+                aria-label="播放进度"
+                value={Math.min(scrub ?? currentTime, duration || 0)}
+                max={duration || 1}
+                disabled={!isCurrent || !duration}
+                onChange={(_, v) => setScrub(v as number)}
+                onChangeCommitted={(_, v) => {
+                  musicPlayer.seek(v as number);
+                  setScrub(null);
                 }}
                 sx={{ color: 'primary.main' }}
               />
               <Typography sx={{ fontSize: 11, color: 'text.secondary', minWidth: 36 }}>
-                {fmtTime(duration || 180)}
+                {fmtTime(duration)}
               </Typography>
             </Box>
 
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 2 }}>
-              <IconButton onClick={() => { if (audioRef.current) { audioRef.current.currentTime = 0; audioRef.current.play().catch(() => {}); } }} sx={{ color: 'text.tertiary' }}>
+              <IconButton aria-label="上一首" disabled={!isCurrent} onClick={() => musicPlayer.prev()} sx={{ color: 'text.tertiary' }}>
                 <SkipPreviousIcon fontSize="large" />
               </IconButton>
               <IconButton
@@ -407,7 +352,7 @@ function MusicDetailContent() {
               >
                 {playing ? <PauseIcon fontSize="large" /> : <PlayArrowIcon fontSize="large" />}
               </IconButton>
-              <IconButton onClick={() => { if (audioRef.current) audioRef.current.currentTime = audioRef.current.duration || 0; }} sx={{ color: 'text.tertiary' }}>
+              <IconButton aria-label="下一首" disabled={!isCurrent} onClick={() => musicPlayer.next()} sx={{ color: 'text.tertiary' }}>
                 <SkipNextIcon fontSize="large" />
               </IconButton>
               <Box sx={{ width: 16 }} />
@@ -415,13 +360,18 @@ function MusicDetailContent() {
               <Slider
                 size="small"
                 value={volume}
-                onChange={(_, v) => {
-                  setVolume(v as number);
-                  if (audioRef.current) audioRef.current.volume = (v as number) / 100;
-                }}
+                aria-label="音量"
+                onChange={(_, v) => musicPlayer.setVolume((v as number) / 100)}
                 sx={{ color: 'primary.main', width: 100, ml: 1 }}
               />
               <Box sx={{ flex: 1 }} />
+              <Tooltip title={inQueue ? '已在播放队列' : '加入播放队列(边浏览边听)'}>
+                <span>
+                  <IconButton onClick={addToQueue} disabled={audioUnavailable} aria-label="加入播放队列" sx={{ color: inQueue ? 'primary.main' : 'text.secondary' }}>
+                    <QueueMusicIcon />
+                  </IconButton>
+                </span>
+              </Tooltip>
               <IconButton
                 onClick={handleLike}
                 disabled={likeBusy}

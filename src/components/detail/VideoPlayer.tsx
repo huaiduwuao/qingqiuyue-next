@@ -1,6 +1,6 @@
 'use client';
 
-import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import Slider from '@mui/material/Slider';
@@ -9,6 +9,7 @@ import PauseIcon from '@mui/icons-material/Pause';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
+import PictureInPictureAltIcon from '@mui/icons-material/PictureInPictureAlt';
 import Replay10Icon from '@mui/icons-material/Replay10';
 import Forward10Icon from '@mui/icons-material/Forward10';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlineRounded';
@@ -16,14 +17,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import AIGCBadge from '@/components/AIGCBadge';
 import { parseStream } from '@/apis/stream';
 import { mediaUrl, proxyMediaUrl } from '@/lib/media';
-
-interface StreamInfo {
-  quality: string;
-  resolution: string;
-  url: string;
-  needPay: boolean;
-  format: string;
-}
+import { videoDock, destroyVideo, pipSupported, togglePip, inPip, claimMediaSession, mediaSessionPaused, type StreamInfo } from '@/lib/player/videoDock';
 
 interface Props {
   /** 直接的视频文件 URL（优先级最高） */
@@ -55,6 +49,11 @@ interface Props {
    * 直链失效后自动重新解析成功的情况不会触发。
    */
   onPlaybackError?: (message: string) => void;
+  /**
+   * 传了就开启「边浏览边看」:播放中滚出视口 → 右下角小窗接着放;离开页面 → 小窗接管,
+   * 回到本页再接回来。值是小窗上显示的标题。推荐流这类一屏一条的场景不要传。
+   */
+  dockTitle?: string;
 }
 
 export interface VideoPlayerHandle {
@@ -70,6 +69,9 @@ const RECOVER_RESET_MS = 30_000;
 /** 签名到期前多久主动换一条新直链 */
 const PREEMPT_EXPIRY_MS = 60_000;
 
+/** 生命周期 effect 里挂到 <video> 上的事件 */
+const VIDEO_EVENTS = ['timeupdate', 'loadedmetadata', 'play', 'pause', 'ended', 'error', 'enterpictureinpicture', 'leavepictureinpicture', 'webkitpresentationmodechanged'];
+
 function fmt(s: number) {
   if (!isFinite(s) || s < 0) return '0:00';
   const m = Math.floor(s / 60);
@@ -78,12 +80,18 @@ function fmt(s: number) {
 }
 
 const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
-  { src, sourceUrl, refreshSource, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false, fill = false, onPlaybackError },
+  { src, sourceUrl, refreshSource, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false, fill = false, onPlaybackError, dockTitle },
   ref,
 ) {
   // 封面同样经网关:调用方传进来的可能是 MinIO 内网直链或外站防盗链图。
   const posterUrl = mediaUrl(poster);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  // <video> 由下面的生命周期 effect 自己 createElement,不交给 React 渲染(见 lib/player/videoDock)
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  /** 从小窗接回来的那条内容(src || sourceUrl):同一条内容不重新解析/加载 */
+  const reclaimedKey = useRef('');
+  const restoredStreams = useRef<StreamInfo[] | null>(null);
+  const dockKey = src || sourceUrl || '';
   const hlsRef = useRef<any>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -168,6 +176,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
   // 加载外部平台流（通过通用 API 解析）
   useEffect(() => {
     if (!sourceUrl || src) return;
+    if (reclaimedKey.current && reclaimedKey.current === dockKey) return;
 
     // React StrictMode 下 effect 会跑两次,且 unmount 可能晚于异步回调;
     // 用 AbortController 真正取消未完成的请求 + cancelled 标志避免 setState 写已 unmount 组件。
@@ -335,18 +344,15 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
     playStream(streams[index].url, streams[index].format);
   };
 
-  // streams 拿到后,异步请求解析完成时 <video> 还没渲染(videoRef.current = null);
-  // 等到 streams 变化触发重渲染后再启动播放。这里依赖 currentStream 保证清晰度切换也走这条路。
+  // streams 变化(解析完成 / 换链)后启动播放。这里依赖 currentStream 保证清晰度切换也走这条路。
   useEffect(() => {
     const s = streams[currentStream];
     if (!s) return;
-    // 等下一帧,确保 hasVideo=true 的分支已挂载 <video>
-    const raf = requestAnimationFrame(() => {
-      if (videoRef.current) {
-        playStream(s.url, s.format);
-      }
-    });
-    return () => cancelAnimationFrame(raf);
+    // 从小窗接回来的流已经在放,别重新加载
+    if (streams === restoredStreams.current) return;
+    // <video> 在生命周期 layout effect 里就已创建(不用再等下一帧挂载);
+    // 以前的 requestAnimationFrame 在后台标签页里不会触发,视频就一直不加载。
+    if (videoRef.current) playStream(s.url, s.format);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [streams, currentStream]);
 
@@ -358,24 +364,11 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
   // 视频从未加载。这里补上:src prop 变化时直接播放它。
   useEffect(() => {
     if (!src) return;
+    if (reclaimedKey.current && reclaimedKey.current === src) return;
     recoverAttempts.current = 0;
-    const raf = requestAnimationFrame(() => {
-      if (videoRef.current) {
-        playStream(src);
-      }
-    });
-    return () => cancelAnimationFrame(raf);
+    if (videoRef.current) playStream(src);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src]);
-
-  // 清理
-  useEffect(() => {
-    return () => {
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-      }
-    };
-  }, []);
 
   // 自动播放
   useEffect(() => {
@@ -443,13 +436,214 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
   };
 
   const goFullscreen = () => {
-    const el = videoRef.current?.parentElement;
+    const el = containerRef.current;
     if (el && document.fullscreenElement) {
       document.exitFullscreen();
     } else if (el?.requestFullscreen) {
       el.requestFullscreen();
     }
   };
+
+  // ---------------------------------------------------------------------------
+  // <video> 元素生命周期 + 小窗 / 画中画
+  // ---------------------------------------------------------------------------
+  const [owner] = useState(() => ({}));
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const pageHref = useRef('');
+  const [pip, setPip] = useState(false);
+  const [pipOk, setPipOk] = useState(false);
+  const [floating, setFloating] = useState(false);
+  /** 用户在页面内小窗上点了关闭:回到视口之前不再自动浮出 */
+  const dismissed = useRef(false);
+
+  // 卸载时要交给小窗的最新状态 + 元素事件的最新回调
+  const live = useRef({ dockKey, dockTitle, posterUrl, streams, currentStream, platformName, expiresAt, streamError });
+  const handlers = useRef<Record<string, () => void>>({});
+  useEffect(() => {
+    // 刚从小窗接回来、streams state 还没更新到这一帧时,保留接回来的流信息
+    const keepRestored = streams.length === 0 && !!restoredStreams.current;
+    live.current = keepRestored
+      ? { ...live.current, dockKey, dockTitle, posterUrl, streamError }
+      : { dockKey, dockTitle, posterUrl, streams, currentStream, platformName, expiresAt, streamError };
+    handlers.current = {
+      timeupdate: handleTimeUpdate,
+      loadedmetadata: handleLoaded,
+      play: () => {
+        setPlaying(true);
+        if (dockTitle && videoRef.current) claimMediaSession(videoRef.current, dockTitle, posterUrl);
+      },
+      pause: () => {
+        setPlaying(false);
+        if (videoRef.current) mediaSessionPaused(videoRef.current);
+      },
+      ended: () => {
+        setPlaying(false);
+        onEnded?.();
+      },
+      error: () => {
+        // mp4 直链签名过期 / 被回收时浏览器原生 <video> 只会停在黑屏(error.code=4,
+        // 经代理的 403 也是这个)。原生 error 事件是唯一能捕捉到的地方(hls.js 那条
+        // 路径有自己的 Hls.Events.ERROR)。先重新解析换链,救不回来再报错。
+        const code = videoRef.current?.error?.code;
+        recoverRef.current(code === 4 ? '视频地址已失效' : '视频加载失败');
+      },
+      enterpictureinpicture: () => setPip(true),
+      leavepictureinpicture: () => setPip(false),
+      webkitpresentationmodechanged: () => setPip(inPip(videoRef.current)),
+    };
+  });
+
+  /** 把元素放回页面里的占位(在小窗里时不动) */
+  const attach = useCallback(() => {
+    const v = videoRef.current;
+    const host = hostRef.current;
+    if (v && host && v.parentNode !== host && !videoDock.isFloating(owner)) host.appendChild(v);
+  }, [owner]);
+
+  const hostCallback = useCallback(
+    (node: HTMLDivElement | null) => {
+      hostRef.current = node;
+      attach();
+    },
+    [attach],
+  );
+
+  useLayoutEffect(() => {
+    pageHref.current = location.pathname + location.search;
+    const key = live.current.dockKey;
+    const back = key ? videoDock.take(key) : null;
+    let v: HTMLVideoElement;
+    if (back) {
+      // 从小窗接回来:同一个元素、同一个 hls 实例,接着放
+      v = back.el;
+      hlsRef.current = back.hls ?? null;
+      reclaimedKey.current = key;
+      if (back.streams?.length) {
+        restoredStreams.current = back.streams;
+        // live 要到 passive effect 才会刷新;这之前若再卸载(StrictMode 的模拟卸载),
+        // 交回小窗的快照得带着这份流信息,否则下次接回来会当成新内容重新加载
+        live.current = {
+          ...live.current,
+          streams: back.streams,
+          currentStream: back.currentStream ?? 0,
+          platformName: back.platformName ?? '',
+          expiresAt: back.expiresAt ?? 0,
+        };
+        setStreams(back.streams);
+        setCurrentStream(back.currentStream ?? 0);
+        setPlatformName(back.platformName ?? '');
+        setExpiresAt(back.expiresAt ?? 0);
+      }
+      setLoading(false);
+      setPlaying(!v.paused);
+      setCurrentTime(v.currentTime);
+      if (isFinite(v.duration)) setDuration(v.duration);
+      setPip(inPip(v));
+      setMuted(v.muted);
+    } else {
+      v = document.createElement('video');
+      v.playsInline = true;
+      v.setAttribute('webkit-playsinline', '');
+      v.preload = 'metadata';
+    }
+    v.style.cssText = 'width:100%;height:100%;object-fit:contain;background:#000;display:block;';
+    videoRef.current = v;
+    setPipOk(pipSupported(v));
+
+    const listeners = VIDEO_EVENTS.map((name) => {
+      const fn = () => handlers.current[name]?.();
+      v.addEventListener(name, fn);
+      return [name, fn] as const;
+    });
+    videoDock.register(owner);
+    attach();
+
+    return () => {
+      listeners.forEach(([name, fn]) => v.removeEventListener(name, fn));
+      videoDock.unregister(owner);
+      const st = live.current;
+      // 离开页面时还在放(或在画中画里) → 交给小窗接着放
+      const keep = !!st.dockTitle && !!st.dockKey && !st.streamError && (inPip(v) || (!v.paused && !v.ended));
+      if (keep) {
+        videoDock.orphan(owner, {
+          el: v,
+          hls: hlsRef.current,
+          key: st.dockKey,
+          title: st.dockTitle!,
+          href: pageHref.current,
+          poster: st.posterUrl,
+          streams: st.streams,
+          currentStream: st.currentStream,
+          platformName: st.platformName,
+          expiresAt: st.expiresAt,
+        });
+      } else {
+        videoDock.unfloat(owner);
+        destroyVideo(v, hlsRef.current);
+      }
+      hlsRef.current = null;
+      videoRef.current = null;
+      reclaimedKey.current = '';
+      restoredStreams.current = null;
+    };
+  }, [owner, attach]);
+
+  // 封面(以前是 JSX 上的 poster 属性)
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.poster = posterUrl || '';
+  }, [posterUrl]);
+
+  // 静音按钮以前只换了图标,从没作用到 <video> 上
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.muted = muted;
+  }, [muted]);
+
+  const returnToPage = () => {
+    videoDock.unfloat(owner);
+    attach();
+    setFloating(false);
+  };
+
+  // 播放中滚出视口 → 浮到小窗;滚回来 → 放回原位
+  useEffect(() => {
+    const box = containerRef.current;
+    if (!dockTitle || fill || !box || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(
+      ([e]) => {
+        const v = videoRef.current;
+        if (!v) return;
+        const visible = e.isIntersecting && e.intersectionRatio >= 0.3;
+        if (visible) {
+          dismissed.current = false;
+          if (videoDock.isFloating(owner)) {
+            videoDock.unfloat(owner);
+            attach();
+          }
+          setFloating(false);
+          return;
+        }
+        if (dismissed.current || v.paused || inPip(v) || videoDock.isFloating(owner)) return;
+        videoDock.float({
+          el: v,
+          owner,
+          title: dockTitle,
+          href: pageHref.current,
+          poster: posterUrl,
+          onReturn: () => box.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+          onClose: () => {
+            dismissed.current = true;
+            v.pause();
+            attach();
+            setFloating(false);
+          },
+        });
+        setFloating(true);
+      },
+      { threshold: [0, 0.3] },
+    );
+    io.observe(box);
+    return () => io.disconnect();
+  }, [dockTitle, fill, owner, attach, posterUrl]);
 
   // 供外层(如 RecommendVideoFeed 的沉浸式竖滑手势)在不知道内部实现的情况下
   // 直接控制真实播放状态——之前 feed 侧维护了一份完全独立、只做界面模拟的
@@ -491,6 +685,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
 
   return (
     <Box
+      ref={containerRef}
       onMouseMove={() => setControlsVisible(true)}
       sx={fill ? {
         position: 'absolute',
@@ -513,29 +708,23 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
       {/* 视频元素（HLS 或直接源） */}
       {hasVideo ? (
         <>
-          <video
-            ref={videoRef}
-            // 不设 src —— hls.js 通过 attachMedia(MediaSource API) 完全控制 video。
-            // 否则原生 src 会与 hls.js 冲突,hls.js 解析失败导致视频静止。
-            src={undefined}
-            poster={posterUrl}
-            onTimeUpdate={handleTimeUpdate}
-            onLoadedMetadata={handleLoaded}
-            onPlay={() => setPlaying(true)}
-            onPause={() => setPlaying(false)}
-            onEnded={() => {
-              setPlaying(false);
-              onEnded?.();
-            }}
-            onError={() => {
-              // mp4 直链签名过期 / 被回收时浏览器原生 <video> 只会停在黑屏(error.code=4,
-              // 经代理的 403 也是这个)。原生 error 事件是唯一能捕捉到的地方(hls.js 那条
-              // 路径有自己的 Hls.Events.ERROR)。先重新解析换链,救不回来再报错。
-              const code = videoRef.current?.error?.code;
-              recoverRef.current(code === 4 ? '视频地址已失效' : '视频加载失败');
-            }}
-            style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#000' }}
-          />
+          <Box ref={hostCallback} sx={{ width: '100%', height: '100%' }} />
+          {(floating || pip) && (
+            <Box
+              data-no-drag
+              sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, color: 'rgba(255,255,255,0.7)', fontSize: 13, bgcolor: '#0b0b0f', zIndex: 4 }}
+            >
+              <PictureInPictureAltIcon sx={{ fontSize: 36, opacity: 0.6 }} />
+              {pip ? '正在画中画中播放' : '正在小窗中播放'}
+              <Box
+                component="button"
+                onClick={() => (pip ? togglePip(videoRef.current) : returnToPage())}
+                sx={{ mt: 0.5, px: 2, py: 0.5, borderRadius: 1, fontSize: 12, color: '#fff', cursor: 'pointer', border: '1px solid rgba(255,255,255,0.35)', bgcolor: 'rgba(255,255,255,0.08)', '&:hover': { bgcolor: 'rgba(255,255,255,0.18)' } }}
+              >
+                在这里播放
+              </Box>
+            </Box>
+          )}
 
           {/* 清晰度选择器 */}
           {streams.length > 1 && (
@@ -778,7 +967,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
               {fmt(currentTime)} / {fmt(duration)}
             </Box>
             <Box sx={{ flex: 1 }} />
-            <IconButton onClick={() => setMuted((m) => !m)} size="small" sx={{ color: '#fff' }}>
+            <IconButton onClick={() => setMuted((m) => !m)} size="small" aria-label={muted ? '打开声音' : '静音'} sx={{ color: '#fff' }}>
               {muted ? <VolumeOffIcon fontSize="small" /> : <VolumeUpIcon fontSize="small" />}
             </IconButton>
             <Slider
@@ -787,7 +976,12 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
               onChange={handleVolume}
               sx={{ color: '#FE2C55', width: 80, mx: 1 }}
             />
-            <IconButton onClick={goFullscreen} size="small" sx={{ color: '#fff' }}>
+            {pipOk && (
+              <IconButton onClick={() => togglePip(videoRef.current)} size="small" aria-label={pip ? '退出画中画' : '画中画'} title={pip ? '退出画中画' : '画中画'} sx={{ color: pip ? '#FE2C55' : '#fff' }}>
+                <PictureInPictureAltIcon fontSize="small" />
+              </IconButton>
+            )}
+            <IconButton onClick={goFullscreen} size="small" aria-label="全屏" sx={{ color: '#fff' }}>
               <FullscreenIcon fontSize="small" />
             </IconButton>
           </Box>

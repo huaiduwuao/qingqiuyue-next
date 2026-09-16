@@ -128,7 +128,7 @@ function FilmDetailContent() {
                   // 只有会员/付费平台有片源:如实说明,不把付费页交给播放器硬解析。
                   <UnavailablePlayer notice={playNoticeOf(data)} platforms={platformsOf(data)} poster={data.cover} />
                 ) : (
-                  <VideoPlayer src={data.videoUrl || ''} sourceUrl={data.source || ''} poster={data.cover} initialDuration={(data.duration || 0) * 60} autoPlay={false} />
+                  <VideoPlayer src={data.videoUrl || ''} sourceUrl={data.source || ''} poster={data.cover} initialDuration={(data.duration || 0) * 60} autoPlay={false} dockTitle={data.title || "电影"} />
                 )}
               </Container>
             </Box>

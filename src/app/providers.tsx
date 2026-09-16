@@ -9,6 +9,7 @@ import EmotionProvider from '@/lib/emotion-provider';
 import PageViewTracker from '@/components/PageViewTracker';
 import ViewportFix from '@/components/layout/ViewportFix';
 import ClickSpark from '@/components/reactbits/ClickSpark';
+import GlobalPlayers from '@/components/player/GlobalPlayers';
 
 // React 19(≤19.3.0) estimateBandwidth 有一个 off-by-one:遍历
 // performance.getEntriesByType("resource") 时,若最后一个条目恰是静态资源
@@ -102,6 +103,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
               <ClickSpark sparkColor="var(--brand-color, #FE2C55)">
                 {children}
               </ClickSpark>
+              {/* 音乐底栏 / 视频小窗:跨路由常驻,切页面不断播 */}
+              <GlobalPlayers />
               {mountFloating && (
                 <Suspense fallback={null}>
                   <FloatingDigitalHuman />

@@ -253,6 +253,7 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
                     autoPlay={false}
                     onEnded={handleEnded}
                     onPlaybackError={handlePlaybackError}
+                    dockTitle={active ? `${data.title || ''} · 第${activeIndex + 1}${config.unit}` : data.title || '视频'}
                   />
                   )}
                 </Container>
