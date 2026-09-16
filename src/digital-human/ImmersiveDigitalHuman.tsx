@@ -36,6 +36,13 @@ import type { ScenePanel as ScenePanelModel } from './scene-ui/types';
 import { dispatchToolCalls, type ToolCall as DhToolCall } from './tools/dispatcher';
 import { applyDispatchResults, buildSceneState, type SceneSnapshot } from './scene-state';
 import { ToolCallCard, ThoughtBubble } from './scene-ui/ChatOpsEntry';
+import dynamic from 'next/dynamic';
+import ClipAvatar from './ClipAvatar';
+import type { AvatarSpeakState } from './clip-avatar';
+// 3DGS 渲染器只能在浏览器里加载(three + WebGL)
+const GaussianSplatRenderer = dynamic(() => import('./gs/GaussianSplatRenderer'), { ssr: false });
+type AvatarMode = 'vrm' | '3dgs' | '2d';
+interface GsAssetItem { id: string; name: string; assetUrl: string }
 import { textToVisemeTimeline } from './tools/visemes';
 import { parseIframeUI, iframeToolToTarget, type IframeOpenTarget } from './virtual-browser';
 import { VirtualBrowser } from './VirtualBrowser';
@@ -136,6 +143,32 @@ export default function ImmersiveDigitalHuman() {
   const [browserTarget, setBrowserTarget] = React.useState<IframeOpenTarget | null>(null);
   // 场景动作协议:每轮随请求上报给模型的场景快照(只记前端真的执行了的指令)
   const sceneRef = React.useRef<SceneSnapshot>({});
+  // 形象:VRM 骨骼模型 / 3DGS 高斯资产 / 2D 片段;三种共用同一套对话、面板、工具日志。
+  // 背景:场景预设,或把一份 3DGS 场景资产垫在 VRM 舞台后面(两层各自的相机,暂不联动)。
+  const [avatarMode, setAvatarMode] = React.useState<AvatarMode>('vrm');
+  const [gsAssets, setGsAssets] = React.useState<GsAssetItem[]>([]);
+  const [gsAsset, setGsAsset] = React.useState('');
+  const [gsBackdrop, setGsBackdrop] = React.useState('');
+  const [speaking, setSpeaking] = React.useState(false);
+  React.useEffect(() => {
+    const ac = new AbortController();
+    fetch('/api/realtime/assets', { signal: ac.signal }).then((r) => r.json()).then((d) => {
+      const list = ((d?.data?.list || []) as { id: string; name: string; mode: string; status: string; active?: boolean; assetUrl?: string }[])
+        .filter((a) => a.mode === '3dgs' && a.status === 'ready' && a.assetUrl)
+        .map((a) => ({ id: a.id, name: a.name + (a.active ? '(当前)' : ''), assetUrl: a.assetUrl as string }));
+      setGsAssets((prev) => [...prev.filter((p) => p.id === 'config'), ...list]);
+      const active = list.find((a) => a.name.endsWith('(当前)')) || list[0];
+      if (active) setGsAsset((cur) => cur || active.assetUrl);
+    }).catch(() => {});
+    fetch('/api/realtime/config', { signal: ac.signal }).then((r) => r.json()).then((d) => {
+      const u = d?.data?.assetUrl as string | undefined;
+      if (u) {
+        setGsAssets((prev) => (prev.some((a) => a.assetUrl === u) ? prev : [{ id: 'config', name: '默认资产', assetUrl: u }, ...prev]));
+        setGsAsset((cur) => cur || u);
+      }
+    }).catch(() => {});
+    return () => ac.abort();
+  }, []);
   // 选哪个数字员工对话(worker / frontend / … / builder / 自定义):以前写死 worker,builder 根本没法从这里用
   const [staffList, setStaffList] = React.useState<{ agentId: string; name: string; description: string }[]>([]);
   const [aguiAgent, setAguiAgent] = React.useState('worker');
@@ -240,6 +273,18 @@ export default function ImmersiveDigitalHuman() {
   React.useEffect(() => { sceneRef.current.action = action || 'idle'; }, [action]);
   React.useEffect(() => { sceneRef.current.panel = scenePanel ? { kind: scenePanel.kind, title: scenePanel.title } : null; }, [scenePanel]);
   React.useEffect(() => { sceneRef.current.browser = browserFrame?.url ?? null; }, [browserFrame]);
+  React.useEffect(() => { sceneRef.current.model = avatarMode; }, [avatarMode]);
+  // 换到非 VRM 形象时 VrmStage 卸载,handle 失效
+  React.useEffect(() => { if (avatarMode !== 'vrm') setStageHandle(null); }, [avatarMode]);
+  // 2D 片段的说话状态:TTS 的 <audio> 在放就是 speaking(500ms 轮询,不依赖元素何时挂上)
+  React.useEffect(() => {
+    const id = window.setInterval(() => {
+      const a = audioRef.current;
+      setSpeaking(!!a && !a.paused && !a.ended);
+    }, 500);
+    return () => window.clearInterval(id);
+  }, [audioRef]);
+  const speakState: AvatarSpeakState = speaking ? 'speaking' : chatBusy ? 'thinking' : 'idle';
   const [sessionDrawerOpen, setSessionDrawerOpen] = React.useState(true);
   // 诊断：监听 stageHandle 变化
   React.useEffect(() => { devLog.debug('[Immersive] stageHandle 变化:', stageHandle); }, [stageHandle]);
@@ -507,17 +552,43 @@ export default function ImmersiveDigitalHuman() {
   return (
     <Box sx={{ position: 'fixed', inset: 0, zIndex: 1, background: '#05060B' }}>
       {/* 全屏 VRM 角色（与浮窗同一个 character.vrm） — 用 VrmStage 替代 BlenderAvatar */}
-      <VrmStage
-        onReady={(h) => { devLog.debug('[Immersive] onReady 被调用, h=', h); setStageHandle(h); }}
-        modelUrl={selectedModel?.url ?? '/avatars/character.vrm'}
-        currentAction={action}
-        emotion={emotion}
-        viseme={viseme}
-        autoBlink={stageState.autoBlink}
-        lookAtCamera={stageState.lookAtCamera}
-        onScenePanelHost={setPanelHost}
-        sx={{ position: 'absolute', inset: 0 }}
-      />
+      {/* 背景层:一份 3DGS 场景资产垫在 VRM 舞台后面(orbit 关掉,当静态布景) */}
+      {avatarMode === 'vrm' && gsBackdrop && (
+        <GaussianSplatRenderer
+          assetUrl={`${gsBackdrop}/gaussians.bin`}
+          metaUrl={`${gsBackdrop}/meta.json`}
+          orbitControls={false}
+          background="#05060B"
+          sx={{ position: 'absolute', inset: 0, zIndex: 0 }}
+        />
+      )}
+      {avatarMode === 'vrm' && (
+        <VrmStage
+          onReady={(h) => { devLog.debug('[Immersive] onReady 被调用, h=', h); setStageHandle(h); }}
+          modelUrl={selectedModel?.url ?? '/avatars/character.vrm'}
+          currentAction={action}
+          emotion={emotion}
+          viseme={viseme}
+          autoBlink={stageState.autoBlink}
+          lookAtCamera={stageState.lookAtCamera}
+          onScenePanelHost={setPanelHost}
+          transparentBackground={!!gsBackdrop}
+          background={gsBackdrop ? 'transparent' : undefined}
+          sx={{ position: 'absolute', inset: 0, zIndex: 1 }}
+        />
+      )}
+      {/* 3DGS 形象:可驱动高斯资产(pose / 表情驱动走 WS 通道,这里先做静态展示) */}
+      {avatarMode === '3dgs' && gsAsset && (
+        <GaussianSplatRenderer
+          assetUrl={`${gsAsset}/gaussians.bin`}
+          skinningUrl={`${gsAsset}/skinning.bin`}
+          smplxUrl={`${gsAsset}/smplx.json`}
+          metaUrl={`${gsAsset}/meta.json`}
+          sx={{ position: 'absolute', inset: 0 }}
+        />
+      )}
+      {/* 2D 形象:片段表按 说话/思考/动作 切视频 */}
+      {avatarMode === '2d' && <ClipAvatar state={speakState} action={action} />}
 
       {/* 3D 场景内的 UI 面板:CSS3D 把这块 DOM 摆到角色身旁(跟着走、随相机转),
           内容是真 DOM,所以列表能点、表单能填。点/提交都会回灌成新一轮对话。 */}
@@ -533,6 +604,17 @@ export default function ImmersiveDigitalHuman() {
           }}
         />,
         panelHost,
+      )}
+      {/* 非 VRM 形象没有 3D 面板宿主:面板直接叠在画面右侧 */}
+      {!panelHost && scenePanel && (
+        <Box sx={{ position: 'absolute', right: 24, top: 80, zIndex: 4, width: 'min(420px, 90vw)' }}>
+          <ScenePanel
+            key={scenePanel.id}
+            panel={scenePanel}
+            onClose={() => setScenePanel(null)}
+            onSend={(t) => { setScenePanel(null); void sendText(t); }}
+          />
+        </Box>
       )}
 
       {/* 顶部:退出按钮 + 模型选择 + 会话列表切换 + 控制台切换 */}
@@ -811,6 +893,34 @@ export default function ImmersiveDigitalHuman() {
 
         {/* 输入区 */}
         <Box sx={{ px: 2, pb: 2, display: 'flex', gap: 1, alignItems: 'center' }}>
+          <select
+            aria-label="形象"
+            title="形象:VRM 骨骼模型 / 3DGS 高斯资产 / 2D 片段"
+            value={avatarMode}
+            onChange={(e) => setAvatarMode(e.target.value as AvatarMode)}
+            style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, padding: '8px 6px', fontSize: 12, maxWidth: 96 }}
+          >
+            <option value="vrm">VRM</option>
+            <option value="3dgs" disabled={gsAssets.length === 0}>3DGS{gsAssets.length === 0 ? '(无资产)' : ''}</option>
+            <option value="2d">2D</option>
+          </select>
+          {avatarMode === 'vrm' && gsAssets.length > 0 && (
+            <select
+              aria-label="背景"
+              title="背景:场景预设,或用一份 3DGS 场景资产垫在角色后面"
+              value={gsBackdrop}
+              onChange={(e) => setGsBackdrop(e.target.value)}
+              style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, padding: '8px 6px', fontSize: 12, maxWidth: 110 }}
+            >
+              <option value="">预设场景</option>
+              {gsAssets.map((a) => <option key={a.id} value={a.assetUrl}>GS · {a.name}</option>)}
+            </select>
+          )}
+          {avatarMode === '3dgs' && gsAssets.length > 1 && (
+            <select aria-label="3DGS 资产" value={gsAsset} onChange={(e) => setGsAsset(e.target.value)} style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, padding: '8px 6px', fontSize: 12, maxWidth: 110 }}>
+              {gsAssets.map((a) => <option key={a.id} value={a.assetUrl}>{a.name}</option>)}
+            </select>
+          )}
           <select
             aria-label="数字员工"
             value={aguiAgent}

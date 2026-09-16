@@ -15,6 +15,8 @@ export interface UseVrmSceneOptions {
   rendererState: { THREE_NS: typeof THREE_NS; scene: THREE_NS.Scene } | null;
   vrmScene: THREE_NS.Object3D | null;
   initialPreset?: ScenePresetName;
+  /** true = 不画背景色和雾,让 canvas 透出下面那层(比如 3DGS 场景资产) */
+  transparent?: boolean;
 }
 
 export function useVrmScene(opts: UseVrmSceneOptions) {
@@ -23,6 +25,30 @@ export function useVrmScene(opts: UseVrmSceneOptions) {
   const presetRef = useRef<ScenePresetName>(initialPreset);
   const sceneGroupRef = useRef<THREE_NS.Group | null>(null);
   const handleRef = useRef<SceneHandle | null>(null);
+  const transparentRef = useRef(!!opts.transparent);
+  transparentRef.current = !!opts.transparent;
+
+  // 背景:透明模式下不画背景和雾;否则用预设给的背景色
+  function applyBackground(THREE: typeof THREE_NS, scene: THREE_NS.Scene) {
+    const h = handleRef.current;
+    if (transparentRef.current) {
+      scene.background = null;
+      scene.fog = null;
+      return;
+    }
+    if (h && h.backgroundColor !== undefined) {
+      scene.background = new THREE.Color(h.backgroundColor);
+      scene.fog = new THREE.FogExp2(h.backgroundColor, 0.008);
+    } else {
+      scene.background = null;
+      scene.fog = new THREE.FogExp2(0x0a0612, 0.015);
+    }
+  }
+  useEffect(() => {
+    if (!rendererState) return;
+    applyBackground(rendererState.THREE_NS, rendererState.scene);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opts.transparent, rendererState]);
 
   // 跟 VRM scene 保持同步（用 ref 避免 useEffect 重跑）
   const vrmSceneRef = useRef<THREE_NS.Object3D | null>(vrmScene);
@@ -44,13 +70,7 @@ export function useVrmScene(opts: UseVrmSceneOptions) {
       const vrmSceneLocal = vrmSceneRef.current;
       if (vrmSceneLocal && vrmSceneLocal.parent) vrmSceneLocal.parent.remove(vrmSceneLocal);
       handleRef.current = buildSceneByName(THREE_NS, grp, p);
-      if (handleRef.current.backgroundColor !== undefined) {
-        scene.background = new THREE_NS.Color(handleRef.current.backgroundColor);
-        scene.fog = new THREE_NS.FogExp2(handleRef.current.backgroundColor, 0.008);
-      } else {
-        scene.background = null;
-        scene.fog = new THREE_NS.FogExp2(0x0a0612, 0.015);
-      }
+      applyBackground(THREE_NS, scene);
       if (vrmSceneLocal) scene.add(vrmSceneLocal);
     }
     applyPreset(preset);
@@ -72,13 +92,7 @@ export function useVrmScene(opts: UseVrmSceneOptions) {
     const vrmSceneLocal = vrmSceneRef.current;
     if (vrmSceneLocal && vrmSceneLocal.parent) vrmSceneLocal.parent.remove(vrmSceneLocal);
     handleRef.current = buildSceneByName(THREE_NS, grp, p);
-    if (handleRef.current.backgroundColor !== undefined) {
-      scene.background = new THREE_NS.Color(handleRef.current.backgroundColor);
-      scene.fog = new THREE_NS.FogExp2(handleRef.current.backgroundColor, 0.008);
-    } else {
-      scene.background = null;
-      scene.fog = new THREE_NS.FogExp2(0x0a0612, 0.015);
-    }
+    applyBackground(THREE_NS, scene);
     if (vrmSceneLocal) scene.add(vrmSceneLocal);
   }, [rendererState]);
 

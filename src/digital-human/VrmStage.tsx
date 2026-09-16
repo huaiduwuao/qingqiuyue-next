@@ -130,6 +130,8 @@ export interface VrmStageProps {
    * 传 null 表示面板层被卸载了。
    */
   onScenePanelHost?: (host: HTMLDivElement | null) => void;
+  /** 舞台后面垫了别的渲染层(3DGS 场景)时置 true:three 不画背景和雾 */
+  transparentBackground?: boolean;
 }
 
 const EXPRESSION_PASSTHROUGH = new Set([
@@ -202,6 +204,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     onReady,
     config: configProp,
     onScenePanelHost,
+    transparentBackground,
   } = props;
   // Phase 1：模块加载时已 loadConfigBundle()，所有子模块（expressions/visemes/actions）已用
   // Phase 2：父组件可以传 config prop 覆盖
@@ -311,7 +314,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   rendererStateRef.current = rendererState;
 
   // 2. scene
-  const sceneApi = useVrmScene({ rendererState, vrmScene: vrmSceneRef.current, initialPreset: 'concert' });
+  const sceneApi = useVrmScene({ rendererState, vrmScene: vrmSceneRef.current, initialPreset: 'concert', transparent: transparentBackground });
   sceneApiRef.current = sceneApi;
 
   // 2.5 场景内 UI 面板层(CSS3D):与 WebGL 共用 camera,面板站在场景里跟着角色
