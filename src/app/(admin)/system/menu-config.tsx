@@ -174,8 +174,8 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
       { id: 'drafts', label: '草稿箱', path: '/system/drafts', icon: <PsychologyAltRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6' },
       { id: 'mcp', label: 'MCP 服务', path: '/system/mcp', icon: <HubRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
       { id: 'workflows', label: '工作流', path: '/system/workflows', icon: <AccountTreeRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D' },
-      { id: 'models', label: '模型', path: '/system/models', icon: <StorageRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
-      { id: 'gateway', label: 'LLM 网关', path: '/system/gateway', icon: <LanguageRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
+      { id: 'models', label: '模型供应商', path: '/system/models', icon: <StorageRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
+      { id: 'gateway', label: '网关与配额', path: '/system/gateway', icon: <LanguageRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
     ],
   },
   {
@@ -184,7 +184,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
       { id: 'agent-chat', label: '对话调试', path: '/system/ai-chat', icon: <ChatBubbleOutlineRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
       { id: 'runs', label: '后台运行', path: '/system/runs', icon: <DynamicFeedRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
       { id: 'tasks', label: '任务看板', path: '/system/tasks', icon: <AppsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FFB400' },
-      { id: 'sandbox-images', label: '沙盒镜像', path: '/system/sandbox', icon: <TerminalRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
+      { id: 'sandbox-images', label: '沙盒镜像', path: '/system/sandbox/images', icon: <TerminalRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
       { id: 'sandbox-tasks', label: '沙盒任务', path: '/system/sandbox/tasks', icon: <TerminalRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6' },
     ],
   },
@@ -193,8 +193,8 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
     items: [
       { id: 'agent-overview', label: '总览', path: '/system/agent-overview', icon: <BarChartRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
       { id: 'conversations', label: '会话与复现', path: '/system/conversations', icon: <HistoryRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FFB400' },
-      { id: 'agent-audit', label: '审计与成本', path: '/system/agent-audit', icon: <ReportProblemRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
-      { id: 'instances', label: '运行时实例', path: '/system/instances', icon: <DnsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
+      { id: 'agent-audit', label: '网关调用审计', path: '/system/agent-audit', icon: <ReportProblemRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
+      { id: 'instances', label: '外部运行时', path: '/system/instances', icon: <DnsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
     ],
   },
   {

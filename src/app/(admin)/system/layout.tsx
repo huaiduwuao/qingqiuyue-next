@@ -106,6 +106,7 @@ const PageComponents: Record<string, React.ComponentType<any>> = {
   '/system/crawled': dynamic(() => import('./crawled/page'), { ssr: false }),
   '/system/sandbox': dynamic(() => import('./sandbox/page'), { ssr: false }),
   '/system/sandbox/tasks': dynamic(() => import('./sandbox/tasks/page'), { ssr: false }),
+  '/system/sandbox/images': dynamic(() => import('./sandbox/images/page'), { ssr: false }),
   '/system/deployment': dynamic(() => import('./deployment/page'), { ssr: false }),
 };
 

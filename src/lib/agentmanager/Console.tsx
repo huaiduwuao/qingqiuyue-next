@@ -83,11 +83,17 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
   const [overview, setOverview] = useState<MonitoringOverview | null>(null)
   const [instanceStats, setInstanceStats] = useState<InstanceStats[]>([])
   const [usageStats, setUsageStats] = useState<UsageStats | null>(null)
+  const [gatewayModels, setGatewayModels] = useState<{ id: string; name: string }[]>([])
 
   // 删除 Agent / 技能
   const handleDeleteAgent = async (a: Agent) => {
     if (!confirm(`删除 Agent「${a.name}」?此操作不可恢复。`)) return
     await agentmAPI.deleteAgent(a.id).catch((e) => alert(`删除失败: ${e.message}`))
+    loadData()
+  }
+  const handleDeleteInstance = async (inst: Instance) => {
+    if (!confirm(`删除外部运行时登记「${inst.name}」?只删登记,不动容器。`)) return
+    await agentmAPI.deleteInstance(inst.id).catch((e) => alert(`删除失败: ${e.message}`))
     loadData()
   }
   const handleDeleteSkill = async (s: Skill) => {
@@ -166,6 +172,10 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
     if (isAuthenticated && activeTab === 'skills') {
       loadSkills()
     }
+    if (isAuthenticated && token && activeTab === 'gateway') {
+      agentmAPI.setToken(token)
+      agentmAPI.listModels().then(r => setGatewayModels(r.models || [])).catch(() => setGatewayModels([]))
+    }
   }, [isAuthenticated, activeTab])
 
   // 未登录状态
@@ -188,15 +198,15 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'dashboard', label: '📊 总览' },
-    { key: 'instances', label: '🖥️ 实例' },
+    { key: 'instances', label: '🖥️ 外部运行时' },
     { key: 'agents', label: '🤖 Agent' },
     { key: 'runs', label: '🏃 运行' },
     { key: 'sessions', label: '💬 会话' },
-    { key: 'audit', label: '📝 审计' },
+    { key: 'audit', label: '📝 网关调用审计' },
     { key: 'skills', label: '🛠️ 技能' },
     { key: 'drafts', label: '🧪 草稿' },
-    { key: 'gateway', label: '🌐 网关' },
-    { key: 'models', label: '🧠 模型管理' },
+    { key: 'gateway', label: '🌐 网关与配额' },
+    { key: 'models', label: '🧠 模型供应商' },
     { key: 'kanban', label: '📋 看板' },
     { key: 'mcp', label: '🔌 MCP' },
     { key: 'workflows', label: '🔀 工作流' },
@@ -223,12 +233,15 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
         <Box sx={{ display: 'flex', gap: 1 }}>
           {overview && (
             <>
-              <Chip
-                size="small"
-                label={`✓ 健康: ${overview.instances.healthy}/${overview.instances.total}`}
-                color="success"
-                variant="outlined"
-              />
+              {/* 外部运行时(Hermes/OpenClaw)是可选项,没登记就不显示,免得 0/0、0/1 被当成服务故障 */}
+              {overview.instances.total > 0 && (
+                <Chip
+                  size="small"
+                  label={`外部运行时: ${overview.instances.healthy}/${overview.instances.total} 在线`}
+                  color={overview.instances.healthy === overview.instances.total ? 'success' : 'warning'}
+                  variant="outlined"
+                />
+              )}
               <Chip
                 size="small"
                 label={`🤖 Agent: ${overview.agents.active}/${overview.agents.total}`}
@@ -292,12 +305,12 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 2, mb: 3 }}>
               <Card>
                 <CardContent>
-                  <Typography variant="body2" color="text.secondary">实例</Typography>
+                  <Typography variant="body2" color="text.secondary">外部运行时</Typography>
                   <Typography variant="h4" sx={{ fontWeight: 600, mt: 1 }}>
                     {overview.instances.total}
                   </Typography>
-                  <Typography variant="body2" color="success.main" sx={{ mt: 1 }}>
-                    {overview.instances.healthy} 健康
+                  <Typography variant="body2" color={overview.instances.healthy === overview.instances.total ? 'success.main' : 'warning.main'} sx={{ mt: 1 }}>
+                    {overview.instances.total > 0 ? `${overview.instances.healthy} 在线` : '未登记(可选)'}
                   </Typography>
                 </CardContent>
               </Card>
@@ -325,7 +338,7 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
               </Card>
               <Card>
                 <CardContent>
-                  <Typography variant="body2" color="text.secondary">平均延迟</Typography>
+                  <Typography variant="body2" color="text.secondary">网关平均延迟</Typography>
                   <Typography variant="h4" sx={{ fontWeight: 600, mt: 1 }}>
                     {overview.usage.avg_latency_ms.toFixed(0)}ms
                   </Typography>
@@ -368,10 +381,10 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
               </Card>
             ) : null}
 
-            {/* Instance Status */}
-            <Card>
+            {/* 外部运行时状态:没登记就不画空表 */}
+            {instanceStats.length > 0 && <Card>
               <CardContent>
-                <Typography variant="h6" sx={{ mb: 2 }}>📋 实例状态</Typography>
+                <Typography variant="h6" sx={{ mb: 2 }}>📋 外部运行时状态</Typography>
                 <TableContainer>
                   <Table size="small">
                     <TableHead>
@@ -402,7 +415,7 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
                   </Table>
                 </TableContainer>
               </CardContent>
-            </Card>
+            </Card>}
           </Box>
         )}
 
@@ -410,7 +423,7 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
         {activeTab === 'instances' && !loading && (
           <Box>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-              <Typography variant="h6">实例管理</Typography>
+              <Typography variant="h6">外部运行时</Typography>
               <Button
                 variant="contained"
                 size="small"
@@ -426,7 +439,15 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
                 自动发现
               </Button>
             </Box>
+            <Alert severity="info" sx={{ mb: 2 }}>
+              数字员工、后台运行、工作流都跑在 agentmanager 服务内部,直连「模型供应商」,不经过这里。
+              这里只登记可选的外部运行时(Hermes / OpenClaw 容器),每 30 秒探活一次;没有登记属于正常情况。
+              状态「异常」只说明那个外部容器连不上,不影响站内 Agent。
+            </Alert>
             <Box sx={{ display: 'grid', gap: 2 }}>
+              {instances.length === 0 && (
+                <Typography variant="body2" color="text.secondary">未登记外部运行时。</Typography>
+              )}
               {instances.map(inst => (
                 <Card key={inst.id}>
                   <CardContent>
@@ -467,8 +488,16 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
                                  inst.health_status === 'unhealthy' ? '✗ 异常' : '? 未知'}
                           color={inst.health_status === 'healthy' ? 'success' : 'warning'}
                         />
+                        <IconButton size="small" color="error" onClick={() => handleDeleteInstance(inst)} title="删除登记">
+                          <DeleteOutlineIcon fontSize="small" />
+                        </IconButton>
                       </Box>
                     </Box>
+                    {inst.health_status !== 'healthy' && inst.health_msg && (
+                      <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: 1, wordBreak: 'break-all' }}>
+                        探活失败{inst.last_health_at ? `(${new Date(inst.last_health_at).toLocaleString()})` : ''}: {inst.health_msg}
+                      </Typography>
+                    )}
                     <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1, mt: 2 }}>
                       <Typography variant="body2" color="text.secondary">
                         区域: <Box component="span" color="text.primary">{inst.region}</Box>
@@ -569,7 +598,11 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
         {/* Audit Tab */}
         {activeTab === 'audit' && !loading && (
           <Box>
-            <Typography variant="h6" sx={{ mb: 3 }}>审计日志</Typography>
+            <Typography variant="h6" sx={{ mb: 2 }}>网关调用审计</Typography>
+            <Alert severity="info" sx={{ mb: 2 }}>
+              这里只记录经 LLM 网关(OpenAI 兼容 /chat/completions)的调用及其 token 用量。
+              数字员工的后台运行不写这张表,去「后台运行」看;对话记录去「会话与复现」。
+            </Alert>
             {auditLogs.length > 0 ? (
               <TableContainer component={Paper}>
                 <Table>
@@ -680,12 +713,20 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
                 <CardContent>
                   <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>可用模型</Typography>
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                    {['xiaoyue', 'backend-dev', 'frontend-dev', 'ops'].map(model => (
-                      <Box key={model} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {/* 以前是写死的 4 个名字;现在取网关 /gateway/llm/models 实际暴露的已发布 Agent */}
+                    <Typography variant="caption" color="text.secondary">
+                      调用 OpenAI 兼容接口时 model 可填这些已发布 Agent 的 ID;请求直连默认模型供应商。
+                    </Typography>
+                    {gatewayModels.map(m => (
+                      <Box key={m.id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                         <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'success.main' }} />
-                        <Typography variant="body2">{model}</Typography>
+                        <Typography variant="body2">{m.name}</Typography>
+                        <Typography variant="caption" color="text.secondary">{m.id}</Typography>
                       </Box>
                     ))}
+                    {gatewayModels.length === 0 && (
+                      <Typography variant="body2" color="text.secondary">暂无已发布且带 agent_id 的 Agent</Typography>
+                    )}
                   </Box>
                 </CardContent>
               </Card>
