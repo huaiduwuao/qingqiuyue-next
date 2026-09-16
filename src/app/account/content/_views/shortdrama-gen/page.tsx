@@ -1,404 +1,242 @@
 'use client';
 
 /**
- * ShortdramaGenPage — 短剧生成工作流
+ * AI 短剧生成 —— 入口:项目列表 + 新建;选中项目进入工作台(Workbench)。
  *
- * 流程:
- *   1. 导入小说/剧本 (分镜/场景划分)
- *   2. 生成视频 (文生视频/图生视频)
- *   3. 合成剪辑 (多段视频拼接)
- *   4. 导出发布
+ * 七个数字员工(编剧 / 角色美术 / 分镜 / 视觉生成 / 节奏 / 质检 / 反馈优化)住在 Agent 平台
+ * (internal/agentmanager/shortdrama),这里只是它们的工作台前端。
  */
 
-import React, { useState, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { listWorkflows, createVideoJob, getJob } from '@/apis/gen';
-import { formatApiError } from '@/lib/api/client';
-import {
-  Box,
-  Button,
-  Container,
-  Typography,
-  Paper,
-  Stepper,
-  Step,
-  StepLabel,
-  StepContent,
-  TextField,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  LinearProgress,
-  Chip,
-  Alert,
-  Divider,
-  IconButton,
-  List,
-  ListItem,
-  ListItemText,
-  Card,
-  CardContent,
-  Grid,
-} from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import DeleteIcon from '@mui/icons-material/Delete';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import SendIcon from '@mui/icons-material/Send';
-import { useTaskEngine } from '@/hooks/useTaskEngine';
-import type { WorkflowKind } from '@/lib/comfyui/workflows/registry';
+import React, { useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardActionArea from '@mui/material/CardActionArea';
+import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
+import Container from '@mui/material/Container';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
+import FormControl from '@mui/material/FormControl';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Grid from '@mui/material/Grid';
+import InputLabel from '@mui/material/InputLabel';
+import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
+import Stack from '@mui/material/Stack';
+import Switch from '@mui/material/Switch';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import Alert from '@mui/material/Alert';
+import Skeleton from '@mui/material/Skeleton';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
+import { dramaAPI, type Project } from '@/apis/shortdrama';
+import { MediaThumb } from './common';
+import { qk, useAgents, useCapabilities, useCurrentProjectId } from './useProject';
+import Workbench from './Workbench';
 
-const STEPS = ['导入剧本', '生成视频', '合成剪辑', '导出发布'];
-
-interface Scene {
-  id: string;
-  title: string;
-  prompt: string;
-  status: 'pending' | 'generating' | 'done' | 'failed';
-  videoUrl?: string;
-  progress: number;
-}
-
-const DEFAULTS = {
-  negativePrompt: '',
-  seed: 42,
-  width: 720,
-  height: 1280, // 竖版短剧
-  frames: 16,
-  steps: 20,
-  cfg: 7.5,
+const GENRES = ['都市情感', '甜宠', '悬疑', '古装', '逆袭爽剧', '奇幻', '职场', '校园', '家庭伦理', '科幻'];
+const STYLES = ['写实电影感', '国风水墨', '日系动漫', '3D 动画', '赛博朋克', '复古胶片', '高饱和漫画'];
+const STAGE_LABEL: Record<string, string> = {
+  intent: '待开工', script: '剧本', visual: '视觉设定', storyboard: '分镜', pacing: '节奏', render: '出图', qc: '质检',
 };
 
 export default function ShortdramaGenPage() {
-  const [activeStep, setActiveStep] = useState(0);
-  const [scriptText, setScriptText] = useState('');
-  const [scenes, setScenes] = useState<Scene[]>([]);
-  const [taskId, setTaskId] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const { task, progress, logs, error } = useTaskEngine(taskId);
-  const [genError, setGenError] = useState<string | null>(null);
+  const [pid, setPid] = useCurrentProjectId();
+  if (pid > 0) {
+    return <Workbench projectId={pid} onExit={() => setPid(0)} />;
+  }
+  return <ProjectList onOpen={setPid} />;
+}
 
-  // 可用工作流(后端占位模板已 seed 成 draft,通常为空 = 尚未配置)
-  const wfQuery = useQuery({ queryKey: ['gen-workflows'], queryFn: listWorkflows, staleTime: 5 * 60 * 1000 });
-  const workflowName = wfQuery.data?.[0]?.name ?? '';
+function ProjectList({ onOpen }: { onOpen: (id: number) => void }) {
+  const qc = useQueryClient();
+  const projects = useQuery({ queryKey: qk.projects, queryFn: dramaAPI.listProjects });
+  const caps = useCapabilities();
+  const agents = useAgents();
+  const [creating, setCreating] = useState(false);
 
-  // 步骤 1: 解析剧本为场景
-  const handleParseScript = useCallback(() => {
-    if (!scriptText.trim()) return;
-
-    // 简单按换行或分号分割场景
-    const lines = scriptText.split(/[\n;；]/).filter((l) => l.trim());
-    const parsed: Scene[] = lines.map((line, idx) => ({
-      id: `scene-${Date.now()}-${idx}`,
-      title: line.trim().slice(0, 30),
-      prompt: line.trim(),
-      status: 'pending' as const,
-      progress: 0,
-    }));
-    setScenes(parsed);
-    setActiveStep(1);
-  }, [scriptText]);
-
-  // 步骤 2: 生成视频
-  const handleGenerateScene = useCallback(async (scene: Scene) => {
-    setScenes((prev) =>
-      prev.map((s) => (s.id === scene.id ? { ...s, status: 'generating' as const, progress: 0 } : s)),
-    );
-
-    // 之前这里 POST /api/video/generate 再轮询 /api/task/:id —— 两条路径网关上都是 404
-    // (注意轮询那条还把 tasks 写成了 task,就算后端有也对不上)。请求体字段也全是
-    // 后端不认的名字。改走 apis/gen.ts 的真实契约。
-    if (!workflowName) {
-      setScenes((prev) =>
-        prev.map((s) => (s.id === scene.id ? { ...s, status: 'failed' as const } : s)),
-      );
-      setGenError('暂无可用的生成工作流:后端预置模板还是占位内容,需管理员导入真实 ComfyUI 工作流并启用。');
-      return;
-    }
-    try {
-      const { jobId } = await createVideoJob({
-        workflowName,
-        prompt: scene.prompt,
-        negativePrompt: DEFAULTS.negativePrompt,
-        params: {
-          seed: String(DEFAULTS.seed + Math.floor(Math.random() * 1000)),
-          width: String(DEFAULTS.width),
-          height: String(DEFAULTS.height),
-          frames: String(DEFAULTS.frames),
-          steps: String(DEFAULTS.steps),
-          cfg: String(DEFAULTS.cfg),
-        },
-      });
-      setTaskId(String(jobId));
-      // 轮询任务状态。后端状态词是 completed / failed(不是 done)。
-      const poll = setInterval(async () => {
-        try {
-          const t = await getJob(jobId);
-          if (t?.status === 'completed') {
-            clearInterval(poll);
-            const urls: string[] = t.resultUrls ? JSON.parse(t.resultUrls) : [];
-            setScenes((prev) =>
-              prev.map((s) =>
-                s.id === scene.id
-                  ? { ...s, status: 'done' as const, videoUrl: urls[0], progress: 100 }
-                  : s,
-              ),
-            );
-          } else if (t?.status === 'failed') {
-            clearInterval(poll);
-            setGenError(t.errorMsg || '生成失败');
-            setScenes((prev) =>
-              prev.map((s) => (s.id === scene.id ? { ...s, status: 'failed' as const } : s)),
-            );
-          } else if (t) {
-            setScenes((prev) =>
-              prev.map((s) => (s.id === scene.id ? { ...s, progress: t.progress ?? s.progress } : s)),
-            );
-          }
-        } catch {
-          clearInterval(poll);
-          setScenes((prev) =>
-            prev.map((s) => (s.id === scene.id ? { ...s, status: 'failed' as const } : s)),
-          );
-        }
-      }, 2000);
-    } catch (e) {
-      // 提交失败的原因(工作流未配置 / 余额不足)必须显示出来,不能只把场景标红
-      setGenError(formatApiError(e) || '提交失败');
-      setScenes((prev) =>
-        prev.map((s) => (s.id === scene.id ? { ...s, status: 'failed' as const } : s)),
-      );
-    }
-  }, [workflowName]);
-
-  const handleGenerateAll = useCallback(async () => {
-    for (const scene of scenes.filter((s) => s.status === 'pending')) {
-      await handleGenerateScene(scene);
-    }
-    setActiveStep(2);
-  }, [scenes, handleGenerateScene]);
-
-  // 步骤 3/4 只使用已生成完成的场景片段:按顺序连播预览,再逐段导出
-  const doneScenes = scenes.filter((s) => s.status === 'done' && s.videoUrl);
-  const [playIndex, setPlayIndex] = useState(0);
-  const current = doneScenes.length > 0 ? doneScenes[Math.min(playIndex, doneScenes.length - 1)] : undefined;
-
-  const doneCount = scenes.filter((s) => s.status === 'done').length;
-  const totalProgress = scenes.length > 0 ? Math.round((doneCount / scenes.length) * 100) : 0;
+  const capsData = caps.data?.capabilities;
+  const llmReady = caps.data?.llm_ready ?? agents.data?.llm_ready;
 
   return (
     <Container maxWidth="lg" sx={{ py: 3 }}>
-      <Typography variant="h5" gutterBottom>
-        短剧生成工作流
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        从剧本到短剧视频的全流程 AI 生成
-      </Typography>
-
-      <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
-        {STEPS.map((label) => (
-          <Step key={label}>
-            <StepLabel>{label}</StepLabel>
-          </Step>
-        ))}
-      </Stepper>
-
-      {/* 步骤 1: 导入剧本 */}
-      {activeStep === 0 && (
-        <Paper sx={{ p: 3 }}>
-          <Typography variant="h6" gutterBottom>
-            导入剧本
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 3, alignItems: { sm: 'center' } }}>
+        <Box sx={{ flex: 1 }}>
+          <Typography variant="h5" gutterBottom>
+            AI 短剧生成
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            输入剧本内容，系统将自动拆分为多个场景。场景之间用换行或分号分隔。
+          <Typography variant="body2" color="text.secondary">
+            一句话故事意图 → 编剧、角色美术、分镜、节奏、视觉生成、质检、反馈优化七位数字员工接力,产出可编辑的剧本、角色设定、分镜与画面。
           </Typography>
-          <TextField
-            multiline
-            rows={12}
-            fullWidth
-            placeholder={"示例:\n场景1: 月光下，少女在屋顶仰望星空\n场景2: 突然，一道流星划过天际\n场景3: 少女惊讶地睁大眼睛"}
-            value={scriptText}
-            onChange={(e) => setScriptText(e.target.value)}
-            sx={{ mb: 2 }}
-          />
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <Button variant="outlined" component="label" startIcon={<CloudUploadIcon />}>
-              上传剧本文件
-              <input type="file" accept=".txt,.md" hidden />
-            </Button>
-            <Box sx={{ flex: 1 }} />
-            <Button variant="contained" onClick={handleParseScript} disabled={!scriptText.trim()}>
-              解析场景
-            </Button>
-          </Box>
-        </Paper>
-      )}
-
-      {/* 步骤 2: 生成视频 */}
-      {activeStep === 1 && (
-        <Box>
-          {/* 没有可用工作流时先说清楚,别让用户逐个场景点了才知道生成不了 */}
-          {!wfQuery.isLoading && !workflowName && (
-            <Alert severity="warning" sx={{ mb: 2 }}>
-              暂无可用的生成工作流:后端预置模板的 ComfyUI 工作流 JSON 还是占位内容,
-              需要管理员导入真实工作流并启用后才能生成。
-            </Alert>
-          )}
-          {genError && (
-            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setGenError(null)}>
-              {genError}
-            </Alert>
-          )}
-          <Paper sx={{ p: 3, mb: 3 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Typography variant="h6">场景列表 ({doneCount}/{scenes.length} 已完成)</Typography>
-              <Button
-                variant="contained"
-                startIcon={<PlayArrowIcon />}
-                onClick={handleGenerateAll}
-                disabled={scenes.some((s) => s.status === 'generating')}
-              >
-                批量生成
-              </Button>
-            </Box>
-            <LinearProgress variant="determinate" value={totalProgress} sx={{ mb: 2 }} />
-            <Grid container spacing={2}>
-              {scenes.map((scene) => (
-                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={scene.id}>
-                  <Card variant="outlined">
-                    <CardContent>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                        <Typography variant="subtitle2" sx={{ flex: 1 }}>{scene.title}</Typography>
-                        <Chip
-                          size="small"
-                          label={scene.status === 'done' ? '完成' : scene.status === 'generating' ? '生成中' : scene.status === 'failed' ? '失败' : '待生成'}
-                          color={scene.status === 'done' ? 'success' : scene.status === 'generating' ? 'primary' : scene.status === 'failed' ? 'error' : 'default'}
-                        />
-                      </Box>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                        {scene.prompt.slice(0, 50)}...
-                      </Typography>
-                      {scene.status === 'generating' && (
-                        <LinearProgress variant="determinate" value={scene.progress} sx={{ mb: 1 }} />
-                      )}
-                      {scene.videoUrl && (
-                        <video
-                          src={scene.videoUrl}
-                          controls
-                          style={{ width: '100%', maxHeight: 120, borderRadius: 4 }}
-                        />
-                      )}
-                      <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
-                        {scene.status === 'pending' && (
-                          <Button size="small" variant="outlined" onClick={() => handleGenerateScene(scene)}>
-                            生成
-                          </Button>
-                        )}
-                        {scene.status === 'done' && (
-                          <Button size="small" variant="outlined">重新生成</Button>
-                        )}
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              ))}
-            </Grid>
-          </Paper>
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <Button onClick={() => setActiveStep(0)}>上一步</Button>
-            <Box sx={{ flex: 1 }} />
-            <Button variant="contained" onClick={() => setActiveStep(2)} disabled={doneCount === 0}>
-              下一步
-            </Button>
-          </Box>
         </Box>
+        <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setCreating(true)}>
+          新建短剧
+        </Button>
+      </Stack>
+
+      {caps.data && llmReady === false && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          Agent 平台还没有配置默认 LLM 供应商,数字员工无法工作。请管理员在「系统 → Agent 平台 → 模型供应商」里配置。
+        </Alert>
+      )}
+      {capsData && !capsData.t2i.available && !capsData.i2i.available && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          当前没有启用的 ComfyUI 出图工作流:剧本、角色设定、分镜、节奏、质检都能正常进行,出图/出片环节会跳过。管理员可在项目「设置」里导入并启用模板。
+        </Alert>
       )}
 
-      {/* 步骤 3: 合成剪辑 */}
-      {activeStep === 2 && (
-        <Paper sx={{ p: 3 }}>
+      {projects.isLoading ? (
+        <Grid container spacing={2}>
+          {[0, 1, 2].map((i) => (
+            <Grid key={i} size={{ xs: 12, sm: 6, md: 4 }}>
+              <Skeleton variant="rounded" height={220} />
+            </Grid>
+          ))}
+        </Grid>
+      ) : projects.isError ? (
+        <Alert severity="error">{(projects.error as Error).message}</Alert>
+      ) : (projects.data?.length ?? 0) === 0 ? (
+        <Card variant="outlined" sx={{ p: 4, textAlign: 'center' }}>
+          <AutoAwesomeRoundedIcon color="primary" sx={{ fontSize: 40, mb: 1 }} />
           <Typography variant="h6" gutterBottom>
-            合成剪辑
+            还没有短剧项目
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            按场景顺序连续播放已生成的片段,检查衔接后再导出
+            写下一句故事意图,比如「外卖员意外捡到一部能预知未来 10 分钟的手机」,数字员工会把它变成剧本、角色和分镜。
           </Typography>
-          {current ? (
-            <Box sx={{ mb: 2 }}>
-              <video
-                key={current.id}
-                src={current.videoUrl}
-                controls
-                autoPlay
-                onEnded={() => setPlayIndex((i) => (i + 1 < doneScenes.length ? i + 1 : i))}
-                style={{ width: '100%', maxHeight: 420, background: '#000', borderRadius: 8 }}
-              />
-              <Typography variant="caption" color="text.secondary">
-                第 {doneScenes.indexOf(current) + 1} / {doneScenes.length} 段:{current.title}
-              </Typography>
-            </Box>
-          ) : (
-            <Alert severity="info" sx={{ mb: 2 }}>还没有生成完成的场景</Alert>
-          )}
-          <List>
-            {scenes.map((scene, idx) => {
-              const pos = doneScenes.findIndex((d) => d.id === scene.id);
-              return (
-                <ListItem
-                  key={scene.id}
-                  onClick={() => pos >= 0 && setPlayIndex(pos)}
-                  sx={{
-                    cursor: pos >= 0 ? 'pointer' : 'default',
-                    borderRadius: 1,
-                    bgcolor: current && current.id === scene.id ? 'action.selected' : undefined,
-                  }}
-                  secondaryAction={<Typography variant="caption" color="text.secondary">{idx + 1}</Typography>}
-                >
-                  <ListItemText primary={scene.title} secondary={pos >= 0 ? '已生成,点击播放' : '未生成'} />
-                </ListItem>
-              );
-            })}
-          </List>
-          <Divider sx={{ my: 2 }} />
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <Button onClick={() => setActiveStep(1)}>上一步</Button>
-            <Box sx={{ flex: 1 }} />
-            <Button variant="contained" onClick={() => setActiveStep(3)} disabled={doneScenes.length === 0}>
-              下一步:导出
-            </Button>
-          </Box>
-        </Paper>
+          <Button variant="contained" onClick={() => setCreating(true)}>
+            开始第一部
+          </Button>
+        </Card>
+      ) : (
+        <Grid container spacing={2}>
+          {projects.data!.map((p) => (
+            <Grid key={p.id} size={{ xs: 12, sm: 6, md: 4 }}>
+              <ProjectCard project={p} onOpen={() => onOpen(p.id)} />
+            </Grid>
+          ))}
+        </Grid>
       )}
 
-      {/* 步骤 4: 导出 */}
-      {activeStep === 3 && (
-        <Paper sx={{ p: 3 }}>
-          <Typography variant="h6" gutterBottom>
-            导出
-          </Typography>
-          <Alert severity="info" sx={{ mb: 2 }}>
-            平台暂不在服务端把片段拼接成单个文件。请按顺序下载各段视频,合成后到「发布作品」上传。
-          </Alert>
-          <List>
-            {doneScenes.map((s, idx) => (
-              <ListItem
-                key={s.id}
-                secondaryAction={
-                  <Button size="small" component="a" href={s.videoUrl} target="_blank" rel="noopener noreferrer">
-                    下载
-                  </Button>
-                }
-              >
-                <ListItemText primary={`${idx + 1}. ${s.title}`} />
-              </ListItem>
-            ))}
-          </List>
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <Button onClick={() => setActiveStep(2)}>上一步</Button>
-          </Box>
-        </Paper>
-      )}
+      <CreateProjectDialog
+        open={creating}
+        onClose={() => setCreating(false)}
+        onCreated={(p) => {
+          qc.invalidateQueries({ queryKey: qk.projects });
+          setCreating(false);
+          onOpen(p.id);
+        }}
+      />
     </Container>
+  );
+}
+
+function ProjectCard({ project: p, onOpen }: { project: Project; onOpen: () => void }) {
+  return (
+    <Card variant="outlined" sx={{ height: '100%' }}>
+      <CardActionArea onClick={onOpen} sx={{ height: '100%', alignItems: 'stretch' }}>
+        <Box sx={{ display: 'flex', gap: 1.5, p: 1.5 }}>
+          <MediaThumb src={p.cover_url} height={120} ratio={p.aspect === '16:9' ? '16 / 9' : '9 / 16'} />
+          <CardContent sx={{ p: 0, flex: 1, minWidth: 0 }}>
+            <Typography sx={{ fontWeight: 600 }} variant="subtitle1" noWrap>
+              {p.title}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', mb: 1 }}>
+              {p.logline || p.intent}
+            </Typography>
+            <Stack sx={{ flexWrap: 'wrap' }} direction="row" spacing={0.5} useFlexGap>
+              <Chip size="small" label={STAGE_LABEL[p.stage] ?? p.stage} color={p.status === 'done' ? 'success' : 'default'} />
+              {p.genre && <Chip size="small" variant="outlined" label={p.genre} />}
+              <Chip size="small" variant="outlined" label={`${p.episodes} 集 · ${p.ep_seconds}s`} />
+            </Stack>
+          </CardContent>
+        </Box>
+      </CardActionArea>
+    </Card>
+  );
+}
+
+function CreateProjectDialog({ open, onClose, onCreated }: { open: boolean; onClose: () => void; onCreated: (p: Project) => void }) {
+  const [form, setForm] = useState<Partial<Project>>({ intent: '', genre: '都市情感', style: '写实电影感', episodes: 3, ep_seconds: 60, aspect: '9:16' });
+  const [autostart, setAutostart] = useState(true);
+  const [err, setErr] = useState('');
+  const m = useMutation({
+    mutationFn: () => dramaAPI.createProject(form, autostart ? 'pipeline' : undefined),
+    onSuccess: (res) => onCreated(res.project),
+    onError: (e: Error) => setErr(e.message),
+  });
+  const set = (k: keyof Project, v: unknown) => setForm((f) => ({ ...f, [k]: v }));
+
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+      <DialogTitle>新建短剧</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ mt: 1 }}>
+          {err && <Alert severity="error">{err}</Alert>}
+          <TextField
+            label="故事意图"
+            placeholder="用一两句话说清楚你想讲什么故事、给谁看、什么感觉"
+            multiline
+            minRows={3}
+            value={form.intent}
+            onChange={(e) => set('intent', e.target.value)}
+            autoFocus
+          />
+          <TextField label="标题(可留空,编剧会起)" value={form.title ?? ''} onChange={(e) => set('title', e.target.value)} />
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <FormControl fullWidth>
+              <InputLabel>题材</InputLabel>
+              <Select label="题材" value={form.genre} onChange={(e) => set('genre', e.target.value)}>
+                {GENRES.map((g) => (
+                  <MenuItem key={g} value={g}>
+                    {g}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel>视觉风格</InputLabel>
+              <Select label="视觉风格" value={form.style} onChange={(e) => set('style', e.target.value)}>
+                {STYLES.map((g) => (
+                  <MenuItem key={g} value={g}>
+                    {g}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Stack>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <TextField label="集数" type="number" fullWidth value={form.episodes} onChange={(e) => set('episodes', Math.max(1, Math.min(30, Number(e.target.value) || 1)))} />
+            <TextField label="每集秒数" type="number" fullWidth value={form.ep_seconds} onChange={(e) => set('ep_seconds', Math.max(15, Math.min(600, Number(e.target.value) || 60)))} />
+            <FormControl fullWidth>
+              <InputLabel>画幅</InputLabel>
+              <Select label="画幅" value={form.aspect} onChange={(e) => set('aspect', e.target.value)}>
+                <MenuItem value="9:16">竖屏 9:16</MenuItem>
+                <MenuItem value="16:9">横屏 16:9</MenuItem>
+                <MenuItem value="1:1">方形 1:1</MenuItem>
+              </Select>
+            </FormControl>
+          </Stack>
+          <FormControlLabel
+            control={<Switch checked={autostart} onChange={(e) => setAutostart(e.target.checked)} />}
+            label="创建后立即一键生成(剧本 → 视觉设定 → 每集分镜 / 节奏 / 出图 / 质检)"
+          />
+          <Typography variant="caption" color="text.secondary">
+            出图/出片会按 gen-api 的工作流扣钻或会员额度;没有启用出图工作流时自动跳过,不会扣费。也可以先只建项目,在工作台里逐步推进。
+          </Typography>
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>取消</Button>
+        <Button variant="contained" disabled={!form.intent?.trim() || m.isPending} onClick={() => m.mutate()}>
+          {autostart ? '创建并开始生成' : '创建'}
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }
