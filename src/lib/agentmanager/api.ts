@@ -531,7 +531,7 @@ class AgentManagerAPI {
 
   async getCostStats(period?: string) {
     const query = period ? `?period=${period}` : ''
-    return this.request<any>(`/admin/costs${query}`)
+    return this.request<CostStats>(`/admin/costs${query}`)
   }
 
   async getFullAuditLog(params?: { page?: number; limit?: number }) {
@@ -767,6 +767,15 @@ export interface AuditLog {
   error_msg?: string
   input_preview?: string
   create_time: string
+  /** source: agent(数字员工/后台运行)或缺省(网关);agent 员工名;run_id;usage_source: provider/estimated */
+  metadata?: { source?: string; agent?: string; run_id?: string; usage_source?: string; stream?: boolean }
+}
+
+export interface CostStats {
+  period: string
+  total_requests: number
+  total_tokens: number
+  breakdown: { source: string; agent: string; requests: number; errors: number; total_tokens: number; estimated_rows: number }[]
 }
 
 export interface Team {

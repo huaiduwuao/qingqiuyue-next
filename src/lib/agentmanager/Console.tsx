@@ -26,7 +26,7 @@ import Alert from '@mui/material/Alert'
 import IconButton from '@mui/material/IconButton'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
-import { agentmAPI, type Instance, type Agent, type AuditLog, type Skill, type MonitoringOverview, type InstanceStats, type UsageStats } from './api'
+import { agentmAPI, type Instance, type Agent, type AuditLog, type Skill, type MonitoringOverview, type InstanceStats, type UsageStats, type CostStats } from './api'
 import KanbanBoard from './kanban/KanbanBoard'
 import DraftsPanel from './drafts/DraftsPanel'
 import MCPManager from './mcp/MCPManager'
@@ -83,6 +83,7 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
   const [overview, setOverview] = useState<MonitoringOverview | null>(null)
   const [instanceStats, setInstanceStats] = useState<InstanceStats[]>([])
   const [usageStats, setUsageStats] = useState<UsageStats | null>(null)
+  const [costStats, setCostStats] = useState<CostStats | null>(null)
   const [gatewayModels, setGatewayModels] = useState<{ id: string; name: string }[]>([])
 
   // 删除 Agent / 技能
@@ -135,8 +136,10 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
     agentmAPI.setToken(token)
     setLoading(true)
     try {
-      const res = await agentmAPI.getAuditLog({ limit: 50 })
+      // 管理员看全量(后台运行、工作流没有登录用户,只在全量里);普通用户只看自己的
+      const res = isAdmin ? await agentmAPI.getFullAuditLog({ limit: 100 }) : await agentmAPI.getAuditLog({ limit: 50 })
       setAuditLogs(res.list || [])
+      if (isAdmin) setCostStats(await agentmAPI.getCostStats().catch(() => null))
     } catch (e: any) {
       console.error('Load audit error:', e)
     } finally {
@@ -176,7 +179,7 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
       agentmAPI.setToken(token)
       agentmAPI.listModels().then(r => setGatewayModels(r.models || [])).catch(() => setGatewayModels([]))
     }
-  }, [isAuthenticated, activeTab])
+  }, [isAuthenticated, activeTab, isAdmin])
 
   // 未登录状态
   if (!isAuthenticated) {
@@ -202,7 +205,7 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
     { key: 'agents', label: '🤖 Agent' },
     { key: 'runs', label: '🏃 运行' },
     { key: 'sessions', label: '💬 会话' },
-    { key: 'audit', label: '📝 网关调用审计' },
+    { key: 'audit', label: '📝 调用审计' },
     { key: 'skills', label: '🛠️ 技能' },
     { key: 'drafts', label: '🧪 草稿' },
     { key: 'gateway', label: '🌐 网关与配额' },
@@ -598,17 +601,38 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
         {/* Audit Tab */}
         {activeTab === 'audit' && !loading && (
           <Box>
-            <Typography variant="h6" sx={{ mb: 2 }}>网关调用审计</Typography>
+            <Typography variant="h6" sx={{ mb: 2 }}>调用审计</Typography>
             <Alert severity="info" sx={{ mb: 2 }}>
-              这里只记录经 LLM 网关(OpenAI 兼容 /chat/completions)的调用及其 token 用量。
-              数字员工的后台运行不写这张表,去「后台运行」看;对话记录去「会话与复现」。
+              每次大模型调用一行:数字员工 / 后台运行 / 工作流(来源「员工」)和 LLM 网关调用(来源「网关」)。
+              流式调用供应商不回 token 数,按字数估算(标「估」)。供应商没配单价,这里只统计 token,不折算金额。
             </Alert>
+            {costStats && (
+              <Card sx={{ mb: 2 }}>
+                <CardContent>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+                    本月({costStats.period}) {costStats.total_requests.toLocaleString()} 次调用 · {costStats.total_tokens.toLocaleString()} tokens
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    {costStats.breakdown.map(b => (
+                      <Chip
+                        key={`${b.source}-${b.agent}`}
+                        size="small"
+                        variant="outlined"
+                        color={b.errors > 0 ? 'warning' : 'default'}
+                        label={`${b.source === 'agent' ? (b.agent || '员工(无运行)') : '网关'}: ${b.requests} 次 / ${b.total_tokens.toLocaleString()} tokens${b.errors ? ` / ${b.errors} 失败` : ''}`}
+                      />
+                    ))}
+                  </Box>
+                </CardContent>
+              </Card>
+            )}
             {auditLogs.length > 0 ? (
               <TableContainer component={Paper}>
                 <Table>
                   <TableHead>
                     <TableRow>
                       <TableCell>时间</TableCell>
+                      <TableCell>来源</TableCell>
                       <TableCell>用户</TableCell>
                       <TableCell>模型</TableCell>
                       <TableCell>Token</TableCell>
@@ -620,14 +644,18 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
                     {auditLogs.map(log => (
                       <TableRow key={log.id}>
                         <TableCell>{new Date(log.create_time).toLocaleString()}</TableCell>
-                        <TableCell>{log.user_id}</TableCell>
+                        <TableCell title={log.input_preview}>
+                          {log.metadata?.source === 'agent' ? `员工 ${log.metadata?.agent || ''}` : '网关'}
+                        </TableCell>
+                        <TableCell>{log.user_id || '系统'}</TableCell>
                         <TableCell>{log.model}</TableCell>
-                        <TableCell>{log.total_tokens}</TableCell>
+                        <TableCell>{log.total_tokens}{log.metadata?.usage_source === 'estimated' ? ' (估)' : ''}</TableCell>
                         <TableCell>{log.latency_ms}ms</TableCell>
                         <TableCell>
                           <Chip
                             size="small"
                             label={log.status}
+                            title={log.error_msg}
                             color={log.status === 'success' ? 'success' : 'error'}
                           />
                         </TableCell>
@@ -742,7 +770,7 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
 
         {/* Kanban Tab */}
         {activeTab === 'kanban' && token && (
-          <KanbanBoard boardId={1} token={token} onOpenRun={() => setActiveTab('runs')} />
+          <KanbanBoard token={token} onOpenRun={() => setActiveTab('runs')} />
         )}
 
         {/* MCP Tab */}

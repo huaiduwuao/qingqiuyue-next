@@ -193,7 +193,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
     items: [
       { id: 'agent-overview', label: '总览', path: '/system/agent-overview', icon: <BarChartRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
       { id: 'conversations', label: '会话与复现', path: '/system/conversations', icon: <HistoryRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FFB400' },
-      { id: 'agent-audit', label: '网关调用审计', path: '/system/agent-audit', icon: <ReportProblemRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
+      { id: 'agent-audit', label: '调用审计', path: '/system/agent-audit', icon: <ReportProblemRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
       { id: 'instances', label: '外部运行时', path: '/system/instances', icon: <DnsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
     ],
   },

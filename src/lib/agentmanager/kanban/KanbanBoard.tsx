@@ -34,7 +34,8 @@ const COLUMNS: { id: KanbanTask['status']; label: string; color: string }[] = [
   { id: 'done',      label: '✓ 完成',     color: '#22c55e' },
 ]
 
-const STAFF = [
+// 员工列表取不到时的兜底(运行服务未启用 / 未登录)
+const FALLBACK_STAFF = [
   { id: 'worker', label: '通用' },
   { id: 'frontend', label: '前端' },
   { id: 'backend', label: '后端' },
@@ -43,14 +44,55 @@ const STAFF = [
 ]
 
 interface Props {
-  boardId: number
+  /** 不传则显示看板选择器(列出全部看板,可新建) */
+  boardId?: number
   token: string
   workerId?: string
   onRunAgent?: (task: KanbanTask) => void
   onOpenRun?: (runId: string) => void
 }
 
-export default function KanbanBoard({ boardId, token, workerId, onRunAgent, onOpenRun }: Props) {
+export default function KanbanBoard({ boardId: fixedBoardId, token, workerId, onRunAgent, onOpenRun }: Props) {
+  const [boards, setBoards] = useState<{ id: number; name: string; slug: string }[]>([])
+  const [pickedBoard, setPickedBoard] = useState<number | null>(null)
+  const boardId = fixedBoardId ?? pickedBoard
+  // 可指派的员工:和数字人页面同一来源,含 builder 发布的自定义员工和短剧员工
+  const [staff, setStaff] = useState<{ id: string; label: string }[]>(FALLBACK_STAFF)
+  useEffect(() => {
+    fetch('/api/agentmanager/multi-agent/staff')
+      .then(r => r.json())
+      .then(d => {
+        const list = (d.agents || []).map((a: { agentId: string; name: string }) => ({ id: a.agentId, label: a.name || a.agentId }))
+        if (list.length) setStaff(list)
+      })
+      .catch(() => {})
+  }, [])
+
+  const loadBoards = useCallback(async () => {
+    if (fixedBoardId != null) return
+    try {
+      const res = await fetch('/api/agentmanager/kanban/boards', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json())
+      const list = res.list || []
+      setBoards(list)
+      setPickedBoard(cur => (cur != null && list.some((b: { id: number }) => b.id === cur)) ? cur : (list[0]?.id ?? null))
+    } catch { /* ignore */ }
+  }, [fixedBoardId, token])
+  useEffect(() => { loadBoards() }, [loadBoards])
+
+  const createBoard = async () => {
+    const name = prompt('新看板名称')?.trim()
+    if (!name) return
+    const res = await fetch('/api/agentmanager/kanban/boards', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ name }),
+    })
+    if (!res.ok) { setRunError(`新建看板失败: HTTP ${res.status}`); return }
+    const b = await res.json().catch(() => null)
+    await loadBoards()
+    if (b?.ID ?? b?.id) setPickedBoard(b.ID ?? b.id)
+  }
+
   const [tasks, setTasks] = useState<KanbanTask[]>([])
   const [loading, setLoading] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
@@ -61,6 +103,7 @@ export default function KanbanBoard({ boardId, token, workerId, onRunAgent, onOp
   const [runError, setRunError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
+    if (boardId == null) { setTasks([]); return }
     setLoading(true)
     try {
       const res = await fetch(`/api/agentmanager/kanban/boards/${boardId}/tasks`, {
@@ -142,8 +185,23 @@ export default function KanbanBoard({ boardId, token, workerId, onRunAgent, onOp
     <Box>
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h6">看板</Typography>
-        <Button startIcon={<AddIcon />} variant="contained" size="small" onClick={() => setCreateOpen(true)}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography variant="h6">看板</Typography>
+          {fixedBoardId == null && (
+            <>
+              <select
+                aria-label="选择看板"
+                value={boardId ?? ''}
+                onChange={e => setPickedBoard(Number(e.target.value))}
+                style={{ fontSize: 13, padding: '2px 6px' }}
+              >
+                {boards.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+              <Button size="small" variant="text" onClick={createBoard}>+ 新看板</Button>
+            </>
+          )}
+        </Box>
+        <Button startIcon={<AddIcon />} variant="contained" size="small" disabled={boardId == null} onClick={() => setCreateOpen(true)}>
           新建任务
         </Button>
       </Box>
@@ -213,7 +271,7 @@ export default function KanbanBoard({ boardId, token, workerId, onRunAgent, onOp
                             onChange={e => setAgentFor(m => ({ ...m, [task.id]: e.target.value }))}
                             style={{ fontSize: 11, padding: '2px 4px' }}
                           >
-                            {STAFF.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                            {staff.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
                           </select>
                           <Button size="small" variant="text" sx={{ fontSize: 11, minWidth: 0 }} onClick={() => runTask(task)}>
                             ▶ 交给数字员工
