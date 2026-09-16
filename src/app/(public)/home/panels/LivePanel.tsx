@@ -1,592 +1,454 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
-import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+// 首页「直播」频道 —— 跨平台直播目录。
+//
+// 平台不转播直播:这里收录虎牙 / 斗鱼 / B站 上的直播间,帮人决定看什么,想看就去原站。
+// 页面从上到下按「挑直播」的顺序组织:
+//   1. 头部:此刻多少间在播、各平台在播数(切平台)
+//   2. 分区条:按统一分区筛选(游戏/娱乐/音乐/…,附在播数)
+//   3. 焦点:此刻人气 No.1 大卡 + No.2–5,右侧人气榜(此刻/今日/本周)
+//   4. 分区热播:每个分区此刻最热的房间(只在「全部分区」时出现)
+//   5. 往期高光:已结束场次按峰值人气排
+//   6. 全部直播间:状态 + 排序 + 无限滚动
+// 数据说明见 panels/live/liveApi.ts。
+
+import { useEffect, useRef, useState } from 'react';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import Chip from '@mui/material/Chip';
+import Skeleton from '@mui/material/Skeleton';
 import LiveTvRoundedIcon from '@mui/icons-material/LiveTvRounded';
-import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
-import WhatshotIcon from '@mui/icons-material/Whatshot';
-import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
-import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
-import { homeClient } from '@/lib/api/client';
-import { AsyncState } from '@/components/common/AsyncState';
-import { CoverImage } from '@/components/common/CoverImage';
+import WhatshotRoundedIcon from '@mui/icons-material/WhatshotRounded';
+import CategoryRoundedIcon from '@mui/icons-material/CategoryRounded';
+import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
+import GridViewRoundedIcon from '@mui/icons-material/GridViewRounded';
 import { useContentNavigate } from '@/lib/contentRoute';
-import { IMAGE_OVERLAY, MEDAL, SECTION_TINT, gradient2 } from '@/constants/gradients';
-import Masonry from 'react-masonry-css';
+import { SECTION_TINT } from '@/constants/gradients';
+import {
+  type ClassicRange,
+  type LiveClassic,
+  type LiveFilters,
+  type LiveRoom,
+  type LiveSort,
+  type LiveStatus,
+  fetchClassics,
+  fetchOverview,
+  fetchRank,
+  fetchRooms,
+  formatAgo,
+  formatDay,
+} from './live/liveApi';
+import { CoverSkeleton, EmptyNote, LiveDot, PlatformBadge, SectionHeader, Segmented } from './live/LiveBits';
+import { CategoryCard, ClassicCard, RoomCard, RunnerUpCard, SpotlightCard } from './live/LiveCards';
+import { LiveRankBoard } from './live/LiveRankBoard';
 
-type LiveStatus = 'all' | 'live' | 'offline';
-type LiveSort = 'hot' | 'new';
-type LiveCategory = 'all' | 'knowledge' | 'game' | 'music' | 'outdoor' | 'anime';
-
-type Room = {
-  id: number;
-  hostId: number;
-  hostName: string;
-  hostAvatar: string;
-  title: string;
-  cover: string;
-  viewers: number;
-  category: string;
-  region: string;
-  startedAt: number;
-  isLive: boolean;
-  isTop: boolean;
-  hotRank: number;
-};
-
-type Resp = { list: Room[]; total: number };
+const PAGE_SIZE = 16;
 
 const STATUSES: { key: LiveStatus; label: string }[] = [
   { key: 'all', label: '全部' },
   { key: 'live', label: '直播中' },
-  { key: 'offline', label: '已下播' },
+  { key: 'offline', label: '未开播' },
 ];
 
-const SORTS: { key: LiveSort; label: string; icon: React.ReactNode }[] = [
-  { key: 'hot', label: '人气榜', icon: <WhatshotIcon sx={{ fontSize: 14 }} /> },
-  { key: 'new', label: '最新开播', icon: <AccessTimeRoundedIcon sx={{ fontSize: 14 }} /> },
+const SORTS: { key: LiveSort; label: string }[] = [
+  { key: 'hot', label: '人气最高' },
+  { key: 'new', label: '刚刚开播' },
 ];
 
-const CATEGORIES: { key: LiveCategory; label: string; gradient: string }[] = [
-  { key: 'all', label: '全部分类', gradient: gradient2('#FE2C55', '#FFB400') },
-  { key: 'knowledge', label: '知识', gradient: gradient2('#FFB400', '#FFD566') },
-  { key: 'game', label: '游戏', gradient: gradient2('#8B5CF6', '#C4B5FD') },
-  { key: 'music', label: '音乐', gradient: gradient2('#06B6D4', '#5DF7F2') },
-  { key: 'outdoor', label: '户外', gradient: gradient2('#5DDB96', '#25F4EE') },
-  { key: 'anime', label: '二次元', gradient: gradient2('#FF8A3D', '#FFB400') },
+const RANGES: { key: ClassicRange; label: string }[] = [
+  { key: 'week', label: '本周' },
+  { key: 'month', label: '本月' },
+  { key: 'all', label: '全部' },
 ];
 
-const CAT_COLOR: Record<string, string> = {
-  情感: 'primary.main',
-  游戏: '#8B5CF6',
-  音乐: 'secondary.main',
-  户外: 'success.main',
-  二次元: '#FF8A3D',
-  知识: 'warning.main',
-};
+const ROOM_GRID = {
+  display: 'grid',
+  gridTemplateColumns: { xs: 'repeat(1, minmax(0, 1fr))', sm: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))', xl: 'repeat(5, minmax(0, 1fr))' },
+  gap: { xs: 2, md: 2.5 },
+} as const;
+
+/** 当前时间(unix 秒),每分钟走一次,用于「已播 N 小时」「N 分钟前更新」。 */
+function useNowSeconds() {
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+  useEffect(() => {
+    const t = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 60_000);
+    return () => clearInterval(t);
+  }, []);
+  return now;
+}
 
 export function LivePanel() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const navigate = useContentNavigate();
-  const urlStatus = (searchParams.get('liveStatus') as LiveStatus) || 'all';
-  const urlSort = (searchParams.get('sort') as LiveSort) || 'hot';
-  const urlCategory = (searchParams.get('category') as LiveCategory) || 'all';
-  const [status, setStatusState] = useState<LiveStatus>(urlStatus);
-  const [sort, setSortState] = useState<LiveSort>(urlSort);
-  const [category, setCategoryState] = useState<LiveCategory>(urlCategory);
+  const now = useNowSeconds();
+  const listRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { setStatusState(urlStatus); }, [urlStatus]);
-  useEffect(() => { setSortState(urlSort); }, [urlSort]);
-  useEffect(() => { setCategoryState(urlCategory); }, [urlCategory]);
+  const platform = searchParams.get('platform') || 'all';
+  const category = searchParams.get('category') || 'all';
+  const status = (searchParams.get('liveStatus') as LiveStatus) || 'all';
+  const sort = (searchParams.get('sort') as LiveSort) || 'hot';
+  const filters: LiveFilters = { platform, category };
 
-  const updateParam = (next: { liveStatus?: LiveStatus; sort?: LiveSort; category?: LiveCategory }) => {
+  const setParams = (next: Record<string, string>, defaults: Record<string, string>) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (next.liveStatus !== undefined) {
-      if (next.liveStatus === 'all') params.delete('liveStatus');
-      else params.set('liveStatus', next.liveStatus);
-    }
-    if (next.sort !== undefined) {
-      if (next.sort === 'hot') params.delete('sort');
-      else params.set('sort', next.sort);
-    }
-    if (next.category !== undefined) {
-      if (next.category === 'all') params.delete('category');
-      else params.set('category', next.category);
+    for (const [k, v] of Object.entries(next)) {
+      if (v === defaults[k]) params.delete(k);
+      else params.set(k, v);
     }
     const qs = params.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
+  const DEFAULTS = { platform: 'all', category: 'all', liveStatus: 'all', sort: 'hot' };
+  const setPlatform = (v: string) => setParams({ platform: v }, DEFAULTS);
+  const setCategory = (v: string) => setParams({ category: v }, DEFAULTS);
+  const setStatus = (v: LiveStatus) => setParams({ liveStatus: v }, DEFAULTS);
+  const setSort = (v: LiveSort) => setParams({ sort: v }, DEFAULTS);
 
-  const setStatus = (s: LiveStatus) => { setStatusState(s); updateParam({ liveStatus: s }); };
-  const setSort = (s: LiveSort) => { setSortState(s); updateParam({ sort: s }); };
-  const setCategory = (c: LiveCategory) => { setCategoryState(c); updateParam({ category: c }); };
+  const openRoom = (id: LiveRoom['id']) => navigate('LIVE', id);
 
-  // 分页状态
-  const PAGE_SIZE = 12;
+  const overview = useQuery({
+    queryKey: ['home', 'live', 'overview', platform],
+    queryFn: () => fetchOverview(platform),
+    staleTime: 60_000,
+  });
 
-  // 使用 useInfiniteQuery 实现无限滚动分页
-  const {
-    data: liveData,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isLoading,
-  } = useInfiniteQuery({
-    queryKey: ['home', 'live', 'rooms', status, sort, category],
-    queryFn: async ({ pageParam = 1 }) => {
-      const params = new URLSearchParams({ page: String(pageParam), size: String(PAGE_SIZE) });
-      if (status !== 'all') params.set('status', status);
-      if (sort !== 'hot') params.set('sort', sort);
-      if (category !== 'all') params.set('category', category);
-      const resp = await homeClient.get<Resp>(`/live/rooms?${params.toString()}`).then((r) => r.data);
-      const records = resp?.list || [];
-      const total = resp?.total || 0;
-      return { records, total, page: pageParam };
-    },
+  const spotlight = useQuery({
+    // 与人气榜「此刻」同一个查询(同 key 同参数),只请求一次。
+    queryKey: ['home', 'live', 'rank', 'now', platform, category],
+    queryFn: () => fetchRank('now', filters, 10),
+    staleTime: 60_000,
+  });
+
+  // 还没有人气数据时(新抓取未到 / 源站不给在线数),焦点区退回展示正在直播的房间,不排名。
+  const spotlightEmpty = spotlight.isSuccess && (spotlight.data?.list?.length ?? 0) === 0;
+  const liveNow = useQuery({
+    queryKey: ['home', 'live', 'rooms', 'live-now', platform, category],
+    queryFn: () => fetchRooms({ ...filters, status: 'live', sort: 'hot' }, 1, 5),
+    enabled: spotlightEmpty,
+    staleTime: 60_000,
+  });
+
+  const [range, setRange] = useState<ClassicRange>('month');
+  const classics = useQuery({
+    queryKey: ['home', 'live', 'classics', range, platform, category],
+    queryFn: () => fetchClassics(range, filters, 12),
+    staleTime: 5 * 60_000,
+  });
+
+  const rooms = useInfiniteQuery({
+    queryKey: ['home', 'live', 'rooms', platform, category, status, sort],
+    queryFn: ({ pageParam }) => fetchRooms({ ...filters, status, sort }, pageParam, PAGE_SIZE),
     initialPageParam: 1,
-    getNextPageParam: (lastPage) => {
-      const { records, total, page } = lastPage;
-      if (records.length === PAGE_SIZE && page * PAGE_SIZE < total) {
-        return page + 1;
-      }
-      return undefined;
-    },
+    getNextPageParam: (last, pages) => (pages.length * PAGE_SIZE < (last?.total ?? 0) && (last?.list?.length ?? 0) > 0 ? pages.length + 1 : undefined),
   });
+  const roomList = rooms.data?.pages.flatMap((p) => p?.list ?? []) ?? [];
+  const roomTotal = rooms.data?.pages[0]?.total ?? 0;
 
-  // 合并所有页面的数据
-  const liveList = liveData?.pages.flatMap(page => page.records) || [];
-
-  // 简化：使用单一 sentinel ref
   const sentinelRef = useRef<HTMLDivElement>(null);
-
-  // 监听滚动到底部
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = rooms;
   useEffect(() => {
-    const sentinel = sentinelRef.current;
-    if (!sentinel) return;
-
-    const observer = new IntersectionObserver(
+    const el = sentinelRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
       (entries) => {
-        const entry = entries[0];
-        if (entry.isIntersecting && hasNextPage && !isFetchingNextPage && !isLoading) {
-          fetchNextPage();
-        }
+        if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) fetchNextPage();
       },
-      { threshold: 0.1, rootMargin: '100px' }
+      { rootMargin: '400px' },
     );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [hasNextPage, isFetchingNextPage, isLoading, fetchNextPage]);
+  const ov = overview.data;
+  const categories = ov?.categories ?? [];
+  const activeCategory = categories.find((c) => c.key === category);
+  const platformLive = new Map((ov?.platforms ?? []).map((p) => [p.key, p.live]));
+  const livePlatformsTotal = (ov?.platforms ?? []).reduce((s, p) => s + p.live, 0);
 
-  const topQuery = useQuery({
-    queryKey: ['home', 'live', 'top', category],
-    queryFn: () => homeClient.get<Resp & { updatedAt: number }>(`/live/top${category !== 'all' ? '?category=' + category : ''}`).then((r) => r.data),
-  });
+  const pickCategory = (key: string) => {
+    setCategory(key);
+    listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const ranked = (spotlight.data?.list?.length ?? 0) > 0;
+  const spot = ranked ? spotlight.data!.list : liveNow.data?.list ?? [];
+  const showcase = categories.filter((c) => c.live > 0);
 
   return (
-    <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
-      {/* Hero */}
+    <Box sx={{ px: { xs: 1.5, sm: 2, md: 3 }, py: { xs: 1.5, md: 2.5 }, maxWidth: 1600, mx: 'auto', width: '100%', boxSizing: 'border-box' }}>
+      {/* 1. 头部 */}
       <Box
-        sx={{
-          position: 'relative',
-          mb: 3,
-          p: { xs: 2, md: 3 },
-          borderRadius: 3,
-          background: SECTION_TINT.RED_YELLOW_PURPLE,
-          border: '1px solid rgba(255,255,255,0.06)',
-          overflow: 'hidden',
-        }}
-      >
-        <Box sx={{ position: 'absolute', right: -20, top: -20, width: 180, height: 180, borderRadius: '50%', background: 'radial-gradient(circle, rgba(254,44,85,0.18), transparent 70%)' }} />
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, position: 'relative' }}>
-          <Box sx={{ width: 36, height: 36, borderRadius: 2, background: gradient2('#FE2C55', '#FFB400'), display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 18px rgba(254,44,85,0.32)' }}>
-            <LiveTvRoundedIcon sx={{ fontSize: 20, color: '#fff' }} />
-          </Box>
-          <Box>
-            <Typography sx={{ fontSize: { xs: 18, md: 22 }, fontWeight: 800, color: 'var(--text-primary, #ffffff)', letterSpacing: 0.5 }}>直播</Typography>
-            <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.5))', mt: 0.25 }}>实时热门榜 · 在线主播 · 24h 全天候</Typography>
-          </Box>
-        </Box>
-      </Box>
-
-      {/* TOP 10 人气榜 (领奖台) */}
-      <AsyncState query={topQuery} skeletonCount={0} isEmpty={() => false}>
-        {(data) => <LiveTop10 list={data.list} onSelect={(r) => navigate('LIVE', r.id)} />}
-      </AsyncState>
-
-      {/* Categories (gradient chips) */}
-      <Box sx={{ mt: 4, mb: 1.5 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', width: 48, flexShrink: 0 }}>分类</Typography>
-          <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
-            {CATEGORIES.map((c) => {
-              const active = category === c.key;
-              return (
-                <Box
-                  key={c.key}
-                  onClick={() => setCategory(c.key)}
-                  sx={{
-                    px: 1.5,
-                    py: 0.625,
-                    borderRadius: 999,
-                    cursor: 'pointer',
-                    fontSize: 12.5,
-                    fontWeight: active ? 700 : 500,
-                    color: active ? '#fff' : 'var(--text-secondary, rgba(255,255,255,0.7))',
-                    background: active ? c.gradient : 'var(--bg-input, rgba(255,255,255,0.04))',
-                    border: '1px solid',
-                    borderColor: active ? 'transparent' : 'var(--border-color, rgba(255,255,255,0.08))',
-                    boxShadow: active ? '0 4px 12px rgba(0,0,0,0.3)' : 'none',
-                    transition: 'all 0.15s',
-                    '&:hover': { transform: 'translateY(-1px)' },
-                  }}
-                >
-                  {c.label}
-                </Box>
-              );
-            })}
-          </Box>
-        </Box>
-      </Box>
-
-      {/* Filters: status + sort */}
-      <Box
+        component="header"
         sx={{
           mb: 2,
-          p: 1.5,
-          borderRadius: 2,
-          bgcolor: 'var(--bg-input, rgba(255,255,255,0.03))',
-          border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+          p: { xs: 2, md: 2.5 },
+          borderRadius: 3,
+          background: SECTION_TINT.RED_YELLOW_PURPLE,
+          border: '1px solid var(--border-color)',
           display: 'flex',
-          flexDirection: { xs: 'column', sm: 'row' },
-          gap: 1.5,
+          flexDirection: { xs: 'column', md: 'row' },
+          alignItems: { xs: 'flex-start', md: 'center' },
+          justifyContent: 'space-between',
+          gap: 2,
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1, flexWrap: 'wrap' }}>
-          <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', width: 36, flexShrink: 0 }}>状态</Typography>
-          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-            {STATUSES.map((s) => (
-              <FilterChip key={s.key} active={status === s.key} label={s.label} onClick={() => setStatus(s.key)} />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
+          <Box sx={{ width: 44, height: 44, borderRadius: 2.5, flexShrink: 0, background: 'linear-gradient(135deg, #FE2C55, #FF8A3D)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 6px 18px rgba(254,44,85,0.3)' }}>
+            <LiveTvRoundedIcon sx={{ fontSize: 24, color: '#fff' }} />
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography component="h1" sx={{ fontSize: { xs: 20, md: 24 }, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.2 }}>
+              直播
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mt: 0.5, fontSize: 12.5, color: 'var(--text-secondary)' }}>
+              {ov ? (
+                <>
+                  <LiveDot label={`${ov.live} 间正在直播`} />
+                  <span>· 收录 {ov.total} 间</span>
+                  {ov.updatedAt > 0 && <span>· {formatAgo(ov.updatedAt, now)}更新</span>}
+                </>
+              ) : (
+                <Skeleton width={220} />
+              )}
+            </Box>
+            <Typography sx={{ fontSize: 11.5, color: 'var(--text-muted)', mt: 0.25 }}>汇集虎牙、斗鱼、B站的直播间,点进详情可跳转原平台观看</Typography>
+          </Box>
+        </Box>
+        <Segmented
+          ariaLabel="直播平台"
+          value={platform}
+          onChange={setPlatform}
+          options={[
+            { key: 'all', label: <span>全部平台{ov ? ` ${livePlatformsTotal}` : ''}</span> },
+            ...(ov?.platforms ?? []).map((p) => ({
+              key: p.key,
+              label: (
+                <Box component="span" sx={{ display: 'inline-flex', gap: 0.5 }}>
+                  <PlatformBadge platform={p.key} label={p.label} />
+                  <Box component="span" sx={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{platformLive.get(p.key) ?? 0}</Box>
+                </Box>
+              ),
+            })),
+          ]}
+        />
+      </Box>
+
+      {/* 2. 分区条 */}
+      <Box
+        role="tablist"
+        aria-label="直播分区"
+        sx={{
+          display: 'flex',
+          gap: 1,
+          mb: 2.5,
+          overflowX: 'auto',
+          pb: 0.5,
+          scrollbarWidth: 'none',
+          '&::-webkit-scrollbar': { display: 'none' },
+        }}
+      >
+        {[{ key: 'all', label: '全部分区', live: ov?.live ?? 0 }, ...categories].map((c) => {
+          const active = c.key === category;
+          return (
+            <Box
+              key={c.key}
+              component="button"
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => setCategory(c.key)}
+              sx={{
+                all: 'unset',
+                boxSizing: 'border-box',
+                cursor: 'pointer',
+                flexShrink: 0,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 0.75,
+                px: 1.75,
+                py: 0.75,
+                borderRadius: 999,
+                fontSize: 13.5,
+                fontWeight: active ? 700 : 500,
+                color: active ? '#fff' : 'var(--text-secondary)',
+                bgcolor: active ? 'var(--brand-color, #FE2C55)' : 'var(--bg-input)',
+                border: '1px solid',
+                borderColor: active ? 'transparent' : 'var(--border-color)',
+                transition: 'background-color .15s, color .15s',
+                '&:hover': { color: active ? '#fff' : 'var(--text-primary)', bgcolor: active ? 'var(--brand-color, #FE2C55)' : 'var(--bg-active)' },
+                '&:focus-visible': { boxShadow: '0 0 0 2px var(--brand-color, #FE2C55)' },
+              }}
+            >
+              {c.label}
+              {ov && (
+                <Box component="span" sx={{ fontSize: 11.5, fontWeight: 600, opacity: active ? 0.85 : 0.6, fontVariantNumeric: 'tabular-nums' }}>
+                  {c.live}
+                </Box>
+              )}
+            </Box>
+          );
+        })}
+      </Box>
+
+      {/* 3. 焦点 + 人气榜 */}
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1.75fr) minmax(320px, 1fr)' }, gap: 2.5, mb: 4 }}>
+        <Box component="section" aria-label="此刻最热" sx={{ minWidth: 0 }}>
+          {spotlight.isLoading || (spotlightEmpty && liveNow.isLoading) ? (
+            <>
+              <CoverSkeleton />
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 1.5, mt: 1.5 }}>
+                {Array.from({ length: 4 }).map((_, i) => <CoverSkeleton key={i} />)}
+              </Box>
+            </>
+          ) : spot.length === 0 ? (
+            <EmptyNote minHeight={280}>
+              <Typography sx={{ fontSize: 15, fontWeight: 700, color: 'var(--text-secondary)', mb: 0.5 }}>
+                {activeCategory ? `${activeCategory.label}分区` : '这里'}此刻没有正在直播的房间
+              </Typography>
+              直播状态每小时随各平台抓取更新;可以在下方「往期高光」和「全部直播间」里看看。
+            </EmptyNote>
+          ) : (
+            <>
+              <SpotlightCard room={spot[0]} now={now} ranked={ranked} onOpen={() => openRoom(spot[0].id)} />
+              {spot.length > 1 && (
+                <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(4, minmax(0, 1fr))' }, gap: 1.5, mt: 1.5 }}>
+                  {spot.slice(1, 5).map((r) => (
+                    <RunnerUpCard key={String(r.id)} room={r} onOpen={() => openRoom(r.id)} />
+                  ))}
+                </Box>
+              )}
+            </>
+          )}
+        </Box>
+        <LiveRankBoard filters={filters} onOpen={(r) => openRoom(r.id)} />
+      </Box>
+
+      {/* 4. 分区热播 */}
+      {category === 'all' && showcase.length > 1 && (
+        <Box component="section" sx={{ mb: 4 }}>
+          <SectionHeader
+            title="分区热播"
+            icon={<CategoryRoundedIcon sx={{ fontSize: 20, color: '#8B5CF6' }} />}
+            hint="每个分区此刻人气最高的直播间"
+          />
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))', xl: 'repeat(6, minmax(0, 1fr))' }, gap: 1.5 }}>
+            {showcase.map((c) => (
+              <CategoryCard key={c.key} facet={c} active={false} onSelect={() => pickCategory(c.key)} />
             ))}
           </Box>
         </Box>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-          <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', width: 36, flexShrink: 0 }}>排序</Typography>
-          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-            {SORTS.map((s) => {
-              const active = sort === s.key;
-              return (
-                <Box
-                  key={s.key}
-                  onClick={() => setSort(s.key)}
-                  sx={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 0.5,
-                    px: 1,
-                    py: 0.4,
-                    borderRadius: 1,
-                    cursor: 'pointer',
-                    fontSize: 11.5,
-                    fontWeight: active ? 700 : 500,
-                    color: active ? 'primary.main' : 'var(--text-secondary, rgba(255,255,255,0.6))',
-                    bgcolor: active ? 'rgba(254,44,85,0.12)' : 'transparent',
-                    border: '1px solid',
-                    borderColor: active ? 'rgba(254,44,85,0.4)' : 'transparent',
-                  }}
-                >
-                  {s.icon}
-                  {s.label}
-                </Box>
-              );
-            })}
-          </Box>
-        </Box>
-      </Box>
-
-      {/* List header */}
-      <Box sx={{ mb: 1.5, display: 'flex', alignItems: 'baseline', gap: 1 }}>
-        <Typography sx={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>
-          {category === 'all' ? '全部' : CATEGORIES.find((c) => c.key === category)?.label}直播间
-        </Typography>
-        <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
-          共 {liveList.length} 间
-        </Typography>
-      </Box>
-
-      {/* 直播间网格 */}
-      {isLoading ? (
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' }, gap: 2 }}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Box key={i} sx={{ aspectRatio: '3/4', borderRadius: 2, bgcolor: 'action.hover' }} />
-          ))}
-        </Box>
-      ) : (
-        <Box>
-          {liveList.length === 0 ? (
-            <Box sx={{ textAlign: 'center', py: 6 }}>
-              <Typography sx={{ color: 'text.secondary' }}>该筛选下暂无直播间</Typography>
-            </Box>
-          ) : (
-            <Masonry
-              breakpointCols={{ default: 4, 1200: 3, 900: 2, 600: 1 }}
-              className="my-masonry-grid"
-              columnClassName="my-masonry-grid_column"
-            >
-              {liveList.map((room) => (
-                <RoomCard key={room.id} room={room} onClick={() => navigate('LIVE', room.id)} />
-              ))}
-            </Masonry>
-          )}
-
-          {/* Loading more */}
-          {isFetchingNextPage && (
-            <Typography sx={{ textAlign: 'center', py: 2, color: 'text.secondary', fontSize: 12 }}>加载中...</Typography>
-          )}
-
-          {/* No more */}
-          {!isFetchingNextPage && liveList.length > 0 && !hasNextPage && (
-            <Typography sx={{ textAlign: 'center', py: 3, color: 'text.disabled', fontSize: 12 }}>- 没有更多了 -</Typography>
-          )}
-
-          {/* Scroll sentinel */}
-          <Box ref={sentinelRef} sx={{ height: 1 }} />
-        </Box>
       )}
-    </Box>
-  );
-}
 
-function FilterChip({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
-  return (
-    <Box
-      onClick={onClick}
-      sx={{
-        px: 1.25,
-        py: 0.4,
-        borderRadius: 1.5,
-        cursor: 'pointer',
-        fontSize: 12,
-        fontWeight: active ? 600 : 400,
-        color: active ? 'var(--text-primary, #ffffff)' : 'var(--text-secondary, rgba(255,255,255,0.65))',
-        bgcolor: active ? 'var(--brand-color, #FE2C55)' : 'var(--bg-input, rgba(255,255,255,0.04))',
-        border: active ? 'none' : '1px solid var(--border-color, rgba(255,255,255,0.06))',
-        transition: 'all 0.15s',
-        '&:hover': { bgcolor: active ? 'var(--brand-color, #FE2C55)' : 'var(--bg-active, rgba(255,255,255,0.08))' },
-      }}
-    >
-      {label}
-    </Box>
-  );
-}
-
-// ----- TOP 10 人气榜 (领奖台) -----
-function LiveTop10({ list, onSelect }: { list: Room[]; onSelect: (r: Room) => void }) {
-  if (list.length === 0) return null;
-  const ordered = [...list].sort((a, b) => (a.hotRank || 99) - (b.hotRank || 99)).slice(0, 10);
-
-  return (
-    <Box
-      sx={{
-        position: 'relative',
-        mb: 1,
-        p: 2.5,
-        borderRadius: 2.5,
-        background: SECTION_TINT.RED_YELLOW_PURPLE,
-        border: '1px solid rgba(255,255,255,0.08)',
-        overflow: 'hidden',
-      }}
-    >
-      <Box sx={{ position: 'absolute', top: 12, right: 16, display: 'flex', alignItems: 'center', gap: 0.75, color: 'warning.main' }}>
-        <LocalFireDepartmentIcon sx={{ fontSize: 18 }} />
-        <Typography sx={{ fontSize: 13, fontWeight: 700, letterSpacing: 0.5 }}>TOP 10 人气榜</Typography>
+      {/* 5. 往期高光 */}
+      <Box component="section" sx={{ mb: 4 }}>
+        <SectionHeader
+          title="往期高光"
+          icon={<HistoryRoundedIcon sx={{ fontSize: 20, color: '#FFB400' }} />}
+          hint="已结束的直播,按当场最高人气排序"
+          action={<Segmented ariaLabel="往期范围" size="sm" value={range} options={RANGES} onChange={setRange} />}
+        />
+        <ClassicsRow
+          loading={classics.isLoading}
+          list={classics.data?.list ?? []}
+          since={classics.data?.since ?? 0}
+          onOpen={(c) => openRoom(c.contentId)}
+        />
       </Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-        <WhatshotIcon sx={{ fontSize: 20, color: 'primary.main' }} />
-        <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>本周人气最高</Typography>
-        <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))', ml: 1 }}>按在线观看人数</Typography>
-      </Box>
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' },
-          gap: 1.25,
-        }}
-      >
-        {ordered.map((r) => (
-          <RankCard key={r.id} room={r} onClick={() => onSelect(r)} />
-        ))}
-      </Box>
-    </Box>
-  );
-}
 
-function RankCard({ room, onClick }: { room: Room; onClick: () => void }) {
-  const rank = room.hotRank || 0;
-  const isTop3 = rank >= 1 && rank <= 3;
-  const medal = isTop3 ? MEDAL[rank] : null;
-  const badgeBg = isTop3
-    ? medal!.badge
-    : 'linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 100%)';
-  const badgeColor = isTop3 ? medal!.txt : 'var(--text-primary, #fff)';
-  const cardBg = isTop3 ? medal!.bg : 'var(--bg-surface, rgba(20, 22, 32, 0.6))';
-  const cardBorder = isTop3 ? medal!.border : '1px solid var(--border-color, rgba(255,255,255,0.06))';
-
-  return (
-    <Box
-      onClick={onClick}
-      sx={{
-        position: 'relative',
-        borderRadius: 2,
-        overflow: 'hidden',
-        cursor: 'pointer',
-        background: cardBg,
-        border: cardBorder,
-        transition: 'transform 0.2s, box-shadow 0.2s',
-        '&:hover': { transform: 'translateY(-3px)', boxShadow: '0 10px 24px rgba(0,0,0,0.3)' },
-      }}
-    >
-      <Box sx={{ position: 'relative', aspectRatio: '3/4' }}>
-        <CoverImage src={room.cover} alt={room.title} sx={{ width: '100%', height: '100%' }} />
-        <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.HEAVY }} />
-        <Box sx={{ position: 'absolute', top: 6, left: 6, minWidth: 24, height: 24, borderRadius: '50%', background: badgeBg, color: badgeColor, fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px', backdropFilter: isTop3 ? 'none' : 'blur(4px)', border: isTop3 ? 'none' : '1px solid rgba(255,255,255,0.2)', boxShadow: isTop3 ? '0 2px 6px rgba(0,0,0,0.4)' : 'none', zIndex: 1, fontVariantNumeric: 'tabular-nums' }}>
-          {rank}
-        </Box>
-        {room.isLive && (
-          <Box sx={{ position: 'absolute', top: 6, right: 6, display: 'flex', alignItems: 'center', gap: 0.25, px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'primary.main', color: '#fff', fontSize: 9, fontWeight: 700 }}>
-            <LiveTvRoundedIcon sx={{ fontSize: 10, color: '#fff !important' }} />
-            LIVE
+      {/* 6. 全部直播间 */}
+      <Box component="section" ref={listRef} sx={{ scrollMarginTop: 16 }}>
+        <SectionHeader
+          title={`${activeCategory ? activeCategory.label : '全部'}直播间`}
+          icon={<GridViewRoundedIcon sx={{ fontSize: 20, color: '#06B6D4' }} />}
+          hint={rooms.isLoading ? '' : `共 ${roomTotal} 间`}
+          action={
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              <Segmented
+                ariaLabel="开播状态"
+                size="sm"
+                value={sort === 'new' ? 'live' : status}
+                onChange={setStatus}
+                options={STATUSES.map((s) => ({ ...s, disabled: sort === 'new' && s.key !== 'live' }))}
+              />
+              <Segmented
+                ariaLabel="排序"
+                size="sm"
+                value={sort}
+                onChange={setSort}
+                options={SORTS.map((s) => ({ ...s, label: s.key === 'hot' ? <><WhatshotRoundedIcon sx={{ fontSize: 13, verticalAlign: '-2px', mr: 0.25 }} />{s.label}</> : s.label }))}
+              />
+            </Box>
+          }
+        />
+        {rooms.isLoading ? (
+          <Box sx={ROOM_GRID}>
+            {Array.from({ length: 8 }).map((_, i) => <CoverSkeleton key={i} />)}
+          </Box>
+        ) : rooms.isError ? (
+          <EmptyNote>
+            直播间加载失败,
+            <Box component="button" type="button" onClick={() => rooms.refetch()} sx={{ all: 'unset', cursor: 'pointer', color: 'var(--brand-color)', fontWeight: 600 }}>
+              重试
+            </Box>
+          </EmptyNote>
+        ) : roomList.length === 0 ? (
+          <EmptyNote>
+            {sort === 'new' ? '开播时间从今天开始记录,暂时没有刚开播的房间。' : '这个筛选下暂时没有直播间,换个分区或平台看看。'}
+          </EmptyNote>
+        ) : (
+          <Box sx={ROOM_GRID}>
+            {roomList.map((r) => (
+              <RoomCard key={String(r.id)} room={r} now={now} onOpen={() => openRoom(r.id)} />
+            ))}
           </Box>
         )}
-        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, p: 1, background: 'linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.85) 100%)' }}>
-          <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#fff', lineHeight: 1.2, mb: 0.25, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-            {room.title}
-          </Typography>
-          <Typography sx={{ fontSize: 9, color: 'rgba(255,255,255,0.7)' }}>
-            {room.category} · {formatViewers(room.viewers)} 人气
-          </Typography>
-        </Box>
+        {isFetchingNextPage && (
+          <Typography sx={{ textAlign: 'center', py: 2, color: 'var(--text-muted)', fontSize: 12 }}>加载中…</Typography>
+        )}
+        {!rooms.isLoading && !hasNextPage && roomList.length > 0 && (
+          <Typography sx={{ textAlign: 'center', py: 3, color: 'var(--text-disabled)', fontSize: 12 }}>已经到底了</Typography>
+        )}
+        <Box ref={sentinelRef} sx={{ height: 1 }} />
       </Box>
     </Box>
   );
 }
 
-
-function RoomCard({ room, onClick }: { room: Room; onClick: () => void }) {
+function ClassicsRow({ loading, list, since, onOpen }: { loading: boolean; list: LiveClassic[]; since: number; onOpen: (c: LiveClassic) => void }) {
+  const row = {
+    display: 'grid',
+    gridAutoFlow: 'column',
+    gridAutoColumns: { xs: '78%', sm: '42%', md: '30%', xl: '22%' },
+    gap: 2,
+    overflowX: 'auto',
+    pb: 1,
+    scrollSnapType: 'x mandatory',
+    '& > *': { scrollSnapAlign: 'start' },
+  } as const;
+  if (loading) {
+    return (
+      <Box sx={row}>
+        {Array.from({ length: 4 }).map((_, i) => <CoverSkeleton key={i} />)}
+      </Box>
+    );
+  }
+  if (list.length === 0) {
+    return (
+      <EmptyNote>
+        {since
+          ? `从 ${formatDay(since)} 开始记录直播场次,这个范围里还没有结束的场次。`
+          : '直播场次从今天开始记录:主播下播后,这一场的开播时间、时长和最高人气会出现在这里。'}
+      </EmptyNote>
+    );
+  }
   return (
-    <Box
-      onClick={onClick}
-      sx={{
-        position: 'relative',
-        aspectRatio: '3/4',
-        borderRadius: 2,
-        overflow: 'hidden',
-        cursor: 'pointer',
-        transition: 'transform 0.2s, box-shadow 0.2s',
-        '&:hover': { transform: 'translateY(-3px)', boxShadow: '0 12px 32px rgba(0,0,0,0.4)' },
-      }}
-    >
-      <img src={room.cover || undefined} alt={room.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-      <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.HEAVY }} />
-
-      {room.hotRank > 0 && (
-        <Chip
-          label={`TOP ${room.hotRank}`}
-          size="small"
-          sx={{
-            position: 'absolute',
-            top: 8,
-            left: 8,
-            height: 18,
-            bgcolor: 'warning.main',
-            color: '#1a1a1a',
-            fontSize: 9,
-            fontWeight: 800,
-          }}
-        />
-      )}
-
-      {room.isLive ? (
-        <Chip
-          icon={<LiveTvRoundedIcon sx={{ fontSize: 11, color: '#ffffff !important' }} />}
-          label="LIVE"
-          size="small"
-          sx={{
-            position: 'absolute',
-            top: 8,
-            right: 8,
-            height: 18,
-            bgcolor: 'primary.main',
-            color: 'var(--text-primary, #ffffff)',
-            fontSize: 10,
-            fontWeight: 700,
-            '& .MuiChip-icon': { color: 'var(--text-primary, #ffffff)' },
-          }}
-        />
-      ) : (
-        <Chip
-          label="已下播"
-          size="small"
-          sx={{
-            position: 'absolute',
-            top: 8,
-            right: 8,
-            height: 18,
-            bgcolor: 'rgba(0,0,0,0.5)',
-            color: 'var(--text-secondary, rgba(255,255,255,0.7))',
-            fontSize: 10,
-          }}
-        />
-      )}
-
-      <Box sx={{ position: 'absolute', bottom: 12, left: 12, right: 12 }}>
-        <Typography sx={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary, #ffffff)', mb: 0.5, lineHeight: 1.3 }}>
-          {room.title}
-        </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Box
-            sx={{
-              width: 18,
-              height: 18,
-              borderRadius: '50%',
-              background: room.hostAvatar || 'var(--bg-hover, rgba(255,255,255,0.1))',
-              border: '1px solid var(--border-strong, rgba(255,255,255,0.3))',
-              fontSize: 9,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--text-primary, #ffffff)',
-              fontWeight: 600,
-            }}
-          >
-            {(room.hostName || '?')[0]}
-          </Box>
-          <Typography sx={{ fontSize: 11, color: 'var(--text-primary, rgba(255,255,255,0.85))', flex: 1 }}>
-            {room.hostName}
-          </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, color: 'var(--text-primary, #ffffff)' }}>
-            <VisibilityRoundedIcon sx={{ fontSize: 11 }} />
-            <Typography sx={{ fontSize: 11, fontWeight: 600 }}>{formatViewers(room.viewers)}</Typography>
-          </Box>
-        </Box>
-        <Box sx={{ mt: 0.75, display: 'flex', gap: 0.5 }}>
-          <Chip
-            label={room.category}
-            size="small"
-            sx={{
-              height: 16,
-              bgcolor: 'var(--border-strong, rgba(255,255,255,0.12))',
-              color: CAT_COLOR[room.category] || 'var(--text-primary, #fff)',
-              fontSize: 9,
-              fontWeight: 600,
-            }}
-          />
-          <Chip
-            label={room.region}
-            size="small"
-            sx={{
-              height: 16,
-              bgcolor: 'action.hover',
-              color: 'text.secondary',
-              fontSize: 9,
-              fontWeight: 500,
-            }}
-          />
-        </Box>
-      </Box>
+    <Box sx={row}>
+      {list.map((c) => (
+        <ClassicCard key={String(c.id)} item={c} onOpen={() => onOpen(c)} />
+      ))}
     </Box>
   );
-}
-
-function formatViewers(n?: number | null): string {
-  const num = Number(n) || 0;
-  if (num >= 10000) return `${(num / 10000).toFixed(1)}w`;
-  if (num >= 1000) return `${(num / 1000).toFixed(1)}k`;
-  return num.toString();
 }
