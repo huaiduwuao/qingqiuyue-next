@@ -27,6 +27,7 @@ import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import Masonry from 'react-masonry-css';
 import FadeContent from '@/components/reactbits/FadeContent';
 import SpotlightCard from '@/components/reactbits/SpotlightCard';
+import MusicPlayButton from '@/components/player/MusicPlayButton';
 import SplitText from '@/components/reactbits/SplitText';
 import BlurText from '@/components/reactbits/BlurText';
 
@@ -670,6 +671,14 @@ function FeedCard({ item }: { item: FeedItem }) {
             <PlayArrowRoundedIcon sx={{ fontSize: 10 }} />
             {formatDuration(item.durationSec)}
           </Box>
+        )}
+        {/* 音乐卡片:不进详情页也能直接听,交给全局底栏 */}
+        {targetType === 'MUSIC' && (
+          <MusicPlayButton
+            id={item.id}
+            title={item.title}
+            sx={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', '&:hover': { transform: 'translate(-50%, -50%) scale(1.06)' } }}
+          />
         )}
         {item.category === 'image' && (
           <Box

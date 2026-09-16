@@ -9,6 +9,7 @@ import Skeleton from '@mui/material/Skeleton';
 import { getRelated, type FeedItem } from '@/apis/recommend';
 import { getDetailRoute, TYPE_LABEL } from '@/lib/contentRoute';
 import { CoverImage } from '@/components/common/CoverImage';
+import MusicPlayButton from '@/components/player/MusicPlayButton';
 import { useApp } from '@/contexts/AppContext';
 
 interface RelatedContentProps {
@@ -84,7 +85,9 @@ export function RelatedContent({ contentId, contentType, title = '相关推荐',
 function RelatedCard({ item }: { item: FeedItem }) {
   const href = getDetailRoute(item.contentType, item.id)!;
   const portrait = PORTRAIT_TYPES.has(item.contentType?.toUpperCase());
+  const isMusic = item.contentType?.toUpperCase() === 'MUSIC';
   return (
+    <Box sx={{ position: 'relative' }}>
     <Box
       component={Link}
       href={href}
@@ -121,6 +124,11 @@ function RelatedCard({ item }: { item: FeedItem }) {
       <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.25 }} noWrap>
         {[TYPE_LABEL[item.contentType?.toUpperCase()], item.author].filter(Boolean).join(' · ')}
       </Typography>
+    </Box>
+    {/* 音乐:封面右上角直接播放(放在链接外面,不嵌套可交互元素) */}
+    {isMusic && (
+      <MusicPlayButton id={item.id} title={item.title} size={34} sx={{ position: 'absolute', right: 8, top: 8 }} />
+    )}
     </Box>
   );
 }

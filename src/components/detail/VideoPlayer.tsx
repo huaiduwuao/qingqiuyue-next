@@ -70,7 +70,7 @@ const RECOVER_RESET_MS = 30_000;
 const PREEMPT_EXPIRY_MS = 60_000;
 
 /** 生命周期 effect 里挂到 <video> 上的事件 */
-const VIDEO_EVENTS = ['timeupdate', 'loadedmetadata', 'play', 'pause', 'ended', 'error', 'enterpictureinpicture', 'leavepictureinpicture', 'webkitpresentationmodechanged'];
+const VIDEO_EVENTS = ['timeupdate', 'loadedmetadata', 'play', 'pause', 'ended', 'error', 'volumechange', 'enterpictureinpicture', 'leavepictureinpicture', 'webkitpresentationmodechanged'];
 
 function fmt(s: number) {
   if (!isFinite(s) || s < 0) return '0:00';
@@ -487,6 +487,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
         const code = videoRef.current?.error?.code;
         recoverRef.current(code === 4 ? '视频地址已失效' : '视频加载失败');
       },
+      // 静音可能来自外部(音乐播放器让推荐流静音开播),按钮图标跟着元素走
+      volumechange: () => {
+        if (videoRef.current) setMuted(videoRef.current.muted);
+      },
       enterpictureinpicture: () => setPip(true),
       leavepictureinpicture: () => setPip(false),
       webkitpresentationmodechanged: () => setPip(inPip(videoRef.current)),
@@ -547,6 +551,9 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
       v.preload = 'metadata';
     }
     v.style.cssText = 'width:100%;height:100%;object-fit:contain;background:#000;display:block;';
+    // 推荐流(fill)自动连播:音乐在放时静音开播(见 lib/player/musicPlayer 的协调器)
+    if (fill) v.dataset.autoMute = '1';
+    else delete v.dataset.autoMute;
     videoRef.current = v;
     setPipOk(pipSupported(v));
 

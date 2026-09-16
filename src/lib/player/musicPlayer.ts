@@ -10,6 +10,8 @@
  *
  * 同一时刻只出一路声音(installMediaCoordinator):
  *  - 有声视频开播 → 暂停音乐;那条视频停了/没了 → 音乐自动接着放;
+ *  - 例外:推荐流这类自动连播的视频(<video data-auto-mute="1">),音乐在放时静音开播,
+ *    不打断音乐;用户点开它的声音才算"要看这条",这时再暂停音乐;
  *  - 用户主动放音乐 → 暂停正在出声的视频;
  *  - 多开标签页时,一个页签开始放,其它页签的音乐暂停。
  */
@@ -485,7 +487,12 @@ function onVideoStopped(v: HTMLMediaElement) {
   }, 1200);
 }
 
-function onAudibleVideo(v: HTMLVideoElement) {
+function onAudibleVideo(v: HTMLVideoElement, userUnmuted = false) {
+  // 刷推荐流时边听歌边看:自动连播的视频静音开播,音乐不停
+  if (!userUnmuted && v.dataset.autoMute === '1' && audio && !audio.paused) {
+    v.muted = true;
+    return;
+  }
   pauseAudibleVideos(v);
   if (!audio || audio.paused) {
     // 音乐已经被上一条视频暂停:改由这一条负责"停了再接回来"
@@ -534,7 +541,7 @@ export function installMediaCoordinator() {
     'volumechange',
     (e) => {
       const t = e.target;
-      if (t instanceof HTMLVideoElement && !t.paused && audible(t)) onAudibleVideo(t);
+      if (t instanceof HTMLVideoElement && !t.paused && audible(t)) onAudibleVideo(t, true);
     },
     true,
   );

@@ -33,6 +33,7 @@ import { CoverImage } from '@/components/common/CoverImage';
 import { mediaUrl } from '@/lib/media';
 import { resolveMusic, parseLrc, type LyricLine } from '@/lib/player/resolveMusic';
 import { useMusicPlayer, musicPlayer, currentTrack, type MusicTrack } from '@/lib/player/musicPlayer';
+import { trackFromDetail } from '@/lib/player/playMusic';
 import { PlatformLinks, platformsOf } from '@/components/detail/ExternalPlatforms';
 import { track, recordHistory } from '@/lib/track';
 import { DetailComments } from '@/components/detail/DetailComments';
@@ -155,20 +156,7 @@ function MusicDetailContent() {
     };
   }, [id, query.data]);
 
-  const toTrack = (): MusicTrack | null => {
-    if (!id || !audioSrc) return null;
-    const d = query.data || {};
-    return {
-      id,
-      title: d.title || '未知歌曲',
-      artist: d.artist || '',
-      album: d.album || '',
-      cover: mediaUrl(d.cover),
-      src: audioSrc,
-      href: `/detail/music-detail?id=${encodeURIComponent(id)}`,
-      preview: d.audioStatus === 'preview',
-    };
-  };
+  const toTrack = (): MusicTrack | null => (id && audioSrc ? trackFromDetail(id, query.data, audioSrc) : null);
 
   const togglePlay = () => {
     if (audioUnavailable) {
