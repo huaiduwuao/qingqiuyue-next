@@ -28,6 +28,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import { agentmAPI, type Instance, type Agent, type AuditLog, type Skill, type MonitoringOverview, type InstanceStats, type UsageStats } from './api'
 import KanbanBoard from './kanban/KanbanBoard'
+import DraftsPanel from './drafts/DraftsPanel'
 import MCPManager from './mcp/MCPManager'
 import RunsPanel from './runs/RunsPanel'
 import SkillHubPanel from './skill/SkillHubPanel'
@@ -42,7 +43,7 @@ const SkillStudio = dynamic(() => import('./studio/SkillStudio'), { ssr: false }
 const AgentStudio = dynamic(() => import('./studio/AgentStudio'), { ssr: false })
 const ModelProviderManager = dynamic(() => import('./models/ModelProviderManager'), { ssr: false })
 
-type Tab = 'dashboard' | 'instances' | 'agents' | 'runs' | 'sessions' | 'audit' | 'skills' | 'gateway' | 'kanban' | 'mcp' | 'workflows' | 'models'
+type Tab = 'dashboard' | 'instances' | 'agents' | 'runs' | 'sessions' | 'audit' | 'skills' | 'drafts' | 'gateway' | 'kanban' | 'mcp' | 'workflows' | 'models'
 
 export default function AgentManagerConsole() {
   const { sessionId: token, isAuthenticated } = useAuth()
@@ -186,6 +187,7 @@ export default function AgentManagerConsole() {
     { key: 'sessions', label: '💬 会话' },
     { key: 'audit', label: '📝 审计' },
     { key: 'skills', label: '🛠️ 技能' },
+    { key: 'drafts', label: '🧪 草稿' },
     { key: 'gateway', label: '🌐 网关' },
     { key: 'models', label: '🧠 模型管理' },
     { key: 'kanban', label: '📋 看板' },
@@ -670,6 +672,9 @@ export default function AgentManagerConsole() {
 
         {/* Runs Tab:后台运行 + 审批 */}
         {activeTab === 'runs' && token && <RunsPanel token={token} />}
+
+        {/* 草稿箱:builder 员工起草的东西在这里试运行 / 发布 */}
+        {activeTab === 'drafts' && token && <DraftsPanel isAdmin={isAdmin} />}
 
         {/* Kanban Tab */}
         {activeTab === 'kanban' && token && (
