@@ -34,6 +34,7 @@ import { sendComment } from '@/apis/home';
 import { reportContent } from '@/apis/global';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
 import { parseStream, BANDWIDTH_NOTICE } from '@/apis/stream';
+import { resolveEmbedPlayer } from '@/lib/embedPlayer';
 import { homeClient } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { mediaUrl } from '@/lib/media';
@@ -67,7 +68,8 @@ interface VideoItem {
   // 正常。现在后端明确告诉前端"这条播不了、原因是什么、该怎么跟用户说",
   // sourceUrl 在这种情况下是空的。
   playable?: boolean;
-  playbackStatus?: 'playable' | 'pending_repair' | 'live_offline' | 'bandwidth_limited' | 'not_applicable' | 'unknown';
+  // embeddable:不走本站播放器,嵌源站官方外链播放器(见 lib/embedPlayer)。
+  playbackStatus?: 'playable' | 'pending_repair' | 'live_offline' | 'bandwidth_limited' | 'embeddable' | 'not_applicable' | 'unknown';
   repairNotice?: string; // 面向用户的中文提示。pending_repair 是故障文案,live_offline 是"主播未开播"
 }
 
@@ -285,6 +287,10 @@ export function RecommendVideoFeed() {
     setVideoSrc('');
     setStreamError('');
     if (!video) return;
+
+    // 源站有官方外链播放器:不解析流(解析出来的直链校验 Referer,本站又不中转),
+    // 下面渲染时 VideoPlayer 自己会换成 iframe。
+    if (resolveEmbedPlayer(video.sourceUrl)) return;
 
     // 后端已经判定这条播不了 —— 直接把它的提示语显示出来,不要再去解析一遍。
     // 后端的判定用的就是同一个解析器(internal/playability 走 StreamResolver),
@@ -663,7 +669,7 @@ export function RecommendVideoFeed() {
               }}
             >
               {/* 视频播放器或封面 */}
-              {i === index && videoSrc ? (
+              {i === index && (videoSrc || resolveEmbedPlayer(v.sourceUrl)) ? (
                 <VideoPlayer
                   ref={videoPlayerRef}
                   fill

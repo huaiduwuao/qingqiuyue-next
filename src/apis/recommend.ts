@@ -16,11 +16,15 @@ export const reportBehavior = (data: {
 //   unknown        —— 尚未判定
 //   bandwidth_limited —— **不是故障**:流解析得出来,但源站校验 Referer,本站不替
 //                     它付视频带宽。提示"因带宽成本暂不支持站内播放",给去原站的入口
+//   embeddable     —— 不走本站播放器,但源站有官方外链播放器,iframe 嵌在本站页面里播
+//                     (embedUrl / embedProvider 随之下发;sourceUrl 是源站页面,不是流)。
+//                     站内看得到画面,不要当成不可播去打标或过滤
 export type PlaybackStatus =
   | 'playable'
   | 'pending_repair'
   | 'live_offline'
   | 'bandwidth_limited'
+  | 'embeddable'
   | 'not_applicable'
   | 'unknown';
 
@@ -48,6 +52,9 @@ export interface FeedItem {
   playbackStatus?: PlaybackStatus;
   /** 面向用户的中文提示,仅 pending_repair 时非空 */
   repairNotice?: string;
+  /** playbackStatus=embeddable 时:源站官方外链播放器的 iframe 地址与平台名 */
+  embedUrl?: string;
+  embedProvider?: string;
 }
 
 export interface FeedResult {

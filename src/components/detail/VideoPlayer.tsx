@@ -18,6 +18,8 @@ import CircularProgress from '@mui/material/CircularProgress';
 import AIGCBadge from '@/components/AIGCBadge';
 import { parseStream, checkStreamAccess, BANDWIDTH_NOTICE } from '@/apis/stream';
 import { mediaUrl, isExternalStreamUrl } from '@/lib/media';
+import { resolveEmbedPlayer } from '@/lib/embedPlayer';
+import EmbedVideoPlayer from './EmbedVideoPlayer';
 import { videoDock, destroyVideo, pipSupported, togglePip, inPip, claimMediaSession, mediaSessionPaused, type StreamInfo } from '@/lib/player/videoDock';
 
 interface Props {
@@ -80,7 +82,7 @@ function fmt(s: number) {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
-const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
+const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVideoPlayer(
   { src, sourceUrl, refreshSource, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false, fill = false, onPlaybackError, dockTitle },
   ref,
 ) {
@@ -1031,6 +1033,32 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(
       )}
     </Box>
   );
+});
+
+/**
+ * 对外的播放器入口。源站页面有官方外链播放器(目前是 B 站 UP 主投稿)时直接嵌它,其余走本站播放器。
+ *
+ * 外链播放器排在最前 —— 连传进来的 src 直链也不看:能映射的平台,流地址一律校验 Referer,
+ * 本站又不中转视频(见 apis/stream 的 checkStreamAccess),走本站播放器的结局只能是
+ * 「暂不支持站内播放」,还要先白等一次最长 30 秒的流解析。
+ */
+const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(props, ref) {
+  const pageUrl = props.sourceUrl || props.refreshSource || '';
+  const embed = resolveEmbedPlayer(pageUrl);
+  if (embed) {
+    return (
+      <EmbedVideoPlayer
+        ref={ref}
+        embed={embed}
+        originUrl={pageUrl}
+        poster={props.poster}
+        autoPlay={props.autoPlay}
+        isAIGenerated={props.isAIGenerated}
+        fill={props.fill}
+      />
+    );
+  }
+  return <NativeVideoPlayer ref={ref} {...props} />;
 });
 
 export default VideoPlayer;
