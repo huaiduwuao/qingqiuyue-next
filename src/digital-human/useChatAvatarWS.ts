@@ -40,7 +40,18 @@ const TOOL_RUNNING_HINT: Record<string, string> = {
   bounty_create: '正在发布悬赏…',
   workflow_execute: '正在跑工作流…',
   browser_open: '正在打开网页…',
+  screen_open: '正在屏幕上打开…',
 };
+
+/** 数字人对场景显示器的操作:打开一个作品 / 地址,或关掉一块(不给 screen = 全部)屏 */
+export interface ScreenCommand {
+  op: 'open' | 'close';
+  screen?: string;
+  id?: string;
+  contentType?: string;
+  url?: string;
+  title?: string;
+}
 
 /** 工具参数 JSON → 对象(坏 JSON 就当空) */
 function safeParseArgs(argsJSON?: string): Record<string, unknown> {
@@ -768,6 +779,11 @@ export interface UseChatAvatarWSOptions {
   onSpeechEnd?: () => void;
   /** 搜索结果的结构化数据(AG-UI CUSTOM content_results)。不传则只在对话里出卡片 */
   onContentResults?: (items: ContentRef[]) => void;
+  /**
+   * 数字人操作场景里的显示器(screen_open / screen_close)。
+   * 不传 = 这个入口没有场景屏幕(浮窗),指令被忽略。
+   */
+  onScreen?: (cmd: ScreenCommand) => void;
   /**
    * AG-UI 模式:当前还没有服务端会话时,发送前调用它建一个并返回 id(失败返回 null);
    * firstText 是这条消息,可直接用作会话标题。
@@ -1511,6 +1527,16 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
                 runMediaPlay(args)
                   .then((msg) => devLog.debug('[agui] media_play:', msg))
                   .catch((e) => setChatLog((c) => [...c, { who: 'ai', text: `⚠️ 播放失败:${e?.message || e}` }]));
+                return;
+              }
+
+              // 场景里的显示器:在屏幕上打开作品/网页,或关屏
+              if (name === 'screen_open' || name === 'screen_close') {
+                const str = (v: unknown) => (typeof v === 'string' || typeof v === 'number' ? String(v).trim() : '') || undefined;
+                options.onScreen?.({
+                  op: name === 'screen_open' ? 'open' : 'close',
+                  screen: str(args.screen), id: str(args.id), contentType: str(args.contentType), url: str(args.url), title: str(args.title),
+                });
                 return;
               }
 

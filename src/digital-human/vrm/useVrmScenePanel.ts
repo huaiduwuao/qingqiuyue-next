@@ -23,6 +23,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type * as THREE from 'three';
 import type { CSS3DObject as CSS3DObjectT, CSS3DRenderer as CSS3DRendererT } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
+import { DISPLAY_SLOTS, DISPLAY_SPECS, buildDisplayProp, disposeDisplayProp, type DisplaySlot } from './sceneDisplays';
+
+export type DisplayHosts = Partial<Record<DisplaySlot, HTMLDivElement>>;
 
 /** 面板 DOM 的像素尺寸。世界尺寸 = 像素 × PANEL_SCALE。 */
 const PANEL_WIDTH_PX = 560;
@@ -45,6 +48,8 @@ export interface UseVrmScenePanelOptions {
   camera: THREE.PerspectiveCamera | null;
   /** three 命名空间(VrmStage 动态 import 后传入) */
   THREE_NS: typeof THREE | null;
+  /** WebGL 主场景:显示器的边框/立柱道具加在这里(不传就只有画面没有道具) */
+  scene?: THREE.Scene | null;
 }
 
 export interface ScenePanelApi {
@@ -56,11 +61,19 @@ export interface ScenePanelApi {
   setVisible: (on: boolean) => void;
   /** 容器尺寸变化时同步 CSS3D 渲染器尺寸 */
   resize: () => void;
+  /** 场景里几块显示器的宿主元素(固定位置,不跟角色走),父组件 portal 进去 */
+  displayHosts: DisplayHosts | null;
+  /** 显示/收起全部显示器(连同 WebGL 里的道具) */
+  setDisplaysVisible: (on: boolean) => void;
 }
 
 export function useVrmScenePanel(opts: UseVrmScenePanelOptions): ScenePanelApi {
-  const { container, camera, THREE_NS } = opts;
+  const { container, camera, THREE_NS, scene: glScene = null } = opts;
   const [host, setHost] = useState<HTMLDivElement | null>(null);
+  const [displayHosts, setDisplayHosts] = useState<DisplayHosts | null>(null);
+  const displayObjectsRef = useRef<CSS3DObjectT[]>([]);
+  const displayPropsRef = useRef<THREE.Group[]>([]);
+  const displaysVisibleRef = useRef(false);
   const rendererRef = useRef<CSS3DRendererT | null>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const objectRef = useRef<CSS3DObjectT | null>(null);
@@ -89,6 +102,13 @@ export function useVrmScenePanel(opts: UseVrmScenePanelOptions): ScenePanelApi {
       // 容器本身不吃鼠标事件,否则整块盖住画布,OrbitControls 就转不动了。
       // 只有面板自己那块 DOM 打开 pointerEvents(见下面 hostEl)。
       el.style.pointerEvents = 'none';
+      // 屏幕里的页面一聚焦(输入框、iframe),浏览器会把这层 overflow:hidden 的容器滚过去
+      // 「露出」焦点元素,于是所有 DOM 整体偏离 WebGL 里的道具。这层永远不该滚动。
+      const pinScroll = () => {
+        if (el.scrollLeft !== 0) el.scrollLeft = 0;
+        if (el.scrollTop !== 0) el.scrollTop = 0;
+      };
+      el.addEventListener('scroll', pinScroll);
       container.appendChild(el);
 
       const hostEl = document.createElement('div');
@@ -113,15 +133,64 @@ export function useVrmScenePanel(opts: UseVrmScenePanelOptions): ScenePanelApi {
       tmpDirRef.current = new THREE_NS.Vector3();
       tmpEdgeRef.current = new THREE_NS.Vector3();
 
+      // 显示器:位置固定的几块屏幕。DOM 在 CSS3D 层,边框/立柱在 WebGL 主场景。
+      const hosts: DisplayHosts = {};
+      const displayEls: HTMLDivElement[] = [];
+      for (const slot of DISPLAY_SLOTS) {
+        const spec = DISPLAY_SPECS[slot];
+        const screenEl = document.createElement('div');
+        screenEl.style.width = `${spec.widthPx}px`;
+        screenEl.style.height = `${spec.heightPx}px`;
+        screenEl.style.pointerEvents = 'auto';
+        screenEl.style.overflow = 'hidden';
+        screenEl.style.borderRadius = '10px';
+        screenEl.style.background = '#05060B';
+        // 转到屏幕背面时不要看到镜像的页面,露出 WebGL 里的机身
+        screenEl.style.backfaceVisibility = 'hidden';
+        for (const evt of ['pointerdown', 'pointermove', 'wheel', 'contextmenu']) {
+          screenEl.addEventListener(evt, stop);
+        }
+        const screenObj = new CSS3DObject(screenEl);
+        screenObj.scale.setScalar(spec.scale);
+        screenObj.position.set(...spec.position);
+        screenObj.rotation.y = spec.rotationY;
+        screenObj.visible = displaysVisibleRef.current;
+        scene.add(screenObj);
+        displayObjectsRef.current.push(screenObj);
+        displayEls.push(screenEl);
+        hosts[slot] = screenEl;
+        if (glScene) {
+          const prop = buildDisplayProp(THREE_NS, spec);
+          prop.visible = displaysVisibleRef.current;
+          glScene.add(prop);
+          displayPropsRef.current.push(prop);
+        }
+      }
+
       rendererRef.current = renderer;
       sceneRef.current = scene;
       objectRef.current = object;
       setHost(hostEl);
+      setDisplayHosts(hosts);
+      syncLayerVisibility();
 
       cleanup = () => {
         for (const evt of ['pointerdown', 'pointermove', 'wheel', 'contextmenu']) {
           hostEl.removeEventListener(evt, stop);
         }
+        for (const d of displayEls) {
+          for (const evt of ['pointerdown', 'pointermove', 'wheel', 'contextmenu']) {
+            d.removeEventListener(evt, stop);
+          }
+        }
+        for (const obj of displayObjectsRef.current) scene.remove(obj);
+        displayObjectsRef.current = [];
+        for (const prop of displayPropsRef.current) {
+          glScene?.remove(prop);
+          disposeDisplayProp(prop);
+        }
+        displayPropsRef.current = [];
+        setDisplayHosts(null);
         scene.remove(object);
         el.remove();
         rendererRef.current = null;
@@ -135,7 +204,14 @@ export function useVrmScenePanel(opts: UseVrmScenePanelOptions): ScenePanelApi {
       cancelled = true;
       cleanup?.();
     };
-  }, [container, camera, THREE_NS]);
+  }, [container, camera, THREE_NS, glScene]);
+
+  // 面板和显示器都没有的时候把整层挪出交互:避免看不见的元素还在吃点击
+  function syncLayerVisibility() {
+    const renderer = rendererRef.current;
+    if (!renderer) return;
+    renderer.domElement.style.visibility = visibleRef.current || displaysVisibleRef.current ? 'visible' : 'hidden';
+  }
 
   const tick = useCallback((avatar: { x: number; y: number; z: number }) => {
     const renderer = rendererRef.current;
@@ -187,9 +263,14 @@ export function useVrmScenePanel(opts: UseVrmScenePanelOptions): ScenePanelApi {
     visibleRef.current = on;
     const object = objectRef.current;
     if (object) object.visible = on;
-    const renderer = rendererRef.current;
-    // 隐藏时把整层挪出交互:避免看不见的面板还在吃点击
-    if (renderer) renderer.domElement.style.visibility = on ? 'visible' : 'hidden';
+    syncLayerVisibility();
+  }, []);
+
+  const setDisplaysVisible = useCallback((on: boolean) => {
+    displaysVisibleRef.current = on;
+    for (const obj of displayObjectsRef.current) obj.visible = on;
+    for (const prop of displayPropsRef.current) prop.visible = on;
+    syncLayerVisibility();
   }, []);
 
   const resize = useCallback(() => {
@@ -205,6 +286,6 @@ export function useVrmScenePanel(opts: UseVrmScenePanelOptions): ScenePanelApi {
     return () => window.removeEventListener('resize', resize);
   }, [container, resize]);
 
-  return { host, tick, setVisible, resize };
+  return { host, tick, setVisible, resize, displayHosts, setDisplaysVisible };
 }
 

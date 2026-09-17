@@ -14,6 +14,9 @@ const REALTIME_TARGET = process.env.REALTIME_TARGET ?? "http://10.9.1.2:10005";
 const nextConfig: NextConfig = {
   // 生产静态导出，开发模式动态
   ...(isDev ? {} : { output: 'export' }),
+  // 同一份代码要并排跑第二个 dev server 时(两个会话各自验证),给它单独的构建目录,
+  // 否则两个进程抢同一个 .next 会互相写坏
+  ...(isDev && process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
   trailingSlash: false,
   ...(isDev && {
     async rewrites() {

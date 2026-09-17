@@ -11,6 +11,7 @@ import ViewportFix from '@/components/layout/ViewportFix';
 import ClickSpark from '@/components/reactbits/ClickSpark';
 import GlobalPlayers from '@/components/player/GlobalPlayers';
 import { useAIPrefs } from '@/lib/aiPrefs';
+import EmbedBridge, { isSceneEmbedded } from '@/components/layout/EmbedBridge';
 
 // React 19(≤19.3.0) estimateBandwidth 有一个 off-by-one:遍历
 // performance.getEntriesByType("resource") 时,若最后一个条目恰是静态资源
@@ -90,6 +91,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
     if (typeof window === 'undefined') return;
     // 立刻挂载 — setTimeout 0 让 React 先 commit 首屏
     // (不依赖 requestIdleCallback, 因为重页面 /home/recommend 可能永远不 idle)
+    // 开在数字人场景的显示器里时不挂:外层已经有一个数字人了
+    if (isSceneEmbedded()) return;
     const t = setTimeout(() => setMountFloating(true), 200)
     return () => clearTimeout(t)
   }, []);
@@ -101,6 +104,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <AppContextProvider>
             <AuthContextProvider>
               <PageViewTracker />
+              <EmbedBridge />
               {/* 老 WebView 的 100dvh 兜底 + 全站点击火花(React Bits ClickSpark) */}
               <ViewportFix />
               <ClickSpark sparkColor="var(--brand-color, #FE2C55)">

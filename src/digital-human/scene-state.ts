@@ -25,6 +25,8 @@ export interface SceneSnapshot {
   panel?: { kind: string; title: string } | null;
   browser?: string | null;
   model?: string;
+  /** 场景里每块显示器上开着什么(null = 待机) */
+  displays?: Record<string, { name: string; url: string; title: string } | null>;
 }
 
 export interface SceneState {
@@ -39,6 +41,7 @@ export interface SceneState {
   camera: string;
   panel: SceneSnapshot['panel'];
   browser: string | null;
+  displays: NonNullable<SceneSnapshot['displays']>;
 }
 
 export function buildSceneState(s: SceneSnapshot): SceneState {
@@ -58,7 +61,8 @@ export function buildSceneState(s: SceneSnapshot): SceneState {
     scene: s.scene || 'concert',
     camera: s.camera || 'front',
     panel: s.panel ?? null,
-    browser: s.browser ?? null,
+    browser: s.browser ?? Object.values(s.displays ?? {}).find(Boolean)?.url ?? null,
+    displays: s.displays ?? {},
   };
 }
 

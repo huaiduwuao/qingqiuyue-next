@@ -39,7 +39,8 @@ import { useVrmScene } from './vrm/useVrmScene';
 import { useVrmLipSync } from './vrm/useVrmLipSync';
 import { useVrmAnimation } from './vrm/useVrmAnimation';
 import { useVrmCamera } from './vrm/useVrmCamera';
-import { useVrmScenePanel } from './vrm/useVrmScenePanel';
+import { useVrmScenePanel, type DisplayHosts } from './vrm/useVrmScenePanel';
+import { DISPLAY_SPECS, displayFocusPose, type DisplaySlot } from './vrm/sceneDisplays';
 import { makeConfetti, updateConfetti } from './vrm/particles';
 import { createAudioHandle, type AudioHandle } from './vrm/audio';
 import { detectVrmVersion, setExpression, setExpressionDict, listAvailableExpressions, getBone } from './vrm/vrmCompat';
@@ -68,6 +69,10 @@ export interface VrmStageHandle {
   setConfetti: (on: boolean) => void;
   /** 场景内 UI 面板的显示开关（内容由父组件 portal 进 onScenePanelHost 给的宿主元素） */
   setScenePanelVisible: (on: boolean) => void;
+  /** 场景里的显示器(大屏/副屏/竖屏)整体显示或收起 */
+  setDisplaysVisible: (on: boolean) => void;
+  /** 镜头凑近某块显示器;传 null 飞回凑近之前的机位 */
+  focusDisplay: (slot: DisplaySlot | null) => void;
   /**
    * 把外部的 <audio>（TTS 输出）接到舞台的 WebAudio 分析器上，让口型跟着真实语音走。
    *
@@ -130,6 +135,8 @@ export interface VrmStageProps {
    * 传 null 表示面板层被卸载了。
    */
   onScenePanelHost?: (host: HTMLDivElement | null) => void;
+  /** 场景里几块显示器的宿主元素就绪回调(同上,父组件 portal 进去);null = 已卸载 */
+  onDisplayHosts?: (hosts: DisplayHosts | null) => void;
   /** 舞台后面垫了别的渲染层(3DGS 场景)时置 true:three 不画背景和雾 */
   transparentBackground?: boolean;
 }
@@ -204,6 +211,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     onReady,
     config: configProp,
     onScenePanelHost,
+    onDisplayHosts,
     transparentBackground,
   } = props;
   // Phase 1：模块加载时已 loadConfigBundle()，所有子模块（expressions/visemes/actions）已用
@@ -324,11 +332,15 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     container: stageEl,
     camera: rendererState?.camera ?? null,
     THREE_NS: (rendererState as any)?.THREE_NS ?? null,
+    scene: rendererState?.scene ?? null,
   });
   const panelApiRef = useRef(panelApi);
   panelApiRef.current = panelApi;
   // host 就绪/卸载时通知父组件(父组件据此 createPortal)
   useEffect(() => { onScenePanelHost?.(panelApi.host); }, [panelApi.host, onScenePanelHost]);
+  useEffect(() => { onDisplayHosts?.(panelApi.displayHosts); }, [panelApi.displayHosts, onDisplayHosts]);
+  // 凑近看屏幕之前的机位,看完飞回去
+  const preFocusPoseRef = useRef<{ pos: [number, number, number]; target: [number, number, number] } | null>(null);
 
   // 3. 统一动画状态机（替代 useVrmDance）
   const animApi = useVrmAnimation({ vrmRef, audio, walkRef, configBundle, physics });
@@ -725,6 +737,24 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       setScenePanelVisible: (on) => {
         devLog.debug('[VrmStage.setScenePanelVisible]', on);
         panelApiRef.current.setVisible(on);
+      },
+      setDisplaysVisible: (on) => {
+        devLog.debug('[VrmStage.setDisplaysVisible]', on);
+        panelApiRef.current.setDisplaysVisible(on);
+      },
+      focusDisplay: (slot) => {
+        const cam = camApiRef.current;
+        const rs = rendererStateRef.current;
+        if (!cam || !rs) return;
+        if (!slot) {
+          const back = preFocusPoseRef.current;
+          preFocusPoseRef.current = null;
+          if (back) cam.flyTo(back.pos, back.target);
+          return;
+        }
+        if (!preFocusPoseRef.current) preFocusPoseRef.current = cam.getPose();
+        const pose = displayFocusPose(DISPLAY_SPECS[slot], rs.camera.fov, rs.camera.aspect);
+        cam.flyTo(pose.pos, pose.target);
       },
       connectAudioElement: (el) => {
         devLog.debug('[VrmStage.connectAudioElement]');

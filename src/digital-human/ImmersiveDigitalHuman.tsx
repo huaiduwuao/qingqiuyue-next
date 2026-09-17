@@ -24,6 +24,7 @@ import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import ForumRoundedIcon from '@mui/icons-material/ForumRounded';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
+import TvRoundedIcon from '@mui/icons-material/TvRounded';
 import { useRouter } from 'next/navigation';
 import { alpha } from '@mui/material/styles';
 import { VrmStage, type VrmStageHandle } from './VrmStage';
@@ -45,8 +46,12 @@ const GaussianSplatRenderer = dynamic(() => import('./gs/GaussianSplatRenderer')
 type AvatarMode = 'vrm' | '3dgs' | '2d';
 interface GsAssetItem { id: string; name: string; assetUrl: string }
 import { textToVisemeTimeline } from './tools/visemes';
-import { parseIframeUI, iframeToolToTarget, type IframeOpenTarget } from './virtual-browser';
-import { VirtualBrowser } from './VirtualBrowser';
+import { parseIframeUI, iframeToolToTarget, resolveIframeUrl, type IframeOpenTarget } from './virtual-browser';
+import SceneDisplay from './scene-ui/SceneDisplay';
+import { pageFromTarget, parseSlot, resolveDisplayInput, sitePage, slotForUrl, toSitePath, type DisplayPage, type DisplayPages } from './scene-ui/displays';
+import { contentHref } from './scene-ui/content';
+import { DISPLAY_SLOTS, DISPLAY_SPECS, type DisplaySlot } from './vrm/sceneDisplays';
+import type { DisplayHosts } from './vrm/useVrmScenePanel';
 import { useConversationHistory } from './useConversationHistory';
 import { createConversation, isServerConversationId, renameConversation } from './conversationApi';
 import { useVoiceAgent } from '@/hooks/useVoiceAgent';
@@ -149,10 +154,29 @@ export default function ImmersiveDigitalHuman() {
   // 由 CSS3DRenderer 摆在角色身旁,内容用 portal 渲染进 VrmStage 给的宿主元素
   const [scenePanel, setScenePanel] = React.useState<ScenePanelModel | null>(null);
   const [panelHost, setPanelHost] = React.useState<HTMLDivElement | null>(null);
-  // I1: 虚拟浏览器 iframe 显示器(真实加载网页,零后端)
-  // 统一显示器组件(地址栏/视频原声/fallback/新标签), 取代旧的 inline iframe
-  const [browserFrame, setBrowserFrame] = React.useState<{ url: string; title?: string } | null>(null);
-  const [browserTarget, setBrowserTarget] = React.useState<IframeOpenTarget | null>(null);
+  // 场景里的显示器(大屏/副屏/竖屏):作品详情、网页、视频都在屏幕上开,页面本身不跳转,
+  // 对话和场景不会断。宿主元素由 VrmStage 的 CSS3D 层给,内容 portal 进去。
+  const [displayHosts, setDisplayHosts] = React.useState<DisplayHosts | null>(null);
+  const [displayPages, setDisplayPages] = React.useState<DisplayPages>({});
+  const [displaysOn, setDisplaysOn] = React.useState(() => {
+    try { return localStorage.getItem('dh_displays') !== '0'; } catch { return true; }
+  });
+  const [focusedDisplay, setFocusedDisplay] = React.useState<DisplaySlot | null>(null);
+  // 最近打开的那块屏:没有 3D 屏幕可用时(非 VRM 形象 / 手机)只叠这一块在画面上
+  const [activeDisplay, setActiveDisplay] = React.useState<DisplaySlot | null>(null);
+  const [narrow, setNarrow] = React.useState(false);
+  React.useEffect(() => {
+    const mq = window.matchMedia('(max-width: 899px)');
+    const sync = () => setNarrow(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+  const openTargetRef = React.useRef<(target: IframeOpenTarget, opts?: { title?: string; slot?: DisplaySlot | null }) => void>(() => {});
+  const openOnDisplayRef = React.useRef<(input: string, opts?: { title?: string; slot?: DisplaySlot | null }) => void>(() => {});
+  const closeDisplayRef = React.useRef<(slot: DisplaySlot | null) => void>(() => {});
+  // 每块屏当前停在哪一页(屏幕里点链接会变),随场景状态上报给模型
+  const displayLocRef = React.useRef<Partial<Record<DisplaySlot, { url: string; title: string }>>>({});
   // 场景动作协议:每轮随请求上报给模型的场景快照(只记前端真的执行了的指令)
   const sceneRef = React.useRef<SceneSnapshot>({});
   // 形象:VRM 骨骼模型 / 3DGS 高斯资产 / 2D 片段;三种共用同一套对话、面板、工具日志。
@@ -215,20 +239,35 @@ export default function ImmersiveDigitalHuman() {
       }
     },
     aguiAgent,
-    getSceneState: () => buildSceneState(sceneRef.current),
+    getSceneState: () => buildSceneState({
+      ...sceneRef.current,
+      displays: Object.fromEntries(DISPLAY_SLOTS.map((sl) => {
+        const loc = displayLocRef.current[sl];
+        return [sl, loc ? { name: DISPLAY_SPECS[sl].label, ...loc } : null];
+      })),
+    }),
     // H1: 接收动态 UI 指令并渲染;I1: iframe 指令走独立显示器
     onUI: (ui: any) => {
       // I1: iframe 指令 → 统一解析器产出目标, 弹显示器
       const target = parseIframeUI(ui);
       if (target) {
-        setBrowserTarget(target);
-        setBrowserFrame({ url: target.url, title: ui.title });
+        openTargetRef.current(target, { title: ui.title, slot: parseSlot(ui.screen) });
         return;
       }
       setDynamicUI(ui as DynamicUI);
     },
     // 生成式 UI:数字人把列表/网格/表单推到 3D 场景面板
     onScenePanel: (panel) => setScenePanel(panel),
+    // 数字人自己往屏幕上放东西 / 关屏(screen_open / screen_close)
+    onScreen: (cmd) => {
+      const slot = parseSlot(cmd.screen);
+      if (cmd.op === 'close') {
+        closeDisplayRef.current(slot);
+        return;
+      }
+      const href = cmd.url || (cmd.id && cmd.contentType ? contentHref({ id: cmd.id, contentType: cmd.contentType.toUpperCase(), title: cmd.title || '' }) : null);
+      if (href) openOnDisplayRef.current(href, { title: cmd.title, slot });
+    },
     // 一轮话念完:表情慢慢回到自然状态,不要带着最后一句的表情僵在那
     onSpeechEnd: () => stageHandleRef.current?.setEmotion({}),
     onToolCalls: (calls) => {
@@ -236,10 +275,7 @@ export default function ImmersiveDigitalHuman() {
       // 注意: 必须先于 stageHandle 早退处理, 否则 stage 未就绪时网页/视频指令被丢弃
       for (const c of calls as unknown as DhToolCall[]) {
         const target = iframeToolToTarget(c);
-        if (target) {
-          setBrowserTarget(target);
-          setBrowserFrame({ url: target.url, title: target.rawUrl });
-        }
+        if (target) openTargetRef.current(target, { slot: parseSlot((c.params || c.args)?.screen) });
       }
       // 把 Hermes/数字人下发的 tool_calls 串到 VrmStage handle。
       // stageHandle 为 null 时(还没就绪)只 log,不动 avatar。
@@ -300,17 +336,59 @@ export default function ImmersiveDigitalHuman() {
       devLog.debug('[Immersive] dispatched tool_calls:', results);
     },
   });
-  // 全屏页打开作品详情用新标签:当前页一跳走,对话和场景就都没了
-  const openContent = React.useCallback((href: string) => {
-    if (!window.open(href, '_blank', 'noopener')) router.push(href);
-  }, [router]);
+  // ── 场景显示器 ──────────────────────────────────────────────────────────
+  // 以前点作品是 window.open(…,'noopener'):这种调用永远返回 null,于是「新标签 + 当前页也跳走」
+  // 两件事一起发生 —— 对话没了,新标签里又没有历史可退。现在一律在场景里的屏幕上开。
+  const openPage = React.useCallback((page: DisplayPage, slot: DisplaySlot) => {
+    displayLocRef.current[slot] = { url: page.rawUrl, title: page.title || '' };
+    setDisplayPages((prev) => ({ ...prev, [slot]: page }));
+    setDisplaysOn(true);
+    setActiveDisplay(slot);
+    setFocusedDisplay(slot); // 镜头凑过去:屏幕在全景里太小,点开就是想看
+    setSessionDrawerOpen(false); // 会话列表会挡住左边的大屏
+  }, []);
+  const openTarget = React.useCallback((target: IframeOpenTarget, opts: { title?: string; slot?: DisplaySlot | null } = {}) => {
+    const page = pageFromTarget(target, opts.title);
+    openPage(page, opts.slot || slotForUrl(page.rawUrl));
+  }, [openPage]);
+  const openOnDisplay = React.useCallback((input: string, opts: { title?: string; slot?: DisplaySlot | null } = {}) => {
+    const url = resolveDisplayInput(input);
+    const site = toSitePath(url);
+    if (site) {
+      if (site.startsWith('/digital-human')) return; // 屏幕里再开一个数字人页面就套娃了
+      openPage(sitePage(site, opts.title), opts.slot || slotForUrl(site));
+    } else {
+      openTarget(resolveIframeUrl({ url }), opts);
+    }
+  }, [openPage, openTarget]);
+  const closeDisplay = React.useCallback((slot: DisplaySlot | null) => {
+    setDisplayPages((prev) => {
+      if (!slot) return {};
+      const next = { ...prev };
+      delete next[slot];
+      return next;
+    });
+    if (slot) delete displayLocRef.current[slot];
+    else displayLocRef.current = {};
+    setFocusedDisplay((cur) => (!slot || cur === slot ? null : cur));
+  }, []);
+  // 把页面挪到下一块屏(大屏 → 副屏 → 竖屏 → 大屏)
+  const moveDisplay = React.useCallback((from: DisplaySlot, currentUrl: string) => {
+    const to = DISPLAY_SLOTS[(DISPLAY_SLOTS.indexOf(from) + 1) % DISPLAY_SLOTS.length];
+    closeDisplay(from);
+    openOnDisplay(currentUrl, { slot: to });
+  }, [closeDisplay, openOnDisplay]);
+  // chat hook 的回调在这些函数之前创建,经 ref 调用
+  openTargetRef.current = openTarget;
+  openOnDisplayRef.current = openOnDisplay;
+  closeDisplayRef.current = closeDisplay;
+  const openContent = React.useCallback((href: string) => openOnDisplay(href), [openOnDisplay]);
   const { chatBusy, chatLog, emotion, viseme, action, send, sendText, audioRef,
     text, setText, conversationId, switchConversation,
     loadConversationMessages, setEmotion, setViseme, setChatLog, thinkingLog } = chat;
   // 文本标签 <action:x/> 驱动的动作、面板、内嵌浏览器也要进快照,模型下一轮才看得到
   React.useEffect(() => { sceneRef.current.action = action || 'idle'; }, [action]);
   React.useEffect(() => { sceneRef.current.panel = scenePanel ? { kind: scenePanel.kind, title: scenePanel.title } : null; }, [scenePanel]);
-  React.useEffect(() => { sceneRef.current.browser = browserFrame?.url ?? null; }, [browserFrame]);
   React.useEffect(() => { sceneRef.current.model = avatarMode; }, [avatarMode]);
   // 换到非 VRM 形象时 VrmStage 卸载,handle 失效
   React.useEffect(() => { if (avatarMode !== 'vrm') setStageHandle(null); }, [avatarMode]);
@@ -334,6 +412,39 @@ export default function ImmersiveDigitalHuman() {
   React.useEffect(() => {
     stageHandle?.setScenePanelVisible(!!scenePanel);
   }, [stageHandle, scenePanel]);
+
+  // 3D 屏幕只在 VRM 形象 + 宽屏时可用;其余情况把最近打开的那一页叠在画面上
+  const displaysInScene = avatarMode === 'vrm' && !narrow && !!displayHosts;
+  React.useEffect(() => {
+    try { localStorage.setItem('dh_displays', displaysOn ? '1' : '0'); } catch { /* 隐私模式 */ }
+    if (!displaysOn) setFocusedDisplay(null);
+  }, [displaysOn]);
+  React.useEffect(() => {
+    stageHandle?.setDisplaysVisible(displaysOn && displaysInScene);
+  }, [stageHandle, displaysOn, displaysInScene]);
+  React.useEffect(() => {
+    stageHandle?.focusDisplay(displaysInScene ? focusedDisplay : null);
+  }, [stageHandle, focusedDisplay, displaysInScene]);
+  // Esc 退回全景
+  React.useEffect(() => {
+    if (!focusedDisplay) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setFocusedDisplay(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [focusedDisplay]);
+  const renderDisplay = (slot: DisplaySlot, overlay: boolean) => (
+    <SceneDisplay
+      slot={slot}
+      page={displayPages[slot] ?? null}
+      focused={focusedDisplay === slot}
+      overlay={overlay}
+      onOpen={(input) => openOnDisplay(input, { slot })}
+      onClose={() => closeDisplay(slot)}
+      onFocus={(on) => setFocusedDisplay(on ? slot : null)}
+      onMove={overlay ? undefined : (url) => moveDisplay(slot, url)}
+      onLocation={(info) => { if (displayLocRef.current[slot]) displayLocRef.current[slot] = info; }}
+    />
+  );
 
   // 开发期调试:控制台 __showScenePanel({...}) 直接弹一块面板,
   // 不用真的跑通「LLM → 工具调用 → SSE」整条链路就能调面板样式/交互。
@@ -609,6 +720,7 @@ export default function ImmersiveDigitalHuman() {
           autoBlink={stageState.autoBlink}
           lookAtCamera={stageState.lookAtCamera}
           onScenePanelHost={setPanelHost}
+          onDisplayHosts={setDisplayHosts}
           transparentBackground={!!gsBackdrop}
           background={gsBackdrop ? 'transparent' : undefined}
           sx={{ position: 'absolute', inset: 0, zIndex: 1 }}
@@ -653,6 +765,22 @@ export default function ImmersiveDigitalHuman() {
             onSend={(t) => { setScenePanel(null); void sendText(t); }}
             onOpen={openContent}
           />
+        </Box>
+      )}
+
+      {/* 场景里的显示器:每块屏的内容 portal 进 CSS3D 层给的宿主元素 */}
+      {displaysInScene && displayHosts && DISPLAY_SLOTS.map((slot) => {
+        const host = displayHosts[slot];
+        return host ? createPortal(renderDisplay(slot, false), host, slot) : null;
+      })}
+      {/* 没有 3D 屏幕可用(非 VRM 形象 / 手机):最近打开的那一页叠在画面上半部分 */}
+      {!displaysInScene && activeDisplay && displayPages[activeDisplay] && (
+        <Box sx={{
+          position: 'absolute', zIndex: 4, top: 64, right: { xs: 12, md: 24 }, left: { xs: 12, md: 'auto' },
+          width: { md: 'min(640px, 50vw)' }, height: 'calc(100vh - min(40vh, 400px) - 84px)', minHeight: 240,
+          borderRadius: 2, overflow: 'hidden', border: '1px solid rgba(37,244,238,0.3)', boxShadow: '0 8px 40px rgba(0,0,0,0.6)',
+        }}>
+          {renderDisplay(activeDisplay, true)}
         </Box>
       )}
 
@@ -734,6 +862,26 @@ export default function ImmersiveDigitalHuman() {
       >
         <ForumRoundedIcon />
       </IconButton>
+      {avatarMode === 'vrm' && !narrow && (
+        <IconButton
+          onClick={() => setDisplaysOn((o) => !o)}
+          size="medium"
+          aria-label={displaysOn ? '收起场景里的屏幕' : '显示场景里的屏幕'}
+          title={displaysOn ? '收起场景里的屏幕' : '显示场景里的屏幕'}
+          sx={{
+            position: 'absolute',
+            top: 12,
+            right: 60,
+            zIndex: 3,
+            color: displaysOn ? '#25F4EE' : 'rgba(255,255,255,0.85)',
+            bgcolor: displaysOn ? 'rgba(37,244,238,0.15)' : 'rgba(0,0,0,0.4)',
+            backdropFilter: 'blur(8px)',
+            '&:hover': { bgcolor: 'rgba(37,244,238,0.2)' },
+          }}
+        >
+          <TvRoundedIcon />
+        </IconButton>
+      )}
       <IconButton
         onClick={() => setPanelOpen((o) => !o)}
         size="medium"
@@ -1076,8 +1224,9 @@ export default function ImmersiveDigitalHuman() {
           onAction={(action: UIAction) => {
             if (action.handler === 'navigate') {
               // 导航类动作:跳转
+              // 在屏幕上开,不把数字人页面跳走
               const target = action.target as string;
-              if (target) window.location.href = target;
+              if (target) openOnDisplay(target);
             } else if (action.handler === 'tool' && action.target) {
               // 工具类动作:回灌对话
               chat.sendText(String(action.target));
@@ -1087,14 +1236,6 @@ export default function ImmersiveDigitalHuman() {
         />
       )}
 
-      {/* I1: 虚拟浏览器显示器(统一组件: 地址栏 / 视频原声 / fallback / 新标签) */}
-      {browserTarget && (
-        <VirtualBrowser
-          target={browserTarget}
-          title={browserFrame?.title}
-          onClose={() => { setBrowserTarget(null); setBrowserFrame(null); }}
-        />
-      )}
     </Box>
   );
 }

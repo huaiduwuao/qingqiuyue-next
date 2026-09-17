@@ -48,6 +48,30 @@ export function useVrmCamera(opts: UseVrmCameraOptions) {
     };
   }, [camera, controls]);
 
+  /** 飞到任意机位(凑近看某块屏幕用)。之后再切预设照常生效。 */
+  const flyTo = useCallback((pos: [number, number, number], target: [number, number, number], dur = 0.9) => {
+    if (!camera) return;
+    const V = camera.position.constructor as any;
+    presetRef.current = 'custom' as CameraPresetName;
+    animRef.current = {
+      t: 0, dur,
+      fromPos: camera.position.clone(),
+      toPos: new V(...pos),
+      fromTgt: controls?.target.clone() ?? new V(...target),
+      toTgt: new V(...target),
+    };
+  }, [camera, controls]);
+
+  /** 当前机位(凑近看之前记下来,看完飞回去) */
+  const getPose = useCallback((): { pos: [number, number, number]; target: [number, number, number] } | null => {
+    if (!camera) return null;
+    const t = controls?.target;
+    return {
+      pos: [camera.position.x, camera.position.y, camera.position.z],
+      target: t ? [t.x, t.y, t.z] : [0, 0.95, 0],
+    };
+  }, [camera, controls]);
+
   function tick(dt: number) {
     if (!animRef.current || !camera) return;
     animRef.current.t += dt;
@@ -85,5 +109,5 @@ export function useVrmCamera(opts: UseVrmCameraOptions) {
     camera.position.copy(target).add(offset);
   }
 
-  return { preset, presets: CAMERA_PRESETS, switchTo, orbit, tick };
+  return { preset, presets: CAMERA_PRESETS, switchTo, flyTo, getPose, orbit, tick };
 }
