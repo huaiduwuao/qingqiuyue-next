@@ -15,7 +15,7 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
 import Chip from '@mui/material/Chip';
-import Grid from '@mui/material/Grid';
+import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import IconButton from '@mui/material/IconButton';
@@ -218,59 +218,59 @@ export default function ConceptionPage({ groupId, groupData }: Props) {
           <Tab label="已发布" value="PUBLISHED" />
         </Tabs>
         <Box sx={{ flex: 1 }} />
+        <ListLayoutSwitch />
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleEdit({} as ConceptionItem)}>
           新建意境
         </Button>
       </Box>
 
       {/* 卡片列表 */}
-      <Grid container spacing={2}>
+      <ListLayout minColumnWidth={300} gap={16}>
         {list.map((item) => (
-          <Grid size={{ xs: 12, sm: 6, md: 4 }} key={item.id}>
-            <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', cursor: 'pointer' }}
-                  onClick={() => handleDetail(item)}>
-              <CardMedia
-                component="div"
-                sx={{
-                  height: 140,
-                  backgroundColor: '#f5f5f5',
-                  backgroundImage: item.cover ? `url(${item.cover})` : 'none',
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {!item.cover && (
-                  <Typography variant="h4" sx={{ color: '#ccc' }}>
-                    {item.name?.charAt(0) || '?'}
-                  </Typography>
-                )}
-              </CardMedia>
-              <CardContent sx={{ flex: 1 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                  <Typography variant="subtitle1" noWrap sx={{ fontWeight: 'bold', maxWidth: '70%' }}>
-                    {item.name || (item as any).title}
-                  </Typography>
-                  <Chip label={STATUS_MAP[item.status || ''] || item.status || '未知'} size="small" />
-                </Box>
-                <Typography variant="body2" color="text.secondary" noWrap>
-                  {item.info || '暂无描述'}
+          <Card key={item.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column', cursor: 'pointer', [LIST_ROW]: { flexDirection: 'row', flexWrap: { xs: 'wrap', sm: 'nowrap' } } }}
+                onClick={() => handleDetail(item)}>
+            <CardMedia
+              component="div"
+              sx={{
+                height: 140,
+                backgroundColor: '#f5f5f5',
+                backgroundImage: item.cover ? `url(${item.cover})` : 'none',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                [LIST_ROW]: { width: { xs: 120, sm: 200 }, flexShrink: 0, height: 'auto', minHeight: 96 },
+              }}
+            >
+              {!item.cover && (
+                <Typography variant="h4" sx={{ color: '#ccc' }}>
+                  {item.name?.charAt(0) || '?'}
                 </Typography>
-                <Box sx={{ mt: 1, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                  {item.tags && String(item.tags).split(',').slice(0, 3).map((tag, idx) => (
-                    <Chip key={idx} label={tag} size="small" variant="outlined" sx={{ height: 20, fontSize: 10 }} />
-                  ))}
-                </Box>
-              </CardContent>
-              <CardActions sx={{ justifyContent: 'flex-end' }} onClick={(e) => e.stopPropagation()}>
-                {getActions(item)}
-              </CardActions>
-            </Card>
-          </Grid>
+              )}
+            </CardMedia>
+            <CardContent sx={{ flex: 1, [LIST_ROW]: { minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                <Typography variant="subtitle1" noWrap sx={{ fontWeight: 'bold', maxWidth: '70%' }}>
+                  {item.name || (item as any).title}
+                </Typography>
+                <Chip label={STATUS_MAP[item.status || ''] || item.status || '未知'} size="small" />
+              </Box>
+              <Typography variant="body2" color="text.secondary" noWrap>
+                {item.info || '暂无描述'}
+              </Typography>
+              <Box sx={{ mt: 1, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                {item.tags && String(item.tags).split(',').slice(0, 3).map((tag, idx) => (
+                  <Chip key={idx} label={tag} size="small" variant="outlined" sx={{ height: 20, fontSize: 10 }} />
+                ))}
+              </Box>
+            </CardContent>
+            <CardActions sx={{ justifyContent: 'flex-end', [LIST_ROW]: { flexBasis: { xs: '100%', sm: 'auto' }, flexShrink: 0, alignItems: 'center' } }} onClick={(e) => e.stopPropagation()}>
+              {getActions(item)}
+            </CardActions>
+          </Card>
         ))}
-      </Grid>
+      </ListLayout>
 
       {/* 空状态 */}
       {list.length === 0 && !loading && (

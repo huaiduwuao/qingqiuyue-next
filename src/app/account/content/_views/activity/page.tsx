@@ -55,6 +55,7 @@ import { accountClient } from '@/lib/api/client';
 import { parseRewardCny } from './helpers';
 import { KpiCard } from './KpiCard';
 import { ActivityCard } from './ActivityCard';
+import { ListLayout, ListLayoutSwitch } from '@/components/common/ListLayout';
 import { DetailDrawer, type DetailTabKey } from './DetailDrawer';
 import { coverBackground } from '@/lib/media';
 
@@ -436,6 +437,7 @@ export default function ActivityPage() {
               <MenuItem key={s.id} value={s.id} sx={{ fontSize: 13 }}>{s.label}</MenuItem>
             ))}
           </Select>
+          <ListLayoutSwitch />
         </Box>
       </Box>
 
@@ -448,13 +450,7 @@ export default function ActivityPage() {
           </Typography>
         </Box>
       ) : (
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' },
-            gap: 2,
-          }}
-        >
+        <ListLayout minColumnWidth={300} gap={16}>
           {filtered.map((a) => (
             <ActivityCard
               key={a.id}
@@ -465,7 +461,7 @@ export default function ActivityPage() {
               onCopyLink={() => handleCopyLink(a.id)}
             />
           ))}
-        </Box>
+        </ListLayout>
       )}
 
       {/* Detail Drawer */}

@@ -37,6 +37,7 @@ import { homeClient } from '@/lib/api/client';
 import { blockUser } from '@/apis/social';
 import { UserAvatarLink } from '@/components/common/UserAvatarLink';
 import { AsyncState } from '@/components/common/AsyncState';
+import { ListLayout } from '@/components/common/ListLayout';
 
 type FriendRequest = {
   id: number;
@@ -614,7 +615,7 @@ function SuggestionsTab({
             );
           }
           return (
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 1.5 }}>
+            <ListLayout rows minColumnWidth={240} gap={12} listMaxWidth="none">
               {filtered.map((u) => (
                 <SuggestionCard
                   key={u.id}
@@ -624,7 +625,7 @@ function SuggestionsTab({
                   onAdd={() => onAdd(u)}
                 />
               ))}
-            </Box>
+            </ListLayout>
           );
         }}
       </AsyncState>
@@ -762,11 +763,11 @@ function FriendsTab({
             hint="去「推荐」里加几个朋友,开启聊天吧"
           />
         ) : (
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' }, gap: 1.5 }}>
+          <ListLayout rows minColumnWidth={240} gap={12} listMaxWidth="none">
             {data.list.map((f) => (
               <FriendCard key={f.id} friend={f} onRemove={() => onRemove(f)} onBlock={() => onBlock(f)} />
             ))}
-          </Box>
+          </ListLayout>
         )
       }
     </AsyncState>

@@ -42,6 +42,7 @@ import {
 import { CoverSkeleton, EmptyNote, LiveDot, PlatformBadge, SectionHeader, Segmented } from './live/LiveBits';
 import { CategoryCard, ClassicCard, RoomCard, RunnerUpCard, SpotlightCard } from './live/LiveCards';
 import { LiveRankBoard } from './live/LiveRankBoard';
+import { ListLayout, ListLayoutSwitch } from '@/components/common/ListLayout';
 
 const PAGE_SIZE = 16;
 
@@ -62,6 +63,7 @@ const RANGES: { key: ClassicRange; label: string }[] = [
   { key: 'all', label: '全部' },
 ];
 
+// 只给加载骨架用;列表本身走 ListLayout
 const ROOM_GRID = {
   display: 'grid',
   gridTemplateColumns: { xs: 'repeat(1, minmax(0, 1fr))', sm: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, minmax(0, 1fr))', lg: 'repeat(4, minmax(0, 1fr))', xl: 'repeat(5, minmax(0, 1fr))' },
@@ -334,11 +336,11 @@ export function LivePanel() {
             icon={<CategoryRoundedIcon sx={{ fontSize: 20, color: '#8B5CF6' }} />}
             hint="每个分区此刻人气最高的直播间"
           />
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))', xl: 'repeat(6, minmax(0, 1fr))' }, gap: 1.5 }}>
+          <ListLayout minColumnWidth={180} minColumns={2} gap={12}>
             {showcase.map((c) => (
               <CategoryCard key={c.key} facet={c} active={false} onSelect={() => pickCategory(c.key)} />
             ))}
-          </Box>
+          </ListLayout>
         </Box>
       )}
 
@@ -365,7 +367,7 @@ export function LivePanel() {
           icon={<GridViewRoundedIcon sx={{ fontSize: 20, color: '#06B6D4' }} />}
           hint={rooms.isLoading ? '' : `共 ${roomTotal} 间`}
           action={
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
               <Segmented
                 ariaLabel="开播状态"
                 size="sm"
@@ -380,6 +382,7 @@ export function LivePanel() {
                 onChange={setSort}
                 options={SORTS.map((s) => ({ ...s, label: s.key === 'hot' ? <><WhatshotRoundedIcon sx={{ fontSize: 13, verticalAlign: '-2px', mr: 0.25 }} />{s.label}</> : s.label }))}
               />
+              <ListLayoutSwitch />
             </Box>
           }
         />
@@ -399,11 +402,11 @@ export function LivePanel() {
             {sort === 'new' ? '开播时间从今天开始记录,暂时没有刚开播的房间。' : '这个筛选下暂时没有直播间,换个分区或平台看看。'}
           </EmptyNote>
         ) : (
-          <Box sx={ROOM_GRID}>
+          <ListLayout minColumnWidth={260} gap={16}>
             {roomList.map((r) => (
               <RoomCard key={String(r.id)} room={r} now={now} onOpen={() => openRoom(r.id)} />
             ))}
-          </Box>
+          </ListLayout>
         )}
         {isFetchingNextPage && (
           <Typography sx={{ textAlign: 'center', py: 2, color: 'var(--text-muted)', fontSize: 12 }}>加载中…</Typography>

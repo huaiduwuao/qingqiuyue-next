@@ -9,6 +9,7 @@ import Skeleton from '@mui/material/Skeleton';
 import { getRelated, type FeedItem } from '@/apis/recommend';
 import { getDetailRoute, TYPE_LABEL } from '@/lib/contentRoute';
 import { CoverImage } from '@/components/common/CoverImage';
+import { ListLayout, LIST_ROW } from '@/components/common/ListLayout';
 import MusicPlayButton from '@/components/player/MusicPlayButton';
 import { useApp } from '@/contexts/AppContext';
 
@@ -62,13 +63,8 @@ export function RelatedContent({ contentId, contentType, title = '相关推荐',
       <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700, mb: 1.5 }}>
         {title}
       </Typography>
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-          gap: 1.5,
-        }}
-      >
+      {/* 竖版/横版封面混排,高度不一 */}
+      <ListLayout minColumnWidth={140} gap={12} packing="masonry">
         {query.isLoading
           ? Array.from({ length: 6 }, (_, i) => (
               <Box key={i}>
@@ -77,7 +73,7 @@ export function RelatedContent({ contentId, contentType, title = '相关推荐',
               </Box>
             ))
           : items.map((it) => <RelatedCard key={it.id} item={it} />)}
-      </Box>
+      </ListLayout>
     </Box>
   );
 }
@@ -98,17 +94,34 @@ function RelatedCard({ item }: { item: FeedItem }) {
         borderRadius: 1.5,
         '&:hover .related-title': { color: 'primary.main' },
         '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 2 },
+        [LIST_ROW]: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.5,
+          p: 1,
+          border: '1px solid',
+          borderColor: 'divider',
+          bgcolor: 'background.paper',
+        },
       }}
     >
       <CoverImage
         src={item.cover}
         alt={item.title}
-        sx={{ width: '100%', aspectRatio: portrait ? '3 / 4' : '16 / 9', borderRadius: 1.5, bgcolor: 'action.hover' }}
+        sx={{
+          width: '100%',
+          aspectRatio: portrait ? '3 / 4' : '16 / 9',
+          borderRadius: 1.5,
+          bgcolor: 'action.hover',
+          [LIST_ROW]: { width: portrait ? { xs: 72, sm: 96 } : { xs: 120, sm: 200 }, flexShrink: 0 },
+        }}
       />
+      <Box sx={{ [LIST_ROW]: { flex: 1, minWidth: 0, pr: isMusic ? 6 : 0 } }}>
       <Typography
         className="related-title"
         sx={{
           mt: 0.75,
+          [LIST_ROW]: { mt: 0, fontSize: 14 },
           fontSize: 13,
           fontWeight: 600,
           lineHeight: 1.4,
@@ -124,10 +137,11 @@ function RelatedCard({ item }: { item: FeedItem }) {
       <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.25 }} noWrap>
         {[TYPE_LABEL[item.contentType?.toUpperCase()], item.author].filter(Boolean).join(' · ')}
       </Typography>
+      </Box>
     </Box>
     {/* 音乐:封面右上角直接播放(放在链接外面,不嵌套可交互元素) */}
     {isMusic && (
-      <MusicPlayButton id={item.id} title={item.title} size={34} sx={{ position: 'absolute', right: 8, top: 8 }} />
+      <MusicPlayButton id={item.id} title={item.title} size={34} sx={{ position: 'absolute', right: 8, top: 8, [LIST_ROW]: { top: 'calc(50% - 17px)' } }} />
     )}
     </Box>
   );

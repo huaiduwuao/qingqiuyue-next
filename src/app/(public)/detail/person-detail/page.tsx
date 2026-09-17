@@ -28,6 +28,7 @@ import DetailHeader from '@/components/detail/DetailHeader';
 import { DetailComments } from '@/components/detail/DetailComments';
 import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
+import { ListLayout, LIST_ROW } from '@/components/common/ListLayout';
 import { track, recordHistory } from '@/lib/track';
 import { TYPE_LABEL, useContentNavigate } from '@/lib/contentRoute';
 import { mediaUrl } from '@/lib/media';
@@ -70,7 +71,7 @@ function httpLink(...urls: Array<string | undefined>): string {
 
 function WorkGrid({ items, onOpen }: { items: PersonWork[]; onOpen: (w: PersonWork) => void }) {
   return (
-    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 1.5 }}>
+    <ListLayout minColumnWidth={160} gap={12}>
       {items.map((w) => (
         <Box
           key={String(w.id)}
@@ -87,9 +88,10 @@ function WorkGrid({ items, onOpen }: { items: PersonWork[]; onOpen: (w: PersonWo
             bgcolor: 'background.paper',
             transition: 'border-color 0.15s',
             '&:hover': { borderColor: 'primary.main' },
+            [LIST_ROW]: { display: 'flex', alignItems: 'stretch' },
           }}
         >
-          <Box sx={{ position: 'relative', aspectRatio: '16 / 9', bgcolor: 'action.hover' }}>
+          <Box sx={{ position: 'relative', aspectRatio: '16 / 9', bgcolor: 'action.hover', [LIST_ROW]: { width: { xs: 120, sm: 200 }, flexShrink: 0 } }}>
             <CoverImage src={w.cover || ''} alt={w.title} sx={{ width: '100%', height: '100%' }} />
             {w.isLive && (
               <Box
@@ -110,12 +112,14 @@ function WorkGrid({ items, onOpen }: { items: PersonWork[]; onOpen: (w: PersonWo
               {TYPE_LABEL[w.contentType] || w.contentType}
             </Box>
           </Box>
-          <Typography sx={{ fontSize: 13, color: 'text.primary', p: 1 }} noWrap>
-            {w.title}
-          </Typography>
+          <Box sx={{ minWidth: 0, [LIST_ROW]: { flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
+            <Typography sx={{ fontSize: 13, color: 'text.primary', p: 1, [LIST_ROW]: { fontSize: 14, px: 1.5 } }} noWrap>
+              {w.title}
+            </Typography>
+          </Box>
         </Box>
       ))}
-    </Box>
+    </ListLayout>
   );
 }
 

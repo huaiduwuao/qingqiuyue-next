@@ -27,6 +27,7 @@ import { RelativeTime } from '@/components/common/RelativeTime';
 import { TYPE_LABEL } from '@/lib/contentRoute';
 import { gradient2 } from '@/constants/gradients';
 import { coverBackground } from '@/lib/media';
+import { ListLayout } from '@/components/common/ListLayout';
 
 type SelectPayload = {
   /** 内容 id — 传 VIDEO 类型时是 hd 接口返回的字符串;非 VIDEO 是数字 */
@@ -133,7 +134,7 @@ export default function UnifiedContentList({ selectedType, onSelectItem }: Props
           暂无该类型的发布内容
         </Box>
       ) : (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+        <ListLayout rows minColumnWidth={440} gap={10}>
           {items.map((item) => {
             const sm = STATUS_LABELS[item.status] ?? STATUS_LABELS.published;
             const cover = item.coverUrl || item.cover || gradient2('#5B8DEF', '#8B5CF6');
@@ -243,7 +244,7 @@ export default function UnifiedContentList({ selectedType, onSelectItem }: Props
               </Box>
             );
           })}
-        </Box>
+        </ListLayout>
       )}
     </Box>
   );

@@ -20,6 +20,7 @@ import VerifiedRoundedIcon from '@mui/icons-material/VerifiedRounded';
 import { CATEGORY_META, STATUS_META, PART_META, formatBigNumber, type Activity } from './data';
 import { getPrimaryAction } from './actionBuilders';
 import { getCountdownLabel } from './helpers';
+import { LIST_ROW } from '@/components/common/ListLayout';
 
 interface ActivityCardProps {
   activity: Activity;
@@ -61,6 +62,7 @@ export function ActivityCard({
         flexDirection: 'column',
         position: 'relative',
         '&:hover': { transform: 'translateY(-2px)', borderColor: cat.color },
+        [LIST_ROW]: { flexDirection: 'row', alignItems: 'stretch' },
       }}
       onClick={onOpen}
     >
@@ -83,6 +85,8 @@ export function ActivityCard({
             alignItems: 'center',
             gap: 0.4,
             boxShadow: '0 2px 8px rgba(255, 215, 0, 0.4)',
+            // 列表样式下挪到左侧横幅底部,不压住正文标题
+            [LIST_ROW]: { top: 'auto', right: 'auto', bottom: 8, left: 8 },
           }}
         >
           <WorkspacePremiumRoundedIcon sx={{ fontSize: 12 }} />
@@ -99,6 +103,7 @@ export function ActivityCard({
           display: 'flex',
           alignItems: 'flex-end',
           p: 1.5,
+          [LIST_ROW]: { width: { xs: 120, sm: 200 }, height: 'auto', minHeight: 96, flexShrink: 0 },
         }}
       >
         <Chip
@@ -137,7 +142,7 @@ export function ActivityCard({
             {formatBigNumber(a.heat)}
           </Box>
         )}
-        <Box sx={{ position: 'relative' }}>
+        <Box sx={{ position: 'relative', [LIST_ROW]: { display: 'none' } }}>
           <Typography
             sx={{
               fontSize: 15,
@@ -153,7 +158,22 @@ export function ActivityCard({
       </Box>
 
       {/* Body */}
-      <Box sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 0.75, flex: 1 }}>
+      <Box sx={{ p: 1.5, display: 'flex', flexDirection: 'column', gap: 0.75, flex: 1, [LIST_ROW]: { minWidth: 0, justifyContent: 'center' } }}>
+        <Typography
+          sx={{
+            display: 'none',
+            [LIST_ROW]: { display: 'block' },
+            fontSize: 15,
+            fontWeight: 700,
+            color: 'text.primary',
+            lineHeight: 1.3,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {a.title}
+        </Typography>
         <Typography
           sx={{
             fontSize: 12,

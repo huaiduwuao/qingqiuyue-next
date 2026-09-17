@@ -3,28 +3,33 @@
 import { useCallback, useSyncExternalStore } from 'react';
 
 /**
- * 全站内容列表的展示样式:瀑布流 / 网格 / 列表。
+ * 全站内容列表的展示样式:舒适 / 紧凑 / 列表。
+ *
+ * 瀑布流还是网格不是用户选项:卡片等高时两者看起来一样,卡片不等高(帖子、原图)时
+ * 由页面自己按瀑布流排(ListLayout 的 packing)。用户只挑卡片大小和是否换成行。
  *
  * 切换按钮散在各个列表头部和设置抽屉里,改一处要处处立即生效,
  * 所以和 aiPrefs 一样用模块级 store + useSyncExternalStore;只存本机。
  */
-export type ListLayoutMode = 'masonry' | 'grid' | 'list';
+export type ListLayoutMode = 'comfortable' | 'compact' | 'list';
 
-export const LIST_LAYOUT_MODES: ListLayoutMode[] = ['masonry', 'grid', 'list'];
+export const LIST_LAYOUT_MODES: ListLayoutMode[] = ['comfortable', 'compact', 'list'];
 export const LIST_LAYOUT_LABEL: Record<ListLayoutMode, string> = {
-  masonry: '瀑布流',
-  grid: '网格',
+  comfortable: '舒适',
+  compact: '紧凑',
   list: '列表',
 };
 
 const KEY = 'qq-list-layout';
 const EVENT = 'qq-list-layout-change';
-const DEFAULT_MODE: ListLayoutMode = 'masonry';
+const DEFAULT_MODE: ListLayoutMode = 'comfortable';
 
 let cache: ListLayoutMode | null = null;
 
-function isMode(v: unknown): v is ListLayoutMode {
-  return v === 'masonry' || v === 'grid' || v === 'list';
+function normalize(v: string | null): ListLayoutMode {
+  if (v === 'comfortable' || v === 'compact' || v === 'list') return v;
+  // 旧版本存的是 masonry / grid,都算舒适
+  return DEFAULT_MODE;
 }
 
 function read(): ListLayoutMode {
@@ -35,7 +40,7 @@ function read(): ListLayoutMode {
   } catch {
     /* 隐私模式:按默认值 */
   }
-  cache = isMode(stored) ? stored : DEFAULT_MODE;
+  cache = normalize(stored);
   return cache;
 }
 

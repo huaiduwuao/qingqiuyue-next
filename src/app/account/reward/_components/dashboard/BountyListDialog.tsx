@@ -20,6 +20,7 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import GroupIcon from '@mui/icons-material/Group';
 import { alpha } from '@mui/material/styles';
 import { getHotBounties, type Bounty } from '@/apis/dashboard';
+import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import BountyDetailDialog from './BountyDetailDialog';
 
 // 与后端 handler/reward_extra.go rewardCategoryMeta 对齐
@@ -175,6 +176,7 @@ export default function BountyListDialog({
               sx={{ fontSize: 11 }}
             />
           ))}
+          <ListLayoutSwitch sx={{ ml: 'auto' }} />
         </Box>
 
         {/* 列表区 */}
@@ -210,17 +212,11 @@ export default function BountyListDialog({
             </Button>
           </Box>
         ) : (
-          <Box
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: { xs: 'repeat(1, 1fr)', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
-              gap: 1.5,
-            }}
-          >
+          <ListLayout minColumnWidth={240} gap={12} listMaxWidth='none'>
             {list.map((b) => (
               <DialogBountyCard key={b.id} bounty={b} onClick={() => setDetailId(String(b.id))} />
             ))}
-          </Box>
+          </ListLayout>
         )}
 
         {/* 分页 */}
@@ -262,6 +258,7 @@ function DialogBountyCard({ bounty, onClick }: { bounty: Bounty; onClick: () => 
         borderColor: 'divider',
         cursor: 'pointer',
         transition: 'all 0.2s',
+        [LIST_ROW]: { display: 'flex', alignItems: 'stretch' },
         '&:hover': {
           borderColor: 'primary.main',
           transform: 'translateY(-2px)',
@@ -274,6 +271,7 @@ function DialogBountyCard({ bounty, onClick }: { bounty: Bounty; onClick: () => 
           position: 'relative',
           height: 88,
           background: cover ? `url(${cover}) center/cover` : bounty.gradient,
+          [LIST_ROW]: { width: { xs: 120, sm: 200 }, flexShrink: 0, height: 'auto', minHeight: 96 },
         }}
       >
         <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.45))' }} />
@@ -310,7 +308,7 @@ function DialogBountyCard({ bounty, onClick }: { bounty: Bounty; onClick: () => 
           ¥{(bounty.reward / 100).toLocaleString('zh-CN')}
         </Box>
       </Box>
-      <Box sx={{ p: 1.25 }}>
+      <Box sx={{ p: 1.25, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
         <Typography
           sx={{
             fontSize: 12,

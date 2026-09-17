@@ -22,7 +22,6 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import FormControl from '@mui/material/FormControl';
 import FormControlLabel from '@mui/material/FormControlLabel';
-import Grid from '@mui/material/Grid';
 import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
@@ -35,6 +34,7 @@ import Skeleton from '@mui/material/Skeleton';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import { dramaAPI, type Project } from '@/apis/shortdrama';
+import { ListLayout, ListLayoutSwitch } from '@/components/common/ListLayout';
 import { MediaThumb } from './common';
 import { qk, useAgents, useCapabilities, useCurrentProjectId } from './useProject';
 import Workbench from './Workbench';
@@ -74,6 +74,7 @@ function ProjectList({ onOpen }: { onOpen: (id: number) => void }) {
             一句话故事意图 → 编剧、角色美术、分镜、节奏、视觉生成、质检、反馈优化七位数字员工接力,产出可编辑的剧本、角色设定、分镜与画面。
           </Typography>
         </Box>
+        <ListLayoutSwitch sx={{ alignSelf: { xs: 'flex-start', sm: 'center' } }} />
         <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setCreating(true)}>
           新建短剧
         </Button>
@@ -91,13 +92,11 @@ function ProjectList({ onOpen }: { onOpen: (id: number) => void }) {
       )}
 
       {projects.isLoading ? (
-        <Grid container spacing={2}>
+        <ListLayout rows minColumnWidth={340} gap={16}>
           {[0, 1, 2].map((i) => (
-            <Grid key={i} size={{ xs: 12, sm: 6, md: 4 }}>
-              <Skeleton variant="rounded" height={220} />
-            </Grid>
+            <Skeleton key={i} variant="rounded" height={220} />
           ))}
-        </Grid>
+        </ListLayout>
       ) : projects.isError ? (
         <Alert severity="error">{(projects.error as Error).message}</Alert>
       ) : (projects.data?.length ?? 0) === 0 ? (
@@ -114,13 +113,11 @@ function ProjectList({ onOpen }: { onOpen: (id: number) => void }) {
           </Button>
         </Card>
       ) : (
-        <Grid container spacing={2}>
+        <ListLayout rows minColumnWidth={340} gap={16}>
           {projects.data!.map((p) => (
-            <Grid key={p.id} size={{ xs: 12, sm: 6, md: 4 }}>
-              <ProjectCard project={p} onOpen={() => onOpen(p.id)} />
-            </Grid>
+            <ProjectCard key={p.id} project={p} onOpen={() => onOpen(p.id)} />
           ))}
-        </Grid>
+        </ListLayout>
       )}
 
       <CreateProjectDialog

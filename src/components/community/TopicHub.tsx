@@ -80,7 +80,7 @@ export function TopicHub() {
         ) : (hot.data?.list.length ?? 0) === 0 ? (
           <Typography sx={{ fontSize: 12, color: 'var(--text-muted, rgba(255,255,255,0.45))' }}>没有找到相关话题</Typography>
         ) : (
-          <ListLayout minColumnWidth={240} listMaxWidth="var(--page-max-narrow)">
+          <ListLayout rows minColumnWidth={240} listMaxWidth="var(--page-max-narrow)">
             {hot.data!.list.map((t, i) => <TopicTile key={String(t.id)} topic={t} rank={keyword ? undefined : i + 1} />)}
           </ListLayout>
         )}

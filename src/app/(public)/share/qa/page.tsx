@@ -7,10 +7,10 @@ import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
-import List from '@mui/material/List';
 import Paper from '@mui/material/Paper';
 import { qaDetail } from '@/apis/home';
 import { AsyncState, EmptyState } from '@/components/common/AsyncState';
+import { ListLayout } from '@/components/common/ListLayout';
 
 export default function ShareQaPage() {
   const [searchKey, setSearchKey] = useState('');
@@ -63,9 +63,9 @@ export default function ShareQaPage() {
         ) : (
           <AsyncState query={query} isEmpty={(d) => d.length === 0} emptyText="未找到相关问答" emptyHint="试试更换关键词" emptyVariant="sad">
             {(data) => (
-              <List>
+              <ListLayout rows minColumnWidth={380} gap={16} packing="masonry" listMaxWidth="none" sx={{ py: 1 }}>
                 {data.map((item, index) => (
-                  <Paper key={index} sx={{ mb: 2, p: 2 }}>
+                  <Paper key={index} sx={{ p: 2 }}>
                     <Box sx={{ mb: 1 }}>
                       <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>问题:</Typography>
                       <Typography>{highlightText(item.title || '', submittedKey)}</Typography>
@@ -80,7 +80,7 @@ export default function ShareQaPage() {
                     </Box>
                   </Paper>
                 ))}
-              </List>
+              </ListLayout>
             )}
           </AsyncState>
         )}

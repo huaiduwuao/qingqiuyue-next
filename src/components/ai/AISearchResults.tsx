@@ -24,6 +24,7 @@ import { IMAGE_OVERLAY } from '@/constants/gradients';
 import { aiSearch, type AISearchItem } from '@/apis/aiSearch';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { formatApiError } from '@/lib/api/client';
+import { ListLayout, LIST_ROW } from '@/components/common/ListLayout';
 
 export const AI_GRADIENT = `linear-gradient(135deg, ${ACCENT.blue.main} 0%, ${ACCENT.purple.main} 100%)`;
 
@@ -167,17 +168,11 @@ export function AISearchResults({ query, onRetryHint }: { query: string; onRetry
           <Typography sx={{ fontSize: 12, color: 'var(--text-muted)', mb: 1.25 }}>
             挑出 {data.items.length} 个相关作品
           </Typography>
-          <Box
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' },
-              gap: 1.5,
-            }}
-          >
+          <ListLayout minColumnWidth={200} minColumns={2} gap={12}>
             {data.items.map((it) => (
               <AIResultCard key={it.id} item={it} />
             ))}
-          </Box>
+          </ListLayout>
         </>
       )}
     </Box>
@@ -217,14 +212,17 @@ function AIResultCard({ item }: { item: AISearchItem }) {
       component="button"
       onClick={() => navigateContent(item.contentType, item.id)}
       sx={{
+        // 外层是 ListLayout 的格子,button 默认按内容收缩,要显式撑满
+        width: '100%',
         p: 0, textAlign: 'left', cursor: 'pointer', font: 'inherit', color: 'inherit',
+        [LIST_ROW]: { display: 'flex', alignItems: 'stretch' },
         borderRadius: 2, overflow: 'hidden', bgcolor: 'var(--bg-hover)',
         border: '1px solid var(--border-color)',
         transition: 'transform 0.2s, border-color 0.2s',
         '&:hover': { transform: 'translateY(-2px)', borderColor: ACCENT.blue.border30 },
       }}
     >
-      <Box sx={{ position: 'relative', aspectRatio: '4 / 3', background: `linear-gradient(135deg, ${ACCENT.blue.soft18}, ${ACCENT.purple.soft18})` }}>
+      <Box sx={{ position: 'relative', aspectRatio: '4 / 3', [LIST_ROW]: { width: { xs: 120, sm: 200 }, flexShrink: 0 }, background: `linear-gradient(135deg, ${ACCENT.blue.soft18}, ${ACCENT.purple.soft18})` }}>
         {item.cover && !broken && (
           <Box
             component="img"
@@ -242,16 +240,22 @@ function AIResultCard({ item }: { item: AISearchItem }) {
             position: 'absolute', left: 8, bottom: 6, right: 8,
             fontSize: 13, fontWeight: 600, color: '#fff',
             display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+            [LIST_ROW]: { display: 'none' },
           }}
         >
           {item.title}
         </Typography>
       </Box>
-      <Box sx={{ px: 1, py: 0.75, display: 'flex', alignItems: 'center', gap: 0.5 }}>
-        <AutoAwesomeIcon sx={{ fontSize: 11, color: ACCENT.blue.main, flexShrink: 0 }} />
-        <Typography sx={{ fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {item.reason}
+      <Box sx={{ px: 1, py: 0.75, [LIST_ROW]: { flex: 1, minWidth: 0, px: 1.5, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 0.5 } }}>
+        <Typography sx={{ display: 'none', [LIST_ROW]: { display: '-webkit-box' }, fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+          {item.title}
         </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
+          <AutoAwesomeIcon sx={{ fontSize: 11, color: ACCENT.blue.main, flexShrink: 0 }} />
+          <Typography sx={{ fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {item.reason}
+          </Typography>
+        </Box>
       </Box>
     </Box>
   );

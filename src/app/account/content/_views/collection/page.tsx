@@ -41,6 +41,7 @@ import ArrowDownwardRoundedIcon from '@mui/icons-material/ArrowDownwardRounded';
 import ArrowUpwardRoundedIcon from '@mui/icons-material/ArrowUpwardRounded';
 import { gradient2, gradient3 } from '@/constants/gradients';
 import { accountClient } from '@/lib/api/client';
+import { ListLayout, ListLayoutSwitch, LIST_ROW, LIST_COMPACT } from '@/components/common/ListLayout';
 import { toEntityId, type EntityId } from '@/lib/id';
 import { coverBackground } from '@/lib/media';
 
@@ -392,6 +393,7 @@ export default function CollectionPage() {
             }}
             sx={{ width: 240, '& .MuiOutlinedInput-root': { fontSize: 13 } }}
           />
+          <ListLayoutSwitch />
         </Box>
 
         {/* 合集卡片网格 */}
@@ -404,7 +406,7 @@ export default function CollectionPage() {
             </Button>
           </Box>
         ) : (
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 2 }}>
+          <ListLayout minColumnWidth={300} gap={16}>
             {filtered.map((c) => {
               const sm = STATUS_META[c.status];
               return (
@@ -418,10 +420,11 @@ export default function CollectionPage() {
                     overflow: 'hidden',
                     transition: 'border-color 0.15s, transform 0.15s',
                     '&:hover': { borderColor: 'primary.main', transform: 'translateY(-2px)' },
+                    [LIST_ROW]: { display: 'flex', alignItems: 'stretch' },
                   }}
                 >
                   {/* 封面 + 状态 */}
-                  <Box sx={{ position: 'relative', aspectRatio: '16/9', background: coverBackground(c.cover), overflow: 'hidden' }}>
+                  <Box sx={{ position: 'relative', aspectRatio: '16/9', background: coverBackground(c.cover), overflow: 'hidden', [LIST_ROW]: { width: { xs: 120, sm: 200 }, flexShrink: 0 } }}>
                     <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 40%, rgba(0,0,0,0.7) 100%)' }} />
                     <Box sx={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 0.75 }}>
                       <Box sx={{ px: 0.75, py: 0.25, borderRadius: 0.5, bgcolor: sm.bg, color: sm.color, fontSize: 10, fontWeight: 700, backdropFilter: 'blur(4px)' }}>
@@ -451,7 +454,7 @@ export default function CollectionPage() {
                   </Box>
 
                   {/* 文本 + 数据 */}
-                  <Box sx={{ p: 2 }}>
+                  <Box sx={{ p: 2, [LIST_COMPACT]: { p: 1.5 }, [LIST_ROW]: { flex: 1, minWidth: 0, p: 1.5, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
                     <Typography sx={{ fontSize: 14, fontWeight: 700, color: 'text.primary', mb: 0.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {c.title}
                     </Typography>
@@ -494,7 +497,7 @@ export default function CollectionPage() {
                 </Box>
               );
             })}
-          </Box>
+          </ListLayout>
         )}
 
         {/* 更多菜单 */}

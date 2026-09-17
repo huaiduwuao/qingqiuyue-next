@@ -41,6 +41,7 @@ import { homeClient, formatApiError } from '@/lib/api/client';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { useAIPrefs } from '@/lib/aiPrefs';
 import { AISearchResults, AI_GRADIENT, AI_SEARCH_EXAMPLES } from '@/components/ai/AISearchResults';
+import { ListLayout, ListLayoutSwitch } from '@/components/common/ListLayout';
 
 // 搜索域占位:后端 `/api/core/search/*` 就绪后,以下数据/函数替换为 API 调用
 type SearchContentItemContentType =
@@ -643,30 +644,33 @@ function SearchPageContent() {
             {aiEnabled && Array.from(q).length >= 6 && <AISuggestHint onClick={() => switchMode(true)} />}
 
             {/* Tab 切换 */}
-            <Tabs
-              value={tab}
-              onChange={(_, v) => setTab(v)}
-              sx={{
-                minHeight: 36,
-                borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.06))',
-                mb: 3,
-                '& .MuiTab-root': {
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.06))', mb: 3 }}>
+              <Tabs
+                value={tab}
+                onChange={(_, v) => setTab(v)}
+                sx={{
+                  flex: 1,
+                  minWidth: 0,
                   minHeight: 36,
-                  fontSize: 13,
-                  fontWeight: 500,
-                  color: 'var(--text-muted, rgba(255,255,255,0.55))',
-                  textTransform: 'none',
-                  py: 1,
-                },
-                '& .Mui-selected': { color: '#fff !important', fontWeight: 700 },
-                '& .MuiTabs-indicator': { backgroundColor: 'primary.main', height: 2 },
-              }}
-            >
-              <Tab value="all" label={`全部 ${total}`} />
-              <Tab value="content" label={`内容 ${contents.length}`} />
-              <Tab value="creator" label={`创作者 ${creators.length}`} />
-              <Tab value="topic" label={`话题 ${topics.length}`} />
-            </Tabs>
+                  '& .MuiTab-root': {
+                    minHeight: 36,
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: 'var(--text-muted, rgba(255,255,255,0.55))',
+                    textTransform: 'none',
+                    py: 1,
+                  },
+                  '& .Mui-selected': { color: '#fff !important', fontWeight: 700 },
+                  '& .MuiTabs-indicator': { backgroundColor: 'primary.main', height: 2 },
+                }}
+              >
+                <Tab value="all" label={`全部 ${total}`} />
+                <Tab value="content" label={`内容 ${contents.length}`} />
+                <Tab value="creator" label={`创作者 ${creators.length}`} />
+                <Tab value="topic" label={`话题 ${topics.length}`} />
+              </Tabs>
+              <ListLayoutSwitch />
+            </Box>
 
             <DiscoverBanner
               query={q}
@@ -831,7 +835,7 @@ function Section({ title, count, children }: { title: string; count: number; chi
         <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: 'var(--text-muted, rgba(255,255,255,0.3))' }} />
         <Typography sx={{ fontSize: 11, color: 'var(--text-disabled, rgba(255,255,255,0.35))' }}>{count} 条</Typography>
       </Box>
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>{children}</Box>
+      <ListLayout rows minColumnWidth={440} gap={8}>{children}</ListLayout>
     </Box>
   );
 }
@@ -856,8 +860,9 @@ function ContentResult({
         borderRadius: 2,
         cursor: 'pointer',
         transition: 'all 0.15s',
-        border: '1px solid transparent',
-        '&:hover': { bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))', borderColor: 'var(--border-color, rgba(255,255,255,0.06))' },
+        // 宽屏多列时每条自成卡片
+        border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+        '&:hover': { bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))', borderColor: 'var(--border-strong, rgba(255,255,255,0.12))' },
       }}
     >
       <Box
@@ -1005,8 +1010,9 @@ function CreatorResult({
         borderRadius: 2,
         cursor: 'pointer',
         transition: 'all 0.15s',
-        border: '1px solid transparent',
-        '&:hover': { bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))', borderColor: 'var(--border-color, rgba(255,255,255,0.06))' },
+        // 宽屏多列时每条自成卡片
+        border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+        '&:hover': { bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))', borderColor: 'var(--border-strong, rgba(255,255,255,0.12))' },
       }}
     >
       <Box
@@ -1117,8 +1123,9 @@ function TopicResult({
         borderRadius: 2,
         cursor: 'pointer',
         transition: 'all 0.15s',
-        border: '1px solid transparent',
-        '&:hover': { bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))', borderColor: 'var(--border-color, rgba(255,255,255,0.06))' },
+        // 宽屏多列时每条自成卡片
+        border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+        '&:hover': { bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))', borderColor: 'var(--border-strong, rgba(255,255,255,0.12))' },
       }}
     >
       <Box

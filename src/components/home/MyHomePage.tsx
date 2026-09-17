@@ -55,6 +55,7 @@ import { setMark } from '@/apis/content-mark';
 import { postShare } from '@/apis/behavior';
 import { ACCENT } from '@/constants/accents';
 import { useContentNavigate } from '@/lib/contentRoute';
+import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 
 type ContentType = 'NOVEL' | 'MUSIC' | 'FILM' | 'TELEPLAY' | 'ANIMATION' | 'COMICS' | 'VIDEO' | 'VSHOW' | 'LIVE' | 'ARTICLE' | 'NEWS';
 
@@ -595,6 +596,8 @@ export function MyHomePage() {
 
           <Box sx={{ flex: 1 }} />
 
+          <ListLayoutSwitch sx={{ mr: 1 }} />
+
           {batchMode ? (
             <>
               <Typography sx={{ fontSize: 12, color: 'text.secondary', mr: 1 }}>
@@ -869,7 +872,7 @@ function WorkGridView({
   onClick: (it: MyItem) => void; onTogglePrivate: (it: MyItem) => void; showPrivacy: boolean;
 }) {
   return (
-    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 1.5 }}>
+    <ListLayout minColumnWidth={160} minColumns={2} gap={12}>
       {list.map((it) => {
         const isSelected = selected.has(it.id);
         return (
@@ -877,6 +880,7 @@ function WorkGridView({
             key={it.id}
             onClick={() => batchMode ? onToggle(it.id) : onClick(it)}
             sx={{
+              [LIST_ROW]: { display: 'flex', alignItems: 'stretch' },
               position: 'relative',
               borderRadius: 1.5,
               overflow: 'hidden',
@@ -898,7 +902,7 @@ function WorkGridView({
                 />
               </Box>
             )}
-            <Box sx={{ position: 'relative', aspectRatio: '3/4' }}>
+            <Box sx={{ position: 'relative', aspectRatio: '3/4', [LIST_ROW]: { width: { xs: 72, sm: 96 }, flexShrink: 0 } }}>
               <Box component="img" src={it.cover || undefined} alt={it.title} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.7) 100%)' }} />
               {it.durationSec > 0 && (
@@ -917,7 +921,7 @@ function WorkGridView({
                 </Box>
               )}
             </Box>
-            <Box sx={{ p: 1.25 }}>
+            <Box sx={{ p: 1.25, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
               <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.primary', mb: 0.5, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                 {it.title}
               </Typography>
@@ -947,14 +951,14 @@ function WorkGridView({
           </Box>
         );
       })}
-    </Box>
+    </ListLayout>
   );
 }
 
 // ─── 子组件:合集网格 ───
 function CollectionGridView({ list, batchMode, selected, onToggle }: { list: MyCollectionGroup[]; batchMode: boolean; selected: Set<number>; onToggle: (id: number) => void }) {
   return (
-    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 1.5 }}>
+    <ListLayout rows minColumnWidth={260} gap={12}>
       {list.map((g) => {
         const isSelected = selected.has(g.id);
         return (
@@ -993,14 +997,14 @@ function CollectionGridView({ list, batchMode, selected, onToggle }: { list: MyC
           </Box>
         );
       })}
-    </Box>
+    </ListLayout>
   );
 }
 
 // ─── 子组件:历史时间线 ───
 function HistoryListView({ list, batchMode, selected, onToggle, onClick }: { list: MyItem[]; batchMode: boolean; selected: Set<number>; onToggle: (id: number) => void; onClick: (it: MyItem) => void }) {
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+    <ListLayout rows minColumnWidth={420} gap={8}>
       {list.map((it) => {
         const isSelected = selected.has(it.id);
         return (
@@ -1042,14 +1046,14 @@ function HistoryListView({ list, batchMode, selected, onToggle, onClick }: { lis
           </Box>
         );
       })}
-    </Box>
+    </ListLayout>
   );
 }
 
 // ─── 子组件:稍后看网格 ───
 function LaterGridView({ list, batchMode, selected, onToggle, onClick }: { list: MyItem[]; batchMode: boolean; selected: Set<number>; onToggle: (id: number) => void; onClick: (it: MyItem) => void }) {
   return (
-    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 1.5 }}>
+    <ListLayout minColumnWidth={200} gap={12}>
       {list.map((it) => {
         const isSelected = selected.has(it.id);
         return (
@@ -1057,6 +1061,7 @@ function LaterGridView({ list, batchMode, selected, onToggle, onClick }: { list:
             key={it.id}
             onClick={() => batchMode ? onToggle(it.id) : onClick(it)}
             sx={{
+              [LIST_ROW]: { display: 'flex', alignItems: 'stretch' },
               position: 'relative',
               borderRadius: 1.5,
               overflow: 'hidden',
@@ -1073,14 +1078,14 @@ function LaterGridView({ list, batchMode, selected, onToggle, onClick }: { list:
                 <Checkbox size="small" checked={isSelected} onClick={(e) => { e.stopPropagation(); onToggle(it.id); }} sx={{ p: 0.25, bgcolor: 'rgba(0,0,0,0.5)', borderRadius: 1 }} />
               </Box>
             )}
-            <Box sx={{ position: 'relative', aspectRatio: '16/9' }}>
+            <Box sx={{ position: 'relative', aspectRatio: '16/9', [LIST_ROW]: { width: { xs: 120, sm: 200 }, flexShrink: 0 } }}>
               <Box component="img" src={it.cover || undefined} alt={it.title} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.5) 100%)' }} />
               <Box sx={{ position: 'absolute', top: 6, right: 6, px: 0.5, py: 0.25, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)' }}>
                 <Typography sx={{ fontSize: 9, color: '#fff', fontWeight: 600 }}>已添加 {formatRelativeTime(it.postedAt)}</Typography>
               </Box>
             </Box>
-            <Box sx={{ p: 1.25 }}>
+            <Box sx={{ p: 1.25, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
               <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.primary', mb: 0.5, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                 {it.title}
               </Typography>
@@ -1091,14 +1096,14 @@ function LaterGridView({ list, batchMode, selected, onToggle, onClick }: { list:
           </Box>
         );
       })}
-    </Box>
+    </ListLayout>
   );
 }
 
 // ─── 子组件:预约直播 ───
 function AppointmentListView({ list, onClick, onCancel }: { list: MyItem[]; onClick: (it: MyItem) => void; onCancel: (it: MyItem) => void }) {
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+    <ListLayout rows minColumnWidth={420} gap={8}>
       {list.map((it) => (
         <Box
           key={it.id}
@@ -1147,14 +1152,14 @@ function AppointmentListView({ list, onClick, onCancel }: { list: MyItem[]; onCl
           </Button>
         </Box>
       ))}
-    </Box>
+    </ListLayout>
   );
 }
 
 // ─── 子组件:AI 笔记 ───
 function AINoteListView({ list, batchMode, selected, onToggle }: { list: MyItem[]; batchMode: boolean; selected: Set<number>; onToggle: (id: number) => void }) {
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+    <ListLayout rows minColumnWidth={320} gap={8} packing="masonry">
       {list.map((it) => {
         const isSelected = selected.has(it.id);
         return (
@@ -1201,7 +1206,7 @@ function AINoteListView({ list, batchMode, selected, onToggle }: { list: MyItem[
           </Box>
         );
       })}
-    </Box>
+    </ListLayout>
   );
 }
 

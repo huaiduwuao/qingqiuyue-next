@@ -36,6 +36,7 @@ import { gradient2, gradient3 } from '@/constants/gradients';
 import { accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
 import { RelativeTime } from '@/components/common/RelativeTime';
 import { coverBackground } from '@/lib/media';
+import { ListLayout, ListLayoutSwitch } from '@/components/common/ListLayout';
 
 interface CreationItem {
   id: string;
@@ -423,6 +424,7 @@ export default function NewCreationSection() {
           <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>
             草稿 {drafts.length} · 上传中 {uploading.length} · 已定时 {scheduled.length}
           </Typography>
+          <ListLayoutSwitch />
         </Box>
 
         {wip.length === 0 ? (
@@ -430,7 +432,7 @@ export default function NewCreationSection() {
             暂无进行中的创作
           </Box>
         ) : (
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(2, 1fr)', lg: 'repeat(3, 1fr)' }, gap: 1.5 }}>
+          <ListLayout rows minColumnWidth={300} gap={12}>
             {wip.map((item) => {
               const km = KIND_META[item.kind];
               return (
@@ -638,7 +640,7 @@ export default function NewCreationSection() {
                 </Box>
               );
             })}
-          </Box>
+          </ListLayout>
         )}
       </Box>
 

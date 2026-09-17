@@ -20,6 +20,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { alpha } from '@mui/material/styles';
 import { adminClient } from '@/lib/api/client';
 import { useApp } from '@/contexts/AppContext';
+import { ListLayout, LIST_ROW } from '@/components/common/ListLayout';
 
 // 成就类型定义
 interface Achievement {
@@ -131,11 +132,7 @@ export default function AchievementPage() {
           <Typography sx={{ color: 'text.secondary' }}>暂无成就数据</Typography>
         </Box>
       ) : (
-        <Box sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
-          gap: 2
-        }}>
+        <ListLayout minColumnWidth={280} gap={16}>
           {achievements.map((achievement) => (
             <Card
               key={achievement.id}
@@ -148,7 +145,7 @@ export default function AchievementPage() {
                 },
               }}
             >
-              <CardContent>
+              <CardContent sx={{ [LIST_ROW]: { display: 'flex', alignItems: 'center', gap: 2 } }}>
                 {/* 成就图标 */}
                 <Box
                   sx={{
@@ -164,6 +161,7 @@ export default function AchievementPage() {
                       : 'action.hover',
                     color: achievement.unlocked ? 'warning.main' : 'text.disabled',
                     position: 'relative',
+                    [LIST_ROW]: { mb: 0, flexShrink: 0 },
                   }}
                 >
                   {ACHIEVEMENT_ICONS[achievement.icon] || ACHIEVEMENT_ICONS.default}
@@ -187,48 +185,50 @@ export default function AchievementPage() {
                   )}
                 </Box>
 
-                {/* 成就名称 */}
-                <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 0.5 }}>
-                  {achievement.name}
-                </Typography>
+                <Box sx={{ [LIST_ROW]: { flex: 1, minWidth: 0 } }}>
+                  {/* 成就名称 */}
+                  <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 0.5 }}>
+                    {achievement.name}
+                  </Typography>
 
-                {/* 成就描述 */}
-                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
-                  {achievement.info}
-                </Typography>
+                  {/* 成就描述 */}
+                  <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
+                    {achievement.info}
+                  </Typography>
 
-                {/* 奖励和状态 */}
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  {achievement.unlocked ? (
-                    <Chip
-                      icon={<CheckCircleIcon />}
-                      label="已解锁"
-                      size="small"
-                      sx={{
-                        bgcolor: alpha('#5DDB96', 0.15),
-                        color: '#5DDB96',
-                        '& .MuiChip-icon': { color: '#5DDB96' },
-                      }}
-                    />
-                  ) : (
-                    <Chip
-                      icon={<StarIcon />}
-                      label={`奖励 ${achievement.reward_point || 0} 积分`}
-                      size="small"
-                      variant="outlined"
-                      sx={{ borderColor: 'warning.main', color: 'warning.main' }}
-                    />
-                  )}
-                  {achievement.unlocked && achievement.unlock_time && (
-                    <Typography variant="caption" sx={{ color: 'text.disabled' }}>
-                      {new Date(achievement.unlock_time * 1000).toLocaleDateString('zh-CN')}
-                    </Typography>
-                  )}
+                  {/* 奖励和状态 */}
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    {achievement.unlocked ? (
+                      <Chip
+                        icon={<CheckCircleIcon />}
+                        label="已解锁"
+                        size="small"
+                        sx={{
+                          bgcolor: alpha('#5DDB96', 0.15),
+                          color: '#5DDB96',
+                          '& .MuiChip-icon': { color: '#5DDB96' },
+                        }}
+                      />
+                    ) : (
+                      <Chip
+                        icon={<StarIcon />}
+                        label={`奖励 ${achievement.reward_point || 0} 积分`}
+                        size="small"
+                        variant="outlined"
+                        sx={{ borderColor: 'warning.main', color: 'warning.main' }}
+                      />
+                    )}
+                    {achievement.unlocked && achievement.unlock_time && (
+                      <Typography variant="caption" sx={{ color: 'text.disabled' }}>
+                        {new Date(achievement.unlock_time * 1000).toLocaleDateString('zh-CN')}
+                      </Typography>
+                    )}
+                  </Box>
                 </Box>
               </CardContent>
             </Card>
           ))}
-        </Box>
+        </ListLayout>
       )}
     </Box>
   );

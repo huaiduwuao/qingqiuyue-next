@@ -17,6 +17,7 @@ import GroupIcon from '@mui/icons-material/Group';
 import { gradient2 } from '@/constants/gradients';
 import { alpha } from '@mui/material/styles';
 import { getHotBounties, type Bounty } from '@/apis/dashboard';
+import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import BountyDetailDialog from './BountyDetailDialog';
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -156,6 +157,7 @@ export default function RewardHotGrid({
             <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>共 {total} 个</Typography>
           )}
         </Box>
+        <ListLayoutSwitch />
       </Box>
 
       {/* all 模式:搜索 + 分类 + 排序(就地 state,不写 URL) */}
@@ -257,21 +259,11 @@ export default function RewardHotGrid({
           )}
         </Box>
       ) : (
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: {
-              xs: 'repeat(1, 1fr)',
-              sm: 'repeat(2, 1fr)',
-              md: 'repeat(3, 1fr)',
-            },
-            gap: 1.5,
-          }}
-        >
+        <ListLayout minColumnWidth={240} gap={12}>
           {list.map((b) => (
             <BountyCard key={b.id} bounty={b} onClick={() => setDetailId(b.id)} />
           ))}
-        </Box>
+        </ListLayout>
       )}
 
       {/* 分页(仅 all 模式) */}
@@ -314,6 +306,7 @@ function BountyCard({ bounty, onClick }: { bounty: Bounty; onClick: () => void }
         borderColor: 'divider',
         cursor: 'pointer',
         transition: 'all 0.25s',
+        [LIST_ROW]: { display: 'flex', alignItems: 'stretch' },
         '&:hover': {
           transform: 'translateY(-3px)',
           borderColor: 'primary.main',
@@ -330,6 +323,7 @@ function BountyCard({ bounty, onClick }: { bounty: Bounty; onClick: () => void }
           alignItems: 'center',
           justifyContent: 'center',
           color: 'text.primary',
+          [LIST_ROW]: { width: { xs: 120, sm: 200 }, flexShrink: 0 },
         }}
       >
         <Box
@@ -380,7 +374,7 @@ function BountyCard({ bounty, onClick }: { bounty: Bounty; onClick: () => void }
         </Box>
       </Box>
 
-      <Box sx={{ p: 1.5 }}>
+      <Box sx={{ p: 1.5, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
         <Typography
           sx={{
             fontSize: 13,

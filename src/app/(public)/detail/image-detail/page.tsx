@@ -20,6 +20,7 @@ import { formatApiError } from '@/lib/api/client';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
+import { ListLayout } from '@/components/common/ListLayout';
 import { track, recordHistory } from '@/lib/track';
 import { DetailComments } from '@/components/detail/DetailComments';
 import { DetailFooter } from '@/components/detail/DetailFooter';
@@ -154,7 +155,8 @@ function ImageDetailContent() {
                 {view.text}
               </Typography>
             )}
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)' }, gap: 1.5 }}>
+            {/* 原图比例,高度不一 */}
+            <ListLayout minColumnWidth={360} gap={12} packing="masonry">
               {view.images.map((src, index) => (
                 <CoverImage
                   key={`${src}-${index}`}
@@ -163,7 +165,7 @@ function ImageDetailContent() {
                   sx={{ width: '100%', maxHeight: 520, borderRadius: 2, objectFit: 'contain', bgcolor: '#000' }}
                 />
               ))}
-            </Box>
+            </ListLayout>
             {view.audioUrl && (
               <Box component="audio" controls src={view.audioUrl} sx={{ width: '100%', mt: 2 }}>
                 当前浏览器不支持音频播放。

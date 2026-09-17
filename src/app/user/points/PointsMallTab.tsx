@@ -26,6 +26,7 @@ import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import ArrowForwardIosRoundedIcon from '@mui/icons-material/ArrowForwardIosRounded';
 import { getUserPoint } from '@/apis/system-user-point';
 import { useApp } from '@/contexts/AppContext';
+import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import {
   getPointMallItems,
   getPointMallHistory,
@@ -399,19 +400,14 @@ export function PointsMallTab({ initialPoints }: Props) {
                 }}
               />
             ))}
+            <ListLayoutSwitch sx={{ ml: 'auto', alignSelf: 'center' }} />
           </Box>
         )}
       </Box>
 
       {/* 商品网格 */}
       {tab === 'items' && (
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' },
-            gap: 2,
-          }}
-        >
+        <ListLayout minColumnWidth={200} minColumns={2} gap={16}>
           {filtered.map((it) => {
             const stock = formatStock(it.stock);
             const canAfford = currentPoints >= it.points;
@@ -432,6 +428,8 @@ export function PointsMallTab({ initialPoints }: Props) {
                   transition: 'all 0.15s',
                   opacity: isGone ? 0.6 : 1,
                   '&:hover': { borderColor: isLow ? 'warning.main' : 'primary.main', transform: isGone ? 'none' : 'translateY(-2px)' },
+                  // 列表样式:左图,右侧文字/价格/按钮三行
+                  [LIST_ROW]: { display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', alignItems: 'center', columnGap: 1.5 },
                 }}
               >
                 <Box
@@ -444,6 +442,7 @@ export function PointsMallTab({ initialPoints }: Props) {
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontSize: 56,
+                    [LIST_ROW]: { width: { xs: 72, sm: 96 }, flexShrink: 0, gridRow: 'span 3', alignSelf: 'start', fontSize: 36 },
                   }}
                 >
                   {it.emoji}
@@ -502,7 +501,7 @@ export function PointsMallTab({ initialPoints }: Props) {
                     </Box>
                   )}
                 </Box>
-                <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 0.5, [LIST_ROW]: { minWidth: 0, justifyContent: 'center' } }}>
                   <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                     {it.name}
                   </Typography>
@@ -547,7 +546,7 @@ export function PointsMallTab({ initialPoints }: Props) {
               </Box>
             );
           })}
-        </Box>
+        </ListLayout>
       )}
 
       {/* 我的兑换 */}

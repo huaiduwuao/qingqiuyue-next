@@ -2,12 +2,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
-export type HomeDensity = 'comfortable' | 'compact';
 export type HomeLanguage = 'zh-CN' | 'zh-TW' | 'en';
 export type HomeDefaultTab = 'home' | 'recommend' | 'follow' | 'friend' | 'live';
 
 export interface HomeSettings {
-  density: HomeDensity;
   language: HomeLanguage;
   defaultTab: HomeDefaultTab;
   autoplayVideo: boolean;
@@ -28,7 +26,6 @@ export interface HomeSettings {
 const STORAGE_KEY = 'home-settings';
 
 const DEFAULTS: HomeSettings = {
-  density: 'comfortable',
   language: 'zh-CN',
   defaultTab: 'home',
   autoplayVideo: true,

@@ -34,6 +34,7 @@ import RemoveCircleOutlineRoundedIcon from '@mui/icons-material/RemoveCircleOutl
 import ShuffleRoundedIcon from '@mui/icons-material/ShuffleRounded';
 import PublicTopBar from '@/components/layout/PublicTopBar';
 import PlaylistCover from '@/components/player/PlaylistCover';
+import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import {
   createMyList,
   deleteMyList,
@@ -102,6 +103,7 @@ function MyPlaylists() {
           <>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2.5 }}>
               <Typography sx={{ flex: 1, fontSize: 14, color: 'text.secondary' }}>{items.length} 个歌单</Typography>
+              <ListLayoutSwitch sx={{ mr: 1.5 }} />
               <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setCreateOpen(true)}>
                 新建歌单
               </Button>
@@ -109,7 +111,7 @@ function MyPlaylists() {
             {items.length === 0 ? (
               <Empty title="还没有歌单" hint="在歌曲页或播放队列里点「加入歌单」,也可以先建一个空的。" />
             ) : (
-              <Box sx={{ display: 'grid', gap: { xs: 1.5, md: 2.5 }, gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' } }}>
+              <ListLayout minColumnWidth={180} minColumns={2} gap={20}>
                 {items.map((l) => (
                   <Box
                     key={String(l.id)}
@@ -117,18 +119,26 @@ function MyPlaylists() {
                     tabIndex={0}
                     onClick={() => router.push(playlistHref(l.id))}
                     onKeyDown={(e) => e.key === 'Enter' && router.push(playlistHref(l.id))}
-                    sx={{ cursor: 'pointer', borderRadius: 2, '&:hover .cv': { transform: 'translateY(-3px)' }, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main' } }}
+                    sx={{
+                      cursor: 'pointer',
+                      borderRadius: 2,
+                      '&:hover .cv': { transform: 'translateY(-3px)' },
+                      '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main' },
+                      [LIST_ROW]: { display: 'flex', alignItems: 'center', gap: 1.5, p: 1, border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' },
+                    }}
                   >
-                    <Box className="cv" sx={{ transition: 'transform 180ms', boxShadow: 3, borderRadius: 2, overflow: 'hidden' }}>
+                    <Box className="cv" sx={{ transition: 'transform 180ms', boxShadow: 3, borderRadius: 2, overflow: 'hidden', [LIST_ROW]: { width: { xs: 72, sm: 96 }, flexShrink: 0 } }}>
                       <PlaylistCover covers={l.covers} coverUrl={l.coverUrl} size="100%" radius={0} />
                     </Box>
-                    <Typography sx={{ mt: 1, fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.name}</Typography>
-                    <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-                      {l.itemCount} 首{l.isPublic ? ' · 公开' : ''}
-                    </Typography>
+                    <Box sx={{ [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
+                      <Typography sx={{ mt: 1, fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', [LIST_ROW]: { mt: 0 } }}>{l.name}</Typography>
+                      <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                        {l.itemCount} 首{l.isPublic ? ' · 公开' : ''}
+                      </Typography>
+                    </Box>
                   </Box>
                 ))}
-              </Box>
+              </ListLayout>
             )}
           </>
         )}

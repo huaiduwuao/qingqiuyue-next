@@ -31,6 +31,7 @@ import { formatApiError } from '@/lib/api/client';
 import { TYPE_LABEL, useContentNavigate } from '@/lib/contentRoute';
 import { CoverImage } from '@/components/common/CoverImage';
 import { BotBadge } from '@/components/community/UserLine';
+import { ListLayout, LIST_ROW } from '@/components/common/ListLayout';
 import {
   addFriend,
   blockUser,
@@ -285,7 +286,7 @@ export default function UserProfilePage() {
           {worksQ.isError ? '作品加载失败,请稍后再试' : p?.user.isPrivate && !rel?.isMe ? '私密账号,作品仅本人可见' : '还没有发布作品'}
         </Typography>
       ) : (
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 1.5 }}>
+        <ListLayout minColumnWidth={160} gap={12}>
           {worksQ.data.list.map((w) => (
             <Box
               key={String(w.id)}
@@ -302,18 +303,21 @@ export default function UserProfilePage() {
                 bgcolor: 'background.paper',
                 transition: 'border-color 0.15s',
                 '&:hover': { borderColor: 'primary.main' },
+                [LIST_ROW]: { display: 'flex', alignItems: 'stretch' },
               }}
             >
-              <Box sx={{ position: 'relative', aspectRatio: '16 / 9', bgcolor: 'action.hover' }}>
+              <Box sx={{ position: 'relative', aspectRatio: '16 / 9', bgcolor: 'action.hover', [LIST_ROW]: { width: { xs: 120, sm: 200 }, flexShrink: 0 } }}>
                 <CoverImage src={w.cover || ''} alt={w.title} sx={{ width: '100%', height: '100%' }} />
                 <Box sx={{ position: 'absolute', bottom: 6, right: 6, px: 0.75, py: 0.25, borderRadius: 0.75, bgcolor: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: 10, fontWeight: 600 }}>
                   {TYPE_LABEL[w.contentType] || w.contentType}
                 </Box>
               </Box>
-              <Typography sx={{ fontSize: 13, color: 'text.primary', p: 1 }} noWrap>{w.title}</Typography>
+              <Box sx={{ minWidth: 0, [LIST_ROW]: { flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
+                <Typography sx={{ fontSize: 13, color: 'text.primary', p: 1, [LIST_ROW]: { fontSize: 14, px: 1.5 } }} noWrap>{w.title}</Typography>
+              </Box>
             </Box>
           ))}
-        </Box>
+        </ListLayout>
       )}
 
       <Dialog open={!!confirm} onClose={() => setConfirm(null)} maxWidth="xs" fullWidth>

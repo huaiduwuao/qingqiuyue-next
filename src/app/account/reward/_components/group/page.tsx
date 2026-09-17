@@ -14,7 +14,7 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
 import Chip from '@mui/material/Chip';
-import Grid from '@mui/material/Grid';
+import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import IconButton from '@mui/material/IconButton';
@@ -323,87 +323,87 @@ export default function GroupPage({ groupId, groupData, onOpenTaskboard }: { gro
             <Button variant="outlined" startIcon={<SearchIcon />} onClick={() => setAddVisible(true)}>
               加入团队
             </Button>
+            <ListLayoutSwitch sx={{ ml: 'auto', alignSelf: 'center' }} />
           </Box>
 
           {/* 团队卡片列表 */}
-          <Grid container spacing={2}>
+          <ListLayout minColumnWidth={300} gap={16}>
             {myGroups.map((group) => (
-              <Grid size={{ xs: 12, sm: 6, md: 4 }} key={group.id}>
-                <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', cursor: 'pointer' }}
-                      onClick={() => handleDetail(group)}>
-                  <CardMedia
-                    component="div"
-                    sx={{
-                      height: 100,
-                      backgroundColor: '#1976d2',
-                      backgroundImage: group.cover ? `url(${group.cover})` : 'none',
-                      backgroundSize: 'cover',
-                      backgroundPosition: 'center',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    {!group.cover && (
-                      <GroupIcon
-                        sx={{
-                          fontSize: 48,
-                          color: (theme) =>
-                            theme.palette.mode === 'dark'
-                              ? 'rgba(255,255,255,0.5)'
-                              : 'text.disabled',
-                        }}
-                      />
-                    )}
-                  </CardMedia>
-                  <CardContent sx={{ flex: 1 }}>
-                    <Typography variant="subtitle1" noWrap sx={{ fontWeight: "bold" }}>
-                      {group.name}
+              <Card key={group.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column', cursor: 'pointer', [LIST_ROW]: { flexDirection: 'row', flexWrap: { xs: 'wrap', sm: 'nowrap' } } }}
+                    onClick={() => handleDetail(group)}>
+                <CardMedia
+                  component="div"
+                  sx={{
+                    height: 100,
+                    backgroundColor: '#1976d2',
+                    backgroundImage: group.cover ? `url(${group.cover})` : 'none',
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    [LIST_ROW]: { width: { xs: 120, sm: 200 }, flexShrink: 0, height: 'auto', minHeight: 96 },
+                  }}
+                >
+                  {!group.cover && (
+                    <GroupIcon
+                      sx={{
+                        fontSize: 48,
+                        color: (theme) =>
+                          theme.palette.mode === 'dark'
+                            ? 'rgba(255,255,255,0.5)'
+                            : 'text.disabled',
+                      }}
+                    />
+                  )}
+                </CardMedia>
+                <CardContent sx={{ flex: 1, [LIST_ROW]: { minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
+                  <Typography variant="subtitle1" noWrap sx={{ fontWeight: "bold" }}>
+                    {group.name}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" noWrap sx={{ mt: 0.5 }}>
+                    {group.info || '暂无描述'}
+                  </Typography>
+                  <Box sx={{ mt: 1, display: 'flex', gap: 0.5, alignItems: 'center' }}>
+                    <GroupIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                    <Typography variant="caption" color="text.secondary">
+                      {group.projects || 0} 个项目
                     </Typography>
-                    <Typography variant="body2" color="text.secondary" noWrap sx={{ mt: 0.5 }}>
-                      {group.info || '暂无描述'}
-                    </Typography>
-                    <Box sx={{ mt: 1, display: 'flex', gap: 0.5, alignItems: 'center' }}>
-                      <GroupIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                      <Typography variant="caption" color="text.secondary">
-                        {group.projects || 0} 个项目
-                      </Typography>
-                    </Box>
-                  </CardContent>
-                  <Box sx={{ p: 1, display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}
-                       onClick={(e) => e.stopPropagation()}>
-                    {onOpenTaskboard && (
-                      <Button
-                        size="small"
-                        sx={{ color: '#06B6D4' }}
-                        onClick={(e) => { e.stopPropagation(); onOpenTaskboard(group.id!); }}
-                      >
-                        查看任务
-                      </Button>
-                    )}
+                  </Box>
+                </CardContent>
+                <Box sx={{ p: 1, display: 'flex', justifyContent: 'flex-end', gap: 0.5, [LIST_ROW]: { flexBasis: { xs: '100%', sm: 'auto' }, flexShrink: 0, alignItems: 'center' } }}
+                     onClick={(e) => e.stopPropagation()}>
+                  {onOpenTaskboard && (
                     <Button
                       size="small"
-                      startIcon={<PersonAddIcon />}
-                      onClick={() => handleViewMembers(group)}
+                      sx={{ color: '#06B6D4' }}
+                      onClick={(e) => { e.stopPropagation(); onOpenTaskboard(group.id!); }}
                     >
-                      成员
+                      查看任务
                     </Button>
-                    {isOwner(group) ? (
-                      <Tooltip title="删除">
-                        <IconButton size="small" color="error" onClick={() => handleDeleteGroup(group)}>
-                          <DeleteIcon />
-                        </IconButton>
-                      </Tooltip>
-                    ) : (
-                      <Button size="small" color="error" onClick={() => handleQuitGroup(group)}>
-                        退出
-                      </Button>
-                    )}
-                  </Box>
-                </Card>
-              </Grid>
+                  )}
+                  <Button
+                    size="small"
+                    startIcon={<PersonAddIcon />}
+                    onClick={() => handleViewMembers(group)}
+                  >
+                    成员
+                  </Button>
+                  {isOwner(group) ? (
+                    <Tooltip title="删除">
+                      <IconButton size="small" color="error" onClick={() => handleDeleteGroup(group)}>
+                        <DeleteIcon />
+                      </IconButton>
+                    </Tooltip>
+                  ) : (
+                    <Button size="small" color="error" onClick={() => handleQuitGroup(group)}>
+                      退出
+                    </Button>
+                  )}
+                </Box>
+              </Card>
             ))}
-          </Grid>
+          </ListLayout>
 
           {myGroups.length === 0 && !loading && (
             <Box sx={{ textAlign: 'center', py: 8 }}>

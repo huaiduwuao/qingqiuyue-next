@@ -15,7 +15,7 @@ import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
 import Chip from '@mui/material/Chip';
-import Grid from '@mui/material/Grid';
+import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import IconButton from '@mui/material/IconButton';
@@ -250,118 +250,118 @@ export default function DemandPage({ groupId, onOpenTaskboard }: Props) {
             <Tab key={opt.value} label={opt.label} value={opt.value} sx={{ minHeight: 36 }} />
           ))}
         </Tabs>
+        <ListLayoutSwitch sx={{ ml: 'auto' }} />
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleEdit({} as DemandItem)} sx={{ flexShrink: 0 }}>
           新建需求
         </Button>
       </Box>
 
       {/* 卡片列表 */}
-      <Grid container spacing={2}>
+      <ListLayout minColumnWidth={300} gap={16}>
         {(query.data?.records || []).map((item) => {
           const meta = STATUS_META[(item.status as DemandStatus) || 'PENDING'] || STATUS_META.PENDING;
           return (
-            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={item.id}>
-              <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', cursor: 'pointer' }}
-                    onClick={() => handleDetail(item)}>
-                <CardMedia
-                  component="div"
-                  sx={{
-                    height: 120,
-                    backgroundColor: item.cover ? 'transparent' : 'action.hover',
-                    backgroundImage: item.cover ? `url(${item.cover})` : 'none',
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  {!item.cover && (
-                    <Typography variant="h4" sx={{ color: '#ccc' }}>
-                      {item.title?.charAt(0) || '?'}
-                    </Typography>
-                  )}
-                </CardMedia>
-                <CardContent sx={{ flex: 1 }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1, gap: 1 }}>
-                    <Typography variant="subtitle1" noWrap sx={{ fontWeight: "bold", maxWidth: "70%" }}>
-                      {item.title}
-                    </Typography>
-                    <Chip
-                      label={meta.label}
-                      size="small"
-                      sx={{ bgcolor: meta.bg, color: meta.color, fontWeight: 600 }}
-                    />
-                  </Box>
-                  <Typography variant="body2" color="text.secondary" noWrap>
-                    {item.subtitle || item.content || '暂无描述'}
+            <Card key={item.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column', cursor: 'pointer', [LIST_ROW]: { flexDirection: 'row', flexWrap: { xs: 'wrap', sm: 'nowrap' } } }}
+                  onClick={() => handleDetail(item)}>
+              <CardMedia
+                component="div"
+                sx={{
+                  height: 120,
+                  backgroundColor: item.cover ? 'transparent' : 'action.hover',
+                  backgroundImage: item.cover ? `url(${item.cover})` : 'none',
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  [LIST_ROW]: { width: { xs: 120, sm: 200 }, flexShrink: 0, height: 'auto', minHeight: 96 },
+                }}
+              >
+                {!item.cover && (
+                  <Typography variant="h4" sx={{ color: '#ccc' }}>
+                    {item.title?.charAt(0) || '?'}
                   </Typography>
-                  <Box sx={{ mt: 1.5, display: 'flex', alignItems: 'center', gap: 2 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      <AttachMoneyIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                      <Typography variant="caption">{item.pay || 0}</Typography>
-                    </Box>
-                    {item.endTime && (
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <AccessTimeIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                        <Typography variant="caption">{new Date(item.endTime).toLocaleDateString()}</Typography>
-                      </Box>
-                    )}
-                    {item.totalTaskCount != null && item.totalTaskCount > 0 && (
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <ViewKanbanIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                        <Typography variant="caption">
-                          {item.completedCount || 0}/{item.totalTaskCount} 任务
-                        </Typography>
-                      </Box>
-                    )}
+                )}
+              </CardMedia>
+              <CardContent sx={{ flex: 1, [LIST_ROW]: { minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1, gap: 1 }}>
+                  <Typography variant="subtitle1" noWrap sx={{ fontWeight: "bold", maxWidth: "70%" }}>
+                    {item.title}
+                  </Typography>
+                  <Chip
+                    label={meta.label}
+                    size="small"
+                    sx={{ bgcolor: meta.bg, color: meta.color, fontWeight: 600 }}
+                  />
+                </Box>
+                <Typography variant="body2" color="text.secondary" noWrap>
+                  {item.subtitle || item.content || '暂无描述'}
+                </Typography>
+                <Box sx={{ mt: 1.5, display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <AttachMoneyIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                    <Typography variant="caption">{item.pay || 0}</Typography>
                   </Box>
-                </CardContent>
-                <Box sx={{ p: 1, display: 'flex', justifyContent: 'flex-end', gap: 0.5 }} onClick={(e) => e.stopPropagation()}>
-                  {onOpenTaskboard && ((item.taskIds?.length || 0) > 0 || item.status === 'PENDING' || item.status === 'PUBLISHED') && (
-                    <Button
-                      size="small"
-                      startIcon={<ViewKanbanIcon sx={{ fontSize: 14 }} />}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOpenTaskboard(item.id as number);
-                      }}
-                      sx={{ color: '#06B6D4', textTransform: 'none', fontSize: 12 }}
-                    >
-                      {(item.taskIds?.length || 0) > 0 ? '查看任务' : '拆分任务'}
-                    </Button>
+                  {item.endTime && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <AccessTimeIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                      <Typography variant="caption">{new Date(item.endTime).toLocaleDateString()}</Typography>
+                    </Box>
                   )}
-                  {item.status === 'SETTLED' ? (
-                    <Button
-                      size="small"
-                      startIcon={<ReceiptLongIcon sx={{ fontSize: 14 }} />}
-                      onClick={(e) => { e.stopPropagation(); handleSettle(item); }}
-                      sx={{ color: 'success.main', textTransform: 'none', fontSize: 12 }}
-                    >
-                      结算单
-                    </Button>
-                  ) : item.status === 'COMPLETED' ? (
-                    <Button
-                      size="small"
-                      variant="contained"
-                      onClick={(e) => { e.stopPropagation(); handleSettle(item); }}
-                      sx={{ bgcolor: 'success.main', '&:hover': { bgcolor: '#4AC97F' }, textTransform: 'none', fontSize: 12 }}
-                    >
-                      结账
-                    </Button>
-                  ) : (
-                    <Tooltip title="编辑">
-                      <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleEdit(item); }}>
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
+                  {item.totalTaskCount != null && item.totalTaskCount > 0 && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <ViewKanbanIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                      <Typography variant="caption">
+                        {item.completedCount || 0}/{item.totalTaskCount} 任务
+                      </Typography>
+                    </Box>
                   )}
                 </Box>
-              </Card>
-            </Grid>
+              </CardContent>
+              <Box sx={{ p: 1, display: 'flex', justifyContent: 'flex-end', gap: 0.5, [LIST_ROW]: { flexBasis: { xs: '100%', sm: 'auto' }, flexShrink: 0, alignItems: 'center' } }} onClick={(e) => e.stopPropagation()}>
+                {onOpenTaskboard && ((item.taskIds?.length || 0) > 0 || item.status === 'PENDING' || item.status === 'PUBLISHED') && (
+                  <Button
+                    size="small"
+                    startIcon={<ViewKanbanIcon sx={{ fontSize: 14 }} />}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenTaskboard(item.id as number);
+                    }}
+                    sx={{ color: '#06B6D4', textTransform: 'none', fontSize: 12 }}
+                  >
+                    {(item.taskIds?.length || 0) > 0 ? '查看任务' : '拆分任务'}
+                  </Button>
+                )}
+                {item.status === 'SETTLED' ? (
+                  <Button
+                    size="small"
+                    startIcon={<ReceiptLongIcon sx={{ fontSize: 14 }} />}
+                    onClick={(e) => { e.stopPropagation(); handleSettle(item); }}
+                    sx={{ color: 'success.main', textTransform: 'none', fontSize: 12 }}
+                  >
+                    结算单
+                  </Button>
+                ) : item.status === 'COMPLETED' ? (
+                  <Button
+                    size="small"
+                    variant="contained"
+                    onClick={(e) => { e.stopPropagation(); handleSettle(item); }}
+                    sx={{ bgcolor: 'success.main', '&:hover': { bgcolor: '#4AC97F' }, textTransform: 'none', fontSize: 12 }}
+                  >
+                    结账
+                  </Button>
+                ) : (
+                  <Tooltip title="编辑">
+                    <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleEdit(item); }}>
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                )}
+              </Box>
+            </Card>
           );
         })}
-      </Grid>
+      </ListLayout>
 
       {(query.data?.records || []).length === 0 && !query.isFetching && (
         <Box sx={{ textAlign: 'center', py: 8 }}>

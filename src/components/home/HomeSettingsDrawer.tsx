@@ -205,13 +205,6 @@ export function HomeSettingsDrawer({ open, onClose }: Props) {
               }
               divider
             />
-            {/* 和各列表头部的切换按钮共用一个偏好,改了立即生效 */}
-            <Row
-              label="列表样式"
-              desc="瀑布流 / 网格 / 列表,全站内容列表通用"
-              control={<ListLayoutSwitch />}
-              divider
-            />
             <Box sx={{ py: 1.25 }}>
               <Typography sx={{ fontSize: 13, color: 'text.primary', mb: 1 }}>主题色</Typography>
               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
@@ -252,19 +245,11 @@ export function HomeSettingsDrawer({ open, onClose }: Props) {
 
           {/* 通用 */}
           <Section title="通用" icon={<TuneRoundedIcon sx={{ fontSize: 14 }} />}>
+            {/* 原「界面密度」开关没有任何地方读;并进全站列表样式,和各列表头部的切换按钮是同一个偏好 */}
             <Row
-              label="界面密度"
-              desc="紧凑模式可看更多内容"
-              control={
-                <ChipGroup
-                  options={[
-                    { value: 'comfortable' as const, label: '舒适' },
-                    { value: 'compact' as const, label: '紧凑' },
-                  ]}
-                  value={settings.density}
-                  onChange={(v) => update({ density: v })}
-                />
-              }
+              label="列表样式"
+              desc="全站内容列表通用:紧凑一屏看得更多,列表按行浏览"
+              control={<ListLayoutSwitch withLabel />}
               divider
             />
             <Row

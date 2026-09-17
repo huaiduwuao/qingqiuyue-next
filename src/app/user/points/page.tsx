@@ -22,6 +22,7 @@ import {
 import { PointsMallTab } from './PointsMallTab';
 import { LoginGate } from '@/components/auth/LoginGate';
 import { useApp } from '@/contexts/AppContext';
+import { ListLayout, LIST_ROW } from '@/components/common/ListLayout';
 
 /** 积分流水类型的中文名,未知类型原样显示 */
 const RECORD_TYPE_LABEL: Record<string, string> = {
@@ -173,7 +174,7 @@ export default function PointsPage() {
             (achievements.length === 0 ? (
               <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>平台还没有设置成就。</Typography>
             ) : (
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' }, gap: 2 }}>
+              <ListLayout minColumnWidth={260} minColumns={2} gap={16}>
                 {achievements.map((a) => (
                   <Box
                     key={a.id}
@@ -185,14 +186,16 @@ export default function PointsPage() {
                       borderColor: 'divider',
                       opacity: a.unlocked ? 1 : 0.55,
                       textAlign: 'center',
+                      // 列表样式:图标在左,文字左对齐
+                      [LIST_ROW]: { display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', columnGap: 2, alignItems: 'center', textAlign: 'left', p: 2 },
                     }}
                   >
-                    <EmojiEventsIcon sx={{ fontSize: 40, color: a.unlocked ? 'warning.main' : 'text.disabled' }} />
-                    <Typography sx={{ fontSize: 14, fontWeight: 600, mt: 1 }}>{a.name}</Typography>
+                    <EmojiEventsIcon sx={{ fontSize: 40, color: a.unlocked ? 'warning.main' : 'text.disabled', [LIST_ROW]: { gridRow: 'span 3' } }} />
+                    <Typography sx={{ fontSize: 14, fontWeight: 600, mt: 1, [LIST_ROW]: { mt: 0 } }}>{a.name}</Typography>
                     <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.5 }}>{a.info}</Typography>
                     <Chip
                       size="small"
-                      sx={{ mt: 1.5, fontSize: 10 }}
+                      sx={{ mt: 1.5, fontSize: 10, [LIST_ROW]: { mt: 1, justifySelf: 'start' } }}
                       color={a.unlocked ? 'success' : 'default'}
                       label={
                         a.unlocked && a.unlock_time
@@ -202,7 +205,7 @@ export default function PointsPage() {
                     />
                   </Box>
                 ))}
-              </Box>
+              </ListLayout>
             ))}
 
           {tab === 'mall' && <PointsMallTab initialPoints={available} />}

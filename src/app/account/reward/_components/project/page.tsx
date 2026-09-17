@@ -14,7 +14,7 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
 import Chip from '@mui/material/Chip';
-import Grid from '@mui/material/Grid';
+import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import IconButton from '@mui/material/IconButton';
@@ -182,68 +182,68 @@ export default function ProjectPage({ groupId, groupData, onOpenTaskboard }: { g
             <Tab key={opt.value} label={opt.label} value={opt.value} sx={{ minHeight: 36 }} />
           ))}
         </Tabs>
+        <ListLayoutSwitch sx={{ ml: 'auto' }} />
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleEdit({} as ProjectItem)} sx={{ flexShrink: 0 }}>
           新建项目
         </Button>
       </Box>
 
       {/* 卡片列表 */}
-      <Grid container spacing={2}>
+      <ListLayout minColumnWidth={300} gap={16}>
         {(query.data?.records || []).map((item) => (
-          <Grid size={{ xs: 12, sm: 6, md: 4 }} key={item.id}>
-            <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', cursor: 'pointer' }}
-                  onClick={() => handleDetail(item)}>
-              <CardMedia
-                component="div"
-                sx={{
-                  height: 100,
-                  backgroundColor: item.cover ? 'transparent' : '#1976d2',
-                  backgroundImage: item.cover ? `url(${item.cover})` : 'none',
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {!item.cover && (
-                  <FolderIcon
-                    sx={{
-                      fontSize: 48,
-                      color: (theme) =>
-                        theme.palette.mode === 'dark'
-                          ? 'rgba(255,255,255,0.5)'
-                          : 'text.disabled',
-                    }}
-                  />
-                )}
-              </CardMedia>
-              <CardContent sx={{ flex: 1 }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-                  <Typography variant="subtitle1" noWrap sx={{ fontWeight: "bold", maxWidth: "70%" }}>
-                    {item.name}
-                  </Typography>
-                  <Chip label={STATUS_MAP[item.status || ''] || item.status} size="small" />
-                </Box>
-                <Typography variant="body2" color="text.secondary" noWrap>
-                  {item.info || '暂无描述'}
+          <Card key={item.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column', cursor: 'pointer', [LIST_ROW]: { flexDirection: 'row', flexWrap: { xs: 'wrap', sm: 'nowrap' } } }}
+                onClick={() => handleDetail(item)}>
+            <CardMedia
+              component="div"
+              sx={{
+                height: 100,
+                backgroundColor: item.cover ? 'transparent' : '#1976d2',
+                backgroundImage: item.cover ? `url(${item.cover})` : 'none',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                [LIST_ROW]: { width: { xs: 120, sm: 200 }, flexShrink: 0, height: 'auto', minHeight: 96 },
+              }}
+            >
+              {!item.cover && (
+                <FolderIcon
+                  sx={{
+                    fontSize: 48,
+                    color: (theme) =>
+                      theme.palette.mode === 'dark'
+                        ? 'rgba(255,255,255,0.5)'
+                        : 'text.disabled',
+                  }}
+                />
+              )}
+            </CardMedia>
+            <CardContent sx={{ flex: 1, [LIST_ROW]: { minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                <Typography variant="subtitle1" noWrap sx={{ fontWeight: "bold", maxWidth: "70%" }}>
+                  {item.name}
                 </Typography>
-                <Box sx={{ mt: 1, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                  {item.groups && (
-                    <Chip label={`${item.groups} 个团队`} size="small" variant="outlined" />
-                  )}
-                  {item.category && (
-                    <Chip label={item.category} size="small" variant="outlined" />
-                  )}
-                </Box>
-              </CardContent>
-              <Box sx={{ p: 1, display: 'flex', justifyContent: 'flex-end', gap: 0.5 }} onClick={(e) => e.stopPropagation()}>
-                {getCardActions(item)}
+                <Chip label={STATUS_MAP[item.status || ''] || item.status} size="small" />
               </Box>
-            </Card>
-          </Grid>
+              <Typography variant="body2" color="text.secondary" noWrap>
+                {item.info || '暂无描述'}
+              </Typography>
+              <Box sx={{ mt: 1, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                {item.groups && (
+                  <Chip label={`${item.groups} 个团队`} size="small" variant="outlined" />
+                )}
+                {item.category && (
+                  <Chip label={item.category} size="small" variant="outlined" />
+                )}
+              </Box>
+            </CardContent>
+            <Box sx={{ p: 1, display: 'flex', justifyContent: 'flex-end', gap: 0.5, [LIST_ROW]: { flexBasis: { xs: '100%', sm: 'auto' }, flexShrink: 0, alignItems: 'center' } }} onClick={(e) => e.stopPropagation()}>
+              {getCardActions(item)}
+            </Box>
+          </Card>
         ))}
-      </Grid>
+      </ListLayout>
 
       {(query.data?.records || []).length === 0 && !query.isFetching && (
         <Box sx={{ textAlign: 'center', py: 8 }}>

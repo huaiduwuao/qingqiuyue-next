@@ -9,6 +9,7 @@ import Chip from "@mui/material/Chip";
 import Button from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
 import { CoverImage } from "@/components/common/CoverImage";
+import { ListLayout, ListLayoutSwitch, LIST_ROW } from "@/components/common/ListLayout";
 import { accountClient, isAuthError } from "@/lib/api/client";
 import { loginHref } from "@/lib/auth/redirect";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
@@ -65,36 +66,43 @@ function GridSkeleton({ count = 6 }: { count?: number }) {
 function GridView({ items, tab }: { items: MePageItem[]; tab: MainTab }) {
   if (!items.length) return null;
   return (
-    <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1 }}>
+    <ListLayout minColumnWidth={110} minColumns={3} gap={8}>
       {items.map((it, i) => (
         <Box
           key={String(it.id ?? it.contentId ?? i)}
-          sx={{ position: "relative", aspectRatio: "3/4", borderRadius: 1, overflow: "hidden", bgcolor: "action.hover" }}
+          sx={{ position: "relative", borderRadius: 1, overflow: "hidden", bgcolor: "action.hover", [LIST_ROW]: { display: "flex", alignItems: "center" } }}
         >
-          <CoverImage
-            src={it.cover || it.coverUrl}
-            alt={it.title || ""}
-            sx={{ width: "100%", height: "100%" }}
-          />
-          {it.title && (
-            <Box
-              sx={{
-                position: "absolute",
-                inset: 0,
-                background: "linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.7) 100%)",
-                display: "flex",
-                alignItems: "flex-end",
-                p: 0.75,
-              }}
-            >
-              <Typography sx={{ fontSize: 11, color: "common.white", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%" }}>
-                {it.title}
-              </Typography>
-            </Box>
-          )}
+          <Box sx={{ position: "relative", aspectRatio: "3/4", [LIST_ROW]: { width: { xs: 72, sm: 96 }, flexShrink: 0 } }}>
+            <CoverImage
+              src={it.cover || it.coverUrl}
+              alt={it.title || ""}
+              sx={{ width: "100%", height: "100%" }}
+            />
+            {it.title && (
+              <Box
+                sx={{
+                  position: "absolute",
+                  inset: 0,
+                  background: "linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.7) 100%)",
+                  display: "flex",
+                  alignItems: "flex-end",
+                  p: 0.75,
+                  [LIST_ROW]: { display: "none" },
+                }}
+              >
+                <Typography sx={{ fontSize: 11, color: "common.white", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", width: "100%" }}>
+                  {it.title}
+                </Typography>
+              </Box>
+            )}
+          </Box>
+          {/* 列表样式:标题从封面上移到右侧 */}
+          <Typography sx={{ display: "none", [LIST_ROW]: { display: "-webkit-box" }, flex: 1, minWidth: 0, px: 1.5, fontSize: 14, fontWeight: 600, WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+            {it.title}
+          </Typography>
         </Box>
       ))}
-    </Box>
+    </ListLayout>
   );
 }
 
@@ -238,6 +246,7 @@ export function MeTabView() {
             />
           ))}
         </Box>
+        <ListLayoutSwitch />
       </Box>
 
       {isLoading ? (

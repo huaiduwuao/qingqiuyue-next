@@ -32,6 +32,7 @@ import { updateUser } from '@/apis/account';
 import { adminClient, isAuthError, formatApiError } from '@/lib/api/client';
 import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2 } from '@/constants/gradients';
+import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 
 // 壁纸域占位:后端 `/api/core/wallpaper/*` 就绪后,以下数据/类型替换为 API 调用
 type WallpaperCategory = 'all' | 'abstract' | 'anime' | 'scenery' | 'stars' | 'minimal' | 'cyber';
@@ -663,16 +664,7 @@ function WallpaperPageContent() {
                 {myWallpapers.length} 张
               </Typography>
             </Box>
-            <Box
-              sx={{
-                columns: { xs: 2, sm: 3, md: 4 },
-                columnGap: 1.5,
-                '& > *': {
-                  breakInside: 'avoid',
-                  marginBottom: 1.5,
-                },
-              }}
-            >
+            <ListLayout minColumnWidth={260} minColumns={2} gap={12}>
               {myWallpapers.map((m) => {
                 const wp = wallpapers.find((w) => w.id === m.id);
                 if (!wp) return null;
@@ -687,7 +679,7 @@ function WallpaperPageContent() {
                   />
                 );
               })}
-            </Box>
+            </ListLayout>
           </Box>
         </Box>
       )}
@@ -711,18 +703,9 @@ function WallpaperPageContent() {
             <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
               共 {filtered.length} 张
             </Typography>
+            <ListLayoutSwitch />
           </Box>
-          <Box
-            sx={{
-              // CSS columns 瀑布流布局
-              columns: { xs: 2, sm: 3, md: 4, lg: 5 },
-              columnGap: 1.5,
-              '& > *': {
-                breakInside: 'avoid',
-                marginBottom: 1.5,
-              },
-            }}
-          >
+          <ListLayout minColumnWidth={220} minColumns={2} gap={12}>
             {filtered.map((wp) => (
               <WallpaperCard
                 key={wp.id}
@@ -736,7 +719,7 @@ function WallpaperPageContent() {
                 }}
               />
             ))}
-          </Box>
+          </ListLayout>
         </Box>
       </Box>
 
@@ -842,118 +825,158 @@ function WallpaperCard({
         borderRadius: 2,
         overflow: 'hidden',
         cursor: 'pointer',
-        aspectRatio: '16/10',
-        background: bgCss(wp),
         transition: 'all 0.2s',
         '&:hover': {
           transform: 'translateY(-3px)',
           boxShadow: '0 12px 32px rgba(0,0,0,0.4)',
         },
         '&:hover .wp-actions': { opacity: 1 },
+        [LIST_ROW]: {
+          display: 'flex',
+          alignItems: 'stretch',
+          bgcolor: 'rgba(255,255,255,0.03)',
+          border: '1px solid rgba(255,255,255,0.06)',
+        },
       }}
     >
       <Box
-        aria-hidden
         sx={{
-          position: 'absolute',
-          inset: 0,
-          background: 'radial-gradient(circle at 30% 20%, rgba(255,255,255,0.15), transparent 50%)',
-        }}
-      />
-      {/* 顶部 chips */}
-      <Box sx={{ position: 'absolute', top: 8, left: 8, right: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
-        {wp.official ? (
-          <Box
-            sx={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 0.25,
-              px: 0.75,
-              py: 0.25,
-              borderRadius: 0.75,
-              bgcolor: 'rgba(0,0,0,0.4)',
-              backdropFilter: 'blur(8px)',
-              color: '#fff',
-              fontSize: 9,
-              fontWeight: 700,
-              letterSpacing: 0.5,
-            }}
-          >
-            <StarIcon sx={{ fontSize: 10, color: '#FFD566' }} />
-            官方
-          </Box>
-        ) : (
-          <Box />
-        )}
-        <IconButton
-          className="wp-actions"
-          size="small"
-          onClick={onToggleFavorite}
-          sx={{
-            width: 28,
-            height: 28,
-            bgcolor: 'rgba(0,0,0,0.4)',
-            backdropFilter: 'blur(8px)',
-            color: favorited ? '#FE2C55' : '#fff',
-            opacity: 0,
-            transition: 'opacity 0.2s',
-            '&:hover': { bgcolor: 'rgba(0,0,0,0.6)' },
-          }}
-        >
-          {favorited ? <FavoriteIcon sx={{ fontSize: 14 }} /> : <FavoriteBorderIcon sx={{ fontSize: 14 }} />}
-        </IconButton>
-      </Box>
-
-      {/* 底部信息 */}
-      <Box
-        sx={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          p: 1.25,
-          background: 'linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.75) 100%)',
+          position: 'relative',
+          aspectRatio: '16/10',
+          background: bgCss(wp),
+          [LIST_ROW]: { width: { xs: 120, sm: 200 }, flexShrink: 0 },
         }}
       >
-        <Typography
+        <Box
+          aria-hidden
           sx={{
-            fontSize: 13,
-            fontWeight: 600,
-            color: '#fff',
-            lineHeight: 1.2,
-            display: '-webkit-box',
-            WebkitLineClamp: 1,
-            WebkitBoxOrient: 'vertical',
-            overflow: 'hidden',
+            position: 'absolute',
+            inset: 0,
+            background: 'radial-gradient(circle at 30% 20%, rgba(255,255,255,0.15), transparent 50%)',
           }}
-        >
-          {wp.title}
-        </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-          <Typography sx={{ fontSize: 10, color: 'rgba(255,255,255,0.7)' }}>
-            {formatCount(wp.usage)} 使用
-          </Typography>
-          {isApplied && (
+        />
+        {/* 顶部 chips */}
+        <Box sx={{ position: 'absolute', top: 8, left: 8, right: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1 }}>
+          {wp.official ? (
             <Box
               sx={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: 0.25,
-                px: 0.5,
-                py: 0.1,
-                borderRadius: 0.5,
-                bgcolor: '#5DDB96',
-                color: '#0a0a0f',
+                px: 0.75,
+                py: 0.25,
+                borderRadius: 0.75,
+                bgcolor: 'rgba(0,0,0,0.4)',
+                backdropFilter: 'blur(8px)',
+                color: '#fff',
                 fontSize: 9,
                 fontWeight: 700,
+                letterSpacing: 0.5,
               }}
             >
-              <CheckCircleIcon sx={{ fontSize: 9 }} />
-              应用中
+              <StarIcon sx={{ fontSize: 10, color: '#FFD566' }} />
+              官方
             </Box>
+          ) : (
+            <Box />
           )}
+          <IconButton
+            className="wp-actions"
+            size="small"
+            onClick={onToggleFavorite}
+            sx={{
+              width: 28,
+              height: 28,
+              bgcolor: 'rgba(0,0,0,0.4)',
+              backdropFilter: 'blur(8px)',
+              color: favorited ? '#FE2C55' : '#fff',
+              opacity: 0,
+              transition: 'opacity 0.2s',
+              '&:hover': { bgcolor: 'rgba(0,0,0,0.6)' },
+            }}
+          >
+            {favorited ? <FavoriteIcon sx={{ fontSize: 14 }} /> : <FavoriteBorderIcon sx={{ fontSize: 14 }} />}
+          </IconButton>
+        </Box>
+
+        {/* 底部信息 */}
+        <Box
+          sx={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            p: 1.25,
+            background: 'linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.75) 100%)',
+            [LIST_ROW]: { display: 'none' },
+          }}
+        >
+          <Typography
+            sx={{
+              fontSize: 13,
+              fontWeight: 600,
+              color: '#fff',
+              lineHeight: 1.2,
+              display: '-webkit-box',
+              WebkitLineClamp: 1,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
+            {wp.title}
+          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
+            <Typography sx={{ fontSize: 10, color: 'rgba(255,255,255,0.7)' }}>
+              {formatCount(wp.usage)} 使用
+            </Typography>
+            {isApplied && <AppliedBadge />}
+          </Box>
         </Box>
       </Box>
+      {/* 列表样式:标题移到右侧 */}
+      <Box
+        sx={{
+          display: 'none',
+          [LIST_ROW]: { flex: 1, minWidth: 0, p: 1.5, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 0.5 },
+        }}
+      >
+        <Typography sx={{ fontSize: 14, fontWeight: 600, color: '#fff', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+          {wp.title}
+        </Typography>
+        {wp.desc && (
+          <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+            {wp.desc}
+          </Typography>
+        )}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
+            {formatCount(wp.usage)} 使用
+          </Typography>
+          {isApplied && <AppliedBadge />}
+        </Box>
+      </Box>
+    </Box>
+  );
+}
+
+function AppliedBadge() {
+  return (
+    <Box
+      sx={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 0.25,
+        px: 0.5,
+        py: 0.1,
+        borderRadius: 0.5,
+        bgcolor: '#5DDB96',
+        color: '#0a0a0f',
+        fontSize: 9,
+        fontWeight: 700,
+      }}
+    >
+      <CheckCircleIcon sx={{ fontSize: 9 }} />
+      应用中
     </Box>
   );
 }
@@ -979,130 +1002,158 @@ function MyWallpaperCard({
         borderRadius: 2,
         overflow: 'hidden',
         cursor: 'pointer',
-        aspectRatio: '16/10',
-        background: bgCss(wp),
         transition: 'all 0.2s',
         '&:hover': { transform: 'translateY(-2px)' },
         '&:hover .my-actions': { opacity: 1 },
+        [LIST_ROW]: {
+          display: 'flex',
+          alignItems: 'stretch',
+          bgcolor: 'rgba(255,255,255,0.03)',
+          border: '1px solid rgba(255,255,255,0.06)',
+        },
       }}
     >
       <Box
-        aria-hidden
         sx={{
-          position: 'absolute',
-          inset: 0,
-          background: 'radial-gradient(circle at 30% 20%, rgba(255,255,255,0.15), transparent 50%)',
-        }}
-      />
-      <Box
-        sx={{
-          position: 'absolute',
-          top: 6,
-          left: 6,
-          right: 6,
-          display: 'flex',
-          gap: 0.5,
-          flexWrap: 'wrap',
+          position: 'relative',
+          aspectRatio: '16/10',
+          background: bgCss(wp),
+          [LIST_ROW]: { width: { xs: 120, sm: 200 }, flexShrink: 0 },
         }}
       >
-        {meta.appliedTo === 'home' && (
-          <Box
+        <Box
+          aria-hidden
+          sx={{
+            position: 'absolute',
+            inset: 0,
+            background: 'radial-gradient(circle at 30% 20%, rgba(255,255,255,0.15), transparent 50%)',
+          }}
+        />
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 6,
+            left: 6,
+            right: 6,
+            display: 'flex',
+            gap: 0.5,
+            flexWrap: 'wrap',
+          }}
+        >
+          {meta.appliedTo === 'home' && (
+            <Box
+              sx={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 0.25,
+                px: 0.5,
+                py: 0.15,
+                borderRadius: 0.5,
+                bgcolor: '#5DDB96',
+                color: '#0a0a0f',
+                fontSize: 9,
+                fontWeight: 700,
+              }}
+            >
+              <HomeIcon sx={{ fontSize: 9 }} />
+              主页
+            </Box>
+          )}
+          {meta.appliedTo === 'account' && (
+            <Box
+              sx={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 0.25,
+                px: 0.5,
+                py: 0.15,
+                borderRadius: 0.5,
+                bgcolor: ACCENT.purple.main,
+                color: '#fff',
+                fontSize: 9,
+                fontWeight: 700,
+              }}
+            >
+              <PersonIcon sx={{ fontSize: 9 }} />
+              个人
+            </Box>
+          )}
+        </Box>
+        <Box
+          sx={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            p: 1.25,
+            background: 'linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.75) 100%)',
+            [LIST_ROW]: { display: 'none' },
+          }}
+        >
+          <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#fff', lineHeight: 1.2 }}>
+            {wp.title}
+          </Typography>
+          <Typography sx={{ fontSize: 9, color: 'rgba(255,255,255,0.6)', mt: 0.25 }}>
+            {formatDate(meta.setAt)} 收藏
+          </Typography>
+        </Box>
+        {/* 快捷操作 hover 显示 */}
+        <Box
+          className="my-actions"
+          sx={{
+            position: 'absolute',
+            right: 6,
+            bottom: 6,
+            display: 'flex',
+            gap: 0.5,
+            opacity: 0,
+            transition: 'opacity 0.2s',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <IconButton
+            size="small"
+            onClick={onApplyHome}
             sx={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 0.25,
-              px: 0.5,
-              py: 0.15,
-              borderRadius: 0.5,
-              bgcolor: '#5DDB96',
-              color: '#0a0a0f',
-              fontSize: 9,
-              fontWeight: 700,
+              width: 26,
+              height: 26,
+              bgcolor: 'rgba(0,0,0,0.6)',
+              backdropFilter: 'blur(8px)',
+              color: meta.appliedTo === 'home' ? '#5DDB96' : '#fff',
+              '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' },
             }}
           >
-            <HomeIcon sx={{ fontSize: 9 }} />
-            主页
-          </Box>
-        )}
-        {meta.appliedTo === 'account' && (
-          <Box
+            <HomeIcon sx={{ fontSize: 13 }} />
+          </IconButton>
+          <IconButton
+            size="small"
+            onClick={onApplyAccount}
             sx={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 0.25,
-              px: 0.5,
-              py: 0.15,
-              borderRadius: 0.5,
-              bgcolor: ACCENT.purple.main,
-              color: '#fff',
-              fontSize: 9,
-              fontWeight: 700,
+              width: 26,
+              height: 26,
+              bgcolor: 'rgba(0,0,0,0.6)',
+              backdropFilter: 'blur(8px)',
+              color: meta.appliedTo === 'account' ? ACCENT.purple.main : '#fff',
+              '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' },
             }}
           >
-            <PersonIcon sx={{ fontSize: 9 }} />
-            个人
-          </Box>
-        )}
+            <PersonIcon sx={{ fontSize: 13 }} />
+          </IconButton>
+        </Box>
       </Box>
+      {/* 列表样式:标题移到右侧 */}
       <Box
         sx={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          p: 1.25,
-          background: 'linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.75) 100%)',
+          display: 'none',
+          [LIST_ROW]: { flex: 1, minWidth: 0, p: 1.5, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 0.5 },
         }}
       >
-        <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#fff', lineHeight: 1.2 }}>
+        <Typography sx={{ fontSize: 14, fontWeight: 600, color: '#fff', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
           {wp.title}
         </Typography>
-        <Typography sx={{ fontSize: 9, color: 'rgba(255,255,255,0.6)', mt: 0.25 }}>
+        <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
           {formatDate(meta.setAt)} 收藏
         </Typography>
-      </Box>
-      {/* 快捷操作 hover 显示 */}
-      <Box
-        className="my-actions"
-        sx={{
-          position: 'absolute',
-          right: 6,
-          bottom: 6,
-          display: 'flex',
-          gap: 0.5,
-          opacity: 0,
-          transition: 'opacity 0.2s',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <IconButton
-          size="small"
-          onClick={onApplyHome}
-          sx={{
-            width: 26,
-            height: 26,
-            bgcolor: 'rgba(0,0,0,0.6)',
-            backdropFilter: 'blur(8px)',
-            color: meta.appliedTo === 'home' ? '#5DDB96' : '#fff',
-            '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' },
-          }}
-        >
-          <HomeIcon sx={{ fontSize: 13 }} />
-        </IconButton>
-        <IconButton
-          size="small"
-          onClick={onApplyAccount}
-          sx={{
-            width: 26,
-            height: 26,
-            bgcolor: 'rgba(0,0,0,0.6)',
-            backdropFilter: 'blur(8px)',
-            color: meta.appliedTo === 'account' ? ACCENT.purple.main : '#fff',
-            '&:hover': { bgcolor: 'rgba(0,0,0,0.8)' },
-          }}
-        >
-          <PersonIcon sx={{ fontSize: 13 }} />
-        </IconButton>
       </Box>
     </Box>
   );

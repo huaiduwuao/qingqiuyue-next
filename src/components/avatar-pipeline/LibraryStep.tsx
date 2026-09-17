@@ -6,6 +6,7 @@ import {
   Box, Typography, Card, CardActionArea, CardMedia, CardContent,
   Button, Alert, CircularProgress, TextField,
 } from '@mui/material';
+import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 
 export interface LibraryCharacter {
   id: string;
@@ -115,16 +116,15 @@ export default function LibraryStep({ onSelected, onBack }: LibraryStepProps) {
         <Typography sx={{ fontSize: 14, fontWeight: 600 }}>
           第 2 步:选个角色
         </Typography>
-        <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-          {chars.length} 个可选
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
+            {chars.length} 个可选
+          </Typography>
+          <ListLayoutSwitch />
+        </Box>
       </Box>
 
-      <Box sx={{
-        display: 'grid',
-        gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)' },
-        gap: 1.5,
-      }}>
+      <ListLayout minColumnWidth={160} minColumns={2} gap={12} listMaxWidth="none">
         {chars.map((c) => (
           <Card
             key={c.id}
@@ -137,12 +137,13 @@ export default function LibraryStep({ onSelected, onBack }: LibraryStepProps) {
               },
             }}
           >
-            <CardActionArea onClick={() => setPicked(c)}>
+            <CardActionArea onClick={() => setPicked(c)} sx={{ [LIST_ROW]: { display: 'flex', alignItems: 'stretch' } }}>
               <Box sx={{
                 width: '100%',
                 aspectRatio: '1 / 1',
                 background: `linear-gradient(135deg, rgba(${Math.round(c.hair_color[0] * 255)},${Math.round(c.hair_color[1] * 255)},${Math.round(c.hair_color[2] * 255)},0.3) 0%, rgba(${Math.round(c.eye_color[0] * 255)},${Math.round(c.eye_color[1] * 255)},${Math.round(c.eye_color[2] * 255)},0.3) 100%)`,
                 position: 'relative',
+                [LIST_ROW]: { width: { xs: 72, sm: 96 }, flexShrink: 0 },
               }}>
                 <CardMedia
                   component="img"
@@ -155,7 +156,7 @@ export default function LibraryStep({ onSelected, onBack }: LibraryStepProps) {
                   }}
                 />
               </Box>
-              <CardContent sx={{ p: 1.25 }}>
+              <CardContent sx={{ p: 1.25, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
                 <Typography sx={{ fontSize: 13, fontWeight: 600 }}>
                   {c.name}
                 </Typography>
@@ -166,7 +167,7 @@ export default function LibraryStep({ onSelected, onBack }: LibraryStepProps) {
             </CardActionArea>
           </Card>
         ))}
-      </Box>
+      </ListLayout>
 
       <Button onClick={onBack} sx={{ alignSelf: 'flex-start' }}>
         ← 返回选择方式

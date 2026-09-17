@@ -137,7 +137,7 @@ export function CommunityFeed({ topic, userId, focusFeedId, circle }: { topic?: 
           <Empty title={topic ? '这里还没有讨论' : '还没有人发帖'} hint="来发第一条吧" />
         )
       ) : (
-        <ListLayout minColumnWidth={340}>
+        <ListLayout rows minColumnWidth={340} packing="masonry" listMaxWidth="none">
           {items.map((it) => <FeedCard key={String(it.id)} item={it} notify={notify} onDeleted={onDeleted} />)}
         </ListLayout>
       )}

@@ -16,6 +16,7 @@ import VerifiedRoundedIcon from '@mui/icons-material/VerifiedRounded';
 import { fetchTopic, fetchTopicContents, type CommunityTopic, type TopicContentItem } from '@/apis/community';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { CoverImage } from '@/components/common/CoverImage';
+import { ListLayout, LIST_ROW } from '@/components/common/ListLayout';
 import { CommunityFeed } from '@/components/community/CommunityFeed';
 import { TopicFollowButton } from '@/components/community/TopicFollowButton';
 import { CONTENT_TYPE_LABEL, TOPIC_KIND_LABEL, compactCount, topicGradient } from '@/components/community/format';
@@ -128,7 +129,7 @@ function TopicContents({ topicId }: { topicId: string | number }) {
   }
   return (
     <>
-      <Box sx={gridSx}>
+      <ListLayout minColumnWidth={170} gap={12} listMaxWidth="none">
         {list.map((c) => (
           <Box
             key={String(c.id)}
@@ -136,21 +137,21 @@ function TopicContents({ topicId }: { topicId: string | number }) {
               const r = getDetailRoute(c.contentType, c.id);
               if (r) router.push(r);
             }}
-            sx={{ cursor: 'pointer', borderRadius: 2, overflow: 'hidden', bgcolor: 'var(--bg-card, rgba(20,22,32,0.6))', border: '1px solid var(--border-color, rgba(255,255,255,0.06))', transition: 'transform .2s', '&:hover': { transform: 'translateY(-2px)' } }}
+            sx={{ cursor: 'pointer', borderRadius: 2, overflow: 'hidden', bgcolor: 'var(--bg-card, rgba(20,22,32,0.6))', border: '1px solid var(--border-color, rgba(255,255,255,0.06))', transition: 'transform .2s', '&:hover': { transform: 'translateY(-2px)' }, [LIST_ROW]: { display: 'flex', alignItems: 'stretch' } }}
           >
-            <Box sx={{ position: 'relative', aspectRatio: '16/10' }}>
+            <Box sx={{ position: 'relative', aspectRatio: '16/10', [LIST_ROW]: { width: { xs: 120, sm: 200 }, flexShrink: 0 } }}>
               <CoverImage src={c.cover} alt={c.title} sx={{ width: '100%', height: '100%' }} />
               {c.pinned && <Chip size="small" label="精选" sx={{ position: 'absolute', top: 6, left: 6, height: 18, fontSize: 10, fontWeight: 700, color: '#fff', bgcolor: 'var(--brand-color, #FE2C55)' }} />}
             </Box>
-            <Box sx={{ p: 1.25 }}>
-              <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #fff)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: 36 }}>{c.title}</Typography>
+            <Box sx={{ p: 1.25, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
+              <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #fff)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: 36, [LIST_ROW]: { fontSize: 14, minHeight: 0 } }}>{c.title}</Typography>
               <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.45))', mt: 0.5 }}>
                 {CONTENT_TYPE_LABEL[c.contentType] || c.contentType} · {compactCount(c.views)} 播放
               </Typography>
             </Box>
           </Box>
         ))}
-      </Box>
+      </ListLayout>
       {q.hasNextPage && (
         <Box sx={{ textAlign: 'center', mt: 2 }}>
           <Button size="small" disabled={q.isFetchingNextPage} onClick={() => q.fetchNextPage()}>加载更多</Button>

@@ -9,6 +9,7 @@ import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded';
 import { CoverImage } from '@/components/common/CoverImage';
+import { LIST_ROW } from '@/components/common/ListLayout';
 import { IMAGE_OVERLAY } from '@/constants/gradients';
 import {
   type LiveClassic,
@@ -29,7 +30,7 @@ const hoverLift = {
   '@media (prefers-reduced-motion: reduce)': { transition: 'none', '&:hover': { transform: 'none' } },
 };
 
-function Cover({ src, alt, children, radius = 2 }: { src: string; alt: string; children?: React.ReactNode; radius?: number }) {
+function Cover({ src, alt, children, radius = 2, sx }: { src: string; alt: string; children?: React.ReactNode; radius?: number; sx?: object }) {
   return (
     <Box
       className="live-cover"
@@ -40,6 +41,7 @@ function Cover({ src, alt, children, radius = 2 }: { src: string; alt: string; c
         overflow: 'hidden',
         bgcolor: 'var(--bg-input)',
         '& img': { transition: 'transform .35s ease' },
+        ...sx,
       }}
     >
       <CoverImage src={src} alt={alt} sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
@@ -63,8 +65,8 @@ function ViewerCount({ n, prefix }: { n: number; prefix?: string }) {
 export function RoomCard({ room, now, onOpen }: { room: LiveRoom; now: number; onOpen: () => void }) {
   const sub = [room.hostName, room.isLive ? formatLiveFor(room.startedAt, now) : ''].filter(Boolean).join(' · ');
   return (
-    <Clickable onClick={onOpen} label={`${room.hostName || ''} ${room.title}`} sx={{ borderRadius: 2, ...hoverLift }}>
-      <Cover src={room.cover} alt={room.title}>
+    <Clickable onClick={onOpen} label={`${room.hostName || ''} ${room.title}`} sx={{ borderRadius: 2, ...hoverLift, [LIST_ROW]: { display: 'flex', alignItems: 'stretch' } }}>
+      <Cover src={room.cover} alt={room.title} sx={{ [LIST_ROW]: { width: { xs: 120, sm: 200 }, flexShrink: 0 } }}>
         <Box sx={{ position: 'absolute', top: 8, left: 8 }}>{room.isLive ? <LiveDot overlay /> : <OfflineTag />}</Box>
         <Box sx={{ position: 'absolute', top: 8, right: 8 }}>
           <PlatformBadge platform={room.platform} label={room.platformLabel} solid />
@@ -78,7 +80,7 @@ export function RoomCard({ room, now, onOpen }: { room: LiveRoom; now: number; o
           )}
         </Box>
       </Cover>
-      <Box sx={{ display: 'flex', gap: 1, pt: 1, alignItems: 'flex-start' }}>
+      <Box sx={{ display: 'flex', gap: 1, pt: 1, alignItems: 'flex-start', [LIST_ROW]: { flex: 1, minWidth: 0, pt: 0, px: 1.5, alignItems: 'center' } }}>
         <HostAvatar name={room.hostName} src={room.hostAvatar} size={30} />
         <Box sx={{ minWidth: 0, flex: 1 }}>
           <Typography noWrap title={room.title} sx={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.35 }}>
@@ -180,9 +182,10 @@ export function RunnerUpCard({ room, onOpen }: { room: LiveRoom; onOpen: () => v
 export function CategoryCard({ facet, active, onSelect }: { facet: LiveFacet; active: boolean; onSelect: () => void }) {
   const top = facet.top;
   return (
-    <Clickable onClick={onSelect} label={`${facet.label} 分区`} sx={{ borderRadius: 2, ...hoverLift }}>
+    <Clickable onClick={onSelect} label={`${facet.label} 分区`} sx={{ borderRadius: 2, ...hoverLift, [LIST_ROW]: { display: 'flex', alignItems: 'stretch' } }}>
       <Box
         sx={{
+          [LIST_ROW]: { width: { xs: 120, sm: 200 }, flexShrink: 0 },
           position: 'relative',
           aspectRatio: '16/9',
           borderRadius: 2,
@@ -194,7 +197,7 @@ export function CategoryCard({ facet, active, onSelect }: { facet: LiveFacet; ac
       >
         {top?.cover && <CoverImage src={top.cover} alt={facet.label} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
         <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.8) 100%)' }} />
-        <Box sx={{ position: 'absolute', left: 10, right: 10, bottom: 8, color: '#fff' }}>
+        <Box sx={{ position: 'absolute', left: 10, right: 10, bottom: 8, color: '#fff', [LIST_ROW]: { display: 'none' } }}>
           <Typography sx={{ fontSize: 17, fontWeight: 800, lineHeight: 1.2 }}>{facet.label}</Typography>
           <Typography sx={{ fontSize: 11.5, color: 'rgba(255,255,255,0.85)', mt: 0.25 }}>
             {facet.live > 0 ? `${facet.live} 间在播` : `收录 ${facet.total} 间 · 暂无在播`}
@@ -206,6 +209,19 @@ export function CategoryCard({ facet, active, onSelect }: { facet: LiveFacet; ac
             </Typography>
           )}
         </Box>
+      </Box>
+      {/* 列表样式:文字从封面上移到右侧 */}
+      <Box sx={{ display: 'none', [LIST_ROW]: { flex: 1, minWidth: 0, px: 1.5, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
+        <Typography sx={{ fontSize: 16, fontWeight: 800, lineHeight: 1.2, color: 'var(--text-primary)' }}>{facet.label}</Typography>
+        <Typography sx={{ fontSize: 12, color: 'var(--text-secondary)', mt: 0.5 }}>
+          {facet.live > 0 ? `${facet.live} 间在播` : `收录 ${facet.total} 间 · 暂无在播`}
+        </Typography>
+        {top && (
+          <Typography noWrap sx={{ fontSize: 12, color: 'var(--text-muted)', mt: 0.25 }}>
+            最热:{top.hostName}
+            {top.viewers > 0 ? ` · ${formatViewers(top.viewers)}` : ''}
+          </Typography>
+        )}
       </Box>
     </Clickable>
   );
