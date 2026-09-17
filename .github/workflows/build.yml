@@ -27,9 +27,9 @@ jobs:
       - name: Drop pnpm-workspace.yaml
         shell: bash
         run: rm -f pnpm-workspace.yaml
+      # 版本只认 package.json 的 packageManager(pnpm 10);这里再写 version 会直接报
+      # "Multiple versions of pnpm specified" 并中断整个工作流
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -54,9 +54,9 @@ jobs:
       - name: Drop pnpm-workspace.yaml
         shell: bash
         run: rm -f pnpm-workspace.yaml
+      # 版本只认 package.json 的 packageManager(pnpm 10);这里再写 version 会直接报
+      # "Multiple versions of pnpm specified" 并中断整个工作流
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -91,9 +91,9 @@ jobs:
       - name: Drop pnpm-workspace.yaml
         shell: bash
         run: rm -f pnpm-workspace.yaml
+      # 版本只认 package.json 的 packageManager(pnpm 10);这里再写 version 会直接报
+      # "Multiple versions of pnpm specified" 并中断整个工作流
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -143,9 +143,9 @@ jobs:
       - name: Drop pnpm-workspace.yaml
         shell: bash
         run: rm -f pnpm-workspace.yaml
+      # 版本只认 package.json 的 packageManager(pnpm 10);这里再写 version 会直接报
+      # "Multiple versions of pnpm specified" 并中断整个工作流
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -181,9 +181,9 @@ jobs:
       - name: Drop pnpm-workspace.yaml
         shell: bash
         run: rm -f pnpm-workspace.yaml
+      # 版本只认 package.json 的 packageManager(pnpm 10);这里再写 version 会直接报
+      # "Multiple versions of pnpm specified" 并中断整个工作流
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
