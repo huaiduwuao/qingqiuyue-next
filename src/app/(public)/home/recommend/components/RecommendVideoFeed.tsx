@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -133,23 +133,30 @@ export function RecommendVideoFeed() {
   const [streamLoading, setStreamLoading] = useState(false);
   const [streamError, setStreamError] = useState<string>('');
 
-  // 分页状态
+  // 分页:useInfiniteQuery 管页码。以前手写的页码/锁在挂载时就先跳到第 2 页,
+  // 第 1 页的结果被丢掉;某页过滤后一条不剩时预加载也不再触发。
   const PAGE_SIZE = 10;
-  const [page, setPage] = useState(1);
-  const [allItems, setAllItems] = useState<VideoItem[]>([]);
-  const [hasMore, setHasMore] = useState(true);
-
-  // 追踪正在请求的页码（使用 ref 避免 React 状态延迟问题）
-  const requestingPageRef = useRef(0);
-  // 锁：是否正在等待下一页数据
-  const loadingLockRef = useRef(false);
-  const { data: feed, isLoading, isFetching } = useQuery({
-    queryKey: ['home-recommend', 'recommend-feed', page],
-    queryFn: async () => {
+  const {
+    data: feedPages,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['home-recommend', 'recommend-feed'],
+    initialPageParam: 1,
+    getNextPageParam: (last: { hasMore: boolean; page: number }) => (last.hasMore ? last.page + 1 : undefined),
+    // 登录用户的翻页靠服务端曝光去重,重新拉会换一批内容、当前这条跟着跳走
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    queryFn: async ({ pageParam }) => {
+      const page = pageParam;
       const resp = await fetchRecommend({
         types: 'VIDEO,TELEPLAY',
         size: PAGE_SIZE,
         page: page,
+        // 沉浸式流每一屏就是一个播放器:只要站内能看到画面的(后端 recommendengine WatchableOnly)
+        watchable: 1,
       }) as any;
       const list = (resp?.data?.list ?? []) as any[];
       const items = list.map((it): VideoItem => ({
@@ -183,41 +190,29 @@ export function RecommendVideoFeed() {
         repairNotice: it.repairNotice || (originOnlyPlatform(sourcePageOf(it.sourceUrl, it.metadata)) ? ORIGIN_ONLY_NOTICE : ''),
       }));
       const hasMore = resp?.data?.hasMore ?? false;
-      return { items, hasMore };
+      // 后端还没按 watchable 过滤时(旧版本)前端兜一层:只留能嵌外链播放器或判定可播的。
+      // 「去原站看」「修复中」的卡片放在推荐流里就是一屏划不掉的废内容。
+      const watchable = items.filter((v) =>
+        resolveEmbedPlayer(v.sourceUrl) != null || (v.playbackStatus === 'playable' && !!v.sourceUrl));
+      return { items: watchable, hasMore, page };
     },
-    placeholderData: (prev) => prev, // 避免闪烁
   });
 
-  // 合并数据到 allItems（使用 isFetching 来判断是否真正收到新数据）
-  useEffect(() => {
-    console.log('[DEBUG] merge effect:', { isFetching, page, requestingPageRef: requestingPageRef.current, feedItems: feed?.items?.length, hasMore: feed?.hasMore });
-    // 当 isFetching 变为 false 时，说明请求完成
-    if (isFetching) return;
-    if (!feed) return;
-    // 检查页码匹配：确保合并的是当前请求的页
-    if (requestingPageRef.current > 0 && requestingPageRef.current !== page) {
-      console.log('[DEBUG] 页码不匹配，拒绝合并:', { waiting: requestingPageRef.current, current: page });
-      return;
-    }
-
-    console.log('[DEBUG] 开始合并数据, page:', page, 'items:', feed.items.length);
-    setAllItems(prev => {
-      if (page === 1) {
-        console.log('[DEBUG] 第一页，替换数据');
-        return feed.items;
+  // 各页拼起来去重(不同页可能召回同一条)
+  const allItems = useMemo(() => {
+    const seen = new Set<string>();
+    const out: VideoItem[] = [];
+    for (const p of feedPages?.pages ?? []) {
+      for (const v of p.items) {
+        const k = v.idString || String(v.id);
+        if (seen.has(k)) continue;
+        seen.add(k);
+        out.push(v);
       }
-      // 去重追加
-      const existingIds = new Set(prev.map(v => v.idString || String(v.id)));
-      const newItems = feed.items.filter(v => !existingIds.has(v.idString || String(v.id)));
-      console.log('[DEBUG] 追加模式，prev:', prev.length, 'newItems:', newItems.length);
-      return [...prev, ...newItems];
-    });
-    setHasMore(feed.hasMore);
-
-    // 释放锁：只有在数据成功合并后才释放
-    requestingPageRef.current = 0;
-    loadingLockRef.current = false;
-  }, [isFetching, feed, page]);
+    }
+    return out;
+  }, [feedPages]);
+  const hasMore = !!hasNextPage;
 
   // 追踪已加载的页码
   const uniqueVideos = allItems;
@@ -228,27 +223,16 @@ export function RecommendVideoFeed() {
   const navLock = useRef(false);
   const unlockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const indexRef = useRef(0);
-  const allItemsRef = useRef<VideoItem[]>([]);
   indexRef.current = index;
-  allItemsRef.current = allItems;
   const video = uniqueVideos[index];
 
-  // 滑动时预加载下一页：临近末尾几条时触发
+  // 临近末尾几条时预加载下一页。过滤后整页为空时 allItems 不变,但 isFetchingNextPage
+  // 回落会让这里再跑一次,继续往后拉。
   useEffect(() => {
-    const remaining = allItemsRef.current.length - indexRef.current;
-    console.log('[DEBUG] preload effect:', { index: indexRef.current, allItems: allItemsRef.current.length, remaining, hasMore, locked: loadingLockRef.current });
-    // 有锁时不触发
-    if (loadingLockRef.current) return;
-    // remaining<=3 而非 ===3:严格相等在去重后 allItems 增量不是整数页大小时容易被跳过
-    // (比如追加时因重复被过滤掉几条,remaining 从 4 直接跳到 2),导致预加载永远不触发。
-    if (remaining <= 3 && remaining >= 0 && hasMore) {
-      console.log('[DEBUG] 触发预加载下一页，current page:', page);
-      loadingLockRef.current = true;
-      const nextPage = page + 1;
-      requestingPageRef.current = nextPage;
-      setPage(nextPage);
+    if (hasNextPage && !isFetchingNextPage && allItems.length - index <= 3) {
+      void fetchNextPage();
     }
-  }, [index, page, hasMore]);
+  }, [allItems.length, index, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const lockNav = useCallback((ms = 380) => {
     navLock.current = true;
@@ -370,7 +354,7 @@ export function RecommendVideoFeed() {
   }, [index, video]);
 
   const handleWheel = useCallback(
-    (e: React.WheelEvent) => {
+    (e: WheelEvent) => {
       // 必须吃掉滚轮事件,否则浏览器仍会把它当页面滚动处理——在到达内容边界时
       // 持续的滚轮输入可能被浏览器/系统识别为下拉刷新手势,导致整页重新加载,
       // 白白丢掉已加载的 allItems/index 状态,体验上像"刷着刷着突然从头开始"。
@@ -525,6 +509,15 @@ export function RecommendVideoFeed() {
     return () => window.removeEventListener('keydown', onKey);
   }, [go]);
 
+  // 滚轮用原生非被动监听:React 的 onWheel 是 passive 的,里面的 preventDefault 不生效,
+  // 页面照样跟着滚。
+  const [rootEl, setRootEl] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!rootEl) return;
+    rootEl.addEventListener('wheel', handleWheel, { passive: false });
+    return () => rootEl.removeEventListener('wheel', handleWheel);
+  }, [rootEl, handleWheel]);
+
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const roRef = useRef<ResizeObserver | null>(null);
   const [vh, setVh] = useState(0);
@@ -593,6 +586,14 @@ export function RecommendVideoFeed() {
     );
   }
 
+  if (!video && (hasNextPage || isFetchingNextPage)) {
+    return (
+      <Box data-fill-main sx={{ width: '100%', height: '100%', minHeight: 240, bgcolor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Typography sx={{ color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>加载推荐中…</Typography>
+      </Box>
+    );
+  }
+
   if (!video) {
     return (
       <Box data-fill-main sx={{ width: '100%', height: '100%', minHeight: 240, bgcolor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -606,7 +607,7 @@ export function RecommendVideoFeed() {
       // 首页 main 是列向 flex,带这个标记的直接子元素 flex:1 铺满剩余高度。
       // 之前只靠 height:100%,在不支持 dvh 的 WebView 里父级没有确定高度 → 整个视频流 0 高。
       data-fill-main
-      onWheel={handleWheel}
+      ref={setRootEl}
       sx={{
         position: 'relative',
         width: '100%',

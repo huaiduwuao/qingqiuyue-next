@@ -1,6 +1,6 @@
 'use client';
 
-import React, { forwardRef, useEffect, useImperativeHandle, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import OpenInNewIcon from '@mui/icons-material/OpenInNewRounded';
@@ -35,12 +35,28 @@ const EmbedVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function EmbedVide
   ref,
 ) {
   const [started, setStarted] = useState(autoPlay);
-  // iframe 跨域,控制不了里面的播放:句柄给空实现,调用方(推荐流的点按暂停)不用分支。
-  useImperativeHandle(ref, () => ({ togglePlay: () => {}, seek: () => {}, isPlaying: () => false }), []);
+  // fill 模式下 iframe 上盖一层透明罩:落在 iframe 里的滚轮/触摸不会冒泡到推荐流,
+  // 不盖的话宽屏上播放器几乎占满整屏,根本划不动。点一下(推荐流把单击转成
+  // togglePlay)撤掉罩子,接下来的点击直达播放器;移出播放器或几秒后罩子回来。
+  const [interactive, setInteractive] = useState(false);
+  const relockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const unlock = useCallback(() => {
+    setInteractive(true);
+    if (relockTimer.current) clearTimeout(relockTimer.current);
+    relockTimer.current = setTimeout(() => setInteractive(false), 8000);
+  }, []);
+  const relock = useCallback(() => {
+    if (relockTimer.current) clearTimeout(relockTimer.current);
+    setInteractive(false);
+  }, []);
+  useEffect(() => () => { if (relockTimer.current) clearTimeout(relockTimer.current); }, []);
+  // iframe 跨域,控制不了里面的播放:togglePlay 只负责放行下一次点击。
+  useImperativeHandle(ref, () => ({ togglePlay: unlock, seek: () => {}, isPlaying: () => false }), [unlock]);
   // 换了一条内容:回到封面态(autoPlay 的除外)
   useEffect(() => {
     setStarted(autoPlay);
-  }, [embed.url, autoPlay]);
+    relock();
+  }, [embed.url, autoPlay, relock]);
 
   const posterUrl = mediaUrl(poster);
 
@@ -124,14 +140,20 @@ const EmbedVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function EmbedVide
 
   if (fill) {
     // 推荐流靠容器上的滚轮 / 触摸事件翻页,而落在 iframe 里的事件不会冒泡出来 ——
-    // 所以 iframe 不铺满整屏,只占中间一条 16:9(横屏视频本来也是这么摆的),
-    // 上下留给用户划走。
+    // iframe 只占中间一条 16:9,上面再盖透明罩(见 interactive)。
     return (
       // 底部留 160px:推荐流的作者/标题浮层压在卡片底部(bottom: 92),不让开的话会盖住
       // 外链播放器自己的进度条和音量/全屏按钮。
       <Box sx={{ position: 'absolute', inset: 0, pt: 2, pb: '160px', bgcolor: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        <Box sx={{ position: 'relative', width: '100%', flex: '0 1 auto', minHeight: 0, maxHeight: '100%', aspectRatio: '16/9' }}>
+        <Box
+          onPointerLeave={relock}
+          sx={{ position: 'relative', width: '100%', flex: '0 1 auto', minHeight: 0, maxHeight: '100%', aspectRatio: '16/9' }}
+        >
           {frame}
+          {/* 罩子不盖底部 48px:外链播放器的进度条/音量/全屏始终能直接点 */}
+          {started && !interactive && (
+            <Box aria-hidden sx={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 48, cursor: 'inherit' }} />
+          )}
           {isAIGenerated && <AIGCBadge variant="overlay" top={10} left={10} label="AI 生成视频" />}
         </Box>
         <Box sx={{ mt: 1, color: 'rgba(255,255,255,0.6)' }}>{credit}</Box>

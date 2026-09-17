@@ -17,7 +17,7 @@ export interface HotItem {
 }
 
 // GET /api/content/recommend/feed?types=&size=&genre=&page=   多类型混合推荐(可选 genre 子分类)
-export async function fetchRecommend(params: { types?: string; size?: number; genre?: string; page?: number } = {}) {
+export async function fetchRecommend(params: { types?: string; size?: number; genre?: string; page?: number; watchable?: 1 } = {}) {
   // 走同源 /api/content/*,由 nginx / APISIX 转发到 content-api。
   // (这里曾经打的是 Next.js 侧的同名 route.ts —— 那个代理层在前端改成静态
   //  导出时就删掉了,拼装 sourceUrl 和播放性判定现在都在 Go 侧完成。)
