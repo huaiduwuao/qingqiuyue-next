@@ -15,6 +15,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import StarRoundedIcon from '@mui/icons-material/StarRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
+import QueueMusicRoundedIcon from '@mui/icons-material/QueueMusicRounded';
 import WatchLaterIcon from '@mui/icons-material/WatchLater';
 import VideoLibraryIcon from '@mui/icons-material/VideoLibrary';
 import EventNoteRoundedIcon from '@mui/icons-material/EventNoteRounded';
@@ -41,7 +42,7 @@ interface Section {
 // SECTIONS 改为"模板",count 在渲染时由 stats 实时注入(避免硬编码 '49'/'30天内'/'2'/'0' 跟实际不符)。
 // 渲染函数 buildSections() 接收 stats,返回带 count 的 Section[]。
 interface SectionTemplate {
-  key: 'likes' | 'favorites' | 'history' | 'watchlater' | 'works' | 'reservation' | 'orders';
+  key: 'likes' | 'favorites' | 'history' | 'watchlater' | 'playlists' | 'works' | 'reservation' | 'orders';
   label: string;
   icon: React.ReactNode;
   href: string;
@@ -55,6 +56,7 @@ const SECTION_TPLS: SectionTemplate[] = [
   { key: 'favorites',  label: '我的收藏', icon: <StarRoundedIcon sx={{ fontSize: 18, color: 'warning.main' }} />,         href: '/home/recommend?tab=me&mainTab=collect', statKey: 'favoritesCount' },
   { key: 'history',    label: '观看历史', icon: <HistoryRoundedIcon sx={{ fontSize: 18, color: 'secondary.main' }} />,      href: '/home/recommend?tab=me&mainTab=history',  statKey: 'historyCount', display: '30天内' },
   { key: 'watchlater', label: '稍后再看', icon: <WatchLaterIcon sx={{ fontSize: 18, color: '#8B5CF6' }} />,                href: '/home/recommend?tab=me&mainTab=later',    statKey: 'watchlaterCount' },
+  { key: 'playlists',  label: '我的歌单', icon: <QueueMusicRoundedIcon sx={{ fontSize: 18, color: '#EC4899' }} />,          href: '/playlist' },
   { key: 'works',      label: '我的作品', icon: <VideoLibraryIcon sx={{ fontSize: 18, color: 'primary.main' }} />,         href: '/account/content',                         statKey: 'worksCount' },
   { key: 'reservation',label: '我的预约', icon: <EventNoteRoundedIcon sx={{ fontSize: 18, color: 'success.main' }} />,     href: '/home/recommend?tab=me&mainTab=order' },
   { key: 'orders',     label: '我的订单', icon: <ReceiptLongIcon sx={{ fontSize: 18, color: '#5B8DEF' }} />,                href: '/account/orders' },

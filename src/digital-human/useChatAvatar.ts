@@ -29,6 +29,7 @@
  */
 
 import React from 'react';
+import type { ChatChoices, ContentRef } from './scene-ui/content';
 
 /** 一次工具调用在对话里的记录(操作日志:做了什么、结果是什么) */
 export interface ChatToolEntry {
@@ -41,7 +42,12 @@ export interface ChatToolEntry {
 
 export interface ChatLogItem {
   /** user / ai 是气泡;tool 是操作日志卡;thought 是这轮的思考过程 */
-  who: 'user' | 'ai' | 'tool' | 'thought';
+  /** cards = 一组作品卡片(搜索结果);choices = 快捷选项。这两种 text 为空,不进对话历史 */
+  who: 'user' | 'ai' | 'tool' | 'thought' | 'cards' | 'choices';
+  contents?: ContentRef[];
+  /** 卡片这一批叫什么(用户搜的词),播放来源 / 新建歌单默认名用 */
+  label?: string;
+  choices?: ChatChoices;
   text: string;
   tool?: ChatToolEntry;
 }

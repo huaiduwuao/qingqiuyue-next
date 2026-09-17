@@ -36,6 +36,7 @@ import type { ScenePanel as ScenePanelModel } from './scene-ui/types';
 import { dispatchToolCalls, type ToolCall as DhToolCall } from './tools/dispatcher';
 import { applyDispatchResults, buildSceneState, type SceneSnapshot } from './scene-state';
 import { ToolCallCard, ThoughtBubble } from './scene-ui/ChatOpsEntry';
+import ChatRichItem, { isRichItem } from './scene-ui/ChatRichItem';
 import dynamic from 'next/dynamic';
 import ClipAvatar from './ClipAvatar';
 import { probeClips, type AvatarSpeakState } from './clip-avatar';
@@ -140,6 +141,8 @@ export default function ImmersiveDigitalHuman() {
   React.useEffect(() => { setMounted(true); }, []);
   // VrmStage sinks 引用（用 state 而非 ref，避免首次渲染时 ref.current 还没填的坑）
   const [stageHandle, setStageHandle] = React.useState<VrmStageHandle | null>(null);
+  const stageHandleRef = React.useRef<VrmStageHandle | null>(null);
+  stageHandleRef.current = stageHandle;
   // H1: 动态 UI(数字员工干活后弹结果面板)
   const [dynamicUI, setDynamicUI] = React.useState<DynamicUI | null>(null);
   // 3D 场景内的 UI 面板:数字人调 ui_show_list/grid/form 时下发,
@@ -226,6 +229,8 @@ export default function ImmersiveDigitalHuman() {
     },
     // 生成式 UI:数字人把列表/网格/表单推到 3D 场景面板
     onScenePanel: (panel) => setScenePanel(panel),
+    // 一轮话念完:表情慢慢回到自然状态,不要带着最后一句的表情僵在那
+    onSpeechEnd: () => stageHandleRef.current?.setEmotion({}),
     onToolCalls: (calls) => {
       // I1.2: 数字人/用户要看网页或视频 → 弹统一显示器 (工具兜底, 与 <ui:iframe/> 指令同源)
       // 注意: 必须先于 stageHandle 早退处理, 否则 stage 未就绪时网页/视频指令被丢弃
@@ -295,6 +300,10 @@ export default function ImmersiveDigitalHuman() {
       devLog.debug('[Immersive] dispatched tool_calls:', results);
     },
   });
+  // 全屏页打开作品详情用新标签:当前页一跳走,对话和场景就都没了
+  const openContent = React.useCallback((href: string) => {
+    if (!window.open(href, '_blank', 'noopener')) router.push(href);
+  }, [router]);
   const { chatBusy, chatLog, emotion, viseme, action, send, sendText, audioRef,
     text, setText, conversationId, switchConversation,
     loadConversationMessages, setEmotion, setViseme, setChatLog, thinkingLog } = chat;
@@ -343,6 +352,14 @@ export default function ImmersiveDigitalHuman() {
     stageHandle.connectAudioElement(el);
   }, [stageHandle, audioRef]);
   const [panelOpen, setPanelOpen] = React.useState(false);
+  // 只有最新一组快捷选项还能点,而且得是这一轮的(后面用户又说过话就作废)
+  let lastChoicesIndex = -1;
+  for (let i = chatLog.length - 1; i >= 0 && chatLog[i].who !== 'user'; i--) {
+    if (chatLog[i].who === 'choices') {
+      lastChoicesIndex = i;
+      break;
+    }
+  }
   // 002:聊天消息区自动滚动到底
   const chatScrollRef = React.useRef<HTMLDivElement | null>(null);
   React.useEffect(() => {
@@ -622,6 +639,7 @@ export default function ImmersiveDigitalHuman() {
             setScenePanel(null);
             void sendText(t);
           }}
+          onOpen={openContent}
         />,
         panelHost,
       )}
@@ -633,6 +651,7 @@ export default function ImmersiveDigitalHuman() {
             panel={scenePanel}
             onClose={() => setScenePanel(null)}
             onSend={(t) => { setScenePanel(null); void sendText(t); }}
+            onOpen={openContent}
           />
         </Box>
       )}
@@ -896,6 +915,16 @@ export default function ImmersiveDigitalHuman() {
                 <ToolCallCard key={m.tool.id || i} entry={m.tool} />
               ) : m.who === 'thought' ? (
                 <ThoughtBubble key={`t-${i}`} text={m.text} />
+              ) : m.who === 'cards' || m.who === 'choices' ? (
+                isRichItem(m) ? (
+                  <ChatRichItem
+                    key={`r-${i}`}
+                    item={m}
+                    active={!chatBusy && i === lastChoicesIndex}
+                    onSend={(t) => void sendText(t)}
+                    onOpen={openContent}
+                  />
+                ) : null
               ) : (
               <Box
                 key={i}

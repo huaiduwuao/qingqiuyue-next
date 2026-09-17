@@ -12,7 +12,9 @@
  * 现在改走工具调用:参数由 LLM 的结构化输出通道下发,schema 在服务端定义。
  */
 
-export type ScenePanelKind = 'list' | 'grid' | 'form' | 'operation' | 'run' | 'plan';
+import { normalizeContentRefs, type ContentRef } from './content';
+
+export type ScenePanelKind = 'list' | 'grid' | 'form' | 'operation' | 'run' | 'plan' | 'content';
 
 export interface ScenePanelListItem {
   id: string;
@@ -108,7 +110,16 @@ export interface ScenePanelPlan extends ScenePanelBase {
   steps: ScenePlanStep[];
 }
 
-export type ScenePanel = ScenePanelList | ScenePanelGrid | ScenePanelForm | ScenePanelOperation | ScenePanelRun | ScenePanelPlan;
+/**
+ * 作品面板(后端 ui_show_content,见 engine/tools_content_ui.go)。
+ * 条目是作品引用:前端按类型给出播放 / 打开 / 收藏 / 存歌单,不经过 agent。
+ */
+export interface ScenePanelContent extends ScenePanelBase {
+  kind: 'content';
+  items: ContentRef[];
+}
+
+export type ScenePanel = ScenePanelList | ScenePanelGrid | ScenePanelForm | ScenePanelOperation | ScenePanelRun | ScenePanelPlan | ScenePanelContent;
 
 /** 后端工具名 → 面板类型 */
 export const SCENE_PANEL_TOOLS: Record<string, ScenePanelKind> = {
@@ -118,6 +129,7 @@ export const SCENE_PANEL_TOOLS: Record<string, ScenePanelKind> = {
   ui_show_operation: 'operation',
   ui_show_run: 'run',
   ui_show_plan: 'plan',
+  ui_show_content: 'content',
 };
 
 /** 关闭面板的工具名 */
@@ -213,6 +225,12 @@ export function scenePanelFromToolCall(
     // 面板 id 用任务板自己的 id:同一个任务再次下发时替换而不是叠一块新板子
     const planId = asString(args.id).trim() || id;
     return { kind: 'plan', id: planId, title: asString(args.title) || '任务进度', subtitle, steps };
+  }
+
+  if (kind === 'content') {
+    const refs = normalizeContentRefs(args.items);
+    if (refs.length === 0) return null;
+    return { kind: 'content', id, title: asString(args.title) || '为你找到的作品', subtitle, items: refs };
   }
 
   if (kind === 'form') {

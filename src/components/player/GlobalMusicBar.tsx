@@ -22,7 +22,12 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import MusicNoteRoundedIcon from '@mui/icons-material/MusicNoteRounded';
 import GraphicEqRoundedIcon from '@mui/icons-material/GraphicEqRounded';
+import ShuffleRoundedIcon from '@mui/icons-material/ShuffleRounded';
+import PlaylistAddRoundedIcon from '@mui/icons-material/PlaylistAddRounded';
+import LibraryMusicRoundedIcon from '@mui/icons-material/LibraryMusicRounded';
+import Snackbar from '@mui/material/Snackbar';
 import { useMusicPlayer, musicPlayer, currentTrack, type MusicTrack } from '@/lib/player/musicPlayer';
+import PlaylistPicker from './PlaylistPicker';
 
 const BAR_H = 64;
 const DISC = 56;
@@ -65,13 +70,37 @@ function Cover({ track, size, spin }: { track: MusicTrack; size: number; spin: b
   );
 }
 
-function QueueList({ onPick }: { onPick: () => void }) {
+function QueueList({ onPick, onSave, onOpen }: { onPick: () => void; onSave: () => void; onOpen: (href: string) => void }) {
   const queue = useMusicPlayer((s) => s.queue);
   const index = useMusicPlayer((s) => s.index);
   const playing = useMusicPlayer((s) => s.playing);
+  const source = useMusicPlayer((s) => s.source);
   return (
     <Box sx={{ width: 320, maxWidth: 'calc(100vw - 32px)', maxHeight: 400, overflow: 'auto', py: 0.5 }}>
-      <Box sx={{ px: 2, py: 1, fontSize: 13, fontWeight: 700, color: 'text.primary' }}>播放队列 · {queue.length}</Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', px: 2, py: 0.5, position: 'sticky', top: 0, zIndex: 1, bgcolor: 'background.paper' }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Box sx={{ fontSize: 13, fontWeight: 700, color: 'text.primary' }}>播放队列 · {queue.length}</Box>
+          {source && (
+            <Box
+              component={source.href ? 'button' : 'div'}
+              onClick={source.href ? () => onOpen(source.href!) : undefined}
+              sx={{ all: 'unset', display: 'block', maxWidth: '100%', fontSize: 11, color: 'text.secondary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: source.href ? 'pointer' : 'default', '&:hover': source.href ? { color: 'primary.main' } : undefined }}
+            >
+              来自:{source.name}
+            </Box>
+          )}
+        </Box>
+        <Tooltip title="我的歌单">
+          <IconButton size="small" aria-label="我的歌单" onClick={() => onOpen('/playlist')} sx={{ color: 'text.secondary' }}>
+            <LibraryMusicRoundedIcon sx={{ fontSize: 18 }} />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="把队列存为歌单">
+          <IconButton size="small" aria-label="把队列存为歌单" onClick={onSave} sx={{ color: 'text.secondary' }}>
+            <PlaylistAddRoundedIcon sx={{ fontSize: 20 }} />
+          </IconButton>
+        </Tooltip>
+      </Box>
       {queue.map((t, i) => (
         <Box
           key={t.id}
@@ -137,6 +166,11 @@ export default function GlobalMusicBar() {
   const volume = useMusicPlayer((s) => s.volume);
   const muted = useMusicPlayer((s) => s.muted);
   const repeat = useMusicPlayer((s) => s.repeat);
+  const shuffle = useMusicPlayer((s) => s.shuffle);
+  const queueIds = useMusicPlayer((s) => s.queue).map((t) => t.id);
+  const sourceName = useMusicPlayer((s) => s.source?.name);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [toast, setToast] = useState('');
   const collapsed = useMusicPlayer((s) => s.collapsed);
   const error = useMusicPlayer((s) => s.error);
   const queueLen = useMusicPlayer((s) => s.queue.length);
@@ -201,8 +235,25 @@ export default function GlobalMusicBar() {
       transformOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       slotProps={{ paper: { sx: { borderRadius: 2, mb: 1 } } }}
     >
-      <QueueList onPick={() => setQueueAnchor(null)} />
+      <QueueList
+        onPick={() => setQueueAnchor(null)}
+        onSave={() => {
+          setQueueAnchor(null);
+          setPickerOpen(true);
+        }}
+        onOpen={(href) => {
+          setQueueAnchor(null);
+          router.push(href);
+        }}
+      />
     </Popover>
+  );
+
+  const extras = (
+    <>
+      <PlaylistPicker open={pickerOpen} onClose={() => setPickerOpen(false)} contentIds={queueIds} suggestName={sourceName} onDone={setToast} />
+      <Snackbar open={!!toast} autoHideDuration={2600} onClose={() => setToast('')} message={toast} anchorOrigin={{ vertical: 'top', horizontal: 'center' }} />
+    </>
   );
 
   if (showDisc) {
@@ -307,7 +358,11 @@ export default function GlobalMusicBar() {
           <IconButton size="small" onClick={() => musicPlayer.next()} aria-label="下一首" sx={{ color: 'text.primary' }}>
             <SkipNextRoundedIcon />
           </IconButton>
-          <Box sx={{ width: 34 }} />
+          <Tooltip title={shuffle ? '随机播放:开' : '随机播放:关'}>
+            <IconButton size="small" onClick={() => musicPlayer.toggleShuffle()} aria-label="随机播放" aria-pressed={shuffle} sx={{ color: shuffle ? 'primary.main' : 'text.disabled' }}>
+              <ShuffleRoundedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%', mt: -0.75 }}>
           <Box sx={{ fontSize: 11, color: 'text.secondary', minWidth: 34, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmt(shown)}</Box>
@@ -350,7 +405,7 @@ export default function GlobalMusicBar() {
       </Box>
 
       <Tooltip title="播放队列">
-        <IconButton size="small" onClick={(e) => setQueueAnchor(e.currentTarget)} aria-label={`播放队列,共 ${queueLen} 首`} sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'inline-flex' } }}>
+        <IconButton size="small" onClick={(e) => setQueueAnchor(e.currentTarget)} aria-label={`播放队列,共 ${queueLen} 首`} sx={{ color: 'text.secondary' }}>
           <QueueMusicRoundedIcon fontSize="small" />
         </IconButton>
       </Tooltip>
@@ -365,6 +420,7 @@ export default function GlobalMusicBar() {
         </IconButton>
       </Tooltip>
       {queuePopover}
+      {extras}
     </Box>
   );
 }

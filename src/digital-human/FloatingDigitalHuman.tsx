@@ -30,6 +30,7 @@ import { parseIframeUI, iframeToolToTarget, type IframeOpenTarget } from './virt
 import { VirtualBrowser } from './VirtualBrowser';
 import { ScenePanel } from './scene-ui/ScenePanel';
 import { ToolCallCard, ThoughtBubble } from './scene-ui/ChatOpsEntry';
+import ChatRichItem from './scene-ui/ChatRichItem';
 import type { ScenePanel as ScenePanelModel } from './scene-ui/types';
 import { listModels } from './api/digitalHumanConfig';
 import { clearAvatarCache } from './vrm/loadAvatar';
@@ -236,6 +237,9 @@ export default function FloatingDigitalHuman() {
     },
     // 生成式 UI:浮窗没有 3D 舞台,用普通弹层承接同一份面板
     onScenePanel: (panel) => setScenePanel(panel),
+    // 浮窗的对话区只有三行高,放不下卡片:搜到作品直接用弹层展示
+    onContentResults: (items) =>
+      setScenePanel({ kind: 'content', id: `results-${Date.now()}`, title: `找到 ${items.length} 个作品`, items }),
     onToolCalls: (calls) => {
       // I1.2: 工具兜底(openUrl/video.*) → 统一显示器
       for (const c of calls as unknown as DhToolCall[]) {
@@ -298,6 +302,14 @@ export default function FloatingDigitalHuman() {
     },
   });
   const { chatBusy, chatLog, emotion, viseme, action, audioRef } = chat;
+  // 这一轮里最新的一组快捷选项(用户又说过话就作废)
+  const activeChoices = React.useMemo(() => {
+    for (let i = chatLog.length - 1; i >= 0; i--) {
+      if (chatLog[i].who === 'user') return null;
+      if (chatLog[i].who === 'choices' && chatLog[i].choices) return chatLog[i];
+    }
+    return null;
+  }, [chatLog]);
 
   // 语音唤醒词: 文本匹配模式 (ASR 后看文本里是否含 "小月")
   const wakePhrases = React.useMemo(() => ['小月', '清秋月', '清秋'], [])
@@ -861,7 +873,7 @@ export default function FloatingDigitalHuman() {
             borderRadius: 1,
             p: 0.75,
           }}>
-            {chatLog.slice(-3).map((m, i) => (
+            {chatLog.filter((m) => m.who !== 'cards' && m.who !== 'choices').slice(-3).map((m, i) => (
               m.who === 'tool' && m.tool ? <ToolCallCard key={m.tool.id || i} entry={m.tool} compact />
               : m.who === 'thought' ? <ThoughtBubble key={`t-${i}`} text={m.text} compact />
               : (
@@ -878,6 +890,11 @@ export default function FloatingDigitalHuman() {
               </Typography>
               )
             ))}
+          </Box>
+        )}
+        {activeChoices && !chatBusy && (
+          <Box data-no-drag onPointerDown={(e) => e.stopPropagation()}>
+            <ChatRichItem item={activeChoices} active onSend={(t) => void chat.sendText(t)} onOpen={(href) => router.push(href)} />
           </Box>
         )}
         <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
@@ -1056,6 +1073,7 @@ export default function FloatingDigitalHuman() {
               panel={scenePanel}
               onClose={() => setScenePanel(null)}
               onSend={(t) => { setScenePanel(null); void chat.sendText(t); }}
+              onOpen={(href) => { setScenePanel(null); router.push(href); }}
             />
           </Box>
         </Box>

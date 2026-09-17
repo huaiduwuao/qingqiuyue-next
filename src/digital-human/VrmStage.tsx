@@ -234,6 +234,8 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   const vrmSceneRef = useRef<any>(null);  // THREE.Object3D of the loaded VRM
   const vrmDataRef = useRef<Cached | null>(null);
   const expressionManagerRef = useRef<any>(null);
+  /** 最近一次「嘴由真实音频驱动」的时刻(performance.now) */
+  const lastAudioLipAtRef = useRef(0);
   const vrmRef = useRef<any>(null);
   const handleInternalRef = useRef<VrmStageHandle | null>(null);  // useImperativeHandle 工厂里同步存 handle
   const vrmVersionRef = useRef<0 | 1>(1);  // VRM 0.0/1.0 — 0 用 joy/sorrow/fun/viseme_aa，1 用 happy/aa
@@ -334,10 +336,10 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
 
   // 4. lip sync
   const lipApi = useVrmLipSync({
-    expressionManager: expressionManagerRef.current,
+    emRef: expressionManagerRef,
     audio,
     userLipOverride: false,
-    vrmVersion: vrmVersionRef.current,
+    vrmVersionRef,
   });
   lipApiRef.current = lipApi;
 
@@ -435,8 +437,11 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       if (keys.d) camApi.orbit('right', dt);
       if (keys.q) camApi.orbit('up', dt);
       if (keys.e) camApi.orbit('down', dt);
-      // 1. lip sync
-      lipApi.tick(dt);
+      // 1. lip sync:有真实语音在响时,嘴跟着音频频谱走(和声音天然同步)
+      const audioLip = lipApi.tick(dt);
+      if (audioLip) lastAudioLipAtRef.current = performance.now();
+      // 句内的短暂停顿不算「不说了」,免得时间线在停顿里插进来抢嘴
+      const audioDriven = performance.now() - lastAudioLipAtRef.current < 400;
       // 2. 自动眨眼（直接 setValue，因为它是一闪即过的脉冲，不走 lerp）
       if (autoBlink && vrmDataRef.current?.expressionManager && !userBlinkOverrideRef.current) {
         blinkTRef.current -= dt;
@@ -464,7 +469,17 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
           if (EXPRESSION_PASSTHROUGH.has(k)) visemeTarget[k] = v;
         }
         // 口型时间线处理（覆盖静态 viseme）
-        const timeline = visemeTimelineRef.current;
+        // 文本时间线只是兜底(没有音频可分析时按字数猜口型)。音频在驱动时让位并作废,
+        // 放完也要清掉 —— 以前只有 speak(audioUrl) 分支会清,AG-UI 路径下最后一帧会一直挂着。
+        let timeline = visemeTimelineRef.current;
+        if (timeline.length > 0) {
+          const elapsed = (performance.now() - visemeStartTimeRef.current) / 1000;
+          if (audioDriven || elapsed > timeline[timeline.length - 1].t + 0.3) {
+            visemeTimelineRef.current = [];
+            timeline = [];
+            visemeLerp.setTarget({});
+          }
+        }
         if (timeline.length > 0 && !userLipOverrideRef.current) {
           const elapsedSec = (performance.now() - visemeStartTimeRef.current) / 1000;
           // 找到当前时间对应的 viseme 帧
@@ -496,9 +511,11 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
                 'ee': ['ih'],
                 'O': ['oh', 'jawOpen'],
                 'U': ['ou', 'mouthPucker'],
-                'closed': ['jawOpen'],
+                // 闭嘴 = 什么口型都不给(target 为空,lerp 会把上一个口型淡出)。
+                // 以前映射到 jawOpen,「闭嘴」反而把下巴张开了。
+                'closed': [],
               };
-              const shapes = visemeMap[shape.toLowerCase()] || [shape];
+              const shapes = visemeMap[shape.toLowerCase()] ?? [shape];
               for (const s of shapes) {
                 if (EXPRESSION_PASSTHROUGH.has(s)) {
                   visemeTarget[s] = weight;
@@ -509,6 +526,8 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         }
         if (Object.keys(visemeTarget).length > 0) {
           visemeLerp.setTarget(visemeTarget);
+        } else if (timeline.length > 0) {
+          visemeLerp.setTarget({});
         }
         // 注意：emotionManager 是在 vrm 加载后才就绪的；
         // useExpressionLerp 用的是 ref 拿到的 em — 加载后会即时生效

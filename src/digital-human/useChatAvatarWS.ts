@@ -27,10 +27,15 @@ import {
   scenePanelFromToolCall,
   type ScenePanel,
 } from './scene-ui/types';
+import { normalizeChoices, normalizeContentRefs, rememberContentRefs, type ContentRef } from './scene-ui/content';
+import { musicPlayer } from '@/lib/player/musicPlayer';
+import { playPlaylist, playTracks, queueTracks } from '@/lib/player/playlist';
 
 /** 业务工具执行时给用户的可见反馈(否则一次搜索十几秒界面是死的) */
 const TOOL_RUNNING_HINT: Record<string, string> = {
   resource_search: '正在搜资源…',
+  playlist_list: '正在看你的歌单…',
+  media_play: '正在准备播放…',
   bounty_list: '正在查悬赏…',
   bounty_create: '正在发布悬赏…',
   workflow_execute: '正在跑工作流…',
@@ -46,6 +51,29 @@ function safeParseArgs(argsJSON?: string): Record<string, unknown> {
   } catch {
     return {};
   }
+}
+
+/**
+ * media_play:数字人让站内播放器放歌。播放器在浏览器里,所以这个工具由前端执行 ——
+ * 服务端那边只是回一句「已交给播放器」。返回给用户看的一句结果。
+ */
+async function runMediaPlay(args: Record<string, unknown>): Promise<string> {
+  const append = args.mode === 'append';
+  const shuffle = args.shuffle === true;
+  const playlistId = typeof args.playlistId === 'string' || typeof args.playlistId === 'number' ? String(args.playlistId).trim() : '';
+  if (playlistId) {
+    const n = await playPlaylist(playlistId, { shuffle, append });
+    return n > 0 ? (append ? `歌单里的 ${n} 首已加入队列` : `开始播放歌单 · ${n} 首`) : '这张歌单里没有能放的歌';
+  }
+  const songs = normalizeContentRefs(args.items).filter((r) => !r.contentType || r.contentType === 'MUSIC');
+  if (songs.length === 0) return '没有拿到要播放的歌曲';
+  const seeds = songs.map((r) => ({ id: r.id, title: r.title, artist: r.author, cover: r.cover }));
+  if (append) {
+    const n = queueTracks(seeds);
+    return n > 0 ? `已加入播放队列 · ${n} 首` : '这些歌已经在队列里了';
+  }
+  playTracks(seeds, { shuffle, source: { kind: 'assistant', name: '小月点的歌' } });
+  return `开始播放 · ${seeds.length} 首`;
 }
 
 /** 本轮起点:最后一条用户消息之后 */
@@ -180,122 +208,66 @@ function filterTTSContent(text: string): string {
   return result.slice(0, 500);
 }
 
-// G3: 用 audio-gateway 真实 TTS 说话(OpenAI 兼容 /audio/speech)。
-// 流式:请求 stream=true → 上游按句切分 chunked 返回 → 用 MediaSource+SourceBuffer
-// 边收边播(不用等整段合成完)。Qwen3-TTS 模型不支持真流式,这是"按句模拟流式"。
-// audioRef: 隐藏 audio 元素,播放 MediaSource。
-async function speakWithTTS(text: string, audioRef: React.MutableRefObject<HTMLAudioElement | null>) {
-  try {
-    const res = await fetch('/api/audio/speech', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'tts',
-        input: text,
-        voice: 'default',
-        stream: true,        // 流式:按句 chunked 返回
-        response_format: 'mp3',
-      }),
-    });
-    if (!res.ok) return;
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    // MediaSource:把流式 mp3 chunk 追加到 SourceBuffer 边收边播。
-    // 浏览器对 mp3 的 SourceBuffer 支持好(mimeType audio/mpeg)。
-    if (typeof MediaSource !== 'undefined' && 'MediaSource' in window) {
-      const ms = new MediaSource();
-      audio.src = URL.createObjectURL(ms);
-      let sb: SourceBuffer | null = null;
-      const streamDone = res.body?.getReader();
-      if (!streamDone) return;
-
-      ms.addEventListener('sourceopen', async () => {
-        try {
-          sb = ms.addSourceBuffer('audio/mpeg');
-        } catch {
-          // 部分浏览器 mpeg 不支持 SourceBuffer,回退整段 blob
-          return fallbackBlob(res, audio);
-        }
-        const reader = streamDone;
-        // SourceBuffer 追加需要排队(updateend 后再 append,避免忙时抛错)
-        let appending = false;
-        let pendingBuf: ArrayBuffer | null = null;
-        const flush = () => {
-          if (!sb) return;
-          if (appending || !pendingBuf) return;
-          appending = true;
-          try {
-            sb.appendBuffer(pendingBuf);
-          } catch {
-            appending = false;
-            pendingBuf = null;
-          }
-        };
-        sb.addEventListener('updateend', () => {
-          appending = false;
-          pendingBuf = null;
-          flush();
-        });
-        const pump = async (): Promise<void> => {
-          const { done, value } = await reader.read();
-          if (done) {
-            if (ms.readyState === 'open') ms.endOfStream();
-            return;
-          }
-          // 每个 chunk 转 ArrayBuffer 后 append(mp3 流式可解析)
-          const buf = new Uint8Array(value.byteLength);
-          buf.set(value);
-          pendingBuf = buf.buffer as ArrayBuffer;
-          flush();
-          // 开始播放(等第一句进来就播,不等整段)
-          if (audio.paused && audio.readyState >= 2) audio.play().catch(() => {});
-          await pump();
-        };
-        void pump();
-      });
-      return;
-    }
-
-    // 无 MediaSource 环境:回退整段 blob
-    fallbackBlob(res, audio);
-  } catch { /* TTS 失败不影响文本 */ }
-}
-
-// 回退:整段下载后播放(非流式环境)
-async function fallbackBlob(res: Response, audio: HTMLAudioElement) {
-  try {
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    audio.src = url;
-    audio.play().catch(() => {});
-  } catch { /* ignore */ }
-}
-
-// ─── TTS 播放队列 ───
+// ─── 语音:逐句合成、逐句播放,形象指令跟着声音走 ───
 //
-// 现在是「攒够一句就送去合成」,一轮回复会调好几次 TTS。而 speakWithTTS 每次都
-// 直接改写同一个 <audio> 的 src —— 不排队的话后一句会把前一句掐掉,只听见最后一句。
-// 这里串行化:一句播完(或失败)再起下一句;打断时清空队列。
-const ttsQueue: Array<{
+// 一轮回复被切成若干「句」(Utterance):这句要念的文本 + 写在这句里的形象指令(表情/动作)。
+// 句子排队串行播放(共用一个 <audio>,不排队后一句会把前一句掐掉)。
+//
+// 同步的关键在 onStart:它在这句的音频真正响起来(audio 的 playing 事件)那一刻才触发,
+// 表情和动作都挂在它上面。以前指令是「文本流到就立刻执行」—— 模型 3 秒写完 5 句话,
+// 而 5 句话要念 20 秒,于是第 5 句的挥手在它开口前 17 秒就挥完了。口型则由 VrmStage
+// 直接分析这个 <audio> 的频谱驱动,三者因此共用同一个时钟:正在播放的声音。
+
+interface Utterance {
+  /** 送去合成的文本;空 = 这句没有可念的内容,只触发指令 */
   text: string;
   audioRef: React.MutableRefObject<HTMLAudioElement | null>;
   signal?: AbortSignal;
-}> = [];
-let ttsRunning = false;
+  /** 这句开始出声时触发(合成失败/无文本时立刻触发),保证只调一次 */
+  onStart?: () => void;
+  /** 提前发出的合成请求(上一句还在念的时候就开始合成下一句,句间不留空档) */
+  res?: Promise<Response | null>;
+}
 
-function enqueueTTS(
-  text: string,
-  audioRef: React.MutableRefObject<HTMLAudioElement | null>,
-  signal?: AbortSignal,
-) {
-  ttsQueue.push({ text, audioRef, signal });
+const ttsQueue: Utterance[] = [];
+let ttsRunning = false;
+/** 队列念空时通知(同一时刻只有一个数字人在说话,单个回调够用) */
+let onTTSIdle: (() => void) | null = null;
+
+function requestTTS(text: string, signal?: AbortSignal): Promise<Response | null> {
+  return fetch('/api/audio/speech', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'tts',
+      input: text,
+      voice: 'default',
+      stream: true, // 上游按句切分 chunked 返回,边收边播
+      response_format: 'mp3',
+    }),
+    signal,
+  })
+    .then((r) => (r.ok && r.body ? r : null))
+    .catch(() => null);
+}
+
+/** 队首两句提前合成:正在念的这句之后那句,在它念完之前就该准备好。 */
+function prefetchTTS() {
+  for (const job of ttsQueue.slice(0, 2)) {
+    if (job.text && !job.res && !job.signal?.aborted) job.res = requestTTS(job.text, job.signal);
+  }
+}
+
+function enqueueTTS(job: Utterance) {
+  ttsQueue.push(job);
+  prefetchTTS();
   void runTTSQueue();
 }
 
-/** 打断时调:丢掉还没播的句子。 */
+/** 打断时调:丢掉还没播的句子(它们的指令也一并作废)。 */
 export function clearTTSQueue() {
   ttsQueue.length = 0;
+  musicPlayer.duck(false);
 }
 
 async function runTTSQueue() {
@@ -305,16 +277,118 @@ async function runTTSQueue() {
     while (ttsQueue.length > 0) {
       const job = ttsQueue.shift()!;
       if (job.signal?.aborted) continue;
-      const audio = job.audioRef.current;
-      if (!audio) continue;
-      await speakWithTTS(job.text, job.audioRef);
+      prefetchTTS();
+      await playUtterance(job);
       if (job.signal?.aborted) break;
-      // 等这一句放完再放下一句(加超时兜底,避免 ended 永远不来时卡死队列)
-      await waitForAudioEnd(audio, job.signal);
     }
   } finally {
     ttsRunning = false;
+    if (ttsQueue.length === 0) {
+      musicPlayer.duck(false);
+      onTTSIdle?.();
+    }
   }
+}
+
+async function playUtterance(job: Utterance) {
+  let started = false;
+  const fireStart = () => {
+    if (started || job.signal?.aborted) return;
+    started = true;
+    try { job.onStart?.(); } catch (e) { devLog.warn('[tts] onStart failed', e); }
+  };
+  // 她开口时把正在放的歌压低,说完(队列念空)再恢复 —— 不然「给你放这首」和歌同时响
+  if (job.text) musicPlayer.duck(true);
+
+  const audio = job.audioRef.current;
+  const res = job.text && audio ? await (job.res ?? requestTTS(job.text, job.signal)) : null;
+  if (!res || !audio || job.signal?.aborted) {
+    // 没有声音可等(没文本 / 合成失败 / 静音环境):指令照常执行,不拖住后面的句子
+    fireStart();
+    return;
+  }
+
+  const onPlaying = () => fireStart();
+  audio.addEventListener('playing', onPlaying, { once: true });
+  try {
+    const ended = waitForAudioEnd(audio, job.signal);
+    await feedAudio(res, audio);
+    // 兜底:浏览器拦了自动播放之类,playing 迟迟不来 —— 指令不能跟着一起丢
+    const guard = setTimeout(fireStart, 4000);
+    await ended;
+    clearTimeout(guard);
+    fireStart();
+  } finally {
+    audio.removeEventListener('playing', onPlaying);
+  }
+}
+
+/**
+ * 把一次合成响应喂给 <audio>。优先 MediaSource 边收边播(首包到了就出声),
+ * 不支持时整段下载后再播。resolve 表示「已经开始喂了」,不等播完。
+ */
+async function feedAudio(res: Response, audio: HTMLAudioElement): Promise<void> {
+  const tryPlay = () => { if (audio.paused) audio.play().catch(() => {}); };
+  const canStream = typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported?.('audio/mpeg');
+  if (!canStream || !res.body) {
+    try {
+      const blob = await res.blob();
+      audio.src = URL.createObjectURL(blob);
+      tryPlay();
+    } catch { /* TTS 失败不影响文本 */ }
+    return;
+  }
+
+  const ms = new MediaSource();
+  const url = URL.createObjectURL(ms);
+  audio.src = url;
+  // 短句可能一个 chunk 就结束:光靠「追加后看 readyState」会错过开播时机,canplay 再补一次
+  audio.addEventListener('canplay', tryPlay, { once: true });
+  const reader = res.body.getReader();
+
+  ms.addEventListener('sourceopen', () => {
+    let sb: SourceBuffer;
+    try {
+      sb = ms.addSourceBuffer('audio/mpeg');
+    } catch {
+      return;
+    }
+    // SourceBuffer 忙的时候 append 会抛错:排队,updateend 后再追加下一块
+    const chunks: ArrayBuffer[] = [];
+    let finished = false;
+    const drain = () => {
+      if (sb.updating) return;
+      const next = chunks.shift();
+      if (next) {
+        try { sb.appendBuffer(next); } catch { /* 这块丢了就丢了 */ }
+        return;
+      }
+      if (finished && ms.readyState === 'open') {
+        try { ms.endOfStream(); } catch { /* ignore */ }
+      }
+    };
+    sb.addEventListener('updateend', () => {
+      if (audio.readyState >= 2) tryPlay();
+      drain();
+    });
+    const pump = async () => {
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const buf = new Uint8Array(value.byteLength);
+          buf.set(value);
+          chunks.push(buf.buffer as ArrayBuffer);
+          drain();
+        }
+      } catch { /* 打断 / 断流 */ }
+      finished = true;
+      drain();
+    };
+    void pump();
+  }, { once: true });
+
+  audio.addEventListener('ended', () => URL.revokeObjectURL(url), { once: true });
 }
 
 function waitForAudioEnd(audio: HTMLAudioElement, signal?: AbortSignal): Promise<void> {
@@ -325,16 +399,57 @@ function waitForAudioEnd(audio: HTMLAudioElement, signal?: AbortSignal): Promise
       done = true;
       audio.removeEventListener('ended', finish);
       audio.removeEventListener('error', finish);
+      audio.removeEventListener('playing', arm);
       signal?.removeEventListener('abort', finish);
       clearTimeout(timer);
       resolve();
     };
-    // 60s 兜底:上游卡住时不要把整条队列堵死
-    const timer = setTimeout(finish, 60_000);
+    // 开播前最多等 8s(首包一直不来就放弃这句);开播后按 60s 兜底,免得 ended 丢了卡死队列
+    let timer = setTimeout(finish, 8_000);
+    const arm = () => {
+      clearTimeout(timer);
+      timer = setTimeout(finish, 60_000);
+    };
+    audio.addEventListener('playing', arm);
     audio.addEventListener('ended', finish);
     audio.addEventListener('error', finish);
     signal?.addEventListener('abort', finish);
   });
+}
+
+/**
+ * 从原始流式文本里切出「下一批可以念的完整句子」,保留其中的形象指令。
+ *
+ * 在原文(带标签)上切,而不是在剥掉标签的文本上切 —— 只有这样才知道每个标签属于哪一句。
+ * 标签先按原长度打码再找句末标点:<ui:{"url":"https://a.b"}/> 里的句点不能当成句子结尾。
+ * 末尾没闭合的标签(还在流式传输中)整个留到下一轮。
+ */
+export function cutSpeakable(raw: string, from: number, final: boolean): { chunk: string; next: number } {
+  let pending = raw.slice(from);
+  if (!final) {
+    const open = pending.lastIndexOf('<');
+    const tail = open >= 0 ? pending.slice(open) : '';
+    const heads = ['<emotion:', '<action:', '<mouth:', '<ui:'];
+    if (tail && !tail.includes('/>') && heads.some((h) => tail.startsWith(h) || h.startsWith(tail))) {
+      pending = pending.slice(0, open);
+    }
+  }
+  if (!pending) return { chunk: '', next: from };
+  if (final) return { chunk: pending, next: from + pending.length };
+
+  const masked = maskDirectives(pending);
+  const cut = lastSentenceEnd(masked);
+  if (cut <= 0) return { chunk: '', next: from };
+  return { chunk: pending.slice(0, cut), next: from + cut };
+}
+
+/** 把完整的形象指令标签替换成等长的占位符(不含任何标点)。 */
+function maskDirectives(text: string): string {
+  let out = text.replace(/<(?:emotion|action):[a-zA-Z_]+\/>|<mouth:speak\/>/g, (m) => '\u0001'.repeat(m.length));
+  // <ui:{json}/>:用剥离器找出它剥掉了哪些区间太绕,直接按「<ui: 到下一个 />」打码即可 ——
+  // 多码一点只会让句子切得晚一些,不会切错。
+  out = out.replace(/<ui:[\s\S]*?\/>/g, (m) => '\u0001'.repeat(m.length));
+  return out;
 }
 
 const RECONNECT_BASE_MS = 1000;
@@ -434,21 +549,23 @@ function parseAvatarDirectives(text: string, options: UseChatAvatarWSOptions) {
     .replace(/\\u0026/g, '&')
     .replace(/\\"/g, '"');
   const calls: Array<{ name: string; args: Record<string, any> }> = [];
-  // 表情 <emotion:xxx/>
-  const emoRe = /<emotion:([a-zA-Z_]+)\/>/g;
   let m: RegExpExecArray | null;
-  while ((m = emoRe.exec(raw))) {
-    calls.push({ name: 'face.setExpression', args: { name: m[1] } });
-  }
-  // 动作 <action:xxx/>
+  // 动作 <action:xxx/> —— 排在表情前面:舞台在播动作时会顺手套上这个动作的默认表情,
+  // 表情后派发,模型明确写的 <emotion:x/> 才不会被动作的默认表情盖掉。
   const actRe = /<action:([a-zA-Z_]+)\/>/g;
   while ((m = actRe.exec(raw))) {
     calls.push({ name: 'body.playAction', args: { name: m[1] } });
   }
-  // 口型 <mouth:speak/> — 用当前文本生成 viseme 时间线
+  // 表情 <emotion:xxx/>
+  const emoRe = /<emotion:([a-zA-Z_]+)\/>/g;
+  while ((m = emoRe.exec(raw))) {
+    calls.push({ name: 'face.setExpression', args: { name: m[1] } });
+  }
+  // 口型 <mouth:speak/> —— 按字数猜的口型时间线,只在没有真实语音可分析时当兜底
+  //(见 VrmStage:音频在驱动嘴时时间线自动让位)
   const mouthRe = /<mouth:speak\/>/g;
   while ((m = mouthRe.exec(raw))) {
-    calls.push({ name: 'mouth.speak', args: { text: raw } });
+    calls.push({ name: 'mouth.speak', args: { text: stripAvatarDirectives(raw) } });
   }
   // <ui:{json}/>:目前只剩 iframe 用法(开网页/视频),交给入口组件的虚拟浏览器
   if (options.onUI) {
@@ -460,26 +577,6 @@ function parseAvatarDirectives(text: string, options: UseChatAvatarWSOptions) {
     devLog.debug('[parseAvatarDirectives] found calls:', calls.map(c => c.name));
     options.onToolCalls?.(calls);
   }
-}
-
-/**
- * 从流式文本里增量取出「刚补全的完整指令标签」。
- *
- * 只在标签闭合(出现 `/>`)之后才交给解析器,并记住已消费到哪个下标,
- * 保证同一个标签只派发一次 —— 既不会因为分片截断丢标签,也不会重复触发。
- */
-function makeDirectiveScanner() {
-  let consumed = 0;
-  return (fullText: string): string => {
-    // 最后一个完整闭合标签的结束位置
-    const tail = fullText.lastIndexOf('/>');
-    if (tail < 0) return '';
-    const end = tail + 2;
-    if (end <= consumed) return '';
-    const segment = fullText.slice(consumed, end);
-    consumed = end;
-    return segment;
-  };
 }
 
 interface WSConnection {
@@ -667,6 +764,10 @@ export interface UseChatAvatarWSOptions {
    * 用于文字输入也走本地意图路由(walk_to/换装/切agent),纯聊天放行给 AG-UI。
    */
   preSendText?: (text: string) => boolean | Promise<boolean>;
+  /** 一轮话全部念完(队列清空)时调:入口组件据此让表情回到自然状态 */
+  onSpeechEnd?: () => void;
+  /** 搜索结果的结构化数据(AG-UI CUSTOM content_results)。不传则只在对话里出卡片 */
+  onContentResults?: (items: ContentRef[]) => void;
   /**
    * AG-UI 模式:当前还没有服务端会话时,发送前调用它建一个并返回 id(失败返回 null);
    * firstText 是这条消息,可直接用作会话标题。
@@ -690,6 +791,15 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   // AG-UI 模式下当前这轮请求的中断控制器(barge-in 用)
   const abortRef = React.useRef<AbortController | null>(null);
+  // 形象指令是延后执行的(等那句话出声),执行时要用最新的 options ——
+  // 发消息那一刻的闭包里 stageHandle 可能还没就绪。
+  const optionsRef = React.useRef(options);
+  optionsRef.current = options;
+  React.useEffect(() => {
+    const cb = () => optionsRef.current.onSpeechEnd?.();
+    onTTSIdle = cb;
+    return () => { if (onTTSIdle === cb) onTTSIdle = null; };
+  }, []);
   const connRef = React.useRef<WSConnection | null>(null);
   const agentRef = React.useRef(agentId);
   agentRef.current = agentId;
@@ -1315,10 +1425,9 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
 
       try {
         const { agentmAPI } = await import('@/lib/agentmanager/api');
-        // 增量扫描器:保证同一个 <action:.../> 只派发一次(旧代码每片重解析全文)
-        const scanDirectives = makeDirectiveScanner();
-        // 已朗读到的位置:边流边按句读,不用等整段生成完
-        let spokenUpto = 0;
+        // 原始文本(带形象指令)已经切到哪了:边流边按句读,不用等整段生成完。
+        // 每个标签只会落进一句里,天然只派发一次。
+        let rawUpto = 0;
         // H4 从当前对话日志构造历史上下文(用户/助手交替),让 agent 延续上下文
         const history = chatLog
           .filter((m) => m.who === 'user' || m.who === 'ai')
@@ -1329,18 +1438,18 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
           }));
 
         // 流式朗读:文本攒够一个完整句子就送去 TTS,首次出声不用等整段写完。
+        // 这句里写的表情/动作挂在这句的 onStart 上:声音响起的那一刻才执行(见 Utterance)。
         const speakReady = (final: boolean) => {
           if (ac.signal.aborted) return;
-          const clean = stripAvatarDirectives(fullTextRef.current);
-          const pending = clean.slice(spokenUpto);
-          if (!pending) return;
-          // 找最后一个句末标点;final 时不挑了,剩下的一次读完
-          const cut = final ? pending.length : lastSentenceEnd(pending);
-          if (cut <= 0) return;
-          const say = pending.slice(0, cut);
-          spokenUpto += cut;
-          const ttsText = filterTTSContent(say);
-          if (ttsText) enqueueTTS(ttsText, audioRef, ac.signal);
+          const { chunk, next } = cutSpeakable(fullTextRef.current, rawUpto, final);
+          if (!chunk) return;
+          rawUpto = next;
+          enqueueTTS({
+            text: filterTTSContent(stripAvatarDirectives(chunk)),
+            audioRef,
+            signal: ac.signal,
+            onStart: () => parseAvatarDirectives(chunk, optionsRef.current),
+          });
         };
 
         await agentmAPI.aguiChat(
@@ -1364,10 +1473,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
             },
             onDelta: (t) => {
               fullTextRef.current += t;
-              // 只把「本次新闭合的标签段」交给解析器,避免重复派发动作/表情
-              const segment = scanDirectives(fullTextRef.current);
-              if (segment) parseAvatarDirectives(segment, options);
-              // 清洗掉形象指令,只显示纯文本
+              // 清洗掉形象指令,只显示纯文本(指令本身跟着语音走,见 speakReady)
               const cleanText = stripAvatarDirectives(fullTextRef.current);
               // 打字机效果
               setChatLog((c) => upsertTurnText(c, cleanText));
@@ -1394,6 +1500,20 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
                 }
               }
 
+              // 对话里的快捷选项:点了就替用户把那句话发出去
+              if (name === 'ui_show_choices') {
+                const choices = normalizeChoices(args);
+                if (choices) setChatLog((c) => [...c, { who: 'choices', text: '', choices }]);
+                return;
+              }
+              // 放歌:播放器在浏览器里,由前端执行
+              if (name === 'media_play') {
+                runMediaPlay(args)
+                  .then((msg) => devLog.debug('[agui] media_play:', msg))
+                  .catch((e) => setChatLog((c) => [...c, { who: 'ai', text: `⚠️ 播放失败:${e?.message || e}` }]));
+                return;
+              }
+
               // 生成式 UI 工具 → 3D 场景面板(列表 / 网格 / 表单)
               if (name === SCENE_PANEL_DISMISS_TOOL) {
                 options.onScenePanel?.(null);
@@ -1416,6 +1536,16 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
             },
             onToolEnd: () => {
               setThinkingLog('');
+            },
+            onCustom: (name, value) => {
+              if (name !== 'content_results') return;
+              // 搜索结果的完整结构化数据:记下来(之后 ui_show_content 只给 id 也能补全封面),
+              // 并直接在对话里出一排能点的作品卡片 —— 不依赖模型再转述一遍。
+              const items: ContentRef[] = normalizeContentRefs((value as { items?: unknown })?.items);
+              if (items.length === 0) return;
+              rememberContentRefs(items);
+              setChatLog((c) => [...c, { who: 'cards', text: '', contents: items, label: userText.slice(0, 20) }]);
+              optionsRef.current.onContentResults?.(items);
             },
             onDone: () => {
               setChatBusy(false);

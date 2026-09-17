@@ -1,16 +1,22 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 
-/**
- * 收藏夹详情页已下线(依赖的 user_my_list_content 表线上不存在,见 ../page.tsx)。
- * 旧链接统一转到「我的 · 收藏」。
- */
-export default function MyListDetailRedirect() {
+/** 歌单详情搬到了 /playlist?id=(见 ../page.tsx)。旧链接带着 id 转过去。 */
+function Redirect() {
   const router = useRouter();
+  const id = useSearchParams().get('id');
   useEffect(() => {
-    router.replace('/home/recommend?tab=me&mainTab=collect');
-  }, [router]);
+    router.replace(id ? `/playlist?id=${encodeURIComponent(id)}` : '/playlist');
+  }, [router, id]);
   return null;
+}
+
+export default function MyListDetailRedirect() {
+  return (
+    <Suspense fallback={null}>
+      <Redirect />
+    </Suspense>
+  );
 }

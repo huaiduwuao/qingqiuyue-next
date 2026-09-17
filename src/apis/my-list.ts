@@ -11,18 +11,21 @@ import type { EntityId } from '@/lib/id';
 export type MyListType = 'playlist' | 'album' | 'topic' | 'bookshelf';
 
 // 收藏夹基本信息
-// 收藏夹 id / 内容 id 都是后端 idgen 发的 BIGINT(> 2^53),响应里是字符串,
-// 调用这里的函数时原样回传,不要 Number()。见 lib/id.ts。
+// 收藏夹存在 PostgreSQL(自增 id),里面的内容 id 是后端 idgen 发的 BIGINT(> 2^53),
+// 响应里是字符串,调用这里的函数时原样回传,不要 Number()。见 lib/id.ts。
 export interface MyListItem {
   id: EntityId;
   userId: number;
   name: string;
   description: string;
   coverUrl: string;
+  /** 前几项的封面 —— 没单独设封面时拼宫格 */
+  covers: string[];
   type: MyListType;
   itemCount: number;
-  totalViews: number;
   isPublic: boolean;
+  /** 是不是当前登录用户自己的(别人公开的歌单只能看和播) */
+  mine: boolean;
   createTime: string;
   updateTime: string;
 }
@@ -59,14 +62,21 @@ export async function getMyLists(listType?: MyListType): Promise<MyListPageRespo
   return (res as any)?.data ?? res;
 }
 
-// 创建收藏夹
+// 单个收藏夹(自己的,或别人公开的)
+export async function getMyListDetail(id: EntityId): Promise<MyListItem> {
+  const res = await contentClient('/my-list/detail', { params: { id } });
+  return (res as any)?.data ?? res;
+}
+
+// 创建收藏夹;带 contentIds 可一步建好(「把播放队列存为歌单」)
 export async function createMyList(data: {
   name: string;
   description?: string;
   coverUrl?: string;
   type: MyListType;
   isPublic?: boolean;
-}): Promise<{ ok: boolean; id: EntityId }> {
+  contentIds?: EntityId[];
+}): Promise<{ ok: boolean; id: EntityId; added: number }> {
   const res = await contentClient('/my-list', {
     method: 'POST',
     data,
@@ -127,6 +137,15 @@ export async function removeFromMyList(
   const res = await contentClient('/my-list/content/remove', {
     method: 'POST',
     data: { listId, contentId },
+  });
+  return (res as any)?.data ?? res;
+}
+
+// 调整顺序:contentIds 是排好之后的完整顺序
+export async function reorderMyList(listId: EntityId, contentIds: EntityId[]): Promise<{ ok: boolean }> {
+  const res = await contentClient('/my-list/content/reorder', {
+    method: 'POST',
+    data: { listId, contentIds },
   });
   return (res as any)?.data ?? res;
 }

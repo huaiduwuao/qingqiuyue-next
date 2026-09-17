@@ -52,6 +52,31 @@ export async function resolveMusic(data: any): Promise<{ src: string; lyrics: Ly
   return { src, lyrics };
 }
 
+/**
+ * 按内容 id 拉详情并解析 —— 歌单 / 队列里的歌只存了 id 和标题,轮到它播时才来取音源,
+ * 顺便把列表接口没有的字段(歌手、专辑、是否试听)补齐。
+ */
+export async function resolveTrackById(id: string): Promise<{
+  src: string;
+  title?: string;
+  artist?: string;
+  album?: string;
+  cover?: string;
+  preview: boolean;
+}> {
+  const res: any = await contentDetail('music', { id });
+  const data = res?.data;
+  const { src } = await resolveMusic(data);
+  return {
+    src,
+    title: data?.title || undefined,
+    artist: data?.artist || data?.author || undefined,
+    album: data?.album || undefined,
+    cover: mediaUrl(data?.cover || data?.coverUrl) || undefined,
+    preview: data?.audioStatus === 'preview',
+  };
+}
+
 /** 按内容 id 重新拉详情再解析 —— 全局播放器换链用。 */
 export async function resolveMusicById(id: string): Promise<string> {
   const res: any = await contentDetail('music', { id });

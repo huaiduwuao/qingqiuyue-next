@@ -180,6 +180,13 @@ export function createAudioHandle(): AudioHandle {
         lip.aa += (tAA - lip.aa) * k;
         lip.ih += (tIH - lip.ih) * k;
         lip.ou += (tOU - lip.ou) * k;
+      } else {
+        // 静音(句间停顿 / 说完了)要把嘴合上。以前这里什么都不做,
+        // 嘴会定在最后一个张开的口型上,直到下一句才动。
+        lip.aa *= 0.6; lip.ih *= 0.6; lip.ou *= 0.6;
+        if (lip.aa < 0.005) lip.aa = 0;
+        if (lip.ih < 0.005) lip.ih = 0;
+        if (lip.ou < 0.005) lip.ou = 0;
       }
       lip.oh = lip.ou * 0.4;
     }
@@ -223,6 +230,9 @@ export function createAudioHandle(): AudioHandle {
     connectedEl = el;
     elemSrc.connect(analyser);
     elemSrc.connect(masterGain);
+    // AudioContext 若是在用户手势之前建的,会停在 suspended:这个元素已经接进图里,
+    // context 不跑就既没声音、也分析不出口型。每次开播时顺手 resume 一下。
+    el.addEventListener('play', () => { void audioCtx?.resume(); });
   }
   function stopAll() { stopSong(); stopMic(); if (elemSrc) { try { elemSrc.disconnect(); } catch {} elemSrc = null; } }
   function isSongOn() { return songOn; }

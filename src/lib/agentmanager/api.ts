@@ -268,6 +268,8 @@ class AgentManagerAPI {
       onToolResult?: (toolCallId: string, content: string) => void
       /** 工具刚开始执行(还没有参数),用于显示「正在搜索…」这类状态 */
       onToolStart?: (name: string, toolCallId: string) => void
+      /** AG-UI CUSTOM 事件:服务端另发的结构化数据(如 content_results = 搜索结果的完整作品列表) */
+      onCustom?: (name: string, value: unknown) => void
     },
     signal?: AbortSignal,
   ): Promise<void> {
@@ -376,6 +378,9 @@ class AgentManagerAPI {
               handlers.onToolEnd?.(id)
               break
             }
+            case 'CUSTOM':
+              if (data.name) handlers.onCustom?.(String(data.name), data.value)
+              break
           }
         }
       }

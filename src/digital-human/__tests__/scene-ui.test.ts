@@ -81,9 +81,10 @@ describe('scenePanelFromToolCall', () => {
   });
 
   it('工具名映射与后端 tools_ui.go / tools_ops.go / runs/tool.go 对齐', () => {
-    // ui_show_operation 在 engine/tools_ops.go(部署操作卡片),ui_show_run 在 runs/tool.go(后台运行卡片),其余在 tools_ui.go
+    // ui_show_operation 在 engine/tools_ops.go(部署操作卡片),ui_show_run 在 runs/tool.go(后台运行卡片),
+    // ui_show_content 在 engine/tools_content_ui.go(作品卡片),其余在 tools_ui.go
     expect(Object.keys(SCENE_PANEL_TOOLS).sort()).toEqual(
-      ['ui_show_form', 'ui_show_grid', 'ui_show_list', 'ui_show_operation', 'ui_show_plan', 'ui_show_run'],
+      ['ui_show_content', 'ui_show_form', 'ui_show_grid', 'ui_show_list', 'ui_show_operation', 'ui_show_plan', 'ui_show_run'],
     );
     expect(SCENE_PANEL_DISMISS_TOOL).toBe('ui_dismiss');
   });

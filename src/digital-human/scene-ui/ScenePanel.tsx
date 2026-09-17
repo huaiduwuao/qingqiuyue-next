@@ -28,6 +28,7 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import OperationPanel from './OperationPanel';
 import RunPanel from './RunPanel';
 import PlanPanel from './PlanPanel';
+import ContentCards from './ContentCards';
 import type {
   ScenePanel as ScenePanelModel,
   ScenePanelField,
@@ -40,6 +41,8 @@ export interface ScenePanelProps {
   /** 点列表项 / 提交表单 → 把这段话作为新一轮用户输入回灌给数字人 */
   onSend: (text: string) => void;
   onClose: () => void;
+  /** 打开作品详情页(作品面板用)。不传则当前页跳转 */
+  onOpen?: (href: string) => void;
 }
 
 // 面板配色跟舞台走(深色玻璃 + 青色高光),避免 MUI 亮色主题在暗场景里刺眼
@@ -51,7 +54,7 @@ const surface = {
   subtext: 'rgba(255,255,255,0.55)',
 };
 
-export function ScenePanel({ panel, onSend, onClose }: ScenePanelProps) {
+export function ScenePanel({ panel, onSend, onClose, onOpen }: ScenePanelProps) {
   return (
     <Box
       sx={{
@@ -108,6 +111,15 @@ export function ScenePanel({ panel, onSend, onClose }: ScenePanelProps) {
         {panel.kind === 'operation' && <OperationPanel operationId={panel.operationId} onSend={onSend} />}
         {panel.kind === 'run' && <RunPanel runId={panel.runId} onSend={onSend} />}
         {panel.kind === 'plan' && <PlanPanel steps={panel.steps} />}
+        {panel.kind === 'content' && (
+          <ContentCards
+            variant="panel"
+            items={panel.items}
+            label={panel.title}
+            onSend={onSend}
+            onOpen={onOpen ?? ((href) => { window.location.assign(href); })}
+          />
+        )}
       </Box>
     </Box>
   );

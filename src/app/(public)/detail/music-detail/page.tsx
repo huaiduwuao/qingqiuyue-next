@@ -19,6 +19,8 @@ import SkipNextIcon from '@mui/icons-material/SkipNext';
 import SkipPreviousIcon from '@mui/icons-material/SkipPrevious';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import QueueMusicIcon from '@mui/icons-material/QueueMusic';
+import PlaylistAddRoundedIcon from '@mui/icons-material/PlaylistAddRounded';
+import PlaylistPicker from '@/components/player/PlaylistPicker';
 import Tooltip from '@mui/material/Tooltip';
 import { CollectButton } from '@/components/detail/CollectButton';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
@@ -170,6 +172,8 @@ function MusicDetailContent() {
     const t = toTrack();
     if (t) musicPlayer.play(t);
   };
+
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const addToQueue = () => {
     const t = toTrack();
@@ -360,6 +364,11 @@ function MusicDetailContent() {
                   </IconButton>
                 </span>
               </Tooltip>
+              <Tooltip title="加入歌单">
+                <IconButton onClick={() => setPickerOpen(true)} aria-label="加入歌单" sx={{ color: 'text.secondary' }}>
+                  <PlaylistAddRoundedIcon />
+                </IconButton>
+              </Tooltip>
               <IconButton
                 onClick={handleLike}
                 disabled={likeBusy}
@@ -387,6 +396,15 @@ function MusicDetailContent() {
           </Container>
         )}
       </AsyncState>
+
+      {id && (
+        <PlaylistPicker
+          open={pickerOpen}
+          onClose={() => setPickerOpen(false)}
+          contentIds={[id]}
+          onDone={(m) => notify(m, 'success')}
+        />
+      )}
 
       <Snackbar
         open={snack.open}

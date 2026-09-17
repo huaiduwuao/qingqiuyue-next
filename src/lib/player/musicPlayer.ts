@@ -17,7 +17,7 @@
  */
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { resolveMusicById } from './resolveMusic';
+import { resolveMusicById, resolveTrackById } from './resolveMusic';
 
 export interface MusicTrack {
   id: string;
@@ -25,7 +25,10 @@ export interface MusicTrack {
   artist?: string;
   album?: string;
   cover?: string;
-  /** 可直接交给 <audio> 的地址(已过 mediaUrl) */
+  /**
+   * 可直接交给 <audio> 的地址(已过 mediaUrl)。
+   * 空串 = 还没解析:整张歌单进队列时只有 id 和标题,轮到这首播时才去取(见 load)。
+   */
   src: string;
   /** 详情页地址:点封面回去看歌词 */
   href: string;
@@ -37,6 +40,13 @@ export interface MusicTrack {
 const POS_KEY = 'qq-music-pos';
 
 export type RepeatMode = 'all' | 'one' | 'off';
+
+/** 当前队列是从哪来的 —— 底栏显示「正在播放:歌单名」,点了能回去 */
+export interface QueueSource {
+  kind: 'playlist' | 'search' | 'assistant';
+  name: string;
+  href?: string;
+}
 
 interface MusicState {
   queue: MusicTrack[];
@@ -50,6 +60,8 @@ interface MusicState {
   volume: number;
   muted: boolean;
   repeat: RepeatMode;
+  shuffle: boolean;
+  source: QueueSource | null;
   /** 底栏收成悬浮唱片 */
   collapsed: boolean;
   error: string | null;
@@ -67,6 +79,8 @@ export const useMusicPlayer = create<MusicState>()(
       volume: 0.8,
       muted: false,
       repeat: 'all',
+      shuffle: false,
+      source: null,
       collapsed: false,
       error: null,
     }),
@@ -81,6 +95,8 @@ export const useMusicPlayer = create<MusicState>()(
         volume: s.volume,
         muted: s.muted,
         repeat: s.repeat,
+        shuffle: s.shuffle,
+        source: s.source,
         collapsed: s.collapsed,
       }),
       onRehydrateStorage: () => (state) => {
@@ -136,6 +152,8 @@ let audio: HTMLAudioElement | null = null;
 let loadedId: string | null = null;
 /** 每首歌只自动换一次链,防止坏地址来回打转 */
 let refreshedId: string | null = null;
+/** 数字人说话期间压低音量(见 musicPlayer.duck) */
+let ducked = false;
 /** load 后要跳到的位置(恢复进度 / 换链续播) */
 let pendingSeek = 0;
 
@@ -158,7 +176,10 @@ function el(): HTMLAudioElement {
     syncSession();
   });
   a.addEventListener('waiting', () => set({ buffering: true }));
-  a.addEventListener('playing', () => set({ buffering: false }));
+  a.addEventListener('playing', () => {
+    failStreak = 0;
+    set({ buffering: false });
+  });
   a.addEventListener('canplay', () => set({ buffering: false }));
   a.addEventListener('loadedmetadata', () => {
     if (pendingSeek > 0 && pendingSeek < a.duration - 1) a.currentTime = pendingSeek;
@@ -176,16 +197,100 @@ function el(): HTMLAudioElement {
   return a;
 }
 
+/** 连续多少首取不到音源 —— 整张歌单都放不了时要停下来,不能一直转圈 */
+let failStreak = 0;
+/** 随机播放:这一轮已经放过的曲目 id */
+const shufflePlayed = new Set<string>();
+
 function load(index: number, autoplay: boolean, startAt = 0) {
   const t = get().queue[index];
   if (!t) return;
   const a = el();
   loadedId = t.id;
   pendingSeek = startAt;
+  shufflePlayed.add(t.id);
   set({ index, currentTime: startAt, duration: 0, error: null, buffering: autoplay });
+  if (!t.src) {
+    // 停掉上一首,免得解析期间旧歌还在响
+    a.pause();
+    a.removeAttribute('src');
+    syncSession();
+    void resolveAndLoad(t.id, autoplay, startAt);
+    return;
+  }
   a.src = t.src;
   syncSession();
   if (autoplay) start();
+}
+
+/** 队列里只有 id 的歌:取音源、补全信息,再真正加载。期间用户切走了就作废。 */
+async function resolveAndLoad(id: string, autoplay: boolean, startAt: number) {
+  let info: Awaited<ReturnType<typeof resolveTrackById>> | null = null;
+  try {
+    info = await resolveTrackById(id);
+  } catch {
+    info = null;
+  }
+  if (currentTrack()?.id !== id) return;
+  if (!info?.src) {
+    refreshedId = id; // 刚取过,onError 不用再取一次
+    skipBroken(id, '这首歌暂无可播放音源(版权或平台限制)');
+    return;
+  }
+  const { src, preview, ...meta } = info;
+  const queue = get().queue.map((q) =>
+    q.id === id
+      ? {
+          ...q,
+          src,
+          preview,
+          title: q.title || meta.title || '未知歌曲',
+          artist: q.artist || meta.artist,
+          album: q.album || meta.album,
+          cover: q.cover || meta.cover,
+        }
+      : q,
+  );
+  set({ queue });
+  refreshedId = id;
+  load(get().index, autoplay, startAt);
+}
+
+/** 这首放不了:报错,队列里还有别的就跳下一首;一连串都放不了就停。 */
+function skipBroken(id: string, message: string) {
+  set({ playing: false, buffering: false, error: message });
+  failStreak += 1;
+  const { queue } = get();
+  if (queue.length <= 1 || failStreak >= Math.min(queue.length, 5)) {
+    failStreak = 0;
+    return;
+  }
+  setTimeout(() => {
+    if (currentTrack()?.id !== id || !get().error) return;
+    const n = pickNext(true);
+    if (n >= 0) load(n, true);
+  }, 1200);
+}
+
+/**
+ * 下一首的下标,-1 = 到头了。wrap 为 true 时(用户手动切歌 / 跳过坏歌)总会绕回去。
+ * 随机模式下每首歌一轮只放一次,一轮放完再重新洗。
+ */
+function pickNext(wrap: boolean): number {
+  const { queue, index, shuffle, repeat } = get();
+  if (queue.length === 0) return -1;
+  if (!shuffle) {
+    if (index < queue.length - 1) return index + 1;
+    return wrap || repeat === 'all' ? 0 : -1;
+  }
+  if (queue.length === 1) return wrap || repeat === 'all' ? 0 : -1;
+  let pool = queue.map((_, i) => i).filter((i) => i !== index && !shufflePlayed.has(queue[i].id));
+  if (pool.length === 0) {
+    if (!wrap && repeat !== 'all') return -1;
+    shufflePlayed.clear();
+    pool = queue.map((_, i) => i).filter((i) => i !== index);
+  }
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 function start() {
@@ -199,14 +304,14 @@ function start() {
 }
 
 function onEnded() {
-  const { repeat, index, queue } = get();
+  const { repeat } = get();
   if (repeat === 'one') {
     el().currentTime = 0;
     start();
     return;
   }
-  if (index < queue.length - 1) load(index + 1, true);
-  else if (repeat === 'all' && queue.length > 0) load(0, true);
+  const n = pickNext(false);
+  if (n >= 0) load(n, true);
   else set({ playing: false, currentTime: 0 });
 }
 
@@ -231,14 +336,7 @@ async function onError() {
       /* 落到下面报错 */
     }
   }
-  set({ playing: false, buffering: false, error: '音源加载失败(可能已过期或受版权限制)' });
-  // 队列里还有别的歌就跳过这首
-  const { index, queue } = get();
-  if (queue.length > 1 && currentTrack()?.id === t.id) {
-    setTimeout(() => {
-      if (currentTrack()?.id === t.id && get().error) load((index + 1) % queue.length, true);
-    }, 1500);
-  }
+  skipBroken(t.id, '音源加载失败(可能已过期或受版权限制)');
 }
 
 // ---------------------------------------------------------------------------
@@ -269,10 +367,53 @@ export const musicPlayer = {
 
   /** 加到队尾;队列原本为空时只放进去不自动开播 */
   enqueue(track: MusicTrack): boolean {
+    return musicPlayer.enqueueMany([track]) > 0;
+  },
+
+  /** 批量加到队尾(已在队列里的跳过),返回实际加入的数量。曲目可以没有 src,轮到时再解析。 */
+  enqueueMany(tracks: MusicTrack[]): number {
     const { queue, index } = get();
-    if (queue.some((q) => q.id === track.id)) return false;
-    set({ queue: [...queue, track], index: index < 0 ? 0 : index });
-    return true;
+    const have = new Set(queue.map((q) => q.id));
+    const fresh = tracks.filter((t) => t.id && !have.has(t.id) && have.add(t.id));
+    if (fresh.length === 0) return 0;
+    set({ queue: [...queue, ...fresh], index: index < 0 ? 0 : index });
+    return fresh.length;
+  },
+
+  /**
+   * 整个队列换成这些歌并开播 ——「播放全部」/ 播放歌单。曲目可以没有 src,轮到时再解析,
+   * 所以一张 200 首的歌单也是点了就响,不用先把 200 个音源都取一遍。
+   */
+  setQueue(tracks: MusicTrack[], opts: { startIndex?: number; shuffle?: boolean; source?: QueueSource | null } = {}) {
+    const seen = new Set<string>();
+    const queue = tracks.filter((t) => t.id && !seen.has(t.id) && seen.add(t.id));
+    if (queue.length === 0) return;
+    const shuffle = opts.shuffle ?? get().shuffle;
+    let at = Math.max(0, Math.min(queue.length - 1, opts.startIndex ?? 0));
+    if (shuffle && opts.startIndex === undefined) at = Math.floor(Math.random() * queue.length);
+    shufflePlayed.clear();
+    failStreak = 0;
+    loadedId = null;
+    set({ queue, shuffle, source: opts.source ?? null });
+    load(at, true);
+  },
+
+  toggleShuffle() {
+    shufflePlayed.clear();
+    const cur = currentTrack();
+    if (cur) shufflePlayed.add(cur.id);
+    set({ shuffle: !get().shuffle });
+  },
+
+  /** 队列里拖动排序 */
+  move(from: number, to: number) {
+    const { queue, index } = get();
+    if (!queue[from] || !queue[to] || from === to) return;
+    const curId = queue[index]?.id;
+    const queue2 = queue.slice();
+    const [item] = queue2.splice(from, 1);
+    queue2.splice(to, 0, item);
+    set({ queue: queue2, index: curId ? queue2.findIndex((q) => q.id === curId) : index });
   },
 
   toggle() {
@@ -292,9 +433,8 @@ export const musicPlayer = {
   },
 
   next() {
-    const { index, queue } = get();
-    if (queue.length === 0) return;
-    load((index + 1) % queue.length, true);
+    const n = pickNext(true);
+    if (n >= 0) load(n, true);
   },
 
   /** 放了 3 秒以上先回到开头,否则上一首 */
@@ -341,7 +481,7 @@ export const musicPlayer = {
     const volume = Math.max(0, Math.min(1, v));
     set({ volume, muted: volume === 0 });
     if (audio) {
-      audio.volume = volume;
+      audio.volume = volume * (ducked ? 0.25 : 1);
       audio.muted = volume === 0;
     }
   },
@@ -370,7 +510,8 @@ export const musicPlayer = {
     }
     loadedId = null;
     interruptedBy = null;
-    set({ queue: [], index: -1, playing: false, currentTime: 0, duration: 0, error: null, buffering: false });
+    shufflePlayed.clear();
+    set({ queue: [], index: -1, playing: false, currentTime: 0, duration: 0, error: null, buffering: false, source: null });
     try {
       localStorage.removeItem(POS_KEY);
       if ('mediaSession' in navigator) {
@@ -380,6 +521,14 @@ export const musicPlayer = {
     } catch {
       /* ignore */
     }
+  },
+
+  /**
+   * 临时压低音量(数字人说话时),不动用户设的 volume。on=false 恢复。
+   */
+  duck(on: boolean) {
+    ducked = on;
+    if (audio) audio.volume = get().volume * (on ? 0.25 : 1);
   },
 
   /** 音乐当前是不是由这个 audio 元素在出声(协调器用) */
