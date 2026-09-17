@@ -192,7 +192,12 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      # 这个 action 默认装 `tools platform-tools`,而 `tools` 早已废弃、Google 仓库里
+      # 已经找不到(Failed to find package 'tools' → sdkmanager 退出 1,整个任务挂掉)。
+      # 只留 platform-tools,其余组件下一步自己装。
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - run: sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;$NDK_VERSION"
       - uses: dtolnay/rust-toolchain@stable
         with:
