@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation';
 export { TYPE_TO_ROUTE, TYPE_LABEL, CONTENT_TYPES } from './contentType.gen';
 export type { ContentType } from './contentType.gen';
 
-import { TYPE_TO_ROUTE } from './contentType.gen';
+import { TYPE_TO_ROUTE, TYPE_LABEL } from './contentType.gen';
 
 /**
  * 创作者中心 chip 上展示的「卡片 id」→ 后端 contentType 映射。
@@ -28,28 +28,33 @@ export const PUBLISH_HUB_TYPE_TO_CONTENT_TYPE: Record<string, string> = {
   'music': 'MUSIC',
   'comics': 'COMICS',
   'vshow': 'VSHOW',
+  'short-drama': 'SHORT_DRAMA',
   'teleplay': 'TELEPLAY',
   'film': 'FILM',
   'animation': 'ANIMATION',
   'live': 'LIVE',
 };
 
-export const PUBLISH_HUB_TYPE_LABEL: Record<string, string> = {
+/**
+ * chip 的展示名。**从 TYPE_LABEL 推导,不再手写第二份。**
+ *
+ * 手写的那份漂过一次,而且漂在创作者能看见的地方:'vshow' 标的是「短剧」,
+ * 但它发布出去的是 VSHOW(综艺)。这正是 contracts/content_type.yaml 要消灭的
+ * 情况 —— 文件上面刚说完"唯一事实来源是契约生成物",下面就又写了一份。
+ *
+ * 只有后端没有对应类型的 chip('all' 和两个图文别名)才在这里显式列出。
+ */
+const PUBLISH_HUB_EXTRA_LABEL: Record<string, string> = {
   'all': '全部',
-  'video': '视频',
-  'picture-album': '图文',
   'picture-mv': '图片 MV',
-  'article': '文章',
-  'novel': '小说',
-  'news': '新闻',
-  'music': '音乐',
-  'comics': '漫画',
-  'vshow': '短剧',
-  'teleplay': '电视剧',
-  'film': '电影',
-  'animation': '动画',
-  'live': '直播',
 };
+
+export const PUBLISH_HUB_TYPE_LABEL: Record<string, string> = Object.fromEntries(
+  Object.entries(PUBLISH_HUB_TYPE_TO_CONTENT_TYPE).map(([chip, code]) => [
+    chip,
+    PUBLISH_HUB_EXTRA_LABEL[chip] ?? TYPE_LABEL[code] ?? chip,
+  ]),
+);
 
 export type PublishHubType = keyof typeof PUBLISH_HUB_TYPE_LABEL;
 

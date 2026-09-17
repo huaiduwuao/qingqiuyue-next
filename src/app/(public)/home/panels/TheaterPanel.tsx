@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -11,25 +11,46 @@ import WhatshotIcon from '@mui/icons-material/Whatshot';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import { homeClient } from '@/lib/api/client';
 import { CoverImage } from '@/components/common/CoverImage';
-import { useContentNavigate } from '@/lib/contentRoute';
+import { useContentNavigate, TYPE_LABEL } from '@/lib/contentRoute';
+import { getFacets, FacetOption } from '@/apis/facets';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT, gradient2 } from '@/constants/gradients';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 
-const CAT_TO_TYPE: Record<TheaterItem['category'], string> = {
-  movie: 'FILM',
-  drama: 'TELEPLAY',
-  anime: 'ANIMATION',
-  variety: 'VSHOW',
-};
+/**
+ * 放映厅 —— 电影 / 电视剧 / 动漫 / 综艺。
+ *
+ * 这个面板此前有三处坏掉的地方,都源于同一件事:前端自己又写了一份分类表。
+ *
+ *  1. **整页卡片点不动**。后端返回的 `category` 是 Doris 里的规范类型码
+ *     ("FILM"/"TELEPLAY"),而这里拿它去查一张 movie|drama|anime|variety
+ *     的表,查出 undefined,`useContentNavigate` 找不到路由就静默返回 ——
+ *     点击没有任何反应,也没有报错。现在直接用后端给的 `contentType`。
+ *  2. **两个分类按钮是空的**。前端传 category=drama / variety,后端把它们
+ *     大写成 DRAMA / VARIETY 去查 content_type,库里没有这两个值。
+ *  3. **"短剧"在放映厅里**。CAT_TO_TYPE 把"短剧"映射到 TELEPLAY,于是
+ *     放映厅的"短剧"按钮筛出来的是电视剧。短剧有自己的频道,这里不放。
+ *
+ * 直播也从这里移除了:直播间不是"一部作品",它跟电影混在一张网格里,用户
+ * 点进去才发现是另一回事。直播有独立的 /home/recommend?tab=live。
+ *
+ * 分类、题材、地区、年份、评分现在全部由 /home/facets 现算下发(带条数),
+ * 前端不再持有任何分类常量。
+ */
 
 type TheaterItem = {
   id: number;
   title: string;
   cover: string;
+  /** 后端规范类型码,详情页路由据此取。 */
+  contentType: string;
+  /** 原始 content_type,仅兼容旧字段,展示与路由都不要用它。 */
+  category?: string;
   durationMin?: number;
   rating?: number;
-  category: 'movie' | 'drama' | 'anime' | 'variety';
   region?: string;
+  regionCode?: string;
+  genre?: string;
+  genres?: string[];
   year?: number;
   views?: number;
   hotRank?: number;
@@ -37,88 +58,81 @@ type TheaterItem = {
 
 type Resp = { list: TheaterItem[]; total: number };
 
-const CATEGORIES: { key: TheaterItem['category'] | 'all'; label: string; gradient: string }[] = [
-  { key: 'all', label: '全部分类', gradient: gradient2('#FE2C55', '#FFB400') },
-  { key: 'movie', label: '电影', gradient: gradient2('#FE2C55', '#FF6B8A') },
-  { key: 'drama', label: '短剧', gradient: gradient2('#8B5CF6', '#C4B5FD') },
-  { key: 'anime', label: '动漫', gradient: gradient2('#06B6D4', '#5DF7F2') },
-  { key: 'variety', label: '综艺', gradient: gradient2('#FFB400', '#FFD566') },
-];
-
-const CAT_LABEL: Record<TheaterItem['category'], string> = {
-  movie: '电影',
-  drama: '短剧',
-  anime: '动漫',
-  variety: '综艺',
-};
-
-// Defensive lookups: backend module_content.content_type is free-form and
-// the hard-coded 'movie' | 'drama' | 'anime' | 'variety' union can be
-// violated (e.g. 'film', 'tvshow', ''). Fall back to a neutral palette
-// instead of throwing on .bg / undefined.
-function catKey(c: string | undefined | null): TheaterItem['category'] | null {
-	const v = String(c ?? '').trim().toLowerCase();
-	if (v === 'movie' || v === 'drama' || v === 'anime' || v === 'variety') return v;
-	return null;
-}
-const DEFAULT_CAT_COLOR = 'var(--text-muted, rgba(255,255,255,0.4))';
-function safeCatLabel(c: string | undefined | null): string {
-	return catKey(c) ? CAT_LABEL[c as TheaterItem['category']] : (c || '其他');
-}
-function safeCatColor(c: string | undefined | null): string {
-	return catKey(c) ? CAT_COLOR[c as TheaterItem['category']] : DEFAULT_CAT_COLOR;
-}
-
-const CAT_COLOR: Record<TheaterItem['category'], string> = {
-  movie: 'primary.main',
-  drama: '#8B5CF6',
-  anime: 'secondary.main',
-  variety: 'warning.main',
-};
-
-const REGIONS = [
-  { key: '', label: '全部地区' },
-  { key: '中国大陆', label: '中国大陆' },
-  { key: '美国', label: '美国' },
-  { key: '日本', label: '日本' },
-  { key: '韩国', label: '韩国' },
-  { key: '欧洲', label: '欧洲' },
-];
-
-const YEARS = [
-  { key: 0, label: '全部年份' },
-  { key: 2026, label: '2026' },
-  { key: 2025, label: '2025' },
-  { key: 2024, label: '2024' },
-  { key: 2023, label: '2023' },
-  { key: 2022, label: '2022' },
-  { key: 2020, label: '2020 及以前' },
-];
-
-const RATINGS = [
-  { key: 0, label: '全部评分' },
-  { key: 9, label: '9.0+' },
-  { key: 8, label: '8.0+' },
-  { key: 7, label: '7.0+' },
-];
-
 const SORTS = [
   { key: 'hot', label: '人气榜', icon: <WhatshotIcon sx={{ fontSize: 14 }} /> },
   { key: 'rating', label: '高评分', icon: <StarRoundedIcon sx={{ fontSize: 14 }} /> },
   { key: 'new', label: '最新', icon: <AccessTimeRoundedIcon sx={{ fontSize: 14 }} /> },
 ];
 
+/** 分类按钮的配色。按类型码索引;后端新增类型时退回中性色,不会崩。 */
+const CAT_GRADIENT: Record<string, string> = {
+  all: gradient2('#FE2C55', '#FFB400'),
+  FILM: gradient2('#FE2C55', '#FF6B8A'),
+  TELEPLAY: gradient2('#8B5CF6', '#C4B5FD'),
+  ANIMATION: gradient2('#06B6D4', '#5DF7F2'),
+  VSHOW: gradient2('#FFB400', '#FFD566'),
+};
+const NEUTRAL_GRADIENT = gradient2('#6B7280', '#9CA3AF');
+
+const CAT_COLOR: Record<string, string> = {
+  FILM: 'primary.main',
+  TELEPLAY: '#8B5CF6',
+  ANIMATION: 'secondary.main',
+  VSHOW: 'warning.main',
+};
+const DEFAULT_CAT_COLOR = 'var(--text-muted, rgba(255,255,255,0.4))';
+
+/** 类型码 → 展示名。唯一来源是 contentType.gen.ts(后端契约生成物)。 */
+function typeLabel(t: string | undefined | null): string {
+  const code = String(t ?? '').trim().toUpperCase();
+  return TYPE_LABEL[code] || code || '其他';
+}
+function typeColor(t: string | undefined | null): string {
+  return CAT_COLOR[String(t ?? '').trim().toUpperCase()] ?? DEFAULT_CAT_COLOR;
+}
+
+const PAGE_SIZE = 12;
+
 export function TheaterPanel() {
-  const [category, setCategory] = useState<'all' | TheaterItem['category']>('all');
+  const [category, setCategory] = useState('all');
   const [region, setRegion] = useState('');
-  const [year, setYear] = useState(0);
-  const [minRating, setMinRating] = useState(0);
+  const [genre, setGenre] = useState('');
+  const [year, setYear] = useState('');
+  const [minRating, setMinRating] = useState('');
   const [sort, setSort] = useState('hot');
 
-  // 分页状态
-  const PAGE_SIZE = 12;
+  // 筛选器目录随分类变:电影的题材和综艺的题材不是一套词。
+  const facetsQuery = useQuery({
+    queryKey: ['home', 'theater', 'facets', category],
+    queryFn: () => getFacets('theater', category),
+    staleTime: 5 * 60 * 1000,
+  });
+  const facets = facetsQuery.data;
 
-  // 使用 useInfiniteQuery 实现无限滚动分页
+  // 切换分类后,原来选中的题材/地区可能在新分类下根本不存在(选了"综艺"
+  // 之后还挂着"武侠仙侠")。目录一到就把失效的选项清掉,否则用户会看到
+  // 一个选中的按钮 + 一个空列表,而且找不到是哪个条件筛空的。
+  useEffect(() => {
+    if (!facets) return;
+    const has = (opts: FacetOption[] | undefined, v: string) =>
+      !v || (opts ?? []).some((o) => o.value === v);
+    if (!has(facets.genres, genre)) setGenre('');
+    if (!has(facets.regions, region)) setRegion('');
+    if (!has(facets.years, year)) setYear('');
+    if (!has(facets.ratings, minRating)) setMinRating('');
+  }, [facets]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const params = useMemo(() => {
+    const p = new URLSearchParams();
+    if (category !== 'all') p.set('category', category);
+    if (region) p.set('region', region);
+    if (genre) p.set('genre', genre);
+    if (year) p.set('year', year);
+    if (minRating) p.set('minRating', minRating);
+    if (sort && sort !== 'hot') p.set('sort', sort);
+    return p;
+  }, [category, region, genre, year, minRating, sort]);
+
   const {
     data: theaterData,
     fetchNextPage,
@@ -126,53 +140,44 @@ export function TheaterPanel() {
     isFetchingNextPage,
     isLoading,
   } = useInfiniteQuery({
-    queryKey: ['home', 'theater', category, region, year, minRating, sort],
+    queryKey: ['home', 'theater', params.toString()],
     queryFn: async ({ pageParam = 1 }) => {
-      const params = new URLSearchParams({ page: String(pageParam), size: String(PAGE_SIZE) });
-      if (category && category !== 'all') params.set('category', category);
-      if (region) params.set('region', region);
-      if (year > 0) params.set('year', String(year));
-      if (minRating > 0) params.set('minRating', String(minRating));
-      if (sort && sort !== 'hot') params.set('sort', sort);
-      const resp = await homeClient.get<Resp>(`/theater/items?${params.toString()}`).then((r) => r.data);
-      const records = resp?.list || [];
-      const total = resp?.total || 0;
-      return { records, total, page: pageParam };
+      const p = new URLSearchParams(params);
+      p.set('page', String(pageParam));
+      p.set('size', String(PAGE_SIZE));
+      const resp = await homeClient.get<Resp>(`/theater/items?${p.toString()}`).then((r) => r.data);
+      return { records: resp?.list || [], total: resp?.total || 0, page: pageParam };
     },
     initialPageParam: 1,
     getNextPageParam: (lastPage) => {
       const { records, total, page } = lastPage;
-      if (records.length === PAGE_SIZE && page * PAGE_SIZE < total) {
-        return page + 1;
-      }
+      if (records.length === PAGE_SIZE && page * PAGE_SIZE < total) return page + 1;
       return undefined;
     },
   });
 
-  // 合并所有页面的数据
-  const theaterList = theaterData?.pages.flatMap(page => page.records) || [];
+  const theaterList = theaterData?.pages.flatMap((page) => page.records) || [];
+  // 总数取后端筛选后的 total,而不是"已加载条数"。以前这里显示的是
+  // theaterList.length,于是滚动加载时"共 N 部"会一直往上跳。
+  const total = theaterData?.pages[0]?.total ?? 0;
 
-  // 简化：使用单一 sentinel ref
   const sentinelRef = useRef<HTMLDivElement>(null);
-
-  // 监听滚动到底部
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
-
     const observer = new IntersectionObserver(
       (entries) => {
-        const entry = entries[0];
-        if (entry.isIntersecting && hasNextPage && !isFetchingNextPage && !isLoading) {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage && !isLoading) {
           fetchNextPage();
         }
       },
-      { threshold: 0.1, rootMargin: '100px' }
+      { threshold: 0.1, rootMargin: '100px' },
     );
-
     observer.observe(sentinel);
     return () => observer.disconnect();
   }, [hasNextPage, isFetchingNextPage, isLoading, fetchNextPage]);
+
+  const activeLabel = category === 'all' ? '全部' : typeLabel(category);
 
   return (
     <Box sx={{ p: { xs: 1.5, sm: 2, md: 3 } }}>
@@ -194,24 +199,24 @@ export function TheaterPanel() {
           </Box>
           <Box>
             <Typography sx={{ fontSize: { xs: 18, md: 22 }, fontWeight: 800, color: 'var(--text-primary, #ffffff)', letterSpacing: 0.5 }}>放映厅</Typography>
-            <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.5))', mt: 0.25 }}>电影 · 短剧 · 动漫 · 综艺 · 高分好片</Typography>
+            <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.5))', mt: 0.25 }}>电影 · 电视剧 · 动漫 · 综艺</Typography>
           </Box>
         </Box>
       </Box>
 
-      {/* Top 10 */}
-      <Top10Section category={category} />
+      <Top10Section params={params} />
 
+      {/* 分类 */}
       <Box sx={{ mb: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
           <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', width: 48, flexShrink: 0 }}>分类</Typography>
           <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
-            {CATEGORIES.map((c) => {
-              const active = category === c.key;
+            {(facets?.categories ?? []).map((c) => {
+              const active = category === c.value;
               return (
                 <Box
-                  key={c.key}
-                  onClick={() => setCategory(c.key)}
+                  key={c.value}
+                  onClick={() => setCategory(c.value)}
                   sx={{
                     position: 'relative',
                     px: 1.5,
@@ -221,7 +226,7 @@ export function TheaterPanel() {
                     fontSize: 12.5,
                     fontWeight: active ? 700 : 500,
                     color: active ? '#fff' : 'var(--text-secondary, rgba(255,255,255,0.7))',
-                    background: active ? c.gradient : 'var(--bg-input, rgba(255,255,255,0.04))',
+                    background: active ? (CAT_GRADIENT[c.value] ?? NEUTRAL_GRADIENT) : 'var(--bg-input, rgba(255,255,255,0.04))',
                     border: '1px solid',
                     borderColor: active ? 'transparent' : 'var(--border-color, rgba(255,255,255,0.08))',
                     boxShadow: active ? '0 4px 12px rgba(0,0,0,0.3)' : 'none',
@@ -230,6 +235,7 @@ export function TheaterPanel() {
                   }}
                 >
                   {c.label}
+                  <Box component="span" sx={{ ml: 0.5, fontSize: 10, opacity: 0.65 }}>{c.count}</Box>
                 </Box>
               );
             })}
@@ -237,6 +243,7 @@ export function TheaterPanel() {
         </Box>
       </Box>
 
+      {/* 题材 / 地区 / 年份 / 评分 / 排序 —— 选项全部来自后端目录 */}
       <Box
         sx={{
           mb: 3,
@@ -245,28 +252,14 @@ export function TheaterPanel() {
           bgcolor: 'var(--bg-input, rgba(255,255,255,0.03))',
           border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
           display: 'grid',
-          gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr 1fr' },
+          gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr 1fr 1fr' },
           gap: 1.5,
         }}
       >
-        <FilterRow
-          label="地区"
-          options={REGIONS.map((r) => ({ key: String(r.key), label: r.label }))}
-          value={region}
-          onChange={(v) => setRegion(v)}
-        />
-        <FilterRow
-          label="年份"
-          options={YEARS.map((y) => ({ key: String(y.key), label: y.label }))}
-          value={String(year)}
-          onChange={(v) => setYear(Number(v) || 0)}
-        />
-        <FilterRow
-          label="评分"
-          options={RATINGS.map((r) => ({ key: String(r.key), label: r.label }))}
-          value={String(minRating)}
-          onChange={(v) => setMinRating(Number(v) || 0)}
-        />
+        <FilterRow label="题材" allLabel="全部题材" options={facets?.genres} value={genre} onChange={setGenre} />
+        <FilterRow label="地区" allLabel="全部地区" options={facets?.regions} value={region} onChange={setRegion} />
+        <FilterRow label="年份" allLabel="全部年份" options={facets?.years} value={year} onChange={setYear} />
+        <FilterRow label="评分" allLabel="全部评分" options={facets?.ratings} value={minRating} onChange={setMinRating} />
         <Box>
           <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mb: 0.5, textTransform: 'uppercase', letterSpacing: 0.5 }}>排序</Typography>
           <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -302,21 +295,16 @@ export function TheaterPanel() {
         </Box>
       </Box>
 
-      <Box sx={{ mt: 4, mb: 2, display: 'flex', alignItems: 'baseline', gap: 1 }}>
-        <Typography sx={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>
-          {category === 'all' ? '全部' : CAT_LABEL[category]}
-        </Typography>
+      <Box sx={{ mt: 4, mb: 2, display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap' }}>
+        <Typography sx={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>{activeLabel}</Typography>
         <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
-          {sort === 'rating' ? '按评分排序' : sort === 'new' ? '按发布时间排序' : '按播放量排序'}
+          {sort === 'rating' ? '按评分排序' : sort === 'new' ? '按上映年份排序' : '按播放量排序'}
         </Typography>
         <Box sx={{ flex: 1 }} />
-        <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
-          共 {theaterList.length} 部
-        </Typography>
+        <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>共 {total} 部</Typography>
         <ListLayoutSwitch sx={{ alignSelf: 'center' }} />
       </Box>
 
-      {/* 放映厅网格 */}
       {isLoading ? (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(4, 1fr)', lg: 'repeat(5, 1fr)' }, gap: 2 }}>
           {Array.from({ length: 8 }).map((_, i) => (
@@ -327,7 +315,8 @@ export function TheaterPanel() {
         <Box>
           {theaterList.length === 0 ? (
             <Box sx={{ textAlign: 'center', py: 6 }}>
-              <Typography sx={{ color: 'text.secondary' }}>该分类暂无内容</Typography>
+              <Typography sx={{ color: 'text.secondary' }}>没有符合条件的内容</Typography>
+              <Typography sx={{ color: 'text.disabled', fontSize: 12, mt: 0.5 }}>试着放宽题材或年份</Typography>
             </Box>
           ) : (
             <ListLayout minColumnWidth={240} listMaxWidth="var(--page-max-narrow)">
@@ -337,17 +326,12 @@ export function TheaterPanel() {
             </ListLayout>
           )}
 
-          {/* Loading more */}
           {isFetchingNextPage && (
             <Typography sx={{ textAlign: 'center', py: 2, color: 'text.secondary', fontSize: 12 }}>加载中...</Typography>
           )}
-
-          {/* No more */}
           {!isFetchingNextPage && theaterList.length > 0 && !hasNextPage && (
             <Typography sx={{ textAlign: 'center', py: 3, color: 'text.disabled', fontSize: 12 }}>- 没有更多了 -</Typography>
           )}
-
-          {/* Scroll sentinel */}
           <Box ref={sentinelRef} sx={{ height: 1 }} />
         </Box>
       )}
@@ -355,29 +339,76 @@ export function TheaterPanel() {
   );
 }
 
-function Top10Section({ category }: { category: string }) {
+/**
+ * 热门榜跟着筛选条件走。以前它只吃 category,用户筛了"日本 · 动漫"而榜单
+ * 纹丝不动 —— 看上去像是筛选没生效。
+ */
+function Top10Section({ params }: { params: URLSearchParams }) {
+  const qs = params.toString();
   const topQuery = useQuery({
-    queryKey: ['home', 'theater', 'top', category],
-    queryFn: () => homeClient.get<Resp>(`/theater/top?category=${category}`).then((r) => r.data),
+    queryKey: ['home', 'theater', 'top', qs],
+    queryFn: () => homeClient.get<Resp>(`/theater/top?${qs}`).then((r) => r.data),
   });
 
-  if (topQuery.isLoading) return null;
-  if (!topQuery.data?.list?.length) return null;
+  const list = topQuery.data?.list;
+  if (topQuery.isLoading || !list?.length) return null;
 
-  return <TheaterTop10 list={topQuery.data.list} category={category as 'all' | TheaterItem['category']} sort="hot" />;
+  const category = params.get('category') || 'all';
+  const title = category === 'all' ? '本周热门' : `${typeLabel(category)}热门`;
+  const ordered = [...list].sort((a, b) => (a.hotRank || 99) - (b.hotRank || 99)).slice(0, 10);
+
+  return (
+    <Box
+      sx={{
+        position: 'relative',
+        mb: 1,
+        p: { xs: 2, md: 2.5 },
+        borderRadius: 2.5,
+        background: SECTION_TINT.PRIMARY_PURPLE,
+        border: '1px solid rgba(255,255,255,0.08)',
+        overflow: 'hidden',
+      }}
+    >
+      <Box sx={{ position: 'absolute', top: 12, right: 16, display: 'flex', alignItems: 'center', gap: 0.75, color: 'warning.main' }}>
+        <LocalFireDepartmentIcon sx={{ fontSize: 18 }} />
+        <Typography sx={{ fontSize: 13, fontWeight: 700, letterSpacing: 0.5 }}>TOP 10 热门榜</Typography>
+      </Box>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+        <WhatshotIcon sx={{ fontSize: 20, color: 'primary.main' }} />
+        <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>{title}</Typography>
+      </Box>
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' },
+          gap: 1.25,
+        }}
+      >
+        {ordered.map((d) => (
+          <TheaterRankCard key={d.id} item={d} />
+        ))}
+      </Box>
+    </Box>
+  );
 }
 
 function FilterRow({
   label,
+  allLabel,
   options,
   value,
   onChange,
 }: {
   label: string;
-  options: { key: string; label: string }[];
+  allLabel: string;
+  options: FacetOption[] | undefined;
   value: string;
   onChange: (v: string) => void;
 }) {
+  // 后端返回空数组 = 这批内容里这个维度一条数据都没有(比如直播没有年份)。
+  // 那就不渲染这一列,而不是渲染一个只有"全部"的假筛选器。
+  if (!options || options.length === 0) return null;
+  const all: FacetOption = { value: '', label: allLabel, count: 0 };
   return (
     <Box>
       <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mb: 0.5, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</Typography>
@@ -390,12 +421,13 @@ function FilterRow({
           '&::-webkit-scrollbar': { display: 'none' },
         }}
       >
-        {options.map((o) => {
-          const active = value === o.key;
+        {[all, ...options].map((o) => {
+          const active = value === o.value;
           return (
             <Box
-              key={o.key}
-              onClick={() => onChange(o.key)}
+              key={o.value || '__all__'}
+              onClick={() => onChange(o.value)}
+              title={o.count ? `${o.count} 部` : undefined}
               sx={{
                 flexShrink: 0,
                 px: 1,
@@ -421,54 +453,9 @@ function FilterRow({
   );
 }
 
-function TheaterTop10({ list, category, sort }: { list: TheaterItem[]; category: 'all' | TheaterItem['category']; sort: string }) {
-  if (list.length === 0) return null;
-  const subtitle = sort === 'rating' ? '按评分排序' : sort === 'new' ? '最新上线' : '按播放量排序';
-  const title = category === 'all' ? '本周热门' : `${CAT_LABEL[category]}热门`;
-  // Sort by hotRank (1..10); missing ranks get pushed to the end
-  const ordered = [...list].sort((a, b) => (a.hotRank || 99) - (b.hotRank || 99)).slice(0, 10);
-
-  return (
-    <Box
-      sx={{
-        position: 'relative',
-        mb: 1,
-        p: { xs: 2, md: 2.5 },
-        borderRadius: 2.5,
-        background: SECTION_TINT.PRIMARY_PURPLE,
-        border: '1px solid rgba(255,255,255,0.08)',
-        overflow: 'hidden',
-      }}
-    >
-      <Box sx={{ position: 'absolute', top: 12, right: 16, display: 'flex', alignItems: 'center', gap: 0.75, color: 'warning.main' }}>
-        <LocalFireDepartmentIcon sx={{ fontSize: 18 }} />
-        <Typography sx={{ fontSize: 13, fontWeight: 700, letterSpacing: 0.5 }}>TOP 10 热门榜</Typography>
-      </Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-        <WhatshotIcon sx={{ fontSize: 20, color: 'primary.main' }} />
-        <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>{title}</Typography>
-        <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))', ml: 1 }}>{subtitle}</Typography>
-      </Box>
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' },
-          gap: 1.25,
-        }}
-      >
-        {ordered.map((d) => (
-          <TheaterRankCard key={d.id} item={d} />
-        ))}
-      </Box>
-    </Box>
-  );
-}
-
 function TheaterRankCard({ item }: { item: TheaterItem }) {
   const navigate = useContentNavigate();
   const rank = item.hotRank || 0;
-  // Top 3 use medal background; 4-10 use a neutral surface.
-  // All 10 share the same card size and inner layout so the grid is uniform.
   const isTop3 = rank >= 1 && rank <= 3;
   const medal = isTop3 ? MEDAL[rank] : null;
   const badgeBg = isTop3
@@ -480,7 +467,7 @@ function TheaterRankCard({ item }: { item: TheaterItem }) {
 
   return (
     <Box
-      onClick={() => navigate(CAT_TO_TYPE[item.category], item.id)}
+      onClick={() => navigate(item.contentType, item.id)}
       sx={{
         position: 'relative',
         borderRadius: 2,
@@ -499,34 +486,31 @@ function TheaterRankCard({ item }: { item: TheaterItem }) {
           {rank}
         </Box>
         <Box sx={{ position: 'absolute', top: 6, right: 6, display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-end' }}>
-          {item.rating !== undefined && (
+          {!!item.rating && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: 'warning.main', fontSize: 9, fontWeight: 700 }}>
-              <StarRoundedIcon sx={{ fontSize: 9 }} />{(item.rating ?? 0).toFixed(1)}
+              <StarRoundedIcon sx={{ fontSize: 9 }} />{item.rating.toFixed(1)}
             </Box>
           )}
-          <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: safeCatColor(item.category), fontSize: 9, fontWeight: 600 }}>
-            {safeCatLabel(item.category)}
+          <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: typeColor(item.contentType), fontSize: 9, fontWeight: 600 }}>
+            {typeLabel(item.contentType)}
           </Box>
         </Box>
         <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, p: 1, background: 'linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.85) 100%)' }}>
           <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#fff', lineHeight: 1.2, mb: 0.25, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
             {item.title}
           </Typography>
-          <Typography sx={{ fontSize: 9, color: 'rgba(255,255,255,0.7)' }}>
-            {formatViews(item.views)} 播放 · 评分 {(item.rating ?? 0).toFixed(1)}
-          </Typography>
+          <Typography sx={{ fontSize: 9, color: 'rgba(255,255,255,0.7)' }}>{subline(item)}</Typography>
         </Box>
       </Box>
     </Box>
   );
 }
 
-
 function TheaterCard({ item }: { item: TheaterItem }) {
   const navigate = useContentNavigate();
   return (
     <Box
-      onClick={() => navigate(CAT_TO_TYPE[item.category], item.id)}
+      onClick={() => navigate(item.contentType, item.id)}
       sx={{
         [LIST_ROW]: { display: 'flex' },
         borderRadius: 2,
@@ -555,24 +539,35 @@ function TheaterCard({ item }: { item: TheaterItem }) {
         >
           <PlayArrowRoundedIcon sx={{ fontSize: 48, color: 'var(--text-primary, #ffffff)' }} />
         </Box>
-        <Box sx={{ position: 'absolute', top: 8, left: 8, display: 'flex', alignItems: 'center', gap: 0.25, px: 0.75, py: 0.25, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.7)', color: 'warning.main', fontSize: 11, fontWeight: 700 }}>
-          <StarRoundedIcon sx={{ fontSize: 12 }} />
-          {(item.rating ?? 0).toFixed(1)}
+        {/* 评分缺失时不画一个 "0.0" 的角标 —— 线上 708 部电影里 372 部没有评分,
+            画成 0.0 会让它们看起来是"被打了零分"。 */}
+        {!!item.rating && (
+          <Box sx={{ position: 'absolute', top: 8, left: 8, display: 'flex', alignItems: 'center', gap: 0.25, px: 0.75, py: 0.25, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.7)', color: 'warning.main', fontSize: 11, fontWeight: 700 }}>
+            <StarRoundedIcon sx={{ fontSize: 12 }} />
+            {item.rating.toFixed(1)}
+          </Box>
+        )}
+        <Box sx={{ position: 'absolute', top: 8, right: 8, px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.7)', color: typeColor(item.contentType), fontSize: 10, fontWeight: 600 }}>
+          {typeLabel(item.contentType)}
         </Box>
-        <Box sx={{ position: 'absolute', top: 8, right: 8, px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.7)', color: safeCatColor(item.category), fontSize: 10, fontWeight: 600 }}>
-          {safeCatLabel(item.category)}
-        </Box>
-        <Box sx={{ position: 'absolute', bottom: 8, right: 8, px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.7)', color: 'var(--text-primary, #ffffff)', fontSize: 10 }}>
-          {item.durationMin ?? '-'} 分钟
-        </Box>
+        {!!item.durationMin && (
+          <Box sx={{ position: 'absolute', bottom: 8, right: 8, px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.7)', color: 'var(--text-primary, #ffffff)', fontSize: 10 }}>
+            {item.durationMin} 分钟
+          </Box>
+        )}
       </Box>
       <Box sx={{ p: 1.5, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
         <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #ffffff)', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden', mb: 0.5 }}>
           {item.title}
         </Typography>
+        {!!item.genre && (
+          <Typography sx={{ fontSize: 10, color: 'var(--text-secondary, rgba(255,255,255,0.55))', mb: 0.25, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+            {item.genre}
+          </Typography>
+        )}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, justifyContent: 'space-between' }}>
           <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
-            {[item.region, item.year].filter(Boolean).join(' · ') || '未知'}
+            {[item.region, item.year || null].filter(Boolean).join(' · ') || ' '}
           </Typography>
           <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
             {formatViews(item.views)} 播放
@@ -581,6 +576,14 @@ function TheaterCard({ item }: { item: TheaterItem }) {
       </Box>
     </Box>
   );
+}
+
+/** 榜单卡片的副行。评分/年份缺失时跳过,不拼出"0.0 分"这种假数据。 */
+function subline(item: TheaterItem): string {
+  const parts = [`${formatViews(item.views)} 播放`];
+  if (item.rating) parts.push(`评分 ${item.rating.toFixed(1)}`);
+  else if (item.year) parts.push(String(item.year));
+  return parts.join(' · ');
 }
 
 function formatViews(n?: number | null): string {

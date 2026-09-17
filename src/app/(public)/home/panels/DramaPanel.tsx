@@ -15,12 +15,28 @@ import { CoverImage } from '@/components/common/CoverImage';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT, gradient2 } from '@/constants/gradients';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
+import { getFacets, FacetOption } from '@/apis/facets';
 
+/**
+ * 短剧频道 —— 只有竖屏短剧。
+ *
+ * 这个频道此前查的是 TELEPLAY,也就是说"短剧"整页展示的是 692 条长剧集
+ * (《水浒传》出现在短剧热门榜上)。后端已经改为只取 SHORT_DRAMA。
+ *
+ * 题材也不再写死。写死的那六个("言情/悬疑/都市/爱情/校园/逆袭")是拿
+ * 中文名当筛选值直接发给后端的,而后端存的是归一化题材码 —— 两边对不上,
+ * 六个按钮点下去都是空列表。现在选项由 /home/facets?scope=drama 下发,
+ * 每项带条数,库里没有的题材根本不出现。
+ */
 type DramaSeries = {
   id: number;
   title: string;
   cover: string;
-  genre: '言情' | '悬疑' | '都市' | '爱情' | '校园' | '逆袭';
+  /** 后端规范类型码,详情页路由据此取(短剧复用 teleplay 详情页)。 */
+  contentType?: string;
+  /** 题材展示名,形如 "甜宠 · 逆袭"。筛选用的是 genres 里的码。 */
+  genre?: string;
+  genres?: string[];
   status: 'HOT' | 'DONE' | 'EXCLUSIVE';
   rating?: number;
   views?: number;
@@ -31,16 +47,6 @@ type DramaSeries = {
   description?: string;
   hotRank?: number;
 };
-
-const GENRES: { key: DramaSeries['genre'] | 'all'; label: string; color: string }[] = [
-  { key: 'all', label: '全部', color: 'primary.main' },
-  { key: '言情', label: '言情', color: 'primary.main' },
-  { key: '悬疑', label: '悬疑', color: '#8B5CF6' },
-  { key: '都市', label: '都市', color: 'secondary.main' },
-  { key: '爱情', label: '爱情', color: '#FF8A3D' },
-  { key: '校园', label: '校园', color: 'success.main' },
-  { key: '逆袭', label: '逆袭', color: 'warning.main' },
-];
 
 const STATUSES: { key: DramaSeries['status'] | 'ALL'; label: string }[] = [
   { key: 'ALL', label: '全部' },
@@ -75,27 +81,38 @@ function statusKey(s: string | undefined | null): DramaSeries['status'] | null {
 	if (v === 'HOT' || v === 'DONE' || v === 'EXCLUSIVE') return v;
 	return null;
 }
-function genreKey(g: string | undefined | null): DramaSeries['genre'] | null {
-	const v = String(g ?? '').trim();
-	if (v === '言情' || v === '悬疑' || v === '都市' || v === '爱情' || v === '校园' || v === '逆袭') return v;
-	return null;
-}
 const DEFAULT_STATUS_COLOR = { bg: 'rgba(255,255,255,0.06)', fg: 'text.secondary' } as const;
 const DEFAULT_GENRE_COLOR = 'var(--text-muted, rgba(255,255,255,0.4))';
 
-const GENRE_COLOR: Record<DramaSeries['genre'], string> = {
-  言情: 'primary.main',
-  悬疑: '#8B5CF6',
-  都市: 'secondary.main',
-  爱情: '#FF8A3D',
-  校园: 'success.main',
-  逆袭: 'warning.main',
+// 题材标签的配色。按归一化题材码索引;词表新增题材时退回中性色,不会崩。
+// 这里刻意只给几个主力题材上色 —— 每个题材一个颜色会让卡片变成调色板。
+const GENRE_COLOR: Record<string, string> = {
+  romance: 'primary.main',
+  suspense: '#8B5CF6',
+  urban: 'secondary.main',
+  sweet: '#FF8A3D',
+  youth: 'success.main',
+  reveng: 'warning.main',
 };
 
+/** 取第一个题材码的配色 —— 卡片上只有一行标签的位置。 */
+function genreColorOf(codes: string[] | undefined): string {
+  const first = codes?.[0];
+  return (first && GENRE_COLOR[first]) || DEFAULT_GENRE_COLOR;
+}
+
 export function DramaPanel() {
-  const [genre, setGenre] = useState<DramaSeries['genre'] | 'all'>('all');
+  const [genre, setGenre] = useState('');
   const [status, setStatus] = useState<DramaSeries['status'] | 'ALL'>('ALL');
   const [sort, setSort] = useState('hot');
+
+  // 题材选项按当前库存现算,每项带条数。
+  const facetsQuery = useQuery({
+    queryKey: ['home', 'drama', 'facets'],
+    queryFn: () => getFacets('drama'),
+    staleTime: 5 * 60 * 1000,
+  });
+  const genreOptions = facetsQuery.data?.genres ?? [];
 
   // 分页状态
   const PAGE_SIZE = 12;
@@ -111,7 +128,7 @@ export function DramaPanel() {
     queryKey: ['home', 'drama', genre, status, sort],
     queryFn: async ({ pageParam = 1 }) => {
       const params = new URLSearchParams({ page: String(pageParam), pageSize: String(PAGE_SIZE) });
-      if (genre && genre !== 'all') params.set('genre', genre);
+      if (genre) params.set('genre', genre);
       if (status && status !== 'ALL') params.set('status', status);
       if (sort && sort !== 'hot') params.set('sort', sort);
       const resp = await homeClient.get<{ list: DramaSeries[]; total: number }>(`/drama/series?${params.toString()}`).then((r) => r.data);
@@ -175,13 +192,14 @@ export function DramaPanel() {
           </Box>
           <Box>
             <Typography sx={{ fontSize: { xs: 18, md: 22 }, fontWeight: 800, color: 'var(--text-primary, #ffffff)', letterSpacing: 0.5 }}>短剧</Typography>
-            <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.5))', mt: 0.25 }}>一分钟一集 · 看到爽 · 海量高分独家短剧</Typography>
+            {/* 不写"海量独家" —— 库里有多少就说多少,数字来自后端筛选后的 total */}
+            <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.5))', mt: 0.25 }}>竖屏短剧 · 一分钟一集</Typography>
           </Box>
         </Box>
       </Box>
 
       {/* Top 10 */}
-      <Top10Section genre={genre} status={status} sort={sort} />
+      <Top10Section genre={genre} genreLabel={genreLabelOf(genreOptions, genre)} status={status} sort={sort} />
 
       {/* Filters panel */}
       <Box
@@ -197,14 +215,18 @@ export function DramaPanel() {
           gap: 1.5,
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-          <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', width: 48, flexShrink: 0 }}>题材</Typography>
-          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-            {GENRES.map((g) => (
-              <Chip key={g.key} active={genre === g.key} label={g.label} onClick={() => setGenre(g.key)} />
-            ))}
+        {/* 题材:库里一条都没有的题材不渲染,免得用户点进一个必然为空的筛选 */}
+        {genreOptions.length > 0 && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+            <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', width: 48, flexShrink: 0 }}>题材</Typography>
+            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+              <Chip active={genre === ''} label="全部" onClick={() => setGenre('')} />
+              {genreOptions.map((g) => (
+                <Chip key={g.value} active={genre === g.value} label={`${g.label} ${g.count}`} onClick={() => setGenre(g.value)} />
+              ))}
+            </Box>
           </Box>
-        </Box>
+        )}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
           <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', width: 48, flexShrink: 0 }}>状态</Typography>
           <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
@@ -250,14 +272,14 @@ export function DramaPanel() {
 
       <Box sx={{ mb: 2, display: 'flex', alignItems: 'baseline', gap: 1 }}>
         <Typography sx={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>
-          {genre === 'all' ? '全部' : genre}短剧
+          {genreLabelOf(genreOptions, genre) || '全部'}短剧
         </Typography>
         <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
           {sort === 'rating' ? '按评分排序' : sort === 'new' ? '按发布时间排序' : '按播放量排序'}
         </Typography>
         <Box sx={{ flex: 1 }} />
         <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
-          共 {dramaList.length} 部
+          共 {dramaData?.pages[0]?.total ?? 0} 部
         </Typography>
         <ListLayoutSwitch sx={{ alignSelf: 'center' }} />
       </Box>
@@ -273,7 +295,12 @@ export function DramaPanel() {
         <Box>
           {dramaList.length === 0 ? (
             <Box sx={{ textAlign: 'center', py: 6 }}>
-              <Typography sx={{ color: 'text.secondary' }}>该筛选下暂无短剧</Typography>
+              <Typography sx={{ color: 'text.secondary' }}>
+                {genre || status !== 'ALL' ? '该筛选下暂无短剧' : '短剧库还在建设中'}
+              </Typography>
+              <Typography sx={{ color: 'text.disabled', fontSize: 12, mt: 0.5 }}>
+                {genre || status !== 'ALL' ? '试着放宽题材或状态' : '这里只收竖屏短剧 —— 长剧集在放映厅'}
+              </Typography>
             </Box>
           ) : (
             <ListLayout minColumnWidth={170} minColumns={2} listMaxWidth="var(--page-max-narrow)">
@@ -301,12 +328,12 @@ export function DramaPanel() {
   );
 }
 
-function Top10Section({ genre, status, sort }: { genre: string; status: string; sort: string }) {
+function Top10Section({ genre, genreLabel, status, sort }: { genre: string; genreLabel: string; status: string; sort: string }) {
   const topQuery = useQuery({
     queryKey: ['home', 'drama', 'top', genre, status, sort],
     queryFn: () => {
       const params = new URLSearchParams();
-      if (genre && genre !== 'all') params.set('genre', genre);
+      if (genre) params.set('genre', genre);
       if (status && status !== 'ALL') params.set('status', status);
       return homeClient.get<{ list: DramaSeries[] }>(`/drama/top?${params.toString()}`).then((r) => r.data);
     },
@@ -315,7 +342,7 @@ function Top10Section({ genre, status, sort }: { genre: string; status: string; 
   if (topQuery.isLoading) return null;
   if (!topQuery.data?.list?.length) return null;
 
-  return <Top10Podium list={topQuery.data.list} genre={genre as any} status={status as any} sort={sort} />;
+  return <Top10Podium list={topQuery.data.list} genreLabel={genreLabel} status={status as any} sort={sort} />;
 }
 
 function Chip({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
@@ -341,10 +368,10 @@ function Chip({ active, label, onClick }: { active: boolean; label: string; onCl
   );
 }
 
-function Top10Podium({ list, genre, status, sort }: { list: DramaSeries[]; genre: DramaSeries['genre'] | 'all'; status: DramaSeries['status'] | 'ALL'; sort: string }) {
+function Top10Podium({ list, genreLabel, status, sort }: { list: DramaSeries[]; genreLabel: string; status: DramaSeries['status'] | 'ALL'; sort: string }) {
   const subtitle = sort === 'rating' ? '按评分排序' : sort === 'new' ? '最新上线' : '按播放量排序';
   const titleParts: string[] = [];
-  if (genre !== 'all') titleParts.push(genre);
+  if (genreLabel) titleParts.push(genreLabel);
   if (status !== 'ALL') titleParts.push(STATUS_LABEL[status]);
   const title = titleParts.length === 0 ? '本周热门' : titleParts.join('·');
   const ordered = [...list].sort((a, b) => (a.hotRank || 99) - (b.hotRank || 99)).slice(0, 10);
@@ -402,7 +429,7 @@ function RankCard({ item }: { item: DramaSeries }) {
 
   return (
     <Box
-      onClick={() => navigate('TELEPLAY', item.id)}
+      onClick={() => navigate(item.contentType || 'SHORT_DRAMA', item.id)}
       sx={{
         position: 'relative',
         borderRadius: 2,
@@ -448,7 +475,7 @@ function DramaCard({ item }: { item: DramaSeries }) {
   const navigate = useContentNavigate();
   return (
     <Box
-      onClick={() => navigate('TELEPLAY', item.id)}
+      onClick={() => navigate(item.contentType || 'SHORT_DRAMA', item.id)}
       sx={{
         [LIST_ROW]: { display: 'flex' },
         borderRadius: 2,
@@ -510,7 +537,7 @@ function DramaCard({ item }: { item: DramaSeries }) {
           {item.title}
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.25 }}>
-          <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(255,255,255,0.04)', color: genreKey(item.genre) ? GENRE_COLOR[item.genre as DramaSeries['genre']] : DEFAULT_GENRE_COLOR, fontSize: 9, fontWeight: 600 }}>
+          <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(255,255,255,0.04)', color: genreColorOf(item.genres), fontSize: 9, fontWeight: 600 }}>
             {item.genre || '其他'}
           </Box>
           <Typography sx={{ fontSize: 9, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>· {formatViews(item.views)} 播放</Typography>
@@ -525,4 +552,9 @@ function formatViews(n?: number | null): string {
   if (num >= 100000000) return `${(num / 100000000).toFixed(1)}亿`;
   if (num >= 10000) return `${(num / 10000).toFixed(1)}w`;
   return num.toString();
+}
+/** 题材码 → 展示名。目录里找不到就原样返回,不硬编码任何题材词。 */
+function genreLabelOf(options: FacetOption[], code: string): string {
+  if (!code) return '';
+  return options.find((o) => o.value === code)?.label ?? code;
 }
