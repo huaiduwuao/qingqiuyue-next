@@ -19,6 +19,7 @@ import { detail as contentDetail } from '@/apis/content-film';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import { PlatformLinks, UnavailablePlayer, platformsOf, linkOutNoticeOf } from '@/components/detail/ExternalPlatforms';
+import UserPlaySources from '@/components/detail/UserPlaySources';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
@@ -167,6 +168,7 @@ function FilmDetailContent() {
                 </Box>
               </Box>
               <PlatformLinks platforms={platformsOf(data)} dense />
+              {id && <UserPlaySources contentId={id} />}
 
               <Divider sx={{ borderColor: 'divider', my: 2 }} />
 

@@ -25,6 +25,7 @@ import { formatApiError } from '@/lib/api/client';
 import { TYPE_LABEL } from '@/lib/contentType.gen';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import { PlatformLinks, UnavailablePlayer, platformsOf, linkOutNoticeOf } from '@/components/detail/ExternalPlatforms';
+import UserPlaySources from '@/components/detail/UserPlaySources';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
 import { track, recordHistory } from '@/lib/track';
@@ -309,6 +310,7 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
                 </Box>
 
                 <PlatformLinks platforms={platforms} dense />
+                {id && <UserPlaySources contentId={id} />}
 
                 {people.length > 0 && (
                   <>

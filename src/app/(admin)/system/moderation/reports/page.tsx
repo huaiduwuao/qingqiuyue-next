@@ -54,6 +54,8 @@ const targetLabel: Record<string, string> = {
   // 前台 /api/content/report 进来的两类(见后端 internal/handler/report.go):都不在下架名单里。
   playback: '播放故障',
   content: '内容',
+  // 网友补充的观看入口:「通过」= 移除这条链接(不动作品),「驳回」= 若已因举报先行隐藏则恢复。
+  play_source: '观看入口',
 };
 
 const statusLabel: Record<string, string> = {
@@ -221,6 +223,12 @@ export default function ModerationReportsPage() {
               <Alert severity="warning">
                 「通过」会同时下架被举报的内容(#{reviewModal.record.targetId}),
                 {reviewModal.record.targetType === 'copyright' ? '并把原创保护申诉标记为成立。' : '作者将看不到它在前台展示。'}
+              </Alert>
+            )}
+            {reviewModal.record?.targetType === 'play_source' && (
+              <Alert severity="info">
+                这是网友补充的观看入口(链接见举报原因末尾)。「通过」会移除这条链接并通知提交者,作品本身不受影响;
+                「驳回」后,如果它已因举报先行隐藏且没有别的待处理举报,会恢复展示。
               </Alert>
             )}
             {reviewModal.record?.targetType === 'bounty_task' && (
