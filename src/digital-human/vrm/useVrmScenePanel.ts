@@ -10,9 +10,11 @@
  *     列表/输入框/按钮全都能正常交互 —— 不是贴图,是能点能打字的界面;
  *   - 每帧把面板摆到角色侧后方并朝向相机(billboard)。
  *
- * 已知取舍:CSS3D 层整体盖在 WebGL 之上,不做逐像素深度遮挡 —— 角色走到面板
- * 前面时不会挡住面板。面板挂在角色侧面,实际很少出现这种视角;真要做遮挡得往
- * WebGL 层写一块 colorWrite=false 的遮挡板,复杂度和收益不成比例,先不做。
+ * 两层 CSS3D:
+ *   - 面板层盖在 WebGL 画布之上,不做深度遮挡(面板总挂在角色侧面,很少被挡);
+ *   - 显示器层垫在画布之下,WebGL 里对应位置「挖洞」露出它(见 sceneDisplays.ts),
+ *     角色走到屏幕前面会正确挡住屏幕。画布在上面会先吃掉鼠标事件,所以指针移到
+ *     屏幕上时临时关掉画布的 pointer-events,让点击/滚轮落到下面的页面里。
  *
  * 用法(在 VrmStage 里):
  *   const panel = useVrmScenePanel({ container, camera, THREE_NS });
@@ -48,8 +50,10 @@ export interface UseVrmScenePanelOptions {
   camera: THREE.PerspectiveCamera | null;
   /** three 命名空间(VrmStage 动态 import 后传入) */
   THREE_NS: typeof THREE | null;
-  /** WebGL 主场景:显示器的边框/立柱道具加在这里(不传就只有画面没有道具) */
+  /** WebGL 主场景:显示器的边框/立柱/挖洞面片加在这里 */
   scene?: THREE.Scene | null;
+  /** WebGL 画布:显示器层垫在它下面,指针移到屏幕上时要临时让它不吃事件 */
+  canvas?: HTMLCanvasElement | null;
 }
 
 export interface ScenePanelApi {
@@ -68,7 +72,9 @@ export interface ScenePanelApi {
 }
 
 export function useVrmScenePanel(opts: UseVrmScenePanelOptions): ScenePanelApi {
-  const { container, camera, THREE_NS, scene: glScene = null } = opts;
+  const { container, camera, THREE_NS, scene: glScene = null, canvas = null } = opts;
+  const underRendererRef = useRef<CSS3DRendererT | null>(null);
+  const underSceneRef = useRef<THREE.Scene | null>(null);
   const [host, setHost] = useState<HTMLDivElement | null>(null);
   const [displayHosts, setDisplayHosts] = useState<DisplayHosts | null>(null);
   const displayObjectsRef = useRef<CSS3DObjectT[]>([]);
@@ -130,6 +136,27 @@ export function useVrmScenePanel(opts: UseVrmScenePanelOptions): ScenePanelApi {
 
       const scene = new THREE_NS.Scene();
       scene.add(object);
+
+      // 显示器层:垫在画布下面
+      const under = new CSS3DRenderer();
+      under.setSize(container.clientWidth, container.clientHeight);
+      const underEl = under.domElement;
+      underEl.style.position = 'absolute';
+      underEl.style.inset = '0';
+      underEl.style.zIndex = '0';
+      underEl.style.pointerEvents = 'none';
+      const pinUnderScroll = () => {
+        if (underEl.scrollLeft !== 0) underEl.scrollLeft = 0;
+        if (underEl.scrollTop !== 0) underEl.scrollTop = 0;
+      };
+      underEl.addEventListener('scroll', pinUnderScroll);
+      container.insertBefore(underEl, container.firstChild);
+      const underScene = new THREE_NS.Scene();
+      const prevCanvasStyle = canvas ? { position: canvas.style.position, zIndex: canvas.style.zIndex } : null;
+      if (canvas) {
+        canvas.style.position = 'relative';
+        canvas.style.zIndex = '1';
+      }
       tmpDirRef.current = new THREE_NS.Vector3();
       tmpEdgeRef.current = new THREE_NS.Vector3();
 
@@ -155,7 +182,7 @@ export function useVrmScenePanel(opts: UseVrmScenePanelOptions): ScenePanelApi {
         screenObj.position.set(...spec.position);
         screenObj.rotation.y = spec.rotationY;
         screenObj.visible = displaysVisibleRef.current;
-        scene.add(screenObj);
+        underScene.add(screenObj);
         displayObjectsRef.current.push(screenObj);
         displayEls.push(screenEl);
         hosts[slot] = screenEl;
@@ -167,6 +194,30 @@ export function useVrmScenePanel(opts: UseVrmScenePanelOptions): ScenePanelApi {
         }
       }
 
+      // 指针在不在某块屏幕上:射线打挖洞面片。按着键拖动(转镜头)的过程中不切换。
+      const holes: THREE.Object3D[] = [];
+      for (const prop of displayPropsRef.current) {
+        prop.traverse((o) => { if (o.userData.displayHole) holes.push(o); });
+      }
+      const raycaster = new THREE_NS.Raycaster();
+      const ndc = new THREE_NS.Vector2();
+      const onPointerMove = (e: PointerEvent) => {
+        if (!canvas || e.buttons !== 0) return;
+        let over = false;
+        if (displaysVisibleRef.current && holes.length > 0) {
+          const r = canvas.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0) {
+            ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+            raycaster.setFromCamera(ndc, camera);
+            over = raycaster.intersectObjects(holes, false).length > 0;
+          }
+        }
+        canvas.style.pointerEvents = over ? 'none' : 'auto';
+      };
+      window.addEventListener('pointermove', onPointerMove, true);
+
+      underRendererRef.current = under;
+      underSceneRef.current = underScene;
       rendererRef.current = renderer;
       sceneRef.current = scene;
       objectRef.current = object;
@@ -183,7 +234,18 @@ export function useVrmScenePanel(opts: UseVrmScenePanelOptions): ScenePanelApi {
             d.removeEventListener(evt, stop);
           }
         }
-        for (const obj of displayObjectsRef.current) scene.remove(obj);
+        window.removeEventListener('pointermove', onPointerMove, true);
+        if (canvas) {
+          canvas.style.pointerEvents = 'auto';
+          if (prevCanvasStyle) {
+            canvas.style.position = prevCanvasStyle.position;
+            canvas.style.zIndex = prevCanvasStyle.zIndex;
+          }
+        }
+        for (const obj of displayObjectsRef.current) underScene.remove(obj);
+        underEl.remove();
+        underRendererRef.current = null;
+        underSceneRef.current = null;
         displayObjectsRef.current = [];
         for (const prop of displayPropsRef.current) {
           glScene?.remove(prop);
@@ -204,13 +266,16 @@ export function useVrmScenePanel(opts: UseVrmScenePanelOptions): ScenePanelApi {
       cancelled = true;
       cleanup?.();
     };
-  }, [container, camera, THREE_NS, glScene]);
+  }, [container, camera, THREE_NS, glScene, canvas]);
 
   // 面板和显示器都没有的时候把整层挪出交互:避免看不见的元素还在吃点击
   function syncLayerVisibility() {
     const renderer = rendererRef.current;
     if (!renderer) return;
-    renderer.domElement.style.visibility = visibleRef.current || displaysVisibleRef.current ? 'visible' : 'hidden';
+    renderer.domElement.style.visibility = visibleRef.current ? 'visible' : 'hidden';
+    const under = underRendererRef.current;
+    if (under) under.domElement.style.visibility = displaysVisibleRef.current ? 'visible' : 'hidden';
+    if (!displaysVisibleRef.current && canvas) canvas.style.pointerEvents = 'auto';
   }
 
   const tick = useCallback((avatar: { x: number; y: number; z: number }) => {
@@ -257,6 +322,9 @@ export function useVrmScenePanel(opts: UseVrmScenePanelOptions): ScenePanelApi {
     }
 
     renderer.render(scene, camera);
+    const under = underRendererRef.current;
+    const underScene = underSceneRef.current;
+    if (under && underScene && displaysVisibleRef.current) under.render(underScene, camera);
   }, [camera]);
 
   const setVisible = useCallback((on: boolean) => {
@@ -278,6 +346,7 @@ export function useVrmScenePanel(opts: UseVrmScenePanelOptions): ScenePanelApi {
     if (!renderer || !container) return;
     if (container.clientWidth === 0 || container.clientHeight === 0) return;
     renderer.setSize(container.clientWidth, container.clientHeight);
+    underRendererRef.current?.setSize(container.clientWidth, container.clientHeight);
   }, [container]);
 
   useEffect(() => {

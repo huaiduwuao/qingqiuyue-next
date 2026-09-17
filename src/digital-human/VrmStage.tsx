@@ -333,6 +333,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     camera: rendererState?.camera ?? null,
     THREE_NS: (rendererState as any)?.THREE_NS ?? null,
     scene: rendererState?.scene ?? null,
+    canvas: rendererState ? canvasRef.current : null,
   });
   const panelApiRef = useRef(panelApi);
   panelApiRef.current = panelApi;

@@ -8,7 +8,9 @@
  *   - WebGL 里的道具(边框、立柱、底座),让它看起来是场景里的一件东西;
  *   - CSS3D 里的一块真 DOM(见 useVrmScenePanel),内容是 iframe,能点能滚能打字。
  *
- * 位置都避开角色站的中线:CSS3D 层整体盖在 WebGL 之上,屏幕摆在角色身后会把角色盖住。
+ * 遮挡:屏幕的 DOM 层垫在 WebGL 画布「下面」,道具里带一块「挖洞」面片(见 buildDisplayProp),
+ * 把画布上屏幕那一块写成全透明,DOM 从洞里露出来。角色走到屏幕前面时照常画在洞上,
+ * 所以会正确地挡住屏幕,而不是被一层永远在最上面的 DOM 盖掉。
  */
 
 import type * as THREE from 'three';
@@ -60,6 +62,16 @@ export function buildDisplayProp(THREE_NS: typeof THREE, spec: DisplaySpec): THR
   back.position.z = -0.03;
   back.castShadow = true;
   group.add(back);
+
+  // 挖洞面片:不混合、alpha=0 直接写进帧缓冲,画布在这块变透明,露出垫在下面的 DOM。
+  // 它照常写深度、参与深度测试,所以前面的角色会盖住它,后面的东西不会透过来。
+  const hole = new THREE_NS.Mesh(
+    new THREE_NS.PlaneGeometry(w, h),
+    new THREE_NS.MeshBasicMaterial({ color: 0x000000, opacity: 0, blending: THREE_NS.NoBlending, fog: false, toneMapped: false }),
+  );
+  hole.position.z = 0.002;
+  hole.userData.displayHole = true;
+  group.add(hole);
 
   // 底边一条灯带:没开页面时也能看出这是块屏幕
   const strip = new THREE_NS.Mesh(new THREE_NS.BoxGeometry(w * 0.5, 0.012, 0.012), glow);

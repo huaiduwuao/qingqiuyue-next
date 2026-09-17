@@ -643,6 +643,8 @@ function onAudibleVideo(v: HTMLVideoElement, userUnmuted = false) {
     return;
   }
   pauseAudibleVideos(v);
+  // 同标签页里的其它页面实例(数字人场景屏幕里的 iframe / 它外层的页面)也要让出声音
+  channel?.postMessage({ type: 'playing', tab: TAB_ID, group: GROUP_ID, kind: 'video' });
   if (!audio || audio.paused) {
     // 音乐已经被上一条视频暂停:改由这一条负责"停了再接回来"
     if (interruptedBy && interruptedBy !== v) watchVideo(v);
@@ -666,9 +668,27 @@ function watchVideo(v: HTMLVideoElement) {
 const channel: BroadcastChannel | null =
   typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('qq-music') : null;
 const TAB_ID = Math.random().toString(36).slice(2);
+/**
+ * 同一个浏览器标签页里的所有页面实例(外层页面 + 数字人场景屏幕里的同源 iframe)共用一个组号:
+ * sessionStorage 在同标签页的同源 frame 之间是共享的,跨标签页不共享。
+ * 组内按「同一时刻只出一路声音」处理(视频也互相让);跨标签页维持原来只让音乐的行为。
+ */
+const GROUP_ID = (() => {
+  try {
+    const k = 'qq-media-group';
+    let g = sessionStorage.getItem(k);
+    if (!g) {
+      g = Math.random().toString(36).slice(2);
+      sessionStorage.setItem(k, g);
+    }
+    return g;
+  } catch {
+    return '';
+  }
+})();
 
 function announce() {
-  channel?.postMessage({ type: 'playing', tab: TAB_ID });
+  channel?.postMessage({ type: 'playing', tab: TAB_ID, group: GROUP_ID });
 }
 
 let coordinatorInstalled = false;
@@ -696,10 +716,13 @@ export function installMediaCoordinator() {
   );
 
   channel?.addEventListener('message', (e) => {
-    if (e.data?.type === 'playing' && e.data.tab !== TAB_ID) {
-      interruptedBy = null;
-      audio?.pause();
-    }
+    if (e.data?.type !== 'playing' || e.data.tab === TAB_ID) return;
+    const sameTab = !!GROUP_ID && e.data.group === GROUP_ID;
+    // 别的标签页里放视频不关这边的事(原有行为);放音乐、或同标签页里任何一路出声,这边的音乐让开
+    if (e.data.kind === 'video' && !sameTab) return;
+    interruptedBy = null;
+    audio?.pause();
+    if (sameTab) pauseAudibleVideos();
   });
 
   window.addEventListener('pagehide', () => savePosition(true));
