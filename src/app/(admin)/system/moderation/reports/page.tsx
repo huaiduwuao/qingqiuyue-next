@@ -51,6 +51,9 @@ const targetLabel: Record<string, string> = {
   image: '图片',
   chat: '聊天',
   user: '用户',
+  // 前台 /api/content/report 进来的两类(见后端 internal/handler/report.go):都不在下架名单里。
+  playback: '播放故障',
+  content: '内容',
 };
 
 const statusLabel: Record<string, string> = {

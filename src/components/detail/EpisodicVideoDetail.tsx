@@ -186,6 +186,8 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
       reportContent({
         targetId: id,
         targetType: config.trackType,
+        // playback = 播放故障上报,不是违规举报:管理端「通过」它只是结单,不会下架内容。
+        kind: 'playback',
         reason: `[自动] 第${activeIndex + 1}${config.unit}播放解析失败: ${message}`,
       }).catch(() => {});
     },

@@ -103,8 +103,11 @@ function reportBrokenContent(video: { id: number; idString?: string; contentType
   if (reportedBrokenIds.has(key)) return;
   reportedBrokenIds.add(key);
   reportContent({
-    targetId: video.id,
+    // id 必须用字符串:内容 id 是雪花 int64,超过 2^53,用 number 发出去会被截成另一条内容。
+    targetId: video.idString || String(video.id),
     targetType: video.contentType || 'VIDEO',
+    // playback = 播放故障上报,不是违规举报:管理端「通过」它只是结单,不会下架内容。
+    kind: 'playback',
     reason: `[自动] 播放解析失败: ${reason}`,
   }).catch(() => {
     // 举报本身失败不影响播放体验,静默即可;下次这条内容再触发解析失败时,
@@ -437,11 +440,13 @@ export function RecommendVideoFeed() {
   const handleReport = async () => {
     if (!video?.id) return;
     try {
-      await reportContent({ targetId: video.idString || video.id, targetType: 'VIDEO', reason: '违规/低俗内容' });
+      await reportContent({ targetId: video.idString || String(video.id), targetType: video.contentType || 'VIDEO', reason: '违规/低俗内容' });
       notify('举报已提交,我们会尽快处理');
       setMoreDialogOpen(false);
-    } catch {
-      notify('举报提交失败,请重试', 'error');
+    } catch (e) {
+      // 后端会说明原因(人工举报要求登录:"请先登录后再举报"),照实转告,别让用户白白重试。
+      const msg = e instanceof Error && e.message ? e.message : '';
+      notify(msg || '举报提交失败,请重试', 'error');
     }
   };
 
