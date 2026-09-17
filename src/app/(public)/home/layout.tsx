@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { loginHref } from '@/lib/auth/redirect';
+import { useAIPrefs } from '@/lib/aiPrefs';
 import { homeClient } from '@/lib/api/client';
 import Link from 'next/link';
 import Box from '@mui/material/Box';
@@ -22,7 +23,7 @@ import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import RecommendRoundedIcon from '@mui/icons-material/RecommendRounded';
-import TravelExploreRoundedIcon from '@mui/icons-material/TravelExploreRounded';
+import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import LiveTvRoundedIcon from '@mui/icons-material/LiveTvRounded';
 import VideoLibraryIcon from '@mui/icons-material/VideoLibrary';
@@ -59,7 +60,7 @@ const SIDE_NAV: { key: string; label: string; path?: string; icon: React.ReactNo
   { key: 'home', label: '精选', path: '/home/recommend?tab=home', icon: <HomeRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
   { key: 'recommend', label: '推荐', path: '/home/recommend?tab=recommend', icon: <RecommendRoundedIcon sx={{ fontSize: 18 }} />, accent: 'secondary.main' },
   { key: 'rank', label: '排行榜', path: '/home/recommend?tab=rank', icon: <EmojiEventsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'warning.main' },
-  { key: 'ai', label: 'AI 搜索', path: '/home/recommend?tab=ai', icon: <TravelExploreRoundedIcon sx={{ fontSize: 18 }} />, accent: ACCENT.blue.main },
+  { key: 'ai', label: 'AI 助手', path: '/home/recommend?tab=ai', icon: <AutoAwesomeRoundedIcon sx={{ fontSize: 18 }} />, accent: ACCENT.blue.main },
   { key: 'me', label: '我的', path: '/home/recommend?tab=me', icon: <PersonRoundedIcon sx={{ fontSize: 18 }} />, accent: ACCENT.purple.main },
   { key: 'live', label: '直播', path: '/home/recommend?tab=live', icon: <LiveTvRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
   { key: 'feed', label: '动态', path: '/home/recommend?tab=feed', icon: <DynamicFeedRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
@@ -481,6 +482,9 @@ function Logo({ isCompact = false }: { isCompact?: boolean }) {
 function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activeNav: string; onNavChange: (k: string) => void; meOpen: boolean; onMeOpenChange: (v: boolean) => void }) {
   const router = useRouter();
   const settingsBtnRef = React.useRef<HTMLDivElement | null>(null);
+  // 用户关掉了 AI 入口:侧栏不再列「AI 助手」(正停在这个页签时照常显示,免得高亮项凭空消失)
+  const [aiPrefs] = useAIPrefs();
+  const navItems = SIDE_NAV.filter((n) => n.key !== 'ai' || aiPrefs.aiEntry || activeNav === 'ai');
   return (
     <Box
       component="nav"
@@ -496,7 +500,7 @@ function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activ
       }}
     >
       <Box sx={{ flex: 1, py: 1.5, overflow: 'auto' }}>
-        {SIDE_NAV.map((n) => {
+        {navItems.map((n) => {
           const isActive = activeNav === n.key;
           // 整页路由(内容管理/悬赏中心):push 同页跳转,不开新标签,返回键可回首页
           const isFullRoute = !!n.path && !n.path.includes('?tab=');

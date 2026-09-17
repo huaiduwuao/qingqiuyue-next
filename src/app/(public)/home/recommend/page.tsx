@@ -27,6 +27,7 @@ import TeleplayCard from './components/TeleplayCard';
 import { useScrollToBottom } from '@/hooks/useInfiniteScroll';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { homeClient } from '@/lib/api/client';
+import { useAIPrefs } from '@/lib/aiPrefs';
 import LeaderboardMini from '@/components/leaderboard/LeaderboardMini';
 import SpotlightCard from '@/components/reactbits/SpotlightCard';
 import FadeContent from '@/components/reactbits/FadeContent';
@@ -87,7 +88,7 @@ const TAB_TO_CATEGORY: Record<string, string> = Object.fromEntries(
 const QUICK_LINKS: { key: string; href: string; label: string; icon: React.ReactNode }[] = [
   { key: 'follow', href: '/home/recommend?tab=feed&scope=follow', label: '关注', icon: <PersonIcon sx={{ fontSize: 14 }} /> },
   { key: 'friend', href: '/home/recommend?tab=feed&scope=friend', label: '朋友', icon: <GroupIcon sx={{ fontSize: 14 }} /> },
-  { key: 'ai', href: '/home/recommend?tab=ai', label: 'AI 推荐', icon: <SmartToyIcon sx={{ fontSize: 14 }} /> },
+  { key: 'ai', href: '/home/recommend?tab=ai', label: 'AI 助手', icon: <SmartToyIcon sx={{ fontSize: 14 }} /> },
 ];
 
 function formatCount(n: number = 0): string {
@@ -101,6 +102,8 @@ const PAGE_SIZE = 12;
 
 export default function HomeRecommendPage() {
   const router = useRouter();
+  const [aiPrefs] = useAIPrefs();
+  const quickLinks = QUICK_LINKS.filter((l) => l.key !== 'ai' || aiPrefs.aiEntry);
   const pathname = usePathname();
   const searchParams = useSearchParams();
   // 兼容 tab 和 section 两种 URL 参数名（后端用 section，前端导航用 tab）
@@ -276,7 +279,7 @@ export default function HomeRecommendPage() {
             flexWrap: 'wrap',
           }}
         >
-          {QUICK_LINKS.map((l) => (
+          {quickLinks.map((l) => (
             <Box
               key={l.key}
               onClick={() => router.push(l.href, { scroll: false })}

@@ -38,6 +38,9 @@ import { fetchContentTypes, fetchFacets, type ContentTypeItem, type FacetItem } 
 import { topKeywordInThirdMonth } from '@/apis/home';
 import RecommendBoard from '@/components/home/RecommendBoard';
 import { homeClient, formatApiError } from '@/lib/api/client';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import { useAIPrefs } from '@/lib/aiPrefs';
+import { AISearchResults, AI_GRADIENT, AI_SEARCH_EXAMPLES } from '@/components/ai/AISearchResults';
 
 // 搜索域占位:后端 `/api/core/search/*` 就绪后,以下数据/函数替换为 API 调用
 type SearchContentItemContentType =
@@ -124,6 +127,10 @@ function SearchPageContent() {
   const router = useRouter();
   const navigateContent = useContentNavigate();
   const searchParams = useSearchParams();
+  // ?mode=ai:AI 搜索(一句话描述 → AI 拆条件 → 带理由的结果)。用户关掉 AI 入口后一律按普通搜索。
+  const [aiPrefs] = useAIPrefs();
+  const aiEnabled = aiPrefs.aiEntry;
+  const aiMode = aiEnabled && searchParams.get('mode') === 'ai';
   const initialQ = searchParams.get('q') ?? '';
   const [query, setQuery] = useState(initialQ);
   const [tab, setTab] = useState<ResultTab>('all');
@@ -148,7 +155,7 @@ function SearchPageContent() {
   // 联想:创作者(suggestCreators) + 话题(suggestTopics),并行请求各自后端接口合并
   useEffect(() => {
     const kw = query.trim();
-    if (!kw) {
+    if (!kw || aiMode) {
       setCreators([]);
       setTopics([]);
       return;
@@ -195,7 +202,7 @@ function SearchPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [query]);
+  }, [query, aiMode]);
 
   const hotKeywordsQuery = useQuery({
     queryKey: ['search-hot'],
@@ -271,7 +278,7 @@ function SearchPageContent() {
       })) as SearchContentItem[];
       return { items, discover: (res?.data?.discover as DiscoverState | undefined) ?? null };
     },
-    enabled: query.trim().length > 0 || !!(fType || fDirector || fActor || fGenre || fYear),
+    enabled: !aiMode && (query.trim().length > 0 || !!(fType || fDirector || fActor || fGenre || fYear)),
     staleTime: 60 * 1000,
     // 全网检索进行中:定时重搜,新收录的作品随时出现;次数用完就停,不无限轮询。
     refetchInterval: (qr) =>
@@ -303,13 +310,9 @@ function SearchPageContent() {
   const pushQuery = useCallback(
     (next: string) => {
       const trimmed = next.trim();
-      if (!trimmed) {
-        router.replace('/search', { scroll: false });
-      } else {
-        router.replace(`/search?q=${encodeURIComponent(trimmed)}`, { scroll: false });
-      }
+      router.replace(searchHref(trimmed, aiMode), { scroll: false });
     },
-    [router],
+    [router, aiMode],
   );
 
   const handleSubmit = () => {
@@ -322,7 +325,7 @@ function SearchPageContent() {
 
   const handleClear = () => {
     setQuery('');
-    router.replace('/search', { scroll: false });
+    router.replace(searchHref('', aiMode), { scroll: false });
   };
 
   const handleBack = () => {
@@ -331,6 +334,10 @@ function SearchPageContent() {
     } else {
       router.push('/home/recommend');
     }
+  };
+
+  const switchMode = (ai: boolean) => {
+    router.replace(searchHref(q, ai), { scroll: false });
   };
 
   const handleKeywordPick = (kw: string) => {
@@ -434,12 +441,16 @@ function SearchPageContent() {
               handleBack();
             }
           }}
-          placeholder="搜索你感兴趣的内容、创作者或话题"
+          placeholder={aiMode ? '用一句话描述你想找的,比如:适合睡前听的安静音乐' : '搜索你感兴趣的内容、创作者或话题'}
           slotProps={{
             input: {
               startAdornment: (
                 <InputAdornment position="start">
-                  <SearchIcon sx={{ fontSize: 16, color: 'var(--text-muted, rgba(255,255,255,0.5))' }} />
+                  {aiMode ? (
+                    <AutoAwesomeIcon sx={{ fontSize: 16, color: ACCENT.blue.main }} />
+                  ) : (
+                    <SearchIcon sx={{ fontSize: 16, color: 'var(--text-muted, rgba(255,255,255,0.5))' }} />
+                  )}
                 </InputAdornment>
               ),
               endAdornment: query ? (
@@ -462,7 +473,8 @@ function SearchPageContent() {
                 '& input::placeholder': { color: 'var(--text-muted, rgba(255,255,255,0.4))', opacity: 1 },
                 '& fieldset': { borderColor: 'var(--border-color, rgba(255,255,255,0.1))' },
                 '&:hover fieldset': { borderColor: 'var(--border-strong, rgba(255,255,255,0.2))' },
-                '&.Mui-focused fieldset': { borderColor: 'var(--brand-color, #FE2C55)' },
+                '&.Mui-focused fieldset': { borderColor: aiMode ? ACCENT.blue.main : 'var(--brand-color, #FE2C55)' },
+                ...(aiMode && { '& fieldset': { borderColor: ACCENT.blue.border30 } }),
               },
             },
           }}
@@ -481,6 +493,7 @@ function SearchPageContent() {
             whiteSpace: 'nowrap',
             borderRadius: 2,
             bgcolor: 'primary.main',
+            ...(aiMode && { backgroundImage: AI_GRADIENT }),
             color: 'var(--text-primary, #fff)',
             fontSize: 13,
             fontWeight: 700,
@@ -492,7 +505,7 @@ function SearchPageContent() {
             '&.Mui-disabled': { bgcolor: 'var(--bg-active, rgba(255,255,255,0.08))', color: 'var(--text-muted, rgba(255,255,255,0.4))' },
           }}
         >
-          搜索
+          {aiMode ? '问 AI' : '搜索'}
         </Button>
       </Box>
 
@@ -514,6 +527,13 @@ function SearchPageContent() {
           '&::-webkit-scrollbar': { display: 'none' },
         }}
       >
+        {aiEnabled && <SearchModeSwitch ai={aiMode} onChange={switchMode} />}
+        {aiMode ? (
+          <Typography sx={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+            不用想关键词,AI 会读懂你的描述并说明每个结果为什么合适
+          </Typography>
+        ) : (
+        <>
         <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', flexShrink: 0, textTransform: 'uppercase', letterSpacing: 0.5 }}>筛选</Typography>
         <Select
           size="small"
@@ -569,10 +589,14 @@ function SearchPageContent() {
             清除
           </Box>
         )}
+        </>
+        )}
       </Box>
 
       <Box sx={{ maxWidth: 'var(--page-max)', mx: 'auto', px: { xs: 2, md: 3 }, py: { xs: 2, md: 3 } }}>
-        {!hasQuery ? (
+        {aiMode ? (
+          hasQuery ? <AISearchResults query={q} onRetryHint="改用普通搜索" /> : <AIEmptyState onPick={handleKeywordPick} />
+        ) : !hasQuery ? (
           <EmptyState
             hotKeywords={hotKeywords}
             history={history}
@@ -614,6 +638,9 @@ function SearchPageContent() {
                 <Box sx={{ ml: 0.5, fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.45))' }}>搜索中…</Box>
               )}
             </Box>
+
+            {/* 描述比较长的查询,关键词匹配往往不理想:提示可以换 AI 搜索 */}
+            {aiEnabled && Array.from(q).length >= 6 && <AISuggestHint onClick={() => switchMode(true)} />}
 
             {/* Tab 切换 */}
             <Tabs
@@ -1489,6 +1516,110 @@ function FilterField({ value, onChange, placeholder, inputMode, onFocus, suggest
           ))}
         </Box>
       )}
+    </Box>
+  );
+}
+
+function searchHref(q: string, ai: boolean): string {
+  const params = new URLSearchParams();
+  if (q) params.set('q', q);
+  if (ai) params.set('mode', 'ai');
+  const qs = params.toString();
+  return qs ? `/search?${qs}` : '/search';
+}
+
+function SearchModeSwitch({ ai, onChange }: { ai: boolean; onChange: (ai: boolean) => void }) {
+  const item = (active: boolean, activeBg: string) => ({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 0.5,
+    px: 1.25,
+    py: 0.4,
+    border: 0,
+    borderRadius: 999,
+    cursor: 'pointer',
+    font: 'inherit',
+    fontSize: 12,
+    fontWeight: 600,
+    whiteSpace: 'nowrap' as const,
+    color: active ? '#fff' : 'var(--text-secondary, rgba(255,255,255,0.7))',
+    background: active ? activeBg : 'transparent',
+  });
+  return (
+    <Box
+      role="radiogroup"
+      aria-label="搜索方式"
+      sx={{ display: 'inline-flex', flexShrink: 0, p: 0.25, borderRadius: 999, bgcolor: 'var(--bg-input, rgba(255,255,255,0.06))' }}
+    >
+      <Box component="button" role="radio" aria-checked={!ai} onClick={() => onChange(false)} sx={item(!ai, 'var(--brand-color, #FE2C55)')}>
+        <SearchIcon sx={{ fontSize: 13 }} />
+        搜索
+      </Box>
+      <Box component="button" role="radio" aria-checked={ai} onClick={() => onChange(true)} sx={item(ai, AI_GRADIENT)}>
+        <AutoAwesomeIcon sx={{ fontSize: 13 }} />
+        AI 搜索
+      </Box>
+    </Box>
+  );
+}
+
+function AIEmptyState({ onPick }: { onPick: (q: string) => void }) {
+  return (
+    <Box sx={{ maxWidth: 640, mx: 'auto', py: { xs: 3, md: 6 }, textAlign: 'center' }}>
+      <Box
+        sx={{
+          width: 52, height: 52, mx: 'auto', mb: 2, borderRadius: '50%',
+          background: AI_GRADIENT, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        <AutoAwesomeIcon sx={{ fontSize: 26, color: '#fff' }} />
+      </Box>
+      <Typography sx={{ fontSize: 18, fontWeight: 700, mb: 1 }}>说说你想看什么</Typography>
+      <Typography sx={{ fontSize: 13, color: 'var(--text-secondary, rgba(255,255,255,0.7))', lineHeight: 1.8, mb: 3 }}>
+        普通搜索按关键词精确匹配;AI 搜索读懂整句话,
+        <br />
+        自动拆出题材、类型、人名去找,并告诉你为什么推荐。
+      </Typography>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 1 }}>
+        {AI_SEARCH_EXAMPLES.map((s) => (
+          <Box
+            key={s}
+            component="button"
+            onClick={() => onPick(s)}
+            sx={{
+              px: 1.5, py: 0.75, borderRadius: 999, cursor: 'pointer', font: 'inherit', fontSize: 12.5,
+              color: 'var(--text-secondary, rgba(255,255,255,0.75))',
+              bgcolor: ACCENT.blue.soft12,
+              border: `1px solid ${ACCENT.blue.border30}`,
+              '&:hover': { color: ACCENT.blue.main },
+            }}
+          >
+            {s}
+          </Box>
+        ))}
+      </Box>
+    </Box>
+  );
+}
+
+function AISuggestHint({ onClick }: { onClick: () => void }) {
+  return (
+    <Box
+      component="button"
+      onClick={onClick}
+      sx={{
+        width: '100%', mb: 2, px: 1.5, py: 1, display: 'flex', alignItems: 'center', gap: 1,
+        borderRadius: 2, cursor: 'pointer', font: 'inherit', textAlign: 'left',
+        color: 'var(--text-secondary, rgba(255,255,255,0.75))',
+        bgcolor: ACCENT.blue.soft12,
+        border: `1px dashed ${ACCENT.blue.border30}`,
+        '&:hover': { borderStyle: 'solid' },
+      }}
+    >
+      <AutoAwesomeIcon sx={{ fontSize: 16, color: ACCENT.blue.main }} />
+      <Typography component="span" sx={{ fontSize: 12.5, flex: 1 }}>
+        结果不对味?试试 <Box component="span" sx={{ color: ACCENT.blue.main, fontWeight: 600 }}>AI 搜索</Box>,用整句话描述也能找
+      </Typography>
     </Box>
   );
 }

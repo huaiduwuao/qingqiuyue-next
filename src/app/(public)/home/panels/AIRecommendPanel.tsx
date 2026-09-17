@@ -1,330 +1,240 @@
 'use client';
 
+/**
+ * 首页「AI 助手」页签:站内智能能力的总入口。
+ * 上半是 AI 搜索(一句话找作品),下半是虚拟形象和创作智能体的介绍卡,
+ * 每项都能在这里直接开关 —— 用不用由用户自己决定。
+ */
+
 import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
-import InputAdornment from '@mui/material/InputAdornment';
 import Button from '@mui/material/Button';
-import Chip from '@mui/material/Chip';
-import Skeleton from '@mui/material/Skeleton';
-import Alert from '@mui/material/Alert';
-import { ACCENT } from '@/constants/accents';
-import { IMAGE_OVERLAY } from '@/constants/gradients';
+import Switch from '@mui/material/Switch';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import SendIcon from '@mui/icons-material/Send';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import { homeClient } from '@/lib/api/client';
-import { useContentNavigate } from '@/lib/contentRoute';
-import { EmptyState } from '@/components/common/AsyncState';
-
-type AIItem = {
-  id: number;
-  title: string;
-  cover: string;
-  reason?: string;
-  source?: string;
-};
-
-type AIResp = {
-  items: AIItem[];
-  query?: string;
-};
-
-const SUGGESTIONS = ['最近好看的电影', 'AI 工具推荐', '晚安故事', '美食教程'];
+import FaceRetouchingNaturalIcon from '@mui/icons-material/FaceRetouchingNatural';
+import MovieFilterRoundedIcon from '@mui/icons-material/MovieFilterRounded';
+import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
+import { ACCENT } from '@/constants/accents';
+import { AISearchResults, AI_GRADIENT, AI_SEARCH_EXAMPLES } from '@/components/ai/AISearchResults';
+import { useAIPrefs } from '@/lib/aiPrefs';
 
 export function AIRecommendPanel() {
-  const [q, setQ] = useState('');
+  const router = useRouter();
+  const [prefs, setPrefs] = useAIPrefs();
+  const [draft, setDraft] = useState('');
   const [submitted, setSubmitted] = useState('');
-  const navigateContent = useContentNavigate();
-
-  const mutation = useMutation<AIResp, Error, string>({
-    mutationKey: ['home', 'ai', 'search'],
-    mutationFn: async (keyword: string) => {
-      const resp = await homeClient.post<AIResp>('/ai/search', { q: keyword });
-      const data = (resp as any)?.data ?? resp;
-      if (!data || !Array.isArray(data.items)) {
-        throw new Error('返回数据格式异常');
-      }
-      return data as AIResp;
-    },
-  });
 
   const submit = (raw: string) => {
-    const keyword = raw.trim();
-    if (!keyword) return;
-    setSubmitted(keyword);
-    mutation.mutate(keyword);
+    const kw = raw.trim();
+    if (!kw) return;
+    setDraft(kw);
+    setSubmitted(kw);
   };
 
-  const results = mutation.data?.items ?? [];
-  const hasResults = results.length > 0;
-  const showLoading = submitted.length > 0 && mutation.isPending;
-  const showError = submitted.length > 0 && mutation.isError && !mutation.isSuccess;
-
   return (
-    <Box sx={{ p: 3, maxWidth: 720, mx: 'auto' }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+    <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 880, mx: 'auto' }}>
+      {/* AI 搜索 */}
+      <Box
+        sx={{
+          p: { xs: 2, md: 2.5 },
+          borderRadius: 3,
+          border: `1px solid ${ACCENT.blue.border30}`,
+          background: `linear-gradient(135deg, ${ACCENT.blue.soft12} 0%, ${ACCENT.purple.soft12} 100%)`,
+          mb: 3,
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+          <Box sx={{ width: 28, height: 28, borderRadius: 1.5, background: AI_GRADIENT, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <AutoAwesomeIcon sx={{ fontSize: 16, color: '#fff' }} />
+          </Box>
+          <Typography component="h2" sx={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>
+            AI 搜索
+          </Typography>
+        </Box>
+        <Typography sx={{ fontSize: 12.5, color: 'var(--text-secondary)', mb: 1.75, lineHeight: 1.7 }}>
+          不用想关键词,像跟朋友说话一样描述你想看的。AI 会拆成检索条件,并告诉你每个结果为什么合适。
+        </Typography>
+
         <Box
-          sx={{
-            width: 32,
-            height: 32,
-            borderRadius: 1.5,
-            background: `linear-gradient(135deg, ${ACCENT.blue.main} 0%, ${ACCENT.purple.main} 100%)`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+          component="form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit(draft);
           }}
+          sx={{ display: 'flex', gap: 1, alignItems: 'flex-end' }}
         >
-          <AutoAwesomeIcon sx={{ fontSize: 18, color: 'var(--text-primary, #ffffff)' }} />
-        </Box>
-        <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary, #ffffff)' }}>AI 搜索</Typography>
-      </Box>
-
-      <Box sx={{ display: 'flex', gap: 1, mb: 3 }}>
-        <TextField
-          fullWidth
-          size="small"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => {
-            // 确保只有 AI 搜索框获得焦点时才处理 Enter
-            if (e.key === 'Enter' && e.currentTarget.contains(document.activeElement) && q.trim()) submit(q);
-          }}
-          placeholder="告诉我你想看什么..."
-          slotProps={{
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  <AutoAwesomeIcon sx={{ fontSize: 16, color: 'rgba(91, 141, 239, 0.6)' }} />
-                </InputAdornment>
-              ),
-              sx: {
-                bgcolor: 'var(--bg-hover, rgba(255,255,255,0.06))',
-                color: 'var(--text-primary, #ffffff)',
-                fontSize: 13,
-                borderRadius: 2,
-                '& input::placeholder': { color: 'var(--text-muted, rgba(255,255,255,0.4))', opacity: 1 },
-                '& fieldset': { borderColor: 'var(--border-strong, rgba(255,255,255,0.1))' },
-                '&.Mui-focused fieldset': { borderColor: ACCENT.blue.main },
+          <TextField
+            fullWidth
+            multiline
+            maxRows={3}
+            size="small"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                submit(draft);
+              }
+            }}
+            placeholder="比如:周末想看点轻松的国产动画"
+            slotProps={{
+              htmlInput: { maxLength: 200, 'aria-label': '描述你想找的内容' },
+              input: {
+                sx: {
+                  bgcolor: 'var(--bg-body)',
+                  color: 'var(--text-primary)',
+                  fontSize: 14,
+                  borderRadius: 2,
+                  '& textarea::placeholder': { color: 'var(--text-muted)', opacity: 1 },
+                  '& fieldset': { borderColor: ACCENT.blue.border30 },
+                  '&.Mui-focused fieldset': { borderColor: ACCENT.blue.main },
+                },
               },
-            },
-          }}
-        />
-        <Button
-          variant="contained"
-          disabled={!q.trim()}
-          onClick={() => submit(q)}
-          startIcon={<SendIcon sx={{ fontSize: 16 }} />}
-          sx={{
-            flexShrink: 0,
-            minWidth: 0,
-            px: 2.25,
-            py: 0.75,
-            borderRadius: 2,
-            textTransform: 'none',
-            fontSize: 13,
-            fontWeight: 600,
-            color: 'var(--text-primary, #ffffff)',
-            bgcolor: 'transparent',
-            backgroundImage: `linear-gradient(135deg, ${ACCENT.blue.main} 0%, ${ACCENT.purple.main} 100%)`,
-            boxShadow: `0 2px 8px ${ACCENT.blue.soft18}`,
-            transition: 'transform 0.15s, box-shadow 0.15s',
-            '&:hover': {
-              bgcolor: 'transparent',
-              boxShadow: `0 4px 12px ${ACCENT.blue.border30}`,
-            },
-            '&:active': { transform: 'scale(0.97)' },
-            '&.Mui-disabled': {
-              bgcolor: 'var(--bg-active, rgba(255,255,255,0.08))',
-              backgroundImage: 'none',
-              color: 'var(--text-disabled, rgba(255,255,255,0.3))',
+            }}
+          />
+          <Button
+            type="submit"
+            variant="contained"
+            disabled={!draft.trim()}
+            startIcon={<SendIcon sx={{ fontSize: 16 }} />}
+            sx={{
+              flexShrink: 0,
+              height: 40,
+              px: 2,
+              borderRadius: 2,
+              textTransform: 'none',
+              fontWeight: 600,
+              color: '#fff',
+              backgroundImage: AI_GRADIENT,
               boxShadow: 'none',
-            },
-          }}
-        >
-          问问 AI
-        </Button>
-      </Box>
-
-      {submitted === '' && (
-        <Box>
-          <Typography sx={{ fontSize: 12, color: 'var(--text-muted, rgba(255,255,255,0.5))', mb: 1.5 }}>
-            或者试试这些:
-          </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-            {SUGGESTIONS.map((s) => (
-              <Chip
-                key={s}
-                label={s}
-                onClick={() => {
-                  setQ(s);
-                  submit(s);
-                }}
-                sx={{
-                  bgcolor: 'var(--bg-input, rgba(255,255,255,0.04))',
-                  color: 'var(--text-secondary, rgba(255,255,255,0.7))',
-                  border: '1px solid var(--border-color, rgba(255,255,255,0.08))',
-                  fontSize: 12,
-                  '&:hover': { bgcolor: ACCENT.blue.soft12, color: ACCENT.blue.main, borderColor: ACCENT.blue.border30 },
-                }}
-              />
-            ))}
-          </Box>
+              '&.Mui-disabled': { backgroundImage: 'none', bgcolor: 'var(--bg-active)', color: 'var(--text-disabled)' },
+            }}
+          >
+            问 AI
+          </Button>
         </Box>
-      )}
 
-      {submitted !== '' && showLoading && (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Box
-              key={i}
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: '96px 1fr',
-                gap: 1.5,
-                p: 1.5,
-                borderRadius: 2,
-                bgcolor: 'var(--bg-hover)',
-                border: '1px solid var(--border-color)',
-              }}
-            >
-              <Skeleton variant="rounded" height={120} sx={{ bgcolor: 'var(--bg-active)' }} />
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                <Skeleton variant="text" width="60%" sx={{ bgcolor: 'var(--bg-active)' }} />
-                <Skeleton variant="text" width="40%" sx={{ bgcolor: 'var(--bg-active)' }} />
-                <Skeleton variant="rounded" height={64} sx={{ bgcolor: 'var(--bg-active)' }} />
-              </Box>
-            </Box>
-          ))}
-        </Box>
-      )}
-
-      {submitted !== '' && !showLoading && showError && (
-        <Alert
-          severity="error"
-          variant="outlined"
-          action={
-            <Button
-              size="small"
-              variant="contained"
-              startIcon={<RefreshIcon sx={{ fontSize: 14 }} />}
-              onClick={() => submit(submitted)}
-              sx={{
-                bgcolor: 'rgba(254, 44, 85, 0.18)',
-                color: 'primary.main',
-                boxShadow: 'none',
-                '&:hover': { bgcolor: 'rgba(254, 44, 85, 0.28)', boxShadow: 'none' },
-              }}
-            >
-              重试
-            </Button>
-          }
-          sx={{
-            bgcolor: 'rgba(254, 44, 85, 0.06)',
-            border: '1px solid rgba(254, 44, 85, 0.3)',
-            color: 'text.primary',
-            alignItems: 'center',
-          }}
-        >
-          <Box>
-            <Typography sx={{ fontSize: 13, fontWeight: 600 }}>AI 搜索暂时不可用</Typography>
-            <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.25 }}>
-              {mutation.error?.message ?? '请稍后再试'}
-            </Typography>
-          </Box>
-        </Alert>
-      )}
-
-      {submitted !== '' && !showLoading && !showError && !hasResults && (
-        <EmptyState text="没有找到相关内容" hint="换个关键词试试" variant="sad" />
-      )}
-
-      {submitted !== '' && !showLoading && !showError && hasResults && (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <Typography sx={{ fontSize: 12, color: 'var(--text-muted, rgba(255,255,255,0.5))' }}>
-            为你找到 {results.length} 条与「{submitted}」相关的内容
-          </Typography>
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1.5 }}>
-            {results.map((it) => (
+        {!submitted && (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mt: 1.5 }}>
+            {AI_SEARCH_EXAMPLES.map((s) => (
               <Box
-                key={it.id}
-                onClick={() => navigateContent('VIDEO', it.id)}
+                key={s}
+                component="button"
+                onClick={() => submit(s)}
                 sx={{
-                  position: 'relative',
-                  aspectRatio: '3/4',
-                  borderRadius: 1.5,
-                  overflow: 'hidden',
-                  cursor: 'pointer',
-                  bgcolor: 'var(--bg-hover)',
+                  px: 1.25, py: 0.5, borderRadius: 999, cursor: 'pointer', font: 'inherit', fontSize: 12,
+                  color: 'var(--text-secondary)', bgcolor: 'var(--bg-body)',
                   border: '1px solid var(--border-color)',
-                  '&:hover': { transform: 'scale(1.02)' },
-                  transition: 'transform 0.2s',
+                  '&:hover': { color: ACCENT.blue.main, borderColor: ACCENT.blue.border30 },
                 }}
               >
-                {it.cover ? (
-                  <img
-                    src={it.cover}
-                    alt={it.title}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).style.display = 'none';
-                    }}
-                  />
-                ) : (
-                  <Box
-                    sx={{
-                      position: 'absolute',
-                      inset: 0,
-                      background: `linear-gradient(135deg, ${ACCENT.blue.soft18}, ${ACCENT.purple.soft18})`,
-                    }}
-                  />
-                )}
-                <Box
-                  sx={{
-                    position: 'absolute',
-                    inset: 0,
-                    background: IMAGE_OVERLAY.LIGHT,
-                  }}
-                />
-                <Box sx={{ position: 'absolute', inset: 0, p: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-                  {it.reason && (
-                    <Typography
-                      sx={{
-                        fontSize: 10,
-                        color: 'rgba(255,255,255,0.75)',
-                        mb: 0.5,
-                        display: '-webkit-box',
-                        WebkitLineClamp: 1,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                      }}
-                    >
-                      {it.reason}
-                    </Typography>
-                  )}
-                  <Typography
-                    sx={{
-                      fontSize: 12,
-                      color: 'var(--text-primary, #ffffff)',
-                      fontWeight: 600,
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    {it.title}
-                  </Typography>
-                </Box>
+                {s}
               </Box>
             ))}
           </Box>
+        )}
+      </Box>
+
+      {submitted && (
+        <Box sx={{ mb: 4 }}>
+          <AISearchResults query={submitted} />
         </Box>
       )}
 
-      {submitted === '' && <EmptyState text="开始一段 AI 对话吧" hint="试试上方的推荐问题" />}
+      {/* 其他智能能力 */}
+      <Typography component="h2" sx={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', mb: 0.5 }}>
+        更多智能助手
+      </Typography>
+      <Typography sx={{ fontSize: 12, color: 'var(--text-muted)', mb: 1.5 }}>
+        都是可选的,不需要的可以随时关掉
+      </Typography>
+      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 1.5 }}>
+        <CapabilityCard
+          icon={<FaceRetouchingNaturalIcon />}
+          accent={ACCENT.purple.main}
+          title="虚拟形象小助手"
+          desc="会说话的 3D 形象。帮你找作品、讲讲某部剧、带你去对应页面,也能打字或语音聊天。"
+          action={{ label: '了解并开始', onClick: () => router.push('/digital-human') }}
+          toggle={{
+            label: '页面右下角显示小助手',
+            checked: prefs.assistant,
+            onChange: (v) => setPrefs({ assistant: v }),
+          }}
+        />
+        <CapabilityCard
+          icon={<MovieFilterRoundedIcon />}
+          accent={ACCENT.orange.main}
+          title="创作智能体"
+          desc="一组分工协作的 AI:从一句创意写出剧本、拆分镜、生成画面,产出的短剧可直接发布成作品。"
+          action={{ label: '打开 AI 短剧工作台', onClick: () => router.push('/account/content?tab=shortdrama-gen') }}
+        />
+      </Box>
+
+      <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2, px: 0.5 }}>
+        <Typography sx={{ fontSize: 12, color: 'var(--text-muted)' }}>
+          不想在侧栏和搜索页看到 AI 入口?关掉后可在「我的 → 偏好设置 → AI 功能」重新打开。
+        </Typography>
+        <Switch
+          size="small"
+          checked={prefs.aiEntry}
+          onChange={(_, v) => setPrefs({ aiEntry: v })}
+          slotProps={{ input: { 'aria-label': '显示 AI 搜索入口' } }}
+        />
+      </Box>
+    </Box>
+  );
+}
+
+function CapabilityCard({
+  icon,
+  accent,
+  title,
+  desc,
+  action,
+  toggle,
+}: {
+  icon: React.ReactNode;
+  accent: string;
+  title: string;
+  desc: string;
+  action: { label: string; onClick: () => void };
+  toggle?: { label: string; checked: boolean; onChange: (v: boolean) => void };
+}) {
+  return (
+    <Box
+      sx={{
+        p: 2,
+        borderRadius: 2.5,
+        bgcolor: 'var(--bg-hover)',
+        border: '1px solid var(--border-color)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 1,
+      }}
+    >
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box sx={{ color: accent, display: 'flex', '& svg': { fontSize: 22 } }}>{icon}</Box>
+        <Typography sx={{ fontSize: 14.5, fontWeight: 700, color: 'var(--text-primary)' }}>{title}</Typography>
+      </Box>
+      <Typography sx={{ fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.7, flex: 1 }}>{desc}</Typography>
+      {toggle && (
+        <Box component="label" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
+          <Typography sx={{ fontSize: 12, color: 'var(--text-secondary)' }}>{toggle.label}</Typography>
+          <Switch size="small" checked={toggle.checked} onChange={(_, v) => toggle.onChange(v)} />
+        </Box>
+      )}
+      <Button
+        variant="text"
+        onClick={action.onClick}
+        endIcon={<ArrowForwardRoundedIcon />}
+        sx={{ alignSelf: 'flex-start', textTransform: 'none', fontWeight: 600, color: accent, px: 0, minWidth: 0 }}
+      >
+        {action.label}
+      </Button>
     </Box>
   );
 }

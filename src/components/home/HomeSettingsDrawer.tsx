@@ -20,6 +20,8 @@ import { useThemeMode, PRESET_COLORS } from '@/contexts/ThemeContext';
 import { useApp } from '@/contexts/AppContext';
 import { updateUser } from '@/apis/account';
 import { useHomeSettings } from '@/hooks/useHomeSettings';
+import { useRouter } from 'next/navigation';
+import { resetAIPrefs, useAIPrefs } from '@/lib/aiPrefs';
 
 interface Props {
   open: boolean;
@@ -134,13 +136,16 @@ const SHORTCUTS: { keys: string; desc: string }[] = [
 const FAQ: { q: string; a: string }[] = [
   { q: '如何切换深色/浅色模式?', a: '在设置抽屉的"外观"分组中切换,或跟随系统。' },
   { q: '直播清晰度怎么选?', a: '进入直播间 → 右上角设置 → 清晰度。蓝光需稳定 WiFi。' },
-  { q: 'AI 搜索记录在哪清?', a: '设置 → AI 设置 → 关闭"保留历史",或者 AI 搜索页右上角"清空"。' },
+  { q: 'AI 搜索记录在哪清?', a: '设置 → AI 功能 → 关闭"保留 AI 历史"。' },
+  { q: '不想看到右下角的小助手?', a: '设置 → AI 功能 → 关闭"页面角落的小助手";想用时再打开。' },
   { q: '账号异常怎么办?', a: '我的 → 客服,或联系 support@example.com。' },
 ];
 
 export function HomeSettingsDrawer({ open, onClose }: Props) {
   const { mode, setTheme, primaryColor, setPrimaryColor } = useThemeMode();
   const { settings, update, reset } = useHomeSettings();
+  const [aiPrefs, setAIPrefs] = useAIPrefs();
+  const router = useRouter();
   const { currentUser } = useApp();
   const isDark = mode === 'dark';
 
@@ -176,7 +181,7 @@ export function HomeSettingsDrawer({ open, onClose }: Props) {
         >
           <SettingsIcon sx={{ fontSize: 18, color: 'primary.main' }} />
           <Typography sx={{ fontSize: 15, fontWeight: 600, flex: 1 }}>偏好设置</Typography>
-          <Button size="small" onClick={reset} sx={{ fontSize: 11, color: 'text.secondary', minWidth: 'auto' }}>
+          <Button size="small" onClick={() => { reset(); resetAIPrefs(); }} sx={{ fontSize: 11, color: 'text.secondary', minWidth: 'auto' }}>
             恢复默认
           </Button>
           <IconButton size="small" onClick={onClose} aria-label="关闭">
@@ -357,11 +362,28 @@ export function HomeSettingsDrawer({ open, onClose }: Props) {
           <Divider sx={{ my: 1.5 }} />
 
           {/* AI 设置 */}
-          <Section title="AI 设置" icon={<AutoAwesomeRoundedIcon sx={{ fontSize: 14 }} />}>
+          {/* 站内 AI 能力都可选:和浮窗、首页「AI 助手」、数字人介绍页共用 aiPrefs,改了立即生效 */}
+          <Section title="AI 功能" icon={<AutoAwesomeRoundedIcon sx={{ fontSize: 14 }} />}>
             <Row
-              label="AI 智能建议"
-              desc="在搜索/浏览中显示 AI 推荐"
-              control={<Switch size="small" checked={settings.aiSuggestions} onChange={(_, v) => update({ aiSuggestions: v })} />}
+              label="页面角落的小助手"
+              desc="右下角的虚拟形象气泡,点开可以聊天、找作品"
+              control={<Switch size="small" checked={aiPrefs.assistant} onChange={(_, v) => setAIPrefs({ assistant: v })} />}
+              divider
+            />
+            <Row
+              label="AI 搜索入口"
+              desc="侧栏「AI 助手」和搜索页的 AI 搜索切换"
+              control={<Switch size="small" checked={aiPrefs.aiEntry} onChange={(_, v) => setAIPrefs({ aiEntry: v })} />}
+              divider
+            />
+            <Row
+              label="小助手介绍"
+              desc="它能做什么、怎么用"
+              control={
+                <Button variant="text" size="small" onClick={() => { onClose(); router.push('/digital-human?intro=1'); }} sx={{ fontSize: 12, textTransform: 'none' }}>
+                  查看
+                </Button>
+              }
               divider
             />
             <Row

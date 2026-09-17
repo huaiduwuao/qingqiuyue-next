@@ -10,6 +10,7 @@ import PageViewTracker from '@/components/PageViewTracker';
 import ViewportFix from '@/components/layout/ViewportFix';
 import ClickSpark from '@/components/reactbits/ClickSpark';
 import GlobalPlayers from '@/components/player/GlobalPlayers';
+import { useAIPrefs } from '@/lib/aiPrefs';
 
 // React 19(≤19.3.0) estimateBandwidth 有一个 off-by-one:遍历
 // performance.getEntriesByType("resource") 时,若最后一个条目恰是静态资源
@@ -63,6 +64,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 
   const [mountFloating, setMountFloating] = useState(false);
+  // 用户可以在介绍卡 / 浮窗 / 偏好设置里关掉小助手,关掉后连 3D 依赖都不加载
+  const [aiPrefs] = useAIPrefs();
 
   // MSW(src/mocks/*,约 5200 行、360 个假端点)已删除。
   //
@@ -105,7 +108,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
               </ClickSpark>
               {/* 音乐底栏 / 视频小窗:跨路由常驻,切页面不断播 */}
               <GlobalPlayers />
-              {mountFloating && (
+              {mountFloating && aiPrefs.assistant && (
                 <Suspense fallback={null}>
                   <FloatingDigitalHuman />
                 </Suspense>

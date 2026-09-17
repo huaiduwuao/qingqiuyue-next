@@ -18,6 +18,9 @@ import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
+import HelpOutlineRoundedIcon from '@mui/icons-material/HelpOutlineRounded';
+import { AssistantIntroHint, HideAssistantButton } from './AssistantChoice';
+import { setAIPrefs, useAIPrefs } from '@/lib/aiPrefs';
 import { alpha } from '@mui/material/styles';
 import { useRouter, usePathname } from 'next/navigation';
 import BlenderAvatar from './BlenderAvatar';
@@ -121,6 +124,8 @@ export default function FloatingDigitalHuman() {
   const router = useRouter();
   const pathname = usePathname() || '';
   const hidden = HIDE_ON.some((p) => pathname.startsWith(p));
+  // 是否显示由 providers 按 aiPrefs.assistant 决定;这里只管第一次见面的介绍卡
+  const [aiPrefs] = useAIPrefs();
 
   const wrapRef = React.useRef<HTMLDivElement>(null);
   const dragRef = React.useRef({ active: false, sx: 0, sy: 0, ox: 0, oy: 0, clickX: 0, clickY: 0 });
@@ -684,6 +689,7 @@ export default function FloatingDigitalHuman() {
           onClick={(e) => {
             // 检查是否刚从拖动恢复，避免触发点击
             if ((e.target as DraggableElement).__dragged) return;
+            if (!aiPrefs.introSeen) setAIPrefs({ introSeen: true });
             setOpen(true);
           }}
           sx={{
@@ -702,6 +708,13 @@ export default function FloatingDigitalHuman() {
         >
           <PersonRoundedIcon sx={{ fontSize: 24 }} />
         </IconButton>
+        {!aiPrefs.introSeen && (
+          <AssistantIntroHint
+            side={typeof window !== 'undefined' && pos.left + BUBBLE / 2 > window.innerWidth / 2 ? 'left' : 'right'}
+            onChat={() => setOpen(true)}
+            onLearn={() => router.push('/digital-human?intro=1')}
+          />
+        )}
       </Box>
     );
   }
@@ -765,7 +778,7 @@ export default function FloatingDigitalHuman() {
           aria-label="全屏"
           onClick={(e) => {
             e.stopPropagation();
-            router.push('/digital-human');
+            router.push('/digital-human?start=1');
           }}
           sx={{ color: 'rgba(255,255,255,0.85)', bgcolor: 'rgba(0,0,0,0.4)' }}
         >
@@ -794,7 +807,17 @@ export default function FloatingDigitalHuman() {
           <RefreshRoundedIcon sx={{ fontSize: 14 }} />
         </IconButton>
         <MicTestButton />
+        <IconButton
+          size="small"
+          aria-label="了解小助手"
+          title="它能做什么、怎么用"
+          onClick={(e) => { e.stopPropagation(); router.push('/digital-human?intro=1'); }}
+          sx={{ color: 'rgba(255,255,255,0.85)', bgcolor: 'rgba(0,0,0,0.4)' }}
+        >
+          <HelpOutlineRoundedIcon sx={{ fontSize: 14 }} />
+        </IconButton>
         <Box sx={{ flex: 1 }} />
+        <HideAssistantButton />
         <IconButton
           size="small"
           aria-label="关闭"
