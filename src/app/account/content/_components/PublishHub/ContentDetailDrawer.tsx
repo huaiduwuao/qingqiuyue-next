@@ -13,6 +13,7 @@ import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import MovieFilterRoundedIcon from '@mui/icons-material/MovieFilterRounded';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { RelativeTime } from '@/components/common/RelativeTime';
+import { coverBackground } from '@/lib/media';
 
 type SelectPayload = {
   id: string | number;
@@ -109,7 +110,7 @@ export default function ContentDetailDrawer({ open, payload, onClose, onNavigate
               width: '100%',
               aspectRatio: '16/9',
               borderRadius: 1.5,
-              background: payload.cover,
+              background: coverBackground(payload.cover),
               backgroundSize: 'cover',
               backgroundPosition: 'center',
               display: 'flex',

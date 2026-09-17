@@ -42,6 +42,7 @@ import ArrowUpwardRoundedIcon from '@mui/icons-material/ArrowUpwardRounded';
 import { gradient2, gradient3 } from '@/constants/gradients';
 import { accountClient } from '@/lib/api/client';
 import { toEntityId, type EntityId } from '@/lib/id';
+import { coverBackground } from '@/lib/media';
 
 type CollectionStatus = 'active' | 'finished' | 'draft';
 type CollectionVisibility = 'public' | 'fansOnly' | 'private';
@@ -420,7 +421,7 @@ export default function CollectionPage() {
                   }}
                 >
                   {/* 封面 + 状态 */}
-                  <Box sx={{ position: 'relative', aspectRatio: '16/9', background: c.cover, overflow: 'hidden' }}>
+                  <Box sx={{ position: 'relative', aspectRatio: '16/9', background: coverBackground(c.cover), overflow: 'hidden' }}>
                     <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 40%, rgba(0,0,0,0.7) 100%)' }} />
                     <Box sx={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 0.75 }}>
                       <Box sx={{ px: 0.75, py: 0.25, borderRadius: 0.5, bgcolor: sm.bg, color: sm.color, fontSize: 10, fontWeight: 700, backdropFilter: 'blur(4px)' }}>
@@ -602,7 +603,7 @@ function CreateCollectionDialog({
           <Box>
             <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1 }}>合集封面</Typography>
             <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
-              <Box sx={{ width: 160, aspectRatio: '16/9', borderRadius: 1.5, background: cover, flexShrink: 0 }} />
+              <Box sx={{ width: 160, aspectRatio: '16/9', borderRadius: 1.5, background: coverBackground(cover), flexShrink: 0 }} />
               <Box sx={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1 }}>
                 {COVER_PRESETS.map((c, i) => (
                   <Box
@@ -733,7 +734,7 @@ function CreateCollectionDialog({
                       onClick={(e) => e.stopPropagation()}
                       sx={{ p: 0 }}
                     />
-                    <Box sx={{ width: 48, height: 30, borderRadius: 0.5, background: w.cover, flexShrink: 0 }} />
+                    <Box sx={{ width: 48, height: 30, borderRadius: 0.5, background: coverBackground(w.cover), flexShrink: 0 }} />
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Typography sx={{ fontSize: 12, color: 'text.primary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {w.title}
@@ -913,7 +914,7 @@ function EditCollectionDrawer({
                 {works.map((w, idx) => (
                   <Box key={w.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, borderRadius: 1, bgcolor: 'action.hover' }}>
                     <DragIndicatorRoundedIcon sx={{ fontSize: 16, color: 'text.disabled', cursor: 'grab' }} />
-                    <Box sx={{ width: 50, height: 32, borderRadius: 0.5, background: w.cover, flexShrink: 0 }} />
+                    <Box sx={{ width: 50, height: 32, borderRadius: 0.5, background: coverBackground(w.cover), flexShrink: 0 }} />
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Typography sx={{ fontSize: 12, color: 'text.primary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {w.title}
@@ -976,7 +977,7 @@ function EditCollectionDrawer({
                   onClick={() => { setWorks((p) => [...p, w]); setPickerOpen(false); }}
                   sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 0.75, borderRadius: 1, cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
                 >
-                  <Box sx={{ width: 48, height: 30, borderRadius: 0.5, background: w.cover, flexShrink: 0 }} />
+                  <Box sx={{ width: 48, height: 30, borderRadius: 0.5, background: coverBackground(w.cover), flexShrink: 0 }} />
                   <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Typography sx={{ fontSize: 12, color: 'text.primary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{w.title}</Typography>
                     <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>{w.duration ? `${w.duration} · ` : ''}{formatNum(w.views)} 播放</Typography>

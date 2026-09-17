@@ -47,6 +47,7 @@ import { useActiveTab } from '../ActiveTabContext';
 import { process, saveOrUpdate, remove } from '@/apis/content-video';
 import type { ContentType } from '@/apis/content-video';
 import { gradient2, gradient3 } from '@/constants/gradients';
+import { coverBackground } from '@/lib/media';
 
 type WorkType = 'video' | 'image' | 'article';
 type WorkStatus = 'published' | 'reviewing' | 'draft' | 'private' | 'rejected';
@@ -478,7 +479,7 @@ export default function WorksManager() {
                 <Box
                   sx={{
                     width: 80, height: 50, borderRadius: 1, flexShrink: 0, position: 'relative',
-                    background: w.cover, overflow: 'hidden',
+                    background: coverBackground(w.cover), overflow: 'hidden',
                   }}
                 >
                   <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.4) 100%)' }} />
@@ -631,7 +632,7 @@ function EditWorkForm({
         <Stack spacing={2}>
           <Box>
             <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.75 }}>封面</Typography>
-            <Box sx={{ width: '100%', aspectRatio: '16/9', borderRadius: 1.5, background: work.cover, position: 'relative' }}>
+            <Box sx={{ width: '100%', aspectRatio: '16/9', borderRadius: 1.5, background: coverBackground(work.cover), position: 'relative' }}>
               <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'rgba(0,0,0,0.4)', color: '#fff', fontSize: 12, cursor: 'pointer' }}>
                 点击更换封面
               </Box>

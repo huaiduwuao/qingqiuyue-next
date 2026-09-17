@@ -56,6 +56,7 @@ import { parseRewardCny } from './helpers';
 import { KpiCard } from './KpiCard';
 import { ActivityCard } from './ActivityCard';
 import { DetailDrawer, type DetailTabKey } from './DetailDrawer';
+import { coverBackground } from '@/lib/media';
 
 type FilterTab = 'all' | 'mine' | 'active' | 'signup' | 'upcoming' | 'won' | 'ended';
 type CategoryFilter = 'all' | ActivityCategory;
@@ -581,7 +582,7 @@ export default function ActivityPage() {
                         '&:hover': alreadySubmitted ? {} : { borderColor: selected ? 'primary.main' : 'rgba(254, 44, 85, 0.3)' },
                       }}
                     >
-                      <Box sx={{ width: 56, height: 56, borderRadius: 1, background: w.cover, flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Box sx={{ width: 56, height: 56, borderRadius: 1, background: coverBackground(w.cover), flexShrink: 0, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <PlayArrowRoundedIcon sx={{ color: 'rgba(255,255,255,0.9)', fontSize: 22 }} />
                         <Box sx={{ position: 'absolute', bottom: 2, right: 2, px: 0.4, borderRadius: 0.5, fontSize: 9, fontWeight: 600, color: '#fff', bgcolor: 'rgba(0,0,0,0.6)' }}>
                           {formatDuration(w.duration)}

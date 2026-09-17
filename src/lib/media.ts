@@ -170,3 +170,17 @@ export function normalizeMediaUrls(value: unknown, depth = 0): void {
     }
   }
 }
+
+/**
+ * coverBackground —— 给 CSS `background` 用的封面值。
+ * 后端给的 cover 是图片地址,直接塞进 `background` 是非法值,浏览器整条丢弃 → 封面空白。
+ * 渐变/颜色/已包好的 url() 原样返回;地址则经 mediaUrl 包成 url(),
+ * 并把 fallback(通常是渐变)垫在下一层,图挂了也不至于一片空。
+ */
+export function coverBackground(raw?: string | null, fallback?: string): string {
+  const v = (raw ?? '').trim();
+  if (!v) return fallback ?? 'transparent';
+  if (/^(linear-|radial-|conic-|repeating-|url\(|#|rgba?\(|hsla?\(|var\()/i.test(v)) return v;
+  const layer = `center / cover no-repeat url("${mediaUrl(v).replace(/"/g, '%22')}")`;
+  return fallback ? `${layer}, ${fallback}` : layer;
+}

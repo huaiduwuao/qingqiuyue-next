@@ -12,6 +12,7 @@ import GroupIcon from '@mui/icons-material/Group';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
 import CollectionsIcon from '@mui/icons-material/Collections';
+import QueueMusicRoundedIcon from '@mui/icons-material/QueueMusicRounded';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { moduleContentPage } from '@/apis/home';
@@ -92,6 +93,8 @@ const QUICK_LINKS: { key: string; href: string; label: string; icon: React.React
   { key: 'friend', href: '/home/recommend?tab=feed&scope=friend', label: '朋友', icon: <GroupIcon sx={{ fontSize: 14 }} /> },
   { key: 'ai', href: '/home/recommend?tab=ai', label: 'AI 助手', icon: <SmartToyIcon sx={{ fontSize: 14 }} /> },
 ];
+// 音乐频道里要能直接进歌单,不然只能从头像菜单或正在播放的队列里找到
+const PLAYLIST_LINK = { key: 'playlist', href: '/playlist', label: '我的歌单', icon: <QueueMusicRoundedIcon sx={{ fontSize: 14 }} /> };
 
 function formatCount(n: number = 0): string {
   if (n == null || isNaN(n) || n < 0) return '0';
@@ -105,7 +108,6 @@ const PAGE_SIZE = 12;
 export default function HomeRecommendPage() {
   const router = useRouter();
   const [aiPrefs] = useAIPrefs();
-  const quickLinks = QUICK_LINKS.filter((l) => l.key !== 'ai' || aiPrefs.aiEntry);
   const [layout] = useListLayout();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -114,6 +116,11 @@ export default function HomeRecommendPage() {
   const sectionParam = searchParams.get('section');
   const tabFromUrl = tabParam || sectionParam || 'all';
   const activeCategory = TAB_TO_CATEGORY[tabFromUrl] || '全部';
+
+  const quickLinks = [
+    ...(activeCategory === '音乐' ? [PLAYLIST_LINK] : []),
+    ...QUICK_LINKS.filter((l) => l.key !== 'ai' || aiPrefs.aiEntry),
+  ];
 
   const setTab = (newTab: string) => {
     const params = new URLSearchParams(searchParams.toString());

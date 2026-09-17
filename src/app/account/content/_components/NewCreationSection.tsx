@@ -35,6 +35,7 @@ import { useActiveTab } from '../ActiveTabContext';
 import { gradient2, gradient3 } from '@/constants/gradients';
 import { accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
 import { RelativeTime } from '@/components/common/RelativeTime';
+import { coverBackground } from '@/lib/media';
 
 interface CreationItem {
   id: string;
@@ -452,7 +453,7 @@ export default function NewCreationSection() {
                       width: 60,
                       height: 60,
                       borderRadius: 1,
-                      background: item.cover,
+                      background: coverBackground(item.cover),
                       flexShrink: 0,
                       position: 'relative',
                       overflow: 'hidden',

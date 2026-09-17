@@ -22,12 +22,12 @@ import EventNoteRoundedIcon from '@mui/icons-material/EventNoteRounded';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
-import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSettingsRounded';
 import { useAuthority, useAuth } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
 import { updateUser } from '@/apis/account';
 import { gradient2, IMAGE_OVERLAY } from '@/constants/gradients';
+import { coverBackground } from '@/lib/media';
 
 // PROFILE 不再硬编码,昵称/统计从 currentUser 取(后端 /api/core/user/current)
 // 我的喜欢预览完全由 /api/core/account/likes/preview 拉取,不再用任何静态 fallback。
@@ -42,7 +42,7 @@ interface Section {
 // SECTIONS 改为"模板",count 在渲染时由 stats 实时注入(避免硬编码 '49'/'30天内'/'2'/'0' 跟实际不符)。
 // 渲染函数 buildSections() 接收 stats,返回带 count 的 Section[]。
 interface SectionTemplate {
-  key: 'likes' | 'favorites' | 'history' | 'watchlater' | 'playlists' | 'works' | 'reservation' | 'orders';
+  key: 'favorites' | 'history' | 'watchlater' | 'playlists' | 'works' | 'reservation' | 'orders';
   label: string;
   icon: React.ReactNode;
   href: string;
@@ -52,7 +52,6 @@ interface SectionTemplate {
   display?: string;
 }
 const SECTION_TPLS: SectionTemplate[] = [
-  { key: 'likes',      label: '我的喜欢', icon: <FavoriteRoundedIcon sx={{ fontSize: 18, color: 'error.main' }} />,       href: '/home/recommend?tab=me&mainTab=like',     statKey: 'likesCount' },
   { key: 'favorites',  label: '我的收藏', icon: <StarRoundedIcon sx={{ fontSize: 18, color: 'warning.main' }} />,         href: '/home/recommend?tab=me&mainTab=collect', statKey: 'favoritesCount' },
   { key: 'history',    label: '观看历史', icon: <HistoryRoundedIcon sx={{ fontSize: 18, color: 'secondary.main' }} />,      href: '/home/recommend?tab=me&mainTab=history',  statKey: 'historyCount', display: '30天内' },
   { key: 'watchlater', label: '稍后再看', icon: <WatchLaterIcon sx={{ fontSize: 18, color: '#8B5CF6' }} />,                href: '/home/recommend?tab=me&mainTab=later',    statKey: 'watchlaterCount' },
@@ -107,7 +106,7 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
     enabled: !!currentUser?.id,
   });
   const LIKES_PREVIEW: Array<{ id: string | number; title?: string; cover?: string }> = (likesResp?.list ?? []).map((l: any) => ({
-    id: l.id, title: l.title, cover: l.cover || gradient2('#C8A882', '#8B6F47'),
+    id: l.id, title: l.title, cover: coverBackground(l.cover, gradient2('#C8A882', '#8B6F47')),
   }));
 
   useEffect(() => {
@@ -310,7 +309,7 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
               transition: 'color 0.15s',
             }}
           >
-            <span>{(currentUser as any)?.likes ?? (currentUser as any)?.totalLikes ?? 0}</span>
+            <span>{accountStats?.likesCount ?? 0}</span>
             <ChevronRightIcon sx={{ fontSize: 14 }} />
           </Box>
         </Box>
@@ -329,7 +328,7 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
                 borderRadius: 1,
               }}
             >
-              {String('暂无喜欢内容(后端真点赞机制未上线, 暂为空)')}
+              还没有点赞过内容
             </Box>
           )}
           {LIKES_PREVIEW.map((p) => (
@@ -354,13 +353,9 @@ export function PersonalCenterCard({ compact = false, onNavigate }: PersonalCent
               }}
             >
               <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, p: 0.5, zIndex: 1 }}>
-                <Typography sx={{ fontSize: 10, color: 'text.primary', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <Typography sx={{ fontSize: 10, color: '#fff', textShadow: '0 1px 2px rgba(0,0,0,0.6)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {p.title}
                 </Typography>
-              </Box>
-              <Box sx={{ position: 'absolute', bottom: 4, right: 4, zIndex: 1, display: 'flex', alignItems: 'center', gap: 0.25, color: 'text.primary', fontSize: 9, fontFamily: 'monospace' }}>
-                <PlayArrowRoundedIcon sx={{ fontSize: 10 }} />
-                12.3w
               </Box>
             </Box>
           ))}

@@ -26,6 +26,7 @@ import type { ModuleContentItem } from '@/apis/module-content';
 import { RelativeTime } from '@/components/common/RelativeTime';
 import { TYPE_LABEL } from '@/lib/contentRoute';
 import { gradient2 } from '@/constants/gradients';
+import { coverBackground } from '@/lib/media';
 
 type SelectPayload = {
   /** 内容 id — 传 VIDEO 类型时是 hd 接口返回的字符串;非 VIDEO 是数字 */
@@ -171,7 +172,7 @@ export default function UnifiedContentList({ selectedType, onSelectItem }: Props
                     width: 88,
                     height: 56,
                     borderRadius: 1,
-                    background: cover,
+                    background: coverBackground(cover),
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
                     flexShrink: 0,
