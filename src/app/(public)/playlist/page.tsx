@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Alert from '@mui/material/Alert';
@@ -52,32 +52,49 @@ import { useAuth } from '@/contexts/AuthContext';
 import { loginHref } from '@/lib/auth/redirect';
 import { mediaUrl } from '@/lib/media';
 import { currentTrack, useMusicPlayer } from '@/lib/player/musicPlayer';
-import { playTracks, playlistHref, queueTracks, type TrackSeed } from '@/lib/player/playlist';
+import {
+  LIKED_MUSIC_ID,
+  getLikedMusic,
+  likedMusicList,
+  playTracks,
+  playlistHref,
+  queueTracks,
+  type TrackSeed,
+} from '@/lib/player/playlist';
 
 /**
- * 歌单。/playlist 是「我的歌单」;/playlist?id= 是一张歌单(自己的,或别人公开的)。
+ * 歌单。/playlist 是「我的歌单」;/playlist?id= 是一张歌单(自己的,或别人公开的);
+ * /playlist?id=liked 是内置的「我喜欢的音乐」;/playlist?new=1 直接弹新建。
  */
 export default function PlaylistPage() {
-  const id = useSearchParams().get('id');
-  return id ? <PlaylistDetail id={id} /> : <MyPlaylists />;
+  const params = useSearchParams();
+  const id = params.get('id');
+  // ?new=1:从音乐频道的「新建歌单」进来,直接弹出新建框
+  return id ? <PlaylistDetail id={id} /> : <MyPlaylists autoCreate={params.get('new') === '1'} />;
 }
 
 // ---------------------------------------------------------------------------
 // 我的歌单
 // ---------------------------------------------------------------------------
 
-function MyPlaylists() {
+function MyPlaylists({ autoCreate }: { autoCreate: boolean }) {
   const router = useRouter();
   const qc = useQueryClient();
   const { isAuthenticated, status } = useAuth();
   const [createOpen, setCreateOpen] = useState(false);
+  const created = useRef(false);
+  useEffect(() => {
+    if (autoCreate && isAuthenticated) setCreateOpen(true);
+  }, [autoCreate, isAuthenticated]);
 
   const lists = useQuery({
     queryKey: ['my-lists', 'playlist'],
     queryFn: () => getMyLists('playlist'),
     enabled: isAuthenticated,
   });
-  const items = lists.data?.list ?? [];
+  const liked = useQuery({ queryKey: ['liked-music'], queryFn: getLikedMusic, enabled: isAuthenticated });
+  const own = lists.data?.list ?? [];
+  const items = [...(liked.data?.length ? [likedMusicList(liked.data)] : []), ...own];
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -102,7 +119,7 @@ function MyPlaylists() {
         ) : (
           <>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2.5 }}>
-              <Typography sx={{ flex: 1, fontSize: 14, color: 'text.secondary' }}>{items.length} 个歌单</Typography>
+              <Typography sx={{ flex: 1, fontSize: 14, color: 'text.secondary' }}>{own.length} 个歌单</Typography>
               <ListLayoutSwitch sx={{ mr: 1.5 }} />
               <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setCreateOpen(true)}>
                 新建歌单
@@ -147,9 +164,14 @@ function MyPlaylists() {
       <EditDialog
         open={createOpen}
         title="新建歌单"
-        onClose={() => setCreateOpen(false)}
+        onClose={() => {
+          setCreateOpen(false);
+          // 取消了就把 ?new=1 去掉,免得刷新又弹;建好了会跳详情,别再拉回来
+          if (autoCreate && !created.current) router.replace('/playlist');
+        }}
         onSubmit={async (v) => {
           const r = await createMyList({ ...v, type: 'playlist' });
+          created.current = true;
           qc.invalidateQueries({ queryKey: ['my-lists'] });
           router.push(playlistHref(r.id));
         }}
@@ -170,8 +192,17 @@ function PlaylistDetail({ id }: { id: string }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const playingId = useMusicPlayer((s) => (s.playing ? currentTrack(s)?.id : undefined));
 
-  const meta = useQuery({ queryKey: ['my-lists', 'detail', id], queryFn: () => getMyListDetail(id), retry: false });
-  const content = useQuery({ queryKey: ['my-lists', 'content', id], queryFn: () => getMyListContent(id), retry: false, enabled: meta.isSuccess });
+  const isLiked = id === LIKED_MUSIC_ID;
+  const likedQ = useQuery({ queryKey: ['liked-music'], queryFn: getLikedMusic, retry: false, enabled: isLiked });
+  const realMeta = useQuery({ queryKey: ['my-lists', 'detail', id], queryFn: () => getMyListDetail(id), retry: false, enabled: !isLiked });
+  const realContent = useQuery({ queryKey: ['my-lists', 'content', id], queryFn: () => getMyListContent(id), retry: false, enabled: !isLiked && realMeta.isSuccess });
+  // 「我喜欢的音乐」没有库里的歌单行,用点赞列表拼出同样的形状,下面的渲染不用分两套
+  const meta = isLiked
+    ? { isLoading: likedQ.isLoading, isError: likedQ.isError, error: likedQ.error, data: likedQ.data ? likedMusicList(likedQ.data) : undefined }
+    : realMeta;
+  const content = isLiked
+    ? { isLoading: likedQ.isLoading, isError: likedQ.isError, error: likedQ.error, data: { list: likedQ.data ?? [], total: likedQ.data?.length ?? 0 } }
+    : realContent;
 
   const list: MyListItem | undefined = meta.data;
   const rows: MyListContentItem[] = content.data?.list ?? [];
@@ -181,6 +212,7 @@ function PlaylistDetail({ id }: { id: string }) {
 
   const refresh = () => {
     qc.invalidateQueries({ queryKey: ['my-lists'] });
+    qc.invalidateQueries({ queryKey: ['liked-music'] });
   };
 
   // 顺序 / 移除先改本地缓存再发请求,失败了重新拉
@@ -335,10 +367,10 @@ function PlaylistDetail({ id }: { id: string }) {
         <Alert severity="error">歌曲加载失败:{formatApiError(content.error)}</Alert>
       ) : rows.length === 0 ? (
         <Empty
-          title="这张歌单还是空的"
-          hint={list.mine ? '去搜几首歌,在歌曲页或播放队列里点「加入歌单」。' : ''}
+          title={isLiked ? '还没有点赞过歌曲' : '这张歌单还是空的'}
+          hint={isLiked ? '在歌曲页点个赞,它就会出现在这里。' : list.mine ? '去搜几首歌,在歌曲页或播放队列里点「加入歌单」。' : ''}
           action={
-            list.mine ? (
+            list.mine || isLiked ? (
               <Button variant="outlined" onClick={() => router.push('/search?type=MUSIC')}>
                 去找歌
               </Button>

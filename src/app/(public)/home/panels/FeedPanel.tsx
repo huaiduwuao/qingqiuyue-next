@@ -25,6 +25,7 @@ import { fetchSubcategories, type SubcategoryItem } from '@/apis/home-discover';
 import { moduleContentPage } from '@/apis/home';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
+import MusicPlaylistShelf from '@/components/player/MusicPlaylistShelf';
 import FadeContent from '@/components/reactbits/FadeContent';
 import SpotlightCard from '@/components/reactbits/SpotlightCard';
 import MusicPlayButton from '@/components/player/MusicPlayButton';
@@ -555,6 +556,13 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
         </Box>
 
       <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+          {/* 音乐:歌单和歌放在同一个频道里 */}
+          {section === 'music' && (
+            <Box sx={{ px: 2, pt: 2 }}>
+              <MusicPlaylistShelf />
+              <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700, mb: -0.5 }}>歌曲</Typography>
+            </Box>
+          )}
           {/* 加载状态 */}
           {isLoading ? (
             <Box sx={{ p: 2 }}>
