@@ -49,6 +49,7 @@ import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import { useApp } from '@/contexts/AppContext';
+import { SiteLegalFooter } from '@/components/layout/SiteLegalFooter';
 import { homeClient, adminClient, formatApiError } from '@/lib/api/client';
 import { setMark } from '@/apis/content-mark';
 import { postShare } from '@/apis/behavior';
@@ -806,6 +807,11 @@ export function MyHomePage() {
           />
         )}
       </Box>
+
+      {/* 移动端没有左侧栏,免责声明 / 采集说明 / 备案号挂在「我的」页底部 */}
+      <SiteLegalFooter
+        sx={{ display: { xs: 'block', md: 'none' }, position: 'relative', textAlign: 'center', px: 2, pt: 3, pb: 2, '& > div:first-of-type': { justifyContent: 'center' } }}
+      />
 
       <Snackbar
         open={!!toast}

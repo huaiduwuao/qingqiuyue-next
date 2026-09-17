@@ -17,6 +17,8 @@ const PUBLIC_PREFIXES = [
   '/wallpaper',
   '/gouji',
   '/kf-chat',
+  // 关于 / 免责声明 / 数据采集说明:合规页必须未登录可读
+  '/legal',
   '/digital-human',
   '/crawled',
   // 用户主页:每个用户都有,未登录也能看(关注/私信等按钮点了再去登录)

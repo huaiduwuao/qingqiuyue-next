@@ -52,6 +52,7 @@ import { ACCENT } from '@/constants/accents';
 import { gradient2 } from '@/constants/gradients';
 import HomeRecommendPage from './recommend/page';
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
+import { SiteLegalFooter } from '@/components/layout/SiteLegalFooter';
 import { useResponsive } from '@/hooks/useResponsive';
 import { useTopbarHeight } from '@/hooks/useTopbarHeight';
 import { BrandSeal, BrandWordmark } from '@/components/brand/BrandLogo';
@@ -567,6 +568,8 @@ function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activ
         })}
       </Box>
       <Box sx={{ p: 1.5, borderTop: '1px solid var(--border-color, transparent)' }}>
+        {/* 免责声明 / 数据采集说明 / 备案号:整屏布局没有页脚,合规信息放侧栏底部 */}
+        <SiteLegalFooter sx={{ px: 0.5, mb: 1 }} />
         <Box
           ref={settingsBtnRef}
           onClick={() => onMeOpenChange(!meOpen)}
