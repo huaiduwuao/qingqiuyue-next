@@ -34,7 +34,7 @@ import { sendComment } from '@/apis/home';
 import { reportContent } from '@/apis/global';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
 import { parseStream, BANDWIDTH_NOTICE } from '@/apis/stream';
-import { resolveEmbedPlayer, originOnlyPlatform, ORIGIN_ONLY_NOTICE } from '@/lib/embedPlayer';
+import { resolveEmbedPlayer, originOnlyPlatform, sourcePageOf, ORIGIN_ONLY_NOTICE } from '@/lib/embedPlayer';
 import { homeClient } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { mediaUrl } from '@/lib/media';
@@ -174,12 +174,13 @@ export function RecommendVideoFeed() {
         caption: it.title || '',
         verified: false,
         brand: TYPE_LABEL[(it.contentType || 'VIDEO').toUpperCase()] || '推荐',
-        sourceUrl: it.sourceUrl || '',
+        // 旧的播放性结论会把 sourceUrl 换成过期的 CDN 直链;源站页面从 metadata 里找回来。
+        sourceUrl: sourcePageOf(it.sourceUrl, it.metadata),
         playable: Boolean(it.playable),
         // 正版长视频平台的页面(B 站番剧 / 爱奇艺 / 腾讯 / 优酷 / 芒果):本站放不了也嵌不了,
         // 解析的结局毫无悬念。不管后端判没判过,一律按"去原站看"处理 —— 不解析、不报故障。
-        playbackStatus: originOnlyPlatform(it.sourceUrl) ? 'bandwidth_limited' : it.playbackStatus || 'unknown',
-        repairNotice: it.repairNotice || (originOnlyPlatform(it.sourceUrl) ? ORIGIN_ONLY_NOTICE : ''),
+        playbackStatus: originOnlyPlatform(sourcePageOf(it.sourceUrl, it.metadata)) ? 'bandwidth_limited' : it.playbackStatus || 'unknown',
+        repairNotice: it.repairNotice || (originOnlyPlatform(sourcePageOf(it.sourceUrl, it.metadata)) ? ORIGIN_ONLY_NOTICE : ''),
       }));
       const hasMore = resp?.data?.hasMore ?? false;
       return { items, hasMore };

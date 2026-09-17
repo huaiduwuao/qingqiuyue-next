@@ -96,3 +96,24 @@ export function originOnlyPlatform(pageUrl?: string | null): string | null {
 
 /** 面向用户的提示,与后端 playability.OriginOnlyNotice 一致。 */
 export const ORIGIN_ONLY_NOTICE = '该平台的正版内容仅支持在原站观看';
+
+/**
+ * 推荐流 / 榜单条目的源站页面地址。
+ *
+ * 正常情况下就是接口给的 sourceUrl。但旧的播放性结论会把 sourceUrl 换成解析出来的 CDN
+ * 直链(B 站的 bilivideo 签名地址:已过期、且校验 Referer),页面地址只剩在 metadata 里 ——
+ * 这时外链播放器和「去原站」都无从判断。metadata 里的页面地址能外嵌或属于只能去原站的平台时,
+ * 以它为准。
+ */
+export function sourcePageOf(sourceUrl?: string | null, metadata?: string | null): string {
+  const given = (sourceUrl || '').trim();
+  if (resolveEmbedPlayer(given) || originOnlyPlatform(given)) return given;
+  let page = '';
+  try {
+    const m = metadata ? JSON.parse(metadata) : null;
+    page = String(m?.sourceUrl || m?.source_url || '').trim();
+  } catch {
+    /* 存量 metadata 里有被截断的 JSON */
+  }
+  return page && (resolveEmbedPlayer(page) || originOnlyPlatform(page)) ? page : given;
+}

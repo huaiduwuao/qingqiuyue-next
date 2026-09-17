@@ -829,14 +829,15 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
             <CircularProgress sx={{ color: '#fff' }} />
           ) : bandwidthLimited ? (
             // 不是故障:内容没坏,本站只是不替源站付视频带宽。中性图标、说清原因、给去原站的路。
-            <Box data-no-drag sx={{ textAlign: 'center', color: 'rgba(255,255,255,0.7)', p: 2 }}>
+            // 卡片自带深色磨砂底:它压在封面上,亮色封面上的白字否则看不清。
+            <Box data-no-drag sx={{ textAlign: 'center', color: 'rgba(255,255,255,0.7)', px: 3, py: 2, borderRadius: 2, bgcolor: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(6px)', maxWidth: 'min(92%, 420px)' }}>
               <CloudOffIcon sx={{ fontSize: 32, color: 'rgba(255,255,255,0.55)', mb: 0.5 }} />
               <Box sx={{ fontSize: 14, fontWeight: 600, color: '#fff', mb: 0.5 }}>{originPlatform ? `请前往${originPlatform}观看` : '暂不支持站内播放'}</Box>
               <Box sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', mb: 1 }}>{bandwidthLimited}</Box>
               {originButton}
             </Box>
           ) : streamError ? (
-            <Box sx={{ textAlign: 'center', color: 'rgba(255,255,255,0.7)', p: 2 }}>
+            <Box sx={{ textAlign: 'center', color: 'rgba(255,255,255,0.7)', px: 3, py: 2, borderRadius: 2, bgcolor: 'rgba(0,0,0,0.62)', backdropFilter: 'blur(6px)', maxWidth: 'min(92%, 420px)' }}>
               <ErrorOutlineIcon sx={{ fontSize: 32, color: 'warning.main', mb: 0.5 }} />
               <Box sx={{ fontSize: 14, fontWeight: 600, color: '#fff', mb: 0.5 }}>该内容暂时无法播放</Box>
               <Box sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', mb: 1 }}>{streamError} · 已记录,尽快修复</Box>

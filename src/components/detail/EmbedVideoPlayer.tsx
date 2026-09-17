@@ -127,8 +127,10 @@ const EmbedVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function EmbedVide
     // 所以 iframe 不铺满整屏,只占中间一条 16:9(横屏视频本来也是这么摆的),
     // 上下留给用户划走。
     return (
-      <Box sx={{ position: 'absolute', inset: 0, bgcolor: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-        <Box sx={{ position: 'relative', width: '100%', maxHeight: '70%', aspectRatio: '16/9' }}>
+      // 底部留 160px:推荐流的作者/标题浮层压在卡片底部(bottom: 92),不让开的话会盖住
+      // 外链播放器自己的进度条和音量/全屏按钮。
+      <Box sx={{ position: 'absolute', inset: 0, pt: 2, pb: '160px', bgcolor: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+        <Box sx={{ position: 'relative', width: '100%', flex: '0 1 auto', minHeight: 0, maxHeight: '100%', aspectRatio: '16/9' }}>
           {frame}
           {isAIGenerated && <AIGCBadge variant="overlay" top={10} left={10} label="AI 生成视频" />}
         </Box>

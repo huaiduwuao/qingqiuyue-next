@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { originOnlyPlatform, resolveEmbedPlayer, withAutoplay } from './embedPlayer';
+import { originOnlyPlatform, resolveEmbedPlayer, sourcePageOf, withAutoplay } from './embedPlayer';
 
 // 用例与后端 internal/embedplayer/embedplayer_test.go 对齐:两边规则必须一致。
 describe('resolveEmbedPlayer', () => {
@@ -62,5 +62,22 @@ describe('originOnlyPlatform', () => {
     ]) {
       expect(originOnlyPlatform(url)).toBeNull();
     }
+  });
+});
+
+describe('sourcePageOf', () => {
+  const bv = 'https://www.bilibili.com/video/BV117Yj6rEG4';
+  const cdn = 'https://upos-sz-estgoss.bilivideo.com/upgcxcode/01/83/1.mp4?deadline=1';
+
+  it('recovers the page url from metadata when the api hands back a cdn link', () => {
+    expect(sourcePageOf(cdn, JSON.stringify({ sourceUrl: bv }))).toBe(bv);
+    expect(sourcePageOf('', JSON.stringify({ source_url: 'https://www.iqiyi.com/v_19rr7pm7rc.html' }))).toBe('https://www.iqiyi.com/v_19rr7pm7rc.html');
+  });
+
+  it('keeps what the api gave otherwise', () => {
+    expect(sourcePageOf(bv, '{"sourceUrl":"https://example.com/x"}')).toBe(bv);
+    expect(sourcePageOf(cdn, '{"sourceUrl":"https://www.douyin.com/video/7123456789"}')).toBe(cdn);
+    expect(sourcePageOf(cdn, '{"sourceUrl":"https://www.bili')).toBe(cdn);
+    expect(sourcePageOf(undefined, undefined)).toBe('');
   });
 });
