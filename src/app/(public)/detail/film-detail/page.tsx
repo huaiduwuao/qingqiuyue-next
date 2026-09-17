@@ -18,7 +18,7 @@ import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-film';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
 import VideoPlayer from '@/components/detail/VideoPlayer';
-import { PlatformLinks, UnavailablePlayer, platformsOf, playNoticeOf } from '@/components/detail/ExternalPlatforms';
+import { PlatformLinks, UnavailablePlayer, platformsOf, linkOutNoticeOf } from '@/components/detail/ExternalPlatforms';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
@@ -124,9 +124,9 @@ function FilmDetailContent() {
           <>
             <Box sx={{ bgcolor: '#000' }}>
               <Container maxWidth="lg" sx={{ py: 0 }}>
-                {playNoticeOf(data) && !data.videoUrl ? (
-                  // 只有会员/付费平台有片源:如实说明,不把付费页交给播放器硬解析。
-                  <UnavailablePlayer notice={playNoticeOf(data)} platforms={platformsOf(data)} poster={data.cover} />
+                {linkOutNoticeOf(data, data.source) && !data.videoUrl ? (
+                  // 只有会员/付费平台有片源、或片源页只是个索引:如实说明,不把它交给播放器硬解析。
+                  <UnavailablePlayer notice={linkOutNoticeOf(data, data.source)} platforms={platformsOf(data)} poster={data.cover} />
                 ) : (
                   <VideoPlayer src={data.videoUrl || ''} sourceUrl={data.source || ''} poster={data.cover} initialDuration={(data.duration || 0) * 60} autoPlay={false} dockTitle={data.title || "电影"} />
                 )}

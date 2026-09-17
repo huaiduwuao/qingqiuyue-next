@@ -18,7 +18,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import AIGCBadge from '@/components/AIGCBadge';
 import { parseStream, checkStreamAccess, BANDWIDTH_NOTICE } from '@/apis/stream';
 import { mediaUrl, isExternalStreamUrl } from '@/lib/media';
-import { resolveEmbedPlayer } from '@/lib/embedPlayer';
+import { resolveEmbedPlayer, originOnlyPlatform, ORIGIN_ONLY_NOTICE } from '@/lib/embedPlayer';
 import EmbedVideoPlayer from './EmbedVideoPlayer';
 import { videoDock, destroyVideo, pipSupported, togglePip, inPip, claimMediaSession, mediaSessionPaused, type StreamInfo } from '@/lib/player/videoDock';
 
@@ -187,6 +187,16 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
 
     // React StrictMode 下 effect 会跑两次,且 unmount 可能晚于异步回调;
     // 用 AbortController 真正取消未完成的请求 + cancelled 标志避免 setState 写已 unmount 组件。
+    // 正版长视频平台的页面:解析的结局毫无悬念(流校验 Referer 或带 DRM),不白等、不报故障,
+    // 直接给去原站的入口。
+    if (originOnlyPlatform(sourceUrl)) {
+      setLoading(false);
+      setStreamError(null);
+      setStreams([]);
+      setBandwidthLimited(ORIGIN_ONLY_NOTICE);
+      return;
+    }
+
     const controller = new AbortController();
     let cancelled = false;
 
@@ -694,6 +704,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
   const hasVideo = (src || streams.length > 0) && !bandwidthLimited;
   // 实在播不了时给出原站链接(番剧 / 直播间等解析不出流、或需要源站会员的内容)
   const originLink = /^https?:\/\//.test(reparseUrl) ? reparseUrl : '';
+  const originPlatform = originOnlyPlatform(originLink);
   const originButton = originLink ? (
     <Box
       component="a"
@@ -715,7 +726,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
         '&:hover': { bgcolor: 'rgba(255,255,255,0.18)' },
       }}
     >
-      去原站观看
+      {originPlatform ? `去${originPlatform}观看` : '去原站观看'}
     </Box>
   ) : null;
 
@@ -820,7 +831,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
             // 不是故障:内容没坏,本站只是不替源站付视频带宽。中性图标、说清原因、给去原站的路。
             <Box data-no-drag sx={{ textAlign: 'center', color: 'rgba(255,255,255,0.7)', p: 2 }}>
               <CloudOffIcon sx={{ fontSize: 32, color: 'rgba(255,255,255,0.55)', mb: 0.5 }} />
-              <Box sx={{ fontSize: 14, fontWeight: 600, color: '#fff', mb: 0.5 }}>暂不支持站内播放</Box>
+              <Box sx={{ fontSize: 14, fontWeight: 600, color: '#fff', mb: 0.5 }}>{originPlatform ? `请前往${originPlatform}观看` : '暂不支持站内播放'}</Box>
               <Box sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', mb: 1 }}>{bandwidthLimited}</Box>
               {originButton}
             </Box>

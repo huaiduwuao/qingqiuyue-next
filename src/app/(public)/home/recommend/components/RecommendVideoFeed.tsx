@@ -34,7 +34,7 @@ import { sendComment } from '@/apis/home';
 import { reportContent } from '@/apis/global';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
 import { parseStream, BANDWIDTH_NOTICE } from '@/apis/stream';
-import { resolveEmbedPlayer } from '@/lib/embedPlayer';
+import { resolveEmbedPlayer, originOnlyPlatform, ORIGIN_ONLY_NOTICE } from '@/lib/embedPlayer';
 import { homeClient } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { mediaUrl } from '@/lib/media';
@@ -176,8 +176,10 @@ export function RecommendVideoFeed() {
         brand: TYPE_LABEL[(it.contentType || 'VIDEO').toUpperCase()] || '推荐',
         sourceUrl: it.sourceUrl || '',
         playable: Boolean(it.playable),
-        playbackStatus: it.playbackStatus || 'unknown',
-        repairNotice: it.repairNotice || '',
+        // 正版长视频平台的页面(B 站番剧 / 爱奇艺 / 腾讯 / 优酷 / 芒果):本站放不了也嵌不了,
+        // 解析的结局毫无悬念。不管后端判没判过,一律按"去原站看"处理 —— 不解析、不报故障。
+        playbackStatus: originOnlyPlatform(it.sourceUrl) ? 'bandwidth_limited' : it.playbackStatus || 'unknown',
+        repairNotice: it.repairNotice || (originOnlyPlatform(it.sourceUrl) ? ORIGIN_ONLY_NOTICE : ''),
       }));
       const hasMore = resp?.data?.hasMore ?? false;
       return { items, hasMore };
@@ -784,7 +786,7 @@ export function RecommendVideoFeed() {
                         bgcolor: 'rgba(255,255,255,0.08)',
                       }}
                     >
-                      去原站观看
+                      {originOnlyPlatform(v.sourceUrl) ? `去${originOnlyPlatform(v.sourceUrl)}观看` : '去原站观看'}
                     </Box>
                   )}
                 </Box>

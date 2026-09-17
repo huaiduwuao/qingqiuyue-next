@@ -60,3 +60,39 @@ function bilibili(u: URL): EmbedPlayer | null {
 export function withAutoplay(embedUrl: string): string {
   return embedUrl.replace('autoplay=0', 'autoplay=1');
 }
+
+/**
+ * 正版长视频平台的页面(B 站番剧、爱奇艺、腾讯、优酷、芒果):流要么校验 Referer、要么带 DRM,
+ * 外链播放器也不给(见上面的实测记录)—— 只能去原站看。返回平台名;不是这类页面返回 null。
+ *
+ * 播放器拿到这类地址时直接给「去 XX 观看」,不再白等一次最长 30 秒、结局毫无悬念的流解析,
+ * 也不把它当故障上报。口径与后端 internal/playability 的 originOnlyPages 一致,只是这里
+ * 连系列页也算 —— 对用户来说系列页同样是个能点过去看的入口。
+ */
+const ORIGIN_ONLY: Array<[RegExp, string]> = [
+  [/(^|\.)bilibili\.com$/, '哔哩哔哩'],
+  [/(^|\.)iqiyi\.com$/, '爱奇艺'],
+  [/^v\.qq\.com$/, '腾讯视频'],
+  [/(^|\.)youku\.com$/, '优酷'],
+  [/(^|\.)mgtv\.com$/, '芒果TV'],
+  // 360 影视是各平台的聚合索引页,本身没有片源(后端 internal/discover 从它这儿收录书目)。
+  [/(^|\.)360kan\.com$/, '360影视'],
+];
+
+export function originOnlyPlatform(pageUrl?: string | null): string | null {
+  const raw = (pageUrl || '').trim();
+  if (!raw || resolveEmbedPlayer(raw)) return null;
+  let u: URL;
+  try {
+    u = new URL(raw.includes('://') ? raw : `https://${raw}`);
+  } catch {
+    return null;
+  }
+  const host = u.hostname.toLowerCase();
+  // B 站只有番剧/影视算;其余形态(直播间、动态、专栏…)不归这里管。
+  if (/(^|\.)bilibili\.com$/.test(host) && !u.pathname.startsWith('/bangumi/')) return null;
+  return ORIGIN_ONLY.find(([re]) => re.test(host))?.[1] ?? null;
+}
+
+/** 面向用户的提示,与后端 playability.OriginOnlyNotice 一致。 */
+export const ORIGIN_ONLY_NOTICE = '该平台的正版内容仅支持在原站观看';

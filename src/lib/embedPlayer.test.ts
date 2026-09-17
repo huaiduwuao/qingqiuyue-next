@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveEmbedPlayer, withAutoplay } from './embedPlayer';
+import { originOnlyPlatform, resolveEmbedPlayer, withAutoplay } from './embedPlayer';
 
 // 用例与后端 internal/embedplayer/embedplayer_test.go 对齐:两边规则必须一致。
 describe('resolveEmbedPlayer', () => {
@@ -38,5 +38,29 @@ describe('resolveEmbedPlayer', () => {
     const e = resolveEmbedPlayer('https://www.bilibili.com/video/BV117Yj6rEG4')!;
     expect(e.url).toContain('autoplay=0');
     expect(withAutoplay(e.url)).toContain('autoplay=1');
+  });
+});
+
+describe('originOnlyPlatform', () => {
+  it('names licensed long-form platforms that can only be watched at the origin', () => {
+    expect(originOnlyPlatform('https://www.bilibili.com/bangumi/play/ep1113959?theme=movie')).toBe('哔哩哔哩');
+    expect(originOnlyPlatform('https://www.bilibili.com/bangumi/play/ss101758')).toBe('哔哩哔哩');
+    expect(originOnlyPlatform('https://www.iqiyi.com/v_19rr7pm7rc.html')).toBe('爱奇艺');
+    expect(originOnlyPlatform('https://v.qq.com/x/cover/mzc002001f5siqp/n0047co551x.html')).toBe('腾讯视频');
+    expect(originOnlyPlatform('https://v.youku.com/v_show/id_XNTAyNzQxOTM2.html')).toBe('优酷');
+    expect(originOnlyPlatform('https://www.mgtv.com/b/693453/21776996.html')).toBe('芒果TV');
+  });
+
+  it('leaves embeddable, resolvable and unknown pages alone', () => {
+    for (const url of [
+      'https://www.bilibili.com/video/BV117Yj6rEG4', // 有外链播放器
+      'https://live.bilibili.com/22', // 直播间不归这里管
+      'https://www.douyin.com/video/7123456789',
+      'https://y.qq.com/n/ryqq/songDetail/1', // qq.com 下只认 v.qq.com
+      'https://www.iqiyi.com.evil.example/v_1.html',
+      '',
+    ]) {
+      expect(originOnlyPlatform(url)).toBeNull();
+    }
   });
 });

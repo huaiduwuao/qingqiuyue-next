@@ -24,7 +24,7 @@ import { usableDirectUrl } from '@/apis/stream';
 import { formatApiError } from '@/lib/api/client';
 import { TYPE_LABEL } from '@/lib/contentType.gen';
 import VideoPlayer from '@/components/detail/VideoPlayer';
-import { PlatformLinks, UnavailablePlayer, platformsOf, playNoticeOf } from '@/components/detail/ExternalPlatforms';
+import { PlatformLinks, UnavailablePlayer, platformsOf, linkOutNoticeOf } from '@/components/detail/ExternalPlatforms';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
 import { track, recordHistory } from '@/lib/track';
@@ -234,7 +234,7 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
           const direct = usableDirectUrl(active?.playUrl, active?.url);
           const platforms = platformsOf(data);
           // 没有分集、只有会员/付费平台:不交给播放器硬解析,直接说明原因。
-          const unavailable = items.length === 0 ? playNoticeOf(data) : '';
+          const unavailable = items.length === 0 ? linkOutNoticeOf(data, fallbackSource) : '';
 
           return (
             <>

@@ -7,6 +7,7 @@ import Typography from '@mui/material/Typography';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { mediaUrl } from '@/lib/media';
+import { originOnlyPlatform } from '@/lib/embedPlayer';
 
 /**
  * 全网检索收录的作品(后端 internal/discover)在详情里带:
@@ -43,6 +44,27 @@ export function platformsOf(data?: WithPlatforms | null): ExternalPlatform[] {
 /** 详情里的播放/阅读说明;没有时返回空串。 */
 export function playNoticeOf(data?: WithPlatforms | null): string {
   return typeof data?.playNotice === 'string' ? data.playNotice.trim() : '';
+}
+
+/**
+ * 播放器位置该不该直接换成「去原平台」面板,该的话返回要显示的说明,否则空串。
+ *
+ * 除了后端明说的 playNotice,还有一类:片源页是正版长视频平台或聚合索引页(见
+ * lib/embedPlayer 的 originOnlyPlatform),本站放不了也嵌不了,而详情里又带着各平台入口 ——
+ * 这时把页面交给播放器只会得到一句「不支持的URL平台 · 已记录,尽快修复」外加一条误报的
+ * 故障举报。没有任何东西坏了:如实说去哪看。
+ */
+export function linkOutNoticeOf(
+  data: (WithPlatforms & { videoUrl?: unknown }) | null | undefined,
+  sourceUrl?: string | null,
+): string {
+  const notice = playNoticeOf(data);
+  if (notice) return notice;
+  if (data?.videoUrl) return '';
+  if (originOnlyPlatform(sourceUrl) && platformsOf(data).length > 0) {
+    return '本站收录了这部作品的资料与各平台入口,正片请前往原平台观看';
+  }
+  return '';
 }
 
 function hostOf(u: string) {
@@ -141,7 +163,12 @@ export function UnavailablePlayer({
         <InfoOutlinedIcon sx={{ fontSize: 32, color: 'warning.main', mb: 1 }} />
         <Typography sx={{ fontSize: { xs: 13, sm: 15 }, lineHeight: 1.7, mb: 1.5 }}>{notice}</Typography>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}>
-          {platforms.slice(0, 4).map((p) => (
+          {/* 同一平台常有多个入口(正片 / 花絮),按钮上只写平台名 —— 同名的只留第一个,
+              其余入口在详情区的平台列表里仍然都在。 */}
+          {platforms
+            .filter((p, i, all) => all.findIndex((q) => (q.name || hostOf(q.url)) === (p.name || hostOf(p.url))) === i)
+            .slice(0, 4)
+            .map((p) => (
             <Button
               key={p.url}
               size="small"
