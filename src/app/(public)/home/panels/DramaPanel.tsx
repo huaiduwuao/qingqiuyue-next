@@ -14,7 +14,7 @@ import { homeClient } from '@/lib/api/client';
 import { CoverImage } from '@/components/common/CoverImage';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT, gradient2 } from '@/constants/gradients';
-import Masonry from 'react-masonry-css';
+import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 
 type DramaSeries = {
   id: number;
@@ -259,6 +259,7 @@ export function DramaPanel() {
         <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
           共 {dramaList.length} 部
         </Typography>
+        <ListLayoutSwitch sx={{ alignSelf: 'center' }} />
       </Box>
 
       {/* 短剧网格 */}
@@ -275,15 +276,11 @@ export function DramaPanel() {
               <Typography sx={{ color: 'text.secondary' }}>该筛选下暂无短剧</Typography>
             </Box>
           ) : (
-            <Masonry
-              breakpointCols={{ default: 6, 1400: 5, 1100: 4, 800: 3, 600: 2, 400: 1 }}
-              className="my-masonry-grid"
-              columnClassName="my-masonry-grid_column"
-            >
+            <ListLayout minColumnWidth={170} minColumns={2} listMaxWidth="var(--page-max-narrow)">
               {dramaList.map((s) => (
                 <DramaCard key={s.id} item={s} />
               ))}
-            </Masonry>
+            </ListLayout>
           )}
 
           {/* Loading more */}
@@ -453,6 +450,7 @@ function DramaCard({ item }: { item: DramaSeries }) {
     <Box
       onClick={() => navigate('TELEPLAY', item.id)}
       sx={{
+        [LIST_ROW]: { display: 'flex' },
         borderRadius: 2,
         bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))',
         border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
@@ -462,7 +460,7 @@ function DramaCard({ item }: { item: DramaSeries }) {
         '&:hover': { transform: 'translateY(-3px)', borderColor: 'var(--border-strong, rgba(255,255,255,0.16))', boxShadow: '0 12px 32px rgba(0,0,0,0.3)' },
       }}
     >
-      <Box sx={{ position: 'relative', aspectRatio: '3/4', overflow: 'hidden' }}>
+      <Box sx={{ position: 'relative', aspectRatio: '3/4', overflow: 'hidden', [LIST_ROW]: { width: { xs: 84, sm: 110 }, flexShrink: 0 } }}>
         <CoverImage src={item.cover} alt={item.title} sx={{ width: '100%', height: '100%' }} />
         <Box
           sx={{
@@ -501,13 +499,16 @@ function DramaCard({ item }: { item: DramaSeries }) {
             {item.freeEpisodes}/{item.episodes}
           </Box>
         )}
-        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, p: 1, background: 'linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.85) 100%)' }}>
+        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, p: 1, background: 'linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.85) 100%)', [LIST_ROW]: { display: 'none' } }}>
           <Typography sx={{ fontSize: 12, fontWeight: 600, color: '#fff', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
             {item.title}
           </Typography>
         </Box>
       </Box>
-      <Box sx={{ p: 1 }}>
+      <Box sx={{ p: 1, [LIST_ROW]: { flex: 1, minWidth: 0, p: 1.5, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 0.75 } }}>
+        <Typography sx={{ display: 'none', [LIST_ROW]: { display: '-webkit-box' }, fontSize: 14, fontWeight: 600, color: 'var(--text-primary, #fff)', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+          {item.title}
+        </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.25 }}>
           <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(255,255,255,0.04)', color: genreKey(item.genre) ? GENRE_COLOR[item.genre as DramaSeries['genre']] : DEFAULT_GENRE_COLOR, fontSize: 9, fontWeight: 600 }}>
             {item.genre || '其他'}

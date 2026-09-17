@@ -13,7 +13,7 @@ import { homeClient } from '@/lib/api/client';
 import { CoverImage } from '@/components/common/CoverImage';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT, gradient2 } from '@/constants/gradients';
-import Masonry from 'react-masonry-css';
+import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 
 const CAT_TO_TYPE: Record<TheaterItem['category'], string> = {
   movie: 'FILM',
@@ -313,6 +313,7 @@ export function TheaterPanel() {
         <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
           共 {theaterList.length} 部
         </Typography>
+        <ListLayoutSwitch sx={{ alignSelf: 'center' }} />
       </Box>
 
       {/* 放映厅网格 */}
@@ -329,15 +330,11 @@ export function TheaterPanel() {
               <Typography sx={{ color: 'text.secondary' }}>该分类暂无内容</Typography>
             </Box>
           ) : (
-            <Masonry
-              breakpointCols={{ default: 5, 1400: 4, 1100: 3, 800: 2, 500: 1 }}
-              className="my-masonry-grid"
-              columnClassName="my-masonry-grid_column"
-            >
+            <ListLayout minColumnWidth={240} listMaxWidth="var(--page-max-narrow)">
               {theaterList.map((item) => (
                 <TheaterCard key={item.id} item={item} />
               ))}
-            </Masonry>
+            </ListLayout>
           )}
 
           {/* Loading more */}
@@ -531,6 +528,7 @@ function TheaterCard({ item }: { item: TheaterItem }) {
     <Box
       onClick={() => navigate(CAT_TO_TYPE[item.category], item.id)}
       sx={{
+        [LIST_ROW]: { display: 'flex' },
         borderRadius: 2,
         bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))',
         border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
@@ -540,7 +538,7 @@ function TheaterCard({ item }: { item: TheaterItem }) {
         '&:hover': { transform: 'translateY(-3px)', borderColor: 'var(--border-strong, rgba(255,255,255,0.16))', boxShadow: '0 12px 32px rgba(0,0,0,0.3)' },
       }}
     >
-      <Box sx={{ position: 'relative', aspectRatio: '16/9', overflow: 'hidden' }}>
+      <Box sx={{ position: 'relative', aspectRatio: '16/9', overflow: 'hidden', [LIST_ROW]: { width: { xs: 140, sm: 220 }, flexShrink: 0 } }}>
         <CoverImage src={item.cover} alt={item.title} sx={{ width: '100%', height: '100%' }} />
         <Box
           sx={{
@@ -568,7 +566,7 @@ function TheaterCard({ item }: { item: TheaterItem }) {
           {item.durationMin ?? '-'} 分钟
         </Box>
       </Box>
-      <Box sx={{ p: 1.5 }}>
+      <Box sx={{ p: 1.5, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
         <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary, #ffffff)', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden', mb: 0.5 }}>
           {item.title}
         </Typography>

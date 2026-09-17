@@ -13,6 +13,7 @@ import { CircleSuggestions, FollowBar, FriendBar, sideCardSx, type Circle } from
 import { TopicFollowButton } from './TopicFollowButton';
 import { BotBadge } from './UserLine';
 import { compactCount, topicHref } from './format';
+import { useListLayout } from '@/lib/listLayoutPrefs';
 
 type Scope = 'square' | Circle;
 
@@ -37,6 +38,7 @@ export function CommunityPanel() {
   const scope: Scope = rawScope === 'follow' || rawScope === 'friend' ? rawScope : 'square';
   const circle = scope === 'square' ? undefined : scope;
   const hint = SCOPES.find((s) => s.key === scope)!.hint;
+  const [layout] = useListLayout();
 
   const setScope = (next: Scope) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -49,7 +51,8 @@ export function CommunityPanel() {
 
   return (
     <Box sx={{ px: { xs: 1.5, md: 3 }, py: 2, display: 'flex', gap: 3, alignItems: 'flex-start', justifyContent: 'center' }}>
-      <Box sx={{ flex: 1, minWidth: 0, maxWidth: 680 }}>
+      {/* 列表样式单列阅读,限宽;瀑布流/网格铺开,宽屏多列 */}
+      <Box sx={{ flex: 1, minWidth: 0, maxWidth: layout === 'list' ? 'var(--page-max-narrow)' : 'var(--page-max)' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1.5 }}>
           <Box sx={{ width: 34, height: 34, borderRadius: 1.5, background: 'linear-gradient(135deg, #25F4EE 0%, #5B8DEF 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <DynamicFeedRoundedIcon sx={{ fontSize: 19, color: '#fff' }} />

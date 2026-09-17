@@ -24,7 +24,7 @@ import { useContentNavigate } from '@/lib/contentRoute';
 import { fetchSubcategories, type SubcategoryItem } from '@/apis/home-discover';
 import { moduleContentPage } from '@/apis/home';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
-import Masonry from 'react-masonry-css';
+import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import FadeContent from '@/components/reactbits/FadeContent';
 import SpotlightCard from '@/components/reactbits/SpotlightCard';
 import MusicPlayButton from '@/components/player/MusicPlayButton';
@@ -378,6 +378,7 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
           }}
         >
           {tab === 'home' && (
+            <Box sx={{ display: 'flex', alignItems: 'center', pr: 1.5 }}>
             <Tabs
               value={section}
               onChange={(_, v) => setSection(v)}
@@ -385,6 +386,8 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
               scrollButtons="auto"
               allowScrollButtonsMobile
               sx={{
+                flex: 1,
+                minWidth: 0,
                 minHeight: 44,
                 px: 1,
                 '& .MuiTab-root': {
@@ -407,6 +410,8 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
                 <Tab key={s.key} value={s.key} label={s.label} />
               ))}
             </Tabs>
+            <ListLayoutSwitch />
+            </Box>
           )}
           {/* 二级子分类(题材):选中某类型(如小说)后,展示该类型下的分类来筛选 */}
           {tab === 'home' && parentType && (
@@ -562,17 +567,13 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
           ) : (
             <Box sx={{ p: 2 }}>
               {feedList.length > 0 ? (
-                <Masonry
-                  breakpointCols={{ default: 4, 1400: 3, 1100: 2, 900: 2, 600: 2, 420: 1 }}
-                  className="my-masonry-grid"
-                  columnClassName="my-masonry-grid_column"
-                >
+                <ListLayout minColumnWidth={260} listMaxWidth="var(--page-max-narrow)">
                   {feedList.map((item, i) => (
                     <FadeContent key={item.id} distance={14} duration={480} delay={Math.min(i % 8, 6) * 35}>
                       <FeedCard item={item} />
                     </FadeContent>
                   ))}
-                </Masonry>
+                </ListLayout>
               ) : (
                 <EmptyHint tab={tab} section={section} />
               )}
@@ -627,12 +628,13 @@ function FeedCard({ item }: { item: FeedItem }) {
         overflow: 'hidden',
         cursor: targetType ? 'pointer' : 'default',
         transition: 'transform 0.2s, border-color 0.2s, box-shadow 0.2s',
+        [LIST_ROW]: { display: 'flex' },
         '&:hover': targetType
           ? { transform: 'translateY(-3px)', borderColor: 'var(--border-strong, rgba(255,255,255,0.12))', boxShadow: '0 14px 32px rgba(0,0,0,0.18)' }
           : {},
       }}
     >
-      <Box sx={{ position: 'relative', aspectRatio: '16/9', bgcolor: 'var(--bg-input, rgba(255,255,255,0.04))', overflow: 'hidden' }}>
+      <Box sx={{ position: 'relative', aspectRatio: '16/9', bgcolor: 'var(--bg-input, rgba(255,255,255,0.04))', overflow: 'hidden', [LIST_ROW]: { width: { xs: 140, sm: 240 }, flexShrink: 0, alignSelf: 'center' } }}>
         <CoverImage src={item.cover} alt={item.title} sx={{ width: '100%', height: '100%' }} />
         {item.isLive ? (
           <Chip
@@ -700,7 +702,7 @@ function FeedCard({ item }: { item: FeedItem }) {
         )}
       </Box>
 
-      <Box sx={{ p: 1.5 }}>
+      <Box sx={{ p: 1.5, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
         <Typography
           sx={{
             fontSize: 13,

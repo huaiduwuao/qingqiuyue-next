@@ -11,6 +11,7 @@ import Alert from '@mui/material/Alert';
 import { fetchFeed, fetchFeedItem, type FeedItem, type FeedTab, type Id, type TopicBrief } from '@/apis/community';
 import { FeedCard, FeedCardSkeleton, type Notify } from './FeedCard';
 import { PostComposer } from './PostComposer';
+import { ListLayout, ListLayoutSwitch } from '@/components/common/ListLayout';
 
 const PAGE_SIZE = 15;
 
@@ -88,6 +89,7 @@ export function CommunityFeed({ topic, userId, focusFeedId, circle }: { topic?: 
       {!userId && circle !== 'follow' && !needLogin && <PostComposer presetTopic={topic} notify={notify} onPosted={addFresh} />}
 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        <ListLayoutSwitch />
         <Box sx={{ flex: 1 }} />
         {(['hot', 'new'] as const).map((s) => (
           <Box
@@ -135,7 +137,9 @@ export function CommunityFeed({ topic, userId, focusFeedId, circle }: { topic?: 
           <Empty title={topic ? '这里还没有讨论' : '还没有人发帖'} hint="来发第一条吧" />
         )
       ) : (
-        items.map((it) => <FeedCard key={String(it.id)} item={it} notify={notify} onDeleted={onDeleted} />)
+        <ListLayout minColumnWidth={340}>
+          {items.map((it) => <FeedCard key={String(it.id)} item={it} notify={notify} onDeleted={onDeleted} />)}
+        </ListLayout>
       )}
 
       {isFetchingNextPage && <FeedCardSkeleton />}

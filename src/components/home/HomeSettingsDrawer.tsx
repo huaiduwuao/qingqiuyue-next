@@ -22,6 +22,7 @@ import { updateUser } from '@/apis/account';
 import { useHomeSettings } from '@/hooks/useHomeSettings';
 import { useRouter } from 'next/navigation';
 import { resetAIPrefs, useAIPrefs } from '@/lib/aiPrefs';
+import { ListLayoutSwitch } from '@/components/common/ListLayout';
 
 interface Props {
   open: boolean;
@@ -202,6 +203,13 @@ export function HomeSettingsDrawer({ open, onClose }: Props) {
                   onChange={(_, v) => setTheme(v ? 'dark' : 'light')}
                 />
               }
+              divider
+            />
+            {/* 和各列表头部的切换按钮共用一个偏好,改了立即生效 */}
+            <Row
+              label="列表样式"
+              desc="瀑布流 / 网格 / 列表,全站内容列表通用"
+              control={<ListLayoutSwitch />}
               divider
             />
             <Box sx={{ py: 1.25 }}>

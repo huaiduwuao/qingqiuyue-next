@@ -31,6 +31,8 @@ import { useAIPrefs } from '@/lib/aiPrefs';
 import LeaderboardMini from '@/components/leaderboard/LeaderboardMini';
 import SpotlightCard from '@/components/reactbits/SpotlightCard';
 import FadeContent from '@/components/reactbits/FadeContent';
+import { ListLayout, ListLayoutSwitch } from '@/components/common/ListLayout';
+import { useListLayout } from '@/lib/listLayoutPrefs';
 
 // 右侧边栏渐变色映射
 const GRADIENT_BY_TYPE: Record<string, string> = {
@@ -104,6 +106,7 @@ export default function HomeRecommendPage() {
   const router = useRouter();
   const [aiPrefs] = useAIPrefs();
   const quickLinks = QUICK_LINKS.filter((l) => l.key !== 'ai' || aiPrefs.aiEntry);
+  const [layout] = useListLayout();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   // 兼容 tab 和 section 两种 URL 参数名（后端用 section，前端导航用 tab）
@@ -142,8 +145,10 @@ export default function HomeRecommendPage() {
           ...(contentType ? { contentType } : {}),
           orderBy: 'COLLECT',
         }) as any;
-        const records: ContentItem[] = resp?.data?.data?.list || resp?.data?.data?.records || [];
-        const total = resp?.data?.data?.total || resp?.data?.data?.totalRow || 0;
+        // contentClient 已解一层,resp 是 { code, data: { list, total } };之前多取了一层 data,分类页永远是空的
+        const page = resp?.data ?? {};
+        const records: ContentItem[] = page.list || page.records || [];
+        const total = page.total || page.totalRow || 0;
         return { records, total, page: pageParam };
       } catch (err) {
         console.error('[HomeRecommend] contentQuery error:', err);
@@ -174,9 +179,9 @@ export default function HomeRecommendPage() {
     tabFromUrl,
   });
 
-  // 填充到 PAGE_SIZE 个以便瀑布流显示
+  // 填充到 PAGE_SIZE 个以便瀑布流显示(列表样式不补位)
   const displayList = React.useMemo(() => {
-    if (contentList.length >= PAGE_SIZE) return contentList;
+    if (contentList.length >= PAGE_SIZE || layout === 'list') return contentList;
     const placeholders: ContentItem[] = Array.from({ length: PAGE_SIZE - contentList.length }).map((_, i) => ({
       id: -(contentList.length + i + 1),
       title: '',
@@ -184,7 +189,7 @@ export default function HomeRecommendPage() {
       status: 'placeholder',
     } as ContentItem));
     return [...contentList, ...placeholders];
-  }, [contentList]);
+  }, [contentList, layout]);
 
   const loading = tabFromUrl === 'recommend' ? false : isLoading;
 
@@ -305,28 +310,25 @@ export default function HomeRecommendPage() {
               {l.label}
             </Box>
           ))}
+          <Box sx={{ flex: 1 }} />
+          <ListLayoutSwitch />
         </Box>
 
         {/* 内容瀑布流 - 使用 CSS Grid 避免 Masonry 数据丢失问题 */}
         {loading ? (
           <Box sx={{
             display: 'grid',
-            gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
+            gridTemplateColumns: 'repeat(auto-fill, minmax(min(200px, 45%), 1fr))',
             gap: { xs: 1.25, md: 2 }
           }}>
-            {Array.from({ length: 6 }).map((_, i) => (
+            {Array.from({ length: 8 }).map((_, i) => (
               <Skeleton key={i} variant="rounded" sx={{ aspectRatio: '4/5', bgcolor: 'action.hover' }} />
             ))}
           </Box>
         ) : (
           <Box>
-            {/* 瀑布流使用 CSS Grid + masonry 布局 */}
-            <Box sx={{
-              // 手机也走两列:一列 4:5 的大卡在 375px 上一屏只放一张,像没内容
-              columns: { xs: 2, md: 3 },
-              columnGap: { xs: 10, md: 16 },
-              '& > *': { mb: { xs: 1.25, md: 2 }, breakInside: 'avoid' }
-            }}>
+            {/* 列数随容器宽度增加,宽屏不再固定 3 列大卡;手机也至少两列:一列 4:5 的大卡在 375px 上一屏只放一张,像没内容 */}
+            <ListLayout minColumnWidth={200} minColumns={2} gap={14} listMaxWidth="var(--page-max-narrow)">
               {displayList.map((item, idx) => {
                 const rank = idx + 1;
                 const hasContent = item.id > 0;
@@ -335,6 +337,10 @@ export default function HomeRecommendPage() {
 
                 if (!hasContent) {
                   return <Box key={`placeholder-${idx}`} sx={{ aspectRatio: '4/5' }} />;
+                }
+
+                if (layout === 'list') {
+                  return <RecommendRow key={`content-${item.id}`} item={item} rank={rank} gradient={gradient} onOpen={() => handleCardClick(item)} />;
                 }
 
                 // 短剧卡片:默认与普通卡片一致,但支持「▶ 第一集」就地内嵌播放
@@ -358,6 +364,7 @@ export default function HomeRecommendPage() {
                     onClick={() => handleCardClick(item)}
                     sx={{
                       position: 'relative',
+                      aspectRatio: '4/5',
                       borderRadius: 2,
                       overflow: 'hidden',
                       cursor: 'pointer',
@@ -483,13 +490,13 @@ export default function HomeRecommendPage() {
                   </FadeContent>
                 );
               })}
-            </Box>
+            </ListLayout>
 
             {/* Loading more skeleton */}
             {loadingMore && (
               <Box sx={{
                 display: 'grid',
-                gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
+                gridTemplateColumns: 'repeat(auto-fill, minmax(min(200px, 45%), 1fr))',
                 gap: 2,
                 mt: 2
               }}>
@@ -518,6 +525,63 @@ export default function HomeRecommendPage() {
 
       {/* 右侧边栏 */}
       <RecommendRightSidebar />
+    </Box>
+  );
+}
+
+// 列表样式下的一行:小封面 + 标题 + 类型/热度
+function RecommendRow({ item, rank, gradient, onOpen }: { item: ContentItem; rank: number; gradient: string; onOpen: () => void }) {
+  const cover = item.cover || item.coverUrl;
+  return (
+    <Box
+      onClick={onOpen}
+      sx={{
+        display: 'flex',
+        gap: 1.5,
+        p: 1,
+        borderRadius: 2,
+        cursor: 'pointer',
+        bgcolor: 'var(--bg-card, rgba(20, 22, 32, 0.6))',
+        border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
+        transition: 'border-color 0.15s, background-color 0.15s',
+        '&:hover': { borderColor: 'var(--border-strong, rgba(255,255,255,0.16))', bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))' },
+      }}
+    >
+      <Box sx={{ position: 'relative', width: { xs: 72, sm: 88 }, aspectRatio: '4/5', flexShrink: 0, borderRadius: 1.5, overflow: 'hidden', background: gradient }}>
+        {cover && <CoverImage src={cover} alt={item.title} sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />}
+        <Box
+          sx={{
+            position: 'absolute', top: 0, left: 0, minWidth: 22, height: 22, px: 0.5,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 12, fontWeight: 800, fontFamily: 'monospace', color: '#fff',
+            background: rank <= 3 ? RANK_BG[rank] : 'rgba(0,0,0,0.5)',
+            borderBottomRightRadius: 6,
+          }}
+        >
+          {rank}
+        </Box>
+      </Box>
+      <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 0.75 }}>
+        <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'text.primary', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+          {item.title}
+        </Typography>
+        {item.subtitle && (
+          <Typography sx={{ fontSize: 12, color: 'text.secondary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {item.subtitle}
+          </Typography>
+        )}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 11, color: 'text.secondary' }}>
+          <Box sx={{ px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(255, 88, 88, 0.15)', color: 'primary.main', fontSize: 10, fontWeight: 600 }}>
+            {TYPE_TO_CHIP[item.contentType] ?? '推荐'}
+          </Box>
+          {item.author?.nickname && <span>{item.author.nickname}</span>}
+          {item.viewCount !== undefined && (
+            <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25 }}>
+              <PlayArrowRoundedIcon sx={{ fontSize: 12 }} />{formatCount(item.viewCount)}
+            </Box>
+          )}
+        </Box>
+      </Box>
     </Box>
   );
 }

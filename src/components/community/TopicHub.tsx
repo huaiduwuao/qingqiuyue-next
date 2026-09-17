@@ -13,6 +13,7 @@ import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import VerifiedRoundedIcon from '@mui/icons-material/VerifiedRounded';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchTopics, type CommunityTopic } from '@/apis/community';
+import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import { TopicFollowButton } from './TopicFollowButton';
 import { compactCount, topicGradient, topicHref } from './format';
 
@@ -44,7 +45,8 @@ export function TopicHub() {
   const collectionList = collections.data?.pages.flatMap((p) => p.list) ?? [];
 
   return (
-    <Box sx={{ px: { xs: 1.5, md: 3 }, py: 2, maxWidth: 'var(--page-max)', mx: 'auto' }}>
+    // main 是列向 flex:只写 mx:auto 不给宽度会缩成内容宽,宽屏上整页挤成中间一窄条
+    <Box sx={{ px: { xs: 1.5, md: 3 }, py: 2, width: '100%', maxWidth: 'var(--page-max)', mx: 'auto', boxSizing: 'border-box' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 2, flexWrap: 'wrap' }}>
         <Box sx={{ width: 34, height: 34, borderRadius: 1.5, background: 'linear-gradient(135deg, #FF8A3D 0%, #FE2C55 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <CollectionsRoundedIcon sx={{ fontSize: 19, color: '#fff' }} />
@@ -57,6 +59,7 @@ export function TopicHub() {
           <SearchRoundedIcon sx={{ fontSize: 17, color: 'var(--text-muted, rgba(255,255,255,0.45))' }} />
           <InputBase value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜索专题或话题" sx={{ flex: 1, fontSize: 13, color: 'var(--text-primary, #fff)' }} />
         </Box>
+        <ListLayoutSwitch />
       </Box>
 
       {!keyword && (mine.data?.list.length ?? 0) > 0 && (
@@ -77,9 +80,9 @@ export function TopicHub() {
         ) : (hot.data?.list.length ?? 0) === 0 ? (
           <Typography sx={{ fontSize: 12, color: 'var(--text-muted, rgba(255,255,255,0.45))' }}>没有找到相关话题</Typography>
         ) : (
-          <Grid min={220}>
+          <ListLayout minColumnWidth={240} listMaxWidth="var(--page-max-narrow)">
             {hot.data!.list.map((t, i) => <TopicTile key={String(t.id)} topic={t} rank={keyword ? undefined : i + 1} />)}
-          </Grid>
+          </ListLayout>
         )}
       </Section>
 
@@ -90,7 +93,9 @@ export function TopicHub() {
           <Typography sx={{ fontSize: 12, color: 'var(--text-muted, rgba(255,255,255,0.45))' }}>没有找到相关合集</Typography>
         ) : (
           <>
-            <Grid min={240}>{collectionList.map((t) => <CollectionCard key={String(t.id)} topic={t} />)}</Grid>
+            <ListLayout minColumnWidth={260} listMaxWidth="var(--page-max-narrow)">
+              {collectionList.map((t) => <CollectionCard key={String(t.id)} topic={t} />)}
+            </ListLayout>
             {collections.hasNextPage && (
               <Box sx={{ textAlign: 'center', mt: 2 }}>
                 <Button size="small" disabled={collections.isFetchingNextPage} onClick={() => collections.fetchNextPage()}>加载更多</Button>
@@ -140,13 +145,13 @@ function TopicTile({ topic, rank }: { topic: CommunityTopic; rank?: number }) {
 
 function CollectionCard({ topic }: { topic: CommunityTopic }) {
   return (
-    <Box component={Link} href={topicHref(topic.id)} sx={{ ...cardSx, overflow: 'hidden', textDecoration: 'none', transition: 'transform .2s', '&:hover': { transform: 'translateY(-2px)' } }}>
-      <Box sx={{ height: 110, position: 'relative', background: topic.cover ? `center/cover url(${topic.cover})` : topicGradient(topic.title) }}>
+    <Box component={Link} href={topicHref(topic.id)} sx={{ ...cardSx, display: 'block', overflow: 'hidden', textDecoration: 'none', transition: 'transform .2s', '&:hover': { transform: 'translateY(-2px)' }, [LIST_ROW]: { display: 'flex' } }}>
+      <Box sx={{ height: 110, position: 'relative', background: topic.cover ? `center/cover url(${topic.cover})` : topicGradient(topic.title), [LIST_ROW]: { height: 'auto', minHeight: 96, width: { xs: 120, sm: 200 }, flexShrink: 0 } }}>
         {!topic.cover && (
-          <Typography sx={{ position: 'absolute', left: 14, bottom: 10, right: 14, fontSize: 20, fontWeight: 900, color: '#fff', textShadow: '0 2px 8px rgba(0,0,0,0.25)' }}>{topic.title}</Typography>
+          <Typography sx={{ position: 'absolute', left: 14, bottom: 10, right: 14, fontSize: 20, fontWeight: 900, [LIST_ROW]: { fontSize: 15, left: 10, right: 10 }, color: '#fff', textShadow: '0 2px 8px rgba(0,0,0,0.25)' }}>{topic.title}</Typography>
         )}
       </Box>
-      <Box sx={{ p: 1.5 }}>
+      <Box sx={{ p: 1.5, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           <Typography sx={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary, #fff)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{topic.title}</Typography>
           {topic.official && <VerifiedRoundedIcon sx={{ fontSize: 14, color: '#5B8DEF' }} />}
