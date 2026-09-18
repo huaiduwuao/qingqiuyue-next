@@ -215,8 +215,8 @@ export function AddressTab({ userId }: { userId: number | string }) {
             </Typography>
             <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.5 }}>{`${a.province ?? ''}${a.city ?? ''}${a.area ?? ''}${a.detail}`}</Typography>
           </Box>
-          <Button size="small" onClick={() => setEdit({ ...a })} sx={{ textTransform: 'none' }}>编辑</Button>
-          <Button size="small" color="error" onClick={() => a.id && remove.mutate(a.id)} sx={{ textTransform: 'none' }}>删除</Button>
+          <Button variant="text" size="small" onClick={() => setEdit({ ...a })} sx={{ textTransform: 'none' }}>编辑</Button>
+          <Button variant="text" size="small" color="error" onClick={() => a.id && remove.mutate(a.id)} sx={{ textTransform: 'none' }}>删除</Button>
         </Box>
       ))}
 
@@ -248,7 +248,7 @@ export function AddressTab({ userId }: { userId: number | string }) {
                   onChange={(e) => {
                     const c = cities.data?.find((r) => r.code === e.target.value);
                     // 直辖市的"市"和省同名,不重复写进地址
-                    setEdit({ ...edit, cityCode: c?.code, city: c?.name === edit.province ? '' : c?.name, areaCode: undefined, area: undefined });
+                    setEdit({ ...edit, cityCode: c?.code, city: c?.name && edit.province && c.name.startsWith(edit.province) ? '' : c?.name, areaCode: undefined, area: undefined });
                   }}
                 >
                   {(cities.data ?? []).map((r) => <MenuItem key={r.code} value={r.code}>{r.name}</MenuItem>)}
@@ -283,7 +283,7 @@ export function AddressTab({ userId }: { userId: number | string }) {
           </DialogContent>
         )}
         <DialogActions>
-          <Button onClick={() => setEdit(null)}>取消</Button>
+          <Button variant="text" onClick={() => setEdit(null)}>取消</Button>
           <Button variant="contained" disabled={save.isPending} onClick={() => edit && save.mutate(edit)}>保存</Button>
         </DialogActions>
       </Dialog>

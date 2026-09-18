@@ -10,6 +10,7 @@ import Typography from '@mui/material/Typography';
 import SyncRoundedIcon from '@mui/icons-material/SyncRounded';
 import { formatApiError } from '@/lib/api/client';
 import { getWxMpStatus, syncWxFollowers } from '@/apis/wx-mp';
+import { WxMpConfigDialog } from './WxMpConfigDialog';
 
 /**
  * 公众号四页(菜单 / 自动回复 / 消息 / 用户)顶部的接入状态。
@@ -18,6 +19,7 @@ import { getWxMpStatus, syncWxFollowers } from '@/apis/wx-mp';
 export function WxMpStatusBar({ showSync, invalidateKey }: { showSync?: boolean; invalidateKey?: unknown[] }) {
   const qc = useQueryClient();
   const [toast, setToast] = useState<string | null>(null);
+  const [configOpen, setConfigOpen] = useState(false);
   const q = useQuery({ queryKey: ['wx-mp-status'], queryFn: getWxMpStatus, staleTime: 60_000 });
   const sync = useMutation({
     mutationFn: syncWxFollowers,
@@ -39,8 +41,7 @@ export function WxMpStatusBar({ showSync, invalidateKey }: { showSync?: boolean;
     severity = 'info';
     text = (
       <>
-        还没有接入公众号。到「基础数据 → 微信配置」添加一行 <b>type = mp</b>(服务号的 AppID、AppSecret、Token,可选 EncodingAESKey);
-        小程序另加一行 <b>type = ma</b>。配好后这里会显示回调地址。
+        还没有接入公众号。点右侧「接入配置」填写服务号的 AppID、AppSecret、Token(可选 EncodingAESKey),小程序在同一个对话框里配。
       </>
     );
   } else if (!s.tokenOK || !s.hasToken) {
@@ -48,7 +49,7 @@ export function WxMpStatusBar({ showSync, invalidateKey }: { showSync?: boolean;
     text = (
       <>
         {s.message || '微信配置里缺少 Token,服务器回调的验签会失败。'}
-        {!s.hasToken && s.tokenOK && ' 请在「微信配置」里填写与公众号后台一致的 Token。'}
+        {!s.hasToken && s.tokenOK && ' 请在「接入配置」里填写与公众号后台一致的 Token。'}
       </>
     );
   } else {
@@ -69,15 +70,19 @@ export function WxMpStatusBar({ showSync, invalidateKey }: { showSync?: boolean;
       <Alert
         severity={severity}
         action={
-          showSync && s.configured && s.tokenOK ? (
-            <Button color="inherit" size="small" startIcon={<SyncRoundedIcon />} disabled={sync.isPending} onClick={() => sync.mutate()}>
-              {sync.isPending ? '同步中…' : '同步关注者'}
-            </Button>
-          ) : undefined
+          <>
+            {showSync && s.configured && s.tokenOK && (
+              <Button variant="text" color="inherit" size="small" startIcon={<SyncRoundedIcon />} disabled={sync.isPending} onClick={() => sync.mutate()}>
+                {sync.isPending ? '同步中…' : '同步关注者'}
+              </Button>
+            )}
+            <Button variant="text" color="inherit" size="small" onClick={() => setConfigOpen(true)}>接入配置</Button>
+          </>
         }
       >
         {text}
       </Alert>
+      <WxMpConfigDialog open={configOpen} onClose={() => setConfigOpen(false)} />
       <Snackbar open={!!toast} autoHideDuration={4000} onClose={() => setToast(null)} message={toast} />
     </Box>
   );

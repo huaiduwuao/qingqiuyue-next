@@ -24,6 +24,27 @@ export async function getWxMpStatus(): Promise<WxMpStatus> {
   return unwrap<WxMpStatus>(await adminClient('/admin/wx/mp/status'));
 }
 
+export type WxAppKind = 'mp' | 'ma';
+
+/** 接入配置的现状。密钥只进不出:只告诉你填没填 */
+export interface WxAppConfig {
+  exists: boolean;
+  appId?: string;
+  enabled?: boolean;
+  hasSecret?: boolean;
+  hasToken?: boolean;
+  hasAesKey?: boolean;
+}
+
+export async function getWxMpConfig(): Promise<Record<WxAppKind, WxAppConfig>> {
+  return unwrap(await adminClient('/admin/wx/mp/config'));
+}
+
+/** 密钥类字段留空 = 不修改 */
+export async function saveWxMpConfig(body: { type: WxAppKind; appId: string; appSecret?: string; token?: string; aesKey?: string }): Promise<any> {
+  return adminClient.post('/admin/wx/mp/config', body);
+}
+
 export interface WxMenuNode {
   id: string;
   name: string;

@@ -128,7 +128,7 @@ export function GiftButton({ creatorId, contentId, creatorName }: GiftButtonProp
           )}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setOpen(false)}>{done ? '关闭' : '取消'}</Button>
+          <Button variant="text" onClick={() => setOpen(false)}>{done ? '关闭' : '取消'}</Button>
           {!done && (
             <Button variant="contained" disabled={!gift || insufficient || send.isPending} onClick={() => send.mutate()}>
               {send.isPending ? '处理中…' : gift ? `送出 ${diamonds(total).toLocaleString()} 钻` : '选择礼物'}
