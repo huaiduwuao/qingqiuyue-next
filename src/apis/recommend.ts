@@ -19,12 +19,26 @@ export const reportBehavior = (data: {
 //   embeddable     —— 不走本站播放器,但源站有官方外链播放器,iframe 嵌在本站页面里播
 //                     (embedUrl / embedProvider 随之下发;sourceUrl 是源站页面,不是流)。
 //                     站内看得到画面,不要当成不可播去打标或过滤
+//
+// 同一个字段还承载「能不能读」这条轴(小说/漫画/文章/新闻)。合成一个枚举是因为
+// 前端每个卡片、每个详情页问的都是同一个问题——"这条内容用户在站内能不能消费":
+//   readable       —— 站内有正文,点开就能读完
+//   partial_text   —— 只入库了一部分章节(readyItems/totalItems 说明到什么程度)
+//   catalog_only   —— **只有目录,一章正文都没有**。这是线上小说的普遍状态:
+//                     点开阅读器就是一片空白。以前它对外报 not_applicable,
+//                     和一本完整的书完全同形
+//   external_only  —— 站内连目录都没有,只收录了书目信息,给去原站的入口
+//   not_applicable —— 壁纸/图集/人物词条:两条轴都不适用
 export type PlaybackStatus =
   | 'playable'
   | 'pending_repair'
   | 'live_offline'
   | 'bandwidth_limited'
   | 'embeddable'
+  | 'readable'
+  | 'partial_text'
+  | 'catalog_only'
+  | 'external_only'
   | 'not_applicable'
   | 'unknown';
 
@@ -55,6 +69,14 @@ export interface FeedItem {
   /** playbackStatus=embeddable 时:源站官方外链播放器的 iframe 地址与平台名 */
   embedUrl?: string;
   embedProvider?: string;
+
+  // ── 可读性(正文类内容)──
+  /** 站内读得到正文(readable / partial_text)。和 playable 并列:一个决定要不要
+   *  渲染播放器,一个决定要不要渲染阅读器,两者不能互相冒充。 */
+  readable?: boolean;
+  /** 站内已入库正文的章节数 / 目录总章节数 —— 「共 900 章，站内 20 章」。 */
+  readyItems?: number;
+  totalItems?: number;
 }
 
 export interface FeedResult {

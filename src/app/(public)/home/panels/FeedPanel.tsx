@@ -43,6 +43,8 @@ import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/List
 import MusicPlaylistShelf from '@/components/player/MusicPlaylistShelf';
 import FadeContent from '@/components/reactbits/FadeContent';
 import SpotlightCard from '@/components/reactbits/SpotlightCard';
+import { AvailabilityBadge } from '@/components/common/AvailabilityBadge';
+import type { PlaybackStatus } from '@/apis/recommend';
 import MusicPlayButton from '@/components/player/MusicPlayButton';
 import SplitText from '@/components/reactbits/SplitText';
 import BlurText from '@/components/reactbits/BlurText';
@@ -80,6 +82,12 @@ type FeedItem = {
   category: 'video' | 'live' | 'image' | 'short';
   /** 频道 id(?section=);不再是固定枚举,用户可自建,见 lib/homeSections */
   section: string;
+  /** 站内能不能看/能不能读(后端 internal/playability 两条轴共用一个枚举)。
+   *  /recommend/feed 随内容一起下发;走 moduleContentPage 的频道暂时没有,
+   *  此时角标不显示 —— 宁可不说,也不要猜。 */
+  playbackStatus?: PlaybackStatus;
+  readyItems?: number;
+  totalItems?: number;
 };
 
 type FeedResp = { list: FeedItem[]; total: number; page: number; size: number };
@@ -764,6 +772,14 @@ function FeedCard({ item }: { item: FeedItem }) {
     >
       <Box sx={{ position: 'relative', aspectRatio: '16/9', bgcolor: 'var(--bg-input, rgba(255,255,255,0.04))', overflow: 'hidden', [LIST_ROW]: { width: { xs: 140, sm: 240 }, flexShrink: 0, alignSelf: 'center' } }}>
         <CoverImage src={item.cover} alt={item.title} sx={{ width: '100%', height: '100%' }} />
+        {/* 站内能不能看/能不能读,在卡片上就说清楚。用户点进去才发现是空白页
+            或者"去原站看",是这个产品最主要的一种挫败来源。 */}
+        <AvailabilityBadge
+          variant="overlay"
+          status={item.playbackStatus}
+          readyItems={item.readyItems}
+          totalItems={item.totalItems}
+        />
         {item.isLive ? (
           <Chip
             icon={<LiveTvRoundedIcon sx={{ fontSize: 12, color: '#ffffff !important' }} />}

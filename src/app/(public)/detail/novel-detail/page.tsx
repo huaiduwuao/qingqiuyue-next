@@ -27,6 +27,8 @@ import { lightTheme, darkTheme } from '@/styles/theme';
 import { DetailComments } from '@/components/detail/DetailComments';
 import { DetailFooter } from '@/components/detail/DetailFooter';
 import { PlatformLinks, platformsOf, playNoticeOf } from '@/components/detail/ExternalPlatforms';
+import { AvailabilityBadge } from '@/components/common/AvailabilityBadge';
+import type { PlaybackStatus } from '@/apis/recommend';
 import { ChapterBlock, type ChapterBody } from '@/components/novel-reader/ChapterBlock';
 import { ReaderChrome, type ReaderPanel } from '@/components/novel-reader/ReaderChrome';
 import {
@@ -54,6 +56,17 @@ interface NovelDetail {
   commentCount?: number;
   playNotice?: string;
   platforms?: unknown;
+  /** 站内到底能不能读(后端 internal/playability 的阅读轴,见 content_availability.go)。
+   *  线上绝大多数书是 catalog_only:目录齐全、正文一个字都没有。 */
+  availability?: {
+    axis?: string;
+    status?: PlaybackStatus;
+    readable?: boolean;
+    notice?: string;
+    readyItems?: number;
+    totalItems?: number;
+    sourceUrl?: string;
+  };
 }
 
 /** 发布表单创建的旧作品没有章节子行,章节以 {chapters:[{title, body}]} 存在 content 里。 */
@@ -90,6 +103,11 @@ function ReaderMuiScope({ theme, children }: { theme: ReaderTheme; children: Rea
 function BookCover({ detail, theme, chapterTotal, onStart, empty }: { detail?: NovelDetail; theme: ReaderTheme; chapterTotal: number; onStart?: () => void; empty?: React.ReactNode }) {
   // 旧作品的 content 是章节 JSON,不能当简介
   const intro = (detail?.description || (detail?.content?.trim().startsWith('{') ? '' : detail?.content) || '').trim();
+  const avail = detail?.availability;
+  // 有目录、没正文 —— 线上绝大多数书就是这个状态。此时"开始阅读"是个谎:点下去
+  // 翻的是一本空白书。后端没下发 availability 时(未部署 / Doris 抖动)保持原样,
+  // 宁可不说也不要说错。
+  const textMissing = avail?.status !== undefined && avail.readable === false;
   const stats = [
     chapterTotal > 0 && { value: chapterTotal.toLocaleString(), label: '章节' },
     typeof detail?.rating === 'number' && detail.rating > 0 && { value: detail.rating.toFixed(1), label: '评分' },
@@ -118,6 +136,12 @@ function BookCover({ detail, theme, chapterTotal, onStart, empty }: { detail?: N
       <Box component="h2" sx={{ m: 0, mt: 2.5, fontSize: { xs: 28, sm: 36 }, lineHeight: 1.25, fontWeight: 500, wordBreak: 'break-word' }}>
         {detail?.title || '未命名小说'}
       </Box>
+      {/* 站内能不能读,在扉页上就说清楚 —— 不要等用户翻到第一章才发现是空白。 */}
+      {avail?.status && (
+        <Box sx={{ mt: 1.5, display: 'flex', justifyContent: 'center' }}>
+          <AvailabilityBadge status={avail.status} readyItems={avail.readyItems} totalItems={avail.totalItems} />
+        </Box>
+      )}
       {detail?.author && <Box sx={{ mt: 1, fontSize: 14, color: theme.sub }}>{detail.author} 著</Box>}
       {stats.length > 0 && (
         <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center', gap: { xs: 4, sm: 10 } }}>
@@ -149,10 +173,30 @@ function BookCover({ detail, theme, chapterTotal, onStart, empty }: { detail?: N
           {intro}
         </Box>
       )}
-      {onStart && (
+      {onStart && !textMissing && (
         <Button onClick={onStart} variant="contained" disableElevation sx={{ mt: 4, px: 5, borderRadius: '20px', bgcolor: READER_ACCENT, '&:hover': { bgcolor: '#C9262F' } }}>
           开始阅读
         </Button>
+      )}
+      {/* 正文没入库时,把"为什么"和"去哪读"直接给出来。目录仍然可以翻
+          (下面的章节列表照常渲染),但不再假装点进去有东西可读。 */}
+      {textMissing && (
+        <Box sx={{ mt: 4, fontSize: 14, color: theme.sub }}>
+          <Box sx={{ mb: avail?.sourceUrl ? 1.5 : 0 }}>{avail?.notice || '本站未收录该书正文'}</Box>
+          {avail?.sourceUrl && (
+            <Button
+              variant="outlined"
+              color="inherit"
+              size="small"
+              href={avail.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              endIcon={<OpenInNewIcon sx={{ fontSize: 14 }} />}
+            >
+              去原站阅读
+            </Button>
+          )}
+        </Box>
       )}
       {empty}
     </Box>

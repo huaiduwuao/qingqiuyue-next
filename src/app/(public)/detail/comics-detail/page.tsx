@@ -35,6 +35,8 @@ import { DetailComments } from '@/components/detail/DetailComments';
 import { DetailFooter } from '@/components/detail/DetailFooter';
 import { EpisodeList } from '@/components/detail/EpisodeList';
 import { useContentItems, type ContentItem } from '@/hooks/useContentItems';
+import { AvailabilityBadge } from '@/components/common/AvailabilityBadge';
+import type { PlaybackStatus } from '@/apis/recommend';
 
 interface Comics {
   id: number;
@@ -54,6 +56,8 @@ interface Comics {
   likeCount?: number;
   collectCount?: number;
   commentCount?: number;
+  /** 站内能不能读(后端 internal/playability 阅读轴)。 */
+  availability?: { status?: PlaybackStatus; readable?: boolean; notice?: string; readyItems?: number; totalItems?: number };
 }
 
 const INTERNAL_STATUS = new Set(['active', 'PUBLISH', 'UN_PUBLISH', 'REVIEWING', 'REJECTED', 'DRAFT']);
@@ -229,6 +233,13 @@ function ComicsDetailContent() {
                     {data.title}
                   </Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
+                    {/* 站内能不能读。线上 57 本漫画里 52 本是「有话数目录、一话正文都没有」——
+                        以前这里和一本完整的漫画长得一模一样,点进去才发现是空白。 */}
+                    <AvailabilityBadge
+                      status={data.availability?.status}
+                      readyItems={data.availability?.readyItems}
+                      totalItems={data.availability?.totalItems}
+                    />
                     {genres.map((g) => (
                       <Chip key={g} label={g} size="small" sx={{ bgcolor: 'rgba(254, 44, 85, 0.12)', color: 'primary.main', fontWeight: 600 }} />
                     ))}
