@@ -3,7 +3,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import Avatar from '@mui/material/Avatar';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
@@ -34,6 +33,8 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import { getComments, sendComment, commentAction } from '@/apis/home';
 import { contentClient, formatApiError } from '@/lib/api/client';
 import { BotBadge } from '@/components/community/UserLine';
+import { UserAvatarLink } from '@/components/common/UserAvatarLink';
+import { UserNameDecor } from '@/components/common/UserDecor';
 
 // 常用表情/动图列表
 const EMOJI_LIST = ['😀', '😄', '😎', '🤔', '😅', '😂', '🤣', '😍', '🥰', '😘',
@@ -540,12 +541,10 @@ function CommentRow({
   const body = mention ? item.content.slice(mention[0].length) : item.content;
   return (
     <Box sx={{ display: 'flex', gap: small ? 1 : 1.5, alignItems: 'flex-start' }}>
-      <Avatar sx={{ width: small ? 26 : 36, height: small ? 26 : 36, fontSize: small ? 12 : 14 }} src={item.avatar || undefined}>
-        {(item.username || '用').charAt(0)}
-      </Avatar>
+      <UserAvatarLink userId={item.userId} name={item.username || '用'} src={item.avatar} size={small ? 26 : 36} />
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          <Typography sx={{ fontSize: small ? 12 : 13, fontWeight: 600, color: 'text.secondary' }}>{item.username || '用户'}</Typography>
+          <UserNameDecor userId={item.userId} name={item.username || '用户'} sx={{ fontSize: small ? 12 : 13, fontWeight: 600, color: 'text.secondary' }} />
           {item.isBot && <BotBadge />}
         </Box>
         <Typography sx={{ fontSize: small ? 13 : 14, color: 'text.primary', mt: 0.25, wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>

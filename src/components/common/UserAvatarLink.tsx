@@ -4,11 +4,13 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import Avatar, { type AvatarProps } from '@mui/material/Avatar';
 import { userProfileHref, type UserId } from '@/lib/userRoute';
+import { AvatarFrame } from './UserDecor';
 
 /**
  * 点击跳用户主页的头像。所有动态/私信/好友列表里的头像都用它,
  * 这样"点头像 = 看主页"在全站一致;点击会 stopPropagation,
  * 不触发外层卡片/消息行自己的 onClick(标记已读、打开详情等)。
+ * 用户戴着头像框(商城兑换 / 成就奖励)时自动画出来,总尺寸不变。
  */
 export function UserAvatarLink({
   userId,
@@ -32,6 +34,8 @@ export function UserAvatarLink({
     router.push(href);
   };
   return (
+    <AvatarFrame userId={userId} size={size}>
+      {(inner) => (
     <Avatar
       src={src || undefined}
       alt={name || ''}
@@ -41,9 +45,9 @@ export function UserAvatarLink({
       onClick={go}
       onKeyDown={(e) => e.key === 'Enter' && go(e)}
       sx={{
-        width: size,
-        height: size,
-        fontSize: Math.max(10, Math.round(size * 0.4)),
+        width: inner,
+        height: inner,
+        fontSize: Math.max(10, Math.round(inner * 0.4)),
         flexShrink: 0,
         cursor: href ? 'pointer' : 'default',
         transition: 'box-shadow 0.15s',
@@ -54,5 +58,7 @@ export function UserAvatarLink({
     >
       {name?.[0] ?? '?'}
     </Avatar>
+      )}
+    </AvatarFrame>
   );
 }

@@ -19,7 +19,10 @@ import {
   type PointRecordInfo,
   type UserPointResp,
 } from '@/apis/system-user-point';
+import FaceRetouchingNaturalRoundedIcon from '@mui/icons-material/FaceRetouchingNaturalRounded';
+import LocalShippingRoundedIcon from '@mui/icons-material/LocalShippingRounded';
 import { PointsMallTab } from './PointsMallTab';
+import { SignCard, WardrobeTab, AddressTab } from './GrowthTabs';
 import { LoginGate } from '@/components/auth/LoginGate';
 import { useApp } from '@/contexts/AppContext';
 import { ListLayout, LIST_ROW } from '@/components/common/ListLayout';
@@ -31,6 +34,14 @@ const RECORD_TYPE_LABEL: Record<string, string> = {
   daily_task: '每日任务',
   mall_redeem: '商城兑换',
   sign: '签到',
+  sign_streak: '连续签到奖励',
+  task_sign: '每日签到',
+  task_share: '分享内容',
+  task_comment: '发表评论',
+  task_post: '发布动态',
+  task_liked: '获得点赞',
+  task_recharge: '充值任务',
+  task_invite: '邀请好友',
 };
 
 const DAY_MS = 86_400_000;
@@ -38,7 +49,7 @@ const DAY_MS = 86_400_000;
 export default function PointsPage() {
   const { currentUser } = useApp();
   const uid = currentUser?.id ?? 0;
-  const [tab, setTab] = useState<'overview' | 'records' | 'achievements' | 'mall'>('overview');
+  const [tab, setTab] = useState<'overview' | 'records' | 'achievements' | 'mall' | 'wardrobe' | 'address'>('overview');
 
   // 以下接口都按登录用户返回本人数据
   const pointQuery = useQuery({
@@ -100,12 +111,16 @@ export default function PointsPage() {
             <Typography sx={{ opacity: 0.85, fontSize: 13 }}>累计获得 {lifetime.toLocaleString()} 积分</Typography>
           </Box>
 
+          <SignCard userId={uid} />
+
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             {([
               { key: 'overview', label: '积分总览', icon: <SummarizeRoundedIcon sx={{ fontSize: 16 }} /> },
               { key: 'records', label: '积分明细', icon: <ReceiptLongRoundedIcon sx={{ fontSize: 16 }} /> },
               { key: 'achievements', label: '成就墙', icon: <EmojiEventsIcon sx={{ fontSize: 16 }} /> },
-              { key: 'mall', label: '积分商城', icon: <StorefrontRoundedIcon sx={{ fontSize: 16 }} /> },
+              { key: 'mall', label: '商城', icon: <StorefrontRoundedIcon sx={{ fontSize: 16 }} /> },
+              { key: 'wardrobe', label: '我的装扮', icon: <FaceRetouchingNaturalRoundedIcon sx={{ fontSize: 16 }} /> },
+              { key: 'address', label: '收货地址', icon: <LocalShippingRoundedIcon sx={{ fontSize: 16 }} /> },
             ] as const).map((t) => (
               <Button
                 key={t.key}
@@ -137,7 +152,7 @@ export default function PointsPage() {
           {tab === 'records' &&
             (records.length === 0 ? (
               <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-                还没有积分记录。完成奖励中心的每日任务即可获得积分。
+                还没有积分记录。签到、评论、发动态、被点赞都会获得积分。
               </Typography>
             ) : (
               <Box sx={{ borderRadius: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
@@ -209,6 +224,8 @@ export default function PointsPage() {
             ))}
 
           {tab === 'mall' && <PointsMallTab initialPoints={available} />}
+          {tab === 'wardrobe' && <WardrobeTab userId={uid} onGoMall={() => setTab('mall')} />}
+          {tab === 'address' && <AddressTab userId={uid} />}
         </LoginGate>
       </Box>
     </Box>

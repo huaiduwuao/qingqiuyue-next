@@ -600,8 +600,15 @@ export interface PointMallItem {
   stock: number; // -1 = 无限
   totalRedeemed: number;
   tag?: 'HOT' | 'NEW' | '限时' | '独家';
-  /** diamond:兑换后立即发放钻石;physical:实物,需要填写收货信息 */
-  deliverType?: 'diamond' | 'physical';
+  /** physical:实物,需要收货地址;其余是装扮,兑换后立即到账并自动佩戴 */
+  deliverType?: 'physical' | 'avatar_frame' | 'title' | 'name_color';
+  /** point:用积分(points);diamond:用钻石(priceCents,分;1 钻 = 10 分) */
+  currency?: 'point' | 'diamond';
+  priceCents?: number;
+  /** 装扮的样式值:头像框/名字颜色是 CSS 渐变或颜色,称号是文字 */
+  cosmeticValue?: string;
+  /** 装扮有效天数,0 = 永久 */
+  durationDays?: number;
 }
 export async function getPointMallItems() {
   return unwrap<{ list: PointMallItem[]; total: number }>(
@@ -613,10 +620,10 @@ export async function getPointMallHistory() {
     await accountClient('/user/point/mall/history')
   );
 }
-/** 兑换商品;实物商品需要 address(收货人、电话、地址) */
-export async function redeemPointMallItem(itemId: number, address?: string) {
+/** 兑换/购买商品;实物需要收货地址:addressId(地址簿)或 address(自由文本)二选一 */
+export async function redeemPointMallItem(itemId: number, address?: string, addressId?: number) {
   return unwrap<{ record: PointMallRecord; balance: number }>(
-    await accountClient.post('/user/point/mall/redeem', { itemId, address })
+    await accountClient.post('/user/point/mall/redeem', { itemId, address, addressId })
   );
 }
 
@@ -627,6 +634,9 @@ export interface PointMallRecord {
   emoji: string;
   gradient: string;
   points: number;
+  currency?: 'point' | 'diamond';
+  amountCents?: number;
+  deliverType?: string;
   status: 'pending' | 'shipped' | 'completed';
   redeemedAt: string;
   serial?: string;

@@ -254,7 +254,12 @@ function TaskCard({ task, onComplete, isLoading }: TaskCardProps) {
 
             {task.claimed ? (
               <Button variant="outlined" size="small" disabled sx={{ minWidth: 80 }}>
-                已领取
+                已完成
+              </Button>
+            ) : task.auto ? (
+              // 评论、发动态、被赞、充值、邀请:动作发生时服务端自动发积分,不需要也不能手动领
+              <Button variant="outlined" size="small" disabled sx={{ minWidth: 80 }}>
+                自动记录 {task.doneCount ?? 0}/{task.maxCount}
               </Button>
             ) : (
               <Button

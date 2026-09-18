@@ -54,6 +54,10 @@ export async function getRewardRecords(params?: { page?: number; size?: number }
 
 /** 每日任务项 */
 export interface DailyTask {
+  /** 今天已完成次数 */
+  doneCount?: number;
+  /** 由服务端在动作发生时自动记录(评论/发动态/被赞/充值/邀请),不能手动领取 */
+  auto?: boolean;
   taskType: string;
   name: string;
   description: string;

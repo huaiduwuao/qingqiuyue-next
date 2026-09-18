@@ -24,7 +24,11 @@ import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import RedeemRoundedIcon from '@mui/icons-material/RedeemRounded';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import ArrowForwardIosRoundedIcon from '@mui/icons-material/ArrowForwardIosRounded';
+import DiamondRoundedIcon from '@mui/icons-material/DiamondRounded';
+import MenuItem from '@mui/material/MenuItem';
 import { getUserPoint } from '@/apis/system-user-point';
+import { getWalletSummary } from '@/apis/reward-center';
+import { getAddresses, addressText } from '@/apis/growth';
 import { useApp } from '@/contexts/AppContext';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import {
@@ -48,9 +52,21 @@ interface MallItem {
   originalPoints?: number;
   stock: number;
   totalRedeemed: number;
-  tag?: 'HOT' | 'NEW' | '限时' | '独家';
-  deliverType?: 'diamond' | 'physical';
+  tag?: string;
+  deliverType?: ApiMallItem['deliverType'];
+  currency: 'point' | 'diamond';
+  priceCents: number;
+  cosmeticValue?: string;
+  durationDays?: number;
 }
+
+// 1 钻 = 10 分(与钱包页一致)
+const toDiamonds = (cents: number) => Math.floor(cents / 10);
+/** 商品标价:积分商品是积分数,钻石商品是钻石数 */
+const costOf = (it: { currency: 'point' | 'diamond'; points: number; priceCents: number }) =>
+  it.currency === 'diamond' ? toDiamonds(it.priceCents) : it.points;
+const unitOf = (it: { currency: 'point' | 'diamond' }) => (it.currency === 'diamond' ? '钻石' : '积分');
+const isCosmetic = (it: { deliverType?: string }) => !!it.deliverType && it.deliverType !== 'physical';
 
 interface RedemptionRecord {
   id: number;
@@ -59,9 +75,12 @@ interface RedemptionRecord {
   emoji: string;
   gradient: string;
   points: number;
+  currency: 'point' | 'diamond';
+  priceCents: number;
   status: 'pending' | 'shipped' | 'completed';
   redeemedAt: string;
   serial?: string;
+  tracking?: string;
 }
 
 
@@ -98,6 +117,7 @@ export function PointsMallTab({ initialPoints }: Props) {
   const [cat, setCat] = useState<Category>('all');
   const [confirmItem, setConfirmItem] = useState<MallItem | null>(null);
   const [address, setAddress] = useState('');
+  const [addressId, setAddressId] = useState<number | 'new'>('new');
   const [toast, setToast] = useState<string | null>(null);
   const qc = useQueryClient();
 
@@ -110,6 +130,22 @@ export function PointsMallTab({ initialPoints }: Props) {
     enabled: !!userId,
   });
   const currentPoints: number = pointQuery.data?.point ?? initialPoints;
+  // 钻石余额(钻石标价的实物商品用)
+  const walletQuery = useQuery({
+    queryKey: ['wallet-summary', userId],
+    queryFn: () => getWalletSummary(),
+    enabled: !!userId,
+  });
+  const currentDiamonds = toDiamonds(walletQuery.data?.balance ?? 0);
+  const balanceFor = (it: { currency: 'point' | 'diamond' }) => (it.currency === 'diamond' ? currentDiamonds : currentPoints);
+  const canAffordItem = (it: MallItem) => balanceFor(it) >= costOf(it);
+  // 地址簿
+  const addressQuery = useQuery({
+    queryKey: ['user-address', userId],
+    queryFn: () => getAddresses(),
+    enabled: !!userId,
+  });
+  const addresses = addressQuery.data ?? [];
 
   // 积分商城商品 — 真接口
   const itemsQuery = useQuery({
@@ -130,6 +166,10 @@ export function PointsMallTab({ initialPoints }: Props) {
     totalRedeemed: it.totalRedeemed,
     tag: it.tag,
     deliverType: it.deliverType,
+    currency: it.currency === 'diamond' ? 'diamond' : 'point',
+    priceCents: it.priceCents ?? 0,
+    cosmeticValue: it.cosmeticValue,
+    durationDays: it.durationDays,
   }));
 
   // 我的兑换历史 — 真接口
@@ -145,9 +185,12 @@ export function PointsMallTab({ initialPoints }: Props) {
     emoji: r.emoji,
     gradient: r.gradient,
     points: r.points,
+    currency: r.currency === 'diamond' ? 'diamond' : 'point',
+    priceCents: r.amountCents ?? 0,
     status: r.status,
     redeemedAt: r.redeemedAt,
     serial: r.serial,
+    tracking: r.tracking,
   }));
   const lifetimePoints = historyQuery.data?.lifetime ?? 0;
 
@@ -164,23 +207,32 @@ export function PointsMallTab({ initialPoints }: Props) {
       setToast('该商品已兑完');
       return;
     }
-    if (currentPoints < item.points) {
-      setToast('积分不足,先去赚点积分吧');
+    if (!canAffordItem(item)) {
+      setToast(item.currency === 'diamond' ? '钻石不足,请先充值' : '积分不足,先去赚点积分吧');
       return;
     }
+    const def = addresses.find((a) => a.isDefault) ?? addresses[0];
+    setAddressId(def?.id ?? 'new');
     setConfirmItem(item);
   };
 
   const redeemMutation = useMutation({
-    mutationFn: (vars: { itemId: number; address?: string }) => redeemPointMallItem(vars.itemId, vars.address),
+    mutationFn: (vars: { itemId: number; address?: string; addressId?: number }) =>
+      redeemPointMallItem(vars.itemId, vars.address, vars.addressId),
     onSuccess: () => {
       // 余额、库存、兑换记录都以服务端为准,全部重新拉取
       qc.invalidateQueries({ queryKey: ['user-point', userId] });
       qc.invalidateQueries({ queryKey: ['point-mall-history', userId] });
       qc.invalidateQueries({ queryKey: ['point-mall-items'] });
+      qc.invalidateQueries({ queryKey: ['wallet-summary', userId] });
+      qc.invalidateQueries({ queryKey: ['my-cosmetics'] });
       setAddress('');
       setConfirmItem(null);
-      setToast(`兑换成功 · 消耗 ${confirmItem?.points.toLocaleString() ?? 0} 积分`);
+      setToast(
+        confirmItem
+          ? `${isCosmetic(confirmItem) ? '兑换成功,已自动佩戴' : '下单成功,等待发货'} · 消耗 ${costOf(confirmItem).toLocaleString()} ${unitOf(confirmItem)}`
+          : '兑换成功',
+      );
     },
     onError: (err: any) => {
       setToast(err?.message || '兑换失败,请重试');
@@ -189,13 +241,15 @@ export function PointsMallTab({ initialPoints }: Props) {
 
   const confirmRedeem = () => {
     if (!confirmItem) return;
-    if (confirmItem.deliverType === 'physical' && !address.trim()) {
-      setToast('请填写收货人、手机号和详细地址');
+    const physical = confirmItem.deliverType === 'physical';
+    if (physical && addressId === 'new' && !address.trim()) {
+      setToast('请选择收货地址,或填写收货人、手机号和详细地址');
       return;
     }
     redeemMutation.mutate({
       itemId: confirmItem.id,
-      address: confirmItem.deliverType === 'physical' ? address.trim() : undefined,
+      address: physical && addressId === 'new' ? address.trim() : undefined,
+      addressId: physical && addressId !== 'new' ? addressId : undefined,
     });
   };
 
@@ -231,7 +285,7 @@ export function PointsMallTab({ initialPoints }: Props) {
               <Typography sx={{ fontSize: 14, fontWeight: 600, opacity: 0.85 }}>可用积分</Typography>
             </Box>
             <Typography sx={{ fontSize: 12, opacity: 0.85 }}>
-              可兑换 {MALL_ITEMS.filter((i) => i.points <= currentPoints).length} 件商品 · 历史累计 {lifetimePoints.toLocaleString()}
+              可兑换 {MALL_ITEMS.filter(canAffordItem).length} 件商品 · 钻石 {currentDiamonds.toLocaleString()} · 历史累计 {lifetimePoints.toLocaleString()}
             </Typography>
           </Box>
         </Box>
@@ -275,7 +329,7 @@ export function PointsMallTab({ initialPoints }: Props) {
           >
             {flashItems.map((it) => {
               const stock = formatStock(it.stock);
-              const canAfford = currentPoints >= it.points;
+              const canAfford = canAffordItem(it);
               return (
                 <Box
                   key={it.id}
@@ -311,8 +365,8 @@ export function PointsMallTab({ initialPoints }: Props) {
                       </Typography>
                       <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.75, mb: 0.75 }}>
                         <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.25, color: 'warning.main' }}>
-                          <StarsIcon sx={{ fontSize: 12 }} />
-                          <Typography sx={{ fontSize: 16, fontWeight: 800 }}>{it.points.toLocaleString()}</Typography>
+                          {it.currency === 'diamond' ? <DiamondRoundedIcon sx={{ fontSize: 12 }} /> : <StarsIcon sx={{ fontSize: 12 }} />}
+                          <Typography sx={{ fontSize: 16, fontWeight: 800 }}>{costOf(it).toLocaleString()}</Typography>
                         </Box>
                         {it.originalPoints && (
                           <Typography sx={{ fontSize: 11, color: 'text.disabled', textDecoration: 'line-through' }}>
@@ -410,7 +464,7 @@ export function PointsMallTab({ initialPoints }: Props) {
         <ListLayout minColumnWidth={200} minColumns={2} gap={16}>
           {filtered.map((it) => {
             const stock = formatStock(it.stock);
-            const canAfford = currentPoints >= it.points;
+            const canAfford = canAffordItem(it);
             const isGone = stock.tone === 'gone';
             const isLow = stock.tone === 'low';
             return (
@@ -511,8 +565,9 @@ export function PointsMallTab({ initialPoints }: Props) {
                 </Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, color: 'warning.main' }}>
-                    <StarsIcon sx={{ fontSize: 12 }} />
-                    <Typography sx={{ fontSize: 15, fontWeight: 800 }}>{it.points.toLocaleString()}</Typography>
+                    {it.currency === 'diamond' ? <DiamondRoundedIcon sx={{ fontSize: 12 }} /> : <StarsIcon sx={{ fontSize: 12 }} />}
+                    <Typography sx={{ fontSize: 15, fontWeight: 800 }}>{costOf(it).toLocaleString()}</Typography>
+                    <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>{unitOf(it)}</Typography>
                     {it.originalPoints && (
                       <Typography sx={{ fontSize: 10, color: 'text.disabled', textDecoration: 'line-through' }}>
                         {it.originalPoints.toLocaleString()}
@@ -610,8 +665,8 @@ export function PointsMallTab({ initialPoints }: Props) {
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontSize: 11, color: 'text.secondary', flexWrap: 'wrap' }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, color: 'warning.main' }}>
-                        <StarsIcon sx={{ fontSize: 11 }} />
-                        <Typography sx={{ fontSize: 11, color: 'warning.main', fontWeight: 700 }}>{r.points.toLocaleString()}</Typography>
+                        {r.currency === 'diamond' ? <DiamondRoundedIcon sx={{ fontSize: 11 }} /> : <StarsIcon sx={{ fontSize: 11 }} />}
+                        <Typography sx={{ fontSize: 11, color: 'warning.main', fontWeight: 700 }}>{costOf(r).toLocaleString()} {unitOf(r)}</Typography>
                       </Box>
                       <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>·</Typography>
                       <Typography sx={{ fontSize: 11 }}>{r.redeemedAt}</Typography>
@@ -706,10 +761,10 @@ export function PointsMallTab({ initialPoints }: Props) {
               <Divider sx={{ borderColor: 'divider', my: 2 }} />
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>所需积分</Typography>
+                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>所需{unitOf(confirmItem)}</Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'warning.main' }}>
-                    <StarsIcon sx={{ fontSize: 13 }} />
-                    <Typography sx={{ fontSize: 14, fontWeight: 700 }}>{confirmItem.points.toLocaleString()}</Typography>
+                    {confirmItem.currency === 'diamond' ? <DiamondRoundedIcon sx={{ fontSize: 13 }} /> : <StarsIcon sx={{ fontSize: 13 }} />}
+                    <Typography sx={{ fontSize: 14, fontWeight: 700 }}>{costOf(confirmItem).toLocaleString()}</Typography>
                     {confirmItem.originalPoints && (
                       <Typography sx={{ fontSize: 11, color: 'text.disabled', textDecoration: 'line-through' }}>
                         {confirmItem.originalPoints.toLocaleString()}
@@ -721,17 +776,40 @@ export function PointsMallTab({ initialPoints }: Props) {
                   <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>当前余额</Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                     <StarsIcon sx={{ fontSize: 12, color: 'text.secondary' }} />
-                    <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.primary' }}>{currentPoints.toLocaleString()}</Typography>
+                    <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.primary' }}>{balanceFor(confirmItem).toLocaleString()}</Typography>
                   </Box>
                 </Box>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                   <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>兑换后余额</Typography>
                   <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'success.main' }}>
-                    {(currentPoints - confirmItem.points).toLocaleString()}
+                    {(balanceFor(confirmItem) - costOf(confirmItem)).toLocaleString()}
                   </Typography>
                 </Box>
               </Box>
-              {confirmItem.deliverType === 'physical' && (
+              {isCosmetic(confirmItem) && (
+                <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 2 }}>
+                  兑换后立即到账并自动佩戴{confirmItem.durationDays ? `,有效期 ${confirmItem.durationDays} 天` : ',永久有效'}。可在「我的装扮」里更换。
+                </Typography>
+              )}
+              {confirmItem.deliverType === 'physical' && addresses.length > 0 && (
+                <TextField
+                  select
+                  label="收货地址"
+                  value={addressId}
+                  onChange={(e) => setAddressId(e.target.value === 'new' ? 'new' : Number(e.target.value))}
+                  fullWidth
+                  size="small"
+                  sx={{ mt: 2 }}
+                >
+                  {addresses.map((a) => (
+                    <MenuItem key={a.id} value={a.id} sx={{ fontSize: 13, whiteSpace: 'normal' }}>
+                      {addressText(a)}
+                    </MenuItem>
+                  ))}
+                  <MenuItem value="new" sx={{ fontSize: 13 }}>使用其他地址…</MenuItem>
+                </TextField>
+              )}
+              {confirmItem.deliverType === 'physical' && addressId === 'new' && (
                 <TextField
                   label="收货信息"
                   placeholder="收货人、手机号、详细地址"

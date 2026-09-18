@@ -1,6 +1,9 @@
 import { adminClient } from '@/lib/api/client';
 
-// 管理后台:积分商城商品、兑换单发货、直播礼物目录(/api/core/admin/shop/*,仅管理员)。
+// 管理后台:商城商品、订单发货、礼物目录(/api/core/admin/shop/*,仅管理员)。
+// 每个商品只标一种货币:装扮(头像框/称号/名字颜色)只收积分,实物可以标积分或钻石。积分永远换不到钻石。
+
+export type DeliverType = 'physical' | 'avatar_frame' | 'title' | 'name_color';
 
 export interface AdminMallItem {
   id?: number;
@@ -14,8 +17,11 @@ export interface AdminMallItem {
   stock: number; // -1 不限量
   totalRedeemed?: number;
   tag: string;
-  deliverType: 'diamond' | 'physical';
-  deliverAmount: number; // 钻石类发放的钱包金额(分)
+  currency: 'point' | 'diamond';
+  priceCents: number; // 钻石商品的价格(分;1 钻 = 10 分)
+  deliverType: DeliverType;
+  cosmeticValue: string; // 装扮样式值:头像框/名字颜色填 CSS 渐变或颜色,称号填文字
+  durationDays: number; // 装扮有效天数,0 = 永久
   status: 'active' | 'offline';
   sort: number;
 }
@@ -26,6 +32,10 @@ export interface AdminRedemption {
   itemId: number;
   itemName: string;
   points: number;
+  currency: 'point' | 'diamond';
+  amountCents: number;
+  deliverType: DeliverType;
+  isBot: boolean; // 假人订单由仓库流程自动发货
   status: 'pending' | 'shipped' | 'completed';
   serial: string;
   address?: string;

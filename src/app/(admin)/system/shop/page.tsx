@@ -39,8 +39,10 @@ import {
 } from '@/apis/admin-shop';
 
 /**
- * 商城与礼物:积分商城商品、实物兑换单发货、直播礼物目录。
- * 商品与礼物只能下架不能删除(兑换单和送礼记录要能追溯到它们)。
+ * 商城与礼物:商城商品、订单发货、礼物目录。
+ * 每个商品只标一种货币:装扮只收积分、兑换后立即到账;实物可标积分或钻石、需要发货。
+ * 假人的实物订单由后端仓库流程自动发货,真人订单在这里人工发。
+ * 商品与礼物只能下架不能删除(订单和送礼记录要能追溯到它们)。
  */
 
 const CATEGORY_LABEL: Record<AdminMallItem['category'], string> = {
@@ -52,10 +54,20 @@ const CATEGORY_LABEL: Record<AdminMallItem['category'], string> = {
 const REDEMPTION_STATUS: Record<AdminRedemption['status'], string> = { pending: '待发货', shipped: '已发货', completed: '已完成' };
 const EFFECTS: AdminGift['effect'][] = ['small', 'medium', 'large', 'huge'];
 
+const DELIVER_LABEL: Record<AdminMallItem['deliverType'], string> = {
+  physical: '实物发货',
+  avatar_frame: '头像框',
+  title: '称号',
+  name_color: '名字颜色',
+};
 const EMPTY_ITEM: AdminMallItem = {
   name: '', desc: '', category: 'virtual', emoji: '🎁', gradient: 'linear-gradient(135deg, #FE2C55 0%, #FFB400 100%)',
-  points: 100, originalPoints: 0, stock: -1, tag: '', deliverType: 'diamond', deliverAmount: 100, status: 'active', sort: 0,
+  points: 100, originalPoints: 0, stock: -1, tag: '', currency: 'point', priceCents: 0,
+  deliverType: 'avatar_frame', cosmeticValue: 'linear-gradient(135deg, #25F4EE 0%, #5B8DEF 100%)', durationDays: 0, status: 'active', sort: 0,
 };
+/** 标价:积分商品显示积分,钻石商品显示钻石数(1 钻 = 10 分) */
+const priceLabel = (it: { currency: 'point' | 'diamond'; points: number; priceCents?: number; amountCents?: number }) =>
+  it.currency === 'diamond' ? `${Math.floor((it.priceCents ?? it.amountCents ?? 0) / 10)} 钻石` : `${it.points} 积分`;
 const EMPTY_GIFT: AdminGift = { name: '', icon: '🌹', price: 100, effect: 'small', combo: false, status: 'active', sort: 0 };
 
 const yuan = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
@@ -92,9 +104,9 @@ export default function SystemShopPage() {
     <Box sx={{ p: { xs: 1.5, md: 2 } }}>
       <Typography variant="h5" sx={{ mb: 2 }}>商城与礼物</Typography>
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
-        <Tab label="积分商城商品" />
-        <Tab label="兑换单" />
-        <Tab label="直播礼物" />
+        <Tab label="商城商品" />
+        <Tab label="订单与发货" />
+        <Tab label="礼物" />
       </Tabs>
 
       {tab === 0 && (
@@ -108,7 +120,7 @@ export default function SystemShopPage() {
                 <TableRow>
                   <TableCell>商品</TableCell>
                   <TableCell>分类</TableCell>
-                  <TableCell align="right">积分</TableCell>
+                  <TableCell align="right">标价</TableCell>
                   <TableCell align="right">库存</TableCell>
                   <TableCell align="right">已兑</TableCell>
                   <TableCell>发放</TableCell>
@@ -121,16 +133,16 @@ export default function SystemShopPage() {
                   <TableRow key={it.id}>
                     <TableCell>{it.emoji} {it.name}</TableCell>
                     <TableCell>{CATEGORY_LABEL[it.category]}</TableCell>
-                    <TableCell align="right">{it.points}</TableCell>
+                    <TableCell align="right">{priceLabel(it)}</TableCell>
                     <TableCell align="right">{it.stock < 0 ? '不限' : it.stock}</TableCell>
                     <TableCell align="right">{it.totalRedeemed ?? 0}</TableCell>
-                    <TableCell>{it.deliverType === 'diamond' ? `钻石 ${yuan(it.deliverAmount)}` : '实物发货'}</TableCell>
+                    <TableCell>{DELIVER_LABEL[it.deliverType] ?? '已停用'}{it.durationDays ? ` · ${it.durationDays} 天` : ''}</TableCell>
                     <TableCell><Chip size="small" label={it.status === 'active' ? '上架' : '下架'} color={it.status === 'active' ? 'success' : 'default'} /></TableCell>
                     <TableCell><Button size="small" onClick={() => setItem({ ...it })}>编辑</Button></TableCell>
                   </TableRow>
                 ))}
                 {itemsQ.data?.length === 0 && (
-                  <TableRow><TableCell colSpan={8} sx={{ color: 'text.secondary' }}>还没有商品,前台积分商城为空</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} sx={{ color: 'text.secondary' }}>还没有商品,前台商城为空</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
@@ -151,7 +163,7 @@ export default function SystemShopPage() {
                   <TableCell>单号</TableCell>
                   <TableCell>用户</TableCell>
                   <TableCell>商品</TableCell>
-                  <TableCell align="right">积分</TableCell>
+                  <TableCell align="right">实付</TableCell>
                   <TableCell>收货信息</TableCell>
                   <TableCell>物流</TableCell>
                   <TableCell>状态</TableCell>
@@ -163,25 +175,25 @@ export default function SystemShopPage() {
                 {(redemptionsQ.data ?? []).map((r) => (
                   <TableRow key={r.id}>
                     <TableCell sx={{ fontFamily: 'monospace' }}>{r.serial}</TableCell>
-                    <TableCell>{r.userId}</TableCell>
+                    <TableCell>{r.userId}{r.isBot && <Chip size="small" label="AI" sx={{ ml: 0.5, height: 18, fontSize: 10 }} />}</TableCell>
                     <TableCell>{r.itemName}</TableCell>
-                    <TableCell align="right">{r.points}</TableCell>
+                    <TableCell align="right">{priceLabel(r)}</TableCell>
                     <TableCell sx={{ maxWidth: 240, whiteSpace: 'pre-wrap' }}>{r.address || '-'}</TableCell>
                     <TableCell>{r.tracking || '-'}</TableCell>
                     <TableCell>{REDEMPTION_STATUS[r.status]}</TableCell>
                     <TableCell>{new Date(r.redeemedAt).toLocaleString('zh-CN', { hour12: false })}</TableCell>
                     <TableCell>
-                      {r.status === 'pending' && (
+                      {r.status === 'pending' && !r.isBot && (
                         <Button size="small" onClick={() => { setShipTarget(r); setTracking(''); }}>发货</Button>
                       )}
-                      {r.status === 'shipped' && (
+                      {r.status === 'shipped' && !r.isBot && (
                         <Button size="small" onClick={() => run(() => completeRedemption(r.id), '已确认完成')}>确认完成</Button>
                       )}
                     </TableCell>
                   </TableRow>
                 ))}
                 {redemptionsQ.data?.length === 0 && (
-                  <TableRow><TableCell colSpan={9} sx={{ color: 'text.secondary' }}>没有兑换单</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} sx={{ color: 'text.secondary' }}>没有订单</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
@@ -240,21 +252,66 @@ export default function SystemShopPage() {
               <TextField label="标签(HOT / NEW / 限时 / 独家)" value={item.tag} onChange={(e) => setItem({ ...item, tag: e.target.value })} />
               <TextField label="图标 emoji" value={item.emoji} onChange={(e) => setItem({ ...item, emoji: e.target.value })} />
               <TextField label="背景渐变 CSS" value={item.gradient} onChange={(e) => setItem({ ...item, gradient: e.target.value })} />
-              <TextField label="兑换积分" type="number" value={item.points} onChange={(e) => setItem({ ...item, points: num(e.target.value) })} />
-              <TextField label="原价积分(可空)" type="number" value={item.originalPoints} onChange={(e) => setItem({ ...item, originalPoints: num(e.target.value) })} />
-              <TextField label="库存(-1 不限)" type="number" value={item.stock} onChange={(e) => setItem({ ...item, stock: num(e.target.value) })} />
-              <TextField label="排序" type="number" value={item.sort} onChange={(e) => setItem({ ...item, sort: num(e.target.value) })} />
-              <TextField select label="发放方式" value={item.deliverType} onChange={(e) => setItem({ ...item, deliverType: e.target.value as AdminMallItem['deliverType'] })}>
-                <MenuItem value="diamond">兑换后发钻石到钱包</MenuItem>
-                <MenuItem value="physical">实物,人工发货</MenuItem>
+              <TextField
+                select
+                label="发放方式"
+                value={item.deliverType}
+                onChange={(e) => {
+                  const deliverType = e.target.value as AdminMallItem['deliverType'];
+                  // 装扮只收积分
+                  setItem({ ...item, deliverType, currency: deliverType === 'physical' ? item.currency : 'point' });
+                }}
+              >
+                {Object.entries(DELIVER_LABEL).map(([k, v]) => <MenuItem key={k} value={k}>{k === 'physical' ? '实物,需要发货' : `装扮 · ${v}(立即到账)`}</MenuItem>)}
               </TextField>
               <TextField
-                label="发放钻石金额(元)"
-                type="number"
-                disabled={item.deliverType !== 'diamond'}
-                value={item.deliverAmount / 100}
-                onChange={(e) => setItem({ ...item, deliverAmount: Math.round(num(e.target.value) * 100) })}
-              />
+                select
+                label="货币"
+                value={item.currency}
+                disabled={item.deliverType !== 'physical'}
+                helperText={item.deliverType !== 'physical' ? '装扮只收积分' : '钻石商品计入平台商品收入'}
+                onChange={(e) => setItem({ ...item, currency: e.target.value as AdminMallItem['currency'] })}
+              >
+                <MenuItem value="point">积分</MenuItem>
+                <MenuItem value="diamond">钻石</MenuItem>
+              </TextField>
+              {item.currency === 'point' ? (
+                <TextField label="兑换积分" type="number" value={item.points} onChange={(e) => setItem({ ...item, points: num(e.target.value) })} />
+              ) : (
+                <TextField
+                  label="价格(钻石)"
+                  type="number"
+                  value={item.priceCents / 10}
+                  helperText={`1 钻 = ¥0.1,合 ${yuan(item.priceCents)}`}
+                  onChange={(e) => setItem({ ...item, priceCents: Math.round(num(e.target.value) * 10) })}
+                />
+              )}
+              <TextField label="原价积分(可空)" type="number" disabled={item.currency !== 'point'} value={item.originalPoints} onChange={(e) => setItem({ ...item, originalPoints: num(e.target.value) })} />
+              <TextField label="库存(-1 不限)" type="number" value={item.stock} onChange={(e) => setItem({ ...item, stock: num(e.target.value) })} />
+              <TextField label="排序" type="number" value={item.sort} onChange={(e) => setItem({ ...item, sort: num(e.target.value) })} />
+              {item.deliverType !== 'physical' && (
+                <>
+                  <TextField
+                    label={item.deliverType === 'title' ? '称号文字' : '样式值(CSS 渐变 / 颜色 / 图片 URL)'}
+                    value={item.cosmeticValue}
+                    onChange={(e) => setItem({ ...item, cosmeticValue: e.target.value })}
+                    sx={{ gridColumn: '1 / -1' }}
+                  />
+                  <TextField label="有效天数(0 永久)" type="number" value={item.durationDays} onChange={(e) => setItem({ ...item, durationDays: num(e.target.value) })} />
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                    <Typography variant="caption" color="text.secondary">预览</Typography>
+                    {item.deliverType === 'avatar_frame' && (
+                      <Box sx={{ width: 44, height: 44, borderRadius: '50%', p: '3px', background: item.cosmeticValue }}>
+                        <Box sx={{ width: '100%', height: '100%', borderRadius: '50%', bgcolor: 'background.paper' }} />
+                      </Box>
+                    )}
+                    {item.deliverType === 'title' && <Chip size="small" label={item.cosmeticValue || '称号'} />}
+                    {item.deliverType === 'name_color' && (
+                      <Typography sx={{ fontWeight: 700, background: item.cosmeticValue, WebkitBackgroundClip: 'text', color: 'transparent' }}>用户昵称</Typography>
+                    )}
+                  </Box>
+                </>
+              )}
               <FormControlLabel
                 control={<Switch checked={item.status === 'active'} onChange={(e) => setItem({ ...item, status: e.target.checked ? 'active' : 'offline' })} />}
                 label="上架"
@@ -281,7 +338,7 @@ export default function SystemShopPage() {
                 type="number"
                 value={gift.price / 100}
                 onChange={(e) => setGift({ ...gift, price: Math.round(num(e.target.value) * 100) })}
-                helperText="观众从钱包支付,主播到账扣除平台服务费"
+                helperText="送礼人从钱包支付,创作者到账扣除平台服务费"
               />
               <TextField select label="特效" value={gift.effect} onChange={(e) => setGift({ ...gift, effect: e.target.value as AdminGift['effect'] })}>
                 {EFFECTS.map((e) => <MenuItem key={e} value={e}>{e}</MenuItem>)}
