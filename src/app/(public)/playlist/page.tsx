@@ -25,6 +25,7 @@ import ArrowDownwardRoundedIcon from '@mui/icons-material/ArrowDownwardRounded';
 import ArrowUpwardRoundedIcon from '@mui/icons-material/ArrowUpwardRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
+import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import GraphicEqRoundedIcon from '@mui/icons-material/GraphicEqRounded';
 import IosShareRoundedIcon from '@mui/icons-material/IosShareRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
@@ -34,6 +35,7 @@ import RemoveCircleOutlineRoundedIcon from '@mui/icons-material/RemoveCircleOutl
 import ShuffleRoundedIcon from '@mui/icons-material/ShuffleRounded';
 import PublicTopBar from '@/components/layout/PublicTopBar';
 import PlaylistCover from '@/components/player/PlaylistCover';
+import PlaylistImportDialog from '@/components/player/PlaylistImportDialog';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import {
   createMyList,
@@ -65,28 +67,31 @@ import {
 
 /**
  * 歌单。/playlist 是「我的歌单」;/playlist?id= 是一张歌单(自己的,或别人公开的);
- * /playlist?id=liked 是内置的「我喜欢的音乐」;/playlist?new=1 直接弹新建。
+ * /playlist?id=liked 是内置的「我喜欢的音乐」;/playlist?new=1 直接弹新建,
+ * /playlist?import=1 直接弹「从网易云 / 汽水音乐导入」。
  */
 export default function PlaylistPage() {
   const params = useSearchParams();
   const id = params.get('id');
   // ?new=1:从音乐频道的「新建歌单」进来,直接弹出新建框
-  return id ? <PlaylistDetail id={id} /> : <MyPlaylists autoCreate={params.get('new') === '1'} />;
+  return id ? <PlaylistDetail id={id} /> : <MyPlaylists autoCreate={params.get('new') === '1'} autoImport={params.get('import') === '1'} />;
 }
 
 // ---------------------------------------------------------------------------
 // 我的歌单
 // ---------------------------------------------------------------------------
 
-function MyPlaylists({ autoCreate }: { autoCreate: boolean }) {
+function MyPlaylists({ autoCreate, autoImport }: { autoCreate: boolean; autoImport: boolean }) {
   const router = useRouter();
   const qc = useQueryClient();
   const { isAuthenticated, status } = useAuth();
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const created = useRef(false);
   useEffect(() => {
     if (autoCreate && isAuthenticated) setCreateOpen(true);
-  }, [autoCreate, isAuthenticated]);
+    if (autoImport && isAuthenticated) setImportOpen(true);
+  }, [autoCreate, autoImport, isAuthenticated]);
 
   const lists = useQuery({
     queryKey: ['my-lists', 'playlist'],
@@ -122,12 +127,15 @@ function MyPlaylists({ autoCreate }: { autoCreate: boolean }) {
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2.5 }}>
               <Typography sx={{ flex: 1, fontSize: 14, color: 'text.secondary' }}>{own.length} 个歌单</Typography>
               <ListLayoutSwitch sx={{ mr: 1.5 }} />
+              <Button variant="outlined" startIcon={<DownloadRoundedIcon />} onClick={() => setImportOpen(true)} sx={{ mr: 1 }}>
+                导入歌单
+              </Button>
               <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setCreateOpen(true)}>
                 新建歌单
               </Button>
             </Box>
             {items.length === 0 ? (
-              <Empty title="还没有歌单" hint="在歌曲页或播放队列里点「加入歌单」,也可以先建一个空的。" />
+              <Empty title="还没有歌单" hint="在歌曲页或播放队列里点「加入歌单」,也可以把网易云音乐、汽水音乐里的歌单直接导进来。" />
             ) : (
               <ListLayout minColumnWidth={180} minColumns={2} gap={20}>
                 {items.map((l) => (
@@ -154,6 +162,14 @@ function MyPlaylists({ autoCreate }: { autoCreate: boolean }) {
           created.current = true;
           qc.invalidateQueries({ queryKey: ['my-lists'] });
           router.push(playlistHref(r.id));
+        }}
+      />
+
+      <PlaylistImportDialog
+        open={importOpen}
+        onClose={() => {
+          setImportOpen(false);
+          if (autoImport) router.replace('/playlist');
         }}
       />
     </Box>
@@ -233,6 +249,7 @@ function PlaylistDetail({ id }: { id: string }) {
   const qc = useQueryClient();
   const [toast, setToast] = useState('');
   const [editOpen, setEditOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const playingId = useMusicPlayer((s) => (s.playing ? currentTrack(s)?.id : undefined));
 
@@ -387,6 +404,11 @@ function PlaylistDetail({ id }: { id: string }) {
             )}
             {list.mine && (
               <>
+                <Tooltip title="从网易云音乐 / 汽水音乐导入到这张歌单">
+                  <IconButton aria-label="从其他平台导入歌曲" onClick={() => setImportOpen(true)}>
+                    <DownloadRoundedIcon />
+                  </IconButton>
+                </Tooltip>
                 <Tooltip title="编辑歌单信息">
                   <IconButton aria-label="编辑歌单信息" onClick={() => setEditOpen(true)}>
                     <EditRoundedIcon />
@@ -412,12 +434,19 @@ function PlaylistDetail({ id }: { id: string }) {
       ) : rows.length === 0 ? (
         <Empty
           title={isLiked ? '还没有点赞过歌曲' : '这张歌单还是空的'}
-          hint={isLiked ? '在歌曲页点个赞,它就会出现在这里。' : list.mine ? '去搜几首歌,在歌曲页或播放队列里点「加入歌单」。' : ''}
+          hint={isLiked ? '在歌曲页点个赞,它就会出现在这里。' : list.mine ? '去搜几首歌,在歌曲页或播放队列里点「加入歌单」;也可以从网易云音乐、汽水音乐导入。' : ''}
           action={
             list.mine || isLiked ? (
-              <Button variant="outlined" onClick={() => router.push('/search?type=MUSIC')}>
-                去找歌
-              </Button>
+              <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+                <Button variant="outlined" onClick={() => router.push('/search?type=MUSIC')}>
+                  去找歌
+                </Button>
+                {list.mine && (
+                  <Button variant="outlined" startIcon={<DownloadRoundedIcon />} onClick={() => setImportOpen(true)}>
+                    导入歌单
+                  </Button>
+                )}
+              </Box>
             ) : undefined
           }
         />
@@ -489,6 +518,19 @@ function PlaylistDetail({ id }: { id: string }) {
           refresh();
         }}
       />
+
+      {list.mine && (
+        <PlaylistImportDialog
+          open={importOpen}
+          target={{ id, name: list.name }}
+          onClose={() => setImportOpen(false)}
+          onFinished={(listId, job) => {
+            // 任务可能是在别处发起、导进另一张歌单的(这里只是把进度接了回来)
+            if (String(listId) !== String(id)) return;
+            setToast(job.status === 'done' ? `导入完成 · 新增 ${job.added} 首` : `导入中断 · 已新增 ${job.added} 首`);
+          }}
+        />
+      )}
 
       <Dialog open={confirmDelete} onClose={() => setConfirmDelete(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontSize: 17 }}>删除「{list.name}」?</DialogTitle>

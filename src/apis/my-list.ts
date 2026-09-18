@@ -182,6 +182,81 @@ export async function reorderMyList(listId: EntityId, contentIds: EntityId[]): P
   return (res as any)?.data ?? res;
 }
 
+// ---------------------------------------------------------------------------
+// 从其它平台导入歌单(网易云音乐 / 汽水音乐),后端见 internal/handler/my_list_import.go
+// ---------------------------------------------------------------------------
+
+export interface PlaylistImportTrack {
+  title: string;
+  artist: string;
+  album: string;
+  coverUrl: string;
+  /** 秒 */
+  duration: number;
+  vip: boolean;
+}
+
+export interface PlaylistImportPreview {
+  platform: 'netease' | 'qishui';
+  platformName: string;
+  playlistId: string;
+  url: string;
+  name: string;
+  description: string;
+  coverUrl: string;
+  owner: string;
+  /** 原平台上的曲目数 */
+  total: number;
+  /** 这次读得到、能导入的曲目数;比 total 小时要告诉用户只导前 N 首 */
+  fetched: number;
+  maxItems: number;
+  /** 前 30 首,给用户确认是不是这张歌单 */
+  tracks: PlaylistImportTrack[];
+}
+
+export interface PlaylistImportJob {
+  id: EntityId;
+  listId: EntityId;
+  platform: string;
+  name: string;
+  sourceUrl: string;
+  status: 'running' | 'done' | 'failed';
+  sourceTotal: number;
+  total: number;
+  done: number;
+  /** 新加进歌单的(已在歌单里的不算) */
+  added: number;
+  /** 站内原先没有、这次新收录的 */
+  created: number;
+  failed: number;
+  error: string;
+  updatedAt: number;
+}
+
+/** 读外部歌单给用户确认。url 可以是 App 里「复制链接」给的一整句话,后端自己把地址抠出来。 */
+export async function previewPlaylistImport(url: string): Promise<PlaylistImportPreview> {
+  const res = await contentClient('/my-list/import/preview', { method: 'POST', data: { url } });
+  return (res as any)?.data ?? res;
+}
+
+/** 开始导入。不带 listId 会新建一张歌单;带了就追加到自己已有的歌单。 */
+export async function startPlaylistImport(data: {
+  url: string;
+  listId?: EntityId;
+  name?: string;
+  isPublic?: boolean;
+}): Promise<{ ok: boolean; jobId: EntityId; listId: EntityId; total: number }> {
+  const res = await contentClient('/my-list/import', { method: 'POST', data });
+  return (res as any)?.data ?? res;
+}
+
+/** 导入进度;不带 id 取自己最近一次的任务(刷新页面后把进度接回来)。 */
+export async function getPlaylistImportStatus(id?: EntityId): Promise<PlaylistImportJob | null> {
+  const res = await contentClient('/my-list/import/status', { params: id ? { id } : undefined });
+  const data = (res as any)?.data ?? res;
+  return data?.job ?? null;
+}
+
 // 快捷收藏(自动归类到对应收藏夹)
 export async function quickCollect(
   contentId: EntityId,

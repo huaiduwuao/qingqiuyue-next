@@ -10,6 +10,7 @@ import Snackbar from '@mui/material/Snackbar';
 import Typography from '@mui/material/Typography';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
+import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import LockRoundedIcon from '@mui/icons-material/LockRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
@@ -111,12 +112,20 @@ export default function MusicPlaylistShelf() {
               <PlaylistTile key={String(l.id)} list={l} onOpen={() => router.push(playlistHref(l.id))} onPlay={() => play(l.id)} />
             ))}
             {isAuthenticated ? (
-              <GhostTile
-                icon={<AddRoundedIcon />}
-                title="新建歌单"
-                hint={tiles.length === 0 ? '也可以在歌曲页点「加入歌单」' : undefined}
-                onClick={() => router.push('/playlist?new=1')}
-              />
+              <>
+                <GhostTile
+                  icon={<AddRoundedIcon />}
+                  title="新建歌单"
+                  hint={tiles.length === 0 ? '也可以在歌曲页点「加入歌单」' : undefined}
+                  onClick={() => router.push('/playlist?new=1')}
+                />
+                <GhostTile
+                  icon={<DownloadRoundedIcon />}
+                  title="导入歌单"
+                  hint="网易云音乐 / 汽水音乐"
+                  onClick={() => router.push('/playlist?import=1')}
+                />
+              </>
             ) : (
               <GhostTile
                 icon={<LockRoundedIcon />}
