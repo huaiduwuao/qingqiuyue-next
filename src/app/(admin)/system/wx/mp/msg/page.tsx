@@ -55,7 +55,7 @@ export default function WxMpMsgPage() {
         sortable: false,
         renderCell: (p) =>
           p.row.type === 'receive' && p.row.wxUserId ? (
-            <Button size="small" onClick={() => setTarget(p.row.wxUserId)}>回复</Button>
+            <Button variant="text" size="small" onClick={() => setTarget(p.row.wxUserId)}>回复</Button>
           ) : null,
       },
     ],
@@ -82,7 +82,7 @@ export default function WxMpMsgPage() {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setTarget(null)}>取消</Button>
+          <Button variant="text" onClick={() => setTarget(null)}>取消</Button>
           <Button variant="contained" disabled={!text.trim() || reply.isPending} onClick={() => reply.mutate()}>发送</Button>
         </DialogActions>
       </Dialog>
