@@ -154,9 +154,9 @@ export default function SystemRolePage() {
         hasPermission={can}
         fetchData={async (params) => {
           const res = await page({ ...params });
-          const list = res.data?.records || res.data?.list || [];
-          const total = res.data?.totalRow || res.data?.total || 0;
-          return { data: { records: list, totalRow: total }, success: true };
+          const list = res?.records || res?.list || [];
+          const total = res?.totalRow || res?.total || 0;
+          return { records: list, totalRow: total };
         }}
         filters={{
           fields: [

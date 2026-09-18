@@ -88,7 +88,7 @@ export default function SystemUserPointPage() {
           const res: any = await listPointRecords({ ...params, pageNumber: params.pageNumber, userId });
           const list = res?.data?.records || res?.data?.list || [];
           const total = res?.data?.totalRow || res?.data?.total || 0;
-          return { data: { records: list, totalRow: total }, success: true };
+          return { records: list, totalRow: total };
         }}
         filters={{
           fields: [{ key: 'userId', label: '用户ID', type: 'text' }],

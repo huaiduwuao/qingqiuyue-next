@@ -164,11 +164,8 @@ export default function SystemUserPage() {
         fetchData={async (params) => {
           const res = await getUsers(params);
           return {
-            data: {
-              records: res.data?.records || res.data?.list || [],
-              totalRow: res.data?.totalRow || res.data?.total || 0,
-            },
-            success: true,
+            records: res?.records || res?.list || [],
+            totalRow: res?.totalRow || res?.total || 0,
           };
         }}
         onEdit={handleEdit}

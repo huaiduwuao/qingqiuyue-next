@@ -45,7 +45,7 @@ export default function TasksPage() {
   // 镜像列表（用于选择）
   const imagesQuery = useQuery({
     queryKey: ['sandbox', 'images-list'],
-    queryFn: () => listImages().then((r) => r.data?.records || r.data?.list || []),
+    queryFn: () => listImages().then((r) => r?.records || r?.list || []),
   });
 
   const filterFields: FilterField[] = [
@@ -68,7 +68,7 @@ export default function TasksPage() {
   const createMutation = useMutation({
     mutationFn: (vals: any) => createTask(vals),
     onSuccess: (res) => {
-      showMsg(`任务创建成功 (ID: ${res.data?.taskId?.slice(0, 8)}...)`);
+      showMsg(`任务创建成功 (ID: ${res?.taskId?.slice(0, 8)}...)`);
       setWriteVisible(false);
       refresh();
     },
@@ -87,7 +87,7 @@ export default function TasksPage() {
   const handleView = async (taskId: string) => {
     try {
       const res = await getTask(taskId);
-      setViewing(res.data || null);
+      setViewing(res || null);
     } catch (err: any) {
       showMsg(err.message || '获取详情失败', 'error');
     }
@@ -158,11 +158,11 @@ export default function TasksPage() {
               imageId: filterValues.imageId || undefined,
             });
             // DataGrid 要求每行有唯一 id,任务只有 taskId —— 不补的话有任务时整页直接崩
-            const records = (res.data?.records || res.data?.list || []).map((t) => ({ ...t, id: t.taskId }));
-            return { data: { records, totalRow: res.data?.total || res.data?.totalRow || 0 }, success: true };
+            const records = (res?.records || res?.list || []).map((t) => ({ ...t, id: t.taskId }));
+            return { data: { records, totalRow: res?.total || res?.totalRow || 0 }, success: true };
           } catch (err: any) {
             showMsg(err.message || '获取数据失败', 'error');
-            return { data: { records: [], totalRow: 0 }, success: false };
+            return { records: [], totalRow: 0 };
           }
         }}
       />
@@ -317,7 +317,7 @@ function TaskDetailDialog({ viewing, onClose }: { viewing: SandboxTaskResp | nul
     queryFn: async () => {
       if (!viewing?.taskId) return '';
       const res = await getTaskLogs(viewing.taskId);
-      return res.data?.logs || '';
+      return res?.logs || '';
     },
     enabled: open,
   });

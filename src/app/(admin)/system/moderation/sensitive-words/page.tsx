@@ -116,11 +116,8 @@ export default function ModerationSensitiveWordsPage() {
         fetchData={async () => {
           const res = await listSensitiveWords();
           return {
-            data: {
-              records: res.data?.records || res.data?.list || [],
-              totalRow: res.data?.totalRow || res.data?.total || 0,
-            },
-            success: true,
+            records: res?.records || res?.list || [],
+            totalRow: res?.totalRow || res?.total || 0,
           };
         }}
         onDelete={canDelete ? handleDelete : undefined}

@@ -279,10 +279,10 @@ export default function SpiderTasksPage() {
               const task = normalizeTask(raw);
               return { ...task, sourceName: task.sourceName || sourceMap.get(raw.source_id) || '-' };
             });
-            return { data: { records: list, totalRow: res.total || 0 }, success: true };
+            return { records: list, totalRow: res.total || 0 };
           } catch (err: any) {
             showMsg(err.message || '获取数据失败', 'error');
-            return { data: { records: [], totalRow: 0 }, success: false };
+            return { records: [], totalRow: 0 };
           }
         }}
       />

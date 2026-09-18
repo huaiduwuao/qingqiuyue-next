@@ -141,11 +141,8 @@ export default function FeedAdminPage() {
             keyword: (params.keyword as string) || '',
           });
           return {
-            data: {
-              records: res.list || [],
-              totalRow: res.total || 0,
-            },
-            success: true,
+            records: res.list || [],
+            totalRow: res.total || 0,
           };
         }}
         onDelete={(row) => remove(row.id)}

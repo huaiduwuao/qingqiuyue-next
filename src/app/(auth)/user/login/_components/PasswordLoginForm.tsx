@@ -52,7 +52,7 @@ export function PasswordLoginForm({
       } catch {
         /* ignore */
       }
-      await onSession(res.data.session_id);
+      await onSession(res.session_id);
     } catch (err) {
       setError(formatApiError(err));
       setLoading(false);

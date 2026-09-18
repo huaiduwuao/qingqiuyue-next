@@ -169,7 +169,7 @@ export default function SpiderProxiesPage() {
                 success: true,
               };
             } catch {
-              return { data: { records: [], totalRow: 0 }, success: false };
+              return { records: [], totalRow: 0 };
             }
           }}
         />

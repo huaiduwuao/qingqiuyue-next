@@ -43,7 +43,7 @@ export default function LoginPage() {
 
   const optionsQuery = useQuery({
     queryKey: ['auth-options'],
-    queryFn: () => getAuthOptions().then((r) => r.data),
+    queryFn: () => getAuthOptions().then((r) => r),
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });

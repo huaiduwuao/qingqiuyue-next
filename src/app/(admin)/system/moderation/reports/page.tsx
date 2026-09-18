@@ -170,14 +170,11 @@ export default function ModerationReportsPage() {
             page: params.pageNumber,
             pageSize: params.pageSize,
           });
-          const list = res.data?.records || res.data?.list || [];
-          const total = res.data?.totalRow || res.data?.total || 0;
+          const list = res?.records || res?.list || [];
+          const total = res?.totalRow || res?.total || 0;
           return {
-            data: {
-              records: list,
-              totalRow: total,
-            },
-            success: true,
+            records: list,
+            totalRow: total,
           };
         }}
         filters={{

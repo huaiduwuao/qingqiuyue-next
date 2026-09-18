@@ -28,7 +28,7 @@ export function RegisterForm({ onSession }: { onSession: (sessionId: string) => 
     setError(null);
     try {
       const res = await register({ name: name.trim(), password, nickname: nickname.trim() || undefined });
-      await onSession(res.data.session_id);
+      await onSession(res.session_id);
     } catch (err) {
       setError(formatApiError(err));
       setLoading(false);

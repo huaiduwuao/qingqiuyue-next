@@ -112,7 +112,7 @@ export async function listTopics(params?: { page?: number; pageSize?: number; st
 }
 
 // 立即跑一轮专题自动生成(按内容标签 / trending 平台热榜建合集,刷新全部专题热度分)。仅内容运营。
-export async function curateTopics(): Promise<{ data?: CurateReport }> {
+export async function curateTopics(): Promise<CurateReport> {
   return contentClient.post('/topic/curate');
 }
 

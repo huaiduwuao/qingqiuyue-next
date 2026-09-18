@@ -164,11 +164,8 @@ export default function SystemBotPage() {
         fetchData={async (params) => {
           const res = await botApi.page(params);
           return {
-            data: {
-              records: res.list || [],
-              totalRow: res.total || 0,
-            },
-            success: true,
+            records: res.list || [],
+            totalRow: res.total || 0,
           };
         }}
         onEdit={handleEdit}

@@ -116,7 +116,7 @@ export default function TopicAdminPage() {
     setCurateNote('');
     try {
       const res = await curateTopics();
-      const r = res.data;
+      const r = res;
       if (r) {
         setCurateNote(
           `已按 ${r.contents} 条内容生成:标签专题 ${r.tagTopics}(候选 ${r.tagCandidates})、平台专题 ${r.platformTopics};新建 ${r.created}、刷新 ${r.updated}、跳过已停用 ${r.skippedOff};热度分刷新 ${r.scored} 个,用时 ${r.duration}`,
@@ -213,8 +213,8 @@ export default function TopicAdminPage() {
   const handleOpenContentDialog = async (topic: Topic) => {
     try {
       const res = await getTopic(topic.id);
-      if (res.data) {
-        setCurrentTopic(res.data);
+      if (res) {
+        setCurrentTopic(res);
         setOpenContentDialog(true);
       }
     } catch (error) {
@@ -234,8 +234,8 @@ export default function TopicAdminPage() {
         title: searchKeyword,
         status: 'PUBLISH',
       }) as any;
-      // 拦截器已解开一层 { code, data },列表在 res.data 下(以前多取了一层 .data,搜索永远为空)
-      const list = res?.data?.list || res?.data?.records || [];
+
+      const list = res?.list || res?.records || [];
       setSearchResults(list);
     } catch (error) {
       console.error('搜索内容失败:', error);
@@ -255,8 +255,8 @@ export default function TopicAdminPage() {
       });
       // 刷新专题内容
       const res = await getTopic(currentTopic.id);
-      if (res.data) {
-        setCurrentTopic(res.data);
+      if (res) {
+        setCurrentTopic(res);
       }
       // 从搜索结果中移除已添加的内容
       setSearchResults(searchResults.filter((c) => String(c.id) !== String(content.id)));
@@ -273,8 +273,8 @@ export default function TopicAdminPage() {
       await removeTopicContent(currentTopic.id, contentId);
       // 刷新专题内容
       const res = await getTopic(currentTopic.id);
-      if (res.data) {
-        setCurrentTopic(res.data);
+      if (res) {
+        setCurrentTopic(res);
       }
     } catch (error) {
       console.error('移除内容失败:', error);
@@ -390,13 +390,10 @@ export default function TopicAdminPage() {
       <DataGridTable
         columns={columns}
         fetchData={async (params) => {
-          const res: any = await listTopics({ page: params.pageNumber, pageSize: params.pageSize });
+          const res = await listTopics({ page: params.pageNumber, pageSize: params.pageSize });
           return {
-            data: {
-              records: res.data?.list || res.data?.records || [],
-              totalRow: res.data?.total || 0,
-            },
-            success: true,
+            records: res?.list || res?.records || [],
+            totalRow: res?.total || 0,
           };
         }}
         extraParams={{ refresh: refreshToken }}

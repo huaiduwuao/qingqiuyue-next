@@ -204,7 +204,7 @@ function DataOverviewShell({ children, totalWorks, periodText }: { children: Rea
 export default function DataOverviewCard() {
   const query = useQuery({
     queryKey: ['account', 'data', 'overview'],
-    queryFn: () => accountClient.get<DataOverview>('/data/overview').then((r) => r.data),
+    queryFn: () => accountClient.get<DataOverview>('/data/overview').then((r) => r),
   });
 
   // 401 静默兜底:KPI 卡片布局不变,数值位置显示「登录后查看」,不显示红色 alert

@@ -65,7 +65,7 @@ function ShareModuleDetailContent() {
 
   const contentDetailQuery = useQuery({
     queryKey: ['share-module-content', activeContentId],
-    queryFn: () => contentDetailApi({ id: activeContentId! }).then((r) => r.data),
+    queryFn: () => contentDetailApi({ id: activeContentId! }).then((r) => r),
     enabled: !!activeContentId,
   });
   const contentDetail = contentDetailQuery.data;

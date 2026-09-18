@@ -163,10 +163,10 @@ export default function SpiderSitesPage() {
             const [listRes, statsRes] = await Promise.all([listSiteSlots(), getSiteSlotStats()]);
             setStats(statsRes.data);
             const rows = listRes.list || [];
-            return { data: { records: rows, totalRow: rows.length }, success: true };
+            return { records: rows, totalRow: rows.length };
           } catch (err: any) {
             showMessage(err.message || '获取数据失败', 'error');
-            return { data: { records: [], totalRow: 0 }, success: false };
+            return { records: [], totalRow: 0 };
           }
         }}
       />

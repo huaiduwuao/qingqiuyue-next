@@ -34,7 +34,7 @@ type CreatorStats = {
 export default function CreatorPage() {
   const query = useQuery({
     queryKey: ['account', 'creator', 'stats'],
-    queryFn: () => accountClient.get<CreatorStats>('/creator/stats').then((r) => r.data),
+    queryFn: () => accountClient.get<CreatorStats>('/creator/stats').then((r) => r),
   });
 
   return (

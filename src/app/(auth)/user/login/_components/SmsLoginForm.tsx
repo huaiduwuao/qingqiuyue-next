@@ -27,7 +27,7 @@ export function SmsLoginForm({ onSession }: { onSession: (sessionId: string) => 
     setError(null);
     try {
       const res = await mobileLogin({ mobile, code });
-      await onSession(res.data.session_id);
+      await onSession(res.session_id);
     } catch (err) {
       setError(formatApiError(err));
       setLoading(false);

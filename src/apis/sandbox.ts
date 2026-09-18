@@ -15,17 +15,17 @@ import type {
 export async function listImages(params?: {
   page?: number;
   pageSize?: number;
-}): Promise<{ data?: { list?: SandboxImageResp[]; records?: SandboxImageResp[]; total?: number; totalRow?: number } }> {
+}): Promise<{ list?: SandboxImageResp[]; records?: SandboxImageResp[]; total?: number; totalRow?: number }> {
   return adminClient('/sandbox/images', { params });
 }
 
 // 获取镜像详情
-export async function getImage(id: number): Promise<{ data?: SandboxImageResp }> {
+export async function getImage(id: number): Promise<SandboxImageResp> {
   return adminClient(`/sandbox/images/${id}`);
 }
 
 // 创建镜像
-export async function createImage(params: SandboxImageCreateReq): Promise<{ data?: SandboxImageResp }> {
+export async function createImage(params: SandboxImageCreateReq): Promise<SandboxImageResp> {
   return adminClient('/sandbox/images', { method: 'POST', data: params });
 }
 
@@ -33,18 +33,18 @@ export async function createImage(params: SandboxImageCreateReq): Promise<{ data
 
 // 任务列表
 export async function listTasks(params?: SandboxTaskListReq): Promise<{
-  data?: { list?: SandboxTaskResp[]; records?: SandboxTaskResp[]; total?: number; totalRow?: number }
+  list?: SandboxTaskResp[]; records?: SandboxTaskResp[]; total?: number; totalRow?: number
 }> {
   return adminClient('/sandbox/tasks', { params });
 }
 
 // 获取任务详情
-export async function getTask(taskId: string): Promise<{ data?: SandboxTaskResp }> {
+export async function getTask(taskId: string): Promise<SandboxTaskResp> {
   return adminClient(`/sandbox/tasks/${taskId}`);
 }
 
 // 获取任务状态
-export async function getTaskStatus(taskId: string): Promise<{ data?: SandboxTaskStatusResp }> {
+export async function getTaskStatus(taskId: string): Promise<SandboxTaskStatusResp> {
   return adminClient(`/sandbox/tasks/${taskId}/status`);
 }
 
@@ -52,12 +52,12 @@ export async function getTaskStatus(taskId: string): Promise<{ data?: SandboxTas
 export async function getTaskLogs(
   taskId: string,
   tail?: number
-): Promise<{ data?: { logs?: string } }> {
+): Promise<{ logs?: string }> {
   return adminClient(`/sandbox/tasks/${taskId}/logs`, { params: { tail: tail ?? 200 } });
 }
 
 // 创建任务
-export async function createTask(params: SandboxTaskCreateReq): Promise<{ data?: SandboxTaskResp }> {
+export async function createTask(params: SandboxTaskCreateReq): Promise<SandboxTaskResp> {
   return adminClient('/sandbox/tasks', { method: 'POST', data: params });
 }
 

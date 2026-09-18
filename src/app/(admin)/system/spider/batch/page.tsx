@@ -161,7 +161,7 @@ export default function SpiderBatchPage() {
         columns={columns}
         fetchData={async (params) => {
           const res = await listBatch({ page: params.pageNumber, pageSize: params.pageSize });
-          return { data: { records: res.list || [], totalRow: res.total || 0 }, success: true };
+          return { records: res.list || [], totalRow: res.total || 0 };
         }}
       />
 

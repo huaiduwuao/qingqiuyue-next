@@ -35,7 +35,7 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 export default function SystemDataPermissionPage() {
-  const { data: metaData } = useQuery({ queryKey: ['system', 'data-permission', 'meta'], queryFn: async () => (await meta()).data });
+  const { data: metaData } = useQuery({ queryKey: ['system', 'data-permission', 'meta'], queryFn: () => meta() });
   const fieldHint = (metaData?.resources ?? [])
     .map((r) => `${r.label}:${r.fields.map((f) => `${f.key}(${f.label})`).join('、')}`)
     .join(';');
@@ -149,9 +149,9 @@ export default function SystemDataPermissionPage() {
         hasPermission={can}
         fetchData={async (params) => {
           const res = await page({ ...params, pageNumber: params.pageNumber });
-          const list = res.data?.records || res.data?.list || [];
-          const total = res.data?.totalRow || res.data?.total || 0;
-          return { data: { records: list, totalRow: total }, success: true };
+          const list = res?.records || res?.list || [];
+          const total = res?.totalRow || res?.total || 0;
+          return { records: list, totalRow: total };
         }}
         onEdit={handleEdit}
         onDelete={handleDelete}

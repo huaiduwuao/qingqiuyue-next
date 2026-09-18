@@ -82,9 +82,9 @@ export default function CrawledPage() {
         setTypeBreakdown(tb);
         setPublishedCount(pub);
 
-        return { data: { records, totalRow: total }, success: true };
+        return { records, totalRow: total };
       } catch (err: any) {
-        return { data: { records: [], totalRow: 0 }, success: false };
+        return { records: [], totalRow: 0 };
       }
     },
     [sourceFilter, titleQ]

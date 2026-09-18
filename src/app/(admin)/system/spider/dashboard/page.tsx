@@ -69,13 +69,13 @@ export default function SpiderDashboardPage() {
 
   // ── 其他数据仍用 HTTP 轮询(5s) ──
   const common = { refetchInterval: POLL_MS, refetchIntervalInBackground: false } as const;
-  const workers = useQuery({ queryKey: ['spider', 'worker-stats'], queryFn: () => getWorkerStats().then((r) => r.data), ...common });
-  const sites = useQuery({ queryKey: ['spider', 'site-stats'], queryFn: () => getSiteSlotStats().then((r) => r.data), ...common });
-  const batch = useQuery({ queryKey: ['spider', 'batch-stats'], queryFn: () => getBatchStats(0).then((r) => r.data), ...common });
-  const proxies = useQuery({ queryKey: ['spider', 'proxy-stats'], queryFn: () => getProxyStats().then((r) => r.data), ...common });
-  const timeseries = useQuery({ queryKey: ['spider', 'timeseries'], queryFn: () => getCrawlTimeseries().then((r) => r.data), ...common });
-  const activity = useQuery({ queryKey: ['spider', 'activity'], queryFn: () => getRecentActivity().then((r) => r.data), ...common });
-  const hourly = useQuery({ queryKey: ['spider', 'hourly-stats'], queryFn: () => getHourlyStats().then((r) => r.data), ...common });
+  const workers = useQuery({ queryKey: ['spider', 'worker-stats'], queryFn: () => getWorkerStats().then((r) => r), ...common });
+  const sites = useQuery({ queryKey: ['spider', 'site-stats'], queryFn: () => getSiteSlotStats().then((r) => r), ...common });
+  const batch = useQuery({ queryKey: ['spider', 'batch-stats'], queryFn: () => getBatchStats(0).then((r) => r), ...common });
+  const proxies = useQuery({ queryKey: ['spider', 'proxy-stats'], queryFn: () => getProxyStats().then((r) => r), ...common });
+  const timeseries = useQuery({ queryKey: ['spider', 'timeseries'], queryFn: () => getCrawlTimeseries().then((r) => r), ...common });
+  const activity = useQuery({ queryKey: ['spider', 'activity'], queryFn: () => getRecentActivity().then((r) => r), ...common });
+  const hourly = useQuery({ queryKey: ['spider', 'hourly-stats'], queryFn: () => getHourlyStats().then((r) => r), ...common });
   const allWorkers = useQuery<Worker[]>({
     queryKey: ['spider', 'workers-all'],
     queryFn: async () => {

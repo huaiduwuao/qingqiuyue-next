@@ -167,10 +167,10 @@ export default function SpiderTemplatesPage() {
         fetchData={async (params) => {
           try {
             const res = await listTemplates({ page: params.pageNumber, pageSize: params.pageSize });
-            return { data: { records: res.list || [], totalRow: res.total || 0 }, success: true };
+            return { records: res.list || [], totalRow: res.total || 0 };
           } catch (err: any) {
             showMessage(err.message || '获取数据失败', 'error');
-            return { data: { records: [], totalRow: 0 }, success: false };
+            return { records: [], totalRow: 0 };
           }
         }}
       />
@@ -259,7 +259,7 @@ function TemplateAttrsSection({ templateId, onMsg }: { templateId: number; onMsg
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['spider', 'template-detail', templateId],
-    queryFn: () => getTemplateDetail(templateId).then((r) => r.data),
+    queryFn: () => getTemplateDetail(templateId).then((r) => r),
   });
   const attrs: TemplateAttr[] = data?.attrs || [];
   const [adding, setAdding] = useState(false);

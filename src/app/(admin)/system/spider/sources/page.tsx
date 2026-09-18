@@ -139,7 +139,7 @@ export default function SpiderSourcesPage() {
         columns={columns}
         fetchData={async (params) => {
           const r = await listSources({ page: params.page + 1, pageSize: params.pageSize });
-          return { data: { records: r.list || [], totalRow: r.total || 0 }, success: true };
+          return { records: r.list || [], totalRow: r.total || 0 };
         }}
       />
 

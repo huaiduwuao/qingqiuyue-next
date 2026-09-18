@@ -109,7 +109,7 @@ export default function SpiderWorkersPage() {
               success: true,
             };
           } catch (err: any) {
-            return { data: { records: [], totalRow: 0 }, success: false };
+            return { records: [], totalRow: 0 };
           }
         }}
       />

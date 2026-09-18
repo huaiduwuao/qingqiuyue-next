@@ -102,10 +102,10 @@ export default function ImagesPage() {
         fetchData={async (params) => {
           try {
             const res = await listImages({ page: params.pageNumber, pageSize: params.pageSize });
-            return { data: { records: res.data?.records || res.data?.list || [], totalRow: res.data?.total || res.data?.totalRow || 0 }, success: true };
+            return { records: res?.records || res?.list || [], totalRow: res?.total || res?.totalRow || 0 };
           } catch (err: any) {
             showMsg(err.message || '获取数据失败', 'error');
-            return { data: { records: [], totalRow: 0 }, success: false };
+            return { records: [], totalRow: 0 };
           }
         }}
       />
