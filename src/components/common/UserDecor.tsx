@@ -74,6 +74,15 @@ export function UserNameDecor({
           Lv{decor.level}
         </Box>
       )}
+      {decor?.creatorLevel && decor.creatorLevel >= 3 && (
+        <Box
+          component="span"
+          title={`创作者 Lv${decor.creatorLevel}`}
+          sx={{ flexShrink: 0, px: 0.5, borderRadius: 0.75, fontSize: 10, lineHeight: '16px', fontWeight: 700, color: '#fff', bgcolor: decor.creatorLevel >= 5 ? '#FFB400' : decor.creatorLevel >= 4 ? '#9C27B0' : '#2196F3' }}
+        >
+          创作者
+        </Box>
+      )}
       {decor?.title && (
         <Box
           component="span"
