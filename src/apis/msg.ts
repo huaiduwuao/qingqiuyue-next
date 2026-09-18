@@ -33,19 +33,19 @@ export interface DMMessage {
 // 获取会话列表
 export async function getSessionList(): Promise<DMSession[]> {
   const res = await accountClient('/msg/session/list');
-  return (res?.data?.list ?? []) as DMSession[];
+  return (res?.list ?? []) as DMSession[];
 }
 
 // 获取会话详情
 export async function getSessionDetail(id: number): Promise<DMSession> {
   const res = await accountClient('/msg/session/detail', { params: { id } });
-  return res?.data as DMSession;
+  return res as DMSession;
 }
 
 // 获取消息列表
 export async function getMessageList(sessionId: number): Promise<DMMessage[]> {
   const res = await accountClient('/msg/message/list', { params: { sessionId } });
-  return (res?.data?.list ?? []) as DMMessage[];
+  return (res?.list ?? []) as DMMessage[];
 }
 
 // 发送消息
@@ -54,7 +54,7 @@ export async function sendMessage(sessionId: number, content: string, type = 'te
     method: 'POST',
     data: { sessionId, content, type }
   });
-  return res?.data as DMMessage;
+  return res as DMMessage;
 }
 
 // ── 富内容分享(作品 / 悬赏任务 / 歌单 / 活动 / 名片) ──────────────────────
@@ -106,7 +106,7 @@ export async function getShareCandidates(
   const res = await accountClient('/msg/share/candidates', {
     params: { source, keyword: keyword || undefined, page, pageSize: 30 },
   });
-  return { list: res?.data?.list ?? [], sources: res?.data?.sources ?? [] };
+  return { list: res?.list ?? [], sources: res?.sources ?? [] };
 }
 
 /** 把一件站内内容作为卡片发进会话。 */
@@ -133,8 +133,8 @@ export async function deleteMessage(id: number): Promise<void> {
 export async function searchMessages(keyword: string, page = 1): Promise<{ list: DMMessage[]; total: number }> {
   const res = await accountClient('/msg/message/search', { params: { keyword, page } });
   return {
-    list: (res?.data?.records ?? []) as DMMessage[],
-    total: res?.data?.totalRow ?? 0
+    list: (res?.records ?? []) as DMMessage[],
+    total: res?.totalRow ?? 0
   };
 }
 
@@ -164,7 +164,7 @@ export async function removeSessions(ids: number[]): Promise<number> {
     method: 'DELETE',
     data: { ids }
   });
-  return res?.data?.removed ?? 0;
+  return res?.removed ?? 0;
 }
 
 // 关注/取消关注会话

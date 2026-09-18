@@ -800,7 +800,7 @@ function HotTabContent({ navigate }: { navigate: ReturnType<typeof useContentNav
             views: number;
           }>;
         }>('/side/hot')
-        .then((r) => r.data),
+        .then((r) => r),
     staleTime: 60_000,
   });
   const items = data?.list ?? [];

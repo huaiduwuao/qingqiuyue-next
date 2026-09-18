@@ -40,17 +40,17 @@ export interface KfSummary {
 
 export async function getKfMessages(): Promise<{ list: KfMessage[]; serviceHours: string }> {
   const res = await adminClient('/kf/messages');
-  return { list: res?.data?.list ?? [], serviceHours: res?.data?.serviceHours ?? '' };
+  return { list: res?.list ?? [], serviceHours: res?.serviceHours ?? '' };
 }
 
 export async function sendKfMessage(content: string, type: 'text' | 'image' = 'text'): Promise<KfMessage> {
   const res = await adminClient('/kf/message', { method: 'POST', data: { content, type } });
-  return res?.data as KfMessage;
+  return res as KfMessage;
 }
 
 export async function getKfSummary(): Promise<KfSummary> {
   const res = await adminClient('/kf/summary');
-  return res?.data as KfSummary;
+  return res as KfSummary;
 }
 
 export async function markKfRead(): Promise<void> {
@@ -61,17 +61,17 @@ export async function markKfRead(): Promise<void> {
 
 export async function getKfSessions(status?: 'open' | 'closed'): Promise<KfSession[]> {
   const res = await adminClient('/kf/sessions', { params: status ? { status } : undefined });
-  return res?.data?.list ?? [];
+  return res?.list ?? [];
 }
 
 export async function getKfThread(userId: number): Promise<KfMessage[]> {
   const res = await adminClient('/kf/session/messages', { params: { userId } });
-  return res?.data?.list ?? [];
+  return res?.list ?? [];
 }
 
 export async function replyKf(userId: number, content: string, type: 'text' | 'image' = 'text'): Promise<KfMessage> {
   const res = await adminClient('/kf/reply', { method: 'POST', data: { userId, content, type } });
-  return res?.data as KfMessage;
+  return res as KfMessage;
 }
 
 export async function markKfStaffRead(userId: number): Promise<void> {

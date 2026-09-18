@@ -163,7 +163,7 @@ export default function SpiderProxiesPage() {
             try {
               const res = await listProxies();
               const statsRes = await getProxyStats();
-              setStats(statsRes.data);
+              setStats(statsRes);
               return {
                 data: { records: res.list || [], totalRow: res.total || 0 },
                 success: true,

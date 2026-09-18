@@ -131,7 +131,7 @@ export function DramaPanel() {
       if (genre) params.set('genre', genre);
       if (status && status !== 'ALL') params.set('status', status);
       if (sort && sort !== 'hot') params.set('sort', sort);
-      const resp = await homeClient.get<{ list: DramaSeries[]; total: number }>(`/drama/series?${params.toString()}`).then((r) => r.data);
+      const resp = await homeClient.get<{ list: DramaSeries[]; total: number }>(`/drama/series?${params.toString()}`).then((r) => r);
       const records = resp?.list || [];
       const total = resp?.total || 0;
       return { records, total, page: pageParam };
@@ -335,7 +335,7 @@ function Top10Section({ genre, genreLabel, status, sort }: { genre: string; genr
       const params = new URLSearchParams();
       if (genre) params.set('genre', genre);
       if (status && status !== 'ALL') params.set('status', status);
-      return homeClient.get<{ list: DramaSeries[] }>(`/drama/top?${params.toString()}`).then((r) => r.data);
+      return homeClient.get<{ list: DramaSeries[] }>(`/drama/top?${params.toString()}`).then((r) => r);
     },
   });
 

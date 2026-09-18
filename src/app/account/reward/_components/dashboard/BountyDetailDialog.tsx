@@ -32,8 +32,6 @@ import {
   REWARD_TASK_STATUS_LABEL,
 } from '../taskboard/status';
 
-const isOk = (res: any) => res?.code === 200 || res?.code === 0;
-
 function fmtYuan(cents: number) {
   return `¥${(cents / 100).toLocaleString('zh-CN', { maximumFractionDigits: 2 })}`;
 }
@@ -87,13 +85,10 @@ export default function BountyDetailDialog({
     setClaimingId(task.id!);
     try {
       const res: any = await claimTask(task.id!);
-      if (isOk(res)) {
-        setMessage({ text: '认领成功,完成后在任务里提交交付物', severity: 'success' });
-        setActiveTask(mapRewardTaskFromBackend(res.data));
+      // 拦截器已在 code !== 0 时 reject;这里就是成功路径
+      setMessage({ text: '认领成功,完成后在任务里提交交付物', severity: 'success' });
+      setActiveTask(mapRewardTaskFromBackend(res));
         refresh();
-      } else {
-        setMessage({ text: res?.msg || '认领失败', severity: 'error' });
-      }
     } catch (e: any) {
       setMessage({ text: e?.message || '认领失败', severity: 'error' });
     } finally {

@@ -44,7 +44,7 @@ export interface HourlyStats {
   }>;
 }
 
-export async function getHourlyStats(): Promise<{ code: number; data: HourlyStats }> {
+export async function getHourlyStats(): Promise<HourlyStats> {
   return spiderClient('/hourly/stats', { method: 'GET' });
 }
 
@@ -143,19 +143,19 @@ export async function deleteTemplate(id: number): Promise<any> {
 }
 
 // ─── Dashboard ───
-export async function getHealth(): Promise<{ code: number; data: HealthStatus }> {
+export async function getHealth(): Promise<HealthStatus> {
   return spiderClient('/health', { method: 'GET' });
 }
 
-export async function getCrawlStats(): Promise<{ code: number; data: CrawlStats }> {
+export async function getCrawlStats(): Promise<CrawlStats> {
   return spiderClient('/stats', { method: 'GET' });
 }
 
-export async function getCrawlTimeseries(): Promise<{ code: number; data: CrawlTimeseries }> {
+export async function getCrawlTimeseries(): Promise<CrawlTimeseries> {
   return spiderClient('/timeseries', { method: 'GET' });
 }
 
-export async function getRecentActivity(): Promise<{ code: number; data: ActivityFeed }> {
+export async function getRecentActivity(): Promise<ActivityFeed> {
   return spiderClient('/activity', { method: 'GET' });
 }
 
@@ -165,7 +165,7 @@ export async function listTasks(params?: PageParams & { status?: string; type?: 
   return normalizeLegacyPageResponse((res as any)?.data ?? res);
 }
 
-export async function getTaskDetail(id: string): Promise<{ code: number; data: CrawlTaskDetail }> {
+export async function getTaskDetail(id: string): Promise<CrawlTaskDetail> {
   return spiderClient(`/tasks/${id}`, { method: 'GET' });
 }
 
@@ -203,7 +203,7 @@ export async function listProxies(): Promise<PageResult<Proxy>> {
   return normalizeLegacyPageResponse((res as any)?.data ?? res);
 }
 
-export async function getProxyStats(): Promise<{ code: number; data: ProxyStats }> {
+export async function getProxyStats(): Promise<ProxyStats> {
   return spiderClient('/proxies/stats', { method: 'GET' });
 }
 
@@ -220,7 +220,7 @@ export async function deleteProxy(id: string): Promise<any> {
 }
 
 // ─── Template Attrs ───
-export async function getTemplateDetail(id: number): Promise<{ code: number; data: TemplateDetail }> {
+export async function getTemplateDetail(id: number): Promise<TemplateDetail> {
   return spiderClient(`/templates/${id}`, { method: 'GET' });
 }
 
@@ -236,12 +236,12 @@ export async function deleteTemplateAttr(attrId: number): Promise<any> {
   return spiderClient(`/templates/attrs/${attrId}`, { method: 'DELETE' });
 }
 
-export async function autoGenerateTemplate(params: { url: string; type?: string }): Promise<{ code: number; data: AutoTemplateResult }> {
+export async function autoGenerateTemplate(params: { url: string; type?: string }): Promise<AutoTemplateResult> {
   return spiderClient('/templates/auto-generate', { method: 'POST', data: params });
 }
 
 // ─── Source 详情 ───
-export async function getSourceDetail(id: number): Promise<{ code: number; data: SpiderSource }> {
+export async function getSourceDetail(id: number): Promise<SpiderSource> {
   return spiderClient(`/sources/${id}`, { method: 'GET' });
 }
 

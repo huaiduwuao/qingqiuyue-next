@@ -1,6 +1,30 @@
-import axios, { AxiosError, AxiosResponse } from 'axios';
+import axios, { AxiosError, AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { normalizeMediaUrls } from '@/lib/media';
 import { API_PREFIX } from '@/lib/api/prefix';
+
+/**
+ * 收敛后的 API client 类型。
+ *
+ * 响应拦截器已把后端 body({ code, msg, data })剥到「业务数据层」并作为 resolve 值,
+ * 所以这里所有方法直接 resolve 业务数据 T(即原 body.data),不再是 AxiosResponse。
+ * 调用方永远只写一层:r.list / r.total,不要再写 r.data.list。
+ *
+ * 历史上取值层级混乱(r.data.X / r.data.data.X / r.data.data ?? r.data 三套并存)的根因
+ * 就是拦截器返回了整个 body。现在统一收敛,泛型 T 让 tsc 能在编译期抓出多一层的写法。
+ */
+export interface ApiClient {
+  <T = any>(config: AxiosRequestConfig): Promise<T>;
+  <T = any>(url: string, config?: AxiosRequestConfig): Promise<T>;
+  get<T = any>(url: string, config?: AxiosRequestConfig): Promise<T>;
+  delete<T = any>(url: string, config?: AxiosRequestConfig): Promise<T>;
+  head<T = any>(url: string, config?: AxiosRequestConfig): Promise<T>;
+  options<T = any>(url: string, config?: AxiosRequestConfig): Promise<T>;
+  post<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T>;
+  put<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T>;
+  patch<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T>;
+  /** 底层 axios 实例,仅供确需原始响应(拿 headers / 流式)的极少数场景使用 */
+  raw: AxiosInstance;
+}
 
 export type ApiErrorCategory = 'network' | 'auth' | 'business' | 'timeout' | 'unknown';
 
@@ -151,7 +175,7 @@ export const API_BASE = {
 };
 
 // 创建指定baseURL的axios实例
-function createApiClient(baseURL: string) {
+function createApiClient(baseURL: string): ApiClient {
   const client = axios.create({
     baseURL,
     withCredentials: false,
@@ -274,25 +298,21 @@ function createApiClient(baseURL: string) {
         }
         // MinIO 内网直链 → 网关地址(整个 payload 深度遍历,不限字段名)
         normalizeMediaUrls(payload);
-        return data;
+        // 收敛:直接 resolve 业务数据层(原 body.data),调用方写 r.list 而非 r.data.list
+        return payload;
       }
 
-      // 2) flat shape:把整个 body 当作 data 包一层,业务层用 res.data?.items / res.data?.list 读
-      //    (业务层习惯 res.data?.data,所以这里也提供 res.data?.data 同名别名)
-      const wrapped: any = {
-        code: 200,
-        msg: 'OK',
-        data,
-      };
-      // 列表分页归一:flat { items } 也提供 list 别名
+      // 2) flat shape:后端直接返回 { items } / { list } / 数组(无 code 外壳)。
+      //    收敛:直接 resolve 业务数据本体,不再手工包 {code,msg,data}。
+      //    列表分页归一:flat { items } 也提供 list 别名
       if (data && typeof data === 'object' && !Array.isArray(data)) {
         normalizePaginationPayload(data as Record<string, any>);
         // 字段别名归一(递归)
-        applyAliases(wrapped.data);
+        applyAliases(data);
       }
       // flat shape 也要改写(数组直返的接口走这条路径)
-      normalizeMediaUrls(wrapped.data);
-      return wrapped;
+      normalizeMediaUrls(data);
+      return data;
     },
     (error: AxiosError) => {
       const status = error.response?.status;
@@ -341,7 +361,9 @@ function createApiClient(baseURL: string) {
     }
   );
 
-  return client;
+  // 运行时拦截器已把 AxiosResponse 换成业务数据层,这里把实例类型改写为 ApiClient。
+  // 这是全仓库唯一一处「说谎」式断言,换来所有调用点的取值类型自动收紧。
+  return Object.assign(client, { raw: client }) as unknown as ApiClient;
 }
 
 // 各模块API客户端
@@ -358,6 +380,10 @@ export const stewardClient = createApiClient(API_BASE.steward);
 // 默认导出admin客户端（兼容现有代码）
 export const apiClient = adminClient;
 
+/**
+ * @deprecated client 现已直接 resolve 业务数据层(剥掉 {code,msg,data} 外壳),
+ * 不再返回这个包装类型。仅保留以兼容少数类型位置的引用;新代码不要用。
+ */
 export interface ApiResponse<T = any> {
   code: string | number;
   msg: string;

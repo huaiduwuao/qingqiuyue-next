@@ -86,7 +86,7 @@ function filterParams(f: LiveFilters, extra: Record<string, string | number> = {
 
 export function fetchOverview(platform: string) {
   const qs = platform && platform !== 'all' ? `?platform=${encodeURIComponent(platform)}` : '';
-  return homeClient.get<LiveOverview>(`/live/overview${qs}`).then((r) => r.data);
+  return homeClient.get<LiveOverview>(`/live/overview${qs}`).then((r) => r);
 }
 
 export function fetchRank(board: RankBoard, f: LiveFilters, limit = 10) {
@@ -94,7 +94,7 @@ export function fetchRank(board: RankBoard, f: LiveFilters, limit = 10) {
     .get<{ board: RankBoard; list: LiveRoom[]; updatedAt: number; since: number }>(
       `/live/rank?${filterParams(f, { board, limit })}`,
     )
-    .then((r) => r.data);
+    .then((r) => r);
 }
 
 export function fetchRooms(f: LiveFilters & { status: LiveStatus; sort: LiveSort }, page: number, size: number) {
@@ -103,13 +103,13 @@ export function fetchRooms(f: LiveFilters & { status: LiveStatus; sort: LiveSort
   else if (f.status !== 'all') extra.status = f.status;
   return homeClient
     .get<{ list: LiveRoom[]; total: number }>(`/live/rooms?${filterParams(f, extra)}`)
-    .then((r) => r.data);
+    .then((r) => r);
 }
 
 export function fetchClassics(range: ClassicRange, f: LiveFilters, limit = 12) {
   return homeClient
     .get<{ list: LiveClassic[]; since: number }>(`/live/classics?${filterParams(f, { range, limit })}`)
-    .then((r) => r.data);
+    .then((r) => r);
 }
 
 /** 平台品牌色,只用在小徽标上。 */

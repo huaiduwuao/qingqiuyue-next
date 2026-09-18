@@ -17,7 +17,7 @@ export interface WalletSummary {
 /** 获取钱包汇总 */
 export async function getWalletSummary(): Promise<WalletSummary> {
   const resp = await accountClient<WalletSummary>('/wallet/summary');
-  return resp?.data ?? resp;
+  return resp;
 }
 
 // ========== 奖励流水 ==========
@@ -88,7 +88,7 @@ export async function getDailyTaskList(): Promise<DailyTask[]> {
 /** 获取任务统计 */
 export async function getDailyTaskStats(): Promise<DailyTaskStats> {
   const resp = await accountClient<DailyTaskStats>('/daily-task/stats');
-  return resp?.data ?? resp;
+  return resp;
 }
 
 /** 完成并领取任务奖励 */
@@ -131,7 +131,7 @@ export interface InviteRecordList {
 /** 获取邀请统计 */
 export async function getInviteStats(): Promise<InviteStats> {
   const resp = await accountClient<InviteStats>('/invite/stats');
-  return resp?.data ?? resp;
+  return resp;
 }
 
 /** 创建邀请码 */
@@ -182,11 +182,11 @@ export interface MonthlyBenefitRecord {
 /** 获取本月福利状态 */
 export async function getMonthlyBenefitStatus(): Promise<MonthlyBenefitStatus> {
   const resp = await accountClient<MonthlyBenefitStatus>('/monthly-benefit/current');
-  return resp?.data ?? resp;
+  return resp;
 }
 
 /** 获取福利领取记录 */
 export async function getMonthlyBenefitRecords(): Promise<MonthlyBenefitRecord[]> {
   const resp = await accountClient<MonthlyBenefitRecord[]>('/monthly-benefit/records');
-  return resp?.data ?? resp ?? [];
+  return resp ?? [];
 }

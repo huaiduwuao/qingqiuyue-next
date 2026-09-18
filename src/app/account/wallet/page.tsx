@@ -37,6 +37,7 @@ import { ACCENT } from '@/constants/accents';
 import { gradient3 } from '@/constants/gradients';
 import { LoginGate } from '@/components/auth/LoginGate';
 import { adminClient, formatApiError } from '@/lib/api/client';
+import { type WalletBalance } from '@/apis/wallet';
 
 // 钱包流水类型:后端 walletapp.WalletTx 的形状,前端 normalize 后 { id/type/amount/balanceAfter/refId/remark/createTime }
 interface DiamondRecord {
@@ -76,9 +77,7 @@ export default function WalletPage() {
   const balanceQuery = useQuery({
     queryKey: ['wallet-balance'],
     queryFn: async () => {
-      const r: any = await adminClient('/wallet');
-      // 拦截器返回 {code, msg, data:{balance, frozen}}
-      return r?.data?.data ?? r?.data ?? r;
+      return adminClient<WalletBalance>('/wallet');
     },
     staleTime: 10 * 1000,
     refetchOnMount: 'always',

@@ -43,8 +43,6 @@ function fmtTime(iso?: string | null) {
 }
 
 export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, onChanged, onDeleted, onError }: Props) {
-  // 后端成功 code 为 0（client.ts 拦截器兼容 0/200），业务层判定需同时认 0 与 200
-  const isOk = (res: any) => res?.code === 200 || res?.code === 0 || res?.code === '200' || res?.code === '0';
   const [deliverable, setDeliverable] = useState('');
   const [reviewNote, setReviewNote] = useState('');
   const [disputeReason, setDisputeReason] = useState('');
@@ -98,9 +96,8 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
   const handleDispute = async () => {
     setSubmitting(true);
     try {
-      const res: any = await disputeTask(task.id!, disputeReason);
-      if (isOk(res)) onChanged(res.data);
-      else onError(res?.msg || '申请仲裁失败');
+      const res = await disputeTask(task.id!, disputeReason);
+      onChanged(res);
     } catch (e: any) {
       onError(e?.message || '申请仲裁失败');
     } finally {
@@ -111,9 +108,9 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
   const handleClaim = async () => {
     setSubmitting(true);
     try {
-      const res: any = await claimTask(task.id!, claimAs || undefined);
-      if (isOk(res)) onChanged(res.data);
-      else onError(res?.msg || '领取失败');
+const res = await claimTask(task.id!, claimAs || undefined);
+      // 拦截器已在 code !== 0 时 reject,这里就是成功路径
+      onChanged(res);
     } catch (e: any) {
       onError(e?.message || '领取失败');
     } finally {
@@ -128,9 +125,8 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
     }
     setSubmitting(true);
     try {
-      const res: any = await submitTask(task.id!, deliverable, pickedWork?.id);
-      if (isOk(res)) onChanged(res.data);
-      else onError(res?.msg || '提交失败');
+      const res = await submitTask(task.id!, deliverable, pickedWork?.id);
+      onChanged(res);
     } catch (e: any) {
       onError(e?.message || '提交失败');
     } finally {
@@ -141,9 +137,8 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
   const handleReview = async (approved: boolean) => {
     setSubmitting(true);
     try {
-      const res: any = await reviewTask(task.id!, approved, reviewNote);
-      if (isOk(res)) onChanged(res.data);
-      else onError(res?.msg || '审稿失败');
+      const res = await reviewTask(task.id!, approved, reviewNote);
+      onChanged(res);
     } catch (e: any) {
       onError(e?.message || '审稿失败');
     } finally {
@@ -155,9 +150,8 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
     if (!window.confirm('确认删除此任务?此操作不可撤销。')) return;
     const { deleteTask } = await import('@/apis/reward-task');
     try {
-      const res: any = await deleteTask(task.id!);
-      if (isOk(res)) onDeleted(task.id!);
-      else onError(res?.msg || '删除失败');
+      const res = await deleteTask(task.id!);
+      onDeleted(task.id!);
     } catch (e: any) {
       onError(e?.message || '删除失败');
     }

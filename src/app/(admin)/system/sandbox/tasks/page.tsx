@@ -347,8 +347,8 @@ function TaskDetailDialog({ viewing, onClose }: { viewing: SandboxTaskResp | nul
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography variant="h6">任务详情</Typography>
           <Chip label={TASK_STATUS_LABELS[viewing.status] || viewing.status} size="small" color={TASK_STATUS_COLORS[viewing.status] || 'default'} />
-          {statusQuery.data?.data?.status && (
-            <Typography variant="caption" color="text.secondary">(实时: {TASK_STATUS_LABELS[statusQuery.data.data.status] || statusQuery.data.data.status})</Typography>
+          {statusQuery.data?.status && (
+            <Typography variant="caption" color="text.secondary">(实时: {TASK_STATUS_LABELS[statusQuery.data.status] || statusQuery.data.status})</Typography>
           )}
         </Box>
       </DialogTitle>

@@ -206,3 +206,44 @@ export async function getWithdrawHistory(params?: PageParams): Promise<PageResul
 export function formatMoney(fen: number): string {
   return (fen / 100).toFixed(2);
 }
+
+// ── 合集买断 API(D2) ──
+// 把整个合集(user_my_list)打包成一个付费单位,购买后合集下所有内容对买家解锁。
+
+export interface CollectionPaywall {
+  /** true = 合集主/已买断/管理员;false = 看付费墙 */
+  unlocked: boolean;
+  /** 钻石(分)。0 = 免费合集 */
+  price: number;
+  title?: string;
+}
+
+/** 设置/取消合集买断价(创作者)。price 为 0 = 取消收费。 */
+export async function setCollectionPrice(params: {
+  collectionId: string | number;
+  price: number;
+}): Promise<{ ok: boolean; price: number; collectionId: string | number }> {
+  const res = await adminClient('/social/collection-price', { method: 'POST', data: params });
+  return res?.data ?? res;
+}
+
+/** 用钱包余额买断合集(用户)。已买/自己的合集返回成功(幂等)。 */
+export async function purchaseCollection(collectionId: string | number): Promise<{
+  ok: boolean;
+  unlocked: boolean;
+  alreadyPurchased?: boolean;
+}> {
+  const res = await adminClient('/social/collection-purchase', {
+    method: 'POST',
+    data: { collectionId: String(collectionId) },
+  });
+  return res?.data ?? res;
+}
+
+/** 查询合集付费墙:价格 + 是否对当前用户解锁。 */
+export async function getCollectionPaywall(collectionId: string | number): Promise<CollectionPaywall> {
+  const res = await adminClient('/social/collection-paywall', {
+    params: { collectionId: String(collectionId) },
+  });
+  return res?.data ?? res;
+}

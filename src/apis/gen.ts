@@ -72,12 +72,12 @@ export async function createVideoJob(body: {
   params?: Record<string, string>;
 }): Promise<{ jobId: number }> {
   const res = await aiClient('/generate/video', { method: 'POST', data: body });
-  return res?.data as { jobId: number };
+  return res as { jobId: number };
 }
 
 export async function getJob(jobId: number | string): Promise<GenJob> {
   const res = await aiClient(`/generate/jobs/${jobId}`);
-  return res?.data as GenJob;
+  return res as GenJob;
 }
 
 /** SSE 进度流地址。后端事件名:status(含 jobId/status/progress/errorMsg)。 */

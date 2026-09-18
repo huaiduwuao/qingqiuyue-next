@@ -39,7 +39,7 @@ export interface UserWork {
 }
 
 export async function fetchUserProfile(id: UserId): Promise<UserProfile> {
-  return (await homeClient.get<UserProfile>(`/user/${id}/profile`)).data;
+  return await homeClient.get<UserProfile>(`/user/${id}/profile`);
 }
 
 export async function fetchUserWorks(id: UserId, page = 1, pageSize = 24): Promise<{ list: UserWork[]; total: number }> {
@@ -74,5 +74,5 @@ export async function unblockUser(id: UserId): Promise<void> {
 
 /** 与某用户开始私信:返回(已有或新建的)会话,前端拿 id 打开 /account/msg 的私信页签。 */
 export async function openDmSession(userId: UserId): Promise<{ id: number }> {
-  return (await adminClient.post<{ id: number }>('/msg/session/open', { userId: Number(userId) })).data;
+  return await adminClient.post<{ id: number }>('/msg/session/open', { userId: Number(userId) });
 }

@@ -35,13 +35,13 @@ export default function HomeMorePage() {
 
   const treeQuery = useQuery({
     queryKey: ['more', 'tree', configQuery.data],
-    queryFn: () => clientTree({ moduleId: configQuery.data! }).then((r) => r.data || []),
+    queryFn: () => clientTree({ moduleId: configQuery.data! }).then((r) => r || []),
     enabled: !!configQuery.data,
   });
 
   const detailQuery = useQuery({
     queryKey: ['more', 'detail', activeContentId],
-    queryFn: () => detail({ id: activeContentId! }).then((r) => r.data || null),
+    queryFn: () => detail({ id: activeContentId! }).then((r) => r || null),
     enabled: !!activeContentId,
   });
 

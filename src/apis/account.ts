@@ -43,8 +43,9 @@ export async function setPayPassword(password: string): Promise<void> {
 }
 
 export async function verifyPayPassword(password: string): Promise<boolean> {
-  const res = await adminClient('/user/verify-pay-password', { method: 'POST', data: { password } });
-  return (res as any)?.data?.code === 0;
+  // 拦截器已在 code !== 0 时 reject,这里成功就意味着 code === 0
+  await adminClient('/user/verify-pay-password', { method: 'POST', data: { password } });
+  return true;
 }
 
 export async function hasPayPassword(): Promise<boolean> {

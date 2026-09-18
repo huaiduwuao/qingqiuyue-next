@@ -46,8 +46,7 @@ interface WithdrawRequest {
 
 // 获取提现列表
 async function fetchWithdrawList(params: { page?: number; size?: number; status?: string }) {
-  const resp = await accountClient('/wallet/withdraw/list', { params });
-  return resp?.data ?? resp ?? { list: [], total: 0 };
+  return accountClient<{ list: any[]; total: number }>('/wallet/withdraw/list', { params });
 }
 
 // 审核提现

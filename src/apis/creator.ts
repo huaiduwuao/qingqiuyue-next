@@ -4,12 +4,8 @@ import { normalizeLegacyPageResponse } from '@/hooks/usePagination';
 
 /** 解开 axios 拦截器的包装层(返回真正的 body) */
 function unwrap<T = any>(resp: any): T {
-  if (!resp) return resp as T;
-  const body = resp?.data ?? resp;
-  if (body && typeof body === 'object' && 'code' in body && 'data' in body) {
-    return body.data as T;
-  }
-  return body as T;
+  // 拦截器已剥壳,resp 就是业务数据;保留 unwrap 仅作占位以兼容旧调用方
+  return resp as T;
 }
 
 export interface WorksPageParams extends PageParams {

@@ -9,6 +9,8 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
 import FormControl from '@mui/material/FormControl';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Switch from '@mui/material/Switch';
 import InputLabel from '@mui/material/InputLabel';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
@@ -16,6 +18,8 @@ import Typography from '@mui/material/Typography';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import { alpha } from '@mui/material/styles';
+import PublicRoundedIcon from '@mui/icons-material/PublicRounded';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import { createTask, updateTask } from '@/apis/reward-task';
 import { myPage as listMyDemands } from '@/apis/reward-demand';
 import type { RewardTask, TaskPriority, DemandItem } from '@/beans/reward';
@@ -35,15 +39,14 @@ interface Props {
  * 新建 / 编辑任务。挂到需求下的任务由需求发布者拆分,可以标价,赏金从需求托管中支付;
  * 不挂需求的是团队内部的独立任务,没有赏金。任务被认领后不能再改所属需求和标价。
  */
-export function TaskEditDialog({ open, record, defaultDemandId, onClose, onSaved, onError }: Props) {
-  // 后端成功 code 为 0（client.ts 拦截器兼容 0/200），业务层判定需同时认 0 与 200
-  const isOk = (res: any) => res?.code === 200 || res?.code === 0 || res?.code === '200' || res?.code === '0';
+export function TaskEditDialog({ open, record, projectId, defaultDemandId, onClose, onSaved, onError }: Props) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('P1');
   const [deadline, setDeadline] = useState('');
   const [demandId, setDemandId] = useState<number | ''>('');
   const [reward, setReward] = useState('');
+  const [isPublic, setIsPublic] = useState(true);
   const [demands, setDemands] = useState<DemandItem[]>([]);
   const [saving, setSaving] = useState(false);
   const locked = !!record?.id && normalizeRewardTaskStatus(record.status) !== 'OPEN';
@@ -56,6 +59,7 @@ export function TaskEditDialog({ open, record, defaultDemandId, onClose, onSaved
     setDeadline(record?.deadline ? record.deadline.slice(0, 10) : '');
     setDemandId(record?.demandId || defaultDemandId || '');
     setReward(record?.reward ? String(record.reward) : '');
+    setIsPublic(record?.isPublic !== false); // 默认公开
     // 只能把任务挂到自己发布、仍在进行中的需求下(myPage 只返回当前用户发布的需求)
     let alive = true;
     listMyDemands({ pageSize: 100 })
@@ -91,10 +95,10 @@ export function TaskEditDialog({ open, record, defaultDemandId, onClose, onSaved
         deadline: deadline ? new Date(`${deadline}T23:59:59`).toISOString() : null,
         demandId: demandId ? Number(demandId) : 0,
         reward: demandId ? rewardNum : 0,
+        isPublic,
       } as Partial<RewardTask>;
-      const res: any = record?.id ? await updateTask(record.id, data) : await createTask(data);
-      if (isOk(res)) onSaved(res.data);
-      else onError(res?.msg || '保存失败');
+      const res = record?.id ? await updateTask(record.id, data) : await createTask(data);
+      onSaved(res as RewardTask);
     } catch (e: any) {
       onError(e?.message || '保存失败');
     } finally {
@@ -162,6 +166,37 @@ export function TaskEditDialog({ open, record, defaultDemandId, onClose, onSaved
               slotProps={{ inputLabel: { shrink: true } }}
             />
           </Box>
+
+          {/* 公开/私密:公开的悬赏验收通过后交付稿转全站公开;
+              私密/买断的仅悬赏主与认领人可见,或转创作者付费专享。 */}
+          <FormControlLabel
+            control={
+              <Switch
+                checked={isPublic}
+                onChange={(_, v) => setIsPublic(v)}
+                disabled={locked}
+                color="primary"
+              />
+            }
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                {isPublic ? (
+                  <PublicRoundedIcon sx={{ fontSize: 16, color: 'primary.main' }} />
+                ) : (
+                  <LockOutlinedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                )}
+                <Typography sx={{ fontSize: 13, color: 'text.primary' }}>
+                  {isPublic ? '公开悬赏' : '私密/买断'}
+                </Typography>
+              </Box>
+            }
+            sx={{ m: 0, alignSelf: 'flex-start' }}
+          />
+          <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: -1 }}>
+            {isPublic
+              ? '公开:验收通过后,交付作品自动转为全站公开内容,进入推荐流'
+              : '私密/买断:交付作品仅悬赏主与认领人可见,或转创作者付费专享,不会公开推荐'}
+          </Typography>
           <FormControl size="small" fullWidth disabled={locked}>
             <InputLabel>所属需求</InputLabel>
             <Select value={demandId} label="所属需求" onChange={(e) => setDemandId(e.target.value as number | '')}>

@@ -92,8 +92,8 @@ function SaveBar({ editable, dirty, pending, onSave, onReset, count }: {
 function PermissionsTab({ roleId, editable, notify }: TabProps) {
   const qc = useQueryClient();
   const [q, setQ] = useState('');
-  const all = useQuery({ queryKey: ['system', 'permission', 'all'], queryFn: async () => (await listAllPermissions()).data ?? [] });
-  const current = useQuery({ queryKey: ['system', 'role', roleId, 'permissions'], queryFn: async () => (await getPermissions(roleId)).data ?? [] });
+  const all = useQuery({ queryKey: ['system', 'permission', 'all'], queryFn: async () => (await listAllPermissions()) ?? [] });
+  const current = useQuery({ queryKey: ['system', 'role', roleId, 'permissions'], queryFn: async () => (await getPermissions(roleId)) ?? [] });
   const serverIds = useMemo(() => current.data?.map((p) => p.id), [current.data]);
   const { selected, toggle, dirty, reset } = useSelection(serverIds);
 
@@ -175,8 +175,8 @@ const DATA_TYPE_LABEL: Record<string, string> = {
 
 function DataPermissionsTab({ roleId, editable, notify }: TabProps) {
   const qc = useQueryClient();
-  const all = useQuery({ queryKey: ['system', 'data-permission', 'all'], queryFn: async () => (await listAllDataPermissions()).data ?? [] });
-  const current = useQuery({ queryKey: ['system', 'role', roleId, 'data-permissions'], queryFn: async () => (await getDataPermissions(roleId)).data ?? [] });
+  const all = useQuery({ queryKey: ['system', 'data-permission', 'all'], queryFn: async () => (await listAllDataPermissions()) ?? [] });
+  const current = useQuery({ queryKey: ['system', 'role', roleId, 'data-permissions'], queryFn: async () => (await getDataPermissions(roleId)) ?? [] });
   const serverIds = useMemo(() => current.data?.map((p) => p.id), [current.data]);
   const { selected, toggle, dirty, reset } = useSelection(serverIds);
 
@@ -230,8 +230,8 @@ function DataPermissionsTab({ roleId, editable, notify }: TabProps) {
 
 function MenusTab({ roleId, editable, notify }: TabProps) {
   const qc = useQueryClient();
-  const all = useQuery({ queryKey: ['system', 'menu', 'all'], queryFn: async () => (await listAllMenus()).data ?? [] });
-  const current = useQuery({ queryKey: ['system', 'role', roleId, 'menus'], queryFn: async () => (await getMenus(roleId)).data ?? [] });
+  const all = useQuery({ queryKey: ['system', 'menu', 'all'], queryFn: async () => (await listAllMenus()) ?? [] });
+  const current = useQuery({ queryKey: ['system', 'role', roleId, 'menus'], queryFn: async () => (await getMenus(roleId)) ?? [] });
   const serverIds = useMemo(() => current.data?.map((m) => m.id), [current.data]);
   const { selected, setSelected, dirty, reset } = useSelection(serverIds);
 
@@ -312,10 +312,10 @@ function MembersTab({ roleId, editable, notify }: TabProps) {
   const [keyword, setKeyword] = useState('');
   const [picked, setPicked] = useState<MemberRecord[]>([]);
   const membersKey = ['system', 'role', roleId, 'users'];
-  const members = useQuery({ queryKey: membersKey, queryFn: async () => (await listMembers(roleId)).data ?? [] });
+  const members = useQuery({ queryKey: membersKey, queryFn: async () => (await listMembers(roleId)) ?? [] });
   const options = useQuery({
     queryKey: ['system', 'user', 'suggest', keyword],
-    queryFn: async () => (await suggestUsers(keyword)).data ?? [],
+    queryFn: async () => (await suggestUsers(keyword)) ?? [],
     enabled: keyword.trim().length > 0,
     staleTime: 10_000,
   });
@@ -411,7 +411,7 @@ function RoleDetailContent() {
 
   const roleQ = useQuery({
     queryKey: ['system', 'role', roleId, 'detail'],
-    queryFn: async () => (await getRole(roleId)).data,
+    queryFn: async () => (await getRole(roleId)),
     enabled: roleId > 0,
   });
   const role = roleQ.data;

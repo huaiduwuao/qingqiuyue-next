@@ -91,23 +91,23 @@ export function FriendPanel() {
 
   const incomingQ = useQuery({
     queryKey: ['home', 'friend', 'requests'],
-    queryFn: () => homeClient.get<{ list: FriendRequest[]; total: number }>('/friend/requests').then((r) => r.data),
+    queryFn: () => homeClient.get<{ list: FriendRequest[]; total: number }>('/friend/requests').then((r) => r),
   });
   const sentQ = useQuery({
     queryKey: ['home', 'friend', 'requests', 'sent'],
-    queryFn: () => homeClient.get<{ list: SentRequest[]; total: number }>('/friend/requests/sent').then((r) => r.data),
+    queryFn: () => homeClient.get<{ list: SentRequest[]; total: number }>('/friend/requests/sent').then((r) => r),
   });
   const friendsQ = useQuery({
     queryKey: ['home', 'friend', 'list'],
-    queryFn: () => homeClient.get<{ list: Friend[]; total: number }>('/friend/list').then((r) => r.data),
+    queryFn: () => homeClient.get<{ list: Friend[]; total: number }>('/friend/list').then((r) => r),
   });
   const suggestionsQ = useQuery({
     queryKey: ['home', 'suggestions', 'friend'],
-    queryFn: () => homeClient.get<{ list: Suggestion[] }>('/suggestions?type=friend&limit=24').then((r) => r.data),
+    queryFn: () => homeClient.get<{ list: Suggestion[] }>('/suggestions?type=friend&limit=24').then((r) => r),
   });
   const statsQ = useQuery({
     queryKey: ['home', 'friend', 'stats'],
-    queryFn: () => homeClient.get<Stats>('/friend/stats').then((r) => r.data),
+    queryFn: () => homeClient.get<Stats>('/friend/stats').then((r) => r),
   });
 
   const refreshAll = () => {

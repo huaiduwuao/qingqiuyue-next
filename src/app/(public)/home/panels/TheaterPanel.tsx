@@ -145,7 +145,7 @@ export function TheaterPanel() {
       const p = new URLSearchParams(params);
       p.set('page', String(pageParam));
       p.set('size', String(PAGE_SIZE));
-      const resp = await homeClient.get<Resp>(`/theater/items?${p.toString()}`).then((r) => r.data);
+      const resp = await homeClient.get<Resp>(`/theater/items?${p.toString()}`).then((r) => r);
       return { records: resp?.list || [], total: resp?.total || 0, page: pageParam };
     },
     initialPageParam: 1,
@@ -347,7 +347,7 @@ function Top10Section({ params }: { params: URLSearchParams }) {
   const qs = params.toString();
   const topQuery = useQuery({
     queryKey: ['home', 'theater', 'top', qs],
-    queryFn: () => homeClient.get<Resp>(`/theater/top?${qs}`).then((r) => r.data),
+    queryFn: () => homeClient.get<Resp>(`/theater/top?${qs}`).then((r) => r),
   });
 
   const list = topQuery.data?.list;

@@ -46,7 +46,7 @@ export async function getFacets(scope: string, category?: string): Promise<Facet
   if (category && category !== 'all') params.set('category', category);
   const data = await homeClient
     .get<FacetCatalog>(`/facets?${params.toString()}`)
-    .then((r) => r.data)
+    .then((r) => r)
     .catch(() => null);
   // 目录拿不到时退回空目录而不是抛错:筛选器少一排,总比整个面板白屏好。
   return data ? { ...EMPTY, ...data } : EMPTY;

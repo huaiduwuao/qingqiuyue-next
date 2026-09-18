@@ -69,7 +69,7 @@ export function CircleSuggestions({ circle }: { circle: Circle }) {
   const { notify, node } = useSnack();
   const { data, isLoading } = useQuery({
     queryKey: ['home', 'suggestions', circle],
-    queryFn: () => homeClient.get<{ list: SuggestUser[] }>(`/suggestions?type=${circle}&limit=8`).then((r) => r.data),
+    queryFn: () => homeClient.get<{ list: SuggestUser[] }>(`/suggestions?type=${circle}&limit=8`).then((r) => r),
   });
   const list: (SuggestUser | undefined)[] = isLoading ? Array.from({ length: 4 }, () => undefined) : data?.list ?? [];
 
@@ -193,7 +193,7 @@ function FollowList() {
   const { notify, node } = useSnack();
   const query = useQuery({
     queryKey: ['home', 'follow', 'list'],
-    queryFn: () => homeClient.get<{ list: FollowedUser[]; total: number }>('/follow/list').then((r) => r.data),
+    queryFn: () => homeClient.get<{ list: FollowedUser[]; total: number }>('/follow/list').then((r) => r),
   });
 
   const unfollow = async (user: FollowedUser) => {
@@ -330,7 +330,7 @@ export function FriendBar() {
   const [open, setOpen] = useState(false);
   const { data } = useQuery({
     queryKey: ['home', 'friend', 'stats'],
-    queryFn: () => homeClient.get<{ friendCount: number; incomingCount: number; sentCount: number }>('/friend/stats').then((r) => r.data),
+    queryFn: () => homeClient.get<{ friendCount: number; incomingCount: number; sentCount: number }>('/friend/stats').then((r) => r),
   });
   return (
     <>

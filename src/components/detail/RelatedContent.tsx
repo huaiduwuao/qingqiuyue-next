@@ -30,7 +30,7 @@ const PORTRAIT_TYPES = new Set(['NOVEL', 'COMICS', 'FILM', 'TELEPLAY', 'SHORT_DR
 
 async function fetchRelated(seedId: string, contentType: string | undefined, userId: number | undefined, size: number) {
   const list = (params: { types?: string }) =>
-    getRelated({ seedId, userId, size, ...params }).then((r) => r.data?.list ?? []);
+    getRelated({ seedId, userId, size, ...params }).then((r) => r?.list ?? []);
 
   const sameType = contentType ? await list({ types: contentType }) : [];
   if (sameType.length >= MIN_SAME_TYPE) return sameType;

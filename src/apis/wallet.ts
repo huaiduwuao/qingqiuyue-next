@@ -37,8 +37,7 @@ export interface WithdrawRequest {
 
 // 获取钱包余额
 export async function getWalletBalance(): Promise<WalletBalance> {
-  const resp = await accountClient('/wallet');
-  return resp?.data ?? resp;
+  return accountClient<WalletBalance>('/wallet');
 }
 
 // 别名:兼容旧代码

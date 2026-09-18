@@ -19,7 +19,7 @@ interface DataGridTableProps {
     sortField?: string;
     sortOrder?: string;
     [key: string]: any;
-  }) => Promise<{ data: { records?: any[]; list?: any[]; totalRow?: number; total?: number }; success?: boolean; code?: number }>;
+  }) => Promise<{ records?: any[]; list?: any[]; totalRow?: number; total?: number }>;
   onEdit?: (row: any) => void;
   onDelete?: (row: any) => void;
   onSelectionChange?: (rows: any[]) => void;
@@ -130,20 +130,11 @@ export function DataGridTable({
       });
 
       if (mountedRef.current) {
-        const data = result?.data || {};
-        const list = data.records || data.list || [];
-        const total = data.totalRow || data.total || 0;
-
-        const isSuccess = result?.success !== false && (result?.success === true || result?.code === 200 || result?.code === 0 || result?.code === undefined || list.length > 0);
-
-        if (isSuccess) {
-          setRows(list);
-          setRowCount(total);
-        } else {
-          console.warn('Fetch returned unsuccessful result:', result);
-          setRows([]);
-          setRowCount(0);
-        }
+        // 拦截器已剥掉 {code,msg} 外壳,result 本身就是业务数据
+        const list = result?.records || result?.list || [];
+        const total = result?.totalRow || result?.total || 0;
+        setRows(list);
+        setRowCount(total);
       }
     } catch (error) {
       console.error('Failed to fetch data:', error);

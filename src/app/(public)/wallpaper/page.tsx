@@ -154,13 +154,13 @@ function WallpaperPageContent() {
           const apiRes = await adminClient.get<{ code?: number; data?: WallpaperPayload } & WallpaperPayload>(
             `/wallpaper/list?page=${page}&page_size=${PAGE_SIZE}`,
           );
-          const raw = apiRes.data;
-          // 实际数据在 raw.data 里（interceptor 把后端 body 包了一层）
+          const raw = apiRes;
+          // 拦截器已把 {code,msg,data} 外壳剥掉,raw 就是业务数据本体
           return {
-            list: raw?.data?.list ?? raw?.list ?? [],
-            items: raw?.data?.items ?? raw?.items ?? [],
-            categories: raw?.data?.categories ?? raw?.categories ?? undefined,
-            total: raw?.data?.total ?? raw?.total ?? 0,
+            list: raw?.list ?? [],
+            items: raw?.items ?? [],
+            categories: raw?.categories ?? undefined,
+            total: raw?.total ?? 0,
           };
         };
 

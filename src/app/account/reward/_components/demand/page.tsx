@@ -162,15 +162,12 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
     if (!selectedRecord?.id) return;
     setSettling(true);
     try {
-      const res: any = await settleDemand(selectedRecord.id);
-      if (res?.code === 200 || res?.code === 0) {
-        showMessage('结账成功,赏金已发放给贡献者');
-        setSettleVisible(false);
-        setDetailVisible(false);
-        query.refetch();
-      } else {
-        showMessage(res?.msg || '结账失败', 'error');
-      }
+      const res = await settleDemand(selectedRecord.id);
+      // 拦截器已在 code !== 0 时 reject,成功则直接走业务路径
+      showMessage('结账成功,赏金已发放给贡献者');
+      setSettleVisible(false);
+      setDetailVisible(false);
+      query.refetch();
     } catch (err: any) {
       showMessage(err?.message || '结账失败', 'error');
     } finally {

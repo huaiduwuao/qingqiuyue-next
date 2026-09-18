@@ -289,7 +289,7 @@ function MyHomePageAuthed() {
 
   const profileQuery = useQuery({
     queryKey: ['home', 'me', 'profile'],
-    queryFn: () => homeClient.get<any>('/me/profile').then((r) => r.data),
+    queryFn: () => homeClient.get<any>('/me/profile').then((r) => r),
   });
   const profile = profileQuery.data;
 
@@ -316,7 +316,7 @@ function MyHomePageAuthed() {
       });
       if (keywordQuery) qs.set('keyword', keywordQuery);
       if (dateRange !== 'all') qs.set('range', dateRange);
-      return homeClient.get<ListResp>(`/me/list?${qs}`).then((r) => r.data);
+      return homeClient.get<ListResp>(`/me/list?${qs}`).then((r) => r);
     },
     getNextPageParam: (last, all) => nextMeListPage(last, all),
     // 换关键词时先留着上一批,列表不会闪成空白再填回来
@@ -331,22 +331,22 @@ function MyHomePageAuthed() {
   // 快捷入口徽标所需数据(QUICK_LINKS 渲染时实时消费)
   const walletQ = useQuery({
     queryKey: ['home', 'me', 'wallet'],
-    queryFn: () => homeClient.get<any>('/me/wallet').then((r) => r.data),
+    queryFn: () => homeClient.get<any>('/me/wallet').then((r) => r),
     staleTime: 60_000,
   });
   const pointQ = useQuery({
     queryKey: ['home', 'me', 'point'],
-    queryFn: () => homeClient.get<any>('/me/point').then((r) => r.data),
+    queryFn: () => homeClient.get<any>('/me/point').then((r) => r),
     staleTime: 60_000,
   });
   const orderQ = useQuery({
     queryKey: ['home', 'me', 'orders'],
-    queryFn: () => homeClient.get<any>('/me/orders?size=1').then((r) => r.data),
+    queryFn: () => homeClient.get<any>('/me/orders?size=1').then((r) => r),
     staleTime: 60_000,
   });
   const vipQ = useQuery({
     queryKey: ['home', 'me', 'vip'],
-    queryFn: () => homeClient.get<any>('/me/vip').then((r) => r.data),
+    queryFn: () => homeClient.get<any>('/me/vip').then((r) => r),
     staleTime: 5 * 60_000,
   });
 
@@ -412,7 +412,7 @@ function MyHomePageAuthed() {
   };
 
   const saveProfileMutation = useMutation({
-    mutationFn: (payload: Record<string, any>) => homeClient.post('/me/profile', payload).then((r) => r.data),
+    mutationFn: (payload: Record<string, any>) => homeClient.post('/me/profile', payload).then((r) => r),
     onSuccess: () => {
       setToast('资料已更新');
       setEditOpen(false);
@@ -435,7 +435,7 @@ function MyHomePageAuthed() {
         .post<{ visibility?: WorkVisibility }>(`/me/works/${it.id}/private`, {
           private: privacyActionOf(it) === 'hide',
         })
-        .then((r) => r.data),
+        .then((r) => r),
     onSuccess: (data) => {
       setToast(
         data?.visibility === 'private' ? '已设为私密,仅自己可见'
@@ -452,7 +452,7 @@ function MyHomePageAuthed() {
   // 和上面那个作品开关是两码事,入口也分开:这个只在「编辑资料」里。
   const accountPrivateMutation = useMutation({
     mutationFn: (next: boolean) =>
-      homeClient.post<{ isPrivate?: boolean }>('/me/toggle-private', { isPrivate: next }).then((r) => r.data),
+      homeClient.post<{ isPrivate?: boolean }>('/me/toggle-private', { isPrivate: next }).then((r) => r),
     onSuccess: (data) => {
       setToast(data?.isPrivate ? '已开启私密账号,作品仅自己可见' : '已关闭私密账号');
       qc.invalidateQueries({ queryKey: ['home', 'me', 'profile'] });
