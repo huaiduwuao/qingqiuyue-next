@@ -121,30 +121,30 @@ export interface CreateOperation {
 const payload = <T,>(res: unknown): T => (res as { data: T }).data;
 
 export const fleet = async () =>
-  payload<{ nodes: StewardNode[] }>(await stewardClient.get('/fleet')).nodes ?? [];
+  stewardClient.get<{ nodes: StewardNode[] }>('/fleet').then((r) => r?.nodes ?? []);
 
 export const releases = async (limit = 20) =>
-  payload<{ list: Release[] }>(await stewardClient.get('/releases', { params: { limit } })).list ?? [];
+  stewardClient.get<{ list: Release[] }>('/releases', { params: { limit } }).then((r) => r?.list ?? []);
 
 export const operations = async (limit = 50) =>
-  payload<{ list: Operation[] }>(await stewardClient.get('/operations', { params: { limit } })).list ?? [];
+  stewardClient.get<{ list: Operation[] }>('/operations', { params: { limit } }).then((r) => r?.list ?? []);
 
 export const operation = async (id: string) =>
-  payload<OperationDetail>(await stewardClient.get(`/operations/${id}`));
+  stewardClient.get<OperationDetail>(`/operations/${id}`);
 
 export const createOperation = async (body: CreateOperation) =>
-  payload<Operation>(await stewardClient.post('/operations', body));
+  stewardClient.post<Operation>('/operations', body);
 
 // force:目标不比线上新时后端默认拒绝批准,明知是回退才传 true。
 export const approve = async (id: string, comment = '', force = false) =>
-  payload<Operation>(await stewardClient.post(`/operations/${id}/approve`, { comment, force }));
+  stewardClient.post<Operation>(`/operations/${id}/approve`, { comment, force });
 
 export const reject = async (id: string, comment = '') =>
-  payload<Operation>(await stewardClient.post(`/operations/${id}/reject`, { comment }));
+  stewardClient.post<Operation>(`/operations/${id}/reject`, { comment });
 
 // 自动化开关:暂停后 AI 助手发起的操作一律等人批准(自动回滚不受影响)。
 export const automation = async () =>
-  payload<Automation>(await stewardClient.get('/automation'));
+  stewardClient.get<Automation>('/automation');
 
 export const setAutomation = async (paused: boolean, reason = '') =>
-  payload<Automation>(await stewardClient.post('/automation', { paused, reason }));
+  stewardClient.post<Automation>('/automation', { paused, reason });

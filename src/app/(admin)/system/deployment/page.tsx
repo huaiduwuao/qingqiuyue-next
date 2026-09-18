@@ -30,6 +30,8 @@ import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
+import type { GridColDef } from '@mui/x-data-grid';
+import { DataGridTable } from '@/components/tables/DataGridTable';
 import * as st from '@/apis/steward';
 
 type ChipColor = 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning';
@@ -73,6 +75,17 @@ const ACTION_HINT: Record<ActionKind, string> = {
   detach: '清空节点期望状态:agent 只观测、不再变更,可回到手动 make compose-up。(T1)',
 };
 
+// DataGridTable 的 fetchData 是单次拉取(无内置 refetchInterval),
+// 这里通过一个递增的 tick 当 extraParams 喂进去,周期性触发 refetch。
+function useAutoRefresh(intervalMs: number): number {
+  const [tick, setTick] = React.useState(0);
+  React.useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), intervalMs);
+    return () => clearInterval(t);
+  }, [intervalMs]);
+  return tick;
+}
+
 export default function DeploymentPage() {
   const qc = useQueryClient();
   const [openOp, setOpenOp] = React.useState<string>('');
@@ -85,6 +98,10 @@ export default function DeploymentPage() {
   const relQ = useQuery({ queryKey: ['steward', 'releases'], queryFn: () => st.releases(20), refetchInterval: 15000, retry: false });
   const autoQ = useQuery({ queryKey: ['steward', 'automation'], queryFn: st.automation, refetchInterval: 15000, retry: false });
   const refresh = () => qc.invalidateQueries({ queryKey: ['steward'] });
+
+  // 表格内部轮询(refetchInterval 行为):
+  const opTick = useAutoRefresh(5000);
+  const relTick = useAutoRefresh(15000);
 
   if (errStatus(fleetQ.error) === 403) {
     return (
@@ -114,6 +131,83 @@ export default function DeploymentPage() {
       return false;
     }
   };
+
+  const releaseColumns: GridColDef[] = [
+    { field: 'id', headerName: 'Release', width: 240, renderCell: (p) => {
+      const r = p.row as st.Release;
+      return (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+          <Box sx={{ fontFamily: 'monospace', fontSize: 12 }}>{r.id}</Box>
+          {r.id === node?.current_release_id && <Chip size="small" label="当前" color="primary" />}
+        </Box>
+      );
+    } },
+    { field: 'source', headerName: '来源', width: 90, valueFormatter: (v) => v === 'adopt' ? '接管' : '构建' },
+    { field: 'commits', headerName: '提交(go / next)', width: 220, sortable: false,
+      valueGetter: (_, row) => `${short((row as st.Release).go_commit, 7)} / ${short((row as st.Release).next_commit, 7)}`,
+      renderCell: (p) => <Box sx={{ fontFamily: 'monospace', fontSize: 12 }}>{p.value}</Box> },
+    { field: 'items', headerName: '服务', type: 'number', width: 80, align: 'right', headerAlign: 'right',
+      valueGetter: (_, row) => (row as st.Release).items.length },
+    { field: 'verified_at', headerName: '状态', width: 110,
+      renderCell: (p) => <Chip size="small" variant="outlined"
+        color={p.value ? 'success' : 'default'}
+        label={p.value ? '已验证' : '未验证'} /> },
+    { field: 'created_at', headerName: '创建时间', width: 170, sortable: false,
+      valueFormatter: (v) => v ? fmtTime(v as string) : '—' },
+  ];
+
+  const opsColumns: GridColDef[] = [
+    { field: 'kind', headerName: '操作', width: 130, sortable: false,
+      renderCell: (p) => {
+        const o = p.row as st.Operation;
+        return (
+          <Box sx={{ fontSize: 12.5 }}>
+            {KIND_LABEL[o.kind] ?? o.kind}
+            {o.target_release_id && <Box component="span" sx={{ ml: 1, fontFamily: 'monospace', fontSize: 11.5, color: 'text.secondary' }}>{o.target_release_id}</Box>}
+          </Box>
+        );
+      } },
+    { field: 'tier', headerName: '风险', width: 80, sortable: false,
+      renderCell: (p) => <TierChip tier={p.value as st.Tier} /> },
+    { field: 'status', headerName: '状态', width: 200, sortable: false,
+      renderCell: (p) => {
+        const o = p.row as st.Operation;
+        return (
+          <Box sx={{ whiteSpace: 'nowrap' }}>
+            <StatusChip status={o.status} />
+            {o.older_than_live && <StaleChip why={o.older_than_live} />}
+          </Box>
+        );
+      } },
+    { field: 'requester', headerName: '发起人', width: 130, sortable: false,
+      valueGetter: (_, row) => {
+        const o = row as st.Operation;
+        return o.requester_type === 'system' ? 'Steward(自动)' : o.requester_name;
+      } },
+    { field: 'note', headerName: '说明', flex: 1.5, minWidth: 200, sortable: false,
+      valueGetter: (_, row) => {
+        const o = row as st.Operation;
+        return o.message || o.reason || '—';
+      },
+      renderCell: (p) => <Box sx={{ fontSize: 12.5, maxWidth: 360, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.value}</Box> },
+    { field: 'created_at', headerName: '时间', width: 170, sortable: false,
+      valueFormatter: (v) => v ? fmtTime(v as string) : '—' },
+  ];
+
+  // fetchData 通过下标 allList 实现(全量切片);extraParams 用 tick 触发 refetch。
+  const releasesAll = React.useRef<st.Release[]>([]);
+  const fetchReleases = React.useCallback(async (params: { pageNumber: number; pageSize: number }) => {
+    releasesAll.current = await st.releases(20);
+    const start = (params.pageNumber - 1) * params.pageSize;
+    return { records: releasesAll.current.slice(start, start + params.pageSize), totalRow: releasesAll.current.length };
+  }, []);
+
+  const opsAll = React.useRef<st.Operation[]>([]);
+  const fetchOps = React.useCallback(async (params: { pageNumber: number; pageSize: number }) => {
+    opsAll.current = await st.operations(50);
+    const start = (params.pageNumber - 1) * params.pageSize;
+    return { records: opsAll.current.slice(start, start + params.pageSize), totalRow: opsAll.current.length };
+  }, []);
 
   return (
     <Container maxWidth="lg">
@@ -178,72 +272,26 @@ export default function DeploymentPage() {
         {/* ── Release ── */}
         <Box>
           <Typography variant="h6" sx={{ mb: 1 }}>Release</Typography>
-          <Card variant="outlined" sx={{ overflowX: 'auto' }}>
-            <Table size="small">
-              <TableHead><TableRow>
-                {['Release', '来源', '提交(go / next)', '服务', '状态', '创建时间'].map((h) => (
-                  <TableCell key={h} sx={{ fontWeight: 700, fontSize: 12.5 }}>{h}</TableCell>
-                ))}
-              </TableRow></TableHead>
-              <TableBody>
-                {rels.map((r) => (
-                  <TableRow key={r.id} hover>
-                    <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>
-                      {r.id}
-                      {r.id === node?.current_release_id && <Chip size="small" label="当前" color="primary" sx={{ ml: 1 }} />}
-                    </TableCell>
-                    <TableCell sx={{ fontSize: 12.5 }}>{r.source === 'adopt' ? '接管' : '构建'}</TableCell>
-                    <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>{short(r.go_commit, 7)} / {short(r.next_commit, 7)}</TableCell>
-                    <TableCell sx={{ fontSize: 12.5 }}>{r.items.length}</TableCell>
-                    <TableCell>
-                      <Chip size="small" variant="outlined" color={r.verified_at ? 'success' : 'default'} label={r.verified_at ? '已验证' : '未验证'} />
-                    </TableCell>
-                    <TableCell sx={{ fontSize: 12.5 }}>{fmtTime(r.created_at)}</TableCell>
-                  </TableRow>
-                ))}
-                {!rels.length && (
-                  <TableRow><TableCell colSpan={6} sx={{ color: 'text.secondary', fontSize: 12.5 }}>还没有 release。先「接管基线」,再「构建最新代码」。</TableCell></TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </Card>
+          <DataGridTable
+            columns={releaseColumns}
+            fetchData={fetchReleases}
+            extraParams={{ tick: relTick }}
+          />
         </Box>
 
         {/* ── 操作记录 ── */}
         <Box>
           <Typography variant="h6" sx={{ mb: 1 }}>操作记录</Typography>
-          <Card variant="outlined" sx={{ overflowX: 'auto' }}>
-            <Table size="small">
-              <TableHead><TableRow>
-                {['操作', '风险', '状态', '发起人', '说明', '时间'].map((h) => (
-                  <TableCell key={h} sx={{ fontWeight: 700, fontSize: 12.5 }}>{h}</TableCell>
-                ))}
-              </TableRow></TableHead>
-              <TableBody>
-                {ops.map((o) => (
-                  <TableRow key={o.id} hover sx={{ cursor: 'pointer' }} onClick={() => setOpenOp(o.id)}>
-                    <TableCell sx={{ fontSize: 12.5 }}>
-                      {KIND_LABEL[o.kind] ?? o.kind}
-                      {o.target_release_id && <Box component="span" sx={{ ml: 1, fontFamily: 'monospace', fontSize: 11.5, color: 'text.secondary' }}>{o.target_release_id}</Box>}
-                    </TableCell>
-                    <TableCell><TierChip tier={o.tier} /></TableCell>
-                    <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                      <StatusChip status={o.status} />
-                      {o.older_than_live && <StaleChip why={o.older_than_live} />}
-                    </TableCell>
-                    <TableCell sx={{ fontSize: 12.5 }}>{o.requester_type === 'system' ? 'Steward(自动)' : o.requester_name}</TableCell>
-                    <TableCell sx={{ fontSize: 12.5, maxWidth: 360, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {o.message || o.reason || '—'}
-                    </TableCell>
-                    <TableCell sx={{ fontSize: 12.5, whiteSpace: 'nowrap' }}>{fmtTime(o.created_at)}</TableCell>
-                  </TableRow>
-                ))}
-                {!ops.length && (
-                  <TableRow><TableCell colSpan={6} sx={{ color: 'text.secondary', fontSize: 12.5 }}>暂无操作</TableCell></TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </Card>
+          <DataGridTable
+            columns={opsColumns}
+            fetchData={fetchOps}
+            extraParams={{ tick: opTick }}
+            customActions={[{
+              label: '查看',
+              color: 'primary',
+              onClick: (row) => setOpenOp((row as st.Operation).id),
+            }]}
+          />
         </Box>
       </Box>
 
@@ -334,6 +382,8 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
   );
 }
 
+// ServicesTable 保留裸 MUI Table —— 它嵌在 NodeCard 里,每行有 IconButton 重启按钮 + 健康检查 chip,
+// 形态过于定制,DataGridTable 内嵌卡片视觉不协调,且重按钮需要在 hover 时显示。
 function ServicesTable({ report, desired, onRestart }: {
   report: st.NodeReport; desired?: st.Release; onRestart: (service: string) => void;
 }) {

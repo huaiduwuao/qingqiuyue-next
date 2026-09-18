@@ -6,16 +6,8 @@
  */
 
 import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import Table from '@mui/material/Table';
-import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
-import TableContainer from '@mui/material/TableContainer';
-import TableHead from '@mui/material/TableHead';
-import TableRow from '@mui/material/TableRow';
-import Paper from '@mui/material/Paper';
 import Chip from '@mui/material/Chip';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -24,15 +16,12 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
-import Select from '@mui/material/Select';
-import MenuItem from '@mui/material/MenuItem';
-import FormControl from '@mui/material/FormControl';
-import InputLabel from '@mui/material/InputLabel';
-import Pagination from '@mui/material/Pagination';
 import Alert from '@mui/material/Alert';
-import { accountClient } from '@/lib/api/client';
+import Snackbar from '@mui/material/Snackbar';
+import type { GridColDef } from '@mui/x-data-grid';
+import { DataGridTable } from '@/components/tables/DataGridTable';
+import { adminClient, formatApiError } from '@/lib/api/client';
 
-// 提现申请类型
 interface WithdrawRequest {
   id: number;
   userId: number;
@@ -44,199 +33,130 @@ interface WithdrawRequest {
   updateTime: string;
 }
 
-// 获取提现列表
-async function fetchWithdrawList(params: { page?: number; size?: number; status?: string }) {
-  return accountClient<{ list: any[]; total: number }>('/wallet/withdraw/list', { params });
+interface WithdrawListResp {
+  list: WithdrawRequest[];
+  total: number;
+  page: number;
 }
 
-// 审核提现
+const formatAmount = (fen: number) => ((fen / 100).toFixed(2) + ' 元');
+
+const statusConfig: Record<string, { label: string; color: 'warning' | 'success' | 'error' }> = {
+  pending: { label: '待处理', color: 'warning' },
+  approved: { label: '已通过', color: 'success' },
+  rejected: { label: '已拒绝', color: 'error' },
+};
+
+async function fetchWithdrawList(params: { pageNumber: number; pageSize: number; status?: string }): Promise<WithdrawListResp> {
+  return adminClient<WithdrawListResp>('/wallet/withdraw/list', {
+    params: { page: params.pageNumber, size: params.pageSize, status: params.status || undefined },
+  });
+}
+
 async function reviewWithdraw(data: { id: number; approved: boolean; rejectNote?: string }) {
-  return accountClient('/wallet/withdraw/review', { method: 'POST', data });
-}
-
-// 金额格式化(分 -> 元)
-function formatAmount(fen: number): string {
-  return (fen / 100).toFixed(2) + ' 元';
-}
-
-// 状态标签
-function StatusChip({ status }: { status: string }) {
-  const config: Record<string, { label: string; color: 'warning' | 'success' | 'error' }> = {
-    pending: { label: '待处理', color: 'warning' },
-    approved: { label: '已通过', color: 'success' },
-    rejected: { label: '已拒绝', color: 'error' },
-  };
-  const c = config[status] || { label: status, color: 'warning' as const };
-  return <Chip label={c.label} color={c.color} size="small" />;
+  return adminClient('/wallet/withdraw/review', { method: 'POST', data });
 }
 
 export default function WithdrawReviewPage() {
-  const queryClient = useQueryClient();
-  const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState('');
+  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
   const [reviewTarget, setReviewTarget] = useState<WithdrawRequest | null>(null);
   const [rejectNote, setRejectNote] = useState('');
-  const size = 20;
+  const [submitting, setSubmitting] = useState(false);
+  const [msg, setMsg] = useState<{ text: string; severity: 'success' | 'error' } | null>(null);
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['withdraw-list', page, statusFilter],
-    queryFn: () => fetchWithdrawList({ page, size, status: statusFilter }),
-  });
+  const showMsg = (text: string, severity: 'success' | 'error' = 'success') =>
+    setMsg({ text, severity });
 
-  const reviewMutation = useMutation({
-    mutationFn: reviewWithdraw,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['withdraw-list'] });
+  const columns: GridColDef[] = [
+    { field: 'id', headerName: 'ID', type: 'number', width: 80 },
+    { field: 'userId', headerName: '用户ID', type: 'number', width: 110 },
+    { field: 'amount', headerName: '申请金额', type: 'number', width: 120,
+      renderCell: (p) => <Box sx={{ fontFamily: 'monospace', fontWeight: 600 }}>{formatAmount(p.value as number)}</Box> },
+    { field: 'bankInfo', headerName: '收款信息', flex: 1.5, minWidth: 200,
+      renderCell: (p) => <Box sx={{ maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.value || '-'}</Box> },
+    { field: 'status', headerName: '状态', width: 100,
+      renderCell: (p) => {
+        const c = statusConfig[p.value as string] || { label: p.value as string, color: 'warning' as const };
+        return <Chip label={c.label} color={c.color} size="small" />;
+      } },
+    { field: 'createTime', headerName: '申请时间', width: 170,
+      valueFormatter: (v) => v ? new Date(v as string).toLocaleString('zh-CN') : '-' },
+  ];
+
+  const handleReview = async (approved: boolean) => {
+    if (!reviewTarget) return;
+    setSubmitting(true);
+    try {
+      await reviewWithdraw({ id: reviewTarget.id, approved, rejectNote: approved ? undefined : rejectNote });
+      showMsg(approved ? '已通过' : '已拒绝', 'success');
       setReviewTarget(null);
       setRejectNote('');
-    },
-  });
-
-  const list: WithdrawRequest[] = data?.list ?? [];
-  const total = data?.total ?? 0;
-  const totalPages = Math.ceil(total / size);
-
-  const handleReview = (approved: boolean) => {
-    if (!reviewTarget) return;
-    reviewMutation.mutate({
-      id: reviewTarget.id,
-      approved,
-      rejectNote: approved ? undefined : rejectNote,
-    });
+      // 触发 DataGridTable 重拉:它对 filters.values 的引用变化敏感,这里克隆一个新对象。
+      setFilterValues({ ...filterValues });
+    } catch (e) {
+      showMsg(formatApiError(e), 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h6">提现审核</Typography>
-        <FormControl size="small" sx={{ minWidth: 120 }}>
-          <InputLabel>状态筛选</InputLabel>
-          <Select
-            value={statusFilter}
-            label="状态筛选"
-            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-          >
-            <MenuItem value="">全部</MenuItem>
-            <MenuItem value="pending">待处理</MenuItem>
-            <MenuItem value="approved">已通过</MenuItem>
-            <MenuItem value="rejected">已拒绝</MenuItem>
-          </Select>
-        </FormControl>
-      </Box>
+      <Typography variant="h6">提现审核</Typography>
+      {msg && <Alert severity={msg.severity} onClose={() => setMsg(null)} sx={{ mb: 1 }}>{msg.text}</Alert>}
+      <DataGridTable
+        columns={columns}
+        fetchData={fetchWithdrawList}
+        filters={{
+          fields: [
+            { key: 'status', label: '状态', type: 'select',
+              options: [
+                { label: '待处理', value: 'pending' },
+                { label: '已通过', value: 'approved' },
+                { label: '已拒绝', value: 'rejected' },
+              ] },
+          ],
+          values: filterValues,
+          onChange: setFilterValues,
+          onReset: () => setFilterValues({}),
+        }}
+        customActions={[{
+          label: '审核',
+          color: 'primary',
+          hidden: (row) => (row as WithdrawRequest).status !== 'pending',
+          onClick: (row) => { setReviewTarget(row as WithdrawRequest); setRejectNote(''); },
+        }]}
+      />
 
-      {error && <Alert severity="error">加载失败</Alert>}
-
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>ID</TableCell>
-              <TableCell>用户ID</TableCell>
-              <TableCell>申请金额</TableCell>
-              <TableCell>收款信息</TableCell>
-              <TableCell>状态</TableCell>
-              <TableCell>申请时间</TableCell>
-              <TableCell>操作</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={7} sx={{ textAlign: 'center' }}>加载中...</TableCell>
-              </TableRow>
-            ) : list.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} sx={{ textAlign: 'center' }}>暂无数据</TableCell>
-              </TableRow>
-            ) : (
-              list.map((item) => (
-                <TableRow key={item.id} hover>
-                  <TableCell>{item.id}</TableCell>
-                  <TableCell>{item.userId}</TableCell>
-                  <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>
-                    {formatAmount(item.amount)}
-                  </TableCell>
-                  <TableCell sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {item.bankInfo || '-'}
-                  </TableCell>
-                  <TableCell><StatusChip status={item.status} /></TableCell>
-                  <TableCell sx={{ fontSize: 12 }}>
-                    {new Date(item.createTime).toLocaleString('zh-CN')}
-                  </TableCell>
-                  <TableCell>
-                    {item.status === 'pending' && (
-                      <Button
-                        size="small"
-                        variant="contained"
-                        color="primary"
-                        onClick={() => setReviewTarget(item)}
-                      >
-                        审核
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      {totalPages > 1 && (
-        <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-          <Pagination
-            count={totalPages}
-            page={page}
-            onChange={(_, p) => setPage(p)}
-            color="primary"
-          />
-        </Box>
-      )}
-
-      {/* 审核弹窗 */}
-      <Dialog open={!!reviewTarget} onClose={() => setReviewTarget(null)} maxWidth="sm" fullWidth>
-        <DialogTitle>审核提现申请</DialogTitle>
+      {/* 审核对话框:已通过 / 已拒绝 */}
+      <Dialog open={!!reviewTarget} onClose={() => setReviewTarget(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>审核提现</DialogTitle>
         <DialogContent>
-          {reviewTarget && (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-              <DialogContentText>
-                用户 <strong>{reviewTarget.userId}</strong> 申请提现{' '}
-                <strong style={{ color: '#FE2C55' }}>{formatAmount(reviewTarget.amount)}</strong>
-              </DialogContentText>
-              <DialogContentText>
-                收款信息: {reviewTarget.bankInfo || '未填写'}
-              </DialogContentText>
-              <TextField
-                label="拒绝原因"
-                multiline
-                rows={2}
-                value={rejectNote}
-                onChange={(e) => setRejectNote(e.target.value)}
-                placeholder="请输入拒绝原因(仅拒绝时填写)"
-              />
-            </Box>
-          )}
+          <DialogContentText sx={{ mb: 2 }}>
+            申请金额: <strong>{reviewTarget && formatAmount(reviewTarget.amount)}</strong> · 用户 #{reviewTarget?.userId}
+          </DialogContentText>
+          <TextField
+            label="拒绝理由"
+            value={rejectNote}
+            onChange={(e) => setRejectNote(e.target.value)}
+            fullWidth
+            multiline
+            minRows={2}
+            placeholder="拒绝时填写,管理员可见"
+          />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setReviewTarget(null)}>取消</Button>
-          <Button
-            onClick={() => handleReview(false)}
-            color="error"
-            variant="contained"
-            disabled={reviewMutation.isPending}
-          >
+          <Button onClick={() => setReviewTarget(null)} disabled={submitting}>取消</Button>
+          <Button onClick={() => handleReview(false)} color="error" disabled={submitting || !rejectNote.trim()}>
             拒绝
           </Button>
-          <Button
-            onClick={() => handleReview(true)}
-            color="success"
-            variant="contained"
-            disabled={reviewMutation.isPending}
-          >
+          <Button onClick={() => handleReview(true)} variant="contained" color="success" disabled={submitting}>
             通过
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar open={!!msg} autoHideDuration={3000} onClose={() => setMsg(null)} anchorOrigin={{ vertical: 'top', horizontal: 'center' }} />
     </Box>
   );
 }

@@ -4,13 +4,6 @@
  */
 import { accountClient } from '@/lib/api/client';
 import type { PageParams } from '@/beans/pagination';
-import { normalizeLegacyPageResponse } from '@/hooks/usePagination';
-
-/** 解开 axios 拦截器的包装层,拿到真正的后端 body */
-function unwrap<T = any>(resp: any): T {
-  // 拦截器已剥壳,resp 就是业务数据;保留 unwrap 仅作占位以兼容旧调用方
-  return resp as T;
-}
 
 // ========== 充值记录 ==========
 
@@ -30,9 +23,7 @@ export interface RechargeRecord {
 
 export interface RechargeRecordsResp {
   list: RechargeRecord[];
-  records: RechargeRecord[];
   total: number;
-  totalRow: number;
   page: number;
   pageSize: number;
   totalPages: number;
@@ -46,15 +37,8 @@ export interface RechargeRecordsParams extends PageParams {
   endDate?: string;   // 结束日期 YYYY-MM-DD
 }
 
-export async function getRechargeRecords(params?: RechargeRecordsParams): Promise<{
-  list: RechargeRecord[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-}> {
-  const res = unwrap<RechargeRecordsResp>(await accountClient('/admin/recharge/records', { params }));
-  return normalizeLegacyPageResponse(res as any);
+export async function getRechargeRecords(params?: RechargeRecordsParams): Promise<RechargeRecordsResp> {
+  return accountClient<RechargeRecordsResp>('/admin/recharge/records', { params });
 }
 
 // 格式化金额（分→元）

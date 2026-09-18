@@ -1,16 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import React, { useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
-import Table from '@mui/material/Table';
-import TableHead from '@mui/material/TableHead';
-import TableBody from '@mui/material/TableBody';
-import TableRow from '@mui/material/TableRow';
-import TableCell from '@mui/material/TableCell';
-import TableContainer from '@mui/material/TableContainer';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -23,6 +17,8 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import AddIcon from '@mui/icons-material/Add';
+import type { GridColDef } from '@mui/x-data-grid';
+import { DataGridTable } from '@/components/tables/DataGridTable';
 import {
   listActivities,
   saveActivity,
@@ -35,6 +31,9 @@ import {
 /**
  * 创作者活动:新建、编辑、发布活动(发布时通知开启了活动提醒的用户),投稿截止后评审入围与获奖
  * (获奖会通知作者)。活动状态由四个时间点推导,前台列表按真实报名、投稿和点赞数据展示。
+ *
+ * 活动列表统一走 DataGridTable;「投稿与评审」Dialog 内的表单仍保留原 TableRow 结构
+ * (每行需要编辑控件,不适合无状态行组件)。
  */
 
 const CATEGORY_LABEL: Record<AdminActivity['category'], string> = {
@@ -53,20 +52,16 @@ const STATUS_LABEL: Record<string, string> = {
 };
 const RESULT_LABEL: Record<AdminSubmission['result'], string> = { '': '未评审', shortlist: '入围', won: '获奖', lost: '未获奖' };
 
-/** ISO ↔ <input type="datetime-local"> 的本地时间字符串 */
-function toLocal(iso: string) {
+const toLocal = (iso: string) => {
   if (!iso) return '';
   const d = new Date(iso);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-function fromLocal(local: string) {
-  return local ? new Date(local).toISOString() : '';
-}
-
+};
+const fromLocal = (local: string) => (local ? new Date(local).toISOString() : '');
 const lines = (s: string) => s.split('\n').map((x) => x.trim()).filter(Boolean);
 
-function blankActivity(): AdminActivity {
+const blankActivity = (): AdminActivity => {
   const day = 86_400_000;
   const now = Date.now();
   return {
@@ -75,7 +70,7 @@ function blankActivity(): AdminActivity {
     signupAt: new Date(now).toISOString(), startAt: new Date(now + 3 * day).toISOString(),
     endAt: new Date(now + 17 * day).toISOString(), resultAt: new Date(now + 24 * day).toISOString(), published: false,
   };
-}
+};
 
 export default function SystemActivityPage() {
   const qc = useQueryClient();
@@ -84,12 +79,28 @@ export default function SystemActivityPage() {
   const [prizeText, setPrizeText] = useState('');
   const [judging, setJudging] = useState<AdminActivity | null>(null);
 
-  const listQ = useQuery({ queryKey: ['admin-activity'], queryFn: listActivities });
-  const subsQ = useQuery({
-    queryKey: ['admin-activity', 'subs', judging?.id],
-    queryFn: () => listSubmissions(judging!.id!),
-    enabled: !!judging?.id,
-  });
+  // 后端 admin activity 接口(2026-09)不分页,前端在 DataGridTable 内做切片。
+  const activitiesAll = React.useRef<AdminActivity[]>([]);
+  const fetchActivities = useCallback(async (params: { pageNumber: number; pageSize: number }) => {
+    activitiesAll.current = await listActivities();
+    const totalRow = activitiesAll.current.length;
+    const start = (params.pageNumber - 1) * params.pageSize;
+    return { records: activitiesAll.current.slice(start, start + params.pageSize), totalRow };
+  }, []);
+
+  const columns: GridColDef[] = [
+    { field: 'title', headerName: '活动', flex: 1.5, minWidth: 200 },
+    { field: 'category', headerName: '分类', width: 90, valueFormatter: (v) => CATEGORY_LABEL[v as AdminActivity['category']] },
+    { field: 'status', headerName: '阶段', width: 100, valueFormatter: (v) => STATUS_LABEL[v as string ?? ''] ?? '-' },
+    { field: 'endAt', headerName: '投稿截止', width: 170,
+      valueFormatter: (v) => v ? new Date(v as string).toLocaleString('zh-CN', { hour12: false }) : '-' },
+    { field: 'signupCount', headerName: '报名', type: 'number', width: 80, align: 'right', headerAlign: 'right',
+      valueGetter: (_, row) => (row as AdminActivity).signupCount ?? 0 },
+    { field: 'submissionCount', headerName: '投稿', type: 'number', width: 80, align: 'right', headerAlign: 'right',
+      valueGetter: (_, row) => (row as AdminActivity).submissionCount ?? 0 },
+    { field: 'published', headerName: '发布', width: 90,
+      renderCell: (p) => <Chip size="small" label={p.value ? '已发布' : '草稿'} color={p.value ? 'success' : 'default'} /> },
+  ];
 
   const run = async (fn: () => Promise<unknown>, ok: string) => {
     try {
@@ -110,7 +121,6 @@ export default function SystemActivityPage() {
 
   const submitEdit = async () => {
     if (!edit) return;
-    // 奖项每行「名次|名额|奖励」,例如「冠军|1|¥5,000」
     const prizes = lines(prizeText).map((l, i) => {
       const [rank, count, reward] = l.split('|').map((x) => x.trim());
       return { rank: rank || `奖项${i + 1}`, count: Number(count) || 1, reward: reward || '', color: ['#FE2C55', '#FFB400', '#25F4EE', '#8B5CF6'][i % 4] };
@@ -121,45 +131,22 @@ export default function SystemActivityPage() {
   return (
     <Box sx={{ p: { xs: 1.5, md: 2 } }}>
       <Typography variant="h5" sx={{ mb: 2 }}>创作者活动</Typography>
-      <Button variant="contained" startIcon={<AddIcon />} onClick={() => openEdit(blankActivity())} sx={{ mb: 2 }}>
-        新建活动
-      </Button>
-      <TableContainer sx={{ overflowX: 'auto' }}>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>活动</TableCell>
-              <TableCell>分类</TableCell>
-              <TableCell>阶段</TableCell>
-              <TableCell>投稿截止</TableCell>
-              <TableCell align="right">报名</TableCell>
-              <TableCell align="right">投稿</TableCell>
-              <TableCell>发布</TableCell>
-              <TableCell />
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {(listQ.data ?? []).map((a) => (
-              <TableRow key={a.id}>
-                <TableCell>{a.title}</TableCell>
-                <TableCell>{CATEGORY_LABEL[a.category]}</TableCell>
-                <TableCell>{STATUS_LABEL[a.status ?? ''] ?? '-'}</TableCell>
-                <TableCell>{new Date(a.endAt).toLocaleString('zh-CN', { hour12: false })}</TableCell>
-                <TableCell align="right">{a.signupCount ?? 0}</TableCell>
-                <TableCell align="right">{a.submissionCount ?? 0}</TableCell>
-                <TableCell><Chip size="small" label={a.published ? '已发布' : '草稿'} color={a.published ? 'success' : 'default'} /></TableCell>
-                <TableCell sx={{ whiteSpace: 'nowrap' }}>
-                  <Button size="small" onClick={() => openEdit(a)}>编辑</Button>
-                  <Button size="small" onClick={() => setJudging(a)}>投稿与评审</Button>
-                </TableCell>
-              </TableRow>
-            ))}
-            {listQ.data?.length === 0 && (
-              <TableRow><TableCell colSpan={8} sx={{ color: 'text.secondary' }}>还没有活动,创作者中心的活动页为空</TableCell></TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
+      <DataGridTable
+        title="活动"
+        columns={columns}
+        fetchData={fetchActivities}
+        onEdit={(row) => openEdit(row as AdminActivity)}
+        toolBarRender={() => (
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => openEdit(blankActivity())}>
+            新建活动
+          </Button>
+        )}
+        customActions={[{
+          label: '投稿与评审',
+          color: 'primary',
+          onClick: (row) => setJudging(row as AdminActivity),
+        }]}
+      />
 
       {/* 活动编辑 */}
       <Dialog open={!!edit} onClose={() => setEdit(null)} maxWidth="md" fullWidth>
@@ -214,31 +201,7 @@ export default function SystemActivityPage() {
           {judging && Date.now() < new Date(judging.endAt).getTime() && (
             <Alert severity="info" sx={{ mb: 2 }}>投稿截止后才能评审;现在可以先查看投稿。</Alert>
           )}
-          <TableContainer sx={{ overflowX: 'auto' }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>作品</TableCell>
-                  <TableCell>作者</TableCell>
-                  <TableCell align="right">播放</TableCell>
-                  <TableCell align="right">点赞</TableCell>
-                  <TableCell>附言</TableCell>
-                  <TableCell>结果</TableCell>
-                  <TableCell>奖项</TableCell>
-                  <TableCell>奖励</TableCell>
-                  <TableCell />
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {(subsQ.data ?? []).map((s) => (
-                  <JudgeRow key={s.id} sub={s} onSave={(body) => run(() => judgeSubmission(s.id, body), '已保存评审结果')} />
-                ))}
-                {subsQ.data?.length === 0 && (
-                  <TableRow><TableCell colSpan={9} sx={{ color: 'text.secondary' }}>还没有投稿</TableCell></TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
+          <JudgingTable judgingId={judging?.id} onSave={(sub, body) => run(() => judgeSubmission(sub.id, body), '已保存评审结果')} />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setJudging(null)}>关闭</Button>
@@ -252,31 +215,72 @@ export default function SystemActivityPage() {
   );
 }
 
-function JudgeRow({ sub, onSave }: { sub: AdminSubmission; onSave: (body: { result: string; prizeRank: string; reward: string }) => void }) {
+/** 投稿与评审:每行有 TextField 编辑控件,保留原 TableRow 形式。 */
+function JudgingTable({
+  judgingId,
+  onSave,
+}: {
+  judgingId?: number;
+  onSave: (sub: AdminSubmission, body: { result: AdminSubmission['result']; prizeRank: string; reward: string }) => void;
+}) {
+  const { useQuery } = require('@tanstack/react-query') as typeof import('@tanstack/react-query');
+  const subsQ = useQuery({
+    queryKey: ['admin-activity', 'subs', judgingId],
+    queryFn: () => judgingId ? listSubmissions(judgingId) : Promise.resolve([]),
+    enabled: !!judgingId,
+  });
+  if (!judgingId) return null;
+  const list = subsQ.data ?? [];
+  return (
+    <Box component="table" sx={{ width: '100%', fontSize: 12.5, '& td, & th': { py: 1, px: 1.5 } }}>
+      <thead>
+        <tr>
+          <th align="left">作品</th>
+          <th align="left">作者</th>
+          <th align="right">播放</th>
+          <th align="right">点赞</th>
+          <th align="left">附言</th>
+          <th align="left">结果</th>
+          <th align="left">奖项</th>
+          <th align="left">奖励</th>
+          <th align="left" />
+        </tr>
+      </thead>
+      <tbody>
+        {list.map((s) => <JudgeRow key={s.id} sub={s} onSave={(body) => onSave(s, body)} />)}
+        {list.length === 0 && (
+          <tr><td colSpan={9} style={{ color: 'rgba(0,0,0,0.5)', textAlign: 'center' }}>还没有投稿</td></tr>
+        )}
+      </tbody>
+    </Box>
+  );
+}
+
+function JudgeRow({ sub, onSave }: { sub: AdminSubmission; onSave: (body: { result: AdminSubmission['result']; prizeRank: string; reward: string }) => void }) {
   const [result, setResult] = useState(sub.result);
   const [prizeRank, setPrizeRank] = useState(sub.prizeRank);
   const [reward, setReward] = useState(sub.reward);
   return (
-    <TableRow>
-      <TableCell>{sub.workTitle || `#${sub.contentId}`}</TableCell>
-      <TableCell>{sub.userName || sub.userId}</TableCell>
-      <TableCell align="right">{sub.views}</TableCell>
-      <TableCell align="right">{sub.likes}</TableCell>
-      <TableCell sx={{ maxWidth: 200 }}>{sub.caption || '-'}</TableCell>
-      <TableCell>
+    <tr>
+      <td>{sub.workTitle || `#${sub.contentId}`}</td>
+      <td>{sub.userName || sub.userId}</td>
+      <td align="right">{sub.views}</td>
+      <td align="right">{sub.likes}</td>
+      <td style={{ maxWidth: 200 }}>{sub.caption || '-'}</td>
+      <td>
         <TextField select size="small" value={result} onChange={(e) => setResult(e.target.value as AdminSubmission['result'])} sx={{ minWidth: 100 }}>
           {Object.entries(RESULT_LABEL).map(([k, v]) => <MenuItem key={k} value={k}>{v}</MenuItem>)}
         </TextField>
-      </TableCell>
-      <TableCell>
+      </td>
+      <td>
         <TextField size="small" value={prizeRank} disabled={result !== 'won'} onChange={(e) => setPrizeRank(e.target.value)} placeholder="冠军" sx={{ width: 100 }} />
-      </TableCell>
-      <TableCell>
+      </td>
+      <td>
         <TextField size="small" value={reward} disabled={result !== 'won'} onChange={(e) => setReward(e.target.value)} placeholder="¥5,000" sx={{ width: 110 }} />
-      </TableCell>
-      <TableCell>
+      </td>
+      <td>
         <Button size="small" onClick={() => onSave({ result, prizeRank, reward })}>保存</Button>
-      </TableCell>
-    </TableRow>
+      </td>
+    </tr>
   );
 }

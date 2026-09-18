@@ -1,18 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import React, { useState, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
-import Table from '@mui/material/Table';
-import TableHead from '@mui/material/TableHead';
-import TableBody from '@mui/material/TableBody';
-import TableRow from '@mui/material/TableRow';
-import TableCell from '@mui/material/TableCell';
-import TableContainer from '@mui/material/TableContainer';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -25,6 +19,8 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import AddIcon from '@mui/icons-material/Add';
+import type { GridColDef } from '@mui/x-data-grid';
+import { DataGridTable } from '@/components/tables/DataGridTable';
 import {
   listMallItems,
   saveMallItem,
@@ -43,6 +39,10 @@ import {
  * 每个商品只标一种货币:装扮只收积分、兑换后立即到账;实物可标积分或钻石、需要发货。
  * 假人的实物订单由后端仓库流程自动发货,真人订单在这里人工发。
  * 商品与礼物只能下架不能删除(订单和送礼记录要能追溯到它们)。
+ *
+ * 后端 admin shop 接口(2026-09)不分页——一次 SELECT 全表。前端统一走 DataGridTable,
+ * 这里在 fetchData 里把全量结果按 pageNumber/pageSize 切片,totalRow 用全量长度。
+ * 这样所有后台表格共用同一套交互/筛选/loading 体验,不需要每个页面写一遍分页。
  */
 
 const CATEGORY_LABEL: Record<AdminMallItem['category'], string> = {
@@ -53,7 +53,6 @@ const CATEGORY_LABEL: Record<AdminMallItem['category'], string> = {
 };
 const REDEMPTION_STATUS: Record<AdminRedemption['status'], string> = { pending: '待发货', shipped: '已发货', completed: '已完成' };
 const EFFECTS: AdminGift['effect'][] = ['small', 'medium', 'large', 'huge'];
-
 const DELIVER_LABEL: Record<AdminMallItem['deliverType'], string> = {
   physical: '实物发货',
   avatar_frame: '头像框',
@@ -65,12 +64,20 @@ const EMPTY_ITEM: AdminMallItem = {
   points: 100, originalPoints: 0, stock: -1, tag: '', currency: 'point', priceCents: 0,
   deliverType: 'avatar_frame', cosmeticValue: 'linear-gradient(135deg, #25F4EE 0%, #5B8DEF 100%)', durationDays: 0, status: 'active', sort: 0,
 };
-/** 标价:积分商品显示积分,钻石商品显示钻石数(1 钻 = 10 分) */
-const priceLabel = (it: { currency: 'point' | 'diamond'; points: number; priceCents?: number; amountCents?: number }) =>
-  it.currency === 'diamond' ? `${Math.floor((it.priceCents ?? it.amountCents ?? 0) / 10)} 钻石` : `${it.points} 积分`;
 const EMPTY_GIFT: AdminGift = { name: '', icon: '🌹', price: 100, effect: 'small', combo: false, status: 'active', sort: 0 };
 
+const priceLabel = (it: { currency: 'point' | 'diamond'; points: number; priceCents?: number; amountCents?: number }) =>
+  it.currency === 'diamond' ? `${Math.floor((it.priceCents ?? it.amountCents ?? 0) / 10)} 钻石` : `${it.points} 积分`;
 const yuan = (cents: number) => `¥${(cents / 100).toFixed(2)}`;
+const num = (v: string) => (v === '' ? 0 : Number(v));
+
+/** 把全量结果切片成 DataGridTable 期望的 {records, totalRow}。 */
+function sliceAll<T>(all: T[], pageNumber: number, pageSize: number) {
+  const totalRow = all.length;
+  const start = (pageNumber - 1) * pageSize;
+  const records = all.slice(start, start + pageSize);
+  return { records, totalRow };
+}
 
 export default function SystemShopPage() {
   const qc = useQueryClient();
@@ -80,11 +87,6 @@ export default function SystemShopPage() {
   const [gift, setGift] = useState<AdminGift | null>(null);
   const [shipTarget, setShipTarget] = useState<AdminRedemption | null>(null);
   const [tracking, setTracking] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('pending');
-
-  const itemsQ = useQuery({ queryKey: ['admin-shop', 'items'], queryFn: listMallItems });
-  const redemptionsQ = useQuery({ queryKey: ['admin-shop', 'redemptions', statusFilter], queryFn: () => listRedemptions(statusFilter || undefined) });
-  const giftsQ = useQuery({ queryKey: ['admin-shop', 'gifts'], queryFn: listGifts });
 
   const run = async (fn: () => Promise<unknown>, ok: string) => {
     try {
@@ -98,7 +100,73 @@ export default function SystemShopPage() {
     }
   };
 
-  const num = (v: string) => (v === '' ? 0 : Number(v));
+  // 全量缓存:fetches 引用同一份数据,只在 extraParams 变化时重新拉。
+  // 用 module 级 cache 避免每次 fetchData 都重新打后端。
+  const itemsAll = React.useRef<AdminMallItem[]>([]);
+  const redemptionsAll = React.useRef<AdminRedemption[]>([]);
+  const giftsAll = React.useRef<AdminGift[]>([]);
+
+  const fetchItems = useCallback(async (params: { pageNumber: number; pageSize: number }) => {
+    itemsAll.current = await listMallItems();
+    return sliceAll(itemsAll.current, params.pageNumber, params.pageSize);
+  }, []);
+  const fetchRedemptions = useCallback(async (params: { pageNumber: number; pageSize: number }) => {
+    redemptionsAll.current = await listRedemptions();
+    return sliceAll(redemptionsAll.current, params.pageNumber, params.pageSize);
+  }, []);
+  const fetchGifts = useCallback(async (params: { pageNumber: number; pageSize: number }) => {
+    giftsAll.current = await listGifts();
+    return sliceAll(giftsAll.current, params.pageNumber, params.pageSize);
+  }, []);
+
+  const itemsColumns: GridColDef[] = [
+    { field: 'name', headerName: '商品', flex: 1.5, minWidth: 180, renderCell: (p) => `${(p.row as AdminMallItem).emoji} ${p.value}` },
+    { field: 'category', headerName: '分类', width: 110, valueFormatter: (v) => CATEGORY_LABEL[v as AdminMallItem['category']] },
+    { field: 'price', headerName: '标价', type: 'number', width: 100, align: 'right', headerAlign: 'right',
+      valueGetter: (_, row) => priceLabel(row as AdminMallItem), sortable: false },
+    { field: 'stock', headerName: '库存', type: 'number', width: 90, align: 'right', headerAlign: 'right',
+      valueGetter: (_, row) => (row as AdminMallItem).stock < 0 ? '不限' : (row as AdminMallItem).stock },
+    { field: 'totalRedeemed', headerName: '已兑', type: 'number', width: 80, align: 'right', headerAlign: 'right',
+      valueGetter: (_, row) => (row as AdminMallItem).totalRedeemed ?? 0 },
+    { field: 'deliver', headerName: '发放', flex: 1.2, minWidth: 140, sortable: false,
+      valueGetter: (_, row) => {
+        const r = row as AdminMallItem;
+        return `${DELIVER_LABEL[r.deliverType] ?? '已停用'}${r.durationDays ? ` · ${r.durationDays} 天` : ''}`;
+      } },
+    { field: 'status', headerName: '状态', width: 90,
+      renderCell: (p) => <Chip size="small" label={p.value === 'active' ? '上架' : '下架'}
+        color={p.value === 'active' ? 'success' : 'default'} /> },
+  ];
+
+  const redemptionsColumns: GridColDef[] = [
+    { field: 'serial', headerName: '单号', width: 200, renderCell: (p) => <Box sx={{ fontFamily: 'monospace', fontSize: 12 }}>{p.value}</Box> },
+    { field: 'user', headerName: '用户', width: 130, sortable: false,
+      renderCell: (p) => {
+        const r = p.row as AdminRedemption;
+        return <>{r.userId}{(r as any).isBot && <Chip size="small" label="AI" sx={{ ml: 0.5, height: 18, fontSize: 10 }} />}</>;
+      } },
+    { field: 'itemName', headerName: '商品', flex: 1, minWidth: 140 },
+    { field: 'price', headerName: '实付', width: 100, align: 'right', headerAlign: 'right', sortable: false,
+      valueGetter: (_, row) => priceLabel(row as AdminRedemption) },
+    { field: 'address', headerName: '收货信息', flex: 1.5, minWidth: 200,
+      renderCell: (p) => <Box sx={{ maxWidth: 240, whiteSpace: 'pre-wrap', fontSize: 12 }}>{p.value || '-'}</Box> },
+    { field: 'tracking', headerName: '物流', width: 160, renderCell: (p) => p.value || '-' },
+    { field: 'status', headerName: '状态', width: 100,
+      valueFormatter: (v) => REDEMPTION_STATUS[v as AdminRedemption['status']] },
+    { field: 'redeemedAt', headerName: '时间', width: 160,
+      valueFormatter: (v) => v ? new Date(v as string).toLocaleString('zh-CN', { hour12: false }) : '-' },
+  ];
+
+  const giftsColumns: GridColDef[] = [
+    { field: 'name', headerName: '礼物', flex: 1, minWidth: 160, renderCell: (p) => `${(p.row as AdminGift).icon} ${p.value}` },
+    { field: 'price', headerName: '单价', type: 'number', width: 100, align: 'right', headerAlign: 'right',
+      valueGetter: (_, row) => yuan((row as AdminGift).price) },
+    { field: 'effect', headerName: '特效', width: 100 },
+    { field: 'combo', headerName: '连击', width: 80, renderCell: (p) => p.value ? '是' : '否' },
+    { field: 'status', headerName: '状态', width: 90,
+      renderCell: (p) => <Chip size="small" label={p.value === 'active' ? '上架' : '下架'}
+        color={p.value === 'active' ? 'success' : 'default'} /> },
+  ];
 
   return (
     <Box sx={{ p: { xs: 1.5, md: 2 } }}>
@@ -110,132 +178,53 @@ export default function SystemShopPage() {
       </Tabs>
 
       {tab === 0 && (
-        <>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setItem({ ...EMPTY_ITEM })} sx={{ mb: 2 }}>
-            新建商品
-          </Button>
-          <TableContainer sx={{ overflowX: 'auto' }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>商品</TableCell>
-                  <TableCell>分类</TableCell>
-                  <TableCell align="right">标价</TableCell>
-                  <TableCell align="right">库存</TableCell>
-                  <TableCell align="right">已兑</TableCell>
-                  <TableCell>发放</TableCell>
-                  <TableCell>状态</TableCell>
-                  <TableCell />
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {(itemsQ.data ?? []).map((it) => (
-                  <TableRow key={it.id}>
-                    <TableCell>{it.emoji} {it.name}</TableCell>
-                    <TableCell>{CATEGORY_LABEL[it.category]}</TableCell>
-                    <TableCell align="right">{priceLabel(it)}</TableCell>
-                    <TableCell align="right">{it.stock < 0 ? '不限' : it.stock}</TableCell>
-                    <TableCell align="right">{it.totalRedeemed ?? 0}</TableCell>
-                    <TableCell>{DELIVER_LABEL[it.deliverType] ?? '已停用'}{it.durationDays ? ` · ${it.durationDays} 天` : ''}</TableCell>
-                    <TableCell><Chip size="small" label={it.status === 'active' ? '上架' : '下架'} color={it.status === 'active' ? 'success' : 'default'} /></TableCell>
-                    <TableCell><Button size="small" onClick={() => setItem({ ...it })}>编辑</Button></TableCell>
-                  </TableRow>
-                ))}
-                {itemsQ.data?.length === 0 && (
-                  <TableRow><TableCell colSpan={8} sx={{ color: 'text.secondary' }}>还没有商品,前台商城为空</TableCell></TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </>
+        <DataGridTable
+          title="商城商品"
+          columns={itemsColumns}
+          fetchData={fetchItems}
+          onEdit={(row) => setItem({ ...(row as AdminMallItem) })}
+          toolBarRender={() => (
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setItem({ ...EMPTY_ITEM })}>
+              新建商品
+            </Button>
+          )}
+        />
       )}
 
       {tab === 1 && (
-        <>
-          <TextField select size="small" label="状态" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} sx={{ mb: 2, minWidth: 160 }}>
-            <MenuItem value="">全部</MenuItem>
-            {Object.entries(REDEMPTION_STATUS).map(([k, v]) => <MenuItem key={k} value={k}>{v}</MenuItem>)}
-          </TextField>
-          <TableContainer sx={{ overflowX: 'auto' }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>单号</TableCell>
-                  <TableCell>用户</TableCell>
-                  <TableCell>商品</TableCell>
-                  <TableCell align="right">实付</TableCell>
-                  <TableCell>收货信息</TableCell>
-                  <TableCell>物流</TableCell>
-                  <TableCell>状态</TableCell>
-                  <TableCell>时间</TableCell>
-                  <TableCell />
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {(redemptionsQ.data ?? []).map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell sx={{ fontFamily: 'monospace' }}>{r.serial}</TableCell>
-                    <TableCell>{r.userId}{r.isBot && <Chip size="small" label="AI" sx={{ ml: 0.5, height: 18, fontSize: 10 }} />}</TableCell>
-                    <TableCell>{r.itemName}</TableCell>
-                    <TableCell align="right">{priceLabel(r)}</TableCell>
-                    <TableCell sx={{ maxWidth: 240, whiteSpace: 'pre-wrap' }}>{r.address || '-'}</TableCell>
-                    <TableCell>{r.tracking || '-'}</TableCell>
-                    <TableCell>{REDEMPTION_STATUS[r.status]}</TableCell>
-                    <TableCell>{new Date(r.redeemedAt).toLocaleString('zh-CN', { hour12: false })}</TableCell>
-                    <TableCell>
-                      {r.status === 'pending' && !r.isBot && (
-                        <Button size="small" onClick={() => { setShipTarget(r); setTracking(''); }}>发货</Button>
-                      )}
-                      {r.status === 'shipped' && !r.isBot && (
-                        <Button size="small" onClick={() => run(() => completeRedemption(r.id), '已确认完成')}>确认完成</Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {redemptionsQ.data?.length === 0 && (
-                  <TableRow><TableCell colSpan={9} sx={{ color: 'text.secondary' }}>没有订单</TableCell></TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </>
+        <DataGridTable
+          title="订单与发货"
+          columns={redemptionsColumns}
+          fetchData={fetchRedemptions}
+          customActions={[
+            {
+              label: '发货',
+              color: 'primary',
+              hidden: (row) => (row as AdminRedemption).status !== 'pending' || (row as AdminRedemption).isBot,
+              onClick: (row) => { setShipTarget(row as AdminRedemption); setTracking(''); },
+            },
+            {
+              label: '确认完成',
+              color: 'success',
+              hidden: (row) => (row as AdminRedemption).status !== 'shipped' || (row as AdminRedemption).isBot,
+              onClick: (row) => run(() => completeRedemption((row as AdminRedemption).id), '已确认完成'),
+            },
+          ]}
+        />
       )}
 
       {tab === 2 && (
-        <>
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setGift({ ...EMPTY_GIFT })} sx={{ mb: 2 }}>
-            新建礼物
-          </Button>
-          <TableContainer sx={{ overflowX: 'auto' }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>礼物</TableCell>
-                  <TableCell align="right">单价</TableCell>
-                  <TableCell>特效</TableCell>
-                  <TableCell>连击</TableCell>
-                  <TableCell>状态</TableCell>
-                  <TableCell />
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {(giftsQ.data ?? []).map((g) => (
-                  <TableRow key={g.id}>
-                    <TableCell>{g.icon} {g.name}</TableCell>
-                    <TableCell align="right">{yuan(g.price)}</TableCell>
-                    <TableCell>{g.effect}</TableCell>
-                    <TableCell>{g.combo ? '是' : '否'}</TableCell>
-                    <TableCell><Chip size="small" label={g.status === 'active' ? '上架' : '下架'} color={g.status === 'active' ? 'success' : 'default'} /></TableCell>
-                    <TableCell><Button size="small" onClick={() => setGift({ ...g })}>编辑</Button></TableCell>
-                  </TableRow>
-                ))}
-                {giftsQ.data?.length === 0 && (
-                  <TableRow><TableCell colSpan={6} sx={{ color: 'text.secondary' }}>还没有礼物,直播间礼物面板为空</TableCell></TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </>
+        <DataGridTable
+          title="礼物"
+          columns={giftsColumns}
+          fetchData={fetchGifts}
+          onEdit={(row) => setGift({ ...(row as AdminGift) })}
+          toolBarRender={() => (
+            <Button variant="contained" startIcon={<AddIcon />} onClick={() => setGift({ ...EMPTY_GIFT })}>
+              新建礼物
+            </Button>
+          )}
+        />
       )}
 
       {/* 商品编辑 */}
@@ -258,7 +247,6 @@ export default function SystemShopPage() {
                 value={item.deliverType}
                 onChange={(e) => {
                   const deliverType = e.target.value as AdminMallItem['deliverType'];
-                  // 装扮只收积分
                   setItem({ ...item, deliverType, currency: deliverType === 'physical' ? item.currency : 'point' });
                 }}
               >

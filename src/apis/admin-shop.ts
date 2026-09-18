@@ -54,11 +54,8 @@ export interface AdminGift {
   sort: number;
 }
 
-type ListResp<T> = { data?: { list?: T[] } };
-
 export async function listMallItems(): Promise<AdminMallItem[]> {
-  const res = (await adminClient('/admin/shop/mall/items')) as ListResp<AdminMallItem>;
-  return res?.data?.list ?? [];
+  return adminClient<AdminMallItem[]>('/admin/shop/mall/items');
 }
 
 export async function saveMallItem(item: AdminMallItem) {
@@ -68,8 +65,9 @@ export async function saveMallItem(item: AdminMallItem) {
 }
 
 export async function listRedemptions(status?: string): Promise<AdminRedemption[]> {
-  const res = (await adminClient('/admin/shop/mall/redemptions', { params: status ? { status } : undefined })) as ListResp<AdminRedemption>;
-  return res?.data?.list ?? [];
+  return adminClient<AdminRedemption[]>('/admin/shop/mall/redemptions', {
+    params: status ? { status } : undefined,
+  });
 }
 
 export async function shipRedemption(id: number, tracking: string) {
@@ -81,8 +79,7 @@ export async function completeRedemption(id: number) {
 }
 
 export async function listGifts(): Promise<AdminGift[]> {
-  const res = (await adminClient('/admin/shop/gifts')) as ListResp<AdminGift>;
-  return res?.data?.list ?? [];
+  return adminClient<AdminGift[]>('/admin/shop/gifts');
 }
 
 export async function saveGift(gift: AdminGift) {
