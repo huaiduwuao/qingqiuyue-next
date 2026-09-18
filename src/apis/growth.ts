@@ -69,6 +69,8 @@ export interface UserDecor {
   level: number;
   levelName?: string;
   vip?: number;
+  /** 创作者等级(2–5;1 级不下发)。Lv3 起可收打赏/礼物,Lv4 起可发付费内容 */
+  creatorLevel?: number;
 }
 
 export async function getMyCosmetics(): Promise<UserCosmetic[]> {

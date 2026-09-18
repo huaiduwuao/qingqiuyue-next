@@ -22,7 +22,7 @@ import TaskAltRoundedIcon from '@mui/icons-material/TaskAltRounded';
 import CardGiftcardRoundedIcon from '@mui/icons-material/CardGiftcardRounded';
 import { CTA_GRADIENT, gradient3 } from '@/constants/gradients';
 import { LoginGate } from '@/components/auth/LoginGate';
-import { isAuthError, formatApiError } from '@/lib/api/client';
+import { isAuthError, formatApiError, accountClient } from '@/lib/api/client';
 import {
   createOrder,
   getMembershipPlans,
@@ -58,7 +58,7 @@ export default function VipPage() {
   const qc = useQueryClient();
   const [period, setPeriod] = useState<Period>('monthly');
   const [buyPlan, setBuyPlan] = useState<MembershipPlan | null>(null);
-  const [channel, setChannel] = useState<'wechat' | 'alipay'>('wechat');
+  const [channel, setChannel] = useState<'wechat' | 'alipay' | 'diamond'>('wechat');
   const [buying, setBuying] = useState(false);
   const [payment, setPayment] = useState<{ orderNo: string; codeUrl?: string } | null>(null);
   const [snack, setSnack] = useState<string | null>(null);
@@ -86,6 +86,15 @@ export default function VipPage() {
     if (!buyPlan || buying) return;
     setBuying(true);
     try {
+      if (channel === 'diamond') {
+        // 用钱包里的钻石开通:扣款和开通在服务端同一个事务里,成功即生效,没有扫码这一步
+        await accountClient.post('/payment/membership/diamond', { planId: buyPlan.id });
+        await Promise.all([statusQ.refetch(), ordersQ.refetch()]);
+        qc.invalidateQueries({ queryKey: ['wallet'] });
+        setBuyPlan(null);
+        setSnack('会员已开通,VIP 标识与 AI 额度已生效');
+        return;
+      }
       const res = await createOrder({ orderType: 'membership', productId: buyPlan.id, channel });
       if (!res?.orderNo) {
         setSnack('下单失败:支付服务没有返回订单号');
@@ -282,7 +291,13 @@ export default function VipPage() {
                 <ToggleButtonGroup exclusive fullWidth size="small" value={channel} onChange={(_, v) => v && setChannel(v)}>
                   <ToggleButton value="wechat">微信支付</ToggleButton>
                   <ToggleButton value="alipay">支付宝</ToggleButton>
+                  <ToggleButton value="diamond">钻石</ToggleButton>
                 </ToggleButtonGroup>
+                {channel === 'diamond' && (
+                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+                    从钱包扣除 {Math.ceil(buyPlan.priceCents / 10).toLocaleString()} 钻石(1 钻 = ¥0.1),立即生效。
+                  </Typography>
+                )}
               </Box>
             )}
             {payment && (
@@ -318,7 +333,7 @@ export default function VipPage() {
                 disabled={buying}
                 startIcon={buying ? <CircularProgress size={14} color="inherit" /> : null}
               >
-                去支付
+                {channel === 'diamond' ? '用钻石开通' : '去支付'}
               </Button>
             )}
           </DialogActions>
