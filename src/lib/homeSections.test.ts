@@ -7,12 +7,14 @@ import {
   builtinSection,
   keywordSectionId,
   makeKeywordSection,
+  makePlaylistSection,
   makeTagSection,
   makeTopicSection,
   makeTypeSection,
   parseSectionId,
   sectionQueryParams,
   tagSectionId,
+  playlistSectionId,
   topicSectionId,
   typeSectionId,
 } from './homeSections';
@@ -21,6 +23,14 @@ import {
 // "老链接还能开"和"每一格取到的是它该取的东西"——两者错了都不会报错,只会空。
 
 describe('频道 id', () => {
+  it('歌单频道:id 规则稳定,分享出去的链接解析得回来', () => {
+    expect(playlistSectionId(12)).toBe('pl:12');
+    expect(makePlaylistSection(12, 'DJ 舞曲')).toMatchObject({ id: 'pl:12', kind: 'playlist', listId: 12, label: 'DJ 舞曲' });
+    // 别人分享的链接只带得到 id,名字由歌单详情补(见 FeedPanel)
+    expect(parseSectionId('pl:12')).toMatchObject({ id: 'pl:12', kind: 'playlist', listId: '12' });
+    expect(parseSectionId('pl:')).toBeNull();
+  });
+
   it('预置频道沿用老的 section 名,旧链接照样打开', () => {
     // ?section=game / novel / film 这些都是线上已经存在的地址
     for (const id of ['recommend', 'novel', 'comics', 'film', 'teleplay', 'entertainment', 'music', 'anime', 'news', 'game']) {
@@ -110,6 +120,10 @@ describe('sectionQueryParams:每一格取什么内容', () => {
 
   it('专题频道不走内容列表接口(走专题收录),所以没有筛选参数', () => {
     expect(sectionQueryParams(makeTopicSection(5, '追剧日常'))).toEqual({});
+  });
+
+  it('歌单频道取的是歌单曲目,同样没有筛选参数', () => {
+    expect(sectionQueryParams(makePlaylistSection(12, 'DJ 舞曲'))).toEqual({});
   });
 
   it('老页签 游戏/美食/科技/知识/体育/财经 不再共用一个内容类型', () => {

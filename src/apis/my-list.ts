@@ -26,6 +26,10 @@ export interface MyListItem {
   isPublic: boolean;
   /** 是不是当前登录用户自己的(别人公开的歌单只能看和播) */
   mine: boolean;
+  /** 平台编排的歌单(internal/playlistcurator),没有作者,谁都改不了 */
+  official?: boolean;
+  /** 别人公开歌单的作者昵称(广场才给) */
+  ownerName?: string;
   createTime: string;
   updateTime: string;
 }
@@ -59,6 +63,34 @@ export interface MyListContentResponse {
 export async function getMyLists(listType?: MyListType): Promise<MyListPageResponse> {
   const params = listType ? { type: listType } : undefined;
   const res = await contentClient('/my-list/page', { params });
+  return (res as any)?.data ?? res;
+}
+
+/**
+ * 歌单广场:平台编排的歌单 + 用户设为公开的歌单,不需要登录。
+ *
+ * 首页频道的「歌单」候选、音乐频道的歌单架、/playlist 的「发现」都读这里。
+ * 空歌单不会出现在广场上(后端过滤)。
+ */
+export async function getPublicLists(params: {
+  type?: MyListType;
+  keyword?: string;
+  sort?: 'hot' | 'new';
+  /** 只要平台编排的 */
+  official?: boolean;
+  page?: number;
+  size?: number;
+} = {}): Promise<MyListPageResponse & { page: number; size: number }> {
+  const res = await contentClient('/my-list/square', {
+    params: {
+      type: params.type ?? 'playlist',
+      ...(params.keyword ? { keyword: params.keyword } : {}),
+      ...(params.sort ? { sort: params.sort } : {}),
+      ...(params.official ? { official: 1 } : {}),
+      page: params.page ?? 1,
+      size: params.size ?? 24,
+    },
+  });
   return (res as any)?.data ?? res;
 }
 
