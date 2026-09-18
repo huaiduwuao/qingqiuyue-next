@@ -122,7 +122,7 @@ export default function MusicPlaylistShelf() {
                 <GhostTile
                   icon={<DownloadRoundedIcon />}
                   title="导入歌单"
-                  hint="网易云音乐 / 汽水音乐"
+                  hint="网易云 / QQ / 酷狗 / 汽水"
                   onClick={() => router.push('/playlist?import=1')}
                 />
               </>

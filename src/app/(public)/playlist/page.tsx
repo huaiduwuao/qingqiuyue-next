@@ -68,7 +68,7 @@ import {
 /**
  * 歌单。/playlist 是「我的歌单」;/playlist?id= 是一张歌单(自己的,或别人公开的);
  * /playlist?id=liked 是内置的「我喜欢的音乐」;/playlist?new=1 直接弹新建,
- * /playlist?import=1 直接弹「从网易云 / 汽水音乐导入」。
+ * /playlist?import=1 直接弹「从其他音乐平台导入」(网易云 / QQ / 酷狗 / 汽水)。
  */
 export default function PlaylistPage() {
   const params = useSearchParams();
@@ -135,7 +135,7 @@ function MyPlaylists({ autoCreate, autoImport }: { autoCreate: boolean; autoImpo
               </Button>
             </Box>
             {items.length === 0 ? (
-              <Empty title="还没有歌单" hint="在歌曲页或播放队列里点「加入歌单」,也可以把网易云音乐、汽水音乐里的歌单直接导进来。" />
+              <Empty title="还没有歌单" hint="在歌曲页或播放队列里点「加入歌单」,也可以把网易云音乐、QQ 音乐、酷狗音乐、汽水音乐里的歌单直接导进来。" />
             ) : (
               <ListLayout minColumnWidth={180} minColumns={2} gap={20}>
                 {items.map((l) => (
@@ -404,7 +404,7 @@ function PlaylistDetail({ id }: { id: string }) {
             )}
             {list.mine && (
               <>
-                <Tooltip title="从网易云音乐 / 汽水音乐导入到这张歌单">
+                <Tooltip title="从网易云 / QQ 音乐 / 酷狗 / 汽水音乐导入到这张歌单">
                   <IconButton aria-label="从其他平台导入歌曲" onClick={() => setImportOpen(true)}>
                     <DownloadRoundedIcon />
                   </IconButton>
@@ -434,7 +434,7 @@ function PlaylistDetail({ id }: { id: string }) {
       ) : rows.length === 0 ? (
         <Empty
           title={isLiked ? '还没有点赞过歌曲' : '这张歌单还是空的'}
-          hint={isLiked ? '在歌曲页点个赞,它就会出现在这里。' : list.mine ? '去搜几首歌,在歌曲页或播放队列里点「加入歌单」;也可以从网易云音乐、汽水音乐导入。' : ''}
+          hint={isLiked ? '在歌曲页点个赞,它就会出现在这里。' : list.mine ? '去搜几首歌,在歌曲页或播放队列里点「加入歌单」;也可以从网易云音乐、QQ 音乐、酷狗音乐、汽水音乐导入。' : ''}
           action={
             list.mine || isLiked ? (
               <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>

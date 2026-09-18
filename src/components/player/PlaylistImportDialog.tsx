@@ -27,7 +27,7 @@ import { formatApiError } from '@/lib/api/client';
 import type { EntityId } from '@/lib/id';
 
 /**
- * 从网易云音乐 / 汽水音乐导入歌单:贴分享链接 → 确认是不是这张 → 后台导入,这里看进度。
+ * 从网易云音乐 / QQ 音乐 / 酷狗音乐 / 汽水音乐导入歌单:贴分享链接 → 确认是不是这张 → 后台导入,这里看进度。
  *
  * 导入在服务端跑,关掉这个框不会中断;再打开时(或刷新页面后)会把还在跑的任务接回来。
  * target 给了就是「导进这张已有的歌单」,不给就新建一张。
@@ -148,7 +148,7 @@ export default function PlaylistImportDialog({
               maxRows={4}
               size="small"
               label="歌单分享链接"
-              placeholder="https://music.163.com/playlist?id=…  或  https://qishui.douyin.com/s/…"
+              placeholder="例如 https://music.163.com/playlist?id=…  或  https://y.qq.com/n/ryqq/playlist/…"
               value={link}
               onChange={(e) => setLink(e.target.value)}
               onKeyDown={(e) => {
@@ -160,7 +160,7 @@ export default function PlaylistImportDialog({
               slotProps={{ htmlInput: { maxLength: 2000, 'aria-label': '歌单分享链接' } }}
             />
             <Box sx={{ fontSize: 12.5, color: 'text.secondary', lineHeight: 1.8 }}>
-              支持<b>网易云音乐</b>和<b>汽水音乐</b>。在 App 里打开歌单 → 分享 → 复制链接,整段粘贴进来就行。
+              支持<b>网易云音乐</b>、<b>QQ 音乐</b>、<b>酷狗音乐</b>和<b>汽水音乐</b>。在 App 里打开歌单 → 分享 → 复制链接,整段粘贴进来就行。
               <br />
               歌单需要是公开的;导入的是歌曲信息,能不能在本站播放取决于这首歌有没有可用音源,会员歌曲会标注并给出原平台入口。
             </Box>

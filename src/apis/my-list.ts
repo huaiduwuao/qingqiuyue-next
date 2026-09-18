@@ -183,7 +183,7 @@ export async function reorderMyList(listId: EntityId, contentIds: EntityId[]): P
 }
 
 // ---------------------------------------------------------------------------
-// 从其它平台导入歌单(网易云音乐 / 汽水音乐),后端见 internal/handler/my_list_import.go
+// 从其它平台导入歌单(网易云音乐 / QQ 音乐 / 酷狗音乐 / 汽水音乐),后端见 internal/handler/my_list_import.go
 // ---------------------------------------------------------------------------
 
 export interface PlaylistImportTrack {
@@ -197,7 +197,7 @@ export interface PlaylistImportTrack {
 }
 
 export interface PlaylistImportPreview {
-  platform: 'netease' | 'qishui';
+  platform: 'netease' | 'qqmusic' | 'kugou' | 'qishui';
   platformName: string;
   playlistId: string;
   url: string;
