@@ -115,6 +115,11 @@ export const PERMISSIONS = {
     UPDATE: 'system:address:update',
     DELETE: 'system:address:delete',
   },
+  /** 应用提交资料(各应用商店上架表单要填的内容,与 WX_CONFIG 的运行时凭据不是一回事) */
+  SYSTEM_APP_SUBMISSION: {
+    VIEW: 'system:app-submission:view',
+    UPDATE: 'system:app-submission:update',
+  },
   SYSTEM_WX_CONFIG: {
     VIEW: 'system:wx-config:list',
     CREATE: 'system:wx-config:create',
