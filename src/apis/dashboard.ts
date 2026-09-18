@@ -39,33 +39,10 @@ export async function getCreatorWipList(params?: PageParams): Promise<PageResult
   return normalizeLegacyPageResponse(res as any);
 }
 
-export interface CollectionWork {
-  id: number;
-  title: string;
-  cover?: string;
-  duration?: number | string;
-  views?: number;
-  type?: 'video' | 'image' | 'article';
-}
-export interface Collection {
-  id: string;
-  title: string;
-  description?: string;
-  cover: string;
-  workCount: number;
-  viewCount: number;
-  isPublic: boolean;
-  status?: 'active' | 'finished' | 'draft';
-  autoSort?: boolean;
-  category?: string;
-  tags: string[];
-  updateTime: number;
-  works?: CollectionWork[];
-}
-export async function getCollectionList(params?: PageParams): Promise<PageResult<Collection>> {
-  const res = await unwrap<PageData<Collection>>(await accountClient('/creator/collection/list', { params }));
-  return normalizeLegacyPageResponse(res as any);
-}
+// 合集(作品合集)不在这里:真实表是 PG 的 user_my_list,读写走 apis/my-list.ts
+// (/api/content/my-list/*)。以前这里有个 getCollectionList() 请求
+// /creator/collection/list,那个端点读的是 Doris user_content_collect 的 ref_id
+// 分组,存不下合集的标题/封面/简介,已随 handler 一起删掉。
 
 export interface HdVideo {
   id: string;
