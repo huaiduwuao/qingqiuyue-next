@@ -49,19 +49,20 @@ import { useResponsive } from '@/hooks/useResponsive';
  * 频道管理:首页顶部那排页签由用户自己决定。
  *
  * 上半「我的频道」拖动排序 + 点 × 移除(「推荐」锁死在第一位);
- * 下半「更多频道」按来源分组:内容分类 / 题材 / 热门标签 / 专题(含我关注的),
+ * 下半「更多频道」按来源分组:内容分类 / 题材 / 热门标签 / 来源 / 专题(含我关注的),
  * 搜不到就用搜索词现场建一个关键词频道。
  *
  * 改动直接落到 lib/sectionPrefs(localStorage),页签栏 useSyncExternalStore 立刻跟着变,
  * 所以这里没有"保存"按钮 —— 点一下就生效,关掉弹窗不会回滚。
  */
 
-type CandidateGroup = 'type' | 'genre' | 'tag' | 'topic' | 'following';
+type CandidateGroup = 'type' | 'genre' | 'tag' | 'source' | 'topic' | 'following';
 
 const GROUP_TABS: { key: CandidateGroup; label: string }[] = [
   { key: 'type', label: '内容分类' },
   { key: 'genre', label: '题材' },
   { key: 'tag', label: '热门标签' },
+  { key: 'source', label: '来源' },
   { key: 'topic', label: '热门专题' },
   { key: 'following', label: '我关注的' },
 ];
@@ -106,10 +107,15 @@ export default function SectionManagerDialog({ open, onClose }: Props) {
     enabled: open && group === 'genre',
     staleTime: 10 * 60_000,
   });
+  // 一次请求同时拿话题标签和来源名(后端分两份返回),两个页签共用
   const tagsQuery = useQuery({
     queryKey: ['section-catalog', 'tags'],
-    queryFn: () => fetchContentTags({ limit: 80 }).then((r: any) => (r?.data?.list ?? []) as { name: string; count: number }[]),
-    enabled: open && group === 'tag',
+    queryFn: () =>
+      fetchContentTags({ limit: 80 }).then((r: any) => ({
+        tags: (r?.data?.list ?? []) as { name: string; count: number }[],
+        sources: (r?.data?.sources ?? []) as { name: string; count: number }[],
+      })),
+    enabled: open && (group === 'tag' || group === 'source'),
     staleTime: 10 * 60_000,
   });
   const topicsQuery = useQuery({
@@ -159,8 +165,9 @@ export default function SectionManagerDialog({ open, onClose }: Props) {
       }
       return out;
     }
-    if (group === 'tag') {
-      return (tagsQuery.data ?? [])
+    if (group === 'tag' || group === 'source') {
+      const src = group === 'source' ? tagsQuery.data?.sources : tagsQuery.data?.tags;
+      return (src ?? [])
         .filter((t) => hit(t.name))
         .map((t) => ({ section: makeTagSection(t.name), hint: `${t.count} 条` }));
     }
@@ -176,7 +183,7 @@ export default function SectionManagerDialog({ open, onClose }: Props) {
   const loading =
     (group === 'type' && typesQuery.isLoading) ||
     (group === 'genre' && subcatQuery.isLoading) ||
-    (group === 'tag' && tagsQuery.isLoading) ||
+    ((group === 'tag' || group === 'source') && tagsQuery.isLoading) ||
     (group === 'topic' && topicsQuery.isLoading) ||
     (group === 'following' && followingQuery.isLoading);
 
@@ -314,6 +321,8 @@ export default function SectionManagerDialog({ open, onClose }: Props) {
             <Typography sx={{ fontSize: 12, color: 'text.disabled', py: 2 }}>
               {group === 'following'
                 ? '还没关注专题 —— 在「专题」页关注几个,这里就能直接加成频道。'
+                : group === 'source'
+                  ? '还没聚合出来源(内容的来源标记为空)。'
                 : kw
                   ? '没搜到现成的,可以用上面的按钮建一个自己的词。'
                   : '暂时没有可选项。'}

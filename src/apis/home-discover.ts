@@ -79,8 +79,10 @@ export async function fetchFacets(params: { type?: string; field?: string; limit
 
 // =================== 标签聚合(自定义频道候选) ===================
 // GET /api/content/dict/tags?type=&limit=  出现最多的内容标签,按频次降序。
-// 首页「频道管理」用它列出可以直接加成频道的标签;取内容时对应 ?tag=。
-// 不用 facets?field=genre:爬下来的行里 metadata.genre 基本是空的,有值的是 tags 列。
+// 返回两份:list = 话题标签(剧情/都市/搞笑…),sources = 来源名(QQ音乐/B站番剧…)。
+// 标签行里出现最多的其实是来源,混在一起会把话题挤没,所以后端分开返回。
+// 首页「频道管理」用它列出可以直接加成频道的标签;取内容时都对应 ?tag=。
+// 不用 facets?field=genre:那一列存的是逗号串,JSON_CONTAINS 查不出东西。
 export async function fetchContentTags(params: { type?: string; limit?: number } = {}) {
   return contentClient('/dict/tags', { params });
 }
