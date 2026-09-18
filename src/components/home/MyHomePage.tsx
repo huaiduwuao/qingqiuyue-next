@@ -25,7 +25,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import VideoLibraryOutlinedIcon from '@mui/icons-material/VideoLibraryOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
@@ -53,6 +53,8 @@ import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import { useApp } from '@/contexts/AppContext';
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
+import { LIST_PAGE_SIZE, nextMeListPage } from '@/components/home/meListPaging';
 import { SiteLegalFooter } from '@/components/layout/SiteLegalFooter';
 import { homeClient, adminClient, formatApiError } from '@/lib/api/client';
 import { setMark } from '@/apis/content-mark';
@@ -114,6 +116,8 @@ type ListResp = {
   total: number;
   tab: string;
   sub?: string;
+  /** 后端 SuccessPageEx 带的;false 时被 omitempty 吃掉,所以只能当"有"用,不能当"没有"用 */
+  hasMore?: boolean;
 };
 
 const MAIN_TABS: { key: string; label: string; icon: React.ReactNode; locked?: boolean }[] = [
@@ -233,13 +237,23 @@ export function MyHomePage() {
   });
   const profile = profileQuery.data;
 
-  const listQuery = useQuery({
+  // 列表是分页的:以前这里只打一次 /me/list(后端默认 pageSize=20),页面却照着
+  // COUNT(*) 写「共 N 个作品」—— N 上万、列表永远 20 条、往下滚也不会再请求。
+  // 现在按页取,滚到底自动续下一页。
+  const listQuery = useInfiniteQuery({
     queryKey: ['home', 'me', 'list', mainTab, subTab],
-    queryFn: () =>
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) =>
       homeClient
-        .get<ListResp>(`/me/list?tab=${mainTab}&sub=${subTab}`)
+        .get<ListResp>(`/me/list?tab=${mainTab}&sub=${subTab}&page=${pageParam}&pageSize=${LIST_PAGE_SIZE}`)
         .then((r) => r.data),
+    getNextPageParam: (last, all) => nextMeListPage(last, all),
   });
+
+  const loadedList = useMemo(
+    () => listQuery.data?.pages.flatMap((p) => p.list ?? []) ?? [],
+    [listQuery.data],
+  );
 
   // 快捷入口徽标所需数据(QUICK_LINKS 渲染时实时消费)
   const walletQ = useQuery({
@@ -264,7 +278,7 @@ export function MyHomePage() {
   });
 
   const filteredList = useMemo(() => {
-    const list = listQuery.data?.list ?? [];
+    const list = loadedList;
     if (!keyword && dateRange === 'all') return list;
     const now = Date.now();
     const days = dateRange === '7d' ? 7 : dateRange === '30d' ? 30 : dateRange === '90d' ? 90 : dateRange === 'year' ? 365 : Infinity;
@@ -274,15 +288,27 @@ export function MyHomePage() {
       if (days !== Infinity && isMyGroup(it) && now - it.updatedAt > days * 86_400_000) return false;
       return true;
     });
-  }, [listQuery.data, keyword, dateRange]);
+  }, [loadedList, keyword, dateRange]);
 
-  const totalCount = listQuery.data?.total ?? 0;
+  const totalCount = listQuery.data?.pages[0]?.total ?? 0;
   const showSubTabs = mainTab === 'works';
   // 「作品」下的计数按子页签说话:作品 / 私密作品 / 合集 / 短剧 各算各的,
   // 不再四个子页签都写「共 N 个作品」。
   const tabLabel = TAB_UNIT[showSubTabs ? subTab : mainTab]
     ?? ` 个${MAIN_TABS.find((t) => t.key === mainTab)?.label ?? ''}`;
   const isGroupView = GROUP_TABS.has(mainTab) || (showSubTabs && subTab === 'collection');
+
+  // 滚到底自动续页。哨兵挂在列表末尾,滚动容器是 home/layout 的 <main>(overflow:auto),
+  // hook 自己往上找。
+  const scroll = useInfiniteScroll({
+    enabled: listQuery.hasNextPage && !listQuery.isFetchingNextPage && !listQuery.isLoading,
+  });
+
+  useEffect(() => {
+    if (scroll.isNearBottom && listQuery.hasNextPage && !listQuery.isFetchingNextPage) {
+      listQuery.fetchNextPage();
+    }
+  }, [scroll.isNearBottom, listQuery.hasNextPage, listQuery.isFetchingNextPage, listQuery.fetchNextPage]);
 
   const toggleSelect = (id: number) => {
     setSelected((s) => {
@@ -832,13 +858,22 @@ export function MyHomePage() {
         {filteredList.length > 0 && !batchMode && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, px: 0.5 }}>
             <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-              共 {totalCount}{tabLabel}{keyword || dateRange !== 'all' ? ` · 已筛选 ${filteredList.length}` : ''}
+              共 {totalCount}{tabLabel}
+              {/* 关键词 / 日期是在已加载的这些里筛的,所以把"已加载多少"一并写出来,
+                  免得「共 136316 个作品 · 已筛选 3」看着像筛错了 */}
+              {loadedList.length < totalCount ? ` · 已加载 ${loadedList.length}` : ''}
+              {keyword || dateRange !== 'all' ? ` · 已筛选 ${filteredList.length}` : ''}
             </Typography>
           </Box>
         )}
 
         {/* Content area */}
-        {filteredList.length === 0 ? (
+        {listQuery.isLoading ? (
+          // 第一页还在路上时别写「还未发布过作品」——那是空态,不是加载中
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+            <CircularProgress size={22} />
+          </Box>
+        ) : filteredList.length === 0 ? (
           <EmptyState tab={mainTab} subTab={subTab} onPublish={() => router.push('/account/content')} />
         ) : isGroupView ? (
           <CollectionGridView
@@ -887,6 +922,28 @@ export function MyHomePage() {
             onTogglePrivate={(it) => workPrivacyMutation.mutate(it)}
             showPrivacy={mainTab === 'works'}
           />
+        )}
+
+        {/* 无限滚动:哨兵 + 加载态 + 到底提示 */}
+        {!listQuery.isLoading && loadedList.length > 0 && (
+          <>
+            <Box ref={scroll.sentinelRef} sx={{ height: 1 }} />
+            {listQuery.isFetchingNextPage ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                <CircularProgress size={18} />
+              </Box>
+            ) : listQuery.hasNextPage ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+                <Button size="small" variant="text" onClick={() => listQuery.fetchNextPage()}>
+                  加载更多
+                </Button>
+              </Box>
+            ) : (
+              <Typography sx={{ textAlign: 'center', py: 3, color: 'text.disabled', fontSize: 12 }}>
+                - 没有更多了 -
+              </Typography>
+            )}
+          </>
         )}
       </Box>
 
