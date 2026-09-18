@@ -35,7 +35,7 @@ import { CTA_GRADIENT, gradient2 } from '@/constants/gradients';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 
 // 壁纸域占位:后端 `/api/core/wallpaper/*` 就绪后,以下数据/类型替换为 API 调用
-type WallpaperCategory = 'all' | 'abstract' | 'anime' | 'scenery' | 'stars' | 'minimal' | 'cyber';
+type WallpaperCategory = 'all' | 'abstract' | 'anime' | 'scenery' | 'stars' | 'minimal' | 'cyber' | 'other';
 type WallpaperSize = 'desktop' | 'tablet' | 'mobile' | 'all';
 interface Wallpaper {
   id: string;
@@ -47,7 +47,11 @@ interface Wallpaper {
   accent: string;
   author: string;
   usage: number;
+  /** 文件体积:库里没存,后端回 0,为 0 时不显示 */
   sizeMb: number;
+  /** 原图宽高(后端从 content 里的 "4000x2670" 解析),未知为 0 */
+  width?: number;
+  height?: number;
   desc: string;
   sizes: WallpaperSize[];
   official: boolean;
@@ -58,6 +62,9 @@ interface MyWallpaper {
   appliedTo: 'home' | 'account' | 'none';
   setAt: string;
 }
+// 主题的展示元数据(配色/英文名)。哪些主题真的有图由后端返回的 categories 决定 ——
+// 以前这里写死 6 个主题,而后端把每一张图都归到了不在这份名单里的 abstract,
+// 结果除「全部」外 5 个主题永远是 0。
 const WALLPAPER_CATEGORIES: Array<{
   key: WallpaperCategory;
   label: string;
@@ -70,8 +77,22 @@ const WALLPAPER_CATEGORIES: Array<{
   { key: 'stars', label: '星空', sub: 'Stars', accent: '#3B82F6' },
   { key: 'minimal', label: '简约', sub: 'Minimal', accent: '#F59E0B' },
   { key: 'cyber', label: '赛博', sub: 'Cyber', accent: '#EF4444' },
+  { key: 'abstract', label: '抽象', sub: 'Abstract', accent: '#A78BFA' },
+  { key: 'other', label: '其它', sub: 'Other', accent: '#94A3B8' },
 ];
+
+const CATEGORY_META = new Map(WALLPAPER_CATEGORIES.map((c) => [c.key, c]));
+
+/** 分辨率(4000×2670)—— 文件体积库里没有,用分辨率代替那句写死的「2.5 MB」。 */
+function formatResolution(wp: Pick<Wallpaper, 'width' | 'height'>): string {
+  if (!wp.width || !wp.height) return '';
+  return `${wp.width}×${wp.height}`;
+}
 const WALLPAPERS: Wallpaper[] = [];
+
+/** 每次向后端要多少张,以及最多翻几页(兜底,避免 total 异常时死循环)。 */
+const PAGE_SIZE = 100;
+const MAX_PAGES = 20;
 const MY_WALLPAPERS: MyWallpaper[] = [];
 
 function formatCount(n: number): string {
@@ -109,7 +130,8 @@ function WallpaperPageContent() {
   const { currentUser } = useApp();
   const [activeCat, setActiveCat] = useState<WallpaperCategory | 'all'>('all');
   const [sort, setSort] = useState<'new' | 'hot' | 'size'>('hot');
-  const [favorites, setFavorites] = useState<Set<string>>(new Set(['w006', 'w009']));
+  // 之前这里预置了 w006 / w009 两个并不存在的 id,页面一打开就有两颗心是亮的。
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [myWallpapers, setMyWallpapers] = useState<MyWallpaper[]>(MY_WALLPAPERS);
   const [detail, setDetail] = useState<Wallpaper | null>(null);
   const [toast, setToast] = useState<{ open: boolean; msg: string }>({ open: false, msg: '' });
@@ -118,37 +140,58 @@ function WallpaperPageContent() {
   const [categories, setCategories] = useState<Array<{ key: WallpaperCategory; label: string; sub: string; accent: string }>>(WALLPAPER_CATEGORIES);
   const [wallpapers, setWallpapers] = useState<Wallpaper[]>(WALLPAPERS);
   const [loading, setLoading] = useState(true);
+  // 每个主题真实有多少张(后端按标签算好给的,不是只数当前这一页)
+  const [catCounts, setCatCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       try {
         // axios interceptor 返回 { code, data }，apiRes.data 包含 { code, data }
-        // 后端 response.SuccessPage 返回 { code: 0, data: { list, total, page } }
-        const apiRes = await adminClient.get<{ code?: number; data?: { list?: any[]; items?: any[]; categories?: any[]; total?: number }; list?: any[]; items?: any[]; categories?: any[]; total?: number }>('/wallpaper/list');
-        const raw = apiRes.data;
-        // 实际数据在 raw.data 里（interceptor 把后端 body 包了一层）
-        const payload = {
-          list: raw?.data?.list ?? raw?.list ?? [],
-          items: raw?.data?.items ?? raw?.items ?? [],
-          categories: raw?.data?.categories ?? raw?.categories ?? null,
-          total: raw?.data?.total ?? raw?.total ?? 0,
+        // 后端返回 { code: 0, data: { list, total, page, pageSize, categories } }
+        type WallpaperPayload = { list?: any[]; items?: any[]; categories?: any[]; total?: number };
+        const fetchPage = async (page: number): Promise<WallpaperPayload> => {
+          const apiRes = await adminClient.get<{ code?: number; data?: WallpaperPayload } & WallpaperPayload>(
+            `/wallpaper/list?page=${page}&page_size=${PAGE_SIZE}`,
+          );
+          const raw = apiRes.data;
+          // 实际数据在 raw.data 里（interceptor 把后端 body 包了一层）
+          return {
+            list: raw?.data?.list ?? raw?.list ?? [],
+            items: raw?.data?.items ?? raw?.items ?? [],
+            categories: raw?.data?.categories ?? raw?.categories ?? undefined,
+            total: raw?.data?.total ?? raw?.total ?? 0,
+          };
         };
+
+        const first = await fetchPage(1);
         if (cancelled) return;
-        // 如果后端没有返回 categories，使用默认分类
-        let cats = (payload.categories?.length ?? 0) > 0
-          ? (payload.categories ?? []).map((c: any) => ({
-              key: (c.key ?? c.id) as WallpaperCategory,
-              label: String(c.label ?? c.name ?? c.key ?? ''),
-              sub: String(c.sub ?? c.subtitle ?? ''),
-              accent: String(c.accent ?? '#8B5CF6'),
-            }))
-          : WALLPAPER_CATEGORIES;
-        // 保证「全部」项始终存在且置顶(后端动态分类可能不含 all)
-        const allCat = WALLPAPER_CATEGORIES[0];
-        cats = [allCat, ...cats.filter((c) => c.key !== 'all')];
-        const items = (payload.list ?? payload.items ?? []) as Wallpaper[];
-        setCategories(cats);
+        const items = [...((first.list?.length ? first.list : first.items) ?? [])] as Wallpaper[];
+        const total = first.total ?? 0;
+        // 以前只取默认的第一页(30 条),多出来的壁纸在页面上根本不存在。
+        // 壁纸总量是百量级,按页取完即可;MAX_PAGES 兜住异常的 total。
+        for (let page = 2; items.length < total && page <= MAX_PAGES; page++) {
+          const more = await fetchPage(page);
+          if (cancelled) return;
+          const rows = ((more.list?.length ? more.list : more.items) ?? []) as Wallpaper[];
+          if (rows.length === 0) break;
+          items.push(...rows);
+        }
+
+        // 主题栏:后端给的是「这个主题有几张」,只把真的有图的列出来。
+        // 全站只剩一个「其它」时不摆主题栏 —— 一个永远全选中的筛选没有意义。
+        const counts: Record<string, number> = {};
+        for (const c of first.categories ?? []) {
+          const key = String(c?.key ?? '');
+          if (key) counts[key] = Number(c?.count ?? 0);
+        }
+        counts.all = total;
+        const themed = (first.categories ?? [])
+          .map((c: any) => CATEGORY_META.get(String(c?.key ?? '') as WallpaperCategory))
+          .filter((c): c is NonNullable<typeof c> => !!c && c.key !== 'all');
+        const onlyOther = themed.length <= 1 && themed[0]?.key === 'other';
+        setCatCounts(counts);
+        setCategories([WALLPAPER_CATEGORIES[0], ...(onlyOther ? [] : themed)]);
         setWallpapers(items);
       } catch (err) {
         if (!cancelled) {
@@ -175,6 +218,15 @@ function WallpaperPageContent() {
     [currentApplied, wallpapers],
   );
 
+  // 头图那行副标题:文件体积后端没有(回 0),这时用分辨率代替,两者都没有就整段不显示,
+  // 不再对每张图都写死一句「2.5 MB」。
+  const heroMeta = useMemo(() => {
+    const wp = currentWallpaper;
+    if (!wp) return '';
+    if (wp.sizeMb > 0) return `${wp.sizeMb.toFixed(1)} MB`;
+    return formatResolution(wp);
+  }, [currentWallpaper]);
+
   // 无数据时的默认展示
   const defaultWallpaper: Wallpaper = useMemo(() => ({
     id: 'default',
@@ -197,7 +249,11 @@ function WallpaperPageContent() {
     let list = activeCat === 'all' ? wallpapers : wallpapers.filter((w) => w.category === activeCat);
     if (sort === 'new') list = [...list].sort((a, b) => +new Date(b.releaseTime) - +new Date(a.releaseTime));
     if (sort === 'hot') list = [...list].sort((a, b) => b.usage - a.usage);
-    if (sort === 'size') list = [...list].sort((a, b) => b.sizeMb - a.sizeMb);
+    // 「体积」按分辨率排:文件体积后端没有(以前每张都是写死的 2.5MB,这一档等于没排)。
+    if (sort === 'size') {
+      const px = (w: Wallpaper) => (w.width || 0) * (w.height || 0);
+      list = [...list].sort((a, b) => px(b) - px(a));
+    }
     return list;
   }, [activeCat, sort, wallpapers]);
 
@@ -412,7 +468,7 @@ function WallpaperPageContent() {
                 maxWidth: 480,
               }}
             >
-              6 大主题、{wallpapers.length} 款精选壁纸,覆盖桌面 / 平板 / 手机全尺寸,一键应用到主页或个人中心。
+              {categories.length > 1 ? `${categories.length - 1} 大主题、` : ''}{wallpapers.length} 款精选壁纸,一键应用到主页或个人中心。
             </Typography>
 
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
@@ -543,7 +599,7 @@ function WallpaperPageContent() {
             </Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', flex: 1 }}>
-                {formatCount((currentWallpaper ?? defaultWallpaper).usage)} 人正在使用 · {(currentWallpaper ?? defaultWallpaper).sizeMb.toFixed(1)} MB
+                {formatCount((currentWallpaper ?? defaultWallpaper).usage)} 人正在使用{heroMeta ? ` · ${heroMeta}` : ''}
               </Typography>
               {currentApplied && (
                 <Typography sx={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>
@@ -608,7 +664,7 @@ function WallpaperPageContent() {
               <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: c.accent, boxShadow: `0 0 6px ${c.accent}99` }} />
               {c.label}
               <Box component="span" sx={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>
-                {wallpapers.filter((w) => w.category === c.key).length}
+                {catCounts[c.key] ?? 0}
               </Box>
             </Box>
           ))}
@@ -617,7 +673,7 @@ function WallpaperPageContent() {
             {[
               { key: 'hot', label: '热门' },
               { key: 'new', label: '最新' },
-              { key: 'size', label: '体积' },
+              { key: 'size', label: '分辨率' },
             ].map((s) => {
               const isActive = sort === s.key;
               return (
@@ -1273,9 +1329,13 @@ function DetailContent({
 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, p: 1.5, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
           <DetailRow k="作者" v={wp.author} />
-          <DetailRow k="分类" v={WALLPAPER_CATEGORIES.find((c) => c.key === wp.category)?.label ?? '-'} />
+          <DetailRow k="分类" v={CATEGORY_META.get(wp.category)?.label ?? '-'} />
           <DetailRow k="使用人数" v={`${formatCount(wp.usage)} 人`} />
-          <DetailRow k="文件大小" v={`${wp.sizeMb.toFixed(1)} MB`} />
+          {wp.sizeMb > 0 ? (
+            <DetailRow k="文件大小" v={`${wp.sizeMb.toFixed(1)} MB`} />
+          ) : formatResolution(wp) ? (
+            <DetailRow k="分辨率" v={formatResolution(wp)} />
+          ) : null}
           <DetailRow k="发布时间" v={formatDate(wp.releaseTime)} />
         </Box>
 
