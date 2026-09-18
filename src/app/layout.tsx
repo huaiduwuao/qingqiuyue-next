@@ -28,10 +28,8 @@ export const metadata: Metadata = {
     images: ['/og-image.png'],
   },
   robots: { index: true, follow: true },
-  icons: {
-    icon: '/yue_icon.svg',
-    apple: '/yue_icon.svg',
-  },
+  // 图标交给 Next 的文件约定(app/favicon.ico、app/icon.png、app/apple-icon.png),
+  // 由 scripts/gen-icons.mjs 从品牌印章生成。这里再写 icons 会盖掉文件约定,所以不写。
   other: {
     'mobile-web-app-capable': 'yes',
     'apple-mobile-web-app-capable': 'yes',
