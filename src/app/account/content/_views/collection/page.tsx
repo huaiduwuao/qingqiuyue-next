@@ -1,12 +1,34 @@
 'use client';
 
-
 // 该页依赖 client context + 后端实时数据,SSR/pre-render 时 TIERS/orders 等未就绪 →
 // 报 "Cannot read properties of undefined"。强制 dynamic 跳过预渲染。
+//
+// 数据源:PG 的 user_my_list / user_my_list_item,走 /api/content/my-list/*
+// (后端 internal/handler/my_list.go)。以前这里请求 /api/core/creator/collection/list
+// 读、/api/core/account/collection 写,两个端点都在,但都落在 Doris 的
+// user_content_collect 上 —— 那张表只有 user_id+content_id+type,没有合集元数据,
+// 于是写入把标题/封面/简介全丢,读出来只能按 ref_id 分组硬造一个「默认收藏夹」。
+// (列表还恒为空:上一版把 useState 的初值设成首次渲染时还没到的 query 结果。)
+// 现在和「我的」页的 作品合集 页签(/api/content/home/me/list?tab=collection,
+// 读 user_my_list 的 topic+album)共用同一张表,改完那边立刻能看到。
+//
+// user_my_list 没有的字段(合集状态 进行中/已完结/草稿、分类、自动排序、订阅数、
+// 累计播放)都已从界面上去掉 —— 与其显示写不进去的开关和恒为 0 的数字,不如不显示。
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { getCollectionList, getMyWorks, type Collection as ApiCollection, type MyWork as ApiMyWork } from '@/apis/dashboard';
+import React, { useState, useMemo } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  getMyLists,
+  createMyList,
+  updateMyList,
+  deleteMyList,
+  getMyListContent,
+  addToMyList,
+  removeFromMyList,
+  reorderMyList,
+  type MyListItem as ApiMyList,
+} from '@/apis/my-list';
+import { getMyWorks, type MyWork } from '@/apis/dashboard';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -22,9 +44,8 @@ import Dialog from '@mui/material/Dialog';
 import Drawer from '@mui/material/Drawer';
 import Stack from '@mui/material/Stack';
 import Snackbar from '@mui/material/Snackbar';
-import Switch from '@mui/material/Switch';
-import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
+import CircularProgress from '@mui/material/CircularProgress';
 import SearchIcon from '@mui/icons-material/Search';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
@@ -32,81 +53,67 @@ import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import ShareRoundedIcon from '@mui/icons-material/ShareRounded';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import PublicRoundedIcon from '@mui/icons-material/PublicRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import DragIndicatorRoundedIcon from '@mui/icons-material/DragIndicatorRounded';
 import CollectionsRoundedIcon from '@mui/icons-material/CollectionsRounded';
-import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
-import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import ArrowDownwardRoundedIcon from '@mui/icons-material/ArrowDownwardRounded';
 import ArrowUpwardRoundedIcon from '@mui/icons-material/ArrowUpwardRounded';
-import { gradient2, gradient3 } from '@/constants/gradients';
-import { accountClient } from '@/lib/api/client';
 import { ListLayout, ListLayoutSwitch, LIST_ROW, LIST_COMPACT } from '@/components/common/ListLayout';
-import { toEntityId, type EntityId } from '@/lib/id';
+import { toEntityId, sameId, type EntityId } from '@/lib/id';
 import { coverBackground } from '@/lib/media';
 
-type CollectionStatus = 'active' | 'finished' | 'draft';
-type CollectionVisibility = 'public' | 'fansOnly' | 'private';
-type CollectionCategory = 'vlog' | 'tutorial' | 'music' | 'fashion' | 'travel' | 'review' | 'other';
+/**
+ * 创作者中心建的合集统一存成 user_my_list.type = 'topic'(专题)。
+ * 「我的」页的 作品合集 页签读 topic + album,所以这里建的合集在那边也看得到。
+ */
+const CREATOR_LIST_TYPE = 'topic' as const;
 
-// 作品 / 合集 id 都是超 2^53 的 BIGINT,后端给的是字符串,原样保留(见 lib/id.ts)
+/** 合集名长度上限跟后端一致(my_list.go:名称需为 1–40 个字) */
+const NAME_MAX = 40;
+/** 简介上限,后端列是 varchar(500),界面收紧到 200 */
+const DESC_MAX = 200;
+
+// 作品(内容)id 是超 2^53 的 BIGINT,后端给的是字符串,原样保留(见 lib/id.ts)。
+// 合集 id 是 PG 自增,小整数。
 interface WorkRef {
   id: EntityId;
   title: string;
   cover: string;
-  duration?: string;
   views: number;
-  type: 'video' | 'image' | 'article';
 }
 
 interface Collection {
   id: EntityId;
   title: string;
   description: string;
+  /** 自己设的封面;为空时用 covers 里前几项的封面兜底 */
   cover: string;
-  status: CollectionStatus;
-  visibility: CollectionVisibility;
-  category: CollectionCategory;
-  works: WorkRef[];
-  totalViews: number;
-  subscribers: number;
-  autoSort: boolean;
-  createdAt: number;
-  updatedAt: number;
+  covers: string[];
+  isPublic: boolean;
+  itemCount: number;
+  /** 后端给的是 "2006-01-02 15:04:05" 字符串,原样截前 10 位显示,不进 Date(避免时区偏移) */
+  updateTime: string;
 }
 
-const STATUS_META: Record<CollectionStatus, { label: string; color: string; bg: string }> = {
-  active: { label: '进行中', color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.12)' },
-  finished: { label: '已完结', color: '#5B8DEF', bg: 'rgba(91, 141, 239, 0.12)' },
-  draft: { label: '草稿', color: 'text.secondary', bg: 'action.hover' },
-};
+function toCollection(l: ApiMyList): Collection {
+  return {
+    id: l.id,
+    title: l.name,
+    description: l.description ?? '',
+    cover: l.coverUrl ?? '',
+    covers: l.covers ?? [],
+    isPublic: !!l.isPublic,
+    itemCount: l.itemCount ?? 0,
+    updateTime: l.updateTime ?? '',
+  };
+}
 
-const VISIBILITY_META: Record<CollectionVisibility, { label: string }> = {
-  public: { label: '公开' },
-  fansOnly: { label: '仅粉丝' },
-  private: { label: '私密' },
-};
-
-const CATEGORY_OPTIONS: { key: CollectionCategory; label: string }[] = [
-  { key: 'vlog', label: 'Vlog' },
-  { key: 'tutorial', label: '教程' },
-  { key: 'music', label: '音乐' },
-  { key: 'fashion', label: '穿搭' },
-  { key: 'travel', label: '旅行' },
-  { key: 'review', label: '评测' },
-  { key: 'other', label: '其他' },
-];
-
-const COVER_PRESETS = [
-  gradient3('#FE2C55', '#FF6B8A', '#FFB400'),
-  gradient2('#25F4EE', '#5DF7F2'),
-  gradient2('#5DDB96', '#25F4EE'),
-  gradient2('#8B5CF6', '#FE2C55'),
-  gradient2('#FF6B8A', '#FFB400'),
-  gradient2('#5B8DEF', '#8B5CF6'),
-  gradient3('#FFB400', '#FE2C55', '#8B5CF6'),
-  gradient2('#06B6D4', '#5B8DEF'),
-];
+function toWorkRef(w: MyWork): WorkRef | null {
+  const id = toEntityId(w.id);
+  if (id === null) return null;
+  return { id, title: w.title, cover: w.cover ?? '', views: w.views ?? 0 };
+}
 
 function formatNum(n: number): string {
   if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
@@ -114,17 +121,9 @@ function formatNum(n: number): string {
   return n.toString();
 }
 
-function formatDate(ts: number): string {
-  const d = new Date(ts);
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-function formatDuration(sec: number): string {
-  if (!sec) return '';
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+/** 封面缺省时拿夹子里前几项的封面拼一格,和「我的」页的宫格逻辑一致 */
+function collectionCover(c: Collection): string {
+  return c.cover || c.covers[0] || '';
 }
 
 function DetailHeader({ title, action }: { title: string; action?: React.ReactNode }) {
@@ -142,190 +141,156 @@ function DetailHeader({ title, action }: { title: string; action?: React.ReactNo
 }
 
 export default function CollectionPage() {
-  // 真接口拉作品合集(uid 隔离),失败时 fallback 到 SEED 兜底
-  const { data: colResp } = useQuery({
-    queryKey: ['creator-collections'],
-    queryFn: () => getCollectionList({ page: 1, pageSize: 50 }),
-    staleTime: 30 * 1000,
-    refetchOnMount: 'always',
-  });
-
-  // 真接口拉当前创作者的所有作品(供「添加作品」选择器使用)
-  const { data: myWorksResp } = useQuery({
-    queryKey: ['creator-my-works-all'],
-    queryFn: () => getMyWorks().then((r: any) => r.list || r.records || []),
-    staleTime: 30 * 1000,
-    refetchOnMount: 'always',
-  });
-  const myWorks: WorkRef[] = (myWorksResp ?? []).map((w: ApiMyWork) => ({
-    id: toEntityId(w.id) ?? 0,
-    title: w.title,
-    cover: w.cover,
-    duration: typeof w.duration === 'number' ? formatDuration(w.duration) : undefined,
-    views: w.views ?? 0,
-    type: (w.hashtags?.includes('article') ? 'article' : w.duration > 0 ? 'video' : 'image') as WorkRef['type'],
-  }));
-  const apiCollections: Collection[] = (colResp?.list ?? []).map((c: ApiCollection) => ({
-    id: toEntityId(c.id) ?? 0,
-    title: c.title,
-    description: c.description ?? '',
-    cover: c.cover || '',
-    status: (c.status ?? 'active') as CollectionStatus,
-    visibility: c.isPublic ? 'public' : 'private',
-    category: (c.category as CollectionCategory) ?? ('travel' as any),
-    works: (c.works ?? []).map((w) => ({
-      id: toEntityId(w.id) ?? 0,
-      title: w.title,
-      cover: w.cover ?? '',
-      duration: typeof w.duration === 'number' ? formatDuration(w.duration) : w.duration,
-      views: w.views ?? 0,
-      type: (w.type ?? 'video') as WorkRef['type'],
-    })),
-    totalViews: c.viewCount,
-    subscribers: 0,
-    autoSort: c.autoSort ?? false,
-    createdAt: c.updateTime,
-    updatedAt: c.updateTime,
-  }));
-  const [collections, setCollections] = useState<Collection[]>(apiCollections);
-  // CRUD 后通过 qc.invalidate 触发重新拉,这里保留 setCollections 用于 UI 即时反馈。
-  const [tab, setTab] = useState<0 | 1 | 2 | 3>(0);
+  const qc = useQueryClient();
+  const [tab, setTab] = useState<0 | 1 | 2>(0);
   const [keyword, setKeyword] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
+  // 每次打开换一个 key,让创建表单重新挂载拿到干净初值(不用 effect 里 setState 重置)
+  const [createSeq, setCreateSeq] = useState(0);
   const [editing, setEditing] = useState<Collection | null>(null);
   const [snack, setSnack] = useState<string | null>(null);
   const [anchorEl, setAnchorEl] = useState<{ id: EntityId; el: HTMLElement } | null>(null);
 
-  const counts = useMemo(() => ({
-    all: collections.length,
-    active: collections.filter((c) => c.status === 'active').length,
-    finished: collections.filter((c) => c.status === 'finished').length,
-    draft: collections.filter((c) => c.status === 'draft').length,
-  }), [collections]);
+  const listQ = useQuery({
+    queryKey: ['creator-collections', CREATOR_LIST_TYPE],
+    queryFn: () => getMyLists(CREATOR_LIST_TYPE),
+    staleTime: 30 * 1000,
+    refetchOnMount: 'always',
+  });
+
+  // 直接从 query 派生 —— 以前这里是 useState(apiCollections),初值在首次渲染(数据还没到)
+  // 时就定死了,接口回来也不会刷新,列表永远是空的。
+  const collections: Collection[] = useMemo(
+    () => (listQ.data?.list ?? []).map(toCollection),
+    [listQ.data],
+  );
+
+  // 「添加作品」选择器的数据源:/api/core/creator/my/works —— 只返回 status='PUBLISH'
+  // 的作品,合集里就不会出现还在审核/未发布的稿子。
+  const worksQ = useQuery({
+    queryKey: ['creator-my-works'],
+    queryFn: () => getMyWorks(),
+    staleTime: 30 * 1000,
+  });
+  const myWorks: WorkRef[] = useMemo(
+    () => ((worksQ.data?.list ?? worksQ.data?.records ?? []) as MyWork[]).map(toWorkRef).filter((w): w is WorkRef => w !== null),
+    [worksQ.data],
+  );
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['creator-collections'] });
+    // 「我的」页的 作品合集 页签读同一张表
+    qc.invalidateQueries({ queryKey: ['my-lists'] });
+  };
+
+  const createM = useMutation({
+    mutationFn: (v: { name: string; description: string; coverUrl: string; isPublic: boolean; contentIds: EntityId[] }) =>
+      createMyList({ ...v, type: CREATOR_LIST_TYPE }),
+    onSuccess: () => {
+      invalidate();
+      setCreateOpen(false);
+      setSnack('合集已创建');
+    },
+    onError: () => setSnack('创建失败,请重试'),
+  });
+
+  // 保存一个合集:元数据一次 PUT,作品的增/删/排序各走各的端点。
+  const saveM = useMutation({
+    mutationFn: async (v: {
+      id: EntityId;
+      name: string;
+      description: string;
+      coverUrl: string;
+      isPublic: boolean;
+      workIds: EntityId[];
+      /** 打开抽屉时夹子里原本的作品,用来算增删 */
+      originalIds: EntityId[];
+    }) => {
+      await updateMyList(v.id, {
+        name: v.name,
+        description: v.description,
+        coverUrl: v.coverUrl,
+        isPublic: v.isPublic,
+      });
+      const removed = v.originalIds.filter((id) => !v.workIds.some((x) => sameId(x, id)));
+      for (const cid of removed) {
+        await removeFromMyList(v.id, cid);
+      }
+      const added = v.workIds.filter((id) => !v.originalIds.some((x) => sameId(x, id)));
+      if (added.length > 0) {
+        await addToMyList(v.id, added);
+      }
+      // 排序放最后,新加进来的项也要按界面上的顺序落位
+      if (v.workIds.length > 1) {
+        await reorderMyList(v.id, v.workIds);
+      }
+    },
+    onSuccess: () => {
+      invalidate();
+      setEditing(null);
+      setSnack('合集已保存');
+    },
+    onError: () => setSnack('保存失败,请重试'),
+  });
+
+  const deleteM = useMutation({
+    mutationFn: (id: EntityId) => deleteMyList(id),
+    onSuccess: () => {
+      invalidate();
+      setSnack('合集已删除');
+    },
+    onError: () => setSnack('删除失败,请重试'),
+  });
+
+  const counts = useMemo(
+    () => ({
+      all: collections.length,
+      pub: collections.filter((c) => c.isPublic).length,
+      priv: collections.filter((c) => !c.isPublic).length,
+    }),
+    [collections],
+  );
 
   const filtered = useMemo(() => {
     let list = collections;
-    if (tab === 1) list = list.filter((c) => c.status === 'active');
-    else if (tab === 2) list = list.filter((c) => c.status === 'finished');
-    else if (tab === 3) list = list.filter((c) => c.status === 'draft');
-    if (keyword) list = list.filter((c) => c.title.toLowerCase().includes(keyword.toLowerCase()) || c.description.includes(keyword));
+    if (tab === 1) list = list.filter((c) => c.isPublic);
+    else if (tab === 2) list = list.filter((c) => !c.isPublic);
+    if (keyword) {
+      const kw = keyword.toLowerCase();
+      list = list.filter((c) => c.title.toLowerCase().includes(kw) || c.description.toLowerCase().includes(kw));
+    }
     return list;
   }, [collections, tab, keyword]);
 
-  const totalWorks = collections.reduce((s, c) => s + c.works.length, 0);
-  const totalViews = collections.reduce((s, c) => s + c.totalViews, 0);
-  const totalSubs = collections.reduce((s, c) => s + c.subscribers, 0);
+  const totalWorks = collections.reduce((s, c) => s + c.itemCount, 0);
 
-  const handleCreate = async (data: Omit<Collection, 'id' | 'totalViews' | 'subscribers' | 'createdAt' | 'updatedAt'>) => {
-    try {
-      await accountClient('/account/collection', {
-        method: 'POST',
-        data: {
-          name: data.title,
-          description: data.description,
-          cover: data.cover,
-          category: data.category,
-          visibility: data.visibility,
-          autoSort: data.autoSort,
-          status: data.status,
-          works: data.works.map((w) => ({ id: w.id, title: w.title, cover: w.cover, duration: w.duration, views: w.views, type: w.type })),
-        },
-      });
-      const next: Collection = {
-        ...data,
-        id: Date.now(),
-        totalViews: 0,
-        subscribers: 0,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      };
-      setCollections((p) => [next, ...p]);
-      setSnack('合集已创建');
-      setCreateOpen(false);
-    } catch (err) {
-      // 失败回滚:不更新本地 state
-      setSnack('创建失败,请重试');
-    }
+  const openCreate = () => {
+    setCreateSeq((n) => n + 1);
+    setCreateOpen(true);
   };
 
-  const handleUpdate = async (id: EntityId, patch: Partial<Collection>) => {
-    const current = collections.find((c) => c.id === id);
-    if (!current) return;
-    const changed = (
-      patch.title !== undefined ||
-      patch.description !== undefined ||
-      patch.cover !== undefined ||
-      patch.status !== undefined ||
-      patch.visibility !== undefined ||
-      patch.works !== undefined
-    );
-    if (!changed) {
-      // 没有需要同步到后端的字段,只更新本地
-      setCollections((p) => p.map((c) => (c.id === id ? { ...c, ...patch, updatedAt: Date.now() } : c)));
-      return;
-    }
-    const prev = current;
-    // 乐观更新
-    setCollections((p) => p.map((c) => (c.id === id ? { ...c, ...patch, updatedAt: Date.now() } : c)));
-    try {
-      await accountClient('/account/collection', {
-        method: 'PUT',
-        data: {
-          id,
-          name: patch.title ?? current.title,
-          description: patch.description ?? current.description,
-          cover: patch.cover ?? current.cover,
-          status: patch.status ?? current.status,
-          visibility: patch.visibility ?? current.visibility,
-          works: (patch.works ?? current.works).map((w) => ({
-            id: w.id,
-            title: w.title,
-            cover: w.cover,
-            duration: w.duration,
-            views: w.views,
-            type: w.type,
-          })),
-        },
-      });
-    } catch (err) {
-      // 失败回滚到之前的状态
-      setCollections((p) => p.map((c) => (c.id === id ? prev : c)));
-      setSnack('保存失败,已恢复');
-    }
-  };
-
-  const handleDelete = async (id: EntityId) => {
-    const target = collections.find((c) => c.id === id);
-    if (!target) return;
-    // 乐观更新
-    setCollections((p) => p.filter((c) => c.id !== id));
+  const handleDelete = (id: EntityId) => {
     setAnchorEl(null);
-    try {
-      await accountClient('/account/collection', { method: 'DELETE', data: { id } });
-      setSnack('合集已删除');
-    } catch (err) {
-      // 失败回滚
-      setCollections((p) => [target, ...p]);
-      setSnack('删除失败,已恢复');
-    }
-  };
-
-  const handleFinish = (c: Collection) => {
-    handleUpdate(c.id, { status: 'finished' });
-    setSnack(`《${c.title}》已设为完结`);
-    setAnchorEl(null);
+    deleteM.mutate(id);
   };
 
   const handleCopyLink = async (c: Collection) => {
-    const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/collection?id=${c.id}`;
+    setAnchorEl(null);
+    if (!c.isPublic) {
+      setSnack('私密合集的链接别人打不开,先在编辑里设为公开');
+      return;
+    }
+    // /playlist?id= 是所有 user_my_list 的详情页(/account/my-lists/detail 也只是转到这里)
+    const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/playlist?id=${c.id}`;
     try {
       await navigator.clipboard.writeText(url);
       setSnack('链接已复制');
     } catch {
       setSnack('复制失败');
     }
-    setAnchorEl(null);
   };
+
+  const busy = createM.isPending || saveM.isPending || deleteM.isPending;
 
   return (
     <Box sx={{ height: 'calc(100dvh - var(--appbar-h, 66px))', overflow: 'auto', overscrollBehavior: 'contain' }}>
@@ -336,7 +301,7 @@ export default function CollectionPage() {
             <Button
               variant="contained"
               startIcon={<AddRoundedIcon />}
-              onClick={() => setCreateOpen(true)}
+              onClick={openCreate}
               sx={{
                 textTransform: 'none',
                 borderRadius: 1.5,
@@ -349,13 +314,12 @@ export default function CollectionPage() {
           }
         />
 
-        {/* 概览 */}
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1.5, mb: 3 }}>
+        {/* 概览 —— 只放 user_my_list 真有的数字 */}
+        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.5, mb: 3 }}>
           {[
-            { label: '合集总数', value: collections.length, color: '#FE2C55' },
-            { label: '收录作品', value: totalWorks, color: '#25F4EE' },
-            { label: '累计播放', value: formatNum(totalViews), color: '#FFB400' },
-            { label: '合集订阅', value: formatNum(totalSubs), color: '#5DDB96' },
+            { label: '合集总数', value: String(collections.length), color: '#FE2C55' },
+            { label: '收录作品', value: formatNum(totalWorks), color: '#25F4EE' },
+            { label: '公开合集', value: String(counts.pub), color: '#5DDB96' },
           ].map((s) => (
             <Box key={s.label} sx={{ p: 2, borderRadius: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
               <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.5 }}>{s.label}</Typography>
@@ -372,9 +336,8 @@ export default function CollectionPage() {
             sx={{ minHeight: 36, '& .MuiTab-root': { minHeight: 36, textTransform: 'none', fontSize: 13, py: 0.5 } }}
           >
             <Tab label={`全部 ${counts.all}`} />
-            <Tab label={`进行中 ${counts.active}`} />
-            <Tab label={`已完结 ${counts.finished}`} />
-            <Tab label={`草稿 ${counts.draft}`} />
+            <Tab label={`公开 ${counts.pub}`} />
+            <Tab label={`私密 ${counts.priv}`} />
           </Tabs>
           <Box sx={{ flex: 1 }} />
           <TextField
@@ -397,113 +360,134 @@ export default function CollectionPage() {
         </Box>
 
         {/* 合集卡片网格 */}
-        {filtered.length === 0 ? (
+        {listQ.isLoading ? (
+          <Box sx={{ textAlign: 'center', py: 8 }}>
+            <CircularProgress size={22} />
+          </Box>
+        ) : listQ.isError ? (
+          <Box sx={{ textAlign: 'center', py: 8 }}>
+            <Typography sx={{ fontSize: 14, color: 'text.disabled' }}>合集加载失败</Typography>
+            <Button onClick={() => listQ.refetch()} sx={{ mt: 1, textTransform: 'none', fontSize: 13 }}>
+              重试
+            </Button>
+          </Box>
+        ) : filtered.length === 0 ? (
           <Box sx={{ textAlign: 'center', py: 8 }}>
             <CollectionsRoundedIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
-            <Typography sx={{ fontSize: 14, color: 'text.disabled' }}>暂无合集</Typography>
-            <Button onClick={() => setCreateOpen(true)} sx={{ mt: 1, textTransform: 'none', fontSize: 13 }}>
-              创建第一个合集
-            </Button>
+            <Typography sx={{ fontSize: 14, color: 'text.disabled' }}>
+              {collections.length === 0 ? '暂无合集' : '没有符合条件的合集'}
+            </Typography>
+            {collections.length === 0 && (
+              <Button onClick={openCreate} sx={{ mt: 1, textTransform: 'none', fontSize: 13 }}>
+                创建第一个合集
+              </Button>
+            )}
           </Box>
         ) : (
           <ListLayout minColumnWidth={300} gap={16}>
-            {filtered.map((c) => {
-              const sm = STATUS_META[c.status];
-              return (
+            {filtered.map((c) => (
+              <Box
+                key={c.id}
+                sx={{
+                  bgcolor: 'background.paper',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 2,
+                  overflow: 'hidden',
+                  transition: 'border-color 0.15s, transform 0.15s',
+                  '&:hover': { borderColor: 'primary.main', transform: 'translateY(-2px)' },
+                  [LIST_ROW]: { display: 'flex', alignItems: 'stretch' },
+                }}
+              >
+                {/* 封面 + 可见性 */}
                 <Box
-                  key={c.id}
                   sx={{
-                    bgcolor: 'background.paper',
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    borderRadius: 2,
+                    position: 'relative',
+                    aspectRatio: '16/9',
+                    background: coverBackground(collectionCover(c), 'linear-gradient(135deg, #2A2D3A 0%, #1A1C26 100%)'),
                     overflow: 'hidden',
-                    transition: 'border-color 0.15s, transform 0.15s',
-                    '&:hover': { borderColor: 'primary.main', transform: 'translateY(-2px)' },
-                    [LIST_ROW]: { display: 'flex', alignItems: 'stretch' },
+                    [LIST_ROW]: { width: { xs: 120, sm: 200 }, flexShrink: 0 },
                   }}
                 >
-                  {/* 封面 + 状态 */}
-                  <Box sx={{ position: 'relative', aspectRatio: '16/9', background: coverBackground(c.cover), overflow: 'hidden', [LIST_ROW]: { width: { xs: 120, sm: 200 }, flexShrink: 0 } }}>
-                    <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 40%, rgba(0,0,0,0.7) 100%)' }} />
-                    <Box sx={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 0.75 }}>
-                      <Box sx={{ px: 0.75, py: 0.25, borderRadius: 0.5, bgcolor: sm.bg, color: sm.color, fontSize: 10, fontWeight: 700, backdropFilter: 'blur(4px)' }}>
-                        {sm.label}
-                      </Box>
-                      {c.visibility !== 'public' && (
-                        <Box sx={{ px: 0.75, py: 0.25, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.5)', color: '#fff', fontSize: 10, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 0.25, backdropFilter: 'blur(4px)' }}>
-                          <LockOutlinedIcon sx={{ fontSize: 11 }} />
-                          {VISIBILITY_META[c.visibility].label}
-                        </Box>
-                      )}
-                    </Box>
-                    <IconButton
-                      size="small"
-                      onClick={(e) => setAnchorEl({ id: c.id, el: e.currentTarget })}
-                      sx={{ position: 'absolute', top: 8, right: 8, bgcolor: 'rgba(0,0,0,0.4)', color: '#fff', backdropFilter: 'blur(4px)', '&:hover': { bgcolor: 'rgba(0,0,0,0.6)' } }}
-                      aria-label="更多"
+                  <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 40%, rgba(0,0,0,0.7) 100%)' }} />
+                  <Box sx={{ position: 'absolute', top: 8, left: 8, display: 'flex', gap: 0.75 }}>
+                    <Box
+                      sx={{
+                        px: 0.75,
+                        py: 0.25,
+                        borderRadius: 0.5,
+                        bgcolor: 'rgba(0,0,0,0.5)',
+                        color: '#fff',
+                        fontSize: 10,
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 0.25,
+                        backdropFilter: 'blur(4px)',
+                      }}
                     >
-                      <MoreHorizIcon sx={{ fontSize: 16 }} />
-                    </IconButton>
-                    <Box sx={{ position: 'absolute', bottom: 8, left: 8, right: 8, color: '#fff' }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
-                        <CollectionsRoundedIcon sx={{ fontSize: 14 }} />
-                        <Typography sx={{ fontSize: 11, fontWeight: 600 }}>{c.works.length} 个作品</Typography>
-                      </Box>
+                      {c.isPublic ? <PublicRoundedIcon sx={{ fontSize: 11 }} /> : <LockOutlinedIcon sx={{ fontSize: 11 }} />}
+                      {c.isPublic ? '公开' : '私密'}
                     </Box>
                   </Box>
-
-                  {/* 文本 + 数据 */}
-                  <Box sx={{ p: 2, [LIST_COMPACT]: { p: 1.5 }, [LIST_ROW]: { flex: 1, minWidth: 0, p: 1.5, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
-                    <Typography sx={{ fontSize: 14, fontWeight: 700, color: 'text.primary', mb: 0.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {c.title}
-                    </Typography>
-                    <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 1.5, height: 32, lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                      {c.description}
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 1.5, mb: 1.5, fontSize: 11, color: 'text.disabled' }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
-                        <VisibilityRoundedIcon sx={{ fontSize: 12 }} />
-                        {formatNum(c.totalViews)}
-                      </Box>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
-                        <FavoriteRoundedIcon sx={{ fontSize: 12 }} />
-                        {formatNum(c.subscribers)} 订阅
-                      </Box>
-                      <Box sx={{ ml: 'auto' }}>{formatDate(c.updatedAt)}</Box>
-                    </Box>
-                    <Box sx={{ display: 'flex', gap: 0.75 }}>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        fullWidth
-                        startIcon={<EditRoundedIcon sx={{ fontSize: 14 }} />}
-                        onClick={() => setEditing(c)}
-                        sx={{ textTransform: 'none', fontSize: 12, borderRadius: 1.5, borderColor: 'divider', color: 'text.secondary' }}
-                      >
-                        编辑
-                      </Button>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        startIcon={<ShareRoundedIcon sx={{ fontSize: 14 }} />}
-                        onClick={() => handleCopyLink(c)}
-                        sx={{ textTransform: 'none', fontSize: 12, borderRadius: 1.5, borderColor: 'divider', color: 'text.secondary' }}
-                      >
-                        分享
-                      </Button>
+                  <IconButton
+                    size="small"
+                    onClick={(e) => setAnchorEl({ id: c.id, el: e.currentTarget })}
+                    sx={{ position: 'absolute', top: 8, right: 8, bgcolor: 'rgba(0,0,0,0.4)', color: '#fff', backdropFilter: 'blur(4px)', '&:hover': { bgcolor: 'rgba(0,0,0,0.6)' } }}
+                    aria-label="更多"
+                  >
+                    <MoreHorizIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                  <Box sx={{ position: 'absolute', bottom: 8, left: 8, right: 8, color: '#fff' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                      <CollectionsRoundedIcon sx={{ fontSize: 14 }} />
+                      <Typography sx={{ fontSize: 11, fontWeight: 600 }}>{c.itemCount} 个作品</Typography>
                     </Box>
                   </Box>
                 </Box>
-              );
-            })}
+
+                {/* 文本 + 数据 */}
+                <Box sx={{ p: 2, [LIST_COMPACT]: { p: 1.5 }, [LIST_ROW]: { flex: 1, minWidth: 0, p: 1.5, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
+                  <Typography sx={{ fontSize: 14, fontWeight: 700, color: 'text.primary', mb: 0.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {c.title}
+                  </Typography>
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 1.5, height: 32, lineHeight: 1.5, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                    {c.description || '还没有写简介'}
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1.5, mb: 1.5, fontSize: 11, color: 'text.disabled' }}>
+                    <Box sx={{ ml: 'auto' }}>{c.updateTime ? `更新于 ${c.updateTime.slice(0, 10)}` : ''}</Box>
+                  </Box>
+                  <Box sx={{ display: 'flex', gap: 0.75 }}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      fullWidth
+                      startIcon={<EditRoundedIcon sx={{ fontSize: 14 }} />}
+                      onClick={() => setEditing(c)}
+                      sx={{ textTransform: 'none', fontSize: 12, borderRadius: 1.5, borderColor: 'divider', color: 'text.secondary' }}
+                    >
+                      编辑
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<ShareRoundedIcon sx={{ fontSize: 14 }} />}
+                      onClick={() => handleCopyLink(c)}
+                      sx={{ textTransform: 'none', fontSize: 12, borderRadius: 1.5, borderColor: 'divider', color: 'text.secondary' }}
+                    >
+                      分享
+                    </Button>
+                  </Box>
+                </Box>
+              </Box>
+            ))}
           </ListLayout>
         )}
 
         {/* 更多菜单 */}
         <Menu open={!!anchorEl} anchorEl={anchorEl?.el} onClose={() => setAnchorEl(null)}>
           {(() => {
-            const c = anchorEl ? collections.find((x) => x.id === anchorEl.id) : null;
+            const c = anchorEl ? collections.find((x) => sameId(x.id, anchorEl.id)) : null;
             if (!c) return null;
             return [
               <MenuItem key="edit" onClick={() => { setEditing(c); setAnchorEl(null); }} sx={{ fontSize: 13 }}>
@@ -512,23 +496,20 @@ export default function CollectionPage() {
               <MenuItem key="share" onClick={() => handleCopyLink(c)} sx={{ fontSize: 13 }}>
                 <ShareRoundedIcon sx={{ fontSize: 16, mr: 1 }} />复制链接
               </MenuItem>,
-              c.status !== 'finished' ? (
-                <MenuItem key="finish" onClick={() => handleFinish(c)} sx={{ fontSize: 13 }}>
-                  <CollectionsRoundedIcon sx={{ fontSize: 16, mr: 1 }} />设为完结
-                </MenuItem>
-              ) : null,
               <Divider key="d" />,
-              <MenuItem key="del" onClick={() => handleDelete(c.id)} sx={{ fontSize: 13, color: 'error.main' }}>
+              <MenuItem key="del" onClick={() => handleDelete(c.id)} sx={{ fontSize: 13, color: 'error.main' }} disabled={busy}>
                 <DeleteOutlineRoundedIcon sx={{ fontSize: 16, mr: 1 }} />删除合集
               </MenuItem>,
-            ].filter(Boolean);
+            ];
           })()}
         </Menu>
 
         <CreateCollectionDialog
+          key={createSeq}
           open={createOpen}
           onClose={() => setCreateOpen(false)}
-          onCreate={handleCreate}
+          submitting={createM.isPending}
+          onCreate={(v) => createM.mutate(v)}
           allWorks={myWorks}
         />
 
@@ -536,13 +517,8 @@ export default function CollectionPage() {
           collection={editing}
           onClose={() => setEditing(null)}
           allWorks={myWorks}
-          onSave={(patch) => {
-            if (editing) {
-              handleUpdate(editing.id, patch);
-              setSnack('合集已保存');
-            }
-            setEditing(null);
-          }}
+          submitting={saveM.isPending}
+          onSave={(v) => saveM.mutate(v)}
         />
 
         <Snackbar
@@ -557,36 +533,139 @@ export default function CollectionPage() {
   );
 }
 
+/** 作品行(创建对话框 / 选择器共用) */
+function WorkRow({ work, right }: { work: WorkRef; right?: React.ReactNode }) {
+  return (
+    <>
+      <Box sx={{ width: 48, height: 30, borderRadius: 0.5, background: coverBackground(work.cover, 'action.hover'), flexShrink: 0 }} />
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography sx={{ fontSize: 12, color: 'text.primary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {work.title}
+        </Typography>
+        <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>{formatNum(work.views)} 播放</Typography>
+      </Box>
+      {right}
+    </>
+  );
+}
+
+/**
+ * 封面选择:user_my_list.cover_url 存的是图片地址(「我的」页拿它当 <img src>),
+ * 所以只能从合集里作品的封面里挑,不能塞 CSS 渐变。不挑就留空,由后端/前端用
+ * 第一项的封面兜底。
+ */
+function CoverPicker({
+  candidates,
+  value,
+  onChange,
+}: {
+  candidates: string[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const opts = useMemo(() => Array.from(new Set(candidates.filter(Boolean))).slice(0, 8), [candidates]);
+  return (
+    <Box>
+      <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1 }}>
+        合集封面 —— 从已选作品的封面里挑一张,不选就用第一个作品的封面
+      </Typography>
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1 }}>
+        <Box
+          onClick={() => onChange('')}
+          sx={{
+            aspectRatio: '16/9',
+            borderRadius: 1,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 11,
+            color: value === '' ? 'primary.main' : 'text.secondary',
+            bgcolor: 'action.hover',
+            border: '2px solid',
+            borderColor: value === '' ? 'primary.main' : 'transparent',
+          }}
+        >
+          自动
+        </Box>
+        {opts.map((src) => (
+          <Box
+            key={src}
+            onClick={() => onChange(src)}
+            sx={{
+              aspectRatio: '16/9',
+              borderRadius: 1,
+              background: coverBackground(src, 'action.hover'),
+              cursor: 'pointer',
+              border: '2px solid',
+              borderColor: value === src ? 'primary.main' : 'transparent',
+              transition: 'border-color 0.15s',
+            }}
+          />
+        ))}
+      </Box>
+    </Box>
+  );
+}
+
+/** 公开 / 私密 二选一(user_my_list 只有 is_public,没有「仅粉丝」) */
+function VisibilityPicker({ isPublic, onChange }: { isPublic: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <Box>
+      <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1 }}>可见性</Typography>
+      <Stack direction="row" spacing={1}>
+        {[
+          { v: true, label: '公开' },
+          { v: false, label: '私密' },
+        ].map((o) => (
+          <Box
+            key={o.label}
+            onClick={() => onChange(o.v)}
+            sx={{
+              px: 1.5,
+              py: 0.5,
+              borderRadius: 1,
+              cursor: 'pointer',
+              fontSize: 12,
+              bgcolor: isPublic === o.v ? 'rgba(254, 44, 85, 0.12)' : 'action.hover',
+              color: isPublic === o.v ? 'primary.main' : 'text.secondary',
+              border: '1px solid',
+              borderColor: isPublic === o.v ? 'primary.main' : 'transparent',
+            }}
+          >
+            {o.label}
+          </Box>
+        ))}
+      </Stack>
+    </Box>
+  );
+}
+
 // ───── 创建合集 Dialog ─────
 function CreateCollectionDialog({
-  open, onClose, onCreate, allWorks,
+  open, onClose, onCreate, allWorks, submitting,
 }: {
   open: boolean;
   onClose: () => void;
-  onCreate: (data: Omit<Collection, 'id' | 'totalViews' | 'subscribers' | 'createdAt' | 'updatedAt'>) => void;
+  onCreate: (v: { name: string; description: string; coverUrl: string; isPublic: boolean; contentIds: EntityId[] }) => void;
   allWorks: WorkRef[];
+  submitting: boolean;
 }) {
-  const [title, setTitle] = useState('');
+  const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [cover, setCover] = useState(COVER_PRESETS[0]);
-  const [category, setCategory] = useState<CollectionCategory>('vlog');
-  const [visibility, setVisibility] = useState<CollectionVisibility>('public');
-  const [autoSort, setAutoSort] = useState(true);
-  const [pickedWorks, setPickedWorks] = useState<Set<EntityId>>(new Set());
+  const [cover, setCover] = useState('');
+  const [isPublic, setIsPublic] = useState(true);
+  const [picked, setPicked] = useState<EntityId[]>([]);
 
-  React.useEffect(() => {
-    if (open) {
-      setTitle('');
-      setDescription('');
-      setCover(COVER_PRESETS[0]);
-      setCategory('vlog');
-      setVisibility('public');
-      setAutoSort(true);
-      setPickedWorks(new Set());
-    }
-  }, [open]);
+  const pickedWorks = useMemo(
+    () => picked.map((id) => allWorks.find((w) => sameId(w.id, id))).filter((w): w is WorkRef => !!w),
+    [picked, allWorks],
+  );
 
-  const canSubmit = title.trim().length > 0;
+  const toggle = (id: EntityId) =>
+    setPicked((p) => (p.some((x) => sameId(x, id)) ? p.filter((x) => !sameId(x, id)) : [...p, id]));
+
+  const canSubmit = name.trim().length > 0 && name.trim().length <= NAME_MAX && !submitting;
 
   return (
     <Dialog
@@ -602,100 +681,32 @@ function CreateCollectionDialog({
       </Box>
       <Box sx={{ p: 3, maxHeight: '70vh', overflowY: 'auto' }}>
         <Stack spacing={2.5}>
-          {/* 封面选择 */}
-          <Box>
-            <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1 }}>合集封面</Typography>
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
-              <Box sx={{ width: 160, aspectRatio: '16/9', borderRadius: 1.5, background: coverBackground(cover), flexShrink: 0 }} />
-              <Box sx={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1 }}>
-                {COVER_PRESETS.map((c, i) => (
-                  <Box
-                    key={i}
-                    onClick={() => setCover(c)}
-                    sx={{
-                      aspectRatio: '16/9',
-                      borderRadius: 1,
-                      background: c,
-                      cursor: 'pointer',
-                      border: '2px solid',
-                      borderColor: cover === c ? 'primary.main' : 'transparent',
-                      transition: 'border-color 0.15s',
-                    }}
-                  />
-                ))}
-              </Box>
-            </Box>
-          </Box>
-
           <TextField
             label="合集标题"
-            value={title}
-            onChange={(e) => setTitle(e.target.value.slice(0, 30))}
+            value={name}
+            onChange={(e) => setName(e.target.value.slice(0, NAME_MAX))}
             fullWidth
-            slotProps={{ htmlInput: { maxLength: 30 }, formHelperText: { sx: { fontSize: 10 } } }}
-            helperText={`${title.length}/30`}
+            slotProps={{ htmlInput: { maxLength: NAME_MAX }, formHelperText: { sx: { fontSize: 10 } } }}
+            helperText={`${name.length}/${NAME_MAX}`}
           />
 
           <TextField
             label="合集描述"
             value={description}
-            onChange={(e) => setDescription(e.target.value.slice(0, 200))}
+            onChange={(e) => setDescription(e.target.value.slice(0, DESC_MAX))}
             fullWidth multiline minRows={2} maxRows={4}
-            slotProps={{ htmlInput: { maxLength: 200 }, formHelperText: { sx: { fontSize: 10 } } }}
-            helperText={`${description.length}/200`}
+            slotProps={{ htmlInput: { maxLength: DESC_MAX }, formHelperText: { sx: { fontSize: 10 } } }}
+            helperText={`${description.length}/${DESC_MAX}`}
           />
 
-          <Box>
-            <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1 }}>分类</Typography>
-            <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
-              {CATEGORY_OPTIONS.map((opt) => (
-                <Box
-                  key={opt.key}
-                  onClick={() => setCategory(opt.key)}
-                  sx={{
-                    px: 1.5, py: 0.5, borderRadius: 1, cursor: 'pointer', fontSize: 12,
-                    bgcolor: category === opt.key ? 'rgba(254, 44, 85, 0.12)' : 'action.hover',
-                    color: category === opt.key ? 'primary.main' : 'text.secondary',
-                    border: '1px solid', borderColor: category === opt.key ? 'primary.main' : 'transparent',
-                  }}
-                >
-                  {opt.label}
-                </Box>
-              ))}
-            </Stack>
-          </Box>
-
-          <Box>
-            <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1 }}>可见性</Typography>
-            <Stack direction="row" spacing={1}>
-              {(['public', 'fansOnly', 'private'] as CollectionVisibility[]).map((v) => (
-                <Box
-                  key={v}
-                  onClick={() => setVisibility(v)}
-                  sx={{
-                    px: 1.5, py: 0.5, borderRadius: 1, cursor: 'pointer', fontSize: 12,
-                    bgcolor: visibility === v ? 'rgba(254, 44, 85, 0.12)' : 'action.hover',
-                    color: visibility === v ? 'primary.main' : 'text.secondary',
-                    border: '1px solid', borderColor: visibility === v ? 'primary.main' : 'transparent',
-                  }}
-                >
-                  {VISIBILITY_META[v].label}
-                </Box>
-              ))}
-            </Stack>
-          </Box>
-
-          <FormControlLabel
-            control={<Switch checked={autoSort} onChange={(e) => setAutoSort(e.target.checked)} size="small" />}
-            label={<Typography sx={{ fontSize: 12 }}>自动按发布时间排序</Typography>}
-          />
+          <VisibilityPicker isPublic={isPublic} onChange={setIsPublic} />
 
           {/* 添加作品 */}
           <Box>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
               <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>添加作品</Typography>
               <Box sx={{ flex: 1 }} />
-              <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>已选 {pickedWorks.size} / {allWorks.length}</Typography>
+              <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>已选 {picked.length} / {allWorks.length}</Typography>
             </Box>
             <Box sx={{ maxHeight: 240, overflowY: 'auto', border: 1, borderColor: 'divider', borderRadius: 1.5, p: 0.5 }}>
               {allWorks.length === 0 ? (
@@ -704,68 +715,52 @@ function CreateCollectionDialog({
                 </Box>
               ) : (
                 allWorks.map((w) => {
-                const picked = pickedWorks.has(w.id);
-                return (
-                  <Box
-                    key={w.id}
-                    onClick={() => {
-                      setPickedWorks((s) => {
-                        const n = new Set(s);
-                        if (n.has(w.id)) n.delete(w.id);
-                        else n.add(w.id);
-                        return n;
-                      });
-                    }}
-                    sx={{
-                      display: 'flex', alignItems: 'center', gap: 1, p: 0.75,
-                      borderRadius: 1, cursor: 'pointer',
-                      bgcolor: picked ? 'rgba(254, 44, 85, 0.06)' : 'transparent',
-                      '&:hover': { bgcolor: 'action.hover' },
-                    }}
-                  >
-                    <Checkbox
-                      size="small"
-                      checked={picked}
-                      onChange={(e) => {
-                        setPickedWorks((s) => {
-                          const n = new Set(s);
-                          if (e.target.checked) n.add(w.id);
-                          else n.delete(w.id);
-                          return n;
-                        });
+                  const on = picked.some((x) => sameId(x, w.id));
+                  return (
+                    <Box
+                      key={w.id}
+                      onClick={() => toggle(w.id)}
+                      sx={{
+                        display: 'flex', alignItems: 'center', gap: 1, p: 0.75,
+                        borderRadius: 1, cursor: 'pointer',
+                        bgcolor: on ? 'rgba(254, 44, 85, 0.06)' : 'transparent',
+                        '&:hover': { bgcolor: 'action.hover' },
                       }}
-                      onClick={(e) => e.stopPropagation()}
-                      sx={{ p: 0 }}
-                    />
-                    <Box sx={{ width: 48, height: 30, borderRadius: 0.5, background: coverBackground(w.cover), flexShrink: 0 }} />
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography sx={{ fontSize: 12, color: 'text.primary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {w.title}
-                      </Typography>
-                      <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
-                        {w.duration ? `${w.duration} · ` : ''}{formatNum(w.views)} 播放
-                      </Typography>
+                    >
+                      <Checkbox
+                        size="small"
+                        checked={on}
+                        onChange={() => toggle(w.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        sx={{ p: 0 }}
+                      />
+                      <WorkRow work={w} />
                     </Box>
-                  </Box>
-                );
-              })
+                  );
+                })
               )}
             </Box>
           </Box>
+
+          {/* 已挑中的封面也留在候选里,取消勾选那个作品后不会突然变回「自动」 */}
+          <CoverPicker candidates={[cover, ...pickedWorks.map((w) => w.cover)]} value={cover} onChange={setCover} />
         </Stack>
       </Box>
       <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider', display: 'flex', gap: 1.5, justifyContent: 'flex-end' }}>
         <Button onClick={onClose} variant="outlined" sx={{ textTransform: 'none', borderRadius: 1.5 }}>取消</Button>
         <Button
-          onClick={() => {
-            const works = allWorks.filter((w) => pickedWorks.has(w.id));
+          onClick={() =>
             onCreate({
-              title: title.trim(), description, cover, category, visibility, autoSort,
-              status: 'draft', works,
-            });
-          }}
+              name: name.trim(),
+              description: description.trim(),
+              coverUrl: cover,
+              isPublic,
+              contentIds: picked,
+            })
+          }
           disabled={!canSubmit}
           variant="contained"
+          startIcon={submitting ? <CircularProgress size={14} color="inherit" /> : undefined}
           sx={{
             textTransform: 'none', borderRadius: 1.5,
             background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)',
@@ -780,52 +775,26 @@ function CreateCollectionDialog({
 }
 
 // ───── 编辑合集 Drawer (含作品重排序 + 增删) ─────
+//
+// 外壳只管开合,表单是独立组件并按 collection.id 做 key —— 换一个合集就重新挂载,
+// 初值直接写在 useState 里,不用 effect 去 setState 同步(那样会连带多渲染一轮)。
 function EditCollectionDrawer({
-  collection, onClose, onSave, allWorks,
+  collection, onClose, onSave, allWorks, submitting,
 }: {
   collection: Collection | null;
   onClose: () => void;
-  onSave: (patch: Partial<Collection>) => void;
+  onSave: (v: {
+    id: EntityId;
+    name: string;
+    description: string;
+    coverUrl: string;
+    isPublic: boolean;
+    workIds: EntityId[];
+    originalIds: EntityId[];
+  }) => void;
   allWorks: WorkRef[];
+  submitting: boolean;
 }) {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [cover, setCover] = useState(COVER_PRESETS[0]);
-  const [status, setStatus] = useState<CollectionStatus>('active');
-  const [visibility, setVisibility] = useState<CollectionVisibility>('public');
-  const [works, setWorks] = useState<WorkRef[]>([]);
-  const [pickerOpen, setPickerOpen] = useState(false);
-
-  React.useEffect(() => {
-    if (collection) {
-      setTitle(collection.title);
-      setDescription(collection.description);
-      setCover(collection.cover);
-      setStatus(collection.status);
-      setVisibility(collection.visibility);
-      setWorks([...collection.works]);
-      setPickerOpen(false);
-    }
-  }, [collection?.id]);
-
-  if (!collection) return null;
-
-  const moveUp = (idx: number) => {
-    if (idx === 0) return;
-    const next = [...works];
-    [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
-    setWorks(next);
-  };
-  const moveDown = (idx: number) => {
-    if (idx === works.length - 1) return;
-    const next = [...works];
-    [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
-    setWorks(next);
-  };
-  const removeWork = (id: EntityId) => setWorks((p) => p.filter((w) => w.id !== id));
-
-  const availableToAdd = allWorks.filter((w) => !works.some((x) => x.id === w.id));
-
   return (
     <Drawer
       anchor="right"
@@ -837,78 +806,128 @@ function EditCollectionDrawer({
         <Typography sx={{ fontSize: 15, fontWeight: 700, flex: 1 }}>编辑合集</Typography>
         <IconButton onClick={onClose} size="small"><CloseRoundedIcon sx={{ fontSize: 18 }} /></IconButton>
       </Box>
+      {collection && (
+        <EditCollectionForm
+          key={String(collection.id)}
+          collection={collection}
+          onClose={onClose}
+          onSave={onSave}
+          allWorks={allWorks}
+          submitting={submitting}
+        />
+      )}
+    </Drawer>
+  );
+}
+
+function EditCollectionForm({
+  collection, onClose, onSave, allWorks, submitting,
+}: {
+  collection: Collection;
+  onClose: () => void;
+  onSave: (v: {
+    id: EntityId;
+    name: string;
+    description: string;
+    coverUrl: string;
+    isPublic: boolean;
+    workIds: EntityId[];
+    originalIds: EntityId[];
+  }) => void;
+  allWorks: WorkRef[];
+  submitting: boolean;
+}) {
+  const [name, setName] = useState(collection.title);
+  const [description, setDescription] = useState(collection.description);
+  const [cover, setCover] = useState(collection.cover);
+  const [isPublic, setIsPublic] = useState(collection.isPublic);
+  /** null = 还没动过,直接用后端那份顺序;动过之后才走本地草稿 */
+  const [draftWorks, setDraftWorks] = useState<WorkRef[] | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  // 卡片上只有条目数和几张封面,真正的作品清单(含顺序)开抽屉时才拉
+  const contentQ = useQuery({
+    queryKey: ['creator-collection-content', collection.id],
+    queryFn: () => getMyListContent(collection.id),
+    staleTime: 0,
+  });
+
+  const loadedWorks: WorkRef[] = useMemo(
+    () =>
+      (contentQ.data?.list ?? [])
+        .map((it) => {
+          const id = toEntityId(it.contentId);
+          return id === null ? null : { id, title: it.title, cover: it.coverUrl ?? '', views: it.views ?? 0 };
+        })
+        .filter((w): w is WorkRef => w !== null),
+    [contentQ.data],
+  );
+  /** 打开时夹子里原本有哪些作品 —— 保存时用来算增删 */
+  const originalIds = useMemo(() => loadedWorks.map((w) => w.id), [loadedWorks]);
+
+  const works = draftWorks ?? loadedWorks;
+
+  const moveUp = (idx: number) => {
+    if (idx === 0) return;
+    const next = [...works];
+    [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+    setDraftWorks(next);
+  };
+  const moveDown = (idx: number) => {
+    if (idx === works.length - 1) return;
+    const next = [...works];
+    [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+    setDraftWorks(next);
+  };
+  const removeWork = (id: EntityId) => setDraftWorks(works.filter((w) => !sameId(w.id, id)));
+  const addWork = (w: WorkRef) => setDraftWorks([...works, w]);
+
+  const availableToAdd = allWorks.filter((w) => !works.some((x) => sameId(x.id, w.id)));
+  const canSubmit = name.trim().length > 0 && name.trim().length <= NAME_MAX && !submitting && !contentQ.isLoading;
+
+  return (
+    <>
       <Box sx={{ flex: 1, overflowY: 'auto', p: 2.5 }}>
         <Stack spacing={2}>
-          <Box>
-            <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.75 }}>封面</Typography>
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 0.75 }}>
-              {COVER_PRESETS.map((c, i) => (
-                <Box
-                  key={i}
-                  onClick={() => setCover(c)}
-                  sx={{
-                    aspectRatio: '16/9', borderRadius: 1, background: c, cursor: 'pointer',
-                    border: '2px solid', borderColor: cover === c ? 'primary.main' : 'transparent',
-                  }}
-                />
-              ))}
-            </Box>
-          </Box>
+          <TextField
+            label="标题"
+            value={name}
+            onChange={(e) => setName(e.target.value.slice(0, NAME_MAX))}
+            fullWidth
+            slotProps={{ htmlInput: { maxLength: NAME_MAX } }}
+          />
+          <TextField
+            label="描述"
+            value={description}
+            onChange={(e) => setDescription(e.target.value.slice(0, DESC_MAX))}
+            fullWidth multiline minRows={2}
+            slotProps={{ htmlInput: { maxLength: DESC_MAX } }}
+          />
 
-          <TextField label="标题" value={title} onChange={(e) => setTitle(e.target.value.slice(0, 30))} fullWidth />
-          <TextField label="描述" value={description} onChange={(e) => setDescription(e.target.value.slice(0, 200))} fullWidth multiline minRows={2} />
-
-          <Stack direction="row" spacing={2}>
-            <Box sx={{ flex: 1 }}>
-              <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.75 }}>状态</Typography>
-              <Stack direction="row" spacing={0.5}>
-                {(['draft', 'active', 'finished'] as CollectionStatus[]).map((s) => (
-                  <Box
-                    key={s}
-                    onClick={() => setStatus(s)}
-                    sx={{
-                      px: 1.25, py: 0.5, borderRadius: 1, cursor: 'pointer', fontSize: 11,
-                      bgcolor: status === s ? STATUS_META[s].bg : 'action.hover',
-                      color: status === s ? STATUS_META[s].color : 'text.secondary',
-                      border: '1px solid', borderColor: status === s ? STATUS_META[s].color : 'transparent',
-                    }}
-                  >
-                    {STATUS_META[s].label}
-                  </Box>
-                ))}
-              </Stack>
-            </Box>
-            <Box sx={{ flex: 1 }}>
-              <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.75 }}>可见性</Typography>
-              <Stack direction="row" spacing={0.5}>
-                {(['public', 'fansOnly', 'private'] as CollectionVisibility[]).map((v) => (
-                  <Box
-                    key={v}
-                    onClick={() => setVisibility(v)}
-                    sx={{
-                      px: 1.25, py: 0.5, borderRadius: 1, cursor: 'pointer', fontSize: 11,
-                      bgcolor: visibility === v ? 'rgba(254, 44, 85, 0.12)' : 'action.hover',
-                      color: visibility === v ? 'primary.main' : 'text.secondary',
-                      border: '1px solid', borderColor: visibility === v ? 'primary.main' : 'transparent',
-                    }}
-                  >
-                    {VISIBILITY_META[v].label}
-                  </Box>
-                ))}
-              </Stack>
-            </Box>
-          </Stack>
+          <VisibilityPicker isPublic={isPublic} onChange={setIsPublic} />
 
           {/* 作品管理 */}
           <Box>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
               <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>作品 ({works.length})</Typography>
               <Box sx={{ flex: 1 }} />
-              <Button size="small" startIcon={<AddRoundedIcon sx={{ fontSize: 14 }} />} onClick={() => setPickerOpen(true)} sx={{ textTransform: 'none', fontSize: 11 }} disabled={availableToAdd.length === 0}>
+              <Button
+                size="small"
+                startIcon={<AddRoundedIcon sx={{ fontSize: 14 }} />}
+                onClick={() => setPickerOpen(true)}
+                sx={{ textTransform: 'none', fontSize: 11 }}
+                disabled={availableToAdd.length === 0}
+              >
                 添加作品
               </Button>
             </Box>
-            {works.length === 0 ? (
+            {contentQ.isLoading ? (
+              <Box sx={{ p: 3, textAlign: 'center' }}><CircularProgress size={18} /></Box>
+            ) : contentQ.isError ? (
+              <Box sx={{ p: 3, textAlign: 'center', border: '1px dashed', borderColor: 'divider', borderRadius: 1.5, color: 'text.disabled', fontSize: 12 }}>
+                作品清单加载失败
+              </Box>
+            ) : works.length === 0 ? (
               <Box sx={{ p: 3, textAlign: 'center', border: '1px dashed', borderColor: 'divider', borderRadius: 1.5, color: 'text.disabled', fontSize: 12 }}>
                 合集中尚未添加作品
               </Box>
@@ -916,37 +935,50 @@ function EditCollectionDrawer({
               <Stack spacing={0.75}>
                 {works.map((w, idx) => (
                   <Box key={w.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, borderRadius: 1, bgcolor: 'action.hover' }}>
-                    <DragIndicatorRoundedIcon sx={{ fontSize: 16, color: 'text.disabled', cursor: 'grab' }} />
-                    <Box sx={{ width: 50, height: 32, borderRadius: 0.5, background: coverBackground(w.cover), flexShrink: 0 }} />
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography sx={{ fontSize: 12, color: 'text.primary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {w.title}
-                      </Typography>
-                      <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
-                        {w.duration ? `${w.duration} · ` : ''}{formatNum(w.views)} 播放
-                      </Typography>
-                    </Box>
-                    <IconButton size="small" onClick={() => moveUp(idx)} disabled={idx === 0} sx={{ p: 0.25 }}>
-                      <ArrowUpwardRoundedIcon sx={{ fontSize: 14 }} />
-                    </IconButton>
-                    <IconButton size="small" onClick={() => moveDown(idx)} disabled={idx === works.length - 1} sx={{ p: 0.25 }}>
-                      <ArrowDownwardRoundedIcon sx={{ fontSize: 14 }} />
-                    </IconButton>
-                    <IconButton size="small" onClick={() => removeWork(w.id)} sx={{ p: 0.25 }} aria-label="移除">
-                      <CloseRoundedIcon sx={{ fontSize: 14 }} />
-                    </IconButton>
+                    <DragIndicatorRoundedIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
+                    <WorkRow
+                      work={w}
+                      right={
+                        <>
+                          <IconButton size="small" onClick={() => moveUp(idx)} disabled={idx === 0} sx={{ p: 0.25 }} aria-label="上移">
+                            <ArrowUpwardRoundedIcon sx={{ fontSize: 14 }} />
+                          </IconButton>
+                          <IconButton size="small" onClick={() => moveDown(idx)} disabled={idx === works.length - 1} sx={{ p: 0.25 }} aria-label="下移">
+                            <ArrowDownwardRoundedIcon sx={{ fontSize: 14 }} />
+                          </IconButton>
+                          <IconButton size="small" onClick={() => removeWork(w.id)} sx={{ p: 0.25 }} aria-label="移除">
+                            <CloseRoundedIcon sx={{ fontSize: 14 }} />
+                          </IconButton>
+                        </>
+                      }
+                    />
                   </Box>
                 ))}
               </Stack>
             )}
           </Box>
+
+          {/* 已挑中的封面也留在候选里,作品被移出后不会突然变回「自动」 */}
+          <CoverPicker candidates={[cover, ...works.map((w) => w.cover)]} value={cover} onChange={setCover} />
         </Stack>
       </Box>
       <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider', display: 'flex', gap: 1.5, justifyContent: 'flex-end' }}>
         <Button onClick={onClose} variant="outlined" sx={{ textTransform: 'none', borderRadius: 1.5 }}>取消</Button>
         <Button
           variant="contained"
-          onClick={() => onSave({ title, description, cover, status, visibility, works })}
+          disabled={!canSubmit}
+          startIcon={submitting ? <CircularProgress size={14} color="inherit" /> : undefined}
+          onClick={() =>
+            onSave({
+              id: collection.id,
+              name: name.trim(),
+              description: description.trim(),
+              coverUrl: cover,
+              isPublic,
+              workIds: works.map((w) => w.id),
+              originalIds,
+            })
+          }
           sx={{
             textTransform: 'none', borderRadius: 1.5,
             background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)',
@@ -977,21 +1009,16 @@ function EditCollectionDrawer({
               {availableToAdd.map((w) => (
                 <Box
                   key={w.id}
-                  onClick={() => { setWorks((p) => [...p, w]); setPickerOpen(false); }}
+                  onClick={() => { addWork(w); setPickerOpen(false); }}
                   sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 0.75, borderRadius: 1, cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
                 >
-                  <Box sx={{ width: 48, height: 30, borderRadius: 0.5, background: coverBackground(w.cover), flexShrink: 0 }} />
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography sx={{ fontSize: 12, color: 'text.primary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{w.title}</Typography>
-                    <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>{w.duration ? `${w.duration} · ` : ''}{formatNum(w.views)} 播放</Typography>
-                  </Box>
-                  <AddRoundedIcon sx={{ fontSize: 16, color: 'primary.main' }} />
+                  <WorkRow work={w} right={<AddRoundedIcon sx={{ fontSize: 16, color: 'primary.main' }} />} />
                 </Box>
               ))}
             </Stack>
           )}
         </Box>
       </Dialog>
-    </Drawer>
+    </>
   );
 }
