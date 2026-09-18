@@ -27,6 +27,7 @@ import { adminClient } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { UserAvatarLink } from '@/components/common/UserAvatarLink';
 import { followUser, unfollowUser } from '@/apis/social';
+import { usePollFallback } from '@/lib/realtime';
 
 const SUB_TYPES = [
   { key: 'all', label: '最新' },
@@ -76,14 +77,17 @@ export default function NoticeIconView() {
   const [tab, setTab] = useState<'interaction' | 'system'>('interaction');
   const [subType, setSubType] = useState('all');
   const [toast, setToast] = useState<string | null>(null);
-
-  // 基础 hooks
+  // 未读数由长连接推着走(RealtimeProvider 收到 notice 事件就 invalidate 这个 key)。
+  // 之前这里 staleTime 60s 又没有 refetchInterval —— 红点只在刷新页面时才变,
+  // 用户被评论被关注后要靠刷新才看得见。断线时才退回 60s 轮询。
+  const noticePoll = usePollFallback(60_000);
   const { data: countData } = useQuery({
     queryKey: ['notice-count'],
     queryFn: async () => (await adminClient('/notice/count')).data,
     enabled: isAuthenticated,
-    staleTime: 60000,
+    staleTime: 15_000,
     gcTime: 300000,
+    refetchInterval: noticePoll,
   });
 
   const { data: interactionData, isLoading: loadingInter } = useQuery({
@@ -473,11 +477,15 @@ function InteractionItem({ item, onClose, onMessage }: { item: any; onClose: () 
 export function DmIconView() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
+  // 同上:私信角标跟着推送走,断线才轮询
+  const dmPoll = usePollFallback(30_000);
 
   const { data: sessions } = useQuery({
     queryKey: ['dm-sessions-badge'],
     queryFn: async () => (await adminClient('/msg/session/list')).data,
     enabled: isAuthenticated,
+    staleTime: 15_000,
+    refetchInterval: dmPoll,
   });
 
   // useMemo 必须在条件返回之前，保持 hooks 顺序一致

@@ -57,6 +57,68 @@ export async function sendMessage(sessionId: number, content: string, type = 'te
   return res?.data as DMMessage;
 }
 
+// ── 富内容分享(作品 / 悬赏任务 / 歌单 / 活动 / 名片) ──────────────────────
+//
+// 发的时候只传 {kind,id,note}:标题、封面、角标一律由服务端查出来写进消息,
+// 前端传什么都不作数(否则谁都能伪造一张卡片)。读的时候拿到的就是完整快照。
+
+export type ShareKind = 'work' | 'bounty' | 'demand' | 'activity' | 'playlist' | 'user';
+
+/** 消息体里存的卡片(后端 msgapp.ShareCard)。 */
+export interface ShareCard {
+  kind: ShareKind;
+  id: string;
+  title: string;
+  subtitle?: string;
+  cover?: string;
+  badge?: string;
+  meta?: string;
+  /** 站内路由。作品类没有这个,用 contentType 拼(各类型详情页路由不同)。 */
+  href?: string;
+  note?: string;
+  contentType?: string;
+}
+
+/** 选择器里的一行候选。 */
+export interface ShareCandidate {
+  kind: ShareKind;
+  id: string;
+  title: string;
+  subtitle?: string;
+  cover?: string;
+  badge?: string;
+  meta?: string;
+  contentType?: string;
+}
+
+export interface ShareSource {
+  key: string;
+  label: string;
+  kind: ShareKind;
+}
+
+/** 分享选择器的候选列表。sources 由后端给,前端不写死页签。 */
+export async function getShareCandidates(
+  source: string,
+  keyword = '',
+  page = 1,
+): Promise<{ list: ShareCandidate[]; sources: ShareSource[] }> {
+  const res = await accountClient('/msg/share/candidates', {
+    params: { source, keyword: keyword || undefined, page, pageSize: 30 },
+  });
+  return { list: res?.data?.list ?? [], sources: res?.data?.sources ?? [] };
+}
+
+/** 把一件站内内容作为卡片发进会话。 */
+export async function sendShareCard(
+  sessionId: number,
+  kind: ShareKind,
+  id: string | number,
+  note = '',
+): Promise<DMMessage> {
+  return sendMessage(sessionId, JSON.stringify({ kind, id: String(id), note }), 'card');
+}
+
 // 撤回消息
 export async function recallMessage(msgId: number): Promise<void> {
   await accountClient('/msg/message/recall', { method: 'POST', data: { msgId } });

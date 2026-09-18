@@ -53,6 +53,7 @@ const PageComponents: Record<string, React.ComponentType<any>> = {
   '/system/feed': dynamic(() => import('./feed/page'), { ssr: false }),
   '/system/user-level': dynamic(() => import('./user-level/page'), { ssr: false }),
   '/system/user-point': dynamic(() => import('./user-point/page'), { ssr: false }),
+  '/system/kf': dynamic(() => import('./kf/page'), { ssr: false }),
   '/system/moderation/reports': dynamic(() => import('./moderation/reports/page'), { ssr: false }),
   '/system/moderation/sensitive-words': dynamic(() => import('./moderation/sensitive-words/page'), { ssr: false }),
   '/system/app': dynamic(() => import('./app/page'), { ssr: false }),
