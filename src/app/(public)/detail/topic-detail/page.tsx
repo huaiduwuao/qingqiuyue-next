@@ -19,6 +19,7 @@ import { CoverImage } from '@/components/common/CoverImage';
 import { ListLayout, LIST_ROW } from '@/components/common/ListLayout';
 import { CommunityFeed } from '@/components/community/CommunityFeed';
 import { TopicFollowButton } from '@/components/community/TopicFollowButton';
+import RealmCollab, { type RealmCollabTab } from '@/components/reward/RealmCollab';
 import { CONTENT_TYPE_LABEL, TOPIC_KIND_LABEL, compactCount, topicGradient } from '@/components/community/format';
 
 export default function TopicDetailPage() {
@@ -34,7 +35,7 @@ function TopicDetail() {
   const id = useSearchParams().get('id');
   const { data: topic, isLoading, isError } = useQuery({ queryKey: ['community', 'topic', id], queryFn: () => fetchTopic(id as string), enabled: !!id, retry: false });
   // 合集默认看作品,话题默认看讨论;用户切过页签/点过关注后以用户操作为准
-  const [tabChoice, setTab] = useState<'contents' | 'posts' | null>(null);
+  const [tabChoice, setTab] = useState<'contents' | 'posts' | RealmCollabTab | null>(null);
   const [followersOverride, setFollowers] = useState<number | null>(null);
   const tab = tabChoice ?? (topic?.kind === 'collection' && topic.hasContents ? 'contents' : 'posts');
   const followers = followersOverride ?? topic?.followerCount ?? 0;
@@ -52,8 +53,8 @@ function TopicDetail() {
   if (!id || isError || !topic) {
     return (
       <Container maxWidth="md" sx={{ py: 10, textAlign: 'center' }}>
-        <Typography variant="h6" gutterBottom>专题不存在或已停用</Typography>
-        <Button variant="contained" onClick={() => router.push('/home/recommend?tab=topic')}>去看看其他专题</Button>
+        <Typography variant="h6" gutterBottom>意境不存在或已停用</Typography>
+        <Button variant="contained" onClick={() => router.push('/home/recommend?tab=topic')}>去看看其他意境</Button>
       </Container>
     );
   }
@@ -65,8 +66,14 @@ function TopicDetail() {
         <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2, borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.08))', '& .MuiTab-root': { textTransform: 'none', fontWeight: 600 } }}>
           {topic.hasContents && <Tab value="contents" label="作品" />}
           <Tab value="posts" label={`讨论 ${topic.postCount ? compactCount(topic.postCount) : ''}`} />
+          {/* 意境和交易、和人群的接口:发在这里的悬赏、验收通过的交付、把这里当主场的团队 */}
+          <Tab value="demands" label="需求" />
+          <Tab value="realizations" label="实现" />
+          <Tab value="teams" label="团队" />
         </Tabs>
-        {tab === 'contents' && topic.hasContents ? (
+        {tab === 'demands' || tab === 'realizations' || tab === 'teams' ? (
+          <RealmCollab topicId={Number(topic.id)} tab={tab} />
+        ) : tab === 'contents' && topic.hasContents ? (
           <TopicContents topicId={topic.id} />
         ) : (
           <CommunityFeed topic={{ id: topic.id, title: topic.title, kind: topic.kind }} />
@@ -86,7 +93,7 @@ function Hero({ topic, followers, onBack, onFollowChange }: { topic: CommunityTo
         <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 2, flexWrap: 'wrap' }}>
           <Box sx={{ flex: 1, minWidth: 220 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.75 }}>
-              <Chip size="small" label={TOPIC_KIND_LABEL[topic.kind] || '专题'} sx={{ height: 20, fontSize: 11, color: '#fff', bgcolor: 'rgba(255,255,255,0.2)' }} />
+              <Chip size="small" label={TOPIC_KIND_LABEL[topic.kind] || '意境'} sx={{ height: 20, fontSize: 11, color: '#fff', bgcolor: 'rgba(255,255,255,0.2)' }} />
               {topic.official ? (
                 <Chip size="small" icon={<VerifiedRoundedIcon sx={{ fontSize: 13, color: '#fff !important' }} />} label="官方" sx={{ height: 20, fontSize: 11, color: '#fff', bgcolor: 'rgba(91,141,239,0.55)' }} />
               ) : topic.owner ? (

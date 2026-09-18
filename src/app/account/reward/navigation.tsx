@@ -2,9 +2,7 @@ import React from 'react';
 import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
 import AssignmentRoundedIcon from '@mui/icons-material/AssignmentRounded';
-import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import HandshakeRoundedIcon from '@mui/icons-material/HandshakeRounded';
-import FolderRoundedIcon from '@mui/icons-material/FolderRounded';
 import ViewKanbanRoundedIcon from '@mui/icons-material/ViewKanbanRounded';
 import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
@@ -14,11 +12,13 @@ import EmojiEventsRoundedIcon from '@mui/icons-material/EmojiEventsRounded';
 import type { WorkspaceNavGroup } from '../components/WorkspaceShell';
 
 /**
- * 奖励中心的信息架构。此前 11 个入口平铺在一起,编号 1-11,两类完全不同的东西混在一处:
- *   - 悬赏协作:发需求 → 出意境 → 交实现 → 验收结算,按团队组织;
- *   - 赚取奖励:每日任务、邀请、会员福利、成就 —— 个人激励,和团队无关
- *     (但原来的团队切换器在这些页面上也会出现)。
- * 成就页面有实现却不在菜单里。现在按两组组织,子页面 id 同时是 URL 上的 ?tab=。
+ * 奖励中心的信息架构。两类东西分两组:
+ *   - 悬赏协作:意境里提需求 → 个人或团队认领、交付 → 验收通过成为一条「实现」→ 结账分账;
+ *   - 赚取奖励:每日任务、邀请、会员福利、成就 —— 个人激励。
+ *
+ * 这里以前还有「意境」「项目」两个入口和一个"当前团队"切换器,都来自模板:那几张表没有归属、没有钱、
+ * 彼此也不相连,而且需求页要求先选团队才肯列出我的需求。意境现在就是内容社区里的意境(/topic),
+ * 需求可以发在意境里;项目没有对应的真实概念,删掉了。子页面 id 同时是 URL 上的 ?tab=。
  */
 
 export const REWARD_HOME_TAB = 'square';
@@ -29,13 +29,11 @@ export const REWARD_NAV: WorkspaceNavGroup[] = [
     title: '悬赏协作',
     items: [
       { id: 'square', label: '赏金广场', description: '浏览并承接公开悬赏', icon: <HomeRoundedIcon /> },
-      { id: 'workspace', label: '我的工作台', description: '我参与的需求、任务与团队', icon: <DashboardRoundedIcon /> },
-      { id: 'demands', label: '需求', description: '发布悬赏需求并验收交付', icon: <AssignmentRoundedIcon /> },
-      { id: 'conceptions', label: '意境', description: '为需求提交创意方案', icon: <AutoAwesomeRoundedIcon /> },
-      { id: 'realizations', label: '实现', description: '提交需求的最终交付物', icon: <HandshakeRoundedIcon /> },
-      { id: 'projects', label: '项目', description: '把多个需求组织成项目', icon: <FolderRoundedIcon /> },
-      { id: 'board', label: '协作看板', description: '按状态推进团队任务', icon: <ViewKanbanRoundedIcon /> },
-      { id: 'teams', label: '团队', description: '创建团队并邀请成员', icon: <GroupsRoundedIcon /> },
+      { id: 'workspace', label: '我的工作台', description: '我发布的需求、认领的任务、所在的团队', icon: <DashboardRoundedIcon /> },
+      { id: 'demands', label: '我的需求', description: '发布悬赏需求、验收交付、结账', icon: <AssignmentRoundedIcon /> },
+      { id: 'board', label: '任务看板', description: '我认领的、我发布的、团队认领的任务', icon: <ViewKanbanRoundedIcon /> },
+      { id: 'realizations', label: '实现', description: '验收通过的交付与分到的赏金', icon: <HandshakeRoundedIcon /> },
+      { id: 'teams', label: '团队', description: '结队接需求,按份额分账', icon: <GroupsRoundedIcon /> },
     ],
   },
   {
@@ -52,5 +50,3 @@ export const REWARD_NAV: WorkspaceNavGroup[] = [
 
 export const REWARD_TAB_IDS: ReadonlySet<string> = new Set(REWARD_NAV.flatMap((g) => g.items.map((i) => i.id)));
 
-/** 数据按团队隔离、需要团队切换器的子页面。 */
-export const TEAM_SCOPED_TABS: ReadonlySet<string> = new Set(['demands', 'conceptions', 'realizations', 'projects']);

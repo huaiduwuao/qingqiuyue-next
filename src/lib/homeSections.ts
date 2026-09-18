@@ -154,7 +154,7 @@ export function parseSectionId(id: string): HomeSection | null {
   if (builtin) return builtin;
   if (id.startsWith('topic:')) {
     const topicId = id.slice('topic:'.length);
-    return topicId ? { id, label: '专题', kind: 'topic', topicId } : null;
+    return topicId ? { id, label: '意境', kind: 'topic', topicId } : null;
   }
   if (id.startsWith('pl:')) {
     // 歌单名从歌单详情里补(见 FeedPanel),这里只保证链接能打开。

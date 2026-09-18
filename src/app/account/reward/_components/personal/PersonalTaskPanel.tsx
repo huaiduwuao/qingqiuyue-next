@@ -19,12 +19,11 @@ import { alpha } from '@mui/material/styles';
 import { listTasks } from '@/apis/reward-task';
 import { mapRewardTaskListFromBackend, normalizeRewardTaskStatus, REWARD_TASK_STATUS_LABEL } from '../taskboard/status';
 import type { RewardTask, RewardTaskStatus } from '@/beans/reward';
-import type { GroupInfo } from '@/apis/reward-group';
+import { myTeams } from '@/apis/team';
 
 interface Props {
   currentUserId: number;
-  groups: GroupInfo[];
-  onOpenTaskboard?: (groupId: number) => void;
+  onOpenTaskboard?: (teamId?: number) => void;
 }
 
 const STATUS_COLOR: Record<RewardTaskStatus, string> = {
@@ -41,7 +40,7 @@ const PRIORITY_COLOR: Record<string, string> = {
   P2: '#5A5E72', // text.disabled
 };
 
-export default function PersonalTaskPanel({ currentUserId, groups, onOpenTaskboard }: Props) {
+export default function PersonalTaskPanel({ currentUserId, onOpenTaskboard }: Props) {
   // 拉我作为 assignee/claimer 的所有任务;同 taskboard 'mine' 模式
   const query = useQuery({
     queryKey: ['personal', 'tasks', 'mine-detail', currentUserId],
@@ -79,12 +78,17 @@ export default function PersonalTaskPanel({ currentUserId, groups, onOpenTaskboa
     .filter((s) => grouped[s].length > 0)
     .slice(0, 3);
 
-  // 团队名映射
+  // 团队名映射(以团队名义认领的任务)
+  const teamsQuery = useQuery({
+    queryKey: ['team', 'mine', 'active'],
+    queryFn: () => myTeams().then((r) => (r.list || []).filter((t) => t.myStatus === 'active')),
+    enabled: !!currentUserId,
+  });
   const groupNameMap = useMemo(() => {
     const m: Record<number, string> = {};
-    groups.forEach((g) => { if (g.id != null) m[g.id] = g.name || `团队 ${g.id}`; });
+    (teamsQuery.data || []).forEach((t) => (m[t.id] = t.name));
     return m;
-  }, [groups]);
+  }, [teamsQuery.data]);
 
   return (
     <Box
@@ -101,11 +105,11 @@ export default function PersonalTaskPanel({ currentUserId, groups, onOpenTaskboa
         <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary', flex: 1 }}>
           我的待办
         </Typography>
-        {onOpenTaskboard && tasks.length > 0 && groups[0] && (
+        {onOpenTaskboard && tasks.length > 0 && (
           <Button
             size="small"
             endIcon={<ArrowForwardIosIcon sx={{ fontSize: 10 }} />}
-            onClick={() => onOpenTaskboard(groups[0].id)}
+            onClick={() => onOpenTaskboard()}
             sx={{ minWidth: 0, color: 'text.secondary', fontSize: 11, textTransform: 'none' }}
           >
             看板
@@ -139,7 +143,7 @@ export default function PersonalTaskPanel({ currentUserId, groups, onOpenTaskboa
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
           {displayStatuses.map((s) => {
             const t = grouped[s][0];
-            const groupName = t.groupId != null ? groupNameMap[t.groupId] : null;
+            const groupName = t.teamId ? groupNameMap[t.teamId] || '团队' : null;
             return (
               <Box
                 key={s}

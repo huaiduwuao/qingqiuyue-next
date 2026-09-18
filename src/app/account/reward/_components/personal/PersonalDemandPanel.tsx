@@ -25,13 +25,11 @@ import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import { alpha } from '@mui/material/styles';
 import { listDemands } from '@/apis/reward-demand';
 import type { DemandItem, DemandStatus } from '@/beans/reward';
-import type { GroupInfo } from '@/apis/reward-group';
 
 interface Props {
-  groups: GroupInfo[];
   currentUserId: number;
-  onOpenTab?: (groupId: number) => void;
-  onOpenDetail?: (groupId: number, demandId: number) => void;
+  onOpenTab?: () => void;
+  onOpenDetail?: (demandId: number) => void;
 }
 
 const STATUS_META: Record<DemandStatus, { label: string; color: string; bg: string }> = {
@@ -60,7 +58,7 @@ function timeAgo(s?: string) {
   return `${Math.floor(h / 24)} 天前`;
 }
 
-export default function PersonalDemandPanel({ groups, currentUserId, onOpenTab, onOpenDetail }: Props) {
+export default function PersonalDemandPanel({ currentUserId, onOpenTab, onOpenDetail }: Props) {
   const [tab, setTab] = useState<DemandStatus | ''>('');
 
   // 拉足够多条用于做 4 个状态计数 + 列表显示
@@ -109,11 +107,11 @@ export default function PersonalDemandPanel({ groups, currentUserId, onOpenTab, 
         <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary', flex: 1 }}>
           我的需求
         </Typography>
-        {onOpenTab && records.length > 0 && groups[0] && (
+        {onOpenTab && records.length > 0 && (
           <Button
             size="small"
             endIcon={<ArrowForwardIosIcon sx={{ fontSize: 10 }} />}
-            onClick={() => onOpenTab(groups[0].id)}
+            onClick={() => onOpenTab()}
             sx={{ minWidth: 0, color: 'text.secondary', fontSize: 11, textTransform: 'none' }}
           >
             管理
@@ -181,11 +179,10 @@ export default function PersonalDemandPanel({ groups, currentUserId, onOpenTab, 
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
           {top.map((d) => {
             const meta = statusMeta(d.status);
-            const gid = ((d as any).groupId as number) || groups[0]?.id || 0;
             return (
               <Box
                 key={d.id}
-                onClick={() => onOpenDetail && gid && d.id && onOpenDetail(gid, d.id as number)}
+                onClick={() => onOpenDetail && d.id && onOpenDetail(d.id as number)}
                 sx={{
                   p: 1.25,
                   borderRadius: 1.25,

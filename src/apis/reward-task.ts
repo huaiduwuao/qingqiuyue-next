@@ -19,8 +19,11 @@ import type { RewardTask, RewardTaskStatus, TaskPriority } from '@/beans/reward'
 import type { PageParams } from '@/beans/pagination';
 
 export interface TaskQuery extends PageParams {
-  projectId?: number;
-  groupId?: number;
+  /** 以这个团队名义认领的任务 */
+  teamId?: number;
+  /** 我发布的任务 */
+  ownerId?: number;
+  claimerId?: number;
   demandId?: number;
   status?: RewardTaskStatus | '';
   assigneeId?: number;
@@ -66,8 +69,9 @@ export async function deleteTask(id: number) {
   return rewardClient(`/task/${id}`, { method: 'DELETE' });
 }
 
-export async function claimTask(id: number) {
-  return rewardClient(`/task/${id}/claim`, { method: 'POST' });
+/** 认领。带 teamId 是以团队名义认领(只有队长和管理员可以),结账时赏金按此刻的成员份额分给全队 */
+export async function claimTask(id: number, teamId?: number) {
+  return rewardClient(`/task/${id}/claim`, { method: 'POST', data: teamId ? { teamId } : {} });
 }
 
 /** 提交交付:文字说明与作品(我的作品里的一件,id 按字符串传,避免 BIGINT 精度丢失)至少有一样 */

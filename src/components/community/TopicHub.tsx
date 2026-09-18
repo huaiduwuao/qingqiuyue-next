@@ -52,12 +52,12 @@ export function TopicHub() {
           <CollectionsRoundedIcon sx={{ fontSize: 19, color: '#fff' }} />
         </Box>
         <Box sx={{ flex: 1, minWidth: 160 }}>
-          <Typography sx={{ fontSize: 17, fontWeight: 800, color: 'var(--text-primary, #fff)' }}>专题</Typography>
+          <Typography sx={{ fontSize: 17, fontWeight: 800, color: 'var(--text-primary, #fff)' }}>意境</Typography>
           <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.45))' }}>按主题聚合的好内容,和一起聊它们的人</Typography>
         </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, py: 0.5, borderRadius: 999, width: { xs: '100%', sm: 260 }, bgcolor: 'var(--bg-input, rgba(255,255,255,0.06))' }}>
           <SearchRoundedIcon sx={{ fontSize: 17, color: 'var(--text-muted, rgba(255,255,255,0.45))' }} />
-          <InputBase value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜索专题或话题" sx={{ flex: 1, fontSize: 13, color: 'var(--text-primary, #fff)' }} />
+          <InputBase value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜索意境或话题" sx={{ flex: 1, fontSize: 13, color: 'var(--text-primary, #fff)' }} />
         </Box>
         <ListLayoutSwitch />
       </Box>

@@ -24,18 +24,13 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { getWalletSummary } from '@/apis/reward-center';
 import { getMyStats, type MyStats } from '@/apis/dashboard';
-import { listGroups } from '@/apis/reward-group';
 import { listDemands } from '@/apis/reward-demand';
-import { listProjects } from '@/apis/reward-project';
-import { listRealizations } from '@/apis/reward-realization';
+import { listRealizations, myTeams } from '@/apis/team';
 import { listTasks } from '@/apis/reward-task';
 import { mapRewardTaskListFromBackend } from '../taskboard/status';
 import { useApp } from '@/contexts/AppContext';
-import type { GroupInfo } from '@/apis/reward-group';
 
-interface Props {
-  groups: GroupInfo[];
-}
+type Props = Record<string, never>;
 
 interface KpiCardProps {
   icon: React.ReactNode;
@@ -90,7 +85,7 @@ function KpiCard({ icon, label, value, color, loading }: KpiCardProps) {
   );
 }
 
-export default function PersonalHero({ groups }: Props) {
+export default function PersonalHero(_props: Props) {
   const { currentUser } = useApp();
   const currentUserId = currentUser?.id ?? 0;
 
@@ -105,8 +100,13 @@ export default function PersonalHero({ groups }: Props) {
   const totalPoint = wallet.totalIncome; // 累计收入作为总积分
   const currentBalance = wallet.balance; // 当前可用余额
 
-  // 团队数:取 props.groups 长度(父组件已拉过,不重复请求)
-  const groupsCount = groups.length;
+  // 我在队的团队数
+  const teamsCountQuery = useQuery({
+    queryKey: ['team', 'mine', 'active'],
+    queryFn: () => myTeams().then((r) => (r.list || []).filter((t) => t.myStatus === 'active')),
+    enabled: !!currentUserId,
+  });
+  const groupsCount = (teamsCountQuery.data || []).length;
 
   // 我的需求(不传 groupId -> 后端按当前用户过滤)
   const demandsCountQuery = useQuery({
@@ -116,18 +116,10 @@ export default function PersonalHero({ groups }: Props) {
     placeholderData: 0,
   });
 
-  // 我的项目
-  const projectsCountQuery = useQuery({
-    queryKey: ['personal', 'projects', 'count', currentUserId],
-    queryFn: () => listProjects({ pageSize: 1 }).then((r: any) => r.data?.totalRow || 0),
-    enabled: !!currentUserId,
-    placeholderData: 0,
-  });
-
   // 我的实现(显式传 userId)
   const realizationsCountQuery = useQuery({
     queryKey: ['personal', 'realizations', 'count', currentUserId],
-    queryFn: () => listRealizations({ userId: currentUserId, pageSize: 1 }).then((r: any) => r.data?.totalRow || 0),
+    queryFn: () => listRealizations({ userId: Number(currentUserId), pageSize: 1 }).then((r) => r.total || 0),
     enabled: !!currentUserId,
     placeholderData: 0,
   });
@@ -232,13 +224,6 @@ export default function PersonalHero({ groups }: Props) {
             label="我的团队"
             value={groupsCount}
             color="#F59E0B"
-          />
-          <KpiCard
-            icon={<FolderIcon sx={{ fontSize: 18 }} />}
-            label="我的项目"
-            value={projectsCountQuery.data ?? 0}
-            color="#8B5CF6"
-            loading={projectsCountQuery.isLoading}
           />
           <KpiCard
             icon={<AssignmentIcon sx={{ fontSize: 18 }} />}

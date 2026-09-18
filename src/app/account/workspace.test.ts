@@ -7,7 +7,7 @@ import {
   STAFF_TAB_IDS,
   contentNavFor,
 } from './content/navigation';
-import { REWARD_HOME_TAB, REWARD_NAV, REWARD_TAB_IDS, TEAM_SCOPED_TABS } from './reward/navigation';
+import { REWARD_HOME_TAB, REWARD_NAV, REWARD_TAB_IDS } from './reward/navigation';
 import { buildOnboardingSteps, onboardingProgress } from './content/_components/onboarding';
 
 describe('resolveTab', () => {
@@ -45,9 +45,10 @@ describe('reward navigation', () => {
     expect(REWARD_TAB_IDS.has(REWARD_HOME_TAB)).toBe(true);
   });
 
-  it('only scopes collaboration pages by team, never personal incentives', () => {
-    for (const t of TEAM_SCOPED_TABS) expect(REWARD_TAB_IDS.has(t)).toBe(true);
-    for (const t of ['tasks', 'invite', 'benefit', 'achievements', 'square']) expect(TEAM_SCOPED_TABS.has(t)).toBe(false);
+  it('keeps the demand → realization → team line and drops the template-only pages', () => {
+    for (const t of ['demands', 'board', 'realizations', 'teams']) expect(REWARD_TAB_IDS.has(t)).toBe(true);
+    // 「意境」「项目」两页读的是模板留下的空表,已删除;意境现在是内容社区里的意境(/topic)
+    for (const t of ['conceptions', 'projects']) expect(REWARD_TAB_IDS.has(t)).toBe(false);
   });
 });
 

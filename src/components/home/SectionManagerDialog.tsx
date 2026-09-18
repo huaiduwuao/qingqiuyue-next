@@ -66,7 +66,7 @@ const GROUP_TABS: { key: CandidateGroup; label: string }[] = [
   { key: 'genre', label: '题材' },
   { key: 'tag', label: '热门标签' },
   { key: 'source', label: '来源' },
-  { key: 'topic', label: '热门专题' },
+  { key: 'topic', label: '热门意境' },
   // 歌单也是专题的一种:一组编排好的内容,同样能当成首页的一格页签
   { key: 'playlist', label: '歌单' },
   { key: 'following', label: '我关注的' },
@@ -212,7 +212,7 @@ export default function SectionManagerDialog({ open, onClose }: Props) {
       .filter((t) => hit(t.title))
       .map((t) => ({
         section: makeTopicSection(t.id, t.title),
-        hint: t.contentCount ? `${t.contentCount} 条` : t.auto ? '自动专题' : undefined,
+        hint: t.contentCount ? `${t.contentCount} 条` : t.auto ? '自动意境' : undefined,
       }));
   }, [group, q, typesQuery.data, subcatQuery.data, tagsQuery.data, topicsQuery.data, playlistQuery.data, myPlaylistQuery.data, followingQuery.data]);
 
@@ -305,7 +305,7 @@ export default function SectionManagerDialog({ open, onClose }: Props) {
           fullWidth
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="搜频道 / 标签 / 专题,或直接输入自己想看的词"
+          placeholder="搜频道 / 标签 / 意境,或直接输入自己想看的词"
           slotProps={{
             input: {
               startAdornment: (
@@ -357,7 +357,7 @@ export default function SectionManagerDialog({ open, onClose }: Props) {
           ) : candidates.length === 0 ? (
             <Typography sx={{ fontSize: 12, color: 'text.disabled', py: 2 }}>
               {group === 'following'
-                ? '还没关注专题 —— 在「专题」页关注几个,这里就能直接加成频道。'
+                ? '还没关注意境 —— 在「意境」页关注几个,这里就能直接加成频道。'
                 : group === 'playlist'
                   ? '还没有可选的歌单 —— 去音乐频道建一张,或等平台编排好的歌单刷新出来。'
                 : group === 'source'

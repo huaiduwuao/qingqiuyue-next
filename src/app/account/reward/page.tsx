@@ -2,36 +2,29 @@
 
 import React, { Suspense, useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import MenuItem from '@mui/material/MenuItem';
-import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
-import { listGroups, type GroupInfo } from '@/apis/reward-group';
 import { WorkspaceShell } from '../components/WorkspaceShell';
 import { useUrlTab } from '../components/useUrlTab';
-import { REWARD_HOME_TAB, REWARD_NAV, REWARD_TAB_IDS, TEAM_SCOPED_TABS } from './navigation';
+import { REWARD_HOME_TAB, REWARD_NAV, REWARD_TAB_IDS } from './navigation';
 
 // 子页面按需加载;放在模块顶层,避免每次渲染重新创建 lazy 组件导致子页面反复卸载重挂。
 const VIEWS: Record<string, React.LazyExoticComponent<React.ComponentType<any>>> = {
   square: React.lazy(() => import('./_components/dashboard/page')),
   workspace: React.lazy(() => import('./_components/personal/page')),
   demands: React.lazy(() => import('./_components/demand/page')),
-  conceptions: React.lazy(() => import('./_components/conception/page')),
   realizations: React.lazy(() => import('./_components/realization/page')),
-  projects: React.lazy(() => import('./_components/project/page')),
   board: React.lazy(() => import('./_components/taskboard/page')),
-  teams: React.lazy(() => import('./_components/group/page')),
+  teams: React.lazy(() => import('./_components/team/page')),
   tasks: React.lazy(() => import('./_components/daily-task/page')),
   invite: React.lazy(() => import('./_components/invite/page')),
   benefit: React.lazy(() => import('./_components/monthly-benefit/page')),
   achievements: React.lazy(() => import('./_components/achievement/page')),
 };
 
-/** 协作看板的聚焦对象(从项目 / 团队 / 需求跳过来时预选)。 */
+/** 任务看板的聚焦对象(从团队 / 需求跳过来时预选)。 */
 interface BoardFocus {
-  projectId?: number | null;
-  groupId?: number | null;
+  teamId?: number | null;
   demandId?: number | null;
 }
 
@@ -66,34 +59,29 @@ function RewardLogo() {
 
 function RewardCenter() {
   const [tab, setTab] = useUrlTab(REWARD_TAB_IDS, REWARD_HOME_TAB);
-  const [groups, setGroups] = useState<GroupInfo[]>([]);
-  const [groupId, setGroupId] = useState<number | ''>('');
   const [boardFocus, setBoardFocus] = useState<BoardFocus>({});
+  const [teamFocus, setTeamFocus] = useState<number | null>(null);
 
-  // 需求/意境/实现/项目的列表与创建都依赖团队:拉取我的团队并默认选中第一个。
-  // 切换子页面时重拉,保证「团队」里新建的团队即时生效。
+  // 意境页的深链:?tab=board&demand=<id> 落在这个需求的任务上,?tab=teams&team=<id> 直接打开团队主页。
+  // 读完就从地址栏去掉,刷新不会反复触发。
   useEffect(() => {
-    let alive = true;
-    listGroups({ pageSize: 50 })
-      .then((res: any) => {
-        if (!alive) return;
-        const payload = res?.data ?? res;
-        const list: GroupInfo[] = payload?.records || payload?.list || (Array.isArray(payload) ? payload : []);
-        setGroups(list);
-        setGroupId((prev) => (prev && list.some((g) => g.id === prev) ? prev : list[0]?.id ?? ''));
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [tab]);
+    const url = new URL(window.location.href);
+    const demand = Number(url.searchParams.get('demand'));
+    const team = Number(url.searchParams.get('team'));
+    if (!demand && !team) return;
+    if (demand) setBoardFocus({ demandId: demand });
+    if (team) setTeamFocus(team);
+    url.searchParams.delete('demand');
+    url.searchParams.delete('team');
+    window.history.replaceState(window.history.state, '', url.toString());
+  }, []);
 
   const openBoard = (focus: BoardFocus) => {
     setBoardFocus(focus);
     setTab('board');
   };
-  const openWithGroup = (target: string) => (gid: number) => {
-    if (gid) setGroupId(gid);
+  const go = (target: string) => () => {
+    if (target !== 'board') setBoardFocus({});
     setTab(target);
   };
 
@@ -101,98 +89,40 @@ function RewardCenter() {
   const viewProps =
     tab === 'workspace'
       ? {
-          groups,
-          selectedGroupId: groupId,
-          onOpenDemandTab: openWithGroup('demands'),
-          onOpenDemandDetail: (gid: number, did: number) => {
-            if (gid) setGroupId(gid);
-            openBoard({ demandId: did });
+          onOpenDemandTab: go('demands'),
+          onOpenDemandDetail: (did: number) => openBoard({ demandId: did }),
+          onOpenRealizationTab: go('realizations'),
+          onOpenTaskboardTab: (teamId?: number) => openBoard(teamId ? { teamId } : {}),
+          onOpenTeamTab: (teamId?: number) => {
+            setTeamFocus(teamId ?? null);
+            setTab('teams');
           },
-          onOpenRealizationTab: openWithGroup('realizations'),
-          onOpenProjectTab: openWithGroup('projects'),
-          onOpenTaskboardTab: (gid: number) => {
-            if (gid) setGroupId(gid);
-            openBoard({ groupId: gid });
-          },
-          onOpenGroupTab: openWithGroup('teams'),
         }
-      : {
-          groupId,
-          groupData: groups,
-          onOpenTaskboard:
-            tab === 'projects'
-              ? (pid: number) => openBoard({ projectId: pid })
-              : tab === 'teams'
-                ? (gid: number) => openBoard({ groupId: gid })
-                : tab === 'demands'
-                  ? (did: number) => openBoard({ demandId: did })
-                  : undefined,
-          onOpenDemandDetail:
-            tab === 'board' || tab === 'realizations' || tab === 'conceptions'
-              ? (did: number) => openBoard({ demandId: did })
-              : undefined,
-          initialProjectId: tab === 'board' ? boardFocus.projectId ?? null : null,
-          initialGroupId: tab === 'board' ? boardFocus.groupId ?? null : null,
-          initialDemandId:
-            tab === 'board' ? boardFocus.demandId ?? null : null,
-        };
+      : tab === 'board'
+        ? {
+            initialTeamId: boardFocus.teamId ?? null,
+            initialDemandId: boardFocus.demandId ?? null,
+            onOpenDemandDetail: (did: number) => openBoard({ demandId: did }),
+          }
+        : tab === 'teams'
+          ? { initialTeamId: teamFocus, onOpenTaskboard: (teamId: number) => openBoard({ teamId }) }
+          : tab === 'demands'
+            ? { onOpenTaskboard: (did: number) => openBoard({ demandId: did }) }
+            : {};
 
   return (
     <WorkspaceShell title="奖励中心" logo={<RewardLogo />} groups={REWARD_NAV} selected={tab} onSelect={setTab}>
-      {TEAM_SCOPED_TABS.has(tab) && (
-        <TeamBar groups={groups} groupId={groupId} onChange={setGroupId} onCreate={() => setTab('teams')} />
-      )}
       <Suspense
         fallback={
           <Typography sx={{ p: 4, textAlign: 'center', color: 'text.secondary', fontSize: 13 }}>加载中...</Typography>
         }
       >
-        <View {...viewProps} />
+        {/* key:从需求 / 团队跳到看板时聚焦对象变了,看板要按新的初始值重建 */}
+        <View
+          key={tab === 'board' ? `board-${boardFocus.teamId ?? 0}-${boardFocus.demandId ?? 0}` : tab === 'teams' ? `teams-${teamFocus ?? 0}` : tab}
+          {...viewProps}
+        />
       </Suspense>
     </WorkspaceShell>
-  );
-}
-
-function TeamBar({
-  groups,
-  groupId,
-  onChange,
-  onCreate,
-}: {
-  groups: GroupInfo[];
-  groupId: number | '';
-  onChange: (id: number) => void;
-  onCreate: () => void;
-}) {
-  if (groups.length === 0) {
-    return (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-        <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
-          需求、意境、实现和项目都归属于团队,先创建或加入一个团队。
-        </Typography>
-        <Button size="small" variant="outlined" onClick={onCreate} sx={{ textTransform: 'none' }}>
-          去创建团队
-        </Button>
-      </Box>
-    );
-  }
-  return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-      <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>当前团队</Typography>
-      <TextField
-        select
-        size="small"
-        value={groupId}
-        onChange={(e) => onChange(Number(e.target.value))}
-        sx={{ minWidth: 200 }}
-        slotProps={{ htmlInput: { 'aria-label': '当前团队' } }}
-      >
-        {groups.map((g) => (
-          <MenuItem key={g.id} value={g.id}>
-            {g.name}
-          </MenuItem>
-        ))}
-      </TextField>
-    </Box>
   );
 }
