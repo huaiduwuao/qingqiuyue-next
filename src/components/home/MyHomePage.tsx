@@ -75,7 +75,10 @@ type MyItem = {
   shares: number;
   collectNum: number;
   durationSec: number;
-  postedAt: number;
+  // 毫秒时间戳。作品是发布时间,收藏/历史/稍后再看是"加进来的时间"。
+  // 后端取不到时给 0,所以渲染前要挡一下 —— 以前这个字段压根没返回,
+  // formatRelativeTime(undefined) 把卡片上的时间渲染成了 Invalid Date。
+  postedAt?: number;
   contentType: ContentType;
   // status 是 module_content 的原值(PUBLISH / active / UN_PUBLISH / REVIEWING …);
   // 判"公不公开"用后端归一化好的 visibility,别再拿 status 跟字面量比 —— 以前这里写的是
@@ -175,7 +178,8 @@ function formatViews(n: number): string {
   return n.toString();
 }
 
-function formatRelativeTime(ts: number): string {
+function formatRelativeTime(ts?: number): string {
+  if (!ts) return '未知时间';
   const diff = Date.now() - ts;
   if (diff < 0) return '刚刚';
   const min = Math.floor(diff / 60_000);
@@ -222,6 +226,8 @@ export function MyHomePage() {
     setMainTab(urlMainTab);
   }, [urlMainTab]);
   const [keyword, setKeyword] = useState('');
+  // 打字防抖后的关键词:它才是进 queryKey / 请求的那个,输入框自己保持即时响应
+  const [keywordQuery, setKeywordQuery] = useState('');
   const [dateRange, setDateRange] = useState('all');
   const [dateMenuAnchor, setDateMenuAnchor] = useState<null | HTMLElement>(null);
   const [batchMode, setBatchMode] = useState(false);
@@ -237,17 +243,34 @@ export function MyHomePage() {
   });
   const profile = profileQuery.data;
 
+  useEffect(() => {
+    const t = setTimeout(() => setKeywordQuery(keyword.trim()), 300);
+    return () => clearTimeout(t);
+  }, [keyword]);
+
   // 列表是分页的:以前这里只打一次 /me/list(后端默认 pageSize=20),页面却照着
   // COUNT(*) 写「共 N 个作品」—— N 上万、列表永远 20 条、往下滚也不会再请求。
   // 现在按页取,滚到底自动续下一页。
+  //
+  // 关键词和时间范围一起发给后端:筛选必须和分页在同一条查询里,否则筛的永远只是
+  // "已经加载到的那几条"。它们进 queryKey,所以改条件 = 换一个查询,自动从第 1 页重来。
   const listQuery = useInfiniteQuery({
-    queryKey: ['home', 'me', 'list', mainTab, subTab],
+    queryKey: ['home', 'me', 'list', mainTab, subTab, keywordQuery, dateRange],
     initialPageParam: 1,
-    queryFn: ({ pageParam }) =>
-      homeClient
-        .get<ListResp>(`/me/list?tab=${mainTab}&sub=${subTab}&page=${pageParam}&pageSize=${LIST_PAGE_SIZE}`)
-        .then((r) => r.data),
+    queryFn: ({ pageParam }) => {
+      const qs = new URLSearchParams({
+        tab: mainTab,
+        sub: subTab,
+        page: String(pageParam),
+        pageSize: String(LIST_PAGE_SIZE),
+      });
+      if (keywordQuery) qs.set('keyword', keywordQuery);
+      if (dateRange !== 'all') qs.set('range', dateRange);
+      return homeClient.get<ListResp>(`/me/list?${qs}`).then((r) => r.data);
+    },
     getNextPageParam: (last, all) => nextMeListPage(last, all),
+    // 换关键词时先留着上一批,列表不会闪成空白再填回来
+    placeholderData: (prev) => prev,
   });
 
   const loadedList = useMemo(
@@ -277,18 +300,11 @@ export function MyHomePage() {
     staleTime: 5 * 60_000,
   });
 
-  const filteredList = useMemo(() => {
-    const list = loadedList;
-    if (!keyword && dateRange === 'all') return list;
-    const now = Date.now();
-    const days = dateRange === '7d' ? 7 : dateRange === '30d' ? 30 : dateRange === '90d' ? 90 : dateRange === 'year' ? 365 : Infinity;
-    return list.filter((it) => {
-      if (keyword && !('title' in it && it.title.includes(keyword))) return false;
-      if (days !== Infinity && isMyItem(it) && now - it.postedAt > days * 86_400_000) return false;
-      if (days !== Infinity && isMyGroup(it) && now - it.updatedAt > days * 86_400_000) return false;
-      return true;
-    });
-  }, [loadedList, keyword, dateRange]);
+  // 筛选在后端做(见 /me/list 的 keyword/range),这里拿到的已经是筛过的结果。
+  // 以前这一层在前端筛,只能筛"已加载的那一页";日期那一档还是纯摆设 —— 响应里
+  // 没有 postedAt,`now - undefined` 是 NaN,比较恒为 false,于是从不排除任何条目。
+  const filteredList = loadedList;
+  const filtering = !!keywordQuery || dateRange !== 'all';
 
   const totalCount = listQuery.data?.pages[0]?.total ?? 0;
   const showSubTabs = mainTab === 'works';
@@ -858,11 +874,9 @@ export function MyHomePage() {
         {filteredList.length > 0 && !batchMode && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, px: 0.5 }}>
             <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-              共 {totalCount}{tabLabel}
-              {/* 关键词 / 日期是在已加载的这些里筛的,所以把"已加载多少"一并写出来,
-                  免得「共 136316 个作品 · 已筛选 3」看着像筛错了 */}
+              {/* total 是后端筛完之后的数,所以筛选时它就是"筛出来一共多少" */}
+              {filtering ? '筛出 ' : '共 '}{totalCount}{tabLabel}
               {loadedList.length < totalCount ? ` · 已加载 ${loadedList.length}` : ''}
-              {keyword || dateRange !== 'all' ? ` · 已筛选 ${filteredList.length}` : ''}
             </Typography>
           </Box>
         )}
@@ -874,7 +888,12 @@ export function MyHomePage() {
             <CircularProgress size={22} />
           </Box>
         ) : filteredList.length === 0 ? (
-          <EmptyState tab={mainTab} subTab={subTab} onPublish={() => router.push('/account/content')} />
+          <EmptyState
+            tab={mainTab}
+            subTab={subTab}
+            filtered={filtering}
+            onPublish={() => router.push('/account/content')}
+          />
         ) : isGroupView ? (
           <CollectionGridView
             list={filteredList.filter(isMyGroup)}
@@ -1346,7 +1365,7 @@ function AINoteListView({ list, batchMode, selected, onToggle }: { list: MyItem[
 }
 
 // ─── 子组件:空状态 ───
-function EmptyState({ tab, subTab, onPublish }: { tab: string; subTab: string; onPublish?: () => void }) {
+function EmptyState({ tab, subTab, onPublish, filtered }: { tab: string; subTab: string; onPublish?: () => void; filtered?: boolean }) {
   const config: Record<string, { title: string; hint: string; cta?: string }> = {
     works: { title: subTab === 'private' ? '暂无未公开的作品' : subTab === 'draft' ? '暂无草稿' : '该账号还未发布过作品', hint: subTab === 'private' ? '设为私密、审核中、未过审的作品会出现在这里' : '点击下方按钮开始创作吧', cta: '发布作品' },
     recommend: { title: '暂无推荐内容', hint: '基于你的浏览历史为你推荐' },
@@ -1360,7 +1379,10 @@ function EmptyState({ tab, subTab, onPublish }: { tab: string; subTab: string; o
     bookshelf: { title: '书架是空的', hint: '在小说或漫画详情页点「加入书架」' },
     ai: { title: 'AI 笔记还没生成', hint: '当你看过足够多的内容,AI 会自动整理笔记' },
   };
-  const c = config[tab] || config.works;
+  // 筛选筛空了和"本来就没有"是两件事:前者别劝人去发作品,提示改筛选条件才有用。
+  const c: { title: string; hint: string; cta?: string } = filtered
+    ? { title: '没有符合条件的内容', hint: '换个关键词或时间范围试试' }
+    : config[tab] || config.works;
   return (
     <Box
       sx={{
