@@ -40,7 +40,8 @@ import { FeedPanel } from './panels/FeedPanel';
 import { AIRecommendPanel } from './panels/AIRecommendPanel';
 import TrendingBoard from '@/components/home/TrendingBoard';
 import { LeaderboardPanel } from '@/components/leaderboard/LeaderboardPanel';
-import LeaderboardMini, { SECTION_TO_TYPE } from '@/components/leaderboard/LeaderboardMini';
+import LeaderboardMini from '@/components/leaderboard/LeaderboardMini';
+import { parseSectionId } from '@/lib/homeSections';
 import EmojiEventsRoundedIcon from '@mui/icons-material/EmojiEventsRounded';
 // 客户端下载入口:跳到独立 /download 介绍页
 import { LivePanel } from './panels/LivePanel';
@@ -613,7 +614,8 @@ function RightSidebar({ section }: { section: string }) {
     >
       {/* 站内排行榜(internal/leaderboard):按类型出的热度日榜,跟随首页 section
           切到对应类型,一键进完整榜单页(左侧导航「排行榜」)。 */}
-      <LeaderboardMini defaultType={SECTION_TO_TYPE[section] ?? 'ALL'} limit={10} />
+      {/* 频道可能是用户自建的(标签/专题/关键词),那种没有单一内容类型 → 总榜 */}
+      <LeaderboardMini defaultType={parseSectionId(section)?.contentType || 'ALL'} limit={10} />
 
       {/* 全网热榜:跨平台热度索引(后端 internal/trending),每条带来源平台,
           可按平台筛选。筛选项来自索引本身,爬虫接入新平台后自动多一项。 */}

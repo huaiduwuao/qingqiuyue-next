@@ -76,3 +76,11 @@ export interface FacetItem {
 export async function fetchFacets(params: { type?: string; field?: string; limit?: number } = {}) {
   return contentClient('/dict/facets', { params });
 }
+
+// =================== 标签聚合(自定义频道候选) ===================
+// GET /api/content/dict/tags?type=&limit=  出现最多的内容标签,按频次降序。
+// 首页「频道管理」用它列出可以直接加成频道的标签;取内容时对应 ?tag=。
+// 不用 facets?field=genre:爬下来的行里 metadata.genre 基本是空的,有值的是 tags 列。
+export async function fetchContentTags(params: { type?: string; limit?: number } = {}) {
+  return contentClient('/dict/tags', { params });
+}
