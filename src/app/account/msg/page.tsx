@@ -26,6 +26,7 @@ import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined';
 import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
 import EmojiEmotionsOutlinedIcon from '@mui/icons-material/EmojiEmotionsOutlined';
 import FolderOpenOutlinedIcon from '@mui/icons-material/FolderOpenOutlined';
+import IosShareOutlinedIcon from '@mui/icons-material/IosShareOutlined';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
@@ -40,7 +41,10 @@ import VerifiedIcon from '@mui/icons-material/Verified';
 import { adminClient, contentClient, formatApiError } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { fileUpload } from '@/apis/global';
-import { pinSession, unpinSession, removeSessions } from '@/apis/msg';
+import { pinSession, unpinSession, removeSessions, sendShareCard, type ShareKind } from '@/apis/msg';
+import ShareCardBubble from '@/components/msg/ShareCardBubble';
+import SharePicker from '@/components/msg/SharePicker';
+import { usePollFallback } from '@/lib/realtime';
 import { blockUser, followUser, unblockUser, unfollowUser } from '@/apis/social';
 import { UserAvatarLink } from '@/components/common/UserAvatarLink';
 import { useMsgUi } from './store';
@@ -59,7 +63,7 @@ interface Session {
   isOfficial?: boolean;
   unread: number;
   lastMessage: string;
-  lastMessageType: 'text' | 'image' | 'system' | 'recall' | 'bounty';
+  lastMessageType: 'text' | 'image' | 'system' | 'recall' | 'bounty' | 'card';
   lastTime: string;
   pinned: boolean;
 }
@@ -69,7 +73,8 @@ interface Message {
   sessionId: number;
   fromUserId: number;
   /** bounty:悬赏任务流转卡片,content 是 JSON(后端 service.BountyCard),只能由服务端写入 */
-  type: 'text' | 'image' | 'system' | 'recall' | 'time' | 'bounty';
+  /** card:用户分享的站内内容,content 是 JSON(后端 msgapp.ShareCard),标题封面由服务端快照 */
+  type: 'text' | 'image' | 'system' | 'recall' | 'time' | 'bounty' | 'card';
   content: string;
   time: string;
   status?: 'sent' | 'delivered' | 'read';
@@ -594,12 +599,18 @@ function DmPanel() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const qc = useQueryClient();
+  // 推送在线时返回 false(= 不轮询),断线时才是这些间隔
+  const sessionPoll = usePollFallback(15_000);
+  const messagePoll = usePollFallback(5_000);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const { data: sessionData, isLoading: loadingSessions } = useQuery({
     queryKey: ['dm-sessions-page'],
     queryFn: async () => (await adminClient('/msg/session/list')).data,
     enabled: mounted && isAuthenticated,  // 未登录不发请求(否则 401 刷屏)
-    refetchInterval: 15_000, // 没有推送通道,轮询新会话与未读
+    // 新会话/未读靠长连接推(RealtimeProvider 会 invalidate 这个 key);
+    // 连接断了才退回轮询,见 usePollFallback。
+    refetchInterval: sessionPoll,
   });
   const sessions: Session[] = sessionData?.list || [];
 
@@ -623,7 +634,7 @@ function DmPanel() {
     queryKey: ['dm-messages-page', selectedId],
     queryFn: async () => (await adminClient('/msg/message/list', { params: { sessionId: selectedId } })).data,
     enabled: selectedId !== null,
-    refetchInterval: 5_000, // 对方的新消息靠轮询拉取
+    refetchInterval: messagePoll, // 同上:推送在线时不轮询
   });
   const messages: Message[] = msgData?.list || [];
 
@@ -693,6 +704,19 @@ function DmPanel() {
       setSnack({ open: true, msg: '图片已发送', severity: 'success' });
     },
     onError: () => setSnack({ open: true, msg: '图片发送失败', severity: 'error' }),
+  });
+
+  // 分享站内内容。只把 {kind,id,note} 发上去,标题封面由服务端查出来快照进消息。
+  const shareMutation = useMutation({
+    mutationFn: async ({ kind, id, note }: { kind: ShareKind; id: string; note: string }) =>
+      sendShareCard(selectedId as number, kind, id, note),
+    onSuccess: () => {
+      setShareOpen(false);
+      qc.invalidateQueries({ queryKey: ['dm-messages-page', selectedId] });
+      qc.invalidateQueries({ queryKey: ['dm-sessions-page'] });
+      setSnack({ open: true, msg: '已分享', severity: 'success' });
+    },
+    onError: (e) => setSnack({ open: true, msg: formatApiError(e) || '分享失败', severity: 'error' }),
   });
 
   const pinMutation = useMutation({
@@ -1113,6 +1137,11 @@ function DmPanel() {
                         <FolderOpenOutlinedIcon sx={{ fontSize: 18 }} />
                       </IconButton>
                     </Tooltip>
+                    <Tooltip title="分享作品 / 悬赏任务 / 歌单">
+                      <IconButton size="small" sx={{ color: 'text.secondary' }} onClick={() => setShareOpen(true)}>
+                        <IosShareOutlinedIcon sx={{ fontSize: 18 }} />
+                      </IconButton>
+                    </Tooltip>
                     <input
                       ref={fileInputRef}
                       type="file"
@@ -1166,6 +1195,12 @@ function DmPanel() {
           )}
         </Box>
       </Box>
+      <SharePicker
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        sending={shareMutation.isPending}
+        onPick={(kind, id, note) => shareMutation.mutate({ kind, id, note })}
+      />
       <Dialog
         open={reportOpen}
         onClose={() => !reporting && setReportOpen(false)}
@@ -1246,7 +1281,9 @@ function SessionItem({ session, active, onClick }: { session: Session; active: b
             ? '[图片]'
             : session.lastMessageType === 'bounty'
               ? '[悬赏任务]'
-              : session.lastMessageType === 'recall'
+              : session.lastMessageType === 'card'
+                ? session.lastMessage || '[分享]'
+                : session.lastMessageType === 'recall'
                 ? '你撤回了一条消息'
                 : session.lastMessage}
         </Typography>
@@ -1395,6 +1432,15 @@ function MessageBubble({ message, avatar, isMine, onRecall }: { message: Message
       <Box sx={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', gap: 1, alignItems: 'flex-end' }}>
         {!isMine && <img src={avatar || undefined} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', display: 'block', flexShrink: 0 }} />}
         <BountyCardBubble content={message.content} isMine={isMine} />
+      </Box>
+    );
+  }
+  if (message.type === 'card') {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', gap: 1, alignItems: 'flex-end' }}>
+        {!isMine && <img src={avatar || undefined} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', display: 'block', flexShrink: 0 }} />}
+        <ShareCardBubble content={message.content} />
+        {isMine && <img src={avatar || undefined} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', display: 'block', flexShrink: 0 }} />}
       </Box>
     );
   }

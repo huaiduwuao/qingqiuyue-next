@@ -17,6 +17,7 @@ import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
 import MilitaryTechRoundedIcon from '@mui/icons-material/MilitaryTechRounded';
 import StarsRoundedIcon2 from '@mui/icons-material/StarsRounded';
 import ReportProblemRoundedIcon from '@mui/icons-material/ReportProblemRounded';
+import HeadsetMicRoundedIcon from '@mui/icons-material/HeadsetMicRounded';
 import BlockRoundedIcon from '@mui/icons-material/BlockRounded';
 import RecordVoiceOverRoundedIcon from '@mui/icons-material/RecordVoiceOverRounded';
 import AppsRoundedIcon from '@mui/icons-material/AppsRounded';
@@ -84,6 +85,14 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
         icon: <ReportProblemRoundedIcon sx={{ fontSize: 18 }} />,
         accent: '#FE2C55',
         permission: PERMISSIONS.SYSTEM_MODERATION.REPORT_LIST,
+      },
+      {
+        id: 'kf',
+        label: '客服工作台',
+        path: '/system/kf',
+        icon: <HeadsetMicRoundedIcon sx={{ fontSize: 18 }} />,
+        accent: '#5B8DEF',
+        // 没有独立权限码:后端按内容运营角色放行(kfapp.staffOnly),这里不再加一层
       },
       {
         id: 'moderation-words',

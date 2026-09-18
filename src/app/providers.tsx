@@ -12,6 +12,7 @@ import ClickSpark from '@/components/reactbits/ClickSpark';
 import GlobalPlayers from '@/components/player/GlobalPlayers';
 import { useAIPrefs } from '@/lib/aiPrefs';
 import EmbedBridge, { isSceneEmbedded } from '@/components/layout/EmbedBridge';
+import RealtimeProvider from '@/components/realtime/RealtimeProvider';
 
 // React 19(≤19.3.0) estimateBandwidth 有一个 off-by-one:遍历
 // performance.getEntriesByType("resource") 时,若最后一个条目恰是静态资源
@@ -105,6 +106,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
             <AuthContextProvider>
               <PageViewTracker />
               <EmbedBridge />
+              {/* 全站唯一一条通知长连接:私信 / 互动消息 / 系统公告 / 客服都从这里下来 */}
+              <RealtimeProvider />
               {/* 老 WebView 的 100dvh 兜底 + 全站点击火花(React Bits ClickSpark) */}
               <ViewportFix />
               <ClickSpark sparkColor="var(--brand-color, #FE2C55)">
