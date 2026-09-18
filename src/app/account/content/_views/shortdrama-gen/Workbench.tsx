@@ -54,6 +54,7 @@ import EntitySection from './sections/EntitySection';
 import StoryboardSection from './sections/StoryboardSection';
 import TasksSection from './sections/TasksSection';
 import SettingsSection from './sections/SettingsSection';
+import { BOARD_STEPS, FiveStepBoard } from './FiveStepBoard';
 
 export type SectionId = 'overview' | 'script' | 'characters' | 'scenes' | 'props' | 'storyboard' | 'tasks' | 'settings';
 
@@ -217,6 +218,25 @@ export default function Workbench({ projectId, onExit }: { projectId: number; on
           </Alert>
         )}
       </Paper>
+
+      {/* G1:5 步看板 —— 剧本 → 主题 → 分镜提示词 → 故事板分镜图 → 成片合成 */}
+      {p && (
+        <Box sx={{ px: { xs: 1.5, md: 2 }, py: 2, borderBottom: 1, borderColor: 'divider', bgcolor: 'background.default' }}>
+          <FiveStepBoard
+            currentStage={p.stage}
+            status={p.status}
+            running={running}
+            canStart={!start.isPending}
+            disabled={!!running}
+            onStartStep={(bs) => {
+              // 启动该看板步对应后端 step 列表的第一个 step;同一个 step 也可以再次启动覆盖
+              const firstBackend = bs.backendSteps[0];
+              start.mutate({ step: firstBackend });
+              setActivityOpen(true);
+            }}
+          />
+        </Box>
+      )}
 
       {narrow && (
         <Tabs value={section} onChange={(_, v) => setSectionState(v)} variant="scrollable" scrollButtons="auto" sx={{ borderBottom: 1, borderColor: 'divider' }}>

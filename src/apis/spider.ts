@@ -258,3 +258,57 @@ export async function resumeSite(id: number): Promise<any> {
 export async function batchOperate(params: { action: 'start' | 'pause' | 'resume' | 'cancel'; batch_ids: number[] }): Promise<any> {
   return spiderClient('/batch/operate', { method: 'POST', data: params });
 }
+
+// ─── G2:产品级通用入口 ───
+// 后端 internal/crawler/universal.go
+
+/** 小说"搜索即匹配正文源并批量回补章节正文"。
+ *  输入书名(可选作者),后端在已配置的小说源里按配置的选择器找书,找到后
+ *  自动调用 RuleEngine.CrawlNovel + CrawlChapters,章节正文写到 MinIO。 */
+export interface SearchAndCrawlResult {
+  success: boolean;
+  keyword: string;
+  matchedSource?: string;
+  sourceId?: number;
+  novelId?: number;
+  bookURL?: string;
+  chaptersAdded?: number;
+  skipped?: string[];
+  error?: string;
+  elapsedSeconds?: number;
+}
+
+export async function searchAndCrawlNovel(params: {
+  keyword: string;
+  author?: string;
+  sourceId?: number;
+  maxChapters?: number;
+}): Promise<SearchAndCrawlResult> {
+  return spiderClient('/universal/novel/search-and-crawl', { method: 'POST', data: params });
+}
+
+/** 影视"输入任意小影视站 URL → 嗅探 → 返回 .m3u8/.mp4 直链"。
+ *  后端用 cloakBrowser 打开页面,从 SSR/网络监听/全页正则三种方式找直链。 */
+export interface ResolveStreamResult {
+  success: boolean;
+  inputUrl: string;
+  realUrl?: string;
+  playUrl?: string;
+  coverUrl?: string;
+  title?: string;
+  author?: string;
+  durationSec?: number;
+  width?: number;
+  height?: number;
+  method?: 'browser_parse' | 'url_regex' | 'm3u8_direct' | 'fallback';
+  error?: string;
+  elapsedMs?: number;
+}
+
+export async function resolveStream(params: {
+  url: string;
+  configId?: number;
+  extraWaitMs?: number;
+}): Promise<ResolveStreamResult> {
+  return spiderClient('/universal/stream/resolve', { method: 'POST', data: params });
+}

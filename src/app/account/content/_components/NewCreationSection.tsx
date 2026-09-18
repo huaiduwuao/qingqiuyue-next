@@ -31,129 +31,22 @@ import ScheduleRoundedIcon from '@mui/icons-material/ScheduleRounded';
 import PauseRoundedIcon from '@mui/icons-material/PauseRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import EditCalendarRoundedIcon from '@mui/icons-material/EditCalendarRounded';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
 import { useActiveTab } from '../ActiveTabContext';
 import { gradient2, gradient3 } from '@/constants/gradients';
 import { accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
 import { RelativeTime } from '@/components/common/RelativeTime';
 import { coverBackground } from '@/lib/media';
 import { ListLayout, ListLayoutSwitch } from '@/components/common/ListLayout';
+import { scheduleContent } from '@/apis/review';
 
-interface CreationItem {
-  id: string;
-  title: string;
-  desc: string;
-  icon: React.ReactNode;
-  gradient: string;
-  /** 后端 contentType 枚举(用于埋点/未来 payload 预填) */
-  contentType: string;
-}
-
-const CREATION_ITEMS: CreationItem[] = [
-  {
-    id: 'video',
-    title: '发布视频',
-    desc: '支持常用格式，推荐mp4、webm',
-    icon: <VideocamIcon sx={{ fontSize: 32 }} />,
-    gradient: gradient2('#FE2C55', '#FF6B8A'),
-    contentType: 'VIDEO',
-  },
-  {
-    id: 'image',
-    title: '发布图文',
-    desc: '支持常用图片格式，png、jpg',
-    icon: <ImageIcon sx={{ fontSize: 32 }} />,
-    gradient: gradient2('#25F4EE', '#5DF7F2'),
-    contentType: 'PICTURE',
-  },
-  {
-    id: 'image-mv',
-    title: '发布图片 MV',
-    desc: '多图轮播 + 背景音乐',
-    icon: <PhotoLibraryRoundedIcon sx={{ fontSize: 32 }} />,
-    gradient: gradient2('#22D3EE', '#67E8F9'),
-    contentType: 'PICTURE',
-  },
-  {
-    id: 'article',
-    title: '发布文章',
-    desc: '支持 8000 字文本和 30 个图片素材',
-    icon: <DescriptionIcon sx={{ fontSize: 32 }} />,
-    gradient: gradient2('#8B5CF6', '#C4B5FD'),
-    contentType: 'ARTICLE',
-  },
-  {
-    id: 'novel',
-    title: '发布小说',
-    desc: '章节连载，单本可超 10 万字',
-    icon: <MenuBookRoundedIcon sx={{ fontSize: 32 }} />,
-    gradient: gradient2('#A78BFA', '#DDD6FE'),
-    contentType: 'NOVEL',
-  },
-  {
-    id: 'news',
-    title: '发布新闻',
-    desc: '摘要 + 配图 + 来源',
-    icon: <ArticleRoundedIcon sx={{ fontSize: 32 }} />,
-    gradient: gradient2('#F87171', '#FCA5A5'),
-    contentType: 'NEWS',
-  },
-  {
-    id: 'music',
-    title: '发布音乐',
-    desc: '音频 + 封面 + LRC 歌词',
-    icon: <LibraryMusicRoundedIcon sx={{ fontSize: 32 }} />,
-    gradient: gradient2('#34D399', '#6EE7B7'),
-    contentType: 'MUSIC',
-  },
-  {
-    id: 'comics',
-    title: '发布漫画',
-    desc: '分镜列表，每页图片 + 旁白',
-    icon: <AutoStoriesRoundedIcon sx={{ fontSize: 32 }} />,
-    gradient: gradient2('#FB923C', '#FDBA74'),
-    contentType: 'COMICS',
-  },
-  {
-    id: 'vshow',
-    title: '发布短剧',
-    desc: '竖屏短剧，支持选集',
-    icon: <MovieFilterRoundedIcon sx={{ fontSize: 32 }} />,
-    gradient: gradient2('#F472B6', '#F9A8D4'),
-    contentType: 'VSHOW',
-  },
-  {
-    id: 'teleplay',
-    title: '发布电视剧',
-    desc: '季 / 集，每集独立视频',
-    icon: <TvRoundedIcon sx={{ fontSize: 32 }} />,
-    gradient: gradient2('#60A5FA', '#93C5FD'),
-    contentType: 'TELEPLAY',
-  },
-  {
-    id: 'film',
-    title: '发布电影',
-    desc: '长视频,海报+导演+演员+时长',
-    icon: <LocalMoviesRoundedIcon sx={{ fontSize: 32 }} />,
-    gradient: gradient2('#1E40AF', '#3B82F6'),
-    contentType: 'FILM',
-  },
-  {
-    id: 'animation',
-    title: '发布动画',
-    desc: '2D/3D/定格,选集+制作公司+监督',
-    icon: <AnimationRoundedIcon sx={{ fontSize: 32 }} />,
-    gradient: gradient2('#A855F7', '#C084FC'),
-    contentType: 'ANIMATION',
-  },
-  {
-    id: 'live',
-    title: '发布直播回放',
-    desc: '直播录制+开始时间+弹幕开关',
-    icon: <LiveTvRoundedIcon sx={{ fontSize: 32 }} />,
-    gradient: gradient2('#DC2626', '#EF4444'),
-    contentType: 'LIVE',
-  },
-];
+// 13 个内容创作类型的统一配置 —— 工作台 / 发布中心 / 落地页三处共用。
+// 单一事实来源:contentTypes.tsx。这里只保留工作台特有的样式与交互逻辑。
+import { CREATION_TYPES, type CreationType, type CreationTypeId } from './contentTypes';
 
 // type → view id 路由表。视频和图片 MV 都进 hd-publish dispatcher,
 // hd-publish 内部用 chip 选子类型。其他类型也全部进 hd-publish,
@@ -261,6 +154,27 @@ export default function NewCreationSection() {
       }
     }
   };
+
+  // B1:重新定时 — 给已定时但还没到点的草稿换个时间。
+  const [rescheduleOpen, setRescheduleOpen] = useState<WipItem | null>(null);
+  const [rescheduleAt, setRescheduleAt] = useState('');
+  const handleRescheduleSubmit = async () => {
+    if (!rescheduleOpen) return;
+    const ts = new Date(rescheduleAt).getTime();
+    if (!Number.isFinite(ts) || ts <= Date.now()) {
+      setSnack('请选择未来的时间');
+      return;
+    }
+    try {
+      await scheduleContent(rescheduleOpen.id, ts);
+      setSnack(`已重新定时到 ${new Date(ts).toLocaleString('zh-CN')}`);
+      setRescheduleOpen(null);
+      setRescheduleAt('');
+      setWip((p) => []);
+    } catch (err) {
+      setSnack(formatApiError(err));
+    }
+  };
   const handlePauseToggle = async (item: WipItem) => {
     try {
       await accountClient.post('/account/content/wip/pause', { id: item.id, paused: !item.paused });
@@ -301,7 +215,7 @@ export default function NewCreationSection() {
     //   animation  → type='animation'
     //   live       → type='live'
     // dispatcher 接住 tabParams.type 自动切 chip + 弹对应表单 dialog。
-    const item = CREATION_ITEMS.find((c) => c.id === id);
+    const item = CREATION_TYPES.find((c) => c.id === id);
     if (!item) return;
     const tab = TYPE_TO_TAB[id] ?? 'hd-publish';
     // type 用 chip 用的 kebab-case;chip 内部 PUBLISH_HUB_TYPE_TO_CONTENT_TYPE 再转后端枚举
@@ -351,7 +265,7 @@ export default function NewCreationSection() {
           gap: { xs: 1.5, md: 1.5 },
         }}
       >
-        {CREATION_ITEMS.map((item) => (
+        {CREATION_TYPES.map((item) => (
           <Box
             key={item.id}
             onClick={() => handleCreate(item.id)}
@@ -628,6 +542,19 @@ export default function NewCreationSection() {
                           </Button>
                           <Button
                             size="small"
+                            startIcon={<EditCalendarRoundedIcon sx={{ fontSize: 12 }} />}
+                            onClick={() => {
+                              // 默认当前时间 + 1 小时
+                              const def = new Date(Date.now() + 60 * 60 * 1000);
+                              setRescheduleAt(def.toISOString().slice(0, 16));
+                              setRescheduleOpen(item);
+                            }}
+                            sx={{ textTransform: 'none', fontSize: 10, color: 'text.secondary', minWidth: 0, py: 0.25, px: 1 }}
+                          >
+                            改时间
+                          </Button>
+                          <Button
+                            size="small"
                             onClick={() => handleCancel(item)}
                             sx={{ textTransform: 'none', fontSize: 10, color: 'text.secondary', minWidth: 0, py: 0.25, px: 1 }}
                           >
@@ -651,6 +578,55 @@ export default function NewCreationSection() {
         message={snack}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />
+
+      {/* B1:重新定时发布对话框 */}
+      <Dialog
+        open={!!rescheduleOpen}
+        onClose={() => setRescheduleOpen(null)}
+        maxWidth="xs"
+        fullWidth
+        slotProps={{ paper: { sx: { bgcolor: 'background.paper', backgroundImage: 'none' } } }}
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <EditCalendarRoundedIcon color="primary" />
+          重新定时发布
+        </DialogTitle>
+        <DialogContent dividers sx={{ borderColor: 'divider' }}>
+          <Box sx={{ pt: 1 }}>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1 }}>
+              当前作品:{rescheduleOpen?.title}
+            </Typography>
+            <Typography sx={{ fontSize: 11, color: 'text.disabled', mb: 2 }}>
+              原定时:{rescheduleOpen?.scheduleAt ? new Date(rescheduleOpen.scheduleAt).toLocaleString('zh-CN') : '—'}
+            </Typography>
+            <TextField
+              type="datetime-local"
+              label="新定时"
+              value={rescheduleAt}
+              onChange={(e) => setRescheduleAt(e.target.value)}
+              fullWidth
+              size="small"
+              slotProps={{ inputLabel: { shrink: true } }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={() => setRescheduleOpen(null)} sx={{ textTransform: 'none' }}>
+            取消
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleRescheduleSubmit}
+            sx={{
+              textTransform: 'none',
+              background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)',
+              '&:hover': { background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)', filter: 'brightness(1.1)' },
+            }}
+          >
+            确认改时间
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
