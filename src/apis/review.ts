@@ -1,6 +1,5 @@
 import { adminClient } from '@/lib/api/client';
 import type { PageParams, PageResult } from '@/beans/pagination';
-import { normalizeLegacyPageResponse } from '@/hooks/usePagination';
 import type { EntityId } from '@/lib/id';
 
 // 审核请求结构
@@ -40,8 +39,7 @@ export async function submitReview(params: {
   /** 被驳回后重新提交(申诉)时给审核员的说明 */
   reason?: string;
 }): Promise<{ id: number; status: string }> {
-  const res = await adminClient('/review/submit', { method: 'POST', data: params });
-  return res?.data ?? res;
+  return adminClient<{ id: number; status: string }>('/review/submit', { method: 'POST', data: params });
 }
 
 // 获取待审队列
@@ -49,8 +47,7 @@ export async function getReviewQueue(params?: PageParams & {
   status?: string;
   contentType?: string;
 }): Promise<PageResult<ReviewRequest>> {
-  const res = await adminClient('/review/queue', { params });
-  return normalizeLegacyPageResponse((res as any)?.data ?? res);
+  return adminClient<PageResult<ReviewRequest>>('/review/queue', { params });
 }
 
 // 审核内容
@@ -74,13 +71,21 @@ export async function doReview(params: {
 
 // 获取我的审核记录
 export async function getMyReviews(params?: PageParams): Promise<PageResult<ReviewRequest>> {
-  const res = await adminClient('/review/my', { params });
-  return normalizeLegacyPageResponse((res as any)?.data ?? res);
+  return adminClient<PageResult<ReviewRequest>>('/review/my', { params });
 }
 
 // 获取审核统计
 export async function getReviewStats(): Promise<ReviewStats> {
-  const res = await adminClient('/review/stats');
-  return res?.data ?? res;
+  return adminClient<ReviewStats>('/review/stats');
+}
+
+// ─── B1:定时发布 ───
+// 后端 internal/handler/creator_dashboard_write.go 的 ScheduleContent 接口。
+// 传 publishAt 为毫秒时间戳;空/<=现在 视为立即发布(等价 /publish)。
+export async function scheduleContent(contentId: EntityId, publishAt: number): Promise<{ ok: boolean; publishAt: number }> {
+  return adminClient<{ ok: boolean; publishAt: number }>(`/account/content/${contentId}/schedule`, {
+    method: 'POST',
+    data: { publishAt },
+  });
 }
 

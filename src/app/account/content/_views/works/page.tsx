@@ -141,10 +141,8 @@ export default function WorksPage() {
     });
     const records = res.list || [];
     return {
-      data: {
-        records: toWorksTableRows(records, params.pageNumber),
-        totalRow: res.total ?? 0,
-      },
+      records: toWorksTableRows(records, params.pageNumber),
+      totalRow: res.total ?? 0,
     };
   };
 
