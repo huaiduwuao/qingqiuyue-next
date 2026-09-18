@@ -20,6 +20,9 @@ const result = spawnSync('pnpm', ['exec', 'next', 'build'], {
     ...process.env,
     NEXT_PUBLIC_API_BASE_URL: apiBase,
     NEXT_PUBLIC_WS_BASE: wsBase,
+    // 让 next.config.ts 打开 trailingSlash:客户端里的页面必须是 xxx/index.html,
+    // 否则 Tauri 找不到 key 会回退到根 index.html,硬加载任何二级路由都是白屏(详见 next.config.ts)
+    NEXT_CLIENT_BUILD: '1',
     NEXT_TELEMETRY_DISABLED: '1',
   },
 });

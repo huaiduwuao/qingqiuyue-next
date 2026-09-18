@@ -5,6 +5,8 @@ import type { NextConfig } from "next";
 // 这里只在 development 下加 rewrites，把 /api、/ws 代理到真后端(API_PROXY_TARGET),
 // 生产 output:'export' 时 rewrites 被忽略,仍由 nginx/APISIX 转发,互不影响。
 const isDev = process.env.NODE_ENV === "development";
+// 由 scripts/app-frontend-build.mjs(Tauri 的 beforeBuildCommand)置位,只影响客户端包
+const isClientBuild = process.env.NEXT_CLIENT_BUILD === "1";
 // ⚠️ 2026-09:统一走 APISIX(10005),不再直接暴露各服务端口
 const CONTENT_API_TARGET = process.env.CONTENT_API_TARGET ?? "http://10.9.1.2:10005";
 const API_PROXY_TARGET = process.env.API_PROXY_TARGET ?? "http://10.9.1.2:10005";
@@ -17,7 +19,15 @@ const nextConfig: NextConfig = {
   // 同一份代码要并排跑第二个 dev server 时(两个会话各自验证),给它单独的构建目录,
   // 否则两个进程抢同一个 .next 会互相写坏
   ...(isDev && process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
-  trailingSlash: false,
+  // 客户端包必须导出成目录形式(home/recommend/index.html),站点侧保持文件形式。
+  //
+  // output:'export' + trailingSlash:false 导出的是 home/recommend.html。网站能开,是因为
+  // nginx 有 `try_files $uri $uri.html …`;而 Tauri 的 asset 协议只按 key 精确查找,查不到
+  // 就回退到根 index.html(它自己的日志:``{}` not found; fallback to index.html`)。于是客户端里
+  // 硬加载 /home/recommend 拿到的是「/」的壳子、URL 却还停在 /home/recommend,Next 按错的路由
+  // 水合 → 整页空白。冷启动看不出来(从 / 软跳过去),但安卓进程被回收后恢复到这个地址就是白屏。
+  // 带斜杠的 /home/recommend/ 命中 Tauri 的「以 / 结尾就补 index.html」,所以只给客户端打开。
+  trailingSlash: isClientBuild,
   ...(isDev && {
     async rewrites() {
       return [

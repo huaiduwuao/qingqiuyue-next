@@ -388,7 +388,9 @@ function MobileBars(props: ReaderChromeProps & { paperBg: object }) {
 
   return (
     <>
-      <Box sx={{ ...bar, top: 0, transform: mobileChrome ? 'none' : 'translateY(-110%)', display: 'flex', alignItems: 'center', gap: 0.5, px: 0.5, height: 48, pt: 'env(safe-area-inset-top)' }}>
+      {/* height 与 pt 必须相加:box-sizing 是 border-box,只加 pt 会把 48px 的内容区挤扁。
+          读 --sat 而不是 env(),安卓客户端里状态栏高度只有 --sat 拿得到(见 globals.css) */}
+      <Box sx={{ ...bar, top: 0, transform: mobileChrome ? 'none' : 'translateY(-110%)', display: 'flex', alignItems: 'center', gap: 0.5, px: 0.5, height: 'calc(48px + var(--sat, 0px))', pt: 'var(--sat, 0px)' }}>
         <IconButton onClick={props.onBack} aria-label="返回" sx={{ color: theme.text }}>
           <ArrowBackIosNewIcon fontSize="small" />
         </IconButton>

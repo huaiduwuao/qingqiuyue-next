@@ -27,11 +27,13 @@ export default function DetailHeader({ title, rightActions }: Props) {
         backdropFilter: 'blur(8px)',
         borderBottom: '1px solid',
         borderColor: 'divider',
-        px: { xs: 'max(env(safe-area-inset-left, 12px), 12px)', md: 1.5 },
-        pr: { xs: 'max(env(safe-area-inset-right, 12px), 12px)', md: 1.5 },
+        px: { xs: 'max(var(--sal, 0px), 12px)', md: 1.5 },
+        pr: { xs: 'max(var(--sar, 0px), 12px)', md: 1.5 },
         py: 1,
-        // Safe Area 顶部适配
-        paddingTop: 'max(env(safe-area-inset-top, 8px), 8px)',
+        // Safe Area 顶部适配:必须是「自身间距 + 安全区」相加。
+        // 原来写的是 max(env(...t, 8px), 8px) —— env() 一旦被支持但算出 0(安卓无刘海机型),
+        // 括号里的 8px 兜底值根本不会生效,结果恒等于 8px,等于没适配。
+        paddingTop: 'calc(8px + var(--sat, 0px))',
       }}
     >
       <IconButton

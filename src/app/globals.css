@@ -18,10 +18,13 @@
   --text-muted: rgba(0, 0, 0, 0.45);
   --text-disabled: rgba(0, 0, 0, 0.3);
 
-  /* Safe Area 变量 - iOS/Android 全面屏适配 */
-  --sat: env(safe-area-inset-top, 0px);
+  /* Safe Area 变量 - iOS/Android 全面屏适配。
+     安卓 WebView 的 env(safe-area-inset-*) 只含刘海/挖孔,不含状态栏和手势条,没刘海的机器上
+     恒为 0;所以客户端里由 MainActivity.kt 把系统栏真实高度写进 --sat-native/--sab-native,
+     这里优先取它,网页端没有这个变量、自然还是走 env()。 */
+  --sat: var(--sat-native, env(safe-area-inset-top, 0px));
   --sar: env(safe-area-inset-right, 0px);
-  --sab: env(safe-area-inset-bottom, 0px);
+  --sab: var(--sab-native, env(safe-area-inset-bottom, 0px));
   --sal: env(safe-area-inset-left, 0px);
   --bottom-nav-height: calc(56px + var(--sab));
   /* 底部导航占位:MobileBottomNav 挂载时写成实际高度,卸载后归零。

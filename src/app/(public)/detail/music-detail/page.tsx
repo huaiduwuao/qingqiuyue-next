@@ -195,8 +195,18 @@ function MusicDetailContent() {
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
-      {/* 顶部条 */}
-      <Box sx={{ display: 'flex', alignItems: 'center', p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+      {/* 顶部条:客户端里窗口是 edge-to-edge 的,这条就是页面第一个元素,
+          不加安全区就直接压在状态栏底下(--sat 见 globals.css) */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          p: 1.5,
+          pt: 'calc(12px + var(--sat, 0px))',
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+        }}
+      >
         <IconButton onClick={() => router.back()} sx={{ color: 'text.tertiary' }}>
           <ArrowBackIcon />
         </IconButton>

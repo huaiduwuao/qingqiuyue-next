@@ -80,7 +80,8 @@ function Hero({ topic, followers, onBack, onFollowChange }: { topic: CommunityTo
   const bg = topic.cover ? `linear-gradient(180deg, rgba(0,0,0,0.25), rgba(0,0,0,0.75)), center/cover url(${topic.cover})` : topicGradient(topic.title);
   return (
     <Box sx={{ background: bg, color: '#fff' }}>
-      <Container maxWidth="md" sx={{ pt: 2, pb: 3 }}>
+      {/* 这块彩色头图是页面第一个元素,客户端里会铺到状态栏下面,所以顶部要加安全区 */}
+      <Container maxWidth="md" sx={{ pt: 'calc(16px + var(--sat, 0px))', pb: 3 }}>
         <Button startIcon={<ArrowBackRoundedIcon />} onClick={onBack} sx={{ color: 'rgba(255,255,255,0.85)', textTransform: 'none', mb: 2, ml: -1 }}>返回</Button>
         <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 2, flexWrap: 'wrap' }}>
           <Box sx={{ flex: 1, minWidth: 220 }}>
