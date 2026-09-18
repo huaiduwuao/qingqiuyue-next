@@ -73,7 +73,7 @@ export default function WxConfigPage() {
     queryKey: LIST_KEY,
     queryFn: () => wxClient<{ data?: { list?: WxConfig[]; total?: number } }>('/wxConfig/list', {
       params: { page: 1, pageSize: 50 },
-    }).then((r) => r?.data?.data?.list || []),
+    }).then((r) => r?.data?.list || []),
   });
   const [selected, setSelectedState] = useState<WxConfig | null>(null);
   const [nameFilter, setNameFilter] = useState('');
