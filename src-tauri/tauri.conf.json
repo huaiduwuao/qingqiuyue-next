@@ -24,6 +24,13 @@
       }
     ]
   },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["qingqiuyue"]
+      }
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",

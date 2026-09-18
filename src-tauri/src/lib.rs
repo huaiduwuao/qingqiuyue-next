@@ -86,12 +86,15 @@ fn set_api_base(url: String) -> Result<(), String> {
     write_config(&config)
 }
 
+// 用 shell 插件而不是 open crate:open 只认桌面,安卓上打不开系统浏览器,
+// 而微信授权恰恰必须走系统浏览器。
 #[tauri::command]
-fn open_external(url: String) -> Result<(), String> {
+fn open_external(app: tauri::AppHandle, url: String) -> Result<(), String> {
     if url.is_empty() {
         return Ok(());
     }
-    open::that(&url).map_err(|e| e.to_string())
+    use tauri_plugin_shell::ShellExt;
+    app.shell().open(url, None).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -117,6 +120,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_deep_link::init())
         .invoke_handler(tauri::generate_handler![
             get_system_info,
             get_api_base,
@@ -125,8 +129,31 @@ pub fn run() {
             get_version,
             is_dev,
         ])
-        .setup(|_app| {
+        .setup(|app| {
             log::info!("[qingqiuyue-desktop] setup complete");
+
+            // qingqiuyue://social-login?... —— 系统浏览器里授权完成后,微信回调把人送回这里。
+            // Windows/Linux 上开发运行时协议没写进注册表,register_all 补一下;打包安装的版本由安装器注册。
+            #[cfg(any(windows, target_os = "linux"))]
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                if let Err(e) = app.deep_link().register_all() {
+                    log::warn!("[deep-link] register_all failed: {e}");
+                }
+            }
+            {
+                use tauri::Emitter;
+                use tauri_plugin_deep_link::DeepLinkExt;
+                let handle = app.handle().clone();
+                app.deep_link().on_open_url(move |event| {
+                    let urls: Vec<String> = event.urls().iter().map(|u| u.to_string()).collect();
+                    log::info!("[deep-link] opened: {urls:?}");
+                    // 前端用 window.__TAURI__.event.listen('deep-link://open') 收
+                    if let Err(e) = handle.emit("deep-link://open", urls) {
+                        log::warn!("[deep-link] emit failed: {e}");
+                    }
+                });
+            }
 
             // 获取可执行文件所在目录
             let exe_path = std::env::current_exe()

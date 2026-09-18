@@ -24,6 +24,14 @@
                 <!-- AndroidTV support -->
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
+            <!-- 微信授权在系统浏览器里完成,回调 302 到 qingqiuyue://social-login?...,
+                 靠这条把人送回 App(launchMode 已是 singleTask,不会再开一个实例)。 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="qingqiuyue" />
+            </intent-filter>
         </activity>
 
         <provider

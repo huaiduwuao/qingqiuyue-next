@@ -8,6 +8,7 @@ import { AuthContextProvider } from '@/contexts/AuthContext';
 import EmotionProvider from '@/lib/emotion-provider';
 import PageViewTracker from '@/components/PageViewTracker';
 import ViewportFix from '@/components/layout/ViewportFix';
+import DeepLinkBridge from '@/components/client/DeepLinkBridge';
 import ClickSpark from '@/components/reactbits/ClickSpark';
 import GlobalPlayers from '@/components/player/GlobalPlayers';
 import { useAIPrefs } from '@/lib/aiPrefs';
@@ -110,6 +111,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
               <RealtimeProvider />
               {/* 老 WebView 的 100dvh 兜底 + 全站点击火花(React Bits ClickSpark) */}
               <ViewportFix />
+              {/* 客户端:接住系统浏览器授权完成后的 qingqiuyue:// 回跳(网页里是空组件) */}
+              <DeepLinkBridge />
               <ClickSpark sparkColor="var(--brand-color, #FE2C55)">
                 {children}
               </ClickSpark>

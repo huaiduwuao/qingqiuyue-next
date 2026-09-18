@@ -15,12 +15,15 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-shell = "2"
+# 微信授权只能在系统浏览器里完成(客户端自带的 WebView 过不了微信登录),
+# 授权完得靠 qingqiuyue:// 这个自定义协议把人送回 App。
+tauri-plugin-deep-link = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 log = "0.4"
 env_logger = "0.11"
 dirs = "6"
-open = "5"
+# open crate 已不再使用,open_external 改走 shell 插件(安卓也能开系统浏览器)
 
 [profile.release]
 panic = "abort"

@@ -17,6 +17,7 @@ import FadeContent from '@/components/reactbits/FadeContent';
 import { getAuthOptions, type AuthOptions } from '@/apis/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { consumeRedirect, rememberRedirect, safeRedirectPath, DEFAULT_AFTER_LOGIN } from '@/lib/auth/redirect';
+import { startWechatLoginInBrowser, wechatLoginUrl } from '@/lib/clientAuth';
 import { PasswordLoginForm } from './_components/PasswordLoginForm';
 import { SmsLoginForm } from './_components/SmsLoginForm';
 import { RegisterForm } from './_components/RegisterForm';
@@ -55,11 +56,14 @@ export default function LoginPage() {
 
   const onSession = useCallback((sessionId: string) => login(sessionId), [login]);
 
-  const loginWithWechat = () => {
+  const loginWithWechat = async () => {
     // 微信回调会带 from 回到前端;这里给它登录后真正要去的页面,而不是登录页自己。
     const target = safeRedirectPath(new URLSearchParams(window.location.search).get('redirect')) ?? DEFAULT_AFTER_LOGIN;
     rememberRedirect(target);
-    window.location.href = `/api/core/oauth/login/wechat?from=${encodeURIComponent(target)}`;
+    // 客户端里必须把授权丢给系统浏览器:微信不认应用内 WebView,而且相对地址
+    // 在 tauri.localhost 下根本到不了网关。走完之后 qingqiuyue:// 回跳,见 DeepLinkBridge。
+    if (await startWechatLoginInBrowser(target)) return;
+    window.location.href = wechatLoginUrl(target);
   };
 
   const tabs: { value: Mode; label: string }[] = [
