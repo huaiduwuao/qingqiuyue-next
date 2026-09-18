@@ -7,16 +7,14 @@ export interface DemandInfo extends DemandItem {
   id: number;
   title: string;
   description?: string;
-  projectId?: number;
-  groupId?: number;
 }
 
 // 需求查询参数（扩展统一分页类型）
 export interface DemandQuery extends PageParams {
   title?: string;
   status?: string;
-  groupId?: number;
-  projectId?: number;
+  /** 只看这个意境里的需求(公开视角:所有人发布、进行中的) */
+  topicId?: number;
   keyword?: string;
   /** market = 赏金广场,列出所有人进行中的需求;不传只列当前用户发布的需求 */
   scope?: 'market';

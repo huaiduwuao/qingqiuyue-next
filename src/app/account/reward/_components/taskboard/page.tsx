@@ -38,8 +38,7 @@ import { TaskDetailDialog } from './TaskDetailDialog';
 import { TaskEditDialog } from './TaskEditDialog';
 import { normalizeRewardTaskStatus, mapRewardTaskListFromBackend, mapRewardTaskFromBackend } from './status';
 import { listTasks, claimTask, submitTask, reviewTask, getTask } from '@/apis/reward-task';
-import { listProjects } from '@/apis/reward-project';
-import { listGroups } from '@/apis/reward-group';
+import { myTeams } from '@/apis/team';
 import { myPage as listDemands } from '@/apis/reward-demand';
 import { useApp } from '@/contexts/AppContext';
 import type { RewardTask, RewardTaskStatus, TaskPriority, DemandItem } from '@/beans/reward';
@@ -48,34 +47,30 @@ const STATUSES: RewardTaskStatus[] = ['OPEN', 'CLAIMED', 'SUBMITTED', 'APPROVED'
 
 const PRIORITY_LABEL: Record<TaskPriority, string> = { P0: 'P0 紧急', P1: 'P1 普通', P2: 'P2 宽松' };
 
-type ViewMode = 'mine' | 'all' | 'team' | 'project';
+// 看板的三个视角:我认领的、我发布的、我所在团队认领的。
+// 以前还有「按项目」「全部」—— 项目表从来没有数据,「全部」压根没有对应的查询,两个都是点了没反应的按钮。
+type ViewMode = 'mine' | 'published' | 'team';
 
 const VIEW_META: Record<ViewMode, { label: string; icon: React.ReactNode; desc: string }> = {
-  mine: { label: '我的任务', icon: <AssignmentIndIcon sx={{ fontSize: 14 }} />, desc: '我负责的跨团队任务' },
-  all: { label: '全部', icon: <DashboardIcon sx={{ fontSize: 14 }} />, desc: '所有项目任务一览' },
-  team: { label: '按团队', icon: <GroupsIcon sx={{ fontSize: 14 }} />, desc: '按团队维度筛选' },
-  project: { label: '按项目', icon: <FolderIcon sx={{ fontSize: 14 }} />, desc: '按项目维度筛选' },
+  mine: { label: '我认领的', icon: <AssignmentIndIcon sx={{ fontSize: 14 }} />, desc: '我个人认领的任务' },
+  published: { label: '我发布的', icon: <DashboardIcon sx={{ fontSize: 14 }} />, desc: '我发布的需求下的任务,等我验收' },
+  team: { label: '团队任务', icon: <GroupsIcon sx={{ fontSize: 14 }} />, desc: '以团队名义认领的任务,任何成员都可以提交交付' },
 };
 
 interface Props {
-  initialProjectId?: number | null;
-  initialGroupId?: number | null;
+  initialTeamId?: number | null;
   initialViewMode?: ViewMode | null;
   initialDemandId?: number | null;
   onOpenDemandDetail?: (demandId: number) => void;
 }
 
-export default function TaskboardPage({ initialProjectId, initialGroupId, initialViewMode, initialDemandId, onOpenDemandDetail }: Props) {
+export default function TaskboardPage({ initialTeamId, initialViewMode, initialDemandId, onOpenDemandDetail }: Props) {
   const { currentUser } = useApp();
   const currentUserId = currentUser?.id ?? 0;
 
   // 视图模式 — 初始化逻辑:外部传 initialViewMode 优先,否则按 initial props 推断
-  const [viewMode, setViewMode] = useState<ViewMode>(
-    initialViewMode || (initialGroupId ? 'team' : initialProjectId ? 'project' : 'project')
-  );
-
-  const [projectId, setProjectId] = useState<number | null>(initialProjectId ?? null);
-  const [groupId, setGroupId] = useState<number | null>(initialGroupId ?? null);
+  const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode || (initialTeamId ? 'team' : 'mine'));
+  const [teamId, setTeamId] = useState<number | null>(initialTeamId ?? null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
   const [detailTask, setDetailTask] = useState<RewardTask | null>(null);
   const [editOpen, setEditOpen] = useState(false);
@@ -107,21 +102,14 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 项目列表
-  const projectsQuery = useQuery({
-    queryKey: ['taskboard', 'projects'],
-    queryFn: () => listProjects({ pageSize: 50 }).then((r: any) => r.data?.records || r.data?.list || []),
+  // 我所在的团队
+  const teamsQuery = useQuery({
+    queryKey: ['team', 'mine', 'active'],
+    queryFn: () => myTeams().then((r) => (r.list || []).filter((t) => t.myStatus === 'active')),
+    enabled: !!currentUserId,
     placeholderData: [],
   });
-  const projects: any[] = projectsQuery.data || [];
-
-  // 团队列表
-  const groupsQuery = useQuery({
-    queryKey: ['taskboard', 'groups'],
-    queryFn: () => listGroups({ pageSize: 50 }).then((r: any) => r.data?.records || r.data?.list || []),
-    placeholderData: [],
-  });
-  const groups: any[] = groupsQuery.data || [];
+  const teams = teamsQuery.data || [];
 
   // 需求列表
   const demandsQuery = useQuery({
@@ -133,7 +121,7 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
 
   // 任务列表 — 根据 viewMode 决定过滤维度
   const tasksQuery = useQuery({
-    queryKey: ['taskboard', 'tasks', viewMode, projectId, groupId, currentUserId, initialDemandId],
+    queryKey: ['taskboard', 'tasks', viewMode, teamId, currentUserId, initialDemandId],
     queryFn: async () => {
       const params: any = { pageSize: 100 };
       if (viewMode === 'mine') {
@@ -141,10 +129,10 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
         params.assigneeId = currentUserId;
         params.claimerId = currentUserId;
       } else if (viewMode === 'team') {
-        params.groupId = groupId;
-      } else if (viewMode === 'project' && !initialDemandId) {
-        // 从需求进入时只按需求过滤,不再叠加项目条件
-        params.projectId = projectId;
+        params.teamId = teamId;
+      } else if (viewMode === 'published' && !initialDemandId) {
+        // 从需求进入时只按需求过滤,不再叠加发布者条件
+        params.ownerId = currentUserId;
       }
       if (initialDemandId) params.demandId = initialDemandId;
       const res: any = await listTasks(params);
@@ -154,26 +142,18 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
     enabled:
       !!initialDemandId ||
       (viewMode === 'mine' && !!currentUserId) ||
-      (viewMode === 'project' && !!projectId) ||
-      (viewMode === 'team' && !!groupId),
+      (viewMode === 'published' && !!currentUserId) ||
+      (viewMode === 'team' && !!teamId),
     placeholderData: [],
   });
   const tasks: RewardTask[] = tasksQuery.data || [];
   const loading = tasksQuery.isLoading;
 
-  // 数据加载完后,设置默认 projectId / groupId(原 useEffect 内的副作用)
+  // 团队列表到了之后默认选第一支
   useEffect(() => {
-    if (!projectId && projects.length > 0) setProjectId(projects[0].id);
-    if (!groupId && groups.length > 0 && !initialGroupId) setGroupId(groups[0].id);
-    if (initialDemandId) {
-      const d = demands.find((x) => x.id === initialDemandId);
-      if (d && d.taskIds && d.taskIds.length > 0) {
-        const firstTask = (d as any).__firstTaskProjectId;
-        if (firstTask) setProjectId(firstTask);
-      }
-    }
+    if (!teamId && teams.length > 0) setTeamId(teams[0].id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projects, groups, demands]);
+  }, [teams]);
 
   // 拖拽状态变更 — claim / submit / review
   const updateTaskMutation = useMutation({
@@ -192,7 +172,7 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
     },
     onSuccess: () => {
       showMessage('状态已更新', 'success');
-      qc.invalidateQueries({ queryKey: ['taskboard', 'tasks', viewMode, projectId, groupId, currentUserId, initialDemandId] });
+      qc.invalidateQueries({ queryKey: ['taskboard', 'tasks', viewMode, teamId, currentUserId, initialDemandId] });
     },
     onError: (err: any) => {
       showMessage(err?.message || '操作失败', 'error');
@@ -208,12 +188,12 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
     return m;
   }, [demands]);
 
-  // groupId → name 映射(TaskCard 显示多团队 chip)
-  const groupNameMap = useMemo(() => {
+  // teamId → 团队名(TaskCard 上的团队 chip)
+  const teamNameMap = useMemo(() => {
     const m = new Map<number, string>();
-    groups.forEach((g) => m.set(g.id, g.name || `团队 ${g.id}`));
+    teams.forEach((t) => m.set(t.id, t.name));
     return m;
-  }, [groups]);
+  }, [teams]);
 
   // 客户端二次筛选
   const filtered = useMemo(() => {
@@ -319,20 +299,20 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
   const handleTaskChanged = (updated: RewardTask) => {
     setDetailTask(mapRewardTaskFromBackend(updated) as RewardTask);
     showMessage('操作成功');
-    qc.invalidateQueries({ queryKey: ['taskboard', 'tasks', viewMode, projectId, groupId, currentUserId, initialDemandId] });
+    qc.invalidateQueries({ queryKey: ['taskboard', 'tasks', viewMode, teamId, currentUserId, initialDemandId] });
   };
 
   const handleTaskDeleted = (id: number) => {
     setDetailTask(null);
     showMessage('已删除');
-    qc.invalidateQueries({ queryKey: ['taskboard', 'tasks', viewMode, projectId, groupId, currentUserId, initialDemandId] });
+    qc.invalidateQueries({ queryKey: ['taskboard', 'tasks', viewMode, teamId, currentUserId, initialDemandId] });
   };
 
   const handleSaved = (t: RewardTask) => {
     setEditOpen(false);
     setEditRecord(null);
     showMessage('保存成功');
-    qc.invalidateQueries({ queryKey: ['taskboard', 'tasks', viewMode, projectId, groupId, currentUserId, initialDemandId] });
+    qc.invalidateQueries({ queryKey: ['taskboard', 'tasks', viewMode, teamId, currentUserId, initialDemandId] });
   };
 
   const allAssignees = useMemo(() => {
@@ -343,22 +323,6 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
     return Array.from(m.values());
   }, [tasks]);
 
-  // 当前生效的 groupId / projectId(用于决定 owner 权限,新建任务时塞进 projectId)
-  const activeProjectIdForCreate = useMemo(() => {
-    if (viewMode === 'project') return projectId || 0;
-    if (viewMode === 'team' && groupId) {
-      // 跨团队任务(groupIds 含本组)也参与
-      const sample = tasks.find((t) =>
-        (Array.isArray(t.groupIds) && t.groupIds.includes(groupId)) || t.groupId === groupId
-      );
-      return sample?.projectId || 0;
-    }
-    if (viewMode === 'mine') {
-      const sample = tasks.find((t) => t.assigneeId === currentUserId);
-      return sample?.projectId || 0;
-    }
-    return projectId || 0;
-  }, [viewMode, projectId, groupId, tasks, currentUserId]);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, height: '100%' }}>
@@ -401,35 +365,21 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
 
       {/* 筛选行 */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-        {viewMode === 'project' && (
-          <FormControl size="small" sx={{ minWidth: 200 }}>
-            <InputLabel>选择项目</InputLabel>
-            <Select
-              value={projectId ?? ''}
-              label="选择项目"
-              onChange={(e) => setProjectId(Number(e.target.value) || null)}
-            >
-              {projects.map((p) => (
-                <MenuItem key={p.id} value={p.id}>{p.name || `项目 ${p.id}`}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        )}
-
-        {viewMode === 'team' && (
-          <FormControl size="small" sx={{ minWidth: 200 }}>
-            <InputLabel>选择团队</InputLabel>
-            <Select
-              value={groupId ?? ''}
-              label="选择团队"
-              onChange={(e) => setGroupId(Number(e.target.value) || null)}
-            >
-              {groups.map((g) => (
-                <MenuItem key={g.id} value={g.id}>{g.name || `团队 ${g.id}`}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        )}
+        {viewMode === 'team' &&
+          (teams.length > 0 ? (
+            <FormControl size="small" sx={{ minWidth: 200 }}>
+              <InputLabel>选择团队</InputLabel>
+              <Select value={teamId ?? ''} label="选择团队" onChange={(e) => setTeamId(Number(e.target.value) || null)}>
+                {teams.map((t) => (
+                  <MenuItem key={t.id} value={t.id}>
+                    {t.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          ) : (
+            <Typography sx={{ fontSize: 12.5, color: 'text.secondary' }}>你还没有加入团队,先到「团队」页创建或加入一支。</Typography>
+          ))}
 
         <FormControl size="small" sx={{ minWidth: 120 }}>
           <InputLabel>优先级</InputLabel>
@@ -472,7 +422,7 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
           size="small"
           variant="outlined"
           startIcon={<RefreshIcon sx={{ fontSize: 14 }} />}
-          onClick={() => qc.invalidateQueries({ queryKey: ['taskboard', 'tasks', viewMode, projectId, groupId, currentUserId, initialDemandId] })}
+          onClick={() => qc.invalidateQueries({ queryKey: ['taskboard', 'tasks', viewMode, teamId, currentUserId, initialDemandId] })}
           sx={{ borderColor: 'divider', color: 'text.secondary' }}
         >
           刷新
@@ -542,7 +492,7 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
               onTaskClick={setDetailTask}
               onOpenDemand={onOpenDemandDetail}
               demandTitleMap={demandTitleMap}
-              groupNameMap={groupNameMap}
+              teamNameMap={teamNameMap}
             />
           ))}
         </Box>
@@ -565,7 +515,6 @@ export default function TaskboardPage({ initialProjectId, initialGroupId, initia
       <TaskEditDialog
         open={editOpen}
         record={editRecord}
-        projectId={activeProjectIdForCreate}
         defaultDemandId={initialDemandId}
         onClose={() => {
           setEditOpen(false);

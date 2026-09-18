@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -34,6 +34,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import { myPage, process, remove, save, update, settleDemand } from '@/apis/reward-demand';
+import RealmSelect from '@/components/reward/RealmSelect';
 import { listTasks } from '@/apis/reward-task';
 import { mapRewardTaskListFromBackend, normalizeRewardTaskStatus, REWARD_TASK_STATUS_LABEL } from '../taskboard/status';
 import { SettlementDialog } from './SettlementDialog';
@@ -66,14 +67,12 @@ const TASK_STATUS_COLOR: Record<RewardTaskStatus, string> = {
 };
 
 interface Props {
-  groupId: any;
-  groupData: any;
   onOpenTaskboard?: (demandId: number) => void;
-  onOpenConceptionForDemand?: (demandId: number) => void;
-  initialConceptionDemandId?: number | null;
 }
 
-export default function DemandPage({ groupId, onOpenTaskboard }: Props) {
+// 我发布的需求。以前这一页要求先选一个「团队」才肯查询(enabled: !!groupId)——
+// 没建过团队的人,自己发的需求一条也看不到。需求属于发布它的人,发在哪个意境里是它的一个属性。
+export default function DemandPage({ onOpenTaskboard }: Props) {
   const [tab, setTab] = useState<DemandStatus | ''>('');
   const [writeVisible, setWriteVisible] = useState(false);
   const [detailVisible, setDetailVisible] = useState(false);
@@ -93,17 +92,28 @@ export default function DemandPage({ groupId, onOpenTaskboard }: Props) {
     severity: 'success',
   });
 
+  // 从意境页点"提一个需求"过来:?realm=<意境 id>,直接打开新建表单并预选这个意境
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const realm = Number(url.searchParams.get('realm'));
+    if (!realm) return;
+    url.searchParams.delete('realm');
+    window.history.replaceState(window.history.state, '', url.toString());
+    setSelectedRecord(null);
+    setFormValues({ topicId: realm, pay: 0 });
+    setWriteVisible(true);
+  }, []);
+
   const showMessage = (message: string, severity: 'success' | 'error' = 'success') => {
     setSnackbar({ open: true, message, severity });
   };
 
   const query = useQuery({
-    queryKey: ['reward-demand', tab, page, groupId, keyword],
-    queryFn: () => myPage({ page, pageSize, groupId, status: tab || undefined, keyword }).then((r) => ({
+    queryKey: ['reward-demand', tab, page, keyword],
+    queryFn: () => myPage({ page, pageSize, status: tab || undefined, keyword }).then((r) => ({
       records: r.data?.records || [],
       totalRow: r.data?.totalRow || 0,
     })),
-    enabled: !!groupId,
     placeholderData: { records: [], totalRow: 0 },
   });
 
@@ -131,6 +141,7 @@ export default function DemandPage({ groupId, onOpenTaskboard }: Props) {
       cover: record?.cover || '',
       tags: record?.tags || '',
       endTime: record?.endTime ? String(record.endTime).slice(0, 10) : '',
+      topicId: Number(record?.topicId) || 0,
     });
     setWriteVisible(true);
   };
@@ -187,7 +198,7 @@ export default function DemandPage({ groupId, onOpenTaskboard }: Props) {
         await update({ ...selectedRecord, ...payload });
         showMessage('更新成功');
       } else {
-        await save({ ...payload, groupId });
+        await save(payload);
         showMessage('已创建为待发布,发布时赏金将从钱包托管');
       }
       setWriteVisible(false);
@@ -394,6 +405,13 @@ export default function DemandPage({ groupId, onOpenTaskboard }: Props) {
               onChange={(e) => handleFormChange('title', e.target.value)}
               fullWidth
               required
+            />
+            <RealmSelect
+              size="medium"
+              value={Number(formValues.topicId) || 0}
+              onChange={(id) => handleFormChange('topicId', id)}
+              label="发布在哪个意境(可选)"
+              helperText="需求会出现在这个意境的「需求」页;验收通过的作品交付会成为这个意境的内容"
             />
             <TextField
               label="副标题"

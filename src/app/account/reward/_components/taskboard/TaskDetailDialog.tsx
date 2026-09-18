@@ -17,7 +17,10 @@ import CloseIcon from '@mui/icons-material/Close';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutlineOutlined';
 import CollectionsOutlinedIcon from '@mui/icons-material/CollectionsOutlined';
 import { alpha } from '@mui/material/styles';
+import MenuItem from '@mui/material/MenuItem';
+import { useQuery } from '@tanstack/react-query';
 import { claimTask, submitTask, reviewTask, disputeTask } from '@/apis/reward-task';
+import { myTeams } from '@/apis/team';
 import type { RewardTask, RewardTaskStatus } from '@/beans/reward';
 import { BotBadge } from '@/components/community/UserLine';
 import { normalizeRewardTaskStatus, REWARD_TASK_STATUS_LABEL, REWARD_TASK_STATUS_COLOR } from './status';
@@ -48,6 +51,16 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
   const [submitting, setSubmitting] = useState(false);
   const [pickedWork, setPickedWork] = useState<TaskWorkRef | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // 我所在的团队;当队长或管理员的那些可以用来"以团队名义认领"
+  const [claimAs, setClaimAs] = useState(0);
+  const teamsQuery = useQuery({
+    queryKey: ['team', 'mine', 'active'],
+    queryFn: () => myTeams().then((r) => (r.list || []).filter((t) => t.myStatus === 'active')),
+    enabled: open && !!currentUserId,
+    staleTime: 60_000,
+  });
+  const myTeamList = teamsQuery.data || [];
+  const leadTeams = myTeamList.filter((t) => t.myRole === 'owner' || t.myRole === 'admin');
   const dm = useOpenDm(onError);
 
   useEffect(() => {
@@ -65,7 +78,9 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
 
   // 后端原样存小写 pending/claimed/submitted/approved/rejected；前端用 OPEN/CLAIMED/... → 归一化
   const status = normalizeRewardTaskStatus(task.status);
-  const isAssignee = task.assigneeId === currentUserId;
+  // 团队任务:认领人是代表团队出面的队长/管理员,但任何在队成员都可以提交交付
+  const onMyTeam = !!task.teamId && myTeamList.some((t) => t.id === task.teamId);
+  const isAssignee = task.assigneeId === currentUserId || onMyTeam;
   // isOwner = 当前用户是任务管理者(task.managerId):需求发布者或独立任务的负责人
   const canClaim = status === 'OPEN' && !task.assigneeId && !isOwner;
   const canSubmit = (status === 'CLAIMED' || status === 'REJECTED') && isAssignee;
@@ -96,7 +111,7 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
   const handleClaim = async () => {
     setSubmitting(true);
     try {
-      const res: any = await claimTask(task.id!);
+      const res: any = await claimTask(task.id!, claimAs || undefined);
       if (isOk(res)) onChanged(res.data);
       else onError(res?.msg || '领取失败');
     } catch (e: any) {
@@ -255,6 +270,24 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
         {canClaim && (
           <Box sx={{ p: 1.5, bgcolor: 'rgba(93,219,150,0.08)', border: '1px solid rgba(93,219,150,0.3)', borderRadius: 1, mb: 2 }}>
             <Typography sx={{ fontSize: 12, color: 'success.main', mb: 1 }}>此任务尚未认领</Typography>
+            {leadTeams.length > 0 && (
+              <TextField
+                select
+                size="small"
+                label="认领身份"
+                value={claimAs}
+                onChange={(e) => setClaimAs(Number(e.target.value))}
+                helperText={claimAs ? '赏金结账时按此刻的成员份额分给全队;之后调整份额不影响这一单' : undefined}
+                sx={{ minWidth: 220, mb: 1, display: 'flex' }}
+              >
+                <MenuItem value={0}>我个人</MenuItem>
+                {leadTeams.map((t) => (
+                  <MenuItem key={t.id} value={t.id}>
+                    团队 · {t.name}
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
             <Button
               variant="contained"
               size="small"

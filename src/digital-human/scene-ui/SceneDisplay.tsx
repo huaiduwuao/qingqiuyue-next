@@ -42,7 +42,7 @@ const SHORTCUTS: Record<DisplaySlot, { label: string; url: string }[]> = {
   desk: [
     { label: '精选', url: '/home/recommend?tab=home' },
     { label: '搜索', url: '/search' },
-    { label: '专题', url: '/home/recommend?tab=topic' },
+    { label: '意境', url: '/home/recommend?tab=topic' },
     { label: '壁纸', url: '/wallpaper' },
   ],
   kiosk: [

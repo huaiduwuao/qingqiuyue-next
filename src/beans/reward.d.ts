@@ -23,6 +23,8 @@ export interface DemandSettlement {
 }
 
 export interface DemandItem extends TableListItem {
+  /** 发布在哪个意境(topic)里,0 = 不属于任何意境 */
+  topicId?: number;
   title?: string;
   tags?: any;
   subtitle?: string;
@@ -115,9 +117,10 @@ export type RewardTaskStatus = 'OPEN' | 'CLAIMED' | 'SUBMITTED' | 'APPROVED' | '
 export type TaskPriority = 'P0' | 'P1' | 'P2';
 
 export interface RewardTask extends TableListItem {
-  projectId?: number;
-  groupId?: number;
-  groupIds?: number[];
+  /** 认领它的团队,0 / 空 = 个人认领 */
+  teamId?: number;
+  /** 团队任务里实际提交交付的那位成员 */
+  submitterId?: number;
   demandId?: number | null;
   title?: string;
   description?: string;

@@ -684,7 +684,7 @@ function HotTopicsSection() {
       >
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 1.5 }}>
           <CollectionsIcon sx={{ fontSize: 16, color: 'primary.main', mr: 0.75 }} />
-          <Typography sx={{ fontSize: 13, fontWeight: 600 }}>热门专题</Typography>
+          <Typography sx={{ fontSize: 13, fontWeight: 600 }}>热门意境</Typography>
         </Box>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
           {[0, 1, 2, 3].map((i) => (
@@ -711,7 +711,7 @@ function HotTopicsSection() {
       <Box sx={{ display: 'flex', alignItems: 'center', px: 2, pt: 1.5, pb: 1 }}>
         <CollectionsIcon sx={{ fontSize: 16, color: 'primary.main', mr: 0.75 }} />
         <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary, currentColor)', flex: 1 }}>
-          热门专题
+          热门意境
         </Typography>
         <Typography
           sx={{ fontSize: 10, color: 'var(--text-muted, currentColor)', cursor: 'pointer' }}

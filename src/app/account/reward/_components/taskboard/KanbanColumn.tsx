@@ -25,10 +25,10 @@ interface Props {
   onTaskClick: (task: RewardTask) => void;
   onOpenDemand?: (demandId: number) => void;
   demandTitleMap?: Map<number, string>;
-  groupNameMap?: Map<number, string>;
+  teamNameMap?: Map<number, string>;
 }
 
-export function KanbanColumn({ status, tasks, onTaskClick, onOpenDemand, demandTitleMap, groupNameMap }: Props) {
+export function KanbanColumn({ status, tasks, onTaskClick, onOpenDemand, demandTitleMap, teamNameMap }: Props) {
   const meta = STATUS_META[status];
   const { setNodeRef, isOver } = useDroppable({ id: `col-${status}` });
 
@@ -111,7 +111,7 @@ export function KanbanColumn({ status, tasks, onTaskClick, onOpenDemand, demandT
               onClick={onTaskClick}
               demandTitle={t.demandId != null ? demandTitleMap?.get(t.demandId) : undefined}
               onOpenDemand={onOpenDemand}
-              groupNameMap={groupNameMap}
+              teamNameMap={teamNameMap}
             />
           ))}
         </SortableContext>

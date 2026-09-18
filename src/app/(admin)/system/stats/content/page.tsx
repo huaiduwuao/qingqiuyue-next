@@ -21,6 +21,7 @@ import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import { useQuery } from '@tanstack/react-query';
 import { adminClient } from '@/lib/api/client';
+import { SignalHealthCard } from '@/components/admin/SignalHealthCard';
 import { alpha } from '@mui/material/styles';
 
 interface ContentStats {
@@ -74,6 +75,8 @@ export default function ContentStatsPage() {
             各分类访问量 / 热门内容 / 访问时段分布
           </Typography>
         </Box>
+
+        <SignalHealthCard />
 
         <Grid container spacing={2}>
           {/* 分类热度柱状图 */}

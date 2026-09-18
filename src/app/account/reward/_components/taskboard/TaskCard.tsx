@@ -29,7 +29,7 @@ interface Props {
   isOverlay?: boolean;
   demandTitle?: string;
   onOpenDemand?: (demandId: number) => void;
-  groupNameMap?: Map<number, string>;
+  teamNameMap?: Map<number, string>;
 }
 
 function fmtDeadline(iso?: string | null) {
@@ -42,7 +42,7 @@ function fmtDeadline(iso?: string | null) {
   return { label: `${m}-${day}`, overdue };
 }
 
-export function TaskCard({ task, onClick, isOverlay, demandTitle, onOpenDemand, groupNameMap }: Props) {
+export function TaskCard({ task, onClick, isOverlay, demandTitle, onOpenDemand, teamNameMap }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id!,
   });
@@ -141,14 +141,11 @@ export function TaskCard({ task, onClick, isOverlay, demandTitle, onOpenDemand, 
             }}
           />
         )}
-        {Array.isArray(task.groupIds) && task.groupIds.length > 1 && (
-          <Tooltip
-            title={task.groupIds.map((id) => groupNameMap?.get(id) || `团队 ${id}`).join(' / ')}
-            placement="top"
-          >
+        {!!task.teamId && (
+          <Tooltip title="以团队名义认领:赏金按认领时的成员份额分给全队" placement="top">
             <Chip
               icon={<GroupsIcon sx={{ fontSize: '11px !important' }} />}
-              label={`${groupNameMap?.get(task.groupIds[0]) || `团队 ${task.groupIds[0]}`} +${task.groupIds.length - 1}`}
+              label={teamNameMap?.get(task.teamId) || '团队'}
               size="small"
               sx={{
                 height: 18,
