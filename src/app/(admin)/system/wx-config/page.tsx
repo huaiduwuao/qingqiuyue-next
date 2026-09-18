@@ -1,13 +1,25 @@
 'use client';
 
+/**
+ * 微信应用配置(wx_config)。
+ *
+ * 这页原来是照「服务号」写的:列表里渲染 appName / fans / bindTime,状态按 'active' 字符串比,
+ * 还有个「重新授权」按钮打 /api/core/wxConfig/authorize —— 后端这三样东西一个都没有:
+ * 接口返回的是 appId / type / status(数字) / notifyUrl,那条 authorize 路由也不存在。
+ * 结果只要表里有一行,渲染 `c.fans.toLocaleString()` 就直接抛异常,整页打不开。
+ *
+ * 现在按后端真实字段来,并且能按平台建行:微信登录要按平台选应用(网站应用和移动应用的
+ * AppID 不通用),type 就是那个平台键 —— pc 是网页/兜底,windows/macos/android/ios 各自一行。
+ */
+
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
 import Button from '@mui/material/Button';
-import Divider from '@mui/material/Divider';
 import TextField from '@mui/material/TextField';
+import MenuItem from '@mui/material/MenuItem';
 import InputAdornment from '@mui/material/InputAdornment';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
@@ -19,33 +31,55 @@ import ChatIcon from '@mui/icons-material/Chat';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { wxClient } from '@/lib/api/client';
 
 interface WxConfig {
   id: number;
   appId: string;
-  appName: string;
   appSecret: string;
+  type: string;
   token: string;
-  status: 'active' | 'inactive';
-  bindTime: string;
-  fans: number;
+  aesKey: string;
+  notifyUrl: string;
+  /** 1 = 启用,其余为停用。查配置那条路是 WHERE type = ? AND status = 1 */
+  status: number;
 }
 
+/** type 就是 OauthPlatforms 里的平台键,'pc' 是网页/找不到平台行时的兜底。 */
+const PLATFORMS: { value: string; label: string; hint: string }[] = [
+  { value: 'pc', label: '网页 / 兜底', hint: '开放平台「网站应用」,扫码登录;没有配某个平台时也用它' },
+  { value: 'windows', label: 'Windows 客户端', hint: '不配就沿用「网页 / 兜底」那一行' },
+  { value: 'macos', label: 'macOS 客户端', hint: '不配就沿用「网页 / 兜底」那一行' },
+  { value: 'android', label: 'Android 客户端', hint: '开放平台「移动应用」;注意它只能走 App SDK,不能用于扫码' },
+  { value: 'ios', label: 'iOS 客户端', hint: '不配就沿用「网页 / 兜底」那一行' },
+  { value: 'mp', label: '公众号', hint: 'oauthType=wechat_mp 才会用到' },
+];
+
+const platformLabel = (type: string) => PLATFORMS.find((p) => p.value === type)?.label || type || '(未设置)';
+
 const LIST_KEY = ['wx-config', 'list'];
+
+const EDITABLE = [
+  { label: 'AppID', field: 'appId' as const, secret: false },
+  { label: 'AppSecret', field: 'appSecret' as const, secret: true },
+  { label: 'Token', field: 'token' as const, secret: true },
+  { label: '回调地址(notifyUrl)', field: 'notifyUrl' as const, secret: false },
+];
 
 export default function WxConfigPage() {
   const qc = useQueryClient();
   const { data: configs = [] } = useQuery({
     queryKey: LIST_KEY,
     queryFn: () => wxClient<{ data?: { list?: WxConfig[]; total?: number } }>('/wxConfig/list', {
-      params: { page: 1, pageSize: 20 },
+      params: { page: 1, pageSize: 50 },
     }).then((r) => r?.data?.data?.list || []),
   });
   const [selected, setSelectedState] = useState<WxConfig | null>(null);
   const [nameFilter, setNameFilter] = useState('');
   const [formValues, setFormValues] = useState<Partial<WxConfig>>({});
-  const [authDialogOpen, setAuthDialogOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createValues, setCreateValues] = useState<Partial<WxConfig>>({ type: 'pc' });
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
 
   const showMessage = (message: string, severity: 'success' | 'error' = 'success') => setSnackbar({ open: true, message, severity });
@@ -53,31 +87,19 @@ export default function WxConfigPage() {
 
   const setSelected = (c: WxConfig | null) => {
     setSelectedState(c);
-    if (c) {
-      setFormValues({
-        appName: c.appName,
-        appId: c.appId,
-        appSecret: c.appSecret,
-        token: c.token,
-      });
-    } else {
-      setFormValues({});
-    }
+    setFormValues(c ? { appId: c.appId, appSecret: c.appSecret, token: c.token, notifyUrl: c.notifyUrl, type: c.type } : {});
   };
 
   const filteredConfigs = useMemo(() => {
     if (!nameFilter) return configs;
     const k = nameFilter.toLowerCase();
     return configs.filter(
-      (c) => c.appName?.toLowerCase().includes(k) || c.appId?.toLowerCase().includes(k),
+      (c) => c.appId?.toLowerCase().includes(k) || c.type?.toLowerCase().includes(k) || platformLabel(c.type).includes(nameFilter),
     );
   }, [configs, nameFilter]);
 
   const updateMutation = useMutation({
-    mutationFn: (vals: Partial<WxConfig> & { id: number }) => wxClient('/wxConfig/updateById', {
-      method: 'PUT',
-      data: vals,
-    }),
+    mutationFn: (vals: Partial<WxConfig> & { id: number }) => wxClient('/wxConfig/updateById', { method: 'PUT', data: vals }),
     onSuccess: () => {
       showMessage('保存成功');
       invalidate();
@@ -85,67 +107,75 @@ export default function WxConfigPage() {
     onError: (err: unknown) => showMessage(err instanceof Error ? err.message : '保存失败', 'error'),
   });
 
-  const handleFormChange = (field: keyof WxConfig, value: string) => {
-    setFormValues((prev) => ({ ...prev, [field]: value }));
-  };
+  const createMutation = useMutation({
+    mutationFn: (vals: Partial<WxConfig>) => wxClient('/wxConfig', { method: 'POST', data: vals }),
+    onSuccess: () => {
+      showMessage('已新增');
+      setCreateOpen(false);
+      setCreateValues({ type: 'pc' });
+      invalidate();
+    },
+    onError: (err: unknown) => showMessage(err instanceof Error ? err.message : '新增失败', 'error'),
+  });
+
+  const handleFormChange = (field: keyof WxConfig, value: string) => setFormValues((prev) => ({ ...prev, [field]: value }));
 
   const handleSave = () => {
     if (!selected) return;
     updateMutation.mutate({
       id: selected.id,
-      appName: formValues.appName ?? selected.appName,
       appId: formValues.appId ?? selected.appId,
       appSecret: formValues.appSecret ?? selected.appSecret,
       token: formValues.token ?? selected.token,
+      notifyUrl: formValues.notifyUrl ?? selected.notifyUrl,
+      type: formValues.type ?? selected.type,
     });
   };
 
   const handleToggleStatus = () => {
     if (!selected) return;
-    const nextStatus = selected.status === 'active' ? 'inactive' : 'active';
-    updateMutation.mutate({
-      id: selected.id,
-      status: nextStatus,
-    }, {
-      onSuccess: () => {
-        showMessage(nextStatus === 'active' ? '已启用' : '已停用');
-        setSelectedState((prev) => (prev ? { ...prev, status: nextStatus } : prev));
+    const nextStatus = selected.status === 1 ? 2 : 1;
+    updateMutation.mutate(
+      { id: selected.id, status: nextStatus },
+      {
+        onSuccess: () => {
+          showMessage(nextStatus === 1 ? '已启用' : '已停用');
+          setSelectedState((prev) => (prev ? { ...prev, status: nextStatus } : prev));
+          invalidate();
+        },
       },
-    });
-  };
-
-  const handleReauthorize = () => {
-    setAuthDialogOpen(true);
-  };
-
-  const confirmReauthorize = () => {
-    const callback = encodeURIComponent(window.location.href);
-    window.open(`/api/core/wxConfig/authorize?callback=${callback}`, '_blank', 'noopener,noreferrer');
-    setAuthDialogOpen(false);
+    );
   };
 
   const handleCopy = (value: string) => {
     navigator.clipboard?.writeText(value).then(() => showMessage('已复制到剪贴板'));
   };
 
-  const isSubmitting = updateMutation.isPending;
+  const isSubmitting = updateMutation.isPending || createMutation.isPending;
 
   return (
     <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minHeight: 0, overflow: 'hidden' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexShrink: 0 }}>
         <ChatIcon sx={{ color: 'success.main', fontSize: 28 }} />
         <Typography variant="h5" sx={{ fontWeight: 700, color: 'text.primary' }}>
-          微信配置
+          微信应用配置
         </Typography>
-        <Chip label="服务号" size="small" sx={{ bgcolor: '#5DDB9620', color: 'success.main' }} />
+        <Box sx={{ flex: 1 }} />
+        <Button variant="text" startIcon={<AddRoundedIcon />} onClick={() => setCreateOpen(true)}>
+          新增应用
+        </Button>
       </Box>
+
+      <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: -2 }}>
+        微信登录按平台挑应用:先找 type 等于该平台的一行,没有就回落到「网页 / 兜底」(pc)。
+      </Typography>
 
       <Box sx={{ display: 'flex', gap: 3, flex: 1, minHeight: 0, overflow: 'hidden' }}>
         <Box sx={{ width: 320, flexShrink: 0, overflow: 'auto' }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
             <TextField
               size="small"
-              placeholder="搜索公众号名称 / AppID"
+              placeholder="搜索平台 / AppID"
               value={nameFilter}
               onChange={(e) => setNameFilter(e.target.value)}
               slotProps={{
@@ -159,12 +189,12 @@ export default function WxConfigPage() {
               }}
             />
             {filteredConfigs.length === 0 && (
-              <Typography sx={{ fontSize: 12, color: 'text.secondary', textAlign: 'center', py: 2 }}>
-                暂无匹配的公众号
+              <Typography sx={{ fontSize: 13, color: 'text.secondary', px: 1, py: 3, textAlign: 'center' }}>
+                还没有配置。点右上角「新增应用」。
               </Typography>
             )}
             {filteredConfigs.map((c) => {
-              const isSel = selected?.id === c.id;
+              const active = selected?.id === c.id;
               return (
                 <Box
                   key={c.id}
@@ -172,47 +202,26 @@ export default function WxConfigPage() {
                   sx={{
                     p: 2,
                     borderRadius: 2,
-                    bgcolor: 'background.paper',
-                    border: `1px solid ${isSel ? 'success.main' : 'divider'}`,
                     cursor: 'pointer',
-                    transition: 'all 0.15s',
-                    '&:hover': { borderColor: '#5DDB9680' },
+                    bgcolor: 'background.paper',
+                    border: '1px solid',
+                    borderColor: active ? 'primary.main' : 'divider',
                   }}
                 >
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                    <Box
-                      sx={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: '50%',
-                        bgcolor: '#5DDB9620',
-                        color: 'success.main',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <ChatIcon />
-                    </Box>
                     <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'text.primary' }} noWrap>
-                        {c.appName}
+                        {platformLabel(c.type)}
                       </Typography>
                       <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.5 }} noWrap>
-                        {c.appId}
+                        {c.appId || '(未填 AppID)'}
                       </Typography>
                     </Box>
-                    {c.status === 'active' ? (
+                    {c.status === 1 ? (
                       <CheckCircleIcon sx={{ fontSize: 18, color: 'success.main' }} />
                     ) : (
                       <ErrorIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
                     )}
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1.5 }}>
-                    <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>粉丝</Typography>
-                    <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'success.main' }}>
-                      {c.fans.toLocaleString()}
-                    </Typography>
                   </Box>
                 </Box>
               );
@@ -224,118 +233,118 @@ export default function WxConfigPage() {
           <Box sx={{ flex: 1, minWidth: 0, p: 3, borderRadius: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', overflow: 'auto' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
               <Typography variant="h6" sx={{ color: 'text.primary' }}>
-                {selected.appName}
+                {platformLabel(selected.type)}
               </Typography>
               <Chip
-                label={selected.status === 'active' ? '已启用' : '已停用'}
+                label={selected.status === 1 ? '已启用' : '已停用'}
                 size="small"
                 sx={{
-                  bgcolor: selected.status === 'active' ? '#5DDB9620' : '#5A5E7220',
-                  color: selected.status === 'active' ? 'success.main' : 'text.secondary',
+                  bgcolor: selected.status === 1 ? '#5DDB9620' : '#5A5E7220',
+                  color: selected.status === 1 ? 'success.main' : 'text.secondary',
                   fontWeight: 600,
                 }}
               />
             </Box>
 
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              {[
-                { label: 'AppID', field: 'appId' as const, copy: true },
-                { label: 'AppSecret', field: 'appSecret' as const, copy: true },
-                { label: 'Token', field: 'token' as const, copy: true },
-                { label: '绑定时间', field: 'bindTime' as const, copy: false, disabled: true },
-                { label: '粉丝数', field: 'fans' as const, copy: false, disabled: true, format: (v: number) => v.toLocaleString() },
-              ].map((f) => (
-                <Box key={f.label}>
+              <Box>
+                <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 0.5 }}>平台(type)</Typography>
+                <TextField
+                  select
+                  fullWidth
+                  size="small"
+                  value={formValues.type ?? selected.type ?? 'pc'}
+                  onChange={(e) => handleFormChange('type', e.target.value)}
+                >
+                  {PLATFORMS.map((p) => (
+                    <MenuItem key={p.value} value={p.value}>
+                      {p.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.5 }}>
+                  {PLATFORMS.find((p) => p.value === (formValues.type ?? selected.type))?.hint || ''}
+                </Typography>
+              </Box>
+
+              {EDITABLE.map((f) => (
+                <Box key={f.field}>
                   <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 0.5 }}>{f.label}</Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    {f.disabled ? (
-                      <Box
-                        sx={{
-                          flex: 1,
-                          p: 1.5,
-                          borderRadius: 1,
-                          bgcolor: 'background.default',
-                          border: '1px solid', borderColor: 'divider',
-                          fontFamily: 'monospace',
-                          fontSize: 13,
-                          color: 'text.tertiary',
-                        }}
-                      >
-                        {f.format ? f.format(selected[f.field] as number) : selected[f.field]}
-                      </Box>
-                    ) : (
-                      <TextField
-                        size="small"
-                        fullWidth
-                        value={formValues[f.field] ?? selected[f.field]}
-                        onChange={(e) => handleFormChange(f.field, e.target.value)}
-                        type={f.field === 'appSecret' || f.field === 'token' ? 'password' : 'text'}
-                        sx={{
-                          flex: 1,
-                          '& .MuiOutlinedInput-root': {
-                            fontFamily: 'monospace',
-                            fontSize: 13,
-                            bgcolor: 'background.default',
-                          },
-                        }}
-                      />
-                    )}
-                    {f.copy && (
-                      <Button
-                        size="small"
-                        onClick={() => handleCopy(String(formValues[f.field] ?? selected[f.field]))}
-                        sx={{ minWidth: 60, textTransform: 'none', color: 'success.main' }}
-                      >
-                        复制
-                      </Button>
-                    )}
+                    <TextField
+                      fullWidth
+                      size="small"
+                      type={f.secret ? 'password' : 'text'}
+                      value={(formValues[f.field] as string | undefined) ?? (selected[f.field] as string | undefined) ?? ''}
+                      onChange={(e) => handleFormChange(f.field, e.target.value)}
+                    />
+                    <Button variant="text" size="small" onClick={() => handleCopy(String(selected[f.field] ?? ''))}>
+                      复制
+                    </Button>
                   </Box>
                 </Box>
               ))}
             </Box>
 
-            <Divider sx={{ borderColor: 'divider', my: 3 }} />
-
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button
-                variant="contained"
-                disabled={isSubmitting}
-                onClick={handleSave}
-                sx={{ bgcolor: 'success.main', '&:hover': { bgcolor: '#4FC986' }, textTransform: 'none' }}
-              >
-                保存修改
+            <Box sx={{ display: 'flex', gap: 1.5, mt: 3 }}>
+              <Button variant="contained" onClick={handleSave} disabled={isSubmitting}>
+                保存
               </Button>
-              <Button
-                variant="outlined"
-                onClick={handleReauthorize}
-                sx={{ borderColor: 'divider', color: 'text.tertiary', textTransform: 'none' }}
-              >
-                重新授权
-              </Button>
-              <Button
-                variant="outlined"
-                disabled={isSubmitting}
-                onClick={handleToggleStatus}
-                sx={{ borderColor: 'divider', color: 'primary.main', textTransform: 'none' }}
-              >
-                {selected.status === 'active' ? '停用' : '启用'}
+              <Button variant="text" onClick={handleToggleStatus} disabled={isSubmitting}>
+                {selected.status === 1 ? '停用' : '启用'}
               </Button>
             </Box>
           </Box>
         )}
       </Box>
 
-      <Dialog open={authDialogOpen} onClose={() => setAuthDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>重新授权微信公众号</DialogTitle>
+      <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>新增微信应用</DialogTitle>
         <DialogContent>
-          <Typography sx={{ fontSize: 14, color: 'text.secondary', pt: 1 }}>
-            重新授权将跳转到微信开放平台授权页，授权完成后会自动返回当前页面。是否继续？
-          </Typography>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            <TextField
+              select
+              label="平台(type)"
+              size="small"
+              value={createValues.type ?? 'pc'}
+              onChange={(e) => setCreateValues((v) => ({ ...v, type: e.target.value }))}
+              helperText={PLATFORMS.find((p) => p.value === (createValues.type ?? 'pc'))?.hint}
+            >
+              {PLATFORMS.map((p) => (
+                <MenuItem key={p.value} value={p.value}>
+                  {p.label}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              label="AppID"
+              size="small"
+              value={createValues.appId ?? ''}
+              onChange={(e) => setCreateValues((v) => ({ ...v, appId: e.target.value }))}
+            />
+            <TextField
+              label="AppSecret"
+              size="small"
+              type="password"
+              value={createValues.appSecret ?? ''}
+              onChange={(e) => setCreateValues((v) => ({ ...v, appSecret: e.target.value }))}
+            />
+            <TextField
+              label="回调地址(notifyUrl,可留空)"
+              size="small"
+              value={createValues.notifyUrl ?? ''}
+              onChange={(e) => setCreateValues((v) => ({ ...v, notifyUrl: e.target.value }))}
+            />
+          </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setAuthDialogOpen(false)}>取消</Button>
-          <Button variant="contained" onClick={confirmReauthorize}>
-            去授权
+          <Button onClick={() => setCreateOpen(false)}>取消</Button>
+          <Button
+            variant="contained"
+            disabled={isSubmitting || !createValues.appId || !createValues.appSecret}
+            onClick={() => createMutation.mutate({ ...createValues, status: 1 })}
+          >
+            新增
           </Button>
         </DialogActions>
       </Dialog>
