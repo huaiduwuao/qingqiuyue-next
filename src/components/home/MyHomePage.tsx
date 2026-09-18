@@ -34,6 +34,9 @@ import BookmarkRoundedIcon from '@mui/icons-material/BookmarkRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import WatchLaterRoundedIcon from '@mui/icons-material/WatchLaterRounded';
 import EventNoteRoundedIcon from '@mui/icons-material/EventNoteRounded';
+import QueueMusicRoundedIcon from '@mui/icons-material/QueueMusicRounded';
+import CollectionsBookmarkRoundedIcon from '@mui/icons-material/CollectionsBookmarkRounded';
+import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import RecommendRoundedIcon from '@mui/icons-material/RecommendRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
@@ -95,6 +98,11 @@ const MAIN_TABS: { key: string; label: string; icon: React.ReactNode; locked?: b
   { key: 'recommend', label: '推荐', icon: <RecommendRoundedIcon sx={{ fontSize: 14 }} /> },
   { key: 'like', label: '喜欢', icon: <FavoriteBorderRoundedIcon sx={{ fontSize: 14 }} /> },
   { key: 'collect', label: '收藏', icon: <BookmarkRoundedIcon sx={{ fontSize: 14 }} /> },
+  // 自建收藏夹(PG user_my_list)。以前只有「作品 → 合集」一个子页签能看到合集,
+  // 而它打的还是作品的接口 —— 歌单和书架在「我的」页里根本没有入口。
+  { key: 'playlist', label: '歌单', icon: <QueueMusicRoundedIcon sx={{ fontSize: 14 }} /> },
+  { key: 'collection', label: '作品合集', icon: <CollectionsBookmarkRoundedIcon sx={{ fontSize: 14 }} /> },
+  { key: 'bookshelf', label: '书架', icon: <MenuBookRoundedIcon sx={{ fontSize: 14 }} /> },
   { key: 'history', label: '观看历史', icon: <HistoryRoundedIcon sx={{ fontSize: 14 }} /> },
   { key: 'later', label: '稍后再看', icon: <WatchLaterRoundedIcon sx={{ fontSize: 14 }} /> },
   { key: 'order', label: '我的预约', icon: <EventNoteRoundedIcon sx={{ fontSize: 14 }} /> },
@@ -107,6 +115,16 @@ const SUB_TABS: { key: string; label: string }[] = [
   { key: 'collection', label: '合集' },
   { key: 'drama', label: '短剧' },
 ];
+
+// 返回合集卡片(而不是内容卡片)的页签:自建收藏夹,以及「作品 → 合集」。
+// 书架不在其中 —— 它是一串小说/漫画(user_content_collect),按内容卡片出。
+const GROUP_TABS = new Set(['playlist', 'collection']);
+
+/** 列表计数里数字后面那截:「共 3 个歌单」「共 2 本书」。 */
+const TAB_UNIT: Record<string, string> = {
+  playlist: ' 个歌单', collection: ' 个合集', bookshelf: ' 本书',
+  works: ' 个作品', private: ' 个私密作品', drama: ' 部短剧',
+};
 
 const QUICK_LINKS: { key: string; label: string; icon: React.ReactNode; href: string }[] = [
   { key: 'wallet', label: '我的钱包', icon: <WalletRoundedIcon sx={{ fontSize: 18 }} />, href: '/account/wallet' },
@@ -237,7 +255,11 @@ export function MyHomePage() {
 
   const totalCount = listQuery.data?.total ?? 0;
   const showSubTabs = mainTab === 'works';
-  const tabLabel = MAIN_TABS.find((t) => t.key === mainTab)?.label || '';
+  // 「作品」下的计数按子页签说话:作品 / 私密作品 / 合集 / 短剧 各算各的,
+  // 不再四个子页签都写「共 N 个作品」。
+  const tabLabel = TAB_UNIT[showSubTabs ? subTab : mainTab]
+    ?? ` 个${MAIN_TABS.find((t) => t.key === mainTab)?.label ?? ''}`;
+  const isGroupView = GROUP_TABS.has(mainTab) || (showSubTabs && subTab === 'collection');
 
   const toggleSelect = (id: number) => {
     setSelected((s) => {
@@ -750,7 +772,7 @@ export function MyHomePage() {
         {filteredList.length > 0 && !batchMode && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, px: 0.5 }}>
             <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-              共 {totalCount} 个{tabLabel}{keyword || dateRange !== 'all' ? ` · 已筛选 ${filteredList.length}` : ''}
+              共 {totalCount}{tabLabel}{keyword || dateRange !== 'all' ? ` · 已筛选 ${filteredList.length}` : ''}
             </Typography>
           </Box>
         )}
@@ -758,12 +780,13 @@ export function MyHomePage() {
         {/* Content area */}
         {filteredList.length === 0 ? (
           <EmptyState tab={mainTab} subTab={subTab} onPublish={() => router.push('/account/content')} />
-        ) : subTab === 'collection' ? (
+        ) : isGroupView ? (
           <CollectionGridView
             list={filteredList.filter(isMyGroup)}
             batchMode={batchMode}
             selected={selected}
             onToggle={toggleSelect}
+            onOpen={(g) => router.push(`/account/my-lists/detail?id=${g.id}`)}
           />
         ) : mainTab === 'history' ? (
           <HistoryListView
@@ -956,7 +979,7 @@ function WorkGridView({
 }
 
 // ─── 子组件:合集网格 ───
-function CollectionGridView({ list, batchMode, selected, onToggle }: { list: MyCollectionGroup[]; batchMode: boolean; selected: Set<number>; onToggle: (id: number) => void }) {
+function CollectionGridView({ list, batchMode, selected, onToggle, onOpen }: { list: MyCollectionGroup[]; batchMode: boolean; selected: Set<number>; onToggle: (id: number) => void; onOpen?: (g: MyCollectionGroup) => void }) {
   return (
     <ListLayout rows minColumnWidth={260} gap={12}>
       {list.map((g) => {
@@ -964,7 +987,7 @@ function CollectionGridView({ list, batchMode, selected, onToggle }: { list: MyC
         return (
           <Box
             key={g.id}
-            onClick={() => batchMode && onToggle(g.id)}
+            onClick={() => (batchMode ? onToggle(g.id) : onOpen?.(g))}
             sx={{
               position: 'relative',
               p: 1.25,
@@ -1220,6 +1243,9 @@ function EmptyState({ tab, subTab, onPublish }: { tab: string; subTab: string; o
     history: { title: '观看历史为空', hint: '你浏览过的内容会按时间记录在这里' },
     later: { title: '稍后再看是空的', hint: '把想看的内容先存起来吧' },
     order: { title: '暂无预约', hint: '在直播间点击"预约开播"即可加入' },
+    playlist: { title: '还没有歌单', hint: '在歌曲的收藏菜单里新建歌单,或去「歌单」页创建' },
+    collection: { title: '还没有作品合集', hint: '把同一系列的作品收进一个合集,方便整段追下去' },
+    bookshelf: { title: '书架是空的', hint: '在小说或漫画详情页点「加入书架」' },
     ai: { title: 'AI 笔记还没生成', hint: '当你看过足够多的内容,AI 会自动整理笔记' },
   };
   const c = config[tab] || config.works;
