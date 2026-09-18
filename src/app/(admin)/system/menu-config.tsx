@@ -117,8 +117,6 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
     items: [
       { id: 'app', label: '应用管理', path: '/system/app', icon: <AppsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main', permission: PERMISSIONS.SYSTEM_APP.VIEW },
       { id: 'app-config', label: '应用配置', path: '/system/app-config', icon: <SettingsApplicationsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'secondary.main', permission: PERMISSIONS.SYSTEM_APP_CONFIG.VIEW },
-      { id: 'app-service', label: '应用服务', path: '/system/app-service', icon: <DnsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6', permission: PERMISSIONS.SYSTEM_APP_SERVICE.VIEW },
-      { id: 'resource', label: '资源管理', path: '/system/resource', icon: <StorageRoundedIcon sx={{ fontSize: 18 }} />, accent: 'warning.main', permission: PERMISSIONS.SYSTEM_RESOURCE.VIEW },
       { id: 'app-submission', label: '应用提交资料', path: '/system/app-submission', icon: <PublishRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160', permission: PERMISSIONS.SYSTEM_APP_SUBMISSION.VIEW },
     ],
   },
@@ -126,7 +124,6 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
     title: '基础数据',
     items: [
       { id: 'dict', label: '字典管理', path: '/system/dict/dict-type', icon: <MenuBookRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_DICT.VIEW },
-      { id: 'website-dict', label: '网站字典', path: '/system/website-dict', icon: <LanguageRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D', permission: PERMISSIONS.SYSTEM_WEBSITE_DICT.VIEW },
       { id: 'filter', label: '筛选配置', path: '/system/filter', icon: <TuneRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
       { id: 'address', label: '地址管理', path: '/system/address/province', icon: <LocationOnRoundedIcon sx={{ fontSize: 18 }} />, accent: 'success.main', permission: PERMISSIONS.SYSTEM_ADDRESS.VIEW },
       { id: 'wx-config', label: '微信配置', path: '/system/wx-config', icon: <ChatBubbleOutlineRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
@@ -144,7 +141,6 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
   {
     title: '数据看板',
     items: [
-      { id: 'dash-analysis', label: '分析页', path: '/system/dashboard/analysis', icon: <AccountTreeRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
       { id: 'dash-monitor', label: '监控页', path: '/system/dashboard/monitor', icon: <StorageRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D' },
       { id: 'dash-workplace', label: '工作台', path: '/system/dashboard/workplace', icon: <AppsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'success.main' },
       { id: 'activity', label: '创作者活动', path: '/system/activity', icon: <EventRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
@@ -162,6 +158,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
   {
     title: '访问统计',
     items: [
+      { id: 'dash-analysis', label: '综合分析', path: '/system/dashboard/analysis', icon: <AccountTreeRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
       { id: 'stats-visitor', label: '站点流量', path: '/system/stats/visitor', icon: <ShowChartRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
       { id: 'stats-active', label: '用户活跃', path: '/system/stats/active', icon: <HistoryRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FFB400' },
       { id: 'stats-content', label: '内容热度', path: '/system/stats/content', icon: <BarChartRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6' },
@@ -205,7 +202,6 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
       { id: 'agent-overview', label: '总览', path: '/system/agent-overview', icon: <BarChartRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
       { id: 'conversations', label: '会话与复现', path: '/system/conversations', icon: <HistoryRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FFB400' },
       { id: 'agent-audit', label: '调用审计', path: '/system/agent-audit', icon: <ReportProblemRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
-      { id: 'instances', label: '外部运行时', path: '/system/instances', icon: <DnsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
     ],
   },
   {
