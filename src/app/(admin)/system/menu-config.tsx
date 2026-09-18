@@ -24,6 +24,7 @@ import AppsRoundedIcon from '@mui/icons-material/AppsRounded';
 import SettingsApplicationsRoundedIcon from '@mui/icons-material/SettingsApplicationsRounded';
 import DnsRoundedIcon from '@mui/icons-material/DnsRounded';
 import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
+import PublishRoundedIcon from '@mui/icons-material/PublishRounded';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import LanguageRoundedIcon from '@mui/icons-material/LanguageRounded';
@@ -118,6 +119,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
       { id: 'app-config', label: '应用配置', path: '/system/app-config', icon: <SettingsApplicationsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'secondary.main', permission: PERMISSIONS.SYSTEM_APP_CONFIG.VIEW },
       { id: 'app-service', label: '应用服务', path: '/system/app-service', icon: <DnsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6', permission: PERMISSIONS.SYSTEM_APP_SERVICE.VIEW },
       { id: 'resource', label: '资源管理', path: '/system/resource', icon: <StorageRoundedIcon sx={{ fontSize: 18 }} />, accent: 'warning.main', permission: PERMISSIONS.SYSTEM_RESOURCE.VIEW },
+      { id: 'app-submission', label: '应用提交资料', path: '/system/app-submission', icon: <PublishRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160', permission: PERMISSIONS.SYSTEM_APP_SUBMISSION.VIEW },
     ],
   },
   {
