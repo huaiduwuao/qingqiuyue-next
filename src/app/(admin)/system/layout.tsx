@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useMemo, Suspense, useEffect, type ReactNode } from 'react';
+import { useState, useMemo, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import dynamic from 'next/dynamic';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import ListItemIcon from '@mui/material/ListItemIcon';
@@ -19,7 +18,6 @@ import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import { useAuthority } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
-import { SystemTabProvider, useSystemTab, type SystemTab } from './SystemTabContext';
 import { MENU_GROUPS, type MenuItemDef } from './menu-config';
 
 const ROLE_LABEL: Record<string, { label: string; color: string }> = {
@@ -40,118 +38,26 @@ function getPrimaryRole(authorities?: string[]): { label: string; color: string 
   return { label: authorities[0], color: 'text.secondary' };
 }
 
-// 懒加载所有页面组件
-const PageComponents: Record<string, React.ComponentType<any>> = {
-  '/system': dynamic(() => import('./role/page'), { ssr: false }),
-  '/system/role': dynamic(() => import('./role/page'), { ssr: false }),
-  '/system/menu': dynamic(() => import('./menu/page'), { ssr: false }),
-  '/system/permission': dynamic(() => import('./permission/page'), { ssr: false }),
-  '/system/data-permission': dynamic(() => import('./data-permission/page'), { ssr: false }),
-  '/system/user': dynamic(() => import('./user/page'), { ssr: false }),
-  '/system/bot': dynamic(() => import('./bot/page'), { ssr: false }),
-  '/system/topic': dynamic(() => import('./topic/page'), { ssr: false }),
-  '/system/feed': dynamic(() => import('./feed/page'), { ssr: false }),
-  '/system/user-level': dynamic(() => import('./user-level/page'), { ssr: false }),
-  '/system/user-point': dynamic(() => import('./user-point/page'), { ssr: false }),
-  '/system/kf': dynamic(() => import('./kf/page'), { ssr: false }),
-  '/system/moderation/reports': dynamic(() => import('./moderation/reports/page'), { ssr: false }),
-  '/system/moderation/sensitive-words': dynamic(() => import('./moderation/sensitive-words/page'), { ssr: false }),
-  '/system/app': dynamic(() => import('./app/page'), { ssr: false }),
-  '/system/app-config': dynamic(() => import('./app-config/page'), { ssr: false }),
-  '/system/app-service': dynamic(() => import('./app-service/page'), { ssr: false }),
-  '/system/resource': dynamic(() => import('./resource/page'), { ssr: false }),
-  '/system/dict/dict-type': dynamic(() => import('./dict/dict-type/page'), { ssr: false }),
-  '/system/dict/dict-data': dynamic(() => import('./dict/dict-data/page'), { ssr: false }),
-  '/system/website-dict': dynamic(() => import('./website-dict/page'), { ssr: false }),
-  '/system/address/province': dynamic(() => import('./address/province/page'), { ssr: false }),
-  '/system/address/city': dynamic(() => import('./address/city/page'), { ssr: false }),
-  '/system/address/area': dynamic(() => import('./address/area/page'), { ssr: false }),
-  '/system/address/street': dynamic(() => import('./address/street/page'), { ssr: false }),
-  '/system/wx-config': dynamic(() => import('./wx-config/page'), { ssr: false }),
-  '/system/wx/mp/menu': dynamic(() => import('./wx/mp/menu/page'), { ssr: false }),
-  '/system/wx/mp/auto-reply': dynamic(() => import('./wx/mp/auto-reply/page'), { ssr: false }),
-  '/system/wx/mp/msg': dynamic(() => import('./wx/mp/msg/page'), { ssr: false }),
-  '/system/wx/mp/user': dynamic(() => import('./wx/mp/user/page'), { ssr: false }),
-  '/system/dashboard/analysis': dynamic(() => import('./dashboard/analysis/page'), { ssr: false }),
-  '/system/dashboard/monitor': dynamic(() => import('./dashboard/monitor/page'), { ssr: false }),
-  '/system/dashboard/workplace': dynamic(() => import('./dashboard/workplace/page'), { ssr: false }),
-  '/system/payment-config': dynamic(() => import('./payment-config/page'), { ssr: false }),
-  '/system/recharge-records': dynamic(() => import('./recharge-records/page'), { ssr: false }),
-  '/system/withdraw-review': dynamic(() => import('./withdraw-review/page'), { ssr: false }),
-  '/system/shop': dynamic(() => import('./shop/page'), { ssr: false }),
-  '/system/activity': dynamic(() => import('./activity/page'), { ssr: false }),
-  '/system/stats/visitor': dynamic(() => import('./stats/visitor/page'), { ssr: false }),
-  '/system/stats/active': dynamic(() => import('./stats/active/page'), { ssr: false }),
-  '/system/stats/content': dynamic(() => import('./stats/content/page'), { ssr: false }),
-  '/system/digital-human': dynamic(() => import('./digital-human/page'), { ssr: false }),
-  '/system/digital-human-instructions': dynamic(() => import('./digital-human-instructions/page'), { ssr: false }),
-  '/system/digital-human-config': dynamic(() => import('./digital-human-config/page'), { ssr: false }),
-  '/system/record-wake': dynamic(() => import('./record-wake/page'), { ssr: false }),
-  '/system/agentmanager': dynamic(() => import('./agentmanager/page'), { ssr: false }),
-  '/system/ai-chat': dynamic(() => import('./ai-chat/page'), { ssr: false }),
-  '/system/agent-overview': dynamic(() => import('./agent-overview/page'), { ssr: false }),
-  '/system/staff': dynamic(() => import('./staff/page'), { ssr: false }),
-  '/system/skills': dynamic(() => import('./skills/page'), { ssr: false }),
-  '/system/drafts': dynamic(() => import('./drafts/page'), { ssr: false }),
-  '/system/mcp': dynamic(() => import('./mcp/page'), { ssr: false }),
-  '/system/workflows': dynamic(() => import('./workflows/page'), { ssr: false }),
-  '/system/models': dynamic(() => import('./models/page'), { ssr: false }),
-  '/system/gateway': dynamic(() => import('./gateway/page'), { ssr: false }),
-  '/system/runs': dynamic(() => import('./runs/page'), { ssr: false }),
-  '/system/tasks': dynamic(() => import('./tasks/page'), { ssr: false }),
-  '/system/conversations': dynamic(() => import('./conversations/page'), { ssr: false }),
-  '/system/agent-audit': dynamic(() => import('./agent-audit/page'), { ssr: false }),
-  '/system/instances': dynamic(() => import('./instances/page'), { ssr: false }),
-  '/system/log': dynamic(() => import('./log/page'), { ssr: false }),
-  '/system/spider': dynamic(() => import('./spider/page'), { ssr: false }),
-  '/system/crawled': dynamic(() => import('./crawled/page'), { ssr: false }),
-  '/system/sandbox': dynamic(() => import('./sandbox/page'), { ssr: false }),
-  '/system/sandbox/tasks': dynamic(() => import('./sandbox/tasks/page'), { ssr: false }),
-  '/system/sandbox/images': dynamic(() => import('./sandbox/images/page'), { ssr: false }),
-  '/system/deployment': dynamic(() => import('./deployment/page'), { ssr: false }),
-};
-
 export default function SystemLayout({ children }: { children: ReactNode }) {
-  return (
-    <SystemTabProvider>
-      <SystemLayoutInner>{children}</SystemLayoutInner>
-    </SystemTabProvider>
-  );
-}
-
-function SystemLayoutInner({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { isAdmin, can } = useAuthority();
   const { currentUser } = useApp();
-  const { activeTab, setActiveTab } = useSystemTab();
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
   // 手机端抽屉菜单(< md 侧栏隐藏,之前后台在手机上根本没法切页面)
   const [navOpen, setNavOpen] = useState(false);
 
-  // 获取第一个可见菜单项作为默认
-  const firstMenuItem = MENU_GROUPS[0]?.items[0];
-  const defaultTab: SystemTab | null = firstMenuItem
-    ? { id: firstMenuItem.id, label: firstMenuItem.label, path: firstMenuItem.path }
-    : null;
-
-  // 初始化默认 tab
-  useEffect(() => {
-    if (!activeTab && defaultTab) {
-      setActiveTab(defaultTab);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab?.path, defaultTab?.path]);
-
-  // 当前 URL 是不是标签页本身(/system、/system/role 等)。/system/role/detail 这类子路由不是:
-  // 它们要渲染路由给出的 children。此前只要有 activeTab 就一律渲染标签页组件,
-  // 子路由(角色配置页等)永远打不开。
-  const isTabRoute = !pathname || pathname === '/system' || Boolean(PageComponents[pathname]);
-
-  // 根据 URL 同步 activeTab。每次路径变化都同步(此前只在挂载时同步一次);
-  // 子路由高亮它所属的菜单(最长前缀匹配,/system/role/detail → 角色管理)。
-  useEffect(() => {
-    if (!pathname) return;
+  // 当前菜单项 = 按 URL 最长前缀匹配出来的那一项(/system/role/detail → 角色管理)。
+  // 之前这里是一份「标签页」状态 + 一张 PageComponents 注册表:点菜单只改状态、不改 URL,
+  // 内容区按 activeTab 去注册表里取组件。后果有三个 ——
+  //   · 注册表里漏登记的菜单(筛选配置)取不到组件,回落去渲染 children,
+  //     也就是 URL 那一页,于是「点哪个菜单都是同一个界面」;
+  //   · URL 永远停在进后台时的那条路径(比如 /system/moderation/reports),
+  //     刷新 / 收藏 / 前进后退全都回到那一页;
+  //   · 在子路由上点菜单会 router.push('/system'),URL 一变又把 activeTab 同步回默认项。
+  // 现在菜单就是普通导航:点它跳 item.path,每个菜单都有自己的 URL。
+  const activeItem = useMemo(() => {
+    if (!pathname) return null;
     let match: MenuItemDef | undefined;
     for (const group of MENU_GROUPS) {
       for (const it of group.items) {
@@ -159,13 +65,8 @@ function SystemLayoutInner({ children }: { children: ReactNode }) {
         if (hit && (!match || it.path.length > match.path.length)) match = it;
       }
     }
-    // ⚠️ 必须比较当前 activeTab,否则无条件 setActiveTab 会触发死循环
-    //    (setState → render → useEffect → setState ...)
-    if (match && (!activeTab || activeTab.path !== match.path)) {
-      setActiveTab(toSystemTab(match));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, setActiveTab]);
+    return match ?? null;
+  }, [pathname]);
 
   // 过滤有权限的菜单项
   const visibleGroups = useMemo(() => {
@@ -174,18 +75,8 @@ function SystemLayoutInner({ children }: { children: ReactNode }) {
       .filter((g) => g.items.length > 0);
   }, [can]);
 
-  // 将 MenuItemDef 转换为 SystemTab
-  const toSystemTab = (item: MenuItemDef): SystemTab => ({
-    id: item.id,
-    label: item.label,
-    path: item.path,
-  });
-
   const handleMenuClick = (item: MenuItemDef) => {
-    setActiveTab(toSystemTab(item));
-    // 在子路由上点菜单要先回到标签页外壳,否则仍渲染子路由的页面。
-    // 回 /system 而不是 item.path:并非每个菜单都有独立路由,/system 一定有。
-    if (!isTabRoute) router.push('/system');
+    if (pathname !== item.path) router.push(item.path);
   };
 
   const handleReturnToFront = () => {
@@ -207,9 +98,6 @@ function SystemLayoutInner({ children }: { children: ReactNode }) {
     );
   }
 
-  // 获取当前要渲染的页面组件
-  const ActivePage = activeTab ? PageComponents[activeTab.path] : null;
-
   // 菜单分组:桌面端侧栏和手机端抽屉共用一份
   const navGroups = (
     <>
@@ -221,7 +109,7 @@ function SystemLayoutInner({ children }: { children: ReactNode }) {
               </Typography>
             </Box>
             {group.items.map((item) => {
-              const isActive = activeTab?.path === item.path;
+              const isActive = activeItem?.path === item.path;
               return (
                 <Box
                   key={item.id}
@@ -339,7 +227,7 @@ function SystemLayoutInner({ children }: { children: ReactNode }) {
 
         <Typography sx={{ fontSize: 13, color: 'var(--text-muted, currentColor)', display: { xs: 'none', sm: 'block' } }}>/</Typography>
         <Typography noWrap sx={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary, currentColor)', minWidth: 0 }}>
-          {activeTab?.label || '控制台'}
+          {activeItem?.label || '控制台'}
         </Typography>
 
         <Box sx={{ flex: 1 }} />
@@ -499,7 +387,7 @@ function SystemLayoutInner({ children }: { children: ReactNode }) {
         {/* 内容 */}
         <Box component="main" sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 1.5, md: 3 }, WebkitOverflowScrolling: 'touch' }}>
-            {isTabRoute && ActivePage ? <ActivePage /> : children}
+            {children}
           </Box>
         </Box>
       </Box>
