@@ -69,6 +69,7 @@ function normalize(list: unknown): HomeSection[] {
       genreLabel: s.genreLabel,
       tag: s.tag,
       topicId: s.topicId,
+      listId: s.listId,
       keyword: s.keyword,
     });
   }

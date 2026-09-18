@@ -41,6 +41,7 @@ import {
   getMyListContent,
   getMyListDetail,
   getMyLists,
+  getPublicLists,
   removeFromMyList,
   reorderMyList,
   updateMyList,
@@ -130,35 +131,14 @@ function MyPlaylists({ autoCreate }: { autoCreate: boolean }) {
             ) : (
               <ListLayout minColumnWidth={180} minColumns={2} gap={20}>
                 {items.map((l) => (
-                  <Box
-                    key={String(l.id)}
-                    role="link"
-                    tabIndex={0}
-                    onClick={() => router.push(playlistHref(l.id))}
-                    onKeyDown={(e) => e.key === 'Enter' && router.push(playlistHref(l.id))}
-                    sx={{
-                      cursor: 'pointer',
-                      borderRadius: 2,
-                      '&:hover .cv': { transform: 'translateY(-3px)' },
-                      '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main' },
-                      [LIST_ROW]: { display: 'flex', alignItems: 'center', gap: 1.5, p: 1, border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' },
-                    }}
-                  >
-                    <Box className="cv" sx={{ transition: 'transform 180ms', boxShadow: 3, borderRadius: 2, overflow: 'hidden', [LIST_ROW]: { width: { xs: 72, sm: 96 }, flexShrink: 0 } }}>
-                      <PlaylistCover covers={l.covers} coverUrl={l.coverUrl} size="100%" radius={0} />
-                    </Box>
-                    <Box sx={{ [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
-                      <Typography sx={{ mt: 1, fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', [LIST_ROW]: { mt: 0 } }}>{l.name}</Typography>
-                      <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-                        {l.itemCount} 首{l.isPublic ? ' · 公开' : ''}
-                      </Typography>
-                    </Box>
-                  </Box>
+                  <PlaylistTile key={String(l.id)} list={l} onOpen={() => router.push(playlistHref(l.id))} />
                 ))}
               </ListLayout>
             )}
           </>
         )}
+        {/* 发现:平台编排的歌单 + 别人公开的。未登录也能看和播 —— 歌单页不该是一堵登录墙 */}
+        <DiscoverPlaylists />
       </Container>
 
       <EditDialog
@@ -176,6 +156,70 @@ function MyPlaylists({ autoCreate }: { autoCreate: boolean }) {
           router.push(playlistHref(r.id));
         }}
       />
+    </Box>
+  );
+}
+
+/** 歌单卡片:「我的歌单」和「发现」共用一格。 */
+function PlaylistTile({ list, onOpen }: { list: MyListItem; onOpen: () => void }) {
+  return (
+    <Box
+      role="link"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => e.key === 'Enter' && onOpen()}
+      sx={{
+        cursor: 'pointer',
+        borderRadius: 2,
+        '&:hover .cv': { transform: 'translateY(-3px)' },
+        '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main' },
+        [LIST_ROW]: { display: 'flex', alignItems: 'center', gap: 1.5, p: 1, border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' },
+      }}
+    >
+      <Box className="cv" sx={{ transition: 'transform 180ms', boxShadow: 3, borderRadius: 2, overflow: 'hidden', [LIST_ROW]: { width: { xs: 72, sm: 96 }, flexShrink: 0 } }}>
+        <PlaylistCover covers={list.covers} coverUrl={list.coverUrl} size="100%" radius={0} />
+      </Box>
+      <Box sx={{ [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
+        <Typography sx={{ mt: 1, fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', [LIST_ROW]: { mt: 0 } }}>{list.name}</Typography>
+        <Typography sx={{ fontSize: 12, color: 'text.secondary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {list.itemCount} 首
+          {list.official ? ' · 官方' : list.ownerName ? ` · ${list.ownerName}` : list.mine && list.isPublic ? ' · 公开' : ''}
+        </Typography>
+      </Box>
+    </Box>
+  );
+}
+
+/** 发现歌单:平台编排的排在前面(见后端 internal/playlistcurator),再接用户公开的。 */
+function DiscoverPlaylists() {
+  const router = useRouter();
+  const q = useQuery({
+    queryKey: ['playlist-square', 'hot'],
+    queryFn: () => getPublicLists({ type: 'playlist', sort: 'hot', size: 24 }),
+    staleTime: 60_000,
+  });
+  const lists = q.data?.list ?? [];
+  if (q.isLoading) {
+    return (
+      <Center>
+        <CircularProgress size={24} />
+      </Center>
+    );
+  }
+  if (lists.length === 0) return null;
+  return (
+    <Box sx={{ mt: 5 }}>
+      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 2 }}>
+        <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700 }}>
+          发现歌单
+        </Typography>
+        <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>平台编排 · 公开歌单</Typography>
+      </Box>
+      <ListLayout minColumnWidth={180} minColumns={2} gap={20}>
+        {lists.map((l) => (
+          <PlaylistTile key={String(l.id)} list={l} onOpen={() => router.push(playlistHref(l.id))} />
+        ))}
+      </ListLayout>
     </Box>
   );
 }

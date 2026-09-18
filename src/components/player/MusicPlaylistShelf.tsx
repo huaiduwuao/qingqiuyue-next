@@ -14,7 +14,7 @@ import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import LockRoundedIcon from '@mui/icons-material/LockRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import PlaylistCover from '@/components/player/PlaylistCover';
-import { getMyLists, type MyListItem } from '@/apis/my-list';
+import { getMyLists, getPublicLists, type MyListItem } from '@/apis/my-list';
 import { useAuth } from '@/contexts/AuthContext';
 import { loginHref } from '@/lib/auth/redirect';
 import { getLikedMusic, likedMusicList, playlistHref, playPlaylist } from '@/lib/player/playlist';
@@ -22,8 +22,11 @@ import { getLikedMusic, likedMusicList, playlistHref, playPlaylist } from '@/lib
 const TILE_W = { xs: 128, md: 148 };
 
 /**
- * 音乐频道顶上的「歌单」区:我喜欢的音乐 + 我建的歌单 + 新建,横向一排。
+ * 音乐频道顶上的「歌单」区:我喜欢的音乐 + 我建的歌单 + 平台编排的歌单 + 新建,横向一排。
  * 歌单和歌放在同一个频道里,不用再去头像菜单里找。
+ *
+ * 平台编排的歌单(见后端 internal/playlistcurator)未登录也给 —— 新用户点进音乐频道
+ * 至少有一排能直接播的歌单,而不是一格"登录后建歌单"。
  */
 export default function MusicPlaylistShelf() {
   const router = useRouter();
@@ -42,11 +45,20 @@ export default function MusicPlaylistShelf() {
     enabled: isAuthenticated,
     staleTime: 30_000,
   });
+  const square = useQuery({
+    queryKey: ['playlist-square', 'shelf'],
+    queryFn: () => getPublicLists({ type: 'playlist', sort: 'hot', size: 20 }),
+    staleTime: 60_000,
+  });
 
-  const loading = status === 'loading' || (isAuthenticated && (lists.isLoading || liked.isLoading));
+  const loading =
+    status === 'loading' || (isAuthenticated && (lists.isLoading || liked.isLoading)) || square.isLoading;
+  const mineIds = new Set((lists.data?.list ?? []).map((l) => String(l.id)));
   const tiles: MyListItem[] = [
     ...(liked.data?.length ? [likedMusicList(liked.data)] : []),
     ...(lists.data?.list ?? []),
+    // 自己的公开歌单也会出现在广场里,去个重
+    ...(square.data?.list ?? []).filter((l) => !mineIds.has(String(l.id))),
   ];
 
   const play = async (id: MyListItem['id']) => {
@@ -64,17 +76,15 @@ export default function MusicPlaylistShelf() {
         <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700, flex: 1 }}>
           歌单
         </Typography>
-        {isAuthenticated && (
-          <Box
-            component="button"
-            type="button"
-            onClick={() => router.push('/playlist')}
-            sx={{ all: 'unset', display: 'inline-flex', alignItems: 'center', fontSize: 12, color: 'text.secondary', cursor: 'pointer', '&:hover': { color: 'primary.main' }, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', borderRadius: 1 } }}
-          >
-            全部 {lists.data ? `(${lists.data.list.length})` : ''}
-            <ChevronRightRoundedIcon sx={{ fontSize: 16 }} />
-          </Box>
-        )}
+        <Box
+          component="button"
+          type="button"
+          onClick={() => router.push('/playlist')}
+          sx={{ all: 'unset', display: 'inline-flex', alignItems: 'center', fontSize: 12, color: 'text.secondary', cursor: 'pointer', '&:hover': { color: 'primary.main' }, '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', borderRadius: 1 } }}
+        >
+          全部
+          <ChevronRightRoundedIcon sx={{ fontSize: 16 }} />
+        </Box>
       </Box>
 
       <Box
@@ -88,14 +98,7 @@ export default function MusicPlaylistShelf() {
           '&::-webkit-scrollbar-thumb': { bgcolor: 'action.selected', borderRadius: 3 },
         }}
       >
-        {status !== 'loading' && !isAuthenticated ? (
-          <GhostTile
-            icon={<LockRoundedIcon />}
-            title="登录后建歌单"
-            hint="攒喜欢的歌,一键全部播放"
-            onClick={() => router.push(loginHref())}
-          />
-        ) : loading ? (
+        {loading ? (
           [0, 1, 2, 3].map((i) => (
             <Box key={i} sx={{ width: TILE_W, flexShrink: 0 }}>
               <Skeleton variant="rounded" sx={{ width: '100%', height: 'auto', aspectRatio: '1 / 1', borderRadius: 2 }} />
@@ -107,12 +110,21 @@ export default function MusicPlaylistShelf() {
             {tiles.map((l) => (
               <PlaylistTile key={String(l.id)} list={l} onOpen={() => router.push(playlistHref(l.id))} onPlay={() => play(l.id)} />
             ))}
-            <GhostTile
-              icon={<AddRoundedIcon />}
-              title="新建歌单"
-              hint={tiles.length === 0 ? '也可以在歌曲页点「加入歌单」' : undefined}
-              onClick={() => router.push('/playlist?new=1')}
-            />
+            {isAuthenticated ? (
+              <GhostTile
+                icon={<AddRoundedIcon />}
+                title="新建歌单"
+                hint={tiles.length === 0 ? '也可以在歌曲页点「加入歌单」' : undefined}
+                onClick={() => router.push('/playlist?new=1')}
+              />
+            ) : (
+              <GhostTile
+                icon={<LockRoundedIcon />}
+                title="登录后建歌单"
+                hint="攒喜欢的歌,一键全部播放"
+                onClick={() => router.push(loginHref())}
+              />
+            )}
           </>
         )}
       </Box>
@@ -182,7 +194,8 @@ function PlaylistTile({ list, onOpen, onPlay }: { list: MyListItem; onOpen: () =
       </Box>
       <Typography sx={{ mt: 1, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{list.name}</Typography>
       <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-        {list.itemCount} 首{list.isPublic ? ' · 公开' : ''}
+        {list.itemCount} 首
+        {list.official ? ' · 官方' : list.ownerName ? ` · ${list.ownerName}` : list.mine && list.isPublic ? ' · 公开' : ''}
       </Typography>
     </Box>
   );

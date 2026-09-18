@@ -32,6 +32,7 @@ import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 
 import { fetchContentTags, fetchContentTypes, fetchSubcategories, type SubcategoryItem } from '@/apis/home-discover';
 import { fetchTopics } from '@/apis/community';
+import { getMyLists, getPublicLists } from '@/apis/my-list';
 import { TYPE_LABEL } from '@/lib/contentType.gen';
 import {
   BUILTIN_TYPE_SECTIONS,
@@ -39,24 +40,26 @@ import {
   RECOMMEND_SECTION,
   makeKeywordSection,
   makeTagSection,
+  makePlaylistSection,
   makeTopicSection,
   makeTypeSection,
 } from '@/lib/homeSections';
 import { useHomeSections } from '@/lib/sectionPrefs';
 import { useResponsive } from '@/hooks/useResponsive';
+import { useAuth } from '@/contexts/AuthContext';
 
 /**
  * 频道管理:首页顶部那排页签由用户自己决定。
  *
  * 上半「我的频道」拖动排序 + 点 × 移除(「推荐」锁死在第一位);
- * 下半「更多频道」按来源分组:内容分类 / 题材 / 热门标签 / 来源 / 专题(含我关注的),
- * 搜不到就用搜索词现场建一个关键词频道。
+ * 下半「更多频道」按来源分组:内容分类 / 题材 / 热门标签 / 来源 / 专题(含我关注的)/
+ * 歌单(平台编排的、别人公开的、自己建的),搜不到就用搜索词现场建一个关键词频道。
  *
  * 改动直接落到 lib/sectionPrefs(localStorage),页签栏 useSyncExternalStore 立刻跟着变,
  * 所以这里没有"保存"按钮 —— 点一下就生效,关掉弹窗不会回滚。
  */
 
-type CandidateGroup = 'type' | 'genre' | 'tag' | 'source' | 'topic' | 'following';
+type CandidateGroup = 'type' | 'genre' | 'tag' | 'source' | 'topic' | 'playlist' | 'following';
 
 const GROUP_TABS: { key: CandidateGroup; label: string }[] = [
   { key: 'type', label: '内容分类' },
@@ -64,6 +67,8 @@ const GROUP_TABS: { key: CandidateGroup; label: string }[] = [
   { key: 'tag', label: '热门标签' },
   { key: 'source', label: '来源' },
   { key: 'topic', label: '热门专题' },
+  // 歌单也是专题的一种:一组编排好的内容,同样能当成首页的一格页签
+  { key: 'playlist', label: '歌单' },
   { key: 'following', label: '我关注的' },
 ];
 
@@ -74,6 +79,7 @@ interface Props {
 
 export default function SectionManagerDialog({ open, onClose }: Props) {
   const { isMobile } = useResponsive();
+  const { isAuthenticated } = useAuth();
   const [sections, api] = useHomeSections();
   const [group, setGroup] = useState<CandidateGroup>('type');
   const [q, setQ] = useState('');
@@ -124,6 +130,19 @@ export default function SectionManagerDialog({ open, onClose }: Props) {
     enabled: open && group === 'topic',
     staleTime: 60_000,
   });
+  // 歌单:平台编排的 + 别人公开的(广场,免登录)+ 自己建的,拼成一组候选。
+  const playlistQuery = useQuery({
+    queryKey: ['section-catalog', 'playlists', q],
+    queryFn: () => getPublicLists({ type: 'playlist', keyword: q || undefined, sort: 'hot', size: 60 }),
+    enabled: open && group === 'playlist',
+    staleTime: 60_000,
+  });
+  const myPlaylistQuery = useQuery({
+    queryKey: ['my-lists', 'playlist'],
+    queryFn: () => getMyLists('playlist'),
+    enabled: open && group === 'playlist' && isAuthenticated,
+    staleTime: 60_000,
+  });
   const followingQuery = useQuery({
     queryKey: ['section-catalog', 'topics', 'following'],
     queryFn: () => fetchTopics({ following: true, page: 1, size: 60 }).then((p) => p.list ?? []),
@@ -171,6 +190,23 @@ export default function SectionManagerDialog({ open, onClose }: Props) {
         .filter((t) => hit(t.name))
         .map((t) => ({ section: makeTagSection(t.name), hint: `${t.count} 条` }));
     }
+    if (group === 'playlist') {
+      // 自己的歌单排前面(最常加的就是它们),再接广场;同一张只出现一次。
+      const mineLists = myPlaylistQuery.data?.list ?? [];
+      const square = playlistQuery.data?.list ?? [];
+      const seenList = new Set<string>();
+      const out: { section: HomeSection; hint?: string }[] = [];
+      for (const l of [...mineLists, ...square]) {
+        const key = String(l.id);
+        if (seenList.has(key) || !hit(l.name)) continue;
+        seenList.add(key);
+        out.push({
+          section: makePlaylistSection(l.id, l.name),
+          hint: l.official ? '官方' : l.mine ? `${l.itemCount} 首` : l.ownerName || `${l.itemCount} 首`,
+        });
+      }
+      return out;
+    }
     const topics = (group === 'topic' ? topicsQuery.data : followingQuery.data) ?? [];
     return topics
       .filter((t) => hit(t.title))
@@ -178,13 +214,14 @@ export default function SectionManagerDialog({ open, onClose }: Props) {
         section: makeTopicSection(t.id, t.title),
         hint: t.contentCount ? `${t.contentCount} 条` : t.auto ? '自动专题' : undefined,
       }));
-  }, [group, q, typesQuery.data, subcatQuery.data, tagsQuery.data, topicsQuery.data, followingQuery.data]);
+  }, [group, q, typesQuery.data, subcatQuery.data, tagsQuery.data, topicsQuery.data, playlistQuery.data, myPlaylistQuery.data, followingQuery.data]);
 
   const loading =
     (group === 'type' && typesQuery.isLoading) ||
     (group === 'genre' && subcatQuery.isLoading) ||
     ((group === 'tag' || group === 'source') && tagsQuery.isLoading) ||
     (group === 'topic' && topicsQuery.isLoading) ||
+    (group === 'playlist' && playlistQuery.isLoading) ||
     (group === 'following' && followingQuery.isLoading);
 
   const kw = q.trim();
@@ -321,6 +358,8 @@ export default function SectionManagerDialog({ open, onClose }: Props) {
             <Typography sx={{ fontSize: 12, color: 'text.disabled', py: 2 }}>
               {group === 'following'
                 ? '还没关注专题 —— 在「专题」页关注几个,这里就能直接加成频道。'
+                : group === 'playlist'
+                  ? '还没有可选的歌单 —— 去音乐频道建一张,或等平台编排好的歌单刷新出来。'
                 : group === 'source'
                   ? '还没聚合出来源(内容的来源标记为空)。'
                 : kw

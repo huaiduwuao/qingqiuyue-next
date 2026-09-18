@@ -6,6 +6,7 @@ import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
+import Snackbar from '@mui/material/Snackbar';
 import Chip from '@mui/material/Chip';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
@@ -25,6 +26,9 @@ import { useContentNavigate } from '@/lib/contentRoute';
 import { fetchSubcategories, type SubcategoryItem } from '@/apis/home-discover';
 import { fetchTopicContents } from '@/apis/community';
 import { moduleContentPage } from '@/apis/home';
+import { getMyListContent, getMyListDetail, type MyListItem } from '@/apis/my-list';
+import PlaylistCover from '@/components/player/PlaylistCover';
+import { playPlaylist, playlistHref } from '@/lib/player/playlist';
 import {
   HomeSection,
   RECOMMEND_SECTION,
@@ -168,7 +172,15 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
   useEffect(() => { setGenreState(urlGenre); }, [urlGenre]);
-  // 题材(二级)只对"某个内容大类"的频道有意义:聚合流、标签/关键词/专题频道没有父类。
+  // 歌单频道:名字/简介/封面来自歌单本身(别人分享的链接只带得到 id,页签上先写「歌单」)
+  const playlistQuery = useQuery({
+    queryKey: ['home', 'feed', 'playlist', String(active.listId ?? '')],
+    queryFn: () => getMyListDetail(active.listId!),
+    enabled: active.kind === 'playlist' && active.listId != null,
+    staleTime: 60_000,
+  });
+  const playlist = active.kind === 'playlist' ? playlistQuery.data : undefined;
+  // 题材(二级)只对"某个内容大类"的频道有意义:聚合流、标签/关键词/专题/歌单频道没有父类。
   const parentType = active.kind === 'type' ? active.contentType : undefined;
   const subcatQuery = useQuery({
     queryKey: ['home', 'feed', 'subcategory', parentType],
@@ -271,6 +283,15 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
         );
         const total = totals.reduce((a, b) => a + b, 0);
         return { records: merged.map(toFeedRecord), total, page: pageParam, hasMore };
+      }
+      // 歌单频道:一张歌单就是一格页签,曲目按歌单里排好的顺序给(不分页,一张歌单最多几十首)
+      if (active.kind === 'playlist' && active.listId != null) {
+        const page = await getMyListContent(active.listId);
+        const records = (page.list ?? []).map((it: any) =>
+          toFeedRecord({ ...it, id: it.contentId, contentType: it.type, author: it.author }),
+        );
+        // 一次给完:hasMore=false 让无限滚动到此为止,不会再去要第二页
+        return { records, total: page.total ?? records.length, page: pageParam, hasMore: false };
       }
       // 专题频道:作品直接取专题收录(手工收录在前,命中自动规则的补在后面)
       if (active.kind === 'topic' && active.topicId != null) {
@@ -416,13 +437,17 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
                 '& .MuiTabs-scrollButtons': { color: 'var(--text-secondary, rgba(255,255,255,0.55))' },
               }}
             >
-              {tabSections.map((s) => (
-                <Tab
-                  key={s.id}
-                  value={s.id}
-                  label={s.id === active.id && isTransient ? `${s.label}(未添加)` : s.label}
-                />
-              ))}
+              {tabSections.map((s) => {
+                // 歌单频道的名字以歌单为准:链接进来的那格只带得到 id,别一直显示「歌单」
+                const label = s.id === active.id && playlist?.name ? playlist.name : s.label;
+                return (
+                  <Tab
+                    key={s.id}
+                    value={s.id}
+                    label={s.id === active.id && isTransient ? `${label}(未添加)` : label}
+                  />
+                );
+              })}
             </Tabs>
             {/* 别人分享来的频道:先能看,想留下再加进自己的列表 */}
             {isTransient && (
@@ -430,7 +455,7 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
                 <IconButton
                   size="small"
                   aria-label="加入我的频道"
-                  onClick={() => sectionApi.add(active)}
+                  onClick={() => sectionApi.add(playlist?.name ? { ...active, label: playlist.name } : active)}
                   sx={{ color: 'var(--brand-color, #FE2C55)' }}
                 >
                   <AddRoundedIcon sx={{ fontSize: 18 }} />
@@ -491,7 +516,8 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
             <Box sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 24, background: 'linear-gradient(to right, transparent, var(--bg-body, #F5F5F7))', pointerEvents: 'none' }} />
           </Box>
           )}
-          {tab === 'home' && (
+          {/* 歌单频道的顺序是歌单自己排好的,排序/筛选在这里没有意义,不摆出来 */}
+          {tab === 'home' && active.kind !== 'playlist' && (
             <Box sx={{ position: 'relative', px: 1.5, pt: 0.5, pb: 0.75 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' }, pr: 3 }}>
                 <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>排序</Typography>
@@ -531,7 +557,7 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
           </Box>
           )}
           {/* 评分/年份筛选(分类内容页;仅影视类生效,推荐/关注不展示) */}
-          {tab === 'home' && active.kind !== 'recommend' && (
+          {tab === 'home' && active.kind !== 'recommend' && active.kind !== 'playlist' && (
             <Box sx={{ position: 'relative', px: 1.5, pb: 0.75 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' }, pr: 3 }}>
                 <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>筛选</Typography>
@@ -594,6 +620,10 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
         </Box>
 
       <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+          {/* 歌单频道:整张歌单直接能播,不用先点进歌单页 */}
+          {active.kind === 'playlist' && playlist && (
+            <PlaylistChannelHeader list={playlist} />
+          )}
           {/* 音乐:歌单和歌放在同一个频道里 */}
           {active.contentType === 'MUSIC' && (
             <Box sx={{ px: 2, pt: 2 }}>
@@ -644,6 +674,57 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
           )}
       </Box>
       <SectionManagerDialog open={managerOpen} onClose={() => setManagerOpen(false)} />
+    </Box>
+  );
+}
+
+// ─── 歌单频道的头部 ───
+//
+// 歌单当频道用时,页签下面这一条就是"这张歌单是什么":封面、简介、多少首,
+// 以及最要紧的「播放全部」—— 不然用户得先点进 /playlist 才能整张播。
+function PlaylistChannelHeader({ list }: { list: MyListItem }) {
+  const router = useRouter();
+  const [toast, setToast] = useState('');
+  const play = async (shuffle?: boolean) => {
+    try {
+      const n = await playPlaylist(list.id, { shuffle });
+      if (n === 0) setToast('这张歌单里还没有可播放的歌');
+    } catch {
+      setToast('播放失败,稍后再试');
+    }
+  };
+  return (
+    <Box sx={{ px: 2, pt: 2, display: 'flex', gap: 1.5, alignItems: 'center' }}>
+      <Box sx={{ width: 84, flexShrink: 0 }}>
+        <PlaylistCover covers={list.covers} coverUrl={list.coverUrl} size="100%" radius={8} />
+      </Box>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+          <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {list.name}
+          </Typography>
+          {list.official && (
+            <Chip label="官方" size="small" sx={{ height: 18, fontSize: 10, fontWeight: 700 }} color="primary" />
+          )}
+        </Box>
+        <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {list.description || `${list.itemCount} 首`}
+          {list.ownerName ? ` · by ${list.ownerName}` : ''}
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+          <Chip
+            icon={<PlayArrowRoundedIcon sx={{ fontSize: 16 }} />}
+            label="播放全部"
+            size="small"
+            color="primary"
+            onClick={() => play(false)}
+            sx={{ fontWeight: 700 }}
+          />
+          <Chip label="随机播放" size="small" variant="outlined" onClick={() => play(true)} />
+          <Chip label="歌单详情" size="small" variant="outlined" onClick={() => router.push(playlistHref(list.id))} />
+        </Box>
+      </Box>
+      <Snackbar open={!!toast} autoHideDuration={2400} onClose={() => setToast('')} message={toast} anchorOrigin={{ vertical: 'top', horizontal: 'center' }} />
     </Box>
   );
 }
@@ -837,6 +918,8 @@ function EmptyHint({ tab, section }: { tab: PanelTab; section: HomeSection }) {
   let hint = '换个频道,或在「频道管理」里调一调';
   if (section.kind === 'recommend') {
     if (tab === 'home') { title = '精选内容为空'; hint = '稍后再来看看'; }
+  } else if (section.kind === 'playlist') {
+    hint = '这张歌单里的内容可能已下架 —— 在「频道管理」的歌单里换一张';
   } else if (section.kind === 'keyword' || section.kind === 'tag') {
     // 自建频道最容易空:词太偏就什么都匹配不到,直说比"试试其他分类"有用。
     hint = '这个词暂时没匹配到内容,换个说法试试';

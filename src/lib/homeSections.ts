@@ -11,6 +11,7 @@
  *   type       一个内容大类,可再带一个题材(contentType + genre)
  *   tag        module_content.tags 里的一个标签(后端 ?tag=)
  *   topic      一个专题 / 话题(community topics,含 topiccurator 自动生成的)
+ *   playlist   一张歌单(user_my_list:平台编排的或别人公开的)—— 歌单就是一种专题
  *   keyword    用户自己输的词,标题或标签命中即可(后端 ?keyword=)
  *
  * id 是稳定主键:进 URL、进 localStorage、做 react-query 的 queryKey。
@@ -18,7 +19,7 @@
  * /home/recommend?section=game 这种旧链接照样能打开。
  */
 
-export type HomeSectionKind = 'recommend' | 'type' | 'tag' | 'topic' | 'keyword';
+export type HomeSectionKind = 'recommend' | 'type' | 'tag' | 'topic' | 'playlist' | 'keyword';
 
 export interface HomeSection {
   /** 稳定唯一键,同时是 ?section= 的值 */
@@ -35,6 +36,8 @@ export interface HomeSection {
   tag?: string;
   /** kind=topic */
   topicId?: string | number;
+  /** kind=playlist:歌单 id(user_my_list);'liked' 这类内置歌单不进频道 */
+  listId?: string | number;
   /** kind=keyword */
   keyword?: string;
   /** 预置目录里的项(用户仍可删,只是能在「更多频道」里找回) */
@@ -108,6 +111,9 @@ export function tagSectionId(tag: string, contentType?: string): string {
 export function topicSectionId(topicId: string | number): string {
   return `topic:${topicId}`;
 }
+export function playlistSectionId(listId: string | number): string {
+  return `pl:${listId}`;
+}
 export function keywordSectionId(keyword: string): string {
   return `kw:${keyword.trim()}`;
 }
@@ -128,6 +134,9 @@ export function makeTagSection(tag: string, contentType?: string): HomeSection {
 export function makeTopicSection(topicId: string | number, title: string): HomeSection {
   return { id: topicSectionId(topicId), label: title, kind: 'topic', topicId };
 }
+export function makePlaylistSection(listId: string | number, name: string): HomeSection {
+  return { id: playlistSectionId(listId), label: name, kind: 'playlist', listId };
+}
 export function makeKeywordSection(keyword: string): HomeSection {
   const kw = keyword.trim();
   return { id: keywordSectionId(kw), label: kw, kind: 'keyword', keyword: kw };
@@ -146,6 +155,11 @@ export function parseSectionId(id: string): HomeSection | null {
   if (id.startsWith('topic:')) {
     const topicId = id.slice('topic:'.length);
     return topicId ? { id, label: '专题', kind: 'topic', topicId } : null;
+  }
+  if (id.startsWith('pl:')) {
+    // 歌单名从歌单详情里补(见 FeedPanel),这里只保证链接能打开。
+    const listId = id.slice('pl:'.length);
+    return listId ? { id, label: '歌单', kind: 'playlist', listId } : null;
   }
   if (id.startsWith('kw:')) {
     const keyword = id.slice('kw:'.length);
