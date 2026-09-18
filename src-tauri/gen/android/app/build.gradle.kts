@@ -31,7 +31,8 @@ android {
     defaultConfig {
         manifestPlaceholders["usesCleartextTraffic"] = "false"
         applicationId = "app.qingqiuyue.desktop"
-        minSdk = 24
+        // Android 8.0 起:只覆盖仍在用的机型,低于此的设备本来也跑不动 WebView 里的这套前端
+        minSdk = 26
         targetSdk = 36
         versionCode = tauriProperties.getProperty("tauri.android.versionCode", "1").toInt()
         versionName = tauriProperties.getProperty("tauri.android.versionName", "1.0")

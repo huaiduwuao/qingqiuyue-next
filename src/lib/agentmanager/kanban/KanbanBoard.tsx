@@ -25,6 +25,7 @@ import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator'
 import type { KanbanTask, KanbanBoard } from '../api-extended'
+import { API_PREFIX } from '@/lib/api/prefix'
 
 const COLUMNS: { id: KanbanTask['status']; label: string; color: string }[] = [
   { id: 'todo',      label: '◻ 待办',     color: '#6b7280' },
@@ -59,7 +60,7 @@ export default function KanbanBoard({ boardId: fixedBoardId, token, workerId, on
   // 可指派的员工:和数字人页面同一来源,含 builder 发布的自定义员工和短剧员工
   const [staff, setStaff] = useState<{ id: string; label: string }[]>(FALLBACK_STAFF)
   useEffect(() => {
-    fetch('/api/agentmanager/multi-agent/staff')
+    fetch(API_PREFIX + '/api/agentmanager/multi-agent/staff')
       .then(r => r.json())
       .then(d => {
         const list = (d.agents || []).map((a: { agentId: string; name: string }) => ({ id: a.agentId, label: a.name || a.agentId }))
@@ -71,7 +72,7 @@ export default function KanbanBoard({ boardId: fixedBoardId, token, workerId, on
   const loadBoards = useCallback(async () => {
     if (fixedBoardId != null) return
     try {
-      const res = await fetch('/api/agentmanager/kanban/boards', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json())
+      const res = await fetch(API_PREFIX + '/api/agentmanager/kanban/boards', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json())
       const list = res.list || []
       setBoards(list)
       setPickedBoard(cur => (cur != null && list.some((b: { id: number }) => b.id === cur)) ? cur : (list[0]?.id ?? null))
@@ -82,7 +83,7 @@ export default function KanbanBoard({ boardId: fixedBoardId, token, workerId, on
   const createBoard = async () => {
     const name = prompt('新看板名称')?.trim()
     if (!name) return
-    const res = await fetch('/api/agentmanager/kanban/boards', {
+    const res = await fetch(API_PREFIX + '/api/agentmanager/kanban/boards', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ name }),
@@ -106,7 +107,7 @@ export default function KanbanBoard({ boardId: fixedBoardId, token, workerId, on
     if (boardId == null) { setTasks([]); return }
     setLoading(true)
     try {
-      const res = await fetch(`/api/agentmanager/kanban/boards/${boardId}/tasks`, {
+      const res = await fetch(API_PREFIX + `/api/agentmanager/kanban/boards/${boardId}/tasks`, {
         headers: { Authorization: `Bearer ${token}` },
       }).then(r => r.json())
       setTasks(res.list || [])
@@ -117,7 +118,7 @@ export default function KanbanBoard({ boardId: fixedBoardId, token, workerId, on
 
   const createTask = async () => {
     if (!newTitle.trim()) return
-    await fetch(`/api/agentmanager/kanban/boards/${boardId}/tasks`, {
+    await fetch(API_PREFIX + `/api/agentmanager/kanban/boards/${boardId}/tasks`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ title: newTitle, body: newBody }),
@@ -129,7 +130,7 @@ export default function KanbanBoard({ boardId: fixedBoardId, token, workerId, on
   }
 
   const moveTask = async (taskId: number, status: KanbanTask['status']) => {
-    await fetch(`/api/agentmanager/kanban/tasks/${taskId}/move`, {
+    await fetch(API_PREFIX + `/api/agentmanager/kanban/tasks/${taskId}/move`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ status }),
@@ -139,7 +140,7 @@ export default function KanbanBoard({ boardId: fixedBoardId, token, workerId, on
 
   const deleteTask = async (taskId: number) => {
     if (!confirm('确认删除?')) return
-    await fetch(`/api/agentmanager/kanban/tasks/${taskId}`, {
+    await fetch(API_PREFIX + `/api/agentmanager/kanban/tasks/${taskId}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -149,7 +150,7 @@ export default function KanbanBoard({ boardId: fixedBoardId, token, workerId, on
   // 交给数字员工:卡片变成一次后台运行,结束后由后端回写 done / blocked
   const runTask = async (task: KanbanTask) => {
     setRunError(null)
-    const res = await fetch(`/api/agentmanager/kanban/tasks/${task.id}/run`, {
+    const res = await fetch(API_PREFIX + `/api/agentmanager/kanban/tasks/${task.id}/run`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ agent: agentFor[task.id] || 'worker' }),

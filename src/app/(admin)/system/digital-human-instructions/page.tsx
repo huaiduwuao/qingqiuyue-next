@@ -24,6 +24,7 @@ import { digitalHumanApi, type Instruction } from '@/apis/digitalHuman';
 import ExpressionPreview from '@/components/digital-human/ExpressionPreview';
 import ToolCatalog from '@/components/digital-human/ToolCatalog';
 import type { ExpressionTemplateName } from '@/digital-human/tools/expressions';
+import { API_PREFIX } from '@/lib/api/prefix';
 
 const LIST_FRACTION = '320px';
 
@@ -48,7 +49,7 @@ export default function DigitalHumanInstructionsPage() {
   // 员工列表(内置 4 类 + worker + builder 发布的):agentId 从这里选,填错了指令就进不了对话链路
   const [staff, setStaff] = React.useState<{ agentId: string; name: string; description: string }[]>([]);
   React.useEffect(() => {
-    fetch('/api/agentmanager/multi-agent/staff').then((r) => r.json()).then((d) => setStaff(d.agents || [])).catch(() => setStaff([]));
+    fetch(API_PREFIX + '/api/agentmanager/multi-agent/staff').then((r) => r.json()).then((d) => setStaff(d.agents || [])).catch(() => setStaff([]));
   }, []);
 
   const saveMutation = useMutation({

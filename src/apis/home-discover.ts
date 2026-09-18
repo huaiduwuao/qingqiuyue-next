@@ -1,4 +1,5 @@
 import { contentClient } from '@/lib/api/client';
+import { API_PREFIX } from '@/lib/api/prefix';
 
 // 数据的全部读 Doris module_content,Phase 3 启用后,24 类均有真实数据
 // (站内热度榜 /home/hot 已并入排行榜,见 apis/leaderboard.ts)
@@ -21,7 +22,7 @@ export async function fetchRecommend(params: { types?: string; size?: number; ge
   // 走同源 /api/content/*,由 nginx / APISIX 转发到 content-api。
   // (这里曾经打的是 Next.js 侧的同名 route.ts —— 那个代理层在前端改成静态
   //  导出时就删掉了,拼装 sourceUrl 和播放性判定现在都在 Go 侧完成。)
-  const resp = await fetch(`/api/content/recommend/feed?${new URLSearchParams(params as Record<string, string>).toString()}`, {
+  const resp = await fetch(API_PREFIX + `/api/content/recommend/feed?${new URLSearchParams(params as Record<string, string>).toString()}`, {
     cache: 'no-store',
   });
   return resp.json();

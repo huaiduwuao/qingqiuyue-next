@@ -3,20 +3,18 @@
 import { useCallback, useSyncExternalStore } from 'react';
 
 /**
- * 站内 AI 能力(浮窗小助手 / AI 搜索 / 数字人)的个人开关。
+ * 站内 AI 能力(AI 搜索 / 数字人)的个人开关。
+ * (右下角的浮窗小助手已整体移除,assistant / introSeen 两个开关随之删掉;
+ *  老浏览器 localStorage 里残留的同名键会被合并时忽略。)
  *
- * 浮窗挂在 providers 里、开关在设置抽屉和数字人介绍页里,几处要同时生效,
+ * 开关在设置抽屉和数字人介绍页里,几处要同时生效,
  * 所以用一个模块级 store + useSyncExternalStore,而不是各自 useState 读 localStorage
- * (useHomeSettings 那种写法,改了抽屉里的开关,浮窗要刷新页面才知道)。
+ * (useHomeSettings 那种写法,改了抽屉里的开关,别处要刷新页面才知道)。
  * 只存本机:这些是"我想不想看到"的偏好,不是账号数据。
  */
 export interface AIPrefs {
-  /** 页面右下角的小助手气泡 */
-  assistant: boolean;
   /** AI 搜索入口:首页侧栏「AI 助手」、搜索页的 AI 模式切换和提示 */
   aiEntry: boolean;
-  /** 已经看过小助手的介绍(气泡旁的引导卡不再出现) */
-  introSeen: boolean;
   /** 打开 /digital-human 时跳过介绍页,直接进入对话 */
   skipIntro: boolean;
 }
@@ -25,9 +23,7 @@ const KEY = 'qq-ai-prefs';
 const EVENT = 'qq-ai-prefs-change';
 
 export const AI_PREFS_DEFAULTS: AIPrefs = {
-  assistant: true,
   aiEntry: true,
-  introSeen: false,
   skipIntro: false,
 };
 

@@ -408,7 +408,9 @@ function TopBar({
               </IconButton>
             }
           />
-        ) : (
+        ) : isMobile ? null : (
+          /* 移动端不再重复这个按钮:底部「我的」标签本身就是登录入口(未登录时它给登录引导)。
+             桌面端没有底部导航,这里是唯一的入口,保留。 */
           <Button
             size="small"
             variant="contained"

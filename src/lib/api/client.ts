@@ -1,5 +1,6 @@
 import axios, { AxiosError, AxiosResponse } from 'axios';
 import { normalizeMediaUrls } from '@/lib/media';
+import { API_PREFIX } from '@/lib/api/prefix';
 
 export type ApiErrorCategory = 'network' | 'auth' | 'business' | 'timeout' | 'unknown';
 
@@ -128,7 +129,7 @@ export function formatApiError(error: unknown): string {
 
 // 走网关同源: /api/* 经 Next.js rewrites 反代到 API_PROXY_TARGET(详见 next.config.ts)
 // 显式设为空串("")表示同源,未设时回退到 localhost:3000 同源(开发)。
-const API_GATEWAY = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
+const API_GATEWAY = API_PREFIX;
 
 // 各模块 API 基地址 —— 前缀按 4 个合并服务收口:
 //   core(admin+wx+reward)/ content(content+home)/ realtime(im+avatar)/ spider
