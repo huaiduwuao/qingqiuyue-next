@@ -165,6 +165,9 @@ export default function SpiderTasksPage() {
 
   const liveById = useMemo(() => new Map(liveTasks.map((t) => [t.id, t])), [liveTasks]);
   // 只在任务增减 / 状态变化时重拉列表;进度字段走 liveById 叠加
+  // 任务类型筛选。正文回填是持续产生的背景任务(见 go 端 chapter_backfill.go),
+  // 不给一个能单独看/能滤掉的开关,任务页第一屏很快就只剩回填,手工任务反而看不见。
+  const [jobType, setJobType] = useState<'' | 'chapter_backfill' | '!chapter_backfill'>('');
   const statusKey = useMemo(() => liveTasks.map((t) => `${t.id}:${t.status}`).sort().join('|'), [liveTasks]);
 
   const showMsg = useCallback((message: string, severity: 'success' | 'error' = 'success') => setSnack({ open: true, message, severity }), []);
@@ -254,15 +257,23 @@ export default function SpiderTasksPage() {
             variant="outlined"
           />
         </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <TextField select size="small" label="任务类型" value={jobType}
+            onChange={(e) => setJobType(e.target.value as typeof jobType)} sx={{ minWidth: 150 }}>
+            <MenuItem value="">全部</MenuItem>
+            <MenuItem value="!chapter_backfill">手工任务</MenuItem>
+            <MenuItem value="chapter_backfill">正文回填</MenuItem>
+          </TextField>
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => setWriteVisible(true)}>新建任务</Button>
+        </Box>
       </Box>
 
       <DataGridTable
         columns={columns}
-        extraParams={{ statusKey, reloadTick }}
+        extraParams={{ statusKey, reloadTick, jobType }}
         fetchData={async (params) => {
           try {
-            const res = await listTasks({ page: params.pageNumber, pageSize: params.pageSize });
+            const res = await listTasks({ page: params.pageNumber, pageSize: params.pageSize, type: jobType || undefined });
             const sourceMap = new Map((sourcesQuery.data || []).map((s: SpiderSource) => [s.id, s.name]));
             const list = (res.list || []).map((raw: any) => {
               const task = normalizeTask(raw);

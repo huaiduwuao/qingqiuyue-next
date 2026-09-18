@@ -160,7 +160,7 @@ export async function getRecentActivity(): Promise<{ code: number; data: Activit
 }
 
 // ─── Tasks ───
-export async function listTasks(params?: PageParams & { status?: string }): Promise<PageResult<any>> {
+export async function listTasks(params?: PageParams & { status?: string; type?: string }): Promise<PageResult<any>> {
   const res = await spiderClient('/tasks', { params });
   return normalizeLegacyPageResponse((res as any)?.data ?? res);
 }
