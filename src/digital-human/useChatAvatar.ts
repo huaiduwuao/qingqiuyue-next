@@ -3,7 +3,7 @@
 /**
  * useChatAvatar —— 数字人对话 hook(LLM + TTS + viseme + 表情 + 动作)
  *
- * FloatingDigitalHuman 和 ImmersiveDigitalHuman 共用,
+ * ImmersiveDigitalHuman 使用,
  * 统一 LLM endpoint(OpenAI 兼容),失败降级到 mock。
  *
  * 返回:
@@ -30,6 +30,7 @@
 
 import React from 'react';
 import type { ChatChoices, ContentRef } from './scene-ui/content';
+import { API_PREFIX } from '@/lib/api/prefix';
 
 /** 一次工具调用在对话里的记录(操作日志:做了什么、结果是什么) */
 export interface ChatToolEntry {
@@ -146,7 +147,7 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
       // 1. 调 chat 路由(LLM 优先真实 OpenAI 兼容后端,失败直接报错)
       let resp: ChatResp;
       try {
-        const r = await fetch('/api/avatar/chat', {
+        const r = await fetch(API_PREFIX + '/api/avatar/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -290,7 +291,7 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
     setChatBusy(true)
     setChatLog((c: ChatLogItem[]) => [...c, { who: 'user', text: t }])
     try {
-      const r = await fetch('/api/avatar/chat', {
+      const r = await fetch(API_PREFIX + '/api/avatar/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -464,7 +465,7 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
         const fd = new FormData();
         fd.append('file', new File([blob], 'recording.webm', { type: mime }));
         try {
-          const r = await fetch('/api/avatar/asr', { method: 'POST', body: fd });
+          const r = await fetch(API_PREFIX + '/api/avatar/asr', { method: 'POST', body: fd });
           if (r.ok) {
             const j = await r.json();
             if (j.text) {

@@ -30,6 +30,7 @@ import {
 import { normalizeChoices, normalizeContentRefs, rememberContentRefs, type ContentRef } from './scene-ui/content';
 import { musicPlayer } from '@/lib/player/musicPlayer';
 import { playPlaylist, playTracks, queueTracks } from '@/lib/player/playlist';
+import { API_PREFIX } from '@/lib/api/prefix';
 
 /** 业务工具执行时给用户的可见反馈(否则一次搜索十几秒界面是死的) */
 const TOOL_RUNNING_HINT: Record<string, string> = {
@@ -246,7 +247,7 @@ let ttsRunning = false;
 let onTTSIdle: (() => void) | null = null;
 
 function requestTTS(text: string, signal?: AbortSignal): Promise<Response | null> {
-  return fetch('/api/audio/speech', {
+  return fetch(API_PREFIX + '/api/audio/speech', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -1223,7 +1224,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     } else {
       // HTTP 降级
       try {
-        const r = await fetch('/api/avatar/chat', {
+        const r = await fetch(API_PREFIX + '/api/avatar/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1299,7 +1300,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
       } else {
         // HTTP 降级
         try {
-          const r = await fetch('/api/avatar/chat', {
+          const r = await fetch(API_PREFIX + '/api/avatar/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

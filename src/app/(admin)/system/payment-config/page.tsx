@@ -27,10 +27,11 @@ import CloudOffIcon from '@mui/icons-material/CloudOff';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import LinkIcon from '@mui/icons-material/Link';
 import { adminClient, formatApiError } from '@/lib/api/client';
+import { API_PREFIX } from '@/lib/api/prefix';
 
 // 支付配置 API
 //
-// 之前这里裸 fetch('/api/admin/payment/config') —— 网关上没有 /api/admin 这个前缀
+// 之前这里裸 fetch(API_PREFIX + '/api/admin/payment/config') —— 网关上没有 /api/admin 这个前缀
 // (那是早已下线的独立 admin-api 的老路径),真实地址是 core-api 的
 // /api/core/payment/config,而且需要登录态。裸 fetch 还有一个问题:不带
 // Authorization 头,所以就算路径对了也是 401。改走 adminClient(base=/api/core,

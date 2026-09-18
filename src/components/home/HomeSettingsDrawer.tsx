@@ -138,7 +138,7 @@ const FAQ: { q: string; a: string }[] = [
   { q: '如何切换深色/浅色模式?', a: '在设置抽屉的"外观"分组中切换,或跟随系统。' },
   { q: '直播清晰度怎么选?', a: '进入直播间 → 右上角设置 → 清晰度。蓝光需稳定 WiFi。' },
   { q: 'AI 搜索记录在哪清?', a: '设置 → AI 功能 → 关闭"保留 AI 历史"。' },
-  { q: '不想看到右下角的小助手?', a: '设置 → AI 功能 → 关闭"页面角落的小助手";想用时再打开。' },
+  { q: '数字人在哪儿?', a: '设置 → AI 功能 → 小助手介绍 → 查看,或直接打开「数字人」页面。' },
   { q: '账号异常怎么办?', a: '我的 → 客服,或联系 support@example.com。' },
 ];
 
@@ -355,14 +355,8 @@ export function HomeSettingsDrawer({ open, onClose }: Props) {
           <Divider sx={{ my: 1.5 }} />
 
           {/* AI 设置 */}
-          {/* 站内 AI 能力都可选:和浮窗、首页「AI 助手」、数字人介绍页共用 aiPrefs,改了立即生效 */}
+          {/* 站内 AI 能力都可选:和首页「AI 助手」、数字人介绍页共用 aiPrefs,改了立即生效 */}
           <Section title="AI 功能" icon={<AutoAwesomeRoundedIcon sx={{ fontSize: 14 }} />}>
-            <Row
-              label="页面角落的小助手"
-              desc="右下角的虚拟形象气泡,点开可以聊天、找作品"
-              control={<Switch size="small" checked={aiPrefs.assistant} onChange={(_, v) => setAIPrefs({ assistant: v })} />}
-              divider
-            />
             <Row
               label="AI 搜索入口"
               desc="侧栏「AI 助手」和搜索页的 AI 搜索切换"

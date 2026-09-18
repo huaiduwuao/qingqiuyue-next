@@ -17,6 +17,7 @@
  */
 
 import { aiClient, API_BASE } from '@/lib/api/client';
+import { API_PREFIX } from '@/lib/api/prefix';
 
 /** 后端 GenerationWorkflow(gen-api /generate/workflows) */
 export interface GenWorkflow {

@@ -9,7 +9,9 @@
  * (EventSource 不能带 Authorization 头)。
  */
 
-const BASE = '/api/agentmanager/shortdrama';
+import { API_PREFIX } from '@/lib/api/prefix';
+
+const BASE = `${API_PREFIX}/api/agentmanager/shortdrama`;
 
 export type Step =
   | 'screenwriter'
@@ -428,7 +430,7 @@ export interface GenWorkflowAdmin {
 }
 
 async function aiCall<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`/api/ai${path}`, {
+  const res = await fetch(API_PREFIX + `/api/ai${path}`, {
     ...init,
     headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(init.headers as Record<string, string>) },
   });

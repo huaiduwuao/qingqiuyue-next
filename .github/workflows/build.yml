@@ -196,7 +196,8 @@ jobs:
       - run: sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;$NDK_VERSION"
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+          # 只出 arm64-v8a:x86/x86_64 是模拟器专用,armeabi-v7a 是 2015 年前的 32 位机
+          targets: aarch64-linux-android
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
@@ -217,15 +218,15 @@ jobs:
       - name: Verify APK signature
         if: env.HAS_KEYSTORE == 'true'
         run: |
-          apk=$(ls src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk | head -1)
+          apk=$(ls src-tauri/gen/android/app/build/outputs/apk/*/release/*.apk | head -1)
           case "$apk" in *unsigned*) echo "::error::keystore configured but APK is unsigned: $apk"; exit 1;; esac
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$apk" | grep -E 'Signer #1 certificate (DN|SHA-256)'
       - uses: actions/upload-artifact@v4
         with:
           name: android
           path: |
-            src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
-            src-tauri/gen/android/app/build/outputs/bundle/universalRelease/*.aab
+            src-tauri/gen/android/app/build/outputs/apk/*/release/*.apk
+            src-tauri/gen/android/app/build/outputs/bundle/*Release/*.aab
           retention-days: 30
 
   # ==================== GitHub Release(仅 v* tag) ====================

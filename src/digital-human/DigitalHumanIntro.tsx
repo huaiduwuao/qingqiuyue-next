@@ -57,7 +57,6 @@ export default function DigitalHumanIntro({ onStart }: { onStart: () => void }) 
   const authed = status === 'authenticated';
 
   const start = () => {
-    setPrefs({ introSeen: true });
     if (!authed) {
       // 登录回来直接进入对话,不再看一遍介绍
       router.push(loginHref('/digital-human?start=1'));
@@ -67,7 +66,6 @@ export default function DigitalHumanIntro({ onStart }: { onStart: () => void }) 
   };
 
   const leave = () => {
-    setPrefs({ introSeen: true });
     if (typeof window !== 'undefined' && window.history.length > 1) router.back();
     else router.push('/home/recommend');
   };
@@ -192,15 +190,8 @@ export default function DigitalHumanIntro({ onStart }: { onStart: () => void }) 
         <SectionTitle>用不用,你来决定</SectionTitle>
         <Box sx={card}>
           <PrefRow
-            label="在页面右下角显示小助手"
-            desc="浏览任何页面时都能点开聊两句;关掉后只在这个页面使用"
-            checked={prefs.assistant}
-            onChange={(v) => setPrefs({ assistant: v })}
-          />
-          <Box sx={{ height: '1px', bgcolor: 'rgba(255,255,255,0.08)', my: 1 }} />
-          <PrefRow
             label="下次直接进入对话"
-            desc="跳过这个介绍页;想再看时从小助手的「了解」按钮进来"
+            desc="跳过这个介绍页;想再看时从「我的 → 偏好设置 → AI 功能 → 小助手介绍」进来"
             checked={prefs.skipIntro}
             onChange={(v) => setPrefs({ skipIntro: v })}
           />

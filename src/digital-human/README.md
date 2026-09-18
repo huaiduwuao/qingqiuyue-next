@@ -8,7 +8,7 @@
 ```
 src/digital-human/
   ImmersiveDigitalHuman.tsx  # /digital-human 全屏页(舞台 + 会话 + 语音 + 面板)
-  FloatingDigitalHuman.tsx   # 全站浮窗版(无 3D 舞台,面板走普通弹层)
+  # (全站浮窗版 FloatingDigitalHuman.tsx 已移除:常驻右下角会压住页面元素,数字人只留 /digital-human 一处)
   VrmStage.tsx               # 3D 舞台(thin orchestrator)
   useChatAvatarWS.ts         # 对话 hook:AG-UI SSE / WS 两种模式 + TTS + 打断
 

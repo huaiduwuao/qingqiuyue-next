@@ -66,6 +66,7 @@ import { listModels } from './api/digitalHumanConfig';
 import { clearAvatarCache } from './vrm/loadAvatar';
 import type { VrmModelConfig } from './vrm/config/types';
 import type { ScenePresetName, CameraPresetName, DanceStyle } from './vrm/types';
+import { API_PREFIX } from '@/lib/api/prefix';
 
 // ── 调试：排查 runtime.lastError 来源 ──
 // 操作步骤:
@@ -195,7 +196,7 @@ export default function ImmersiveDigitalHuman() {
   }, []);
   React.useEffect(() => {
     const ac = new AbortController();
-    fetch('/api/realtime/assets', { signal: ac.signal }).then((r) => r.json()).then((d) => {
+    fetch(API_PREFIX + '/api/realtime/assets', { signal: ac.signal }).then((r) => r.json()).then((d) => {
       const list = ((d?.data?.list || []) as { id: string; name: string; mode: string; status: string; active?: boolean; assetUrl?: string }[])
         .filter((a) => a.mode === '3dgs' && a.status === 'ready' && a.assetUrl)
         .map((a) => ({ id: a.id, name: a.name + (a.active ? '(当前)' : ''), assetUrl: a.assetUrl as string }));
@@ -203,7 +204,7 @@ export default function ImmersiveDigitalHuman() {
       const active = list.find((a) => a.name.endsWith('(当前)')) || list[0];
       if (active) setGsAsset((cur) => cur || active.assetUrl);
     }).catch(() => {});
-    fetch('/api/realtime/config', { signal: ac.signal }).then((r) => r.json()).then((d) => {
+    fetch(API_PREFIX + '/api/realtime/config', { signal: ac.signal }).then((r) => r.json()).then((d) => {
       const u = d?.data?.assetUrl as string | undefined;
       if (u) {
         setGsAssets((prev) => (prev.some((a) => a.assetUrl === u) ? prev : [{ id: 'config', name: '默认资产', assetUrl: u }, ...prev]));
@@ -217,7 +218,7 @@ export default function ImmersiveDigitalHuman() {
   const [aguiAgent, setAguiAgent] = React.useState('worker');
   React.useEffect(() => {
     const ac = new AbortController();
-    fetch('/api/agentmanager/multi-agent/staff', { signal: ac.signal }).then((r) => r.json()).then((d) => setStaffList(d.agents || [])).catch(() => {});
+    fetch(API_PREFIX + '/api/agentmanager/multi-agent/staff', { signal: ac.signal }).then((r) => r.json()).then((d) => setStaffList(d.agents || [])).catch(() => {});
     return () => ac.abort();
   }, []);
   // 002:全屏页体现多会话能力(放在 chat 之前:发第一条消息建会话后要刷新它)

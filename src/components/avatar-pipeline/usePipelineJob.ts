@@ -19,6 +19,7 @@ import type {
   Artifact,
 } from '@/lib/avatar-pipeline/types';
 import { PIPELINE_STAGES } from '@/lib/avatar-pipeline/types';
+import { API_PREFIX } from '@/lib/api/prefix';
 
 export type WizardStep = 'mode' | 'upload' | 'library' | 'configure' | 'run' | 'preview';
 
@@ -152,7 +153,7 @@ export function usePipelineJob(jobId: string | null) {
       return;
     }
     dispatch({ type: 'CONNECTION', connection: 'connecting' });
-    const src = new EventSource(`/api/avatar/pipeline/jobs/${jobId}/events`);
+    const src = new EventSource(API_PREFIX + `/api/avatar/pipeline/jobs/${jobId}/events`);
     sourceRef.current = src;
     src.onopen = () => {
       dispatch({ type: 'CONNECTION', connection: 'open' });
@@ -188,7 +189,7 @@ export function usePipelineJob(jobId: string | null) {
 
   const cancel = useCallback(async () => {
     if (!jobId) return;
-    await fetch(`/api/avatar/pipeline/jobs/${jobId}`, { method: 'DELETE' });
+    await fetch(API_PREFIX + `/api/avatar/pipeline/jobs/${jobId}`, { method: 'DELETE' });
   }, [jobId]);
 
   const reset = useCallback(() => {

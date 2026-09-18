@@ -2,7 +2,7 @@
 
 import { ThemeProvider as CustomThemeProvider } from '@/contexts/ThemeContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect } from 'react';
 import { AppContextProvider } from '@/contexts/AppContext';
 import { AuthContextProvider } from '@/contexts/AuthContext';
 import EmotionProvider from '@/lib/emotion-provider';
@@ -10,8 +10,7 @@ import PageViewTracker from '@/components/PageViewTracker';
 import ViewportFix from '@/components/layout/ViewportFix';
 import ClickSpark from '@/components/reactbits/ClickSpark';
 import GlobalPlayers from '@/components/player/GlobalPlayers';
-import { useAIPrefs } from '@/lib/aiPrefs';
-import EmbedBridge, { isSceneEmbedded } from '@/components/layout/EmbedBridge';
+import EmbedBridge from '@/components/layout/EmbedBridge';
 import RealtimeProvider from '@/components/realtime/RealtimeProvider';
 
 // React 19(≤19.3.0) estimateBandwidth 有一个 off-by-one:遍历
@@ -36,13 +35,8 @@ if (typeof window !== 'undefined' && typeof performance !== 'undefined') {
   }
 }
 
-// 延迟加载 three.js(避免 Turbopack 首次编译整个 app 时卡在 three 大依赖上)。
-// 用户首次点击页面再 mount;非 /digital-human 路由永远不会触发。
-const FloatingDigitalHuman = lazy(() =>
-  typeof window === 'undefined'
-    ? Promise.resolve({ default: () => null })
-    : import('@/digital-human/FloatingDigitalHuman'),
-);
+// 全站浮窗小助手已移除:它常驻在右下角,会压住数字人页的角色选择面板等界面元素。
+// 数字人还在,但只在 /digital-human 这一个页面里(ImmersiveDigitalHuman)。
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -65,10 +59,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
       })
   );
 
-  const [mountFloating, setMountFloating] = useState(false);
-  // 用户可以在介绍卡 / 浮窗 / 偏好设置里关掉小助手,关掉后连 3D 依赖都不加载
-  const [aiPrefs] = useAIPrefs();
-
   // MSW(src/mocks/*,约 5200 行、360 个假端点)已删除。
   //
   // 它撑起了一整套影子 API:未实现的后端接口由 Service Worker 在浏览器里
@@ -88,16 +78,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }, []);
 
   // 浏览器空闲时再挂载浮窗数字人(等首次交互后再加载,避免阻塞 SSR)
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    // 立刻挂载 — setTimeout 0 让 React 先 commit 首屏
-    // (不依赖 requestIdleCallback, 因为重页面 /home/recommend 可能永远不 idle)
-    // 开在数字人场景的显示器里时不挂:外层已经有一个数字人了
-    if (isSceneEmbedded()) return;
-    const t = setTimeout(() => setMountFloating(true), 200)
-    return () => clearTimeout(t)
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
       <EmotionProvider>
@@ -115,11 +95,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
               </ClickSpark>
               {/* 音乐底栏 / 视频小窗:跨路由常驻,切页面不断播 */}
               <GlobalPlayers />
-              {mountFloating && aiPrefs.assistant && (
-                <Suspense fallback={null}>
-                  <FloatingDigitalHuman />
-                </Suspense>
-              )}
             </AuthContextProvider>
           </AppContextProvider>
         </CustomThemeProvider>

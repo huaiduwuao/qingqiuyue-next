@@ -53,6 +53,9 @@ import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import { useApp } from '@/contexts/AppContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { loginHref } from '@/lib/auth/redirect';
+import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { LIST_PAGE_SIZE, nextMeListPage } from '@/components/home/meListPaging';
 import { SiteLegalFooter } from '@/components/layout/SiteLegalFooter';
@@ -210,7 +213,54 @@ function isMyGroup(x: any): x is MyCollectionGroup {
   return x && typeof x === 'object' && 'count' in x && 'updatedAt' in x && !('contentType' in x);
 }
 
+/**
+ * 「我的」标签页。未登录时这里以前渲染的是一张占位资料卡(昵称 —、关注 —、作品 0),
+ * 看上去像"你的主页空着",而不是"你还没登录" —— 头部那个 登录 按钮因此成了移动端
+ * 唯一能看见的登录入口。现在未登录直接给登录引导,登录入口就在这一屏里。
+ */
 export function MyHomePage() {
+  const { status } = useAuth();
+  // 只在明确未登录时给引导:'loading' 阶段先按已登录渲染,避免刷新时闪一下登录页。
+  if (status === 'anonymous') return <MeLoggedOut />;
+  return <MyHomePageAuthed />;
+}
+
+function MeLoggedOut() {
+  const router = useRouter();
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 1.5,
+        px: 3,
+        py: 10,
+        textAlign: 'center',
+      }}
+    >
+      <Avatar sx={{ width: 72, height: 72, bgcolor: 'action.hover', color: 'text.secondary' }}>
+        <PersonRoundedIcon sx={{ fontSize: 36 }} />
+      </Avatar>
+      <Typography sx={{ fontSize: 17, fontWeight: 700, color: 'text.primary', mt: 0.5 }}>
+        登录后查看「我的」
+      </Typography>
+      <Typography sx={{ fontSize: 13, color: 'text.secondary', lineHeight: 1.7, maxWidth: 320 }}>
+        作品、收藏、书架、歌单、观看历史和稍后再看都在这里,换设备也跟着走。
+      </Typography>
+      <Button
+        variant="contained"
+        onClick={() => router.push(loginHref('/home/recommend?tab=me'))}
+        sx={{ mt: 1.5, px: 4, borderRadius: 999, textTransform: 'none', fontWeight: 600 }}
+      >
+        登录 / 注册
+      </Button>
+    </Box>
+  );
+}
+
+function MyHomePageAuthed() {
   const { currentUser } = useApp();
   const qc = useQueryClient();
   const navigate = useContentNavigate();

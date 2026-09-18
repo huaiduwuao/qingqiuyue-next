@@ -19,6 +19,7 @@ import RefreshIcon from '@mui/icons-material/Refresh'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import StopIcon from '@mui/icons-material/Stop'
 import type { SandboxStats, SandboxContainer } from '../api-extended'
+import { API_PREFIX } from '@/lib/api/prefix'
 
 interface Props { token: string }
 
@@ -31,8 +32,8 @@ export default function SandboxMonitor({ token }: Props) {
     setLoading(true)
     try {
       const [statsRes, containersRes] = await Promise.all([
-        fetch('/api/agentmanager/sandbox/stats', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
-        fetch('/api/agentmanager/sandbox/containers', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
+        fetch(API_PREFIX + '/api/agentmanager/sandbox/stats', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
+        fetch(API_PREFIX + '/api/agentmanager/sandbox/containers', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
       ])
       setStats(statsRes)
       setContainers(containersRes.list || [])
@@ -42,7 +43,7 @@ export default function SandboxMonitor({ token }: Props) {
   useEffect(() => { load() }, [])
 
   const releaseContainer = async (containerId: string) => {
-    await fetch(`/api/agentmanager/sandbox/release/${containerId}`, {
+    await fetch(API_PREFIX + `/api/agentmanager/sandbox/release/${containerId}`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     })
@@ -50,7 +51,7 @@ export default function SandboxMonitor({ token }: Props) {
   }
 
   const acquireSandbox = async () => {
-    await fetch('/api/agentmanager/sandbox/acquire', {
+    await fetch(API_PREFIX + '/api/agentmanager/sandbox/acquire', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ task_id: 0 }),

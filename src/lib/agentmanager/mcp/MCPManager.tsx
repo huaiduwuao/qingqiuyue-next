@@ -21,6 +21,7 @@ import Alert from '@mui/material/Alert'
 import CircularProgress from '@mui/material/CircularProgress'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import type { MCPCatalogEntry, MCPServer, MCPTool } from '../api-extended'
+import { API_PREFIX } from '@/lib/api/prefix'
 
 interface Props {
   token: string
@@ -51,7 +52,7 @@ export default function MCPManager({ token }: Props) {
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
   const api = useCallback(
     async <T,>(path: string, init: RequestInit = {}): Promise<T> => {
-      const res = await fetch(`/api/agentmanager/mcp${path}`, { ...init, headers })
+      const res = await fetch(API_PREFIX + `/api/agentmanager/mcp${path}`, { ...init, headers })
       const body = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`)
       return body

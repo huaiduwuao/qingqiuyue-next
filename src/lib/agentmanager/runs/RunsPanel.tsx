@@ -22,6 +22,7 @@ import ListItemText from '@mui/material/ListItemText'
 import CircularProgress from '@mui/material/CircularProgress'
 import { runsAPI, streamRunEvents, isTerminal, type Approval, type Run, type RunEvent, type RunStatus } from './api'
 import { toTimeline } from './timeline'
+import { API_PREFIX } from '@/lib/api/prefix'
 
 const STATUS: Record<RunStatus, { label: string; color: 'default' | 'info' | 'warning' | 'success' | 'error' }> = {
   queued: { label: '排队中', color: 'default' },
@@ -73,7 +74,7 @@ export default function RunsPanel({ token }: { token: string }) {
   }, [hasLive, loadRuns])
 
   useEffect(() => {
-    fetch('/api/agentmanager/multi-agent/staff')
+    fetch(API_PREFIX + '/api/agentmanager/multi-agent/staff')
       .then((r) => r.json())
       .then((d) => setStaff(d.agents || []))
       .catch(() => {})

@@ -20,7 +20,7 @@
     "app:dev": "tauri dev",
     "app:windows": "tauri build --target x86_64-pc-windows-msvc --bundles nsis,msi",
     "app:macos": "tauri build --target universal-apple-darwin --bundles app,dmg",
-    "app:android": "tauri android build --apk --aab",
+    "app:android": "tauri android build --apk --aab --target aarch64",
     "app:android:tv": "tauri android build --apk --target aarch64 armv7",
     "app:android:dev": "tauri android dev",
     "app:ios:init": "tauri ios init",

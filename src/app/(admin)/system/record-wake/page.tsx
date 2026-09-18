@@ -24,6 +24,7 @@ import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
 import SkipNextRoundedIcon from '@mui/icons-material/SkipNextRounded';
 import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
 import GraphicEqRoundedIcon from '@mui/icons-material/GraphicEqRounded';
+import { API_PREFIX } from '@/lib/api/prefix';
 
 const TARGET_PHRASE = '小月';
 const TARGET_COUNT = 50;  // 目标录音数(够 5 分钟训练)
@@ -146,7 +147,7 @@ export default function RecordWakePage() {
   // 加载当前模型状态
   const loadModelStatus = useCallback(async () => {
     try {
-      const r = await fetch('/api/core/train-wake-word', { headers: authHeaders() })
+      const r = await fetch(API_PREFIX + '/api/core/train-wake-word', { headers: authHeaders() })
       const d = await r.json()
       if (d.ok) {
         setCurrentModel(d.model || '未部署')
@@ -308,7 +309,7 @@ export default function RecordWakePage() {
       wavBlobs.forEach(({ blob, name }) => {
         fd.append('files', blob, name)
       })
-      const r = await fetch('/api/core/train-wake-word', { method: 'POST', body: fd, headers: authHeaders() })
+      const r = await fetch(API_PREFIX + '/api/core/train-wake-word', { method: 'POST', body: fd, headers: authHeaders() })
       const data = await r.json()
       if (!data.ok) {
         setError(data.error || '训练失败')
@@ -328,12 +329,12 @@ export default function RecordWakePage() {
       while (Date.now() < deadline) {
         await new Promise(res => setTimeout(res, 5000))
         try {
-          const sr = await fetch('/api/core/train-wake-word', { headers: authHeaders() })
+          const sr = await fetch(API_PREFIX + '/api/core/train-wake-word', { headers: authHeaders() })
           const sd = await sr.json()
           if (!sd.ok) continue
           if (sd.taskStatus === 'succeeded' || sd.taskStatus === 'completed') {
             setTrainStatus(`✓ 训练完成,模型已自动部署! recall 见训练日志. 刷新页面即可用新模型唤醒`)
-            fetch('/api/core/train-wake-word', { headers: authHeaders() }).then(r => r.json()).then(d => { if (d.ok) setCurrentModel(d.model) })
+            fetch(API_PREFIX + '/api/core/train-wake-word', { headers: authHeaders() }).then(r => r.json()).then(d => { if (d.ok) setCurrentModel(d.model) })
             done = true
             break
           }

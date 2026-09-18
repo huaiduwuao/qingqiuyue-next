@@ -36,6 +36,7 @@ import SessionManager from './session/SessionManager'
 import WorkflowsOverview from './WorkflowsOverview'
 import dynamic from 'next/dynamic'
 import { useAuth, useAuthority } from '@/contexts/AuthContext'
+import { API_PREFIX } from '@/lib/api/prefix'
 
 // 工作室组件(含 React Flow)客户端渲染
 const WorkflowStudio = dynamic(() => import('./studio/WorkflowStudio'), { ssr: false })
@@ -59,7 +60,7 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
   const [runtimeStaff, setRuntimeStaff] = useState<{ agentId: string; name: string; description: string }[]>([])
   useEffect(() => {
     if (activeTab !== 'agents') return
-    fetch('/api/agentmanager/multi-agent/staff').then(r => r.json()).then(d => setRuntimeStaff(d.agents || [])).catch(() => setRuntimeStaff([]))
+    fetch(API_PREFIX + '/api/agentmanager/multi-agent/staff').then(r => r.json()).then(d => setRuntimeStaff(d.agents || [])).catch(() => setRuntimeStaff([]))
   }, [activeTab])
     const [loading, setLoading] = useState(false)
 

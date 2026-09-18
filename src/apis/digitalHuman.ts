@@ -7,6 +7,8 @@
  * 以前直接 r.json() 当业务对象用,列表页永远是空的。
  */
 
+import { API_PREFIX } from '@/lib/api/prefix';
+
 export interface Instruction {
   id: string;
   agentId: string;
@@ -48,33 +50,33 @@ const jsonInit = (method: string, data: unknown): RequestInit => ({
 
 export const digitalHumanApi = {
   async listInstructions(): Promise<Instruction[]> {
-    const r = await fetch('/api/digital-human/instructions');
+    const r = await fetch(API_PREFIX + '/api/digital-human/instructions');
     const d = await unwrap<{ instructions?: Instruction[]; total?: number }>(r, 'list instructions');
     return d?.instructions || [];
   },
 
   async getInstruction(agentId: string): Promise<Instruction> {
-    const r = await fetch(`/api/digital-human/instructions/${encodeURIComponent(agentId)}`);
+    const r = await fetch(API_PREFIX + `/api/digital-human/instructions/${encodeURIComponent(agentId)}`);
     return unwrap<Instruction>(r, `get ${agentId}`);
   },
 
   async createInstruction(data: Partial<Instruction>): Promise<Instruction> {
-    const r = await fetch('/api/digital-human/instructions', jsonInit('POST', data));
+    const r = await fetch(API_PREFIX + '/api/digital-human/instructions', jsonInit('POST', data));
     return unwrap<Instruction>(r, 'create');
   },
 
   async updateInstruction(agentId: string, data: Partial<Instruction>): Promise<Instruction> {
-    const r = await fetch(`/api/digital-human/instructions/${encodeURIComponent(agentId)}`, jsonInit('PUT', data));
+    const r = await fetch(API_PREFIX + `/api/digital-human/instructions/${encodeURIComponent(agentId)}`, jsonInit('PUT', data));
     return unwrap<Instruction>(r, `update ${agentId}`);
   },
 
   async deleteInstruction(agentId: string): Promise<void> {
-    const r = await fetch(`/api/digital-human/instructions/${encodeURIComponent(agentId)}`, { method: 'DELETE' });
+    const r = await fetch(API_PREFIX + `/api/digital-human/instructions/${encodeURIComponent(agentId)}`, { method: 'DELETE' });
     await unwrap<{ deleted: string }>(r, `delete ${agentId}`);
   },
 
   async listTools(): Promise<{ tools: ToolSummary[]; fullSchema: any[] }> {
-    const r = await fetch('/api/digital-human/tools');
+    const r = await fetch(API_PREFIX + '/api/digital-human/tools');
     // 后端 ToolSummary.params 是 "template, intensity" 这样的文本,UI 按数组渲染,这里拆开。
     const d = await unwrap<{
       tools?: Array<Omit<ToolSummary, 'params'> & { params?: string | string[] }>;

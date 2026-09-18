@@ -159,11 +159,6 @@ export function AIRecommendPanel() {
           title="虚拟形象小助手"
           desc="会说话的 3D 形象。帮你找作品、讲讲某部剧、带你去对应页面,也能打字或语音聊天。"
           action={{ label: '了解并开始', onClick: () => router.push('/digital-human') }}
-          toggle={{
-            label: '页面右下角显示小助手',
-            checked: prefs.assistant,
-            onChange: (v) => setPrefs({ assistant: v }),
-          }}
         />
         <CapabilityCard
           icon={<MovieFilterRoundedIcon />}
