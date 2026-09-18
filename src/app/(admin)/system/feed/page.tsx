@@ -2,26 +2,10 @@
 
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  Avatar,
-  Box,
-  Button,
-  Chip,
-  IconButton,
-  MenuItem,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  TextField,
-  Tooltip,
-  Typography,
-} from '@mui/material';
-import { Delete as DeleteIcon } from '@mui/icons-material';
-import { deleteFeed, fetchAdminFeed, fetchCommunityStats, type SplitCount } from '@/apis/community';
+import { Avatar, Box, Chip, Tooltip, Typography } from '@mui/material';
+import { DataGridTable } from '@/components/tables/DataGridTable';
+import type { GridColDef } from '@mui/x-data-grid';
+import { deleteFeed, fetchAdminFeed, fetchCommunityStats, type FeedItem, type SplitCount } from '@/apis/community';
 import { formatApiError } from '@/lib/api/client';
 
 const TYPE_LABEL: Record<string, string> = {
@@ -33,31 +17,79 @@ const TYPE_LABEL: Record<string, string> = {
   follow: '关注',
 };
 
-const PAGE_SIZE = 20;
-
 function sumType(stats: Record<string, SplitCount> | undefined, key: 'real' | 'bot') {
   return Object.values(stats ?? {}).reduce((n, s) => n + (s[key] || 0), 0);
 }
 
+const columns: GridColDef<FeedItem>[] = [
+  { field: 'id', headerName: 'ID', width: 90, renderCell: (p) => String(p.value) },
+  {
+    field: 'user',
+    headerName: '用户',
+    width: 170,
+    sortable: false,
+    renderCell: (params) => {
+      const u = params.value as FeedItem['user'];
+      return (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, height: '100%' }}>
+          <Avatar src={u.avatar || undefined} sx={{ width: 28, height: 28 }}>{u.name?.[0]}</Avatar>
+          <Typography variant="body2" noWrap sx={{ maxWidth: 90 }}>{u.name}</Typography>
+          {u.isBot && <Chip label="AI" size="small" color="info" variant="outlined" sx={{ height: 18, fontSize: 10 }} />}
+        </Box>
+      );
+    },
+  },
+  {
+    field: 'type',
+    headerName: '类型',
+    width: 110,
+    sortable: false,
+    renderCell: (params) => {
+      const f = params.row as FeedItem;
+      return <Chip size="small" variant="outlined" label={`${TYPE_LABEL[f.type] || f.type}${f.actorCount > 1 ? ` ×${f.actorCount}` : ''}`} />;
+    },
+  },
+  {
+    field: 'text',
+    headerName: '正文 / 目标',
+    width: 260,
+    sortable: false,
+    renderCell: (params) => {
+      const f = params.row as FeedItem;
+      return (
+        <Box>
+          <Typography variant="body2" sx={{ maxWidth: 260, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+            {f.text || f.target?.title || f.targetUser?.name || '-'}
+          </Typography>
+          {f.text && f.target && <Typography variant="caption" color="text.secondary">《{f.target.title}》</Typography>}
+        </Box>
+      );
+    },
+  },
+  { field: 'topics', headerName: '话题', width: 130, sortable: false, renderCell: (params) => (params.value as FeedItem['topics'])?.map((t) => t.title).join('、') || '-' },
+  { field: 'likeCount', headerName: '赞 / 评', width: 90, renderCell: (params) => `${params.value} / ${(params.row as FeedItem).commentCount}` },
+  {
+    field: 'createTime',
+    headerName: '时间',
+    width: 170,
+    renderCell: (params) => <Typography variant="caption">{new Date(params.value as string).toLocaleString()}</Typography>,
+  },
+];
+
 /** 社区运营:24 小时数据(真人 / AI 分开算)+ 全部动态,可删除违规内容 */
 export default function FeedAdminPage() {
   const qc = useQueryClient();
-  const [page, setPage] = useState(1);
-  const [author, setAuthor] = useState<'' | 'real' | 'bot'>('');
-  const [type, setType] = useState('');
-  const [keyword, setKeyword] = useState('');
+  const [filterValues, setFilterValues] = useState<Record<string, any>>({});
 
   const stats = useQuery({ queryKey: ['admin', 'community', 'stats'], queryFn: fetchCommunityStats, refetchInterval: 60_000 });
-  const list = useQuery({
-    queryKey: ['admin', 'community', 'feed', page, author, type, keyword],
-    queryFn: () => fetchAdminFeed({ page, size: PAGE_SIZE, author, type, keyword }),
-  });
 
   const remove = async (id: string | number) => {
     if (!window.confirm('确定删除这条动态?删除后用户侧不再展示。')) return;
     try {
       await deleteFeed(id);
       qc.invalidateQueries({ queryKey: ['admin', 'community'] });
+      // 让表格刷新当前页
+      setFilterValues((v) => ({ ...v }));
     } catch (e) {
       window.alert(formatApiError(e));
     }
@@ -76,7 +108,6 @@ export default function FeedAdminPage() {
         { label: '互动提醒', real: Object.values(s.notices).reduce((a, b) => a + b, 0), hint: '发给真人的赞/评论/关注提醒' },
       ]
     : [];
-  const total = list.data?.total ?? 0;
 
   return (
     <Box sx={{ p: 3 }}>
@@ -88,88 +119,47 @@ export default function FeedAdminPage() {
 
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 1.5, mb: 3 }}>
         {cards.map((c) => (
-          <Paper key={c.label} variant="outlined" sx={{ p: 1.5 }}>
+          <Box key={c.label} sx={{ p: 1.5, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
             <Tooltip title={c.hint ?? ''}>
               <Typography variant="caption" color="text.secondary">{c.label}</Typography>
             </Tooltip>
             <Typography variant="h6" sx={{ fontWeight: 700 }}>{c.real}</Typography>
             {c.bot !== undefined && <Typography variant="caption" color="text.secondary">AI:{c.bot}</Typography>}
-          </Paper>
+          </Box>
         ))}
       </Box>
 
-      <Box sx={{ display: 'flex', gap: 1.5, mb: 2, flexWrap: 'wrap' }}>
-        <TextField select size="small" label="发起者" value={author} onChange={(e) => { setAuthor(e.target.value as '' | 'real' | 'bot'); setPage(1); }} sx={{ width: 140 }}>
-          <MenuItem value="">全部</MenuItem>
-          <MenuItem value="real">真人</MenuItem>
-          <MenuItem value="bot">AI 用户</MenuItem>
-        </TextField>
-        <TextField select size="small" label="类型" value={type} onChange={(e) => { setType(e.target.value); setPage(1); }} sx={{ width: 140 }}>
-          <MenuItem value="">全部</MenuItem>
-          {Object.entries(TYPE_LABEL).map(([k, v]) => <MenuItem key={k} value={k}>{v}</MenuItem>)}
-        </TextField>
-        <TextField size="small" label="正文包含" value={keyword} onChange={(e) => { setKeyword(e.target.value); setPage(1); }} sx={{ width: 220 }} />
-      </Box>
-
-      <TableContainer component={Paper}>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>ID</TableCell>
-              <TableCell>用户</TableCell>
-              <TableCell>类型</TableCell>
-              <TableCell>正文 / 目标</TableCell>
-              <TableCell>话题</TableCell>
-              <TableCell>赞 / 评</TableCell>
-              <TableCell>时间</TableCell>
-              <TableCell>操作</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {list.isLoading ? (
-              <TableRow><TableCell colSpan={8} align="center">加载中...</TableCell></TableRow>
-            ) : (list.data?.list.length ?? 0) === 0 ? (
-              <TableRow><TableCell colSpan={8} align="center">暂无动态</TableCell></TableRow>
-            ) : (
-              list.data!.list.map((f) => (
-                <TableRow key={String(f.id)}>
-                  <TableCell>{String(f.id)}</TableCell>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Avatar src={f.user.avatar || undefined} sx={{ width: 28, height: 28 }}>{f.user.name?.[0]}</Avatar>
-                      <Typography variant="body2" noWrap sx={{ maxWidth: 120 }}>{f.user.name}</Typography>
-                      {f.user.isBot && <Chip label="AI" size="small" color="info" variant="outlined" sx={{ height: 18, fontSize: 10 }} />}
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Chip size="small" variant="outlined" label={`${TYPE_LABEL[f.type] || f.type}${f.actorCount > 1 ? ` ×${f.actorCount}` : ''}`} />
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" sx={{ maxWidth: 320, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                      {f.text || f.target?.title || f.targetUser?.name || '-'}
-                    </Typography>
-                    {f.text && f.target && <Typography variant="caption" color="text.secondary">《{f.target.title}》</Typography>}
-                  </TableCell>
-                  <TableCell>{f.topics.map((t) => t.title).join('、') || '-'}</TableCell>
-                  <TableCell>{f.likeCount} / {f.commentCount}</TableCell>
-                  <TableCell><Typography variant="caption">{new Date(f.createTime).toLocaleString()}</Typography></TableCell>
-                  <TableCell>
-                    <Tooltip title="删除">
-                      <IconButton size="small" color="error" onClick={() => remove(f.id)}><DeleteIcon /></IconButton>
-                    </Tooltip>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3, gap: 2 }}>
-        <Button variant="outlined" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>上一页</Button>
-        <Typography sx={{ alignSelf: 'center' }}>{page} / {Math.ceil(total / PAGE_SIZE) || 1}</Typography>
-        <Button variant="outlined" onClick={() => setPage((p) => p + 1)} disabled={page >= Math.ceil(total / PAGE_SIZE)}>下一页</Button>
-      </Box>
+      <DataGridTable
+        title="全部动态"
+        columns={columns}
+        fetchData={async (params) => {
+          const res = await fetchAdminFeed({
+            page: params.pageNumber,
+            size: params.pageSize,
+            author: (params.author as '' | 'real' | 'bot') || '',
+            type: (params.type as string) || '',
+            keyword: (params.keyword as string) || '',
+          });
+          return {
+            data: {
+              records: res.list || [],
+              totalRow: res.total || 0,
+            },
+            success: true,
+          };
+        }}
+        onDelete={(row) => remove(row.id)}
+        filters={{
+          fields: [
+            { key: 'author', label: '发起者', type: 'select', options: [{ label: '真人', value: 'real' }, { label: 'AI 用户', value: 'bot' }] },
+            { key: 'type', label: '类型', type: 'select', options: Object.entries(TYPE_LABEL).map(([value, label]) => ({ label: String(label), value })) },
+            { key: 'keyword', label: '正文包含', type: 'text' },
+          ],
+          values: filterValues,
+          onChange: setFilterValues,
+          onReset: () => setFilterValues({}),
+        }}
+      />
     </Box>
   );
 }

@@ -1,29 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Box,
   Button,
-  Card,
-  CardContent,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
   IconButton,
-  Paper,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   TextField,
   Typography,
   Chip,
   Switch,
   Tooltip,
-  Autocomplete,
   CircularProgress,
   List,
   ListItem,
@@ -36,15 +26,14 @@ import {
 } from '@mui/material';
 import {
   Add as AddIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  Visibility as VisibilityIcon,
   Article as ArticleIcon,
   LibraryAdd as LibraryAddIcon,
   Search as SearchIcon,
   RemoveCircle as RemoveCircleIcon,
   AutoAwesome as AutoAwesomeIcon,
 } from '@mui/icons-material';
+import { DataGridTable } from '@/components/tables/DataGridTable';
+import type { GridColDef } from '@mui/x-data-grid';
 import {
   listTopics,
   createTopic,
@@ -93,11 +82,9 @@ interface ContentItem {
   coverUrl?: string;
 }
 
+/** 列表里重新拉取数据用的 token,改它即可让 DataGridTable 刷新当前页 */
 export default function TopicAdminPage() {
-  const [topics, setTopics] = useState<Topic[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
+  const [refreshToken, setRefreshToken] = useState(0);
   const [openDialog, setOpenDialog] = useState(false);
   const [openContentDialog, setOpenContentDialog] = useState(false);
   const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
@@ -121,9 +108,8 @@ export default function TopicAdminPage() {
   const [searchResults, setSearchResults] = useState<ContentItem[]>([]);
   const [searching, setSearching] = useState(false);
 
-  useEffect(() => {
-    loadTopics();
-  }, [page]);
+  // 列表由 DataGridTable 拉取;改动数据后调用它来刷新当前页
+  const loadTopics = () => setRefreshToken((n) => n + 1);
 
   const handleCurate = async () => {
     setCurating(true);
@@ -141,21 +127,6 @@ export default function TopicAdminPage() {
       setCurateNote(`生成失败:${error?.message || error}`);
     } finally {
       setCurating(false);
-    }
-  };
-
-  const loadTopics = async () => {
-    setLoading(true);
-    try {
-      const res = await listTopics({ page, pageSize: 10 });
-      if (res.data) {
-        setTopics(res.data.list || []);
-        setTotal(res.data.total || 0);
-      }
-    } catch (error) {
-      console.error('加载专题失败:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -316,6 +287,77 @@ export default function TopicAdminPage() {
     return currentTopic?.contents?.some((c: any) => String(c.id) === String(contentId)) || false;
   };
 
+  const columns: GridColDef<Topic>[] = [
+    { field: 'id', headerName: 'ID', width: 70 },
+    {
+      field: 'cover',
+      headerName: '封面',
+      width: 90,
+      sortable: false,
+      renderCell: (params) =>
+        params.value ? (
+          <Box component="img" src={params.value as string} alt="" sx={{ width: 60, height: 40, objectFit: 'cover', borderRadius: 1 }} />
+        ) : (
+          <Box sx={{ width: 60, height: 40, bgcolor: 'grey.200', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 1 }}>
+            <ArticleIcon color="disabled" />
+          </Box>
+        ),
+    },
+    {
+      field: 'title',
+      headerName: '标题',
+      width: 160,
+      renderCell: (params) => (
+        <Box>
+          <Typography variant="subtitle2">{params.value}</Typography>
+          {params.row.ownerId ? <Typography variant="caption" color="text.secondary">用户创建</Typography> : null}
+        </Box>
+      ),
+    },
+    {
+      field: 'kind',
+      headerName: '类型',
+      width: 170,
+      sortable: false,
+      renderCell: (params) => {
+        const topic = params.row as Topic;
+        return (
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', height: '100%' }}>
+            <Chip size="small" variant="outlined" label={topic.kind === 'topic' ? '话题' : '合集'} />
+            {topic.source === 'auto' ? (
+              <Tooltip title={`数据自动生成(${topic.autoKey || ''}),热度分 ${topic.hotScore ?? 0}。停用后不会再被自动复活`}>
+                <Chip size="small" color="info" label="自动生成" sx={{ ml: 0.5 }} />
+              </Tooltip>
+            ) : topic.rule ? <Chip size="small" label="自动收录" sx={{ ml: 0.5 }} /> : null}
+          </Box>
+        );
+      },
+    },
+    {
+      field: 'subtitle',
+      headerName: '副标题',
+      width: 180,
+      renderCell: (params) => (
+        <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 180 }}>
+          {(params.value as string) || '-'}
+        </Typography>
+      ),
+    },
+    { field: 'contentCount', headerName: '内容数', width: 80 },
+    { field: 'followerCount', headerName: '关注 / 讨论', width: 100, renderCell: (params) => `${params.row.followerCount ?? 0} / ${params.row.postCount ?? 0}` },
+    { field: 'viewCount', headerName: '浏览量', width: 90 },
+    { field: 'sort', headerName: '排序', width: 70 },
+    {
+      field: 'status',
+      headerName: '状态',
+      width: 80,
+      sortable: false,
+      renderCell: (params) => (
+        <Switch checked={params.value === 1} onChange={() => handleToggleStatus(params.row as Topic)} size="small" />
+      ),
+    },
+  ];
+
   return (
     <Box sx={{ p: 3 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
@@ -345,136 +387,30 @@ export default function TopicAdminPage() {
         </Typography>
       )}
 
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>ID</TableCell>
-              <TableCell>封面</TableCell>
-              <TableCell>标题</TableCell>
-              <TableCell>类型</TableCell>
-              <TableCell>副标题</TableCell>
-              <TableCell>内容数</TableCell>
-              <TableCell>关注 / 讨论</TableCell>
-              <TableCell>浏览量</TableCell>
-              <TableCell>排序</TableCell>
-              <TableCell>状态</TableCell>
-              <TableCell>操作</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={11} align="center">
-                  加载中...
-                </TableCell>
-              </TableRow>
-            ) : topics.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={11} align="center">
-                  暂无专题
-                </TableCell>
-              </TableRow>
-            ) : (
-              topics.map((topic) => (
-                <TableRow key={topic.id}>
-                  <TableCell>{topic.id}</TableCell>
-                  <TableCell>
-                    {topic.cover ? (
-                      <Box
-                        component="img"
-                        src={topic.cover}
-                        alt={topic.title}
-                        sx={{ width: 60, height: 40, objectFit: 'cover', borderRadius: 1 }}
-                      />
-                    ) : (
-                      <Box
-                        sx={{
-                          width: 60,
-                          height: 40,
-                          bgcolor: 'grey.200',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          borderRadius: 1,
-                        }}
-                      >
-                        <ArticleIcon color="disabled" />
-                      </Box>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="subtitle2">{topic.title}</Typography>
-                    {topic.ownerId ? <Typography variant="caption" color="text.secondary">用户创建</Typography> : null}
-                  </TableCell>
-                  <TableCell>
-                    <Chip size="small" variant="outlined" label={topic.kind === 'topic' ? '话题' : '合集'} />
-                    {topic.source === 'auto' ? (
-                      <Tooltip title={`数据自动生成(${topic.autoKey || ''}),热度分 ${topic.hotScore ?? 0}。停用后不会再被自动复活`}>
-                        <Chip size="small" color="info" label="自动生成" sx={{ ml: 0.5 }} />
-                      </Tooltip>
-                    ) : topic.rule ? <Chip size="small" label="自动收录" sx={{ ml: 0.5 }} /> : null}
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="text.secondary" noWrap sx={{ maxWidth: 200 }}>
-                      {topic.subtitle || '-'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>{topic.contentCount}</TableCell>
-                  <TableCell>{topic.followerCount ?? 0} / {topic.postCount ?? 0}</TableCell>
-                  <TableCell>{topic.viewCount}</TableCell>
-                  <TableCell>{topic.sort}</TableCell>
-                  <TableCell>
-                    <Switch
-                      checked={topic.status === 1}
-                      onChange={() => handleToggleStatus(topic)}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Tooltip title="管理内容">
-                      <IconButton size="small" color="primary" onClick={() => handleOpenContentDialog(topic)}>
-                        <LibraryAddIcon />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="编辑">
-                      <IconButton size="small" onClick={() => handleOpenDialog(topic)}>
-                        <EditIcon />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="删除">
-                      <IconButton size="small" color="error" onClick={() => handleDelete(topic.id)}>
-                        <DeleteIcon />
-                      </IconButton>
-                    </Tooltip>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </TableContainer>
-
-      {/* 分页 */}
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3, gap: 2 }}>
-        <Button
-          variant="outlined"
-          onClick={() => setPage((p) => Math.max(1, p - 1))}
-          disabled={page === 1}
-        >
-          上一页
-        </Button>
-        <Typography sx={{ alignSelf: 'center' }}>
-          {page} / {Math.ceil(total / 10) || 1}
-        </Typography>
-        <Button
-          variant="outlined"
-          onClick={() => setPage((p) => p + 1)}
-          disabled={page >= Math.ceil(total / 10)}
-        >
-          下一页
-        </Button>
-      </Box>
+      <DataGridTable
+        columns={columns}
+        fetchData={async (params) => {
+          const res: any = await listTopics({ page: params.pageNumber, pageSize: params.pageSize });
+          return {
+            data: {
+              records: res.data?.list || res.data?.records || [],
+              totalRow: res.data?.total || 0,
+            },
+            success: true,
+          };
+        }}
+        extraParams={{ refresh: refreshToken }}
+        customActions={[
+          {
+            label: '内容',
+            icon: <LibraryAddIcon />,
+            color: 'primary',
+            onClick: (row) => handleOpenContentDialog(row),
+          },
+        ]}
+        onEdit={(row) => handleOpenDialog(row)}
+        onDelete={(row) => handleDelete(row.id)}
+      />
 
       {/* 编辑专题对话框 */}
       <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="md" fullWidth>
