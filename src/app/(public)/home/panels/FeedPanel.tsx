@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
@@ -10,6 +10,7 @@ import Chip from '@mui/material/Chip';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Tooltip from '@mui/material/Tooltip';
+import IconButton from '@mui/material/IconButton';
 import LiveTvRoundedIcon from '@mui/icons-material/LiveTvRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import FavoriteBorderRoundedIcon from '@mui/icons-material/FavoriteBorderRounded';
@@ -22,7 +23,17 @@ import { CoverImage } from '@/components/common/CoverImage';
 import { UserAvatarLink } from '@/components/common/UserAvatarLink';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { fetchSubcategories, type SubcategoryItem } from '@/apis/home-discover';
+import { fetchTopicContents } from '@/apis/community';
 import { moduleContentPage } from '@/apis/home';
+import {
+  HomeSection,
+  RECOMMEND_SECTION,
+  parseSectionId,
+  sectionQueryParams,
+} from '@/lib/homeSections';
+import { useHomeSections } from '@/lib/sectionPrefs';
+import { useHomeSectionSync } from '@/lib/sectionSync';
+import SectionManagerDialog from '@/components/home/SectionManagerDialog';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import MusicPlaylistShelf from '@/components/player/MusicPlaylistShelf';
@@ -31,6 +42,8 @@ import SpotlightCard from '@/components/reactbits/SpotlightCard';
 import MusicPlayButton from '@/components/player/MusicPlayButton';
 import SplitText from '@/components/reactbits/SplitText';
 import BlurText from '@/components/reactbits/BlurText';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 
 // 后端 pkg/jsonfix 已将 BIGINT > Number.MAX_SAFE_INTEGER (2^53) 转为字符串。
 // 前端不可再 Number() 转换，否则精度再次丢失导致详情页 404。
@@ -61,7 +74,8 @@ type FeedItem = {
   isFollowing?: boolean;
   isFriend?: boolean;
   category: 'video' | 'live' | 'image' | 'short';
-  section: 'recommend' | 'live' | 'music' | 'anime' | 'news' | 'entertainment' | 'tech' | 'food' | 'game' | 'knowledge' | 'sports' | 'finance' | 'novel' | 'comics' | 'film' | 'teleplay';
+  /** 频道 id(?section=);不再是固定枚举,用户可自建,见 lib/homeSections */
+  section: string;
 };
 
 type FeedResp = { list: FeedItem[]; total: number; page: number; size: number };
@@ -102,38 +116,10 @@ function toFeedRecord(item: any) {
   };
 }
 
-const SECTIONS: { key: FeedItem['section']; label: string }[] = [
-  { key: 'recommend', label: '推荐' },
-  { key: 'novel', label: '小说' },
-  { key: 'comics', label: '漫画' },
-  { key: 'film', label: '影视' },
-  { key: 'teleplay', label: '小剧场' },
-  { key: 'entertainment', label: '综艺' },
-  { key: 'music', label: '音乐' },
-  { key: 'anime', label: '二次元' },
-  { key: 'news', label: '资讯' },
-  { key: 'tech', label: '科技' },
-  { key: 'food', label: '美食' },
-  { key: 'game', label: '游戏' },
-  { key: 'knowledge', label: '知识' },
-  { key: 'sports', label: '体育' },
-  { key: 'finance', label: '财经' },
-];
-
-// 顶部 Tabs 的「类型」(section)→ 后端子分类字典 parentType 枚举。
-// 选中某类型后,用它拉该类型下的子分类(题材),做二级筛选。
-// 'recommend'(精选)是聚合流,无单一父类,故不在表中 → 不展示子分类行。
-const SECTION_TO_PARENT_TYPE: Partial<Record<FeedItem['section'], string>> = {
-  novel: 'NOVEL',
-  comics: 'COMICS',
-  film: 'FILM',
-  teleplay: 'TELEPLAY',
-  entertainment: 'VSHOW',
-  music: 'MUSIC',
-  anime: 'ANIMATION',
-  news: 'NEWS',
-  game: 'VIDEO',
-};
+// 顶部页签(频道)不再写死:除固定的「推荐」外全部来自用户自己的频道列表
+// (lib/sectionPrefs,localStorage),候选来源和管理界面见 SectionManagerDialog。
+// 每个频道自带"该取什么内容"(内容大类 / 题材 / 标签 / 专题 / 自定义关键词),
+// 所以这里不再需要 section → contentType 的映射表。
 
 // 关注/朋友已并入「动态」页签(CommunityPanel),这里只剩精选作品流
 type PanelTab = 'home' | 'recommend';
@@ -142,18 +128,35 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const urlSection = (searchParams.get('section') as FeedItem['section']) || 'recommend';
-  const [section, setSectionState] = useState<FeedItem['section']>(urlSection);
-  const setSection = (next: FeedItem['section']) => {
+  const [mySections, sectionApi] = useHomeSections();
+  // 登录后频道跟账号走(未登录只用本机那份);挂在这里就够——页签和频道管理都在本面板内
+  useHomeSectionSync();
+  const [managerOpen, setManagerOpen] = useState(false);
+  const urlSection = searchParams.get('section') || RECOMMEND_SECTION.id;
+  const [section, setSectionState] = useState<string>(urlSection);
+  const setSection = (next: string) => {
     setSectionState(next);
     const params = new URLSearchParams(searchParams.toString());
     params.set('section', next);
-    // 切换类型时清空子分类(题材),避免把小说的题材带到影视上
+    // 切换频道时清空子分类(题材),避免把小说的题材带到影视上
     params.delete('genre');
     setGenreState('');
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
   useEffect(() => { setSectionState(urlSection); }, [urlSection]);
+
+  // 当前频道。用户自己的列表里没有(别人分享的链接、收藏夹里的旧地址)就按 id 规则
+  // 现解析一个临时频道出来,页签上单独显示并给「+ 加入我的频道」,而不是直接跳回推荐。
+  const active: HomeSection = useMemo(
+    () => mySections.find((s) => s.id === section) || parseSectionId(section) || RECOMMEND_SECTION,
+    [mySections, section],
+  );
+  const isTransient = !mySections.some((s) => s.id === active.id);
+  // 页签栏:我的频道 +(当前这个临时频道)
+  const tabSections = useMemo(
+    () => (isTransient ? [...mySections, active] : mySections),
+    [mySections, isTransient, active],
+  );
   // 二级子分类(题材):选中某类型后按题材筛选;'' = 全部
   const urlGenre = searchParams.get('genre') || '';
   const [genre, setGenreState] = useState<string>(urlGenre);
@@ -165,7 +168,8 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
   useEffect(() => { setGenreState(urlGenre); }, [urlGenre]);
-  const parentType = SECTION_TO_PARENT_TYPE[section];
+  // 题材(二级)只对"某个内容大类"的频道有意义:聚合流、标签/关键词/专题频道没有父类。
+  const parentType = active.kind === 'type' ? active.contentType : undefined;
   const subcatQuery = useQuery({
     queryKey: ['home', 'feed', 'subcategory', parentType],
     queryFn: () =>
@@ -213,25 +217,16 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
   // 分页状态
   const PAGE_SIZE = 12;
 
-  // section 到 contentType 的映射
-  const SECTION_TO_TYPE: Record<string, string> = {
-    novel: 'NOVEL',
-    comics: 'COMICS',
-    film: 'FILM',
-    teleplay: 'TELEPLAY',
-    entertainment: 'VSHOW',
-    music: 'MUSIC',
-    anime: 'ANIMATION',
-    news: 'NEWS',
-    tech: 'ARTICLE',
-    food: 'VIDEO',
-    game: 'VIDEO',
-    knowledge: 'ARTICLE',
-    sports: 'VIDEO',
-    finance: 'ARTICLE',
-    // recommend 是聚合流，不传 contentType 获取所有类型
-    recommend: '',
-  };
+  // 频道自带的题材(如「小说·仙侠」)当默认值,页签下那行题材 chip 可以临时换一个。
+  // genre='all' 是"用户明确点了全部":频道自带题材时,没有它就区分不出"没选过"
+  // 和"选了全部",点「全部」会被频道的默认题材又顶回去。
+  const effectiveGenre = genre === 'all' ? '' : genre || active.genre || '';
+  // 取内容要的是中文题材名(见 sectionQueryParams 的说明);字典表还没到就先用 code。
+  const genreLabel = effectiveGenre
+    ? subcatQuery.data?.find((s) => s.code === effectiveGenre)?.name
+        || (effectiveGenre === active.genre ? active.genreLabel : undefined)
+        || effectiveGenre
+    : '';
 
   // 使用 useInfiniteQuery 实现真正的无限滚动分页(分类内容用 /module/content/list)
   const {
@@ -241,7 +236,7 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
     isFetchingNextPage,
     isLoading,
   } = useInfiniteQuery({
-    queryKey: ['home', 'feed', tab, section, sort, genre, ratingMin, year],
+    queryKey: ['home', 'feed', tab, active.id, sort, genreLabel, ratingMin, year],
     queryFn: async ({ pageParam = 1 }) => {
       // recommend 精选流:多类型交错,真正按页翻。
       //
@@ -249,7 +244,7 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
       // 往下滚 getNextPageParam 永远算出 page=2 却又拿回同一批(重复 key),
       // 某类型没数据(FILM/NOVEL 曾为 0)就更少 —— 这就是精选页"没几条"的原因。
       // 现在每页从每个类型各取第 pageParam 页,按轮转交错,任一类型还有剩就继续翻。
-      if (section === 'recommend') {
+      if (active.kind === 'recommend') {
         const results = await Promise.all(
           RECOMMEND_TYPES.map((type) =>
             moduleContentPage({
@@ -277,12 +272,26 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
         const total = totals.reduce((a, b) => a + b, 0);
         return { records: merged.map(toFeedRecord), total, page: pageParam, hasMore };
       }
-      // 分类内容使用 /module/content/list
-      const contentType = SECTION_TO_TYPE[section];
+      // 专题频道:作品直接取专题收录(手工收录在前,命中自动规则的补在后面)
+      if (active.kind === 'topic' && active.topicId != null) {
+        const page = await fetchTopicContents(active.topicId, pageParam, PAGE_SIZE);
+        const records = (page.list ?? []).map((it: any) =>
+          toFeedRecord({ ...it, coverUrl: it.cover, readNum: it.views, agreeNum: it.likes, commentNum: it.comments }),
+        );
+        return { records, total: page.total ?? records.length, page: pageParam };
+      }
+      // 其余频道(内容大类 / 题材 / 标签 / 自定义关键词)都走 /module/content/list,
+      // 差别只在筛选参数(见 sectionQueryParams:contentType / genre / tag / keyword)。
+      const params = sectionQueryParams(active);
+      if (active.kind === 'type') {
+        // 题材以页签下那行选中的为准:点了别的题材就换掉频道自带的,点「全部」就去掉。
+        if (genreLabel) params.tag = genreLabel;
+        else delete params.tag;
+      }
       const resp = await moduleContentPage({
         page: pageParam,
         pageSize: PAGE_SIZE,
-        ...(contentType ? { contentType } : {}),
+        ...params,
         // 后端认的参数名是 orderBy;之前传 order 被静默丢弃,"最新/高评分"排序从未生效。
         orderBy: sort === 'new' ? 'CREATE_TIME' : sort === 'rating' ? 'rating' : 'COLLECT',
         ...(ratingMin ? { ratingMin } : {}),
@@ -381,7 +390,7 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
           {tab === 'home' && (
             <Box sx={{ display: 'flex', alignItems: 'center', pr: 1.5 }}>
             <Tabs
-              value={section}
+              value={active.id}
               onChange={(_, v) => setSection(v)}
               variant="scrollable"
               scrollButtons="auto"
@@ -407,10 +416,37 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
                 '& .MuiTabs-scrollButtons': { color: 'var(--text-secondary, rgba(255,255,255,0.55))' },
               }}
             >
-              {SECTIONS.map((s) => (
-                <Tab key={s.key} value={s.key} label={s.label} />
+              {tabSections.map((s) => (
+                <Tab
+                  key={s.id}
+                  value={s.id}
+                  label={s.id === active.id && isTransient ? `${s.label}(未添加)` : s.label}
+                />
               ))}
             </Tabs>
+            {/* 别人分享来的频道:先能看,想留下再加进自己的列表 */}
+            {isTransient && (
+              <Tooltip title="加入我的频道">
+                <IconButton
+                  size="small"
+                  aria-label="加入我的频道"
+                  onClick={() => sectionApi.add(active)}
+                  sx={{ color: 'var(--brand-color, #FE2C55)' }}
+                >
+                  <AddRoundedIcon sx={{ fontSize: 18 }} />
+                </IconButton>
+              </Tooltip>
+            )}
+            <Tooltip title="频道管理">
+              <IconButton
+                size="small"
+                aria-label="频道管理"
+                onClick={() => setManagerOpen(true)}
+                sx={{ color: 'var(--text-secondary, rgba(255,255,255,0.6))' }}
+              >
+                <TuneRoundedIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+            </Tooltip>
             <ListLayoutSwitch />
             </Box>
           )}
@@ -423,11 +459,13 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
                   <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))', fontStyle: 'italic' }}>加载中…</Typography>
                 ) : (
                   [{ code: '', name: '全部' }, ...(subcatQuery.data ?? [])].map((s) => {
-                    const active = genre === s.code;
+                    const chosen = effectiveGenre === s.code;
+                    // 「全部」在自带题材的频道上要写成 all,才能盖掉频道默认题材
+                    const value = s.code || (active.genre ? 'all' : '');
                     return (
                       <Box
                         key={s.code || 'all'}
-                        onClick={() => setGenre(s.code)}
+                        onClick={() => setGenre(value)}
                       sx={{
                         flexShrink: 0,
                         px: 1.25,
@@ -435,11 +473,11 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
                         borderRadius: 999,
                         cursor: 'pointer',
                         fontSize: 11.5,
-                        fontWeight: active ? 700 : 500,
-                        color: active ? '#000' : 'var(--text-secondary, rgba(255,255,255,0.85))',
-                        bgcolor: active ? 'rgba(255,255,255,0.95)' : 'transparent',
+                        fontWeight: chosen ? 700 : 500,
+                        color: chosen ? '#000' : 'var(--text-secondary, rgba(255,255,255,0.85))',
+                        bgcolor: chosen ? 'rgba(255,255,255,0.95)' : 'transparent',
                         border: '1px solid',
-                        borderColor: active ? 'transparent' : 'var(--border-color, rgba(255,255,255,0.12))',
+                        borderColor: chosen ? 'transparent' : 'var(--border-color, rgba(255,255,255,0.12))',
                         transition: 'all 0.15s',
                       }}
                     >
@@ -493,7 +531,7 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
           </Box>
           )}
           {/* 评分/年份筛选(分类内容页;仅影视类生效,推荐/关注不展示) */}
-          {tab === 'home' && section !== 'recommend' && (
+          {tab === 'home' && active.kind !== 'recommend' && (
             <Box sx={{ position: 'relative', px: 1.5, pb: 0.75 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' }, pr: 3 }}>
                 <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>筛选</Typography>
@@ -557,7 +595,7 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
 
       <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
           {/* 音乐:歌单和歌放在同一个频道里 */}
-          {section === 'music' && (
+          {active.contentType === 'MUSIC' && (
             <Box sx={{ px: 2, pt: 2 }}>
               <MusicPlaylistShelf />
               <Typography component="h2" sx={{ fontSize: 16, fontWeight: 700, mb: -0.5 }}>歌曲</Typography>
@@ -583,7 +621,7 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
                   ))}
                 </ListLayout>
               ) : (
-                <EmptyHint tab={tab} section={section} />
+                <EmptyHint tab={tab} section={active} />
               )}
 
               {/* Loading more */}
@@ -605,6 +643,7 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
             </Box>
           )}
       </Box>
+      <SectionManagerDialog open={managerOpen} onClose={() => setManagerOpen(false)} />
     </Box>
   );
 }
@@ -793,12 +832,14 @@ function formatViews(n: number): string {
 }
 
 // ─── 空态文案(轻量) ───
-function EmptyHint({ tab, section }: { tab: PanelTab; section: FeedItem['section'] }) {
-  const isRec = section === 'recommend';
-  let title = '该分类暂无内容';
-  let hint = '试试切换到其他分类';
-  if (isRec) {
+function EmptyHint({ tab, section }: { tab: PanelTab; section: HomeSection }) {
+  let title = `「${section.label}」暂时没有内容`;
+  let hint = '换个频道,或在「频道管理」里调一调';
+  if (section.kind === 'recommend') {
     if (tab === 'home') { title = '精选内容为空'; hint = '稍后再来看看'; }
+  } else if (section.kind === 'keyword' || section.kind === 'tag') {
+    // 自建频道最容易空:词太偏就什么都匹配不到,直说比"试试其他分类"有用。
+    hint = '这个词暂时没匹配到内容,换个说法试试';
   }
   return (
     <Box

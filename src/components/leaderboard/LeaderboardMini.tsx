@@ -15,17 +15,8 @@ import { CoverImage } from '@/components/common/CoverImage';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { DeltaBadge, RankNumber, formatBuiltAt } from './shared';
 
-// 首页 section(?section=novel)→ 内容类型,侧栏小榜据此默认切到对应类型。
-export const SECTION_TO_TYPE: Record<string, string> = {
-  novel: 'NOVEL',
-  comics: 'COMICS',
-  film: 'FILM',
-  teleplay: 'TELEPLAY',
-  entertainment: 'VSHOW',
-  music: 'MUSIC',
-  anime: 'ANIMATION',
-  news: 'NEWS',
-};
+// 首页 section → 内容类型的映射搬去了 lib/homeSections(频道由用户自己管,
+// 这里再留一张表只会和它对不上);调用方传 parseSectionId(section)?.contentType。
 
 interface Props {
   /** 默认类型;不在目录里(或没有内容)时回退总榜 */
