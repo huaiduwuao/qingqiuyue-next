@@ -266,6 +266,9 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
+          # 这个 job 不 checkout(只下载各平台产物),没有 .git 可推断仓库,
+          # gh 会直接死在 `failed to run git: fatal: not a git repository`。
+          GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
         run: |
           gh release view "$TAG" >/dev/null 2>&1 ||
