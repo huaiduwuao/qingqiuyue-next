@@ -20,6 +20,7 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import Divider from '@mui/material/Divider';
 import Stack from '@mui/material/Stack';
+import Switch from '@mui/material/Switch';
 import CircularProgress from '@mui/material/CircularProgress';
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
@@ -74,9 +75,31 @@ type MyItem = {
   durationSec: number;
   postedAt: number;
   contentType: ContentType;
-  status: 'public' | 'private' | 'draft';
-  isPrivate?: boolean;
+  // status 是 module_content 的原值(PUBLISH / active / UN_PUBLISH / REVIEWING …);
+  // 判"公不公开"用后端归一化好的 visibility,别再拿 status 跟字面量比 —— 以前这里写的是
+  // 'public' / 'private' / 'draft',一条都匹配不上,所以锁标和「设为私密」入口从没出现过。
+  status?: string;
+  visibility?: WorkVisibility;
 };
+
+// 作品可见性,取值与后端 meWorkVisibility 一一对应。
+type WorkVisibility = 'public' | 'private' | 'reviewing' | 'rejected' | 'restricted';
+
+// 卡片左上角的角标;public 不打角标。
+const VISIBILITY_BADGE: Record<Exclude<WorkVisibility, 'public'>, { label: string; color: string }> = {
+  private: { label: '🔒 私密', color: 'warning.main' },
+  reviewing: { label: '审核中', color: 'info.main' },
+  rejected: { label: '未过审', color: 'error.main' },
+  restricted: { label: '限定可见', color: 'secondary.main' },
+};
+
+// 能被「设为私密 / 设为公开」这个开关改的只有两种状态:已公开的可以收起来,
+// 自己收起来的可以再放出去。审核中 / 未过审 / 限定可见不归隐私开关管。
+function privacyActionOf(it: MyItem): 'hide' | 'show' | null {
+  if (it.visibility === 'public') return 'hide';
+  if (it.visibility === 'private') return 'show';
+  return null;
+}
 
 type MyCollectionGroup = {
   id: number;
@@ -306,6 +329,43 @@ export function MyHomePage() {
     onError: () => {
       setToast('保存失败,请重试');
     },
+  });
+
+  // 单个作品的私密开关:写 module_content.status(UN_PUBLISH = 私密),只影响这一个作品。
+  // 以前这里打的是账号级的 /me/toggle-private,还把作品 id 一起塞进去:作品纹丝不动,
+  // 账号的 is_private 反而被改掉了。
+  //
+  // 取消私密要过审(平台规则:非运营人员上线内容一律进审核),所以提示按后端回的
+  // 真实状态说,不写死"已公开"。
+  const workPrivacyMutation = useMutation({
+    mutationFn: (it: MyItem) =>
+      homeClient
+        .post<{ visibility?: WorkVisibility }>(`/me/works/${it.id}/private`, {
+          private: privacyActionOf(it) === 'hide',
+        })
+        .then((r) => r.data),
+    onSuccess: (data) => {
+      setToast(
+        data?.visibility === 'private' ? '已设为私密,仅自己可见'
+          : data?.visibility === 'reviewing' ? '已提交审核,通过后重新公开'
+          : data?.visibility === 'public' ? '已设为公开'
+          : '已更新'
+      );
+      qc.invalidateQueries({ queryKey: ['home', 'me', 'list'] });
+    },
+    onError: (err) => setToast(formatApiError(err)),
+  });
+
+  // 账号级私密开关(「私密账号」):开启后别人看我的主页拿不到任何作品。
+  // 和上面那个作品开关是两码事,入口也分开:这个只在「编辑资料」里。
+  const accountPrivateMutation = useMutation({
+    mutationFn: (next: boolean) =>
+      homeClient.post<{ isPrivate?: boolean }>('/me/toggle-private', { isPrivate: next }).then((r) => r.data),
+    onSuccess: (data) => {
+      setToast(data?.isPrivate ? '已开启私密账号,作品仅自己可见' : '已关闭私密账号');
+      qc.invalidateQueries({ queryKey: ['home', 'me', 'profile'] });
+    },
+    onError: (err) => setToast(formatApiError(err)),
   });
 
   const cancelAppointmentMutation = useMutation({
@@ -824,12 +884,8 @@ export function MyHomePage() {
             selected={selected}
             onToggle={toggleSelect}
             onClick={(it) => navigate(it.contentType, it.id)}
-            onTogglePrivate={(it) => {
-              homeClient.post('/me/toggle-private', { id: it.id, isPrivate: it.isPrivate });
-              setToast(it.isPrivate ? '已设为公开' : '已设为私密');
-              qc.invalidateQueries({ queryKey: ['home', 'me', 'list'] });
-            }}
-            showPrivacy={subTab === 'works'}
+            onTogglePrivate={(it) => workPrivacyMutation.mutate(it)}
+            showPrivacy={mainTab === 'works'}
           />
         )}
       </Box>
@@ -853,6 +909,8 @@ export function MyHomePage() {
         profile={profile}
         onSave={(payload) => saveProfileMutation.mutate(payload)}
         saving={saveProfileMutation.isPending}
+        onAccountPrivateChange={(next) => accountPrivateMutation.mutate(next)}
+        accountPrivateSaving={accountPrivateMutation.isPending}
       />
 
       <QrCodeDialog
@@ -898,6 +956,8 @@ function WorkGridView({
     <ListLayout minColumnWidth={160} minColumns={2} gap={12}>
       {list.map((it) => {
         const isSelected = selected.has(it.id);
+        const badge = it.visibility && it.visibility !== 'public' ? VISIBILITY_BADGE[it.visibility] : null;
+        const privacyAction = privacyActionOf(it);
         return (
           <Box
             key={it.id}
@@ -933,14 +993,9 @@ function WorkGridView({
                   {formatDuration(it.durationSec)}
                 </Box>
               )}
-              {it.status === 'private' && (
+              {badge && (
                 <Box sx={{ position: 'absolute', top: 6, left: 6, px: 0.75, py: 0.25, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(2px)' }}>
-                  <Typography sx={{ fontSize: 9, color: 'warning.main', fontWeight: 700 }}>🔒 私密</Typography>
-                </Box>
-              )}
-              {it.status === 'draft' && (
-                <Box sx={{ position: 'absolute', top: 6, left: 6, px: 0.75, py: 0.25, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)' }}>
-                  <Typography sx={{ fontSize: 9, color: 'text.secondary', fontWeight: 700 }}>📝 草稿</Typography>
+                  <Typography sx={{ fontSize: 9, color: badge.color, fontWeight: 700 }}>{badge.label}</Typography>
                 </Box>
               )}
             </Box>
@@ -962,12 +1017,12 @@ function WorkGridView({
                   {it.comments}
                 </Box>
               </Box>
-              {showPrivacy && it.status === 'public' && !batchMode && (
+              {showPrivacy && privacyAction && !batchMode && (
                 <Box
                   onClick={(e) => { e.stopPropagation(); onTogglePrivate(it); }}
                   sx={{ mt: 0.5, fontSize: 10, color: 'text.muted', cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
                 >
-                  点击设为私密
+                  {privacyAction === 'hide' ? '设为私密' : '取消私密'}
                 </Box>
               )}
             </Box>
@@ -1236,7 +1291,7 @@ function AINoteListView({ list, batchMode, selected, onToggle }: { list: MyItem[
 // ─── 子组件:空状态 ───
 function EmptyState({ tab, subTab, onPublish }: { tab: string; subTab: string; onPublish?: () => void }) {
   const config: Record<string, { title: string; hint: string; cta?: string }> = {
-    works: { title: subTab === 'private' ? '暂无私密作品' : subTab === 'draft' ? '暂无草稿' : '该账号还未发布过作品', hint: subTab === 'private' ? '设为私密的作品会出现在这里' : '点击下方按钮开始创作吧', cta: '发布作品' },
+    works: { title: subTab === 'private' ? '暂无未公开的作品' : subTab === 'draft' ? '暂无草稿' : '该账号还未发布过作品', hint: subTab === 'private' ? '设为私密、审核中、未过审的作品会出现在这里' : '点击下方按钮开始创作吧', cta: '发布作品' },
     recommend: { title: '暂无推荐内容', hint: '基于你的浏览历史为你推荐' },
     like: { title: '还没有点赞过内容', hint: '去发现页找点喜欢的吧' },
     collect: { title: '收藏夹是空的', hint: '看到喜欢的内容点个收藏吧' },
@@ -1294,13 +1349,15 @@ function EmptyState({ tab, subTab, onPublish }: { tab: string; subTab: string; o
 const REGION_FALLBACK: string[] = [];
 
 function EditProfileDrawer({
-  open, onClose, profile, onSave, saving,
+  open, onClose, profile, onSave, saving, onAccountPrivateChange, accountPrivateSaving,
 }: {
   open: boolean;
   onClose: () => void;
   profile: any;
   onSave: (payload: Record<string, any>) => void;
   saving: boolean;
+  onAccountPrivateChange: (next: boolean) => void;
+  accountPrivateSaving: boolean;
 }) {
   const initial = profile?.user;
   const [nickname, setNickname] = useState('');
@@ -1492,6 +1549,27 @@ function EditProfileDrawer({
               )}
             </Box>
           </Stack>
+
+          <Divider sx={{ borderColor: 'var(--border-color, transparent)' }} />
+
+          {/* 账号级隐私开关。作品级的「设为私密」在作品卡片上,两者互不影响 ——
+              以前作品卡片上那个开关改的其实就是这里,用户根本看不出来。
+              开关即时生效,不跟着下面的「保存」走。 */}
+          <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 2 }}>
+            <Box>
+              <Typography sx={{ fontSize: 13, fontWeight: 600 }}>私密账号</Typography>
+              <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.25 }}>
+                开启后,别人访问你的主页看不到任何作品(整个账号,不是单个作品)
+              </Typography>
+            </Box>
+            <Switch
+              size="small"
+              checked={!!profile?.user?.isPrivate}
+              disabled={accountPrivateSaving}
+              onChange={(e) => onAccountPrivateChange(e.target.checked)}
+              slotProps={{ input: { 'aria-label': '私密账号' } }}
+            />
+          </Box>
         </Stack>
       </Box>
 
