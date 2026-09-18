@@ -11,24 +11,20 @@ import MenuItem from '@mui/material/MenuItem';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { clientGet, publish } from '@/apis/wx-mp-menu';
+import { getWxMenu, saveWxMenu } from '@/apis/wx-mp';
+import { formatApiError } from '@/lib/api/client';
+import { WxMpStatusBar } from '@/components/admin/WxMpStatusBar';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { v4 as uuidv4 } from 'uuid';
 
 const LIST_KEY = ['wx-mp-menu'];
 
+// 后端(internal/wxmp)支持的三种菜单。扫码、发图、选位置那几种需要各自的事件处理,没接的不放出来。
 const menuOptions = [
   { value: 'view', label: '跳转网页' },
   { value: 'miniprogram', label: '跳转小程序' },
-  { value: 'click', label: '点击回复' },
-  { value: 'view_limited', label: '跳转图文消息' },
-  { value: 'scancode_push', label: '扫码直接返回结果' },
-  { value: 'scancode_waitmsg', label: '扫码回复' },
-  { value: 'pic_sysphoto', label: '系统拍照发图' },
-  { value: 'pic_photo_or_album', label: '拍照或者相册' },
-  { value: 'pic_weixin', label: '微信相册' },
-  { value: 'location_select', label: '选择地理位置' },
+  { value: 'click', label: '点击回复文字' },
 ];
 
 export default function WxMpMenuPage() {
@@ -41,20 +37,25 @@ export default function WxMpMenuPage() {
 
   const menuQuery = useQuery({
     queryKey: LIST_KEY,
-    queryFn: () => clientGet({ mpAppId: 'qingqiuyue' }).then((r: any) => r.data?.buttons || []),
+    // 菜单树存在 wx_menu 里。以前这棵树只活在浏览器内存里,「发布」的请求体后端根本不读,刷新就没了
+    queryFn: () => getWxMenu().then((r) => r.buttons || []),
+    staleTime: Infinity, // 编辑中的树就放在这个缓存里,不能被后台重新拉取冲掉
     placeholderData: [],
   });
   const data: any[] = menuQuery.data || [];
 
   const publishMutation = useMutation({
-    mutationFn: () => publish({ buttons: data, mpAppId: 'qingqiuyue' }),
-    onSuccess: () => showMessage('保存并发布菜单成功'),
-    onError: (err: any) => showMessage(err.message || '发布失败', 'error'),
+    mutationFn: (publish: boolean) => saveWxMenu(data, publish),
+    onSuccess: (r: any) => {
+      showMessage(r?.msg || r?.message || '已保存');
+      qc.invalidateQueries({ queryKey: LIST_KEY }); // 拿回落库后的真实 id
+    },
+    onError: (err: any) => showMessage(formatApiError(err) || '保存失败', 'error'),
   });
 
   const dealPublish = () => {
-    if (!confirm('确定发布吗？')) return;
-    publishMutation.mutate();
+    if (!confirm('保存并发布到微信?发布后用户最长 24 小时内看到新菜单。')) return;
+    publishMutation.mutate(true);
   };
 
   const addFirstMenu = () => {
@@ -155,6 +156,8 @@ export default function WxMpMenuPage() {
   const checkMenu = getCheckedMenu();
 
   return (
+    <>
+    <WxMpStatusBar />
     <Box sx={{ p: { xs: 1.5, md: 2 } }}>
       <Typography variant="h5" sx={{ mb: 2 }}>微信菜单</Typography>
 
@@ -201,7 +204,8 @@ export default function WxMpMenuPage() {
               </Button>
             )}
           </Box>
-          <Button variant="contained" fullWidth onClick={dealPublish}>保存并发布菜单</Button>
+          <Button variant="outlined" fullWidth disabled={publishMutation.isPending} onClick={() => publishMutation.mutate(false)} sx={{ mb: 1 }}>仅保存</Button>
+          <Button variant="contained" fullWidth disabled={publishMutation.isPending} onClick={dealPublish}>保存并发布到微信</Button>
         </Card>
 
         {/* Right: Menu Configuration */}
@@ -241,6 +245,17 @@ export default function WxMpMenuPage() {
                   placeholder="请输入链接"
                 />
               )}
+              {checkMenu?.type === 'click' && (
+                <TextField
+                  label="点击后回复的文字"
+                  value={checkMenu?.content || ''}
+                  onChange={(e) => handleTypeObjChange('content', e.target.value)}
+                  fullWidth
+                  multiline
+                  minRows={3}
+                  helperText="用户点这个菜单时,公众号回复这段文字"
+                />
+              )}
               {checkMenu?.type === 'miniprogram' && (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <TextField
@@ -276,5 +291,6 @@ export default function WxMpMenuPage() {
         <Alert severity={snackbar.severity} sx={{ width: '100%' }}>{snackbar.message}</Alert>
       </Snackbar>
     </Box>
+    </>
   );
 }
