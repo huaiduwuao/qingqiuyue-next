@@ -14,7 +14,6 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Divider from '@mui/material/Divider';
-import Chip from '@mui/material/Chip';
 import InputAdornment from '@mui/material/InputAdornment';
 import IconButton from '@mui/material/IconButton';
 import Collapse from '@mui/material/Collapse';
@@ -25,9 +24,7 @@ import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import CloudDoneIcon from '@mui/icons-material/CloudDone';
 import CloudOffIcon from '@mui/icons-material/CloudOff';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import LinkIcon from '@mui/icons-material/Link';
 import { adminClient, formatApiError } from '@/lib/api/client';
-import { API_PREFIX } from '@/lib/api/prefix';
 
 // 支付配置 API
 //
@@ -36,6 +33,11 @@ import { API_PREFIX } from '@/lib/api/prefix';
 // /api/core/payment/config,而且需要登录态。裸 fetch 还有一个问题:不带
 // Authorization 头,所以就算路径对了也是 401。改走 adminClient(base=/api/core,
 // 拦截器统一注入 session)。
+//
+// 2026-09:微信登录(网站应用 AppID/AppSecret/回调地址)从本页搬走,统一归到「系统 -> 微信配置」
+// (与公众号、小程序一并维护)。原因是同一份「扫码登录」能力绑在 wx_config.type=pc 上,
+// 而真正在 OAuth 链路里读它的是 SocialUserService,与本页无关 —— 留在这里只会让人以为
+// 这里改了能影响登录,改完实际落到了 wx_config 表,容易误判。
 const paymentConfigAPI = {
   // 拦截器已把 {code,msg,data} 剥到业务数据层,这里拿到的就是配置对象本身。
   get: async (): Promise<Partial<PaymentConfig> | null> => {
@@ -46,10 +48,6 @@ const paymentConfigAPI = {
 };
 
 interface PaymentConfig {
-  // 微信登录
-  wxLoginAppId: string;
-  wxLoginAppSecret: string;
-  wxLoginRedirectUri: string;
   // 微信支付
   wechatAppId: string;
   wechatAppSecret: string;
@@ -67,9 +65,6 @@ interface PaymentConfig {
 }
 
 const DEFAULT_CONFIG: PaymentConfig = {
-  wxLoginAppId: '',
-  wxLoginAppSecret: '',
-  wxLoginRedirectUri: '',
   wechatAppId: '',
   wechatAppSecret: '',
   wechatMchId: '',
@@ -137,7 +132,6 @@ export default function PaymentConfigPage() {
     setShowSecrets((prev) => ({ ...prev, [field]: !prev[field] }));
   };
 
-  const isWxLoginValid = () => config.wxLoginAppId && config.wxLoginAppSecret;
   const isWechatPayValid = () => config.wechatAppId && config.wechatMchId && config.wechatApiV3Key && config.wechatPrivateKey;
   const isAlipayValid = () => config.alipayAppId && config.alipayPrivateKey && config.alipayPublicCert;
 
@@ -183,92 +177,22 @@ export default function PaymentConfigPage() {
 
   return (
     <Box sx={{ p: { xs: 1.5, md: 3 } }}>
-      <Typography variant="h5" sx={{ mb: 1 }}>微信 & 支付配置</Typography>
+      <Typography variant="h5" sx={{ mb: 1 }}>支付配置</Typography>
       <Typography color="text.secondary" sx={{ mb: 3, fontSize: 13 }}>
-        配置微信公众号登录、微信支付、支付宝。敏感信息请妥善保管。
+        配置微信支付、支付宝。敏感信息请妥善保管。
+        {' '}
+        微信登录(网站应用 AppID/AppSecret / 回调地址)请前往
+        <strong> 系统 → 微信配置 </strong>
+        维护,与公众号、小程序一并管理。
       </Typography>
 
       <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 3 }}>
-        <Tab label="微信登录" icon={<CloudDoneIcon fontSize="small" />} iconPosition="start" />
         <Tab label="微信支付" icon={<CloudDoneIcon fontSize="small" />} iconPosition="start" />
         <Tab label="支付宝" icon={<CloudDoneIcon fontSize="small" />} iconPosition="start" />
       </Tabs>
 
-      {/* 微信登录配置 */}
-      {tab === 0 && (
-        <Card sx={{ maxWidth: 800 }}>
-          <CardHeader
-            title="微信公众号登录配置"
-            avatar={isWxLoginValid() ? <CloudDoneIcon color="success" /> : <CloudOffIcon color="disabled" />}
-            titleTypographyProps={{ variant: 'h6' }}
-          />
-          <CardContent>
-            <Collapse in={!isWxLoginValid()}>
-              <Alert severity="info" sx={{ mb: 2 }}>
-                <AlertTitle>配置说明</AlertTitle>
-                微信登录需要使用微信开放平台账号。前往{' '}
-                <strong>微信开放平台</strong> (open.weixin.qq.com) 注册网站应用，获取 AppID 和 AppSecret。
-              </Alert>
-            </Collapse>
-
-            <Alert severity="warning" icon={<WarningRoundedIcon />} sx={{ mb: 3 }}>
-              <AlertTitle>重要提示</AlertTitle>
-              回调地址格式: <code>https://你的域名/api/core/oauth/wechat/callback</code>，
-              需在微信开放平台应用设置中填写此地址。
-            </Alert>
-
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-              <TextField
-                label="AppID"
-                value={config.wxLoginAppId}
-                onChange={(e) => handleChange('wxLoginAppId', e.target.value)}
-                fullWidth
-                placeholder="在开放平台应用详情页获取"
-                helperText="微信开放平台网站应用的 AppID"
-                slotProps={{
-                  input: {
-                    startAdornment: <InputAdornment position="start"><LinkIcon sx={{ fontSize: 18, color: 'text.secondary' }} /></InputAdornment>,
-                  },
-                }}
-              />
-
-              <InputPassword
-                label="AppSecret"
-                field="wxLoginAppSecret"
-                value={config.wxLoginAppSecret}
-                onChange={(v) => handleChange('wxLoginAppSecret', v)}
-                placeholder="在开放平台应用详情页获取"
-                helper="微信开放平台网站应用的 AppSecret，请勿泄露"
-              />
-
-              <Divider />
-
-              <TextField
-                label="回调地址 (Redirect URI)"
-                value={config.wxLoginRedirectUri}
-                onChange={(e) => handleChange('wxLoginRedirectUri', e.target.value)}
-                fullWidth
-                placeholder="https://your-domain.com/api/core/oauth/wechat/callback"
-                helperText="此地址需在微信开放平台应用设置中配置"
-              />
-
-              <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>配置步骤：</Typography>
-                <Typography component="ol" sx={{ pl: 2, m: 0, color: 'text.secondary', fontSize: 13 }}>
-                  <li>访问 <strong>open.weixin.qq.com</strong> 注册并登录</li>
-                  <li>创建「网站应用」，填写应用基本信息</li>
-                  <li>在应用设置中配置「网站回调域」</li>
-                  <li>将回调地址填入上方输入框（格式见提示框）</li>
-                  <li>将 AppID 和 AppSecret 填入上方对应输入框</li>
-                </Typography>
-              </Box>
-            </Box>
-          </CardContent>
-        </Card>
-      )}
-
       {/* 微信支付配置 */}
-      {tab === 1 && (
+      {tab === 0 && (
         <Card sx={{ maxWidth: 800 }}>
           <CardHeader
             title="微信支付配置"
@@ -363,7 +287,7 @@ export default function PaymentConfigPage() {
       )}
 
       {/* 支付宝配置 */}
-      {tab === 2 && (
+      {tab === 1 && (
         <Card sx={{ maxWidth: 800 }}>
           <CardHeader
             title="支付宝配置"
