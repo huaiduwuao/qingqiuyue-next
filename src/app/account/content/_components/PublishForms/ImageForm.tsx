@@ -405,6 +405,7 @@ export default function ImageForm({ onSuccess }: PublishFormProps) {
           </Box>
 
           {f.renderPricing()}
+          {f.renderSchedule()}
 
           <Button
             variant="contained"

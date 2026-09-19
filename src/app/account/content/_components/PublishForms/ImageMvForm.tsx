@@ -531,6 +531,8 @@ export default function ImageMvForm({ onSuccess }: PublishFormProps) {
             </Typography>
           </Box>
 
+          {f.renderSchedule()}
+
           <Button
             variant="contained"
             size="large"

@@ -377,6 +377,7 @@ export default function MusicForm({ onSuccess }: PublishFormProps) {
           </Box>
 
           {f.renderPricing()}
+          {f.renderSchedule()}
 
           <Button
             variant="contained"

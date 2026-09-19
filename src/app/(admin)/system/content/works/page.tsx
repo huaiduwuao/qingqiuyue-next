@@ -44,6 +44,7 @@ const STATUS_OPTIONS = [
   { value: 'PUBLISH', label: '已发布' },
   { value: 'UN_PUBLISH', label: '已下架' },
   { value: 'REVIEWING', label: '待审核' },
+  { value: 'SCHEDULED', label: '已定时' },
 ];
 
 /** 后台作品管理:跨创作者/跨类型全量列表,带预览/详情弹窗。 */
@@ -115,8 +116,8 @@ export default function AdminWorksPage() {
                   <TableCell>
                     <Chip
                       size="small"
-                      label={w.status === 'PUBLISH' ? '已发布' : w.status === 'UN_PUBLISH' ? '已下架' : w.status === 'REVIEWING' ? '待审核' : w.status || '-'}
-                      color={w.status === 'PUBLISH' ? 'success' : w.status === 'REVIEWING' ? 'warning' : 'default'}
+                      label={w.status === 'PUBLISH' ? '已发布' : w.status === 'UN_PUBLISH' ? '已下架' : w.status === 'REVIEWING' ? '待审核' : w.status === 'SCHEDULED' ? '已定时' : w.status || '-'}
+                      color={w.status === 'PUBLISH' ? 'success' : w.status === 'REVIEWING' ? 'warning' : w.status === 'SCHEDULED' ? 'info' : 'default'}
                       variant="outlined"
                     />
                   </TableCell>

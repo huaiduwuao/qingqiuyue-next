@@ -286,6 +286,7 @@ export default function FilmForm({ onSuccess }: PublishFormProps) {
           </Box>
 
           {f.renderPricing()}
+          {f.renderSchedule()}
 
           <Button
             variant="contained"

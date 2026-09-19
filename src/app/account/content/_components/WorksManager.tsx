@@ -50,7 +50,7 @@ import { gradient2, gradient3 } from '@/constants/gradients';
 import { coverBackground } from '@/lib/media';
 
 type WorkType = 'video' | 'image' | 'article';
-type WorkStatus = 'published' | 'reviewing' | 'draft' | 'private' | 'rejected';
+type WorkStatus = 'published' | 'reviewing' | 'draft' | 'private' | 'rejected' | 'scheduled';
 
 // 放宽为 Record<string,...>:与 TYPE_META 同步覆盖后端全部 content_type,
 // 新类型查不到时回退 'article',避免 saveOrUpdate(undefined) 发向 client-content/undefined/*。
@@ -84,6 +84,8 @@ interface Work {
   updatedAt: number;
   tags: string[];
   description: string;
+  /** 定时发布的上线时刻(毫秒);仅 status='scheduled' 有值 */
+  publishAt?: number;
 }
 
 // 数据完全来自后端 /api/core/account/works,前端不保留任何 SEED 兜底。
@@ -97,6 +99,7 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
   draft: { label: '草稿', color: 'text.secondary', bg: 'action.hover' },
   private: { label: '私密', color: '#8B5CF6', bg: 'rgba(139, 92, 246, 0.12)' },
   rejected: { label: '已驳回', color: '#FF6B8A', bg: 'rgba(255, 107, 138, 0.12)' },
+  scheduled: { label: '已定时', color: '#38BDF8', bg: 'rgba(56, 189, 248, 0.12)' },
 };
 const STATUS_META_FALLBACK = { label: '未知', color: 'text.disabled', bg: 'action.hover' };
 
@@ -136,7 +139,7 @@ function formatDate(ts: number): string {
 
 export default function WorksManager() {
   const { setActiveTab } = useActiveTab();
-  const [tab, setTab] = useState<0 | 1 | 2 | 3 | 4>(0);
+  const [tab, setTab] = useState<0 | 1 | 2 | 3 | 4 | 5>(0);
   const [typeFilter, setTypeFilter] = useState<'all' | WorkType>('all');
   const [keyword, setKeyword] = useState('');
   const [batchMode, setBatchMode] = useState(false);
@@ -161,6 +164,7 @@ export default function WorksManager() {
     status: (w.status === 'UN_PUBLISH' ? 'private'
       : w.status === 'REVIEWING' ? 'reviewing'
       : w.status === 'PUBLISH' ? 'published'
+      : w.status === 'SCHEDULED' ? 'scheduled'
       : String(w.status || 'published').toLowerCase()) as WorkStatus,
     cover: w.coverUrl || '',
     views: w.readNum || 0,
@@ -172,6 +176,7 @@ export default function WorksManager() {
     updatedAt: w.updateTime ? new Date(w.updateTime).getTime() : Date.now(),
     tags: [],
     description: w.subtitle || '',
+    publishAt: w.publishAt ? new Date(w.publishAt).getTime() : undefined,
   }));
   const [works, setWorks] = useState<Work[]>(apiWorks);
   // API 数据变化时同步本地状态(本地操作后不覆盖)
@@ -182,7 +187,7 @@ export default function WorksManager() {
   }, [apiWorks.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const counts = useMemo(() => {
-    const c = { all: works.length, published: 0, reviewing: 0, draft: 0, private: 0, rejected: 0 };
+    const c = { all: works.length, published: 0, reviewing: 0, draft: 0, private: 0, rejected: 0, scheduled: 0 };
     works.forEach((w) => { c[w.status]++; });
     return c;
   }, [works]);
@@ -193,6 +198,8 @@ export default function WorksManager() {
     else if (tab === 2) list = list.filter((w) => w.status === 'reviewing');
     else if (tab === 3) list = list.filter((w) => w.status === 'draft');
     else if (tab === 4) list = list.filter((w) => w.status === 'private' || w.status === 'rejected');
+    // 已定时排在最后一个页签:插在中间会把上面几个 tab 的下标全挪一位。
+    else if (tab === 5) list = list.filter((w) => w.status === 'scheduled');
     if (typeFilter !== 'all') list = list.filter((w) => w.type === typeFilter);
     if (keyword) list = list.filter((w) => w.title.toLowerCase().includes(keyword.toLowerCase()) || w.tags.some((t) => t.includes(keyword)));
     return list;
@@ -265,6 +272,22 @@ export default function WorksManager() {
     }
   };
 
+  // 定时内容提前上线。定时的内容在提交时就过了自动审核(没过的会进 REVIEWING),
+  // 所以这里直接置为已发布,不再走一遍审核。
+  const handlePublishNow = async (w: Work) => {
+    setLoading(true);
+    try {
+      await process(workTypeOf(w.type), { id: w.id, status: 'published' });
+      updateWork(w.id, { status: 'published', publishAt: undefined });
+      setSnack('已提前发布');
+    } catch (err: unknown) {
+      setSnack(err instanceof Error ? err.message : '发布失败');
+    } finally {
+      setLoading(false);
+      setAnchorEl(null);
+    }
+  };
+
   const handleBatchDelete = async () => {
     if (selected.size === 0) return;
     setLoading(true);
@@ -312,6 +335,8 @@ export default function WorksManager() {
   const STATUS_TO_BACKEND: Record<string, string> = {
     published: 'PUBLISH', private: 'UN_PUBLISH', draft: 'UN_PUBLISH',
     reviewing: 'REVIEWING', rejected: 'UN_PUBLISH',
+    // 少了这一条的话,编辑一个已定时的作品会落到下面的 ?? 'PUBLISH' 兜底 —— 改个标题就提前上线了。
+    scheduled: 'SCHEDULED',
   };
 
   const handleSave = async (patch: Partial<Work>) => {
@@ -392,6 +417,7 @@ export default function WorksManager() {
         <Tab label={`审核中 ${counts.reviewing}`} />
         <Tab label={`草稿 ${counts.draft}`} />
         <Tab label={`私密/驳回 ${counts.private + counts.rejected}`} />
+        <Tab label={`已定时 ${counts.scheduled}`} />
       </Tabs>
 
       {/* 过滤工具栏 */}
@@ -504,11 +530,20 @@ export default function WorksManager() {
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}><ShareOutlinedIcon sx={{ fontSize: 11 }} />{formatNum(w.shares)}</Box>
                       </>
                     )}
-                    <Typography sx={{ fontSize: 10 }}>更新于 {formatDate(w.updatedAt)}</Typography>
+                    <Typography sx={{ fontSize: 10 }}>
+                      {w.status === 'scheduled' && w.publishAt
+                        ? `${formatDate(w.publishAt)} 自动上线`
+                        : `更新于 ${formatDate(w.updatedAt)}`}
+                    </Typography>
                   </Box>
                 </Box>
                 {!batchMode && (
                   <Stack direction="row" spacing={0.5}>
+                    {w.status === 'scheduled' && (
+                      <Button size="small" variant="contained" onClick={() => handlePublishNow(w)} disabled={loading} sx={{ textTransform: 'none', fontSize: 11, borderRadius: 1.5, minWidth: 68, py: 0.25 }}>
+                        立即发布
+                      </Button>
+                    )}
                     {w.status === 'draft' && (
                       <Button size="small" variant="contained" onClick={() => handlePublish(w)} disabled={loading} sx={{ textTransform: 'none', fontSize: 11, borderRadius: 1.5, minWidth: 56, py: 0.25 }}>
                         发布

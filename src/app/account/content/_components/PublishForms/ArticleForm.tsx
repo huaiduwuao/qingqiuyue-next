@@ -521,6 +521,7 @@ export default function ArticleForm({ onSuccess }: PublishFormProps) {
           </Box>
 
           {f.renderPricing()}
+          {f.renderSchedule()}
 
           <Button
             variant="contained"

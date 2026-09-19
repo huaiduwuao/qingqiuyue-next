@@ -340,6 +340,7 @@ export default function TeleplayForm({ onSuccess }: PublishFormProps) {
           </Box>
 
           {f.renderPricing({ serial: true })}
+          {f.renderSchedule()}
 
           <Button
             variant="contained"

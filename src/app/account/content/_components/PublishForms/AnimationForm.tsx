@@ -399,6 +399,7 @@ export default function AnimationForm({ onSuccess }: PublishFormProps) {
           </Box>
 
           {f.renderPricing({ serial: true })}
+          {f.renderSchedule()}
 
           <Button
             variant="contained"
