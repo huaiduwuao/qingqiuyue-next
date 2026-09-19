@@ -24,6 +24,7 @@ import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
 import IconButton from '@mui/material/IconButton'
+import Pagination from '@mui/material/Pagination'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import { agentmAPI, type Instance, type Agent, type AuditLog, type Skill, type MonitoringOverview, type InstanceStats, type UsageStats, type CostStats } from './api'
@@ -80,6 +81,8 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
   // Data states
   const [instances, setInstances] = useState<Instance[]>([])
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
+  const [auditPage, setAuditPage] = useState(1)
+  const [auditTotal, setAuditTotal] = useState(0)
   const [skills, setSkills] = useState<Skill[]>([])
   const [overview, setOverview] = useState<MonitoringOverview | null>(null)
   const [instanceStats, setInstanceStats] = useState<InstanceStats[]>([])
@@ -131,22 +134,26 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
     }
   }, [token])
 
-  // Load audit logs
-  const loadAuditLogs = async () => {
+  // Load audit logs(分页:管理员看全量,普通用户只看自己的)
+  const auditLimit = isAdmin ? 100 : 50
+  const loadAuditLogs = useCallback(async () => {
     if (!token) return
     agentmAPI.setToken(token)
     setLoading(true)
     try {
       // 管理员看全量(后台运行、工作流没有登录用户,只在全量里);普通用户只看自己的
-      const res = isAdmin ? await agentmAPI.getFullAuditLog({ limit: 100 }) : await agentmAPI.getAuditLog({ limit: 50 })
+      const res = isAdmin
+        ? await agentmAPI.getFullAuditLog({ page: auditPage, limit: auditLimit })
+        : await agentmAPI.getAuditLog({ page: auditPage, limit: auditLimit })
       setAuditLogs(res.list || [])
+      setAuditTotal(res.total || 0)
       if (isAdmin) setCostStats(await agentmAPI.getCostStats().catch(() => null))
     } catch (e: any) {
       console.error('Load audit error:', e)
     } finally {
       setLoading(false)
     }
-  }
+  }, [token, isAdmin, auditPage, auditLimit])
 
   // Load skills
   const loadSkills = async () => {
@@ -169,10 +176,19 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
     }
   }, [isAuthenticated, token, loadData])
 
+  // 切到 audit tab 时重置到第 1 页
+  useEffect(() => {
+    if (activeTab === 'audit') setAuditPage(1)
+  }, [activeTab])
+
+  // audit 数据:切到该 tab 或翻页时重拉(loadAuditLogs 依赖 auditPage)
   useEffect(() => {
     if (isAuthenticated && activeTab === 'audit') {
       loadAuditLogs()
     }
+  }, [isAuthenticated, activeTab, loadAuditLogs])
+
+  useEffect(() => {
     if (isAuthenticated && activeTab === 'skills') {
       loadSkills()
     }
@@ -667,6 +683,16 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
               </TableContainer>
             ) : (
               <Alert severity="info">暂无审计日志</Alert>
+            )}
+            {Math.ceil(auditTotal / auditLimit) > 1 && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                <Pagination
+                  count={Math.ceil(auditTotal / auditLimit)}
+                  page={auditPage}
+                  onChange={(_, p) => setAuditPage(p)}
+                  color="primary"
+                />
+              </Box>
             )}
           </Box>
         )}

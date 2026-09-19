@@ -146,8 +146,16 @@ export const canvasAPI = {
     request(`/canvas/${agentId}/link-mcp/${mcpServerId}`, { method: 'DELETE' }),
 
   // ========== 工作流 ==========
-  listWorkflows: (agentId: number) =>
-    request<AgentWorkflowInfo[]>(`/canvas/${agentId}/workflows`),
+  // 后端恒返回分页 envelope;不传参时默认 page=1, limit=100
+  listWorkflows: (agentId: number, params?: { page?: number; limit?: number }) => {
+    const query = new URLSearchParams()
+    if (params?.page) query.set('page', String(params.page))
+    if (params?.limit) query.set('limit', String(params.limit))
+    const qs = query.toString()
+    return request<{ list: AgentWorkflowInfo[]; total: number; page: number; limit: number }>(
+      `/canvas/${agentId}/workflows${qs ? `?${qs}` : ''}`,
+    )
+  },
 
   createWorkflow: (agentId: number, data: { name: string; description?: string; workflow_json: string; workflow_type?: string }) =>
     request<AgentWorkflowInfo>(`/canvas/${agentId}/workflows`, {

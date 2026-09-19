@@ -130,7 +130,7 @@ export default function SessionManager({ token, baseURL = '/api/agentmanager' }:
     }
   }, [token, baseURL, page, limit, userIdFilter, statusFilter, keyword])
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const res = await fetch(`${baseURL}/sessions/stats`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -140,9 +140,9 @@ export default function SessionManager({ token, baseURL = '/api/agentmanager' }:
     } catch (e) {
       console.error('Failed to fetch stats:', e)
     }
-  }
+  }, [token, baseURL])
 
-  const fetchActiveUsers = async () => {
+  const fetchActiveUsers = useCallback(async () => {
     try {
       const res = await fetch(`${baseURL}/sessions/users`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -152,13 +152,18 @@ export default function SessionManager({ token, baseURL = '/api/agentmanager' }:
     } catch (e) {
       console.error('Failed to fetch active users:', e)
     }
-  }
+  }, [token, baseURL])
 
+  // 翻页 / 改 filter 时只重拉 sessions
   useEffect(() => {
     fetchSessions()
+  }, [fetchSessions])
+
+  // 挂载时拉一次统计与活跃用户(不随翻页/filter 重复拉取)
+  useEffect(() => {
     fetchStats()
     fetchActiveUsers()
-  }, [fetchSessions])
+  }, [fetchStats, fetchActiveUsers])
 
   const viewSession = async (session: Session) => {
     setSelectedSession(session)

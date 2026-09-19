@@ -22,6 +22,7 @@ import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
 import IconButton from '@mui/material/IconButton'
+import Pagination from '@mui/material/Pagination'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
@@ -60,6 +61,9 @@ export default function WorkflowsOverview({ onCreate, onEdit }: { onCreate?: () 
   const [rows, setRows] = useState<WorkflowRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  // 前端分页:跨 Agent 聚合后内存分页(后端按 Agent 单点限流 limit=100)
+  const [page, setPage] = useState(1)
+  const pageSize = 20
   // 执行/定时
   const [runningId, setRunningId] = useState<number | null>(null)
   const [scheduleFor, setScheduleFor] = useState<WorkflowRow | null>(null)
@@ -77,14 +81,15 @@ export default function WorkflowsOverview({ onCreate, onEdit }: { onCreate?: () 
           const agentId = a.id
           const agentName = a.name ?? `#${agentId}`
           try {
-            const wfs = await canvasAPI.listWorkflows(agentId)
-            return (wfs || []).map((w) => ({ ...w, agent_name: agentName }))
+            const res = await canvasAPI.listWorkflows(agentId, { limit: 100 })
+            return (res.list || []).map((w) => ({ ...w, agent_name: agentName }))
           } catch {
             return [] as WorkflowRow[]
           }
         }),
       )
       setRows(grouped.flat())
+      setPage(1)
     } catch (e: any) {
       setError(e.message || '加载失败')
     } finally {
@@ -137,6 +142,9 @@ export default function WorkflowsOverview({ onCreate, onEdit }: { onCreate?: () 
     load()
   }, [load])
 
+  const totalPages = Math.ceil(rows.length / pageSize)
+  const paged = rows.slice((page - 1) * pageSize, page * pageSize)
+
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
@@ -183,7 +191,7 @@ export default function WorkflowsOverview({ onCreate, onEdit }: { onCreate?: () 
               </TableRow>
             </TableHead>
             <TableBody>
-              {rows.map((w) => (
+              {paged.map((w) => (
                 <TableRow key={`${w.agent_id}-${w.id}`} hover>
                   <TableCell>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -226,6 +234,18 @@ export default function WorkflowsOverview({ onCreate, onEdit }: { onCreate?: () 
             </TableBody>
           </Table>
         </TableContainer>
+      )}
+
+      {/* 分页:跨 Agent 聚合后内存分页 */}
+      {totalPages > 1 && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+          <Pagination
+            count={totalPages}
+            page={page}
+            onChange={(_, p) => setPage(p)}
+            color="primary"
+          />
+        </Box>
       )}
 
       {/* 定时调度配置弹窗 */}
