@@ -23,7 +23,7 @@ const PUBLIC_PREFIXES = [
   '/legal',
   // 歌单:公开的歌单凭链接就能看和播;「我的歌单」页面里自己提示登录
   '/playlist',
-  // 合集分享页 /my-list/shared/<token>:后端这条路由本就免登录(分享口令即凭证),
+  // 合集分享页 /my-list/shared?token=…:后端这条路由本就免登录(分享口令即凭证),
   // 收到链接的人多半没登录 —— 不放进来就会被踢去登录页,分享等于没分享。
   '/my-list/shared',
   '/digital-human',

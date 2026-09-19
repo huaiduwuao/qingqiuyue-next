@@ -1,6 +1,10 @@
 'use client';
 
-// 私密合集的公开访问页 /my-list/shared/:token
+// 私密合集的公开访问页 /my-list/shared?token=<share_token>
+//
+// 口令走查询参数而不是 /shared/[token] 路由段:站点生产是 output:'export' 静态导出,
+// 动态段必须有 generateStaticParams() 才能导出,而分享口令在构建期根本不存在
+// (第一次带这个页面的构建就是这么失败的)。站内其它凭 id 打开的详情页也都是查询参数。
 //
 // 入口:合集主在「合集管理」开启 share-token 后,把这个链接发给访客。
 // 访客无需登录所有者 —— 通过 token 直接访问。
@@ -12,7 +16,7 @@
 //   POST /my-list/:id/unlock       钻石解锁(需登录)
 
 import React, { useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -43,10 +47,10 @@ import { loginHref } from '@/lib/auth/redirect';
 import { mediaUrl } from '@/lib/media';
 import { coverBackground } from '@/lib/media';
 
-export default function SharedListPage() {
+function SharedListContent() {
   const router = useRouter();
-  const params = useParams<{ token: string }>();
-  const token = params?.token || '';
+  const searchParams = useSearchParams();
+  const token = searchParams.get('token') || '';
   const { user } = useAuth();
   const qc = useQueryClient();
 
@@ -85,7 +89,7 @@ export default function SharedListPage() {
 
   const handleUnlock = () => {
     if (!user) {
-      router.push(loginHref(`/my-list/shared/${token}`));
+      router.push(loginHref(`/my-list/shared?token=${encodeURIComponent(token)}`));
       return;
     }
     unlockM.mutate();
@@ -322,5 +326,13 @@ export default function SharedListPage() {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />
     </Box>
+  );
+}
+
+export default function SharedListPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <SharedListContent />
+    </React.Suspense>
   );
 }
