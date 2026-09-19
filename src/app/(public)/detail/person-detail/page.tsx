@@ -131,14 +131,14 @@ function PersonDetailContent() {
 
   const query = useQuery({
     queryKey: ['detail', 'person', id],
-    queryFn: () => personDetail({ id: id! }).then((r) => r.data as PersonDetail),
+    queryFn: () => personDetail({ id: id! }).then((r) => r as PersonDetail),
     enabled: !!id,
   });
 
   const name = query.data?.title?.trim() || '';
   const related = useQuery({
     queryKey: ['person-related', name],
-    queryFn: () => searchContent(name, { size: 30 }).then((r) => (r?.data?.list ?? []) as PersonWork[]),
+    queryFn: () => searchContent(name, { size: 30 }).then((r) => (r?.list ?? []) as PersonWork[]),
     enabled: name.length > 0,
     staleTime: 5 * 60 * 1000,
   });

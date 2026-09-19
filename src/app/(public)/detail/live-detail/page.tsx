@@ -92,7 +92,7 @@ function LiveDetailContent() {
 
   const query = useQuery({
     queryKey: ['detail', 'live', id],
-    queryFn: () => contentDetail({ id: id! }).then((r) => r.data as LiveDetail),
+    queryFn: () => contentDetail({ id: id! }).then((r) => r as LiveDetail),
     enabled: !!id,
   });
 

@@ -49,7 +49,7 @@ export interface SuggestCreator {
 export async function suggestCreators(keyword: string): Promise<SuggestCreator[]> {
   if (!keyword.trim()) return [];
   const res = await adminClient('/user/suggest', { params: { keyword } });
-  return (res?.data ?? []) as SuggestCreator[];
+  return (res ?? []) as SuggestCreator[];
 }
 
 // 话题联想 → GET /api/content/module/content/suggest?keyword=(content-api moduleContentHandler.List,走 Doris topic 表)
@@ -65,8 +65,7 @@ export interface SuggestTopic {
 }
 export async function suggestTopics(keyword: string): Promise<SuggestTopic[]> {
   if (!keyword.trim()) return [];
-  const res = await contentClient('/module/content/suggest', { params: { keyword } });
-  // moduleContentHandler.List 走 Doris,返回 { data: { records/list: [...], totalRow/total: N } }
-  const data = res?.data;
+  // moduleContentHandler.List 走 Doris;拦截器剥壳后拿到的就是 { records/list: [...], totalRow/total: N }
+  const data: any = await contentClient('/module/content/suggest', { params: { keyword } });
   return (data?.records ?? data?.list ?? []) as SuggestTopic[];
 }

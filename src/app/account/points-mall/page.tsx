@@ -20,7 +20,7 @@ export default function PointsMallPage() {
   const uid = currentUser?.id ?? 0;
   const pointQuery = useQuery({
     queryKey: ['user-point', uid],
-    queryFn: () => getUserPoint().then((r: any) => (r?.data ?? null) as UserPointResp | null),
+    queryFn: () => getUserPoint().then((r: any) => (r ?? null) as UserPointResp | null),
     enabled: !!uid,
   });
 

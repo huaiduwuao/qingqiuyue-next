@@ -48,11 +48,11 @@ export interface AdminSubmission {
   createdAt: string;
 }
 
-type ListResp<T> = { data?: { list?: T[] } };
+type ListResp<T> = { list?: T[] };
 
 export async function listActivities(): Promise<AdminActivity[]> {
   const res = (await adminClient('/admin/activity')) as ListResp<AdminActivity>;
-  return res?.data?.list ?? [];
+  return res?.list ?? [];
 }
 
 export async function saveActivity(a: AdminActivity) {
@@ -63,7 +63,7 @@ export async function saveActivity(a: AdminActivity) {
 
 export async function listSubmissions(activityId: number): Promise<AdminSubmission[]> {
   const res = (await adminClient(`/admin/activity/${activityId}/submissions`)) as ListResp<AdminSubmission>;
-  return res?.data?.list ?? [];
+  return res?.list ?? [];
 }
 
 export async function judgeSubmission(id: number, body: { result: string; prizeRank?: string; reward?: string }) {

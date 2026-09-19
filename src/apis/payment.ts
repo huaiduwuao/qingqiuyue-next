@@ -52,13 +52,13 @@ export interface MembershipStatus {
 // 获取钻石套餐列表
 export async function getDiamondPackages(): Promise<DiamondPackage[]> {
   const res = await accountClient('/payment/diamond-packages');
-  return (res?.data ?? []) as DiamondPackage[];
+  return (res ?? []) as DiamondPackage[];
 }
 
 // 获取会员套餐列表
 export async function getMembershipPlans(): Promise<MembershipPlan[]> {
   const res = await accountClient('/payment/membership-plans');
-  return (res?.data ?? []) as MembershipPlan[];
+  return (res ?? []) as MembershipPlan[];
 }
 
 // 创建订单
@@ -67,14 +67,12 @@ export async function createOrder(params: {
   productId: number;
   channel: 'wechat' | 'alipay';
 }): Promise<{ orderNo: string; amount: number; payParams: any }> {
-  const res = await accountClient('/payment/orders', { method: 'POST', data: params });
-  return res?.data;
+  return await accountClient('/payment/orders', { method: 'POST', data: params });
 }
 
 // 获取订单列表
 export async function getOrderList(params?: PageParams): Promise<PageResult<PaymentOrder>> {
-  const res = await accountClient('/payment/orders', { params });
-  const data = res?.data;
+  const data = await accountClient('/payment/orders', { params });
   if (!data) return normalizeLegacyPageResponse({ records: [], totalRow: 0, page: 1, pageSize: 20 } as any);
   return normalizeLegacyPageResponse(data);
 }
@@ -92,7 +90,7 @@ export async function refundOrder(orderNo: string, reason?: string): Promise<voi
 // 获取会员状态
 export async function getMembershipStatus(): Promise<MembershipStatus> {
   const res = await accountClient('/payment/membership');
-  return res?.data ?? { status: 'none' };
+  return res ?? { status: 'none' };
 }
 
 // mockPay 已删除。

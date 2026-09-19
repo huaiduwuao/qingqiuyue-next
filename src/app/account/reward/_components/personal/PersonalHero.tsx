@@ -111,7 +111,7 @@ export default function PersonalHero(_props: Props) {
   // 我的需求(不传 groupId -> 后端按当前用户过滤)
   const demandsCountQuery = useQuery({
     queryKey: ['personal', 'demands', 'count', currentUserId],
-    queryFn: () => listDemands({ pageSize: 1 }).then((r: any) => r.data?.totalRow || 0),
+    queryFn: () => listDemands({ pageSize: 1 }).then((r: any) => r?.totalRow || 0),
     enabled: !!currentUserId,
     placeholderData: 0,
   });
@@ -129,7 +129,7 @@ export default function PersonalHero(_props: Props) {
     queryKey: ['personal', 'tasks', 'mine', currentUserId],
     queryFn: () =>
       listTasks({ assigneeId: currentUserId, claimerId: currentUserId, pageSize: 1 } as any).then(
-        (r: any) => r?.data?.totalRow || 0
+        (r: any) => r?.totalRow || 0
       ),
     enabled: !!currentUserId,
     placeholderData: 0,

@@ -102,7 +102,7 @@ export default function SystemDictDataPage() {
     queryKey: ['system', 'dict-type', 'all-for-select'],
     queryFn: async () => {
       const res: any = await listDictTypes({ pageSize: 999 });
-      return res.data?.list || res.data?.records || [];
+      return res?.list || res?.records || [];
     },
   });
 
@@ -121,7 +121,7 @@ export default function SystemDictDataPage() {
     queryFn: async () => {
       if (!selectedType) return [];
       const res: any = await tree(selectedType);
-      const list = Array.isArray(res.data) ? res.data : res.data?.list || res.data?.records || [];
+      const list = Array.isArray(res) ? res : res?.list || res?.records || [];
       return list as DictDataItem[];
     },
     enabled: !!selectedType,

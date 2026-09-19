@@ -21,7 +21,7 @@ interface DashboardProps {
 export default function DashboardPage(_props: DashboardProps) {
   const pointQuery = useQuery({
     queryKey: ['user-point', 'me', 'reward'],
-    queryFn: () => userPointMe({ type: 'reward' }).then((r: any) => r.data || {}),
+    queryFn: () => userPointMe({ type: 'reward' }).then((r: any) => r || {}),
     placeholderData: {},
   });
   const myPoint: any = pointQuery.data || {};

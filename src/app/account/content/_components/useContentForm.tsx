@@ -254,7 +254,7 @@ export async function uploadOneFile(file: File): Promise<string | null> {
     const res: any = await accountClient.post('/file/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
-    return res?.data?.url ?? res?.url ?? null;
+    return res?.url ?? null;
   } catch {
     return null;
   }

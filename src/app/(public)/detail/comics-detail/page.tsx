@@ -88,7 +88,7 @@ function ComicsDetailContent() {
 
   const query = useQuery({
     queryKey: ['detail', 'comics', id],
-    queryFn: () => contentDetail('comics', { id: id! }).then((r) => r.data as Partial<Comics>),
+    queryFn: () => contentDetail('comics', { id: id! }).then((r) => r as Partial<Comics>),
     enabled: !!id,
   });
   const chaptersQuery = useContentItems('comics', id, itemPage);

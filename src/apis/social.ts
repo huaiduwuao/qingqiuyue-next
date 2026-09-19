@@ -43,8 +43,7 @@ export async function fetchUserProfile(id: UserId): Promise<UserProfile> {
 }
 
 export async function fetchUserWorks(id: UserId, page = 1, pageSize = 24): Promise<{ list: UserWork[]; total: number }> {
-  const res = await homeClient.get<any>(`/user/${id}/works`, { params: { page, page_size: pageSize } });
-  const d = res.data ?? {};
+  const d = (await homeClient.get<any>(`/user/${id}/works`, { params: { page, page_size: pageSize } })) ?? {};
   return { list: d.list ?? d.records ?? [], total: d.total ?? 0 };
 }
 

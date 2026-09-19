@@ -27,10 +27,9 @@ export interface AppSubmissionChannel {
 }
 
 export async function listAppSubmission() {
-  const r = await adminClient<{ data?: { list?: AppSubmissionChannel[] } }>('/appSubmission/list');
-  // 拦截器已把 axios 的 body({code,msg,data:{list}})直接作为返回值,
-  // 所以这里只取一层 .data,跟 kf/admin-shop 等其他接口一致。多写一层会一直拿到 []。
-  return r?.data?.list ?? [];
+  const r = await adminClient<{ list?: AppSubmissionChannel[] }>('/appSubmission/list');
+  // 拦截器已把 {code,msg,data} 剥到业务数据层,这里的 r 就是 { list },不要再写 r.data.list。
+  return r?.list ?? [];
 }
 
 export async function saveAppSubmission(channel: string, fields: AppSubmissionField[], note?: string) {

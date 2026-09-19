@@ -57,7 +57,7 @@ function NewsDetailContent() {
 
   const query = useQuery({
     queryKey: ['detail', 'news', id],
-    queryFn: () => contentDetail({ id: id! }).then((r) => r.data as Partial<News>),
+    queryFn: () => contentDetail({ id: id! }).then((r) => r as Partial<News>),
     enabled: !!id,
   });
 

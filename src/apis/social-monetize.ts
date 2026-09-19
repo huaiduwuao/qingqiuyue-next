@@ -32,8 +32,7 @@ export async function sendTip(params: TipRequest): Promise<void> {
 
 // 获取打赏记录
 export async function getTips(params?: PageParams): Promise<PageResult<Tip>> {
-  const res = await adminClient('/social/tips', { params });
-  const data = res?.data;
+  const data = await adminClient('/social/tips', { params });
   if (!data) return normalizeLegacyPageResponse({ records: [], totalRow: 0, page: 1, pageSize: 20 } as any);
   return normalizeLegacyPageResponse(data);
 }
@@ -115,16 +114,14 @@ export async function purchasePaidContent(paidContentId: number): Promise<void> 
 
 // 获取我的付费内容
 export async function getMyPaidContents(params?: PageParams): Promise<PageResult<PaidContent>> {
-  const res = await adminClient('/social/my-paid-contents', { params });
-  const data = res?.data;
+  const data = await adminClient('/social/my-paid-contents', { params });
   if (!data) return normalizeLegacyPageResponse({ records: [], totalRow: 0, page: 1, pageSize: 20 } as any);
   return normalizeLegacyPageResponse(data);
 }
 
 // 获取我的购买记录
 export async function getMyPurchases(params?: PageParams): Promise<PageResult<Purchase>> {
-  const res = await adminClient('/social/my-purchases', { params });
-  const data = res?.data;
+  const data = await adminClient('/social/my-purchases', { params });
   if (!data) return normalizeLegacyPageResponse({ records: [], totalRow: 0, page: 1, pageSize: 20 } as any);
   return normalizeLegacyPageResponse(data);
 }
@@ -161,8 +158,7 @@ export async function getEarnings(): Promise<EarningsStats> {
 
 // 获取收益明细
 export async function getEarningHistory(params?: PageParams & { type?: string }): Promise<PageResult<Earning>> {
-  const res = await adminClient('/social/earning-history', { params });
-  const data = res?.data;
+  const data = await adminClient('/social/earning-history', { params });
   if (!data) return normalizeLegacyPageResponse({ records: [], totalRow: 0, page: 1, pageSize: 20 } as any);
   return normalizeLegacyPageResponse(data);
 }
@@ -196,8 +192,7 @@ export async function applyWithdraw(params: WithdrawRequest): Promise<void> {
 
 // 获取提现记录
 export async function getWithdrawHistory(params?: PageParams): Promise<PageResult<Withdraw>> {
-  const res = await adminClient('/social/withdraw-history', { params });
-  const data = res?.data;
+  const data = await adminClient('/social/withdraw-history', { params });
   if (!data) return normalizeLegacyPageResponse({ records: [], totalRow: 0, page: 1, pageSize: 20 } as any);
   return normalizeLegacyPageResponse(data);
 }

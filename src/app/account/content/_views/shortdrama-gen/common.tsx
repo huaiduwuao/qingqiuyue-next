@@ -124,8 +124,8 @@ export function UploadImageButton({ onUploaded, label = '上传参考图', disab
     try {
       const fd = new FormData();
       fd.append('file', file);
-      const res = (await fileUpload(fd as unknown as Record<string, unknown>)) as { data?: { url?: string } };
-      const url = res?.data?.url;
+      const res = (await fileUpload(fd as unknown as Record<string, unknown>)) as { url?: string };
+      const url = res?.url;
       if (!url) throw new Error('上传没有返回地址');
       onUploaded(url);
     } catch (ex) {

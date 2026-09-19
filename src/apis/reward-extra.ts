@@ -15,7 +15,7 @@ export interface RewardCategory {
 
 export async function getRewardCategories(): Promise<RewardCategory[]> {
   const resp = await accountClient('/reward/categories');
-  return resp?.data ?? [];
+  return resp ?? [];
 }
 
 // 悬赏达人榜
@@ -32,5 +32,5 @@ export interface RewardRanker {
 
 export async function getRewardRanking(limit = 8): Promise<RewardRanker[]> {
   const resp = await accountClient('/reward/ranking', { params: { limit } });
-  return resp?.data ?? [];
+  return resp ?? [];
 }

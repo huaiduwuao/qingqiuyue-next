@@ -95,8 +95,8 @@ export default function TaskboardPage({ initialTeamId, initialViewMode, initialD
     window.history.replaceState(window.history.state, '', url.toString());
     getTask(taskId)
       .then((res: any) => {
-        if (res?.data) setDetailTask(mapRewardTaskFromBackend(res.data) as RewardTask);
-        else showMessage(res?.msg || '任务不存在或已删除', 'error');
+        if (res) setDetailTask(mapRewardTaskFromBackend(res) as RewardTask);
+        else showMessage('任务不存在或已删除', 'error');
       })
       .catch((e: any) => showMessage(e?.message || '任务加载失败', 'error'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -114,7 +114,7 @@ export default function TaskboardPage({ initialTeamId, initialViewMode, initialD
   // 需求列表
   const demandsQuery = useQuery({
     queryKey: ['taskboard', 'demands'],
-    queryFn: () => listDemands({ pageSize: 100 }).then((r: any) => (r.data?.records || r.data?.list || []) as DemandItem[]),
+    queryFn: () => listDemands({ pageSize: 100 }).then((r: any) => (r?.records || r?.list || []) as DemandItem[]),
     placeholderData: [],
   });
   const demands: DemandItem[] = demandsQuery.data || [];
@@ -137,7 +137,7 @@ export default function TaskboardPage({ initialTeamId, initialViewMode, initialD
       if (initialDemandId) params.demandId = initialDemandId;
       const res: any = await listTasks(params);
       // 后端 json tag 是 claimerId/reviewerId/ownerId,与前端 bean 的 assigneeId/reviewerId/ownerId 一对一映射需要补齐
-      return mapRewardTaskListFromBackend(res?.data?.records || []);
+      return mapRewardTaskListFromBackend(res?.records || []);
     },
     enabled:
       !!initialDemandId ||

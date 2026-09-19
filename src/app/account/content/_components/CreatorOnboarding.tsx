@@ -41,7 +41,7 @@ export default function CreatorOnboarding() {
 
   const stats = useQuery({
     queryKey: ['account', 'creator', 'stats'],
-    queryFn: () => accountClient.get('/creator/stats').then((r) => r.data as { totalWorks?: number }),
+    queryFn: () => accountClient.get<{ totalWorks?: number }>('/creator/stats'),
     enabled: !!uid,
   });
   const paid = useQuery({

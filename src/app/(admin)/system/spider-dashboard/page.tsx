@@ -26,27 +26,27 @@ import * as spiderApi from '@/apis/spider';
 function useSpiderDashboard() {
   const health = useQuery({
     queryKey: ['spider', 'health'],
-    queryFn: () => spiderApi.getHealth().then((r: any) => r.data),
+    queryFn: () => spiderApi.getHealth().then((r: any) => r),
     refetchInterval: 10_000,
   });
   const stats = useQuery({
     queryKey: ['spider', 'stats'],
-    queryFn: () => spiderApi.getCrawlStats().then((r: any) => r.data),
+    queryFn: () => spiderApi.getCrawlStats().then((r: any) => r),
     refetchInterval: 10_000,
   });
   const timeseries = useQuery({
     queryKey: ['spider', 'timeseries'],
-    queryFn: () => spiderApi.getCrawlTimeseries().then((r: any) => r.data),
+    queryFn: () => spiderApi.getCrawlTimeseries().then((r: any) => r),
     refetchInterval: 30_000,
   });
   const activity = useQuery({
     queryKey: ['spider', 'activity'],
-    queryFn: () => spiderApi.getRecentActivity().then((r: any) => r.data),
+    queryFn: () => spiderApi.getRecentActivity().then((r: any) => r),
     refetchInterval: 10_000,
   });
   const tasks = useQuery({
     queryKey: ['spider', 'tasks'],
-    queryFn: () => spiderApi.listTasks({ pageNumber: 1, pageSize: 10 }).then((r: any) => r.data?.records || r.data?.list || []),
+    queryFn: () => spiderApi.listTasks({ pageNumber: 1, pageSize: 10 }).then((r: any) => r?.records || r?.list || []),
     refetchInterval: 10_000,
   });
 

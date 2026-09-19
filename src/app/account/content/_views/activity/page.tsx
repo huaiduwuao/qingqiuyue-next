@@ -244,7 +244,7 @@ export default function ActivityPage() {
         method: 'POST',
         data: { activityId: submitTarget.id, workIds: submitSelected, caption: submitCaption.trim() },
       });
-      const count = res?.data?.submitted ?? submitSelected.length;
+      const count = res?.submitted ?? submitSelected.length;
       await refetchActivities();
       setSnack({ msg: `已提交 ${count} 部作品到《${submitTarget.title}》`, sev: 'success' });
       closeSubmit();

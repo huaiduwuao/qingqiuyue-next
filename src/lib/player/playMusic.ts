@@ -25,8 +25,7 @@ export function trackFromDetail(id: string, data: any, src: string): MusicTrack 
  */
 export async function playMusicById(id: string | number): Promise<boolean> {
   const key = String(id);
-  const res: any = await contentDetail('music', { id: key });
-  const data = res?.data;
+  const data: any = await contentDetail('music', { id: key });
   if (!data) return false;
   const { src } = await resolveMusic(data);
   if (!src) return false;

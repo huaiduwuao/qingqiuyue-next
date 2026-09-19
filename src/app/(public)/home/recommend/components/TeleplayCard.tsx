@@ -58,8 +58,7 @@ export default function TeleplayCard({ item, rank, gradient, typeChip, onOpen }:
     queryKey: ['teleplay-first-ep', item.id],
     queryFn: async () => {
       const resp: any = await episodePage({ moduleContentId: String(item.id), page: 1, pageSize: 1 });
-      const list: Episode[] =
-        resp?.data?.data?.list || resp?.data?.data?.records || resp?.data?.list || resp?.data?.records || [];
+      const list: Episode[] = resp?.list || resp?.records || [];
       return (list[0] || null) as Episode | null;
     },
     enabled: playing, // 只有进入播放态才取第一集

@@ -37,10 +37,10 @@ import { API_PREFIX } from '@/lib/api/prefix';
 // Authorization 头,所以就算路径对了也是 401。改走 adminClient(base=/api/core,
 // 拦截器统一注入 session)。
 const paymentConfigAPI = {
-  // 拦截器把 {code,msg,data} 放在 axios 响应的 .data 上,这里统一剥一层再返回配置对象。
+  // 拦截器已把 {code,msg,data} 剥到业务数据层,这里拿到的就是配置对象本身。
   get: async (): Promise<Partial<PaymentConfig> | null> => {
     const res: any = await adminClient('/payment/config');
-    return res?.data?.data ?? res?.data ?? null;
+    return res ?? null;
   },
   save: async (data: any) => adminClient('/payment/config', { method: 'POST', data }),
 };

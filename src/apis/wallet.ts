@@ -100,7 +100,7 @@ export interface RechargeOrderResp {
 // 获取充值套餐
 export async function getRechargePackages(): Promise<RechargePackage[]> {
   const resp = await accountClient('/payment/diamond-packages');
-  return resp?.data ?? [];
+  return resp ?? [];
 }
 
 // createRechargeOrder / confirmRecharge 已删除。

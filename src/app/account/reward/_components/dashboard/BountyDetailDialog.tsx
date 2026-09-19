@@ -67,7 +67,7 @@ export default function BountyDetailDialog({
     queryKey: ['reward', 'bounty', 'tasks', bountyId],
     queryFn: async () => {
       const res: any = await listTasks({ demandId: Number(bountyId), pageSize: 100 });
-      return mapRewardTaskListFromBackend(res?.data?.records || []) as RewardTask[];
+      return mapRewardTaskListFromBackend(res?.records || []) as RewardTask[];
     },
     enabled: open && !!bountyId,
   });

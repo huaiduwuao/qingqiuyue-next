@@ -111,8 +111,8 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
   const query = useQuery({
     queryKey: ['reward-demand', tab, page, keyword],
     queryFn: () => myPage({ page, pageSize, status: tab || undefined, keyword }).then((r) => ({
-      records: r.data?.records || [],
-      totalRow: r.data?.totalRow || 0,
+      records: r?.records || [],
+      totalRow: r?.totalRow || 0,
     })),
     placeholderData: { records: [], totalRow: 0 },
   });
@@ -230,7 +230,7 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
       showMessage(status === 'PUBLISHED' ? '已发布' : '已关闭,托管赏金已退回');
       query.refetch();
       if (detailVisible && selectedRecord?.id === record.id) {
-        setSelectedRecord(res?.data ?? { ...selectedRecord, status });
+        setSelectedRecord(res ?? { ...selectedRecord, status });
       }
     } catch (err: any) {
       showMessage(err.message || '操作失败', 'error');

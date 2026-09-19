@@ -39,7 +39,7 @@ export default function SystemUserPointPage() {
     mutationFn: () =>
       adjustUserPoint({ userId: Number(form.userId), point: Number(form.point), info: form.info.trim() || undefined }),
     onSuccess: (res: any) => {
-      showMessage(`已调整,当前余额 ${res?.data?.point ?? '-'}`);
+      showMessage(`已调整,当前余额 ${res?.point ?? '-'}`);
       setAdjustOpen(false);
       qc.invalidateQueries({ queryKey: LIST_KEY });
     },
@@ -86,8 +86,8 @@ export default function SystemUserPointPage() {
         fetchData={async (params: any) => {
           const userId = Number(filterValues.userId) || undefined;
           const res: any = await listPointRecords({ ...params, pageNumber: params.pageNumber, userId });
-          const list = res?.data?.records || res?.data?.list || [];
-          const total = res?.data?.totalRow || res?.data?.total || 0;
+          const list = res?.records || res?.list || [];
+          const total = res?.totalRow || res?.total || 0;
           return { records: list, totalRow: total };
         }}
         filters={{

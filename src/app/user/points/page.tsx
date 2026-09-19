@@ -54,19 +54,19 @@ export default function PointsPage() {
   // 以下接口都按登录用户返回本人数据
   const pointQuery = useQuery({
     queryKey: ['user-point', uid],
-    queryFn: () => getUserPoint().then((r: any) => (r?.data ?? null) as UserPointResp | null),
+    queryFn: () => getUserPoint().then((r: any) => (r ?? null) as UserPointResp | null),
     enabled: !!uid,
   });
   const recordsQuery = useQuery({
     queryKey: ['user-point-records', uid],
     queryFn: () =>
-      listPointRecords({ page: 1, pageSize: 100 }).then((r: any) => (r?.data?.records || r?.data?.list || []) as PointRecordInfo[]),
+      listPointRecords({ page: 1, pageSize: 100 }).then((r: any) => (r?.records || r?.list || []) as PointRecordInfo[]),
     enabled: !!uid,
   });
   const achievementsQuery = useQuery({
     queryKey: ['user-achievements', uid],
     queryFn: () =>
-      listAchievements().then((r: any) => (Array.isArray(r?.data) ? r.data : r?.data?.list || []) as AchievementInfo[]),
+      listAchievements().then((r: any) => (Array.isArray(r) ? r : r?.list || []) as AchievementInfo[]),
     enabled: !!uid,
   });
 

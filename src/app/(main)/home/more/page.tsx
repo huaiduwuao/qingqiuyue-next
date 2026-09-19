@@ -30,7 +30,7 @@ export default function HomeMorePage() {
 
   const configQuery = useQuery({
     queryKey: ['more', 'config'],
-    queryFn: () => getByCode({ code: 'more' }).then((r) => r.data?.content?.id as number | undefined),
+    queryFn: () => getByCode({ code: 'more' }).then((r) => r?.content?.id as number | undefined),
   });
 
   const treeQuery = useQuery({

@@ -105,10 +105,9 @@ export interface Page<T> {
   needLogin?: boolean;
 }
 
-// 拦截器已把 { code, data, msg } 解开到 res.data
+// 拦截器已把 { code, msg, data } 剥到业务数据层,client 直接 resolve 业务数据本身
 async function get<T>(url: string, params?: Record<string, unknown>): Promise<T> {
-  const res: any = await contentClient.get(url, { params });
-  return res.data as T;
+  return (await contentClient.get(url, { params })) as T;
 }
 
 export function fetchFeed(params: { tab: FeedTab; sort?: 'new' | 'hot'; topicId?: Id; userId?: Id; page: number; size?: number }) {
@@ -120,8 +119,7 @@ export function fetchFeedItem(id: Id) {
 }
 
 export async function createPost(data: { text: string; contentId?: Id; topicIds?: Id[] }): Promise<FeedItem> {
-  const res: any = await contentClient.post('/community/posts', data);
-  return res.data as FeedItem;
+  return (await contentClient.post('/community/posts', data)) as FeedItem;
 }
 
 export function deleteFeed(id: Id) {
@@ -129,8 +127,7 @@ export function deleteFeed(id: Id) {
 }
 
 export async function setFeedLike(id: Id, on: boolean): Promise<{ liked: boolean; likeCount: number }> {
-  const res: any = on ? await contentClient.post(`/community/feed/${id}/like`) : await contentClient.delete(`/community/feed/${id}/like`);
-  return res.data;
+  return on ? await contentClient.post(`/community/feed/${id}/like`) : await contentClient.delete(`/community/feed/${id}/like`);
 }
 
 export function fetchComments(feedId: Id, page = 1, size = 20) {
@@ -138,8 +135,7 @@ export function fetchComments(feedId: Id, page = 1, size = 20) {
 }
 
 export async function addComment(feedId: Id, text: string, replyToUserId?: Id): Promise<FeedComment> {
-  const res: any = await contentClient.post(`/community/feed/${feedId}/comments`, { text, replyToUserId });
-  return res.data as FeedComment;
+  return (await contentClient.post(`/community/feed/${feedId}/comments`, { text, replyToUserId })) as FeedComment;
 }
 
 export function deleteComment(id: Id) {
@@ -164,8 +160,7 @@ export function fetchTopicContents(id: Id, page: number, size = 24) {
 }
 
 export async function setTopicFollow(id: Id, on: boolean): Promise<{ following: boolean; followerCount: number }> {
-  const res: any = on ? await contentClient.post(`/community/topics/${id}/follow`) : await contentClient.delete(`/community/topics/${id}/follow`);
-  return res.data;
+  return on ? await contentClient.post(`/community/topics/${id}/follow`) : await contentClient.delete(`/community/topics/${id}/follow`);
 }
 
 export function fetchContentTopics(contentId: Id) {

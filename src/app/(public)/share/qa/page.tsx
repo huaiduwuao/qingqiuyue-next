@@ -18,7 +18,7 @@ export default function ShareQaPage() {
 
   const query = useQuery({
     queryKey: ['qa', submittedKey],
-    queryFn: () => qaDetail({ title: submittedKey }).then((r) => (r.data as any[]) || []),
+    queryFn: () => qaDetail({ title: submittedKey }).then((r) => (r as any[]) || []),
     enabled: !!submittedKey,
   });
 

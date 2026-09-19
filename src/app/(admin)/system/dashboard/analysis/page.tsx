@@ -95,7 +95,7 @@ function useDashboard() {
     queryKey: ['dashboard', 'stats'],
     queryFn: async () => {
       const r: any = await adminClient('/admin/dashboard/stats');
-      return (r?.data?.data ?? r?.data ?? r) as DashboardStats;
+      return r as DashboardStats;
     },
     refetchInterval: 30_000,
     staleTime: 15_000,
@@ -104,7 +104,7 @@ function useDashboard() {
     queryKey: ['dashboard', 'trend'],
     queryFn: async () => {
       const r: any = await adminClient('/admin/dashboard/trend', { params: { days: 30 } });
-      const list = (r?.data?.data?.list ?? r?.data?.list ?? r?.list ?? []) as Array<{
+      const list = (r?.list ?? []) as Array<{
         statDate: string; users: number; content: number; revenue: number; orders: number; activeUsers: number;
       }>;
       return list.map((p) => ({
@@ -122,7 +122,7 @@ function useDashboard() {
     queryKey: ['dashboard', 'content-distribution'],
     queryFn: async () => {
       const r: any = await adminClient('/admin/dashboard/content-distribution');
-      const list = (r?.data?.data?.records ?? r?.data?.records ?? []) as any;
+      const list = (r?.records ?? r?.list ?? []) as any;
       return (list as any[]).map((d: any) => ({ type: d.type, label: d.label, count: d.count, percent: d.percent, color: d.color }));
     },
     staleTime: 60_000,
@@ -131,7 +131,7 @@ function useDashboard() {
     queryKey: ['dashboard', 'top-creators'],
     queryFn: async () => {
       const r: any = await adminClient('/admin/dashboard/top-creators');
-      return (r?.data?.data?.list ?? r?.data?.list ?? []) as TopCreator[];
+      return (r?.list ?? []) as TopCreator[];
     },
     staleTime: 5 * 60_000,
   });
@@ -139,7 +139,7 @@ function useDashboard() {
     queryKey: ['dashboard', 'recent-activities'],
     queryFn: async () => {
       const r: any = await adminClient('/admin/dashboard/recent-activities');
-      return (r?.data?.data?.list ?? r?.data?.list ?? []) as Activity[];
+      return (r?.list ?? []) as Activity[];
     },
     staleTime: 60_000,
   });

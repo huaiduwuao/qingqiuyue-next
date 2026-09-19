@@ -1502,7 +1502,7 @@ function EditProfileDrawer({
     queryKey: ['home', 'me', 'region-presets'],
     queryFn: () =>
       adminClient.get<any>('/area/provinces').then((r) => {
-        const list = r.data?.list || r.data || [];
+        const list = r?.list || r || [];
         return Array.isArray(list) ? list.map((x: any) => x.name || x.label || String(x)) : [];
       }),
     enabled: open,

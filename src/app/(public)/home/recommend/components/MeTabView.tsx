@@ -33,11 +33,11 @@ const SECTION_CONFIG: Record<MainTab, {
   fetcher: (page: number, pageSize: number) => Promise<MePageResp<MePageItem>>;
   emptyHint: string;
 }> = {
-  likes:       { label: "我的喜欢",     fetcher: (p, s) => accountClient.get(`/account/likes/page?page=${p}&pageSize=${s}`).then(r => r.data),        emptyHint: "还没有点赞过内容" },
-  collect:     { label: "我的收藏",     fetcher: (p, s) => accountClient.get(`/account/favorites/page?page=${p}&pageSize=${s}`).then(r => r.data),    emptyHint: "还没有收藏任何内容,去推荐页看看吧" },
-  history:     { label: "观看历史",     fetcher: (p, s) => accountClient.get(`/account/history/page?page=${p}&pageSize=${s}`).then(r => r.data),      emptyHint: "还没有观看记录,刷一刷推荐吧" },
-  later:       { label: "稍后再看",     fetcher: (p, s) => accountClient.get(`/account/watchlater/page?page=${p}&pageSize=${s}`).then(r => r.data),   emptyHint: "稍后再看是空的,在内容详情的收藏菜单里可以加入" },
-  order:       { label: "我的预约",     fetcher: (p, s) => accountClient.get(`/account/reservations/page?page=${p}&pageSize=${s}`).then(r => r.data), emptyHint: "还没有预约直播,在未开播的直播间点「预约开播」" },
+  likes:       { label: "我的喜欢",     fetcher: (p, s) => accountClient.get(`/account/likes/page?page=${p}&pageSize=${s}`),        emptyHint: "还没有点赞过内容" },
+  collect:     { label: "我的收藏",     fetcher: (p, s) => accountClient.get(`/account/favorites/page?page=${p}&pageSize=${s}`),    emptyHint: "还没有收藏任何内容,去推荐页看看吧" },
+  history:     { label: "观看历史",     fetcher: (p, s) => accountClient.get(`/account/history/page?page=${p}&pageSize=${s}`),      emptyHint: "还没有观看记录,刷一刷推荐吧" },
+  later:       { label: "稍后再看",     fetcher: (p, s) => accountClient.get(`/account/watchlater/page?page=${p}&pageSize=${s}`),   emptyHint: "稍后再看是空的,在内容详情的收藏菜单里可以加入" },
+  order:       { label: "我的预约",     fetcher: (p, s) => accountClient.get(`/account/reservations/page?page=${p}&pageSize=${s}`), emptyHint: "还没有预约直播,在未开播的直播间点「预约开播」" },
 };
 
 const PAGE_SIZE = 12;

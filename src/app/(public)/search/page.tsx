@@ -212,7 +212,7 @@ function SearchPageContent() {
     queryKey: ['search-hot'],
     queryFn: async () => {
       const res = (await topKeywordInThirdMonth()) as any;
-      const list = res?.data?.list || res?.data || [];
+      const list = res?.list || res || [];
       return (Array.isArray(list) ? list : [])
         .map((it: any) => it.keyword || it.word || it.title || String(it))
         .filter(Boolean)
@@ -228,7 +228,7 @@ function SearchPageContent() {
     queryKey: ['dict', 'types'],
     queryFn: async () => {
       const res = (await fetchContentTypes()) as any;
-      const list = res?.data?.list || res?.data || [];
+      const list = res?.list || res || [];
       return (Array.isArray(list) ? list : []) as ContentTypeItem[];
     },
     staleTime: 10 * 60 * 1000,
@@ -241,7 +241,7 @@ function SearchPageContent() {
     queryFn: async () => {
       if (!facetField) return [] as FacetItem[];
       const res = (await fetchFacets({ type: fType || undefined, field: facetField, limit: 20 })) as any;
-      const list = res?.data?.list || [];
+      const list = res?.list || [];
       return (Array.isArray(list) ? list : []) as FacetItem[];
     },
     enabled: !!facetField,
@@ -267,7 +267,7 @@ function SearchPageContent() {
         genre: fGenre || undefined,
         year: fYear || undefined,
       })) as any;
-      const list = res?.data?.list || res?.data || [];
+      const list = res?.list || res || [];
       const items = (Array.isArray(list) ? list : []).map((it: any) => ({
         id: it.id ?? 0,
         title: it.title || it.name || '未命名',
@@ -280,7 +280,7 @@ function SearchPageContent() {
         likes: it.likes || it.agreeNum || 0,
         matchField: (it.matchField || 'title') as SearchContentItem['matchField'],
       })) as SearchContentItem[];
-      return { items, discover: (res?.data?.discover as DiscoverState | undefined) ?? null };
+      return { items, discover: (res?.discover as DiscoverState | undefined) ?? null };
     },
     enabled: !aiMode && (query.trim().length > 0 || !!(fType || fDirector || fActor || fGenre || fYear)),
     staleTime: 60 * 1000,

@@ -56,7 +56,7 @@ function ImageDetailContent() {
   const id = searchParams.get('id');
   const query = useQuery({
     queryKey: ['detail', 'picture', id],
-    queryFn: () => contentDetail('picture-album', { id: id! }).then((r) => r.data as PictureDetail),
+    queryFn: () => contentDetail('picture-album', { id: id! }).then((r) => r as PictureDetail),
     enabled: !!id,
   });
 

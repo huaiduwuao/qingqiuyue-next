@@ -55,7 +55,7 @@ export interface GenJob {
  */
 export async function listWorkflows(): Promise<GenWorkflow[]> {
   const res = await aiClient('/generate/workflows');
-  return (res?.data ?? []) as GenWorkflow[];
+  return (res ?? []) as GenWorkflow[];
 }
 
 /**

@@ -564,8 +564,8 @@ export default function HdPublishPage() {
     const formData = new FormData();
     formData.append('file', file);
     try {
-      const res = (await fileUpload(formData as unknown as Record<string, unknown>)) as { data?: { url?: string } };
-      const url = res?.data?.url;
+      const res = (await fileUpload(formData as unknown as Record<string, unknown>)) as { url?: string };
+      const url = res?.url;
       if (url) {
         setVideos((p) =>
           p.map((v) => (v.id === coverTargetId ? { ...v, cover: url, hasCover: true } : v)),

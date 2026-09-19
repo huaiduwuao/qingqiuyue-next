@@ -64,8 +64,7 @@ export async function resolveTrackById(id: string): Promise<{
   cover?: string;
   preview: boolean;
 }> {
-  const res: any = await contentDetail('music', { id });
-  const data = res?.data;
+  const data: any = await contentDetail('music', { id });
   const { src } = await resolveMusic(data);
   return {
     src,
@@ -80,5 +79,5 @@ export async function resolveTrackById(id: string): Promise<{
 /** 按内容 id 重新拉详情再解析 —— 全局播放器换链用。 */
 export async function resolveMusicById(id: string): Promise<string> {
   const res: any = await contentDetail('music', { id });
-  return (await resolveMusic(res?.data)).src;
+  return (await resolveMusic(res)).src;
 }

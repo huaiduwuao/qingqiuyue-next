@@ -835,8 +835,8 @@ function DmPanel() {
     const formData = new FormData();
     formData.append('file', file);
     try {
-      const res = (await fileUpload(formData as any)) as { data?: { url?: string } };
-      const url = res?.data?.url;
+      const res = (await fileUpload(formData as any)) as { url?: string };
+      const url = res?.url;
       if (url) {
         sendImageMutation.mutate(url);
       } else {

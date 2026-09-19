@@ -101,8 +101,8 @@ export default function AccountSettingsPage() {
     formData.append('file', file);
     try {
       // 上传到 /file/upload，回填返回的 URL 到头像字段
-      const res = (await fileUpload(formData as any)) as { data?: { url?: string } };
-      const url = res?.data?.url;
+      const res = (await fileUpload(formData as any)) as { url?: string };
+      const url = res?.url;
       if (url) {
         setFormValues((prev) => ({ ...prev, avatar: url }));
         showMessage('头像上传成功，记得点击保存');
@@ -486,9 +486,8 @@ function WechatDialog({
   const fetchAuthUrl = async () => {
     try {
       const res = await accountClient.get('/oauth/bind/wechat');
-      // accountClient 拦截器把 body({code,msg,data:{authUrl}})整体作为返回值,
-      // 业务数据在 res.data.authUrl,不是 res.data.data.authUrl(多一层会一直拿不到)。
-      const authUrl = (res as any)?.data?.authUrl;
+      // 拦截器已把 body({code,msg,data:{authUrl}})剥到业务数据层,这里直接读 res.authUrl。
+      const authUrl = (res as any)?.authUrl;
       if (authUrl) {
         setAuthUrl(authUrl);
         return true;
@@ -528,7 +527,7 @@ function WechatDialog({
       // 调用获取当前用户信息接口，检查是否已绑定微信
       const res = await accountClient.get('/user/current');
       // 检查 social_user 表中是否有 wechat 绑定（通过 user/current 响应判断）
-      if (res?.data?.wechatOpenid || res?.data?.wechatOpenId) {
+      if (res?.wechatOpenid || res?.wechatOpenId) {
         setBindStatus('success');
         onSaved('微信绑定成功');
         setTimeout(() => {

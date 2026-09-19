@@ -195,8 +195,8 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
     queryFn: () =>
       fetchSubcategories(parentType as string).then((r: any) => {
         // 后端返回 { list: [...] } 或 { groups: { NOVEL: [...] } }
-        if (Array.isArray(r?.data?.list)) return r.data.list as SubcategoryItem[];
-        if (parentType && r?.data?.groups?.[parentType]) return r.data.groups[parentType] as SubcategoryItem[];
+        if (Array.isArray(r?.list)) return r.list as SubcategoryItem[];
+        if (parentType && r?.groups?.[parentType]) return r.groups[parentType] as SubcategoryItem[];
         return [] as SubcategoryItem[];
       }),
     enabled: tab === 'home' && !!parentType,
@@ -278,8 +278,8 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
             }).catch(() => null),
           ),
         );
-        const lists: any[][] = results.map((r: any) => r?.data?.list || r?.data?.records || []);
-        const totals = results.map((r: any) => Number(r?.data?.total || r?.data?.totalRow || 0));
+        const lists: any[][] = results.map((r: any) => r?.list || r?.records || []);
+        const totals = results.map((r: any) => Number(r?.total || r?.totalRow || 0));
         const merged: any[] = [];
         for (let i = 0; i < RECOMMEND_PER_TYPE; i++) {
           for (const list of lists) {
@@ -326,10 +326,10 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
         ...(ratingMin ? { ratingMin } : {}),
         ...(year ? { releaseYear: year } : {}),
       }) as any;
-      // moduleContentPage 内部用 contentClient 包装, resp 同上是 { code, data: { list, total }, msg }
-      const rawRecords = resp?.data?.list || resp?.data?.records || [];
+      // moduleContentPage 内部用 contentClient;拦截器剥壳后 resp 就是 { list, total }
+      const rawRecords = resp?.list || resp?.records || [];
       const records = rawRecords.map(toFeedRecord);
-      const total = resp?.data?.total || resp?.data?.totalRow || 0;
+      const total = resp?.total || resp?.totalRow || 0;
       return { records, total, page: pageParam };
     },
     initialPageParam: 1,

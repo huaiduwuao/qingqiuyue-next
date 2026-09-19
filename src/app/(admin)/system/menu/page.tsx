@@ -123,7 +123,7 @@ export default function SystemMenuPage() {
         hasPermission={can}
         fetchData={async (params) => {
           const res = await list(params);
-          const items = res?.list || res?.records || res.data || [];
+          const items = res?.list || res?.records || [];
           const total = res?.total || res?.totalRow || items.length;
           return { records: items, totalRow: total };
         }}

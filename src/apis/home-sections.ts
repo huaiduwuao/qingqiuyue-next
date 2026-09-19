@@ -14,8 +14,8 @@ export interface HomeSectionsResp {
 export async function fetchMySections(): Promise<HomeSectionsResp> {
   const resp: any = await contentClient('/home/sections');
   return {
-    list: (resp?.data?.list ?? []) as HomeSection[],
-    needLogin: !!resp?.data?.needLogin,
+    list: (resp?.list ?? []) as HomeSection[],
+    needLogin: !!resp?.needLogin,
   };
 }
 
@@ -25,5 +25,5 @@ export async function saveMySections(sections: HomeSection[]): Promise<HomeSecti
     method: 'PUT',
     data: { sections },
   });
-  return (resp?.data?.list ?? []) as HomeSection[];
+  return (resp?.list ?? []) as HomeSection[];
 }

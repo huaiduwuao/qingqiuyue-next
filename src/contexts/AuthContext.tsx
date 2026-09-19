@@ -88,7 +88,7 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
       setSessionId(sid);
       setStatus('loading');
       try {
-        const user = (await queryCurrent())?.data;
+        const user = await queryCurrent();
         if (seq !== loadSeq.current) return;
         if (!user) {
           clearLocal();
@@ -110,8 +110,8 @@ export function AuthContextProvider({ children }: { children: React.ReactNode })
       // 菜单、字典各自独立:任何一个失败都不影响登录态(此前 Promise.all 一起失败)。
       const [menu, dict] = await Promise.allSettled([getMenuData({}), listAllDictData({})]);
       if (seq !== loadSeq.current) return;
-      if (menu.status === 'fulfilled') setMenuData(menu.value?.data ?? []);
-      if (dict.status === 'fulfilled') setDict(dict.value?.data ?? []);
+      if (menu.status === 'fulfilled') setMenuData(menu.value ?? []);
+      if (dict.status === 'fulfilled') setDict(dict.value ?? []);
     },
     [clearLocal, setCurrentUser, setMenuData, setDict],
   );

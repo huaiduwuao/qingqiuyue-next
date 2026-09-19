@@ -27,8 +27,7 @@ export interface PlaySourceList {
 }
 
 export async function listPlaySources(contentId: string): Promise<PlaySourceList> {
-  const resp = await contentClient('/play-source', { params: { contentId } });
-  const data = resp?.data ?? {};
+  const data = (await contentClient('/play-source', { params: { contentId } })) ?? {};
   return {
     list: Array.isArray(data.list) ? data.list : [],
     platforms: Array.isArray(data.platforms) ? data.platforms : [],

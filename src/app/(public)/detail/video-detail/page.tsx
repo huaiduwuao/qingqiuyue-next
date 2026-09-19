@@ -56,7 +56,7 @@ function VideoDetailContent() {
 
   const query = useQuery({
     queryKey: ['detail', 'video', id],
-    queryFn: () => contentDetail('video', { id: id! }).then((r) => r.data as Partial<Video>),
+    queryFn: () => contentDetail('video', { id: id! }).then((r) => r as Partial<Video>),
     enabled: !!id,
   });
 

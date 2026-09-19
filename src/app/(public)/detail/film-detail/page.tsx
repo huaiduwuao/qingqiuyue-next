@@ -56,7 +56,7 @@ function FilmDetailContent() {
 
   const query = useQuery({
     queryKey: ['detail', 'film', id],
-    queryFn: () => contentDetail('film', { id: id! }).then((r) => r.data as Partial<Film>),
+    queryFn: () => contentDetail('film', { id: id! }).then((r) => r as Partial<Film>),
     enabled: !!id,
   });
 

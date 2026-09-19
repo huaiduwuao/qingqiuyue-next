@@ -66,7 +66,7 @@ export default function PersonalDemandPanel({ currentUserId, onOpenTab, onOpenDe
     queryKey: ['personal', 'demands', 'all', currentUserId],
     queryFn: () =>
       listDemands({ pageSize: 200 } as any).then((r: any) => {
-        const records = r?.data?.records || r?.data?.list || [];
+        const records = r?.records || r?.list || [];
         return records as DemandItem[];
       }),
     enabled: !!currentUserId,

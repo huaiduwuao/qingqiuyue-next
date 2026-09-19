@@ -50,7 +50,7 @@ export async function verifyPayPassword(password: string): Promise<boolean> {
 
 export async function hasPayPassword(): Promise<boolean> {
   const res = await adminClient('/user/has-pay-password');
-  return (res as any)?.data?.hasPayPassword ?? false;
+  return (res as any)?.hasPayPassword ?? false;
 }
 
 export async function novelBookshelf(params: Record<string, unknown>) {

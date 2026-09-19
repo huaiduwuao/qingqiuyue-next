@@ -241,7 +241,7 @@ function NovelDetailContent() {
 
   const detailQuery = useQuery({
     queryKey: ['detail', 'novel', id],
-    queryFn: () => contentDetail('novel', { id: id! }).then((r) => (r.data ?? null) as NovelDetail | null),
+    queryFn: () => contentDetail('novel', { id: id! }).then((r) => (r ?? null) as NovelDetail | null),
     enabled: !!id,
   });
   const detail = detailQuery.data ?? undefined;

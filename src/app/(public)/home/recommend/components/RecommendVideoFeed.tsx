@@ -161,7 +161,7 @@ export function RecommendVideoFeed() {
         // 沉浸式流每一屏就是一个播放器:只要站内能看到画面的(后端 recommendengine WatchableOnly)
         watchable: 1,
       }) as any;
-      const list = (resp?.data?.list ?? []) as any[];
+      const list = (resp?.list ?? []) as any[];
       const items = list.map((it): VideoItem => ({
         id: Number(it.id) || 0,
         idString: typeof it.idString === 'string' && it.idString ? it.idString : String(it.id ?? ''),
@@ -192,7 +192,7 @@ export function RecommendVideoFeed() {
         playbackStatus: originOnlyPlatform(sourcePageOf(it.sourceUrl, it.metadata)) ? 'bandwidth_limited' : it.playbackStatus || 'unknown',
         repairNotice: it.repairNotice || (originOnlyPlatform(sourcePageOf(it.sourceUrl, it.metadata)) ? ORIGIN_ONLY_NOTICE : ''),
       }));
-      const hasMore = resp?.data?.hasMore ?? false;
+      const hasMore = resp?.hasMore ?? false;
       // 后端还没按 watchable 过滤时(旧版本)前端兜一层:只留能嵌外链播放器或判定可播的。
       // 「去原站看」「修复中」的卡片放在推荐流里就是一屏划不掉的废内容。
       const watchable = items.filter((v) =>

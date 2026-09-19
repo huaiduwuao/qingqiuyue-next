@@ -346,7 +346,7 @@ function TaskDetailDialog({ taskId, live, onStop, onClose }: {
 
   const detailQ = useQuery({
     queryKey: ['spider', 'task-detail', taskId],
-    queryFn: () => getTaskDetail(taskId!).then((r: any) => normalizeTask(r?.data ?? r)),
+    queryFn: () => getTaskDetail(taskId!).then((r: any) => normalizeTask(r)),
     enabled: open,
     // WS 断开时兜底轮询;WS 在线时进度直接叠加 live
     refetchInterval: liveActive ? 5000 : false,

@@ -216,7 +216,7 @@ class RealtimeClient {
     let ticket: string;
     try {
       const res = await adminClient('/realtime/ticket', { method: 'POST' });
-      ticket = res?.data?.ticket;
+      ticket = res?.ticket;
       if (!ticket) throw new Error('no ticket');
     } catch {
       // 换票失败多半是没登录或会话过期 —— 退避后再试,同时订阅者会看到 offline

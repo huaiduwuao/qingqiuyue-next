@@ -130,7 +130,7 @@ export default function SystemBotPage() {
   };
   const handleEdit = (row: BotItem) => {
     botApi.get(row.id as number).then((res) => {
-      setRecord((res?.data as BotItem) || row);
+      setRecord((res as BotItem) || row);
       setModalVisible(true);
     }).catch((err) => showMessage(err.message || '加载失败', 'error'));
   };

@@ -81,7 +81,7 @@ export default function SpiderTemplatesPage() {
 
   const autoGenMutation = useMutation({
     mutationFn: (url: string) => autoGenerateTemplate({ url }),
-    onSuccess: (res: any) => setAutoResult(res.data),
+    onSuccess: (res: any) => setAutoResult(res),
     onError: (err: any) => showMessage(err.message || '生成失败', 'error'),
   });
 

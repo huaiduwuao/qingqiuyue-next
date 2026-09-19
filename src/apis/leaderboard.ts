@@ -108,7 +108,7 @@ export interface LeaderboardQuery {
 // GET /api/content/home/leaderboard/catalog
 export async function fetchLeaderboardCatalog(): Promise<LeaderboardCatalog | null> {
   const r: any = await contentClient('/home/leaderboard/catalog');
-  return (r?.data ?? null) as LeaderboardCatalog | null;
+  return (r ?? null) as LeaderboardCatalog | null;
 }
 
 // GET /api/content/home/leaderboard?type=&category=&metric=&period=&offset=&limit=
@@ -118,5 +118,5 @@ export async function fetchLeaderboard(q: LeaderboardQuery): Promise<Leaderboard
     if (v !== undefined && v !== '') params[k] = v as string | number;
   }
   const r: any = await contentClient('/home/leaderboard', { params });
-  return (r?.data ?? null) as LeaderboardBoard | null;
+  return (r ?? null) as LeaderboardBoard | null;
 }

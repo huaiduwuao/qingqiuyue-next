@@ -56,7 +56,7 @@ function MusicDetailContent() {
 
   const query = useQuery({
     queryKey: ['detail', 'music', id],
-    queryFn: () => contentDetail('music', { id: id! }).then((r) => r.data as any),
+    queryFn: () => contentDetail('music', { id: id! }).then((r) => r as any),
     enabled: !!id,
   });
 

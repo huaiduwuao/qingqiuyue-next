@@ -71,12 +71,12 @@ export default function HomeQueuePage() {
 
   const spiderQuery = useQuery({
     queryKey: ['queue', 'spider', spiderStatus],
-    queryFn: () => spiderPage({ current: 1, size: 50, status: spiderStatus }).then((r) => r.data?.records || []),
+    queryFn: () => spiderPage({ current: 1, size: 50, status: spiderStatus }).then((r) => r?.records || []),
   });
 
   const todoQuery = useQuery({
     queryKey: ['queue', 'todo', todoStatus],
-    queryFn: () => todoPage({ current: 1, size: 50, status: todoStatus }).then((r) => r.data?.records || []),
+    queryFn: () => todoPage({ current: 1, size: 50, status: todoStatus }).then((r) => r?.records || []),
   });
 
   return (

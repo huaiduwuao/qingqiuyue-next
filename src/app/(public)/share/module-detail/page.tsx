@@ -91,9 +91,9 @@ function ShareModuleDetailContent() {
       .then((res: any) => {
         if (cancelled) return;
         setPayInfo({
-          qrCode: res?.data?.qrCode || res?.data?.qrUrl,
-          payUrl: res?.data?.payUrl,
-          amount: res?.data?.amount ?? moduleInfo?.shareContent?.pay,
+          qrCode: res?.qrCode || res?.qrUrl,
+          payUrl: res?.payUrl,
+          amount: res?.amount ?? moduleInfo?.shareContent?.pay,
         });
       })
       .catch(() => {

@@ -119,7 +119,7 @@ function TypesTab({ showMessage, invalidateKey }: { showMessage: (m: string, s?:
         columns={columns}
         fetchData={async (params: any) => {
           const res: any = await pageContentTypes({ page: params.pageNumber ?? 1, pageSize: params.pageSize ?? 20 });
-          return { list: res?.data?.list || [], total: res?.data?.total || 0 };
+          return { list: res?.list || [], total: res?.total || 0 };
         }}
         toolBarRender={() => (
           <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={openCreate}>新增类型</Button>
@@ -191,7 +191,7 @@ function SubcatsTab({ showMessage, invalidateKey }: { showMessage: (m: string, s
         columns={columns}
         fetchData={async (params: any) => {
           const res: any = await pageSubcategories({ page: params.pageNumber ?? 1, pageSize: params.pageSize ?? 20, parentType: '' });
-          return { list: res?.data?.list || [], total: res?.data?.total || 0 };
+          return { list: res?.list || [], total: res?.total || 0 };
         }}
         toolBarRender={() => (
           <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={openCreate}>新增题材</Button>

@@ -67,7 +67,7 @@ export function TaskEditDialog({ open, record, projectId, defaultDemandId, onClo
     listMyDemands({ pageSize: 100 })
       .then((res: any) => {
         if (!alive) return;
-        const records: DemandItem[] = res?.data?.records || res?.data?.list || [];
+        const records: DemandItem[] = res?.records || res?.list || [];
         setDemands(records.filter((d) => d.status === 'PENDING' || d.status === 'PUBLISHED' || d.id === record?.demandId));
       })
       .catch(() => alive && setDemands([]));

@@ -193,7 +193,7 @@ function ContentPicker({ open, onClose, onPick }: { open: boolean; onClose: () =
     enabled: open && dq.length > 0,
     queryFn: async () => {
       const res: any = await moduleContentPage({ page: 1, pageSize: 12, title: dq });
-      const rows: any[] = res?.data?.list || res?.data?.records || [];
+      const rows: any[] = res?.list || res?.records || [];
       return rows.map((r) => ({ id: r.id, title: r.title, cover: r.cover || r.coverUrl || '', contentType: String(r.contentType || '').toUpperCase() }));
     },
   });

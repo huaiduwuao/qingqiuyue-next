@@ -147,8 +147,8 @@ export default function HomeRecommendPage() {
           ...(contentType ? { contentType } : {}),
           orderBy: 'COLLECT',
         }) as any;
-        // contentClient 已解一层,resp 是 { code, data: { list, total } };之前多取了一层 data,分类页永远是空的
-        const page = resp?.data ?? {};
+        // 拦截器已把 {code,msg,data} 剥到业务数据层:resp 就是 { list, total }。再取一层 .data 会让分类页永远是空的。
+        const page = resp ?? {};
         const records: ContentItem[] = page.list || page.records || [];
         const total = page.total || page.totalRow || 0;
         return { records, total, page: pageParam };
@@ -666,7 +666,7 @@ function HotTopicsSection() {
     queryKey: ['home', 'hot-topics'],
     queryFn: async () => {
       const res = await getHotTopics(4);
-      return res.data || [];
+      return res || [];
     },
     staleTime: 60_000,
   });

@@ -78,8 +78,8 @@ export function useContentItems(
           page,
           page_size: PAGE_SIZE,
           ...(lite ? { lite: 1 } : {}),
-        })) as { data?: ItemPage } | undefined;
-        const data = res?.data ?? {};
+        })) as ItemPage | undefined;
+        const data = res ?? {};
         const list = data.list ?? data.records ?? [];
         items.push(...list);
         total = Number(data.total ?? items.length);
