@@ -53,6 +53,11 @@ const EMPTY: Partial<ModelProvider> = {
   context_length: 0,
   api_format: 'openai',
   auth_field: 'authorization',
+  // 阶段 1 新增:计费 + 限速。0 = 「按 Agent / User 配额走」或不限速。
+  input_price_per_1k: 0,
+  output_price_per_1k: 0,
+  rpm: 0,
+  tpm: 0,
 }
 
 export default function ModelProviderManager() {
@@ -159,6 +164,12 @@ export default function ModelProviderManager() {
                       {p.remark && (
                         <Typography variant="caption" color="text.disabled" sx={{ display: 'block' }} noWrap>{p.remark}</Typography>
                       )}
+                      {(p.input_price_per_1k || p.output_price_per_1k || p.rpm || p.tpm) ? (
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }} noWrap>
+                          💎 {(p.input_price_per_1k ?? 0).toFixed(4)} / {(p.output_price_per_1k ?? 0).toFixed(4)} 钻·千tok
+                          {(p.rpm || p.tpm) ? ` · ${p.rpm || '∞'}RPM/${p.tpm || '∞'}TPM` : ''}
+                        </Typography>
+                      ) : null}
                       <Box sx={{ display: 'flex', gap: 0.5, mt: 1, justifyContent: 'flex-end' }}>
                         {!p.is_default && (
                           <Button size="small" onClick={() => setDefault(p)}>设为默认</Button>
@@ -230,6 +241,58 @@ export default function ModelProviderManager() {
             </TextField>
           </Box>
           <TextField label="备注" size="small" value={form.remark ?? ''} onChange={(e) => setForm({ ...form, remark: e.target.value })} />
+
+          {/* 阶段 1 新增:计费与限速。仅在网关按模型扣钻时生效,0 = 沿用上游报价 / 不限速。 */}
+          <Box sx={{ border: '1px dashed', borderColor: 'divider', borderRadius: 1, p: 1.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <Typography variant="caption" color="text.secondary">
+              计费与限速(阶段 1 准备,网关按模型扣钻与限速将读取这些字段;0 表示沿用上游报价 / 不限速)
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <TextField
+                label="输入单价(钻/千 token)"
+                size="small"
+                type="number"
+                sx={{ flex: 1 }}
+                value={form.input_price_per_1k ?? 0}
+                onChange={(e) => setForm({ ...form, input_price_per_1k: parseFloat(e.target.value) || 0 })}
+                slotProps={{ htmlInput: { step: 0.0001, min: 0 } }}
+                helperText="0=不计费"
+              />
+              <TextField
+                label="输出单价(钻/千 token)"
+                size="small"
+                type="number"
+                sx={{ flex: 1 }}
+                value={form.output_price_per_1k ?? 0}
+                onChange={(e) => setForm({ ...form, output_price_per_1k: parseFloat(e.target.value) || 0 })}
+                slotProps={{ htmlInput: { step: 0.0001, min: 0 } }}
+                helperText="0=不计费"
+              />
+            </Box>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <TextField
+                label="RPM(每分钟请求)"
+                size="small"
+                type="number"
+                sx={{ flex: 1 }}
+                value={form.rpm ?? 0}
+                onChange={(e) => setForm({ ...form, rpm: parseInt(e.target.value, 10) || 0 })}
+                slotProps={{ htmlInput: { step: 1, min: 0 } }}
+                helperText="0=不限"
+              />
+              <TextField
+                label="TPM(每分钟 token)"
+                size="small"
+                type="number"
+                sx={{ flex: 1 }}
+                value={form.tpm ?? 0}
+                onChange={(e) => setForm({ ...form, tpm: parseInt(e.target.value, 10) || 0 })}
+                slotProps={{ htmlInput: { step: 1000, min: 0 } }}
+                helperText="0=不限"
+              />
+            </Box>
+          </Box>
+
           <Box sx={{ display: 'flex', gap: 2 }}>
             <FormControlLabel control={<Switch checked={form.enabled ?? true} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} />} label="启用" />
             <FormControlLabel control={<Switch checked={form.is_default ?? false} onChange={(e) => setForm({ ...form, is_default: e.target.checked })} />} label="设为该类型默认" />
