@@ -6,10 +6,11 @@
 //   - 小传:chinese-poetry 仓的原文(文言,繁体),原样展示,不改写不生成
 //   - 生卒年:从小传开头的括号里解析出来的,只有约 5% 的诗人有 —— 没有就不显示
 //   - 体裁 / 词牌 / 意象:对他本人作品的统计
-//
-// ⚠️ 这里没有"心境""情感历程"这类解读,因为数据里没有。意象那一栏是词频统计
-//(「月」出现在他多少首诗里),标题和脚注必须说清楚这一点,不能让人读成
-// 对诗人心理的判断。要加解读就得先有出处,别在前端编。
+//   - 生平时间线:中文维基 REST 抓的诗人生平事件(见 internal/crawler/poet_timeline.go),
+//     写进 metadata.timeline;没爬到的诗人整块不渲染
+//   - 心境解读:LLM 基于诗人作品/时代背景生成的创作心路总结,标「AI 生成」,
+//     写进 metadata.mood,永久缓存(见 internal/handler/poetry_mood.go)
+//     ⚠️ 必须和原小传在视觉上分开 —— 用户得一眼看清哪些是仓里原话、哪些是 AI 生成。
 
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -28,6 +29,8 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
 import { poet as fetchPoet, lifespanText, type FacetItem } from '@/apis/poetry';
+import PoetTimeline from '@/components/poetry/PoetTimeline';
+import PoetMoodSummary from '@/components/poetry/PoetMoodSummary';
 import { track, recordHistory } from '@/lib/track';
 
 const PAGE_SIZE = 20;
@@ -156,6 +159,12 @@ function PoetPageContent() {
                   </AccordionDetails>
                 </Accordion>
               )}
+
+              {/* 生平时间线 —— 中文维基 REST 抓的诗人生平事件;无数据不渲染 */}
+              <PoetTimeline items={data.timeline} />
+
+              {/* 诗人心境 —— LLM 生成,永久缓存,标题已明示「AI 解读」+ 角标 */}
+              <PoetMoodSummary periods={data.mood} />
 
               {/* 体裁 / 词牌 */}
               {(forms.length > 0 || rhythmics.length > 0) && (
