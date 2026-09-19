@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
@@ -223,7 +223,6 @@ function JudgingTable({
   judgingId?: number;
   onSave: (sub: AdminSubmission, body: { result: AdminSubmission['result']; prizeRank: string; reward: string }) => void;
 }) {
-  const { useQuery } = require('@tanstack/react-query') as typeof import('@tanstack/react-query');
   const subsQ = useQuery({
     queryKey: ['admin-activity', 'subs', judgingId],
     queryFn: () => judgingId ? listSubmissions(judgingId) : Promise.resolve([]),

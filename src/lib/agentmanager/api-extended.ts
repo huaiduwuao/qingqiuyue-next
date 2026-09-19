@@ -323,7 +323,6 @@ class ExtendedAgentmAPI {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
     // SSE stream via ReadableStream
     return new EventSource(`${API_BASE}/agent/run/stream`, {
-      // @ts-ignore
       fetch: (url: string, init: any) => ({ ...fetch(url, init), body, headers }),
     } as any)
   }

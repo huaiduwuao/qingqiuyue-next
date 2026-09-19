@@ -164,8 +164,6 @@ export function buildConcert(THREE_NS: typeof THREE, sceneGroup: THREE.Group): S
   const disposers: Array<() => void> = [];
   const lights: THREE.Light[] = [];
   const beams: THREE.Object3D[] = [];
-  let ledRing: THREE.Mesh | undefined, ledRing2: THREE.Mesh | undefined, backdrop: THREE.Mesh | undefined;
-  let particles: THREE.Points | undefined;
 
   sceneGroup.add(makeSkyDome(THREE_NS, 0x1a0a2e, 0x07060d));
   const ambient = new THREE_NS.AmbientLight(0x9988cc, 2.0);
@@ -176,18 +174,18 @@ export function buildConcert(THREE_NS: typeof THREE, sceneGroup: THREE.Group): S
   truss.position.set(0, 0, -0.3);
   sceneGroup.add(truss);
 
-  backdrop = makeBackdrop(THREE_NS, 13, 6, 2.5);
+  const backdrop = makeBackdrop(THREE_NS, 13, 6, 2.5);
   backdrop.position.set(0, 2.5, -5); // 往后移避免遮挡人物
   sceneGroup.add(backdrop);
 
   sceneGroup.add(makeStageFloor(THREE_NS, 6, 0x0a0814));
-  ledRing = makeLEDRing(THREE_NS, 2.55, 2.75, 0xff4fd8);
+  const ledRing = makeLEDRing(THREE_NS, 2.55, 2.75, 0xff4fd8);
   sceneGroup.add(ledRing);
-  ledRing2 = makeLEDRing(THREE_NS, 2.75, 2.85, 0x4fd8ff);
+  const ledRing2 = makeLEDRing(THREE_NS, 2.75, 2.85, 0x4fd8ff);
   ledRing2.position.y = 0.002;
   sceneGroup.add(ledRing2);
 
-  particles = makeParticles(THREE_NS, 220, 24);
+  const particles = makeParticles(THREE_NS, 220, 24);
   sceneGroup.add(particles);
 
   return { lights, beams, ledRing, ledRing2, backdrop, particles, preset: 'concert', dispose: () => disposers.forEach(d => d()) };
@@ -197,7 +195,6 @@ export function buildIdol(THREE_NS: typeof THREE, sceneGroup: THREE.Group): Scen
   const disposers: Array<() => void> = [];
   const lights: THREE.Light[] = [];
   const beams: THREE.Object3D[] = [];
-  let particles: THREE.Points | undefined;
 
   sceneGroup.add(makeSkyDome(THREE_NS, 0x221530, 0x0a0814));
   const ambient = new THREE_NS.AmbientLight(0xffd9b3, 0.8);
@@ -242,7 +239,7 @@ export function buildIdol(THREE_NS: typeof THREE, sceneGroup: THREE.Group): Scen
     disposers.push(() => { (c.material as THREE.Material).dispose(); c.geometry.dispose(); });
   }
 
-  particles = makeParticles(THREE_NS, 60, 14);
+  const particles = makeParticles(THREE_NS, 60, 14);
   sceneGroup.add(particles);
   disposers.push(() => { (particles?.material as THREE.Material | undefined)?.dispose(); particles?.geometry.dispose(); });
 
@@ -253,7 +250,6 @@ export function buildGarden(THREE_NS: typeof THREE, sceneGroup: THREE.Group): Sc
   const disposers: Array<() => void> = [];
   const lights: THREE.Light[] = [];
   const beams: THREE.Object3D[] = [];
-  let particles: THREE.Points | undefined;
 
   sceneGroup.add(makeSkyDome(THREE_NS, 0x050818, 0x100a20));
   const ambient = new THREE_NS.AmbientLight(0x4a5a8a, 0.6);
@@ -303,7 +299,7 @@ export function buildGarden(THREE_NS: typeof THREE, sceneGroup: THREE.Group): Sc
     disposers.push(() => { (leaf.material as THREE.Material).dispose(); leaf.geometry.dispose(); });
   }
 
-  particles = makeParticles(THREE_NS, 180, 20);
+  const particles = makeParticles(THREE_NS, 180, 20);
   sceneGroup.add(particles);
   disposers.push(() => { (particles?.material as THREE.Material | undefined)?.dispose(); particles?.geometry.dispose(); });
 
@@ -314,7 +310,6 @@ export function buildNeon(THREE_NS: typeof THREE, sceneGroup: THREE.Group): Scen
   const disposers: Array<() => void> = [];
   const lights: THREE.Light[] = [];
   const beams: THREE.Object3D[] = [];
-  let particles: THREE.Points | undefined;
 
   sceneGroup.add(makeSkyDome(THREE_NS, 0x100520, 0x05010f));
   const ambient = new THREE_NS.AmbientLight(0x6644aa, 0.7);
@@ -374,7 +369,7 @@ export function buildNeon(THREE_NS: typeof THREE, sceneGroup: THREE.Group): Scen
     disposers.push(() => { (m.material as THREE.Material).dispose(); m.geometry.dispose(); });
   }
 
-  particles = makeParticles(THREE_NS, 150, 20);
+  const particles = makeParticles(THREE_NS, 150, 20);
   sceneGroup.add(particles);
   disposers.push(() => { (particles?.material as THREE.Material | undefined)?.dispose(); particles?.geometry.dispose(); });
 
@@ -428,7 +423,6 @@ export function buildLawn(THREE_NS: typeof THREE, sceneGroup: THREE.Group): Scen
   const disposers: Array<() => void> = [];
   const lights: THREE.Light[] = [];
   const beams: THREE.Object3D[] = [];
-  let particles: THREE.Points | undefined;
 
   sceneGroup.add(makeSkyDome(THREE_NS, 0x6db3f2, 0xb0dff7));
   const ambient = new THREE_NS.AmbientLight(0xfff8e0, 0.8);
@@ -518,7 +512,7 @@ export function buildLawn(THREE_NS: typeof THREE, sceneGroup: THREE.Group): Scen
     sceneGroup.add(flower);
   }
 
-  particles = makeParticles(THREE_NS, 80, 14);
+  const particles = makeParticles(THREE_NS, 80, 14);
   sceneGroup.add(particles);
   disposers.push(() => { (particles?.material as THREE.Material | undefined)?.dispose(); particles?.geometry.dispose(); });
 
