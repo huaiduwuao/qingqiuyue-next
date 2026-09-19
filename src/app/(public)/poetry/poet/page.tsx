@@ -21,6 +21,10 @@ import Chip from '@mui/material/Chip';
 import Divider from '@mui/material/Divider';
 import Pagination from '@mui/material/Pagination';
 import Tooltip from '@mui/material/Tooltip';
+import Accordion from '@mui/material/Accordion';
+import AccordionSummary from '@mui/material/AccordionSummary';
+import AccordionDetails from '@mui/material/AccordionDetails';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
 import { poet as fetchPoet, lifespanText, type FacetItem } from '@/apis/poetry';
@@ -131,6 +135,26 @@ function PoetPageContent() {
                     {data.bio}
                   </Box>
                 </>
+              )}
+
+              {/* 版本校勘:同样是原文,但不是生平,默认收起 */}
+              {data.bioNotes && (
+                <Accordion
+                  disableGutters
+                  elevation={0}
+                  sx={{ mt: 1, bgcolor: 'transparent', '&:before': { display: 'none' } }}
+                >
+                  <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 0, minHeight: 40 }}>
+                    <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>版本校勘</Typography>
+                  </AccordionSummary>
+                  <AccordionDetails sx={{ px: 0 }}>
+                    <Typography
+                      sx={{ fontSize: 12.5, lineHeight: 2, color: 'text.secondary', whiteSpace: 'pre-line' }}
+                    >
+                      {data.bioNotes}
+                    </Typography>
+                  </AccordionDetails>
+                </Accordion>
               )}
 
               {/* 体裁 / 词牌 */}

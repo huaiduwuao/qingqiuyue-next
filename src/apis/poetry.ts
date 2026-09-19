@@ -45,6 +45,11 @@ export interface PoetDetail {
   subtitle?: string;
   /** 小传原文。来自 chinese-poetry 仓,是史料不是生成内容,原样展示。 */
   bio?: string;
+  /**
+   * 版本校勘说明。全宋诗作者表里不少小传后面接了一整段"用了哪些底本、参校了
+   * 哪些刻本",后端按全角空格切出来 —— 它不是生平,但也是原文,收进折叠区不丢。
+   */
+  bioNotes?: string;
   dynasty?: string;
   birthYear?: number;
   deathYear?: number;
