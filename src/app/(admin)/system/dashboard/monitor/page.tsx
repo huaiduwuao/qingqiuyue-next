@@ -64,7 +64,7 @@ type NodeReport = {
 
 // ── 集群节点 ──
 type Node = {
-  id: number;
+  id: string;
   name: string;
   host: string;
   online?: boolean;
@@ -74,7 +74,7 @@ type Node = {
 
 export default function DashboardMonitorPage() {
   const [nodes, setNodes] = React.useState<Node[]>([]);
-  const [expanded, setExpanded] = React.useState<Record<number, boolean>>({});
+  const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
   const [busy, setBusy] = React.useState<string>('');
   const [logId, setLogId] = React.useState<string>('');
   const [logText, setLogText] = React.useState<string>('');
