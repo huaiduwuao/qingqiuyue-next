@@ -37,19 +37,19 @@ export async function getStreets(areaCode: string) {
 }
 
 // Aliases for missing exports (CRUD pattern)
-// Paginated list for DataGridTable
-export const page = async (params?: { pageNumber?: number; pageSize?: number; sortField?: string; sortOrder?: string }) => {
+// Paginated list for DataGridTable;level=area 让后端 /area/page 查 sys_area 表
+export const page = async (params?: { pageNumber?: number; pageSize?: number; sortField?: string; sortOrder?: string; name?: string; parentCode?: string }) => {
   return adminClient<{ list: AreaInfo[]; page: number; total: number; success?: boolean }>('/area/page', {
     method: 'GET',
-    params,
+    params: { ...params, level: 'area' },
   });
 };
 export const remove = async (ids: Array<string | number>) => {
-  return adminClient('/area/remove', { method: 'DELETE', data: ids });
+  return adminClient('/area/remove', { method: 'DELETE', params: { level: 'area' }, data: ids });
 };
 export const save = async (params: Record<string, unknown>) => {
-  return adminClient('/area/save', { method: 'POST', data: params });
+  return adminClient('/area/save', { method: 'POST', data: { ...params, level: 'area' } });
 };
 export const update = async (params: Record<string, unknown>) => {
-  return adminClient('/area/update', { method: 'PUT', data: params });
+  return adminClient('/area/update', { method: 'PUT', data: { ...params, level: 'area' } });
 };
