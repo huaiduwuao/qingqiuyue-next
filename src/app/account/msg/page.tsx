@@ -190,13 +190,13 @@ function InteractionPanel() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['notice-interaction-page', subType],
-    queryFn: async () => (await adminClient('/notice/interaction/list', { params: { subType } })).data,
+    queryFn: async () => await adminClient('/notice/interaction/list', { params: { subType } }),
   });
   const records: any[] = data?.list || [];
   const unreadCount = records.filter((r: any) => r.unread).length;
 
   const readAllMutation = useMutation({
-    mutationFn: async () => (await adminClient.post('/notice/interaction/readAll')).data,
+    mutationFn: async () => await adminClient.post('/notice/interaction/readAll'),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['notice-interaction-page'] });
       qc.invalidateQueries({ queryKey: ['notice', 'count'] });
@@ -436,14 +436,14 @@ function SystemPanel() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ['notice-system-page'],
-    queryFn: async () => (await adminClient('/notice/system/list')).data,
+    queryFn: async () => await adminClient('/notice/system/list'),
   });
   const records: any[] = data?.list || [];
   // 系统消息无 unread 派生字段，用 status 推导未读数
   const unreadCount = records.filter((r: any) => r.unread ?? (r.status !== 'READ' && r.status !== 'read')).length;
 
   const readAllMutation = useMutation({
-    mutationFn: async () => (await adminClient.post('/notice/system/readAll')).data,
+    mutationFn: async () => await adminClient.post('/notice/system/readAll'),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['notice-system-page'] });
       qc.invalidateQueries({ queryKey: ['notice', 'count'] });
@@ -606,7 +606,7 @@ function DmPanel() {
 
   const { data: sessionData, isLoading: loadingSessions } = useQuery({
     queryKey: ['dm-sessions-page'],
-    queryFn: async () => (await adminClient('/msg/session/list')).data,
+    queryFn: async () => await adminClient('/msg/session/list'),
     enabled: mounted && isAuthenticated,  // 未登录不发请求(否则 401 刷屏)
     // 新会话/未读靠长连接推(RealtimeProvider 会 invalidate 这个 key);
     // 连接断了才退回轮询,见 usePollFallback。
@@ -632,7 +632,7 @@ function DmPanel() {
 
   const { data: msgData, isLoading: loadingMsgs } = useQuery({
     queryKey: ['dm-messages-page', selectedId],
-    queryFn: async () => (await adminClient('/msg/message/list', { params: { sessionId: selectedId } })).data,
+    queryFn: async () => await adminClient('/msg/message/list', { params: { sessionId: selectedId } }),
     enabled: selectedId !== null,
     refetchInterval: messagePoll, // 同上:推送在线时不轮询
   });
@@ -656,10 +656,10 @@ function DmPanel() {
 
   const sendMutation = useMutation({
     mutationFn: async (text: string) =>
-      (await adminClient('/msg/message/send', {
+      await adminClient('/msg/message/send', {
         method: 'POST',
         data: { sessionId: selectedId, content: text, type: 'text' },
-      })).data,
+      }),
     onSuccess: (_data, variables) => {
       qc.setQueryData(['dm-messages-page', selectedId], (old: any) => {
         const list = old?.list || [];
@@ -683,10 +683,10 @@ function DmPanel() {
 
   const sendImageMutation = useMutation({
     mutationFn: async (url: string) =>
-      (await adminClient('/msg/message/send', {
+      await adminClient('/msg/message/send', {
         method: 'POST',
         data: { sessionId: selectedId, content: url, type: 'image' },
-      })).data,
+      }),
     onSuccess: (_data, variables) => {
       qc.setQueryData(['dm-messages-page', selectedId], (old: any) => {
         const list = old?.list || [];
@@ -746,7 +746,7 @@ function DmPanel() {
 
   const recallMutation = useMutation({
     mutationFn: async (msgId: number) =>
-      (await adminClient('/msg/message/recall', { method: 'POST', data: { msgId } })).data,
+      await adminClient('/msg/message/recall', { method: 'POST', data: { msgId } }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['dm-messages-page', selectedId] });
       setSnack({ open: true, msg: '已撤回', severity: 'success' });

@@ -896,7 +896,7 @@ function MenusTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
     queryFn: () => listMenus({ pageSize: 100 }),
   });
 
-  const menus: MenuItem[] = menuList?.data?.records || [];
+  const menus: MenuItem[] = menuList?.records || [];
 
   const saveMutation = useMutation({
     mutationFn: (menu: MenuItem) => menu.id ? updateMenu(menu.id, menu) : saveMenu(menu),

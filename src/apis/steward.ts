@@ -130,9 +130,6 @@ export interface CreateOperation {
   reason?: string;
 }
 
-// 响应拦截器把 { code, msg, data } 原样返回,业务数据在 .data 上。
-const payload = <T,>(res: unknown): T => (res as { data: T }).data;
-
 export const fleet = async () =>
   stewardClient.get<{ nodes: StewardNode[] }>('/fleet').then((r) => r?.nodes ?? []);
 

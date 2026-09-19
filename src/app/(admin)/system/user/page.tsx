@@ -280,7 +280,7 @@ function OperationModal({ open, onClose, onSubmit, record, isSubmitting }: Opera
     onSubmit({ ...rest, ...(password ? { password } : {}), roleIds: selectedRoles });
   };
 
-  const roles = rolesData?.data?.records || rolesData?.data?.list || [];
+  const roles = rolesData?.records || rolesData?.list || [];
   // 内置角色(超级管理员)只有超级管理员能授予或收回,后端同样校验。
   const lockedRole = (role: any) => Boolean(role?.system) && !isSuperAdmin;
   const editingSuperAdmin = rolesOf(record).some((r) => r.system) && !isSuperAdmin;

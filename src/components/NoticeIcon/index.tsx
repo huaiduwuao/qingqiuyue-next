@@ -83,7 +83,7 @@ export default function NoticeIconView() {
   const noticePoll = usePollFallback(60_000);
   const { data: countData } = useQuery({
     queryKey: ['notice-count'],
-    queryFn: async () => (await adminClient('/notice/count')).data,
+    queryFn: async () => await adminClient('/notice/count'),
     enabled: isAuthenticated,
     staleTime: 15_000,
     gcTime: 300000,
@@ -92,13 +92,13 @@ export default function NoticeIconView() {
 
   const { data: interactionData, isLoading: loadingInter } = useQuery({
     queryKey: ['notice-interaction', subType],
-    queryFn: async () => (await adminClient('/notice/interaction/list', { params: { subType } })).data,
+    queryFn: async () => await adminClient('/notice/interaction/list', { params: { subType } }),
     enabled: isAuthenticated && tab === 'interaction' && Boolean(anchorEl),
   });
 
   const { data: systemData, isLoading: loadingSystem } = useQuery({
     queryKey: ['notice-system'],
-    queryFn: async () => (await adminClient('/notice/system/list')).data,
+    queryFn: async () => await adminClient('/notice/system/list'),
     enabled: isAuthenticated && tab === 'system' && Boolean(anchorEl),
   });
 
@@ -482,7 +482,7 @@ export function DmIconView() {
 
   const { data: sessions } = useQuery({
     queryKey: ['dm-sessions-badge'],
-    queryFn: async () => (await adminClient('/msg/session/list')).data,
+    queryFn: async () => await adminClient('/msg/session/list'),
     enabled: isAuthenticated,
     staleTime: 15_000,
     refetchInterval: dmPoll,

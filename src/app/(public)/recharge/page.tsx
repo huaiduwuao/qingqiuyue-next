@@ -233,7 +233,7 @@ function RechargePageContent() {
   // 钱包流水的 type 远不止四种(migrate / monthly_benefit / point_exchange / author_* …),
   // 页面只有四个标签:充值按 type,其余按金额正负归到「奖励」或「消费」,不再把原始
   // type 直接当 RECORD_TYPE_LABEL 的 key(曾在这里炸出 reading 'color')。
-  const records: DiamondRecord[] = (txQ.data?.data?.list ?? []).map((t: WalletTransaction, idx: number) => {
+  const records: DiamondRecord[] = (txQ.data?.list ?? []).map((t: WalletTransaction, idx: number) => {
     const diamonds = Math.floor(Math.abs(t.amount) / 10);
     const isRecharge = t.type === 'recharge';
     const isCredit = t.amount > 0;
