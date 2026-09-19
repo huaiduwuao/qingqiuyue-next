@@ -74,6 +74,7 @@ export const BUILTIN_TYPE_SECTIONS: HomeSection[] = [
   { id: 'video', label: '视频', kind: 'type', contentType: 'VIDEO', builtin: true },
   { id: 'article', label: '文章', kind: 'type', contentType: 'ARTICLE', builtin: true },
   { id: 'person', label: '人物', kind: 'type', contentType: 'PERSON', builtin: true },
+  { id: 'poetry', label: '诗词', kind: 'type', contentType: 'POETRY', builtin: true },
   // 图集(PICTURE,用户/机器人发布的图片集,content 里是 {"images":[…]})和
   // 单图(WALLPAPER,爬虫图源,cover_url 就是图本身)是两个独立内容类型,别混成"图文"。
   { id: 'picture', label: '图集', kind: 'type', contentType: 'PICTURE', builtin: true },

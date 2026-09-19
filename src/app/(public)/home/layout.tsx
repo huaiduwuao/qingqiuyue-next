@@ -21,6 +21,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import DiamondIcon from '@mui/icons-material/Diamond';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import MenuBookIcon from '@mui/icons-material/MenuBook';
 import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import RecommendRoundedIcon from '@mui/icons-material/RecommendRounded';
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
@@ -385,6 +386,26 @@ function TopBar({
           >
             <AutoAwesomeIcon sx={{ fontSize: 16, color: 'warning.main' }} />
             <Typography sx={{ fontSize: 12 }}>壁纸</Typography>
+          </Box>
+        </Tooltip>
+        {/* 诗词频道:33 万首诗词以前只能靠搜索进,没有任何入口 */}
+        <Tooltip title="诗词">
+          <Box
+            component={Link}
+            href="/poetry"
+            sx={{
+              display: showExtraButtons ? 'inline-flex' : 'none',
+              alignItems: 'center',
+              gap: 0.5,
+              px: 1,
+              borderRadius: 2,
+              textDecoration: 'none',
+              color: 'var(--text-secondary, currentColor)',
+              '&:hover': { bgcolor: 'var(--border-color, transparent)' },
+            }}
+          >
+            <MenuBookIcon sx={{ fontSize: 16, color: '#7C3AED' }} />
+            <Typography sx={{ fontSize: 12 }}>诗词</Typography>
           </Box>
         </Tooltip>
         <NoticeIconView />

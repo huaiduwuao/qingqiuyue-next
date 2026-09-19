@@ -12,7 +12,7 @@ import Alert from '@mui/material/Alert';
 import Divider from '@mui/material/Divider';
 import ShareIcon from '@mui/icons-material/Share';
 import SettingsIcon from '@mui/icons-material/Settings';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-poetry';
 import { formatApiError } from '@/lib/api/client';
 import DetailHeader from '@/components/detail/DetailHeader';
@@ -37,6 +37,7 @@ interface PoetryDetail {
 }
 
 function PoetryDetailContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const id = searchParams.get('id');
 
@@ -151,14 +152,17 @@ function PoetryDetailContent() {
                 {data.title}
               </Typography>
 
-              {/* 作者 —— 居中 */}
+              {/* 作者 —— 居中,点进诗人页(按名字找,诗与诗人两边用字同源) */}
               {data.author && (
                 <Typography
+                  onClick={() => router.push(`/poetry/poet?name=${encodeURIComponent(data.author!)}`)}
                   sx={{
                     fontSize: 15,
                     color: 'text.secondary',
                     mb: 3,
                     textAlign: 'center',
+                    cursor: 'pointer',
+                    '&:hover': { color: 'primary.main' },
                   }}
                 >
                   —— {data.author}
