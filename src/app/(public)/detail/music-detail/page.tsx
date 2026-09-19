@@ -12,6 +12,7 @@ import Divider from '@mui/material/Divider';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import SkipNextIcon from '@mui/icons-material/SkipNext';
@@ -20,13 +21,12 @@ import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import QueueMusicIcon from '@mui/icons-material/QueueMusic';
 import PlaylistAddRoundedIcon from '@mui/icons-material/PlaylistAddRounded';
 import PlaylistPicker from '@/components/player/PlaylistPicker';
-import DetailHeader from '@/components/detail/DetailHeader';
 import Tooltip from '@mui/material/Tooltip';
 import { CollectButton } from '@/components/detail/CollectButton';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
 import ShareIcon from '@mui/icons-material/Share';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-music';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
 import { formatApiError } from '@/lib/api/client';
@@ -49,6 +49,7 @@ function fmtTime(s: number) {
 }
 
 function MusicDetailContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const id = searchParams.get('id');
   const playlistId = searchParams.get('playlistId');
@@ -196,25 +197,23 @@ function MusicDetailContent() {
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       {/* 顶部条:客户端里窗口是 edge-to-edge 的,这条就是页面第一个元素,
           不加安全区就直接压在状态栏底下(--sat 见 globals.css) */}
-      <DetailHeader
-        title={query.data?.title || '音乐详情'}
-        rightActions={
-          <Box sx={{ display: 'flex', gap: 0.5 }}>
-            <IconButton
-              onClick={handleLike}
-              disabled={likeBusy}
-              aria-label="点赞"
-              sx={{ color: liked ? 'primary.main' : 'text.tertiary' }}
-            >
-              {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
-            </IconButton>
-            {id ? <CollectButton contentId={id} contentType="music" /> : null}
-            <IconButton onClick={handleShare} aria-label="分享" sx={{ color: 'text.tertiary' }}>
-              <ShareIcon />
-            </IconButton>
-          </Box>
-        }
-      />
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          p: 1.5,
+          pt: 'calc(12px + var(--sat, 0px))',
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+        }}
+      >
+        <IconButton onClick={() => router.back()} sx={{ color: 'text.tertiary' }}>
+          <ArrowBackIcon />
+        </IconButton>
+        <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'text.primary', ml: 1 }}>
+          {query.data?.title || '音乐详情'}
+        </Typography>
+      </Box>
 
       <AsyncState query={query} isEmpty={(d) => !d}>
         {(data) => (

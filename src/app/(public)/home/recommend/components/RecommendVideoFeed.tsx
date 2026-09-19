@@ -14,7 +14,7 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
-import Drawer from '@mui/material/Drawer';
+import TextField from '@mui/material/TextField';
 import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import FavoriteBorderRoundedIcon from '@mui/icons-material/FavoriteBorderRounded';
@@ -30,8 +30,8 @@ import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import BedtimeRoundedIcon from '@mui/icons-material/BedtimeRounded';
 import CloudOffRoundedIcon from '@mui/icons-material/CloudOffRounded';
 import { fetchRecommend } from '@/apis/home-discover';
+import { sendComment } from '@/apis/home';
 import { reportContent } from '@/apis/global';
-import DetailComments from '@/components/detail/DetailComments';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
 import { parseStream, BANDWIDTH_NOTICE } from '@/apis/stream';
 import { resolveEmbedPlayer, originOnlyPlatform, sourcePageOf, ORIGIN_ONLY_NOTICE } from '@/lib/embedPlayer';
@@ -127,10 +127,9 @@ export function RecommendVideoFeed() {
   const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
     open: false, message: '', severity: 'success',
   });
-  // 评论抽屉 —— 取代原先只放输入框的弹窗。打开后会拉取评论列表、支持点赞/回复
-  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
-  // 点赞时,从按钮飞起一个"+1"小气泡(无障碍、视觉反馈,800ms 后自动消失)
-  const [likeBurst, setLikeBurst] = useState<{ id: number; key: number } | null>(null);
+  const [commentDialogOpen, setCommentDialogOpen] = useState(false);
+  const [commentText, setCommentText] = useState('');
+  const [commentSending, setCommentSending] = useState(false);
   const [moreDialogOpen, setMoreDialogOpen] = useState(false);
   // 短视频播放状态:sourceUrl 解析出的视频地址
   const [videoSrc, setVideoSrc] = useState<string>('');
@@ -389,12 +388,7 @@ export function RecommendVideoFeed() {
   const collected = interaction.collected;
   const likedCount = interaction.likeCount;
   const collectedCount = interaction.collectCount;
-  const handleLike = () => {
-    // 触发一次"+1"飞起动画:无论点赞还是取消都给反馈,用户才知道刚才那一下点中了
-    setLikeBurst({ id: video?.id ?? 0, key: Date.now() });
-    setTimeout(() => setLikeBurst(null), 800);
-    interaction.toggleLike();
-  };
+  const handleLike = () => interaction.toggleLike();
   const handleCollect = () => interaction.toggleCollect();
 
   const handleFollow = async (e: React.MouseEvent) => {
@@ -424,7 +418,23 @@ export function RecommendVideoFeed() {
 
   const handleCommentClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setCommentDrawerOpen(true);
+    setCommentDialogOpen(true);
+  };
+
+  const handleSendComment = async () => {
+    if (!commentText.trim() || !video?.id) return;
+    setCommentSending(true);
+    try {
+      // id 是 Number() 过的,超 2^53 时已截断;回传后端一律用无损的 idString
+      await sendComment({ contentId: video.idString || video.id, content: commentText.trim() });
+      notify('评论已发送');
+      setCommentText('');
+      setCommentDialogOpen(false);
+    } catch {
+      notify('评论发送失败,请重试', 'error');
+    } finally {
+      setCommentSending(false);
+    }
   };
 
   const handleReport = async () => {
@@ -850,11 +860,11 @@ export function RecommendVideoFeed() {
                     data-no-drag
                     sx={{
                       position: 'absolute',
-                      right: { xs: 8, sm: 14, md: 18 },
-                      bottom: 110,
+                      right: { xs: 8, sm: 16, md: 20 },
+                      bottom: 96,
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: 1.75,
+                      gap: 1.5,
                       alignItems: 'center',
                       zIndex: 3,
                     }}
@@ -899,29 +909,28 @@ export function RecommendVideoFeed() {
                     <SideAction
                       active={liked}
                       onClick={(e) => { e.stopPropagation(); handleLike(); }}
-                      icon={liked ? <FavoriteRoundedIcon sx={{ fontSize: 30 }} /> : <FavoriteBorderRoundedIcon sx={{ fontSize: 30 }} />}
+                      icon={liked ? <FavoriteRoundedIcon sx={{ fontSize: 28 }} /> : <FavoriteBorderRoundedIcon sx={{ fontSize: 28 }} />}
                       value={formatCount(likedCount)}
                       activeColor="primary.main"
-                      badge={likeBurst && likeBurst.id === video.id ? String(likeBurst.key) : null}
                     />
                     <SideAction
-                      icon={<ModeCommentOutlinedIcon sx={{ fontSize: 28 }} />}
+                      icon={<ModeCommentOutlinedIcon sx={{ fontSize: 26 }} />}
                       value={formatCount(video.comments)}
                       onClick={handleCommentClick}
                     />
                     <SideAction
                       active={collected}
                       onClick={(e) => { e.stopPropagation(); handleCollect(); }}
-                      icon={collected ? <BookmarkRoundedIcon sx={{ fontSize: 28 }} /> : <BookmarkBorderRoundedIcon sx={{ fontSize: 28 }} />}
+                      icon={collected ? <BookmarkRoundedIcon sx={{ fontSize: 26 }} /> : <BookmarkBorderRoundedIcon sx={{ fontSize: 26 }} />}
                       value={formatCount(collectedCount)}
                       activeColor="warning.main"
                     />
                     <SideAction
-                      icon={<ReplyRoundedIcon sx={{ fontSize: 28, transform: 'scaleX(-1)' }} />}
+                      icon={<ReplyRoundedIcon sx={{ fontSize: 26, transform: 'scaleX(-1)' }} />}
                       value={formatCount(video.shares)}
                       onClick={handleShare}
                     />
-                    <SideAction icon={<MoreHorizRoundedIcon sx={{ fontSize: 28 }} />} value="" onClick={handleMore} />
+                    <SideAction icon={<MoreHorizRoundedIcon sx={{ fontSize: 26 }} />} value="" onClick={handleMore} />
                   </Box>
 
                   <Box
@@ -994,39 +1003,32 @@ export function RecommendVideoFeed() {
         </Alert>
       </Snackbar>
 
-      {/* 评论抽屉 —— 从底部弹出,占视口 75% 高度。
-          用 DetailComments 的展开模式(!compact):评论列表 + 输入框 + 表情 + 楼中楼回复 +
-          顶/踩/收藏 + 加载更多,全套直接铺在抽屉里,不用再套一层 Dialog。
-          关键原因:DetailComments 的 compact 模式只在用户点中图标时把内部 Dialog 打开,
-          而 Drawer 的 contents 没法触发那次内部 click —— compact 模式在 Drawer 容器里
-          只会渲染出一个评论数小条,内容不会显示。展开模式是整块直接渲染。 */}
-      <Drawer
-        anchor="bottom"
-        open={commentDrawerOpen}
-        onClose={() => setCommentDrawerOpen(false)}
-        transitionDuration={{ enter: 280, exit: 220 }}
-        slotProps={{
-          paper: {
-            sx: {
-              height: { xs: '85vh', sm: '75vh' },
-              maxHeight: '85vh',
-              borderTopLeftRadius: 16,
-              borderTopRightRadius: 16,
-              bgcolor: 'background.paper',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-            },
-          },
-        }}
-      >
-        {video && (
-          <DetailComments
-            contentId={video.idString || video.id}
-            initialCount={video.comments}
+      <Dialog open={commentDialogOpen} onClose={() => setCommentDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontSize: 15, fontWeight: 600 }}>评论</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            multiline
+            rows={3}
+            placeholder="写下你的想法..."
+            value={commentText}
+            onChange={(e) => setCommentText(e.target.value)}
+            sx={{ mt: 1 }}
           />
-        )}
-      </Drawer>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setCommentDialogOpen(false)} size="small" sx={{ textTransform: 'none' }}>取消</Button>
+          <Button
+            variant="contained"
+            size="small"
+            disabled={!commentText.trim() || commentSending}
+            onClick={handleSendComment}
+            sx={{ textTransform: 'none' }}
+          >
+            {commentSending ? '发送中…' : '发送'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={moreDialogOpen} onClose={() => setMoreDialogOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontSize: 15, fontWeight: 600 }}>更多</DialogTitle>
@@ -1069,99 +1071,42 @@ export function RecommendVideoFeed() {
   );
 }
 
-// 右侧单个按钮:圆形毛玻璃图标 + 下方数字。点击有缩放反馈,点赞时数字上方飞起 "+1"。
-// 关键改进:
-// 1. 圆形毛玻璃背景 —— 没有底色时,白图标在亮色封面/视频上完全看不清,这是视频流最常见的可用性坑。
-// 2. 数字加文字投影 —— 视频画面颜色不确定,单靠 color: '#fff' 会让数字在白底画面里"消失"。
-// 3. 按下 active 缩到 0.9,松手回弹到 1,带 transform transition;hover 时 1.1。物理感更强。
-// 4. badge="+1" 时从图标中心冒出气泡,800ms 内向上飞 24px 并淡出 —— 告诉用户"刚才那一下点中了"。
 function SideAction({
   icon,
   value,
   active,
   activeColor,
   onClick,
-  badge,
 }: {
   icon: React.ReactNode;
   value: string;
   active?: boolean;
   activeColor?: string;
   onClick?: (e: React.MouseEvent) => void;
-  badge?: string | null;
 }) {
   return (
     <Box
       onClick={onClick}
-      role={onClick ? 'button' : undefined}
-      tabIndex={onClick ? 0 : undefined}
       sx={{
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: 0.5,
-        cursor: onClick ? 'pointer' : 'default',
-        outline: 'none',
-        '&:focus-visible': { outline: '2px solid rgba(254, 44, 85, 0.6)', borderRadius: '50%' },
+        gap: 0.25,
+        cursor: 'pointer',
+        color: active && activeColor ? activeColor : 'text.primary',
+        transition: 'transform 0.15s',
+        '&:hover': { transform: 'scale(1.08)' },
+        '&:active': { transform: 'scale(0.95)' },
       }}
     >
-      <Box
-        sx={{
-          position: 'relative',
-          width: 44,
-          height: 44,
-          borderRadius: '50%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          bgcolor: 'rgba(20, 22, 32, 0.45)',
-          backdropFilter: 'blur(10px)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          color: active && activeColor ? activeColor : 'rgba(255, 255, 255, 0.95)',
-          transition: 'transform 0.18s cubic-bezier(0.22, 0.61, 0.36, 1), background-color 0.18s, color 0.18s',
-          '&:hover': { transform: 'scale(1.1)', bgcolor: 'rgba(20, 22, 32, 0.6)' },
-          '&:active': { transform: 'scale(0.9)' },
-        }}
-      >
-        {icon}
-        {badge && (
-          // 用 badge 字符串作 key 已经足够:同一次点赞只会进入 React 一次 render,
-          // 后续再次点击由父组件 setLikeBurst 重新挂载一个新的 badge 子节点。
-          // 不要再调 Date.now() —— 在渲染期调用 pure 函数会被 React 警告。
-          <Box
-            key={badge}
-            sx={{
-              position: 'absolute',
-              top: 6,
-              left: '50%',
-              transform: 'translateX(-50%)',
-              fontSize: 14,
-              fontWeight: 800,
-              color: 'primary.main',
-              textShadow: '0 1px 2px rgba(0, 0, 0, 0.6)',
-              pointerEvents: 'none',
-              animation: 'likeBurstFade 0.8s ease-out forwards',
-              '@keyframes likeBurstFade': {
-                '0%': { opacity: 0, transform: 'translateX(-50%) translateY(0) scale(0.7)' },
-                '20%': { opacity: 1, transform: 'translateX(-50%) translateY(-4px) scale(1.1)' },
-                '100%': { opacity: 0, transform: 'translateX(-50%) translateY(-32px) scale(1)' },
-              },
-            }}
-          >
-            {badge}
-          </Box>
-        )}
-      </Box>
+      {icon}
       {value !== '' && (
         <Typography
           sx={{
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: 600,
-            color: '#fff',
-            textShadow: '0 1px 3px rgba(0, 0, 0, 0.75), 0 0 6px rgba(0, 0, 0, 0.4)',
-            lineHeight: 1.1,
-            minWidth: 20,
-            textAlign: 'center',
+            textShadow: '0 1px 2px rgba(0, 0, 0, 0.5)',
+            color: 'text.primary',
           }}
         >
           {value}

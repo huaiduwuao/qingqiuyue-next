@@ -62,22 +62,6 @@ export interface PoetDetail {
   rhythmics?: FacetItem[];
   /** 意象词频:某个字出现在他多少首作品里。total 是分母(他的作品总数)。 */
   imagery?: { items: FacetItem[]; total: number };
-  /**
-   * 生平时间线。后端从 metadata.timeline 透出,数据源是中文维基 REST
-   *(见 internal/crawler/poet_timeline.go)。无数据时字段不返回,前端不渲染。
-   */
-  timeline?: { year: number; event: string }[];
-  /**
-   * 诗人心境分期解读。后端 LLM 生成后写进 metadata.mood,永久缓存。
-   * 必须带 source: 'llm' 用于前端渲染 AI 标签(合规要求)。
-   */
-  mood?: {
-    label: string;
-    summary: string;
-    source?: 'llm';
-    model?: string;
-    generatedAt?: string;
-  }[];
 }
 
 export function overview() {
