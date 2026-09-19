@@ -75,9 +75,10 @@ function makeMockSinks() {
 }
 
 const goToolsSource = readRepoFile('qingqiuyue-go/internal/digitalhuman/tools.go');
-// VRM 种子数据已从 internal/digitalhuman/migrations/001_vrm_seed.sql 并进统一 schema,
-// 老路径已不存在(这个套件此前一直是 ENOENT 起不来的)。
-const seedSQL = readRepoFile('qingqiuyue-go/sql/postgresql/schema.sql');
+// VRM 种子数据几经搬家:internal/digitalhuman/migrations/001_vrm_seed.sql → 统一 schema.sql
+// → 现在的 sql/postgresql/seed.sql(a2849d5 把初始化脚本按 建表/灌数据 分开,schema.sql
+// 由 gen-pg-schema.sh 从线上库生成,里面只有 DDL,INSERT 全在 seed.sql)。
+const seedSQL = readRepoFile('qingqiuyue-go/sql/postgresql/seed.sql');
 
 const actionsJson = JSON.parse(
   readRepoFile('qingqiuyue-next/src/data/seed/actions/character.json'),
