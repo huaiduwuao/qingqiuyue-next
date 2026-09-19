@@ -58,6 +58,7 @@ import { SiteLegalFooter } from '@/components/layout/SiteLegalFooter';
 import { useResponsive } from '@/hooks/useResponsive';
 import { useTopbarHeight } from '@/hooks/useTopbarHeight';
 import { BrandSeal, BrandWordmark } from '@/components/brand/BrandLogo';
+import FirstRunGuide from '@/components/onboarding/FirstRunGuide';
 
 const SIDE_NAV: { key: string; label: string; path?: string; icon: React.ReactNode; accent: string; dividerBefore?: boolean }[] = [
   { key: 'home', label: '精选', path: '/home/recommend?tab=home', icon: <HomeRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
@@ -207,6 +208,8 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
       </Box>
       {/* 底部导航栏（移动端） */}
       <MobileBottomNav activeNav={activeNav} onNavChange={handleNavChange} />
+      {/* 首屏引导:冷启动 800ms 后弹出,完成 / 跳过 / 7 天后再弹,见 lib/onboardingPrefs */}
+      <FirstRunGuide />
     </Box>
   );
 }
