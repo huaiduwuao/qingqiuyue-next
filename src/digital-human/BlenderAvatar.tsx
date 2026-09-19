@@ -138,12 +138,55 @@ export interface BlenderAvatarProps {
   onToolCall?: (call: { name: string; params: Record<string, any> }) => void;
 }
 
-export default function BlenderAvatar({
-  modelUrl = '/avatars/character.vrm',
-  avatarMode = 'vrm',
+// GaussianSplatRenderer 在模块层 lazy 一次。以前写在组件体里,每渲染一次就得到一个
+// 新的组件类型 —— React 认不出是同一个,会整棵卸载重挂,Suspense fallback 反复闪。
+const GaussianSplatRendererLazy = React.lazy(() => import('./gs/GaussianSplatRenderer'));
+
+// BlenderAvatar 只负责选模式。
+//
+// 以前两种模式写在同一个组件里:3DGS 分支先 return,后面 VRM 分支的十几个 hook 就被跳过。
+// 只要 avatarMode / assetBaseUrl 在挂载后变一次(父组件切换数字人形象就会),两次渲染的
+// hook 数量对不上,React 直接抛 "Rendered more hooks than during the previous render",
+// 整个数字人区域白掉。拆成两个组件后各自的 hook 顺序是固定的。
+export default function BlenderAvatar(props: BlenderAvatarProps) {
+  if (props.avatarMode === '3dgs' && props.assetBaseUrl) {
+    return <GsAvatar {...props} assetBaseUrl={props.assetBaseUrl} />;
+  }
+  return <VrmAvatar {...props} />;
+}
+
+// ── 3DGS 模式 ──
+function GsAvatar({
   assetBaseUrl,
   gsPose,
   gsExpressions,
+  background = 'radial-gradient(ellipse at 50% 30%, rgba(124,58,237,0.18) 0%, transparent 55%), #05060B',
+  sx,
+}: BlenderAvatarProps & { assetBaseUrl: string }) {
+  return (
+    <React.Suspense fallback={
+      <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background }}>
+        <Typography sx={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>加载 3DGS 渲染器...</Typography>
+      </Box>
+    }>
+      <GaussianSplatRendererLazy
+        assetUrl={`${assetBaseUrl}/gaussians.bin`}
+        skinningUrl={`${assetBaseUrl}/skinning.bin`}
+        smplxUrl={`${assetBaseUrl}/smplx.json`}
+        metaUrl={`${assetBaseUrl}/meta.json`}
+        pose={gsPose}
+        expressions={gsExpressions}
+        background={background}
+        sx={sx as React.CSSProperties}
+      />
+    </React.Suspense>
+  );
+}
+
+// ── VRM 模式(默认) ──
+function VrmAvatar({
+  modelUrl = '/avatars/character.vrm',
+  // avatarMode / assetBaseUrl / gsPose / gsExpressions 只属于 3DGS 分支,这里不取。
   currentAction = 'idle',
   emotion = {},
   viseme = {},
@@ -157,30 +200,6 @@ export default function BlenderAvatar({
   onToolCall,
   sx,
 }: BlenderAvatarProps) {
-  // ── 3DGS 模式: 用 GaussianSplatRenderer ──
-  if (avatarMode === '3dgs' && assetBaseUrl) {
-    const GS = React.lazy(() => import('./gs/GaussianSplatRenderer'));
-    return (
-      <React.Suspense fallback={
-        <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background }}>
-          <Typography sx={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>加载 3DGS 渲染器...</Typography>
-        </Box>
-      }>
-        <GS
-          assetUrl={`${assetBaseUrl}/gaussians.bin`}
-          skinningUrl={`${assetBaseUrl}/skinning.bin`}
-          smplxUrl={`${assetBaseUrl}/smplx.json`}
-          metaUrl={`${assetBaseUrl}/meta.json`}
-          pose={gsPose}
-          expressions={gsExpressions}
-          background={background}
-          sx={sx as React.CSSProperties}
-        />
-      </React.Suspense>
-    );
-  }
-
-  // ── VRM 模式(默认) ──
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const rendererRef = React.useRef<any>(null);
   const sceneRef = React.useRef<any>(null);

@@ -103,6 +103,24 @@ export default function DeploymentPage() {
   const opTick = useAutoRefresh(5000);
   const relTick = useAutoRefresh(15000);
 
+  // fetchData 通过下标 allList 实现(全量切片);extraParams 用 tick 触发 refetch。
+  const releasesAll = React.useRef<st.Release[]>([]);
+  const fetchReleases = React.useCallback(async (params: { pageNumber: number; pageSize: number }) => {
+    releasesAll.current = await st.releases(20);
+    const start = (params.pageNumber - 1) * params.pageSize;
+    return { records: releasesAll.current.slice(start, start + params.pageSize), totalRow: releasesAll.current.length };
+  }, []);
+
+  const opsAll = React.useRef<st.Operation[]>([]);
+  const fetchOps = React.useCallback(async (params: { pageNumber: number; pageSize: number }) => {
+    opsAll.current = await st.operations(50);
+    const start = (params.pageNumber - 1) * params.pageSize;
+    return { records: opsAll.current.slice(start, start + params.pageSize), totalRow: opsAll.current.length };
+  }, []);
+
+  // 注意:所有 hook 都必须排在这个早返回前面。非超管访问时 fleetQ.error 是 403 走这条
+  // 分支,权限查到后又变回正常分支 —— hook 少调四个再补回来,React 会抛
+  // "Rendered more hooks than during the previous render",整页崩掉。
   if (errStatus(fleetQ.error) === 403) {
     return (
       <Container maxWidth="lg"><Box sx={{ py: 4 }}>
@@ -193,21 +211,6 @@ export default function DeploymentPage() {
     { field: 'created_at', headerName: '时间', width: 170, sortable: false,
       valueFormatter: (v) => v ? fmtTime(v as string) : '—' },
   ];
-
-  // fetchData 通过下标 allList 实现(全量切片);extraParams 用 tick 触发 refetch。
-  const releasesAll = React.useRef<st.Release[]>([]);
-  const fetchReleases = React.useCallback(async (params: { pageNumber: number; pageSize: number }) => {
-    releasesAll.current = await st.releases(20);
-    const start = (params.pageNumber - 1) * params.pageSize;
-    return { records: releasesAll.current.slice(start, start + params.pageSize), totalRow: releasesAll.current.length };
-  }, []);
-
-  const opsAll = React.useRef<st.Operation[]>([]);
-  const fetchOps = React.useCallback(async (params: { pageNumber: number; pageSize: number }) => {
-    opsAll.current = await st.operations(50);
-    const start = (params.pageNumber - 1) * params.pageSize;
-    return { records: opsAll.current.slice(start, start + params.pageSize), totalRow: opsAll.current.length };
-  }, []);
 
   return (
     <Container maxWidth="lg">
