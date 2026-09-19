@@ -6,10 +6,11 @@ import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Typography from '@mui/material/Typography';
 import CircularProgress from '@mui/material/CircularProgress';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { detail as contentDetailApi } from '@/apis/system-module-content';
 import type { Paywall } from '@/apis/paywall';
 import ModuleContentDetail from '@/components/ModuleContentDetail';
+import DetailHeader from '@/components/detail/DetailHeader';
 import { PaywallGate } from '@/components/detail/PaywallGate';
 import { RelatedContent } from '@/components/detail/RelatedContent';
 
@@ -26,10 +27,20 @@ type ShareContent = React.ComponentProps<typeof ModuleContentDetail>['detail'] &
  * 二维码接口不存在、价格兜底写死 ¥9.9,关掉弹窗就能看全文。
  */
 function ShareModuleContentDetailContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const id = searchParams.get('id');
   const queryClient = useQueryClient();
   const queryKey = ['detail', 'share-module-content', id];
+
+  // 外链直跳场景下 history.length ≤ 1,这里兜底跳首页推荐;站内进入路由用 router.back() 回到原页面
+  const handleBack = () => {
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push('/home/recommend');
+    }
+  };
 
   const contentQuery = useQuery({
     queryKey,
@@ -51,6 +62,10 @@ function ShareModuleContentDetailContent() {
 
   return (
     <Box sx={{ bgcolor: 'background.default', minHeight: '100vh' }}>
+      <DetailHeader
+        title={content?.name || content?.title || '内容详情'}
+        onBack={handleBack}
+      />
       <Container maxWidth="lg" sx={{ py: { xs: 1, md: 2 } }}>
         {contentQuery.isLoading ? (
           <Box sx={{ textAlign: 'center', py: 6 }}>
