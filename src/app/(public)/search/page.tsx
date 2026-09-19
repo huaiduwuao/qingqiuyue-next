@@ -46,7 +46,8 @@ import { ListLayout, ListLayoutSwitch } from '@/components/common/ListLayout';
 // 搜索域占位:后端 `/api/core/search/*` 就绪后,以下数据/函数替换为 API 调用
 type SearchContentItemContentType =
   | 'NOVEL' | 'FILM' | 'MUSIC' | 'VIDEO' | 'COMICS'
-  | 'TELEPLAY' | 'ARTICLE' | 'ANIMATION' | 'NEWS' | 'VSHOW';
+  | 'TELEPLAY' | 'ARTICLE' | 'ANIMATION' | 'NEWS' | 'VSHOW'
+  | 'POETRY';
 interface SearchContentItem {
   id: number;
   title: string;
@@ -93,6 +94,7 @@ const TYPE_LABEL: Record<SearchContentItem['contentType'], string> = {
   ANIMATION: '动画',
   NEWS: '资讯',
   VSHOW: '综艺',
+  POETRY: '古诗',
 };
 
 const TYPE_ACCENT: Record<SearchContentItem['contentType'], string> = {
@@ -106,6 +108,7 @@ const TYPE_ACCENT: Record<SearchContentItem['contentType'], string> = {
   ANIMATION: '#F472B6',
   NEWS: '#C5C8D6',
   VSHOW: '#FE2C55',
+  POETRY: '#7C3AED',
 };
 
 export default function SearchPage() {

@@ -45,6 +45,7 @@ export const CONTENT_TYPE_LABEL: Record<string, string> = {
   LIVE: '直播',
   NEWS: '资讯',
   WALLPAPER: '壁纸',
+  POETRY: '古诗',
 };
 
 /** 没有封面时按标题给一个稳定的渐变色 */

@@ -16,6 +16,7 @@ export const CONTENT_TYPES = [
   'NEWS',
   'WALLPAPER',
   'PERSON',
+  'POETRY',
 ] as const;
 
 export type ContentType = (typeof CONTENT_TYPES)[number];
@@ -36,6 +37,7 @@ export const TYPE_TO_ROUTE: Record<string, string> = {
   NEWS: '/detail/news-detail',
   WALLPAPER: '/detail/image-detail',
   PERSON: '/detail/person-detail',
+  POETRY: '/detail/poetry-detail',
   PICTURE: '/detail/image-detail',
   PICTURE_ALBUM: '/detail/image-detail',
   PICTURE_MV: '/detail/image-detail',
@@ -57,6 +59,7 @@ export const TYPE_LABEL: Record<string, string> = {
   NEWS: '新闻',
   WALLPAPER: '图文',
   PERSON: '人物',
+  POETRY: '古诗',
   PICTURE: '图文',
   PICTURE_ALBUM: '图文',
   PICTURE_MV: '图文',
