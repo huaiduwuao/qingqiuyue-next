@@ -175,7 +175,7 @@ export async function createTask(params: { source_id?: string; start_url: string
   return spiderClient('/tasks', { method: 'POST', data: params });
 }
 
-export async function createRuleTask(params: { source_id: string; start_url: string; max_pages?: number; incremental?: boolean }): Promise<any> {
+export async function createRuleTask(params: { source_id: string; start_url: string; max_pages?: number; incremental?: boolean; proxy_url?: string }): Promise<any> {
   return spiderClient('/tasks/rule', { method: 'POST', data: params });
 }
 

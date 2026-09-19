@@ -264,6 +264,17 @@ function TemplateAttrsSection({ templateId, onMsg }: { templateId: number; onMsg
   const attrs: TemplateAttr[] = data?.attrs || [];
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState({ name: '', type: 'text', code: 'title', content: '{"selector":""}', remark: '' });
+  // 展开查看完整属性配置(默认单行截断,点击切换)。长 JSON 配置在单行里看不全。
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  // 展开时若是合法 JSON 则美化,否则原样返回。
+  const prettyContent = (raw: string): string => {
+    try {
+      return JSON.stringify(JSON.parse(raw), null, 2);
+    } catch {
+      return raw;
+    }
+  };
 
   const refresh = () => qc.invalidateQueries({ queryKey: ['spider', 'template-detail', templateId] });
 
@@ -293,17 +304,29 @@ function TemplateAttrsSection({ templateId, onMsg }: { templateId: number; onMsg
         <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>该模板暂无属性</Typography>
       ) : (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-          {attrs.map((a) => (
-            <Box key={a.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, p: 1, borderRadius: 1, bgcolor: 'action.hover' }}>
+          {attrs.map((a) => {
+            const expanded = expandedId === a.id;
+            return (
+            <Box key={a.id} sx={{ display: 'flex', alignItems: expanded ? 'flex-start' : 'center', gap: 1, p: 1, borderRadius: 1, bgcolor: 'action.hover' }}>
               <Chip label={a.code} size="small" color="primary" sx={{ minWidth: 70 }} />
               <Typography sx={{ fontSize: 12, fontWeight: 500, minWidth: 80 }}>{a.name}</Typography>
-              <Typography sx={{ fontSize: 10, color: 'text.secondary', fontFamily: 'monospace', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.content}</Typography>
+              <Typography
+                onClick={() => setExpandedId(expanded ? null : a.id)}
+                title={expanded ? '点击收起' : '点击展开完整配置'}
+                sx={{
+                  fontSize: 10, color: 'text.secondary', fontFamily: 'monospace', flex: 1, cursor: 'pointer',
+                  ...(expanded
+                    ? { whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 300, overflow: 'auto' }
+                    : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }),
+                }}
+              >{expanded ? prettyContent(a.content) : a.content}</Typography>
               <Typography sx={{ fontSize: 10, color: 'text.secondary', minWidth: 40 }}>{a.type}</Typography>
               <IconButton size="small" color="error" onClick={() => { if (confirm(`删除属性 "${a.name}"?`)) deleteAttrMutation.mutate(a.id); }}>
                 <DeleteIcon sx={{ fontSize: 16 }} />
               </IconButton>
             </Box>
-          ))}
+            );
+          })}
         </Box>
       )}
 

@@ -50,7 +50,7 @@ const PHASE_LABELS: Record<string, string> = {
   queued: '排队中', discovering: '发现分类', categories: '分类翻页', home: '首页链接',
   incremental: '增量更新', done: '已完成', stopped: '已停止', failed: '失败',
 };
-const EMPTY_FORM = { sourceId: '', startUrl: '', maxDepth: '2', maxPages: '100' };
+const EMPTY_FORM = { sourceId: '', startUrl: '', maxDepth: '2', maxPages: '100', proxyUrl: '' };
 
 const isActive = (status?: string) => status === 'running' || status === 'stopping' || status === 'pending';
 
@@ -167,7 +167,7 @@ export default function SpiderTasksPage() {
   // 只在任务增减 / 状态变化时重拉列表;进度字段走 liveById 叠加
   // 任务类型筛选。正文回填是持续产生的背景任务(见 go 端 chapter_backfill.go),
   // 不给一个能单独看/能滤掉的开关,任务页第一屏很快就只剩回填,手工任务反而看不见。
-  const [jobType, setJobType] = useState<'' | 'chapter_backfill' | '!chapter_backfill'>('');
+  const [jobType, setJobType] = useState<string>('');
   const statusKey = useMemo(() => liveTasks.map((t) => `${t.id}:${t.status}`).sort().join('|'), [liveTasks]);
 
   const showMsg = useCallback((message: string, severity: 'success' | 'error' = 'success') => setSnack({ open: true, message, severity }), []);
@@ -200,10 +200,11 @@ export default function SpiderTasksPage() {
 
   const handleCreate = () => {
     if (!form.startUrl) return showMsg('起始 URL 必填', 'error');
+    const proxyUrl = form.proxyUrl.trim() || undefined;
     if (form.sourceId) {
-      createRuleMutation.mutate({ source_id: String(form.sourceId).trim(), start_url: form.startUrl, max_pages: Number(form.maxPages) || 100 });
+      createRuleMutation.mutate({ source_id: String(form.sourceId).trim(), start_url: form.startUrl, max_pages: Number(form.maxPages) || 100, proxy_url: proxyUrl });
     } else {
-      createMutation.mutate({ source_id: undefined, start_url: form.startUrl, max_depth: Number(form.maxDepth) || 2, max_pages: Number(form.maxPages) || 100 });
+      createMutation.mutate({ source_id: undefined, start_url: form.startUrl, max_depth: Number(form.maxDepth) || 2, max_pages: Number(form.maxPages) || 100, proxy_url: proxyUrl });
     }
   };
 
@@ -263,6 +264,10 @@ export default function SpiderTasksPage() {
             <MenuItem value="">全部</MenuItem>
             <MenuItem value="!chapter_backfill">手工任务</MenuItem>
             <MenuItem value="chapter_backfill">正文回填</MenuItem>
+            <MenuItem value="hourly_refresh">整点刷新</MenuItem>
+            <MenuItem value="media_backfill">媒体回填</MenuItem>
+            <MenuItem value="lyric_backfill">歌词回填</MenuItem>
+            <MenuItem value="video_backfill">视频回填</MenuItem>
           </TextField>
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => setWriteVisible(true)}>新建任务</Button>
         </Box>
@@ -301,6 +306,8 @@ export default function SpiderTasksPage() {
             <TextField label="最大深度" type="number" value={form.maxDepth} onChange={(e) => setForm({ ...form, maxDepth: e.target.value })} size="small" sx={{ flex: 1 }} disabled={!!form.sourceId} />
             <TextField label="最大请求页数" type="number" value={form.maxPages} onChange={(e) => setForm({ ...form, maxPages: e.target.value })} size="small" sx={{ flex: 1 }} />
           </Box>
+          <TextField label="代理(可选)" value={form.proxyUrl} onChange={(e) => setForm({ ...form, proxyUrl: e.target.value })} fullWidth size="small" sx={{ mt: 1.5 }}
+            placeholder="http://10.2.1.24:7891 或 socks5://…" helperText="国外站直连不通时填;留空则用全局代理池/环境变量" />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setWriteVisible(false)}>取消</Button>
@@ -408,6 +415,15 @@ function TaskDetailDialog({ taskId, live, onStop, onClose }: {
               <Alert severity={t.status === 'failed' ? 'error' : 'warning'} sx={{ mb: 1.5, '& .MuiAlert-message': { wordBreak: 'break-all' } }}>
                 {t.errorMsg ? `任务失败:${t.errorMsg}` : `最近一次错误:${p?.lastError}`}
               </Alert>
+            )}
+            {/* 回填任务的逐条失败明细(后端写在 progress.error_list) */}
+            {Array.isArray(p?.error_list) && p.error_list.length > 0 && (
+              <Box sx={{ mb: 1.5, p: 1, borderRadius: 1, bgcolor: 'action.hover', maxHeight: 180, overflow: 'auto' }}>
+                <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 0.5 }}>失败明细 ({p.error_list.length}):</Typography>
+                {p.error_list.map((e: string, i: number) => (
+                  <Typography key={i} sx={{ fontSize: 11, fontFamily: 'monospace', color: 'error.main', wordBreak: 'break-all' }}>· {e}</Typography>
+                ))}
+              </Box>
             )}
 
             <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
