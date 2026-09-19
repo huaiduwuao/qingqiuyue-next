@@ -15,6 +15,8 @@ const PUBLIC_PREFIXES = [
   '/recharge',
   '/download',
   '/wallpaper',
+  // 诗词频道与诗人页:和详情页一样是公开内容,未登录就能读
+  '/poetry',
   '/gouji',
   '/kf-chat',
   // 关于 / 免责声明 / 数据采集说明:合规页必须未登录可读
