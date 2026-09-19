@@ -55,7 +55,7 @@ function ShareModuleDetailContent() {
         clientTree({ moduleId: Number(moduleId) }),
         moduleDetail({ id: Number(moduleId) }),
       ]);
-      return { tree: treeRes.data || [], module: moduleRes.data };
+      return { tree: treeRes || [], module: moduleRes };
     },
     enabled: !!moduleId,
   });

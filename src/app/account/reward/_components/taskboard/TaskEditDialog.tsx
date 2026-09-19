@@ -28,6 +28,8 @@ import { normalizeRewardTaskStatus } from './status';
 interface Props {
   open: boolean;
   record: RewardTask | null;
+  /** 所属项目 id(从需求上下文进入时携带,任务可以挂在项目下)。可选。 */
+  projectId?: number | null;
   /** 从需求进入看板时预选该需求 */
   defaultDemandId?: number | null;
   onClose: () => void;

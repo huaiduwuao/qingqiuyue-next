@@ -19,6 +19,13 @@ export interface ContainerStatus {
   health: string; // healthy | unhealthy | starting | ''(无 healthcheck)
   restarts: number;
   inspect_error?: string; // 非空:这一轮 podman 没查到(忙/超时),不代表容器不存在
+  // cluster dashboard 用:不同采集路径下字段名不一致(后端 report 里是
+  // cpu_perc / mem_usage_mb,前端 dashboard 早期版本叫 cpu_pct / mem_pct)。
+  // 两条都声明为可选,实际运行时按 report 里有没有填来用。
+  cpu_perc?: number;
+  mem_usage_mb?: number;
+  cpu_pct?: number;
+  mem_pct?: number;
 }
 
 export interface NodeReport {
@@ -29,6 +36,12 @@ export interface NodeReport {
   tmpfs_pct: number;
   containers: ContainerStatus[];
   time: string;
+  // cluster dashboard 用的扩展指标。NodeReport 实际由后端 steward-agent 报告,
+  // 早期版本只有上面的基础字段;新指标按需扩展,前端按可选读取。
+  cpu_pct?: number;
+  mem_pct?: number;
+  doris_used_pct?: number;
+  gpus?: Array<{ index?: number; name?: string; util_pct?: number; mem_used_mb?: number; mem_total_mb?: number }>;
 }
 
 export interface StewardNode {

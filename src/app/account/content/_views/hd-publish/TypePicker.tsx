@@ -49,7 +49,7 @@ export function TypePicker({ onPick }: TypePickerProps) {
               flexShrink: 0,
             }}
           >
-            {CREATION_TYPES[0]?.icon && React.cloneElement(CREATION_TYPES[0].icon as React.ReactElement, { sx: { fontSize: 26 } })}
+            {CREATION_TYPES[0]?.icon && React.cloneElement(CREATION_TYPES[0].icon as React.ReactElement<{ sx?: unknown }>, { sx: { fontSize: 26 } })}
           </Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'text.primary', lineHeight: 1.2 }}>

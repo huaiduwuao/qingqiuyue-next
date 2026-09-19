@@ -142,6 +142,8 @@ export interface RewardTask extends TableListItem {
   reviewedAt?: string | null;
   /** 任务标价(元);0 表示与其他未标价任务均分需求剩余赏金 */
   reward?: number;
+  /** 是否公开(供公开任务池展示)。true/缺省 = 公开。 */
+  isPublic?: boolean;
   /** 有权编辑、验收此任务的用户:需求发布者,或独立任务的负责人 */
   managerId?: number;
   demandTitle?: string;

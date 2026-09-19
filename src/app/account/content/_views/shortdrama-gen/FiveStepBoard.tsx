@@ -29,7 +29,7 @@ import MovieFilterRoundedIcon from '@mui/icons-material/MovieFilterRounded';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import RadioButtonUncheckedRoundedIcon from '@mui/icons-material/RadioButtonUncheckedRounded';
-import { type Step, STEP_LABELS } from '@/apis/shortdrama';
+import { type Step, type Task, STEP_LABELS } from '@/apis/shortdrama';
 
 // 后端 8 个 step → 5 步看板的映射
 export interface BoardStep {
@@ -122,7 +122,7 @@ export function FiveStepBoard({
   /** 项目 status:active/done */
   status?: string;
   /** 当前正在跑的 step(用于 loading 标识) */
-  running?: Step | null;
+  running?: Step | string | Task | null;
   canStart: boolean;
   /** 用户点了某步的「开始」(该步对应后端第一个未完成的 step) */
   onStartStep: (bs: BoardStep) => void;
@@ -136,7 +136,13 @@ export function FiveStepBoard({
         {BOARD_STEPS.map((bs) => {
           const isDone = currentIdx > bs.index;
           const isCurrent = currentIdx === bs.index;
-          const isRunning = running && bs.backendSteps.includes(running);
+          const isRunning = running && bs.backendSteps.some((s) => {
+        if (typeof running === 'string') return running === s;
+        if (typeof running === 'object' && running !== null && 'step' in running) {
+          return (running as Task).step === s;
+        }
+        return bs.backendSteps.includes(running as Step);
+      });
           return (
             <Box
               key={bs.index}

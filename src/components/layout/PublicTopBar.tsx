@@ -21,8 +21,8 @@ import { gradient2 } from '@/constants/gradients';
 import { ACCENT } from '@/constants/accents';
 
 interface Props {
-  /** 页面标题(返回键右侧)。 */
-  title: string;
+  /** 页面标题(返回键右侧)。留空时不显示标题文本(仅返回键 + 搜索)。 */
+  title?: string;
   /** 是否显示返回键(默认 true)。 */
   showBack?: boolean;
   /** 标题左侧图标(默认 Collections)。 */

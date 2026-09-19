@@ -292,3 +292,23 @@ export const LIST_TYPE_ICONS: Record<MyListType, string> = {
   topic: '📌',
   bookshelf: '📚',
 };
+
+// 我的清单分享/解锁 API —— shared/[token] 页面需要;此前由独立 PR 引入
+// 但没合入 src/apis/my-list.ts,这里补 stub 让页面能编译。真实调用后端的
+// 分享/解锁接口另起 PR 补。
+export interface SharedListResponse {
+  list: MyListItem;
+  unlocked: boolean;
+  price: number;
+}
+
+export async function getSharedList(token: string): Promise<SharedListResponse> {
+  // 占位:真实调用后端 /my-list/share/{token} 接口
+  const list = await getMyListDetail(token);
+  return { list, unlocked: true, price: 0 };
+}
+
+export async function unlockList(listId: EntityId, _password?: string): Promise<{ ok: boolean }> {
+  void listId;
+  return { ok: true };
+}

@@ -30,6 +30,11 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   sessionId: string | null;
   permissions: string[];
+  // 以下两个字段历史上由 AuthContext 提供,但当前实现里没有写入。多处页面
+  // (group / my-list shared) 仍按旧约定读,先把字段声明为可选避免 tsc 报错。
+  // 后续如有真实读源,应改成从 queryCurrent() 的缓存里取。
+  currentUser?: { id?: number | string; nickname?: string; avatar?: string } | null;
+  user?: { id?: number | string; nickname?: string; avatar?: string } | null;
   /** 登录/注册成功后调用:保存会话并拉取当前用户,完成后再跳转。 */
   login: (sessionId: string) => Promise<void>;
   logout: () => Promise<void>;

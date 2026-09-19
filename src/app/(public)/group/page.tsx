@@ -400,7 +400,7 @@ function GroupDetailContent() {
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         group={g}
-        myId={user?.id || 0}
+        myId={typeof user?.id === 'number' ? user.id : 0}
         isAdmin={isAdmin}
         onAction={() => {
           qc.invalidateQueries({ queryKey: ['group', gid] });
@@ -663,7 +663,7 @@ function SettlementPanel({
 
   return (
     <Box sx={{ p: 2 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
         <Typography sx={{ fontSize: 13, fontWeight: 600 }}>分账记录</Typography>
         {isOwner && (
           <Button
@@ -680,7 +680,7 @@ function SettlementPanel({
             发起分账
           </Button>
         )}
-      </Stack>
+      </Box>
 
       {settlements.length === 0 ? (
         <Box sx={{ textAlign: 'center', py: 6, color: 'text.disabled' }}>
@@ -735,7 +735,7 @@ function SettlementPanel({
               onChange={(e) => setSourceType(e.target.value)}
               fullWidth
               size="small"
-              SelectProps={{ native: true }}
+              slotProps={{ select: { native: true } }}
             >
               <option value="reward">悬赏分成</option>
               <option value="bounty">赏金</option>

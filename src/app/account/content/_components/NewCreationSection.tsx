@@ -6,6 +6,7 @@ import { getCreatorWipList } from '@/apis/dashboard';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import LinearProgress from '@mui/material/LinearProgress';
+import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import Snackbar from '@mui/material/Snackbar';
@@ -603,7 +604,7 @@ export default function NewCreationSection() {
               type="datetime-local"
               label="新定时"
               value={rescheduleAt}
-              onChange={(e) => setRescheduleAt(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRescheduleAt(e.target.value)}
               fullWidth
               size="small"
               slotProps={{ inputLabel: { shrink: true } }}
