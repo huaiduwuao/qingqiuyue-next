@@ -42,7 +42,9 @@ function PoetryDetailContent() {
 
   const query = useQuery({
     queryKey: ['detail', 'poetry', id],
-    queryFn: () => contentDetail({ id: id! }).then((r) => (r as any).data as Partial<PoetryDetail>),
+    // 响应拦截器已经把 body.data 剥出来了 —— 这里再取一层 .data 会拿到 undefined,
+    // react-query 收到 undefined 直接判定查询失败。见 src/lib/api/client.ts 的收敛注释。
+    queryFn: () => contentDetail({ id: id! }) as Promise<Partial<PoetryDetail>>,
     enabled: !!id,
   });
 
