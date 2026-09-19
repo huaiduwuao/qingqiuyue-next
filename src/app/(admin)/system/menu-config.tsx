@@ -10,6 +10,7 @@
 
 import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSettingsRounded';
 import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
+import CardMembershipRoundedIcon from '@mui/icons-material/CardMembershipRounded';
 import LockRoundedIcon from '@mui/icons-material/LockRounded';
 import VpnKeyRoundedIcon from '@mui/icons-material/VpnKeyRounded';
 import PeopleRoundedIcon from '@mui/icons-material/PeopleRounded';
@@ -184,6 +185,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
       { id: 'workflows', label: '工作流', path: '/system/workflows', icon: <AccountTreeRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D' },
       { id: 'models', label: '模型供应商', path: '/system/models', icon: <StorageRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
       { id: 'gateway', label: '网关与配额', path: '/system/gateway', icon: <LanguageRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
+      { id: 'gateway-packages', label: '配额套餐', path: '/system/gateway/packages', icon: <CardMembershipRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D' },
     ],
   },
   {
