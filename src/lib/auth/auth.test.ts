@@ -32,7 +32,7 @@ describe('route policy', () => {
   it('keeps content pages public so logged-out visitors are not bounced', () => {
     // 新增公开频道页时必须同时加进 PUBLIC_PREFIXES,否则匿名访问会被踢去
     // 登录页 —— /poetry 上线当天就这样被挡了一次。
-    for (const p of ['/', '/home/recommend', '/detail/video-detail', '/search', '/share/qa', '/user/login', '/account/wallet', '/u', '/poetry', '/poetry/poet', '/my-list/shared']) {
+    for (const p of ['/', '/home/recommend', '/detail/video-detail', '/search', '/share/qa', '/user/login', '/account/wallet', '/u', '/poetry', '/poetry/poet', '/my-list/shared', '/welcome']) {
       expect(isPublicPath(p)).toBe(true);
     }
   });
