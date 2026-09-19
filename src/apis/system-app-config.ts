@@ -1,5 +1,5 @@
 import { adminClient } from '@/lib/api/client';
-import { AppItem } from "@/beans/system";
+import { AppConfigItem } from "@/beans/system";
 
 export interface AppConfigListParams {
   page?: number;
@@ -31,11 +31,11 @@ export async function remove(ids: number[]) {
 }
 
 // 保存 -> 后端 POST /app/config
-export async function save(params: AppItem) {
+export async function save(params: AppConfigItem) {
   return adminClient('/app/config', { method: 'POST', data: params });
 }
 
 // 更新 -> 后端 PUT /app/config/:id
-export async function update(params: AppItem) {
+export async function update(params: AppConfigItem) {
   return adminClient(`/app/config/${params.id}`, { method: 'PUT', data: params });
 }

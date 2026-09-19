@@ -5,18 +5,21 @@ import { AdminCrudPage, type CrudFormField } from '@/components/admin/AdminCrudP
 import type { FilterField } from '@/components/tables/FilterBar';
 import * as api from '@/apis/system-app-config';
 
+// 列/表单字段与后端 AppConfigReq(sys.go) 对齐:type/code/content/name。
+// 等级阈值、连续签到奖励等成长配置就存在 content 列(JSON),此前误用 appId/configKey/configValue
+// 导致整页空白、看不到等级详情。
 const columns: GridColDef[] = [
-  { field: 'name', headerName: '名称', width: 150 },
-  { field: 'appId', headerName: '应用ID', width: 150 },
-  { field: 'configKey', headerName: '配置Key', width: 150 },
-  { field: 'configValue', headerName: '配置值', width: 200 },
+  { field: 'name', headerName: '名称', width: 240 },
+  { field: 'type', headerName: '类型', width: 110 },
+  { field: 'code', headerName: '代码', width: 180 },
+  { field: 'content', headerName: '配置值', flex: 1, minWidth: 320 },
 ];
 
 const fields: CrudFormField[] = [
-  { key: 'name', label: '名称' },
-  { key: 'appId', label: '应用ID' },
-  { key: 'configKey', label: '配置Key' },
-  { key: 'configValue', label: '配置值', type: 'multiline' },
+  { key: 'name', label: '名称', required: true },
+  { key: 'type', label: '类型', required: true, placeholder: '如 growth' },
+  { key: 'code', label: '代码', required: true, placeholder: '如 user_levels' },
+  { key: 'content', label: '配置值', type: 'multiline', placeholder: 'JSON 或纯文本' },
 ];
 
 const filters: FilterField[] = [

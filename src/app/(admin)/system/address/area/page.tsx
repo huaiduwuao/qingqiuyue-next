@@ -8,12 +8,13 @@ import * as api from '@/apis/system-area';
 const columns: GridColDef[] = [
   { field: 'name', headerName: '名称', width: 150 },
   { field: 'code', headerName: '地区编码', width: 150 },
-  { field: 'cityId', headerName: '城市ID', width: 100 },
+  { field: 'cityCode', headerName: '城市编码', width: 120 },
 ];
 
 const fields: CrudFormField[] = [
-  { key: 'name', label: '名称' },
-  { key: 'code', label: '地区编码' },
+  { key: 'name', label: '名称', required: true },
+  { key: 'code', label: '地区编码', required: true },
+  { key: 'cityCode', label: '所属城市编码', required: true, placeholder: '如 110100' },
 ];
 
 const filters: FilterField[] = [{ key: 'name', label: '名称', type: 'text' }];
