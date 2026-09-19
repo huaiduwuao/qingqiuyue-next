@@ -1,13 +1,17 @@
 'use client';
 
-// 群组 / 团队 详情与聊天页 /group/:id
+// 群组 / 团队 详情与聊天页 /group?id=...
+//
+// 用查询参数而不是 /group/[id] 动态段:站点是 output:'export' 静态导出,动态段必须有
+// generateStaticParams() 把 id 全列出来,而群 id 是运行时才产生的,列不完(列不到的就 404)。
+// 全站其它详情页(share/module-detail?moduleId=、playlist?id=)都是同样的原因用查询参数。
 //
 // - 左:消息列表(分页 before id 拉历史,新消息 WebSocket 推 realtime.EventGroup)
 // - 右上:群名 + 在线人数 + 公开/私密标识 + 加入/退出/解散
 // - 右下抽屉:成员列表 + (团队专属)分账面板
 
-import React, { useEffect, useRef, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
@@ -71,10 +75,10 @@ import {
 } from '@/apis/group';
 import { coverBackground } from '@/lib/media';
 
-export default function GroupDetailPage() {
+function GroupDetailContent() {
   const router = useRouter();
-  const params = useParams<{ id: string }>();
-  const gid = Number(params?.id || 0);
+  const searchParams = useSearchParams();
+  const gid = Number(searchParams.get('id') || 0);
   const { currentUser } = useAuth();
   const user = currentUser;
   const qc = useQueryClient();
@@ -787,5 +791,20 @@ function SettlementPanel({
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />
     </Box>
+  );
+}
+
+// useSearchParams() 在静态导出下必须包在 Suspense 里,否则整页被迫退回客户端渲染并告警。
+export default function GroupDetailPage() {
+  return (
+    <Suspense
+      fallback={
+        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+          <CircularProgress />
+        </Box>
+      }
+    >
+      <GroupDetailContent />
+    </Suspense>
   );
 }

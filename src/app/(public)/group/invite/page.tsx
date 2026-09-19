@@ -3,7 +3,7 @@
 // 群组邀请接受页 /group/invite?token=...
 //
 // 流程:被邀请人点链接 -> 登录(没登录跳登录页) -> 调 acceptGroupInvite
-// 后端通过 token 把当前用户加入群,然后跳到 /group/{id} 看聊天。
+// 后端通过 token 把当前用户加入群,然后跳到 /group?id=... 看聊天。
 
 import React, { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -97,7 +97,7 @@ export default function GroupInvitePage() {
               <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
                 <Button
                   variant="contained"
-                  onClick={() => router.replace(`/group/${acceptedId}`)}
+                  onClick={() => router.replace(`/group?id=${acceptedId}`)}
                   sx={{
                     textTransform: 'none',
                     background: 'linear-gradient(90deg, #FE2C55 0%, #FFB400 100%)',

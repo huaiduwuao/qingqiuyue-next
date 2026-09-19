@@ -126,7 +126,7 @@ export default function MyGroupsPage() {
             {(listQ.data!.list as ChatGroup[]).map((g) => (
               <Box
                 key={g.id}
-                onClick={() => router.push(`/group/${g.id}`)}
+                onClick={() => router.push(`/group?id=${g.id}`)}
                 sx={{
                   p: 2,
                   borderRadius: 2,
@@ -198,7 +198,7 @@ export default function MyGroupsPage() {
         onCreated={(g) => {
           setCreateOpen(false);
           setSnack(`${tab === 'group' ? '群组' : '团队'}已创建,正在打开…`);
-          setTimeout(() => router.push(`/group/${g.id}`), 600);
+          setTimeout(() => router.push(`/group?id=${g.id}`), 600);
         }}
         onError={setSnack}
       />
