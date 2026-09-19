@@ -1501,7 +1501,7 @@ function EditProfileDrawer({
   const regionQ = useQuery({
     queryKey: ['home', 'me', 'region-presets'],
     queryFn: () =>
-      adminClient.get<any>('/area/provinces').then((r) => {
+      adminClient.get<any>('/system/address/provinces').then((r) => {
         const list = r?.list || r || [];
         return Array.isArray(list) ? list.map((x: any) => x.name || x.label || String(x)) : [];
       }),

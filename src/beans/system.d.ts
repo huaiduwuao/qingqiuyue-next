@@ -92,11 +92,13 @@ export interface CityItem extends TableListItem {
 export interface AreaItem extends TableListItem {
   name?: string;
   code?: string;
+  cityCode?: string;
 }
 
 export interface StreetItem extends TableListItem {
   name?: string;
   code?: string;
+  areaCode?: string;
 }
 
 export interface DictDataItem extends TableListItem {

@@ -10,46 +10,46 @@ export interface AreaInfo {
 
 // 获取省份列表
 export async function getProvinces() {
-  return adminClient<AreaInfo[]>('/area/provinces', {
+  return adminClient<AreaInfo[]>('/system/address/provinces', {
     method: 'GET',
   });
 }
 
 // 获取城市列表
 export async function getCities(provinceCode: string) {
-  return adminClient<AreaInfo[]>(`/area/cities/${provinceCode}`, {
+  return adminClient<AreaInfo[]>(`/system/address/cities/${provinceCode}`, {
     method: 'GET',
   });
 }
 
 // 获取区县列表
 export async function getAreas(cityCode: string) {
-  return adminClient<AreaInfo[]>(`/area/areas/${cityCode}`, {
+  return adminClient<AreaInfo[]>(`/system/address/areas/${cityCode}`, {
     method: 'GET',
   });
 }
 
 // 获取街道列表
 export async function getStreets(areaCode: string) {
-  return adminClient<AreaInfo[]>(`/area/streets/${areaCode}`, {
+  return adminClient<AreaInfo[]>(`/system/address/streets/${areaCode}`, {
     method: 'GET',
   });
 }
 
 // Aliases for missing exports (CRUD pattern)
-// Paginated list for DataGridTable;level=area 让后端 /area/page 查 sys_area 表
+// Paginated list for DataGridTable;level=area 让后端 /system/address/page 查 sys_area 表
 export const page = async (params?: { pageNumber?: number; pageSize?: number; sortField?: string; sortOrder?: string; name?: string; parentCode?: string }) => {
-  return adminClient<{ list: AreaInfo[]; page: number; total: number; success?: boolean }>('/area/page', {
+  return adminClient<{ list: AreaInfo[]; page: number; total: number; success?: boolean }>('/system/address/page', {
     method: 'GET',
     params: { ...params, level: 'area' },
   });
 };
 export const remove = async (ids: Array<string | number>) => {
-  return adminClient('/area/remove', { method: 'DELETE', params: { level: 'area' }, data: ids });
+  return adminClient('/system/address/remove', { method: 'DELETE', params: { level: 'area' }, data: ids });
 };
 export const save = async (params: Record<string, unknown>) => {
-  return adminClient('/area/save', { method: 'POST', data: { ...params, level: 'area' } });
+  return adminClient('/system/address/save', { method: 'POST', data: { ...params, level: 'area' } });
 };
 export const update = async (params: Record<string, unknown>) => {
-  return adminClient('/area/update', { method: 'PUT', data: { ...params, level: 'area' } });
+  return adminClient('/system/address/update', { method: 'PUT', data: { ...params, level: 'area' } });
 };

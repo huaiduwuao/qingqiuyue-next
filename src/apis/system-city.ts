@@ -13,19 +13,19 @@ export interface CityListParams {
 }
 
 export async function page(params: CityListParams) {
-  return adminClient('/area/page', {
+  return adminClient('/system/address/page', {
     params: { ...params, level: LEVEL }
   });
 }
 
 export async function remove(ids: number[]) {
-  return adminClient('/area/remove', { method: 'DELETE', params: { level: LEVEL }, data: ids });
+  return adminClient('/system/address/remove', { method: 'DELETE', params: { level: LEVEL }, data: ids });
 }
 
 export async function save(params: CityItem) {
-  return adminClient('/area/save', { method: 'POST', data: { ...params, level: LEVEL } });
+  return adminClient('/system/address/save', { method: 'POST', data: { ...params, level: LEVEL } });
 }
 
 export async function update(params: CityItem) {
-  return adminClient('/area/update', { method: 'PUT', data: { ...params, level: LEVEL } });
+  return adminClient('/system/address/update', { method: 'PUT', data: { ...params, level: LEVEL } });
 }

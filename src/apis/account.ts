@@ -1,11 +1,11 @@
 import { adminClient, contentClient } from '@/lib/api/client';
 
 export async function queryProvince() {
-  return adminClient("/area/provinces");
+  return adminClient("/system/address/provinces");
 }
 
 export async function queryCity(params: Record<string, unknown>) {
-  return adminClient(`/area/cities/${params.provinceCode}`, {
+  return adminClient(`/system/address/cities/${params.provinceCode}`, {
     params
   });
 }
