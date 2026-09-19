@@ -25,7 +25,9 @@ export async function fetchRecommend(params: { types?: string; size?: number; ge
   const resp = await fetch(API_PREFIX + `/api/content/recommend/feed?${new URLSearchParams(params as Record<string, string>).toString()}`, {
     cache: 'no-store',
   });
-  return resp.json();
+  const body = await resp.json().catch(() => null);
+  // 裸 fetch 没有拦截器帮忙剥壳,这里自己剥:调用方一律拿到业务数据层,和其它 api 同口径。
+  return body && typeof body === 'object' && 'code' in body && 'data' in body ? body.data : body;
 }
 
 // GET /api/content/home/detail?id=   单条详情 catch-all(供详情页)
