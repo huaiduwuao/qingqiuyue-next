@@ -86,7 +86,7 @@ export default function WalletPage() {
     queryKey: ['wallet-transactions', tab],
     queryFn: async () => {
       const r: any = await adminClient('/wallet/transactions', { params: { page: 1, size: 50 } });
-      return r?.data?.data ?? r?.data ?? r;
+      return r;
     },
     staleTime: 10 * 1000,
     refetchOnMount: 'always',

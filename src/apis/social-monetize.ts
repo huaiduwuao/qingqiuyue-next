@@ -61,7 +61,7 @@ export interface SubscriptionInfo {
 // 获取订阅信息
 export async function getSubscription(creatorId: number): Promise<SubscriptionInfo> {
   const res = await adminClient(`/social/subscription/${creatorId}`);
-  return res?.data ?? res;
+  return res;
 }
 
 // 订阅
@@ -104,7 +104,7 @@ export async function setPaidContent(params: {
   price: number;
 }): Promise<PaidContent> {
   const res = await adminClient('/social/paid-content', { method: 'POST', data: params });
-  return res?.data ?? res;
+  return res;
 }
 
 // 购买付费内容
@@ -153,7 +153,7 @@ export interface Earning {
 // 获取收益统计
 export async function getEarnings(): Promise<EarningsStats> {
   const res = await adminClient('/social/earnings');
-  return res?.data ?? res;
+  return res;
 }
 
 // 获取收益明细
@@ -219,7 +219,7 @@ export async function setCollectionPrice(params: {
   price: number;
 }): Promise<{ ok: boolean; price: number; collectionId: string | number }> {
   const res = await adminClient('/social/collection-price', { method: 'POST', data: params });
-  return res?.data ?? res;
+  return res;
 }
 
 /** 用钱包余额买断合集(用户)。已买/自己的合集返回成功(幂等)。 */
@@ -232,7 +232,7 @@ export async function purchaseCollection(collectionId: string | number): Promise
     method: 'POST',
     data: { collectionId: String(collectionId) },
   });
-  return res?.data ?? res;
+  return res;
 }
 
 /** 查询合集付费墙:价格 + 是否对当前用户解锁。 */
@@ -240,5 +240,5 @@ export async function getCollectionPaywall(collectionId: string | number): Promi
   const res = await adminClient('/social/collection-paywall', {
     params: { collectionId: String(collectionId) },
   });
-  return res?.data ?? res;
+  return res;
 }

@@ -30,7 +30,7 @@ export async function page<T = ContentItem>(contentType: ContentType, params: Pa
     method: 'GET',
     params,
   });
-  return normalizeLegacyPageResponse<T>((res as any)?.data ?? res);
+  return normalizeLegacyPageResponse<T>(res);
 }
 
 // 获取内容详情

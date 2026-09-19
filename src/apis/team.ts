@@ -74,32 +74,30 @@ export interface Realization {
   teamName?: string;
 }
 
-const data = <T>(p: Promise<any>): Promise<T> => p.then((r) => (r?.data ?? r) as T);
-
 export const listTeams = (params?: { topicId?: number; keyword?: string; page?: number; pageSize?: number }) =>
-  data<{ list: Team[]; total: number }>(rewardClient('/team/list', { method: 'GET', params }));
+  rewardClient<{ list: Team[]; total: number }>('/team/list', { method: 'GET', params });
 
-export const myTeams = () => data<{ list: MyTeam[]; total: number }>(rewardClient('/team/mine', { method: 'GET' }));
+export const myTeams = () => rewardClient<{ list: MyTeam[]; total: number }>('/team/mine', { method: 'GET' });
 
 export const getTeam = (id: number) =>
-  data<{ team: Team; members: TeamMember[]; realizations: Realization[] }>(rewardClient(`/team/${id}`, { method: 'GET' }));
+  rewardClient<{ team: Team; members: TeamMember[]; realizations: Realization[] }>(`/team/${id}`, { method: 'GET' });
 
 /** 我在这个团队里的身份;队长和管理员还能看到待处理的邀请与申请 */
 export const getTeamManage = (id: number) =>
-  data<{ my: TeamMember | null; pending: TeamMember[] }>(rewardClient(`/team/${id}/manage`, { method: 'GET' }));
+  rewardClient<{ my: TeamMember | null; pending: TeamMember[] }>(`/team/${id}/manage`, { method: 'GET' });
 
 export const createTeam = (body: { name: string; intro?: string; topicId?: number }) =>
-  data<Team>(rewardClient('/team', { method: 'POST', data: body }));
+  rewardClient<Team>('/team', { method: 'POST', data: body });
 
 export const updateTeam = (id: number, body: { intro: string; avatar: string; topicId: number; openJoin: boolean }) =>
   rewardClient(`/team/${id}`, { method: 'PUT', data: body });
 
 export const disbandTeam = (id: number) => rewardClient(`/team/${id}/disband`, { method: 'POST' });
 
-export const applyTeam = (id: number) => data<{ joined: boolean }>(rewardClient(`/team/${id}/apply`, { method: 'POST' }));
+export const applyTeam = (id: number) => rewardClient<{ joined: boolean }>(`/team/${id}/apply`, { method: 'POST' });
 
 export const inviteToTeam = (id: number, userId: number) =>
-  data<{ joined: boolean }>(rewardClient(`/team/${id}/invite`, { method: 'POST', data: { userId } }));
+  rewardClient<{ joined: boolean }>(`/team/${id}/invite`, { method: 'POST', data: { userId } });
 
 /** 接受邀请时 userId 是自己;同意申请时是申请人 */
 export const acceptTeamRequest = (id: number, userId: number) =>
@@ -114,7 +112,7 @@ export const setTeamMember = (id: number, body: { userId: number; role: TeamRole
 
 /** 邀请时按昵称找人(至少两个字) */
 export const teamCandidates = (id: number, keyword: string) =>
-  data<{ list: TeamMember[] }>(rewardClient(`/team/${id}/candidates`, { method: 'GET', params: { keyword } }));
+  rewardClient<{ list: TeamMember[] }>(`/team/${id}/candidates`, { method: 'GET', params: { keyword } });
 
 export const listRealizations = (params: {
   topicId?: number;
@@ -123,7 +121,7 @@ export const listRealizations = (params: {
   demandId?: number;
   page?: number;
   pageSize?: number;
-}) => data<{ list: Realization[]; total: number }>(rewardClient('/realization/list', { method: 'GET', params }));
+}) => rewardClient<{ list: Realization[]; total: number }>('/realization/list', { method: 'GET', params });
 
 export const yuan = (cents?: number) => ((cents ?? 0) / 100).toFixed(2);
 
@@ -149,4 +147,4 @@ export interface RealmDemand {
 
 /** 一个意境里的需求;不传 topicId 列所有发在意境里的需求。status=all 连已完成、已结账的一起列 */
 export const listRealmDemands = (params: { topicId?: number; status?: 'all'; page?: number; pageSize?: number }) =>
-  data<{ list: RealmDemand[]; total: number }>(rewardClient('/realm/demands', { method: 'GET', params }));
+  rewardClient<{ list: RealmDemand[]; total: number }>('/realm/demands', { method: 'GET', params });

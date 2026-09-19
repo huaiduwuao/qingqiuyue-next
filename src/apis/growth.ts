@@ -3,8 +3,6 @@ import { accountClient } from '@/lib/api/client';
 // 成长体系:签到、装扮(头像框/称号/名字颜色)、收货地址、行政区划。
 // 后端 internal/growth + internal/shopapp,路径都在 /api/core 下。
 
-const unwrap = <T,>(r: any): T => (r?.data ?? r) as T;
-
 // ========== 签到 ==========
 
 export interface SignResult {
@@ -15,7 +13,7 @@ export interface SignResult {
 }
 
 export async function signIn(): Promise<SignResult> {
-  return unwrap<SignResult>(await accountClient.post('/daily-task/sign', {}));
+  return accountClient.post<SignResult>('/daily-task/sign', {});
 }
 
 /** 成长概览:积分、等级进度、签到状态 */
@@ -35,7 +33,7 @@ export interface GrowthSummary {
 }
 
 export async function getGrowthSummary(): Promise<GrowthSummary> {
-  return unwrap<GrowthSummary>(await accountClient('/daily-task/growth'));
+  return accountClient<GrowthSummary>('/daily-task/growth');
 }
 
 // ========== 装扮 ==========
@@ -74,17 +72,17 @@ export interface UserDecor {
 }
 
 export async function getMyCosmetics(): Promise<UserCosmetic[]> {
-  return unwrap<{ list: UserCosmetic[] }>(await accountClient('/user/cosmetics'))?.list ?? [];
+  return (await accountClient<{ list: UserCosmetic[] }>('/user/cosmetics'))?.list ?? [];
 }
 
 /** 传 id 戴上;只传 kind 摘下这一类 */
 export async function equipCosmetic(arg: { id: number } | { kind: CosmeticKind }): Promise<UserDecor> {
-  return unwrap<UserDecor>(await accountClient.post('/user/cosmetics/equip', arg));
+  return accountClient.post<UserDecor>('/user/cosmetics/equip', arg);
 }
 
 export async function getDecor(ids: Array<string | number>): Promise<UserDecor[]> {
   if (ids.length === 0) return [];
-  return unwrap<{ list: UserDecor[] }>(await accountClient('/user/decor', { params: { ids: ids.join(',') } }))?.list ?? [];
+  return (await accountClient<{ list: UserDecor[] }>('/user/decor', { params: { ids: ids.join(',') } }))?.list ?? [];
 }
 
 // ========== 收货地址 ==========
@@ -107,11 +105,11 @@ export const addressText = (a: UserAddress) =>
   `${a.receiver} ${a.phone} ${a.province ?? ''}${a.city ?? ''}${a.area ?? ''}${a.detail}`.trim();
 
 export async function getAddresses(): Promise<UserAddress[]> {
-  return unwrap<{ list: UserAddress[] }>(await accountClient('/user/address'))?.list ?? [];
+  return (await accountClient<{ list: UserAddress[] }>('/user/address'))?.list ?? [];
 }
 
 export async function saveAddress(a: UserAddress): Promise<UserAddress> {
-  return unwrap<UserAddress>(await accountClient.post('/user/address', a));
+  return accountClient.post<UserAddress>('/user/address', a);
 }
 
 export async function deleteAddress(id: number) {
@@ -124,5 +122,5 @@ export interface Region {
 }
 
 export async function getRegions(level: 'provinces' | 'cities' | 'areas', parent?: string): Promise<Region[]> {
-  return unwrap<{ list: Region[] }>(await accountClient(`/region/${level}`, { params: parent ? { parent } : undefined }))?.list ?? [];
+  return (await accountClient<{ list: Region[] }>(`/region/${level}`, { params: parent ? { parent } : undefined }))?.list ?? [];
 }

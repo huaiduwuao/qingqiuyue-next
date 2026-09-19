@@ -59,7 +59,7 @@ export async function createBatch(params: { name: string; domain: string; url: s
 
 export async function listBatch(params?: PageParams & { status?: string }): Promise<PageResult<any>> {
   const res = await spiderClient('/batch', { params });
-  return normalizeLegacyPageResponse((res as any)?.data ?? res);
+  return normalizeLegacyPageResponse(res);
 }
 
 export async function getBatchDetail(id: number): Promise<any> {
@@ -89,7 +89,7 @@ export async function getBatchStats(id: number): Promise<any> {
 // Worker APIs
 export async function listWorkers(params?: PageParams & { status?: string }): Promise<PageResult<any>> {
   const res = await spiderClient('/workers', { params });
-  return normalizeLegacyPageResponse((res as any)?.data ?? res);
+  return normalizeLegacyPageResponse(res);
 }
 
 export async function getWorkerStats(): Promise<any> {
@@ -99,7 +99,7 @@ export async function getWorkerStats(): Promise<any> {
 // Site Slot APIs
 export async function listSiteSlots(params?: PageParams): Promise<PageResult<any>> {
   const res = await spiderClient('/sites/slots', { params });
-  return normalizeLegacyPageResponse((res as any)?.data ?? res);
+  return normalizeLegacyPageResponse(res);
 }
 
 export async function getSiteSlotStats(): Promise<any> {
@@ -109,7 +109,7 @@ export async function getSiteSlotStats(): Promise<any> {
 // Source APIs
 export async function listSources(params?: PageParams): Promise<PageResult<any>> {
   const res = await spiderClient('/sources', { params });
-  return normalizeLegacyPageResponse((res as any)?.data ?? res);
+  return normalizeLegacyPageResponse(res);
 }
 
 export async function createSource(params: { name: string; domain: string; url: string; type: string }): Promise<any> {
@@ -127,7 +127,7 @@ export async function deleteSource(id: number): Promise<any> {
 // Template APIs
 export async function listTemplates(params?: PageParams): Promise<PageResult<any>> {
   const res = await spiderClient('/templates', { params });
-  return normalizeLegacyPageResponse((res as any)?.data ?? res);
+  return normalizeLegacyPageResponse(res);
 }
 
 export async function createTemplate(params: { name: string; type: string; source: string }): Promise<any> {
@@ -162,7 +162,7 @@ export async function getRecentActivity(): Promise<ActivityFeed> {
 // ─── Tasks ───
 export async function listTasks(params?: PageParams & { status?: string; type?: string }): Promise<PageResult<any>> {
   const res = await spiderClient('/tasks', { params });
-  return normalizeLegacyPageResponse((res as any)?.data ?? res);
+  return normalizeLegacyPageResponse(res);
 }
 
 export async function getTaskDetail(id: string): Promise<CrawlTaskDetail> {
@@ -189,18 +189,18 @@ export async function deleteTask(id: string): Promise<any> {
 
 export async function getTaskItems(id: string): Promise<PageResult<unknown>> {
   const res = await spiderClient(`/tasks/${id}/items`, { method: 'GET' });
-  return normalizeLegacyPageResponse((res as any)?.data ?? res);
+  return normalizeLegacyPageResponse(res);
 }
 
 export async function getTaskLinks(id: string): Promise<PageResult<unknown>> {
   const res = await spiderClient(`/tasks/${id}/links`, { method: 'GET' });
-  return normalizeLegacyPageResponse((res as any)?.data ?? res);
+  return normalizeLegacyPageResponse(res);
 }
 
 // ─── Proxies ───
 export async function listProxies(): Promise<PageResult<Proxy>> {
   const res = await spiderClient('/proxies', { method: 'GET' });
-  return normalizeLegacyPageResponse((res as any)?.data ?? res);
+  return normalizeLegacyPageResponse(res);
 }
 
 export async function getProxyStats(): Promise<ProxyStats> {

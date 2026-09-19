@@ -256,7 +256,7 @@ function NovelDetailContent() {
   const tocLoading = tocQuery.isLoading || detailQuery.isLoading;
 
   const fetchBody = useCallback(
-    (chapterId: string) => getChapterDetail({ id: chapterId } as never).then((r) => ((r as { data?: ChapterBody })?.data ?? {}) as ChapterBody),
+    (chapterId: string) => getChapterDetail({ id: chapterId } as never).then((r) => (r ?? {}) as ChapterBody),
     [],
   );
 

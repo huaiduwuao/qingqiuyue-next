@@ -80,7 +80,7 @@ export async function createGroup(data: {
   autoJoinRef?: number;
 }): Promise<ChatGroup> {
   const res = await contentClient('/group/create', { method: 'POST', data });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 export async function listMyGroups(params: {
@@ -88,12 +88,12 @@ export async function listMyGroups(params: {
   keyword?: string;
 } = {}): Promise<{ list: ChatGroup[]; total: number }> {
   const res = await contentClient('/group/list', { params });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 export async function getGroup(id: number): Promise<GroupView> {
   const res = await contentClient(`/group/${id}`);
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 export async function updateGroup(id: number, data: {
@@ -103,29 +103,29 @@ export async function updateGroup(id: number, data: {
   public?: boolean;
 }): Promise<{ ok: boolean }> {
   const res = await contentClient(`/group/${id}/update`, { method: 'POST', data });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 export async function dismissGroup(id: number): Promise<{ ok: boolean }> {
   const res = await contentClient(`/group/${id}/dismiss`, { method: 'POST' });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 // ─── 成员管理 ───
 
 export async function joinGroup(id: number): Promise<{ ok: boolean }> {
   const res = await contentClient(`/group/${id}/join`, { method: 'POST' });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 export async function leaveGroup(id: number): Promise<{ ok: boolean }> {
   const res = await contentClient(`/group/${id}/leave`, { method: 'POST' });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 export async function listGroupMembers(id: number): Promise<{ list: GroupMember[]; total: number }> {
   const res = await contentClient(`/group/${id}/members`);
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 export async function kickGroupMember(groupId: number, userId: number): Promise<{ ok: boolean }> {
@@ -133,7 +133,7 @@ export async function kickGroupMember(groupId: number, userId: number): Promise<
     method: 'POST',
     data: { userId },
   });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 export async function setGroupMemberRole(groupId: number, userId: number, role: GroupRole): Promise<{ ok: boolean }> {
@@ -141,7 +141,7 @@ export async function setGroupMemberRole(groupId: number, userId: number, role: 
     method: 'POST',
     data: { userId, role },
   });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 export async function muteGroupMember(groupId: number, userId: number, muted: boolean): Promise<{ ok: boolean }> {
@@ -149,7 +149,7 @@ export async function muteGroupMember(groupId: number, userId: number, muted: bo
     method: 'POST',
     data: { userId, muted },
   });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 // ─── 邀请 ───
@@ -160,7 +160,7 @@ export async function createGroupInvite(groupId: number, data: {
   ttlSec?: number;
 }): Promise<GroupInvite> {
   const res = await contentClient(`/group/${groupId}/invite`, { method: 'POST', data });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 export async function acceptGroupInvite(token: string): Promise<ChatGroup> {
@@ -168,7 +168,7 @@ export async function acceptGroupInvite(token: string): Promise<ChatGroup> {
     method: 'POST',
     params: { token },
   });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 // ─── 消息 ───
@@ -178,7 +178,7 @@ export async function listGroupMessages(groupId: number, params: {
   limit?: number;
 } = {}): Promise<{ list: GroupMessage[]; total: number }> {
   const res = await contentClient(`/group/${groupId}/messages`, { params });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 export async function sendGroupMessage(groupId: number, data: {
@@ -187,12 +187,12 @@ export async function sendGroupMessage(groupId: number, data: {
   mentions?: number[];
 }): Promise<GroupMessage> {
   const res = await contentClient(`/group/${groupId}/send`, { method: 'POST', data });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 export async function recallGroupMessage(messageId: number): Promise<{ ok: boolean }> {
   const res = await contentClient(`/group/message/${messageId}/recall`, { method: 'POST' });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 // ─── 自动加入(合集/创作者专属群) ───
@@ -201,7 +201,7 @@ export async function autoJoinGroup(refType: 'collection' | 'creator', refId: nu
   const res = await contentClient('/group/auto-join', {
     params: { refType, refId },
   });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 // ────────────────────────────────────────────────────────────────────────
@@ -225,10 +225,10 @@ export async function settleTeam(teamId: number, data: {
   note?: string;
 }): Promise<TeamSettlement> {
   const res = await contentClient(`/group/team/${teamId}/settle`, { method: 'POST', data });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 export async function listTeamSettlements(teamId: number): Promise<{ list: TeamSettlement[]; total: number }> {
   const res = await contentClient(`/group/team/${teamId}/settlements`);
-  return (res as any)?.data ?? res;
+  return res;
 }

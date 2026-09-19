@@ -63,7 +63,7 @@ export interface MyListContentResponse {
 export async function getMyLists(listType?: MyListType): Promise<MyListPageResponse> {
   const params = listType ? { type: listType } : undefined;
   const res = await contentClient('/my-list/page', { params });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 /**
@@ -91,13 +91,13 @@ export async function getPublicLists(params: {
       size: params.size ?? 24,
     },
   });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 // 单个收藏夹(自己的,或别人公开的)
 export async function getMyListDetail(id: EntityId): Promise<MyListItem> {
   const res = await contentClient('/my-list/detail', { params: { id } });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 // 创建收藏夹;带 contentIds 可一步建好(「把播放队列存为歌单」)
@@ -113,7 +113,7 @@ export async function createMyList(data: {
     method: 'POST',
     data,
   });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 // 更新收藏夹
@@ -130,7 +130,7 @@ export async function updateMyList(
     method: 'PUT',
     data,
   });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 // 删除收藏夹
@@ -138,7 +138,7 @@ export async function deleteMyList(id: EntityId): Promise<{ ok: boolean }> {
   const res = await contentClient(`/my-list/${id}`, {
     method: 'DELETE',
   });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 // 获取收藏夹内容列表
@@ -146,7 +146,7 @@ export async function getMyListContent(listId: EntityId): Promise<MyListContentR
   const res = await contentClient('/my-list/content/page', {
     params: { listId },
   });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 // 添加内容到收藏夹
@@ -158,7 +158,7 @@ export async function addToMyList(
     method: 'POST',
     data: { listId, contentIds },
   });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 // 从收藏夹移除内容
@@ -170,7 +170,7 @@ export async function removeFromMyList(
     method: 'POST',
     data: { listId, contentId },
   });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 // 调整顺序:contentIds 是排好之后的完整顺序
@@ -179,7 +179,7 @@ export async function reorderMyList(listId: EntityId, contentIds: EntityId[]): P
     method: 'POST',
     data: { listId, contentIds },
   });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 // ---------------------------------------------------------------------------
@@ -236,7 +236,7 @@ export interface PlaylistImportJob {
 /** 读外部歌单给用户确认。url 可以是 App 里「复制链接」给的一整句话,后端自己把地址抠出来。 */
 export async function previewPlaylistImport(url: string): Promise<PlaylistImportPreview> {
   const res = await contentClient('/my-list/import/preview', { method: 'POST', data: { url } });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 /** 开始导入。不带 listId 会新建一张歌单;带了就追加到自己已有的歌单。 */
@@ -247,13 +247,13 @@ export async function startPlaylistImport(data: {
   isPublic?: boolean;
 }): Promise<{ ok: boolean; jobId: EntityId; listId: EntityId; total: number }> {
   const res = await contentClient('/my-list/import', { method: 'POST', data });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 /** 导入进度;不带 id 取自己最近一次的任务(刷新页面后把进度接回来)。 */
 export async function getPlaylistImportStatus(id?: EntityId): Promise<PlaylistImportJob | null> {
   const res = await contentClient('/my-list/import/status', { params: id ? { id } : undefined });
-  const data = (res as any)?.data ?? res;
+  const data = res;
   return data?.job ?? null;
 }
 
@@ -266,7 +266,7 @@ export async function quickCollect(
     method: 'POST',
     data: { contentId, type: contentType },
   });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 // 检查内容是否已收藏
@@ -274,7 +274,7 @@ export async function checkCollected(contentId: EntityId): Promise<{ collected: 
   const res = await contentClient('/is-collected', {
     params: { contentId },
   });
-  return (res as any)?.data ?? res;
+  return res;
 }
 
 // 收藏夹类型对应的默认名称

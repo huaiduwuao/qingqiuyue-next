@@ -37,7 +37,7 @@ interface Achievement {
 // 成就由平台授予,用户不能自己点亮,所以这里只展示。
 async function fetchAchievements(): Promise<Achievement[]> {
   const resp = await adminClient('/point/achievements');
-  const data = resp?.data ?? resp;
+  const data = resp;
   return Array.isArray(data) ? data : [];
 }
 

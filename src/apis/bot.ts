@@ -10,7 +10,7 @@ export interface BotListParams extends PageParams {
 
 export async function page(params: BotListParams): Promise<PageResult<any>> {
   const res = await adminClient('/bot/list', { params });
-  return normalizeLegacyPageResponse((res as any)?.data ?? res);
+  return normalizeLegacyPageResponse(res);
 }
 
 export async function get(id: number) {
@@ -98,12 +98,12 @@ export interface BotConfigResponse {
 
 export async function getConfig(): Promise<BotConfigResponse> {
   const res: any = await adminClient('/bot/config');
-  return res?.data ?? res;
+  return res;
 }
 
 export async function saveConfig(cfg: BotConfig): Promise<BotConfig> {
   const res: any = await adminClient('/bot/config', { method: 'PUT', data: cfg });
-  return res?.data ?? res;
+  return res;
 }
 
 // 所有 AI 用户共用的大模型(OpenAI 兼容接口)。Key 只写不读:读回来只有 keySet 和末尾四位。
@@ -125,23 +125,23 @@ export interface BotLLMInput {
 
 export async function getLLM(): Promise<BotLLMView> {
   const res: any = await adminClient('/bot/llm');
-  return res?.data ?? res;
+  return res;
 }
 
 export async function saveLLM(input: BotLLMInput): Promise<BotLLMView> {
   const res: any = await adminClient('/bot/llm', { method: 'PUT', data: input });
-  return res?.data ?? res;
+  return res;
 }
 
 /** 用表单里的配置试调一次,不保存 */
 export async function testLLM(input: BotLLMInput): Promise<{ reply: string; latencyMs: number }> {
   const res: any = await adminClient('/bot/llm/test', { method: 'POST', data: input });
-  return res?.data ?? res;
+  return res;
 }
 
 export async function refreshPersonas(): Promise<{ updated: number }> {
   const res: any = await adminClient('/bot/personas/refresh', { method: 'POST' });
-  return res?.data ?? res;
+  return res;
 }
 
 // 批量创建假人
@@ -165,5 +165,5 @@ export interface BatchCreateBotResponse {
 
 export async function batchCreate(params: BatchCreateBotParams): Promise<BatchCreateBotResponse> {
   const res = await adminClient('/bot/batch', { method: 'POST', data: params });
-  return res?.data ?? res;
+  return res;
 }

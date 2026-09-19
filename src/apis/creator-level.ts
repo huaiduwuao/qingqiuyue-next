@@ -60,7 +60,7 @@ export const LEVEL_CONFIG = [
 // 获取创作者等级信息
 export async function getCreatorLevelInfo(): Promise<CreatorLevelInfo> {
   const res = await adminClient('/creator-level/info');
-  return res?.data ?? res;
+  return res;
 }
 
 // 获取积分变动历史
@@ -69,7 +69,7 @@ export async function getScoreHistory(params: {
   pageSize?: number;
 }): Promise<{ records: ScoreHistory[]; page: number; pageSize: number }> {
   const res = await adminClient('/creator-level/history', { params });
-  return res?.data ?? res;
+  return res;
 }
 
 // 获取等级排行榜
@@ -78,7 +78,7 @@ export async function getLevelRankings(params: {
   limit?: number;
 }): Promise<{ rankings: RankingItem[] }> {
   const res = await adminClient('/creator-level/rankings', { params });
-  return res?.data ?? res;
+  return res;
 }
 
 // 增加积分（供内部调用）

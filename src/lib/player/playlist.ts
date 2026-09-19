@@ -65,9 +65,7 @@ export const LIKED_MUSIC_NAME = '我喜欢的音乐';
 /** 点过赞的歌,按点赞时间倒序(后端最多给最近 100 条赞,再从里面挑音乐)。 */
 export async function getLikedMusic(): Promise<MyListContentItem[]> {
   const res: any = await accountClient('/account/likes/page');
-  let body = res?.data ?? res;
-  if (body && typeof body === 'object' && 'code' in body && 'data' in body) body = body.data;
-  const list: any[] = body?.list ?? [];
+  const list: any[] = res?.list ?? [];
   return list
     .filter((c) => String(c.category || c.contentType || '').toUpperCase() === 'MUSIC')
     .map((c) => ({

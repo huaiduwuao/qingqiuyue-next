@@ -17,7 +17,7 @@ interface Props {
 }
 
 const rows = (r: any): Topic[] => {
-  const p = r?.data ?? r;
+  const p = r;
   return p?.list || p?.records || (Array.isArray(p) ? p : []);
 };
 
@@ -43,7 +43,7 @@ export default function RealmSelect({ value, onChange, label = '意境', helperT
   // 已选的意境不一定在当前这页搜索结果里,单独取一次标题
   const selected = useQuery({
     queryKey: ['realm-select', 'one', value],
-    queryFn: () => getTopic(value as number).then((r: any) => (r?.data ?? r) as Topic),
+    queryFn: () => getTopic(value as number).then((r: any) => r as Topic),
     enabled: !!value && !(list.data || []).some((t) => t.id === value),
     staleTime: 5 * 60_000,
   });

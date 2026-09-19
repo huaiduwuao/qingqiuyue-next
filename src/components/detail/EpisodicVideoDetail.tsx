@@ -109,7 +109,7 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
 
   const query = useQuery({
     queryKey: ['detail', config.kind, id],
-    queryFn: () => config.fetchDetail(id!).then((r) => ((r as { data?: EpisodicDetail } | undefined)?.data ?? null)),
+    queryFn: () => config.fetchDetail(id!).then((r) => ((r as EpisodicDetail | undefined) ?? null)),
     enabled: !!id,
   });
   const itemsQuery = useContentItems(config.kind, id, config.fetchItems);

@@ -17,7 +17,7 @@ export interface Interaction {
 
 export async function getInteraction(contentId: EntityId): Promise<Interaction> {
   const res: any = await contentClient('/interaction', { params: { contentId } });
-  const d = res?.data ?? res;
+  const d = res;
   return {
     contentId: String(d?.contentId ?? contentId),
     loggedIn: !!d?.loggedIn,

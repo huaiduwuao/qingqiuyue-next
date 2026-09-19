@@ -29,7 +29,7 @@ interface SignalHealth {
 export function SignalHealthCard() {
   const q = useQuery({
     queryKey: ['admin', 'signals', 'health'],
-    queryFn: () => adminClient<{ data: SignalHealth }>('/admin/signals/health', { method: 'GET' }).then((r: any) => (r?.data ?? r) as SignalHealth),
+    queryFn: () => adminClient<SignalHealth>('/admin/signals/health', { method: 'GET' }),
     staleTime: 60_000,
     retry: false,
   });

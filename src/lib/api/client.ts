@@ -380,13 +380,3 @@ export const stewardClient = createApiClient(API_BASE.steward);
 // 默认导出admin客户端（兼容现有代码）
 export const apiClient = adminClient;
 
-/**
- * @deprecated client 现已直接 resolve 业务数据层(剥掉 {code,msg,data} 外壳),
- * 不再返回这个包装类型。仅保留以兼容少数类型位置的引用;新代码不要用。
- */
-export interface ApiResponse<T = any> {
-  code: string | number;
-  msg: string;
-  data: T;
-  success?: boolean;
-}

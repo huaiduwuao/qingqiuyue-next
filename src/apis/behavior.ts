@@ -27,13 +27,13 @@ export interface BehaviorRewardPayload {
 // 获取用户行为统计
 export async function getBehaviorStats(): Promise<BehaviorStats> {
   const res = await accountClient('/behavior/stats');
-  return res?.data ?? res;
+  return res;
 }
 
 // 获取每日剩余奖励额度
 export async function getDailyLimit(): Promise<DailyLimit> {
   const res = await accountClient('/behavior/daily-limit');
-  return res?.data ?? res;
+  return res;
 }
 
 // 点赞奖励

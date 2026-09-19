@@ -24,8 +24,7 @@ export interface AISearchResult {
 }
 
 export async function aiSearch(q: string): Promise<AISearchResult> {
-  const resp = await homeClient.post<AISearchResult>('/ai/search', { q });
-  const data = ((resp as { data?: AISearchResult })?.data ?? resp) as AISearchResult | undefined;
+  const data = (await homeClient.post<AISearchResult>('/ai/search', { q })) as AISearchResult | undefined;
   if (!data || !Array.isArray(data.items)) throw new Error('返回数据格式异常');
   return {
     query: data.query ?? q,

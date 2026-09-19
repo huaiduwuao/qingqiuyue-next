@@ -125,7 +125,7 @@ function useWorkplace() {
     queryKey: ['workplace', 'todos'],
     queryFn: async () => {
       const res = await adminClient('/workplace/todos');
-      return ((res as any)?.data ?? []) as Todo[];
+      return (res ?? []) as Todo[];
     },
     staleTime: 5 * 60_000,
   });
@@ -135,7 +135,7 @@ function useWorkplace() {
     queryKey: ['workplace', 'projects'],
     queryFn: async () => {
       const res = await adminClient('/workplace/projects');
-      return ((res as any)?.data ?? []) as Project[];
+      return (res ?? []) as Project[];
     },
     staleTime: 5 * 60_000,
   });
@@ -145,7 +145,7 @@ function useWorkplace() {
     queryKey: ['workplace', 'team'],
     queryFn: async () => {
       const res = await adminClient('/workplace/team');
-      return ((res as any)?.data ?? []) as TeamMember[];
+      return (res ?? []) as TeamMember[];
     },
     staleTime: 5 * 60_000,
   });
