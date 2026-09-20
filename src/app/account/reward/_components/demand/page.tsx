@@ -16,7 +16,7 @@ import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
 import Chip from '@mui/material/Chip';
 import { CoverImage } from '@/components/common/CoverImage';
-import { coverBackground } from '@/lib/media';
+import { coverBackgroundImage } from '@/lib/media';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
@@ -297,7 +297,9 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
                 sx={{
                   height: 120,
                   backgroundColor: item.cover ? 'transparent' : 'action.hover',
-                  backgroundImage: coverBackground(item.cover, 'none'),
+                  backgroundImage: coverBackgroundImage(item.cover),
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',

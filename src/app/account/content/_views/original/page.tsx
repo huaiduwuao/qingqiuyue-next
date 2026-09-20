@@ -20,7 +20,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import CopyrightRoundedIcon from '@mui/icons-material/CopyrightRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { formatApiError } from '@/lib/api/client';
-import { coverBackground } from '@/lib/media';
+import { coverBackgroundImage } from '@/lib/media';
 import { getMyWorks } from '@/apis/dashboard';
 import {
   listCerts,
@@ -343,7 +343,11 @@ function Row({ cover, children }: { cover?: string; children: React.ReactNode })
             flexShrink: 0,
             borderRadius: 1,
             bgcolor: 'action.hover',
-            backgroundImage: coverBackground(cover),
+            // backgroundImage 只收 <bg-image>;coverBackground() 返回的是 background
+            // 简写值,整条会被判非法丢掉,而且简写还会顺手把上面的 bgcolor 重置。
+            backgroundImage: coverBackgroundImage(cover),
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
           }}
         />
       )}
