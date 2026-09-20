@@ -21,7 +21,6 @@ import ThumbDownIcon from '@mui/icons-material/ThumbDown';
 import ThumbDownOutlinedIcon from '@mui/icons-material/ThumbDownOutlined';
 import StarIcon from '@mui/icons-material/Star';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
-import ShareIcon from '@mui/icons-material/Share';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ModeCommentOutlined';
 import { CoverImage } from '@/components/common/CoverImage';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -174,29 +173,6 @@ export default function ModuleContentDetail({ detail, onClose }: ModuleContentDe
       notify(formatApiError(err), 'error');
     } finally {
       setSendingComment(false);
-    }
-  };
-
-  const handleShare = async () => {
-    const url = typeof window !== 'undefined' ? window.location.href : '';
-    const title = contentName || '清秋月内容';
-    // 分享计数:后端记录(供排行榜/传播效果统计)
-    const shareId = contentId ? (toEntityId(contentId) ?? 0) : 0;
-    postShare({ contentId: shareId }).catch(() => {});
-    try {
-      if (navigator.share) {
-        await navigator.share({ title, url });
-      } else if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-        notify('链接已复制到剪贴板');
-      } else {
-        notify('当前环境不支持分享', 'info');
-      }
-    } catch (err) {
-      // 用户取消分享时不弹错误
-      if ((err as Error)?.name !== 'AbortError') {
-        notify('分享失败', 'error');
-      }
     }
   };
 
@@ -422,11 +398,6 @@ export default function ModuleContentDetail({ detail, onClose }: ModuleContentDe
             count={stats.comments}
             label="评论"
             onClick={handleOpenComments}
-          />
-          <ActionButton
-            icon={<ShareIcon sx={{ fontSize: 18 }} />}
-            label="分享"
-            onClick={handleShare}
           />
         </Box>
 

@@ -20,7 +20,6 @@ import Avatar from '@mui/material/Avatar';
 import Button from '@mui/material/Button';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
-import ShareIcon from '@mui/icons-material/Share';
 import ShareButtons from '@/components/share/ShareButtons';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { detail as personDetail } from '@/apis/content-person';
@@ -151,20 +150,6 @@ function PersonDetailContent() {
     }
   }, [id]);
 
-  const handleShare = async () => {
-    const url = typeof window !== 'undefined' ? window.location.href : '';
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: name || '人物', url });
-      } else if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-        setSnack({ open: true, message: '链接已复制到剪贴板' });
-      }
-    } catch {
-      // 用户取消分享,什么都不做
-    }
-  };
-
   const open = (w: PersonWork) => navigate(w.contentType, w.id);
 
   return (
@@ -173,10 +158,7 @@ function PersonDetailContent() {
         title={name || '人物'}
         rightActions={
           <>
-            <ShareButtons contentType="person" contentId={Number(id)} title={name || '人物'} url={typeof window !== 'undefined' ? window.location.href : ''} />
-            <IconButton onClick={handleShare} sx={{ color: 'text.tertiary' }} aria-label="分享">
-              <ShareIcon />
-            </IconButton>
+            <ShareButtons variant="icon" contentType="person" contentId={Number(id)} title={name || '人物'} url={typeof window !== 'undefined' ? window.location.href : ''} />
           </>
         }
       />

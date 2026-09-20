@@ -41,7 +41,13 @@ export async function listTasks(params: {
   return adminClient<{ list?: ShareTask[]; total?: number }>('/share/tasks', { params });
 }
 
-/** 后端 POST /share/create */
+/**
+ * 后端 POST /share/create
+ *
+ * 调用方传平铺字段,这里组装成后端要的形状:标题/素材都在 payload 里
+ * (Go 侧 userCreateReq.Payload = socialshare.PublishPayload)。平铺着发过去的话
+ * payload 会是空对象,任务建出来没标题没素材,到发布那一步才失败。
+ */
 export async function createTask(params: {
   socialAccountId: number;
   contentType: string;
@@ -54,7 +60,11 @@ export async function createTask(params: {
   topicId?: string;
   scheduledAt?: number; // Unix 秒,定时发布
 }) {
-  return adminClient<ShareTask>('/share/create', { method: 'POST', data: params });
+  const { socialAccountId, contentType, contentId, scheduledAt, ...payload } = params;
+  return adminClient<ShareTask>('/share/create', {
+    method: 'POST',
+    data: { socialAccountId, contentType, contentId, scheduledAt, payload },
+  });
 }
 
 /** 后端 POST /share/retry/:id */

@@ -21,7 +21,6 @@ import Avatar from '@mui/material/Avatar';
 import Button from '@mui/material/Button';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
-import ShareIcon from '@mui/icons-material/Share';
 import ShareButtons from '@/components/share/ShareButtons';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import EventNoteRoundedIcon from '@mui/icons-material/EventNoteRounded';
@@ -126,25 +125,6 @@ function LiveDetailContent() {
     setSnack({ open: true, message, severity });
   };
 
-  const handleShare = async () => {
-    const url = typeof window !== 'undefined' ? window.location.href : '';
-    const title = query.data?.title || '直播间';
-    try {
-      if (navigator.share) {
-        await navigator.share({ title, url });
-      } else if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-        notify('链接已复制到剪贴板');
-      } else {
-        notify('当前环境不支持分享', 'info');
-      }
-    } catch (err) {
-      if ((err as Error)?.name !== 'AbortError') {
-        notify('分享失败', 'error');
-      }
-    }
-  };
-
   const handleReserve = async () => {
     if (!id || reserveBusy) return;
     setReserveBusy(true);
@@ -167,10 +147,7 @@ function LiveDetailContent() {
         rightActions={
           <Box sx={{ display: 'flex', gap: 0.5 }}>
             <CollectButton contentId={id!} contentType="live" />
-            <ShareButtons contentType="live" contentId={Number(id)} title={query.data?.title || '直播间'} url={typeof window !== 'undefined' ? window.location.href : ''} />
-            <IconButton onClick={handleShare} sx={{ color: 'text.tertiary' }} aria-label="分享">
-              <ShareIcon />
-            </IconButton>
+            <ShareButtons variant="icon" contentType="live" contentId={Number(id)} title={query.data?.title || '直播间'} url={typeof window !== 'undefined' ? window.location.href : ''} />
           </Box>
         }
       />

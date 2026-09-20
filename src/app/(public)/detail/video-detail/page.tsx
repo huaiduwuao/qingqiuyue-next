@@ -11,7 +11,6 @@ import IconButton from '@mui/material/IconButton';
 import Avatar from '@mui/material/Avatar';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
-import ShareIcon from '@mui/icons-material/Share';
 import CommentIcon from '@mui/icons-material/Comment';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
@@ -86,25 +85,6 @@ function VideoDetailContent() {
   // 赞:真实状态从 /interaction 读,操作后以服务端为准并给出提示(见 hooks/useContentInteraction)
   const { liked, likeDelta: optimisticLikes, toggleLike: handleLike } = useContentInteraction(id, { notify });
 
-  const handleShare = async () => {
-    const url = typeof window !== 'undefined' ? window.location.href : '';
-    const title = query.data?.title || '视频详情';
-    try {
-      if (navigator.share) {
-        await navigator.share({ title, url });
-      } else if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-        notify('链接已复制到剪贴板');
-      } else {
-        notify('当前环境不支持分享', 'info');
-      }
-    } catch (err) {
-      if ((err as Error)?.name !== 'AbortError') {
-        notify('分享失败', 'error');
-      }
-    }
-  };
-
   const handleFollow = async () => {
     const userId = query.data?.uploaderId;
     if (!userId) {
@@ -138,7 +118,7 @@ function VideoDetailContent() {
         rightActions={
           <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
             <CollectButton contentId={id!} contentType="video" />
-            <ShareButtons
+            <ShareButtons variant="icon"
               contentType="video"
               contentId={Number(id)}
               title={query.data?.title || '视频详情'}
@@ -146,9 +126,6 @@ function VideoDetailContent() {
               cover={query.data?.cover}
               videoUrl={query.data?.videoUrl}
             />
-            <IconButton onClick={handleShare} sx={{ color: 'text.tertiary' }}>
-              <ShareIcon />
-            </IconButton>
           </Box>
         }
       />
@@ -279,7 +256,6 @@ function VideoDetailContent() {
     </Box>
   );
 }
-
 
 export default function VideoDetailPage() {
   return (

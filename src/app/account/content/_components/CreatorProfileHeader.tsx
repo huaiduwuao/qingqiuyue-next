@@ -7,7 +7,6 @@ import Typography from '@mui/material/Typography';
 import Avatar from '@mui/material/Avatar';
 import Skeleton from '@mui/material/Skeleton';
 import EditIcon from '@mui/icons-material/Edit';
-import ShareIcon from '@mui/icons-material/Share';
 import ShareButtons from '@/components/share/ShareButtons';
 import SettingsIcon from '@mui/icons-material/Settings';
 import StarIcon from '@mui/icons-material/Star';
@@ -79,17 +78,6 @@ export default function CreatorProfileHeader() {
   const handleCreatorSettings = () => router.push('/account/settings');
   const handleStats = () => setActiveTab('data');
 
-  const handleShare = async () => {
-    const url = `${window.location.origin}/u?id=${profile.userId}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      setSnack('主页链接已复制');
-    } catch {
-      setSnack('复制失败,请手动复制');
-    }
-    setTimeout(() => setSnack(null), 2200);
-  };
-
   return (
     <Box
       sx={{
@@ -160,11 +148,8 @@ export default function CreatorProfileHeader() {
             <EditIcon sx={{ fontSize: 14 }} />
             <span>编辑资料</span>
           </Box>
-          <Box onClick={handleShare} sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, px: 1.5, py: 0.75, borderRadius: 1, bgcolor: 'transparent', border: '1px solid', borderColor: 'divider', color: 'text.tertiary', fontSize: 12, fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s ease-in-out', '&:hover': { borderColor: 'secondary.main', color: 'secondary.main' } }}>
-            <ShareIcon sx={{ fontSize: 14 }} />
-            <span>分享主页</span>
-          </Box>
           <ShareButtons
+            variant="icon"
             contentType="creator"
             contentId={Number(profile.userId)}
             title={profile.nickname || '创作者主页'}

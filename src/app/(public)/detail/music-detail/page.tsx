@@ -210,10 +210,7 @@ function MusicDetailContent() {
               {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
             </IconButton>
             {id ? <CollectButton contentId={id} contentType="music" /> : null}
-            <ShareButtons contentType="music" contentId={Number(id)} title={query.data?.title} url={typeof window !== 'undefined' ? window.location.href : ''} />
-            <IconButton onClick={handleShare} aria-label="分享" sx={{ color: 'text.tertiary' }}>
-              <ShareIcon />
-            </IconButton>
+            <ShareButtons variant="icon" contentType="music" contentId={Number(id)} title={query.data?.title} url={typeof window !== 'undefined' ? window.location.href : ''} />
           </Box>
         }
       />

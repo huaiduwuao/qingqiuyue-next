@@ -14,7 +14,6 @@ import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
-import ShareIcon from '@mui/icons-material/Share';
 import StarIcon from '@mui/icons-material/Star';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
@@ -141,25 +140,6 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
   // 赞:真实状态从 /interaction 读,操作后以服务端为准并给出提示(见 hooks/useContentInteraction)
   const { liked, likeDelta: optimisticLikes, likeBusy, toggleLike: handleLike } = useContentInteraction(id, { notify });
 
-  const handleShare = async () => {
-    const url = typeof window !== 'undefined' ? window.location.href : '';
-    const title = query.data?.title || `${config.typeLabel}详情`;
-    try {
-      // 分享计数:后端记录(供排行榜/传播效果统计)
-      postShare({ contentId: id ? parseInt(id) : 0 }).catch(() => {});
-      if (navigator.share) {
-        await navigator.share({ title, url });
-      } else if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-        notify('链接已复制到剪贴板');
-      } else {
-        notify('当前环境不支持分享', 'info');
-      }
-    } catch (err) {
-      if ((err as Error)?.name !== 'AbortError') notify('分享失败', 'error');
-    }
-  };
-
   // 选集:地址栏带上 episodeId,刷新/分享后停在同一集。
   const selectEpisode = useCallback(
     (item: ContentItem, scroll = true) => {
@@ -206,7 +186,7 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
               {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
             </IconButton>
             <CollectButton contentId={id!} contentType={config.kind} />
-            <ShareButtons
+            <ShareButtons variant="icon"
               contentType={config.kind}
               contentId={Number(id)}
               title={query.data?.title || `${config.typeLabel}详情`}
@@ -214,9 +194,6 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
               cover={query.data?.cover}
               desc={(query.data as any)?.desc || (query.data as any)?.intro || (query.data as any)?.description}
             />
-            <IconButton onClick={handleShare} sx={{ color: 'text.tertiary' }}>
-              <ShareIcon />
-            </IconButton>
           </Box>
         }
       />

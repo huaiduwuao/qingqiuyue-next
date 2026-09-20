@@ -24,6 +24,9 @@ import React, { useRef, useState } from 'react';
 import { toBlob } from 'html-to-image';
 import {
   Button,
+  IconButton,
+  Menu,
+  MenuItem,
   Snackbar,
   Alert,
   Dialog,
@@ -65,6 +68,7 @@ export interface ShareButtonsProps {
   topicId?: string;
   videoUrl?: string;
   defaultTags?: string[];
+  /** icon:详情页头部那一排图标里用的单个分享按钮(点开菜单);row(默认):一排按钮 */
   variant?: 'icon' | 'menu' | 'row';
   onAfterShare?: (platform: string) => void;
 }
@@ -78,6 +82,7 @@ const PLATFORMS = [
 export default function ShareButtons(props: ShareButtonsProps) {
   const {
     contentType, contentId, title, url, cover, desc, subtitle, topicId, videoUrl, defaultTags,
+    variant = 'row',
     onAfterShare,
   } = props;
 
@@ -88,6 +93,7 @@ export default function ShareButtons(props: ShareButtonsProps) {
   });
 
   const cardRef = useRef<HTMLDivElement>(null);
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
 
   const showToast = (msg: string, severity: 'success' | 'error' | 'info' = 'success') => {
     setToast({ open: true, msg, severity });
@@ -198,8 +204,52 @@ export default function ShareButtons(props: ShareButtonsProps) {
     platform: 'xiaohongshu',
   };
 
+  // icon 变体:详情页头部本来就有一排图标按钮,再塞一排文字按钮会挤成两行,
+  // 而且和页面原有的分享图标重复(旧的那个已经删掉,这里是唯一入口)。
+  const iconEntry = (
+    <>
+      <IconButton
+        aria-label="分享"
+        onClick={(e) => setMenuAnchor(e.currentTarget)}
+        sx={{ color: 'text.tertiary' }}
+      >
+        <ShareRoundedIcon />
+      </IconButton>
+      <Menu anchorEl={menuAnchor} open={!!menuAnchor} onClose={() => setMenuAnchor(null)}>
+        {PLATFORMS.map((p) => (
+          <MenuItem
+            key={p.value}
+            onClick={() => {
+              setMenuAnchor(null);
+              handlePlatformClick(p.value);
+            }}
+          >
+            分享到{p.label}
+          </MenuItem>
+        ))}
+        <MenuItem
+          onClick={() => {
+            setMenuAnchor(null);
+            handleCopy();
+          }}
+        >
+          复制链接
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            setMenuAnchor(null);
+            handleWebShare();
+          }}
+        >
+          系统分享
+        </MenuItem>
+      </Menu>
+    </>
+  );
+
   return (
     <>
+      {variant === 'icon' ? iconEntry : (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
         {PLATFORMS.map((p) => (
           <Button
@@ -237,6 +287,7 @@ export default function ShareButtons(props: ShareButtonsProps) {
           分享
         </Button>
       </Box>
+      )}
 
       {/* 抖音/快手 真发布对话框 */}
       {taskDialogPlatform && (

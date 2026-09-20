@@ -22,7 +22,6 @@ import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import ShareIcon from '@mui/icons-material/Share';
 import ShareButtons from '@/components/share/ShareButtons';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
@@ -92,25 +91,6 @@ function PoetryDetailContent() {
     setSnack({ open: true, message, severity });
   }, []);
 
-  const handleShare = async () => {
-    const url = typeof window !== 'undefined' ? window.location.href : '';
-    const title = query.data?.title || '诗词';
-    try {
-      if (navigator.share) {
-        await navigator.share({ title, url });
-      } else if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-        notify('链接已复制到剪贴板');
-      } else {
-        notify('当前环境不支持分享', 'info');
-      }
-    } catch (err) {
-      if ((err as Error)?.name !== 'AbortError') {
-        notify('分享失败', 'error');
-      }
-    }
-  };
-
   const updateStyle = (updates: Partial<PageStyle>) =>
     setPageStyle((prev) => ({ ...prev, ...updates }));
 
@@ -134,10 +114,7 @@ function PoetryDetailContent() {
               {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
             </IconButton>
             <CollectButton contentId={id!} contentType="poetry" />
-            <ShareButtons contentType="poetry" contentId={Number(id)} title={query.data?.title ?? 'poetry-detail 详情'} url={typeof window !== 'undefined' ? window.location.href : ''} />
-            <IconButton onClick={handleShare} sx={{ color: 'text.tertiary' }}>
-              <ShareIcon />
-            </IconButton>
+            <ShareButtons variant="icon" contentType="poetry" contentId={Number(id)} title={query.data?.title ?? 'poetry-detail 详情'} url={typeof window !== 'undefined' ? window.location.href : ''} />
           </Box>
         }
       />

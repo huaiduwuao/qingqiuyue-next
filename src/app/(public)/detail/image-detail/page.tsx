@@ -12,7 +12,6 @@ import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
-import ShareIcon from '@mui/icons-material/Share';
 import ShareButtons from '@/components/share/ShareButtons';
 import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-video';
@@ -102,25 +101,6 @@ function ImageDetailContent() {
   // 赞:真实状态从 /interaction 读,操作后以服务端为准并给出提示(见 hooks/useContentInteraction)
   const { liked, likeDelta: optimisticLikes, likeBusy, toggleLike: handleLike } = useContentInteraction(id, { notify });
 
-  const handleShare = async () => {
-    const url = typeof window !== 'undefined' ? window.location.href : '';
-    const title = query.data?.title || '图文详情';
-    try {
-      if (navigator.share) {
-        await navigator.share({ title, url });
-      } else if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-        notify('链接已复制到剪贴板');
-      } else {
-        notify('当前环境不支持分享', 'info');
-      }
-    } catch (err) {
-      if ((err as Error)?.name !== 'AbortError') {
-        notify('分享失败', 'error');
-      }
-    }
-  };
-
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <DetailHeader
@@ -135,10 +115,7 @@ function ImageDetailContent() {
               {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
             </IconButton>
             <CollectButton contentId={id!} contentType="picture" />
-            <ShareButtons contentType="image" contentId={Number(id)} title={query.data?.title ?? 'image-detail 详情'} url={typeof window !== 'undefined' ? window.location.href : ''} />
-            <IconButton onClick={handleShare} sx={{ color: 'text.tertiary' }}>
-              <ShareIcon />
-            </IconButton>
+            <ShareButtons variant="icon" contentType="image" contentId={Number(id)} title={query.data?.title ?? 'image-detail 详情'} url={typeof window !== 'undefined' ? window.location.href : ''} />
           </Box>
         }
       />
