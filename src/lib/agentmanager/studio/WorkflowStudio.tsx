@@ -71,7 +71,7 @@ export default function WorkflowStudio({ editingId = null, onLoaded }: { editing
       for (const a of agents) {
         try {
           const wfs = await canvasAPI.listWorkflows(a.id)
-          const found = (wfs || []).find((w) => w.id === editingId)
+          const found = (wfs?.list || []).find((w) => w.id === editingId)
           if (found) {
             loadIntoDraft(found, a.id)
             return

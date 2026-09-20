@@ -97,6 +97,10 @@ export interface CrawlProgress {
   chaptersNew: number;
   errors: number;
   lastError?: string;
+  /** 回填任务的逐条失败明细(后端 backfill_job.go 写入) */
+  error_list?: string[];
+  /** 回填任务的统计计数(如 covers/audios/updated) */
+  stats?: Record<string, number>;
   startedAt: string;
   updatedAt: string;
   elapsedSec: number;

@@ -7,6 +7,7 @@ import Alert from '@mui/material/Alert';
 import { updateShare } from '@/apis/module-content';
 import { accountClient, formatApiError, isAuthError, isNetworkError } from '@/lib/api/client';
 import { PricingFields } from './PricingFields';
+import { ScheduleFields } from './ScheduleFields';
 
 /**
  * useContentForm — 创作者中心发布表单的共享基础 hook。
@@ -34,7 +35,7 @@ import { PricingFields } from './PricingFields';
  *     buildPayload: () => ({ title: f.title, contentType: 'PICTURE', ... }),
  *   });
  *   // f.title / f.setTitle / f.tags / f.snack / f.setSnack / f.submit
- *   // f.canSubmit / f.isPending / f.renderPricing() / f.renderSnackbar()
+ *   // f.canSubmit / f.isPending / f.renderPricing() / f.renderSchedule() / f.renderSnackbar()
  */
 
 export type SnackSeverity = 'success' | 'error' | 'info' | 'warning';
@@ -80,6 +81,9 @@ export interface UseContentFormReturn<TPayload> {
   /** 付费定价区块。serial=true 时额外提供"免费章节/分集数"。放在提交按钮之前。 */
   renderPricing: (opts?: { serial?: boolean }) => React.ReactElement;
 
+  /** 定时发布区块(立即 / 定时 + 时间选择)。放在提交按钮之前。 */
+  renderSchedule: () => React.ReactElement;
+
   // snack(Alert 风格,error 自动 5s,其他 2.4s)
   snack: SnackMsg | null;
   setSnack: (s: string | SnackMsg) => void;
@@ -93,6 +97,8 @@ function savedMessage(status: string | undefined): string {
   switch (status) {
     case 'PUBLISH':
       return '发布成功';
+    case 'SCHEDULED':
+      return '已定时,到点自动发布';
     case 'UN_PUBLISH':
       return '已保存为草稿';
     default:
@@ -120,6 +126,8 @@ export function useContentForm<TPayload = Record<string, unknown>>(
   // 定价(分):0 = 免费。freeItems 仅对章节/分集类内容有意义。
   const [price, setPrice] = useState(0);
   const [freeItems, setFreeItems] = useState(0);
+  // 定时发布(毫秒时间戳):0 = 立即发布。
+  const [publishAt, setPublishAt] = useState(0);
 
   const setTitle = useCallback(
     (v: string) => setTitleRaw(maxTitle > 0 ? v.slice(0, maxTitle) : v),
@@ -139,7 +147,13 @@ export function useContentForm<TPayload = Record<string, unknown>>(
 
   const createMutation = useMutation({
     mutationFn: () =>
-      updateShare({ ...(buildPayload() as object), price, freeItems: price > 0 ? freeItems : 0 } as any),
+      updateShare({
+        ...(buildPayload() as object),
+        price,
+        freeItems: price > 0 ? freeItems : 0,
+        // 0 时不传:后端把 nil/0/过去的时刻一律当立即发布,少一个字段少一层歧义。
+        ...(publishAt > 0 ? { publishAt } : {}),
+      } as any),
   });
 
   // canSubmit 不包含 validate 校验结果(validate 由各 view 在 setState 后
@@ -159,7 +173,9 @@ export function useContentForm<TPayload = Record<string, unknown>>(
     }
     let saved: { status?: string } | undefined;
     try {
-      saved = (await createMutation.mutateAsync())?.data as { status?: string } | undefined;
+      // 拦截器已经把 body.data 剥出来了,再取一层 .data 永远是 undefined ——
+      // 在此之前不论发布成功还是定时成功,提示都落到「已提交审核」那个兜底分支。
+      saved = (await createMutation.mutateAsync()) as { status?: string } | undefined;
     } catch (e: any) {
       if (isAuthError(e)) {
         setSnack({ msg: '请重新登录', severity: 'error' });
@@ -192,6 +208,11 @@ export function useContentForm<TPayload = Record<string, unknown>>(
       />
     ),
     [price, freeItems],
+  );
+
+  const renderSchedule = useCallback(
+    () => <ScheduleFields publishAt={publishAt} onChange={setPublishAt} />,
+    [publishAt],
   );
 
   // 公开的 snack 渲染器(view 末尾放 {f.renderSnackbar()})
@@ -229,6 +250,7 @@ export function useContentForm<TPayload = Record<string, unknown>>(
     isPending: createMutation.isPending,
     canSubmit,
     renderPricing,
+    renderSchedule,
     snack,
     setSnack,
     dismissSnack,

@@ -324,6 +324,7 @@ export default function VshowForm({ onSuccess }: PublishFormProps) {
           </Box>
 
           {f.renderPricing({ serial: true })}
+          {f.renderSchedule()}
 
           <Button
             variant="contained"

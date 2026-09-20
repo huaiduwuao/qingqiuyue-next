@@ -34,6 +34,7 @@ import { fetchContentTags, fetchContentTypes, fetchSubcategories, type Subcatego
 import { fetchTopics } from '@/apis/community';
 import { getMyLists, getPublicLists } from '@/apis/my-list';
 import { TYPE_LABEL } from '@/lib/contentType.gen';
+import { getContentEntry } from '@/lib/contentCatalog';
 import {
   BUILTIN_TYPE_SECTIONS,
   HomeSection,
@@ -167,7 +168,13 @@ export default function SectionManagerDialog({ open, onClose }: Props) {
       for (const b of BUILTIN_TYPE_SECTIONS) {
         if (!merged.some((s) => s.id === b.id)) merged.push(b);
       }
-      return merged.filter((s) => hit(s.label)).map((section) => ({ section }));
+      // 副文案从全站目录(contentCatalog)取,运营改 description 时全站统一跟进,
+      // 不要在这里再写一遍。新加的字典项没有目录,getContentEntry 兜底返回 undefined → 不显示。
+      return merged.filter((s) => hit(s.label)).map((section) => {
+        const code = section.contentType;
+        const entry = code ? getContentEntry(code) : undefined;
+        return { section, hint: entry?.shortDesc };
+      });
     }
     if (group === 'genre') {
       const groups = subcatQuery.data ?? {};
@@ -394,8 +401,20 @@ export default function SectionManagerDialog({ open, onClose }: Props) {
                     {added ? <CheckRoundedIcon sx={{ fontSize: 13 }} /> : <AddRoundedIcon sx={{ fontSize: 13 }} />}
                     {section.label}
                     {hint && (
-                      <Typography component="span" sx={{ fontSize: 10, color: 'text.disabled', ml: 0.25 }}>
-                        {hint}
+                      <Typography
+                        component="span"
+                        title={hint}
+                        sx={{
+                          fontSize: 10,
+                          color: 'text.disabled',
+                          ml: 0.25,
+                          maxWidth: 160,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        · {hint}
                       </Typography>
                     )}
                   </Box>

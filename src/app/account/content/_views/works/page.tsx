@@ -16,6 +16,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import MovieOutlinedIcon from '@mui/icons-material/MovieOutlined';
 import { GridColDef } from '@mui/x-data-grid';
 import { DataGridTable } from '@/components/tables/DataGridTable';
+import { CoverImage } from '@/components/common/CoverImage';
 import DataOverviewCard from '../../_components/DataOverviewCard';
 import TopPerformingContent from '../../_components/TopPerformingContent';
 import ContentDistributionChart from '../../_components/ContentDistributionChart';
@@ -73,8 +74,7 @@ const COLUMNS: GridColDef[] = [
     sortable: false,
     renderCell: (params) =>
       params.value ? (
-        <Box
-          component="img"
+        <CoverImage
           src={params.value}
           sx={{ width: 40, height: 40, borderRadius: 0.5, objectFit: 'cover' }}
         />

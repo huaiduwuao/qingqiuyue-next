@@ -10,10 +10,9 @@
  */
 
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import MenuItem from '@mui/material/MenuItem';
-import Pagination from '@mui/material/Pagination';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { useApp } from '@/contexts/AppContext';
@@ -27,7 +26,6 @@ export default function RealizationPage() {
   const me = Number(currentUser?.id ?? 0);
   /** 'me' = 我交付的;数字 = 某支我所在的团队 */
   const [scope, setScope] = useState<string>('me');
-  const [page, setPage] = useState(1);
 
   const teams = useQuery({
     queryKey: ['team', 'mine', 'active'],
@@ -35,13 +33,33 @@ export default function RealizationPage() {
     enabled: me > 0,
   });
 
-  const list = useQuery({
-    queryKey: ['realization', scope, page, me],
-    queryFn: () => listRealizations({ ...(scope === 'me' ? { userId: me } : { teamId: Number(scope) }), page, pageSize: PAGE_SIZE }),
+  // 无限滚动:滚到底自动翻页
+  const list = useInfiniteQuery({
+    queryKey: ['realization', scope, me],
+    queryFn: ({ pageParam }) => listRealizations({ ...(scope === 'me' ? { userId: me } : { teamId: Number(scope) }), page: pageParam, pageSize: PAGE_SIZE })
+      .then((r) => ({ ...r, page: pageParam as number })),
+    initialPageParam: 1,
+    getNextPageParam: (last) => (last.page * PAGE_SIZE < (last.total ?? 0) ? last.page + 1 : undefined),
     enabled: me > 0,
   });
+  const items = list.data?.pages.flatMap((p) => p.list) ?? [];
+  const total = list.data?.pages[0]?.total ?? 0;
 
-  const total = list.data?.total ?? 0;
+  // 滚动到底自动加载下一页
+  const sentinelRef = React.useRef<HTMLDivElement>(null);
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = list;
+  React.useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const ob = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) fetchNextPage();
+      },
+      { rootMargin: '300px' },
+    );
+    ob.observe(el);
+    return () => ob.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -56,10 +74,7 @@ export default function RealizationPage() {
           select
           size="small"
           value={scope}
-          onChange={(e) => {
-            setScope(e.target.value);
-            setPage(1);
-          }}
+          onChange={(e) => setScope(e.target.value)}
           sx={{ minWidth: 180 }}
           slotProps={{ htmlInput: { 'aria-label': '范围' } }}
         >
@@ -74,15 +89,19 @@ export default function RealizationPage() {
 
       {me ? (
         <RealizationList
-          items={list.data?.list || []}
+          items={items}
           empty={list.isFetching ? '加载中…' : scope === 'me' ? '还没有验收通过的交付。去赏金广场认领一个任务试试。' : '这支团队还没有验收通过的交付'}
         />
       ) : (
         <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>登录后查看</Typography>
       )}
 
-      {total > PAGE_SIZE && (
-        <Pagination sx={{ alignSelf: 'center' }} count={Math.ceil(total / PAGE_SIZE)} page={page} onChange={(_, p) => setPage(p)} size="small" />
+      <Box ref={sentinelRef} sx={{ height: 1 }} />
+      {list.isFetchingNextPage && (
+        <Typography sx={{ textAlign: 'center', py: 2, fontSize: 12, color: 'text.secondary' }}>加载中…</Typography>
+      )}
+      {!hasNextPage && items.length > 0 && (
+        <Typography sx={{ textAlign: 'center', py: 2, fontSize: 12, color: 'text.disabled' }}>- 没有更多了 -</Typography>
       )}
     </Box>
   );

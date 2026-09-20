@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
@@ -15,6 +15,8 @@ import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
 import Chip from '@mui/material/Chip';
+import { CoverImage } from '@/components/common/CoverImage';
+import { coverBackgroundImage } from '@/lib/media';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
@@ -83,8 +85,7 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
   const [relatedTasks, setRelatedTasks] = useState<RewardTask[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [formValues, setFormValues] = useState<any>({});
-  const [page, setPage] = useState(1);
-  const [pageSize] = useState(12);
+  const pageSize = 12;
   const [keyword, setKeyword] = useState('');
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
@@ -108,14 +109,35 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
     setSnackbar({ open: true, message, severity });
   };
 
-  const query = useQuery({
-    queryKey: ['reward-demand', tab, page, keyword],
-    queryFn: () => myPage({ page, pageSize, status: tab || undefined, keyword }).then((r) => ({
+  // 无限滚动:滚到底自动翻页
+  const query = useInfiniteQuery({
+    queryKey: ['reward-demand', tab, keyword],
+    queryFn: ({ pageParam }) => myPage({ page: pageParam, pageSize, status: tab || undefined, keyword }).then((r) => ({
       records: r?.records || [],
       totalRow: r?.totalRow || 0,
+      page: pageParam as number,
     })),
-    placeholderData: { records: [], totalRow: 0 },
+    initialPageParam: 1,
+    getNextPageParam: (last) => (last.page * pageSize < last.totalRow ? last.page + 1 : undefined),
   });
+  const records = query.data?.pages.flatMap((p) => p.records) ?? [];
+  const totalRow = query.data?.pages[0]?.totalRow ?? 0;
+
+  // 滚动到底自动加载下一页
+  const sentinelRef = React.useRef<HTMLDivElement>(null);
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const ob = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) fetchNextPage();
+      },
+      { rootMargin: '300px' },
+    );
+    ob.observe(el);
+    return () => ob.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   // 加载需求详情时同时拉关联任务 + 关联意境
   const loadRelatedTasks = useCallback(async (demandId: number) => {
@@ -237,7 +259,6 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
     }
   };
 
-  const totalPages = Math.ceil((query.data?.totalRow || 0) / pageSize);
   const isSettled = selectedRecord?.status === 'SETTLED';
   const isCompleted = selectedRecord?.status === 'COMPLETED';
   const isPublished = selectedRecord?.status === 'PUBLISHED';
@@ -253,7 +274,7 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
 
       {/* 状态筛选 */}
       <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
-        <Tabs value={tab} onChange={(_, v) => { setTab(v); setPage(1); }} variant="scrollable" scrollButtons="auto">
+        <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto">
           {STATUS_OPTIONS.map((opt) => (
             <Tab key={opt.value} label={opt.label} value={opt.value} sx={{ minHeight: 36 }} />
           ))}
@@ -266,7 +287,7 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
 
       {/* 卡片列表 */}
       <ListLayout minColumnWidth={300} gap={16}>
-        {(query.data?.records || []).map((item) => {
+        {records.map((item) => {
           const meta = STATUS_META[(item.status as DemandStatus) || 'PENDING'] || STATUS_META.PENDING;
           return (
             <Card key={item.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column', cursor: 'pointer', [LIST_ROW]: { flexDirection: 'row', flexWrap: { xs: 'wrap', sm: 'nowrap' } } }}
@@ -276,7 +297,7 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
                 sx={{
                   height: 120,
                   backgroundColor: item.cover ? 'transparent' : 'action.hover',
-                  backgroundImage: item.cover ? `url(${item.cover})` : 'none',
+                  backgroundImage: coverBackgroundImage(item.cover),
                   backgroundSize: 'cover',
                   backgroundPosition: 'center',
                   display: 'flex',
@@ -371,19 +392,20 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
         })}
       </ListLayout>
 
-      {(query.data?.records || []).length === 0 && !query.isFetching && (
+      {records.length === 0 && !query.isFetching && (
         <Box sx={{ textAlign: 'center', py: 8 }}>
           <Typography color="text.secondary">暂无需求</Typography>
           <Button sx={{ mt: 2 }} onClick={() => handleEdit({} as DemandItem)}>发布第一个需求</Button>
         </Box>
       )}
 
-      {totalPages > 1 && (
-        <Box sx={{ mt: 3, display: 'flex', justifyContent: 'center', gap: 1 }}>
-          <Button disabled={page === 1} onClick={() => setPage(page - 1)}>上一页</Button>
-          <Typography sx={{ lineHeight: '36px' }}>第 {page} / {totalPages} 页</Typography>
-          <Button disabled={page === totalPages} onClick={() => setPage(page + 1)}>下一页</Button>
-        </Box>
+      {/* 无限滚动哨兵 + 到底提示 */}
+      <Box ref={sentinelRef} sx={{ height: 1 }} />
+      {isFetchingNextPage && (
+        <Typography sx={{ textAlign: 'center', py: 2, fontSize: 12, color: 'text.secondary' }}>加载中…</Typography>
+      )}
+      {!hasNextPage && records.length > 0 && (
+        <Typography sx={{ textAlign: 'center', py: 3, fontSize: 12, color: 'text.disabled' }}>- 没有更多了 · 共 {totalRow} 条 -</Typography>
       )}
 
       {/* 新建/编辑弹窗 */}
@@ -519,8 +541,7 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
             )}
           </Box>
           {selectedRecord?.cover && (
-            <Box
-              component="img"
+            <CoverImage
               src={selectedRecord.cover}
               sx={{ width: '100%', height: 200, objectFit: 'cover', borderRadius: 1, mb: 2 }}
             />

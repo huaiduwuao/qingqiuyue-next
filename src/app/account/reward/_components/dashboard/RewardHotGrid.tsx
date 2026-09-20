@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Skeleton from '@mui/material/Skeleton';
@@ -15,6 +15,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import GroupIcon from '@mui/icons-material/Group';
 import { gradient2 } from '@/constants/gradients';
+import { coverBackground } from '@/lib/media';
 import { alpha } from '@mui/material/styles';
 import { getHotBounties, type Bounty } from '@/apis/dashboard';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
@@ -76,8 +77,7 @@ export default function RewardHotGrid({
   const [detailId, setDetailId] = useState<string | null>(null);
   const isAll = mode === 'all';
 
-  // 分页 state(只在 all 模式生效)
-  const [page, setPage] = useState(1);
+  // 搜索/筛选/排序 state(all 模式就地,不写 URL)
   const [localSearch, setLocalSearch] = useState('');
   const [localFilter, setLocalFilter] = useState('');
   const [localOrder, setLocalOrder] = useState('reward');
@@ -86,21 +86,24 @@ export default function RewardHotGrid({
   const effectiveFilter = filter || localFilter;
   const effectiveOrder = order || localOrder;
 
-  // 真接口:热门/全部悬赏(支持 keyword 搜索 + category 过滤 + order 排序 + page 分页)
-  const query = useQuery({
-    queryKey: ['reward-bounty-grid', mode, { search: effectiveSearch, order: effectiveOrder, filter: effectiveFilter, page }],
-    queryFn: () =>
+  // 真接口:热门(前 6 张)/全部悬赏(无限滚动,滚到底自动加载下一页)
+  const query = useInfiniteQuery({
+    queryKey: ['reward-bounty-grid', mode, { search: effectiveSearch, order: effectiveOrder, filter: effectiveFilter }],
+    queryFn: ({ pageParam }) =>
       getHotBounties({
-        page: isAll ? page : 1,
+        page: pageParam,
         pageSize: isAll ? PAGE_SIZE : 6,
         keyword: effectiveSearch || undefined,
         category: effectiveFilter || undefined,
         order: effectiveOrder as any,
       }),
+    initialPageParam: 1,
+    getNextPageParam: (last) => (last.hasMore ? last.page + 1 : undefined),
     staleTime: 30 * 1000,
     refetchOnMount: 'always',
   });
-  const list: Bounty[] = ((query.data?.list ?? []) as any[]).map((b) => ({
+  const allItems = query.data?.pages.flatMap((p) => p.list) ?? [];
+  const list: Bounty[] = (allItems as any[]).map((b) => ({
     id: b.id,
     title: b.title,
     category: (b.category as Bounty['category']) ?? 'video',
@@ -111,14 +114,29 @@ export default function RewardHotGrid({
     gradient: b.gradient || gradient2('#FE2C55', '#FF6B8A'),
     cover: b.cover || undefined,
   }));
-  const total = (query.data?.total as number) ?? list.length;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const total = (query.data?.pages[0]?.total as number) ?? list.length;
+
+  // 滚动到底自动加载下一页(all 模式):列表尾部哨兵,IntersectionObserver 触发
+  const sentinelRef = React.useRef<HTMLDivElement>(null);
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
+  React.useEffect(() => {
+    if (!isAll) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    const ob = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) fetchNextPage();
+      },
+      { rootMargin: '300px' },
+    );
+    ob.observe(el);
+    return () => ob.disconnect();
+  }, [isAll, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const resetLocal = () => {
     setLocalSearch('');
     setLocalFilter('');
     setLocalOrder('reward');
-    setPage(1);
   };
 
   return (
@@ -169,7 +187,6 @@ export default function RewardHotGrid({
             value={effectiveSearch}
             onChange={(e) => {
               if (!search) setLocalSearch(e.target.value);
-              setPage(1);
             }}
             slotProps={{
               input: {
@@ -188,7 +205,6 @@ export default function RewardHotGrid({
               label='全部'
               onClick={() => {
                 if (!filter) setLocalFilter('');
-                setPage(1);
               }}
               color={effectiveFilter === '' ? 'primary' : 'default'}
               variant={effectiveFilter === '' ? 'filled' : 'outlined'}
@@ -200,7 +216,6 @@ export default function RewardHotGrid({
                 label={CATEGORY_LABEL[code]}
                 onClick={() => {
                   if (!filter) setLocalFilter(code);
-                  setPage(1);
                 }}
                 color={effectiveFilter === code ? 'primary' : 'default'}
                 variant={effectiveFilter === code ? 'filled' : 'outlined'}
@@ -220,7 +235,6 @@ export default function RewardHotGrid({
               label={o.label}
               onClick={() => {
                 if (!order) setLocalOrder(o.id);
-                setPage(1);
               }}
               color={effectiveOrder === o.id ? 'primary' : 'default'}
               variant={effectiveOrder === o.id ? 'filled' : 'outlined'}
@@ -266,21 +280,23 @@ export default function RewardHotGrid({
         </ListLayout>
       )}
 
-      {/* 分页(仅 all 模式) */}
-      {isAll && totalPages > 1 && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-          <Stack direction='row' spacing={0.5} sx={{ alignItems: 'center' }}>
-            <Button size='small' disabled={page <= 1} onClick={() => setPage(page - 1)}>
-              上一页
-            </Button>
-            <Typography sx={{ px: 1, fontSize: 12, color: 'text.secondary' }}>
-              第 {page} / {totalPages} 页 · 共 {total} 条
+      {/* 无限滚动哨兵 + 加载中/到底提示(仅 all 模式) */}
+      {isAll && (
+        <>
+          <Box ref={sentinelRef} sx={{ height: 1 }} />
+          {query.isFetchingNextPage && (
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 1.5, mt: 1.5 }}>
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} variant='rounded' height={160} sx={{ bgcolor: 'action.hover' }} />
+              ))}
+            </Box>
+          )}
+          {!query.hasNextPage && list.length > 0 && (
+            <Typography sx={{ textAlign: 'center', py: 2, fontSize: 12, color: 'text.disabled' }}>
+              - 没有更多了 · 共 {total} 条 -
             </Typography>
-            <Button size='small' disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
-              下一页
-            </Button>
-          </Stack>
-        </Box>
+          )}
+        </>
       )}
 
       <BountyDetailDialog
@@ -318,7 +334,7 @@ function BountyCard({ bounty, onClick }: { bounty: Bounty; onClick: () => void }
         sx={{
           position: 'relative',
           aspectRatio: '16 / 9',
-          background: bounty.cover ? `url(${bounty.cover}) center / cover no-repeat` : bounty.gradient,
+          background: coverBackground(bounty.cover, bounty.gradient),
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',

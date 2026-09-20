@@ -1,18 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
-import Button from '@mui/material/Button';
-import IconButton from '@mui/material/IconButton';
 import Skeleton from '@mui/material/Skeleton';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
-import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import { alpha } from '@mui/material/styles';
 import { listMyPointRecords, type PointRecord } from '@/apis/dashboard';
 
@@ -40,28 +36,44 @@ interface Props {
  *
  * 从 /reward/point-records 拉我的所有入账记录,每条包含 sourceType/sourceId/sourceTitle/sourceUrl,
  * 点击跳转到来源需求/任务(中类均为“需求管理“tab、任务看板详情弹窗)。
- * 分页: 8 条/页,上下页按钮。
+ * 无限滚动:滚到底自动加载下一页。
  */
 export default function PointRecordPanel({ currentUserId }: Props) {
   const router = useRouter();
-  const [page, setPage] = useState(1);
   const pageSize = 8;
 
-  const query = useQuery({
-    queryKey: ['personal', 'point-records', currentUserId, page],
-    queryFn: () => listMyPointRecords({ page, pageSize }).then((r: any) => ({
+  const query = useInfiniteQuery({
+    queryKey: ['personal', 'point-records', currentUserId],
+    queryFn: ({ pageParam }) => listMyPointRecords({ page: pageParam, pageSize }).then((r: any) => ({
       list: (r.list || r.records || []) as PointRecord[],
       total: Number(r.total ?? r.totalRow ?? 0),
+      page: pageParam as number,
     })),
+    initialPageParam: 1,
+    getNextPageParam: (last) => (last.page * pageSize < last.total ? last.page + 1 : undefined),
     enabled: !!currentUserId,
-    placeholderData: { list: [], total: 0 } as { list: PointRecord[]; total: number },
     refetchOnMount: 'always',
     staleTime: 15 * 1000,
   });
 
-  const list = query.data?.list ?? [];
-  const total = query.data?.total ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const list = query.data?.pages.flatMap((p) => p.list) ?? [];
+  const total = query.data?.pages[0]?.total ?? 0;
+
+  // 滚动到底自动加载下一页
+  const sentinelRef = React.useRef<HTMLDivElement>(null);
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
+  React.useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const ob = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) fetchNextPage();
+      },
+      { rootMargin: '300px' },
+    );
+    ob.observe(el);
+    return () => ob.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const handleOpen = (rec: PointRecord) => {
     if (!rec.sourceUrl) return;
@@ -102,8 +114,7 @@ export default function PointRecordPanel({ currentUserId }: Props) {
         />
       </Box>
 
-      {query.isLoading ? (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+      {query.isLoading ? (<Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
           {Array.from({ length: 5 }).map((_, i) => (
             <Skeleton key={i} variant="rounded" height={52} />
           ))}
@@ -177,20 +188,14 @@ export default function PointRecordPanel({ currentUserId }: Props) {
         </Box>
       )}
 
-      {totalPages > 1 && (
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1.5 }}>
-          <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
-            第 {page} / {totalPages} 页
-          </Typography>
-          <Box>
-            <IconButton size="small" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-              <NavigateBeforeIcon fontSize="small" />
-            </IconButton>
-            <IconButton size="small" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-              <NavigateNextIcon fontSize="small" />
-            </IconButton>
-          </Box>
+      <Box ref={sentinelRef} sx={{ height: 1 }} />
+      {isFetchingNextPage && (
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mt: 0.75 }}>
+          {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} variant="rounded" height={52} />)}
         </Box>
+      )}
+      {!hasNextPage && list.length > 0 && (
+        <Typography sx={{ textAlign: 'center', py: 1.5, fontSize: 10, color: 'text.disabled' }}>- 没有更多了 -</Typography>
       )}
     </Box>
   );

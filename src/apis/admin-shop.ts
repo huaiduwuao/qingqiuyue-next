@@ -54,8 +54,13 @@ export interface AdminGift {
   sort: number;
 }
 
+// 后端 admin shop 接口返回 {list, total},与项目里 70+ 个 A 模式接口一致(如 system-dict)。
+// axios 拦截器(client.ts)已经把 list/records、total/totalRow 互填别名,所以这里读 .list 即可。
+type ListResp<T> = { list: T[]; records?: T[]; total: number; totalRow?: number };
+
 export async function listMallItems(): Promise<AdminMallItem[]> {
-  return adminClient<AdminMallItem[]>('/admin/shop/mall/items');
+  const r = await adminClient<ListResp<AdminMallItem>>('/admin/shop/mall/items');
+  return r?.list ?? [];
 }
 
 export async function saveMallItem(item: AdminMallItem) {
@@ -65,9 +70,10 @@ export async function saveMallItem(item: AdminMallItem) {
 }
 
 export async function listRedemptions(status?: string): Promise<AdminRedemption[]> {
-  return adminClient<AdminRedemption[]>('/admin/shop/mall/redemptions', {
+  const r = await adminClient<ListResp<AdminRedemption>>('/admin/shop/mall/redemptions', {
     params: status ? { status } : undefined,
   });
+  return r?.list ?? [];
 }
 
 export async function shipRedemption(id: number, tracking: string) {
@@ -79,7 +85,8 @@ export async function completeRedemption(id: number) {
 }
 
 export async function listGifts(): Promise<AdminGift[]> {
-  return adminClient<AdminGift[]>('/admin/shop/gifts');
+  const r = await adminClient<ListResp<AdminGift>>('/admin/shop/gifts');
+  return r?.list ?? [];
 }
 
 export async function saveGift(gift: AdminGift) {

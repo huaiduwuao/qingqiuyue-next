@@ -4,34 +4,26 @@
  * 跨 Agent 的工作流总览
  *
  * 后端没有「列全部工作流」接口,只有按 Agent 维度的
- * GET /canvas/:agentId/workflows,因此这里先列出全部 Agent,
- * 再并发拉取各自的工作流聚合展示。
+ * GET /canvas/:agentId/workflows。前端在并发拉取各 Agent 工作流后内存聚合,
+ * 然后走项目统一的 DataGridTable(MUI X DataGrid),与 /system/bot、/system/shop
+ * 等后台表格共用交互/分页/筛选体验,不再单独维护一份 Table+Pagination。
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Box from '@mui/material/Box'
-import Typography from '@mui/material/Typography'
 import Chip from '@mui/material/Chip'
-import Table from '@mui/material/Table'
-import TableBody from '@mui/material/TableBody'
-import TableCell from '@mui/material/TableCell'
-import TableContainer from '@mui/material/TableContainer'
-import TableHead from '@mui/material/TableHead'
-import TableRow from '@mui/material/TableRow'
 import Button from '@mui/material/Button'
-import CircularProgress from '@mui/material/CircularProgress'
-import Alert from '@mui/material/Alert'
-import IconButton from '@mui/material/IconButton'
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
-import PlayArrowIcon from '@mui/icons-material/PlayArrow'
-import ScheduleIcon from '@mui/icons-material/Schedule'
 import Dialog from '@mui/material/Dialog'
 import DialogTitle from '@mui/material/DialogTitle'
 import DialogContent from '@mui/material/DialogContent'
 import DialogActions from '@mui/material/DialogActions'
 import TextField from '@mui/material/TextField'
 import MenuItem from '@mui/material/MenuItem'
+import AddIcon from '@mui/icons-material/Add'
+import PlayArrowIcon from '@mui/icons-material/PlayArrow'
+import ScheduleIcon from '@mui/icons-material/Schedule'
+import type { GridColDef } from '@mui/x-data-grid'
+import { DataGridTable } from '@/components/tables/DataGridTable'
 import { agentmAPI, type Agent } from './api'
 import { canvasAPI } from './canvas/api'
 import type { AgentWorkflowInfo, WorkflowType } from './canvas/types'
@@ -57,62 +49,74 @@ interface WorkflowRow extends AgentWorkflowInfo {
 export type { WorkflowRow }
 
 export default function WorkflowsOverview({ onCreate, onEdit }: { onCreate?: () => void; onEdit?: (row: WorkflowRow) => void }) {
-  const [rows, setRows] = useState<WorkflowRow[]>([])
-  const [loading, setLoading] = useState(false)
+  // 全部 Agent × 各自工作流聚合到一份内存里,DataGridTable 在 server 模式下按
+  // (pageNumber-1)*pageSize 切片。load() 与 fetchData 解耦:load 只负责拉数据并
+  // 推 allRows,完成后 setTick 触发 DataGridTable 重新拉取,fetchData 只做切片。
+  const [allRows, setAllRows] = useState<WorkflowRow[]>([])
   const [error, setError] = useState('')
-  // 执行/定时
-  const [runningId, setRunningId] = useState<number | null>(null)
   const [scheduleFor, setScheduleFor] = useState<WorkflowRow | null>(null)
   const [cronExpr, setCronExpr] = useState('0 * * * *')
   const [overlap, setOverlap] = useState<'skip' | 'replace'>('skip')
+  // tick 递增即触发 DataGridTable 重拉;同时给 totalRow 喂个依赖,避免空数组时
+  // 只靠 tick 在数据未变化场景下被 React 合并掉
+  const [tick, setTick] = useState(0)
+  // ref 让 fetchData 永远读到最新 allRows,避免闭包 staleness
+  const rowsRef = useRef<WorkflowRow[]>([])
+  useEffect(() => { rowsRef.current = allRows }, [allRows])
 
   const load = useCallback(async () => {
-    setLoading(true)
     setError('')
     try {
       const agents = await agentmAPI.listAgents().catch(() => [] as Agent[])
-      // 并发拉取每个 Agent 的工作流,单个失败不影响整体
       const grouped = await Promise.all(
         (agents || []).map(async (a: Agent) => {
           const agentId = a.id
           const agentName = a.name ?? `#${agentId}`
           try {
-            const wfs = await canvasAPI.listWorkflows(agentId)
-            return (wfs || []).map((w) => ({ ...w, agent_name: agentName }))
+            const res = await canvasAPI.listWorkflows(agentId, { limit: 100 })
+            return (res.list || []).map((w) => ({ ...w, agent_name: agentName }))
           } catch {
             return [] as WorkflowRow[]
           }
         }),
       )
-      setRows(grouped.flat())
+      setAllRows(grouped.flat())
     } catch (e: any) {
       setError(e.message || '加载失败')
-    } finally {
-      setLoading(false)
     }
   }, [])
 
+  // refresh = 重拉数据 + tick++ 触发 DataGridTable 重 fetch
+  const refresh = useCallback(() => {
+    load().then(() => setTick((t) => t + 1))
+  }, [load])
+
+  useEffect(() => {
+    load().then(() => setTick((t) => t + 1))
+  }, [load])
+
   const handleDelete = async (w: WorkflowRow) => {
     if (!confirm(`删除工作流「${w.name}」?`)) return
-    await canvasAPI.deleteWorkflow(w.agent_id, w.id).catch((e) => alert(`删除失败: ${e.message}`))
-    load()
+    try {
+      await canvasAPI.deleteWorkflow(w.agent_id, w.id)
+    } catch (e: any) {
+      alert(`删除失败: ${e.message}`)
+      return
+    }
+    refresh()
   }
 
   // 立即执行
   const handleExecute = async (w: WorkflowRow) => {
-    setRunningId(w.id)
     try {
-      const res = await agentmAPI.executeWorkflow(w.id, {})
+      const res: any = await agentmAPI.executeWorkflow(w.id, {})
       if (res.error) {
         alert(`执行失败: ${res.error}`)
       } else {
         alert(`执行完成: ${res.run?.status ?? ''}${res.run?.error ? '\n' + res.run.error : ''}`)
       }
-      load()
     } catch (e: any) {
       alert(`执行失败: ${e.message}`)
-    } finally {
-      setRunningId(null)
     }
   }
 
@@ -133,100 +137,104 @@ export default function WorkflowsOverview({ onCreate, onEdit }: { onCreate?: () 
     }
   }
 
-  useEffect(() => {
-    load()
-  }, [load])
+  const columns = useMemo<GridColDef<WorkflowRow>[]>(() => [
+    {
+      field: 'name',
+      headerName: '名称',
+      flex: 1.5,
+      minWidth: 180,
+      renderCell: (p) => (
+        <Box sx={{ textAlign: 'left' }}>
+          <Box sx={{ fontWeight: 600 }}>{p.row.name}</Box>
+          {p.row.description && (
+            <Box sx={{ fontSize: 12, color: 'text.secondary' }}>{p.row.description}</Box>
+          )}
+        </Box>
+      ),
+    },
+    { field: 'agent_name', headerName: '所属 Agent', flex: 1, minWidth: 120 },
+    {
+      field: 'workflow_type',
+      headerName: '类型',
+      width: 100,
+      renderCell: (p) => (
+        <Chip size="small" variant="outlined" label={TYPE_LABEL[p.value as WorkflowType] ?? (p.value as string)} />
+      ),
+    },
+    {
+      field: 'status',
+      headerName: '状态',
+      width: 90,
+      renderCell: (p) => (
+        <Chip size="small" color={STATUS_COLOR[p.value as string] ?? 'default'} label={p.value as string} />
+      ),
+    },
+    {
+      field: 'version',
+      headerName: '版本',
+      width: 80,
+      valueFormatter: (v) => `v${v as number}`,
+    },
+    { field: 'exec_count', headerName: '执行次数', type: 'number', width: 100, align: 'right', headerAlign: 'right' },
+    {
+      field: 'last_exec_at',
+      headerName: '最近执行',
+      flex: 1,
+      minWidth: 160,
+      valueFormatter: (v) => (v ? new Date(v as string).toLocaleString() : '—'),
+    },
+  ], [])
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h6">全部工作流({rows.length})</Typography>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          {onCreate && (
-            <Button size="small" variant="contained" onClick={onCreate}>
-              ➕ 新建工作流
-            </Button>
-          )}
-          <Button size="small" onClick={load} disabled={loading}>
-            刷新
-          </Button>
-        </Box>
-      </Box>
-
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Box sx={{ mb: 2, p: 2, border: 1, borderColor: 'error.main', borderRadius: 1, color: 'error.main' }}>
           {error}
-        </Alert>
+        </Box>
       )}
 
-      {loading ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
-          <CircularProgress />
-        </Box>
-      ) : rows.length === 0 ? (
-        <Box sx={{ color: 'text.secondary', py: 4, textAlign: 'center' }}>
-          暂无工作流。可在 Agent 详情页通过对话生成,或新建工作流。
-        </Box>
-      ) : (
-        <TableContainer>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>名称</TableCell>
-                <TableCell>所属 Agent</TableCell>
-                <TableCell>类型</TableCell>
-                <TableCell>状态</TableCell>
-                <TableCell>版本</TableCell>
-                <TableCell align="right">执行次数</TableCell>
-                <TableCell>最近执行</TableCell>
-                <TableCell align="right">操作</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {rows.map((w) => (
-                <TableRow key={`${w.agent_id}-${w.id}`} hover>
-                  <TableCell>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {w.name}
-                    </Typography>
-                    {w.description && (
-                      <Typography variant="caption" color="text.secondary">
-                        {w.description}
-                      </Typography>
-                    )}
-                  </TableCell>
-                  <TableCell>{w.agent_name}</TableCell>
-                  <TableCell>
-                    <Chip size="small" variant="outlined" label={TYPE_LABEL[w.workflow_type] ?? w.workflow_type} />
-                  </TableCell>
-                  <TableCell>
-                    <Chip size="small" color={STATUS_COLOR[w.status] ?? 'default'} label={w.status} />
-                  </TableCell>
-                  <TableCell>v{w.version}</TableCell>
-                  <TableCell align="right">{w.exec_count}</TableCell>
-                  <TableCell>{w.last_exec_at ? new Date(w.last_exec_at).toLocaleString() : '—'}</TableCell>
-                  <TableCell align="right">
-                    <IconButton size="small" color="primary" onClick={() => handleExecute(w)} disabled={runningId === w.id} title="立即执行">
-                      <PlayArrowIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton size="small" onClick={() => { setScheduleFor(w); setCronExpr('0 * * * *'); setOverlap('skip') }} title="定时调度">
-                      <ScheduleIcon fontSize="small" />
-                    </IconButton>
-                    {onEdit && (
-                      <IconButton size="small" onClick={() => onEdit(w)} title="编辑">
-                        <EditOutlinedIcon fontSize="small" />
-                      </IconButton>
-                    )}
-                    <IconButton size="small" color="error" onClick={() => handleDelete(w)} title="删除">
-                      <DeleteOutlineIcon fontSize="small" />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      )}
+      <DataGridTable
+        title={`全部工作流(${allRows.length})`}
+        columns={columns}
+        // 纯内存切片;读 ref 避免 fetchData 闭包捕获 stale allRows。
+        // 真实数据加载由 useEffect 内的 load() 完成,完成后再 setTick 触发这里。
+        fetchData={async ({ pageNumber, pageSize }) => {
+          const rows = rowsRef.current
+          const start = (pageNumber - 1) * pageSize
+          return { records: rows.slice(start, start + pageSize), totalRow: rows.length }
+        }}
+        extraParams={{ tick, count: allRows.length }}
+        onEdit={onEdit ? (row) => onEdit(row) : undefined}
+        onDelete={handleDelete}
+        toolBarRender={
+          onCreate
+            ? () => (
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Button variant="contained" startIcon={<AddIcon />} onClick={onCreate}>
+                    新建工作流
+                  </Button>
+                </Box>
+              )
+            : undefined
+        }
+        customActions={[
+          {
+            label: '执行',
+            icon: <PlayArrowIcon fontSize="small" />,
+            color: 'primary',
+            onClick: (row: WorkflowRow) => handleExecute(row),
+          },
+          {
+            label: '定时',
+            icon: <ScheduleIcon fontSize="small" />,
+            onClick: (row: WorkflowRow) => {
+              setScheduleFor(row)
+              setCronExpr('0 * * * *')
+              setOverlap('skip')
+            },
+          },
+        ]}
+      />
 
       {/* 定时调度配置弹窗 */}
       <Dialog open={!!scheduleFor} onClose={() => setScheduleFor(null)} maxWidth="xs" fullWidth>

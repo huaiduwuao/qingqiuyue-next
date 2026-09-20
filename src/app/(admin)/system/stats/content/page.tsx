@@ -22,6 +22,7 @@ import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import { useQuery } from '@tanstack/react-query';
 import { adminClient } from '@/lib/api/client';
 import { SignalHealthCard } from '@/components/admin/SignalHealthCard';
+import { CoverImage } from '@/components/common/CoverImage';
 import { alpha } from '@mui/material/styles';
 
 interface ContentStats {
@@ -209,12 +210,10 @@ export default function ContentStatsPage() {
                             {i + 1}
                           </Typography>
                           {item.cover ? (
-                            <Box
-                              component="img"
+                            <CoverImage
                               src={item.cover}
                               alt={item.title}
                               sx={{ width: 64, height: 48, objectFit: 'cover', borderRadius: 1, flexShrink: 0 }}
-                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                             />
                           ) : (
                             <Skeleton variant="rounded" width={64} height={48} />

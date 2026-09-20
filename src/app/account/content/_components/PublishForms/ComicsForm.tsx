@@ -374,6 +374,7 @@ export default function ComicsForm({ onSuccess }: PublishFormProps) {
           </Box>
 
           {f.renderPricing({ serial: true })}
+          {f.renderSchedule()}
 
           <Button
             variant="contained"

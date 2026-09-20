@@ -38,6 +38,7 @@ export default function MCPManager({ token }: Props) {
   const [catalog, setCatalog] = useState<MCPCatalogEntry[]>([])
   const [servers, setServers] = useState<MCPServer[]>([])
   const [tools, setTools] = useState<Record<number, MCPTool[]>>({})
+  const [logs, setLogs] = useState<{ name: string; text: string } | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [installing, setInstalling] = useState<MCPCatalogEntry | 'custom' | null>(null)
@@ -118,6 +119,17 @@ export default function MCPManager({ token }: Props) {
     }
   }
 
+  // 容器日志:接不上的时候(npx 拉包失败、命令写错……)只有这里看得到原因。
+  const showLogs = async (s: MCPServer) => {
+    setLogs({ name: s.name, text: '' })
+    try {
+      const r = await api<{ logs: string }>(`/servers/${s.id}/logs?tail=200`)
+      setLogs({ name: s.name, text: r.logs || '(没有日志)' })
+    } catch (e: any) {
+      setLogs({ name: s.name, text: `读日志失败: ${e.message}` })
+    }
+  }
+
   const loadTools = async (s: MCPServer) => {
     try {
       const r = await api<{ list: MCPTool[] }>(`/servers/${s.id}/tools`)
@@ -166,6 +178,9 @@ export default function MCPManager({ token }: Props) {
                     <Button size="small" onClick={() => loadTools(s)} disabled={s.status !== 'running'}>
                       {tools[s.id] ? `${tools[s.id].length} 个工具` : `${s.tool_count} 个工具`}
                     </Button>
+                    {s.docker_image && (
+                      <Button size="small" onClick={() => showLogs(s)}>日志</Button>
+                    )}
                     <Box sx={{ flex: 1 }} />
                     {s.status === 'running' ? (
                       <Button size="small" onClick={() => act(s, 'stop')} disabled={busy}>停止</Button>
@@ -223,6 +238,21 @@ export default function MCPManager({ token }: Props) {
           ))}
         </Box>
       </Box>
+
+      <Dialog open={!!logs} onClose={() => setLogs(null)} maxWidth="md" fullWidth>
+        <DialogTitle>{logs?.name} 的容器日志</DialogTitle>
+        <DialogContent>
+          <Box
+            component="pre"
+            sx={{ m: 0, p: 1.5, fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 440, overflowY: 'auto', bgcolor: 'action.hover', borderRadius: 1 }}
+          >
+            {logs?.text || '读取中…'}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setLogs(null)}>关闭</Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={!!installing} onClose={() => !busy && setInstalling(null)} maxWidth="sm" fullWidth>
         <DialogTitle>{installing === 'custom' ? '接入远程 MCP 服务' : `安装 ${installing?.name ?? ''}`}</DialogTitle>

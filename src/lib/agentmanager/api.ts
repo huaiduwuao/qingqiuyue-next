@@ -922,6 +922,14 @@ export interface ModelProvider {
   api_format?: 'openai' | 'anthropic'
   /** 认证字段:authorization(Bearer) / x-api-key / api-key(查询参数) */
   auth_field?: 'authorization' | 'x-api-key' | 'api-key'
+  /** 阶段 1 新增:输入 token 单价(钻/千 token),0=不计费 */
+  input_price_per_1k?: number
+  /** 阶段 1 新增:输出 token 单价(钻/千 token),0=不计费 */
+  output_price_per_1k?: number
+  /** 阶段 1 新增:每分钟请求上限,0=不限 */
+  rpm?: number
+  /** 阶段 1 新增:每分钟 token 上限,0=不限 */
+  tpm?: number
   create_time?: string
   update_time?: string
 }

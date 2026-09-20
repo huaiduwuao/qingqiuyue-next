@@ -24,6 +24,7 @@ import {
   type PlaylistImportPreview,
 } from '@/apis/my-list';
 import { formatApiError } from '@/lib/api/client';
+import { CoverImage } from '@/components/common/CoverImage';
 import type { EntityId } from '@/lib/id';
 
 /**
@@ -172,7 +173,7 @@ export default function PlaylistImportDialog({
             <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
               <Box sx={{ width: 72, height: 72, borderRadius: 2, overflow: 'hidden', bgcolor: 'action.selected', flexShrink: 0 }}>
                 {preview.coverUrl && (
-                  <Box component="img" src={preview.coverUrl} alt="" referrerPolicy="no-referrer" sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <CoverImage src={preview.coverUrl} alt="" referrerPolicy="no-referrer" sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 )}
               </Box>
               <Box sx={{ minWidth: 0 }}>

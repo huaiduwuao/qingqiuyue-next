@@ -1,10 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
 import InputBase from '@mui/material/InputBase';
 import Skeleton from '@mui/material/Skeleton';
 import Typography from '@mui/material/Typography';
@@ -16,12 +15,35 @@ import { fetchTopics, type CommunityTopic } from '@/apis/community';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import { TopicFollowButton } from './TopicFollowButton';
 import { compactCount, topicGradient, topicHref } from './format';
+import { coverBackground } from '@/lib/media';
+import { useListLayout } from '@/lib/listLayoutPrefs';
+
+const TOPIC_PAGE_SIZE = 12;
+
+/** 滚动到底自动加载下一页(与动态流一致):在列表尾部放一个哨兵,IntersectionObserver 触发 */
+function useAutoLoad(hasNextPage: boolean, isFetchingNextPage: boolean, fetchNextPage: () => void) {
+  const sentinel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el) return;
+    const ob = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) fetchNextPage();
+      },
+      { rootMargin: '300px' },
+    );
+    ob.observe(el);
+    return () => ob.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  return sentinel;
+}
 
 /** 首页「专题」页签:我关注的 / 热门话题 / 精选合集 */
 export function TopicHub() {
   const { isAuthenticated } = useAuth();
   const [q, setQ] = useState('');
   const [keyword, setKeyword] = useState('');
+  const [layout] = useListLayout();
   useEffect(() => {
     const t = setTimeout(() => setKeyword(q.trim()), 300);
     return () => clearTimeout(t);
@@ -32,21 +54,29 @@ export function TopicHub() {
     queryFn: () => fetchTopics({ following: true, size: 30 }),
     enabled: isAuthenticated && !keyword,
   });
-  const hot = useQuery({
+  // 热门话题:无限滚动,滚到底自动翻页
+  const hot = useInfiniteQuery({
     queryKey: ['community', 'topics', 'hot', keyword],
-    queryFn: () => fetchTopics({ kind: 'topic', sort: 'hot', keyword, size: 12 }),
+    queryFn: ({ pageParam }) => fetchTopics({ kind: 'topic', sort: 'hot', keyword, page: pageParam, size: TOPIC_PAGE_SIZE }),
+    initialPageParam: 1,
+    getNextPageParam: (last) => (last.page * last.pageSize < last.total ? last.page + 1 : undefined),
   });
+  const hotList = hot.data?.pages.flatMap((p) => p.list) ?? [];
+  const hotSentinel = useAutoLoad(!!hot.hasNextPage, hot.isFetchingNextPage, hot.fetchNextPage);
+
   const collections = useInfiniteQuery({
     queryKey: ['community', 'topics', 'collections', keyword],
-    queryFn: ({ pageParam }) => fetchTopics({ kind: 'collection', sort: 'hot', keyword, page: pageParam, size: 12 }),
+    queryFn: ({ pageParam }) => fetchTopics({ kind: 'collection', sort: 'hot', keyword, page: pageParam, size: TOPIC_PAGE_SIZE }),
     initialPageParam: 1,
     getNextPageParam: (last) => (last.page * last.pageSize < last.total ? last.page + 1 : undefined),
   });
   const collectionList = collections.data?.pages.flatMap((p) => p.list) ?? [];
+  const collectionSentinel = useAutoLoad(!!collections.hasNextPage, collections.isFetchingNextPage, collections.fetchNextPage);
 
   return (
-    // main 是列向 flex:只写 mx:auto 不给宽度会缩成内容宽,宽屏上整页挤成中间一窄条
-    <Box sx={{ px: { xs: 1.5, md: 3 }, py: 2, width: '100%', maxWidth: 'var(--page-max)', mx: 'auto', boxSizing: 'border-box' }}>
+    // main 是列向 flex:只写 mx:auto 不给宽度会缩成内容宽,宽屏上整页挤成中间一窄条;
+    // 列表样式单列阅读限宽(同动态页),网格/瀑布流铺满
+    <Box sx={{ px: { xs: 1.5, md: 3 }, py: 2, width: '100%', maxWidth: layout === 'list' ? 'var(--page-max-narrow)' : 'var(--page-max)', mx: 'auto', boxSizing: 'border-box' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 2, flexWrap: 'wrap' }}>
         <Box sx={{ width: 34, height: 34, borderRadius: 1.5, background: 'linear-gradient(135deg, #FF8A3D 0%, #FE2C55 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <CollectionsRoundedIcon sx={{ fontSize: 19, color: '#fff' }} />
@@ -77,12 +107,19 @@ export function TopicHub() {
       <Section title="热门话题" hint="写 #话题名# 发帖即可参与,没有的话题会自动创建">
         {hot.isLoading ? (
           <Grid min={220}>{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} variant="rounded" height={76} />)}</Grid>
-        ) : (hot.data?.list.length ?? 0) === 0 ? (
+        ) : hotList.length === 0 ? (
           <Typography sx={{ fontSize: 12, color: 'var(--text-muted, rgba(255,255,255,0.45))' }}>没有找到相关话题</Typography>
         ) : (
-          <ListLayout rows minColumnWidth={240} listMaxWidth="var(--page-max-narrow)">
-            {hot.data!.list.map((t, i) => <TopicTile key={String(t.id)} topic={t} rank={keyword ? undefined : i + 1} />)}
-          </ListLayout>
+          <>
+            <ListLayout rows minColumnWidth={240} listMaxWidth="var(--page-max-narrow)">
+              {hotList.map((t, i) => <TopicTile key={String(t.id)} topic={t} rank={keyword ? undefined : i + 1} />)}
+            </ListLayout>
+            <Box ref={hotSentinel} sx={{ height: 1 }} />
+            {hot.isFetchingNextPage && <Grid min={220} >{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} variant="rounded" height={76} />)}</Grid>}
+            {!hot.hasNextPage && hotList.length > 0 && (
+              <Typography sx={{ textAlign: 'center', py: 2, fontSize: 12, color: 'var(--text-muted, rgba(255,255,255,0.35))' }}>- 没有更多了 -</Typography>
+            )}
+          </>
         )}
       </Section>
 
@@ -96,10 +133,10 @@ export function TopicHub() {
             <ListLayout minColumnWidth={260} listMaxWidth="var(--page-max-narrow)">
               {collectionList.map((t) => <CollectionCard key={String(t.id)} topic={t} />)}
             </ListLayout>
-            {collections.hasNextPage && (
-              <Box sx={{ textAlign: 'center', mt: 2 }}>
-                <Button size="small" disabled={collections.isFetchingNextPage} onClick={() => collections.fetchNextPage()}>加载更多</Button>
-              </Box>
+            <Box ref={collectionSentinel} sx={{ height: 1 }} />
+            {collections.isFetchingNextPage && <Grid min={240}>{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} variant="rounded" height={190} />)}</Grid>}
+            {!collections.hasNextPage && collectionList.length > 0 && (
+              <Typography sx={{ textAlign: 'center', py: 2, fontSize: 12, color: 'var(--text-muted, rgba(255,255,255,0.35))' }}>- 没有更多了 -</Typography>
             )}
           </>
         )}
@@ -127,7 +164,7 @@ function Grid({ min, children }: { min: number; children: React.ReactNode }) {
 function TopicTile({ topic, rank }: { topic: CommunityTopic; rank?: number }) {
   return (
     <Box component={Link} href={topicHref(topic.id)} sx={{ ...cardSx, p: 1.5, display: 'flex', alignItems: 'center', gap: 1.25, textDecoration: 'none' }}>
-      <Box sx={{ width: 44, height: 44, borderRadius: 1.5, flexShrink: 0, background: topic.cover ? `center/cover url(${topic.cover})` : topicGradient(topic.title), display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 18 }}>
+      <Box sx={{ width: 44, height: 44, borderRadius: 1.5, flexShrink: 0, background: coverBackground(topic.cover, topicGradient(topic.title)), display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 18 }}>
         {topic.cover ? null : '#'}
       </Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -146,7 +183,7 @@ function TopicTile({ topic, rank }: { topic: CommunityTopic; rank?: number }) {
 function CollectionCard({ topic }: { topic: CommunityTopic }) {
   return (
     <Box component={Link} href={topicHref(topic.id)} sx={{ ...cardSx, display: 'block', overflow: 'hidden', textDecoration: 'none', transition: 'transform .2s', '&:hover': { transform: 'translateY(-2px)' }, [LIST_ROW]: { display: 'flex' } }}>
-      <Box sx={{ height: 110, position: 'relative', background: topic.cover ? `center/cover url(${topic.cover})` : topicGradient(topic.title), [LIST_ROW]: { height: 'auto', minHeight: 96, width: { xs: 120, sm: 200 }, flexShrink: 0 } }}>
+      <Box sx={{ height: 110, position: 'relative', background: coverBackground(topic.cover, topicGradient(topic.title)), [LIST_ROW]: { height: 'auto', minHeight: 96, width: { xs: 120, sm: 200 }, flexShrink: 0 } }}>
         {!topic.cover && (
           <Typography sx={{ position: 'absolute', left: 14, bottom: 10, right: 14, fontSize: 20, fontWeight: 900, [LIST_ROW]: { fontSize: 15, left: 10, right: 10 }, color: '#fff', textShadow: '0 2px 8px rgba(0,0,0,0.25)' }}>{topic.title}</Typography>
         )}

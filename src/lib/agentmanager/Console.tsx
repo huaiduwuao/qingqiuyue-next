@@ -24,9 +24,11 @@ import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
 import IconButton from '@mui/material/IconButton'
+import Pagination from '@mui/material/Pagination'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import { agentmAPI, type Instance, type Agent, type AuditLog, type Skill, type MonitoringOverview, type InstanceStats, type UsageStats, type CostStats } from './api'
+import GatewayQuotaPanel from './GatewayQuotaPanel'
 import KanbanBoard from './kanban/KanbanBoard'
 import DraftsPanel from './drafts/DraftsPanel'
 import MCPManager from './mcp/MCPManager'
@@ -80,6 +82,8 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
   // Data states
   const [instances, setInstances] = useState<Instance[]>([])
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
+  const [auditPage, setAuditPage] = useState(1)
+  const [auditTotal, setAuditTotal] = useState(0)
   const [skills, setSkills] = useState<Skill[]>([])
   const [overview, setOverview] = useState<MonitoringOverview | null>(null)
   const [instanceStats, setInstanceStats] = useState<InstanceStats[]>([])
@@ -131,22 +135,26 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
     }
   }, [token])
 
-  // Load audit logs
-  const loadAuditLogs = async () => {
+  // Load audit logs(分页:管理员看全量,普通用户只看自己的)
+  const auditLimit = isAdmin ? 100 : 50
+  const loadAuditLogs = useCallback(async () => {
     if (!token) return
     agentmAPI.setToken(token)
     setLoading(true)
     try {
       // 管理员看全量(后台运行、工作流没有登录用户,只在全量里);普通用户只看自己的
-      const res = isAdmin ? await agentmAPI.getFullAuditLog({ limit: 100 }) : await agentmAPI.getAuditLog({ limit: 50 })
+      const res = isAdmin
+        ? await agentmAPI.getFullAuditLog({ page: auditPage, limit: auditLimit })
+        : await agentmAPI.getAuditLog({ page: auditPage, limit: auditLimit })
       setAuditLogs(res.list || [])
+      setAuditTotal(res.total || 0)
       if (isAdmin) setCostStats(await agentmAPI.getCostStats().catch(() => null))
     } catch (e: any) {
       console.error('Load audit error:', e)
     } finally {
       setLoading(false)
     }
-  }
+  }, [token, isAdmin, auditPage, auditLimit])
 
   // Load skills
   const loadSkills = async () => {
@@ -169,10 +177,19 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
     }
   }, [isAuthenticated, token, loadData])
 
+  // 切到 audit tab 时重置到第 1 页
+  useEffect(() => {
+    if (activeTab === 'audit') setAuditPage(1)
+  }, [activeTab])
+
+  // audit 数据:切到该 tab 或翻页时重拉(loadAuditLogs 依赖 auditPage)
   useEffect(() => {
     if (isAuthenticated && activeTab === 'audit') {
       loadAuditLogs()
     }
+  }, [isAuthenticated, activeTab, loadAuditLogs])
+
+  useEffect(() => {
     if (isAuthenticated && activeTab === 'skills') {
       loadSkills()
     }
@@ -668,6 +685,16 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
             ) : (
               <Alert severity="info">暂无审计日志</Alert>
             )}
+            {Math.ceil(auditTotal / auditLimit) > 1 && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                <Pagination
+                  count={Math.ceil(auditTotal / auditLimit)}
+                  page={auditPage}
+                  onChange={(_, p) => setAuditPage(p)}
+                  color="primary"
+                />
+              </Box>
+            )}
           </Box>
         )}
 
@@ -709,59 +736,7 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
         )}
 
         {/* Gateway Tab */}
-        {activeTab === 'gateway' && !loading && (
-          <Box>
-            <Typography variant="h6" sx={{ mb: 3 }}>AI 网关</Typography>
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2 }}>
-              <Card>
-                <CardContent>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>配额使用</Typography>
-                  {overview && (
-                    <Box>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                        <Typography variant="body2" color="text.secondary">Token 配额</Typography>
-                        <Typography variant="body2">
-                          {overview.quota.used.toLocaleString()} / {overview.quota.total.toLocaleString()}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ bgcolor: 'grey.700', borderRadius: 1, height: 8, overflow: 'hidden' }}>
-                        <Box
-                          sx={{
-                            bgcolor: 'primary.main',
-                            height: '100%',
-                            width: `${Math.min(overview.quota.usage_percent, 100)}%`,
-                            borderRadius: 1,
-                          }}
-                        />
-                      </Box>
-                    </Box>
-                  )}
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 2 }}>可用模型</Typography>
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                    {/* 以前是写死的 4 个名字;现在取网关 /gateway/llm/models 实际暴露的已发布 Agent */}
-                    <Typography variant="caption" color="text.secondary">
-                      调用 OpenAI 兼容接口时 model 可填这些已发布 Agent 的 ID;请求直连默认模型供应商。
-                    </Typography>
-                    {gatewayModels.map(m => (
-                      <Box key={m.id} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: 'success.main' }} />
-                        <Typography variant="body2">{m.name}</Typography>
-                        <Typography variant="caption" color="text.secondary">{m.id}</Typography>
-                      </Box>
-                    ))}
-                    {gatewayModels.length === 0 && (
-                      <Typography variant="body2" color="text.secondary">暂无已发布且带 agent_id 的 Agent</Typography>
-                    )}
-                  </Box>
-                </CardContent>
-              </Card>
-            </Box>
-          </Box>
-        )}
+        {activeTab === 'gateway' && !loading && <GatewayQuotaPanel embedded />}
 
         {/* Runs Tab:后台运行 + 审批 */}
         {activeTab === 'runs' && token && <RunsPanel token={token} />}

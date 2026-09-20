@@ -32,6 +32,7 @@ import { TYPE_LABEL, useContentNavigate } from '@/lib/contentRoute';
 import { CoverImage } from '@/components/common/CoverImage';
 import { BotBadge } from '@/components/community/UserLine';
 import { ListLayout, LIST_ROW } from '@/components/common/ListLayout';
+import PublicTopBar from '@/components/layout/PublicTopBar';
 import {
   addFriend,
   blockUser,
@@ -131,7 +132,9 @@ export default function UserProfilePage() {
   const rel = p?.relation;
 
   return (
-    <Box sx={{ maxWidth: 960, mx: 'auto', px: { xs: 2, md: 3 }, py: { xs: 2, md: 3 } }}>
+    <>
+      <PublicTopBar title={p?.user.nickname || '用户主页'} maxWidth="lg" />
+      <Box sx={{ maxWidth: 960, mx: 'auto', px: { xs: 2, md: 3 }, py: { xs: 2, md: 3 } }}>
       <Box
         sx={{
           display: 'flex',
@@ -345,7 +348,8 @@ export default function UserProfilePage() {
       </Dialog>
 
       <Snackbar open={!!toast} autoHideDuration={2400} onClose={() => setToast(null)} message={toast} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} />
-    </Box>
+      </Box>
+    </>
   );
 }
 

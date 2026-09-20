@@ -8,6 +8,7 @@ import Chip from '@mui/material/Chip';
 import Typography from '@mui/material/Typography';
 import { TYPE_LABEL, TYPE_TO_ROUTE } from '@/lib/contentType.gen';
 import { yuan, type Realization } from '@/apis/team';
+import { CoverImage } from '@/components/common/CoverImage';
 
 interface Props {
   items: Realization[];
@@ -39,7 +40,7 @@ export default function RealizationList({ items, empty = '还没有验收通过�
             sx={{ display: 'flex', gap: 1.5, p: 1.25, borderRadius: 1.5, border: 1, borderColor: 'divider', bgcolor: 'background.paper', minWidth: 0 }}
           >
             {!compact && r.workCover && (
-              <Box component="img" src={r.workCover} alt="" loading="lazy" sx={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 1, flexShrink: 0 }} />
+              <CoverImage src={r.workCover} alt="" loading="lazy" sx={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 1, flexShrink: 0 }} />
             )}
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <Typography noWrap sx={{ fontSize: 13.5, fontWeight: 600 }}>

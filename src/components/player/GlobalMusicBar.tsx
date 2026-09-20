@@ -28,6 +28,7 @@ import LibraryMusicRoundedIcon from '@mui/icons-material/LibraryMusicRounded';
 import Snackbar from '@mui/material/Snackbar';
 import { useMusicPlayer, musicPlayer, currentTrack, type MusicTrack } from '@/lib/player/musicPlayer';
 import PlaylistPicker from './PlaylistPicker';
+import { CoverImage } from '@/components/common/CoverImage';
 
 const BAR_H = 64;
 const DISC = 56;
@@ -62,7 +63,9 @@ function Cover({ track, size, spin }: { track: MusicTrack; size: number; spin: b
       }}
     >
       {track.cover && !broken ? (
-        <Box component="img" src={track.cover} alt="" onError={() => setBroken(true)} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        /* 音乐封面:CoverImage 自动 mediaUrl 代理 + 失败兜底,
+           外站图防盗链 / MinIO 内网直链都能正常显示。 */
+        <CoverImage src={track.cover} alt="" sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       ) : (
         <MusicNoteRoundedIcon sx={{ color: 'text.secondary', fontSize: size * 0.45 }} />
       )}

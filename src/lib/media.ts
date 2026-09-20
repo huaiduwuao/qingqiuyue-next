@@ -184,3 +184,19 @@ export function coverBackground(raw?: string | null, fallback?: string): string 
   const layer = `center / cover no-repeat url("${mediaUrl(v).replace(/"/g, '%22')}")`;
   return fallback ? `${layer}, ${fallback}` : layer;
 }
+
+/**
+ * coverBackgroundImage —— 给 CSS `background-image` 用的封面值。
+ *
+ * 不要在 `backgroundImage` 上用 coverBackground():它返回的是 `background`
+ * 简写值(`center / cover no-repeat url(...)`),而 background-image 只收
+ * <bg-image>,浏览器会把整条声明判非法直接丢掉 → 封面彻底不显示(比没改还糟,
+ * 连 backgroundSize/Position 都白设)。定位和裁切请各自写 backgroundSize /
+ * backgroundPosition —— 这样也不会像简写那样顺手把 backgroundColor 重置掉。
+ */
+export function coverBackgroundImage(raw?: string | null): string | undefined {
+  const v = (raw ?? '').trim();
+  if (!v) return undefined;
+  if (/^(linear-|radial-|conic-|repeating-|url\()/i.test(v)) return v;
+  return `url("${mediaUrl(v).replace(/"/g, '%22')}")`;
+}
