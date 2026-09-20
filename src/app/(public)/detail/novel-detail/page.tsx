@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import ButtonBase from '@mui/material/ButtonBase';
@@ -18,7 +18,12 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { CoverImage } from '@/components/common/CoverImage';
 import { detail as contentDetail } from '@/apis/content-video';
 import { page as chapterPage, get as getChapterDetail, addShelf } from '@/apis/content-novel-chapter';
-import { useContentItems, type ContentItem } from '@/hooks/useContentItems';
+import {
+  useContentItems,
+  fetchContentItemsAll,
+  contentItemsQueryKey,
+  type ContentItem,
+} from '@/hooks/useContentItems';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
 import { useAuth } from '@/contexts/AuthContext';
 import { loginHref } from '@/lib/auth/redirect';
@@ -250,8 +255,26 @@ function NovelDetailContent() {
   });
   const detail = detailQuery.data ?? undefined;
 
+  // SSR 期 localStorage 不存在,挂载后再读。lastReadChapter 给 useContentItems
+  // 当 untilChapterId —— 长篇小说初次进入只拉目标章节所在页,不一次拉全本。
+  const [lastReadChapter, setLastReadChapter] = useState<string | null>(null);
+  useEffect(() => {
+    if (!id) return;
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 同步外部(localStorage)到 React
+      setLastReadChapter(loadProgress(id));
+    } catch {
+      /* 隐私模式读不到也不影响 */
+    }
+  }, [id]);
+
   // 目录只要标题:lite 模式下后端不逐章从 MinIO 拉正文,几千章的目录也是一次轻请求。
-  const tocQuery = useContentItems('novel', id, chapterPage, { lite: true });
+  // untilChapterId 让循环翻页"拉到含目标章节的页就停",首次进入只取 1-2 页。
+  const tocQuery = useContentItems('novel', id, chapterPage, {
+    lite: true,
+    untilChapterId: chapterParam || lastReadChapter || undefined,
+  });
+  const queryClient = useQueryClient();
   const legacy = useMemo(() => legacyChapters(id ?? '', detail), [id, detail]);
   const chapters = useMemo(() => {
     const rows = tocQuery.data?.items ?? [];
@@ -264,6 +287,20 @@ function NovelDetailContent() {
     [],
   );
 
+  // 抽屉打开时异步把目录补到全本(忽略 untilChapterId 的窗口截断)。
+  // 期间目录仍可用 —— 抽屉里展示的是当前缓存里的部分目录。
+  const loadFullToc = useCallback(async () => {
+    if (!id) return;
+    const key = contentItemsQueryKey('novel', id, {
+      lite: true,
+      untilChapterId: chapterParam || lastReadChapter || undefined,
+    });
+    const current = queryClient.getQueryData<{ items?: ContentItem[]; total?: number }>(key);
+    if (!current || (current.total ?? 0) <= (current.items?.length ?? 0)) return;
+    const full = await fetchContentItemsAll(chapterPage, id, { lite: true });
+    queryClient.setQueryData(key, full);
+  }, [id, queryClient, chapterParam, lastReadChapter]);
+
   const setUrlChapter = useCallback(
     (chapterId: string) => {
       if (!id) return;
@@ -273,16 +310,26 @@ function NovelDetailContent() {
     [id, pathname],
   );
 
-  // 起始章节只定一次:地址栏带 chapter 的定位到那一章,否则续读上次的位置
+  // 起始章节只定一次:地址栏带 chapter 的定位到那一章,否则续读上次的位置。
+  // wanted 不在缓存目录里(长篇小说初次进入时还没翻到那一页)就保持 null,
+  // 等抽屉打开时 loadFullToc 补全后再用 useEffect 依赖 chapters 重算 —— 不要
+  // 偷偷 reset 到 0,那样用户带 ?chapter= 进入会被弹回首章。
   useEffect(() => {
     if (range || tocLoading || chapters.length === 0 || !id) return;
     const wanted = chapterParam || loadProgress(id);
     const found = wanted ? chapters.findIndex((c) => c.id === wanted) : -1;
-    const start = Math.max(0, found);
-    setRange({ start, end: start });
-    setCurrent(start);
+    if (found < 0) return;
+    setRange({ start: found, end: found });
+    setCurrent(found);
     if (!chapterParam && found > 0) setOkMsg(`已为你定位到上次读到的「${chapters[found].title || `第 ${found + 1} 章`}」`);
   }, [range, tocLoading, chapters, chapterParam, id]);
+
+  // 目录抽屉打开时异步补全全本目录。已补到 total 时 loadFullToc 内部短路,
+  // 反复打开不会重复请求。补完后 useEffect(range) 依赖 chapters 也会重新跑,
+  // 处理"wanted 不在第一页"的情况。
+  useEffect(() => {
+    if (panel === 'toc') loadFullToc();
+  }, [panel, loadFullToc]);
 
   const goTo = useCallback(
     (i: number) => {

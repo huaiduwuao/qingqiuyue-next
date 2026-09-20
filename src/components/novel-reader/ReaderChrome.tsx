@@ -204,10 +204,11 @@ function PanelHeader({ theme, title, extra, onClose }: { theme: ReaderTheme; tit
 
 function TocPanel({ theme, chapters, current, onGo, onPanel }: ReaderChromeProps) {
   const listRef = useRef<HTMLDivElement>(null);
+  // 目录补全后(chapters.length 增加)重新定位当前章节到视口中央。
   useEffect(() => {
     const el = listRef.current?.querySelector<HTMLElement>('[data-current="true"]');
     el?.scrollIntoView({ block: 'center' });
-  }, []);
+  }, [chapters.length]);
 
   return (
     <>
