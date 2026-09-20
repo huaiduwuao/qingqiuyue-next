@@ -10,6 +10,9 @@
  *   - 取消:对未终态的任务点"取消"。
  *
  * 模板参照 sandbox/tasks/page.tsx;为简洁省略镜像管理。
+ *
+ * 权限:菜单入口挂 SYSTEM_OPS_TASK.VIEW,启动/取消按钮分别挂 CREATE / CANCEL。
+ * 三个码后端都真守着(internal/opstask/handler.go),这里藏按钮只是少让人白点。
  */
 
 import React, { useEffect, useState } from 'react';
@@ -35,6 +38,8 @@ import {
   cancelOpsTask,
   listOpsTaskKinds,
 } from '@/apis/opstask';
+import { useAuthority } from '@/contexts/AuthContext';
+import { PERMISSIONS } from '@/lib/permissions';
 import {
   OPS_TASK_STATUS_COLORS,
   OPS_TASK_STATUS_LABELS,
@@ -55,6 +60,9 @@ function formatDuration(ms?: number): string {
 
 export default function OpsTasksPage() {
   const qc = useQueryClient();
+  const { can } = useAuthority();
+  const canCreate = can(PERMISSIONS.SYSTEM_OPS_TASK.CREATE);
+  const canCancel = can(PERMISSIONS.SYSTEM_OPS_TASK.CANCEL);
   const [refreshToken, setRefreshToken] = useState(0);
   const [snack, setSnack] = useState<{ open: boolean; severity: 'success' | 'error'; msg: string }>(
     { open: false, severity: 'success', msg: '' },
@@ -138,9 +146,11 @@ export default function OpsTasksPage() {
       <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2 }}>
         <Typography variant="h5">数据迁移任务</Typography>
         <Box sx={{ flex: 1 }} />
-        <Button variant="contained" onClick={() => setStartOpen(true)}>
-          启动任务
-        </Button>
+        {canCreate && (
+          <Button variant="contained" onClick={() => setStartOpen(true)}>
+            启动任务
+          </Button>
+        )}
       </Box>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
         通用后台任务(internal/opstask):数据迁移 / backfill / 重算。任务在 content-api 进程内执行,
@@ -162,6 +172,7 @@ export default function OpsTasksPage() {
               <Row
                 key={r.id}
                 run={r}
+                canCancel={canCancel}
                 onOpen={() => setDetailId(r.id)}
                 onCancel={() => handleCancel(r.id)}
               />
@@ -227,7 +238,7 @@ export default function OpsTasksPage() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => detail.refetch()}>刷新</Button>
-          {detail.data && (detail.data.status === 'pending' || detail.data.status === 'running') && (
+          {canCancel && detail.data && (detail.data.status === 'pending' || detail.data.status === 'running') && (
             <Button color="error" onClick={() => detailId && handleCancel(detailId)}>
               取消任务
             </Button>
@@ -250,7 +261,17 @@ export default function OpsTasksPage() {
 }
 
 // ===== 行 =====
-function Row({ run, onOpen, onCancel }: { run: OpsTaskRun; onOpen: () => void; onCancel: () => void }) {
+function Row({
+  run,
+  canCancel,
+  onOpen,
+  onCancel,
+}: {
+  run: OpsTaskRun;
+  canCancel: boolean;
+  onOpen: () => void;
+  onCancel: () => void;
+}) {
   const total = run.total || 0;
   const processed = run.processed || 0;
   const percent = total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 0;
@@ -304,7 +325,7 @@ function Row({ run, onOpen, onCancel }: { run: OpsTaskRun; onOpen: () => void; o
       </Box>
       <Box sx={{ display: 'flex', gap: 1 }}>
         <Button size="small" onClick={onOpen}>详情</Button>
-        {!finished && (
+        {!finished && canCancel && (
           <Button size="small" color="error" onClick={onCancel}>取消</Button>
         )}
       </Box>
