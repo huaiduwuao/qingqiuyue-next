@@ -170,6 +170,12 @@ export const PERMISSIONS = {
     UPDATE: 'system:scene:update',
     DELETE: 'system:scene:delete',
   },
+  // 通用后台任务(internal/opstask):数据迁移 / backfill / 重算 / 清理
+  SYSTEM_OPS_TASK: {
+    VIEW: 'system:ops-task:list',
+    CREATE: 'system:ops-task:create',
+    CANCEL: 'system:ops-task:cancel',
+  },
 } as const;
 
 export type PermissionCode = string;

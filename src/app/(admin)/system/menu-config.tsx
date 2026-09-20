@@ -212,6 +212,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
     items: [
       { id: 'deployment', label: '部署管理', path: '/system/deployment', icon: <CloudSyncIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
       { id: 'log', label: '服务日志', path: '/system/log', icon: <TerminalRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
+      { id: 'ops-task', label: '数据迁移任务', path: '/system/ops/tasks', icon: <StorageRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55', permission: PERMISSIONS.SYSTEM_OPS_TASK.VIEW },
     ],
   },
   {
