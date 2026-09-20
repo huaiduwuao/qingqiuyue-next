@@ -29,6 +29,7 @@ import {
 } from '@mui/material'
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded'
 import type { DynamicUI, UIAction, UIBody, ListItem, GridItem, FormField } from './types'
+import { CoverImage } from '@/components/common/CoverImage'
 import { devLog } from '@/lib/dev-log'
 
 interface DynamicUIModalProps {
@@ -371,11 +372,10 @@ function renderBody(body: UIBody | undefined, onAction?: (action: UIAction) => v
                 onClick={() => item.action && onAction?.({ id: item.id || String(index), label: item.action, style: 'secondary', handler: 'intent' })}
               >
                 {item.image && (
-                  <Box
-                    component="img"
+                  <CoverImage
                     src={item.image}
                     alt={item.title}
-                    style={{ width: '100%', height: 120, objectFit: 'cover' }}
+                    sx={{ width: '100%', height: 120, objectFit: 'cover' }}
                   />
                 )}
                 <Box style={{ padding: 12 }}>

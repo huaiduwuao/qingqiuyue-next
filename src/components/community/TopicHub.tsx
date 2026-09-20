@@ -15,6 +15,7 @@ import { fetchTopics, type CommunityTopic } from '@/apis/community';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import { TopicFollowButton } from './TopicFollowButton';
 import { compactCount, topicGradient, topicHref } from './format';
+import { coverBackground } from '@/lib/media';
 import { useListLayout } from '@/lib/listLayoutPrefs';
 
 const TOPIC_PAGE_SIZE = 12;
@@ -163,7 +164,7 @@ function Grid({ min, children }: { min: number; children: React.ReactNode }) {
 function TopicTile({ topic, rank }: { topic: CommunityTopic; rank?: number }) {
   return (
     <Box component={Link} href={topicHref(topic.id)} sx={{ ...cardSx, p: 1.5, display: 'flex', alignItems: 'center', gap: 1.25, textDecoration: 'none' }}>
-      <Box sx={{ width: 44, height: 44, borderRadius: 1.5, flexShrink: 0, background: topic.cover ? `center/cover url(${topic.cover})` : topicGradient(topic.title), display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 18 }}>
+      <Box sx={{ width: 44, height: 44, borderRadius: 1.5, flexShrink: 0, background: coverBackground(topic.cover, topicGradient(topic.title)), display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 18 }}>
         {topic.cover ? null : '#'}
       </Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -182,7 +183,7 @@ function TopicTile({ topic, rank }: { topic: CommunityTopic; rank?: number }) {
 function CollectionCard({ topic }: { topic: CommunityTopic }) {
   return (
     <Box component={Link} href={topicHref(topic.id)} sx={{ ...cardSx, display: 'block', overflow: 'hidden', textDecoration: 'none', transition: 'transform .2s', '&:hover': { transform: 'translateY(-2px)' }, [LIST_ROW]: { display: 'flex' } }}>
-      <Box sx={{ height: 110, position: 'relative', background: topic.cover ? `center/cover url(${topic.cover})` : topicGradient(topic.title), [LIST_ROW]: { height: 'auto', minHeight: 96, width: { xs: 120, sm: 200 }, flexShrink: 0 } }}>
+      <Box sx={{ height: 110, position: 'relative', background: coverBackground(topic.cover, topicGradient(topic.title)), [LIST_ROW]: { height: 'auto', minHeight: 96, width: { xs: 120, sm: 200 }, flexShrink: 0 } }}>
         {!topic.cover && (
           <Typography sx={{ position: 'absolute', left: 14, bottom: 10, right: 14, fontSize: 20, fontWeight: 900, [LIST_ROW]: { fontSize: 15, left: 10, right: 10 }, color: '#fff', textShadow: '0 2px 8px rgba(0,0,0,0.25)' }}>{topic.title}</Typography>
         )}

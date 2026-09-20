@@ -15,6 +15,7 @@ import Paper from '@mui/material/Paper';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import { DataGridTable } from '@/components/tables/DataGridTable';
+import { CoverImage } from '@/components/common/CoverImage';
 import { myPage, ModuleContentItem } from '@/apis/module-content';
 import { listSources } from '@/apis/spider';
 import type { GridColDef } from '@mui/x-data-grid';
@@ -106,8 +107,7 @@ export default function CrawledPage() {
         sortable: false,
         renderCell: (p) =>
           p.value ? (
-            <Box
-              component="img"
+            <CoverImage
               src={p.value}
               sx={{ width: 40, height: 40, borderRadius: 0.5, objectFit: 'cover' }}
             />

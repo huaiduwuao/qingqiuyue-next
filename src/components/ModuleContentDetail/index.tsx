@@ -23,6 +23,7 @@ import StarIcon from '@mui/icons-material/Star';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
 import ShareIcon from '@mui/icons-material/Share';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ModeCommentOutlined';
+import { CoverImage } from '@/components/common/CoverImage';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import SendIcon from '@mui/icons-material/Send';
 import FavoriteIcon from '@mui/icons-material/Favorite';
@@ -221,17 +222,16 @@ export default function ModuleContentDetail({ detail, onClose }: ModuleContentDe
             overflow: 'hidden',
           }}
         >
-          <Box
-            component="img"
-            src={detail.cover || undefined}
+          {/* 分享/外链详情首图:走 CoverImage → mediaUrl 统一代理改写 + 失败兜底,
+              避免外链图防盗链 / MinIO 内网直链在公网打不开。原 onError display:none
+              会让占位都没了。 */}
+          <CoverImage
+            src={detail.cover}
             alt={contentName}
             sx={{
               width: '100%',
               height: '100%',
               objectFit: 'cover',
-            }}
-            onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
-              e.currentTarget.style.display = 'none';
             }}
           />
           <Box

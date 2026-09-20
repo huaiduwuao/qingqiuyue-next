@@ -684,7 +684,9 @@ export function RecommendVideoFeed() {
                   sx={{
                     position: 'absolute',
                     inset: 0,
-                    background: `url(${v.cover}) center/cover`,
+                    /* CSS url() 里的字符串必须包引号,否则含 ? & 空格等会断;
+                       外站/MinIO 内网直链必须过 mediaUrl 走代理改写。 */
+                    background: `url("${mediaUrl(v.cover)}") center/cover no-repeat`,
                   }}
                 />
               )}

@@ -25,6 +25,7 @@ import { aiSearch, type AISearchItem } from '@/apis/aiSearch';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { formatApiError } from '@/lib/api/client';
 import { ListLayout, LIST_ROW } from '@/components/common/ListLayout';
+import { CoverImage } from '@/components/common/CoverImage';
 
 export const AI_GRADIENT = `linear-gradient(135deg, ${ACCENT.blue.main} 0%, ${ACCENT.purple.main} 100%)`;
 
@@ -206,7 +207,6 @@ function AIBubble({ children, tone = 'ai' }: { children: React.ReactNode; tone?:
 
 function AIResultCard({ item }: { item: AISearchItem }) {
   const navigateContent = useContentNavigate();
-  const [broken, setBroken] = useState(false);
   return (
     <Box
       component="button"
@@ -223,17 +223,13 @@ function AIResultCard({ item }: { item: AISearchItem }) {
       }}
     >
       <Box sx={{ position: 'relative', aspectRatio: '4 / 3', [LIST_ROW]: { width: { xs: 120, sm: 200 }, flexShrink: 0 }, background: `linear-gradient(135deg, ${ACCENT.blue.soft18}, ${ACCENT.purple.soft18})` }}>
-        {item.cover && !broken && (
-          <Box
-            component="img"
-            src={item.cover}
-            alt=""
-            loading="lazy"
-            referrerPolicy="no-referrer"
-            onError={() => setBroken(true)}
-            sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-          />
-        )}
+        <CoverImage
+          src={item.cover}
+          alt=""
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+        />
         <Box sx={{ position: 'absolute', inset: 0, background: IMAGE_OVERLAY.LIGHT }} />
         <Typography
           sx={{

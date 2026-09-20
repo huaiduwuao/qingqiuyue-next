@@ -26,6 +26,7 @@ import Typography from '@mui/material/Typography';
 import AutoStoriesRoundedIcon from '@mui/icons-material/AutoStoriesRounded';
 import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
 import MovieRoundedIcon from '@mui/icons-material/MovieRounded';
+import { CoverImage } from '@/components/common/CoverImage';
 import PublicTopBar from '@/components/layout/PublicTopBar';
 import {
   searchAndCrawlNovel,
@@ -245,7 +246,7 @@ function StreamResultView({ result }: { result: ResolveStreamResult }) {
         {result.coverUrl && (
           <Box sx={{ mt: 1 }}>
             <Typography variant="caption" color="text.disabled">封面</Typography>
-            <Box component="img" src={result.coverUrl} alt="cover" sx={{ maxWidth: 200, borderRadius: 1, mt: 0.5 }} />
+            <CoverImage src={result.coverUrl} alt="cover" sx={{ maxWidth: 200, borderRadius: 1, mt: 0.5 }} />
           </Box>
         )}
         {(result.width || result.height) && (

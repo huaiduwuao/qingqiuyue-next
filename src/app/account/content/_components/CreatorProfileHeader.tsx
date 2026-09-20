@@ -13,6 +13,7 @@ import StarIcon from '@mui/icons-material/Star';
 import { useQuery } from '@tanstack/react-query';
 import { getCreatorProfile, type CreatorBadge } from '@/apis/dashboard';
 import { gradient2, gradient3 } from '@/constants/gradients';
+import { coverBackground } from '@/lib/media';
 import { alpha } from '@mui/material/styles';
 import { DARK_BG } from '@/constants/gradients';
 import { useActiveTab } from '../ActiveTabContext';
@@ -110,7 +111,9 @@ export default function CreatorProfileHeader() {
       <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', gap: { xs: 2, md: 3 }, flexWrap: 'wrap' }}>
         <Box sx={{ position: 'relative', flexShrink: 0 }}>
           <Box sx={{ width: { xs: 72, md: 88 }, height: { xs: 72, md: 88 }, borderRadius: '50%', padding: '3px', background: gradient3('#FE2C55', '#FFB400', '#25F4EE') }}>
-            <Box sx={{ width: '100%', height: '100%', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: { xs: 28, md: 36 }, fontWeight: 700, color: 'text.primary', background: profile.avatar ? `url(${profile.avatar}) center/cover` : gradient2('#FE2C55', '#25F4EE') }}>
+            {/* 创作者头像:avatar 可能是 /qq-avatar/... presigned URL,mediaUrl 会保持原样;
+                也可能是外站/MinIO 直链,coverBackground 会包 url() + 经代理改写。 */}
+            <Box sx={{ width: '100%', height: '100%', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: { xs: 28, md: 36 }, fontWeight: 700, color: 'text.primary', background: coverBackground(profile.avatar, gradient2('#FE2C55', '#25F4EE')) }}>
               {!profile.avatar && (profile.nickname?.charAt(0) || '?')}
             </Box>
           </Box>

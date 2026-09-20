@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Aurora from '@/components/reactbits/Aurora';
+import { CoverImage } from '@/components/common/CoverImage';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
@@ -1207,8 +1208,7 @@ function RechargePageContent() {
                 }
                 return (
                   <Box sx={{ textAlign: 'center' }}>
-                    <Box
-                      component="img"
+                    <CoverImage
                       src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(codeUrl)}`}
                       alt="支付二维码"
                       sx={{ width: 180, height: 180, borderRadius: 2, bgcolor: '#fff', p: 1 }}

@@ -6,7 +6,6 @@ import {
   Typography,
   Card,
   CardContent,
-  CardMedia,
   Grid,
   Chip,
   LinearProgress,
@@ -46,6 +45,7 @@ import HourglassEmptyRoundedIcon from '@mui/icons-material/HourglassEmptyRounded
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import QueueRoundedIcon from '@mui/icons-material/QueueRounded';
 import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
+import { CoverImage } from '@/components/common/CoverImage';
 import { API_PREFIX } from '@/lib/api/prefix';
 
 // ── 类型 (对齐 Go studio.go) ──
@@ -348,9 +348,8 @@ export default function SystemDigitalHumanPage() {
                 onClick={() => setDetailAsset(a)}
               >
                 <Box sx={{ position: 'relative', pt: '75%', bgcolor: 'grey.100', overflow: 'hidden' }}>
-                  <CardMedia
-                    component="img"
-                    image={a.thumbnail || '/placeholder-cover.svg'}
+                  <CoverImage
+                    src={a.thumbnail}
                     alt={a.name}
                     sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
                   />

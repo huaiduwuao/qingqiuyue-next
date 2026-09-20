@@ -15,6 +15,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { CoverImage } from '@/components/common/CoverImage';
 import { detail as contentDetail } from '@/apis/content-video';
 import { page as chapterPage, get as getChapterDetail, addShelf } from '@/apis/content-novel-chapter';
 import { useContentItems, type ContentItem } from '@/hooks/useContentItems';
@@ -127,7 +128,9 @@ function BookCover({ detail, theme, chapterTotal, onStart, empty }: { detail?: N
       }}
     >
       {detail?.cover ? (
-        <Box component="img" src={detail.cover} alt={detail.title || ''} sx={{ width: 94, height: 125, objectFit: 'cover', borderRadius: '6px', boxShadow: '0 4px 16px rgba(0,0,0,.18)' }} />
+        /* 封面图过 CoverImage → mediaUrl:MinIO 内网直链会被改成同源 /qq-media/...,
+           外站封面会包 /api/proxy?url=,防盗链 + 失败兜底。 */
+        <CoverImage src={detail.cover} alt={detail.title || ''} sx={{ width: 94, height: 125, objectFit: 'cover', borderRadius: '6px', boxShadow: '0 4px 16px rgba(0,0,0,.18)' }} />
       ) : (
         <Box sx={{ width: 94, height: 125, mx: 'auto', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: theme.fill, color: theme.sub }}>
           <MenuBookIcon sx={{ fontSize: 40 }} />

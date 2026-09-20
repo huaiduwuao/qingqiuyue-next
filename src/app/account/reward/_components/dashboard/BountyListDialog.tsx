@@ -21,6 +21,7 @@ import GroupIcon from '@mui/icons-material/Group';
 import { alpha } from '@mui/material/styles';
 import { getHotBounties, type Bounty } from '@/apis/dashboard';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
+import { coverBackground } from '@/lib/media';
 import BountyDetailDialog from './BountyDetailDialog';
 
 // 与后端 handler/reward_extra.go rewardCategoryMeta 对齐
@@ -270,7 +271,7 @@ function DialogBountyCard({ bounty, onClick }: { bounty: Bounty; onClick: () => 
         sx={{
           position: 'relative',
           height: 88,
-          background: cover ? `url(${cover}) center/cover` : bounty.gradient,
+          background: coverBackground(cover, bounty.gradient),
           [LIST_ROW]: { width: { xs: 120, sm: 200 }, flexShrink: 0, height: 'auto', minHeight: 96 },
         }}
       >

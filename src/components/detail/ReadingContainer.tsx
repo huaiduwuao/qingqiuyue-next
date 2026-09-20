@@ -4,6 +4,7 @@ import React, { ReactNode } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import type { PageStyle } from './ReadingSettings';
+import { coverBackground } from '@/lib/media';
 
 interface ReadingContainerProps {
   style: PageStyle;
@@ -24,7 +25,9 @@ export function ReadingContainer({ style, children, chapterTitle, chapterIndex }
         color: style.color,
         fontFamily: style.fontFamily,
         fontSize: style.fontSize,
-        backgroundImage: `url(${style.black ? style.blackBodyImage : style.bodyImage})`,
+        // 阅读器正文背景图:外站/内网直链必须过 coverBackground,
+        // 否则防盗链 + MinIO 内网 IP 在公网打不开 → 阅读器空白背景。
+        backgroundImage: coverBackground(style.black ? style.blackBodyImage : style.bodyImage),
         backgroundColor: style.bgColor,
         minHeight: '100vh',
         p: { xs: 2, md: 4 },

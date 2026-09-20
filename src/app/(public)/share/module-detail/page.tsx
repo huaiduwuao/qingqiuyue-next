@@ -26,6 +26,7 @@ import { detail as moduleDetail } from '@/apis/system-module-list';
 import { passwordUnlock, payUnlock } from '@/apis/global';
 import { formatApiError } from '@/lib/api/client';
 import ModuleContentDetail from '@/components/ModuleContentDetail';
+import { CoverImage } from '@/components/common/CoverImage';
 
 interface MenuItem {
   id: number;
@@ -397,7 +398,7 @@ function ShareModuleDetailContent() {
                 }}
               >
                 {payInfo?.qrCode ? (
-                  <Box component="img" src={payInfo.qrCode} alt="支付二维码" sx={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  <CoverImage src={payInfo.qrCode} alt="支付二维码" sx={{ width: '100%', height: '100%', objectFit: 'contain' }} />
                 ) : (
                   <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>二维码加载中…</Typography>
                 )}

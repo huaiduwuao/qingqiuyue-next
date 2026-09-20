@@ -20,6 +20,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import CopyrightRoundedIcon from '@mui/icons-material/CopyrightRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { formatApiError } from '@/lib/api/client';
+import { coverBackground } from '@/lib/media';
 import { getMyWorks } from '@/apis/dashboard';
 import {
   listCerts,
@@ -342,9 +343,7 @@ function Row({ cover, children }: { cover?: string; children: React.ReactNode })
             flexShrink: 0,
             borderRadius: 1,
             bgcolor: 'action.hover',
-            backgroundImage: cover ? `url(${cover})` : undefined,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
+            backgroundImage: coverBackground(cover),
           }}
         />
       )}

@@ -32,6 +32,7 @@ import {
   RemoveCircle as RemoveCircleIcon,
   AutoAwesome as AutoAwesomeIcon,
 } from '@mui/icons-material';
+import { CoverImage } from '@/components/common/CoverImage';
 import { DataGridTable } from '@/components/tables/DataGridTable';
 import type { GridColDef } from '@mui/x-data-grid';
 import {
@@ -296,7 +297,7 @@ export default function TopicAdminPage() {
       sortable: false,
       renderCell: (params) =>
         params.value ? (
-          <Box component="img" src={params.value as string} alt="" sx={{ width: 60, height: 40, objectFit: 'cover', borderRadius: 1 }} />
+          <CoverImage src={params.value as string} alt="" sx={{ width: 60, height: 40, objectFit: 'cover', borderRadius: 1 }} />
         ) : (
           <Box sx={{ width: 60, height: 40, bgcolor: 'grey.200', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 1 }}>
             <ArticleIcon color="disabled" />

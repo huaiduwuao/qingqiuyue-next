@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import {
-  Box, Typography, Card, CardActionArea, CardMedia, CardContent,
+  Box, Typography, Card, CardActionArea, CardContent,
   Button, Alert, CircularProgress, TextField,
 } from '@mui/material';
+import { CoverImage } from '@/components/common/CoverImage';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 
 export interface LibraryCharacter {
@@ -72,8 +73,7 @@ export default function LibraryStep({ onSelected, onBack }: LibraryStepProps) {
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         <Typography sx={{ fontSize: 14, fontWeight: 600 }}>第 3 步:命名</Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-          <Box
-            component="img"
+          <CoverImage
             src={picked.thumbnail}
             alt={picked.name}
             sx={{ width: 80, height: 80, borderRadius: 1, objectFit: 'cover' }}
@@ -145,15 +145,10 @@ export default function LibraryStep({ onSelected, onBack }: LibraryStepProps) {
                 position: 'relative',
                 [LIST_ROW]: { width: { xs: 72, sm: 96 }, flexShrink: 0 },
               }}>
-                <CardMedia
-                  component="img"
-                  image={c.thumbnail}
+                <CoverImage
+                  src={c.thumbnail}
                   alt={c.name}
                   sx={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  onError={(e: any) => {
-                    // 缩略图加载失败 → 显示首字母
-                    e.target.style.display = 'none';
-                  }}
                 />
               </Box>
               <CardContent sx={{ p: 1.25, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>

@@ -15,6 +15,7 @@ import SearchIcon from '@mui/icons-material/Search';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import GroupIcon from '@mui/icons-material/Group';
 import { gradient2 } from '@/constants/gradients';
+import { coverBackground } from '@/lib/media';
 import { alpha } from '@mui/material/styles';
 import { getHotBounties, type Bounty } from '@/apis/dashboard';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
@@ -333,7 +334,7 @@ function BountyCard({ bounty, onClick }: { bounty: Bounty; onClick: () => void }
         sx={{
           position: 'relative',
           aspectRatio: '16 / 9',
-          background: bounty.cover ? `url(${bounty.cover}) center / cover no-repeat` : bounty.gradient,
+          background: coverBackground(bounty.cover, bounty.gradient),
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',

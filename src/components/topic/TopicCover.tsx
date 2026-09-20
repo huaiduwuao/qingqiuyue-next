@@ -12,6 +12,7 @@ import SportsEsportsRoundedIcon from '@mui/icons-material/SportsEsportsRounded';
 import TheaterComedyRoundedIcon from '@mui/icons-material/TheaterComedyRounded';
 import { gradient2 } from '@/constants/gradients';
 import { mediaUrl } from '@/lib/media';
+import { CoverImage } from '@/components/common/CoverImage';
 
 /**
  * 专题封面渐变 —— 按专题 ID 轮换,空封面也能有稳定、好看的品牌渐变背景。
@@ -108,9 +109,8 @@ export default function TopicCover({
       />
 
       {src ? (
-        <Box
-          component="img"
-          src={src}
+        <CoverImage
+          src={cover}
           alt={title || ''}
           loading="lazy"
           sx={{

@@ -383,10 +383,14 @@ function ComicsDetailContent() {
                         onClick={nextPage}
                         sx={{ width: '100%', maxWidth: 560, display: 'flex', justifyContent: 'center', p: 1, cursor: 'pointer' }}
                       >
-                        <img
+                        {/* 阅读器内嵌分页图:爬虫原图可能是外站防盗链地址,
+                            必须过 CoverImage → mediaUrl(代理改写)+ 失败兜底,
+                            否则整话黑屏/破图。不能用 Box component="img" 裸 src。 */}
+                        <CoverImage
                           src={images[Math.min(activePage, images.length) - 1]}
                           alt={`${chapter.title || ''} 第 ${activePage} 页`}
-                          style={{ maxWidth: '100%', maxHeight: '75vh', objectFit: 'contain', borderRadius: 4 }}
+                          loading="eager"
+                          sx={{ maxWidth: '100%', maxHeight: '75vh', width: 'auto', height: 'auto', objectFit: 'contain', borderRadius: 4 }}
                         />
                       </Box>
                     )}

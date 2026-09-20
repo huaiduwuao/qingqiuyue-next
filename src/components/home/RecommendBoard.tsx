@@ -9,6 +9,7 @@ import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import { fetchRecommend, HotItem } from '@/apis/home-discover';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { useRouter } from 'next/navigation';
+import { CoverImage } from '@/components/common/CoverImage';
 
 interface Props {
   types?: string[];
@@ -90,8 +91,9 @@ export default function RecommendBoard({
               }}
             >
               {item.cover ? (
-                <Box
-                  component="img"
+                /* 推荐榜封面:CoverImage 统一过 mediaUrl + 失败兜底,
+                   避免外站图防盗链 / MinIO 内网直链打不开。 */
+                <CoverImage
                   src={item.cover}
                   alt={item.title}
                   sx={{
@@ -99,9 +101,6 @@ export default function RecommendBoard({
                     height: '100%',
                     objectFit: 'cover',
                     display: 'block',
-                  }}
-                  onError={(e: any) => {
-                    e.target.style.display = 'none';
                   }}
                 />
               ) : (

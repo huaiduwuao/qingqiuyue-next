@@ -25,6 +25,8 @@ import Radio from '@mui/material/Radio';
 import RadioGroup from '@mui/material/RadioGroup';
 import Chip from '@mui/material/Chip';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import { CoverImage } from '@/components/common/CoverImage';
+import { coverBackground } from '@/lib/media';
 import OperationPanel from './OperationPanel';
 import RunPanel from './RunPanel';
 import PlanPanel from './PlanPanel';
@@ -151,8 +153,8 @@ function PanelList({ items, onSend }: { items: ScenePanelListItem[]; onSend: (t:
           }}
         >
           {item.image ? (
-            <Box
-              component="img" src={item.image} alt=""
+            <CoverImage
+              src={item.image} alt=""
               sx={{ width: 52, height: 52, borderRadius: 1.5, objectFit: 'cover', flexShrink: 0 }}
             />
           ) : item.icon ? (
@@ -198,7 +200,7 @@ function PanelGrid({ items, columns, onSend }: { items: ScenePanelGridItem[]; co
           <Box
             sx={{
               width: '100%', aspectRatio: '3 / 4',
-              background: item.image ? `center/cover no-repeat url(${JSON.stringify(item.image)})` : 'rgba(255,255,255,0.06)',
+              background: coverBackground(item.image, 'rgba(255,255,255,0.06)'),
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 30,
             }}

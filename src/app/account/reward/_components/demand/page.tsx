@@ -15,6 +15,8 @@ import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
 import Chip from '@mui/material/Chip';
+import { CoverImage } from '@/components/common/CoverImage';
+import { coverBackground } from '@/lib/media';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
@@ -295,9 +297,7 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
                 sx={{
                   height: 120,
                   backgroundColor: item.cover ? 'transparent' : 'action.hover',
-                  backgroundImage: item.cover ? `url(${item.cover})` : 'none',
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
+                  backgroundImage: coverBackground(item.cover, 'none'),
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -539,8 +539,7 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
             )}
           </Box>
           {selectedRecord?.cover && (
-            <Box
-              component="img"
+            <CoverImage
               src={selectedRecord.cover}
               sx={{ width: '100%', height: 200, objectFit: 'cover', borderRadius: 1, mb: 2 }}
             />
