@@ -84,19 +84,19 @@ function AccountLayoutContent({
     const prev = {
       htmlOverflow: html.style.overflow,
       bodyOverflow: body.style.overflow,
-      bodyHeight: body.style.height,
       bodyBg: body.style.backgroundColor,
     };
+    // 注意:不要在这里写 body.style.height。MUI Dialog 打开时会测量 body 并加 padding-right 补偿
+    // 滚动条;body 被钉死成固定高度时,客户端 WebView 里 Dialog 定位容器高度算错,Paper 被压出可视区
+    // 或内部表单高度塌陷。body 高度交给外层 Box 的 `height: var(--app-height)` 控制,这里只锁 overflow。
     html.style.overflow = 'hidden';
     body.style.overflow = 'hidden';
-    body.style.height = 'var(--app-height, 100vh)';
     // 跟主题走:var(--bg-body) 由 ThemeContext 在切 light/dark 时写入;
     // 这里不再用 'transparent'(否则 AppBar 透到 html 根 --background,跟主题脱节)
     body.style.backgroundColor = 'var(--bg-body)';
     return () => {
       html.style.overflow = prev.htmlOverflow;
       body.style.overflow = prev.bodyOverflow;
-      body.style.height = prev.bodyHeight;
       body.style.backgroundColor = prev.bodyBg;
     };
   }, []);
