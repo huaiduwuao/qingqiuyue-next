@@ -697,7 +697,13 @@ function SearchPageContent() {
             ) : (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {(tab === 'all' || tab === 'content') && contents.length > 0 && (
-                  <Section title="内容" count={contents.length}>
+                  <Section
+                    title="内容"
+                    count={contents.length}
+                    visible={tab === 'all' ? Math.min(contents.length, 4) : contents.length}
+                    onMore={tab === 'all' && contents.length > 4 ? () => setTab('content') : undefined}
+                    moreLabel="查看全部内容"
+                  >
                     {contents
                       .slice(0, tab === 'all' ? 4 : undefined)
                       .map((c) => (
@@ -711,7 +717,13 @@ function SearchPageContent() {
                   </Section>
                 )}
                 {(tab === 'all' || tab === 'creator') && creators.length > 0 && (
-                  <Section title="创作者" count={creators.length}>
+                  <Section
+                    title="创作者"
+                    count={creators.length}
+                    visible={tab === 'all' ? Math.min(creators.length, 3) : creators.length}
+                    onMore={tab === 'all' && creators.length > 3 ? () => setTab('creator') : undefined}
+                    moreLabel="查看全部创作者"
+                  >
                     {creators
                       .slice(0, tab === 'all' ? 3 : undefined)
                       .map((c) => (
@@ -726,7 +738,13 @@ function SearchPageContent() {
                   </Section>
                 )}
                 {(tab === 'all' || tab === 'topic') && topics.length > 0 && (
-                  <Section title="话题" count={topics.length}>
+                  <Section
+                    title="话题"
+                    count={topics.length}
+                    visible={tab === 'all' ? Math.min(topics.length, 3) : topics.length}
+                    onMore={tab === 'all' && topics.length > 3 ? () => setTab('topic') : undefined}
+                    moreLabel="查看全部话题"
+                  >
                     {topics
                       .slice(0, tab === 'all' ? 3 : undefined)
                       .map((t) => (
@@ -820,7 +838,24 @@ function DiscoverBanner({
   );
 }
 
-function Section({ title, count, children }: { title: string; count: number; children: React.ReactNode }) {
+function Section({
+  title,
+  count,
+  visible,
+  onMore,
+  moreLabel,
+  children,
+}: {
+  title: string;
+  count: number;
+  /** 实际渲染出来的条数(全部 tab 里被截断时小于 count) */
+  visible?: number;
+  /** 还有更多时,点击切到对应子 tab */
+  onMore?: () => void;
+  moreLabel?: string;
+  children: React.ReactNode;
+}) {
+  const hidden = visible != null ? Math.max(0, count - visible) : 0;
   return (
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
@@ -837,6 +872,32 @@ function Section({ title, count, children }: { title: string; count: number; chi
         </Typography>
         <Box sx={{ width: 4, height: 4, borderRadius: '50%', bgcolor: 'var(--text-muted, rgba(255,255,255,0.3))' }} />
         <Typography sx={{ fontSize: 11, color: 'var(--text-disabled, rgba(255,255,255,0.35))' }}>{count} 条</Typography>
+        {hidden > 0 && onMore && (
+          <Box sx={{ flex: 1 }} />
+        )}
+        {hidden > 0 && onMore && (
+          <Box
+            component="button"
+            type="button"
+            onClick={onMore}
+            sx={{
+              ml: 'auto',
+              border: 0,
+              bgcolor: 'transparent',
+              cursor: 'pointer',
+              font: 'inherit',
+              fontSize: 11.5,
+              fontWeight: 600,
+              color: 'primary.main',
+              px: 0.5,
+              py: 0.25,
+              borderRadius: 1,
+              '&:hover': { bgcolor: 'var(--bg-hover, rgba(255,255,255,0.06))' },
+            }}
+          >
+            还有 {hidden} 条 · {moreLabel ?? '查看全部'} ›
+          </Box>
+        )}
       </Box>
       <ListLayout rows minColumnWidth={440} gap={8}>{children}</ListLayout>
     </Box>
