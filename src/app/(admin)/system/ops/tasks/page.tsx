@@ -44,6 +44,7 @@ import {
 } from '@/beans/opstask';
 
 const POLL_INTERVAL_MS = 2000;
+const LIST_POLL_INTERVAL_MS = 5000; // 列表弱实时,5s 够用;详情 2s 才及时
 
 function formatDuration(ms?: number): string {
   if (!ms || ms < 0) return '-';
@@ -63,7 +64,7 @@ export default function OpsTasksPage() {
   const list = useQuery({
     queryKey: ['opstask', 'list', refreshToken],
     queryFn: () => listOpsTasks({ limit: 50 }),
-    refetchInterval: POLL_INTERVAL_MS,
+    refetchInterval: LIST_POLL_INTERVAL_MS,
   });
 
   const refresh = () => setRefreshToken((n) => n + 1);
@@ -96,6 +97,8 @@ export default function OpsTasksPage() {
       setSnack({ open: true, severity: 'success', msg: `已启动任务 #${resp.taskId}` });
       setStartOpen(false);
       setPayloadText('{}');
+      // 启动后立刻刷一次列表,不等 5s 轮询。
+      qc.invalidateQueries({ queryKey: ['opstask', 'list'] });
       refresh();
     } catch (err: any) {
       setSnack({ open: true, severity: 'error', msg: `启动失败: ${err?.message || err}` });
