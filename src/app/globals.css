@@ -92,6 +92,15 @@ html {
 html,
 body {
   max-width: 100vw;
+  /* X 轴全局截断只挂在 <html> 上;
+     <body> 不能再写 overflow-x: hidden —— 一旦 body 上出现 hidden,
+     浏览器会把 overflow-y 隐式置为 auto,使 <body> 变成滚动容器,
+     所有 position: sticky 顶部(包括 DetailHeader)就脱离 viewport、
+     被 body 这个内部容器吞掉,随 body 滚动一起跑出视口。
+     只放 html 一行,body 保持 overflow: visible,viewport 仍是滚动主体。 */
+}
+
+html {
   overflow-x: hidden;
 }
 
