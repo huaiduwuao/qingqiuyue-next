@@ -126,9 +126,29 @@ export async function getTopic(id: number) {
   return contentClient.get(`/topic/${id}`);
 }
 
-// 创建专题
-export async function createTopic(data: CreateTopicReq) {
+/**
+ * 创建专题(前台叫「意境」)。登录就能调:
+ *   - 内容运营调 → 直接上线(status=1,归官方);
+ *   - 普通用户调 → 进待审池(status=0,归自己),返回 pendingReview=true,
+ *     要运营在「专题管理 · 待审」里通过之后才会出现在意境广场。
+ */
+export async function createTopic(data: CreateTopicReq): Promise<{ id: number; pendingReview: boolean }> {
   return contentClient.post('/topic', data);
+}
+
+/** 审核通过一个待审专题:status 0 → 1,并清零 owner_id 升级为官方权威专题。仅内容运营。 */
+export async function approveTopic(id: number) {
+  return contentClient.post(`/topic/${id}/approve`);
+}
+
+/** 驳回一个待审专题:status 0 → 2。仅内容运营。 */
+export async function rejectTopic(id: number) {
+  return contentClient.post(`/topic/${id}/reject`);
+}
+
+/** 把已通过的专题升级为官方权威专题(清零 owner_id)。仅内容运营。 */
+export async function promoteTopic(id: number) {
+  return contentClient.post(`/topic/${id}/promote`);
 }
 
 // 更新专题

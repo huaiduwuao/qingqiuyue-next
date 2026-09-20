@@ -38,6 +38,8 @@ import {
   listTopics,
   createTopic,
   updateTopic,
+  approveTopic,
+  rejectTopic,
   deleteTopic,
   getTopic,
   addTopicContent,
@@ -85,6 +87,9 @@ interface ContentItem {
 /** 列表里重新拉取数据用的 token,改它即可让 DataGridTable 刷新当前页 */
 export default function TopicAdminPage() {
   const [refreshToken, setRefreshToken] = useState(0);
+  // 待审池筛选(E2)。用户在前台自己建的意境进 status=0 归自己名下,要在这里通过才上线;
+  // 不传 status 是看全部 —— 默认停在「待审」上,否则用户提交的意境会一直压在池子里没人看。
+  const [statusFilter, setStatusFilter] = useState<'' | '0' | '1' | '2'>('0');
   const [openDialog, setOpenDialog] = useState(false);
   const [openContentDialog, setOpenContentDialog] = useState(false);
   const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
@@ -206,6 +211,21 @@ export default function TopicAdminPage() {
       loadTopics();
     } catch (error) {
       console.error('更新状态失败:', error);
+    }
+  };
+
+  /**
+   * 待审池裁决。通过会清零 owner_id —— 意境从"某个用户的"变成官方权威的,
+   * 所以这一步不可逆,先确认一次。
+   */
+  const handleReview = async (topic: Topic, approve: boolean) => {
+    if (!window.confirm(approve ? `通过「${topic.title}」?通过后它归官方,立即出现在意境广场。` : `驳回「${topic.title}」?`)) return;
+    try {
+      await (approve ? approveTopic(topic.id) : rejectTopic(topic.id));
+      loadTopics();
+    } catch (error: any) {
+      console.error('审核失败:', error);
+      alert(`审核失败:${error?.message || error}`);
     }
   };
 
@@ -350,12 +370,26 @@ export default function TopicAdminPage() {
     {
       field: 'status',
       headerName: '状态',
-      width: 80,
+      width: 110,
       sortable: false,
-      renderCell: (params) => (
-        <Switch checked={params.value === 1} onChange={() => handleToggleStatus(params.row as Topic)} size="small" />
-      ),
+      // status:0 未上线(用户提交的 = 待审)、1 已上线、2 已驳回。
+      // 用户提交的不能用开关直接扳上线 —— 通过要走 approve,它会清零 owner_id。
+      renderCell: (params) => {
+        const row = params.row as Topic;
+        if (row.status === 2) return <Chip size="small" label="已驳回" color="error" variant="outlined" />;
+        if (row.status === 0 && (row.ownerId ?? 0) > 0) {
+          return <Chip size="small" label="待审" color="warning" />;
+        }
+        return <Switch checked={params.value === 1} onChange={() => handleToggleStatus(row)} size="small" />;
+      },
     },
+  ];
+
+  const STATUS_TABS: { value: '' | '0' | '1' | '2'; label: string }[] = [
+    { value: '0', label: '待审 / 未上线' },
+    { value: '1', label: '已上线' },
+    { value: '2', label: '已驳回' },
+    { value: '', label: '全部' },
   ];
 
   return (
@@ -387,17 +421,47 @@ export default function TopicAdminPage() {
         </Typography>
       )}
 
+      {/* 待审池入口。用户在前台自己开的意境全落在「待审」这一档里,不给个筛选就等于没人审。 */}
+      <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+        {STATUS_TABS.map((t) => (
+          <Button
+            key={t.value || 'all'}
+            size="small"
+            variant={statusFilter === t.value ? 'contained' : 'text'}
+            onClick={() => setStatusFilter(t.value)}
+          >
+            {t.label}
+          </Button>
+        ))}
+      </Box>
+
       <DataGridTable
         columns={columns}
         fetchData={async (params) => {
-          const res = await listTopics({ page: params.pageNumber, pageSize: params.pageSize });
+          const res = await listTopics({
+            page: params.pageNumber,
+            pageSize: params.pageSize,
+            status: statusFilter === '' ? undefined : Number(statusFilter),
+          });
           return {
             records: res?.list || res?.records || [],
             totalRow: res?.total || 0,
           };
         }}
-        extraParams={{ refresh: refreshToken }}
+        extraParams={{ refresh: refreshToken, status: statusFilter }}
         customActions={[
+          {
+            label: '通过',
+            color: 'success',
+            hidden: (row) => !(row.status === 0 && (row.ownerId ?? 0) > 0),
+            onClick: (row) => handleReview(row as Topic, true),
+          },
+          {
+            label: '驳回',
+            color: 'error',
+            hidden: (row) => !(row.status === 0 && (row.ownerId ?? 0) > 0),
+            onClick: (row) => handleReview(row as Topic, false),
+          },
           {
             label: '内容',
             icon: <LibraryAddIcon />,
