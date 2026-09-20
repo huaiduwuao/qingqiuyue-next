@@ -4,11 +4,13 @@
  * 实时任务监控页面 —— 用 WebSocket 订阅 /ws/spider 上的 task 推送。
  *
  * 站点无关:任何 crawl_job / crawl_rule_task 都能在这里看实时进度。
- * 路由 /admin/system/spider/task-monitor/[id],id 是 crawl_job.external_task_id。
+ * 路由 /system/spider/task-monitor?id=<external_task_id>。用 query 而不是路径参数:
+ * 生产是 output:'export' 静态导出,动态段必须有 generateStaticParams 才能导出,
+ * 而 external_task_id 是运行时才知道的,枚举不出来。全站其它详情页同样走 ?id=。
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'next/navigation';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -43,8 +45,16 @@ const STATUS_COLORS: Record<string, 'default' | 'info' | 'warning' | 'success' |
 };
 
 export default function TaskMonitorPage() {
-  const params = useParams<{ id: string }>();
-  const taskId = String(params.id ?? '');
+  // useSearchParams 在导出页必须包在 Suspense 里,与 detail/topic-detail 等页一致。
+  return (
+    <Suspense fallback={null}>
+      <TaskMonitor />
+    </Suspense>
+  );
+}
+
+function TaskMonitor() {
+  const taskId = String(useSearchParams().get('id') ?? '');
   const ws = useSpiderWebSocket();
   const [snapshotFallback, setSnapshotFallback] = useState<ProgressSnapshot | null>(null);
 

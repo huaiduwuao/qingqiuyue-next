@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import React, { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -9,10 +9,20 @@ import Alert from '@mui/material/Alert';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { TemplateEditorDialog } from '@/components/spider/TemplateEditorDialog';
 
+// 路由 /system/spider/templates/edit?id=<module_template.id>。用 query 而不是路径参数:
+// 生产是 output:'export' 静态导出,动态段必须有 generateStaticParams 才能导出,
+// 而模板 id 是运行时数据,枚举不出来。全站其它详情页同样走 ?id=。
 export default function TemplateEditPage() {
-  const params = useParams<{ id: string }>();
+  return (
+    <Suspense fallback={null}>
+      <TemplateEdit />
+    </Suspense>
+  );
+}
+
+function TemplateEdit() {
   const router = useRouter();
-  const templateId = Number(params.id);
+  const templateId = Number(useSearchParams().get('id'));
   const [open, setOpen] = useState(true);
 
   if (!Number.isFinite(templateId) || templateId <= 0) {
