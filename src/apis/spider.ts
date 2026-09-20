@@ -134,7 +134,14 @@ export async function createTemplate(params: { name: string; type: string; sourc
   return spiderClient('/templates', { method: 'POST', data: params });
 }
 
-export async function updateTemplate(id: number, params: { name: string; type: string; source: string }): Promise<any> {
+export interface TemplateUpdate {
+  name: string;
+  type: string;
+  source?: string;
+  /** raw JSON content(覆盖 module_template.content 整段) */
+  content?: string;
+}
+export async function updateTemplate(id: number, params: TemplateUpdate): Promise<any> {
   return spiderClient(`/templates/${id}`, { method: 'PUT', data: params });
 }
 
@@ -311,4 +318,250 @@ export async function resolveStream(params: {
   extraWaitMs?: number;
 }): Promise<ResolveStreamResult> {
   return spiderClient('/universal/stream/resolve', { method: 'POST', data: params });
+}
+
+// =====================================================================
+// 全站批量任务"产品级"入口(POST /api/spider/sites/full-site)
+//
+// 设计原则:站点无关,后端根据 body 里的 source_domain 自动找 module_source 并创建
+// batch_job。新站点只要在 module_source + module_template 已注册,这里就能直接触发,
+// 不需要前端为每个站点各写一行。
+// =====================================================================
+
+export interface StartFullSiteParams {
+  /** 已注册的模块源域名,如 "www.yfsp.tv" / "v.qq.com" 等 */
+  source_domain: string;
+  /** 备注,会写到 batch_job.description */
+  notes?: string;
+  /** 0 = 走 module_template.crawl_policy.max_pages */
+  max_pages?: number;
+  /** 达此数量提前结束,0 = 不限(后端 BatchHandler 已有 page budget 兜底) */
+  max_items?: number;
+}
+
+export interface StartFullSiteResult {
+  success: boolean;
+  batch_id: number;
+  source_id: number;
+  source_name: string;
+  message?: string;
+  started_at: number; // unix seconds
+}
+
+export async function startFullSite(params: StartFullSiteParams): Promise<StartFullSiteResult> {
+  return spiderClient('/sites/full-site', { method: 'POST', data: params });
+}
+
+// =====================================================================
+// 通用流解析配置 CRUD(/api/spider/stream-parsers/*)
+//
+// 站点无关:对应后端 module_stream_parser(Doris)任意行的增删改查;Spider
+// StreamResolver 用它做平台分发(/api/content/stream/resolve),BrowserParser
+// 用它读 browser_config.custom_detail_script 抽 m3u8。前端运营调整都从这里进,
+// 不需要 psql。
+// =====================================================================
+
+export interface StreamParserDTO {
+  id: number;
+  name: string;
+  platform: string;
+  urlPattern: string;
+  apiEndpoint?: string;
+  method?: string;
+  headers?: string;
+  paramsTemplate?: string;
+  responseParseScript?: string;
+  m3u8UrlField?: string;
+  qualityField?: string;
+  qualitySortKey?: string;
+  priority?: number;
+  remark?: string;
+  engine?: string;
+  browserConfig?: string;
+}
+
+export interface StreamParserInput {
+  name: string;
+  platform?: string;
+  urlPattern?: string;
+  apiEndpoint?: string;
+  method?: string;
+  headers?: string;
+  paramsTemplate?: string;
+  responseParseScript?: string;
+  m3u8UrlField?: string;
+  qualityField?: string;
+  qualitySortKey?: string;
+  priority?: number;
+  remark?: string;
+  engine?: string;
+  browserConfig?: string;
+}
+
+export interface ListStreamParsersParams {
+  name?: string;
+  platform?: string;
+  engine?: string;
+}
+
+export async function listStreamParsers(params?: ListStreamParsersParams): Promise<{ items: StreamParserDTO[]; total: number }> {
+  return spiderClient('/stream-parsers', { method: 'GET', params });
+}
+export async function getStreamParser(id: number): Promise<StreamParserDTO> {
+  return spiderClient(`/stream-parsers/${id}`, { method: 'GET' });
+}
+export async function createStreamParser(body: StreamParserInput): Promise<StreamParserDTO> {
+  return spiderClient('/stream-parsers', { method: 'POST', data: body });
+}
+export async function updateStreamParser(id: number, body: StreamParserInput): Promise<StreamParserDTO> {
+  return spiderClient(`/stream-parsers/${id}`, { method: 'PUT', data: body });
+}
+export async function deleteStreamParser(id: number): Promise<{ status: string }> {
+  return spiderClient(`/stream-parsers/${id}`, { method: 'DELETE' });
+}
+
+// =====================================================================
+// Dashboard / Analytics 通用统计
+//
+// 类型导出:跟文件顶部 region "通用入口"(HourlyStats / CrawlTimeseries / ActivityFeed
+// / CrawlStats)共享;这里再补一些扩展数据形状,只声明类型不重写函数名,
+// 避免与老导出冲突。
+
+export interface CrawlTimeseriesPoint {
+  hour: string;
+  pages: number;
+  items: number;
+  links: number;
+  errors: number;
+}
+
+export interface ActivityEvent {
+  id: number;
+  time: string;
+  type: string;
+  severity: 'info' | 'success' | 'warning' | 'error';
+  title: string;
+  detail?: string;
+}
+
+export interface HourlySourceHealth {
+  sourceId: number;
+  name: string;
+  category: string;
+  apiName: string;
+  lastRunAt?: string;
+  lastSuccessAt?: string;
+  lastErrorAt?: string;
+  lastError?: string;
+  consecErrors: number;
+  totalRuns: number;
+  totalNewItems: number;
+  skippedCooldown: boolean;
+}
+
+export interface HourlyStatsResponse {
+  lastTickUtc: string;
+  nextTickUtc: string;
+  intervalSec: number;
+  enabled: boolean;
+  sourceCount: number;
+  perSourceLimit: number;
+  concurrency: number;
+  categoryConcurrency: number;
+  cooldownErrors: number;
+  cooldownMinutes: number;
+  healthySources: number;
+  skippedSources: number;
+  sources?: HourlySourceHealth[];
+}
+
+// =====================================================================
+// 内容侧统计(Doris module_content 反查) — 新页面用
+//
+// 区别于老 CrawlStats(任务级统计):这里是"已抓到多少条内容、按分类/源聚合"。
+// =====================================================================
+
+export interface ContentStats {
+  totalItems: number;
+  totalSources: number;
+  categoryCounts: Record<string, number>;
+}
+export interface ContentStatsEnhanced extends ContentStats {
+  perSource: Array<{ sourceId: number; count: number; lastCrawlAt: string }>;
+  recentActivity: ActivityEvent[];
+}
+export interface ContentTrend {
+  bucket: string;
+  count: number;
+}
+export interface ContentItem {
+  id: number;
+  title: string;
+  cover?: string;
+  sourceUrl?: string;
+  moduleContentId?: number;
+  category?: string;
+  crawledAt?: string;
+  source?: string;
+}
+export interface ContentListParams {
+  sourceId?: number;
+  category?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export async function getContentStats(): Promise<ContentStats> {
+  return spiderClient('/content/stats', { method: 'GET' });
+}
+export async function getEnhancedStats(): Promise<ContentStatsEnhanced> {
+  return spiderClient('/content/stats/enhanced', { method: 'GET' });
+}
+export async function getContentTrend(): Promise<{ items: ContentTrend[] }> {
+  return spiderClient('/content/trend', { method: 'GET' });
+}
+export async function getContentList(params?: ContentListParams): Promise<{ items: ContentItem[]; total: number; page?: number }> {
+  return spiderClient('/content/list', { method: 'GET', params });
+}
+export async function getContentDetail(id: number): Promise<any> {
+  return spiderClient(`/content/detail/${id}`, { method: 'GET' });
+}
+
+// 工具接口(模板/单源健康/清理)
+export async function exportTemplates(params?: { sourceId?: number }): Promise<any> {
+  return spiderClient('/templates/export', { method: 'POST', data: params ?? {} });
+}
+export async function testTemplate(params: { url: string; type?: string }): Promise<any> {
+  return spiderClient('/templates/test', { method: 'POST', data: params });
+}
+export async function listTemplateAttrs(templateId: number): Promise<{ items: any[]; total: number }> {
+  return spiderClient(`/templates/${templateId}/attrs`, { method: 'GET' });
+}
+export async function getHourlySourceHealth(sourceId: number): Promise<HourlySourceHealth> {
+  return spiderClient('/hourly/source-health', { method: 'GET', params: { sourceId } });
+}
+export async function cleanupTrackingURLs(): Promise<{ removed: number }> {
+  return spiderClient('/cleanup/tracking-urls', { method: 'POST' });
+}
+export async function cleanupInvalidData(): Promise<{ removed: number }> {
+  return spiderClient('/cleanup/invalid-data', { method: 'POST' });
+}
+
+// 任务快照:WebSocket 实时推送的 ProgressSnapshot 结构
+export interface ProgressSnapshot {
+  phase: 'queued' | 'discovering' | 'categories' | 'home' | 'incremental' | 'done' | 'stopped' | 'failed' | string;
+  percent: number;
+  categoriesTotal: number;
+  categoriesDone: number;
+  currentUrl: string;
+  pagesCrawled: number;
+  pageBudget: number;
+  itemsFound: number;
+  itemsNew: number;
+  chaptersNew: number;
+  errors: number;
+  lastError?: string;
+  startedAt?: string;
+  updatedAt?: string;
+  elapsedSec: number;
 }

@@ -3,8 +3,6 @@
 /**
  * SpiderDashboardPage — 爬虫监控大盘
  */
-
-import React from 'react';
 import {
   Box,
   Container,
@@ -19,9 +17,16 @@ import {
   ListItemText,
   Divider,
   Alert,
+  Button,
+  Stack,
 } from '@mui/material';
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import AnalyticsIcon from '@mui/icons-material/Analytics';
 import { useQuery } from '@tanstack/react-query';
 import * as spiderApi from '@/apis/spider';
+import { RunCrawlerDialog } from '@/components/spider/RunCrawlerDialog';
 
 function useSpiderDashboard() {
   const health = useQuery({
@@ -55,15 +60,27 @@ function useSpiderDashboard() {
 
 export default function SpiderDashboardPage() {
   const { health, stats, timeseries, activity, tasks } = useSpiderDashboard();
+  const router = useRouter();
+  const [runDialogOpen, setRunDialogOpen] = useState(false);
 
   const s = stats.data || {};
   const successRate = s.total_tasks > 0 ? Math.round((s.completed_tasks / s.total_tasks) * 100) : 0;
 
+  const onRunSuccess = (batchId: number) => router.push(`/system/spider/batch/${batchId}/stats`);
+
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Typography variant="h4" gutterBottom>
-        爬虫监控大盘
-      </Typography>
+      <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Typography variant="h4">爬虫监控大盘</Typography>
+        <Stack direction="row" sx={{ gap: 1 }}>
+          <Button startIcon={<AnalyticsIcon />} variant="outlined" onClick={() => router.push('/system/spider/analytics')}>
+            打开分析面板
+          </Button>
+          <Button startIcon={<PlayArrowIcon />} variant="contained" onClick={() => setRunDialogOpen(true)}>
+            运行通用爬虫
+          </Button>
+        </Stack>
+      </Stack>
 
       {(health.isError || stats.isError) && (
         <Alert severity="error" sx={{ mb: 3 }}>
@@ -199,6 +216,8 @@ export default function SpiderDashboardPage() {
           </Card>
         </Grid>
       </Grid>
+
+      <RunCrawlerDialog open={runDialogOpen} onClose={() => setRunDialogOpen(false)} onSuccess={onRunSuccess} />
     </Container>
   );
 }
