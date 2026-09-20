@@ -62,6 +62,7 @@ import ArrowUpwardRoundedIcon from '@mui/icons-material/ArrowUpwardRounded';
 import { ListLayout, ListLayoutSwitch, LIST_ROW, LIST_COMPACT } from '@/components/common/ListLayout';
 import { toEntityId, sameId, type EntityId } from '@/lib/id';
 import { coverBackground } from '@/lib/media';
+import ShareDialog, { type ShareTarget } from './_components/ShareDialog';
 
 /**
  * 创作者中心建的合集统一存成 user_my_list.type = 'topic'(专题)。
@@ -94,6 +95,10 @@ interface Collection {
   itemCount: number;
   /** 后端给的是 "2006-01-02 15:04:05" 字符串,原样截前 10 位显示,不进 Date(避免时区偏移) */
   updateTime: string;
+  /** 后端仅在 owner 下发:非空字符串表示已开启私密分享链接 */
+  shareToken?: string | null;
+  /** 解锁价格(钻);0 = 免费 */
+  price: number;
 }
 
 function toCollection(l: ApiMyList): Collection {
@@ -106,6 +111,8 @@ function toCollection(l: ApiMyList): Collection {
     isPublic: !!l.isPublic,
     itemCount: l.itemCount ?? 0,
     updateTime: l.updateTime ?? '',
+    shareToken: l.shareToken ?? null,
+    price: typeof l.price === 'number' ? l.price : 0,
   };
 }
 
@@ -148,6 +155,7 @@ export default function CollectionPage() {
   // 每次打开换一个 key,让创建表单重新挂载拿到干净初值(不用 effect 里 setState 重置)
   const [createSeq, setCreateSeq] = useState(0);
   const [editing, setEditing] = useState<Collection | null>(null);
+  const [shareTarget, setShareTarget] = useState<ShareTarget | null>(null);
   const [snack, setSnack] = useState<string | null>(null);
   const [anchorEl, setAnchorEl] = useState<{ id: EntityId; el: HTMLElement } | null>(null);
 
@@ -274,20 +282,29 @@ export default function CollectionPage() {
     deleteM.mutate(id);
   };
 
+  /**
+   * 公开合集直接复制 /playlist?id=;私密合集要求用户走 ShareDialog 主动开 share token
+   * —— 默认不开启分享,这里只是入口。
+   */
   const handleCopyLink = async (c: Collection) => {
     setAnchorEl(null);
     if (!c.isPublic) {
-      setSnack('私密合集的链接别人打不开,先在编辑里设为公开');
+      setShareTarget({ id: c.id, name: c.title, isPublic: false, shareToken: c.shareToken, price: c.price });
       return;
     }
-    // /playlist?id= 是所有 user_my_list 的详情页(/account/my-lists/detail 也只是转到这里)
-    const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/playlist?id=${c.id}`;
+    const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/playlist?id=${encodeURIComponent(String(c.id))}`;
     try {
       await navigator.clipboard.writeText(url);
       setSnack('链接已复制');
     } catch {
       setSnack('复制失败');
     }
+  };
+
+  /** 统一入口:公开/私密都进 ShareDialog,里面支持开 share token 和改价 */
+  const openShareDialog = (c: Collection) => {
+    setAnchorEl(null);
+    setShareTarget({ id: c.id, name: c.title, isPublic: c.isPublic, shareToken: c.shareToken, price: c.price });
   };
 
   const busy = createM.isPending || saveM.isPending || deleteM.isPending;
@@ -472,7 +489,7 @@ export default function CollectionPage() {
                       size="small"
                       variant="outlined"
                       startIcon={<ShareRoundedIcon sx={{ fontSize: 14 }} />}
-                      onClick={() => handleCopyLink(c)}
+                      onClick={() => openShareDialog(c)}
                       sx={{ textTransform: 'none', fontSize: 12, borderRadius: 1.5, borderColor: 'divider', color: 'text.secondary' }}
                     >
                       分享
@@ -493,8 +510,8 @@ export default function CollectionPage() {
               <MenuItem key="edit" onClick={() => { setEditing(c); setAnchorEl(null); }} sx={{ fontSize: 13 }}>
                 <EditRoundedIcon sx={{ fontSize: 16, mr: 1 }} />编辑合集
               </MenuItem>,
-              <MenuItem key="share" onClick={() => handleCopyLink(c)} sx={{ fontSize: 13 }}>
-                <ShareRoundedIcon sx={{ fontSize: 16, mr: 1 }} />复制链接
+              <MenuItem key="share" onClick={() => openShareDialog(c)} sx={{ fontSize: 13 }}>
+                <ShareRoundedIcon sx={{ fontSize: 16, mr: 1 }} />分享合集
               </MenuItem>,
               <Divider key="d" />,
               <MenuItem key="del" onClick={() => handleDelete(c.id)} sx={{ fontSize: 13, color: 'error.main' }} disabled={busy}>
@@ -519,6 +536,14 @@ export default function CollectionPage() {
           allWorks={myWorks}
           submitting={saveM.isPending}
           onSave={(v) => saveM.mutate(v)}
+        />
+
+        <ShareDialog
+          open={!!shareTarget}
+          target={shareTarget}
+          onClose={() => setShareTarget(null)}
+          onChanged={invalidate}
+          onSnack={setSnack}
         />
 
         <Snackbar

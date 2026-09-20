@@ -32,6 +32,14 @@ export interface MyListItem {
   ownerName?: string;
   createTime: string;
   updateTime: string;
+  /**
+   * 私密分享链接 token,只有 owner 才会拿到(后端 /my-list/square 等路径
+   * 不会下发)。非空字符串表示当前已开启分享;null / undefined 表示
+   * 未开启或不返回(取决于是否 owner)。
+   */
+  shareToken?: string | null;
+  /** 解锁价格(单位:钻)。0 表示免费。shareToken 配套使用。 */
+  price: number;
 }
 
 // 收藏夹中的内容项
@@ -293,22 +301,53 @@ export const LIST_TYPE_ICONS: Record<MyListType, string> = {
   bookshelf: '📚',
 };
 
-// 我的清单分享/解锁 API —— shared/[token] 页面需要;此前由独立 PR 引入
-// 但没合入 src/apis/my-list.ts,这里补 stub 让页面能编译。真实调用后端的
-// 分享/解锁接口另起 PR 补。
+// 我的清单分享/解锁 API —— (public)/my-list/shared 页面 + 创作者中心合集管理用。
+// 后端见 internal/handler/my_list_share.go:
+//   POST   /my-list/:id/share-token   生成/重置分享 token(owner)
+//   DELETE /my-list/:id/share-token   关闭分享(owner)
+//   POST   /my-list/:id/price         设置解锁价格(钻,owner)
+//   POST   /my-list/:id/unlock        钻石解锁(登录用户)
+//   GET    /my-list/shared/:token     凭 token 公开访问(可选登录)
 export interface SharedListResponse {
   list: MyListItem;
   unlocked: boolean;
   price: number;
+  itemCount: number;
 }
 
+/** 凭 token 公开拉取合集。返回 paywall 元信息或全量内容,看后端决定。 */
 export async function getSharedList(token: string): Promise<SharedListResponse> {
-  // 占位:真实调用后端 /my-list/share/{token} 接口
-  const list = await getMyListDetail(token);
-  return { list, unlocked: true, price: 0 };
+  return contentClient(`/my-list/shared/${encodeURIComponent(token)}`);
 }
 
-export async function unlockList(listId: EntityId, _password?: string): Promise<{ ok: boolean }> {
-  void listId;
-  return { ok: true };
+/** 钻石解锁合集(需要登录);后端幂等。 */
+export async function unlockList(listId: EntityId): Promise<{ ok: boolean; unlocked: boolean }> {
+  return contentClient(`/my-list/${encodeURIComponent(String(listId))}/unlock`, {
+    method: 'POST',
+  });
+}
+
+/** 生成 / 重置分享 token(owner-only)。旧 token 立即失效。 */
+export async function createShareToken(listId: EntityId): Promise<{ ok: boolean; shareToken: string }> {
+  return contentClient(`/my-list/${encodeURIComponent(String(listId))}/share-token`, {
+    method: 'POST',
+  });
+}
+
+/** 关闭私密分享(owner-only)。 */
+export async function deleteShareToken(listId: EntityId): Promise<{ ok: boolean }> {
+  return contentClient(`/my-list/${encodeURIComponent(String(listId))}/share-token`, {
+    method: 'DELETE',
+  });
+}
+
+/** 设置解锁价格(钻,owner-only)。0 = 免费,留空不清零。 */
+export async function setListPrice(
+  listId: EntityId,
+  price: number
+): Promise<{ ok: boolean; price: number }> {
+  return contentClient(`/my-list/${encodeURIComponent(String(listId))}/price`, {
+    method: 'POST',
+    data: { price },
+  });
 }

@@ -96,6 +96,7 @@ export function likedMusicList(rows: MyListContentItem[]): MyListItem {
     mine: false,
     createTime: '',
     updateTime: '',
+    price: 0,
   };
 }
 
