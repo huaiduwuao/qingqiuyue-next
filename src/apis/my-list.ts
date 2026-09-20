@@ -150,9 +150,14 @@ export async function deleteMyList(id: EntityId): Promise<{ ok: boolean }> {
 }
 
 // 获取收藏夹内容列表
-export async function getMyListContent(listId: EntityId): Promise<MyListContentResponse> {
+// shareToken:私密合集的分享口令(/my-list/shared?token= 页面用),后端凭它放行条目;
+// 自己的和公开的合集不用传。
+export async function getMyListContent(
+  listId: EntityId,
+  shareToken?: string
+): Promise<MyListContentResponse> {
   const res = await contentClient('/my-list/content/page', {
-    params: { listId },
+    params: shareToken ? { listId, token: shareToken } : { listId },
   });
   return res;
 }
