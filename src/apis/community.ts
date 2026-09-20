@@ -159,6 +159,36 @@ export function fetchTopicContents(id: Id, page: number, size = 24) {
   return get<Page<TopicContentItem>>(`/community/topics/${id}/contents`, { page, size });
 }
 
+// ─── 专题洞察(独立类型 + 独立路由) ──────────────────────────────────────
+// 与 fetchTopic 拿到的 CommunityTopic 解耦:类型单独 export,接口单独走
+// /community/topics/:id/insights。这样非 TFT 专题不需要在 CommunityTopic 里
+// 多带个空数组字段,空数组就在前端组件内 return null。
+export interface TopicInsightLineup {
+  id: Id;
+  title: string;
+  cover: string;
+  subtitle: string;
+  vendor?: string;
+  sourceUrl?: string;
+  updateTime: string;
+}
+export interface TopicInsightVersion {
+  version: string;
+  releasedAt: string;
+  summary: string;
+  sourceUrl?: string;
+}
+export interface TopicInsight {
+  kind: 'lineups' | 'versionHistory';
+  title: string;
+  hint?: string;
+  lineups?: TopicInsightLineup[];
+  versions?: TopicInsightVersion[];
+}
+export function fetchTopicInsights(id: Id) {
+  return get<{ insights: TopicInsight[] }>(`/community/topics/${id}/insights`);
+}
+
 export async function setTopicFollow(id: Id, on: boolean): Promise<{ following: boolean; followerCount: number }> {
   return on ? await contentClient.post(`/community/topics/${id}/follow`) : await contentClient.delete(`/community/topics/${id}/follow`);
 }

@@ -56,6 +56,7 @@ import {
   TopicGenre,
 } from '@/apis/topic';
 import { moduleContentPage } from '@/apis/home';
+import { TopicInsightsEditorDialog } from './InsightsEditorDialog';
 
 // 自动收录规则可选的内容类型
 const RULE_CONTENT_TYPES: { value: string; label: string }[] = [
@@ -111,6 +112,9 @@ export default function TopicAdminPage() {
   const [statusFilter, setStatusFilter] = useState<'' | '0' | '1' | '2'>('0');
   const [openDialog, setOpenDialog] = useState(false);
   const [openContentDialog, setOpenContentDialog] = useState(false);
+  // 专题洞察编辑器(lineups / versionHistory / autoFromSources)—— 走独立 Dialog,
+  // 不嵌入主编辑表单,免得 UpdateTopicReq 字段流受牵连。
+  const [insightsTopic, setInsightsTopic] = useState<Topic | null>(null);
   const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
   const [currentTopic, setCurrentTopic] = useState<TopicWithContents | null>(null);
   const [formData, setFormData] = useState<CreateTopicReq>({
@@ -520,6 +524,11 @@ export default function TopicAdminPage() {
             color: 'primary',
             onClick: (row) => handleOpenContentDialog(row),
           },
+          {
+            label: '洞察',
+            color: 'secondary',
+            onClick: (row) => setInsightsTopic(row as Topic),
+          },
         ]}
         onEdit={(row) => handleOpenDialog(row)}
         onDelete={(row) => handleDelete(row.id)}
@@ -802,6 +811,15 @@ export default function TopicAdminPage() {
           <Button onClick={() => setOpenContentDialog(false)}>关闭</Button>
         </DialogActions>
       </Dialog>
+
+      {/* 专题洞察编辑器:独立 Dialog,不在主编辑表单里 */}
+      <TopicInsightsEditorDialog
+        open={!!insightsTopic}
+        topicId={insightsTopic?.id ?? null}
+        topicTitle={insightsTopic?.title}
+        onClose={() => setInsightsTopic(null)}
+        onSaved={() => loadTopics()}
+      />
     </Box>
   );
 }

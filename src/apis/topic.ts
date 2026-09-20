@@ -203,3 +203,34 @@ export async function addTopicContent(topicId: number, data: AddContentReq) {
 export async function removeTopicContent(topicId: number, contentId: number | string) {
   return contentClient.delete(`/topic/${topicId}/content/${contentId}`);
 }
+
+// ─── 专题洞察(独立端点 PUT /topic/:id/metadata) ────────────────────────
+// 与 updateTopic 完全解耦 —— admin 编辑器只整体写一个 JSONB 块,不进 UpdateTopicReq
+// 字段表(那块承载主信息编辑)。后端 schema 见 internal/service/topic_insight.go
+// 的 InsightsPayload 定义。
+export interface TopicInsightLineup {
+  id?: number | string;
+  title: string;
+  subtitle: string;
+  cover: string;
+  vendor?: string;
+  sourceUrl?: string;
+  updateTime?: string;
+}
+export interface TopicInsightVersion {
+  version: string;
+  releasedAt: string;
+  summary: string;
+  sourceUrl?: string;
+}
+export interface TopicInsightsPayload {
+  lineups?: { title: string; hint?: string; lineups: TopicInsightLineup[] };
+  versionHistory?: { title: string; hint?: string; versions: TopicInsightVersion[] };
+  autoFromSources?: string[];
+}
+export async function updateTopicMetadata(id: number, payload: TopicInsightsPayload) {
+  return contentClient.put(`/topic/${id}/metadata`, payload);
+}
+export async function fetchTopicMetadata(id: number): Promise<{ payload: TopicInsightsPayload }> {
+  return contentClient.get(`/topic/${id}/metadata`);
+}

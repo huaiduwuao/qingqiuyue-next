@@ -12,13 +12,14 @@ import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
 import VerifiedRoundedIcon from '@mui/icons-material/VerifiedRounded';
-import { fetchTopic, fetchTopicContents, type CommunityTopic, type TopicContentItem } from '@/apis/community';
+import { fetchTopic, fetchTopicContents, fetchTopicInsights, type CommunityTopic, type TopicContentItem } from '@/apis/community';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { CoverImage } from '@/components/common/CoverImage';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { ListLayout, LIST_ROW } from '@/components/common/ListLayout';
 import { CommunityFeed } from '@/components/community/CommunityFeed';
 import { TopicFollowButton } from '@/components/community/TopicFollowButton';
+import { TopicInsightSection } from '@/components/community/topic';
 import RealmCollab, { type RealmCollabTab } from '@/components/reward/RealmCollab';
 import { CONTENT_TYPE_LABEL, TOPIC_KIND_LABEL, compactCount, topicGradient } from '@/components/community/format';
 import ShareButtons from '@/components/share/ShareButtons';
@@ -35,6 +36,14 @@ function TopicDetail() {
   const router = useRouter();
   const id = useSearchParams().get('id');
   const { data: topic, isLoading, isError } = useQuery({ queryKey: ['community', 'topic', id], queryFn: () => fetchTopic(id as string), enabled: !!id, retry: false });
+  // 专题的结构化洞察(lineups / versionHistory)。空数组时 TopicInsightSection 内部 return null,
+  // 非 TFT 专题完全不渲染。staleTime 5min:tft.composition 子分类更新频率不高,刷新一次够用。
+  const { data: insightsData } = useQuery({
+    queryKey: ['community', 'topic-insights', id],
+    queryFn: () => fetchTopicInsights(id as string),
+    enabled: !!id && !isLoading,
+    staleTime: 5 * 60_000,
+  });
   // 合集默认看作品,话题默认看讨论;用户切过页签/点过关注后以用户操作为准
   const [tabChoice, setTab] = useState<'contents' | 'posts' | RealmCollabTab | null>(null);
   const [followersOverride, setFollowers] = useState<number | null>(null);
@@ -95,6 +104,16 @@ function TopicDetail() {
           <Tab value="realizations" label="实现" />
           <Tab value="teams" label="团队" />
         </Tabs>
+        {/* 专题洞察:lineups / versionHistory。放在 Tabs 之后、tab 内容上方 ——
+            用户先看到导航,再看到「专属于这个专题的洞察」,最后才是日常讨论/作品流。
+            insightsData 空数组 → TopicInsightSection 内部 null,非 TFT 专题无视觉噪音。 */}
+        {(insightsData?.insights ?? []).length > 0 && (
+          <Box sx={{ mb: 2 }}>
+            {insightsData!.insights.map((ins) => (
+              <TopicInsightSection key={ins.kind} insight={ins} />
+            ))}
+          </Box>
+        )}
         {tab === 'demands' || tab === 'realizations' || tab === 'teams' ? (
           <RealmCollab topicId={Number(topic.id)} tab={tab} />
         ) : tab === 'contents' && topic.hasContents ? (
