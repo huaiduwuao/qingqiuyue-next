@@ -27,7 +27,7 @@
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["qingqiuyue"]
+        "schemes": ["qingqiuyue", "snssdk1128", "kwaiyewen", "xhsdiscover"]
       }
     }
   },

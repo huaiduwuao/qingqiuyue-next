@@ -26,6 +26,7 @@ import { CollectButton } from '@/components/detail/CollectButton';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
 import ShareIcon from '@mui/icons-material/Share';
+import ShareButtons from '@/components/share/ShareButtons';
 import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-music';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
@@ -209,6 +210,7 @@ function MusicDetailContent() {
               {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
             </IconButton>
             {id ? <CollectButton contentId={id} contentType="music" /> : null}
+            <ShareButtons contentType="music" contentId={Number(id)} title={query.data?.title} url={typeof window !== 'undefined' ? window.location.href : ''} />
             <IconButton onClick={handleShare} aria-label="分享" sx={{ color: 'text.tertiary' }}>
               <ShareIcon />
             </IconButton>

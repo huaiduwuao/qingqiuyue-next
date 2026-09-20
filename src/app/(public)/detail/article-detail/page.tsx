@@ -13,6 +13,7 @@ import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import { CollectButton } from '@/components/detail/CollectButton';
 import ShareIcon from '@mui/icons-material/Share';
+import ShareButtons from '@/components/share/ShareButtons';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -117,6 +118,7 @@ function ArticleDetailContent() {
               {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
             </IconButton>
             <CollectButton contentId={id!} contentType="article" />
+            <ShareButtons contentType="article" contentId={Number(id)} title={query.data?.title ?? 'article-detail 详情'} url={typeof window !== 'undefined' ? window.location.href : ''} />
             <IconButton onClick={handleShare} sx={{ color: 'text.tertiary' }}>
               <ShareIcon />
             </IconButton>

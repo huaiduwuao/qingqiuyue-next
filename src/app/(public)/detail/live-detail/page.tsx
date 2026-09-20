@@ -22,6 +22,7 @@ import Button from '@mui/material/Button';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import ShareIcon from '@mui/icons-material/Share';
+import ShareButtons from '@/components/share/ShareButtons';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import EventNoteRoundedIcon from '@mui/icons-material/EventNoteRounded';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
@@ -166,6 +167,7 @@ function LiveDetailContent() {
         rightActions={
           <Box sx={{ display: 'flex', gap: 0.5 }}>
             <CollectButton contentId={id!} contentType="live" />
+            <ShareButtons contentType="live" contentId={Number(id)} title={query.data?.title || '直播间'} url={typeof window !== 'undefined' ? window.location.href : ''} />
             <IconButton onClick={handleShare} sx={{ color: 'text.tertiary' }} aria-label="分享">
               <ShareIcon />
             </IconButton>

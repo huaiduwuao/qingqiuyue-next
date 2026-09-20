@@ -126,6 +126,12 @@ export const PERMISSIONS = {
     UPDATE: 'system:wx-config:update',
     DELETE: 'system:wx-config:delete',
   },
+  SYSTEM_PLATFORM_ACCOUNT: {
+    VIEW: 'system:platform-account:list',
+    CREATE: 'system:platform-account:create',
+    UPDATE: 'system:platform-account:update',
+    DELETE: 'system:platform-account:delete',
+  },
   SYSTEM_MODERATION: {
     REPORT_LIST: 'system:moderation:report:list',
     REPORT_REVIEW: 'system:moderation:report:review',

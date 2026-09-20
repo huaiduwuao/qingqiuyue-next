@@ -16,6 +16,7 @@ import { CollectButton } from '@/components/detail/CollectButton';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
 import ShareIcon from '@mui/icons-material/Share';
+import ShareButtons from '@/components/share/ShareButtons';
 import StarIcon from '@mui/icons-material/Star';
 import FavoriteIcon from '@mui/icons-material/Favorite';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
@@ -200,6 +201,7 @@ function ComicsDetailContent() {
               {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
             </IconButton>
             <CollectButton contentId={id!} contentType="comics" />
+            <ShareButtons contentType="comics" contentId={Number(id)} title={query.data?.title ?? 'comics-detail 详情'} url={typeof window !== 'undefined' ? window.location.href : ''} />
             <IconButton onClick={handleShare} sx={{ color: 'text.tertiary' }}>
               <ShareIcon />
             </IconButton>

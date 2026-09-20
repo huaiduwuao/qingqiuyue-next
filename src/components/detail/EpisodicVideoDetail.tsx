@@ -27,6 +27,7 @@ import VideoPlayer from '@/components/detail/VideoPlayer';
 import { PlatformLinks, UnavailablePlayer, platformsOf, linkOutNoticeOf } from '@/components/detail/ExternalPlatforms';
 import UserPlaySources from '@/components/detail/UserPlaySources';
 import DetailHeader from '@/components/detail/DetailHeader';
+import ShareButtons from '@/components/share/ShareButtons';
 import { AsyncState } from '@/components/common/AsyncState';
 import { track, recordHistory } from '@/lib/track';
 import { DetailComments } from '@/components/detail/DetailComments';
@@ -200,11 +201,19 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
       <DetailHeader
         title={query.data?.title || `${config.typeLabel}详情`}
         rightActions={
-          <Box sx={{ display: 'flex', gap: 0.5 }}>
+          <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
             <IconButton onClick={handleLike} disabled={likeBusy} sx={{ color: liked ? 'primary.main' : 'text.tertiary' }}>
               {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
             </IconButton>
             <CollectButton contentId={id!} contentType={config.kind} />
+            <ShareButtons
+              contentType={config.kind}
+              contentId={Number(id)}
+              title={query.data?.title || `${config.typeLabel}详情`}
+              url={typeof window !== 'undefined' ? window.location.href : ''}
+              cover={query.data?.cover}
+              desc={(query.data as any)?.desc || (query.data as any)?.intro || (query.data as any)?.description}
+            />
             <IconButton onClick={handleShare} sx={{ color: 'text.tertiary' }}>
               <ShareIcon />
             </IconButton>

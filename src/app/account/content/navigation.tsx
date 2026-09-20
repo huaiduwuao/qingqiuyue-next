@@ -10,6 +10,7 @@ import EmojiEventsRoundedIcon from '@mui/icons-material/EmojiEventsRounded';
 import MonetizationOnRoundedIcon from '@mui/icons-material/MonetizationOnRounded';
 import CopyrightRoundedIcon from '@mui/icons-material/CopyrightRounded';
 import RateReviewRoundedIcon from '@mui/icons-material/RateReviewRounded';
+import ShareRoundedIcon from '@mui/icons-material/ShareRounded';
 import { useAuthority } from '@/contexts/AuthContext';
 import type { WorkspaceNavGroup } from '../components/WorkspaceShell';
 
@@ -51,6 +52,7 @@ export const CONTENT_NAV: ContentNavGroup[] = [
       { id: 'data', label: '数据中心', description: '播放、互动与粉丝画像', icon: <InsightsRoundedIcon /> },
       { id: 'activity', label: '活动与话题', description: '参加平台活动获取曝光', icon: <EventRoundedIcon /> },
       { id: 'creator', label: '等级与权益', description: '升级解锁更多创作特权', icon: <EmojiEventsRoundedIcon /> },
+      { id: 'share', label: '分发记录', description: '一键分享到抖音/快手的发布历史与状态', icon: <ShareRoundedIcon /> },
     ],
   },
   {

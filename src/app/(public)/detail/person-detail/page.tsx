@@ -21,6 +21,7 @@ import Button from '@mui/material/Button';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import ShareIcon from '@mui/icons-material/Share';
+import ShareButtons from '@/components/share/ShareButtons';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { detail as personDetail } from '@/apis/content-person';
 import { searchContent } from '@/apis/search';
@@ -171,9 +172,12 @@ function PersonDetailContent() {
       <DetailHeader
         title={name || '人物'}
         rightActions={
-          <IconButton onClick={handleShare} sx={{ color: 'text.tertiary' }} aria-label="分享">
-            <ShareIcon />
-          </IconButton>
+          <>
+            <ShareButtons contentType="person" contentId={Number(id)} title={name || '人物'} url={typeof window !== 'undefined' ? window.location.href : ''} />
+            <IconButton onClick={handleShare} sx={{ color: 'text.tertiary' }} aria-label="分享">
+              <ShareIcon />
+            </IconButton>
+          </>
         }
       />
 

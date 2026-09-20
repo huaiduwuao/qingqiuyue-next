@@ -21,6 +21,7 @@ import { CommunityFeed } from '@/components/community/CommunityFeed';
 import { TopicFollowButton } from '@/components/community/TopicFollowButton';
 import RealmCollab, { type RealmCollabTab } from '@/components/reward/RealmCollab';
 import { CONTENT_TYPE_LABEL, TOPIC_KIND_LABEL, compactCount, topicGradient } from '@/components/community/format';
+import ShareButtons from '@/components/share/ShareButtons';
 
 export default function TopicDetailPage() {
   return (
@@ -133,6 +134,16 @@ function Hero({ topic, followers, onFollowChange }: { topic: CommunityTopic; fol
             </Typography>
           </Box>
           <TopicFollowButton topicId={topic.id} following={topic.isFollowing} size="medium" onChange={(_, n) => onFollowChange(n)} />
+          <ShareButtons
+            contentType="topic"
+            contentId={Number(topic.id)}
+            title={topic.title}
+            url={typeof window !== 'undefined' ? window.location.href : ''}
+            cover={topic.cover}
+            desc={topic.description || topic.subtitle}
+            subtitle={topic.subtitle}
+            topicId={String(topic.id)}
+          />
         </Box>
       </Container>
     </Box>

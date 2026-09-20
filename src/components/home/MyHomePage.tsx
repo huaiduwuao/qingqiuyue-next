@@ -42,6 +42,7 @@ import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import RecommendRoundedIcon from '@mui/icons-material/RecommendRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import ShareRoundedIcon from '@mui/icons-material/ShareRounded';
+import ShareButtons from '@/components/share/ShareButtons';
 import QrCodeRoundedIcon from '@mui/icons-material/QrCodeRounded';
 import WalletRoundedIcon from '@mui/icons-material/WalletRounded';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
@@ -630,22 +631,14 @@ function MyHomePageAuthed() {
               >
                 编辑资料
               </Button>
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={<ShareRoundedIcon sx={{ fontSize: 14 }} />}
-                onClick={() => {
-                  if (navigator.share) {
-                    navigator.share({ title: profile?.user?.nickname || '我的主页', url: location.href }).catch(() => {});
-                  } else {
-                    navigator.clipboard?.writeText(location.href);
-                    setToast('主页链接已复制');
-                  }
-                }}
-                sx={{ textTransform: 'none', fontSize: 11, borderRadius: 1.5, borderColor: 'var(--border-strong, transparent)', color: 'text.secondary' }}
-              >
-                分享
-              </Button>
+              <ShareButtons
+                contentType="user"
+                contentId={Number(profile?.user?.id) || 0}
+                title={profile?.user?.nickname || '我的主页'}
+                url={typeof window !== 'undefined' ? window.location.href : ''}
+                cover={profile?.user?.avatar}
+                desc={profile?.user?.bio}
+              />
               <Button
                 size="small"
                 variant="outlined"

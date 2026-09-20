@@ -34,6 +34,7 @@ import { postShare } from '@/apis/behavior';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
 import { homeClient, formatApiError } from '@/lib/api/client';
 import { toEntityId } from '@/lib/id';
+import ShareButtons from '@/components/share/ShareButtons';
 
 interface CommentItem {
   id: number;
@@ -426,6 +427,17 @@ export default function ModuleContentDetail({ detail, onClose }: ModuleContentDe
             icon={<ShareIcon sx={{ fontSize: 18 }} />}
             label="分享"
             onClick={handleShare}
+          />
+        </Box>
+
+        <Box sx={{ mt: 2 }}>
+          <ShareButtons
+            contentType={(detail as any)?.contentType || 'work'}
+            contentId={Number((detail as any)?.id) || 0}
+            title={contentName || '清秋月内容'}
+            url={typeof window !== 'undefined' ? window.location.href : ''}
+            cover={(detail as any)?.cover}
+            desc={(detail as any)?.desc || (detail as any)?.intro}
           />
         </Box>
 

@@ -13,6 +13,7 @@ import Alert from '@mui/material/Alert';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
 import ShareIcon from '@mui/icons-material/Share';
+import ShareButtons from '@/components/share/ShareButtons';
 import { useSearchParams } from 'next/navigation';
 import { detail as contentDetail } from '@/apis/content-video';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
@@ -134,6 +135,7 @@ function ImageDetailContent() {
               {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
             </IconButton>
             <CollectButton contentId={id!} contentType="picture" />
+            <ShareButtons contentType="image" contentId={Number(id)} title={query.data?.title ?? 'image-detail 详情'} url={typeof window !== 'undefined' ? window.location.href : ''} />
             <IconButton onClick={handleShare} sx={{ color: 'text.tertiary' }}>
               <ShareIcon />
             </IconButton>

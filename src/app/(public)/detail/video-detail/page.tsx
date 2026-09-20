@@ -22,6 +22,7 @@ import { homeClient, formatApiError } from '@/lib/api/client';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import DetailHeader from '@/components/detail/DetailHeader';
+import ShareButtons from '@/components/share/ShareButtons';
 import { DetailComments } from '@/components/detail/DetailComments';
 import { DetailFooter } from '@/components/detail/DetailFooter';
 import { CollectButton } from '@/components/detail/CollectButton';
@@ -135,8 +136,16 @@ function VideoDetailContent() {
       <DetailHeader
         title={query.data?.title || '视频详情'}
         rightActions={
-          <Box sx={{ display: 'flex', gap: 0.5 }}>
+          <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
             <CollectButton contentId={id!} contentType="video" />
+            <ShareButtons
+              contentType="video"
+              contentId={Number(id)}
+              title={query.data?.title || '视频详情'}
+              url={typeof window !== 'undefined' ? window.location.href : ''}
+              cover={query.data?.cover}
+              videoUrl={query.data?.videoUrl}
+            />
             <IconButton onClick={handleShare} sx={{ color: 'text.tertiary' }}>
               <ShareIcon />
             </IconButton>

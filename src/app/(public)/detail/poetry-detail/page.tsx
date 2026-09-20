@@ -23,6 +23,7 @@ import Alert from '@mui/material/Alert';
 import Avatar from '@mui/material/Avatar';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import ShareIcon from '@mui/icons-material/Share';
+import ShareButtons from '@/components/share/ShareButtons';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ThumbUpIcon from '@mui/icons-material/ThumbUp';
 import ThumbUpOutlinedIcon from '@mui/icons-material/ThumbUpOutlined';
@@ -133,6 +134,7 @@ function PoetryDetailContent() {
               {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
             </IconButton>
             <CollectButton contentId={id!} contentType="poetry" />
+            <ShareButtons contentType="poetry" contentId={Number(id)} title={query.data?.title ?? 'poetry-detail 详情'} url={typeof window !== 'undefined' ? window.location.href : ''} />
             <IconButton onClick={handleShare} sx={{ color: 'text.tertiary' }}>
               <ShareIcon />
             </IconButton>

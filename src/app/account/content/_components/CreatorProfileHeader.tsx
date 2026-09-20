@@ -8,6 +8,7 @@ import Avatar from '@mui/material/Avatar';
 import Skeleton from '@mui/material/Skeleton';
 import EditIcon from '@mui/icons-material/Edit';
 import ShareIcon from '@mui/icons-material/Share';
+import ShareButtons from '@/components/share/ShareButtons';
 import SettingsIcon from '@mui/icons-material/Settings';
 import StarIcon from '@mui/icons-material/Star';
 import { useQuery } from '@tanstack/react-query';
@@ -163,6 +164,14 @@ export default function CreatorProfileHeader() {
             <ShareIcon sx={{ fontSize: 14 }} />
             <span>分享主页</span>
           </Box>
+          <ShareButtons
+            contentType="creator"
+            contentId={Number(profile.userId)}
+            title={profile.nickname || '创作者主页'}
+            url={`${typeof window !== 'undefined' ? window.location.origin : ''}/u?id=${profile.userId}`}
+            cover={profile.avatar}
+            desc={profile.signature}
+          />
           <Box onClick={handleCreatorSettings} sx={{ display: { xs: 'none', md: 'inline-flex' }, alignItems: 'center', gap: 0.5, px: 1.5, py: 0.75, borderRadius: 1, bgcolor: 'transparent', border: '1px solid', borderColor: 'divider', color: 'text.tertiary', fontSize: 12, fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s ease-in-out', '&:hover': { borderColor: 'warning.main', color: 'warning.main' } }}>
             <SettingsIcon sx={{ fontSize: 14 }} />
             <span>创作者设置</span>

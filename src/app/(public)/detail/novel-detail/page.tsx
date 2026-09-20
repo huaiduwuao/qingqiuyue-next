@@ -28,6 +28,7 @@ import { lightTheme, darkTheme } from '@/styles/theme';
 import { DetailComments } from '@/components/detail/DetailComments';
 import { DetailFooter } from '@/components/detail/DetailFooter';
 import { PlatformLinks, platformsOf, playNoticeOf } from '@/components/detail/ExternalPlatforms';
+import ShareButtons from '@/components/share/ShareButtons';
 import { AvailabilityBadge } from '@/components/common/AvailabilityBadge';
 import type { PlaybackStatus } from '@/apis/recommend';
 import { ChapterBlock, type ChapterBody } from '@/components/novel-reader/ChapterBlock';
@@ -510,6 +511,16 @@ function NovelDetailContent() {
               <ArrowBackIosNewIcon sx={{ fontSize: 12 }} />
               返回
             </ButtonBase>
+            <Box sx={{ ml: 'auto' }}>
+              <ShareButtons
+                contentType="novel"
+                contentId={Number(id)}
+                title={bookTitle || '小说详情'}
+                url={typeof window !== 'undefined' ? window.location.href : ''}
+                cover={detail?.cover}
+                desc={(detail as any)?.desc || (detail as any)?.intro}
+              />
+            </Box>
             <Box component="span" sx={{ mx: 1, opacity: 0.5 }}>|</Box>
             <ButtonBase
               onClick={() => {
