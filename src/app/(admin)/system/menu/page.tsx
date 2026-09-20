@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -9,6 +9,10 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
+import Autocomplete from '@mui/material/Autocomplete';
+import MenuItem from '@mui/material/MenuItem';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Switch from '@mui/material/Switch';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import IconButton from '@mui/material/IconButton';
@@ -22,8 +26,20 @@ import type { GridColDef } from '@mui/x-data-grid';
 import { PermissionGuard } from '@/components/auth/PermissionGuard';
 import { useAuthority } from '@/contexts/AuthContext';
 import { PERMISSIONS } from '@/lib/permissions';
+import { MENU_ICON_NAMES, resolveMenuIcon } from '@/lib/menuIcons';
+import { MENU_GROUP_ORDER, MENU_GROUP_LABELS } from '@/lib/menuGroups';
 
 const LIST_KEY = ['system', 'menu'];
+
+// type 字段的枚举值。跟后端 MenuService / 数字人 MenusTab 的取值保持一致。
+const MENU_TYPES = [
+  { value: 'menu', label: '菜单' },
+  { value: 'button', label: '按钮' },
+  { value: 'link', label: '链接' },
+];
+
+// 分组候选项:key 存数据库,label 显示给管理员。
+const GROUP_OPTIONS = MENU_GROUP_ORDER.map((g) => ({ value: g, label: MENU_GROUP_LABELS[g] ?? g }));
 
 export default function SystemMenuPage() {
   const qc = useQueryClient();
@@ -33,6 +49,15 @@ export default function SystemMenuPage() {
   const [formValues, setFormValues] = useState<any>({});
   const [filterValues, setFilterValues] = useState<Record<string, any>>({});
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
+
+  // 父菜单下拉的候选列表。注意不能复用 DataGridTable 的分页数据(只拉第一页),
+  // 这里单独拉全量(菜单量级很小,几百条以内)。
+  const { data: allMenusData } = useQuery({
+    queryKey: [...LIST_KEY, 'all'],
+    queryFn: () => list({ pageSize: 500 }),
+    enabled: writeVisible,
+  });
+  const allMenus: any[] = allMenusData?.list || allMenusData?.records || [];
 
   const showMessage = (message: string, severity: 'success' | 'error' = 'success') => setSnackbar({ open: true, message, severity });
 
@@ -63,10 +88,16 @@ export default function SystemMenuPage() {
     setFormValues({
       name: record?.name || '',
       info: record?.info || '',
+      pid: record?.pid ?? 0,
       path: record?.path || '',
-      sort: record?.sort || '',
+      sort: record?.sort ?? 0,
       icon: record?.icon || '',
-      type: record?.type || '',
+      code: record?.code || '',
+      type: record?.type || 'menu',
+      // display 是 0/1;转成 bool 给 Switch
+      display: record?.display ?? 1,
+      accent: record?.accent || '',
+      group: record?.group || '',
     });
     setWriteVisible(true);
   };
@@ -77,10 +108,18 @@ export default function SystemMenuPage() {
   };
 
   const handleSubmit = () => {
+    if (!formValues.name) { showMessage('名称不能为空', 'error'); return; }
+    // 指针字段:空字符串转 null(表示清空),非空原样传。
+    const payload = {
+      ...formValues,
+      code: formValues.code || null,
+      accent: formValues.accent || null,
+      group: formValues.group || null,
+    };
     if (selectedRecord?.id) {
-      updateMutation.mutate({ ...formValues, id: selectedRecord.id });
+      updateMutation.mutate({ ...payload, id: selectedRecord.id });
     } else {
-      saveMutation.mutate(formValues);
+      saveMutation.mutate(payload);
     }
   };
 
@@ -89,13 +128,27 @@ export default function SystemMenuPage() {
   };
 
   const columns: GridColDef[] = [
-    { field: 'name', headerName: '名称', width: 150 },
+    {
+      field: 'name', headerName: '名称', width: 150,
+      renderCell: (params) => {
+        const Icon = resolveMenuIcon(params.row.icon);
+        return (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+            <Icon sx={{ fontSize: 16, color: 'text.secondary' }} />
+            <span>{params.value}</span>
+          </Box>
+        );
+      },
+    },
     { field: 'info', headerName: '描述', width: 150 },
-    { field: 'path', headerName: '路径', width: 200 },
-    { field: 'sort', headerName: '排序', width: 80 },
-    { field: 'icon', headerName: '图标', width: 100 },
+    { field: 'path', headerName: '路径', width: 180 },
+    { field: 'code', headerName: '权限码', width: 180, valueFormatter: (v) => v || '—' },
+    { field: 'group', headerName: '分组', width: 110, valueFormatter: (v) => (v ? (MENU_GROUP_LABELS[v] ?? v) : '—') },
+    { field: 'sort', headerName: '排序', width: 70 },
+    { field: 'icon', headerName: '图标', width: 130, valueFormatter: (v) => v || '—' },
     { field: 'type', headerName: '类型', width: 80 },
-    { field: 'updateTime', headerName: '最后更新时间', width: 180, valueFormatter: (value) => value ? new Date(value).toLocaleString() : '-' },
+    { field: 'display', headerName: '显示', width: 70, valueFormatter: (v) => (Number(v) === 1 ? '显示' : '隐藏') },
+    { field: 'updateTime', headerName: '最后更新时间', width: 170, valueFormatter: (value) => value ? new Date(value).toLocaleString() : '-' },
     {
       field: 'actions',
       headerName: '操作',
@@ -184,29 +237,123 @@ export default function SystemMenuPage() {
         </DialogTitle>
         <DialogContent sx={{ pt: '16px !important' }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            {[
-              { field: 'name', label: '名称' },
-              { field: 'info', label: '描述' },
-              { field: 'path', label: '路径' },
-              { field: 'sort', label: '排序', type: 'number' },
-              { field: 'icon', label: '图标' },
-              { field: 'type', label: '类型' },
-            ].map((f) => (
-              <TextField
-                key={f.field}
-                label={f.label}
-                type={f.type || 'text'}
-                value={formValues[f.field] ?? ''}
-                onChange={(e) => handleFormChange(f.field, f.type === 'number' ? Number(e.target.value) : e.target.value)}
-                fullWidth
+            <TextField
+              label="名称"
+              value={formValues.name ?? ''}
+              onChange={(e) => handleFormChange('name', e.target.value)}
+              fullWidth size="small"
+              slotProps={{ inputLabel: { sx: { color: 'text.secondary', fontSize: 13 } } }}
+              sx={textFieldSx}
+            />
+
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <Autocomplete
+                options={allMenus.filter((m) => m.type !== 'button' && m.id !== selectedRecord?.id)}
+                getOptionLabel={(o: any) => o?.name ?? ''}
+                isOptionEqualToValue={(o: any, v: any) => o?.id === v?.id}
+                value={allMenus.find((m) => m.id === formValues.pid) ?? null}
+                onChange={(_, v: any) => handleFormChange('pid', v?.id ?? 0)}
+                sx={{ flex: 1 }}
                 size="small"
-                slotProps={{
-                  inputLabel: { sx: { color: 'text.secondary', fontSize: 13 } },
-                  htmlInput: { sx: { color: 'text.primary' } },
-                }}
-                sx={textFieldSx}
+                renderInput={(params) => <TextField {...params} label="父级菜单" sx={textFieldSx} />}
               />
-            ))}
+              <TextField
+                label="排序"
+                type="number"
+                value={formValues.sort ?? 0}
+                onChange={(e) => handleFormChange('sort', Number(e.target.value))}
+                sx={{ ...textFieldSx, width: 110 }}
+                size="small"
+              />
+            </Box>
+
+            <TextField
+              label="路径"
+              value={formValues.path ?? ''}
+              onChange={(e) => handleFormChange('path', e.target.value)}
+              fullWidth size="small"
+              placeholder="/system/xxx"
+              slotProps={{ inputLabel: { sx: { color: 'text.secondary', fontSize: 13 } } }}
+              sx={textFieldSx}
+            />
+
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <TextField
+                label="权限码"
+                value={formValues.code ?? ''}
+                onChange={(e) => handleFormChange('code', e.target.value)}
+                sx={{ ...textFieldSx, flex: 1 }}
+                size="small"
+                placeholder="system:resource:action"
+                helperText="留空 = 公共菜单,所有人可见"
+                slotProps={{ inputLabel: { sx: { color: 'text.secondary', fontSize: 13 } }, formHelperText: { sx: { fontSize: 11 } } }}
+              />
+              <TextField
+                label="类型"
+                select
+                value={formValues.type ?? 'menu'}
+                onChange={(e) => handleFormChange('type', e.target.value)}
+                sx={{ ...textFieldSx, width: 120 }}
+                size="small"
+              >
+                {MENU_TYPES.map((t) => (
+                  <MenuItem key={t.value} value={t.value}>{t.label}</MenuItem>
+                ))}
+              </TextField>
+            </Box>
+
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <Autocomplete
+                freeSolo
+                options={MENU_ICON_NAMES}
+                value={formValues.icon ?? ''}
+                onInputChange={(_, v) => handleFormChange('icon', v)}
+                onChange={(_, v) => handleFormChange('icon', v ?? '')}
+                sx={{ flex: 1 }}
+                size="small"
+                renderInput={(params) => <TextField {...params} label="图标" placeholder="如 AdminPanelSettings" sx={textFieldSx} />}
+              />
+              <Autocomplete
+                options={GROUP_OPTIONS}
+                getOptionLabel={(o: any) => (typeof o === 'string' ? o : o?.label ?? '')}
+                isOptionEqualToValue={(o: any, v: any) => o?.value === v?.value}
+                value={GROUP_OPTIONS.find((g) => g.value === formValues.group) ?? null}
+                onChange={(_, v: any) => handleFormChange('group', v?.value ?? '')}
+                sx={{ flex: 1 }}
+                size="small"
+                renderInput={(params) => <TextField {...params} label="分组" sx={textFieldSx} />}
+              />
+            </Box>
+
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+              <TextField
+                label="高亮色"
+                value={formValues.accent ?? ''}
+                onChange={(e) => handleFormChange('accent', e.target.value)}
+                sx={{ ...textFieldSx, flex: 1 }}
+                size="small"
+                placeholder="#1976d2 或 primary.main"
+              />
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={Number(formValues.display ?? 1) === 1}
+                    onChange={(e) => handleFormChange('display', e.target.checked ? 1 : 0)}
+                  />
+                }
+                label="显示"
+                sx={{ '& .MuiFormControlLabel-label': { fontSize: 13, color: 'text.secondary' } }}
+              />
+            </Box>
+
+            <TextField
+              label="描述"
+              value={formValues.info ?? ''}
+              onChange={(e) => handleFormChange('info', e.target.value)}
+              fullWidth size="small" multiline rows={2}
+              slotProps={{ inputLabel: { sx: { color: 'text.secondary', fontSize: 13 } } }}
+              sx={textFieldSx}
+            />
           </Box>
         </DialogContent>
         <DialogActions sx={{ borderTop: '1px solid', borderColor: 'divider', px: 2.5, py: 1.5, gap: 1 }}>

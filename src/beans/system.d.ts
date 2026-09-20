@@ -34,6 +34,12 @@ export interface MenuItem extends TableListItem {
   sort?: number;
   icon?: string;
   type?: string;
+  /** 侧栏高亮颜色(hex / 主题 token);NULL 用主题主色 */
+  accent?: string;
+  /** 侧栏分组 key(见 src/lib/menuGroups.ts);NULL 归入 default */
+  group?: string;
+  /** 1 = 显示,0 = 隐藏 */
+  display?: number;
   belong?: boolean;
   children?: MenuItem[];
 }

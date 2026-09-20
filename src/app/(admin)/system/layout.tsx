@@ -10,6 +10,7 @@ import Tooltip from '@mui/material/Tooltip';
 import Avatar from '@mui/material/Avatar';
 import Menu from '@mui/material/Menu';
 import Drawer from '@mui/material/Drawer';
+import CircularProgress from '@mui/material/CircularProgress';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import MenuItem from '@mui/material/MenuItem';
@@ -19,6 +20,12 @@ import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import { useAuthority } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
 import { MENU_GROUPS, type MenuItemDef } from './menu-config';
+import { resolveMenuIcon } from '@/lib/menuIcons';
+import { MENU_GROUP_LABELS, MENU_GROUP_ORDER } from '@/lib/menuGroups';
+
+// 双轨开关:默认走数据库(后端 MigrateMenu 已 seed 50+ 条);
+// 设成 'false' 即回退到 menu-config.tsx 硬编码分支,用于线上出问题时热切。
+const USE_DB_MENU = process.env.NEXT_PUBLIC_USE_DB_MENU !== 'false';
 
 const ROLE_LABEL: Record<string, { label: string; color: string }> = {
   SUPER_ADMIN: { label: '超级管理员', color: 'primary.main' },
@@ -42,7 +49,7 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { isAdmin, can } = useAuthority();
-  const { currentUser } = useApp();
+  const { currentUser, menuData } = useApp();
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
   // 手机端抽屉菜单(< md 侧栏隐藏,之前后台在手机上根本没法切页面)
   const [navOpen, setNavOpen] = useState(false);
@@ -56,24 +63,57 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
   //     刷新 / 收藏 / 前进后退全都回到那一页;
   //   · 在子路由上点菜单会 router.push('/system'),URL 一变又把 activeTab 同步回默认项。
   // 现在菜单就是普通导航:点它跳 item.path,每个菜单都有自己的 URL。
+  //
+  // 双轨:
+  //   - 硬编码分支(USE_DB_MENU=false):从 MENU_GROUPS 找;保持旧行为
+  //   - 数据库分支(默认):从 menuData 找;菜单项的 id/label/path 跟数据库一致
   const activeItem = useMemo(() => {
     if (!pathname) return null;
-    let match: MenuItemDef | undefined;
-    for (const group of MENU_GROUPS) {
-      for (const it of group.items) {
-        const hit = pathname === it.path || pathname.startsWith(it.path + '/');
-        if (hit && (!match || it.path.length > match.path.length)) match = it;
-      }
+    const source: Array<{ id: string; path: string; label: string }> = USE_DB_MENU
+      ? menuData.map((m) => ({ id: String(m.id), path: m.path ?? '', label: m.name ?? '' }))
+      : MENU_GROUPS.flatMap((g) => g.items).map((it) => ({ id: it.id, path: it.path, label: it.label }));
+    let match: { id: string; path: string; label: string } | undefined;
+    for (const it of source) {
+      const hit = it.path && (pathname === it.path || pathname.startsWith(it.path + '/'));
+      if (hit && (!match || it.path.length > match.path.length)) match = it;
     }
     return match ?? null;
-  }, [pathname]);
+  }, [pathname, menuData]);
 
-  // 过滤有权限的菜单项
+  // 过滤有权限的菜单项,并按 MENU_GROUP_ORDER 排序分组。
+  //
+  // 双轨:
+  //   - USE_DB_MENU=false:保持原 menu-config.tsx 行为(防御性 fallback)
+  //   - 默认:从 useApp().menuData(由 AuthContext.loadUser 写入)按 code 过滤、按 group 聚合
+  //
+  // menu.code 为 NULL 的菜单视作公共,所有人都能看。
   const visibleGroups = useMemo(() => {
-    return MENU_GROUPS
-      .map((g) => ({ ...g, items: g.items.filter((it) => !it.permission || can(it.permission)) }))
-      .filter((g) => g.items.length > 0);
-  }, [can]);
+    if (!USE_DB_MENU) {
+      return MENU_GROUPS
+        .map((g) => ({ ...g, items: g.items.filter((it) => !it.permission || can(it.permission)) }))
+        .filter((g) => g.items.length > 0);
+    }
+
+    const visible = menuData.filter((m) => !m.code || can(m.code));
+    const map = new Map<string, MenuItemDef[]>();
+    for (const m of visible) {
+      const g = m.group ?? 'default';
+      if (!map.has(g)) map.set(g, []);
+      const Icon = resolveMenuIcon(m.icon);
+      map.get(g)!.push({
+        id: String(m.id),
+        label: m.name ?? '',
+        path: m.path ?? '#',
+        icon: <Icon sx={{ fontSize: 18 }} />,
+        accent: m.accent ?? 'inherit',
+        permission: m.code ?? undefined,
+      });
+    }
+    // 按 MENU_GROUP_ORDER 排;缺失的 group 自动跳过,数据库返回顺序不影响侧栏。
+    return MENU_GROUP_ORDER
+      .filter((g) => map.has(g))
+      .map((g) => ({ title: MENU_GROUP_LABELS[g] ?? g, items: map.get(g)! }));
+  }, [menuData, can]);
 
   const handleMenuClick = (item: MenuItemDef) => {
     if (pathname !== item.path) router.push(item.path);
@@ -85,6 +125,16 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
     sessionStorage.removeItem('admin_entry_path');
     router.push(entry && entry !== '/system/role' ? entry : '/home/recommend');
   };
+
+  // 数据库分支下,menuData 还没回来(首次登录 / 刷新 / 接口失败)时给个骨架,
+  // 避免渲染出"无访问权限"的占位 — menuData 空 ≠ 没权限。
+  if (USE_DB_MENU && !menuData.length) {
+    return (
+      <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'var(--bg-body, transparent)' }}>
+        <CircularProgress size={24} />
+      </Box>
+    );
+  }
 
   if (!isAdmin) {
     return (
