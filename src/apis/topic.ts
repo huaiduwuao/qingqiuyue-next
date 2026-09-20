@@ -42,6 +42,18 @@ export interface TopicRule {
   /** 非空时作品直接取 trending 索引里该平台的热榜(自动生成的"<平台> 今日热门"专题) */
   trendingPlatform?: string;
   trendingPeriod?: 'realtime' | 'day' | 'week';
+  /** 分面条件 —— 见后端 contenttaxonomy 词表;后端会按这些字段走 genre_codes / region_code 列精确匹配 */
+  genres?: string[];
+  region?: string;
+  yearFrom?: number;
+  yearTo?: number;
+  minRating?: number;
+}
+
+/** 题材码一项,对应后端 GET /topic/genres */
+export interface TopicGenre {
+  code: string;
+  label: string;
 }
 
 /** 一轮自动生成的结果(POST /topic/curate) */
@@ -120,6 +132,27 @@ export async function curateTopics(): Promise<CurateReport> {
 export async function getHotTopics(limit?: number) {
   return contentClient.get('/topic/hot', { params: { limit } });
 }
+
+// 获取题材码列表(下拉数据源)。后端用 contenttaxonomy.GenresFor(contentType),
+// 词表是后台唯一真理来源,前端不缓存——避免词表漂移。
+export async function listTopicGenres(contentType?: string): Promise<TopicGenre[]> {
+  return contentClient.get('/topic/genres', { params: { contentType } });
+}
+
+// 地区码列表(下拉数据源)。地区词表项数固定(10 条),前端 hardcode 一份;
+// 与后端 pkg/contenttaxonomy.regions 严格对齐,改词表时同步更新。
+export const TOPIC_REGIONS: { code: string; label: string }[] = [
+  { code: 'cn', label: '中国大陆' },
+  { code: 'hktw', label: '中国港台' },
+  { code: 'jp', label: '日本' },
+  { code: 'kr', label: '韩国' },
+  { code: 'us', label: '美国' },
+  { code: 'uk', label: '英国' },
+  { code: 'eu', label: '欧洲' },
+  { code: 'west', label: '欧美' },
+  { code: 'asia', label: '其他亚洲' },
+  { code: 'other', label: '其他地区' },
+];
 
 // 获取专题详情(含内容)
 export async function getTopic(id: number) {

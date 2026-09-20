@@ -88,6 +88,9 @@ export const BUILTIN_TYPE_SECTIONS: HomeSection[] = [
   { id: 'knowledge', label: '知识', kind: 'tag', tag: '知识', builtin: true },
   { id: 'sports', label: '体育', kind: 'tag', tag: '体育', builtin: true },
   { id: 'finance', label: '财经', kind: 'tag', tag: '财经', builtin: true },
+  // 历史专题 — kind=type,contentType=NEWS,genre=history.figure(子分类字典 code)。
+  // 字典行由 V20260920_13 seed;后端 list 接口按 genre 走 tag 分支命中(题材中文名)。
+  { id: 'history', label: '历史', kind: 'type', contentType: 'NEWS', genre: 'history.figure', genreLabel: '历史人物', builtin: true },
 ];
 
 /** 新装/重置时默认摆出来的频道(推荐在外,单独置顶)。 */

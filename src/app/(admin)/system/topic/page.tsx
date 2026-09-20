@@ -51,6 +51,9 @@ import {
   TopicKind,
   parseTopicRule,
   curateTopics,
+  listTopicGenres,
+  TOPIC_REGIONS,
+  TopicGenre,
 } from '@/apis/topic';
 import { moduleContentPage } from '@/apis/home';
 
@@ -72,9 +75,24 @@ interface RuleForm {
   contentTypes: string[];
   keywords: string;
   orderBy: 'hot' | 'new';
+  /** 分面条件 —— 后端会按这些字段精确匹配 genre_codes / region_code 列 */
+  genres: string[];
+  region: string;
+  yearFrom: number;
+  yearTo: number;
+  minRating: number;
 }
 
-const emptyRule: RuleForm = { contentTypes: [], keywords: '', orderBy: 'hot' };
+const emptyRule: RuleForm = {
+  contentTypes: [],
+  keywords: '',
+  orderBy: 'hot',
+  genres: [],
+  region: '',
+  yearFrom: 0,
+  yearTo: 0,
+  minRating: 0,
+};
 
 // 内容搜索结果类型(内容 id 超过 2^53 时是字符串)
 interface ContentItem {
@@ -105,6 +123,9 @@ export default function TopicAdminPage() {
     kind: 'collection',
   });
   const [ruleForm, setRuleForm] = useState<RuleForm>(emptyRule);
+  // 题材码下拉数据:按当前选中的 contentType 异步加载。dialog 打开时或 contentType 改了时刷新。
+  const [genres, setGenres] = useState<TopicGenre[]>([]);
+  const [genresLoading, setGenresLoading] = useState(false);
   // 自动生成:internal/topiccurator 每 30 分钟跑一轮;这里可以立即触发并看结果
   const [curating, setCurating] = useState(false);
   const [curateNote, setCurateNote] = useState('');
@@ -149,7 +170,16 @@ export default function TopicAdminPage() {
         kind: topic.kind || 'collection',
       });
       const r = parseTopicRule(topic.rule);
-      setRuleForm({ contentTypes: r.contentTypes || [], keywords: (r.keywords || []).join(','), orderBy: r.orderBy === 'new' ? 'new' : 'hot' });
+      setRuleForm({
+        contentTypes: r.contentTypes || [],
+        keywords: (r.keywords || []).join(','),
+        orderBy: r.orderBy === 'new' ? 'new' : 'hot',
+        genres: r.genres || [],
+        region: r.region || '',
+        yearFrom: r.yearFrom || 0,
+        yearTo: r.yearTo || 0,
+        minRating: r.minRating || 0,
+      });
     } else {
       setEditingTopic(null);
       setFormData({
@@ -164,6 +194,22 @@ export default function TopicAdminPage() {
       setRuleForm(emptyRule);
     }
     setOpenDialog(true);
+    // 拉题材码:按当前 formData.contentType 过滤,空字符串表示通用。
+    setGenresLoading(true);
+    listTopicGenres(formData.contentType || undefined)
+      .then((list) => setGenres(list || []))
+      .catch(() => setGenres([]))
+      .finally(() => setGenresLoading(false));
+  };
+
+  // contentType 改了之后重拉题材码。
+  const handleContentTypeChange = (v: string) => {
+    setFormData({ ...formData, contentType: v });
+    setGenresLoading(true);
+    listTopicGenres(v || undefined)
+      .then((list) => setGenres(list || []))
+      .catch(() => setGenres([]))
+      .finally(() => setGenresLoading(false));
   };
 
   const handleCloseDialog = () => {
@@ -172,13 +218,18 @@ export default function TopicAdminPage() {
   };
 
   const handleSubmit = async () => {
-    // 规则为空(没选类型也没填关键词)时后端会清除规则
+    // 规则为空(没选类型也没填关键词也没选题材)时后端会清除规则。
     const payload: CreateTopicReq = {
       ...formData,
       rule: {
         contentTypes: ruleForm.contentTypes,
         keywords: ruleForm.keywords.split(/[,，\s]+/).map((k) => k.trim()).filter(Boolean),
         orderBy: ruleForm.orderBy,
+        genres: ruleForm.genres,
+        region: ruleForm.region || undefined,
+        yearFrom: ruleForm.yearFrom || undefined,
+        yearTo: ruleForm.yearTo || undefined,
+        minRating: ruleForm.minRating || undefined,
       },
     };
     try {
@@ -555,6 +606,69 @@ export default function TopicAdminPage() {
               <MenuItem value="hot">按热度</MenuItem>
               <MenuItem value="new">按最近更新</MenuItem>
             </TextField>
+
+            {/* 分面条件 —— 后端按 genre_codes / region_code / pub_year / rating 精确匹配,
+                比 keywords 的 LIKE 更准。keywords 还能命中标题里碰巧带的字,分面不会。 */}
+            <Typography variant="caption" color="text.secondary">
+              分面条件(可选)—— 比关键词匹配更精准,不会误伤标题里碰巧带的字
+            </Typography>
+            <TextField
+              select
+              label="题材码"
+              value={ruleForm.genres}
+              onChange={(e) => {
+                const v = e.target.value as unknown as string[] | string;
+                setRuleForm({ ...ruleForm, genres: typeof v === 'string' ? v.split(',') : v });
+              }}
+              slotProps={{ select: { multiple: true } }}
+              fullWidth
+              helperText={genresLoading ? '加载中…' : `${genres.length} 项可选`}
+              disabled={genresLoading}
+            >
+              {genres.map((g) => (
+                <MenuItem key={g.code} value={g.code}>{g.label}</MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              label="地区码"
+              value={ruleForm.region}
+              onChange={(e) => setRuleForm({ ...ruleForm, region: e.target.value })}
+              fullWidth
+              helperText="不选 = 不限地区"
+            >
+              <MenuItem value="">不限</MenuItem>
+              {TOPIC_REGIONS.map((r) => (
+                <MenuItem key={r.code} value={r.code}>{r.label}</MenuItem>
+              ))}
+            </TextField>
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <TextField
+                label="起始年份"
+                type="number"
+                value={ruleForm.yearFrom || ''}
+                onChange={(e) => setRuleForm({ ...ruleForm, yearFrom: parseInt(e.target.value) || 0 })}
+                fullWidth
+                helperText="0 = 不限"
+              />
+              <TextField
+                label="结束年份"
+                type="number"
+                value={ruleForm.yearTo || ''}
+                onChange={(e) => setRuleForm({ ...ruleForm, yearTo: parseInt(e.target.value) || 0 })}
+                fullWidth
+                helperText="0 = 不限"
+              />
+              <TextField
+                label="最低评分"
+                type="number"
+                value={ruleForm.minRating || ''}
+                onChange={(e) => setRuleForm({ ...ruleForm, minRating: parseFloat(e.target.value) || 0 })}
+                fullWidth
+                helperText="0-10,0 = 不限"
+              />
+            </Box>
+
             <TextField
               label="排序"
               type="number"
