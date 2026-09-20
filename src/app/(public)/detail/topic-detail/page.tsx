@@ -13,6 +13,7 @@ import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
 import VerifiedRoundedIcon from '@mui/icons-material/VerifiedRounded';
 import { fetchTopic, fetchTopicContents, fetchTopicInsights, type CommunityTopic, type TopicContentItem } from '@/apis/community';
+import { isApiError } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { CoverImage } from '@/components/common/CoverImage';
 import DetailHeader from '@/components/detail/DetailHeader';
@@ -35,7 +36,7 @@ export default function TopicDetailPage() {
 function TopicDetail() {
   const router = useRouter();
   const id = useSearchParams().get('id');
-  const { data: topic, isLoading, isError } = useQuery({ queryKey: ['community', 'topic', id], queryFn: () => fetchTopic(id as string), enabled: !!id, retry: false });
+  const { data: topic, isLoading, isError, error } = useQuery({ queryKey: ['community', 'topic', id], queryFn: () => fetchTopic(id as string), enabled: !!id, retry: false });
   // 专题的结构化洞察(lineups / versionHistory)。空数组时 TopicInsightSection 内部 return null,
   // 非 TFT 专题完全不渲染。staleTime 5min:tft.composition 子分类更新频率不高,刷新一次够用。
   const { data: insightsData } = useQuery({
@@ -43,6 +44,7 @@ function TopicDetail() {
     queryFn: () => fetchTopicInsights(id as string),
     enabled: !!id && !isLoading,
     staleTime: 5 * 60_000,
+    retry: false,
   });
   // 合集默认看作品,话题默认看讨论;用户切过页签/点过关注后以用户操作为准
   const [tabChoice, setTab] = useState<'contents' | 'posts' | RealmCollabTab | null>(null);
@@ -76,9 +78,19 @@ function TopicDetail() {
     );
   }
   if (!id || isError || !topic) {
+    // 私密意境走的是 403(存在,但只有管理员可见),和「不存在」分开显示:
+    // 从需求、团队、动态等引用点进来的用户不该以为自己点了个被删的意境。
+    const forbidden = isApiError(error) && error.status === 403;
     return (
       <Container maxWidth="md" sx={{ py: 10, textAlign: 'center' }}>
-        <Typography variant="h6" gutterBottom>意境不存在或已停用</Typography>
+        <Typography variant="h6" gutterBottom>
+          {forbidden ? '这个意境仅管理员可见' : '意境不存在或已停用'}
+        </Typography>
+        {forbidden && (
+          <Typography sx={{ fontSize: 13, opacity: 0.7, mb: 2 }}>
+            它已被设为私密合集,当前账号没有查看权限。
+          </Typography>
+        )}
         <Button variant="contained" onClick={() => router.push('/home/recommend?tab=topic')}>去看看其他意境</Button>
       </Container>
     );

@@ -53,8 +53,11 @@ import {
   curateTopics,
   listTopicGenres,
   TOPIC_REGIONS,
+  TOPIC_VISIBILITY_LABEL,
   TopicGenre,
+  TopicVisibility,
 } from '@/apis/topic';
+import { useAuthority } from '@/contexts/AuthContext';
 import { moduleContentPage } from '@/apis/home';
 import { TopicInsightsEditorDialog } from './InsightsEditorDialog';
 
@@ -106,6 +109,8 @@ interface ContentItem {
 
 /** 列表里重新拉取数据用的 token,改它即可让 DataGridTable 刷新当前页 */
 export default function TopicAdminPage() {
+  // 私密合集(admin_only)只对管理员开放:运营能管公开专题,但看不到也不该设私密。
+  const { isAdmin } = useAuthority();
   const [refreshToken, setRefreshToken] = useState(0);
   // 待审池筛选(E2)。用户在前台自己建的意境进 status=0 归自己名下,要在这里通过才上线;
   // 不传 status 是看全部 —— 默认停在「待审」上,否则用户提交的意境会一直压在池子里没人看。
@@ -125,6 +130,7 @@ export default function TopicAdminPage() {
     contentType: '',
     sort: 0,
     kind: 'collection',
+    visibility: 'public',
   });
   const [ruleForm, setRuleForm] = useState<RuleForm>(emptyRule);
   // 题材码下拉数据:按当前选中的 contentType 异步加载。dialog 打开时或 contentType 改了时刷新。
@@ -172,6 +178,7 @@ export default function TopicAdminPage() {
         contentType: topic.contentType || '',
         sort: topic.sort,
         kind: topic.kind || 'collection',
+        visibility: topic.visibility || 'public',
       });
       const r = parseTopicRule(topic.rule);
       setRuleForm({
@@ -194,6 +201,7 @@ export default function TopicAdminPage() {
         contentType: '',
         sort: 0,
         kind: 'collection',
+        visibility: 'public',
       });
       setRuleForm(emptyRule);
     }
@@ -222,6 +230,10 @@ export default function TopicAdminPage() {
   };
 
   const handleSubmit = async () => {
+    // 私密改公开是不可逆的曝光:一旦公开,所有人都能在广场看到,先确认一次。
+    if (editingTopic && editingTopic.visibility === 'admin_only' && formData.visibility !== 'admin_only') {
+      if (!window.confirm(`把「${formData.title}」改为公开?公开后所有人都能在意境广场看到它。`)) return;
+    }
     // 规则为空(没选类型也没填关键词也没选题材)时后端会清除规则。
     const payload: CreateTopicReq = {
       ...formData,
@@ -400,6 +412,11 @@ export default function TopicAdminPage() {
         return (
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', height: '100%' }}>
             <Chip size="small" variant="outlined" label={topic.kind === 'topic' ? '话题' : '合集'} />
+            {topic.visibility === 'admin_only' ? (
+              <Tooltip title={`可见范围:${TOPIC_VISIBILITY_LABEL.admin_only}。前台(搜索、联想、作品「收录于」)都看不到它`}>
+                <Chip size="small" color="warning" label="私密" sx={{ ml: 0.5 }} />
+              </Tooltip>
+            ) : null}
             {topic.source === 'auto' ? (
               <Tooltip title={`数据自动生成(${topic.autoKey || ''}),热度分 ${topic.hotScore ?? 0}。停用后不会再被自动复活`}>
                 <Chip size="small" color="info" label="自动生成" sx={{ ml: 0.5 }} />
@@ -570,12 +587,40 @@ export default function TopicAdminPage() {
               select
               label="类型"
               value={formData.kind || 'collection'}
-              onChange={(e) => setFormData({ ...formData, kind: e.target.value as TopicKind })}
+              onChange={(e) => {
+                const kind = e.target.value as TopicKind;
+                // 联动:话题不能是私密,选了话题就把可见范围拉回公开。
+                setFormData({ ...formData, kind, visibility: kind === 'topic' ? 'public' : formData.visibility || 'public' });
+              }}
               fullWidth
               helperText="合集:以作品为主(手工收录 + 自动收录);话题:以讨论为主,用户发帖写 #话题名# 即可参与"
             >
               <MenuItem value="collection">合集</MenuItem>
-              <MenuItem value="topic">话题</MenuItem>
+              <MenuItem value="topic" disabled={formData.visibility === 'admin_only'}>
+                话题
+              </MenuItem>
+            </TextField>
+            <TextField
+              select
+              label="可见范围"
+              value={formData.visibility || 'public'}
+              onChange={(e) => {
+                const visibility = e.target.value as TopicVisibility;
+                // 联动:私密只支持合集,选私密就把类型锁成合集。
+                setFormData({ ...formData, visibility, kind: visibility === 'admin_only' ? 'collection' : formData.kind });
+              }}
+              fullWidth
+              disabled={!isAdmin}
+              helperText={
+                isAdmin
+                  ? '私密合集只有平台管理员能看到;前台搜索、联想、作品「收录于」都不会出现它。公开与私密可随时互转(仅管理员)'
+                  : '只有平台管理员能设置可见范围'
+              }
+            >
+              <MenuItem value="public">公开</MenuItem>
+              <MenuItem value="admin_only" disabled={!isAdmin || (formData.kind || 'collection') === 'topic'}>
+                仅管理员(私密)
+              </MenuItem>
             </TextField>
             <Typography variant="subtitle2" sx={{ mt: 1 }}>
               自动收录规则(可选)

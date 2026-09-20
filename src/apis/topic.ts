@@ -5,6 +5,17 @@ import { contentClient } from '@/lib/api/client';
 
 export type TopicKind = 'collection' | 'topic';
 
+/**
+ * 可见范围。admin_only = 私密合集,只有平台管理员(ADMIN / SUPER_ADMIN)能看到,
+ * 内容运营(OPERATOR / AUDITOR)看不到。后端对私密专题一律返 404,不是空数据。
+ */
+export type TopicVisibility = 'public' | 'admin_only';
+
+export const TOPIC_VISIBILITY_LABEL: Record<TopicVisibility, string> = {
+  public: '公开',
+  admin_only: '仅管理员',
+};
+
 // 专题类型
 export interface Topic {
   id: number;
@@ -18,6 +29,8 @@ export interface Topic {
   viewCount: number;
   contentCount: number;
   kind?: TopicKind;
+  /** 缺省按 public 处理(旧接口没有这个字段) */
+  visibility?: TopicVisibility;
   ownerId?: number;
   followerCount?: number;
   postCount?: number;
@@ -103,6 +116,8 @@ export interface CreateTopicReq {
   contentType?: string;
   sort?: number;
   kind?: TopicKind;
+  /** 只有管理员能传 admin_only;普通用户传了会被后端拒绝 */
+  visibility?: TopicVisibility;
   rule?: TopicRule;
 }
 
@@ -119,7 +134,7 @@ export interface AddContentReq {
 }
 
 // 获取专题列表
-export async function listTopics(params?: { page?: number; pageSize?: number; status?: number; kind?: TopicKind; keyword?: string; source?: 'manual' | 'auto' }) {
+export async function listTopics(params?: { page?: number; pageSize?: number; status?: number; kind?: TopicKind; keyword?: string; source?: 'manual' | 'auto'; visibility?: TopicVisibility }) {
   return contentClient.get('/topic/list', { params });
 }
 
