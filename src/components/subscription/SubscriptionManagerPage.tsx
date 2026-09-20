@@ -31,7 +31,7 @@ export function SubscriptionManagerPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['subscriptions'] }),
   });
   const toggle = useMutation({
-    mutationFn: (id: number) => toggleSubscription(id),
+    mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) => toggleSubscription(id, enabled),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['subscriptions'] }),
   });
 
@@ -73,7 +73,7 @@ export function SubscriptionManagerPage() {
               <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>{s.target_type}</Typography>
             </Box>
             <Typography
-              onClick={() => toggle.mutate(s.id)}
+              onClick={() => toggle.mutate({ id: s.id, enabled: !enabled })}
               sx={{
                 fontSize: 12,
                 px: 1.5,
