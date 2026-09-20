@@ -20,7 +20,7 @@ import IconButton from '@mui/material/IconButton';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 import { listTasks, retryTask, TASK_STATUS_META, type ShareTask } from '@/apis/share';
-import { PLATFORMS, platformLabel } from '@/apis/system-platform-account';
+import { PLATFORMS, platformLabel } from '@/apis/share-account';
 
 const LIST_KEY = ['share-tasks'];
 

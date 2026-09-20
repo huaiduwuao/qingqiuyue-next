@@ -119,7 +119,6 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
       { id: 'app', label: '应用管理', path: '/system/app', icon: <AppsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main', permission: PERMISSIONS.SYSTEM_APP.VIEW },
       { id: 'app-config', label: '应用配置', path: '/system/app-config', icon: <SettingsApplicationsRoundedIcon sx={{ fontSize: 18 }} />, accent: 'secondary.main', permission: PERMISSIONS.SYSTEM_APP_CONFIG.VIEW },
       { id: 'app-submission', label: '应用提交资料', path: '/system/app-submission', icon: <PublishRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160', permission: PERMISSIONS.SYSTEM_APP_SUBMISSION.VIEW },
-      { id: 'platform-account', label: '自媒体平台账号', path: '/system/platform-account', icon: <HubRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55', permission: PERMISSIONS.SYSTEM_PLATFORM_ACCOUNT.VIEW },
     ],
   },
   {

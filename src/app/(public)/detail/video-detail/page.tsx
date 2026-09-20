@@ -124,7 +124,6 @@ function VideoDetailContent() {
               title={query.data?.title || '视频详情'}
               url={typeof window !== 'undefined' ? window.location.href : ''}
               cover={query.data?.cover}
-              videoUrl={query.data?.videoUrl}
             />
           </Box>
         }

@@ -53,7 +53,7 @@ export async function createTask(params: {
   contentType: string;
   contentId: number;
   title: string;
-  videoUrl?: string;
+  videoId?: string;          // 抖音/快手必填:用户在三方创作者中心上传后得到的 video_id
   coverUrl?: string;
   tags?: string[];
   shareCardImageUrl?: string;

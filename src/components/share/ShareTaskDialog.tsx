@@ -13,6 +13,7 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
+import NextLink from 'next/link';
 import {
   Dialog,
   DialogTitle,
@@ -28,13 +29,14 @@ import {
   CircularProgress,
   Switch,
   FormControlLabel,
+  Link as MuiLink,
 } from '@mui/material';
 import {
   listAccounts,
   createTask,
   type PlatformAccountBrief,
 } from '@/apis/share';
-import { PLATFORMS, platformLabel } from '@/apis/system-platform-account';
+import { PLATFORMS, platformLabel } from '@/apis/share-account';
 
 export interface ShareTaskDialogProps {
   open: boolean;
@@ -43,7 +45,7 @@ export interface ShareTaskDialogProps {
   contentType: string;
   contentId: number;
   defaultTitle: string;
-  defaultVideoUrl?: string;
+  defaultVideoUrl?: string; // deprecated:已不再使用,保留仅为不影响调用方
   defaultCoverUrl?: string;
   defaultTags?: string[];
   topicId?: string;
@@ -62,7 +64,7 @@ export default function ShareTaskDialog(props: ShareTaskDialogProps) {
   const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [accountId, setAccountId] = useState<number>(0);
   const [title, setTitle] = useState(defaultTitle);
-  const [videoUrl, setVideoUrl] = useState(defaultVideoUrl || '');
+  const [videoId, setVideoId] = useState('');
   const [coverUrl, setCoverUrl] = useState(defaultCoverUrl || '');
   const [tagsText, setTagsText] = useState((defaultTags || []).join(' '));
   const [scheduled, setScheduled] = useState(false);
@@ -74,7 +76,7 @@ export default function ShareTaskDialog(props: ShareTaskDialogProps) {
   useEffect(() => {
     if (!open) return;
     setTitle(defaultTitle);
-    setVideoUrl(defaultVideoUrl || '');
+    setVideoId('');
     setCoverUrl(defaultCoverUrl || '');
     setTagsText((defaultTags || []).join(' '));
     setScheduled(false);
@@ -90,7 +92,7 @@ export default function ShareTaskDialog(props: ShareTaskDialogProps) {
       })
       .catch((e: any) => setError(e?.message || '拉账号列表失败'))
       .finally(() => setLoadingAccounts(false));
-  }, [open, platform, defaultTitle, defaultVideoUrl, defaultCoverUrl, defaultTags]);
+  }, [open, platform, defaultTitle, defaultCoverUrl, defaultTags]);
 
   const platformMeta = useMemo(
     () => PLATFORMS.find((p) => p.value === platform),
@@ -104,6 +106,10 @@ export default function ShareTaskDialog(props: ShareTaskDialogProps) {
     }
     if (!title.trim()) {
       setError('标题不能为空');
+      return;
+    }
+    if (!videoId.trim()) {
+      setError('请填写视频 ID(video_id):先在抖音创作者中心 / 快手 App 上传素材,粘贴返回的 video_id');
       return;
     }
     setError(null);
@@ -133,7 +139,7 @@ export default function ShareTaskDialog(props: ShareTaskDialogProps) {
         contentType,
         contentId,
         title,
-        videoUrl: videoUrl || undefined,
+        videoId: videoId || undefined,
         coverUrl: coverUrl || undefined,
         tags: tags.length ? tags : undefined,
         topicId,
@@ -166,7 +172,10 @@ export default function ShareTaskDialog(props: ShareTaskDialogProps) {
             </Box>
           ) : accounts.length === 0 ? (
             <Alert severity="warning">
-              你还没有 {platformMeta?.label} 平台已授权账号。请到「我的设置 → 第三方平台账号」先绑定,或管理员在后台「自媒体平台账号」完成 OAuth 授权。
+              你还没有 {platformMeta?.label} 平台已授权账号。
+              <MuiLink component={NextLink} href="/account/content?tab=accounts" sx={{ ml: 0.5 }}>
+                去绑定
+              </MuiLink>
             </Alert>
           ) : (
             <Box>
@@ -210,13 +219,17 @@ export default function ShareTaskDialog(props: ShareTaskDialogProps) {
           </Box>
 
           <Box>
-            <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 0.5 }}>视频 URL(可选)</Typography>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 0.5 }}>
+              视频 ID (video_id) <span style={{ color: '#d32f2f' }}>*必填</span>
+            </Typography>
             <TextField
               fullWidth
               size="small"
-              value={videoUrl}
-              onChange={(e) => setVideoUrl(e.target.value)}
-              placeholder="https://..."
+              required
+              value={videoId}
+              onChange={(e) => setVideoId(e.target.value)}
+              placeholder="如 v0200f9c0000bv9..."
+              helperText="在抖音创作者中心 / 快手 App 上传素材后,粘贴返回的 video_id;清秋月不再上传视频二进制"
             />
           </Box>
 

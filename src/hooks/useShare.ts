@@ -29,7 +29,6 @@ export interface UseShareArgs {
   desc?: string;
   subtitle?: string;
   topicId?: string;
-  videoUrl?: string;
   defaultTags?: string[];
   onAfterShare?: (platform: string) => void;
 }

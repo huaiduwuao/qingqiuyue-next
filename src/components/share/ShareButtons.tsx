@@ -66,7 +66,6 @@ export interface ShareButtonsProps {
   desc?: string;
   subtitle?: string;
   topicId?: string;
-  videoUrl?: string;
   defaultTags?: string[];
   /** icon:详情页头部那一排图标里用的单个分享按钮(点开菜单);row(默认):一排按钮 */
   variant?: 'icon' | 'menu' | 'row';
@@ -81,7 +80,7 @@ const PLATFORMS = [
 
 export default function ShareButtons(props: ShareButtonsProps) {
   const {
-    contentType, contentId, title, url, cover, desc, subtitle, topicId, videoUrl, defaultTags,
+    contentType, contentId, title, url, cover, desc, subtitle, topicId, defaultTags,
     variant = 'row',
     onAfterShare,
   } = props;
@@ -298,7 +297,6 @@ export default function ShareButtons(props: ShareButtonsProps) {
           contentType={contentType}
           contentId={contentId}
           defaultTitle={title}
-          defaultVideoUrl={videoUrl}
           defaultCoverUrl={cover}
           defaultTags={defaultTags}
           topicId={topicId}
