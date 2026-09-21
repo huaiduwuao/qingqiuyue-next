@@ -10,7 +10,6 @@ import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
 import Tabs from '@mui/material/Tabs'
 import Tab from '@mui/material/Tab'
-import Paper from '@mui/material/Paper'
 import Chip from '@mui/material/Chip'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
@@ -24,9 +23,12 @@ import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Alert from '@mui/material/Alert'
 import IconButton from '@mui/material/IconButton'
-import Pagination from '@mui/material/Pagination'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
+import type { GridColDef } from '@mui/x-data-grid'
+import { DataGridTable } from '@/components/tables/DataGridTable'
+import type { FilterBarProps } from '@/components/tables/FilterBar'
+import { listFullAuditLogs, listMyAuditLogs } from '@/apis/agentmanager-audit'
 import { agentmAPI, type Instance, type Agent, type AuditLog, type Skill, type MonitoringOverview, type InstanceStats, type UsageStats, type CostStats } from './api'
 import GatewayQuotaPanel from './GatewayQuotaPanel'
 import KanbanBoard from './kanban/KanbanBoard'
@@ -45,6 +47,61 @@ const WorkflowStudio = dynamic(() => import('./studio/WorkflowStudio'), { ssr: f
 const SkillStudio = dynamic(() => import('./studio/SkillStudio'), { ssr: false })
 const AgentStudio = dynamic(() => import('./studio/AgentStudio'), { ssr: false })
 const ModelProviderManager = dynamic(() => import('./models/ModelProviderManager'), { ssr: false })
+
+/** 审计日志列定义。提到组件外,避免每次 render 重建导致 DataGrid 重新计算列。 */
+const auditColumns: GridColDef<AuditLog>[] = [
+  {
+    field: 'create_time',
+    headerName: '时间',
+    width: 180,
+    valueFormatter: (v: string) => (v ? new Date(v).toLocaleString() : '-'),
+  },
+  {
+    field: 'metadata',
+    headerName: '来源',
+    width: 180,
+    sortable: false,
+    // 悬停显示这次的输入预览(原表格行为,别丢)
+    renderCell: (params) => (
+      <Box component="span" title={params.row.input_preview} sx={{ cursor: 'default' }}>
+        {params.row.metadata?.source === 'agent' ? `员工 ${params.row.metadata?.agent || ''}` : '网关'}
+      </Box>
+    ),
+  },
+  {
+    field: 'user_id',
+    headerName: '用户',
+    width: 100,
+    valueFormatter: (v: number) => String(v || '系统'),
+  },
+  { field: 'model', headerName: '模型', width: 160 },
+  {
+    field: 'total_tokens',
+    headerName: 'Token',
+    width: 120,
+    renderCell: (params) =>
+      `${params.row.total_tokens}${params.row.metadata?.usage_source === 'estimated' ? ' (估)' : ''}`,
+  },
+  {
+    field: 'latency_ms',
+    headerName: '延迟',
+    width: 100,
+    renderCell: (params) => `${params.row.latency_ms}ms`,
+  },
+  {
+    field: 'status',
+    headerName: '状态',
+    width: 100,
+    renderCell: (params) => (
+      <Chip
+        size="small"
+        label={params.row.status}
+        title={params.row.error_msg}
+        color={params.row.status === 'success' ? 'success' : 'error'}
+      />
+    ),
+  },
+]
 
 type Tab = 'dashboard' | 'instances' | 'agents' | 'runs' | 'sessions' | 'audit' | 'skills' | 'drafts' | 'gateway' | 'kanban' | 'mcp' | 'workflows' | 'models'
 
@@ -81,10 +138,9 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
 
   // Data states
   const [instances, setInstances] = useState<Instance[]>([])
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
-  const [auditPage, setAuditPage] = useState(1)
-  const [auditTotal, setAuditTotal] = useState(0)
   const [skills, setSkills] = useState<Skill[]>([])
+  // 审计筛选条件(状态 / 模型关键字),由 DataGridTable 的 FilterBar 驱动
+  const [auditFilters, setAuditFilters] = useState<FilterBarProps['values']>({})
   const [overview, setOverview] = useState<MonitoringOverview | null>(null)
   const [instanceStats, setInstanceStats] = useState<InstanceStats[]>([])
   const [usageStats, setUsageStats] = useState<UsageStats | null>(null)
@@ -135,27 +191,6 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
     }
   }, [token])
 
-  // Load audit logs(分页:管理员看全量,普通用户只看自己的)
-  const auditLimit = isAdmin ? 100 : 50
-  const loadAuditLogs = useCallback(async () => {
-    if (!token) return
-    agentmAPI.setToken(token)
-    setLoading(true)
-    try {
-      // 管理员看全量(后台运行、工作流没有登录用户,只在全量里);普通用户只看自己的
-      const res = isAdmin
-        ? await agentmAPI.getFullAuditLog({ page: auditPage, limit: auditLimit })
-        : await agentmAPI.getAuditLog({ page: auditPage, limit: auditLimit })
-      setAuditLogs(res.list || [])
-      setAuditTotal(res.total || 0)
-      if (isAdmin) setCostStats(await agentmAPI.getCostStats().catch(() => null))
-    } catch (e: any) {
-      console.error('Load audit error:', e)
-    } finally {
-      setLoading(false)
-    }
-  }, [token, isAdmin, auditPage, auditLimit])
-
   // Load skills
   const loadSkills = async () => {
     if (!token) return
@@ -177,17 +212,14 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
     }
   }, [isAuthenticated, token, loadData])
 
-  // 切到 audit tab 时重置到第 1 页
+  // 成本统计卡片:只在进入 audit tab 时拉一次。
+  // 日志列表本身交给 DataGridTable 自己管(含翻页/筛选),成本统计不随翻页变化,
+  // 放在这里避免每翻一页都重复请求一次 /admin/costs。
   useEffect(() => {
-    if (activeTab === 'audit') setAuditPage(1)
-  }, [activeTab])
-
-  // audit 数据:切到该 tab 或翻页时重拉(loadAuditLogs 依赖 auditPage)
-  useEffect(() => {
-    if (isAuthenticated && activeTab === 'audit') {
-      loadAuditLogs()
-    }
-  }, [isAuthenticated, activeTab, loadAuditLogs])
+    if (!isAuthenticated || !token || activeTab !== 'audit' || !isAdmin) return
+    agentmAPI.setToken(token)
+    agentmAPI.getCostStats().then(setCostStats).catch(() => setCostStats(null))
+  }, [isAuthenticated, token, activeTab, isAdmin])
 
   useEffect(() => {
     if (isAuthenticated && activeTab === 'skills') {
@@ -616,15 +648,15 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
           <SessionManager token={token} />
         )}
 
-        {/* Audit Tab */}
-        {activeTab === 'audit' && !loading && (
+        {/* Audit Tab —— 列表交给 DataGridTable(服务端分页 + 页大小选择 + 列排序) */}
+        {activeTab === 'audit' && (
           <Box>
             <Typography variant="h6" sx={{ mb: 2 }}>调用审计</Typography>
             <Alert severity="info" sx={{ mb: 2 }}>
               每次大模型调用一行:数字员工 / 后台运行 / 工作流(来源「员工」)和 LLM 网关调用(来源「网关」)。
               流式调用供应商不回 token 数,按字数估算(标「估」)。供应商没配单价,这里只统计 token,不折算金额。
             </Alert>
-            {costStats && (
+            {isAdmin && costStats && (
               <Card sx={{ mb: 2 }}>
                 <CardContent>
                   <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
@@ -644,57 +676,40 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
                 </CardContent>
               </Card>
             )}
-            {auditLogs.length > 0 ? (
-              <TableContainer component={Paper}>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>时间</TableCell>
-                      <TableCell>来源</TableCell>
-                      <TableCell>用户</TableCell>
-                      <TableCell>模型</TableCell>
-                      <TableCell>Token</TableCell>
-                      <TableCell>延迟</TableCell>
-                      <TableCell>状态</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {auditLogs.map(log => (
-                      <TableRow key={log.id}>
-                        <TableCell>{new Date(log.create_time).toLocaleString()}</TableCell>
-                        <TableCell title={log.input_preview}>
-                          {log.metadata?.source === 'agent' ? `员工 ${log.metadata?.agent || ''}` : '网关'}
-                        </TableCell>
-                        <TableCell>{log.user_id || '系统'}</TableCell>
-                        <TableCell>{log.model}</TableCell>
-                        <TableCell>{log.total_tokens}{log.metadata?.usage_source === 'estimated' ? ' (估)' : ''}</TableCell>
-                        <TableCell>{log.latency_ms}ms</TableCell>
-                        <TableCell>
-                          <Chip
-                            size="small"
-                            label={log.status}
-                            title={log.error_msg}
-                            color={log.status === 'success' ? 'success' : 'error'}
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            ) : (
-              <Alert severity="info">暂无审计日志</Alert>
-            )}
-            {Math.ceil(auditTotal / auditLimit) > 1 && (
-              <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
-                <Pagination
-                  count={Math.ceil(auditTotal / auditLimit)}
-                  page={auditPage}
-                  onChange={(_, p) => setAuditPage(p)}
-                  color="primary"
-                />
-              </Box>
-            )}
+            <DataGridTable
+              columns={auditColumns}
+              fetchData={async (params) => {
+                // 管理员看全量(后台运行 / 工作流没有登录用户,只在全量里);普通用户只看自己的
+                const fetcher = isAdmin ? listFullAuditLogs : listMyAuditLogs
+                const res = await fetcher({
+                  page: params.pageNumber,
+                  pageSize: params.pageSize,
+                  status: params.status,
+                  keyword: params.keyword,
+                  // 点列头排序:转成后端的白名单列名(非白名单列由后端回落 id)
+                  sort: params.sortField,
+                  order: params.sortOrder,
+                })
+                return { records: res?.list || [], totalRow: res?.total || 0 }
+              }}
+              filters={{
+                fields: [
+                  {
+                    key: 'status',
+                    label: '状态',
+                    type: 'select',
+                    options: [
+                      { label: '成功', value: 'success' },
+                      { label: '失败', value: 'error' },
+                    ],
+                  },
+                  { key: 'keyword', label: '模型', type: 'text', placeholder: '按模型名搜索', width: 200 },
+                ],
+                values: auditFilters,
+                onChange: setAuditFilters,
+                onReset: () => setAuditFilters({}),
+              }}
+            />
           </Box>
         )}
 
