@@ -3,6 +3,7 @@
 import React, { Suspense, useCallback, useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { trackSearchClick, trackSearchImpression, subscribeSearchStream } from '@/lib/track';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -24,6 +25,7 @@ import WhatshotIcon from '@mui/icons-material/Whatshot';
 import SearchOffIcon from '@mui/icons-material/SearchOff';
 import TravelExploreIcon from '@mui/icons-material/TravelExplore';
 import CircularProgress from '@mui/material/CircularProgress';
+import Tooltip from '@mui/material/Tooltip';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import VerifiedIcon from '@mui/icons-material/Verified';
 import Snackbar from '@mui/material/Snackbar';
@@ -71,6 +73,8 @@ interface SearchContentItem {
   totalItems?: number;
   /** 命中位置,前端根据后端返回或本地推断(title/subtitle/author)决定高亮哪段。 */
   matchField?: 'title' | 'subtitle' | 'author';
+  /** §15.11 这条结果为什么出现:title-exact / alias-match / pinyin-match / hot-score-boost / auto-indexed … */
+  reason?: string;
 }
 interface SearchCreatorItem {
   id: number;
@@ -121,6 +125,20 @@ const TYPE_ACCENT: Record<SearchContentItem['contentType'], string> = {
   NEWS: '#C5C8D6',
   VSHOW: '#FE2C55',
   POETRY: '#7C3AED',
+};
+
+/** §15.11 后端 reason 的中文说明(对应后端 reasonHints)。 */
+const REASON_HINT: Record<string, string> = {
+  'title-exact': '标题完全匹配',
+  'title-prefix': '标题前缀匹配',
+  'title-partial': '标题包含关键词',
+  'pinyin-match': '拼音匹配',
+  'author-match': '作者/主演匹配',
+  'alias-match': '别名匹配',
+  'original-title': '原名匹配',
+  'hot-score-boost': '热门内容',
+  'auto-indexed': '全网自动收录',
+  'alias-or-original': '别名/原名匹配',
 };
 
 export default function SearchPage() {
@@ -302,6 +320,8 @@ function SearchPageContent() {
           readyItems: typeof it.readyItems === 'number' ? it.readyItems : undefined,
           totalItems: typeof it.totalItems === 'number' ? it.totalItems : undefined,
           matchField,
+          // §15.11 后端算的 reason(为什么这条结果出现);后端没给就 undefined
+          reason: typeof it.reason === 'string' ? it.reason : undefined,
         } as SearchContentItem;
       });
       return { items, discover: (res?.discover as DiscoverState | undefined) ?? null };
@@ -319,6 +339,66 @@ function SearchPageContent() {
     if (urlQ !== query) setQuery(urlQ);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
+
+  // §6.3 SSE 订阅 discover:events:<kw>,命中时 refetch + 增量合并。
+  // 失败时 onError 关连接,降级到老的轮询(refetchInterval 接管)。
+  useEffect(() => {
+    const k = query.trim();
+    if (!k || aiMode) return;
+    return subscribeSearchStream(
+      k,
+      (hit) => {
+        if (hit.type === 'indexed') {
+          // 命中:轻量 refetch 一次,新条目自然进入轮询结果。
+          searchQuery.refetch();
+        } else if (hit.type === 'done') {
+          // 后端已完成本轮,主动 refetch 后不再轮询
+          searchQuery.refetch();
+        }
+      },
+      () => {
+        /* §15.5 SSE 失败 — 不上报(降级到轮询是正常路径,不是错误);
+           真正的异常由 fetch catch 处经 safeErrorLog 上报 */
+      },
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, aiMode]);
+
+  // §7.2 IntersectionObserver:内容卡片可见 50% + 停留 200ms 触发 impression
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const k = query.trim();
+    if (!k) return;
+    const seen = new Set<string>();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting && e.intersectionRatio >= 0.5) {
+            const id = (e.target as HTMLElement).dataset['cid'];
+            if (id && !seen.has(id)) {
+              seen.add(id);
+              const pos = Number((e.target as HTMLElement).dataset['pos'] ?? 0);
+              trackSearchImpression(k, id, pos);
+            }
+          }
+        }
+      },
+      { threshold: 0.5 },
+    );
+    // 监听后续渲染:每 1.5s 扫描一次 data-cid
+    const tick = setInterval(() => {
+      document.querySelectorAll('[data-cid]').forEach((el) => {
+        if (!seen.has((el as HTMLElement).dataset['cid'] || '')) {
+          observer.observe(el);
+        }
+      });
+    }, 1500);
+    return () => {
+      clearInterval(tick);
+      observer.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query])
 
   const q = query.trim();
   const hasQuery = q.length > 0;
@@ -730,12 +810,16 @@ function SearchPageContent() {
                   >
                     {contents
                       .slice(0, tab === 'all' ? 4 : undefined)
-                      .map((c) => (
+                      .map((c, i) => (
                         <ContentResult
                           key={c.id}
                           item={c}
-                          onClick={() => navigateContent(c.contentType, c.id)}
+                          onClick={() => {
+                            trackSearchClick(q, c.id, c.contentType, i);
+                            navigateContent(c.contentType, c.id);
+                          }}
                           renderHL={renderHighlight}
+                          positionForImpression={i}
                         />
                       ))}
                   </Section>
@@ -932,10 +1016,12 @@ function ContentResult({
   item,
   onClick,
   renderHL,
+  positionForImpression = 0,
 }: {
   item: SearchContentItem;
   onClick: () => void;
   renderHL: (text: string) => React.ReactNode;
+  positionForImpression?: number;
 }) {
   // 没有封面图时,用类型色做渐变兜底(永远不至于一片黑)。
   const fallbackBg = `linear-gradient(135deg, ${TYPE_ACCENT[item.contentType]} 0%, rgba(20,20,30,0.85) 100%)`;
@@ -956,6 +1042,8 @@ function ContentResult({
       : null;
   return (
     <Box
+      data-cid={item.id}
+      data-pos={positionForImpression}
       onClick={onClick}
       sx={{
         display: 'flex',
@@ -1152,6 +1240,29 @@ function ContentResult({
                 />
                 {availabilityBadge.label}
               </Box>
+            </>
+          )}
+          {item.reason && REASON_HINT[item.reason] && (
+            <>
+              <Box sx={{ width: 2, height: 2, borderRadius: '50%', bgcolor: 'var(--text-disabled, rgba(255,255,255,0.25))' }} />
+              <Tooltip title={`为什么出现:${REASON_HINT[item.reason]}`} arrow placement="top">
+                <Box
+                  sx={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    px: 0.6,
+                    py: 0.15,
+                    borderRadius: 0.5,
+                    bgcolor: 'var(--bg-hover, rgba(255,255,255,0.06))',
+                    color: 'var(--text-muted, rgba(255,255,255,0.55))',
+                    fontSize: 10,
+                    fontWeight: 600,
+                    cursor: 'help',
+                  }}
+                >
+                  {REASON_HINT[item.reason]}
+                </Box>
+              </Tooltip>
             </>
           )}
         </Box>

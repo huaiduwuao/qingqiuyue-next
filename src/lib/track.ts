@@ -1,6 +1,6 @@
 import { reportBehavior } from '@/apis/recommend';
 import { contentClient, homeClient } from '@/lib/api/client';
-import { safeErrorLog } from './error-handler';
+import { reportClientError, safeErrorLog } from './error-handler';
 import { toEntityId } from './id';
 
 // 推荐/大数据的源头:前端行为埋点(fire-and-forget,失败不影响业务)。
@@ -144,4 +144,93 @@ export function trackCreatorAction(action: 'follow' | 'unfollow', targetUserId: 
   } catch {
     /* 静默 */
   }
+}
+
+// ──────────────────────────────────────────────────────────────────
+// §5 / §7 搜索结果埋点 — 不走 isLoggedIn() 闸门(匿名也是合法点击来源)
+// ──────────────────────────────────────────────────────────────────
+
+/**
+ * 搜索结果点击埋点。
+ *
+ * @param kw 当前搜索关键词
+ * @param contentId 内容 id
+ * @param contentType 类型(大写,如 FILM/MUSIC/NOVEL)
+ * @param position 搜索结果中的位置(0-indexed)
+ */
+export function trackSearchClick(kw: string, contentId: number | string, contentType: string, position: number) {
+  if (typeof window === 'undefined' || !kw) return;
+  const id = toEntityId(contentId);
+  if (id === null) return;
+  try {
+    void contentClient.post('/search/feedback', {
+      keyword: kw,
+      contentId: id,
+      contentType: (contentType || '').toUpperCase(),
+      position,
+      userId: currentUserId(),
+      visitorId: visitorId(),
+      event: 'click',
+    }).catch((e) => safeErrorLog('trackSearchClick', e));
+  } catch (e) {
+    reportClientError('trackSearchClick', e);
+  }
+}
+
+/**
+ * 搜索结果曝光埋点(IntersectionObserver 触发)。
+ *
+ * @param kw 当前搜索关键词
+ * @param contentId 内容 id
+ * @param position 搜索结果中的位置(0-indexed)
+ */
+export function trackSearchImpression(kw: string, contentId: number | string, position: number) {
+  if (typeof window === 'undefined' || !kw) return;
+  const id = toEntityId(contentId);
+  if (id === null) return;
+  try {
+    void contentClient.post('/search/feedback', {
+      keyword: kw,
+      contentId: id,
+      contentType: '',
+      position,
+      userId: currentUserId(),
+      visitorId: visitorId(),
+      event: 'impression',
+    }).catch((e) => safeErrorLog('trackSearchImpression', e));
+  } catch (e) {
+    reportClientError('trackSearchImpression', e);
+  }
+}
+
+/**
+ * §6.3 EventSource 订阅 discover:events:<kw>,新增条目通过 onHit 回调返回。
+ * 失败时 onError 触发,调用方应降级到轮询(老的 2.5s × 16 次)。
+ */
+export function subscribeSearchStream(
+  kw: string,
+  onHit: (h: { type: 'indexed' | 'done'; id?: number; title?: string; contentType?: string }) => void,
+  onError: (e: Event) => void,
+): () => void {
+  if (typeof window === 'undefined' || !kw || typeof EventSource === 'undefined') {
+    return () => {};
+  }
+  const url = `/api/content/search/stream?q=${encodeURIComponent(kw)}`;
+  const es = new EventSource(url);
+  es.addEventListener('discover', (ev) => {
+    try {
+      const env = ev as MessageEvent;
+      const outer = JSON.parse(env.data);
+      const payload = outer?.payload ? JSON.parse(outer.payload) : null;
+      if (!payload) return;
+      onHit(payload);
+    } catch {
+      /* 静默 */
+    }
+  });
+  es.onerror = (e) => {
+    onError(e);
+    es.close();
+  };
+  return () => es.close();
 }

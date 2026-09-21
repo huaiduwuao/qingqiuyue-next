@@ -3,16 +3,100 @@
  * 提供统一的错误日志和错误处理函数
  */
 
+import * as Sentry from '@sentry/nextjs'
+
 // 开发环境是否开启详细日志
 const ENABLE_ERROR_LOG = process.env.NODE_ENV === 'development'
+
+// §15.5 前端监控:Sentry(有 DSN 时)+ 自建 /behavior 上报(兜底)。
+//
+// Sentry 的 init 在 instrumentation-client.ts 里;这里只负责 capture。
+// 没配 DSN 时 Sentry 是 no-op,仍然走 /behavior 上报,监控不丢。
+const SENTRY_DSN = process.env.NEXT_PUBLIC_SENTRY_DSN ?? ''
+
+// 采样:每分钟最多 10 条 /behavior 上报,避免报错风暴打爆后端。
+// (Sentry 自己有配额限流,不过滤。)
+const CLIENT_ERROR_MAX_PER_MIN = 10
+let clientErrorBudget = CLIENT_ERROR_MAX_PER_MIN
+if (typeof window !== 'undefined') {
+  setInterval(() => {
+    clientErrorBudget = CLIENT_ERROR_MAX_PER_MIN
+  }, 60_000)
+}
+
+/**
+ * 把前端错误上报。
+ *
+ * 顺序:
+ *  1. Sentry(如果配了 DSN)—— 有 stack / breadcrumb / 用户上下文
+ *  2. 自建 /behavior(action=client_error)—— 无 DSN 时的兜底,且后端可查
+ */
+export function reportClientError(context: string, error: unknown, extra?: Record<string, unknown>): void {
+  if (typeof window === 'undefined') return
+
+  // 1) Sentry
+  if (SENTRY_DSN) {
+    try {
+      Sentry.withScope((scope) => {
+        scope.setTag('context', context)
+        if (extra) {
+          scope.setExtras(extra)
+        }
+        Sentry.captureException(error)
+      })
+    } catch {
+      /* Sentry 上报失败不影响业务 */
+    }
+  }
+
+  // 2) 自建 /behavior 兜底(限流)
+  if (clientErrorBudget <= 0) return
+  clientErrorBudget -= 1
+
+  try {
+    const body = {
+      userId: 0,
+      itemId: 0,
+      itemType: 'PAGE',
+      action: 'client_error',
+      duration: 0,
+      page: typeof location !== 'undefined' ? location.pathname : '',
+      visitorId: (() => {
+        try {
+          return localStorage.getItem('qq_vid') || ''
+        } catch {
+          return ''
+        }
+      })(),
+      // 附加信息:后端 behavior 接口目前只消化 page/visitorId,其余字段留给将来的扩展点
+      errorContext: context,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorStack: error instanceof Error ? (error.stack || '').slice(0, 2000) : '',
+      ...extra,
+    }
+    void fetch('/api/content/behavior', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      keepalive: true,
+    }).catch(() => {})
+  } catch {
+    /* 上报失败不影响业务 */
+  }
+}
 
 /**
  * 安全地记录错误日志（不在生产环境暴露敏感信息）
  */
 export function safeErrorLog(context: string, error: unknown, ...args: unknown[]): void {
   if (!ENABLE_ERROR_LOG) {
-    // 生产环境只记录到监控服务
+    // 生产环境:控制台简要 + 上报后端监控(§15.5)
     console.error(`[ERROR] ${context}`)
+    reportClientError(
+      context,
+      error,
+      args.length > 0 ? { args: args.map((a) => String(a)).slice(0, 3) } : undefined,
+    )
     return
   }
 
@@ -36,7 +120,7 @@ export function silentCatch(error: unknown, context?: string): void {
  */
 export function withErrorHandler<T>(
   promise: Promise<T>,
-  onError?: (error: unknown) => void
+  onError?: (error: unknown) => void,
 ): Promise<T | undefined> {
   return promise.catch((error) => {
     if (onError) {
@@ -67,7 +151,7 @@ export function createErrorHandler(context: string, onError?: (error: unknown) =
 export async function safeAsync<T>(
   fn: () => Promise<T>,
   fallback: T,
-  context?: string
+  context?: string,
 ): Promise<T> {
   try {
     return await fn()
@@ -79,8 +163,9 @@ export async function safeAsync<T>(
 
 export default {
   safeErrorLog,
+  reportClientError,
   silentCatch,
   withErrorHandler,
   createErrorHandler,
-  safeAsync
+  safeAsync,
 }

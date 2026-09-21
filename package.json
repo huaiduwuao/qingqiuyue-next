@@ -45,6 +45,7 @@
     "@picovoice/porcupine-web": "^4.0.1",
     "@pixiv/three-vrm": "^3.5.4",
     "@ricky0123/vad-web": "^0.0.30",
+    "@sentry/nextjs": "^10.75.1",
     "@sparkjsdev/spark": "^2.1.0",
     "@tanstack/react-query": "^5.99.0",
     "@tauri-apps/plugin-shell": "^2.3.5",
