@@ -29,6 +29,7 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import Collapse from '@mui/material/Collapse';
 import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import LinearProgress from '@mui/material/LinearProgress';
@@ -37,8 +38,11 @@ import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import SyncProblemRoundedIcon from '@mui/icons-material/SyncProblemRounded';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import { CoverImage } from '@/components/common/CoverImage';
 import AvailabilityBadge from '@/components/common/AvailabilityBadge';
 import {
@@ -46,8 +50,12 @@ import {
   getContentBackfillStatus,
   listContentBackfillRecent,
   getContentItemStats,
+  listContentBackfillCandidates,
+  confirmContentBackfillCandidate,
+  rejectContentBackfillCandidate,
   type ContentBackfillRecentItem,
   type ContentItemStats,
+  type ContentBackfillCandidate,
 } from '@/apis/spider';
 import { myPage, getById, type ModuleContentItem } from '@/apis/module-content';
 import { TYPE_LABEL } from '@/lib/contentRoute';
@@ -338,8 +346,18 @@ export default function BackfillPanel({ compact = false }: { compact?: boolean }
       {taskId && (
         <BackfillTaskCard
           taskId={taskId}
-          onDone={() => qc.invalidateQueries({ queryKey: ['backfill-recent'] })}
+          onDone={() => {
+            qc.invalidateQueries({ queryKey: ['backfill-recent'] });
+            qc.invalidateQueries({ queryKey: ['backfill-candidates', String(picked?.id)] });
+          }}
         />
+      )}
+
+      {picked && (
+        <>
+          <Divider sx={{ my: 1 }} />
+          <CandidateList contentId={String(picked.id)} compact={compact} />
+        </>
       )}
 
       <Divider sx={{ my: 1 }} />
@@ -617,4 +635,215 @@ function statsText(s: Record<string, number>): string {
     s.sources_used !== undefined && `源 ${s.sources_used}`,
   ].filter(Boolean);
   return parts.length ? parts.join(' · ') : '无统计';
+}
+
+// ─────────── 候选源面板 ───────────
+//
+// 后端 content_backfill 跑完后,discover 搜出的"这本书在别家源站也有"会写到
+// module_content_backfill_candidate —— 这里给运营一个折叠面板,
+// 默认收起(只有当前选中的书有候选时才展开,平时不打扰)。
+//
+// 行为:
+//   - 默认折叠,只在 list.length > 0 时自动展开(让运营第一时间看到新增的待确认项)
+//   - confirm / reject 后乐观更新 + invalidate,失败回滚
+//   - score 越低越靠后;applied 状态的行只读(终态,运营不再操作)
+//
+// 这块视觉密度比"最近补全任务"高(一行:provider/score/page_url/操作),
+// 折叠默认收起是因为大部分书没有候选 —— 避免在"求魔"以外的书上长期占用版面。
+
+const CANDIDATE_STATUS_META: Record<
+  ContentBackfillCandidate['status'],
+  { label: string; color: 'default' | 'info' | 'warning' | 'success' | 'error' }
+> = {
+  pending: { label: '待确认', color: 'warning' },
+  confirmed: { label: '已确认', color: 'info' },
+  rejected: { label: '已拒绝', color: 'default' },
+  applied: { label: '已应用', color: 'success' },
+};
+
+function CandidateList({ contentId, compact }: { contentId: string; compact?: boolean }) {
+  const qc = useQueryClient();
+  const [actionErr, setActionErr] = useState<string | null>(null);
+
+  const q = useQuery({
+    queryKey: ['backfill-candidates', contentId],
+    queryFn: () => listContentBackfillCandidates({ contentId }),
+    refetchInterval: 15_000,
+    staleTime: 10_000,
+  });
+  const list = q.data?.list ?? [];
+
+  // 默认展开;用户手动折叠后由 toggle 控制,不再自动展开。
+  const hasOpen = list.some((c) => c.status === 'pending' || c.status === 'confirmed');
+  const [expanded, setExpanded] = useState(true);
+  const handleToggle = () => setExpanded((v) => !v);
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['backfill-candidates', contentId] });
+  };
+
+  const confirmM = useMutation({
+    mutationFn: (id: number) => confirmContentBackfillCandidate(id),
+    onSuccess: invalidate,
+    onError: (e) => setActionErr(formatApiError(e) || '确认失败'),
+  });
+  const rejectM = useMutation({
+    mutationFn: (id: number) => rejectContentBackfillCandidate(id),
+    onSuccess: invalidate,
+    onError: (e) => setActionErr(formatApiError(e) || '拒绝失败'),
+  });
+
+  return (
+    <Stack spacing={1}>
+      <Stack
+        direction="row"
+        spacing={1}
+        sx={{ alignItems: 'center', cursor: 'pointer' }}
+        onClick={handleToggle}
+      >
+        <ExpandMoreRoundedIcon
+          sx={{
+            fontSize: 18,
+            transform: expanded ? 'rotate(0deg)' : 'rotate(-90deg)',
+            transition: 'transform 0.15s',
+            color: 'text.secondary',
+          }}
+        />
+        <Typography variant="subtitle2">候选源(discover)</Typography>
+        <Chip size="small" label={list.length} />
+        {hasOpen && (
+          <Chip size="small" color="warning" label={`待处理 ${list.filter((c) => c.status === 'pending').length}`} />
+        )}
+        <Box sx={{ flex: 1 }} />
+        {q.isFetching && <CircularProgress size={12} />}
+      </Stack>
+
+      <Collapse in={expanded} unmountOnExit>
+        {actionErr && (
+          <Alert severity="error" onClose={() => setActionErr(null)} sx={{ mb: 1 }}>
+            {actionErr}
+          </Alert>
+        )}
+        {q.isLoading ? (
+          <Typography variant="caption" color="text.disabled">
+            读取中…
+          </Typography>
+        ) : list.length === 0 ? (
+          <Typography variant="caption" color="text.disabled">
+            暂无候选 —— 跑一次带 discover 策略的补全后,这里会出现其他源站的同本书
+          </Typography>
+        ) : (
+          <Stack
+            spacing={0.5}
+            sx={{
+              border: 1,
+              borderColor: 'divider',
+              borderRadius: 1,
+              maxHeight: compact ? 240 : 320,
+              overflowY: 'auto',
+            }}
+          >
+            {list.map((c) => (
+              <CandidateRow
+                key={c.id}
+                c={c}
+                busy={confirmM.isPending || rejectM.isPending}
+                onConfirm={() => {
+                  setActionErr(null);
+                  confirmM.mutate(c.id);
+                }}
+                onReject={() => {
+                  setActionErr(null);
+                  rejectM.mutate(c.id);
+                }}
+              />
+            ))}
+          </Stack>
+        )}
+      </Collapse>
+    </Stack>
+  );
+}
+
+function CandidateRow({
+  c,
+  busy,
+  onConfirm,
+  onReject,
+}: {
+  c: ContentBackfillCandidate;
+  busy: boolean;
+  onConfirm: () => void;
+  onReject: () => void;
+}) {
+  const meta = CANDIDATE_STATUS_META[c.status] ?? CANDIDATE_STATUS_META.pending;
+  const editable = c.status === 'pending' || c.status === 'confirmed';
+  return (
+    <Stack
+      direction="row"
+      spacing={1}
+      sx={{
+        alignItems: 'center',
+        px: 1.5,
+        py: 1,
+        borderBottom: 1,
+        borderColor: 'divider',
+        '&:last-of-type': { borderBottom: 0 },
+      }}
+    >
+      <Box sx={{ minWidth: 0, flex: 1 }}>
+        <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+          <Typography variant="body2" noWrap title={c.label}>
+            {c.label || c.provider}
+          </Typography>
+          <Chip size="small" color={meta.color} label={meta.label} />
+          <Tooltip title={c.page_url}>
+            <Chip
+              size="small"
+              variant="outlined"
+              label={
+                <Typography
+                  component="span"
+                  variant="caption"
+                  sx={{ fontFamily: 'monospace', maxWidth: 220, display: 'inline-block', overflow: 'hidden', textOverflow: 'ellipsis', verticalAlign: 'bottom' }}
+                >
+                  {c.page_url}
+                </Typography>
+              }
+            />
+          </Tooltip>
+          <Typography variant="caption" color="text.disabled" title={`score=${c.score}/100,越大越像正主`}>
+            {c.score}/100
+          </Typography>
+        </Stack>
+        {c.author && (
+          <Typography variant="caption" color="text.secondary" noWrap>
+            作者:{c.author}
+          </Typography>
+        )}
+      </Box>
+      {editable ? (
+        <Stack direction="row" spacing={0.5}>
+          <Tooltip title="确认 → cron 会建源并触发新补全">
+            <span>
+              <IconButton size="small" color="success" onClick={onConfirm} disabled={busy}>
+                <CheckRoundedIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title="拒绝">
+            <span>
+              <IconButton size="small" onClick={onReject} disabled={busy}>
+                <CloseRoundedIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Stack>
+      ) : (
+        <Typography variant="caption" color="text.disabled">
+          —
+        </Typography>
+      )}
+    </Stack>
+  );
 }

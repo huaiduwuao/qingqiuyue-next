@@ -398,6 +398,54 @@ export interface ContentItemStats {
   totalItems: number;
 }
 
+// =====================================================================
+// 候选源池(/api/spider/content/backfill/candidates/*)
+//
+// 后端在补全任务跑完后,discover 搜出的"这本书在别家源站也有"会写到
+// module_content_backfill_candidate,运营在这里确认后由 cron 转成
+// module_source + module_template,触发新一轮补全走新源。
+//
+// 状态机:
+//   pending   默认(discover 写入)
+//   confirmed 运营点确认 → cron 转 applied(下一步建源+触发补全)
+//   rejected  运营点拒绝 → 后续 discover 允许重写覆盖
+//   applied   已被 cron 转成源(终态)
+// =====================================================================
+
+export interface ContentBackfillCandidate {
+  id: number;
+  module_content_id: number;
+  provider: string;
+  label: string;
+  page_url: string;
+  author: string;
+  /** 0~100,越大越像正主(后端 = 子串命中 0~70 + 作者完全相等 +30) */
+  score: number;
+  status: 'pending' | 'confirmed' | 'rejected' | 'applied';
+  created_at?: string;
+}
+
+/** 拉一本书的候选源列表(默认只 pending/confirmed/applied)。 */
+export async function listContentBackfillCandidates(params: {
+  contentId: string;
+  status?: string;
+}): Promise<{ list: ContentBackfillCandidate[]; total: number }> {
+  return spiderClient('/content/backfill/candidates', {
+    method: 'GET',
+    params: { content_id: params.contentId, status: params.status ?? 'pending,confirmed,applied' },
+  });
+}
+
+/** 运营点确认 — status='confirmed',下一轮 cron(30s) 转 applied 并建源。 */
+export async function confirmContentBackfillCandidate(id: number): Promise<{ id: number; status: string }> {
+  return spiderClient(`/content/backfill/candidates/${id}/confirm`, { method: 'PATCH' });
+}
+
+/** 运营点拒绝 — status='rejected';允许后续 discover 重写覆盖。 */
+export async function rejectContentBackfillCandidate(id: number): Promise<{ id: number; status: string }> {
+  return spiderClient(`/content/backfill/candidates/${id}/reject`, { method: 'PATCH' });
+}
+
 /**
  * 批量查内容的章节入库情况 —— 补全页把"这条还缺多少章"摆在搜索结果上。
  *
