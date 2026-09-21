@@ -33,6 +33,7 @@ export const MENU_ICON_MAP: Record<string, SvgIconComponent> = {
   Publish: Icons.PublishRounded,
   Hub: Icons.HubRounded,
   MenuBook: Icons.MenuBookRounded,
+  ListAlt: Icons.ListAltRounded,
   Tune: Icons.TuneRounded,
   LocationOn: Icons.LocationOnRounded,
   ChatBubbleOutline: Icons.ChatBubbleOutlineRounded,

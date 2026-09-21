@@ -27,6 +27,7 @@ import DnsRoundedIcon from '@mui/icons-material/DnsRounded';
 import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
 import PublishRoundedIcon from '@mui/icons-material/PublishRounded';
 import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
+import ListAltRoundedIcon from '@mui/icons-material/ListAltRounded';
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import LanguageRoundedIcon from '@mui/icons-material/LanguageRounded';
 import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
@@ -125,7 +126,8 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
   {
     title: '基础数据',
     items: [
-      { id: 'dict', label: '字典管理', path: '/system/dict/dict-type', icon: <MenuBookRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_DICT.VIEW },
+      { id: 'dict-type', label: '字典类型', path: '/system/dict/dict-type', icon: <MenuBookRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_DICT.VIEW },
+      { id: 'dict-data', label: '字典数据', path: '/system/dict/dict-data', icon: <ListAltRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_DICT.VIEW },
       { id: 'filter', label: '筛选配置', path: '/system/filter', icon: <TuneRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
       { id: 'address', label: '地址管理', path: '/system/address/province', icon: <LocationOnRoundedIcon sx={{ fontSize: 18 }} />, accent: 'success.main', permission: PERMISSIONS.SYSTEM_ADDRESS.VIEW },
       { id: 'wx-config', label: '微信配置', path: '/system/wx-config', icon: <ChatBubbleOutlineRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },

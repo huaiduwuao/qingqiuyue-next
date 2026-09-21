@@ -98,7 +98,7 @@ export default function SystemDictDataPage() {
     setSnack({ open: true, msg, severity });
 
   // 1. 字典类型下拉
-  const { data: typeResp } = useQuery({
+  const typeQuery = useQuery({
     queryKey: ['system', 'dict-type', 'all-for-select'],
     queryFn: async () => {
       const res: any = await listDictTypes({ pageSize: 999 });
@@ -107,7 +107,7 @@ export default function SystemDictDataPage() {
   });
 
   // 选中第一个类型(默认)
-  const types = typeResp || [];
+  const types = typeQuery.data || [];
   React.useEffect(() => {
     if (!selectedType && types.length) {
       const first = types[0];
@@ -226,7 +226,28 @@ export default function SystemDictDataPage() {
       </Stack>
 
       <Paper variant="outlined" sx={{ p: 1, minHeight: 240 }}>
-        {treeQuery.isLoading ? (
+        {typeQuery.isLoading ? (
+          // 字典类型还在加载,先不要渲染树,避免出现"已加载但 selectedType 还没就位"
+          // 的空白瞬间,也方便管理员区分"接口挂了"还是"库里没有字典类型"。
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 6 }}>
+            <CircularProgress size={28} />
+          </Box>
+        ) : types.length === 0 ? (
+          // 加载完成但库里没有字典类型 — 把人引导到 dict-type 页去创建,而不是
+          // 让他们对着一个永远空白的树怀疑是不是哪里出 bug。
+          <Box sx={{ py: 8, textAlign: 'center', color: 'text.secondary' }}>
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              暂无字典类型,请先到「字典类型」页面创建
+            </Typography>
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => (window.location.href = '/system/dict/dict-type')}
+            >
+              前往字典类型
+            </Button>
+          </Box>
+        ) : treeQuery.isLoading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 6 }}>
             <CircularProgress size={28} />
           </Box>
