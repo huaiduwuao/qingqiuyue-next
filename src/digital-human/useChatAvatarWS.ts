@@ -42,6 +42,7 @@ const TOOL_RUNNING_HINT: Record<string, string> = {
   workflow_execute: '正在跑工作流…',
   browser_open: '正在打开网页…',
   screen_open: '正在屏幕上打开…',
+  content_backfill: '正在补抓该条内容…',
 };
 
 /** 数字人对场景显示器的操作:打开一个作品 / 地址,或关掉一块(不给 screen = 全部)屏 */
