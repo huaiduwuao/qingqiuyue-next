@@ -36,7 +36,7 @@ import {
   type SearchAndCrawlResult,
   type ResolveStreamResult,
 } from '@/apis/spider';
-import BackfillPanel from './BackfillPanel';
+import BackfillPanel from '@/components/spider/BackfillPanel';
 
 export default function QuickSpiderPage() {
   const [tab, setTab] = useState<'novel' | 'stream' | 'backfill'>('novel');

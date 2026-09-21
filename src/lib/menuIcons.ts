@@ -53,6 +53,7 @@ export const MENU_ICON_MAP: Record<string, SvgIconComponent> = {
   CloudSync: Icons.CloudSyncRounded,
   TravelExplore: Icons.TravelExploreRounded,
   CloudDownload: Icons.CloudDownloadRounded,
+  SyncProblem: Icons.SyncProblemRounded,
 };
 
 /**

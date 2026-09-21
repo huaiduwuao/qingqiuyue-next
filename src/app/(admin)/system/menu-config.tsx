@@ -42,6 +42,7 @@ import EventRoundedIcon from '@mui/icons-material/EventRounded';
 import HubRoundedIcon from '@mui/icons-material/HubRounded';
 import TravelExploreIcon from '@mui/icons-material/TravelExplore';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
+import SyncProblemRoundedIcon from '@mui/icons-material/SyncProblemRounded';
 import CloudSyncIcon from '@mui/icons-material/CloudSync';
 import PsychologyAltRoundedIcon from '@mui/icons-material/PsychologyAltRounded';
 import CollectionsRoundedIcon from '@mui/icons-material/CollectionsRounded';
@@ -219,6 +220,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
     items: [
       { id: 'spider', label: '爬虫管理', path: '/system/spider', icon: <TravelExploreIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF' },
       { id: 'crawled', label: '抓取内容', path: '/system/crawled', icon: <CloudDownloadIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D' },
+      { id: 'spider-backfill', label: '内容补全', path: '/system/spider/backfill', icon: <SyncProblemRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
     ],
   },
 ]
