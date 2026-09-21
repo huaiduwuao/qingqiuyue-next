@@ -321,6 +321,72 @@ export async function resolveStream(params: {
 }
 
 // =====================================================================
+// 通用内容补全框架(/api/spider/content/backfill/*)
+//
+// 给任意已收录内容补抓缺失的章节正文 / 音频 / 漫画页 / 播放直链。
+// 后端按 content_type 自动选抓取方式(NOVEL 抓章节正文、MUSIC 存音频、
+// FILM 只嗅探直链不下载),调用方不需要关心类型。
+// =====================================================================
+
+export interface ContentBackfillStartResult {
+  task_id: number;
+  status: string;
+  source_name: string;
+  progress_url: string;
+}
+
+export interface ContentBackfillRecentItem {
+  task_id: number;
+  status: string;
+  source_name: string;
+  items_saved: number;
+  started_at?: string;
+  updated_at?: string;
+  /** crawl_job.progress 反序列化后的快照,stats 里有 found / inserted / updated / failed / sources_used */
+  stats?: {
+    phase?: string;
+    errors?: number;
+    error_list?: string[];
+    stats?: Record<string, number>;
+    last_error?: string;
+    elapsed_sec?: number;
+  };
+}
+
+/** 触发一次内容补全。异步返回 task_id,不阻塞;进度走 status / 最近任务列表看。 */
+export async function startContentBackfill(params: {
+  contentId: string;
+  strategies?: string[];
+  authorHint?: string;
+  maxItems?: number;
+}): Promise<ContentBackfillStartResult> {
+  return spiderClient('/content/backfill', {
+    method: 'POST',
+    data: {
+      content_id: params.contentId,
+      strategies: params.strategies,
+      author_hint: params.authorHint,
+      max_items: params.maxItems,
+    },
+  });
+}
+
+/** 查单次补全任务状态。 */
+export async function getContentBackfillStatus(taskId: number): Promise<any> {
+  return spiderClient(`/content/backfill/${taskId}/status`, { method: 'GET' });
+}
+
+/** 最近的内容补全任务(运营看历史用)。 */
+export async function listContentBackfillRecent(params?: { page?: number; pageSize?: number }): Promise<{
+  list: ContentBackfillRecentItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}> {
+  return spiderClient('/content/backfill/recent', { method: 'GET', params });
+}
+
+// =====================================================================
 // 全站批量任务"产品级"入口(POST /api/spider/sites/full-site)
 //
 // 设计原则:站点无关,后端根据 body 里的 source_domain 自动找 module_source 并创建

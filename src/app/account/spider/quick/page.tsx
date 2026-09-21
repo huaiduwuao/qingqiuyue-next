@@ -5,6 +5,7 @@
 // G2:
 //   - 小说"搜索即匹配正文源并批量回补章节"
 //   - 影视"输入任意小影视站 URL → 嗅探 → .m3u8/.mp4 直链"
+//   - 通用内容补全(任意已收录内容补章节正文 / 音频 / 漫画页 / 播放直链)
 //
 // 给运营/编辑用的轻量入口,后台源配置页配置好后即可用。
 
@@ -26,6 +27,7 @@ import Typography from '@mui/material/Typography';
 import AutoStoriesRoundedIcon from '@mui/icons-material/AutoStoriesRounded';
 import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
 import MovieRoundedIcon from '@mui/icons-material/MovieRounded';
+import SyncProblemRoundedIcon from '@mui/icons-material/SyncProblemRounded';
 import { CoverImage } from '@/components/common/CoverImage';
 import PublicTopBar from '@/components/layout/PublicTopBar';
 import {
@@ -34,9 +36,10 @@ import {
   type SearchAndCrawlResult,
   type ResolveStreamResult,
 } from '@/apis/spider';
+import BackfillPanel from './BackfillPanel';
 
 export default function QuickSpiderPage() {
-  const [tab, setTab] = useState<'novel' | 'stream'>('novel');
+  const [tab, setTab] = useState<'novel' | 'stream' | 'backfill'>('novel');
 
   return (
     <Box>
@@ -47,17 +50,26 @@ export default function QuickSpiderPage() {
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           小说按书名在已配置源里自动匹配并批量回补章节正文;
-          影视输入任意小影视站 URL,用无头浏览器嗅探 .m3u8/.mp4 直链。
+          影视输入任意小影视站 URL,用无头浏览器嗅探 .m3u8/.mp4 直链;
+          内容补全按标题选中已收录内容,自动补抓缺失的正文 / 音频 / 页面 / 播放直链。
         </Typography>
 
         <Card variant="outlined" sx={{ p: 2 }}>
-          <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
+          <Tabs
+            value={tab}
+            onChange={(_, v) => setTab(v)}
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}
+          >
             <Tab value="novel" label="小说搜索回补" icon={<AutoStoriesRoundedIcon />} iconPosition="start" />
             <Tab value="stream" label="影视直链嗅探" icon={<MovieRoundedIcon />} iconPosition="start" />
+            <Tab value="backfill" label="内容补全" icon={<SyncProblemRoundedIcon />} iconPosition="start" />
           </Tabs>
 
           {tab === 'novel' && <NovelPanel />}
           {tab === 'stream' && <StreamPanel />}
+          {tab === 'backfill' && <BackfillPanel />}
         </Card>
       </Container>
     </Box>
