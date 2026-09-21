@@ -25,9 +25,6 @@ import SearchOffIcon from '@mui/icons-material/SearchOff';
 import TravelExploreIcon from '@mui/icons-material/TravelExplore';
 import CircularProgress from '@mui/material/CircularProgress';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
-import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutlineOutlined';
-import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import VerifiedIcon from '@mui/icons-material/Verified';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
@@ -38,6 +35,7 @@ import { fetchContentTypes, fetchFacets, type ContentTypeItem, type FacetItem } 
 import { topKeywordInThirdMonth } from '@/apis/home';
 import RecommendBoard from '@/components/home/RecommendBoard';
 import { homeClient, formatApiError } from '@/lib/api/client';
+import { CoverImage } from '@/components/common/CoverImage';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { useAIPrefs } from '@/lib/aiPrefs';
 import { AISearchResults, AI_GRADIENT, AI_SEARCH_EXAMPLES } from '@/components/ai/AISearchResults';
@@ -48,17 +46,31 @@ type SearchContentItemContentType =
   | 'NOVEL' | 'FILM' | 'MUSIC' | 'VIDEO' | 'COMICS'
   | 'TELEPLAY' | 'ARTICLE' | 'ANIMATION' | 'NEWS' | 'VSHOW'
   | 'POETRY';
+/**
+ * 与后端 recommendapp.searchRow 对齐(content-api /api/content/search):
+ * Doris module_content 主表 + availability 注释。views/likes/comments
+ * 之类交互数据 /search 不返回,前端不要伪造显示。
+ */
 interface SearchContentItem {
   id: number;
   title: string;
   subtitle?: string;
   contentType: SearchContentItemContentType;
-  coverGradient: string;
+  /** 封面图 URL;空则用类型渐变兜底。 */
+  cover?: string;
   author: string;
-  views: number;
-  comments: number;
-  likes: number;
-  matchField: 'title' | 'subtitle' | 'author';
+  /** 文本相关度 0~1,Doris sim 值。 */
+  score?: number;
+  /** playability 状态:playable / pending / partial / playable_read / blocked / unknown。 */
+  availability?: string;
+  /** 站内能不能看/能读,只有 true 才不会出现"打不开"详情。 */
+  usable?: boolean;
+  /** 已就绪章节数(小说/剧集)。 */
+  readyItems?: number;
+  /** 总章节数。 */
+  totalItems?: number;
+  /** 命中位置,前端根据后端返回或本地推断(title/subtitle/author)决定高亮哪段。 */
+  matchField?: 'title' | 'subtitle' | 'author';
 }
 interface SearchCreatorItem {
   id: number;
@@ -268,18 +280,30 @@ function SearchPageContent() {
         year: fYear || undefined,
       })) as any;
       const list = res?.list || res || [];
-      const items = (Array.isArray(list) ? list : []).map((it: any) => ({
-        id: it.id ?? 0,
-        title: it.title || it.name || '未命名',
-        subtitle: it.subtitle || it.info || it.description,
-        contentType: (it.contentType || it.type || 'VIDEO').toUpperCase() as SearchContentItem['contentType'],
-        coverGradient: it.cover || it.coverGradient || 'linear-gradient(135deg, #FE2C55, #8B5CF6)',
-        author: it.author || it.username || it.userName || '清秋月',
-        views: it.views || it.readNum || 0,
-        comments: it.comments || it.commentNum || 0,
-        likes: it.likes || it.agreeNum || 0,
-        matchField: (it.matchField || 'title') as SearchContentItem['matchField'],
-      })) as SearchContentItem[];
+      const items = (Array.isArray(list) ? list : []).map((it: any) => {
+        const type = (it.contentType || it.type || 'VIDEO').toUpperCase() as SearchContentItem['contentType'];
+        // 命中位置:后端没显式给 matchField,前端按"关键词是否在 title/author 里"推断,
+        // 让卡片右下角那个"标题/描述/作者命中"标签有意义。
+        const lq = q.toLowerCase();
+        let matchField: SearchContentItem['matchField'] = 'title';
+        if (it.title && lq && it.title.toLowerCase().includes(lq)) matchField = 'title';
+        else if (it.author && lq && it.author.toLowerCase().includes(lq)) matchField = 'author';
+        else matchField = 'subtitle';
+        return {
+          id: it.id ?? 0,
+          title: it.title || it.name || '未命名',
+          subtitle: it.subtitle || it.info || it.description,
+          contentType: type,
+          cover: it.cover || it.coverUrl || undefined,
+          author: it.author || it.username || it.userName || '清秋月',
+          score: typeof it.score === 'number' ? it.score : undefined,
+          availability: it.availability,
+          usable: Boolean(it.usable),
+          readyItems: typeof it.readyItems === 'number' ? it.readyItems : undefined,
+          totalItems: typeof it.totalItems === 'number' ? it.totalItems : undefined,
+          matchField,
+        } as SearchContentItem;
+      });
       return { items, discover: (res?.discover as DiscoverState | undefined) ?? null };
     },
     enabled: !aiMode && (query.trim().length > 0 || !!(fType || fDirector || fActor || fGenre || fYear)),
@@ -913,6 +937,23 @@ function ContentResult({
   onClick: () => void;
   renderHL: (text: string) => React.ReactNode;
 }) {
+  // 没有封面图时,用类型色做渐变兜底(永远不至于一片黑)。
+  const fallbackBg = `linear-gradient(135deg, ${TYPE_ACCENT[item.contentType]} 0%, rgba(20,20,30,0.85) 100%)`;
+  const scorePct = typeof item.score === 'number' ? Math.round(item.score * 100) : null;
+  // 可用性徽标:usable=true 给绿色"可读/可播";其它状态(pending/partial/blocked)用中性色 + 文案,
+  // 让用户搜到"求魔"这种站内还没收录完整章节的也知道点进去会看到什么。
+  const availabilityBadge = (() => {
+    if (item.usable) return { label: '可读可播', color: '#22c55e' };
+    if (item.availability === 'partial') return { label: '部分章节', color: '#f59e0b' };
+    if (item.availability === 'pending') return { label: '收录中', color: '#94a3b8' };
+    if (item.availability === 'blocked') return { label: '暂不可读', color: '#ef4444' };
+    return null;
+  })();
+  // 章节进度:有 readyItems/totalItems 时显示 "12/345 章" 之类,小说/剧集用户最关心。
+  const chapterLabel =
+    item.readyItems != null && item.totalItems != null && item.totalItems > 0
+      ? `${item.readyItems}/${item.totalItems} 章`
+      : null;
   return (
     <Box
       onClick={onClick}
@@ -929,26 +970,37 @@ function ContentResult({
         '&:hover': { bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))', borderColor: 'var(--border-strong, rgba(255,255,255,0.12))' },
       }}
     >
+      {/* 封面:有图走 CoverImage(过 mediaUrl 处理 MinIO/外站),没图走类型渐变兜底。
+          这样"求魔"这种小说搜出来立刻能看到真实封面,而不是色块。 */}
       <Box
         sx={{
           position: 'relative',
           width: 72,
-          height: 90,
+          height: 96,
           flexShrink: 0,
           borderRadius: 1.5,
           overflow: 'hidden',
-          background: item.coverGradient,
+          background: fallbackBg,
           boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
         }}
       >
-        <Box
-          aria-hidden
-          sx={{
-            position: 'absolute',
-            inset: 0,
-            background: 'radial-gradient(circle at 30% 20%, rgba(255,255,255,0.18), transparent 50%)',
-          }}
-        />
+        {item.cover ? (
+          <CoverImage
+            src={item.cover}
+            alt={item.title}
+            sx={{ width: '100%', height: '100%' }}
+          />
+        ) : (
+          <Box
+            aria-hidden
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              background: 'radial-gradient(circle at 30% 20%, rgba(255,255,255,0.18), transparent 50%)',
+            }}
+          />
+        )}
+        {/* 左上:类型徽标 */}
         <Box
           sx={{
             position: 'absolute',
@@ -957,31 +1009,76 @@ function ContentResult({
             px: 0.5,
             py: 0.15,
             borderRadius: 0.5,
-            bgcolor: 'rgba(0,0,0,0.4)',
+            bgcolor: 'rgba(0,0,0,0.45)',
             backdropFilter: 'blur(4px)',
             color: 'var(--text-primary, #fff)',
             fontSize: 9,
-            fontWeight: 600,
+            fontWeight: 700,
+            letterSpacing: 0.3,
           }}
         >
           {TYPE_LABEL[item.contentType]}
         </Box>
+        {/* 右下:章节进度(有数据时显示),小说/剧集最有用的"这部收了多少"提示 */}
+        {chapterLabel && (
+          <Box
+            sx={{
+              position: 'absolute',
+              right: 4,
+              bottom: 4,
+              px: 0.5,
+              py: 0.1,
+              borderRadius: 0.5,
+              bgcolor: 'rgba(0,0,0,0.55)',
+              backdropFilter: 'blur(4px)',
+              color: 'var(--text-primary, #fff)',
+              fontSize: 9,
+              fontWeight: 600,
+              fontFamily: 'monospace',
+              lineHeight: 1.2,
+            }}
+          >
+            {chapterLabel}
+          </Box>
+        )}
       </Box>
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography
-          sx={{
-            fontSize: 14,
-            fontWeight: 600,
-            color: 'var(--text-primary, #fff)',
-            lineHeight: 1.4,
-            display: '-webkit-box',
-            WebkitLineClamp: 1,
-            WebkitBoxOrient: 'vertical',
-            overflow: 'hidden',
-          }}
-        >
-          {renderHL(item.title)}
-        </Typography>
+        {/* 标题 + 命中位置行内标签 */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+          <Typography
+            sx={{
+              fontSize: 14,
+              fontWeight: 600,
+              color: 'var(--text-primary, #fff)',
+              lineHeight: 1.4,
+              flex: 1,
+              minWidth: 0,
+              display: '-webkit-box',
+              WebkitLineClamp: 1,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
+            {renderHL(item.title)}
+          </Typography>
+          <Box
+            sx={{
+              flexShrink: 0,
+              px: 0.75,
+              py: 0.2,
+              borderRadius: 0.75,
+              bgcolor: `${TYPE_ACCENT[item.contentType]}1A`,
+              color: TYPE_ACCENT[item.contentType],
+              fontSize: 9,
+              fontWeight: 700,
+              letterSpacing: 0.5,
+              textTransform: 'uppercase',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {item.matchField === 'title' ? '标题命中' : item.matchField === 'author' ? '作者命中' : '描述命中'}
+          </Box>
+        </Box>
         {item.subtitle && (
           <Typography
             sx={{
@@ -998,56 +1095,66 @@ function ContentResult({
             {renderHL(item.subtitle)}
           </Typography>
         )}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.75, color: 'var(--text-muted, rgba(255,255,255,0.45))' }}>
-          <Box
-            sx={{
-              width: 18,
-              height: 18,
-              borderRadius: '50%',
-              background: item.coverGradient,
-              fontSize: 10,
-              fontWeight: 700,
-              color: 'var(--text-primary, #fff)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            {item.author[0]}
+        {/* 元信息行:作者 · 相关度 · 可用性徽标。原来的伪造 views/comments/likes 全删了,
+            /search 接口本就不返回这些,留着只会显示 "undefined"。 */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.75, flexWrap: 'wrap' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'var(--text-muted, rgba(255,255,255,0.55))' }}>
+            <Box
+              sx={{
+                width: 16,
+                height: 16,
+                borderRadius: '50%',
+                background: `linear-gradient(135deg, ${TYPE_ACCENT[item.contentType]}, rgba(20,20,30,0.85))`,
+                fontSize: 9,
+                fontWeight: 700,
+                color: 'var(--text-primary, #fff)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {item.author[0]}
+            </Box>
+            <Typography sx={{ fontSize: 11 }}>{renderHL(item.author)}</Typography>
           </Box>
-          <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.55))' }}>{item.author}</Typography>
-          <Box sx={{ width: 2, height: 2, borderRadius: '50%', bgcolor: 'var(--text-disabled, rgba(255,255,255,0.25))' }} />
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
-            <PlayArrowRoundedIcon sx={{ fontSize: 11 }} />
-            <Typography sx={{ fontSize: 10 }}>{formatNumber(item.views)}</Typography>
-          </Box>
-          <Box sx={{ width: 2, height: 2, borderRadius: '50%', bgcolor: 'var(--text-disabled, rgba(255,255,255,0.25))' }} />
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
-            <ChatBubbleOutlineIcon sx={{ fontSize: 10 }} />
-            <Typography sx={{ fontSize: 10 }}>{formatNumber(item.comments)}</Typography>
-          </Box>
-          <Box sx={{ width: 2, height: 2, borderRadius: '50%', bgcolor: 'var(--text-disabled, rgba(255,255,255,0.25))' }} />
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
-            <FavoriteBorderIcon sx={{ fontSize: 10 }} />
-            <Typography sx={{ fontSize: 10 }}>{formatNumber(item.likes)}</Typography>
-          </Box>
+          {scorePct != null && (
+            <>
+              <Box sx={{ width: 2, height: 2, borderRadius: '50%', bgcolor: 'var(--text-disabled, rgba(255,255,255,0.25))' }} />
+              <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.55))' }}>
+                相关度 {scorePct}%
+              </Typography>
+            </>
+          )}
+          {availabilityBadge && (
+            <>
+              <Box sx={{ width: 2, height: 2, borderRadius: '50%', bgcolor: 'var(--text-disabled, rgba(255,255,255,0.25))' }} />
+              <Box
+                sx={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 0.4,
+                  px: 0.6,
+                  py: 0.15,
+                  borderRadius: 0.5,
+                  bgcolor: `${availabilityBadge.color}1F`,
+                  color: availabilityBadge.color,
+                  fontSize: 10,
+                  fontWeight: 600,
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 5,
+                    height: 5,
+                    borderRadius: '50%',
+                    bgcolor: availabilityBadge.color,
+                  }}
+                />
+                {availabilityBadge.label}
+              </Box>
+            </>
+          )}
         </Box>
-      </Box>
-      <Box
-        sx={{
-          flexShrink: 0,
-          px: 0.75,
-          py: 0.25,
-          borderRadius: 0.75,
-          bgcolor: `${TYPE_ACCENT[item.contentType]}1A`,
-          color: TYPE_ACCENT[item.contentType],
-          fontSize: 9,
-          fontWeight: 700,
-          letterSpacing: 0.5,
-          textTransform: 'uppercase',
-        }}
-      >
-        {item.matchField === 'title' ? '标题命中' : item.matchField === 'subtitle' ? '描述命中' : '作者命中'}
       </Box>
     </Box>
   );
