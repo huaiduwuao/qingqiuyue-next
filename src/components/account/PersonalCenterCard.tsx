@@ -20,6 +20,7 @@ import WatchLaterIcon from '@mui/icons-material/WatchLater';
 import VideoLibraryIcon from '@mui/icons-material/VideoLibrary';
 import EventNoteRoundedIcon from '@mui/icons-material/EventNoteRounded';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
+import ShoppingBagRoundedIcon from '@mui/icons-material/ShoppingBagRounded';
 import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSettingsRounded';
@@ -42,7 +43,7 @@ interface Section {
 // SECTIONS 改为"模板",count 在渲染时由 stats 实时注入(避免硬编码 '49'/'30天内'/'2'/'0' 跟实际不符)。
 // 渲染函数 buildSections() 接收 stats,返回带 count 的 Section[]。
 interface SectionTemplate {
-  key: 'favorites' | 'history' | 'watchlater' | 'playlists' | 'works' | 'reservation' | 'orders';
+  key: 'favorites' | 'history' | 'watchlater' | 'playlists' | 'works' | 'reservation' | 'orders' | 'purchases';
   label: string;
   icon: React.ReactNode;
   href: string;
@@ -59,6 +60,7 @@ const SECTION_TPLS: SectionTemplate[] = [
   { key: 'works',      label: '我的作品', icon: <VideoLibraryIcon sx={{ fontSize: 18, color: 'primary.main' }} />,         href: '/account/content',                         statKey: 'worksCount' },
   { key: 'reservation',label: '我的预约', icon: <EventNoteRoundedIcon sx={{ fontSize: 18, color: 'success.main' }} />,     href: '/home/recommend?tab=me&mainTab=order' },
   { key: 'orders',     label: '我的订单', icon: <ReceiptLongIcon sx={{ fontSize: 18, color: '#5B8DEF' }} />,                href: '/account/orders' },
+  { key: 'purchases',  label: '我的购买', icon: <ShoppingBagRoundedIcon sx={{ fontSize: 18, color: '#EC4899' }} />,          href: '/account/purchases' },
 ];
 
 function buildSections(stats: { likesCount?: number; favoritesCount?: number; historyCount?: number; watchlaterCount?: number; worksCount?: number } | undefined): Section[] {

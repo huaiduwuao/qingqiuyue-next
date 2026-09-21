@@ -46,6 +46,7 @@ import ShareButtons from '@/components/share/ShareButtons';
 import QrCodeRoundedIcon from '@mui/icons-material/QrCodeRounded';
 import WalletRoundedIcon from '@mui/icons-material/WalletRounded';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
+import ShoppingBagRoundedIcon from '@mui/icons-material/ShoppingBagRounded';
 import WorkspacePremiumRoundedIcon from '@mui/icons-material/WorkspacePremiumRounded';
 import StarsIcon from '@mui/icons-material/Stars';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
@@ -165,6 +166,7 @@ const QUICK_LINKS: { key: string; label: string; icon: React.ReactNode; href: st
   { key: 'wallet', label: '我的钱包', icon: <WalletRoundedIcon sx={{ fontSize: 18 }} />, href: '/account/wallet' },
   { key: 'points', label: '积分中心', icon: <StarsIcon sx={{ fontSize: 18 }} />, href: '/user/points' },
   { key: 'order', label: '我的订单', icon: <ReceiptLongRoundedIcon sx={{ fontSize: 18 }} />, href: '/account/orders' },
+  { key: 'purchases', label: '我的购买', icon: <ShoppingBagRoundedIcon sx={{ fontSize: 18 }} />, href: '/account/purchases' },
   { key: 'vip', label: '会员中心', icon: <WorkspacePremiumRoundedIcon sx={{ fontSize: 18 }} />, href: '/account/vip' },
 ];
 
