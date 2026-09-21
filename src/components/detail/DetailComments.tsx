@@ -100,10 +100,17 @@ interface DetailCommentsProps {
 }
 
 function unwrapPage<T>(res: unknown): { list: T[]; total: number; hasMore: boolean } {
-  const payload = (res as { data?: { list?: T[]; total?: number; hasMore?: boolean } | T[] })?.data;
+  // contentClient 的 response interceptor 已剥掉外层 {code, msg, data},这里 res
+  // 直接是业务 payload(详见 src/lib/api/client.ts createApiClient)。
+  // 兼容两种形态:
+  //   - 旧约定: { data: { list, total, hasMore } }
+  //   - interceptor 解包后: { list, total, hasMore }
+  // 别再当成未解包的 axios response 取 res.data —— 那个永远是 undefined,
+  // 会静默返回空列表(评论成功发出后看到"暂无评论")。
+  const payload = (res as { data?: { list?: T[]; total?: number; hasMore?: boolean } | T[] })?.data ?? res;
   if (Array.isArray(payload)) return { list: payload, total: payload.length, hasMore: false };
-  const list = payload?.list ?? [];
-  return { list, total: Number(payload?.total ?? list.length), hasMore: Boolean(payload?.hasMore) };
+  const list = (payload as { list?: T[] })?.list ?? [];
+  return { list, total: Number((payload as { total?: number })?.total ?? list.length), hasMore: Boolean((payload as { hasMore?: boolean })?.hasMore) };
 }
 
 async function fetchReplies(commentId: string): Promise<CommentReply[]> {
