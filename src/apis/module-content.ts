@@ -40,6 +40,18 @@ export interface ModuleContentItem {
   moduleContentSearch?: boolean;
   createTime?: string;
   updateTime?: string;
+  // 下面这些后端 /module/content/list 一直在返回(internal/model/entity/module.go
+  // 的 ModuleContentEntity),只是前端类型漏了声明,拿不到值。
+  rating?: number;
+  ratingCount?: number;
+  releaseDate?: string;
+  metadata?: string; // Doris 的 JSON 列,序列化成字符串下发
+  publishTime?: string;
+  publishAt?: string;
+  accessScope?: string;
+  genreCodes?: string;
+  regionCode?: string;
+  pubYear?: number;
 }
 
 export interface ModuleContentQuery extends PageParams {
@@ -50,8 +62,16 @@ export interface ModuleContentQuery extends PageParams {
   source?: string;
   sourceLabel?: string;
   title?: string;
-  sortField?: string;
-  sortOrder?: string;
+  /**
+   * 排序字段,走后端白名单(未命中回退 id DESC,即"最新抓的在前")。
+   * 取值:rating / rating_count / release_date / create_time / update_time /
+   * read_num / COLLECT / relevance。
+   *
+   * relevance 按标题与 title 的相关性排(精确 > 前缀 > 其余),用于"我知道要
+   * 找哪条,帮我精确定位"的场景 —— 补全页用它,否则同名作品的几十条新抓条目
+   * 会把正主挤出返回窗口。
+   */
+  orderBy?: string;
 }
 
 function toBackendParams(q: ModuleContentQuery) {
@@ -65,8 +85,7 @@ function toBackendParams(q: ModuleContentQuery) {
     source: q.source,
     sourceLabel: q.sourceLabel,
     title: q.title,
-    sortField: q.sortField,
-    sortOrder: q.sortOrder,
+    orderBy: q.orderBy,
   };
 }
 

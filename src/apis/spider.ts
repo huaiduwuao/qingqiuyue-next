@@ -332,6 +332,8 @@ export interface ContentBackfillStartResult {
   task_id: number;
   status: string;
   source_name: string;
+  /** 被补全的内容 id(回带,省得从 source_name 里反解)。 */
+  content_id?: number;
   progress_url: string;
 }
 
@@ -384,6 +386,34 @@ export async function listContentBackfillRecent(params?: { page?: number; pageSi
   pageSize: number;
 }> {
   return spiderClient('/content/backfill/recent', { method: 'GET', params });
+}
+
+/** 一条内容的章节入库情况。非正文类(MUSIC/VIDEO/...)不会有对应条目。 */
+export interface ContentItemStats {
+  /** readable(全入库) / partial_text(部分) / catalog_only(只有目录) / external_only(连目录都没有) */
+  status: string;
+  /** 站内已入库正文的章节数 */
+  readyItems: number;
+  /** 目录里的总章节数 */
+  totalItems: number;
+}
+
+/**
+ * 批量查内容的章节入库情况 —— 补全页把"这条还缺多少章"摆在搜索结果上。
+ *
+ * 后端实时从内容库算(与站内「站内 N/M 章」角标同一份判定),不依赖
+ * module_content.chapter_count 那一列(它是脏的,全库为 0)。
+ *
+ * 返回的键是**字符串**形式的 id:内容 id 是 BIGINT 且超过 2^53,
+ * JS 的 Number 会截断,所以只能用 String(item.id) 取。
+ */
+export async function getContentItemStats(ids: Array<string | number>): Promise<Record<string, ContentItemStats>> {
+  if (!ids.length) return {};
+  const res = await spiderClient('/content/backfill/item-stats', {
+    method: 'GET',
+    params: { ids: ids.map(String).join(',') },
+  });
+  return (res as any)?.stats ?? {};
 }
 
 // =====================================================================

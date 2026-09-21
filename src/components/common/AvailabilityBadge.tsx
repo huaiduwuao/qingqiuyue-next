@@ -29,7 +29,13 @@ import type { PlaybackStatus } from '@/apis/recommend';
 export type AvailabilityTone = 'good' | 'partial' | 'external' | 'broken';
 
 export interface AvailabilityBadgeProps {
-  status?: PlaybackStatus;
+  /**
+   * 可用性结论。放宽到 string 是因为来源不止 PlaybackStatus 一处 ——
+   * 补全页从 /api/spider/content/backfill/item-stats 拿到的是裸字符串。
+   * specOf 本来就是 switch 字符串,认不出的值返回 null(不显示角标),
+   * 所以放宽类型不会让任何既有调用方行为改变。
+   */
+  status?: PlaybackStatus | string;
   /** 已入库正文的章节数 / 目录总章节数,partial_text 时用来说清程度。 */
   readyItems?: number;
   totalItems?: number;
@@ -64,7 +70,7 @@ const toneColor: Record<AvailabilityTone, { fg: string; bg: string; border: stri
  * 只会制造噪声 —— 一屏里每张卡片都挂着标签,等于没有标签。
  */
 export function specOf(
-  status?: PlaybackStatus,
+  status?: PlaybackStatus | string,
   readyItems?: number,
   totalItems?: number,
 ): Spec | null {

@@ -30,7 +30,8 @@
   /* 底部导航占位:MobileBottomNav 挂载时写成实际高度,卸载后归零。
      浮窗数字人 / 页面底部留白都读它,不再各自猜 56px。 */
   --bottom-nav-inset: 0px;
-  /* 全局音乐底栏占位:GlobalMusicBar 显示时写成它的高度,收起/关闭后归零。 */
+  /* 全局音乐底栏占位:GlobalMusicBar 显示时写成它的高度,收起/关闭后归零。
+     实际生效的是它挂到 <body> 末尾的补丁元素(见下方 body > [data-player-pad])。 */
   --player-inset: 0px;
   /* 顶栏高度:各 layout 的 header 用 ResizeObserver 写入,内部 sticky 子栏按它偏移。 */
   --topbar-h: 56px;
@@ -106,8 +107,6 @@ html {
 
 body {
   min-height: 100%;
-  /* 页面底部内容别被音乐底栏盖住(首页壳 overflow:hidden,自己在 main 上留白) */
-  padding-bottom: var(--player-inset, 0px);
   display: flex;
   flex-direction: column;
   color: var(--text-primary);
@@ -115,6 +114,20 @@ body {
   font-family: Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* 音乐底栏占位(GlobalMusicBar 挂到 body 末尾的补丁元素)。
+   页面底部内容别被底栏盖住(首页壳 overflow:hidden,自己在 main 上留白)。
+
+   这里刻意不用 `body { padding-bottom }`:改 body 的 padding 会连带动
+   scrollHeight,而 body 的 scrollHeight 又决定 html 的滚动范围 —— 一放一收,
+   文档总高度跟着变,正在滚动时 WebView 会自己做边界校正(把用户往下拽)。
+   换成 flex 兄弟元素的 height,只有静态文档的滚动范围变,正在滚动时的高度不变,
+   点开/收起播放器不会再让页面跳。 */
+body > [data-player-pad] {
+  flex: 0 0 auto;
+  height: var(--player-inset, 0px);
+  pointer-events: none;
 }
 
 * {

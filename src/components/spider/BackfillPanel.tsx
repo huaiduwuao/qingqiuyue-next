@@ -1,34 +1,56 @@
 'use client';
 
-// 通用内容补全面板 —— /account/spider/quick 的第三个 tab。
+// 通用内容补全面板 —— /system/spider/backfill 与 /account/spider/quick 的第三个 tab。
 //
 // 后端 content_backfill 框架:任意已收录内容 (module_content.id) 都能补。
 // 按 content_type 自动选抓取方式 —— NOVEL 抓章节正文、MUSIC 存音频、
 // COMICS 抓页面、FILM/VIDEO 只嗅探播放直链(不下载)。调用方不关心类型。
+//
+// ── 为什么不用 Autocomplete ──────────────────────────────────────────────
+//
+// 这里原本是一个 Autocomplete(下拉联想)。它的两个特性和这个页面的用途相冲:
+//   1. 下拉面板宽度受限,塞不下"类型 + 入库状态"这些决定性的列;
+//   2. 选中即收起,用户失去"同名的还有哪些"的视野。
+//
+// 而运营遇到的真实情况恰恰是:搜「求魔」命中 44 条,其中 41 条是最近抓的有声书
+// 章节、只有 2 条是要补的小说 —— 在一个只显示标题的下拉里,这 2 条根本认不出来。
+// 所以改成常驻结果列表,把"类型"和"入库状态"摆成列。
+//
+// ── 顺带说明两个后端配合点 ─────────────────────────────────────────────
+//   - 搜索带 orderBy=relevance:后端按标题相关性(精确 > 前缀 > 其余)排,
+//     否则默认的 id DESC("最新抓的在前")会让刚抓的几十条同名条目压住正主。
+//   - 入库状态来自 /content/backfill/item-stats,它实时从内容库算
+//     readyItems/totalItems,不读 module_content.chapter_count(那一列是脏的)。
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Alert from '@mui/material/Alert';
-import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Divider from '@mui/material/Divider';
+import IconButton from '@mui/material/IconButton';
 import LinearProgress from '@mui/material/LinearProgress';
 import MenuItem from '@mui/material/MenuItem';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import SyncProblemRoundedIcon from '@mui/icons-material/SyncProblemRounded';
+import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import { CoverImage } from '@/components/common/CoverImage';
+import AvailabilityBadge from '@/components/common/AvailabilityBadge';
 import {
   startContentBackfill,
   getContentBackfillStatus,
   listContentBackfillRecent,
+  getContentItemStats,
   type ContentBackfillRecentItem,
+  type ContentItemStats,
 } from '@/apis/spider';
-import { myPage, type ModuleContentItem } from '@/apis/module-content';
+import { myPage, getById, type ModuleContentItem } from '@/apis/module-content';
+import { TYPE_LABEL } from '@/lib/contentRoute';
 import { formatApiError } from '@/lib/api/client';
 
 const STATUS_META: Record<string, { label: string; color: 'default' | 'info' | 'warning' | 'success' | 'error' }> = {
@@ -45,23 +67,104 @@ const STRATEGY_OPTIONS = [
   { value: 'discover', label: '跨源搜索(discover)' },
 ];
 
-export default function BackfillPanel() {
+/** 类型的中文名。生成物里没有的类型(如爬虫内部的 PERSON)退回原始值。 */
+function typeLabel(t: string): string {
+  return TYPE_LABEL[t as keyof typeof TYPE_LABEL] || t;
+}
+
+/**
+ * 类型 → 彩色 Chip 的配色。
+ *
+ * 用色块而不是纯文本,是因为密集列表里「小说」和「音乐」两个词扫读效率太低 ——
+ * 这次事故的核心就是"2 本小说淹没在 41 首歌里",颜色是最快的分流信号。
+ */
+function typeChipColor(t: string): 'primary' | 'secondary' | 'success' | 'warning' | 'info' | 'default' {
+  switch (t.toUpperCase()) {
+    case 'NOVEL':
+      return 'primary';
+    case 'COMICS':
+      return 'secondary';
+    case 'MUSIC':
+      return 'default';
+    case 'ANIMATION':
+    case 'FILM':
+    case 'VIDEO':
+    case 'TELEPLAY':
+    case 'SHORT_DRAMA':
+      return 'info';
+    case 'ARTICLE':
+    case 'NEWS':
+      return 'success';
+    default:
+      return 'default';
+  }
+}
+
+export default function BackfillPanel({ compact = false }: { compact?: boolean }) {
   const qc = useQueryClient();
-  const [title, setTitle] = useState('');
+  const [keyword, setKeyword] = useState('');
   const [picked, setPicked] = useState<ModuleContentItem | null>(null);
+  const [typeFilter, setTypeFilter] = useState('');
   const [authorHint, setAuthorHint] = useState('');
   const [strategy, setStrategy] = useState('revisit');
   const [taskId, setTaskId] = useState<number | null>(null);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
-  // 按标题搜内容 —— myPage 是公开浏览列表,不受数据权限限制(搜得全库)
+  const trimmed = keyword.trim();
+  // 纯数字且不超 2^53 视为精确 id 查询(运营常从别处复制到 id)。
+  const asId = /^\d+$/.test(trimmed) && trimmed.length <= 15 ? Number(trimmed) : null;
+
+  // 按标题搜内容 —— myPage 是公开浏览列表,不受数据权限限制(搜得全库)。
+  // orderBy=relevance 是这里的重点:不带它的话默认 id DESC 会把一批批新抓的
+  // 同名条目排在正主前面,要补的那条根本进不了窗口。
   const searchQuery = useQuery({
-    queryKey: ['backfill-content-search', title],
-    queryFn: () => myPage({ title: title.trim(), page: 1, pageSize: 20 }),
-    enabled: title.trim().length >= 2,
+    queryKey: ['backfill-content-search', trimmed],
+    queryFn: () => myPage({ title: trimmed, orderBy: 'relevance', page: 1, pageSize: 50 }),
+    enabled: trimmed.length >= 2 && asId === null,
     staleTime: 30_000,
   });
-  const options = searchQuery.data?.list ?? [];
+
+  // 粘贴 id 时走精确查询,不依赖标题匹配。
+  const idQuery = useQuery({
+    queryKey: ['backfill-content-byid', asId],
+    queryFn: () => getById(asId!),
+    enabled: asId !== null,
+    staleTime: 30_000,
+  });
+
+  const options = useMemo(() => {
+    if (asId !== null) {
+      const d = idQuery.data as any;
+      const item = d?.data ?? d;
+      return item && item.id ? [item as ModuleContentItem] : [];
+    }
+    return searchQuery.data?.list ?? [];
+  }, [asId, idQuery.data, searchQuery.data]);
+
+  const loading = asId !== null ? idQuery.isFetching : searchQuery.isFetching;
+
+  // 类型筛选的选项从当前结果集动态生成 —— 只列真的出现了的类型,
+  // 运营一眼能看到"小说只有 2 条"。
+  const typeCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const o of options) m.set(o.contentType, (m.get(o.contentType) ?? 0) + 1);
+    return m;
+  }, [options]);
+
+  const visible = useMemo(
+    () => (typeFilter ? options.filter((o) => o.contentType === typeFilter) : options),
+    [options, typeFilter],
+  );
+
+  // 入库状态:批量拉当前列表的章节统计(只对正文类有结果)。
+  const statIds = useMemo(() => visible.map((o) => String(o.id)).sort(), [visible]);
+  const statsQuery = useQuery({
+    queryKey: ['backfill-item-stats', statIds.join(',')],
+    queryFn: () => getContentItemStats(statIds),
+    enabled: statIds.length > 0,
+    staleTime: 60_000,
+  });
+  const stats = statsQuery.data ?? {};
 
   const startM = useMutation({
     mutationFn: () =>
@@ -78,57 +181,120 @@ export default function BackfillPanel() {
     onError: (e) => setErrMsg(formatApiError(e) || '发起失败'),
   });
 
+  const pickedStats: ContentItemStats | undefined = picked ? stats[String(picked.id)] : undefined;
+
   return (
     <Stack spacing={2}>
       <Alert severity="info" icon={<SyncProblemRoundedIcon />}>
         选中一条已收录内容,系统会按它的类型自动补抓缺失部分:
         小说补章节正文、音乐补音频、漫画补页面、影视只嗅探播放直链(不下载文件)。
+        搜索结果里的「入库状态」列会告诉你这条还缺多少。
       </Alert>
 
-      {/* 选内容:按标题搜 */}
-      <Autocomplete
-        size="small"
-        options={options}
-        loading={searchQuery.isFetching}
-        value={picked}
-        onChange={(_, v) => setPicked(v)}
-        getOptionLabel={(o) => o.title || `#${o.id}`}
-        isOptionEqualToValue={(a, b) => a.id === b.id}
-        noOptionsText={title.trim().length < 2 ? '输入至少 2 个字开始搜索' : '没搜到匹配的内容'}
-        renderInput={(params) => (
+      {/* 搜索 + 类型筛选 */}
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+        <TextField
+          size="small"
+          fullWidth
+          label="搜索内容(按标题,或直接粘贴内容 id)"
+          placeholder="例如:求魔"
+          value={keyword}
+          onChange={(e) => {
+            setKeyword(e.target.value);
+            setTypeFilter('');
+          }}
+          slotProps={{
+            input: {
+              endAdornment: loading ? <CircularProgress size={16} /> : null,
+            },
+          }}
+        />
+        {typeCounts.size > 1 && (
           <TextField
-            {...params}
-            label="搜索内容(按标题)"
-            placeholder="例如:求魔"
-            onChange={(e) => setTitle(e.target.value)}
-          />
+            select
+            size="small"
+            label="类型"
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            sx={{ minWidth: compact ? 140 : 180 }}
+          >
+            <MenuItem value="">全部({options.length})</MenuItem>
+            {Array.from(typeCounts.entries()).map(([t, n]) => (
+              <MenuItem key={t} value={t}>
+                {typeLabel(t)}({n})
+              </MenuItem>
+            ))}
+          </TextField>
         )}
-        renderOption={(props, o) => (
-          <Box component="li" {...props} key={o.id}>
-            <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', width: '100%', minWidth: 0 }}>
-              <CoverImage
-                src={o.coverUrl || o.cover}
-                alt={o.title}
-                sx={{ width: 32, height: 44, borderRadius: 0.5, flexShrink: 0 }}
-              />
-              <Box sx={{ minWidth: 0, flex: 1 }}>
-                <Typography variant="body2" noWrap>
-                  {o.title}
-                </Typography>
-                <Typography variant="caption" color="text.secondary" noWrap>
-                  {o.contentType}
-                  {o.author ? ` · ${o.author}` : ''} · #{o.id}
-                </Typography>
-              </Box>
-            </Stack>
-          </Box>
-        )}
-      />
+      </Stack>
 
-      {picked && (
+      {/* 结果计数徽标 —— 让运营确认"小说就这么多,不是我漏看了" */}
+      {trimmed.length >= 2 && (
         <Typography variant="caption" color="text.secondary">
-          将补全:<strong>{picked.title}</strong> · 类型 {picked.contentType} · ID {picked.id}
+          {loading
+            ? '搜索中…'
+            : options.length === 0
+              ? '没搜到匹配的内容'
+              : `${options.length} 条结果` +
+                (typeCounts.size > 1
+                  ? ' · ' +
+                    Array.from(typeCounts.entries())
+                      .map(([t, n]) => `${typeLabel(t)} ${n}`)
+                      .join(' · ')
+                  : '')}
+          {options.length > 0 && statsQuery.isFetching && ' · 读取入库状态…'}
         </Typography>
+      )}
+
+      {/* 常驻结果列表 */}
+      {visible.length > 0 && (
+        <Box
+          sx={{
+            border: 1,
+            borderColor: 'divider',
+            borderRadius: 1,
+            maxHeight: compact ? 360 : 480,
+            overflowY: 'auto',
+          }}
+        >
+          {visible.map((o) => (
+            <ResultRow
+              key={o.id}
+              item={o}
+              stat={stats[String(o.id)]}
+              picked={picked?.id === o.id}
+              onPick={() => setPicked(o)}
+            />
+          ))}
+        </Box>
+      )}
+
+      {/* 选中条:先看清楚缺什么,再决定补不补 */}
+      {picked && (
+        <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 1.5 }}>
+          <Stack spacing={1}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
+              <Typography variant="subtitle2">{picked.title}</Typography>
+              <Chip size="small" color={typeChipColor(picked.contentType)} label={typeLabel(picked.contentType)} />
+              {picked.sourceLabel && (
+                <Typography variant="caption" color="text.secondary">
+                  来源「{picked.sourceLabel}」
+                </Typography>
+              )}
+              <Typography variant="caption" color="text.disabled">
+                #{picked.id}
+              </Typography>
+              <CopyIdButton id={String(picked.id)} />
+            </Stack>
+
+            <Typography variant="body2" color="text.secondary">
+              {pickedStats
+                ? `目录 ${pickedStats.totalItems} 章 · 站内正文 ${pickedStats.readyItems} 章`
+                : '该类型不走章节补全,直接按源补音频/页面/直链'}
+            </Typography>
+            {pickedStats && <GapHint stat={pickedStats} />}
+          </Stack>
+        </Box>
       )}
 
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
@@ -180,6 +346,136 @@ export default function BackfillPanel() {
       <RecentBackfillList />
     </Stack>
   );
+}
+
+/** 结果行:封面 / 标题+作者来源 / 类型 / 入库状态。 */
+function ResultRow({
+  item,
+  stat,
+  picked,
+  onPick,
+}: {
+  item: ModuleContentItem;
+  stat?: ContentItemStats;
+  picked: boolean;
+  onPick: () => void;
+}) {
+  return (
+    <Box
+      onClick={onPick}
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1.5,
+        px: 1.5,
+        py: 1,
+        cursor: 'pointer',
+        borderBottom: 1,
+        borderColor: 'divider',
+        bgcolor: picked ? 'action.selected' : 'transparent',
+        '&:last-of-type': { borderBottom: 0 },
+        '&:hover': { bgcolor: picked ? 'action.selected' : 'action.hover' },
+      }}
+    >
+      <CoverImage
+        src={item.coverUrl || item.cover}
+        alt={item.title}
+        sx={{ width: 40, height: 54, borderRadius: 0.5, flexShrink: 0 }}
+      />
+      <Box sx={{ minWidth: 0, flex: 1 }}>
+        <Typography variant="body2" noWrap title={item.title}>
+          {item.title}
+        </Typography>
+        <Typography variant="caption" color="text.secondary" noWrap>
+          {item.author || '未知作者'}
+          {item.sourceLabel ? ` · ${item.sourceLabel}` : ''} · #{item.id}
+        </Typography>
+      </Box>
+      <Chip
+        size="small"
+        color={typeChipColor(item.contentType)}
+        label={typeLabel(item.contentType)}
+        sx={{ flexShrink: 0 }}
+      />
+      {/* 状态列固定宽度:有的行有角标、有的没有(音乐等非正文类),
+          不占位的话右边缘会参差不齐。 */}
+      <Box sx={{ width: 110, flexShrink: 0, display: 'flex', justifyContent: 'flex-start' }}>
+        {stat ? (
+          <AvailabilityBadge
+            status={stat.status}
+            readyItems={stat.readyItems}
+            totalItems={stat.totalItems}
+            variant="inline"
+          />
+        ) : (
+          <Typography variant="caption" color="text.disabled">
+            —
+          </Typography>
+        )}
+      </Box>
+    </Box>
+  );
+}
+
+/** 复制内容 id —— 运营要拿它去库里核对。 */
+function CopyIdButton({ id }: { id: string }) {
+  const [done, setDone] = useState(false);
+  return (
+    <Tooltip title={done ? '已复制' : '复制 id'}>
+      <IconButton
+        size="small"
+        onClick={() => {
+          navigator.clipboard?.writeText(id).then(
+            () => {
+              setDone(true);
+              setTimeout(() => setDone(false), 1500);
+            },
+            () => {},
+          );
+        }}
+      >
+        <ContentCopyRoundedIcon sx={{ fontSize: 14 }} />
+      </IconButton>
+    </Tooltip>
+  );
+}
+
+/**
+ * 缺口提示:这条到底缺什么、还差多少章。
+ *
+ * 措辞比站内角标更直接 —— 这一页是运营视角,他要的是"该不该点补全",
+ * 不是"用户会看到什么"。
+ */
+function GapHint({ stat }: { stat: ContentItemStats }) {
+  const gap = Math.max(0, stat.totalItems - stat.readyItems);
+  switch (stat.status) {
+    case 'readable':
+      return (
+        <Typography variant="caption" color="text.secondary">
+          站内 {stat.totalItems} 章已全部入库,通常不需要补全
+        </Typography>
+      );
+    case 'partial_text':
+      return (
+        <Typography variant="caption" color="warning.main">
+          还缺 {gap} 章(已有 {stat.readyItems}/{stat.totalItems})——可以补全
+        </Typography>
+      );
+    case 'catalog_only':
+      return (
+        <Typography variant="caption" color="error.main">
+          仅抓到目录,正文 0 章 —— 需要补全
+        </Typography>
+      );
+    case 'external_only':
+      return (
+        <Typography variant="caption" color="error.main">
+          连目录都没有,需要先补目录再补正文
+        </Typography>
+      );
+    default:
+      return null;
+  }
 }
 
 /** 单次补全任务的状态卡:运行中每 3s 轮询,跑完停。 */

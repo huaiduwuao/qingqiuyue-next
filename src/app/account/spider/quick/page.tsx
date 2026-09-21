@@ -69,7 +69,9 @@ export default function QuickSpiderPage() {
 
           {tab === 'novel' && <NovelPanel />}
           {tab === 'stream' && <StreamPanel />}
-          {tab === 'backfill' && <BackfillPanel />}
+          {/* compact:这一页在 Container maxWidth="md" 的 Card 里,结果列表
+              要收一收高度,不然 tab 内容会把整页撑得很长。 */}
+          {tab === 'backfill' && <BackfillPanel compact />}
         </Card>
       </Container>
     </Box>

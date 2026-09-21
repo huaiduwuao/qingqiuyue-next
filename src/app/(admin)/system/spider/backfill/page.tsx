@@ -8,7 +8,7 @@
  * 漫画补页面、影视只嗅探播放直链(不下载文件)。
  *
  * 面板本体在 components/spider/BackfillPanel.tsx,与
- * /account/spider/quick 的「内容补全」tab 共用同一份实现。
+ * /account/spider/quick 的「内容补全」tab 共用同一份实现(那边传 compact)。
  */
 
 import React from 'react';
@@ -18,7 +18,9 @@ import BackfillPanel from '@/components/spider/BackfillPanel';
 
 export default function SpiderBackfillPage() {
   return (
-    <Box>
+    // 不套 maxWidth 容器:结果列表是四列的表格形态(封面/标题/类型/入库状态),
+    // 窄容器下类型和状态会被挤到看不见,而这两列正是"认得出要补哪条"的关键。
+    <Box sx={{ width: '100%' }}>
       <Typography variant="h6" sx={{ mb: 2 }}>
         内容补全
       </Typography>
