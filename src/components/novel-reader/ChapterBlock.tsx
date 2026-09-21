@@ -36,12 +36,14 @@ interface ChapterBlockProps {
   /** 正文就绪(或确定没有正文)后才挂章末哨兵,避免正文还在加载就连续往下接 */
   onReachEnd?: () => void;
   footer?: React.ReactNode;
+  /** 点章节标题回到详情/目录(仅阅读态传入,用于从正文回到详情态) */
+  onTitleClick?: () => void;
 }
 
 /**
  * 一章:标题 + 书名/作者/字数 + 按段排版的正文,各自按章取正文。
  */
-export function ChapterBlock({ chapter, index, bookTitle, author, theme, fontFamily, fontSize, fetchBody, divider, onReachEnd, footer }: ChapterBlockProps) {
+export function ChapterBlock({ chapter, index, bookTitle, author, theme, fontFamily, fontSize, fetchBody, divider, onReachEnd, footer, onTitleClick }: ChapterBlockProps) {
   const query = useQuery({
     queryKey: ['novel-chapter', chapter.id],
     queryFn: () => fetchBody(chapter.id),
@@ -86,6 +88,7 @@ export function ChapterBlock({ chapter, index, bookTitle, author, theme, fontFam
     >
       <Box
         component="h1"
+        onClick={onTitleClick}
         sx={{
           m: 0,
           fontSize: '1.3em',
@@ -94,6 +97,7 @@ export function ChapterBlock({ chapter, index, bookTitle, author, theme, fontFam
           color: theme.text,
           fontFamily,
           wordBreak: 'break-all',
+          ...(onTitleClick ? { cursor: 'pointer', '&:hover': { color: theme.sub } } : {}),
         }}
       >
         {chapter.title || `第 ${index + 1} 章`}

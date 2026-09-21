@@ -14,6 +14,7 @@ import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import MenuBookIcon from '@mui/icons-material/MenuBook';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import LockIcon from '@mui/icons-material/Lock';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { CoverImage } from '@/components/common/CoverImage';
 import { detail as contentDetail } from '@/apis/content-video';
@@ -239,6 +240,9 @@ function NovelDetailContent() {
   const [shelved, setShelved] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
+  // 用户主动退出阅读态(点章节标题回目录)后置位,阻止"起始章节"effect 立刻
+  // 又按 localStorage/URL 里的章节把 range 设回去。点章节进阅读时清除。
+  const [exitReading, setExitReading] = useState(false);
 
   // 行为埋点:进入详情即上报一次浏览(推荐/大数据源头)+ 写观看历史。itemType 大写以匹配 Doris content_type。
   useEffect(() => {
@@ -316,13 +320,14 @@ function NovelDetailContent() {
   // 偷偷 reset 到 0,那样用户带 ?chapter= 进入会被弹回首章。
   useEffect(() => {
     if (range || tocLoading || chapters.length === 0 || !id) return;
+    if (exitReading) return; // 用户刚退出到详情,不要立刻又按上次进度弹回阅读态
     const wanted = chapterParam || loadProgress(id);
     const found = wanted ? chapters.findIndex((c) => c.id === wanted) : -1;
     if (found < 0) return;
     setRange({ start: found, end: found });
     setCurrent(found);
     if (!chapterParam && found > 0) setOkMsg(`已为你定位到上次读到的「${chapters[found].title || `第 ${found + 1} 章`}」`);
-  }, [range, tocLoading, chapters, chapterParam, id]);
+  }, [range, tocLoading, chapters, chapterParam, id, exitReading]);
 
   // 目录抽屉打开时异步补全全本目录。已补到 total 时 loadFullToc 内部短路,
   // 反复打开不会重复请求。补完后 useEffect(range) 依赖 chapters 也会重新跑,
@@ -335,6 +340,7 @@ function NovelDetailContent() {
     (i: number) => {
       const target = chapters[i];
       if (!target) return;
+      setExitReading(false);
       setRange({ start: i, end: i });
       setCurrent(i);
       setPanel(null);
@@ -345,6 +351,17 @@ function NovelDetailContent() {
     },
     [chapters, id, setUrlChapter],
   );
+
+  // 回目录/详情:退出阅读态。把地址栏的 chapter 参数去掉,并滚回顶部。
+  const backToDetail = useCallback(() => {
+    setExitReading(true);
+    setRange(null);
+    setCurrent(0);
+    setPanel(null);
+    setShowInfo(false);
+    if (id) window.history.replaceState(window.history.state, '', `${pathname}?id=${encodeURIComponent(id)}`);
+    window.scrollTo({ top: 0 });
+  }, [id, pathname]);
 
   // 切到翻页模式时收起已接上的章节,只留当前这一章
   useEffect(() => {
@@ -453,7 +470,9 @@ function NovelDetailContent() {
   const chapterTotal = Number(detail?.totalChapters) || detail?.chapterCount || chapters.length;
   const bookTitle = detail?.title || '';
   const paper = { backgroundColor: rt.paper, backgroundImage: noiseLayer(rt.dark) };
-  const showCover = !tocLoading && (chapters.length === 0 || showInfo || range?.start === 0);
+  // 详情态:还没开始读(range 为 null)。此时显示书籍详情 + 章节列表,不渲染正文。
+  const showDetail = !tocLoading && range === null;
+  const showCover = showDetail || (!tocLoading && (chapters.length === 0 || showInfo || range?.start === 0));
   const sourceLink = [detail?.sourceUrl, detail?.source].find((u) => !!u && /^https?:\/\//.test(u));
   const platforms = platformsOf(detail);
 
@@ -470,6 +489,46 @@ function NovelDetailContent() {
           去原站阅读
         </Button>
       )}
+    </Box>
+  );
+
+  /** 详情态的章节列表:点某一章跳到阅读态(从该章开始渲染正文)。 */
+  const chapterCatalog = chapters.length > 0 && (
+    <Box id="chapter-list" sx={{ mx: { xs: '16px', sm: '24px' }, mt: 2, mb: 6 }}>
+      <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 0.5 }}>
+        <Box component="h3" sx={{ m: 0, fontSize: 18, fontWeight: 600, color: rt.text }}>
+          章节目录
+        </Box>
+        <Box sx={{ fontSize: 13, color: rt.sub }}>共 {chapterTotal || chapters.length} 章</Box>
+      </Box>
+      <Box sx={{ borderRadius: '16px', border: `1px solid ${rt.line}`, overflow: 'hidden' }}>
+        {chapters.map((c, i) => (
+          <ButtonBase
+            key={c.id}
+            onClick={() => goTo(i)}
+            sx={{
+              width: '100%',
+              justifyContent: 'flex-start',
+              gap: 1.5,
+              px: 2.5,
+              py: 1.5,
+              fontSize: 15,
+              textAlign: 'left',
+              color: rt.text,
+              borderTop: i > 0 ? `1px solid ${rt.line}` : 'none',
+              '&:hover': { bgcolor: rt.fill },
+            }}
+          >
+            <Box component="span" sx={{ fontSize: 12, color: rt.sub, fontVariantNumeric: 'tabular-nums', flexShrink: 0, width: 32, textAlign: 'right' }}>
+              {i + 1}
+            </Box>
+            <Box component="span" sx={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {c.title || `第 ${i + 1} 章`}
+            </Box>
+            {c.locked && <LockIcon sx={{ fontSize: 15, color: rt.sub, flexShrink: 0 }} />}
+          </ButtonBase>
+        ))}
+      </Box>
     </Box>
   );
 
@@ -526,7 +585,7 @@ function NovelDetailContent() {
           columnWidth={columnWidth}
           panel={panel}
           onPanel={setPanel}
-          mobileChrome={mobileChrome || !!panel}
+          mobileChrome={showDetail || mobileChrome || !!panel}
           chapters={chapters}
           current={current}
           onGo={goTo}
@@ -552,8 +611,9 @@ function NovelDetailContent() {
             setMobileChrome((v) => !v);
           }}
         >
-          {/* 面包屑:返回 / 书名 / 当前章 */}
-          <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 0.5, px: '64px', height: 56, borderBottom: `1px solid ${rt.line}`, fontSize: 14, color: rt.sub }}>
+          {/* 顶部标题栏:吸顶(sticky),返回 / 分享 / 书名 / 当前章。
+              详情态与阅读态都在;滚动到底部评论区时钉在顶部。 */}
+          <Box sx={{ display: { xs: 'none', md: 'flex' }, position: 'sticky', top: 0, zIndex: 1100, backgroundColor: rt.paper, backgroundImage: noiseLayer(rt.dark), alignItems: 'center', gap: 0.5, px: '64px', height: 56, borderBottom: `1px solid ${rt.line}`, fontSize: 14, color: rt.sub }}>
             <ButtonBase onClick={() => router.back()} sx={{ gap: 0.5, fontSize: 'inherit', color: 'inherit', '&:hover': { color: rt.text } }}>
               <ArrowBackIosNewIcon sx={{ fontSize: 12 }} />
               返回
@@ -592,6 +652,17 @@ function NovelDetailContent() {
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 12 }}>
               <CircularProgress size={28} sx={{ color: rt.sub }} />
             </Box>
+          ) : showDetail ? (
+            <>
+              <BookCover
+                detail={detail}
+                theme={rt}
+                chapterTotal={chapterTotal}
+                empty={emptyNotice}
+                onStart={chapters.length ? () => goTo(0) : undefined}
+              />
+              {chapterCatalog}
+            </>
           ) : (
             <>
               {showCover && (
@@ -618,6 +689,7 @@ function NovelDetailContent() {
                     fontSize={prefs.fontSize}
                     fetchBody={fetchBody}
                     divider={k > 0 || showCover}
+                    onTitleClick={backToDetail}
                     onReachEnd={prefs.mode === 'scroll' && isLast && i + 1 < chapters.length ? () => appendAfter(i) : undefined}
                     footer={isLast && (prefs.mode === 'page' || i + 1 >= chapters.length) ? chapterNav(i) : null}
                   />
