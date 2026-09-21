@@ -17,7 +17,7 @@ import MenuItem from '@mui/material/MenuItem';
 import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSettingsRounded';
 import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
-import { useAuthority } from '@/contexts/AuthContext';
+import { useAuth, useAuthority } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
 import { MENU_GROUPS, type MenuItemDef } from './menu-config';
 import { resolveMenuIcon } from '@/lib/menuIcons';
@@ -49,6 +49,7 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { isAdmin, can } = useAuthority();
+  const { status } = useAuth();
   const { currentUser, menuData } = useApp();
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
   // 手机端抽屉菜单(< md 侧栏隐藏,之前后台在手机上根本没法切页面)
@@ -64,35 +65,17 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
   //   · 在子路由上点菜单会 router.push('/system'),URL 一变又把 activeTab 同步回默认项。
   // 现在菜单就是普通导航:点它跳 item.path,每个菜单都有自己的 URL。
   //
-  // 双轨:
-  //   - 硬编码分支(USE_DB_MENU=false):从 MENU_GROUPS 找;保持旧行为
-  //   - 数据库分支(默认):从 menuData 找;菜单项的 id/label/path 跟数据库一致
-  const activeItem = useMemo(() => {
-    if (!pathname) return null;
-    const source: Array<{ id: string; path: string; label: string }> = USE_DB_MENU
-      ? menuData.map((m) => ({ id: String(m.id), path: m.path ?? '', label: m.name ?? '' }))
-      : MENU_GROUPS.flatMap((g) => g.items).map((it) => ({ id: it.id, path: it.path, label: it.label }));
-    let match: { id: string; path: string; label: string } | undefined;
-    for (const it of source) {
-      const hit = it.path && (pathname === it.path || pathname.startsWith(it.path + '/'));
-      if (hit && (!match || it.path.length > match.path.length)) match = it;
-    }
-    return match ?? null;
-  }, [pathname, menuData]);
+  // 菜单来源双轨(见下面的 dbGroups / staticGroups):数据库优先,给不出来时回落
+  // 到 menu-config.tsx。activeItem 跟着真正渲染出来的那份走,放在 visibleGroups 之后。
 
-  // 过滤有权限的菜单项,并按 MENU_GROUP_ORDER 排序分组。
+  // 数据库分支:从 useApp().menuData(由 AuthContext.loadUser 写入)按 code 过滤、
+  // 按 group 聚合。menu.code 为 NULL 的菜单视作公共,所有人都能看。
   //
-  // 双轨:
-  //   - USE_DB_MENU=false:保持原 menu-config.tsx 行为(防御性 fallback)
-  //   - 默认:从 useApp().menuData(由 AuthContext.loadUser 写入)按 code 过滤、按 group 聚合
-  //
-  // menu.code 为 NULL 的菜单视作公共,所有人都能看。
-  const visibleGroups = useMemo(() => {
-    if (!USE_DB_MENU) {
-      return MENU_GROUPS
-        .map((g) => ({ ...g, items: g.items.filter((it) => !it.permission || can(it.permission)) }))
-        .filter((g) => g.items.length > 0);
-    }
+  // 结果可能是空数组:菜单接口还没回来、请求失败,或者库里的菜单一条都没有 group
+  // (线上 menu 表里那批只有 path 的旧行就是这样 —— 它们会被下面的 MENU_GROUP_ORDER
+  // 过滤掉)。空数组时由 staticGroups 兜底,见 visibleGroups。
+  const dbGroups = useMemo(() => {
+    if (!USE_DB_MENU) return [] as Array<{ title: string; items: MenuItemDef[] }>;
 
     const visible = menuData.filter((m) => !m.code || can(m.code));
     const map = new Map<string, MenuItemDef[]>();
@@ -115,6 +98,31 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
       .map((g) => ({ title: MENU_GROUP_LABELS[g] ?? g, items: map.get(g)! }));
   }, [menuData, can]);
 
+  // 硬编码分支:既是 USE_DB_MENU=false 的行为,也是数据库那边给不出菜单时的兜底。
+  const staticGroups = useMemo(() => {
+    return MENU_GROUPS
+      .map((g) => ({ ...g, items: g.items.filter((it) => !it.permission || can(it.permission)) }))
+      .filter((g) => g.items.length > 0);
+  }, [can]);
+
+  // 侧栏空白 = 后台没法用(每个菜单现在都是独立路由,点不到就只能背 URL)。
+  // 所以数据库菜单一条都聚不出来时回到 menu-config.tsx 这份已知可用的清单,
+  // 而不是渲染一个空侧栏 —— NEXT_PUBLIC_USE_DB_MENU 是构建期开关,线上出问题
+  // 光靠它救不回来,得再发一次版。
+  const visibleGroups = dbGroups.length > 0 ? dbGroups : staticGroups;
+
+  const activeItem = useMemo(() => {
+    if (!pathname) return null;
+    let match: MenuItemDef | undefined;
+    for (const group of visibleGroups) {
+      for (const it of group.items) {
+        const hit = it.path && (pathname === it.path || pathname.startsWith(it.path + '/'));
+        if (hit && (!match || it.path.length > match.path.length)) match = it;
+      }
+    }
+    return match ?? null;
+  }, [pathname, visibleGroups]);
+
   const handleMenuClick = (item: MenuItemDef) => {
     if (pathname !== item.path) router.push(item.path);
   };
@@ -126,9 +134,12 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
     router.push(entry && entry !== '/system/role' ? entry : '/home/recommend');
   };
 
-  // 数据库分支下,menuData 还没回来(首次登录 / 刷新 / 接口失败)时给个骨架,
-  // 避免渲染出"无访问权限"的占位 — menuData 空 ≠ 没权限。
-  if (USE_DB_MENU && !menuData.length) {
+  // 会话/当前用户还在拉的时候给个骨架,避免闪一下"无访问权限"— 菜单和权限都还没到。
+  //
+  // 这里**不**再按 menuData 为空拦整页:菜单接口失败或库里没有带 group 的菜单时,
+  // 上面的 visibleGroups 会回落到硬编码清单;按空拦整页会把人永远卡在转圈上,
+  // 连直接敲 URL 都进不去。
+  if (status === 'loading') {
     return (
       <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'var(--bg-body, transparent)' }}>
         <CircularProgress size={24} />

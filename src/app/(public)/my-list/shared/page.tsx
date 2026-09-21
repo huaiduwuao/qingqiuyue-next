@@ -69,10 +69,11 @@ function SharedListContent() {
   const price = detail?.price ?? 0;
   const isPaidLocked = !unlocked && price > 0;
 
-  // 已解锁或免费时,加载条目列表
+  // 已解锁或免费时,加载条目列表。口令要一起带上:合集是私密的,
+  // 光凭 listId 后端会当作"未公开"拒掉。
   const contentQ = useQuery({
     queryKey: ['shared-list-content', list?.id, unlocked],
-    queryFn: () => getMyListContent(list!.id),
+    queryFn: () => getMyListContent(list!.id, token),
     enabled: !!list && unlocked,
     retry: false,
   });

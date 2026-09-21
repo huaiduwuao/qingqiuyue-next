@@ -24,6 +24,13 @@ RUN pnpm run build
 
 # ===== nginx 运行镜像 =====
 FROM docker.io/library/nginx:alpine AS runner
+# 删掉 nginx 官方镜像的 ipv6 entrypoint 脚本:它启动时跑 apk manifest nginx,
+# 本地没有 apk index 时会去连 dl-cdn.alpinelinux.org —— 节点出网一抖,脚本就卡住,
+# nginx 根本起不来,Steward 的 HTTP 探针 3 分钟超时,整个部署被自动回滚
+# (2026-09-21 连着两次)。这脚本的作用是给"官方那份" default.conf 补一行
+# listen [::]:80;,而我们下面会把 default.conf 整个换成自己的 nginx.conf,
+# 校验和对不上,它本来就什么都不做。
+RUN rm -f /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
 # 复制静态文件到 nginx
 COPY --from=builder /app/out /usr/share/nginx/html
 # 复制 nginx 配置
