@@ -12,14 +12,23 @@ const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'https://qingqiuyue.com'
 // 显式传入的值优先于 .env.local(那里的 NEXT_PUBLIC_WS_BASE 是开发用的内网地址)
 const wsBase = process.env.NEXT_PUBLIC_WS_BASE || apiBase.replace(/^http/, 'ws');
 
+// next build 的默认堆上限在 64 位机器上约 2GB。main 合了 100+ 提交后这个包已经撑爆它
+// (CI macOS runner 上 "Ineffective mark-compacts near heap limit … out of memory" 被 SIGABRT
+// 杀掉,见 run 35634029118)。显式抬到 4GB —— 各 runner 内存 14-16GB,留足余量;
+// 需要再调时用 APP_BUILD_MAX_OLD_SPACE_MB 覆盖。
+const heapMb = process.env.APP_BUILD_MAX_OLD_SPACE_MB || '4096';
+const nodeOptions = `${process.env.NODE_OPTIONS || ''} --max-old-space-size=${heapMb}`.trim();
+
 console.log(`[app-frontend] NEXT_PUBLIC_API_BASE_URL=${apiBase}`);
 console.log(`[app-frontend] NEXT_PUBLIC_WS_BASE=${wsBase}`);
+console.log(`[app-frontend] NODE_OPTIONS=${nodeOptions}`);
 
 const result = spawnSync('pnpm', ['exec', 'next', 'build'], {
   stdio: 'inherit',
   shell: process.platform === 'win32',
   env: {
     ...process.env,
+    NODE_OPTIONS: nodeOptions,
     NEXT_PUBLIC_API_BASE_URL: apiBase,
     NEXT_PUBLIC_WS_BASE: wsBase,
     // 让 next.config.ts 打开 trailingSlash:客户端里的页面必须是 xxx/index.html,
