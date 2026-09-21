@@ -7,12 +7,14 @@
  * {code:0, data:{list, total, page, pageSize, totalPages, hasMore}};
  * 响应拦截器会剥掉 code 外壳,调用方直接读 r.list / r.total。
  *
- * 为什么不复用 lib/agentmanager/api.ts 的 agentmAPI:那个类走裸 fetch 手工拼
- * URLSearchParams,拿不到 axios 的分页参数归一(pageSize → page_size)与
- * 响应外壳处理。这里改用 adminClient,和全站其它 admin 列表页一致。
+ * 为什么用 agentmanagerClient 而不是 adminClient:agentmanager-api 是独立服务,
+ * APISIX 只转发 /api/agentmanager/*;adminClient 的基址是 /api/core(core-api),
+ * 拼出来是 /api/core/agentmanager/admin/audit,core-api 上没有这条路由 → 404。
+ * 为什么不用 lib/agentmanager/api.ts 的 agentmAPI:那个类要手工 setToken,
+ * 且走裸 fetch 拼 URLSearchParams,拿不到 axios 的分页参数归一与响应外壳处理。
  */
 
-import { adminClient } from '@/lib/api/client'
+import { agentmanagerClient } from '@/lib/api/client'
 
 export interface AuditLogRow {
   id: number
@@ -56,8 +58,8 @@ export interface ListAuditLogParams {
 
 /** 全量审计日志(管理员,含后台运行 / 工作流这些没有登录用户的调用) */
 export const listFullAuditLogs = (params: ListAuditLogParams = {}) =>
-  adminClient('/agentmanager/admin/audit', { params })
+  agentmanagerClient('/admin/audit', { params })
 
 /** 当前登录用户自己的审计日志 */
 export const listMyAuditLogs = (params: ListAuditLogParams = {}) =>
-  adminClient('/agentmanager/gateway/audit', { params })
+  agentmanagerClient('/gateway/audit', { params })

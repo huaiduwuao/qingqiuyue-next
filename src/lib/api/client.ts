@@ -373,6 +373,11 @@ export const rewardClient = createApiClient(API_BASE.reward);
 export const wxClient = createApiClient(API_BASE.wx);
 export const spiderClient = createApiClient(API_BASE.spider);
 export const accountClient = createApiClient(API_BASE.account);
+// agentmanager-api 是独立服务(cmd/agentmanager-api,APISIX 只转发 /api/agentmanager/*),
+// 不在 core-api 的 /api/core 命名空间里。它注册的路由全是绝对前缀 /api/...,所以这里
+// 拼接时不要带 API_BASE.admin。曾经把 audit 接口挂到 adminClient 上,线上发出去的是
+// /api/core/agentmanager/admin/audit → core-api 没这条路由 → 404。
+export const agentmanagerClient = createApiClient(`${API_GATEWAY}/api/agentmanager`);
 export const homeClient = createApiClient(API_BASE.home);
 export const aiClient = createApiClient(API_BASE.ai);
 export const stewardClient = createApiClient(API_BASE.steward);
