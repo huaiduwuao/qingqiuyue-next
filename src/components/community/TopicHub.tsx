@@ -2,11 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import InputBase from '@mui/material/InputBase';
 import Skeleton from '@mui/material/Skeleton';
 import Typography from '@mui/material/Typography';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import CollectionsRoundedIcon from '@mui/icons-material/CollectionsRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import VerifiedRoundedIcon from '@mui/icons-material/VerifiedRounded';
@@ -17,6 +20,7 @@ import { TopicFollowButton } from './TopicFollowButton';
 import { compactCount, topicGradient, topicHref } from './format';
 import { coverBackground } from '@/lib/media';
 import { useListLayout } from '@/lib/listLayoutPrefs';
+import { TopicFormDialog } from '@/components/topic/TopicFormDialog';
 
 const TOPIC_PAGE_SIZE = 12;
 
@@ -41,8 +45,13 @@ function useAutoLoad(hasNextPage: boolean, isFetchingNextPage: boolean, fetchNex
 /** 首页「专题」页签:我关注的 / 热门话题 / 精选合集 */
 export function TopicHub() {
   const { isAuthenticated } = useAuth();
+  const router = useRouter();
   const [q, setQ] = useState('');
   const [keyword, setKeyword] = useState('');
+  const [createOpen, setCreateOpen] = useState(false);
+  // 普通用户创建意境 → 后端进待审池(status=0),详情页对未上线意境返回 404,
+  // 不能跳过去。这里展示成功提示,引导用户继续浏览。
+  const [createFeedback, setCreateFeedback] = useState<string | null>(null);
   const [layout] = useListLayout();
   useEffect(() => {
     const t = setTimeout(() => setKeyword(q.trim()), 300);
@@ -89,8 +98,40 @@ export function TopicHub() {
           <SearchRoundedIcon sx={{ fontSize: 17, color: 'var(--text-muted, rgba(255,255,255,0.45))' }} />
           <InputBase value={q} onChange={(e) => setQ(e.target.value)} placeholder="搜索意境或话题" sx={{ flex: 1, fontSize: 13, color: 'var(--text-primary, #fff)' }} />
         </Box>
+        {isAuthenticated && (
+          <Button
+            size="small"
+            variant="contained"
+            startIcon={<AddRoundedIcon />}
+            onClick={() => setCreateOpen(true)}
+            sx={{ borderRadius: 999, textTransform: 'none', whiteSpace: 'nowrap' }}
+          >
+            创建意境
+          </Button>
+        )}
         <ListLayoutSwitch />
       </Box>
+
+      {createFeedback && (
+        <Box sx={{ mt: 1.5, mx: 1, p: 1.5, borderRadius: 2, bgcolor: 'rgba(91,141,239,0.12)', border: '1px solid rgba(91,141,239,0.35)' }}>
+          <Typography sx={{ fontSize: 13, color: 'primary.main' }}>{createFeedback}</Typography>
+        </Box>
+      )}
+
+      <TopicFormDialog
+        open={createOpen}
+        isAdmin={false}
+        showTemplates
+        onClose={() => setCreateOpen(false)}
+        onSaved={({ pendingReview }) => {
+          setCreateOpen(false);
+          if (pendingReview) {
+            setCreateFeedback('已提交,运营审核通过后就会出现在意境广场。审核期间可在「专题管理 · 待审」看到进度。');
+          } else {
+            router.push('/home/recommend?tab=topic');
+          }
+        }}
+      />
 
       {!keyword && (mine.data?.list.length ?? 0) > 0 && (
         <Section title="我关注的">

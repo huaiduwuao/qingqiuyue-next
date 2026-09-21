@@ -119,6 +119,8 @@ export interface CreateTopicReq {
   /** 只有管理员能传 admin_only;普通用户传了会被后端拒绝 */
   visibility?: TopicVisibility;
   rule?: TopicRule;
+  /** 展现形式模板,随创建落到 topic_metadata */
+  templates?: TopicTemplateConfig[];
 }
 
 // 更新专题请求:只改传了的字段
@@ -184,7 +186,7 @@ export async function createTopic(data: CreateTopicReq): Promise<{ id: number; p
   return contentClient.post('/topic', data);
 }
 
-/** 审核通过一个待审专题:status 0 → 1,并清零 owner_id 升级为官方权威专题。仅内容运营。 */
+/** 审核通过一个待审专题:status 0 → 1。仅内容运营。 */
 export async function approveTopic(id: number) {
   return contentClient.post(`/topic/${id}/approve`);
 }
@@ -199,9 +201,20 @@ export async function promoteTopic(id: number) {
   return contentClient.post(`/topic/${id}/promote`);
 }
 
-// 更新专题
+// 更新专题(全字段,仅 staff)
 export async function updateTopic(id: number, data: UpdateTopicReq) {
   return contentClient.put(`/topic/${id}`, data);
+}
+
+/**
+ * 主理人控制台:owner 或 staff 改展示字段(标题/副标题/封面/描述)。
+ * visibility/status/sort/rule 等运营字段被后端忽略。
+ */
+export async function updateTopicByOwner(
+  id: number,
+  data: { title?: string; subtitle?: string; cover?: string; description?: string },
+) {
+  return contentClient.patch(`/topic/${id}/owner`, data);
 }
 
 // 删除专题
@@ -238,10 +251,19 @@ export interface TopicInsightVersion {
   summary: string;
   sourceUrl?: string;
 }
+/** 展现形式模板配置。kind: aggregateFeed / narrativeWorld / cardArchive。 */
+export interface TopicTemplateConfig {
+  kind: string;
+  enabled: boolean;
+  title?: string;
+  hint?: string;
+  options?: Record<string, unknown>;
+}
 export interface TopicInsightsPayload {
   lineups?: { title: string; hint?: string; lineups: TopicInsightLineup[] };
   versionHistory?: { title: string; hint?: string; versions: TopicInsightVersion[] };
   autoFromSources?: string[];
+  templates?: TopicTemplateConfig[];
 }
 export async function updateTopicMetadata(id: number, payload: TopicInsightsPayload) {
   return contentClient.put(`/topic/${id}/metadata`, payload);

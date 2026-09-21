@@ -2,9 +2,14 @@
 
 // TopicInsightSection —— 专题的结构化洞察板块(通用)。
 //
-// 一个专题可以挂 0-2 个 insight(kind="lineups" / kind="versionHistory");
-//   - lineups        → <LineupGrid> 卡片网格(类似 Mobalytics 阵容页)
-//   - versionHistory → <VersionTimeline> 竖向时间线(沿用 PoetTimeline 的视觉语言)
+// 一个专题可挂多个 insight,按 kind 经 INSIGHT_RENDERERS 注册表分发:
+//   - lineups        → 热门阵容卡片网格(类似 Mobalytics 阵容页)
+//   - versionHistory → 版本竖向时间线(沿用 PoetTimeline 的视觉语言)
+//   - narrativeWorld → 叙事世界观(展现形式模板,复用 versions 数据,纵向叙事流)
+//   - cardArchive    → 卡片档案集(展现形式模板,复用 lineups 数据,密集档案卡)
+//
+// 后两个是「展现形式模板」的替换形态:勾选模板后由后端 Resolve 以新 kind 产出,
+// 顶替对应的默认板块(同一份数据换一种呈现,不重复渲染)。
 //
 // 渲染约定:任一板块为空(后端返回 0 条)→ 整个 insight 不渲染,等同 "没有就不显示"。
 // 这样非 TFT 专题(insights:[])在前台 topic-detail 完全不引入额外视觉噪音。
@@ -18,36 +23,52 @@ import LaunchRoundedIcon from '@mui/icons-material/LaunchRounded';
 import type { TopicInsight, TopicInsightLineup, TopicInsightVersion } from '@/apis/community';
 import { CoverImage } from '@/components/common/CoverImage';
 import { ListLayout, LIST_ROW } from '@/components/common/ListLayout';
+import { NarrativeWorldView } from './NarrativeWorldView';
+import { CardArchiveView } from './CardArchiveView';
 
 interface Props {
   insight: TopicInsight;
 }
 
+type Renderer = (insight: TopicInsight) => React.ReactNode;
+
+// INSIGHT_RENDERERS:insight.kind → 渲染器。新增展现形式模板时在此登记一行即可。
+const INSIGHT_RENDERERS: Record<string, Renderer> = {
+  lineups: (ins) => <LineupsView insight={ins} />,
+  versionHistory: (ins) => <VersionHistoryView insight={ins} />,
+  narrativeWorld: (ins) => <NarrativeWorldView insight={ins} />,
+  cardArchive: (ins) => <CardArchiveView insight={ins} />,
+};
+
 export function TopicInsightSection({ insight }: Props) {
-  if (insight.kind === 'lineups') {
-    const items = insight.lineups ?? [];
-    if (items.length === 0) return null;
-    return (
-      <Box sx={{ mt: 3 }}>
-        <SectionHeader icon={<WhatshotRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />} title={insight.title} hint={insight.hint} count={items.length} />
-        <LineupGrid items={items} />
-      </Box>
-    );
-  }
-  if (insight.kind === 'versionHistory') {
-    const items = insight.versions ?? [];
-    if (items.length === 0) return null;
-    return (
-      <Box sx={{ mt: 3 }}>
-        <SectionHeader icon={<HistoryEduIcon sx={{ fontSize: 16, color: 'text.secondary' }} />} title={insight.title} hint={insight.hint} count={items.length} />
-        <VersionTimeline items={items} />
-      </Box>
-    );
-  }
-  return null;
+  const render = INSIGHT_RENDERERS[insight.kind];
+  if (!render) return null;
+  return <>{render(insight)}</>;
 }
 
-function SectionHeader({ icon, title, hint, count }: { icon: React.ReactNode; title: string; hint?: string; count?: number }) {
+function LineupsView({ insight }: Props) {
+  const items = insight.lineups ?? [];
+  if (items.length === 0) return null;
+  return (
+    <Box sx={{ mt: 3 }}>
+      <SectionHeader icon={<WhatshotRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />} title={insight.title} hint={insight.hint} count={items.length} />
+      <LineupGrid items={items} />
+    </Box>
+  );
+}
+
+function VersionHistoryView({ insight }: Props) {
+  const items = insight.versions ?? [];
+  if (items.length === 0) return null;
+  return (
+    <Box sx={{ mt: 3 }}>
+      <SectionHeader icon={<HistoryEduIcon sx={{ fontSize: 16, color: 'text.secondary' }} />} title={insight.title} hint={insight.hint} count={items.length} />
+      <VersionTimeline items={items} />
+    </Box>
+  );
+}
+
+export function SectionHeader({ icon, title, hint, count }: { icon: React.ReactNode; title: string; hint?: string; count?: number }) {
   return (
     <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 1.25, flexWrap: 'wrap' }}>
       {icon}
@@ -62,7 +83,7 @@ function SectionHeader({ icon, title, hint, count }: { icon: React.ReactNode; ti
 
 // ─── LineupGrid ──────────────────────────────────────────────────────────
 
-function LineupGrid({ items }: { items: TopicInsightLineup[] }) {
+export function LineupGrid({ items }: { items: TopicInsightLineup[] }) {
   return (
     <ListLayout minColumnWidth={170} gap={12} listMaxWidth="none">
       {items.map((it) => (
@@ -273,7 +294,7 @@ function VersionTimeline({ items }: { items: TopicInsightVersion[] }) {
 
 // compareVersionDesc:前端兜底排序 —— 后端已按版本号降序返回,但 import 顺序或手工行混排时会乱,
 // 客户端兜一道。后端解析不了的版本号(没匹配到 S10/v14.x)走字典序,不会 panic。
-function compareVersionDesc(a: string, b: string): number {
+export function compareVersionDesc(a: string, b: string): number {
   const key = (s: string): [boolean, number[], string] => {
     const lower = s.toLowerCase();
     if (lower.startsWith('s')) {

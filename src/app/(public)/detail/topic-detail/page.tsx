@@ -12,6 +12,7 @@ import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
 import VerifiedRoundedIcon from '@mui/icons-material/VerifiedRounded';
+import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import { fetchTopic, fetchTopicContents, fetchTopicInsights, type CommunityTopic, type TopicContentItem } from '@/apis/community';
 import { isApiError } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
@@ -24,6 +25,7 @@ import { TopicInsightSection } from '@/components/community/topic';
 import RealmCollab, { type RealmCollabTab } from '@/components/reward/RealmCollab';
 import { CONTENT_TYPE_LABEL, TOPIC_KIND_LABEL, compactCount, topicGradient } from '@/components/community/format';
 import ShareButtons from '@/components/share/ShareButtons';
+import { useAuth, useAuthority } from '@/contexts/AuthContext';
 
 export default function TopicDetailPage() {
   return (
@@ -36,6 +38,9 @@ export default function TopicDetailPage() {
 function TopicDetail() {
   const router = useRouter();
   const id = useSearchParams().get('id');
+  const { user } = useAuth();
+  const { isAdmin, roles } = useAuthority();
+  const isStaff = isAdmin || roles.includes('OPERATOR') || roles.includes('AUDITOR');
   const { data: topic, isLoading, isError, error } = useQuery({ queryKey: ['community', 'topic', id], queryFn: () => fetchTopic(id as string), enabled: !!id, retry: false });
   // 专题的结构化洞察(lineups / versionHistory)。空数组时 TopicInsightSection 内部 return null,
   // 非 TFT 专题完全不渲染。staleTime 5min:tft.composition 子分类更新频率不高,刷新一次够用。
@@ -51,6 +56,10 @@ function TopicDetail() {
   const [followersOverride, setFollowers] = useState<number | null>(null);
   const tab = tabChoice ?? (topic?.kind === 'collection' && topic.hasContents ? 'contents' : 'posts');
   const followers = followersOverride ?? topic?.followerCount ?? 0;
+  // 展现形式模板:聚合流(5-tab)可被关闭。templates 为空/未定义 → 默认开启(存量零回归);
+  // 非空则按是否含 aggregateFeed 决定渲染 Tabs。叙事/卡片等板块由 TopicInsightSection 渲染。
+  const templates = topic?.templates;
+  const showAggregateFeed = !templates || templates.length === 0 || templates.includes('aggregateFeed');
 
   const back = () => (window.history.length > 1 ? router.back() : router.push('/home/recommend?tab=topic'));
 
@@ -104,20 +113,22 @@ function TopicDetail() {
         title={topic.title}
         onBack={back}
       />
-      <Hero topic={topic} followers={followers} onFollowChange={setFollowers} />
+      <Hero topic={topic} followers={followers} onFollowChange={setFollowers} canManage={isStaff || !!(user?.id && topic.owner && String(topic.owner.id) === String(user.id))} />
       {/* 1px sentinel:位于 Hero 末尾,IntersectionObserver 用它判断 Hero 是否仍在视口内 */}
       <div ref={heroSentinelRef} style={{ height: 1 }} aria-hidden />
       <Container maxWidth="md" sx={{ mt: 1 }}>
-        <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2, borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.08))', '& .MuiTab-root': { textTransform: 'none', fontWeight: 600 } }}>
-          {topic.hasContents && <Tab value="contents" label="作品" />}
-          <Tab value="posts" label={`讨论 ${topic.postCount ? compactCount(topic.postCount) : ''}`} />
-          {/* 意境和交易、和人群的接口:发在这里的悬赏、验收通过的交付、把这里当主场的团队 */}
-          <Tab value="demands" label="需求" />
-          <Tab value="realizations" label="实现" />
-          <Tab value="teams" label="团队" />
-        </Tabs>
-        {/* 专题洞察:lineups / versionHistory。放在 Tabs 之后、tab 内容上方 ——
-            用户先看到导航,再看到「专属于这个专题的洞察」,最后才是日常讨论/作品流。
+        {showAggregateFeed && (
+          <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2, borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.08))', '& .MuiTab-root': { textTransform: 'none', fontWeight: 600 } }}>
+            {topic.hasContents && <Tab value="contents" label="作品" />}
+            <Tab value="posts" label={`讨论 ${topic.postCount ? compactCount(topic.postCount) : ''}`} />
+            {/* 意境和交易、和人群的接口:发在这里的悬赏、验收通过的交付、把这里当主场的团队 */}
+            <Tab value="demands" label="需求" />
+            <Tab value="realizations" label="实现" />
+            <Tab value="teams" label="团队" />
+          </Tabs>
+        )}
+        {/* 专题洞察 / 展现形式板块:lineups / versionHistory / narrativeWorld / cardArchive。
+            放在 Tabs 之后、tab 内容上方;聚合流关闭时,这里是 Hero 之下唯一的内容区。
             insightsData 空数组 → TopicInsightSection 内部 null,非 TFT 专题无视觉噪音。 */}
         {(insightsData?.insights ?? []).length > 0 && (
           <Box sx={{ mb: 2 }}>
@@ -126,19 +137,22 @@ function TopicDetail() {
             ))}
           </Box>
         )}
-        {tab === 'demands' || tab === 'realizations' || tab === 'teams' ? (
-          <RealmCollab topicId={Number(topic.id)} tab={tab} />
-        ) : tab === 'contents' && topic.hasContents ? (
-          <TopicContents topicId={topic.id} />
-        ) : (
-          <CommunityFeed topic={{ id: topic.id, title: topic.title, kind: topic.kind }} />
+        {showAggregateFeed && (
+          tab === 'demands' || tab === 'realizations' || tab === 'teams' ? (
+            <RealmCollab topicId={Number(topic.id)} tab={tab} />
+          ) : tab === 'contents' && topic.hasContents ? (
+            <TopicContents topicId={topic.id} />
+          ) : (
+            <CommunityFeed topic={{ id: topic.id, title: topic.title, kind: topic.kind }} />
+          )
         )}
       </Container>
     </Box>
   );
 }
 
-function Hero({ topic, followers, onFollowChange }: { topic: CommunityTopic; followers: number; onFollowChange: (n: number) => void }) {
+function Hero({ topic, followers, onFollowChange, canManage }: { topic: CommunityTopic; followers: number; onFollowChange: (n: number) => void; canManage: boolean }) {
+  const router = useRouter();
   const bg = topic.cover ? `linear-gradient(180deg, rgba(0,0,0,0.25), rgba(0,0,0,0.75)), center/cover url(${topic.cover})` : topicGradient(topic.title);
   return (
     <Box sx={{ background: bg, color: '#fff' }}>
@@ -147,13 +161,24 @@ function Hero({ topic, followers, onFollowChange }: { topic: CommunityTopic; fol
         {/* 返回按钮已搬到页面顶部的 DetailHeader(Hero 内不再重复),滚动到任意位置都能一键返回 */}
         <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 2, flexWrap: 'wrap' }}>
           <Box sx={{ flex: 1, minWidth: 220 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.75 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.75, flexWrap: 'wrap' }}>
               <Chip size="small" label={TOPIC_KIND_LABEL[topic.kind] || '意境'} sx={{ height: 20, fontSize: 11, color: '#fff', bgcolor: 'rgba(255,255,255,0.2)' }} />
               {topic.official ? (
                 <Chip size="small" icon={<VerifiedRoundedIcon sx={{ fontSize: 13, color: '#fff !important' }} />} label="官方" sx={{ height: 20, fontSize: 11, color: '#fff', bgcolor: 'rgba(91,141,239,0.55)' }} />
               ) : topic.owner ? (
-                <Typography sx={{ fontSize: 11, opacity: 0.85 }}>由 {topic.owner.name} 发起</Typography>
+                <Typography sx={{ fontSize: 11, opacity: 0.85 }}>由 {topic.owner.name} 主理</Typography>
               ) : null}
+              {canManage && (
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<EditRoundedIcon sx={{ fontSize: 14 }} />}
+                  onClick={() => router.push(`/account/realm/${topic.id}/manage`)}
+                  sx={{ height: 22, fontSize: 11, color: '#fff', borderColor: 'rgba(255,255,255,0.5)' }}
+                >
+                  管理
+                </Button>
+              )}
             </Box>
             <Typography sx={{ fontSize: { xs: 24, sm: 30 }, fontWeight: 900, lineHeight: 1.2 }}>
               {topic.kind === 'topic' ? `#${topic.title}#` : topic.title}

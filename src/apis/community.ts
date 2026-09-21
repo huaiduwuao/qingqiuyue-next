@@ -83,6 +83,9 @@ export interface CommunityTopic {
   auto?: boolean;
   /** 数据驱动的热度分 */
   hotScore?: number;
+  /** 当前启用的展现形式模板 kind(aggregateFeed / narrativeWorld / cardArchive)。
+   *  空数组等同 [aggregateFeed](存量专题零回归)。 */
+  templates?: string[];
 }
 
 export interface TopicContentItem {
@@ -179,7 +182,7 @@ export interface TopicInsightVersion {
   sourceUrl?: string;
 }
 export interface TopicInsight {
-  kind: 'lineups' | 'versionHistory';
+  kind: 'lineups' | 'versionHistory' | 'narrativeWorld' | 'cardArchive';
   title: string;
   hint?: string;
   lineups?: TopicInsightLineup[];

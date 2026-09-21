@@ -34,6 +34,7 @@ import {
   type TopicInsightLineup,
   type TopicInsightVersion,
   type TopicInsightsPayload,
+  type TopicTemplateConfig,
 } from '@/apis/topic';
 
 interface Props {
@@ -64,6 +65,9 @@ export function TopicInsightsEditorDialog({ open, topicId, topicTitle, onClose, 
   const [versions, setVersions] = useState<VersionRow[]>([]);
 
   const [autoFromText, setAutoFromText] = useState('tft.composition, tft.patch');
+  // 展现形式模板配置:本编辑器不编辑它,但必须回读并原样回写 —— 后端 Save 是整体
+  // 覆盖,不带上 templates 会把用户创建时选的展现形式静默抹掉。
+  const [templates, setTemplates] = useState<TopicTemplateConfig[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   // 打开时拉一次,关掉不清(下次打开会重新拉,id 切换不残留)
@@ -109,6 +113,7 @@ export function TopicInsightsEditorDialog({ open, topicId, topicTitle, onClose, 
           setVersions([]);
         }
         setAutoFromText((p.autoFromSources ?? []).join(', '));
+        setTemplates(p.templates ?? []);
       })
       .catch((e) => setError(e?.message || '读取专题洞察失败'))
       .finally(() => setLoading(false));
@@ -130,6 +135,8 @@ export function TopicInsightsEditorDialog({ open, topicId, topicTitle, onClose, 
       lineups: { title: lineupTitle, hint: lineupHint, lineups: cleanLineups },
       versionHistory: { title: versionTitle, hint: versionHint, versions: cleanVersions },
       autoFromSources,
+      // 原样回写展现形式模板,避免整体覆盖把用户创建时选的模板抹掉
+      templates,
     };
     try {
       await updateTopicMetadata(topicId, payload);
