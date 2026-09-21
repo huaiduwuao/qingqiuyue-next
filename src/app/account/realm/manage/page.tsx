@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
@@ -19,10 +19,24 @@ import { updateTopicByOwner, type Topic } from '@/apis/topic';
 import { useAuth } from '@/contexts/AuthContext';
 import { topicHref } from '@/components/community/format';
 
+// 意境主理人控制台 /account/realm/manage?id=<topic.id>
+//
+// 用 query 而不是动态段的原因:站点生产是 output:'export' 静态导出,
+// 动态段 [id] 必须有 generateStaticParams 才能导出,而意境 id 是运行时数据,
+// 枚举不出来。全站其它详情页(spider templates/edit?、agentmanager agent-detail?、
+// my-list shared?token、group?)都是同样的原因用 query string。
 export default function RealmManagePage() {
-  const params = useParams<{ id: string }>();
+  return (
+    <Suspense fallback={null}>
+      <RealmManage />
+    </Suspense>
+  );
+}
+
+function RealmManage() {
   const router = useRouter();
-  const id = String(params?.id ?? '');
+  const searchParams = useSearchParams();
+  const id = String(searchParams?.get('id') ?? '');
   const { user } = useAuth();
   const [form, setForm] = useState<{ title: string; subtitle: string; cover: string; description: string }>({
     title: '',

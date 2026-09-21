@@ -173,7 +173,7 @@ function Hero({ topic, followers, onFollowChange, canManage }: { topic: Communit
                   size="small"
                   variant="outlined"
                   startIcon={<EditRoundedIcon sx={{ fontSize: 14 }} />}
-                  onClick={() => router.push(`/account/realm/${topic.id}/manage`)}
+                  onClick={() => router.push(`/account/realm/manage?id=${topic.id}`)}
                   sx={{ height: 22, fontSize: 11, color: '#fff', borderColor: 'rgba(255,255,255,0.5)' }}
                 >
                   管理
