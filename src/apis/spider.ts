@@ -767,10 +767,19 @@ export interface RepairReport {
 }
 
 export interface RepairSourceOption {
-  id: number; name: string; domain: string; category: string; has_js_extract: boolean;
+  id: number; name: string; domain: string; category: string;
+  /**
+   * 取数方式,由后端按模板推出来:
+   *   browser  模板开了 browser.enabled —— 渲染后执行 js_extract(hash SPA)
+   *   static   直出 HTML —— 走 item_container_selector / content_selector,快得多
+   * 以前只有"配了 js_extract"的源才算数,直出站全被滤掉,下拉里常常只有一个源 ——
+   * 而多源比对至少要有两个源才谈得上交叉验证。
+   */
+  mode?: 'browser' | 'static' | string;
+  has_js_extract: boolean;
 }
 
-/** 列出能做修复取数的源(配了 js_extract 的)。 */
+/** 列出能做修复取数的源(渲染型 + 直出型)。 */
 export async function listRepairSources(): Promise<{ list: RepairSourceOption[] }> {
   return spiderClient('/content/repair/candidates', { method: 'GET' });
 }

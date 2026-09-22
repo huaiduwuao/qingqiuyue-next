@@ -94,7 +94,9 @@ export default function ContentRepairPanel({ compact = false }: { compact?: bool
     staleTime: 5 * 60_000,
   });
   const sourceOptions = useMemo(
-    () => (sourcesQuery.data?.list || []).filter((s) => s.has_js_extract),
+    // 不过滤:渲染型和直出型都能参与比对(直出型快得多,优先选它)。
+    // 以前这里只留 has_js_extract,直出站全被滤掉 —— 下拉里常常一个源都没有。
+    () => (sourcesQuery.data?.list || []).filter((s) => s.category === 'NOVEL'),
     [sourcesQuery.data],
   );
 
@@ -197,11 +199,17 @@ export default function ContentRepairPanel({ compact = false }: { compact?: bool
               }}
               slotProps={{ select: { multiple: true } }}
               sx={{ minWidth: 300 }}
-              helperText={sourceOptions.length === 0 ? '还没有配了 js_extract 的源' : '至少选 2 个才有交叉验证'}
+              helperText={
+                sourceOptions.length === 0
+                  ? '还没有配好取数模板的小说源'
+                  : sourceOptions.length < 2
+                    ? '只有一个源,拿不到交叉验证 —— 建议再配一个,否则每一章都只会是「仅一源」'
+                    : '至少选 2 个才有交叉验证'
+              }
             >
               {sourceOptions.map((s) => (
                 <MenuItem key={s.domain} value={s.domain}>
-                  {s.name} · {s.domain}
+                  {s.name} · {s.domain} · {s.mode === 'static' ? '直出(快)' : '渲染'}
                 </MenuItem>
               ))}
             </TextField>

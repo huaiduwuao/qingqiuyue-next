@@ -170,6 +170,17 @@ export const PERMISSIONS = {
     CREATE: 'system:ops-task:create',
     CANCEL: 'system:ops-task:cancel',
   },
+  // 爬虫族。分档依据是「这个动作会不会动外部站 / 动线上数据」:
+  //   SOURCE / ITEM   只读 —— 看源配置、看抓回来的内容
+  //   BACKFILL        会去外部站点抓取,量大
+  //   REPAIR          除抓取外还会直接改写线上正文(补空章 / 替换错章)
+  // 内容运营只拿 SOURCE 就够查配置;真正要跑补全/修复的人再单独授权。
+  SYSTEM_SPIDER: {
+    SOURCE_LIST: 'system:spider:source:list',
+    ITEM_LIST: 'system:spider:item:list',
+    BACKFILL_RUN: 'system:spider:backfill:run',
+    REPAIR_RUN: 'system:spider:repair:run',
+  },
 } as const;
 
 export type PermissionCode = string;

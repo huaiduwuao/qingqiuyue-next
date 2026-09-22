@@ -12,9 +12,12 @@
  */
 
 import React from 'react';
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import BackfillPanel from '@/components/spider/BackfillPanel';
+import { PermissionGuard } from '@/components/auth/PermissionGuard';
+import { PERMISSIONS } from '@/lib/permissions';
 
 export default function SpiderBackfillPage() {
   return (
@@ -24,7 +27,18 @@ export default function SpiderBackfillPage() {
       <Typography variant="h6" sx={{ mb: 2 }}>
         内容补全
       </Typography>
-      <BackfillPanel />
+      {/* 页内再挡一道:侧栏已经把菜单藏了,但直接敲 URL / 收藏夹进来仍会渲染。
+          后端 POST /content/backfill 现在也会返 403,这里只是把"能看不能点"提前说清楚。 */}
+      <PermissionGuard
+        need={PERMISSIONS.SYSTEM_SPIDER.BACKFILL_RUN}
+        fallback={
+          <Alert severity="warning">
+            你没有「内容补全」权限。请联系管理员在 /system/role 里授予 system:spider:backfill:run。
+          </Alert>
+        }
+      >
+        <BackfillPanel />
+      </PermissionGuard>
     </Box>
   );
 }

@@ -6,15 +6,30 @@
  */
 
 import React from 'react';
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import ContentRepairPanel from '@/components/spider/ContentRepairPanel';
+import { PermissionGuard } from '@/components/auth/PermissionGuard';
+import { PERMISSIONS } from '@/lib/permissions';
 
 export default function SpiderRepairPage() {
   return (
     <Box>
       <Typography variant="h6" sx={{ mb: 2 }}>内容修复</Typography>
-      <ContentRepairPanel />
+      {/* 修复的 apply 会原地改写线上章节正文 —— 比"补一个缺"重得多,所以单独一个码
+          (repair:run),不与 backfill:run 共用。诊断(dry-run)也走这条码:
+          它照样会去外部站真抓一遍,不是纯读操作。 */}
+      <PermissionGuard
+        need={PERMISSIONS.SYSTEM_SPIDER.REPAIR_RUN}
+        fallback={
+          <Alert severity="warning">
+            你没有「内容修复」权限。请联系管理员在 /system/role 里授予 system:spider:repair:run。
+          </Alert>
+        }
+      >
+        <ContentRepairPanel />
+      </PermissionGuard>
     </Box>
   );
 }
