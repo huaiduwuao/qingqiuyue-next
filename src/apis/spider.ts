@@ -734,3 +734,64 @@ export interface ProgressSnapshot {
   updatedAt?: string;
   elapsedSec: number;
 }
+
+
+// ============ 章节修复(多源聚合) ============
+
+export interface RepairChapterDiff {
+  chapter_no: number;
+  title: string;
+  verdict: 'ok' | 'conflict' | 'only_one_source' | 'suspect' | 'missing';
+  action: 'keep' | 'fill' | 'replace' | 'skip';
+  before_len: number;
+  after_len: number;
+  source?: string;
+  rivals?: { source: string; len: number; head: string }[];
+  note?: string;
+}
+
+export interface RepairReport {
+  content_id: number;
+  title: string;
+  content_type: string;
+  existing: number;
+  existing_ready: number;
+  aggregated: number;
+  by_verdict: Record<string, number>;
+  coverage: Record<string, number>;
+  diffs: RepairChapterDiff[];
+  errors?: string[];
+  dry_run: boolean;
+  applied?: { filled: number; updated: number; skipped: number; failed: number };
+  sources: string[];
+}
+
+export interface RepairSourceOption {
+  id: number; name: string; domain: string; category: string; has_js_extract: boolean;
+}
+
+/** 列出能做修复取数的源(配了 js_extract 的)。 */
+export async function listRepairSources(): Promise<{ list: RepairSourceOption[] }> {
+  return spiderClient('/content/repair/candidates', { method: 'GET' });
+}
+
+/** 对一本书跑多源修复诊断/应用。dryRun=true 只出报告;修复要抓几十上百章,超时给足。 */
+export async function repairChapters(params: {
+  contentId: string;
+  domains?: string[];
+  dryRun?: boolean;
+  maxChapters?: number;
+  applyVerdicts?: string[];
+}): Promise<RepairReport> {
+  return spiderClient('/content/repair', {
+    method: 'POST',
+    data: {
+      content_id: params.contentId,
+      domains: params.domains?.length ? params.domains : undefined,
+      dry_run: params.dryRun ?? true,
+      max_chapters: params.maxChapters,
+      apply_verdicts: params.applyVerdicts,
+    },
+    timeout: 30 * 60 * 1000,
+  });
+}
