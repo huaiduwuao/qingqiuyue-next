@@ -644,8 +644,8 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
         )}
 
         {/* Sessions Tab */}
-        {activeTab === 'sessions' && token && (
-          <SessionManager token={token} />
+        {activeTab === 'sessions' && (
+          <SessionManager />
         )}
 
         {/* Audit Tab —— 列表交给 DataGridTable(服务端分页 + 页大小选择 + 列排序) */}
