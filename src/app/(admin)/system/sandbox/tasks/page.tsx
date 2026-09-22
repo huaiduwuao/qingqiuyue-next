@@ -7,6 +7,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
+import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
 import Dialog from '@mui/material/Dialog';
@@ -27,7 +28,8 @@ import ListItem from '@mui/material/ListItem';
 import ListItemText from '@mui/material/ListItemText';
 import { DataGridTable } from '@/components/tables/DataGridTable';
 import { FilterBar, type FilterField } from '@/components/tables/FilterBar';
-import { listTasks, createTask, getTask, getTaskLogs, getTaskStatus, cancelTask, listImages } from '@/apis/sandbox';
+import { listTasks, createTask, getTask, getTaskLogs, getTaskStatus, cancelTask, listImages, getTaskResult, importTaskResult } from '@/apis/sandbox';
+import { SANDBOX_SCRIPT_TEMPLATES, PLACEHOLDER_BOOK_URL, PLACEHOLDER_FROM, PLACEHOLDER_TO } from '@/components/sandbox/scriptTemplates';
 import { TASK_STATUS_LABELS, TASK_STATUS_COLORS, type SandboxTaskResp, type SandboxImageResp } from '@/beans/sandbox';
 
 const LIST_KEY = ['sandbox', 'tasks'];
@@ -195,6 +197,22 @@ interface CreateTaskDialogProps {
 }
 
 function CreateTaskDialog({ open, onClose, onSubmit, loading, images }: CreateTaskDialogProps) {
+  const [tplId, setTplId] = useState('');
+  const [tplVars, setTplVars] = useState({ bookUrl: '', from: '1', to: '10' });
+
+  // 选模板 → 把骨架填进代码框,占位符替换成上面填的值。
+  // 换 URL/章节范围时重新点一次模板即可重新渲染。
+  const applyTemplate = (id: string) => {
+    setTplId(id);
+    const t = SANDBOX_SCRIPT_TEMPLATES.find((x) => x.id === id);
+    if (!t) return;
+    const rendered = t.code
+      .split(PLACEHOLDER_BOOK_URL).join(tplVars.bookUrl || 'https://example.com/')
+      .split(PLACEHOLDER_FROM).join(tplVars.from || '1')
+      .split(PLACEHOLDER_TO).join(tplVars.to || '10');
+    setForm((prev) => ({ ...prev, code: rendered }));
+  };
+
   const [form, setForm] = useState({
     title: '',
     imageId: '',
@@ -260,15 +278,59 @@ function CreateTaskDialog({ open, onClose, onSubmit, loading, images }: CreateTa
             ))}
           </TextField>
           <TextField
+            select
+            label="从模板新建(可选)"
+            value={tplId}
+            onChange={(e) => applyTemplate(e.target.value)}
+            fullWidth
+            helperText="挑一个最接近的骨架,填好 URL / 章节范围再改选择器"
+          >
+            <MenuItem value="">不使用模板</MenuItem>
+            {SANDBOX_SCRIPT_TEMPLATES.map((t) => (
+              <MenuItem key={t.id} value={t.id}>
+                {t.name} — {t.description}
+              </MenuItem>
+            ))}
+          </TextField>
+          {tplId === 'api_token' || tplId === 'static_html' || tplId === 'playwright_render' ? (
+            <Stack direction="row" spacing={1.5}>
+              <TextField
+                label="书籍 URL"
+                size="small"
+                value={tplVars.bookUrl}
+                onChange={(e) => setTplVars((v) => ({ ...v, bookUrl: e.target.value }))}
+                placeholder="https://www.example.com/book/123/"
+                sx={{ flex: 2 }}
+              />
+              <TextField
+                label="起始章"
+                size="small"
+                type="number"
+                value={tplVars.from}
+                onChange={(e) => setTplVars((v) => ({ ...v, from: e.target.value }))}
+                sx={{ flex: 1 }}
+              />
+              <TextField
+                label="结束章"
+                size="small"
+                type="number"
+                value={tplVars.to}
+                onChange={(e) => setTplVars((v) => ({ ...v, to: e.target.value }))}
+                sx={{ flex: 1 }}
+              />
+            </Stack>
+          ) : null}
+          <TextField
             label="代码 *"
             value={form.code}
             onChange={handleChange('code')}
             multiline
-            rows={12}
+            rows={16}
             placeholder="# 输入你的代码"
             required
             fullWidth
-            helperText="支持 Python, Node.js, Go 等语言"
+            helperText="结果请写到 /workspace/result.json,元素形如 {chapterid, title, body} —— 任务详情页的「入库」按钮会读它"
+            slotProps={{ input: { sx: { fontFamily: 'monospace', fontSize: 12 } } }}
           />
           <TextField
             label="命令行参数"
@@ -386,6 +448,7 @@ function TaskDetailDialog({ viewing, onClose }: { viewing: SandboxTaskResp | nul
             <Button size="small" variant={activeTab === 0 ? 'contained' : 'text'} onClick={() => setActiveTab(0)}>日志</Button>
             <Button size="small" variant={activeTab === 1 ? 'contained' : 'text'} onClick={() => setActiveTab(1)}>输出文件</Button>
             <Button size="small" variant={activeTab === 2 ? 'contained' : 'text'} onClick={() => setActiveTab(2)}>执行代码</Button>
+            <Button size="small" variant={activeTab === 3 ? 'contained' : 'text'} onClick={() => setActiveTab(3)}>产物入库</Button>
           </Box>
         </Box>
 
@@ -449,6 +512,11 @@ function TaskDetailDialog({ viewing, onClose }: { viewing: SandboxTaskResp | nul
           </Box>
         )}
 
+        {/* 产物入库 */}
+        {activeTab === 3 && (
+          <ImportResultTab taskId={viewing.taskId} />
+        )}
+
         {/* 执行代码 */}
         {activeTab === 2 && (
           <Box component="pre" sx={{
@@ -475,5 +543,93 @@ function TaskDetailDialog({ viewing, onClose }: { viewing: SandboxTaskResp | nul
       </DialogContent>
       <DialogActions><Button onClick={onClose}>关闭</Button></DialogActions>
     </Dialog>
+  );
+}
+
+
+/**
+ * 产物入库 tab。
+ *
+ * 沙盒脚本按约定把章节数组写到 /workspace/result.json,这里:
+ *   1. 「预览产物」读它,看抓了多少章、有多少带正文
+ *   2. 填目标内容 id → 「入库」按 chapter_hash 去重写进站内
+ *
+ * 内容 id 是雪花 BIGINT(> 2^53),必须按字符串传,用 Number 会被 JS 截断。
+ */
+function ImportResultTab({ taskId }: { taskId: string }) {
+  const [contentId, setContentId] = useState('');
+  const [preview, setPreview] = useState<any>(null);
+  const [importStats, setImportStats] = useState<any>(null);
+  const [err, setErr] = useState<string>('');
+
+  const previewM = useMutation({
+    mutationFn: () => getTaskResult(taskId),
+    onSuccess: (res) => { setPreview(res); setErr(''); },
+    onError: (e: any) => { setPreview(null); setErr(e?.message || '读取失败'); },
+  });
+
+  const importM = useMutation({
+    mutationFn: () => importTaskResult(taskId, contentId.trim()),
+    onSuccess: (res) => { setImportStats(res); setErr(''); },
+    onError: (e: any) => { setImportStats(null); setErr(e?.message || '入库失败'); },
+  });
+
+  return (
+    <Stack sx={{ gap: 2 }}>
+      <Alert severity="info" sx={{ '& .MuiAlert-message': { fontSize: 13 } }}>
+        脚本要把结果写到 <code>/workspace/result.json</code>,元素形如
+        {' '}<code>{'{chapterid, title, body}'}</code>。入库按 chapter_hash 去重,
+        重复导入不会产生第二行;空正文的条目跳过。
+      </Alert>
+
+      <Stack direction="row" spacing={1}>
+        <Button variant="outlined" onClick={() => previewM.mutate()} disabled={previewM.isPending}>
+          {previewM.isPending ? '读取中…' : '预览产物'}
+        </Button>
+      </Stack>
+
+      {preview && (
+        <Alert severity={preview.with_body > 0 ? 'success' : 'warning'}>
+          产物共 <b>{preview.total}</b> 条,其中带正文(≥200 字节)<b>{preview.with_body}</b> 条。
+          {preview.with_body === 0 && ' —— 没有正文可入库,检查脚本是不是只发现了目录'}
+        </Alert>
+      )}
+      {preview?.preview?.length > 0 && (
+        <Box component="pre" sx={{ m: 0, p: 1, bgcolor: 'action.hover', borderRadius: 1, fontSize: 11, maxHeight: 200, overflow: 'auto' }}>
+          {preview.preview.map((c: any, i: number) =>
+            `${i + 1}. [ch${c.chapterid}] ${c.title} — ${(c.body || '').length}B`
+          ).join('\n')}
+        </Box>
+      )}
+
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
+        <TextField
+          label="目标内容 id"
+          size="small"
+          value={contentId}
+          onChange={(e) => setContentId(e.target.value)}
+          placeholder="1789577242877883396"
+          helperText="module_content.id,雪花数字,必须原样粘贴(JS 会截断大数)"
+          sx={{ flex: 1 }}
+        />
+        <Button
+          variant="contained"
+          onClick={() => importM.mutate()}
+          disabled={!contentId.trim() || importM.isPending}
+          sx={{ mt: 0.5 }}
+        >
+          {importM.isPending ? '入库中…' : '入库'}
+        </Button>
+      </Stack>
+
+      {importStats && (
+        <Alert severity={importStats.stats?.failed > 0 ? 'warning' : 'success'}>
+          入库完成:新增 <b>{importStats.stats?.inserted ?? 0}</b>,
+          跳过 <b>{importStats.stats?.skipped ?? 0}</b>,
+          失败 <b>{importStats.stats?.failed ?? 0}</b>
+        </Alert>
+      )}
+      {err && <Alert severity="error">{err}</Alert>}
+    </Stack>
   );
 }

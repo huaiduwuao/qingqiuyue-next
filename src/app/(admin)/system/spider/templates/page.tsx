@@ -5,6 +5,7 @@
  * 从 account/content/_views/spider/templates/ 迁移
  */
 
+import { useRouter } from 'next/navigation';
 import React, { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
@@ -100,6 +101,8 @@ export default function SpiderTemplatesPage() {
     onError: (err: any) => showMessage(err.message || '应用失败', 'error'),
   });
 
+  const router = useRouter();
+
   const handleCreate = () => {
     setEditingTemplate(null);
     setFormValues({ name: '', type: 'novel', source: '' });
@@ -145,10 +148,19 @@ export default function SpiderTemplatesPage() {
     { field: 'items', headerName: '条目数', width: 100 },
     { field: 'createTime', headerName: '创建时间', width: 180, valueFormatter: (v) => v ? new Date(v).toLocaleString() : '-' },
     {
-      field: 'actions', headerName: '操作', width: 130, sortable: false,
+      field: 'actions', headerName: '操作', width: 200, sortable: false,
       renderCell: (p) => (
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
-          <Tooltip title="编辑/属性"><IconButton size="small" color="primary" onClick={() => handleEdit(p.row)}><EditIcon fontSize="small" /></IconButton></Tooltip>
+        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+          <Tooltip title="编辑选择器 / 浏览器 / 取数 JS 等完整内容">
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => router.push(`/system/spider/templates/edit?id=${p.row.id}`)}
+            >
+              编辑内容
+            </Button>
+          </Tooltip>
+          <Tooltip title="改名称/类型/来源"><IconButton size="small" color="primary" onClick={() => handleEdit(p.row)}><EditIcon fontSize="small" /></IconButton></Tooltip>
           <Tooltip title="删除"><IconButton size="small" color="error" onClick={() => handleDelete(p.row)}><DeleteIcon fontSize="small" /></IconButton></Tooltip>
         </Box>
       ),

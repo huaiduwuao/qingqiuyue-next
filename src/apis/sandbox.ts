@@ -29,6 +29,12 @@ export async function createImage(params: SandboxImageCreateReq): Promise<Sandbo
   return adminClient('/sandbox/images', { method: 'POST', data: params });
 }
 
+// 拉取镜像到 Podman 本地。列表里 available=false 时点「拉取」走这里。
+// 大镜像可能几分钟,前端要给足超时。
+export async function pullImage(id: number): Promise<{ id: number; pulled: boolean }> {
+  return adminClient(`/sandbox/images/${id}/pull`, { method: 'POST', timeout: 20 * 60 * 1000 });
+}
+
 // ============ 任务管理 ============
 
 // 任务列表
@@ -64,4 +70,25 @@ export async function createTask(params: SandboxTaskCreateReq): Promise<SandboxT
 // 取消任务
 export async function cancelTask(taskId: string): Promise<{ msg?: string }> {
   return adminClient(`/sandbox/tasks/${taskId}/cancel`, { method: 'POST' });
+}
+
+
+// ============ 产物 → 内容 ============
+
+/** 预览沙盒脚本产物(读 /workspace/result.json)。返回 total / with_body / preview。 */
+export async function getTaskResult(taskId: string): Promise<{
+  total: number; with_body: number; preview: any[];
+}> {
+  return adminClient(`/sandbox/tasks/${taskId}/result`, { method: 'GET' });
+}
+
+/** 把沙盒产物入库到指定内容。contentId 传字符串——雪花 id 超 2^53。 */
+export async function importTaskResult(taskId: string, contentId: string): Promise<{
+  content_id: string; stats: { inserted: number; updated: number; skipped: number; failed: number };
+}> {
+  return adminClient(`/sandbox/tasks/${taskId}/import`, {
+    method: 'POST',
+    data: { content_id: contentId },
+    timeout: 10 * 60 * 1000, // 上千章,给足
+  });
 }

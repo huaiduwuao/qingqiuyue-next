@@ -48,6 +48,7 @@ import AvailabilityBadge from '@/components/common/AvailabilityBadge';
 import {
   startContentBackfill,
   getContentBackfillStatus,
+  listSources,
   listContentBackfillRecent,
   getContentItemStats,
   listContentBackfillCandidates,
@@ -115,6 +116,9 @@ export default function BackfillPanel({ compact = false }: { compact?: boolean }
   const [typeFilter, setTypeFilter] = useState('');
   const [authorHint, setAuthorHint] = useState('');
   const [strategy, setStrategy] = useState('revisit');
+  // 指定源:内容的 source 是版权站(七猫/起点)时,框架默认只建目录不抓正文。
+  // 这里勾上的源会被强行插进候选池,用来把 bqg616 这类正文源接上。
+  const [forceDomains, setForceDomains] = useState<string[]>([]);
   const [taskId, setTaskId] = useState<number | null>(null);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
@@ -174,12 +178,26 @@ export default function BackfillPanel({ compact = false }: { compact?: boolean }
   });
   const stats = statsQuery.data ?? {};
 
+  // 候选源列表(用于「指定源」多选)。只拉一次,源不会频繁变。
+  const sourcesQuery = useQuery({
+    queryKey: ['backfill-force-sources'],
+    queryFn: () => listSources({ page: 1, pageSize: 200 }),
+    staleTime: 5 * 60_000,
+  });
+  const sourceOptions = useMemo(() => {
+    const rows: any[] = (sourcesQuery.data as any)?.records || (sourcesQuery.data as any)?.list || [];
+    return rows
+      .filter((r) => r?.domain)
+      .map((r) => ({ domain: String(r.domain), name: String(r.name || r.domain) }));
+  }, [sourcesQuery.data]);
+
   const startM = useMutation({
     mutationFn: () =>
       startContentBackfill({
         contentId: String(picked!.id),
         strategies: [strategy],
         authorHint: authorHint.trim() || undefined,
+        forceDomains,
       }),
     onSuccess: (res) => {
       setTaskId(res.task_id);
@@ -328,6 +346,25 @@ export default function BackfillPanel({ compact = false }: { compact?: boolean }
           sx={{ minWidth: 160 }}
           helperText="discover 策略按它缩小搜索范围"
         />
+        <TextField
+          select
+          label="指定源(可选)"
+          size="small"
+          value={forceDomains}
+          onChange={(e) => {
+            const v = e.target.value;
+            setForceDomains(typeof v === 'string' ? v.split(',') : (v as unknown as string[]));
+          }}
+          slotProps={{ select: { multiple: true } }}
+          sx={{ minWidth: 220 }}
+          helperText="内容绑的是版权站(七猫/起点)时,勾上正文源强行走它"
+        >
+          {sourceOptions.map((o) => (
+            <MenuItem key={o.domain} value={o.domain}>
+              {o.name} · {o.domain}
+            </MenuItem>
+          ))}
+        </TextField>
       </Stack>
 
       <Box>

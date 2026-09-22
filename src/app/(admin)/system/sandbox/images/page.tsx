@@ -22,7 +22,7 @@ import Chip from '@mui/material/Chip';
 import MenuItem from '@mui/material/MenuItem';
 import { DataGridTable } from '@/components/tables/DataGridTable';
 import { FilterBar, type FilterField } from '@/components/tables/FilterBar';
-import { listImages, createImage } from '@/apis/sandbox';
+import { listImages, createImage, pullImage } from '@/apis/sandbox';
 import { IMAGE_STATUS_LABELS, type SandboxImageResp } from '@/beans/sandbox';
 
 const LIST_KEY = ['sandbox', 'images'];
@@ -57,6 +57,23 @@ export default function ImagesPage() {
     onError: (err: any) => showMsg(err.message || '创建失败', 'error'),
   });
 
+  const [pullingId, setPullingId] = useState<number | null>(null);
+  // DataGridTable 没有暴露 refresh;改 extraParams 触发它重拉(fetchData 的依赖变了)。
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const handlePull = async (id: number) => {
+    setPullingId(id);
+    try {
+      await pullImage(id);
+      showMsg('镜像拉取完成');
+      setRefreshKey((k) => k + 1);
+    } catch (err: any) {
+      showMsg(err.message || '拉取失败', 'error');
+    } finally {
+      setPullingId(null);
+    }
+  };
+
   const columns: import('@mui/x-data-grid').GridColDef[] = [
     { field: 'id', headerName: 'ID', width: 80 },
     { field: 'name', headerName: '镜像名称', width: 180, renderCell: (p) => (
@@ -73,16 +90,34 @@ export default function ImagesPage() {
     { field: 'status', headerName: '状态', width: 90, renderCell: (p) => (
       <Chip label={IMAGE_STATUS_LABELS[p.value] || p.value} size="small" color={p.value === 'active' ? 'success' : p.value === 'disabled' ? 'warning' : 'default'} />
     )},
+    {
+      field: 'available', headerName: '本地可用', width: 100,
+      renderCell: (p) => (
+        p.value
+          ? <Chip label="已就绪" size="small" color="success" variant="outlined" />
+          : <Tooltip title="本机 Podman 没有这个镜像,任务会以 image not known 失败,点右侧「拉取」">
+              <Chip label="未拉取" size="small" color="warning" variant="outlined" />
+            </Tooltip>
+      ),
+    },
     { field: 'createTime', headerName: '创建时间', width: 170, renderCell: (p) => p.value ? new Date(p.value).toLocaleString('zh-CN') : '-' },
     {
-      field: 'actions', headerName: '操作', width: 120, sortable: false,
+      field: 'actions', headerName: '操作', width: 170, sortable: false,
       renderCell: (p) => (
-        <Box sx={{ display: 'flex', gap: 0.5 }}>
-          <Tooltip title="查看详情">
-            <IconButton size="small" onClick={() => setViewing(p.row as SandboxImageResp)}>
-              <span style={{ fontSize: 11 }}>查看</span>
-            </IconButton>
-          </Tooltip>
+        <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+          <IconButton size="small" onClick={() => setViewing(p.row as SandboxImageResp)}>
+            <span style={{ fontSize: 11 }}>查看</span>
+          </IconButton>
+          {!p.row.available && (
+            <Button
+              size="small"
+              variant="outlined"
+              disabled={pullingId === p.row.id}
+              onClick={() => handlePull(p.row.id)}
+            >
+              {pullingId === p.row.id ? '拉取中…' : '拉取'}
+            </Button>
+          )}
         </Box>
       ),
     },
@@ -98,6 +133,7 @@ export default function ImagesPage() {
       <FilterBar fields={filterFields} values={filterValues} onChange={setFilterValues} onReset={() => setFilterValues({})} />
 
       <DataGridTable
+        extraParams={{ _r: refreshKey }}
         columns={columns}
         fetchData={async (params) => {
           try {

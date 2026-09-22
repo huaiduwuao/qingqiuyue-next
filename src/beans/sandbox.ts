@@ -44,6 +44,8 @@ export interface SandboxImageResp {
   status: string;
   createTime: string;
   dockerfile?: string;
+  /** 该镜像在 Podman 本地是否已存在。false 时任务会以 image not known 失败,需先拉取。 */
+  available?: boolean;
 }
 
 // ============ 任务管理 ============

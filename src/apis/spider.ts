@@ -355,12 +355,18 @@ export interface ContentBackfillRecentItem {
   };
 }
 
-/** 触发一次内容补全。异步返回 task_id,不阻塞;进度走 status / 最近任务列表看。 */
+/** 触发一次内容补全。异步返回 task_id,不阻塞;进度走 status / 最近任务列表看。
+ *
+ * forceDomains: 当内容的 source 是版权站(七猫/起点这类只给目录不给正文的),
+ * 框架会走 catalog-only 短路,不会去试别的正文源。传 force_domains 把指定域名
+ * 强行插进候选源,用来把 bqg616 这种正文源接上。
+ */
 export async function startContentBackfill(params: {
   contentId: string;
   strategies?: string[];
   authorHint?: string;
   maxItems?: number;
+  forceDomains?: string[];
 }): Promise<ContentBackfillStartResult> {
   return spiderClient('/content/backfill', {
     method: 'POST',
@@ -369,6 +375,7 @@ export async function startContentBackfill(params: {
       strategies: params.strategies,
       author_hint: params.authorHint,
       max_items: params.maxItems,
+      force_domains: params.forceDomains?.length ? params.forceDomains : undefined,
     },
   });
 }
@@ -675,8 +682,26 @@ export async function getContentDetail(id: number): Promise<any> {
 export async function exportTemplates(params?: { sourceId?: number }): Promise<any> {
   return spiderClient('/templates/export', { method: 'POST', data: params ?? {} });
 }
-export async function testTemplate(params: { url: string; type?: string }): Promise<any> {
-  return spiderClient('/templates/test', { method: 'POST', data: params });
+export async function testTemplate(params: {
+  url: string;
+  type?: string;            // list | detail | chapter
+  templateId?: number;      // 有则按该模板的选择器/浏览器/JS 跑
+  selector?: string;        // 没存模板时直接试选择器
+  jsExtract?: string;
+  maxItems?: number;
+}): Promise<any> {
+  return spiderClient('/templates/test', {
+    method: 'POST',
+    data: {
+      url: params.url,
+      type: params.type,
+      template_id: params.templateId,
+      selector: params.selector,
+      js_extract: params.jsExtract,
+      max_items: params.maxItems,
+    },
+    timeout: 120_000, // 可能要开无头浏览器,给足时间
+  });
 }
 export async function listTemplateAttrs(templateId: number): Promise<{ items: any[]; total: number }> {
   return spiderClient(`/templates/${templateId}/attrs`, { method: 'GET' });

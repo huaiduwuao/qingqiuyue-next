@@ -10,6 +10,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import Box from '@mui/material/Box';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -29,6 +30,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import {
   getTemplateDetail,
   updateTemplate,
+  testTemplate,
   type TemplateUpdate,
 } from '@/apis/spider';
 import type { TemplateDetail } from '@/beans/spider';
@@ -72,6 +74,11 @@ interface TemplateFormState {
   subCategorySelector: string;
   metadataSchema: string;       // JSON 字面量(对象)
   custom: string;               // JSON 字面量(对象)
+  // jsExtract 是 custom.js_extract 的专用输入框。
+  // 正文不在 DOM 里的站(hash SPA / 一次性 token 从 API 拉)靠它:
+  // BrowserWorker 会把这段 JS 丢到页面上下文执行,拿回结构化章节数据。
+  // 单独拎出来是因为它是一整段 JS,塞在 custom 的裸 JSON 里没法编辑/校验。
+  jsExtract: string;
   rawContent: string;            // 原始 JSON,任意字段
 }
 
@@ -107,6 +114,7 @@ const EMPTY_FORM: TemplateFormState = {
   subCategorySelector: '',
   metadataSchema: '{}',
   custom: '{}',
+  jsExtract: '',
   rawContent: '{}',
 };
 
@@ -154,6 +162,7 @@ function formFromTemplate(t: TemplateDetail | any): TemplateFormState {
     subCategorySelector: cfg.sub_category_selector ?? '',
     metadataSchema: JSON.stringify(meta, null, 2),
     custom: JSON.stringify(custom, null, 2),
+    jsExtract: typeof custom?.js_extract === 'string' ? custom.js_extract : '',
     rawContent: JSON.stringify(cfg, null, 2),
   };
   return form;
@@ -206,6 +215,16 @@ function formToContent(form: TemplateFormState): string {
   } catch {
     /* fall back to rawContent value */
   }
+  // jsExtract 是独立输入框,写回 custom.js_extract —— 空串表示不用这个能力,
+  // 就把它从 custom 里删掉,免得留个空键让后端误判"配了 js_extract"。
+  if (obj.custom && typeof obj.custom === 'object') {
+    const js = form.jsExtract.trim();
+    if (js) {
+      obj.custom.js_extract = js;
+    } else {
+      delete obj.custom.js_extract;
+    }
+  }
   return JSON.stringify(obj, null, 2);
 }
 
@@ -213,6 +232,32 @@ export function TemplateEditorDialog({ open, templateId, onClose, onSaved }: Tem
   const qc = useQueryClient();
   const [form, setForm] = useState<TemplateFormState>(EMPTY_FORM);
   const [parsingError, setParsingError] = useState<string>('');
+  // 测试解析:拿一个 URL 按当前模板真跑一遍。
+  // 用「当前表单里的 js_extract / selector」而不是库里已存的 —— 运营改完能立刻验,
+  // 不用先保存再赌。browser.enabled 开着时后端会走无头浏览器。
+  const [testUrl, setTestUrl] = useState('');
+  const [testResult, setTestResult] = useState<any>(null);
+  const testM = useMutation({
+    mutationFn: () => {
+      let sel = '';
+      try {
+        const obj = JSON.parse(form.rawContent || '{}');
+        sel = form.type === 'detail' || form.type === 'chapter'
+          ? (obj.content_selector || form.detailTitleSelector || '')
+          : (obj.item_container_selector || form.listItemSelector || '');
+      } catch { /* rawContent 坏了,交给后端按模板走 */ }
+      return testTemplate({
+        url: testUrl.trim(),
+        type: form.type,
+        templateId: templateId ?? undefined,
+        selector: sel || undefined,
+        maxItems: 10,
+      });
+    },
+    onSuccess: (res) => setTestResult(res),
+    onError: (e: any) => setTestResult({ success: false, error: e?.message || '请求失败' }),
+  });
+
 
   const detailQuery = useQuery({
     queryKey: ['spider', 'template', templateId],
@@ -417,12 +462,33 @@ export function TemplateEditorDialog({ open, templateId, onClose, onSaved }: Tem
                   />
                   <TextField
                     label="custom (JSON object)"
-                    helperText="任意扩展键,例如 list_extractor_script / detail_extractor_script"
+                    helperText="任意扩展键。js_extract 有专用输入框(见下),不用手写在这里"
                     multiline
                     rows={6}
                     value={form.custom}
                     onChange={(e) => setForm({ ...form, custom: e.target.value })}
                   />
+
+                  <TextField
+                    label="站点取数 JS(js_extract)"
+                    helperText={
+                      '正文不在页面 DOM 里的站用这一段。在页面上下文执行,须 return 一个 JSON 字符串:' +
+                      ' [{chapterid, title, body}]。可用占位符 {book_id} {from} {to} —— 运行时替换成数字。' +
+                      '留空表示不用这个能力。'
+                    }
+                    multiline
+                    minRows={6}
+                    maxRows={20}
+                    value={form.jsExtract}
+                    onChange={(e) => setForm({ ...form, jsExtract: e.target.value })}
+                    slotProps={{ input: { sx: { fontFamily: 'monospace', fontSize: 12 } } }}
+                  />
+                  <Alert severity="info" sx={{ '& .MuiAlert-message': { fontSize: 12 } }}>
+                    <b>bqg616 示例</b>(hash SPA + 一次性 token 从 API 取正文):
+                    <Box component="pre" sx={{ m: 0, mt: 0.5, fontSize: 11, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+{`(async()=>{const out=[];for(let i={from};i<={to};i++){try{const u=get_api("chapter",{id:{book_id},chapterid:i});const j=await(await fetch(u)).json();out.push({chapterid:j.chapterid,title:j.chaptername,body:j.txt});}catch(e){out.push({chapterid:i,err:String(e.message||e)});}}return JSON.stringify(out);})()`}
+                    </Box>
+                  </Alert>
                 </Stack>
               </AccordionDetails>
             </Accordion>
@@ -441,6 +507,55 @@ export function TemplateEditorDialog({ open, templateId, onClose, onSaved }: Tem
                   onChange={(e) => setForm({ ...form, rawContent: e.target.value })}
                   helperText="面板修改会写回这里;这里加键能让 selector / custom / 等任意字段被覆盖"
                 />
+              </AccordionDetails>
+            </Accordion>
+
+            <Accordion>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography variant="subtitle2">测试解析(用当前表单规则真跑一个 URL)</Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Stack sx={{ gap: 1.5 }}>
+                  <Stack direction="row" spacing={1}>
+                    <TextField
+                      label="测试 URL"
+                      size="small"
+                      fullWidth
+                      value={testUrl}
+                      onChange={(e) => setTestUrl(e.target.value)}
+                      placeholder="https://www.example.com/book/123/"
+                    />
+                    <Button
+                      variant="outlined"
+                      onClick={() => testM.mutate()}
+                      disabled={!testUrl.trim() || testM.isPending}
+                      sx={{ whiteSpace: 'nowrap' }}
+                    >
+                      {testM.isPending ? '解析中…' : '测试解析'}
+                    </Button>
+                  </Stack>
+                  <Typography variant="caption" color="text.secondary">
+                    按「{form.type}」类型跑;浏览器开关开着时会过无头浏览器。只读,不写库。
+                  </Typography>
+                  {testResult && (
+                    <Alert severity={testResult.success ? 'success' : 'error'}>
+                      {testResult.success
+                        ? `成功:${testResult.count ?? testResult.body_len ?? 0} 条 · 耗时 ${testResult.duration}`
+                        : `失败:${testResult.error || '未知原因'}`}
+                      {testResult.warning ? ` · ${testResult.warning}` : ''}
+                    </Alert>
+                  )}
+                  {testResult?.items?.length > 0 && (
+                    <Box component="pre" sx={{ m: 0, p: 1, bgcolor: 'action.hover', borderRadius: 1, fontSize: 11, maxHeight: 240, overflow: 'auto' }}>
+                      {testResult.items.map((it: any, i: number) => `${i + 1}. ${it.title}\n   ${it.url}`).join('\\n')}
+                    </Box>
+                  )}
+                  {testResult?.body_preview && (
+                    <Box component="pre" sx={{ m: 0, p: 1, bgcolor: 'action.hover', borderRadius: 1, fontSize: 11, maxHeight: 240, overflow: 'auto', whiteSpace: 'pre-wrap' }}>
+                      {testResult.body_preview}
+                    </Box>
+                  )}
+                </Stack>
               </AccordionDetails>
             </Accordion>
 
