@@ -20,6 +20,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
 import { RichTreeView } from '@mui/x-tree-view';
 import { tree, save, update, remove } from '@/apis/system-dict-data';
 import type { DictDataItem } from '@/beans/system';
@@ -197,21 +198,74 @@ export default function SystemDictDataPage() {
 
   return (
     <Box sx={{ p: { xs: 1.5, md: 2 } }}>
-      <Stack direction="row" spacing={2} sx={{ mb: 2, alignItems: 'center' }}>
-        <Typography variant="h5">字典数据</Typography>
+      {/* 标题 + 主操作 */}
+      <Stack direction="row" spacing={2} sx={{ mb: 2.5, alignItems: 'center' }}>
+        <Box
+          sx={{
+            width: 36,
+            height: 36,
+            borderRadius: 1.5,
+            background: 'linear-gradient(135deg, #25F4EE 0%, #FE2C55 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            boxShadow: '0 4px 12px rgba(254, 44, 85, 0.25)',
+          }}
+        >
+          <AccountTreeRoundedIcon sx={{ fontSize: 20, color: 'background.default' }} />
+        </Box>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="h5" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+            字典数据
+          </Typography>
+          <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.25 }}>
+            按字典类型分组维护枚举值,支持树形层级与子项继承
+          </Typography>
+        </Box>
         <Box sx={{ flex: 1 }} />
-        <Button variant="contained" startIcon={<AddIcon />} onClick={handleAddRoot} disabled={!selectedType}>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={handleAddRoot}
+          disabled={!selectedType}
+          sx={{
+            textTransform: 'none',
+            fontSize: 13,
+            px: 2,
+            borderRadius: 1.5,
+            boxShadow: '0 2px 8px rgba(254, 44, 85, 0.3)',
+            '&:hover': { boxShadow: '0 4px 12px rgba(254, 44, 85, 0.4)' },
+          }}
+        >
           新增根项
         </Button>
       </Stack>
 
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 2, alignItems: { md: 'center' } }}>
-        <FormControl size="small" sx={{ minWidth: 220 }}>
+      {/* 筛选条 */}
+      <Stack
+        direction={{ xs: 'column', md: 'row' }}
+        spacing={2}
+        sx={{
+          mb: 2,
+          alignItems: { md: 'center' },
+          p: 1.5,
+          borderRadius: 2,
+          bgcolor: 'var(--bg-elevated, transparent)',
+          border: '1px solid var(--border-color, transparent)',
+        }}
+      >
+        <FormControl size="small" sx={{ minWidth: 240 }}>
           <InputLabel>字典类型</InputLabel>
           <Select
             value={selectedType}
             label="字典类型"
             onChange={(e) => setSelectedType(e.target.value)}
+            sx={{
+              bgcolor: 'var(--bg-body, transparent)',
+              borderRadius: 1.5,
+              '& fieldset': { borderColor: 'var(--border-color, transparent)' },
+            }}
           >
             {types.map((t: any) => (
               <MenuItem key={t.id ?? t.type} value={t.type || t.code || String(t.id)}>
@@ -220,12 +274,42 @@ export default function SystemDictDataPage() {
             ))}
           </Select>
         </FormControl>
-        <Typography variant="caption" color="text.secondary">
-          共 {treeItems.length} 个根节点 / {treeQuery.data?.length || 0} 条记录
-        </Typography>
+        <Box
+          sx={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            color: 'text.secondary',
+            fontSize: 12,
+          }}
+        >
+          <Box
+            sx={{
+              px: 1,
+              py: 0.25,
+              borderRadius: 1,
+              bgcolor: 'var(--bg-hover, transparent)',
+              fontSize: 11,
+              fontWeight: 600,
+            }}
+          >
+            共 {treeItems.length} 个根节点
+          </Box>
+          <Box sx={{ fontSize: 11, color: 'text.disabled' }}>·</Box>
+          <Box sx={{ fontSize: 11 }}>总计 {treeQuery.data?.length || 0} 条记录</Box>
+        </Box>
       </Stack>
 
-      <Paper variant="outlined" sx={{ p: 1, minHeight: 240 }}>
+      <Paper
+        sx={{
+          p: 1,
+          borderRadius: 2,
+          bgcolor: 'var(--bg-elevated, transparent)',
+          border: '1px solid var(--border-color, transparent)',
+          overflow: 'hidden',
+        }}
+      >
         {typeQuery.isLoading ? (
           // 字典类型还在加载,先不要渲染树,避免出现"已加载但 selectedType 还没就位"
           // 的空白瞬间,也方便管理员区分"接口挂了"还是"库里没有字典类型"。
@@ -265,12 +349,29 @@ export default function SystemDictDataPage() {
             getItemLabel={(it) => (it as unknown as TreeItem).label}
             defaultExpandedItems={treeItems.map((it) => it.id)}
             sx={{
-              '& .MuiTreeItem-content': {
-                py: 0.5,
-                borderRadius: 1,
+              // 缩进用一条渐隐的引导线 + 节点悬停背景,让多层树有"层级感"
+              '& .MuiTreeItem-root': {
+                '& .MuiTreeItem-content': {
+                  borderRadius: 1.5,
+                  my: 0.25,
+                  px: 1,
+                  transition: 'background-color 0.12s',
+                  '&:hover': { bgcolor: 'var(--bg-hover, transparent)' },
+                  '&.Mui-focused, &.Mui-selected': {
+                    bgcolor: 'rgba(254, 44, 85, 0.08)',
+                  },
+                },
+                // 子层级缩进线
+                '& .MuiTreeItem-groupTransition': {
+                  ml: 2.25,
+                  borderLeft: '1px dashed var(--border-color, transparent)',
+                  pl: 1,
+                },
               },
-              '& .MuiTreeItem-label': {
-                fontSize: 13,
+              '& .MuiTreeItem-label': { fontSize: 13 },
+              '& .MuiTreeItem-iconContainer': {
+                color: 'text.secondary',
+                width: 24,
               },
             }}
             slots={{
@@ -291,40 +392,87 @@ export default function SystemDictDataPage() {
                       pr: 1,
                     }}
                   >
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1, minWidth: 0 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flex: 1, minWidth: 0 }}>
                       <Typography
                         component="span"
-                        sx={{ fontSize: 13, color: isDisabled ? 'text.disabled' : 'text.primary', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}
+                        sx={{
+                          fontSize: 13,
+                          fontWeight: 500,
+                          color: isDisabled ? 'text.disabled' : 'text.primary',
+                          flex: 1,
+                          minWidth: 0,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
                       >
                         {props.label}
                       </Typography>
                       {node.value ? (
-                        <Chip size="small" variant="outlined" label={node.value} sx={{ height: 18, fontSize: 10 }} />
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          label={node.value}
+                          sx={{ height: 18, fontSize: 10, borderRadius: 1 }}
+                        />
                       ) : null}
                       {isDisabled ? (
-                        <Chip size="small" color="default" label="禁用" sx={{ height: 18, fontSize: 10 }} />
+                        <Chip
+                          size="small"
+                          color="default"
+                          label="禁用"
+                          sx={{ height: 18, fontSize: 10, borderRadius: 1 }}
+                        />
                       ) : (
-                        <Chip size="small" color="success" label="启用" sx={{ height: 18, fontSize: 10 }} />
+                        <Chip
+                          size="small"
+                          color="success"
+                          label="启用"
+                          sx={{ height: 18, fontSize: 10, borderRadius: 1 }}
+                        />
                       )}
                       {node.sort !== undefined && node.sort !== null ? (
-                        <Typography component="span" sx={{ fontSize: 10, color: 'text.disabled' }}>
+                        <Typography
+                          component="span"
+                          sx={{ fontSize: 10, color: 'text.disabled', fontVariantNumeric: 'tabular-nums' }}
+                        >
                           #{node.sort}
                         </Typography>
                       ) : null}
                     </Box>
                     <Stack direction="row" spacing={0.25}>
                       <Tooltip title="新增子项">
-                        <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleAddChild(node); }}>
+                        <IconButton
+                          size="small"
+                          onClick={(e) => { e.stopPropagation(); handleAddChild(node); }}
+                          sx={{
+                            color: 'text.secondary',
+                            borderRadius: 1,
+                            '&:hover': { bgcolor: 'var(--bg-hover, transparent)', color: 'primary.main' },
+                          }}
+                        >
                           <AddIcon sx={{ fontSize: 14 }} />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="编辑">
-                        <IconButton size="small" onClick={(e) => { e.stopPropagation(); handleEdit(node); }}>
+                        <IconButton
+                          size="small"
+                          onClick={(e) => { e.stopPropagation(); handleEdit(node); }}
+                          sx={{
+                            color: 'text.secondary',
+                            borderRadius: 1,
+                            '&:hover': { bgcolor: 'var(--bg-hover, transparent)', color: 'primary.main' },
+                          }}
+                        >
                           <EditIcon sx={{ fontSize: 14 }} />
                         </IconButton>
                       </Tooltip>
                       <Tooltip title="删除">
-                        <IconButton size="small" color="error" onClick={(e) => { e.stopPropagation(); handleDelete(node); }}>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={(e) => { e.stopPropagation(); handleDelete(node); }}
+                          sx={{ borderRadius: 1 }}
+                        >
                           <DeleteIcon sx={{ fontSize: 14 }} />
                         </IconButton>
                       </Tooltip>
