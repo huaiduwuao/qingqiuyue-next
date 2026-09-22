@@ -9,6 +9,7 @@ import React, { useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
+import Tooltip from '@mui/material/Tooltip';
 import type { GridColDef } from '@mui/x-data-grid';
 import { DataGridTable } from '@/components/tables/DataGridTable';
 import { getRechargeRecords, formatMoney, statusLabels, channelLabels, type RechargeRecord } from '@/apis/admin-recharge';
@@ -36,15 +37,23 @@ function SourceChip({ source }: { source: string }) {
 
 const columns: GridColDef[] = [
   { field: 'orderNo', headerName: '订单号', width: 200,
-    renderCell: (p) => <Box sx={{ fontFamily: 'monospace', fontSize: 12 }}>{p.value}</Box> },
+    renderCell: (p) => (
+      <Tooltip title={p.value} placement="top" arrow>
+        <Box sx={{ fontFamily: 'monospace', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>
+          {p.value}
+        </Box>
+      </Tooltip>
+    ) },
   { field: 'user', headerName: '用户', flex: 1.2, minWidth: 160, sortable: false,
     renderCell: (p) => {
       const r = p.row as RechargeRecord;
       return (
-        <Box>
-          <Typography variant="body2">{r.userNickname || '-'}</Typography>
-          <Typography variant="caption" color="text.secondary">ID: {r.userId}</Typography>
-        </Box>
+        <Tooltip title={`${r.userNickname || '-'} (ID: ${r.userId})`} placement="top" arrow>
+          <Box sx={{ overflow: 'hidden', textAlign: 'left', width: '100%' }}>
+            <Typography variant="body2" noWrap sx={{ lineHeight: 1.2 }}>{r.userNickname || '-'}</Typography>
+            <Typography variant="caption" color="text.secondary" noWrap sx={{ lineHeight: 1.2, display: 'block' }}>ID: {r.userId}</Typography>
+          </Box>
+        </Tooltip>
       );
     } },
   { field: 'amount', headerName: '金额', type: 'number', width: 110, align: 'right', headerAlign: 'right',
@@ -55,9 +64,21 @@ const columns: GridColDef[] = [
   { field: 'channel', headerName: '渠道', width: 90, renderCell: (p) => <ChannelChip channel={p.value as string} /> },
   { field: 'source', headerName: '来源', width: 100, renderCell: (p) => <SourceChip source={p.value as string} /> },
   { field: 'createdAt', headerName: '创建时间', width: 170,
-    valueFormatter: (v) => v ? new Date(v as string).toLocaleString('zh-CN') : '-' },
+    renderCell: (p) => (
+      <Tooltip title={p.value} placement="top" arrow>
+        <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13 }}>
+          {p.value ? new Date(p.value as string).toLocaleString('zh-CN') : '-'}
+        </Box>
+      </Tooltip>
+    ) },
   { field: 'paidAt', headerName: '支付时间', width: 170,
-    valueFormatter: (v) => v ? new Date(v as string).toLocaleString('zh-CN') : '-' },
+    renderCell: (p) => (
+      <Tooltip title={p.value} placement="top" arrow>
+        <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13 }}>
+          {p.value ? new Date(p.value as string).toLocaleString('zh-CN') : '-'}
+        </Box>
+      </Tooltip>
+    ) },
 ];
 
 export default function RechargeRecordsPage() {
