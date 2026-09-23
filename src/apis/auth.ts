@@ -107,3 +107,13 @@ export async function getUserPermissions() {
     method: 'GET',
   });
 }
+
+/**
+ * 微信登录回调换会话 - POST /api/core/oauth/wx/exchange
+ * 后端回跳只带一次性 code + state(不再把 session_id 放进 URL:会进 nginx 日志 / 历史记录 / Sentry)。
+ * 字段名以后端为准,sessionId / session_id 都认。
+ */
+export async function exchangeWechatCode(data: { code: string; state: string }): Promise<string> {
+  const r = await adminClient<{ sessionId?: string; session_id?: string }>('/oauth/wx/exchange', { method: 'POST', data });
+  return r?.sessionId ?? r?.session_id ?? '';
+}

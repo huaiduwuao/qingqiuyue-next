@@ -18,6 +18,7 @@ import { getAuthOptions, type AuthOptions } from '@/apis/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { consumeRedirect, rememberRedirect, safeRedirectPath, DEFAULT_AFTER_LOGIN } from '@/lib/auth/redirect';
 import { startWechatLoginInBrowser, wechatLoginUrl } from '@/lib/clientAuth';
+import { createOauthState } from '@/lib/auth/oauthState';
 import { PasswordLoginForm } from './_components/PasswordLoginForm';
 import { SmsLoginForm } from './_components/SmsLoginForm';
 import { RegisterForm } from './_components/RegisterForm';
@@ -62,8 +63,10 @@ export default function LoginPage() {
     rememberRedirect(target);
     // 客户端里必须把授权丢给系统浏览器:微信不认应用内 WebView,而且相对地址
     // 在 tauri.localhost 下根本到不了网关。走完之后 qingqiuyue:// 回跳,见 DeepLinkBridge。
-    if (await startWechatLoginInBrowser(target)) return;
-    window.location.href = wechatLoginUrl(target);
+    // 回调页只认本浏览器发起的这一次登录(见 lib/auth/oauthState)
+    const state = createOauthState();
+    if (await startWechatLoginInBrowser(target, state)) return;
+    window.location.href = wechatLoginUrl(target, state);
   };
 
   const tabs: { value: Mode; label: string }[] = [

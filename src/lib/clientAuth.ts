@@ -43,11 +43,14 @@ export function authPlatform(): AuthPlatform {
   return 'windows';
 }
 
-/** 微信授权入口。网页下是同源相对地址,客户端下是网关绝对地址 + platform。 */
-export function wechatLoginUrl(from: string): string {
+/**
+ * 微信授权入口。网页下是同源相对地址,客户端下是网关绝对地址 + platform。
+ * state 由 lib/auth/oauthState 生成,后端回跳时原样带回,回调页据此确认是本浏览器发起的登录。
+ */
+export function wechatLoginUrl(from: string, state: string): string {
   const platform = authPlatform();
   const base = platform === 'web' ? '' : GATEWAY;
-  const q = `from=${encodeURIComponent(from)}${platform === 'web' ? '' : `&platform=${platform}`}`;
+  const q = `from=${encodeURIComponent(from)}&state=${encodeURIComponent(state)}${platform === 'web' ? '' : `&platform=${platform}`}`;
   return `${base}/api/core/oauth/login/wechat?${q}`;
 }
 
@@ -55,10 +58,10 @@ export function wechatLoginUrl(from: string): string {
  * 客户端里发起微信登录:把授权地址交给系统浏览器。
  * 返回 false 表示不在客户端里(调用方照旧 window.location.href 即可)。
  */
-export async function startWechatLoginInBrowser(from: string): Promise<boolean> {
+export async function startWechatLoginInBrowser(from: string, state: string): Promise<boolean> {
   const t = tauri();
   if (!t?.core) return false;
-  await t.core.invoke('open_external', { url: wechatLoginUrl(from) });
+  await t.core.invoke('open_external', { url: wechatLoginUrl(from, state) });
   return true;
 }
 
