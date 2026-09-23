@@ -701,7 +701,8 @@ function SettlementPanel({
             >
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <Typography sx={{ fontSize: 12, color: 'text.primary', fontWeight: 600 }}>
-                  {(s.totalCents / 100).toFixed(2)} 钻石
+                  {/* 分账只记账不进钱包,totalCents 是人民币分 */}
+                  ¥{(s.totalCents / 100).toFixed(2)}
                 </Typography>
                 <Typography sx={{ fontSize: 10, color: 'text.disabled' }}>
                   {s.sourceType} · {s.createTime?.slice(0, 16)}

@@ -221,7 +221,7 @@ function RechargePageContent() {
     refetchOnMount: 'always',
     staleTime: 0,
   });
-  const balanceDiamonds = Math.floor((walletQ.data?.balance ?? 0) / 10); // 1 钻 = 1 分,余额(分) → 钻
+  const balanceDiamonds = walletQ.data?.balance ?? 0; // 钱包按钻石记账,不再换算
 
   // 真接口:钱包流水
   const txQ = useQuery({
@@ -235,7 +235,7 @@ function RechargePageContent() {
   // 页面只有四个标签:充值按 type,其余按金额正负归到「奖励」或「消费」,不再把原始
   // type 直接当 RECORD_TYPE_LABEL 的 key(曾在这里炸出 reading 'color')。
   const records: DiamondRecord[] = (txQ.data?.list ?? []).map((t: WalletTransaction, idx: number) => {
-    const diamonds = Math.floor(Math.abs(t.amount) / 10);
+    const diamonds = Math.abs(t.amount); // 流水 amount / balanceAfter 都是钻
     const isRecharge = t.type === 'recharge';
     const isCredit = t.amount > 0;
     const type: DiamondRecord['type'] = isRecharge ? 'recharge' : t.type === 'gift' ? 'gift' : isCredit ? 'reward' : 'consume';
@@ -243,7 +243,7 @@ function RechargePageContent() {
       id: t.id ?? idx,
       type,
       amount: isCredit ? diamonds : -diamonds,
-      balance: Math.floor((t.balanceAfter ?? 0) / 10),
+      balance: t.balanceAfter ?? 0,
       description: t.remark || (isCredit ? `${isRecharge ? '充值入账' : '钻石入账'} +${diamonds} 钻` : `${t.type || '消费'} -${diamonds} 钻`),
       payMethod: undefined,
       createTime: t.createTime,
