@@ -21,10 +21,6 @@ export async function getApiBase(): Promise<string> {
   return invoke<string>('get_api_base');
 }
 
-export async function setApiBase(url: string): Promise<void> {
-  return invoke('set_api_base', { url });
-}
-
 export async function openExternal(url: string): Promise<void> {
   return invoke('open_external', { url });
 }
