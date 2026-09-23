@@ -188,7 +188,7 @@ export default function PointRecordPanel({ currentUserId }: Props) {
         </Box>
       )}
 
-      <Box ref={sentinelRef} sx={{ height: 1 }} />
+      <Box ref={sentinelRef} sx={{ height: '1px' }} />
       {isFetchingNextPage && (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mt: 0.75 }}>
           {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} variant="rounded" height={52} />)}

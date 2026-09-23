@@ -212,6 +212,14 @@ export default function HomeRecommendPage() {
     enabled: !loading && !loadingMore && hasNextPage,
   });
 
+  // 滚动到底自动加载下一页。以前这里只 new 了 hook 没接 isNearBottom,sentinelRef
+  // 也从没挂到 DOM 上,分类页实际一直是"点不到更多"的死列表。
+  React.useEffect(() => {
+    if (scroll.isNearBottom && hasNextPage && !loadingMore && !loading) {
+      fetchNextPage();
+    }
+  }, [scroll.isNearBottom, hasNextPage, loadingMore, loading, fetchNextPage]);
+
   if (tabFromUrl === 'me') {
     return <MeTabView />;
   }
@@ -524,6 +532,9 @@ export default function HomeRecommendPage() {
                 - 没有更多了 -
               </Typography>
             )}
+
+            {/* 滚动到底的哨兵 */}
+            <Box ref={scroll.sentinelRef} sx={{ height: '1px' }} />
           </Box>
         )}
       </Box>

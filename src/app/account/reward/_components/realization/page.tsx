@@ -96,7 +96,7 @@ export default function RealizationPage() {
         <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>登录后查看</Typography>
       )}
 
-      <Box ref={sentinelRef} sx={{ height: 1 }} />
+      <Box ref={sentinelRef} sx={{ height: '1px' }} />
       {list.isFetchingNextPage && (
         <Typography sx={{ textAlign: 'center', py: 2, fontSize: 12, color: 'text.secondary' }}>加载中…</Typography>
       )}

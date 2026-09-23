@@ -143,7 +143,7 @@ export function CommunityFeed({ topic, userId, focusFeedId, circle }: { topic?: 
       )}
 
       {isFetchingNextPage && <FeedCardSkeleton />}
-      <Box ref={sentinel} sx={{ height: 1 }} />
+      <Box ref={sentinel} sx={{ height: '1px' }} />
       {!isLoading && items.length > 0 && !hasNextPage && (
         <Typography sx={{ textAlign: 'center', py: 2, fontSize: 12, color: 'var(--text-muted, rgba(255,255,255,0.35))' }}>- 没有更多了 -</Typography>
       )}

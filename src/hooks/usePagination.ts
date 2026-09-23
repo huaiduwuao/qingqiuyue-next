@@ -7,7 +7,11 @@ import type {
   PaginationState,
   LegacyPageResult,
 } from '@/beans/pagination';
-import { calculatePaginationState, createInitialPaginationState } from '@/beans/pagination';
+import {
+  calculatePaginationState,
+  createInitialPaginationState,
+  normalizePageResponse,
+} from '@/beans/pagination';
 
 /** usePagination Options */
 export interface UsePaginationOptions<T = unknown, P extends PageParams = PageParams> {
@@ -174,20 +178,10 @@ export function usePagination<T = unknown, P extends PageParams = PageParams>(
   };
 }
 
-/** 旧版 API 响应归一化 */
+/** 旧版 API 响应归一化 —— 与 beans/pagination 的 normalizePageResponse 同源,
+ * 单独存在只是历史原因(早期就在这文件里)。两边算法必须保持一致,
+ * 否则一旦后端不返回 hasMore 字段,total > pageSize 的接口会无限滚动。
+ */
 export function normalizeLegacyPageResponse<T>(data: LegacyPageResult<T>): PageResult<T> {
-  const list = data.list ?? data.records ?? [];
-  const total = data.total ?? data.totalRow ?? 0;
-  const pageSize = data.pageSize ?? 20;
-  const totalPages = data.totalPages ?? Math.ceil(total / pageSize);
-  const hasMore = data.hasMore ?? (pageSize > 0 && total > pageSize);
-
-  return {
-    list,
-    total,
-    page: data.page ?? 1,
-    pageSize,
-    totalPages,
-    hasMore,
-  };
+  return normalizePageResponse(data);
 }

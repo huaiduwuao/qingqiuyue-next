@@ -332,7 +332,7 @@ export function TheaterPanel() {
           {!isFetchingNextPage && theaterList.length > 0 && !hasNextPage && (
             <Typography sx={{ textAlign: 'center', py: 3, color: 'text.disabled', fontSize: 12 }}>- 没有更多了 -</Typography>
           )}
-          <Box ref={sentinelRef} sx={{ height: 1 }} />
+          <Box ref={sentinelRef} sx={{ height: '1px' }} />
         </Box>
       )}
     </Box>

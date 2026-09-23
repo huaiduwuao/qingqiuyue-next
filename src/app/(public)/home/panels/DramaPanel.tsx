@@ -321,7 +321,7 @@ export function DramaPanel() {
           )}
 
           {/* Scroll sentinel */}
-          <Box ref={sentinelRef} sx={{ height: 1 }} />
+          <Box ref={sentinelRef} sx={{ height: '1px' }} />
         </Box>
       )}
     </Box>

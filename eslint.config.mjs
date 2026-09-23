@@ -45,6 +45,25 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  // MUI v9 破坏性变更:sx 里尺寸属性(width/height/min*/max*/size)的值 ≤ 1 时,
+  // sizingTransform 会把它当"比例"输出成百分比 —— `height: 1` 是 `100%` 而不是 `1px`。
+  // 无限滚动哨兵写成 `sx={{ height: 1 }}` 会撑满整个列表高度,IntersectionObserver
+  // 永远判定"已到底",触发无限请求 + 大片空白。写 '1px' 才是本意。
+  // 只在 sx={{…}} 里生效,免得误伤 dataGrid 列定义之类的普通对象。
+  {
+    files: ['src/app/**/*.{ts,tsx}', 'src/components/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "JSXAttribute[name.name='sx'] ObjectExpression Property[key.name=/^(width|height|minWidth|minHeight|maxWidth|maxHeight|size)$/][value.value=1]",
+          message:
+            "MUI v9 把 sx 里尺寸值 1 当成 100%(sizingTransform),不是 1px。要 1px 请写 '1px'。",
+        },
+      ],
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     // 仓库根目录的一次性 Node 调试脚本(CommonJS,连 localhost 的 dev server 用),

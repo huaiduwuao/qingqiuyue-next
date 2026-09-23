@@ -270,7 +270,7 @@ export function MeTabView() {
           )}
 
           {/* Infinite scroll sentinel */}
-          <Box ref={scroll.sentinelRef} sx={{ height: 1 }} />
+          <Box ref={scroll.sentinelRef} sx={{ height: '1px' }} />
 
           {/* No more data */}
           {!isFetching && meList.length > 0 && !meHasMore && (

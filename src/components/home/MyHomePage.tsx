@@ -50,6 +50,7 @@ import ShoppingBagRoundedIcon from '@mui/icons-material/ShoppingBagRounded';
 import WorkspacePremiumRoundedIcon from '@mui/icons-material/WorkspacePremiumRounded';
 import StarsIcon from '@mui/icons-material/Stars';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
@@ -131,14 +132,16 @@ type ListResp = {
 
 const MAIN_TABS: { key: string; label: string; icon: React.ReactNode; locked?: boolean }[] = [
   { key: 'works', label: '作品', icon: <VideoLibraryOutlinedIcon sx={{ fontSize: 14 }} /> },
+  // 书架/歌单 是用户主动攒的列表,比「推荐/喜欢」这类被动流更该排在前面 —— 窄屏只露出前 5 个页签,
+  // 之前它们排在第 6/7 位,被推到屏幕外要横滑才够得着。
+  { key: 'bookshelf', label: '书架', icon: <MenuBookRoundedIcon sx={{ fontSize: 14 }} /> },
+  { key: 'playlist', label: '歌单', icon: <QueueMusicRoundedIcon sx={{ fontSize: 14 }} /> },
   { key: 'recommend', label: '推荐', icon: <RecommendRoundedIcon sx={{ fontSize: 14 }} /> },
   { key: 'like', label: '喜欢', icon: <FavoriteBorderRoundedIcon sx={{ fontSize: 14 }} /> },
   { key: 'collect', label: '收藏', icon: <BookmarkRoundedIcon sx={{ fontSize: 14 }} /> },
   // 自建收藏夹(PG user_my_list)。以前只有「作品 → 合集」一个子页签能看到合集,
   // 而它打的还是作品的接口 —— 歌单和书架在「我的」页里根本没有入口。
-  { key: 'playlist', label: '歌单', icon: <QueueMusicRoundedIcon sx={{ fontSize: 14 }} /> },
   { key: 'collection', label: '作品合集', icon: <CollectionsBookmarkRoundedIcon sx={{ fontSize: 14 }} /> },
-  { key: 'bookshelf', label: '书架', icon: <MenuBookRoundedIcon sx={{ fontSize: 14 }} /> },
   { key: 'history', label: '观看历史', icon: <HistoryRoundedIcon sx={{ fontSize: 14 }} /> },
   { key: 'later', label: '稍后再看', icon: <WatchLaterRoundedIcon sx={{ fontSize: 14 }} /> },
   { key: 'order', label: '我的预约', icon: <EventNoteRoundedIcon sx={{ fontSize: 14 }} /> },
@@ -162,12 +165,12 @@ const TAB_UNIT: Record<string, string> = {
   works: ' 个作品', private: ' 个私密作品', drama: ' 部短剧',
 };
 
-const QUICK_LINKS: { key: string; label: string; icon: React.ReactNode; href: string }[] = [
-  { key: 'wallet', label: '我的钱包', icon: <WalletRoundedIcon sx={{ fontSize: 18 }} />, href: '/account/wallet' },
-  { key: 'points', label: '积分中心', icon: <StarsIcon sx={{ fontSize: 18 }} />, href: '/user/points' },
-  { key: 'order', label: '我的订单', icon: <ReceiptLongRoundedIcon sx={{ fontSize: 18 }} />, href: '/account/orders' },
-  { key: 'purchases', label: '我的购买', icon: <ShoppingBagRoundedIcon sx={{ fontSize: 18 }} />, href: '/account/purchases' },
-  { key: 'vip', label: '会员中心', icon: <WorkspacePremiumRoundedIcon sx={{ fontSize: 18 }} />, href: '/account/vip' },
+const QUICK_LINKS: { key: string; label: string; icon: React.ReactNode; href: string; accent: string }[] = [
+  { key: 'wallet', label: '我的钱包', icon: <WalletRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/wallet', accent: ACCENT.red.main },
+  { key: 'points', label: '积分中心', icon: <StarsIcon sx={{ fontSize: 20 }} />, href: '/user/points', accent: ACCENT.purple.main },
+  { key: 'order', label: '我的订单', icon: <ReceiptLongRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/orders', accent: ACCENT.blue.main },
+  { key: 'purchases', label: '我的购买', icon: <ShoppingBagRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/purchases', accent: ACCENT.orange.main },
+  { key: 'vip', label: '会员中心', icon: <WorkspacePremiumRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/vip', accent: ACCENT.gold.main },
 ];
 
 const DATE_RANGES = [
@@ -516,9 +519,10 @@ function MyHomePageAuthed() {
         <Box
           sx={{
             display: 'flex',
-            gap: 2.5,
-            alignItems: 'flex-start',
-            p: 2.5,
+            flexDirection: { xs: 'column', sm: 'row' },
+            gap: { xs: 1.5, sm: 2.5 },
+            alignItems: { sm: 'flex-start' },
+            p: { xs: 2, sm: 2.5 },
             borderRadius: 2.5,
             bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))',
             border: '1px solid var(--border-color, transparent)',
@@ -529,8 +533,8 @@ function MyHomePageAuthed() {
           <Box
             sx={{
               position: 'relative',
-              width: 80,
-              height: 80,
+              width: { xs: 72, sm: 80 },
+              height: { xs: 72, sm: 80 },
               flexShrink: 0,
               display: 'flex',
               alignItems: 'center',
@@ -564,7 +568,7 @@ function MyHomePageAuthed() {
 
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
-              <Typography sx={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary, currentColor)' }}>
+              <Typography sx={{ fontSize: { xs: 18, sm: 20 }, fontWeight: 700, color: 'var(--text-primary, currentColor)' }}>
                 {profile?.user?.nickname || currentUser?.nickname || currentUser?.name || '—'}
               </Typography>
               <Box sx={{ width: 16, height: 16, borderRadius: 0.5, bgcolor: 'rgba(255,180,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -572,33 +576,30 @@ function MyHomePageAuthed() {
               </Box>
             </Box>
 
-            <Box sx={{ display: 'flex', gap: 2.5, mb: 1, flexWrap: 'wrap' }}>
-              <Box
-                onClick={() => router.push('/account/center?section=following')}
-                sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, cursor: 'pointer' }}
-              >
-                <Typography sx={{ fontSize: 11, color: 'var(--text-muted, currentColor)' }}>关注</Typography>
-                <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, currentColor)' }}>{profile?.stats?.following ?? '—'}</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
-                  <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'primary.main', animation: 'pulse 1.6s ease-in-out infinite', '@keyframes pulse': { '0%, 100%': { opacity: 1 }, '50%': { opacity: 0.4 } } }} />
-                  <Typography sx={{ fontSize: 11, color: 'primary.main', fontWeight: 600 }}>{profile?.stats?.lives ?? 0}人正在直播</Typography>
+            {/* 统计行:关注/粉丝/获赞 统一成 数字在上、标签在下 的抖音式列,窄屏不折行 */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 2.5, sm: 3 }, mb: 1 }}>
+              {[
+                { label: '关注', value: profile?.stats?.following, href: '/account/center?section=following' },
+                { label: '粉丝', value: profile?.stats?.followers, href: '/account/center?section=followers' },
+                { label: '获赞', value: profile?.stats?.likes ?? 0, href: '/home/recommend?tab=me&mainTab=like' },
+              ].map((s) => (
+                <Box
+                  key={s.label}
+                  onClick={() => router.push(s.href)}
+                  sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.25, cursor: 'pointer' }}
+                >
+                  <Typography sx={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary, currentColor)', lineHeight: 1.1 }}>
+                    {s.value ?? '—'}
+                  </Typography>
+                  <Typography sx={{ fontSize: 11, color: 'var(--text-muted, currentColor)' }}>{s.label}</Typography>
                 </Box>
-              </Box>
+              ))}
               <Box
-                onClick={() => router.push('/account/center?section=followers')}
-                sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, cursor: 'pointer' }}
+                onClick={() => router.push('/home/recommend?tab=me&mainTab=live')}
+                sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto', cursor: 'pointer' }}
               >
-                <Typography sx={{ fontSize: 11, color: 'var(--text-muted, currentColor)' }}>粉丝</Typography>
-                <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, currentColor)' }}>{profile?.stats?.followers ?? '—'}</Typography>
-              </Box>
-              <Box
-                onClick={() => router.push('/home/recommend?tab=me&mainTab=like')}
-                sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, cursor: 'pointer' }}
-              >
-                <Typography sx={{ fontSize: 11, color: 'var(--text-muted, currentColor)' }}>获赞</Typography>
-                <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary, currentColor)' }}>{profile?.stats?.likes ?? 0}</Typography>
+                <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'primary.main', animation: 'pulse 1.6s ease-in-out infinite', '@keyframes pulse': { '0%, 100%': { opacity: 1 }, '50%': { opacity: 0.4 } } }} />
+                <Typography sx={{ fontSize: 11, color: 'primary.main', fontWeight: 600 }}>{profile?.stats?.lives ?? 0}人正在直播</Typography>
               </Box>
             </Box>
 
@@ -622,31 +623,34 @@ function MyHomePageAuthed() {
               </Typography>
             )}
 
-            {/* Quick action buttons */}
-            <Box sx={{ display: 'flex', gap: 1, mt: 1.5, flexWrap: 'wrap' }}>
+            {/* Quick action buttons:窄屏三个等宽按钮独占一行,不再挤在名字下面乱折行 */}
+            <Box sx={{ display: 'flex', gap: 1, mt: 1.5 }}>
               <Button
                 size="small"
                 variant="outlined"
                 startIcon={<EditRoundedIcon sx={{ fontSize: 14 }} />}
                 onClick={() => setEditOpen(true)}
-                sx={{ textTransform: 'none', fontSize: 11, borderRadius: 1.5, borderColor: 'var(--border-strong, transparent)', color: 'text.secondary' }}
+                sx={{ flex: 1, textTransform: 'none', fontSize: 12, borderRadius: 2, borderColor: 'var(--border-strong, transparent)', color: 'text.secondary' }}
               >
                 编辑资料
               </Button>
-              <ShareButtons
-                contentType="user"
-                contentId={Number(profile?.user?.id) || 0}
-                title={profile?.user?.nickname || '我的主页'}
-                url={typeof window !== 'undefined' ? window.location.href : ''}
-                cover={profile?.user?.avatar}
-                desc={profile?.user?.bio}
-              />
+              <Box sx={{ flex: 1, minWidth: 0, display: 'flex', '& > *': { flex: 1 } }}>
+                <ShareButtons
+                  compact
+                  contentType="user"
+                  contentId={Number(profile?.user?.id) || 0}
+                  title={profile?.user?.nickname || '我的主页'}
+                  url={typeof window !== 'undefined' ? window.location.href : ''}
+                  cover={profile?.user?.avatar}
+                  desc={profile?.user?.bio}
+                />
+              </Box>
               <Button
                 size="small"
                 variant="outlined"
                 startIcon={<QrCodeRoundedIcon sx={{ fontSize: 14 }} />}
                 onClick={() => setQrOpen(true)}
-                sx={{ textTransform: 'none', fontSize: 11, borderRadius: 1.5, borderColor: 'var(--border-strong, transparent)', color: 'text.secondary' }}
+                sx={{ flex: 1, textTransform: 'none', fontSize: 12, borderRadius: 2, borderColor: 'var(--border-strong, transparent)', color: 'text.secondary' }}
               >
                 二维码
               </Button>
@@ -654,14 +658,14 @@ function MyHomePageAuthed() {
           </Box>
         </Box>
 
-        {/* Quick links row */}
+        {/* Quick links row:竖排 图标在上/标签在下,窄屏 3 列 / 宽屏 5 列,5 个入口不再有一个掉单 */}
         <Box
           sx={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
-            gap: 1,
+            gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(5, 1fr)' },
+            gap: 0.5,
             mb: 2,
-            p: 1.5,
+            p: 1,
             borderRadius: 2.5,
             bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))',
             border: '1px solid var(--border-color, transparent)',
@@ -695,9 +699,11 @@ function MyHomePageAuthed() {
                 href={q.href}
                 sx={{
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
-                  gap: 1,
-                  p: 1.25,
+                  gap: 0.75,
+                  py: 1.25,
+                  px: 0.5,
                   borderRadius: 1.5,
                   cursor: 'pointer',
                   textDecoration: 'none',
@@ -705,35 +711,45 @@ function MyHomePageAuthed() {
                   '&:hover': { bgcolor: 'var(--bg-hover, transparent)' },
                 }}
               >
-                <Box sx={{ color: 'primary.main', display: 'flex' }}>{q.icon}</Box>
-                <Typography sx={{ fontSize: 12, color: 'text.primary', flex: 1 }}>{q.label}</Typography>
+                <Box
+                  sx={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 1.75,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: q.accent,
+                    bgcolor: `${q.accent}1A`,
+                  }}
+                >
+                  {q.icon}
+                </Box>
+                <Typography sx={{ fontSize: 11, color: 'var(--text-primary, currentColor)', whiteSpace: 'nowrap' }}>{q.label}</Typography>
                 {badge && (
-                  <Box sx={{
-                    px: 0.75, py: 0.125, borderRadius: 0.75, fontSize: 10, fontWeight: 700,
-                    bgcolor: badgeColor === 'warning' ? 'warning.main' : 'action.hover',
-                    color: badgeColor === 'warning' ? '#1a1a1a' : 'text.secondary',
-                  }}>
+                  <Typography sx={{ fontSize: 10, fontWeight: 700, color: badgeColor === 'warning' ? 'warning.main' : 'var(--text-secondary, currentColor)', lineHeight: 1 }}>
                     {badge}
-                  </Box>
+                  </Typography>
                 )}
               </Box>
             );
           })}
         </Box>
 
-        {/* Main tabs */}
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 0.5,
-            mb: 2,
-            borderBottom: '1px solid var(--border-color, transparent)',
-            pb: 0,
-            overflowX: 'auto',
-            '&::-webkit-scrollbar': { display: 'none' },
-          }}
-        >
+        {/* Main tabs —— 外层包一层 position:relative,右侧挂一条渐隐遮罩,
+            提示"后面还有页签,可以横滑"。不遮的话 11 个页签看起来像只有前 5 个。 */}
+        <Box sx={{ position: 'relative', mb: 2 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.5,
+              borderBottom: '1px solid var(--border-color, transparent)',
+              pb: 0,
+              overflowX: 'auto',
+              '&::-webkit-scrollbar': { display: 'none' },
+            }}
+          >
           {MAIN_TABS.map((t) => {
             const isActive = mainTab === t.key;
             return (
@@ -766,7 +782,8 @@ function MyHomePageAuthed() {
 
           <Box sx={{ flex: 1 }} />
 
-          <ListLayoutSwitch sx={{ mr: 1 }} />
+          {/* 布局切换 / 批量管理:窄屏藏起,塞进 Tab 栏会把 11 个页签挤成横向滚动 */}
+          <ListLayoutSwitch sx={{ mr: 1, display: { xs: 'none', sm: 'flex' } }} />
 
           {batchMode ? (
             <>
@@ -804,6 +821,8 @@ function MyHomePageAuthed() {
                 textTransform: 'none',
                 fontSize: 12,
                 borderRadius: 1.5,
+                whiteSpace: 'nowrap',
+                display: { xs: 'none', sm: 'inline-flex' },
                 '&:hover': { borderColor: 'var(--border-strong, transparent)', bgcolor: 'var(--bg-hover, transparent)' },
                 '&.Mui-disabled': { color: 'var(--text-disabled, currentColor)', borderColor: 'var(--border-color, transparent)' },
               }}
@@ -811,6 +830,30 @@ function MyHomePageAuthed() {
               批量管理
             </Button>
           )}
+          </Box>
+
+          {/* 右缘渐隐遮罩 + 一个小箭头,明确"还能横滑"。pointerEvents:none 不挡点击。 */}
+          <Box
+            sx={{
+              position: 'absolute',
+              top: 0,
+              right: 0,
+              bottom: '1px',
+              width: 56,
+              pointerEvents: 'none',
+              display: { xs: 'flex', sm: 'none' },
+              alignItems: 'center',
+              justifyContent: 'flex-end',
+              pr: 0.5,
+              background: (t: any) =>
+                t.palette.mode === 'dark'
+                  ? 'linear-gradient(90deg, rgba(20,22,32,0) 0%, rgba(20,22,32,0.9) 60%)'
+                  : 'linear-gradient(90deg, rgba(245,245,247,0) 0%, rgba(245,245,247,0.95) 60%)',
+              color: 'var(--text-muted, currentColor)',
+            }}
+          >
+            <ChevronRightIcon sx={{ fontSize: 16 }} />
+          </Box>
         </Box>
 
         {/* Sub tabs + tools (only for 作品 tab) */}
@@ -992,7 +1035,7 @@ function MyHomePageAuthed() {
         {/* 无限滚动:哨兵 + 加载态 + 到底提示 */}
         {!listQuery.isLoading && loadedList.length > 0 && (
           <>
-            <Box ref={scroll.sentinelRef} sx={{ height: 1 }} />
+            <Box ref={scroll.sentinelRef} sx={{ height: '1px' }} />
             {listQuery.isFetchingNextPage ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
                 <CircularProgress size={18} />

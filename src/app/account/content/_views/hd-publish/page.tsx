@@ -1679,7 +1679,7 @@ export default function HdPublishPage() {
                               {node.icon}
                             </Box>
                             {!isLast && (
-                              <Box sx={{ width: 1, flex: 1, minHeight: 20, bgcolor: c.status === 'passed' ? 'rgba(93, 219, 150, 0.3)' : 'divider', my: 0.25 }} />
+                              <Box sx={{ width: '1px', flex: 1, minHeight: 20, bgcolor: c.status === 'passed' ? 'rgba(93, 219, 150, 0.3)' : 'divider', my: 0.25 }} />
                             )}
                           </Box>
                           <Box sx={{ flex: 1, pb: isLast ? 0 : 1, minWidth: 0 }}>

@@ -92,12 +92,15 @@ export function normalizePageResponse<T>(data: LegacyPageResult<T>): PageResult<
   const page = data.page ?? 1;
   const pageSize = data.pageSize ?? 20;
   const totalPages = data.totalPages ?? Math.ceil(total / pageSize);
-  const hasMore = data.hasMore ?? page < totalPages;
+  // hasMore 兜底:看当前页是否已到末页。旧实现只看 `total > pageSize`,
+  // 这会让不返回 hasMore 的接口一旦总数 > pageSize 就永远返回 true,
+  // 无限滚动把 page 推到末页之后还在请求(空列表 + 死循环)。
+  const hasMore = data.hasMore ?? (pageSize > 0 && page < totalPages);
 
   return {
     list,
     total,
-    page: data.page ?? 1,
+    page,
     pageSize,
     totalPages,
     hasMore,

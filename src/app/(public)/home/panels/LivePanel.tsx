@@ -414,7 +414,7 @@ export function LivePanel() {
         {!rooms.isLoading && !hasNextPage && roomList.length > 0 && (
           <Typography sx={{ textAlign: 'center', py: 3, color: 'var(--text-disabled)', fontSize: 12 }}>已经到底了</Typography>
         )}
-        <Box ref={sentinelRef} sx={{ height: 1 }} />
+        <Box ref={sentinelRef} sx={{ height: '1px' }} />
       </Box>
     </Box>
   );

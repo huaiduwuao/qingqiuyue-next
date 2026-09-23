@@ -155,7 +155,7 @@ export function TopicHub() {
             <ListLayout rows minColumnWidth={240} listMaxWidth="var(--page-max-narrow)">
               {hotList.map((t, i) => <TopicTile key={String(t.id)} topic={t} rank={keyword ? undefined : i + 1} />)}
             </ListLayout>
-            <Box ref={hotSentinel} sx={{ height: 1 }} />
+            <Box ref={hotSentinel} sx={{ height: '1px' }} />
             {hot.isFetchingNextPage && <Grid min={220} >{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} variant="rounded" height={76} />)}</Grid>}
             {!hot.hasNextPage && hotList.length > 0 && (
               <Typography sx={{ textAlign: 'center', py: 2, fontSize: 12, color: 'var(--text-muted, rgba(255,255,255,0.35))' }}>- 没有更多了 -</Typography>
@@ -174,7 +174,7 @@ export function TopicHub() {
             <ListLayout minColumnWidth={260} listMaxWidth="var(--page-max-narrow)">
               {collectionList.map((t) => <CollectionCard key={String(t.id)} topic={t} />)}
             </ListLayout>
-            <Box ref={collectionSentinel} sx={{ height: 1 }} />
+            <Box ref={collectionSentinel} sx={{ height: '1px' }} />
             {collections.isFetchingNextPage && <Grid min={240}>{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} variant="rounded" height={190} />)}</Grid>}
             {!collections.hasNextPage && collectionList.length > 0 && (
               <Typography sx={{ textAlign: 'center', py: 2, fontSize: 12, color: 'var(--text-muted, rgba(255,255,255,0.35))' }}>- 没有更多了 -</Typography>

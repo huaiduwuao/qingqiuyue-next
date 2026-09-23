@@ -670,7 +670,7 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
               )}
 
               {/* Infinite scroll sentinel */}
-              <Box ref={sentinelRef} sx={{ height: 1, minHeight: 1 }} />
+              <Box ref={sentinelRef} sx={{ height: '1px', minHeight: '1px' }} />
 
               {/* No more data */}
               {!isFetchingNextPage && feedList.length > 0 && !hasNextPage && (

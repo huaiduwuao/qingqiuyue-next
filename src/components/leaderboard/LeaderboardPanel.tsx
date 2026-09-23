@@ -33,6 +33,7 @@ import { CoverImage } from '@/components/common/CoverImage';
 import TrendingBoard from '@/components/home/TrendingBoard';
 import { TYPE_LABEL, useContentNavigate } from '@/lib/contentRoute';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT } from '@/constants/gradients';
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import {
   DeltaBadge,
   METRIC_GRADIENT,
@@ -128,6 +129,17 @@ export function LeaderboardPanel() {
   const podium = entries.slice(0, 3);
   const rest = entries.slice(3);
   const open = (e: LeaderboardEntry) => navigate(e.contentType, e.id);
+
+  // 滚动到底自动加载下一页,不再只靠「加载更多」按钮。
+  // sentinel 挂在列表末尾;useInfiniteScroll 自己会向上找可滚动祖先(home 布局的 <main>)。
+  const scroll = useInfiniteScroll({
+    enabled: !isLoading && !!hasNextPage && !isFetchingNextPage,
+  });
+  React.useEffect(() => {
+    if (scroll.isNearBottom && hasNextPage && !isFetchingNextPage && !isLoading) {
+      fetchNextPage();
+    }
+  }, [scroll.isNearBottom, hasNextPage, isFetchingNextPage, isLoading, fetchNextPage]);
 
   const titleParts = [
     typeInfo && type !== 'ALL' ? typeInfo.name : type === 'ALL' ? '全站' : '',
@@ -384,6 +396,8 @@ export function LeaderboardPanel() {
                 </Button>
               </Box>
             )}
+            {/* 滚动到底的哨兵:进入视口即由上面的 effect 触发 fetchNextPage */}
+            <Box ref={scroll.sentinelRef} sx={{ height: '1px' }} />
           </>
         )}
       </Box>

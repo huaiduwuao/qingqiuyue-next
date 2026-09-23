@@ -37,6 +37,8 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import { myPage, process, remove, save, update, settleDemand } from '@/apis/reward-demand';
 import RealmSelect from '@/components/reward/RealmSelect';
+// 封面上传复用创作者中心的现成实现(accountClient POST /file/upload → 返回 url)
+import { uploadOneFile } from '@/app/account/content/_components/useContentForm';
 import { listTasks } from '@/apis/reward-task';
 import { mapRewardTaskListFromBackend, normalizeRewardTaskStatus, REWARD_TASK_STATUS_LABEL } from '../taskboard/status';
 import { SettlementDialog } from './SettlementDialog';
@@ -85,6 +87,10 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
   const [relatedTasks, setRelatedTasks] = useState<RewardTask[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [formValues, setFormValues] = useState<any>({});
+  // 封面上传的进行中状态。封面地址本身存在 formValues.cover 里(跟着表单一起提交),
+  // 这里只记"还在传/传失败了",避免用户没等传完就点提交、把空 cover 存进库。
+  const [coverUploading, setCoverUploading] = useState(false);
+  const coverInputRef = React.useRef<HTMLInputElement>(null);
   const pageSize = 12;
   const [keyword, setKeyword] = useState('');
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
@@ -201,9 +207,35 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
     setFormValues((prev: any) => ({ ...prev, [field]: value }));
   };
 
+  // 选图 → 上传 → 把返回的 url 写进 formValues.cover。
+  // 悬赏卡、赏金广场、首页「社区悬赏」都读这个字段,不传的话那条悬赏就只有渐变占位。
+  const handleCoverPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // 清掉,同一张图再选一次也能触发 onChange
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showMessage('封面必须是图片', 'error');
+      return;
+    }
+    setCoverUploading(true);
+    const url = await uploadOneFile(file);
+    setCoverUploading(false);
+    if (url) {
+      handleFormChange('cover', url);
+      showMessage('封面上传成功');
+    } else {
+      showMessage('封面上传失败,请重试', 'error');
+    }
+  };
+
   const handleSubmit = async () => {
     if (!String(formValues.title || '').trim()) {
       showMessage('请填写标题', 'error');
+      return;
+    }
+    // 上传还没回来就提交会把空 cover 存进库,这里挡一下
+    if (coverUploading) {
+      showMessage('封面正在上传,请稍候', 'error');
       return;
     }
     // 截止日期按当天 23:59:59 计;不填表示长期有效
@@ -400,7 +432,7 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
       )}
 
       {/* 无限滚动哨兵 + 到底提示 */}
-      <Box ref={sentinelRef} sx={{ height: 1 }} />
+      <Box ref={sentinelRef} sx={{ height: '1px' }} />
       {isFetchingNextPage && (
         <Typography sx={{ textAlign: 'center', py: 2, fontSize: 12, color: 'text.secondary' }}>加载中…</Typography>
       )}
@@ -478,12 +510,67 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
               <MenuItem value="live">直播</MenuItem>
               <MenuItem value="voice">配音</MenuItem>
             </TextField>
-            <TextField
-              label="封面图URL"
-              value={formValues.cover || ''}
-              onChange={(e) => handleFormChange('cover', e.target.value)}
-              fullWidth
-            />
+            {/* 封面:以前是个裸的「封面图 URL」输入框,等于要用户自己找图床 ——
+                结果赏金广场的悬赏封面全是空的。改成选图直传,顺手给个预览。 */}
+            <Box>
+              <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 0.75 }}>
+                封面图(可选,建议 16:9;不传则卡片用分类配色兜底)
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
+                <Box
+                  sx={{
+                    width: 160,
+                    aspectRatio: '16/9',
+                    borderRadius: 1.5,
+                    flexShrink: 0,
+                    overflow: 'hidden',
+                    bgcolor: 'action.hover',
+                    backgroundImage: coverBackgroundImage(formValues.cover),
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {!formValues.cover && (
+                    <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>暂无封面</Typography>
+                  )}
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, minWidth: 0 }}>
+                  <Box sx={{ display: 'flex', gap: 1 }}>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      disabled={coverUploading}
+                      onClick={() => coverInputRef.current?.click()}
+                      sx={{ textTransform: 'none', borderRadius: 1.5 }}
+                    >
+                      {coverUploading ? '上传中…' : formValues.cover ? '换一张' : '上传封面'}
+                    </Button>
+                    {formValues.cover && !coverUploading && (
+                      <Button
+                        size="small"
+                        color="inherit"
+                        onClick={() => handleFormChange('cover', '')}
+                        sx={{ textTransform: 'none', borderRadius: 1.5, color: 'text.secondary' }}
+                      >
+                        移除
+                      </Button>
+                    )}
+                  </Box>
+                  {/* 兜底:外面已经有图(比如从别处复制的 MinIO 直链)时还能手工粘一个 */}
+                  <TextField
+                    size="small"
+                    placeholder="或粘贴图片 URL"
+                    value={formValues.cover || ''}
+                    onChange={(e) => handleFormChange('cover', e.target.value)}
+                    sx={{ maxWidth: 320 }}
+                  />
+                </Box>
+              </Box>
+              <input ref={coverInputRef} type="file" accept="image/*" hidden onChange={handleCoverPick} />
+            </Box>
             <TextField
               label="标签(逗号分隔)"
               value={formValues.tags || ''}
