@@ -12,6 +12,13 @@ const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN ?? ''
 
 export const sentryEnabled = Boolean(dsn)
 
+// 地址里可能带登录凭据(微信回调的 session_id / code、分享链接里的 token),不能原样上报
+const SECRET_PARAM_RE = /([?&#](?:session_id|sessionId|token|access_token|code|state)=)[^&#\s]*/gi
+
+function scrubUrl<T>(v: T): T {
+  return (typeof v === 'string' ? v.replace(SECRET_PARAM_RE, '$1[Filtered]') : v) as T
+}
+
 if (dsn) {
   Sentry.init({
     dsn,
@@ -30,7 +37,24 @@ if (dsn) {
       if (process.env.NODE_ENV !== 'production') {
         return null
       }
+      if (event.request) {
+        event.request.url = scrubUrl(event.request.url)
+        event.request.query_string = typeof event.request.query_string === 'string' ? scrubUrl(`?${event.request.query_string}`).slice(1) : undefined
+        if (event.request.headers) {
+          event.request.headers = Object.fromEntries(Object.entries(event.request.headers).map(([k, v]) => [k, scrubUrl(v)]))
+        }
+      }
       return event
+    },
+    beforeBreadcrumb(crumb) {
+      // navigation 的 from/to、fetch/xhr 的 url 都可能带凭据
+      if (crumb.data) {
+        for (const k of ['url', 'from', 'to']) {
+          if (k in crumb.data) crumb.data[k] = scrubUrl(crumb.data[k])
+        }
+      }
+      if (crumb.message) crumb.message = scrubUrl(crumb.message)
+      return crumb
     },
   })
 }
