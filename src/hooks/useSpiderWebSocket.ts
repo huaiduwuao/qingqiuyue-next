@@ -98,14 +98,19 @@ export function useSpiderWebSocket(): SpiderWSState {
     try {
       const ws = new WebSocket(url);
       wsRef.current = ws;
+      // 只处理「当前这条」连接的事件。StrictMode 下挂载→卸载→再挂载,旧连接的 onclose
+      // 是异步到的:不拦的话会把新连接的 wsRef 清空,还按断线再连一条,变成两条并存。
+      const stale = () => wsRef.current !== ws;
 
       ws.onopen = () => {
+        if (stale()) return;
         reconnectDelayRef.current = 2000;
         reconnectAttemptsRef.current = 0;
         setState((prev) => ({ ...prev, connected: true, error: undefined }));
       };
 
       ws.onmessage = (event) => {
+        if (stale()) return;
         try {
           const msg: WSMessage = JSON.parse(event.data);
 
@@ -140,10 +145,12 @@ export function useSpiderWebSocket(): SpiderWSState {
       };
 
       ws.onerror = (event) => {
+        if (stale()) return;
         setState((prev) => ({ ...prev, error: event }));
       };
 
       ws.onclose = () => {
+        if (stale()) return;
         wsRef.current = null;
         setState((prev) => ({ ...prev, connected: false }));
 

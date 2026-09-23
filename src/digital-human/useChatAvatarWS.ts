@@ -1184,6 +1184,29 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     return () => clearInterval(timer);
   }, [options.useAgui]);
 
+  // aguiChatOnce 定义在下面,send / sendText 经 ref 调最新的那个
+  // (直接放进 useCallback 依赖会在声明前被读到;不放又会拿到旧闭包里的 options / chatLog)
+  const aguiChatOnceRef = React.useRef<(userText: string) => Promise<void>>(async () => {});
+
+  /** AG-UI 一轮:本地意图拦截 → 确保服务端会话 → 发 AG-UI。
+   *  任何一步抛错都要把 chatBusy 放回去,否则输入框一直是禁用的。 */
+  const sendAgui = React.useCallback(async (t: string) => {
+    try {
+      // 发送前拦截(本地意图路由):返回 true 表示已处理,不再发 AG-UI
+      const preSendText = optionsRef.current.preSendText;
+      if (preSendText && (await preSendText(t))) {
+        setChatBusy(false);
+        return;
+      }
+      await ensureServerConversation(t);
+      // aguiChatOnce 自己在 onDone / onError / catch 里收尾 chatBusy
+      await aguiChatOnceRef.current(t);
+    } catch (e) {
+      setChatLog((c) => [...c, { who: 'ai', text: `❌ ${e instanceof Error ? e.message : '发送失败'}` }]);
+      setChatBusy(false);
+    }
+  }, [ensureServerConversation]);
+
   // send: 发送聊天消息
   const send = React.useCallback(async () => {
     const t = text.trim();
@@ -1207,13 +1230,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
 
     // G1: AG-UI 模式(数字员工),替代 Hermes WS
     if (useAgui) {
-      // 发送前拦截(本地意图路由):返回 true 表示已处理,不再发 AG-UI
-      if (options.preSendText) {
-        const handled = await options.preSendText(t);
-        if (handled) { setChatBusy(false); return; }
-      }
-      await ensureServerConversation(t);
-      await aguiChatOnce(t);
+      await sendAgui(t);
       return;
     }
 
@@ -1266,7 +1283,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
         setChatBusy(false);
       }
     }
-  }, [text, chatBusy, chatLog]);
+  }, [text, chatBusy, chatLog, useAgui, sendAgui]);
 
   // sendText: 直接发送指定文本(绕过 text state, 给 voice agent 用)
   const sendText = React.useCallback(
@@ -1284,13 +1301,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
 
       // G1: AG-UI 模式(数字员工)
       if (useAgui) {
-        // 发送前拦截(本地意图路由):返回 true 表示已处理,不再发 AG-UI
-        if (options.preSendText) {
-          const handled = await options.preSendText(t);
-          if (handled) { setChatBusy(false); return; }
-        }
-        await ensureServerConversation(t);
-        await aguiChatOnce(t);
+        await sendAgui(t);
         return;
       }
 
@@ -1342,7 +1353,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
         }
       }
     },
-    [chatBusy, chatLog],
+    [chatBusy, chatLog, useAgui, sendAgui],
   );
 
   // cancel: 打断
@@ -1607,6 +1618,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     },
     [aguiAgent, options, chatLog],
   );
+  aguiChatOnceRef.current = aguiChatOnce;
 
   return {
     text,
