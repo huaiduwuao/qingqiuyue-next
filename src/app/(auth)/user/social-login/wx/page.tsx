@@ -13,7 +13,7 @@ import { consumeOauthState } from '@/lib/auth/oauthState';
 import { exchangeWechatCode } from '@/apis/auth';
 import { formatApiError } from '@/lib/api/client';
 
-// 微信扫码登录回调落地页:校验 state 后用 ?code= 换会话(老后端直接给 ?session_id=),登录后跳 from。
+// 微信扫码登录回调落地页:用 ?code= 加本浏览器发起登录时的 state 换会话,登录后跳 from。
 // 后端 OAuth callback 已 302 到这里(/api/core/oauth/wechat/callback → /user/social-login/wx)。
 // Next.js 16 要求 useSearchParams() 包在 <Suspense> 里,否则静态导出时报 "should be wrapped in a suspense boundary"。
 export default function SocialLoginWxPage() {
@@ -49,17 +49,21 @@ function SocialLoginWxContent() {
       setErrMsg(err);
       return;
     }
+    // 新后端只回跳一次性 code;地址里还带 session_id 的一律当伪造链接处理(登录 CSRF)
+    if (sp?.get('session_id')) {
+      setErrMsg('登录链接无效,请重新登录');
+      return;
+    }
     const code = sp?.get('code') || '';
-    const legacySessionId = sp?.get('session_id') || '';
-    if (!code && !legacySessionId) {
+    if (!code) {
       setErrMsg('缺少登录凭据,请重新登录');
       return;
     }
     doneRef.current = true;
-    // 只认本浏览器发起的这一次登录:state 对不上就是别人塞过来的链接(登录 CSRF)。
-    // 新后端回跳 ?code=&state=;老后端只带 session_id、不回传 state,此时要求本浏览器确实发起过登录。
-    const state = sp?.get('state') ?? null;
-    if (!consumeOauthState(code ? (state ?? '') : state)) {
+    // 只认本浏览器发起的这一次登录:手里没有 state 就是别人塞过来的链接;
+    // 有的话交给后端,和 code 绑定的 client_state 对不上同样会被拒。
+    const state = consumeOauthState();
+    if (!state) {
       setErrMsg('登录请求已失效或不是从本页面发起的,请重新登录');
       return;
     }
@@ -67,8 +71,7 @@ function SocialLoginWxContent() {
     window.history.replaceState(null, '', window.location.pathname);
     // 先完成登录(拉取当前用户)再跳转;from 只接受站内路径,防开放跳转。
     const target = safeRedirectPath(sp?.get('from')) ?? consumeRedirect();
-    const session = code ? exchangeWechatCode({ code, state: state ?? '' }) : Promise.resolve(legacySessionId);
-    void session
+    void exchangeWechatCode({ code, state })
       .then((sessionId) => {
         if (!sessionId) throw new Error('登录失败,请重新登录');
         return login(sessionId);

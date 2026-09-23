@@ -45,12 +45,13 @@ export function authPlatform(): AuthPlatform {
 
 /**
  * 微信授权入口。网页下是同源相对地址,客户端下是网关绝对地址 + platform。
- * state 由 lib/auth/oauthState 生成,后端回跳时原样带回,回调页据此确认是本浏览器发起的登录。
+ * state 由 lib/auth/oauthState 生成,作为 client_state 交给后端(不带后端直接 400),
+ * 后端把它和回跳的一次性 code 绑定,换会话时核对。
  */
 export function wechatLoginUrl(from: string, state: string): string {
   const platform = authPlatform();
   const base = platform === 'web' ? '' : GATEWAY;
-  const q = `from=${encodeURIComponent(from)}&state=${encodeURIComponent(state)}${platform === 'web' ? '' : `&platform=${platform}`}`;
+  const q = `from=${encodeURIComponent(from)}&platform=${platform}&client_state=${encodeURIComponent(state)}`;
   return `${base}/api/core/oauth/login/wechat?${q}`;
 }
 
