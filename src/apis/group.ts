@@ -1,4 +1,6 @@
-import { contentClient } from '@/lib/api/client';
+// 群组 / 团队接口挂在 core-api:/api/core/group/*(internal/groupapp)。以前走 contentClient,发到
+// /api/content/group/* 全部 404,建群、入群、邀请、群聊、团队分账都用不了。
+import { adminClient } from '@/lib/api/client';
 
 // ────────────────────────────────────────────────────────────────────────
 // F1: 群组(Group)与团队(Team) — 同一份后端,group_type 区分
@@ -79,7 +81,7 @@ export async function createGroup(data: {
   autoJoinType?: 'collection' | 'creator';
   autoJoinRef?: number;
 }): Promise<ChatGroup> {
-  const res = await contentClient('/group/create', { method: 'POST', data });
+  const res = await adminClient('/group/create', { method: 'POST', data });
   return res;
 }
 
@@ -87,12 +89,12 @@ export async function listMyGroups(params: {
   type?: GroupType;
   keyword?: string;
 } = {}): Promise<{ list: ChatGroup[]; total: number }> {
-  const res = await contentClient('/group/list', { params });
+  const res = await adminClient('/group/list', { params });
   return res;
 }
 
 export async function getGroup(id: number): Promise<GroupView> {
-  const res = await contentClient(`/group/${id}`);
+  const res = await adminClient(`/group/${id}`);
   return res;
 }
 
@@ -102,34 +104,34 @@ export async function updateGroup(id: number, data: {
   avatar?: string;
   public?: boolean;
 }): Promise<{ ok: boolean }> {
-  const res = await contentClient(`/group/${id}/update`, { method: 'POST', data });
+  const res = await adminClient(`/group/${id}/update`, { method: 'POST', data });
   return res;
 }
 
 export async function dismissGroup(id: number): Promise<{ ok: boolean }> {
-  const res = await contentClient(`/group/${id}/dismiss`, { method: 'POST' });
+  const res = await adminClient(`/group/${id}/dismiss`, { method: 'POST' });
   return res;
 }
 
 // ─── 成员管理 ───
 
 export async function joinGroup(id: number): Promise<{ ok: boolean }> {
-  const res = await contentClient(`/group/${id}/join`, { method: 'POST' });
+  const res = await adminClient(`/group/${id}/join`, { method: 'POST' });
   return res;
 }
 
 export async function leaveGroup(id: number): Promise<{ ok: boolean }> {
-  const res = await contentClient(`/group/${id}/leave`, { method: 'POST' });
+  const res = await adminClient(`/group/${id}/leave`, { method: 'POST' });
   return res;
 }
 
 export async function listGroupMembers(id: number): Promise<{ list: GroupMember[]; total: number }> {
-  const res = await contentClient(`/group/${id}/members`);
+  const res = await adminClient(`/group/${id}/members`);
   return res;
 }
 
 export async function kickGroupMember(groupId: number, userId: number): Promise<{ ok: boolean }> {
-  const res = await contentClient(`/group/${groupId}/kick`, {
+  const res = await adminClient(`/group/${groupId}/kick`, {
     method: 'POST',
     data: { userId },
   });
@@ -137,7 +139,7 @@ export async function kickGroupMember(groupId: number, userId: number): Promise<
 }
 
 export async function setGroupMemberRole(groupId: number, userId: number, role: GroupRole): Promise<{ ok: boolean }> {
-  const res = await contentClient(`/group/${groupId}/role`, {
+  const res = await adminClient(`/group/${groupId}/role`, {
     method: 'POST',
     data: { userId, role },
   });
@@ -145,7 +147,7 @@ export async function setGroupMemberRole(groupId: number, userId: number, role: 
 }
 
 export async function muteGroupMember(groupId: number, userId: number, muted: boolean): Promise<{ ok: boolean }> {
-  const res = await contentClient(`/group/${groupId}/mute`, {
+  const res = await adminClient(`/group/${groupId}/mute`, {
     method: 'POST',
     data: { userId, muted },
   });
@@ -159,12 +161,12 @@ export async function createGroupInvite(groupId: number, data: {
   maxUses?: number;
   ttlSec?: number;
 }): Promise<GroupInvite> {
-  const res = await contentClient(`/group/${groupId}/invite`, { method: 'POST', data });
+  const res = await adminClient(`/group/${groupId}/invite`, { method: 'POST', data });
   return res;
 }
 
 export async function acceptGroupInvite(token: string): Promise<ChatGroup> {
-  const res = await contentClient(`/group/accept-invite`, {
+  const res = await adminClient(`/group/accept-invite`, {
     method: 'POST',
     params: { token },
   });
@@ -177,7 +179,7 @@ export async function listGroupMessages(groupId: number, params: {
   before?: number;
   limit?: number;
 } = {}): Promise<{ list: GroupMessage[]; total: number }> {
-  const res = await contentClient(`/group/${groupId}/messages`, { params });
+  const res = await adminClient(`/group/${groupId}/messages`, { params });
   return res;
 }
 
@@ -186,19 +188,19 @@ export async function sendGroupMessage(groupId: number, data: {
   content: string;
   mentions?: number[];
 }): Promise<GroupMessage> {
-  const res = await contentClient(`/group/${groupId}/send`, { method: 'POST', data });
+  const res = await adminClient(`/group/${groupId}/send`, { method: 'POST', data });
   return res;
 }
 
 export async function recallGroupMessage(messageId: number): Promise<{ ok: boolean }> {
-  const res = await contentClient(`/group/message/${messageId}/recall`, { method: 'POST' });
+  const res = await adminClient(`/group/message/${messageId}/recall`, { method: 'POST' });
   return res;
 }
 
 // ─── 自动加入(合集/创作者专属群) ───
 
 export async function autoJoinGroup(refType: 'collection' | 'creator', refId: number): Promise<{ joined: number[] }> {
-  const res = await contentClient('/group/auto-join', {
+  const res = await adminClient('/group/auto-join', {
     params: { refType, refId },
   });
   return res;
@@ -224,11 +226,11 @@ export async function settleTeam(teamId: number, data: {
   totalCents: number;
   note?: string;
 }): Promise<TeamSettlement> {
-  const res = await contentClient(`/group/team/${teamId}/settle`, { method: 'POST', data });
+  const res = await adminClient(`/group/team/${teamId}/settle`, { method: 'POST', data });
   return res;
 }
 
 export async function listTeamSettlements(teamId: number): Promise<{ list: TeamSettlement[]; total: number }> {
-  const res = await contentClient(`/group/team/${teamId}/settlements`);
+  const res = await adminClient(`/group/team/${teamId}/settlements`);
   return res;
 }
