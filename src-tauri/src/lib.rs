@@ -75,20 +75,39 @@ fn get_api_base() -> String {
 /// 允许交给系统打开的地址:https 网页,以及分享面板唤起 App 用的裸 scheme。
 /// 页面里一旦有 XSS,脚本就能调 open_external;不设限的话 file:///、UNC 路径、
 /// 任意自定义协议都能被拿去启动本机程序。
+///
+/// http 只放行两种:与打包时的 API 网关同源(测试 / 预发环境网关常是 http,微信登录入口就在网关上),
+/// 以及 debug 构建(tauri dev 时 cargo 拿不到 Next 的 .env,网关地址未知)。
 const APP_LAUNCH_SCHEMES: &[&str] = &["xhsdiscover://", "snssdk1128://", "kwaiyewen://"];
 
+/// 打包时的网关地址:`NEXT_PUBLIC_API_BASE_URL=... pnpm app:windows` 同一个环境变量也传给了 cargo,
+/// 与前端烘进去的是同一个值(build.rs 里 rerun-if-env-changed,换了地址会重编)。
+const BUILD_API_BASE: Option<&str> = option_env!("NEXT_PUBLIC_API_BASE_URL");
+
 fn is_allowed_external(url: &str) -> bool {
+    is_allowed_external_with(url, BUILD_API_BASE, cfg!(debug_assertions))
+}
+
+fn is_allowed_external_with(url: &str, api_base: Option<&str>, allow_any_http: bool) -> bool {
     if APP_LAUNCH_SCHEMES.contains(&url) {
         return true;
     }
-    match tauri::Url::parse(url) {
-        Ok(u) => {
-            u.scheme() == "https"
-                && u.host_str().map_or(false, |h| !h.is_empty())
-                && u.username().is_empty()
-                && u.password().is_none()
+    let u = match tauri::Url::parse(url) {
+        Ok(u) => u,
+        Err(_) => return false,
+    };
+    if u.host_str().map_or(true, |h| h.is_empty()) || !u.username().is_empty() || u.password().is_some() {
+        return false;
+    }
+    match u.scheme() {
+        "https" => true,
+        "http" => {
+            allow_any_http
+                || api_base
+                    .and_then(|b| tauri::Url::parse(b.trim()).ok())
+                    .map_or(false, |b| b.scheme() == "http" && b.origin() == u.origin())
         }
-        Err(_) => false,
+        _ => false,
     }
 }
 
@@ -100,8 +119,8 @@ fn open_external(app: tauri::AppHandle, url: String) -> Result<(), String> {
         return Ok(());
     }
     if !is_allowed_external(&url) {
-        log::warn!("[open_external] rejected non-https url");
-        return Err("only https urls can be opened".into());
+        log::warn!("[open_external] rejected url (not https / api base)");
+        return Err("only https (or the api base) urls can be opened".into());
     }
     use tauri_plugin_shell::ShellExt;
     app.shell().open(url, None).map_err(|e| e.to_string())
@@ -208,23 +227,47 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::is_allowed_external;
+    use super::is_allowed_external_with;
 
     #[test]
     fn open_external_allow_list() {
-        assert!(is_allowed_external("https://qingqiuyue.com/api/core/oauth/login/wechat?from=%2F"));
-        assert!(is_allowed_external("xhsdiscover://"));
+        let base = Some("http://10.9.1.2:10005");
+        assert!(is_allowed_external_with(
+            "https://qingqiuyue.com/api/core/oauth/login/wechat?from=%2F",
+            None,
+            false
+        ));
+        assert!(is_allowed_external_with("xhsdiscover://", None, false));
+        // 测试环境网关是 http:与打包时的网关同源才放行
+        assert!(is_allowed_external_with(
+            "http://10.9.1.2:10005/api/core/oauth/login/wechat?from=%2F",
+            base,
+            false
+        ));
+        // debug 构建放行任意 http
+        assert!(is_allowed_external_with("http://localhost:9080/x", None, true));
         for bad in [
             "http://example.com",
+            "http://10.9.1.2:10006/",
+            "http://10.9.1.2/",
             "file:///C:/Windows/System32/calc.exe",
             "\\\\evil\\share\\x.exe",
             "javascript:alert(1)",
             "smb://evil/share",
             "xhsdiscover://anything/else",
             "https://user:pw@example.com",
+            "http://user:pw@10.9.1.2:10005/",
             "not a url",
         ] {
-            assert!(!is_allowed_external(bad), "{bad}");
+            assert!(!is_allowed_external_with(bad, base, false), "{bad}");
         }
+        // 网关是 https 时不放行任何 http
+        assert!(!is_allowed_external_with(
+            "http://qingqiuyue.com/",
+            Some("https://qingqiuyue.com"),
+            false
+        ));
+        // debug 构建也不放行非 http(s)
+        assert!(!is_allowed_external_with("file:///etc/passwd", None, true));
     }
 }
