@@ -31,6 +31,8 @@ import { normalizeChoices, normalizeContentRefs, rememberContentRefs, type Conte
 import { musicPlayer } from '@/lib/player/musicPlayer';
 import { playPlaylist, playTracks, queueTracks } from '@/lib/player/playlist';
 import { API_PREFIX } from '@/lib/api/prefix';
+import { realtimeAuthHeaders } from './realtimeAuth';
+import { withTicket } from '@/lib/realtime/ticket';
 
 /** 业务工具执行时给用户的可见反馈(否则一次搜索十几秒界面是死的) */
 const TOOL_RUNNING_HINT: Record<string, string> = {
@@ -250,7 +252,8 @@ let onTTSIdle: (() => void) | null = null;
 function requestTTS(text: string, signal?: AbortSignal): Promise<Response | null> {
   return fetch(API_PREFIX + '/api/audio/speech', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    // /api/audio/* 同在 realtime-api,整站登录闸门一样要会话
+    headers: { 'Content-Type': 'application/json', ...realtimeAuthHeaders() },
     body: JSON.stringify({
       model: 'tts',
       input: text,
@@ -636,19 +639,46 @@ function createWSConnection(
     reconnectAttempts: 0,
     cancelled: false,
   };
-  connect(conn);
+  void connect(conn);
   return conn;
 }
 
-function connect(conn: WSConnection) {
+/** 断线 / 建连失败后按指数退避重连,次数用完降级到 HTTP */
+function scheduleReconnect(conn: WSConnection) {
+  if (conn.cancelled) return;
+  if (conn.reconnectAttempts < 10) {
+    const delay = Math.min(
+      RECONNECT_MAX_MS,
+      RECONNECT_BASE_MS * Math.pow(2, conn.reconnectAttempts),
+    );
+    conn.reconnectAttempts++;
+    conn.reconnectTimer = setTimeout(() => void connect(conn), delay);
+  } else {
+    conn.onClose('WebSocket 连接失败, 已降级到 HTTP');
+  }
+}
+
+async function connect(conn: WSConnection) {
   if (conn.cancelled) return;
   if (conn.ws && conn.ws.readyState === WebSocket.OPEN) return;
 
+  // realtime-api 的 WS 握手凭一次性票(浏览器 WebSocket 发不出 Authorization 头)。
+  // 票用过即失效,所以每次建连(含重连)都重新换一张。
+  let ticketed: string;
   try {
-    const wsUrl = conn.url.startsWith('ws')
+    const base = conn.url.startsWith('ws')
       ? conn.url
       : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}${conn.url}`;
-    const ws = new WebSocket(wsUrl);
+    ticketed = await withTicket(base);
+  } catch {
+    // 没登录 / 换票失败:算一次建连失败,照常退避重试,次数用完降级 HTTP
+    scheduleReconnect(conn);
+    return;
+  }
+  if (conn.cancelled) return;
+
+  try {
+    const ws = new WebSocket(ticketed);
     conn.ws = ws;
 
     ws.onopen = () => {
@@ -683,17 +713,7 @@ function connect(conn: WSConnection) {
     ws.onclose = () => {
       conn.connected = false;
       if (conn.cancelled) return; // 用户主动断开,不重连、不报错
-      const shouldReconnect = conn.reconnectAttempts < 10;
-      if (shouldReconnect) {
-        const delay = Math.min(
-          RECONNECT_MAX_MS,
-          RECONNECT_BASE_MS * Math.pow(2, conn.reconnectAttempts),
-        );
-        conn.reconnectAttempts++;
-        conn.reconnectTimer = setTimeout(() => connect(conn), delay);
-      } else {
-        conn.onClose('WebSocket 连接失败, 已降级到 HTTP');
-      }
+      scheduleReconnect(conn);
     };
 
     ws.onerror = () => {
@@ -1252,7 +1272,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
       try {
         const r = await fetch(API_PREFIX + '/api/realtime/chat', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...realtimeAuthHeaders() },
           body: JSON.stringify({
             text: t,
             agentId: agentRef.current,
@@ -1322,7 +1342,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
         try {
           const r = await fetch(API_PREFIX + '/api/realtime/chat', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...realtimeAuthHeaders() },
             body: JSON.stringify({
               text: t,
               agentId: agentRef.current,

@@ -31,6 +31,7 @@
 import React from 'react';
 import type { ChatChoices, ContentRef } from './scene-ui/content';
 import { API_PREFIX } from '@/lib/api/prefix';
+import { realtimeAuthHeaders } from './realtimeAuth';
 
 /** 一次工具调用在对话里的记录(操作日志:做了什么、结果是什么) */
 export interface ChatToolEntry {
@@ -149,7 +150,7 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
       try {
         const r = await fetch(API_PREFIX + '/api/realtime/chat', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...realtimeAuthHeaders() },
           body: JSON.stringify({
             text: t,
             agentId,
@@ -293,7 +294,7 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
     try {
       const r = await fetch(API_PREFIX + '/api/realtime/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...realtimeAuthHeaders() },
         body: JSON.stringify({
           text: t,
           agentId,
@@ -465,7 +466,7 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
         const fd = new FormData();
         fd.append('file', new File([blob], 'recording.webm', { type: mime }));
         try {
-          const r = await fetch(API_PREFIX + '/api/realtime/asr', { method: 'POST', body: fd });
+          const r = await fetch(API_PREFIX + '/api/realtime/asr', { method: 'POST', body: fd, headers: realtimeAuthHeaders() });
           if (r.ok) {
             const j = await r.json();
             if (j.text) {
