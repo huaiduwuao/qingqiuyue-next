@@ -24,6 +24,20 @@ describe('safeRedirectPath', () => {
     }
   });
 
+  it('查询串里的反斜杠 / 换行不影响回跳(只查路径部分)', () => {
+    expect(safeRedirectPath('/search?q=a%5Cb')).toBe('/search?q=a\\b');
+    expect(safeRedirectPath('/search?q=a%0Ab')).toBe('/search?q=a\nb');
+    expect(safeRedirectPath('/community/post?text=x#a\\b')).toBe('/community/post?text=x#a\\b');
+    // loginHref → ?redirect= → safeRedirectPath 往返
+    const href = loginHref('/search?q=a%5Cb');
+    const back = new URL(href, 'http://x').searchParams.get('redirect');
+    expect(safeRedirectPath(back)).toBe('/search?q=a\\b');
+    // 路径部分照样拒
+    for (const bad of ['/%5C/evil.com?q=1', '/%09/evil.com?q=a%5Cb', '?//evil.com', '#//evil.com']) {
+      expect(safeRedirectPath(bad)).toBeNull();
+    }
+  });
+
   it('builds a login href that round-trips', () => {
     const href = loginHref('/share/module-detail?id=9');
     const back = new URL(href, 'http://x').searchParams.get('redirect');

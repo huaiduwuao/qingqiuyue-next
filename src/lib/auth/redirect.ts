@@ -19,8 +19,18 @@ export function safeRedirectPath(raw: string | null | undefined): string | null 
   } catch {
     return null;
   }
-  // 控制字符 / 反斜杠 / 解析后跑出本站的都拒("/\t/evil.com" 会被浏览器当成 //evil.com)
-  if (safeSitePath(path) === null) return null;
+  // 控制字符 / 反斜杠只查 ? / # 之前的路径部分("/\t/evil.com" 会被浏览器当成 //evil.com);
+  // 查询串里的 \ 和换行(搜索词、富文本参数)跑不出本站,整段拒掉会把正常回跳丢成默认页。
+  const cut = path.search(/[?#]/);
+  const pathname = cut === -1 ? path : path.slice(0, cut);
+  if (safeSitePath(pathname) === null) return null;
+  // 解析后是否还在本站,按整段地址判断
+  try {
+    const base = 'http://same-origin.invalid';
+    if (new URL(path, base).origin !== base) return null;
+  } catch {
+    return null;
+  }
   if (path.startsWith(LOGIN_PATH)) return null;
   return path;
 }
