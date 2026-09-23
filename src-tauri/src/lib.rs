@@ -128,7 +128,24 @@ pub fn run() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     log::info!("qingqiuyue-desktop starting (CSR mode)...");
 
-    tauri::Builder::default()
+    #[allow(unused_mut)]
+    let mut builder = tauri::Builder::default();
+    // 单实例必须第一个注册。开了 deep-link feature 后,新进程带着 qingqiuyue:// 链接启动时,
+    // 插件把链接转给已在运行的实例(那边的 on_open_url 会收到),新进程直接退出。
+    // 这里只负责把已有窗口拉到前台,让用户看到登录结果。
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            use tauri::Manager;
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.unminimize();
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
+        }));
+    }
+
+    builder
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_deep_link::init())
         .invoke_handler(tauri::generate_handler![
