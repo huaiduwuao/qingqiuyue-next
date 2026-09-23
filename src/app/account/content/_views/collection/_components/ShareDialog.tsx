@@ -158,8 +158,9 @@ export default function ShareDialog({ open, target, onClose, onChanged, onSnack 
 
   const handleSavePrice = () => {
     const n = Number(priceInput);
-    if (!Number.isFinite(n) || n < 0) {
-      onSnack('价格需为非负整数(钻)');
+    // 后端 socialmonetize.MaxContentPrice:合集买断价同样 ≤ 10000 钻
+    if (!Number.isFinite(n) || n < 0 || n > 10000) {
+      onSnack('价格需为 0 ~ 10000 的整数(钻)');
       return;
     }
     priceM.mutate(Math.floor(n));

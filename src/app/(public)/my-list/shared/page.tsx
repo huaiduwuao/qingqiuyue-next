@@ -66,7 +66,7 @@ function SharedListContent() {
   const detail = detailQ.data;
   const list: MyListItem | undefined = detail?.list;
   const unlocked = !!detail?.unlocked;
-  const price = detail?.price ?? 0;
+  const price = detail?.price ?? 0; // 钻石(整数)
   const isPaidLocked = !unlocked && price > 0;
 
   // 已解锁或免费时,加载条目列表。口令要一起带上:合集是私密的,
@@ -158,7 +158,7 @@ function SharedListContent() {
               {price > 0 && (
                 <Chip
                   icon={<DiamondRoundedIcon sx={{ fontSize: 14 }} />}
-                  label={`💎 ${(price / 100).toFixed(2)} 买断`}
+                  label={`💎 ${price} 买断`}
                   size="small"
                   color="primary"
                 />
@@ -211,7 +211,7 @@ function SharedListContent() {
             >
               <DiamondRoundedIcon sx={{ fontSize: 16, color: 'primary.main' }} />
               <Typography sx={{ fontSize: 24, fontWeight: 700, color: 'primary.main' }}>
-                {(price / 100).toFixed(2)}
+                {price}
               </Typography>
               <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>钻石</Typography>
             </Box>
