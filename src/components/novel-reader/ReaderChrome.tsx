@@ -68,6 +68,8 @@ interface ReaderChromeProps {
   onShelf: () => void;
   liked: boolean;
   onLike: () => void;
+  /** false 时隐藏阅读 chrome 上的"评论"入口(进入正文阅读态调用方传 false) */
+  showComments?: boolean;
 }
 
 export function ReaderChrome(props: ReaderChromeProps) {
@@ -102,7 +104,9 @@ export function ReaderChrome(props: ReaderChromeProps) {
             onClick={props.onShelf}
           />
           <RailButton theme={theme} icon={props.liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />} label={props.liked ? '已赞' : '点赞'} active={props.liked} onClick={props.onLike} />
-          <RailButton theme={theme} icon={<ChatBubbleOutlineIcon />} label="评论" onClick={props.onComments} />
+          {props.showComments !== false && (
+            <RailButton theme={theme} icon={<ChatBubbleOutlineIcon />} label="评论" onClick={props.onComments} />
+          )}
           <RailButton
             theme={theme}
             icon={theme.dark ? <LightModeOutlinedIcon /> : <DarkModeOutlinedIcon />}
@@ -344,15 +348,22 @@ function SettingsPanel({ theme, prefs, onPrefs, onPanel, isMobile }: ReaderChrom
           </Row>
         )}
         <Row theme={theme} label="翻页模式">
-          <Pill theme={theme} grow active={prefs.mode === 'page'} onClick={() => onPrefs({ mode: 'page' })}>
-            章节翻页
-          </Pill>
           <Pill theme={theme} grow active={prefs.mode === 'scroll'} onClick={() => onPrefs({ mode: 'scroll' })}>
-            滚动翻页
+            滚动
+          </Pill>
+          <Pill theme={theme} grow active={prefs.mode === 'overlay'} onClick={() => onPrefs({ mode: 'overlay' })}>
+            左右覆盖
+          </Pill>
+          <Pill theme={theme} grow active={prefs.mode === 'swipe'} onClick={() => onPrefs({ mode: 'swipe' })}>
+            仿真
           </Pill>
         </Row>
         <Box sx={{ fontSize: 12, color: theme.sub, pt: 0.5, pb: 1 }}>
-          {prefs.mode === 'scroll' ? '读到章末自动接上下一章' : '每次只显示一章,在章末切换'}
+          {prefs.mode === 'scroll'
+            ? '读到章末自动接上下一章'
+            : prefs.mode === 'overlay'
+              ? '按屏分页,左右滑/点击切页;章末翻页自动进下一章'
+              : '按屏分页,真 3D 卷页;章末翻页自动进下一章'}
         </Box>
       </Box>
     </>
@@ -415,7 +426,7 @@ function MobileBars(props: ReaderChromeProps & { paperBg: object }) {
           {iconBtn(theme.dark ? <LightModeOutlinedIcon /> : <DarkModeOutlinedIcon />, theme.dark ? '日间' : '夜间', props.onToggleNight)}
           {iconBtn(<TuneIcon />, '设置', () => onPanel('settings'))}
           {iconBtn(props.liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />, '点赞', props.onLike, props.liked)}
-          {iconBtn(<ChatBubbleOutlineIcon />, '评论', props.onComments)}
+          {props.showComments !== false && iconBtn(<ChatBubbleOutlineIcon />, '评论', props.onComments)}
         </Box>
       </Box>
     </>

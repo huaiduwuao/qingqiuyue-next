@@ -53,8 +53,10 @@ export interface ReaderPrefs {
   font: string;
   fontSize: number;
   width: number;
-  /** scroll = 滚动到章末自动接上下一章;page = 一章一页,点按钮翻章 */
-  mode: 'scroll' | 'page';
+  /** scroll = 整章连续滚,到章末自动接下一章;
+   *  overlay = 章内分页 + CSS transform 覆盖翻页;
+   *  swipe = 章内分页 + react-pageflip 真 3D 卷页 */
+  mode: 'scroll' | 'overlay' | 'swipe';
 }
 
 export const DEFAULT_PREFS: ReaderPrefs = {
@@ -63,7 +65,7 @@ export const DEFAULT_PREFS: ReaderPrefs = {
   font: 'hei',
   fontSize: 18,
   width: 0,
-  mode: 'scroll',
+  mode: 'overlay',
 };
 
 const PREFS_KEY = 'qq-novel-reader-prefs';
@@ -127,18 +129,33 @@ export function useReaderPrefs() {
 
 const PROGRESS_KEY = 'qq-novel-progress:';
 
-/** 每本书最后读到的章节,没带 chapter 参数进来时从这里续读。 */
-export function loadProgress(bookId: string): string | null {
+/** 每本书最后读到的位置。老格式(纯 chapterId 字符串)兼容。 */
+export interface ProgressPayload {
+  chapterId: string;
+  page: number;
+}
+
+export function loadProgress(bookId: string): ProgressPayload | null {
   try {
-    return localStorage.getItem(PROGRESS_KEY + bookId);
+    const raw = localStorage.getItem(PROGRESS_KEY + bookId);
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.chapterId === 'string') {
+        return { chapterId: parsed.chapterId, page: Number(parsed.page) || 0 };
+      }
+      return { chapterId: raw, page: 0 };
+    } catch {
+      return { chapterId: raw, page: 0 };
+    }
   } catch {
     return null;
   }
 }
 
-export function saveProgress(bookId: string, chapterId: string) {
+export function saveProgress(bookId: string, payload: ProgressPayload) {
   try {
-    localStorage.setItem(PROGRESS_KEY + bookId, chapterId);
+    localStorage.setItem(PROGRESS_KEY + bookId, JSON.stringify(payload));
   } catch {
     /* ignore */
   }

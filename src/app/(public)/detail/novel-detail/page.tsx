@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -39,6 +39,8 @@ import { AvailabilityBadge } from '@/components/common/AvailabilityBadge';
 import type { PlaybackStatus } from '@/apis/recommend';
 import { ChapterBlock, type ChapterBody } from '@/components/novel-reader/ChapterBlock';
 import { ReaderChrome, type ReaderPanel } from '@/components/novel-reader/ReaderChrome';
+import { PaginatedReader } from '@/components/novel-reader/PaginatedReader';
+import { usePaginatedReader } from '@/hooks/usePaginatedReader';
 import {
   READER_ACCENT,
   fontOf,
@@ -220,6 +222,7 @@ function NovelDetailContent() {
   const id = searchParams.get('id');
   const novelId = searchParams.get('novelId');
   const chapterParam = searchParams.get('chapter');
+  const pageParam = searchParams.get('page');
   const contentId = novelId || id;
   const { status: authStatus } = useAuth();
 
@@ -232,6 +235,8 @@ function NovelDetailContent() {
   // 已渲染的章节区间:滚动模式读到章末往后接,翻页模式始终只有一章
   const [range, setRange] = useState<{ start: number; end: number } | null>(null);
   const [current, setCurrent] = useState(0);
+  // 章内页(overlay/swipe 模式生效;scroll 模式始终 0)
+  const [page, setPage] = useState(0);
   const [panel, setPanel] = useState<ReaderPanel>(null);
   const [mobileChrome, setMobileChrome] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
@@ -266,7 +271,7 @@ function NovelDetailContent() {
     if (!id) return;
     try {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- 同步外部(localStorage)到 React
-      setLastReadChapter(loadProgress(id));
+      setLastReadChapter(loadProgress(id)?.chapterId ?? null);
     } catch {
       /* 隐私模式读不到也不影响 */
     }
@@ -306,10 +311,11 @@ function NovelDetailContent() {
   }, [id, queryClient, chapterParam, lastReadChapter]);
 
   const setUrlChapter = useCallback(
-    (chapterId: string) => {
+    (chapterId: string, pageNum: number) => {
       if (!id) return;
       // 只改地址栏,不走路由:滚动时频繁换章不该触发重新渲染整页
-      window.history.replaceState(window.history.state, '', `${pathname}?id=${encodeURIComponent(id)}&chapter=${encodeURIComponent(chapterId)}`);
+      const pageQs = pageNum > 0 ? `&page=${pageNum}` : '';
+      window.history.replaceState(window.history.state, '', `${pathname}?id=${encodeURIComponent(id)}&chapter=${encodeURIComponent(chapterId)}${pageQs}`);
     },
     [id, pathname],
   );
@@ -321,13 +327,14 @@ function NovelDetailContent() {
   useEffect(() => {
     if (range || tocLoading || chapters.length === 0 || !id) return;
     if (exitReading) return; // 用户刚退出到详情,不要立刻又按上次进度弹回阅读态
-    const wanted = chapterParam || loadProgress(id);
+    const wanted = chapterParam || loadProgress(id)?.chapterId;
     const found = wanted ? chapters.findIndex((c) => c.id === wanted) : -1;
     if (found < 0) return;
     setRange({ start: found, end: found });
     setCurrent(found);
+    setPage(Math.max(0, Number(pageParam) || 0));
     if (!chapterParam && found > 0) setOkMsg(`已为你定位到上次读到的「${chapters[found].title || `第 ${found + 1} 章`}」`);
-  }, [range, tocLoading, chapters, chapterParam, id, exitReading]);
+  }, [range, tocLoading, chapters, chapterParam, pageParam, id, exitReading]);
 
   // 目录抽屉打开时异步补全全本目录。已补到 total 时 loadFullToc 内部短路,
   // 反复打开不会重复请求。补完后 useEffect(range) 依赖 chapters 也会重新跑,
@@ -345,8 +352,8 @@ function NovelDetailContent() {
       setCurrent(i);
       setPanel(null);
       setShowInfo(false);
-      setUrlChapter(target.id);
-      if (id) saveProgress(id, target.id);
+      setUrlChapter(target.id, 0);
+      if (id) saveProgress(id, { chapterId: target.id, page: 0 });
       window.scrollTo({ top: 0 });
     },
     [chapters, id, setUrlChapter],
@@ -362,13 +369,6 @@ function NovelDetailContent() {
     if (id) window.history.replaceState(window.history.state, '', `${pathname}?id=${encodeURIComponent(id)}`);
     window.scrollTo({ top: 0 });
   }, [id, pathname]);
-
-  // 切到翻页模式时收起已接上的章节,只留当前这一章
-  useEffect(() => {
-    if (prefs.mode !== 'page') return;
-    setRange((r) => (r && r.end > r.start ? { start: current, end: current } : r));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 只在模式变化时收起
-  }, [prefs.mode]);
 
   const appendAfter = useCallback(
     (i: number) => setRange((r) => (r && r.end === i && i + 1 < chapters.length ? { ...r, end: i + 1 } : r)),
@@ -411,9 +411,9 @@ function NovelDetailContent() {
   const currentChapter = chapters[current];
   useEffect(() => {
     if (!range || !currentChapter || !id) return;
-    setUrlChapter(currentChapter.id);
-    saveProgress(id, currentChapter.id);
-  }, [range, currentChapter, id, setUrlChapter]);
+    setUrlChapter(currentChapter.id, page);
+    saveProgress(id, { chapterId: currentChapter.id, page });
+  }, [range, currentChapter, id, page, setUrlChapter]);
 
   // 页面底色跟主题走,避免回弹/超出内容时露出站点底色
   useEffect(() => {
@@ -459,6 +459,34 @@ function NovelDetailContent() {
   };
 
   const scrollToId = (elId: string) => requestAnimationFrame(() => document.getElementById(elId)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+
+  // 页级阅读区 ref:hook 在这里锁死 --page-width / --page-height。
+  // 详情态(ref 不挂)和 overlay/swipe 模式下挂上。
+  const paginatedRef = useRef<HTMLDivElement | null>(null);
+  const paginated = usePaginatedReader({
+    chapter: range ? chapters[current] ?? null : null,
+    chapterIdx: range && prefs.mode !== 'scroll' ? current : null,
+    pageIdx: page,
+    chapters,
+    fetchBody,
+    fontSize: prefs.fontSize,
+    fontFamily,
+    containerRef: paginatedRef,
+    bookTitle: detail?.title,
+    author: detail?.author,
+    onPageChange: (p) => setPage(p),
+    onChapterChange: (chapterIdx, p) => {
+      const target = chapters[chapterIdx];
+      if (!target) return;
+      setExitReading(false);
+      setRange({ start: chapterIdx, end: chapterIdx });
+      setCurrent(chapterIdx);
+      setPage(p);
+      setUrlChapter(target.id, p);
+      if (id) saveProgress(id, { chapterId: target.id, page: p });
+      window.scrollTo({ top: 0 });
+    },
+  });
 
   if (!id) {
     return (
@@ -602,6 +630,7 @@ function NovelDetailContent() {
           onShelf={addToShelf}
           liked={liked}
           onLike={toggleLike}
+          showComments={showDetail}
         />
 
         <Box
@@ -665,7 +694,9 @@ function NovelDetailContent() {
             </>
           ) : (
             <>
-              {showCover && (
+              {/* 扉页:scroll 模式渲染(连排会滚过扉页);overlay/swipe 是全屏固定高度
+                  的分页容器,上面压着 BookCover 会把它顶到视口外,这里不渲染。 */}
+              {showCover && prefs.mode === 'scroll' && (
                 <BookCover
                   detail={detail}
                   theme={rt}
@@ -674,34 +705,72 @@ function NovelDetailContent() {
                   onStart={showInfo && range && range.start > 0 ? () => goTo(0) : undefined}
                 />
               )}
-              {rendered.map((c, k) => {
-                const i = range!.start + k;
-                const isLast = i === range!.end;
-                return (
-                  <ChapterBlock
-                    key={c.id}
-                    chapter={c}
-                    index={i}
+              {prefs.mode === 'scroll' ? (
+                // scroll:整章连排,到章末自动接下一章(原路径)
+                rendered.map((c, k) => {
+                  const i = range!.start + k;
+                  const isLast = i === range!.end;
+                  return (
+                    <ChapterBlock
+                      key={c.id}
+                      chapter={c}
+                      index={i}
+                      bookTitle={bookTitle}
+                      author={detail?.author}
+                      theme={rt}
+                      fontFamily={fontFamily}
+                      fontSize={prefs.fontSize}
+                      fetchBody={fetchBody}
+                      divider={k > 0 || showCover}
+                      onTitleClick={backToDetail}
+                      onReachEnd={isLast && i + 1 < chapters.length ? () => appendAfter(i) : undefined}
+                      footer={isLast && i + 1 >= chapters.length ? chapterNav(i) : null}
+                    />
+                  );
+                })
+              ) : (
+                // overlay/swipe:页级分页 + 翻页 wrapper
+                <Box
+                  ref={paginatedRef}
+                  sx={{
+                    height: isMobile
+                      ? 'calc(100dvh - var(--sat, 0px) - var(--sab, 0px))'
+                      : 'calc(100dvh - 56px)',
+                    width: '100%',
+                    overflow: 'hidden',
+                    position: 'relative',
+                  }}
+                >
+                  <PaginatedReader
+                    chapters={chapters}
+                    current={paginated.current}
+                    prev={paginated.prev}
+                    next={paginated.next}
+                    allPages={paginated.allPages}
+                    pageWidth={paginated.pageWidth}
+                    pageHeight={paginated.pageHeight}
                     bookTitle={bookTitle}
                     author={detail?.author}
                     theme={rt}
                     fontFamily={fontFamily}
                     fontSize={prefs.fontSize}
-                    fetchBody={fetchBody}
-                    divider={k > 0 || showCover}
-                    onTitleClick={backToDetail}
-                    onReachEnd={prefs.mode === 'scroll' && isLast && i + 1 < chapters.length ? () => appendAfter(i) : undefined}
-                    footer={isLast && (prefs.mode === 'page' || i + 1 >= chapters.length) ? chapterNav(i) : null}
+                    onGoNext={paginated.goNext}
+                    onGoPrev={paginated.goPrev}
+                    mode={prefs.mode === 'swipe' ? 'flip' : 'slide'}
                   />
-                );
-              })}
+                </Box>
+              )}
             </>
           )}
 
-          <Box id="reader-comments" sx={{ px: { xs: '20px', sm: '64px' }, pt: 4, pb: { xs: 16, md: 8 }, borderTop: `1px solid ${rt.line}` }}>
-            {contentId && <DetailFooter contentId={contentId} detail={detail} kind="read" />}
-            {contentId && <DetailComments contentId={contentId} initialCount={detail?.commentCount || 0} />}
-          </Box>
+          {/* 推荐/打赏/评论:仅详情态展示(进入阅读态后,这套是阅读器 chrome 的扩展,
+              不是正文的一部分,留着只会把用户拉到页面底部毁掉沉浸感)。 */}
+          {showDetail && contentId && (
+            <Box id="reader-comments" sx={{ px: { xs: '20px', sm: '64px' }, pt: 4, pb: { xs: 16, md: 8 }, borderTop: `1px solid ${rt.line}` }}>
+              <DetailFooter contentId={contentId} detail={detail} kind="read" />
+              <DetailComments contentId={contentId} initialCount={detail?.commentCount || 0} />
+            </Box>
+          )}
         </Box>
       </Box>
     </ReaderMuiScope>
