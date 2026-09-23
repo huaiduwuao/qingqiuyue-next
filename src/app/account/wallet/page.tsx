@@ -37,7 +37,9 @@ import { ACCENT } from '@/constants/accents';
 import { gradient3 } from '@/constants/gradients';
 import { LoginGate } from '@/components/auth/LoginGate';
 import { adminClient, formatApiError } from '@/lib/api/client';
-import { type WalletBalance } from '@/apis/wallet';
+import { applyWithdraw, type WalletBalance } from '@/apis/wallet';
+
+const WITHDRAW_METHOD_LABEL = { wechat: '微信', alipay: '支付宝', bank: '银行卡' } as const;
 
 // 钱包流水类型:后端 walletapp.WalletTx 的形状,前端 normalize 后 { id/type/amount/balanceAfter/refId/remark/createTime }
 interface DiamondRecord {
@@ -147,13 +149,13 @@ export default function WalletPage() {
     }
     setWithdrawing(true);
     try {
-      await adminClient('/wallet/withdraw', {
-        method: 'POST',
-        data: {
-          amount: amountNum,
-          method: withdrawMethod,
-          account: withdrawAccount.trim(),
-        },
+      // 后端只绑 { amount, bankInfo }(walletapp.withdraw):以前发 { method, account },
+      // 提现单建出来了、余额也冻结了,收款信息却是空的,打款时根本不知道打给谁。
+      // ⚠️ amount 仍是用户填的「钻」数、按 balanceDiamonds 校验;后端目前按「分」记账(最低 100 分),
+      //    等后端把钱包余额改成以钻计后两边才对得上,这里暂不换算。
+      await applyWithdraw({
+        amount: amountNum,
+        bankInfo: `${WITHDRAW_METHOD_LABEL[withdrawMethod]}: ${withdrawAccount.trim()}`,
       });
       setSnack('提交成功,等待审核');
     } catch (err) {
