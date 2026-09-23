@@ -40,9 +40,12 @@ const OTHER_TYPE = { icon: <ReceiptLongRoundedIcon sx={{ fontSize: 18 }} />, col
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
   paid: { label: '已支付', color: '#5DDB96', bg: 'rgba(93, 219, 150, 0.12)' },
   pending: { label: '待支付', color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)' },
-  refunding: { label: '退款中', color: '#5B8DEF', bg: 'rgba(91, 141, 239, 0.12)' },
+  // refunding:已申请,等客服审批;通过后原路退款,驳回回到「已支付」
+  refunding: { label: '退款审核中', color: '#5B8DEF', bg: 'rgba(91, 141, 239, 0.12)' },
   refunded: { label: '已退款', color: 'text.secondary', bg: 'action.hover' },
   cancelled: { label: '已取消', color: 'text.secondary', bg: 'action.hover' },
+  // abnormal:支付回调对不上(金额/状态异常),等人工核对
+  abnormal: { label: '异常待核对', color: '#FF6B8A', bg: 'rgba(255, 107, 138, 0.12)' },
 };
 const statusMeta = (s: string) => STATUS_META[s] ?? { label: s, color: 'text.secondary', bg: 'action.hover' };
 
@@ -106,7 +109,7 @@ export default function OrdersPage() {
     setProcessing(true);
     try {
       await refundOrder(refundTarget.orderNo, refundReason.trim());
-      setSnack('退款申请已提交');
+      setSnack('退款申请已提交,等待审核');
       setRefundTarget(null);
       qc.invalidateQueries({ queryKey: ['payment-orders'] });
     } catch (err) {
@@ -262,8 +265,11 @@ export default function OrdersPage() {
                     label="退款原因"
                     placeholder="请简要说明退款原因"
                     value={refundReason}
-                    onChange={(e) => setRefundReason(e.target.value)}
+                    onChange={(e) => setRefundReason(e.target.value.slice(0, 500))}
                   />
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 1 }}>
+                    提交后由客服审核;充值的钻石已经花掉的订单无法退款。
+                  </Typography>
                 </Box>
               )}
             </DialogContent>
@@ -292,6 +298,9 @@ export default function OrdersPage() {
                   <Row label="支付方式" value={CHANNEL_LABEL[detail.channel] ?? (detail.channel || '-')} />
                   <Row label="下单时间" value={formatTime(detail.createdAt)} />
                   <Row label="支付时间" value={formatTime(detail.paidAt)} />
+                  {detail.refundReason && <Row label="退款理由" value={detail.refundReason} />}
+                  {detail.refundNote && <Row label="审核备注" value={detail.refundNote} />}
+                  {detail.refundedAt && <Row label="退款时间" value={formatTime(detail.refundedAt)} />}
                 </Box>
                 <Divider sx={{ my: 2 }} />
                 <Button fullWidth variant="contained" onClick={() => setDetail(null)} sx={{ textTransform: 'none' }}>

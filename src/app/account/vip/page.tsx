@@ -296,7 +296,7 @@ export default function VipPage() {
                 </ToggleButtonGroup>
                 {channel === 'diamond' && (
                   <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-                    从钱包扣除 {Math.ceil(buyPlan.priceCents / 10).toLocaleString()} 钻石(1 钻 = ¥0.1),立即生效。
+                    从钱包扣除 {(buyPlan.diamondPrice ?? Math.ceil(buyPlan.priceCents / 10)).toLocaleString()} 钻石(1 钻 = ¥0.1),立即生效。
                   </Typography>
                 )}
               </Box>

@@ -13,11 +13,16 @@ export interface PaymentOrder {
   productId: number;
   productName: string;
   amountCents: number;
-  status: string;     // pending / paid / cancelled / refunding / refunded
+  // refunding = 已申请退款、等管理员审批;abnormal = 支付回调异常(金额/状态对不上),需人工核对
+  status: string;     // pending / paid / cancelled / refunding / refunded / abnormal
   channel: string;    // wechat / alipay
   channelOrderId?: string;
   paidAt?: string;
+  refundReason?: string; // 用户申请退款的理由
+  refundNote?: string;   // 管理员审批备注(驳回原因等)
+  refundedAt?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 // 钻石套餐
@@ -35,6 +40,8 @@ export interface MembershipPlan {
   name: string;
   period: string;     // monthly / yearly
   priceCents: number;
+  /** 用钻石开通要扣的钻石数(后端按 priceCents / 10 折算) */
+  diamondPrice?: number;
   dailyVideoQuota?: number;
   dailyChatQuota?: number;
   description?: string;
@@ -85,6 +92,24 @@ export async function cancelOrder(orderNo: string): Promise<void> {
 // 申请退款
 export async function refundOrder(orderNo: string, reason?: string): Promise<void> {
   await accountClient(`/payment/orders/${orderNo}/refund`, { method: 'POST', data: { reason } });
+}
+
+// ── 管理后台:退款审批 ──
+// 用户申请退款后订单停在 refunding;通过时后端扣回充值的钻石 / 会员时长并原路退款,驳回回到 paid。
+
+export async function adminListRefunds(params: PageParams & { status?: string }): Promise<PageResult<PaymentOrder>> {
+  const data = await accountClient('/admin/payment/refunds', {
+    params: { page: params.page ?? params.pageNumber, pageSize: params.pageSize, status: params.status || undefined },
+  });
+  return normalizePageResponse(data ?? ({ list: [], total: 0, page: 1, pageSize: 20 } as any));
+}
+
+export async function adminApproveRefund(orderNo: string, note?: string): Promise<void> {
+  await accountClient(`/admin/payment/refunds/${encodeURIComponent(orderNo)}/approve`, { method: 'POST', data: { note } });
+}
+
+export async function adminRejectRefund(orderNo: string, note: string): Promise<void> {
+  await accountClient(`/admin/payment/refunds/${encodeURIComponent(orderNo)}/reject`, { method: 'POST', data: { note } });
 }
 
 // 获取会员状态
