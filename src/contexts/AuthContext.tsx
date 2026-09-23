@@ -6,12 +6,12 @@ import { useQueryClient } from '@tanstack/react-query';
 import { queryCurrent, logout as apiLogout } from '@/apis/user';
 import { getMenuData } from '@/apis/menu';
 import { listAllDictData } from '@/apis/global';
-import { AUTH_EXPIRED_EVENT, isAuthError } from '@/lib/api/client';
+import { isAuthError } from '@/lib/api/client';
+import { AUTH_EXPIRED_EVENT, SESSION_KEY, getAuthToken, setAuthToken } from '@/lib/api/auth';
 import { isProtectedPath } from '@/lib/auth/routes';
 import { LOGIN_PATH, loginHref } from '@/lib/auth/redirect';
 import { useApp } from './AppContext';
 
-const SESSION_KEY = 'session_id';
 
 /**
  * 登录态三个阶段:
@@ -45,20 +45,12 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 function readSession(): string | null {
-  try {
-    return localStorage.getItem(SESSION_KEY);
-  } catch {
-    return null;
-  }
+  return getAuthToken();
 }
 
 function writeSession(sessionId: string | null) {
-  try {
-    if (sessionId) localStorage.setItem(SESSION_KEY, sessionId);
-    else localStorage.removeItem(SESSION_KEY);
-  } catch {
-    /* 隐私模式等不可用时只保留内存态 */
-  }
+  // 登出时连旧的 'token' 键一起清,别让裸 fetch 再捡起来用
+  setAuthToken(sessionId);
 }
 
 export function AuthContextProvider({ children }: { children: React.ReactNode }) {
