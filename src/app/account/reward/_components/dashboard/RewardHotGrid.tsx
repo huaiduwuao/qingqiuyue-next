@@ -16,6 +16,7 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import GroupIcon from '@mui/icons-material/Group';
 import { gradient2 } from '@/constants/gradients';
 import { coverBackground } from '@/lib/media';
+import { fallbackCoverDataUri } from '@/lib/bountyCover';
 import { alpha } from '@mui/material/styles';
 import { getHotBounties, type Bounty } from '@/apis/dashboard';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
@@ -203,9 +204,10 @@ export default function RewardHotGrid({
             <Chip
               size='small'
               label='全部'
-              onClick={() => {
-                if (!filter) setLocalFilter('');
-              }}
+              // 「全部」:父组件没传 filter 时,允许点击清空当前分类。原先的写法是
+              // setLocalFilter('') —— 已经清空的状态再 set 一遍,React 不会重渲染,
+              // 视觉上像没反应;改成 toggle,只有当前不在「全部」时才生效。
+              onClick={() => { if (!filter && effectiveFilter !== '') setLocalFilter(''); }}
               color={effectiveFilter === '' ? 'primary' : 'default'}
               variant={effectiveFilter === '' ? 'filled' : 'outlined'}
             />
@@ -283,7 +285,7 @@ export default function RewardHotGrid({
       {/* 无限滚动哨兵 + 加载中/到底提示(仅 all 模式) */}
       {isAll && (
         <>
-          <Box ref={sentinelRef} sx={{ height: 1 }} />
+          <Box ref={sentinelRef} sx={{ height: '1px' }} />
           {query.isFetchingNextPage && (
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 1.5, mt: 1.5 }}>
               {Array.from({ length: 3 }).map((_, i) => (
@@ -334,7 +336,9 @@ function BountyCard({ bounty, onClick }: { bounty: Bounty; onClick: () => void }
         sx={{
           position: 'relative',
           aspectRatio: '16 / 9',
-          background: coverBackground(bounty.cover, bounty.gradient),
+          // 没封面时用确定性生成的 SVG(同一条永远是同一张),而不是一片纯渐变 ——
+          // 存量机器人悬赏全都是空 cover,纯渐变会让整屏卡片长得一模一样。
+          background: coverBackground(bounty.cover || fallbackCoverDataUri(bounty.title, bounty.category), bounty.gradient),
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',

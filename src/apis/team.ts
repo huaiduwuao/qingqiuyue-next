@@ -132,6 +132,10 @@ export interface RealmDemand {
   topicTitle: string;
   title: string;
   subtitle: string;
+  /** 封面图。后端 demand 表有这列,但机器人早期发的存量数据全是空串 —— 前端拿它做兜底 */
+  cover?: string;
+  /** 分类(video/music/novel/…),兜底封面按它配图 */
+  category?: string;
   /** 赏金(元) */
   pay: number;
   status: 'PUBLISHED' | 'COMPLETED' | 'SETTLED';

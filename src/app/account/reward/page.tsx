@@ -8,6 +8,9 @@ import { WorkspaceShell } from '../components/WorkspaceShell';
 import { useUrlTab } from '../components/useUrlTab';
 import { REWARD_HOME_TAB, REWARD_NAV, REWARD_TAB_IDS } from './navigation';
 
+// 赏金广场的右栏(达人榜 / 最近动态);只挂在首页那个 tab 上。
+const RewardAside = React.lazy(() => import('./_components/dashboard/RewardAside'));
+
 // 子页面按需加载;放在模块顶层,避免每次渲染重新创建 lazy 组件导致子页面反复卸载重挂。
 const VIEWS: Record<string, React.LazyExoticComponent<React.ComponentType<any>>> = {
   square: React.lazy(() => import('./_components/dashboard/page')),
@@ -111,7 +114,15 @@ function RewardCenter() {
             : {};
 
   return (
-    <WorkspaceShell title="奖励中心" logo={<RewardLogo />} groups={REWARD_NAV} selected={tab} onSelect={setTab}>
+    <WorkspaceShell
+      title="奖励中心"
+      logo={<RewardLogo />}
+      groups={REWARD_NAV}
+      selected={tab}
+      onSelect={setTab}
+      // 赏金广场才有右栏(达人榜 / 最近动态);其它子页是整幅的看板/表格。
+      aside={tab === REWARD_HOME_TAB ? <RewardAside /> : undefined}
+    >
       <Suspense
         fallback={
           <Typography sx={{ p: 4, textAlign: 'center', color: 'text.secondary', fontSize: 13 }}>加载中...</Typography>

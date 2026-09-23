@@ -180,6 +180,13 @@ export function normalizeMediaUrls(value: unknown, depth = 0): void {
 export function coverBackground(raw?: string | null, fallback?: string): string {
   const v = (raw ?? '').trim();
   if (!v) return fallback ?? 'transparent';
+  // data: 是"已经画好的图",不是地址 —— mediaUrl 原样返回它,但下面那层 url("...")
+  // 包装会把 URI 里的空格/引号带进 CSS,整条声明被判非法丢弃(封面整块不显示)。
+  // 兜底封面(lib/bountyCover)生成的正是 data:image/svg+xml,... 这种。
+  if (/^data:/i.test(v)) {
+    const layer = `center / cover no-repeat url("${v.replace(/"/g, '%22')}")`;
+    return fallback ? `${layer}, ${fallback}` : layer;
+  }
   if (/^(linear-|radial-|conic-|repeating-|url\(|#|rgba?\(|hsla?\(|var\()/i.test(v)) return v;
   const layer = `center / cover no-repeat url("${mediaUrl(v).replace(/"/g, '%22')}")`;
   return fallback ? `${layer}, ${fallback}` : layer;

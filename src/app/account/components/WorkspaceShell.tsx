@@ -142,23 +142,23 @@ export function WorkspaceShell({ title, logo, groups, selected, onSelect, aside,
       </Drawer>
 
       <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        {/* 窄屏目录入口。这条是移动端打开工作台导航(赏金广场/工作台/看板…)的唯一入口 ——
+            外层 AccountLayout 的汉堡开的是另一套(个人中心/内容管理/设置),不能互相替代。
+            这里只放汉堡不放标题:页面名外层 AppBar 已经显示了,重复一行会白占几十像素。 */}
         <Box
           sx={{
             display: { xs: 'flex', md: 'none' },
             alignItems: 'center',
-            gap: 1,
-            px: 1.5,
-            py: 1,
             flexShrink: 0,
+            px: 0.5,
+            py: 0.25,
             borderBottom: '1px solid',
             borderColor: 'divider',
-            bgcolor: 'background.paper',
           }}
         >
-          <IconButton size="small" onClick={() => setDrawerOpen(true)} aria-label="打开菜单">
-            <MenuIcon fontSize="small" />
+          <IconButton size="small" onClick={() => setDrawerOpen(true)} aria-label="打开工作台导航">
+            <MenuIcon sx={{ fontSize: 18 }} />
           </IconButton>
-          <Typography sx={{ fontSize: 14, fontWeight: 600 }}>{current?.label ?? title}</Typography>
         </Box>
 
         <Box sx={{ flex: 1, minHeight: 0, display: 'flex' }}>
@@ -169,7 +169,10 @@ export function WorkspaceShell({ title, logo, groups, selected, onSelect, aside,
               minWidth: 0,
               overflow: 'auto',
               overscrollBehavior: 'contain',
-              p: { xs: 1.5, md: 3 },
+              // 底部内距留出底部导航 / 音乐底栏(md 以下才有底部导航)。
+              // 与 /home/recommend 的 main 一致 —— 否则滚动到最后几条悬赏会被底部导航盖住,
+              // 而且 main 的可视高度扣少了底部导航,长列表可滚动范围比应该的小。
+              pb: 'calc(12px + var(--bottom-nav-inset, 0px) + var(--player-inset, 0px))',
               display: 'flex',
               flexDirection: 'column',
               gap: 2,

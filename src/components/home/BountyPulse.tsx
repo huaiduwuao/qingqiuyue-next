@@ -9,6 +9,8 @@ import Skeleton from '@mui/material/Skeleton';
 import Typography from '@mui/material/Typography';
 import LocalAtmRoundedIcon from '@mui/icons-material/LocalAtmRounded';
 import { listRealmDemands, type RealmDemand } from '@/apis/team';
+import { coverBackground } from '@/lib/media';
+import { fallbackCoverDataUri } from '@/lib/bountyCover';
 
 /**
  * 社区悬赏动态。首页右栏的常驻卡片,也可给首屏引导复用(见 components/onboarding/FirstRunGuide)。
@@ -47,11 +49,17 @@ export function BountyRow({
   onNavigate?: () => void;
 }) {
   const open = demand.status === 'PUBLISHED' && demand.openTaskCount > 0;
+  // 可认领 → 赏金广场的详情弹层(?tab=square&demand=<id>,广场页会接住这个参数直接弹开);
+  // 已有人接 / 已完结 → 意境详情。以前两条都往 ?tab=board 跳 —— 那是「我的任务看板」,
+  // 按 demandId 过滤的是"我认领的任务",路人点进去永远是一片空列,看起来像没反应。
+  const href = open
+    ? `/account/reward?tab=square&demand=${demand.id}`
+    : `/detail/topic-detail?id=${demand.topicId}`;
   return (
     <Box
       component={Link}
       onClick={onNavigate}
-      href={open ? `/account/reward?tab=board&demand=${demand.id}` : `/detail/topic-detail?id=${demand.topicId}`}
+      href={href}
       sx={{
         display: 'flex',
         gap: 1,
@@ -61,9 +69,24 @@ export function BountyRow({
         textDecoration: 'none',
         color: 'inherit',
         minWidth: 0,
+        position: 'relative',
+        zIndex: 1,
         '&:hover': { bgcolor: 'action.hover' },
       }}
     >
+      {/* 缩略图:有封面用封面,没有就用按标题生成的确定性 SVG ——
+          这一栏原本是纯文字,一排悬赏看起来只有字,分不清哪条是哪条。 */}
+      <Box
+        sx={{
+          width: compact ? 40 : 52,
+          height: compact ? 40 : 52,
+          borderRadius: 1.25,
+          flexShrink: 0,
+          background: coverBackground(
+            demand.cover || fallbackCoverDataUri(demand.title, demand.category),
+          ),
+        }}
+      />
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography
           sx={{
@@ -105,7 +128,7 @@ export default function BountyPulse({ limit = 6 }: { limit?: number }) {
 
   if (isLoading) {
     return (
-      <Box sx={{ p: 1.5, borderRadius: 2, border: 1, borderColor: 'divider' }}>
+      <Box sx={{ p: 1.5, borderRadius: 2, border: 1, borderColor: 'divider', minHeight: 280 }}>
         <Skeleton width={96} height={20} />
         {[0, 1, 2].map((i) => (
           <Skeleton key={i} height={38} />
@@ -116,13 +139,13 @@ export default function BountyPulse({ limit = 6 }: { limit?: number }) {
   if (items.length === 0) return null;
 
   return (
-    <Box sx={{ borderRadius: 2, border: 1, borderColor: 'divider', bgcolor: 'background.paper', overflow: 'hidden' }}>
+    <Box sx={{ borderRadius: 2, border: 1, borderColor: 'divider', bgcolor: 'background.paper', overflow: 'hidden', flexShrink: 0 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, pt: 1.25, pb: 0.5 }}>
         <LocalAtmRoundedIcon sx={{ fontSize: 18, color: 'warning.main' }} />
         <Typography sx={{ fontSize: 14, fontWeight: 700, flex: 1 }}>社区悬赏</Typography>
         <Typography
           component={Link}
-          href="/account/reward?tab=board"
+          href="/account/reward?tab=square"
           sx={{ fontSize: 12, color: 'text.secondary', textDecoration: 'none', '&:hover': { color: 'primary.main' } }}
         >
           全部

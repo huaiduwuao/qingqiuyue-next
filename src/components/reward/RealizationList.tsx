@@ -27,12 +27,16 @@ const workHref = (r: Realization) => {
  * 它只由验收动作产生,所以这里没有"新建",只有看。
  */
 export default function RealizationList({ items, empty = '还没有验收通过的交付', compact }: Props) {
-  if (items.length === 0) {
+  // 后端空结果返回 {"list": null}(Go nil slice,json tag 没带 omitempty)。
+  // 上游 `pages.flatMap(p => p.list)` 会把 null 当元素展开成 [null],
+  // 长度 1 绕过空态分支 → workHref(null) 崩掉,整个「实现」页白屏。
+  const rows = (items ?? []).filter(Boolean);
+  if (rows.length === 0) {
     return <Typography sx={{ fontSize: 13, color: 'text.secondary', py: 2 }}>{empty}</Typography>;
   }
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-      {items.map((r) => {
+      {rows.map((r) => {
         const href = workHref(r);
         return (
           <Box
