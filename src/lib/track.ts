@@ -2,20 +2,17 @@ import { reportBehavior } from '@/apis/recommend';
 import { contentClient, homeClient } from '@/lib/api/client';
 import { reportClientError, safeErrorLog } from './error-handler';
 import { toEntityId } from './id';
+import { getAuthToken } from '@/lib/api/auth';
+import { API_PREFIX } from '@/lib/api/prefix';
 
 // 推荐/大数据的源头:前端行为埋点(fire-and-forget,失败不影响业务)。
-// userId 取本地存储(匿名则 0,后端会回退热门 feed)。
-function currentUserId(): number {
-  if (typeof window === 'undefined') return 0;
-  const raw = localStorage.getItem('userId') || localStorage.getItem('uid') || '';
-  const n = parseInt(raw, 10);
-  return Number.isFinite(n) ? n : 0;
-}
+// 不传 userId:用户由后端按登录会话认定。以前从 localStorage 的 userId/uid 读(正常登录根本不写),
+// 客户端可控的 userId 只会让人伪造别人的行为、刷别人的榜单。
 
 /** 检查用户是否已登录 */
 function isLoggedIn(): boolean {
   if (typeof window === 'undefined') return false;
-  const hasToken = !!(localStorage.getItem('token') || localStorage.getItem('session_id'));
+  const hasToken = !!getAuthToken();
   if (!hasToken) {
     console.debug('[track] 未登录，跳过埋点');
   }
@@ -48,7 +45,7 @@ export function track(itemId: number | string, action: string, itemType = 'NOVEL
   try {
     // itemType 统一大写:Doris module_content.content_type 为大写规范值,
     // user_behavior_log.target_type 必须与之同口径,榜单(按 target_type 聚合)才能匹配。
-    void reportBehavior({ userId: currentUserId(), itemId: id, itemType: itemType.toUpperCase(), action, duration });
+    void reportBehavior({ itemId: id, itemType: itemType.toUpperCase(), action, duration });
   } catch {
     /* 埋点失败静默 */
   }
@@ -101,7 +98,6 @@ export function trackPageView(pathname: string, search = '') {
     // 行为上报在 /api/content/behavior(recommendapp),homeClient 会拼成不存在的 /home/behavior。
     // 用户由后端按会话认定;pageview 落 page_view 表,不进推荐用的 behavior_event。
     void contentClient.post('/behavior', {
-      userId: currentUserId(),
       itemType: 'PAGE',
       action: 'pageview',
       page,
@@ -118,7 +114,6 @@ export function trackRewardAction(action: 'view_demand' | 'claim_task' | 'submit
   if (id === null) return;
   try {
     void reportBehavior({
-      userId: currentUserId(),
       itemId: id,
       itemType: 'REWARD',
       action,
@@ -135,7 +130,6 @@ export function trackCreatorAction(action: 'follow' | 'unfollow', targetUserId: 
   if (id === null) return;
   try {
     void reportBehavior({
-      userId: currentUserId(),
       itemId: id,
       itemType: 'CREATOR',
       action,
@@ -168,7 +162,6 @@ export function trackSearchClick(kw: string, contentId: number | string, content
       contentId: id,
       contentType: (contentType || '').toUpperCase(),
       position,
-      userId: currentUserId(),
       visitorId: visitorId(),
       event: 'click',
     }).catch((e) => safeErrorLog('trackSearchClick', e));
@@ -194,7 +187,6 @@ export function trackSearchImpression(kw: string, contentId: number | string, po
       contentId: id,
       contentType: '',
       position,
-      userId: currentUserId(),
       visitorId: visitorId(),
       event: 'impression',
     }).catch((e) => safeErrorLog('trackSearchImpression', e));
@@ -215,7 +207,7 @@ export function subscribeSearchStream(
   if (typeof window === 'undefined' || !kw || typeof EventSource === 'undefined') {
     return () => {};
   }
-  const url = `/api/content/search/stream?q=${encodeURIComponent(kw)}`;
+  const url = `${API_PREFIX}/api/content/search/stream?q=${encodeURIComponent(kw)}`;
   const es = new EventSource(url);
   es.addEventListener('discover', (ev) => {
     try {
