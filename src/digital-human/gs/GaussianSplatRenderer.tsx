@@ -110,6 +110,10 @@ export default function GaussianSplatRenderer({
     if (!canvas) return;
 
     let cancelled = false;
+    // 本轮创建的监听 / GPU 资源,卸载或依赖变化时逐个释放。
+    // 以前只 dispose renderer:resize / pointer / wheel 监听和 geometry 一直挂着,
+    // 反复进出几次浏览器就报 "Too many active WebGL contexts"。
+    const disposers: (() => void)[] = [];
 
     (async () => {
       try {
@@ -138,6 +142,12 @@ export default function GaussianSplatRenderer({
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
         rendererRef.current = renderer;
+        disposers.push(() => {
+          renderer.dispose();
+          // dispose 不会释放 WebGL context 本身,主动丢掉,免得占满浏览器的 context 配额
+          renderer.forceContextLoss();
+          if (rendererRef.current === renderer) rendererRef.current = null;
+        });
 
         // 3) 场景 + 相机
         const scene = new THREE.Scene();
@@ -165,10 +175,15 @@ export default function GaussianSplatRenderer({
         const points = new THREE.Points(geometry, material);
         scene.add(points);
         pointsRef.current = points;
+        disposers.push(() => {
+          scene.remove(points);
+          geometry.dispose();
+          material.dispose();
+        });
 
         // 7) OrbitControls (简单实现)
         if (orbitControls) {
-          setupSimpleControls(canvas, camera, renderer);
+          disposers.push(setupSimpleControls(canvas, camera, renderer));
         }
 
         // 8) 渲染循环
@@ -233,6 +248,7 @@ export default function GaussianSplatRenderer({
           camera.updateProjectionMatrix();
         };
         window.addEventListener('resize', onResize);
+        disposers.push(() => window.removeEventListener('resize', onResize));
       } catch (err: any) {
         if (!cancelled) {
           setError(err.message || '加载失败');
@@ -244,7 +260,7 @@ export default function GaussianSplatRenderer({
     return () => {
       cancelled = true;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rendererRef.current?.dispose();
+      for (const d of disposers.splice(0).reverse()) d();
     };
   }, [assetUrl, skinningUrl, smplxUrl, metaUrl, quality, qualityProp, orbitControls, getTHREE, createPointMaterial]);
 
@@ -555,7 +571,7 @@ function setupSimpleControls(
   canvas: HTMLCanvasElement,
   camera: THREE.PerspectiveCamera,
   renderer: THREE.WebGLRenderer,
-): void {
+): () => void {
   let isDragging = false;
   let prevX = 0, prevY = 0;
   let theta = 0, phi = Math.PI / 3;
@@ -569,13 +585,13 @@ function setupSimpleControls(
     camera.lookAt(target.x, target.y, target.z);
   };
 
-  canvas.addEventListener('pointerdown', (e) => {
+  const onDown = (e: PointerEvent) => {
     isDragging = true;
     prevX = e.clientX;
     prevY = e.clientY;
-  });
+  };
 
-  window.addEventListener('pointermove', (e) => {
+  const onMove = (e: PointerEvent) => {
     if (!isDragging) return;
     const dx = e.clientX - prevX;
     const dy = e.clientY - prevY;
@@ -584,19 +600,30 @@ function setupSimpleControls(
     prevX = e.clientX;
     prevY = e.clientY;
     updateCamera();
-  });
+  };
 
-  window.addEventListener('pointerup', () => {
+  const onUp = () => {
     isDragging = false;
-  });
+  };
 
-  canvas.addEventListener('wheel', (e) => {
+  const onWheel = (e: WheelEvent) => {
     e.preventDefault();
     radius = Math.max(0.5, Math.min(10, radius + e.deltaY * 0.005));
     updateCamera();
-  });
+  };
+
+  canvas.addEventListener('pointerdown', onDown);
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+  canvas.addEventListener('wheel', onWheel, { passive: false });
 
   updateCamera();
+  return () => {
+    canvas.removeEventListener('pointerdown', onDown);
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    canvas.removeEventListener('wheel', onWheel);
+  };
 }
 
 // ─── Shader GLSL (内联, 避免 import 复杂性) ───

@@ -953,6 +953,14 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     return audioCtxRef.current;
   }, []);
 
+  // 卸载时关掉 AudioContext:浏览器对同时存在的 AudioContext 有上限,反复进出页面会越积越多
+  React.useEffect(() => () => {
+    const ctx = audioCtxRef.current;
+    audioCtxRef.current = null;
+    nextAudioTimeRef.current = 0;
+    if (ctx && ctx.state !== 'closed') ctx.close().catch(() => {});
+  }, []);
+
   // 播放 base64 PCM16 音频 chunk
   const playAudioChunk = React.useCallback(
     async (audioB64: string) => {
