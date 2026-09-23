@@ -83,7 +83,7 @@ export default function GatewayQuotaPanel(_: Props) {
   }
 
   const handleRefund = async (orderNo: string) => {
-    if (!confirm(`退订订单 ${orderNo}?未消耗部分将原路退回`)) return
+    if (!confirm(`退订订单 ${orderNo}?购买 7 天内可退,按加油包剩余量退回钻石`)) return
     try {
       const r = await quotaAPI.refundOrder(orderNo)
       alert(`已退订:退 ${r.refund_tokens.toLocaleString()} tokens,${r.refund_diamond} 钻`)
@@ -158,6 +158,17 @@ export default function GatewayQuotaPanel(_: Props) {
                   <span>硬限: <b>{overview.hard_limit_tokens.toLocaleString()}</b></span>
                   <span>本期: <b>{overview.period}</b></span>
                 </Box>
+                {overview.base_token_limit !== undefined && (
+                  <Box sx={{ display: 'flex', gap: 3, mt: 0.5, color: 'text.secondary', fontSize: 12, flexWrap: 'wrap' }}>
+                    <span>月度额度: <b>{overview.base_token_limit.toLocaleString()}</b></span>
+                    <span>
+                      加油包: <b>{(overview.purchased_tokens ?? 0).toLocaleString()}</b>
+                      {(overview.purchased_tokens ?? 0) > 0 && overview.purchased_expires_at
+                        ? `(${new Date(overview.purchased_expires_at).toLocaleDateString('zh-CN')} 到期)`
+                        : ''}
+                    </span>
+                  </Box>
+                )}
               </Box>
             ) : (
               <CircularProgress size={20} />

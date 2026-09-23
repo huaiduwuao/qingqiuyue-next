@@ -678,8 +678,9 @@ function MyHomePageAuthed() {
             let badge: string | null = null;
             let badgeColor: 'warning' | 'default' = 'default';
             if (q.key === 'wallet') {
-              const yuan = (walletQ.data?.balance ?? 0) / 100;
-              badge = yuan > 0 ? `¥${yuan.toFixed(yuan < 100 ? 2 : 0)}` : null;
+              // /me/wallet 的 balance 是钻石(currency = "DIAMOND")
+              const diamonds = walletQ.data?.balance ?? 0;
+              badge = diamonds > 0 ? `💎 ${diamonds.toLocaleString()}` : null;
             } else if (q.key === 'points') {
               const pts = pointQ.data?.points ?? 0;
               badge = pts > 0 ? pts.toLocaleString() : null;

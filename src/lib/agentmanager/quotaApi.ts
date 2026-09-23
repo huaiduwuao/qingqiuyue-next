@@ -30,6 +30,12 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     throw new Error(text || `${res.status} ${res.statusText}`)
   }
   const json = await res.json().catch(() => ({} as any))
+  // 业务失败是 HTTP 200 + {code≠200, msg}(response.FailWithMsg),比如退订超过 7 天、
+  // 加油包已用完;以前当成功返回,调用方读 undefined 字段才崩。
+  if (json && typeof json === 'object' && 'code' in json) {
+    const code = Number((json as any).code)
+    if (code !== 200 && code !== 0) throw new Error((json as any).msg || `请求失败(${code})`)
+  }
   // 兼容 {code, data, msg} 与裸 body
   if (json && typeof json === 'object' && 'data' in json && ('code' in json || 'msg' in json)) {
     return (json as any).data as T
@@ -68,6 +74,7 @@ export interface QuotaOrder {
 }
 
 export interface QuotaOverview {
+  /** 本月可用总量 = base_token_limit + 未过期的 purchased_tokens */
   token_limit: number
   token_used: number
   token_percent: number
@@ -79,6 +86,12 @@ export interface QuotaOverview {
   hard_limit_tokens: number
   soft_limit_tokens: number
   period: string
+  /** 月度基础额度(会员档位 / 默认) */
+  base_token_limit?: number
+  /** 加油包剩余 token(单独计,不随月度重置) */
+  purchased_tokens?: number
+  /** 加油包到期时间,null = 不过期 */
+  purchased_expires_at?: string | null
 }
 
 export interface QuotaTrendPoint {
