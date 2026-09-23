@@ -625,7 +625,8 @@ function ImportResultTab({ taskId }: { taskId: string }) {
       {importStats && (
         <Alert severity={importStats.stats?.failed > 0 ? 'warning' : 'success'}>
           入库完成:新增 <b>{importStats.stats?.inserted ?? 0}</b>,
-          跳过 <b>{importStats.stats?.skipped ?? 0}</b>,
+          已存在 <b>{importStats.stats?.duplicate ?? 0}</b>,
+          空正文跳过 <b>{importStats.stats?.skipped ?? 0}</b>,
           失败 <b>{importStats.stats?.failed ?? 0}</b>
         </Alert>
       )}

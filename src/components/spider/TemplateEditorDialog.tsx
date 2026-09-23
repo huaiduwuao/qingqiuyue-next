@@ -233,8 +233,9 @@ export function TemplateEditorDialog({ open, templateId, onClose, onSaved }: Tem
   const [form, setForm] = useState<TemplateFormState>(EMPTY_FORM);
   const [parsingError, setParsingError] = useState<string>('');
   // 测试解析:拿一个 URL 按当前模板真跑一遍。
-  // 用「当前表单里的 js_extract / selector」而不是库里已存的 —— 运营改完能立刻验,
-  // 不用先保存再赌。browser.enabled 开着时后端会走无头浏览器。
+  // 表单里的选择器(list 的 item_container_selector / detail 的 content_selector)
+  // 用当前值,不用先保存;js_extract 和 browser 渲染测不了(前者跑在 BrowserWorker,
+  // 测试进程也没有浏览器),后端会在 warning 里写明。
   const [testUrl, setTestUrl] = useState('');
   const [testResult, setTestResult] = useState<any>(null);
   const testM = useMutation({
@@ -251,6 +252,8 @@ export function TemplateEditorDialog({ open, templateId, onClose, onSaved }: Tem
         type: form.type,
         templateId: templateId ?? undefined,
         selector: sel || undefined,
+        // 后端不执行 js_extract(它跑在 BrowserWorker 里),传过去只为让结果里明确提示这一点
+        jsExtract: form.jsExtract.trim() || undefined,
         maxItems: 10,
       });
     },
@@ -285,7 +288,6 @@ export function TemplateEditorDialog({ open, templateId, onClose, onSaved }: Tem
   });
 
   const onSave = () => {
-    let rawContent: string;
     try {
       JSON.parse(form.metadataSchema);
     } catch (e: any) {
@@ -298,7 +300,7 @@ export function TemplateEditorDialog({ open, templateId, onClose, onSaved }: Tem
       setParsingError(`custom 不是合法 JSON:${e.message ?? e}`);
       return;
     }
-    rawContent = formToContent(form);
+    const rawContent = formToContent(form);
     saveMutation.mutate({ name: form.name, type: form.type, source: String(templateId), content: rawContent });
   };
 
@@ -512,7 +514,7 @@ export function TemplateEditorDialog({ open, templateId, onClose, onSaved }: Tem
 
             <Accordion>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography variant="subtitle2">测试解析(用当前表单规则真跑一个 URL)</Typography>
+                <Typography variant="subtitle2">测试解析(用当前表单的选择器真跑一个 URL;js_extract 需保存后经补全验证)</Typography>
               </AccordionSummary>
               <AccordionDetails>
                 <Stack sx={{ gap: 1.5 }}>

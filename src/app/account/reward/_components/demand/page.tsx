@@ -572,6 +572,7 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
                     {formValues.cover && !coverUploading && (
                       <Button
                         size="small"
+                        variant="text"
                         color="inherit"
                         onClick={() => handleFormChange('cover', '')}
                         sx={{ textTransform: 'none', borderRadius: 1.5, color: 'text.secondary' }}
