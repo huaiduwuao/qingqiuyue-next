@@ -65,7 +65,7 @@ export interface ChatResp {
   action: string;
   visemes: VisemeFrame[];
   audioUrl: string | null;
-  /** 国家网信办 AIGC 合规:后端已在 /api/avatar/chat 标记 true,前端用来显示「AI 生成」角标 */
+  /** 国家网信办 AIGC 合规:后端已在 /api/realtime/chat 标记 true,前端用来显示「AI 生成」角标 */
   isAIGenerated?: boolean;
 }
 
@@ -120,7 +120,7 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
   const [emotion, setEmotion] = useStateSafe<Record<string, number>>({});
   const [viseme, setViseme] = useStateSafe<Record<string, number>>({});
   const [action, setAction] = useStateSafe('idle');
-  /** 最近一次 AI 回复的 isAIGenerated 标记 (后端 /api/avatar/chat 已设 true) */
+  /** 最近一次 AI 回复的 isAIGenerated 标记 (后端 /api/realtime/chat 已设 true) */
   const [isAIGenerated, setIsAIGenerated] = useStateSafe(false);
   /** 数字人是否在说话: 用于 voice agent 决定 VAD 段是否要丢 */
   const [isAvatarPlaying, setIsAvatarPlaying] = React.useState(false);
@@ -147,7 +147,7 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
       // 1. 调 chat 路由(LLM 优先真实 OpenAI 兼容后端,失败直接报错)
       let resp: ChatResp;
       try {
-        const r = await fetch(API_PREFIX + '/api/avatar/chat', {
+        const r = await fetch(API_PREFIX + '/api/realtime/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -291,7 +291,7 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
     setChatBusy(true)
     setChatLog((c: ChatLogItem[]) => [...c, { who: 'user', text: t }])
     try {
-      const r = await fetch(API_PREFIX + '/api/avatar/chat', {
+      const r = await fetch(API_PREFIX + '/api/realtime/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -415,7 +415,7 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
     return () => cancelAnimationFrame(raf);
   }, [setViseme]);
 
-  // 4. 语音输入(ASR):MediaRecorder 录音 → /api/avatar/asr → 自动 send
+  // 4. 语音输入(ASR):MediaRecorder 录音 → /api/realtime/asr → 自动 send
   const [recording, setRecording] = React.useState(false);
   const [recordingError, setRecordingError] = React.useState<string | null>(null);
   const mediaRecorderRef = React.useRef<MediaRecorder | null>(null);
@@ -461,11 +461,11 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
           setRecordingError('录音为空');
           return;
         }
-        // POST /api/avatar/asr
+        // POST /api/realtime/asr
         const fd = new FormData();
         fd.append('file', new File([blob], 'recording.webm', { type: mime }));
         try {
-          const r = await fetch(API_PREFIX + '/api/avatar/asr', { method: 'POST', body: fd });
+          const r = await fetch(API_PREFIX + '/api/realtime/asr', { method: 'POST', body: fd });
           if (r.ok) {
             const j = await r.json();
             if (j.text) {

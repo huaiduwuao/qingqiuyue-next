@@ -1006,8 +1006,8 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     // dev 模式: NEXT_PUBLIC_WS_BASE 直连后端(Next.js rewrites 不支持 WS 升级)
     // 生产环境: 相对路径, 经 nginx/APISIX 代理(enable_websocket: true)
     const base = process.env.NEXT_PUBLIC_WS_BASE || '';
-    // 数字人 WS 路径统一到 /ws/realtime
-    const wsPath = '/api/avatar/ws';
+    // 数字人 WS:realtime-api 注册在 /api/realtime/ws(avatarapp.go),/api/avatar/* 后端没有这组路由
+    const wsPath = '/api/realtime/ws';
     const wsUrl = base
       ? `${base}${wsPath}?agentId=${encodeURIComponent(agentRef.current)}`
       : `${wsPath}?agentId=${encodeURIComponent(agentRef.current)}`;
@@ -1225,7 +1225,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     } else {
       // HTTP 降级
       try {
-        const r = await fetch(API_PREFIX + '/api/avatar/chat', {
+        const r = await fetch(API_PREFIX + '/api/realtime/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1301,7 +1301,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
       } else {
         // HTTP 降级
         try {
-          const r = await fetch(API_PREFIX + '/api/avatar/chat', {
+          const r = await fetch(API_PREFIX + '/api/realtime/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
