@@ -1035,8 +1035,9 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     // dev 模式: NEXT_PUBLIC_WS_BASE 直连后端(Next.js rewrites 不支持 WS 升级)
     // 生产环境: 相对路径, 经 nginx/APISIX 代理(enable_websocket: true)
     const base = process.env.NEXT_PUBLIC_WS_BASE || '';
-    // 数字人 WS:realtime-api 注册在 /api/realtime/ws(avatarapp.go),/api/avatar/* 后端没有这组路由
-    const wsPath = '/api/realtime/ws';
+    // 数字人 WS:realtime-api 注册在 /api/realtime/ws(avatarapp.go)。前端走 /ws/realtime:
+    // nginx 只有 ^~ /ws/ 这一段带 Upgrade 头(^~ /api/ 不升级),APISIX 再改写到 /api/realtime/ws。
+    const wsPath = '/ws/realtime';
     const wsUrl = base
       ? `${base}${wsPath}?agentId=${encodeURIComponent(agentRef.current)}`
       : `${wsPath}?agentId=${encodeURIComponent(agentRef.current)}`;
