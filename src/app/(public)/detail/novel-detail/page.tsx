@@ -295,8 +295,10 @@ function NovelDetailContent() {
     const rows = tocQuery.data?.items ?? [];
     return rows.length ? rows : legacy;
   }, [tocQuery.data, legacy]);
-  // 只在还没有任何目录数据时才算加载中(整页换成加载圈);已有数据时后台刷新不打断阅读
-  const tocLoading = (!tocQuery.data && tocQuery.isPending) || detailQuery.isLoading;
+  // 只在还没有任何目录数据时才算加载中(整页换成加载圈);已有数据时后台刷新不打断阅读。
+  // 用 isLoading(= isPending && isFetching)而不是 isPending:query 被禁用(没有 id)时一直是 pending,
+  // 加载圈会转个没完。锚点还没从 localStorage 读出来的那一帧 query 也是禁用的,单独算加载中。
+  const tocLoading = tocQuery.isLoading || (!tocAnchor.ready && !!id) || detailQuery.isLoading;
 
   const fetchBody = useCallback(
     (chapterId: string) => getChapterDetail({ id: chapterId } as never).then((r) => (r ?? {}) as ChapterBody),
