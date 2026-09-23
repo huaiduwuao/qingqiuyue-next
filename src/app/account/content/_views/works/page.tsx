@@ -23,6 +23,7 @@ import ContentDistributionChart from '../../_components/ContentDistributionChart
 import { getCreatorWorks } from '@/apis/creator';
 import { useActiveTab } from '../../ActiveTabContext';
 import { toWorksTableRows } from './rows';
+import { TYPE_LABEL as CONTENT_TYPE_LABEL } from '@/lib/contentType.gen'; // 类型名以后端契约为准,别再手写(VSHOW 是综艺不是短剧)
 
 // 分布图/日历等组件切 tab 时透传的小写类型 → 本页大写枚举
 const PARAM_TYPE_MAP: Record<string, string> = {
@@ -55,11 +56,6 @@ const STATUS_OPTIONS = [
   { value: 'UN_PUBLISH', label: '已下架' },
 ];
 
-const CONTENT_TYPE_LABEL: Record<string, string> = {
-  NOVEL: '小说', VIDEO: '视频', ARTICLE: '文章', MUSIC: '音乐',
-  FILM: '电影', TELEPLAY: '电视剧', ANIMATION: '动画', COMICS: '漫画',
-  PICTURE: '图文', NEWS: '新闻', VSHOW: '短剧', LIVE: '直播',
-};
 
 const SOURCE_OPTIONS = [
   { value: '', label: '全部来源' },

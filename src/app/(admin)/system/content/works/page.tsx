@@ -29,14 +29,10 @@ import { fetchAdminWorks, type AdminWork } from '@/apis/admin-works';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { CoverImage } from '@/components/common/CoverImage';
 import { MarkdownView } from '@/components/common/MarkdownView';
+import { TYPE_LABEL } from '@/lib/contentType.gen'; // 类型名以后端契约为准,别再手写(VSHOW 是综艺不是短剧)
 
 const PAGE_SIZE = 20;
 
-const TYPE_LABEL: Record<string, string> = {
-  NOVEL: '小说', VIDEO: '视频', ARTICLE: '文章', MUSIC: '音乐',
-  FILM: '电影', TELEPLAY: '电视剧', ANIMATION: '动画', COMICS: '漫画',
-  PICTURE: '图文', NEWS: '新闻', VSHOW: '短剧', LIVE: '直播',
-};
 
 const TYPE_OPTIONS = ['', 'VIDEO', 'ARTICLE', 'NOVEL', 'MUSIC', 'FILM', 'TELEPLAY', 'ANIMATION', 'COMICS', 'PICTURE', 'NEWS', 'VSHOW', 'LIVE'];
 const STATUS_OPTIONS = [

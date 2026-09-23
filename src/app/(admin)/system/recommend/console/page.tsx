@@ -31,11 +31,8 @@ import {
   setBoost,
 } from '@/apis/admin-recommend';
 import { formatApiError } from '@/lib/api/client';
+import { TYPE_LABEL } from '@/lib/contentType.gen'; // 类型名以后端契约为准,别再手写(VSHOW 是综艺不是短剧)
 
-const TYPE_LABEL: Record<string, string> = {
-  VIDEO: '视频', ARTICLE: '文章', NOVEL: '小说', MUSIC: '音乐', FILM: '电影',
-  TELEPLAY: '电视剧', ANIMATION: '动画', COMICS: '漫画', PICTURE: '图文', NEWS: '新闻', VSHOW: '短剧', LIVE: '直播',
-};
 
 const PAGE_SIZE = 20;
 
