@@ -37,7 +37,7 @@ import { ACCENT } from '@/constants/accents';
 import { gradient3 } from '@/constants/gradients';
 import { LoginGate } from '@/components/auth/LoginGate';
 import { adminClient, formatApiError } from '@/lib/api/client';
-import { applyWithdraw, type WalletBalance } from '@/apis/wallet';
+import { applyWithdraw, FEN_PER_DIAMOND, MIN_WITHDRAW_DIAMONDS, type WalletBalance } from '@/apis/wallet';
 
 const WITHDRAW_METHOD_LABEL = { wechat: '微信', alipay: '支付宝', bank: '银行卡' } as const;
 
@@ -93,12 +93,13 @@ export default function WalletPage() {
     staleTime: 10 * 1000,
     refetchOnMount: 'always',
   });
-  const balanceDiamonds = Math.floor((balanceQuery.data?.balance ?? 0) / 10); // 分 → 钻
+  // 后端钱包已按钻石记账:balance / amount / balanceAfter 都是钻,不再换算
+  const balanceDiamonds = balanceQuery.data?.balance ?? 0;
   const records: DiamondRecord[] = (txQuery.data?.list ?? []).map((t: any) => ({
     id: t.id,
     type: (t.type ?? 'consume') as DiamondRecord['type'],
-    amount: t.amount ?? 0,                 // 分
-    balance: Math.floor((t.balanceAfter ?? 0) / 10),
+    amount: t.amount ?? 0,                 // 钻
+    balance: t.balanceAfter ?? 0,
     description: t.remark ?? '',
     createTime: t.createTime ?? '',
   }));
@@ -135,8 +136,12 @@ export default function WalletPage() {
 
   const handleWithdraw = async () => {
     const amountNum = Number(withdrawAmount);
-    if (!withdrawAmount || Number.isNaN(amountNum) || amountNum <= 0) {
-      setSnack('请输入有效的提现金额');
+    if (!withdrawAmount || !Number.isInteger(amountNum) || amountNum <= 0) {
+      setSnack('请输入有效的提现钻石数(整数)');
+      return;
+    }
+    if (amountNum < MIN_WITHDRAW_DIAMONDS) {
+      setSnack(`最低提现 ${MIN_WITHDRAW_DIAMONDS} 钻(¥${(MIN_WITHDRAW_DIAMONDS * FEN_PER_DIAMOND) / 100})`);
       return;
     }
     if (amountNum > balanceDiamonds) {
@@ -147,17 +152,24 @@ export default function WalletPage() {
       setSnack('请输入收款账号');
       return;
     }
+    // 后端 bankInfo ≤ 200 字(含前面的「支付宝: 」)
+    if (withdrawAccount.trim().length > 190) {
+      setSnack('收款账号过长');
+      return;
+    }
     setWithdrawing(true);
     try {
       // 后端只绑 { amount, bankInfo }(walletapp.withdraw):以前发 { method, account },
       // 提现单建出来了、余额也冻结了,收款信息却是空的,打款时根本不知道打给谁。
-      // ⚠️ amount 仍是用户填的「钻」数、按 balanceDiamonds 校验;后端目前按「分」记账(最低 100 分),
-      //    等后端把钱包余额改成以钻计后两边才对得上,这里暂不换算。
-      await applyWithdraw({
+      // amount 是钻石数;后端回 payoutCents = 实际打款的分。
+      const res = await applyWithdraw({
         amount: amountNum,
         bankInfo: `${WITHDRAW_METHOD_LABEL[withdrawMethod]}: ${withdrawAccount.trim()}`,
       });
-      setSnack('提交成功,等待审核');
+      const payout = res?.payoutCents ?? amountNum * FEN_PER_DIAMOND;
+      setSnack(`提交成功,审核通过后到账 ¥${(payout / 100).toFixed(2)}`);
+      qc.invalidateQueries({ queryKey: ['wallet-balance'] });
+      qc.invalidateQueries({ queryKey: ['wallet-transactions'] });
     } catch (err) {
       setSnack(formatApiError(err) || '提现提交失败');
     } finally {
@@ -170,9 +182,9 @@ export default function WalletPage() {
 
   const filtered = tab === 0 ? records : tab === 1 ? records.filter((r) => r.amount > 0) : records.filter((r) => r.amount < 0);
 
-  // 流水 amount 是"分」,按 1 钻 = 10 分换算成钻
-  const monthIn = records.filter((r) => r.amount > 0).reduce((s, r) => s + r.amount, 0) / 10;
-  const monthOut = records.filter((r) => r.amount < 0).reduce((s, r) => s + Math.abs(r.amount), 0) / 10;
+  // 流水 amount 已经是钻
+  const monthIn = records.filter((r) => r.amount > 0).reduce((s, r) => s + r.amount, 0);
+  const monthOut = records.filter((r) => r.amount < 0).reduce((s, r) => s + Math.abs(r.amount), 0);
 
   return (
     <Box sx={{ height: 'calc(100dvh - var(--appbar-h, 66px))', overflow: 'auto', overscrollBehavior: 'contain' }}>
@@ -218,7 +230,7 @@ export default function WalletPage() {
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pt: 2, borderTop: '1px solid rgba(255,255,255,0.2)', mb: 2 }}>
             <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>
-              ≈ ¥ {hidden ? '**. **' : (balanceDiamonds * 0.01).toFixed(2)} · 永不过期
+              ≈ ¥ {hidden ? '**. **' : ((balanceDiamonds * FEN_PER_DIAMOND) / 100).toFixed(2)} · 永不过期
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', gap: 1 }}>
@@ -365,7 +377,7 @@ export default function WalletPage() {
               type="number"
               value={rechargeAmount}
               onChange={(e) => setRechargeAmount(e.target.value)}
-              helperText="1 钻 = ¥0.01"
+              helperText={`1 钻 = ¥${(FEN_PER_DIAMOND / 100).toFixed(2)}`}
             />
             <FormControl fullWidth>
               <InputLabel>支付方式</InputLabel>
@@ -418,7 +430,10 @@ export default function WalletPage() {
               type="number"
               value={withdrawAmount}
               onChange={(e) => setWithdrawAmount(e.target.value)}
-              helperText={`当前余额 ${balanceDiamonds} 钻`}
+              helperText={
+                `当前余额 ${balanceDiamonds} 钻 · 最低 ${MIN_WITHDRAW_DIAMONDS} 钻` +
+                (Number(withdrawAmount) > 0 ? ` · 到账 ¥${((Number(withdrawAmount) * FEN_PER_DIAMOND) / 100).toFixed(2)}` : '')
+              }
             />
             <FormControl fullWidth>
               <InputLabel>提现方式</InputLabel>

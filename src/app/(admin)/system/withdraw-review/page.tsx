@@ -21,11 +21,13 @@ import Snackbar from '@mui/material/Snackbar';
 import type { GridColDef } from '@mui/x-data-grid';
 import { DataGridTable } from '@/components/tables/DataGridTable';
 import { adminClient, formatApiError } from '@/lib/api/client';
+import { FEN_PER_DIAMOND } from '@/apis/wallet';
 
 interface WithdrawRequest {
   id: number;
   userId: number;
-  amount: number; // 分
+  amount: number;       // 申请提现的钻石数
+  payoutCents?: number; // 应打款金额(分),申请时按 1 钻 = 10 分定下
   status: 'pending' | 'approved' | 'rejected';
   bankInfo: string;
   rejectNote?: string;
@@ -39,7 +41,9 @@ interface WithdrawListResp {
   page: number;
 }
 
-const formatAmount = (fen: number) => ((fen / 100).toFixed(2) + ' 元');
+const formatFen = (fen: number) => ((fen / 100).toFixed(2) + ' 元');
+// 打款以 payoutCents 为准;老数据没有这个字段时按 1 钻 = 10 分折算
+const payoutOf = (r: WithdrawRequest) => r.payoutCents ?? r.amount * FEN_PER_DIAMOND;
 
 const statusConfig: Record<string, { label: string; color: 'warning' | 'success' | 'error' }> = {
   pending: { label: '待处理', color: 'warning' },
@@ -70,8 +74,11 @@ export default function WithdrawReviewPage() {
   const columns: GridColDef[] = [
     { field: 'id', headerName: 'ID', type: 'number', width: 80 },
     { field: 'userId', headerName: '用户ID', type: 'number', width: 110 },
-    { field: 'amount', headerName: '申请金额', type: 'number', width: 120,
-      renderCell: (p) => <Box sx={{ fontFamily: 'monospace', fontWeight: 600 }}>{formatAmount(p.value as number)}</Box> },
+    { field: 'amount', headerName: '申请钻石', type: 'number', width: 110,
+      renderCell: (p) => <Box sx={{ fontFamily: 'monospace' }}>💎 {p.value as number}</Box> },
+    { field: 'payoutCents', headerName: '应打款', type: 'number', width: 120,
+      valueGetter: (_v, row) => payoutOf(row as WithdrawRequest),
+      renderCell: (p) => <Box sx={{ fontFamily: 'monospace', fontWeight: 600 }}>{formatFen(p.value as number)}</Box> },
     { field: 'bankInfo', headerName: '收款信息', flex: 1.5, minWidth: 200,
       renderCell: (p) => <Box sx={{ maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.value || '-'}</Box> },
     { field: 'status', headerName: '状态', width: 100,
@@ -133,7 +140,7 @@ export default function WithdrawReviewPage() {
         <DialogTitle>审核提现</DialogTitle>
         <DialogContent>
           <DialogContentText sx={{ mb: 2 }}>
-            申请金额: <strong>{reviewTarget && formatAmount(reviewTarget.amount)}</strong> · 用户 #{reviewTarget?.userId}
+            申请 💎 {reviewTarget?.amount} · 应打款 <strong>{reviewTarget && formatFen(payoutOf(reviewTarget))}</strong> · 用户 #{reviewTarget?.userId}
           </DialogContentText>
           <TextField
             label="拒绝理由"

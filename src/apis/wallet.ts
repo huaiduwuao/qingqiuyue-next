@@ -2,12 +2,18 @@ import { accountClient } from '@/lib/api/client';
 
 // ========== 钱包相关 API ==========
 
+// 钱包按「钻石」记账(后端 walletapp,1 钻 = FEN_PER_DIAMOND 分 = ¥0.1)。
+// 人民币只在充值 / 提现打款 / 按人民币标价的商品这几个边界上出现。
+export const FEN_PER_DIAMOND = 10;
+/** 最低提现钻石数(walletapp.MinWithdrawAmount,10 钻 = ¥1) */
+export const MIN_WITHDRAW_DIAMONDS = 10;
+
 // 钱包余额
 export interface WalletBalance {
   id: number;
   userId: number;
-  balance: number; // 分
-  frozen: number;  // 冻结金额(分)
+  balance: number; // 钻
+  frozen: number;  // 冻结(钻)
   updateTime: string;
 }
 
@@ -15,9 +21,9 @@ export interface WalletBalance {
 export interface WalletTransaction {
   id: number;
   userId: number;
-  amount: number;       // 分,正=入,负=出
+  amount: number;       // 钻,正=入,负=出
   type: string;         // recharge/consume/tip_in/tip_out/withdraw
-  balanceAfter: number;  // 分
+  balanceAfter: number;  // 钻
   refId: string;
   remark: string;
   createTime: string;
@@ -27,7 +33,8 @@ export interface WalletTransaction {
 export interface WithdrawRequest {
   id: number;
   userId: number;
-  amount: number;       // 分
+  amount: number;       // 申请提现的钻石数
+  payoutCents?: number; // 应打款金额(分)= 钻 × FEN_PER_DIAMOND
   status: 'pending' | 'approved' | 'rejected';
   bankInfo: string;
   rejectNote?: string;
@@ -52,7 +59,7 @@ export async function getWalletTransactions(params?: { page?: number; size?: num
 export async function tipCreator(data: {
   targetUserId: number;
   contentId?: string | number; // 雪花 id,传字符串避免精度丢失
-  amount: number;  // 分
+  amount: number;  // 钻,最少 1
   remark?: string;
 }) {
   return accountClient('/wallet/tip', { method: 'POST', data });
@@ -60,10 +67,10 @@ export async function tipCreator(data: {
 
 // 申请提现
 export async function applyWithdraw(data: {
-  amount: number;   // 分
-  bankInfo: string; // 收款信息
+  amount: number;   // 钻,最少 MIN_WITHDRAW_DIAMONDS
+  bankInfo: string; // 收款信息(必填,≤200 字)
 }) {
-  return accountClient('/wallet/withdraw', { method: 'POST', data });
+  return accountClient<{ requestId: number; amount: number; payoutCents: number; status: string }>('/wallet/withdraw', { method: 'POST', data });
 }
 
 // 获取提现列表(后台审核)
