@@ -11,6 +11,23 @@
   },
   "app": {
     "withGlobalTauri": true,
+    "security": {
+      "csp": {
+        "default-src": "'self' ipc: http://ipc.localhost",
+        "script-src": "'self' 'wasm-unsafe-eval' 'unsafe-eval'",
+        "style-src": "'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src": "'self' data: https://fonts.gstatic.com",
+        "img-src": "'self' data: blob: https: http:",
+        "media-src": "'self' data: blob: https: http:",
+        "connect-src": "'self' ipc: http://ipc.localhost https: wss: data: blob:",
+        "frame-src": "'self' https: http:",
+        "worker-src": "'self' blob:",
+        "object-src": "'none'",
+        "base-uri": "'self'"
+      },
+      "devCsp": null,
+      "dangerousDisableAssetCspModification": ["style-src"]
+    },
     "windows": [
       {
         "title": "清秋月",
@@ -27,7 +44,7 @@
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["qingqiuyue", "snssdk1128", "kwaiyewen", "xhsdiscover"]
+        "schemes": ["qingqiuyue"]
       }
     }
   },

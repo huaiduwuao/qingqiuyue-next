@@ -55,13 +55,6 @@ fn read_config() -> AppConfig {
     }
 }
 
-// 写入配置
-fn write_config(config: &AppConfig) -> Result<(), String> {
-    let path = get_config_path();
-    let data = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
-    fs::write(path, data).map_err(|e| e.to_string())
-}
-
 // Tauri 命令
 #[tauri::command]
 fn get_system_info() -> SystemInfo {
@@ -79,11 +72,24 @@ fn get_api_base() -> String {
     read_config().api_base
 }
 
-#[tauri::command]
-fn set_api_base(url: String) -> Result<(), String> {
-    let mut config = read_config();
-    config.api_base = url;
-    write_config(&config)
+/// 允许交给系统打开的地址:https 网页,以及分享面板唤起 App 用的裸 scheme。
+/// 页面里一旦有 XSS,脚本就能调 open_external;不设限的话 file:///、UNC 路径、
+/// 任意自定义协议都能被拿去启动本机程序。
+const APP_LAUNCH_SCHEMES: &[&str] = &["xhsdiscover://", "snssdk1128://", "kwaiyewen://"];
+
+fn is_allowed_external(url: &str) -> bool {
+    if APP_LAUNCH_SCHEMES.contains(&url) {
+        return true;
+    }
+    match tauri::Url::parse(url) {
+        Ok(u) => {
+            u.scheme() == "https"
+                && u.host_str().map_or(false, |h| !h.is_empty())
+                && u.username().is_empty()
+                && u.password().is_none()
+        }
+        Err(_) => false,
+    }
 }
 
 // 用 shell 插件而不是 open crate:open 只认桌面,安卓上打不开系统浏览器,
@@ -92,6 +98,10 @@ fn set_api_base(url: String) -> Result<(), String> {
 fn open_external(app: tauri::AppHandle, url: String) -> Result<(), String> {
     if url.is_empty() {
         return Ok(());
+    }
+    if !is_allowed_external(&url) {
+        log::warn!("[open_external] rejected non-https url");
+        return Err("only https urls can be opened".into());
     }
     use tauri_plugin_shell::ShellExt;
     app.shell().open(url, None).map_err(|e| e.to_string())
@@ -124,7 +134,6 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_system_info,
             get_api_base,
-            set_api_base,
             open_external,
             get_version,
             is_dev,
@@ -147,7 +156,13 @@ pub fn run() {
                 let handle = app.handle().clone();
                 app.deep_link().on_open_url(move |event| {
                     let urls: Vec<String> = event.urls().iter().map(|u| u.to_string()).collect();
-                    log::info!("[deep-link] opened: {urls:?}");
+                    // 只记 scheme://host/path:query 里可能带登录凭据(code / session_id),不能进日志
+                    let logged: Vec<String> = event
+                        .urls()
+                        .iter()
+                        .map(|u| format!("{}://{}{}", u.scheme(), u.host_str().unwrap_or(""), u.path()))
+                        .collect();
+                    log::info!("[deep-link] opened: {logged:?}");
                     // 前端用 window.__TAURI__.event.listen('deep-link://open') 收
                     if let Err(e) = handle.emit("deep-link://open", urls) {
                         log::warn!("[deep-link] emit failed: {e}");
@@ -172,4 +187,27 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_allowed_external;
+
+    #[test]
+    fn open_external_allow_list() {
+        assert!(is_allowed_external("https://qingqiuyue.com/api/core/oauth/login/wechat?from=%2F"));
+        assert!(is_allowed_external("xhsdiscover://"));
+        for bad in [
+            "http://example.com",
+            "file:///C:/Windows/System32/calc.exe",
+            "\\\\evil\\share\\x.exe",
+            "javascript:alert(1)",
+            "smb://evil/share",
+            "xhsdiscover://anything/else",
+            "https://user:pw@example.com",
+            "not a url",
+        ] {
+            assert!(!is_allowed_external(bad), "{bad}");
+        }
+    }
 }
