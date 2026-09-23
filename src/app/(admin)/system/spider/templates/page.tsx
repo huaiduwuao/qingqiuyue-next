@@ -26,7 +26,7 @@ import Divider from '@mui/material/Divider';
 import Paper from '@mui/material/Paper';
 import CircularProgress from '@mui/material/CircularProgress';
 import { DataGridTable } from '@/components/tables/DataGridTable';
-import { listTemplates, createTemplate, updateTemplate, deleteTemplate, getTemplateDetail, addTemplateAttr, deleteTemplateAttr, autoGenerateTemplate } from '@/apis/spider';
+import { listTemplates, listSources, createTemplate, updateTemplate, deleteTemplate, getTemplateDetail, addTemplateAttr, deleteTemplateAttr, autoGenerateTemplate } from '@/apis/spider';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -46,18 +46,24 @@ const ATTR_CODES = ['title', 'link', 'cover', 'content', 'description', 'date', 
 interface TemplateFormData {
   name: string;
   type: string;
-  source: string;
+  /** 关联源的 id(字符串原样透传,源 id 可能超 2^53);空 = 不关联 */
+  sourceId: string;
 }
 
 export default function SpiderTemplatesPage() {
   const qc = useQueryClient();
   const [writeVisible, setWriteVisible] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
-  const [formValues, setFormValues] = useState<TemplateFormData>({ name: '', type: 'novel', source: '' });
+  const [formValues, setFormValues] = useState<TemplateFormData>({ name: '', type: 'novel', sourceId: '' });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
   const [autoOpen, setAutoOpen] = useState(false);
   const [autoUrl, setAutoUrl] = useState('');
   const [autoResult, setAutoResult] = useState<AutoTemplateResult | null>(null);
+
+  // 来源下拉 / 列表里的源名称
+  const sourcesQuery = useQuery({ queryKey: ['spider', 'sources-list'], queryFn: () => listSources({ page: 1, pageSize: 200 }).then((r) => r.list || []) });
+  const sourceOptions = (sourcesQuery.data ?? []).map((src: any) => ({ id: String(src.id), name: String(src.name || src.domain || src.id) }));
+  const sourceNames = new Map(sourceOptions.map((o) => [o.id, o.name]));
 
   const showMessage = useCallback((message: string, severity: 'success' | 'error' = 'success') => setSnackbar({ open: true, message, severity }), []);
   const refresh = useCallback(() => qc.invalidateQueries({ queryKey: ['spider', 'templates'] }), [qc]);
@@ -105,13 +111,13 @@ export default function SpiderTemplatesPage() {
 
   const handleCreate = () => {
     setEditingTemplate(null);
-    setFormValues({ name: '', type: 'novel', source: '' });
+    setFormValues({ name: '', type: 'novel', sourceId: '' });
     setWriteVisible(true);
   };
 
   const handleEdit = (record: any) => {
     setEditingTemplate(record);
-    setFormValues({ name: record.name, type: record.type, source: record.source });
+    setFormValues({ name: record.name, type: record.type, sourceId: record.source_id ? String(record.source_id) : '' });
     setWriteVisible(true);
   };
 
@@ -143,7 +149,7 @@ export default function SpiderTemplatesPage() {
     { field: 'id', headerName: 'ID', width: 80 },
     { field: 'name', headerName: '名称', width: 150 },
     { field: 'type', headerName: '类型', width: 100, renderCell: (p) => <Chip label={TYPE_LABELS[p.value] || p.value} size="small" variant="outlined" /> },
-    { field: 'source', headerName: '来源', width: 120 },
+    { field: 'source_id', headerName: '来源', width: 120, valueGetter: (v) => (v ? sourceNames.get(String(v)) ?? String(v) : '-') },
     { field: 'attrs', headerName: '属性数', width: 100 },
     { field: 'items', headerName: '条目数', width: 100 },
     { field: 'createTime', headerName: '创建时间', width: 180, valueFormatter: (v) => v ? new Date(v).toLocaleString() : '-' },
@@ -203,7 +209,11 @@ export default function SpiderTemplatesPage() {
             <TextField select label="类型" value={formValues.type} onChange={(e) => setFormValues({ ...formValues, type: e.target.value })} size="small" fullWidth>
               {Object.entries(TYPE_LABELS).map(([k, v]) => <MenuItem key={k} value={k}>{v}</MenuItem>)}
             </TextField>
-            <TextField label="来源" value={formValues.source} onChange={(e) => setFormValues({ ...formValues, source: e.target.value })} size="small" fullWidth placeholder="关联的源名称" />
+            {/* 后端按 source_id 关联源;以前这里手填源名称,后端根本不认 */}
+            <TextField select label="来源" value={formValues.sourceId} onChange={(e) => setFormValues({ ...formValues, sourceId: e.target.value })} size="small" fullWidth>
+              <MenuItem value="">不关联</MenuItem>
+              {sourceOptions.map((src) => <MenuItem key={src.id} value={src.id}>{src.name}</MenuItem>)}
+            </TextField>
           </Box>
           {editingTemplate && (
             <>

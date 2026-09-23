@@ -301,7 +301,8 @@ export function TemplateEditorDialog({ open, templateId, onClose, onSaved }: Tem
       return;
     }
     const rawContent = formToContent(form);
-    saveMutation.mutate({ name: form.name, type: form.type, source: String(templateId), content: rawContent });
+    // 以前这里把模板 id 当成 source 发过去;源在模板列表页里选,这里只存名称、类型和配置
+    saveMutation.mutate({ name: form.name, type: form.type, content: rawContent });
   };
 
   return (

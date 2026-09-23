@@ -13,6 +13,7 @@ import type {
 import { spiderClient } from '@/lib/api/client';
 import type { PageParams, PageResult } from '@/beans/pagination';
 import { normalizeLegacyPageResponse } from '@/hooks/usePagination';
+import { toEntityId, type EntityId } from '@/lib/id';
 
 // Hourly Stats API
 export interface HourlyStats {
@@ -130,19 +131,38 @@ export async function listTemplates(params?: PageParams): Promise<PageResult<any
   return normalizeLegacyPageResponse(res);
 }
 
-export async function createTemplate(params: { name: string; type: string; source: string }): Promise<any> {
-  return spiderClient('/templates', { method: 'POST', data: params });
-}
-
-export interface TemplateUpdate {
+/**
+ * 模板新建 / 保存。后端 TemplateRequest 绑的是 source_id(数字或字符串,源 id 可能超 2^53)和 config:
+ * 以前发 source(源名称)和 content,后端都不认 —— 新建的模板不挂任何源,编辑器里「保存」的整段配置
+ * 也从来没写进去。这里统一换成后端要的字段名。
+ */
+export interface TemplateWrite {
   name: string;
   type: string;
-  source?: string;
-  /** raw JSON content(覆盖 module_template.content 整段) */
+  /** 关联的爬虫源 id(源管理里的 id,原样透传,别 Number()) */
+  sourceId?: EntityId | null;
+  /** raw JSON content(覆盖 module_template.content 整段),发给后端的 config;后端会校验 */
   content?: string;
 }
-export async function updateTemplate(id: number, params: TemplateUpdate): Promise<any> {
-  return spiderClient(`/templates/${id}`, { method: 'PUT', data: params });
+/** @deprecated 用 TemplateWrite */
+export type TemplateUpdate = TemplateWrite;
+
+function templateBody(params: TemplateWrite) {
+  const sourceId = toEntityId(params.sourceId);
+  return {
+    name: params.name,
+    type: params.type,
+    ...(sourceId !== null ? { source_id: sourceId } : {}),
+    ...(params.content ? { config: params.content } : {}),
+  };
+}
+
+export async function createTemplate(params: TemplateWrite): Promise<any> {
+  return spiderClient('/templates', { method: 'POST', data: templateBody(params) });
+}
+
+export async function updateTemplate(id: number, params: TemplateWrite): Promise<any> {
+  return spiderClient(`/templates/${id}`, { method: 'PUT', data: templateBody(params) });
 }
 
 export async function deleteTemplate(id: number): Promise<any> {
@@ -679,8 +699,10 @@ export async function getContentDetail(id: number): Promise<any> {
 }
 
 // 工具接口(模板/单源健康/清理)
-export async function exportTemplates(params?: { sourceId?: number }): Promise<any> {
-  return spiderClient('/templates/export', { method: 'POST', data: params ?? {} });
+// 后端绑 source_id(必填),以前发 sourceId 永远 400
+export async function exportTemplates(params: { sourceId: EntityId; format?: string; template?: string[] }): Promise<any> {
+  const { sourceId, ...rest } = params;
+  return spiderClient('/templates/export', { method: 'POST', data: { ...rest, source_id: toEntityId(sourceId) } });
 }
 export async function testTemplate(params: {
   url: string;
