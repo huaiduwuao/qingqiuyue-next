@@ -28,6 +28,14 @@ export interface DiscoverState {
 
 export const isDiscoverPending = (d?: DiscoverState | null) => d?.status === 'queued' || d?.status === 'running';
 
+// 类型猜测(用户没选分类时,后端按搜索点击回流/站内高热/关键词特征猜他想找的类型,
+// 并据此收窄全网检索的源)。guessed_type 非空时前端可提示「猜你想找小说,已优先展示」。
+export interface GuessState {
+  type: string;        // NOVEL/FILM/MUSIC…
+  confidence: number;  // 0..1,≥0.6 后端才采纳
+  source: string;      // click / hot-exact / keyword
+}
+
 export const searchContent = (kw: string, opts?: SearchOptions) =>
   contentClient('/search', { params: { kw, ...opts } });
 

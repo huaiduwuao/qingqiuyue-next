@@ -24,6 +24,7 @@ import HistoryIcon from '@mui/icons-material/History';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
 import SearchOffIcon from '@mui/icons-material/SearchOff';
 import TravelExploreIcon from '@mui/icons-material/TravelExplore';
+import TipsAndUpdatesIcon from '@mui/icons-material/TipsAndUpdates';
 import CircularProgress from '@mui/material/CircularProgress';
 import Tooltip from '@mui/material/Tooltip';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
@@ -32,7 +33,7 @@ import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import { ACCENT } from '@/constants/accents';
 import { useContentNavigate } from '@/lib/contentRoute';
-import { isDiscoverPending, searchContent, suggestCreators, suggestTopics, type DiscoverState } from '@/apis/search';
+import { isDiscoverPending, searchContent, suggestCreators, suggestTopics, type DiscoverState, type GuessState } from '@/apis/search';
 import { fetchContentTypes, fetchFacets, type ContentTypeItem, type FacetItem } from '@/apis/home-discover';
 import { topKeywordInThirdMonth } from '@/apis/home';
 import RecommendBoard from '@/components/home/RecommendBoard';
@@ -285,10 +286,10 @@ function SearchPageContent() {
 
   const searchQuery = useQuery({
     queryKey: searchQueryKey,
-    queryFn: async (): Promise<{ items: SearchContentItem[]; discover: DiscoverState | null }> => {
+    queryFn: async (): Promise<{ items: SearchContentItem[]; discover: DiscoverState | null; guess: GuessState | null }> => {
       const q = query.trim();
       const hasFilter = !!(fType || fDirector || fActor || fGenre || fYear);
-      if (!q && !hasFilter) return { items: [], discover: null };
+      if (!q && !hasFilter) return { items: [], discover: null, guess: null };
       // 走统一 GET /search(kw + 结构化筛选参数),见 src/apis/search.ts
       const res = (await searchContent(q, {
         type: fType || undefined,
@@ -324,7 +325,11 @@ function SearchPageContent() {
           reason: typeof it.reason === 'string' ? it.reason : undefined,
         } as SearchContentItem;
       });
-      return { items, discover: (res?.discover as DiscoverState | undefined) ?? null };
+      // 类型猜测:后端在用户没选分类时猜他想找的类型(并据此收窄全网检索源)。
+      const guess: GuessState | null = res?.guessed_type
+        ? { type: res.guessed_type, confidence: res.guessed_confidence ?? 0, source: res.guessed_source ?? '' }
+        : null;
+      return { items, discover: (res?.discover as DiscoverState | undefined) ?? null, guess };
     },
     enabled: !aiMode && (query.trim().length > 0 || !!(fType || fDirector || fActor || fGenre || fYear)),
     staleTime: 60 * 1000,
@@ -405,6 +410,8 @@ function SearchPageContent() {
 
   const contents = searchQuery.data?.items ?? [];
   const discover = searchQuery.data?.discover ?? null;
+  // 类型猜测:仅在用户没手动选分类时展示(选了就不必提示)。
+  const guess = searchQuery.data?.guess ?? null;
   const discovering =
     isDiscoverPending(discover) &&
     (queryClient.getQueryState(searchQueryKey)?.dataUpdateCount ?? 0) < DISCOVER_MAX_POLLS;
@@ -787,6 +794,13 @@ function SearchPageContent() {
               empty={total === 0}
             />
 
+            {!fType && guess && (
+              <GuessTypeBanner
+                guess={guess}
+                onSwitch={() => setFType(guess.type)}
+              />
+            )}
+
             {loading ? (
               <LoadingSkeleton />
             ) : total === 0 ? (
@@ -942,6 +956,59 @@ function DiscoverBanner({
           ? `站内${empty ? '暂无' : '结果较少'}，正在全网检索「${query}」，新收录的作品会自动出现在这里…`
           : `全网检索完成，已收录 ${indexed} 条相关作品`}
       </Typography>
+    </Box>
+  );
+}
+
+// GuessTypeBanner 类型猜测提示:后端猜出用户想找的类型(他没手动选分类)时展示,
+// 告知「已按小说优先检索」,可一键切到该分类。点击后 setFType 触发按该类型重搜。
+function GuessTypeBanner({ guess, onSwitch }: { guess: GuessState; onSwitch: () => void }) {
+  const label = TYPE_LABEL[guess.type as SearchContentItem['contentType']] ?? guess.type;
+  const accent = TYPE_ACCENT[guess.type as SearchContentItem['contentType']] ?? 'var(--text-secondary)';
+  // 来源说明:让用户知道为什么猜这个(可解释性)。
+  const why =
+    guess.source === 'click'
+      ? '多数人在找它时看的是这一类'
+      : guess.source === 'hot-exact'
+        ? '站内这一类有高热同名作品'
+        : '从关键词看更像这一类';
+  return (
+    <Box
+      role="status"
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1.25,
+        mb: 2,
+        px: 1.5,
+        py: 1,
+        borderRadius: 1.5,
+        border: '1px solid var(--border-color, rgba(255,255,255,0.08))',
+        bgcolor: 'var(--bg-hover, rgba(255,255,255,0.04))',
+      }}
+    >
+      <TipsAndUpdatesIcon sx={{ fontSize: 17, color: accent, flexShrink: 0 }} />
+      <Typography sx={{ fontSize: 13, color: 'var(--text-secondary, rgba(255,255,255,0.75))', flex: 1, minWidth: 0 }}>
+        猜你想找
+        <Box component="span" sx={{ color: accent, fontWeight: 600, mx: 0.5 }}>{label}</Box>
+        · {why},已按这一类优先检索
+      </Typography>
+      <Button
+        size="small"
+        onClick={onSwitch}
+        sx={{
+          flexShrink: 0,
+          fontSize: 12,
+          color: accent,
+          borderColor: accent,
+          textTransform: 'none',
+          py: 0.25,
+          minWidth: 0,
+        }}
+        variant="outlined"
+      >
+        只看{label}
+      </Button>
     </Box>
   );
 }
