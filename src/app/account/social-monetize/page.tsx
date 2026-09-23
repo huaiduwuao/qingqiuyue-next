@@ -28,13 +28,13 @@ import {
   getMyPurchases,
   applyWithdraw,
   setPaidContent,
-  formatMoney,
   type EarningsStats,
   type Earning,
   type Tip,
   type PaidContent,
   type Purchase,
 } from '@/apis/social-monetize';
+import { diamondsToYuan, MIN_WITHDRAW_DIAMONDS } from '@/apis/wallet';
 
 // 图标
 const IconMoney = () => (
@@ -52,11 +52,15 @@ function EarningsOverview({ stats, onWithdrawn }: { stats: EarningsStats; onWith
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  // 可提现是"分",输入框是"元"
-  const availableYuan = stats.availableAmount / 100;
-  const amountYuan = parseFloat(amount) || 0;
+  // 收益与可提现都是钻石,输入框也按钻(整数);到账人民币 = 钻 × 10 分
+  const amountNum = Number(amount) || 0;
   const canSubmit =
-    amountYuan >= 1 && amountYuan <= availableYuan && bankAccount.trim() && bankName.trim() && !submitting;
+    Number.isInteger(amountNum) &&
+    amountNum >= MIN_WITHDRAW_DIAMONDS &&
+    amountNum <= stats.availableAmount &&
+    bankAccount.trim() &&
+    bankName.trim() &&
+    !submitting;
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -64,7 +68,7 @@ function EarningsOverview({ stats, onWithdrawn }: { stats: EarningsStats; onWith
     setError('');
     try {
       await applyWithdraw({
-        amount: Math.round(amountYuan * 100), // 元 -> 分
+        amount: amountNum, // 钻
         bankAccount: bankAccount.trim(),
         bankName: bankName.trim(),
       });
@@ -88,7 +92,7 @@ function EarningsOverview({ stats, onWithdrawn }: { stats: EarningsStats; onWith
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2 }}>
         <Box sx={{ p: 2, borderRadius: 1.5, bgcolor: 'rgba(93, 219, 150, 0.1)', textAlign: 'center' }}>
           <Typography sx={{ fontSize: 24, fontWeight: 700, color: '#5DDB96' }}>
-            ¥{formatMoney(stats.availableAmount)}
+            💎 {stats.availableAmount}
           </Typography>
           <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
             可提现
@@ -96,7 +100,7 @@ function EarningsOverview({ stats, onWithdrawn }: { stats: EarningsStats; onWith
         </Box>
         <Box sx={{ p: 2, borderRadius: 1.5, bgcolor: 'rgba(255, 180, 0, 0.1)', textAlign: 'center' }}>
           <Typography sx={{ fontSize: 24, fontWeight: 700, color: '#FFB400' }}>
-            ¥{formatMoney(stats.totalEarnings)}
+            💎 {stats.totalEarnings}
           </Typography>
           <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
             累计收益
@@ -104,7 +108,7 @@ function EarningsOverview({ stats, onWithdrawn }: { stats: EarningsStats; onWith
         </Box>
         <Box sx={{ p: 2, borderRadius: 1.5, bgcolor: 'rgba(91, 141, 239, 0.1)', textAlign: 'center' }}>
           <Typography sx={{ fontSize: 20, fontWeight: 700, color: '#5B8DEF' }}>
-            ¥{formatMoney(stats.todayEarnings)}
+            💎 {stats.todayEarnings}
           </Typography>
           <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
             今日收益
@@ -112,7 +116,7 @@ function EarningsOverview({ stats, onWithdrawn }: { stats: EarningsStats; onWith
         </Box>
         <Box sx={{ p: 2, borderRadius: 1.5, bgcolor: 'rgba(254, 44, 85, 0.1)', textAlign: 'center' }}>
           <Typography sx={{ fontSize: 20, fontWeight: 700, color: '#FE2C55' }}>
-            ¥{formatMoney(stats.withdrawnAmount)}
+            💎 {stats.withdrawnAmount}
           </Typography>
           <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
             已提现
@@ -130,9 +134,11 @@ function EarningsOverview({ stats, onWithdrawn }: { stats: EarningsStats; onWith
           fontWeight: 700,
           '&:hover': { filter: 'brightness(1.1)' },
         }}
-        disabled={stats.availableAmount < 100}
+        disabled={stats.availableAmount < MIN_WITHDRAW_DIAMONDS}
       >
-        {stats.availableAmount < 100 ? `满 ¥1.00 可提现（还差 ¥${formatMoney(100 - stats.availableAmount)}）` : '申请提现'}
+        {stats.availableAmount < MIN_WITHDRAW_DIAMONDS
+          ? `满 ${MIN_WITHDRAW_DIAMONDS} 钻可提现（还差 ${MIN_WITHDRAW_DIAMONDS - stats.availableAmount} 钻）`
+          : '申请提现'}
       </Button>
 
       {/* 提现弹窗 */}
@@ -140,20 +146,23 @@ function EarningsOverview({ stats, onWithdrawn }: { stats: EarningsStats; onWith
         <DialogTitle>申请提现</DialogTitle>
         <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: '8px !important' }}>
           <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-            当前可提现 ¥{formatMoney(stats.availableAmount)}
+            当前可提现 💎 {stats.availableAmount}(≈ ¥{diamondsToYuan(stats.availableAmount)})
           </Typography>
           <TextField
-            label="提现金额"
+            label="提现钻石数"
             type="number"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             fullWidth
             size="small"
             slotProps={{
-              htmlInput: { min: 1, max: availableYuan, step: 0.01 },
-              input: { startAdornment: <InputAdornment position="start">¥</InputAdornment> },
+              htmlInput: { min: MIN_WITHDRAW_DIAMONDS, max: stats.availableAmount, step: 1 },
+              input: { startAdornment: <InputAdornment position="start">💎</InputAdornment> },
             }}
-            helperText={`单次最少 ¥1.00,最多 ¥${availableYuan.toFixed(2)}`}
+            helperText={
+              `单次最少 ${MIN_WITHDRAW_DIAMONDS} 钻,最多 ${stats.availableAmount} 钻` +
+              (amountNum > 0 ? ` · 到账 ¥${diamondsToYuan(amountNum)}` : '')
+            }
           />
           <TextField
             label="开户行/支付渠道"
@@ -268,7 +277,7 @@ function TipsTab() {
                   fontWeight: 700,
                 }}
               >
-                +{formatMoney(tip.amount)}
+                +{tip.amount}
               </Box>
               <Box sx={{ flex: 1 }}>
                 <Typography sx={{ fontWeight: 500, fontSize: 13 }}>
@@ -357,10 +366,10 @@ function EarningsHistoryTab() {
               </Box>
               <Box sx={{ flex: 1 }}>
                 <Typography sx={{ fontWeight: 500, fontSize: 13 }}>
-                  +¥{formatMoney(e.netAmount)}
+                  +💎 {e.netAmount}
                 </Typography>
                 <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-                  手续费: ¥{formatMoney(e.platformFee)}
+                  手续费: 💎 {e.platformFee}
                 </Typography>
               </Box>
               <Chip
@@ -394,17 +403,19 @@ function PaidContentsTab() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  const priceFen = Math.round((parseFloat(price) || 0) * 100);
+  // 价格按钻(整数,1 ~ 10000)
   // 内容 id 超 2^53,parseInt 会截成另一条内容(永远「内容不存在」);toEntityId 超范围时保留字符串
   const entityId = toEntityId(contentId.trim());
-  const canSubmit = entityId !== null && priceFen > 0 && !submitting;
+  const priceDiamonds = Number(price) || 0;
+  const canSubmit =
+    entityId !== null && Number.isInteger(priceDiamonds) && priceDiamonds >= 1 && priceDiamonds <= 10000 && !submitting;
 
   const submit = async () => {
     if (!canSubmit || entityId === null) return;
     setSubmitting(true);
     setError('');
     try {
-      await setPaidContent({ contentId: entityId, price: priceFen });
+      await setPaidContent({ contentId: entityId, price: priceDiamonds });
       setOpen(false);
       setContentId('');
       setPrice('');
@@ -454,12 +465,12 @@ function PaidContentsTab() {
               <Box sx={{ flex: 1 }}>
                 <Typography sx={{ fontWeight: 500, fontSize: 13 }}>{content.title}</Typography>
                 <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>
-                  销量: {content.salesCount} | 收入: ¥{formatMoney(content.revenue)}
+                  销量: {content.salesCount} | 收入: 💎 {content.revenue}
                 </Typography>
               </Box>
               <Chip
                 size="small"
-                label={`¥${formatMoney(content.price)}`}
+                label={`💎 ${content.price}`}
                 sx={{ bgcolor: '#5DDB9620', color: '#5DDB96' }}
               />
             </Box>
@@ -487,16 +498,17 @@ function PaidContentsTab() {
             helperText="在「内容管理」里查看你的内容 ID"
           />
           <TextField
-            label="价格"
+            label="价格(钻)"
             type="number"
             value={price}
             onChange={(e) => setPrice(e.target.value)}
             fullWidth
             size="small"
             slotProps={{
-              htmlInput: { min: 0.01, step: 0.01 },
-              input: { startAdornment: <InputAdornment position="start">¥</InputAdornment> },
+              htmlInput: { min: 1, max: 10000, step: 1 },
+              input: { startAdornment: <InputAdornment position="start">💎</InputAdornment> },
             }}
+            helperText={priceDiamonds > 0 ? `≈ ¥${diamondsToYuan(priceDiamonds)} · 最高 10000 钻` : '1 ~ 10000 钻(1 钻 = ¥0.1)'}
           />
           {error && (
             <Typography sx={{ fontSize: 12, color: 'error.main' }}>{error}</Typography>
@@ -562,7 +574,7 @@ function PurchasesTab() {
                 </Typography>
               </Box>
               <Typography sx={{ fontWeight: 600, color: '#FE2C55' }}>
-                -¥{formatMoney(p.amount)}
+                -💎 {p.amount}
               </Typography>
             </Box>
           ))}

@@ -13,7 +13,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import CollectionsBookmarkRoundedIcon from '@mui/icons-material/CollectionsBookmarkRounded';
 import ArticleRoundedIcon from '@mui/icons-material/ArticleRounded';
 import { LoginGate } from '@/components/auth/LoginGate';
-import { getMyUnifiedPurchases, formatMoney, type UnifiedPurchase } from '@/apis/social-monetize';
+import { getMyUnifiedPurchases, type UnifiedPurchase } from '@/apis/social-monetize';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { coverBackground } from '@/lib/media';
 
@@ -60,7 +60,7 @@ export default function PurchasesPage() {
         <LoginGate mode="replace" message="登录后查看我的购买">
           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.5, mb: 3 }}>
             <Summary label="累计购买" value={String(purchases.length)} />
-            <Summary label="已花费" value={`¥${formatMoney(totalSpent)}`} color="primary.main" />
+            <Summary label="已花费" value={`💎 ${totalSpent}`} color="primary.main" />
             <Summary label="合集买断" value={String(purchases.filter((p) => p.kind === 'collection').length)} color="#FFB400" />
           </Box>
 
@@ -145,7 +145,7 @@ export default function PurchasesPage() {
                       </Typography>
                     </Box>
                     <Typography sx={{ fontSize: 15, fontWeight: 700, fontVariantNumeric: 'tabular-nums', flexShrink: 0, color: 'text.primary' }}>
-                      ¥{formatMoney(p.amount)}
+                      💎 {p.amount}
                     </Typography>
                   </Box>
                 );

@@ -6,7 +6,7 @@ import { contentClient } from '@/lib/api/client';
  */
 export interface Paywall {
   paidContentId: number;
-  /** 价格(分)。站内 1 钻石 = 1 分 */
+  /** 价格(钻石)。钱包按钻石记账,1 钻 = ¥0.1 */
   price: number;
   /** 免费试看/试读的章节(分集)数 */
   freeItems: number;
@@ -25,7 +25,7 @@ export async function unlockContent(contentId: string | number) {
   });
 }
 
-/** 金额(分)→ 展示用元,去掉无意义的小数。 */
+/** 金额(分)→ 展示用元,去掉无意义的小数。注意:钱包/付费内容已按钻石计,钻石用 @/apis/wallet 的 diamondsToYuan。 */
 export function formatYuan(cents: number): string {
   const yuan = cents / 100;
   return Number.isInteger(yuan) ? String(yuan) : yuan.toFixed(2);

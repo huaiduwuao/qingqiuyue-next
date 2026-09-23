@@ -7,7 +7,6 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
 import { getEarnings, getMyPaidContents, type PaidContent } from '@/apis/social-monetize';
-import { formatYuan } from '@/apis/paywall';
 import { TYPE_LABEL } from '@/lib/contentRoute';
 import { useActiveTab } from '../../ActiveTabContext';
 import WalletSummary from './page';
@@ -55,7 +54,7 @@ function CreatorEarnings() {
           <Box key={it.label} sx={{ p: 1.5, borderRadius: 1.5, bgcolor: 'action.hover' }}>
             <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{it.label}</Typography>
             <Typography sx={{ fontSize: 20, fontWeight: 700, fontFamily: 'monospace', mt: 0.5 }}>
-              {it.value === undefined ? '—' : `¥${formatYuan(it.value)}`}
+              {it.value === undefined ? '—' : `💎 ${it.value}`}
             </Typography>
           </Box>
         ))}
@@ -112,9 +111,9 @@ function PaidWorks() {
                     {pc.title || `作品 ${pc.contentId}`}
                   </Box>
                   <td>{TYPE_LABEL[pc.contentType?.toUpperCase()] ?? pc.contentType ?? '—'}</td>
-                  <td>¥{formatYuan(pc.price)}</td>
+                  <td>💎 {pc.price}</td>
                   <td>{pc.salesCount}</td>
-                  <td>¥{formatYuan(pc.revenue)}</td>
+                  <td>💎 {pc.revenue}</td>
                 </tr>
               ))}
             </tbody>

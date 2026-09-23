@@ -14,16 +14,16 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import VolunteerActivismOutlinedIcon from '@mui/icons-material/VolunteerActivismOutlined';
-import { getWalletBalance, tipCreator } from '@/apis/wallet';
-import { formatYuan } from '@/apis/paywall';
+import { diamondsToYuan, getWalletBalance, tipCreator } from '@/apis/wallet';
 import { formatApiError } from '@/lib/api/client';
 import { loginHref } from '@/lib/auth/redirect';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
 
-/** 预设打赏金额(分)。 */
-const PRESETS = [100, 520, 1000, 5000];
-const MIN_TIP = 10;
+/** 预设打赏钻石数(钱包按钻石记账,1 钻 = ¥0.1)。 */
+const PRESETS = [10, 52, 100, 500];
+/** 后端 walletapp.MinTipAmount */
+const MIN_TIP = 1;
 const MAX_REMARK = 50;
 
 interface TipButtonProps {
@@ -52,8 +52,8 @@ export function TipButton({ creatorId, contentId, creatorName }: TipButtonProps)
     enabled: open && isAuthenticated,
   });
   const tip = useMutation({
-    mutationFn: (cents: number) =>
-      tipCreator({ targetUserId: targetId, contentId: String(contentId), amount: cents, remark: remark.trim() || undefined }),
+    mutationFn: (diamonds: number) =>
+      tipCreator({ targetUserId: targetId, contentId: String(contentId), amount: diamonds, remark: remark.trim() || undefined }),
     onSuccess: () => {
       setDone(true);
       qc.invalidateQueries({ queryKey: ['wallet'] });
@@ -62,10 +62,10 @@ export function TipButton({ creatorId, contentId, creatorName }: TipButtonProps)
 
   if (!targetId || targetId <= 0 || targetId === currentUser?.id) return null;
 
-  const cents = custom ? Math.round(Number(custom) * 100) : amount;
-  const balanceCents: number | undefined = balance.data?.balance;
-  const insufficient = balanceCents !== undefined && cents > balanceCents;
-  const invalid = !Number.isFinite(cents) || cents < MIN_TIP;
+  const diamonds = custom ? Number(custom) : amount;
+  const balanceDiamonds: number | undefined = balance.data?.balance;
+  const insufficient = balanceDiamonds !== undefined && diamonds > balanceDiamonds;
+  const invalid = !Number.isInteger(diamonds) || diamonds < MIN_TIP;
 
   const openDialog = () => {
     if (!isAuthenticated) {
@@ -109,17 +109,18 @@ export function TipButton({ creatorId, contentId, creatorName }: TipButtonProps)
                     }}
                     sx={{ textTransform: 'none' }}
                   >
-                    ¥{formatYuan(p)}
+                    💎 {p}
                   </Button>
                 ))}
               </Box>
               <TextField
                 fullWidth
                 size="small"
-                label="自定义金额(元)"
-                inputMode="decimal"
+                label="自定义钻石数"
+                inputMode="numeric"
                 value={custom}
-                onChange={(e) => setCustom(e.target.value.replace(/[^\d.]/g, ''))}
+                onChange={(e) => setCustom(e.target.value.replace(/\D/g, ''))}
+                helperText={custom && Number(custom) > 0 ? `≈ ¥${diamondsToYuan(Number(custom))}` : '1 钻 = ¥0.1'}
                 sx={{ mb: 1.5 }}
               />
               <TextField
@@ -130,7 +131,7 @@ export function TipButton({ creatorId, contentId, creatorName }: TipButtonProps)
                 onChange={(e) => setRemark(e.target.value.slice(0, MAX_REMARK))}
               />
               <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 1.5 }}>
-                钱包余额:{balanceCents === undefined ? '…' : `¥${formatYuan(balanceCents)}`}
+                钱包余额:{balanceDiamonds === undefined ? '…' : `💎 ${balanceDiamonds}`}
                 {insufficient && (
                   <>
                     {' · 余额不足,'}
@@ -152,9 +153,9 @@ export function TipButton({ creatorId, contentId, creatorName }: TipButtonProps)
             <Button
               variant="contained"
               disabled={invalid || insufficient || tip.isPending}
-              onClick={() => tip.mutate(cents)}
+              onClick={() => tip.mutate(diamonds)}
             >
-              {tip.isPending ? '处理中…' : invalid ? '最低 ¥0.1' : `打赏 ¥${formatYuan(cents)}`}
+              {tip.isPending ? '处理中…' : invalid ? `最低 ${MIN_TIP} 钻` : `打赏 💎 ${diamonds}`}
             </Button>
           )}
         </DialogActions>

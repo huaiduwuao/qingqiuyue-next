@@ -10,7 +10,7 @@ export interface Tip {
   fanId: number;
   creatorId: number;
   contentId?: number;
-  amount: number; // 分
+  amount: number; // 钻(新记录 currency = "DIAMOND")
   currency: string;
   platformFee: number;
   creatorEarn: number;
@@ -22,7 +22,7 @@ export interface Tip {
 export interface TipRequest {
   creatorId: number;
   contentId?: number;
-  amount: number;
+  amount: number; // 钻,最少 1
   message?: string;
 }
 
@@ -56,7 +56,7 @@ export interface SubscriptionInfo {
   isSubscribed: boolean;
   planType?: string;
   endTime?: string;
-  price: number;
+  price: number; // 钻/月(年付 = 10 个月价)
 }
 
 // 获取订阅信息
@@ -81,9 +81,9 @@ export interface PaidContent {
   contentId: number;
   title: string;
   coverUrl: string;
-  price: number;
+  price: number;   // 钻
   salesCount: number;
-  revenue: number;
+  revenue: number; // 钻
   contentType: string;
   status: string;
   createdAt: string;
@@ -94,7 +94,7 @@ export interface Purchase {
   userId: number;
   creatorId: number;
   paidContentId: number;
-  amount: number;
+  amount: number; // 钻
   status: string;
   createdAt: string;
 }
@@ -103,7 +103,7 @@ export interface Purchase {
 export async function setPaidContent(params: {
   /** 内容 id 超 2^53,按字符串原样发(见 lib/id.ts) */
   contentId: EntityId;
-  price: number;
+  price: number; // 钻,1 ~ 10000;0 = 改回免费
 }): Promise<PaidContent> {
   const res = await adminClient('/social/paid-content', { method: 'POST', data: params });
   return res;
@@ -131,12 +131,13 @@ export async function getMyPurchases(params?: PageParams): Promise<PageResult<Pu
 // ── 收益 API ──
 
 export interface EarningsStats {
-  totalEarnings: number;   // 累计收益（分）
-  availableAmount: number; // 可提现金额（分）
-  withdrawnAmount: number; // 已提现金额（分）
-  pendingAmount: number;   // 待处理（分）
-  todayEarnings: number;   // 今日收益（分）
-  monthEarnings: number;   // 本月收益（分）
+  // 以下全部为钻石
+  totalEarnings: number;   // 累计收益
+  availableAmount: number; // 可提现(= 钱包余额)
+  withdrawnAmount: number; // 已提现
+  pendingAmount: number;   // 提现审核中
+  todayEarnings: number;   // 今日收益
+  monthEarnings: number;   // 本月收益
 }
 
 export interface Earning {
@@ -145,9 +146,9 @@ export interface Earning {
   type: 'tip' | 'subscription' | 'paid_content' | 'commission';
   sourceId?: number;
   fanId?: number;
-  amount: number;
-  platformFee: number;
-  netAmount: number;
+  amount: number;      // 钻
+  platformFee: number; // 钻
+  netAmount: number;   // 钻
   status: string;
   createdAt: string;
 }
@@ -170,9 +171,9 @@ export async function getEarningHistory(params?: PageParams & { type?: string })
 export interface Withdraw {
   id: number;
   userId: number;
-  amount: number;
+  amount: number;       // 钻
   fee: number;
-  actualAmount: number;
+  actualAmount: number; // 实际打款(分)
   bankAccount: string;
   bankName: string;
   status: string;
@@ -182,7 +183,7 @@ export interface Withdraw {
 }
 
 export interface WithdrawRequest {
-  amount: number;
+  amount: number; // 钻,最少 10
   bankAccount: string;
   bankName: string;
 }
@@ -199,7 +200,7 @@ export async function getWithdrawHistory(params?: PageParams): Promise<PageResul
   return normalizePageResponse(data);
 }
 
-// 格式化金额（分 -> 元）
+// 格式化金额（分 -> 元）。只用于真正按分的字段(如提现 actualAmount),钻石直接显示
 export function formatMoney(fen: number): string {
   return (fen / 100).toFixed(2);
 }
@@ -214,7 +215,7 @@ export interface UnifiedPurchase {
   refId: number;        // 单条:module_content.id;合集:user_my_list.id
   title: string;
   coverUrl: string;
-  amount: number;       // 分
+  amount: number;       // 钻
   creatorId: number;
   contentType?: string; // kind=content 时有,前端按它拼详情页路由
   shareToken?: string;  // kind=collection 备用

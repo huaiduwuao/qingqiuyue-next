@@ -13,8 +13,8 @@ import DialogActions from '@mui/material/DialogActions';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
-import { formatYuan, isLocked, unlockContent, type Paywall } from '@/apis/paywall';
-import { getWalletBalance } from '@/apis/wallet';
+import { isLocked, unlockContent, type Paywall } from '@/apis/paywall';
+import { diamondsToYuan, getWalletBalance } from '@/apis/wallet';
 import { formatApiError } from '@/lib/api/client';
 import { loginHref } from '@/lib/auth/redirect';
 import { useAuth } from '@/contexts/AuthContext';
@@ -54,8 +54,9 @@ export function PaywallGate({ contentId, paywall, onUnlocked, kind = 'read' }: P
 
   const trial = kind === 'read' ? '试读' : '试看';
   const unit = kind === 'read' ? '章' : '集';
-  const balanceCents: number | undefined = balance.data?.balance;
-  const insufficient = balanceCents !== undefined && balanceCents < paywall.price;
+  // paywall.price 与钱包余额都是钻石
+  const balanceDiamonds: number | undefined = balance.data?.balance;
+  const insufficient = balanceDiamonds !== undefined && balanceDiamonds < paywall.price;
 
   const start = () => {
     if (!isAuthenticated) {
@@ -87,17 +88,17 @@ export function PaywallGate({ contentId, paywall, onUnlocked, kind = 'read' }: P
         解锁后可{kind === 'read' ? '阅读' : '观看'}全部内容
       </Typography>
       <Button variant="contained" onClick={start} sx={{ mt: 2, borderRadius: 999, px: 4, textTransform: 'none' }}>
-        ¥{formatYuan(paywall.price)} 解锁完整内容
+        💎 {paywall.price} 解锁完整内容
       </Button>
 
       <Dialog open={confirming} onClose={() => setConfirming(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontSize: 16, fontWeight: 700 }}>确认解锁</DialogTitle>
         <DialogContent>
           <Typography sx={{ fontSize: 14 }}>
-            将从钱包扣除 <b>¥{formatYuan(paywall.price)}</b>({paywall.price} 钻石),解锁后永久可看。
+            将从钱包扣除 <b>💎 {paywall.price}</b>(≈ ¥{diamondsToYuan(paywall.price)}),解锁后永久可看。
           </Typography>
           <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 1 }}>
-            钱包余额:{balanceCents === undefined ? '…' : `¥${formatYuan(balanceCents)}`}
+            钱包余额:{balanceDiamonds === undefined ? '…' : `💎 ${balanceDiamonds}`}
           </Typography>
           {insufficient && (
             <Alert severity="warning" sx={{ mt: 1.5 }}>

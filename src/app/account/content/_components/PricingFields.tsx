@@ -6,15 +6,15 @@ import TextField from '@mui/material/TextField';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
-import { formatYuan } from '@/apis/paywall';
+import { diamondsToYuan } from '@/apis/wallet';
 
-/** 与后端 socialmonetize.MaxContentPrice 一致(分)。 */
-const MAX_PRICE_CENTS = 100000;
+/** 与后端 socialmonetize.MaxContentPrice 一致(钻,即 ¥1000)。 */
+const MAX_PRICE_DIAMONDS = 10000;
 
 interface PricingFieldsProps {
-  /** 价格(分),0 = 免费 */
+  /** 价格(钻石),0 = 免费 */
   price: number;
-  onPriceChange: (cents: number) => void;
+  onPriceChange: (diamonds: number) => void;
   freeItems: number;
   onFreeItemsChange: (n: number) => void;
   /** 章节/分集类内容:允许设置免费试看的前 N 章(集) */
@@ -26,26 +26,26 @@ interface PricingFieldsProps {
  * 试读/试看部分,购买从钱包扣款,平台抽成后计入创作者钱包。
  */
 export function PricingFields({ price, onPriceChange, freeItems, onFreeItemsChange, serial }: PricingFieldsProps) {
-  const [yuanText, setYuanText] = useState(price > 0 ? formatYuan(price) : '');
+  const [priceText, setPriceText] = useState(price > 0 ? String(price) : '');
   const paid = price > 0;
 
   const setPaid = (next: boolean) => {
     if (next === paid) return;
     if (next) {
-      setYuanText('1');
-      onPriceChange(100);
+      setPriceText('10');
+      onPriceChange(10);
     } else {
-      setYuanText('');
+      setPriceText('');
       onPriceChange(0);
       onFreeItemsChange(0);
     }
   };
 
-  const onYuan = (raw: string) => {
-    const text = raw.replace(/[^\d.]/g, '');
-    setYuanText(text);
-    const cents = Math.round(Number(text) * 100);
-    onPriceChange(Number.isFinite(cents) ? Math.min(Math.max(cents, 0), MAX_PRICE_CENTS) : 0);
+  const onPriceText = (raw: string) => {
+    const text = raw.replace(/\D/g, '');
+    setPriceText(text);
+    const n = Number(text);
+    onPriceChange(Number.isFinite(n) ? Math.min(Math.max(n, 0), MAX_PRICE_DIAMONDS) : 0);
   };
 
   return (
@@ -70,11 +70,11 @@ export function PricingFields({ price, onPriceChange, freeItems, onFreeItemsChan
         <Box sx={{ display: 'flex', gap: 1.5, mt: 1.5, flexWrap: 'wrap' }}>
           <TextField
             size="small"
-            label="价格(元)"
-            value={yuanText}
-            onChange={(e) => onYuan(e.target.value)}
-            slotProps={{ htmlInput: { inputMode: 'decimal' } }}
-            helperText={`最高 ¥${formatYuan(MAX_PRICE_CENTS)}`}
+            label="价格(钻)"
+            value={priceText}
+            onChange={(e) => onPriceText(e.target.value)}
+            slotProps={{ htmlInput: { inputMode: 'numeric' } }}
+            helperText={`≈ ¥${diamondsToYuan(price)} · 最高 ${MAX_PRICE_DIAMONDS} 钻`}
             sx={{ width: 160 }}
           />
           {serial && (

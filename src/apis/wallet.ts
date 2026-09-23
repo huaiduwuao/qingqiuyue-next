@@ -8,6 +8,12 @@ export const FEN_PER_DIAMOND = 10;
 /** 最低提现钻石数(walletapp.MinWithdrawAmount,10 钻 = ¥1) */
 export const MIN_WITHDRAW_DIAMONDS = 10;
 
+/** 钻石数 → 等值人民币(元)文本,去掉无意义的小数:10 → "1",15 → "1.5" */
+export function diamondsToYuan(diamonds: number): string {
+  const yuan = (diamonds * FEN_PER_DIAMOND) / 100;
+  return Number.isInteger(yuan) ? String(yuan) : yuan.toFixed(2).replace(/0$/, '');
+}
+
 // 钱包余额
 export interface WalletBalance {
   id: number;
