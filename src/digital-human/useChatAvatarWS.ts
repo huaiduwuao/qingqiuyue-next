@@ -21,6 +21,7 @@ import type {
   ChatLogItem,
   VisemeFrame,
 } from './useChatAvatar';
+import { buildRealtimeChatBody, readRealtimeChatReply, type ChatResp } from './useChatAvatar';
 import {
   SCENE_PANEL_DISMISS_TOOL,
   SCENE_PANEL_TOOLS,
@@ -1227,6 +1228,25 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     }
   }, [ensureServerConversation]);
 
+  // HTTP 降级通道的回复落到 state:后端只回 {text, toolCalls},工具调用同 WS 的 done 帧一样抛给父组件
+  const applyHttpReply = React.useCallback((resp: ChatResp) => {
+    setChatLog((c) => [...c, { who: 'ai', text: resp.text }]);
+    if (resp.emotion) setEmotion(resp.emotion);
+    if (resp.action) setAction(resp.action);
+    if (resp.isAIGenerated !== undefined) setIsAIGenerated(resp.isAIGenerated);
+    if (resp.toolCalls && resp.toolCalls.length > 0 && onToolCallsRef.current) {
+      try {
+        onToolCallsRef.current(resp.toolCalls.map((tc) => ({ name: tc.name, args: tc.args || {} })));
+      } catch (e) {
+        console.warn('[useChatAvatarWS] onToolCalls threw:', e);
+      }
+    }
+    if (resp.audioUrl && audioRef.current) {
+      audioRef.current.src = resp.audioUrl;
+      audioRef.current.play().catch(() => {});
+    }
+  }, []);
+
   // send: 发送聊天消息
   const send = React.useCallback(async () => {
     const t = text.trim();
@@ -1273,29 +1293,17 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
         const r = await fetch(API_PREFIX + '/api/realtime/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeaders() },
-          body: JSON.stringify({
-            text: t,
-            agentId: agentRef.current,
-            conversationId: conversationIdRef.current || undefined,
-            history: chatLog.map((m) => ({
+          // 对齐后端 avatarapp.ChatReq:{message, history};agentId/conversationId 只有 WS 通道收
+          body: buildRealtimeChatBody(
+            t,
+            chatLog.map((m) => ({
               role: m.who === 'user' ? 'user' : 'assistant',
               content: m.text,
             })),
-          }),
+          ),
         });
-        if (r.ok) {
-          const resp = await r.json();
-          setChatLog((c) => [...c, { who: 'ai', text: resp.text }]);
-          if (resp.emotion) setEmotion(resp.emotion);
-          if (resp.action) setAction(resp.action);
-          if (resp.isAIGenerated !== undefined) setIsAIGenerated(resp.isAIGenerated);
-          if (resp.audioUrl && audioRef.current) {
-            audioRef.current.src = resp.audioUrl;
-            audioRef.current.play().catch(() => {});
-          }
-        } else {
-          setChatLog((c) => [...c, { who: 'ai', text: '抱歉, 服务暂时不可用。' }]);
-        }
+        const resp = await readRealtimeChatReply(r);
+        applyHttpReply(resp);
       } catch {
         setChatLog((c) => [...c, { who: 'ai', text: '抱歉, 服务暂时不可用。' }]);
         setIsAIGenerated(false);
@@ -1303,7 +1311,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
         setChatBusy(false);
       }
     }
-  }, [text, chatBusy, chatLog, useAgui, sendAgui]);
+  }, [text, chatBusy, chatLog, useAgui, sendAgui, applyHttpReply]);
 
   // sendText: 直接发送指定文本(绕过 text state, 给 voice agent 用)
   const sendText = React.useCallback(
@@ -1343,28 +1351,16 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
           const r = await fetch(API_PREFIX + '/api/realtime/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', ...authHeaders() },
-            body: JSON.stringify({
-              text: t,
-              agentId: agentRef.current,
-              history: chatLog.map((m) => ({
+            body: buildRealtimeChatBody(
+              t,
+              chatLog.map((m) => ({
                 role: m.who === 'user' ? 'user' : 'assistant',
                 content: m.text,
               })),
-            }),
+            ),
           });
-          if (r.ok) {
-            const resp = await r.json();
-            setChatLog((c) => [...c, { who: 'ai', text: resp.text }]);
-            if (resp.emotion) setEmotion(resp.emotion);
-            if (resp.action) setAction(resp.action);
-            if (resp.isAIGenerated !== undefined) setIsAIGenerated(resp.isAIGenerated);
-            if (resp.audioUrl && audioRef.current) {
-              audioRef.current.src = resp.audioUrl;
-              audioRef.current.play().catch(() => {});
-            }
-          } else {
-            setChatLog((c) => [...c, { who: 'ai', text: '抱歉, 服务暂时不可用。' }]);
-          }
+          const resp = await readRealtimeChatReply(r);
+          applyHttpReply(resp);
         } catch {
           setChatLog((c) => [...c, { who: 'ai', text: '抱歉, 服务暂时不可用。' }]);
           setIsAIGenerated(false);
@@ -1373,7 +1369,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
         }
       }
     },
-    [chatBusy, chatLog, useAgui, sendAgui],
+    [chatBusy, chatLog, useAgui, sendAgui, applyHttpReply],
   );
 
   // cancel: 打断

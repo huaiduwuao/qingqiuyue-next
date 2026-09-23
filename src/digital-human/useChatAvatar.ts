@@ -60,14 +60,37 @@ export interface VisemeFrame {
   weight: number;  // 0~1
 }
 
+/**
+ * POST /api/realtime/chat 的回复 —— 后端 avatarapp.AgentReply 只有 {text, toolCalls},
+ * 其余字段后端目前不返回,保留为可选(以后接上再用)。
+ */
 export interface ChatResp {
   text: string;
-  emotion: Record<string, number>;
-  action: string;
-  visemes: VisemeFrame[];
-  audioUrl: string | null;
+  toolCalls?: Array<{ name: string; args?: Record<string, any> }>;
+  emotion?: Record<string, number>;
+  action?: string;
+  visemes?: VisemeFrame[];
+  audioUrl?: string | null;
   /** 国家网信办 AIGC 合规:后端已在 /api/realtime/chat 标记 true,前端用来显示「AI 生成」角标 */
   isAIGenerated?: boolean;
+}
+
+/**
+ * /api/realtime/chat 请求体,对齐后端 avatarapp.ChatReq 的 json tag:{message, history, tools}。
+ * 以前发的是 {text, agentId},后端 message 为空,模型收到的是一句空话。
+ */
+export function buildRealtimeChatBody(message: string, history: Array<{ role: string; content: string }>) {
+  return JSON.stringify({ message, history });
+}
+
+/** 解包 /api/realtime/chat 的 {code, msg, data: {text, toolCalls}};非 2xx 抛出后端 msg。 */
+export async function readRealtimeChatReply(r: Response): Promise<ChatResp> {
+  const body = (await r.json().catch(() => ({}))) as any;
+  if (!r.ok || (typeof body?.code === 'number' && body.code !== 200 && body.code !== 0)) {
+    throw new Error(body?.msg || body?.error || `服务返回 ${r.status}`);
+  }
+  const data = body && typeof body === 'object' && body.data && typeof body.data === 'object' ? body.data : body;
+  return { ...data, text: typeof data?.text === 'string' ? data.text : '' } as ChatResp;
 }
 
 export interface ChatAvatarState {
@@ -114,6 +137,8 @@ export interface ChatAvatarState {
   setViseme: (v: Record<string, number>) => void;
 }
 
+// agentId:后端 avatarapp.ChatReq 不收 agentId,HTTP 通道暂不区分 agent,参数保留给调用方兼容。
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarState {
   const [text, setText] = useStateSafe('');
   const [chatBusy, setChatBusy] = useStateSafe(false);
@@ -151,18 +176,12 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
         const r = await fetch(API_PREFIX + '/api/realtime/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeaders() },
-          body: JSON.stringify({
-            text: t,
-            agentId,
-            history: chatLog.map((m) => ({ role: m.who === 'user' ? 'user' : 'assistant', content: m.text })),
-          }),
+          body: buildRealtimeChatBody(
+            t,
+            chatLog.map((m) => ({ role: m.who === 'user' ? 'user' : 'assistant', content: m.text })),
+          ),
         });
-        if (r.ok) {
-          resp = await r.json();
-        } else {
-          const errBody = await r.json().catch(() => ({})) as any;
-          throw new Error(errBody?.error || errBody?.msg || `服务返回 ${r.status}`);
-        }
+        resp = await readRealtimeChatReply(r);
       } catch (e) {
         const errMsg = e instanceof Error ? e.message : String(e);
         console.error('[chat] chat 路由失败:', errMsg);
@@ -172,8 +191,8 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
         return;
       }
       setChatLog((c: ChatLogItem[]) => [...c, { who: 'ai', text: resp.text }]);
-      setEmotion(resp.emotion);
-      setAction(resp.action);
+      if (resp.emotion) setEmotion(resp.emotion);
+      if (resp.action) setAction(resp.action);
       setViseme({});  // 清空旧 viseme
       setIsAIGenerated(resp.isAIGenerated === true);  // AIGC 合规:把后端标记透传到 UI
       visemeTimelineRef.current = resp.visemes || [];
@@ -283,7 +302,7 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
     } finally {
       setChatBusy(false);
     }
-  }, [text, chatBusy, chatLog, agentId, setAction, setChatBusy, setChatLog, setEmotion, setIsAIGenerated, setIsAvatarPlaying, setText, setViseme]);
+  }, [text, chatBusy, chatLog, setAction, setChatBusy, setChatLog, setEmotion, setIsAIGenerated, setIsAvatarPlaying, setText, setViseme]);
 
   // 直接发送文本 (绕过 text state), 给 voice agent 用
   const sendText = React.useCallback(async (v: string) => {
@@ -295,22 +314,15 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
       const r = await fetch(API_PREFIX + '/api/realtime/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeaders() },
-        body: JSON.stringify({
-          text: t,
-          agentId,
-          history: chatLog.map((m) => ({ role: m.who === 'user' ? 'user' : 'assistant', content: m.text })),
-        }),
+        body: buildRealtimeChatBody(
+          t,
+          chatLog.map((m) => ({ role: m.who === 'user' ? 'user' : 'assistant', content: m.text })),
+        ),
       })
-      let resp: ChatResp
-      if (r.ok) {
-        resp = await r.json()
-      } else {
-        const errBody = await r.json().catch(() => ({})) as any
-        throw new Error(errBody?.error || errBody?.msg || `服务返回 ${r.status}`)
-      }
+      const resp: ChatResp = await readRealtimeChatReply(r)
       setChatLog((c: ChatLogItem[]) => [...c, { who: 'ai', text: resp.text }])
-      setEmotion(resp.emotion)
-      setAction(resp.action)
+      if (resp.emotion) setEmotion(resp.emotion)
+      if (resp.action) setAction(resp.action)
       setViseme({})
       setIsAIGenerated(resp.isAIGenerated === true)  // AIGC 合规
       visemeTimelineRef.current = resp.visemes || []
@@ -330,7 +342,7 @@ export function useChatAvatar(agentId: string = 'digital_human'): ChatAvatarStat
     } finally {
       setChatBusy(false)
     }
-  }, [chatBusy, chatLog, agentId, setAction, setChatBusy, setChatLog, setEmotion, setIsAIGenerated, setViseme])
+  }, [chatBusy, chatLog, setAction, setChatBusy, setChatLog, setEmotion, setIsAIGenerated, setViseme])
 
   // 3. viseme 驱动 rAF — 优先后端时间线,降级客户端 AnalyserNode + speechSynthesis
   //    (后端经常不返 visemes;客户端必须能自己驱动口型)
