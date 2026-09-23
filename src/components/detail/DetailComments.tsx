@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
@@ -184,19 +184,35 @@ export function DetailComments({ contentId, initialCount = 0, compact = false, c
     [contentId],
   );
 
+  // 请求代次:?id= 变了组件不卸载,上一个作品的慢响应后到会覆盖新列表,
+  // loadMore 也会把旧作品的第 2 页拼进来。每次换作品 / 重载 +1,回来的响应代次不对就丢掉。
+  const genRef = useRef(0);
+  useEffect(() => {
+    genRef.current += 1;
+    setComments([]);
+    setThreads({});
+    setPage(1);
+    setHasMore(false);
+    setLoaded(false);
+    setLoading(false);
+    setLoadingMore(false);
+  }, [contentId]);
+
   const reload = useCallback(async () => {
+    const gen = ++genRef.current;
     setLoading(true);
     try {
       const res = await loadPage(1);
+      if (gen !== genRef.current) return;
       setComments(res.list);
       setTotal(res.total);
       setHasMore(res.hasMore);
       setPage(1);
       setLoaded(true);
     } catch (err) {
-      notify(formatApiError(err), 'error');
+      if (gen === genRef.current) notify(formatApiError(err), 'error');
     } finally {
-      setLoading(false);
+      if (gen === genRef.current) setLoading(false);
     }
   }, [loadPage, notify]);
 
@@ -207,9 +223,11 @@ export function DetailComments({ contentId, initialCount = 0, compact = false, c
 
   const loadMore = async () => {
     if (loadingMore || !hasMore) return;
+    const gen = genRef.current;
     setLoadingMore(true);
     try {
       const res = await loadPage(page + 1);
+      if (gen !== genRef.current) return;
       setComments((prev) => {
         const seen = new Set(prev.map((c) => c.id));
         return [...prev, ...res.list.filter((c) => !seen.has(c.id))];
@@ -217,7 +235,7 @@ export function DetailComments({ contentId, initialCount = 0, compact = false, c
       setHasMore(res.hasMore);
       setPage((p) => p + 1);
     } catch (err) {
-      notify(formatApiError(err), 'error');
+      if (gen === genRef.current) notify(formatApiError(err), 'error');
     } finally {
       setLoadingMore(false);
     }
