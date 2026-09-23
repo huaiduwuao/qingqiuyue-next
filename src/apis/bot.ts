@@ -1,6 +1,6 @@
 import { adminClient } from '@/lib/api/client';
 import type { PageParams, PageResult } from '@/beans/pagination';
-import { normalizeLegacyPageResponse } from '@/hooks/usePagination';
+import { normalizePageResponse } from '@/beans/pagination';
 
 export interface BotListParams extends PageParams {
   name?: string;
@@ -10,7 +10,7 @@ export interface BotListParams extends PageParams {
 
 export async function page(params: BotListParams): Promise<PageResult<any>> {
   const res = await adminClient('/bot/list', { params });
-  return normalizeLegacyPageResponse(res);
+  return normalizePageResponse(res);
 }
 
 export async function get(id: number) {

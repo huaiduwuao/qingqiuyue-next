@@ -1,6 +1,6 @@
 import { accountClient } from '@/lib/api/client';
 import type { PageParams, PageResult } from '@/beans/pagination';
-import { normalizeLegacyPageResponse } from '@/hooks/usePagination';
+import { normalizePageResponse } from '@/beans/pagination';
 
 /** 解开 axios 拦截器的包装层(返回真正的 body) */
 function unwrap<T = any>(resp: any): T {
@@ -56,7 +56,7 @@ export interface ActivityItem {
 
 export async function getCreatorWorks(params?: WorksPageParams): Promise<PageResult<WorksItem>> {
   const res = await unwrap(await accountClient('/account/works', { params }));
-  return normalizeLegacyPageResponse(res as any);
+  return normalizePageResponse(res as any);
 }
 
 export async function getCreatorMonetizeSummary(): Promise<MonetizeSummary> {
@@ -65,10 +65,10 @@ export async function getCreatorMonetizeSummary(): Promise<MonetizeSummary> {
 
 export async function getCreatorInteractions(params?: PageParams): Promise<PageResult<InteractionItem>> {
   const res = await unwrap(await accountClient('/account/interaction/comments', { params }));
-  return normalizeLegacyPageResponse(res as any);
+  return normalizePageResponse(res as any);
 }
 
 export async function getCreatorActivities(params?: PageParams): Promise<PageResult<ActivityItem>> {
   const res = await unwrap(await accountClient('/account/activity/list', { params }));
-  return normalizeLegacyPageResponse(res as any);
+  return normalizePageResponse(res as any);
 }

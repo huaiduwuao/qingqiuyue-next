@@ -12,7 +12,7 @@
 
 import { contentClient } from '@/lib/api/client';
 import type { PageParams, PageResult } from '@/beans/pagination';
-import { normalizeLegacyPageResponse } from '@/hooks/usePagination';
+import { normalizePageResponse } from '@/beans/pagination';
 
 export interface ModuleContentItem {
   id: number;
@@ -91,7 +91,7 @@ function toBackendParams(q: ModuleContentQuery) {
 
 export async function myPage(params: ModuleContentQuery = {}): Promise<PageResult<ModuleContentItem>> {
   const res = await contentClient('/module/content/list', { params: toBackendParams(params) });
-  return normalizeLegacyPageResponse(res as any);
+  return normalizePageResponse(res as any);
 }
 
 /**
@@ -101,7 +101,7 @@ export async function myPage(params: ModuleContentQuery = {}): Promise<PageResul
  */
 export async function managePage(params: ModuleContentQuery = {}): Promise<PageResult<ModuleContentItem>> {
   const res = await contentClient('/module/content/manage/page', { params: toBackendParams(params) });
-  return normalizeLegacyPageResponse(res as any);
+  return normalizePageResponse(res as any);
 }
 
 export async function getById(id: number): Promise<{ code: number; data: ModuleContentItem }> {

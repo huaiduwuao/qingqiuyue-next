@@ -1,6 +1,6 @@
 import { accountClient } from '@/lib/api/client';
 import type { PageParams, PageResult } from '@/beans/pagination';
-import { normalizeLegacyPageResponse } from '@/hooks/usePagination';
+import { normalizePageResponse } from '@/beans/pagination';
 
 // 支付系统 API
 
@@ -73,8 +73,8 @@ export async function createOrder(params: {
 // 获取订单列表
 export async function getOrderList(params?: PageParams): Promise<PageResult<PaymentOrder>> {
   const data = await accountClient('/payment/orders', { params });
-  if (!data) return normalizeLegacyPageResponse({ records: [], totalRow: 0, page: 1, pageSize: 20 } as any);
-  return normalizeLegacyPageResponse(data);
+  if (!data) return normalizePageResponse({ records: [], totalRow: 0, page: 1, pageSize: 20 } as any);
+  return normalizePageResponse(data);
 }
 
 // 取消订单

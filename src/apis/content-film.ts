@@ -1,6 +1,6 @@
 import { contentClient } from '@/lib/api/client';
 import type { PageParams } from '@/beans/pagination';
-import { normalizeLegacyPageResponse } from '@/hooks/usePagination';
+import { normalizePageResponse } from '@/beans/pagination';
 // 内容类型
 export type ContentType = 'music' | 'novel' | 'video' | 'film' | 'teleplay' | 'animation' | 'comics' | 'article' | 'news' | 'picture-album' | 'picture-detail' | 'live' | 'website' | 'pan' | 'vshow' | 'animation-item' | 'teleplay-item' | 'comics-item' | 'film-item' | 'vshow-item';
 
@@ -31,7 +31,7 @@ export async function page<T = ContentItem>(contentType: ContentType, params: Pa
     method: 'GET',
     params,
   });
-  return normalizeLegacyPageResponse<T>(res);
+  return normalizePageResponse<T>(res);
 }
 
 // 获取内容详情
