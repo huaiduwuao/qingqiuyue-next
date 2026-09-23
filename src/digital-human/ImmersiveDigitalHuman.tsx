@@ -69,8 +69,12 @@ import type { ScenePresetName, CameraPresetName, DanceStyle } from './vrm/types'
 import { API_PREFIX } from '@/lib/api/prefix';
 
 // ── 调试：排查 runtime.lastError 来源 ──
+// 只在开发环境,或地址栏带 ?dhdebug=1 时启用。以前模块一加载就给整个 app 挂
+// 全局 keydown、替换 window.requestAnimationFrame、起一个永不清理的 setInterval:
+// 线上用户访问过一次 /digital-human 之后,在任何页面按个「1」都会写进 noThree,
+// 下次刷新 3D 就不渲染了。
 // 操作步骤:
-//   1. 打开 http://localhost:3000/digital-human
+//   1. 打开 http://localhost:3000/digital-human(线上加 ?dhdebug=1)
 //   2. 先记下控制台错误出现频率
 //   3. 按 1 → 刷新页面 → 看错误是否停止 (排除 Three.js)
 //   4. 按 2 → 刷新页面 → 点麦克风 → 看错误是否出现 (排除 VAD)
@@ -82,36 +86,62 @@ const loadFlags = (): Record<string, boolean> => {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch { return {}; }
 };
 const saveFlags = (f: Record<string, boolean>) => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(f));
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(f)); } catch { /* 隐私模式写不进去 */ }
   devLog.log('[debug] flags saved:', f, '(刷新页面生效)');
 };
+const debugEnabled = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  if (process.env.NODE_ENV !== 'production') return true;
+  try { return new URLSearchParams(window.location.search).has('dhdebug'); } catch { return false; }
+};
 if (typeof window !== 'undefined') {
-  const flags = loadFlags();
+  // 子组件(BlenderAvatar / VAD / 唤醒词)在自己的 effect 里读这个开关,比本组件的 effect 早,
+  // 所以开关值要在模块加载时就定好。没开调试时一律视为关闭 —— 即使 localStorage 里
+  // 残留了以前误触写进去的 noThree。
+  const flags = debugEnabled() ? loadFlags() : {};
   (window as any).__DIGITAL_HUMAN_DEBUG = { noThree: !!flags.noThree, noVoice: !!flags.noVoice, noWake: !!flags.noWake };
-  devLog.log('[debug] current flags:', (window as any).__DIGITAL_HUMAN_DEBUG, '| 按 1/2/3 切换, 0 清除, 需刷新生效');
+}
 
-  window.addEventListener('keydown', (e) => {
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return; // 不在输入框里触发
-    const f = loadFlags();
-    switch (e.key) {
-      case '1': f.noThree = !f.noThree; saveFlags(f); break;
-      case '2': f.noVoice = !f.noVoice; saveFlags(f); break;
-      case '3': f.noWake  = !f.noWake;  saveFlags(f); break;
-      case '0': localStorage.removeItem(STORAGE_KEY); devLog.log('[debug] all flags cleared'); break;
-    }
-  });
+/** 调试快捷键 + rAF/音频帧率采样:只在调试开启且本组件挂载期间生效,卸载时全部还原 */
+function useDigitalHumanDebug() {
+  React.useEffect(() => {
+    if (!debugEnabled()) return;
+    devLog.log('[debug] current flags:', (window as any).__DIGITAL_HUMAN_DEBUG, '| 按 1/2/3 切换, 0 清除, 需刷新生效');
 
-  // 每 2 秒采样一次，统计 rAF / audio 帧率
-  let rAFCount = 0, audioFrameCount = 0;
-  const origRAF = window.requestAnimationFrame.bind(window);
-  window.requestAnimationFrame = (cb: FrameRequestCallback) => origRAF(() => { rAFCount++; cb(performance.now()); });
-  const timer = setInterval(() => {
-    if (rAFCount > 0 || audioFrameCount > 0) {
-      devLog.debug(`[debug] rAF=${rAFCount}/2s (~${Math.round(rAFCount/2)}fps) audioFrame=${audioFrameCount}/2s`);
-      rAFCount = 0; audioFrameCount = 0;
-    }
-  }, 2000);
-  (window as any).__DEBUG_audioFrameInc = () => { audioFrameCount++; };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return; // 不在输入框里触发
+      if ((e.target as HTMLElement | null)?.isContentEditable) return;
+      const f = loadFlags();
+      switch (e.key) {
+        case '1': f.noThree = !f.noThree; saveFlags(f); break;
+        case '2': f.noVoice = !f.noVoice; saveFlags(f); break;
+        case '3': f.noWake  = !f.noWake;  saveFlags(f); break;
+        case '0': try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ } devLog.log('[debug] all flags cleared'); break;
+      }
+    };
+    window.addEventListener('keydown', onKey);
+
+    // 每 2 秒采样一次，统计 rAF / audio 帧率
+    let rAFCount = 0, audioFrameCount = 0;
+    const origRAF = window.requestAnimationFrame;
+    const wrappedRAF = (cb: FrameRequestCallback) => origRAF.call(window, (t: number) => { rAFCount++; cb(t); });
+    window.requestAnimationFrame = wrappedRAF;
+    const timer = setInterval(() => {
+      if (rAFCount > 0 || audioFrameCount > 0) {
+        devLog.debug(`[debug] rAF=${rAFCount}/2s (~${Math.round(rAFCount/2)}fps) audioFrame=${audioFrameCount}/2s`);
+        rAFCount = 0; audioFrameCount = 0;
+      }
+    }, 2000);
+    (window as any).__DEBUG_audioFrameInc = () => { audioFrameCount++; };
+
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      clearInterval(timer);
+      // 期间别人又包了一层就不动,免得把别人的包装拆掉
+      if (window.requestAnimationFrame === wrappedRAF) window.requestAnimationFrame = origRAF;
+      delete (window as any).__DEBUG_audioFrameInc;
+    };
+  }, []);
 }
 
 // 相对时间:刚建的会话显示「刚刚」,让"点了新会话"立刻可见
@@ -141,6 +171,7 @@ function conversationTitle(text: string): string {
 
 export default function ImmersiveDigitalHuman() {
   const router = useRouter();
+  useDigitalHumanDebug();
   const { setTheme } = useThemeMode();
   // 修复 hydration mismatch: 等客户端 mount 后再渲染动态内容
   const [mounted, setMounted] = React.useState(false);
