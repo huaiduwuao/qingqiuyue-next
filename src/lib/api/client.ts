@@ -148,6 +148,23 @@ export function formatApiError(error: unknown): string {
   return '未知错误';
 }
 
+/**
+ * 是不是 { code, msg, data } 包装。光有 code 不算:spider-api 的模板 / 属性等实体自带
+ * code 字段(业务编码),直接平铺返回时曾被当成失败的包装,服务端成功了页面却报「请求失败」。
+ */
+export function isEnvelope(data: unknown): data is { code: string | number; msg?: string; message?: string; error?: string; data?: unknown } {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
+  return 'code' in data && ('msg' in data || 'data' in data);
+}
+
+/** 错误文案:core 用 msg,spider / agentmanager 用 message 或 error */
+function errorText(body: { msg?: unknown; message?: unknown; error?: unknown }): string {
+  for (const v of [body.msg, body.message, body.error]) {
+    if (typeof v === 'string' && v) return v;
+  }
+  return '';
+}
+
 // 走网关同源: /api/* 经 Next.js rewrites 反代到 API_PROXY_TARGET(详见 next.config.ts)
 // 显式设为空串("")表示同源,未设时回退到 localhost:3000 同源(开发)。
 const API_GATEWAY = API_PREFIX;
@@ -268,12 +285,12 @@ function createApiClient(baseURL: string): ApiClient {
       };
 
       // 1) 已经是 { code, msg, data } 包装:走原逻辑
-      if (data && typeof data === 'object' && 'code' in data) {
+      if (isEnvelope(data)) {
         if (data.code !== 200 && data.code !== '200' && data.code !== 0) {
           const isAuth = status === 401 || data.code === 401 || data.code === '401';
           if (isAuth) notifyIfAuthed(response.config.headers);
           const error = new ApiError({
-            message: data.msg || '请求失败',
+            message: errorText(data) || '请求失败',
             category: isAuth ? 'auth' : 'business',
             code: data.code,
             status,
@@ -309,7 +326,7 @@ function createApiClient(baseURL: string): ApiClient {
     },
     (error: AxiosError) => {
       const status = error.response?.status;
-      const data = error.response?.data as { code?: string | number; msg?: string } | undefined;
+      const data = error.response?.data as { code?: string | number; msg?: string; message?: string; error?: string } | undefined;
 
       if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
         return Promise.reject(new ApiError({
@@ -335,9 +352,9 @@ function createApiClient(baseURL: string): ApiClient {
         }));
       }
 
-      if (data && data.code !== 200 && data.code !== '200' && data.code !== 0) {
+      if (data && typeof data === 'object' && data.code !== 200 && data.code !== '200' && data.code !== 0) {
         return Promise.reject(new ApiError({
-          message: data.msg || '请求失败',
+          message: errorText(data) || '请求失败',
           category: 'business',
           code: data.code,
           status,
