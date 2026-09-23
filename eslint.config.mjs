@@ -66,9 +66,6 @@ const eslintConfig = defineConfig([
   },
   // Override default ignores of eslint-config-next.
   globalIgnores([
-    // 仓库根目录的一次性 Node 调试脚本(CommonJS,连 localhost 的 dev server 用),
-    // 不是应用代码,别拿 app 的 TS 规则去卡它。
-    'count-ui.js',
     '.next/**',
     'out/**',
     'build/**',

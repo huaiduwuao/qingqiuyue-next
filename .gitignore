@@ -62,8 +62,16 @@ next-env.d.ts
 # 数字人 Web UI 管线的本地 workdir(input.mp4 / 中间产物 / deploy)
 /.avatar-work/
 
-# 本地 agent/编辑器配置
+# 本地 agent/编辑器配置(本机路径、个人权限放行,不入库;共享的 .claude/settings.json 照常提交)
 /.claude/launch.json
+/.claude/settings.local.json
+/.idea/
+/.vscode/
+*.iml
+
+# 一次性调试脚本 / 截图产物(scripts/test_douyin_e2e.mjs 等往 test_output/ 写截图)
+/test_output/
+/*.png
 
 # compose 增量构建标记
 .last-build-web
