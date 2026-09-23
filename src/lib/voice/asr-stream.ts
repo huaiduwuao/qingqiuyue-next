@@ -5,6 +5,8 @@
  * 返回 { text, language }
  */
 
+import { authHeaders } from '@/lib/api/auth'
+
 const GATEWAY_DEFAULT = typeof window !== 'undefined' ? `${window.location.origin}/api/audio` : 'http://127.0.0.1:8001/v1'
 
 export interface ASROptions {
@@ -71,7 +73,10 @@ export async function transcribe(samples: Float32Array, opts: ASROptions = {}): 
   fd.append('language', opts.language || 'zh')
   fd.append('response_format', 'json')
 
-  const r = await fetch(url, { method: 'POST', body: fd })
+  // 生产上 APISIX 把 /api/audio/transcriptions 直接转给 FunASR 容器,目前不校验会话;
+  // 同源时照样带上 Authorization,网关以后加鉴权也不用改这里。直连外部 gateway 不带,免得把会话发出去。
+  const sameOrigin = url.startsWith('/') || (typeof window !== 'undefined' && url.startsWith(window.location.origin + '/'))
+  const r = await fetch(url, { method: 'POST', body: fd, headers: sameOrigin ? authHeaders() : undefined })
   if (!r.ok) {
     const body = await r.text().catch(() => '')
     throw new Error(`ASR ${r.status}: ${body.slice(0, 200)}`)
