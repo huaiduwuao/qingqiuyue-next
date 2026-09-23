@@ -21,10 +21,11 @@ export default function SpiderRepairPage() {
           (repair:run),不与 backfill:run 共用。诊断(dry-run)也走这条码:
           它照样会去外部站真抓一遍,不是纯读操作。 */}
       <PermissionGuard
-        need={PERMISSIONS.SYSTEM_SPIDER.REPAIR_RUN}
+        // 修复接口挂在爬虫配置组下,后端同时要 source:list;只给 repair:run 会全是 403
+        need={[PERMISSIONS.SYSTEM_SPIDER.REPAIR_RUN, PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST]}
         fallback={
           <Alert severity="warning">
-            你没有「内容修复」权限。请联系管理员在 /system/role 里授予 system:spider:repair:run。
+            你没有「内容修复」权限。请联系管理员在 /system/role 里同时授予 system:spider:repair:run 和 system:spider:source:list。
           </Alert>
         }
       >

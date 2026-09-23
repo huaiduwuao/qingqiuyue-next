@@ -287,7 +287,13 @@ export default function ContentRepairPanel({ compact = false }: { compact?: bool
                 <Stack direction="row" spacing={2} sx={{ mt: 2, alignItems: 'center' }}>
                   <Button
                     variant="contained"
-                    onClick={() => applyM.mutate()}
+                    onClick={() => {
+                      // 应用会原地改写线上正文,不可撤销:点之前把要动多少章说清楚
+                      const n = report.diffs.filter((d) => d.action === 'fill' || d.action === 'replace').length;
+                      if (window.confirm(`将按报告写入最多 ${n} 章(补空章 + 替换正文),直接改动线上内容,确定应用?`)) {
+                        applyM.mutate();
+                      }
+                    }}
                     disabled={busy}
                     startIcon={applyM.isPending ? <CircularProgress size={14} color="inherit" /> : <BuildRoundedIcon />}
                     sx={{ textTransform: 'none' }}

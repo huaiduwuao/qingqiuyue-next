@@ -181,6 +181,10 @@ export const PERMISSIONS = {
     BACKFILL_RUN: 'system:spider:backfill:run',
     REPAIR_RUN: 'system:spider:repair:run',
   },
+  // 沙盒:core-api /api/core/sandbox/* 整组要这个码(镜像拉取、跑脚本、产物写入内容)
+  SYSTEM_SANDBOX: {
+    MANAGE: 'system:sandbox:manage',
+  },
 } as const;
 
 export type PermissionCode = string;

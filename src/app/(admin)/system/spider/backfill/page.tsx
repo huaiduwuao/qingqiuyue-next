@@ -30,10 +30,16 @@ export default function SpiderBackfillPage() {
       {/* 页内再挡一道:侧栏已经把菜单藏了,但直接敲 URL / 收藏夹进来仍会渲染。
           后端 POST /content/backfill 现在也会返 403,这里只是把"能看不能点"提前说清楚。 */}
       <PermissionGuard
-        need={PERMISSIONS.SYSTEM_SPIDER.BACKFILL_RUN}
+        // 补全接口挂在爬虫配置组下(要 source:list),进度/最近任务要 item:list
+        need={[
+          PERMISSIONS.SYSTEM_SPIDER.BACKFILL_RUN,
+          PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST,
+          PERMISSIONS.SYSTEM_SPIDER.ITEM_LIST,
+        ]}
         fallback={
           <Alert severity="warning">
-            你没有「内容补全」权限。请联系管理员在 /system/role 里授予 system:spider:backfill:run。
+            你没有「内容补全」权限。请联系管理员在 /system/role 里同时授予 system:spider:backfill:run、
+            system:spider:source:list 和 system:spider:item:list。
           </Alert>
         }
       >

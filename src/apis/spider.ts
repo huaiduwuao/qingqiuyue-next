@@ -784,7 +784,14 @@ export async function listRepairSources(): Promise<{ list: RepairSourceOption[] 
   return spiderClient('/content/repair/candidates', { method: 'GET' });
 }
 
-/** 对一本书跑多源修复诊断/应用。dryRun=true 只出报告;修复要抓几十上百章,超时给足。 */
+/**
+ * 对一本书跑多源修复诊断/应用。dryRun=true 只出报告。
+ *
+ * 走后端的异步模式:先拿 task_id,再轮询 /content/repair/{task_id}。
+ * 以前是一个同步请求等到底 —— 可 APISIX 给 spider-api 的读超时只有 300s,
+ * 一本书双源两百章就要四分多钟,「0 = 全书」必断;断开时后端 ctx 被取消,
+ * 应用修复会停在半路,书被改了一半,前端只看到「请求失败」。
+ */
 export async function repairChapters(params: {
   contentId: string;
   domains?: string[];
@@ -792,7 +799,7 @@ export async function repairChapters(params: {
   maxChapters?: number;
   applyVerdicts?: string[];
 }): Promise<RepairReport> {
-  return spiderClient('/content/repair', {
+  const started = await spiderClient<{ task_id?: number; taskId?: number }>('/content/repair', {
     method: 'POST',
     data: {
       content_id: params.contentId,
@@ -800,7 +807,24 @@ export async function repairChapters(params: {
       dry_run: params.dryRun ?? true,
       max_chapters: params.maxChapters,
       apply_verdicts: params.applyVerdicts,
+      async: true,
     },
-    timeout: 30 * 60 * 1000,
   });
+  const taskId = Number(started?.task_id ?? started?.taskId);
+  if (!taskId) throw new Error('修复任务没有返回 task_id');
+
+  // 后端任务自己的上限是 30 分钟,这里多等一点
+  const deadline = Date.now() + 35 * 60 * 1000;
+  while (Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 3000));
+    // 跑完返回报告;还在跑返回 202 + {status}
+    const r = await spiderClient<RepairReport & { status?: string; error_msg?: string; errorMsg?: string }>(
+      `/content/repair/${taskId}`,
+      { method: 'GET' },
+    );
+    if (r && Array.isArray(r.diffs)) return r;
+    if (r?.status === 'failed') throw new Error(r.error_msg || r.errorMsg || '修复任务失败');
+    if (r?.status === 'completed') throw new Error('任务已结束,但报告没有取到(可能已过期),请重新诊断');
+  }
+  throw new Error('修复超过 35 分钟仍未结束,请稍后到任务列表查看');
 }
