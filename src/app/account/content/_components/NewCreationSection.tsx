@@ -43,7 +43,7 @@ import { accountClient, isNetworkError, isAuthError, formatApiError } from '@/li
 import { RelativeTime } from '@/components/common/RelativeTime';
 import { coverBackground } from '@/lib/media';
 import { ListLayout, ListLayoutSwitch } from '@/components/common/ListLayout';
-import { scheduleContent } from '@/apis/review';
+import { scheduleContent, SCHEDULE_CONTENT_SUPPORTED } from '@/apis/review';
 
 // 13 个内容创作类型的统一配置 —— 工作台 / 发布中心 / 落地页三处共用。
 // 单一事实来源:contentTypes.tsx。这里只保留工作台特有的样式与交互逻辑。
@@ -541,6 +541,8 @@ export default function NewCreationSection() {
                           >
                             立即发布
                           </Button>
+                          {/* 后端还没有改定时接口,先隐藏「改时间」 */}
+                          {SCHEDULE_CONTENT_SUPPORTED && (
                           <Button
                             size="small"
                             startIcon={<EditCalendarRoundedIcon sx={{ fontSize: 12 }} />}
@@ -554,6 +556,7 @@ export default function NewCreationSection() {
                           >
                             改时间
                           </Button>
+                          )}
                           <Button
                             size="small"
                             onClick={() => handleCancel(item)}
