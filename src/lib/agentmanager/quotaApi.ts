@@ -1,30 +1,28 @@
 /**
  * LLM 配额 API Client
- * 调用 core-api 的 /api/payment/quota/* 与 /api/payment/admin/quota/packages。
+ * 调用 core-api 的 /api/core/payment/quota/* 与 /api/core/admin/quota/packages
+ * (internal/paymentapp/handler.go RegisterRoutes)。以前写的 /api/payment/*,APISIX 没有这条路由,
+ * 11 个接口全 404。
  */
 
-const API_BASE = '/api/payment'
+import { API_PREFIX } from '@/lib/api/prefix'
+import { authFetch } from '@/lib/api/auth'
+
+const API_BASE = `${API_PREFIX}/api/core`
 
 interface RequestOptions extends RequestInit {
   token?: string
 }
 
-function getAuthToken(): string | null {
-  if (typeof window === 'undefined') return null
-  return localStorage.getItem('session_id') || localStorage.getItem('token')
-}
-
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const { token, ...init } = options
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
+    ...(init.headers as Record<string, string>),
   }
-  const authToken = options.token || getAuthToken()
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`
-  }
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  const res = await authFetch(`${API_BASE}${path}`, {
+    ...init,
     headers,
   })
   if (!res.ok) {
@@ -100,7 +98,7 @@ export interface QuotaBreakdownRow {
 export const quotaAPI = {
   // 套餐列表(公开 + 管理员)
   listPackages(): Promise<{ list: QuotaPackage[]; total: number }> {
-    return request('/quota/packages')
+    return request('/payment/quota/packages')
   },
   // 管理员 CRUD
   adminListPackages(): Promise<{ list: QuotaPackage[]; total: number }> {
@@ -118,23 +116,23 @@ export const quotaAPI = {
 
   // 购买
   buyPackage(packageId: number, channel: 'diamond' | 'alipay' | 'wxpay' = 'diamond'): Promise<QuotaOrder> {
-    return request('/quota/orders', { method: 'POST', body: JSON.stringify({ package_id: packageId, channel }) })
+    return request('/payment/quota/orders', { method: 'POST', body: JSON.stringify({ package_id: packageId, channel }) })
   },
   listMyOrders(page = 1, limit = 20): Promise<{ list: QuotaOrder[]; total: number; page: number; limit: number }> {
-    return request(`/quota/orders?page=${page}&limit=${limit}`)
+    return request(`/payment/quota/orders?page=${page}&limit=${limit}`)
   },
   refundOrder(orderNo: string): Promise<{ message: string; refund_tokens: number; refund_diamond: number }> {
-    return request(`/quota/orders/${orderNo}/refund`, { method: 'POST' })
+    return request(`/payment/quota/orders/${orderNo}/refund`, { method: 'POST' })
   },
 
   // 我的配额
   overview(): Promise<QuotaOverview> {
-    return request('/quota/overview')
+    return request('/payment/quota/overview')
   },
   trend(days = 7): Promise<{ points: QuotaTrendPoint[]; days: number }> {
-    return request(`/quota/trend?days=${days}`)
+    return request(`/payment/quota/trend?days=${days}`)
   },
   breakdown(dim: 'model' | 'agent' = 'model', days = 30): Promise<{ rows: QuotaBreakdownRow[]; dim: string; days: number }> {
-    return request(`/quota/breakdown?dim=${dim}&days=${days}`)
+    return request(`/payment/quota/breakdown?dim=${dim}&days=${days}`)
   },
 }
