@@ -17,7 +17,16 @@ export function safeRedirectPath(raw: string | null | undefined): string | null 
   } catch {
     return null;
   }
-  if (!path.startsWith('/') || path.startsWith('//') || path.startsWith('/\\')) return null;
+  // 控制字符(\t \n 等)和反斜杠一律拒:浏览器会把 "/\t/evil.com" 里的 tab 去掉,变成 //evil.com
+  if (/[\x00-\x1f\x7f\\]/.test(path)) return null;
+  if (!path.startsWith('/') || path.startsWith('//')) return null;
+  // 再按浏览器的规则解析一遍,解析完必须还在本站
+  try {
+    const base = 'http://same-origin.invalid';
+    if (new URL(path, base).origin !== base) return null;
+  } catch {
+    return null;
+  }
   if (path.startsWith(LOGIN_PATH)) return null;
   return path;
 }

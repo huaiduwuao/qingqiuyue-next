@@ -15,7 +15,11 @@ describe('safeRedirectPath', () => {
   });
 
   it('rejects open redirects and the login page itself', () => {
-    for (const bad of ['https://evil.com', '//evil.com', '/\\evil.com', 'javascript:alert(1)', '/user/login?x=1', '', null, undefined]) {
+    for (const bad of [
+      'https://evil.com', '//evil.com', '/\\evil.com', 'javascript:alert(1)', '/user/login?x=1', '', null, undefined,
+      // tab / 换行 / 反斜杠绕过:浏览器会去掉控制字符、把 \\ 当 /
+      '/%09/evil.com', '/\t/evil.com', '/%0a/evil.com', '/%5C/evil.com', '%2F%2Fevil.com', '/x\\y',
+    ]) {
       expect(safeRedirectPath(bad)).toBeNull();
     }
   });
