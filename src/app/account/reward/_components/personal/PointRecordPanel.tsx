@@ -11,6 +11,7 @@ import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { alpha } from '@mui/material/styles';
 import { listMyPointRecords, type PointRecord } from '@/apis/dashboard';
+import { safeSitePath } from '@/lib/safeUrl';
 
 // SourceType → 中文标签和颜色（与后端 handler/reward_extra.go sourceType 对齐）
 const SOURCE_META: Record<string, { label: string; color: string; bg: string }> = {
@@ -76,19 +77,21 @@ export default function PointRecordPanel({ currentUserId }: Props) {
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const handleOpen = (rec: PointRecord) => {
-    if (!rec.sourceUrl) return;
+    // sourceUrl 是服务端给的:只跳站内路径。Next 的 router.push 遇到 javascript: 会直接 location.assign
+    const path = safeSitePath(rec.sourceUrl);
+    if (!path) return;
     if (rec.sourceType === 'task_approve' || rec.sourceType === 'task_reward') {
       // 任务: 跳到需求管理 tab + 打开 taskboard 详情
-      const m = rec.sourceUrl.match(/taskId=(\\d+)/);
+      const m = path.match(/taskId=(\\d+)/);
       const taskId = m ? Number(m[1]) : null;
       if (taskId) {
         const w = window.open(`about:blank`, '_blank');
         // 同源 taskboard 详情会跳转以 window.opener 处理, 这里不重复处理
         w?.close();
       }
-      router.push(rec.sourceUrl);
+      router.push(path);
     } else {
-      router.push(rec.sourceUrl);
+      router.push(path);
     }
   };
 
