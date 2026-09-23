@@ -59,6 +59,8 @@ export interface UseContentItemsOpts {
    * 调用 {@link fetchContentItemsAll} 异步补全。
    */
   untilChapterId?: string;
+  /** false 时先不发请求(比如 untilChapterId 还没确定,免得先按「全本」拉一遍) */
+  enabled?: boolean;
 }
 
 /** 与 hook 内部一致的 queryKey,让调用方拿到同一 key 写 setQueryData 回滚。 */
@@ -142,7 +144,7 @@ export function useContentItems(
   const untilChapterId = opts.untilChapterId;
   return useQuery({
     queryKey: contentItemsQueryKey(kind, contentId, { lite, untilChapterId }),
-    enabled: !!contentId,
+    enabled: !!contentId && opts.enabled !== false,
     queryFn: () => fetchPages(fetchPage, String(contentId), { lite, untilChapterId }),
     refetchInterval: (query) =>
       query.state.data?.backfilling && query.state.dataUpdateCount <= BACKFILL_MAX_POLLS ? BACKFILL_POLL_MS : false,
