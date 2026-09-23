@@ -165,16 +165,3 @@ export function saveProgress(bookId: string, payload: ProgressPayload) {
     /* ignore */
   }
 }
-
-/** 正文按换行拆段;去掉源站自带的段首空格(全角/半角),缩进统一交给 text-indent。 */
-export function splitParagraphs(body: string): string[] {
-  return body
-    .replace(/\r\n?/g, '\n')
-    .split(/\n+/)
-    .map((line) => line.replace(/^[\s　 ]+|[\s　 ]+$/g, ''))
-    .filter(Boolean);
-}
-
-export function wordCount(body: string): number {
-  return body.replace(/[\s　 ]/g, '').length;
-}

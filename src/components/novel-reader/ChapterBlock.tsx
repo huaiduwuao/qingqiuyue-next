@@ -10,17 +10,8 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import MenuBookOutlinedIcon from '@mui/icons-material/MenuBookOutlined';
 import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined';
 import type { ContentItem } from '@/hooks/useContentItems';
-import { splitParagraphs, wordCount, type ReaderTheme } from './prefs';
-
-export interface ChapterBody {
-  content?: string;
-  body?: string;
-  locked?: boolean;
-}
-
-export type FetchChapterBody = (chapterId: string) => Promise<ChapterBody>;
-
-export const CHAPTER_STALE_MS = 10 * 60 * 1000;
+import type { ReaderTheme } from './prefs';
+import { CHAPTER_STALE_MS, chapterQueryKey, splitParagraphs, wordCount, type FetchChapterBody } from './chapterText';
 
 interface ChapterBlockProps {
   chapter: ContentItem;
@@ -45,7 +36,7 @@ interface ChapterBlockProps {
  */
 export function ChapterBlock({ chapter, index, bookTitle, author, theme, fontFamily, fontSize, fetchBody, divider, onReachEnd, footer, onTitleClick }: ChapterBlockProps) {
   const query = useQuery({
-    queryKey: ['novel-chapter', chapter.id],
+    queryKey: chapterQueryKey(chapter.id),
     queryFn: () => fetchBody(chapter.id),
     enabled: !chapter.content && !chapter.locked,
     staleTime: CHAPTER_STALE_MS,

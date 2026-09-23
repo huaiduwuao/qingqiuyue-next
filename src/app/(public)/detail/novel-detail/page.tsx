@@ -37,7 +37,8 @@ import { PlatformLinks, platformsOf, playNoticeOf } from '@/components/detail/Ex
 import ShareButtons from '@/components/share/ShareButtons';
 import { AvailabilityBadge } from '@/components/common/AvailabilityBadge';
 import type { PlaybackStatus } from '@/apis/recommend';
-import { ChapterBlock, type ChapterBody } from '@/components/novel-reader/ChapterBlock';
+import { ChapterBlock } from '@/components/novel-reader/ChapterBlock';
+import type { ChapterBody } from '@/components/novel-reader/chapterText';
 import { ReaderChrome, type ReaderPanel } from '@/components/novel-reader/ReaderChrome';
 import { PaginatedReader } from '@/components/novel-reader/PaginatedReader';
 import { usePaginatedReader } from '@/hooks/usePaginatedReader';
@@ -770,6 +771,8 @@ function NovelDetailContent() {
                     fontSize={prefs.fontSize}
                     onGoNext={paginated.goNext}
                     onGoPrev={paginated.goPrev}
+                    onRetry={paginated.retry}
+                    keyboardEnabled={!panel}
                     mode={prefs.mode === 'swipe' ? 'curl' : 'cover'}
                   />
                 </Box>
