@@ -14,15 +14,15 @@ import DialogTitle from '@mui/material/DialogTitle';
 import Typography from '@mui/material/Typography';
 import CardGiftcardRoundedIcon from '@mui/icons-material/CardGiftcardRounded';
 import { getGiftList, type GiftItem } from '@/apis/dashboard';
-import { getWalletBalance } from '@/apis/wallet';
+import { FEN_PER_DIAMOND, getWalletBalance } from '@/apis/wallet';
 import { accountClient, formatApiError } from '@/lib/api/client';
 import { loginHref } from '@/lib/auth/redirect';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
 
 const COUNTS = [1, 5, 10, 66];
-// 1 钻 = 10 分,与钱包页一致
-const diamonds = (cents: number) => Math.floor(cents / 10);
+// 送一个扣的钻石数:以后端下发的 diamondPrice 为准,老接口没有时按 1 钻 = 10 分向上折算
+const giftDiamonds = (g: GiftItem) => g.diamondPrice ?? Math.ceil(g.price / FEN_PER_DIAMOND);
 
 interface GiftButtonProps {
   /** 创作者用户 id。站外收录的内容没有站内创作者(为 0/空),此时不展示。 */
@@ -58,9 +58,10 @@ export function GiftButton({ creatorId, contentId, creatorName }: GiftButtonProp
   const targetId = Number(creatorId);
   if (!targetId || targetId <= 0 || targetId === currentUser?.id) return null;
 
-  const total = (gift?.price ?? 0) * count;
-  const balanceCents: number | undefined = balance.data?.balance;
-  const insufficient = balanceCents !== undefined && total > balanceCents;
+  // 钱包余额与扣费都是钻石
+  const total = (gift ? giftDiamonds(gift) : 0) * count;
+  const balanceDiamonds: number | undefined = balance.data?.balance;
+  const insufficient = balanceDiamonds !== undefined && total > balanceDiamonds;
 
   const openDialog = () => {
     if (!isAuthenticated) {
@@ -100,7 +101,7 @@ export function GiftButton({ creatorId, contentId, creatorName }: GiftButtonProp
                   >
                     <Typography sx={{ fontSize: 26, lineHeight: 1.2 }}>{g.icon}</Typography>
                     <Typography sx={{ fontSize: 11 }} noWrap>{g.name}</Typography>
-                    <Typography sx={{ fontSize: 10, color: 'warning.main', fontWeight: 700 }}>{diamonds(g.price)} 钻</Typography>
+                    <Typography sx={{ fontSize: 10, color: 'warning.main', fontWeight: 700 }}>{giftDiamonds(g)} 钻</Typography>
                   </Box>
                 ))}
               </Box>
@@ -115,7 +116,7 @@ export function GiftButton({ creatorId, contentId, creatorName }: GiftButtonProp
                 </Box>
               )}
               <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
-                钱包余额:{balanceCents === undefined ? '…' : `${diamonds(balanceCents).toLocaleString()} 钻`}
+                钱包余额:{balanceDiamonds === undefined ? '…' : `${balanceDiamonds.toLocaleString()} 钻`}
                 {insufficient && (
                   <>
                     {' · 余额不足,'}
@@ -131,7 +132,7 @@ export function GiftButton({ creatorId, contentId, creatorName }: GiftButtonProp
           <Button variant="text" onClick={() => setOpen(false)}>{done ? '关闭' : '取消'}</Button>
           {!done && (
             <Button variant="contained" disabled={!gift || insufficient || send.isPending} onClick={() => send.mutate()}>
-              {send.isPending ? '处理中…' : gift ? `送出 ${diamonds(total).toLocaleString()} 钻` : '选择礼物'}
+              {send.isPending ? '处理中…' : gift ? `送出 ${total.toLocaleString()} 钻` : '选择礼物'}
             </Button>
           )}
         </DialogActions>

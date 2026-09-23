@@ -8,10 +8,11 @@ import { accountClient } from '@/lib/api/client';
 
 /** 钱包汇总响应 */
 export interface WalletSummary {
-  balance: number;     // 当前余额(分)
-  totalIncome: number; // 累计收入(分)
-  totalSpend: number;  // 累计支出(分)
-  todayReward: number; // 今日收益(分,不含充值)
+  // 以下全部为钻石(钱包按钻石记账)
+  balance: number;     // 当前余额
+  totalIncome: number; // 累计收入
+  totalSpend: number;  // 累计支出
+  todayReward: number; // 今日收益(不含充值、退款)
 }
 
 /** 获取钱包汇总 */
@@ -26,9 +27,9 @@ export async function getWalletSummary(): Promise<WalletSummary> {
 export interface RewardRecord {
   id: number;
   userId: number;
-  amount: number;         // 分,正=入
+  amount: number;         // 钻,正=入
   type: string;           // task_reward/achievement/demand_settle/daily_task/invite/monthly_benefit/tip_in/point_migration
-  balanceAfter: number;
+  balanceAfter: number;   // 钻
   refId: string;
   remark: string;
   sourceType: string;     // demand_settle/achievement/daily_task/invite/monthly_benefit/point_migration
@@ -60,7 +61,7 @@ export interface DailyTask {
   taskType: string;
   name: string;
   description: string;
-  rewardPoint: number;  // 奖励积分(分)
+  rewardPoint: number;  // 奖励积分
   maxCount: number;     // 每日可完成次数
   completed: boolean;
   claimed: boolean;
@@ -72,7 +73,7 @@ export interface DailyTaskStats {
   date: string;
   totalTasks: number;
   completed: number;
-  totalReward: number; // 分
+  totalReward: number; // 积分
   claimableCount: number;
 }
 
@@ -103,8 +104,8 @@ export async function completeDailyTask(taskType: string): Promise<{ msg: string
 export interface InviteStats {
   myCode: string;         // 我的邀请码(空=未生成)
   inviteCount: number;    // 已邀请人数
-  totalReward: number;    // 累计获得奖励(分)
-  pendingReward: number;  // 待发放奖励(分)
+  totalReward: number;    // 累计获得奖励(积分)
+  pendingReward: number;  // 待发放奖励(积分)
 }
 
 /** 邀请记录 */
@@ -157,8 +158,8 @@ export interface MonthlyBenefitStatus {
   isVip: boolean;          // 是否有效会员
   planName: string;        // 会员套餐名
   expiresAt: number;       // 会员到期时间(Unix 秒,非会员为 0)
-  monthlyReward: number;   // 每月发放金额(分)
-  diamondCount: number;    // 本月已发放金额(分)
+  monthlyReward: number;   // 每月发放钻石数(默认 10)
+  diamondCount: number;    // 本月已发放钻石数
   vipLevel: string;        // 发放时的套餐名
   grantTime: number;       // 本月发放时间(Unix 秒,未发放为 0)
   status: string;          // pending / granted
@@ -169,7 +170,7 @@ export interface MonthlyBenefitRecord {
   id: number;
   userId: number;
   yearMonth: string;
-  diamondCount: number; // 分
+  diamondCount: number; // 钻
   vipLevel: string;     // 发放时的套餐名
   grantTime: string;
   status: string;       // granted / failed

@@ -232,7 +232,10 @@ export interface GiftItem {
   id: string;
   name: string;
   icon: string;
+  /** 人民币标价(分) */
   price: number;
+  /** 送一个实际扣的钻石数(后端按 price / 10 折算) */
+  diamondPrice?: number;
   effect: 'small' | 'medium' | 'large' | 'huge';
   combo: boolean;
 }
@@ -598,9 +601,11 @@ export interface PointMallItem {
   tag?: 'HOT' | 'NEW' | '限时' | '独家';
   /** physical:实物,需要收货地址;其余是装扮,兑换后立即到账并自动佩戴 */
   deliverType?: 'physical' | 'avatar_frame' | 'title' | 'name_color';
-  /** point:用积分(points);diamond:用钻石(priceCents,分;1 钻 = 10 分) */
+  /** point:用积分(points);diamond:用钻石(扣 diamondPrice 钻;priceCents 是人民币标价,分) */
   currency?: 'point' | 'diamond';
   priceCents?: number;
+  /** 钻石商品实际扣的钻石数(后端按 priceCents / 10 折算) */
+  diamondPrice?: number;
   /** 装扮的样式值:头像框/名字颜色是 CSS 渐变或颜色,称号是文字 */
   cosmeticValue?: string;
   /** 装扮有效天数,0 = 永久 */
@@ -618,6 +623,7 @@ export async function getPointMallHistory() {
 }
 /** 兑换/购买商品;实物需要收货地址:addressId(地址簿)或 address(自由文本)二选一 */
 export async function redeemPointMallItem(itemId: number, address?: string, addressId?: number) {
+  // balance:钻石商品返回兑换后的钱包余额(钻)
   return unwrap<{ record: PointMallRecord; balance: number }>(
     await accountClient.post('/user/point/mall/redeem', { itemId, address, addressId })
   );
@@ -631,7 +637,7 @@ export interface PointMallRecord {
   gradient: string;
   points: number;
   currency?: 'point' | 'diamond';
-  amountCents?: number;
+  amountCents?: number; // 钻石商品实付的人民币标价(分)
   deliverType?: string;
   status: 'pending' | 'shipped' | 'completed';
   redeemedAt: string;

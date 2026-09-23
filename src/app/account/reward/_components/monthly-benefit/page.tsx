@@ -24,7 +24,8 @@ import { useApp } from '@/contexts/AppContext';
 import { getMonthlyBenefitStatus, getMonthlyBenefitRecords } from '@/apis/reward-center';
 
 /** 分 → "¥1.00" */
-const yuan = (cents?: number) => `¥${((cents ?? 0) / 100).toFixed(2)}`;
+// 月度福利按钻石发放(monthlyReward / diamondCount 都是钻)
+const diamonds = (n?: number) => `💎 ${n ?? 0}`;
 
 /** Unix 秒 → "2026/9/13" */
 const dateOf = (sec?: number) => (sec ? new Date(sec * 1000).toLocaleDateString('zh-CN') : '');
@@ -86,7 +87,7 @@ export default function MonthlyBenefitPage() {
               <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                 {isVip
                   ? `${status?.planName || '会员'} · 有效期至 ${dateOf(status?.expiresAt)}`
-                  : `开通会员后,每月自动发放 ${yuan(status?.monthlyReward)} 钻石到钱包`}
+                  : `开通会员后,每月自动发放 ${status?.monthlyReward ?? 0} 钻石到钱包`}
               </Typography>
             </Box>
           </Box>
@@ -101,7 +102,7 @@ export default function MonthlyBenefitPage() {
                 textAlign: 'center',
               }}>
                 <Typography variant="h4" sx={{ fontWeight: 700, color: 'warning.main' }}>
-                  {yuan(status?.monthlyReward)}
+                  {diamonds(status?.monthlyReward)}
                 </Typography>
                 <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                   每月发放到钱包
@@ -125,7 +126,7 @@ export default function MonthlyBenefitPage() {
                         本月已发放
                       </Typography>
                       <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                        {yuan(status?.diamondCount)} · {dateOf(status?.grantTime)}
+                        {diamonds(status?.diamondCount)} · {dateOf(status?.grantTime)}
                       </Typography>
                     </Box>
                   </>
@@ -186,7 +187,7 @@ export default function MonthlyBenefitPage() {
                       </Typography>
                     </Box>
                     <Typography sx={{ fontWeight: 600, color: 'success.main' }}>
-                      +{yuan(record.diamondCount)}
+                      +{record.diamondCount ?? 0} 钻
                     </Typography>
                     <Chip
                       icon={ok ? <CheckCircleIcon sx={{ fontSize: 14 }} /> : <PendingIcon sx={{ fontSize: 14 }} />}

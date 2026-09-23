@@ -42,7 +42,7 @@ export default function MonetizePage() {
           .map(([key, value]) => ({
             id: key,
             label: SOURCE_LABELS[key] || key,
-            value: Math.abs(value) / 100,
+            value: Math.abs(value), // 钱包流水按钻石记
             raw: value,
             color: key === 'reward' ? 'primary.main' : key === 'recharge' ? 'secondary.main' : key === 'consume' ? 'warning.main' : '#8B5CF6',
             icon: key === 'reward' ? <StarBorderIcon sx={{ fontSize: 18 }} /> : key === 'recharge' ? <LiveTvOutlinedIcon sx={{ fontSize: 18 }} /> : key === 'consume' ? <StorefrontOutlinedIcon sx={{ fontSize: 18 }} /> : <RedeemOutlinedIcon sx={{ fontSize: 18 }} />,
@@ -98,7 +98,7 @@ export default function MonetizePage() {
                   borderColor: 'rgba(254, 44, 85, 0.3)',
                 }}
               >
-                <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>当前余额 (元)</Typography>
+                <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>当前余额 (钻)</Typography>
                 <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mt: 0.5 }}>
                   <Typography
                     sx={{
@@ -109,7 +109,7 @@ export default function MonetizePage() {
                       lineHeight: 1.2,
                     }}
                   >
-                    ¥{(data.balance / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
+                    💎 {data.balance.toLocaleString('zh-CN')}
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', gap: 2, mt: 1.5 }}>
@@ -120,7 +120,7 @@ export default function MonetizePage() {
                     <Box>
                       <Typography sx={{ fontSize: 9, color: 'text.disabled', lineHeight: 1.2 }}>累计入账</Typography>
                       <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary', fontFamily: 'monospace' }}>
-                        ¥{(data.totalIncome / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
+                        💎 {data.totalIncome.toLocaleString('zh-CN')}
                       </Typography>
                     </Box>
                   </Box>
@@ -131,7 +131,7 @@ export default function MonetizePage() {
                     <Box>
                       <Typography sx={{ fontSize: 9, color: 'text.disabled', lineHeight: 1.2 }}>累计支出</Typography>
                       <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary', fontFamily: 'monospace' }}>
-                        ¥{(data.totalExpense / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
+                        💎 {data.totalExpense.toLocaleString('zh-CN')}
                       </Typography>
                     </Box>
                   </Box>
@@ -144,7 +144,7 @@ export default function MonetizePage() {
                   <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>暂无流水记录</Typography>
                 )}
                 {sources.map((s) => {
-                  const percent = total > 0 ? (s.value / (total / 100)) * 100 : 0;
+                  const percent = total > 0 ? (s.value / total) * 100 : 0;
                   return (
                     <Box key={s.id}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
@@ -164,7 +164,7 @@ export default function MonetizePage() {
                         </Box>
                         <Typography sx={{ fontSize: 12, color: 'text.tertiary', flex: 1 }}>{s.label}</Typography>
                         <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.primary', fontFamily: 'monospace' }}>
-                          {s.raw > 0 ? '+' : ''}¥{s.value.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
+                          {s.raw > 0 ? '+' : ''}💎 {s.value.toLocaleString('zh-CN')}
                         </Typography>
                         <Typography sx={{ fontSize: 10, color: 'text.disabled', fontFamily: 'monospace', minWidth: 36, textAlign: 'right' }}>
                           {percent.toFixed(1)}%
@@ -212,7 +212,7 @@ export default function MonetizePage() {
                     fontFamily: 'monospace',
                   }}
                 >
-                  {data.recent30Days >= 0 ? '+' : ''}¥{(Math.abs(data.recent30Days) / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
+                  {data.recent30Days >= 0 ? '+' : '-'}💎 {Math.abs(data.recent30Days).toLocaleString('zh-CN')}
                 </Typography>
                 <Box
                   sx={{

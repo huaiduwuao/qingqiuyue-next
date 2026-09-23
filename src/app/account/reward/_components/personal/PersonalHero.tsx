@@ -89,7 +89,7 @@ export default function PersonalHero(_props: Props) {
   const { currentUser } = useApp();
   const currentUserId = currentUser?.id ?? 0;
 
-  // 积分余额(统一使用 wallet 表)
+  // 钱包钻石余额(wallet 表,按钻石记账)
   const walletQuery = useQuery({
     queryKey: ['personal', 'wallet-summary', currentUserId],
     queryFn: () => getWalletSummary(),
@@ -97,7 +97,7 @@ export default function PersonalHero(_props: Props) {
     placeholderData: { balance: 0, totalIncome: 0, totalSpend: 0, todayReward: 0 },
   });
   const wallet = walletQuery.data || { balance: 0, totalIncome: 0, totalSpend: 0, todayReward: 0 };
-  const totalPoint = wallet.totalIncome; // 累计收入作为总积分
+  const totalPoint = wallet.totalIncome; // 钱包累计收入(钻)
   const currentBalance = wallet.balance; // 当前可用余额
 
   // 我在队的团队数
@@ -176,7 +176,7 @@ export default function PersonalHero(_props: Props) {
             <Typography sx={{ fontSize: 18, fontWeight: 700, color: 'text.primary' }}>
               {currentUser?.nickname || currentUser?.name || '我'}
             </Typography>
-            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>积分账户</Typography>
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>钻石钱包</Typography>
             <Box
               sx={{
                 px: 1,
@@ -189,7 +189,7 @@ export default function PersonalHero(_props: Props) {
                 fontFamily: 'monospace',
               }}
             >
-              统一积分
+              钱包钻石
             </Box>
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
@@ -209,11 +209,11 @@ export default function PersonalHero(_props: Props) {
               />
             </Box>
             <Typography sx={{ fontSize: 10, color: 'text.secondary', fontFamily: 'monospace' }}>
-              可用 {currentBalance.toLocaleString()} / 累计 {totalPoint.toLocaleString()}
+              可用 💎 {currentBalance.toLocaleString()} / 累计 {totalPoint.toLocaleString()}
             </Typography>
           </Box>
           <Typography sx={{ fontSize: 10, color: 'text.secondary', mt: 0.5 }}>
-            今日收益 <Box component="span" sx={{ color: 'success.main', fontWeight: 600 }}>+{wallet.todayReward.toLocaleString()}</Box> 积分
+            今日收益 <Box component="span" sx={{ color: 'success.main', fontWeight: 600 }}>+{wallet.todayReward.toLocaleString()}</Box> 钻
           </Typography>
         </Box>
 

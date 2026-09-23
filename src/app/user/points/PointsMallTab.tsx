@@ -28,6 +28,7 @@ import DiamondRoundedIcon from '@mui/icons-material/DiamondRounded';
 import MenuItem from '@mui/material/MenuItem';
 import { getUserPoint } from '@/apis/system-user-point';
 import { getWalletSummary } from '@/apis/reward-center';
+import { FEN_PER_DIAMOND } from '@/apis/wallet';
 import { getAddresses, addressText } from '@/apis/growth';
 import { useApp } from '@/contexts/AppContext';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
@@ -56,15 +57,17 @@ interface MallItem {
   deliverType?: ApiMallItem['deliverType'];
   currency: 'point' | 'diamond';
   priceCents: number;
+  /** 钻石商品实际扣的钻石数(后端下发) */
+  diamondPrice?: number;
   cosmeticValue?: string;
   durationDays?: number;
 }
 
-// 1 钻 = 10 分(与钱包页一致)
-const toDiamonds = (cents: number) => Math.floor(cents / 10);
-/** 商品标价:积分商品是积分数,钻石商品是钻石数 */
-const costOf = (it: { currency: 'point' | 'diamond'; points: number; priceCents: number }) =>
-  it.currency === 'diamond' ? toDiamonds(it.priceCents) : it.points;
+// 人民币标价(分)→ 钻石,1 钻 = 10 分,与后端 walletapp.FenToDiamonds 一样向上取整
+const toDiamonds = (cents: number) => Math.ceil(cents / FEN_PER_DIAMOND);
+/** 商品标价:积分商品是积分数,钻石商品是钻石数(以后端 diamondPrice 为准) */
+const costOf = (it: { currency: 'point' | 'diamond'; points: number; priceCents: number; diamondPrice?: number }) =>
+  it.currency === 'diamond' ? (it.diamondPrice ?? toDiamonds(it.priceCents)) : it.points;
 const unitOf = (it: { currency: 'point' | 'diamond' }) => (it.currency === 'diamond' ? '钻石' : '积分');
 const isCosmetic = (it: { deliverType?: string }) => !!it.deliverType && it.deliverType !== 'physical';
 
@@ -136,7 +139,7 @@ export function PointsMallTab({ initialPoints }: Props) {
     queryFn: () => getWalletSummary(),
     enabled: !!userId,
   });
-  const currentDiamonds = toDiamonds(walletQuery.data?.balance ?? 0);
+  const currentDiamonds = walletQuery.data?.balance ?? 0; // 钱包余额已是钻石
   const balanceFor = (it: { currency: 'point' | 'diamond' }) => (it.currency === 'diamond' ? currentDiamonds : currentPoints);
   const canAffordItem = (it: MallItem) => balanceFor(it) >= costOf(it);
   // 地址簿
@@ -168,6 +171,7 @@ export function PointsMallTab({ initialPoints }: Props) {
     deliverType: it.deliverType,
     currency: it.currency === 'diamond' ? 'diamond' : 'point',
     priceCents: it.priceCents ?? 0,
+    diamondPrice: it.diamondPrice,
     cosmeticValue: it.cosmeticValue,
     durationDays: it.durationDays,
   }));
