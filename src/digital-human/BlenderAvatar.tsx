@@ -106,6 +106,7 @@ const EXPRESSION_MAP: Record<string, string> = {
 // 缓存:url -> 加载好的 VRM 数据(单一格式,不再支持 GLB)
 // 加载层已抽离到 ./vrm/loadAvatar.ts,这里只 re-export 类型,行为完全不变
 import { loadAvatar, type Cached } from './vrm/loadAvatar';
+import { mountEffectCanvas } from './effectCanvas';
 
 
 export interface BlenderAvatarProps {
@@ -200,7 +201,8 @@ function VrmAvatar({
   onToolCall,
   sx,
 }: BlenderAvatarProps) {
-  const canvasRef = React.useRef<HTMLCanvasElement>(null);
+  // canvas 由初始化 effect 自己创建 / 移除(见 effectCanvas.ts),这里只留宿主节点
+  const canvasHostRef = React.useRef<HTMLDivElement>(null);
   const rendererRef = React.useRef<any>(null);
   const sceneRef = React.useRef<any>(null);
   const cameraRef = React.useRef<any>(null);
@@ -224,8 +226,8 @@ function VrmAvatar({
 
   // 初始化场景 + 加载角色
   React.useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const host = canvasHostRef.current;
+    if (!host) return;
     // 调试：按 1 键可跳过 Three.js，用于排查 runtime.lastError 来源
     const debug = (typeof window !== 'undefined' && (window as any).__DIGITAL_HUMAN_DEBUG) as { noThree?: boolean } | undefined;
     if (debug?.noThree) {
@@ -233,6 +235,8 @@ function VrmAvatar({
       setLoading(false);
       return;
     }
+    // 上一轮 cleanup 对旧 canvas 做了 forceContextLoss,不能复用,每轮新建
+    const { canvas, unmount: unmountCanvas } = mountEffectCanvas(host);
     let cancelled = false;
     let onMouseMove: ((e: MouseEvent) => void) | null = null;
     let onResize: (() => void) | null = null;
@@ -371,6 +375,7 @@ function VrmAvatar({
       cameraRef.current = null;
       loadedRef.current = null;
       mixerRef.current = null;
+      unmountCanvas();
     };
   }, [modelUrl]);
 
@@ -401,7 +406,7 @@ function VrmAvatar({
     <Box sx={{
       width: '100%', height: '100%', background, position: 'relative', overflow: 'hidden', ...sx,
     }}>
-      <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block', outline: 'none' }} />
+      <div ref={canvasHostRef} style={{ width: '100%', height: '100%' }} />
       {loading && (
         <Box sx={{
           position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',

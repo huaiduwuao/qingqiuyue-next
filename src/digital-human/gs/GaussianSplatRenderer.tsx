@@ -22,6 +22,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import type { GaussianAsset, PoseFrame } from './assetFormat';
 import { loadGaussianAsset } from './gaussianLoader';
 import { sortGaussiansByDepth, sortGaussiansFast } from './gaussianSorter';
+import { mountEffectCanvas } from '../effectCanvas';
 import type * as THREE from 'three';
 
 export type QualityMode = 'quality' | 'balanced' | 'performance';
@@ -51,7 +52,8 @@ export default function GaussianSplatRenderer({
   background = 'radial-gradient(ellipse at 50% 30%, rgba(124,58,237,0.18) 0%, transparent 55%), #05060B',
   sx,
 }: GaussianSplatRendererProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  // canvas 由 effect 自己创建 / 移除(见 effectCanvas.ts),这里只留宿主节点
+  const canvasHostRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -106,8 +108,10 @@ export default function GaussianSplatRenderer({
 
   // 加载 + 初始化
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    const host = canvasHostRef.current;
+    if (!host) return;
+    // 上一轮 cleanup 对旧 canvas 做了 forceContextLoss,不能复用,每轮新建
+    const { canvas, unmount: unmountCanvas } = mountEffectCanvas(host);
 
     let cancelled = false;
     // 本轮创建的监听 / GPU 资源,卸载或依赖变化时逐个释放。
@@ -261,6 +265,7 @@ export default function GaussianSplatRenderer({
       cancelled = true;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       for (const d of disposers.splice(0).reverse()) d();
+      unmountCanvas();
     };
   }, [assetUrl, skinningUrl, smplxUrl, metaUrl, quality, qualityProp, orbitControls, getTHREE, createPointMaterial]);
 
@@ -280,10 +285,7 @@ export default function GaussianSplatRenderer({
         ...sx,
       }}
     >
-      <canvas
-        ref={canvasRef}
-        style={{ width: '100%', height: '100%', display: 'block', outline: 'none' }}
-      />
+      <div ref={canvasHostRef} style={{ width: '100%', height: '100%' }} />
 
       {loading && (
         <Box
