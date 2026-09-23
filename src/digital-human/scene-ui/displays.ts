@@ -6,7 +6,8 @@
  * 所以每块屏自己记一份访问栈,后退 = 让 iframe 直接去栈里的上一个地址。
  */
 
-import type { IframeOpenTarget } from '../virtual-browser';
+import { safeHttpUrl } from '@/lib/safeUrl';
+import { safeFrameSrc, type IframeOpenTarget } from '../virtual-browser';
 import { isDisplaySlot, type DisplaySlot } from '../vrm/sceneDisplays';
 
 export interface DisplayPage {
@@ -17,7 +18,7 @@ export interface DisplayPage {
   kind: 'site' | 'web' | 'video';
   /** 新标签打开用的原始地址 */
   rawUrl: string;
-  /** 外站是否确认能内嵌;不确定时屏幕底部给「代理/新标签」兜底条 */
+  /** 外站是否确认能内嵌;不确定时屏幕底部给「新标签打开」兜底条 */
   embeddable: boolean;
   /** 每次打开递增:同一个地址再开一次也要重新加载 */
   seq: number;
@@ -27,14 +28,36 @@ export type DisplayPages = Partial<Record<DisplaySlot, DisplayPage>>;
 
 let seq = 0;
 
-/** 站内地址:/ 开头的路径,或和当前页同源的绝对地址 */
+/**
+ * 同源但不是前端页面的路径:nginx 直接转给后端 / MinIO。
+ * 站内页面是不带沙箱的同源 iframe,而 /api/proxy?url= 会把外站 HTML 原样吐在本站 origin 上 ——
+ * 爬来的一段文字就能让数字人不经点击打开它,脚本直接读走登录态。这类路径一律不当站内页面。
+ */
+const BACKEND_PATH_RE = /^\/(api|ws|logs|qq-[a-z0-9-]+)(\/|$)/i;
+
+export function isBackendPath(path: string): boolean {
+  let p: string;
+  try {
+    // 按浏览器 / nginx 的规则归一:/./api、/x/../api、/%61pi 都算
+    p = decodeURIComponent(new URL(path, 'http://x.invalid').pathname);
+  } catch {
+    return true;
+  }
+  return BACKEND_PATH_RE.test(p);
+}
+
+/** 站内地址:/ 开头的路径,或和当前页同源的绝对地址;后端接口路径(见 isBackendPath)不算 */
 export function toSitePath(url: string, origin?: string): string | null {
   const u = (url || '').trim();
   if (!u) return null;
-  if (u.startsWith('/') && !u.startsWith('//')) return u;
-  const base = origin ?? (typeof window !== 'undefined' ? window.location.origin : '');
-  if (base && u.startsWith(`${base}/`)) return u.slice(base.length);
-  return null;
+  let path: string | null = null;
+  if (u.startsWith('/') && !u.startsWith('//')) path = u;
+  else {
+    const base = origin ?? (typeof window !== 'undefined' ? window.location.origin : '');
+    if (base && u.startsWith(`${base}/`)) path = u.slice(base.length);
+  }
+  if (path === null || /[\x00-\x1f\x7f\\]/.test(path) || isBackendPath(path)) return null;
+  return path;
 }
 
 const MEDIA_FILE_RE = /\.(mp4|webm|ogv|mov|m4v)(\?|#|$)/i;
@@ -64,6 +87,11 @@ export function pageFromTarget(target: IframeOpenTarget, title?: string): Displa
   const site = toSitePath(target.rawUrl || target.url);
   if (site) return sitePage(site, title);
   const direct = MEDIA_FILE_RE.test(target.url);
+  // 网页只放跨源 http(s)(<video> 不执行脚本,本站代理的视频流照放);
+  // 本站的 /api/*、javascript: 之类一律不上屏,SceneDisplay 也会再兜一道 safeFrameSrc
+  if (direct ? !safeHttpUrl(target.url) : safeFrameSrc(target.url) === 'about:blank') {
+    return { url: 'about:blank', title: title ?? '这个地址不能在屏幕上打开', kind: 'web', rawUrl: '', embeddable: true, seq: ++seq };
+  }
   return {
     url: target.url,
     title,

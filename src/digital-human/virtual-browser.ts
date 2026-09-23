@@ -19,6 +19,8 @@
  * 供 Immersive / Floating 两个数字人入口共用, 避免各自解析漂移。
  */
 
+import { safeHttpUrl } from '@/lib/safeUrl'
+
 export type IframeDisplayMode = 'normal' | 'video' | 'tab'
 
 export interface IframeOpenTarget {
@@ -110,9 +112,21 @@ export function toEmbedUrl(url: string): string | null {
   return null
 }
 
-/** 嵌入被拒时的代理中转(经公共 CORS 代理剥掉 X-Frame-Options, 可嵌入白屏站) */
-export function toProxyUrl(url: string): string {
-  return `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+// 以前嵌入被拒时有个「代理打开」:经公共代理 api.allorigins.win 剥掉 X-Frame-Options。
+// 用户浏览的地址全漏给不明运营方,对方还能往带 allow-scripts 的 iframe 里注入内容,已去掉;
+// 嵌不进来就「新标签打开」。
+
+/**
+ * 外站网页 iframe 的 src:只放行 http(s) 且不是本站的地址,否则给 about:blank。
+ * 外站 iframe 带着 allow-scripts + allow-same-origin(很多站要读自己的 cookie/storage 才能跑),
+ * 这套沙箱只在「跨源」时才算数;本站地址(尤其 /api/proxy?url= 会把外站 HTML 原样吐在本站 origin 上)
+ * 配上 allow-same-origin 等于没有沙箱,脚本能直接读登录态。javascript: 同理。
+ */
+export function safeFrameSrc(url: string, origin?: string): string {
+  const base = origin ?? (typeof window !== 'undefined' ? window.location.origin : 'http://localhost')
+  const u = safeHttpUrl(url, base)
+  if (!u || new URL(u).origin === new URL(base).origin) return 'about:blank'
+  return u
 }
 
 /**

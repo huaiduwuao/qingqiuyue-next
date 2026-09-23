@@ -24,7 +24,7 @@ import ScreenShareRoundedIcon from '@mui/icons-material/ScreenShareRounded';
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { DISPLAY_SPECS, type DisplaySlot } from '../vrm/sceneDisplays';
-import { toProxyUrl } from '../virtual-browser';
+import { safeFrameSrc } from '../virtual-browser';
 import { openExternal } from '@/lib/safeUrl';
 import {
   emptyNav, isEmbedMessage, navCanBack, navCanForward, navObserve,
@@ -83,7 +83,6 @@ export default function SceneDisplay({ slot, page, focused, overlay, onOpen, onC
   titleRef.current = title;
   const [loading, setLoading] = React.useState(false);
   const [reloadKey, setReloadKey] = React.useState(0);
-  const [proxied, setProxied] = React.useState(false);
   const [input, setInput] = React.useState('');
   const onLocationRef = React.useRef(onLocation);
   onLocationRef.current = onLocation;
@@ -93,11 +92,10 @@ export default function SceneDisplay({ slot, page, focused, overlay, onOpen, onC
   const isSite = page?.kind === 'site';
   const current = (isSite && nav.entries[nav.index]) || page?.url || '';
 
-  // 换了一页:栈、标题、代理状态全部重来
+  // 换了一页:栈、标题全部重来
   React.useEffect(() => {
     setNav(page?.kind === 'site' ? { entries: [page.url], index: 0 } : emptyNav());
     setTitle(page?.title || '');
-    setProxied(false);
     setLoading(!!page);
     setInput('');
   }, [page?.seq]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -245,7 +243,8 @@ export default function SceneDisplay({ slot, page, focused, overlay, onOpen, onC
     );
   }
 
-  const src = proxied ? toProxyUrl(page.rawUrl) : page.url;
+  // 外站只放行跨源 http(s):本站地址配 allow-same-origin 等于没沙箱(见 safeFrameSrc)
+  const src = isSite ? page.url : safeFrameSrc(page.url);
   return (
     <Box sx={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', bgcolor: '#0a0c14' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 * k, px: 0.75 * k, py: 0.6 * k, bgcolor: 'rgba(20,24,40,0.96)', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
@@ -275,7 +274,7 @@ export default function SceneDisplay({ slot, page, focused, overlay, onOpen, onC
         ) : (
           <iframe
             ref={frameRef}
-            key={`${page.seq}-${reloadKey}-${proxied}`}
+            key={`${page.seq}-${reloadKey}`}
             // 刷新站内页面时停在当前地址,而不是回到最初打开的那一页
             src={isSite && reloadKey > 0 ? current : src}
             title={title || page.title || spec.label}
@@ -283,15 +282,15 @@ export default function SceneDisplay({ slot, page, focused, overlay, onOpen, onC
             allow="autoplay; fullscreen; picture-in-picture; clipboard-write"
             allowFullScreen
             // 站内页面同源、可信,不加沙箱(要读地址、共享登录态);外站照旧关进沙箱
-            {...(isSite ? {} : { sandbox: 'allow-scripts allow-same-origin allow-forms allow-popups allow-presentation', referrerPolicy: 'no-referrer' as const })}
+            {...(isSite ? {} : { sandbox: 'allow-scripts allow-same-origin allow-popups allow-presentation', referrerPolicy: 'no-referrer' as const })}
             style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
           />
         )}
-        {page.kind === 'web' && !page.embeddable && !proxied && (
+        {page.kind === 'web' && !page.embeddable && (
           <Box sx={{ position: 'absolute', left: 0, right: 0, bottom: 0, p: 1 * k, display: 'flex', alignItems: 'center', gap: 1 * k, bgcolor: 'rgba(40,24,6,0.92)', borderTop: '1px solid rgba(255,150,40,0.4)', fontSize: 12 * k, color: '#ffb35c' }}>
-            <Box sx={{ flex: 1 }}>这个站点可能不允许内嵌,白屏的话试试代理或新标签</Box>
-            <Box component="button" type="button" onClick={() => { setLoading(true); setProxied(true); }} sx={{ all: 'unset', cursor: 'pointer', px: 1.25 * k, py: 0.4 * k, borderRadius: 1, border: '1px solid rgba(255,150,40,0.5)', '&:hover': { bgcolor: 'rgba(255,150,40,0.2)' } }}>
-              代理打开
+            <Box sx={{ flex: 1 }}>这个站点可能不允许内嵌,白屏的话试试新标签打开</Box>
+            <Box component="button" type="button" onClick={() => { openExternal(page.rawUrl); }} sx={{ all: 'unset', cursor: 'pointer', px: 1.25 * k, py: 0.4 * k, borderRadius: 1, border: '1px solid rgba(255,150,40,0.5)', '&:hover': { bgcolor: 'rgba(255,150,40,0.2)' } }}>
+              新标签打开
             </Box>
           </Box>
         )}

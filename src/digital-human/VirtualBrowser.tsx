@@ -20,7 +20,7 @@ import VolumeOffRoundedIcon from '@mui/icons-material/VolumeOffRounded';
 import VolumeUpRoundedIcon from '@mui/icons-material/VolumeUpRounded';
 import LockRoundedIcon from '@mui/icons-material/LockRounded';
 import type { IframeOpenTarget } from './virtual-browser';
-import { toProxyUrl } from './virtual-browser';
+import { safeFrameSrc } from './virtual-browser';
 import { openExternal } from '@/lib/safeUrl';
 
 export interface VirtualBrowserProps {
@@ -201,10 +201,10 @@ export function VirtualBrowser({ target, title, onClose, placement = 'stage' }: 
         ) : (
           <iframe
             key={`${activeUrl}-${reloadKey}`}
-            src={activeUrl}
+            src={safeFrameSrc(activeUrl)}
             title={title || '虚拟浏览器'}
             style={{ width: '100%', height: '100%', border: 'none' }}
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+            sandbox="allow-scripts allow-same-origin allow-popups"
             referrerPolicy="no-referrer"
           />
         )}
@@ -219,22 +219,8 @@ export function VirtualBrowser({ target, title, onClose, placement = 'stage' }: 
             }}
           >
             <Typography sx={{ flex: 1, fontSize: 11, color: '#ffb35c' }}>
-              该站点可能不支持在页面内嵌入, 可能白屏 — 建议「新标签打开」或「代理打开」
+              该站点可能不支持在页面内嵌入, 可能白屏 — 建议「新标签打开」
             </Typography>
-            <Box
-              component="button"
-              onClick={() => {
-                setActiveUrl(toProxyUrl(target.rawUrl || target.url));
-                setMode('normal');
-              }}
-              sx={{
-                cursor: 'pointer', border: '1px solid rgba(255,150,40,0.4)', borderRadius: 1,
-                bgcolor: 'rgba(255,150,40,0.12)', color: '#ffb35c', fontSize: 11, px: 1, py: 0.4,
-                '&:hover': { bgcolor: 'rgba(255,150,40,0.22)' },
-              }}
-            >
-              代理打开
-            </Box>
             <IconButton
               size="small"
               onClick={() => openExternal(target.rawUrl || target.url)}
