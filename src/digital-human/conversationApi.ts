@@ -15,18 +15,10 @@
  */
 
 import { API_PREFIX } from '@/lib/api/prefix';
+import { authFetch } from '@/lib/api/auth';
 
 const BASE = `${API_PREFIX}/api/agentmanager/conversations`;
 
-function authHeaders(): Record<string, string> {
-  if (typeof window === 'undefined') return {};
-  try {
-    const t = localStorage.getItem('session_id') || localStorage.getItem('token');
-    return t ? { Authorization: `Bearer ${t}` } : {};
-  } catch {
-    return {};
-  }
-}
 
 export class ConversationApiError extends Error {
   constructor(message: string, readonly status: number) {
@@ -50,9 +42,9 @@ async function readJson(res: Response): Promise<any> {
 }
 
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await authFetch(`${BASE}${path}`, {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(init.headers as Record<string, string>) },
+    headers: { 'Content-Type': 'application/json', ...(init.headers as Record<string, string>) },
   });
   if (!res.ok) {
     const body = await readJson(res).catch(() => ({}));

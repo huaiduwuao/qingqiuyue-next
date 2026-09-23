@@ -3,7 +3,10 @@
  * 数字员工 / 技能 / 工作流 / MCP 服务由 builder 员工起草,人在这里试运行、发布或丢弃。
  */
 
-const BASE = '/api/agentmanager/drafts'
+import { API_PREFIX } from '@/lib/api/prefix'
+import { authFetch } from '@/lib/api/auth'
+
+const BASE = `${API_PREFIX}/api/agentmanager/drafts`
 
 export type DraftKind = 'agent' | 'skill' | 'workflow' | 'mcp_server'
 export type DraftStatus = 'draft' | 'published' | 'discarded'
@@ -32,18 +35,9 @@ export const KIND_LABEL: Record<DraftKind, string> = {
   mcp_server: 'MCP 服务',
 }
 
-function headers(): Record<string, string> {
-  let t: string | null = null
-  try {
-    t = localStorage.getItem('session_id')
-  } catch {
-    t = null
-  }
-  return { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) }
-}
 
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { ...init, headers: headers() })
+  const res = await authFetch(`${BASE}${path}`, { ...init, headers: { 'Content-Type': 'application/json' } })
   const body = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`)
   return body

@@ -10,12 +10,15 @@ import type {
   VrmModelConfig, ActionConfig, DanceStyleConfig, PoseConfig,
   ExpressionPresetConfig, VisemeConfig, SceneConfig,
 } from '../vrm/config/types';
+import { API_PREFIX } from '@/lib/api/prefix';
+import { authFetch } from '@/lib/api/auth';
 
-const BASE = '/api/digital-human';
+// 客户端里裸 /api 会落到应用自己的 asset 协议上,必须带网关前缀(见 lib/api/prefix)
+const BASE = `${API_PREFIX}/api/digital-human`;
 
 async function jget<T>(url: string): Promise<T | null> {
   try {
-    const res = await fetch(url);
+    const res = await authFetch(url);
     if (!res.ok) return null;
     const data = await res.json();
     // 后端返回格式 { data: T, total?: N } 或 T
@@ -28,7 +31,7 @@ async function jget<T>(url: string): Promise<T | null> {
 
 async function jsend<T>(method: 'POST' | 'PUT' | 'DELETE', url: string, body?: any): Promise<T | null> {
   try {
-    const res = await fetch(url, {
+    const res = await authFetch(url, {
       method,
       headers: body ? { 'Content-Type': 'application/json' } : undefined,
       body: body ? JSON.stringify(body) : undefined,

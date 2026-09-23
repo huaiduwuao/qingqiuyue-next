@@ -25,17 +25,13 @@ import SkipNextRoundedIcon from '@mui/icons-material/SkipNextRounded';
 import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
 import GraphicEqRoundedIcon from '@mui/icons-material/GraphicEqRounded';
 import { API_PREFIX } from '@/lib/api/prefix';
+import { authHeaders } from '@/lib/api/auth';
 
 const TARGET_PHRASE = '小月';
 const TARGET_COUNT = 50;  // 目标录音数(够 5 分钟训练)
 const RECORD_DURATION_MS = 1500;
 
-// 训练接口在 core-api 的登录保护下;裸 fetch 不带会话会 401。取法与 lib/api/client 的拦截器一致。
-function authHeaders(): Record<string, string> {
-  if (typeof window === 'undefined') return {};
-  const token = localStorage.getItem('session_id') || localStorage.getItem('token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
+// 训练接口在 core-api 的登录保护下;裸 fetch 不带会话会 401。会话统一从 lib/api/auth 取。
 
 interface RecordedClip {
   blob: Blob

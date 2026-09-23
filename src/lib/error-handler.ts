@@ -4,6 +4,7 @@
  */
 
 import * as Sentry from '@sentry/nextjs'
+import { API_PREFIX } from '@/lib/api/prefix'
 
 // 开发环境是否开启详细日志
 const ENABLE_ERROR_LOG = process.env.NODE_ENV === 'development'
@@ -74,7 +75,7 @@ export function reportClientError(context: string, error: unknown, extra?: Recor
       errorStack: error instanceof Error ? (error.stack || '').slice(0, 2000) : '',
       ...extra,
     }
-    void fetch('/api/content/behavior', {
+    void fetch(API_PREFIX + '/api/content/behavior', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),

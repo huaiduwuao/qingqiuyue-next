@@ -12,23 +12,17 @@ import type {
   SkillResult,
   SkillKind,
 } from './types'
+import { API_PREFIX } from '@/lib/api/prefix'
+import { authFetch } from '@/lib/api/auth'
 
-const API_BASE = '/api/agentmanager'
-
-function getAuthToken(): string | null {
-  if (typeof window === 'undefined') return null
-  return localStorage.getItem('session_id') || localStorage.getItem('token')
-}
+const API_BASE = `${API_PREFIX}/api/agentmanager`
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
   }
-  const token = getAuthToken()
-  if (token) headers['Authorization'] = `Bearer ${token}`
-
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers })
+  const res = await authFetch(`${API_BASE}${path}`, { ...options, headers })
   if (!res.ok) {
     const error = await res.json().catch(() => ({ error: res.statusText }))
     throw new Error(error.error || `HTTP ${res.status}`)
@@ -51,10 +45,8 @@ async function requestStream<TResult = any>(
   },
 ): Promise<void> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
-  const token = getAuthToken()
-  if (token) headers['Authorization'] = `Bearer ${token}`
 
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await authFetch(`${API_BASE}${path}`, {
     method: 'POST',
     headers,
     body: JSON.stringify(body),

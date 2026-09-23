@@ -4,6 +4,8 @@
  */
 
 import { agentmAPI as baseAPI } from './api'
+import { API_PREFIX } from '@/lib/api/prefix'
+import { authFetch } from '@/lib/api/auth'
 
 // ========== Kanban ==========
 
@@ -176,7 +178,7 @@ export interface PlanStep {
 
 // ========== 扩展 API Client ==========
 
-const API_BASE = '/api/agentmanager'
+const API_BASE = `${API_PREFIX}/api/agentmanager`
 
 class ExtendedAgentmAPI {
   private token: string | null = null
@@ -189,7 +191,7 @@ class ExtendedAgentmAPI {
       ...(opts.headers as Record<string, string>),
     }
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`
-    const res = await fetch(`${API_BASE}${path}`, { ...opts, headers })
+    const res = await authFetch(`${API_BASE}${path}`, { ...opts, headers })
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: res.statusText }))
       throw new Error(err.error || `HTTP ${res.status}`)
@@ -319,7 +321,7 @@ class ExtendedAgentmAPI {
       'Content-Type': 'application/json',
       ...(this.token ? { 'Authorization': `Bearer ${this.token}` } : {}),
     }
-    const resp = await fetch(`${API_BASE}/agent/run/stream`, { method: 'POST', body, headers })
+    const resp = await authFetch(`${API_BASE}/agent/run/stream`, { method: 'POST', body, headers })
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
     // SSE stream via ReadableStream
     return new EventSource(`${API_BASE}/agent/run/stream`, {

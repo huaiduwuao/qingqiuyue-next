@@ -3,7 +3,10 @@
  * 多 Agent 管理平面前端 SDK
  */
 
-const API_BASE = '/api/agentmanager'
+import { API_PREFIX } from '@/lib/api/prefix'
+import { authFetch, getAuthToken as readSessionToken, setAuthToken } from '@/lib/api/auth'
+
+const API_BASE = `${API_PREFIX}/api/agentmanager`
 
 interface RequestOptions extends RequestInit {
   token?: string
@@ -20,15 +23,9 @@ class AgentManagerAPI {
     this.token = null
   }
 
-  // 获取认证 token（优先 session_id，其次 token）
+  // 获取认证 token:登录会话优先(lib/api/auth),其次 setToken 设的
   private getAuthToken(): string | null {
-    if (typeof window === 'undefined') return this.token
-    // 优先使用 session_id
-    const sessionId = localStorage.getItem('session_id')
-    if (sessionId) return sessionId
-    const token = localStorage.getItem('token')
-    if (token) return token
-    return this.token
+    return readSessionToken() ?? this.token
   }
 
   private async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -44,7 +41,7 @@ class AgentManagerAPI {
       headers['Authorization'] = `Bearer ${authToken}`
     }
 
-    const res = await fetch(`${API_BASE}${path}`, {
+    const res = await authFetch(`${API_BASE}${path}`, {
       ...fetchOpts,
       headers,
     })
@@ -60,9 +57,7 @@ class AgentManagerAPI {
   // ========== Auth ==========
   // 同步 session_id（从 core-api 登录后调用）
   syncSessionId(sessionId: string) {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('session_id', sessionId)
-    }
+    if (typeof window !== 'undefined') setAuthToken(sessionId)
     this.token = sessionId
   }
 
@@ -181,7 +176,7 @@ class AgentManagerAPI {
     const authToken = this.getAuthToken()
     if (authToken) headers['Authorization'] = `Bearer ${authToken}`
 
-    const res = await fetch(`${API_BASE}/gateway/llm/chat/completions`, {
+    const res = await authFetch(`${API_BASE}/gateway/llm/chat/completions`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ model, messages, stream: true }),
@@ -279,7 +274,7 @@ class AgentManagerAPI {
 
     let res: Response
     try {
-      res = await fetch(`${API_BASE}/agui`, {
+      res = await authFetch(`${API_BASE}/agui`, {
         method: 'POST',
         headers,
         body: JSON.stringify(params),

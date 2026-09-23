@@ -2,7 +2,10 @@
  * 技能仓库 API:对应后端 internal/agentmanager/skill_hub.go。
  */
 
-const BASE = '/api/agentmanager/skills/hub'
+import { API_PREFIX } from '@/lib/api/prefix'
+import { authFetch } from '@/lib/api/auth'
+
+const BASE = `${API_PREFIX}/api/agentmanager/skills/hub`
 
 export interface HubSource {
   id: number
@@ -50,18 +53,9 @@ export interface HubScan {
   report: HubReport
 }
 
-function headers(): Record<string, string> {
-  let t: string | null = null
-  try {
-    t = localStorage.getItem('session_id')
-  } catch {
-    t = null
-  }
-  return { 'Content-Type': 'application/json', ...(t ? { Authorization: `Bearer ${t}` } : {}) }
-}
 
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { ...init, headers: headers() })
+  const res = await authFetch(`${BASE}${path}`, { ...init, headers: { 'Content-Type': 'application/json' } })
   const body = await res.json().catch(() => ({}))
   if (!res.ok) {
     const err = new Error(body.error || `HTTP ${res.status}`) as Error & { report?: HubReport }

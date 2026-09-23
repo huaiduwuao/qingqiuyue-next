@@ -10,6 +10,7 @@
  */
 
 import { API_PREFIX } from '@/lib/api/prefix';
+import { authFetch } from '@/lib/api/auth';
 
 const BASE = `${API_PREFIX}/api/agentmanager/shortdrama`;
 
@@ -280,20 +281,11 @@ export function isTaskTerminal(s: TaskStatus): boolean {
   return s === 'succeeded' || s === 'failed' || s === 'cancelled';
 }
 
-function authHeaders(): Record<string, string> {
-  if (typeof window === 'undefined') return {};
-  try {
-    const t = localStorage.getItem('session_id') || localStorage.getItem('token');
-    return t ? { Authorization: `Bearer ${t}` } : {};
-  } catch {
-    return {};
-  }
-}
 
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await authFetch(`${BASE}${path}`, {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(init.headers as Record<string, string>) },
+    headers: { 'Content-Type': 'application/json', ...(init.headers as Record<string, string>) },
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -392,7 +384,7 @@ export async function streamProjectEvents(
   let failures = 0;
   while (!signal.aborted) {
     try {
-      const res = await fetch(`${BASE}/projects/${projectId}/events`, { headers: authHeaders(), signal });
+      const res = await authFetch(`${BASE}/projects/${projectId}/events`, { signal });
       if (!res.ok || !res.body) throw new Error(`事件流连接失败 HTTP ${res.status}`);
       failures = 0;
       const reader = res.body.getReader();
@@ -430,9 +422,9 @@ export interface GenWorkflowAdmin {
 }
 
 async function aiCall<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(API_PREFIX + `/api/ai${path}`, {
+  const res = await authFetch(API_PREFIX + `/api/ai${path}`, {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(init.headers as Record<string, string>) },
+    headers: { 'Content-Type': 'application/json', ...(init.headers as Record<string, string>) },
   });
   const body = (await res.json().catch(() => ({}))) as { code?: number; msg?: string; data?: T };
   if (!res.ok || (body.code !== undefined && body.code !== 0 && body.code !== 200)) {

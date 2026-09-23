@@ -5,7 +5,10 @@
  * 断线后自动带 after=<最后一个 seq> 重连,不重复、不丢事件。
  */
 
-const BASE = '/api/agentmanager/runs'
+import { API_PREFIX } from '@/lib/api/prefix'
+import { authFetch, getAuthToken } from '@/lib/api/auth'
+
+const BASE = `${API_PREFIX}/api/agentmanager/runs`
 
 export type RunStatus = 'queued' | 'running' | 'awaiting_approval' | 'succeeded' | 'failed' | 'cancelled'
 
@@ -52,19 +55,12 @@ export function isTerminal(status: RunStatus): boolean {
 
 /** 传 null 时用浏览器里登录的会话(和 agentmAPI 同一个来源),数字人的场景卡片就不用知道 token。 */
 function authHeaders(token?: string | null): Record<string, string> {
-  let t = token
-  if (!t && typeof window !== 'undefined') {
-    try {
-      t = localStorage.getItem('session_id')
-    } catch {
-      t = null
-    }
-  }
+  const t = token || getAuthToken()
   return t ? { Authorization: `Bearer ${t}` } : {}
 }
 
 async function call<T>(path: string, token: string | null | undefined, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await authFetch(`${BASE}${path}`, {
     ...init,
     headers: { 'Content-Type': 'application/json', ...authHeaders(token), ...(init.headers as Record<string, string>) },
   })
@@ -137,7 +133,7 @@ export async function streamRunEvents(
   let failures = 0
   while (!signal.aborted) {
     try {
-      const res = await fetch(`${BASE}/${encodeURIComponent(runId)}/events?after=${last}`, {
+      const res = await authFetch(`${BASE}/${encodeURIComponent(runId)}/events?after=${last}`, {
         headers: authHeaders(token),
         signal,
       })

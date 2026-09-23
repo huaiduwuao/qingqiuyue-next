@@ -15,6 +15,7 @@ import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
 import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
+import { API_PREFIX } from '@/lib/api/prefix'
 import CircularProgress from '@mui/material/CircularProgress'
 import IconButton from '@mui/material/IconButton'
 import Divider from '@mui/material/Divider'
@@ -103,7 +104,7 @@ export default function AgentTerminal({ token, hermesBaseURL }: AgentTerminalPro
         }
       }
 
-      const response = await fetch(endpoint, {
+      const response = await fetch(API_PREFIX + endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
