@@ -20,7 +20,7 @@
  * 要在本地验证推送,把 NEXT_PUBLIC_WS_BASE 指向网关(如 ws://10.9.1.2:10005)。
  */
 
-import { adminClient } from '@/lib/api/client';
+import { getRealtimeTicket } from '@/lib/realtime/ticket';
 
 export type RealtimeEventType =
   | 'connected'
@@ -215,9 +215,7 @@ class RealtimeClient {
     this.setStatus(this.attempts === 0 ? 'connecting' : 'reconnecting');
     let ticket: string;
     try {
-      const res = await adminClient('/realtime/ticket', { method: 'POST' });
-      ticket = res?.ticket;
-      if (!ticket) throw new Error('no ticket');
+      ticket = await getRealtimeTicket();
     } catch {
       // 换票失败多半是没登录或会话过期 —— 退避后再试,同时订阅者会看到 offline
       // 并打开自己的慢速轮询兜底。

@@ -47,6 +47,7 @@ import QueueRoundedIcon from '@mui/icons-material/QueueRounded';
 import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
 import { CoverImage } from '@/components/common/CoverImage';
 import { API_PREFIX } from '@/lib/api/prefix';
+import { authFetch } from '@/lib/api/auth'; // realtime-api 全部要登录
 
 // ── 类型 (对齐 Go studio.go) ──
 interface DHAsset {
@@ -123,34 +124,34 @@ async function realtimeData<T>(r: Response, what: string): Promise<T> {
 }
 
 async function fetchAssets(): Promise<{ list: DHAsset[] }> {
-  const r = await fetch(API_PREFIX + '/api/realtime/assets');
+  const r = await authFetch(API_PREFIX + '/api/realtime/assets');
   const data = await realtimeData<{ list: DHAsset[] | null }>(r, '获取资产列表失败');
   return { list: data?.list ?? [] };
 }
 
 async function deleteAsset(id: string): Promise<void> {
-  const r = await fetch(API_PREFIX + `/api/realtime/assets/${id}`, { method: 'DELETE' });
+  const r = await authFetch(API_PREFIX + `/api/realtime/assets/${id}`, { method: 'DELETE' });
   if (!r.ok) throw new Error(`删除失败: ${r.status}`);
 }
 
 async function activateAsset(id: string): Promise<void> {
-  const r = await fetch(API_PREFIX + `/api/realtime/assets/${id}/activate`, { method: 'POST' });
+  const r = await authFetch(API_PREFIX + `/api/realtime/assets/${id}/activate`, { method: 'POST' });
   if (!r.ok) throw new Error(`激活失败: ${r.status}`);
 }
 
 async function fetchJobs(): Promise<{ list: DHJob[] }> {
-  const r = await fetch(API_PREFIX + '/api/realtime/jobs');
+  const r = await authFetch(API_PREFIX + '/api/realtime/jobs');
   const data = await realtimeData<{ list: DHJob[] | null }>(r, '获取任务列表失败');
   return { list: data?.list ?? [] };
 }
 
 async function cancelJob(id: string): Promise<void> {
-  const r = await fetch(API_PREFIX + `/api/realtime/jobs/${id}/cancel`, { method: 'POST' });
+  const r = await authFetch(API_PREFIX + `/api/realtime/jobs/${id}/cancel`, { method: 'POST' });
   if (!r.ok) throw new Error(`取消失败: ${r.status}`);
 }
 
 async function startTraining(name: string, method: string, source: string): Promise<{ jobId: string }> {
-  const r = await fetch(API_PREFIX + '/api/realtime/train', {
+  const r = await authFetch(API_PREFIX + '/api/realtime/train', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name, method, source }),
