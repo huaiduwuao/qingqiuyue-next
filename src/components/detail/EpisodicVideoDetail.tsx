@@ -188,7 +188,7 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
             <CollectButton contentId={id!} contentType={config.kind} />
             <ShareButtons variant="icon"
               contentType={config.kind}
-              contentId={Number(id)}
+              contentId={id ?? ''}
               title={query.data?.title || `${config.typeLabel}详情`}
               url={typeof window !== 'undefined' ? window.location.href : ''}
               cover={query.data?.cover}

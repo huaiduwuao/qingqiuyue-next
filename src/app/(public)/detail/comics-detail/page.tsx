@@ -181,7 +181,7 @@ function ComicsDetailContent() {
               {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
             </IconButton>
             <CollectButton contentId={id!} contentType="comics" />
-            <ShareButtons variant="icon" contentType="comics" contentId={Number(id)} title={query.data?.title ?? 'comics-detail 详情'} url={typeof window !== 'undefined' ? window.location.href : ''} />
+            <ShareButtons variant="icon" contentType="comics" contentId={id ?? ''} title={query.data?.title ?? 'comics-detail 详情'} url={typeof window !== 'undefined' ? window.location.href : ''} />
           </Box>
         }
       />

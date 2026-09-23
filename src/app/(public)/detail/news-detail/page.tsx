@@ -105,7 +105,7 @@ function NewsDetailContent() {
               {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
             </IconButton>
             <CollectButton contentId={id!} contentType="news" />
-            <ShareButtons variant="icon" contentType="news" contentId={Number(id)} title={query.data?.title ?? 'news-detail 详情'} url={typeof window !== 'undefined' ? window.location.href : ''} />
+            <ShareButtons variant="icon" contentType="news" contentId={id ?? ''} title={query.data?.title ?? 'news-detail 详情'} url={typeof window !== 'undefined' ? window.location.href : ''} />
           </Box>
         }
       />

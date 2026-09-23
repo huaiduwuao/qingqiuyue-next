@@ -158,7 +158,7 @@ function PersonDetailContent() {
         title={name || '人物'}
         rightActions={
           <>
-            <ShareButtons variant="icon" contentType="person" contentId={Number(id)} title={name || '人物'} url={typeof window !== 'undefined' ? window.location.href : ''} />
+            <ShareButtons variant="icon" contentType="person" contentId={id ?? ''} title={name || '人物'} url={typeof window !== 'undefined' ? window.location.href : ''} />
           </>
         }
       />

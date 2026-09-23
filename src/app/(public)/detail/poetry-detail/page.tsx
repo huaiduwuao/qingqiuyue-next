@@ -114,7 +114,7 @@ function PoetryDetailContent() {
               {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
             </IconButton>
             <CollectButton contentId={id!} contentType="poetry" />
-            <ShareButtons variant="icon" contentType="poetry" contentId={Number(id)} title={query.data?.title ?? 'poetry-detail 详情'} url={typeof window !== 'undefined' ? window.location.href : ''} />
+            <ShareButtons variant="icon" contentType="poetry" contentId={id ?? ''} title={query.data?.title ?? 'poetry-detail 详情'} url={typeof window !== 'undefined' ? window.location.href : ''} />
           </Box>
         }
       />

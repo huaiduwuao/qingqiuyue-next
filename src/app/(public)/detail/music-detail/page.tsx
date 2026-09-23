@@ -210,7 +210,7 @@ function MusicDetailContent() {
               {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
             </IconButton>
             {id ? <CollectButton contentId={id} contentType="music" /> : null}
-            <ShareButtons variant="icon" contentType="music" contentId={Number(id)} title={query.data?.title} url={typeof window !== 'undefined' ? window.location.href : ''} />
+            <ShareButtons variant="icon" contentType="music" contentId={id ?? ''} title={query.data?.title} url={typeof window !== 'undefined' ? window.location.href : ''} />
           </Box>
         }
       />

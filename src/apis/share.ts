@@ -4,12 +4,13 @@
  */
 
 import { adminClient } from '@/lib/api/client';
+import { toEntityId, type EntityId } from '@/lib/id';
 
 export interface ShareTask {
   id: number;
   platform: string;        // douyin/kuaishou/xiaohongshu
   contentType: string;     // topic/work/...
-  contentId: number;
+  contentId: EntityId;
   status: 'pending' | 'uploading' | 'publishing' | 'success' | 'failed';
   remoteId: string;
   remoteUrl: string;
@@ -51,7 +52,7 @@ export async function listTasks(params: {
 export async function createTask(params: {
   socialAccountId: number;
   contentType: string;
-  contentId: number;
+  contentId: EntityId;
   title: string;
   videoId?: string;          // 抖音/快手必填:用户在三方创作者中心上传后得到的 video_id
   coverUrl?: string;
@@ -63,7 +64,8 @@ export async function createTask(params: {
   const { socialAccountId, contentType, contentId, scheduledAt, ...payload } = params;
   return adminClient<ShareTask>('/share/create', {
     method: 'POST',
-    data: { socialAccountId, contentType, contentId, scheduledAt, payload },
+    // 内容 id 超 2^53 时 Number() 会截成另一条内容,任务记错内容、幂等键也跟着错;按字符串原样发
+    data: { socialAccountId, contentType, contentId: toEntityId(contentId), scheduledAt, payload },
   });
 }
 

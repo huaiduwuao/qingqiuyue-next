@@ -1,4 +1,5 @@
 import { contentClient } from '@/lib/api/client';
+import { toEntityId, type EntityId } from '@/lib/id';
 
 /**
  * admin-recommend —— 推荐系统与用户画像控制台。
@@ -33,11 +34,12 @@ export async function fetchBoostList(page: number, pageSize = 20): Promise<Boost
   return { list, total };
 }
 
-export async function setBoost(input: { contentId: number | string; action: 'boost' | 'suppress'; weight: number; reason?: string; expireAt?: number }) {
+export async function setBoost(input: { contentId: EntityId; action: 'boost' | 'suppress'; weight: number; reason?: string; expireAt?: number }) {
   return contentClient('/recommend/boost', {
     method: 'POST',
     data: {
-      contentId: Number(input.contentId),
+      // 内容 id 超 2^53,Number() 会截成另一条内容;按字符串原样发(见 lib/id.ts)
+      contentId: toEntityId(input.contentId),
       action: input.action,
       weight: input.weight,
       reason: input.reason,

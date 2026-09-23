@@ -147,7 +147,7 @@ function LiveDetailContent() {
         rightActions={
           <Box sx={{ display: 'flex', gap: 0.5 }}>
             <CollectButton contentId={id!} contentType="live" />
-            <ShareButtons variant="icon" contentType="live" contentId={Number(id)} title={query.data?.title || '直播间'} url={typeof window !== 'undefined' ? window.location.href : ''} />
+            <ShareButtons variant="icon" contentType="live" contentId={id ?? ''} title={query.data?.title || '直播间'} url={typeof window !== 'undefined' ? window.location.href : ''} />
           </Box>
         }
       />

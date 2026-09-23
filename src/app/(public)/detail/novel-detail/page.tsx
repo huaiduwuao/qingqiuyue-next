@@ -655,7 +655,7 @@ function NovelDetailContent() {
             <Box sx={{ ml: 'auto' }}>
               <ShareButtons
                 contentType="novel"
-                contentId={Number(id)}
+                contentId={id ?? ''}
                 title={bookTitle || '小说详情'}
                 url={typeof window !== 'undefined' ? window.location.href : ''}
                 cover={detail?.cover}

@@ -115,7 +115,7 @@ function ImageDetailContent() {
               {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
             </IconButton>
             <CollectButton contentId={id!} contentType="picture" />
-            <ShareButtons variant="icon" contentType="image" contentId={Number(id)} title={query.data?.title ?? 'image-detail 详情'} url={typeof window !== 'undefined' ? window.location.href : ''} />
+            <ShareButtons variant="icon" contentType="image" contentId={id ?? ''} title={query.data?.title ?? 'image-detail 详情'} url={typeof window !== 'undefined' ? window.location.href : ''} />
           </Box>
         }
       />

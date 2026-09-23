@@ -37,13 +37,14 @@ import {
   type PlatformAccountBrief,
 } from '@/apis/share';
 import { PLATFORMS, platformLabel } from '@/apis/share-account';
+import type { EntityId } from '@/lib/id';
 
 export interface ShareTaskDialogProps {
   open: boolean;
   onClose: () => void;
   platform: 'douyin' | 'kuaishou'; // 小红书走另外的引导式 UI
   contentType: string;
-  contentId: number;
+  contentId: EntityId;
   defaultTitle: string;
   defaultVideoUrl?: string; // deprecated:已不再使用,保留仅为不影响调用方
   defaultCoverUrl?: string;

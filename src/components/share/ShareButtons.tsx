@@ -40,6 +40,7 @@ import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 import ShareTaskDialog from './ShareTaskDialog';
 import ShareCardPreview, { type ShareCardData } from './ShareCardPreview';
+import type { EntityId } from '@/lib/id';
 
 /** 简化版:Tauri 环境检测 */
 function isTauri(): boolean {
@@ -60,7 +61,8 @@ const KUAISHOU_SCHEME = 'kwaiyewen://';
 
 export interface ShareButtonsProps {
   contentType: string;
-  contentId: number;
+  /** 内容 id 可能超 2^53,原样传字符串,别 Number()(见 lib/id.ts) */
+  contentId: EntityId;
   title: string;
   url: string;          // 当前页 URL,或专题页/详情页拼接
   cover?: string;

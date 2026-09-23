@@ -120,7 +120,7 @@ function VideoDetailContent() {
             <CollectButton contentId={id!} contentType="video" />
             <ShareButtons variant="icon"
               contentType="video"
-              contentId={Number(id)}
+              contentId={id ?? ''}
               title={query.data?.title || '视频详情'}
               url={typeof window !== 'undefined' ? window.location.href : ''}
               cover={query.data?.cover}

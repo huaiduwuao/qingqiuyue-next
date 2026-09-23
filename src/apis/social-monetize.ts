@@ -1,6 +1,7 @@
 import { adminClient } from '@/lib/api/client';
 import type { PageParams, PageResult } from '@/beans/pagination';
 import { normalizeLegacyPageResponse } from '@/hooks/usePagination';
+import type { EntityId } from '@/lib/id';
 
 // ── 打赏 API ──
 
@@ -100,7 +101,8 @@ export interface Purchase {
 
 // 设置付费内容
 export async function setPaidContent(params: {
-  contentId: number;
+  /** 内容 id 超 2^53,按字符串原样发(见 lib/id.ts) */
+  contentId: EntityId;
   price: number;
 }): Promise<PaidContent> {
   const res = await adminClient('/social/paid-content', { method: 'POST', data: params });

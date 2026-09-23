@@ -192,7 +192,7 @@ function Hero({ topic, followers, onFollowChange, canManage }: { topic: Communit
           <TopicFollowButton topicId={topic.id} following={topic.isFollowing} size="medium" onChange={(_, n) => onFollowChange(n)} />
           <ShareButtons
             contentType="topic"
-            contentId={Number(topic.id)}
+            contentId={topic.id}
             title={topic.title}
             url={typeof window !== 'undefined' ? window.location.href : ''}
             cover={topic.cover}

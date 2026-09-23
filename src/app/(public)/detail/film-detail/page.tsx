@@ -94,7 +94,7 @@ function FilmDetailContent() {
               {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
             </IconButton>
             <CollectButton contentId={id!} contentType="film" />
-            <ShareButtons variant="icon" contentType="film" contentId={Number(id)} title={query.data?.title ?? 'film-detail 详情'} url={typeof window !== 'undefined' ? window.location.href : ''} />
+            <ShareButtons variant="icon" contentType="film" contentId={id ?? ''} title={query.data?.title ?? 'film-detail 详情'} url={typeof window !== 'undefined' ? window.location.href : ''} />
           </Box>
         }
       />

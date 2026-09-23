@@ -19,6 +19,7 @@ import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
 import { LoginGate } from '@/components/auth/LoginGate';
+import { toEntityId } from '@/lib/id';
 import {
   getEarnings,
   getEarningHistory,
@@ -394,14 +395,16 @@ function PaidContentsTab() {
   const [error, setError] = useState('');
 
   const priceFen = Math.round((parseFloat(price) || 0) * 100);
-  const canSubmit = /^\d+$/.test(contentId.trim()) && priceFen > 0 && !submitting;
+  // 内容 id 超 2^53,parseInt 会截成另一条内容(永远「内容不存在」);toEntityId 超范围时保留字符串
+  const entityId = toEntityId(contentId.trim());
+  const canSubmit = entityId !== null && priceFen > 0 && !submitting;
 
   const submit = async () => {
-    if (!canSubmit) return;
+    if (!canSubmit || entityId === null) return;
     setSubmitting(true);
     setError('');
     try {
-      await setPaidContent({ contentId: parseInt(contentId.trim(), 10), price: priceFen });
+      await setPaidContent({ contentId: entityId, price: priceFen });
       setOpen(false);
       setContentId('');
       setPrice('');
