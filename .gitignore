@@ -110,6 +110,9 @@ next-env.d.ts
 
 # Playwright E2E 登录态(运行时生成,含 token,不入库)
 /e2e/.auth/
+# e2e/check-scene-feature.mjs 生成的截图
+/e2e/scene-editor.png
+/e2e/scene-preview.png
 /test-results/
 /playwright-report/
 

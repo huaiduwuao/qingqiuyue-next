@@ -17,9 +17,9 @@ src/digital-human/
 ```
 1. 用户输入文字
        ↓
-2. useChatAvatar.send() 调 /api/avatar/chat
+2. useChatAvatar.send() 调 /api/realtime/chat
        ↓
-3. 路由(/api/avatar/chat/route.ts):
+3. 路由(realtime-api 的 /api/realtime/chat):
    a. 试 Ollama (NEXT_PUBLIC_OLLAMA_URL)
    b. 试 OpenAI 兼容 (NEXT_PUBLIC_OPENAI_BASE_URL)
       → 默认指向 xinference (http://127.0.0.1:9997/v1)
@@ -74,11 +74,11 @@ HTTP_PROXY=http://127.0.0.1:7891 HTTPS_PROXY=http://127.0.0.1:7891 \
 
 1. 在 `BlenderAvatar` 或独立组件加 `<audio>` 录音按钮
 2. 用 MediaRecorder API 录 webm
-3. POST `/api/avatar/asr`(待建)+ `Content-Type: audio/webm` + body
+3. POST `/api/realtime/asr`(待建)+ `Content-Type: audio/webm` + body
 4. 路由用 `whisper-large-v3` (xinference `/v1/audio/transcriptions`)或 OpenAI Whisper
 5. 返回 text → 调 `send(text)`
 
-待办:加 `/api/avatar/asr` route + `useChatAvatar` 接受音频输入。
+待办:加 `/api/realtime/asr` route + `useChatAvatar` 接受音频输入。
 
 ## 配置(`.env.development.local`)
 
@@ -117,6 +117,6 @@ MINIO_PORT=9000
 
 ## 下一步
 
-1. **加 ASR**:`/api/avatar/asr` 路由 + `useChatAvatar` 接受音频
+1. **加 ASR**:`/api/realtime/asr` 路由 + `useChatAvatar` 接受音频
 2. **拉模型成功**:用真 LLM/TTS 替换 mock + Edge-TTS
 3. **删 outdated**:`public/avatars/outfits/*.glb`(3 个),`public/avatars/model.glb`(4 MB,旧真人版)
