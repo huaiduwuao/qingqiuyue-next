@@ -41,7 +41,7 @@ import { useApp } from '@/contexts/AppContext';
 import type { CurrentUser } from '@/beans/account';
 import { updateUser } from '@/apis/account';
 import { fileUpload } from '@/apis/global';
-import { sendSmsCode, verifySmsCode } from '@/apis/user';
+import { sendSmsCode } from '@/apis/user';
 import { accountClient, formatApiError } from '@/lib/api/client';
 import { LoginGate } from '@/components/auth/LoginGate';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -404,8 +404,8 @@ function PhoneDialog({
     }
     setLoading(true);
     try {
-      await verifySmsCode({ mobile: phone, code, type: 'bind' });
-      await updateUser({ mobile: phone });
+      // 后端改手机号时自己核验 bind 验证码(mobileCode 必填);别先调 /sms/verify,那会把验证码用掉
+      await updateUser({ mobile: phone, mobileCode: code });
       onSaved('手机号绑定成功');
       setCode('');
       onClose();
