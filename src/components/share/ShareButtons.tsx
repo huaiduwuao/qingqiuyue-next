@@ -37,6 +37,7 @@ import {
 } from '@mui/material';
 import ShareRoundedIcon from '@mui/icons-material/ShareRounded';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
+import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 import ShareTaskDialog from './ShareTaskDialog';
 import ShareCardPreview, { type ShareCardData } from './ShareCardPreview';
 
@@ -69,6 +70,8 @@ export interface ShareButtonsProps {
   defaultTags?: string[];
   /** icon:详情页头部那一排图标里用的单个分享按钮(点开菜单);row(默认):一排按钮 */
   variant?: 'icon' | 'menu' | 'row';
+  /** compact:折叠成一个「分享」主按钮 + 平台/更多菜单,给移动端窄屏用(默认 row 不变) */
+  compact?: boolean;
   onAfterShare?: (platform: string) => void;
 }
 
@@ -82,6 +85,7 @@ export default function ShareButtons(props: ShareButtonsProps) {
   const {
     contentType, contentId, title, url, cover, desc, subtitle, topicId, defaultTags,
     variant = 'row',
+    compact = false,
     onAfterShare,
   } = props;
 
@@ -246,45 +250,118 @@ export default function ShareButtons(props: ShareButtonsProps) {
     </>
   );
 
-  return (
+  const compactIconEntry = (
     <>
-      {variant === 'icon' ? iconEntry : (
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+      <IconButton
+        size="small"
+        aria-label="分享"
+        onClick={(e) => setMenuAnchor(e.currentTarget)}
+        sx={{ color: 'text.secondary', p: 0.75 }}
+      >
+        <ShareRoundedIcon sx={{ fontSize: 18 }} />
+      </IconButton>
+      <Menu anchorEl={menuAnchor} open={!!menuAnchor} onClose={() => setMenuAnchor(null)}>
         {PLATFORMS.map((p) => (
-          <Button
+          <MenuItem
             key={p.value}
-            size="small"
-            variant="outlined"
-            onClick={() => handlePlatformClick(p.value)}
-            sx={{
-              borderColor: p.color,
-              color: p.color,
-              fontSize: 12,
-              px: 1.5,
-              minWidth: 0,
+            onClick={() => {
+              setMenuAnchor(null);
+              handlePlatformClick(p.value);
             }}
           >
-            {p.icon}
-          </Button>
+            分享到{p.label}
+          </MenuItem>
         ))}
-        <Button
-          size="small"
-          variant="outlined"
-          startIcon={<ContentCopyRoundedIcon fontSize="small" />}
-          onClick={handleCopy}
-          sx={{ fontSize: 12 }}
-        >
-          复制
-        </Button>
-        <Button
-          size="small"
-          variant="outlined"
-          startIcon={<ShareRoundedIcon fontSize="small" />}
-          onClick={handleWebShare}
-          sx={{ fontSize: 12 }}
-        >
-          分享
-        </Button>
+        <MenuItem onClick={() => { setMenuAnchor(null); handleCopy(); }}>复制链接</MenuItem>
+        <MenuItem onClick={() => { setMenuAnchor(null); handleWebShare(); }}>系统分享</MenuItem>
+      </Menu>
+    </>
+  );
+
+  return (
+    <>
+      {variant === 'icon' ? iconEntry : compact && variant !== 'menu' ? compactIconEntry : (
+      <Box
+        sx={
+          compact
+            ? { display: 'flex', alignItems: 'center', gap: 1, width: '100%' }
+            : { display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }
+        }
+      >
+        {compact ? (
+          /* 窄屏:一个主「分享」按钮(WB/H5 上 = 系统分享)+ 一个菜单装下所有平台 */
+          <>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<ShareRoundedIcon sx={{ fontSize: 15 }} />}
+              onClick={handleWebShare}
+              sx={{ textTransform: 'none', fontSize: 12, borderRadius: 2, borderColor: 'var(--border-strong, transparent)', color: 'text.secondary', flex: 1 }}
+            >
+              分享
+            </Button>
+            <IconButton
+              size="small"
+              aria-label="更多分享方式"
+              onClick={(e) => setMenuAnchor(e.currentTarget)}
+              sx={{ border: '1px solid var(--border-strong, transparent)', borderRadius: 2, color: 'text.secondary', p: 0.75 }}
+            >
+              <MoreHorizRoundedIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+            <Menu anchorEl={menuAnchor} open={!!menuAnchor} onClose={() => setMenuAnchor(null)}>
+              {PLATFORMS.map((p) => (
+                <MenuItem
+                  key={p.value}
+                  onClick={() => {
+                    setMenuAnchor(null);
+                    handlePlatformClick(p.value);
+                  }}
+                >
+                  分享到{p.label}
+                </MenuItem>
+              ))}
+              <MenuItem onClick={() => { setMenuAnchor(null); handleCopy(); }}>复制链接</MenuItem>
+            </Menu>
+          </>
+        ) : (
+          <>
+            {PLATFORMS.map((p) => (
+              <Button
+                key={p.value}
+                size="small"
+                variant="outlined"
+                onClick={() => handlePlatformClick(p.value)}
+                sx={{
+                  borderColor: p.color,
+                  color: p.color,
+                  fontSize: 12,
+                  px: 1.5,
+                  minWidth: 0,
+                }}
+              >
+                {p.icon}
+              </Button>
+            ))}
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<ContentCopyRoundedIcon fontSize="small" />}
+              onClick={handleCopy}
+              sx={{ fontSize: 12 }}
+            >
+              复制
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<ShareRoundedIcon fontSize="small" />}
+              onClick={handleWebShare}
+              sx={{ fontSize: 12 }}
+            >
+              分享
+            </Button>
+          </>
+        )}
       </Box>
       )}
 
