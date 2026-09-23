@@ -63,7 +63,20 @@ export default function RealizationPage() {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+      {/* 顶部 hero 卡片壳:标题 + 描述 + 范围选择。与赏金广场的 RewardHero 视觉一致。 */}
+      <Box
+        sx={{
+          p: { xs: 2, md: 2.5 },
+          borderRadius: 2,
+          border: '1px solid',
+          borderColor: 'divider',
+          bgcolor: 'background.paper',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.5,
+          flexWrap: 'wrap',
+        }}
+      >
         <Box sx={{ flex: 1, minWidth: 220 }}>
           <Typography sx={{ fontSize: 18, fontWeight: 700 }}>实现</Typography>
           <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>

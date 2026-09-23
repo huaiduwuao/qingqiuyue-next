@@ -76,8 +76,22 @@ export default function TeamPage({ initialTeamId, onOpenTaskboard }: Props) {
   const joined = myList.filter((t) => t.myStatus !== 'invited');
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {/* 顶部 hero 卡片壳:标题 + 描述 + 创建按钮。
+          与赏金广场的 RewardHero 视觉一致 —— 圆角白卡 + 边框,避免团队区裸 Title。 */}
+      <Box
+        sx={{
+          p: { xs: 2, md: 2.5 },
+          borderRadius: 2,
+          border: '1px solid',
+          borderColor: 'divider',
+          bgcolor: 'background.paper',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1.5,
+          flexWrap: 'wrap',
+        }}
+      >
         <Box sx={{ flex: 1, minWidth: 220 }}>
           <Typography sx={{ fontSize: 18, fontWeight: 700 }}>团队</Typography>
           <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
@@ -124,7 +138,7 @@ export default function TeamPage({ initialTeamId, onOpenTaskboard }: Props) {
         ))}
       </Section>
 
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
           <Typography sx={{ fontSize: 15, fontWeight: 700, flex: 1 }}>团队广场</Typography>
           <TextField size="small" placeholder="搜索团队名称" value={keyword} onChange={(e) => setKeyword(e.target.value)} sx={{ width: 220 }} />
@@ -199,7 +213,8 @@ function Grid({ children }: { children: React.ReactNode }) {
 
 function Section({ title, count, empty, children }: { title: string; count: number; empty: string; children: React.ReactNode }) {
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+    // 与桌面 + repos 顶部 hero 一致:小节也用白卡 + 边框包一下,避免裸 Title 漂浮。
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
       <Typography sx={{ fontSize: 15, fontWeight: 700 }}>{title}</Typography>
       {count === 0 ? <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>{empty}</Typography> : <Grid>{children}</Grid>}
     </Box>

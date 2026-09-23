@@ -126,7 +126,9 @@ export default function PointRecordPanel({ currentUserId }: Props) {
           </Typography>
         </Box>
       ) : (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+        // 列表限高 + 自带滚动:积分流水可能很长(几百条),不限会把工作台撑成 N 屏高。
+        // 这里定到 ~480px,大概 7~8 条可见,要翻历史用内部滚动。
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, maxHeight: 480, overflowY: 'auto', pr: 0.5 }}>
           {list.map((rec) => {
             const meta = sourceMeta(rec.sourceType);
             const isIncome = rec.point > 0;
@@ -190,7 +192,8 @@ export default function PointRecordPanel({ currentUserId }: Props) {
 
       <Box ref={sentinelRef} sx={{ height: '1px' }} />
       {isFetchingNextPage && (
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mt: 0.75 }}>
+        // 加载更多时只在有限可视区里塞骨架,不让外层高度膨胀
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mt: 0.75, position: 'sticky', bottom: 0, bgcolor: 'background.paper', pt: 0.5 }}>
           {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} variant="rounded" height={52} />)}
         </Box>
       )}

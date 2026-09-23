@@ -301,20 +301,41 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
   const progressColor = progressPercent >= 100 ? 'success.main' : progressPercent >= 50 ? 'warning.main' : '#06B6D4';
 
   return (
-    <Box>
-      <Typography variant="h5" sx={{ mb: 2 }}>需求管理</Typography>
-
-      {/* 状态筛选 */}
-      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
-        <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto">
-          {STATUS_OPTIONS.map((opt) => (
-            <Tab key={opt.value} label={opt.label} value={opt.value} sx={{ minHeight: 36 }} />
-          ))}
-        </Tabs>
-        <ListLayoutSwitch sx={{ ml: 'auto' }} />
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => handleEdit({} as DemandItem)} sx={{ flexShrink: 0 }}>
-          新建需求
-        </Button>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {/* 顶部 hero 卡片壳 —— 标题 + 状态筛选 + 新建按钮。
+          与赏金广场的 RewardHero 视觉一致(浅渐变 + 圆角 + 边框),
+          这样 4 个 tab 顶部都是同一类"导航 + 主操作"卡片。 */}
+      <Box
+        sx={{
+          p: { xs: 2, md: 2.5 },
+          borderRadius: 2,
+          border: '1px solid',
+          borderColor: 'divider',
+          bgcolor: 'background.paper',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 1.5,
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, flexWrap: 'wrap' }}>
+          <Typography sx={{ fontSize: 18, fontWeight: 700 }}>需求管理</Typography>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleEdit({} as DemandItem)}
+            sx={{ flexShrink: 0, textTransform: 'none' }}
+          >
+            新建需求
+          </Button>
+        </Box>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: { xs: 'wrap', md: 'nowrap' } }}>
+          <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable" scrollButtons="auto">
+            {STATUS_OPTIONS.map((opt) => (
+              <Tab key={opt.value} label={opt.label} value={opt.value} sx={{ minHeight: 36 }} />
+            ))}
+          </Tabs>
+          <ListLayoutSwitch sx={{ ml: 'auto' }} />
+        </Box>
       </Box>
 
       {/* 卡片列表 */}

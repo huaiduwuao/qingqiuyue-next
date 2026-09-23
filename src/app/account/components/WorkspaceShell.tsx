@@ -169,9 +169,11 @@ export function WorkspaceShell({ title, logo, groups, selected, onSelect, aside,
               minWidth: 0,
               overflow: 'auto',
               overscrollBehavior: 'contain',
-              // 底部内距留出底部导航 / 音乐底栏(md 以下才有底部导航)。
-              // 与 /home/recommend 的 main 一致 —— 否则滚动到最后几条悬赏会被底部导航盖住,
-              // 而且 main 的可视高度扣少了底部导航,长列表可滚动范围比应该的小。
+              // 横向 + 顶 padding 给内容留呼吸空间;底部内距留出底部导航 / 音乐底栏
+              // (md 以下才有底部导航)。与 /home/recommend 的 main 一致 —— 否则滚动到
+              // 最后几条悬赏会被底部导航盖住,而且 main 的可视高度扣少了底部导航,
+              // 长列表可滚动范围比应该的小。
+              p: { xs: 1.5, md: 3 },
               pb: 'calc(12px + var(--bottom-nav-inset, 0px) + var(--player-inset, 0px))',
               display: 'flex',
               flexDirection: 'column',
