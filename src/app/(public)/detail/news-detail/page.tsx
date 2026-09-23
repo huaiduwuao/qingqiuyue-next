@@ -31,6 +31,7 @@ import { ReadingSettings, DEFAULT_PAGE_STYLE, type PageStyle } from '@/component
 import { ReadingContainer } from '@/components/detail/ReadingContainer';
 import { DetailComments } from '@/components/detail/DetailComments';
 import { DetailFooter } from '@/components/detail/DetailFooter';
+import { openExternal } from '@/lib/safeUrl';
 
 interface News {
   id: number;
@@ -199,7 +200,7 @@ function NewsDetailContent() {
                     {data.sourceUrl}
                   </Typography>
                 </Box>
-                <IconButton onClick={() => window.open(data.sourceUrl, '_blank')} sx={{ color: 'primary.main' }}>
+                <IconButton onClick={() => openExternal(data.sourceUrl)} sx={{ color: 'primary.main' }}>
                   <OpenInNewIcon />
                 </IconButton>
               </Box>

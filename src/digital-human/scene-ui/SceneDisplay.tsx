@@ -25,6 +25,7 @@ import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { DISPLAY_SPECS, type DisplaySlot } from '../vrm/sceneDisplays';
 import { toProxyUrl } from '../virtual-browser';
+import { openExternal } from '@/lib/safeUrl';
 import {
   emptyNav, isEmbedMessage, navCanBack, navCanForward, navObserve,
   type DisplayPage, type NavStack,
@@ -255,7 +256,7 @@ export default function SceneDisplay({ slot, page, focused, overlay, onOpen, onC
         {loading && <CircularProgress size={16 * k} sx={{ color: ACCENT, flexShrink: 0 }} />}
         {focusBtn}
         {onMove && btn('换一块屏', <ScreenShareRoundedIcon />, () => onMove(current))}
-        {btn('新标签打开', <OpenInNewRoundedIcon />, () => { window.open(isSite ? current : page.rawUrl, '_blank', 'noopener,noreferrer'); })}
+        {btn('新标签打开', <OpenInNewRoundedIcon />, () => { openExternal(isSite ? current : page.rawUrl); })}
         {btn('回到待机', <HomeRoundedIcon />, onClose)}
         {overlay && btn('关闭', <CloseRoundedIcon />, onClose)}
       </Box>

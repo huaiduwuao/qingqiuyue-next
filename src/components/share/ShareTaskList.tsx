@@ -21,6 +21,7 @@ import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 import { listTasks, retryTask, TASK_STATUS_META, type ShareTask } from '@/apis/share';
 import { PLATFORMS, platformLabel } from '@/apis/share-account';
+import { openExternal } from '@/lib/safeUrl';
 
 const LIST_KEY = ['share-tasks'];
 
@@ -130,7 +131,7 @@ export default function ShareTaskList({ platform, limit = 20 }: ShareTaskListPro
                   >
                     {t.remoteUrl}
                   </Typography>
-                  <IconButton size="small" onClick={() => window.open(t.remoteUrl, '_blank')}>
+                  <IconButton size="small" onClick={() => openExternal(t.remoteUrl)}>
                     <OpenInNewRoundedIcon sx={{ fontSize: 14 }} />
                   </IconButton>
                 </Box>

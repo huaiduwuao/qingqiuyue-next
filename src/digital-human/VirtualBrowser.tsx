@@ -21,6 +21,7 @@ import VolumeUpRoundedIcon from '@mui/icons-material/VolumeUpRounded';
 import LockRoundedIcon from '@mui/icons-material/LockRounded';
 import type { IframeOpenTarget } from './virtual-browser';
 import { toProxyUrl } from './virtual-browser';
+import { openExternal } from '@/lib/safeUrl';
 
 export interface VirtualBrowserProps {
   /** 要显示的目标 (由 parseIframeUI / resolveIframeUrl 产出) */
@@ -164,7 +165,7 @@ export function VirtualBrowser({ target, title, onClose, placement = 'stage' }: 
         <IconButton
           size="small"
           sx={{ color: 'rgba(255,255,255,0.7)' }}
-          onClick={() => window.open(target.rawUrl || target.url, '_blank', 'noopener,noreferrer')}
+          onClick={() => openExternal(target.rawUrl || target.url)}
           title="新标签打开"
         >
           <OpenInNewRoundedIcon sx={{ fontSize: 16 }} />
@@ -236,7 +237,7 @@ export function VirtualBrowser({ target, title, onClose, placement = 'stage' }: 
             </Box>
             <IconButton
               size="small"
-              onClick={() => window.open(target.rawUrl || target.url, '_blank', 'noopener,noreferrer')}
+              onClick={() => openExternal(target.rawUrl || target.url)}
               sx={{ color: '#ffb35c' }}
               title="新标签打开"
             >

@@ -50,6 +50,7 @@ import { UserAvatarLink } from '@/components/common/UserAvatarLink';
 import { useMsgUi } from './store';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
+import { openExternal } from '@/lib/safeUrl';
 
 interface Session {
   id: number;
@@ -508,7 +509,7 @@ function SystemNoticeItem({ item }: { item: any }) {
       }).catch(() => { /* 已读失败不影响操作 */ });
     }
     if (item.link) {
-      window.open(item.link, '_blank');
+      openExternal(item.link);
       return;
     }
     setSnack({ open: true, msg: item.title || '系统消息' });

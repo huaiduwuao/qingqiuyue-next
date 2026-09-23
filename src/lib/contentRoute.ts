@@ -11,6 +11,7 @@ export { TYPE_TO_ROUTE, TYPE_LABEL, CONTENT_TYPES } from './contentType.gen';
 export type { ContentType } from './contentType.gen';
 
 import { TYPE_TO_ROUTE, TYPE_LABEL } from './contentType.gen';
+import { openExternal } from '@/lib/safeUrl';
 
 /**
  * 创作者中心 chip 上展示的「卡片 id」→ 后端 contentType 映射。
@@ -69,6 +70,6 @@ export function useContentNavigate() {
   return (contentType: string, id: number | string, fallbackUrl?: string) => {
     const route = getDetailRoute(contentType, id);
     if (route) router.push(route);
-    else if (fallbackUrl) window.open(fallbackUrl, '_blank');
+    else if (fallbackUrl) openExternal(fallbackUrl);
   };
 }
