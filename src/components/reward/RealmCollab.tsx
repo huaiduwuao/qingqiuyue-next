@@ -20,16 +20,17 @@ import GroupsRoundedIcon from '@mui/icons-material/GroupsRounded';
 import RealmDemandList from './RealmDemandList';
 import RealizationList from './RealizationList';
 import { listRealizations, listRealmDemands, listTeams, yuan } from '@/apis/team';
+import type { EntityId } from '@/lib/id';
 
 export type RealmCollabTab = 'demands' | 'realizations' | 'teams';
 
-export default function RealmCollab({ topicId, tab }: { topicId: number; tab: RealmCollabTab }) {
+export default function RealmCollab({ topicId, tab }: { topicId: EntityId; tab: RealmCollabTab }) {
   if (tab === 'demands') return <Demands topicId={topicId} />;
   if (tab === 'realizations') return <Realizations topicId={topicId} />;
   return <Teams topicId={topicId} />;
 }
 
-function Demands({ topicId }: { topicId: number }) {
+function Demands({ topicId }: { topicId: EntityId }) {
   const q = useQuery({ queryKey: ['realm', 'demands', topicId], queryFn: () => listRealmDemands({ topicId, status: 'all', pageSize: 30 }) });
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
@@ -46,12 +47,12 @@ function Demands({ topicId }: { topicId: number }) {
   );
 }
 
-function Realizations({ topicId }: { topicId: number }) {
+function Realizations({ topicId }: { topicId: EntityId }) {
   const q = useQuery({ queryKey: ['realm', 'realizations', topicId], queryFn: () => listRealizations({ topicId, pageSize: 30 }) });
   return <RealizationList items={q.data?.list || []} empty={q.isLoading ? '加载中…' : '这个意境里的需求还没有验收通过的交付'} />;
 }
 
-function Teams({ topicId }: { topicId: number }) {
+function Teams({ topicId }: { topicId: EntityId }) {
   const q = useQuery({ queryKey: ['realm', 'teams', topicId], queryFn: () => listTeams({ topicId, pageSize: 30 }) });
   const list = q.data?.list || [];
   if (list.length === 0) {

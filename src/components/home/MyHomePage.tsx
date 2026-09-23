@@ -1,5 +1,6 @@
 'use client';
 
+import { toEntityId } from '@/lib/id';
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
@@ -638,7 +639,7 @@ function MyHomePageAuthed() {
                 <ShareButtons
                   compact
                   contentType="user"
-                  contentId={Number(profile?.user?.id) || 0}
+                  contentId={toEntityId(profile?.user?.id) ?? 0}
                   title={profile?.user?.nickname || '我的主页'}
                   url={typeof window !== 'undefined' ? window.location.href : ''}
                   cover={profile?.user?.avatar}

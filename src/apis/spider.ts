@@ -728,7 +728,7 @@ export async function testTemplate(params: {
 export async function listTemplateAttrs(templateId: number): Promise<{ items: any[]; total: number }> {
   return spiderClient(`/templates/${templateId}/attrs`, { method: 'GET' });
 }
-export async function getHourlySourceHealth(sourceId: number): Promise<HourlySourceHealth> {
+export async function getHourlySourceHealth(sourceId: EntityId): Promise<HourlySourceHealth> {
   return spiderClient('/hourly/source-health', { method: 'GET', params: { sourceId } });
 }
 export async function cleanupTrackingURLs(): Promise<{ removed: number }> {

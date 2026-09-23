@@ -61,7 +61,8 @@ const EVENT_SEVERITY_COLOR: Record<string, 'default' | 'info' | 'warning' | 'err
 };
 
 export default function SpiderAnalyticsPage() {
-  const [filterSourceId, setFilterSourceId] = useState<number | ''>('');
+  // 爬虫源 id 是 idgen 大整数,保持字符串,别 Number() 截断
+  const [filterSourceId, setFilterSourceId] = useState<string>('');
 
   const statsQ = useQuery({ queryKey: ['spider', 'analytics', 'stats'], queryFn: getCrawlStats, refetchInterval: 30_000 });
   const enhancedQ = useQuery({ queryKey: ['spider', 'analytics', 'enhanced'], queryFn: getEnhancedStats, refetchInterval: 60_000 });
@@ -79,7 +80,7 @@ export default function SpiderAnalyticsPage() {
   const trendQ = useQuery({ queryKey: ['spider', 'analytics', 'content-trend'], queryFn: getContentTrend, refetchInterval: 60_000 });
   const sourceHealthQ = useQuery({
     queryKey: ['spider', 'analytics', 'source-health', filterSourceId],
-    queryFn: () => (filterSourceId !== '' ? getHourlySourceHealth(Number(filterSourceId)) : null),
+    queryFn: () => (filterSourceId !== '' ? getHourlySourceHealth(filterSourceId) : null),
     enabled: filterSourceId !== '',
     refetchInterval: 30_000,
   });
@@ -112,8 +113,8 @@ export default function SpiderAnalyticsPage() {
             select
             size="small"
             label="过滤 source_id"
-            value={filterSourceId === '' ? '' : String(filterSourceId)}
-            onChange={(e) => setFilterSourceId(e.target.value === '' ? '' : Number(e.target.value))}
+            value={filterSourceId}
+            onChange={(e) => setFilterSourceId(e.target.value)}
             sx={{ minWidth: 200 }}
           >
             <MenuItem value="">(不过滤)</MenuItem>

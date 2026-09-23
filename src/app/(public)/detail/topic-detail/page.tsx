@@ -139,7 +139,7 @@ function TopicDetail() {
         )}
         {showAggregateFeed && (
           tab === 'demands' || tab === 'realizations' || tab === 'teams' ? (
-            <RealmCollab topicId={Number(topic.id)} tab={tab} />
+            <RealmCollab topicId={topic.id} tab={tab} />
           ) : tab === 'contents' && topic.hasContents ? (
             <TopicContents topicId={topic.id} />
           ) : (

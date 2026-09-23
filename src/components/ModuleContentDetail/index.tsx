@@ -404,7 +404,7 @@ export default function ModuleContentDetail({ detail, onClose }: ModuleContentDe
         <Box sx={{ mt: 2 }}>
           <ShareButtons
             contentType={(detail as any)?.contentType || 'work'}
-            contentId={Number((detail as any)?.id) || 0}
+            contentId={toEntityId((detail as any)?.id) ?? 0}
             title={contentName || '清秋月内容'}
             url={typeof window !== 'undefined' ? window.location.href : ''}
             cover={(detail as any)?.cover}

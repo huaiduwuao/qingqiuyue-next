@@ -10,6 +10,7 @@
  * 后端:qingqiuyue-go/internal/teamapp(挂在 /api/core)。
  */
 import { rewardClient } from '@/lib/api/client';
+import type { EntityId } from '@/lib/id';
 
 export type TeamRole = 'owner' | 'admin' | 'member';
 export type TeamMemberStatus = 'active' | 'invited' | 'applied';
@@ -74,7 +75,7 @@ export interface Realization {
   teamName?: string;
 }
 
-export const listTeams = (params?: { topicId?: number; keyword?: string; page?: number; pageSize?: number }) =>
+export const listTeams = (params?: { topicId?: EntityId; keyword?: string; page?: number; pageSize?: number }) =>
   rewardClient<{ list: Team[]; total: number }>('/team/list', { method: 'GET', params });
 
 export const myTeams = () => rewardClient<{ list: MyTeam[]; total: number }>('/team/mine', { method: 'GET' });
@@ -115,7 +116,7 @@ export const teamCandidates = (id: number, keyword: string) =>
   rewardClient<{ list: TeamMember[] }>(`/team/${id}/candidates`, { method: 'GET', params: { keyword } });
 
 export const listRealizations = (params: {
-  topicId?: number;
+  topicId?: EntityId;
   teamId?: number;
   userId?: number;
   demandId?: number;
@@ -150,5 +151,5 @@ export interface RealmDemand {
 }
 
 /** 一个意境里的需求;不传 topicId 列所有发在意境里的需求。status=all 连已完成、已结账的一起列 */
-export const listRealmDemands = (params: { topicId?: number; status?: 'all'; page?: number; pageSize?: number }) =>
+export const listRealmDemands = (params: { topicId?: EntityId; status?: 'all'; page?: number; pageSize?: number }) =>
   rewardClient<{ list: RealmDemand[]; total: number }>('/realm/demands', { method: 'GET', params });

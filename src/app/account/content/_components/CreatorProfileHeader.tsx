@@ -1,5 +1,6 @@
 'use client';
 
+import { toEntityId } from '@/lib/id';
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
@@ -151,7 +152,7 @@ export default function CreatorProfileHeader() {
           <ShareButtons
             variant="icon"
             contentType="creator"
-            contentId={Number(profile.userId)}
+            contentId={toEntityId(profile.userId) ?? 0}
             title={profile.nickname || '创作者主页'}
             url={`${typeof window !== 'undefined' ? window.location.origin : ''}/u?id=${profile.userId}`}
             cover={profile.avatar}
