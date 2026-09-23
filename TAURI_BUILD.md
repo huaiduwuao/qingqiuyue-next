@@ -45,6 +45,16 @@
 相对路径 `/api` 会落空,所以必须用绝对地址;网关已对这两个源放行 CORS。
 要打测试环境的包,在命令前设置同名环境变量即可覆盖(显式设置的值优先于 `.env.local`)。
 
+客户端 CSP(`tauri.conf.json` 的 `connect-src`)放行 `https:` / `wss:` / `ws:`,但不放行 `http:`。
+测试环境网关若是 http,打包时要把它的源补进 connect-src(`open_external` 会按同一个
+`NEXT_PUBLIC_API_BASE_URL` 放行该源的微信登录地址),例如:
+
+```bash
+# staging-csp.json(按 JSON Merge Patch 合并,只替换 connect-src):
+# {"app":{"security":{"csp":{"connect-src":"'self' ipc: http://ipc.localhost https: wss: ws: data: blob: http://10.9.1.2:10005"}}}}
+NEXT_PUBLIC_API_BASE_URL=http://10.9.1.2:10005 pnpm tauri build -c staging-csp.json
+```
+
 ---
 
 ## Windows

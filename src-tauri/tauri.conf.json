@@ -19,7 +19,7 @@
         "font-src": "'self' data: https://fonts.gstatic.com",
         "img-src": "'self' data: blob: https: http:",
         "media-src": "'self' data: blob: https: http:",
-        "connect-src": "'self' ipc: http://ipc.localhost https: wss: data: blob:",
+        "connect-src": "'self' ipc: http://ipc.localhost https: wss: ws: data: blob:",
         "frame-src": "'self' https: http:",
         "worker-src": "'self' blob:",
         "object-src": "'none'",
