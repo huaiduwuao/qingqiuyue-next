@@ -1,4 +1,5 @@
-import { contentClient } from '@/lib/api/client';
+import { ApiError, contentClient } from '@/lib/api/client';
+import { getAuthToken } from '@/lib/api/auth';
 import type { EntityId } from '@/lib/id';
 
 // 行为上报 → content-api POST /api/content/behavior
@@ -107,8 +108,17 @@ export const getHotRanking = (params: { type?: string; limit?: number }) =>
 
 // 负反馈("不感兴趣")→ POST /api/content/recommend/feedback
 // 累计到阈值(默认 2 次)后,该内容不再推给这个用户。
-export const reportRecommendFeedback = (params: { userId: number; contentId: number }) =>
-  contentClient('/recommend/feedback', { method: 'POST', data: params });
+// 后端要求登录、用户取自会话(请求体里的 userId 不再采信,也不再发)。未登录直接跳过,
+// 会话过期的 401 静默吞掉 —— 负反馈是尽力而为,不该打断用户操作。
+export const reportRecommendFeedback = async (params: { contentId: EntityId }) => {
+  if (!getAuthToken()) return null;
+  try {
+    return await contentClient('/recommend/feedback', { method: 'POST', data: { contentId: String(params.contentId) } });
+  } catch (e) {
+    if (e instanceof ApiError && (e.category === 'auth' || e.status === 401)) return null;
+    throw e;
+  }
+};
 
 // 单条内容的播放性判定 → GET /api/content/playability/:id
 // 想在渲染播放器之前先问一次的场景用它:拿到 pending_repair 就直接展示
