@@ -327,12 +327,15 @@ function NovelDetailContent() {
   useEffect(() => {
     if (range || tocLoading || chapters.length === 0 || !id) return;
     if (exitReading) return; // 用户刚退出到详情,不要立刻又按上次进度弹回阅读态
-    const wanted = chapterParam || loadProgress(id)?.chapterId;
+    const saved = loadProgress(id);
+    const wanted = chapterParam || saved?.chapterId;
     const found = wanted ? chapters.findIndex((c) => c.id === wanted) : -1;
     if (found < 0) return;
     setRange({ start: found, end: found });
     setCurrent(found);
-    setPage(Math.max(0, Number(pageParam) || 0));
+    // 章内页:URL 优先;没带 chapter 参数时按本地进度续到上次那一页
+    const savedPage = !chapterParam || saved?.chapterId === chapterParam ? saved?.page : 0;
+    setPage(Math.max(0, Number(pageParam) || savedPage || 0));
     if (!chapterParam && found > 0) setOkMsg(`已为你定位到上次读到的「${chapters[found].title || `第 ${found + 1} 章`}」`);
   }, [range, tocLoading, chapters, chapterParam, pageParam, id, exitReading]);
 
@@ -424,18 +427,20 @@ function NovelDetailContent() {
     };
   }, [rt.page]);
 
-  // 键盘:← → 翻章
+  // 键盘:← → 翻章(分页模式下 ← → 由 PaginatedReader 翻页,这里只管 Esc)
+  const scrollMode = prefs.mode === 'scroll';
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (e.altKey || e.ctrlKey || e.metaKey || t?.closest?.('input,textarea,[contenteditable="true"]')) return;
-      if (e.key === 'ArrowLeft') goTo(current - 1);
+      if (e.key === 'Escape') setPanel(null);
+      else if (!scrollMode) return;
+      else if (e.key === 'ArrowLeft') goTo(current - 1);
       else if (e.key === 'ArrowRight') goTo(current + 1);
-      else if (e.key === 'Escape') setPanel(null);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [current, goTo]);
+  }, [current, goTo, scrollMode]);
 
   const { liked, toggleLike } = useContentInteraction(contentId, {
     notify: (message, severity) => (severity === 'error' ? setErrMsg(message) : setOkMsg(message)),
@@ -460,8 +465,8 @@ function NovelDetailContent() {
 
   const scrollToId = (elId: string) => requestAnimationFrame(() => document.getElementById(elId)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
 
-  // 页级阅读区 ref:hook 在这里锁死 --page-width / --page-height。
-  // 详情态(ref 不挂)和 overlay/swipe 模式下挂上。
+  // 页级阅读区 ref:hook 在这里量页面尺寸(ResizeObserver),离屏排版节点也挂在它下面。
+  // 详情态(ref 不挂)和 scroll 模式下不生效。
   const paginatedRef = useRef<HTMLDivElement | null>(null);
   const paginated = usePaginatedReader({
     chapter: range ? chapters[current] ?? null : null,
@@ -746,7 +751,7 @@ function NovelDetailContent() {
                     current={paginated.current}
                     prev={paginated.prev}
                     next={paginated.next}
-                    allPages={paginated.allPages}
+                    pageCount={paginated.pageCount}
                     pageWidth={paginated.pageWidth}
                     pageHeight={paginated.pageHeight}
                     bookTitle={bookTitle}
@@ -756,7 +761,7 @@ function NovelDetailContent() {
                     fontSize={prefs.fontSize}
                     onGoNext={paginated.goNext}
                     onGoPrev={paginated.goPrev}
-                    mode={prefs.mode === 'swipe' ? 'flip' : 'slide'}
+                    mode={prefs.mode === 'swipe' ? 'curl' : 'cover'}
                   />
                 </Box>
               )}

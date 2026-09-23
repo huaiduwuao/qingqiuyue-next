@@ -55,7 +55,7 @@ export interface ReaderPrefs {
   width: number;
   /** scroll = 整章连续滚,到章末自动接下一章;
    *  overlay = 章内分页 + CSS transform 覆盖翻页;
-   *  swipe = 章内分页 + react-pageflip 真 3D 卷页 */
+   *  swipe = 章内分页 + 仿真卷页(沿折线翻起,纸背透字) */
   mode: 'scroll' | 'overlay' | 'swipe';
 }
 
@@ -92,7 +92,12 @@ export function useReaderPrefs() {
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(PREFS_KEY) || 'null');
-      if (saved && typeof saved === 'object') setPrefs({ ...DEFAULT_PREFS, ...saved });
+      if (saved && typeof saved === 'object') {
+        const merged = { ...DEFAULT_PREFS, ...saved };
+        // 老版本存的 mode:'page'(一章一页)已下线,落到默认分页模式
+        if (!['scroll', 'overlay', 'swipe'].includes(merged.mode)) merged.mode = DEFAULT_PREFS.mode;
+        setPrefs(merged);
+      }
     } catch {
       /* 读不到就用默认 */
     }
