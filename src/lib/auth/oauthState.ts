@@ -5,6 +5,11 @@
 // 本浏览器没发起过登录 → 手里没有 state → 直接拒绝。
 // 没有这道校验时,任何人发一条 /user/social-login/wx?session_id=<攻击者的会话>(或 qingqiuyue:// deep link)
 // 就能让受害者悄悄登进攻击者的账号,之后上传的东西、填的收款信息全进了攻击者那边。
+//
+// 客户端(Tauri)里授权在系统浏览器走完,qingqiuyue:// 回跳时 App 可能已被关掉重开(或拉起了新进程),
+// sessionStorage 早没了 —— 所以客户端改存 localStorage。TTL 和「用一次就删」照旧,不会因此变成长期有效。
+
+import { isDesktopClient } from '@/lib/clientAuth';
 
 const STORAGE_KEY = 'wx_oauth_state';
 /** 扫码 + 授权通常一两分钟;给足 10 分钟 */
@@ -21,9 +26,14 @@ function randomState(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+/** 客户端用 localStorage(跨进程重启还在),网页用 sessionStorage(只在本标签页)。 */
+function store(): Storage {
+  return isDesktopClient() ? localStorage : sessionStorage;
+}
+
 function readPending(): Pending | null {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const raw = store().getItem(STORAGE_KEY);
     if (!raw) return null;
     const p = JSON.parse(raw) as Pending;
     if (typeof p?.state !== 'string' || typeof p?.ts !== 'number') return null;
@@ -38,7 +48,7 @@ function readPending(): Pending | null {
 export function createOauthState(): string {
   const state = randomState();
   try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ state, ts: Date.now() } satisfies Pending));
+    store().setItem(STORAGE_KEY, JSON.stringify({ state, ts: Date.now() } satisfies Pending));
   } catch {
     /* 隐私模式等写不进去:回调时对不上,会提示重新登录 */
   }
@@ -58,7 +68,7 @@ export function hasPendingOauthState(): boolean {
 export function consumeOauthState(): string | null {
   const p = readPending();
   try {
-    sessionStorage.removeItem(STORAGE_KEY);
+    store().removeItem(STORAGE_KEY);
   } catch {
     /* ignore */
   }

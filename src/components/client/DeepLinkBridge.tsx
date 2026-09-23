@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
 import { onDeepLink } from '@/lib/clientAuth';
 import { hasPendingOauthState } from '@/lib/auth/oauthState';
 
@@ -16,6 +18,8 @@ import { hasPendingOauthState } from '@/lib/auth/oauthState';
  */
 export default function DeepLinkBridge() {
   const router = useRouter();
+  // 回跳被拒(state 没有 / 过期 / 链接不是本 App 发起的)时给个提示,别让用户在系统浏览器授权完回来什么都没发生
+  const [rejected, setRejected] = useState(false);
 
   useEffect(() => {
     let unlisten: (() => void) | undefined;
@@ -34,7 +38,10 @@ export default function DeepLinkBridge() {
       // 任何网页都能触发 qingqiuyue://social-login?…:只转发本 App 自己发起、还没用掉的那次登录,
       // 带 session_id 的(老格式 / 伪造)一律丢弃。state 留给登录收尾页交给后端核对。
       const code = url.searchParams.get('code') || '';
-      if (!code || url.searchParams.has('session_id') || !hasPendingOauthState()) return;
+      if (!code || url.searchParams.has('session_id') || !hasPendingOauthState()) {
+        setRejected(true);
+        return;
+      }
       const q = new URLSearchParams({ code, from });
       router.replace(`/user/social-login/wx?${q.toString()}`);
     }).then((fn) => {
@@ -48,5 +55,17 @@ export default function DeepLinkBridge() {
     };
   }, [router]);
 
-  return null;
+  if (!rejected) return null;
+  return (
+    <Snackbar
+      open
+      autoHideDuration={6000}
+      onClose={() => setRejected(false)}
+      anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+    >
+      <Alert severity="error" variant="filled" onClose={() => setRejected(false)}>
+        微信登录已过期或不是在本应用里发起的,请回到登录页重新点「微信登录」
+      </Alert>
+    </Snackbar>
+  );
 }
