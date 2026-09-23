@@ -31,6 +31,8 @@ import { normalizeChoices, normalizeContentRefs, rememberContentRefs, type Conte
 import { musicPlayer } from '@/lib/player/musicPlayer';
 import { playPlaylist, playTracks, queueTracks } from '@/lib/player/playlist';
 import { API_PREFIX } from '@/lib/api/prefix';
+import { realtimeAuthHeaders } from './realtimeAuth';
+import { withTicket } from '@/lib/realtime/ticket';
 
 /** 业务工具执行时给用户的可见反馈(否则一次搜索十几秒界面是死的) */
 const TOOL_RUNNING_HINT: Record<string, string> = {
@@ -250,7 +252,8 @@ let onTTSIdle: (() => void) | null = null;
 function requestTTS(text: string, signal?: AbortSignal): Promise<Response | null> {
   return fetch(API_PREFIX + '/api/audio/speech', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    // /api/audio/* 同在 realtime-api,整站登录闸门一样要会话
+    headers: { 'Content-Type': 'application/json', ...realtimeAuthHeaders() },
     body: JSON.stringify({
       model: 'tts',
       input: text,
@@ -636,19 +639,46 @@ function createWSConnection(
     reconnectAttempts: 0,
     cancelled: false,
   };
-  connect(conn);
+  void connect(conn);
   return conn;
 }
 
-function connect(conn: WSConnection) {
+/** 断线 / 建连失败后按指数退避重连,次数用完降级到 HTTP */
+function scheduleReconnect(conn: WSConnection) {
+  if (conn.cancelled) return;
+  if (conn.reconnectAttempts < 10) {
+    const delay = Math.min(
+      RECONNECT_MAX_MS,
+      RECONNECT_BASE_MS * Math.pow(2, conn.reconnectAttempts),
+    );
+    conn.reconnectAttempts++;
+    conn.reconnectTimer = setTimeout(() => void connect(conn), delay);
+  } else {
+    conn.onClose('WebSocket 连接失败, 已降级到 HTTP');
+  }
+}
+
+async function connect(conn: WSConnection) {
   if (conn.cancelled) return;
   if (conn.ws && conn.ws.readyState === WebSocket.OPEN) return;
 
+  // realtime-api 的 WS 握手凭一次性票(浏览器 WebSocket 发不出 Authorization 头)。
+  // 票用过即失效,所以每次建连(含重连)都重新换一张。
+  let ticketed: string;
   try {
-    const wsUrl = conn.url.startsWith('ws')
+    const base = conn.url.startsWith('ws')
       ? conn.url
       : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}${conn.url}`;
-    const ws = new WebSocket(wsUrl);
+    ticketed = await withTicket(base);
+  } catch {
+    // 没登录 / 换票失败:算一次建连失败,照常退避重试,次数用完降级 HTTP
+    scheduleReconnect(conn);
+    return;
+  }
+  if (conn.cancelled) return;
+
+  try {
+    const ws = new WebSocket(ticketed);
     conn.ws = ws;
 
     ws.onopen = () => {
@@ -683,17 +713,7 @@ function connect(conn: WSConnection) {
     ws.onclose = () => {
       conn.connected = false;
       if (conn.cancelled) return; // 用户主动断开,不重连、不报错
-      const shouldReconnect = conn.reconnectAttempts < 10;
-      if (shouldReconnect) {
-        const delay = Math.min(
-          RECONNECT_MAX_MS,
-          RECONNECT_BASE_MS * Math.pow(2, conn.reconnectAttempts),
-        );
-        conn.reconnectAttempts++;
-        conn.reconnectTimer = setTimeout(() => connect(conn), delay);
-      } else {
-        conn.onClose('WebSocket 连接失败, 已降级到 HTTP');
-      }
+      scheduleReconnect(conn);
     };
 
     ws.onerror = () => {
@@ -953,6 +973,14 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     return audioCtxRef.current;
   }, []);
 
+  // 卸载时关掉 AudioContext:浏览器对同时存在的 AudioContext 有上限,反复进出页面会越积越多
+  React.useEffect(() => () => {
+    const ctx = audioCtxRef.current;
+    audioCtxRef.current = null;
+    nextAudioTimeRef.current = 0;
+    if (ctx && ctx.state !== 'closed') ctx.close().catch(() => {});
+  }, []);
+
   // 播放 base64 PCM16 音频 chunk
   const playAudioChunk = React.useCallback(
     async (audioB64: string) => {
@@ -1006,8 +1034,8 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     // dev 模式: NEXT_PUBLIC_WS_BASE 直连后端(Next.js rewrites 不支持 WS 升级)
     // 生产环境: 相对路径, 经 nginx/APISIX 代理(enable_websocket: true)
     const base = process.env.NEXT_PUBLIC_WS_BASE || '';
-    // 数字人 WS 路径统一到 /ws/realtime
-    const wsPath = '/api/avatar/ws';
+    // 数字人 WS:realtime-api 注册在 /api/realtime/ws(avatarapp.go),/api/avatar/* 后端没有这组路由
+    const wsPath = '/api/realtime/ws';
     const wsUrl = base
       ? `${base}${wsPath}?agentId=${encodeURIComponent(agentRef.current)}`
       : `${wsPath}?agentId=${encodeURIComponent(agentRef.current)}`;
@@ -1176,6 +1204,29 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     return () => clearInterval(timer);
   }, [options.useAgui]);
 
+  // aguiChatOnce 定义在下面,send / sendText 经 ref 调最新的那个
+  // (直接放进 useCallback 依赖会在声明前被读到;不放又会拿到旧闭包里的 options / chatLog)
+  const aguiChatOnceRef = React.useRef<(userText: string) => Promise<void>>(async () => {});
+
+  /** AG-UI 一轮:本地意图拦截 → 确保服务端会话 → 发 AG-UI。
+   *  任何一步抛错都要把 chatBusy 放回去,否则输入框一直是禁用的。 */
+  const sendAgui = React.useCallback(async (t: string) => {
+    try {
+      // 发送前拦截(本地意图路由):返回 true 表示已处理,不再发 AG-UI
+      const preSendText = optionsRef.current.preSendText;
+      if (preSendText && (await preSendText(t))) {
+        setChatBusy(false);
+        return;
+      }
+      await ensureServerConversation(t);
+      // aguiChatOnce 自己在 onDone / onError / catch 里收尾 chatBusy
+      await aguiChatOnceRef.current(t);
+    } catch (e) {
+      setChatLog((c) => [...c, { who: 'ai', text: `❌ ${e instanceof Error ? e.message : '发送失败'}` }]);
+      setChatBusy(false);
+    }
+  }, [ensureServerConversation]);
+
   // send: 发送聊天消息
   const send = React.useCallback(async () => {
     const t = text.trim();
@@ -1199,13 +1250,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
 
     // G1: AG-UI 模式(数字员工),替代 Hermes WS
     if (useAgui) {
-      // 发送前拦截(本地意图路由):返回 true 表示已处理,不再发 AG-UI
-      if (options.preSendText) {
-        const handled = await options.preSendText(t);
-        if (handled) { setChatBusy(false); return; }
-      }
-      await ensureServerConversation(t);
-      await aguiChatOnce(t);
+      await sendAgui(t);
       return;
     }
 
@@ -1225,9 +1270,9 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     } else {
       // HTTP 降级
       try {
-        const r = await fetch(API_PREFIX + '/api/avatar/chat', {
+        const r = await fetch(API_PREFIX + '/api/realtime/chat', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...realtimeAuthHeaders() },
           body: JSON.stringify({
             text: t,
             agentId: agentRef.current,
@@ -1258,7 +1303,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
         setChatBusy(false);
       }
     }
-  }, [text, chatBusy, chatLog]);
+  }, [text, chatBusy, chatLog, useAgui, sendAgui]);
 
   // sendText: 直接发送指定文本(绕过 text state, 给 voice agent 用)
   const sendText = React.useCallback(
@@ -1276,13 +1321,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
 
       // G1: AG-UI 模式(数字员工)
       if (useAgui) {
-        // 发送前拦截(本地意图路由):返回 true 表示已处理,不再发 AG-UI
-        if (options.preSendText) {
-          const handled = await options.preSendText(t);
-          if (handled) { setChatBusy(false); return; }
-        }
-        await ensureServerConversation(t);
-        await aguiChatOnce(t);
+        await sendAgui(t);
         return;
       }
 
@@ -1301,9 +1340,9 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
       } else {
         // HTTP 降级
         try {
-          const r = await fetch(API_PREFIX + '/api/avatar/chat', {
+          const r = await fetch(API_PREFIX + '/api/realtime/chat', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...realtimeAuthHeaders() },
             body: JSON.stringify({
               text: t,
               agentId: agentRef.current,
@@ -1334,7 +1373,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
         }
       }
     },
-    [chatBusy, chatLog],
+    [chatBusy, chatLog, useAgui, sendAgui],
   );
 
   // cancel: 打断
@@ -1599,6 +1638,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
     },
     [aguiAgent, options, chatLog],
   );
+  aguiChatOnceRef.current = aguiChatOnce;
 
   return {
     text,

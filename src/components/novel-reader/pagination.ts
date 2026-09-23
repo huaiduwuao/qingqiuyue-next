@@ -19,6 +19,9 @@ import type { CSSProperties } from 'react';
 export interface PageSegment {
   text: string;
   continuation: boolean;
+  /** 所在段落的下标,和段内起始偏移(UTF-16):换尺寸 / 字号重排后按它找回原来读到的位置 */
+  para: number;
+  offset: number;
 }
 
 /** 页内边距(px):上边让开进度条,下边让开页码。 */
@@ -46,22 +49,31 @@ export function paraStyle(first: boolean, continuation: boolean): CSSProperties 
   };
 }
 
-/** 正文按换行拆段;去掉源站自带的段首空格(全角/半角),缩进统一交给 text-indent。 */
-export function splitParagraphs(body: string): string[] {
-  return body
-    .replace(/\r\n?/g, '\n')
-    .split(/\n+/)
-    .map((line) => line.replace(/^[\s　 ]+|[\s　 ]+$/g, ''))
-    .filter(Boolean);
+/**
+ * 在第 n 个 UTF-16 单元处切开 text,不把代理对(emoji、CJK 扩展 B 等)劈成两半:
+ * 落在一对中间就往前退一个。劈开的半个代理对单独渲染就是豆腐块。
+ */
+export function surrogateSafeCut(text: string, n: number): number {
+  if (n <= 0 || n >= text.length) return n;
+  const hi = text.charCodeAt(n - 1);
+  const lo = text.charCodeAt(n);
+  return hi >= 0xd800 && hi <= 0xdbff && lo >= 0xdc00 && lo <= 0xdfff ? n - 1 : n;
 }
 
-/** 章正文 fetch 协议 */
-export interface ChapterBody {
-  content?: string;
-  body?: string;
-  locked?: boolean;
+/**
+ * 页里 (para, offset) 所在的页码:最后一个起点不晚于该位置的页。
+ * 换尺寸 / 字号重排后,用重排前当前页的起点找回同一段文字。
+ */
+export function pageOfPosition(pages: PageSegment[][], para: number, offset: number): number {
+  let found = 0;
+  for (let i = 0; i < pages.length; i++) {
+    const first = pages[i][0];
+    if (!first) continue;
+    if (first.para < para || (first.para === para && first.offset <= offset)) found = i;
+    else break;
+  }
+  return found;
 }
-export type FetchChapterBody = (chapterId: string) => Promise<ChapterBody>;
 
 export interface PaginateOptions {
   paragraphs: string[];
@@ -98,7 +110,7 @@ export function paginateChapter(opts: PaginateOptions): PageSegment[][] {
   const contentHeight = pageHeight - PAGE_PADDING.top - PAGE_PADDING.bottom;
   // SSR 期没有 DOM / 尺寸还没量出来:单页兜底
   if (contentWidth <= 0 || contentHeight <= 0 || typeof document === 'undefined') {
-    return [paragraphs.map((text) => ({ text, continuation: false }))];
+    return [paragraphs.map((text, para) => ({ text, continuation: false, para, offset: 0 }))];
   }
 
   const host = makeHost(mountIn, contentWidth, fontFamily, fontSize);
@@ -126,13 +138,14 @@ export function paginateChapter(opts: PaginateOptions): PageSegment[][] {
     limit = contentHeight;
   };
 
-  for (const para of paragraphs) {
-    let text = para;
+  for (let para = 0; para < paragraphs.length; para++) {
+    let text = paragraphs[para];
+    let offset = 0;
     let continuation = false;
     while (text.length > 0) {
       const el = addPara(text, continuation);
       if (fits()) {
-        current.push({ text, continuation });
+        current.push({ text, continuation, para, offset });
         break;
       }
       pageEl.removeChild(el);
@@ -147,17 +160,19 @@ export function paginateChapter(opts: PaginateOptions): PageSegment[][] {
         if (ok) lo = mid;
         else hi = mid - 1;
       }
+      lo = surrogateSafeCut(text, lo);
       if (lo === 0) {
         if (current.length > 0) {
           // 本页已有内容,剩余空间连一个字都放不下:换页再试
           newPage();
           continue;
         }
-        // 空页也放不下一个字(字号大到离谱):硬塞一个字,防死循环
-        lo = 1;
+        // 空页也放不下一个字(字号大到离谱):硬塞一个字(整个码点),防死循环
+        lo = (text.codePointAt(0) ?? 0) > 0xffff ? 2 : 1;
       }
-      current.push({ text: text.slice(0, lo), continuation });
+      current.push({ text: text.slice(0, lo), continuation, para, offset });
       text = text.slice(lo);
+      offset += lo;
       continuation = true;
       newPage();
     }

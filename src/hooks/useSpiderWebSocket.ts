@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { CrawlProgress } from '@/beans/spider';
+import { spiderClient } from '@/lib/api/client';
 
 export interface SpiderHealth {
   status: 'healthy' | 'unhealthy';
@@ -55,6 +56,19 @@ interface WSMessage {
   ts: number;
 }
 
+/**
+ * 换一张 spider WS 的一次性票(60 秒、用过即失效)。
+ * 浏览器的 WebSocket 握手带不了 Authorization 头,凭据只能进 URL;session 进 URL 会落进
+ * 网关日志,所以先凭会话 POST /api/spider/ws/ticket 换票。响应已被 client 拆掉信封:
+ * 一般是 { ticket },也兼容直接给字符串。
+ */
+async function fetchSpiderTicket(): Promise<string> {
+  const data = (await spiderClient('/ws/ticket', { method: 'POST' })) as { ticket?: string } | string | undefined;
+  const ticket = typeof data === 'string' ? data : data?.ticket;
+  if (!ticket) throw new Error('no spider ws ticket');
+  return ticket;
+}
+
 function buildWsUrl(): string {
   if (typeof window === 'undefined') {
     return '';
@@ -86,8 +100,34 @@ export function useSpiderWebSocket(): SpiderWSState {
   const MAX_RECONNECT_ATTEMPTS = 5;
   // 重连定时器通过 ref 调 connect:回调里直接引用自身会读到声明前的值
   const connectRef = useRef<() => void>(() => {});
+  // 建连代次:换票是异步的,StrictMode 挂载→卸载→再挂载时,前一次 connect 拿到票回来
+  // 不能再建一条连接。每次 connect / 卸载都 +1,换票回来代次不对就作罢。
+  const genRef = useRef(0);
 
-  const connect = useCallback(() => {
+  const scheduleReconnect = useCallback(() => {
+    if (unmountedRef.current) return;
+    // 达到重连上限,停止。浏览器 socket buffer 耗尽时(ERR_NO_BUFFER_SPACE)
+    // 反复重连只会让情况更糟。给用户/操作员机会介入。
+    if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
+      console.warn(
+        `[useSpiderWebSocket] WS reconnect 达上限 (${MAX_RECONNECT_ATTEMPTS} 次),停止重连。请检查 APISIX 路由与 spider-api 容器状态。`,
+      );
+      return;
+    }
+    reconnectAttemptsRef.current += 1;
+
+    const delay = Math.min(reconnectDelayRef.current, 30000);
+    reconnectDelayRef.current = reconnectDelayRef.current * 1.5;
+
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current);
+    }
+    reconnectTimerRef.current = setTimeout(() => {
+      connectRef.current();
+    }, delay);
+  }, []);
+
+  const connect = useCallback(async () => {
     if (typeof window === 'undefined' || unmountedRef.current) {
       return;
     }
@@ -95,17 +135,33 @@ export function useSpiderWebSocket(): SpiderWSState {
     const url = buildWsUrl();
     if (!url) return;
 
+    const gen = ++genRef.current;
+    // 每次建连(含重连)都换一张新票
+    let ticket: string;
     try {
-      const ws = new WebSocket(url);
+      ticket = await fetchSpiderTicket();
+    } catch {
+      if (gen === genRef.current) scheduleReconnect();
+      return;
+    }
+    if (gen !== genRef.current || unmountedRef.current) return;
+
+    try {
+      const ws = new WebSocket(`${url}?ticket=${encodeURIComponent(ticket)}`);
       wsRef.current = ws;
+      // 只处理「当前这条」连接的事件。StrictMode 下挂载→卸载→再挂载,旧连接的 onclose
+      // 是异步到的:不拦的话会把新连接的 wsRef 清空,还按断线再连一条,变成两条并存。
+      const stale = () => wsRef.current !== ws;
 
       ws.onopen = () => {
+        if (stale()) return;
         reconnectDelayRef.current = 2000;
         reconnectAttemptsRef.current = 0;
         setState((prev) => ({ ...prev, connected: true, error: undefined }));
       };
 
       ws.onmessage = (event) => {
+        if (stale()) return;
         try {
           const msg: WSMessage = JSON.parse(event.data);
 
@@ -140,50 +196,32 @@ export function useSpiderWebSocket(): SpiderWSState {
       };
 
       ws.onerror = (event) => {
+        if (stale()) return;
         setState((prev) => ({ ...prev, error: event }));
       };
 
       ws.onclose = () => {
+        if (stale()) return;
         wsRef.current = null;
         setState((prev) => ({ ...prev, connected: false }));
-
-        if (unmountedRef.current) return;
-
-        // 达到重连上限,停止。浏览器 socket buffer 耗尽时(ERR_NO_BUFFER_SPACE)
-        // 反复重连只会让情况更糟。给用户/操作员机会介入。
-        if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
-          console.warn(
-            `[useSpiderWebSocket] WS reconnect 达上限 (${MAX_RECONNECT_ATTEMPTS} 次),停止重连。请检查 APISIX 路由与 spider-api 容器状态。`,
-          );
-          return;
-        }
-        reconnectAttemptsRef.current += 1;
-
-        const delay = Math.min(reconnectDelayRef.current, 30000);
-        reconnectDelayRef.current = reconnectDelayRef.current * 1.5;
-
-        if (reconnectTimerRef.current) {
-          clearTimeout(reconnectTimerRef.current);
-        }
-        reconnectTimerRef.current = setTimeout(() => {
-          connectRef.current();
-        }, delay);
+        scheduleReconnect();
       };
     } catch {
       // ignore connection errors; reconnect loop handles it
     }
-  }, []);
+  }, [scheduleReconnect]);
 
   useEffect(() => {
-    connectRef.current = connect;
+    connectRef.current = () => void connect();
   }, [connect]);
 
   useEffect(() => {
     unmountedRef.current = false;
-    connect();
+    void connect();
 
     return () => {
       unmountedRef.current = true;
+      genRef.current += 1;
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current);
       }

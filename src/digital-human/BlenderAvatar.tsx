@@ -216,6 +216,11 @@ function VrmAvatar({
   const mouseRef = React.useRef<{ x: number; y: number }>({ x: 0, y: 0 })
   const [error, setError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(true);
+  // autoRotate 走 ref:放进 effect 依赖的话,切一下开关就把整个场景 + 模型重建一遍
+  const autoRotateRef = React.useRef(autoRotate);
+  React.useEffect(() => {
+    autoRotateRef.current = autoRotate;
+  }, [autoRotate]);
 
   // 初始化场景 + 加载角色
   React.useEffect(() => {
@@ -230,6 +235,7 @@ function VrmAvatar({
     }
     let cancelled = false;
     let onMouseMove: ((e: MouseEvent) => void) | null = null;
+    let onResize: (() => void) | null = null;
 
     (async () => {
       try {
@@ -239,10 +245,10 @@ function VrmAvatar({
 
         console.log('[BlenderAvatar] 初始化,modelUrl=', modelUrl);
 
+        if (cancelled) return;
         const renderer = new THREE.WebGLRenderer({
           canvas, antialias: true, alpha: true, powerPreference: 'high-performance',
         });
-        if (cancelled) return;
         renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
         rendererRef.current = renderer;
@@ -290,7 +296,7 @@ function VrmAvatar({
           if (clip) mixer.clipAction(clip).play();
         }
 
-        const onResize = () => {
+        onResize = () => {
           if (!canvas) return;
           renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
           camera.aspect = canvas.clientWidth / canvas.clientHeight;
@@ -326,7 +332,7 @@ function VrmAvatar({
             applyMicroExpressions(vrm, tSec())
           }
           // 6) 可选: 整体缓慢旋转 (由 prop 控制)
-          if (autoRotate && loadedRef.current?.scene) {
+          if (autoRotateRef.current && loadedRef.current?.scene) {
             loadedRef.current.scene.rotation.y += dt * 0.3;
           }
           renderer.render(scene, camera);
@@ -353,15 +359,20 @@ function VrmAvatar({
     return () => {
       cancelled = true;
       if (onMouseMove) window.removeEventListener('mousemove', onMouseMove);
+      if (onResize) window.removeEventListener('resize', onResize);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      // 模型来自 loadAvatar 的模块级缓存,下次挂载还要复用,只从场景摘下、不 dispose
+      if (loadedRef.current?.scene) sceneRef.current?.remove(loadedRef.current.scene);
       rendererRef.current?.dispose?.();
+      // dispose 不释放 WebGL context 本身,反复进出会撞上浏览器的 context 上限
+      rendererRef.current?.forceContextLoss?.();
       rendererRef.current = null;
       sceneRef.current = null;
       cameraRef.current = null;
       loadedRef.current = null;
       mixerRef.current = null;
     };
-  }, [modelUrl, autoRotate]);
+  }, [modelUrl]);
 
   // 切换动作(GLB mixer / VRM bones)
   React.useEffect(() => {

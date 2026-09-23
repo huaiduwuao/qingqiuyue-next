@@ -37,7 +37,8 @@ import { PlatformLinks, platformsOf, playNoticeOf } from '@/components/detail/Ex
 import ShareButtons from '@/components/share/ShareButtons';
 import { AvailabilityBadge } from '@/components/common/AvailabilityBadge';
 import type { PlaybackStatus } from '@/apis/recommend';
-import { ChapterBlock, type ChapterBody } from '@/components/novel-reader/ChapterBlock';
+import { ChapterBlock } from '@/components/novel-reader/ChapterBlock';
+import type { ChapterBody } from '@/components/novel-reader/chapterText';
 import { ReaderChrome, type ReaderPanel } from '@/components/novel-reader/ReaderChrome';
 import { PaginatedReader } from '@/components/novel-reader/PaginatedReader';
 import { usePaginatedReader } from '@/hooks/usePaginatedReader';
@@ -264,24 +265,29 @@ function NovelDetailContent() {
   });
   const detail = detailQuery.data ?? undefined;
 
-  // SSR 期 localStorage 不存在,挂载后再读。lastReadChapter 给 useContentItems
-  // 当 untilChapterId —— 长篇小说初次进入只拉目标章节所在页,不一次拉全本。
-  const [lastReadChapter, setLastReadChapter] = useState<string | null>(null);
+  // 目录窗口的锚点章节(给 useContentItems 当 untilChapterId —— 长篇小说初次进入只拉
+  // 目标章节所在页,不一次拉全本)。进入这本书时定一次:地址栏 chapter 优先,否则本地进度。
+  //
+  // 之后不能再跟着地址栏变:翻章时 setUrlChapter 用 history.replaceState 改地址,
+  // Next 15 给 replaceState 打了补丁,state 里不带 __NA 时会把新 URL 同步进
+  // useSearchParams(见 next/dist/client/components/app-router.js)。锚点一变就是新的
+  // queryKey:目录整份重拉、整页换成加载圈(分页模式下 PaginatedReader 被卸载重来),
+  // loadFullToc 补全的全本目录也丢在旧 key 下。
+  // SSR 期 localStorage 不存在,本地进度挂载后再读;读到之前先不发目录请求。
+  const [tocAnchor, setTocAnchor] = useState(() => ({ id, chapter: chapterParam || undefined, ready: !!chapterParam }));
+  if (tocAnchor.id !== id) setTocAnchor({ id, chapter: chapterParam || undefined, ready: !!chapterParam });
   useEffect(() => {
-    if (!id) return;
-    try {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- 同步外部(localStorage)到 React
-      setLastReadChapter(loadProgress(id)?.chapterId ?? null);
-    } catch {
-      /* 隐私模式读不到也不影响 */
-    }
-  }, [id]);
+    if (!id || tocAnchor.ready) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 同步外部(localStorage)到 React
+    setTocAnchor({ id, chapter: loadProgress(id)?.chapterId || undefined, ready: true });
+  }, [id, tocAnchor.ready]);
 
   // 目录只要标题:lite 模式下后端不逐章从 MinIO 拉正文,几千章的目录也是一次轻请求。
   // untilChapterId 让循环翻页"拉到含目标章节的页就停",首次进入只取 1-2 页。
   const tocQuery = useContentItems('novel', id, chapterPage, {
     lite: true,
-    untilChapterId: chapterParam || lastReadChapter || undefined,
+    untilChapterId: tocAnchor.chapter,
+    enabled: tocAnchor.ready,
   });
   const queryClient = useQueryClient();
   const legacy = useMemo(() => legacyChapters(id ?? '', detail), [id, detail]);
@@ -289,7 +295,8 @@ function NovelDetailContent() {
     const rows = tocQuery.data?.items ?? [];
     return rows.length ? rows : legacy;
   }, [tocQuery.data, legacy]);
-  const tocLoading = tocQuery.isLoading || detailQuery.isLoading;
+  // 只在还没有任何目录数据时才算加载中(整页换成加载圈);已有数据时后台刷新不打断阅读
+  const tocLoading = (!tocQuery.data && tocQuery.isPending) || detailQuery.isLoading;
 
   const fetchBody = useCallback(
     (chapterId: string) => getChapterDetail({ id: chapterId } as never).then((r) => (r ?? {}) as ChapterBody),
@@ -302,13 +309,13 @@ function NovelDetailContent() {
     if (!id) return;
     const key = contentItemsQueryKey('novel', id, {
       lite: true,
-      untilChapterId: chapterParam || lastReadChapter || undefined,
+      untilChapterId: tocAnchor.chapter,
     });
     const current = queryClient.getQueryData<{ items?: ContentItem[]; total?: number }>(key);
     if (!current || (current.total ?? 0) <= (current.items?.length ?? 0)) return;
     const full = await fetchContentItemsAll(chapterPage, id, { lite: true });
     queryClient.setQueryData(key, full);
-  }, [id, queryClient, chapterParam, lastReadChapter]);
+  }, [id, queryClient, tocAnchor.chapter]);
 
   const setUrlChapter = useCallback(
     (chapterId: string, pageNum: number) => {
@@ -353,6 +360,8 @@ function NovelDetailContent() {
       setExitReading(false);
       setRange({ start: i, end: i });
       setCurrent(i);
+      // 从目录 / 上下章按钮跳章一律从章首开始,不能沿用上一章的页码
+      setPage(0);
       setPanel(null);
       setShowInfo(false);
       setUrlChapter(target.id, 0);
@@ -367,6 +376,7 @@ function NovelDetailContent() {
     setExitReading(true);
     setRange(null);
     setCurrent(0);
+    setPage(0);
     setPanel(null);
     setShowInfo(false);
     if (id) window.history.replaceState(window.history.state, '', `${pathname}?id=${encodeURIComponent(id)}`);
@@ -761,6 +771,8 @@ function NovelDetailContent() {
                     fontSize={prefs.fontSize}
                     onGoNext={paginated.goNext}
                     onGoPrev={paginated.goPrev}
+                    onRetry={paginated.retry}
+                    keyboardEnabled={!panel}
                     mode={prefs.mode === 'swipe' ? 'curl' : 'cover'}
                   />
                 </Box>

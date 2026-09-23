@@ -2,7 +2,7 @@
 
 import React, { memo, useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import type { ContentItem } from '@/hooks/useContentItems';
-import type { ReaderPage } from '@/hooks/usePaginatedReader';
+import type { ChapterNotice, ReaderPage } from '@/hooks/usePaginatedReader';
 import { noiseLayer, type ReaderTheme } from './prefs';
 import { LINE_HEIGHT, PAGE_PADDING, TITLE_STYLE, paraStyle, type PageSegment } from './pagination';
 
@@ -46,11 +46,18 @@ interface PaginatedReaderProps {
   onGoNext: () => void;
   onGoPrev: () => void;
   mode: TurnMode;
+  /** 正文拉取失败时「重试」 */
+  onRetry?: (chapterIdx: number) => void;
+  /** 目录 / 设置面板打开时关掉方向键翻页,免得在面板后面偷偷翻页 */
+  keyboardEnabled?: boolean;
 }
 
 interface PageBodyProps {
   segments: PageSegment[];
   ready: boolean;
+  notice?: ChapterNotice;
+  chapterIdx: number;
+  onRetry?: (chapterIdx: number) => void;
   showTitle: boolean;
   chapterTitle: string;
   bookTitle?: string;
@@ -64,7 +71,7 @@ interface PageBodyProps {
 
 /** 单页内容。样式和 pagination.ts 的测量共用常量,改一边另一边跟着变。 */
 const PageBody = memo(function PageBody({
-  segments, ready, showTitle, chapterTitle, bookTitle, author, theme, fontFamily, fontSize, width, height,
+  segments, ready, notice, chapterIdx, onRetry, showTitle, chapterTitle, bookTitle, author, theme, fontFamily, fontSize, width, height,
 }: PageBodyProps) {
   return (
     <div
@@ -92,7 +99,30 @@ const PageBody = memo(function PageBody({
               )}
             </div>
           )}
-          {segments.length === 0 ? (
+          {notice === 'locked' ? (
+            <div style={{ textAlign: 'center', color: theme.sub, padding: '32px 0' }}>本章为付费内容,解锁后阅读</div>
+          ) : notice === 'error' ? (
+            <div style={{ textAlign: 'center', color: theme.sub, padding: '32px 0' }}>
+              正文加载失败
+              {onRetry && (
+                <div style={{ marginTop: 12 }}>
+                  <button
+                    type="button"
+                    // 不让按下 / 抬起冒泡到翻页手势
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onPointerUp={(e) => e.stopPropagation()}
+                    onClick={() => onRetry(chapterIdx)}
+                    style={{
+                      font: 'inherit', fontSize: 13, color: theme.text, background: 'transparent',
+                      border: `1px solid ${theme.line}`, borderRadius: 16, padding: '4px 16px', cursor: 'pointer',
+                    }}
+                  >
+                    重试
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : segments.length === 0 ? (
             <div style={{ textAlign: 'center', color: theme.sub, padding: '32px 0' }}>本章无正文</div>
           ) : (
             <main style={{ display: 'flow-root' }}>
@@ -189,7 +219,10 @@ function foldBand(M: Pt, angle: number, width: number, reach: number, background
  * 此时画面上只剩下层那一页,切页前后像素一致,不会闪。
  */
 export function PaginatedReader(props: PaginatedReaderProps) {
-  const { chapters, current, prev, next, pageCount, pageWidth: W, pageHeight: H, bookTitle, author, theme, fontFamily, fontSize, onGoNext, onGoPrev, mode } = props;
+  const {
+    chapters, current, prev, next, pageCount, pageWidth: W, pageHeight: H, bookTitle, author, theme, fontFamily, fontSize,
+    onGoNext, onGoPrev, mode, onRetry, keyboardEnabled = true,
+  } = props;
 
   const [turn, setTurn] = useState<Turn | null>(null);
   const turnRef = useRef<Turn | null>(null);
@@ -348,9 +381,13 @@ export function PaginatedReader(props: PaginatedReaderProps) {
 
   // ── 键盘 ──────────────────────────────────────────────────────────
   useEffect(() => {
+    if (!keyboardEnabled) return;
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (e.altKey || e.ctrlKey || e.metaKey || t?.closest?.('input,textarea,select,[contenteditable="true"]')) return;
+      // 滑块(字号)等控件自己用方向键;按钮 / 链接上的空格是「按下它」,不是翻页
+      if (t?.closest?.('[role="slider"],[role="radio"],[role="tab"],[role="menuitem"],[role="option"]')) return;
+      if (e.key === ' ' && t?.closest?.('button,a,[role="button"],summary')) return;
       if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
         e.preventDefault();
         turnPage('prev');
@@ -361,7 +398,7 @@ export function PaginatedReader(props: PaginatedReaderProps) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [turnPage]);
+  }, [turnPage, keyboardEnabled]);
 
   if (W <= 0 || H <= 0) return null;
 
@@ -370,6 +407,9 @@ export function PaginatedReader(props: PaginatedReaderProps) {
     <PageBody
       segments={p.segments}
       ready={p.ready}
+      notice={p.notice}
+      chapterIdx={p.chapterIdx}
+      onRetry={onRetry}
       showTitle={p.pageIdx === 0}
       chapterTitle={chapters[p.chapterIdx]?.title || `第 ${p.chapterIdx + 1} 章`}
       bookTitle={bookTitle}

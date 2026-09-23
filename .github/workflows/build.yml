@@ -44,9 +44,17 @@ jobs:
       - name: TypeScript check
         run: pnpm exec tsc --noEmit
       - name: ESLint
-        # 现存 33 个 lint error,清完之前不拦构建
-        continue-on-error: true
+        # 存量 error 已清零(warning 不影响退出码),从此 lint error 直接拦构建
         run: pnpm lint
+      - name: Unit tests
+        run: pnpm test
+      # 与 Dockerfile 同一条构建路径(NEXT_EXPORT_STATIC=true → 静态导出到 out/),
+      # 线上跑的就是这个产物;普通 next build 过了不代表静态导出能过
+      - name: Build (static export)
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+          NEXT_PUBLIC_API_BASE_URL: https://qingqiuyue.com
+        run: pnpm build:static
 
   # ==================== Windows ====================
   build-windows:
