@@ -65,6 +65,8 @@ interface MusicState {
   /** 底栏收成悬浮唱片 */
   collapsed: boolean;
   error: string | null;
+  /** 一次性提示(放不了已跳过 / 连续放不了已停止):seq 递增,GlobalPlayers 的 toast 按它弹 */
+  notice: { seq: number; msg: string } | null;
 }
 
 export const useMusicPlayer = create<MusicState>()(
@@ -83,6 +85,7 @@ export const useMusicPlayer = create<MusicState>()(
       source: null,
       collapsed: false,
       error: null,
+      notice: null,
     }),
     {
       name: 'qq-music-player',
@@ -178,6 +181,7 @@ function el(): HTMLAudioElement {
   a.addEventListener('waiting', () => set({ buffering: true }));
   a.addEventListener('playing', () => {
     failStreak = 0;
+    clearTimeout(stallTimer);
     set({ buffering: false });
   });
   a.addEventListener('canplay', () => set({ buffering: false }));
@@ -199,6 +203,28 @@ function el(): HTMLAudioElement {
 
 /** 连续多少首取不到音源 —— 整张歌单都放不了时要停下来,不能一直转圈 */
 let failStreak = 0;
+/** 连续失败到这个数就停(队列更短就是整个队列都试过一遍) */
+const MAX_FAIL_STREAK = 15;
+/** 开播后这么久还没真正出声(源站挂起、不回 error)就当放不了 */
+const STALL_MS = 20000;
+let stallTimer: ReturnType<typeof setTimeout> | undefined;
+let noticeSeq = 0;
+
+function notify(msg: string) {
+  set({ notice: { seq: ++noticeSeq, msg } });
+}
+
+/** 一首歌开始加载:到点还没 playing 就按放不了处理。切歌 / 暂停 / 关闭时清掉 */
+function armStall(id: string) {
+  clearTimeout(stallTimer);
+  stallTimer = setTimeout(() => {
+    const a = audio;
+    if (currentTrack()?.id !== id || !a || a.paused || !get().buffering) return;
+    a.pause();
+    skipBroken(id, '音源加载超时');
+  }, STALL_MS);
+}
+
 /** 随机播放:这一轮已经放过的曲目 id */
 const shufflePlayed = new Set<string>();
 
@@ -206,6 +232,7 @@ function load(index: number, autoplay: boolean, startAt = 0) {
   const t = get().queue[index];
   if (!t) return;
   const a = el();
+  clearTimeout(stallTimer);
   loadedId = t.id;
   pendingSeek = startAt;
   shufflePlayed.add(t.id);
@@ -220,7 +247,10 @@ function load(index: number, autoplay: boolean, startAt = 0) {
   }
   a.src = t.src;
   syncSession();
-  if (autoplay) start();
+  if (autoplay) {
+    armStall(t.id);
+    start();
+  }
 }
 
 /** 队列里只有 id 的歌:取音源、补全信息,再真正加载。期间用户切走了就作废。 */
@@ -256,19 +286,36 @@ async function resolveAndLoad(id: string, autoplay: boolean, startAt: number) {
   load(get().index, autoplay, startAt);
 }
 
-/** 这首放不了:报错,队列里还有别的就跳下一首;一连串都放不了就停。 */
+/** 这首放不了:报错并弹提示,队列里还有别的就跳下一首;一连串都放不了就停。 */
 function skipBroken(id: string, message: string) {
+  clearTimeout(stallTimer);
   set({ playing: false, buffering: false, error: message });
   failStreak += 1;
-  const { queue } = get();
-  if (queue.length <= 1 || failStreak >= Math.min(queue.length, 5)) {
+  const { queue, repeat } = get();
+  const title = queue.find((q) => q.id === id)?.title || '这首歌';
+  if (queue.length <= 1) {
+    failStreak = 0;
+    notify(`《${title}》无法播放:${message}`);
+    return;
+  }
+  if (failStreak >= Math.min(queue.length, MAX_FAIL_STREAK)) {
+    notify(`连续 ${failStreak} 首都无法播放,已停止`);
     failStreak = 0;
     return;
   }
+  // 列表循环关着、坏的又是最后一首:停在这里,别绕回开头
+  const n = pickNext(repeat !== 'off');
+  if (n < 0) {
+    failStreak = 0;
+    notify(`《${title}》无法播放,已是最后一首`);
+    return;
+  }
+  notify(`《${title}》无法播放,已跳到下一首`);
   setTimeout(() => {
     if (currentTrack()?.id !== id || !get().error) return;
-    const n = pickNext(true);
-    if (n >= 0) load(n, true);
+    // 等的这 1.2 秒里队列可能变了,重新挑
+    const next = pickNext(repeat !== 'off');
+    if (next >= 0) load(next, true);
   }, 1200);
 }
 
@@ -420,7 +467,8 @@ export const musicPlayer = {
     const a = el();
     const t = currentTrack();
     if (!t) return;
-    if (loadedId !== t.id || !a.src) {
+    // 报过错的这首再点播放:重新 load 才会再触发一次 error(同一个坏 src 上 play() 只会静默失败)
+    if (loadedId !== t.id || !a.src || get().error) {
       load(get().index, true, get().currentTime);
       return;
     }
@@ -429,6 +477,7 @@ export const musicPlayer = {
   },
 
   pause() {
+    clearTimeout(stallTimer);
     audio?.pause();
   },
 
@@ -503,6 +552,7 @@ export const musicPlayer = {
 
   /** 停止并清空 —— 底栏消失 */
   close() {
+    clearTimeout(stallTimer);
     if (audio) {
       audio.pause();
       audio.removeAttribute('src');
@@ -511,7 +561,7 @@ export const musicPlayer = {
     loadedId = null;
     interruptedBy = null;
     shufflePlayed.clear();
-    set({ queue: [], index: -1, playing: false, currentTime: 0, duration: 0, error: null, buffering: false, source: null });
+    set({ queue: [], index: -1, playing: false, currentTime: 0, duration: 0, error: null, notice: null, buffering: false, source: null });
     try {
       localStorage.removeItem(POS_KEY);
       if ('mediaSession' in navigator) {

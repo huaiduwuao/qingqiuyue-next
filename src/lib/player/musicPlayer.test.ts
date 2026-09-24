@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('./resolveMusic', () => ({
   resolveMusicById: vi.fn(async () => ''),
   resolveTrackById: vi.fn(async (id: string) =>
-    id === 'broken' ? { src: '', preview: false } : { src: `https://cdn/${id}.mp3`, artist: '歌手', preview: false },
+    id.startsWith('broken') ? { src: '', preview: false } : { src: `https://cdn/${id}.mp3`, artist: '歌手', preview: false },
   ),
 }));
 
@@ -63,8 +63,42 @@ describe('播放队列', () => {
     musicPlayer.setQueue([lazy('broken'), lazy('b')]);
     await vi.advanceTimersByTimeAsync(0);
     expect(useMusicPlayer.getState().error).toContain('暂无可播放音源');
+    expect(useMusicPlayer.getState().notice?.msg).toBe('《歌 broken》无法播放,已跳到下一首');
     await vi.advanceTimersByTimeAsync(1300);
     expect(currentTrack()?.id).toBe('b');
+    vi.useRealTimers();
+  });
+
+  it('列表循环关着时,最后一首放不了就停,不绕回开头', async () => {
+    vi.useFakeTimers();
+    useMusicPlayer.setState({ repeat: 'off' });
+    musicPlayer.setQueue([lazy('a'), lazy('broken')], { startIndex: 1 });
+    await vi.advanceTimersByTimeAsync(1300);
+    expect(currentTrack()?.id).toBe('broken');
+    expect(useMusicPlayer.getState().notice?.msg).toContain('已是最后一首');
+    vi.useRealTimers();
+  });
+
+  it('整个队列都放不了:试一遍后停下并提示', async () => {
+    vi.useFakeTimers();
+    musicPlayer.setQueue([lazy('broken1'), lazy('broken2'), lazy('broken3')]);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(useMusicPlayer.getState().notice?.msg).toBe('连续 3 首都无法播放,已停止');
+    expect(useMusicPlayer.getState().playing).toBe(false);
+    vi.useRealTimers();
+  });
+
+  it('开播 20 秒还没出声就当放不了,跳下一首', async () => {
+    vi.useFakeTimers();
+    musicPlayer.setQueue([lazy('a'), lazy('b')]);
+    await vi.advanceTimersByTimeAsync(0);
+    // jsdom 里 play() 被 mock 掉,不会有 playing 事件 —— 手动把 paused 扳成 false 模拟"在等数据"
+    vi.spyOn(window.HTMLMediaElement.prototype, 'paused', 'get').mockReturnValue(false);
+    await vi.advanceTimersByTimeAsync(20000);
+    expect(useMusicPlayer.getState().error).toBe('音源加载超时');
+    await vi.advanceTimersByTimeAsync(1300);
+    expect(currentTrack()?.id).toBe('b');
+    vi.restoreAllMocks();
     vi.useRealTimers();
   });
 
