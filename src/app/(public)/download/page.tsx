@@ -38,7 +38,7 @@ import {
 import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2, gradient3 } from '@/constants/gradients';
 
-const VERSION = '1.1.3';
+const VERSION = '1.1.4';
 
 // 安装包由 CI 发布到 GitHub Release,并统一成固定文件名(.github/workflows/build.yml 的 release job),
 // latest/download 始终指向最新一次发版。同名环境变量可覆盖;设为空串则该平台显示「暂未发布」。

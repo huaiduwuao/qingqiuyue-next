@@ -61,6 +61,8 @@ jobs:
     runs-on: windows-latest
     needs: frontend-check
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    env:
+      HAS_UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
       # 同 .dockerignore:pnpm 9 读到没有 packages 字段的 workspace 文件会直接报错
@@ -82,12 +84,30 @@ jobs:
         with:
           workspaces: src-tauri
       - run: pnpm install --frozen-lockfile --ignore-workspace
-      - run: pnpm app:windows
+      # 自动更新包(latest.json 用的 .sig / .app.tar.gz)要用 updater 私钥签名。
+      # 有 TAURI_SIGNING_PRIVATE_KEY 才打开 bundle.createUpdaterArtifacts;没配就写一个空的覆盖文件,
+      # 构建和以前完全一样 —— 缺 secret 绝不能卡住发版。提交的 tauri.conf.json 里不开这个开关,
+      # 本地没有私钥也能照常打包。--config 传文件路径而不是内联 JSON:Windows 上 pnpm 经 cmd 转发时会把 JSON 的引号拆坏。
+      - name: Updater artifacts config
+        shell: bash
+        run: |
+          if [ "$HAS_UPDATER_KEY" = "true" ]; then
+            echo '{"bundle":{"createUpdaterArtifacts":true}}' > src-tauri/tauri.ci-updater.conf.json
+          else
+            echo "::warning::TAURI_SIGNING_PRIVATE_KEY 未配置:本次不生成自动更新包,发版里不会有 latest.json"
+            echo '{}' > src-tauri/tauri.ci-updater.conf.json
+          fi
+      - run: pnpm app:windows --config src-tauri/tauri.ci-updater.conf.json
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      # Windows 的自动更新直接用 NSIS 安装包(*-setup.exe)+ 它的 .sig;没开 updater 时 .sig 不存在,通配不到就算了
       - uses: actions/upload-artifact@v4
         with:
           name: windows
           path: |
             src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe.sig
             src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
           retention-days: 30
 
@@ -98,6 +118,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
     env:
       HAS_APPLE_CERT: ${{ secrets.APPLE_CERTIFICATE != '' }}
+      HAS_UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
       # 同 .dockerignore:pnpm 9 读到没有 packages 字段的 workspace 文件会直接报错
@@ -119,15 +140,32 @@ jobs:
         with:
           workspaces: src-tauri
       - run: pnpm install --frozen-lockfile --ignore-workspace
+      # 自动更新包(latest.json 用的 .sig / .app.tar.gz)要用 updater 私钥签名。
+      # 有 TAURI_SIGNING_PRIVATE_KEY 才打开 bundle.createUpdaterArtifacts;没配就写一个空的覆盖文件,
+      # 构建和以前完全一样 —— 缺 secret 绝不能卡住发版。提交的 tauri.conf.json 里不开这个开关,
+      # 本地没有私钥也能照常打包。--config 传文件路径而不是内联 JSON:Windows 上 pnpm 经 cmd 转发时会把 JSON 的引号拆坏。
+      - name: Updater artifacts config
+        shell: bash
+        run: |
+          if [ "$HAS_UPDATER_KEY" = "true" ]; then
+            echo '{"bundle":{"createUpdaterArtifacts":true}}' > src-tauri/tauri.ci-updater.conf.json
+          else
+            echo "::warning::TAURI_SIGNING_PRIVATE_KEY 未配置:本次不生成自动更新包,发版里不会有 latest.json"
+            echo '{}' > src-tauri/tauri.ci-updater.conf.json
+          fi
       - name: Build (ad-hoc signed)
         if: env.HAS_APPLE_CERT != 'true'
-        run: pnpm app:macos
+        run: pnpm app:macos --config src-tauri/tauri.ci-updater.conf.json
         env:
           APPLE_SIGNING_IDENTITY: '-'
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       - name: Build (Developer ID signed + notarized)
         if: env.HAS_APPLE_CERT == 'true'
-        run: pnpm app:macos
+        run: pnpm app:macos --config src-tauri/tauri.ci-updater.conf.json
         env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
@@ -137,7 +175,11 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: macos
-          path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+          # .app.tar.gz(+ .sig)是 macOS 的自动更新包,universal 构建,darwin-x86_64 / aarch64 共用
+          path: |
+            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz
+            src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app.tar.gz.sig
           retention-days: 30
 
   # ==================== iOS(需配置 Apple 开发者账号后才运行) ====================
@@ -274,6 +316,19 @@ jobs:
           pick macos   '*.dmg'       qingqiuyue-macos-universal.dmg
           pick android '*.apk'       qingqiuyue-android.apk
           pick android '*.aab'       qingqiuyue-android.aab
+          # 自动更新包:只有配了 TAURI_SIGNING_PRIVATE_KEY 才会有 .sig。包和签名必须成对,缺一个就整个平台不进 latest.json。
+          # Windows 用的就是上面那个 setup.exe 本身,这里只补它的签名。
+          pair() {
+            f=$(find "artifacts/$1" -name "$2" | head -1)
+            s=$(find "artifacts/$1" -name "$2.sig" | head -1)
+            if [ -n "$f" ] && [ -n "$s" ]; then
+              cp "$f" "dist/$3"; cp "$s" "dist/$3.sig"
+            else
+              echo "::warning::$1 没有自动更新包/签名($2),这个平台不进 latest.json"
+            fi
+          }
+          pair windows '*-setup.exe'   qingqiuyue-windows-x64-setup.exe
+          pair macos   '*.app.tar.gz'  qingqiuyue-macos-universal.app.tar.gz
           ls -l dist
       # 附件上传偶发失败(v1.1.0 时 GitHub 直接回了一页 HTML 错误页,两次都挂在 .aab 上),
       # 而 action-gh-release 一个附件失败就整个任务红掉,只留下一个传了一半的草稿。
@@ -288,6 +343,38 @@ jobs:
         run: |
           gh release view "$TAG" >/dev/null 2>&1 ||
             gh release create "$TAG" --draft --generate-notes --title "$TAG"
+
+          # ---- latest.json(Tauri 静态更新清单)----
+          # 地址用带 tag 的 releases/download/<tag>/…,不用 latest:客户端下到的永远是清单描述的那一个包。
+          # 说明优先取 tag 的注解,没有(轻量 tag)就用 release 正文(--generate-notes 生成的)。
+          # 一个 .sig 都没有(没配 TAURI_SIGNING_PRIVATE_KEY)就不出 latest.json —— Tauri 不认没有 platforms 的清单;
+          # 安卓端的检查会退回 GitHub releases/latest API,不受影响。
+          if ls dist/*.sig >/dev/null 2>&1; then
+            notes=""
+            ref=$(gh api "repos/$GH_REPO/git/ref/tags/$TAG" -q '.object.type + " " + .object.sha' 2>/dev/null || true)
+            if [ "${ref%% *}" = "tag" ]; then
+              notes=$(gh api "repos/$GH_REPO/git/tags/${ref#* }" -q .message 2>/dev/null | sed '/-----BEGIN PGP SIGNATURE-----/,$d' || true)
+            fi
+            [ -n "$(echo "$notes" | tr -d '[:space:]')" ] || notes=$(gh release view "$TAG" --json body -q .body || true)
+            base="https://github.com/$GH_REPO/releases/download/$TAG"
+            platforms='{}'
+            add() {
+              platforms=$(jq -c --arg k "$1" --arg url "$base/$2" --rawfile sig "dist/$2.sig" \
+                '. + {($k): {signature: ($sig | rtrimstr("\n")), url: $url}}' <<<"$platforms")
+            }
+            [ -f dist/qingqiuyue-windows-x64-setup.exe.sig ] && add windows-x86_64 qingqiuyue-windows-x64-setup.exe
+            if [ -f dist/qingqiuyue-macos-universal.app.tar.gz.sig ]; then
+              add darwin-x86_64 qingqiuyue-macos-universal.app.tar.gz
+              add darwin-aarch64 qingqiuyue-macos-universal.app.tar.gz
+            fi
+            jq -n --arg version "${TAG#v}" --arg notes "$notes" --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              --argjson platforms "$platforms" \
+              '{version: $version, notes: $notes, pub_date: $date, platforms: $platforms}' > dist/latest.json
+            jq '.platforms | keys' dist/latest.json
+          else
+            echo "::warning::没有任何 .sig(TAURI_SIGNING_PRIVATE_KEY 未配置?),本次不发布 latest.json,桌面端不会收到自动更新"
+          fi
+
           for f in dist/*; do
             for i in 1 2 3; do
               gh release upload "$TAG" "$f" --clobber && continue 2
@@ -296,7 +383,13 @@ jobs:
             done
             echo "::error::upload gave up after 3 tries: $f"
           done
-          n=$(gh release view "$TAG" --json assets -q '.assets | length')
-          echo "uploaded assets: $n"
-          [ "$n" -eq 5 ] || { echo "::error::只传上去 $n/5 个附件,不发布"; exit 1; }
+          # 固定的 5 个安装包 + (有签名时)更新包 / .sig / latest.json,dist 里的每一个都得在 release 上
+          names=$(gh release view "$TAG" --json assets -q '.assets[].name')
+          want=$(ls dist | wc -l)
+          missing=0
+          for f in dist/*; do
+            grep -qxF "$(basename "$f")" <<<"$names" || { echo "::error::附件没传上去:$(basename "$f")"; missing=$((missing + 1)); }
+          done
+          echo "uploaded assets: $((want - missing))/$want"
+          [ "$want" -ge 5 ] && [ "$missing" -eq 0 ] || { echo "::error::附件不齐,不发布"; exit 1; }
           gh release edit "$TAG" --draft=false --latest

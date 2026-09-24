@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "desktop",
+  "description": "Desktop-only capabilities: auto update (tauri-plugin-updater) and relaunch after install (tauri-plugin-process). Both plugins are compiled only for desktop targets, so this capability is scoped to desktop platforms and skipped for Android/iOS builds.",
+  "platforms": ["windows", "macOS", "linux"],
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "updater:default",
+    "process:allow-restart"
+  ]
+}

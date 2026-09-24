@@ -40,11 +40,14 @@ import BarChartIcon from '@mui/icons-material/BarChart';
 import QueuePlayNextIcon from '@mui/icons-material/QueuePlayNext';
 import AppsIcon from '@mui/icons-material/Apps';
 import HeadsetMicIcon from '@mui/icons-material/HeadsetMic';
+import SystemUpdateAltIcon from '@mui/icons-material/SystemUpdateAlt';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useThemeMode } from '@/contexts/ThemeContext';
 import { BrandSeal, BrandWordmark } from '@/components/brand/BrandLogo';
 import type { MenuItem as MenuItemType } from '@/beans/system';
+import { useUpdateMode } from '@/components/client/ClientVersionCard';
+import { requestUpdateCheck } from '@/lib/appUpdate';
 
 const LEFT_SIDEBAR_WIDTH = 200;
 
@@ -108,6 +111,8 @@ export function MainLayout({ children }: { children: ReactNode }) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [searchValue, setSearchValue] = useState('');
+  // 只有客户端(Windows / macOS / 安卓)里才有「检查更新」
+  const updateMode = useUpdateMode();
   const pathname = usePathname();
   const { currentUser, menuData } = useApp();
   const { logout } = useAuth();
@@ -271,6 +276,17 @@ export function MainLayout({ children }: { children: ReactNode }) {
               <ListItemIcon><SettingsIcon fontSize="small" /></ListItemIcon>
               设置
             </MenuItem>
+            {updateMode && (
+              <MenuItem
+                onClick={() => {
+                  handleMenuClose();
+                  requestUpdateCheck();
+                }}
+              >
+                <ListItemIcon><SystemUpdateAltIcon fontSize="small" /></ListItemIcon>
+                检查更新
+              </MenuItem>
+            )}
             <Divider />
             <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}>
               <ListItemIcon><ExitToAppIcon fontSize="small" /></ListItemIcon>

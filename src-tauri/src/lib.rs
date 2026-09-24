@@ -162,6 +162,10 @@ pub fn run() {
                 let _ = w.set_focus();
             }
         }));
+        // 自动更新(公钥 / 清单地址在 tauri.conf.json 的 plugins.updater),前端见 components/client/AppUpdater.tsx
+        builder = builder
+            .plugin(tauri_plugin_updater::Builder::new().build())
+            .plugin(tauri_plugin_process::init());
     }
 
     builder
@@ -191,10 +195,11 @@ pub fn run() {
                 use tauri_plugin_deep_link::DeepLinkExt;
                 let handle = app.handle().clone();
                 app.deep_link().on_open_url(move |event| {
-                    let urls: Vec<String> = event.urls().iter().map(|u| u.to_string()).collect();
+                    // OpenUrlEvent::urls(self) 会拿走 event,只能调一次
+                    let parsed = event.urls();
+                    let urls: Vec<String> = parsed.iter().map(|u| u.to_string()).collect();
                     // 只记 scheme://host/path:query 里可能带登录凭据(code / session_id),不能进日志
-                    let logged: Vec<String> = event
-                        .urls()
+                    let logged: Vec<String> = parsed
                         .iter()
                         .map(|u| format!("{}://{}{}", u.scheme(), u.host_str().unwrap_or(""), u.path()))
                         .collect();

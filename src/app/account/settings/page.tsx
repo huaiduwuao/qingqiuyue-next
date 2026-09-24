@@ -38,6 +38,7 @@ import EmailRoundedIcon from '@mui/icons-material/EmailRounded';
 import PhoneIphoneRoundedIcon from '@mui/icons-material/PhoneIphoneRounded';
 import DoNotDisturbRoundedIcon from '@mui/icons-material/DoNotDisturbRounded';
 import { useApp } from '@/contexts/AppContext';
+import ClientVersionCard from '@/components/client/ClientVersionCard';
 import type { CurrentUser } from '@/beans/account';
 import { updateUser } from '@/apis/account';
 import { fileUpload } from '@/apis/global';
@@ -231,6 +232,8 @@ export default function AccountSettingsPage() {
           </CardContent>
         </Card>
         </LoginGate>
+        {/* 客户端的版本号 + 检查更新,不用登录也能看到(网页里不渲染) */}
+        <ClientVersionCard />
       </Box>
 
       <Snackbar

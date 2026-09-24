@@ -30,6 +30,11 @@ dirs = "6"
 # 不然回跳落到新进程里,发起登录的那个窗口永远等不到。
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
+# 桌面端自动更新:读 GitHub Release 上的 latest.json、验签、下载安装;process 用来装完后重启。
+# 安卓不走 Tauri updater(前端只提示去下载 APK),所以只在桌面目标里编译。
+# 版本号与 package.json 里的 @tauri-apps/plugin-updater / plugin-process 保持同一个 major.minor。
+tauri-plugin-updater = "2.12"
+tauri-plugin-process = "2.3"
 
 [profile.release]
 panic = "abort"
