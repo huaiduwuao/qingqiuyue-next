@@ -411,7 +411,7 @@ function MobileBars(props: ReaderChromeProps & { paperBg: object }) {
           {props.shelved ? <LibraryAddCheckOutlinedIcon /> : <LibraryAddOutlinedIcon />}
         </IconButton>
       </Box>
-      <Box sx={{ ...bar, bottom: 0, transform: mobileChrome ? 'none' : 'translateY(110%)', pb: 'env(safe-area-inset-bottom)' }}>
+      <Box sx={{ ...bar, bottom: 0, transform: mobileChrome ? 'none' : 'translateY(110%)', pb: 'var(--sab, 0px)' }}>
         {chapters.length > 0 && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, pt: 1.25 }}>
             {navBtn('上一章', current - 1)}

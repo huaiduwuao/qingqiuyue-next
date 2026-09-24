@@ -651,7 +651,19 @@ function NovelDetailContent() {
         />
 
         <Box
-          sx={{ ...paper, width: columnWidth, maxWidth: '100%', mx: 'auto', minHeight: '100vh', transition: 'width .3s, background-color .3s' }}
+          sx={{
+            ...paper,
+            width: columnWidth,
+            maxWidth: '100%',
+            mx: 'auto',
+            minHeight: '100vh',
+            boxSizing: 'border-box',
+            // 移动端分页阅读:顶栏是浮层,分页容器得从状态栏下面开始。不留这段的话容器贴着 y=0、
+            // 高度又扣了 --sat,状态栏那一截全挪到了底部 —— 安卓客户端里底部多空出一截。
+            // 用 pt 不用容器的 mt:mt 会穿透到这一层,把整页撑得比屏幕高、能上下滚。
+            pt: isMobile && !showDetail && prefs.mode !== 'scroll' ? 'var(--sat, 0px)' : 0,
+            transition: 'width .3s, background-color .3s',
+          }}
           onClick={(e) => {
             if (!isMobile || (e.target as Element).closest('a,button,input,textarea,[role="button"]')) return;
             setMobileChrome((v) => !v);
