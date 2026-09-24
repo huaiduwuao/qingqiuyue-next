@@ -225,6 +225,8 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
 
   return (
     <Box
+      // 定高应用壳:音乐底栏的占位由内容滚动区自己留(见 globals.css 的 [data-app-shell])
+      data-app-shell
       sx={{
         display: 'flex',
         flexDirection: 'column',
@@ -447,7 +449,7 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
 
         {/* 内容 */}
         <Box component="main" sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 1.5, md: 3 }, WebkitOverflowScrolling: 'touch' }}>
+          <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 1.5, md: 3 }, pb: { xs: 'calc(12px + var(--player-inset, 0px))', md: 'calc(24px + var(--player-inset, 0px))' }, WebkitOverflowScrolling: 'touch' }}>
             {children}
           </Box>
         </Box>

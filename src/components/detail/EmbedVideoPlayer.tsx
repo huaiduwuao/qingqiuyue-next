@@ -18,6 +18,10 @@ interface Props {
   isAIGenerated?: boolean;
   /** 沉浸式推荐流:撑满父容器(见下方 fill 分支的说明) */
   fill?: boolean;
+  /** 打开源站播放器自带的弹幕(B 站 danmaku=1)。改了会重载 iframe。 */
+  danmaku?: boolean;
+  /** fill 模式底部让出的高度(数字按 px,也可以是 CSS 长度),默认 160 */
+  reserveBottom?: number | string;
 }
 
 /**
@@ -31,7 +35,7 @@ interface Props {
  * 既慢又会先发一堆请求,而多数访问只是看一眼简介。
  */
 const EmbedVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function EmbedVideoPlayer(
-  { embed, originUrl, poster, autoPlay = false, isAIGenerated = false, fill = false },
+  { embed, originUrl, poster, autoPlay = false, isAIGenerated = false, fill = false, danmaku = false, reserveBottom = 160 },
   ref,
 ) {
   const [started, setStarted] = useState(autoPlay);
@@ -63,8 +67,8 @@ const EmbedVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function EmbedVide
   const frame = started ? (
     <Box
       component="iframe"
-      key={embed.url}
-      src={withAutoplay(embed.url)}
+      key={embed.url + (danmaku ? "#dm" : "")}
+      src={withAutoplay(danmaku ? embed.url.replace("danmaku=0", "danmaku=1") : embed.url)}
       title={`${embed.providerLabel}播放器`}
       allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
       allowFullScreen
@@ -144,7 +148,7 @@ const EmbedVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function EmbedVide
     return (
       // 底部留 160px:推荐流的作者/标题浮层压在卡片底部(bottom: 92),不让开的话会盖住
       // 外链播放器自己的进度条和音量/全屏按钮。
-      <Box sx={{ position: 'absolute', inset: 0, pt: 2, pb: '160px', bgcolor: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+      <Box sx={{ position: 'absolute', inset: 0, pt: 2, pb: typeof reserveBottom === 'number' ? `${reserveBottom}px` : reserveBottom, bgcolor: 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <Box
           onPointerLeave={relock}
           sx={{ position: 'relative', width: '100%', flex: '0 1 auto', minHeight: 0, maxHeight: '100%', aspectRatio: '16/9' }}

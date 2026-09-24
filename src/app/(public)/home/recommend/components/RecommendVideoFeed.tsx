@@ -10,39 +10,46 @@ import Avatar from '@mui/material/Avatar';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import Dialog from '@mui/material/Dialog';
-import DialogTitle from '@mui/material/DialogTitle';
-import DialogContent from '@mui/material/DialogContent';
-import DialogActions from '@mui/material/DialogActions';
-import Button from '@mui/material/Button';
-import Drawer from '@mui/material/Drawer';
+import IconButton from '@mui/material/IconButton';
+import InputBase from '@mui/material/InputBase';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { useTheme } from '@mui/material/styles';
 import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import FavoriteBorderRoundedIcon from '@mui/icons-material/FavoriteBorderRounded';
 import BookmarkRoundedIcon from '@mui/icons-material/BookmarkRounded';
 import BookmarkBorderRoundedIcon from '@mui/icons-material/BookmarkBorderRounded';
-import ModeCommentOutlinedIcon from '@mui/icons-material/ModeCommentOutlined';
+import ModeCommentRoundedIcon from '@mui/icons-material/ModeCommentRounded';
 import ReplyRoundedIcon from '@mui/icons-material/ReplyRounded';
-import StarRoundedIcon from '@mui/icons-material/StarRounded';
 import VerifiedRoundedIcon from '@mui/icons-material/VerifiedRounded';
-import QueueMusicRoundedIcon from '@mui/icons-material/QueueMusicRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import BedtimeRoundedIcon from '@mui/icons-material/BedtimeRounded';
 import CloudOffRoundedIcon from '@mui/icons-material/CloudOffRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import KeyboardArrowUpRoundedIcon from '@mui/icons-material/KeyboardArrowUpRounded';
+import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
+import SendRoundedIcon from '@mui/icons-material/SendRounded';
+import SubtitlesRoundedIcon from '@mui/icons-material/SubtitlesRounded';
+import SubtitlesOffRoundedIcon from '@mui/icons-material/SubtitlesOffRounded';
+import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 import { fetchRecommend } from '@/apis/home-discover';
 import { reportContent } from '@/apis/global';
+import { sendComment } from '@/apis/home';
+import { reportRecommendFeedback } from '@/apis/recommend';
 import DetailComments from '@/components/detail/DetailComments';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
 import { parseStream, BANDWIDTH_NOTICE } from '@/apis/stream';
 import { resolveEmbedPlayer, originOnlyPlatform, sourcePageOf, ORIGIN_ONLY_NOTICE } from '@/lib/embedPlayer';
-import { homeClient } from '@/lib/api/client';
+import { homeClient, formatApiError } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { mediaUrl } from '@/lib/media';
 import { TYPE_LABEL } from '@/lib/contentRoute';
 import { TYPE_GRADIENT } from '@/constants/gradients';
 import { track } from '@/lib/track';
-import { useResponsive } from '@/hooks/useResponsive';
 import VideoPlayer, { type VideoPlayerHandle } from '@/components/detail/VideoPlayer';
+import { useFeedDanmaku, DanmakuLayer } from './FeedDanmaku';
 
 interface VideoItem {
   id: number;
@@ -94,6 +101,31 @@ function getContentTypeColor(type: string) {
   return TYPE_GRADIENT[type] || TYPE_GRADIENT.NOVEL;
 }
 
+// ── 沉浸式视觉的统一口径 ──
+// 画面上的浮层只用这几种材质:纯白字 + 投影、深色毛玻璃圆钮、底部黑色渐隐。
+// 以前每个浮层各写一套 rgba,有的发灰有的发蓝,叠在视频上显得碎。
+const TEXT_SHADOW = '0 1px 2px rgba(0,0,0,0.55), 0 0 8px rgba(0,0,0,0.25)';
+const GLASS = {
+  bgcolor: 'rgba(0, 0, 0, 0.32)',
+  backdropFilter: 'blur(12px)',
+  WebkitBackdropFilter: 'blur(12px)',
+  border: '1px solid rgba(255, 255, 255, 0.10)',
+} as const;
+const ACCENT = '#FE2C55';
+/** 移动端打开评论后视频区占的高度 */
+const MOBILE_STAGE_WITH_COMMENTS = '34%';
+/** 桌面端评论栏宽度 */
+const DESKTOP_COMMENTS_W = 400;
+
+const DANMAKU_PREF_KEY = 'qq.feed.danmaku';
+function readDanmakuPref(): boolean {
+  try {
+    return localStorage.getItem(DANMAKU_PREF_KEY) !== '0';
+  } catch {
+    return true;
+  }
+}
+
 // 播放解析失败时自动举报,给"暂时无法播放"这句话一个真实的落点——不只是
 // 前端提示一下就完了,而是真的进了内容举报/审核队列,后台能看到、能处理。
 // 模块级 Set 去重:同一条内容这个会话里只报一次,不会因为用户来回划/组件
@@ -119,8 +151,9 @@ function reportBrokenContent(video: { id: number; idString?: string; contentType
 
 export function RecommendVideoFeed() {
   const router = useRouter();
-  // 桌面端评论从右滑入,移动端维持底部抽屉(参考抖音 PC/移动端差异)。
-  const { isMobile } = useResponsive();
+  const theme = useTheme();
+  // 桌面:评论从右侧滑入、把视频往左挤;移动:评论从下方升起、把视频往上推。
+  const isDesktop = useMediaQuery(theme.breakpoints.up('md'), { noSsr: true });
   // 初始自动播放意图,真正的播放/暂停状态由 VideoPlayer 内部的 <video> 元素持有,
   // 这里只通过 videoPlayerRef 转发操作(切换/快进快退),不再维护一份平行的假状态。
   const [playing, setPlaying] = useState(true);
@@ -130,8 +163,8 @@ export function RecommendVideoFeed() {
   const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' | 'info' }>({
     open: false, message: '', severity: 'success',
   });
-  // 评论抽屉 —— 取代原先只放输入框的弹窗。打开后会拉取评论列表、支持点赞/回复
-  const [commentDrawerOpen, setCommentDrawerOpen] = useState(false);
+  // 评论栏(桌面右栏 / 移动下半屏)。打开后拉取评论列表、支持点赞/回复
+  const [commentsOpen, setCommentsOpen] = useState(false);
   // 点赞时,从按钮飞起一个"+1"小气泡(无障碍、视觉反馈,800ms 后自动消失)
   const [likeBurst, setLikeBurst] = useState<{ id: number; key: number } | null>(null);
   const [moreDialogOpen, setMoreDialogOpen] = useState(false);
@@ -139,6 +172,17 @@ export function RecommendVideoFeed() {
   const [videoSrc, setVideoSrc] = useState<string>('');
   const [streamLoading, setStreamLoading] = useState(false);
   const [streamError, setStreamError] = useState<string>('');
+  // 弹幕:开关记在本机
+  const [danmakuOn, setDanmakuOn] = useState(true);
+  useEffect(() => setDanmakuOn(readDanmakuPref()), []);
+  const toggleDanmaku = () => {
+    setDanmakuOn((on) => {
+      try { localStorage.setItem(DANMAKU_PREF_KEY, on ? '0' : '1'); } catch { /* 隐私模式 */ }
+      return !on;
+    });
+  };
+  const [danmakuDraft, setDanmakuDraft] = useState('');
+  const [danmakuSending, setDanmakuSending] = useState(false);
 
   // 分页:useInfiniteQuery 管页码。以前手写的页码/锁在挂载时就先跳到第 2 页,
   // 第 1 页的结果被丢掉;某页过滤后一条不剩时预加载也不再触发。
@@ -159,7 +203,8 @@ export function RecommendVideoFeed() {
     queryFn: async ({ pageParam }) => {
       const page = pageParam;
       const resp = await fetchRecommend({
-        types: 'VIDEO,TELEPLAY',
+        // 短剧也进来:能嵌外链播放器 / 站内直链可播的才会被后端留下(watchable)
+        types: 'VIDEO,TELEPLAY,SHORT_DRAMA',
         size: PAGE_SIZE,
         page: page,
         // 沉浸式流每一屏就是一个播放器:只要站内能看到画面的(后端 recommendengine WatchableOnly)
@@ -206,7 +251,7 @@ export function RecommendVideoFeed() {
   });
 
   // 各页拼起来去重(不同页可能召回同一条)
-  const allItems = useMemo(() => {
+  const uniqueVideos = useMemo(() => {
     const seen = new Set<string>();
     const out: VideoItem[] = [];
     for (const p of feedPages?.pages ?? []) {
@@ -221,25 +266,22 @@ export function RecommendVideoFeed() {
   }, [feedPages]);
   const hasMore = !!hasNextPage;
 
-  // 追踪已加载的页码
-  const uniqueVideos = allItems;
-
   // 视频导航状态
   const [index, setIndex] = useState(0);
-  const [slideDir, setSlideDir] = useState<1 | -1>(1);
   const navLock = useRef(false);
   const unlockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const indexRef = useRef(0);
   indexRef.current = index;
   const video = uniqueVideos[index];
+  const videoKey = video ? video.idString || String(video.id) : null;
 
-  // 临近末尾几条时预加载下一页。过滤后整页为空时 allItems 不变,但 isFetchingNextPage
+  // 临近末尾几条时预加载下一页。过滤后整页为空时列表不变,但 isFetchingNextPage
   // 回落会让这里再跑一次,继续往后拉。
   useEffect(() => {
-    if (hasNextPage && !isFetchingNextPage && allItems.length - index <= 3) {
+    if (hasNextPage && !isFetchingNextPage && uniqueVideos.length - index <= 3) {
       void fetchNextPage();
     }
-  }, [allItems.length, index, hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [uniqueVideos.length, index, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const lockNav = useCallback((ms = 380) => {
     navLock.current = true;
@@ -269,7 +311,6 @@ export function RecommendVideoFeed() {
         }
         return;
       }
-      setSlideDir(dir);
       setIndex(next);
       lockNav();
     },
@@ -334,10 +375,7 @@ export function RecommendVideoFeed() {
         }
         // 后端 /api/content/stream/resolve 成功时 code=200,本地降级解析器
         // (parseStream 的 fallback 分支)成功时 code=0——两套约定不一致。
-        // 之前这里只认 code===0,导致走后端(真正播放绝大多数抖音/B站/快手等
-        // 条目)那条路径时永远被判定为"解析失败",只有极少数命中本地
-        // MGTV 专用兜底解析器的条目才能真正播放。是否有可播放流,看
-        // streams 数组本身就够了,不该再关心 code 具体是哪个约定的"成功"。
+        // 是否有可播放流,看 streams 数组本身就够了。
         if (data.data?.streams?.length > 0) {
           setVideoSrc(data.data.streams[0].url || '');
         } else {
@@ -360,12 +398,18 @@ export function RecommendVideoFeed() {
     };
   }, [index, video]);
 
+  // 移动端评论打开时视频区只剩上面一小块:滚轮/拖动都不该再翻页
+  const navBlocked = commentsOpen && !isDesktop;
+
   const handleWheel = useCallback(
     (e: WheelEvent) => {
+      // 评论栏自己要滚:落在里面的滚轮不归视频流管
+      if ((e.target as HTMLElement)?.closest?.('[data-feed-comments]')) return;
       // 必须吃掉滚轮事件,否则浏览器仍会把它当页面滚动处理——在到达内容边界时
       // 持续的滚轮输入可能被浏览器/系统识别为下拉刷新手势,导致整页重新加载,
-      // 白白丢掉已加载的 allItems/index 状态,体验上像"刷着刷着突然从头开始"。
+      // 白白丢掉已加载的列表/index 状态,体验上像"刷着刷着突然从头开始"。
       e.preventDefault();
+      if (navBlocked) return;
       if (Math.abs(e.deltaY) < 8) return;
       if (navLock.current) {
         lockNav(220);
@@ -373,7 +417,7 @@ export function RecommendVideoFeed() {
       }
       go(e.deltaY > 0 ? 1 : -1);
     },
-    [go, lockNav],
+    [go, lockNav, navBlocked],
   );
 
   const notify = (message: string, severity: 'success' | 'error' | 'info' = 'success') => {
@@ -399,6 +443,16 @@ export function RecommendVideoFeed() {
     interaction.toggleLike();
   };
   const handleCollect = () => interaction.toggleCollect();
+
+  // 双击点赞(抖音手势):只点亮不取消,在点击处冒一颗心
+  const [hearts, setHearts] = useState<Array<{ key: number; x: number; y: number }>>([]);
+  const lastTap = useRef(0);
+  const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 换条视频:关注态重置
+  useEffect(() => {
+    setFollowing(false);
+  }, [videoKey]);
 
   const handleFollow = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -427,7 +481,7 @@ export function RecommendVideoFeed() {
 
   const handleCommentClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setCommentDrawerOpen(true);
+    setCommentsOpen((o) => !o);
   };
 
   const handleReport = async () => {
@@ -443,9 +497,25 @@ export function RecommendVideoFeed() {
     }
   };
 
+  const handleNotInterested = async () => {
+    setMoreDialogOpen(false);
+    if (video) {
+      // 真的记一次负反馈(累计到阈值后不再推给这个用户);未登录时接口直接跳过
+      reportRecommendFeedback({ contentId: video.idString || String(video.id) }).catch(() => {});
+    }
+    notify('已减少此类推荐', 'info');
+    go(1);
+  };
+
+  const shareUrl = () => {
+    if (typeof window === 'undefined' || !video) return '';
+    const route = getDetailRoute(video.contentType, video.idString || video.id);
+    return route ? new URL(route, window.location.origin).toString() : window.location.href;
+  };
+
   const handleCopyLink = async () => {
     try {
-      await navigator.clipboard.writeText(typeof window !== 'undefined' ? window.location.href : '');
+      await navigator.clipboard.writeText(shareUrl());
       notify('链接已复制到剪贴板');
       setMoreDialogOpen(false);
     } catch {
@@ -457,9 +527,9 @@ export function RecommendVideoFeed() {
     e.stopPropagation();
     try {
       if (navigator.share) {
-        await navigator.share({ title: video?.title || '推荐', url: typeof window !== 'undefined' ? window.location.href : '' });
+        await navigator.share({ title: video?.title || '推荐', url: shareUrl() });
       } else if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(typeof window !== 'undefined' ? window.location.href : '');
+        await navigator.clipboard.writeText(shareUrl());
         notify('链接已复制到剪贴板');
       } else {
         notify('当前环境不支持分享', 'info');
@@ -484,11 +554,31 @@ export function RecommendVideoFeed() {
     if (route) router.push(route);
   };
 
+  // ── 弹幕 ──
+  const danmaku = useFeedDanmaku(videoKey, danmakuOn);
+  const sendDanmaku = async () => {
+    const text = danmakuDraft.trim();
+    if (!text || !video || danmakuSending) return;
+    setDanmakuSending(true);
+    try {
+      // 弹幕就是一条评论:评论区里也看得到,别人的弹幕层下一轮轮询就能拉到
+      await sendComment({ contentId: video.idString || String(video.id), content: text });
+      danmaku.pushMine(text);
+      setDanmakuDraft('');
+    } catch (err) {
+      notify(formatApiError(err), 'error');
+    } finally {
+      setDanmakuSending(false);
+    }
+  };
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) return;
-      if (e.key === ' ' || e.key === 'k') {
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+      if (e.key === 'Escape') {
+        setCommentsOpen(false);
+      } else if (e.key === ' ' || e.key === 'k') {
         e.preventDefault();
         videoPlayerRef.current?.togglePlay();
       } else if (e.key === 'ArrowRight') {
@@ -501,6 +591,8 @@ export function RecommendVideoFeed() {
       } else if (e.key === 'ArrowUp' || e.key === 'PageUp') {
         e.preventDefault();
         go(-1);
+      } else if (e.key === 'x') {
+        setCommentsOpen((o) => !o);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -516,26 +608,15 @@ export function RecommendVideoFeed() {
     return () => rootEl.removeEventListener('wheel', handleWheel);
   }, [rootEl, handleWheel]);
 
+  // 视口高度只给拖动阈值用;翻页位移用百分比,评论栏开合时视口变高变矮不用跟着重算。
   const viewportRef = useRef<HTMLDivElement | null>(null);
-  const roRef = useRef<ResizeObserver | null>(null);
-  const [vh, setVh] = useState(0);
   const [dragY, setDragY] = useState(0);
   const [dragging, setDragging] = useState(false);
   const dragState = useRef({ active: false, startY: 0, moved: 0 });
 
-  const setViewportRef = useCallback((node: HTMLDivElement | null) => {
-    viewportRef.current = node;
-    roRef.current?.disconnect();
-    if (node) {
-      setVh(node.clientHeight);
-      const ro = new ResizeObserver(() => setVh(node.clientHeight));
-      ro.observe(node);
-      roRef.current = ro;
-    }
-  }, []);
-
   const onPointerDown = (e: React.PointerEvent) => {
     if ((e.target as HTMLElement).closest('[data-no-drag]')) return;
+    if (navBlocked) return;
     dragState.current = { active: true, startY: e.clientY, moved: 0 };
     setDragging(true);
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
@@ -548,46 +629,59 @@ export function RecommendVideoFeed() {
     if ((d > 0 && index === 0) || (d < 0 && index === uniqueVideos.length - 1)) d *= 0.32;
     setDragY(d);
   };
-  const endDrag = () => {
+  const onTap = (e: React.PointerEvent) => {
+    const now = Date.now();
+    const rect = viewportRef.current?.getBoundingClientRect();
+    if (now - lastTap.current < 300) {
+      // 双击:取消掉挂起的单击,点亮红心
+      if (singleTapTimer.current) clearTimeout(singleTapTimer.current);
+      lastTap.current = 0;
+      if (rect) {
+        const key = now;
+        setHearts((h) => [...h, { key, x: e.clientX - rect.left, y: e.clientY - rect.top }]);
+        setTimeout(() => setHearts((h) => h.filter((x) => x.key !== key)), 900);
+      }
+      if (!liked) handleLike();
+      return;
+    }
+    lastTap.current = now;
+    // 单击 = 切换真实 <video> 的播放/暂停(外链播放器则是放行下一次点击)。
+    // 等一下看是不是双击,免得双击点赞时视频先停了。
+    if (singleTapTimer.current) clearTimeout(singleTapTimer.current);
+    singleTapTimer.current = setTimeout(() => videoPlayerRef.current?.togglePlay(), 260);
+  };
+  const endDrag = (e: React.PointerEvent) => {
     const s = dragState.current;
-    if (!s.active) return;
+    if (!s.active) {
+      // 移动端评论打开时,点一下视频区 = 收起评论
+      if (navBlocked && !(e.target as HTMLElement).closest('[data-no-drag]')) setCommentsOpen(false);
+      return;
+    }
     s.active = false;
     setDragging(false);
     const d = dragY;
     if (s.moved < 6) {
       setDragY(0);
-      // 单击(非拖拽)= 切换真实 <video> 的播放/暂停,而不是一份脱节的界面假状态。
-      videoPlayerRef.current?.togglePlay();
+      onTap(e);
       return;
     }
-    const threshold = (vh || 600) * 0.2;
+    const threshold = (viewportRef.current?.clientHeight || 600) * 0.18;
     if (!navLock.current && d <= -threshold && index < uniqueVideos.length - 1) {
-      setSlideDir(1);
       setIndex((i) => i + 1);
-      setDragY(0);
       lockNav();
+    } else if (!navLock.current && d <= -threshold) {
+      go(1); // 最后一条:给"加载中 / 到底了"的提示
     } else if (!navLock.current && d >= threshold && index > 0) {
-      setSlideDir(-1);
       setIndex((i) => i - 1);
-      setDragY(0);
       lockNav();
-    } else {
-      setDragY(0);
     }
+    setDragY(0);
   };
 
-  if (isLoading) {
+  if (isLoading || (!video && (hasNextPage || isFetchingNextPage))) {
     return (
       <Box data-fill-main sx={{ width: '100%', height: '100%', minHeight: 240, bgcolor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Typography sx={{ color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>加载推荐中…</Typography>
-      </Box>
-    );
-  }
-
-  if (!video && (hasNextPage || isFetchingNextPage)) {
-    return (
-      <Box data-fill-main sx={{ width: '100%', height: '100%', minHeight: 240, bgcolor: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Typography sx={{ color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>加载推荐中…</Typography>
+        <CircularProgress size={28} sx={{ color: 'rgba(255,255,255,0.6)' }} />
       </Box>
     );
   }
@@ -600,6 +694,10 @@ export function RecommendVideoFeed() {
     );
   }
 
+  const compactStage = navBlocked; // 移动端评论打开:视频区缩到上方,浮层全收起
+  // 桌面端右侧留一条给操作栏,视频在剩下的区域里居中,操作按钮不压在外链播放器的控件上
+  const actionRail = isDesktop ? 84 : 0;
+
   return (
     <Box
       // 首页 main 是列向 flex,带这个标记的直接子元素 flex:1 铺满剩余高度。
@@ -611,381 +709,430 @@ export function RecommendVideoFeed() {
         width: '100%',
         height: '100%',
         minHeight: 0,
-        bgcolor: '#000000',
+        bgcolor: '#000',
         display: 'flex',
-        flexDirection: 'column',
+        flexDirection: isDesktop ? 'row' : 'column',
         overflow: 'hidden',
+        // 音乐底栏出现时首页 main 会在底部让出它的高度;推荐流不跟着缩(缩了 iframe 要重排、
+        // 画面跳一下),而是伸到底栏下面,只把底部浮层往上抬 --player-inset。
+        mb: 'calc(-1 * var(--player-inset, 0px))',
         // 双保险:即便某个滚轮/触摸事件漏掉了 preventDefault,也不让浏览器把
         // 溢出滚动/回弹链传到父级或触发原生下拉刷新。
         overscrollBehavior: 'contain',
       }}
     >
+      {/* ── 舞台:视频 + 浮层 ── */}
       <Box
-        ref={setViewportRef}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
         sx={{
           position: 'relative',
-          flex: 1,
+          flex: isDesktop ? '1 1 auto' : '0 0 auto',
+          minWidth: 0,
           minHeight: 0,
+          height: isDesktop ? '100%' : compactStage ? MOBILE_STAGE_WITH_COMMENTS : '100%',
+          transition: 'height 0.3s cubic-bezier(0.22, 0.61, 0.36, 1)',
           overflow: 'hidden',
-          bgcolor: '#000',
-          touchAction: 'none',
-          cursor: dragging ? 'grabbing' : 'grab',
+          // 桌面端做成圆角画布,和评论栏之间留条缝
+          ...(isDesktop ? { m: 1, mr: commentsOpen ? 0 : 1, borderRadius: 3, bgcolor: '#0a0a0a' } : {}),
         }}
       >
         <Box
+          ref={viewportRef}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
           sx={{
             position: 'absolute',
-            left: 0,
-            right: 0,
-            top: 0,
-            height: vh ? vh * uniqueVideos.length : '100%',
-            transform: `translateY(${-index * (vh || 0) + dragY}px)`,
-            transition: dragging ? 'none' : 'transform 0.34s cubic-bezier(0.22, 0.61, 0.36, 1)',
-            willChange: 'transform',
+            inset: 0,
+            overflow: 'hidden',
+            touchAction: 'none',
+            cursor: dragging ? 'grabbing' : 'default',
           }}
         >
-          {uniqueVideos.map((v, i) => (
-            <Box
-              // Use the lossless string id (idString) for stable identity on reorder.
-              // Falls back to composite `${i}-${v.id}` if the backend omits it.
-              key={`video-${v.idString ? `s-${v.idString}` : `${i}-${v.id}`}`}
-              sx={{
-                position: 'absolute',
-                left: 0,
-                right: 0,
-                top: vh ? i * vh : 0,
-                height: vh || '100%',
-                opacity: vh > 0 || i === index ? 1 : 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                // 纯黑背景:之前这里叠了一层按内容类型着色的渐变(::after,
-                // opacity 0.35),把整个未被视频覆盖的区域染成对应色调,而不是
-                // TikTok 那种沉浸式纯黑。视频本身通过 VideoPlayer 的 fill 模式
-                // 居中撑满、黑底信封边(letterbox),不再需要这层色块打底。
-                bgcolor: '#000',
-              }}
-            >
-              {/* 视频播放器或封面 */}
-              {i === index && (videoSrc || resolveEmbedPlayer(v.sourceUrl)) ? (
-                <VideoPlayer
-                  ref={videoPlayerRef}
-                  fill
-                  src={videoSrc}
-                  refreshSource={v.sourceUrl}
-                  poster={v.cover}
-                  initialDuration={video?.durationSec || 60}
-                  autoPlay={playing}
-                  onPlaybackError={(message) => reportBrokenContent(v, message)}
-                />
-              ) : (
+          <Box
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              // 百分比位移:translateY 的 % 相对自身高度,也就是一屏
+              transform: `translateY(calc(${-index * 100}% + ${dragY}px))`,
+              transition: dragging ? 'none' : 'transform 0.34s cubic-bezier(0.22, 0.61, 0.36, 1)',
+              willChange: 'transform',
+            }}
+          >
+            {uniqueVideos.map((v, i) => {
+              // 只渲染当前和上下相邻的一屏:拖动时露得出来,其余不占 DOM
+              if (Math.abs(i - index) > 1) return null;
+              const active = i === index;
+              return (
                 <Box
+                  // Use the lossless string id (idString) for stable identity on reorder.
+                  key={`video-${v.idString ? `s-${v.idString}` : `${i}-${v.id}`}`}
                   sx={{
                     position: 'absolute',
-                    inset: 0,
-                    /* CSS url() 里的字符串必须包引号,否则含 ? & 空格等会断;
-                       外站/MinIO 内网直链必须过 mediaUrl 走代理改写。 */
-                    background: `url("${mediaUrl(v.cover)}") center/cover no-repeat`,
-                  }}
-                />
-              )}
-
-              {/* 之前 streamLoading/streamError 两个状态只写进 state,JSX 里从没渲染过——
-                  解析失败时用户看到的就是静止封面图,和"正常但没有视频只是一张图"的内容
-                  长得一模一样,分不清是坏的还是就该这样,只能干等或者不明所以地划走。
-                  这里补上明确反馈:解析中给个不遮挡滑动的小转圈,解析失败给一个显眼的
-                  "暂时无法播放"标记,让用户立刻知道这条不是卡住了,划走就行,不用等。 */}
-              {i === index && !videoSrc && streamLoading && (
-                <Box
-                  sx={{
-                    position: 'absolute',
-                    inset: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    pointerEvents: 'none',
-                    zIndex: 2,
+                    left: 0,
+                    right: 0,
+                    top: `${i * 100}%`,
+                    height: '100%',
+                    overflow: 'hidden',
+                    bgcolor: '#000',
                   }}
                 >
-                  <CircularProgress size={32} sx={{ color: 'rgba(255,255,255,0.75)' }} />
-                </Box>
-              )}
-              {i === index && !videoSrc && !streamLoading && streamError && (
-                <Box
-                  data-no-drag
-                  sx={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 1,
-                    px: 3,
-                    py: 2,
-                    borderRadius: 2,
-                    bgcolor: 'rgba(0, 0, 0, 0.55)',
-                    backdropFilter: 'blur(8px)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                    zIndex: 2,
-                    textAlign: 'center',
-                    maxWidth: 260,
-                  }}
-                >
-                  {/* 图标也分故障和非故障:直播间没开播用中性的"休息中",
-                      不能用警告色 —— 那会让用户以为我们坏了。 */}
-                  {v.playbackStatus === 'live_offline' ? (
-                    <BedtimeRoundedIcon sx={{ fontSize: 32, color: 'rgba(255,255,255,0.55)' }} />
-                  ) : v.playbackStatus === 'bandwidth_limited' ? (
-                    <CloudOffRoundedIcon sx={{ fontSize: 32, color: 'rgba(255,255,255,0.55)' }} />
-                  ) : (
-                    <ErrorOutlineRoundedIcon sx={{ fontSize: 32, color: 'warning.main' }} />
-                  )}
-                  <Typography sx={{ fontSize: 14, fontWeight: 600, color: 'text.primary' }}>
-                    {v.playbackStatus === 'live_offline'
-                      ? '主播未开播'
-                      : v.playbackStatus === 'bandwidth_limited'
-                        ? '暂不支持站内播放'
-                      : v.playbackStatus === 'pending_repair'
-                        ? '内容修复中'
-                        : '该内容暂时无法播放'}
-                  </Typography>
-                  {/* 后端判定为待修复时,直接显示它给出的具体原因("该内容只存了
-                      剧集总览页,正在补齐分集播放地址"之类),比一句笼统的
-                      "已记录,尽快修复"有用得多 —— 用户知道这不是自己网络的问题,
-                      运营也能从用户反馈里对上是哪一类故障。
-                      直播未开播则完全不提"修复":没有任何东西坏了。 */}
-                  <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>
-                    {v.playbackStatus === 'live_offline'
-                      ? '上滑看下一个'
-                      : v.playbackStatus === 'bandwidth_limited'
-                        ? `${v.repairNotice || BANDWIDTH_NOTICE} · 上滑看下一个`
-                      : v.playbackStatus === 'pending_repair' && v.repairNotice
-                        ? `${v.repairNotice} · 上滑看下一个`
-                        : `${streamError} · 已记录,尽快修复 · 上滑看下一个`}
-                  </Typography>
-                  {v.playbackStatus === 'bandwidth_limited' && v.sourceUrl && (
-                    <Box
-                      component="a"
-                      href={v.sourceUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      data-no-drag
-                      sx={{
-                        mt: 0.5,
-                        px: 2,
-                        py: 0.5,
-                        borderRadius: 1,
-                        fontSize: 12,
-                        color: '#fff',
-                        textDecoration: 'none',
-                        border: '1px solid rgba(255,255,255,0.35)',
-                        bgcolor: 'rgba(255,255,255,0.08)',
-                      }}
-                    >
-                      {originOnlyPlatform(v.sourceUrl) ? `去${originOnlyPlatform(v.sourceUrl)}观看` : '去原站观看'}
-                    </Box>
-                  )}
-                </Box>
-              )}
-
-              {i === index && (
-                <>
+                  {/* 封面糊底:横屏视频上下的黑边换成同一画面的虚化,和抖音一样不显得空 */}
                   <Box
-                    data-no-drag
+                    aria-hidden
                     sx={{
                       position: 'absolute',
-                      right: { xs: 8, sm: 16, md: 20 },
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 1.25,
-                      zIndex: 4,
+                      inset: '-40px',
+                      background: v.cover ? `url("${mediaUrl(v.cover)}") center/cover no-repeat` : getContentTypeColor(v.contentType),
+                      filter: 'blur(36px) brightness(0.45) saturate(1.2)',
+                      transform: 'scale(1.1)',
                     }}
-                  >
-                  </Box>
-
-
-                  <Box
-                    sx={{
-                      position: 'absolute',
-                      top: 16,
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 0.75,
-                      px: 1.5,
-                      py: 0.5,
-                      borderRadius: 999,
-                      bgcolor: 'rgba(0, 0, 0, 0.4)',
-                      backdropFilter: 'blur(10px)',
-                      border: '1px solid rgba(255, 255, 255, 0.08)',
-                      zIndex: 3,
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        width: 18,
-                        height: 18,
-                        borderRadius: '50%',
-                        background: getContentTypeColor(video.contentType),
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 10,
-                      }}
-                    >
-                      <StarRoundedIcon sx={{ fontSize: 12, color: '#fff' }} />
-                    </Box>
-                    <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.primary' }}>{video.brand}</Typography>
-                  </Box>
-
-                  {/* 播放/暂停状态由 VideoPlayer 自己的中心播放按钮体现(那是真实
-                      播放状态,不是这里另一份脱节的模拟状态),标题已经在下方
-                      左下角的作者信息区展示,这里不再重复一份铺满屏幕的大标题。 */}
-
-                  <Box
-                    data-no-drag
-                    sx={{
-                      position: 'absolute',
-                      right: { xs: 8, sm: 14, md: 18 },
-                      bottom: 110,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 1.75,
-                      alignItems: 'center',
-                      zIndex: 3,
-                    }}
-                  >
-                    <Box sx={{ position: 'relative', mb: 0.5 }}>
-                      <Avatar
-                        src={video.authorAvatar}
-                        sx={{
-                          width: 48,
-                          height: 48,
-                          border: '2px solid #FFFFFF',
-                          background: getContentTypeColor(video.contentType),
-                        }}
-                      >
-                        {video.author?.[0]}
-                      </Avatar>
-                      {!following && (
-                        <Box
-                          onClick={handleFollow}
-                          sx={{
-                            position: 'absolute',
-                            bottom: -6,
-                            left: '50%',
-                            transform: 'translateX(-50%)',
-                            width: 20,
-                            height: 20,
-                            borderRadius: '50%',
-                            bgcolor: 'primary.main',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            border: '2px solid #000000',
-                            cursor: 'pointer',
-                            opacity: followBusy ? 0.6 : 1,
-                          }}
-                        >
-                          <AddRoundedIcon sx={{ fontSize: 14, color: 'text.primary' }} />
-                        </Box>
-                      )}
-                    </Box>
-
-                    <SideAction
-                      active={liked}
-                      onClick={(e) => { e.stopPropagation(); handleLike(); }}
-                      icon={liked ? <FavoriteRoundedIcon sx={{ fontSize: 30 }} /> : <FavoriteBorderRoundedIcon sx={{ fontSize: 30 }} />}
-                      value={formatCount(likedCount)}
-                      activeColor="primary.main"
-                      badge={likeBurst && likeBurst.id === video.id ? String(likeBurst.key) : null}
-                    />
-                    <SideAction
-                      icon={<ModeCommentOutlinedIcon sx={{ fontSize: 28 }} />}
-                      value={formatCount(video.comments)}
-                      onClick={handleCommentClick}
-                    />
-                    <SideAction
-                      active={collected}
-                      onClick={(e) => { e.stopPropagation(); handleCollect(); }}
-                      icon={collected ? <BookmarkRoundedIcon sx={{ fontSize: 28 }} /> : <BookmarkBorderRoundedIcon sx={{ fontSize: 28 }} />}
-                      value={formatCount(collectedCount)}
-                      activeColor="warning.main"
-                    />
-                    <SideAction
-                      icon={<ReplyRoundedIcon sx={{ fontSize: 28, transform: 'scaleX(-1)' }} />}
-                      value={formatCount(video.shares)}
-                      onClick={handleShare}
-                    />
-                    <SideAction icon={<MoreHorizRoundedIcon sx={{ fontSize: 28 }} />} value="" onClick={handleMore} />
-                  </Box>
-
-                  <Box
-                    sx={{
-                      position: 'absolute',
-                      left: 20,
-                      right: 88,
-                      bottom: 92,
-                      zIndex: 3,
-                      color: 'text.primary',
-                      textShadow: '0 1px 3px rgba(0, 0, 0, 0.6)',
-                      pointerEvents: 'auto',
-                    }}
-                    onClick={() => handleCardClick(video)}
-                  >
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
-                      <Typography sx={{ fontSize: 15, fontWeight: 700 }}>@{video.author}</Typography>
-                      {video.verified && (
-                        <VerifiedRoundedIcon sx={{ fontSize: 14, color: 'secondary.main' }} />
-                      )}
+                  />
+                  <Box sx={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: actionRail }}>
+                    {active && (videoSrc || resolveEmbedPlayer(v.sourceUrl)) ? (
+                      <VideoPlayer
+                        ref={videoPlayerRef}
+                        fill
+                        src={videoSrc}
+                        refreshSource={v.sourceUrl}
+                        poster={v.cover}
+                        initialDuration={video?.durationSec || 60}
+                        autoPlay={playing}
+                        onPlaybackError={(message) => reportBrokenContent(v, message)}
+                        embedDanmaku={danmakuOn}
+                        // 移动端评论打开后只剩一小块:不再给底部文案让位
+                        fillReserveBottom={compactStage ? 0 : `calc(${isDesktop ? 150 : 170}px + var(--player-inset, 0px))`}
+                      />
+                    ) : (
                       <Box
                         sx={{
-                          ml: 0.5,
-                          px: 0.75,
-                          py: 0.05,
-                          borderRadius: 0.5,
-                          bgcolor: 'rgba(255, 255, 255, 0.15)',
-                          fontSize: 10,
-                          fontWeight: 600,
-                          backdropFilter: 'blur(4px)',
+                          position: 'absolute',
+                          inset: 0,
+                          /* CSS url() 里的字符串必须包引号,否则含 ? & 空格等会断;
+                             外站/MinIO 内网直链必须过 mediaUrl 走代理改写。 */
+                          background: `url("${mediaUrl(v.cover)}") center/contain no-repeat`,
+                        }}
+                      />
+                    )}
+                  </Box>
+
+                  {/* 解析中:不挡滑动的小转圈;解析失败:明确的"暂时无法播放"卡片,划走就行 */}
+                  {active && !videoSrc && streamLoading && (
+                    <Box sx={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', zIndex: 2 }}>
+                      <CircularProgress size={32} sx={{ color: 'rgba(255,255,255,0.75)' }} />
+                    </Box>
+                  )}
+                  {active && !videoSrc && !streamLoading && streamError && (
+                    <UnplayableCard video={v} streamError={streamError} />
+                  )}
+
+                  {/* 底部渐隐:让白字在任何画面上都读得清 */}
+                  {!compactStage && (
+                    <Box
+                      aria-hidden
+                      sx={{
+                        position: 'absolute',
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        height: '42%',
+                        background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.22) 45%, rgba(0,0,0,0.62) 100%)',
+                        pointerEvents: 'none',
+                        zIndex: 1,
+                      }}
+                    />
+                  )}
+
+                  {active && !compactStage && (
+                    <>
+                      {/* 右侧操作栏 */}
+                      <Box
+                        data-no-drag
+                        sx={{
+                          position: 'absolute',
+                          right: { xs: 8, md: 14 },
+                          bottom: { xs: 'calc(72px + var(--player-inset, 0px))', md: 'calc(80px + var(--player-inset, 0px))' },
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: { xs: 1.5, md: 2 },
+                          alignItems: 'center',
+                          zIndex: 3,
                         }}
                       >
-                        {video.brand}
+                        <Box sx={{ position: 'relative', mb: 1 }}>
+                          <Avatar
+                            src={video.authorAvatar}
+                            onClick={() => handleCardClick(video)}
+                            sx={{
+                              width: 46,
+                              height: 46,
+                              border: '2px solid #fff',
+                              background: getContentTypeColor(video.contentType),
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {video.author?.[0]}
+                          </Avatar>
+                          <Box
+                            onClick={handleFollow}
+                            role="button"
+                            aria-label={following ? '取消关注' : '关注'}
+                            sx={{
+                              position: 'absolute',
+                              bottom: -9,
+                              left: '50%',
+                              transform: 'translateX(-50%)',
+                              width: 20,
+                              height: 20,
+                              borderRadius: '50%',
+                              bgcolor: following ? '#fff' : ACCENT,
+                              color: following ? ACCENT : '#fff',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              opacity: followBusy ? 0.6 : 1,
+                              transition: 'background-color .2s, color .2s',
+                            }}
+                          >
+                            {following ? <CheckRoundedIcon sx={{ fontSize: 14 }} /> : <AddRoundedIcon sx={{ fontSize: 14 }} />}
+                          </Box>
+                        </Box>
+
+                        <SideAction
+                          active={liked}
+                          label="点赞"
+                          onClick={(e) => { e.stopPropagation(); handleLike(); }}
+                          icon={liked ? <FavoriteRoundedIcon sx={{ fontSize: 32 }} /> : <FavoriteBorderRoundedIcon sx={{ fontSize: 32 }} />}
+                          value={formatCount(likedCount)}
+                          activeColor={ACCENT}
+                          badge={likeBurst && likeBurst.id === video.id ? String(likeBurst.key) : null}
+                        />
+                        <SideAction
+                          active={commentsOpen}
+                          label="评论"
+                          icon={<ModeCommentRoundedIcon sx={{ fontSize: 29 }} />}
+                          value={formatCount(video.comments)}
+                          onClick={handleCommentClick}
+                          activeColor="#fff"
+                        />
+                        <SideAction
+                          active={collected}
+                          label="收藏"
+                          onClick={(e) => { e.stopPropagation(); handleCollect(); }}
+                          icon={collected ? <BookmarkRoundedIcon sx={{ fontSize: 30 }} /> : <BookmarkBorderRoundedIcon sx={{ fontSize: 30 }} />}
+                          value={formatCount(collectedCount)}
+                          activeColor="#FFC300"
+                        />
+                        <SideAction
+                          label="分享"
+                          icon={<ReplyRoundedIcon sx={{ fontSize: 30, transform: 'scaleX(-1)' }} />}
+                          value={formatCount(video.shares)}
+                          onClick={handleShare}
+                        />
+                        <SideAction label="更多" icon={<MoreHorizRoundedIcon sx={{ fontSize: 28 }} />} value="" onClick={handleMore} />
                       </Box>
-                    </Box>
-                    <Typography
-                      sx={{
-                        fontSize: 13,
-                        lineHeight: 1.5,
-                        color: 'rgba(255, 255, 255, 0.95)',
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                        maxWidth: 540,
-                      }}
-                    >
-                      {video.caption}
-                    </Typography>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.75, color: 'rgba(255,255,255,0.75)', fontSize: 11 }}>
-                      <QueueMusicRoundedIcon sx={{ fontSize: 12 }} />
-                      <Typography sx={{ fontSize: 11 }}>{formatCount(video.views)} 次浏览</Typography>
-                    </Box>
-                  </Box>
-                </>
-              )}
-            </Box>
+
+                      {/* 左下:作者 / 标题 / 来源 */}
+                      <Box
+                        sx={{
+                          position: 'absolute',
+                          left: { xs: 14, md: 22 },
+                          right: { xs: 76, md: 110 },
+                          bottom: { xs: 'calc(64px + var(--player-inset, 0px))', md: 'calc(72px + var(--player-inset, 0px))' },
+                          zIndex: 3,
+                          color: '#fff',
+                          textShadow: TEXT_SHADOW,
+                        }}
+                      >
+                        <Box
+                          data-no-drag
+                          onClick={() => handleCardClick(video)}
+                          sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, mb: 0.5, cursor: 'pointer' }}
+                        >
+                          <Typography sx={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>@{video.author}</Typography>
+                          {video.verified && <VerifiedRoundedIcon sx={{ fontSize: 15, color: '#20D5EC' }} />}
+                        </Box>
+                        <Typography
+                          sx={{
+                            fontSize: 14,
+                            lineHeight: 1.5,
+                            color: 'rgba(255,255,255,0.95)',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            maxWidth: 560,
+                          }}
+                        >
+                          {video.caption}
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.75, fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>
+                          <Box component="span" sx={{ px: 0.75, borderRadius: 0.75, bgcolor: 'rgba(255,255,255,0.16)', lineHeight: '18px' }}>
+                            {video.brand}
+                          </Box>
+                          <span>{formatCount(video.views)} 次播放</span>
+                          <Box
+                            component="span"
+                            data-no-drag
+                            onClick={() => handleCardClick(video)}
+                            sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25, cursor: 'pointer', '&:hover': { color: '#fff' } }}
+                          >
+                            详情 <OpenInNewRoundedIcon sx={{ fontSize: 12 }} />
+                          </Box>
+                        </Box>
+                      </Box>
+                    </>
+                  )}
+                </Box>
+              );
+            })}
+          </Box>
+
+          {/* 双击红心 */}
+          {hearts.map((h) => (
+            <FavoriteRoundedIcon
+              key={h.key}
+              sx={{
+                position: 'absolute',
+                left: h.x - 40,
+                top: h.y - 40,
+                fontSize: 80,
+                color: ACCENT,
+                pointerEvents: 'none',
+                zIndex: 5,
+                filter: 'drop-shadow(0 4px 12px rgba(254,44,85,0.45))',
+                animation: 'feedHeartPop 0.9s ease-out forwards',
+                '@keyframes feedHeartPop': {
+                  '0%': { opacity: 0, transform: 'scale(0.4) rotate(-12deg)' },
+                  '18%': { opacity: 1, transform: 'scale(1.15) rotate(-6deg)' },
+                  '35%': { transform: 'scale(1) rotate(-6deg)' },
+                  '100%': { opacity: 0, transform: 'translateY(-90px) scale(1.4) rotate(-6deg)' },
+                },
+              }}
+            />
           ))}
         </Box>
+
+        {/* 弹幕层:站内评论滚动飘过(外链播放器自带的弹幕由 embedDanmaku 负责) */}
+        {!compactStage && <DanmakuLayer items={danmaku.flying} onLand={danmaku.land} />}
+
+        {/* 底部弹幕输入条 */}
+        {!compactStage && (
+          <Box
+            data-no-drag
+            sx={{
+              position: 'absolute',
+              left: { xs: 10, md: 18 },
+              right: { xs: 10, md: 110 },
+              bottom: { xs: 'calc(10px + var(--player-inset, 0px))', md: 'calc(16px + var(--player-inset, 0px))' },
+              zIndex: 4,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              maxWidth: 560,
+            }}
+          >
+            <IconButton
+              onClick={toggleDanmaku}
+              aria-label={danmakuOn ? '关闭弹幕' : '开启弹幕'}
+              size="small"
+              sx={{ ...GLASS, width: 38, height: 38, color: danmakuOn ? '#fff' : 'rgba(255,255,255,0.55)', '&:hover': { bgcolor: 'rgba(0,0,0,0.45)' } }}
+            >
+              {danmakuOn ? <SubtitlesRoundedIcon sx={{ fontSize: 20 }} /> : <SubtitlesOffRoundedIcon sx={{ fontSize: 20 }} />}
+            </IconButton>
+            <Box
+              component="form"
+              onSubmit={(e: React.FormEvent) => { e.preventDefault(); void sendDanmaku(); }}
+              sx={{ ...GLASS, flex: 1, minWidth: 0, height: 38, borderRadius: 999, display: 'flex', alignItems: 'center', pl: 1.75, pr: 0.5 }}
+            >
+              <InputBase
+                value={danmakuDraft}
+                onChange={(e) => setDanmakuDraft(e.target.value.slice(0, 60))}
+                placeholder={danmakuOn ? '发个友善的弹幕见证当下' : '弹幕已关闭,发出去的会进评论区'}
+                inputProps={{ 'aria-label': '发送弹幕', enterKeyHint: 'send' }}
+                sx={{ flex: 1, minWidth: 0, fontSize: 14, color: '#fff', '& input::placeholder': { color: 'rgba(255,255,255,0.6)', opacity: 1 } }}
+              />
+              <IconButton
+                type="submit"
+                size="small"
+                disabled={!danmakuDraft.trim() || danmakuSending}
+                aria-label="发送"
+                sx={{ color: ACCENT, '&.Mui-disabled': { color: 'rgba(255,255,255,0.3)' } }}
+              >
+                {danmakuSending ? <CircularProgress size={16} sx={{ color: 'inherit' }} /> : <SendRoundedIcon sx={{ fontSize: 18 }} />}
+              </IconButton>
+            </Box>
+          </Box>
+        )}
+
+        {/* 桌面端:上下翻页按钮(抖音网页版同款) */}
+        {isDesktop && (
+          <Box data-no-drag sx={{ position: 'absolute', right: 20, top: 20, display: 'flex', flexDirection: 'column', gap: 1, zIndex: 4 }}>
+            <IconButton aria-label="上一个" onClick={() => go(-1)} disabled={index === 0} sx={{ ...GLASS, color: '#fff', '&.Mui-disabled': { color: 'rgba(255,255,255,0.25)' }, '&:hover': { bgcolor: 'rgba(0,0,0,0.5)' } }}>
+              <KeyboardArrowUpRoundedIcon />
+            </IconButton>
+            <IconButton aria-label="下一个" onClick={() => go(1)} sx={{ ...GLASS, color: '#fff', '&:hover': { bgcolor: 'rgba(0,0,0,0.5)' } }}>
+              <KeyboardArrowDownRoundedIcon />
+            </IconButton>
+          </Box>
+        )}
+      </Box>
+
+      {/* ── 评论栏:桌面右侧挤压视频,移动端从下方升起把视频推上去 ── */}
+      <Box
+        data-feed-comments
+        data-no-drag
+        aria-hidden={!commentsOpen}
+        sx={{
+          position: 'relative',
+          flexShrink: 0,
+          overflow: 'hidden',
+          bgcolor: 'background.paper',
+          color: 'text.primary',
+          transition: isDesktop
+            ? 'width 0.3s cubic-bezier(0.22, 0.61, 0.36, 1)'
+            : 'height 0.3s cubic-bezier(0.22, 0.61, 0.36, 1)',
+          ...(isDesktop
+            ? { width: commentsOpen ? DESKTOP_COMMENTS_W : 0, height: '100%' }
+            : {
+                width: '100%',
+                height: commentsOpen ? `calc(100% - ${MOBILE_STAGE_WITH_COMMENTS})` : 0,
+                borderTopLeftRadius: 16,
+                borderTopRightRadius: 16,
+              }),
+        }}
+      >
+        {commentsOpen && video && (
+          <Box sx={{ position: 'absolute', inset: 0, width: isDesktop ? DESKTOP_COMMENTS_W : '100%', display: 'flex', flexDirection: 'column' }}>
+            {!isDesktop && (
+              <Box aria-hidden sx={{ width: 36, height: 4, borderRadius: 2, bgcolor: 'divider', mx: 'auto', mt: 1, flexShrink: 0 }} />
+            )}
+            <IconButton
+              aria-label="收起评论"
+              onClick={() => setCommentsOpen(false)}
+              size="small"
+              sx={{ position: 'absolute', top: isDesktop ? 14 : 14, right: 12, zIndex: 1 }}
+            >
+              <CloseRoundedIcon sx={{ fontSize: 20 }} />
+            </IconButton>
+            <Box
+              sx={{
+                flex: 1,
+                minHeight: 0,
+                overflowY: 'auto',
+                overscrollBehavior: 'contain',
+                px: 2,
+                pt: isDesktop ? 1.5 : 0.5,
+                pb: 'calc(16px + var(--player-inset, 0px))',
+                // DetailComments 的展开模式开头带一条分隔线(详情页用),栏里不要
+                '& > .MuiBox-root > .MuiDivider-root:first-of-type': { display: 'none' },
+              }}
+            >
+              <DetailComments key={videoKey ?? ''} contentId={video.idString || video.id} initialCount={video.comments} />
+            </Box>
+          </Box>
+        )}
       </Box>
 
       <Snackbar
@@ -999,106 +1146,148 @@ export function RecommendVideoFeed() {
         </Alert>
       </Snackbar>
 
-      {/* 评论抽屉 —— 响应式:
-          · 桌面端 (>= md) 从右侧滑入,宽 420/480px,左侧视频区不被整屏遮罩覆盖,
-            用户可以同时看着视频翻评论,符合参考的 PC 端体验。
-          · 移动端 (< md) 维持从底部弹出,占视口约 75% 高度,顶部圆角 —— 移动端
-            视频区本来就窄,底部抽屉遮住下半屏是抖音/快手的标准做法。
-          DetailComments 用展开模式(!compact):评论列表 + 输入框 + 表情 + 楼中楼回复
-          + 顶/踩/收藏 + 加载更多,全套直接铺在抽屉里,不用再套一层 Dialog。
-          关键原因:DetailComments 的 compact 模式只在用户点中图标时把内部 Dialog 打开,
-          而 Drawer 的 contents 没法触发那次内部 click —— compact 模式在 Drawer 容器里
-          只会渲染出一个评论数小条,内容不会显示。展开模式是整块直接渲染。 */}
-      <Drawer
-        anchor={isMobile ? 'bottom' : 'right'}
-        open={commentDrawerOpen}
-        onClose={() => setCommentDrawerOpen(false)}
-        transitionDuration={{ enter: 280, exit: 220 }}
+      {/* 更多:和画面同一套深色毛玻璃,不跳出一个白色系统弹窗 */}
+      <Dialog
+        open={moreDialogOpen}
+        onClose={() => setMoreDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
         slotProps={{
           paper: {
-            sx: isMobile
-              ? {
-                  height: { xs: '85vh', sm: '75vh' },
-                  maxHeight: '85vh',
-                  borderTopLeftRadius: 16,
-                  borderTopRightRadius: 16,
-                  bgcolor: 'background.paper',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  overflow: 'hidden',
-                }
-              : {
-                  width: { md: 420, lg: 480 },
-                  maxWidth: '100%',
-                  height: '100%',
-                  borderTopLeftRadius: 0,
-                  borderTopRightRadius: 0,
-                  bgcolor: 'background.paper',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  overflow: 'hidden',
-                },
+            sx: {
+              ...GLASS,
+              bgcolor: 'rgba(22, 22, 26, 0.92)',
+              color: '#fff',
+              borderRadius: 3,
+              backgroundImage: 'none',
+              ...(isDesktop ? {} : { position: 'fixed', bottom: 0, m: 0, width: '100%', maxWidth: '100%', borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }),
+            },
           },
         }}
       >
-        {video && (
-          <DetailComments
-            contentId={video.idString || video.id}
-            initialCount={video.comments}
-          />
-        )}
-      </Drawer>
-
-      <Dialog open={moreDialogOpen} onClose={() => setMoreDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontSize: 15, fontWeight: 600 }}>更多</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <Button
-              fullWidth
-              variant="outlined"
-              size="small"
-              onClick={handleReport}
-              sx={{ textTransform: 'none', justifyContent: 'flex-start', borderColor: 'rgba(255,255,255,0.12)', color: 'text.primary' }}
+        <Box sx={{ p: 1 }}>
+          {[
+            { label: '不感兴趣', onClick: handleNotInterested },
+            { label: '复制链接', onClick: handleCopyLink },
+            { label: '查看详情', onClick: () => { setMoreDialogOpen(false); handleCardClick(video); } },
+            { label: '举报', onClick: handleReport, danger: true },
+          ].map((it) => (
+            <Box
+              key={it.label}
+              role="button"
+              tabIndex={0}
+              onClick={it.onClick}
+              onKeyDown={(e) => { if (e.key === 'Enter') it.onClick(); }}
+              sx={{
+                px: 2,
+                py: 1.5,
+                borderRadius: 2,
+                fontSize: 15,
+                cursor: 'pointer',
+                color: it.danger ? ACCENT : '#fff',
+                '&:hover, &:focus-visible': { bgcolor: 'rgba(255,255,255,0.08)', outline: 'none' },
+              }}
             >
-              举报内容
-            </Button>
-            <Button
-              fullWidth
-              variant="outlined"
-              size="small"
-              onClick={() => { notify('已减少此类推荐', 'info'); setMoreDialogOpen(false); }}
-              sx={{ textTransform: 'none', justifyContent: 'flex-start', borderColor: 'rgba(255,255,255,0.12)', color: 'text.primary' }}
-            >
-              不感兴趣
-            </Button>
-            <Button
-              fullWidth
-              variant="outlined"
-              size="small"
-              onClick={handleCopyLink}
-              sx={{ textTransform: 'none', justifyContent: 'flex-start', borderColor: 'rgba(255,255,255,0.12)', color: 'text.primary' }}
-            >
-              复制链接
-            </Button>
+              {it.label}
+            </Box>
+          ))}
+          <Box
+            role="button"
+            tabIndex={0}
+            onClick={() => setMoreDialogOpen(false)}
+            sx={{ mt: 0.5, px: 2, py: 1.5, borderRadius: 2, fontSize: 15, textAlign: 'center', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', borderTop: '1px solid rgba(255,255,255,0.08)' }}
+          >
+            取消
           </Box>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setMoreDialogOpen(false)} size="small" sx={{ textTransform: 'none' }}>关闭</Button>
-        </DialogActions>
+        </Box>
       </Dialog>
     </Box>
   );
 }
 
-// 右侧单个按钮:圆形毛玻璃图标 + 下方数字。点击有缩放反馈,点赞时数字上方飞起 "+1"。
-// 关键改进:
-// 1. 圆形毛玻璃背景 —— 没有底色时,白图标在亮色封面/视频上完全看不清,这是视频流最常见的可用性坑。
-// 2. 数字加文字投影 —— 视频画面颜色不确定,单靠 color: '#fff' 会让数字在白底画面里"消失"。
-// 3. 按下 active 缩到 0.9,松手回弹到 1,带 transform transition;hover 时 1.1。物理感更强。
-// 4. badge="+1" 时从图标中心冒出气泡,800ms 内向上飞 24px 并淡出 —— 告诉用户"刚才那一下点中了"。
+/**
+ * 这条放不了时的说明卡片。图标、标题分故障和非故障:直播间没开播用中性的"休息中",
+ * 不能用警告色 —— 那会让用户以为我们坏了。
+ */
+function UnplayableCard({ video: v, streamError }: { video: VideoItem; streamError: string }) {
+  return (
+    <Box
+      data-no-drag
+      sx={{
+        ...GLASS,
+        bgcolor: 'rgba(0, 0, 0, 0.55)',
+        position: 'absolute',
+        top: '45%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 1,
+        px: 3,
+        py: 2,
+        borderRadius: 3,
+        zIndex: 2,
+        textAlign: 'center',
+        maxWidth: 280,
+        color: '#fff',
+      }}
+    >
+      {v.playbackStatus === 'live_offline' ? (
+        <BedtimeRoundedIcon sx={{ fontSize: 32, color: 'rgba(255,255,255,0.6)' }} />
+      ) : v.playbackStatus === 'bandwidth_limited' ? (
+        <CloudOffRoundedIcon sx={{ fontSize: 32, color: 'rgba(255,255,255,0.6)' }} />
+      ) : (
+        <ErrorOutlineRoundedIcon sx={{ fontSize: 32, color: '#FFB020' }} />
+      )}
+      <Typography sx={{ fontSize: 15, fontWeight: 600, color: '#fff' }}>
+        {v.playbackStatus === 'live_offline'
+          ? '主播未开播'
+          : v.playbackStatus === 'bandwidth_limited'
+            ? '暂不支持站内播放'
+            : v.playbackStatus === 'pending_repair'
+              ? '内容修复中'
+              : '该内容暂时无法播放'}
+      </Typography>
+      <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.65)' }}>
+        {v.playbackStatus === 'live_offline'
+          ? '上滑看下一个'
+          : v.playbackStatus === 'bandwidth_limited'
+            ? `${v.repairNotice || BANDWIDTH_NOTICE} · 上滑看下一个`
+            : v.playbackStatus === 'pending_repair' && v.repairNotice
+              ? `${v.repairNotice} · 上滑看下一个`
+              : `${streamError} · 已记录,尽快修复 · 上滑看下一个`}
+      </Typography>
+      {v.playbackStatus === 'bandwidth_limited' && v.sourceUrl && (
+        <Box
+          component="a"
+          href={v.sourceUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          sx={{
+            mt: 0.5,
+            px: 2,
+            py: 0.5,
+            borderRadius: 999,
+            fontSize: 12,
+            color: '#fff',
+            textDecoration: 'none',
+            bgcolor: ACCENT,
+          }}
+        >
+          {originOnlyPlatform(v.sourceUrl) ? `去${originOnlyPlatform(v.sourceUrl)}观看` : '去原站观看'}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+// 右侧单个按钮:抖音式的"裸图标 + 数字",图标和数字都带投影,在亮画面上也看得清。
+// 按下缩到 0.88 再回弹;点赞时从图标中心冒出 "+1" 气泡,800ms 内向上飞并淡出。
 function SideAction({
   icon,
   value,
+  label,
   active,
   activeColor,
   onClick,
@@ -1106,6 +1295,7 @@ function SideAction({
 }: {
   icon: React.ReactNode;
   value: string;
+  label: string;
   active?: boolean;
   activeColor?: string;
   onClick?: (e: React.MouseEvent) => void;
@@ -1115,18 +1305,22 @@ function SideAction({
     <Box
       onClick={onClick}
       role={onClick ? 'button' : undefined}
+      aria-label={label}
+      aria-pressed={active}
       tabIndex={onClick ? 0 : undefined}
+      onKeyDown={(e) => { if (onClick && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onClick(e as unknown as React.MouseEvent); } }}
       sx={{
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: 0.5,
+        gap: 0.25,
         cursor: onClick ? 'pointer' : 'default',
         outline: 'none',
-        '&:focus-visible': { outline: '2px solid rgba(254, 44, 85, 0.6)', borderRadius: '50%' },
+        '&:focus-visible > .side-icon': { outline: '2px solid rgba(255,255,255,0.7)', outlineOffset: 2 },
       }}
     >
       <Box
+        className="side-icon"
         sx={{
           position: 'relative',
           width: 44,
@@ -1135,20 +1329,17 @@ function SideAction({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          bgcolor: 'rgba(20, 22, 32, 0.45)',
-          backdropFilter: 'blur(10px)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
-          color: active && activeColor ? activeColor : 'rgba(255, 255, 255, 0.95)',
-          transition: 'transform 0.18s cubic-bezier(0.22, 0.61, 0.36, 1), background-color 0.18s, color 0.18s',
-          '&:hover': { transform: 'scale(1.1)', bgcolor: 'rgba(20, 22, 32, 0.6)' },
-          '&:active': { transform: 'scale(0.9)' },
+          color: active && activeColor ? activeColor : '#fff',
+          filter: 'drop-shadow(0 1px 3px rgba(0,0,0,0.45))',
+          transition: 'transform 0.18s cubic-bezier(0.22, 0.61, 0.36, 1), color 0.18s',
+          '&:hover': { transform: 'scale(1.08)' },
+          '&:active': { transform: 'scale(0.88)' },
         }}
       >
         {icon}
         {badge && (
           // 用 badge 字符串作 key 已经足够:同一次点赞只会进入 React 一次 render,
           // 后续再次点击由父组件 setLikeBurst 重新挂载一个新的 badge 子节点。
-          // 不要再调 Date.now() —— 在渲染期调用 pure 函数会被 React 警告。
           <Box
             key={badge}
             sx={{
@@ -1158,7 +1349,7 @@ function SideAction({
               transform: 'translateX(-50%)',
               fontSize: 14,
               fontWeight: 800,
-              color: 'primary.main',
+              color: ACCENT,
               textShadow: '0 1px 2px rgba(0, 0, 0, 0.6)',
               pointerEvents: 'none',
               animation: 'likeBurstFade 0.8s ease-out forwards',
@@ -1169,7 +1360,7 @@ function SideAction({
               },
             }}
           >
-            {badge}
+            +1
           </Box>
         )}
       </Box>
@@ -1179,7 +1370,7 @@ function SideAction({
             fontSize: 12,
             fontWeight: 600,
             color: '#fff',
-            textShadow: '0 1px 3px rgba(0, 0, 0, 0.75), 0 0 6px rgba(0, 0, 0, 0.4)',
+            textShadow: TEXT_SHADOW,
             lineHeight: 1.1,
             minWidth: 20,
             textAlign: 'center',

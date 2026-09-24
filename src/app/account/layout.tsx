@@ -106,7 +106,7 @@ function AccountLayoutContent({
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'var(--app-height, 100vh)', bgcolor: 'transparent', overflow: 'hidden' }}>
+    <Box data-app-shell sx={{ display: 'flex', flexDirection: 'column', height: 'var(--app-height, 100vh)', bgcolor: 'transparent', overflow: 'hidden' }}>
       <AppBar
         ref={appBarRef}
         position="sticky"

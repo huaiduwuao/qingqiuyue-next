@@ -57,6 +57,10 @@ interface Props {
    * 回到本页再接回来。值是小窗上显示的标题。推荐流这类一屏一条的场景不要传。
    */
   dockTitle?: string;
+  /** 外链播放器(B 站)自带弹幕开关。只对 iframe 生效;切换会重载播放器。 */
+  embedDanmaku?: boolean;
+  /** fill 模式下外链播放器底部让出的高度(数字按 px,也可以是 CSS 长度),给推荐流的文案/输入条留位,默认 160。 */
+  fillReserveBottom?: number | string;
 }
 
 export interface VideoPlayerHandle {
@@ -1067,6 +1071,8 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(pr
         autoPlay={props.autoPlay}
         isAIGenerated={props.isAIGenerated}
         fill={props.fill}
+        danmaku={props.embedDanmaku}
+        reserveBottom={props.fillReserveBottom}
       />
     );
   }

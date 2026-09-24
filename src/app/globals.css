@@ -130,6 +130,14 @@ body > [data-player-pad] {
   pointer-events: none;
 }
 
+/* 定高应用壳(首页、后台、创作中心:height = --app-height,内部自己滚动)不要这层占位:
+   body 是列向 flex,占位一出现,首页壳被压扁(main 自己又留了一遍底栏高度,推荐视频流
+   等于缩了两次),后台壳则把 body 撑高、整页多出一截外层滚动。
+   这些壳在自己的滚动区里留底栏高度(padding-bottom 读 --player-inset)。 */
+body:has([data-app-shell]) > [data-player-pad] {
+  display: none;
+}
+
 * {
   box-sizing: border-box;
   padding: 0;
