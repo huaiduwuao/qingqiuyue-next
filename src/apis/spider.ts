@@ -185,6 +185,10 @@ export interface TemplateWrite {
   sourceId?: EntityId | null;
   /** raw JSON content(覆盖 module_template.content 整段),发给后端的 config;后端会校验 */
   content?: string;
+  /** 以下三项后端空串视为不改 */
+  category?: string;
+  code?: string;
+  domain?: string;
 }
 /** @deprecated 用 TemplateWrite */
 export type TemplateUpdate = TemplateWrite;
@@ -196,6 +200,9 @@ function templateBody(params: TemplateWrite) {
     type: params.type,
     ...(sourceId !== null ? { source_id: sourceId } : {}),
     ...(params.content ? { config: params.content } : {}),
+    ...(params.category ? { category: params.category } : {}),
+    ...(params.code ? { code: params.code } : {}),
+    ...(params.domain ? { domain: params.domain } : {}),
   };
 }
 

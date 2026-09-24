@@ -1,14 +1,12 @@
-// logtail 日志平台前端调用。
+// 服务日志(/system/log)前端调用。
 //
-// 链路(统一走 APISIX,跟生产一致):
-//   浏览器同源 /logs/* → nginx(生产) / Next.js rewrites(dev) → APISIX
-//   APISIX(/logs/* → logtail-server 容器内网 8080) → logtail-server
+// 链路:adminClient → /api/core/ops/logs/* → core-api(超管守卫)→ 内网 logtail-server。
 //
-// ⚠️ logtail 返回裸 JSON(数组 / { lines, truncated, total }),不是后端统一的
-//    { code, msg, data } 信封,所以这里用原生 fetch,不能复用 src/lib/api/client
-//    的 axios 实例(其响应拦截器会因缺少 code 字段而把成功响应判为失败)。
+// ⚠️ 以前直接 fetch 同源 /logs/api/*,但 APISIX 的 /logs 路由挂了 basic-auth,
+//    fetch 拿到 401 后这里把错误吞成空数组,页面就一直显示「无项目 / 暂无日志」。
+//    现在失败会原样抛出,由页面显示错误,不要再 catch 成空结果。
 
-const BASE = '/logs';
+import { adminClient } from '@/lib/api/client';
 
 export interface LogSearchResult {
   lines: string[];
@@ -26,33 +24,16 @@ export interface ParsedLine {
   raw: string;
 }
 
-async function getJSON<T>(url: string): Promise<T> {
-  const res = await fetch(url, { headers: { Accept: 'application/json' } });
-  if (!res.ok) {
-    throw new Error(`日志服务请求失败(${res.status})`);
-  }
-  return res.json() as Promise<T>;
-}
-
-/** 项目列表(= 各服务名,扫描 logtail-server 的 logs 目录得到)
- *  logtail 不可达时返回 [],页面降级显示「无项目」而不是报错 */
+/** 项目列表(= 各服务名,logtail-server 扫描 logs 目录得到) */
 export async function getProjects(): Promise<string[]> {
-  try {
-    return await getJSON<string[]>(`${BASE}/api/projects`);
-  } catch (e) {
-    console.warn('[logtail] getProjects 失败,返回空数组:', e);
-    return [];
-  }
+  const r = await adminClient<{ list?: string[] }>('/ops/logs/projects');
+  return r?.list ?? [];
 }
 
 /** 拉取某项目最新 n 行(实时模式按间隔轮询此接口) */
 export async function tailLogs(project: string, n = 500): Promise<LogSearchResult> {
-  try {
-    const u = `${BASE}/api/logs?project=${encodeURIComponent(project)}&tail=${n}`;
-    return await getJSON<LogSearchResult>(u);
-  } catch (e) {
-    return { lines: [], truncated: false, total: 0 };
-  }
+  const r = await adminClient<LogSearchResult>('/ops/logs', { params: { project, tail: n } });
+  return { lines: r?.lines ?? [], truncated: !!r?.truncated, total: r?.total ?? 0 };
 }
 
 /** 按日期范围 + 关键字检索历史日志 */
@@ -62,12 +43,8 @@ export async function searchLogs(
   end: string,
   q: string,
 ): Promise<LogSearchResult> {
-  try {
-    const p = new URLSearchParams({ project, start, end, q });
-    return await getJSON<LogSearchResult>(`${BASE}/api/logs?${p.toString()}`);
-  } catch (e) {
-    return { lines: [], truncated: false, total: 0 };
-  }
+  const r = await adminClient<LogSearchResult>('/ops/logs', { params: { project, start, end, q } });
+  return { lines: r?.lines ?? [], truncated: !!r?.truncated, total: r?.total ?? 0 };
 }
 
 const LEVELS = new Set<LogLevel>(['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL']);

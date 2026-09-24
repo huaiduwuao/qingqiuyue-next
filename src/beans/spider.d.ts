@@ -267,15 +267,26 @@ export interface TemplateAttr {
   createdAt?: string;
 }
 
-export interface TemplateDetail {
+/** module_template 一行(后端 crawler.Template,snake_case) */
+export interface TemplateRow {
   id: number;
+  source_id: number | string;
   name: string;
+  domain: string;
   type: string;
-  source: string;
+  category: string;
+  code: string;
+  /** TemplateConfig 的 JSON 字符串 */
+  content: string;
+  status: number;
+  create_time: string;
+  update_time: string;
+}
+
+/** GET /templates/:id 返回 { template, attrs },不是平铺的模板 */
+export interface TemplateDetail {
+  template: TemplateRow;
   attrs: TemplateAttr[];
-  version: string;
-  status: 'ENABLED' | 'DISABLED';
-  createTime: string;
 }
 
 export interface AutoTemplateRule {
