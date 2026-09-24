@@ -9,8 +9,16 @@ import type {
   CrawlTimeseries,
   ActivityFeed,
   SpiderSource,
+  BatchJob,
+  BatchJobDetail,
+  CreateBatchParams,
+  Worker,
+  WorkerStats,
+  WorkerContainer,
+  SiteRow,
+  SiteStats,
 } from '@/beans/spider';
-import { spiderClient } from '@/lib/api/client';
+import { spiderClient, adminClient } from '@/lib/api/client';
 import type { PageParams, PageResult } from '@/beans/pagination';
 import { normalizePageResponse } from '@/beans/pagination';
 import { toEntityId, type EntityId } from '@/lib/id';
@@ -53,17 +61,17 @@ export async function triggerHourlyRefresh(): Promise<any> {
   return spiderClient('/hourly/refresh', { method: 'POST' });
 }
 
-// Batch Job APIs
-export async function createBatch(params: { name: string; domain: string; url: string; type: string }): Promise<any> {
+// ─── 批量任务 ───
+export async function createBatch(params: CreateBatchParams): Promise<BatchJob> {
   return spiderClient('/batch', { method: 'POST', data: params });
 }
 
-export async function listBatch(params?: PageParams & { status?: string }): Promise<PageResult<any>> {
-  const res = await spiderClient('/batch', { params });
+export async function listBatch(params?: PageParams & { status?: string }): Promise<PageResult<BatchJob>> {
+  const res = await spiderClient('/batch', { params: { page: params?.page, page_size: params?.pageSize, status: params?.status } });
   return normalizePageResponse(res);
 }
 
-export async function getBatchDetail(id: number): Promise<any> {
+export async function getBatchDetail(id: number): Promise<BatchJobDetail> {
   return spiderClient(`/batch/${id}`, { method: 'GET' });
 }
 
@@ -83,28 +91,62 @@ export async function cancelBatch(id: number): Promise<any> {
   return spiderClient(`/batch/${id}/cancel`, { method: 'POST' });
 }
 
+export async function deleteBatch(id: number): Promise<any> {
+  return spiderClient(`/batch/${id}`, { method: 'DELETE' });
+}
+
 export async function getBatchStats(id: number): Promise<any> {
   return spiderClient(`/batch/${id}/stats`, { method: 'GET' });
 }
 
-// Worker APIs
-export async function listWorkers(params?: PageParams & { status?: string }): Promise<PageResult<any>> {
-  const res = await spiderClient('/workers', { params });
-  return normalizePageResponse(res);
+// ─── Worker 池(crawl_worker 表,跨进程)───
+export async function listWorkers(): Promise<{ list: Worker[]; total: number }> {
+  return spiderClient('/workers', { method: 'GET' });
 }
 
-export async function getWorkerStats(): Promise<any> {
+export async function getWorkerStats(): Promise<WorkerStats> {
   return spiderClient('/workers/stats', { method: 'GET' });
 }
 
-// Site Slot APIs
-export async function listSiteSlots(params?: PageParams): Promise<PageResult<any>> {
-  const res = await spiderClient('/sites/slots', { params });
-  return normalizePageResponse(res);
+/** 改槽位 / 排空;Worker 下一次心跳(≤10s)生效 */
+export async function updateWorker(id: string, data: { slots?: number; desired?: 'active' | 'draining' }): Promise<any> {
+  return spiderClient(`/workers/${encodeURIComponent(id)}`, { method: 'PUT', data });
 }
 
-export async function getSiteSlotStats(): Promise<any> {
-  return spiderClient('/sites/slots/stats', { method: 'GET' });
+/** 清理离线 Worker 的行 */
+export async function deleteWorker(id: string): Promise<any> {
+  return spiderClient(`/workers/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+// Worker 容器在 core-api 的运维接口里(超管),不走 spiderClient。
+export async function listWorkerContainers(): Promise<{ list: WorkerContainer[]; max: number; apiImage: string }> {
+  return adminClient('/ops/spider-workers', { method: 'GET' });
+}
+
+export async function launchWorkerContainer(slots: number): Promise<{ name: string; workerId: string }> {
+  return adminClient('/ops/spider-workers', { method: 'POST', data: { slots } });
+}
+
+export async function removeWorkerContainer(name: string): Promise<any> {
+  return adminClient(`/ops/spider-workers/${encodeURIComponent(name)}`, { method: 'DELETE' });
+}
+
+// ─── 站点调度 ───
+export async function listSites(q?: string): Promise<{ list: SiteRow[]; total: number }> {
+  return spiderClient('/sites', { params: q ? { q } : undefined });
+}
+
+export async function getSiteStats(): Promise<SiteStats> {
+  return spiderClient('/sites/stats', { method: 'GET' });
+}
+
+export async function updateSite(domain: string, data: { paused?: boolean; max_concurrent?: number; priority?: number }): Promise<any> {
+  return spiderClient(`/sites/${encodeURIComponent(domain)}`, { method: 'PUT', data });
+}
+
+/** 对站点立即入队一个整站任务 */
+export async function crawlSiteNow(domain: string, data?: { max_pages?: number; incremental?: boolean }): Promise<{ task_id: string; status: string }> {
+  return spiderClient(`/sites/${encodeURIComponent(domain)}/crawl`, { method: 'POST', data: data || {} });
 }
 
 // Source APIs
@@ -210,6 +252,11 @@ export async function stopTask(id: string): Promise<any> {
   return spiderClient(`/tasks/${id}/stop`, { method: 'POST' });
 }
 
+/** 已结束的规则任务重新放回队列 */
+export async function retryTask(id: string): Promise<any> {
+  return spiderClient(`/tasks/${id}/retry`, { method: 'POST' });
+}
+
 export async function deleteTask(id: string): Promise<any> {
   return spiderClient(`/tasks/${id}`, { method: 'DELETE' });
 }
@@ -270,15 +317,6 @@ export async function autoGenerateTemplate(params: { url: string; type?: string 
 // ─── Source 详情 ───
 export async function getSourceDetail(id: number): Promise<SpiderSource> {
   return spiderClient(`/sources/${id}`, { method: 'GET' });
-}
-
-// ─── Sites 控制 ───
-export async function pauseSite(id: number): Promise<any> {
-  return spiderClient(`/sites/${id}/pause`, { method: 'POST' });
-}
-
-export async function resumeSite(id: number): Promise<any> {
-  return spiderClient(`/sites/${id}/resume`, { method: 'POST' });
 }
 
 // ─── Batch 批量操作 ───

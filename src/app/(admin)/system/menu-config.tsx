@@ -49,6 +49,12 @@ import CloudSyncIcon from '@mui/icons-material/CloudSync';
 import PsychologyAltRoundedIcon from '@mui/icons-material/PsychologyAltRounded';
 import CollectionsRoundedIcon from '@mui/icons-material/CollectionsRounded';
 import DynamicFeedRoundedIcon from '@mui/icons-material/DynamicFeedRounded';
+import AssignmentRoundedIcon from '@mui/icons-material/AssignmentRounded';
+import MemoryRoundedIcon from '@mui/icons-material/MemoryRounded';
+import ScheduleRoundedIcon from '@mui/icons-material/ScheduleRounded';
+import VpnLockRoundedIcon from '@mui/icons-material/VpnLockRounded';
+import StreamRoundedIcon from '@mui/icons-material/StreamRounded';
+import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import { PERMISSIONS } from '@/lib/permissions';
 
 export interface MenuItemDef {
@@ -225,7 +231,17 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
   {
     title: '爬虫运营',
     items: [
-      { id: 'spider', label: '爬虫管理', path: '/system/spider', icon: <TravelExploreIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
+      // 原来是一个「爬虫管理」页面里 8 个标签页,2026-09-25 拆成独立菜单(菜单表 2505–2513)。
+      { id: 'spider', label: '爬虫总览', path: '/system/spider', icon: <TravelExploreIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
+      { id: 'spider-sources', label: '源管理', path: '/system/spider/sources', icon: <MenuBookRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
+      { id: 'spider-templates', label: '模板管理', path: '/system/spider/templates', icon: <ListAltRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
+      { id: 'spider-tasks', label: '抓取任务', path: '/system/spider/tasks', icon: <AssignmentRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
+      { id: 'spider-batch', label: '批量任务', path: '/system/spider/batch', icon: <AccountTreeRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
+      { id: 'spider-workers', label: 'Worker 池', path: '/system/spider/workers', icon: <MemoryRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
+      { id: 'spider-sites', label: '站点调度', path: '/system/spider/sites', icon: <ScheduleRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
+      { id: 'spider-proxies', label: '代理池', path: '/system/spider/proxies', icon: <VpnLockRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
+      { id: 'spider-stream-parsers', label: '流解析器', path: '/system/spider/stream-parsers', icon: <StreamRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
+      { id: 'spider-analytics', label: '爬虫分析', path: '/system/spider/analytics', icon: <InsightsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D', permission: PERMISSIONS.SYSTEM_SPIDER.ITEM_LIST },
       { id: 'crawled', label: '抓取内容', path: '/system/crawled', icon: <CloudDownloadIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D', permission: PERMISSIONS.SYSTEM_SPIDER.ITEM_LIST },
       { id: 'spider-backfill', label: '内容补全', path: '/system/spider/backfill', icon: <SyncProblemRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE', permission: PERMISSIONS.SYSTEM_SPIDER.BACKFILL_RUN },
       { id: 'spider-repair', label: '内容修复', path: '/system/spider/repair', icon: <BuildRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF6B6B', permission: PERMISSIONS.SYSTEM_SPIDER.REPAIR_RUN },

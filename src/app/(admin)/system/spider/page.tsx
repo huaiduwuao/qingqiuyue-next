@@ -1,67 +1,24 @@
 'use client';
 
 /**
- * 管理平台爬虫管理中心
+ * 爬虫总览(/system/spider)
+ *
+ * 以前这里是「爬虫管理中心」:一个页面里 8 个标签页(Dashboard / 批量任务 / Worker 池 / 站点调度 /
+ * 源管理 / 模板管理 / 单任务 / 代理池)。2026-09-25 拆成侧栏「爬虫运营」分组下的独立菜单,
+ * 每个都是自己的路由,能刷新、能收藏、能单独授权;这里只保留总览。
  */
 
-import React, { Suspense, lazy, useState } from 'react';
+import React from 'react';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
-import Tabs from '@mui/material/Tabs';
-import Tab from '@mui/material/Tab';
 import Chip from '@mui/material/Chip';
 import Skeleton from '@mui/material/Skeleton';
 import { useTheme, alpha } from '@mui/material/styles';
 import TravelExploreIcon from '@mui/icons-material/TravelExplore';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
-import DnsRoundedIcon from '@mui/icons-material/DnsRounded';
-import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
-import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
-import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
-import ListAltRoundedIcon from '@mui/icons-material/ListAltRounded';
-import SettingsEthernetRoundedIcon from '@mui/icons-material/SettingsEthernetRounded';
-import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
 import { useSpiderWebSocket } from '@/hooks/useSpiderWebSocket';
-
-const DashboardPage = lazy(() => import('./dashboard/page'));
-const BatchPage = lazy(() => import('./batch/page'));
-const WorkersPage = lazy(() => import('./workers/page'));
-const SitesPage = lazy(() => import('./sites/page'));
-const SourcesPage = lazy(() => import('./sources/page'));
-const TemplatesPage = lazy(() => import('./templates/page'));
-const TasksPage = lazy(() => import('./tasks/page'));
-const ProxiesPage = lazy(() => import('./proxies/page'));
-
-export type SpiderTabKey = 'dashboard' | 'batch' | 'workers' | 'sites' | 'sources' | 'templates' | 'tasks' | 'proxies';
-
-interface SpiderTabConfig {
-  key: SpiderTabKey;
-  label: string;
-  icon?: React.ReactElement;
-}
-
-const SPIDER_TABS: SpiderTabConfig[] = [
-  { key: 'dashboard', label: 'Dashboard', icon: <TravelExploreIcon fontSize="small" /> },
-  { key: 'batch', label: '批量任务', icon: <AccountTreeRoundedIcon fontSize="small" /> },
-  { key: 'workers', label: 'Worker 池', icon: <DnsRoundedIcon fontSize="small" /> },
-  { key: 'sites', label: '站点调度', icon: <StorageRoundedIcon fontSize="small" /> },
-  { key: 'sources', label: '源管理', icon: <MenuBookRoundedIcon fontSize="small" /> },
-  { key: 'templates', label: '模板管理', icon: <ListAltRoundedIcon fontSize="small" /> },
-  { key: 'tasks', label: '单任务', icon: <SettingsEthernetRoundedIcon fontSize="small" /> },
-  { key: 'proxies', label: '代理池', icon: <SmartToyRoundedIcon fontSize="small" /> },
-];
-
-const componentMap: Record<string, React.ComponentType<any>> = {
-  dashboard: DashboardPage,
-  batch: BatchPage,
-  workers: WorkersPage,
-  sites: SitesPage,
-  sources: SourcesPage,
-  templates: TemplatesPage,
-  tasks: TasksPage,
-  proxies: ProxiesPage,
-};
+import DashboardPage from './dashboard/page';
 
 export default function SpiderAdminPage() {
   return <SpiderPageInner />;
@@ -70,9 +27,6 @@ export default function SpiderAdminPage() {
 function SpiderPageInner() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const [tab, setTab] = useState(0);
-  const currentType = SPIDER_TABS[tab];
-  const ContentComponent = componentMap[currentType?.key];
 
   const { health, stats, connected } = useSpiderWebSocket();
 
@@ -154,10 +108,10 @@ function SpiderPageInner() {
                 variant="h4"
                 sx={{ fontWeight: 700, color: 'text.primary', mb: 0.5, fontSize: { xs: '1.25rem', md: '1.5rem' } }}
               >
-                爬虫管理中心
+                爬虫总览
               </Typography>
               <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                统一调度抓取任务、模板规则、代理池 · 实时监控引擎健康
+                源、模板、任务队列、Worker、站点调度都在左侧「爬虫运营」里 · 这里看整体运行状况
               </Typography>
             </Box>
           </Box>
@@ -216,65 +170,7 @@ function SpiderPageInner() {
         </Box>
       </Paper>
 
-      {/* Tabs */}
-      <Paper
-        sx={{
-          borderRadius: 2,
-          border: '1px solid',
-          borderColor: isDark ? alpha(theme.palette.text.primary, 0.06) : alpha('#000000', 0.06),
-          overflow: 'hidden',
-        }}
-      >
-        <Tabs
-          value={tab}
-          onChange={(_, v) => setTab(v)}
-          variant="scrollable"
-          scrollButtons="auto"
-          allowScrollButtonsMobile
-          sx={{
-            px: 1,
-            minHeight: 52,
-            borderBottom: '1px solid',
-            borderColor: 'divider',
-            '& .MuiTab-root': {
-              minHeight: 52,
-              fontWeight: 600,
-              fontSize: 14,
-              color: 'text.secondary',
-              textTransform: 'none',
-              px: 2.5,
-              '&.Mui-selected': { color: accent },
-            },
-            '& .MuiTabs-indicator': {
-              height: 3,
-              borderRadius: '3px 3px 0 0',
-              bgcolor: accent,
-            },
-          }}
-        >
-          {SPIDER_TABS.map((type) => (
-            <Tab key={type.key} label={type.label} icon={type.icon} iconPosition="start" />
-          ))}
-        </Tabs>
-      </Paper>
-
-      {/* Content */}
-      <Box>
-        {ContentComponent ? (
-          <Suspense
-            fallback={
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Skeleton variant="rounded" height={120} />
-                <Skeleton variant="rounded" height={320} />
-              </Box>
-            }
-          >
-            <ContentComponent />
-          </Suspense>
-        ) : (
-          <Typography color="text.secondary">内容类型: {currentType?.label}</Typography>
-        )}
-      </Box>
+      <DashboardPage />
     </Box>
   );
 }

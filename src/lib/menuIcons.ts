@@ -55,6 +55,13 @@ export const MENU_ICON_MAP: Record<string, SvgIconComponent> = {
   TravelExplore: Icons.TravelExploreRounded,
   CloudDownload: Icons.CloudDownloadRounded,
   SyncProblem: Icons.SyncProblemRounded,
+  Build: Icons.BuildRounded,
+  Assignment: Icons.AssignmentRounded,
+  Memory: Icons.MemoryRounded,
+  Schedule: Icons.ScheduleRounded,
+  VpnLock: Icons.VpnLockRounded,
+  Stream: Icons.StreamRounded,
+  Insights: Icons.InsightsRounded,
 };
 
 /**

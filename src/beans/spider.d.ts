@@ -1,64 +1,159 @@
-// Batch Job Types
+// ─── 任务队列(后端 internal/crawler/dispatch.go)───
+// 规则任务进 crawl_job 队列(status=queued),由 Worker 认领执行。字段是后端原样的 snake_case。
+
+export type BatchStatus = 'pending' | 'running' | 'paused' | 'completed' | 'cancelled';
+export type BatchSiteStatus = 'pending' | 'queued' | 'running' | 'paused' | 'completed' | 'failed' | 'stopped';
+
 export interface BatchJob {
-  id?: number;
+  id: number;
   name: string;
+  description?: string;
+  status: BatchStatus;
+  max_pages: number;
+  incremental: boolean;
+  total_sites: number;
+  success_site: number;
+  failed_site: number;
+  queued_sites: number;
+  running_sites: number;
+  paused_sites: number;
+  progress: number; // 0-100
+  pages_crawled: number;
+  items_saved: number;
+  created_at: number; // unix 秒
+  started_at: number;
+  completed_at: number;
+}
+
+export interface BatchSiteResult {
+  site_id: number;
+  source_id: string | number;
+  site_name: string;
   domain: string;
   url: string;
-  type: string;
-  status?: 'pending' | 'running' | 'paused' | 'completed' | 'cancelled';
-  progress?: number;
-  totalUrls?: number;
-  processedUrls?: number;
-  createTime?: string;
-  updateTime?: string;
+  status: BatchSiteStatus;
+  task_id?: string;
+  worker_id?: string;
+  pages_crawled: number;
+  items_found: number;
+  items_saved: number;
+  error?: string;
 }
 
-export interface BatchStats {
-  totalJobs: number;
-  runningJobs: number;
-  pendingJobs: number;
-  completedJobs: number;
-  cancelledJobs: number;
-  totalUrlsProcessed: number;
+export interface BatchJobDetail extends Omit<BatchJob, 'queued_sites' | 'running_sites' | 'paused_sites' | 'progress' | 'pages_crawled' | 'items_saved'> {
+  results: BatchSiteResult[];
 }
 
-// Worker Types
+export interface CreateBatchParams {
+  name: string;
+  description?: string;
+  source_ids?: string[];
+  sources?: { name?: string; url?: string; domain?: string; type?: string }[];
+  max_pages?: number;
+  incremental?: boolean;
+  start?: boolean;
+}
+
+export type WorkerKind = 'crawl' | 'loop' | 'browser';
+export type WorkerState = 'idle' | 'busy' | 'draining' | 'offline';
+
+export interface WorkerTaskView {
+  taskId: string;
+  source: string;
+  url: string;
+  phase: string;
+  pages: number;
+  items: number;
+  startedAt: number;
+}
+
 export interface Worker {
   id: string;
   name: string;
-  status: 'idle' | 'busy' | 'offline';
-  currentJobId?: number;
-  currentUrl?: string;
-  processedCount: number;
-  lastActiveTime?: string;
+  kind: WorkerKind;
+  launcher: string; // embedded / container / manual
+  host: string;
+  version: string;
+  desired: 'active' | 'draining';
+  state: WorkerState;
+  slots: number;
+  running: number;
+  processed: number;
+  failed: number;
+  tasks: WorkerTaskView[];
+  stale: boolean;
+  since_beat: number;
+  started_at?: string;
+  last_beat?: string;
 }
 
 export interface WorkerStats {
-  totalWorkers: number;
+  totalWorkers: number; // 在线
   idleWorkers: number;
   busyWorkers: number;
+  drainingWorkers: number;
   offlineWorkers: number;
-}
-
-// Site Slot Types
-export interface SiteSlot {
-  id: number;
-  siteName: string;
-  domain: string;
-  status: 'active' | 'inactive' | 'scheduling';
-  activeSlots: number;
-  maxSlots: number;
-  progress?: number;
-  currentUrl?: string;
-  startTime?: string;
-}
-
-export interface SiteSlotStats {
-  totalSites: number;
-  activeSites: number;
   totalSlots: number;
   usedSlots: number;
-  availableSlots: number;
+  queued: number;
+  running: number;
+  paused: number;
+}
+
+/** core-api /ops/spider-workers:后台拉起的 Worker 容器 */
+export interface WorkerContainer {
+  name: string;
+  id: string;
+  image: string;
+  state: string;
+  status: string;
+  workerId: string;
+  stale: boolean;
+  cpuPerc: number;
+  memMB: number;
+}
+
+export interface SourceHealth {
+  sourceId: string | number;
+  name: string;
+  lastRunAt: string;
+  lastSuccessAt: string;
+  lastErrorAt: string;
+  lastError: string;
+  consecErrors: number;
+  totalRuns: number;
+  totalNewItems: number;
+  skippedCooldown: boolean;
+}
+
+export interface SiteRow {
+  domain: string;
+  source_id: string | number;
+  name: string;
+  category: string;
+  link: string;
+  enabled: boolean;
+  paused: boolean;
+  max_concurrent: number;
+  priority: number;
+  running: number;
+  queued: number;
+  last_task_id?: string;
+  last_task_status?: string;
+  last_task_at?: string;
+  last_task_items: number;
+  hourly?: SourceHealth | null;
+}
+
+export interface SiteStats {
+  totalSites: number;
+  enabledSites: number;
+  pausedSites: number;
+  activeSites: number;
+  siteSlots: number;
+  usedSlots: number;
+  queued: number;
+  running: number;
 }
 
 // ─── 单任务(Crawl Task) ───
@@ -67,7 +162,7 @@ export interface CrawlTask {
   sourceId?: number;
   sourceName?: string;
   startUrl: string;
-  status: 'pending' | 'running' | 'stopping' | 'stopped' | 'completed' | 'failed';
+  status: 'pending' | 'queued' | 'running' | 'stopping' | 'stopped' | 'completed' | 'failed' | 'paused' | 'stalled' | 'killed' | 'skipped';
   maxDepth: number;
   maxPages: number;
   pagesCrawled: number;
@@ -78,6 +173,11 @@ export interface CrawlTask {
   progress?: CrawlProgress;
   createdAt: string;
   updatedAt: string;
+  /** rule / chapter_backfill / hourly_refresh …;队列任务(rule)才有 workerId / domain */
+  type?: string;
+  workerId?: string;
+  domain?: string;
+  attempts?: number;
 }
 
 /** 规则爬取进度(后端 ProgressSnapshot) */

@@ -45,11 +45,12 @@ export default function SendToSpider({
     setBusy(true);
     try {
       const domain = tryExtractDomain(targetUrl);
+      // 建一个单站点批量任务并立即入队(按域名找已登记的源,找不到就用通用规则抓)。
+      // 以前传的是 {domain,url,type},后端要的是站点清单,每次都 400。
       await createBatch({
         name: `即时抓取 · ${domain}`,
-        domain,
-        url: targetUrl,
-        type: 'html',
+        sources: [{ name: domain, url: targetUrl }],
+        start: true,
       });
       setInputUrl('');
       onSuccess?.(`已发送到爬虫:${targetUrl}`);

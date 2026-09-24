@@ -27,7 +27,7 @@ import LinkIcon from '@mui/icons-material/Link';
 import StorageIcon from '@mui/icons-material/Storage';
 import {
   getWorkerStats,
-  getSiteSlotStats,
+  getSiteStats,
   getBatchStats,
   getProxyStats,
   getCrawlTimeseries,
@@ -43,6 +43,7 @@ import type {
   Worker,
 } from '@/beans/spider';
 import { useSpiderWebSocket } from '@/hooks/useSpiderWebSocket';
+import Link from 'next/link';
 
 const fmt = (n: number | undefined) => (n == null ? '—' : n.toLocaleString('zh-CN'));
 const POLL_MS = 5000;
@@ -70,7 +71,7 @@ export default function SpiderDashboardPage() {
   // ── 其他数据仍用 HTTP 轮询(5s) ──
   const common = { refetchInterval: POLL_MS, refetchIntervalInBackground: false } as const;
   const workers = useQuery({ queryKey: ['spider', 'worker-stats'], queryFn: () => getWorkerStats().then((r) => r), ...common });
-  const sites = useQuery({ queryKey: ['spider', 'site-stats'], queryFn: () => getSiteSlotStats().then((r) => r), ...common });
+  const sites = useQuery({ queryKey: ['spider', 'site-stats'], queryFn: () => getSiteStats().then((r) => r), ...common });
   const batch = useQuery({ queryKey: ['spider', 'batch-stats'], queryFn: () => getBatchStats(0).then((r) => r), ...common });
   const proxies = useQuery({ queryKey: ['spider', 'proxy-stats'], queryFn: () => getProxyStats().then((r) => r), ...common });
   const timeseries = useQuery({ queryKey: ['spider', 'timeseries'], queryFn: () => getCrawlTimeseries().then((r) => r), ...common });
@@ -170,7 +171,7 @@ export default function SpiderDashboardPage() {
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)', lg: 'repeat(5, 1fr)' }, gap: 2, mb: 2 }}>
         {/* Worker 池 */}
         <Paper sx={{ p: 2 }}>
-          <Typography variant="subtitle2" sx={{ mb: 1.5 }}>Worker 池</Typography>
+          <Typography variant="subtitle2" sx={{ mb: 1.5 }}><Link href="/system/spider/workers" style={{ color: 'inherit' }}>Worker 池</Link></Typography>
           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1, mb: 1.5 }}>
             {[
               { l: '总数', v: workers.data?.totalWorkers, c: 'primary' },
@@ -185,37 +186,41 @@ export default function SpiderDashboardPage() {
             ))}
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>利用率</Typography>
-            <LinearProgress variant="determinate" value={workers.data && workers.data.totalWorkers ? (workers.data.busyWorkers / workers.data.totalWorkers) * 100 : 0} sx={{ flex: 1, height: 6, borderRadius: 3 }} />
+            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>槽位</Typography>
+            <LinearProgress variant="determinate" value={workers.data && workers.data.totalSlots ? (workers.data.usedSlots / workers.data.totalSlots) * 100 : 0} sx={{ flex: 1, height: 6, borderRadius: 3 }} />
             <Typography sx={{ fontSize: 11, fontWeight: 600 }}>
-              {workers.data && workers.data.totalWorkers ? `${Math.round((workers.data.busyWorkers / workers.data.totalWorkers) * 100)}%` : '0%'}
+              {workers.data ? `${workers.data.usedSlots}/${workers.data.totalSlots}` : '-'}
             </Typography>
           </Box>
           <Divider sx={{ my: 1.5 }} />
-          <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 1 }}>活跃 Top 5</Typography>
+          <Typography sx={{ fontSize: 11, color: 'text.secondary', mb: 1 }}>
+            排队 {fmt(workers.data?.queued)} · 运行 {fmt(workers.data?.running)}
+          </Typography>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-            {(allWorkers.data || []).filter((w) => w.status === 'busy' || w.status === 'idle').sort((a, b) => b.processedCount - a.processedCount).slice(0, 5).map((w) => (
+            {(allWorkers.data || []).filter((w) => w.state !== 'offline').sort((a, b) => b.running - a.running || b.processed - a.processed).slice(0, 5).map((w) => (
               <Box key={w.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 11 }}>
-                <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: w.status === 'busy' ? '#5B8DEF' : '#22c55e' }} />
-                <Typography sx={{ fontSize: 11, fontWeight: 500, minWidth: 70 }}>{w.name}</Typography>
-                <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>{w.status === 'busy' ? `Job ${w.currentJobId || '?'}` : '空闲'}</Typography>
+                <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: w.state === 'busy' ? '#5B8DEF' : w.state === 'draining' ? '#f59e0b' : '#22c55e' }} />
+                <Typography sx={{ fontSize: 11, fontWeight: 500, minWidth: 70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.name || w.id}</Typography>
+                <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>
+                  {w.kind === 'crawl' ? `${w.running}/${w.slots} 槽` : w.state === 'busy' ? '运行中' : '空闲'}
+                </Typography>
                 <Box sx={{ flex: 1 }} />
-                <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>{fmt(w.processedCount)} 处理</Typography>
+                <Typography sx={{ fontSize: 10, color: 'text.secondary' }}>{fmt(w.processed)} 处理</Typography>
               </Box>
             ))}
             {(!allWorkers.data || allWorkers.data.length === 0) && <Typography sx={{ fontSize: 10, color: 'text.secondary', fontStyle: 'italic' }}>暂无数据</Typography>}
           </Box>
         </Paper>
 
-        {/* 站点槽位 */}
+        {/* 站点调度 */}
         <Paper sx={{ p: 2 }}>
-          <Typography variant="subtitle2" sx={{ mb: 1.5 }}>站点槽位</Typography>
+          <Typography variant="subtitle2" sx={{ mb: 1.5 }}><Link href="/system/spider/sites" style={{ color: 'inherit' }}>站点调度</Link></Typography>
           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1, mb: 1.5 }}>
             {[
-              { l: '总站点', v: sites.data?.totalSites, c: 'primary' },
-              { l: '活跃', v: sites.data?.activeSites, c: 'success' },
-              { l: '已用', v: sites.data?.usedSlots, c: 'warning' },
-              { l: '可用', v: sites.data?.availableSlots, c: 'info' },
+              { l: '站点', v: sites.data?.totalSites, c: 'primary' },
+              { l: '抓取中', v: sites.data?.activeSites, c: 'success' },
+              { l: '暂停', v: sites.data?.pausedSites, c: 'warning' },
+              { l: '排队', v: sites.data?.queued, c: 'info' },
             ].map((c) => (
               <Box key={c.l} sx={{ textAlign: 'center' }}>
                 <Typography sx={{ fontSize: 20, fontWeight: 700 }} color={`${c.c}.main`}>{fmt(c.v)}</Typography>
@@ -224,17 +229,17 @@ export default function SpiderDashboardPage() {
             ))}
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>总槽位</Typography>
-            <LinearProgress variant="determinate" value={sites.data && sites.data.totalSlots ? (sites.data.usedSlots / sites.data.totalSlots) * 100 : 0} sx={{ flex: 1, height: 6, borderRadius: 3 }} />
+            <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>站点并发</Typography>
+            <LinearProgress variant="determinate" value={sites.data && sites.data.siteSlots ? (sites.data.usedSlots / sites.data.siteSlots) * 100 : 0} sx={{ flex: 1, height: 6, borderRadius: 3 }} />
             <Typography sx={{ fontSize: 11, fontWeight: 600 }}>
-              {sites.data && sites.data.totalSlots ? `${Math.round((sites.data.usedSlots / sites.data.totalSlots) * 100)}%` : '0%'}
+              {sites.data ? `${sites.data.usedSlots}/${sites.data.siteSlots}` : '-'}
             </Typography>
           </Box>
         </Paper>
 
         {/* 批量任务 */}
         <Paper sx={{ p: 2 }}>
-          <Typography variant="subtitle2" sx={{ mb: 1.5 }}>批量任务</Typography>
+          <Typography variant="subtitle2" sx={{ mb: 1.5 }}><Link href="/system/spider/batch" style={{ color: 'inherit' }}>批量任务</Link></Typography>
           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1.5 }}>
             {[
               { l: '总任务', v: batch.data?.total, c: 'primary' },

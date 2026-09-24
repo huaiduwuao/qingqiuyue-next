@@ -35,24 +35,29 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import AddIcon from '@mui/icons-material/Add';
 import FiberManualRecordIcon from '@mui/icons-material/FiberManualRecord';
 import { DataGridTable } from '@/components/tables/DataGridTable';
-import { listTasks, createTask, createRuleTask, stopTask as apiStopTask, deleteTask as apiDeleteTask, getTaskDetail, getTaskItems, getTaskLinks, listSources } from '@/apis/spider';
+import { listTasks, createTask, createRuleTask, stopTask as apiStopTask, deleteTask as apiDeleteTask, retryTask as apiRetryTask, getTaskDetail, getTaskItems, getTaskLinks, listSources } from '@/apis/spider';
+import ReplayIcon from '@mui/icons-material/Replay';
 import { useSpiderWebSocket, type CrawlTaskFromWS } from '@/hooks/useSpiderWebSocket';
 import type { GridColDef } from '@mui/x-data-grid';
 import type { CrawlTask, SpiderSource } from '@/beans/spider';
 
 const STATUS_COLORS: Record<string, 'default' | 'info' | 'warning' | 'success' | 'error'> = {
-  pending: 'default', running: 'info', stopping: 'warning', stopped: 'warning', completed: 'success', failed: 'error',
+  pending: 'default', queued: 'default', paused: 'default', running: 'info', stopping: 'warning', stopped: 'warning',
+  completed: 'success', failed: 'error', stalled: 'warning', killed: 'error', skipped: 'default',
 };
 const STATUS_LABELS: Record<string, string> = {
-  pending: '等待中', running: '运行中', stopping: '停止中', stopped: '已停止', completed: '已完成', failed: '失败',
+  pending: '等待中', queued: '排队中', paused: '已挂起', running: '运行中', stopping: '停止中', stopped: '已停止',
+  completed: '已完成', failed: '失败', stalled: '卡住', killed: '被终止', skipped: '跳过',
 };
+/** 规则任务结束后可以重新排队 */
+const RETRYABLE = new Set(['stopped', 'failed', 'completed', 'stalled', 'killed']);
 const PHASE_LABELS: Record<string, string> = {
   queued: '排队中', discovering: '发现分类', categories: '分类翻页', home: '首页链接',
   incremental: '增量更新', done: '已完成', stopped: '已停止', failed: '失败',
 };
 const EMPTY_FORM = { sourceId: '', startUrl: '', maxDepth: '2', maxPages: '100', proxyUrl: '' };
 
-const isActive = (status?: string) => status === 'running' || status === 'stopping' || status === 'pending';
+const isActive = (status?: string) => status === 'running' || status === 'stopping' || status === 'pending' || status === 'queued';
 
 /** 后端 REST 是 snake_case(CrawlTask json),GetTask 另加了 camelCase 字段 —— 两种都认 */
 function normalizeTask(raw: any): CrawlTask {
@@ -69,6 +74,7 @@ function normalizeTask(raw: any): CrawlTask {
     progress: raw.progress,
     createdAt: raw.createdAt ?? raw.created_at,
     updatedAt: raw.updatedAt ?? raw.updated_at,
+    workerId: raw.workerId ?? raw.worker_id,
   };
 }
 
@@ -182,7 +188,7 @@ export default function SpiderTasksPage() {
 
   const createRuleMutation = useMutation({
     mutationFn: (vals: any) => createRuleTask(vals),
-    onSuccess: () => { showMsg('规则任务已创建'); setWriteVisible(false); setForm(EMPTY_FORM); refresh(); },
+    onSuccess: () => { showMsg('规则任务已入队,空闲 Worker 会马上认领(站点调度里可看并发/暂停)'); setWriteVisible(false); setForm(EMPTY_FORM); refresh(); },
     onError: (err: any) => showMsg(err.message || '创建规则任务失败', 'error'),
   });
 
@@ -190,6 +196,12 @@ export default function SpiderTasksPage() {
     mutationFn: (id: string) => apiStopTask(id),
     onSuccess: () => { showMsg('已发送停止,当前请求结束后退出'); refresh(); },
     onError: (err: any) => showMsg(err.message || '停止失败', 'error'),
+  });
+
+  const retryMutation = useMutation({
+    mutationFn: (id: string) => apiRetryTask(id),
+    onSuccess: () => { showMsg('已重新排队'); refresh(); },
+    onError: (err: any) => showMsg(err.message || '重新排队失败', 'error'),
   });
 
   const deleteMutation = useMutation({
@@ -223,19 +235,30 @@ export default function SpiderTasksPage() {
     },
     { field: 'itemsSaved', headerName: '新入库', width: 80, type: 'number', renderCell: (p) => view(p.row).itemsSaved },
     {
+      field: 'workerId', headerName: 'Worker', width: 120, sortable: false,
+      renderCell: (p) => {
+        const t = view(p.row);
+        if (t.type !== 'rule') return <span style={{ color: '#999' }}>进程内</span>;
+        return t.workerId ? <Tooltip title={t.workerId}><span style={{ fontFamily: 'monospace', fontSize: 11 }}>{t.workerId}</span></Tooltip> : <span style={{ color: '#999' }}>{t.status === 'queued' ? '等认领' : '-'}</span>;
+      },
+    },
+    {
       field: 'errors', headerName: '错误', width: 70, sortable: false,
       renderCell: (p) => { const n = view(p.row).progress?.errors ?? 0; return n > 0 ? <Chip label={n} color="error" size="small" variant="outlined" /> : <span style={{ color: '#999' }}>0</span>; },
     },
     { field: 'elapsed', headerName: '耗时', width: 80, sortable: false, renderCell: (p) => fmtDuration(elapsedOf(view(p.row))) },
     { field: 'createdAt', headerName: '创建时间', width: 160, valueFormatter: (v) => v ? new Date(v).toLocaleString() : '-' },
     {
-      field: 'actions', headerName: '操作', width: 130, sortable: false,
+      field: 'actions', headerName: '操作', width: 150, sortable: false,
       renderCell: (p) => {
         const t = view(p.row);
         return (
           <Box sx={{ display: 'flex', gap: 0.5 }}>
-            {(t.status === 'running' || t.status === 'pending') && (
+            {(t.status === 'running' || t.status === 'pending' || t.status === 'queued' || t.status === 'paused') && (
               <Tooltip title="停止"><IconButton size="small" color="warning" onClick={() => stopMutation.mutate(t.id)}><StopIcon fontSize="small" /></IconButton></Tooltip>
+            )}
+            {t.type === 'rule' && RETRYABLE.has(t.status) && (
+              <Tooltip title="重新排队"><IconButton size="small" color="primary" onClick={() => retryMutation.mutate(t.id)}><ReplayIcon fontSize="small" /></IconButton></Tooltip>
             )}
             <Tooltip title="查看"><IconButton size="small" onClick={() => setViewingId(t.id)}><VisibilityOutlinedIcon fontSize="small" /></IconButton></Tooltip>
             <Tooltip title="删除"><IconButton size="small" color="error" onClick={() => { if (confirm('确定删除?')) deleteMutation.mutate(t.id); }}><DeleteOutlineIcon fontSize="small" /></IconButton></Tooltip>
@@ -249,7 +272,7 @@ export default function SpiderTasksPage() {
     <Box>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2, gap: 1, flexWrap: 'wrap' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="h6">单任务</Typography>
+          <Typography variant="h6">抓取任务</Typography>
           <Chip
             icon={<FiberManualRecordIcon sx={{ fontSize: 10 }} />}
             label={connected ? '实时进度已连接' : '实时进度未连接'}
@@ -263,6 +286,7 @@ export default function SpiderTasksPage() {
             onChange={(e) => setJobType(e.target.value as typeof jobType)} sx={{ minWidth: 150 }}>
             <MenuItem value="">全部</MenuItem>
             <MenuItem value="!chapter_backfill">手工任务</MenuItem>
+            <MenuItem value="rule">规则任务(队列)</MenuItem>
             <MenuItem value="chapter_backfill">正文回填</MenuItem>
             <MenuItem value="hourly_refresh">整点刷新</MenuItem>
             <MenuItem value="media_backfill">媒体回填</MenuItem>
