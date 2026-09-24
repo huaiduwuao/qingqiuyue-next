@@ -16,7 +16,6 @@ import {
   getContentStats,
   getFanProfile,
   formatCount,
-  formatMoney,
   type DashboardOverview,
   type TrendData,
   type ContentStats,
@@ -30,7 +29,7 @@ function StatRow({ stats }: { stats?: DashboardOverview['stats'] }) {
     { label: '总点赞', value: formatCount(stats?.totalLikes || 0), color: '#FE2C55' },
     { label: '总收藏', value: formatCount(stats?.totalFavorites || 0), color: '#FFB400' },
     { label: '总分享', value: formatCount(stats?.totalShares || 0), color: '#5DDB96' },
-    { label: '总收益', value: `¥${formatMoney(stats?.totalEarnings || 0)}`, color: '#9C27B0' },
+    { label: '总收益', value: `${formatCount(stats?.totalEarnings || 0)} 钻`, color: '#9C27B0' },
   ];
 
   return (

@@ -271,8 +271,8 @@ export default function GatewayQuotaPanel(_: Props) {
                     <TableCell>
                       <Chip
                         size="small"
-                        label={o.status === 'paid' ? '已支付' : o.status === 'pending' ? '待支付' : o.status === 'refunded' ? '已退订' : o.status}
-                        color={o.status === 'paid' ? 'success' : o.status === 'refunded' ? 'default' : 'warning'}
+                        label={o.status === 'paid' ? '已支付' : o.status === 'compensated' ? '已支付(已折算)' : o.status === 'pending' ? '待支付' : o.status === 'refunded' ? '已退订' : o.status}
+                        color={o.status === 'paid' || o.status === 'compensated' ? 'success' : o.status === 'refunded' ? 'default' : 'warning'}
                         variant="outlined"
                       />
                     </TableCell>

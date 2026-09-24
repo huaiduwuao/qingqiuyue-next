@@ -35,7 +35,7 @@ import { darkTheme } from '@/styles/theme';
 import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2, gradient3 } from '@/constants/gradients';
 import { accountClient, isNetworkError, isAuthError, formatApiError } from '@/lib/api/client';
-import { getWalletBalance, getWalletTransactions, type WalletTransaction } from '@/apis/wallet';
+import { FEN_PER_DIAMOND, getWalletBalance, getWalletTransactions, type WalletTransaction } from '@/apis/wallet';
 import { createOrder, getDiamondPackages, type DiamondPackage as ApiDiamondPackage } from '@/apis/payment';
 import {
   getDiamondBenefits,
@@ -541,7 +541,7 @@ function RechargePageContent() {
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pt: 2, borderTop: '1px solid rgba(255,255,255,0.2)' }}>
                 <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>
-                  ≈ ¥ {(balanceDiamonds * 0.01).toFixed(2)} · 永不过期
+                  ≈ ¥ {((balanceDiamonds * FEN_PER_DIAMOND) / 100).toFixed(2)} · 永不过期
                 </Typography>
                 <Box sx={{ flex: 1 }} />
                 <Box
