@@ -12,7 +12,9 @@ import {
   bodyPlayAction,
 } from '../tools/tools';
 
-function findRepoRoot(): string {
+// 跨仓库一致性检查要同时看到 qingqiuyue-go 与 qingqiuyue-next(本地两仓并排 checkout)。
+// CI 只检出本仓,找不到时返回 null,下面「数字人枚举一致性」整组跳过,其余用例照跑。
+function findRepoRoot(): string | null {
   let dir = process.cwd();
   for (let i = 0; i < 8; i++) {
     if (
@@ -25,13 +27,18 @@ function findRepoRoot(): string {
     if (parent === dir) break;
     dir = parent;
   }
-  throw new Error('repo root not found from cwd: ' + process.cwd());
+  return null;
 }
 
 const repoRoot = findRepoRoot();
 
 function readRepoFile(rel: string): string {
-  return fs.readFileSync(path.join(repoRoot, rel), 'utf-8');
+  return repoRoot ? fs.readFileSync(path.join(repoRoot, rel), 'utf-8') : '';
+}
+
+// 本仓自己的文件按 vitest 的工作目录(仓库根)读,CI 里也有
+function readOwnFile(rel: string): string {
+  return fs.readFileSync(path.join(process.cwd(), rel), 'utf-8');
 }
 
 function parseGoStringSlice(source: string, varName: string): string[] {
@@ -81,16 +88,16 @@ const goToolsSource = readRepoFile('qingqiuyue-go/internal/digitalhuman/tools.go
 const seedSQL = readRepoFile('qingqiuyue-go/sql/postgresql/seed.sql');
 
 const actionsJson = JSON.parse(
-  readRepoFile('qingqiuyue-next/src/data/seed/actions/character.json'),
+  readOwnFile('src/data/seed/actions/character.json'),
 ) as any[];
 const expressionsJson = JSON.parse(
-  readRepoFile('qingqiuyue-next/src/data/seed/expressions/character.json'),
+  readOwnFile('src/data/seed/expressions/character.json'),
 ) as any[];
 const visemesJson = JSON.parse(
-  readRepoFile('qingqiuyue-next/src/data/seed/visemes/character.json'),
+  readOwnFile('src/data/seed/visemes/character.json'),
 ) as any[];
 
-describe('数字人枚举一致性', () => {
+describe.skipIf(!repoRoot)('数字人枚举一致性', () => {
   it('actions 在前端、seed JSON、Go、SQL 中一致', () => {
     const seed = actionsJson.map(a => a.name as string);
     const go = parseGoStringSlice(goToolsSource, 'actions');
