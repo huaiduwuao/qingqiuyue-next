@@ -182,8 +182,13 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
           WebkitOverflowScrolling: 'touch',
           // 底部导航挂载时会把自身高度写进 --bottom-nav-inset(含安全区),这里照抄,
           // 不再各自猜 56px;桌面端该变量是 0。
-          // 音乐底栏出现时再加上它的高度(--player-inset,由 GlobalMusicBar 写入)。
-          pb: 'calc(var(--bottom-nav-inset, 0px) + var(--player-inset, 0px))',
+          // 推荐视频流 (activeNav === 'recommend') 不再叠加 --player-inset:
+          // music bar 是 position: fixed 浮在最上层,视频流沉浸式要铺满整个 viewport,
+          // pb 不算它就不会在视频底部与音乐底栏之间留一道空白。
+          // 其它页面(瀑布流/榜单/我的)继续算 --player-inset,避免最后一行被音乐底栏遮住。
+          pb: activeNav === 'recommend'
+            ? 'var(--bottom-nav-inset, 0px)'
+            : 'calc(var(--bottom-nav-inset, 0px) + var(--player-inset, 0px))',
           // 推荐视频流要铺满剩余高度:main 自己是列向 flex,视频流 flex:1
           display: 'flex',
           flexDirection: 'column',

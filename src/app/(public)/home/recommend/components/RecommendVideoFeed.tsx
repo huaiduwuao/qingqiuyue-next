@@ -41,6 +41,7 @@ import { mediaUrl } from '@/lib/media';
 import { TYPE_LABEL } from '@/lib/contentRoute';
 import { TYPE_GRADIENT } from '@/constants/gradients';
 import { track } from '@/lib/track';
+import { useResponsive } from '@/hooks/useResponsive';
 import VideoPlayer, { type VideoPlayerHandle } from '@/components/detail/VideoPlayer';
 
 interface VideoItem {
@@ -118,6 +119,8 @@ function reportBrokenContent(video: { id: number; idString?: string; contentType
 
 export function RecommendVideoFeed() {
   const router = useRouter();
+  // 桌面端评论从右滑入,移动端维持底部抽屉(参考抖音 PC/移动端差异)。
+  const { isMobile } = useResponsive();
   // 初始自动播放意图,真正的播放/暂停状态由 VideoPlayer 内部的 <video> 元素持有,
   // 这里只通过 videoPlayerRef 转发操作(切换/快进快退),不再维护一份平行的假状态。
   const [playing, setPlaying] = useState(true);
@@ -996,29 +999,45 @@ export function RecommendVideoFeed() {
         </Alert>
       </Snackbar>
 
-      {/* 评论抽屉 —— 从底部弹出,占视口 75% 高度。
-          用 DetailComments 的展开模式(!compact):评论列表 + 输入框 + 表情 + 楼中楼回复 +
-          顶/踩/收藏 + 加载更多,全套直接铺在抽屉里,不用再套一层 Dialog。
+      {/* 评论抽屉 —— 响应式:
+          · 桌面端 (>= md) 从右侧滑入,宽 420/480px,左侧视频区不被整屏遮罩覆盖,
+            用户可以同时看着视频翻评论,符合参考的 PC 端体验。
+          · 移动端 (< md) 维持从底部弹出,占视口约 75% 高度,顶部圆角 —— 移动端
+            视频区本来就窄,底部抽屉遮住下半屏是抖音/快手的标准做法。
+          DetailComments 用展开模式(!compact):评论列表 + 输入框 + 表情 + 楼中楼回复
+          + 顶/踩/收藏 + 加载更多,全套直接铺在抽屉里,不用再套一层 Dialog。
           关键原因:DetailComments 的 compact 模式只在用户点中图标时把内部 Dialog 打开,
           而 Drawer 的 contents 没法触发那次内部 click —— compact 模式在 Drawer 容器里
           只会渲染出一个评论数小条,内容不会显示。展开模式是整块直接渲染。 */}
       <Drawer
-        anchor="bottom"
+        anchor={isMobile ? 'bottom' : 'right'}
         open={commentDrawerOpen}
         onClose={() => setCommentDrawerOpen(false)}
         transitionDuration={{ enter: 280, exit: 220 }}
         slotProps={{
           paper: {
-            sx: {
-              height: { xs: '85vh', sm: '75vh' },
-              maxHeight: '85vh',
-              borderTopLeftRadius: 16,
-              borderTopRightRadius: 16,
-              bgcolor: 'background.paper',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-            },
+            sx: isMobile
+              ? {
+                  height: { xs: '85vh', sm: '75vh' },
+                  maxHeight: '85vh',
+                  borderTopLeftRadius: 16,
+                  borderTopRightRadius: 16,
+                  bgcolor: 'background.paper',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
+                }
+              : {
+                  width: { md: 420, lg: 480 },
+                  maxWidth: '100%',
+                  height: '100%',
+                  borderTopLeftRadius: 0,
+                  borderTopRightRadius: 0,
+                  bgcolor: 'background.paper',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
+                },
           },
         }}
       >

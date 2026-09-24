@@ -7,7 +7,8 @@
     "workspaces": []
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "cross-env NODE_OPTIONS=--max-old-space-size=4096 NEXT_TELEMETRY_DISABLED=1 next dev",
+    "dev:legacy": "cross-env NODE_OPTIONS=--max-old-space-size=4096 NEXT_TELEMETRY_DISABLED=1 next dev --no-turbopack",
     "build": "next build",
     "build:static": "cross-env NEXT_EXPORT_STATIC=true next build",
     "start": "next start",
