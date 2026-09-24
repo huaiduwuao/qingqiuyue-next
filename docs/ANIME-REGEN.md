@@ -121,7 +121,7 @@ git push
 
 ## 7. 后端跑完整 pipeline 也能用新 GLB
 
-`/avatar-pipeline` 走 `bash scripts/avatar-pipeline.sh --from-library aoi` 会从 `public/avatars/library/aoi.glb` 拷,自动用上 10 个动作。
+`bash scripts/avatar-pipeline.sh --from-library aoi` 会从 `public/avatars/library/aoi.glb` 拷,自动用上 10 个动作。
 
 ## 故障排查
 

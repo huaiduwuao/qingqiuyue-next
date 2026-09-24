@@ -53,7 +53,7 @@ qingqiuyue-next/
 `docs/` 现有:
 
 - `UNIFIED-ARCHITECTURE.md` —— 前后端整体架构
-- `DIGITAL-HUMAN.md` / `avatar-pipeline.md` / `anime-characters.md` / `ANIME-REGEN.md` —— 数字人 / Avatar / 二次元再生
+- `DIGITAL-HUMAN.md` / `anime-characters.md` / `ANIME-REGEN.md` —— 数字人 / Avatar / 二次元再生
 - `USER-GUIDE.md` —— 产品形态(给开发者看)
 
 ## 开发命令

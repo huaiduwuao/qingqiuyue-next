@@ -32,7 +32,7 @@ import { normalizeChoices, normalizeContentRefs, rememberContentRefs, type Conte
 import { musicPlayer } from '@/lib/player/musicPlayer';
 import { playPlaylist, playTracks, queueTracks } from '@/lib/player/playlist';
 import { API_PREFIX } from '@/lib/api/prefix';
-import { authHeaders } from '@/lib/api/auth';
+import { authFetch, authHeaders } from '@/lib/api/auth';
 import { withTicket } from '@/lib/realtime/ticket';
 
 /** 业务工具执行时给用户的可见反馈(否则一次搜索十几秒界面是死的) */
@@ -251,10 +251,10 @@ let ttsRunning = false;
 let onTTSIdle: (() => void) | null = null;
 
 function requestTTS(text: string, signal?: AbortSignal): Promise<Response | null> {
-  return fetch(API_PREFIX + '/api/audio/speech', {
+  return authFetch(API_PREFIX + '/api/audio/speech', {
     method: 'POST',
-    // /api/audio/* 同在 realtime-api,整站登录闸门一样要会话
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    // /api/audio/* 在网关上要登录会话;authFetch 补 Authorization,401 时通知 AuthContext
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'tts',
       input: text,

@@ -185,6 +185,15 @@ export const PERMISSIONS = {
   SYSTEM_SANDBOX: {
     MANAGE: 'system:sandbox:manage',
   },
+  // 财务审批:VIEW 挂菜单 + 列表(menu 1805 / 1803),REVIEW 挂通过 / 驳回接口
+  SYSTEM_REFUND_REVIEW: {
+    VIEW: 'system:refund-review:view',
+    REVIEW: 'system:refund-review:review',
+  },
+  SYSTEM_WITHDRAW_REVIEW: {
+    VIEW: 'system:withdraw-review:view',
+    REVIEW: 'system:withdraw-review:review',
+  },
 } as const;
 
 export type PermissionCode = string;

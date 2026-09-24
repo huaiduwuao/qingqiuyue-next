@@ -5,9 +5,19 @@
  * 返回 { text, language }
  */
 
-import { authHeaders } from '@/lib/api/auth'
+import { authFetch } from '@/lib/api/auth'
+import { API_PREFIX } from '@/lib/api/prefix'
 
-const GATEWAY_DEFAULT = typeof window !== 'undefined' ? `${window.location.origin}/api/audio` : 'http://127.0.0.1:8001/v1'
+// API_PREFIX:网页里是空串(同源 /api/audio),Tauri 客户端里是网关绝对地址 —— 客户端页面跑在
+// tauri.localhost 上,拿 window.location.origin 拼出来的地址到不了网关。
+const GATEWAY_DEFAULT = `${API_PREFIX}/api/audio`
+
+/** 发往自家网关(相对路径 / 当前站点 / API_PREFIX)才带会话;直连外部 gateway 不带,免得把会话发出去。 */
+function isOwnGateway(url: string): boolean {
+  if (url.startsWith('/')) return true
+  if (API_PREFIX && url.startsWith(API_PREFIX.replace(/\/$/, '') + '/')) return true
+  return typeof window !== 'undefined' && url.startsWith(window.location.origin + '/')
+}
 
 export interface ASROptions {
   gatewayUrl?: string
@@ -73,10 +83,10 @@ export async function transcribe(samples: Float32Array, opts: ASROptions = {}): 
   fd.append('language', opts.language || 'zh')
   fd.append('response_format', 'json')
 
-  // 生产上 APISIX 把 /api/audio/transcriptions 直接转给 FunASR 容器,目前不校验会话;
-  // 同源时照样带上 Authorization,网关以后加鉴权也不用改这里。直连外部 gateway 不带,免得把会话发出去。
-  const sameOrigin = url.startsWith('/') || (typeof window !== 'undefined' && url.startsWith(window.location.origin + '/'))
-  const r = await fetch(url, { method: 'POST', body: fd, headers: sameOrigin ? authHeaders() : undefined })
+  // /api/audio/* 在网关上要登录会话(401 时 authFetch 会通知 AuthContext 复核)。
+  const r = isOwnGateway(url)
+    ? await authFetch(url, { method: 'POST', body: fd })
+    : await fetch(url, { method: 'POST', body: fd })
   if (!r.ok) {
     const body = await r.text().catch(() => '')
     throw new Error(`ASR ${r.status}: ${body.slice(0, 200)}`)

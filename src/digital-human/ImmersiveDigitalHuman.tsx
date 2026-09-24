@@ -721,7 +721,7 @@ export default function ImmersiveDigitalHuman() {
   const [voiceEnabled, setVoiceEnabled] = React.useState(false)
   const voice = useVoiceAgent({
     wakePhrases,
-    asrGatewayUrl: typeof window !== 'undefined' ? `${window.location.origin}/api/audio` : '/api/audio',
+    asrGatewayUrl: `${API_PREFIX}/api/audio`,
     onCommand: async (text) => {
       if (chat.isSpeaking()) chat.cancel()
       await sendText(text)

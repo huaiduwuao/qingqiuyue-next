@@ -6,6 +6,9 @@
  */
 
 import React, { useState } from 'react';
+import { PermissionGuard } from '@/components/auth/PermissionGuard';
+import { useAuthority } from '@/contexts/AuthContext';
+import { PERMISSIONS } from '@/lib/permissions';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
@@ -62,6 +65,23 @@ async function reviewWithdraw(data: { id: number; approved: boolean; rejectNote?
 }
 
 export default function WithdrawReviewPage() {
+  return (
+    <PermissionGuard
+      need={PERMISSIONS.SYSTEM_WITHDRAW_REVIEW.VIEW}
+      fallback={
+        <Alert severity="warning" sx={{ m: 2 }}>
+          你没有「提现审核」权限。请联系管理员在 /system/role 里授予 system:withdraw-review:view。
+        </Alert>
+      }
+    >
+      <WithdrawReviewPageInner />
+    </PermissionGuard>
+  );
+}
+
+function WithdrawReviewPageInner() {
+  const { can } = useAuthority();
+  const canReview = can(PERMISSIONS.SYSTEM_WITHDRAW_REVIEW.REVIEW);
   const [filterValues, setFilterValues] = useState<Record<string, any>>({});
   const [reviewTarget, setReviewTarget] = useState<WithdrawRequest | null>(null);
   const [rejectNote, setRejectNote] = useState('');
@@ -130,7 +150,7 @@ export default function WithdrawReviewPage() {
         customActions={[{
           label: '审核',
           color: 'primary',
-          hidden: (row) => (row as WithdrawRequest).status !== 'pending',
+          hidden: (row) => !canReview || (row as WithdrawRequest).status !== 'pending',
           onClick: (row) => { setReviewTarget(row as WithdrawRequest); setRejectNote(''); },
         }]}
       />
@@ -154,10 +174,10 @@ export default function WithdrawReviewPage() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setReviewTarget(null)} disabled={submitting}>取消</Button>
-          <Button onClick={() => handleReview(false)} color="error" disabled={submitting || !rejectNote.trim()}>
+          <Button onClick={() => handleReview(false)} color="error" disabled={!canReview || submitting || !rejectNote.trim()}>
             拒绝
           </Button>
-          <Button onClick={() => handleReview(true)} variant="contained" color="success" disabled={submitting}>
+          <Button onClick={() => handleReview(true)} variant="contained" color="success" disabled={!canReview || submitting}>
             通过
           </Button>
         </DialogActions>

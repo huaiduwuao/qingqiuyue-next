@@ -6,7 +6,7 @@
  * 路由: /gs-viewer?asset=<baseUrl>
  *
  * 用法:
- *   /gs-viewer?asset=/api/avatar/pipeline/jobs/xxx/artifacts
+ *   /gs-viewer?asset=/media/avatar/assets/job123
  *   /gs-viewer?asset=https://minio.example.com/qq-media/avatar/assets/job123
  *
  * 如果未提供 asset 参数, 显示 URL 输入框。
@@ -76,7 +76,7 @@ function GSViewerContent() {
             fullWidth
             size="small"
             label="资产 URL"
-            placeholder="/api/avatar/pipeline/jobs/xxx/artifacts"
+            placeholder="https://…/avatar/assets/<job>"
             value={assetUrl}
             onChange={(e) => setAssetUrl(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleLoad()}

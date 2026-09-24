@@ -75,11 +75,9 @@ blender --background --python scripts/blender/build_anime_avatar.py -- \
 3. **加真实比例**:传 `chibi=False`(头占 13% 身高)
 4. **加服装变种**:在 `LIBRARY` 数组加项,`accent` 字段控制主色
 
-## 在 wizard 里集成
+## 用管线脚本部署
 
-`/avatar-pipeline` 第 1 步选"选个二次元角色" → 加载 library → 点选 → 输名字 → 直接 rig + deploy。
-
-后端 API:`GET /api/avatar/pipeline/library` 返回 `library.json` 内容。
+(原 `/avatar-pipeline` 网页向导及其 `/api/avatar/pipeline/*` 接口已于 2026-09-23 移除 —— 没有任何后端服务实现这些接口。)
 
 Pipeline 调用:
 ```bash
@@ -105,8 +103,8 @@ bash scripts/avatar-pipeline.sh \
 ## 调试
 
 ```bash
-# 查 library.json 是否被 Next.js 读到
-curl http://localhost:3000/api/avatar/pipeline/library -b "auth-token=$JWT" | jq .
+# 查 library.json(生成后才有,见上文)
+curl http://localhost:3000/avatars/library/library.json | jq .
 
 # 查缩略图
 curl -o /tmp/aoi.png http://localhost:3000/avatars/library/aoi.png

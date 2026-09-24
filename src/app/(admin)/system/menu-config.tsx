@@ -159,8 +159,8 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
     items: [
       { id: 'payment-config', label: '支付配置', path: '/system/payment-config', icon: <PaymentRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
       { id: 'recharge-records', label: '充值记录', path: '/system/recharge-records', icon: <AccountBalanceWalletRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
-      { id: 'withdraw-review', label: '提现审核', path: '/system/withdraw-review', icon: <AccountBalanceWalletRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FFB400' },
-      { id: 'refund-review', label: '退款审批', path: '/system/refund-review', icon: <PaymentRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF6B8A' },
+      { id: 'withdraw-review', label: '提现审核', path: '/system/withdraw-review', icon: <AccountBalanceWalletRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FFB400', permission: PERMISSIONS.SYSTEM_WITHDRAW_REVIEW.VIEW },
+      { id: 'refund-review', label: '退款审批', path: '/system/refund-review', icon: <PaymentRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF6B8A', permission: PERMISSIONS.SYSTEM_REFUND_REVIEW.VIEW },
       { id: 'shop', label: '商城与礼物', path: '/system/shop', icon: <StorefrontRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6' },
     ],
   },

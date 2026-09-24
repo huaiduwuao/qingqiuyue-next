@@ -3,7 +3,7 @@
  *
  * 用法:
  *   const { state, transcript, start, stop } = useVoiceAgent({
- *     asrGatewayUrl: '/api/audio',
+ *     asrGatewayUrl: `${API_PREFIX}/api/audio`,  // 省略时默认就是它
  *     wakePhrases: ['小月', '清秋月'],
  *     onCommand: async (text) => { await sendToAvatar(text) },
  *     isAvatarSpeaking: () => avatarIsSpeaking,  // 用于打断

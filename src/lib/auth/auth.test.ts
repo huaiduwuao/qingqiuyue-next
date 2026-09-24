@@ -56,7 +56,7 @@ describe('route policy', () => {
   });
 
   it('protects back office and creation tools', () => {
-    for (const p of ['/system/user', '/video-gen', '/avatar-pipeline', '/gs-viewer']) {
+    for (const p of ['/system/user', '/video-gen', '/gs-viewer']) {
       expect(isProtectedPath(p)).toBe(true);
     }
   });

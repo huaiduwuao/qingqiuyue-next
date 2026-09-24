@@ -9,6 +9,9 @@
  */
 
 import React, { useState } from 'react';
+import { PermissionGuard } from '@/components/auth/PermissionGuard';
+import { useAuthority } from '@/contexts/AuthContext';
+import { PERMISSIONS } from '@/lib/permissions';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
@@ -40,6 +43,23 @@ const fetchRefunds = (params: { pageNumber: number; pageSize: number; status?: s
   adminListRefunds({ page: params.pageNumber, pageSize: params.pageSize, status: params.status });
 
 export default function RefundReviewPage() {
+  return (
+    <PermissionGuard
+      need={PERMISSIONS.SYSTEM_REFUND_REVIEW.VIEW}
+      fallback={
+        <Alert severity="warning" sx={{ m: 2 }}>
+          你没有「退款审批」权限。请联系管理员在 /system/role 里授予 system:refund-review:view。
+        </Alert>
+      }
+    >
+      <RefundReviewPageInner />
+    </PermissionGuard>
+  );
+}
+
+function RefundReviewPageInner() {
+  const { can } = useAuthority();
+  const canReview = can(PERMISSIONS.SYSTEM_REFUND_REVIEW.REVIEW);
   const [filterValues, setFilterValues] = useState<Record<string, any>>({ status: 'refunding' });
   const [target, setTarget] = useState<PaymentOrder | null>(null);
   const [note, setNote] = useState('');
@@ -109,7 +129,7 @@ export default function RefundReviewPage() {
         customActions={[{
           label: '审批',
           color: 'primary',
-          hidden: (row) => (row as PaymentOrder).status !== 'refunding',
+          hidden: (row) => !canReview || (row as PaymentOrder).status !== 'refunding',
           onClick: (row) => { setTarget(row as PaymentOrder); setNote(''); },
         }]}
       />
@@ -139,10 +159,10 @@ export default function RefundReviewPage() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setTarget(null)} disabled={submitting}>取消</Button>
-          <Button onClick={() => handleReview(false)} color="error" disabled={submitting || !note.trim()}>
+          <Button onClick={() => handleReview(false)} color="error" disabled={!canReview || submitting || !note.trim()}>
             驳回
           </Button>
-          <Button onClick={() => handleReview(true)} variant="contained" color="success" disabled={submitting}>
+          <Button onClick={() => handleReview(true)} variant="contained" color="success" disabled={!canReview || submitting}>
             通过并退款
           </Button>
         </DialogActions>
