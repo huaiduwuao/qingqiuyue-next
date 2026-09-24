@@ -61,6 +61,8 @@ interface Props {
   embedDanmaku?: boolean;
   /** fill 模式下外链播放器底部让出的高度(数字按 px,也可以是 CSS 长度),给推荐流的文案/输入条留位,默认 160。 */
   fillReserveBottom?: number | string;
+  /** 竖屏视频:外链播放器在 fill 模式下按 9:16 撑满高度 */
+  embedPortrait?: boolean;
 }
 
 export interface VideoPlayerHandle {
@@ -1073,6 +1075,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(pr
         fill={props.fill}
         danmaku={props.embedDanmaku}
         reserveBottom={props.fillReserveBottom}
+        portrait={props.embedPortrait}
       />
     );
   }

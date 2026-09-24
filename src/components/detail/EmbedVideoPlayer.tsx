@@ -22,6 +22,8 @@ interface Props {
   danmaku?: boolean;
   /** fill 模式底部让出的高度(数字按 px,也可以是 CSS 长度),默认 160 */
   reserveBottom?: number | string;
+  /** 竖屏视频(源站 og:video 宽 < 高):fill 模式按 9:16 撑满高度,而不是缩在 16:9 框里两边黑 */
+  portrait?: boolean;
 }
 
 /**
@@ -35,7 +37,7 @@ interface Props {
  * 既慢又会先发一堆请求,而多数访问只是看一眼简介。
  */
 const EmbedVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function EmbedVideoPlayer(
-  { embed, originUrl, poster, autoPlay = false, isAIGenerated = false, fill = false, danmaku = false, reserveBottom = 160 },
+  { embed, originUrl, poster, autoPlay = false, isAIGenerated = false, fill = false, danmaku = false, reserveBottom = 160, portrait = false },
   ref,
 ) {
   const [started, setStarted] = useState(autoPlay);
@@ -151,7 +153,9 @@ const EmbedVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function EmbedVide
       <Box sx={{ position: 'absolute', inset: 0, pt: 2, pb: typeof reserveBottom === 'number' ? `${reserveBottom}px` : reserveBottom, bgcolor: 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <Box
           onPointerLeave={relock}
-          sx={{ position: 'relative', width: '100%', flex: '0 1 auto', minHeight: 0, maxHeight: '100%', aspectRatio: '16/9' }}
+          sx={portrait
+            ? { position: 'relative', height: '100%', flex: '1 1 auto', minHeight: 0, maxWidth: '100%', aspectRatio: '9/16' }
+            : { position: 'relative', width: '100%', flex: '0 1 auto', minHeight: 0, maxHeight: '100%', aspectRatio: '16/9' }}
         >
           {frame}
           {/* 罩子不盖底部 48px:外链播放器的进度条/音量/全屏始终能直接点 */}

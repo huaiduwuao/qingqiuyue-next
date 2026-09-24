@@ -10,13 +10,14 @@
  *   - B 站番剧/影视 /bangumi/play/ep… ss… —— 不行:episodeId、seasonId、分集 bvid、aid+cid
  *     都试过,外链播放器只放 17 秒的 error.mp4。版权内容 B 站不给外嵌,别加回来。
  *   - 腾讯 / 优酷的 iframe 播放器没验出真能出画面;抖音库里存的是搜索页,没有视频 id。
+ *   - AcFun 投稿 /v/ac… —— 能播(2026-09-25 验过:点一下开始播放,不自动播)。
  *
  * 数字人「虚拟浏览器」里另有一份宽松的 toEmbedUrl(任意含 BV 号的地址都映射、自动播放),
  * 那是给"随便打开一个网页"用的,口径不同,不要合并。
  */
 
 export interface EmbedPlayer {
-  provider: 'bilibili';
+  provider: 'bilibili' | 'acfun';
   /** 署名用的平台名 */
   providerLabel: string;
   /** iframe src(autoplay=0) */
@@ -25,6 +26,8 @@ export interface EmbedPlayer {
 
 const BILI_BV = /^\/video\/(BV[0-9A-Za-z]{10})\/?$/;
 const BILI_AV = /^\/video\/av(\d+)\/?$/;
+// AcFun 多 P 是 /v/ac123_2
+const ACFUN = /^\/v\/ac(\d+)(?:_(\d+))?\/?$/;
 
 export function resolveEmbedPlayer(pageUrl?: string | null): EmbedPlayer | null {
   const raw = (pageUrl || '').trim();
@@ -37,7 +40,15 @@ export function resolveEmbedPlayer(pageUrl?: string | null): EmbedPlayer | null 
   }
   const host = u.hostname.toLowerCase();
   if (host === 'bilibili.com' || host.endsWith('.bilibili.com')) return bilibili(u);
+  if (host === 'acfun.cn' || host.endsWith('.acfun.cn')) return acfun(u);
   return null;
+}
+
+function acfun(u: URL): EmbedPlayer | null {
+  const m = ACFUN.exec(u.pathname);
+  if (!m) return null;
+  const id = m[2] && m[2] !== '1' ? `ac${m[1]}_${m[2]}` : `ac${m[1]}`;
+  return { provider: 'acfun', providerLabel: 'AcFun', url: `https://www.acfun.cn/player/${id}?autoplay=0` };
 }
 
 function bilibili(u: URL): EmbedPlayer | null {

@@ -79,6 +79,18 @@ interface VideoItem {
   // embeddable:不走本站播放器,嵌源站官方外链播放器(见 lib/embedPlayer)。
   playbackStatus?: 'playable' | 'pending_repair' | 'live_offline' | 'bandwidth_limited' | 'embeddable' | 'not_applicable' | 'unknown';
   repairNotice?: string; // 面向用户的中文提示。pending_repair 是故障文案,live_offline 是"主播未开播"
+  portrait?: boolean; // 竖屏(爬虫从源站 og:video:width/height 记下的 orientation)
+}
+
+// metadata 是爬虫落库的 JSON 串;og_pages 源会写 orientation=portrait|landscape。
+function isPortrait(metadata?: unknown): boolean {
+  if (!metadata) return false;
+  try {
+    const m = typeof metadata === 'string' ? JSON.parse(metadata) : metadata;
+    return (m as { orientation?: string })?.orientation === 'portrait';
+  } catch {
+    return false;
+  }
 }
 
 function formatCount(n?: number): string {
@@ -240,6 +252,7 @@ export function RecommendVideoFeed() {
         // 解析的结局毫无悬念。不管后端判没判过,一律按"去原站看"处理 —— 不解析、不报故障。
         playbackStatus: originOnlyPlatform(sourcePageOf(it.sourceUrl, it.metadata)) ? 'bandwidth_limited' : it.playbackStatus || 'unknown',
         repairNotice: it.repairNotice || (originOnlyPlatform(sourcePageOf(it.sourceUrl, it.metadata)) ? ORIGIN_ONLY_NOTICE : ''),
+        portrait: isPortrait(it.metadata),
       }));
       const hasMore = resp?.hasMore ?? false;
       // 后端还没按 watchable 过滤时(旧版本)前端兜一层:只留能嵌外链播放器或判定可播的。
@@ -800,6 +813,7 @@ export function RecommendVideoFeed() {
                         autoPlay={playing}
                         onPlaybackError={(message) => reportBrokenContent(v, message)}
                         embedDanmaku={danmakuOn}
+                        embedPortrait={v.portrait}
                         // 移动端评论打开后只剩一小块:不再给底部文案让位
                         fillReserveBottom={compactStage ? 0 : `calc(${isDesktop ? 150 : 170}px + var(--player-inset, 0px))`}
                       />

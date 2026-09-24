@@ -41,6 +41,15 @@ describe('resolveEmbedPlayer', () => {
   });
 });
 
+describe('resolveEmbedPlayer · AcFun', () => {
+  it('maps AcFun uploads to its player, same rules as internal/embedplayer', () => {
+    expect(resolveEmbedPlayer('https://www.acfun.cn/v/ac48868360')?.url).toBe('https://www.acfun.cn/player/ac48868360?autoplay=0');
+    expect(resolveEmbedPlayer('https://www.acfun.cn/v/ac48868360_2')?.url).toBe('https://www.acfun.cn/player/ac48868360_2?autoplay=0');
+    expect(resolveEmbedPlayer('https://m.acfun.cn/v/ac48868360/')?.provider).toBe('acfun');
+    expect(resolveEmbedPlayer('https://www.acfun.cn/bangumi/aa6002917')).toBeNull();
+  });
+});
+
 describe('originOnlyPlatform', () => {
   it('names licensed long-form platforms that can only be watched at the origin', () => {
     expect(originOnlyPlatform('https://www.bilibili.com/bangumi/play/ep1113959?theme=movie')).toBe('哔哩哔哩');
