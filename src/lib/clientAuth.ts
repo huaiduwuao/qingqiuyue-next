@@ -26,6 +26,22 @@ function tauri(): TauriGlobal | null {
   return (window as unknown as { __TAURI__?: TauriGlobal }).__TAURI__ ?? null;
 }
 
+/**
+ * 客户端里用系统打开外链(https):安卓上 B 站 / 抖音等链接会交给已装的 App,没装就开系统浏览器。
+ * 客户端 WebView 里 <a target="_blank"> 什么都不会发生,所以要显式走 open_external。
+ * 返回 true 表示已交给系统处理;网页里返回 false,调用方按普通链接处理。
+ */
+export async function openExternalUrl(url: string): Promise<boolean> {
+  const t = tauri();
+  if (!t?.core) return false;
+  try {
+    await t.core.invoke('open_external', { url });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** 是否跑在打包客户端里(网页里恒为 false)。 */
 export function isDesktopClient(): boolean {
   return tauri() != null;

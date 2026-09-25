@@ -8,6 +8,7 @@ import AIGCBadge from '@/components/AIGCBadge';
 import { mediaUrl } from '@/lib/media';
 import { withAutoplay, type EmbedPlayer } from '@/lib/embedPlayer';
 import type { VideoPlayerHandle } from './VideoPlayer';
+import { isDesktopClient, openExternalUrl } from '@/lib/clientAuth';
 
 interface Props {
   embed: EmbedPlayer;
@@ -43,13 +44,17 @@ const EmbedVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function EmbedVide
   const [started, setStarted] = useState(autoPlay);
   // fill 模式下 iframe 上盖一层透明罩:落在 iframe 里的滚轮/触摸不会冒泡到推荐流,
   // 不盖的话宽屏上播放器几乎占满整屏,根本划不动。点一下(推荐流把单击转成
-  // togglePlay)撤掉罩子,接下来的点击直达播放器;移出播放器或几秒后罩子回来。
+  // togglePlay)撤掉罩子,接下来的点击直达播放器。
+  // 鼠标:移出播放器或 8 秒后罩子回来。触屏:不再定时收回 —— 以前点一下放行、8 秒后罩子悄悄盖回去,
+  // 用户点播放器没反应,像是「过几秒就不让点了」;现在放行到划走这一条为止,
+  // 放行期间在播放器上下的空白处照样能划。
   const [interactive, setInteractive] = useState(false);
   const relockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unlock = useCallback(() => {
     setInteractive(true);
     if (relockTimer.current) clearTimeout(relockTimer.current);
-    relockTimer.current = setTimeout(() => setInteractive(false), 8000);
+    const coarse = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
+    if (!coarse) relockTimer.current = setTimeout(() => setInteractive(false), 8000);
   }, []);
   const relock = useCallback(() => {
     if (relockTimer.current) clearTimeout(relockTimer.current);
@@ -65,6 +70,9 @@ const EmbedVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function EmbedVide
   }, [embed.url, autoPlay, relock]);
 
   const posterUrl = mediaUrl(poster);
+  // 客户端里(isDesktopClient 读 window.__TAURI__,水合后才准)
+  const [inClient, setInClient] = useState(false);
+  useEffect(() => setInClient(isDesktopClient()), []);
 
   const frame = started ? (
     <Box
@@ -134,9 +142,17 @@ const EmbedVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function EmbedVide
             href={originUrl}
             target="_blank"
             rel="noopener noreferrer"
-            sx={{ color: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 0.25, textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+            onClick={(e: React.MouseEvent) => {
+              // 客户端:交给系统(装了对应平台的 App 就直接进 App),外链播放器放不出来时这是唯一出路
+              if (!inClient) return;
+              e.preventDefault();
+              void openExternalUrl(originUrl);
+            }}
+            sx={inClient
+              ? { color: '#fff', display: 'inline-flex', alignItems: 'center', gap: 0.5, textDecoration: 'none', px: 1.25, py: 0.25, borderRadius: 999, border: '1px solid rgba(255,255,255,0.35)' }
+              : { color: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 0.25, textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
           >
-            去原站观看
+            {inClient ? `用${embed.providerLabel}打开` : '去原站观看'}
             <OpenInNewIcon sx={{ fontSize: 13 }} />
           </Box>
         </>
@@ -152,7 +168,8 @@ const EmbedVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function EmbedVide
       // 外链播放器自己的进度条和音量/全屏按钮。
       <Box sx={{ position: 'absolute', inset: 0, pt: 2, pb: typeof reserveBottom === 'number' ? `${reserveBottom}px` : reserveBottom, bgcolor: 'transparent', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <Box
-          onPointerLeave={relock}
+          // 触屏每次抬手都会触发 pointerleave,只认鼠标移出
+          onPointerLeave={(e) => { if (e.pointerType === 'mouse') relock(); }}
           sx={portrait
             ? { position: 'relative', height: '100%', flex: '1 1 auto', minHeight: 0, maxWidth: '100%', aspectRatio: '9/16' }
             : { position: 'relative', width: '100%', flex: '0 1 auto', minHeight: 0, maxHeight: '100%', aspectRatio: '16/9' }}
