@@ -60,6 +60,7 @@ import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { loginHref } from '@/lib/auth/redirect';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
+import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { LIST_PAGE_SIZE, nextMeListPage } from '@/components/home/meListPaging';
 import { SiteLegalFooter } from '@/components/layout/SiteLegalFooter';
@@ -172,6 +173,7 @@ const QUICK_LINKS: { key: string; label: string; icon: React.ReactNode; href: st
   { key: 'order', label: '我的订单', icon: <ReceiptLongRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/orders', accent: ACCENT.blue.main },
   { key: 'purchases', label: '我的购买', icon: <ShoppingBagRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/purchases', accent: ACCENT.orange.main },
   { key: 'vip', label: '会员中心', icon: <WorkspacePremiumRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/vip', accent: ACCENT.gold.main },
+  { key: 'settings', label: '设置', icon: <SettingsRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/settings', accent: ACCENT.cyan.main },
 ];
 
 const DATE_RANGES = [
@@ -263,6 +265,15 @@ function MeLoggedOut() {
         sx={{ mt: 1.5, px: 4, borderRadius: 999, textTransform: 'none', fontWeight: 600 }}
       >
         登录 / 注册
+      </Button>
+      <Button
+        component={Link}
+        href="/account/settings"
+        variant="text"
+        startIcon={<SettingsRoundedIcon />}
+        sx={{ mt: 0.5, textTransform: 'none', color: 'text.secondary' }}
+      >
+        设置
       </Button>
     </Box>
   );
@@ -519,6 +530,7 @@ function MyHomePageAuthed() {
         {/* Profile header */}
         <Box
           sx={{
+            position: 'relative',
             display: 'flex',
             flexDirection: { xs: 'column', sm: 'row' },
             gap: { xs: 1.5, sm: 2.5 },
@@ -531,6 +543,15 @@ function MyHomePageAuthed() {
             mb: 2,
           }}
         >
+          <IconButton
+            component={Link}
+            href="/account/settings"
+            aria-label="设置"
+            size="small"
+            sx={{ position: 'absolute', top: 8, right: 8, zIndex: 2, color: 'text.secondary' }}
+          >
+            <SettingsRoundedIcon fontSize="small" />
+          </IconButton>
           <Box
             sx={{
               position: 'relative',
@@ -659,11 +680,11 @@ function MyHomePageAuthed() {
           </Box>
         </Box>
 
-        {/* Quick links row:竖排 图标在上/标签在下,窄屏 3 列 / 宽屏 5 列,5 个入口不再有一个掉单 */}
+        {/* Quick links row:竖排 图标在上/标签在下,窄屏 3 列 / 宽屏 6 列,6 个入口两种宽度都排满 */}
         <Box
           sx={{
             display: 'grid',
-            gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(5, 1fr)' },
+            gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(6, 1fr)' },
             gap: 0.5,
             mb: 2,
             p: 1,

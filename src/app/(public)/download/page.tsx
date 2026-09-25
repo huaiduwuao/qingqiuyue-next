@@ -35,9 +35,12 @@ import {
   type ClientPlatform,
   type PlatformInfo,
 } from '@/utils/download';
+import { fetchLatestRelease, isNewerVersion } from '@/lib/appUpdate';
+import { useUpdateMode } from '@/components/client/ClientVersionCard';
 import { ACCENT } from '@/constants/accents';
 import { CTA_GRADIENT, gradient2, gradient3 } from '@/constants/gradients';
 
+// 兜底版本号:页面打开后会去 GitHub 读最新正式版覆盖它(见 useReleaseInfo),读不到才显示这个。
 const VERSION = '1.1.6';
 
 // 安装包由 CI 发布到 GitHub Release,并统一成固定文件名(.github/workflows/build.yml 的 release job),
@@ -130,10 +133,55 @@ const SCREENSHOTS = [
   { label: '离线管理', gradient: gradient2('#06B6D4', '#5DDB96') },
 ];
 
+/** 发版日期 → 2026-09-25(按本地时区) */
+function formatReleaseDate(iso?: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/**
+ * 最新版本号 + 发布日期,直接读 GitHub Release —— 下载链接本来就指向 releases/latest,
+ * 这样发版后页面上的版本号自动跟着变,不再依赖手改 VERSION。
+ * 在客户端里打开时顺带读出本机已装版本,方便对照要不要更新。
+ */
+function useReleaseInfo() {
+  const mode = useUpdateMode();
+  const [latest, setLatest] = useState<{ version: string; date: string }>({ version: VERSION, date: '' });
+  const [installed, setInstalled] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    fetchLatestRelease()
+      .then((r) => alive && setLatest({ version: r.version, date: formatReleaseDate(r.date) }))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!mode) return;
+    let alive = true;
+    import('@tauri-apps/api/app')
+      .then(({ getVersion }) => getVersion())
+      .then((v) => alive && setInstalled(v))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [mode]);
+
+  return { ...latest, installed };
+}
+
 function DownloadPageContent() {
   const router = useRouter();
   const [detected, setDetected] = useState<ClientPlatform | 'unknown'>('unknown');
   const [downloading, setDownloading] = useState<ClientPlatform | null>(null);
+  const release = useReleaseInfo();
 
   useEffect(() => {
     setDetected(detectPlatform());
@@ -148,7 +196,7 @@ function DownloadPageContent() {
     if (downloading) return;
     const started = triggerClientDownload({
       platform: p.key,
-      version: VERSION,
+      version: release.version,
       installUrl: CLIENT_INSTALL_URLS[p.key],
     });
     if (!started) return;
@@ -288,7 +336,7 @@ function DownloadPageContent() {
                 }}
               />
               <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', letterSpacing: 2, textTransform: 'uppercase' }}>
-                QingQiuyue Client · v{VERSION}
+                QingQiuyue Client · v{release.version}
               </Typography>
             </Box>
 
@@ -393,6 +441,30 @@ function DownloadPageContent() {
                 </Button>
               )}
 
+              <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap' }}>
+                <Typography sx={{ fontSize: 15, fontWeight: 700, color: '#fff' }}>
+                  最新版本 v{release.version}
+                </Typography>
+                {release.date && (
+                  <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>
+                    {release.date} 发布
+                  </Typography>
+                )}
+                {release.installed && (
+                  <Typography
+                    sx={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: isNewerVersion(release.version, release.installed) ? '#FFB400' : '#5DDB96',
+                    }}
+                  >
+                    {isNewerVersion(release.version, release.installed)
+                      ? `本机 v${release.installed},可以更新`
+                      : `本机 v${release.installed},已是最新`}
+                  </Typography>
+                )}
+              </Box>
+
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                 {detectedInfo ? (
                   <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>
@@ -420,7 +492,7 @@ function DownloadPageContent() {
             <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
               <Chip
                 size="small"
-                label={`v${VERSION}`}
+                label={`v${release.version}`}
                 sx={{
                   bgcolor: 'rgba(255,255,255,0.08)',
                   color: 'rgba(255,255,255,0.85)',

@@ -180,6 +180,37 @@ a {
   }
 }
 
+/* ==================== 安卓客户端:收掉网页才有的交互 ====================
+   data-client 由 components/client/ClientPlatformAttr 在客户端里打上,网站不受影响。 */
+
+/* 整页不再橡皮筋回弹/拉伸:原生应用的外壳是固定的,只有里面的列表会滚 */
+html[data-client="android"],
+html[data-client="android"] body {
+  overscroll-behavior: none;
+}
+
+/* 长按不再选中按钮、标签、卡片上的文字,也不弹系统的链接/图片菜单 */
+html[data-client="android"] body {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+/* 输入框和正文照样能选、能复制 */
+html[data-client="android"] :is(input, textarea, [contenteditable="true"], [contenteditable=""], article, pre, blockquote, .selectable, [data-selectable]),
+html[data-client="android"] :is(article, pre, blockquote, .selectable, [data-selectable]) * {
+  -webkit-user-select: text;
+  user-select: text;
+}
+html[data-client="android"] img {
+  -webkit-user-drag: none;
+}
+
+/* 没有涟漪的可点区域(卡片、链接)给一个按下反馈;MUI 按钮自带涟漪,不叠加 */
+html[data-client="android"] :is(a[href], [role="button"]):not(.MuiButtonBase-root):active {
+  opacity: 0.72;
+  transition: opacity 0s;
+}
+
 /* 用户偏好：减少动画 */
 @media (prefers-reduced-motion: reduce) {
   *,

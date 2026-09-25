@@ -10,6 +10,7 @@ import PageViewTracker from '@/components/PageViewTracker';
 import ViewportFix from '@/components/layout/ViewportFix';
 import DeepLinkBridge from '@/components/client/DeepLinkBridge';
 import AppUpdater from '@/components/client/AppUpdater';
+import ClientPlatformAttr from '@/components/client/ClientPlatformAttr';
 import ClickSpark from '@/components/reactbits/ClickSpark';
 import GlobalPlayers from '@/components/player/GlobalPlayers';
 import EmbedBridge from '@/components/layout/EmbedBridge';
@@ -96,6 +97,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
               <DeepLinkBridge />
               {/* 客户端:启动 / 每 6 小时检查新版本,桌面端自动下载安装(网页里是空组件) */}
               <AppUpdater />
+              {/* 客户端:<html data-client=…>,供 globals.css 收掉网页才有的交互(网页里是空组件) */}
+              <ClientPlatformAttr />
               <ClickSpark sparkColor="var(--brand-color, #FE2C55)">
                 {children}
               </ClickSpark>
