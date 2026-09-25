@@ -185,6 +185,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
           // 音乐底栏出现时再加上它的高度(--player-inset,由 GlobalMusicBar 写入)。
           // 对所有页面一视同仁(推荐页的分类瀑布流也要它);沉浸式视频流自己用负 margin
           // 伸到底栏下面、只把浮层往上抬(见 RecommendVideoFeed),不在这里按页签分支。
+          // 两侧栏各自留底栏高度(见 LeftSidebar / RightSidebar)。
           pb:'calc(var(--bottom-nav-inset, 0px) + var(--player-inset, 0px))',
           // 推荐视频流要铺满剩余高度:main 自己是列向 flex,视频流 flex:1
           display: 'flex',
@@ -507,6 +508,8 @@ function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activ
         flexDirection: 'column',
         borderRight: '1px solid var(--border-color, transparent)',
         bgcolor: 'var(--bg-sidebar, transparent)',
+        // 底部的版权/ICP 页脚别被音乐底栏盖住
+        pb: 'var(--player-inset, 0px)',
       }}
     >
       <Box sx={{ flex: 1, py: 1.5, overflow: 'auto' }}>
@@ -614,6 +617,8 @@ function RightSidebar({ section }: { section: string }) {
         flexShrink: 0,
         display: { xs: 'none', lg: 'flex' },
         p: 2,
+        // 滚动区末尾留出音乐底栏高度:平时照样铺到底(不因底栏开合而缩放),滚到底时最后一块不被盖住
+        pb: 'calc(16px + var(--player-inset, 0px))',
         minHeight: 0,
         overflowY: 'auto',
         flexDirection: 'column',

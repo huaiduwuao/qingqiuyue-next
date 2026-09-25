@@ -372,7 +372,13 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
   // 所有 Hook 调用完毕后再做条件分支(遵守 Rules of Hooks:Hook 顺序在每次渲染必须一致)
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <Box
+      // 首页 main 是列向 flex,带这个标记的直接子元素 flex:1 铺满剩余高度。
+      // 音乐底栏出现时 main 会在底部让出它的高度;这里跟推荐视频流一样用负 margin 伸到
+      // 底栏下面(底栏开合时页面不缩放),只在滚动区末尾留出底栏高度,滚到底不被盖住。
+      data-fill-main
+      sx={{ display: 'flex', flexDirection: 'column', height: '100%', mb: 'calc(-1 * var(--player-inset, 0px))' }}
+    >
       {tab === 'home' && (
         <Box
           sx={{
@@ -627,7 +633,7 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
           )}
         </Box>
 
-      <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+      <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0, pb: 'var(--player-inset, 0px)' }}>
           {/* 歌单频道:整张歌单直接能播,不用先点进歌单页 */}
           {active.kind === 'playlist' && playlist && (
             <PlaylistChannelHeader list={playlist} />
