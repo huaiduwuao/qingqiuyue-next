@@ -6,6 +6,7 @@
 
 import { md5 } from './md5';
 import { nativeFetch } from './native';
+import { mediaSourceCtor } from './dash';
 import { loadRules, matchProvider, type DashOutput, type ProgressiveOutput, type ProviderRule, type RuleStep } from './rules';
 
 export interface DashTrack {
@@ -125,8 +126,8 @@ function strList(v: unknown): string[] {
 }
 
 function supported(mime: string, codecs: string): boolean {
-  const MS = typeof window !== 'undefined' ? window.MediaSource : undefined;
-  return !!MS && MS.isTypeSupported(`${mime}; codecs="${codecs}"`);
+  const MS = mediaSourceCtor();
+  return !!MS && MS.ctor.isTypeSupported(`${mime}; codecs="${codecs}"`);
 }
 
 function pickDash(json: unknown, out: DashOutput): { video: DashTrack; audio?: DashTrack } {

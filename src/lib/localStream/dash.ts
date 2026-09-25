@@ -26,6 +26,18 @@ interface Segment {
 
 type Mode = 'browser' | 'native';
 
+/**
+ * MediaSource 构造器。Safari/WebKit 新版本(macOS 客户端的 WKWebView、iOS)可能只有 ManagedMediaSource;
+ * 用它时 <video> 必须关掉远程播放(disableRemotePlayback),否则不给开流。
+ */
+export function mediaSourceCtor(): { ctor: typeof MediaSource; managed: boolean } | null {
+  if (typeof window === 'undefined') return null;
+  const w = window as unknown as { MediaSource?: typeof MediaSource; ManagedMediaSource?: typeof MediaSource };
+  if (w.MediaSource) return { ctor: w.MediaSource, managed: false };
+  if (w.ManagedMediaSource) return { ctor: w.ManagedMediaSource, managed: true };
+  return null;
+}
+
 class RangeFetcher {
   private order: Array<{ url: string; mode: Mode }>;
   constructor(urls: string[], private headers: Record<string, string>) {
@@ -240,7 +252,13 @@ export function attachLocalStream(video: HTMLVideoElement, stream: LocalStream, 
     };
   }
 
-  const ms = new MediaSource();
+  const MS = mediaSourceCtor();
+  if (!MS) {
+    onFatal(new Error('这个系统的 WebView 不支持 MediaSource'));
+    return () => {};
+  }
+  if (MS.managed) (video as HTMLVideoElement & { disableRemotePlayback: boolean }).disableRemotePlayback = true;
+  const ms = new MS.ctor();
   const objectUrl = URL.createObjectURL(ms);
   const loaders: TrackLoader[] = [new TrackLoader(stream.video, stream.mediaHeaders)];
   if (stream.audio) loaders.push(new TrackLoader(stream.audio, stream.mediaHeaders));

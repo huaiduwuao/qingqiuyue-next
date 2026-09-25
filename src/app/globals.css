@@ -209,10 +209,83 @@ html[data-client="android"] img {
   -webkit-user-drag: none;
 }
 
-/* 没有涟漪的可点区域(卡片、链接)给一个按下反馈;MUI 按钮自带涟漪,不叠加 */
-html[data-client="android"] :is(a[href], [role="button"]):not(.MuiButtonBase-root):active {
-  opacity: 0.72;
-  transition: opacity 0s;
+/* 按下反馈:原生应用点下去有「按进去」的手感,松手弹回。用独立的 scale 属性而不是 transform,
+   不覆盖元素自己的位移/动画;不给 MUI 组件设 transition,免得盖掉它们自带的颜色/阴影过渡。只作用在客户端里。 */
+html[data-client] :is(a[href], [role="button"]):not(.MuiButtonBase-root):active {
+  opacity: 0.8;
+  scale: 0.98;
+}
+html[data-client] .MuiButtonBase-root:not(.Mui-disabled):active {
+  scale: 0.97;
+}
+
+/* ==================== 客户端:提示条 ====================
+   以前各处的 Snackbar 大多锚在顶部,客户端里正好压住顶栏(安卓还叠在状态栏下面)。
+   客户端里统一放到底部、底栏和音乐条之上,入场从下往上滑 + 淡入,像原生的 Toast。 */
+html[data-client] .MuiSnackbar-root {
+  top: auto !important;
+  bottom: calc(max(var(--bottom-nav-inset, 0px), var(--sab, 0px)) + var(--player-inset, 0px) + 12px) !important;
+  left: 12px !important;
+  right: 12px !important;
+  transform: none !important;
+  justify-content: center;
+}
+html[data-client] .MuiSnackbar-root > * {
+  animation: qq-toast-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes qq-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+}
+
+/* ==================== 客户端:页面转场 ====================
+   components/client/NativeTransitions 在导航时打上 html[data-vt=forward|back] 并调 View Transitions API。
+   前进:新页从右推入、旧页左移变暗;返回:当前页向右滑走、上一页从左侧回来。 */
+html[data-vt]::view-transition-old(root),
+html[data-vt]::view-transition-new(root) {
+  animation-duration: 0.3s;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation-fill-mode: both;
+  mix-blend-mode: normal;
+}
+html[data-vt="forward"]::view-transition-old(root) {
+  animation-name: qq-vt-push-out;
+}
+html[data-vt="forward"]::view-transition-new(root) {
+  animation-name: qq-vt-push-in;
+  box-shadow: -12px 0 32px rgba(0, 0, 0, 0.18);
+}
+html[data-vt="back"]::view-transition-old(root) {
+  animation-name: qq-vt-pop-out;
+  z-index: 2;
+  box-shadow: -12px 0 32px rgba(0, 0, 0, 0.18);
+}
+html[data-vt="back"]::view-transition-new(root) {
+  animation-name: qq-vt-pop-in;
+}
+@keyframes qq-vt-push-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+@keyframes qq-vt-push-out {
+  to {
+    transform: translateX(-25%);
+    opacity: 0.7;
+  }
+}
+@keyframes qq-vt-pop-out {
+  to {
+    transform: translateX(100%);
+  }
+}
+@keyframes qq-vt-pop-in {
+  from {
+    transform: translateX(-25%);
+    opacity: 0.7;
+  }
 }
 
 /* 手机/平板宽度下,任何一个超宽的元素(一行塞太多按钮、没空格的长 URL)都会把布局视口撑宽,

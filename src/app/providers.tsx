@@ -11,6 +11,7 @@ import ViewportFix from '@/components/layout/ViewportFix';
 import DeepLinkBridge from '@/components/client/DeepLinkBridge';
 import AppUpdater from '@/components/client/AppUpdater';
 import ClientPlatformAttr from '@/components/client/ClientPlatformAttr';
+import NativeTransitions from '@/components/client/NativeTransitions';
 import ClickSpark from '@/components/reactbits/ClickSpark';
 import GlobalPlayers from '@/components/player/GlobalPlayers';
 import EmbedBridge from '@/components/layout/EmbedBridge';
@@ -99,6 +100,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
               <AppUpdater />
               {/* 客户端:<html data-client=…>,供 globals.css 收掉网页才有的交互(网页里是空组件) */}
               <ClientPlatformAttr />
+              {/* 客户端:页面前进/返回转场 + 真机滑不动诊断(网页里是空组件) */}
+              <NativeTransitions />
               <ClickSpark sparkColor="var(--brand-color, #FE2C55)">
                 {children}
               </ClickSpark>

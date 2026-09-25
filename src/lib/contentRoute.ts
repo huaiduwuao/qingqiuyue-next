@@ -1,4 +1,5 @@
 import { useRouter } from 'next/navigation';
+import { navTransition } from '@/lib/navTransition';
 
 
 // TYPE_TO_ROUTE / TYPE_LABEL 现在从生成物再导出,不再在这里手写一份。
@@ -69,7 +70,8 @@ export function useContentNavigate() {
   const router = useRouter();
   return (contentType: string, id: number | string, fallbackUrl?: string) => {
     const route = getDetailRoute(contentType, id);
-    if (route) router.push(route);
+    // 客户端里带前进转场(网页里 navTransition 直接调用 push)
+    if (route) navTransition('forward', () => router.push(route));
     else if (fallbackUrl) openExternal(fallbackUrl);
   };
 }

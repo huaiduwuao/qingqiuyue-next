@@ -415,6 +415,10 @@ export function RecommendVideoFeed() {
 
   // 移动端评论打开时视频区只剩上面一小块:滚轮/拖动都不该再翻页
   const navBlocked = commentsOpen && !isDesktop;
+  // 滚轮手势状态(见 handleWheel)
+  const lastWheelAt = useRef(0);
+  const lastWheelNavAt = useRef(0);
+  const wheelNavigated = useRef(false);
 
   const handleWheel = useCallback(
     (e: WheelEvent) => {
@@ -425,14 +429,23 @@ export function RecommendVideoFeed() {
       // 白白丢掉已加载的列表/index 状态,体验上像"刷着刷着突然从头开始"。
       e.preventDefault();
       if (navBlocked) return;
+      // 一次滑动手势只翻一条。Mac 触控板一次轻扫会连续发上百个滚轮事件(先是手指、再是惯性),
+      // 以前只靠「锁 380ms、期间每来一个事件续 220ms」挡,事件间隔稍大就被当成新手势,一扫跳好几条,
+      // 看起来就像没有滑动动画、直接跳过去。现在:两次事件间隔超过 200ms 才算新手势;
+      // 同一手势(含惯性)里最多翻一条,且距上次翻页至少 450ms(让 0.34s 的滑动动画放完)。
+      const now = performance.now();
+      const gap = now - lastWheelAt.current;
+      lastWheelAt.current = now;
       if (Math.abs(e.deltaY) < 8) return;
-      if (navLock.current) {
-        lockNav(220);
-        return;
-      }
+      const newGesture = gap > 200;
+      if (newGesture) wheelNavigated.current = false;
+      if (!newGesture && wheelNavigated.current) return;
+      if (now - lastWheelNavAt.current < 450) return;
+      wheelNavigated.current = true;
+      lastWheelNavAt.current = now;
       go(e.deltaY > 0 ? 1 : -1);
     },
-    [go, lockNav, navBlocked],
+    [go, navBlocked],
   );
 
   const notify = (message: string, severity: 'success' | 'error' | 'info' = 'success') => {

@@ -20,9 +20,10 @@ import { parseStream, checkStreamAccess, BANDWIDTH_NOTICE } from '@/apis/stream'
 import { mediaUrl, isExternalStreamUrl } from '@/lib/media';
 import { resolveEmbedPlayer, originOnlyPlatform, ORIGIN_ONLY_NOTICE } from '@/lib/embedPlayer';
 import EmbedVideoPlayer from './EmbedVideoPlayer';
-import { isDesktopClient } from '@/lib/clientAuth';
+import { isDesktopClient, openExternalUrl } from '@/lib/clientAuth';
 import { canResolveLocally, resolveLocalStream } from '@/lib/localStream/engine';
 import { attachLocalStream } from '@/lib/localStream/dash';
+import { reportDiag } from '@/lib/clientDiag';
 import { videoDock, destroyVideo, pipSupported, togglePip, inPip, claimMediaSession, mediaSessionPaused, type StreamInfo } from '@/lib/player/videoDock';
 
 interface Props {
@@ -71,8 +72,10 @@ interface Props {
    * 由 VideoPlayer 外壳按「客户端 + 有匹配规则」自动设置,调用方不用传。
    */
   localSource?: string;
-  /** 本地解析 / 播放失败:外壳据此退回外链播放器 */
+  /** 本地解析 / 播放失败:外壳据此显示重试界面 */
   onLocalFail?: (err: Error) => void;
+  /** 重试:绕过本地解析缓存重新解析 */
+  localRefresh?: boolean;
 }
 
 export interface VideoPlayerHandle {
@@ -99,7 +102,7 @@ function fmt(s: number) {
 }
 
 const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVideoPlayer(
-  { src, sourceUrl, refreshSource, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false, fill = false, onPlaybackError, dockTitle, localSource, onLocalFail },
+  { src, sourceUrl, refreshSource, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false, fill = false, onPlaybackError, dockTitle, localSource, onLocalFail, localRefresh },
   ref,
 ) {
   // 封面同样经网关:调用方传进来的可能是 MinIO 内网直链或外站防盗链图。
@@ -430,7 +433,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     const ctrl = new AbortController();
     setLoading(true);
     setStreamError(null);
-    resolveLocalStream(localSource, { signal: ctrl.signal })
+    resolveLocalStream(localSource, { signal: ctrl.signal, refresh: localRefresh })
       .then((stream) => {
         if (cancelled) return;
         if (stream.duration > 0) setDuration(stream.duration);
@@ -1109,35 +1112,86 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
  * 本站又不中转视频(见 apis/stream 的 checkStreamAccess),走本站播放器的结局只能是
  * 「暂不支持站内播放」,还要先白等一次最长 30 秒的流解析。
  */
-/** 本次运行里本地解析失败过的源站页面:别每次划回来都再失败一遍,直接用外链播放器 */
-const localFailed = new Set<string>();
+/**
+ * 客户端本地播放失败时的界面。不再退回外链 iframe(那会吞掉推荐流的滑动手势):
+ * 就地给「重试」和「用 XX 打开」,并把失败现场报给服务器(lib/clientDiag)。
+ */
+function LocalPlayError({ pageUrl, message, fill, onRetry }: { pageUrl: string; message: string; fill?: boolean; onRetry: () => void }) {
+  const label = resolveEmbedPlayer(pageUrl)?.providerLabel ?? '原站';
+  const btn = { px: 2, py: 0.75, borderRadius: 999, fontSize: 14, border: '1px solid rgba(255,255,255,0.4)', color: '#fff', bgcolor: 'rgba(255,255,255,0.08)', cursor: 'pointer' } as const;
+  return (
+    <Box
+      sx={{
+        position: fill ? 'absolute' : 'relative',
+        inset: fill ? 0 : undefined,
+        width: '100%',
+        aspectRatio: fill ? undefined : '16/9',
+        bgcolor: fill ? 'transparent' : '#000',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 1.5,
+        color: 'rgba(255,255,255,0.85)',
+        textAlign: 'center',
+        px: 3,
+      }}
+    >
+      <Box sx={{ fontSize: 15 }}>这条视频暂时没能加载出来</Box>
+      <Box sx={{ fontSize: 12, opacity: 0.6, maxWidth: 320 }}>{message}</Box>
+      <Box sx={{ display: 'flex', gap: 1.5, mt: 0.5 }}>
+        <Box component="button" type="button" data-no-drag onClick={onRetry} sx={btn}>
+          重试
+        </Box>
+        <Box component="button" type="button" data-no-drag onClick={() => void openExternalUrl(pageUrl)} sx={btn}>
+          用{label}打开
+        </Box>
+      </Box>
+    </Box>
+  );
+}
 
 const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(props, ref) {
   const pageUrl = props.sourceUrl || props.refreshSource || '';
   const embed = resolveEmbedPlayer(pageUrl);
-  // 客户端(安卓/Windows/macOS)+ 服务器规则能解析这个站 → 本机解析、本站播放器播放:
-  // 没有跨域 iframe,推荐流的点按/滑动直接作用在播放器上,也不再需要透明罩。
-  // 播放器只在浏览器里挂载(推荐流/详情页的数据都是客户端拉的),惰性初始化里读 window 是安全的。
-  const [local, setLocal] = useState(
-    () => typeof window !== 'undefined' && isDesktopClient() && !localFailed.has(pageUrl) && canResolveLocally(pageUrl),
-  );
+  // 客户端(安卓/Windows/macOS)+ 服务器规则能解析这个站 → 一律本机解析、本站播放器播放:
+  // 没有跨域 iframe,推荐流的点按/滑动直接作用在播放器上。失败也不退回外链播放器,
+  // 就地给重试(LocalPlayError)。播放器只在浏览器里挂载,惰性初始化里读 window 是安全的。
+  const [local, setLocal] = useState(() => typeof window !== 'undefined' && isDesktopClient() && canResolveLocally(pageUrl));
+  const [failure, setFailure] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    setLocal(isDesktopClient() && !localFailed.has(pageUrl) && canResolveLocally(pageUrl));
+    setLocal(isDesktopClient() && canResolveLocally(pageUrl));
+    setFailure(null);
   }, [pageUrl]);
   if (local && pageUrl) {
+    if (failure) {
+      return (
+        <LocalPlayError
+          pageUrl={pageUrl}
+          message={failure}
+          fill={props.fill}
+          onRetry={() => {
+            setFailure(null);
+            setAttempt((n) => n + 1);
+          }}
+        />
+      );
+    }
     return (
       <NativeVideoPlayer
         ref={ref}
         {...props}
-        key={pageUrl}
+        key={`${pageUrl}#${attempt}`}
         src={undefined}
         sourceUrl={undefined}
         refreshSource={undefined}
         localSource={pageUrl}
+        localRefresh={attempt > 0}
         onLocalFail={(err) => {
-          console.warn('[VideoPlayer] 本地解析失败,改用外链播放器', pageUrl, err);
-          localFailed.add(pageUrl);
-          setLocal(false);
+          console.warn('[VideoPlayer] 本地播放失败', pageUrl, err);
+          reportDiag('local_play_failed', `${pageUrl}#${attempt}`, { url: pageUrl, attempt, error: String(err?.message || err).slice(0, 300) });
+          setFailure(err?.message || '加载失败');
         }}
       />
     );
