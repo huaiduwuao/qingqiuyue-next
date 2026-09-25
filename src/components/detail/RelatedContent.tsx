@@ -16,43 +16,42 @@ import { useApp } from '@/contexts/AppContext';
 interface RelatedContentProps {
   /** 当前内容 id,作为相关推荐的种子(字符串:雪花 id 超出 JS 安全整数)。 */
   contentId: string | number;
-  /** 当前内容类型(大写 content_type)。优先推同类型,不足时用全站相关补齐。 */
+  /** 当前内容类型。已不参与请求(后端按种子类型自取),保留给老调用方。 */
   contentType?: string;
   title?: string;
   size?: number;
 }
 
-/** 同类型结果少于这个数就用全站相关补齐,避免冷门类型下"相关推荐"只有一两条。 */
-const MIN_SAME_TYPE = 4;
-
 /** 竖版封面的内容类型(书、漫画、影视海报),其余按横版 16:9。 */
 const PORTRAIT_TYPES = new Set(['NOVEL', 'COMICS', 'FILM', 'TELEPLAY', 'SHORT_DRAMA', 'ANIMATION', 'VSHOW']);
 
-async function fetchRelated(seedId: string, contentType: string | undefined, userId: number | undefined, size: number) {
-  const list = (params: { types?: string }) =>
-    getRelated({ seedId, userId, size, ...params }).then((r) => r?.list ?? []);
+const DEFAULT_SIZE = 12;
 
-  const sameType = contentType ? await list({ types: contentType }) : [];
-  if (sameType.length >= MIN_SAME_TYPE) return sameType;
-  const seen = new Set([seedId, ...sameType.map((i) => i.id)]);
-  const anyType = (await list({})).filter((i) => !seen.has(i.id));
-  return [...sameType, ...anyType].slice(0, size);
+/**
+ * 相关推荐的查询参数,组件和详情页 layout 的预取共用同一个 key。
+ * 同类型优先、不足再跨类型补齐由后端做,这里只发一次请求 —— 以前前端先按类型查、
+ * 不够再查一次,两个请求串行,还得等详情接口返回拿到类型之后才能发出。
+ * userId 只进 key(登录态变了要重取),请求本身靠会话识别用户。
+ */
+export function relatedQueryOptions(seedId: string, userId: number | undefined, size = DEFAULT_SIZE) {
+  return {
+    queryKey: ['related', seedId, size, userId ?? 0] as const,
+    queryFn: () => getRelated({ seedId, size }).then((r) => r?.list ?? []),
+    staleTime: 10 * 60 * 1000,
+  };
 }
 
 /**
- * 详情页底部的"相关推荐"。数据来自推荐引擎的 i2i 召回(以当前内容为种子,
- * 向量相似 + 同作者 + 同标签),点击进入对应类型的详情页。没有结果时不渲染。
+ * 详情页底部的"相关推荐"。数据来自推荐引擎以当前内容为种子的召回(向量相似 +
+ * 同歌手/同专辑/同题材 + 协同过滤),点击进入对应类型的详情页。没有结果时不渲染。
  */
-export function RelatedContent({ contentId, contentType, title = '相关推荐', size = 12 }: RelatedContentProps) {
+export function RelatedContent({ contentId, title = '相关推荐', size = DEFAULT_SIZE }: RelatedContentProps) {
   const { currentUser } = useApp();
   const seedId = String(contentId ?? '');
-  const type = contentType?.toUpperCase();
 
   const query = useQuery({
-    queryKey: ['related', seedId, type, currentUser?.id],
-    queryFn: () => fetchRelated(seedId, type, currentUser?.id, size),
+    ...relatedQueryOptions(seedId, currentUser?.id, size),
     enabled: !!seedId,
-    staleTime: 10 * 60 * 1000,
   });
 
   const items = (query.data ?? []).filter((it) => getDetailRoute(it.contentType, it.id));
