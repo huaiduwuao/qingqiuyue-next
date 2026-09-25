@@ -813,7 +813,8 @@ export function RecommendVideoFeed() {
                         autoPlay={playing}
                         onPlaybackError={(message) => reportBrokenContent(v, message)}
                         embedDanmaku={danmakuOn}
-                        embedPortrait={v.portrait}
+                        // 抖音官方播放器的界面本身是竖屏的(右侧点赞栏),按 9:16 给它空间
+                        embedPortrait={v.portrait || resolveEmbedPlayer(v.sourceUrl)?.provider === 'douyin'}
                         // 移动端评论打开后只剩一小块:不再给底部文案让位
                         fillReserveBottom={compactStage ? 0 : `calc(${isDesktop ? 150 : 170}px + var(--player-inset, 0px))`}
                       />

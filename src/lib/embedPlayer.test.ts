@@ -50,6 +50,22 @@ describe('resolveEmbedPlayer · AcFun', () => {
   });
 });
 
+describe('resolveEmbedPlayer · 抖音', () => {
+  it('maps Douyin works to the open-platform player, same rules as internal/embedplayer', () => {
+    const want = 'https://open.douyin.com/player/video?vid=7686432847778982833&autoplay=0';
+    expect(resolveEmbedPlayer('https://www.douyin.com/video/7686432847778982833')?.url).toBe(want);
+    expect(resolveEmbedPlayer('https://www.iesdouyin.com/share/video/7686432847778982833/')?.url).toBe(want);
+    for (const url of [
+      'https://www.douyin.com/search/%E5%A4%A7%E5%8F%B8%E9%A9%AC',
+      'https://www.douyin.com/lvdetail/6950112124290990622',
+      'https://v.douyin.com/iRNBho6u/',
+      'https://www.douyin.com.evil.example/video/7686432847778982833',
+    ]) {
+      expect(resolveEmbedPlayer(url)).toBeNull();
+    }
+  });
+});
+
 describe('originOnlyPlatform', () => {
   it('names licensed long-form platforms that can only be watched at the origin', () => {
     expect(originOnlyPlatform('https://www.bilibili.com/bangumi/play/ep1113959?theme=movie')).toBe('哔哩哔哩');

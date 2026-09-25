@@ -17,7 +17,7 @@
  */
 
 export interface EmbedPlayer {
-  provider: 'bilibili' | 'acfun';
+  provider: 'bilibili' | 'acfun' | 'douyin';
   /** 署名用的平台名 */
   providerLabel: string;
   /** iframe src(autoplay=0) */
@@ -28,6 +28,9 @@ const BILI_BV = /^\/video\/(BV[0-9A-Za-z]{10})\/?$/;
 const BILI_AV = /^\/video\/av(\d+)\/?$/;
 // AcFun 多 P 是 /v/ac123_2
 const ACFUN = /^\/v\/ac(\d+)(?:_(\d+))?\/?$/;
+// 抖音作品页 /video/<aweme_id>、分享页 iesdouyin.com/share/video/<aweme_id>
+const DOUYIN = /^(?:\/share)?\/video\/(\d{15,20})\/?$/;
+const DOUYIN_HOSTS = new Set(['douyin.com', 'www.douyin.com', 'iesdouyin.com', 'www.iesdouyin.com']);
 
 export function resolveEmbedPlayer(pageUrl?: string | null): EmbedPlayer | null {
   const raw = (pageUrl || '').trim();
@@ -41,7 +44,18 @@ export function resolveEmbedPlayer(pageUrl?: string | null): EmbedPlayer | null 
   const host = u.hostname.toLowerCase();
   if (host === 'bilibili.com' || host.endsWith('.bilibili.com')) return bilibili(u);
   if (host === 'acfun.cn' || host.endsWith('.acfun.cn')) return acfun(u);
+  if (DOUYIN_HOSTS.has(host)) return douyin(u);
   return null;
+}
+
+/**
+ * 抖音开放平台官方播放器(2026-09-25 验过:iframe 里点一下即播,流走抖音 CDN)。
+ * 服务端解析抖音网页现在只拿到反爬验证页,这是不碰反爬、也不花本站带宽的那条路。
+ */
+function douyin(u: URL): EmbedPlayer | null {
+  const m = DOUYIN.exec(u.pathname);
+  if (!m) return null;
+  return { provider: 'douyin', providerLabel: '抖音', url: `https://open.douyin.com/player/video?vid=${m[1]}&autoplay=0` };
 }
 
 function acfun(u: URL): EmbedPlayer | null {
