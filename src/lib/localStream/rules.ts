@@ -106,6 +106,8 @@ export interface ProviderRule {
   enabled: boolean;
   /** 源站页面地址的正则(字符串形式),捕获组在模板里是 {{m1}}、{{m2}}… */
   match: string[];
+  /** 服务端在 SQL 里粗筛这类页面的 LIKE 模式(推荐召回用);客户端不用 */
+  sourceLike?: string[];
   /** 默认请求头(每一步都带,步骤里的同名头覆盖) */
   headers?: Record<string, Template>;
   steps: RuleStep[];
@@ -134,82 +136,90 @@ const DESKTOP_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
  * AcFun(2026-09-26 实测):播放信息在页面脚本 window.videoInfo 里,HLS 地址不校验 Referer 且带 CORS *,
  * 网页端 / 客户端都能直接放。
  */
+/** B 站投稿:BV 号和 av 号两种地址,除了传给接口的 id 参数名(bvid / aid)以外完全一样 */
+function bilibiliProvider(id: string, idParam: 'bvid' | 'aid', match: string, sourceLike: string): ProviderRule {
+  return {
+    id,
+    label: '哔哩哔哩',
+    enabled: true,
+    match: [match],
+    sourceLike: [sourceLike],
+    headers: { 'User-Agent': DESKTOP_UA, Referer: 'https://www.bilibili.com/', Origin: 'https://www.bilibili.com' },
+    steps: [
+      {
+        id: 'spi',
+        url: 'https://api.bilibili.com/x/frontend/finger/spi',
+        expect: { path: 'code', equals: 0 },
+        extract: { b3: 'data.b_3', b4: 'data.b_4' },
+        cookies: { buvid3: '{{b3}}', buvid4: '{{b4|urlencode}}', b_nut: '{{now}}' },
+        reuseSeconds: 86400,
+      },
+      {
+        id: 'nav',
+        url: 'https://api.bilibili.com/x/web-interface/nav',
+        extract: { imgUrl: 'data.wbi_img.img_url', subUrl: 'data.wbi_img.sub_url' },
+        reuseSeconds: 3600,
+      },
+      {
+        id: 'pages',
+        url: 'https://api.bilibili.com/x/player/pagelist',
+        query: { [idParam]: '{{m1}}' },
+        expect: { path: 'code', equals: 0 },
+        extract: { cid: 'data.0.cid' },
+      },
+      {
+        id: 'play',
+        url: 'https://api.bilibili.com/x/player/wbi/playurl',
+        headers: { Origin: 'https://player.bilibili.com', Referer: 'https://player.bilibili.com/' },
+        query: {
+          [idParam]: '{{m1}}',
+          cid: '{{cid}}',
+          qn: '80',
+          fnver: '0',
+          fnval: '16',
+          fourk: '0',
+          gaia_source: 'external-link',
+          from_client: 'BROWSER',
+          is_main_page: 'false',
+          need_fragment: 'false',
+          isGaiaAvoided: 'true',
+          web_location: '1315873',
+        },
+        sign: { type: 'wbi', imgKey: '{{imgUrl|basename}}', subKey: '{{subUrl|basename}}', mixin: BILI_MIXIN },
+        expect: { path: 'code', equals: 0 },
+      },
+    ],
+    output: {
+      type: 'dash',
+      duration: 'data.dash.duration',
+      video: 'data.dash.video',
+      audio: 'data.dash.audio',
+      url: ['baseUrl', 'base_url'],
+      backup: ['backupUrl', 'backup_url'],
+      mime: ['mimeType', 'mime_type'],
+      codecs: ['codecs'],
+      height: ['height'],
+      init: ['SegmentBase.Initialization', 'segment_base.initialization'],
+      index: ['SegmentBase.indexRange', 'segment_base.index_range'],
+      maxHeight: 720,
+    },
+    media: { headers: { 'User-Agent': DESKTOP_UA, Referer: 'https://www.bilibili.com/', Origin: 'https://www.bilibili.com' } },
+    cacheSeconds: 1800,
+  };
+}
+
 export const DEFAULT_RULES: RuleSet = {
   schema: 1,
-  version: '2026-09-26.2',
+  version: '2026-09-26.3',
   providers: [
-    {
-      id: 'bilibili',
-      label: '哔哩哔哩',
-      enabled: true,
-      match: ['^https?://(?:www\\.|m\\.)?bilibili\\.com/video/(BV[0-9A-Za-z]{10})'],
-      headers: { 'User-Agent': DESKTOP_UA, Referer: 'https://www.bilibili.com/', Origin: 'https://www.bilibili.com' },
-      steps: [
-        {
-          id: 'spi',
-          url: 'https://api.bilibili.com/x/frontend/finger/spi',
-          expect: { path: 'code', equals: 0 },
-          extract: { b3: 'data.b_3', b4: 'data.b_4' },
-          cookies: { buvid3: '{{b3}}', buvid4: '{{b4|urlencode}}', b_nut: '{{now}}' },
-          reuseSeconds: 86400,
-        },
-        {
-          id: 'nav',
-          url: 'https://api.bilibili.com/x/web-interface/nav',
-          extract: { imgUrl: 'data.wbi_img.img_url', subUrl: 'data.wbi_img.sub_url' },
-          reuseSeconds: 3600,
-        },
-        {
-          id: 'pages',
-          url: 'https://api.bilibili.com/x/player/pagelist',
-          query: { bvid: '{{m1}}' },
-          expect: { path: 'code', equals: 0 },
-          extract: { cid: 'data.0.cid' },
-        },
-        {
-          id: 'play',
-          url: 'https://api.bilibili.com/x/player/wbi/playurl',
-          headers: { Origin: 'https://player.bilibili.com', Referer: 'https://player.bilibili.com/' },
-          query: {
-            bvid: '{{m1}}',
-            cid: '{{cid}}',
-            qn: '80',
-            fnver: '0',
-            fnval: '16',
-            fourk: '0',
-            gaia_source: 'external-link',
-            from_client: 'BROWSER',
-            is_main_page: 'false',
-            need_fragment: 'false',
-            isGaiaAvoided: 'true',
-            web_location: '1315873',
-          },
-          sign: { type: 'wbi', imgKey: '{{imgUrl|basename}}', subKey: '{{subUrl|basename}}', mixin: BILI_MIXIN },
-          expect: { path: 'code', equals: 0 },
-        },
-      ],
-      output: {
-        type: 'dash',
-        duration: 'data.dash.duration',
-        video: 'data.dash.video',
-        audio: 'data.dash.audio',
-        url: ['baseUrl', 'base_url'],
-        backup: ['backupUrl', 'backup_url'],
-        mime: ['mimeType', 'mime_type'],
-        codecs: ['codecs'],
-        height: ['height'],
-        init: ['SegmentBase.Initialization', 'segment_base.initialization'],
-        index: ['SegmentBase.indexRange', 'segment_base.index_range'],
-        maxHeight: 720,
-      },
-      media: { headers: { 'User-Agent': DESKTOP_UA, Referer: 'https://www.bilibili.com/', Origin: 'https://www.bilibili.com' } },
-      cacheSeconds: 1800,
-    },
+    bilibiliProvider('bilibili', 'bvid', '^https?://(?:www\\.|m\\.)?bilibili\\.com/video/(BV[0-9A-Za-z]{10})', '%bilibili.com/video/BV%'),
+    bilibiliProvider('bilibili-av', 'aid', '^https?://(?:www\\.|m\\.)?bilibili\\.com/video/av(\\d+)', '%bilibili.com/video/av%'),
     {
       id: 'acfun',
       label: 'AcFun',
       enabled: true,
       match: ['^https?://(?:www\\.|m\\.)?acfun\\.cn/v/(ac\\d+(?:_\\d+)?)'],
+      sourceLike: ['%acfun.cn/v/ac%'],
       headers: { 'User-Agent': DESKTOP_UA, Referer: 'https://www.acfun.cn/', Origin: 'https://www.acfun.cn' },
       steps: [
         {

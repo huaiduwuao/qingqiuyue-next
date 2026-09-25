@@ -36,8 +36,8 @@ import { reportRecommendFeedback } from '@/apis/recommend';
 import DetailComments from '@/components/detail/DetailComments';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
 import { parseStream, BANDWIDTH_NOTICE } from '@/apis/stream';
-import { resolveEmbedPlayer, originOnlyPlatform, sourcePageOf, ORIGIN_ONLY_NOTICE } from '@/lib/embedPlayer';
-import { canResolveLocally } from '@/lib/localStream/engine';
+import { originOnlyPlatform, sourcePageOf, ORIGIN_ONLY_NOTICE } from '@/lib/sourcePage';
+import { canResolveLocally, resolveStream } from '@/lib/localStream/engine';
 import { homeClient } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { mediaUrl } from '@/lib/media';
@@ -72,8 +72,8 @@ interface VideoItem {
   // 正常。现在后端明确告诉前端"这条播不了、原因是什么、该怎么跟用户说",
   // sourceUrl 在这种情况下是空的。
   playable?: boolean;
-  // embeddable:不走本站播放器,嵌源站官方外链播放器(见 lib/embedPlayer)。
-  playbackStatus?: 'playable' | 'pending_repair' | 'live_offline' | 'bandwidth_limited' | 'embeddable' | 'not_applicable' | 'unknown';
+  // resolvable:源站页面有流解析规则,本站播放器按规则解析播放(见 lib/localStream)。embeddable 是旧值。
+  playbackStatus?: 'playable' | 'pending_repair' | 'live_offline' | 'bandwidth_limited' | 'resolvable' | 'embeddable' | 'not_applicable' | 'unknown';
   repairNotice?: string; // 面向用户的中文提示。pending_repair 是故障文案,live_offline 是"主播未开播"
   portrait?: boolean; // 竖屏(爬虫从源站 og:video:width/height 记下的 orientation)
 }
@@ -258,10 +258,10 @@ export function RecommendVideoFeed() {
         portrait: isPortrait(it.metadata),
       }));
       const hasMore = resp?.hasMore ?? false;
-      // 后端还没按 watchable 过滤时(旧版本)前端兜一层:只留能嵌外链播放器或判定可播的。
+      // 后端还没按 watchable 过滤时(旧版本)前端兜一层:只留有解析规则或判定可播的。
       // 「去原站看」「修复中」的卡片放在推荐流里就是一屏划不掉的废内容。
       const watchable = items.filter((v) =>
-        resolveEmbedPlayer(v.sourceUrl) != null || canResolveLocally(v.sourceUrl || '') || (v.playbackStatus === 'playable' && !!v.sourceUrl));
+        canResolveLocally(v.sourceUrl || '') || (v.playbackStatus === 'playable' && !!v.sourceUrl));
       return { items: watchable, hasMore, page };
     },
   });
@@ -339,9 +339,8 @@ export function RecommendVideoFeed() {
     setStreamError('');
     if (!video) return;
 
-    // 有解析规则的源站(B 站投稿 / AcFun):VideoPlayer 自己按规则解析(客户端本机、网页端服务端)、本站播放器播放;
-    // 只有外链播放器的源站:不解析流(解析出来的直链校验 Referer,本站又不中转),VideoPlayer 会换成 iframe。
-    if (canResolveLocally(video.sourceUrl || '') || resolveEmbedPlayer(video.sourceUrl)) return;
+    // 有解析规则的源站(B 站投稿 / AcFun):VideoPlayer 自己按规则解析(客户端本机、网页端服务端)、本站播放器播放。
+    if (canResolveLocally(video.sourceUrl || '')) return;
 
     // 后端已经判定这条播不了 —— 直接把它的提示语显示出来,不要再去解析一遍。
     // 后端的判定用的就是同一个解析器(internal/playability 走 StreamResolver),
@@ -413,6 +412,16 @@ export function RecommendVideoFeed() {
       cancelled = true;
     };
   }, [index, video]);
+
+  // 预解析接下来两条(有规则的源站):划过去时地址已经在手,起播不用等接口。结果进 lib/localStream 的缓存,
+  // 失败静默 —— 真轮到它播时 VideoPlayer 会再试并给出界面。
+  useEffect(() => {
+    const ctrl = new AbortController();
+    for (const next of uniqueVideos.slice(index + 1, index + 3)) {
+      if (next.sourceUrl && canResolveLocally(next.sourceUrl)) resolveStream(next.sourceUrl, { signal: ctrl.signal }).catch(() => {});
+    }
+    return () => ctrl.abort();
+  }, [index, uniqueVideos]);
 
   // 移动端评论打开时视频区只剩上面一小块:滚轮/拖动都不该再翻页
   const navBlocked = commentsOpen && !isDesktop;
@@ -807,7 +816,7 @@ export function RecommendVideoFeed() {
                     }}
                   />
                   <Box sx={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: actionRail }}>
-                    {active && (videoSrc || canResolveLocally(v.sourceUrl || '') || resolveEmbedPlayer(v.sourceUrl)) ? (
+                    {active && (videoSrc || canResolveLocally(v.sourceUrl || '')) ? (
                       <VideoPlayer
                         ref={videoPlayerRef}
                         fill
@@ -817,11 +826,6 @@ export function RecommendVideoFeed() {
                         initialDuration={video?.durationSec || 60}
                         autoPlay={playing}
                         onPlaybackError={(message) => reportBrokenContent(v, message)}
-                        embedDanmaku={danmakuOn}
-                        // 抖音官方播放器的界面本身是竖屏的(右侧点赞栏),按 9:16 给它空间
-                        embedPortrait={v.portrait || resolveEmbedPlayer(v.sourceUrl)?.provider === 'douyin'}
-                        // 移动端评论打开后只剩一小块:不再给底部文案让位
-                        fillReserveBottom={compactStage ? 0 : `calc(${isDesktop ? 104 : 120}px + var(--player-inset, 0px))`}
                       />
                     ) : (
                       <Box
@@ -1034,7 +1038,7 @@ export function RecommendVideoFeed() {
           ))}
         </Box>
 
-        {/* 弹幕层:站内评论滚动飘过(外链播放器自带的弹幕由 embedDanmaku 负责) */}
+        {/* 弹幕层:站内评论滚动飘过 */}
         {!compactStage && <DanmakuLayer items={danmaku.flying} onLand={danmaku.land} />}
 
         {/* 桌面端:上下翻页按钮(抖音网页版同款) */}

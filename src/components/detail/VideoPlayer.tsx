@@ -18,11 +18,10 @@ import CircularProgress from '@mui/material/CircularProgress';
 import AIGCBadge from '@/components/AIGCBadge';
 import { parseStream, checkStreamAccess, BANDWIDTH_NOTICE } from '@/apis/stream';
 import { mediaUrl, isExternalStreamUrl } from '@/lib/media';
-import { resolveEmbedPlayer, originOnlyPlatform, ORIGIN_ONLY_NOTICE } from '@/lib/embedPlayer';
-import EmbedVideoPlayer from './EmbedVideoPlayer';
+import { originOnlyPlatform, ORIGIN_ONLY_NOTICE } from '@/lib/sourcePage';
 import { isDesktopClient, openExternalUrl } from '@/lib/clientAuth';
 import { canResolveLocally, resolveStream } from '@/lib/localStream/engine';
-import { loadRules } from '@/lib/localStream/rules';
+import { loadRules, matchProvider } from '@/lib/localStream/rules';
 import { attachLocalStream } from '@/lib/localStream/dash';
 import { reportDiag } from '@/lib/clientDiag';
 import { videoDock, destroyVideo, pipSupported, togglePip, inPip, claimMediaSession, mediaSessionPaused, type StreamInfo } from '@/lib/player/videoDock';
@@ -62,12 +61,6 @@ interface Props {
    * 回到本页再接回来。值是小窗上显示的标题。推荐流这类一屏一条的场景不要传。
    */
   dockTitle?: string;
-  /** 外链播放器(B 站)自带弹幕开关。只对 iframe 生效;切换会重载播放器。 */
-  embedDanmaku?: boolean;
-  /** fill 模式下外链播放器底部让出的高度(数字按 px,也可以是 CSS 长度),给推荐流的文案/输入条留位,默认 160。 */
-  fillReserveBottom?: number | string;
-  /** 竖屏视频:外链播放器在 fill 模式下按 9:16 撑满高度 */
-  embedPortrait?: boolean;
   /**
    * 客户端本地解析(见 lib/localStream):传源站页面地址,由本机按服务器下发的规则解析、本站播放器播放。
    * 由 VideoPlayer 外壳按「客户端 + 有匹配规则」自动设置,调用方不用传。
@@ -1107,18 +1100,12 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
 });
 
 /**
- * 对外的播放器入口。源站页面有官方外链播放器(目前是 B 站 UP 主投稿)时直接嵌它,其余走本站播放器。
- *
- * 外链播放器排在最前 —— 连传进来的 src 直链也不看:能映射的平台,流地址一律校验 Referer,
- * 本站又不中转视频(见 apis/stream 的 checkStreamAccess),走本站播放器的结局只能是
- * 「暂不支持站内播放」,还要先白等一次最长 30 秒的流解析。
- */
-/**
- * 客户端本地播放失败时的界面。不再退回外链 iframe(那会吞掉推荐流的滑动手势):
- * 就地给「重试」和「用 XX 打开」,并把失败现场报给服务器(lib/clientDiag)。
+ * 规则解析失败时的界面(本地和服务端都没解出来,或流放不出来)。没有外链 iframe 可退
+ * (2026-09-26 起全站不再嵌 iframe:吞手势、没进度、没小窗):就地给「重试」和「用 XX 打开」,
+ * 客户端里把失败现场报给服务器(lib/clientDiag)。
  */
 function LocalPlayError({ pageUrl, message, fill, onRetry }: { pageUrl: string; message: string; fill?: boolean; onRetry: () => void }) {
-  const label = resolveEmbedPlayer(pageUrl)?.providerLabel ?? '原站';
+  const label = matchProvider(pageUrl)?.rule.label ?? '原站';
   const btn = { px: 2, py: 0.75, borderRadius: 999, fontSize: 14, border: '1px solid rgba(255,255,255,0.4)', color: '#fff', bgcolor: 'rgba(255,255,255,0.08)', cursor: 'pointer' } as const;
   return (
     <Box
@@ -1164,11 +1151,12 @@ function LocalPlayError({ pageUrl, message, fill, onRetry }: { pageUrl: string; 
 
 const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(props, ref) {
   const pageUrl = props.sourceUrl || props.refreshSource || '';
-  const embed = resolveEmbedPlayer(pageUrl);
-  // 有解析规则的源站(B 站投稿、AcFun)一律走本站播放器:客户端本机解析(失败退服务端),
-  // 网页端由服务端解析(lib/localStream/engine)。没有跨域 iframe,推荐流的点按/滑动直接作用在播放器上。
-  // 失败:客户端不退回外链播放器(iframe 会吞掉推荐流的滑动手势),就地给重试(LocalPlayError);
-  // 网页端退回官方外链播放器(有的话)。播放器只在浏览器里挂载,惰性初始化里读 window 是安全的。
+  // 对外的播放器入口。有解析规则的源站(B 站投稿、AcFun)一律走本站播放器,两级回退:
+  // 客户端本机解析 → 服务端解析;网页端直接服务端解析(lib/localStream/engine)。取媒体也是两级:
+  // 浏览器直连 → 原生请求带源站要的头(lib/localStream/dash)。全程没有跨域 iframe,
+  // 推荐流的点按/滑动直接作用在播放器上。都失败就地给重试 + 去原站(LocalPlayError)。
+  // 没有规则的地址(站内直链、旧的通用解析)走原来的 NativeVideoPlayer 路径。
+  // 播放器只在浏览器里挂载,惰性初始化里读 window 是安全的。
   const [local, setLocal] = useState(() => typeof window !== 'undefined' && canResolveLocally(pageUrl));
   const [failure, setFailure] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -1184,8 +1172,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(pr
       alive = false;
     };
   }, [pageUrl]);
-  const fallbackToEmbed = !!failure && !!embed && !isDesktopClient();
-  if (local && pageUrl && !fallbackToEmbed) {
+  if (local && pageUrl) {
     if (failure) {
       return (
         <LocalPlayError
@@ -1214,22 +1201,6 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(pr
           reportDiag('local_play_failed', `${pageUrl}#${attempt}`, { url: pageUrl, attempt, error: String(err?.message || err).slice(0, 300) });
           setFailure(err?.message || '加载失败');
         }}
-      />
-    );
-  }
-  if (embed) {
-    return (
-      <EmbedVideoPlayer
-        ref={ref}
-        embed={embed}
-        originUrl={pageUrl}
-        poster={props.poster}
-        autoPlay={props.autoPlay}
-        isAIGenerated={props.isAIGenerated}
-        fill={props.fill}
-        danmaku={props.embedDanmaku}
-        reserveBottom={props.fillReserveBottom}
-        portrait={props.embedPortrait}
       />
     );
   }

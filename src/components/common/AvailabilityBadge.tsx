@@ -78,8 +78,9 @@ export function specOf(
     // ── 播放轴 ──
     case 'playable':
       return { label: '站内可播', tone: 'good', icon: <PlayCircleOutlineRoundedIcon /> };
+    case 'resolvable':
     case 'embeddable':
-      return { label: '站内可看', tone: 'good', icon: <PlayCircleOutlineRoundedIcon /> };
+      return { label: '站内可播', tone: 'good', icon: <PlayCircleOutlineRoundedIcon /> };
     case 'bandwidth_limited':
       // 内容没坏,是我们不替源站付视频带宽。说"去原站看",不说"不可用"。
       return { label: '去原站看', tone: 'external', icon: <OpenInNewRoundedIcon /> };

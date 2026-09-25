@@ -11,7 +11,7 @@ import { getComments } from '@/apis/home';
  * 第一页,新出现的评论接着飘 —— 别人刚发的也能"实时"看到(站内推送通道是按用户投递的,
  * 没有按内容广播的房间,轮询是现阶段最省事的实时)。发评论走评论栏,下一轮轮询就上屏。
  *
- * B 站外链播放器自带的弹幕由 EmbedVideoPlayer 的 danmaku 开关负责,这一层只放站内的。
+ * 只放站内评论(视频走本站播放器,没有源站自带的弹幕)。
  */
 
 export interface DanmakuItem {

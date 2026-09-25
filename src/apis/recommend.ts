@@ -17,8 +17,9 @@ export const reportBehavior = (data: {
 //   unknown        —— 尚未判定
 //   bandwidth_limited —— **不是故障**:流解析得出来,但源站校验 Referer,本站不替
 //                     它付视频带宽。提示"因带宽成本暂不支持站内播放",给去原站的入口
-//   embeddable     —— 不走本站播放器,但源站有官方外链播放器,iframe 嵌在本站页面里播
-//                     (embedUrl / embedProvider 随之下发;sourceUrl 是源站页面,不是流)。
+//   resolvable     —— 源站页面有流解析规则(lib/localStream):客户端本机解析、网页端服务端解析,
+//                     本站播放器播放(sourceUrl 是源站页面,不是流;embedProvider 是署名平台名)。
+//   embeddable     —— 旧值(源站外链 iframe),索引重建前还会出现,前端按 resolvable 处理。
 //                     站内看得到画面,不要当成不可播去打标或过滤
 //
 // 同一个字段还承载「能不能读」这条轴(小说/漫画/文章/新闻)。合成一个枚举是因为
@@ -35,6 +36,7 @@ export type PlaybackStatus =
   | 'pending_repair'
   | 'live_offline'
   | 'bandwidth_limited'
+  | 'resolvable'
   | 'embeddable'
   | 'readable'
   | 'partial_text'
@@ -67,7 +69,7 @@ export interface FeedItem {
   playbackStatus?: PlaybackStatus;
   /** 面向用户的中文提示,仅 pending_repair 时非空 */
   repairNotice?: string;
-  /** playbackStatus=embeddable 时:源站官方外链播放器的 iframe 地址与平台名 */
+  /** embedUrl 是旧字段(不再嵌 iframe,恒为空);embedProvider 是署名平台名 */
   embedUrl?: string;
   embedProvider?: string;
 

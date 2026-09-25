@@ -35,6 +35,7 @@ export type PlayabilityStatus =
   | 'not_applicable'
   | 'live_offline'
   | 'bandwidth_limited'
+  | 'resolvable'
   | 'embeddable'
   | 'unknown';
 
@@ -75,7 +76,7 @@ export const CONTENT_CATALOG: ContentCatalogEntry[] = [
     label: '漫画',
     shortDesc: '连载 / 完结漫画,通常跳转到来源平台阅读',
     sectionId: 'comics',
-    playability: 'embeddable',
+    playability: 'resolvable',
   },
   {
     code: 'FILM',
@@ -104,21 +105,21 @@ export const CONTENT_CATALOG: ContentCatalogEntry[] = [
     label: '动漫',
     shortDesc: '番剧 / 剧场版 / 国创,跳转到来源平台',
     sectionId: 'anime',
-    playability: 'embeddable',
+    playability: 'resolvable',
   },
   {
     code: 'VIDEO',
     label: '短视频',
     shortDesc: '抖音 / 快手 / B站等短视频聚合,跳站观看',
     sectionId: 'video',
-    playability: 'embeddable',
+    playability: 'resolvable',
   },
   {
     code: 'VSHOW',
     label: '综艺',
     shortDesc: '综艺片段 / 整季,按节目名聚合',
     sectionId: 'entertainment',
-    playability: 'embeddable',
+    playability: 'resolvable',
   },
   {
     code: 'LIVE',
@@ -207,7 +208,9 @@ const PLAYABILITY_BADGE: Record<PlayabilityStatus, { label: string; tone: 'good'
   not_applicable: { label: '纯索引页', tone: 'neutral' },
   live_offline: { label: '直播离线', tone: 'bad' },
   bandwidth_limited: { label: '带宽受限,可能跳站', tone: 'warn' },
-  embeddable: { label: '跳第三方平台', tone: 'neutral' },
+  resolvable: { label: '站内可播(按规则解析)', tone: 'good' },
+  // 旧值:索引重建前还会出现,前端按 resolvable 处理
+  embeddable: { label: '站内可播(按规则解析)', tone: 'good' },
   unknown: { label: '状态依赖源', tone: 'neutral' },
 };
 
