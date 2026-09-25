@@ -170,6 +170,8 @@ pub fn run() {
 
     builder
         .plugin(tauri_plugin_shell::init())
+        // 本地流解析:前端按服务器下发的规则调源站接口(可请求的域名见 capabilities/default.json)
+        .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_deep_link::init())
         .invoke_handler(tauri::generate_handler![
             get_system_info,

@@ -24,6 +24,10 @@ log = "0.4"
 env_logger = "0.11"
 dirs = "6"
 # open crate 已不再使用,open_external 改走 shell 插件(安卓也能开系统浏览器)
+# 本地流解析(前端 src/lib/localStream):客户端用用户自己的网络/IP 调源站接口、拉媒体分段。
+# unsafe-headers:允许设 Referer/Origin/Cookie/User-Agent(浏览器不给);cookies:游客 cookie 罐。
+# 前端直接走 IPC(没引 npm 包),协议照 2.6 写的 —— 升级时两边一起改,见 src/lib/localStream/native.ts。
+tauri-plugin-http = { version = "~2.6", features = ["unsafe-headers", "cookies"] }
 
 # 桌面端单实例:Windows/Linux 上点 qingqiuyue:// 链接,系统会再拉起一个新进程;
 # 开了 deep-link feature 后,新进程把链接转给已在运行的那个实例(触发 on_open_url)然后自己退出,

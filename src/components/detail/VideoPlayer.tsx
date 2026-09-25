@@ -20,6 +20,9 @@ import { parseStream, checkStreamAccess, BANDWIDTH_NOTICE } from '@/apis/stream'
 import { mediaUrl, isExternalStreamUrl } from '@/lib/media';
 import { resolveEmbedPlayer, originOnlyPlatform, ORIGIN_ONLY_NOTICE } from '@/lib/embedPlayer';
 import EmbedVideoPlayer from './EmbedVideoPlayer';
+import { isDesktopClient } from '@/lib/clientAuth';
+import { canResolveLocally, resolveLocalStream } from '@/lib/localStream/engine';
+import { attachLocalStream } from '@/lib/localStream/dash';
 import { videoDock, destroyVideo, pipSupported, togglePip, inPip, claimMediaSession, mediaSessionPaused, type StreamInfo } from '@/lib/player/videoDock';
 
 interface Props {
@@ -63,6 +66,13 @@ interface Props {
   fillReserveBottom?: number | string;
   /** 竖屏视频:外链播放器在 fill 模式下按 9:16 撑满高度 */
   embedPortrait?: boolean;
+  /**
+   * 客户端本地解析(见 lib/localStream):传源站页面地址,由本机按服务器下发的规则解析、本站播放器播放。
+   * 由 VideoPlayer 外壳按「客户端 + 有匹配规则」自动设置,调用方不用传。
+   */
+  localSource?: string;
+  /** 本地解析 / 播放失败:外壳据此退回外链播放器 */
+  onLocalFail?: (err: Error) => void;
 }
 
 export interface VideoPlayerHandle {
@@ -89,7 +99,7 @@ function fmt(s: number) {
 }
 
 const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVideoPlayer(
-  { src, sourceUrl, refreshSource, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false, fill = false, onPlaybackError, dockTitle },
+  { src, sourceUrl, refreshSource, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false, fill = false, onPlaybackError, dockTitle, localSource, onLocalFail },
   ref,
 ) {
   // 封面同样经网关:调用方传进来的可能是 MinIO 内网直链或外站防盗链图。
@@ -411,6 +421,40 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src]);
 
+  // 客户端本地解析:本机按规则拿到播放地址,MediaSource 喂给 <video>(见 lib/localStream)
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!localSource || !v) return;
+    let detach: (() => void) | null = null;
+    let cancelled = false;
+    const ctrl = new AbortController();
+    setLoading(true);
+    setStreamError(null);
+    resolveLocalStream(localSource, { signal: ctrl.signal })
+      .then((stream) => {
+        if (cancelled) return;
+        if (stream.duration > 0) setDuration(stream.duration);
+        detach = attachLocalStream(v, stream, (err) => {
+          if (!cancelled) onLocalFail?.(err);
+        });
+        if (autoPlay) v.play().catch(() => {});
+      })
+      .catch((err: Error) => {
+        if (!cancelled) onLocalFail?.(err);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+      ctrl.abort();
+      detach?.();
+      v.removeAttribute('src');
+      v.load();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [localSource]);
+
   // 自动播放
   useEffect(() => {
     if (autoPlay && videoRef.current && src) {
@@ -522,6 +566,11 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
         onEnded?.();
       },
       error: () => {
+        // 本地解析模式:交给外壳退回外链播放器,不走下面「重新解析直链」那套
+        if (localSource) {
+          onLocalFail?.(new Error(`video error ${videoRef.current?.error?.code ?? ''}`));
+          return;
+        }
         // mp4 直链签名过期 / 被回收时浏览器原生 <video> 只会停在黑屏(error.code=4,
         // 经代理的 403 也是这个)。原生 error 事件是唯一能捕捉到的地方(hls.js 那条
         // 路径有自己的 Hls.Events.ERROR)。先重新解析换链,救不回来再报错。
@@ -1060,9 +1109,39 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
  * 本站又不中转视频(见 apis/stream 的 checkStreamAccess),走本站播放器的结局只能是
  * 「暂不支持站内播放」,还要先白等一次最长 30 秒的流解析。
  */
+/** 本次运行里本地解析失败过的源站页面:别每次划回来都再失败一遍,直接用外链播放器 */
+const localFailed = new Set<string>();
+
 const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(props, ref) {
   const pageUrl = props.sourceUrl || props.refreshSource || '';
   const embed = resolveEmbedPlayer(pageUrl);
+  // 客户端(安卓/Windows/macOS)+ 服务器规则能解析这个站 → 本机解析、本站播放器播放:
+  // 没有跨域 iframe,推荐流的点按/滑动直接作用在播放器上,也不再需要透明罩。
+  // 播放器只在浏览器里挂载(推荐流/详情页的数据都是客户端拉的),惰性初始化里读 window 是安全的。
+  const [local, setLocal] = useState(
+    () => typeof window !== 'undefined' && isDesktopClient() && !localFailed.has(pageUrl) && canResolveLocally(pageUrl),
+  );
+  useEffect(() => {
+    setLocal(isDesktopClient() && !localFailed.has(pageUrl) && canResolveLocally(pageUrl));
+  }, [pageUrl]);
+  if (local && pageUrl) {
+    return (
+      <NativeVideoPlayer
+        ref={ref}
+        {...props}
+        key={pageUrl}
+        src={undefined}
+        sourceUrl={undefined}
+        refreshSource={undefined}
+        localSource={pageUrl}
+        onLocalFail={(err) => {
+          console.warn('[VideoPlayer] 本地解析失败,改用外链播放器', pageUrl, err);
+          localFailed.add(pageUrl);
+          setLocal(false);
+        }}
+      />
+    );
+  }
   if (embed) {
     return (
       <EmbedVideoPlayer
