@@ -226,7 +226,64 @@ class TrackLoader {
 }
 
 /**
- * 把本地解析出的流挂到 <video> 上。返回清理函数。onFatal:这条流彻底放不出来(调用方退回外链播放器)。
+ * HLS(m3u8,AcFun 这类不校验 Referer、带 CORS 的源):hls.js(MediaSource)或系统原生 HLS(Safari / iOS)。
+ * 地址按顺序尝试:清单/分片拉不下来就换备用地址,全换完才算失败。
+ */
+function attachHls(video: HTMLVideoElement, urls: string[], onFatal: (err: Error) => void): () => void {
+  let disposed = false;
+  let hls: { destroy(): void } | null = null;
+  let cleanupNative: (() => void) | null = null;
+  const fail = (e: unknown) => {
+    if (disposed) return;
+    disposed = true;
+    onFatal(e instanceof Error ? e : new Error(String(e)));
+  };
+  video.setAttribute('referrerpolicy', 'no-referrer');
+  import('hls.js')
+    .then(({ default: Hls }) => {
+      if (disposed) return;
+      if (Hls.isSupported()) {
+        let i = 0;
+        const start = () => {
+          hls?.destroy();
+          const h = new Hls({ enableWorker: true, lowLatencyMode: false });
+          hls = h;
+          h.on(Hls.Events.ERROR, (_event, data) => {
+            if (!data.fatal || disposed) return;
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR && i < urls.length - 1) {
+              i += 1;
+              start();
+              return;
+            }
+            fail(new Error(`HLS ${data.details}`));
+          });
+          h.loadSource(urls[i]);
+          h.attachMedia(video);
+        };
+        start();
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        let i = 0;
+        const onErr = () => {
+          if (++i < urls.length) video.src = urls[i];
+          else fail(new Error('所有地址都放不出来'));
+        };
+        video.addEventListener('error', onErr);
+        cleanupNative = () => video.removeEventListener('error', onErr);
+        video.src = urls[0];
+      } else {
+        fail(new Error('这个系统的 WebView 不支持 HLS'));
+      }
+    })
+    .catch(fail);
+  return () => {
+    disposed = true;
+    hls?.destroy();
+    cleanupNative?.();
+  };
+}
+
+/**
+ * 把解析出的流(本地或服务端)挂到 <video> 上。返回清理函数。onFatal:这条流彻底放不出来(调用方退回外链播放器)。
  */
 export function attachLocalStream(video: HTMLVideoElement, stream: LocalStream, onFatal: (err: Error) => void): () => void {
   let disposed = false;
@@ -251,6 +308,8 @@ export function attachLocalStream(video: HTMLVideoElement, stream: LocalStream, 
       video.removeEventListener('error', onErr);
     };
   }
+
+  if (stream.kind === 'hls') return attachHls(video, stream.urls, onFatal);
 
   const MS = mediaSourceCtor();
   if (!MS) {

@@ -37,6 +37,7 @@ import DetailComments from '@/components/detail/DetailComments';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
 import { parseStream, BANDWIDTH_NOTICE } from '@/apis/stream';
 import { resolveEmbedPlayer, originOnlyPlatform, sourcePageOf, ORIGIN_ONLY_NOTICE } from '@/lib/embedPlayer';
+import { canResolveLocally } from '@/lib/localStream/engine';
 import { homeClient } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { mediaUrl } from '@/lib/media';
@@ -260,7 +261,7 @@ export function RecommendVideoFeed() {
       // 后端还没按 watchable 过滤时(旧版本)前端兜一层:只留能嵌外链播放器或判定可播的。
       // 「去原站看」「修复中」的卡片放在推荐流里就是一屏划不掉的废内容。
       const watchable = items.filter((v) =>
-        resolveEmbedPlayer(v.sourceUrl) != null || (v.playbackStatus === 'playable' && !!v.sourceUrl));
+        resolveEmbedPlayer(v.sourceUrl) != null || canResolveLocally(v.sourceUrl || '') || (v.playbackStatus === 'playable' && !!v.sourceUrl));
       return { items: watchable, hasMore, page };
     },
   });
@@ -338,9 +339,9 @@ export function RecommendVideoFeed() {
     setStreamError('');
     if (!video) return;
 
-    // 源站有官方外链播放器:不解析流(解析出来的直链校验 Referer,本站又不中转),
-    // 下面渲染时 VideoPlayer 自己会换成 iframe。
-    if (resolveEmbedPlayer(video.sourceUrl)) return;
+    // 有解析规则的源站(B 站投稿 / AcFun):VideoPlayer 自己按规则解析(客户端本机、网页端服务端)、本站播放器播放;
+    // 只有外链播放器的源站:不解析流(解析出来的直链校验 Referer,本站又不中转),VideoPlayer 会换成 iframe。
+    if (canResolveLocally(video.sourceUrl || '') || resolveEmbedPlayer(video.sourceUrl)) return;
 
     // 后端已经判定这条播不了 —— 直接把它的提示语显示出来,不要再去解析一遍。
     // 后端的判定用的就是同一个解析器(internal/playability 走 StreamResolver),
@@ -806,7 +807,7 @@ export function RecommendVideoFeed() {
                     }}
                   />
                   <Box sx={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: actionRail }}>
-                    {active && (videoSrc || resolveEmbedPlayer(v.sourceUrl)) ? (
+                    {active && (videoSrc || canResolveLocally(v.sourceUrl || '') || resolveEmbedPlayer(v.sourceUrl)) ? (
                       <VideoPlayer
                         ref={videoPlayerRef}
                         fill

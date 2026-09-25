@@ -21,7 +21,8 @@ import { mediaUrl, isExternalStreamUrl } from '@/lib/media';
 import { resolveEmbedPlayer, originOnlyPlatform, ORIGIN_ONLY_NOTICE } from '@/lib/embedPlayer';
 import EmbedVideoPlayer from './EmbedVideoPlayer';
 import { isDesktopClient, openExternalUrl } from '@/lib/clientAuth';
-import { canResolveLocally, resolveLocalStream } from '@/lib/localStream/engine';
+import { canResolveLocally, resolveStream } from '@/lib/localStream/engine';
+import { loadRules } from '@/lib/localStream/rules';
 import { attachLocalStream } from '@/lib/localStream/dash';
 import { reportDiag } from '@/lib/clientDiag';
 import { videoDock, destroyVideo, pipSupported, togglePip, inPip, claimMediaSession, mediaSessionPaused, type StreamInfo } from '@/lib/player/videoDock';
@@ -424,7 +425,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src]);
 
-  // 客户端本地解析:本机按规则拿到播放地址,MediaSource 喂给 <video>(见 lib/localStream)
+  // 规则解析:客户端本机按规则拿到播放地址(失败退服务端),网页端由服务端解析;MediaSource / hls.js 喂给 <video>(见 lib/localStream)
   useEffect(() => {
     const v = videoRef.current;
     if (!localSource || !v) return;
@@ -433,7 +434,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     const ctrl = new AbortController();
     setLoading(true);
     setStreamError(null);
-    resolveLocalStream(localSource, { signal: ctrl.signal, refresh: localRefresh })
+    resolveStream(localSource, { signal: ctrl.signal, refresh: localRefresh })
       .then((stream) => {
         if (cancelled) return;
         if (stream.duration > 0) setDuration(stream.duration);
@@ -1143,7 +1144,17 @@ function LocalPlayError({ pageUrl, message, fill, onRetry }: { pageUrl: string; 
         <Box component="button" type="button" data-no-drag onClick={onRetry} sx={btn}>
           重试
         </Box>
-        <Box component="button" type="button" data-no-drag onClick={() => void openExternalUrl(pageUrl)} sx={btn}>
+        <Box
+          component="button"
+          type="button"
+          data-no-drag
+          onClick={() => {
+            void openExternalUrl(pageUrl).then((ok) => {
+              if (!ok) window.open(pageUrl, '_blank', 'noopener');
+            });
+          }}
+          sx={btn}
+        >
           用{label}打开
         </Box>
       </Box>
@@ -1154,17 +1165,27 @@ function LocalPlayError({ pageUrl, message, fill, onRetry }: { pageUrl: string; 
 const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(props, ref) {
   const pageUrl = props.sourceUrl || props.refreshSource || '';
   const embed = resolveEmbedPlayer(pageUrl);
-  // 客户端(安卓/Windows/macOS)+ 服务器规则能解析这个站 → 一律本机解析、本站播放器播放:
-  // 没有跨域 iframe,推荐流的点按/滑动直接作用在播放器上。失败也不退回外链播放器,
-  // 就地给重试(LocalPlayError)。播放器只在浏览器里挂载,惰性初始化里读 window 是安全的。
-  const [local, setLocal] = useState(() => typeof window !== 'undefined' && isDesktopClient() && canResolveLocally(pageUrl));
+  // 有解析规则的源站(B 站投稿、AcFun)一律走本站播放器:客户端本机解析(失败退服务端),
+  // 网页端由服务端解析(lib/localStream/engine)。没有跨域 iframe,推荐流的点按/滑动直接作用在播放器上。
+  // 失败:客户端不退回外链播放器(iframe 会吞掉推荐流的滑动手势),就地给重试(LocalPlayError);
+  // 网页端退回官方外链播放器(有的话)。播放器只在浏览器里挂载,惰性初始化里读 window 是安全的。
+  const [local, setLocal] = useState(() => typeof window !== 'undefined' && canResolveLocally(pageUrl));
   const [failure, setFailure] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
-    setLocal(isDesktopClient() && canResolveLocally(pageUrl));
+    let alive = true;
+    setLocal(canResolveLocally(pageUrl));
     setFailure(null);
+    // 服务器可能下发了内置默认里没有的站点:规则到手后再判一次
+    void loadRules().then(() => {
+      if (alive) setLocal(canResolveLocally(pageUrl));
+    });
+    return () => {
+      alive = false;
+    };
   }, [pageUrl]);
-  if (local && pageUrl) {
+  const fallbackToEmbed = !!failure && !!embed && !isDesktopClient();
+  if (local && pageUrl && !fallbackToEmbed) {
     if (failure) {
       return (
         <LocalPlayError
@@ -1189,7 +1210,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(pr
         localSource={pageUrl}
         localRefresh={attempt > 0}
         onLocalFail={(err) => {
-          console.warn('[VideoPlayer] 本地播放失败', pageUrl, err);
+          console.warn('[VideoPlayer] 本站播放器加载失败', pageUrl, err);
           reportDiag('local_play_failed', `${pageUrl}#${attempt}`, { url: pageUrl, attempt, error: String(err?.message || err).slice(0, 300) });
           setFailure(err?.message || '加载失败');
         }}

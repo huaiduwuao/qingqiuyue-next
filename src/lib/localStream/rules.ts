@@ -1,8 +1,10 @@
 /**
- * 本地流解析规则(客户端专用)。
+ * 流解析规则(客户端本地解析 + 服务端解析共用一份)。
  *
  * 客户端(安卓 / Windows / macOS)在用户自己的设备上、用用户自己的 IP 调源站接口拿播放地址,
  * 再用本站播放器播放 —— 视频不经本站服务器,也不再是一个吞掉触摸的跨域 iframe。
+ * 网页端没有原生请求能力(浏览器不许页面自己设 Referer / Origin / Cookie),由服务器按同一份规则解析
+ * (GET /api/content/stream/rules/resolve),地址交给本站播放器;客户端本地解析失败时也退到服务端。
  *
  * 各站点「怎么解析」全部是数据:服务器下发这份规则(GET /api/content/stream/rules),
  * 客户端按规则执行。源站改了接口/签名/字段,改服务器上的规则即可,不用发版。
@@ -12,6 +14,10 @@
  *
  * 取规则的顺序:内存 → 服务器(带本地缓存)→ 本地缓存 → 内置默认(下面的 DEFAULT_RULES)。
  * 内置默认让新功能在后端还没部署时也能用,服务器版本更新后自动覆盖。
+ *
+ * ⚠️ 每条请求都要显式带 Origin:tauri-plugin-http 会给没带 Origin 的请求补上应用自己的来源
+ * (http://tauri.localhost),B 站 nav / pagelist / playurl 对陌生 Origin 一律回 403 的 HTML
+ * (2026-09-26 从客户端诊断日志里查出来的)。
  */
 
 import { API_PREFIX } from '@/lib/api/prefix';
@@ -33,6 +39,13 @@ export interface RuleStep {
   query?: Record<string, Template>;
   headers?: Record<string, Template>;
   sign?: SignWbi;
+  /**
+   * 响应不是 JSON 而是网页时:用这个正则在响应文本里找,第 1 个捕获组是 JSON 文本
+   * (AcFun 的播放信息内嵌在页面脚本里)。写法要同时是 JS 和 RE2(服务端 Go)都认的。
+   */
+  regex?: string;
+  /** 这些路径上的值是「JSON 字符串」,解析后原地替换(AcFun 的 ksPlayJson) */
+  jsonStrings?: string[];
   /** 断言,不满足则整条解析失败(如 code == 0) */
   expect?: { path: string; equals: string | number };
   /** 变量名 → JSON 路径(点号分隔,数组下标用数字:data.0.cid) */
@@ -45,8 +58,9 @@ export interface RuleStep {
 
 export interface DashOutput {
   type: 'dash';
-  /** 总时长(秒)的路径 */
+  /** 总时长的路径;durationUnit = 'ms' 时按毫秒读 */
   duration?: string;
+  durationUnit?: 'ms' | 's';
   video: string;
   audio?: string;
   /** 取字段时依次尝试的键名(源站的驼峰/下划线两套命名) */
@@ -64,10 +78,27 @@ export interface DashOutput {
 export interface ProgressiveOutput {
   type: 'progressive';
   duration?: string;
+  durationUnit?: 'ms' | 's';
   list: string;
   url: string[];
   backup?: string[];
+  height?: string[];
+  maxHeight?: number;
 }
+
+/** HLS(m3u8)列表:按 maxHeight 挑一档,交给 hls.js / 系统原生 HLS */
+export interface HlsOutput {
+  type: 'hls';
+  duration?: string;
+  durationUnit?: 'ms' | 's';
+  list: string;
+  url: string[];
+  backup?: string[];
+  height?: string[];
+  maxHeight?: number;
+}
+
+export type RuleOutput = DashOutput | ProgressiveOutput | HlsOutput;
 
 export interface ProviderRule {
   id: string;
@@ -78,7 +109,7 @@ export interface ProviderRule {
   /** 默认请求头(每一步都带,步骤里的同名头覆盖) */
   headers?: Record<string, Template>;
   steps: RuleStep[];
-  output: DashOutput | ProgressiveOutput;
+  output: RuleOutput;
   /** 拉媒体文件时的请求头。浏览器 fetch 不带 Referer 先试,失败再走原生请求带上这些头 */
   media?: { headers?: Record<string, Template> };
   /** 解析结果可复用多久(秒),源站地址本身有有效期 */
@@ -95,21 +126,24 @@ const BILI_MIXIN = [46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35,
 const DESKTOP_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36';
 
 /**
- * 内置默认规则。与后端 internal/streamrules 的默认规则保持一致(那边是线上真正下发的版本)。
+ * 内置默认规则。与后端 internal/streamrules/default_rules.json 保持一致(那边是线上真正下发的版本)。
  * B 站流程(2026-09-25 从中国/美国两处出口实测过):游客 cookie(spi)→ wbi 签名密钥(nav)
  * → cid(pagelist;view 接口会被风控返回 HTML)→ 签名的 wbi/playurl(DASH)。
- * 媒体:mcdn.bilivideo.cn 不带 Referer 可取且带 CORS *,upos-*.bilivideo.com 必须带 B 站 Referer。
+ * 媒体:mcdn.bilivideo.cn 不带 Referer 可取且带 CORS *,upos-*.bilivideo.com 必须带 B 站 Referer
+ * (不校验请求方 IP:服务器解析出的地址在别的设备上照样 206,2026-09-26 实测)。
+ * AcFun(2026-09-26 实测):播放信息在页面脚本 window.videoInfo 里,HLS 地址不校验 Referer 且带 CORS *,
+ * 网页端 / 客户端都能直接放。
  */
 export const DEFAULT_RULES: RuleSet = {
   schema: 1,
-  version: '2026-09-25.1',
+  version: '2026-09-26.2',
   providers: [
     {
       id: 'bilibili',
       label: '哔哩哔哩',
       enabled: true,
       match: ['^https?://(?:www\\.|m\\.)?bilibili\\.com/video/(BV[0-9A-Za-z]{10})'],
-      headers: { 'User-Agent': DESKTOP_UA, Referer: 'https://www.bilibili.com/' },
+      headers: { 'User-Agent': DESKTOP_UA, Referer: 'https://www.bilibili.com/', Origin: 'https://www.bilibili.com' },
       steps: [
         {
           id: 'spi',
@@ -168,7 +202,35 @@ export const DEFAULT_RULES: RuleSet = {
         index: ['SegmentBase.indexRange', 'segment_base.index_range'],
         maxHeight: 720,
       },
-      media: { headers: { 'User-Agent': DESKTOP_UA, Referer: 'https://www.bilibili.com/' } },
+      media: { headers: { 'User-Agent': DESKTOP_UA, Referer: 'https://www.bilibili.com/', Origin: 'https://www.bilibili.com' } },
+      cacheSeconds: 1800,
+    },
+    {
+      id: 'acfun',
+      label: 'AcFun',
+      enabled: true,
+      match: ['^https?://(?:www\\.|m\\.)?acfun\\.cn/v/(ac\\d+(?:_\\d+)?)'],
+      headers: { 'User-Agent': DESKTOP_UA, Referer: 'https://www.acfun.cn/', Origin: 'https://www.acfun.cn' },
+      steps: [
+        {
+          id: 'page',
+          url: 'https://www.acfun.cn/v/{{m1}}',
+          regex: 'window\\.videoInfo\\s*=\\s*(\\{.*?\\});\\s*\\n',
+          jsonStrings: ['currentVideoInfo.ksPlayJson'],
+          extract: { videoId: 'currentVideoInfo.id' },
+        },
+      ],
+      output: {
+        type: 'hls',
+        duration: 'currentVideoInfo.durationMillis',
+        durationUnit: 'ms',
+        list: 'currentVideoInfo.ksPlayJson.adaptationSet.0.representation',
+        url: ['url'],
+        backup: ['backupUrl'],
+        height: ['height'],
+        maxHeight: 720,
+      },
+      media: {},
       cacheSeconds: 1800,
     },
   ],
@@ -188,11 +250,12 @@ export function validateRules(x: unknown): RuleSet | null {
     if (!p || typeof p.id !== 'string' || !Array.isArray(p.match) || !Array.isArray(p.steps) || !p.output) return false;
     try {
       p.match.forEach((m) => new RegExp(m));
+      p.steps.forEach((s) => s?.regex && new RegExp(s.regex));
     } catch {
       return false;
     }
     if (!p.steps.every((s) => s && typeof s.id === 'string' && typeof s.url === 'string' && /^https:\/\//.test(s.url))) return false;
-    if (p.output.type !== 'dash' && p.output.type !== 'progressive') return false;
+    if (p.output.type !== 'dash' && p.output.type !== 'progressive' && p.output.type !== 'hls') return false;
     return true;
   });
   return { schema: 1, version: r.version, providers };
@@ -239,7 +302,7 @@ export async function loadRules(): Promise<RuleSet> {
   return inflight;
 }
 
-/** 这条源站地址有没有可用的本地解析规则(同步版,用已加载的规则;没加载过用内置默认) */
+/** 这条源站地址有没有可用的解析规则(同步版,用已加载的规则;没加载过用内置默认) */
 export function matchProvider(pageUrl: string, rules: RuleSet = memo?.rules ?? DEFAULT_RULES): { rule: ProviderRule; groups: string[] } | null {
   if (!pageUrl) return null;
   for (const rule of rules.providers) {
