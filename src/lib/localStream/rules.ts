@@ -129,14 +129,27 @@ const DESKTOP_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 
 /**
  * 内置默认规则。与后端 internal/streamrules/default_rules.json 保持一致(那边是线上真正下发的版本)。
- * B 站流程(2026-09-25 从中国/美国两处出口实测过):游客 cookie(spi)→ wbi 签名密钥(nav)
- * → cid(pagelist;view 接口会被风控返回 HTML)→ 签名的 wbi/playurl(DASH)。
- * 媒体:mcdn.bilivideo.cn 不带 Referer 可取且带 CORS *,upos-*.bilivideo.com 必须带 B 站 Referer
- * (不校验请求方 IP:服务器解析出的地址在别的设备上照样 206,2026-09-26 实测)。
+ *
+ * B 站流程:游客 cookie(spi)→ wbi 签名密钥(nav)→ cid(pagelist;view 接口会被风控返回 HTML)
+ * → 签名的 wbi/playurl,platform=html5 + fnval=1:音视频合一的整段 mp4(游客 720P)。
+ *
+ * 为什么不用 DASH(2026-09-26 在中国出口实测推荐流里 14 条投稿):
+ *   - DASH 的 m4s 只有 mcdn.bilivideo.cn 节点不校验 Referer,6/14 条根本没下发 mcdn 节点,
+ *     只剩 upos / cn-* / PCDN —— 浏览器带不了 B 站 Referer,一律 403(网页端「有的视频 403」);
+ *   - mcdn 节点只在国内可达,海外访客连不上;
+ *   - 音视频两路分开,一路出问题就只剩声音。
+ * html5 的 mp4:14/14 不带 Referer(或带本站 Referer)都是 206,换一个 IP(美国)取照样 206 ——
+ * 不绑定请求方 IP,服务器解析、任何设备播放都行;39 分钟的视频也只有一段 durl。
+ * 直接 <video src>,不用 MediaSource,也不需要 CORS。
+ *
  * AcFun(2026-09-26 实测):播放信息在页面脚本 window.videoInfo 里,HLS 地址不校验 Referer 且带 CORS *,
  * 网页端 / 客户端都能直接放。
  */
-/** B 站投稿:BV 号和 av 号两种地址,除了传给接口的 id 参数名(bvid / aid)以外完全一样 */
+
+/**
+ * B 站投稿:BV 号和 av 号两种地址,除了传给接口的 id 参数名以外完全一样。
+ * av 号:pagelist 认 aid,playurl 认 avid(传 aid 回 -400,2026-09-26 实测)。
+ */
 function bilibiliProvider(id: string, idParam: 'bvid' | 'aid', match: string, sourceLike: string): ProviderRule {
   return {
     id,
@@ -170,47 +183,36 @@ function bilibiliProvider(id: string, idParam: 'bvid' | 'aid', match: string, so
       {
         id: 'play',
         url: 'https://api.bilibili.com/x/player/wbi/playurl',
-        headers: { Origin: 'https://player.bilibili.com', Referer: 'https://player.bilibili.com/' },
         query: {
-          [idParam]: '{{m1}}',
+          [idParam === 'aid' ? 'avid' : 'bvid']: '{{m1}}',
           cid: '{{cid}}',
-          qn: '80',
+          qn: '64',
+          fnval: '1',
           fnver: '0',
-          fnval: '16',
           fourk: '0',
-          gaia_source: 'external-link',
-          from_client: 'BROWSER',
-          is_main_page: 'false',
-          need_fragment: 'false',
-          isGaiaAvoided: 'true',
-          web_location: '1315873',
+          platform: 'html5',
+          high_quality: '1',
         },
         sign: { type: 'wbi', imgKey: '{{imgUrl|basename}}', subKey: '{{subUrl|basename}}', mixin: BILI_MIXIN },
         expect: { path: 'code', equals: 0 },
       },
     ],
     output: {
-      type: 'dash',
-      duration: 'data.dash.duration',
-      video: 'data.dash.video',
-      audio: 'data.dash.audio',
-      url: ['baseUrl', 'base_url'],
-      backup: ['backupUrl', 'backup_url'],
-      mime: ['mimeType', 'mime_type'],
-      codecs: ['codecs'],
-      height: ['height'],
-      init: ['SegmentBase.Initialization', 'segment_base.initialization'],
-      index: ['SegmentBase.indexRange', 'segment_base.index_range'],
-      maxHeight: 720,
+      type: 'progressive',
+      duration: 'data.timelength',
+      durationUnit: 'ms',
+      list: 'data.durl',
+      url: ['url'],
+      backup: ['backup_url', 'backupUrl'],
     },
-    media: { headers: { 'User-Agent': DESKTOP_UA, Referer: 'https://www.bilibili.com/', Origin: 'https://www.bilibili.com' } },
+    media: {},
     cacheSeconds: 1800,
   };
 }
 
 export const DEFAULT_RULES: RuleSet = {
   schema: 1,
-  version: '2026-09-26.3',
+  version: '2026-09-26.4',
   providers: [
     bilibiliProvider('bilibili', 'bvid', '^https?://(?:www\\.|m\\.)?bilibili\\.com/video/(BV[0-9A-Za-z]{10})', '%bilibili.com/video/BV%'),
     bilibiliProvider('bilibili-av', 'aid', '^https?://(?:www\\.|m\\.)?bilibili\\.com/video/av(\\d+)', '%bilibili.com/video/av%'),

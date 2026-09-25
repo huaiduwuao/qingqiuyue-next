@@ -55,6 +55,9 @@ function fakeOrigin(url: string): Response {
   if (u.pathname === '/x/player/pagelist') return json({ code: 0, data: [{ cid: 137649199 }] });
   if (u.pathname === '/x/player/wbi/playurl') {
     if (!u.searchParams.get('w_rid') || u.searchParams.get('cid') !== '137649199') return new Response('<html>403</html>', { status: 403 });
+    if (u.searchParams.get('platform') === 'html5' && u.searchParams.get('fnval') === '1') {
+      return json({ code: 0, data: { quality: 64, format: 'mp4720', timelength: 213000, durl: [{ order: 1, url: 'https://cn-jstz-cu-01-04.bilivideo.com/x.mp4?deadline=1', backup_url: ['https://upos-sz-mirrorcos.bilivideo.com/x.mp4?deadline=1'] }] } });
+    }
     const seg = { Initialization: '0-100', indexRange: '101-200' };
     return json({
       code: 0,
@@ -82,29 +85,26 @@ beforeEach(() => {
 });
 
 describe('resolveLocalStream', () => {
-  it('bilibili: 走完 spi→nav→pagelist→wbi playurl,带 Origin/Cookie,DASH 按画质偏好挑本机能解的轨', async () => {
+  it('bilibili: 走完 spi→nav→pagelist→wbi playurl(html5),带 Origin/Cookie,输出音视频合一的整段 mp4', async () => {
     const st = await resolveLocalStream('https://www.bilibili.com/video/BV1GJ411x7h7');
-    expect(st.kind).toBe('dash');
-    if (st.kind !== 'dash') return;
+    expect(st.kind).toBe('progressive');
+    if (st.kind !== 'progressive') return;
     expect(st.provider).toBe('bilibili');
     expect(st.duration).toBe(213);
     expect(st.source).toBe('local');
-    // HEVC 本机不解 → 不在候选里;720 AVC 最前,再 480,超出 maxHeight 的 1080 垫底
-    expect(st.videos?.map((v) => v.urls[0])).toEqual(['https://cdn/v720', 'https://cdn/v480', 'https://cdn/v1080']);
-    expect(st.video.urls).toEqual(['https://cdn/v720', 'https://cdn2/v720']);
-    expect(st.video.init).toEqual([0, 100]);
-    expect(st.audio?.urls).toEqual(['https://cdn/a']);
-    expect(st.mediaHeaders.Referer).toBe('https://www.bilibili.com/');
-    expect(st.mediaHeaders.Origin).toBe('https://www.bilibili.com');
+    expect(st.urls).toEqual(['https://cn-jstz-cu-01-04.bilivideo.com/x.mp4?deadline=1', 'https://upos-sz-mirrorcos.bilivideo.com/x.mp4?deadline=1']);
+    // html5 的 mp4 不校验 Referer:媒体请求不需要任何自定义头
+    expect(st.mediaHeaders).toEqual({});
 
     const nav = calls.find((c) => c.url.includes('/x/web-interface/nav'))!;
     // Tauri 的 http 插件会给没带 Origin 的请求补上应用自己的来源,B 站对陌生 Origin 回 403 —— 必须显式带
     expect(nav.headers.Origin).toBe('https://www.bilibili.com');
     expect(nav.headers.Cookie).toContain('buvid3=B3');
     expect(nav.headers.Cookie).toContain('buvid4=B%2F4%3D');
-    const play = calls.find((c) => c.url.includes('/x/player/wbi/playurl'))!;
-    expect(play.headers.Origin).toBe('https://player.bilibili.com');
-    expect(play.url).toMatch(/w_rid=[0-9a-f]{32}/);
+    const play = new URL(calls.find((c) => c.url.includes('/x/player/wbi/playurl'))!.url);
+    expect(play.searchParams.get('platform')).toBe('html5');
+    expect(play.searchParams.get('fnval')).toBe('1');
+    expect(play.searchParams.get('w_rid')).toMatch(/^[0-9a-f]{32}$/);
 
     // 结果缓存:同一条不再发请求;另一条视频复用 spi/nav(只多发 pagelist + playurl)
     calls.length = 0;
@@ -112,6 +112,17 @@ describe('resolveLocalStream', () => {
     expect(calls).toHaveLength(0);
     await resolveLocalStream('https://www.bilibili.com/video/BV1GJ411x7h8');
     expect(calls.map((c) => new URL(c.url).pathname)).toEqual(['/x/player/pagelist', '/x/player/wbi/playurl']);
+  });
+
+  it('bilibili av 号:pagelist 用 aid,playurl 用 avid', async () => {
+    const st = await resolveLocalStream('https://www.bilibili.com/video/av7915086');
+    expect(st.provider).toBe('bilibili-av');
+    const pages = new URL(calls.find((c) => c.url.includes('/x/player/pagelist'))!.url);
+    expect(pages.searchParams.get('aid')).toBe('7915086');
+    expect(pages.searchParams.get('bvid')).toBeNull();
+    const play = new URL(calls.find((c) => c.url.includes('/x/player/wbi/playurl'))!.url);
+    expect(play.searchParams.get('avid')).toBe('7915086');
+    expect(play.searchParams.get('aid')).toBeNull();
   });
 
   it('acfun: 网页正则 + ksPlayJson 字符串 + hls 输出,按 maxHeight 挑 720', async () => {

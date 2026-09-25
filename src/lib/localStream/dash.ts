@@ -268,7 +268,11 @@ function attachHls(video: HTMLVideoElement, urls: string[], onFatal: (err: Error
           else fail(new Error('所有地址都放不出来'));
         };
         video.addEventListener('error', onErr);
-        cleanupNative = () => video.removeEventListener('error', onErr);
+        video.dataset.selfRecover = '1';
+        cleanupNative = () => {
+          video.removeEventListener('error', onErr);
+          delete video.dataset.selfRecover;
+        };
         video.src = urls[0];
       } else {
         fail(new Error('这个系统的 WebView 不支持 HLS'));
@@ -302,10 +306,13 @@ export function attachLocalStream(video: HTMLVideoElement, stream: LocalStream, 
     };
     const onErr = () => tryNext();
     video.addEventListener('error', onErr);
+    // 地址出错由这里换备用地址、全换完才 onFatal;播放器自己的 error 处理看到这个标记就不插手
+    video.dataset.selfRecover = '1';
     tryNext();
     return () => {
       disposed = true;
       video.removeEventListener('error', onErr);
+      delete video.dataset.selfRecover;
     };
   }
 

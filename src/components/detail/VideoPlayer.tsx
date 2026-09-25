@@ -563,8 +563,10 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
         onEnded?.();
       },
       error: () => {
-        // 本地解析模式:交给外壳退回外链播放器,不走下面「重新解析直链」那套
+        // 规则解析模式:交给外壳(静默重解析一次 → 重试界面),不走下面「重新解析直链」那套。
+        // 整段 mp4 / 原生 HLS 的地址出错由 lib/localStream/dash 自己换备用地址(selfRecover),这里不插手
         if (localSource) {
+          if (videoRef.current?.dataset.selfRecover) return;
           onLocalFail?.(new Error(`video error ${videoRef.current?.error?.code ?? ''}`));
           return;
         }
@@ -753,7 +755,9 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
   }));
 
   // 带宽受限时不算"有视频":走下面的封面 + 提示分支,而不是一块黑屏。
-  const hasVideo = (src || streams.length > 0) && !bandwidthLimited;
+  // 规则解析模式(localSource)不设 src / streams,地址直接挂到 <video> 上 —— 必须算"有视频",
+  // 否则这里渲染的是封面图,<video> 从没挂进页面,只听得到声音(2026-09-26 用户报的「只有声音」)。
+  const hasVideo = (src || streams.length > 0 || !!localSource) && !bandwidthLimited;
   // 实在播不了时给出原站链接(番剧 / 直播间等解析不出流、或需要源站会员的内容)
   const originLink = /^https?:\/\//.test(reparseUrl) ? reparseUrl : '';
   const originPlatform = originOnlyPlatform(originLink);
@@ -1164,6 +1168,7 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(pr
     let alive = true;
     setLocal(canResolveLocally(pageUrl));
     setFailure(null);
+    setAttempt(0);
     // 服务器可能下发了内置默认里没有的站点:规则到手后再判一次
     void loadRules().then(() => {
       if (alive) setLocal(canResolveLocally(pageUrl));
@@ -1199,7 +1204,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(pr
         onLocalFail={(err) => {
           console.warn('[VideoPlayer] 本站播放器加载失败', pageUrl, err);
           reportDiag('local_play_failed', `${pageUrl}#${attempt}`, { url: pageUrl, attempt, error: String(err?.message || err).slice(0, 300) });
-          setFailure(err?.message || '加载失败');
+          // 第一次失败先静默强制重新解析一次(缓存里的地址过期 / 这次分到的节点不通),
+          // 还不行才给重试界面
+          if (attempt === 0) setAttempt(1);
+          else setFailure(err?.message || '加载失败');
         }}
       />
     );
