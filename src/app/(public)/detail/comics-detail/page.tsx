@@ -82,6 +82,25 @@ function chapterImages(ch: ContentItem | undefined): string[] {
   }
 }
 
+/**
+ * 作品简介。平台 bot 发的四格/图说漫画没写 description,content 是分格 JSON
+ * [{caption, imageUrl, index}] —— 以前原样当简介显示,一屏 JSON 外加撑宽页面的长 URL。
+ * 能解析成分格就取各格的配文,否则原样返回。
+ */
+function comicIntro(raw: string): string {
+  if (!raw.startsWith('[')) return raw;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return raw;
+    const captions = parsed
+      .map((p: unknown) => (p && typeof p === 'object' && typeof (p as { caption?: unknown }).caption === 'string' ? (p as { caption: string }).caption.trim() : ''))
+      .filter(Boolean);
+    return captions.length ? captions.join('\n') : '';
+  } catch {
+    return raw;
+  }
+}
+
 function ComicsDetailContent() {
   const searchParams = useSearchParams();
   const id = searchParams.get('id');
@@ -197,7 +216,7 @@ function ComicsDetailContent() {
             { label: '地区', value: data.area },
             { label: '话数', value: total > 0 ? `共${total}话` : '' },
           ].filter((f) => f.value);
-          const intro = (data.description || data.content || '').trim();
+          const intro = comicIntro((data.description || data.content || '').trim());
           const sourceLink = [data.sourceUrl, data.source].find((u) => !!u && /^https?:\/\//.test(u));
           return (
             <Container maxWidth="lg" sx={{ py: 3 }}>
@@ -273,7 +292,7 @@ function ComicsDetailContent() {
                   <Typography variant="h6" sx={{ color: 'text.primary', mb: 1.5, fontWeight: 700 }}>
                     作品简介
                   </Typography>
-                  <Typography sx={{ color: 'text.tertiary', fontSize: 14, lineHeight: 1.8, mb: 3, textIndent: '2em', whiteSpace: 'pre-line' }}>
+                  <Typography sx={{ color: 'text.tertiary', fontSize: 14, lineHeight: 1.8, mb: 3, textIndent: '2em', whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>
                     {intro}
                   </Typography>
                 </>
@@ -315,8 +334,10 @@ function ComicsDetailContent() {
                   sx={{
                     position: 'fixed',
                     inset: 0,
-                    bgcolor: 'rgba(0,0,0,0.95)',
+                    bgcolor: '#000',
                     zIndex: 1300,
+                    pt: 'var(--sat, 0px)',
+                    pb: 'var(--sab, 0px)',
                     display: 'flex',
                     flexDirection: 'column',
                     color: '#fff',
@@ -360,7 +381,7 @@ function ComicsDetailContent() {
                     ) : (
                       <Box
                         onClick={nextPage}
-                        sx={{ width: '100%', maxWidth: 560, display: 'flex', justifyContent: 'center', p: 1, cursor: 'pointer' }}
+                        sx={{ width: '100%', maxWidth: 560, display: 'flex', justifyContent: 'center', p: { xs: 0, sm: 1 }, cursor: 'pointer', flexShrink: 0 }}
                       >
                         {/* 阅读器内嵌分页图:爬虫原图可能是外站防盗链地址,
                             必须过 CoverImage → mediaUrl(代理改写)+ 失败兜底,
@@ -369,7 +390,7 @@ function ComicsDetailContent() {
                           src={images[Math.min(activePage, images.length) - 1]}
                           alt={`${chapter.title || ''} 第 ${activePage} 页`}
                           loading="eager"
-                          sx={{ maxWidth: '100%', maxHeight: '75vh', width: 'auto', height: 'auto', objectFit: 'contain', borderRadius: 4 }}
+                          sx={{ width: '100%', height: 'auto', objectFit: 'contain', borderRadius: { xs: 0, sm: 1 } }}
                         />
                       </Box>
                     )}

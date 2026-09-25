@@ -109,6 +109,8 @@ body {
   min-height: 100%;
   display: flex;
   flex-direction: column;
+  /* 没空格的长串(URL、外文长词)放不下时照样折行,不顶出容器 */
+  overflow-wrap: break-word;
   color: var(--text-primary);
   background: var(--bg-body);
   font-family: Arial, Helvetica, sans-serif;
@@ -126,7 +128,9 @@ body {
    点开/收起播放器不会再让页面跳。 */
 body > [data-player-pad] {
   flex: 0 0 auto;
-  height: var(--player-inset, 0px);
+  /* + 手势条/Home 条高度:音乐底栏本身是 bottom: --sab + 10px,占位不算上它就会少一截,
+     页面最后几行被底栏压住;没有底栏时也给安卓全面屏的手势条让出位置 */
+  height: calc(var(--player-inset, 0px) + var(--sab, 0px));
   pointer-events: none;
 }
 
@@ -209,6 +213,16 @@ html[data-client="android"] img {
 html[data-client="android"] :is(a[href], [role="button"]):not(.MuiButtonBase-root):active {
   opacity: 0.72;
   transition: opacity 0s;
+}
+
+/* 手机/平板宽度下,任何一个超宽的元素(一行塞太多按钮、没空格的长 URL)都会把布局视口撑宽,
+   整页变成可以左右拖、看起来"宽度不对"(安卓 WebView 还会整体缩小)。html 上已有 overflow-x:hidden
+   但挡不住;body 用 clip 兜底 —— clip 不产生滚动容器,sticky 顶栏照常吸顶。
+   这是兜底,超宽的元素本身仍然要修。 */
+@media (max-width: 899.95px) {
+  body {
+    overflow-x: clip;
+  }
 }
 
 /* 用户偏好：减少动画 */

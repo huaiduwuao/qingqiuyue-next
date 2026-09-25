@@ -335,7 +335,8 @@ function MusicDetailContent() {
               </Typography>
             </Box>
 
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', columnGap: 1, rowGap: 1.5, mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <IconButton aria-label="上一首" disabled={!isCurrent} onClick={() => musicPlayer.prev()} sx={{ color: 'text.tertiary' }}>
                 <SkipPreviousIcon fontSize="large" />
               </IconButton>
@@ -357,16 +358,19 @@ function MusicDetailContent() {
               <IconButton aria-label="下一首" disabled={!isCurrent} onClick={() => musicPlayer.next()} sx={{ color: 'text.tertiary' }}>
                 <SkipNextIcon fontSize="large" />
               </IconButton>
-              <Box sx={{ width: 16 }} />
-              <VolumeUpIcon sx={{ color: 'text.secondary' }} />
-              <Slider
-                size="small"
-                value={volume}
-                aria-label="音量"
-                onChange={(_, v) => musicPlayer.setVolume((v as number) / 100)}
-                sx={{ color: 'primary.main', width: 100, ml: 1 }}
-              />
-              <Box sx={{ flex: 1 }} />
+              </Box>
+              <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', ml: 2 }}>
+                <VolumeUpIcon sx={{ color: 'text.secondary' }} />
+                <Slider
+                  size="small"
+                  value={volume}
+                  aria-label="音量"
+                  onChange={(_, v) => musicPlayer.setVolume((v as number) / 100)}
+                  sx={{ color: 'primary.main', width: 100, ml: 1 }}
+                />
+              </Box>
+              <Box sx={{ flex: 1, display: { xs: 'none', sm: 'block' } }} />
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, width: { xs: '100%', sm: 'auto' } }}>
               <Tooltip title={inQueue ? '已在播放队列' : '加入播放队列(边浏览边听)'}>
                 <span>
                   <IconButton onClick={addToQueue} disabled={audioUnavailable} aria-label="加入播放队列" sx={{ color: inQueue ? 'primary.main' : 'text.secondary' }}>
@@ -382,14 +386,16 @@ function MusicDetailContent() {
               <IconButton
                 onClick={handleLike}
                 disabled={likeBusy}
-                sx={{ color: liked ? 'primary.main' : 'text.secondary' }}
+                aria-label="点赞"
+                sx={{ color: liked ? 'primary.main' : 'text.secondary', display: { xs: 'none', sm: 'inline-flex' } }}
               >
                 {liked ? <ThumbUpIcon /> : <ThumbUpOutlinedIcon />}
               </IconButton>
               <CollectButton contentId={id!} contentType="music" />
-              <IconButton onClick={handleShare} sx={{ color: 'text.secondary' }}>
+              <IconButton onClick={handleShare} aria-label="分享" sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'inline-flex' } }}>
                 <ShareIcon />
               </IconButton>
+              </Box>
             </Box>
 
             <Divider sx={{ borderColor: 'divider', my: 3 }} />

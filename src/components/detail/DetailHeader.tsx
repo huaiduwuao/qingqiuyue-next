@@ -77,6 +77,8 @@ export default function DetailHeader({ title, rightActions, variant = 'glass', f
           color: isSolid ? 'text.primary' : '#fff',
           ml: 1,
           flex: 1,
+          // 不写 minWidth:0 的话 flex 子项最小宽度=整段标题,长标题会把右侧按钮挤出屏幕、撑宽整页
+          minWidth: 0,
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
@@ -85,7 +87,7 @@ export default function DetailHeader({ title, rightActions, variant = 'glass', f
       >
         {title}
       </Typography>
-      {rightActions}
+      {rightActions && <Box sx={{ flexShrink: 0, display: 'flex', alignItems: 'center' }}>{rightActions}</Box>}
     </Box>
   );
 }

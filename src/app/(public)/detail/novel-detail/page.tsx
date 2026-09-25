@@ -661,7 +661,15 @@ function NovelDetailContent() {
             // 移动端分页阅读:顶栏是浮层,分页容器得从状态栏下面开始。不留这段的话容器贴着 y=0、
             // 高度又扣了 --sat,状态栏那一截全挪到了底部 —— 安卓客户端里底部多空出一截。
             // 用 pt 不用容器的 mt:mt 会穿透到这一层,把整页撑得比屏幕高、能上下滚。
-            pt: isMobile && !showDetail && prefs.mode !== 'scroll' ? 'var(--sat, 0px)' : 0,
+            // 移动端详情态:顶栏同样是浮层(48px + 状态栏),书籍信息卡得从它下面开始,
+            // 以前是 0 —— 卡片顶边和封面上半截压在顶栏底下,安卓客户端里还要再多压一个状态栏。
+            pt: !isMobile
+              ? 0
+              : showDetail
+                ? 'calc(48px + var(--sat, 0px))'
+                : prefs.mode !== 'scroll'
+                  ? 'var(--sat, 0px)'
+                  : 0,
             transition: 'width .3s, background-color .3s',
           }}
           onClick={(e) => {
