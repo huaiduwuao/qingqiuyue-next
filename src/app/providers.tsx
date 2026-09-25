@@ -2,7 +2,7 @@
 
 import { ThemeProvider as CustomThemeProvider } from '@/contexts/ThemeContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { AppContextProvider } from '@/contexts/AppContext';
 import { AuthContextProvider } from '@/contexts/AuthContext';
 import EmotionProvider from '@/lib/emotion-provider';
@@ -101,7 +101,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
               {/* 客户端:<html data-client=…>,供 globals.css 收掉网页才有的交互(网页里是空组件) */}
               <ClientPlatformAttr />
               {/* 客户端:页面前进/返回转场 + 真机滑不动诊断(网页里是空组件) */}
-              <NativeTransitions />
+              {/* useSearchParams 在静态导出下必须包 Suspense */}
+              <Suspense fallback={null}>
+                <NativeTransitions />
+              </Suspense>
               <ClickSpark sparkColor="var(--brand-color, #FE2C55)">
                 {children}
               </ClickSpark>

@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useLayoutEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { isDesktopClient } from '@/lib/clientAuth';
-import { getRenderedPath, navTransition, norm, setRenderedPath } from '@/lib/navTransition';
+import { getRenderedPath, navTransition, routeKey, setRenderedPath } from '@/lib/navTransition';
 import { reportDiag } from '@/lib/clientDiag';
 
 /**
@@ -30,15 +30,17 @@ function isInternalNavClick(e: MouseEvent): string | null {
   } catch {
     return null;
   }
-  if (url.origin !== location.origin || norm(url.pathname) === norm(location.pathname)) return null;
-  return url.pathname;
+  if (url.origin !== location.origin) return null;
+  const key = routeKey(url.pathname, url.search);
+  return key === routeKey(location.pathname, location.search) ? null : key;
 }
 
 export default function NativeTransitions() {
   const pathname = usePathname();
+  const search = useSearchParams()?.toString() ?? '';
   useLayoutEffect(() => {
-    setRenderedPath(pathname ?? '');
-  }, [pathname]);
+    setRenderedPath(routeKey(pathname ?? '', search));
+  }, [pathname, search]);
 
   useEffect(() => {
     if (!isDesktopClient()) return;
@@ -50,7 +52,7 @@ export default function NativeTransitions() {
     };
     // 返回:popstate 触发时 Next 还没渲染上一页,这时开始转场。只改了查询参数(首页 ?tab= 之间)不做
     const onPop = () => {
-      if (norm(location.pathname) !== getRenderedPath()) navTransition('back');
+      if (routeKey(location.pathname, location.search) !== getRenderedPath()) navTransition('back');
     };
     document.addEventListener('click', onClick, true);
     window.addEventListener('popstate', onPop, true);

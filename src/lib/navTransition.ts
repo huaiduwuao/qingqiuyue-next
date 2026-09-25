@@ -22,9 +22,20 @@ let renderedPath = '';
 /** 客户端构建开了 trailingSlash:usePathname 与 location.pathname 可能差一个结尾斜杠 */
 export const norm = (p: string) => (p.length > 1 ? p.replace(/\/+$/, '') : p);
 
-/** NativeTransitions 在每次路由渲染后调用 */
-export function setRenderedPath(p: string): void {
-  renderedPath = norm(p);
+/**
+ * 「算不算换了一页」的键:路径 + 查询串。详情页之间只差 ?id=(视频详情 → 相关视频),也要有转场;
+ * 首页壳(/home/…)里的 ?tab= / ?section= 是页内切换,不算。
+ */
+export function routeKey(pathname: string, search: string): string {
+  const p = norm(pathname);
+  if (p === '/home' || p.startsWith('/home/')) return p;
+  const q = search.startsWith('?') ? search.slice(1) : search;
+  return q ? `${p}?${q}` : p;
+}
+
+/** NativeTransitions 在每次路由渲染后调用,传 routeKey */
+export function setRenderedPath(key: string): void {
+  renderedPath = key;
 }
 
 export function getRenderedPath(): string {
@@ -61,7 +72,7 @@ export function navTransition(dir: Dir, navigate?: () => void): void {
   }
   running = true;
   const html = document.documentElement;
-  const from = renderedPath || norm(location.pathname);
+  const from = renderedPath || routeKey(location.pathname, location.search);
   html.dataset.vt = dir;
   const vt = (document as DocWithVT).startViewTransition!(() => {
     navigate?.();
