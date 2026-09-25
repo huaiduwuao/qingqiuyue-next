@@ -11,7 +11,6 @@ import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import Dialog from '@mui/material/Dialog';
 import IconButton from '@mui/material/IconButton';
-import InputBase from '@mui/material/InputBase';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
@@ -30,19 +29,15 @@ import CloudOffRoundedIcon from '@mui/icons-material/CloudOffRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import KeyboardArrowUpRoundedIcon from '@mui/icons-material/KeyboardArrowUpRounded';
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
-import SendRoundedIcon from '@mui/icons-material/SendRounded';
-import SubtitlesRoundedIcon from '@mui/icons-material/SubtitlesRounded';
-import SubtitlesOffRoundedIcon from '@mui/icons-material/SubtitlesOffRounded';
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 import { fetchRecommend } from '@/apis/home-discover';
 import { reportContent } from '@/apis/global';
-import { sendComment } from '@/apis/home';
 import { reportRecommendFeedback } from '@/apis/recommend';
 import DetailComments from '@/components/detail/DetailComments';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
 import { parseStream, BANDWIDTH_NOTICE } from '@/apis/stream';
 import { resolveEmbedPlayer, originOnlyPlatform, sourcePageOf, ORIGIN_ONLY_NOTICE } from '@/lib/embedPlayer';
-import { homeClient, formatApiError } from '@/lib/api/client';
+import { homeClient } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { mediaUrl } from '@/lib/media';
 import { TYPE_LABEL } from '@/lib/contentRoute';
@@ -129,6 +124,13 @@ const MOBILE_STAGE_WITH_COMMENTS = '34%';
 /** 桌面端评论栏宽度 */
 const DESKTOP_COMMENTS_W = 400;
 
+/**
+ * 舞台各层用 clip 而不是 hidden:hidden 的盒子仍可被程序滚动,封面糊底(inset -40px)
+ * 和飘出右边的弹幕撑出了可滚动溢出,焦点一落进外链 iframe 浏览器就把整屏横向滚了
+ * 28px,画面和标题左边被切掉一截。clip 不产生滚动容器,不会被滚。
+ */
+const CLIP = { overflow: 'hidden', '@supports (overflow: clip)': { overflow: 'clip' } } as const;
+
 const DANMAKU_PREF_KEY = 'qq.feed.danmaku';
 function readDanmakuPref(): boolean {
   try {
@@ -193,8 +195,8 @@ export function RecommendVideoFeed() {
       return !on;
     });
   };
-  const [danmakuDraft, setDanmakuDraft] = useState('');
-  const [danmakuSending, setDanmakuSending] = useState(false);
+  // 评论栏里加载/发出评论后的真实条数,按内容 id 记;推荐接口给的 comments 只是入库时的快照
+  const [commentTotals, setCommentTotals] = useState<Record<string, number>>({});
 
   // 分页:useInfiniteQuery 管页码。以前手写的页码/锁在挂载时就先跳到第 2 页,
   // 第 1 页的结果被丢掉;某页过滤后一条不剩时预加载也不再触发。
@@ -568,22 +570,9 @@ export function RecommendVideoFeed() {
   };
 
   // ── 弹幕 ──
+  // 弹幕只读:内容是站内评论,发评论走评论栏(以前底部另有一条弹幕输入框,和评论栏的输入框、
+  // B 站播放器自带的弹幕条叠成三处"说点什么",已去掉)。开关在「更多」里,快捷键 d。
   const danmaku = useFeedDanmaku(videoKey, danmakuOn);
-  const sendDanmaku = async () => {
-    const text = danmakuDraft.trim();
-    if (!text || !video || danmakuSending) return;
-    setDanmakuSending(true);
-    try {
-      // 弹幕就是一条评论:评论区里也看得到,别人的弹幕层下一轮轮询就能拉到
-      await sendComment({ contentId: video.idString || String(video.id), content: text });
-      danmaku.pushMine(text);
-      setDanmakuDraft('');
-    } catch (err) {
-      notify(formatApiError(err), 'error');
-    } finally {
-      setDanmakuSending(false);
-    }
-  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -606,6 +595,8 @@ export function RecommendVideoFeed() {
         go(-1);
       } else if (e.key === 'x') {
         setCommentsOpen((o) => !o);
+      } else if (e.key === 'd') {
+        toggleDanmaku();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -725,7 +716,7 @@ export function RecommendVideoFeed() {
         bgcolor: '#000',
         display: 'flex',
         flexDirection: isDesktop ? 'row' : 'column',
-        overflow: 'hidden',
+        ...CLIP,
         // 音乐底栏出现时首页 main 会在底部让出它的高度;推荐流不跟着缩(缩了 iframe 要重排、
         // 画面跳一下),而是伸到底栏下面,只把底部浮层往上抬 --player-inset。
         mb: 'calc(-1 * var(--player-inset, 0px))',
@@ -743,7 +734,7 @@ export function RecommendVideoFeed() {
           minHeight: 0,
           height: isDesktop ? '100%' : compactStage ? MOBILE_STAGE_WITH_COMMENTS : '100%',
           transition: 'height 0.3s cubic-bezier(0.22, 0.61, 0.36, 1)',
-          overflow: 'hidden',
+          ...CLIP,
           // 桌面端做成圆角画布,和评论栏之间留条缝
           ...(isDesktop ? { m: 1, mr: commentsOpen ? 0 : 1, borderRadius: 3, bgcolor: '#0a0a0a' } : {}),
         }}
@@ -757,7 +748,7 @@ export function RecommendVideoFeed() {
           sx={{
             position: 'absolute',
             inset: 0,
-            overflow: 'hidden',
+            ...CLIP,
             touchAction: 'none',
             cursor: dragging ? 'grabbing' : 'default',
           }}
@@ -786,7 +777,7 @@ export function RecommendVideoFeed() {
                     right: 0,
                     top: `${i * 100}%`,
                     height: '100%',
-                    overflow: 'hidden',
+                    ...CLIP,
                     bgcolor: '#000',
                   }}
                 >
@@ -816,7 +807,7 @@ export function RecommendVideoFeed() {
                         // 抖音官方播放器的界面本身是竖屏的(右侧点赞栏),按 9:16 给它空间
                         embedPortrait={v.portrait || resolveEmbedPlayer(v.sourceUrl)?.provider === 'douyin'}
                         // 移动端评论打开后只剩一小块:不再给底部文案让位
-                        fillReserveBottom={compactStage ? 0 : `calc(${isDesktop ? 150 : 170}px + var(--player-inset, 0px))`}
+                        fillReserveBottom={compactStage ? 0 : `calc(${isDesktop ? 104 : 120}px + var(--player-inset, 0px))`}
                       />
                     ) : (
                       <Box
@@ -866,7 +857,7 @@ export function RecommendVideoFeed() {
                         sx={{
                           position: 'absolute',
                           right: { xs: 8, md: 14 },
-                          bottom: { xs: 'calc(72px + var(--player-inset, 0px))', md: 'calc(80px + var(--player-inset, 0px))' },
+                          bottom: { xs: 'calc(22px + var(--player-inset, 0px))', md: 'calc(26px + var(--player-inset, 0px))' },
                           display: 'flex',
                           flexDirection: 'column',
                           gap: { xs: 1.5, md: 2 },
@@ -927,7 +918,7 @@ export function RecommendVideoFeed() {
                           active={commentsOpen}
                           label="评论"
                           icon={<ModeCommentRoundedIcon sx={{ fontSize: 29 }} />}
-                          value={formatCount(video.comments)}
+                          value={formatCount(commentTotals[videoKey ?? ''] ?? video.comments)}
                           onClick={handleCommentClick}
                           activeColor="#fff"
                         />
@@ -954,7 +945,7 @@ export function RecommendVideoFeed() {
                           position: 'absolute',
                           left: { xs: 14, md: 22 },
                           right: { xs: 76, md: 110 },
-                          bottom: { xs: 'calc(64px + var(--player-inset, 0px))', md: 'calc(72px + var(--player-inset, 0px))' },
+                          bottom: { xs: 'calc(16px + var(--player-inset, 0px))', md: 'calc(22px + var(--player-inset, 0px))' },
                           zIndex: 3,
                           color: '#fff',
                           textShadow: TEXT_SHADOW,
@@ -1032,55 +1023,6 @@ export function RecommendVideoFeed() {
         {/* 弹幕层:站内评论滚动飘过(外链播放器自带的弹幕由 embedDanmaku 负责) */}
         {!compactStage && <DanmakuLayer items={danmaku.flying} onLand={danmaku.land} />}
 
-        {/* 底部弹幕输入条 */}
-        {!compactStage && (
-          <Box
-            data-no-drag
-            sx={{
-              position: 'absolute',
-              left: { xs: 10, md: 18 },
-              right: { xs: 10, md: 110 },
-              bottom: { xs: 'calc(10px + var(--player-inset, 0px))', md: 'calc(16px + var(--player-inset, 0px))' },
-              zIndex: 4,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1,
-              maxWidth: 560,
-            }}
-          >
-            <IconButton
-              onClick={toggleDanmaku}
-              aria-label={danmakuOn ? '关闭弹幕' : '开启弹幕'}
-              size="small"
-              sx={{ ...GLASS, width: 38, height: 38, color: danmakuOn ? '#fff' : 'rgba(255,255,255,0.55)', '&:hover': { bgcolor: 'rgba(0,0,0,0.45)' } }}
-            >
-              {danmakuOn ? <SubtitlesRoundedIcon sx={{ fontSize: 20 }} /> : <SubtitlesOffRoundedIcon sx={{ fontSize: 20 }} />}
-            </IconButton>
-            <Box
-              component="form"
-              onSubmit={(e: React.FormEvent) => { e.preventDefault(); void sendDanmaku(); }}
-              sx={{ ...GLASS, flex: 1, minWidth: 0, height: 38, borderRadius: 999, display: 'flex', alignItems: 'center', pl: 1.75, pr: 0.5 }}
-            >
-              <InputBase
-                value={danmakuDraft}
-                onChange={(e) => setDanmakuDraft(e.target.value.slice(0, 60))}
-                placeholder={danmakuOn ? '发个友善的弹幕见证当下' : '弹幕已关闭,发出去的会进评论区'}
-                inputProps={{ 'aria-label': '发送弹幕', enterKeyHint: 'send' }}
-                sx={{ flex: 1, minWidth: 0, fontSize: 14, color: '#fff', '& input::placeholder': { color: 'rgba(255,255,255,0.6)', opacity: 1 } }}
-              />
-              <IconButton
-                type="submit"
-                size="small"
-                disabled={!danmakuDraft.trim() || danmakuSending}
-                aria-label="发送"
-                sx={{ color: ACCENT, '&.Mui-disabled': { color: 'rgba(255,255,255,0.3)' } }}
-              >
-                {danmakuSending ? <CircularProgress size={16} sx={{ color: 'inherit' }} /> : <SendRoundedIcon sx={{ fontSize: 18 }} />}
-              </IconButton>
-            </Box>
-          </Box>
-        )}
-
         {/* 桌面端:上下翻页按钮(抖音网页版同款) */}
         {isDesktop && (
           <Box data-no-drag sx={{ position: 'absolute', right: 20, top: 20, display: 'flex', flexDirection: 'column', gap: 1, zIndex: 4 }}>
@@ -1144,7 +1086,12 @@ export function RecommendVideoFeed() {
                 '& > .MuiBox-root > .MuiDivider-root:first-of-type': { display: 'none' },
               }}
             >
-              <DetailComments key={videoKey ?? ''} contentId={video.idString || video.id} initialCount={video.comments} />
+              <DetailComments
+                key={videoKey ?? ''}
+                contentId={video.idString || video.id}
+                initialCount={commentTotals[videoKey ?? ''] ?? video.comments}
+                onTotalChange={(n) => videoKey && setCommentTotals((m) => (m[videoKey] === n ? m : { ...m, [videoKey]: n }))}
+              />
             </Box>
           </Box>
         )}
@@ -1183,6 +1130,7 @@ export function RecommendVideoFeed() {
         <Box sx={{ p: 1 }}>
           {[
             { label: '不感兴趣', onClick: handleNotInterested },
+            { label: danmakuOn ? '关闭弹幕' : '开启弹幕', onClick: () => { toggleDanmaku(); setMoreDialogOpen(false); } },
             { label: '复制链接', onClick: handleCopyLink },
             { label: '查看详情', onClick: () => { setMoreDialogOpen(false); handleCardClick(video); } },
             { label: '举报', onClick: handleReport, danger: true },

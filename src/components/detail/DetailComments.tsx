@@ -97,6 +97,8 @@ interface DetailCommentsProps {
   initialCount?: number;
   compact?: boolean;
   commentCount?: number;
+  /** 列表接口给出/发评论后变化的总数,给外层的计数角标对齐用 */
+  onTotalChange?: (total: number) => void;
 }
 
 function unwrapPage<T>(res: unknown): { list: T[]; total: number; hasMore: boolean } {
@@ -147,7 +149,7 @@ function toggled<T extends CommentReply>(c: T, action: CommentActionType): T {
 
 const emptyThread: Thread = { open: false, loading: false, loaded: false, replies: [] };
 
-export function DetailComments({ contentId, initialCount = 0, compact = false, commentCount }: DetailCommentsProps) {
+export function DetailComments({ contentId, initialCount = 0, compact = false, commentCount, onTotalChange }: DetailCommentsProps) {
   const [comments, setComments] = useState<CommentItem[]>([]);
   const [total, setTotal] = useState(initialCount);
   const [page, setPage] = useState(1);
@@ -173,6 +175,15 @@ export function DetailComments({ contentId, initialCount = 0, compact = false, c
   const notify = useCallback((message: string, severity: Severity = 'success') => {
     setSnack({ open: true, message, severity });
   }, []);
+
+  // 只在列表真正加载过之后回报,免得把外层传进来的 initialCount 原样回传
+  const onTotalChangeRef = useRef(onTotalChange);
+  useEffect(() => {
+    onTotalChangeRef.current = onTotalChange;
+  });
+  useEffect(() => {
+    if (loaded) onTotalChangeRef.current?.(total);
+  }, [loaded, total]);
 
   // 详情数据晚于组件挂载到达;评论列表加载后以列表接口的总数为准。
   useEffect(() => {

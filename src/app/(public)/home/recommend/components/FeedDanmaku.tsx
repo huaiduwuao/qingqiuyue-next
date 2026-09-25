@@ -9,7 +9,7 @@ import { getComments } from '@/apis/home';
  *
  * 弹幕内容就是这条内容的站内评论:进来时把最近一页评论排队飘过,之后每 15 秒拉一次
  * 第一页,新出现的评论接着飘 —— 别人刚发的也能"实时"看到(站内推送通道是按用户投递的,
- * 没有按内容广播的房间,轮询是现阶段最省事的实时)。自己发的不等轮询,立刻上屏。
+ * 没有按内容广播的房间,轮询是现阶段最省事的实时)。发评论走评论栏,下一轮轮询就上屏。
  *
  * B 站外链播放器自带的弹幕由 EmbedVideoPlayer 的 danmaku 开关负责,这一层只放站内的。
  */
@@ -37,20 +37,17 @@ function commentList(res: unknown): Array<{ id?: string | number; content?: stri
   return ((payload as { list?: unknown[] })?.list ?? []) as Array<{ id?: string | number; content?: string }>;
 }
 
-/** 拉评论、排队、发射。返回当前在飞的弹幕和一个"自己发了一条"的入口。 */
+/** 拉评论、排队、发射。返回当前在飞的弹幕。 */
 export function useFeedDanmaku(contentId: string | null, enabled: boolean) {
   const [flying, setFlying] = useState<Flying[]>([]);
   const queue = useRef<DanmakuItem[]>([]);
   const seen = useRef<Set<string>>(new Set());
   const laneFree = useRef<number[]>(Array(LANES).fill(0));
-  // 自己刚发的文本:轮询拉回来的同文评论就是它,不再飘第二遍
-  const mineTexts = useRef<Map<string, number>>(new Map());
 
   // 换内容:清空一切
   useEffect(() => {
     queue.current = [];
     seen.current = new Set();
-    mineTexts.current = new Map();
     laneFree.current = Array(LANES).fill(0);
     setFlying([]);
   }, [contentId]);
@@ -69,11 +66,6 @@ export function useFeedDanmaku(contentId: string | null, enabled: boolean) {
           const text = (c.content || '').replace(/\s+/g, ' ').trim();
           if (!id || !text || seen.current.has(id)) continue;
           seen.current.add(id);
-          const mine = mineTexts.current.get(text) ?? 0;
-          if (mine > 0) {
-            mineTexts.current.set(text, mine - 1);
-            continue;
-          }
           queue.current.push({ key: `c-${id}`, text: text.length > 40 ? `${text.slice(0, 40)}…` : text });
         }
       } catch {
@@ -107,14 +99,7 @@ export function useFeedDanmaku(contentId: string | null, enabled: boolean) {
 
   const land = useCallback((key: string) => setFlying((f) => f.filter((x) => x.key !== key)), []);
 
-  /** 自己发出的弹幕:插队到最前,并记下文本免得轮询回来再飘一遍 */
-  const pushMine = useCallback((text: string) => {
-    const t = text.replace(/s+/g, " ").trim();
-    mineTexts.current.set(t, (mineTexts.current.get(t) ?? 0) + 1);
-    queue.current.unshift({ key: `m-${Date.now()}`, text, mine: true });
-  }, []);
-
-  return { flying: enabled ? flying : [], land, pushMine };
+  return { flying: enabled ? flying : [], land };
 }
 
 /** 弹幕层本体:铺在视频上半区,不接收任何指针事件,不挡滑动和点击。 */
