@@ -25,6 +25,7 @@ import {
 } from '@mui/material';
 import {
   fetchBoostList,
+  fetchEmbeddingStats,
   fetchProfileStats,
   fetchRecommendOverview,
   revokeBoost,
@@ -58,6 +59,11 @@ export default function RecommendConsolePage() {
   const overview = useQuery({ queryKey: ['admin', 'recommend', 'overview'], queryFn: () => fetchRecommendOverview(7), refetchInterval: 60_000 });
   const profile = useQuery({ queryKey: ['admin', 'recommend', 'profile'], queryFn: fetchProfileStats, refetchInterval: 120_000 });
   const boosts = useQuery({ queryKey: ['admin', 'recommend', 'boost', page], queryFn: () => fetchBoostList(page, PAGE_SIZE) });
+  const embeds = useQuery({ queryKey: ['admin', 'recommend', 'embeddings'], queryFn: fetchEmbeddingStats, refetchInterval: 60_000 });
+  const em = embeds.data;
+  const emTypes = Object.entries(em?.catalog ?? {})
+    .map(([type, total]) => ({ type, total, done: em?.coverage?.[type] ?? 0 }))
+    .sort((a, b) => b.total - a.total);
 
   const ov = overview.data;
   const pf = profile.data;
@@ -165,6 +171,39 @@ export default function RecommendConsolePage() {
           })}
         </Paper>
       </Box>
+
+      {/* 内容向量:相关推荐/个性化里"向量相似"一路的数据来源,空表时这一路恒为空 */}
+      <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
+          <Typography sx={{ fontWeight: 700, flex: 1 }}>内容向量覆盖</Typography>
+          {em?.enabled === false && <Chip size="small" label={em.reason || '未启用'} />}
+          {em?.model && <Chip size="small" variant="outlined" label={`模型 ${em.model}`} />}
+          {em?.running && (
+            <Chip
+              size="small"
+              color="primary"
+              label={`回填中 ${em.currentType ? TYPE_LABEL[em.currentType] || em.currentType : ''} · ${(em.ratePerSec ?? 0).toFixed(1)} 条/秒`}
+            />
+          )}
+        </Box>
+        {em?.lastError && (
+          <Alert severity="warning" sx={{ mb: 1.5 }}>
+            最近错误({em.lastErrorAt ? new Date(em.lastErrorAt).toLocaleString() : '-'}):{em.lastError}
+          </Alert>
+        )}
+        {emTypes.length === 0 && <Typography variant="caption" color="text.secondary">暂无数据</Typography>}
+        {emTypes.map((t) => (
+          <Box key={t.type} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
+            <Typography sx={{ width: 56, fontSize: 12 }}>{TYPE_LABEL[t.type] || t.type}</Typography>
+            <Box sx={{ flex: 1, height: 8, bgcolor: 'action.hover', borderRadius: 1, overflow: 'hidden' }}>
+              <Box sx={{ width: `${Math.min(100, (t.done / Math.max(t.total, 1)) * 100)}%`, height: '100%', bgcolor: 'success.main' }} />
+            </Box>
+            <Typography sx={{ width: 120, fontSize: 12, textAlign: 'right' }}>
+              {t.done.toLocaleString()} / {t.total.toLocaleString()}
+            </Typography>
+          </Box>
+        ))}
+      </Paper>
 
       {/* 强推/降权 */}
       <Paper variant="outlined" sx={{ p: 2 }}>
