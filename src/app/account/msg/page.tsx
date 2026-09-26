@@ -44,6 +44,7 @@ import { fileUpload } from '@/apis/global';
 import { pinSession, unpinSession, removeSessions, sendShareCard, type ShareKind } from '@/apis/msg';
 import ShareCardBubble from '@/components/msg/ShareCardBubble';
 import SharePicker from '@/components/msg/SharePicker';
+import { useHideMobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { usePollFallback } from '@/lib/realtime';
 import { blockUser, followUser, unblockUser, unfollowUser } from '@/apis/social';
 import { UserAvatarLink } from '@/components/common/UserAvatarLink';
@@ -148,7 +149,8 @@ export default function MsgPage() {
     if (session > 0) setSelectedId(session);
   }, [setMainTab, setSelectedId]);
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - var(--appbar-h, 66px))', bgcolor: 'background.default' }}>
+    // 手机底部导航压在最下面(打开会话时会收起,inset 归零)
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: 'calc(100dvh - var(--appbar-h, 66px) - var(--bottom-nav-inset, 0px))', bgcolor: 'background.default' }}>
       {/* 顶部 Tab 导航 */}
       <Box sx={{ borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.default', flexShrink: 0, px: 3 }}>
         <Tabs
@@ -590,6 +592,8 @@ function DmPanel() {
   const [showEmoji, setShowEmoji] = useState(false);
   const [snack, setSnack] = useState<{ open: boolean; msg: string; severity: 'success' | 'error' }>({ open: false, msg: '', severity: 'success' });
   const [mobileShowDetail, setMobileShowDetail] = useState(false);
+  // 手机上打开会话:输入框在最底下,底部导航让开
+  useHideMobileBottomNav(mobileShowDetail);
   const [moreAnchor, setMoreAnchor] = useState<null | HTMLElement>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState('');

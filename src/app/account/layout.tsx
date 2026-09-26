@@ -19,6 +19,7 @@ import { AccountContextProvider } from '@/contexts/AccountContext';
 import { AvatarHoverPopup } from '@/components/account/AvatarHoverPopup';
 import NoticeIconView, { DmIconView } from '@/components/NoticeIcon';
 import MobileNavDrawer from './components/MobileNavDrawer';
+import { MobileBottomNav, mobileTabForPath } from '@/components/layout/MobileBottomNav';
 import GradientText from '@/components/reactbits/GradientText';
 
 const ACCOUNT_PAGES = [
@@ -74,6 +75,7 @@ function AccountLayoutContent({
 
   const isAccountSection = pathname.startsWith('/account');
   const isMsgPage = pathname.startsWith('/account/msg');
+  const bottomTab = mobileTabForPath(pathname);
   const currentPage = isMsgPage
     ? { key: 'msg', label: '消息中心', sub: '互动 · 系统 · 私信', path: '/account/msg', icon: null, accent: 'primary.main' }
     : ACCOUNT_PAGES.find((p) => pathname.startsWith(p.path)) || ACCOUNT_PAGES[0];
@@ -201,7 +203,8 @@ function AccountLayoutContent({
               onClick={handleBack}
               size="small"
               aria-label="返回"
-              sx={{ color: 'text.secondary' }}
+              // 创作/悬赏/消息在手机上是底部 tab 的一级页,不需要返回键
+              sx={{ color: 'text.secondary', display: bottomTab ? { xs: 'none', md: 'inline-flex' } : undefined }}
             >
               <ArrowBackIcon fontSize="small" />
             </IconButton>
@@ -213,9 +216,10 @@ function AccountLayoutContent({
             )}
           </Box>
 
+          {/* 手机上不放右上角头像:底部导航有「我的」 */}
           <AvatarHoverPopup
             anchor={
-              <IconButton size="small" sx={{ ml: 0.5, p: 0.25 }} onClick={() => router.push('/account/center')}>
+              <IconButton size="small" sx={{ ml: 0.5, p: 0.25, display: { xs: 'none', md: 'inline-flex' } }} onClick={() => router.push('/account/center')}>
                 <Avatar
                   src={currentUser?.avatar}
                   sx={{
@@ -255,6 +259,8 @@ function AccountLayoutContent({
       <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
         {children}
       </Box>
+      {/* 创作 / 悬赏 / 消息是手机底部导航的落点,这三处也挂底栏(其余账号子页是二级页,不挂) */}
+      {bottomTab && <MobileBottomNav active={bottomTab} />}
     </Box>
   );
 }

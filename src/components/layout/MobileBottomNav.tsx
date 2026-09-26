@@ -1,68 +1,122 @@
 'use client';
 
-import React, { memo, useEffect } from 'react';
+import React, { memo, useEffect, useSyncExternalStore } from 'react';
+import { useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
+import Badge from '@mui/material/Badge';
 import Typography from '@mui/material/Typography';
 import { alpha, useTheme } from '@mui/material/styles';
 import { motion, useReducedMotion } from 'motion/react';
 import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
-import RecommendRoundedIcon from '@mui/icons-material/RecommendRounded';
-import DynamicFeedRoundedIcon from '@mui/icons-material/DynamicFeedRounded';
+import AddBoxRoundedIcon from '@mui/icons-material/AddBoxRounded';
+import CardGiftcardRoundedIcon from '@mui/icons-material/CardGiftcardRounded';
+import ChatBubbleRoundedIcon from '@mui/icons-material/ChatBubbleRounded';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
-import EmojiEventsRoundedIcon from '@mui/icons-material/EmojiEventsRounded';
 import { useResponsive } from '@/hooks/useResponsive';
+import { useMessageUnread } from '@/components/NoticeIcon';
 
-// Tab 配置
+export type MobileTabKey = 'home' | 'create' | 'bounty' | 'msg' | 'me';
+
 interface TabItem {
-  key: string;
+  key: MobileTabKey;
   label: string;
   icon: React.ReactNode;
   path: string;
 }
 
+/** 首页里上次停在哪个页签(精选/推荐/榜单/动态…),从别的底部 tab 点回「首页」时回到那里。 */
+export const HOME_LAST_URL_KEY = 'qq-home-last-url';
+const HOME_DEFAULT = '/home/recommend?tab=home';
+
+// 和大多数 App 一样的五个一级入口。精选/推荐/榜单/动态是「首页」里的顶部页签,
+// 直播/放映厅/短剧/意境/AI 等收进首页左上角的侧边栏(home/layout 的 MobileSideMenu)。
 const MOBILE_TABS: TabItem[] = [
-  { key: 'home', label: '精选', icon: <HomeRoundedIcon />, path: '/home/recommend?tab=home' },
-  { key: 'recommend', label: '推荐', icon: <RecommendRoundedIcon />, path: '/home/recommend?tab=recommend' },
-  // 原来这里是「任务」→ /home/queue,但那个路由没有页面。换成排行榜,手机端也能进榜单。
-  { key: 'rank', label: '榜单', icon: <EmojiEventsRoundedIcon />, path: '/home/recommend?tab=rank' },
-  // 关注/朋友已并入「动态」(页内切 广场/关注/朋友)
-  { key: 'feed', label: '动态', icon: <DynamicFeedRoundedIcon />, path: '/home/recommend?tab=feed' },
+  { key: 'home', label: '首页', icon: <HomeRoundedIcon />, path: HOME_DEFAULT },
+  { key: 'create', label: '创作', icon: <AddBoxRoundedIcon />, path: '/account/content?tab=hd-publish' },
+  { key: 'bounty', label: '悬赏', icon: <CardGiftcardRoundedIcon />, path: '/account/reward?tab=square' },
+  { key: 'msg', label: '消息', icon: <ChatBubbleRoundedIcon />, path: '/account/msg' },
   { key: 'me', label: '我的', icon: <PersonRoundedIcon />, path: '/home/recommend?tab=me' },
 ];
 
+/** /account 下哪些页面是底部 tab 的落点(这些页面上也显示底部导航)。 */
+export function mobileTabForPath(pathname: string): MobileTabKey | null {
+  if (pathname.startsWith('/account/content')) return 'create';
+  if (pathname.startsWith('/account/reward')) return 'bounty';
+  if (pathname.startsWith('/account/msg')) return 'msg';
+  return null;
+}
+
 export const BOTTOM_NAV_HEIGHT = 56;
 
+// 页面临时要整屏(私信会话页的输入框在最底下)时把底栏收起:计数而不是布尔,多处同时要求也不会互相打架。
+let hideCount = 0;
+const hideListeners = new Set<() => void>();
+const subscribeHide = (fn: () => void) => {
+  hideListeners.add(fn);
+  return () => { hideListeners.delete(fn); };
+};
+const getHidden = () => hideCount > 0;
+
+/** 在 hide 为真期间隐藏手机底部导航(并把 --bottom-nav-inset 归零)。 */
+export function useHideMobileBottomNav(hide: boolean) {
+  useEffect(() => {
+    if (!hide) return;
+    hideCount += 1;
+    hideListeners.forEach((fn) => fn());
+    return () => {
+      hideCount -= 1;
+      hideListeners.forEach((fn) => fn());
+    };
+  }, [hide]);
+}
+
 interface MobileBottomNavProps {
-  activeNav: string;
-  onNavChange: (key: string) => void;
+  active: MobileTabKey;
 }
 
 /**
- * 移动端底部导航。
+ * 移动端底部导航:首页 / 创作 / 悬赏 / 消息 / 我的。
  *
- * - 只在 < md(900px)显示,与侧栏 `{ xs:'none', md:'flex' }` 互补,不再有
- *   "既没侧栏又没底栏"的中间地带(之前按 768/1024 + 横竖屏判断,平板横屏两个都没有)。
+ * - 只在 < md(900px)显示,与侧栏 `{ xs:'none', md:'flex' }` 互补。
+ * - 首页(home/layout)和 /account 下的创作、悬赏、消息三个落点页都挂它,所以自己负责跳转。
  * - 挂载时把自身高度(56 + 底部安全区)写进 :root 的 --bottom-nav-inset,
- *   浮窗数字人 / 首页 main 的底部留白都读这个变量,卸载后归零。
- * - 选中态是一颗用 motion layoutId 在 tab 之间滑动的胶囊(React Bits 的 GooeyNav/Dock 思路),
- *   图标带弹簧缩放;prefers-reduced-motion 下退化为瞬切。
+ *   浮窗数字人 / 首页 main / 工作台的底部留白都读这个变量,卸载或被隐藏时归零。
+ * - 选中态是一颗用 motion layoutId 在 tab 之间滑动的胶囊,图标带弹簧缩放;
+ *   prefers-reduced-motion 下退化为瞬切。
  */
-export const MobileBottomNav = memo(function MobileBottomNav({ activeNav, onNavChange }: MobileBottomNavProps) {
+export const MobileBottomNav = memo(function MobileBottomNav({ active }: MobileBottomNavProps) {
   const { isMobile } = useResponsive();
   const theme = useTheme();
+  const router = useRouter();
   const reduced = useReducedMotion();
+  const hidden = useSyncExternalStore(subscribeHide, getHidden, () => false);
+  const unread = useMessageUnread();
+  const shown = isMobile && !hidden;
 
   // ⚠️ Hooks 必须在任何条件 return 之前无条件调用(Rules of Hooks)。
   useEffect(() => {
-    if (!isMobile || typeof document === 'undefined') return;
+    if (!shown || typeof document === 'undefined') return;
     const root = document.documentElement;
     root.style.setProperty('--bottom-nav-inset', `calc(${BOTTOM_NAV_HEIGHT}px + var(--sab, 0px))`);
     return () => {
       root.style.setProperty('--bottom-nav-inset', '0px');
     };
-  }, [isMobile]);
+  }, [shown]);
 
-  if (!isMobile) return null;
+  if (!shown) return null;
+
+  const go = (tab: TabItem) => {
+    if (tab.key === active && tab.key !== 'home') return;
+    let path = tab.path;
+    if (tab.key === 'home') {
+      // 已经在首页:回到精选;从别处回来:回到上次看的那个页签
+      if (active === 'home') path = HOME_DEFAULT;
+      else {
+        try { path = sessionStorage.getItem(HOME_LAST_URL_KEY) || HOME_DEFAULT; } catch { /* 隐私模式 */ }
+      }
+    }
+    router.push(path, { scroll: false });
+  };
 
   const pillColor = alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.22 : 0.14);
   const spring = reduced ? { duration: 0 } : { type: 'spring' as const, stiffness: 520, damping: 36, mass: 0.8 };
@@ -91,15 +145,18 @@ export const MobileBottomNav = memo(function MobileBottomNav({ activeNav, onNavC
     >
       <Box sx={{ display: 'flex', alignItems: 'stretch', height: BOTTOM_NAV_HEIGHT }}>
         {MOBILE_TABS.map((tab) => {
-          const active = tab.key === activeNav;
+          const isActive = tab.key === active;
+          const icon = React.isValidElement(tab.icon)
+            ? React.cloneElement(tab.icon as React.ReactElement<{ sx?: object }>, { sx: { fontSize: 24 } })
+            : tab.icon;
           return (
             <Box
               key={tab.key}
               component="button"
               type="button"
-              onClick={() => onNavChange(tab.key)}
-              aria-current={active ? 'page' : undefined}
-              aria-label={tab.label}
+              onClick={() => go(tab)}
+              aria-current={isActive ? 'page' : undefined}
+              aria-label={tab.key === 'msg' && unread > 0 ? `消息,${unread} 条未读` : tab.label}
               sx={{
                 flex: 1,
                 minWidth: 0,
@@ -111,7 +168,7 @@ export const MobileBottomNav = memo(function MobileBottomNav({ activeNav, onNavC
                 gap: '2px',
                 border: 0,
                 background: 'transparent',
-                color: active ? 'var(--brand-color, #FE2C55)' : 'var(--text-muted, rgba(0, 0, 0, 0.45))',
+                color: isActive ? 'var(--brand-color, #FE2C55)' : 'var(--text-muted, rgba(0, 0, 0, 0.45))',
                 cursor: 'pointer',
                 WebkitTapHighlightColor: 'transparent',
                 touchAction: 'manipulation',
@@ -120,7 +177,7 @@ export const MobileBottomNav = memo(function MobileBottomNav({ activeNav, onNavC
                 '&:active': { color: 'var(--brand-color, #FE2C55)' },
               }}
             >
-              {active && (
+              {isActive && (
                 <motion.span
                   layoutId="qq-bottom-nav-pill"
                   transition={spring}
@@ -138,13 +195,20 @@ export const MobileBottomNav = memo(function MobileBottomNav({ activeNav, onNavC
                 />
               )}
               <motion.span
-                animate={reduced ? undefined : { scale: active ? 1.12 : 1, y: active ? -1 : 0 }}
+                animate={reduced ? undefined : { scale: isActive ? 1.12 : 1, y: isActive ? -1 : 0 }}
                 transition={reduced ? { duration: 0 } : { type: 'spring', stiffness: 480, damping: 22 }}
                 style={{ position: 'relative', zIndex: 1, display: 'flex', lineHeight: 0 }}
               >
-                {React.isValidElement(tab.icon)
-                  ? React.cloneElement(tab.icon as React.ReactElement<{ sx?: object }>, { sx: { fontSize: 24 } })
-                  : tab.icon}
+                {tab.key === 'msg' ? (
+                  <Badge
+                    badgeContent={unread}
+                    max={99}
+                    color="error"
+                    sx={{ '& .MuiBadge-badge': { fontSize: 9, height: 15, minWidth: 15, px: 0.4, top: 2, right: -2 } }}
+                  >
+                    {icon}
+                  </Badge>
+                ) : icon}
               </motion.span>
               <Typography
                 component="span"
@@ -152,7 +216,7 @@ export const MobileBottomNav = memo(function MobileBottomNav({ activeNav, onNavC
                   position: 'relative',
                   zIndex: 1,
                   fontSize: 10,
-                  fontWeight: active ? 700 : 500,
+                  fontWeight: isActive ? 700 : 500,
                   lineHeight: 1,
                   letterSpacing: 0,
                   whiteSpace: 'nowrap',

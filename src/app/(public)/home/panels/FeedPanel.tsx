@@ -50,6 +50,10 @@ import SplitText from '@/components/reactbits/SplitText';
 import BlurText from '@/components/reactbits/BlurText';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
+import FilterListRoundedIcon from '@mui/icons-material/FilterListRounded';
+import Badge from '@mui/material/Badge';
+import Drawer from '@mui/material/Drawer';
+import { useResponsive } from '@/hooks/useResponsive';
 
 // 后端 pkg/jsonfix 已将 BIGINT > Number.MAX_SAFE_INTEGER (2^53) 转为字符串。
 // 前端不可再 Number() 转换，否则精度再次丢失导致详情页 404。
@@ -144,6 +148,9 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
   // 登录后频道跟账号走(未登录只用本机那份);挂在这里就够——页签和频道管理都在本面板内
   useHomeSectionSync();
   const [managerOpen, setManagerOpen] = useState(false);
+  const { isMobile } = useResponsive();
+  // 手机上排序/评分/年份收在底部弹层里
+  const [filterOpen, setFilterOpen] = useState(false);
   const urlSection = searchParams.get('section') || RECOMMEND_SECTION.id;
   const [section, setSectionState] = useState<string>(urlSection);
   const setSection = (next: string) => {
@@ -369,6 +376,114 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
     return () => observer.disconnect();
   }, [hasNextPage, isFetchingNextPage, isLoading, fetchNextPage]);
 
+  // 手机端「筛选」按钮上的角标:偏离默认值的条件数
+  const filterCount = (sort !== 'views' ? 1 : 0) + (ratingMin ? 1 : 0) + (year ? 1 : 0);
+  const sortFilterRows = (
+    <>
+      {/* 歌单频道的顺序是歌单自己排好的,排序/筛选在这里没有意义,不摆出来 */}
+      {tab === 'home' && active.kind !== 'playlist' && (
+        <Box sx={{ position: 'relative', px: 1.5, pt: 0.5, pb: 0.75 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' }, pr: 3 }}>
+            <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>排序</Typography>
+            {[
+            { key: 'views', label: '人气榜' },
+            { key: 'hot', label: '热度' },
+            { key: 'new', label: '最新' },
+            { key: 'rating', label: '高评分' },
+          ].map((s) => {
+            const active = sort === s.key;
+            return (
+              <Box
+                key={s.key}
+                onClick={() => setSort(s.key as any)}
+                sx={{
+                  flexShrink: 0,
+                  px: 1.25,
+                  py: 0.35,
+                  borderRadius: 999,
+                  cursor: 'pointer',
+                  fontSize: 11.5,
+                  fontWeight: active ? 700 : 500,
+                  color: active ? '#fff' : 'var(--text-secondary, rgba(255,255,255,0.65))',
+                  bgcolor: active ? 'var(--brand-color, #FE2C55)' : 'transparent',
+                  border: '1px solid',
+                  borderColor: active ? 'transparent' : 'var(--border-color, rgba(255,255,255,0.08))',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {s.label}
+              </Box>
+            );
+          })}
+        </Box>
+        {/* 右侧渐变遮罩提示可滚动 */}
+        <Box sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 24, background: 'linear-gradient(to right, transparent, var(--bg-body, #F5F5F7))', pointerEvents: 'none' }} />
+      </Box>
+      )}
+      {/* 评分/年份筛选(分类内容页;仅影视类生效,推荐/关注不展示) */}
+      {tab === 'home' && active.kind !== 'recommend' && active.kind !== 'playlist' && (
+        <Box sx={{ position: 'relative', px: 1.5, pb: 0.75 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' }, pr: 3 }}>
+            <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>筛选</Typography>
+            {['8', '9'].map((r) => {
+              const active = ratingMin === r;
+              return (
+                <Box
+                  key={`r${r}`}
+                  onClick={() => setRating(active ? '' : r)}
+                  sx={{
+                    flexShrink: 0,
+                    px: 1.25,
+                    py: 0.35,
+                    borderRadius: 999,
+                    cursor: 'pointer',
+                    fontSize: 11.5,
+                    fontWeight: active ? 700 : 500,
+                    color: active ? '#fff' : 'var(--text-secondary, rgba(255,255,255,0.65))',
+                    bgcolor: active ? 'var(--brand-color, #FE2C55)' : 'transparent',
+                    border: '1px solid',
+                    borderColor: active ? 'transparent' : 'var(--border-color, rgba(255,255,255,0.08))',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {r}分+
+                </Box>
+              );
+            })}
+            <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.3))', flexShrink: 0, mx: 0.25 }}>|</Typography>
+            {[String(new Date().getFullYear()), String(new Date().getFullYear() - 1)].map((y) => {
+              const active = year === y;
+              return (
+                <Box
+                  key={`y${y}`}
+                  onClick={() => setYear(active ? '' : y)}
+                  sx={{
+                    flexShrink: 0,
+                    px: 1.25,
+                    py: 0.35,
+                    borderRadius: 999,
+                    cursor: 'pointer',
+                    fontSize: 11.5,
+                    fontWeight: active ? 700 : 500,
+                    color: active ? '#fff' : 'var(--text-secondary, rgba(255,255,255,0.65))',
+                    bgcolor: active ? 'var(--brand-color, #FE2C55)' : 'transparent',
+                    border: '1px solid',
+                    borderColor: active ? 'transparent' : 'var(--border-color, rgba(255,255,255,0.08))',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {y}
+                </Box>
+              );
+            })}
+          </Box>
+          {/* 右侧渐变遮罩提示可滚动 */}
+          <Box sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 24, background: 'linear-gradient(to right, transparent, var(--bg-body, #F5F5F7))', pointerEvents: 'none' }} />
+        </Box>
+      )}
+    </>
+  );
+
   // 所有 Hook 调用完毕后再做条件分支(遵守 Rules of Hooks:Hook 顺序在每次渲染必须一致)
 
   return (
@@ -379,7 +494,8 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
       data-fill-main
       sx={{ display: 'flex', flexDirection: 'column', height: '100%', mb: 'calc(-1 * var(--player-inset, 0px))' }}
     >
-      {tab === 'home' && (
+      {/* 手机上顶栏已经写着「精选」,这块标题只会把列表往下挤 */}
+      {tab === 'home' && !isMobile && (
         <Box
           sx={{
             // 不再 sticky:之前它 sticky top:0,下面的 Tabs 再 sticky top:calc(56px + sat)。
@@ -486,7 +602,22 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
                 <TuneRoundedIcon sx={{ fontSize: 18 }} />
               </IconButton>
             </Tooltip>
-            <ListLayoutSwitch />
+            {isMobile ? (
+              active.kind !== 'playlist' && (
+                <IconButton
+                  size="small"
+                  aria-label="筛选"
+                  onClick={() => setFilterOpen(true)}
+                  sx={{ color: filterCount ? 'var(--brand-color, #FE2C55)' : 'var(--text-secondary, rgba(255,255,255,0.6))' }}
+                >
+                  <Badge badgeContent={filterCount} color="primary" sx={{ '& .MuiBadge-badge': { fontSize: 9, height: 14, minWidth: 14, p: 0 } }}>
+                    <FilterListRoundedIcon sx={{ fontSize: 19 }} />
+                  </Badge>
+                </IconButton>
+              )
+            ) : (
+              <ListLayoutSwitch />
+            )}
             </Box>
           )}
           {/* 二级子分类(题材):选中某类型(如小说)后,展示该类型下的分类来筛选 */}
@@ -530,108 +661,35 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
             <Box sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 24, background: 'linear-gradient(to right, transparent, var(--bg-body, #F5F5F7))', pointerEvents: 'none' }} />
           </Box>
           )}
-          {/* 歌单频道的顺序是歌单自己排好的,排序/筛选在这里没有意义,不摆出来 */}
-          {tab === 'home' && active.kind !== 'playlist' && (
-            <Box sx={{ position: 'relative', px: 1.5, pt: 0.5, pb: 0.75 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' }, pr: 3 }}>
-                <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>排序</Typography>
-                {[
-                { key: 'views', label: '人气榜' },
-                { key: 'hot', label: '热度' },
-                { key: 'new', label: '最新' },
-                { key: 'rating', label: '高评分' },
-              ].map((s) => {
-                const active = sort === s.key;
-                return (
-                  <Box
-                    key={s.key}
-                    onClick={() => setSort(s.key as any)}
-                    sx={{
-                      flexShrink: 0,
-                      px: 1.25,
-                      py: 0.35,
-                      borderRadius: 999,
-                      cursor: 'pointer',
-                      fontSize: 11.5,
-                      fontWeight: active ? 700 : 500,
-                      color: active ? '#fff' : 'var(--text-secondary, rgba(255,255,255,0.65))',
-                      bgcolor: active ? 'var(--brand-color, #FE2C55)' : 'transparent',
-                      border: '1px solid',
-                      borderColor: active ? 'transparent' : 'var(--border-color, rgba(255,255,255,0.08))',
-                      transition: 'all 0.15s',
-                    }}
-                  >
-                    {s.label}
-                  </Box>
-                );
-              })}
-            </Box>
-            {/* 右侧渐变遮罩提示可滚动 */}
-            <Box sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 24, background: 'linear-gradient(to right, transparent, var(--bg-body, #F5F5F7))', pointerEvents: 'none' }} />
-          </Box>
-          )}
-          {/* 评分/年份筛选(分类内容页;仅影视类生效,推荐/关注不展示) */}
-          {tab === 'home' && active.kind !== 'recommend' && active.kind !== 'playlist' && (
-            <Box sx={{ position: 'relative', px: 1.5, pb: 0.75 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' }, pr: 3 }}>
-                <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>筛选</Typography>
-                {['8', '9'].map((r) => {
-                  const active = ratingMin === r;
-                  return (
-                    <Box
-                      key={`r${r}`}
-                      onClick={() => setRating(active ? '' : r)}
-                      sx={{
-                        flexShrink: 0,
-                        px: 1.25,
-                        py: 0.35,
-                        borderRadius: 999,
-                        cursor: 'pointer',
-                        fontSize: 11.5,
-                        fontWeight: active ? 700 : 500,
-                        color: active ? '#fff' : 'var(--text-secondary, rgba(255,255,255,0.65))',
-                        bgcolor: active ? 'var(--brand-color, #FE2C55)' : 'transparent',
-                        border: '1px solid',
-                        borderColor: active ? 'transparent' : 'var(--border-color, rgba(255,255,255,0.08))',
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      {r}分+
-                    </Box>
-                  );
-                })}
-                <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.3))', flexShrink: 0, mx: 0.25 }}>|</Typography>
-                {[String(new Date().getFullYear()), String(new Date().getFullYear() - 1)].map((y) => {
-                  const active = year === y;
-                  return (
-                    <Box
-                      key={`y${y}`}
-                      onClick={() => setYear(active ? '' : y)}
-                      sx={{
-                        flexShrink: 0,
-                        px: 1.25,
-                        py: 0.35,
-                        borderRadius: 999,
-                        cursor: 'pointer',
-                        fontSize: 11.5,
-                        fontWeight: active ? 700 : 500,
-                        color: active ? '#fff' : 'var(--text-secondary, rgba(255,255,255,0.65))',
-                        bgcolor: active ? 'var(--brand-color, #FE2C55)' : 'transparent',
-                        border: '1px solid',
-                        borderColor: active ? 'transparent' : 'var(--border-color, rgba(255,255,255,0.08))',
-                        transition: 'all 0.15s',
-                      }}
-                    >
-                      {y}
-                    </Box>
-                  );
-                })}
-              </Box>
-              {/* 右侧渐变遮罩提示可滚动 */}
-              <Box sx={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 24, background: 'linear-gradient(to right, transparent, var(--bg-body, #F5F5F7))', pointerEvents: 'none' }} />
-            </Box>
-          )}
+          {/* 排序 / 评分年份:桌面端平铺在页签下;手机上收进「筛选」底部弹层(见 filterSheet),
+              以前四行叠起来加上标题,在手机上吃掉小半屏 */}
+          {!isMobile && sortFilterRows}
         </Box>
+        {isMobile && (
+          <Drawer
+            anchor="bottom"
+            open={filterOpen}
+            onClose={() => setFilterOpen(false)}
+            slotProps={{
+              paper: {
+                sx: {
+                  borderTopLeftRadius: 16,
+                  borderTopRightRadius: 16,
+                  bgcolor: 'var(--bg-body, #fff)',
+                  pb: 'calc(12px + var(--sab, 0px))',
+                },
+              },
+            }}
+          >
+            <Box sx={{ width: 36, height: 4, borderRadius: 2, bgcolor: 'var(--border-strong, rgba(0,0,0,0.15))', mx: 'auto', mt: 1, mb: 0.5 }} />
+            <Typography sx={{ fontSize: 15, fontWeight: 700, px: 2, py: 1 }}>筛选</Typography>
+            {sortFilterRows}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, pt: 0.5 }}>
+              <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, letterSpacing: 0.5 }}>样式</Typography>
+              <ListLayoutSwitch withLabel />
+            </Box>
+          </Drawer>
+        )}
 
       <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0, pb: 'var(--player-inset, 0px)' }}>
           {/* 歌单频道:整张歌单直接能播,不用先点进歌单页 */}

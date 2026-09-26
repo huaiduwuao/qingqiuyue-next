@@ -649,21 +649,34 @@ export function RecommendVideoFeed() {
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const [dragY, setDragY] = useState(0);
   const [dragging, setDragging] = useState(false);
-  const dragState = useRef({ active: false, startY: 0, moved: 0 });
+  // d:当前位移(已含边界阻尼);vy:最近一段的速度(px/ms),用来认「轻扫」。
+  // 位移记在 ref 里 —— 以前松手时读的是 state 里的 dragY,最后一个 move 还没渲染就被当成更短的位移。
+  const dragState = useRef({ active: false, startY: 0, moved: 0, d: 0, lastY: 0, lastT: 0, vy: 0 });
 
   const onPointerDown = (e: React.PointerEvent) => {
     if ((e.target as HTMLElement).closest('[data-no-drag]')) return;
     if (navBlocked) return;
-    dragState.current = { active: true, startY: e.clientY, moved: 0 };
+    const now = performance.now();
+    dragState.current = { active: true, startY: e.clientY, moved: 0, d: 0, lastY: e.clientY, lastT: now, vy: 0 };
     setDragging(true);
     (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
   };
   const onPointerMove = (e: React.PointerEvent) => {
     const s = dragState.current;
     if (!s.active) return;
+    const now = performance.now();
+    const dt = now - s.lastT;
+    if (dt > 0) {
+      // 指数平滑,单个抖动的 move 不至于把速度带偏
+      const v = (e.clientY - s.lastY) / dt;
+      s.vy = s.vy * 0.4 + v * 0.6;
+      s.lastY = e.clientY;
+      s.lastT = now;
+    }
     let d = e.clientY - s.startY;
     s.moved = Math.max(s.moved, Math.abs(d));
     if ((d > 0 && index === 0) || (d < 0 && index === uniqueVideos.length - 1)) d *= 0.32;
+    s.d = d;
     setDragY(d);
   };
   const onTap = (e: React.PointerEvent) => {
@@ -696,7 +709,7 @@ export function RecommendVideoFeed() {
     }
     s.active = false;
     setDragging(false);
-    const d = dragY;
+    const d = s.d;
     if (s.moved < 6) {
       setDragY(0);
       // pointercancel 是浏览器/系统把手势收走了,不是一次点击 —— 以前也走 onTap,
@@ -704,13 +717,26 @@ export function RecommendVideoFeed() {
       if (e.type !== 'pointercancel') onTap(e);
       return;
     }
-    const threshold = (viewportRef.current?.clientHeight || 600) * 0.18;
-    if (!navLock.current && d <= -threshold && index < uniqueVideos.length - 1) {
-      setIndex((i) => i + 1);
-      lockNav();
-    } else if (!navLock.current && d <= -threshold) {
-      go(1); // 最后一条:给"加载中 / 到底了"的提示
-    } else if (!navLock.current && d >= threshold && index > 0) {
+    // 翻页判定(手机上「滑不动」的来源):以前要拖满视口 18%(手机上一百多像素)、不看速度,
+    // 而且翻页后 380ms 的 navLock 把紧跟着的下一划也吞了。现在和抖音一样:
+    //  - 拖过 10% 视口(至少 48px)就翻;
+    //  - 或者是一次轻扫:松手前速度 > 0.3px/ms 且方向一致、位移过 16px。
+    // 手指拖动是明确的意图,不受 navLock 限制(那是给滚轮/键盘连发用的)。
+    // 停了一会儿才松手(>120ms 没有 move)不算轻扫,速度作废。
+    const h = viewportRef.current?.clientHeight || 600;
+    const threshold = Math.max(48, h * 0.1);
+    const vy = performance.now() - s.lastT > 120 ? 0 : s.vy;
+    const flickUp = vy < -0.3 && d < -16;
+    const flickDown = vy > 0.3 && d > 16;
+    if (d <= -threshold || flickUp) {
+      if (index < uniqueVideos.length - 1) {
+        setIndex((i) => i + 1);
+        lockNav();
+      } else {
+        navLock.current = false;
+        go(1); // 最后一条:给"加载中 / 到底了"的提示
+      }
+    } else if ((d >= threshold || flickDown) && index > 0) {
       setIndex((i) => i - 1);
       lockNav();
     }

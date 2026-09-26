@@ -53,7 +53,9 @@ import { TopicHub } from '@/components/community/TopicHub';
 import { ACCENT } from '@/constants/accents';
 import { gradient2 } from '@/constants/gradients';
 import HomeRecommendPage from './recommend/page';
-import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
+import { MobileBottomNav, HOME_LAST_URL_KEY } from '@/components/layout/MobileBottomNav';
+import { MobileSideMenu } from '@/components/layout/MobileSideMenu';
+import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import { SiteLegalFooter } from '@/components/layout/SiteLegalFooter';
 import { useResponsive } from '@/hooks/useResponsive';
 import { useTopbarHeight } from '@/hooks/useTopbarHeight';
@@ -126,6 +128,13 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
     return () => el?.removeEventListener('scroll', onScroll);
   }, [pathname, searchParams]);
 
+  // 记下首页里最后停留的页签:从创作/悬赏/消息点回底部「首页」时回到这里(见 MobileBottomNav)
+  useEffect(() => {
+    if (activeNav === 'me') return;
+    const qs = searchParams.toString();
+    try { sessionStorage.setItem(HOME_LAST_URL_KEY, `${pathname}${qs ? `?${qs}` : ''}`); } catch { /* 隐私模式 */ }
+  }, [activeNav, pathname, searchParams]);
+
   const handleNavChange = useCallback((key: string) => {
     // 导航前清空搜索框状态
     setSearchDraft('');
@@ -166,6 +175,9 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
         setSearchDraft={setSearchDraft}
         searchDraftRef={searchDraftRef}
         isMobile={isMobile}
+        activeNav={activeNav}
+        onNavChange={handleNavChange}
+        onOpenSettings={() => setMeOpen(true)}
       />
       <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
         <LeftSidebar
@@ -211,7 +223,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
         {activeNav === 'home' && !isMobile && <RightSidebar section={urlSection || 'recommend'} />}
       </Box>
       {/* 底部导航栏（移动端） */}
-      <MobileBottomNav activeNav={activeNav} onNavChange={handleNavChange} />
+      <MobileBottomNav active={activeNav === 'me' ? 'me' : 'home'} />
       {/* 首屏引导:冷启动 800ms 后弹出,完成 / 跳过 / 7 天后再弹,见 lib/onboardingPrefs */}
       <FirstRunGuide />
     </Box>
@@ -223,17 +235,67 @@ function TopBar({
   setSearchDraft,
   searchDraftRef,
   isMobile,
+  activeNav,
+  onNavChange,
+  onOpenSettings,
 }: {
   searchDraft: string;
   setSearchDraft: (v: string) => void;
   searchDraftRef: React.MutableRefObject<string>;
   isMobile: boolean;
+  activeNav: string;
+  onNavChange: (key: string) => void;
+  onOpenSettings: () => void;
 }) {
   const { currentUser } = useApp();
   const router = useRouter();
   const headerRef = useRef<HTMLDivElement | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   // 实际高度(含刘海安全区)写进 --topbar-h,面板内的 sticky 子栏按它对齐
   useTopbarHeight(headerRef);
+
+  // 手机:和主流 App 一样 —— 左上角侧边栏按钮,中间是首页的页签,右边搜索。
+  // 头像/通知/私信不再挤在右上角:「我的」「消息」都在底部导航里。
+  if (isMobile) {
+    return (
+      <Box
+        ref={headerRef}
+        component="header"
+        sx={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 100,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 0.5,
+          minHeight: 'calc(48px + var(--sat, 0px))',
+          pl: 'max(var(--sal, 0px), 4px)',
+          pr: 'max(var(--sar, 0px), 4px)',
+          bgcolor: 'var(--bg-topbar, transparent)',
+          backdropFilter: 'blur(14px) saturate(1.4)',
+          WebkitBackdropFilter: 'blur(14px) saturate(1.4)',
+          borderBottom: '1px solid var(--border-color, transparent)',
+          flexShrink: 0,
+          paddingTop: 'var(--sat, 0px)',
+        }}
+      >
+        <IconButton aria-label="打开侧边栏" onClick={() => setMenuOpen(true)} sx={{ color: 'var(--text-primary, currentColor)' }}>
+          <MenuRoundedIcon />
+        </IconButton>
+        <MobileHomeTabs activeNav={activeNav} onNavChange={onNavChange} />
+        <IconButton aria-label="搜索" onClick={() => router.push('/search')} sx={{ color: 'var(--text-primary, currentColor)' }}>
+          <SearchIcon />
+        </IconButton>
+        <MobileSideMenu
+          open={menuOpen}
+          onClose={() => setMenuOpen(false)}
+          activeNav={activeNav}
+          onNavChange={onNavChange}
+          onOpenSettings={onOpenSettings}
+        />
+      </Box>
+    );
+  }
 
   const submit = () => {
     const q = searchDraftRef.current.trim();
@@ -441,6 +503,76 @@ function TopBar({
           </Button>
         )}
       </Box>
+    </Box>
+  );
+}
+
+// 手机顶栏上的首页页签。从侧边栏进了直播/短剧等,那一项临时排在后面并高亮,知道自己在哪。
+const MOBILE_HOME_TABS = [
+  { key: 'home', label: '精选' },
+  { key: 'recommend', label: '推荐' },
+  { key: 'rank', label: '榜单' },
+  { key: 'feed', label: '动态' },
+];
+
+function MobileHomeTabs({ activeNav, onNavChange }: { activeNav: string; onNavChange: (key: string) => void }) {
+  const extra = MOBILE_HOME_TABS.some((t) => t.key === activeNav)
+    ? null
+    : SIDE_NAV.find((n) => n.key === activeNav && n.path?.includes('?tab=') && n.key !== 'me');
+  const tabs = extra ? [...MOBILE_HOME_TABS, { key: extra.key, label: extra.label }] : MOBILE_HOME_TABS;
+  if (activeNav === 'me') {
+    return (
+      <Typography sx={{ flex: 1, textAlign: 'center', fontSize: 16, fontWeight: 700, color: 'var(--text-primary, currentColor)' }}>我的</Typography>
+    );
+  }
+  return (
+    <Box
+      role="tablist"
+      aria-label="首页页签"
+      sx={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: 'center', gap: 0.5, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' } }}
+    >
+      {tabs.map((t) => {
+        const on = t.key === activeNav;
+        return (
+          <Box
+            key={t.key}
+            component="button"
+            type="button"
+            role="tab"
+            aria-selected={on}
+            onClick={() => onNavChange(t.key)}
+            sx={{
+              position: 'relative',
+              flexShrink: 0,
+              border: 0,
+              background: 'transparent',
+              px: 1.25,
+              py: 1,
+              fontFamily: 'inherit',
+              fontSize: on ? 16.5 : 15,
+              fontWeight: on ? 800 : 500,
+              lineHeight: 1.2,
+              color: on ? 'var(--text-primary, currentColor)' : 'var(--text-muted, currentColor)',
+              cursor: 'pointer',
+              WebkitTapHighlightColor: 'transparent',
+              transition: 'font-size 0.15s, color 0.15s',
+              '&::after': on ? {
+                content: '""',
+                position: 'absolute',
+                left: '50%',
+                bottom: 2,
+                width: 16,
+                height: 3,
+                ml: '-8px',
+                borderRadius: 2,
+                bgcolor: 'var(--brand-color, #FE2C55)',
+              } : undefined,
+            }}
+          >
+            {t.label}
+          </Box>
+        );
+      })}
     </Box>
   );
 }

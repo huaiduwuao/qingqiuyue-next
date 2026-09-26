@@ -474,6 +474,34 @@ function InteractionItem({ item, onClose, onMessage }: { item: any; onClose: () 
 }
 
 // 私信图标(DM 入口) — 登录后才渲染
+/**
+ * 通知 + 私信的未读总数,给手机底部导航「消息」的角标用。
+ * queryKey 与上面两个图标相同,共用同一份缓存和推送失效,不会多打请求。
+ */
+export function useMessageUnread(): number {
+  const { isAuthenticated } = useAuth();
+  const noticePoll = usePollFallback(60_000);
+  const dmPoll = usePollFallback(30_000);
+  const { data: countData } = useQuery({
+    queryKey: ['notice-count'],
+    queryFn: async () => await adminClient('/notice/count'),
+    enabled: isAuthenticated,
+    staleTime: 15_000,
+    gcTime: 300000,
+    refetchInterval: noticePoll,
+  });
+  const { data: sessions } = useQuery({
+    queryKey: ['dm-sessions-badge'],
+    queryFn: async () => await adminClient('/msg/session/list'),
+    enabled: isAuthenticated,
+    staleTime: 15_000,
+    refetchInterval: dmPoll,
+  });
+  if (!isAuthenticated) return 0;
+  const dm = (sessions?.list || []).reduce((sum: number, s: any) => sum + (s.unread || 0), 0);
+  return (countData?.total || 0) + dm;
+}
+
 export function DmIconView() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
