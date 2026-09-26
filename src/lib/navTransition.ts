@@ -94,11 +94,11 @@ function setBusy(b: boolean): void {
   busyListeners.forEach((l) => l());
 }
 
-/** 开始一次换页。新页面渲染出来(setRenderedPath 换了值)时结束;最多 10 秒,别让遮罩卡死 */
+/** 开始一次换页。新页面渲染出来(setRenderedPath 换了值)时结束;最多 20 秒(弱网下冷启动的详情页真能到十几秒),别让转圈永远挂着 */
 export function markNavStart(): void {
   setBusy(true);
   clearTimeout(busyTimer);
-  busyTimer = setTimeout(() => setBusy(false), 10_000);
+  busyTimer = setTimeout(() => setBusy(false), 20_000);
 }
 
 export function subscribeNavBusy(l: () => void): () => void {

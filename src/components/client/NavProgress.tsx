@@ -12,7 +12,11 @@ const BAR_DELAY = 150;
 const MUTATION_DELAY = 400;
 /** 换页再慢:盖一层透明遮罩 + 转圈,挡住连点(点了没反应 → 再点一次 → 跳两次) */
 const MASK_DELAY = 600;
-/** 遮罩最多挡这么久,之后只留进度条 —— 万一哪次跳转没走完,不能把整个界面锁死 */
+/**
+ * 遮罩最多挡这么久。之后不再挡点击(万一哪次跳转没走完,不能把整个界面锁死),但转圈继续留着、
+ * 加一句「网络较慢」—— 以前到点连转圈一起收掉,只剩顶上 3px 的细条,页面还没出来,看着就像卡死了。
+ * 真没走完的跳转由 markNavStart 的 10 秒兜底结束。
+ */
 const MASK_MAX = 4000;
 
 let lastInput = -Infinity;
@@ -38,7 +42,8 @@ export default function NavProgress() {
     };
   }, []);
   const [bar, setBar] = useState(false);
-  const [mask, setMask] = useState(false);
+  /** off:不显示;block:半透明遮罩 + 转圈,挡连点;soft:只剩转圈 + 提示,不挡操作 */
+  const [mask, setMask] = useState<'off' | 'block' | 'soft'>('off');
   /** 每次重新开始都换 key,进度条从 0 重新长 */
   const [run, setRun] = useState(0);
 
@@ -53,14 +58,14 @@ export default function NavProgress() {
       }, navBusy ? BAR_DELAY : MUTATION_DELAY),
     ];
     if (navBusy) {
-      timers.push(setTimeout(() => setMask(true), MASK_DELAY));
-      timers.push(setTimeout(() => setMask(false), MASK_MAX));
+      timers.push(setTimeout(() => setMask('block'), MASK_DELAY));
+      timers.push(setTimeout(() => setMask('soft'), MASK_MAX));
     }
     // 结束(或换了一种忙)时收起;显示只在上面的定时器里打开
     return () => {
       timers.forEach(clearTimeout);
       setBar(false);
-      setMask(false);
+      setMask('off');
     };
   }, [navBusy, mutating]);
 
@@ -96,7 +101,7 @@ export default function NavProgress() {
           />
         )}
       </Box>
-      {mask && (
+      {mask !== 'off' && (
         <Box
           role="progressbar"
           aria-label="正在打开"
@@ -104,11 +109,16 @@ export default function NavProgress() {
             position: 'fixed',
             inset: 0,
             zIndex: 1999,
-            cursor: 'progress',
+            cursor: mask === 'block' ? 'progress' : 'auto',
+            // soft:不挡点击 / 滚动 / 返回,只把转圈留在屏幕中间
+            pointerEvents: mask === 'block' ? 'auto' : 'none',
             display: 'flex',
+            flexDirection: 'column',
+            gap: 1,
             alignItems: 'center',
             justifyContent: 'center',
-            bgcolor: 'rgba(0,0,0,0.08)',
+            bgcolor: mask === 'block' ? 'rgba(0,0,0,0.08)' : 'transparent',
+            transition: 'background-color 0.3s',
             animation: 'qq-fade-in 0.2s ease-out both',
           }}
         >
@@ -127,6 +137,22 @@ export default function NavProgress() {
           >
             <CircularProgress size={24} thickness={4.5} sx={{ color: '#fff' }} />
           </Box>
+          {mask === 'soft' && (
+            <Box
+              sx={{
+                px: 1.25,
+                py: 0.5,
+                borderRadius: 999,
+                fontSize: 12,
+                color: '#fff',
+                bgcolor: 'rgba(20,20,24,0.72)',
+                backdropFilter: 'blur(8px)',
+                animation: 'qq-fade-in 0.2s ease-out both',
+              }}
+            >
+              网络较慢,正在打开…
+            </Box>
+          )}
         </Box>
       )}
     </>
