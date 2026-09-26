@@ -903,15 +903,14 @@ export const REPAIR_PHASE_LABELS: Record<string, string> = {
   failed: '失败',
 };
 
-export async function repairChapters(params: {
+/** 发起一次异步修复,返回 task_id。报告用 {@link pollRepair} 取。 */
+export async function startRepair(params: {
   contentId: string;
   domains?: string[];
   dryRun?: boolean;
   maxChapters?: number;
   applyVerdicts?: string[];
-  /** 每次轮询拿到的运行中进度 */
-  onProgress?: (p: RepairProgress, taskId: number) => void;
-}): Promise<RepairReport> {
+}): Promise<number> {
   const started = await spiderClient<{ task_id?: number; taskId?: number }>('/content/repair', {
     method: 'POST',
     data: {
@@ -925,17 +924,42 @@ export async function repairChapters(params: {
   });
   const taskId = Number(started?.task_id ?? started?.taskId);
   if (!taskId) throw new Error('修复任务没有返回 task_id');
+  return taskId;
+}
 
+/**
+ * 轮询一个修复任务直到拿到报告。
+ *
+ * 与发起分开,是为了让面板在切菜单回来后按记下的 task_id 重新接上 ——
+ * 第一次立刻查(跑完的任务直接拿到报告,不用干等 3 秒)。
+ * signal 中止后不再发请求,抛 AbortError;调用方卸载时要 abort,
+ * 否则离开页面后这个循环还会在后台每 3 秒打一次接口。
+ */
+export async function pollRepair(
+  taskId: number,
+  opts: { onProgress?: (p: RepairProgress, taskId: number) => void; signal?: AbortSignal } = {},
+): Promise<RepairReport> {
+  const { onProgress, signal } = opts;
+  const aborted = () => new DOMException('aborted', 'AbortError');
   // 后端任务自己的上限是 2 小时(两个源各 1500 章),这里多等一点
   const deadline = Date.now() + 125 * 60 * 1000;
+  let first = true;
   while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, 3000));
+    if (!first) {
+      await new Promise<void>((resolve, reject) => {
+        const t = setTimeout(resolve, 3000);
+        signal?.addEventListener('abort', () => { clearTimeout(t); reject(aborted()); }, { once: true });
+      });
+    }
+    first = false;
+    if (signal?.aborted) throw aborted();
     // 跑完返回报告;还在跑返回 202 + {status}
     const r = await spiderClient<RepairReport & { status?: string; error_msg?: string; errorMsg?: string; progress?: RepairProgress }>(
       `/content/repair/${taskId}`,
       { method: 'GET' },
     );
-    if (r?.progress && params.onProgress) params.onProgress(r.progress, taskId);
+    if (signal?.aborted) throw aborted();
+    if (r?.progress && onProgress) onProgress(r.progress, taskId);
     // 有 content_id 就是报告(跑完了)。失败的报告老后端给 diffs=null,
     // 以前只认 Array.isArray(diffs),于是一直轮询到超时,页面像卡死。
     if (r && r.content_id != null) {
@@ -950,4 +974,19 @@ export async function repairChapters(params: {
     if (r?.status === 'completed') throw new Error('任务已结束,但报告没有取到(可能已过期),请重新诊断');
   }
   throw new Error('修复超过 2 小时仍未结束,请到任务列表查看');
+}
+
+/** 发起并等到报告(一次性调用;面板用 startRepair + pollRepair 以便切页后续上)。 */
+export async function repairChapters(params: {
+  contentId: string;
+  domains?: string[];
+  dryRun?: boolean;
+  maxChapters?: number;
+  applyVerdicts?: string[];
+  /** 每次轮询拿到的运行中进度 */
+  onProgress?: (p: RepairProgress, taskId: number) => void;
+  signal?: AbortSignal;
+}): Promise<RepairReport> {
+  const taskId = await startRepair(params);
+  return pollRepair(taskId, { onProgress: params.onProgress, signal: params.signal });
 }

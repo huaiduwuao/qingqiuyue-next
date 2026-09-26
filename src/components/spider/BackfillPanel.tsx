@@ -45,6 +45,7 @@ import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import { CoverImage } from '@/components/common/CoverImage';
 import AvailabilityBadge from '@/components/common/AvailabilityBadge';
+import { useSessionState } from './useSessionState';
 import {
   startContentBackfill,
   getContentBackfillStatus,
@@ -112,14 +113,16 @@ function typeChipColor(t: string): 'primary' | 'secondary' | 'success' | 'warnin
 export default function BackfillPanel({ compact = false }: { compact?: boolean }) {
   const qc = useQueryClient();
   const [keyword, setKeyword] = useState('');
-  const [picked, setPicked] = useState<ModuleContentItem | null>(null);
+  // 选中的内容和发起的任务存 sessionStorage:后台切菜单会卸载本面板,
+  // 以前切回来任务卡就没了(任务在后端照跑)。
+  const [picked, setPicked] = useSessionState<ModuleContentItem | null>('spider:backfill:picked', null);
   const [typeFilter, setTypeFilter] = useState('');
   const [authorHint, setAuthorHint] = useState('');
   const [strategy, setStrategy] = useState('revisit');
   // 指定源:内容的 source 是版权站(七猫/起点)时,框架默认只建目录不抓正文。
   // 这里勾上的源会被强行插进候选池,用来把 bqg616 这类正文源接上。
   const [forceDomains, setForceDomains] = useState<string[]>([]);
-  const [taskId, setTaskId] = useState<number | null>(null);
+  const [taskId, setTaskId] = useSessionState<number | null>('spider:backfill:task', null);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
   const trimmed = keyword.trim();

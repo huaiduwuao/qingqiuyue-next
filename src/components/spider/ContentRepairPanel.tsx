@@ -15,8 +15,8 @@
  * 默认只应用有多源印证或单源但干净的章节;冲突和可疑的要人工勾选才动。
  */
 
-import React, { useMemo, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -35,13 +35,15 @@ import BuildRoundedIcon from '@mui/icons-material/BuildRounded';
 import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded';
 import {
   listRepairSources,
-  repairChapters,
+  pollRepair,
+  startRepair,
   REPAIR_PHASE_LABELS,
   type RepairChapterDiff,
   type RepairProgress,
   type RepairReport,
 } from '@/apis/spider';
 import { myPage, getById, type ModuleContentItem } from '@/apis/module-content';
+import { useSessionState } from './useSessionState';
 
 // 裁决结果的展示元数据。文案要说人话 —— 运营不该去猜 "only_one_source" 是什么意思。
 const VERDICT_META: Record<string, { label: string; color: 'default' | 'success' | 'warning' | 'error' | 'info'; hint: string }> = {
@@ -59,18 +61,25 @@ const ACTION_LABEL: Record<string, string> = {
   skip: '跳过',
 };
 
+/** 当前跟踪的修复任务。存 sessionStorage:切菜单回来按 taskId 接着轮询 / 取报告。 */
+type RepairRun = { taskId: number; dryRun: boolean };
+
 export default function ContentRepairPanel({ compact = false }: { compact?: boolean }) {
   const [keyword, setKeyword] = useState('');
-  const [picked, setPicked] = useState<ModuleContentItem | null>(null);
-  const [domains, setDomains] = useState<string[]>([]);
+  // 选中的书、源、上限、正在跑的任务都存 sessionStorage —— 后台切菜单会卸载本面板,
+  // 以前这些全在组件 state 里,切回来任务在后端照跑,面板却是空的,看着像丢了。
+  const [picked, setPicked] = useSessionState<ModuleContentItem | null>('spider:repair:picked', null);
+  const [domains, setDomains] = useSessionState<string[]>('spider:repair:domains', []);
   // 默认全书:进度现在看得见,不必再靠"先抓 200 章试试"来避免界面干等。
-  const [maxChapters, setMaxChapters] = useState('0');
+  const [maxChapters, setMaxChapters] = useSessionState('spider:repair:max', '0');
+  const [run, setRun] = useSessionState<RepairRun | null>('spider:repair:run', null);
   const [progress, setProgress] = useState<{ p: RepairProgress; taskId: number } | null>(null);
-  const onProgress = (p: RepairProgress, taskId: number) => setProgress({ p, taskId });
   const [report, setReport] = useState<RepairReport | null>(null);
   const [errMsg, setErrMsg] = useState<string | null>(null);
   // 允许写入的裁决类型(默认只信多源印证 + 单源)
   const [allowConflict, setAllowConflict] = useState(false);
+  const [starting, setStarting] = useState<'diagnose' | 'apply' | null>(null);
+  const [polling, setPolling] = useState(false);
 
   const trimmed = keyword.trim();
   const asId = /^\d+$/.test(trimmed) && trimmed.length <= 15 ? Number(trimmed) : null;
@@ -110,40 +119,73 @@ export default function ContentRepairPanel({ compact = false }: { compact?: bool
     [sourcesQuery.data],
   );
 
-  // 诊断:dry-run,只读。修复要抓几十上百章,给足超时。
-  const diagnoseM = useMutation({
-    mutationFn: () =>
-      repairChapters({
-        contentId: String(picked!.id),
-        domains,
-        dryRun: true,
-        maxChapters: Number(maxChapters) || 0,
-        onProgress,
-      }),
-    onMutate: () => setProgress(null),
-    onSuccess: (r) => { setReport(r); setErrMsg(null); },
-    onError: (e: any) => { setReport(null); setErrMsg(e?.message || '诊断失败'); },
-  });
+  // 跟踪任务:run 一变(新发起,或回到页面从 sessionStorage 读回)就接着轮询。
+  // 跑完的任务第一次查就拿到报告(后端报告存在 crawl_job.progress,重启也在)。
+  // 卸载时 abort,不再在后台空转。
+  useEffect(() => {
+    if (!run) return;
+    const ac = new AbortController();
+    setPolling(true);
+    setErrMsg(null);
+    pollRepair(run.taskId, {
+      signal: ac.signal,
+      onProgress: (p, taskId) => setProgress({ p, taskId }),
+    })
+      .then((r) => setReport(r))
+      .catch((e: any) => {
+        if (ac.signal.aborted) return;
+        setErrMsg(e?.message || (run.dryRun ? '诊断失败' : '应用失败'));
+        if (run.dryRun) setReport(null);
+        // 任务已失败 / 过期:不再记着它,免得每次回来都报同一个错
+        setRun(null);
+      })
+      .finally(() => {
+        if (!ac.signal.aborted) setPolling(false);
+      });
+    return () => ac.abort();
+    // setRun 稳定;只在换任务时重来
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [run?.taskId]);
 
-  // 应用:真正写库。
-  const applyM = useMutation({
-    mutationFn: () =>
-      repairChapters({
-        contentId: String(picked!.id),
+  const launch = async (dryRun: boolean) => {
+    if (!picked) return;
+    setStarting(dryRun ? 'diagnose' : 'apply');
+    setProgress(null);
+    setErrMsg(null);
+    try {
+      const taskId = await startRepair({
+        contentId: String(picked.id),
         domains,
-        dryRun: false,
+        dryRun,
         maxChapters: Number(maxChapters) || 0,
-        applyVerdicts: allowConflict
-          ? ['ok', 'only_one_source', 'conflict']
-          : ['ok', 'only_one_source'],
-        onProgress,
-      }),
-    onMutate: () => setProgress(null),
-    onSuccess: (r) => { setReport(r); setErrMsg(null); },
-    onError: (e: any) => setErrMsg(e?.message || '应用失败'),
-  });
+        // 应用:真正写库。
+        applyVerdicts: dryRun
+          ? undefined
+          : allowConflict
+            ? ['ok', 'only_one_source', 'conflict']
+            : ['ok', 'only_one_source'],
+      });
+      if (dryRun) setReport(null);
+      setRun({ taskId, dryRun });
+    } catch (e: any) {
+      setErrMsg(e?.message || (dryRun ? '诊断失败' : '应用失败'));
+    } finally {
+      setStarting(null);
+    }
+  };
 
-  const busy = diagnoseM.isPending || applyM.isPending;
+  const busy = starting !== null || polling;
+  const diagnosing = starting === 'diagnose' || (polling && !!run?.dryRun);
+  const applying = starting === 'apply' || (polling && run?.dryRun === false);
+
+  // 换书 / 清空:不再跟踪旧任务(后端照跑完,任务列表里能看到)
+  const clearPicked = () => {
+    setPicked(null);
+    setRun(null);
+    setReport(null);
+    setProgress(null);
+    setErrMsg(null);
+  };
 
   return (
     <Stack spacing={2}>
@@ -161,7 +203,8 @@ export default function ContentRepairPanel({ compact = false }: { compact?: bool
             label="按标题搜索 / 粘贴内容 id"
             size="small"
             value={keyword}
-            onChange={(e) => { setKeyword(e.target.value); setPicked(null); setReport(null); }}
+            onChange={(e) => { setKeyword(e.target.value); if (picked) clearPicked(); }}
+            disabled={busy}
             sx={{ flex: 1, minWidth: 260 }}
             placeholder="求魔"
           />
@@ -169,7 +212,7 @@ export default function ContentRepairPanel({ compact = false }: { compact?: bool
             <Chip
               color="primary"
               label={`已选:${picked.title}`}
-              onDelete={() => { setPicked(null); setReport(null); }}
+              onDelete={busy ? undefined : clearPicked}
             />
           )}
         </Stack>
@@ -178,7 +221,7 @@ export default function ContentRepairPanel({ compact = false }: { compact?: bool
             {options.slice(0, 20).map((o) => (
               <Box
                 key={String(o.id)}
-                onClick={() => { setPicked(o); setReport(null); }}
+                onClick={() => { setPicked(o); setRun(null); setReport(null); setErrMsg(null); }}
                 sx={{
                   px: 1.5, py: 0.75, cursor: 'pointer', borderRadius: 1,
                   display: 'flex', gap: 1.5, alignItems: 'center',
@@ -238,15 +281,15 @@ export default function ContentRepairPanel({ compact = false }: { compact?: bool
             />
             <Button
               variant="contained"
-              onClick={() => diagnoseM.mutate()}
+              onClick={() => launch(true)}
               disabled={busy}
-              startIcon={diagnoseM.isPending ? <CircularProgress size={14} color="inherit" /> : <FactCheckRoundedIcon />}
+              startIcon={diagnosing ? <CircularProgress size={14} color="inherit" /> : <FactCheckRoundedIcon />}
               sx={{ textTransform: 'none', mt: 0.25 }}
             >
-              {diagnoseM.isPending ? '诊断中…' : '诊断(不写库)'}
+              {diagnosing ? '诊断中…' : '诊断(不写库)'}
             </Button>
           </Stack>
-          {busy && <RepairProgressView progress={progress?.p} taskId={progress?.taskId} applying={applyM.isPending} />}
+          {busy && <RepairProgressView progress={progress?.p} taskId={progress?.taskId ?? run?.taskId} applying={applying} />}
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
             诊断会实时抓取所选源的章节做比对,选得多/章节多时较慢。
           </Typography>
@@ -305,14 +348,14 @@ export default function ContentRepairPanel({ compact = false }: { compact?: bool
                       // 应用会原地改写线上正文,不可撤销:点之前把要动多少章说清楚
                       const n = report.diffs.filter((d) => d.action === 'fill' || d.action === 'replace').length;
                       if (window.confirm(`将按报告写入最多 ${n} 章(补空章 + 替换正文),直接改动线上内容,确定应用?`)) {
-                        applyM.mutate();
+                        launch(false);
                       }
                     }}
                     disabled={busy}
-                    startIcon={applyM.isPending ? <CircularProgress size={14} color="inherit" /> : <BuildRoundedIcon />}
+                    startIcon={applying ? <CircularProgress size={14} color="inherit" /> : <BuildRoundedIcon />}
                     sx={{ textTransform: 'none' }}
                   >
-                    {applyM.isPending ? '应用中…' : '应用修复'}
+                    {applying ? '应用中…' : '应用修复'}
                   </Button>
                   <FormControlLabel
                     control={<Checkbox checked={allowConflict} onChange={(e) => setAllowConflict(e.target.checked)} />}
