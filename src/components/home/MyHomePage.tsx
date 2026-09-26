@@ -63,7 +63,7 @@ import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { LIST_PAGE_SIZE, nextMeListPage } from '@/components/home/meListPaging';
-import { SiteLegalFooter } from '@/components/layout/SiteLegalFooter';
+import { useResponsive } from '@/hooks/useResponsive';
 import { homeClient, adminClient, formatApiError } from '@/lib/api/client';
 import { setMark } from '@/apis/content-mark';
 import { postShare } from '@/apis/behavior';
@@ -149,6 +149,12 @@ const MAIN_TABS: { key: string; label: string; icon: React.ReactNode; locked?: b
   { key: 'order', label: '我的预约', icon: <EventNoteRoundedIcon sx={{ fontSize: 14 }} /> },
   { key: 'ai', label: 'AI 笔记', icon: <AutoAwesomeRoundedIcon sx={{ fontSize: 14 }} /> },
 ];
+
+/**
+ * 手机上不在页签栏里的「我的」子页:它们在首页左上角侧边栏的「我的内容」组里
+ * (MobileSideMenu 链到 ?tab=me&mainTab=…)。正停在其中一个时照样临时显示在页签栏末尾。
+ */
+export const ME_DRAWER_TABS = new Set(['recommend', 'history', 'later', 'order', 'ai']);
 
 const SUB_TABS: { key: string; label: string }[] = [
   { key: 'works', label: '作品' },
@@ -288,6 +294,12 @@ function MyHomePageAuthed() {
   const searchParams = useSearchParams();
   const urlMainTab = searchParams.get('mainTab') || 'works';
   const [mainTab, setMainTab] = useState(urlMainTab);
+  const { isMobile } = useResponsive();
+  // 手机上作品工具栏的搜索框收成一个图标,点开才占一行
+  const [searchOpen, setSearchOpen] = useState(false);
+  const visibleTabs = isMobile
+    ? MAIN_TABS.filter((t) => !ME_DRAWER_TABS.has(t.key) || t.key === mainTab)
+    : MAIN_TABS;
   // 页签切换的入场方向:往右边的页签切 → 内容从右边滑进来,反之从左边(书架 ⇄ 作品等)
   const tabIdx = MAIN_TABS.findIndex((t) => t.key === mainTab);
   const [prevTabIdx, setPrevTabIdx] = useState(tabIdx);
@@ -556,7 +568,8 @@ function MyHomePageAuthed() {
             href="/account/settings"
             aria-label="设置"
             size="small"
-            sx={{ position: 'absolute', top: 8, right: 8, zIndex: 2, color: 'text.secondary' }}
+            // 手机上设置在首页左上角侧边栏里
+            sx={{ position: 'absolute', top: 8, right: 8, zIndex: 2, color: 'text.secondary', display: { xs: 'none', md: 'inline-flex' } }}
           >
             <SettingsRoundedIcon fontSize="small" />
           </IconButton>
@@ -688,10 +701,11 @@ function MyHomePageAuthed() {
           </Box>
         </Box>
 
-        {/* Quick links row:竖排 图标在上/标签在下,窄屏 3 列 / 宽屏 6 列,6 个入口两种宽度都排满 */}
+        {/* Quick links row:竖排 图标在上/标签在下,6 列。手机上这 6 个入口(钱包/积分/订单/购买/会员/设置)
+            挪进了首页左上角的侧边栏(MobileSideMenu),这里不再占两行 */}
         <Box
           sx={{
-            display: 'grid',
+            display: { xs: 'none', md: 'grid' },
             gridTemplateColumns: { xs: 'repeat(3, 1fr)', sm: 'repeat(6, 1fr)' },
             gap: 0.5,
             mb: 2,
@@ -781,12 +795,20 @@ function MyHomePageAuthed() {
               '&::-webkit-scrollbar': { display: 'none' },
             }}
           >
-          {MAIN_TABS.map((t) => {
+          {visibleTabs.map((t) => {
             const isActive = mainTab === t.key;
             return (
               <Box
                 key={t.key}
                 onClick={() => switchTab(t.key)}
+                // 从侧边栏进的子页排在页签栏末尾,窄屏上会落在屏幕外:把选中项横向滚进可视区(只动横向)
+                ref={isActive ? (el: HTMLDivElement | null) => {
+                  const bar = el?.parentElement;
+                  if (!el || !bar) return;
+                  const over = el.offsetLeft + el.offsetWidth - (bar.scrollLeft + bar.clientWidth);
+                  if (over > 0) bar.scrollLeft += over + 64; // 右缘有 56px 的渐隐遮罩
+                  else if (el.offsetLeft < bar.scrollLeft) bar.scrollLeft = el.offsetLeft;
+                } : undefined}
                 sx={{
                   display: 'flex',
                   alignItems: 'center',
@@ -888,7 +910,105 @@ function MyHomePageAuthed() {
         </Box>
 
         {/* Sub tabs + tools (only for 作品 tab) */}
-        {showSubTabs && (
+        {showSubTabs && isMobile && (
+          // 手机:子页签一行横滑,搜索/日期是两个图标;以前搜索框 + 日期按钮折成第二行
+          <Box sx={{ mb: 1.5 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+              <Box sx={{ display: 'flex', gap: 0.5, flex: 1, minWidth: 0, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' } }}>
+                {SUB_TABS.map((t) => {
+                  const isActive = subTab === t.key;
+                  return (
+                    <Box
+                      key={t.key}
+                      onClick={() => setSubTab(t.key)}
+                      sx={{
+                        flexShrink: 0,
+                        px: 1.25,
+                        py: 0.5,
+                        borderRadius: 1.5,
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        fontWeight: isActive ? 600 : 400,
+                        color: isActive ? '#fff' : 'var(--text-secondary, currentColor)',
+                        bgcolor: isActive ? 'primary.main' : 'var(--bg-hover, transparent)',
+                        border: '1px solid',
+                        borderColor: isActive ? 'primary.main' : 'var(--border-color, transparent)',
+                      }}
+                    >
+                      {t.label}
+                    </Box>
+                  );
+                })}
+              </Box>
+              <IconButton
+                size="small"
+                aria-label="搜索作品"
+                onClick={() => setSearchOpen((o) => !o)}
+                sx={{ color: searchOpen || keyword ? 'primary.main' : 'var(--text-secondary, currentColor)' }}
+              >
+                <SearchIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+              <IconButton
+                size="small"
+                aria-label="日期筛选"
+                onClick={(e) => setDateMenuAnchor(e.currentTarget)}
+                sx={{ color: dateRange !== 'all' ? 'primary.main' : 'var(--text-secondary, currentColor)' }}
+              >
+                <CalendarMonthIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+            </Box>
+            {(searchOpen || keyword) && (
+              <TextField
+                fullWidth
+                autoFocus={searchOpen && !keyword}
+                size="small"
+                placeholder="搜索你发布的作品"
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <SearchIcon sx={{ fontSize: 14, color: 'var(--text-muted, currentColor)' }} />
+                      </InputAdornment>
+                    ),
+                    sx: { bgcolor: 'var(--bg-hover, transparent)', fontSize: 13, borderRadius: 1.5, '& fieldset': { borderColor: 'var(--border-color, transparent)' } },
+                  },
+                }}
+                sx={{ mt: 1 }}
+              />
+            )}
+          </Box>
+        )}
+        {/* 日期菜单两端共用(手机从图标打开,桌面从按钮打开) */}
+        <Menu
+          anchorEl={dateMenuAnchor}
+          open={!!dateMenuAnchor}
+          onClose={() => setDateMenuAnchor(null)}
+        >
+          {DATE_RANGES.map((d) => (
+            <Box
+              key={d.key}
+              onClick={() => {
+                setDateRange(d.key);
+                setDateMenuAnchor(null);
+              }}
+              sx={{
+                px: 2,
+                py: 1,
+                fontSize: 12,
+                cursor: 'pointer',
+                minWidth: 120,
+                color: dateRange === d.key ? 'primary.main' : 'text.primary',
+                fontWeight: dateRange === d.key ? 600 : 400,
+                '&:hover': { bgcolor: 'var(--bg-hover, transparent)' },
+              }}
+            >
+              {d.label}
+            </Box>
+          ))}
+        </Menu>
+        {showSubTabs && !isMobile && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2, flexWrap: 'wrap' }}>
             <Box sx={{ display: 'flex', gap: 0.5 }}>
               {SUB_TABS.map((t) => {
@@ -960,33 +1080,6 @@ function MyHomePageAuthed() {
             >
               {DATE_RANGES.find((d) => d.key === dateRange)?.label || '日期筛选'}
             </Button>
-            <Menu
-              anchorEl={dateMenuAnchor}
-              open={!!dateMenuAnchor}
-              onClose={() => setDateMenuAnchor(null)}
-            >
-              {DATE_RANGES.map((d) => (
-                <Box
-                  key={d.key}
-                  onClick={() => {
-                    setDateRange(d.key);
-                    setDateMenuAnchor(null);
-                  }}
-                  sx={{
-                    px: 2,
-                    py: 1,
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    minWidth: 120,
-                    color: dateRange === d.key ? 'primary.main' : 'text.primary',
-                    fontWeight: dateRange === d.key ? 600 : 400,
-                    '&:hover': { bgcolor: 'var(--bg-hover, transparent)' },
-                  }}
-                >
-                  {d.label}
-                </Box>
-              ))}
-            </Menu>
           </Box>
         )}
 
@@ -1088,10 +1181,7 @@ function MyHomePageAuthed() {
         )}
       </Box>
 
-      {/* 移动端没有左侧栏,免责声明 / 采集说明 / 备案号挂在「我的」页底部 */}
-      <SiteLegalFooter
-        sx={{ display: { xs: 'block', md: 'none' }, position: 'relative', textAlign: 'center', px: 2, pt: 3, pb: 2, '& > div:first-of-type': { justifyContent: 'center' } }}
-      />
+      {/* 免责声明 / 采集说明 / 备案号:桌面在左侧栏底部,手机在首页左上角侧边栏底部 */}
 
       <Snackbar
         open={!!toast}

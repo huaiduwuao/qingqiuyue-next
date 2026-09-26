@@ -23,6 +23,13 @@ import WorkspacePremiumRoundedIcon from '@mui/icons-material/WorkspacePremiumRou
 import CloudDownloadRoundedIcon from '@mui/icons-material/CloudDownloadRounded';
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
+import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
+import WatchLaterRoundedIcon from '@mui/icons-material/WatchLaterRounded';
+import EventNoteRoundedIcon from '@mui/icons-material/EventNoteRounded';
+import RecommendRoundedIcon from '@mui/icons-material/RecommendRounded';
+import StarsRoundedIcon from '@mui/icons-material/StarsRounded';
+import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
+import ShoppingBagRoundedIcon from '@mui/icons-material/ShoppingBagRounded';
 import { useApp } from '@/contexts/AppContext';
 import { useAIPrefs } from '@/lib/aiPrefs';
 import { loginHref } from '@/lib/auth/redirect';
@@ -55,12 +62,27 @@ const GROUPS: { title: string; items: MenuItem[] }[] = [
     ],
   },
   {
-    title: '创作与收益',
+    // 「我的」页签栏在手机上只留 作品/书架/歌单/喜欢/收藏/合集,其余几个子页从这里进(见 MyHomePage 的 ME_DRAWER_TABS)
+    title: '我的内容',
+    items: [
+      { key: 'me-history', label: '观看历史', icon: <HistoryRoundedIcon />, color: ACCENT.blue.main, href: '/home/recommend?tab=me&mainTab=history' },
+      { key: 'me-later', label: '稍后再看', icon: <WatchLaterRoundedIcon />, color: ACCENT.orange.main, href: '/home/recommend?tab=me&mainTab=later' },
+      { key: 'me-order', label: '我的预约', icon: <EventNoteRoundedIcon />, color: ACCENT.red.main, href: '/home/recommend?tab=me&mainTab=order' },
+      { key: 'me-recommend', label: '我的推荐', icon: <RecommendRoundedIcon />, color: ACCENT.purple.main, href: '/home/recommend?tab=me&mainTab=recommend' },
+      { key: 'me-ai', label: 'AI 笔记', icon: <AutoAwesomeRoundedIcon />, color: ACCENT.cyan.main, href: '/home/recommend?tab=me&mainTab=ai' },
+    ],
+  },
+  {
+    // 原来「我的」页头像下那排 钱包/积分/订单/购买/会员 快捷入口
+    title: '创作与钱包',
     items: [
       { key: 'content', label: '创作者中心', icon: <VideoLibraryRoundedIcon />, color: ACCENT.purple.main, href: '/account/content' },
       { key: 'reward', label: '奖励中心', icon: <CardGiftcardRoundedIcon />, color: ACCENT.orange.main, href: '/account/reward' },
       { key: 'recharge', label: '充钻石', icon: <DiamondRoundedIcon />, color: ACCENT.blue.main, href: '/recharge' },
       { key: 'wallet', label: '我的钱包', icon: <AccountBalanceWalletRoundedIcon />, color: ACCENT.red.main, href: '/account/wallet' },
+      { key: 'points', label: '积分中心', icon: <StarsRoundedIcon />, color: ACCENT.purple.main, href: '/user/points' },
+      { key: 'orders', label: '我的订单', icon: <ReceiptLongRoundedIcon />, color: ACCENT.blue.main, href: '/account/orders' },
+      { key: 'purchases', label: '我的购买', icon: <ShoppingBagRoundedIcon />, color: ACCENT.orange.main, href: '/account/purchases' },
       { key: 'vip', label: '会员中心', icon: <WorkspacePremiumRoundedIcon />, color: ACCENT.gold.main, href: '/account/vip' },
     ],
   },
