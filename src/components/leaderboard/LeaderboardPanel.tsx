@@ -19,6 +19,7 @@ import FiberNewRoundedIcon from '@mui/icons-material/FiberNewRounded';
 import ThumbUpAltRoundedIcon from '@mui/icons-material/ThumbUpAltRounded';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import StorefrontRoundedIcon from '@mui/icons-material/StorefrontRounded';
+import { useResponsive } from '@/hooks/useResponsive';
 
 import {
   fetchLeaderboard,
@@ -148,6 +149,7 @@ export function LeaderboardPanel() {
   ].filter(Boolean);
 
   const dictAndTags = categories.filter((c) => c.kind !== 'source');
+  const { isMobile } = useResponsive();
   const sources = categories.filter((c) => c.kind === 'source');
 
   return (
@@ -157,8 +159,9 @@ export function LeaderboardPanel() {
         <Box
           sx={{
             borderRadius: 3,
-            p: { xs: 2, md: 2.5 },
-            mb: 2,
+            // 手机上只留一行标题:说明文字和「排序依据」收起,别让标题区占掉四分之一屏
+            p: { xs: 1.25, md: 2.5 },
+            mb: { xs: 1, md: 2 },
             background: SECTION_TINT.RED_YELLOW_PURPLE,
             border: '1px solid var(--border-color, transparent)',
             display: 'flex',
@@ -169,9 +172,9 @@ export function LeaderboardPanel() {
         >
           <Box
             sx={{
-              width: 52,
-              height: 52,
-              borderRadius: 2.5,
+              width: { xs: 36, md: 52 },
+              height: { xs: 36, md: 52 },
+              borderRadius: { xs: 1.5, md: 2.5 },
               display: 'grid',
               placeItems: 'center',
               background: MEDAL[1].badge,
@@ -179,10 +182,10 @@ export function LeaderboardPanel() {
               flexShrink: 0,
             }}
           >
-            <EmojiEventsRoundedIcon sx={{ fontSize: 30, color: MEDAL[1].txt }} />
+            <EmojiEventsRoundedIcon sx={{ fontSize: { xs: 22, md: 30 }, color: MEDAL[1].txt }} />
           </Box>
-          <Box sx={{ flex: 1, minWidth: 200 }}>
-            <Typography component="h1" sx={{ fontSize: { xs: 20, md: 24 }, fontWeight: 800, lineHeight: 1.25 }}>
+          <Box sx={{ flex: 1, minWidth: { xs: 0, md: 200 } }}>
+            <Typography component="h1" sx={{ fontSize: { xs: 17, md: 24 }, fontWeight: 800, lineHeight: 1.25 }}>
               {titleParts.join(' · ')}
               {period && periodInfo && (
                 <Box component="span" sx={{ ml: 1, fontSize: 14, fontWeight: 600, color: 'var(--text-secondary, currentColor)' }}>
@@ -190,7 +193,7 @@ export function LeaderboardPanel() {
                 </Box>
               )}
             </Typography>
-            <Typography sx={{ fontSize: 12, color: 'var(--text-secondary, currentColor)', mt: 0.5 }}>
+            <Typography sx={{ display: { xs: 'none', md: 'block' }, fontSize: 12, color: 'var(--text-secondary, currentColor)', mt: 0.5 }}>
               {metricInfo?.desc ?? '按类型、分类实时生成的站内榜单'}
               {' · 每 10 分钟更新'}
               {board?.builtAt && ` · 更新于 ${formatBuiltAt(board.builtAt)}`}
@@ -198,7 +201,7 @@ export function LeaderboardPanel() {
             </Typography>
           </Box>
           {!!board?.signals.length && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+            <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
               <Typography sx={{ fontSize: 11, color: 'var(--text-muted, currentColor)' }}>排序依据</Typography>
               {board.signals.map((s) => (
                 <Chip key={s} size="small" label={SIGNAL_LABEL[s] ?? s} sx={{ height: 22, fontSize: 11 }} />
@@ -212,15 +215,18 @@ export function LeaderboardPanel() {
           value={types.some((t) => t.code === type) ? type : false}
           onChange={(_, v: string) => update({ type: v === 'ALL' ? undefined : v, cat: undefined })}
           variant="scrollable"
-          scrollButtons="auto"
-          allowScrollButtonsMobile
+          // 手机上手指横滑,不要箭头(箭头占宽度,还让人以为只能点箭头翻)
+          scrollButtons={isMobile ? false : 'auto'}
+          allowScrollButtonsMobile={!isMobile}
           sx={{
             minHeight: 40,
-            mb: 1.25,
+            mb: { xs: 1, md: 1.25 },
+            mx: { xs: -0.5, md: 0 },
             borderBottom: '1px solid var(--border-color, transparent)',
-            '& .MuiTab-root': { minHeight: 40, py: 0.5, px: 1.5, fontSize: 14, textTransform: 'none', minWidth: 0 },
+            '& .MuiTab-root': { minHeight: 40, py: 0.5, px: { xs: 1.1, md: 1.5 }, fontSize: { xs: 14.5, md: 14 }, textTransform: 'none', minWidth: 0 },
             '& .Mui-selected': { fontWeight: 700 },
-            '& .MuiTabs-indicator': { height: 3, borderRadius: 1.5 },
+            '& .MuiTabs-indicator': { backgroundColor: 'transparent', height: 3, display: 'flex', justifyContent: 'center' },
+            '& .MuiTabs-indicator::after': { content: '""', width: 18, height: 3, borderRadius: 1.5, bgcolor: 'primary.main' },
           }}
         >
           {types.map((t) => (
@@ -266,11 +272,13 @@ export function LeaderboardPanel() {
 
         {/* ── 榜型 + 时间窗 ── */}
         {catalog && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', mb: { xs: 1.25, md: 2 } }}>
             <Box
               role="tablist"
               sx={{
                 display: 'flex',
+                // 手机上四个榜型平分一整行,不再按内容宽挤在左边、右边空一截
+                width: { xs: '100%', sm: 'auto' },
                 p: 0.5,
                 gap: 0.5,
                 borderRadius: 2,
@@ -296,11 +304,14 @@ export function LeaderboardPanel() {
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
+                        justifyContent: 'center',
+                        flex: { xs: 1, sm: 'none' },
                         gap: 0.5,
-                        px: 1.5,
-                        py: 0.75,
+                        px: { xs: 0.75, md: 1.5 },
+                        py: { xs: 0.6, md: 0.75 },
                         borderRadius: 1.5,
                         fontSize: 13,
+                        '& svg': { fontSize: { xs: 15, md: 18 } },
                         whiteSpace: 'nowrap',
                         fontWeight: active ? 700 : 500,
                         color: active ? '#fff' : 'var(--text-secondary, currentColor)',
@@ -330,7 +341,7 @@ export function LeaderboardPanel() {
                       color={active ? 'primary' : 'default'}
                       variant={active ? 'filled' : 'outlined'}
                       onClick={() => update({ period: p === allowedPeriods[0] ? undefined : p })}
-                      sx={{ fontSize: 12 }}
+                      sx={{ fontSize: 12, height: 26, px: 0.25 }}
                     />
                   );
                 })}
@@ -464,7 +475,7 @@ function CategoryChip({
       }
       color={active ? 'primary' : 'default'}
       variant={active ? 'filled' : 'outlined'}
-      sx={{ flexShrink: 0, height: 28, fontSize: 12, borderRadius: 2 }}
+      sx={{ flexShrink: 0, height: 28, fontSize: { xs: 12.5, md: 12 }, borderRadius: 2 }}
     />
   );
 }

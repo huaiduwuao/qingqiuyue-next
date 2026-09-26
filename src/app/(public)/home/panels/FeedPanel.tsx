@@ -544,26 +544,30 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
               value={active.id}
               onChange={(_, v) => setSection(v)}
               variant="scrollable"
-              scrollButtons="auto"
-              allowScrollButtonsMobile
+              // 手机上直接手指横滑,不要左右箭头(两个箭头各占 40px,加上 MUI 默认每格最小 90px,一屏只露两个频道)
+              scrollButtons={isMobile ? false : 'auto'}
+              allowScrollButtonsMobile={!isMobile}
               sx={{
                 flex: 1,
                 minWidth: 0,
-                minHeight: 44,
-                px: 1,
+                minHeight: { xs: 40, md: 44 },
+                px: { xs: 0.5, md: 1 },
                 '& .MuiTab-root': {
-                  minHeight: 44,
-                  fontSize: 13,
+                  minHeight: { xs: 40, md: 44 },
+                  minWidth: 0,
+                  fontSize: { xs: 14, md: 13 },
                   fontWeight: 500,
                   color: 'var(--text-secondary, rgba(255,255,255,0.6))',
                   textTransform: 'none',
-                  px: 1.75,
+                  px: { xs: 1.25, md: 1.75 },
                   py: 0,
                   transition: 'color 0.15s',
                   '&:hover': { color: 'var(--text-primary, #ffffff)' },
                 },
                 '& .Mui-selected': { color: 'var(--brand-color, #FE2C55) !important', fontWeight: 700 },
-                '& .MuiTabs-indicator': { backgroundColor: 'var(--brand-color, #FE2C55)', height: 2.5, borderRadius: 1.25 },
+                // 指示条收成文字下方一小截(不是整格宽的长条)
+                '& .MuiTabs-indicator': { backgroundColor: 'transparent', height: 3, display: 'flex', justifyContent: 'center' },
+                '& .MuiTabs-indicator::after': { content: '""', width: 18, height: 3, borderRadius: 1.5, bgcolor: 'var(--brand-color, #FE2C55)' },
                 '& .MuiTabs-scrollButtons': { color: 'var(--text-secondary, rgba(255,255,255,0.55))' },
               }}
             >
@@ -623,8 +627,8 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
           {/* 二级子分类(题材):选中某类型(如小说)后,展示该类型下的分类来筛选 */}
           {tab === 'home' && parentType && (
             <Box sx={{ position: 'relative', px: 1.5, pt: 0.5, pb: 0.25 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' }, pr: 3 }}>
-                <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>分类</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.75, md: 0.5 }, overflowX: 'auto', scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' }, pr: 3 }}>
+                <Typography sx={{ display: { xs: 'none', md: 'block' }, fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mr: 0.5, textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>分类</Typography>
                 {subcatQuery.isLoading ? (
                   <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))', fontStyle: 'italic' }}>加载中…</Typography>
                 ) : (
@@ -638,14 +642,16 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
                         onClick={() => setGenre(value)}
                       sx={{
                         flexShrink: 0,
-                        px: 1.25,
-                        py: 0.35,
+                        // 手机上点按区域大一点(以前 20px 高的小胶囊很难点准)
+                        px: { xs: 1.5, md: 1.25 },
+                        py: { xs: 0.5, md: 0.35 },
                         borderRadius: 999,
                         cursor: 'pointer',
-                        fontSize: 11.5,
+                        fontSize: { xs: 12.5, md: 11.5 },
                         fontWeight: chosen ? 700 : 500,
-                        color: chosen ? '#000' : 'var(--text-secondary, rgba(255,255,255,0.85))',
-                        bgcolor: chosen ? 'rgba(255,255,255,0.95)' : 'transparent',
+                        // 选中态用品牌色:以前是白底黑字,浅色主题下白底融进背景,只剩字变粗,看不出选了哪个
+                        color: chosen ? '#fff' : 'var(--text-secondary, rgba(255,255,255,0.85))',
+                        bgcolor: chosen ? 'var(--brand-color, #FE2C55)' : 'transparent',
                         border: '1px solid',
                         borderColor: chosen ? 'transparent' : 'var(--border-color, rgba(255,255,255,0.12))',
                         transition: 'all 0.15s',
