@@ -50,6 +50,8 @@ const PAGE_SIZE = 500;
 const MAX_PAGES = 6;
 const BACKFILL_POLL_MS = 4000;
 const BACKFILL_MAX_POLLS = 8;
+/** 调用方明确说"后端在补全"时放宽:自动补全首轮几十章通常一两分钟内到。 */
+const BACKFILL_EXTERNAL_MAX_POLLS = 60;
 
 export interface UseContentItemsOpts {
   lite?: boolean;
@@ -61,6 +63,11 @@ export interface UseContentItemsOpts {
   untilChapterId?: string;
   /** false 时先不发请求(比如 untilChapterId 还没确定,免得先按「全本」拉一遍) */
   enabled?: boolean;
+  /**
+   * 调用方知道后端正在补全(详情的 availability.backfill 排队 / 运行中)时传 true:
+   * 即便本次响应没带 backfilling,也按同样节奏重查,直到补全结束或轮询次数用完。
+   */
+  poll?: boolean;
 }
 
 /** 与 hook 内部一致的 queryKey,让调用方拿到同一 key 写 setQueryData 回滚。 */
@@ -131,6 +138,7 @@ export async function fetchContentItemsAll(
  *
  * - 一页 500 条,超过时顺序拉后续页,最多 3000 条;
  * - 后端发现一条都没有时会回源补齐,没来得及补完的响应带 backfilling,这里每 4 秒重查,最多 8 次;
+ *   调用方传 poll(详情说自动补全排队 / 运行中)时同样节奏重查,最多 60 次;
  * - lite 只要目录,不让后端逐章拉正文(长篇小说的目录用);
  * - 传 `untilChapterId` 时,只拉到含它的页就停 —— 长篇小说首次进入详情用。
  */
@@ -142,11 +150,16 @@ export function useContentItems(
 ) {
   const lite = !!opts.lite;
   const untilChapterId = opts.untilChapterId;
+  const poll = !!opts.poll;
   return useQuery({
     queryKey: contentItemsQueryKey(kind, contentId, { lite, untilChapterId }),
     enabled: !!contentId && opts.enabled !== false,
     queryFn: () => fetchPages(fetchPage, String(contentId), { lite, untilChapterId }),
-    refetchInterval: (query) =>
-      query.state.data?.backfilling && query.state.dataUpdateCount <= BACKFILL_MAX_POLLS ? BACKFILL_POLL_MS : false,
+    refetchInterval: (query) => {
+      const n = query.state.dataUpdateCount;
+      if (query.state.data?.backfilling && n <= BACKFILL_MAX_POLLS) return BACKFILL_POLL_MS;
+      if (poll && n <= BACKFILL_EXTERNAL_MAX_POLLS) return BACKFILL_POLL_MS;
+      return false;
+    },
   });
 }

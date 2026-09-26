@@ -38,6 +38,7 @@ import { useContentItems, type ContentItem } from '@/hooks/useContentItems';
 import { AvailabilityBadge } from '@/components/common/AvailabilityBadge';
 import type { PlaybackStatus } from '@/apis/recommend';
 import { stateTransition } from '@/lib/navTransition';
+import { backfillNotice, backfillPending, backfillRefetchInterval, type BackfillState } from '@/lib/autoBackfill';
 
 interface Comics {
   id: number;
@@ -58,7 +59,7 @@ interface Comics {
   collectCount?: number;
   commentCount?: number;
   /** 站内能不能读(后端 internal/playability 阅读轴)。 */
-  availability?: { status?: PlaybackStatus; readable?: boolean; notice?: string; readyItems?: number; totalItems?: number };
+  availability?: { status?: PlaybackStatus; readable?: boolean; notice?: string; readyItems?: number; totalItems?: number; backfill?: BackfillState };
 }
 
 const INTERNAL_STATUS = new Set(['active', 'PUBLISH', 'UN_PUBLISH', 'REVIEWING', 'REJECTED', 'DRAFT']);
@@ -110,8 +111,11 @@ function ComicsDetailContent() {
     queryKey: ['detail', 'comics', id],
     queryFn: () => contentDetail('comics', { id: id! }).then((r) => r as Partial<Comics>),
     enabled: !!id,
+    // 站内没图时后端已把这部漫画投进自动补全:排队 / 运行中就轮询,话数与分页图一到就能读。
+    refetchInterval: backfillRefetchInterval,
   });
-  const chaptersQuery = useContentItems('comics', id, itemPage);
+  const backfilling = backfillPending(query.data);
+  const chaptersQuery = useContentItems('comics', id, itemPage, { poll: backfilling });
   const chapters = chaptersQuery.data?.items ?? [];
 
   // 进入详情:行为埋点(供榜单/推荐)+ 写观看历史。itemType 大写以匹配 Doris content_type。
@@ -315,10 +319,10 @@ function ComicsDetailContent() {
                 unit="话"
                 variant="list"
                 loading={chaptersQuery.isLoading}
-                backfilling={chaptersQuery.data?.backfilling}
+                backfilling={chaptersQuery.data?.backfilling || backfilling}
                 empty={
                   <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                    暂无章节
+                    {backfillNotice(data.availability, '暂无章节', '话数与图片')}
                     {sourceLink && (
                       <Button size="small" href={sourceLink} target="_blank" rel="noopener noreferrer" endIcon={<OpenInNewIcon sx={{ fontSize: 14 }} />}>
                         去原站阅读

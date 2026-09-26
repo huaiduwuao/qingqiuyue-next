@@ -18,6 +18,7 @@ import LockIcon from '@mui/icons-material/Lock';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { CoverImage } from '@/components/common/CoverImage';
 import { stateTransition } from '@/lib/navTransition';
+import { backfillNotice, backfillPending, backfillRefetchInterval, type BackfillState } from '@/lib/autoBackfill';
 import { detail as contentDetail } from '@/apis/content-video';
 import { page as chapterPage, get as getChapterDetail, addShelf } from '@/apis/content-novel-chapter';
 import {
@@ -78,6 +79,8 @@ interface NovelDetail {
     readyItems?: number;
     totalItems?: number;
     sourceUrl?: string;
+    /** 自动补全的排队 / 运行 / 上次结果(lib/autoBackfill) */
+    backfill?: BackfillState;
   };
 }
 
@@ -196,7 +199,10 @@ function BookCover({ detail, theme, chapterTotal, onStart, empty }: { detail?: N
           (下面的章节列表照常渲染),但不再假装点进去有东西可读。 */}
       {textMissing && (
         <Box sx={{ mt: 4, fontSize: 14, color: theme.sub }}>
-          <Box sx={{ mb: avail?.sourceUrl ? 1.5 : 0 }}>{avail?.notice || '本站未收录该书正文'}</Box>
+          <Box sx={{ mb: avail?.sourceUrl ? 1.5 : 0, display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            {backfillPending(detail) && <CircularProgress size={14} sx={{ color: theme.sub }} />}
+            <span>{backfillNotice(avail, '本站未收录该书正文')}</span>
+          </Box>
           {avail?.sourceUrl && (
             <Button
               variant="outlined"
@@ -263,8 +269,11 @@ function NovelDetailContent() {
     queryKey: ['detail', 'novel', id],
     queryFn: () => contentDetail('novel', { id: id! }).then((r) => (r ?? null) as NovelDetail | null),
     enabled: !!id,
+    // 站内没正文时后端已把这本书投进自动补全:排队 / 运行中就轮询,正文一到"开始阅读"就亮起来。
+    refetchInterval: backfillRefetchInterval,
   });
   const detail = detailQuery.data ?? undefined;
+  const backfilling = backfillPending(detail);
 
   // 目录窗口的锚点章节(给 useContentItems 当 untilChapterId —— 长篇小说初次进入只拉
   // 目标章节所在页,不一次拉全本)。进入这本书时定一次:地址栏 chapter 优先,否则本地进度。
@@ -289,6 +298,7 @@ function NovelDetailContent() {
     lite: true,
     untilChapterId: tocAnchor.chapter,
     enabled: tocAnchor.ready,
+    poll: backfilling,
   });
   const queryClient = useQueryClient();
   const legacy = useMemo(() => legacyChapters(id ?? '', detail), [id, detail]);
@@ -532,7 +542,7 @@ function NovelDetailContent() {
 
   const emptyNotice = chapters.length === 0 && !tocLoading && (
     <Box sx={{ mt: 4, pt: 3, borderTop: `1px dashed ${rt.line}`, color: rt.sub, fontSize: 14 }}>
-      <Box sx={{ mb: 1.5 }}>{tocQuery.data?.backfilling ? '正在获取章节目录…' : playNoticeOf(detail) || '这本书暂时没有可在线阅读的章节'}</Box>
+      <Box sx={{ mb: 1.5 }}>{tocQuery.data?.backfilling || backfilling ? '正在从源站获取章节目录…' : playNoticeOf(detail) || '这本书暂时没有可在线阅读的章节'}</Box>
       {platforms.length > 0 && (
         <Box sx={{ display: 'flex', justifyContent: 'center' }}>
           <PlatformLinks platforms={platforms} title="" dense />
