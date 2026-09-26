@@ -51,7 +51,6 @@ import ShoppingBagRoundedIcon from '@mui/icons-material/ShoppingBagRounded';
 import WorkspacePremiumRoundedIcon from '@mui/icons-material/WorkspacePremiumRounded';
 import StarsIcon from '@mui/icons-material/Stars';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
 import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
@@ -64,6 +63,7 @@ import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { LIST_PAGE_SIZE, nextMeListPage } from '@/components/home/meListPaging';
 import { useResponsive } from '@/hooks/useResponsive';
+import RedeemRoundedIcon from '@mui/icons-material/RedeemRounded';
 import { homeClient, adminClient, formatApiError } from '@/lib/api/client';
 import { setMark } from '@/apis/content-mark';
 import { postShare } from '@/apis/behavior';
@@ -179,7 +179,8 @@ const QUICK_LINKS: { key: string; label: string; icon: React.ReactNode; href: st
   { key: 'order', label: '我的订单', icon: <ReceiptLongRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/orders', accent: ACCENT.blue.main },
   { key: 'purchases', label: '我的购买', icon: <ShoppingBagRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/purchases', accent: ACCENT.orange.main },
   { key: 'vip', label: '会员中心', icon: <WorkspacePremiumRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/vip', accent: ACCENT.gold.main },
-  { key: 'settings', label: '设置', icon: <SettingsRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/settings', accent: ACCENT.cyan.main },
+  // 设置已经在头像卡右上角的齿轮里,这一格换成积分商城(积分兑换)
+  { key: 'mall', label: '积分商城', icon: <RedeemRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/points-mall', accent: ACCENT.cyan.main },
 ];
 
 const DATE_RANGES = [
@@ -552,15 +553,16 @@ function MyHomePageAuthed() {
           sx={{
             position: 'relative',
             display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
+            // 手机上头像在左、资料在右一行排开(以前竖排,头像卡要占小半屏)
+            flexDirection: 'row',
             gap: { xs: 1.5, sm: 2.5 },
-            alignItems: { sm: 'flex-start' },
-            p: { xs: 2, sm: 2.5 },
+            alignItems: 'flex-start',
+            p: { xs: 1.5, sm: 2.5 },
             borderRadius: 2.5,
             bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))',
             border: '1px solid var(--border-color, transparent)',
             backdropFilter: 'blur(8px)',
-            mb: 2,
+            mb: { xs: 1, md: 2 },
           }}
         >
           <IconButton
@@ -576,8 +578,8 @@ function MyHomePageAuthed() {
           <Box
             sx={{
               position: 'relative',
-              width: { xs: 72, sm: 80 },
-              height: { xs: 72, sm: 80 },
+              width: { xs: 60, sm: 80 },
+              height: { xs: 60, sm: 80 },
               flexShrink: 0,
               display: 'flex',
               alignItems: 'center',
@@ -603,15 +605,15 @@ function MyHomePageAuthed() {
             ))}
             <Avatar
               src={profile?.user?.avatar || currentUser?.avatar}
-              sx={{ width: 56, height: 56, position: 'relative', zIndex: 1, border: '2px solid', borderColor: 'warning.main' }}
+              sx={{ width: { xs: 52, sm: 56 }, height: { xs: 52, sm: 56 }, position: 'relative', zIndex: 1, border: '2px solid', borderColor: 'warning.main' }}
             >
               {(profile?.user?.nickname || currentUser?.nickname || '我')[0]}
             </Avatar>
           </Box>
 
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
-              <Typography sx={{ fontSize: { xs: 18, sm: 20 }, fontWeight: 700, color: 'var(--text-primary, currentColor)' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: { xs: 0.5, sm: 0.75 }, pr: 4 }}>
+              <Typography noWrap sx={{ fontSize: { xs: 17, sm: 20 }, fontWeight: 700, color: 'var(--text-primary, currentColor)', minWidth: 0 }}>
                 {profile?.user?.nickname || currentUser?.nickname || currentUser?.name || '—'}
               </Typography>
               <Box sx={{ width: 16, height: 16, borderRadius: 0.5, bgcolor: 'rgba(255,180,0,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -620,7 +622,7 @@ function MyHomePageAuthed() {
             </Box>
 
             {/* 统计行:关注/粉丝/获赞 统一成 数字在上、标签在下 的抖音式列,窄屏不折行 */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 2.5, sm: 3 }, mb: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 2.25, sm: 3 }, mb: { xs: 0, sm: 1 } }}>
               {[
                 { label: '关注', value: profile?.stats?.following, href: '/account/center?section=following' },
                 { label: '粉丝', value: profile?.stats?.followers, href: '/account/center?section=followers' },
@@ -639,14 +641,15 @@ function MyHomePageAuthed() {
               ))}
               <Box
                 onClick={() => router.push('/home/recommend?tab=me&mainTab=live')}
-                sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto', cursor: 'pointer' }}
+                sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 0.5, ml: 'auto', cursor: 'pointer' }}
               >
                 <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'primary.main', animation: 'pulse 1.6s ease-in-out infinite', '@keyframes pulse': { '0%, 100%': { opacity: 1 }, '50%': { opacity: 0.4 } } }} />
                 <Typography sx={{ fontSize: 11, color: 'primary.main', fontWeight: 600 }}>{profile?.stats?.lives ?? 0}人正在直播</Typography>
               </Box>
             </Box>
 
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
+            {/* 手机上收起账号号码/年龄/地区这一行,头像卡只留名字、数据和按钮 */}
+            <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 1, mb: 0.5, flexWrap: 'wrap' }}>
               <Typography sx={{ fontSize: 12, color: 'var(--text-secondary, currentColor)' }}>抖音号: {profile?.user?.douyinId ?? '—'}</Typography>
               {profile?.user?.age != null && (
                 <Box sx={{ px: 0.75, py: 0.125, borderRadius: 0.75, bgcolor: 'rgba(91, 141, 239, 0.15)', border: '1px solid rgba(91, 141, 239, 0.3)' }}>
@@ -661,13 +664,13 @@ function MyHomePageAuthed() {
             </Box>
 
             {profile?.user?.bio && (
-              <Typography sx={{ fontSize: 12, color: 'var(--text-secondary, currentColor)', mt: 0.5 }}>
+              <Typography noWrap sx={{ display: { xs: 'none', sm: 'block' }, fontSize: 12, color: 'var(--text-secondary, currentColor)', mt: 0.5 }}>
                 {profile.user.bio}
               </Typography>
             )}
 
             {/* Quick action buttons:窄屏三个等宽按钮独占一行,不再挤在名字下面乱折行 */}
-            <Box sx={{ display: 'flex', gap: 1, mt: 1.5 }}>
+            <Box sx={{ display: 'flex', gap: 1, mt: { xs: 1, sm: 1.5 }, '& .MuiButton-root': { minHeight: { xs: 30, sm: 'auto' }, py: { xs: 0.25, sm: undefined }, whiteSpace: 'nowrap', minWidth: 0 }, '& .MuiButton-startIcon': { display: { xs: 'none', sm: 'inherit' } } }}>
               <Button
                 size="small"
                 variant="outlined"
@@ -701,8 +704,55 @@ function MyHomePageAuthed() {
           </Box>
         </Box>
 
-        {/* Quick links row:竖排 图标在上/标签在下,6 列。手机上这 6 个入口(钱包/积分/订单/购买/会员/设置)
-            挪进了首页左上角的侧边栏(MobileSideMenu),这里不再占两行 */}
+        {/* 手机:资产一行 —— 钻石余额 / 积分 / 订单 / 会员 / 积分商城,数字在上、名字在下,点进各自页面。
+            (电脑端是下面那排带图标的六宫格) */}
+        <Box
+          sx={{
+            display: { xs: 'grid', md: 'none' },
+            gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+            mb: 1,
+            py: 1,
+            borderRadius: 2.5,
+            bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.6))',
+            border: '1px solid var(--border-color, transparent)',
+          }}
+        >
+          {[
+            { key: 'wallet', label: '钻石', value: (walletQ.data?.balance ?? 0).toLocaleString(), href: '/account/wallet' },
+            { key: 'points', label: '积分', value: (pointQ.data?.points ?? 0).toLocaleString(), href: '/user/points' },
+            { key: 'orders', label: '订单', value: String(orderQ.data?.total ?? orderQ.data?.records?.length ?? orderQ.data?.list?.length ?? 0), href: '/account/orders' },
+            { key: 'vip', label: '会员', value: (vipQ.data as any)?.tiers?.some((t: any) => t.active) ? 'VIP' : '开通', href: '/account/vip', warn: true },
+            { key: 'mall', label: '积分商城', icon: <RedeemRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/points-mall' },
+          ].map((a) => (
+            <Box
+              key={a.key}
+              component={Link}
+              href={a.href}
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 0.25,
+                minWidth: 0,
+                textDecoration: 'none',
+                color: 'var(--text-primary, currentColor)',
+                WebkitTapHighlightColor: 'transparent',
+              }}
+            >
+              {a.icon ? (
+                <Box sx={{ height: 20, display: 'flex', alignItems: 'center', color: ACCENT.cyan.main }}>{a.icon}</Box>
+              ) : (
+                <Typography noWrap sx={{ fontSize: 15, fontWeight: 700, lineHeight: '20px', maxWidth: '100%', color: a.warn ? 'warning.main' : 'inherit' }}>
+                  {a.value}
+                </Typography>
+              )}
+              <Typography sx={{ fontSize: 11, color: 'var(--text-muted, currentColor)', whiteSpace: 'nowrap' }}>{a.label}</Typography>
+            </Box>
+          ))}
+        </Box>
+
+        {/* Quick links row:竖排 图标在上/标签在下,6 列(电脑端)。手机上是上面那条资产行 */}
         <Box
           sx={{
             display: { xs: 'none', md: 'grid' },
@@ -728,7 +778,8 @@ function MyHomePageAuthed() {
               const pts = pointQ.data?.points ?? 0;
               badge = pts > 0 ? pts.toLocaleString() : null;
             } else if (q.key === 'order') {
-              const cnt = orderQ.data?.records?.length ?? orderQ.data?.list?.length ?? 0;
+              // /me/orders?size=1 只拉一条,records.length 最多是 1;有 total 用 total
+              const cnt = orderQ.data?.total ?? orderQ.data?.records?.length ?? orderQ.data?.list?.length ?? 0;
               badge = cnt > 0 ? String(cnt) : null;
             } else if (q.key === 'vip') {
               const vip = vipQ.data as any;
@@ -806,29 +857,47 @@ function MyHomePageAuthed() {
                   const bar = el?.parentElement;
                   if (!el || !bar) return;
                   const over = el.offsetLeft + el.offsetWidth - (bar.scrollLeft + bar.clientWidth);
-                  if (over > 0) bar.scrollLeft += over + 64; // 右缘有 56px 的渐隐遮罩
+                  if (over > 0) bar.scrollLeft += over + 40; // 右缘有 32px 的渐隐遮罩
                   else if (el.offsetLeft < bar.scrollLeft) bar.scrollLeft = el.offsetLeft;
                 } : undefined}
                 sx={{
+                  position: 'relative',
+                  flexShrink: 0,
                   display: 'flex',
                   alignItems: 'center',
                   gap: 0.5,
-                  px: 1.5,
-                  py: 1.25,
+                  // 手机上和精选的频道栏一样:纯文字、14px、间距紧、选中项下方一小截品牌色短条
+                  px: { xs: 1.25, md: 1.5 },
+                  py: { xs: 1, md: 1.25 },
                   cursor: 'pointer',
-                  color: isActive ? 'var(--text-primary, currentColor)' : 'var(--text-secondary, currentColor)',
+                  color: isActive
+                    ? { xs: 'var(--brand-color, #FE2C55)', md: 'var(--text-primary, currentColor)' }
+                    : 'var(--text-secondary, currentColor)',
                   fontSize: 13,
                   fontWeight: isActive ? 600 : 400,
-                  borderBottom: '2px solid',
+                  borderBottom: { xs: 0, md: '2px solid' },
                   borderColor: isActive ? 'primary.main' : 'transparent',
-                  mb: '-1px',
+                  mb: { xs: 0, md: '-1px' },
                   transition: 'all 0.15s',
                   whiteSpace: 'nowrap',
                   '&:hover': { color: 'var(--text-primary, currentColor)' },
+                  '& > svg': { display: { xs: 'none', md: 'inline-block' } },
+                  '&::after': isActive ? {
+                    content: '""',
+                    display: { xs: 'block', md: 'none' },
+                    position: 'absolute',
+                    left: '50%',
+                    bottom: 2,
+                    width: 18,
+                    height: 3,
+                    ml: '-9px',
+                    borderRadius: 1.5,
+                    bgcolor: 'var(--brand-color, #FE2C55)',
+                  } : undefined,
                 }}
               >
                 {t.icon}
-                <Typography component="span" sx={{ fontSize: 13, fontWeight: isActive ? 600 : 400 }}>{t.label}</Typography>
+                <Typography component="span" sx={{ fontSize: { xs: 14, md: 13 }, fontWeight: isActive ? { xs: 700, md: 600 } : 400 }}>{t.label}</Typography>
               </Box>
             );
           })}
@@ -892,7 +961,7 @@ function MyHomePageAuthed() {
               top: 0,
               right: 0,
               bottom: '1px',
-              width: 56,
+              width: 32,
               pointerEvents: 'none',
               display: { xs: 'flex', sm: 'none' },
               alignItems: 'center',
@@ -905,7 +974,6 @@ function MyHomePageAuthed() {
               color: 'var(--text-muted, currentColor)',
             }}
           >
-            <ChevronRightIcon sx={{ fontSize: 16 }} />
           </Box>
         </Box>
 
