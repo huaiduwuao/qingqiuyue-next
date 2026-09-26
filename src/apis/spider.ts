@@ -976,6 +976,46 @@ export async function pollRepair(
   throw new Error('修复超过 2 小时仍未结束,请到任务列表查看');
 }
 
+/** 修复任务列表的一行(GET /content/repair/recent)。完整报告仍用 pollRepair 取。 */
+export interface RepairTaskRow {
+  task_id: number;
+  status: 'running' | 'completed' | 'failed' | string;
+  /** 运行中但半小时没有进度 —— 多半是 spider-api 重启把任务带走了 */
+  stale?: boolean;
+  content_id?: string;
+  title?: string;
+  /** null = 老任务,名字里没记模式,且没有报告 */
+  dry_run: boolean | null;
+  operator?: string;
+  phase?: string;
+  percent: number;
+  items_found?: number;
+  elapsed_sec?: number;
+  errors?: number;
+  error_msg?: string;
+  started_at?: string;
+  updated_at?: string;
+  aggregated?: number;
+  by_verdict?: Record<string, number>;
+  applied?: RepairReport['applied'];
+  sources?: string[];
+  has_report: boolean;
+}
+
+export async function listRepairTasks(params: { page?: number; pageSize?: number; contentId?: string } = {}): Promise<{
+  list: RepairTaskRow[];
+  total: number;
+}> {
+  return spiderClient('/content/repair/recent', {
+    method: 'GET',
+    params: {
+      page: params.page ?? 1,
+      pageSize: params.pageSize ?? 10,
+      content_id: params.contentId || undefined,
+    },
+  });
+}
+
 /** 发起并等到报告(一次性调用;面板用 startRepair + pollRepair 以便切页后续上)。 */
 export async function repairChapters(params: {
   contentId: string;

@@ -15,8 +15,8 @@
  * 默认只应用有多源印证或单源但干净的章节;冲突和可疑的要人工勾选才动。
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -24,6 +24,7 @@ import Checkbox from '@mui/material/Checkbox';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import FormControlLabel from '@mui/material/FormControlLabel';
+import IconButton from '@mui/material/IconButton';
 import LinearProgress from '@mui/material/LinearProgress';
 import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
@@ -32,15 +33,18 @@ import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import BuildRoundedIcon from '@mui/icons-material/BuildRounded';
+import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded';
 import {
   listRepairSources,
+  listRepairTasks,
   pollRepair,
   startRepair,
   REPAIR_PHASE_LABELS,
   type RepairChapterDiff,
   type RepairProgress,
   type RepairReport,
+  type RepairTaskRow,
 } from '@/apis/spider';
 import { myPage, getById, type ModuleContentItem } from '@/apis/module-content';
 import { useSessionState } from './useSessionState';
@@ -80,6 +84,11 @@ export default function ContentRepairPanel({ compact = false }: { compact?: bool
   const [allowConflict, setAllowConflict] = useState(false);
   const [starting, setStarting] = useState<'diagnose' | 'apply' | null>(null);
   const [polling, setPolling] = useState(false);
+  // 面板正在展示哪个任务(列表里高亮它)。与 run 分开:任务失败后 run 会被清掉,
+  // 但从列表点开的失败任务仍应标出来,旁边是它的失败原因。
+  const [viewTaskId, setViewTaskId] = useSessionState<number | null>('spider:repair:view', null);
+  const qc = useQueryClient();
+  const topRef = useRef<HTMLDivElement>(null);
 
   const trimmed = keyword.trim();
   const asId = /^\d+$/.test(trimmed) && trimmed.length <= 15 ? Number(trimmed) : null;
@@ -140,7 +149,9 @@ export default function ContentRepairPanel({ compact = false }: { compact?: bool
         setRun(null);
       })
       .finally(() => {
-        if (!ac.signal.aborted) setPolling(false);
+        if (ac.signal.aborted) return;
+        setPolling(false);
+        qc.invalidateQueries({ queryKey: ['repair-tasks'] });
       });
     return () => ac.abort();
     // setRun 稳定;只在换任务时重来
@@ -167,6 +178,8 @@ export default function ContentRepairPanel({ compact = false }: { compact?: bool
       });
       if (dryRun) setReport(null);
       setRun({ taskId, dryRun });
+      setViewTaskId(taskId);
+      qc.invalidateQueries({ queryKey: ['repair-tasks'] });
     } catch (e: any) {
       setErrMsg(e?.message || (dryRun ? '诊断失败' : '应用失败'));
     } finally {
@@ -178,17 +191,32 @@ export default function ContentRepairPanel({ compact = false }: { compact?: bool
   const diagnosing = starting === 'diagnose' || (polling && !!run?.dryRun);
   const applying = starting === 'apply' || (polling && run?.dryRun === false);
 
+  // 从任务列表打开一条:选中它的书,按 task_id 接上 —— 运行中的看实时进度,
+  // 跑完的直接取回报告(逐章 diff),失败的显示失败原因。
+  const openTask = (t: RepairTaskRow) => {
+    if (!t.content_id) return;
+    setPicked({ id: t.content_id, title: t.title || `#${t.content_id}` } as unknown as ModuleContentItem);
+    setReport(null);
+    setProgress(null);
+    setErrMsg(null);
+    // 老任务没记模式:按诊断看待(只影响"诊断中/应用中"文案,报告里有真值)
+    setRun({ taskId: t.task_id, dryRun: t.dry_run ?? true });
+    setViewTaskId(t.task_id);
+    topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   // 换书 / 清空:不再跟踪旧任务(后端照跑完,任务列表里能看到)
   const clearPicked = () => {
     setPicked(null);
     setRun(null);
+    setViewTaskId(null);
     setReport(null);
     setProgress(null);
     setErrMsg(null);
   };
 
   return (
-    <Stack spacing={2}>
+    <Stack spacing={2} ref={topRef}>
       <Alert severity="info" icon={<BuildRoundedIcon />}>
         从多个源比对同一本书的章节,找出<b>缺失</b>和<b>可能有错</b>的章节并修复。
         两个源给出同一章就能互相印证;只有一个源有时标「仅一源」,没有交叉验证。
@@ -303,6 +331,11 @@ export default function ContentRepairPanel({ compact = false }: { compact?: bool
         <Paper elevation={1} sx={{ p: 2 }}>
           <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
             3. 诊断结果{report.dry_run ? '(未写库)' : '(已应用)'}
+            {viewTaskId ? (
+              <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                任务 #{viewTaskId}
+              </Typography>
+            ) : null}
           </Typography>
 
           <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1, mb: 1.5 }}>
@@ -367,7 +400,184 @@ export default function ContentRepairPanel({ compact = false }: { compact?: bool
           )}
         </Paper>
       )}
+
+      <RepairTaskList
+        contentId={picked ? String(picked.id) : undefined}
+        contentTitle={picked?.title}
+        activeTaskId={viewTaskId}
+        onOpen={openTask}
+      />
     </Stack>
+  );
+}
+
+const TASK_STATUS_META: Record<string, { label: string; color: 'default' | 'success' | 'warning' | 'error' | 'primary' }> = {
+  running: { label: '运行中', color: 'primary' },
+  completed: { label: '已完成', color: 'success' },
+  failed: { label: '失败', color: 'error' },
+};
+
+const fmtTime = (s?: string) => {
+  if (!s) return '-';
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return '-';
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+
+const fmtDur = (s?: number) => (s == null || s <= 0 ? '' : s >= 60 ? `${Math.floor(s / 60)} 分 ${s % 60} 秒` : `${s} 秒`);
+
+/**
+ * 修复任务列表:所有人发起的诊断 / 应用,最新在前。点一行在上面的面板里打开详情。
+ * 有运行中的任务时每 5 秒刷新一次。
+ */
+function RepairTaskList({
+  contentId,
+  contentTitle,
+  activeTaskId,
+  onOpen,
+}: {
+  contentId?: string;
+  contentTitle?: string;
+  activeTaskId: number | null;
+  onOpen: (t: RepairTaskRow) => void;
+}) {
+  const [onlyThis, setOnlyThis] = useState(false);
+  const [page, setPage] = useState(1);
+  const filterId = onlyThis ? contentId : undefined;
+  const pageSize = 10;
+  const q = useQuery({
+    queryKey: ['repair-tasks', filterId ?? '', page],
+    queryFn: () => listRepairTasks({ page, pageSize, contentId: filterId }),
+    refetchInterval: (query) =>
+      (query.state.data?.list || []).some((t) => t.status === 'running' && !t.stale) ? 5000 : false,
+  });
+  const rows = q.data?.list || [];
+  const total = Number(q.data?.total || 0);
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+
+  return (
+    <Paper elevation={1} sx={{ p: 2 }}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
+        <Typography variant="subtitle2" sx={{ flex: 1 }}>修复任务记录</Typography>
+        {contentId && (
+          <FormControlLabel
+            control={
+              <Checkbox
+                size="small"
+                checked={onlyThis}
+                onChange={(e) => {
+                  setOnlyThis(e.target.checked);
+                  setPage(1);
+                }}
+              />
+            }
+            label={<Typography variant="caption">只看「{contentTitle || contentId}」</Typography>}
+          />
+        )}
+        <Tooltip title="刷新">
+          <span>
+            <IconButton size="small" onClick={() => q.refetch()} disabled={q.isFetching}>
+              <RefreshRoundedIcon fontSize="small" />
+            </IconButton>
+          </span>
+        </Tooltip>
+      </Stack>
+      {q.isError && <Alert severity="error">任务列表加载失败:{(q.error as any)?.message || '未知错误'}</Alert>}
+      {q.isLoading && <LinearProgress />}
+      {!q.isLoading && !q.isError && rows.length === 0 && (
+        <Typography variant="body2" color="text.secondary">还没有修复任务。</Typography>
+      )}
+      {rows.length > 0 && (
+        <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>
+          {rows.map((t) => (
+            <RepairTaskRowView key={t.task_id} t={t} active={t.task_id === activeTaskId} onOpen={() => onOpen(t)} />
+          ))}
+        </Box>
+      )}
+      {pages > 1 && (
+        <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: 'center', justifyContent: 'flex-end' }}>
+          <Button size="small" variant="text" disabled={page <= 1} onClick={() => setPage(page - 1)} sx={{ textTransform: 'none' }}>
+            上一页
+          </Button>
+          <Typography variant="caption" color="text.secondary">
+            {page} / {pages}(共 {total} 条)
+          </Typography>
+          <Button size="small" variant="text" disabled={page >= pages} onClick={() => setPage(page + 1)} sx={{ textTransform: 'none' }}>
+            下一页
+          </Button>
+        </Stack>
+      )}
+    </Paper>
+  );
+}
+
+function RepairTaskRowView({ t, active, onOpen }: { t: RepairTaskRow; active: boolean; onOpen: () => void }) {
+  const st = t.stale
+    ? { label: '可能已中断', color: 'warning' as const }
+    : TASK_STATUS_META[t.status] || { label: t.status, color: 'default' as const };
+  const mode = t.dry_run == null ? null : t.dry_run ? '诊断' : '应用';
+  const running = t.status === 'running' && !t.stale;
+  const dur = fmtDur(t.elapsed_sec);
+  return (
+    <Box
+      onClick={t.content_id ? onOpen : undefined}
+      sx={{
+        px: 1.5, py: 1, borderBottom: 1, borderColor: 'divider', '&:last-of-type': { borderBottom: 0 },
+        cursor: t.content_id ? 'pointer' : 'default',
+        bgcolor: active ? 'action.selected' : 'transparent',
+        '&:hover': { bgcolor: active ? 'action.selected' : 'action.hover' },
+      }}
+    >
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 0.75 }}>
+        <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'text.secondary', minWidth: 56 }}>
+          #{t.task_id}
+        </Typography>
+        <Typography variant="body2" sx={{ flex: 1, minWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {t.title || (t.content_id ? `内容 #${t.content_id}` : '(未知内容)')}
+        </Typography>
+        {mode && <Chip size="small" variant="outlined" label={mode} color={mode === '应用' ? 'warning' : 'default'} />}
+        <Chip size="small" color={st.color} label={running && t.percent >= 0 ? `${st.label} ${t.percent}%` : st.label} />
+        <Typography variant="caption" color="text.secondary" sx={{ minWidth: 80, textAlign: 'right' }}>
+          {fmtTime(t.started_at)}
+        </Typography>
+      </Stack>
+      <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: 'wrap', gap: 0.75, alignItems: 'center' }}>
+        {running && (
+          <Typography variant="caption" color="text.secondary">
+            {REPAIR_PHASE_LABELS[t.phase || ''] || t.phase || '排队中'}
+            {t.items_found ? ` · 已取 ${t.items_found} 章` : ''}
+            {dur ? ` · 已跑 ${dur}` : ''}
+          </Typography>
+        )}
+        {t.applied && (
+          <Typography variant="caption" color={t.applied.failed > 0 ? 'warning.main' : 'text.secondary'}>
+            补 {t.applied.filled} · 换 {t.applied.updated} · 跳过 {t.applied.skipped} · 失败 {t.applied.failed}
+          </Typography>
+        )}
+        {!t.applied &&
+          t.by_verdict &&
+          Object.entries(t.by_verdict).map(([k, v]) => (
+            <Typography key={k} variant="caption" color="text.secondary">
+              {VERDICT_META[k]?.label || k} {v}
+            </Typography>
+          ))}
+        {t.sources && t.sources.length > 0 && (
+          <Typography variant="caption" color="text.disabled">源:{t.sources.join('、')}</Typography>
+        )}
+        {t.operator && <Typography variant="caption" color="text.disabled">by {t.operator}</Typography>}
+        {t.status === 'failed' && t.error_msg && (
+          <Typography
+            variant="caption"
+            color="error.main"
+            sx={{ width: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+            title={t.error_msg}
+          >
+            {t.error_msg}
+          </Typography>
+        )}
+      </Stack>
+    </Box>
   );
 }
 
