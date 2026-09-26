@@ -14,6 +14,7 @@ import ChatBubbleRoundedIcon from '@mui/icons-material/ChatBubbleRounded';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import { useResponsive } from '@/hooks/useResponsive';
 import { useMessageUnread } from '@/components/NoticeIcon';
+import { withTabTransition } from '@/lib/navTransition';
 
 export type MobileTabKey = 'home' | 'create' | 'bounty' | 'msg' | 'me';
 
@@ -119,7 +120,8 @@ export const MobileBottomNav = memo(function MobileBottomNav({ active }: MobileB
         } catch { /* 隐私模式 */ }
       }
     }
-    router.push(path, { scroll: false });
+    // 平级切换:短淡入淡出,不走「进入下一页」的整页推入
+    withTabTransition(() => router.push(path, { scroll: false }));
   };
 
   const pillColor = alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.22 : 0.14);
@@ -145,6 +147,8 @@ export const MobileBottomNav = memo(function MobileBottomNav({ active }: MobileB
         WebkitBackdropFilter: 'blur(18px) saturate(1.4)',
         borderTop: '1px solid var(--border-color, rgba(0, 0, 0, 0.08))',
         boxShadow: '0 -8px 24px rgba(0,0,0,0.06)',
+        // 换页转场时底栏单独成一层、原地不动(和音乐底栏一样),不再跟着页面一起滑走又滑回来
+        viewTransitionName: 'qq-bottom-nav',
       }}
     >
       <Box sx={{ display: 'flex', alignItems: 'stretch', height: BOTTOM_NAV_HEIGHT }}>
@@ -199,8 +203,8 @@ export const MobileBottomNav = memo(function MobileBottomNav({ active }: MobileB
                 />
               )}
               <motion.span
-                animate={reduced ? undefined : { scale: isActive ? 1.12 : 1, y: isActive ? -1 : 0 }}
-                transition={reduced ? { duration: 0 } : { type: 'spring', stiffness: 480, damping: 22 }}
+                animate={reduced ? undefined : { scale: isActive ? 1.06 : 1 }}
+                transition={reduced ? { duration: 0 } : { type: 'spring', stiffness: 420, damping: 32 }}
                 style={{ position: 'relative', zIndex: 1, display: 'flex', lineHeight: 0 }}
               >
                 {tab.key === 'msg' ? (

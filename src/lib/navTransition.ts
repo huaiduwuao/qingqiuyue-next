@@ -9,7 +9,8 @@
 
 import { flushSync } from 'react-dom';
 
-type Dir = 'forward' | 'back';
+/** forward/back = 进入下一级 / 返回(整页推入、滑出);tab = 底部 tab 之间平级切换(短淡入淡出,不推页) */
+type Dir = 'forward' | 'back' | 'tab';
 
 type ViewTransitionLike = {
   finished: Promise<void>;
@@ -209,6 +210,21 @@ type PushFn = (href: string, options?: { scroll?: boolean }) => void;
  * 站里大部分跳转是 onClick → router.push,不是 <a>,只拦链接点击的话它们都没有动画。
  * 同页 ?tab= 切换(routeKey 不变)原样放行。
  */
+let pendingDir: Dir | null = null;
+
+/**
+ * 在 fn 里发出的 router.push 按「平级 tab 切换」做转场(见 installRouterTransitions)。
+ * 底部导航用:tab 之间不是前进一层,不该像打开详情页那样从右边整页推进来。
+ */
+export function withTabTransition(fn: () => void): void {
+  pendingDir = 'tab';
+  try {
+    fn();
+  } finally {
+    pendingDir = null;
+  }
+}
+
 export function installRouterTransitions(router: { push: PushFn }): void {
   const r = router as { push: PushFn; __qqVT?: boolean };
   if (r.__qqVT) return;
@@ -219,6 +235,6 @@ export function installRouterTransitions(router: { push: PushFn }): void {
       push(href, options);
       return;
     }
-    navTransition('forward', () => push(href, options));
+    navTransition(pendingDir ?? 'forward', () => push(href, options));
   };
 }

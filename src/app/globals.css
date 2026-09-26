@@ -293,6 +293,25 @@ html[data-vt="back"]::view-transition-new(root) {
     opacity: 0.7;
   }
 }
+/* 底部 tab 之间平级切换:不推页,旧页 0.12s 淡出、新页 0.18s 淡入(手机/电脑一样)。
+   底栏自己有 view-transition-name(qq-bottom-nav),原地不动,只有选中态颜色过渡。 */
+html[data-vt="tab"]::view-transition-old(root) {
+  animation: qq-vt-fade-out 0.12s ease-out both;
+  box-shadow: none;
+}
+html[data-vt="tab"]::view-transition-new(root) {
+  animation: qq-vt-tab-in 0.18s ease-out both;
+  box-shadow: none;
+}
+@keyframes qq-vt-tab-in {
+  from {
+    opacity: 0;
+  }
+}
+html[data-vt]::view-transition-group(qq-bottom-nav) {
+  animation-duration: 0.18s;
+  z-index: 3;
+}
 @media (min-width: 900px) {
   html[data-vt]::view-transition-old(root),
   html[data-vt]::view-transition-new(root) {
