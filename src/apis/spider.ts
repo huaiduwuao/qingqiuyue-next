@@ -831,6 +831,8 @@ export interface RepairReport {
   dry_run: boolean;
   applied?: { filled: number; updated: number; skipped: number; failed: number };
   sources: string[];
+  /** 整轮失败的原因(有它就说明任务失败了,逐源明细在 errors) */
+  error?: string;
 }
 
 export interface RepairSourceOption {
@@ -889,7 +891,16 @@ export async function repairChapters(params: {
       `/content/repair/${taskId}`,
       { method: 'GET' },
     );
-    if (r && Array.isArray(r.diffs)) return r;
+    // 有 content_id 就是报告(跑完了)。失败的报告老后端给 diffs=null,
+    // 以前只认 Array.isArray(diffs),于是一直轮询到超时,页面像卡死。
+    if (r && r.content_id != null) {
+      const failed = r.error || (!Array.isArray(r.diffs) && (r.errors?.length ?? 0) > 0);
+      if (failed) {
+        const detail = (r.errors || []).join(';');
+        throw new Error([r.error || '修复失败', detail].filter(Boolean).join(':'));
+      }
+      return { ...r, diffs: r.diffs || [] };
+    }
     if (r?.status === 'failed') throw new Error(r.error_msg || r.errorMsg || '修复任务失败');
     if (r?.status === 'completed') throw new Error('任务已结束,但报告没有取到(可能已过期),请重新诊断');
   }
