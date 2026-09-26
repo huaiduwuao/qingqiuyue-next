@@ -19,8 +19,8 @@ import ListItemText from '@mui/material/ListItemText';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
 import Link from 'next/link';
-import Drawer from '@mui/material/Drawer';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import HomeIcon from '@mui/icons-material/Home';
 import SearchIcon from '@mui/icons-material/Search';
 import PersonIcon from '@mui/icons-material/Person';
@@ -33,7 +33,6 @@ import MovieIcon from '@mui/icons-material/Movie';
 import StarIcon from '@mui/icons-material/Star';
 import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import LiveTvIcon from '@mui/icons-material/LiveTv';
-import MenuIcon from '@mui/icons-material/Menu';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import MonetizationOnIcon from '@mui/icons-material/MonetizationOn';
 import BarChartIcon from '@mui/icons-material/BarChart';
@@ -106,8 +105,26 @@ const MenuItemButton = memo(({ item, onClose }: { item: MenuItemType; onClose?: 
 ));
 MenuItemButton.displayName = 'MenuItemButton';
 
+/** 手机顶栏左上角:返回(没有历史时回首页)。以前这里是开第二套抽屉导航的 ≡。 */
+function MobileBackButton() {
+  const router = useRouter();
+  return (
+    <IconButton
+      color="inherit"
+      aria-label="返回"
+      edge="start"
+      onClick={() => {
+        if (typeof window !== 'undefined' && window.history.length > 1) router.back();
+        else router.push('/home/recommend?tab=home');
+      }}
+      sx={{ display: { md: 'none' } }}
+    >
+      <ArrowBackRoundedIcon />
+    </IconButton>
+  );
+}
+
 export function MainLayout({ children }: { children: ReactNode }) {
-  const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [searchValue, setSearchValue] = useState('');
@@ -119,10 +136,6 @@ export function MainLayout({ children }: { children: ReactNode }) {
   const { mode, toggleTheme } = useThemeMode();
 
   // Menu data is fetched by AuthContext via checkAuth, no additional fetch needed
-
-  const handleDrawerToggle = () => {
-    setMobileOpen(!mobileOpen);
-  };
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -136,28 +149,6 @@ export function MainLayout({ children }: { children: ReactNode }) {
     handleMenuClose();
     logout();
   };
-
-  // Memoized drawer content
-  const drawerContent = useMemo(() => (
-    <Box sx={{ width: LEFT_SIDEBAR_WIDTH, height: '100%', bgcolor: 'background.paper' }}>
-      <Box sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <BrandSeal size={30} />
-        <BrandWordmark height={26} sx={{ color: 'text.primary' }} />
-      </Box>
-      <Divider />
-      <List sx={{ py: 2 }}>
-        {CATEGORIES.map((cat) => (
-          <CategoryButton key={cat.id} cat={cat} selected={pathname === cat.path} onClose={() => setMobileOpen(false)} />
-        ))}
-      </List>
-      <Divider />
-      <List sx={{ py: 2 }}>
-        {menuData.slice(0, 10).map((item) => (
-          <MenuItemButton key={item.id || item.path} item={item} onClose={() => setMobileOpen(false)} />
-        ))}
-      </List>
-    </Box>
-  ), [menuData, pathname]);
 
   // Memoized desktop sidebar content
   const sidebarContent = useMemo(() => (
@@ -185,16 +176,8 @@ export function MainLayout({ children }: { children: ReactNode }) {
         sx={{ bgcolor: 'background.paper', color: 'text.primary', pt: 'var(--sat, 0px)', borderBottom: '1px solid', borderColor: 'divider' }}
       >
         <Toolbar sx={{ gap: 2 }}>
-          {/* Mobile Menu Button */}
-          <IconButton
-            color="inherit"
-            aria-label="open drawer"
-            edge="start"
-            onClick={handleDrawerToggle}
-            sx={{ display: { md: 'none' } }}
-          >
-            <MenuIcon />
-          </IconButton>
+          {/* 手机上是返回键:全站只有首页左上角那一个侧边栏,这里不再开第二套抽屉 */}
+          <MobileBackButton />
 
           {/* Logo */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: { xs: 'auto', md: 160 } }}>
@@ -226,7 +209,8 @@ export function MainLayout({ children }: { children: ReactNode }) {
           <Box sx={{ flexGrow: 1 }} />
 
           {/* Right Actions */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {/* 主题切换 / 头像菜单只在电脑端;手机上头像在底部「我的」 */}
+          <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1 }}>
             <IconButton onClick={toggleTheme} color="inherit">
               {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
             </IconButton>
@@ -316,20 +300,6 @@ export function MainLayout({ children }: { children: ReactNode }) {
         >
           {sidebarContent}
         </Box>
-
-        {/* Mobile Drawer */}
-        <Drawer
-          variant="temporary"
-          open={mobileOpen}
-          onClose={handleDrawerToggle}
-          ModalProps={{ keepMounted: true }}
-          sx={{
-            display: { xs: 'block', md: 'none' },
-            '& .MuiDrawer-paper': { width: LEFT_SIDEBAR_WIDTH },
-          }}
-        >
-          {drawerContent}
-        </Drawer>
 
         {/* Main Content */}
         <Box

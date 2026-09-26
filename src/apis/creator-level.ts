@@ -60,7 +60,30 @@ export const LEVEL_CONFIG = [
 // 获取创作者等级信息
 export async function getCreatorLevelInfo(): Promise<CreatorLevelInfo> {
   const res = await adminClient('/creator-level/info');
-  return res;
+  return normalizeLevelInfo(res);
+}
+
+/**
+ * 后端 creatorlevel.LevelConfig 没写 json tag,nextLevel 出来是 Level/Name/Privileges… 大写键;
+ * 没配特权的等级 privileges 是 null。这里统一成前端类型,页面不用到处判空。
+ */
+function normalizeLevelInfo(raw: any): CreatorLevelInfo {
+  const n = raw?.nextLevel;
+  return {
+    ...raw,
+    privileges: raw?.privileges ?? [],
+    nextLevel: n
+      ? {
+          level: n.level ?? n.Level,
+          name: n.name ?? n.Name ?? '',
+          minScore: n.minScore ?? n.MinScore,
+          maxScore: n.maxScore ?? n.MaxScore,
+          icon: n.icon ?? n.Icon,
+          color: n.color ?? n.Color,
+          privileges: n.privileges ?? n.Privileges ?? [],
+        }
+      : undefined,
+  };
 }
 
 // 获取积分变动历史

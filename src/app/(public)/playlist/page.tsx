@@ -124,13 +124,14 @@ function MyPlaylists({ autoCreate, autoImport }: { autoCreate: boolean; autoImpo
           <Alert severity="error">歌单加载失败:{formatApiError(lists.error)}</Alert>
         ) : (
           <>
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2.5 }}>
-              <Typography sx={{ flex: 1, fontSize: 14, color: 'text.secondary' }}>{own.length} 个歌单</Typography>
-              <ListLayoutSwitch sx={{ mr: 1.5 }} />
-              <Button variant="outlined" startIcon={<DownloadRoundedIcon />} onClick={() => setImportOpen(true)} sx={{ mr: 1 }}>
+            {/* 手机上一行放不下 计数 + 样式切换 + 两个带图标的大按钮:样式切换收起、按钮变小不换行 */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: { xs: 1.5, md: 2.5 }, '& .MuiButton-root': { whiteSpace: 'nowrap', flexShrink: 0 } }}>
+              <Typography noWrap sx={{ flex: 1, minWidth: 0, fontSize: 14, color: 'text.secondary' }}>{own.length} 个歌单</Typography>
+              <ListLayoutSwitch sx={{ mr: 0.5, display: { xs: 'none', sm: 'flex' } }} />
+              <Button variant="outlined" size="small" startIcon={<DownloadRoundedIcon />} onClick={() => setImportOpen(true)}>
                 导入歌单
               </Button>
-              <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setCreateOpen(true)}>
+              <Button variant="contained" size="small" startIcon={<AddRoundedIcon />} onClick={() => setCreateOpen(true)}>
                 新建歌单
               </Button>
             </Box>

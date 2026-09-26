@@ -130,13 +130,19 @@ function LevelCard({ info }: { info: CreatorLevelInfo }) {
 }
 
 function PrivilegeCard({ info }: { info: CreatorLevelInfo }) {
+  // 后端某级没配特权时 privileges 是 Go 的 nil 切片 → JSON null,直接 .map 整页崩(「出现了一些问题」)
+  const mine = info.privileges ?? [];
+  const next = info.nextLevel?.privileges ?? [];
   return (
     <Paper sx={{ p: 3, borderRadius: 2, bgcolor: 'background.paper', mb: 2 }}>
       <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
         我的特权
       </Typography>
       <Stack spacing={1}>
-        {info.privileges.map((p, i) => (
+        {mine.length === 0 && (
+          <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>当前等级暂无特权,升级后解锁</Typography>
+        )}
+        {mine.map((p, i) => (
           <Box
             key={i}
             sx={{
@@ -169,8 +175,8 @@ function PrivilegeCard({ info }: { info: CreatorLevelInfo }) {
             升级到 {info.nextLevel.name} 可解锁
           </Typography>
           <Stack spacing={0.5}>
-            {info.nextLevel.privileges
-              .filter(p => !info.privileges.includes(p))
+            {next
+              .filter(p => !mine.includes(p))
               .slice(0, 3)
               .map((p, i) => (
                 <Box

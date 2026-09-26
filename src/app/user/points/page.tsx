@@ -92,20 +92,21 @@ export default function PointsPage() {
 
   return (
     <Box sx={{ height: 'calc(100dvh - var(--appbar-h, 66px))', overflow: 'auto', overscrollBehavior: 'contain' }}>
-      <Box sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 3, maxWidth: 'max(1400px, var(--page-max))', mx: 'auto' }}>
-        <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>
+      <Box sx={{ p: { xs: 1.5, md: 3 }, pb: { xs: 'calc(16px + var(--sab, 0px))', md: 3 }, display: 'flex', flexDirection: 'column', gap: { xs: 1.5, md: 3 }, maxWidth: 'max(1400px, var(--page-max))', mx: 'auto' }}>
+        {/* 手机顶栏已经写着「我的积分」 */}
+        <Typography variant="h5" sx={{ display: { xs: 'none', md: 'block' }, fontWeight: 700, mb: 1 }}>
           我的积分
         </Typography>
 
         <LoginGate mode="replace" message="登录后查看我的积分">
-          <Box sx={{ p: 3, borderRadius: 2, background: 'linear-gradient(135deg, #FE2C55 0%, #FFB400 100%)', color: '#fff' }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+          <Box sx={{ p: { xs: 2, md: 3 }, borderRadius: 2, background: 'linear-gradient(135deg, #FE2C55 0%, #FFB400 100%)', color: '#fff' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: { xs: 0.5, md: 1.5 } }}>
               <StarsIcon />
               <Typography sx={{ fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase', fontWeight: 600, opacity: 0.9 }}>
                 可用积分
               </Typography>
             </Box>
-            <Typography variant="h2" sx={{ fontWeight: 800 }}>
+            <Typography variant="h2" sx={{ fontWeight: 800, fontSize: { xs: 40, md: undefined } }}>
               {available.toLocaleString()}
             </Typography>
             <Typography sx={{ opacity: 0.85, fontSize: 13 }}>累计获得 {lifetime.toLocaleString()} 积分</Typography>
@@ -113,7 +114,19 @@ export default function PointsPage() {
 
           <SignCard userId={uid} />
 
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          {/* 手机上六个分页是一行横滑的小胶囊(以前是大按钮折成三行) */}
+          <Box
+            sx={{
+              display: 'flex',
+              gap: 1,
+              flexWrap: { xs: 'nowrap', md: 'wrap' },
+              overflowX: { xs: 'auto', md: 'visible' },
+              mx: { xs: -1.5, md: 0 },
+              px: { xs: 1.5, md: 0 },
+              scrollbarWidth: 'none',
+              '&::-webkit-scrollbar': { display: 'none' },
+            }}
+          >
             {([
               { key: 'overview', label: '积分总览', icon: <SummarizeRoundedIcon sx={{ fontSize: 16 }} /> },
               { key: 'records', label: '积分明细', icon: <ReceiptLongRoundedIcon sx={{ fontSize: 16 }} /> },
@@ -127,7 +140,17 @@ export default function PointsPage() {
                 variant={tab === t.key ? 'contained' : 'outlined'}
                 startIcon={t.icon}
                 onClick={() => setTab(t.key)}
-                sx={{ borderRadius: 2, textTransform: 'none' }}
+                sx={{
+                  borderRadius: { xs: 999, md: 2 },
+                  textTransform: 'none',
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap',
+                  fontSize: { xs: 13, md: undefined },
+                  px: { xs: 1.5, md: undefined },
+                  py: { xs: 0.4, md: undefined },
+                  minWidth: 0,
+                  '& .MuiButton-startIcon': { display: { xs: 'none', md: 'inherit' } },
+                }}
               >
                 {t.label}
               </Button>
@@ -135,15 +158,15 @@ export default function PointsPage() {
           </Box>
 
           {tab === 'overview' && (
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2 }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: { xs: 1, md: 2 } }}>
               {[
                 { label: '今日获得', value: earned.today, color: 'success.main' },
                 { label: '近 7 天获得', value: earned.week, color: 'secondary.main' },
                 { label: '累计获得', value: lifetime, color: 'warning.main' },
               ].map((s) => (
-                <Box key={s.label} sx={{ p: 2.5, borderRadius: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
-                  <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{s.label}</Typography>
-                  <Typography sx={{ fontSize: 28, fontWeight: 700, color: s.color, mt: 0.5 }}>{s.value.toLocaleString()}</Typography>
+                <Box key={s.label} sx={{ p: { xs: 1.5, md: 2.5 }, borderRadius: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider', minWidth: 0 }}>
+                  <Typography noWrap sx={{ fontSize: 12, color: 'text.secondary' }}>{s.label}</Typography>
+                  <Typography sx={{ fontSize: { xs: 20, md: 28 }, fontWeight: 700, color: s.color, mt: 0.5 }}>{s.value.toLocaleString()}</Typography>
                 </Box>
               ))}
             </Box>

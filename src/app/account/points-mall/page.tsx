@@ -27,7 +27,7 @@ export default function PointsMallPage() {
   return (
     <Box sx={{ height: 'calc(100dvh - var(--appbar-h, 66px))', overflow: 'auto', overscrollBehavior: 'contain' }}>
       <Container maxWidth="lg" sx={{ py: { xs: 2, md: 4 } }}>
-        <Typography variant="h5" sx={{ fontWeight: 700, mb: 3 }}>积分商城</Typography>
+        <Typography variant="h5" sx={{ fontWeight: 700, mb: 3, display: { xs: 'none', md: 'block' } }}>积分商城</Typography>
         <LoginGate mode="replace" message="登录后访问积分商城">
           <PointsMallTab initialPoints={pointQuery.data?.point ?? 0} />
         </LoginGate>

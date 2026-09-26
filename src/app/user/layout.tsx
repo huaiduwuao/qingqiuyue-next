@@ -101,10 +101,14 @@ function UserLayoutContent({
         <Toolbar
           sx={{
             gap: 1.5,
-            minHeight: 64,
-            px: { xs: 1.5, md: 3 },
+            minHeight: { xs: 48, md: 64 },
+            px: { xs: 0.5, md: 3 },
           }}
         >
+          {/* 手机:和账号二级页一样,左上角返回 + 标题;右边不放返回/通知/私信/头像 */}
+          <IconButton onClick={handleBack} aria-label="返回" sx={{ display: { xs: 'inline-flex', md: 'none' }, color: 'text.primary' }}>
+            <ArrowBackIcon />
+          </IconButton>
           <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1, minWidth: 0 }}>
             <Box
               sx={{
@@ -134,13 +138,13 @@ function UserLayoutContent({
               ml: 0.5,
             }}
           >
-            <Box sx={{ fontSize: 14, fontWeight: 600, lineHeight: 1.2, color: 'text.primary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <Box sx={{ fontSize: 16, fontWeight: 700, lineHeight: 1.2, color: 'text.primary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {currentPage.label}
             </Box>
             <Box
               component="span"
               sx={{
-                display: 'inline-block',
+                display: 'none',
                 px: 0.5,
                 py: 0.125,
                 mt: 0.25,
@@ -158,7 +162,7 @@ function UserLayoutContent({
 
           <Box sx={{ flex: 1 }} />
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+          <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 0.25 }}>
             <IconButton
               onClick={handleBack}
               size="small"
@@ -175,7 +179,7 @@ function UserLayoutContent({
 
           <AvatarHoverPopup
             anchor={
-              <IconButton size="small" sx={{ ml: 0.5, p: 0.25 }}>
+              <IconButton size="small" sx={{ ml: 0.5, p: 0.25, display: { xs: 'none', md: 'inline-flex' } }}>
                 <Avatar
                   src={currentUser?.avatar}
                   sx={{

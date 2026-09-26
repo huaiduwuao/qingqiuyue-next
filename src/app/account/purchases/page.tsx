@@ -55,7 +55,7 @@ export default function PurchasesPage() {
   return (
     <Box sx={{ height: 'calc(100dvh - var(--appbar-h, 66px))', overflow: 'auto', overscrollBehavior: 'contain' }}>
       <Container maxWidth="md" sx={{ py: { xs: 2, md: 4 } }}>
-        <Typography variant="h5" sx={{ fontWeight: 700, mb: 3 }}>我的购买</Typography>
+        <Typography variant="h5" sx={{ fontWeight: 700, mb: 3, display: { xs: 'none', md: 'block' } }}>我的购买</Typography>
 
         <LoginGate mode="replace" message="登录后查看我的购买">
           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.5, mb: 3 }}>
