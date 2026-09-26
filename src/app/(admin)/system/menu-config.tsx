@@ -177,6 +177,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
       { id: 'stats-visitor', label: '站点流量', path: '/system/stats/visitor', icon: <ShowChartRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
       { id: 'stats-active', label: '用户活跃', path: '/system/stats/active', icon: <HistoryRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FFB400' },
       { id: 'stats-content', label: '内容热度', path: '/system/stats/content', icon: <BarChartRoundedIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6' },
+      { id: 'recommend-console', label: '推荐系统', path: '/system/recommend/console', icon: <InsightsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
     ],
   },
   // ── 数字员工闭环:定义 → 装备能力 → 执行 → 观测(每一页都是真接口,没有摆设项)──

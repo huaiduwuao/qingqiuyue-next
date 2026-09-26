@@ -11,6 +11,9 @@ import { getDetailRoute } from '@/lib/contentRoute';
 import { useRouter } from 'next/navigation';
 import { CoverImage } from '@/components/common/CoverImage';
 
+// 每次打开页面一个随机种子:推荐板不再永远是同样 12 条(后端 Request.Shuffle)。
+const BOARD_SHUFFLE = Math.floor(Math.random() * 2 ** 31) + 1;
+
 interface Props {
   types?: string[];
   size?: number;
@@ -27,7 +30,7 @@ export default function RecommendBoard({
   const { data, isLoading } = useQuery({
     queryKey: ['recommend-board', types.join(','), size],
     queryFn: () =>
-      fetchRecommend({ types: types.join(','), size }).then((r: any) => (r?.list ?? []) as HotItem[]),
+      fetchRecommend({ types: types.join(','), size, shuffle: BOARD_SHUFFLE }).then((r: any) => (r?.list ?? []) as HotItem[]),
     staleTime: 90_000,
   });
 

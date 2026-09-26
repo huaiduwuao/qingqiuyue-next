@@ -210,13 +210,17 @@ export function RecommendVideoFeed() {
     isFetchingNextPage,
   } = useInfiniteQuery({
     queryKey: ['home-recommend', 'recommend-feed'],
-    initialPageParam: 1,
-    getNextPageParam: (last: { hasMore: boolean; page: number }) => (last.hasMore ? last.page + 1 : undefined),
+    // 每次从第一页拉起都换一个 shuffle(刷新 / 重新进入),后续页沿用同一个:
+    // 游客的列表才会每次不同,而同一次浏览里翻页又不会跳条或重复。
+    initialPageParam: { page: 1, shuffle: 0 },
+    getNextPageParam: (last: { hasMore: boolean; page: number; shuffle: number }) =>
+      (last.hasMore ? { page: last.page + 1, shuffle: last.shuffle } : undefined),
     // 登录用户的翻页靠服务端曝光去重,重新拉会换一批内容、当前这条跟着跳走
     staleTime: Infinity,
     refetchOnWindowFocus: false,
     queryFn: async ({ pageParam }) => {
-      const page = pageParam;
+      const page = pageParam.page;
+      const shuffle = pageParam.shuffle || Math.floor(Math.random() * 2 ** 31) + 1;
       const resp = await fetchRecommend({
         // 短剧也进来:能嵌外链播放器 / 站内直链可播的才会被后端留下(watchable)
         types: 'VIDEO,TELEPLAY,SHORT_DRAMA',
@@ -224,6 +228,7 @@ export function RecommendVideoFeed() {
         page: page,
         // 沉浸式流每一屏就是一个播放器:只要站内能看到画面的(后端 recommendengine WatchableOnly)
         watchable: 1,
+        shuffle,
       }) as any;
       const list = (resp?.list ?? []) as any[];
       const items = list.map((it): VideoItem => ({
@@ -262,7 +267,7 @@ export function RecommendVideoFeed() {
       // 「去原站看」「修复中」的卡片放在推荐流里就是一屏划不掉的废内容。
       const watchable = items.filter((v) =>
         canResolveLocally(v.sourceUrl || '') || (v.playbackStatus === 'playable' && !!v.sourceUrl));
-      return { items: watchable, hasMore, page };
+      return { items: watchable, hasMore, page, shuffle };
     },
   });
 

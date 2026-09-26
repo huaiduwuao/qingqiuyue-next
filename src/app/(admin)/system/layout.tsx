@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback, type ReactNode } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef, useTransition, type ReactNode } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -11,6 +11,7 @@ import Avatar from '@mui/material/Avatar';
 import Menu from '@mui/material/Menu';
 import Drawer from '@mui/material/Drawer';
 import CircularProgress from '@mui/material/CircularProgress';
+import LinearProgress from '@mui/material/LinearProgress';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import MenuItem from '@mui/material/MenuItem';
@@ -189,8 +190,37 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
   const setAllGroups = (open: boolean) =>
     setGroups(Object.fromEntries(visibleGroups.map((g) => [g.title, open])));
 
+  // 切菜单的卡顿:菜单项是普通 Box + router.push,没有任何预取,点下去要先拉目标页的
+  // RSC 数据(.txt)再拉它的 JS 分块,两轮往返(外网每轮 0.4s 起)期间界面毫无反应,
+  // 高亮、标题、内容全停在旧页。现在三件事:
+  //   · 悬停 / 聚焦 / 按下时 router.prefetch,点击时数据多半已经在路上或到了;
+  //   · 空闲时把展开分组里的菜单也预取掉(每个路由只预取一次);
+  //   · 点击即切高亮和标题,内容区顶端出进度条,直到新页面真正提交。
+  const [navPending, startNav] = useTransition();
+  const [pendingPath, setPendingPath] = useState<string | null>(null);
+  const prefetched = useRef(new Set<string>());
+  const prefetch = useCallback(
+    (path?: string) => {
+      if (!path || path === '#' || prefetched.current.has(path)) return;
+      prefetched.current.add(path);
+      router.prefetch(path);
+    },
+    [router],
+  );
+
+  // URL 变了(点菜单、前进后退、页面内跳转)就不再有"待切换"的目标。
+  // 过渡结束却没换 URL(跳转失败)时也要清掉,别让高亮一直停在没去成的菜单上。
+  useEffect(() => {
+    setPendingPath(null);
+  }, [pathname]);
+  useEffect(() => {
+    if (!navPending) setPendingPath(null);
+  }, [navPending]);
+
   const handleMenuClick = (item: MenuItemDef) => {
-    if (pathname !== item.path) router.push(item.path);
+    if (pathname === item.path) return;
+    setPendingPath(item.path);
+    startNav(() => router.push(item.path));
   };
 
   const handleReturnToFront = () => {
@@ -199,6 +229,35 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
     sessionStorage.removeItem('admin_entry_path');
     router.push(entry && entry !== '/system/role' ? entry : '/home/recommend');
   };
+
+  // 空闲预取展开分组里的菜单(默认只展开当前页所在分组,量不大)。
+  const openPaths = useMemo(
+    () =>
+      visibleGroups
+        .filter((g) => (q ? false : groupOpen[g.title] ?? g.title === activeGroupTitle))
+        .flatMap((g) => g.items.map((it) => it.path)),
+    [visibleGroups, groupOpen, activeGroupTitle, q],
+  );
+  useEffect(() => {
+    if (!isAdmin || openPaths.length === 0) return;
+    const w = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    const run = () => openPaths.forEach((p) => prefetch(p));
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(run, { timeout: 3000 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const t = window.setTimeout(run, 1200);
+    return () => window.clearTimeout(t);
+  }, [isAdmin, openPaths, prefetch]);
+
+  // 点下去还没切过去时,高亮 / 标题先跟着目标走
+  const shownPath = pendingPath ?? activeItem?.path;
+  const shownLabel = pendingPath
+    ? visibleGroups.flatMap((g) => g.items).find((it) => it.path === pendingPath)?.label
+    : activeItem?.label;
 
   // 会话/当前用户还在拉的时候给个骨架,避免闪一下"无访问权限"— 菜单和权限都还没到。
   //
@@ -332,10 +391,13 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
             </Box>
             <Collapse in={open} timeout={160} unmountOnExit>
             {group.items.map((item) => {
-              const isActive = activeItem?.path === item.path;
+              const isActive = shownPath === item.path;
               return (
                 <Box
                   key={item.id}
+                  onMouseEnter={() => prefetch(item.path)}
+                  onFocus={() => prefetch(item.path)}
+                  onPointerDown={() => prefetch(item.path)}
                   onClick={() => {
                     handleMenuClick(item);
                     setNavOpen(false);
@@ -455,7 +517,7 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
 
         <Typography sx={{ fontSize: 13, color: 'var(--text-muted, currentColor)', display: { xs: 'none', sm: 'block' } }}>/</Typography>
         <Typography noWrap sx={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary, currentColor)', minWidth: 0 }}>
-          {activeItem?.label || '控制台'}
+          {shownLabel || '控制台'}
         </Typography>
 
         <Box sx={{ flex: 1 }} />
@@ -613,8 +675,14 @@ export default function SystemLayout({ children }: { children: ReactNode }) {
         </Box>
 
         {/* 内容 */}
-        <Box component="main" sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <Box sx={{ flex: 1, overflow: 'auto', p: { xs: 1.5, md: 3 }, pb: { xs: 'calc(12px + var(--player-inset, 0px))', md: 'calc(24px + var(--player-inset, 0px))' }, WebkitOverflowScrolling: 'touch' }}>
+        <Box component="main" sx={{ position: 'relative', flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {navPending && (
+            <LinearProgress
+              aria-label="页面切换中"
+              sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, zIndex: 2 }}
+            />
+          )}
+          <Box sx={{ flex: 1, overflow: 'auto', opacity: navPending ? 0.6 : 1, transition: 'opacity 0.15s', p: { xs: 1.5, md: 3 }, pb: { xs: 'calc(12px + var(--player-inset, 0px))', md: 'calc(24px + var(--player-inset, 0px))' }, WebkitOverflowScrolling: 'touch' }}>
             {children}
           </Box>
         </Box>
