@@ -13,19 +13,9 @@ import Snackbar from '@mui/material/Snackbar';
 import IconButton from '@mui/material/IconButton';
 import VideocamIcon from '@mui/icons-material/Videocam';
 import ImageIcon from '@mui/icons-material/Image';
-import ThreeSixtyIcon from '@mui/icons-material/ThreeSixty';
 import DescriptionIcon from '@mui/icons-material/Description';
-import PhotoLibraryRoundedIcon from '@mui/icons-material/PhotoLibraryRounded';
-import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
-import ArticleRoundedIcon from '@mui/icons-material/ArticleRounded';
-import LibraryMusicRoundedIcon from '@mui/icons-material/LibraryMusicRounded';
-import AutoStoriesRoundedIcon from '@mui/icons-material/AutoStoriesRounded';
-import MovieFilterRoundedIcon from '@mui/icons-material/MovieFilterRounded';
-import TvRoundedIcon from '@mui/icons-material/TvRounded';
-import LocalMoviesRoundedIcon from '@mui/icons-material/LocalMoviesRounded';
-import AnimationRoundedIcon from '@mui/icons-material/AnimationRounded';
-import LiveTvRoundedIcon from '@mui/icons-material/LiveTvRounded';
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import CloudUploadRoundedIcon from '@mui/icons-material/CloudUploadRounded';
 import ScheduleRoundedIcon from '@mui/icons-material/ScheduleRounded';
@@ -44,31 +34,6 @@ import { RelativeTime } from '@/components/common/RelativeTime';
 import { coverBackground } from '@/lib/media';
 import { ListLayout, ListLayoutSwitch } from '@/components/common/ListLayout';
 import { scheduleContent, SCHEDULE_CONTENT_SUPPORTED } from '@/apis/review';
-
-// 13 个内容创作类型的统一配置 —— 工作台 / 发布中心 / 落地页三处共用。
-// 单一事实来源:contentTypes.tsx。这里只保留工作台特有的样式与交互逻辑。
-import { CREATION_TYPES, type CreationType, type CreationTypeId } from './contentTypes';
-
-// type → view id 路由表。视频和图片 MV 都进 hd-publish dispatcher,
-// hd-publish 内部用 chip 选子类型。其他类型也全部进 hd-publish,
-// type 作为 tabParams 传入让 dispatcher 自动切 chip 并弹对应 dialog。
-// 早期版本每种类型一个独立 page,现已统一为 dispatcher 入口。
-const TYPE_TO_TAB: Record<string, string> = {
-  video: 'hd-publish',
-  panorama: 'hd-publish', // 并入视频(后续在 hd-publish 加 360° 开关)
-  image: 'hd-publish',
-  'image-mv': 'hd-publish',
-  article: 'hd-publish',
-  novel: 'hd-publish',
-  news: 'hd-publish',
-  music: 'hd-publish',
-  comics: 'hd-publish',
-  vshow: 'hd-publish',
-  teleplay: 'hd-publish',
-  film: 'hd-publish',
-  animation: 'hd-publish',
-  live: 'hd-publish',
-};
 
 type WipKind = 'draft' | 'uploading' | 'scheduled';
 type WipType = 'video' | 'image' | 'article';
@@ -201,27 +166,6 @@ export default function NewCreationSection() {
       }
     }
   };
-  const handleCreate = (id: string) => {
-    // 13 个创作入口全部进 hd-publish dispatcher,type 作 tabParams:
-    //   video      → type='video'  (默认 VIDEO 流程:HD 转码 / 审核 / 极速通道)
-    //   image      → type='picture-album'  (图集)
-    //   image-mv   → type='picture-mv'
-    //   article    → type='article'
-    //   novel      → type='novel'  / news  → 'news'
-    //   music      → type='music'
-    //   comics     → type='comics'
-    //   vshow      → type='vshow'
-    //   teleplay   → type='teleplay'
-    //   film       → type='film'
-    //   animation  → type='animation'
-    //   live       → type='live'
-    // dispatcher 接住 tabParams.type 自动切 chip + 弹对应表单 dialog。
-    const item = CREATION_TYPES.find((c) => c.id === id);
-    if (!item) return;
-    const tab = TYPE_TO_TAB[id] ?? 'hd-publish';
-    // type 用 chip 用的 kebab-case;chip 内部 PUBLISH_HUB_TYPE_TO_CONTENT_TYPE 再转后端枚举
-    setActiveTab(tab, { type: id === 'panorama' ? 'video' : id });
-  };
   const handleViewAll = () => {
     setActiveTab('works');
   };
@@ -236,96 +180,15 @@ export default function NewCreationSection() {
         borderColor: 'divider',
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', mb: 2.5 }}>
-        <Typography sx={{ fontSize: 18, fontWeight: 600, color: 'text.primary' }}>
-          新的创作
-        </Typography>
-        <Box sx={{ flex: 1 }} />
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 0.5,
-            cursor: 'pointer',
-            color: 'text.secondary',
-            fontSize: 12,
-            '&:hover': { color: 'primary.main' },
-          }}
-          onClick={handleViewAll}
-        >
-          <Typography sx={{ fontSize: 12 }}>查看全部</Typography>
-          <ArrowForwardIosIcon sx={{ fontSize: 10 }} />
-        </Box>
-      </Box>
-
-      {/* 发布入口(2 行 × 5 列),每个都直达对应的发布表单 */}
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' },
-          gap: { xs: 1.5, md: 1.5 },
-        }}
-      >
-        {CREATION_TYPES.map((item) => (
-          <Box
-            key={item.id}
-            onClick={() => handleCreate(item.id)}
-            sx={{
-              p: 2,
-              borderRadius: 2,
-              bgcolor: 'background.paper',
-              border: '1px solid',
-              borderColor: 'divider',
-              cursor: 'pointer',
-              transition: 'all 0.25s ease-in-out',
-              position: 'relative',
-              overflow: 'hidden',
-              '&:hover': {
-                transform: 'translateY(-4px)',
-                borderColor: 'primary.main',
-                boxShadow: '0 8px 24px rgba(254, 44, 85, 0.15)',
-                '& .creation-icon': {
-                  transform: 'scale(1.1) rotate(-5deg)',
-                },
-              },
-            }}
-          >
-            <Box
-              className="creation-icon"
-              sx={{
-                width: 48,
-                height: 48,
-                borderRadius: 1.5,
-                background: item.gradient,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'text.primary',
-                mb: 1.25,
-                transition: 'transform 0.3s ease-in-out',
-              }}
-            >
-              {item.icon}
-            </Box>
-            <Typography sx={{ fontSize: 13, fontWeight: 600, color: 'text.primary', mb: 0.5 }}>
-              {item.title}
-            </Typography>
-            <Typography sx={{ fontSize: 11, color: 'text.secondary', lineHeight: 1.5 }}>
-              {item.desc}
-            </Typography>
-          </Box>
-        ))}
-      </Box>
-
-      {/* 进行中 (草稿 / 上传中 / 定时发布) */}
-      <Box sx={{ mt: 3, pt: 2.5, borderTop: '1px dashed', borderColor: 'divider' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+      {/* 13 种发布入口只在「发布作品」页有一份(以前这里又铺了一遍同样的 13 张卡片)。
+          工作台这一步只放发布页没有的东西:进行中的草稿 / 上传中 / 定时发布,外加一个去发布的按钮。 */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
           <Typography sx={{ fontSize: 14, fontWeight: 700, color: 'text.primary' }}>
             进行中
           </Typography>
           <Chip
             size="small"
-            label={`${wip.length}`}
+            label={String(wip.length)}
             sx={{
               height: 18,
               fontSize: 10,
@@ -335,11 +198,26 @@ export default function NewCreationSection() {
               '& .MuiChip-label': { px: 0.75 },
             }}
           />
-          <Box sx={{ flex: 1 }} />
           <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>
             草稿 {drafts.length} · 上传中 {uploading.length} · 已定时 {scheduled.length}
           </Typography>
-          <ListLayoutSwitch />
+          <Box sx={{ flex: 1 }} />
+          <Box sx={{ display: { xs: 'none', sm: 'flex' } }}>
+            <ListLayoutSwitch />
+          </Box>
+          <Button size="small" variant="text" onClick={handleViewAll} endIcon={<ArrowForwardIosIcon sx={{ fontSize: '10px !important' }} />} sx={{ textTransform: 'none', fontSize: 12, color: 'text.secondary' }}>
+            全部作品
+          </Button>
+          <Button
+            size="small"
+            variant="contained"
+            disableElevation
+            startIcon={<AddRoundedIcon />}
+            onClick={() => setActiveTab('hd-publish')}
+            sx={{ textTransform: 'none', fontSize: 12, fontWeight: 600, borderRadius: 999 }}
+          >
+            发布作品
+          </Button>
         </Box>
 
         {wip.length === 0 ? (
@@ -451,7 +329,7 @@ export default function NewCreationSection() {
                           >
                             继续编辑
                           </Button>
-                          <Button
+                          <Button variant="text"
                             size="small"
                             onClick={() => handleCancel(item)}
                             sx={{ textTransform: 'none', fontSize: 10, color: 'text.secondary', minWidth: 0, py: 0.25, px: 1 }}
@@ -543,7 +421,7 @@ export default function NewCreationSection() {
                           </Button>
                           {/* 后端还没有改定时接口,先隐藏「改时间」 */}
                           {SCHEDULE_CONTENT_SUPPORTED && (
-                          <Button
+                          <Button variant="text"
                             size="small"
                             startIcon={<EditCalendarRoundedIcon sx={{ fontSize: 12 }} />}
                             onClick={() => {
@@ -557,7 +435,7 @@ export default function NewCreationSection() {
                             改时间
                           </Button>
                           )}
-                          <Button
+                          <Button variant="text"
                             size="small"
                             onClick={() => handleCancel(item)}
                             sx={{ textTransform: 'none', fontSize: 10, color: 'text.secondary', minWidth: 0, py: 0.25, px: 1 }}
@@ -573,7 +451,6 @@ export default function NewCreationSection() {
             })}
           </ListLayout>
         )}
-      </Box>
 
       <Snackbar
         open={!!snack}
@@ -615,7 +492,7 @@ export default function NewCreationSection() {
           </Box>
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={() => setRescheduleOpen(null)} sx={{ textTransform: 'none' }}>
+          <Button variant="text" onClick={() => setRescheduleOpen(null)} sx={{ textTransform: 'none' }}>
             取消
           </Button>
           <Button

@@ -83,9 +83,9 @@ export default function CreatorHomePage() {
         <HotTopicsCarousel />
       </Box>
 
-      {/* Step 2 · 创作开始 */}
+      {/* Step 2 · 继续创作:只放进行中的草稿/上传/定时 + 去发布的按钮,13 种类型入口在「发布作品」页 */}
       <Box>
-        <SectionHeader step={2} title="开始创作" subtitle="发布短视频 / 图文 / 直播" hint="支持草稿暂存" />
+        <SectionHeader step={2} title="继续创作" subtitle="草稿 · 上传中 · 定时发布" />
         <NewCreationSection />
       </Box>
 
