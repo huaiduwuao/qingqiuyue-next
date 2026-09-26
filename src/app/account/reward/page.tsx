@@ -111,7 +111,9 @@ function RewardCenter() {
           ? { initialTeamId: teamFocus, onOpenTaskboard: (teamId: number) => openBoard({ teamId }) }
           : tab === 'demands'
             ? { onOpenTaskboard: (did: number) => openBoard({ demandId: did }) }
-            : {};
+            : tab === REWARD_HOME_TAB
+              ? { onOpenTab: setTab }
+              : {};
 
   return (
     <WorkspaceShell

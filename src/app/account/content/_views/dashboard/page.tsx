@@ -12,6 +12,8 @@ import ContentDistributionChart from '../../_components/ContentDistributionChart
 import TrendChart from '../../_components/TrendChart';
 import FanPortrait from '../../_components/FanPortrait';
 import HotTopicsCarousel from '../../_components/HotTopicsCarousel';
+import CreatorHomeMobile from './CreatorHomeMobile';
+import { useResponsive } from '@/hooks/useResponsive';
 
 function SectionHeader({
   step,
@@ -69,6 +71,9 @@ function SectionHeader({
 }
 
 export default function CreatorHomePage() {
+  // 手机上是单独设计的精简工作台,不是这一页的响应式缩小版
+  const { isMobile } = useResponsive();
+  if (isMobile) return <CreatorHomeMobile />;
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, maxWidth: 'max(1400px, var(--page-max))', mx: 'auto', width: '100%', pb: 4 }}>
       {/* Hero — 创作者档案 */}

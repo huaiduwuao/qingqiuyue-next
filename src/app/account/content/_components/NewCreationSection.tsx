@@ -72,7 +72,8 @@ const KIND_META: Record<WipKind, { label: string; color: string; bg: string; ico
   scheduled: { label: '已定时', color: '#FFB400', bg: 'rgba(255, 180, 0, 0.12)', icon: <ScheduleRoundedIcon sx={{ fontSize: 13 }} /> },
 };
 
-export default function NewCreationSection() {
+/** compact:手机工作台用 —— 没有进行中的作品就整块不显示;不放样式切换和「发布作品」(页顶已有大按钮) */
+export default function NewCreationSection({ compact = false }: { compact?: boolean } = {}) {
   const [snack, setSnack] = useState<string | null>(null);
   const { setActiveTab } = useActiveTab();
 
@@ -170,12 +171,14 @@ export default function NewCreationSection() {
     setActiveTab('works');
   };
 
+  if (compact && wip.length === 0) return null;
+
   return (
     <Box
       sx={{
         bgcolor: 'background.paper',
-        borderRadius: 2,
-        p: 3,
+        borderRadius: compact ? 3 : 2,
+        p: compact ? 1.75 : 3,
         border: '1px solid',
         borderColor: 'divider',
       }}
@@ -202,12 +205,15 @@ export default function NewCreationSection() {
             草稿 {drafts.length} · 上传中 {uploading.length} · 已定时 {scheduled.length}
           </Typography>
           <Box sx={{ flex: 1 }} />
-          <Box sx={{ display: { xs: 'none', sm: 'flex' } }}>
-            <ListLayoutSwitch />
-          </Box>
+          {!compact && (
+            <Box sx={{ display: { xs: 'none', sm: 'flex' } }}>
+              <ListLayoutSwitch />
+            </Box>
+          )}
           <Button size="small" variant="text" onClick={handleViewAll} endIcon={<ArrowForwardIosIcon sx={{ fontSize: '10px !important' }} />} sx={{ textTransform: 'none', fontSize: 12, color: 'text.secondary' }}>
             全部作品
           </Button>
+          {!compact && (
           <Button
             size="small"
             variant="contained"
@@ -218,6 +224,7 @@ export default function NewCreationSection() {
           >
             发布作品
           </Button>
+          )}
         </Box>
 
         {wip.length === 0 ? (

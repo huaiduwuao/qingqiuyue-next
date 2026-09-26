@@ -34,8 +34,10 @@ export default function RewardHero({
   rankingPosition = 0,
   totalIncomeYuan = 0,
 }: RewardHeroProps) {
-  const target = totalPoint + needPoint;
-  const percent = target > 0 ? (totalPoint / target) * 100 : 0;
+  // 后端没给 needPoint(已满级 / 接口缺字段)时以前算出 NaN,界面上是「194 / NaN」「还需 0 灵气」
+  const hasNext = Number.isFinite(needPoint) && needPoint > 0;
+  const target = (totalPoint || 0) + (hasNext ? needPoint : 0);
+  const percent = hasNext && target > 0 ? ((totalPoint || 0) / target) * 100 : 100;
 
   return (
     <Box
@@ -132,10 +134,10 @@ export default function RewardHero({
               />
             </Box>
             <Typography sx={{ fontSize: 10, color: 'text.secondary', fontFamily: 'monospace' }}>
-              {(totalPoint || 0).toLocaleString()} / {target.toLocaleString()}
+              {(totalPoint || 0).toLocaleString()}{hasNext && ` / ${target.toLocaleString()}`}
             </Typography>
           </Box>
-          <Typography sx={{ fontSize: 11, color: 'text.secondary', mt: 0.75 }}>
+          <Typography sx={{ display: hasNext ? 'block' : 'none', fontSize: 11, color: 'text.secondary', mt: 0.75 }}>
             距离 Lv {(level || 0) + 1} 还需 <Box component="span" sx={{ color: 'primary.main', fontWeight: 600 }}>{(needPoint || 0).toLocaleString()}</Box> 灵气
           </Typography>
         </Box>

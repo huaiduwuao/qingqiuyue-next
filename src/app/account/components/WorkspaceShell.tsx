@@ -213,7 +213,8 @@ export function WorkspaceShell({ title, logo, groups, selected, onSelect, aside,
             }}
           >
             {children}
-            {aside && <Box sx={{ display: { lg: 'none' } }}>{aside}</Box>}
+            {/* 附属栏:大屏在右侧;平板排在正文之后;手机不显示(手机的一级页各自单独设计,不堆电脑版的附属信息) */}
+            {aside && <Box sx={{ display: { xs: 'none', md: 'block', lg: 'none' } }}>{aside}</Box>}
           </Box>
           {aside && (
             <Box component="aside" sx={{ display: { xs: 'none', lg: 'block' }, flexShrink: 0, overflow: 'auto', p: 3, pl: 0 }}>
