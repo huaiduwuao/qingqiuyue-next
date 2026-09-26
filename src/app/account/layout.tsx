@@ -8,25 +8,34 @@ import IconButton from '@mui/material/IconButton';
 import Avatar from '@mui/material/Avatar';
 import Typography from '@mui/material/Typography';
 import { usePathname, useRouter } from 'next/navigation';
-import MenuIcon from '@mui/icons-material/Menu';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import PersonIcon from '@mui/icons-material/Person';
-import VideoLibraryIcon from '@mui/icons-material/VideoLibrary';
-import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
-import SettingsIcon from '@mui/icons-material/Settings';
 import { useApp } from '@/contexts/AppContext';
 import { AccountContextProvider } from '@/contexts/AccountContext';
 import { AvatarHoverPopup } from '@/components/account/AvatarHoverPopup';
 import NoticeIconView, { DmIconView } from '@/components/NoticeIcon';
-import MobileNavDrawer from './components/MobileNavDrawer';
+import { MobileMenuButton } from '@/components/layout/MobileSideMenu';
+import { useResponsive } from '@/hooks/useResponsive';
 import { MobileBottomNav, mobileTabForPath } from '@/components/layout/MobileBottomNav';
 import GradientText from '@/components/reactbits/GradientText';
 
+// 顶栏标题。以前这里还是一套「个人中心/内容管理/奖励中心/设置」抽屉导航,和首页侧边栏、工作台导航
+// 叠成好几套;现在全站只有首页那一个侧边栏(MobileMenuButton),这里只管标题。
 const ACCOUNT_PAGES = [
-  { key: 'center', label: '个人中心', sub: '个人空间', path: '/account/center', icon: <PersonIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
-  { key: 'content', label: '内容管理', sub: '创作者工作台', path: '/account/content', icon: <VideoLibraryIcon sx={{ fontSize: 18 }} />, accent: 'secondary.main' },
-  { key: 'reward', label: '奖励中心', sub: '任务 · 邀请 · 悬赏协作', path: '/account/reward', icon: <CardGiftcardIcon sx={{ fontSize: 18 }} />, accent: 'warning.main' },
-  { key: 'settings', label: '设置', sub: '账号与隐私', path: '/account/settings', icon: <SettingsIcon sx={{ fontSize: 18 }} />, accent: '#8B5CF6' },
+  { key: 'center', label: '个人中心', sub: '个人空间', path: '/account/center', accent: 'primary.main' },
+  { key: 'content', label: '创作中心', sub: '发布 · 管理 · 数据 · 变现', path: '/account/content', accent: 'secondary.main' },
+  { key: 'reward', label: '悬赏', sub: '赏金广场 · 任务 · 邀请', path: '/account/reward', accent: 'warning.main' },
+  { key: 'msg', label: '消息', sub: '互动 · 系统 · 私信', path: '/account/msg', accent: 'primary.main' },
+  { key: 'settings', label: '设置', sub: '账号与隐私', path: '/account/settings', accent: '#8B5CF6' },
+  { key: 'wallet', label: '我的钱包', sub: '钻石 · 收支明细', path: '/account/wallet', accent: '#FE2C55' },
+  { key: 'orders', label: '我的订单', sub: '充值与购买记录', path: '/account/orders', accent: '#5B8DEF' },
+  { key: 'purchases', label: '我的购买', sub: '已购内容', path: '/account/purchases', accent: '#FF8A3D' },
+  { key: 'vip', label: '会员中心', sub: '会员权益', path: '/account/vip', accent: '#D4AF37' },
+  { key: 'points-mall', label: '积分商城', sub: '积分兑换', path: '/account/points-mall', accent: '#8B5CF6' },
+  { key: 'creator-level', label: '创作者等级', sub: '等级与权益', path: '/account/creator-level', accent: 'secondary.main' },
+  { key: 'my-lists', label: '我的合集', sub: '歌单 · 书架 · 收藏夹', path: '/account/my-lists', accent: 'primary.main' },
+  { key: 'dashboard', label: '数据看板', sub: '概览', path: '/account/dashboard', accent: 'primary.main' },
+  { key: 'social-monetize', label: '社交变现', sub: '平台账号收益', path: '/account/social-monetize', accent: 'secondary.main' },
+  { key: 'quota', label: 'AI 额度', sub: '用量与配额', path: '/account/quota', accent: '#5B8DEF' },
 ];
 
 export default function AccountLayout({
@@ -49,7 +58,7 @@ function AccountLayoutContent({
   const pathname = usePathname();
   const router = useRouter();
   const { currentUser } = useApp();
-  const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const { isMobile } = useResponsive();
   const appBarRef = React.useRef<HTMLDivElement | null>(null);
 
   const handleBack = () => {
@@ -76,9 +85,7 @@ function AccountLayoutContent({
   const isAccountSection = pathname.startsWith('/account');
   const isMsgPage = pathname.startsWith('/account/msg');
   const bottomTab = mobileTabForPath(pathname);
-  const currentPage = isMsgPage
-    ? { key: 'msg', label: '消息中心', sub: '互动 · 系统 · 私信', path: '/account/msg', icon: null, accent: 'primary.main' }
-    : ACCOUNT_PAGES.find((p) => pathname.startsWith(p.path)) || ACCOUNT_PAGES[0];
+  const currentPage = ACCOUNT_PAGES.find((p) => pathname.startsWith(p.path)) || ACCOUNT_PAGES[0];
 
   useEffect(() => {
     const html = document.documentElement;
@@ -128,18 +135,19 @@ function AccountLayoutContent({
         <Toolbar
           sx={{
             gap: 1.5,
-            minHeight: 64,
-            px: { xs: 1.5, md: 3 },
+            minHeight: { xs: 48, md: 64 },
+            px: { xs: 0.5, md: 3 },
           }}
         >
-          <IconButton
-            size="small"
-            onClick={() => setDrawerOpen(true)}
-            sx={{ display: { xs: 'inline-flex', md: 'none' }, color: 'text.primary' }}
-            aria-label="打开菜单"
-          >
-            <MenuIcon />
-          </IconButton>
+          {/* 手机左上角:创作/悬赏/消息是底部 tab 的一级页 → 全局侧边栏(和首页同一个);
+              其余是二级页 → 返回。不再有第二套抽屉。 */}
+          {isMobile && (bottomTab ? (
+            <MobileMenuButton />
+          ) : (
+            <IconButton onClick={handleBack} aria-label="返回" sx={{ color: 'text.primary' }}>
+              <ArrowBackIcon />
+            </IconButton>
+          ))}
 
           {/* Page title */}
           <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1, minWidth: 0 }}>
@@ -172,44 +180,25 @@ function AccountLayoutContent({
               ml: 0.5,
             }}
           >
-            <Box sx={{ fontSize: 14, fontWeight: 600, lineHeight: 1.2, color: 'text.primary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            <Box sx={{ fontSize: 16, fontWeight: 700, lineHeight: 1.2, color: 'text.primary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {currentPage.label}
-            </Box>
-            <Box
-              component="span"
-              sx={{
-                display: 'inline-block',
-                px: 0.5,
-                py: 0.125,
-                mt: 0.25,
-                borderRadius: 0.5,
-                bgcolor: `${currentPage.accent}1A`,
-                color: currentPage.accent,
-                fontSize: 9,
-                fontWeight: 600,
-                lineHeight: 1,
-              }}
-            >
-              {currentPage.sub}
             </Box>
           </Box>
 
           <Box sx={{ flex: 1 }} />
 
-          {/* Right actions */}
-          {/* 返回键手机端也要有(之前整组在 xs 隐藏,手机上没有回退入口);通知/私信图标只在 sm+ 显示 */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
+          {/* 桌面右侧:返回 + 通知/私信 + 头像。手机上这些都不放(返回在左上角,消息/我的在底部导航) */}
+          <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 0.25 }}>
             <IconButton
               onClick={handleBack}
               size="small"
               aria-label="返回"
-              // 创作/悬赏/消息在手机上是底部 tab 的一级页,不需要返回键
-              sx={{ color: 'text.secondary', display: bottomTab ? { xs: 'none', md: 'inline-flex' } : undefined }}
+              sx={{ color: 'text.secondary' }}
             >
               <ArrowBackIcon fontSize="small" />
             </IconButton>
             {!isMsgPage && (
-              <Box sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
                 <NoticeIconView />
                 <DmIconView />
               </Box>
@@ -248,13 +237,6 @@ function AccountLayoutContent({
           }}
         />
       </AppBar>
-
-      <MobileNavDrawer
-        open={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
-        pages={ACCOUNT_PAGES}
-        currentPath={pathname}
-      />
 
       <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
         {children}

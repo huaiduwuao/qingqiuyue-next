@@ -1,17 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
-import Drawer from '@mui/material/Drawer';
-import IconButton from '@mui/material/IconButton';
 import List from '@mui/material/List';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import Typography from '@mui/material/Typography';
 import { alpha } from '@mui/material/styles';
-import MenuIcon from '@mui/icons-material/Menu';
 
 export interface WorkspaceNavItem {
   id: string;
@@ -102,16 +99,11 @@ function NavList({ groups, selected, onSelect }: Pick<WorkspaceShellProps, 'grou
 
 /**
  * 账号工作台(创作者中心、奖励中心)共用的外壳:左侧分组导航 + 主内容区 + 可选附属栏;
- * 小屏时导航收进抽屉,顶部显示当前页面名。
+ * 小屏时导航变成顶部一条横滑页签(不再是抽屉:全站只有首页那一个侧边栏)。
  */
 export function WorkspaceShell({ title, logo, groups, selected, onSelect, aside, children }: WorkspaceShellProps) {
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const current = groups.flatMap((g) => g.items).find((i) => i.id === selected);
-
-  const select = (id: string) => {
-    onSelect(id);
-    setDrawerOpen(false);
-  };
+  const items = groups.flatMap((g) => g.items);
+  const select = onSelect;
 
   const sidebar = (
     <Box sx={{ width: SIDEBAR_WIDTH, height: '100%', display: 'flex', flexDirection: 'column', bgcolor: 'background.paper' }}>
@@ -137,28 +129,68 @@ export function WorkspaceShell({ title, logo, groups, selected, onSelect, aside,
       <Box sx={{ display: { xs: 'none', md: 'block' }, flexShrink: 0, borderRight: '1px solid', borderColor: 'divider' }}>
         {sidebar}
       </Box>
-      <Drawer anchor="left" open={drawerOpen} onClose={() => setDrawerOpen(false)} sx={{ display: { md: 'none' } }}>
-        {sidebar}
-      </Drawer>
 
       <Box sx={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        {/* 窄屏目录入口。这条是移动端打开工作台导航(赏金广场/工作台/看板…)的唯一入口 ——
-            外层 AccountLayout 的汉堡开的是另一套(个人中心/内容管理/设置),不能互相替代。
-            这里只放汉堡不放标题:页面名外层 AppBar 已经显示了,重复一行会白占几十像素。 */}
+        {/* 窄屏:工作台导航是顶栏下一条横滑页签(和 App 里的二级页签一样),不再是第二个 ≡ 抽屉 ——
+            左上角的 ≡ 全站只有一个(首页侧边栏,见 MobileMenuButton)。 */}
         <Box
+          component="nav"
+          aria-label="工作台导航"
           sx={{
             display: { xs: 'flex', md: 'none' },
-            alignItems: 'center',
             flexShrink: 0,
-            px: 0.5,
-            py: 0.25,
+            gap: 0.5,
+            px: 1,
+            py: 0.75,
+            overflowX: 'auto',
             borderBottom: '1px solid',
             borderColor: 'divider',
+            '&::-webkit-scrollbar': { display: 'none' },
           }}
         >
-          <IconButton size="small" onClick={() => setDrawerOpen(true)} aria-label="打开工作台导航">
-            <MenuIcon sx={{ fontSize: 18 }} />
-          </IconButton>
+          {items.map((item) => {
+            const active = item.id === selected;
+            return (
+              <Box
+                key={item.id}
+                component="button"
+                type="button"
+                onClick={() => onSelect(item.id)}
+                aria-current={active ? 'page' : undefined}
+                // 选中项横向滚进可视区(深链进来时可能在最右边)
+                ref={active ? (el: HTMLButtonElement | null) => {
+                  const bar = el?.parentElement;
+                  if (!el || !bar) return;
+                  const left = el.offsetLeft - bar.offsetLeft;
+                  if (left + el.offsetWidth > bar.scrollLeft + bar.clientWidth || left < bar.scrollLeft) {
+                    bar.scrollLeft = left - 16;
+                  }
+                } : undefined}
+                sx={{
+                  flexShrink: 0,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 0.5,
+                  px: 1.25,
+                  py: 0.6,
+                  border: 0,
+                  borderRadius: 999,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: 13,
+                  fontWeight: active ? 700 : 500,
+                  whiteSpace: 'nowrap',
+                  color: active ? 'primary.main' : 'text.secondary',
+                  bgcolor: (t) => (active ? alpha(t.palette.primary.main, 0.12) : 'transparent'),
+                  WebkitTapHighlightColor: 'transparent',
+                  '& svg': { fontSize: 16 },
+                }}
+              >
+                {item.icon}
+                {item.label}
+              </Box>
+            );
+          })}
         </Box>
 
         <Box sx={{ flex: 1, minHeight: 0, display: 'flex' }}>

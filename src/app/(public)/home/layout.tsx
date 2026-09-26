@@ -54,8 +54,7 @@ import { ACCENT } from '@/constants/accents';
 import { gradient2 } from '@/constants/gradients';
 import HomeRecommendPage from './recommend/page';
 import { MobileBottomNav, HOME_LAST_URL_KEY } from '@/components/layout/MobileBottomNav';
-import { MobileSideMenu } from '@/components/layout/MobileSideMenu';
-import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
+import { MobileMenuButton } from '@/components/layout/MobileSideMenu';
 import { SiteLegalFooter } from '@/components/layout/SiteLegalFooter';
 import { useResponsive } from '@/hooks/useResponsive';
 import { useTopbarHeight } from '@/hooks/useTopbarHeight';
@@ -250,7 +249,6 @@ function TopBar({
   const { currentUser } = useApp();
   const router = useRouter();
   const headerRef = useRef<HTMLDivElement | null>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
   // 实际高度(含刘海安全区)写进 --topbar-h,面板内的 sticky 子栏按它对齐
   useTopbarHeight(headerRef);
 
@@ -279,20 +277,11 @@ function TopBar({
           paddingTop: 'var(--sat, 0px)',
         }}
       >
-        <IconButton aria-label="打开侧边栏" onClick={() => setMenuOpen(true)} sx={{ color: 'var(--text-primary, currentColor)' }}>
-          <MenuRoundedIcon />
-        </IconButton>
+        <MobileMenuButton activeNav={activeNav} onNavChange={onNavChange} onOpenSettings={onOpenSettings} />
         <MobileHomeTabs activeNav={activeNav} onNavChange={onNavChange} />
         <IconButton aria-label="搜索" onClick={() => router.push('/search')} sx={{ color: 'var(--text-primary, currentColor)' }}>
           <SearchIcon />
         </IconButton>
-        <MobileSideMenu
-          open={menuOpen}
-          onClose={() => setMenuOpen(false)}
-          activeNav={activeNav}
-          onNavChange={onNavChange}
-          onOpenSettings={onOpenSettings}
-        />
       </Box>
     );
   }

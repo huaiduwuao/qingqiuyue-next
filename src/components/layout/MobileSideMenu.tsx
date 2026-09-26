@@ -7,6 +7,9 @@ import Drawer from '@mui/material/Drawer';
 import Avatar from '@mui/material/Avatar';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
+import IconButton from '@mui/material/IconButton';
+import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
+import { HomeSettingsDrawer } from '@/components/home/HomeSettingsDrawer';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import LiveTvRoundedIcon from '@mui/icons-material/LiveTvRounded';
 import MovieRoundedIcon from '@mui/icons-material/MovieRounded';
@@ -15,8 +18,6 @@ import CollectionsRoundedIcon from '@mui/icons-material/CollectionsRounded';
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import WallpaperRoundedIcon from '@mui/icons-material/WallpaperRounded';
 import HistoryEduRoundedIcon from '@mui/icons-material/HistoryEduRounded';
-import VideoLibraryRoundedIcon from '@mui/icons-material/VideoLibraryRounded';
-import CardGiftcardRoundedIcon from '@mui/icons-material/CardGiftcardRounded';
 import DiamondRoundedIcon from '@mui/icons-material/DiamondRounded';
 import AccountBalanceWalletRoundedIcon from '@mui/icons-material/AccountBalanceWalletRounded';
 import WorkspacePremiumRoundedIcon from '@mui/icons-material/WorkspacePremiumRounded';
@@ -73,11 +74,9 @@ const GROUPS: { title: string; items: MenuItem[] }[] = [
     ],
   },
   {
-    // 原来「我的」页头像下那排 钱包/积分/订单/购买/会员 快捷入口
-    title: '创作与钱包',
+    // 原来「我的」页头像下那排 钱包/积分/订单/购买/会员 快捷入口。创作者中心/奖励中心就是底部的「创作」「悬赏」,不在这里重复
+    title: '钱包与会员',
     items: [
-      { key: 'content', label: '创作者中心', icon: <VideoLibraryRoundedIcon />, color: ACCENT.purple.main, href: '/account/content' },
-      { key: 'reward', label: '奖励中心', icon: <CardGiftcardRoundedIcon />, color: ACCENT.orange.main, href: '/account/reward' },
       { key: 'recharge', label: '充钻石', icon: <DiamondRoundedIcon />, color: ACCENT.blue.main, href: '/recharge' },
       { key: 'wallet', label: '我的钱包', icon: <AccountBalanceWalletRoundedIcon />, color: ACCENT.red.main, href: '/account/wallet' },
       { key: 'points', label: '积分中心', icon: <StarsRoundedIcon />, color: ACCENT.purple.main, href: '/user/points' },
@@ -231,3 +230,39 @@ export function MobileSideMenu({ open, onClose, activeNav, onNavChange, onOpenSe
 }
 
 export default MobileSideMenu;
+
+/**
+ * 手机端全局唯一的侧边栏入口:≡ 按钮 + MobileSideMenu。首页顶栏和创作/悬赏/消息页顶栏都用它,
+ * 别的页面不要再自己做一套抽屉导航(以前 account 下有「个人中心/内容管理/奖励中心/设置」一套,
+ * 工作台里还有一套,创作页左上角一度并排两个 ≡)。
+ *
+ * 不在首页时点侧边栏里的首页页签 = 跳回首页对应页签;「首页设置」自己挂一个设置抽屉。
+ */
+export function MobileMenuButton({
+  activeNav = '',
+  onNavChange,
+  onOpenSettings,
+}: {
+  activeNav?: string;
+  onNavChange?: (key: string) => void;
+  onOpenSettings?: () => void;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = React.useState(false);
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
+  return (
+    <>
+      <IconButton aria-label="打开侧边栏" onClick={() => setOpen(true)} sx={{ color: 'var(--text-primary, currentColor)' }}>
+        <MenuRoundedIcon />
+      </IconButton>
+      <MobileSideMenu
+        open={open}
+        onClose={() => setOpen(false)}
+        activeNav={activeNav}
+        onNavChange={onNavChange ?? ((key) => router.push(`/home/recommend?tab=${key}`))}
+        onOpenSettings={onOpenSettings ?? (() => setSettingsOpen(true))}
+      />
+      {!onOpenSettings && <HomeSettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />}
+    </>
+  );
+}
