@@ -568,8 +568,8 @@ function MyHomePageAuthed() {
             href="/account/settings"
             aria-label="设置"
             size="small"
-            // 手机上设置在首页左上角侧边栏里
-            sx={{ position: 'absolute', top: 8, right: 8, zIndex: 2, color: 'text.secondary', display: { xs: 'none', md: 'inline-flex' } }}
+            // 手机上「我的」没有顶栏和侧边栏按钮,设置入口就是这个齿轮
+            sx={{ position: 'absolute', top: 8, right: 8, zIndex: 2, color: 'text.secondary' }}
           >
             <SettingsRoundedIcon fontSize="small" />
           </IconButton>

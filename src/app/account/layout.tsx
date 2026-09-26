@@ -13,7 +13,6 @@ import { useApp } from '@/contexts/AppContext';
 import { AccountContextProvider } from '@/contexts/AccountContext';
 import { AvatarHoverPopup } from '@/components/account/AvatarHoverPopup';
 import NoticeIconView, { DmIconView } from '@/components/NoticeIcon';
-import { MobileMenuButton } from '@/components/layout/MobileSideMenu';
 import { useResponsive } from '@/hooks/useResponsive';
 import { MobileBottomNav, mobileTabForPath } from '@/components/layout/MobileBottomNav';
 import GradientText from '@/components/reactbits/GradientText';
@@ -60,6 +59,9 @@ function AccountLayoutContent({
   const { currentUser } = useApp();
   const { isMobile } = useResponsive();
   const appBarRef = React.useRef<HTMLDivElement | null>(null);
+  // 手机上 创作/悬赏/消息 是底部 tab 的一级页:不要顶栏(标题 + ≡),页面自己的页签就在最上面。
+  // 侧边栏只在首页有;二级页(钱包/订单/设置…)照旧有带返回键的顶栏。
+  const hideBar = isMobile && !!mobileTabForPath(pathname);
 
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) {
@@ -80,7 +82,8 @@ function AccountLayoutContent({
     const ro = new ResizeObserver(update);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+    // 顶栏 ⇄ 安全区占位 换了元素要重新量(页面高度都按 --appbar-h 算)
+  }, [hideBar]);
 
   const isAccountSection = pathname.startsWith('/account');
   const isMsgPage = pathname.startsWith('/account/msg');
@@ -116,6 +119,10 @@ function AccountLayoutContent({
 
   return (
     <Box data-app-shell sx={{ display: 'flex', flexDirection: 'column', height: 'var(--app-height, 100vh)', bgcolor: 'transparent', overflow: 'hidden' }}>
+      {hideBar ? (
+        // 只留刘海 / 状态栏的安全区
+        <Box ref={appBarRef} sx={{ height: 'var(--sat, 0px)', flexShrink: 0, bgcolor: 'var(--bg-body, #0a0b14)' }} />
+      ) : (
       <AppBar
         ref={appBarRef}
         position="sticky"
@@ -139,15 +146,13 @@ function AccountLayoutContent({
             px: { xs: 0.5, md: 3 },
           }}
         >
-          {/* 手机左上角:创作/悬赏/消息是底部 tab 的一级页 → 全局侧边栏(和首页同一个);
-              其余是二级页 → 返回。不再有第二套抽屉。 */}
-          {isMobile && (bottomTab ? (
-            <MobileMenuButton />
-          ) : (
+          {/* 手机上能看到这条顶栏的都是二级页(钱包/订单/设置…),左上角是返回。
+              创作/悬赏/消息 在手机上没有顶栏(hideBar);侧边栏只在首页。 */}
+          {isMobile && (
             <IconButton onClick={handleBack} aria-label="返回" sx={{ color: 'text.primary' }}>
               <ArrowBackIcon />
             </IconButton>
-          ))}
+          )}
 
           {/* Page title */}
           <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 1, minWidth: 0 }}>
@@ -237,6 +242,7 @@ function AccountLayoutContent({
           }}
         />
       </AppBar>
+      )}
 
       <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
         {children}

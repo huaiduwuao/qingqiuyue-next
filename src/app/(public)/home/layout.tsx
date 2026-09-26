@@ -254,6 +254,11 @@ function TopBar({
   // 实际高度(含刘海安全区)写进 --topbar-h,面板内的 sticky 子栏按它对齐
   useTopbarHeight(headerRef);
 
+  // 手机上「我的」不要顶栏(标题 + ≡ + 搜索):侧边栏只在首页有,「我的」自己的头像卡就在最上面。只留安全区。
+  if (isMobile && activeNav === 'me') {
+    return <Box ref={headerRef} component="header" sx={{ height: 'var(--sat, 0px)', flexShrink: 0 }} />;
+  }
+
   // 手机:和主流 App 一样 —— 左上角侧边栏按钮,中间是首页的页签,右边搜索。
   // 头像/通知/私信不再挤在右上角:「我的」「消息」都在底部导航里。
   if (isMobile) {
