@@ -27,7 +27,8 @@ interface TabItem {
 
 /** 首页里上次停在哪个页签(精选/推荐/榜单/动态…),从别的底部 tab 点回「首页」时回到那里。 */
 export const HOME_LAST_URL_KEY = 'qq-home-last-url';
-const HOME_DEFAULT = '/home/recommend?tab=home';
+// 首页默认页签是「推荐」(home/layout 没带 ?tab= 时就是推荐)
+const HOME_DEFAULT = '/home/recommend';
 
 // 和大多数 App 一样的五个一级入口。精选/推荐/榜单/动态是「首页」里的顶部页签,
 // 直播/放映厅/短剧/意境/AI 等收进首页左上角的侧边栏(home/layout 的 MobileSideMenu)。
@@ -110,7 +111,7 @@ export const MobileBottomNav = memo(function MobileBottomNav({ active }: MobileB
     if (tab.key === active && tab.key !== 'home') return;
     let path = tab.path;
     if (tab.key === 'home') {
-      // 已经在首页:回到精选;从别处回来:回到上次看的那个页签
+      // 已经在首页:回到默认的「推荐」;从别处回来:回到上次看的那个页签
       if (active === 'home') path = HOME_DEFAULT;
       else {
         try {

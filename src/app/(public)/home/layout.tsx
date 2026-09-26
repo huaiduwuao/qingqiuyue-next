@@ -86,8 +86,9 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
   const legacyCircle = rawTab === 'follow' || rawTab === 'friend' ? rawTab : null;
   const urlTab = legacyCircle ? 'feed' : rawTab;
   const urlSection = searchParams.get('section');
-  // 兼容 section 参数：优先用 tab，如果只有 section=recommend 则导航到 recommend
-  const effectiveTab = urlTab || (urlSection === 'recommend' ? 'recommend' : 'home');
+  // 没带 ?tab= 时默认打开「推荐」(手机、电脑一样)。只带了频道 ?section=xxx 的旧链接是精选里的频道,仍进精选;
+  // section=recommend 是精选的「推荐」频道的老写法,同样按推荐处理。
+  const effectiveTab = urlTab || (urlSection && urlSection !== 'recommend' ? 'home' : 'recommend');
   const [activeNav, setActiveNav] = useState(effectiveTab);
   const [meOpen, setMeOpen] = useState(false);
   const mainRef = useRef<HTMLDivElement | null>(null);
@@ -577,7 +578,7 @@ function Logo({ isCompact = false }: { isCompact?: boolean }) {
   return (
     <Box
       component={Link}
-      href="/home/recommend?tab=home"
+      href="/home/recommend"
       aria-label="清秋月 首页"
       sx={{
         display: 'flex',

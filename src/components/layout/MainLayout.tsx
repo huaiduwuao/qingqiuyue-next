@@ -115,7 +115,7 @@ function MobileBackButton() {
       edge="start"
       onClick={() => {
         if (typeof window !== 'undefined' && window.history.length > 1) router.back();
-        else router.push('/home/recommend?tab=home');
+        else router.push('/home/recommend');
       }}
       sx={{ display: { md: 'none' } }}
     >

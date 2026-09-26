@@ -45,7 +45,7 @@ export default function PublicTopBar({
   showBack = true,
   icon,
   maxWidth = 'lg',
-  homePath = '/home/recommend?tab=home',
+  homePath = '/home/recommend',
 }: Props) {
   const router = useRouter();
   const { currentUser } = useApp();

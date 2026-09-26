@@ -67,7 +67,7 @@ function AccountLayoutContent({
     if (typeof window !== 'undefined' && window.history.length > 1) {
       router.back();
     } else {
-      router.push('/home/recommend?tab=home');
+      router.push('/home/recommend');
     }
   };
 

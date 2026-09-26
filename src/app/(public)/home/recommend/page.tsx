@@ -112,7 +112,9 @@ export default function HomeRecommendPage() {
   // 兼容 tab 和 section 两种 URL 参数名（后端用 section，前端导航用 tab）
   const tabParam = searchParams.get('tab');
   const sectionParam = searchParams.get('section');
-  const tabFromUrl = tabParam || sectionParam || 'all';
+  // 首页默认页签是「推荐」(沉浸式视频流):没带 tab 时这里也按 recommend 渲染,
+  // 否则落到下面的分类网格。只带 section 的链接由 home/layout 送去精选,不会走到这里。
+  const tabFromUrl = tabParam || sectionParam || 'recommend';
   const activeCategory = TAB_TO_CATEGORY[tabFromUrl] || '全部';
 
   const quickLinks = QUICK_LINKS.filter((l) => l.key !== 'ai' || aiPrefs.aiEntry);
