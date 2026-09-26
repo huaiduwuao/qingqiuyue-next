@@ -15,6 +15,8 @@ import PersonAddRoundedIcon from '@mui/icons-material/PersonAddRounded';
 import { accountClient } from '@/lib/api/client';
 import { AsyncState } from '@/components/common/AsyncState';
 import { alpha } from '@mui/material/styles';
+import { useResponsive } from '@/hooks/useResponsive';
+import { MobileSection, MobileStatRow } from '@/components/mobile/MobileSection';
 
 type CreatorStats = {
   totalWorks: number;
@@ -36,6 +38,15 @@ export default function CreatorPage() {
     queryKey: ['account', 'creator', 'stats'],
     queryFn: () => accountClient.get<CreatorStats>('/creator/stats').then((r) => r),
   });
+  const { isMobile } = useResponsive();
+
+  if (isMobile) {
+    return (
+      <AsyncState query={query} skeletonCount={2} skeletonHeight={120}>
+        {(data) => <CreatorMobile data={data} />}
+      </AsyncState>
+    );
+  }
 
   return (
     <AsyncState query={query} skeletonCount={1} skeletonHeight={420}>
@@ -200,4 +211,80 @@ function formatNum(n: number): string {
   if (n >= 10000) return `${(n / 10000).toFixed(1)}万`;
   if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
   return n.toString();
+}
+
+/**
+ * 手机版:没有大号英雄卡(页签已经写着「等级与权益」),一张等级卡 + 一行四个数,
+ * 剩下三个次要数字折成一行小字。
+ */
+function CreatorMobile({ data }: { data: CreatorStats }) {
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+      <MobileSection>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, pt: 1.75 }}>
+          <Box
+            sx={{
+              width: 40,
+              height: 40,
+              borderRadius: 2,
+              flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: (theme) => `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+            }}
+          >
+            <WorkspacePremiumRoundedIcon sx={{ fontSize: 22, color: (theme) => theme.palette.primary.contrastText }} />
+          </Box>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography noWrap sx={{ fontSize: 16, fontWeight: 700 }}>{data.level}</Typography>
+            <Typography noWrap sx={{ fontSize: 12, color: 'text.secondary', mt: 0.25 }}>
+              已创作 {data.daysActive} 天 · 下一级 {data.nextLevel}
+            </Typography>
+          </Box>
+          <Typography sx={{ fontSize: 17, fontWeight: 700, color: 'primary.main', flexShrink: 0 }}>{data.progressPct}%</Typography>
+        </Box>
+        <LinearProgress
+          variant="determinate"
+          value={data.progressPct}
+          sx={{
+            mt: 1.25,
+            height: 6,
+            borderRadius: 3,
+            bgcolor: 'action.hover',
+            '& .MuiLinearProgress-bar': {
+              background: (theme) => `linear-gradient(90deg, ${theme.palette.primary.main} 0%, ${theme.palette.secondary.main} 100%)`,
+              borderRadius: 3,
+            },
+          }}
+        />
+        {data.badges.length > 0 && (
+          <Box sx={{ display: 'flex', gap: 0.5, mt: 1.25, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' } }}>
+            {data.badges.map((b) => (
+              <Chip
+                key={b}
+                label={b}
+                size="small"
+                sx={{ flexShrink: 0, height: 22, bgcolor: 'rgba(255,180,0,0.12)', color: 'warning.main', fontSize: 11, fontWeight: 600 }}
+              />
+            ))}
+          </Box>
+        )}
+      </MobileSection>
+
+      <MobileSection title="创作数据">
+        <MobileStatRow
+          items={[
+            { label: '作品', value: data.totalWorks.toString() },
+            { label: '播放', value: formatNum(data.totalViews) },
+            { label: '点赞', value: formatNum(data.totalLikes) },
+            { label: '粉丝', value: formatNum(data.followers) },
+          ]}
+        />
+        <Typography sx={{ fontSize: 12, color: 'text.secondary', textAlign: 'center', mt: 1.25 }}>
+          评论 {formatNum(data.totalComments)} · 分享 {formatNum(data.totalShares)} · 关注 {formatNum(data.following)}
+        </Typography>
+      </MobileSection>
+    </Box>
+  );
 }

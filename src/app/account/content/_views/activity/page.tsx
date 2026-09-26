@@ -58,6 +58,8 @@ import { ActivityCard } from './ActivityCard';
 import { ListLayout, ListLayoutSwitch } from '@/components/common/ListLayout';
 import { DetailDrawer, type DetailTabKey } from './DetailDrawer';
 import { coverBackground } from '@/lib/media';
+import { useResponsive } from '@/hooks/useResponsive';
+import ActivityMobile from './ActivityMobile';
 
 type FilterTab = 'all' | 'mine' | 'active' | 'signup' | 'upcoming' | 'won' | 'ended';
 type CategoryFilter = 'all' | ActivityCategory;
@@ -81,6 +83,7 @@ const SORT_DEFS: Array<{ id: SortKey; label: string }> = [
 ];
 
 export default function ActivityPage() {
+  const { isMobile } = useResponsive();
   const [tab, setTab] = useState<FilterTab>('all');
   const [category, setCategory] = useState<CategoryFilter>('all');
   const [sort, setSort] = useState<SortKey>('heat');
@@ -264,206 +267,18 @@ export default function ActivityPage() {
       .catch(() => setSnack({ msg: '复制失败,请手动复制链接', sev: 'warning' }));
   };
 
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      {/* Header */}
-      <Box
-        sx={{
-          p: 3,
-          borderRadius: 2,
-          bgcolor: 'background.paper',
-          border: '1px solid',
-          borderColor: 'divider',
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
-          <Box
-            sx={{
-              width: 32,
-              height: 32,
-              borderRadius: 1,
-              background: 'linear-gradient(135deg, #FE2C55 0%, #FFB400 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#fff',
-            }}
-          >
-            <EmojiEventsIcon sx={{ fontSize: 18 }} />
-          </Box>
-          <Typography sx={{ fontSize: 18, fontWeight: 700, color: 'text.primary', flex: 1 }}>
-            活动管理
-          </Typography>
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={<NotificationsActiveRoundedIcon sx={{ fontSize: 14 }} />}
-            onClick={async () => {
-              try {
-                await accountClient('/activity/subscribe', { method: 'POST' });
-                setSnack({ msg: '已开启活动提醒,新活动上线时第一时间通知', sev: 'success' });
-              } catch (e) {
-                setSnack({ msg: `订阅失败:${e instanceof Error ? e.message : '网络异常'}`, sev: 'warning' });
-              }
-            }}
-            sx={{ textTransform: 'none', fontSize: 12 }}
-          >
-            活动订阅
-          </Button>
-        </Box>
-        <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 2 }}>
-          浏览平台活动 · 报名参与 · 投稿作品 · 查看获奖
-        </Typography>
+  const handleSubscribe = async () => {
+    try {
+      await accountClient('/activity/subscribe', { method: 'POST' });
+      setSnack({ msg: '已开启活动提醒,新活动上线时第一时间通知', sev: 'success' });
+    } catch (e) {
+      setSnack({ msg: `订阅失败:${e instanceof Error ? e.message : '网络异常'}`, sev: 'warning' });
+    }
+  };
 
-        {/* KPI cards */}
-        <Box
-          sx={{
-            display: 'grid',
-            gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
-            gap: 1.5,
-          }}
-        >
-          <KpiCard icon={<LocalFireDepartmentIcon />} label="进行中活动" value={stats.active.toString()} suffix="个" color="#FE2C55" bg="rgba(254, 44, 85, 0.12)" />
-          <KpiCard icon={<HowToRegRoundedIcon />} label="我已参与" value={stats.mySigned.toString()} suffix="个" color="#25F4EE" bg="rgba(37, 244, 238, 0.12)" />
-          <KpiCard icon={<RedeemRoundedIcon />} label="本月奖励" value={formatBigNumber(stats.monthlyReward)} suffix="元" color="#5DDB96" bg="rgba(93, 219, 150, 0.12)" />
-          <KpiCard icon={<EmojiEventsRoundedIcon />} label="累计获奖" value={formatBigNumber(stats.totalWon)} suffix="元" color="#FFD700" bg="rgba(255, 215, 0, 0.12)" />
-        </Box>
-      </Box>
-
-      {/* Tabs + toolbar */}
-      <Box sx={{ p: 2.5, borderRadius: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1.5 }}>
-          <Tabs
-            value={tab}
-            onChange={(_, v) => setTab(v)}
-            variant="scrollable"
-            scrollButtons="auto"
-            sx={{
-              minHeight: 36,
-              flex: 1,
-              minWidth: 280,
-              '& .MuiTab-root': { minHeight: 36, fontSize: 13, textTransform: 'none', px: 1.5 },
-              '& .MuiTabs-indicator': { bgcolor: 'primary.main', height: 2 },
-            }}
-          >
-            {TAB_DEFS.map((t) => {
-              const count =
-                t.id === 'all' ? items.length
-                : t.id === 'mine' ? items.filter((a) => ['signed', 'submitted', 'shortlist', 'won', 'lost'].includes(a.participation)).length
-                : t.id === 'won' ? items.filter((a) => a.participation === 'won').length
-                : t.id === 'active' ? items.filter((a) => a.status === 'active').length
-                : t.id === 'signup' ? items.filter((a) => a.status === 'signup').length
-                : t.id === 'upcoming' ? items.filter((a) => a.status === 'upcoming').length
-                : items.filter((a) => a.status === 'ended' || a.status === 'judging').length;
-              return (
-                <Tab
-                  key={t.id}
-                  value={t.id}
-                  label={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      {t.label}
-                      <Box
-                        component="span"
-                        sx={{
-                          fontSize: 10,
-                          fontWeight: 700,
-                          px: 0.5,
-                          py: 0.1,
-                          borderRadius: 0.5,
-                          bgcolor: tab === t.id ? 'rgba(254, 44, 85, 0.16)' : 'action.hover',
-                          color: tab === t.id ? 'primary.main' : 'text.disabled',
-                        }}
-                      >
-                        {count}
-                      </Box>
-                    </Box>
-                  }
-                />
-              );
-            })}
-          </Tabs>
-        </Box>
-
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-          <TextField
-            placeholder="搜索活动名称 / 主办方"
-            size="small"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchRoundedIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
-                  </InputAdornment>
-                ),
-              },
-            }}
-            sx={{ flex: 1, minWidth: 220, '& .MuiInputBase-root': { fontSize: 13 } }}
-          />
-          <Select
-            size="small"
-            value={category}
-            onChange={(e) => setCategory(e.target.value as CategoryFilter)}
-            startAdornment={
-              <InputAdornment position="start">
-                <CategoryRoundedIcon sx={{ fontSize: 14, color: 'text.disabled', mr: 0.5 }} />
-              </InputAdornment>
-            }
-            sx={{ minWidth: 140, fontSize: 13, '& .MuiSelect-select': { display: 'flex', alignItems: 'center' } }}
-          >
-            <MenuItem value="all" sx={{ fontSize: 13 }}>全部类型</MenuItem>
-            {(Object.keys(CATEGORY_META) as ActivityCategory[]).map((c) => (
-              <MenuItem key={c} value={c} sx={{ fontSize: 13 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: CATEGORY_META[c].color }} />
-                  {CATEGORY_META[c].label}
-                </Box>
-              </MenuItem>
-            ))}
-          </Select>
-          <Select
-            size="small"
-            value={sort}
-            onChange={(e) => setSort(e.target.value as SortKey)}
-            startAdornment={
-              <InputAdornment position="start">
-                <SortRoundedIcon sx={{ fontSize: 14, color: 'text.disabled', mr: 0.5 }} />
-              </InputAdornment>
-            }
-            sx={{ minWidth: 140, fontSize: 13 }}
-          >
-            {SORT_DEFS.map((s) => (
-              <MenuItem key={s.id} value={s.id} sx={{ fontSize: 13 }}>{s.label}</MenuItem>
-            ))}
-          </Select>
-          <ListLayoutSwitch />
-        </Box>
-      </Box>
-
-      {/* Activity grid */}
-      {filtered.length === 0 ? (
-        <Box sx={{ p: 6, borderRadius: 2, bgcolor: 'background.paper', border: '1px dashed', borderColor: 'divider', textAlign: 'center' }}>
-          <EmojiEventsIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
-          <Typography sx={{ fontSize: 14, color: 'text.secondary' }}>
-            没有符合条件的活动 — 试试切换筛选或清空搜索词
-          </Typography>
-        </Box>
-      ) : (
-        <ListLayout minColumnWidth={300} gap={16}>
-          {filtered.map((a) => (
-            <ActivityCard
-              key={a.id}
-              activity={a}
-              onOpen={() => { setDetailId(a.id); setDetailTab('detail'); }}
-              onSignup={() => openSignup(a.id)}
-              onSubmit={() => openSubmit(a.id)}
-              onCopyLink={() => handleCopyLink(a.id)}
-            />
-          ))}
-        </ListLayout>
-      )}
-
+  // 详情抽屉 / 报名 / 投稿对话框 / 提示:电脑版和手机版共用
+  const overlays = (
+    <>
       {/* Detail Drawer */}
       <Drawer
         anchor="right"
@@ -656,6 +471,236 @@ export default function ActivityPage() {
           </Alert>
         ) : undefined}
       </Snackbar>
+    </>
+  );
+
+  // 手机:四个数一行 + 一行筛选 + 单列活动行,单独设计,见 ActivityMobile;抽屉/对话框共用
+  if (isMobile) {
+    const isMine = (a: Activity) => ['signed', 'submitted', 'shortlist', 'won', 'lost'].includes(a.participation);
+    const countOf = (id: FilterTab) =>
+      id === 'all' ? items.length
+      : id === 'mine' ? items.filter(isMine).length
+      : id === 'won' ? items.filter((a) => a.participation === 'won').length
+      : id === 'ended' ? items.filter((a) => a.status === 'ended' || a.status === 'judging').length
+      : items.filter((a) => a.status === id).length;
+    return (
+      <ActivityMobile
+        stats={stats}
+        tabs={TAB_DEFS.map((t) => ({ ...t, count: countOf(t.id) }))}
+        tab={tab}
+        onTab={(id) => setTab(id as FilterTab)}
+        categoryValue={category}
+        onCategory={(id) => setCategory(id as CategoryFilter)}
+        sorts={SORT_DEFS}
+        sort={sort}
+        onSort={(id) => setSort(id as SortKey)}
+        search={search}
+        onSearch={setSearch}
+        list={filtered}
+        onOpen={(id) => { setDetailId(id); setDetailTab('detail'); }}
+        onSignup={openSignup}
+        onSubmit={openSubmit}
+        onSubscribe={handleSubscribe}
+      >
+        {overlays}
+      </ActivityMobile>
+    );
+  }
+
+  return (
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      {/* Header */}
+      <Box
+        sx={{
+          p: 3,
+          borderRadius: 2,
+          bgcolor: 'background.paper',
+          border: '1px solid',
+          borderColor: 'divider',
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
+          <Box
+            sx={{
+              width: 32,
+              height: 32,
+              borderRadius: 1,
+              background: 'linear-gradient(135deg, #FE2C55 0%, #FFB400 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#fff',
+            }}
+          >
+            <EmojiEventsIcon sx={{ fontSize: 18 }} />
+          </Box>
+          <Typography sx={{ fontSize: 18, fontWeight: 700, color: 'text.primary', flex: 1 }}>
+            活动管理
+          </Typography>
+          <Button
+            size="small"
+            variant="outlined"
+            startIcon={<NotificationsActiveRoundedIcon sx={{ fontSize: 14 }} />}
+            onClick={handleSubscribe}
+            sx={{ textTransform: 'none', fontSize: 12 }}
+          >
+            活动订阅
+          </Button>
+        </Box>
+        <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 2 }}>
+          浏览平台活动 · 报名参与 · 投稿作品 · 查看获奖
+        </Typography>
+
+        {/* KPI cards */}
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
+            gap: 1.5,
+          }}
+        >
+          <KpiCard icon={<LocalFireDepartmentIcon />} label="进行中活动" value={stats.active.toString()} suffix="个" color="#FE2C55" bg="rgba(254, 44, 85, 0.12)" />
+          <KpiCard icon={<HowToRegRoundedIcon />} label="我已参与" value={stats.mySigned.toString()} suffix="个" color="#25F4EE" bg="rgba(37, 244, 238, 0.12)" />
+          <KpiCard icon={<RedeemRoundedIcon />} label="本月奖励" value={formatBigNumber(stats.monthlyReward)} suffix="元" color="#5DDB96" bg="rgba(93, 219, 150, 0.12)" />
+          <KpiCard icon={<EmojiEventsRoundedIcon />} label="累计获奖" value={formatBigNumber(stats.totalWon)} suffix="元" color="#FFD700" bg="rgba(255, 215, 0, 0.12)" />
+        </Box>
+      </Box>
+
+      {/* Tabs + toolbar */}
+      <Box sx={{ p: 2.5, borderRadius: 2, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1.5 }}>
+          <Tabs
+            value={tab}
+            onChange={(_, v) => setTab(v)}
+            variant="scrollable"
+            scrollButtons="auto"
+            sx={{
+              minHeight: 36,
+              flex: 1,
+              minWidth: 280,
+              '& .MuiTab-root': { minHeight: 36, fontSize: 13, textTransform: 'none', px: 1.5 },
+              '& .MuiTabs-indicator': { bgcolor: 'primary.main', height: 2 },
+            }}
+          >
+            {TAB_DEFS.map((t) => {
+              const count =
+                t.id === 'all' ? items.length
+                : t.id === 'mine' ? items.filter((a) => ['signed', 'submitted', 'shortlist', 'won', 'lost'].includes(a.participation)).length
+                : t.id === 'won' ? items.filter((a) => a.participation === 'won').length
+                : t.id === 'active' ? items.filter((a) => a.status === 'active').length
+                : t.id === 'signup' ? items.filter((a) => a.status === 'signup').length
+                : t.id === 'upcoming' ? items.filter((a) => a.status === 'upcoming').length
+                : items.filter((a) => a.status === 'ended' || a.status === 'judging').length;
+              return (
+                <Tab
+                  key={t.id}
+                  value={t.id}
+                  label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      {t.label}
+                      <Box
+                        component="span"
+                        sx={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          px: 0.5,
+                          py: 0.1,
+                          borderRadius: 0.5,
+                          bgcolor: tab === t.id ? 'rgba(254, 44, 85, 0.16)' : 'action.hover',
+                          color: tab === t.id ? 'primary.main' : 'text.disabled',
+                        }}
+                      >
+                        {count}
+                      </Box>
+                    </Box>
+                  }
+                />
+              );
+            })}
+          </Tabs>
+        </Box>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          <TextField
+            placeholder="搜索活动名称 / 主办方"
+            size="small"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchRoundedIcon sx={{ fontSize: 16, color: 'text.disabled' }} />
+                  </InputAdornment>
+                ),
+              },
+            }}
+            sx={{ flex: 1, minWidth: 220, '& .MuiInputBase-root': { fontSize: 13 } }}
+          />
+          <Select
+            size="small"
+            value={category}
+            onChange={(e) => setCategory(e.target.value as CategoryFilter)}
+            startAdornment={
+              <InputAdornment position="start">
+                <CategoryRoundedIcon sx={{ fontSize: 14, color: 'text.disabled', mr: 0.5 }} />
+              </InputAdornment>
+            }
+            sx={{ minWidth: 140, fontSize: 13, '& .MuiSelect-select': { display: 'flex', alignItems: 'center' } }}
+          >
+            <MenuItem value="all" sx={{ fontSize: 13 }}>全部类型</MenuItem>
+            {(Object.keys(CATEGORY_META) as ActivityCategory[]).map((c) => (
+              <MenuItem key={c} value={c} sx={{ fontSize: 13 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: CATEGORY_META[c].color }} />
+                  {CATEGORY_META[c].label}
+                </Box>
+              </MenuItem>
+            ))}
+          </Select>
+          <Select
+            size="small"
+            value={sort}
+            onChange={(e) => setSort(e.target.value as SortKey)}
+            startAdornment={
+              <InputAdornment position="start">
+                <SortRoundedIcon sx={{ fontSize: 14, color: 'text.disabled', mr: 0.5 }} />
+              </InputAdornment>
+            }
+            sx={{ minWidth: 140, fontSize: 13 }}
+          >
+            {SORT_DEFS.map((s) => (
+              <MenuItem key={s.id} value={s.id} sx={{ fontSize: 13 }}>{s.label}</MenuItem>
+            ))}
+          </Select>
+          <ListLayoutSwitch />
+        </Box>
+      </Box>
+
+      {/* Activity grid */}
+      {filtered.length === 0 ? (
+        <Box sx={{ p: 6, borderRadius: 2, bgcolor: 'background.paper', border: '1px dashed', borderColor: 'divider', textAlign: 'center' }}>
+          <EmojiEventsIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
+          <Typography sx={{ fontSize: 14, color: 'text.secondary' }}>
+            没有符合条件的活动 — 试试切换筛选或清空搜索词
+          </Typography>
+        </Box>
+      ) : (
+        <ListLayout minColumnWidth={300} gap={16}>
+          {filtered.map((a) => (
+            <ActivityCard
+              key={a.id}
+              activity={a}
+              onOpen={() => { setDetailId(a.id); setDetailTab('detail'); }}
+              onSignup={() => openSignup(a.id)}
+              onSubmit={() => openSubmit(a.id)}
+              onCopyLink={() => handleCopyLink(a.id)}
+            />
+          ))}
+        </ListLayout>
+      )}
+
+      {overlays}
     </Box>
   );
 }

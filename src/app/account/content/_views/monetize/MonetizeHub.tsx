@@ -10,12 +10,18 @@ import { getEarnings, getMyPaidContents, type PaidContent } from '@/apis/social-
 import { TYPE_LABEL } from '@/lib/contentRoute';
 import { useActiveTab } from '../../ActiveTabContext';
 import WalletSummary from './page';
+import { useResponsive } from '@/hooks/useResponsive';
+import MonetizeMobile from './MonetizeMobile';
 
 /**
  * 收益中心:创作收益(付费作品 + 打赏 + 订阅)→ 付费作品表现 → 钱包流水。
  * 收入实时进入钱包,提现在钱包页发起。
  */
 export default function MonetizeHub() {
+  const { isMobile } = useResponsive();
+  // 手机:三段各一行数字 + 付费作品行 + 右下角「提现」,单独设计,见 MonetizeMobile
+  if (isMobile) return <MonetizeMobile />;
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <CreatorEarnings />

@@ -16,6 +16,8 @@ import PersonalDemandPanel from './PersonalDemandPanel';
 import PersonalRealizationPanel from './PersonalRealizationPanel';
 import PersonalTaskPanel from './PersonalTaskPanel';
 import PointRecordPanel from './PointRecordPanel';
+import PersonalMobile from './PersonalMobile';
+import { useResponsive } from '@/hooks/useResponsive';
 
 export interface PersonalWorkspaceProps {
   onOpenDemandTab?: () => void;
@@ -34,6 +36,7 @@ export default function PersonalWorkspace({
 }: PersonalWorkspaceProps) {
   const { currentUser } = useApp();
   const currentUserId = currentUser?.id ?? null;
+  const { isMobile } = useResponsive();
 
   if (!currentUserId) {
     return (
@@ -42,6 +45,20 @@ export default function PersonalWorkspace({
           请先登录后查看个人工作台
         </Typography>
       </Box>
+    );
+  }
+
+  // 手机上是单独挑过内容的一版(钱包卡 + 各面板前三行),不是两栏的响应式缩小
+  if (isMobile) {
+    return (
+      <PersonalMobile
+        currentUserId={currentUserId}
+        onOpenDemandTab={onOpenDemandTab}
+        onOpenDemandDetail={onOpenDemandDetail}
+        onOpenRealizationTab={onOpenRealizationTab}
+        onOpenTaskboardTab={onOpenTaskboardTab}
+        onOpenTeamTab={onOpenTeamTab}
+      />
     );
   }
 

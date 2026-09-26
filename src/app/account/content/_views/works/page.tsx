@@ -23,6 +23,8 @@ import ContentDistributionChart from '../../_components/ContentDistributionChart
 import { getCreatorWorks } from '@/apis/creator';
 import { useActiveTab } from '../../ActiveTabContext';
 import { toWorksTableRows } from './rows';
+import { useResponsive } from '@/hooks/useResponsive';
+import WorksMobile from './WorksMobile';
 import { TYPE_LABEL as CONTENT_TYPE_LABEL } from '@/lib/contentType.gen'; // 类型名以后端契约为准,别再手写(VSHOW 是综艺不是短剧)
 
 // 分布图/日历等组件切 tab 时透传的小写类型 → 本页大写枚举
@@ -127,6 +129,8 @@ export default function WorksPage() {
     return parts.length ? parts.join(' · ') : '全部';
   }, [type, status, source]);
 
+  const { isMobile } = useResponsive();
+
   const fetchWorks = async (params: { pageNumber: number; pageSize: number }) => {
     const res = await getCreatorWorks({
       contentType: type || undefined,
@@ -141,6 +145,20 @@ export default function WorksPage() {
       totalRow: res.total ?? 0,
     };
   };
+
+  // 手机:只留作品列表(数据组件属于「数据中心」页),单独设计,见 WorksMobile
+  if (isMobile) {
+    return (
+      <WorksMobile
+        type={type}
+        setType={setType}
+        status={status}
+        setStatus={setStatus}
+        typeOptions={TYPE_OPTIONS}
+        statusOptions={STATUS_OPTIONS}
+      />
+    );
+  }
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>

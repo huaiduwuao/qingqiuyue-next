@@ -32,6 +32,9 @@ import {
   DailyTaskStats,
 } from '@/apis/reward-center';
 import { getWalletSummary } from '@/apis/reward-center';
+import { useResponsive } from '@/hooks/useResponsive';
+import { MobileListRow, MobileSection } from '@/components/mobile/MobileSection';
+import { MobileEmpty, RowIcon, StatusTag } from '../personal/mobileKit';
 
 // 任务图标映射
 const TASK_ICONS: Record<string, React.ReactNode> = {
@@ -47,6 +50,7 @@ export default function DailyTaskPage() {
   const { currentUser } = useApp();
   const currentUserId = currentUser?.id ?? 0;
   const qc = useQueryClient();
+  const { isMobile } = useResponsive();
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['reward-center', 'daily-task-stats', currentUserId],
@@ -92,6 +96,84 @@ export default function DailyTaskPage() {
 
   const completedCount = tasks.filter(t => t.claimed).length;
   const progressPercent = tasks.length > 0 ? (completedCount / tasks.length) * 100 : 0;
+
+  // 手机:概览收成一行进度,任务是单列行(积分写在副标题,行尾只放一个操作)
+  if (isMobile) {
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+        <MobileSection>
+          <Box sx={{ pt: 1.75, display: 'flex', alignItems: 'baseline', gap: 1 }}>
+            <Typography sx={{ fontSize: 15, fontWeight: 700 }}>
+              已完成 {completedCount}/{tasks.length}
+            </Typography>
+            <Box sx={{ flex: 1 }} />
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>
+              今日 <Box component="span" sx={{ fontSize: 17, fontWeight: 700, color: 'success.main' }}>+{stats?.totalReward ?? 0}</Box> 积分
+            </Typography>
+          </Box>
+          <LinearProgress
+            variant="determinate"
+            value={progressPercent}
+            sx={{
+              mt: 1,
+              height: 6,
+              borderRadius: 3,
+              bgcolor: 'action.hover',
+              '& .MuiLinearProgress-bar': { background: 'linear-gradient(90deg, #4CAF50 0%, #8BC34A 100%)', borderRadius: 3 },
+            }}
+          />
+        </MobileSection>
+        <MobileSection title="今日任务" flush>
+          {tasks.length === 0 ? (
+            <MobileEmpty>今日暂无任务</MobileEmpty>
+          ) : (
+            tasks.map((task, i) => {
+              const busy = completeMutation.isPending && completeMutation.variables === task.taskType;
+              return (
+                <MobileListRow
+                  key={task.taskType}
+                  divider={i > 0}
+                  leading={
+                    <RowIcon
+                      color={task.claimed ? 'text.disabled' : 'primary.main'}
+                      bg={task.claimed ? alpha('#9E9E9E', 0.15) : alpha('#2196F3', 0.12)}
+                    >
+                      {TASK_ICONS[task.taskType.toLowerCase()] || TASK_ICONS.default}
+                    </RowIcon>
+                  }
+                  title={task.name}
+                  subtitle={
+                    <>
+                      <Box component="span" sx={{ color: 'success.main', fontWeight: 700 }}>+{task.rewardPoint}</Box>
+                      {task.description ? ` · ${task.description}` : ' 积分'}
+                    </>
+                  }
+                  trailing={
+                    task.claimed ? (
+                      <StatusTag label="已完成" color="#4CAF50" bg={alpha('#4CAF50', 0.15)} />
+                    ) : task.auto ? (
+                      // 动作发生时服务端自动记,不需要手动领
+                      <StatusTag label={`自动 ${task.doneCount ?? 0}/${task.maxCount}`} color="text.secondary" />
+                    ) : (
+                      <Button
+                        variant="contained"
+                        size="small"
+                        disabled={!(task.canClaim && !task.claimed) || busy}
+                        onClick={() => handleComplete(task.taskType)}
+                        sx={{ minWidth: 0, flexShrink: 0, px: 1.5, borderRadius: 999, fontSize: 12 }}
+                      >
+                        {busy ? '领取中' : '领取'}
+                      </Button>
+                    )
+                  }
+                />
+              );
+            })
+          )}
+        </MobileSection>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>

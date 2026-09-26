@@ -42,6 +42,8 @@ import { myTeams } from '@/apis/team';
 import { myPage as listDemands } from '@/apis/reward-demand';
 import { useApp } from '@/contexts/AppContext';
 import type { RewardTask, RewardTaskStatus, TaskPriority, DemandItem } from '@/beans/reward';
+import { useResponsive } from '@/hooks/useResponsive';
+import TaskboardMobile from './TaskboardMobile';
 
 const STATUSES: RewardTaskStatus[] = ['OPEN', 'CLAIMED', 'SUBMITTED', 'APPROVED', 'REJECTED'];
 
@@ -67,6 +69,7 @@ interface Props {
 export default function TaskboardPage({ initialTeamId, initialViewMode, initialDemandId, onOpenDemandDetail }: Props) {
   const { currentUser } = useApp();
   const currentUserId = currentUser?.id ?? 0;
+  const { isMobile } = useResponsive();
 
   // 视图模式 — 初始化逻辑:外部传 initialViewMode 优先,否则按 initial props 推断
   const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode || (initialTeamId ? 'team' : 'mine'));
@@ -323,6 +326,77 @@ export default function TaskboardPage({ initialTeamId, initialViewMode, initialD
     return Array.from(m.values());
   }, [tasks]);
 
+  const dialogs = (
+    <>
+      <TaskDetailDialog
+        open={!!detailTask}
+        task={detailTask}
+        isOwner={!!detailTask && detailTask.managerId === currentUserId}
+        currentUserId={currentUserId}
+        onClose={() => setDetailTask(null)}
+        onChanged={handleTaskChanged}
+        onDeleted={handleTaskDeleted}
+        onError={(m) => showMessage(m, 'error')}
+      />
+
+      <TaskEditDialog
+        open={editOpen}
+        record={editRecord}
+        defaultDemandId={initialDemandId}
+        onClose={() => {
+          setEditOpen(false);
+          setEditRecord(null);
+        }}
+        onSaved={handleSaved}
+        onError={(m) => showMessage(m, 'error')}
+      />
+
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={2500}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+    </>
+  );
+
+  // 手机:五列看板改成「状态胶囊 + 单列任务行」,视角/团队收进小卡的下拉,开发者提示不显示
+  if (isMobile) {
+    return (
+      <>
+        <TaskboardMobile
+          viewMeta={VIEW_META}
+          viewMode={viewMode}
+          onViewMode={setViewMode}
+          teams={teams}
+          teamId={teamId}
+          onTeamId={setTeamId}
+          tasks={filtered}
+          loading={loading}
+          progress={progress}
+          priorityFilter={priorityFilter}
+          onPriority={setPriorityFilter}
+          assigneeFilter={assigneeFilter}
+          onAssignee={setAssigneeFilter}
+          assignees={allAssignees}
+          demandTitleMap={demandTitleMap}
+          teamNameMap={teamNameMap}
+          onTaskClick={setDetailTask}
+          onOpenDemand={onOpenDemandDetail}
+          onCreate={() => {
+            setEditRecord(null);
+            setEditOpen(true);
+          }}
+          onRefresh={() => qc.invalidateQueries({ queryKey: ['taskboard', 'tasks', viewMode, teamId, currentUserId, initialDemandId] })}
+        />
+        {dialogs}
+      </>
+    );
+  }
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, height: '100%' }}>
@@ -501,39 +575,7 @@ export default function TaskboardPage({ initialTeamId, initialViewMode, initialD
         </DragOverlay>
       </DndContext>
 
-      <TaskDetailDialog
-        open={!!detailTask}
-        task={detailTask}
-        isOwner={!!detailTask && detailTask.managerId === currentUserId}
-        currentUserId={currentUserId}
-        onClose={() => setDetailTask(null)}
-        onChanged={handleTaskChanged}
-        onDeleted={handleTaskDeleted}
-        onError={(m) => showMessage(m, 'error')}
-      />
-
-      <TaskEditDialog
-        open={editOpen}
-        record={editRecord}
-        defaultDemandId={initialDemandId}
-        onClose={() => {
-          setEditOpen(false);
-          setEditRecord(null);
-        }}
-        onSaved={handleSaved}
-        onError={(m) => showMessage(m, 'error')}
-      />
-
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={2500}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert severity={snackbar.severity} onClose={() => setSnackbar({ ...snackbar, open: false })}>
-          {snackbar.message}
-        </Alert>
-      </Snackbar>
+      {dialogs}
     </Box>
   );
 }

@@ -20,6 +20,7 @@ const VIEWS: Record<string, React.ComponentType> = {
   accounts: lazyView(() => import('./_views/accounts/page')),
   monetize: lazyView(() => import('./_views/monetize/MonetizeHub')),
   original: lazyView(() => import('./_views/original/page')),
+  share: lazyView(() => import('./_views/share/page')),
   'hd-review': lazyView(() => import('./_views/hd-review/page')),
 };
 

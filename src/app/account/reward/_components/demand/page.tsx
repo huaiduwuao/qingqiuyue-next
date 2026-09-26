@@ -44,6 +44,8 @@ import { mapRewardTaskListFromBackend, normalizeRewardTaskStatus, REWARD_TASK_ST
 import { SettlementDialog } from './SettlementDialog';
 import { BotBadge } from '@/components/community/UserLine';
 import type { DemandItem, DemandStatus, RewardTask, RewardTaskStatus } from '@/beans/reward';
+import { useResponsive } from '@/hooks/useResponsive';
+import DemandMobileList from './DemandMobileList';
 
 const STATUS_OPTIONS: Array<{ value: DemandStatus | ''; label: string }> = [
   { value: '', label: '全部' },
@@ -77,6 +79,7 @@ interface Props {
 // 我发布的需求。以前这一页要求先选一个「团队」才肯查询(enabled: !!groupId)——
 // 没建过团队的人,自己发的需求一条也看不到。需求属于发布它的人,发在哪个意境里是它的一个属性。
 export default function DemandPage({ onOpenTaskboard }: Props) {
+  const { isMobile } = useResponsive();
   const [tab, setTab] = useState<DemandStatus | ''>('');
   const [writeVisible, setWriteVisible] = useState(false);
   const [detailVisible, setDetailVisible] = useState(false);
@@ -143,14 +146,15 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
     );
     ob.observe(el);
     return () => ob.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage, isMobile]); // isMobile:手机/电脑两棵树的哨兵不是同一个元素
 
   // 加载需求详情时同时拉关联任务 + 关联意境
   const loadRelatedTasks = useCallback(async (demandId: number) => {
     setLoadingTasks(true);
     try {
       const taskRes: any = await listTasks({ demandId, pageSize: 100 });
-      setRelatedTasks(mapRewardTaskListFromBackend(taskRes?.data?.records || []));
+      // API 客户端已经拆掉了 body.data,这里以前读 taskRes.data.records,关联任务永远是空的
+      setRelatedTasks(mapRewardTaskListFromBackend(taskRes?.records || []));
     } catch (e) {
       console.error('Failed to load related tasks', e);
       setRelatedTasks([]);
@@ -301,7 +305,26 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
   const progressColor = progressPercent >= 100 ? 'success.main' : progressPercent >= 50 ? 'warning.main' : '#06B6D4';
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 1.25 : 2 }}>
+      {isMobile ? (
+        <DemandMobileList
+          statusOptions={STATUS_OPTIONS}
+          statusMeta={STATUS_META}
+          tab={tab}
+          onTab={setTab}
+          records={records}
+          loading={query.isLoading}
+          fetchingNext={isFetchingNextPage}
+          hasNext={!!hasNextPage}
+          sentinelRef={sentinelRef}
+          onCreate={() => handleEdit({} as DemandItem)}
+          onDetail={handleDetail}
+          onEdit={handleEdit}
+          onSettle={handleSettle}
+          onOpenTaskboard={onOpenTaskboard}
+        />
+      ) : (
+      <>
       {/* 顶部 hero 卡片壳 —— 标题 + 状态筛选 + 新建按钮。
           与赏金广场的 RewardHero 视觉一致(浅渐变 + 圆角 + 边框),
           这样 4 个 tab 顶部都是同一类"导航 + 主操作"卡片。 */}
@@ -460,9 +483,11 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
       {!hasNextPage && records.length > 0 && (
         <Typography sx={{ textAlign: 'center', py: 3, fontSize: 12, color: 'text.disabled' }}>- 没有更多了 · 共 {totalRow} 条 -</Typography>
       )}
+      </>
+      )}
 
       {/* 新建/编辑弹窗 */}
-      <Dialog open={writeVisible} onClose={() => setWriteVisible(false)} maxWidth="md" fullWidth>
+      <Dialog open={writeVisible} onClose={() => setWriteVisible(false)} maxWidth="md" fullWidth fullScreen={isMobile}>
         <DialogTitle>
           {selectedRecord?.id ? '编辑需求' : '新建需求'}
           <IconButton onClick={() => setWriteVisible(false)} sx={{ position: 'absolute', right: 8, top: 8 }}>
@@ -616,7 +641,7 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
       </Dialog>
 
       {/* 详情弹窗 */}
-      <Dialog open={detailVisible} onClose={() => setDetailVisible(false)} maxWidth="md" fullWidth>
+      <Dialog open={detailVisible} onClose={() => setDetailVisible(false)} maxWidth="md" fullWidth fullScreen={isMobile}>
         <DialogTitle>
           {selectedRecord?.title}
           <IconButton onClick={() => setDetailVisible(false)} sx={{ position: 'absolute', right: 8, top: 8 }}>

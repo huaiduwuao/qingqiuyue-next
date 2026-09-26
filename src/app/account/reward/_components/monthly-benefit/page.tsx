@@ -22,6 +22,9 @@ import PendingIcon from '@mui/icons-material/Pending';
 import { alpha } from '@mui/material/styles';
 import { useApp } from '@/contexts/AppContext';
 import { getMonthlyBenefitStatus, getMonthlyBenefitRecords } from '@/apis/reward-center';
+import { useResponsive } from '@/hooks/useResponsive';
+import { MobileListRow, MobileSection, MobileStatRow } from '@/components/mobile/MobileSection';
+import { MobileEmpty, RowIcon } from '../personal/mobileKit';
 
 /** 分 → "¥1.00" */
 // 月度福利按钻石发放(monthlyReward / diamondCount 都是钻)
@@ -33,6 +36,7 @@ const dateOf = (sec?: number) => (sec ? new Date(sec * 1000).toLocaleDateString(
 export default function MonthlyBenefitPage() {
   const { currentUser } = useApp();
   const currentUserId = currentUser?.id ?? 0;
+  const { isMobile } = useResponsive();
 
   const { data: status, isLoading: statusLoading } = useQuery({
     queryKey: ['reward-center', 'monthly-benefit-status', currentUserId],
@@ -65,6 +69,70 @@ export default function MonthlyBenefitPage() {
   const isVip = status?.isVip ?? false;
   const granted = status?.status === 'granted';
   const list = Array.isArray(records) ? records : [];
+
+  // 手机:会员状态一张卡(一行两个数),发放记录单列行
+  if (isMobile) {
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+        <MobileSection flush>
+          <MobileListRow
+            divider={false}
+            leading={
+              <RowIcon color="warning.main" bg={alpha('#FFB400', 0.15)}>
+                <DiamondIcon />
+              </RowIcon>
+            }
+            title={isVip ? status?.planName || '会员月度福利' : '月度福利'}
+            subtitle={isVip ? `有效期至 ${dateOf(status?.expiresAt)}` : `开通会员后每月自动发 ${status?.monthlyReward ?? 0} 钻石`}
+          />
+          <Box sx={{ px: 1.75, pb: 1.75 }}>
+            {isVip ? (
+              <MobileStatRow
+                items={[
+                  { label: '每月发放', value: <Box component="span" sx={{ color: 'warning.main' }}>{diamonds(status?.monthlyReward)}</Box> },
+                  granted
+                    ? { label: `本月已发 · ${dateOf(status?.grantTime)}`, value: <Box component="span" sx={{ color: 'success.main' }}>{diamonds(status?.diamondCount)}</Box> }
+                    : { label: '开通后一小时内到账', value: <Box component="span" sx={{ color: 'warning.main' }}>待发放</Box> },
+                ]}
+              />
+            ) : (
+              <Button component={Link} href="/account/vip" fullWidth variant="contained" color="warning" sx={{ borderRadius: 999, fontWeight: 700 }}>
+                开通会员
+              </Button>
+            )}
+          </Box>
+        </MobileSection>
+
+        <MobileSection title="发放记录" extra={list.length > 0 ? `${list.length} 条` : undefined} flush>
+          {list.length === 0 ? (
+            <MobileEmpty>暂无发放记录</MobileEmpty>
+          ) : (
+            list.map((record, i) => {
+              const ok = record.status === 'granted';
+              return (
+                <MobileListRow
+                  key={record.id}
+                  divider={i > 0}
+                  title={`${record.yearMonth} 月度福利`}
+                  subtitle={
+                    <>
+                      {record.vipLevel || '会员'} ·{' '}
+                      <Box component="span" sx={{ color: ok ? 'success.main' : 'warning.main' }}>{ok ? '已发放' : '发放失败'}</Box>
+                    </>
+                  }
+                  trailing={
+                    <Typography sx={{ fontSize: 14, fontWeight: 700, color: ok ? 'success.main' : 'text.disabled', flexShrink: 0 }}>
+                      +{record.diamondCount ?? 0} 钻
+                    </Typography>
+                  }
+                />
+              );
+            })
+          )}
+        </MobileSection>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>

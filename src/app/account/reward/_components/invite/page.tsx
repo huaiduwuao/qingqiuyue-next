@@ -5,7 +5,7 @@
  * 展示邀请码、邀请统计和邀请记录
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -24,11 +24,21 @@ import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty';
 import { alpha } from '@mui/material/styles';
 import { useApp } from '@/contexts/AppContext';
 import { getInviteStats, createInviteCode, bindInviteCode, getInviteRecords } from '@/apis/reward-center';
+import IconButton from '@mui/material/IconButton';
+import InputBase from '@mui/material/InputBase';
+import Snackbar from '@mui/material/Snackbar';
+import ShareRoundedIcon from '@mui/icons-material/ShareRounded';
+import { useResponsive } from '@/hooks/useResponsive';
+import { MobileListRow, MobileSection, MobileStatRow } from '@/components/mobile/MobileSection';
+import { MobileEmpty, StatusTag } from '../personal/mobileKit';
 
 export default function InvitePage() {
   const { currentUser } = useApp();
   const currentUserId = currentUser?.id ?? 0;
   const qc = useQueryClient();
+  const { isMobile } = useResponsive();
+  // 手机版的复制 / 分享反馈(电脑版复制没有任何提示)
+  const [tip, setTip] = useState('');
 
   const { data: stats, isLoading } = useQuery({
     queryKey: ['reward-center', 'invite-stats', currentUserId],
@@ -48,6 +58,11 @@ export default function InvitePage() {
   });
 
   const [bindCode, setBindCode] = useState('');
+  // 别人分享的邀请链接带 ?code=:登录后落在这一页,绑定框直接填好
+  useEffect(() => {
+    const c = new URLSearchParams(window.location.search).get('code');
+    if (c) setBindCode(c.toUpperCase());
+  }, []);
   const bindMutation = useMutation({
     mutationFn: (code: string) => bindInviteCode(code),
     onSuccess: () => {
@@ -79,7 +94,115 @@ export default function InvitePage() {
   }
 
   const hasCode = stats?.myCode;
-  const inviteUrl = hasCode ? `${window.location.origin}/invite/${stats.myCode}` : '';
+  // 以前是 /invite/<code>,站里没有这个路由(静态导出也不能有动态段),分享出去是 404。
+  // 现在落到邀请页本身,并带上 code 让对方的绑定框自动填好(未登录会先被引导登录再回来)。
+  const inviteUrl = hasCode ? `${window.location.origin}/account/reward?tab=invite&code=${encodeURIComponent(stats.myCode)}` : '';
+
+  // 手机:邀请码 + 两个数放一张卡,绑定收成一行,记录是单列行
+  if (isMobile) {
+    const copy = (text: string, label: string) =>
+      navigator.clipboard.writeText(text).then(
+        () => setTip(`${label}已复制`),
+        () => setTip('复制失败,请长按手动复制'),
+      );
+    const share = async () => {
+      if (typeof navigator.share === 'function') {
+        try {
+          await navigator.share({ title: '邀请你加入', text: `我的邀请码 ${stats?.myCode}`, url: inviteUrl });
+          return;
+        } catch {
+          // 用户取消或不支持:退回复制
+        }
+      }
+      copy(inviteUrl, '邀请链接');
+    };
+    const records = recordsData?.list || [];
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+        <MobileSection title="我的邀请码">
+          {hasCode ? (
+            <>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1, borderRadius: 2, bgcolor: 'action.hover' }}>
+                <Typography sx={{ flex: 1, fontSize: 24, fontWeight: 700, letterSpacing: 3, fontFamily: 'monospace', color: 'info.main' }}>
+                  {stats.myCode}
+                </Typography>
+                <IconButton size="small" aria-label="复制邀请码" onClick={() => copy(stats.myCode, '邀请码')}>
+                  <ContentCopyIcon sx={{ fontSize: 18 }} />
+                </IconButton>
+              </Box>
+              <Button fullWidth variant="contained" startIcon={<ShareRoundedIcon />} onClick={share} sx={{ mt: 1.25, borderRadius: 999, fontWeight: 700 }}>
+                分享邀请链接
+              </Button>
+            </>
+          ) : (
+            <Button fullWidth variant="contained" onClick={() => createMutation.mutate()} disabled={createMutation.isPending} sx={{ borderRadius: 999, fontWeight: 700 }}>
+              {createMutation.isPending ? '生成中...' : '生成邀请码'}
+            </Button>
+          )}
+          <Box sx={{ mt: 1.75 }}>
+            <MobileStatRow
+              items={[
+                { label: '已邀请', value: stats?.inviteCount ?? 0 },
+                { label: '累计积分', value: <Box component="span" sx={{ color: 'success.main' }}>+{stats?.totalReward ?? 0}</Box> },
+              ]}
+            />
+          </Box>
+        </MobileSection>
+
+        <MobileSection title="绑定邀请码" extra="双方都得积分">
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 1.5, pr: 0.5, py: 0.25, borderRadius: 999, bgcolor: 'action.hover' }}>
+            <InputBase
+              placeholder="输入朋友的邀请码"
+              value={bindCode}
+              onChange={(e) => setBindCode(e.target.value.toUpperCase())}
+              sx={{ flex: 1, fontSize: 14 }}
+            />
+            <Button
+              size="small"
+              variant="text"
+              onClick={() => bindCode && bindMutation.mutate(bindCode)}
+              disabled={!bindCode || bindMutation.isPending}
+              sx={{ minWidth: 0, fontWeight: 700 }}
+            >
+              {bindMutation.isPending ? '绑定中' : '绑定'}
+            </Button>
+          </Box>
+        </MobileSection>
+
+        <MobileSection title="邀请记录" extra={records.length > 0 ? `${records.length} 人` : undefined} flush>
+          {records.length === 0 ? (
+            <MobileEmpty>暂无邀请记录</MobileEmpty>
+          ) : (
+            records.map((record, i) => {
+              const issued = record.rewardStatus === 'issued';
+              return (
+                <MobileListRow
+                  key={record.id}
+                  divider={i > 0}
+                  leading={
+                    <Box sx={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, bgcolor: 'primary.main', color: 'primary.contrastText', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600 }}>
+                      {record.inviteeName?.charAt(0) || '?'}
+                    </Box>
+                  }
+                  title={record.inviteeName || '用户'}
+                  subtitle={`绑定于 ${record.createTime}`}
+                  trailing={
+                    <StatusTag
+                      label={issued ? '已发放' : '待发放'}
+                      color={issued ? '#4CAF50' : '#FF9800'}
+                      bg={alpha(issued ? '#4CAF50' : '#FF9800', 0.15)}
+                    />
+                  }
+                />
+              );
+            })
+          )}
+        </MobileSection>
+
+        <Snackbar open={!!tip} autoHideDuration={2000} onClose={() => setTip('')} message={tip} anchorOrigin={{ vertical: 'top', horizontal: 'center' }} />
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>

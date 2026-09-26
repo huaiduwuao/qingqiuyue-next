@@ -39,6 +39,12 @@ import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import EditRoundedIcon from '@mui/icons-material/EditRounded';
 import DeleteRoundedIcon from '@mui/icons-material/DeleteRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
+import Fab from '@mui/material/Fab';
+import Menu from '@mui/material/Menu';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import { useResponsive } from '@/hooks/useResponsive';
+import { MobileSection, MobileListRow, MoreLink } from '@/components/mobile/MobileSection';
 import {
   PLATFORMS,
   platformLabel,
@@ -101,6 +107,11 @@ export default function AccountsPage() {
   // 表单弹窗
   const [form, setForm] = useState<FormState>(emptyForm);
 
+  // 手机版:行尾「⋮」菜单 + 说明弹窗
+  const { isMobile } = useResponsive();
+  const [rowMenu, setRowMenu] = useState<{ el: HTMLElement; account: ShareAccount } | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
+
   // mutations
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['share-accounts'] });
 
@@ -151,6 +162,197 @@ export default function AccountsPage() {
     onError: (e: any) => setToast({ open: true, severity: 'error', msg: e?.message || '刷新失败' }),
   });
 
+  const overlays = (
+    <>
+        <AccountFormDialog
+          state={form}
+          onClose={() => setForm(emptyForm)}
+          onSubmit={(payload) => {
+            if (form.mode === 'create') doCreate.mutate(payload as Parameters<typeof createAccount>[0]);
+            else if (form.initial) doUpdate.mutate({ id: form.initial.id, ...payload } as Parameters<typeof updateAccount>[0]);
+          }}
+        />
+
+        <Snackbar
+          open={toast.open}
+          autoHideDuration={4000}
+          onClose={() => setToast((t) => ({ ...t, open: false }))}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert severity={toast.severity} onClose={() => setToast((t) => ({ ...t, open: false }))}>
+            {toast.msg}
+          </Alert>
+        </Snackbar>
+    </>
+  );
+
+  const confirmDelete = (id: number) => {
+    if (window.confirm('确认删除该账号?进行中的发布任务会拒绝删除。')) {
+      doRemove.mutate([id]);
+    }
+  };
+
+  if (isMobile) {
+    const platforms = PLATFORMS.filter((p) => ['douyin', 'kuaishou', 'xiaohongshu'].includes(p.value));
+    const closeMenu = () => setRowMenu(null);
+    return (
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+        {/* 长说明 + 提示折成一行,细节在「说明」弹窗里 */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 0.5 }}>
+          <Typography noWrap sx={{ flex: 1, minWidth: 0, fontSize: 12, color: 'text.secondary' }}>
+            绑定你自己的开放平台账号,一键把作品发出去
+          </Typography>
+          <MoreLink label="说明" onClick={() => setHelpOpen(true)} />
+        </Box>
+
+        {isLoading ? (
+          <Typography sx={{ fontSize: 13, color: 'text.secondary', px: 0.5 }}>加载中…</Typography>
+        ) : (
+          platforms.map((p) => {
+            const list = grouped.get(p.value) || [];
+            return (
+              <MobileSection
+                key={p.value}
+                flush
+                title={
+                  <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
+                    <Box component="span" sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: p.color }} />
+                    {p.label}
+                  </Box>
+                }
+                extra={`${list.length} 个账号`}
+              >
+                {list.length === 0 ? (
+                  <Typography sx={{ fontSize: 12, color: 'text.disabled', px: 1.75, pb: 1.5 }}>
+                    暂无账号,点右下「新建账号」添加
+                  </Typography>
+                ) : (
+                  list.map((a, i) => {
+                    const meta = AUTH_STATUS_META[a.authStatus] ?? AUTH_STATUS_META[0];
+                    return (
+                      <MobileListRow
+                        key={a.id}
+                        divider={i > 0}
+                        title={a.accountName}
+                        subtitle={
+                          <>
+                            <Box
+                              component="span"
+                              sx={{ color: meta.color === 'default' ? 'text.secondary' : `${meta.color}.main`, fontWeight: 600 }}
+                            >
+                              {meta.label}
+                            </Box>
+                            {a.platformUserNickname ? ` · ${a.platformUserNickname}` : ''}
+                            {` · secret ${a.hasClientSecret ? '已配置' : '未配置'} · token ${a.hasAccessToken ? '已缓存' : '无'}`}
+                          </>
+                        }
+                        trailing={
+                          <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                            <Button size="small" variant="text" onClick={() => doAuth.mutate(a.id)} sx={{ minWidth: 0, px: 1 }}>
+                              授权
+                            </Button>
+                            <IconButton
+                              size="small"
+                              aria-label="更多操作"
+                              onClick={(e) => setRowMenu({ el: e.currentTarget, account: a })}
+                            >
+                              <MoreVertRoundedIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
+                        }
+                      />
+                    );
+                  })
+                )}
+              </MobileSection>
+            );
+          })
+        )}
+
+        <Menu anchorEl={rowMenu?.el} open={!!rowMenu} onClose={closeMenu}>
+          <MenuItem
+            onClick={() => {
+              if (rowMenu) doRefresh.mutate(rowMenu.account.id);
+              closeMenu();
+            }}
+          >
+            <ListItemIcon>
+              <RefreshRoundedIcon fontSize="small" />
+            </ListItemIcon>
+            刷新 token
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              if (rowMenu) setForm({ open: true, mode: 'edit', initial: rowMenu.account });
+              closeMenu();
+            }}
+          >
+            <ListItemIcon>
+              <EditRoundedIcon fontSize="small" />
+            </ListItemIcon>
+            编辑
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              const id = rowMenu?.account.id;
+              closeMenu();
+              if (id != null) confirmDelete(id);
+            }}
+            sx={{ color: 'error.main' }}
+          >
+            <ListItemIcon>
+              <DeleteRoundedIcon fontSize="small" color="error" />
+            </ListItemIcon>
+            删除
+          </MenuItem>
+        </Menu>
+
+        <Dialog open={helpOpen} onClose={() => setHelpOpen(false)} fullWidth maxWidth="sm">
+          <DialogTitle>平台账号说明</DialogTitle>
+          <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+              绑定你自己的抖音 / 快手 / 小红书开放平台账号;清秋月用你的账号一键把站内作品发布出去。
+              作品归属清秋月平台;视频素材请先在抖音创作者中心 / 快手 App 上传,粘贴返回的 video_id。
+            </Typography>
+            <Typography sx={{ fontSize: 13, color: 'text.secondary' }}>
+              在抖音/快手开放平台创建「网站应用」类应用,把 client_key / client_secret 填进来。授权回调域名必须为清秋月部署域名。
+            </Typography>
+            {platforms.map((p) => (
+              <Typography key={p.value} sx={{ fontSize: 12, color: 'text.secondary' }}>
+                <Box component="span" sx={{ fontWeight: 700, color: 'text.primary' }}>
+                  {p.label}:
+                </Box>
+                {p.hint}
+              </Typography>
+            ))}
+          </DialogContent>
+          <DialogActions>
+            <Button variant="text" onClick={() => setHelpOpen(false)}>
+              知道了
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        <Fab
+          variant="extended"
+          color="primary"
+          onClick={() => setForm({ open: true, mode: 'create' })}
+          sx={{
+            position: 'fixed',
+            right: 16,
+            bottom: 'calc(16px + var(--bottom-nav-inset, 0px) + var(--player-inset, 0px))',
+            zIndex: 10,
+          }}
+        >
+          <AddRoundedIcon sx={{ mr: 0.5 }} />
+          新建账号
+        </Fab>
+
+        {overlays}
+      </Box>
+    );
+  }
+
   return (
     <Box sx={{ p: 3 }}>
       <Stack
@@ -192,35 +394,13 @@ export default function AccountsPage() {
               onAuth={(id) => doAuth.mutate(id)}
               onRefresh={(id) => doRefresh.mutate(id)}
               onEdit={(a) => setForm({ open: true, mode: 'edit', initial: a })}
-              onDelete={(id) => {
-                if (window.confirm('确认删除该账号?进行中的发布任务会拒绝删除。')) {
-                  doRemove.mutate([id]);
-                }
-              }}
+              onDelete={confirmDelete}
             />
           ))}
         </Stack>
       )}
 
-      <AccountFormDialog
-        state={form}
-        onClose={() => setForm(emptyForm)}
-        onSubmit={(payload) => {
-          if (form.mode === 'create') doCreate.mutate(payload as Parameters<typeof createAccount>[0]);
-          else if (form.initial) doUpdate.mutate({ id: form.initial.id, ...payload } as Parameters<typeof updateAccount>[0]);
-        }}
-      />
-
-      <Snackbar
-        open={toast.open}
-        autoHideDuration={4000}
-        onClose={() => setToast((t) => ({ ...t, open: false }))}
-        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-      >
-        <Alert severity={toast.severity} onClose={() => setToast((t) => ({ ...t, open: false }))}>
-          {toast.msg}
-        </Alert>
-      </Snackbar>
+      {overlays}
     </Box>
   );
 }

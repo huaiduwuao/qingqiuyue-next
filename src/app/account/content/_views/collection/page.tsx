@@ -63,6 +63,8 @@ import { ListLayout, ListLayoutSwitch, LIST_ROW, LIST_COMPACT } from '@/componen
 import { toEntityId, sameId, type EntityId } from '@/lib/id';
 import { coverBackground } from '@/lib/media';
 import ShareDialog, { type ShareTarget } from './_components/ShareDialog';
+import { useResponsive } from '@/hooks/useResponsive';
+import CollectionMobile from './CollectionMobile';
 
 /**
  * 创作者中心建的合集统一存成 user_my_list.type = 'topic'(专题)。
@@ -84,7 +86,7 @@ interface WorkRef {
   views: number;
 }
 
-interface Collection {
+export interface Collection {
   id: EntityId;
   title: string;
   description: string;
@@ -148,6 +150,7 @@ function DetailHeader({ title, action }: { title: string; action?: React.ReactNo
 }
 
 export default function CollectionPage() {
+  const { isMobile } = useResponsive();
   const qc = useQueryClient();
   const [tab, setTab] = useState<0 | 1 | 2>(0);
   const [keyword, setKeyword] = useState('');
@@ -308,6 +311,89 @@ export default function CollectionPage() {
   };
 
   const busy = createM.isPending || saveM.isPending || deleteM.isPending;
+
+  // 更多菜单 / 创建 / 编辑 / 分享 / 提示:电脑版和手机版共用
+  const overlays = (
+    <>
+      {/* 更多菜单 */}
+      <Menu open={!!anchorEl} anchorEl={anchorEl?.el} onClose={() => setAnchorEl(null)}>
+        {(() => {
+          const c = anchorEl ? collections.find((x) => sameId(x.id, anchorEl.id)) : null;
+          if (!c) return null;
+          return [
+            <MenuItem key="edit" onClick={() => { setEditing(c); setAnchorEl(null); }} sx={{ fontSize: 13 }}>
+              <EditRoundedIcon sx={{ fontSize: 16, mr: 1 }} />编辑合集
+            </MenuItem>,
+            <MenuItem key="share" onClick={() => openShareDialog(c)} sx={{ fontSize: 13 }}>
+              <ShareRoundedIcon sx={{ fontSize: 16, mr: 1 }} />分享合集
+            </MenuItem>,
+            <Divider key="d" />,
+            <MenuItem key="del" onClick={() => handleDelete(c.id)} sx={{ fontSize: 13, color: 'error.main' }} disabled={busy}>
+              <DeleteOutlineRoundedIcon sx={{ fontSize: 16, mr: 1 }} />删除合集
+            </MenuItem>,
+          ];
+        })()}
+      </Menu>
+
+      <CreateCollectionDialog
+        key={createSeq}
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        submitting={createM.isPending}
+        onCreate={(v) => createM.mutate(v)}
+        allWorks={myWorks}
+      />
+
+      <EditCollectionDrawer
+        collection={editing}
+        onClose={() => setEditing(null)}
+        allWorks={myWorks}
+        submitting={saveM.isPending}
+        onSave={(v) => saveM.mutate(v)}
+      />
+
+      <ShareDialog
+        open={!!shareTarget}
+        target={shareTarget}
+        onClose={() => setShareTarget(null)}
+        onChanged={invalidate}
+        onSnack={setSnack}
+      />
+
+      <Snackbar
+        open={!!snack}
+        autoHideDuration={2200}
+        onClose={() => setSnack(null)}
+        message={snack}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
+    </>
+  );
+
+  // 手机:一行筛选 + 单列合集行 + 右下角「创建合集」,单独设计,见 CollectionMobile。
+  // 不套电脑版那层自带滚动的全高容器,直接跟着工作台 main 滚(底部留给底部导航)。
+  if (isMobile) {
+    return (
+      <CollectionMobile
+        tab={tab}
+        onTab={setTab}
+        counts={counts}
+        totalWorks={totalWorks}
+        keyword={keyword}
+        onKeyword={setKeyword}
+        list={filtered}
+        hasAny={collections.length > 0}
+        loading={listQ.isLoading}
+        error={listQ.isError}
+        onRetry={() => listQ.refetch()}
+        onCreate={openCreate}
+        onEdit={setEditing}
+        onMore={(c, el) => setAnchorEl({ id: c.id, el })}
+      >
+        {overlays}
+      </CollectionMobile>
+    );
+  }
 
   return (
     <Box sx={{ height: 'calc(100dvh - var(--appbar-h, 66px))', overflow: 'auto', overscrollBehavior: 'contain' }}>
@@ -501,58 +587,7 @@ export default function CollectionPage() {
           </ListLayout>
         )}
 
-        {/* 更多菜单 */}
-        <Menu open={!!anchorEl} anchorEl={anchorEl?.el} onClose={() => setAnchorEl(null)}>
-          {(() => {
-            const c = anchorEl ? collections.find((x) => sameId(x.id, anchorEl.id)) : null;
-            if (!c) return null;
-            return [
-              <MenuItem key="edit" onClick={() => { setEditing(c); setAnchorEl(null); }} sx={{ fontSize: 13 }}>
-                <EditRoundedIcon sx={{ fontSize: 16, mr: 1 }} />编辑合集
-              </MenuItem>,
-              <MenuItem key="share" onClick={() => openShareDialog(c)} sx={{ fontSize: 13 }}>
-                <ShareRoundedIcon sx={{ fontSize: 16, mr: 1 }} />分享合集
-              </MenuItem>,
-              <Divider key="d" />,
-              <MenuItem key="del" onClick={() => handleDelete(c.id)} sx={{ fontSize: 13, color: 'error.main' }} disabled={busy}>
-                <DeleteOutlineRoundedIcon sx={{ fontSize: 16, mr: 1 }} />删除合集
-              </MenuItem>,
-            ];
-          })()}
-        </Menu>
-
-        <CreateCollectionDialog
-          key={createSeq}
-          open={createOpen}
-          onClose={() => setCreateOpen(false)}
-          submitting={createM.isPending}
-          onCreate={(v) => createM.mutate(v)}
-          allWorks={myWorks}
-        />
-
-        <EditCollectionDrawer
-          collection={editing}
-          onClose={() => setEditing(null)}
-          allWorks={myWorks}
-          submitting={saveM.isPending}
-          onSave={(v) => saveM.mutate(v)}
-        />
-
-        <ShareDialog
-          open={!!shareTarget}
-          target={shareTarget}
-          onClose={() => setShareTarget(null)}
-          onChanged={invalidate}
-          onSnack={setSnack}
-        />
-
-        <Snackbar
-          open={!!snack}
-          autoHideDuration={2200}
-          onClose={() => setSnack(null)}
-          message={snack}
-          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-        />
+        {overlays}
       </Box>
     </Box>
   );
