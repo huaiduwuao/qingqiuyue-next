@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { isDesktopClient } from '@/lib/clientAuth';
-import { getRenderedPath, installRouterTransitions, navTransition, routeKey, setRenderedPath } from '@/lib/navTransition';
+import { getRenderedPath, installRouterTransitions, isAdminHop, navTransition, routeKey, setRenderedPath } from '@/lib/navTransition';
 import { reportDiag } from '@/lib/clientDiag';
 
 /**
@@ -38,6 +38,8 @@ function isInternalNavClick(e: MouseEvent): string | null {
     return null;
   }
   if (url.origin !== location.origin) return null;
+  // 后台壳内换页不做转场(见 lib/navTransition isAdminHop)
+  if (isAdminHop(url.pathname)) return null;
   const key = routeKey(url.pathname, url.search);
   return key === routeKey(location.pathname, location.search) ? null : key;
 }
@@ -62,6 +64,8 @@ export default function NativeTransitions() {
     };
     // 返回:popstate 触发时 Next 还没渲染上一页,这时开始转场。只改了查询参数(首页 ?tab= 之间)不做
     const onPop = () => {
+      // popstate 时 location 已是目标页,getRenderedPath() 还是当前页
+      if (isAdminHop(location.pathname, getRenderedPath().split('?')[0])) return;
       if (routeKey(location.pathname, location.search) !== getRenderedPath()) navTransition('back');
     };
     document.addEventListener('click', onClick, true);

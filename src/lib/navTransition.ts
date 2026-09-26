@@ -37,6 +37,19 @@ export function routeKey(pathname: string, search: string): string {
   return q ? `${p}?${q}` : p;
 }
 
+/**
+ * 后台壳(/system)里的换页不做转场、不挂「正在跳转」。后台是侧栏 + 内容区的应用壳,换的只是
+ * 内容区:整页快照淡入会把侧栏一起晃一下,而且 startViewTransition 的回调期间浏览器停在旧页快照上、
+ * 不画任何东西(最多 700ms,见 waitForRoute),再叠上 NavProgress 600ms 后的全屏遮罩 ——
+ * 切菜单就是「冻住 → 跳一下」。后台 layout 有自己的进度条和即时高亮。
+ */
+const isAdminPath = (p: string) => norm(p) === '/system' || p.startsWith('/system/');
+
+/** from → to 两头都在后台里 */
+export function isAdminHop(toPathname: string, fromPathname: string = typeof location === 'undefined' ? '' : location.pathname): boolean {
+  return isAdminPath(fromPathname) && isAdminPath(toPathname);
+}
+
 /** href 是不是一次站内换页(同源、routeKey 不同) */
 export function isRouteChange(href: string): boolean {
   if (typeof location === 'undefined') return false;
@@ -165,7 +178,7 @@ export function installRouterTransitions(router: { push: PushFn }): void {
   r.__qqVT = true;
   const push = r.push.bind(r);
   r.push = (href, options) => {
-    if (!isRouteChange(href)) {
+    if (!isRouteChange(href) || isAdminHop(new URL(href, location.href).pathname)) {
       push(href, options);
       return;
     }
