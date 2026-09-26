@@ -151,6 +151,8 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
   const [duration, setDuration] = useState(initialDuration);
   const [volume, setVolume] = useState(80);
   const [muted, setMuted] = useState(false);
+  /** 自动播放被浏览器/WebView 的"有声自动播放需用户手势"策略拦下,已退回静音开播 */
+  const [autoMuted, setAutoMuted] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
   /** 拖动进度条时的目标位置(松手才真正 seek,拖动中 timeupdate 不把滑块拽回去) */
   const [scrub, setScrub] = useState<number | null>(null);
@@ -305,6 +307,21 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     return () => clearTimeout(t);
   }, [expiresAt, reparseUrl]);
 
+  /**
+   * 非用户手势触发的播放(自动播放 / 换链续播)。推荐流划到下一条时,play() 发生在流解析
+   * 完成之后,早已不在手势里:浏览器(iOS/macOS WKWebView、手机浏览器)会以 NotAllowedError
+   * 拒绝有声播放。以前这里 .catch(() => {}) 吞掉,视频就停在第一帧,看着像"一划就暂停"。
+   * 被拒时改成静音开播,再给一个开声音的入口。
+   */
+  const autoStart = (v: HTMLVideoElement) => {
+    v.play().catch((e) => {
+      if (e?.name !== 'NotAllowedError' || v.muted || videoRef.current !== v) return;
+      v.muted = true;
+      setAutoMuted(true);
+      v.play().catch(() => {});
+    });
+  };
+
   // loadStream 真正把地址喂给 <video>/hls.js。外面的 playStream 先做直连判定。
   const loadStream = (url: string, format?: string) => {
     if (!videoRef.current) return;
@@ -329,9 +346,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     const isMp4 = format === 'mp4' || /\.mp4(\?|$)/i.test(url) || url.includes('mime_type=video_mp4') || url.includes('mime_type=video');
     if (isMp4) {
       videoRef.current.src = playUrl;
-      if (shouldPlay) {
-        videoRef.current.play().catch(() => {});
-      }
+      if (shouldPlay) autoStart(videoRef.current);
       return;
     }
 
@@ -353,9 +368,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
         hls.on(Hls.Events.MANIFEST_PARSED, () => {
           // 关键守卫:卸载后回调不应再触发
           if (!videoRef.current) return;
-          if (shouldPlay) {
-            videoRef.current.play().catch(() => {});
-          }
+          if (shouldPlay) autoStart(videoRef.current);
           setPlaying(!videoRef.current.paused);
         });
 
@@ -384,9 +397,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
       } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
         // Safari 原生支持 HLS
         videoRef.current.src = playUrl;
-        if (shouldPlay) {
-          videoRef.current.play().catch(() => {});
-        }
+        if (shouldPlay) autoStart(videoRef.current);
       } else {
         setStreamError('当前浏览器不支持 HLS 播放');
       }
@@ -475,7 +486,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
         detach = attachLocalStream(v, stream, (err) => {
           if (!cancelled) onLocalFail?.(err);
         });
-        if (autoPlay) v.play().catch(() => {});
+        if (autoPlay) autoStart(v);
       })
       .catch((err: Error) => {
         if (!cancelled) onLocalFail?.(err);
@@ -495,9 +506,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
 
   // 自动播放
   useEffect(() => {
-    if (autoPlay && videoRef.current && src) {
-      videoRef.current.play().catch(() => {});
-    }
+    if (autoPlay && videoRef.current && src) autoStart(videoRef.current);
   }, [autoPlay, src]);
 
   const togglePlay = () => {
@@ -534,7 +543,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     if (resumeAt.current > 0) {
       v.currentTime = resumeAt.current;
       resumeAt.current = 0;
-      if (resumePlaying.current) v.play().catch(() => {});
+      if (resumePlaying.current) autoStart(v);
     }
   };
 
@@ -625,7 +634,9 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
       },
       // 静音可能来自外部(音乐播放器让推荐流静音开播),按钮图标跟着元素走
       volumechange: () => {
-        if (videoRef.current) setMuted(videoRef.current.muted);
+        if (!videoRef.current) return;
+        setMuted(videoRef.current.muted);
+        if (!videoRef.current.muted) setAutoMuted(false);
       },
       enterpictureinpicture: () => setPip(true),
       leavepictureinpicture: () => setPip(false),
@@ -1054,6 +1065,34 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
           <Box sx={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>该内容暂时无法播放</Box>
           <Box sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>{streamError} · 已记录,尽快修复</Box>
           {originButton}
+        </Box>
+      )}
+
+      {/* 有声自动播放被拦、已静音开播:轻触这里(用户手势)把声音打开 */}
+      {hasVideo && autoMuted && muted && playing && (
+        <Box
+          data-no-drag
+          role="button"
+          onClick={() => setMuted(false)}
+          sx={{
+            position: 'absolute',
+            top: 12,
+            left: 12,
+            zIndex: 3,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 0.5,
+            px: 1.25,
+            py: 0.5,
+            borderRadius: 999,
+            fontSize: 12,
+            color: '#fff',
+            bgcolor: 'rgba(0,0,0,0.55)',
+            cursor: 'pointer',
+          }}
+        >
+          <VolumeOffIcon sx={{ fontSize: 16 }} />
+          轻触开启声音
         </Box>
       )}
 

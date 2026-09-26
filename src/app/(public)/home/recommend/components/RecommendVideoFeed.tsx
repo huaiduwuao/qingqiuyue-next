@@ -491,6 +491,11 @@ export function RecommendVideoFeed() {
   const [hearts, setHearts] = useState<Array<{ key: number; x: number; y: number }>>([]);
   const lastTap = useRef(0);
   const singleTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 划走时丢掉还没触发的单击:否则它会在 260ms 后 togglePlay 刚划到的那一条,把它暂停
+  useEffect(() => {
+    if (singleTapTimer.current) clearTimeout(singleTapTimer.current);
+    singleTapTimer.current = null;
+  }, [index]);
 
   // 换条视频:关注态重置
   useEffect(() => {
@@ -694,7 +699,9 @@ export function RecommendVideoFeed() {
     const d = dragY;
     if (s.moved < 6) {
       setDragY(0);
-      onTap(e);
+      // pointercancel 是浏览器/系统把手势收走了,不是一次点击 —— 以前也走 onTap,
+      // 260ms 后 togglePlay 把刚划到的视频暂停。
+      if (e.type !== 'pointercancel') onTap(e);
       return;
     }
     const threshold = (viewportRef.current?.clientHeight || 600) * 0.18;
