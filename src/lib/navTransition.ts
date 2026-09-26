@@ -11,7 +11,12 @@ import { flushSync } from 'react-dom';
 
 type Dir = 'forward' | 'back';
 
-type ViewTransitionLike = { finished: Promise<void>; skipTransition?: () => void };
+type ViewTransitionLike = {
+  finished: Promise<void>;
+  ready?: Promise<void>;
+  updateCallbackDone?: Promise<void>;
+  skipTransition?: () => void;
+};
 type DocWithVT = Document & { startViewTransition?: (cb: () => Promise<void> | void) => ViewTransitionLike };
 
 /**
@@ -151,8 +156,11 @@ function begin(dir: Dir, update: (vt: () => ViewTransitionLike | undefined) => P
   html.dataset.vt = dir;
   // 回调在拍完旧页快照后才执行(异步),那时 vt 已经赋值;getVT 只在回调的 promise 链里被调用
   const vt: ViewTransitionLike = (document as DocWithVT).startViewTransition!(() => update(() => vt));
-  // 放弃转场(skipTransition / 页面切到后台)时 Chrome 会把 finished 也拒掉(AbortError: Transition was skipped),
-  // 不接住就是一条 unhandled rejection;这里只关心收尾
+  // 放弃转场(skipTransition / 页面切到后台 / 上一个转场还没完又来一个)时,Chrome 会把 ready 拒掉
+  // (AbortError: Transition was skipped)—— 以前只接了 finished,ready 没人接,控制台就是一条
+  // Uncaught (in promise)。ready / updateCallbackDone 的失败都不影响导航本身,吞掉;这里只关心收尾。
+  vt.ready?.catch(() => {});
+  vt.updateCallbackDone?.catch(() => {});
   vt.finished
     .catch(() => {})
     .finally(() => {
