@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -79,6 +80,11 @@ export function RelatedContent({ contentId, title = '相关推荐', size = DEFAU
 
 function RelatedCard({ item }: { item: FeedItem }) {
   const href = getDetailRoute(item.contentType, item.id)!;
+  // 详情页里点「相关推荐」= 原地换一条(YouTube App 的做法),不再压一层历史:
+  // 详情 → 相关 → 相关 … 之后按一次返回就回到进详情之前的列表,而不是一条条倒回去。
+  // 分享页等非详情页里点进来仍是正常的「进入下一页」。
+  const pathname = usePathname();
+  const swap = !!pathname?.startsWith('/detail/');
   const portrait = PORTRAIT_TYPES.has(item.contentType?.toUpperCase());
   const isMusic = item.contentType?.toUpperCase() === 'MUSIC';
   return (
@@ -86,6 +92,8 @@ function RelatedCard({ item }: { item: FeedItem }) {
     <Box
       component={Link}
       href={href}
+      replace={swap}
+      data-nav={swap ? 'swap' : undefined}
       sx={{
         display: 'block',
         color: 'inherit',

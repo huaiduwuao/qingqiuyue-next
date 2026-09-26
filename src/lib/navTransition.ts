@@ -9,8 +9,12 @@
 
 import { flushSync } from 'react-dom';
 
-/** forward/back = 进入下一级 / 返回(整页推入、滑出);tab = 底部 tab 之间平级切换(短淡入淡出,不推页) */
-type Dir = 'forward' | 'back' | 'tab';
+/**
+ * forward/back = 进入下一级 / 返回(整页推入、滑出);
+ * tab = 底部 tab 之间平级切换;swap = 同一层原地换内容(详情页里点相关推荐,history.replace)。
+ * tab / swap 都是短淡入淡出,不推页。
+ */
+type Dir = 'forward' | 'back' | 'tab' | 'swap';
 
 type ViewTransitionLike = {
   finished: Promise<void>;

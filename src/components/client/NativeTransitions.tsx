@@ -60,7 +60,9 @@ export default function NativeTransitions() {
     // 站内链接:在 Next 的 <Link> 处理之前(捕获阶段)开始转场,快照拍的是旧页面
     const onClick = (e: MouseEvent) => {
       if (!isInternalNavClick(e)) return;
-      navTransition('forward');
+      // data-nav="swap":原地换内容(详情页相关推荐,Link 带 replace),淡入淡出,不做「进入下一页」的推入
+      const a = (e.target as Element | null)?.closest?.('a') as HTMLAnchorElement | null;
+      navTransition(a?.dataset.nav === 'swap' ? 'swap' : 'forward');
     };
     // 返回:popstate 触发时 Next 还没渲染上一页,这时开始转场。只改了查询参数(首页 ?tab= 之间)不做
     const onPop = () => {
