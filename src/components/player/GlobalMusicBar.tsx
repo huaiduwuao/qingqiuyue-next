@@ -41,6 +41,22 @@ function fmt(s: number) {
 /** 底部导航存在时贴在它上面,否则贴屏幕底(含安全区) */
 const BOTTOM = 'calc(max(var(--bottom-nav-inset, 0px), var(--sab, 0px)) + 10px)';
 
+/**
+ * 页面左侧常驻导航栏的宽度(首页桌面端,globals.css 按 [data-side-nav] 写入,没有就是 0)。
+ * 底栏在剩下的区域里居中、唱片贴在侧栏右边 —— 不盖住侧栏底部的设置 / 备案信息,
+ * 侧栏也就不必为播放器改自己的高度。
+ */
+const SIDE = 'var(--side-nav-w, 0px)';
+
+/**
+ * 在 MUI 的 appBar(1100) 之上、drawer(1200) / modal(1300) 之下:
+ * 抽屉(首页设置面板等)和弹窗打开时盖住播放器,而不是被播放器压住底部。
+ */
+const Z = 1150;
+
+/** 页面转场(lib/navTransition)时单独成层、原地不动,不跟着整页一起滑走 */
+const VT_NAME = 'qq-music-bar';
+
 function Cover({ track, size, spin }: { track: MusicTrack; size: number; spin: boolean }) {
   const [broken, setBroken] = useState(false);
   return (
@@ -271,9 +287,10 @@ export default function GlobalMusicBar() {
           onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && musicPlayer.setCollapsed(false)}
           sx={{
             position: 'fixed',
-            left: 16,
+            left: `calc(${SIDE} + 16px)`,
             bottom: BOTTOM,
-            zIndex: 1300,
+            zIndex: Z,
+            viewTransitionName: VT_NAME,
             width: DISC + 8,
             height: DISC + 8,
             borderRadius: '50%',
@@ -302,13 +319,14 @@ export default function GlobalMusicBar() {
       aria-label="音乐播放器"
       sx={{
         position: 'fixed',
-        left: { xs: 8, md: '50%' },
+        left: { xs: 8, md: `calc(50% + ${SIDE} / 2)` },
         right: { xs: 8, md: 'auto' },
         transform: { md: 'translateX(-50%)' },
-        width: { md: 'min(880px, calc(100vw - 48px))' },
+        width: { md: `min(880px, calc(100vw - 48px - ${SIDE}))` },
         bottom: BOTTOM,
         height: BAR_H,
-        zIndex: 1300,
+        zIndex: Z,
+        viewTransitionName: VT_NAME,
         borderRadius: 999,
         display: 'flex',
         alignItems: 'center',

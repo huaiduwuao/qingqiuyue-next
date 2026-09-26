@@ -1,21 +1,24 @@
 'use client';
 
 import { useEffect, useLayoutEffect } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { isDesktopClient } from '@/lib/clientAuth';
-import { getRenderedPath, navTransition, routeKey, setRenderedPath } from '@/lib/navTransition';
+import { getRenderedPath, installRouterTransitions, navTransition, routeKey, setRenderedPath } from '@/lib/navTransition';
 import { reportDiag } from '@/lib/clientDiag';
 
 /**
- * 客户端里的原生手感(网页里什么都不做):
+ * 原生手感:
  *
- * 1. 页面切换动画 —— 用浏览器的 View Transitions API:前进(点站内链接 / navTransition('forward'))
- *    新页从右边推进来,返回(系统返回键 / 手势 / router.back → popstate)当前页往右滑走。
+ * 1. 页面切换动画(网页和客户端都有)—— 用浏览器的 View Transitions API:前进(点站内链接 /
+ *    router.push / navTransition('forward'))新页从右边推进来,返回(返回按钮 router.back /
+ *    系统返回键 / 手势 → popstate)当前页往右滑走。宽屏上换成轻量的淡入 + 小位移。
  *    动画作用在新旧两页的快照上,不改页面自己的布局,吸顶栏 / 底栏 / 固定元素都不受影响。
  *    只在路径变化时做(同页 ?tab= 切换不算);系统开了「减少动态效果」时不做。
  *    动画样式在 globals.css(html[data-vt])。
  *
- * 2. 滑不动诊断 —— 安卓上手指竖着划了一大段、页面和任何滚动容器都没动,就把手指下面那一串元素的
+ *    同时打上「正在跳转」,慢的时候 NavProgress 出进度条 / 遮罩。
+ *
+ * 2. 滑不动诊断(只在客户端里)—— 安卓上手指竖着划了一大段、页面和任何滚动容器都没动,就把手指下面那一串元素的
  *    overflow / touch-action / pointer-events 报给服务器(见 lib/clientDiag)。
  *    这类问题只在真机上出现,模拟环境复现不了,拿现场数据定位。
  */
@@ -24,6 +27,10 @@ function isInternalNavClick(e: MouseEvent): string | null {
   if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return null;
   const a = (e.target as Element | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
   if (!a || (a.target && a.target !== '_self') || a.hasAttribute('download')) return null;
+  // 卡片链接里的点赞/收藏等按钮:它们自己 preventDefault,不会跳转。捕获阶段还看不出来,
+  // 按「点在链接里的一个控件上」排除,否则会白白冻住画面、挂上「正在跳转」
+  const ctl = (e.target as Element).closest('button, [role="button"], input, select, textarea, label');
+  if (ctl && ctl !== a && a.contains(ctl)) return null;
   let url: URL;
   try {
     url = new URL(a.href, location.href);
@@ -36,6 +43,7 @@ function isInternalNavClick(e: MouseEvent): string | null {
 }
 
 export default function NativeTransitions() {
+  const router = useRouter();
   const pathname = usePathname();
   const search = useSearchParams()?.toString() ?? '';
   useLayoutEffect(() => {
@@ -43,8 +51,10 @@ export default function NativeTransitions() {
   }, [pathname, search]);
 
   useEffect(() => {
-    if (!isDesktopClient()) return;
+    installRouterTransitions(router);
+  }, [router]);
 
+  useEffect(() => {
     // 站内链接:在 Next 的 <Link> 处理之前(捕获阶段)开始转场,快照拍的是旧页面
     const onClick = (e: MouseEvent) => {
       if (!isInternalNavClick(e)) return;
@@ -56,6 +66,14 @@ export default function NativeTransitions() {
     };
     document.addEventListener('click', onClick, true);
     window.addEventListener('popstate', onPop, true);
+    return () => {
+      document.removeEventListener('click', onClick, true);
+      window.removeEventListener('popstate', onPop, true);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isDesktopClient()) return;
 
     // 滑不动诊断(只看触屏)
     let startY = 0;
@@ -118,8 +136,6 @@ export default function NativeTransitions() {
     window.addEventListener('touchend', onTouchEnd, { passive: true });
 
     return () => {
-      document.removeEventListener('click', onClick, true);
-      window.removeEventListener('popstate', onPop, true);
       document.removeEventListener('scroll', onScrollAny, true);
       window.removeEventListener('touchstart', onTouchStart);
       window.removeEventListener('touchmove', onTouchMove);

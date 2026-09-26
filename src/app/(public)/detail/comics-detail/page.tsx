@@ -37,6 +37,7 @@ import { EpisodeList } from '@/components/detail/EpisodeList';
 import { useContentItems, type ContentItem } from '@/hooks/useContentItems';
 import { AvailabilityBadge } from '@/components/common/AvailabilityBadge';
 import type { PlaybackStatus } from '@/apis/recommend';
+import { stateTransition } from '@/lib/navTransition';
 
 interface Comics {
   id: number;
@@ -148,13 +149,19 @@ function ComicsDetailContent() {
         notify('该话需解锁后阅读', 'info');
         return;
       }
-      setActiveChapterId(ch.id);
-      setActivePage(1);
-      setReaderOpen(true);
+      const apply = () => {
+        setActiveChapterId(ch.id);
+        setActivePage(1);
+        setReaderOpen(true);
+      };
+      // 从详情进阅读器:前进转场;阅读器里换话不做
+      if (readerOpen) apply();
+      else stateTransition('forward', apply);
       setTimeout(() => readerRef.current?.scrollTo({ top: 0, behavior: 'auto' }), 0);
     },
-    [notify],
+    [notify, readerOpen],
   );
+  const closeReader = useCallback(() => stateTransition('back', () => setReaderOpen(false)), []);
 
   const goChapter = useCallback(
     (delta: number) => {
@@ -180,11 +187,11 @@ function ComicsDetailContent() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight') nextPage();
       else if (e.key === 'ArrowLeft') prevPage();
-      else if (e.key === 'Escape') setReaderOpen(false);
+      else if (e.key === 'Escape') closeReader();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [readerOpen, nextPage, prevPage]);
+  }, [readerOpen, nextPage, prevPage, closeReader]);
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -344,7 +351,7 @@ function ComicsDetailContent() {
                   }}
                 >
                   <Box sx={{ display: 'flex', alignItems: 'center', p: 1.5, gap: 1, borderBottom: '1px solid rgba(255,255,255,0.12)' }}>
-                    <IconButton onClick={() => setReaderOpen(false)} sx={{ color: '#fff' }} aria-label="关闭阅读器">
+                    <IconButton onClick={closeReader} sx={{ color: '#fff' }} aria-label="关闭阅读器">
                       <CloseRoundedIcon />
                     </IconButton>
                     <Typography sx={{ fontSize: 14, fontWeight: 600, flex: 1 }} noWrap>

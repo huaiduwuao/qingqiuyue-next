@@ -190,7 +190,8 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
           // 推荐视频流要铺满剩余高度:main 自己是列向 flex,视频流 flex:1
           display: 'flex',
           flexDirection: 'column',
-          '& > *': { flexShrink: 0 },
+          // 切页签(精选/推荐/榜单…)时新面板淡入,不是生硬地一闪换掉(只动透明度,不影响里面的 fixed 元素)
+          '& > *': { flexShrink: 0, animation: 'qq-fade-in 0.2s ease-out both' },
           '& > [data-fill-main]': { flex: 1, minHeight: 0 },
         }}>
           {activeNav === 'me' ? <MyHomePage />
@@ -499,6 +500,8 @@ function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activ
   return (
     <Box
       component="nav"
+      // globals.css 按它写 --side-nav-w:音乐底栏/唱片据此避开侧栏
+      data-side-nav
       sx={{
         width: { md: 200, lg: 220 },
         flexShrink: 0,
@@ -508,8 +511,8 @@ function LeftSidebar({ activeNav, onNavChange, meOpen, onMeOpenChange }: { activ
         flexDirection: 'column',
         borderRight: '1px solid var(--border-color, transparent)',
         bgcolor: 'var(--bg-sidebar, transparent)',
-        // 底部的版权/ICP 页脚别被音乐底栏盖住
-        pb: 'var(--player-inset, 0px)',
+        // 不再按 --player-inset 垫底:音乐底栏一开一关,整列(导航、备案、设置按钮)跟着上下跳。
+        // 现在是播放器避开侧栏(GlobalMusicBar 读 --side-nav-w),侧栏高度与播放器无关。
       }}
     >
       <Box sx={{ flex: 1, py: 1.5, overflow: 'auto' }}>

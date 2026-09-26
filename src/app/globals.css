@@ -184,8 +184,10 @@ a {
   }
 }
 
-/* ==================== 安卓客户端:收掉网页才有的交互 ====================
-   data-client 由 components/client/ClientPlatformAttr 在客户端里打上,网站不受影响。 */
+/* ==================== 安卓客户端 / 触屏网页:收掉网页才有的交互 ====================
+   data-client 由 components/client/ClientPlatformAttr 在客户端里打上;data-touch 是手机/平板浏览器
+   (触屏、没有悬停),同一个组件打。桌面网页两个都没有,不受影响。
+   整页防回弹只给安卓客户端:浏览器里的下拉刷新是用户预期的行为。 */
 
 /* 整页不再橡皮筋回弹/拉伸:原生应用的外壳是固定的,只有里面的列表会滚 */
 html[data-client="android"],
@@ -194,35 +196,36 @@ html[data-client="android"] body {
 }
 
 /* 长按不再选中按钮、标签、卡片上的文字,也不弹系统的链接/图片菜单 */
-html[data-client="android"] body {
+html[data-client="android"] body,
+html[data-touch] body {
   -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
 }
 /* 输入框和正文照样能选、能复制 */
-html[data-client="android"] :is(input, textarea, [contenteditable="true"], [contenteditable=""], article, pre, blockquote, .selectable, [data-selectable]),
-html[data-client="android"] :is(article, pre, blockquote, .selectable, [data-selectable]) * {
+:is(html[data-client="android"], html[data-touch]) :is(input, textarea, [contenteditable="true"], [contenteditable=""], article, pre, blockquote, .selectable, [data-selectable]),
+:is(html[data-client="android"], html[data-touch]) :is(article, pre, blockquote, .selectable, [data-selectable]) * {
   -webkit-user-select: text;
   user-select: text;
 }
-html[data-client="android"] img {
+:is(html[data-client="android"], html[data-touch]) img {
   -webkit-user-drag: none;
 }
 
 /* 按下反馈:原生应用点下去有「按进去」的手感,松手弹回。用独立的 scale 属性而不是 transform,
-   不覆盖元素自己的位移/动画;不给 MUI 组件设 transition,免得盖掉它们自带的颜色/阴影过渡。只作用在客户端里。 */
-html[data-client] :is(a[href], [role="button"]):not(.MuiButtonBase-root):active {
+   不覆盖元素自己的位移/动画;不给 MUI 组件设 transition,免得盖掉它们自带的颜色/阴影过渡。客户端 + 触屏网页。 */
+:is(html[data-client], html[data-touch]) :is(a[href], [role="button"]):not(.MuiButtonBase-root):active {
   opacity: 0.8;
   scale: 0.98;
 }
-html[data-client] .MuiButtonBase-root:not(.Mui-disabled):active {
+:is(html[data-client], html[data-touch]) .MuiButtonBase-root:not(.Mui-disabled):active {
   scale: 0.97;
 }
 
 /* ==================== 客户端:提示条 ====================
    以前各处的 Snackbar 大多锚在顶部,客户端里正好压住顶栏(安卓还叠在状态栏下面)。
-   客户端里统一放到底部、底栏和音乐条之上,入场从下往上滑 + 淡入,像原生的 Toast。 */
-html[data-client] .MuiSnackbar-root {
+   客户端和手机浏览器里统一放到底部、底栏和音乐条之上,入场从下往上滑 + 淡入,像原生的 Toast。 */
+:is(html[data-client], html[data-touch]) .MuiSnackbar-root {
   top: auto !important;
   bottom: calc(max(var(--bottom-nav-inset, 0px), var(--sab, 0px)) + var(--player-inset, 0px) + 12px) !important;
   left: 12px !important;
@@ -230,7 +233,7 @@ html[data-client] .MuiSnackbar-root {
   transform: none !important;
   justify-content: center;
 }
-html[data-client] .MuiSnackbar-root > * {
+:is(html[data-client], html[data-touch]) .MuiSnackbar-root > * {
   animation: qq-toast-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 @keyframes qq-toast-in {
@@ -240,9 +243,12 @@ html[data-client] .MuiSnackbar-root > * {
   }
 }
 
-/* ==================== 客户端:页面转场 ====================
-   components/client/NativeTransitions 在导航时打上 html[data-vt=forward|back] 并调 View Transitions API。
-   前进:新页从右推入、旧页左移变暗;返回:当前页向右滑走、上一页从左侧回来。 */
+/* ==================== 页面转场(网页 + 客户端) ====================
+   components/client/NativeTransitions 在导航时打上 html[data-vt=forward|back] 并调 View Transitions API
+   (小说详情 ⇄ 阅读器这类同页换屏走 lib/navTransition 的 stateTransition,同一套样式)。
+   窄屏:前进新页从右推入、旧页左移变暗;返回当前页向右滑走、上一页从左侧回来。
+   宽屏(≥900px)整页平移太重,换成淡入 + 24px 位移,见本节末尾。
+   音乐底栏有自己的 view-transition-name,转场时原地不动,不跟着页面滑。 */
 html[data-vt]::view-transition-old(root),
 html[data-vt]::view-transition-new(root) {
   animation-duration: 0.3s;
@@ -285,6 +291,66 @@ html[data-vt="back"]::view-transition-new(root) {
   from {
     transform: translateX(-25%);
     opacity: 0.7;
+  }
+}
+@media (min-width: 900px) {
+  html[data-vt]::view-transition-old(root),
+  html[data-vt]::view-transition-new(root) {
+    animation-duration: 0.22s;
+    box-shadow: none;
+  }
+  html[data-vt="forward"]::view-transition-new(root) {
+    animation-name: qq-vt-fade-in-right;
+  }
+  html[data-vt="back"]::view-transition-new(root) {
+    animation-name: qq-vt-fade-in-left;
+  }
+  html[data-vt]::view-transition-old(root) {
+    animation-name: qq-vt-fade-out;
+  }
+}
+@keyframes qq-vt-fade-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+@keyframes qq-vt-fade-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+}
+@keyframes qq-vt-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* 页内切换(首页页签、「我的」里的 书架/作品/历史…)的入场:淡入 + 从切换方向滑进来一点。
+   方向由 --qq-tab-dx 给(往右边的页签是正值)。 */
+@keyframes qq-tab-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--qq-tab-dx, 12px));
+  }
+}
+@keyframes qq-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* 首页左侧导航的宽度,音乐底栏/唱片据此避开侧栏(GlobalMusicBar 读 --side-nav-w)。
+   与 home/layout.tsx 里 LeftSidebar 的 width: { md: 200, lg: 220 } 保持一致。 */
+@media (min-width: 900px) {
+  html:has([data-side-nav]) {
+    --side-nav-w: 200px;
+  }
+}
+@media (min-width: 1200px) {
+  html:has([data-side-nav]) {
+    --side-nav-w: 220px;
   }
 }
 

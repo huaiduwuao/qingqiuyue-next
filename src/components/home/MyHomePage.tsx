@@ -288,6 +288,14 @@ function MyHomePageAuthed() {
   const searchParams = useSearchParams();
   const urlMainTab = searchParams.get('mainTab') || 'works';
   const [mainTab, setMainTab] = useState(urlMainTab);
+  // 页签切换的入场方向:往右边的页签切 → 内容从右边滑进来,反之从左边(书架 ⇄ 作品等)
+  const tabIdx = MAIN_TABS.findIndex((t) => t.key === mainTab);
+  const [prevTabIdx, setPrevTabIdx] = useState(tabIdx);
+  const [tabDx, setTabDx] = useState(24);
+  if (prevTabIdx !== tabIdx) {
+    setPrevTabIdx(tabIdx);
+    setTabDx(tabIdx > prevTabIdx ? 24 : -24);
+  }
   const [subTab, setSubTab] = useState('works');
 
   // URL → state(从其它页面跳过来时,主 tab 跟着 URL 走)
@@ -993,7 +1001,8 @@ function MyHomePageAuthed() {
           </Box>
         )}
 
-        {/* Content area */}
+        {/* Content area:换页签时整块重挂,带方向地滑入 */}
+        <Box key={mainTab} sx={{ '--qq-tab-dx': `${tabDx}px`, animation: 'qq-tab-in 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both' }}>
         {listQuery.isLoading ? (
           // 第一页还在路上时别写「还未发布过作品」——那是空态,不是加载中
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
@@ -1054,6 +1063,7 @@ function MyHomePageAuthed() {
             showPrivacy={mainTab === 'works'}
           />
         )}
+        </Box>
 
         {/* 无限滚动:哨兵 + 加载态 + 到底提示 */}
         {!listQuery.isLoading && loadedList.length > 0 && (

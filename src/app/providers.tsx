@@ -12,6 +12,7 @@ import DeepLinkBridge from '@/components/client/DeepLinkBridge';
 import AppUpdater from '@/components/client/AppUpdater';
 import ClientPlatformAttr from '@/components/client/ClientPlatformAttr';
 import NativeTransitions from '@/components/client/NativeTransitions';
+import NavProgress from '@/components/client/NavProgress';
 import ClickSpark from '@/components/reactbits/ClickSpark';
 import GlobalPlayers from '@/components/player/GlobalPlayers';
 import EmbedBridge from '@/components/layout/EmbedBridge';
@@ -98,13 +99,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
               <DeepLinkBridge />
               {/* 客户端:启动 / 每 6 小时检查新版本,桌面端自动下载安装(网页里是空组件) */}
               <AppUpdater />
-              {/* 客户端:<html data-client=…>,供 globals.css 收掉网页才有的交互(网页里是空组件) */}
+              {/* <html data-client=…>(客户端)/ data-touch(手机浏览器),供 globals.css 收掉网页才有的交互 */}
               <ClientPlatformAttr />
-              {/* 客户端:页面前进/返回转场 + 真机滑不动诊断(网页里是空组件) */}
+              {/* 页面前进/返回转场(网页 + 客户端)+ 客户端真机滑不动诊断 */}
               {/* useSearchParams 在静态导出下必须包 Suspense */}
               <Suspense fallback={null}>
                 <NativeTransitions />
               </Suspense>
+              {/* 点下去反应慢(换页 / 提交)时的顶部进度条和遮罩 */}
+              <NavProgress />
               <ClickSpark sparkColor="var(--brand-color, #FE2C55)">
                 {children}
               </ClickSpark>

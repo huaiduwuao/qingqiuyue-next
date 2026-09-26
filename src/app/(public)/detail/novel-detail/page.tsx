@@ -17,6 +17,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import LockIcon from '@mui/icons-material/Lock';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { CoverImage } from '@/components/common/CoverImage';
+import { stateTransition } from '@/lib/navTransition';
 import { detail as contentDetail } from '@/apis/content-video';
 import { page as chapterPage, get as getChapterDetail, addShelf } from '@/apis/content-novel-chapter';
 import {
@@ -359,30 +360,38 @@ function NovelDetailContent() {
     (i: number) => {
       const target = chapters[i];
       if (!target) return;
-      setExitReading(false);
-      setRange({ start: i, end: i });
-      setCurrent(i);
-      // 从目录 / 上下章按钮跳章一律从章首开始,不能沿用上一章的页码
-      setPage(0);
-      setPanel(null);
-      setShowInfo(false);
-      setUrlChapter(target.id, 0);
-      if (id) saveProgress(id, { chapterId: target.id, page: 0 });
-      window.scrollTo({ top: 0 });
+      const apply = () => {
+        setExitReading(false);
+        setRange({ start: i, end: i });
+        setCurrent(i);
+        // 从目录 / 上下章按钮跳章一律从章首开始,不能沿用上一章的页码
+        setPage(0);
+        setPanel(null);
+        setShowInfo(false);
+        setUrlChapter(target.id, 0);
+        if (id) saveProgress(id, { chapterId: target.id, page: 0 });
+        window.scrollTo({ top: 0 });
+      };
+      // 从详情页进入阅读器:和换页一样的前进转场(阅读中跳章不做,免得翻章也整屏平移)
+      if (range === null) stateTransition('forward', apply);
+      else apply();
     },
-    [chapters, id, setUrlChapter],
+    [chapters, id, setUrlChapter, range],
   );
 
   // 回目录/详情:退出阅读态。把地址栏的 chapter 参数去掉,并滚回顶部。
   const backToDetail = useCallback(() => {
-    setExitReading(true);
-    setRange(null);
-    setCurrent(0);
-    setPage(0);
-    setPanel(null);
-    setShowInfo(false);
-    if (id) window.history.replaceState(window.history.state, '', `${pathname}?id=${encodeURIComponent(id)}`);
-    window.scrollTo({ top: 0 });
+    // 退出阅读器回详情:返回转场
+    stateTransition('back', () => {
+      setExitReading(true);
+      setRange(null);
+      setCurrent(0);
+      setPage(0);
+      setPanel(null);
+      setShowInfo(false);
+      if (id) window.history.replaceState(window.history.state, '', `${pathname}?id=${encodeURIComponent(id)}`);
+      window.scrollTo({ top: 0 });
+    });
   }, [id, pathname]);
 
   const appendAfter = useCallback(

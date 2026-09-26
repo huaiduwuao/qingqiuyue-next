@@ -4,6 +4,7 @@ import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useLayo
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import Slider from '@mui/material/Slider';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
@@ -95,6 +96,42 @@ function fmt(s: number) {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
+/** 推荐流右上角的圆形玻璃按钮 */
+const FILL_BTN_SX = {
+  color: '#fff',
+  bgcolor: 'rgba(0,0,0,0.35)',
+  backdropFilter: 'blur(6px)',
+  '&:hover': { bgcolor: 'rgba(0,0,0,0.55)' },
+} as const;
+
+/**
+ * 进度条:看得见的轨道 3–4px,可点/可拖的区域上下各多出 10–16px(手指不用瞄准一根细线);
+ * 悬停或拖动时轨道加粗、滑块放大。thick = 推荐流那条贴底的。
+ */
+function seekBarSx(thick: boolean) {
+  return {
+    display: 'block',
+    color: '#FE2C55',
+    height: thick ? 4 : 3,
+    borderRadius: 2,
+    py: thick ? '14px' : '10px',
+    '@media (pointer: coarse)': { py: thick ? '16px' : '12px' },
+    transition: 'height 0.15s',
+    '&:hover, &:has(.Mui-active)': { height: thick ? 8 : 6 },
+    '& .MuiSlider-rail': { bgcolor: '#fff', opacity: 0.3 },
+    '& .MuiSlider-track': { border: 'none' },
+    '& .MuiSlider-thumb': {
+      width: thick ? 12 : 14,
+      height: thick ? 12 : 14,
+      transition: 'box-shadow 0.15s, width 0.15s, height 0.15s',
+      '&::before': { boxShadow: 'none' },
+      '&:hover, &.Mui-focusVisible': { boxShadow: '0 0 0 6px rgba(254,44,85,0.22)' },
+      '&.Mui-active': { width: 20, height: 20, boxShadow: '0 0 0 8px rgba(254,44,85,0.22)' },
+    },
+    '& .MuiSlider-valueLabel': { bgcolor: 'rgba(0,0,0,0.75)', fontSize: 12, fontVariantNumeric: 'tabular-nums' },
+  } as const;
+}
+
 const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVideoPlayer(
   { src, sourceUrl, refreshSource, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false, fill = false, onPlaybackError, dockTitle, localSource, onLocalFail, localRefresh },
   ref,
@@ -115,6 +152,10 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
   const [volume, setVolume] = useState(80);
   const [muted, setMuted] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
+  /** 拖动进度条时的目标位置(松手才真正 seek,拖动中 timeupdate 不把滑块拽回去) */
+  const [scrub, setScrub] = useState<number | null>(null);
+  /** 手机宽度:详情页的播放器只有 ~200px 高,控制条要收成一行,不能压住中间的播放键 */
+  const compact = useMediaQuery('(max-width:599.95px)');
   const [loading, setLoading] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
   const [streams, setStreams] = useState<StreamInfo[]>([]);
@@ -504,6 +545,12 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     }
   };
 
+  const onScrub = (_: Event, v: number | number[]) => setScrub(v as number);
+  const onScrubEnd = (_: unknown, v: number | number[]) => {
+    handleSeek(null, v);
+    setScrub(null);
+  };
+
   const handleVolume = (_: any, v: number | number[]) => {
     const n = v as number;
     setVolume(n);
@@ -835,7 +882,8 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
               className="quality-selector"
               sx={{
                 position: 'absolute',
-                top: 10,
+                // 推荐流的右上角是声音/全屏按钮,清晰度放它们下面
+                top: fill ? 56 : 10,
                 right: 10,
                 zIndex: 10,
               }}
@@ -1016,19 +1064,21 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
           onClick={togglePlay}
           sx={{
             position: 'absolute',
-            top: '50%',
+            // 手机上播放器只有 ~200px 高,底部控制条占掉 ~60px:按钮往上让半个控制条,不被压住
+            top: compact && !fill ? 'calc(50% - 28px)' : '50%',
             left: '50%',
             transform: 'translate(-50%, -50%)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            zIndex: 2,
           }}
         >
           <Box
             sx={{
-              width: 72,
-              height: 72,
+              width: compact ? 56 : 72,
+              height: compact ? 56 : 72,
               borderRadius: '50%',
               bgcolor: 'rgba(254, 44, 85, 0.9)',
               display: 'flex',
@@ -1037,13 +1087,59 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
               boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
             }}
           >
-            <PlayArrowIcon sx={{ fontSize: 44, color: '#fff' }} />
+            <PlayArrowIcon sx={{ fontSize: compact ? 36 : 44, color: '#fff' }} />
           </Box>
         </Box>
       )}
 
+      {/* 推荐流(fill):抖音式 —— 底边一整条粗进度条(拖动时加粗 + 大号时间),声音/全屏收到右上角,
+          不再在底部叠一整排按钮(会压住作者和标题)。单击画面暂停由 RecommendVideoFeed 处理。 */}
+      {hasVideo && fill && (
+        <>
+          <Box
+            data-no-drag
+            className="controls"
+            sx={{ position: 'absolute', top: 10, right: 10, zIndex: 6, display: 'flex', gap: 0.75 }}
+          >
+            <IconButton onClick={() => setMuted((m) => !m)} size="small" aria-label={muted ? '打开声音' : '静音'} sx={FILL_BTN_SX}>
+              {muted ? <VolumeOffIcon fontSize="small" /> : <VolumeUpIcon fontSize="small" />}
+            </IconButton>
+            {pipOk && (
+              <IconButton onClick={() => togglePip(videoRef.current)} size="small" aria-label={pip ? '退出画中画' : '画中画'} title={pip ? '退出画中画' : '画中画'} sx={{ ...FILL_BTN_SX, color: pip ? '#FE2C55' : '#fff' }}>
+                <PictureInPictureAltIcon fontSize="small" />
+              </IconButton>
+            )}
+            <IconButton onClick={goFullscreen} size="small" aria-label="全屏" sx={FILL_BTN_SX}>
+              <FullscreenIcon fontSize="small" />
+            </IconButton>
+          </Box>
+          {/* 拖动时的大号时间,放在作者/标题浮层(底部 ~30–120px)上面 */}
+          {scrub !== null && (
+            <Box
+              aria-hidden
+              sx={{ position: 'absolute', left: 0, right: 0, bottom: 'calc(var(--player-inset, 0px) + 132px)', zIndex: 6, textAlign: 'center', pointerEvents: 'none', color: '#fff', fontSize: 22, fontWeight: 700, fontVariantNumeric: 'tabular-nums', textShadow: '0 1px 6px rgba(0,0,0,0.7)' }}
+            >
+              {fmt(scrub)} <Box component="span" sx={{ opacity: 0.6 }}>/ {fmt(duration)}</Box>
+            </Box>
+          )}
+          <Box
+            data-no-drag
+            sx={{ position: 'absolute', left: 0, right: 0, bottom: 'calc(var(--player-inset, 0px) - 10px)', zIndex: 6, px: 1.5 }}
+          >
+            <Slider
+              aria-label="播放进度"
+              value={scrub ?? currentTime}
+              max={duration || 100}
+              onChange={onScrub}
+              onChangeCommitted={onScrubEnd}
+              sx={seekBarSx(true)}
+            />
+          </Box>
+        </>
+      )}
+
       {/* 控制条 */}
-      {hasVideo && (
+      {hasVideo && !fill && (
         <Box
           data-no-drag
           className="controls"
@@ -1053,41 +1149,54 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
             left: 0,
             right: 0,
             background: 'linear-gradient(to top, rgba(0,0,0,0.85), transparent)',
-            p: 1.5,
+            px: compact ? 1 : 1.5,
+            pb: compact ? 0.5 : 1,
+            pt: 2,
             opacity: controlsVisible ? 1 : 0,
             transition: 'opacity 0.2s',
           }}
         >
           <Slider
-            size="small"
-            value={currentTime}
+            aria-label="播放进度"
+            value={scrub ?? currentTime}
             max={duration || 100}
-            onChange={handleSeek}
-            sx={{ color: '#FE2C55', mb: 1, py: 0.5 }}
+            onChange={onScrub}
+            onChangeCommitted={onScrubEnd}
+            valueLabelDisplay="auto"
+            valueLabelFormat={fmt}
+            sx={seekBarSx(false)}
           />
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, color: '#fff' }}>
-            <IconButton onClick={togglePlay} size="small" sx={{ color: '#fff' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: compact ? 0.25 : 1, color: '#fff' }}>
+            <IconButton onClick={togglePlay} size="small" aria-label={playing ? '暂停' : '播放'} sx={{ color: '#fff' }}>
               {playing ? <PauseIcon /> : <PlayArrowIcon />}
             </IconButton>
-            <IconButton onClick={() => seek(-10)} size="small" sx={{ color: '#fff' }}>
-              <Replay10Icon fontSize="small" />
-            </IconButton>
-            <IconButton onClick={() => seek(10)} size="small" sx={{ color: '#fff' }}>
-              <Forward10Icon fontSize="small" />
-            </IconButton>
-            <Box sx={{ fontSize: 12, minWidth: 80 }}>
-              {fmt(currentTime)} / {fmt(duration)}
+            {!compact && (
+              <>
+                <IconButton onClick={() => seek(-10)} size="small" aria-label="后退 10 秒" sx={{ color: '#fff' }}>
+                  <Replay10Icon fontSize="small" />
+                </IconButton>
+                <IconButton onClick={() => seek(10)} size="small" aria-label="快进 10 秒" sx={{ color: '#fff' }}>
+                  <Forward10Icon fontSize="small" />
+                </IconButton>
+              </>
+            )}
+            <Box sx={{ fontSize: compact ? 11 : 12, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+              {fmt(scrub ?? currentTime)} / {fmt(duration)}
             </Box>
             <Box sx={{ flex: 1 }} />
             <IconButton onClick={() => setMuted((m) => !m)} size="small" aria-label={muted ? '打开声音' : '静音'} sx={{ color: '#fff' }}>
               {muted ? <VolumeOffIcon fontSize="small" /> : <VolumeUpIcon fontSize="small" />}
             </IconButton>
-            <Slider
-              size="small"
-              value={muted ? 0 : volume}
-              onChange={handleVolume}
-              sx={{ color: '#FE2C55', width: 80, mx: 1 }}
-            />
+            {/* 手机上音量走系统按键,不放音量条(放了整行就挤出屏幕,全屏键被切掉) */}
+            {!compact && (
+              <Slider
+                size="small"
+                aria-label="音量"
+                value={muted ? 0 : volume}
+                onChange={handleVolume}
+                sx={{ color: '#FE2C55', width: 80, mx: 1 }}
+              />
+            )}
             {pipOk && (
               <IconButton onClick={() => togglePip(videoRef.current)} size="small" aria-label={pip ? '退出画中画' : '画中画'} title={pip ? '退出画中画' : '画中画'} sx={{ color: pip ? '#FE2C55' : '#fff' }}>
                 <PictureInPictureAltIcon fontSize="small" />

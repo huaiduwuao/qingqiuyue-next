@@ -875,7 +875,7 @@ export function RecommendVideoFeed() {
                         sx={{
                           position: 'absolute',
                           right: { xs: 8, md: 14 },
-                          bottom: { xs: 'calc(22px + var(--player-inset, 0px))', md: 'calc(26px + var(--player-inset, 0px))' },
+                          bottom: { xs: 'calc(34px + var(--player-inset, 0px))', md: 'calc(38px + var(--player-inset, 0px))' },
                           display: 'flex',
                           flexDirection: 'column',
                           gap: { xs: 1.5, md: 2 },
@@ -963,7 +963,7 @@ export function RecommendVideoFeed() {
                           position: 'absolute',
                           left: { xs: 14, md: 22 },
                           right: { xs: 76, md: 110 },
-                          bottom: { xs: 'calc(16px + var(--player-inset, 0px))', md: 'calc(22px + var(--player-inset, 0px))' },
+                          bottom: { xs: 'calc(30px + var(--player-inset, 0px))', md: 'calc(34px + var(--player-inset, 0px))' }, // 让出底边的进度条
                           zIndex: 3,
                           color: '#fff',
                           textShadow: TEXT_SHADOW,
