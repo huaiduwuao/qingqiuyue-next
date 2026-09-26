@@ -53,6 +53,7 @@ import AssignmentRoundedIcon from '@mui/icons-material/AssignmentRounded';
 import MemoryRoundedIcon from '@mui/icons-material/MemoryRounded';
 import ScheduleRoundedIcon from '@mui/icons-material/ScheduleRounded';
 import VpnLockRoundedIcon from '@mui/icons-material/VpnLockRounded';
+import KeyRoundedIcon from '@mui/icons-material/KeyRounded';
 import StreamRoundedIcon from '@mui/icons-material/StreamRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import { PERMISSIONS } from '@/lib/permissions';
@@ -241,6 +242,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
       { id: 'spider-workers', label: 'Worker 池', path: '/system/spider/workers', icon: <MemoryRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
       { id: 'spider-sites', label: '站点调度', path: '/system/spider/sites', icon: <ScheduleRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
       { id: 'spider-proxies', label: '代理池', path: '/system/spider/proxies', icon: <VpnLockRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
+      { id: 'spider-credentials', label: '登录凭据', path: '/system/spider/credentials', icon: <KeyRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
       { id: 'spider-stream-parsers', label: '流解析器', path: '/system/spider/stream-parsers', icon: <StreamRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
       { id: 'spider-analytics', label: '爬虫分析', path: '/system/spider/analytics', icon: <InsightsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D', permission: PERMISSIONS.SYSTEM_SPIDER.ITEM_LIST },
       { id: 'crawled', label: '抓取内容', path: '/system/crawled', icon: <CloudDownloadIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D', permission: PERMISSIONS.SYSTEM_SPIDER.ITEM_LIST },
