@@ -705,17 +705,18 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
           )}
           {/* 加载状态 */}
           {isLoading ? (
-            <Box sx={{ p: 2 }}>
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 2 }}>
+            <Box sx={{ p: { xs: 1, md: 2 } }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: 'repeat(auto-fill, minmax(280px, 1fr))' }, gap: { xs: 1, md: 2 } }}>
                 {Array.from({ length: 4 }).map((_, i) => (
                   <Skeleton key={i} variant="rounded" sx={{ height: 200, bgcolor: 'action.hover' }} />
                 ))}
               </Box>
             </Box>
           ) : (
-            <Box sx={{ p: 2 }}>
+            // 手机:两列、小间距、外边距减半(以前一屏一张大卡,留白比内容还多)
+            <Box sx={{ p: { xs: 1, md: 2 } }}>
               {feedList.length > 0 ? (
-                <ListLayout minColumnWidth={260} listMaxWidth="var(--page-max-narrow)">
+                <ListLayout minColumnWidth={260} minColumns={isMobile ? 2 : 1} gap={isMobile ? 8 : 12} listMaxWidth="var(--page-max-narrow)">
                   {feedList.map((item, i) => (
                     <FadeContent key={item.id} distance={14} duration={480} delay={Math.min(i % 8, 6) * 35}>
                       <FeedCard item={item} />
@@ -861,17 +862,18 @@ function FeedCard({ item }: { item: FeedItem }) {
               '& .MuiChip-icon': { color: 'var(--text-primary, #ffffff)' },
             }}
           />
-        ) : (
+        ) : item.durationSec > 0 ? (
+          // 没有时长(小说、文章、多数爬来的条目)就不显示 —— 以前一律挂个「▶ 0秒」
           <Box
             sx={{
               position: 'absolute',
-              bottom: 8,
-              right: 8,
+              bottom: 6,
+              right: 6,
               px: 0.75,
               py: 0.125,
               borderRadius: 0.5,
               bgcolor: 'rgba(0,0,0,0.6)',
-              color: 'var(--text-primary, #ffffff)',
+              color: '#ffffff',
               fontSize: 10,
               display: 'flex',
               alignItems: 'center',
@@ -881,7 +883,7 @@ function FeedCard({ item }: { item: FeedItem }) {
             <PlayArrowRoundedIcon sx={{ fontSize: 10 }} />
             {formatDuration(item.durationSec)}
           </Box>
-        )}
+        ) : null}
         {/* 音乐卡片:不进详情页也能直接听,交给全局底栏 */}
         {targetType === 'MUSIC' && (
           <MusicPlayButton
@@ -910,7 +912,8 @@ function FeedCard({ item }: { item: FeedItem }) {
         )}
       </Box>
 
-      <Box sx={{ p: 1.5, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
+      {/* 手机两列时卡片只有一百七八十像素宽:内边距、行距都收一点 */}
+      <Box sx={{ p: { xs: 1, md: 1.5 }, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
         <Typography
           sx={{
             fontSize: 13,
@@ -921,7 +924,7 @@ function FeedCard({ item }: { item: FeedItem }) {
             WebkitLineClamp: 2,
             WebkitBoxOrient: 'vertical',
             overflow: 'hidden',
-            mb: 1,
+            mb: { xs: 0.75, md: 1 },
             minHeight: 34,
           }}
         >
@@ -929,8 +932,8 @@ function FeedCard({ item }: { item: FeedItem }) {
         </Typography>
 
         {/* 作者行:头像 + 名字 + 状态徽章 + 关注/朋友按钮 */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.75 }}>
-          <UserAvatarLink userId={item.authorId} name={item.authorName} src={item.authorAvatar} size={22} />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: { xs: 0.5, md: 0.75 } }}>
+          <UserAvatarLink userId={item.authorId} name={item.authorName} src={item.authorAvatar} size={20} />
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <Typography sx={{ fontSize: 11, color: 'var(--text-secondary, rgba(255,255,255,0.85))', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -955,10 +958,13 @@ function FeedCard({ item }: { item: FeedItem }) {
 
         </Box>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        {/* 半宽卡片放不下四项:手机上只留 赞 + 播放 */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, md: 1.5 } }}>
           <Stat icon={<FavoriteBorderRoundedIcon sx={{ fontSize: 12 }} />} value={item.likes} />
-          <Stat icon={<ModeCommentOutlinedIcon sx={{ fontSize: 12 }} />} value={item.comments} />
-          <Stat icon={<ShareOutlinedIcon sx={{ fontSize: 12 }} />} value={item.shares} />
+          <Box sx={{ display: { xs: 'none', md: 'contents' } }}>
+            <Stat icon={<ModeCommentOutlinedIcon sx={{ fontSize: 12 }} />} value={item.comments} />
+            <Stat icon={<ShareOutlinedIcon sx={{ fontSize: 12 }} />} value={item.shares} />
+          </Box>
           <Box sx={{ flex: 1 }} />
           <Typography sx={{ fontSize: 10, color: 'var(--text-muted, rgba(255,255,255,0.4))' }}>
             {formatViews(item.views)} 播放
