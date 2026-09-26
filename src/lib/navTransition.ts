@@ -151,10 +151,14 @@ function begin(dir: Dir, update: (vt: () => ViewTransitionLike | undefined) => P
   html.dataset.vt = dir;
   // 回调在拍完旧页快照后才执行(异步),那时 vt 已经赋值;getVT 只在回调的 promise 链里被调用
   const vt: ViewTransitionLike = (document as DocWithVT).startViewTransition!(() => update(() => vt));
-  vt.finished.finally(() => {
-    delete html.dataset.vt;
-    running = false;
-  });
+  // 放弃转场(skipTransition / 页面切到后台)时 Chrome 会把 finished 也拒掉(AbortError: Transition was skipped),
+  // 不接住就是一条 unhandled rejection;这里只关心收尾
+  vt.finished
+    .catch(() => {})
+    .finally(() => {
+      delete html.dataset.vt;
+      running = false;
+    });
 }
 
 /**
