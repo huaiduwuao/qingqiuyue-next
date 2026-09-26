@@ -128,11 +128,13 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
   }, [pathname, searchParams]);
 
   // 记下首页里最后停留的页签:从创作/悬赏/消息点回底部「首页」时回到这里(见 MobileBottomNav)
+  // 按 URL 里的 tab 判断,不看 activeNav:切到「我的」时 URL 先变、activeNav 下一轮 effect 才跟上,
+  // 看 activeNav 会把 ?tab=me 当成首页记下来,之后点底部「首页」一直跳回「我的」。
   useEffect(() => {
-    if (activeNav === 'me') return;
+    if (effectiveTab === 'me') return;
     const qs = searchParams.toString();
     try { sessionStorage.setItem(HOME_LAST_URL_KEY, `${pathname}${qs ? `?${qs}` : ''}`); } catch { /* 隐私模式 */ }
-  }, [activeNav, pathname, searchParams]);
+  }, [effectiveTab, pathname, searchParams]);
 
   const handleNavChange = useCallback((key: string) => {
     // 导航前清空搜索框状态

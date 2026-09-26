@@ -112,7 +112,11 @@ export const MobileBottomNav = memo(function MobileBottomNav({ active }: MobileB
       // 已经在首页:回到精选;从别处回来:回到上次看的那个页签
       if (active === 'home') path = HOME_DEFAULT;
       else {
-        try { path = sessionStorage.getItem(HOME_LAST_URL_KEY) || HOME_DEFAULT; } catch { /* 隐私模式 */ }
+        try {
+          const last = sessionStorage.getItem(HOME_LAST_URL_KEY);
+          // 只认首页页签;旧版本可能记下过 ?tab=me(那是「我的」,不是首页)
+          if (last && last.startsWith('/home/') && !/[?&]tab=me(&|$)/.test(last)) path = last;
+        } catch { /* 隐私模式 */ }
       }
     }
     router.push(path, { scroll: false });
