@@ -13,11 +13,11 @@ const MUTATION_DELAY = 400;
 /** 换页再慢:盖一层透明遮罩 + 转圈,挡住连点(点了没反应 → 再点一次 → 跳两次) */
 const MASK_DELAY = 600;
 /**
- * 遮罩最多挡这么久。之后不再挡点击(万一哪次跳转没走完,不能把整个界面锁死),但转圈继续留着、
- * 加一句「网络较慢」—— 以前到点连转圈一起收掉,只剩顶上 3px 的细条,页面还没出来,看着就像卡死了。
- * 真没走完的跳转由 markNavStart 的 10 秒兜底结束。
+ * 转圈 + 遮罩一直挡着操作,直到新页面出来;过了这么久再加一句「网络较慢」。
+ * 以前 4 秒一到连转圈一起收掉,只剩顶上 3px 的细条,页面还没出来,看着就像卡死了。
+ * 真没走完的跳转由 markNavStart 的 20 秒兜底结束,不会永远锁住界面。
  */
-const MASK_MAX = 4000;
+const SLOW_HINT = 4000;
 
 let lastInput = -Infinity;
 
@@ -42,8 +42,8 @@ export default function NavProgress() {
     };
   }, []);
   const [bar, setBar] = useState(false);
-  /** off:不显示;block:半透明遮罩 + 转圈,挡连点;soft:只剩转圈 + 提示,不挡操作 */
-  const [mask, setMask] = useState<'off' | 'block' | 'soft'>('off');
+  /** off:不显示;block:半透明遮罩 + 转圈,挡操作;slow:同样挡着,再加「网络较慢」提示 */
+  const [mask, setMask] = useState<'off' | 'block' | 'slow'>('off');
   /** 每次重新开始都换 key,进度条从 0 重新长 */
   const [run, setRun] = useState(0);
 
@@ -59,7 +59,7 @@ export default function NavProgress() {
     ];
     if (navBusy) {
       timers.push(setTimeout(() => setMask('block'), MASK_DELAY));
-      timers.push(setTimeout(() => setMask('soft'), MASK_MAX));
+      timers.push(setTimeout(() => setMask('slow'), SLOW_HINT));
     }
     // 结束(或换了一种忙)时收起;显示只在上面的定时器里打开
     return () => {
@@ -109,16 +109,13 @@ export default function NavProgress() {
             position: 'fixed',
             inset: 0,
             zIndex: 1999,
-            cursor: mask === 'block' ? 'progress' : 'auto',
-            // soft:不挡点击 / 滚动 / 返回,只把转圈留在屏幕中间
-            pointerEvents: mask === 'block' ? 'auto' : 'none',
+            cursor: 'progress',
             display: 'flex',
             flexDirection: 'column',
             gap: 1,
             alignItems: 'center',
             justifyContent: 'center',
-            bgcolor: mask === 'block' ? 'rgba(0,0,0,0.08)' : 'transparent',
-            transition: 'background-color 0.3s',
+            bgcolor: 'rgba(0,0,0,0.08)',
             animation: 'qq-fade-in 0.2s ease-out both',
           }}
         >
@@ -137,7 +134,7 @@ export default function NavProgress() {
           >
             <CircularProgress size={24} thickness={4.5} sx={{ color: '#fff' }} />
           </Box>
-          {mask === 'soft' && (
+          {mask === 'slow' && (
             <Box
               sx={{
                 px: 1.25,
