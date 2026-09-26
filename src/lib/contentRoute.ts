@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { navTransition } from '@/lib/navTransition';
 
@@ -74,4 +75,53 @@ export function useContentNavigate() {
     if (route) navTransition('forward', () => router.push(route));
     else if (fallbackUrl) openExternal(fallbackUrl);
   };
+}
+
+/** 这些内容类型会打开哪几个详情页路由(去重、去掉没有详情页的类型) */
+export function detailRoutesFor(contentTypes: readonly string[]): string[] {
+  return Array.from(new Set(contentTypes.map((t) => TYPE_TO_ROUTE[t]).filter((r): r is string => !!r)));
+}
+
+/** 同一路由这么久内不重复预取(Next 自己的预取缓存也是几分钟一过期) */
+const PREFETCH_TTL = 4 * 60 * 1000;
+const prefetchedAt = new Map<string, number>();
+
+/**
+ * 列表一显示就把它会打开的详情页路由预取好。
+ *
+ * 静态导出下,列表点进详情要先下详情路由的 JS(详情 layout + 播放器等十来个 chunk,
+ * 首次约 170KB),再拿 RSC 载荷、再请求数据 —— 卡片一点下去要过两三个来回才有画面。
+ * router.prefetch 会把载荷连同这些 chunk 一起拉下来,之后点进去只剩数据这一个来回。
+ * 空闲时再发,别抢列表自己的请求;dev 模式下 Next 不预取,只在生产包里生效。
+ */
+export function useDetailRoutePrefetch(contentTypes: readonly string[]): void {
+  const router = useRouter();
+  const key = contentTypes.join(',');
+  useEffect(() => {
+    const routes = detailRoutesFor(key ? key.split(',') : []);
+    if (routes.length === 0) return;
+    const run = () => {
+      const now = Date.now();
+      for (const route of routes) {
+        const at = prefetchedAt.get(route);
+        if (at && now - at < PREFETCH_TTL) continue;
+        prefetchedAt.set(route, now);
+        try {
+          router.prefetch(route);
+        } catch {
+          /* 预取失败无所谓,点进去照常加载 */
+        }
+      }
+    };
+    const w = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(run, { timeout: 2000 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const id = setTimeout(run, 500);
+    return () => clearTimeout(id);
+  }, [key, router]);
 }

@@ -11,7 +11,7 @@ import WhatshotIcon from '@mui/icons-material/Whatshot';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import { homeClient } from '@/lib/api/client';
 import { CoverImage } from '@/components/common/CoverImage';
-import { useContentNavigate, TYPE_LABEL } from '@/lib/contentRoute';
+import { useContentNavigate, useDetailRoutePrefetch, TYPE_LABEL } from '@/lib/contentRoute';
 import { getFacets, FacetOption } from '@/apis/facets';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT, gradient2 } from '@/constants/gradients';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
@@ -94,6 +94,8 @@ function typeColor(t: string | undefined | null): string {
 const PAGE_SIZE = 12;
 
 export function TheaterPanel() {
+  // 放映厅四种内容各有详情页,列表一出来就把它们的代码预取好
+  useDetailRoutePrefetch(['FILM', 'TELEPLAY', 'ANIMATION', 'VSHOW']);
   const [category, setCategory] = useState('all');
   const [region, setRegion] = useState('');
   const [genre, setGenre] = useState('');

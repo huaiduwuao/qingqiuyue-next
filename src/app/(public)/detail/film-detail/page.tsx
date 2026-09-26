@@ -22,6 +22,7 @@ import { PlatformLinks, UnavailablePlayer, platformsOf, linkOutNoticeOf } from '
 import UserPlaySources from '@/components/detail/UserPlaySources';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
+import VideoDetailSkeleton from '@/components/detail/VideoDetailSkeleton';
 import { CoverImage } from '@/components/common/CoverImage';
 import { track, recordHistory } from '@/lib/track';
 import { DetailComments } from '@/components/detail/DetailComments';
@@ -99,7 +100,7 @@ function FilmDetailContent() {
         }
       />
 
-      <AsyncState query={query} isEmpty={(d) => !d}>
+      <AsyncState query={query} isEmpty={(d) => !d} skeleton={<VideoDetailSkeleton episodes="none" />}>
         {(data) => (
           <>
             <Box sx={{ bgcolor: '#000' }}>

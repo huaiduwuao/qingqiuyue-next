@@ -23,7 +23,7 @@ import WhatshotRoundedIcon from '@mui/icons-material/WhatshotRounded';
 import CategoryRoundedIcon from '@mui/icons-material/CategoryRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import GridViewRoundedIcon from '@mui/icons-material/GridViewRounded';
-import { useContentNavigate } from '@/lib/contentRoute';
+import { useContentNavigate, useDetailRoutePrefetch } from '@/lib/contentRoute';
 import { SECTION_TINT } from '@/constants/gradients';
 import {
   type ClassicRange,
@@ -81,6 +81,8 @@ function useNowSeconds() {
 }
 
 export function LivePanel() {
+  // 直播间详情页代码先预取好,点进直播间不用等下载
+  useDetailRoutePrefetch(['LIVE']);
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();

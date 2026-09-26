@@ -12,7 +12,7 @@ import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import { homeClient } from '@/lib/api/client';
 import { CoverImage } from '@/components/common/CoverImage';
-import { useContentNavigate } from '@/lib/contentRoute';
+import { useContentNavigate, useDetailRoutePrefetch } from '@/lib/contentRoute';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT, gradient2 } from '@/constants/gradients';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
 import { getFacets, FacetOption } from '@/apis/facets';
@@ -102,6 +102,8 @@ function genreColorOf(codes: string[] | undefined): string {
 }
 
 export function DramaPanel() {
+  // 列表一出来就把短剧详情页(复用 teleplay 详情)的代码预取好,点进去只剩数据这一个来回
+  useDetailRoutePrefetch(['SHORT_DRAMA']);
   const [genre, setGenre] = useState('');
   const [status, setStatus] = useState<DramaSeries['status'] | 'ALL'>('ALL');
   const [sort, setSort] = useState('hot');

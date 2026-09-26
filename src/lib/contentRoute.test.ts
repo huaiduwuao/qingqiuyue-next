@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { getDetailRoute } from './contentRoute';
+import { detailRoutesFor, getDetailRoute } from './contentRoute';
+
+describe('detailRoutesFor', () => {
+  it('maps content types to distinct detail routes and drops unknown types', () => {
+    expect(detailRoutesFor(['SHORT_DRAMA'])).toEqual(['/detail/teleplay-detail']);
+    // 电视剧和短剧共用一个详情页,只预取一次
+    expect(detailRoutesFor(['FILM', 'TELEPLAY', 'SHORT_DRAMA', 'NOPE'])).toEqual([
+      '/detail/film-detail',
+      '/detail/teleplay-detail',
+    ]);
+    expect(detailRoutesFor([])).toEqual([]);
+  });
+});
 
 describe('getDetailRoute', () => {
   it('preserves an unsafe BIGINT string exactly', () => {

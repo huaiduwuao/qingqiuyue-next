@@ -26,6 +26,7 @@ import { DetailComments } from '@/components/detail/DetailComments';
 import { DetailFooter } from '@/components/detail/DetailFooter';
 import { CollectButton } from '@/components/detail/CollectButton';
 import { AsyncState } from '@/components/common/AsyncState';
+import VideoDetailSkeleton from '@/components/detail/VideoDetailSkeleton';
 import { track, recordHistory } from '@/lib/track';
 import AIGCBadge from '@/components/AIGCBadge';
 
@@ -129,7 +130,7 @@ function VideoDetailContent() {
         }
       />
 
-      <AsyncState query={query} isEmpty={(d) => !d}>
+      <AsyncState query={query} isEmpty={(d) => !d} skeleton={<VideoDetailSkeleton episodes="none" />}>
         {(data) => (
           <>
             <Box sx={{ bgcolor: '#000' }}>

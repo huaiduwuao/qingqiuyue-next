@@ -11,7 +11,16 @@ import { flushSync } from 'react-dom';
 
 type Dir = 'forward' | 'back';
 
-type DocWithVT = Document & { startViewTransition?: (cb: () => Promise<void> | void) => { finished: Promise<void> } };
+type ViewTransitionLike = { finished: Promise<void>; skipTransition?: () => void };
+type DocWithVT = Document & { startViewTransition?: (cb: () => Promise<void> | void) => ViewTransitionLike };
+
+/**
+ * 转场最多等新页面这么久。startViewTransition 的回调没结束前浏览器停在旧页快照上、什么都不画
+ * (NavProgress 的进度条 setState 了也看不见),所以等不到就放弃动画(skipTransition),
+ * 让旧页面连同进度条 / 遮罩重新活过来,新页面到了直接切换。
+ * 预取过的详情路由几十毫秒就能画出来,能赶上动画;冷加载 chunk 的赶不上,那就先给反馈。
+ */
+export const ROUTE_WAIT_MS = 350;
 
 function canAnimate(): boolean {
   if (typeof document === 'undefined') return false;
@@ -91,44 +100,57 @@ export function getNavBusy(): boolean {
   return busy;
 }
 
+const renderedListeners = new Set<() => void>();
+
 /** NativeTransitions 在每次路由渲染后调用,传 routeKey */
 export function setRenderedPath(key: string): void {
-  if (key !== renderedPath) {
+  const changed = key !== renderedPath;
+  renderedPath = key;
+  if (changed) {
     clearTimeout(busyTimer);
     setBusy(false);
+    renderedListeners.forEach((l) => l());
   }
-  renderedPath = key;
 }
 
 export function getRenderedPath(): string {
   return renderedPath;
 }
 
-/** 等到渲染出来的路径变了、新页面画出来(最多等 maxMs,慢网络下不把界面冻住太久) */
-function waitForRoute(from: string, maxMs = 700): Promise<void> {
+/**
+ * 等到渲染出来的路径变了(新页面已经提交到 DOM)。maxMs 内没等到返回 false。
+ *
+ * 不能用 requestAnimationFrame 轮询:转场回调期间浏览器暂停渲染,rAF 跟着停(后台标签页里
+ * 更是一秒才来一次),轮询永远走不到超时,只能等浏览器 4 秒后强行放弃转场 —— 表现就是
+ * 点一下卡住好几秒。setRenderedPath 在 layout effect 里调用,那时 DOM 已经是新页面,
+ * 直接结束回调,转场拍到的就是新页(通常是它的骨架屏)。
+ */
+function waitForRoute(from: string, maxMs: number): Promise<boolean> {
   return new Promise((resolve) => {
-    const t0 = performance.now();
-    const tick = () => {
-      if (renderedPath !== from) {
-        // 再等两帧,让新页面完成首次渲染
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-        return;
-      }
-      if (performance.now() - t0 > maxMs) {
-        resolve();
-        return;
-      }
-      requestAnimationFrame(tick);
+    if (renderedPath !== from) {
+      resolve(true);
+      return;
+    }
+    const onRendered = () => {
+      if (renderedPath === from) return;
+      renderedListeners.delete(onRendered);
+      clearTimeout(timer);
+      resolve(true);
     };
-    tick();
+    const timer = setTimeout(() => {
+      renderedListeners.delete(onRendered);
+      resolve(false);
+    }, maxMs);
+    renderedListeners.add(onRendered);
   });
 }
 
-function begin(dir: Dir, update: () => Promise<void> | void): void {
+function begin(dir: Dir, update: (vt: () => ViewTransitionLike | undefined) => Promise<void> | void): void {
   running = true;
   const html = document.documentElement;
   html.dataset.vt = dir;
-  const vt = (document as DocWithVT).startViewTransition!(update);
+  // 回调在拍完旧页快照后才执行(异步),那时 vt 已经赋值;getVT 只在回调的 promise 链里被调用
+  const vt: ViewTransitionLike = (document as DocWithVT).startViewTransition!(() => update(() => vt));
   vt.finished.finally(() => {
     delete html.dataset.vt;
     running = false;
@@ -145,9 +167,12 @@ export function navTransition(dir: Dir, navigate?: () => void): void {
     return;
   }
   const from = renderedPath || routeKey(location.pathname, location.search);
-  begin(dir, () => {
+  begin(dir, (getVT) => {
     navigate?.();
-    return waitForRoute(from);
+    return waitForRoute(from, ROUTE_WAIT_MS).then((rendered) => {
+      // 没赶上:放弃动画,把渲染还给页面 —— 进度条 / 遮罩这时才画得出来
+      if (!rendered) getVT()?.skipTransition?.();
+    });
   });
 }
 

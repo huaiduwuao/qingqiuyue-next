@@ -28,6 +28,7 @@ import UserPlaySources from '@/components/detail/UserPlaySources';
 import DetailHeader from '@/components/detail/DetailHeader';
 import ShareButtons from '@/components/share/ShareButtons';
 import { AsyncState } from '@/components/common/AsyncState';
+import VideoDetailSkeleton from '@/components/detail/VideoDetailSkeleton';
 import { track, recordHistory } from '@/lib/track';
 import { DetailComments } from '@/components/detail/DetailComments';
 import { DetailFooter } from '@/components/detail/DetailFooter';
@@ -198,7 +199,7 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
         }
       />
 
-      <AsyncState query={query} isEmpty={(d) => !d}>
+      <AsyncState query={query} isEmpty={(d) => !d} skeleton={<VideoDetailSkeleton episodes={config.listVariant} />}>
         {(loaded) => {
           // isEmpty 已经把 null 挡在外面,这里一定有数据。
           const data = loaded as EpisodicDetail;
