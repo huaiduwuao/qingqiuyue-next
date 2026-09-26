@@ -67,6 +67,8 @@ export interface EpisodicDetail {
   /** 跨源找到的、本站播放器能解析的页面(B 站 / AcFun);没有分集时优先于 source */
   playSourceUrl?: string;
   playSourceLabel?: string;
+  /** 登记片源站的绑定(分集行由它写入,播放时实时解析);详情带了它而分集还是空的就立刻重查一次 */
+  videoSource?: { label?: string; domain?: string; episodes?: number };
   availability?: { axis?: string; status?: string; watchable?: boolean; notice?: string; backfill?: BackfillState };
 }
 
@@ -122,6 +124,15 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
   });
   const itemsQuery = useContentItems(config.kind, id, config.fetchItems, { poll: backfillPending(query.data) });
   const items = useMemo(() => itemsQuery.data?.items ?? [], [itemsQuery.data]);
+  // 详情在同一请求里当场绑定了片源(分集刚写进库),而分集列表那次请求可能先于它返回空:补查一次。
+  const boundEpisodes = Number(query.data?.videoSource?.episodes) || 0;
+  const refetchItems = itemsQuery.refetch;
+  useEffect(() => {
+    if (boundEpisodes > 0 && items.length === 0 && !itemsQuery.isFetching) {
+      void refetchItems();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 只在绑定结果 / 分集数变化时补查
+  }, [boundEpisodes, items.length]);
 
   // 进入详情:行为埋点(供榜单/推荐)+ 写观看历史。
   useEffect(() => {
