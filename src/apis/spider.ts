@@ -749,6 +749,23 @@ export async function exportTemplates(params: { sourceId: EntityId; format?: str
   const { sourceId, ...rest } = params;
   return spiderClient('/templates/export', { method: 'POST', data: { ...rest, source_id: toEntityId(sourceId) } });
 }
+/**
+ * 试跑 book 模板(站内搜索 → 定位 → 目录 → 第 1 章),只读。
+ * content 是编辑器里当前的 JSON(不必先保存)。
+ */
+export async function testBookProfile(params: {
+  content: string;
+  title?: string;
+  author?: string;
+  bookId?: string;
+}): Promise<any> {
+  return spiderClient('/templates/book-test', {
+    method: 'POST',
+    data: { content: params.content, title: params.title, author: params.author, book_id: params.bookId },
+    timeout: 120_000,
+  });
+}
+
 export async function testTemplate(params: {
   url: string;
   type?: string;            // list | detail | chapter
@@ -861,12 +878,39 @@ export async function listRepairSources(): Promise<{ list: RepairSourceOption[] 
  * 一本书双源两百章就要四分多钟,「0 = 全书」必断;断开时后端 ctx 被取消,
  * 应用修复会停在半路,书被改了一半,前端只看到「请求失败」。
  */
+/** 修复 / 补全任务运行中的进度快照(crawl_job.progress)。 */
+export interface RepairProgress {
+  phase: string;
+  percent: number;
+  currentUrl?: string;
+  itemsFound?: number;
+  chaptersNew?: number;
+  errors?: number;
+  error_list?: string[];
+  elapsedSec?: number;
+  startedAt?: string;
+}
+
+/** 进度阶段的中文名(修复面板与任务页共用)。 */
+export const REPAIR_PHASE_LABELS: Record<string, string> = {
+  queued: '排队中',
+  resolving: '在源站上定位这本书',
+  catalog: '拉目录',
+  fetching: '抓正文',
+  aggregating: '多源对齐裁决',
+  applying: '写库',
+  done: '已完成',
+  failed: '失败',
+};
+
 export async function repairChapters(params: {
   contentId: string;
   domains?: string[];
   dryRun?: boolean;
   maxChapters?: number;
   applyVerdicts?: string[];
+  /** 每次轮询拿到的运行中进度 */
+  onProgress?: (p: RepairProgress, taskId: number) => void;
 }): Promise<RepairReport> {
   const started = await spiderClient<{ task_id?: number; taskId?: number }>('/content/repair', {
     method: 'POST',
@@ -882,15 +926,16 @@ export async function repairChapters(params: {
   const taskId = Number(started?.task_id ?? started?.taskId);
   if (!taskId) throw new Error('修复任务没有返回 task_id');
 
-  // 后端任务自己的上限是 30 分钟,这里多等一点
-  const deadline = Date.now() + 35 * 60 * 1000;
+  // 后端任务自己的上限是 2 小时(两个源各 1500 章),这里多等一点
+  const deadline = Date.now() + 125 * 60 * 1000;
   while (Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, 3000));
     // 跑完返回报告;还在跑返回 202 + {status}
-    const r = await spiderClient<RepairReport & { status?: string; error_msg?: string; errorMsg?: string }>(
+    const r = await spiderClient<RepairReport & { status?: string; error_msg?: string; errorMsg?: string; progress?: RepairProgress }>(
       `/content/repair/${taskId}`,
       { method: 'GET' },
     );
+    if (r?.progress && params.onProgress) params.onProgress(r.progress, taskId);
     // 有 content_id 就是报告(跑完了)。失败的报告老后端给 diffs=null,
     // 以前只认 Array.isArray(diffs),于是一直轮询到超时,页面像卡死。
     if (r && r.content_id != null) {
@@ -904,5 +949,5 @@ export async function repairChapters(params: {
     if (r?.status === 'failed') throw new Error(r.error_msg || r.errorMsg || '修复任务失败');
     if (r?.status === 'completed') throw new Error('任务已结束,但报告没有取到(可能已过期),请重新诊断');
   }
-  throw new Error('修复超过 35 分钟仍未结束,请稍后到任务列表查看');
+  throw new Error('修复超过 2 小时仍未结束,请到任务列表查看');
 }

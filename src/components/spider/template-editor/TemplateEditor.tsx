@@ -39,7 +39,7 @@ import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import UndoRoundedIcon from '@mui/icons-material/UndoRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
-import { getTemplateDetail, updateTemplate, testTemplate } from '@/apis/spider';
+import { getTemplateDetail, updateTemplate, testTemplate, testBookProfile } from '@/apis/spider';
 import type { TemplateAttr, TemplateRow } from '@/beans/spider';
 import { CONTENT_TYPES } from '@/lib/contentType.gen';
 import {
@@ -422,7 +422,7 @@ export default function TemplateEditor({ templateId }: { templateId: number }) {
       setCfg(parsed);
       setJsonText(JSON.stringify(parsed, null, 2));
       setRawBroken(false);
-      setMode('form');
+      setMode(m.type === 'book' ? 'json' : 'form');
       setBaseline(snapshot(m, parsed));
     } else {
       // 存的不是 JSON 对象:只能在 JSON 视图里修
@@ -532,7 +532,7 @@ export default function TemplateEditor({ templateId }: { templateId: number }) {
       setSaveErr('模板名称不能为空');
       return;
     }
-    const v = validateConfig(cfg);
+    const v = type === 'book' ? null : validateConfig(cfg);
     if (v) {
       setSaveErr(v);
       return;
@@ -713,6 +713,7 @@ export default function TemplateEditor({ templateId }: { templateId: number }) {
 
       {mode === 'json' ? (
         <Box sx={{ ...cardSx, p: 2 }}>
+          {type === 'book' && <BookProfileTest content={jsonText} />}
           <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, gap: 1 }}>
             <Typography sx={{ fontSize: 14.5, fontWeight: 600, flex: 1 }}>content(完整 JSON)</Typography>
             <Tooltip title="复制">
@@ -996,6 +997,55 @@ export default function TemplateEditor({ templateId }: { templateId: number }) {
         message={toast}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       />
+    </Box>
+  );
+}
+
+/**
+ * book 模板试跑:用编辑器里当前的 JSON(不必先保存)按书名 / 作者走一遍
+ * 站内搜索 → 定位 → 目录 → 第 1 章,每一步的结果和错误分开显示。只读。
+ */
+function BookProfileTest({ content }: { content: string }) {
+  const [title, setTitle] = useState('');
+  const [author, setAuthor] = useState('');
+  const [bookId, setBookId] = useState('');
+  const m = useMutation({ mutationFn: () => testBookProfile({ content, title: title.trim(), author: author.trim(), bookId: bookId.trim() }) });
+  const r: any = m.data;
+  const step = (label: string, ok: boolean, text: React.ReactNode) => (
+    <Alert severity={ok ? 'success' : 'warning'} sx={{ py: 0, '& .MuiAlert-message': { wordBreak: 'break-all' } }}>
+      <b>{label}</b>:{text}
+    </Alert>
+  );
+  return (
+    <Box sx={{ mb: 2, p: 1.5, borderRadius: 1.5, bgcolor: 'action.hover' }}>
+      <Typography sx={{ fontSize: 13, fontWeight: 600, mb: 1 }}>试跑(站内搜索 → 定位 → 目录 → 第 1 章,只读)</Typography>
+      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+        <TextField size="small" label="书名" value={title} onChange={(e) => setTitle(e.target.value)} sx={{ width: 180 }} />
+        <TextField size="small" label="作者" value={author} onChange={(e) => setAuthor(e.target.value)} sx={{ width: 140 }} />
+        <TextField size="small" label="或直接填 book id" value={bookId} onChange={(e) => setBookId(e.target.value)} sx={{ width: 180 }} />
+        <Button
+          variant="outlined"
+          startIcon={m.isPending ? <CircularProgress size={14} /> : <PlayArrowRoundedIcon />}
+          disabled={m.isPending || (!title.trim() && !bookId.trim())}
+          onClick={() => m.mutate()}
+        >
+          {m.isPending ? '试跑中…' : '试跑'}
+        </Button>
+      </Box>
+      {m.isError && <Alert severity="error" sx={{ mt: 1 }}>{(m.error as any)?.message || '请求失败'}</Alert>}
+      {r && (
+        <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+          {r.valid === false && step('配置校验', false, r.error)}
+          {r.search && step('站内搜索', !r.search.error && r.search.count > 0,
+            r.search.error || `${r.search.count} 条:${(r.search.hits || []).slice(0, 5).map((h: any) => `${h.title}/${h.author}(${h.book_id})`).join(' · ')}`)}
+          {r.resolved && step('定位', true, `${r.resolved.title} / ${r.resolved.author} → book ${r.resolved.book_id}`)}
+          {r.resolve_error && step('定位', false, r.resolve_error)}
+          {r.catalog && step('目录', !r.catalog.error && r.catalog.count > 0,
+            r.catalog.error || `${r.catalog.count} 章:${r.catalog.first?.title} … ${r.catalog.last?.title}`)}
+          {r.chapter && step('第 1 章', !r.chapter.error && r.chapter.length >= 200,
+            r.chapter.error || `「${r.chapter.title}」${r.chapter.length} 字节:${r.chapter.head}`)}
+        </Box>
+      )}
     </Box>
   );
 }

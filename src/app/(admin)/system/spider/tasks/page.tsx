@@ -54,6 +54,12 @@ const RETRYABLE = new Set(['stopped', 'failed', 'completed', 'stalled', 'killed'
 const PHASE_LABELS: Record<string, string> = {
   queued: '排队中', discovering: '发现分类', categories: '分类翻页', home: '首页链接',
   incremental: '增量更新', done: '已完成', stopped: '已停止', failed: '失败',
+  // 补全 / 修复任务(content_backfill / content_repair)的阶段
+  resolving: '定位书籍', catalog: '拉目录', fetching: '抓正文', aggregating: '对齐裁决', applying: '写库',
+};
+const STAT_LABELS: Record<string, string> = {
+  found: '发现', inserted: '新写入', updated: '更新', skipped: '跳过', failed: '失败',
+  sources_used: '试过的源', aggregated: '聚合章数',
 };
 const EMPTY_FORM = { sourceId: '', startUrl: '', maxDepth: '2', maxPages: '100', proxyUrl: '' };
 
@@ -439,6 +445,14 @@ function TaskDetailDialog({ taskId, live, onStop, onClose }: {
               <Alert severity={t.status === 'failed' ? 'error' : 'warning'} sx={{ mb: 1.5, '& .MuiAlert-message': { wordBreak: 'break-all' } }}>
                 {t.errorMsg ? `任务失败:${t.errorMsg}` : `最近一次错误:${p?.lastError}`}
               </Alert>
+            )}
+            {/* 回填 / 修复任务的统计(后端写在 progress.stats) */}
+            {p?.stats && Object.keys(p.stats).length > 0 && (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 1.5 }}>
+                {Object.entries(p.stats as Record<string, number>).map(([k, v]) => (
+                  <Chip key={k} size="small" variant="outlined" label={`${STAT_LABELS[k] || k} ${v}`} />
+                ))}
+              </Box>
             )}
             {/* 回填任务的逐条失败明细(后端写在 progress.error_list) */}
             {Array.isArray(p?.error_list) && p.error_list.length > 0 && (

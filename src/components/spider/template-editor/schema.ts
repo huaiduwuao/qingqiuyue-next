@@ -326,4 +326,6 @@ export const TEMPLATE_TYPES: { value: string; label: string }[] = [
   { value: 'detail', label: '详情页' },
   { value: 'chapter', label: '章节 / 正文' },
   { value: 'category', label: '分类发现' },
+  // 站点「书」维度:站内搜索 / 书页 / 目录 / 单章正文(后端 internal/crawler/sitebook.go)
+  { value: 'book', label: '书(搜索 / 目录 / 正文)' },
 ];

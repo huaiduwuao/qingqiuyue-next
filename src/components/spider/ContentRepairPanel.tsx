@@ -33,7 +33,14 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import BuildRoundedIcon from '@mui/icons-material/BuildRounded';
 import FactCheckRoundedIcon from '@mui/icons-material/FactCheckRounded';
-import { listRepairSources, repairChapters, type RepairChapterDiff, type RepairReport } from '@/apis/spider';
+import {
+  listRepairSources,
+  repairChapters,
+  REPAIR_PHASE_LABELS,
+  type RepairChapterDiff,
+  type RepairProgress,
+  type RepairReport,
+} from '@/apis/spider';
 import { myPage, getById, type ModuleContentItem } from '@/apis/module-content';
 
 // 裁决结果的展示元数据。文案要说人话 —— 运营不该去猜 "only_one_source" 是什么意思。
@@ -56,7 +63,10 @@ export default function ContentRepairPanel({ compact = false }: { compact?: bool
   const [keyword, setKeyword] = useState('');
   const [picked, setPicked] = useState<ModuleContentItem | null>(null);
   const [domains, setDomains] = useState<string[]>([]);
-  const [maxChapters, setMaxChapters] = useState('200');
+  // 默认全书:进度现在看得见,不必再靠"先抓 200 章试试"来避免界面干等。
+  const [maxChapters, setMaxChapters] = useState('0');
+  const [progress, setProgress] = useState<{ p: RepairProgress; taskId: number } | null>(null);
+  const onProgress = (p: RepairProgress, taskId: number) => setProgress({ p, taskId });
   const [report, setReport] = useState<RepairReport | null>(null);
   const [errMsg, setErrMsg] = useState<string | null>(null);
   // 允许写入的裁决类型(默认只信多源印证 + 单源)
@@ -108,7 +118,9 @@ export default function ContentRepairPanel({ compact = false }: { compact?: bool
         domains,
         dryRun: true,
         maxChapters: Number(maxChapters) || 0,
+        onProgress,
       }),
+    onMutate: () => setProgress(null),
     onSuccess: (r) => { setReport(r); setErrMsg(null); },
     onError: (e: any) => { setReport(null); setErrMsg(e?.message || '诊断失败'); },
   });
@@ -124,7 +136,9 @@ export default function ContentRepairPanel({ compact = false }: { compact?: bool
         applyVerdicts: allowConflict
           ? ['ok', 'only_one_source', 'conflict']
           : ['ok', 'only_one_source'],
+        onProgress,
       }),
+    onMutate: () => setProgress(null),
     onSuccess: (r) => { setReport(r); setErrMsg(null); },
     onError: (e: any) => setErrMsg(e?.message || '应用失败'),
   });
@@ -202,9 +216,9 @@ export default function ContentRepairPanel({ compact = false }: { compact?: bool
               helperText={
                 sourceOptions.length === 0
                   ? '还没有配好取数模板的小说源'
-                  : sourceOptions.length < 2
-                    ? '只有一个源,拿不到交叉验证 —— 建议再配一个,否则每一章都只会是「仅一源」'
-                    : '至少选 2 个才有交叉验证'
+                  : domains.length === 0
+                    ? '不选 = 全部正文源:每个源用站内搜索定位这本书,搜不到的跳过'
+                    : '选 2 个以上才有交叉验证'
               }
             >
               {sourceOptions.map((s) => (
@@ -225,14 +239,14 @@ export default function ContentRepairPanel({ compact = false }: { compact?: bool
             <Button
               variant="contained"
               onClick={() => diagnoseM.mutate()}
-              disabled={busy || domains.length === 0}
+              disabled={busy}
               startIcon={diagnoseM.isPending ? <CircularProgress size={14} color="inherit" /> : <FactCheckRoundedIcon />}
               sx={{ textTransform: 'none', mt: 0.25 }}
             >
               {diagnoseM.isPending ? '诊断中…' : '诊断(不写库)'}
             </Button>
           </Stack>
-          {diagnoseM.isPending && <LinearProgress sx={{ mt: 2 }} />}
+          {busy && <RepairProgressView progress={progress?.p} taskId={progress?.taskId} applying={applyM.isPending} />}
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
             诊断会实时抓取所选源的章节做比对,选得多/章节多时较慢。
           </Typography>
@@ -371,6 +385,45 @@ function DiffTable({ diffs }: { diffs: RepairChapterDiff[] }) {
           </Box>
         );
       })}
+    </Box>
+  );
+}
+
+/** 运行中的修复任务进度:阶段 / 百分比 / 当前在抓哪一章 / 已取章数 / 耗时。 */
+function RepairProgressView({ progress, taskId, applying }: { progress?: RepairProgress; taskId?: number; applying: boolean }) {
+  if (!progress) {
+    return (
+      <Box sx={{ mt: 2 }}>
+        <LinearProgress />
+        <Typography variant="caption" color="text.secondary">
+          {applying ? '应用任务已提交,等待开始…' : '诊断任务已提交,等待开始…'}
+        </Typography>
+      </Box>
+    );
+  }
+  const pct = progress.percent;
+  const elapsed = progress.startedAt ? Math.round((Date.now() - new Date(progress.startedAt).getTime()) / 1000) : progress.elapsedSec;
+  const fmt = (s?: number) => (s == null ? '-' : s >= 60 ? `${Math.floor(s / 60)} 分 ${s % 60} 秒` : `${s} 秒`);
+  return (
+    <Box sx={{ mt: 2 }}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5, flexWrap: 'wrap', gap: 0.5 }}>
+        <Chip size="small" color="primary" variant="outlined" label={REPAIR_PHASE_LABELS[progress.phase] || progress.phase} />
+        <Typography variant="body2">{pct >= 0 ? `${pct}%` : '估算中'}</Typography>
+        {progress.itemsFound ? <Typography variant="caption" color="text.secondary">已取 {progress.itemsFound} 章</Typography> : null}
+        <Typography variant="caption" color="text.secondary">耗时 {fmt(elapsed)}</Typography>
+        {taskId ? <Typography variant="caption" color="text.secondary">任务 #{taskId}(任务列表里也能看)</Typography> : null}
+      </Stack>
+      <LinearProgress variant={pct >= 0 ? 'determinate' : 'indeterminate'} value={Math.max(0, pct)} sx={{ height: 8, borderRadius: 4 }} />
+      {progress.currentUrl && (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, wordBreak: 'break-all' }}>
+          {progress.currentUrl}
+        </Typography>
+      )}
+      {(progress.error_list?.length ?? 0) > 0 && (
+        <Alert severity="warning" sx={{ mt: 1 }}>
+          {progress.error_list!.slice(-3).map((e, i) => <div key={i}>{e}</div>)}
+        </Alert>
+      )}
     </Box>
   );
 }
