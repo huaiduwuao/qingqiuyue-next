@@ -24,6 +24,7 @@ import { formatApiError } from '@/lib/api/client';
 import { TYPE_LABEL } from '@/lib/contentType.gen';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import { PlatformLinks, UnavailablePlayer, platformsOf, linkOutNoticeOf } from '@/components/detail/ExternalPlatforms';
+import { backfillPending, backfillRefetchInterval, videoBackfillNotice, type BackfillState } from '@/lib/autoBackfill';
 import UserPlaySources from '@/components/detail/UserPlaySources';
 import DetailHeader from '@/components/detail/DetailHeader';
 import ShareButtons from '@/components/share/ShareButtons';
@@ -63,6 +64,10 @@ export interface EpisodicDetail {
   /** 全网检索收录:本站播不了的原因 + 各平台入口(见 ExternalPlatforms) */
   playNotice?: string;
   platforms?: unknown;
+  /** 跨源找到的、本站播放器能解析的页面(B 站 / AcFun);没有分集时优先于 source */
+  playSourceUrl?: string;
+  playSourceLabel?: string;
+  availability?: { axis?: string; status?: string; watchable?: boolean; notice?: string; backfill?: BackfillState };
 }
 
 type PeopleKey = 'director' | 'actors' | 'host' | 'guests';
@@ -112,8 +117,10 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
     queryKey: ['detail', config.kind, id],
     queryFn: () => config.fetchDetail(id!).then((r) => ((r as EpisodicDetail | undefined) ?? null)),
     enabled: !!id,
+    // 站内放不了时后端已投自动补全(跨源找片源):排队 / 运行中就轮询。
+    refetchInterval: backfillRefetchInterval,
   });
-  const itemsQuery = useContentItems(config.kind, id, config.fetchItems);
+  const itemsQuery = useContentItems(config.kind, id, config.fetchItems, { poll: backfillPending(query.data) });
   const items = useMemo(() => itemsQuery.data?.items ?? [], [itemsQuery.data]);
 
   // 进入详情:行为埋点(供榜单/推荐)+ 写观看历史。
@@ -218,13 +225,14 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
             .filter((p) => p.value);
           const intro = (data.description || data.content || '').trim();
           // 还没有分集时退回整部内容的来源地址,能解析就先放着(比如单集番剧页)。
-          const fallbackSource = items.length === 0 ? sourceLink : '';
+          // 跨源绑定的可播页面(B 站 / AcFun 同名正片)优先于原始来源。
+          const fallbackSource = items.length === 0 ? data.playSourceUrl || sourceLink : '';
           // 分集页面地址:既是没有可用直链时的解析源,也是直链失效后重新解析的依据。
           const episodePage = active?.url || fallbackSource;
           const direct = usableDirectUrl(active?.playUrl, active?.url);
           const platforms = platformsOf(data);
-          // 没有分集、只有会员/付费平台:不交给播放器硬解析,直接说明原因。
-          const unavailable = items.length === 0 ? linkOutNoticeOf(data, fallbackSource) : '';
+          // 没有分集、只有会员/付费平台:不交给播放器硬解析,直接说明原因;补全中说正在找片源。
+          const unavailable = items.length === 0 && !data.playSourceUrl ? videoBackfillNotice(data, linkOutNoticeOf(data, fallbackSource)) : '';
 
           return (
             <>

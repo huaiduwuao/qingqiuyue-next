@@ -25,6 +25,7 @@ import { AsyncState } from '@/components/common/AsyncState';
 import VideoDetailSkeleton from '@/components/detail/VideoDetailSkeleton';
 import { CoverImage } from '@/components/common/CoverImage';
 import { track, recordHistory } from '@/lib/track';
+import { backfillRefetchInterval, videoBackfillNotice, type BackfillState } from '@/lib/autoBackfill';
 import { DetailComments } from '@/components/detail/DetailComments';
 import { DetailFooter } from '@/components/detail/DetailFooter';
 import { CollectButton } from '@/components/detail/CollectButton';
@@ -49,6 +50,10 @@ interface Film {
   commentCount?: number;
   playNotice?: string;
   platforms?: unknown;
+  /** 跨源找到的、本站播放器能解析的页面(B 站 / AcFun),优先于 source */
+  playSourceUrl?: string;
+  playSourceLabel?: string;
+  availability?: { axis?: string; status?: string; watchable?: boolean; notice?: string; backfill?: BackfillState };
 }
 
 function FilmDetailContent() {
@@ -59,6 +64,8 @@ function FilmDetailContent() {
     queryKey: ['detail', 'film', id],
     queryFn: () => contentDetail('film', { id: id! }).then((r) => r as Partial<Film>),
     enabled: !!id,
+    // 站内放不了时后端已投自动补全(跨源找片源):排队 / 运行中就轮询,找到就直接换成播放器。
+    refetchInterval: backfillRefetchInterval,
   });
 
   React.useEffect(() => {
@@ -105,12 +112,17 @@ function FilmDetailContent() {
           <>
             <Box sx={{ bgcolor: '#000' }}>
               <Container maxWidth="lg" sx={{ py: 0 }}>
-                {linkOutNoticeOf(data, data.source) && !data.videoUrl ? (
-                  // 只有会员/付费平台有片源、或片源页只是个索引:如实说明,不把它交给播放器硬解析。
-                  <UnavailablePlayer notice={linkOutNoticeOf(data, data.source)} platforms={platformsOf(data)} poster={data.cover} />
-                ) : (
-                  <VideoPlayer src={data.videoUrl || ''} sourceUrl={data.source || ''} poster={data.cover} initialDuration={(data.duration || 0) * 60} autoPlay={false} dockTitle={data.title || "电影"} />
-                )}
+                {(() => {
+                  // 跨源绑定的可播页面优先;没有时才看原始 source 能不能放。
+                  const playPage = data.playSourceUrl || data.source || '';
+                  const notice = data.playSourceUrl ? '' : videoBackfillNotice(data, linkOutNoticeOf(data, data.source));
+                  return notice && !data.videoUrl ? (
+                    // 只有会员/付费平台有片源、或片源页只是个索引:如实说明,不把它交给播放器硬解析。
+                    <UnavailablePlayer notice={notice} platforms={platformsOf(data)} poster={data.cover} />
+                  ) : (
+                    <VideoPlayer key={playPage} src={data.videoUrl || ''} sourceUrl={playPage} poster={data.cover} initialDuration={(data.duration || 0) * 60} autoPlay={false} dockTitle={data.title || "电影"} />
+                  );
+                })()}
               </Container>
             </Box>
 

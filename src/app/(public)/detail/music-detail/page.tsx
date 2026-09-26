@@ -39,6 +39,7 @@ import { useMusicPlayer, musicPlayer, currentTrack, type MusicTrack } from '@/li
 import { trackFromDetail } from '@/lib/player/playMusic';
 import { PlatformLinks, platformsOf } from '@/components/detail/ExternalPlatforms';
 import { track, recordHistory } from '@/lib/track';
+import { backfillPending, backfillRefetchInterval } from '@/lib/autoBackfill';
 import { DetailComments } from '@/components/detail/DetailComments';
 import { DetailFooter } from '@/components/detail/DetailFooter';
 
@@ -58,6 +59,9 @@ function MusicDetailContent() {
     queryKey: ['detail', 'music', id],
     queryFn: () => contentDetail('music', { id: id! }).then((r) => r as any),
     enabled: !!id,
+    // 实时解析也没有音源时后端已投自动补全(找整首并转存):排队 / 运行中就轮询,转存好就能放。
+    // 这里的 data 是 any(详情字段没建类型),直接传函数会让 useQuery 把数据推成 unknown,包一层保住 any。
+    refetchInterval: (q) => backfillRefetchInterval(q),
   });
 
   // 进入详情:行为埋点(供榜单/推荐)+ 写观看历史。itemType 大写以匹配 Doris content_type。
@@ -107,9 +111,14 @@ function MusicDetailContent() {
   const audioSrc = realAudioUrl || mediaUrl(query.data?.audioUrl);
   const sourcePage: string = query.data?.sourceUrl || query.data?.source || '';
   const audioUnavailable = query.isSuccess && !audioLoading && (!audioSrc || audioFailed);
+  const audioBackfilling = backfillPending(query.data);
   const audioNotice = audioFailed
     ? '音源加载失败（可能已过期或受版权限制），请刷新重试或前往原平台收听'
-    : query.data?.audioNotice || '暂无可播放音源（版权或平台限制），可前往原平台收听';
+    : audioBackfilling
+      ? '正在为这首歌寻找并转存整首音源,稍候片刻…'
+      : query.data?.audioBackfill?.status === 'failed'
+        ? `已在各平台找过整首音源,暂时没有;${query.data?.audioNotice || '可前往原平台收听'}`
+        : query.data?.audioNotice || '暂无可播放音源（版权或平台限制），可前往原平台收听';
   // VIP 歌曲只拿得到试听片段:照常能播,但要说清楚这不是整首。
   const audioIsPreview = !audioUnavailable && query.data?.audioStatus === 'preview';
 
