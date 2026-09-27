@@ -164,6 +164,10 @@ export function HomeSettingsDrawer({ open, onClose }: Props) {
           width: { xs: '100%', sm: 380 },
           bgcolor: 'background.paper',
           height: '100%',
+          // 客户端里让出状态栏/手势条,不然标题和底栏压在系统栏底下
+          pt: 'var(--sat, 0px)',
+          pb: 'var(--sab, 0px)',
+          boxSizing: 'border-box',
           display: 'flex',
           flexDirection: 'column',
         }}

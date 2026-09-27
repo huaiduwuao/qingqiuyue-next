@@ -62,6 +62,7 @@ import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { LIST_PAGE_SIZE, nextMeListPage } from '@/components/home/meListPaging';
+import { HomeSettingsDrawer } from '@/components/home/HomeSettingsDrawer';
 import { useResponsive } from '@/hooks/useResponsive';
 import RedeemRoundedIcon from '@mui/icons-material/RedeemRounded';
 import { homeClient, adminClient, formatApiError } from '@/lib/api/client';
@@ -244,7 +245,9 @@ export function MyHomePage() {
 
 function MeLoggedOut() {
   const router = useRouter();
+  const [settingsOpen, setSettingsOpen] = useState(false);
   return (
+    <>
     <Box
       sx={{
         display: 'flex',
@@ -274,15 +277,16 @@ function MeLoggedOut() {
         登录 / 注册
       </Button>
       <Button
-        component={Link}
-        href="/account/settings"
         variant="text"
         startIcon={<SettingsRoundedIcon />}
+        onClick={() => setSettingsOpen(true)}
         sx={{ mt: 0.5, textTransform: 'none', color: 'text.secondary' }}
       >
         设置
       </Button>
     </Box>
+    <HomeSettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+    </>
   );
 }
 
@@ -325,6 +329,7 @@ function MyHomePageAuthed() {
   const [toast, setToast] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [cancelDialog, setCancelDialog] = useState<MyItem | null>(null);
 
   const profileQuery = useQuery({
@@ -566,11 +571,12 @@ function MyHomePageAuthed() {
           }}
         >
           <IconButton
-            component={Link}
-            href="/account/settings"
+            onClick={() => setSettingsOpen(true)}
             aria-label="设置"
             size="small"
-            // 手机上「我的」没有顶栏和侧边栏按钮,设置入口就是这个齿轮
+            // 手机上「我的」没有顶栏和侧边栏按钮,设置入口就是这个齿轮。
+            // 打开偏好设置抽屉(外观/通用/通知/AI/帮助,底部再链到账号与隐私);
+            // 以前直接跳 /account/settings,那页第一屏就是头像昵称简介,和「编辑资料」一模一样
             sx={{ position: 'absolute', top: 8, right: 8, zIndex: 2, color: 'text.secondary' }}
           >
             <SettingsRoundedIcon fontSize="small" />
@@ -1269,6 +1275,8 @@ function MyHomePageAuthed() {
         accountPrivateSaving={accountPrivateMutation.isPending}
       />
 
+      <HomeSettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
       <QrCodeDialog
         open={qrOpen}
         onClose={() => setQrOpen(false)}
@@ -1786,16 +1794,31 @@ function EditProfileDrawer({
       anchor="right"
       open={open}
       onClose={onClose}
-      slotProps={{ paper: { sx: { width: { xs: '100%', sm: 420 }, bgcolor: 'var(--bg-surface, rgba(20, 22, 32, 0.98))' } } }}
+      // --bg-surface 是半透明的(浅色 0.7),整页铺满时底下的「我的」全透出来;抽屉要实底。
+      // 手机上全屏:高度跟 --app-height(键盘弹起时跟着缩,保存按钮不被顶走),
+      // 客户端里上下让出状态栏/手势条(--sat/--sab 见 globals.css)
+      slotProps={{
+        paper: {
+          sx: {
+            width: { xs: '100%', sm: 420 },
+            height: { xs: 'var(--app-height, 100%)', sm: '100%' },
+            bgcolor: 'background.paper',
+            backgroundImage: 'none',
+            pt: 'var(--sat, 0px)',
+            pb: 'var(--sab, 0px)',
+            boxSizing: 'border-box',
+          },
+        },
+      }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2, borderBottom: 1, borderColor: 'divider' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, py: 1.25, flexShrink: 0, borderBottom: 1, borderColor: 'divider' }}>
         <Typography sx={{ fontSize: 16, fontWeight: 700 }}>编辑资料</Typography>
         <IconButton size="small" onClick={onClose} aria-label="关闭">
           <CloseRoundedIcon sx={{ fontSize: 18 }} />
         </IconButton>
       </Box>
 
-      <Box sx={{ flex: 1, overflowY: 'auto', p: 2.5 }}>
+      <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', p: { xs: 2, sm: 2.5 } }}>
         <Stack spacing={2.5}>
           <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5, py: 1 }}>
             <Avatar src={avatar} sx={{ width: 80, height: 80, border: 2, borderColor: 'warning.main' }}>
@@ -1932,7 +1955,7 @@ function EditProfileDrawer({
         </Stack>
       </Box>
 
-      <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider', display: 'flex', gap: 1.5 }}>
+      <Box sx={{ px: 2, py: 1.5, flexShrink: 0, borderTop: 1, borderColor: 'divider', display: 'flex', gap: 1.5 }}>
         <Button fullWidth variant="outlined" onClick={onClose} sx={{ borderRadius: 2, textTransform: 'none' }}>
           取消
         </Button>
