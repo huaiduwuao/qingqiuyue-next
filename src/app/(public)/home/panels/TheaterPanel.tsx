@@ -15,6 +15,7 @@ import { useContentNavigate, useDetailRoutePrefetch, TYPE_LABEL } from '@/lib/co
 import { getFacets, FacetOption } from '@/apis/facets';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT, gradient2 } from '@/constants/gradients';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
+import { RankStrip } from '@/components/common/RankStrip';
 
 /**
  * 放映厅 —— 电影 / 电视剧 / 动漫 / 综艺。
@@ -361,36 +362,17 @@ function Top10Section({ params }: { params: URLSearchParams }) {
   const ordered = [...list].sort((a, b) => (a.hotRank || 99) - (b.hotRank || 99)).slice(0, 10);
 
   return (
-    <Box
-      sx={{
-        position: 'relative',
-        mb: 1,
-        p: { xs: 2, md: 2.5 },
-        borderRadius: 2.5,
-        background: SECTION_TINT.PRIMARY_PURPLE,
-        border: '1px solid rgba(255,255,255,0.08)',
-        overflow: 'hidden',
-      }}
-    >
-      <Box sx={{ position: 'absolute', top: 12, right: 16, display: 'flex', alignItems: 'center', gap: 0.75, color: 'warning.main' }}>
-        <LocalFireDepartmentIcon sx={{ fontSize: 18 }} />
-        <Typography sx={{ fontSize: 13, fontWeight: 700, letterSpacing: 0.5 }}>TOP 10 热门榜</Typography>
+    <Box sx={{ mb: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1 }}>
+        <WhatshotIcon sx={{ fontSize: 18, color: 'primary.main' }} />
+        <Typography sx={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>{title}</Typography>
+        <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'warning.main', letterSpacing: 0.5 }}>TOP 10</Typography>
       </Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-        <WhatshotIcon sx={{ fontSize: 20, color: 'primary.main' }} />
-        <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>{title}</Typography>
-      </Box>
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' },
-          gap: 1.25,
-        }}
-      >
+      <RankStrip>
         {ordered.map((d) => (
           <TheaterRankCard key={d.id} item={d} />
         ))}
-      </Box>
+      </RankStrip>
     </Box>
   );
 }

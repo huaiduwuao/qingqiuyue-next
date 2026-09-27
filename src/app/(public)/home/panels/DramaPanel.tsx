@@ -15,6 +15,7 @@ import { CoverImage } from '@/components/common/CoverImage';
 import { useContentNavigate, useDetailRoutePrefetch } from '@/lib/contentRoute';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT, gradient2 } from '@/constants/gradients';
 import { ListLayout, ListLayoutSwitch, LIST_ROW } from '@/components/common/ListLayout';
+import { RankStrip } from '@/components/common/RankStrip';
 import { getFacets, FacetOption } from '@/apis/facets';
 
 /**
@@ -379,37 +380,18 @@ function Top10Podium({ list, genreLabel, status, sort }: { list: DramaSeries[]; 
   const ordered = [...list].sort((a, b) => (a.hotRank || 99) - (b.hotRank || 99)).slice(0, 10);
 
   return (
-    <Box
-      sx={{
-        position: 'relative',
-        mb: 1,
-        p: 2.5,
-        borderRadius: 2.5,
-        background: SECTION_TINT.RED_PURPLE_YELLOW,
-        border: '1px solid rgba(255,255,255,0.08)',
-        overflow: 'hidden',
-      }}
-    >
-      <Box sx={{ position: 'absolute', top: 12, right: 16, display: 'flex', alignItems: 'center', gap: 0.75, color: 'warning.main' }}>
-        <LocalFireDepartmentIcon sx={{ fontSize: 18 }} />
-        <Typography sx={{ fontSize: 13, fontWeight: 700, letterSpacing: 0.5 }}>TOP 10 热门榜</Typography>
+    <Box sx={{ mb: 3 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1 }}>
+        <WhatshotIcon sx={{ fontSize: 18, color: 'primary.main' }} />
+        <Typography sx={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>{title}短剧</Typography>
+        <Typography sx={{ fontSize: 11, fontWeight: 700, color: 'warning.main', letterSpacing: 0.5 }}>TOP 10</Typography>
+        <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))', ml: 0.5 }}>{subtitle}</Typography>
       </Box>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-        <WhatshotIcon sx={{ fontSize: 20, color: 'primary.main' }} />
-        <Typography sx={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary, #fff)' }}>{title}短剧</Typography>
-        <Typography sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.4))', ml: 1 }}>{subtitle}</Typography>
-      </Box>
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' },
-          gap: 1.25,
-        }}
-      >
+      <RankStrip>
         {ordered.map((d) => (
           <RankCard key={d.id} item={d} />
         ))}
-      </Box>
+      </RankStrip>
     </Box>
   );
 }
@@ -427,7 +409,7 @@ function RankCard({ item }: { item: DramaSeries }) {
   const cardBorder = isTop3 ? medal!.border : '1px solid var(--border-color, rgba(255,255,255,0.06))';
   const sk = statusKey(item.status);
   const statusInfo = sk ? STATUS_COLOR[sk] : DEFAULT_STATUS_COLOR;
-  const statusLabel = sk ? STATUS_LABEL[sk] : (item.status || '其他');
+  const statusLabel = sk ? STATUS_LABEL[sk] : null;
 
   return (
     <Box
@@ -450,12 +432,14 @@ function RankCard({ item }: { item: DramaSeries }) {
           {rank}
         </Box>
         <Box sx={{ position: 'absolute', top: 6, right: 6, display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-end' }}>
-          <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: statusInfo.bg, color: statusInfo.fg, fontSize: 9, fontWeight: 700 }}>
-            {statusLabel}
-          </Box>
-          {item.rating !== undefined && (
+          {statusLabel && (
+            <Box sx={{ px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: statusInfo.bg, color: statusInfo.fg, fontSize: 9, fontWeight: 700 }}>
+              {statusLabel}
+            </Box>
+          )}
+          {!!item.rating && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: 'warning.main', fontSize: 9, fontWeight: 700 }}>
-              <StarRoundedIcon sx={{ fontSize: 9 }} />{(item.rating ?? 0).toFixed(1)}
+              <StarRoundedIcon sx={{ fontSize: 9 }} />{item.rating.toFixed(1)}
             </Box>
           )}
         </Box>
@@ -508,17 +492,19 @@ function DramaCard({ item }: { item: DramaSeries }) {
         </Box>
         <Box sx={{ position: 'absolute', top: 8, right: 8, display: 'flex', flexDirection: 'column', gap: 0.5, alignItems: 'flex-end' }}>
           {(() => {
+            // status 是自由文本(库里常见 "active"),认不出就不画角标,别把原始值露给用户
             const k = statusKey(item.status);
-            const c = k ? STATUS_COLOR[k] : DEFAULT_STATUS_COLOR;
+            if (!k) return null;
+            const c = STATUS_COLOR[k];
             return (
               <Box sx={{ px: 0.75, py: 0.125, borderRadius: 0.5, bgcolor: c.bg, color: c.fg, fontSize: 9, fontWeight: 700 }}>
-                {k ? STATUS_LABEL[k] : (item.status || '其他')}
+                {STATUS_LABEL[k]}
               </Box>
             );
           })()}
-          {item.rating !== undefined && (
+          {!!item.rating && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, px: 0.5, py: 0.125, borderRadius: 0.5, bgcolor: 'rgba(0,0,0,0.6)', color: 'warning.main', fontSize: 10, fontWeight: 700 }}>
-              <StarRoundedIcon sx={{ fontSize: 10 }} />{(item.rating ?? 0).toFixed(1)}
+              <StarRoundedIcon sx={{ fontSize: 10 }} />{item.rating.toFixed(1)}
             </Box>
           )}
         </Box>
