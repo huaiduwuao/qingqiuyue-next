@@ -23,6 +23,7 @@ import { detail as contentDetail } from '@/apis/content-article';
 import { useContentInteraction } from '@/hooks/useContentInteraction';
 import { formatApiError } from '@/lib/api/client';
 import DetailHeader from '@/components/detail/DetailHeader';
+import { UnpublishedBanner } from '@/components/detail/UnpublishedBanner';
 import { AsyncState } from '@/components/common/AsyncState';
 import { CoverImage } from '@/components/common/CoverImage';
 import { track, recordHistory } from '@/lib/track';
@@ -106,6 +107,7 @@ function ArticleDetailContent() {
       <AsyncState query={query} isEmpty={(d) => !d}>
         {(data) => (
           <Container maxWidth="md" sx={{ py: 4 }}>
+            <UnpublishedBanner status={(data as { status?: string }).status} />
             <Chip
               label={data.category}
               size="small"

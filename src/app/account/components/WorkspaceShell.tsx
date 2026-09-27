@@ -247,8 +247,14 @@ export function WorkspaceShell({ title, logo, groups, selected, onSelect, aside,
               // (md 以下才有底部导航)。与 /home/recommend 的 main 一致 —— 否则滚动到
               // 最后几条悬赏会被底部导航盖住,而且 main 的可视高度扣少了底部导航,
               // 长列表可滚动范围比应该的小。
-              p: { xs: 1.5, md: 3 },
-              pb: 'calc(12px + var(--bottom-nav-inset, 0px) + var(--player-inset, 0px))',
+              // 不能写 p: { xs, md } 再写 pb:响应式的 p 生成在 media query 里、排在 pb 后面,
+              // 会把 pb 盖回 12px —— 手机上最后 56px 内容一直压在底部导航下面。四边分开写。
+              px: { xs: 1.5, md: 3 },
+              pt: { xs: 1.5, md: 3 },
+              pb: {
+                xs: 'calc(12px + var(--bottom-nav-inset, 0px) + var(--player-inset, 0px))',
+                md: 'calc(24px + var(--bottom-nav-inset, 0px) + var(--player-inset, 0px))',
+              },
               display: 'flex',
               flexDirection: 'column',
               gap: 2,
