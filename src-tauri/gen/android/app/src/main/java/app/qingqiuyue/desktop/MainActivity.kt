@@ -88,6 +88,8 @@ class MainActivity : TauriActivity() {
     this.webView = webView
     // 微信 App SDK 登录的 JS 接口(window.QQNative),必须在页面加载前挂上
     WechatLogin.attach(webView)
+    // 视频页内全屏时藏系统栏 / 转横屏(window.QQScreen,见 ScreenBridge)
+    webView.addJavascriptInterface(ScreenBridge(this), "QQScreen")
     val settings = webView.settings
     settings.userAgentString = settings.userAgentString.replace(" Mobile", "")
     settings.mediaPlaybackRequiresUserGesture = false

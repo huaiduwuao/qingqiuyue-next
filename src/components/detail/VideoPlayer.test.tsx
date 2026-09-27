@@ -58,3 +58,22 @@ describe('VideoPlayer · 规则解析模式', () => {
     await waitFor(() => expect(resolveStream).toHaveBeenCalledTimes(3));
   });
 });
+
+describe('VideoPlayer · 全屏退路', () => {
+  it('元素全屏用不了(安卓 WebView)时走页内全屏:<video> 挪进浮层,退出挪回原处,音量记在本机', async () => {
+    resolveStream.mockResolvedValue({ kind: 'progressive', provider: 'bilibili', duration: 213, urls: [MP4], mediaHeaders: {}, source: 'server' });
+    Object.defineProperty(document, 'fullscreenEnabled', { configurable: true, value: false });
+    const { container } = render(<VideoPlayer sourceUrl={PAGE} />);
+    await waitFor(() => expect(container.querySelector('video')).not.toBeNull());
+    const v = container.querySelector('video')!;
+
+    await act(async () => screen.getByRole('button', { name: '全屏' }).click());
+    const overlay = screen.getByRole('dialog', { name: '全屏播放' });
+    expect(overlay.contains(v)).toBe(true);
+    expect(container.contains(v)).toBe(false);
+
+    await act(async () => screen.getAllByRole('button', { name: '退出全屏' })[0].click());
+    expect(screen.queryByRole('dialog', { name: '全屏播放' })).toBeNull();
+    expect(container.contains(v)).toBe(true);
+  });
+});

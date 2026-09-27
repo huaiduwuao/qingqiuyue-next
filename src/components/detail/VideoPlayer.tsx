@@ -10,6 +10,7 @@ import PauseIcon from '@mui/icons-material/Pause';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
 import VolumeOffIcon from '@mui/icons-material/VolumeOff';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
+import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import PictureInPictureAltIcon from '@mui/icons-material/PictureInPictureAlt';
 import Replay10Icon from '@mui/icons-material/Replay10';
 import Forward10Icon from '@mui/icons-material/Forward10';
@@ -20,7 +21,9 @@ import AIGCBadge from '@/components/AIGCBadge';
 import { parseStream, checkStreamAccess, BANDWIDTH_NOTICE } from '@/apis/stream';
 import { mediaUrl, isExternalStreamUrl } from '@/lib/media';
 import { originOnlyPlatform, ORIGIN_ONLY_NOTICE } from '@/lib/sourcePage';
-import { isDesktopClient, openExternalUrl } from '@/lib/clientAuth';
+import { authPlatform, isDesktopClient, openExternalUrl } from '@/lib/clientAuth';
+import { createPortal } from 'react-dom';
+import { useBackClose } from '@/lib/backStack';
 import { canResolveLocally, resolveStream } from '@/lib/localStream/engine';
 import { loadRules, matchProvider } from '@/lib/localStream/rules';
 import { attachLocalStream } from '@/lib/localStream/dash';
@@ -97,6 +100,30 @@ function fmt(s: number) {
 }
 
 /** 推荐流右上角的圆形玻璃按钮 */
+/** 音量(0–100)记在本机:推荐流每条视频都是新的播放器,不记的话每划一条都回到满音量 */
+const VOLUME_KEY = 'qq-video-volume';
+function readVolume(): number {
+  try {
+    const n = Number(localStorage.getItem(VOLUME_KEY));
+    if (localStorage.getItem(VOLUME_KEY) !== null && Number.isFinite(n)) return Math.max(0, Math.min(100, n));
+  } catch {
+    /* 隐私模式 */
+  }
+  return 100;
+}
+function saveVolume(n: number) {
+  try {
+    localStorage.setItem(VOLUME_KEY, String(Math.round(n)));
+  } catch {
+    /* 隐私模式 */
+  }
+}
+
+/** 页内全屏(安卓客户端 / 不支持元素全屏的浏览器)时,原生壳横屏 + 藏系统栏(MainActivity 的 QQScreen) */
+function nativeScreen(): { setFullscreen?: (on: boolean, landscape: boolean) => void } | undefined {
+  return (window as unknown as { QQScreen?: { setFullscreen?: (on: boolean, landscape: boolean) => void } }).QQScreen;
+}
+
 const FILL_BTN_SX = {
   color: '#fff',
   bgcolor: 'rgba(0,0,0,0.35)',
@@ -149,7 +176,11 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(initialDuration);
-  const [volume, setVolume] = useState(80);
+  const [volume, setVolume] = useState(readVolume);
+  const volumeRef = useRef(volume);
+  useEffect(() => {
+    volumeRef.current = volume;
+  }, [volume]);
   const [muted, setMuted] = useState(false);
   /** 自动播放被浏览器/WebView 的"有声自动播放需用户手势"策略拦下,已退回静音开播 */
   const [autoMuted, setAutoMuted] = useState(false);
@@ -560,11 +591,17 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     setScrub(null);
   };
 
-  const handleVolume = (_: any, v: number | number[]) => {
+  const handleVolume = (_: unknown, v: number | number[]) => {
     const n = v as number;
     setVolume(n);
+    saveVolume(n);
     if (videoRef.current) videoRef.current.volume = n / 100;
-    if (n > 0) setMuted(false);
+    setMuted(n === 0);
+  };
+  // 从静音拉回来时音量是 0 就给个能听见的值
+  const toggleMute = () => {
+    if (muted && volume === 0) handleVolume(null, 60);
+    else setMuted((m) => !m);
   };
 
   const seek = (delta: number) => {
@@ -573,14 +610,73 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     }
   };
 
-  const goFullscreen = () => {
-    const el = containerRef.current;
-    if (el && document.fullscreenElement) {
-      document.exitFullscreen();
-    } else if (el?.requestFullscreen) {
-      el.requestFullscreen();
-    }
+  /**
+   * 全屏,按能用的顺序:
+   *   1. 元素全屏(桌面、安卓 Chrome);横屏视频顺手把屏幕锁成横向
+   *   2. iPhone Safari 只能让 <video> 自己全屏(系统播放器)
+   *   3. 都不行 → 页内全屏:把 <video> 挪进 body 下的铺满浮层。安卓客户端一律走这条 ——
+   *      WebView 的元素全屏要壳实现 onShowCustomView,wry 没有,按了没反应;这时还让原生壳横屏、藏系统栏
+   */
+  const [nativeFs, setNativeFs] = useState(false);
+  const [pseudoFs, setPseudoFs] = useState(false);
+  const fsHostRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const on = () => setNativeFs(!!document.fullscreenElement && document.fullscreenElement === containerRef.current);
+    document.addEventListener('fullscreenchange', on);
+    return () => document.removeEventListener('fullscreenchange', on);
+  }, []);
+  const isLandscapeVideo = () => {
+    const v = videoRef.current;
+    return !v || !v.videoWidth || v.videoWidth >= v.videoHeight;
   };
+  const exitPseudoFs = () => {
+    // 先把 <video> 放回页面里的占位,再卸浮层:同一个任务里挪动不会打断播放
+    const v = videoRef.current;
+    if (v && hostRef.current && v.parentNode !== hostRef.current) hostRef.current.appendChild(v);
+    nativeScreen()?.setFullscreen?.(false, false);
+    setPseudoFs(false);
+  };
+  const fsHostCallback = useCallback((node: HTMLDivElement | null) => {
+    fsHostRef.current = node;
+    const v = videoRef.current;
+    if (node && v && v.parentNode !== node) node.appendChild(v);
+  }, []);
+  useBackClose(pseudoFs, exitPseudoFs);
+  const goFullscreen = async () => {
+    if (pseudoFs) {
+      exitPseudoFs();
+      return;
+    }
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+      return;
+    }
+    const el = containerRef.current;
+    const androidApp = authPlatform() === 'android';
+    if (!androidApp && el?.requestFullscreen && document.fullscreenEnabled) {
+      try {
+        await el.requestFullscreen({ navigationUI: 'hide' });
+        if (isLandscapeVideo()) {
+          (screen.orientation as unknown as { lock?: (o: string) => Promise<void> })?.lock?.('landscape')?.catch(() => {});
+        }
+        return;
+      } catch {
+        /* 走下面的退路 */
+      }
+    }
+    const v = videoRef.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null;
+    if (!androidApp && !document.fullscreenEnabled && v?.webkitEnterFullscreen) {
+      try {
+        v.webkitEnterFullscreen();
+        return;
+      } catch {
+        /* 走页内全屏 */
+      }
+    }
+    nativeScreen()?.setFullscreen?.(true, isLandscapeVideo());
+    setPseudoFs(true);
+  };
+  const isFs = nativeFs || pseudoFs;
 
   // ---------------------------------------------------------------------------
   // <video> 元素生命周期 + 小窗 / 画中画
@@ -636,6 +732,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
       volumechange: () => {
         if (!videoRef.current) return;
         setMuted(videoRef.current.muted);
+        setVolume(Math.round(videoRef.current.volume * 100));
         if (!videoRef.current.muted) setAutoMuted(false);
       },
       enterpictureinpicture: () => setPip(true),
@@ -648,7 +745,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
   const attach = useCallback(() => {
     const v = videoRef.current;
     const host = hostRef.current;
-    if (v && host && v.parentNode !== host && !videoDock.isFloating(owner)) host.appendChild(v);
+    if (v && host && v.parentNode !== host && !videoDock.isFloating(owner) && !fsHostRef.current) host.appendChild(v);
   }, [owner]);
 
   const hostCallback = useCallback(
@@ -701,6 +798,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
       v.setAttribute('referrerpolicy', 'no-referrer');
     }
     v.style.cssText = 'width:100%;height:100%;object-fit:contain;background:#000;display:block;';
+    v.volume = volumeRef.current / 100;
     // 推荐流(fill)自动连播:音乐在放时静音开播(见 lib/player/musicPlayer 的协调器)
     if (fill) v.dataset.autoMute = '1';
     else delete v.dataset.autoMute;
@@ -1140,16 +1238,38 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
             className="controls"
             sx={{ position: 'absolute', top: 10, right: 10, zIndex: 6, display: 'flex', gap: 0.75 }}
           >
-            <IconButton onClick={() => setMuted((m) => !m)} size="small" aria-label={muted ? '打开声音' : '静音'} sx={FILL_BTN_SX}>
-              {muted ? <VolumeOffIcon fontSize="small" /> : <VolumeUpIcon fontSize="small" />}
-            </IconButton>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                borderRadius: 99,
+                ...FILL_BTN_SX,
+                '& .qq-vol': { width: 0, opacity: 0, transition: 'width 0.2s, opacity 0.2s, margin 0.2s' },
+                '@media (hover: hover)': {
+                  '&:hover .qq-vol, &:focus-within .qq-vol': { width: 84, opacity: 1, ml: 0.5, mr: 1.5 },
+                },
+              }}
+            >
+              <IconButton onClick={toggleMute} size="small" aria-label={muted ? '打开声音' : '静音'} sx={{ color: '#fff' }}>
+                {muted || volume === 0 ? <VolumeOffIcon fontSize="small" /> : <VolumeUpIcon fontSize="small" />}
+              </IconButton>
+              <Box className="qq-vol" sx={{ display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
+                <Slider
+                  size="small"
+                  aria-label="音量"
+                  value={muted ? 0 : volume}
+                  onChange={handleVolume}
+                  sx={{ color: '#fff', width: 76, mx: 0.5, flexShrink: 0 }}
+                />
+              </Box>
+            </Box>
             {pipOk && (
               <IconButton onClick={() => togglePip(videoRef.current)} size="small" aria-label={pip ? '退出画中画' : '画中画'} title={pip ? '退出画中画' : '画中画'} sx={{ ...FILL_BTN_SX, color: pip ? '#FE2C55' : '#fff' }}>
                 <PictureInPictureAltIcon fontSize="small" />
               </IconButton>
             )}
-            <IconButton onClick={goFullscreen} size="small" aria-label="全屏" sx={FILL_BTN_SX}>
-              <FullscreenIcon fontSize="small" />
+            <IconButton onClick={goFullscreen} size="small" aria-label={isFs ? '退出全屏' : '全屏'} sx={FILL_BTN_SX}>
+              {isFs ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
             </IconButton>
           </Box>
           {/* 拖动时的大号时间,放在作者/标题浮层(底部 ~30–120px)上面 */}
@@ -1163,7 +1283,15 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
           )}
           <Box
             data-no-drag
-            sx={{ position: 'absolute', left: 0, right: 0, bottom: 'calc(var(--player-inset, 0px) - 10px)', zIndex: 6, px: 1.5 }}
+            sx={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              // 手机:贴着底栏;桌面:圆角画布里、离底边一点,不被圆角和视口底边切掉
+              bottom: { xs: 'calc(var(--player-inset, 0px) - 10px)', md: 'calc(var(--player-inset, 0px) - 2px)' },
+              zIndex: 6,
+              px: { xs: 1.5, md: 2 },
+            }}
           >
             <Slider
               aria-label="播放进度"
@@ -1171,11 +1299,35 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
               max={duration || 100}
               onChange={onScrub}
               onChangeCommitted={onScrubEnd}
-              sx={seekBarSx(true)}
+              sx={{
+                ...seekBarSx(true),
+                '@media (min-width: 900px)': {
+                  height: 6,
+                  '&:hover, &:has(.Mui-active)': { height: 10 },
+                  '& .MuiSlider-thumb': { width: 14, height: 14 },
+                },
+              }}
             />
           </Box>
         </>
       )}
+
+      {pseudoFs &&
+        createPortal(
+          <PseudoFullscreen
+            hostRef={fsHostCallback}
+            playing={playing}
+            currentTime={scrub ?? currentTime}
+            duration={duration}
+            muted={muted || volume === 0}
+            onTogglePlay={togglePlay}
+            onScrub={onScrub}
+            onScrubEnd={onScrubEnd}
+            onToggleMute={toggleMute}
+            onExit={exitPseudoFs}
+          />,
+          document.body,
+        )}
 
       {/* 控制条 */}
       {hasVideo && !fill && (
@@ -1223,8 +1375,8 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
               {fmt(scrub ?? currentTime)} / {fmt(duration)}
             </Box>
             <Box sx={{ flex: 1 }} />
-            <IconButton onClick={() => setMuted((m) => !m)} size="small" aria-label={muted ? '打开声音' : '静音'} sx={{ color: '#fff' }}>
-              {muted ? <VolumeOffIcon fontSize="small" /> : <VolumeUpIcon fontSize="small" />}
+            <IconButton onClick={toggleMute} size="small" aria-label={muted ? '打开声音' : '静音'} sx={{ color: '#fff' }}>
+              {muted || volume === 0 ? <VolumeOffIcon fontSize="small" /> : <VolumeUpIcon fontSize="small" />}
             </IconButton>
             {/* 手机上音量走系统按键,不放音量条(放了整行就挤出屏幕,全屏键被切掉) */}
             {!compact && (
@@ -1241,8 +1393,8 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
                 <PictureInPictureAltIcon fontSize="small" />
               </IconButton>
             )}
-            <IconButton onClick={goFullscreen} size="small" aria-label="全屏" sx={{ color: '#fff' }}>
-              <FullscreenIcon fontSize="small" />
+            <IconButton onClick={goFullscreen} size="small" aria-label={isFs ? '退出全屏' : '全屏'} sx={{ color: '#fff' }}>
+              {isFs ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
             </IconButton>
           </Box>
         </Box>
@@ -1250,6 +1402,96 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     </Box>
   );
 });
+
+/**
+ * 页内全屏:铺满视口的黑底浮层,<video> 由 VideoPlayer 挪进 hostRef。点画面切换控制条,
+ * 控制条 3 秒不动自己收起。挂在 body 下(推荐流的祖先有 transform,fixed 在里面铺不满)。
+ */
+function PseudoFullscreen({
+  hostRef,
+  playing,
+  currentTime,
+  duration,
+  muted,
+  onTogglePlay,
+  onScrub,
+  onScrubEnd,
+  onToggleMute,
+  onExit,
+}: {
+  hostRef: (node: HTMLDivElement | null) => void;
+  playing: boolean;
+  currentTime: number;
+  duration: number;
+  muted: boolean;
+  onTogglePlay: () => void;
+  onScrub: (e: Event, v: number | number[]) => void;
+  onScrubEnd: (e: unknown, v: number | number[]) => void;
+  onToggleMute: () => void;
+  onExit: () => void;
+}) {
+  const [shown, setShown] = useState(true);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const poke = useCallback(() => {
+    setShown(true);
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => setShown(false), 3000);
+  }, []);
+  useEffect(() => {
+    poke();
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, [poke]);
+  return (
+    <Box
+      data-no-drag
+      data-no-swipe
+      role="dialog"
+      aria-label="全屏播放"
+      onPointerDown={(e) => e.stopPropagation()}
+      onPointerUp={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+      sx={{ position: 'fixed', inset: 0, zIndex: 1600, bgcolor: '#000', animation: 'qq-fade-in 0.2s ease-out both', touchAction: 'none' }}
+    >
+      <Box ref={hostRef} onClick={() => (shown ? setShown(false) : poke())} sx={{ position: 'absolute', inset: 0 }} />
+      <Box
+        onPointerDown={poke}
+        sx={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          px: 'max(12px, env(safe-area-inset-left))',
+          pb: 'max(8px, var(--sab, 0px))',
+          pt: 3,
+          background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)',
+          color: '#fff',
+          opacity: shown ? 1 : 0,
+          pointerEvents: shown ? 'auto' : 'none',
+          transition: 'opacity 0.2s',
+        }}
+      >
+        <Slider aria-label="播放进度" value={currentTime} max={duration || 100} onChange={onScrub} onChangeCommitted={onScrubEnd} sx={seekBarSx(false)} />
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <IconButton onClick={onTogglePlay} aria-label={playing ? '暂停' : '播放'} sx={{ color: '#fff' }}>
+            {playing ? <PauseIcon /> : <PlayArrowIcon />}
+          </IconButton>
+          <Box sx={{ fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>
+            {fmt(currentTime)} / {fmt(duration)}
+          </Box>
+          <Box sx={{ flex: 1 }} />
+          <IconButton onClick={onToggleMute} aria-label={muted ? '打开声音' : '静音'} sx={{ color: '#fff' }}>
+            {muted ? <VolumeOffIcon /> : <VolumeUpIcon />}
+          </IconButton>
+          <IconButton onClick={onExit} aria-label="退出全屏" sx={{ color: '#fff' }}>
+            <FullscreenExitIcon />
+          </IconButton>
+        </Box>
+      </Box>
+    </Box>
+  );
+}
 
 /**
  * 规则解析失败时的界面(本地和服务端都没解出来,或流放不出来)。没有外链 iframe 可退

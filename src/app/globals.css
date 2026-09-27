@@ -131,6 +131,28 @@ html[data-shell-fixed] body {
   height: var(--app-height, 100vh);
 }
 
+/* 手机上的整屏弹窗(新建需求等 fullScreen Dialog):安卓客户端是 edge-to-edge,弹窗会画到状态栏和
+   手势条底下 —— 标题压在状态栏里、底部按钮落在手势条下面,看起来整个弹窗比屏幕高。让出安全区;
+   高度跟着 --app-height(键盘弹出时变矮),入场从下往上推,像原生的整页表单。 */
+.MuiDialog-paperFullScreen {
+  box-sizing: border-box;
+  height: var(--app-height, 100%);
+  max-height: var(--app-height, 100%);
+  padding-top: var(--sat, 0px);
+  padding-bottom: var(--sab, 0px);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :is(html[data-client], html[data-touch]) .MuiDialog-paperFullScreen {
+    animation: qq-sheet-up 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+}
+@keyframes qq-sheet-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0.6;
+  }
+}
+
 /* 音乐底栏占位(GlobalMusicBar 挂到 body 末尾的补丁元素)。
    页面底部内容别被底栏盖住(首页壳 overflow:hidden,自己在 main 上留白)。
 

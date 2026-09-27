@@ -46,6 +46,7 @@ import { TYPE_GRADIENT } from '@/constants/gradients';
 import { track } from '@/lib/track';
 import VideoPlayer, { type VideoPlayerHandle } from '@/components/detail/VideoPlayer';
 import { useFeedDanmaku, DanmakuLayer } from './FeedDanmaku';
+import { useBackClose } from '@/lib/backStack';
 
 interface VideoItem {
   id: number;
@@ -430,6 +431,8 @@ export function RecommendVideoFeed() {
 
   // 移动端评论打开时视频区只剩上面一小块:滚轮/拖动都不该再翻页
   const navBlocked = commentsOpen && !isDesktop;
+  // 手机上评论栏开着:返回手势先收起评论栏,不离开推荐页
+  useBackClose(navBlocked, () => setCommentsOpen(false));
   // 滚轮手势状态(见 handleWheel)
   const lastWheelAt = useRef(0);
   const lastWheelNavAt = useRef(0);
@@ -793,7 +796,10 @@ export function RecommendVideoFeed() {
           flex: isDesktop ? '1 1 auto' : '0 0 auto',
           minWidth: 0,
           minHeight: 0,
-          height: isDesktop ? '100%' : compactStage ? MOBILE_STAGE_WITH_COMMENTS : '100%',
+          // 桌面是带 8px 外边距的圆角画布:高度交给 stretch 算(100% 再加上下外边距会伸出视口 16px,
+          // 贴底的进度条整条落到屏幕外面看不见)
+          height: isDesktop ? 'auto' : compactStage ? MOBILE_STAGE_WITH_COMMENTS : '100%',
+          alignSelf: isDesktop ? 'stretch' : undefined,
           transition: 'height 0.3s cubic-bezier(0.22, 0.61, 0.36, 1)',
           ...CLIP,
           // 桌面端做成圆角画布,和评论栏之间留条缝
