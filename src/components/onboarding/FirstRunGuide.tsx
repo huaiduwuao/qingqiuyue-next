@@ -165,21 +165,19 @@ export default function FirstRunGuide({ noDelay }: Props = {}) {
       onClose={close}
       fullWidth
       maxWidth="sm"
-      fullScreen={isMobile}
       slotProps={{
         paper: {
           sx: {
             bgcolor: 'background.paper',
             backgroundImage: 'none',
-            // 手机全屏:整张纸定高一屏、自己不滚,只有中间的步骤内容滚。以前是整张纸一起滚,
-            // 第 2 步的类型卡片一多,标题/步骤条被滚走、「下一步」压在屏幕外;
-            // 客户端里顶部还压着状态栏、底部压着手势条。
+            // 手机上不再全屏(铺满一屏显得太高):居中卡片、高度跟内容走,最高到状态栏/手势条之间
+            // 留 16px 边距。纸自己不滚,真超高时只有中间的步骤内容滚,标题和底部按钮始终在。
             ...(isMobile && {
-              height: 'var(--app-height, 100dvh)',
-              maxHeight: 'none',
+              m: 2,
+              width: 'calc(100% - 32px)',
+              maxHeight: 'calc(var(--app-height, 100dvh) - var(--sat, 0px) - var(--sab, 0px) - 32px)',
               overflow: 'hidden',
-              pt: 'var(--sat, 0px)',
-              pb: 'var(--sab, 0px)',
+              borderRadius: 3,
             }),
           },
         },
@@ -365,7 +363,8 @@ function StepPick({ entries, recommendedCodes, loading, picked, onToggle, max }:
         <Box
           sx={{
             display: 'grid',
-            gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))' },
+            // 手机三列 + 说明只留一行:两列两行说明时 14 张卡片比一屏还高
+            gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
             gap: 0.75,
           }}
         >
@@ -387,7 +386,7 @@ function StepPick({ entries, recommendedCodes, loading, picked, onToggle, max }:
                 }}
                 sx={{
                   position: 'relative',
-                  p: 1,
+                  p: { xs: 0.75, sm: 1 },
                   borderRadius: 1.5,
                   cursor: disabled ? 'not-allowed' : 'pointer',
                   opacity: disabled ? 0.45 : 1,
@@ -428,14 +427,14 @@ function StepPick({ entries, recommendedCodes, loading, picked, onToggle, max }:
                     }}
                   />
                 )}
-                <Typography sx={{ fontSize: 13.5, fontWeight: 700, mb: 0.25 }}>{e.label}</Typography>
+                <Typography sx={{ fontSize: { xs: 13, sm: 13.5 }, fontWeight: 700, mb: 0.25, pr: recommended || selected ? 2.5 : 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{e.label}</Typography>
                 <Typography
                   sx={{
                     fontSize: 10.5,
                     color: 'text.secondary',
                     lineHeight: 1.4,
                     display: '-webkit-box',
-                    WebkitLineClamp: 2,
+                    WebkitLineClamp: { xs: 1, sm: 2 },
                     WebkitBoxOrient: 'vertical',
                     overflow: 'hidden',
                   }}
