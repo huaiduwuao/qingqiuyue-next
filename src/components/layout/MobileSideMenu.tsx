@@ -31,7 +31,11 @@ import RecommendRoundedIcon from '@mui/icons-material/RecommendRounded';
 import StarsRoundedIcon from '@mui/icons-material/StarsRounded';
 import ReceiptLongRoundedIcon from '@mui/icons-material/ReceiptLongRounded';
 import ShoppingBagRoundedIcon from '@mui/icons-material/ShoppingBagRounded';
+import Dialog from '@mui/material/Dialog';
+import SwitchAccountRoundedIcon from '@mui/icons-material/SwitchAccountRounded';
+import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import { useApp } from '@/contexts/AppContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useAIPrefs } from '@/lib/aiPrefs';
 import { loginHref } from '@/lib/auth/redirect';
 import { ACCENT } from '@/constants/accents';
@@ -111,6 +115,15 @@ export function MobileSideMenu({ open, onClose, activeNav, onNavChange, onOpenSe
   const router = useRouter();
   const { currentUser } = useApp();
   const [aiPrefs] = useAIPrefs();
+  const { logout } = useAuth();
+  // 切换账号 = 退出当前账号再到登录页登另一个;两者共用一个确认框
+  const [confirm, setConfirm] = React.useState<null | 'switch' | 'logout'>(null);
+
+  const doLogout = () => {
+    setConfirm(null);
+    onClose();
+    void logout(); // logout 内部会跳登录页
+  };
 
   const pick = (item: MenuItem) => {
     onClose();
@@ -221,10 +234,58 @@ export function MobileSideMenu({ open, onClose, activeNav, onNavChange, onOpenSe
         })}
       </Box>
 
+      {/* 账号操作:手机上没有右上角头像菜单,切换账号 / 退出登录只能在这里 */}
+      {currentUser && (
+        <Box sx={{ px: 1.5, pb: 1, display: 'flex', gap: 1 }}>
+          {([
+            { key: 'switch', label: '切换账号', icon: <SwitchAccountRoundedIcon /> },
+            { key: 'logout', label: '退出登录', icon: <LogoutRoundedIcon /> },
+          ] as const).map((b) => (
+            <Button
+              key={b.key}
+              fullWidth
+              variant="text"
+              startIcon={b.icon}
+              onClick={() => setConfirm(b.key)}
+              sx={{
+                borderRadius: 2,
+                fontWeight: 600,
+                fontSize: 13,
+                bgcolor: 'var(--bg-card, rgba(127,127,127,0.06))',
+                color: b.key === 'logout' ? 'var(--brand-color, #FE2C55)' : 'var(--text-secondary, currentColor)',
+              }}
+            >
+              {b.label}
+            </Button>
+          ))}
+        </Box>
+      )}
+
       {/* 免责声明 / 数据采集说明 / 备案号:手机上侧栏不显示,合规信息挪到这里 */}
       <Box sx={{ px: 2, py: 1.5, borderTop: '1px solid var(--border-color, transparent)' }}>
         <SiteLegalFooter />
       </Box>
+
+      <Dialog open={!!confirm} onClose={() => setConfirm(null)} maxWidth="xs" fullWidth slotProps={{ paper: { sx: { borderRadius: 3 } } }}>
+        <Box sx={{ p: 3, textAlign: 'center' }}>
+          <Typography sx={{ fontSize: 16, fontWeight: 700, mb: 1 }}>
+            {confirm === 'switch' ? '切换账号?' : '确认退出登录?'}
+          </Typography>
+          <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 3, lineHeight: 1.6 }}>
+            {confirm === 'switch'
+              ? `将退出「${currentUser?.name || '当前账号'}」并前往登录页,用另一个账号登录`
+              : '退出后需要重新登录才能使用书架、消息、创作等功能'}
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1.5 }}>
+            <Button fullWidth variant="outlined" onClick={() => setConfirm(null)} sx={{ borderRadius: 2 }}>
+              取消
+            </Button>
+            <Button fullWidth variant="contained" onClick={doLogout} sx={{ borderRadius: 2, background: 'linear-gradient(90deg, #FE2C55 0%, #FF6B8A 100%)' }}>
+              {confirm === 'switch' ? '去登录' : '确认退出'}
+            </Button>
+          </Box>
+        </Box>
+      </Dialog>
     </Drawer>
   );
 }

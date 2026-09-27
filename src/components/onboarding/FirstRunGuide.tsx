@@ -166,7 +166,24 @@ export default function FirstRunGuide({ noDelay }: Props = {}) {
       fullWidth
       maxWidth="sm"
       fullScreen={isMobile}
-      slotProps={{ paper: { sx: { bgcolor: 'background.paper', backgroundImage: 'none' } } }}
+      slotProps={{
+        paper: {
+          sx: {
+            bgcolor: 'background.paper',
+            backgroundImage: 'none',
+            // 手机全屏:整张纸定高一屏、自己不滚,只有中间的步骤内容滚。以前是整张纸一起滚,
+            // 第 2 步的类型卡片一多,标题/步骤条被滚走、「下一步」压在屏幕外;
+            // 客户端里顶部还压着状态栏、底部压着手势条。
+            ...(isMobile && {
+              height: 'var(--app-height, 100dvh)',
+              maxHeight: 'none',
+              overflow: 'hidden',
+              pt: 'var(--sat, 0px)',
+              pb: 'var(--sab, 0px)',
+            }),
+          },
+        },
+      }}
       aria-labelledby="first-run-title"
     >
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 2, pt: 2, pb: 1 }}>
@@ -216,20 +233,22 @@ export default function FirstRunGuide({ noDelay }: Props = {}) {
           flexDirection: 'column',
         }}
       >
-        {step === 0 && <StepIntro seenWelcome={prefs.seenWelcome} />}
-        {step === 1 && (
-          <StepPick
-            entries={entries}
-            recommendedCodes={recommendedCodes}
-            loading={typesQuery.isLoading}
-            picked={picked}
-            onToggle={toggle}
-            max={MAX_PICKS}
-          />
-        )}
-        {step === 2 && <StepPreview entries={entries} picked={picked} />}
+        <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', mx: -2, px: 2 }}>
+          {step === 0 && <StepIntro seenWelcome={prefs.seenWelcome} />}
+          {step === 1 && (
+            <StepPick
+              entries={entries}
+              recommendedCodes={recommendedCodes}
+              loading={typesQuery.isLoading}
+              picked={picked}
+              onToggle={toggle}
+              max={MAX_PICKS}
+            />
+          )}
+          {step === 2 && <StepPreview entries={entries} picked={picked} />}
+        </Box>
 
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mt: 'auto', pt: 2 }}>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, flexShrink: 0, pt: 2 }}>
           {step > 0 && (
             <Button size="small" onClick={onBack} sx={{ fontSize: 12 }}>
               上一步

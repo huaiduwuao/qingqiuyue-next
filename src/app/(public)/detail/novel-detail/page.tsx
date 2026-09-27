@@ -625,10 +625,17 @@ function NovelDetailContent() {
   };
 
   const rendered = range ? chapters.slice(range.start, range.end + 1) : [];
+  // 移动端分页阅读是定高的一屏:外层钉死 --app-height 不许滚。以前外层/纸面都是 minHeight: 100vh,
+  // 手机浏览器里 100vh 比可视区高(地址栏那一截),body 末尾的音乐底栏占位又再加一个 --sab,
+  // 整页能上下滚一小段。data-app-shell 让 globals.css 把那个占位藏掉。
+  const pagedShell = isMobile && !showDetail && prefs.mode !== 'scroll';
 
   return (
     <ReaderMuiScope theme={rt}>
-      <Box sx={{ minHeight: '100vh', colorScheme: rt.dark ? 'dark' : 'light', color: rt.text, backgroundColor: rt.page, backgroundImage: noiseLayer(rt.dark), transition: 'background-color .3s' }}>
+      <Box
+        data-app-shell={pagedShell ? '' : undefined}
+        sx={{ ...(pagedShell ? { height: 'var(--app-height, 100dvh)', overflow: 'hidden' } : { minHeight: '100vh' }), colorScheme: rt.dark ? 'dark' : 'light', color: rt.text, backgroundColor: rt.page, backgroundImage: noiseLayer(rt.dark), transition: 'background-color .3s' }}
+      >
         <Snackbar open={!!errMsg} autoHideDuration={2500} onClose={() => setErrMsg(null)} anchorOrigin={{ vertical: 'top', horizontal: 'center' }}>
           <Alert severity="error" variant="filled" onClose={() => setErrMsg(null)}>
             {errMsg}
@@ -675,7 +682,7 @@ function NovelDetailContent() {
             width: columnWidth,
             maxWidth: '100%',
             mx: 'auto',
-            minHeight: '100vh',
+            minHeight: pagedShell ? 0 : '100vh',
             boxSizing: 'border-box',
             // 移动端分页阅读:顶栏是浮层,分页容器得从状态栏下面开始。不留这段的话容器贴着 y=0、
             // 高度又扣了 --sat,状态栏那一截全挪到了底部 —— 安卓客户端里底部多空出一截。
@@ -790,7 +797,7 @@ function NovelDetailContent() {
                   ref={paginatedRef}
                   sx={{
                     height: isMobile
-                      ? 'calc(100dvh - var(--sat, 0px) - var(--sab, 0px))'
+                      ? 'calc(var(--app-height, 100dvh) - var(--sat, 0px) - var(--sab, 0px))'
                       : 'calc(100dvh - 56px)',
                     width: '100%',
                     overflow: 'hidden',
