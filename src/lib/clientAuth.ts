@@ -64,11 +64,16 @@ export function authPlatform(): AuthPlatform {
  * state 由 lib/auth/oauthState 生成,作为 client_state 交给后端(不带后端直接 400),
  * 后端把它和回跳的一次性 code 绑定,换会话时核对。
  */
-export function wechatLoginUrl(from: string, state: string): string {
+export function wechatLoginUrl(from: string, state: string, type: 'wechat' | 'wechat_mp' = 'wechat'): string {
   const platform = authPlatform();
   const base = platform === 'web' ? '' : GATEWAY;
   const q = `from=${encodeURIComponent(from)}&platform=${platform}&client_state=${encodeURIComponent(state)}`;
-  return `${base}/api/core/oauth/login/wechat?${q}`;
+  return `${base}/api/core/oauth/login/${type}?${q}`;
+}
+
+/** 是否在微信内置浏览器里(公众号菜单、聊天里点开的链接)。 */
+export function inWechatBrowser(): boolean {
+  return typeof navigator !== 'undefined' && /MicroMessenger/i.test(navigator.userAgent);
 }
 
 /**

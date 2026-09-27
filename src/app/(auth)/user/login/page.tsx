@@ -21,7 +21,7 @@ import FadeContent from '@/components/reactbits/FadeContent';
 import { getAuthOptions, type AuthOptions } from '@/apis/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { consumeRedirect, rememberRedirect, safeRedirectPath, DEFAULT_AFTER_LOGIN } from '@/lib/auth/redirect';
-import { startWechatLoginInBrowser, wechatLoginUrl } from '@/lib/clientAuth';
+import { inWechatBrowser, startWechatLoginInBrowser, wechatLoginUrl } from '@/lib/clientAuth';
 import { createOauthState } from '@/lib/auth/oauthState';
 import { PasswordLoginForm } from './_components/PasswordLoginForm';
 import { SmsLoginForm } from './_components/SmsLoginForm';
@@ -65,10 +65,12 @@ export default function LoginPage() {
   // 真正的手机登录要客户端接微信 SDK(移动应用)或微信内用公众号网页授权,都还没有;
   // 在那之前,跳过去之前先说清楚在手机上怎么扫。
   const [wechatTipOpen, setWechatTipOpen] = useState(false);
-  const inWechat = typeof navigator !== 'undefined' && /MicroMessenger/i.test(navigator.userAgent);
+  const inWechat = inWechatBrowser();
+  // 微信里 + 后台配好了服务号:走服务号网页授权,点一下「允许」就登录,不用扫码
+  const viaMp = inWechat && !!options.wechatMp;
   const onWechatClick = () => {
     const touch = typeof window !== 'undefined' && window.matchMedia?.('(hover: none) and (pointer: coarse)').matches;
-    if (touch) setWechatTipOpen(true);
+    if (touch && !viaMp) setWechatTipOpen(true);
     else void loginWithWechat();
   };
 
@@ -80,8 +82,8 @@ export default function LoginPage() {
     // 在 tauri.localhost 下根本到不了网关。走完之后 qingqiuyue:// 回跳,见 DeepLinkBridge。
     // 回调页只认本浏览器发起的这一次登录(见 lib/auth/oauthState)
     const state = createOauthState();
-    if (await startWechatLoginInBrowser(target, state)) return;
-    window.location.href = wechatLoginUrl(target, state);
+    if (!viaMp && (await startWechatLoginInBrowser(target, state))) return;
+    window.location.href = wechatLoginUrl(target, state, viaMp ? 'wechat_mp' : 'wechat');
   };
 
   const tabs: { value: Mode; label: string }[] = [

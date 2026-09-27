@@ -41,6 +41,8 @@ export interface AuthOptions {
   register: boolean;
   sms: boolean;
   wechat: boolean;
+  /** 微信内置浏览器里可以走服务号网页授权(后台配好了服务号才为真);旧后端没有这个字段 */
+  wechatMp?: boolean;
 }
 
 // 可用登录方式 - GET /api/core/auth/options
