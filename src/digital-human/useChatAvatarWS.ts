@@ -441,15 +441,24 @@ function waitForAudioEnd(audio: HTMLAudioElement, signal?: AbortSignal): Promise
  * 标签先按原长度打码再找句末标点:<ui:{"url":"https://a.b"}/> 里的句点不能当成句子结尾。
  * 末尾没闭合的标签(还在流式传输中)整个留到下一轮。
  */
+/**
+ * 模型有时在回答末尾写一段 <annotation>…</annotation> 旁注(自述这句为什么这么答),
+ * 不是说给用户的:气泡里不显示,也不朗读。
+ */
+const ANNOTATION_RE = /<annotation\b[^>]*>[\s\S]*?<\/annotation>/g;
+
 export function cutSpeakable(raw: string, from: number, final: boolean): { chunk: string; next: number } {
   let pending = raw.slice(from);
   if (!final) {
     const open = pending.lastIndexOf('<');
     const tail = open >= 0 ? pending.slice(open) : '';
-    const heads = ['<emotion:', '<action:', '<mouth:', '<ui:'];
+    const heads = ['<emotion:', '<action:', '<mouth:', '<ui:', '<annotation'];
     if (tail && !tail.includes('/>') && heads.some((h) => tail.startsWith(h) || h.startsWith(tail))) {
       pending = pending.slice(0, open);
     }
+    // 旁注 <annotation>…</annotation> 还没写完:先别读到它,等闭合了整段剥掉
+    const ann = pending.search(/<annotation\b[^>]*>(?![\s\S]*<\/annotation>)/);
+    if (ann >= 0) pending = pending.slice(0, ann);
   }
   if (!pending) return { chunk: '', next: from };
   if (final) return { chunk: pending, next: from + pending.length };
@@ -466,6 +475,8 @@ function maskDirectives(text: string): string {
   // <ui:{json}/>:用剥离器找出它剥掉了哪些区间太绕,直接按「<ui: 到下一个 />」打码即可 ——
   // 多码一点只会让句子切得晚一些,不会切错。
   out = out.replace(/<ui:[\s\S]*?\/>/g, (m) => '\u0001'.repeat(m.length));
+  // 旁注里有句号,不能在它中间切句
+  out = out.replace(ANNOTATION_RE, (m) => '\u0001'.repeat(m.length));
   return out;
 }
 
@@ -547,7 +558,11 @@ export function stripAvatarDirectives(text: string): string {
   return extractUiDirectives(text).stripped
     .replace(/<emotion:[a-zA-Z_]+\/>/g, '')
     .replace(/<action:[a-zA-Z_]+\/>/g, '')
-    .replace(/<mouth:speak\/>/g, '');
+    .replace(/<mouth:speak\/>/g, '')
+    .replace(ANNOTATION_RE, '')
+    // 流式输出里还没闭合的旁注:先藏起来,闭合后上面那条整段剥掉
+    .replace(/<annotation\b[^>]*>[\s\S]*$/, '')
+    .trimEnd();
 }
 
 /**

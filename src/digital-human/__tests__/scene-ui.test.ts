@@ -101,6 +101,11 @@ describe('stripAvatarDirectives', () => {
     expect(stripAvatarDirectives('a < b 且 c > d')).toBe('a < b 且 c > d');
   });
 
+  it('剥掉模型写的 <annotation> 旁注,流式里没闭合的也先藏起来', () => {
+    expect(stripAvatarDirectives('与尔同销万古愁。\n\n<annotation>用户要求朗读《将进酒》。</annotation>')).toBe('与尔同销万古愁。');
+    expect(stripAvatarDirectives('好的。<annotation>正在写')).toBe('好的。');
+  });
+
   it('保留标签之间的文字顺序', () => {
     expect(stripAvatarDirectives('<action:bow/>谢谢<emotion:happy/>你')).toBe('谢谢你');
   });

@@ -790,7 +790,7 @@ export default function ImmersiveDigitalHuman() {
       )}
       {/* 非 VRM 形象没有 3D 面板宿主:面板直接叠在画面右侧 */}
       {!panelHost && scenePanel && (
-        <Box sx={{ position: 'absolute', right: 24, top: 80, zIndex: 4, width: 'min(420px, 90vw)' }}>
+        <Box sx={{ position: 'absolute', right: { xs: 12, md: 24 }, top: 'calc(64px + var(--sat, 0px))', zIndex: 4, width: { xs: 'calc(100vw - 24px)', md: 'min(420px, 90vw)' } }}>
           <ScenePanel
             key={scenePanel.id}
             panel={scenePanel}
@@ -809,7 +809,7 @@ export default function ImmersiveDigitalHuman() {
       {/* 没有 3D 屏幕可用(非 VRM 形象 / 手机):最近打开的那一页叠在画面上半部分 */}
       {!displaysInScene && activeDisplay && displayPages[activeDisplay] && (
         <Box sx={{
-          position: 'absolute', zIndex: 4, top: 64, right: { xs: 12, md: 24 }, left: { xs: 12, md: 'auto' },
+          position: 'absolute', zIndex: 4, top: 'calc(64px + var(--sat, 0px))', right: { xs: 12, md: 24 }, left: { xs: 12, md: 'auto' },
           width: { md: 'min(640px, 50vw)' }, height: 'calc(100vh - min(40vh, 400px) - 84px)', minHeight: 240,
           borderRadius: 2, overflow: 'hidden', border: '1px solid rgba(37,244,238,0.3)', boxShadow: '0 8px 40px rgba(0,0,0,0.6)',
         }}>
@@ -824,7 +824,7 @@ export default function ImmersiveDigitalHuman() {
         aria-label="退出"
         sx={{
           position: 'absolute',
-          top: 12,
+          top: 'calc(12px + var(--sat, 0px))',
           left: 12,
           zIndex: 3,
           color: 'rgba(255,255,255,0.85)',
@@ -842,10 +842,12 @@ export default function ImmersiveDigitalHuman() {
           size="small"
           sx={{
             position: 'absolute',
-            top: 12,
-            left: 60,
+            top: 'calc(12px + var(--sat, 0px))',
+            // 手机上会话按钮在 left:60,模型选择器排在它右边,不叠在一起
+            left: { xs: 108, sm: 60 },
             zIndex: 3,
-            minWidth: 120,
+            minWidth: { xs: 0, sm: 120 },
+            maxWidth: { xs: 'calc(100vw - 172px)', sm: 'none' },
             '& .MuiOutlinedInput-root': {
               color: 'rgba(255,255,255,0.85)',
               bgcolor: 'rgba(0,0,0,0.4)',
@@ -884,7 +886,7 @@ export default function ImmersiveDigitalHuman() {
         aria-label="会话列表"
         sx={{
           position: 'absolute',
-          top: 12,
+          top: 'calc(12px + var(--sat, 0px))',
           left: { xs: 60, sm: models.length > 1 ? 190 : 60 },
           zIndex: 3,
           color: sessionDrawerOpen ? '#25F4EE' : 'rgba(255,255,255,0.85)',
@@ -903,7 +905,7 @@ export default function ImmersiveDigitalHuman() {
           title={displaysOn ? '收起场景里的屏幕' : '显示场景里的屏幕'}
           sx={{
             position: 'absolute',
-            top: 12,
+            top: 'calc(12px + var(--sat, 0px))',
             right: 60,
             zIndex: 3,
             color: displaysOn ? '#25F4EE' : 'rgba(255,255,255,0.85)',
@@ -921,7 +923,7 @@ export default function ImmersiveDigitalHuman() {
         aria-label="舞台控制台"
         sx={{
           position: 'absolute',
-          top: 12,
+          top: 'calc(12px + var(--sat, 0px))',
           right: 12,
           zIndex: 3,
           color: panelOpen ? '#ff4fd8' : 'rgba(255,255,255,0.85)',
@@ -957,7 +959,7 @@ export default function ImmersiveDigitalHuman() {
       <Box sx={{
         position: 'absolute',
         // 让出顶部的退出/模型/会话按钮;底部让出聊天区(高 40vh,最多 400px)
-        top: 64,
+        top: 'calc(64px + var(--sat, 0px))',
         left: { xs: 12, sm: 16 },
         width: { xs: 'calc(100vw - 24px)', sm: 260 },
         maxWidth: 260,
@@ -1050,8 +1052,9 @@ export default function ImmersiveDigitalHuman() {
         bottom: 0,
         left: 0,
         right: 0,
-        height: '40vh',
-        maxHeight: 400,
+        // 手机上形象/数字员工选择器单独占一行,聊天区给高一点;底部让出手势条
+        height: { xs: '46vh', md: '40vh' },
+        maxHeight: { xs: 460, md: 400 },
         zIndex: 3,
         background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.6) 70%, transparent 100%)',
         display: 'flex',
@@ -1111,7 +1114,7 @@ export default function ImmersiveDigitalHuman() {
                 key={i}
                 sx={{
                   alignSelf: m.who === 'user' ? 'flex-end' : 'flex-start',
-                  maxWidth: '70%',
+                  maxWidth: { xs: '86%', md: '70%' },
                   p: 1.5,
                   borderRadius: m.who === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                   background: m.who === 'user' ? 'rgba(37,244,238,0.2)' : 'rgba(255,255,255,0.12)',
@@ -1134,13 +1137,15 @@ export default function ImmersiveDigitalHuman() {
         </Box>
 
         {/* 输入区 */}
-        <Box sx={{ px: 2, pb: 2, display: 'flex', gap: 1, alignItems: 'center' }}>
+        <Box sx={{ px: { xs: 1.5, md: 2 }, pb: 'calc(16px + var(--sab, 0px))', display: 'flex', flexWrap: { xs: 'wrap', md: 'nowrap' }, gap: 1, alignItems: 'center' }}>
+          {/* 形象 / 背景 / 数字员工:手机上独占一行(以前和输入框挤一行,输入框被挤成一条缝) */}
+          <Box sx={{ display: 'flex', gap: 1, width: { xs: '100%', md: 'auto' }, minWidth: 0, flexShrink: 0, '& select': { flex: { xs: '1 1 0', md: '0 0 auto' }, minWidth: 0 } }}>
           <select
             aria-label="形象"
             title="形象:VRM 骨骼模型 / 3DGS 高斯资产 / 2D 片段"
             value={avatarMode}
             onChange={(e) => setAvatarMode(e.target.value as AvatarMode)}
-            style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, padding: '8px 6px', fontSize: 12, maxWidth: 96 }}
+            style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, padding: '8px 6px', fontSize: 12, maxWidth: narrow ? undefined : 96 }}
           >
             <option value="vrm">VRM</option>
             <option value="3dgs" disabled={gsAssets.length === 0}>3DGS{gsAssets.length === 0 ? '(无资产)' : ''}</option>
@@ -1152,14 +1157,14 @@ export default function ImmersiveDigitalHuman() {
               title="背景:场景预设,或用一份 3DGS 场景资产垫在角色后面"
               value={gsBackdrop}
               onChange={(e) => setGsBackdrop(e.target.value)}
-              style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, padding: '8px 6px', fontSize: 12, maxWidth: 110 }}
+              style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, padding: '8px 6px', fontSize: 12, maxWidth: narrow ? undefined : 110 }}
             >
               <option value="">预设场景</option>
               {gsAssets.map((a) => <option key={a.id} value={a.assetUrl}>GS · {a.name}</option>)}
             </select>
           )}
           {avatarMode === '3dgs' && gsAssets.length > 1 && (
-            <select aria-label="3DGS 资产" value={gsAsset} onChange={(e) => setGsAsset(e.target.value)} style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, padding: '8px 6px', fontSize: 12, maxWidth: 110 }}>
+            <select aria-label="3DGS 资产" value={gsAsset} onChange={(e) => setGsAsset(e.target.value)} style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, padding: '8px 6px', fontSize: 12, maxWidth: narrow ? undefined : 110 }}>
               {gsAssets.map((a) => <option key={a.id} value={a.assetUrl}>{a.name}</option>)}
             </select>
           )}
@@ -1167,12 +1172,13 @@ export default function ImmersiveDigitalHuman() {
             aria-label="数字员工"
             value={aguiAgent}
             onChange={(e) => setAguiAgent(e.target.value)}
-            style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, padding: '8px 6px', fontSize: 12, maxWidth: 120 }}
+            style={{ background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, padding: '8px 6px', fontSize: 12, maxWidth: narrow ? undefined : 120 }}
           >
             {(staffList.length ? staffList : [{ agentId: 'worker', name: '全能数字员工', description: '' }]).map((st) => (
               <option key={st.agentId} value={st.agentId}>{st.name}</option>
             ))}
           </select>
+          </Box>
           <TextField
             fullWidth
             placeholder={voiceEnabled ? (voice.state === 'recording' ? '我在听…' : '说"小月"唤醒') : '跟数字人说点什么…'}
@@ -1182,6 +1188,9 @@ export default function ImmersiveDigitalHuman() {
             disabled={chatBusy}
             size="small"
             sx={{
+              flex: 1,
+              minWidth: 0,
+              width: 'auto',
               '& .MuiOutlinedInput-root': {
                 color: 'white',
                 bgcolor: 'rgba(255,255,255,0.1)',
