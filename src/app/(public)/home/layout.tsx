@@ -55,7 +55,7 @@ import { ACCENT } from '@/constants/accents';
 import { gradient2 } from '@/constants/gradients';
 import HomeRecommendPage from './recommend/page';
 import { MobileBottomNav, HOME_LAST_URL_KEY } from '@/components/layout/MobileBottomNav';
-import { MobileMenuButton } from '@/components/layout/MobileSideMenu';
+import { MobileMenuButton, cameFromSideMenu } from '@/components/layout/MobileSideMenu';
 import { SiteLegalFooter } from '@/components/layout/SiteLegalFooter';
 import { useResponsive } from '@/hooks/useResponsive';
 import { useTopbarHeight } from '@/hooks/useTopbarHeight';
@@ -116,8 +116,9 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
         ? SIDE_NAV.find((n) => n.key === activeNav)?.label ?? null
         : null;
   const handleSubBack = useCallback(() => {
-    // 直接从外部链接/冷启动进来的没有上一页,回到对应的一级页
-    if (window.history.length > 1) router.back();
+    // 从侧边栏点进来的(MobileSideMenu 记下了这一页)照常后退,回到点它之前的地方;
+    // 分享链接、手输地址、冷启动直接进来的,上一页可能是任何东西(甚至没有),直接回对应的一级页
+    if (cameFromSideMenu(window.location.pathname + window.location.search)) router.back();
     else router.replace(activeNav === 'me' ? '/home/recommend?tab=me' : '/home/recommend');
   }, [router, activeNav]);
 

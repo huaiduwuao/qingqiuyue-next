@@ -137,6 +137,28 @@ function useHiddenItems() {
   return { hidden, toggle, reset: () => save(new Set()) };
 }
 
+/**
+ * 侧边栏进的单独子页(直播/短剧…、观看历史…)左上角的返回:只有从侧边栏点进来的才后退,
+ * 否则(分享链接、手输地址)上一页不可预期,由首页 layout 直接回一级页。这里记下最后一次从侧边栏去的地址。
+ */
+const SIDE_MENU_HOP_KEY = 'qq-side-menu-hop';
+
+function rememberHop(url: string) {
+  try { sessionStorage.setItem(SIDE_MENU_HOP_KEY, url); } catch { /* 隐私模式 */ }
+}
+
+// 客户端是静态导出 + trailingSlash,地址是 /home/recommend/?tab=…,比较前去掉路径末尾的 /
+const normUrl = (u: string) => u.replace(/\/+(?=\?|$)/, '');
+
+export function cameFromSideMenu(url: string): boolean {
+  try {
+    const hop = sessionStorage.getItem(SIDE_MENU_HOP_KEY);
+    return hop != null && normUrl(hop) === normUrl(url);
+  } catch {
+    return false;
+  }
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -176,8 +198,13 @@ export function MobileSideMenu({ open, onClose, activeNav, onNavChange, onOpenSe
     }
     onClose();
     if (item.action === 'settings') onOpenSettings();
-    else if (item.tab) onNavChange(item.tab);
-    else if (item.href) router.push(item.href);
+    else if (item.tab) {
+      rememberHop(`/home/recommend?tab=${item.tab}`);
+      onNavChange(item.tab);
+    } else if (item.href) {
+      rememberHop(item.href);
+      router.push(item.href);
+    }
   };
 
   return (
