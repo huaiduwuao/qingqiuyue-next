@@ -180,7 +180,7 @@ const QUICK_LINKS: { key: string; label: string; icon: React.ReactNode; href: st
   { key: 'order', label: '我的订单', icon: <ReceiptLongRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/orders', accent: ACCENT.blue.main },
   { key: 'purchases', label: '我的购买', icon: <ShoppingBagRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/purchases', accent: ACCENT.orange.main },
   { key: 'vip', label: '会员中心', icon: <WorkspacePremiumRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/vip', accent: ACCENT.gold.main },
-  // 设置已经在头像卡右上角的齿轮里,这一格换成积分商城(积分兑换)
+  // 设置在左侧抽屉菜单里,这一格放积分商城(积分兑换)
   { key: 'mall', label: '积分商城', icon: <RedeemRoundedIcon sx={{ fontSize: 20 }} />, href: '/account/points-mall', accent: ACCENT.cyan.main },
 ];
 
@@ -329,7 +329,6 @@ function MyHomePageAuthed() {
   const [toast, setToast] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [cancelDialog, setCancelDialog] = useState<MyItem | null>(null);
 
   const profileQuery = useQuery({
@@ -570,17 +569,6 @@ function MyHomePageAuthed() {
             mb: { xs: 1, md: 2 },
           }}
         >
-          <IconButton
-            onClick={() => setSettingsOpen(true)}
-            aria-label="设置"
-            size="small"
-            // 手机上「我的」没有顶栏和侧边栏按钮,设置入口就是这个齿轮。
-            // 打开偏好设置抽屉(外观/通用/通知/AI/帮助,底部再链到账号与隐私);
-            // 以前直接跳 /account/settings,那页第一屏就是头像昵称简介,和「编辑资料」一模一样
-            sx={{ position: 'absolute', top: 8, right: 8, zIndex: 2, color: 'text.secondary' }}
-          >
-            <SettingsRoundedIcon fontSize="small" />
-          </IconButton>
           <Box
             sx={{
               position: 'relative',
@@ -618,7 +606,7 @@ function MyHomePageAuthed() {
           </Box>
 
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: { xs: 0.5, sm: 0.75 }, pr: 4 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: { xs: 0.5, sm: 0.75 } }}>
               <Typography noWrap sx={{ fontSize: { xs: 17, sm: 20 }, fontWeight: 700, color: 'var(--text-primary, currentColor)', minWidth: 0 }}>
                 {profile?.user?.nickname || currentUser?.nickname || currentUser?.name || '—'}
               </Typography>
@@ -1274,8 +1262,6 @@ function MyHomePageAuthed() {
         onAccountPrivateChange={(next) => accountPrivateMutation.mutate(next)}
         accountPrivateSaving={accountPrivateMutation.isPending}
       />
-
-      <HomeSettingsDrawer open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
       <QrCodeDialog
         open={qrOpen}
