@@ -350,22 +350,36 @@ function SearchPageContent() {
   useEffect(() => {
     const k = query.trim();
     if (!k || aiMode) return;
-    return subscribeSearchStream(
+    // 全网检索一轮会连着推几十条 indexed:每条都整页重搜 + 重渲染整个结果列表,页面会卡。
+    // 合并成最多每 SEARCH_STREAM_REFETCH_GAP 一次(尾部触发,最后一批不会丢)。
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let last = 0;
+    const refetchSoon = () => {
+      if (timer) return;
+      const wait = Math.max(0, last + SEARCH_STREAM_REFETCH_GAP - Date.now());
+      timer = setTimeout(() => {
+        timer = null;
+        last = Date.now();
+        void searchQuery.refetch();
+      }, wait);
+    };
+    const unsubscribe = subscribeSearchStream(
       k,
       (hit) => {
-        if (hit.type === 'indexed') {
-          // 命中:轻量 refetch 一次,新条目自然进入轮询结果。
-          searchQuery.refetch();
-        } else if (hit.type === 'done') {
-          // 后端已完成本轮,主动 refetch 后不再轮询
-          searchQuery.refetch();
+        if (hit.type === 'indexed' || hit.type === 'done') {
+          // 命中 / 本轮结束:合并后 refetch 一次,新条目自然进入结果。
+          refetchSoon();
         }
       },
       () => {
         /* §15.5 SSE 失败 — 不上报(降级到轮询是正常路径,不是错误);
            真正的异常由 fetch catch 处经 safeErrorLog 上报 */
       },
-    )
+    );
+    return () => {
+      if (timer) clearTimeout(timer);
+      unsubscribe?.();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, aiMode]);
 
@@ -375,6 +389,8 @@ function SearchPageContent() {
     const k = query.trim();
     if (!k) return;
     const seen = new Set<string>();
+    // 已交给 observer 的卡片:扫描时只挂新出现的,不再每 1.5 秒把所有卡片重挂一遍。
+    const observed = new WeakSet<Element>();
     const observer = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
@@ -393,7 +409,9 @@ function SearchPageContent() {
     // 监听后续渲染:每 1.5s 扫描一次 data-cid
     const tick = setInterval(() => {
       document.querySelectorAll('[data-cid]').forEach((el) => {
+        if (observed.has(el)) return;
         if (!seen.has((el as HTMLElement).dataset['cid'] || '')) {
+          observed.add(el);
           observer.observe(el);
         }
       });
@@ -908,6 +926,8 @@ function SearchPageContent() {
 
 // 全网检索进行中每 2.5 秒重搜一次,最多约 40 秒。
 const DISCOVER_POLL_INTERVAL = 2500;
+/** 全网检索推送(SSE)触发重搜的最小间隔。 */
+const SEARCH_STREAM_REFETCH_GAP = 2000;
 const DISCOVER_MAX_POLLS = 16;
 
 /**
