@@ -327,7 +327,7 @@ export default function RewardSquareMobile({ onOpenTab }: { onOpenTab?: (tab: st
             );
           })
         )}
-        <Box ref={sentinel} sx={{ height: 1 }} />
+        <Box ref={sentinel} sx={{ height: '1px' }} />
         {isFetchingNextPage && (
           <Box sx={{ px: 1.75, pb: 1.5 }}>
             <Skeleton variant="rounded" height={68} />
