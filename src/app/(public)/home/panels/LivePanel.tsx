@@ -404,7 +404,8 @@ export function LivePanel() {
             {sort === 'new' ? '开播时间从今天开始记录,暂时没有刚开播的房间。' : '这个筛选下暂时没有直播间,换个分区或平台看看。'}
           </EmptyNote>
         ) : (
-          <ListLayout minColumnWidth={260} gap={16}>
+          // 手机上至少两列,和上面的推荐直播间一样;否则 375 宽一行一个,卡片占满整屏宽
+          <ListLayout minColumnWidth={260} minColumns={2} gap={16}>
             {roomList.map((r) => (
               <RoomCard key={String(r.id)} room={r} now={now} onOpen={() => openRoom(r.id)} />
             ))}

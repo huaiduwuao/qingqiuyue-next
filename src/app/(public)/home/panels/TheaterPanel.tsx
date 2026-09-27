@@ -321,7 +321,8 @@ export function TheaterPanel() {
               <Typography sx={{ color: 'text.disabled', fontSize: 12, mt: 0.5 }}>试着放宽题材或年份</Typography>
             </Box>
           ) : (
-            <ListLayout minColumnWidth={240} listMaxWidth="var(--page-max-narrow)">
+            // 手机上至少两列:只设最小列宽的话 375 宽只排得下一列,一张卡片占满整屏宽
+            <ListLayout minColumnWidth={240} minColumns={2} listMaxWidth="var(--page-max-narrow)">
               {theaterList.map((item) => (
                 <TheaterCard key={item.id} item={item} />
               ))}
