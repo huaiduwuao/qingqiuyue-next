@@ -7,6 +7,8 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { douyinDarkTheme, douyinLightTheme } from '@/styles/creatorTheme';
 import { useThemeMode } from '@/contexts/ThemeContext';
 import { WorkspaceShell } from '../components/WorkspaceShell';
+import LocalFireDepartmentRoundedIcon from '@mui/icons-material/LocalFireDepartmentRounded';
+import AssignmentTurnedInRoundedIcon from '@mui/icons-material/AssignmentTurnedInRounded';
 import RightSidebar from './_components/RightSidebar';
 import { ActiveTabProvider, useActiveTab } from './ActiveTabContext';
 import { CONTENT_HOME_TAB, contentNavFor, useIsContentStaff } from './navigation';
@@ -60,6 +62,10 @@ function CreatorWorkspace({ children }: { children: React.ReactNode }) {
       onSelect={(id) => setActiveTab(id)}
       // 通知 / 活动 / 日历只在工作台首页展示,其它子页面自带密集的操作界面。
       aside={activeTab === CONTENT_HOME_TAB ? <RightSidebar /> : undefined}
+      crossLinks={[
+        { label: '悬赏中心', description: '认领任务,用作品交付拿赏金', href: '/account/reward?tab=square', icon: <LocalFireDepartmentRoundedIcon /> },
+        { label: '我接的任务', description: '待交付的悬赏任务', href: '/account/reward?tab=board', icon: <AssignmentTurnedInRoundedIcon /> },
+      ]}
     >
       {children}
     </WorkspaceShell>

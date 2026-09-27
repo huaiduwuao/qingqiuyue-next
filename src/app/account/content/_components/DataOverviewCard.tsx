@@ -163,7 +163,8 @@ function DataOverviewShell({ children, totalWorks, periodText }: { children: Rea
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
+          // 按卡片自身宽度排列:工作台中间列只有三百多像素时,按视口断点排三列会把数字挤成一位一行
+          gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
           gap: { xs: 1.5, md: 2 },
         }}
       >

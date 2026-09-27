@@ -13,6 +13,8 @@ import ListItemIcon from '@mui/material/ListItemIcon';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Typography from '@mui/material/Typography';
+import InputBase from '@mui/material/InputBase';
+import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 import EditIcon from '@mui/icons-material/Edit';
 import ViewKanbanIcon from '@mui/icons-material/ViewKanban';
@@ -38,6 +40,8 @@ interface Props {
   onEdit: (d: DemandItem) => void;
   onSettle: (d: DemandItem) => void;
   onOpenTaskboard?: (demandId: number) => void;
+  keyword?: string;
+  onKeyword?: (v: string) => void;
 }
 
 export default function DemandMobileList({
@@ -55,6 +59,8 @@ export default function DemandMobileList({
   onEdit,
   onSettle,
   onOpenTaskboard,
+  keyword = '',
+  onKeyword,
 }: Props) {
   const [menu, setMenu] = useState<{ el: HTMLElement; item: DemandItem } | null>(null);
   const close = () => setMenu(null);
@@ -64,6 +70,12 @@ export default function DemandMobileList({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, pb: 8 }}>
+      {onKeyword && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 0.75, borderRadius: 999, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' }}>
+          <SearchRoundedIcon sx={{ fontSize: 18, color: 'text.disabled' }} />
+          <InputBase placeholder="搜索我的需求" value={keyword} onChange={(e) => onKeyword(e.target.value)} sx={{ flex: 1, fontSize: 14 }} />
+        </Box>
+      )}
       <MobileChipRow items={statusOptions} value={tab} onChange={onTab} sticky />
 
       <MobileSection flush>

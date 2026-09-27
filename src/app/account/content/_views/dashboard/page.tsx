@@ -13,6 +13,7 @@ import TrendChart from '../../_components/TrendChart';
 import FanPortrait from '../../_components/FanPortrait';
 import HotTopicsCarousel from '../../_components/HotTopicsCarousel';
 import CreatorHomeMobile from './CreatorHomeMobile';
+import BountyPicks from '../../_components/BountyPicks';
 import { useResponsive } from '@/hooks/useResponsive';
 
 function SectionHeader({
@@ -94,9 +95,15 @@ export default function CreatorHomePage() {
         <NewCreationSection />
       </Box>
 
-      {/* Step 3 · 数据洞察 */}
+      {/* Step 3 · 接个悬赏:创作中心和悬赏中心连起来 —— 认领任务、在这里创作、用作品交付 */}
       <Box>
-        <SectionHeader step={3} title="数据洞察" subtitle="作品表现 + 粉丝画像" />
+        <SectionHeader step={3} title="接个悬赏" subtitle="有人在花钱找人创作" />
+        <BountyPicks />
+      </Box>
+
+      {/* Step 4 · 数据洞察 */}
+      <Box>
+        <SectionHeader step={4} title="数据洞察" subtitle="作品表现 + 粉丝画像" />
         <Box
           sx={{
             display: 'grid',

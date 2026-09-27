@@ -21,6 +21,7 @@ import { TYPE_LABEL as CONTENT_TYPE_LABEL } from '@/lib/contentType.gen';
 import { MobileSection, MobileListRow, MoreLink } from '@/components/mobile/MobileSection';
 import { useActiveTab } from '../../ActiveTabContext';
 import MobileFilterBar, { MOBILE_FAB_SX } from './MobileFilterBar';
+import { WorkActionsMenu } from '../../_components/WorkActions';
 
 const PAGE_SIZE = 20;
 
@@ -187,6 +188,11 @@ export default function WorksMobile({
                   </Box>
                 }
                 title={w.title || '未命名作品'}
+                trailing={
+                  <WorkActionsMenu
+                    work={{ contentId: w.id, contentType: w.contentType, title: w.title, cover: w.coverUrl, status: w.status }}
+                  />
+                }
                 subtitle={
                   <>
                     <Box component="span" sx={{ color: live ? 'success.main' : 'text.secondary' }}>

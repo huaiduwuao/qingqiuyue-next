@@ -170,7 +170,7 @@ export default function OriginalPage() {
             )}
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setAddOpen(false)}>取消</Button>
+            <Button variant="text" onClick={() => setAddOpen(false)}>取消</Button>
             <Button
               variant="contained"
               disabled={busy || addSelected.length === 0}
@@ -199,7 +199,7 @@ export default function OriginalPage() {
             />
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setAppealTarget(null)}>取消</Button>
+            <Button variant="text" onClick={() => setAppealTarget(null)}>取消</Button>
             <Button
               variant="contained"
               disabled={busy || !appealReason.trim()}
@@ -529,15 +529,15 @@ export default function OriginalPage() {
                 </Typography>
               </Box>
               <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                <Button size="small" onClick={() => { if (!printCertificate(c)) setSnack('浏览器拦截了弹窗,请允许后重试'); }}>证书</Button>
-                <Button
+                <Button variant="text" size="small" onClick={() => { if (!printCertificate(c)) setSnack('浏览器拦截了弹窗,请允许后重试'); }}>证书</Button>
+                <Button variant="text"
                   size="small"
                   disabled={busy}
                   onClick={() => act(() => setCertStatus(c.id, c.status === 'monitoring' ? 'paused' : 'monitoring'), c.status === 'monitoring' ? '已暂停比对' : '已恢复比对')}
                 >
                   {c.status === 'monitoring' ? '暂停' : '恢复'}
                 </Button>
-                <Button
+                <Button variant="text"
                   size="small"
                   color="error"
                   disabled={busy}
@@ -566,8 +566,8 @@ export default function OriginalPage() {
                 <Button size="small" variant="contained" disabled={busy} onClick={() => { setAppealTarget(s); setAppealReason(''); }} sx={{ textTransform: 'none' }}>
                   申诉下架
                 </Button>
-                <Button size="small" disabled={busy} onClick={() => act(() => caseAction(s.id, 'ignore'), '已忽略')}>忽略</Button>
-                <Button size="small" disabled={busy} onClick={() => act(() => caseAction(s.id, 'whitelist'), `已把 ${s.infractorName} 加入白名单`)}>
+                <Button variant="text" size="small" disabled={busy} onClick={() => act(() => caseAction(s.id, 'ignore'), '已忽略')}>忽略</Button>
+                <Button variant="text" size="small" disabled={busy} onClick={() => act(() => caseAction(s.id, 'whitelist'), `已把 ${s.infractorName} 加入白名单`)}>
                   加白名单
                 </Button>
               </Box>
@@ -602,7 +602,7 @@ export default function OriginalPage() {
           {(whitelistQ.data ?? []).map((w) => (
             <Row key={w.userId}>
               <Typography sx={{ flex: 1, fontSize: 14 }}>{w.name}</Typography>
-              <Button size="small" disabled={busy} onClick={() => act(() => removeWhitelist(w.userId), `已把 ${w.name} 移出白名单`)}>
+              <Button variant="text" size="small" disabled={busy} onClick={() => act(() => removeWhitelist(w.userId), `已把 ${w.name} 移出白名单`)}>
                 移出
               </Button>
             </Row>

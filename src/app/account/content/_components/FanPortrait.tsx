@@ -6,6 +6,8 @@ import Typography from '@mui/material/Typography';
 import FemaleIcon from '@mui/icons-material/Female';
 import MaleIcon from '@mui/icons-material/Male';
 import Skeleton from '@mui/material/Skeleton';
+import { useTheme } from '@mui/material/styles';
+import { resolveAlpha, resolveColor } from '@/lib/themeColor';
 import { useQuery } from '@tanstack/react-query';
 import { getCreatorFanPortrait, type FanStat } from '@/apis/dashboard';
 
@@ -15,6 +17,7 @@ const STROKE = 16;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 export default function FanPortrait() {
+  const theme = useTheme();
   const [tab, setTab] = useState<'gender' | 'age' | 'region'>('gender');
 
   const query = useQuery({
@@ -115,7 +118,7 @@ export default function FanPortrait() {
                         cy={SIZE / 2}
                         r={RADIUS}
                         fill="transparent"
-                        stroke={g.color}
+                        stroke={resolveColor(theme, g.color)}
                         strokeWidth={STROKE}
                         strokeDasharray={`${dash} ${gap}`}
                         strokeDashoffset={-CIRCUMFERENCE * 0.25 * i}
@@ -147,7 +150,7 @@ export default function FanPortrait() {
                         width: 28,
                         height: 28,
                         borderRadius: 1,
-                        bgcolor: `${g.color}1F`,
+                        bgcolor: resolveAlpha(theme, g.color, 0.12),
                         color: g.color,
                         display: 'flex',
                         alignItems: 'center',
@@ -178,7 +181,7 @@ export default function FanPortrait() {
                       sx={{
                         width: `${(a.value / maxAge) * 100}%`,
                         height: '100%',
-                        background: `linear-gradient(90deg, ${a.color}AA 0%, ${a.color} 100%)`,
+                        background: `linear-gradient(90deg, ${resolveAlpha(theme, a.color, 0.67)} 0%, ${resolveColor(theme, a.color)} 100%)`,
                         borderRadius: 1,
                         transition: 'width 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
                         display: 'flex',

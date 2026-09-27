@@ -27,6 +27,10 @@ import {
   LiveFormLazy,
 } from '../../_components/PublishForms';
 import { TypePicker } from './TypePicker';
+import { TaskDeliveryBanner, TaskDeliverDialog } from './TaskDelivery';
+import type { SavedContent } from '../../_components/useContentForm';
+import { PUBLISH_TYPES } from '../../_components/publishTypes';
+import { rewardTaskHref, takeTaskDeliveryParams, type TaskDeliveryContext } from '@/lib/bountyDelivery';
 import { PublishStepper } from './PublishStepper';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -273,6 +277,49 @@ export default function HdPublishPage() {
 
   const router = useRouter();
   const navigateToContent = useContentNavigate();
+
+  // ---- 悬赏任务模式(奖励中心「去创作交付」带 ?task=&taskTitle=&demand=&ptype= 进来)----
+  // 只在 mount 时读一次 URL 并立刻去掉这些参数;没有参数时以上 dispatcher 行为完全不变。
+  const [taskCtx, setTaskCtx] = useState<TaskDeliveryContext | null>(null);
+  // 任务模式下刚发布成功的作品 id(十进制字符串),非空时弹「用它交付」
+  const [deliverWorkId, setDeliverWorkId] = useState<string | null>(null);
+  useEffect(() => {
+    const ctx = takeTaskDeliveryParams();
+    if (!ctx) return;
+    setTaskCtx(ctx);
+    const pt = ctx.ptype;
+    if (pt && PUBLISH_TYPES.some((t) => t.id === pt)) {
+      setSelectedType(pt as PublishHubType);
+      setShowTypePicker(false);
+    }
+  }, []);
+  const backToTask = React.useCallback(() => {
+    if (taskCtx) router.push(rewardTaskHref(taskCtx.taskId, taskCtx.demandId));
+  }, [router, taskCtx]);
+  /** 发布成功(12 个表单 + 视频上传共用):任务模式下拿到新作品 id 就问要不要直接交付 */
+  const handlePublished = React.useCallback(
+    (saved?: SavedContent) => {
+      if (!taskCtx) return;
+      const id = saved?.id === undefined || saved?.id === null ? '' : String(saved.id);
+      if (/^[1-9]\d*$/.test(id)) setDeliverWorkId(id);
+      else setSnack({ msg: '作品已发布;回到任务里「从我的作品选择」即可交付', severity: 'info' });
+    },
+    [taskCtx, setSnack],
+  );
+  const handleFormSuccess = React.useCallback(
+    (saved?: SavedContent) => {
+      setShowTypePicker(true);
+      handlePublished(saved);
+    },
+    [handlePublished],
+  );
+  const handleDelivered = React.useCallback(() => {
+    const ctx = taskCtx;
+    setDeliverWorkId(null);
+    setTaskCtx(null);
+    setSnack({ msg: '已交付,等待发布者验收', severity: 'success' });
+    if (ctx) window.setTimeout(() => router.push(rewardTaskHref(ctx.taskId, ctx.demandId)), 800);
+  }, [router, taskCtx, setSnack]);
 
   // upload dialog state
   const [uploadTitle, setUploadTitle] = useState('');
@@ -679,8 +726,10 @@ export default function HdPublishPage() {
       setSnack({ msg: '文件地址缺失,请重新选择', severity: 'error' });
       return;
     }
+    let saved: SavedContent | undefined;
     try {
-      await createMutation.mutateAsync(uploadTitle.trim());
+      // 与表单同一个 POST /module/content,返回 {id, status}(id 为十进制字符串)
+      saved = (await createMutation.mutateAsync(uploadTitle.trim())) as SavedContent | undefined;
     } catch (e: any) {
       // catch 后立即 return,不再继续往下走创建 progress:5% / sizeMB:0 的假 item —
       // 历史上假 item 加进列表但永远卡 5%,KPI 数字不变,用户感知为"界面死了"。
@@ -714,10 +763,21 @@ export default function HdPublishPage() {
     setUploadSubtitles([]);
     setUploadAudios([{ id: 'a1', label: '原声', codec: 'AAC 320kbps', isDefault: true }]);
     resetUpload();
+    handlePublished(saved && typeof saved === 'object' ? saved : undefined);
   };
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+      {taskCtx && <TaskDeliveryBanner ctx={taskCtx} onBack={backToTask} onExit={() => setTaskCtx(null)} />}
+      <TaskDeliverDialog
+        ctx={taskCtx}
+        workId={deliverWorkId}
+        onLater={() => {
+          setDeliverWorkId(null);
+          setShowTypePicker(true);
+        }}
+        onDelivered={handleDelivered}
+      />
       {/* 落地态 1:未选类型 — 13 类型卡片网格,挑了再进入正常流程 */}
       {showTypePicker && <TypePicker onPick={handlePickFromType} />}
 
@@ -752,18 +812,18 @@ export default function HdPublishPage() {
             <Box sx={{ flex: 1 }} />
           </Box>
           <PublishStepper activeStep={0} />
-          {selectedType === 'picture-album' && <ImageFormLazy onSuccess={() => setShowTypePicker(true)} />}
-          {selectedType === 'picture-mv' && <ImageMvFormLazy onSuccess={() => setShowTypePicker(true)} />}
-          {selectedType === 'article' && <ArticleFormLazy onSuccess={() => setShowTypePicker(true)} />}
-          {selectedType === 'novel' && <NovelFormLazy onSuccess={() => setShowTypePicker(true)} />}
-          {selectedType === 'news' && <NewsFormLazy onSuccess={() => setShowTypePicker(true)} />}
-          {selectedType === 'music' && <MusicFormLazy onSuccess={() => setShowTypePicker(true)} />}
-          {selectedType === 'comics' && <ComicsFormLazy onSuccess={() => setShowTypePicker(true)} />}
-          {selectedType === 'vshow' && <VshowFormLazy onSuccess={() => setShowTypePicker(true)} />}
-          {selectedType === 'teleplay' && <TeleplayFormLazy onSuccess={() => setShowTypePicker(true)} />}
-          {selectedType === 'film' && <FilmFormLazy onSuccess={() => setShowTypePicker(true)} />}
-          {selectedType === 'animation' && <AnimationFormLazy onSuccess={() => setShowTypePicker(true)} />}
-          {selectedType === 'live' && <LiveFormLazy onSuccess={() => setShowTypePicker(true)} />}
+          {selectedType === 'picture-album' && <ImageFormLazy onSuccess={handleFormSuccess} />}
+          {selectedType === 'picture-mv' && <ImageMvFormLazy onSuccess={handleFormSuccess} />}
+          {selectedType === 'article' && <ArticleFormLazy onSuccess={handleFormSuccess} />}
+          {selectedType === 'novel' && <NovelFormLazy onSuccess={handleFormSuccess} />}
+          {selectedType === 'news' && <NewsFormLazy onSuccess={handleFormSuccess} />}
+          {selectedType === 'music' && <MusicFormLazy onSuccess={handleFormSuccess} />}
+          {selectedType === 'comics' && <ComicsFormLazy onSuccess={handleFormSuccess} />}
+          {selectedType === 'vshow' && <VshowFormLazy onSuccess={handleFormSuccess} />}
+          {selectedType === 'teleplay' && <TeleplayFormLazy onSuccess={handleFormSuccess} />}
+          {selectedType === 'film' && <FilmFormLazy onSuccess={handleFormSuccess} />}
+          {selectedType === 'animation' && <AnimationFormLazy onSuccess={handleFormSuccess} />}
+          {selectedType === 'live' && <LiveFormLazy onSuccess={handleFormSuccess} />}
         </Box>
       )}
 

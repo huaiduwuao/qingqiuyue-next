@@ -90,6 +90,17 @@ export default function ActivityPage() {
   const [search, setSearch] = useState('');
   const [detailId, setDetailId] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTabKey>('detail');
+  // 深链:/account/content?tab=activity&activity=<id> 直接打开这个活动的详情(「复制链接」复制的就是它)。
+  // 读完从地址栏去掉,刷新不重复弹。
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const id = url.searchParams.get('activity');
+    if (!id) return;
+    setDetailId(id);
+    setDetailTab('detail');
+    url.searchParams.delete('activity');
+    window.history.replaceState(window.history.state, '', url.toString());
+  }, []);
   const [signupId, setSignupId] = useState<string | null>(null);
   const [signupAgreed, setSignupAgreed] = useState(false);
   const [submitId, setSubmitId] = useState<string | null>(null);
@@ -262,7 +273,8 @@ export default function ActivityPage() {
       return;
     }
     navigator.clipboard
-      .writeText(`${window.location.origin}/activity/${id}`)
+      // 以前是 /activity/<id>,站里没有这个路由,复制出去是 404
+      .writeText(`${window.location.origin}/account/content?tab=activity&activity=${encodeURIComponent(id)}`)
       .then(() => setSnack({ msg: '活动链接已复制,快邀好友一起来玩', sev: 'info' }))
       .catch(() => setSnack({ msg: '复制失败,请手动复制链接', sev: 'warning' }));
   };
@@ -336,7 +348,7 @@ export default function ActivityPage() {
               />
             </DialogContent>
             <DialogActions sx={{ px: 3, pb: 2 }}>
-              <Button onClick={closeSignup} sx={{ textTransform: 'none' }}>取消</Button>
+              <Button variant="text" onClick={closeSignup} sx={{ textTransform: 'none' }}>取消</Button>
               <Button onClick={confirmSignup} variant="contained" disabled={!signupAgreed} sx={{ textTransform: 'none' }}>确认报名</Button>
             </DialogActions>
           </>
@@ -444,7 +456,7 @@ export default function ActivityPage() {
               />
             </DialogContent>
             <DialogActions sx={{ px: 3, pb: 2 }}>
-              <Button onClick={closeSubmit} sx={{ textTransform: 'none' }}>取消</Button>
+              <Button variant="text" onClick={closeSubmit} sx={{ textTransform: 'none' }}>取消</Button>
               <Button
                 onClick={confirmSubmit}
                 variant="contained"

@@ -61,9 +61,9 @@ export default function NewsForm({ onSuccess }: PublishFormProps) {
     maxTags: MAX_TAGS,
     requireTitle: true,
     requireDesc: true, // 新闻摘要必填
-    onSuccess: () => {
+    onSuccess: (saved) => {
       if (cover?.previewUrl) URL.revokeObjectURL(cover.previewUrl);
-      onSuccess?.();
+      onSuccess?.(saved);
     },
     validate: () => {
       if (!body.trim()) return '请输入正文内容';

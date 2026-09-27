@@ -470,7 +470,7 @@ export default function CollectionPage() {
         ) : listQ.isError ? (
           <Box sx={{ textAlign: 'center', py: 8 }}>
             <Typography sx={{ fontSize: 14, color: 'text.disabled' }}>合集加载失败</Typography>
-            <Button onClick={() => listQ.refetch()} sx={{ mt: 1, textTransform: 'none', fontSize: 13 }}>
+            <Button variant="text" onClick={() => listQ.refetch()} sx={{ mt: 1, textTransform: 'none', fontSize: 13 }}>
               重试
             </Button>
           </Box>
@@ -481,7 +481,7 @@ export default function CollectionPage() {
               {collections.length === 0 ? '暂无合集' : '没有符合条件的合集'}
             </Typography>
             {collections.length === 0 && (
-              <Button onClick={openCreate} sx={{ mt: 1, textTransform: 'none', fontSize: 13 }}>
+              <Button variant="contained" onClick={openCreate} sx={{ mt: 1, textTransform: 'none', fontSize: 13 }}>
                 创建第一个合集
               </Button>
             )}
@@ -971,7 +971,7 @@ function EditCollectionForm({
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
               <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>作品 ({works.length})</Typography>
               <Box sx={{ flex: 1 }} />
-              <Button
+              <Button variant="text"
                 size="small"
                 startIcon={<AddRoundedIcon sx={{ fontSize: 14 }} />}
                 onClick={() => setPickerOpen(true)}

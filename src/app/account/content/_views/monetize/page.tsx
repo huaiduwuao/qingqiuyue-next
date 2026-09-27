@@ -17,6 +17,8 @@ import LiveTvOutlinedIcon from '@mui/icons-material/LiveTvOutlined';
 import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
 import StarBorderIcon from '@mui/icons-material/StarBorder';
 import { useQuery } from '@tanstack/react-query';
+import { useTheme } from '@mui/material/styles';
+import { resolveAlpha, resolveColor } from '@/lib/themeColor';
 import { AsyncState } from '@/components/common/AsyncState';
 import { getCreatorMonetizeSummary } from '@/apis/creator';
 
@@ -29,6 +31,7 @@ const SOURCE_LABELS: Record<string, string> = {
 
 export default function MonetizePage() {
   const router = useRouter();
+  const theme = useTheme();
   const query = useQuery({
     queryKey: ['account', 'monetize', 'summary'],
     queryFn: () => getCreatorMonetizeSummary(),
@@ -153,7 +156,7 @@ export default function MonetizePage() {
                             width: 26,
                             height: 26,
                             borderRadius: 0.75,
-                            bgcolor: `${s.color}1F`,
+                            bgcolor: resolveAlpha(theme, s.color, 0.12),
                             color: s.color,
                             display: 'flex',
                             alignItems: 'center',
@@ -175,7 +178,7 @@ export default function MonetizePage() {
                           sx={{
                             width: `${percent}%`,
                             height: '100%',
-                            background: `linear-gradient(90deg, ${s.color} 0%, ${s.color}AA 100%)`,
+                            background: `linear-gradient(90deg, ${resolveColor(theme, s.color)} 0%, ${resolveAlpha(theme, s.color, 0.67)} 100%)`,
                             borderRadius: 1,
                             transition: 'width 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
                           }}

@@ -58,9 +58,9 @@ export default function TeleplayForm({ onSuccess }: PublishFormProps) {
     maxTags: MAX_TAGS,
     requireTitle: true,
     requireDesc: false,
-    onSuccess: () => {
+    onSuccess: (saved) => {
       if (cover?.previewUrl) URL.revokeObjectURL(cover.previewUrl);
-      onSuccess?.();
+      onSuccess?.(saved);
     },
     validate: () => {
       if (episodes.length === 0) return '至少需要 1 集';

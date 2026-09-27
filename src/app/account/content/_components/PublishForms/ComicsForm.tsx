@@ -57,10 +57,10 @@ export default function ComicsForm({ onSuccess }: PublishFormProps) {
     maxTags: MAX_TAGS,
     requireTitle: true,
     requireDesc: false,
-    onSuccess: () => {
+    onSuccess: (saved) => {
       if (cover?.previewUrl) URL.revokeObjectURL(cover.previewUrl);
       pages.forEach((p) => p.previewUrl && URL.revokeObjectURL(p.previewUrl));
-      onSuccess?.();
+      onSuccess?.(saved);
     },
     validate: () => {
       if (pages.length === 0) return '至少需要 1 页';

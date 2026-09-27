@@ -13,6 +13,8 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
+import InputAdornment from '@mui/material/InputAdornment';
+import SearchIcon from '@mui/icons-material/Search';
 import MenuItem from '@mui/material/MenuItem';
 import Chip from '@mui/material/Chip';
 import { CoverImage } from '@/components/common/CoverImage';
@@ -96,6 +98,12 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
   const coverInputRef = React.useRef<HTMLInputElement>(null);
   const pageSize = 12;
   const [keyword, setKeyword] = useState('');
+  // 搜索框:以前 keyword 一直是空串(没有任何输入框在设它),接口支持但用不了。输入停 300ms 再查
+  const [keywordDraft, setKeywordDraft] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setKeyword(keywordDraft.trim()), 300);
+    return () => clearTimeout(t);
+  }, [keywordDraft]);
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({
     open: false,
     message: '',
@@ -322,6 +330,8 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
           onEdit={handleEdit}
           onSettle={handleSettle}
           onOpenTaskboard={onOpenTaskboard}
+          keyword={keywordDraft}
+          onKeyword={setKeywordDraft}
         />
       ) : (
       <>
@@ -342,6 +352,14 @@ export default function DemandPage({ onOpenTaskboard }: Props) {
       >
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1.5, flexWrap: 'wrap' }}>
           <Typography sx={{ fontSize: 18, fontWeight: 700 }}>需求管理</Typography>
+          <TextField
+            size="small"
+            placeholder="搜索我的需求"
+            value={keywordDraft}
+            onChange={(e) => setKeywordDraft(e.target.value)}
+            slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 18 }} /></InputAdornment> } }}
+            sx={{ ml: 'auto', width: 240 }}
+          />
           <Button
             variant="contained"
             startIcon={<AddIcon />}

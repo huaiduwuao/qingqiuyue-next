@@ -9,6 +9,8 @@ import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import Typography from '@mui/material/Typography';
 import { alpha } from '@mui/material/styles';
+import Link from 'next/link';
+import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 
 export interface WorkspaceNavItem {
   id: string;
@@ -32,6 +34,11 @@ interface WorkspaceShellProps {
   onSelect: (id: string) => void;
   /** 附属信息栏:大屏显示在右侧,小屏排在主内容之后。 */
   aside?: React.ReactNode;
+  /**
+   * 侧栏底部「去另一个中心」的入口(电脑端)。创作中心 ⇄ 悬赏中心以前互不相通,
+   * 这里互相放一个带一句说明的跳转。手机上两个中心本来就是底部导航的两个 tab,不重复放。
+   */
+  crossLinks?: { label: string; description?: string; href: string; icon?: React.ReactNode }[];
   children: React.ReactNode;
 }
 
@@ -101,7 +108,7 @@ function NavList({ groups, selected, onSelect }: Pick<WorkspaceShellProps, 'grou
  * 账号工作台(创作者中心、奖励中心)共用的外壳:左侧分组导航 + 主内容区 + 可选附属栏;
  * 小屏时导航变成顶部一条横滑页签(不再是抽屉:全站只有首页那一个侧边栏)。
  */
-export function WorkspaceShell({ title, logo, groups, selected, onSelect, aside, children }: WorkspaceShellProps) {
+export function WorkspaceShell({ title, logo, groups, selected, onSelect, aside, crossLinks, children }: WorkspaceShellProps) {
   const items = groups.flatMap((g) => g.items);
   const select = onSelect;
 
@@ -113,6 +120,41 @@ export function WorkspaceShell({ title, logo, groups, selected, onSelect, aside,
       </Box>
       <Divider sx={{ mx: 2 }} />
       <NavList groups={groups} selected={selected} onSelect={select} />
+      {!!crossLinks?.length && (
+        <Box sx={{ p: 1.5, borderTop: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {crossLinks.map((l) => (
+            <Box
+              key={l.href}
+              component={Link}
+              href={l.href}
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1.25,
+                p: 1.25,
+                borderRadius: 1.5,
+                textDecoration: 'none',
+                color: 'text.primary',
+                border: '1px solid',
+                borderColor: 'divider',
+                transition: 'border-color .2s, background-color .2s',
+                '&:hover': { borderColor: 'primary.main', bgcolor: (t) => alpha(t.palette.primary.main, 0.06) },
+              }}
+            >
+              {l.icon && <Box sx={{ display: 'flex', color: 'primary.main', '& svg': { fontSize: 20 } }}>{l.icon}</Box>}
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography sx={{ fontSize: 13, fontWeight: 600 }}>{l.label}</Typography>
+                {l.description && (
+                  <Typography sx={{ fontSize: 11, color: 'text.secondary', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {l.description}
+                  </Typography>
+                )}
+              </Box>
+              <ChevronRightRoundedIcon sx={{ fontSize: 18, color: 'text.disabled' }} />
+            </Box>
+          ))}
+        </Box>
+      )}
     </Box>
   );
 

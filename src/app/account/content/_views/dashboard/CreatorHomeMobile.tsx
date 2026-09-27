@@ -18,6 +18,7 @@ import { MobileSection, MobileStatRow, MobileListRow } from '@/components/mobile
 import { useActiveTab } from '../../ActiveTabContext';
 import CreatorOnboarding from '../../_components/CreatorOnboarding';
 import NewCreationSection from '../../_components/NewCreationSection';
+import BountyPicks from '../../_components/BountyPicks';
 
 type Overview = {
   totalViews?: number;
@@ -184,6 +185,9 @@ export default function CreatorHomeMobile() {
           />
         )}
       </MobileSection>
+
+      {/* 接个悬赏:和悬赏中心打通,点开能直接认领 */}
+      <BountyPicks variant="mobile" />
 
       {/* 可以参与的热门话题:前三个,更多在「活动与话题」 */}
       {topics.length > 0 && (

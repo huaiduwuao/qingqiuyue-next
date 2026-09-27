@@ -14,6 +14,8 @@ import MenuItem from '@mui/material/MenuItem';
 import Button from '@mui/material/Button';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import MovieOutlinedIcon from '@mui/icons-material/MovieOutlined';
+import Link from '@mui/material/Link';
+import { useRouter } from 'next/navigation';
 import { GridColDef } from '@mui/x-data-grid';
 import { DataGridTable } from '@/components/tables/DataGridTable';
 import { CoverImage } from '@/components/common/CoverImage';
@@ -22,7 +24,9 @@ import TopPerformingContent from '../../_components/TopPerformingContent';
 import ContentDistributionChart from '../../_components/ContentDistributionChart';
 import { getCreatorWorks } from '@/apis/creator';
 import { useActiveTab } from '../../ActiveTabContext';
-import { toWorksTableRows } from './rows';
+import { toWorksTableRows, type WorksTableRow } from './rows';
+import { WorkActionsMenu } from '../../_components/WorkActions';
+import { getDetailRoute } from '@/lib/contentRoute';
 import { useResponsive } from '@/hooks/useResponsive';
 import WorksMobile from './WorksMobile';
 import { TYPE_LABEL as CONTENT_TYPE_LABEL } from '@/lib/contentType.gen'; // 类型名以后端契约为准,别再手写(VSHOW 是综艺不是短剧)
@@ -80,7 +84,13 @@ const COLUMNS: GridColDef[] = [
         <Box sx={{ width: 40, height: 40, borderRadius: 0.5, bgcolor: 'action.hover' }} />
       ),
   },
-  { field: 'title', headerName: '标题', flex: 1, minWidth: 160 },
+  {
+    field: 'title',
+    headerName: '标题',
+    flex: 1,
+    minWidth: 160,
+    renderCell: (params) => <TitleCell row={params.row as WorksTableRow} />,
+  },
   {
     field: 'contentType',
     headerName: '类型',
@@ -91,7 +101,9 @@ const COLUMNS: GridColDef[] = [
     field: 'status',
     headerName: '状态',
     width: 90,
-    valueGetter: (value) => (value === 'PUBLISH' ? '已发布' : value === 'UN_PUBLISH' ? '已下架' : value),
+    // 老数据里有小写 active(等同已发布);其余状态也给中文,和手机列表一致
+    valueGetter: (value) =>
+      ({ PUBLISH: '已发布', active: '已发布', UN_PUBLISH: '已下架', REVIEWING: '审核中', REJECTED: '未通过', SCHEDULED: '定时发布', DRAFT: '草稿', PRIVATE: '私密' } as Record<string, string>)[value as string] ?? value,
   },
   { field: 'readNum', headerName: '阅读', width: 80, type: 'number' },
   { field: 'agreeNum', headerName: '点赞', width: 80, type: 'number' },
@@ -104,7 +116,45 @@ const COLUMNS: GridColDef[] = [
     valueGetter: (value) =>
       value ? new Date(value as string).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-',
   },
+  {
+    field: '__actions',
+    headerName: '',
+    width: 56,
+    sortable: false,
+    filterable: false,
+    disableColumnMenu: true,
+    align: 'center',
+    renderCell: (params) => {
+      const r = params.row as WorksTableRow;
+      return (
+        <WorkActionsMenu
+          work={{ contentId: r.contentId, contentType: r.contentType, title: r.title, cover: r.coverUrl, status: r.status }}
+        />
+      );
+    },
+  },
 ];
+
+/** 标题做成链接样式,点开作品详情(id 原样传字符串,不 Number()) */
+function TitleCell({ row }: { row: WorksTableRow }) {
+  const router = useRouter();
+  const id = row.contentId;
+  const exact = typeof id === 'string' || Number.isSafeInteger(id);
+  const route = exact ? getDetailRoute(row.contentType, String(id)) : null;
+  const text = row.title || '未命名作品';
+  if (!route) return <>{text}</>;
+  return (
+    <Link
+      component="button"
+      type="button"
+      underline="hover"
+      onClick={() => router.push(route)}
+      sx={{ fontSize: 'inherit', textAlign: 'left', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'middle' }}
+    >
+      {text}
+    </Link>
+  );
+}
 
 export default function WorksPage() {
   const [type, setType] = useState('');

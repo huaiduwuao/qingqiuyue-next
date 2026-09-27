@@ -44,10 +44,10 @@ export default function ImageForm({ onSuccess }: PublishFormProps) {
     maxTags: 8,
     requireTitle: true,
     requireDesc: false,
-    onSuccess: () => {
+    onSuccess: (saved) => {
       // cleanup preview URL 避免内存泄漏
       images.forEach((i) => i.previewUrl && URL.revokeObjectURL(i.previewUrl));
-      onSuccess?.();
+      onSuccess?.(saved);
     },
     validate: () => {
       if (images.length === 0) return '请至少添加 1 张图片';

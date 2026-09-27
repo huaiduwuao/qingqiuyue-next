@@ -16,6 +16,7 @@ import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutlineOutlined';
 import CollectionsOutlinedIcon from '@mui/icons-material/CollectionsOutlined';
+import EditNoteRoundedIcon from '@mui/icons-material/EditNoteRounded';
 import { alpha } from '@mui/material/styles';
 import MenuItem from '@mui/material/MenuItem';
 import { useQuery } from '@tanstack/react-query';
@@ -24,7 +25,7 @@ import { myTeams } from '@/apis/team';
 import type { RewardTask, RewardTaskStatus } from '@/beans/reward';
 import { BotBadge } from '@/components/community/UserLine';
 import { normalizeRewardTaskStatus, REWARD_TASK_STATUS_LABEL, REWARD_TASK_STATUS_COLOR } from './status';
-import { DeliveredWork, useOpenDm, WorkPickerDialog, type TaskWorkRef } from './TaskLinks';
+import { DeliveredWork, useGoCreateForTask, useOpenDm, WorkPickerDialog, type TaskWorkRef } from './TaskLinks';
 
 interface Props {
   open: boolean;
@@ -60,6 +61,7 @@ export function TaskDetailDialog({ open, task, isOwner, currentUserId, onClose, 
   const myTeamList = teamsQuery.data || [];
   const leadTeams = myTeamList.filter((t) => t.myRole === 'owner' || t.myRole === 'admin');
   const dm = useOpenDm(onError);
+  const createForTask = useGoCreateForTask();
 
   useEffect(() => {
     if (open) {
@@ -302,15 +304,28 @@ const res = await claimTask(task.id!, claimAs || undefined);
             {pickedWork ? (
               <DeliveredWork work={pickedWork} onRemove={() => setPickedWork(null)} />
             ) : (
-              <Button
-                size="small"
-                variant="outlined"
-                startIcon={<CollectionsOutlinedIcon sx={{ fontSize: 16 }} />}
-                onClick={() => setPickerOpen(true)}
-                sx={{ mb: 1, textTransform: 'none' }}
-              >
-                从我的作品选择
-              </Button>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 1 }}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<CollectionsOutlinedIcon sx={{ fontSize: 16 }} />}
+                  onClick={() => setPickerOpen(true)}
+                  sx={{ textTransform: 'none' }}
+                >
+                  从我的作品选择
+                </Button>
+                {/* 同一标签页去发布页创作,发布成功后在那边直接交付 */}
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<EditNoteRoundedIcon sx={{ fontSize: 16 }} />}
+                  disabled={createForTask.going}
+                  onClick={() => createForTask.go(task)}
+                  sx={{ textTransform: 'none' }}
+                >
+                  去创作交付
+                </Button>
+              </Box>
             )}
             <TextField
               value={deliverable}
@@ -508,6 +523,14 @@ const res = await claimTask(task.id!, claimAs || undefined);
           setPickedWork(w);
           setPickerOpen(false);
         }}
+        onCreateNew={
+          canSubmit
+            ? () => {
+                setPickerOpen(false);
+                createForTask.go(task);
+              }
+            : undefined
+        }
       />
     </Dialog>
   );

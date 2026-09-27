@@ -48,7 +48,7 @@ function CreatorEarnings() {
         <Typography component="h2" sx={{ fontSize: 16, fontWeight: 600, flex: 1 }}>
           创作收益
         </Typography>
-        <Button component={Link} href="/account/social-monetize" size="small" sx={{ textTransform: 'none' }}>
+        <Button variant="outlined" component={Link} href="/account/social-monetize" size="small" sx={{ textTransform: 'none' }}>
           订阅与打赏明细
         </Button>
         <Button component={Link} href="/account/wallet" size="small" variant="contained" sx={{ textTransform: 'none', borderRadius: 999 }}>
@@ -86,7 +86,7 @@ function PaidWorks() {
         <Typography component="h2" sx={{ fontSize: 16, fontWeight: 600, flex: 1 }}>
           付费作品
         </Typography>
-        <Button size="small" onClick={() => setActiveTab('hd-publish')} sx={{ textTransform: 'none' }}>
+        <Button variant="outlined" size="small" onClick={() => setActiveTab('hd-publish')} sx={{ textTransform: 'none' }}>
           发布付费作品
         </Button>
       </Box>
