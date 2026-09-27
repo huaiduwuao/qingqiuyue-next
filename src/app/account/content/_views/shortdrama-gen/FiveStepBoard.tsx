@@ -14,6 +14,8 @@
 // 后端实际步骤(小标签)+ 一键启动按钮(若该步未开始)。
 
 import React from 'react';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { useTheme } from '@mui/material/styles';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
@@ -129,6 +131,76 @@ export function FiveStepBoard({
   disabled?: boolean;
 }) {
   const currentIdx = status === 'done' ? 6 : stageToBoardIndex(currentStage);
+  const theme = useTheme();
+  const narrow = useMediaQuery(theme.breakpoints.down('md'));
+  const isStepRunning = (bs: BoardStep) =>
+    !!running && bs.backendSteps.some((s) => {
+      if (typeof running === 'string') return running === s;
+      if (typeof running === 'object' && running !== null && 'step' in running) return (running as Task).step === s;
+      return bs.backendSteps.includes(running as Step);
+    });
+
+  // 手机:五张 180px 的卡片横排要占半屏、还得左右划。换成一行步骤条(序号 + 名字),
+  // 下面只留当前这一步的说明和「开始」按钮。
+  if (narrow) {
+    const current = BOARD_STEPS.find((bs) => bs.index === currentIdx);
+    const currentRunning = current ? isStepRunning(current) : false;
+    return (
+      <Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          {BOARD_STEPS.map((bs, i) => {
+            const isDone = currentIdx > bs.index;
+            const isCurrent = currentIdx === bs.index;
+            return (
+              <React.Fragment key={bs.index}>
+                {i > 0 && <Box sx={{ flex: '1 1 0', minWidth: 4, height: 2, borderRadius: 1, bgcolor: isDone || isCurrent ? 'primary.main' : 'divider' }} />}
+                <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0.25, flexShrink: 0 }}>
+                  <Box
+                    sx={{
+                      width: 24,
+                      height: 24,
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color: isDone || isCurrent ? '#fff' : 'text.secondary',
+                      background: isDone || isCurrent ? bs.gradient : 'none',
+                      border: isDone || isCurrent ? 0 : '1px solid',
+                      borderColor: 'divider',
+                    }}
+                  >
+                    {isDone ? <CheckCircleRoundedIcon sx={{ fontSize: 16 }} /> : bs.index}
+                  </Box>
+                  <Typography sx={{ fontSize: 10.5, fontWeight: isCurrent ? 700 : 500, color: isCurrent ? 'text.primary' : 'text.secondary', whiteSpace: 'nowrap' }}>
+                    {bs.title}
+                  </Typography>
+                </Box>
+              </React.Fragment>
+            );
+          })}
+        </Box>
+        {current && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1.25 }}>
+            <Typography sx={{ flex: 1, minWidth: 0, fontSize: 12, color: 'text.secondary', lineHeight: 1.5 }}>
+              {current.desc}
+            </Typography>
+            <Button
+              size="small"
+              variant="contained"
+              disabled={disabled || !canStart || currentRunning}
+              onClick={() => onStartStep(current)}
+              startIcon={currentRunning ? <CircularProgress size={12} color="inherit" /> : <PlayArrowRoundedIcon sx={{ fontSize: 14 }} />}
+              sx={{ flexShrink: 0, textTransform: 'none', fontSize: 12, background: current.gradient, '&:hover': { filter: 'brightness(1.1)' } }}
+            >
+              {currentRunning ? '生成中…' : `开始「${current.title}」`}
+            </Button>
+          </Box>
+        )}
+      </Box>
+    );
+  }
 
   return (
     <Box>

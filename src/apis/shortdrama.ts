@@ -418,7 +418,8 @@ export interface GenWorkflowAdmin {
   status: 'active' | 'draft' | 'disabled';
   sortOrder: number;
   placeholder: boolean;
-  placeholders: string[];
+  /** 后端没有参数时给的是 null,不是空数组 */
+  placeholders: string[] | null;
 }
 
 async function aiCall<T>(path: string, init: RequestInit = {}): Promise<T> {

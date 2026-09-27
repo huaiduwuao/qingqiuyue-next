@@ -200,7 +200,7 @@ function WorkflowAdmin() {
               {w.name}
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              {w.costCredits} 钻 · {w.placeholder ? '占位,需导入真实 JSON' : `参数:${w.placeholders.join(' ')}`}
+              {w.costCredits} 钻 · {w.placeholder ? '占位,需导入真实 JSON' : `参数:${(w.placeholders ?? []).join(' ') || '无'}`}
             </Typography>
             <FormControlLabel
               control={<Switch size="small" checked={w.status === 'active'} disabled={w.placeholder || upsert.isPending} onChange={(e) => upsert.mutate({ id: w.id, status: e.target.checked ? 'active' : 'draft' })} />}

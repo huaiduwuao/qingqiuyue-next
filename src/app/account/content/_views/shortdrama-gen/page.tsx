@@ -44,6 +44,9 @@ import { coverBackgroundImage } from '@/lib/media';
 import { MediaThumb } from './common';
 import { qk, useAgents, useCapabilities, useCurrentProjectId } from './useProject';
 import Workbench from './Workbench';
+import { useApp } from '@/contexts/AppContext';
+import { loginHref } from '@/lib/auth/redirect';
+import { useRouter } from 'next/navigation';
 
 const GENRES = ['都市情感', '甜宠', '悬疑', '古装', '逆袭爽剧', '奇幻', '职场', '校园', '家庭伦理', '科幻'];
 const STYLES = ['写实电影感', '国风水墨', '日系动漫', '3D 动画', '赛博朋克', '复古胶片', '高饱和漫画'];
@@ -70,6 +73,22 @@ function ProjectList({ onOpen }: { onOpen: (id: number) => void }) {
   const llmReady = caps.data?.llm_ready ?? agents.data?.llm_ready;
   const { isMobile } = useResponsive();
   const [helpOpen, setHelpOpen] = useState(false);
+  const { currentUser } = useApp();
+  const router = useRouter();
+  // 没登录时接口回 401「unauthorized: no session」,原样显示用户看不懂;换成登录引导
+  const needLogin = !currentUser || /unauthori[sz]ed|no session|401/i.test(String((projects.error as Error | null)?.message ?? ''));
+  const loginPrompt = (
+    <Card variant="outlined" sx={{ p: 3, textAlign: 'center', borderRadius: 3 }}>
+      <AutoAwesomeRoundedIcon color="primary" sx={{ fontSize: 36, mb: 1 }} />
+      <Typography sx={{ fontSize: 15, fontWeight: 700 }}>登录后使用 AI 短剧生成</Typography>
+      <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.5, mb: 2 }}>
+        一句话故事意图,七位数字员工接力出剧本、角色和分镜
+      </Typography>
+      <Button variant="contained" onClick={() => router.push(loginHref())} sx={{ borderRadius: 999, px: 4 }}>
+        登录 / 注册
+      </Button>
+    </Card>
+  );
 
   const createDialog = (
     <CreateProjectDialog
@@ -105,7 +124,9 @@ function ProjectList({ onOpen }: { onOpen: (id: number) => void }) {
           <MoreLink label="说明" onClick={() => setHelpOpen(true)} />
         </Box>
 
-        {projects.isLoading ? (
+        {projects.isError && needLogin ? (
+          loginPrompt
+        ) : projects.isLoading ? (
           [0, 1, 2].map((i) => <Skeleton key={i} variant="rounded" height={72} sx={{ borderRadius: 3 }} />)
         ) : projects.isError ? (
           <Alert severity="error">{(projects.error as Error).message}</Alert>
@@ -181,7 +202,7 @@ function ProjectList({ onOpen }: { onOpen: (id: number) => void }) {
           </DialogActions>
         </Dialog>
 
-        <Fab
+        {!needLogin && <Fab
           variant="extended"
           color="primary"
           onClick={() => setCreating(true)}
@@ -194,7 +215,7 @@ function ProjectList({ onOpen }: { onOpen: (id: number) => void }) {
         >
           <AddRoundedIcon sx={{ mr: 0.5 }} />
           新建短剧
-        </Fab>
+        </Fab>}
 
         {createDialog}
       </Box>
@@ -229,7 +250,9 @@ function ProjectList({ onOpen }: { onOpen: (id: number) => void }) {
         </Alert>
       )}
 
-      {projects.isLoading ? (
+      {projects.isError && needLogin ? (
+        loginPrompt
+      ) : projects.isLoading ? (
         <ListLayout rows minColumnWidth={340} gap={16}>
           {[0, 1, 2].map((i) => (
             <Skeleton key={i} variant="rounded" height={220} />
