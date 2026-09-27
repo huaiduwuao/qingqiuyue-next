@@ -39,7 +39,7 @@ import VerifiedUserOutlinedIcon from '@mui/icons-material/VerifiedUserOutlined';
 import EmojiEventsOutlinedIcon from '@mui/icons-material/EmojiEventsOutlined';
 import { getDetailRoute } from '@/lib/contentRoute';
 import { getMyLists, addToMyList, createMyList } from '@/apis/my-list';
-import { setPaidContent } from '@/apis/social-monetize';
+import { getMyPaidContents, setPaidContent } from '@/apis/social-monetize';
 import { applyCerts } from '@/apis/original';
 import ShareTaskDialog from '@/components/share/ShareTaskDialog';
 import { useActiveTab } from '../ActiveTabContext';
@@ -165,7 +165,8 @@ export function WorkActionsMenu({ work, size = 'small' }: { work: WorkRef; size?
           disabled={!published}
           onClick={() => {
             setAnchor(null);
-            setActiveTab('activity');
+            // 带上作品:活动页会提示「为这部作品挑活动」,投稿弹窗里替你勾好它
+            setActiveTab('activity', { workId: id ?? String(work.contentId), workTitle: work.title });
           }}
         />
       </Menu>
@@ -426,19 +427,40 @@ function PriceDialog({
 }) {
   // 单位:钻,整数 0 ~ 10000;0 = 改回免费(与 /social/paid-content 契约一致)
   const [price, setPrice] = useState('');
+  const [touched, setTouched] = useState(false);
   const n = Number(price);
   const valid = price.trim() !== '' && Number.isInteger(n) && n >= 0 && n <= 10000;
   const m = useMutation({
     mutationFn: () => setPaidContent({ contentId, price: n }),
     onSuccess: () => onDone(n),
   });
+  // 当前定价:没有按作品查的接口,从「我的付费作品」里找(与收益中心同一个接口)。
+  // contentId 可能超过 2^53,后端 jsonfix 会转成字符串 —— 一律按字符串比。
+  const currentQ = useQuery({
+    queryKey: ['social', 'my-paid-contents', 'price-lookup'],
+    queryFn: () => getMyPaidContents({ page: 1, pageSize: 200 }),
+    staleTime: 30_000,
+  });
+  const current = (currentQ.data?.list ?? []).find((p) => String(p.contentId) === String(contentId));
+  const currentPrice = current ? Number(current.price) || 0 : currentQ.isSuccess ? 0 : null;
+  // 查到后把当前价填进输入框(用户已经开始输入就不覆盖)
+  React.useEffect(() => {
+    if (!touched && currentPrice !== null && currentPrice > 0) setPrice(String(currentPrice));
+  }, [currentPrice, touched]);
 
   return (
     <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
       <DialogTitle>设为付费 / 修改定价</DialogTitle>
       <DialogContent>
-        <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 1.5 }} noWrap>
+        <Typography sx={{ fontSize: 13, color: 'text.secondary', mb: 0.5 }} noWrap>
           {title || '未命名作品'}
+        </Typography>
+        <Typography sx={{ fontSize: 12, mb: 1.5, color: currentPrice ? 'primary.main' : 'text.secondary' }}>
+          {currentPrice === null
+            ? '正在查询当前定价…'
+            : currentPrice > 0
+              ? `当前定价 ${currentPrice} 钻${current?.salesCount ? ` · 已售 ${current.salesCount} 份` : ''}`
+              : '当前免费'}
         </Typography>
         <TextField
           autoFocus
@@ -447,7 +469,10 @@ function PriceDialog({
           type="number"
           label="价格(钻)"
           value={price}
-          onChange={(e) => setPrice(e.target.value)}
+          onChange={(e) => {
+            setTouched(true);
+            setPrice(e.target.value);
+          }}
           error={price.trim() !== '' && !valid}
           helperText="整数 1 ~ 10000 钻;填 0 改回免费"
           slotProps={{ htmlInput: { min: 0, max: 10000, step: 1 } }}

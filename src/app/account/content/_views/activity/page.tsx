@@ -60,6 +60,7 @@ import { DetailDrawer, type DetailTabKey } from './DetailDrawer';
 import { coverBackground } from '@/lib/media';
 import { useResponsive } from '@/hooks/useResponsive';
 import ActivityMobile from './ActivityMobile';
+import { useActiveTab } from '../../ActiveTabContext';
 
 type FilterTab = 'all' | 'mine' | 'active' | 'signup' | 'upcoming' | 'won' | 'ended';
 type CategoryFilter = 'all' | ActivityCategory;
@@ -105,6 +106,13 @@ export default function ActivityPage() {
   const [signupAgreed, setSignupAgreed] = useState(false);
   const [submitId, setSubmitId] = useState<string | null>(null);
   const [submitSelected, setSubmitSelected] = useState<string[]>([]);
+  // 从作品管理「参加活动」过来:记住是哪部作品,打开任意活动的投稿时替用户勾好
+  const { tabParams } = useActiveTab();
+  const [pendingWork, setPendingWork] = useState<{ id: string; title: string } | null>(null);
+  useEffect(() => {
+    const id = tabParams?.workId;
+    if (id) setPendingWork({ id: String(id), title: String(tabParams?.workTitle || '') });
+  }, [tabParams]);
   const [submitCaption, setSubmitCaption] = useState('');
   const [snack, setSnack] = useState<{ msg: string; sev: 'success' | 'info' | 'warning' } | null>(null);
 
@@ -247,7 +255,7 @@ export default function ActivityPage() {
     }
   };
 
-  const openSubmit = (id: string) => { setSubmitId(id); setSubmitSelected([]); setSubmitCaption(''); };
+  const openSubmit = (id: string) => { setSubmitId(id); setSubmitSelected(pendingWork ? [pendingWork.id] : []); setSubmitCaption(''); };
   const closeSubmit = () => { setSubmitId(null); setSubmitSelected([]); setSubmitCaption(''); };
 
   const confirmSubmit = async () => {
@@ -261,6 +269,7 @@ export default function ActivityPage() {
       const count = res?.submitted ?? submitSelected.length;
       await refetchActivities();
       setSnack({ msg: `已提交 ${count} 部作品到《${submitTarget.title}》`, sev: 'success' });
+      setPendingWork(null);
       closeSubmit();
     } catch (e) {
       setSnack({ msg: `投稿失败:${e instanceof Error ? e.message : '网络异常'}`, sev: 'warning' });
@@ -291,6 +300,21 @@ export default function ActivityPage() {
   // 详情抽屉 / 报名 / 投稿对话框 / 提示:电脑版和手机版共用
   const overlays = (
     <>
+      {/* 从作品管理「参加活动」过来时的常驻提示 */}
+      <Snackbar
+        open={!!pendingWork && !submitTarget}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        sx={{ top: { xs: 'calc(56px + var(--sat, 0px))', md: 88 } }}
+      >
+        <Alert
+          severity="info"
+          variant="filled"
+          onClose={() => setPendingWork(null)}
+          sx={{ alignItems: 'center', '& .MuiAlert-message': { overflow: 'hidden' } }}
+        >
+          为「{pendingWork?.title || '作品'}」挑一个活动,点「投稿」时已替你选好这部作品
+        </Alert>
+      </Snackbar>
       {/* Detail Drawer */}
       <Drawer
         anchor="right"

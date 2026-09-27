@@ -109,10 +109,6 @@ export default function ShareTaskDialog(props: ShareTaskDialogProps) {
       setError('标题不能为空');
       return;
     }
-    if (!videoId.trim()) {
-      setError('请填写视频 ID(video_id):先在抖音创作者中心 / 快手 App 上传素材,粘贴返回的 video_id');
-      return;
-    }
     setError(null);
     setSubmitting(true);
     try {
@@ -140,7 +136,7 @@ export default function ShareTaskDialog(props: ShareTaskDialogProps) {
         contentType,
         contentId,
         title,
-        videoId: videoId || undefined,
+        videoId: videoId.trim() || undefined, // 留空 = 后端自动上传本站视频
         coverUrl: coverUrl || undefined,
         tags: tags.length ? tags : undefined,
         topicId,
@@ -221,16 +217,15 @@ export default function ShareTaskDialog(props: ShareTaskDialogProps) {
 
           <Box>
             <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 0.5 }}>
-              视频 ID (video_id) <span style={{ color: '#d32f2f' }}>*必填</span>
+              视频 ID (video_id,可选)
             </Typography>
             <TextField
               fullWidth
               size="small"
-              required
               value={videoId}
               onChange={(e) => setVideoId(e.target.value)}
               placeholder="如 v0200f9c0000bv9..."
-              helperText="在抖音创作者中心 / 快手 App 上传素材后,粘贴返回的 video_id;清秋月不再上传视频二进制"
+              helperText="留空将自动上传本站视频(仅限在清秋月上传的视频)"
             />
           </Box>
 
