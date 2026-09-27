@@ -5,7 +5,6 @@
  */
 import { act, render } from '@testing-library/react';
 import Drawer from '@mui/material/Drawer';
-import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { installScrollLockGuard, useShellScrollLock } from './shellScrollLock';
 
@@ -14,14 +13,7 @@ function Shell() {
   return <div>shell</div>;
 }
 
-let setShell: (v: boolean) => void = () => {};
-let setDrawer: (v: boolean) => void = () => {};
-
-function App() {
-  const [shell, s1] = useState(true);
-  const [drawer, s2] = useState(false);
-  setShell = s1;
-  setDrawer = s2;
+function App({ shell, drawer }: { shell: boolean; drawer: boolean }) {
   return (
     <>
       {shell ? <Shell /> : <div>detail</div>}
@@ -39,11 +31,11 @@ afterEach(() => {
 describe('shellScrollLock', () => {
   it('外壳卸载后抽屉才关,body 不留 overflow:hidden', async () => {
     installScrollLockGuard();
-    render(<App />);
+    const { rerender } = render(<App shell drawer={false} />);
     const html = document.documentElement;
     expect(html.hasAttribute('data-shell-lock')).toBe(true);
 
-    act(() => setDrawer(true));
+    rerender(<App shell drawer />);
     // Modal 打开时自己锁 body —— 这是正当的,守卫不能拆
     expect(document.body.style.overflow).toBe('hidden');
     await act(async () => {
@@ -52,9 +44,9 @@ describe('shellScrollLock', () => {
     expect(document.body.style.overflow).toBe('hidden');
 
     // 点了抽屉里的链接:先换页(外壳卸载),再关抽屉
-    act(() => setShell(false));
+    rerender(<App shell={false} drawer />);
     expect(html.hasAttribute('data-shell-lock')).toBe(false);
-    act(() => setDrawer(false));
+    rerender(<App shell={false} drawer={false} />);
     await act(async () => {
       await new Promise((r) => setTimeout(r, 50));
     });
