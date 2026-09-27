@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import Box from '@mui/material/Box';
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
@@ -16,6 +16,7 @@ import NoticeIconView, { DmIconView } from '@/components/NoticeIcon';
 import { useResponsive } from '@/hooks/useResponsive';
 import { MobileBottomNav, mobileTabForPath } from '@/components/layout/MobileBottomNav';
 import GradientText from '@/components/reactbits/GradientText';
+import { useShellScrollLock } from '@/lib/shellScrollLock';
 
 // 顶栏标题。以前这里还是一套「个人中心/内容管理/奖励中心/设置」抽屉导航,和首页侧边栏、工作台导航
 // 叠成好几套;现在全站只有首页那一个侧边栏(MobileMenuButton),这里只管标题。
@@ -90,28 +91,8 @@ function AccountLayoutContent({
   const bottomTab = mobileTabForPath(pathname);
   const currentPage = ACCOUNT_PAGES.find((p) => pathname.startsWith(p.path)) || ACCOUNT_PAGES[0];
 
-  useEffect(() => {
-    const html = document.documentElement;
-    const body = document.body;
-    const prev = {
-      htmlOverflow: html.style.overflow,
-      bodyOverflow: body.style.overflow,
-      bodyBg: body.style.backgroundColor,
-    };
-    // 注意:不要在这里写 body.style.height。MUI Dialog 打开时会测量 body 并加 padding-right 补偿
-    // 滚动条;body 被钉死成固定高度时,客户端 WebView 里 Dialog 定位容器高度算错,Paper 被压出可视区
-    // 或内部表单高度塌陷。body 高度交给外层 Box 的 `height: var(--app-height)` 控制,这里只锁 overflow。
-    html.style.overflow = 'hidden';
-    body.style.overflow = 'hidden';
-    // 跟主题走:var(--bg-body) 由 ThemeContext 在切 light/dark 时写入;
-    // 这里不再用 'transparent'(否则 AppBar 透到 html 根 --background,跟主题脱节)
-    body.style.backgroundColor = 'var(--bg-body)';
-    return () => {
-      html.style.overflow = prev.htmlOverflow;
-      body.style.overflow = prev.bodyOverflow;
-      body.style.backgroundColor = prev.bodyBg;
-    };
-  }, []);
+  // 整页锁滚动交给 <html data-shell-lock>(见 lib/shellScrollLock),不再写 body 行内样式
+  useShellScrollLock({ fixedHeight: false });
 
   if (!isAccountSection) {
     return <Box>{children}</Box>;

@@ -14,6 +14,7 @@ import { useApp } from '@/contexts/AppContext';
 import { AvatarHoverPopup } from '@/components/account/AvatarHoverPopup';
 import NoticeIconView, { DmIconView } from '@/components/NoticeIcon';
 import GradientText from '@/components/reactbits/GradientText';
+import { useShellScrollLock } from '@/lib/shellScrollLock';
 
 const USER_PAGES = [
   { key: 'points', label: '我的积分', sub: '积分 · 成就 · 等级 · 商城', path: '/user/points', icon: <PersonIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
@@ -62,26 +63,8 @@ function UserLayoutContent({
 
   const currentPage = USER_PAGES.find((p) => pathname.startsWith(p.path)) || USER_PAGES[0];
 
-  useEffect(() => {
-    const html = document.documentElement;
-    const body = document.body;
-    const prev = {
-      htmlOverflow: html.style.overflow,
-      bodyOverflow: body.style.overflow,
-      bodyHeight: body.style.height,
-      bodyBg: body.style.backgroundColor,
-    };
-    html.style.overflow = 'hidden';
-    body.style.overflow = 'hidden';
-    body.style.height = 'var(--app-height, 100vh)';
-    body.style.backgroundColor = 'var(--bg-body)';
-    return () => {
-      html.style.overflow = prev.htmlOverflow;
-      body.style.overflow = prev.bodyOverflow;
-      body.style.height = prev.bodyHeight;
-      body.style.backgroundColor = prev.bodyBg;
-    };
-  }, []);
+  // 整页锁滚动交给 <html data-shell-lock>(见 lib/shellScrollLock),不再写 body 行内样式
+  useShellScrollLock();
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: 'var(--app-height, 100vh)', bgcolor: 'transparent', overflow: 'hidden' }}>

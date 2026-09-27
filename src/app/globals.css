@@ -118,6 +118,19 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* 外壳锁滚动(首页 / 账号 / 用户页,由 lib/shellScrollLock 在 <html> 上打标记)。
+   不写 body 的行内样式:那个位置归 MUI Modal 管,两边抢着存取会把 hidden 残留到详情页。 */
+html[data-shell-lock],
+html[data-shell-lock] body {
+  overflow: hidden;
+}
+html[data-shell-lock] body {
+  background-color: var(--bg-body);
+}
+html[data-shell-fixed] body {
+  height: var(--app-height, 100vh);
+}
+
 /* 音乐底栏占位(GlobalMusicBar 挂到 body 末尾的补丁元素)。
    页面底部内容别被底栏盖住(首页壳 overflow:hidden,自己在 main 上留白)。
 

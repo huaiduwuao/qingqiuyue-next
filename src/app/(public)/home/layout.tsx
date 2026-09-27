@@ -61,6 +61,8 @@ import { useResponsive } from '@/hooks/useResponsive';
 import { useTopbarHeight } from '@/hooks/useTopbarHeight';
 import { BrandSeal, BrandWordmark } from '@/components/brand/BrandLogo';
 import FirstRunGuide from '@/components/onboarding/FirstRunGuide';
+import { useShellScrollLock } from '@/lib/shellScrollLock';
+import { useSwipeTabs } from '@/hooks/useSwipeTabs';
 
 const SIDE_NAV: { key: string; label: string; path?: string; icon: React.ReactNode; accent: string; dividerBefore?: boolean }[] = [
   { key: 'home', label: '精选', path: '/home/recommend?tab=home', icon: <HomeRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
@@ -171,27 +173,15 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
     }
   }, [router]);
 
-  useEffect(() => {
-    const html = document.documentElement;
-    const body = document.body;
-    const prev = {
-      htmlOverflow: html.style.overflow,
-      bodyOverflow: body.style.overflow,
-      bodyHeight: body.style.height,
-      bodyBg: body.style.backgroundColor,
-    };
-    html.style.overflow = 'hidden';
-    body.style.overflow = 'hidden';
-    // --app-height:支持 dvh 的浏览器是 100dvh,老 WebView 由 ViewportFix 写 innerHeight
-    body.style.height = 'var(--app-height, 100vh)';
-    body.style.backgroundColor = 'var(--bg-body, transparent)';
-    return () => {
-      html.style.overflow = prev.htmlOverflow;
-      body.style.overflow = prev.bodyOverflow;
-      body.style.height = prev.bodyHeight;
-      body.style.backgroundColor = prev.bodyBg;
-    };
-  }, []);
+  // 整页锁滚动交给 <html data-shell-lock>(见 lib/shellScrollLock),不再写 body 行内样式
+  useShellScrollLock();
+
+  // 手机上内容区左右划切换顶栏页签(精选 ⇄ 推荐 ⇄ 榜单 ⇄ 动态),到头不循环
+  const swipeIdx = MOBILE_HOME_TABS.findIndex((t) => t.key === activeNav);
+  useSwipeTabs(mainRef, (dir) => {
+    const next = MOBILE_HOME_TABS[swipeIdx + dir];
+    if (next) handleNavChange(next.key);
+  }, isMobile && !mobileSubTitle && swipeIdx >= 0);
 
   return (
     <Box data-app-shell sx={{ height: 'var(--app-height, 100vh)', bgcolor: 'var(--bg-body, transparent)', color: 'var(--text-primary, currentColor)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>

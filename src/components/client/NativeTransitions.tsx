@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { isDesktopClient } from '@/lib/clientAuth';
 import { getRenderedPath, installRouterTransitions, isAdminHop, navTransition, routeKey, setRenderedPath } from '@/lib/navTransition';
 import { reportDiag } from '@/lib/clientDiag';
+import { installScrollLockGuard } from '@/lib/shellScrollLock';
 
 /**
  * 原生手感:
@@ -55,6 +56,11 @@ export default function NativeTransitions() {
   useEffect(() => {
     installRouterTransitions(router);
   }, [router]);
+
+  // body 上残留的 overflow:hidden(Modal 在外壳卸载后才收起、把锁写了回去)随时清掉,见 lib/shellScrollLock
+  useEffect(() => {
+    installScrollLockGuard();
+  }, []);
 
   useEffect(() => {
     // 站内链接:在 Next 的 <Link> 处理之前(捕获阶段)开始转场,快照拍的是旧页面
