@@ -153,9 +153,17 @@ const MAIN_TABS: { key: string; label: string; icon: React.ReactNode; locked?: b
 
 /**
  * 手机上不在页签栏里的「我的」子页:它们在首页左上角侧边栏的「我的内容」组里
- * (MobileSideMenu 链到 ?tab=me&mainTab=…)。正停在其中一个时照样临时显示在页签栏末尾。
+ * (MobileSideMenu 链到 ?tab=me&mainTab=…)。手机上打开它们是一个单独的页面:
+ * 顶上「← 标题」,只有这一个列表,没有头像卡和页签栏(首页 layout 按 ME_DRAWER_TITLES 出返回栏)。
  */
-export const ME_DRAWER_TABS = new Set(['recommend', 'history', 'later', 'order', 'ai']);
+export const ME_DRAWER_TITLES: Record<string, string> = {
+  recommend: '我的推荐',
+  history: '观看历史',
+  later: '稍后再看',
+  order: '我的预约',
+  ai: 'AI 笔记',
+};
+export const ME_DRAWER_TABS = new Set(Object.keys(ME_DRAWER_TITLES));
 
 const SUB_TABS: { key: string; label: string }[] = [
   { key: 'works', label: '作品' },
@@ -302,9 +310,9 @@ function MyHomePageAuthed() {
   const { isMobile } = useResponsive();
   // 手机上作品工具栏的搜索框收成一个图标,点开才占一行
   const [searchOpen, setSearchOpen] = useState(false);
-  const visibleTabs = isMobile
-    ? MAIN_TABS.filter((t) => !ME_DRAWER_TABS.has(t.key) || t.key === mainTab)
-    : MAIN_TABS;
+  const visibleTabs = isMobile ? MAIN_TABS.filter((t) => !ME_DRAWER_TABS.has(t.key)) : MAIN_TABS;
+  // 手机上从侧边栏进的子页(观看历史/稍后再看…):单独成页,只留列表
+  const standalone = isMobile && ME_DRAWER_TABS.has(mainTab);
   // 页签切换的入场方向:往右边的页签切 → 内容从右边滑进来,反之从左边(书架 ⇄ 作品等)
   const tabIdx = MAIN_TABS.findIndex((t) => t.key === mainTab);
   const [prevTabIdx, setPrevTabIdx] = useState(tabIdx);
@@ -552,6 +560,7 @@ function MyHomePageAuthed() {
       />
 
       <Box sx={{ position: 'relative', p: { xs: 1.5, md: 3 } }}>
+        {!standalone && (<>
         {/* Profile header */}
         <Box
           sx={{
@@ -970,6 +979,8 @@ function MyHomePageAuthed() {
           >
           </Box>
         </Box>
+
+        </>)}
 
         {/* Sub tabs + tools (only for 作品 tab) */}
         {showSubTabs && isMobile && (

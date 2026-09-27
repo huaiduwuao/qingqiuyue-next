@@ -34,6 +34,8 @@ import ShoppingBagRoundedIcon from '@mui/icons-material/ShoppingBagRounded';
 import Dialog from '@mui/material/Dialog';
 import SwitchAccountRoundedIcon from '@mui/icons-material/SwitchAccountRounded';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
+import RemoveCircleRoundedIcon from '@mui/icons-material/RemoveCircleRounded';
+import AddCircleRoundedIcon from '@mui/icons-material/AddCircleRounded';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAIPrefs } from '@/lib/aiPrefs';
@@ -99,6 +101,42 @@ const GROUPS: { title: string; items: MenuItem[] }[] = [
   },
 ];
 
+/**
+ * 侧边栏栏目可以自己隐藏/显示:点「编辑」进编辑态,每个栏目右上角 −/+ 切换,隐藏的变淡;
+ * 「完成」退出。只存在本机(localStorage),换设备不跟着走。整组都藏了,那一组标题也不显示。
+ */
+const HIDDEN_KEY = 'qq-side-menu-hidden';
+
+function readHidden(): Set<string> {
+  try {
+    const raw = localStorage.getItem(HIDDEN_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(arr) ? arr.filter((x) => typeof x === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function useHiddenItems() {
+  const [hidden, setHidden] = React.useState<Set<string>>(() => new Set());
+  React.useEffect(() => {
+    setHidden(readHidden());
+  }, []);
+  const save = (next: Set<string>) => {
+    setHidden(next);
+    try {
+      localStorage.setItem(HIDDEN_KEY, JSON.stringify([...next]));
+    } catch { /* 隐私模式 */ }
+  };
+  const toggle = (key: string) => {
+    const next = new Set(hidden);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    save(next);
+  };
+  return { hidden, toggle, reset: () => save(new Set()) };
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -118,6 +156,12 @@ export function MobileSideMenu({ open, onClose, activeNav, onNavChange, onOpenSe
   const { logout } = useAuth();
   // 切换账号 = 退出当前账号再到登录页登另一个;两者共用一个确认框
   const [confirm, setConfirm] = React.useState<null | 'switch' | 'logout'>(null);
+  const { hidden, toggle, reset } = useHiddenItems();
+  const [editing, setEditing] = React.useState(false);
+  // 每次打开都从普通态开始
+  React.useEffect(() => {
+    if (!open) setEditing(false);
+  }, [open]);
 
   const doLogout = () => {
     setConfirm(null);
@@ -126,6 +170,10 @@ export function MobileSideMenu({ open, onClose, activeNav, onNavChange, onOpenSe
   };
 
   const pick = (item: MenuItem) => {
+    if (editing) {
+      toggle(item.key);
+      return;
+    }
     onClose();
     if (item.action === 'settings') onOpenSettings();
     else if (item.tab) onNavChange(item.tab);
@@ -187,9 +235,32 @@ export function MobileSideMenu({ open, onClose, activeNav, onNavChange, onOpenSe
       </Box>
 
       <Box sx={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain', px: 1.5, pb: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.5, px: 0.5, mb: 0.5, minHeight: 30 }}>
+          {editing && (
+            <Typography sx={{ flex: 1, fontSize: 11.5, color: 'var(--text-muted, currentColor)', px: 0.5 }}>
+              点栏目隐藏或显示
+            </Typography>
+          )}
+          {editing && hidden.size > 0 && (
+            <Button size="small" variant="text" onClick={reset} sx={{ minWidth: 0, fontSize: 12, color: 'var(--text-muted, currentColor)' }}>
+              全部显示
+            </Button>
+          )}
+          <Button
+            size="small"
+            variant="text"
+            onClick={() => setEditing((v) => !v)}
+            sx={{ minWidth: 0, fontSize: 12, fontWeight: 600, color: editing ? 'var(--brand-color, #FE2C55)' : 'var(--text-secondary, currentColor)' }}
+          >
+            {editing ? '完成' : '编辑'}
+          </Button>
+        </Box>
         {GROUPS.map((g) => {
-          // 用户关掉了 AI 入口就不列「AI 助手」
-          const items = g.items.filter((it) => it.key !== 'ai' || aiPrefs.aiEntry || activeNav === 'ai');
+          // 用户关掉了 AI 入口就不列「AI 助手」;自己隐藏的栏目只在编辑态里出现(变淡)
+          const items = g.items
+            .filter((it) => it.key !== 'ai' || aiPrefs.aiEntry || activeNav === 'ai')
+            .filter((it) => editing || !hidden.has(it.key));
+          if (items.length === 0) return null;
           return (
             <Box key={g.title} sx={{ mb: 1.5 }}>
               <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted, currentColor)', px: 1, mb: 0.75, letterSpacing: 0.5 }}>
@@ -197,7 +268,8 @@ export function MobileSideMenu({ open, onClose, activeNav, onNavChange, onOpenSe
               </Typography>
               <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', rowGap: 1.25, bgcolor: 'var(--bg-card, rgba(127,127,127,0.06))', borderRadius: 3, py: 1.5 }}>
                 {items.map((it) => {
-                  const current = !!it.tab && activeNav === it.tab;
+                  const current = !editing && !!it.tab && activeNav === it.tab;
+                  const isHidden = hidden.has(it.key);
                   return (
                     <Box
                       key={it.key}
@@ -205,7 +277,12 @@ export function MobileSideMenu({ open, onClose, activeNav, onNavChange, onOpenSe
                       type="button"
                       onClick={() => pick(it)}
                       aria-current={current ? 'page' : undefined}
+                      aria-pressed={editing ? !isHidden : undefined}
+                      aria-label={editing ? `${isHidden ? '显示' : '隐藏'}「${it.label}」` : undefined}
                       sx={{
+                        position: 'relative',
+                        opacity: editing && isHidden ? 0.4 : 1,
+                        transition: 'opacity 0.15s',
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'center',
@@ -219,8 +296,26 @@ export function MobileSideMenu({ open, onClose, activeNav, onNavChange, onOpenSe
                         minWidth: 0,
                       }}
                     >
-                      <Box sx={{ width: 38, height: 38, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', color: it.color, bgcolor: `${it.color}1F`, '& svg': { fontSize: 21 } }}>
+                      <Box sx={{ position: 'relative', width: 38, height: 38, borderRadius: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', color: it.color, bgcolor: `${it.color}1F`, '& > svg': { fontSize: 21 } }}>
                         {it.icon}
+                        {editing && (
+                          <Box
+                            component="span"
+                            aria-hidden
+                            sx={{
+                              position: 'absolute',
+                              top: -7,
+                              right: -7,
+                              display: 'flex',
+                              borderRadius: '50%',
+                              bgcolor: 'var(--bg-body, #fff)',
+                              color: isHidden ? ACCENT.blue.main : 'var(--text-muted, #999)',
+                              '& svg': { fontSize: 17 },
+                            }}
+                          >
+                            {isHidden ? <AddCircleRoundedIcon /> : <RemoveCircleRoundedIcon />}
+                          </Box>
+                        )}
                       </Box>
                       <Typography component="span" sx={{ fontSize: 11.5, fontWeight: current ? 700 : 500, whiteSpace: 'nowrap' }}>
                         {it.label}

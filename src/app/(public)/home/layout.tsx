@@ -16,7 +16,8 @@ import Tooltip from '@mui/material/Tooltip';
 import Divider from '@mui/material/Divider';
 import Button from '@mui/material/Button';
 import { HomeSettingsDrawer } from '@/components/home/HomeSettingsDrawer';
-import { MyHomePage } from '@/components/home/MyHomePage';
+import { MyHomePage, ME_DRAWER_TITLES } from '@/components/home/MyHomePage';
+import DetailHeader from '@/components/detail/DetailHeader';
 import SearchIcon from '@mui/icons-material/Search';
 import DiamondIcon from '@mui/icons-material/Diamond';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
@@ -77,6 +78,12 @@ const SIDE_NAV: { key: string; label: string; path?: string; icon: React.ReactNo
   { key: 'drama', label: '短剧', path: '/home/recommend?tab=drama', icon: <TheatersRoundedIcon sx={{ fontSize: 18 }} />, accent: 'secondary.main' },
 ];
 
+/**
+ * 手机上只从侧边栏进的首页面板(直播/放映厅/短剧/意境/AI)。它们打开时是一个单独的页面:
+ * 顶上「← 标题」,没有首页页签和底部导航 —— 和诗词、壁纸一样。以前是在顶栏页签后面临时多出一个页签。
+ */
+const MOBILE_SUB_TABS = new Set(['live', 'theater', 'drama', 'topic', 'ai']);
+
 export default function HomeLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -98,6 +105,21 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
 
   // 响应式 Hook(< md 用底部导航,>= md 用侧栏;同一条线,见 useResponsive)
   const { isMobile } = useResponsive();
+
+  // 手机上的单独子页(侧边栏进的面板 / 「我的」里的观看历史等):有标题就出返回栏、收起底部导航
+  const mainTabParam = searchParams.get('mainTab') || '';
+  const mobileSubTitle = !isMobile
+    ? null
+    : activeNav === 'me'
+      ? ME_DRAWER_TITLES[mainTabParam] ?? null
+      : MOBILE_SUB_TABS.has(activeNav)
+        ? SIDE_NAV.find((n) => n.key === activeNav)?.label ?? null
+        : null;
+  const handleSubBack = useCallback(() => {
+    // 直接从外部链接/冷启动进来的没有上一页,回到对应的一级页
+    if (window.history.length > 1) router.back();
+    else router.replace(activeNav === 'me' ? '/home/recommend?tab=me' : '/home/recommend');
+  }, [router, activeNav]);
 
   // 同步 URL ?tab= → activeNav,这样从详情页返回时保留 tab
   useEffect(() => {
@@ -180,6 +202,8 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
         activeNav={activeNav}
         onNavChange={handleNavChange}
         onOpenSettings={() => setMeOpen(true)}
+        subTitle={mobileSubTitle}
+        onSubBack={handleSubBack}
       />
       <Box sx={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
         <LeftSidebar
@@ -225,7 +249,7 @@ export default function HomeLayout({ children }: { children: React.ReactNode }) 
         {activeNav === 'home' && !isMobile && <RightSidebar section={urlSection || 'recommend'} />}
       </Box>
       {/* 底部导航栏（移动端） */}
-      <MobileBottomNav active={activeNav === 'me' ? 'me' : 'home'} />
+      {!mobileSubTitle && <MobileBottomNav active={activeNav === 'me' ? 'me' : 'home'} />}
       {/* 首屏引导:冷启动 800ms 后弹出,完成 / 跳过 / 7 天后再弹,见 lib/onboardingPrefs */}
       <FirstRunGuide />
     </Box>
@@ -240,6 +264,8 @@ function TopBar({
   activeNav,
   onNavChange,
   onOpenSettings,
+  subTitle,
+  onSubBack,
 }: {
   searchDraft: string;
   setSearchDraft: (v: string) => void;
@@ -248,12 +274,23 @@ function TopBar({
   activeNav: string;
   onNavChange: (key: string) => void;
   onOpenSettings: () => void;
+  subTitle: string | null;
+  onSubBack: () => void;
 }) {
   const { currentUser } = useApp();
   const router = useRouter();
   const headerRef = useRef<HTMLDivElement | null>(null);
   // 实际高度(含刘海安全区)写进 --topbar-h,面板内的 sticky 子栏按它对齐
   useTopbarHeight(headerRef);
+
+  // 手机上的单独子页:和诗词页一样的「← 标题」返回栏
+  if (isMobile && subTitle) {
+    return (
+      <Box ref={headerRef} component="header" sx={{ flexShrink: 0 }}>
+        <DetailHeader title={subTitle} onBack={onSubBack} />
+      </Box>
+    );
+  }
 
   // 手机上「我的」不要顶栏(标题 + ≡ + 搜索):侧边栏只在首页有,「我的」自己的头像卡就在最上面。只留安全区。
   if (isMobile && activeNav === 'me') {
@@ -504,7 +541,7 @@ function TopBar({
   );
 }
 
-// 手机顶栏上的首页页签。从侧边栏进了直播/短剧等,那一项临时排在后面并高亮,知道自己在哪。
+// 手机顶栏上的首页页签。侧边栏进的直播/短剧等是单独子页(MOBILE_SUB_TABS),不再临时加进这里。
 const MOBILE_HOME_TABS = [
   { key: 'home', label: '精选' },
   { key: 'recommend', label: '推荐' },
@@ -513,10 +550,7 @@ const MOBILE_HOME_TABS = [
 ];
 
 function MobileHomeTabs({ activeNav, onNavChange }: { activeNav: string; onNavChange: (key: string) => void }) {
-  const extra = MOBILE_HOME_TABS.some((t) => t.key === activeNav)
-    ? null
-    : SIDE_NAV.find((n) => n.key === activeNav && n.path?.includes('?tab=') && n.key !== 'me');
-  const tabs = extra ? [...MOBILE_HOME_TABS, { key: extra.key, label: extra.label }] : MOBILE_HOME_TABS;
+  const tabs = MOBILE_HOME_TABS;
   if (activeNav === 'me') {
     return (
       <Typography sx={{ flex: 1, textAlign: 'center', fontSize: 16, fontWeight: 700, color: 'var(--text-primary, currentColor)' }}>我的</Typography>

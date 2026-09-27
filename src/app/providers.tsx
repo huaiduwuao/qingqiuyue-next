@@ -12,6 +12,7 @@ import DeepLinkBridge from '@/components/client/DeepLinkBridge';
 import AppUpdater from '@/components/client/AppUpdater';
 import ClientPlatformAttr from '@/components/client/ClientPlatformAttr';
 import NativeTransitions from '@/components/client/NativeTransitions';
+import BackKeyBridge from '@/components/client/BackKeyBridge';
 import NavProgress from '@/components/client/NavProgress';
 import ClickSpark from '@/components/reactbits/ClickSpark';
 import GlobalPlayers from '@/components/player/GlobalPlayers';
@@ -106,6 +107,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
               <Suspense fallback={null}>
                 <NativeTransitions />
               </Suspense>
+              {/* 安卓返回键先问页面:关弹窗 / 一级页提示再按一次退出 / 后退 */}
+              <BackKeyBridge />
               {/* 点下去反应慢(换页 / 提交)时的顶部进度条和遮罩 */}
               <NavProgress />
               <ClickSpark sparkColor="var(--brand-color, #FE2C55)">

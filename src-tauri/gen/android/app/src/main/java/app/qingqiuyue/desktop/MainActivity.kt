@@ -29,22 +29,28 @@ class MainActivity : TauriActivity() {
 
     // 返回键 / 返回手势。Tauri 的 AppPlugin 在 super.onCreate 里注册了自己的回调:能后退就后退,
     // 退到头直接 finish() —— 一按就把应用关了,下次打开要整页冷启动重新加载。
-    // 这里后注册、优先级更高:页面还能后退就后退;退到头先提示「再按一次退出」,
-    // 两秒内再按才退到后台(moveTaskToBack,不销毁),再打开是秒开,和原生应用一样。
+    // 这里后注册、优先级更高,先问页面(components/client/BackKeyBridge 的 window.__qqBack):
+    // - handled:页面自己关掉了抽屉/弹窗
+    // - root:在一级页面(底部导航露着)→ 提示「再按一次退出」,两秒内再按才退到后台
+    //   (moveTaskToBack,不销毁,再打开是秒开)
+    // - 其它:能后退就后退,退到头同样提示退出
+    // 以前只看 canGoBack():单页应用切过页签、看过详情,历史栈一直有东西,首页上按返回只会一层层往回退,
+    // 永远走不到「再按一次退出」。
     onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
       override fun handleOnBackPressed() {
         val wv = webView
-        if (wv != null && wv.canGoBack()) {
-          wv.goBack()
+        if (wv == null) {
+          exitOnSecondPress()
           return
         }
-        val now = SystemClock.elapsedRealtime()
-        if (now - lastBackAt < 2000) {
-          lastBackAt = 0L
-          moveTaskToBack(true)
-        } else {
-          lastBackAt = now
-          Toast.makeText(this@MainActivity, "再按一次退出清秋月", Toast.LENGTH_SHORT).show()
+        wv.evaluateJavascript(
+          "(function(){try{return window.__qqBack?window.__qqBack():''}catch(e){return ''}})()",
+        ) { result ->
+          when (result?.trim('"')) {
+            "handled" -> {}
+            "root" -> exitOnSecondPress()
+            else -> if (wv.canGoBack()) wv.goBack() else exitOnSecondPress()
+          }
         }
       }
     })
@@ -91,6 +97,17 @@ class MainActivity : TauriActivity() {
   override fun onResume() {
     super.onResume()
     findViewById<View>(android.R.id.content)?.requestApplyInsets()
+  }
+
+  private fun exitOnSecondPress() {
+    val now = SystemClock.elapsedRealtime()
+    if (now - lastBackAt < 2000) {
+      lastBackAt = 0L
+      moveTaskToBack(true)
+    } else {
+      lastBackAt = now
+      Toast.makeText(this, "再按一次退出清秋月", Toast.LENGTH_SHORT).show()
+    }
   }
 
   private fun findWebView(view: View): WebView? {
