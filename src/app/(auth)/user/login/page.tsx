@@ -23,6 +23,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { consumeRedirect, rememberRedirect, safeRedirectPath, DEFAULT_AFTER_LOGIN } from '@/lib/auth/redirect';
 import { inWechatBrowser, startWechatLoginInBrowser, wechatLoginUrl } from '@/lib/clientAuth';
 import { createOauthState } from '@/lib/auth/oauthState';
+import { canWechatAppLogin, wechatAppLogin, WechatAppCancelled } from '@/lib/auth/wechatApp';
 import { PasswordLoginForm } from './_components/PasswordLoginForm';
 import { SmsLoginForm } from './_components/SmsLoginForm';
 import { RegisterForm } from './_components/RegisterForm';
@@ -68,10 +69,29 @@ export default function LoginPage() {
   const inWechat = inWechatBrowser();
   // 微信里 + 后台配好了服务号:走服务号网页授权,点一下「允许」就登录,不用扫码
   const viaMp = inWechat && !!options.wechatMp;
+  // 安卓客户端 + 后台配好了移动应用 + 装了微信:跳微信点「同意」直接回来,不用扫码
+  const viaApp = !!options.wechatApp && canWechatAppLogin();
+  const [appBusy, setAppBusy] = useState(false);
+  const [wxError, setWxError] = useState<string | null>(null);
   const onWechatClick = () => {
     const touch = typeof window !== 'undefined' && window.matchMedia?.('(hover: none) and (pointer: coarse)').matches;
-    if (touch && !viaMp) setWechatTipOpen(true);
+    if (viaApp) void loginWithWechatApp();
+    else if (touch && !viaMp) setWechatTipOpen(true);
     else void loginWithWechat();
+  };
+
+  const loginWithWechatApp = async () => {
+    const target = safeRedirectPath(new URLSearchParams(window.location.search).get('redirect')) ?? DEFAULT_AFTER_LOGIN;
+    rememberRedirect(target);
+    setAppBusy(true);
+    setWxError(null);
+    try {
+      await login(await wechatAppLogin(target));
+    } catch (e) {
+      if (!(e instanceof WechatAppCancelled)) setWxError(e instanceof Error ? e.message : '微信登录失败,请重试');
+    } finally {
+      setAppBusy(false);
+    }
   };
 
   const loginWithWechat = async () => {
@@ -185,10 +205,16 @@ export default function LoginPage() {
                 fullWidth
                 variant="outlined"
                 onClick={onWechatClick}
+                disabled={appBusy}
                 sx={{ textTransform: 'none', borderColor: '#07C160', color: '#07C160', borderRadius: 2 }}
               >
-                微信登录
+                {appBusy ? '等待微信授权…' : '微信登录'}
               </Button>
+              {wxError && (
+                <Alert severity="error" sx={{ mt: 1 }} onClose={() => setWxError(null)}>
+                  {wxError}
+                </Alert>
+              )}
             </>
           )}
         </Box>

@@ -86,6 +86,8 @@ class MainActivity : TauriActivity() {
   override fun onWebViewCreate(webView: WebView) {
     super.onWebViewCreate(webView)
     this.webView = webView
+    // 微信 App SDK 登录的 JS 接口(window.QQNative),必须在页面加载前挂上
+    WechatLogin.attach(webView)
     val settings = webView.settings
     settings.userAgentString = settings.userAgentString.replace(" Mobile", "")
     settings.mediaPlaybackRequiresUserGesture = false

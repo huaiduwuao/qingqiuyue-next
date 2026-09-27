@@ -2,6 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Android 11+ 包可见性:不声明就查不到有没有装微信(isWXAppInstalled 恒为 false),也拉不起微信授权 -->
+    <queries>
+        <package android:name="com.tencent.mm" />
+    </queries>
+
     <!-- AndroidTV support:leanback 可选 + 不强制触屏,否则 Google Play 不会把应用分发给电视 -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
@@ -33,6 +38,16 @@
                 <data android:scheme="qingqiuyue" />
             </intent-filter>
         </activity>
+
+        <!-- 微信 SDK 授权回调:类名固定为 <applicationId>.wxapi.WXEntryActivity,由微信拉起所以要 exported。
+             透明、不进最近任务,处理完立刻 finish,人回到 MainActivity。 -->
+        <activity
+            android:name=".wxapi.WXEntryActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:taskAffinity="app.qingqiuyue.desktop"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <provider
           android:name="androidx.core.content.FileProvider"

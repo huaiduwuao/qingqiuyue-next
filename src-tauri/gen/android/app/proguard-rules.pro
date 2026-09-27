@@ -5,6 +5,15 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
+# 微信 SDK(release 开了混淆,不 keep 会在运行时找不到类)
+-keep class com.tencent.mm.opensdk.** { *; }
+-keep class com.tencent.wxop.** { *; }
+-keep class com.tencent.mm.sdk.** { *; }
+# 页面经 window.QQNative 调的方法(WechatLogin.Bridge),名字被混淆掉 JS 就调不到了
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+
 # If your project uses WebView with JS, uncomment the following
 # and specify the fully qualified class name to the JavaScript interface
 # class:
