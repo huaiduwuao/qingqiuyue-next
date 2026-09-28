@@ -141,6 +141,10 @@ html[data-shell-fixed] body {
   padding-top: var(--sat, 0px);
   padding-bottom: var(--sab, 0px);
 }
+/* 标题里 absolute 定位的 ×(top: 8)原本相对整张 Paper,让出状态栏后会留在状态栏里:改成相对标题栏 */
+.MuiDialog-paperFullScreen > .MuiDialogTitle-root {
+  position: relative;
+}
 @media (prefers-reduced-motion: no-preference) {
   :is(html[data-client], html[data-touch]) .MuiDialog-paperFullScreen {
     animation: qq-sheet-up 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
