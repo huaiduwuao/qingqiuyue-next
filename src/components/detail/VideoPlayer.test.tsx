@@ -77,3 +77,26 @@ describe('VideoPlayer · 全屏退路', () => {
     expect(container.contains(v)).toBe(true);
   });
 });
+
+describe('VideoPlayer · 自动播放补播', () => {
+  it('play() 因流还没挂上被拒(AcFun 的 HLS),canplay 时再补一次;播起来之后不再补', async () => {
+    resolveStream.mockResolvedValue({ kind: 'progressive', provider: 'acfun', duration: 60, urls: [MP4], mediaHeaders: {}, source: 'server' });
+    const play = vi.fn()
+      .mockRejectedValueOnce(Object.assign(new Error('interrupted'), { name: 'AbortError' }))
+      .mockResolvedValue(undefined);
+    Object.defineProperty(HTMLMediaElement.prototype, 'play', { configurable: true, value: play });
+    const { container } = render(<VideoPlayer sourceUrl={PAGE} autoPlay />);
+    await waitFor(() => expect(play).toHaveBeenCalled());
+    const v = container.querySelector('video')!;
+    const calls = play.mock.calls.length;
+    await act(async () => {
+      v.dispatchEvent(new Event('canplay'));
+    });
+    expect(play.mock.calls.length).toBe(calls + 1);
+    await act(async () => {
+      v.dispatchEvent(new Event('playing'));
+      v.dispatchEvent(new Event('canplay'));
+    });
+    expect(play.mock.calls.length).toBe(calls + 1);
+  });
+});

@@ -90,7 +90,7 @@ const RECOVER_RESET_MS = 30_000;
 const PREEMPT_EXPIRY_MS = 60_000;
 
 /** 生命周期 effect 里挂到 <video> 上的事件 */
-const VIDEO_EVENTS = ['timeupdate', 'loadedmetadata', 'play', 'pause', 'ended', 'error', 'volumechange', 'enterpictureinpicture', 'leavepictureinpicture', 'webkitpresentationmodechanged'];
+const VIDEO_EVENTS = ['timeupdate', 'loadedmetadata', 'canplay', 'playing', 'play', 'pause', 'ended', 'error', 'volumechange', 'enterpictureinpicture', 'leavepictureinpicture', 'webkitpresentationmodechanged'];
 
 function fmt(s: number) {
   if (!isFinite(s) || s < 0) return '0:00';
@@ -206,6 +206,8 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
   // 直链失效恢复:重新解析后从断点、按原播放状态接着播
   const reparseUrl = sourceUrl || refreshSource || '';
   const recoverAttempts = useRef(0);
+  /** 想自动播放、但还没真正播起来(见 autoStart) */
+  const wantAutoPlay = useRef(false);
   const lastRecoverAt = useRef(0);
   const resumeAt = useRef(0);
   const resumePlaying = useRef(false);
@@ -345,8 +347,16 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
    * 被拒时改成静音开播,再给一个开声音的入口。
    */
   const autoStart = (v: HTMLVideoElement) => {
+    // 记下「要自动播放」:地址还没挂上 / 正在换源时 play() 会以 AbortError / NotSupportedError 失败
+    // (AcFun 的 HLS 要先异步加载 hls.js 才挂得上流,play() 早就被拒了),等 canplay 再补一次。
+    // 真正开始播放、或用户自己暂停后清掉,之后缓冲完的 canplay 不会把用户的暂停又顶掉。
+    wantAutoPlay.current = true;
+    tryAutoPlay(v);
+  };
+  const tryAutoPlay = (v: HTMLVideoElement) => {
     v.play().catch((e) => {
-      if (e?.name !== 'NotAllowedError' || v.muted || videoRef.current !== v) return;
+      if (videoRef.current !== v) return;
+      if (e?.name !== 'NotAllowedError' || v.muted) return;
       v.muted = true;
       setAutoMuted(true);
       v.play().catch(() => {});
@@ -537,7 +547,8 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
 
   // 自动播放
   useEffect(() => {
-    if (autoPlay && videoRef.current && src) autoStart(videoRef.current);
+    if (autoPlay && videoRef.current && (src || localSource)) autoStart(videoRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoPlay, src]);
 
   const togglePlay = () => {
@@ -553,6 +564,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
         setPlaying(false);
       });
     } else {
+      wantAutoPlay.current = false;
       v.pause();
       setPlaying(false);
     }
@@ -702,6 +714,13 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     handlers.current = {
       timeupdate: handleTimeUpdate,
       loadedmetadata: handleLoaded,
+      canplay: () => {
+        const v = videoRef.current;
+        if (v && wantAutoPlay.current && v.paused) tryAutoPlay(v);
+      },
+      playing: () => {
+        wantAutoPlay.current = false;
+      },
       play: () => {
         setPlaying(true);
         if (dockTitle && videoRef.current) claimMediaSession(videoRef.current, dockTitle, posterUrl);

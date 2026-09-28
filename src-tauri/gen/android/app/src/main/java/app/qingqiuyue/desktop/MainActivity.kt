@@ -23,37 +23,48 @@ class MainActivity : TauriActivity() {
   private var webView: WebView? = null
   private var lastBackAt = 0L
 
+  /**
+   * 返回键 / 返回手势。OnBackPressedDispatcher 里最后注册的回调最先执行;Tauri 的 AppPlugin 自己也注册了一个
+   * (能后退就后退,退到头直接 finish()),而且它是在 WebView 建好、插件加载时才注册的 —— 比我们在 onCreate 里
+   * 注册得晚,于是它先接到返回、我们的「再按一次退出」根本轮不到(2026-09-28 用户反馈没有两次返回退出)。
+   * 所以在 onCreate、WebView 建好之后、每次回到前台都重新挂一次,保证我们的永远在最上面。
+   */
+  private val backCallback = object : OnBackPressedCallback(true) {
+    override fun handleOnBackPressed() {
+      val wv = webView
+      if (wv == null) {
+        exitOnSecondPress()
+        return
+      }
+      wv.evaluateJavascript(
+        "(function(){try{return window.__qqBack?window.__qqBack():''}catch(e){return ''}})()",
+      ) { result ->
+        when (result?.trim('"')) {
+          "handled" -> {}
+          "root" -> exitOnSecondPress()
+          else -> if (wv.canGoBack()) wv.goBack() else exitOnSecondPress()
+        }
+      }
+    }
+  }
+
+  private fun registerBackCallback() {
+    backCallback.remove()
+    onBackPressedDispatcher.addCallback(this, backCallback)
+  }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
 
-    // 返回键 / 返回手势。Tauri 的 AppPlugin 在 super.onCreate 里注册了自己的回调:能后退就后退,
-    // 退到头直接 finish() —— 一按就把应用关了,下次打开要整页冷启动重新加载。
-    // 这里后注册、优先级更高,先问页面(components/client/BackKeyBridge 的 window.__qqBack):
+    // 返回键 / 返回手势(见 backCallback),先问页面(components/client/BackKeyBridge 的 window.__qqBack):
     // - handled:页面自己关掉了抽屉/弹窗
     // - root:在一级页面(底部导航露着)→ 提示「再按一次退出」,两秒内再按才退到后台
     //   (moveTaskToBack,不销毁,再打开是秒开)
     // - 其它:能后退就后退,退到头同样提示退出
     // 以前只看 canGoBack():单页应用切过页签、看过详情,历史栈一直有东西,首页上按返回只会一层层往回退,
     // 永远走不到「再按一次退出」。
-    onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-      override fun handleOnBackPressed() {
-        val wv = webView
-        if (wv == null) {
-          exitOnSecondPress()
-          return
-        }
-        wv.evaluateJavascript(
-          "(function(){try{return window.__qqBack?window.__qqBack():''}catch(e){return ''}})()",
-        ) { result ->
-          when (result?.trim('"')) {
-            "handled" -> {}
-            "root" -> exitOnSecondPress()
-            else -> if (wv.canGoBack()) wv.goBack() else exitOnSecondPress()
-          }
-        }
-      }
-    })
+    registerBackCallback()
 
     val content = findViewById<View>(android.R.id.content)
     ViewCompat.setOnApplyWindowInsetsListener(content) { view, insets ->
@@ -94,12 +105,16 @@ class MainActivity : TauriActivity() {
     settings.userAgentString = settings.userAgentString.replace(" Mobile", "")
     settings.mediaPlaybackRequiresUserGesture = false
     settings.offscreenPreRaster = true
+    // Tauri 的插件(含 AppPlugin 的返回回调)在 WebView 建好之后才加载,等它们挂完再把我们的挪到最上面
+    webView.post { registerBackCallback() }
+    webView.postDelayed({ registerBackCallback() }, 1500)
   }
 
   // WebView 是 Tauri 在 onCreate 之后才挂上来的,而且页面整体重载会清掉上面注入的变量。
   // 每次回到前台重新请求一遍 inset,借 listener 再注入一次。
   override fun onResume() {
     super.onResume()
+    registerBackCallback()
     findViewById<View>(android.R.id.content)?.requestApplyInsets()
   }
 
