@@ -113,7 +113,7 @@ export function useWorldGame(opts: UseWorldGameOptions) {
       const lv = levelOf(step.state.xp);
       toast('⬆️', `升到 ${lv.level} 级 · ${lv.title}`, 'level');
       h?.floatText(`Lv.${lv.level}!`, '#ffc93d');
-      h?.setAction('cheer');
+      h?.setAction('clap');
       flashEmotion('happy');
       optsRef.current.celebrate();
     } else if (step.completed.length) {
@@ -178,7 +178,7 @@ export function useWorldGame(opts: UseWorldGameOptions) {
     switch (e.type) {
       case 'orb':
         record({ kind: 'orb', golden: e.golden });
-        if (e.golden) { h?.setAction('cheer'); flashEmotion('happy', 1500); }
+        if (e.golden) flashEmotion('happy', 1500); // 只笑一下:边走边举双臂欢呼很别扭
         break;
       case 'zone': {
         const prev = zoneRef.current;

@@ -460,6 +460,8 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         if (cancelled) return;
         vrmDataRef.current = cached;
         vrmRef.current = cached.vrm;
+        // 开发时方便在控制台 / 测试页里量骨骼(线上不挂)
+        if (process.env.NODE_ENV !== 'production') (window as unknown as { __vrm?: unknown }).__vrm = cached.vrm;
         vrmSceneRef.current = cached.scene;
         expressionManagerRef.current = cached.expressionManager;
         // 检测 VRM 版本 + 列出可用的 expression（调试用）

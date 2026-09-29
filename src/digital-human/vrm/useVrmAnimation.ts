@@ -228,10 +228,13 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
   }
 
   /**
-   * 程序化步态(规范化骨骼,VRM0/1 一致):
-   *   - 腿:大腿前后摆,摆动相膝盖弯、支撑相伸直;脚掌跟着翻;
-   *   - 手臂:大臂绕 X 前后摆(和对侧腿同相),肘微屈、跑步时屈得多;
-   *   - 躯干:胯和胸反向扭转、胯左右落差、跑步前倾;头反向稳住,视线不晃。
+   * 程序化步态。three-vrm 的规范化骨骼里各轴的正方向(模型面朝 +Z,左手在 +X),逐项推过:
+   *   - 大腿 / 大臂(垂下之后)绕 X 转正值 → 往后摆;负值 → 往前;
+   *   - 小腿绕 X 正值 → 屈膝;脚绕 X 正值 → 脚尖往下;
+   *   - 小臂:左臂绕 Y 负值、右臂绕 Y 正值 → 屈肘向前(绕 X 是拧小臂,不是弯);
+   *   - 胯绕 Y 负值 → 左胯往前;胸绕 Y 正值 → 右肩往前;脊柱绕 X 正值 → 前倾。
+   * 左腿往前时:左臂往后、右臂往前(对侧同相),胯跟着左腿扭、胸往反方向扭,头再往回收一点让视线稳住;
+   * 双腿分开最大时身体最低、两腿交错时最高;摆动腿那侧胯微微下沉。
    * weight 是淡入淡出的混合量(在 idle / pose 已经写进骨骼之后叠上去)。
    */
   const gaitRef = useRef({ blend: 0, run: 0 });
@@ -239,44 +242,85 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
   function applyGait(phase: number, weight: number, run: number, t: number, H: (n: string) => any) {
     // 叠加偏移:有的骨骼每帧会被 idle / pose 重写,有的不会(比如小臂、脖子)。
     // 记下上一帧写进去的值:没被别人改过就从上一帧的底子上叠,改过就以新值为底子 —— 不会越叠越歪。
-    const add = (bone: string, x: number, y: number, z: number) => {
-      const o = H(bone);
-      if (!o?.rotation) return;
-      let rec = gaitBase.get(bone);
-      const r = o.rotation;
-      if (!rec || Math.abs(r.x - rec.wx) > 1e-6 || Math.abs(r.y - rec.wy) > 1e-6 || Math.abs(r.z - rec.wz) > 1e-6) {
-        rec = { bx: r.x, by: r.y, bz: r.z, wx: 0, wy: 0, wz: 0 };
-        gaitBase.set(bone, rec);
+    const layer = (key: string, v: { x: number; y: number; z: number } | undefined, x: number, y: number, z: number) => {
+      if (!v) return;
+      let rec = gaitBase.get(key);
+      if (!rec || Math.abs(v.x - rec.wx) > 1e-6 || Math.abs(v.y - rec.wy) > 1e-6 || Math.abs(v.z - rec.wz) > 1e-6) {
+        rec = { bx: v.x, by: v.y, bz: v.z, wx: 0, wy: 0, wz: 0 };
+        gaitBase.set(key, rec);
       }
-      r.x = rec.bx + x * weight; r.y = rec.by + y * weight; r.z = rec.bz + z * weight;
-      rec.wx = r.x; rec.wy = r.y; rec.wz = r.z;
+      v.x = rec.bx + x * weight; v.y = rec.by + y * weight; v.z = rec.bz + z * weight;
+      rec.wx = v.x; rec.wy = v.y; rec.wz = v.z;
     };
+    const add = (bone: string, x: number, y: number, z: number) => layer(bone, H(bone)?.rotation, x, y, z);
     const s = Math.sin(phase), c = Math.cos(phase);
-    const legAmp = 0.5 + run * 0.35;
-    // 腿(左腿 = +s 向前)
-    const lSwing = s * legAmp, rSwing = -s * legAmp;
-    // 摆动相(腿往前走的那半个周期)膝盖弯
-    const lKnee = Math.max(0, c) * (0.55 + run * 0.55) + 0.08;
-    const rKnee = Math.max(0, -c) * (0.55 + run * 0.55) + 0.08;
-    add('leftUpperLeg', -lSwing, 0, 0);
-    add('rightUpperLeg', -rSwing, 0, 0);
+    const walk = 1 - run;
+
+    // ── 腿:左腿 = -s 往前(s>0 时左腿在前) ──
+    const legAmp = 0.42 * walk + 0.72 * run;
+    const lLeg = -s * legAmp, rLeg = s * legAmp; // 绕 X,负 = 往前
+    // 摆动相(腿正往前送的半个周期)才屈膝;支撑相几乎伸直,只留一点缓冲
+    const lSwingPhase = Math.max(0, c), rSwingPhase = Math.max(0, -c);
+    const kneeAmp = 0.7 * walk + 1.35 * run;
+    const lKnee = lSwingPhase * kneeAmp + 0.06 + Math.max(0, s) * 0.05;
+    const rKnee = rSwingPhase * kneeAmp + 0.06 + Math.max(0, -s) * 0.05;
+    add('leftUpperLeg', lLeg - lSwingPhase * 0.12 * run, 0, 0);
+    add('rightUpperLeg', rLeg - rSwingPhase * 0.12 * run, 0, 0);
     add('leftLowerLeg', lKnee, 0, 0);
     add('rightLowerLeg', rKnee, 0, 0);
-    add('leftFoot', -lKnee * 0.35 + lSwing * 0.2, 0, 0);
-    add('rightFoot', -rKnee * 0.35 + rSwing * 0.2, 0, 0);
-    // 手臂:和对侧腿同相;垂下的角度保持原来的(z 用 idle 写好的值),只加前后摆
-    const armAmp = 0.35 + run * 0.35;
-    add('leftUpperArm', s * armAmp * -1, 0, 0);
-    add('rightUpperArm', -s * armAmp * -1, 0, 0);
-    add('leftLowerArm', 0, -(0.25 + run * 0.9) - Math.max(0, -s) * 0.2, 0);
-    add('rightLowerArm', 0, (0.25 + run * 0.9) + Math.max(0, s) * 0.2, 0);
-    // 躯干:胯扭 + 胸反扭 + 左右落差 + 跑步前倾;头稳住
-    add('hips', 0, s * 0.12, c * 0.035);
-    add('spine', 0.04 + run * 0.14, -s * 0.07, 0);
-    add('chest', 0, -s * 0.08, -c * 0.02);
-    add('neck', 0, s * 0.06, 0);
-    add('head', -(0.02 + run * 0.06), s * 0.04, 0);
+    // 脚:在前的脚跟着地(脚尖抬),在后的脚尖蹬地(脚尖朝下)
+    add('leftFoot', -Math.max(0, s) * 0.25 + Math.max(0, -s) * 0.35 * (0.6 + run) - lSwingPhase * 0.1, 0, 0);
+    add('rightFoot', -Math.max(0, -s) * 0.25 + Math.max(0, s) * 0.35 * (0.6 + run) - rSwingPhase * 0.1, 0, 0);
+
+    // ── 手臂:对侧同相,贴着身体前后摆;往前摆时肘弯得多一点 ──
+    const armAmp = 0.28 * walk + 0.55 * run;
+    add('leftUpperArm', s * armAmp, 0, -0.04 - run * 0.05);   // 左腿在前(s>0)→ 左臂往后
+    add('rightUpperArm', -s * armAmp, 0, 0.04 + run * 0.05);
+    const elbow = 0.22 * walk + 1.25 * run;
+    add('leftLowerArm', 0, -(elbow + Math.max(0, -s) * 0.3), 0);
+    add('rightLowerArm', 0, elbow + Math.max(0, s) * 0.3, 0);
+
+    // ── 躯干 ──
+    add('hips', 0, -s * (0.09 + run * 0.05), -c * 0.035);         // 胯跟腿扭 + 摆动侧下沉
+    add('spine', 0.04 + run * 0.16, s * 0.04, c * 0.02);
+    add('chest', 0.02 * run, s * (0.07 + run * 0.05), c * 0.015);  // 胸反向扭
+    add('neck', 0, -s * 0.04, 0);
+    add('head', -(0.02 + run * 0.08), -s * 0.03, -c * 0.015);      // 头往回收,视线稳住
+
+    // ── 起伏:双腿分开最大时最低,交错时最高(跑步反过来,腾空时最高) ──
+    const hips = H('hips');
+    if (hips?.position) {
+      const bob = walk * (-Math.abs(s) * 0.022 + 0.008) + run * (Math.abs(c) * 0.035 - 0.012);
+      layer('hips.pos', hips.position, 0, bob, 0);
+    }
     void t;
+  }
+
+
+  function applyRestFix(t: number, H: (n: string) => any) {
+    const breath = Math.sin(t * 1.3);
+    // 同步态一样按「上一帧写的值」判断底子,不被每帧重置的骨骼(手)也不会越叠越歪
+    const set = (bone: string, x: number, y: number, z: number) => {
+      const v = H(bone)?.rotation;
+      if (!v) return;
+      const key = 'rest:' + bone;
+      let rec = gaitBase.get(key);
+      if (!rec || Math.abs(v.x - rec.wx) > 1e-6 || Math.abs(v.y - rec.wy) > 1e-6 || Math.abs(v.z - rec.wz) > 1e-6) {
+        rec = { bx: v.x, by: v.y, bz: v.z, wx: 0, wy: 0, wz: 0 };
+        gaitBase.set(key, rec);
+      }
+      v.x = rec.bx + x; v.y = rec.by + y; v.z = rec.bz + z;
+      rec.wx = v.x; rec.wy = v.y; rec.wz = v.z;
+    };
+    // 大臂:再往身体收一点(左 z 更负、右 z 更正),呼吸时肩臂微微前后
+    set('leftUpperArm', breath * 0.015, 0, -0.1);
+    set('rightUpperArm', breath * 0.015, 0, 0.1);
+    // 小臂:把配置里的拧(x=0.3)抵掉,改成向前微屈
+    set('leftLowerArm', -0.3, -0.22, 0);
+    set('rightLowerArm', -0.3, 0.22, 0);
+    // 手:同样抵掉拧,手指略朝内收
+    set('leftHand', -0.3, 0, 0.12);
+    set('rightHand', -0.3, 0, -0.12);
   }
 
   function tick(elapsed: number, dt: number) {
@@ -298,6 +342,10 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
     if (poseCfg) {
       applyPose(poseCfg, poseBlendRef.current, H);
     }
+
+    // 3.5 站姿修正:配置里的 idle 姿势手臂微微张开、笔直,小臂和手腕是「拧」(绕 X)不是「弯」,
+    //     看着像提线木偶。只在默认站姿下叠一层:手臂收回贴身、取消拧、手肘自然微屈、随呼吸轻晃。
+    if (currentPose === 'idle') applyRestFix(elapsed, H);
 
     // 4. walk 步态:程序化的走 / 跑,淡入淡出(以前按配置公式硬切,手臂左右扇、身子不动,很僵)
     const w = walkRef.current;
