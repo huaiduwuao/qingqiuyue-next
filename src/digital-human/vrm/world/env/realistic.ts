@@ -275,12 +275,13 @@ export function createRealistic(THREE_NS: typeof THREE, renderer: THREE.WebGLRen
   const tmpM = new THREE_NS.Matrix4();
   const camPos = new THREE_NS.Vector3();
   let lastCam: THREE.Camera | null = null;
-  const NEAR = high ? 28 : 0, MID = high ? 90 : 60;
+  // 三维距离(俯视时镜头在高处,水平距离会把整片林子都算成近处)
+  const NEAR = high ? 26 : 0, MID = high ? 60 : 40;
   function rebucket(camera: THREE.Camera | null) {
     if (camera) camera.getWorldPosition(camPos);
     const counts = [0, 0, 0];
     spots.forEach((s, i) => {
-      const d = Math.hypot(s.x - camPos.x, s.z - camPos.z);
+      const d = Math.hypot(s.x - camPos.x, s.y - camPos.y, s.z - camPos.z);
       // 想要的档没加载好就往粗的档退
       let li = d < NEAR ? 0 : d < MID ? 1 : 2;
       while (li < 2 && !levels[li]) li++;
