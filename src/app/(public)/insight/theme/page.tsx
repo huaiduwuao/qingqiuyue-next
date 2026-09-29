@@ -40,6 +40,7 @@ import {
 } from '@/apis/insight';
 import { accentOf, AVAIL_META, EssayCard, Epigraph, InsightCard, StoryCard } from '@/components/insight/InsightCards';
 import { TYPE_LABEL } from '@/lib/contentRoute';
+import { list as fetchJourneys } from '@/apis/journey';
 
 const SERIF = '"Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, serif';
 const PAGE_SIZE = 24;
@@ -407,6 +408,13 @@ function ThemeInner() {
     staleTime: 10 * 60_000,
   });
 
+  const journeys = useQuery({
+    queryKey: ['journey', 'list', key],
+    queryFn: () => fetchJourneys(key),
+    enabled: !!key,
+    staleTime: 10 * 60_000,
+  });
+
   const ov = useQuery({ queryKey: ['insight', 'overview'], queryFn: overview, staleTime: 60 * 60_000 });
   const groups = ov.data?.groups ?? [];
   const group = groups.find((g) => g.themes.some((x) => x.key === key));
@@ -461,6 +469,52 @@ function ThemeInner() {
         </Typography>
         <Epigraph line={t.line} src={t.lineSrc} accent={accent} size={17} />
       </Box>
+
+      {/* 回廊:同一个主题,换一种走进去的方式 */}
+      {(journeys.data?.list ?? []).map((j) => (
+        <Box
+          key={j.key}
+          onClick={() => router.push(`/insight/journey?key=${encodeURIComponent(j.key)}`)}
+          sx={{
+            mb: 4,
+            p: { xs: 2.25, md: 3 },
+            borderRadius: 2.5,
+            cursor: 'pointer',
+            color: '#fff',
+            // 底色是实色混出来的,不用半透明:浅色主题下半透明会透出页面的白底
+            background: `linear-gradient(135deg, #15151b 55%, color-mix(in srgb, ${accent} 40%, #15151b) 100%)`,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 2,
+            transition: 'filter .15s',
+            '&:hover': { filter: 'brightness(1.12)' },
+          }}
+        >
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography sx={{ fontSize: 11, color: accent, letterSpacing: '0.2em', mb: 0.5 }}>
+              回廊{j.minutes ? ` · 约 ${j.minutes} 分钟` : ''} · {j.endings} 个结局
+            </Typography>
+            <Typography sx={{ fontFamily: SERIF, fontSize: { xs: 20, md: 24 }, fontWeight: 700, letterSpacing: '0.1em' }}>
+              {j.title}
+            </Typography>
+            <Typography
+              sx={{
+                fontSize: 13,
+                lineHeight: 1.8,
+                color: 'rgba(255,255,255,0.7)',
+                mt: 0.75,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }}
+            >
+              {j.situation}
+            </Typography>
+          </Box>
+          <Typography sx={{ fontSize: 13, color: '#fff', flexShrink: 0 }}>走进去 ›</Typography>
+        </Box>
+      ))}
 
       {/* 论:编者观点 */}
       {(detail.data?.theme.essay?.length ?? 0) > 0 && (
