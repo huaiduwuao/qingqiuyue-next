@@ -46,6 +46,7 @@ export function toWorldDef(s: PlazaScene): WorldDef {
     group: s.group || undefined,
     stage: s.stage || 'concert',
     palette: { ground: parseColor(s.palette?.ground), path: parseColor(s.palette?.path), accent: parseColor(s.palette?.accent) },
+    env: { time: s.palette?.time || undefined, weather: s.palette?.weather || undefined, grass: typeof s.palette?.grass === 'boolean' ? s.palette.grass : undefined },
     zones: zones.length > 0 ? zones : DEFAULT_WORLD.zones,
   };
 }

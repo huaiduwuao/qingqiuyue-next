@@ -45,6 +45,7 @@ import { makeConfetti, updateConfetti } from './vrm/particles';
 import { createAudioHandle, type AudioHandle } from './vrm/audio';
 import { useVrmWorld, type WorldEvent } from './vrm/world/useVrmWorld';
 import type { WorldPeer } from './vrm/world/buildWorld';
+import type { TimeMode } from './vrm/world/env/timeOfDay';
 import { DEFAULT_WORLD, clampToWorld, type Orb, type WorldCharacter, type WorldDef, type ZoneId } from './vrm/world/worldLayout';
 import { detectVrmVersion, setExpression, setExpressionDict, listAvailableExpressions, getBone } from './vrm/vrmCompat';
 import { lookupAutoExpression } from './vrm/config/types';
@@ -171,6 +172,10 @@ export interface VrmStageProps {
   worldDef?: WorldDef;
   /** 当前场景里的人物 */
   characters?: WorldCharacter[];
+  /** 广场画质:high(湖山天光 + 后期 + 草)/ low(不做后期和草)/ off(只有广场本身) */
+  worldQuality?: 'high' | 'low' | 'off';
+  /** 用户手动选的时辰;null = 场景默认 */
+  worldTime?: TimeMode | null;
 }
 
 const EXPRESSION_PASSTHROUGH = new Set([
@@ -248,6 +253,8 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     world = false,
     worldDef = DEFAULT_WORLD,
     characters,
+    worldQuality = 'high',
+    worldTime = null,
     onWorldEvent,
   } = props;
   const worldOnRef = useRef(world);
@@ -412,12 +419,22 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     preset: sceneApi.preset,
     def: worldDef,
     characters,
+    quality: worldQuality,
+    timeMode: worldTime,
+    renderer: (rendererState as any)?.renderer ?? null,
     getAvatar: () => vrmDataRef.current?.scene ?? null,
     walkTo: (x, z) => handleInternalRef.current?.walkTo(x, z),
     onEvent: (e) => onWorldEventRef.current?.(e),
   });
   const worldApiRef = useRef(worldApi);
   worldApiRef.current = worldApi;
+  // 广场开着时由它接管渲染(有后期就走后期,没有就照常画)
+  useEffect(() => {
+    if (!rendererState) return;
+    rendererApi.setRenderOverride(world ? (r, sc, cam, t) => worldApiRef.current.render(r, sc, cam, t) : null);
+    return () => rendererApi.setRenderOverride(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rendererState, world]);
   /** 角色朝向(绕 Y,0 = 面朝 +Z 即默认机位);走动时转向前进方向,停下一会儿转回来看镜头 */
   const yawRef = useRef(0);
   const idleSinceRef = useRef(0);

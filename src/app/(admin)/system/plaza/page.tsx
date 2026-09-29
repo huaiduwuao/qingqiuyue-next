@@ -45,6 +45,8 @@ const PROPS: Record<string, string> = {
 const FEEDS: Record<string, string> = {
   insight: '人生感悟主题', cinema: '影视推荐', jukebox: '热歌', books: '今日一悟 + 小说', dance: '正在直播', stars: '全网热榜', wish: '许愿墙 + 悬赏', none: '无面板',
 };
+const TIMES: Record<string, string> = { '': '按类型默认', auto: '跟随现在', dawn: '清晨', day: '白天', dusk: '黄昏', night: '夜晚' };
+const WEATHERS: Record<string, string> = { '': '按类型默认', none: '无', petals: '落花', leaves: '落叶', rain: '细雨', snow: '小雪', fireflies: '萤火' };
 const STAGES: Record<string, string> = { concert: '演唱会主舞台', idol: '偶像练习室', garden: '月光花园', neon: '赛博霓虹', studio: '摄影棚白底', lawn: '白天草坪' };
 const WORLD_R = 17;
 const STAGE_CLEAR = 3.2;
@@ -317,6 +319,18 @@ function SceneEditor({ value, groups, characters, onClose, onSaved }: { value: P
               <TextField key={k} size="small" label={{ ground: '地面色', path: '小路色', accent: '强调色' }[k]} placeholder="#RRGGBB" value={v.palette?.[k] ?? ''}
                 onChange={(e) => setV({ ...v, palette: { ...(v.palette ?? {}), [k]: e.target.value } })} />
             ))}
+            <TextField size="small" select label="时辰" value={v.palette?.time ?? ''} onChange={(e) => setV({ ...v, palette: { ...(v.palette ?? {}), time: e.target.value } })}>
+              {Object.entries(TIMES).map(([k, n]) => <MenuItem key={k || 'default'} value={k}>{n}</MenuItem>)}
+            </TextField>
+            <TextField size="small" select label="天气" value={v.palette?.weather ?? ''} onChange={(e) => setV({ ...v, palette: { ...(v.palette ?? {}), weather: e.target.value } })}>
+              {Object.entries(WEATHERS).map(([k, n]) => <MenuItem key={k || 'default'} value={k}>{n}</MenuItem>)}
+            </TextField>
+            <TextField size="small" select label="草地" value={v.palette?.grass === undefined ? '' : v.palette.grass ? 'on' : 'off'}
+              onChange={(e) => { const g = e.target.value; setV({ ...v, palette: { ...(v.palette ?? {}), grass: g === '' ? undefined : g === 'on' } }); }}>
+              <MenuItem value="">按类型默认</MenuItem>
+              <MenuItem value="on">长草</MenuItem>
+              <MenuItem value="off">不长</MenuItem>
+            </TextField>
             <TextField size="small" type="number" label="排序" value={v.sort ?? 0} onChange={(e) => setV({ ...v, sort: Number(e.target.value) })} />
           </Box>
           <Box sx={{ textAlign: 'center' }}>

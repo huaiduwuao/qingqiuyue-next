@@ -12,8 +12,10 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type * as THREE from 'three';
 import { buildWorld, type WorldHandle, type WorldPeer } from './buildWorld';
+import { createEnvironment, type Environment, type Quality } from './env/environment';
+import type { TimeMode, Weather } from './env/timeOfDay';
 import {
-  DEFAULT_WORLD, ORB_POINTS, ORB_RESPAWN_MS, WORLD_ZONES, findZone, orbsInReach, pickOrbSpot, spawnOrbs, zoneApproachPoint, zoneAt,
+  DEFAULT_WORLD, worldEnv, ORB_POINTS, ORB_RESPAWN_MS, WORLD_ZONES, findZone, orbsInReach, pickOrbSpot, spawnOrbs, zoneApproachPoint, zoneAt,
   type Orb, type WorldCharacter, type WorldDef, type ZoneId,
 } from './worldLayout';
 
@@ -38,6 +40,12 @@ export interface UseVrmWorldOptions {
   def?: WorldDef;
   /** 当前场景里的人物 */
   characters?: WorldCharacter[];
+  /** 画质:high = 湖山天光 + 后期 + 草;low = 湖山天光但不做后期和草;off = 不要环境层 */
+  quality?: Quality | 'off';
+  /** 用户手动选的时辰(覆盖场景默认) */
+  timeMode?: TimeMode | null;
+  /** 渲染器(环境层的后期要用) */
+  renderer?: THREE.WebGLRenderer | null;
   /** 角色根节点(点击命中检测用) */
   getAvatar: () => THREE.Object3D | null;
   /** 让角色走到某点(已经过 clampToWorld) */
@@ -61,6 +69,8 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   const defRef = useRef(def);
   defRef.current = def;
   const worldRef = useRef<WorldHandle | null>(null);
+  const envRef = useRef<Environment | null>(null);
+  const quality = opts.quality ?? 'high';
   const orbsRef = useRef<Orb[]>([]);
   const respawnRef = useRef<number[]>([]);
   const nextOrbIdRef = useRef(1000);
@@ -75,9 +85,24 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   useEffect(() => {
     if (!enabled || !THREE_NS || !scene) return;
     const d = defRef.current;
-    const w = buildWorld(THREE_NS, cbRef.current.preset, d);
+    const renderer = cbRef.current.renderer;
+    const withEnv = quality !== 'off' && !!renderer;
+    const w = buildWorld(THREE_NS, cbRef.current.preset, d, { island: withEnv });
     scene.add(w.group);
     worldRef.current = w;
+    let env: Environment | null = null;
+    if (withEnv && renderer) {
+      const e = worldEnv(d);
+      env = createEnvironment(THREE_NS, renderer, scene, {
+        quality: quality as Quality,
+        timeMode: (cbRef.current.timeMode ?? e.time) as TimeMode,
+        weather: e.weather as Weather,
+        grass: e.grass,
+        zones: d.zones,
+      });
+      scene.add(env.group);
+      envRef.current = env;
+    }
     orbsRef.current = spawnOrbs((Date.now() / 1000) | 0, undefined, d);
     respawnRef.current = [];
     w.setOrbs(orbsRef.current);
@@ -87,12 +112,20 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
       scene.remove(w.group);
       w.dispose();
       worldRef.current = null;
+      if (env) { scene.remove(env.group); env.dispose(); envRef.current = null; }
       if (zoneRef.current) { zoneRef.current = null; cbRef.current.onEvent?.({ type: 'zone', zone: null }); }
       if (nearRef.current) { nearRef.current = null; cbRef.current.onEvent?.({ type: 'nearCharacter', id: null }); }
     };
   // 地标内容的改动(后台改了坐标)也要重建:key + 地标签名
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, THREE_NS, scene, def.key, JSON.stringify(def.zones.map((z) => [z.id, z.x, z.z, z.prop, z.color]))]);
+  }, [enabled, THREE_NS, scene, def.key, quality, JSON.stringify(def.zones.map((z) => [z.id, z.x, z.z, z.prop, z.color])), JSON.stringify(def.env ?? {})]);
+
+  // 用户手动换时辰:只动环境层,不重建
+  useEffect(() => {
+    const env = envRef.current;
+    if (!env) return;
+    env.setTimeMode((opts.timeMode ?? worldEnv(defRef.current).time) as TimeMode);
+  }, [opts.timeMode]);
 
   useEffect(() => { worldRef.current?.setTheme(preset); }, [preset]);
 
@@ -217,7 +250,20 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
     }
 
     w.tick(t, dt, camera);
+    const env = envRef.current;
+    if (env) {
+      env.tick(t, dt, camera, pos);
+      w.setLampBoost(1 + env.sky().lampBoost * 1.6);
+    }
   }, [camera]);
+
+  /** 有后期时由它画这一帧;返回 false = 让渲染器照常画 */
+  const render = useCallback((r: THREE.WebGLRenderer, s: THREE.Scene, c: THREE.Camera, t: number) => {
+    const env = envRef.current;
+    if (!env?.render) return false;
+    env.render(r, s, c, t);
+    return true;
+  }, []);
 
   const floatText = useCallback((text: string, x: number, y: number, z: number, color?: string) => {
     worldRef.current?.floatText(text, x, y, z, color);
@@ -236,5 +282,5 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   const setAura = useCallback((v: string | null) => { auraRef.current = v; worldRef.current?.setAura(v); }, []);
   const characterSay = useCallback((id: string, text: string) => { worldRef.current?.characterSay(id, text); }, []);
 
-  return { tick, floatText, showMarker, snapshot, setPeers, setAura, characterSay, zones: WORLD_ZONES };
+  return { tick, render, floatText, showMarker, snapshot, setPeers, setAura, characterSay, zones: WORLD_ZONES };
 }

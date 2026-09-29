@@ -9,6 +9,7 @@
  */
 
 import type * as THREE from 'three';
+import { createNpcRig, type NpcRig } from './npcRig';
 import { DEFAULT_WORLD, WORLD_RADIUS, zoneProp, type Orb, type WorldCharacter, type WorldDef, type WorldZone, type ZoneId } from './worldLayout';
 
 /** 各场景预设下广场的配色:地面要跟舞台地板接得上,不然白天草坪外面一圈黑地很突兀 */
@@ -41,6 +42,8 @@ export interface WorldHandle {
   /** 点击拾取用:每个地标的实体,userData.zoneId 标着是哪个 */
   pickables: THREE.Object3D[];
   setTheme: (preset: string) => void;
+  /** 夜里路灯更亮(环境层按天光给倍数) */
+  setLampBoost: (k: number) => void;
   setOrbs: (orbs: Orb[]) => void;
   /** 捡起动画:放大、上飘、淡出 */
   collectOrb: (id: number) => void;
@@ -109,7 +112,13 @@ function makeTextSprite(THREE_NS: typeof THREE, text: string, opts: { color?: st
 
 function hex(c: number) { return `#${c.toString(16).padStart(6, '0')}`; }
 
-export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: WorldDef = DEFAULT_WORLD): WorldHandle {
+export interface BuildWorldOptions {
+  /** 外面接了环境层(湖、山、昼夜):地面收成湖心石台,半球光交给环境层 */
+  island?: boolean;
+}
+
+export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: WorldDef = DEFAULT_WORLD, bopts: BuildWorldOptions = {}): WorldHandle {
+  const island = !!bopts.island;
   const ZONES = def.zones.length > 0 ? def.zones : DEFAULT_WORLD.zones;
   const group = new THREE_NS.Group();
   group.name = 'dh-world';
@@ -118,12 +127,59 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
   let theme = worldTheme(initialPreset);
 
   // ── 托底光:舞台聚光照不到外圈,给一点点环境光让远处的地标有体积感
-  const hemi = new THREE_NS.HemisphereLight(theme.hemiSky, theme.hemiGround, theme.hemi);
+  const hemi = new THREE_NS.HemisphereLight(theme.hemiSky, theme.hemiGround, island ? 0 : theme.hemi);
   group.add(hemi);
 
   // ── 地面:实心大圆(接收阴影)+ 一层叠加着色器画小路、网格和地标光圈
   const groundMat = track(new THREE_NS.MeshStandardMaterial({ color: theme.ground, roughness: 0.92, metalness: 0.05 }));
-  const ground = new THREE_NS.Mesh(track(new THREE_NS.CircleGeometry(WORLD_RADIUS + 10, 96)), groundMat);
+  if (island) {
+    // 地面细节:大块的深浅斑驳 + (星光广场)石板铺装的缝;感悟庭院只在舞台一圈铺石板,外面是土和苔
+    const paved = def.kind !== 'insight' ? 1 : 0;
+    groundMat.onBeforeCompile = (shader) => {
+      shader.uniforms.uPaved = { value: paved };
+      shader.vertexShader = shader.vertexShader
+        .replace('#include <common>', '#include <common>\nvarying vec3 vGW;')
+        .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvGW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      shader.fragmentShader = shader.fragmentShader
+        .replace('#include <common>', `#include <common>
+          varying vec3 vGW; uniform float uPaved;
+          float gh(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+          float gn(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
+            return mix(mix(gh(i), gh(i + vec2(1,0)), u.x), mix(gh(i + vec2(0,1)), gh(i + vec2(1,1)), u.x), u.y); }`)
+        .replace('#include <color_fragment>', `#include <color_fragment>
+          {
+            vec2 p = vGW.xz;
+            float r = length(p);
+            float n = gn(p * 0.35) * 0.6 + gn(p * 1.7) * 0.3 + gn(p * 6.0) * 0.1;
+            diffuseColor.rgb *= 0.78 + n * 0.42;
+            // 石板:极坐标上一圈圈错缝的砖,越往外越大
+            float pave = max(uPaved, 1.0 - smoothstep(4.8, 5.6, r));
+            if (pave > 0.0) {
+              float ring = r / 1.1;
+              float ri = floor(ring);
+              float ang = atan(p.y, p.x) / 6.2831853 * floor(6.0 + ri * 5.5) + ri * 0.37;
+              vec2 cell = vec2(fract(ang), fract(ring));
+              float seam = min(min(cell.x, 1.0 - cell.x) * (ri + 1.0) * 1.1, min(cell.y, 1.0 - cell.y) * 1.1);
+              float groove = smoothstep(0.0, 0.04, seam);
+              float tile = 0.88 + gh(vec2(floor(ang), ri)) * 0.2;
+              diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * tile * mix(0.55, 1.0, groove), pave);
+            }
+          }`);
+    };
+  }
+  const ground = new THREE_NS.Mesh(track(new THREE_NS.CircleGeometry(island ? WORLD_RADIUS + 1.3 : WORLD_RADIUS + 10, 128)), groundMat);
+  if (island) {
+    // 湖心石台:一圈石砌的台边(外侧往下没进水里)+ 台面边缘一道浅色压边石
+    const rimMat = track(new THREE_NS.MeshStandardMaterial({ color: 0x6f6a62, roughness: 0.92 }));
+    const wall = new THREE_NS.Mesh(track(new THREE_NS.CylinderGeometry(WORLD_RADIUS + 1.3, WORLD_RADIUS + 1.6, 1.4, 128, 1, true)), rimMat);
+    wall.position.y = -0.72;
+    wall.receiveShadow = true;
+    const cap = new THREE_NS.Mesh(track(new THREE_NS.RingGeometry(WORLD_RADIUS + 0.8, WORLD_RADIUS + 1.35, 128)), track(new THREE_NS.MeshStandardMaterial({ color: 0x9a948a, roughness: 0.85 })));
+    cap.rotation.x = -Math.PI / 2;
+    cap.position.y = 0.035;
+    cap.receiveShadow = true;
+    group.add(wall, cap);
+  }
   ground.rotation.x = -Math.PI / 2;
   ground.position.y = -0.03;
   ground.receiveShadow = true;
@@ -476,6 +532,12 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
 
   // ── 外圈路灯 + 灌木
   const lampHead = glowMat(0xfff2c8);
+  // 几盏真的点光源(隔几根路灯放一盏),夜里把石台照出暖色的光斑;白天几乎关掉
+  const lampLights: THREE.PointLight[] = [];
+  function setLampBoost(k: number) {
+    lampHead.color.setRGB(1.0 * k, 0.95 * k, 0.78 * k);
+    for (const l of lampLights) l.intensity = Math.max(0, k - 1.3) * 14;
+  }
   const lampGeo = G.cyl(0.04, 0.05, 2.6, 8);
   const headGeo = G.sphere(0.13, 12);
   const bushMat = track(new THREE_NS.MeshStandardMaterial({ color: 0x1f4a33, roughness: 0.9 }));
@@ -489,6 +551,12 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
     const head = new THREE_NS.Mesh(headGeo, lampHead);
     head.position.set(x, 2.65, z);
     group.add(post, head);
+    if (island && i % 3 === 0) {
+      const pl = new THREE_NS.PointLight(0xffc98a, 0, 9, 1.6);
+      pl.position.set(x * 0.97, 2.5, z * 0.97);
+      group.add(pl);
+      lampLights.push(pl);
+    }
     const b = mesh(bushGeo, bushMat, Math.sin(a + 0.16) * (r + 0.3), 0.3, Math.cos(a + 0.16) * (r + 0.3));
     b.scale.set(1.2, 0.7, 1);
     group.add(b);
@@ -498,8 +566,8 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
   const orbGroup = new THREE_NS.Group();
   group.add(orbGroup);
   const orbCore = G.sphere(0.13, 14);
-  const orbCoreMat = glowMat(0xfff6c8);
-  const orbGoldMat = glowMat(0xffc93d);
+  const orbCoreMat = glowMat(island ? 0xcfc088 : 0xfff6c8);
+  const orbGoldMat = glowMat(island ? 0xd9a030 : 0xffc93d);
   const haloTex = (() => {
     const cv = document.createElement('canvas'); cv.width = cv.height = 64;
     const cx = cv.getContext('2d')!;
@@ -508,8 +576,9 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
     cx.fillStyle = grd; cx.fillRect(0, 0, 64, 64);
     const t = new THREE_NS.CanvasTexture(cv); return track(t);
   })();
-  const haloMat = track(new THREE_NS.SpriteMaterial({ map: haloTex, color: 0xfff0c0, transparent: true, depthWrite: false, blending: THREE_NS.AdditiveBlending, fog: false }));
-  const haloGoldMat = track(new THREE_NS.SpriteMaterial({ map: haloTex, color: 0xffb020, transparent: true, depthWrite: false, blending: THREE_NS.AdditiveBlending, fog: false }));
+  // 有泛光时光晕会被放大,颜色压暗一点
+  const haloMat = track(new THREE_NS.SpriteMaterial({ map: haloTex, color: island ? 0x8a7a50 : 0xfff0c0, transparent: true, depthWrite: false, blending: THREE_NS.AdditiveBlending, fog: false }));
+  const haloGoldMat = track(new THREE_NS.SpriteMaterial({ map: haloTex, color: island ? 0x8a5a10 : 0xffb020, transparent: true, depthWrite: false, blending: THREE_NS.AdditiveBlending, fog: false }));
   const orbObjs = new Map<number, { g: THREE.Group; collecting: number; golden: boolean }>();
   // 捡起时用的一次性材质,各自淡出互不影响
   const burstMats: THREE.Material[] = [];
@@ -733,6 +802,7 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
     if (value) { selfAura = makeAura(value); group.add(selfAura); }
   }
   function setSelfPos(x: number, z: number) {
+    selfX = x; selfZ = z;
     if (selfAura) { selfAura.position.x = x; selfAura.position.z = z; }
   }
 
@@ -810,13 +880,9 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
   }
 
   // ── 人物:长衫(圆锥)+ 头 + 发髻 / 幞头,名牌写「头衔 · 名字」
-  interface NpcObj { g: THREE.Group; label: THREE.Sprite; bubble: THREE.Sprite | null; bubbleT: number; c: WorldCharacter; phase: number }
+  interface NpcObj { g: THREE.Group; rig: NpcRig; label: THREE.Sprite; bubble: THREE.Sprite | null; bubbleT: number; c: WorldCharacter }
   const npcs = new Map<string, NpcObj>();
-  const robeGeo = track(new THREE_NS.ConeGeometry(0.34, 1.25, 16, 1, true));
-  const npcHeadGeo = G.sphere(0.15, 14);
-  const hatGeo = G.box(0.26, 0.12, 0.2);
-  const npcSkin = track(new THREE_NS.MeshStandardMaterial({ color: 0xe9d3bd, roughness: 0.7 }));
-  const npcHat = track(new THREE_NS.MeshStandardMaterial({ color: 0x151820, roughness: 0.6 }));
+  let selfX = 0, selfZ = 0;
   function npcLabelText(c: WorldCharacter) {
     return [c.title, c.name || '…'].filter(Boolean).join(' · ');
   }
@@ -827,10 +893,7 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
     (o.label.material as THREE.SpriteMaterial).map?.dispose();
     o.label.material.dispose();
     if (o.bubble) { (o.bubble.material as THREE.SpriteMaterial).map?.dispose(); o.bubble.material.dispose(); }
-    o.g.traverse((m) => {
-      const mat = (m as THREE.Mesh).material as THREE.Material | undefined;
-      if (mat && mat !== npcSkin && mat !== npcHat && !(m as THREE.Sprite).isSprite) mat.dispose();
-    });
+    o.rig.dispose();
     // 点击拾取列表里也去掉
     for (let i = pickables.length - 1; i >= 0; i--) if (pickables[i].userData.characterId === id) pickables.splice(i, 1);
     npcs.delete(id);
@@ -844,25 +907,22 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
       if (old) removeNpc(c.id);
       const g = new THREE_NS.Group();
       g.position.set(c.x, 0, c.z);
-      g.rotation.y = Math.atan2(-c.x, -c.z); // 面朝舞台
       const col = c.color ?? (c.kind === 'poet' ? 0xb9a6ff : 0x25f4ee);
-      const robe = new THREE_NS.Mesh(robeGeo, new THREE_NS.MeshStandardMaterial({ color: col, roughness: 0.55, emissive: col, emissiveIntensity: 0.18, side: THREE_NS.DoubleSide }));
-      robe.position.y = 0.62;
-      const head = new THREE_NS.Mesh(npcHeadGeo, npcSkin);
-      head.position.y = 1.4;
-      const hat = new THREE_NS.Mesh(hatGeo, npcHat);
-      hat.position.y = 1.56;
-      if (c.kind === 'guide') { hat.scale.set(0.7, 1.4, 0.7); }
-      robe.castShadow = head.castShadow = true;
-      for (const m of [robe, head, hat]) m.userData.characterId = c.id;
+      // 长衫颜色:取人物色,压暗一点、降点饱和,像染过的布
+      const robe = new THREE_NS.Color(col).lerp(new THREE_NS.Color(0x55555f), 0.15);
+      let seed = 0;
+      for (let i = 0; i < c.id.length; i++) seed = (seed * 31 + c.id.charCodeAt(i)) % 9973;
+      const rig = createNpcRig(THREE_NS, { style: c.kind === 'poet' ? 'poet' : 'guide', robe: robe.getHex(), seed, faceYaw: Math.atan2(-c.x, -c.z) });
+      for (const m of rig.pickables) m.userData.characterId = c.id;
+      g.add(rig.root);
       const label = makeTextSprite(THREE_NS, npcLabelText(c), { color: '#fff', bg: 'rgba(20,14,30,0.72)', border: hex(col), size: 30 });
       label.scale.multiplyScalar(0.75);
       (label.userData.baseScale as THREE.Vector3).multiplyScalar(0.75);
-      label.position.y = 1.95;
-      g.add(robe, head, hat, label);
+      label.position.y = 2.12;
+      g.add(label);
       group.add(g);
-      pickables.push(robe, head);
-      npcs.set(c.id, { g, label, bubble: null, bubbleT: 0, c, phase: Math.random() * 6 });
+      pickables.push(...rig.pickables);
+      npcs.set(c.id, { g, rig, label, bubble: null, bubbleT: 0, c });
     }
   }
   function characterSay(id: string, text: string) {
@@ -871,16 +931,18 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
     if (o.bubble) { o.g.remove(o.bubble); (o.bubble.material as THREE.SpriteMaterial).map?.dispose(); o.bubble.material.dispose(); }
     const b = makeTextSprite(THREE_NS, text.length > 22 ? text.slice(0, 22) + '…' : text, { color: '#2a1d10', bg: 'rgba(255,248,232,0.94)', size: 34 });
     b.scale.multiplyScalar(0.7);
-    b.position.y = 2.45;
+    b.position.y = 2.55;
     (b.material as THREE.SpriteMaterial).depthTest = false;
     b.renderOrder = 9;
     o.g.add(b);
     o.bubble = b;
     o.bubbleT = 0;
+    // 说话时抬手吟诵;句子越长念得越久
+    o.rig.speak(Math.min(6, 2.2 + text.length * 0.12));
   }
   function tickNpcs(t: number, dt: number) {
     for (const [, o] of npcs) {
-      o.g.children[1].position.y = 1.4 + Math.sin(t * 1.6 + o.phase) * 0.02;
+      o.rig.tick(t, dt, { x: selfX - o.c.x, z: selfZ - o.c.z });
       if (o.bubble) {
         o.bubbleT += dt;
         const mat = o.bubble.material as THREE.SpriteMaterial;
@@ -922,6 +984,6 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
     setDanceFloorHot: (on) => { danceHot = on; },
     floatText, dispose,
     tick: (t, dt, camera) => { tick(t, dt, camera); tickPeers(t, dt); tickNpcs(t, dt); },
-    setPeers, setAura, setSelfPos, peerPositions, setCharacters, characterSay, characterPositions,
+    setPeers, setAura, setSelfPos, peerPositions, setCharacters, characterSay, characterPositions, setLampBoost,
   };
 }

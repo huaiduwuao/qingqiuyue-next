@@ -227,6 +227,58 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
     }
   }
 
+  /**
+   * 程序化步态(规范化骨骼,VRM0/1 一致):
+   *   - 腿:大腿前后摆,摆动相膝盖弯、支撑相伸直;脚掌跟着翻;
+   *   - 手臂:大臂绕 X 前后摆(和对侧腿同相),肘微屈、跑步时屈得多;
+   *   - 躯干:胯和胸反向扭转、胯左右落差、跑步前倾;头反向稳住,视线不晃。
+   * weight 是淡入淡出的混合量(在 idle / pose 已经写进骨骼之后叠上去)。
+   */
+  const gaitRef = useRef({ blend: 0, run: 0 });
+  const gaitBase = useRef(new Map<string, { bx: number; by: number; bz: number; wx: number; wy: number; wz: number }>()).current;
+  function applyGait(phase: number, weight: number, run: number, t: number, H: (n: string) => any) {
+    // 叠加偏移:有的骨骼每帧会被 idle / pose 重写,有的不会(比如小臂、脖子)。
+    // 记下上一帧写进去的值:没被别人改过就从上一帧的底子上叠,改过就以新值为底子 —— 不会越叠越歪。
+    const add = (bone: string, x: number, y: number, z: number) => {
+      const o = H(bone);
+      if (!o?.rotation) return;
+      let rec = gaitBase.get(bone);
+      const r = o.rotation;
+      if (!rec || Math.abs(r.x - rec.wx) > 1e-6 || Math.abs(r.y - rec.wy) > 1e-6 || Math.abs(r.z - rec.wz) > 1e-6) {
+        rec = { bx: r.x, by: r.y, bz: r.z, wx: 0, wy: 0, wz: 0 };
+        gaitBase.set(bone, rec);
+      }
+      r.x = rec.bx + x * weight; r.y = rec.by + y * weight; r.z = rec.bz + z * weight;
+      rec.wx = r.x; rec.wy = r.y; rec.wz = r.z;
+    };
+    const s = Math.sin(phase), c = Math.cos(phase);
+    const legAmp = 0.5 + run * 0.35;
+    // 腿(左腿 = +s 向前)
+    const lSwing = s * legAmp, rSwing = -s * legAmp;
+    // 摆动相(腿往前走的那半个周期)膝盖弯
+    const lKnee = Math.max(0, c) * (0.55 + run * 0.55) + 0.08;
+    const rKnee = Math.max(0, -c) * (0.55 + run * 0.55) + 0.08;
+    add('leftUpperLeg', -lSwing, 0, 0);
+    add('rightUpperLeg', -rSwing, 0, 0);
+    add('leftLowerLeg', lKnee, 0, 0);
+    add('rightLowerLeg', rKnee, 0, 0);
+    add('leftFoot', -lKnee * 0.35 + lSwing * 0.2, 0, 0);
+    add('rightFoot', -rKnee * 0.35 + rSwing * 0.2, 0, 0);
+    // 手臂:和对侧腿同相;垂下的角度保持原来的(z 用 idle 写好的值),只加前后摆
+    const armAmp = 0.35 + run * 0.35;
+    add('leftUpperArm', s * armAmp * -1, 0, 0);
+    add('rightUpperArm', -s * armAmp * -1, 0, 0);
+    add('leftLowerArm', 0, -(0.25 + run * 0.9) - Math.max(0, -s) * 0.2, 0);
+    add('rightLowerArm', 0, (0.25 + run * 0.9) + Math.max(0, s) * 0.2, 0);
+    // 躯干:胯扭 + 胸反扭 + 左右落差 + 跑步前倾;头稳住
+    add('hips', 0, s * 0.12, c * 0.035);
+    add('spine', 0.04 + run * 0.14, -s * 0.07, 0);
+    add('chest', 0, -s * 0.08, -c * 0.02);
+    add('neck', 0, s * 0.06, 0);
+    add('head', -(0.02 + run * 0.06), s * 0.04, 0);
+    void t;
+  }
+
   function tick(elapsed: number, dt: number) {
     const vrm = vrmRef.current;
     if (!vrm?.humanoid) return;
@@ -247,18 +299,16 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
       applyPose(poseCfg, poseBlendRef.current, H);
     }
 
-    // 4. walk 步态
+    // 4. walk 步态:程序化的走 / 跑,淡入淡出(以前按配置公式硬切,手臂左右扇、身子不动,很僵)
     const w = walkRef.current;
-    if (w.moving && w.style !== 'teleport' && w.style !== 'idle') {
-      const walkStyle = w.style === 'run' ? 'run' : 'walk';
-      const walkCfg = lookups.danceByName.get(walkStyle);
-      if (walkCfg) {
-        applyDanceFormula(walkCfg, 0, 0, ampRef.current, audio.poll().bass, w.phase, H);
-      }
-      smRef.current.set({ kind: 'walk', phase: w.phase, style: walkStyle });
-    } else {
-      smRef.current.remove('walk');
+    const moving = w.moving && w.style !== 'teleport' && w.style !== 'idle';
+    gaitRef.current.blend = Math.min(1, Math.max(0, gaitRef.current.blend + (moving ? dt * 6 : -dt * 4)));
+    if (moving) gaitRef.current.run = w.style === 'run' ? Math.min(1, gaitRef.current.run + dt * 3) : Math.max(0, gaitRef.current.run - dt * 3);
+    if (gaitRef.current.blend > 0.001) {
+      applyGait(w.phase, gaitRef.current.blend, gaitRef.current.run, elapsed, H);
     }
+    if (moving) smRef.current.set({ kind: 'walk', phase: w.phase, style: w.style === 'run' ? 'run' : 'walk' });
+    else smRef.current.remove('walk');
 
     // 5. dance
     if (dancingRef.current) {

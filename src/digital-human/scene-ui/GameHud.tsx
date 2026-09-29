@@ -14,6 +14,8 @@ import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import HelpOutlineRoundedIcon from '@mui/icons-material/HelpOutlineRounded';
 import FlagRoundedIcon from '@mui/icons-material/FlagRounded';
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
+import WbTwilightRoundedIcon from '@mui/icons-material/WbTwilightRounded';
+import HighQualityRoundedIcon from '@mui/icons-material/HighQualityRounded';
 import type { VrmStageHandle } from '../VrmStage';
 import type { WorldGame } from './useWorldGame';
 import { DEFAULT_WORLD, QUESTS, WORLD_RADIUS, type WorldDef } from '../vrm/world/worldLayout';
@@ -235,7 +237,13 @@ export function Minimap({ handle, size, def = DEFAULT_WORLD }: { handle: VrmStag
 }
 
 /** 小地图下面的一列圆按钮:俯瞰 / 回舞台 / 操作说明 */
-export function WorldTools({ game, onHelp, onShop, shopOpen }: { game: WorldGame; onHelp: () => void; onShop?: () => void; shopOpen?: boolean }) {
+export function WorldTools({ game, onHelp, onShop, shopOpen, timeLabel, onTime, quality, onQuality }: {
+  game: WorldGame; onHelp: () => void; onShop?: () => void; shopOpen?: boolean;
+  /** 时辰按钮:当前时辰的名字,点一下换下一个 */
+  timeLabel?: string; onTime?: () => void;
+  /** 画质:high / low */
+  quality?: 'high' | 'low'; onQuality?: () => void;
+}) {
   const btn = (active = false) => ({
     ...glass, width: 36, height: 36, color: active ? CYAN : 'rgba(255,255,255,0.85)',
     bgcolor: active ? 'rgba(37,244,238,0.18)' : glass.bgcolor, pointerEvents: 'auto' as const,
@@ -252,6 +260,16 @@ export function WorldTools({ game, onHelp, onShop, shopOpen }: { game: WorldGame
       {onShop && (
         <Tooltip title="广场光环">
           <IconButton aria-label="广场光环" onClick={onShop} sx={btn(!!shopOpen)}><AutoAwesomeRoundedIcon sx={{ fontSize: 19 }} /></IconButton>
+        </Tooltip>
+      )}
+      {onTime && (
+        <Tooltip title={`时辰:${timeLabel ?? ''}(点一下换)`}>
+          <IconButton aria-label="换时辰" onClick={onTime} sx={btn()}><WbTwilightRoundedIcon sx={{ fontSize: 19 }} /></IconButton>
+        </Tooltip>
+      )}
+      {onQuality && (
+        <Tooltip title={quality === 'high' ? '高画质(泛光、草地、满量粒子)—— 点一下换成流畅' : '流畅画质 —— 点一下换成高画质'}>
+          <IconButton aria-label="画质" onClick={onQuality} sx={btn(quality === 'high')}><HighQualityRoundedIcon sx={{ fontSize: 19 }} /></IconButton>
         </Tooltip>
       )}
       <Tooltip title="操作说明">

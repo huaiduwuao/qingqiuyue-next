@@ -60,6 +60,7 @@ export function useVrmScene(opts: UseVrmSceneOptions) {
     const { THREE_NS, scene } = rendererState;
     if (!sceneGroupRef.current) {
       const g = new THREE_NS.Group();
+      g.name = 'dh-preset'; // 广场的环境层按名字找它(藏掉挡湖山的天空球和背景墙)
       scene.add(g);
       sceneGroupRef.current = g;
     }

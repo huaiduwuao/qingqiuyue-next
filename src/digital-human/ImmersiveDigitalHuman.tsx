@@ -38,6 +38,8 @@ import type { WorldEvent } from './vrm/world/useVrmWorld';
 import { usePlazaScenes } from './scene-ui/usePlazaScenes';
 import { CharacterPanel, ScenePicker } from './scene-ui/PlazaPeople';
 import { SCENE_PRESETS } from './vrm/sceneBuilders';
+import { TIME_LABELS, type TimeMode } from './vrm/world/env/timeOfDay';
+import { worldEnv } from './vrm/world/worldLayout';
 import type { PlazaState } from './scene-state';
 import { useRouter } from 'next/navigation';
 import { alpha } from '@mui/material/styles';
@@ -722,6 +724,28 @@ export default function ImmersiveDigitalHuman() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openCharacter, game.onWorldEvent]);
 
+  // 画质:手机默认流畅,桌面默认高;记在本机
+  const [worldQuality, setWorldQuality] = React.useState<'high' | 'low'>('high');
+  React.useEffect(() => {
+    let q: 'high' | 'low' = window.matchMedia('(max-width: 899px)').matches ? 'low' : 'high';
+    try { const saved = localStorage.getItem('dh_world_quality'); if (saved === 'high' || saved === 'low') q = saved; } catch { /* 隐私模式 */ }
+    setWorldQuality(q);
+  }, []);
+  const toggleQuality = () => setWorldQuality((q) => {
+    const n = q === 'high' ? 'low' : 'high';
+    try { localStorage.setItem('dh_world_quality', n); } catch { /* ignore */ }
+    return n;
+  });
+  // 时辰:默认跟场景,点按钮在 清晨 → 白天 → 黄昏 → 夜晚 → 跟随现在 之间轮换
+  const [worldTime, setWorldTime] = React.useState<TimeMode | null>(null);
+  const currentTime = (worldTime ?? worldEnv(scenes.def).time) as TimeMode;
+  const cycleTime = () => {
+    const order: TimeMode[] = ['dawn', 'day', 'dusk', 'night', 'auto'];
+    const next = order[(order.indexOf(currentTime) + 1) % order.length];
+    setWorldTime(next);
+    game.toast(next === 'night' ? '🌙' : next === 'auto' ? '🕰️' : '☀️', TIME_LABELS[next]);
+  };
+
   // 换场景:中央舞台换成场景指定的预设,角色回到舞台前
   const [scenePickerOpen, setScenePickerOpen] = React.useState(false);
   const lastSceneRef = React.useRef<string | null>(null);
@@ -731,6 +755,7 @@ export default function ImmersiveDigitalHuman() {
     if (lastSceneRef.current === d.key) return;
     const first = lastSceneRef.current === null;
     lastSceneRef.current = d.key;
+    setWorldTime(null);
     setCharId(null);
     setPanelZone(null);
     if ((SCENE_PRESETS as string[]).includes(d.stage)) updateStageState({ scene: d.stage as ScenePresetName });
@@ -886,6 +911,8 @@ export default function ImmersiveDigitalHuman() {
           world={worldOn}
           worldDef={scenes.def}
           characters={scenes.characters}
+          worldQuality={worldQuality}
+          worldTime={worldTime}
           onWorldEvent={onWorldEvent}
           transparentBackground={!!gsBackdrop}
           background={gsBackdrop ? 'transparent' : undefined}
@@ -1121,7 +1148,7 @@ export default function ImmersiveDigitalHuman() {
                 <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🧭 {scenes.def.name}</Box>
               </ButtonBase>
               <Minimap handle={stageHandle} size={narrow ? 104 : 156} def={scenes.def} />
-              <WorldTools game={game} onHelp={worldHelp.show} onShop={() => setAuraShopOpen((o) => !o)} shopOpen={auraShopOpen} />
+              <WorldTools game={game} onHelp={worldHelp.show} timeLabel={TIME_LABELS[currentTime]} onTime={cycleTime} quality={worldQuality} onQuality={toggleQuality} onShop={() => setAuraShopOpen((o) => !o)} shopOpen={auraShopOpen} />
               {auraShopOpen && (
                 <AuraShop
                   onClose={() => setAuraShopOpen(false)}
