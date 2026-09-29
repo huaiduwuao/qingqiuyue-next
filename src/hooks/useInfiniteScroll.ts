@@ -14,6 +14,25 @@ interface UseInfiniteScrollOptions {
 }
 
 /**
+ * 找 el 最近的纵向滚动祖先,给 IntersectionObserver 当 root 用;找不到返回 null(= 视口)。
+ *
+ * 首页各面板在一个内部 overflow:auto 的 Box 里滚,不是在视口里滚。root 缺省为视口时,
+ * 哨兵先被内部滚动容器裁掉,rootMargin 只扩视口 —— 等于没有预取,滑到底才开始请求。
+ * 这里只看 overflow 样式、不看 scrollHeight:首屏内容还不够高时容器同样是 root。
+ */
+export function findScrollRoot(el: Element | null): Element | null {
+  let cur = el?.parentElement ?? null;
+  while (cur && cur !== document.body && cur !== document.documentElement) {
+    if (/(auto|scroll|overlay)/.test(window.getComputedStyle(cur).overflowY)) return cur;
+    cur = cur.parentElement;
+  }
+  return null;
+}
+
+/** 无限滚动的提前量:离底还有约一屏半就拉下一页,匀速下滑时基本看不到转圈。 */
+export const PREFETCH_MARGIN = '0px 0px 1500px 0px';
+
+/**
  * 通用无限滚动 Hook
  * 使用 IntersectionObserver 检测滚动到底部
  * 适用于任何滚动容器（窗口、内部滚动容器均可）

@@ -10,6 +10,7 @@ import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import { homeClient } from '@/lib/api/client';
+import { findScrollRoot, PREFETCH_MARGIN } from '@/hooks/useInfiniteScroll';
 import { CoverImage } from '@/components/common/CoverImage';
 import { useContentNavigate, useDetailRoutePrefetch, TYPE_LABEL } from '@/lib/contentRoute';
 import { getFacets, FacetOption } from '@/apis/facets';
@@ -174,7 +175,7 @@ export function TheaterPanel() {
           fetchNextPage();
         }
       },
-      { threshold: 0.1, rootMargin: '100px' },
+      { root: findScrollRoot(sentinel), rootMargin: PREFETCH_MARGIN },
     );
     observer.observe(sentinel);
     return () => observer.disconnect();

@@ -11,6 +11,7 @@ import WhatshotIcon from '@mui/icons-material/Whatshot';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import { homeClient } from '@/lib/api/client';
+import { findScrollRoot, PREFETCH_MARGIN } from '@/hooks/useInfiniteScroll';
 import { CoverImage } from '@/components/common/CoverImage';
 import { useContentNavigate, useDetailRoutePrefetch } from '@/lib/contentRoute';
 import { IMAGE_OVERLAY, MEDAL, SECTION_TINT, gradient2 } from '@/constants/gradients';
@@ -167,7 +168,7 @@ export function DramaPanel() {
           fetchNextPage();
         }
       },
-      { threshold: 0.1, rootMargin: '100px' }
+      { root: findScrollRoot(sentinel), rootMargin: PREFETCH_MARGIN }
     );
 
     observer.observe(sentinel);

@@ -24,6 +24,7 @@ import CategoryRoundedIcon from '@mui/icons-material/CategoryRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import GridViewRoundedIcon from '@mui/icons-material/GridViewRounded';
 import { useContentNavigate, useDetailRoutePrefetch } from '@/lib/contentRoute';
+import { findScrollRoot, PREFETCH_MARGIN } from '@/hooks/useInfiniteScroll';
 import { SECTION_TINT } from '@/constants/gradients';
 import {
   type ClassicRange,
@@ -160,7 +161,7 @@ export function LivePanel() {
       (entries) => {
         if (entries[0]?.isIntersecting && hasNextPage && !isFetchingNextPage) fetchNextPage();
       },
-      { rootMargin: '400px' },
+      { root: findScrollRoot(el), rootMargin: PREFETCH_MARGIN },
     );
     io.observe(el);
     return () => io.disconnect();
