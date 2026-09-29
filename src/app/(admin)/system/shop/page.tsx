@@ -58,6 +58,7 @@ const DELIVER_LABEL: Record<AdminMallItem['deliverType'], string> = {
   avatar_frame: '头像框',
   title: '称号',
   name_color: '名字颜色',
+  plaza_aura: '广场光环',
 };
 const EMPTY_ITEM: AdminMallItem = {
   name: '', desc: '', category: 'virtual', emoji: '🎁', gradient: 'linear-gradient(135deg, #FE2C55 0%, #FFB400 100%)',

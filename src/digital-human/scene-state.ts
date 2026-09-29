@@ -27,6 +27,17 @@ export interface SceneSnapshot {
   model?: string;
   /** 场景里每块显示器上开着什么(null = 待机) */
   displays?: Record<string, { name: string; url: string; title: string } | null>;
+  /** 星光广场:她站在哪个地标、广场里有几个人、用户的广场等级(没开广场时不带) */
+  plaza?: PlazaState | null;
+}
+
+export interface PlazaState {
+  zone: string | null;
+  zoneLabel?: string;
+  landmarks: string[];
+  online: number;
+  level: number;
+  orbsTotal: number;
 }
 
 export interface SceneState {
@@ -42,6 +53,7 @@ export interface SceneState {
   panel: SceneSnapshot['panel'];
   browser: string | null;
   displays: NonNullable<SceneSnapshot['displays']>;
+  plaza?: PlazaState;
 }
 
 export function buildSceneState(s: SceneSnapshot): SceneState {
@@ -63,6 +75,7 @@ export function buildSceneState(s: SceneSnapshot): SceneState {
     panel: s.panel ?? null,
     browser: s.browser ?? Object.values(s.displays ?? {}).find(Boolean)?.url ?? null,
     displays: s.displays ?? {},
+    ...(s.plaza ? { plaza: s.plaza } : {}),
   };
 }
 

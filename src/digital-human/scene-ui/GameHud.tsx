@@ -13,6 +13,7 @@ import ExploreRoundedIcon from '@mui/icons-material/ExploreRounded';
 import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
 import HelpOutlineRoundedIcon from '@mui/icons-material/HelpOutlineRounded';
 import FlagRoundedIcon from '@mui/icons-material/FlagRounded';
+import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import type { VrmStageHandle } from '../VrmStage';
 import type { WorldGame } from './useWorldGame';
 import { QUESTS, WORLD_RADIUS, WORLD_ZONES, ZONE_BY_ID } from '../vrm/world/worldLayout';
@@ -82,7 +83,7 @@ export function GameStatusBar({ game, compact, questsOpen, onToggleQuests }: { g
 }
 
 /** 今日任务清单 */
-export function QuestPanel({ game }: { game: WorldGame }) {
+export function QuestPanel({ game, children }: { game: WorldGame; children?: React.ReactNode }) {
   const { state } = game;
   return (
     <Box sx={{ ...glass, borderRadius: 3, p: 1.5, width: 280, maxWidth: 'calc(100vw - 24px)', pointerEvents: 'auto', animation: `${slideDown} .18s ease-out` }}>
@@ -114,6 +115,7 @@ export function QuestPanel({ game }: { game: WorldGame }) {
           );
         })}
       </Box>
+      {children}
     </Box>
   );
 }
@@ -176,6 +178,13 @@ export function Minimap({ handle, size }: { handle: VrmStageHandle | null; size:
         ctx.fillText(z.emoji, x, y + 1);
       }
       if (!snap) return;
+      // 广场里的其他人
+      for (const p of snap.peers ?? []) {
+        const [x, y] = P(p.x, p.z);
+        ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2);
+        ctx.fillStyle = p.aura && p.aura !== 'rainbow' ? p.aura : '#c9a6ff'; ctx.fill();
+        ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.stroke();
+      }
       const [ax, ay] = P(snap.x, snap.z);
       // 镜头视野扇形
       const camA = Math.atan2(Math.cos(snap.camYaw), Math.sin(snap.camYaw)); // 世界 (sin,cos) → 画布角度
@@ -218,7 +227,7 @@ export function Minimap({ handle, size }: { handle: VrmStageHandle | null; size:
 }
 
 /** 小地图下面的一列圆按钮:俯瞰 / 回舞台 / 操作说明 */
-export function WorldTools({ game, onHelp }: { game: WorldGame; onHelp: () => void }) {
+export function WorldTools({ game, onHelp, onShop, shopOpen }: { game: WorldGame; onHelp: () => void; onShop?: () => void; shopOpen?: boolean }) {
   const btn = (active = false) => ({
     ...glass, width: 36, height: 36, color: active ? CYAN : 'rgba(255,255,255,0.85)',
     bgcolor: active ? 'rgba(37,244,238,0.18)' : glass.bgcolor, pointerEvents: 'auto' as const,
@@ -232,6 +241,11 @@ export function WorldTools({ game, onHelp }: { game: WorldGame; onHelp: () => vo
       <Tooltip title="回到舞台中央">
         <IconButton aria-label="回舞台" onClick={game.goHome} sx={btn()}><HomeRoundedIcon sx={{ fontSize: 19 }} /></IconButton>
       </Tooltip>
+      {onShop && (
+        <Tooltip title="广场光环">
+          <IconButton aria-label="广场光环" onClick={onShop} sx={btn(!!shopOpen)}><AutoAwesomeRoundedIcon sx={{ fontSize: 19 }} /></IconButton>
+        </Tooltip>
+      )}
       <Tooltip title="操作说明">
         <IconButton aria-label="操作说明" onClick={onHelp} sx={btn()}><HelpOutlineRoundedIcon sx={{ fontSize: 19 }} /></IconButton>
       </Tooltip>

@@ -44,6 +44,7 @@ import { DISPLAY_SPECS, displayFocusPose, type DisplaySlot } from './vrm/sceneDi
 import { makeConfetti, updateConfetti } from './vrm/particles';
 import { createAudioHandle, type AudioHandle } from './vrm/audio';
 import { useVrmWorld, type WorldEvent } from './vrm/world/useVrmWorld';
+import type { WorldPeer } from './vrm/world/buildWorld';
 import { clampToWorld, type Orb, type ZoneId } from './vrm/world/worldLayout';
 import { detectVrmVersion, setExpression, setExpressionDict, listAvailableExpressions, getBone } from './vrm/vrmCompat';
 import { lookupAutoExpression } from './vrm/config/types';
@@ -105,7 +106,13 @@ export interface VrmStageHandle {
   /** 广场:镜头拉高俯瞰整座广场;false 飞回原来的机位 */
   setOverview: (on: boolean) => void;
   /** 广场:小地图用的快照(角色位置/朝向、镜头朝向、星光、所在地标) */
-  getWorldSnapshot: () => { x: number; z: number; yaw: number; camYaw: number; orbs: Orb[]; zone: ZoneId | null } | null;
+  getWorldSnapshot: () => { x: number; z: number; yaw: number; camYaw: number; orbs: Orb[]; zone: ZoneId | null; peers: { id: string; x: number; z: number; aura?: string }[] } | null;
+  /** 广场:其他在线的人 */
+  setPeers: (peers: WorldPeer[]) => void;
+  /** 广场:自己脚下的光环(颜色 / rainbow / null) */
+  setAura: (value: string | null) => void;
+  /** 广场:在任意世界坐标冒一句飘字(许愿池上方冒别人的愿望) */
+  floatTextAt: (text: string, x: number, y: number, z: number, color?: string) => void;
 }
 
 export interface VrmStageProps {
@@ -1019,8 +1026,11 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
           const tgt = rs.controls?.target ?? { x: positionRef.current.x, z: positionRef.current.z };
           camYaw = Math.atan2(tgt.x - rs.camera.position.x, tgt.z - rs.camera.position.z);
         }
-        return { x: positionRef.current.x, z: positionRef.current.z, yaw: yawRef.current, camYaw, orbs: snap.orbs, zone: snap.zone };
+        return { x: positionRef.current.x, z: positionRef.current.z, yaw: yawRef.current, camYaw, orbs: snap.orbs, zone: snap.zone, peers: snap.peers };
       },
+      setPeers: (peers) => worldApiRef.current.setPeers(peers),
+      setAura: (value) => worldApiRef.current.setAura(value),
+      floatTextAt: (text, x, y, z, color) => worldApiRef.current.floatText(text, x, y, z, color),
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

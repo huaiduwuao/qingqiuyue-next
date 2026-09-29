@@ -3,7 +3,7 @@ import { adminClient } from '@/lib/api/client';
 // 管理后台:商城商品、订单发货、礼物目录(/api/core/admin/shop/*,仅管理员)。
 // 每个商品只标一种货币:装扮(头像框/称号/名字颜色)只收积分,实物可以标积分或钻石。积分永远换不到钻石。
 
-export type DeliverType = 'physical' | 'avatar_frame' | 'title' | 'name_color';
+export type DeliverType = 'physical' | 'avatar_frame' | 'title' | 'name_color' | 'plaza_aura';
 
 export interface AdminMallItem {
   id?: number;

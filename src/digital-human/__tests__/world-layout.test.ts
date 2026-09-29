@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   QUESTS, QUEST_XP, STAGE_CLEAR_RADIUS, WORLD_RADIUS, WORLD_ZONES,
-  applyGameEvent, clampToWorld, emptyGameState, levelOf, orbsInReach, parseGameState, pokeReaction,
+  applyGameEvent, clampToWorld, emptyGameState, mergeGameStates, levelOf, orbsInReach, parseGameState, pokeReaction,
   spawnOrbs, zoneApproachPoint, zoneAt,
 } from '../vrm/world/worldLayout';
 
@@ -113,5 +113,22 @@ describe('poke', () => {
   it('cycles reactions and gets annoyed on a burst', () => {
     expect(pokeReaction(0, 1).action).not.toBe(pokeReaction(1, 1).action);
     expect(pokeReaction(3, 5).text).toBe('别戳啦!');
+  });
+});
+
+describe('mergeGameStates', () => {
+  it('keeps the best of local and server progress', () => {
+    const day = '2026-09-29';
+    const a = { ...emptyGameState(day), xp: 300, orbsTotal: 5, quests: { orbs: 5, poke: 1 }, done: ['dance'], visited: ['dance' as const] };
+    const b = { ...emptyGameState(day), xp: 120, orbsTotal: 9, quests: { orbs: 2, chat: 3 }, done: ['chat'], visited: ['wish' as const] };
+    const m = mergeGameStates(a, b, day);
+    expect(m).toMatchObject({ xp: 300, orbsTotal: 9, quests: { orbs: 5, poke: 1, chat: 3 } });
+    expect(m.done.sort()).toEqual(['chat', 'dance']);
+    expect(m.visited.sort()).toEqual(['dance', 'wish']);
+  });
+  it('drops quests from a previous day on either side', () => {
+    const old = { ...emptyGameState('2026-09-28'), xp: 50, quests: { orbs: 9 }, done: ['orbs'] };
+    const m = mergeGameStates(old, emptyGameState('2026-09-29'), '2026-09-29');
+    expect(m).toMatchObject({ xp: 50, quests: {}, done: [] });
   });
 });

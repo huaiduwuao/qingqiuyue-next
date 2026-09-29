@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 import type * as THREE from 'three';
-import { buildWorld, type WorldHandle } from './buildWorld';
+import { buildWorld, type WorldHandle, type WorldPeer } from './buildWorld';
 import {
   ORB_POINTS, ORB_RESPAWN_MS, WORLD_ZONES, ZONE_BY_ID, orbsInReach, pickOrbSpot, spawnOrbs, zoneApproachPoint, zoneAt,
   type Orb, type ZoneId,
@@ -39,6 +39,7 @@ export interface UseVrmWorldOptions {
 export interface WorldSnapshot {
   orbs: Orb[];
   zone: ZoneId | null;
+  peers: { id: string; x: number; z: number; aura?: string }[];
 }
 
 export function useVrmWorld(opts: UseVrmWorldOptions) {
@@ -60,6 +61,7 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
     orbsRef.current = spawnOrbs((Date.now() / 1000) | 0);
     respawnRef.current = [];
     w.setOrbs(orbsRef.current);
+    if (auraRef.current) w.setAura(auraRef.current);
     return () => {
       scene.remove(w.group);
       w.dispose();
@@ -127,6 +129,7 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
     if (!w || !camera) return;
     const cb = cbRef.current;
     w.setDanceFloorHot(dancing);
+    w.setSelfPos(pos.x, pos.z);
 
     const zone = zoneAt(pos.x, pos.z)?.id ?? null;
     if (zone !== zoneRef.current) {
@@ -166,7 +169,12 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
 
   const showMarker = useCallback((x: number, z: number) => { worldRef.current?.showMarker(x, z); }, []);
 
-  const snapshot = useCallback((): WorldSnapshot => ({ orbs: orbsRef.current, zone: zoneRef.current }), []);
+  const snapshot = useCallback((): WorldSnapshot => ({ orbs: orbsRef.current, zone: zoneRef.current, peers: worldRef.current?.peerPositions() ?? [] }), []);
 
-  return { tick, floatText, showMarker, snapshot, zones: WORLD_ZONES };
+  // 广场重建(关掉又打开)后要把上次的光环补回去
+  const auraRef = useRef<string | null>(null);
+  const setPeers = useCallback((peers: WorldPeer[]) => { worldRef.current?.setPeers(peers); }, []);
+  const setAura = useCallback((v: string | null) => { auraRef.current = v; worldRef.current?.setAura(v); }, []);
+
+  return { tick, floatText, showMarker, snapshot, setPeers, setAura, zones: WORLD_ZONES };
 }

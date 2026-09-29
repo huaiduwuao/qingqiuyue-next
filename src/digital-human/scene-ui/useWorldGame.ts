@@ -10,8 +10,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { VrmStageHandle } from '../VrmStage';
 import type { WorldEvent } from '../vrm/world/useVrmWorld';
+import { getPlazaProgress, savePlazaProgress } from '@/apis/plaza';
 import {
-  QUEST_XP, ZONE_BY_ID, applyGameEvent, levelOf, parseGameState, pokeReaction,
+  QUEST_XP, ZONE_BY_ID, applyGameEvent, levelOf, mergeGameStates, parseGameState, pokeReaction,
   type GameEvent, type GameState, type ZoneId,
 } from '../vrm/world/worldLayout';
 
@@ -53,8 +54,33 @@ export function useWorldGame(opts: UseWorldGameOptions) {
   const emotionTimer = useRef<number | null>(null);
   const overviewTimer = useRef<number | null>(null);
 
-  // 读本机进度放到挂载后:SSR 时没有 localStorage
-  useEffect(() => { const s = load(); stateRef.current = s; setState(s); }, []);
+  // 读本机进度放到挂载后:SSR 时没有 localStorage;再和服务端的进度合并(换设备也接得上)
+  const saveTimer = useRef<number | null>(null);
+  const remoteOk = useRef(false);
+  useEffect(() => {
+    const s = load();
+    stateRef.current = s;
+    setState(s);
+    let alive = true;
+    getPlazaProgress().then((r) => {
+      // 回包形状不对(服务没上线)就当没有服务端,只用本机进度
+      if (!alive || !r || typeof r.exists !== 'boolean') return;
+      remoteOk.current = true;
+      if (!r.exists) { void savePlazaProgress(stateRef.current).catch(() => {}); return; }
+      const merged = mergeGameStates(stateRef.current, parseGameState(r.progress));
+      stateRef.current = merged;
+      setState(merged);
+      try { localStorage.setItem(STORE_KEY, JSON.stringify(merged)); } catch { /* ignore */ }
+    }).catch(() => { /* 服务端不可用:只用本机进度 */ });
+    return () => { alive = false; };
+  }, []);
+  /** 存本机 + 2 秒防抖存服务端 */
+  const persist = useCallback((s: GameState) => {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(s)); } catch { /* 隐私模式 */ }
+    if (!remoteOk.current) return;
+    if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    saveTimer.current = window.setTimeout(() => { void savePlazaProgress(stateRef.current).catch(() => {}); }, 2000);
+  }, []);
 
   const toast = useCallback((icon: string, text: string, tone: GameToast['tone'] = 'info') => {
     const id = ++toastId.current;
@@ -75,7 +101,7 @@ export function useWorldGame(opts: UseWorldGameOptions) {
     const step = applyGameEvent(stateRef.current, e);
     stateRef.current = step.state;
     setState(step.state);
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(step.state)); } catch { /* 隐私模式 */ }
+    persist(step.state);
     const h = optsRef.current.handle;
     for (const q of step.completed) {
       toast(q.emoji, `任务完成:${q.label} +${QUEST_XP} 经验`, 'quest');
@@ -93,7 +119,7 @@ export function useWorldGame(opts: UseWorldGameOptions) {
       flashEmotion('happy');
     }
     return step;
-  }, [toast, flashEmotion]);
+  }, [toast, flashEmotion, persist]);
 
   const stopOverview = useCallback(() => {
     if (overviewTimer.current) { window.clearTimeout(overviewTimer.current); overviewTimer.current = null; }
@@ -182,10 +208,11 @@ export function useWorldGame(opts: UseWorldGameOptions) {
   useEffect(() => () => {
     if (emotionTimer.current) window.clearTimeout(emotionTimer.current);
     if (overviewTimer.current) window.clearTimeout(overviewTimer.current);
+    if (saveTimer.current) { window.clearTimeout(saveTimer.current); void savePlazaProgress(stateRef.current).catch(() => {}); }
   }, []);
 
   return {
-    state, zone, toasts, overview,
+    state, zone, toasts, overview, toast,
     level: levelOf(state.xp),
     onWorldEvent, interact, record, toggleOverview,
     goHome: () => optsRef.current.handle?.walkTo(0, 0.6),

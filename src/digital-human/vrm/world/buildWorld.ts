@@ -23,6 +23,17 @@ const THEMES: Record<string, WorldTheme> = {
 };
 export function worldTheme(preset: string): WorldTheme { return THEMES[preset] ?? THEMES.concert; }
 
+/** 广场里的另一个人 */
+export interface WorldPeer {
+  id: string;
+  nickname: string;
+  x: number;
+  z: number;
+  yaw: number;
+  aura?: string;
+  moving?: boolean;
+}
+
 export interface WorldHandle {
   group: THREE.Group;
   /** 点击拾取用:地面 */
@@ -40,6 +51,14 @@ export interface WorldHandle {
   /** 在世界坐标上方冒一句飘字 */
   floatText: (text: string, x: number, y: number, z: number, color?: string) => void;
   tick: (t: number, dt: number, camera: THREE.Camera) => void;
+  /** 广场里的其他人(服务端心跳拿回来的);不在列表里的会淡出移除 */
+  setPeers: (peers: WorldPeer[]) => void;
+  /** 自己脚下的光环:颜色值 / 'rainbow' / null 摘掉 */
+  setAura: (value: string | null) => void;
+  /** 每帧告诉世界角色在哪(光环跟着走) */
+  setSelfPos: (x: number, z: number) => void;
+  /** 当前画着的其他人(小地图用) */
+  peerPositions: () => { id: string; x: number; z: number; aura?: string }[];
   dispose: () => void;
 }
 
@@ -583,6 +602,119 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string): World
     }
   }
 
+  // ── 光环:一圈加色混合的光,颜色可换,rainbow 走色相循环
+  function makeAura(value: string) {
+    const mat = new THREE_NS.ShaderMaterial({
+      transparent: true, depthWrite: false, blending: THREE_NS.AdditiveBlending, fog: false, side: THREE_NS.DoubleSide,
+      uniforms: { uTime: { value: 0 }, uCol: { value: new THREE_NS.Color(value === 'rainbow' ? 0xff4fd8 : value) }, uRainbow: { value: value === 'rainbow' ? 1 : 0 } },
+      vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.); }`,
+      fragmentShader: `varying vec2 vUv; uniform float uTime; uniform vec3 uCol; uniform float uRainbow;
+        vec3 hue(float h){ return clamp(abs(mod(h*6.0+vec3(0.,4.,2.),6.)-3.)-1.,0.,1.); }
+        void main(){
+          vec2 p = vUv - 0.5; float r = length(p) * 2.0; float a = atan(p.y, p.x);
+          float ring = smoothstep(0.62, 0.8, r) * (1.0 - smoothstep(0.8, 1.0, r));
+          float inner = (1.0 - smoothstep(0.0, 0.8, r)) * 0.22;
+          float spark = pow(max(0.0, sin(a * 6.0 + uTime * 2.4)), 6.0) * ring;
+          vec3 c = mix(uCol, hue(fract(a / 6.2832 + uTime * 0.15)), uRainbow);
+          gl_FragColor = vec4(c * (ring * (0.8 + 0.2 * sin(uTime * 3.0)) + inner + spark * 1.2), 1.0);
+        }`,
+    });
+    const m = new THREE_NS.Mesh(new THREE_NS.PlaneGeometry(1.5, 1.5), mat);
+    m.rotation.x = -Math.PI / 2;
+    m.position.y = 0.025;
+    m.renderOrder = 2;
+    return m;
+  }
+  function disposeMesh(m: THREE.Mesh) {
+    m.geometry.dispose();
+    (m.material as THREE.Material).dispose();
+  }
+
+  let selfAura: THREE.Mesh | null = null;
+  let selfAuraValue: string | null = null;
+  function setAura(value: string | null) {
+    if (value === selfAuraValue) return;
+    selfAuraValue = value;
+    if (selfAura) { group.remove(selfAura); disposeMesh(selfAura); selfAura = null; }
+    if (value) { selfAura = makeAura(value); group.add(selfAura); }
+  }
+  function setSelfPos(x: number, z: number) {
+    if (selfAura) { selfAura.position.x = x; selfAura.position.z = z; }
+  }
+
+  // ── 其他人:一个发光的小人影(身子 + 头)+ 名牌 + 可选光环,位置平滑插值
+  const peerBodyGeo = G.cyl(0.16, 0.22, 1.0, 14);
+  const peerHeadGeo = G.sphere(0.17, 16);
+  interface PeerObj { g: THREE.Group; target: THREE.Vector3; yaw: number; aura?: string; auraMesh?: THREE.Mesh; label: THREE.Sprite; mat: THREE.MeshStandardMaterial; fade: number; alive: boolean; bob: number }
+  const peers = new Map<string, PeerObj>();
+  function peerColor(id: string) {
+    let h = 0;
+    for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+    return new THREE_NS.Color().setHSL((h % 360) / 360, 0.8, 0.5);
+  }
+  function setPeers(list: WorldPeer[]) {
+    const seen = new Set<string>();
+    for (const p of list) {
+      seen.add(p.id);
+      let o = peers.get(p.id);
+      if (!o) {
+        const g = new THREE_NS.Group();
+        const col = peerColor(p.id);
+        const mat = new THREE_NS.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.3, transparent: true, opacity: 0, roughness: 0.35, metalness: 0.2 });
+        const body = new THREE_NS.Mesh(peerBodyGeo, mat);
+        body.position.y = 0.5;
+        const head = new THREE_NS.Mesh(peerHeadGeo, mat);
+        head.position.y = 1.2;
+        body.castShadow = head.castShadow = true;
+        const label = makeTextSprite(THREE_NS, p.nickname.slice(0, 12), { color: '#fff', bg: 'rgba(8,10,20,0.6)', size: 30 });
+        label.scale.multiplyScalar(0.7);
+        label.position.y = 1.62;
+        g.add(body, head, label);
+        g.position.set(p.x, 0, p.z);
+        group.add(g);
+        o = { g, target: new THREE_NS.Vector3(p.x, 0, p.z), yaw: p.yaw, label, mat, fade: 0, alive: true, bob: Math.random() * 6 };
+        peers.set(p.id, o);
+      }
+      o.alive = true;
+      o.target.set(p.x, 0, p.z);
+      o.yaw = p.yaw;
+      if ((p.aura || undefined) !== o.aura) {
+        if (o.auraMesh) { o.g.remove(o.auraMesh); disposeMesh(o.auraMesh); o.auraMesh = undefined; }
+        o.aura = p.aura || undefined;
+        if (o.aura) { o.auraMesh = makeAura(o.aura); o.auraMesh.position.set(0, 0.025, 0); o.g.add(o.auraMesh); }
+      }
+    }
+    for (const [id, o] of peers) if (!seen.has(id)) o.alive = false;
+  }
+  function tickPeers(t: number, dt: number) {
+    if (selfAura) (selfAura.material as THREE.ShaderMaterial).uniforms.uTime.value = t;
+    for (const [id, o] of peers) {
+      o.fade = Math.max(0, Math.min(1, o.fade + (o.alive ? dt * 2 : -dt * 2)));
+      o.mat.opacity = 0.85 * o.fade;
+      (o.label.material as THREE.SpriteMaterial).opacity = o.fade;
+      const k = Math.min(1, dt * 4);
+      o.g.position.lerp(o.target, k);
+      let d = o.yaw - o.g.rotation.y;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      o.g.rotation.y += d * k;
+      o.g.children[1].position.y = 1.2 + Math.sin(t * 2 + o.bob) * 0.03;
+      if (o.auraMesh) (o.auraMesh.material as THREE.ShaderMaterial).uniforms.uTime.value = t;
+      if (!o.alive && o.fade <= 0) {
+        group.remove(o.g);
+        o.mat.dispose();
+        (o.label.material as THREE.SpriteMaterial).map?.dispose();
+        o.label.material.dispose();
+        if (o.auraMesh) disposeMesh(o.auraMesh);
+        peers.delete(id);
+      }
+    }
+  }
+  function peerPositions() {
+    const out: { id: string; x: number; z: number; aura?: string }[] = [];
+    for (const [id, o] of peers) if (o.alive) out.push({ id, x: o.target.x, z: o.target.z, aura: o.aura });
+    return out;
+  }
+
   function showMarker(x: number, z: number) {
     marker.position.x = x;
     marker.position.z = z;
@@ -591,6 +723,15 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string): World
   }
 
   function dispose() {
+    setAura(null);
+    setPeers([]);
+    for (const [, o] of peers) {
+      o.mat.dispose();
+      (o.label.material as THREE.SpriteMaterial).map?.dispose();
+      o.label.material.dispose();
+      if (o.auraMesh) disposeMesh(o.auraMesh);
+    }
+    peers.clear();
     for (const f of floats) { (f.s.material as THREE.SpriteMaterial).map?.dispose(); f.s.material.dispose(); }
     floats.length = 0;
     burstMats.forEach((m) => m.dispose());
@@ -602,6 +743,8 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string): World
     group, ground, pickables,
     setTheme, setOrbs, collectOrb, showMarker, setActiveZone,
     setDanceFloorHot: (on) => { danceHot = on; },
-    floatText, tick, dispose,
+    floatText, dispose,
+    tick: (t, dt, camera) => { tick(t, dt, camera); tickPeers(t, dt); },
+    setPeers, setAura, setSelfPos, peerPositions,
   };
 }

@@ -600,7 +600,7 @@ export interface PointMallItem {
   totalRedeemed: number;
   tag?: 'HOT' | 'NEW' | '限时' | '独家';
   /** physical:实物,需要收货地址;其余是装扮,兑换后立即到账并自动佩戴 */
-  deliverType?: 'physical' | 'avatar_frame' | 'title' | 'name_color';
+  deliverType?: 'physical' | 'avatar_frame' | 'title' | 'name_color' | 'plaza_aura';
   /** point:用积分(points);diamond:用钻石(扣 diamondPrice 钻;priceCents 是人民币标价,分) */
   currency?: 'point' | 'diamond';
   priceCents?: number;

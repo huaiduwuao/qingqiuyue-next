@@ -97,6 +97,32 @@ MUI 的列表、输入框、下拉框全都能正常点击和输入 —— 不�
 由模型决定放歌、开屏幕(对话进行中不回灌)。三块显示器仍在舞台原位,开屏幕时镜头会飞回舞台。
 `body.move` 等位置写入在广场里都过 `clampToWorld`(原来是 ±6 的方框)。
 
+### 和平台功能联动
+
+| 地标 | 面板内容(`scene-ui/plazaFeeds.ts`) | 点了之后 |
+|---|---|---|
+| 放映亭 | `recommend/feed` 能看的影视 | 大屏打开详情 |
+| 点唱机 | 本周热歌(leaderboard MUSIC) | 整张榜做成队列,走全站播放器 |
+| 书亭 | 今日一悟 + 今日诗 + 热门小说 | 竖屏打开 |
+| 舞池 | 正在直播(home/live/rooms) | 大屏打开直播间 |
+| 观星台 | 全网今日热榜(trending) | 屏幕打开 |
+| 许愿池 | 许愿墙 + 正在悬赏(demand scope=market) | 许愿/祝福;「把愿望变成悬赏」去悬赏中心 |
+
+服务端是 core-api 的 `internal/plazaapp`(`/api/core/plaza/*`,都要登录):
+
+- `plaza_progress` 广场进度跨设备(`useWorldGame` 进页面和本机进度合并 `mergeGameStates`,变动 2s 防抖回存;
+  服务端经验只增不减、单次增量有上限)。
+- `plaza_wish` / `plaza_wish_bless` 许愿墙:每人每天 3 条、过敏感词;新愿望实时推送 `plaza.wish` 给在广场的人,
+  被祝福推 `plaza.bless` 给愿望主人。许愿、给别人祝福记平台每日任务 `plaza_wish`(+5)/`plaza_bless`(+2×3),
+  积分只在这两个服务端看得见的动作上发 —— 捡星光、广场经验不换积分。
+- 在线位置在 Redis `qq:plaza:presence`(15s 过期),`usePlazaOnline` 每 3s 心跳,回包里是附近 40 个人和自己的光环,
+  场景里画成发光小人影 + 名牌 + 光环。
+- 光环是商城装扮 `plaza_aura`(`growth.KindPlazaAura`),`plazaapp` 在商城里没有光环时补 4 件;兑换/佩戴走商城接口。
+- 场景状态里多了 `plaza`(所在地标、在线人数、等级),`tagent.sceneStateSection` 看到它会告诉模型各地标对应的功能。
+
+平台每日任务(签到、广场许愿、送祝福……)嵌在广场任务清单下面。广场 HUD 包在 ErrorBoundary 里,
+任何一个接口回包不对只会让那块显示「连不上」,不会带崩对话。
+
 ## 语音
 
 - 唤醒词:openWakeWord ONNX(`public/wake/xiaoyue.onnx`)+ VAD,说「小月」唤醒

@@ -287,6 +287,25 @@ export function parseGameState(raw: unknown, day = localDay()): GameState {
   return rollDay(st, day);
 }
 
+/**
+ * 本机进度和服务端进度合并(换设备、清缓存后都不丢):经验/累计星光取大;
+ * 同一天的任务取各项最大值、完成与到访取并集;不是今天的任务按跨天规则清掉。
+ */
+export function mergeGameStates(a: GameState, b: GameState, day = localDay()): GameState {
+  const x = rollDay(a, day);
+  const y = rollDay(b, day);
+  const quests: Record<string, number> = { ...x.quests };
+  for (const [k, v] of Object.entries(y.quests)) quests[k] = Math.max(quests[k] ?? 0, v);
+  return {
+    day,
+    xp: Math.max(x.xp, y.xp),
+    orbsTotal: Math.max(x.orbsTotal, y.orbsTotal),
+    quests,
+    done: Array.from(new Set([...x.done, ...y.done])),
+    visited: Array.from(new Set([...x.visited, ...y.visited])),
+  };
+}
+
 // ── 戳一戳 ──────────────────────────────────────────────────────────────
 
 export interface PokeReaction {

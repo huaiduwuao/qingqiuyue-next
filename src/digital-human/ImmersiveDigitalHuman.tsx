@@ -28,6 +28,13 @@ import TvRoundedIcon from '@mui/icons-material/TvRounded';
 import ParkRoundedIcon from '@mui/icons-material/ParkRounded';
 import { useWorldGame } from './scene-ui/useWorldGame';
 import { GameStatusBar, GameToasts, Minimap, QuestPanel, WorldHelp, WorldTools, ZonePrompt, useWorldHelp } from './scene-ui/GameHud';
+import { AuraShop, PlatformTasks, ZonePanel } from './scene-ui/PlazaPanels';
+import { ErrorBoundary } from '@/components/common/ErrorBoundary';
+import { usePlazaOnline } from './scene-ui/usePlazaOnline';
+import type { FeedAction, ZoneFeed } from './scene-ui/plazaFeeds';
+import { playTracks } from '@/lib/player/playlist';
+import { WORLD_ZONES, ZONE_BY_ID, type ZoneId } from './vrm/world/worldLayout';
+import type { PlazaState } from './scene-state';
 import { useRouter } from 'next/navigation';
 import { alpha } from '@mui/material/styles';
 import { VrmStage, type VrmStageHandle } from './VrmStage';
@@ -212,6 +219,7 @@ export default function ImmersiveDigitalHuman() {
     });
   }, []);
   const [questsOpen, setQuestsOpen] = React.useState(false);
+  const plazaStateRef = React.useRef<PlazaState | null>(null);
   const worldHelp = useWorldHelp();
   const [narrow, setNarrow] = React.useState(false);
   React.useEffect(() => {
@@ -294,6 +302,7 @@ export default function ImmersiveDigitalHuman() {
         const loc = displayLocRef.current[sl];
         return [sl, loc ? { name: DISPLAY_SPECS[sl].label, ...loc } : null];
       })),
+      plaza: plazaStateRef.current,
     }),
     // H1: 接收动态 UI 指令并渲染;I1: iframe 指令走独立显示器
     onUI: (ui: any) => {
@@ -663,6 +672,37 @@ export default function ImmersiveDigitalHuman() {
   }, [chatLog]);
   const worldActive = avatarMode === 'vrm' && worldOn;
 
+  // 广场联网:谁在广场、许愿墙、祝福、光环;许愿/祝福会在服务端记平台每日任务
+  const [tasksKey, setTasksKey] = React.useState(0);
+  const online = usePlazaOnline({
+    handle: stageHandle,
+    enabled: worldActive,
+    toast: (icon, t) => game.toast(icon, t),
+    onWished: () => { game.record({ kind: 'interact', zone: 'wish' }); setTasksKey((k) => k + 1); },
+    onBlessed: () => setTasksKey((k) => k + 1),
+  });
+  // 发给模型的场景状态里带上广场信息(她在哪个地标、有几个人在逛),模型能据此接话
+  plazaStateRef.current = worldActive ? {
+    zone: game.zone,
+    zoneLabel: game.zone ? ZONE_BY_ID[game.zone].label : undefined,
+    landmarks: WORLD_ZONES.map((z) => `${z.id}:${z.label}`),
+    online: online.online,
+    level: game.level.level,
+    orbsTotal: game.state.orbsTotal,
+  } : null;
+  // 地标内容面板:走进地标自动展开,可以手动收起(离开再进来会重新展开)
+  const [panelZone, setPanelZone] = React.useState<ZoneId | null>(null);
+  React.useEffect(() => { setPanelZone(game.zone); }, [game.zone]);
+  const [auraShopOpen, setAuraShopOpen] = React.useState(false);
+  const onFeedAction = React.useCallback((a: FeedAction, feed: ZoneFeed | null) => {
+    if (a.kind === 'play') {
+      const n = playTracks(feed?.tracks?.length ? feed.tracks : [{ id: a.trackId }], { startId: a.trackId, source: { kind: 'playlist', name: '广场点唱机' } });
+      if (n > 0) { stageHandleRef.current?.setAction('groove'); stageHandleRef.current?.floatText('🎵', '#ffb74f'); }
+      return;
+    }
+    openOnDisplayRef.current(a.href, { slot: a.slot ?? null });
+  }, []);
+
   // 实时读 VrmStage 里的 positionRef 给面板显示（每 250ms）
   const [posDisplay, setPosDisplay] = React.useState({ x: 0, z: 0 });
   React.useEffect(() => {
@@ -1000,8 +1040,9 @@ export default function ImmersiveDigitalHuman() {
       </IconButton>
 
       {/* 星光广场 HUD:顶部等级/任务/提示,右侧小地图,走进地标弹互动卡 */}
+      {/* 广场 HUD 出错只丢 HUD,不能把整页(对话、语音)带崩 */}
       {worldActive && (
-        <>
+        <ErrorBoundary fallback={<></>}>
           <Box sx={{
             position: 'absolute', zIndex: 3, left: '50%', transform: 'translateX(-50%)',
             // 手机顶栏两边都是按钮,放到第二行
@@ -1009,7 +1050,11 @@ export default function ImmersiveDigitalHuman() {
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, pointerEvents: 'none',
           }}>
             <GameStatusBar game={game} compact={narrow} questsOpen={questsOpen} onToggleQuests={() => setQuestsOpen((o) => !o)} />
-            {questsOpen && <QuestPanel game={game} />}
+            {questsOpen && (
+              <QuestPanel game={game}>
+                <PlatformTasks refreshKey={tasksKey} onPoints={(t) => game.toast('🪙', t)} />
+              </QuestPanel>
+            )}
             <GameToasts game={game} />
           </Box>
           {/* 手机上叠着打开的页面、或任务清单展开时让位 */}
@@ -1020,7 +1065,33 @@ export default function ImmersiveDigitalHuman() {
               display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'center',
             }}>
               <Minimap handle={stageHandle} size={narrow ? 104 : 156} />
-              <WorldTools game={game} onHelp={worldHelp.show} />
+              <WorldTools game={game} onHelp={worldHelp.show} onShop={() => setAuraShopOpen((o) => !o)} shopOpen={auraShopOpen} />
+              {auraShopOpen && (
+                <AuraShop
+                  onClose={() => setAuraShopOpen(false)}
+                  onChanged={(msg) => { game.toast('✨', msg); online.refreshAura(); setTasksKey((k) => k + 1); }}
+                />
+              )}
+            </Box>
+          )}
+          {/* 地标内容:桌面在左侧(会话列表开着时让到它右边),手机是聊天区上方的一块 */}
+          {panelZone && (
+            <Box sx={narrow ? {
+              position: 'absolute', zIndex: 4, left: 12, right: 12,
+              bottom: 'calc(min(46vh, 460px) + 72px)', maxHeight: '30vh', display: 'flex',
+            } : {
+              position: 'absolute', zIndex: 3, left: sessionDrawerOpen ? 292 : 16,
+              top: 'calc(64px + var(--sat, 0px))', maxHeight: 'calc(100vh - min(40vh, 400px) - 90px)', display: 'flex',
+            }}>
+              <ZonePanel
+                key={panelZone}
+                zone={panelZone}
+                width={narrow ? '100%' : 340}
+                onClose={() => setPanelZone(null)}
+                onAction={onFeedAction}
+                onAsk={game.interact}
+                online={online}
+              />
             </Box>
           )}
           <ZonePrompt
@@ -1029,7 +1100,7 @@ export default function ImmersiveDigitalHuman() {
             bottom={narrow ? 'calc(min(46vh, 460px) + 10px)' : 'calc(min(40vh, 400px) + 10px)'}
           />
           {worldHelp.open && <WorldHelp onClose={worldHelp.close} touch={narrow} />}
-        </>
+        </ErrorBoundary>
       )}
 
       {/* 底部 chip 条：情绪 + 姿势（移动端隐藏，腾位置给 chat） */}
