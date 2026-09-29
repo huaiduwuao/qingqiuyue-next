@@ -31,6 +31,7 @@ import VideoLibraryIcon from '@mui/icons-material/VideoLibrary';
 import CardGiftcardIcon from '@mui/icons-material/CardGiftcard';
 import MovieRoundedIcon from '@mui/icons-material/MovieRounded';
 import TheatersRoundedIcon from '@mui/icons-material/TheatersRounded';
+import SpaRoundedIcon from '@mui/icons-material/SpaRounded';
 import CollectionsRoundedIcon from '@mui/icons-material/CollectionsRounded';
 import DynamicFeedRoundedIcon from '@mui/icons-material/DynamicFeedRounded';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -73,6 +74,8 @@ const SIDE_NAV: { key: string; label: string; path?: string; icon: React.ReactNo
   { key: 'live', label: '直播', path: '/home/recommend?tab=live', icon: <LiveTvRoundedIcon sx={{ fontSize: 18 }} />, accent: 'primary.main' },
   { key: 'feed', label: '动态', path: '/home/recommend?tab=feed', icon: <DynamicFeedRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE' },
   { key: 'topic', label: '意境', path: '/home/recommend?tab=topic', icon: <CollectionsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D' },
+  // 人生感悟专题:整页路由(不是首页页签)
+  { key: 'insight', label: '人生感悟', path: '/insight', icon: <SpaRoundedIcon sx={{ fontSize: 18 }} />, accent: '#C8553D' },
   // 内容管理/悬赏中心:router.push 同页跳转(不开新标签),保留历史栈可返回
   { key: 'content', label: '内容管理', path: '/account/content', icon: <VideoLibraryIcon sx={{ fontSize: 18 }} />, accent: 'secondary.main', dividerBefore: true },
   { key: 'reward', label: '悬赏中心', path: '/account/reward', icon: <CardGiftcardIcon sx={{ fontSize: 18 }} />, accent: 'warning.main' },
