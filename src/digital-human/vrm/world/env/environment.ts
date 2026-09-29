@@ -13,6 +13,7 @@ import { NOISE_GLSL, SKY_COLOR_GLSL } from './shaders';
 import { keyLightDir, modeHour, skyAt, type SkyState, type TimeMode, type Weather } from './timeOfDay';
 import { createPost, type PostPipeline } from './post';
 import { WORLD_RADIUS, type WorldZone } from '../worldLayout';
+import { createRealistic, type RealisticLayer, type TreeSpot } from './realistic';
 
 export type Quality = 'high' | 'low';
 
@@ -24,6 +25,10 @@ export interface EnvOptions {
   grass: boolean;
   /** 地标:草不长在地标里和小路上 */
   zones: WorldZone[];
+  /** 画风:stylized = 自绘天空 + 程序化松林;realistic = HDRI 天空 / 环境光 + 真实松树 + 地面贴图(见 realistic.ts) */
+  style?: 'stylized' | 'realistic';
+  /** 写实素材根路径(默认 /qq-media/world) */
+  assetBase?: string;
 }
 
 export interface Environment {
@@ -79,6 +84,10 @@ export function createEnvironment(THREE_NS: typeof THREE, renderer: THREE.WebGLR
   const disposables: { dispose: () => void }[] = [];
   const track = <T extends { dispose: () => void }>(x: T) => { disposables.push(x); return x; };
   const high = opts.quality === 'high';
+  const realistic = opts.style === 'realistic';
+  let real: RealisticLayer | null = null;
+  let terrainMat: THREE.MeshStandardMaterial | null = null;
+  const treeSpots: TreeSpot[] = [];
   let timeMode = opts.timeMode;
   let hour = modeHour(timeMode);
   let hourTarget = hour;
@@ -176,7 +185,7 @@ export function createEnvironment(THREE_NS: typeof THREE, renderer: THREE.WebGLR
   // ── 地形:一圈山谷(极坐标网格,越远越稀) ─────────────────────────────
   {
     const rings = high ? 90 : 50, segs = high ? 220 : 120;
-    const pos: number[] = [], colors: number[] = [], idx: number[] = [];
+    const pos: number[] = [], colors: number[] = [], uvs: number[] = [], idx: number[] = [];
     const cSand = new THREE_NS.Color(0x6b6250), cGrass = new THREE_NS.Color(0x3d5a34), cForest = new THREE_NS.Color(0x24392a);
     const cRock = new THREE_NS.Color(0x5d6068), cSnow = new THREE_NS.Color(0xe6ecf2);
     const tmp = new THREE_NS.Color();
@@ -189,6 +198,7 @@ export function createEnvironment(THREE_NS: typeof THREE, renderer: THREE.WebGLR
         const x = Math.sin(a) * r, z = Math.cos(a) * r;
         const y = terrainHeight(x, z);
         pos.push(x, y, z);
+        uvs.push(x / 5, z / 5); // 写实画风的地面贴图按世界坐标平铺,5 米一块
         // 坡度近似:和外侧一点的高度差
         const slope = Math.abs(terrainHeight(x * 1.02, z * 1.02) - y) / (r * 0.02 + 0.01);
         if (y < WATER_Y + 0.25) tmp.copy(cSand);
@@ -208,9 +218,11 @@ export function createEnvironment(THREE_NS: typeof THREE, renderer: THREE.WebGLR
     const g = track(new THREE_NS.BufferGeometry());
     g.setAttribute('position', new THREE_NS.Float32BufferAttribute(pos, 3));
     g.setAttribute('color', new THREE_NS.Float32BufferAttribute(colors, 3));
+    g.setAttribute('uv', new THREE_NS.Float32BufferAttribute(uvs, 2));
     g.setIndex(idx);
     g.computeVertexNormals();
     const m = track(new THREE_NS.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 }));
+    terrainMat = m;
     const terrain = new THREE_NS.Mesh(g, m);
     terrain.receiveShadow = true;
     group.add(terrain);
@@ -218,7 +230,8 @@ export function createEnvironment(THREE_NS: typeof THREE, renderer: THREE.WebGLR
 
   // ── 松林:近处山坡上的一片片松树(实例化) ────────────────────────────
   {
-    const n = high ? 900 : 350;
+    // 写实松树一棵上万面,种少一点(远处靠低模档撑密度)
+    const n = realistic ? (high ? 320 : 140) : high ? 900 : 350;
     const trunk = track(new THREE_NS.CylinderGeometry(0.12, 0.18, 1.6, 6));
     trunk.translate(0, 0.8, 0);
     const crown = track(new THREE_NS.ConeGeometry(1.1, 3.6, 7));
@@ -243,6 +256,12 @@ export function createEnvironment(THREE_NS: typeof THREE, renderer: THREE.WebGLR
       q.setFromAxisAngle(new THREE_NS.Vector3(0, 1, 0), hash2(tries, 5) * 6.28);
       s.set(k, k * (0.85 + hash2(tries, 9) * 0.5), k);
       mtx.compose(p, q, s);
+      if (realistic) {
+        // Poly Haven 的松树是真实尺寸(十几米),这里的 k 是给 4.7 米的卡通松树用的,缩一下
+        treeSpots.push({ x, y: y - 0.1, z, scale: 0.55 + (k - 0.7) * 0.35, rot: hash2(tries, 5) * 6.28 });
+        placed++;
+        continue;
+      }
       trunks.setMatrixAt(placed, mtx);
       crowns.setMatrixAt(placed, mtx);
       crowns.setColorAt(placed, tint.setHSL(0.3 + hash2(tries, 11) * 0.06, 0.35, 0.16 + hash2(tries, 17) * 0.08));
@@ -250,7 +269,15 @@ export function createEnvironment(THREE_NS: typeof THREE, renderer: THREE.WebGLR
     }
     trunks.count = crowns.count = placed;
     crowns.castShadow = true;
-    group.add(trunks, crowns);
+    if (!realistic) group.add(trunks, crowns);
+  }
+
+  // ── 写实画风:天空球换 HDRI、地面贴图、真实松树 ─────────────────────
+  if (realistic) {
+    real = createRealistic(THREE_NS, renderer, scene, group, { quality: opts.quality, base: opts.assetBase, trees: treeSpots });
+    skyMesh.material = real.skyMaterial;
+    if (terrainMat) real.applyGround(terrainMat);
+    real.setHour(hour);
   }
 
   // ── 湖面 ───────────────────────────────────────────────────────────
@@ -570,7 +597,9 @@ export function createEnvironment(THREE_NS: typeof THREE, renderer: THREE.WebGLR
     sun.intensity = s.lightIntensity;
     hemi.color.setRGB(...s.hemiSky);
     hemi.groundColor.setRGB(...s.hemiGround);
-    hemi.intensity = s.hemiIntensity;
+    // 写实画风有 HDRI 环境光,半球光只留一点补色
+    hemi.intensity = s.hemiIntensity * (realistic ? 0.3 : 1);
+    real?.setHour(hour);
     waterMat.uniforms.uLamp.value = s.lampBoost;
     for (const b of boats) (b.lamp.material as THREE.MeshBasicMaterial).color.setRGB(3.2 * s.lampBoost, 1.6 * s.lampBoost, 0.6 * s.lampBoost);
     post?.set({ warmth: s.warmth, bloom: 0.35 + s.night * 0.45, threshold: 1.6 - s.night * 0.85 });
@@ -635,6 +664,7 @@ export function createEnvironment(THREE_NS: typeof THREE, renderer: THREE.WebGLR
     }
     skyUniforms.uTime.value = t;
     skyMesh.position.copy(camera.position);
+    real?.tick(dt, camera);
     grassUniforms.uTime.value = t;
 
     // 平行光:从太阳 / 月亮方向照向角色,阴影框跟着角色
@@ -677,6 +707,7 @@ export function createEnvironment(THREE_NS: typeof THREE, renderer: THREE.WebGLR
 
   function dispose() {
     buildWeather('none');
+    real?.dispose();
     post?.dispose();
     disposables.forEach((d) => d.dispose());
     group.clear();

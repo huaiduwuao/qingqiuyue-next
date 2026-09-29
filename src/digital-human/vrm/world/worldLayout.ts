@@ -74,17 +74,19 @@ export interface WorldDef {
   stage: string;
   palette?: { ground?: number; path?: number; accent?: number };
   /** 环境:时辰、天气、有没有草;缺省按场景类型(见 worldEnv) */
-  env?: { time?: string; weather?: string; grass?: boolean };
+  env?: { time?: string; weather?: string; grass?: boolean; style?: 'stylized' | 'realistic'; assets?: string };
   zones: WorldZone[];
 }
 
 /** 场景的环境设置,缺的按类型补:星光广场是夜里 + 萤火;感悟庭院是黄昏 + 落花 + 草地 */
-export function worldEnv(def: WorldDef): { time: string; weather: string; grass: boolean } {
+export function worldEnv(def: WorldDef): { time: string; weather: string; grass: boolean; style: 'stylized' | 'realistic'; assets?: string } {
   const plaza = def.kind !== 'insight';
   return {
     time: def.env?.time || (plaza ? 'night' : 'dusk'),
     weather: def.env?.weather || (plaza ? 'fireflies' : 'petals'),
     grass: def.env?.grass ?? !plaza,
+    style: def.env?.style === 'realistic' ? 'realistic' : 'stylized',
+    assets: def.env?.assets || undefined,
   };
 }
 

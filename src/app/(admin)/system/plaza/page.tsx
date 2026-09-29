@@ -325,6 +325,10 @@ function SceneEditor({ value, groups, characters, onClose, onSaved }: { value: P
             <TextField size="small" select label="天气" value={v.palette?.weather ?? ''} onChange={(e) => setV({ ...v, palette: { ...(v.palette ?? {}), weather: e.target.value } })}>
               {Object.entries(WEATHERS).map(([k, n]) => <MenuItem key={k || 'default'} value={k}>{n}</MenuItem>)}
             </TextField>
+            <TextField size="small" select label="画风" value={v.palette?.style ?? ''} onChange={(e) => setV({ ...v, palette: { ...(v.palette ?? {}), style: (e.target.value || undefined) as 'realistic' | undefined } })}>
+              <MenuItem value="">风格化(默认)</MenuItem>
+              <MenuItem value="realistic">写实(HDRI 天空 + 实景素材)</MenuItem>
+            </TextField>
             <TextField size="small" select label="草地" value={v.palette?.grass === undefined ? '' : v.palette.grass ? 'on' : 'off'}
               onChange={(e) => { const g = e.target.value; setV({ ...v, palette: { ...(v.palette ?? {}), grass: g === '' ? undefined : g === 'on' } }); }}>
               <MenuItem value="">按类型默认</MenuItem>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { keyLightDir, modeHour, skyAt } from '../vrm/world/env/timeOfDay';
 import { DEFAULT_WORLD, worldEnv } from '../vrm/world/worldLayout';
+import { skyForHour } from '../vrm/world/env/realistic';
 
 describe('time of day', () => {
   it('sun is up at noon and down at midnight', () => {
@@ -33,8 +34,19 @@ describe('time of day', () => {
 
 describe('scene environment defaults', () => {
   it('plaza is a night with fireflies and no grass; courts are dusk with petals and grass', () => {
-    expect(worldEnv(DEFAULT_WORLD)).toEqual({ time: 'night', weather: 'fireflies', grass: false });
-    expect(worldEnv({ ...DEFAULT_WORLD, kind: 'insight' })).toEqual({ time: 'dusk', weather: 'petals', grass: true });
+    expect(worldEnv(DEFAULT_WORLD)).toEqual({ time: 'night', weather: 'fireflies', grass: false, style: 'stylized', assets: undefined });
+    expect(worldEnv({ ...DEFAULT_WORLD, kind: 'insight' })).toEqual({ time: 'dusk', weather: 'petals', grass: true, style: 'stylized', assets: undefined });
     expect(worldEnv({ ...DEFAULT_WORLD, env: { time: 'day', grass: true } })).toMatchObject({ time: 'day', grass: true });
+  });
+  it('realistic style is opt-in per scene', () => {
+    expect(worldEnv({ ...DEFAULT_WORLD, env: { style: 'realistic' } }).style).toBe('realistic');
+    expect(worldEnv({ ...DEFAULT_WORLD, env: { style: 'bogus' as never } }).style).toBe('stylized');
+  });
+  it('each hour maps to one of the four HDRI skies', () => {
+    expect(skyForHour(6)).toBe('morning');
+    expect(skyForHour(12)).toBe('day');
+    expect(skyForHour(18)).toBe('dusk');
+    expect(skyForHour(23)).toBe('night');
+    expect(skyForHour(2)).toBe('night');
   });
 });

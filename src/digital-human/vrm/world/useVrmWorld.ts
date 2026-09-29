@@ -99,6 +99,8 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
         weather: e.weather as Weather,
         grass: e.grass,
         zones: d.zones,
+        style: e.style,
+        assetBase: e.assets,
       });
       scene.add(env.group);
       envRef.current = env;

@@ -108,7 +108,7 @@ export interface PlazaScene {
   group: string;
   stage: string;
   /** 配色 + 环境:time = auto/dawn/day/dusk/night,weather = none/petals/leaves/rain/snow/fireflies */
-  palette: { ground?: string; path?: string; accent?: string; time?: string; weather?: string; grass?: boolean };
+  palette: { ground?: string; path?: string; accent?: string; time?: string; weather?: string; grass?: boolean; style?: 'stylized' | 'realistic' };
   landmarks: PlazaLandmark[];
   status: 'published' | 'draft';
   sort: number;
