@@ -1,9 +1,10 @@
 /**
  * vrm/world/useVrmWorld.ts — 广场在舞台里的每帧逻辑
  *
- * - 建/拆 3D 广场(buildWorld),跟着场景预设换配色;
- * - 每帧:判断角色进出哪个地标、碰没碰到星光(捡起 + 过一会儿在别处补一颗);
- * - 画布上的「点击」(不是拖拽转镜头):点到角色 = 戳一戳,点到地标 = 走过去,点到地面 = 走到那里。
+ * - 建/拆 3D 广场(buildWorld),换场景(WorldDef.key 变了)时整座重建;跟着场景预设换配色;
+ * - 每帧:判断角色进出哪个地标、走近了哪位人物、碰没碰到星光(捡起 + 过一会儿在别处补一颗);
+ * - 画布上的「点击」(不是拖拽转镜头):点到角色 = 戳一戳,点到人物 = 和他说话,
+ *   点到地标 = 走过去,点到地面 = 走到那里。
  *
  * 玩法状态(经验、任务)不在这里:这里只往外报事件,由页面层记账。
  */
@@ -12,15 +13,19 @@ import { useCallback, useEffect, useRef } from 'react';
 import type * as THREE from 'three';
 import { buildWorld, type WorldHandle, type WorldPeer } from './buildWorld';
 import {
-  ORB_POINTS, ORB_RESPAWN_MS, WORLD_ZONES, ZONE_BY_ID, orbsInReach, pickOrbSpot, spawnOrbs, zoneApproachPoint, zoneAt,
-  type Orb, type ZoneId,
+  DEFAULT_WORLD, ORB_POINTS, ORB_RESPAWN_MS, WORLD_ZONES, findZone, orbsInReach, pickOrbSpot, spawnOrbs, zoneApproachPoint, zoneAt,
+  type Orb, type WorldCharacter, type WorldDef, type ZoneId,
 } from './worldLayout';
 
 export type WorldEvent =
   | { type: 'orb'; golden: boolean; points: number }
   | { type: 'zone'; zone: ZoneId | null }
   | { type: 'poke' }
-  | { type: 'interact' };
+  | { type: 'interact' }
+  /** 点了某位人物 */
+  | { type: 'character'; id: string }
+  /** 走到某位人物跟前(null = 走开了) */
+  | { type: 'nearCharacter'; id: string | null };
 
 export interface UseVrmWorldOptions {
   enabled: boolean;
@@ -29,6 +34,10 @@ export interface UseVrmWorldOptions {
   camera: THREE.PerspectiveCamera | null;
   canvas: HTMLCanvasElement | null;
   preset: string;
+  /** 当前场景;换了 key 整座广场重建 */
+  def?: WorldDef;
+  /** 当前场景里的人物 */
+  characters?: WorldCharacter[];
   /** 角色根节点(点击命中检测用) */
   getAvatar: () => THREE.Object3D | null;
   /** 让角色走到某点(已经过 clampToWorld) */
@@ -40,37 +49,58 @@ export interface WorldSnapshot {
   orbs: Orb[];
   zone: ZoneId | null;
   peers: { id: string; x: number; z: number; aura?: string }[];
+  characters: { id: string; x: number; z: number }[];
 }
+
+/** 走到人物多近算「到跟前」 */
+const NEAR_CHARACTER = 1.8;
 
 export function useVrmWorld(opts: UseVrmWorldOptions) {
   const { enabled, THREE_NS, scene, camera, canvas, preset } = opts;
+  const def = opts.def ?? DEFAULT_WORLD;
+  const defRef = useRef(def);
+  defRef.current = def;
   const worldRef = useRef<WorldHandle | null>(null);
   const orbsRef = useRef<Orb[]>([]);
   const respawnRef = useRef<number[]>([]);
   const nextOrbIdRef = useRef(1000);
   const zoneRef = useRef<ZoneId | null>(null);
+  const nearRef = useRef<string | null>(null);
+  const auraRef = useRef<string | null>(null);
+  const charactersRef = useRef<WorldCharacter[]>(opts.characters ?? []);
   const cbRef = useRef(opts);
   cbRef.current = opts;
 
-  // 建 / 拆
+  // 建 / 拆(换场景也走这里)
   useEffect(() => {
     if (!enabled || !THREE_NS || !scene) return;
-    const w = buildWorld(THREE_NS, cbRef.current.preset);
+    const d = defRef.current;
+    const w = buildWorld(THREE_NS, cbRef.current.preset, d);
     scene.add(w.group);
     worldRef.current = w;
-    orbsRef.current = spawnOrbs((Date.now() / 1000) | 0);
+    orbsRef.current = spawnOrbs((Date.now() / 1000) | 0, undefined, d);
     respawnRef.current = [];
     w.setOrbs(orbsRef.current);
+    w.setCharacters(charactersRef.current);
     if (auraRef.current) w.setAura(auraRef.current);
     return () => {
       scene.remove(w.group);
       w.dispose();
       worldRef.current = null;
-      zoneRef.current = null;
+      if (zoneRef.current) { zoneRef.current = null; cbRef.current.onEvent?.({ type: 'zone', zone: null }); }
+      if (nearRef.current) { nearRef.current = null; cbRef.current.onEvent?.({ type: 'nearCharacter', id: null }); }
     };
-  }, [enabled, THREE_NS, scene]);
+  // 地标内容的改动(后台改了坐标)也要重建:key + 地标签名
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, THREE_NS, scene, def.key, JSON.stringify(def.zones.map((z) => [z.id, z.x, z.z, z.prop, z.color]))]);
 
   useEffect(() => { worldRef.current?.setTheme(preset); }, [preset]);
+
+  // 人物列表变了只重摆人物,不重建整座广场
+  useEffect(() => {
+    charactersRef.current = opts.characters ?? [];
+    worldRef.current?.setCharacters(charactersRef.current);
+  }, [opts.characters]);
 
   // 画布点击:按下到抬起位移很小、时间很短才算「点」,否则是在拖镜头
   useEffect(() => {
@@ -99,16 +129,29 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
         cb.onEvent?.({ type: 'poke' });
         return;
       }
-      // 2. 地标 → 走到它跟前
-      const hitZone = raycaster.intersectObjects(w.pickables, true)[0];
-      const zid = hitZone?.object.userData.zoneId as ZoneId | undefined;
-      if (zid && ZONE_BY_ID[zid]) {
-        const p = zoneApproachPoint(ZONE_BY_ID[zid]);
+      const hit = raycaster.intersectObjects(w.pickables, true)[0];
+      // 2. 人物 → 走到他跟前,并开口
+      const cid = hit?.object.userData.characterId as string | undefined;
+      if (cid) {
+        const c = charactersRef.current.find((x) => x.id === cid);
+        if (c) {
+          const r = Math.hypot(c.x, c.z) || 1;
+          const tx = c.x - (c.x / r) * 1.1, tz = c.z - (c.z / r) * 1.1;
+          w.showMarker(tx, tz);
+          cb.walkTo(tx, tz);
+        }
+        cb.onEvent?.({ type: 'character', id: cid });
+        return;
+      }
+      // 3. 地标 → 走到它跟前
+      const zone = findZone(defRef.current, hit?.object.userData.zoneId as string | undefined);
+      if (zone) {
+        const p = zoneApproachPoint(zone, defRef.current);
         w.showMarker(p.x, p.z);
         cb.walkTo(p.x, p.z);
         return;
       }
-      // 3. 地面
+      // 4. 地面
       const hitGround = raycaster.intersectObject(w.ground, false)[0];
       if (hitGround) {
         w.showMarker(hitGround.point.x, hitGround.point.z);
@@ -128,14 +171,27 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
     const w = worldRef.current;
     if (!w || !camera) return;
     const cb = cbRef.current;
+    const d = defRef.current;
     w.setDanceFloorHot(dancing);
     w.setSelfPos(pos.x, pos.z);
 
-    const zone = zoneAt(pos.x, pos.z)?.id ?? null;
+    const zone = zoneAt(pos.x, pos.z, d)?.id ?? null;
     if (zone !== zoneRef.current) {
       zoneRef.current = zone;
       w.setActiveZone(zone);
       cb.onEvent?.({ type: 'zone', zone });
+    }
+
+    // 走近人物
+    let near: string | null = null;
+    let nearD = NEAR_CHARACTER;
+    for (const c of charactersRef.current) {
+      const dd = Math.hypot(c.x - pos.x, c.z - pos.z);
+      if (dd < nearD) { near = c.id; nearD = dd; }
+    }
+    if (near !== nearRef.current) {
+      nearRef.current = near;
+      cb.onEvent?.({ type: 'nearCharacter', id: near });
     }
 
     const hits = orbsInReach(pos.x, pos.z, orbsRef.current);
@@ -154,8 +210,8 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
     const now = performance.now();
     if (respawnRef.current.length && respawnRef.current[0] <= now) {
       respawnRef.current.shift();
-      let spot = pickOrbSpot(Math.random, orbsRef.current);
-      for (let i = 0; i < 5 && Math.hypot(spot.x - pos.x, spot.z - pos.z) < 3; i++) spot = pickOrbSpot(Math.random, orbsRef.current);
+      let spot = pickOrbSpot(Math.random, orbsRef.current, d);
+      for (let i = 0; i < 5 && Math.hypot(spot.x - pos.x, spot.z - pos.z) < 3; i++) spot = pickOrbSpot(Math.random, orbsRef.current, d);
       orbsRef.current = [...orbsRef.current, { id: nextOrbIdRef.current++, x: spot.x, z: spot.z, golden: Math.random() < 0.12 }];
       w.setOrbs(orbsRef.current);
     }
@@ -169,12 +225,16 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
 
   const showMarker = useCallback((x: number, z: number) => { worldRef.current?.showMarker(x, z); }, []);
 
-  const snapshot = useCallback((): WorldSnapshot => ({ orbs: orbsRef.current, zone: zoneRef.current, peers: worldRef.current?.peerPositions() ?? [] }), []);
+  const snapshot = useCallback((): WorldSnapshot => ({
+    orbs: orbsRef.current,
+    zone: zoneRef.current,
+    peers: worldRef.current?.peerPositions() ?? [],
+    characters: worldRef.current?.characterPositions() ?? [],
+  }), []);
 
-  // 广场重建(关掉又打开)后要把上次的光环补回去
-  const auraRef = useRef<string | null>(null);
   const setPeers = useCallback((peers: WorldPeer[]) => { worldRef.current?.setPeers(peers); }, []);
   const setAura = useCallback((v: string | null) => { auraRef.current = v; worldRef.current?.setAura(v); }, []);
+  const characterSay = useCallback((id: string, text: string) => { worldRef.current?.characterSay(id, text); }, []);
 
-  return { tick, floatText, showMarker, snapshot, setPeers, setAura, zones: WORLD_ZONES };
+  return { tick, floatText, showMarker, snapshot, setPeers, setAura, characterSay, zones: WORLD_ZONES };
 }

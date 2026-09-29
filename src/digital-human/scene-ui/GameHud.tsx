@@ -16,7 +16,7 @@ import FlagRoundedIcon from '@mui/icons-material/FlagRounded';
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import type { VrmStageHandle } from '../VrmStage';
 import type { WorldGame } from './useWorldGame';
-import { QUESTS, WORLD_RADIUS, WORLD_ZONES, ZONE_BY_ID } from '../vrm/world/worldLayout';
+import { DEFAULT_WORLD, QUESTS, WORLD_RADIUS, type WorldDef } from '../vrm/world/worldLayout';
 
 const CYAN = '#25F4EE';
 const PINK = '#ff4fd8';
@@ -124,7 +124,8 @@ export function QuestPanel({ game, children }: { game: WorldGame; children?: Rea
  * 小地图:上方 = 舞台后方(远离默认机位),和默认视角一致。
  * 点地图上任意位置,角色就走过去;点地标图标走到那个地标。
  */
-export function Minimap({ handle, size }: { handle: VrmStageHandle | null; size: number }) {
+export function Minimap({ handle, size, def = DEFAULT_WORLD }: { handle: VrmStageHandle | null; size: number; def?: WorldDef }) {
+  const zones = def.zones;
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const handleRef = React.useRef(handle);
   handleRef.current = handle;
@@ -152,7 +153,7 @@ export function Minimap({ handle, size }: { handle: VrmStageHandle | null; size:
       // 内环 + 小路
       ctx.beginPath(); ctx.arc(c, c, 5.2 * scale, 0, Math.PI * 2);
       ctx.strokeStyle = 'rgba(37,244,238,0.22)'; ctx.lineWidth = 1; ctx.stroke();
-      for (const z of WORLD_ZONES) {
+      for (const z of zones) {
         const d = Math.hypot(z.x, z.z) || 1;
         const [x0, y0] = P((z.x / d) * 5.2, (z.z / d) * 5.2);
         const [x1, y1] = P(z.x, z.z);
@@ -170,7 +171,7 @@ export function Minimap({ handle, size }: { handle: VrmStageHandle | null; size:
       // 地标
       ctx.font = `${Math.round(size / 11)}px "Apple Color Emoji","Segoe UI Emoji",sans-serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      for (const z of WORLD_ZONES) {
+      for (const z of zones) {
         const [x, y] = P(z.x, z.z);
         const active = snap?.zone === z.id;
         ctx.beginPath(); ctx.arc(x, y, size / 15, 0, Math.PI * 2);
@@ -178,6 +179,13 @@ export function Minimap({ handle, size }: { handle: VrmStageHandle | null; size:
         ctx.fillText(z.emoji, x, y + 1);
       }
       if (!snap) return;
+      // 场景里的人物:小菱形
+      for (const p of snap.characters ?? []) {
+        const [x, y] = P(p.x, p.z);
+        ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4);
+        ctx.fillStyle = '#f3e2b0'; ctx.fillRect(-2.3, -2.3, 4.6, 4.6);
+        ctx.restore();
+      }
       // 广场里的其他人
       for (const p of snap.peers ?? []) {
         const [x, y] = P(p.x, p.z);
@@ -202,14 +210,14 @@ export function Minimap({ handle, size }: { handle: VrmStageHandle | null; size:
       ctx.restore();
     }, 100);
     return () => window.clearInterval(id);
-  }, [size, scale]);
+  }, [size, scale, zones]);
 
   const onClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
     const x = (e.clientX - r.left - size / 2) / scale;
     const z = (e.clientY - r.top - size / 2) / scale;
     // 点在地标图标上:走到地标跟前
-    const hit = WORLD_ZONES.find((zn) => Math.hypot(zn.x - x, zn.z - z) < (size / 15) / scale + 0.4);
+    const hit = zones.find((zn) => Math.hypot(zn.x - x, zn.z - z) < (size / 15) / scale + 0.4);
     if (hit) {
       const d = Math.hypot(hit.x, hit.z) || 1;
       const stand = hit.solidRadius + 0.7;
@@ -255,7 +263,7 @@ export function WorldTools({ game, onHelp, onShop, shopOpen }: { game: WorldGame
 
 /** 走进地标时,画面下方弹出的互动卡 */
 export function ZonePrompt({ game, bottom, touch }: { game: WorldGame; bottom: string; touch: boolean }) {
-  const z = game.zone ? ZONE_BY_ID[game.zone] : null;
+  const z = game.zoneInfo;
   if (!z) return null;
   const color = `#${z.color.toString(16).padStart(6, '0')}`;
   return (

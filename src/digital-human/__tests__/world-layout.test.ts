@@ -101,8 +101,8 @@ describe('game state', () => {
   });
   it('parses junk from storage safely', () => {
     expect(parseGameState('nope', day)).toEqual(emptyGameState(day));
-    const st = parseGameState({ day, xp: -5, orbsTotal: 'x', quests: { orbs: 3, bad: 'y' }, done: ['orbs', 7], visited: ['dance', 'mars'] }, day);
-    expect(st).toMatchObject({ xp: 0, orbsTotal: 0, quests: { orbs: 3, bad: 0 }, done: ['orbs'], visited: ['dance'] });
+    const st = parseGameState({ day, xp: -5, orbsTotal: 'x', quests: { orbs: 3, bad: 'y' }, done: ['orbs', 7], visited: ['dance', 'Mars!', 7, 'court-parting'] }, day);
+    expect(st).toMatchObject({ xp: 0, orbsTotal: 0, quests: { orbs: 3, bad: 0 }, done: ['orbs'], visited: ['dance', 'court-parting'] });
   });
   it('every quest has a reachable target', () => {
     for (const q of QUESTS) expect(q.target).toBeGreaterThan(0);

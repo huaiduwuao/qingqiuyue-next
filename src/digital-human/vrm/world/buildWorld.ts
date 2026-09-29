@@ -9,7 +9,7 @@
  */
 
 import type * as THREE from 'three';
-import { WORLD_RADIUS, WORLD_ZONES, type Orb, type WorldZone, type ZoneId } from './worldLayout';
+import { DEFAULT_WORLD, WORLD_RADIUS, zoneProp, type Orb, type WorldCharacter, type WorldDef, type WorldZone, type ZoneId } from './worldLayout';
 
 /** 各场景预设下广场的配色:地面要跟舞台地板接得上,不然白天草坪外面一圈黑地很突兀 */
 export interface WorldTheme { ground: number; path: number; accent: number; hemiSky: number; hemiGround: number; hemi: number }
@@ -57,6 +57,12 @@ export interface WorldHandle {
   setAura: (value: string | null) => void;
   /** 每帧告诉世界角色在哪(光环跟着走) */
   setSelfPos: (x: number, z: number) => void;
+  /** 场景里的人物(后台配置的诗人 / 引路人) */
+  setCharacters: (list: WorldCharacter[]) => void;
+  /** 人物头顶冒一句话(停留得比飘字久) */
+  characterSay: (id: string, text: string) => void;
+  /** 人物的位置(小地图、靠近检测用) */
+  characterPositions: () => { id: string; x: number; z: number }[];
   /** 当前画着的其他人(小地图用) */
   peerPositions: () => { id: string; x: number; z: number; aura?: string }[];
   dispose: () => void;
@@ -103,7 +109,8 @@ function makeTextSprite(THREE_NS: typeof THREE, text: string, opts: { color?: st
 
 function hex(c: number) { return `#${c.toString(16).padStart(6, '0')}`; }
 
-export function buildWorld(THREE_NS: typeof THREE, initialPreset: string): WorldHandle {
+export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: WorldDef = DEFAULT_WORLD): WorldHandle {
+  const ZONES = def.zones.length > 0 ? def.zones : DEFAULT_WORLD.zones;
   const group = new THREE_NS.Group();
   group.name = 'dh-world';
   const disposables: { dispose: () => void }[] = [];
@@ -123,7 +130,7 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string): World
   ground.name = 'dh-world-ground';
   group.add(ground);
 
-  const zoneUniform = WORLD_ZONES.map((z) => new THREE_NS.Vector3(z.x, z.z, z.radius));
+  const zoneUniform = ZONES.map((z) => new THREE_NS.Vector3(z.x, z.z, z.radius));
   const overlayMat = track(new THREE_NS.ShaderMaterial({
     transparent: true, depthWrite: false, blending: THREE_NS.AdditiveBlending, fog: false,
     uniforms: {
@@ -138,7 +145,7 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string): World
     vertexShader: `varying vec2 vW; void main(){ vec4 w = modelMatrix * vec4(position,1.); vW = w.xz; gl_Position = projectionMatrix * viewMatrix * w; }`,
     fragmentShader: `
       varying vec2 vW; uniform float uTime; uniform vec3 uPath; uniform vec3 uAccent;
-      uniform vec3 uZones[${WORLD_ZONES.length}]; uniform float uActive; uniform float uR; uniform float uStrength;
+      uniform vec3 uZones[${ZONES.length}]; uniform float uActive; uniform float uR; uniform float uStrength;
       float line(float d, float w){ return 1.0 - smoothstep(0.0, w, abs(d)); }
       float segDist(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa,ba)/dot(ba,ba), 0.0, 1.0); return length(pa - ba*h); }
       void main(){
@@ -154,7 +161,7 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string): World
         a += line(r - 5.2, 0.16) * dash * 0.6;
         // 舞台 → 各地标的小路 + 地标光圈
         vec3 col = uPath * a;
-        for (int i = 0; i < ${WORLD_ZONES.length}; i++) {
+        for (int i = 0; i < ${ZONES.length}; i++) {
           vec2 zc = uZones[i].xy; float zr = uZones[i].z;
           vec2 dir = normalize(zc);
           float pd = segDist(vW, dir * 5.2, zc - dir * zr);
@@ -206,6 +213,7 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string): World
   const pickables: THREE.Object3D[] = [];
   const zoneLabels = new Map<ZoneId, THREE.Sprite>();
   let danceTiles: THREE.Mesh[] = [];
+  let danceColor = 0xff4fd8;
   let danceHot = false;
   let fountainWater: THREE.ShaderMaterial | null = null;
   let cinemaScreen: THREE.ShaderMaterial | null = null;
@@ -217,8 +225,9 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string): World
     // 让地标正面朝舞台
     g.rotation.y = Math.atan2(-zone.x, -zone.z);
     const c = zone.color;
-    switch (zone.id) {
+    switch (zoneProp(zone)) {
       case 'dance': {
+        danceColor = c;
         const n = 6, s = 0.62;
         danceTiles = [];
         const tileGeo = G.box(s * 0.94, 0.05, s * 0.94);
@@ -362,11 +371,96 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string): World
         spinners.push({ o: scope, speed: 0.12 });
         break;
       }
+      // ── 感悟庭院的中式造型 ──
+      case 'pavilion': {
+        // 亭子:四根朱柱 + 两层攒尖顶 + 顶上一颗宝珠,亭心一盏灯
+        const pillar = track(new THREE_NS.MeshStandardMaterial({ color: 0x7a1f1f, roughness: 0.6 }));
+        for (const [px, pz] of [[-0.9, -0.9], [0.9, -0.9], [-0.9, 0.9], [0.9, 0.9]]) g.add(mesh(G.cyl(0.08, 0.09, 2.2, 10), pillar, px, 1.1, pz));
+        const base = mesh(G.box(2.4, 0.2, 2.4), stone, 0, 0.1, 0);
+        base.receiveShadow = true;
+        const roofMat = track(new THREE_NS.MeshStandardMaterial({ color: 0x1d2433, roughness: 0.5, metalness: 0.3, emissive: c, emissiveIntensity: 0.12 }));
+        const roof1 = mesh(G.cyl(0.2, 1.9, 0.7, 4), roofMat, 0, 2.55, 0);
+        roof1.rotation.y = Math.PI / 4;
+        const roof2 = mesh(G.cyl(0.05, 0.6, 0.45, 4), roofMat, 0, 3.05, 0);
+        roof2.rotation.y = Math.PI / 4;
+        const pearl = mesh(G.sphere(0.12), glowMat(c), 0, 3.35, 0);
+        const lamp = mesh(G.sphere(0.2), glowMat(0xfff0c8, 0.9), 0, 1.6, 0);
+        bobbers.push({ o: lamp, base: 1.6, amp: 0.05, speed: 1.3, phase: zone.x });
+        g.add(base, roof1, roof2, pearl, lamp);
+        pickables.push(base, roof1);
+        break;
+      }
+      case 'stele': {
+        // 石碑:碑座 + 碑身,碑面一道发光的竖线(像刻着的字)
+        const seat = mesh(G.box(1.3, 0.35, 0.8), stone, 0, 0.175, 0);
+        const body = mesh(G.box(0.95, 2.1, 0.28), track(new THREE_NS.MeshStandardMaterial({ color: 0x2a2d38, roughness: 0.8 })), 0, 1.4, 0);
+        const cap = mesh(G.box(1.1, 0.18, 0.36), stone, 0, 2.5, 0);
+        for (let i = 0; i < 3; i++) g.add(mesh(G.box(0.05, 1.5, 0.01), glowMat(c, 0.85), -0.25 + i * 0.25, 1.45, 0.145));
+        g.add(seat, body, cap);
+        pickables.push(body, seat);
+        break;
+      }
+      case 'lantern': {
+        // 灯亭:一根木杆挑着三盏红灯笼,微微晃
+        const pole = mesh(G.cyl(0.06, 0.08, 3.2, 10), track(new THREE_NS.MeshStandardMaterial({ color: 0x4a2f1b, roughness: 0.8 })), 0, 1.6, 0);
+        const arm = mesh(G.cyl(0.04, 0.04, 2.0, 8), darkMetal, 0, 3.1, 0);
+        arm.rotation.z = Math.PI / 2;
+        g.add(pole, arm);
+        pickables.push(pole);
+        const lanternMat = track(new THREE_NS.MeshStandardMaterial({ color: 0xc81e1e, emissive: 0xff5a2a, emissiveIntensity: 0.9, roughness: 0.6 }));
+        for (const lx of [-0.9, 0, 0.9]) {
+          const l = new THREE_NS.Group();
+          l.position.set(lx, 2.55, 0);
+          const shell = mesh(G.sphere(0.26, 14), lanternMat);
+          shell.scale.set(1, 1.25, 1);
+          const tassel = mesh(G.cyl(0.02, 0.05, 0.3, 6), glowMat(0xffc93d), 0, -0.45, 0);
+          l.add(shell, tassel);
+          g.add(l);
+          pickables.push(shell);
+          bobbers.push({ o: l, base: 2.55, amp: 0.04, speed: 1.1 + lx, phase: lx * 2 });
+        }
+        break;
+      }
+      case 'willow': {
+        // 柳树:树干 + 一圈垂下来的柳条(细长的半透明片)
+        const trunk = mesh(G.cyl(0.18, 0.28, 2.6, 10), track(new THREE_NS.MeshStandardMaterial({ color: 0x3b2a1a, roughness: 0.9 })), 0, 1.3, 0);
+        const crown = mesh(G.sphere(1.1, 14), track(new THREE_NS.MeshStandardMaterial({ color: 0x2f6b3a, roughness: 0.8, emissive: c, emissiveIntensity: 0.08 })), 0, 3.0, 0);
+        crown.scale.set(1.2, 0.7, 1.2);
+        g.add(trunk, crown);
+        pickables.push(trunk, crown);
+        const stripMat = track(new THREE_NS.MeshStandardMaterial({ color: 0x6fae5a, transparent: true, opacity: 0.85, side: THREE_NS.DoubleSide, emissive: c, emissiveIntensity: 0.1 }));
+        const stripGeo = track(new THREE_NS.PlaneGeometry(0.08, 1.6));
+        for (let i = 0; i < 18; i++) {
+          const a = (i / 18) * Math.PI * 2;
+          const st = new THREE_NS.Mesh(stripGeo, stripMat);
+          st.position.set(Math.sin(a) * 1.15, 2.2, Math.cos(a) * 1.15);
+          st.rotation.y = a;
+          g.add(st);
+          bobbers.push({ o: st, base: 2.2, amp: 0.05, speed: 0.8 + (i % 3) * 0.2, phase: i });
+        }
+        break;
+      }
+      case 'moongate': {
+        // 月洞门:一面墙中间开一个圆洞,洞沿发光
+        const wallMat = track(new THREE_NS.MeshStandardMaterial({ color: 0xe8e2d4, roughness: 0.9 }));
+        const shape = new THREE_NS.Shape();
+        shape.moveTo(-1.8, 0); shape.lineTo(1.8, 0); shape.lineTo(1.8, 3.0); shape.lineTo(-1.8, 3.0); shape.lineTo(-1.8, 0);
+        const hole = new THREE_NS.Path();
+        hole.absarc(0, 1.45, 1.1, 0, Math.PI * 2, false);
+        shape.holes.push(hole);
+        const wall = mesh(track(new THREE_NS.ExtrudeGeometry(shape, { depth: 0.25, bevelEnabled: false })), wallMat, 0, 0, -0.12);
+        const tile = mesh(G.box(3.9, 0.16, 0.5), track(new THREE_NS.MeshStandardMaterial({ color: 0x2b2f3a, roughness: 0.6 })), 0, 3.08, 0);
+        const ring = mesh(G.torus(1.1, 0.04), emissive(c, 1.6), 0, 1.45, 0.14);
+        g.add(wall, tile, ring);
+        pickables.push(wall);
+        break;
+      }
     }
     // 名牌
     const label = makeTextSprite(THREE_NS, `${zone.emoji} ${zone.label}`, { color: '#fff', bg: 'rgba(8,10,20,0.72)', border: hex(zone.color), size: 40 });
     track(label.material); track(label.material.map!);
-    const labelY = zone.id === 'dance' ? 3.9 : zone.id === 'wish' ? 2.7 : zone.id === 'stars' ? 2.7 : 3.1;
+    const prop = zoneProp(zone);
+    const labelY = prop === 'dance' ? 3.9 : prop === 'wish' || prop === 'stars' ? 2.7 : prop === 'pavilion' || prop === 'moongate' ? 3.6 : prop === 'willow' ? 3.9 : 3.1;
     label.position.set(zone.x, labelY, zone.z);
     group.add(label);
     zoneLabels.set(zone.id, label);
@@ -376,7 +470,7 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string): World
     return g;
   }
 
-  for (const zone of WORLD_ZONES) group.add(landmark(zone));
+  for (const zone of ZONES) group.add(landmark(zone));
   // 舞池整块地板也能点
   pickables.push(...danceTiles);
 
@@ -483,11 +577,11 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string): World
   let activeZone: ZoneId | null = null;
   function setActiveZone(id: ZoneId | null) {
     activeZone = id;
-    overlayMat.uniforms.uActive.value = id ? WORLD_ZONES.findIndex((z) => z.id === id) : -1;
+    overlayMat.uniforms.uActive.value = id ? ZONES.findIndex((z) => z.id === id) : -1;
   }
 
   function setTheme(preset: string) {
-    theme = worldTheme(preset);
+    theme = { ...worldTheme(preset), ...(def.palette?.ground !== undefined ? { ground: def.palette.ground } : {}), ...(def.palette?.path !== undefined ? { path: def.palette.path } : {}), ...(def.palette?.accent !== undefined ? { accent: def.palette.accent } : {}) };
     groundMat.color.setHex(theme.ground);
     (overlayMat.uniforms.uPath.value as THREE.Color).setHex(theme.path);
     (overlayMat.uniforms.uAccent.value as THREE.Color).setHex(theme.accent);
@@ -518,7 +612,7 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string): World
         m.emissive.copy(tmpColor.setHSL(h, 0.95, 0.5));
         m.emissiveIntensity = ((i + j + beat) % 3 === 0) ? 1.2 : 0.35;
       } else {
-        m.emissive.setHex(WORLD_ZONES[0].color);
+        m.emissive.setHex(danceColor);
         m.emissiveIntensity = 0.15 + 0.25 * Math.max(0, Math.sin(t * 1.3 - (i + j) * 0.5));
       }
     }
@@ -715,6 +809,88 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string): World
     return out;
   }
 
+  // ── 人物:长衫(圆锥)+ 头 + 发髻 / 幞头,名牌写「头衔 · 名字」
+  interface NpcObj { g: THREE.Group; label: THREE.Sprite; bubble: THREE.Sprite | null; bubbleT: number; c: WorldCharacter; phase: number }
+  const npcs = new Map<string, NpcObj>();
+  const robeGeo = track(new THREE_NS.ConeGeometry(0.34, 1.25, 16, 1, true));
+  const npcHeadGeo = G.sphere(0.15, 14);
+  const hatGeo = G.box(0.26, 0.12, 0.2);
+  const npcSkin = track(new THREE_NS.MeshStandardMaterial({ color: 0xe9d3bd, roughness: 0.7 }));
+  const npcHat = track(new THREE_NS.MeshStandardMaterial({ color: 0x151820, roughness: 0.6 }));
+  function npcLabelText(c: WorldCharacter) {
+    return [c.title, c.name || '…'].filter(Boolean).join(' · ');
+  }
+  function removeNpc(id: string) {
+    const o = npcs.get(id);
+    if (!o) return;
+    group.remove(o.g);
+    (o.label.material as THREE.SpriteMaterial).map?.dispose();
+    o.label.material.dispose();
+    if (o.bubble) { (o.bubble.material as THREE.SpriteMaterial).map?.dispose(); o.bubble.material.dispose(); }
+    o.g.traverse((m) => {
+      const mat = (m as THREE.Mesh).material as THREE.Material | undefined;
+      if (mat && mat !== npcSkin && mat !== npcHat && !(m as THREE.Sprite).isSprite) mat.dispose();
+    });
+    // 点击拾取列表里也去掉
+    for (let i = pickables.length - 1; i >= 0; i--) if (pickables[i].userData.characterId === id) pickables.splice(i, 1);
+    npcs.delete(id);
+  }
+  function setCharacters(list: WorldCharacter[]) {
+    const keep = new Set(list.map((c) => c.id));
+    for (const id of Array.from(npcs.keys())) if (!keep.has(id)) removeNpc(id);
+    for (const c of list) {
+      const old = npcs.get(c.id);
+      if (old && npcLabelText(old.c) === npcLabelText(c) && old.c.x === c.x && old.c.z === c.z) { old.c = c; continue; }
+      if (old) removeNpc(c.id);
+      const g = new THREE_NS.Group();
+      g.position.set(c.x, 0, c.z);
+      g.rotation.y = Math.atan2(-c.x, -c.z); // 面朝舞台
+      const col = c.color ?? (c.kind === 'poet' ? 0xb9a6ff : 0x25f4ee);
+      const robe = new THREE_NS.Mesh(robeGeo, new THREE_NS.MeshStandardMaterial({ color: col, roughness: 0.55, emissive: col, emissiveIntensity: 0.18, side: THREE_NS.DoubleSide }));
+      robe.position.y = 0.62;
+      const head = new THREE_NS.Mesh(npcHeadGeo, npcSkin);
+      head.position.y = 1.4;
+      const hat = new THREE_NS.Mesh(hatGeo, npcHat);
+      hat.position.y = 1.56;
+      if (c.kind === 'guide') { hat.scale.set(0.7, 1.4, 0.7); }
+      robe.castShadow = head.castShadow = true;
+      for (const m of [robe, head, hat]) m.userData.characterId = c.id;
+      const label = makeTextSprite(THREE_NS, npcLabelText(c), { color: '#fff', bg: 'rgba(20,14,30,0.72)', border: hex(col), size: 30 });
+      label.scale.multiplyScalar(0.75);
+      (label.userData.baseScale as THREE.Vector3).multiplyScalar(0.75);
+      label.position.y = 1.95;
+      g.add(robe, head, hat, label);
+      group.add(g);
+      pickables.push(robe, head);
+      npcs.set(c.id, { g, label, bubble: null, bubbleT: 0, c, phase: Math.random() * 6 });
+    }
+  }
+  function characterSay(id: string, text: string) {
+    const o = npcs.get(id);
+    if (!o) return;
+    if (o.bubble) { o.g.remove(o.bubble); (o.bubble.material as THREE.SpriteMaterial).map?.dispose(); o.bubble.material.dispose(); }
+    const b = makeTextSprite(THREE_NS, text.length > 22 ? text.slice(0, 22) + '…' : text, { color: '#2a1d10', bg: 'rgba(255,248,232,0.94)', size: 34 });
+    b.scale.multiplyScalar(0.7);
+    b.position.y = 2.45;
+    (b.material as THREE.SpriteMaterial).depthTest = false;
+    b.renderOrder = 9;
+    o.g.add(b);
+    o.bubble = b;
+    o.bubbleT = 0;
+  }
+  function tickNpcs(t: number, dt: number) {
+    for (const [, o] of npcs) {
+      o.g.children[1].position.y = 1.4 + Math.sin(t * 1.6 + o.phase) * 0.02;
+      if (o.bubble) {
+        o.bubbleT += dt;
+        const mat = o.bubble.material as THREE.SpriteMaterial;
+        mat.opacity = o.bubbleT < 5 ? 1 : Math.max(0, 1 - (o.bubbleT - 5) / 0.8);
+        if (o.bubbleT > 5.8) { o.g.remove(o.bubble); mat.map?.dispose(); mat.dispose(); o.bubble = null; }
+      }
+    }
+  }
+  const characterPositions = () => Array.from(npcs.values()).map((o) => ({ id: o.c.id, x: o.c.x, z: o.c.z }));
+
   function showMarker(x: number, z: number) {
     marker.position.x = x;
     marker.position.z = z;
@@ -723,6 +899,7 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string): World
   }
 
   function dispose() {
+    for (const id of Array.from(npcs.keys())) removeNpc(id);
     setAura(null);
     setPeers([]);
     for (const [, o] of peers) {
@@ -744,7 +921,7 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string): World
     setTheme, setOrbs, collectOrb, showMarker, setActiveZone,
     setDanceFloorHot: (on) => { danceHot = on; },
     floatText, dispose,
-    tick: (t, dt, camera) => { tick(t, dt, camera); tickPeers(t, dt); },
-    setPeers, setAura, setSelfPos, peerPositions,
+    tick: (t, dt, camera) => { tick(t, dt, camera); tickPeers(t, dt); tickNpcs(t, dt); },
+    setPeers, setAura, setSelfPos, peerPositions, setCharacters, characterSay, characterPositions,
   };
 }

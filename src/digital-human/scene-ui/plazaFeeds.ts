@@ -9,6 +9,7 @@
  *   舞池   → 正在直播                (home/live/rooms?status=live)
  *   观星台 → 全网今日热榜            (trending?period=day)
  *   许愿池 → 许愿墙 + 正在悬赏       (plaza/wishes + demand/client/page?scope=market),见 WishWall
+ *   感悟地标 → 题记 + 编者一问 + 这个主题的诗与作品 (insight/theme?key=)
  *
  * 每个加载器都把各自接口的形状收成同一种卡片,失败返回空列表(面板显示「暂时没有」)。
  */
@@ -16,13 +17,13 @@
 import { fetchRecommend } from '@/apis/home-discover';
 import { fetchLeaderboard, type LeaderboardEntry } from '@/apis/leaderboard';
 import { getTrending } from '@/apis/recommend';
-import { daily as insightDaily } from '@/apis/insight';
+import { daily as insightDaily, theme as insightTheme } from '@/apis/insight';
 import { listDemands } from '@/apis/reward-demand';
 import { fetchRooms, type LiveRoom } from '@/app/(public)/home/panels/live/liveApi';
 import { mediaUrl } from '@/lib/media';
 import { contentHref } from './content';
 import type { DisplaySlot } from '../vrm/sceneDisplays';
-import type { ZoneId } from '../vrm/world/worldLayout';
+import { zoneFeed, type WorldZone, type ZoneFeedKind } from '../vrm/world/worldLayout';
 
 /** 点卡片之后做什么 */
 export type FeedAction =
@@ -169,16 +170,50 @@ export async function openBounties(): Promise<FeedCard[]> {
   }));
 }
 
-export const ZONE_FEEDS: Partial<Record<ZoneId, () => Promise<ZoneFeed>>> = { cinema, jukebox, books, dance, stars };
+const TYPE_LABEL: Record<string, string> = { POETRY: '诗词', FILM: '电影', TELEPLAY: '剧集', ANIMATION: '动漫', SHORT_DRAMA: '短剧', NOVEL: '小说', MUSIC: '音乐', VIDEO: '视频', ARTICLE: '文章' };
 
-// 同一次进页面里切回来不重复请求:5 分钟内用缓存
-const cache = new Map<ZoneId, { at: number; feed: ZoneFeed }>();
-export async function loadZoneFeed(zone: ZoneId): Promise<ZoneFeed | null> {
-  const loader = ZONE_FEEDS[zone];
+/** 感悟地标:题记做引子,编者一问做标题,下面是这个主题命中的诗和各类作品(都是语料原文) */
+async function insight(themeKey: string): Promise<ZoneFeed> {
+  const r = await insightTheme(themeKey).catch(() => null);
+  if (!r?.theme) return { title: '暂时连不上', cards: [] };
+  const cards: FeedCard[] = [];
+  for (const sec of r.sections ?? []) {
+    const poetry = sec.contentType === 'POETRY';
+    for (const it of (sec.items ?? []).slice(0, poetry ? 4 : 2)) {
+      cards.push({
+        key: sec.contentType + '-' + it.id,
+        title: it.title,
+        subtitle: poetry
+          ? [[it.dynasty, it.author].filter(Boolean).join(' · '), it.excerpt].filter(Boolean).join('  ')
+          : it.author || it.excerpt || undefined,
+        cover: poetry ? undefined : cover(it.cover),
+        badge: TYPE_LABEL[sec.contentType] ?? sec.contentType,
+        // 诗和文字类在竖屏看,影视在大屏
+        action: openContent(sec.contentType, it.id, it.title, ['POETRY', 'NOVEL', 'ARTICLE'].includes(sec.contentType) ? 'kiosk' : 'wall'),
+      });
+    }
+  }
+  const themeHref = '/insight/theme?key=' + encodeURIComponent(themeKey);
+  return {
+    title: r.theme.ask || r.theme.name,
+    lead: { text: r.theme.line, source: r.theme.lineSrc, action: { kind: 'open', href: themeHref, slot: 'kiosk' } },
+    cards,
+    more: { label: '从古至今', href: themeHref + '&tab=timeline' },
+  };
+}
+
+const FEEDS: Partial<Record<ZoneFeedKind, () => Promise<ZoneFeed>>> = { cinema, jukebox, books, dance, stars };
+
+// 同一次进页面里切回来不重复请求:5 分钟内用缓存(按面板类型 + 主题)
+const cache = new Map<string, { at: number; feed: ZoneFeed }>();
+export async function loadZoneFeed(zone: WorldZone): Promise<ZoneFeed | null> {
+  const kind = zoneFeed(zone);
+  const key = kind === 'insight' ? 'insight:' + zone.themeKey : kind;
+  const loader = kind === 'insight' ? (zone.themeKey ? () => insight(zone.themeKey!) : undefined) : FEEDS[kind];
   if (!loader) return null;
-  const hit = cache.get(zone);
+  const hit = cache.get(key);
   if (hit && Date.now() - hit.at < 5 * 60_000) return hit.feed;
   const feed = await loader();
-  if (feed.cards.length > 0) cache.set(zone, { at: Date.now(), feed });
+  if (feed.cards.length > 0) cache.set(key, { at: Date.now(), feed });
   return feed;
 }

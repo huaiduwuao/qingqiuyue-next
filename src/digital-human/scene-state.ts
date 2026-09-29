@@ -32,9 +32,13 @@ export interface SceneSnapshot {
 }
 
 export interface PlazaState {
+  /** 当前场景名(星光广场 / 心脉庭院……) */
+  scene?: string;
   zone: string | null;
   zoneLabel?: string;
   landmarks: string[];
+  /** 场景里的人物(头衔·名字) */
+  characters?: string[];
   online: number;
   level: number;
   orbsTotal: number;

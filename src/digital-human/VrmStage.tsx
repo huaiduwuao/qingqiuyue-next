@@ -45,7 +45,7 @@ import { makeConfetti, updateConfetti } from './vrm/particles';
 import { createAudioHandle, type AudioHandle } from './vrm/audio';
 import { useVrmWorld, type WorldEvent } from './vrm/world/useVrmWorld';
 import type { WorldPeer } from './vrm/world/buildWorld';
-import { clampToWorld, type Orb, type ZoneId } from './vrm/world/worldLayout';
+import { DEFAULT_WORLD, clampToWorld, type Orb, type WorldCharacter, type WorldDef, type ZoneId } from './vrm/world/worldLayout';
 import { detectVrmVersion, setExpression, setExpressionDict, listAvailableExpressions, getBone } from './vrm/vrmCompat';
 import { lookupAutoExpression } from './vrm/config/types';
 import type { ScenePresetName, CameraPresetName, DanceStyle, PoseName } from './vrm/types';
@@ -106,13 +106,17 @@ export interface VrmStageHandle {
   /** 广场:镜头拉高俯瞰整座广场;false 飞回原来的机位 */
   setOverview: (on: boolean) => void;
   /** 广场:小地图用的快照(角色位置/朝向、镜头朝向、星光、所在地标) */
-  getWorldSnapshot: () => { x: number; z: number; yaw: number; camYaw: number; orbs: Orb[]; zone: ZoneId | null; peers: { id: string; x: number; z: number; aura?: string }[] } | null;
+  getWorldSnapshot: () => { x: number; z: number; yaw: number; camYaw: number; orbs: Orb[]; zone: ZoneId | null; peers: { id: string; x: number; z: number; aura?: string }[]; characters: { id: string; x: number; z: number }[] } | null;
   /** 广场:其他在线的人 */
   setPeers: (peers: WorldPeer[]) => void;
   /** 广场:自己脚下的光环(颜色 / rainbow / null) */
   setAura: (value: string | null) => void;
   /** 广场:在任意世界坐标冒一句飘字(许愿池上方冒别人的愿望) */
   floatTextAt: (text: string, x: number, y: number, z: number, color?: string) => void;
+  /** 广场:某位人物头顶冒一句话 */
+  characterSay: (id: string, text: string) => void;
+  /** 广场:换场景后回到舞台前、镜头复位 */
+  enterScene: () => void;
 }
 
 export interface VrmStageProps {
@@ -163,6 +167,10 @@ export interface VrmStageProps {
   world?: boolean;
   /** 广场里发生的事(捡到星光、进出地标、戳一戳、按 F 互动),由页面层记账 */
   onWorldEvent?: (e: WorldEvent) => void;
+  /** 当前场景(后台配置的地标);不传 = 星光广场 */
+  worldDef?: WorldDef;
+  /** 当前场景里的人物 */
+  characters?: WorldCharacter[];
 }
 
 const EXPRESSION_PASSTHROUGH = new Set([
@@ -238,10 +246,14 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     onDisplayHosts,
     transparentBackground,
     world = false,
+    worldDef = DEFAULT_WORLD,
+    characters,
     onWorldEvent,
   } = props;
   const worldOnRef = useRef(world);
   worldOnRef.current = world;
+  const worldDefRef = useRef(worldDef);
+  worldDefRef.current = worldDef;
   // Phase 1：模块加载时已 loadConfigBundle()，所有子模块（expressions/visemes/actions）已用
   // Phase 2：父组件可以传 config prop 覆盖
   // 用 useState 保持引用稳定，async loader 完成后一次性更新，避免每次 render 产生新对象
@@ -398,6 +410,8 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     camera: rendererState?.camera ?? null,
     canvas: rendererState ? canvasRef.current : null,
     preset: sceneApi.preset,
+    def: worldDef,
+    characters,
     getAvatar: () => vrmDataRef.current?.scene ?? null,
     walkTo: (x, z) => handleInternalRef.current?.walkTo(x, z),
     onEvent: (e) => onWorldEventRef.current?.(e),
@@ -654,7 +668,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         const running = !!keys.shift;
         const speed = running ? 4.6 : 2.1;
         pos.prevX = pos.x; pos.prevZ = pos.z;
-        const next = clampToWorld(pos.x + mx * speed * dt, pos.z + mz * speed * dt);
+        const next = clampToWorld(pos.x + mx * speed * dt, pos.z + mz * speed * dt, worldDefRef.current);
         pos.x = next.x; pos.z = next.z;
         walkRef.current.moving = true;
         walkRef.current.style = running ? 'run' : 'walk';
@@ -928,7 +942,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         else if (typeof target === 'object') { tx = target.x ?? tx; tz = target.z ?? tz; }
         // 边界:广场里收进广场(绕开地标),否则限制在 ±6
         if (worldOnRef.current) {
-          ({ x: tx, z: tz } = clampToWorld(tx, tz));
+          ({ x: tx, z: tz } = clampToWorld(tx, tz, worldDefRef.current));
         } else {
           tx = Math.max(-6, Math.min(6, tx));
           tz = Math.max(-6, Math.min(6, tz));
@@ -959,7 +973,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         devLog.debug(`[VrmStage.setPosition] (${x}, ${z})`);
         positionRef.current.prevX = positionRef.current.x;
         positionRef.current.prevZ = positionRef.current.z;
-        const c = worldOnRef.current ? clampToWorld(x, z) : { x: Math.max(-6, Math.min(6, x)), z: Math.max(-6, Math.min(6, z)) };
+        const c = worldOnRef.current ? clampToWorld(x, z, worldDefRef.current) : { x: Math.max(-6, Math.min(6, x)), z: Math.max(-6, Math.min(6, z)) };
         positionRef.current.x = c.x;
         positionRef.current.z = c.z;
         walkRef.current.moving = false;
@@ -981,7 +995,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         try { return r.domElement.toDataURL('image/png'); } catch { return null; }
       },
       walkTo: (x, z) => {
-        const target = worldOnRef.current ? clampToWorld(x, z) : { x, z };
+        const target = worldOnRef.current ? clampToWorld(x, z, worldDefRef.current) : { x, z };
         const d = Math.hypot(target.x - positionRef.current.x, target.z - positionRef.current.z);
         if (d < 0.05) return;
         const style = d > 6 ? 'run' : 'walk';
@@ -1026,11 +1040,22 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
           const tgt = rs.controls?.target ?? { x: positionRef.current.x, z: positionRef.current.z };
           camYaw = Math.atan2(tgt.x - rs.camera.position.x, tgt.z - rs.camera.position.z);
         }
-        return { x: positionRef.current.x, z: positionRef.current.z, yaw: yawRef.current, camYaw, orbs: snap.orbs, zone: snap.zone, peers: snap.peers };
+        return { x: positionRef.current.x, z: positionRef.current.z, yaw: yawRef.current, camYaw, orbs: snap.orbs, zone: snap.zone, peers: snap.peers, characters: snap.characters };
       },
       setPeers: (peers) => worldApiRef.current.setPeers(peers),
       setAura: (value) => worldApiRef.current.setAura(value),
       floatTextAt: (text, x, y, z, color) => worldApiRef.current.floatText(text, x, y, z, color),
+      characterSay: (id, text) => worldApiRef.current.characterSay(id, text),
+      enterScene: () => {
+        // 瞬移不会带动镜头(镜头只跟走路的位移),所以手动把镜头也挪回舞台前
+        moveAnimRef.current.active = false;
+        positionRef.current.prevX = positionRef.current.x = 0;
+        positionRef.current.prevZ = positionRef.current.z = 1.2;
+        yawRef.current = 0;
+        overviewPoseRef.current = null;
+        fovTargetRef.current = null;
+        camApiRef.current?.flyTo([0, 1.2, 5.9], [0, 0.95, 1.2], 0.6);
+      },
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

@@ -16,7 +16,7 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import FavoriteBorderRoundedIcon from '@mui/icons-material/FavoriteBorderRounded';
-import { ZONE_BY_ID, type ZoneId } from '../vrm/world/worldLayout';
+import { ZONE_BY_ID, zoneFeed, type WorldZone } from '../vrm/world/worldLayout';
 import { loadZoneFeed, openBounties, type FeedAction, type FeedCard, type ZoneFeed } from './plazaFeeds';
 import type { PlazaOnline } from './usePlazaOnline';
 import { completeDailyTask, getDailyTaskList, type DailyTask } from '@/apis/reward-center';
@@ -74,8 +74,7 @@ function CardRow({ c, onAction, accent }: { c: FeedCard; onAction: (a: FeedActio
   );
 }
 
-function PanelShell({ zone, title, onClose, children, width }: { zone: ZoneId; title: string; onClose: () => void; children: React.ReactNode; width: number | string }) {
-  const z = ZONE_BY_ID[zone];
+function PanelShell({ zone: z, title, onClose, children, width }: { zone: WorldZone; title: string; onClose: () => void; children: React.ReactNode; width: number | string }) {
   const accent = hex(z.color);
   return (
     <Box sx={{
@@ -98,7 +97,7 @@ function PanelShell({ zone, title, onClose, children, width }: { zone: ZoneId; t
 // ==================== 地标内容 ====================
 
 export interface ZonePanelProps {
-  zone: ZoneId;
+  zone: WorldZone;
   width: number | string;
   onClose: () => void;
   onAction: (a: FeedAction, feed: ZoneFeed | null) => void;
@@ -108,7 +107,7 @@ export interface ZonePanelProps {
 }
 
 export function ZonePanel({ zone, width, onClose, onAction, onAsk, online }: ZonePanelProps) {
-  if (zone === 'wish') return <WishWall width={width} onClose={onClose} onAction={(a) => onAction(a, null)} online={online} />;
+  if (zoneFeed(zone) === 'wish') return <WishWall zone={zone} width={width} onClose={onClose} onAction={(a) => onAction(a, null)} online={online} />;
   return <FeedPanel zone={zone} width={width} onClose={onClose} onAction={onAction} onAsk={onAsk} />;
 }
 
@@ -122,7 +121,7 @@ function FeedPanel({ zone, width, onClose, onAction, onAsk }: Omit<ZonePanelProp
     loadZoneFeed(zone).then((f) => { if (alive) setFeed(f); }).catch(() => {}).finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [zone]);
-  const z = ZONE_BY_ID[zone];
+  const z = zone;
   const accent = hex(z.color);
   return (
     <PanelShell zone={zone} title={feed?.title ?? '加载中…'} onClose={onClose} width={width}>
@@ -166,10 +165,10 @@ function timeAgo(iso: string) {
   return `${Math.floor(s / 86400)} 天前`;
 }
 
-function WishWall({ width, onClose, onAction, online }: { width: number | string; onClose: () => void; onAction: (a: FeedAction) => void; online: PlazaOnline }) {
+function WishWall({ zone, width, onClose, onAction, online }: { zone: WorldZone; width: number | string; onClose: () => void; onAction: (a: FeedAction) => void; online: PlazaOnline }) {
   const [text, setText] = React.useState('');
   const [bounties, setBounties] = React.useState<FeedCard[]>([]);
-  const accent = hex(ZONE_BY_ID.wish.color);
+  const accent = hex(zone.color ?? ZONE_BY_ID.wish.color);
   React.useEffect(() => {
     let alive = true;
     openBounties().then((b) => { if (alive) setBounties(b); }).catch(() => {});
@@ -183,7 +182,7 @@ function WishWall({ width, onClose, onAction, online }: { width: number | string
     if (await online.makeWish(t)) setText('');
   };
   return (
-    <PanelShell zone="wish" title={`许愿墙 · 广场里现在 ${Math.max(1, online.online)} 人`} onClose={onClose} width={width}>
+    <PanelShell zone={zone} title={`许愿墙 · 广场里现在 ${Math.max(1, online.online)} 人`} onClose={onClose} width={width}>
       <Box sx={{ mx: 0.5, mb: 1, p: 1, borderRadius: 2, bgcolor: `${accent}14`, border: `1px solid ${accent}33` }}>
         <InputBase
           value={text}

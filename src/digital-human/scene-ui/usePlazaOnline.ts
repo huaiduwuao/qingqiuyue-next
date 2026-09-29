@@ -22,6 +22,8 @@ const HEARTBEAT_MS = 3000;
 export interface UsePlazaOnlineOptions {
   handle: VrmStageHandle | null;
   enabled: boolean;
+  /** 当前场景:同一场景里的人才互相看得见 */
+  sceneKey?: string;
   toast: (icon: string, text: string) => void;
   /** 许愿 / 祝福成功后:让页面层记任务、刷新平台任务 */
   onWished?: () => void;
@@ -57,7 +59,7 @@ export function usePlazaOnline(opts: UsePlazaOnlineOptions) {
         try {
           const refresh = refreshAuraRef.current;
           refreshAuraRef.current = false;
-          const r = await plazaHeartbeat({ x: snap.x, z: snap.z, yaw: snap.yaw, zone: snap.zone, refresh });
+          const r = await plazaHeartbeat({ x: snap.x, z: snap.z, yaw: snap.yaw, zone: snap.zone, scene: optsRef.current.sceneKey, refresh });
           if (!alive || !r) return;
           failuresRef.current = 0;
           setOnline(r.online);
@@ -80,7 +82,8 @@ export function usePlazaOnline(opts: UsePlazaOnlineOptions) {
       handle.setPeers([]);
       void leavePlaza().catch(() => {});
     };
-  }, [enabled, handle]);
+  // 换场景时重开心跳:旧场景的人要立刻消失
+  }, [enabled, handle, opts.sceneKey]);
 
   const loadWishes = useCallback(async () => {
     try {

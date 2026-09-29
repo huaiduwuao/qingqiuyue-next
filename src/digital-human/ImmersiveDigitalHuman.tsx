@@ -16,7 +16,7 @@ import { devLog } from '@/lib/dev-log';
  */
 
 import React from 'react';
-import { Box, IconButton, TextField, Typography, CircularProgress, Drawer, List, ListItemButton, ListItemText, Divider, Button, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
+import { Box, ButtonBase, IconButton, TextField, Typography, CircularProgress, Drawer, List, ListItemButton, ListItemText, Divider, Button, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import MicRoundedIcon from '@mui/icons-material/MicRounded';
@@ -33,7 +33,11 @@ import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import { usePlazaOnline } from './scene-ui/usePlazaOnline';
 import type { FeedAction, ZoneFeed } from './scene-ui/plazaFeeds';
 import { playTracks } from '@/lib/player/playlist';
-import { WORLD_ZONES, ZONE_BY_ID, type ZoneId } from './vrm/world/worldLayout';
+import { zoneFeed } from './vrm/world/worldLayout';
+import type { WorldEvent } from './vrm/world/useVrmWorld';
+import { usePlazaScenes } from './scene-ui/usePlazaScenes';
+import { CharacterPanel, ScenePicker } from './scene-ui/PlazaPeople';
+import { SCENE_PRESETS } from './vrm/sceneBuilders';
 import type { PlazaState } from './scene-state';
 import { useRouter } from 'next/navigation';
 import { alpha } from '@mui/material/styles';
@@ -646,9 +650,13 @@ export default function ImmersiveDigitalHuman() {
     setStageState((prev) => ({ ...prev, ...patch }));
   }, []);
 
+  // 场景与人物(后台 /system/plaza 维护):星光广场 + 感悟庭院……
+  const scenes = usePlazaScenes(avatarMode === 'vrm' && worldOn);
+
   // 广场玩法:经验/任务记账 + 角色反应 + 地标互动
   const confettiTimerRef = React.useRef<number | null>(null);
   const game = useWorldGame({
+    def: scenes.def,
     handle: stageHandle,
     sendText: (t) => { void sendText(t); },
     setDancing: (on) => updateStageState({ dancing: on }),
@@ -678,21 +686,60 @@ export default function ImmersiveDigitalHuman() {
     handle: stageHandle,
     enabled: worldActive,
     toast: (icon, t) => game.toast(icon, t),
+    sceneKey: scenes.def.key,
     onWished: () => { game.record({ kind: 'interact', zone: 'wish' }); setTasksKey((k) => k + 1); },
     onBlessed: () => setTasksKey((k) => k + 1),
   });
   // 发给模型的场景状态里带上广场信息(她在哪个地标、有几个人在逛),模型能据此接话
   plazaStateRef.current = worldActive ? {
+    scene: scenes.def.name,
     zone: game.zone,
-    zoneLabel: game.zone ? ZONE_BY_ID[game.zone].label : undefined,
-    landmarks: WORLD_ZONES.map((z) => `${z.id}:${z.label}`),
+    zoneLabel: game.zoneInfo?.label,
+    landmarks: scenes.def.zones.map((z) => `${z.id}:${z.label}`),
+    characters: scenes.characters.map((c) => [c.title, c.name].filter(Boolean).join('·')).filter(Boolean),
     online: online.online,
     level: game.level.level,
     orbsTotal: game.state.orbsTotal,
   } : null;
   // 地标内容面板:走进地标自动展开,可以手动收起(离开再进来会重新展开)
-  const [panelZone, setPanelZone] = React.useState<ZoneId | null>(null);
+  const [panelZone, setPanelZone] = React.useState<string | null>(null);
   React.useEffect(() => { setPanelZone(game.zone); }, [game.zone]);
+  const panelZoneInfo = panelZone && game.zoneInfo?.id === panelZone && zoneFeed(game.zoneInfo) !== 'none' ? game.zoneInfo : null;
+
+  // 人物:点他或走到他跟前就打开对话面板;第一次和某人说话记「和人物说说话」任务
+  const [charId, setCharId] = React.useState<string | null>(null);
+  const talkedRef = React.useRef(new Set<string>());
+  const openCharacter = React.useCallback((id: string) => {
+    setCharId(id);
+    if (!talkedRef.current.has(id)) { talkedRef.current.add(id); game.record({ kind: 'talk', character: id }); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const currentChar = charId ? scenes.characters.find((c) => c.id === charId) ?? null : null;
+  const onWorldEvent = React.useCallback((e: WorldEvent) => {
+    if (e.type === 'character') { openCharacter(e.id); return; }
+    if (e.type === 'nearCharacter') { if (e.id) openCharacter(e.id); return; }
+    game.onWorldEvent(e);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openCharacter, game.onWorldEvent]);
+
+  // 换场景:中央舞台换成场景指定的预设,角色回到舞台前
+  const [scenePickerOpen, setScenePickerOpen] = React.useState(false);
+  const lastSceneRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!worldActive) return;
+    const d = scenes.def;
+    if (lastSceneRef.current === d.key) return;
+    const first = lastSceneRef.current === null;
+    lastSceneRef.current = d.key;
+    setCharId(null);
+    setPanelZone(null);
+    if ((SCENE_PRESETS as string[]).includes(d.stage)) updateStageState({ scene: d.stage as ScenePresetName });
+    if (!first) {
+      stageHandleRef.current?.enterScene();
+      game.toast(d.kind === 'insight' ? '🌙' : '✨', `来到「${d.name}」`);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scenes.def.key, worldActive]);
   const [auraShopOpen, setAuraShopOpen] = React.useState(false);
   const onFeedAction = React.useCallback((a: FeedAction, feed: ZoneFeed | null) => {
     if (a.kind === 'play') {
@@ -837,7 +884,9 @@ export default function ImmersiveDigitalHuman() {
           onScenePanelHost={setPanelHost}
           onDisplayHosts={setDisplayHosts}
           world={worldOn}
-          onWorldEvent={game.onWorldEvent}
+          worldDef={scenes.def}
+          characters={scenes.characters}
+          onWorldEvent={onWorldEvent}
           transparentBackground={!!gsBackdrop}
           background={gsBackdrop ? 'transparent' : undefined}
           sx={{ position: 'absolute', inset: 0, zIndex: 1 }}
@@ -1064,7 +1113,14 @@ export default function ImmersiveDigitalHuman() {
               top: narrow ? 'calc(112px + var(--sat, 0px))' : 'calc(68px + var(--sat, 0px))',
               display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'center',
             }}>
-              <Minimap handle={stageHandle} size={narrow ? 104 : 156} />
+              <ButtonBase
+                onClick={() => setScenePickerOpen(true)}
+                aria-label="换场景"
+                sx={{ px: 1.25, py: 0.4, borderRadius: 999, bgcolor: 'rgba(8,10,20,0.62)', backdropFilter: 'blur(14px)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 12, fontWeight: 700, maxWidth: narrow ? 104 : 156 }}
+              >
+                <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🧭 {scenes.def.name}</Box>
+              </ButtonBase>
+              <Minimap handle={stageHandle} size={narrow ? 104 : 156} def={scenes.def} />
               <WorldTools game={game} onHelp={worldHelp.show} onShop={() => setAuraShopOpen((o) => !o)} shopOpen={auraShopOpen} />
               {auraShopOpen && (
                 <AuraShop
@@ -1075,7 +1131,7 @@ export default function ImmersiveDigitalHuman() {
             </Box>
           )}
           {/* 地标内容:桌面在左侧(会话列表开着时让到它右边),手机是聊天区上方的一块 */}
-          {panelZone && (
+          {(currentChar || panelZoneInfo) && (
             <Box sx={narrow ? {
               position: 'absolute', zIndex: 4, left: 12, right: 12,
               bottom: 'calc(min(46vh, 460px) + 72px)', maxHeight: '30vh', display: 'flex',
@@ -1083,15 +1139,29 @@ export default function ImmersiveDigitalHuman() {
               position: 'absolute', zIndex: 3, left: sessionDrawerOpen ? 292 : 16,
               top: 'calc(64px + var(--sat, 0px))', maxHeight: 'calc(100vh - min(40vh, 400px) - 90px)', display: 'flex',
             }}>
-              <ZonePanel
-                key={panelZone}
-                zone={panelZone}
-                width={narrow ? '100%' : 340}
-                onClose={() => setPanelZone(null)}
-                onAction={onFeedAction}
-                onAsk={game.interact}
-                online={online}
-              />
+              {currentChar ? (
+                <CharacterPanel
+                  key={currentChar.id + currentChar.name}
+                  character={currentChar}
+                  themeName={scenes.def.zones.find((z) => z.themeKey && z.themeKey === currentChar.themeKey)?.label}
+                  width={narrow ? '100%' : 340}
+                  onClose={() => setCharId(null)}
+                  onOpen={(href, slot) => openOnDisplayRef.current(href, { slot: slot ?? null })}
+                  onAskHer={(t) => { void sendText(t); }}
+                  onSay={(t) => stageHandleRef.current?.characterSay(currentChar.id, t)}
+                  onOpenScenes={() => setScenePickerOpen(true)}
+                />
+              ) : panelZoneInfo ? (
+                <ZonePanel
+                  key={panelZoneInfo.id}
+                  zone={panelZoneInfo}
+                  width={narrow ? '100%' : 340}
+                  onClose={() => setPanelZone(null)}
+                  onAction={onFeedAction}
+                  onAsk={game.interact}
+                  online={online}
+                />
+              ) : null}
             </Box>
           )}
           <ZonePrompt
@@ -1100,6 +1170,14 @@ export default function ImmersiveDigitalHuman() {
             bottom={narrow ? 'calc(min(46vh, 460px) + 10px)' : 'calc(min(40vh, 400px) + 10px)'}
           />
           {worldHelp.open && <WorldHelp onClose={worldHelp.close} touch={narrow} />}
+          {scenePickerOpen && (
+            <ScenePicker
+              defs={scenes.defs}
+              current={scenes.def.key}
+              onPick={(k) => { setScenePickerOpen(false); scenes.switchTo(k); }}
+              onClose={() => setScenePickerOpen(false)}
+            />
+          )}
         </ErrorBoundary>
       )}
 

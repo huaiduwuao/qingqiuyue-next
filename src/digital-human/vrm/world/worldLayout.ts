@@ -5,13 +5,23 @@
  * 地上散着能捡的星光,每天有几条小任务。3D 构建见 buildWorld.ts,每帧逻辑见 useVrmWorld.ts。
  *
  * 坐标:x 向右,z 朝向默认机位(+z 是镜头这一侧),单位米。
+ *
+ * 2026-09-30:场景由后台维护(plaza_scene / plaza_character,见 Go plazaapp)。一个场景 = 一个 WorldDef
+ * (一组地标 + 配色 + 中央舞台预设);这里的 WORLD_ZONES / DEFAULT_WORLD 是星光广场的默认值,
+ * 接口拿不到时兜底用。所有几何函数都带一个 def 参数,默认就是星光广场。
  */
 
 export const WORLD_RADIUS = 17;
 /** 舞台中心留空的半径:星光不刷在这里,免得跟显示器/面板挤在一起 */
 export const STAGE_CLEAR_RADIUS = 3.2;
 
-export type ZoneId = 'dance' | 'jukebox' | 'wish' | 'cinema' | 'books' | 'stars';
+/** 地标标识。星光广场是 dance/jukebox/wish/cinema/books/stars;其它场景由后台配置 */
+export type ZoneId = string;
+
+/** 地标画成什么样(星光广场的六个 + 感悟庭院用的几种中式造型) */
+export type ZoneProp = 'dance' | 'jukebox' | 'wish' | 'cinema' | 'books' | 'stars' | 'pavilion' | 'stele' | 'lantern' | 'willow' | 'moongate';
+/** 走进地标时面板里摆什么 */
+export type ZoneFeedKind = 'cinema' | 'jukebox' | 'books' | 'dance' | 'stars' | 'wish' | 'insight' | 'none';
 
 export interface WorldZone {
   id: ZoneId;
@@ -33,6 +43,12 @@ export interface WorldZone {
    * 这些句子会走正常的对话流程,由模型决定调哪个工具(放歌、开屏幕……)。
    */
   prompt?: string;
+  /** 造型;缺省按 id(星光广场六个地标 id 即造型) */
+  prop?: ZoneProp;
+  /** 面板内容;缺省按 id */
+  feed?: ZoneFeedKind;
+  /** feed=insight 时的感悟主题 */
+  themeKey?: string;
 }
 
 export const WORLD_ZONES: WorldZone[] = [
@@ -44,7 +60,48 @@ export const WORLD_ZONES: WorldZone[] = [
   { id: 'stars', label: '观星台', emoji: '🔭', hint: '抬头看看整座广场', actionLabel: '观星', x: 0, z: -11.5, radius: 2.6, solidRadius: 0.6, color: 0xc9d4ff, prompt: '我们在观星台,讲一个关于星空的冷知识' },
 ];
 
-export const ZONE_BY_ID: Record<ZoneId, WorldZone> = Object.fromEntries(WORLD_ZONES.map((z) => [z.id, z])) as Record<ZoneId, WorldZone>;
+export const ZONE_BY_ID: Record<string, WorldZone> = Object.fromEntries(WORLD_ZONES.map((z) => [z.id, z]));
+
+/** 一个场景(后台 plaza_scene 的前端形状) */
+export interface WorldDef {
+  key: string;
+  name: string;
+  intro?: string;
+  kind: 'plaza' | 'insight';
+  /** kind=insight:感悟分组 wound / bond / qiqing / liuyu */
+  group?: string;
+  /** 中央舞台用哪个场景预设 */
+  stage: string;
+  palette?: { ground?: number; path?: number; accent?: number };
+  zones: WorldZone[];
+}
+
+/** 场景里的人物(后台 plaza_character) */
+export interface WorldCharacter {
+  id: string;
+  sceneKey: string;
+  /** 诗人留空名字 = 前端按主题取写得最多的名家 */
+  name: string;
+  title?: string;
+  kind: 'poet' | 'guide';
+  /** kind=poet:语料里的作者名(繁体);空 = 自动 */
+  poet?: string;
+  themeKey?: string;
+  /** kind=guide:开口先念这个感悟分组的题记 */
+  groupKey?: string;
+  /** kind=guide:运营写的台词 */
+  lines?: string[];
+  x: number;
+  z: number;
+  color?: number;
+}
+
+export const DEFAULT_WORLD: WorldDef = { key: 'plaza', name: '星光广场', kind: 'plaza', stage: 'concert', zones: WORLD_ZONES };
+
+/** 地标造型 / 面板缺省按 id 推(星光广场的老数据没有这两个字段) */
+export const zoneProp = (z: WorldZone): ZoneProp => z.prop ?? (z.id as ZoneProp);
+export const zoneFeed = (z: WorldZone): ZoneFeedKind => z.feed ?? ((['cinema', 'jukebox', 'books', 'dance', 'stars', 'wish'] as string[]).includes(z.id) ? (z.id as ZoneFeedKind) : 'none');
+export const findZone = (def: WorldDef, id: string | null | undefined): WorldZone | null => (id ? def.zones.find((z) => z.id === id) ?? null : null);
 
 /** 角色身体半径(推开地标用) */
 const BODY_RADIUS = 0.35;
@@ -53,14 +110,14 @@ const BODY_RADIUS = 0.35;
  * 把目标点收进广场:先拉回世界圆内,再从地标实体里推出来。
  * 所有位置写入(键盘走、点地面、模型的 body.move)都过一遍。
  */
-export function clampToWorld(x: number, z: number): { x: number; z: number } {
+export function clampToWorld(x: number, z: number, def: WorldDef = DEFAULT_WORLD): { x: number; z: number } {
   const limit = WORLD_RADIUS - 0.6;
   const r = Math.hypot(x, z);
   if (r > limit) {
     x = (x / r) * limit;
     z = (z / r) * limit;
   }
-  for (const zone of WORLD_ZONES) {
+  for (const zone of def.zones) {
     if (zone.solidRadius <= 0) continue;
     const dx = x - zone.x;
     const dz = z - zone.z;
@@ -78,10 +135,10 @@ export function clampToWorld(x: number, z: number): { x: number; z: number } {
 }
 
 /** 角色当前所在的地标(最近且在范围内的那个) */
-export function zoneAt(x: number, z: number): WorldZone | null {
+export function zoneAt(x: number, z: number, def: WorldDef = DEFAULT_WORLD): WorldZone | null {
   let best: WorldZone | null = null;
   let bestD = Infinity;
-  for (const zone of WORLD_ZONES) {
+  for (const zone of def.zones) {
     const d = Math.hypot(x - zone.x, z - zone.z);
     if (d <= zone.radius && d < bestD) { best = zone; bestD = d; }
   }
@@ -89,10 +146,10 @@ export function zoneAt(x: number, z: number): WorldZone | null {
 }
 
 /** 走向某个地标时的落脚点:停在地标朝向舞台的那一侧,不钻进实体里 */
-export function zoneApproachPoint(zone: WorldZone): { x: number; z: number } {
+export function zoneApproachPoint(zone: WorldZone, def: WorldDef = DEFAULT_WORLD): { x: number; z: number } {
   const d = Math.hypot(zone.x, zone.z) || 1;
   const stand = Math.max(0.2, zone.solidRadius + 0.7);
-  return clampToWorld(zone.x - (zone.x / d) * stand, zone.z - (zone.z / d) * stand);
+  return clampToWorld(zone.x - (zone.x / d) * stand, zone.z - (zone.z / d) * stand, def);
 }
 
 // ── 星光 ────────────────────────────────────────────────────────────────
@@ -124,14 +181,14 @@ export function makeRng(seed: number): () => number {
 }
 
 /** 在广场里找一个能放星光的点:不在舞台中心、不在地标里、不贴着别的星光 */
-export function pickOrbSpot(rng: () => number, taken: { x: number; z: number }[]): { x: number; z: number } {
+export function pickOrbSpot(rng: () => number, taken: { x: number; z: number }[], def: WorldDef = DEFAULT_WORLD): { x: number; z: number } {
   for (let attempt = 0; attempt < 60; attempt++) {
     // 面积均匀:半径取 sqrt
     const r = STAGE_CLEAR_RADIUS + Math.sqrt(rng()) * (WORLD_RADIUS - 1.6 - STAGE_CLEAR_RADIUS);
     const a = rng() * Math.PI * 2;
     const x = Math.sin(a) * r;
     const z = Math.cos(a) * r;
-    if (WORLD_ZONES.some((zn) => Math.hypot(x - zn.x, z - zn.z) < Math.max(zn.solidRadius + 0.8, 1.2))) continue;
+    if (def.zones.some((zn) => Math.hypot(x - zn.x, z - zn.z) < Math.max(zn.solidRadius + 0.8, 1.2))) continue;
     if (taken.some((o) => Math.hypot(x - o.x, z - o.z) < 1.6)) continue;
     return { x, z };
   }
@@ -140,11 +197,11 @@ export function pickOrbSpot(rng: () => number, taken: { x: number; z: number }[]
   return { x: Math.sin(a) * (WORLD_RADIUS - 3), z: Math.cos(a) * (WORLD_RADIUS - 3) };
 }
 
-export function spawnOrbs(seed: number, count = ORB_COUNT): Orb[] {
+export function spawnOrbs(seed: number, count = ORB_COUNT, def: WorldDef = DEFAULT_WORLD): Orb[] {
   const rng = makeRng(seed);
   const orbs: Orb[] = [];
   for (let i = 0; i < count; i++) {
-    const p = pickOrbSpot(rng, orbs);
+    const p = pickOrbSpot(rng, orbs, def);
     orbs.push({ id: i, x: p.x, z: p.z, golden: rng() < 0.12 });
   }
   return orbs;
@@ -159,7 +216,8 @@ export function orbsInReach(x: number, z: number, orbs: Orb[], reach = ORB_PICK_
 
 export type GameEvent =
   | { kind: 'orb'; golden: boolean }
-  | { kind: 'visit'; zone: ZoneId }
+  | { kind: 'visit'; zone: ZoneId; insight?: boolean }
+  | { kind: 'talk'; character: string }
   | { kind: 'interact'; zone: ZoneId }
   | { kind: 'poke' }
   | { kind: 'chat' };
@@ -182,6 +240,11 @@ export const QUESTS: QuestDef[] = [
   },
   { id: 'dance', label: '在舞池跳一支舞', emoji: '💃', target: 1, progress: (e) => (e.kind === 'interact' && e.zone === 'dance' ? 1 : 0) },
   { id: 'wish', label: '去许愿池许个愿', emoji: '⛲', target: 1, progress: (e) => (e.kind === 'interact' && e.zone === 'wish' ? 1 : 0) },
+  {
+    id: 'ponder', label: '在感悟庭院驻足 3 处', emoji: '🌙', target: 3,
+    progress: (e, st) => (e.kind === 'visit' && e.insight && !st.visited.includes(e.zone) ? 1 : 0),
+  },
+  { id: 'meet', label: '和 2 位人物说说话', emoji: '🗣️', target: 2, progress: (e) => (e.kind === 'talk' ? 1 : 0) },
   { id: 'poke', label: '戳戳她 3 下', emoji: '👉', target: 3, progress: (e) => (e.kind === 'poke' ? 1 : 0) },
   { id: 'chat', label: '和她聊 3 句', emoji: '💬', target: 3, progress: (e) => (e.kind === 'chat' ? 1 : 0) },
 ];
@@ -275,14 +338,15 @@ export function parseGameState(raw: unknown, day = localDay()): GameState {
   if (r.quests && typeof r.quests === 'object') {
     for (const [k, v] of Object.entries(r.quests as Record<string, unknown>)) quests[k] = num(v);
   }
-  const zoneIds = new Set<string>(WORLD_ZONES.map((z) => z.id));
+  // 地标由后台配置,只校验形状(与服务端 plazaapp 的 zoneIDRe 一致)
+  const zoneIdRe = /^[a-z][a-z0-9_-]{0,39}$/;
   const st: GameState = {
     day: typeof r.day === 'string' ? r.day : day,
     xp: num(r.xp),
     orbsTotal: num(r.orbsTotal),
     quests,
     done: Array.isArray(r.done) ? r.done.filter((x): x is string => typeof x === 'string') : [],
-    visited: Array.isArray(r.visited) ? (r.visited.filter((x) => typeof x === 'string' && zoneIds.has(x)) as ZoneId[]) : [],
+    visited: Array.isArray(r.visited) ? (r.visited.filter((x) => typeof x === 'string' && zoneIdRe.test(x)) as ZoneId[]).slice(0, 64) : [],
   };
   return rollDay(st, day);
 }

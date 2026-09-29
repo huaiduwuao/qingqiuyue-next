@@ -12,8 +12,8 @@ import type { VrmStageHandle } from '../VrmStage';
 import type { WorldEvent } from '../vrm/world/useVrmWorld';
 import { getPlazaProgress, savePlazaProgress } from '@/apis/plaza';
 import {
-  QUEST_XP, ZONE_BY_ID, applyGameEvent, levelOf, mergeGameStates, parseGameState, pokeReaction,
-  type GameEvent, type GameState, type ZoneId,
+  DEFAULT_WORLD, QUEST_XP, applyGameEvent, findZone, levelOf, mergeGameStates, parseGameState, pokeReaction, zoneFeed, zoneProp,
+  type GameEvent, type GameState, type WorldDef, type ZoneId,
 } from '../vrm/world/worldLayout';
 
 const STORE_KEY = 'dh_world_game';
@@ -31,6 +31,8 @@ export interface UseWorldGameOptions {
   celebrate: () => void;
   /** 对话进行中时地标互动先不回灌,免得打断她说话 */
   busy: boolean;
+  /** 当前场景(地标从这里查) */
+  def?: WorldDef;
 }
 
 function load(): GameState {
@@ -143,9 +145,10 @@ export function useWorldGame(opts: UseWorldGameOptions) {
     const o = optsRef.current;
     const h = o.handle;
     if (!id || !h) return;
-    const z = ZONE_BY_ID[id];
+    const z = findZone(o.def ?? DEFAULT_WORLD, id);
+    if (!z) return;
     record({ kind: 'interact', zone: id });
-    switch (id) {
+    switch (zoneProp(z)) {
       case 'dance':
         o.setDancing(!o.dancing);
         if (!o.dancing) { h.floatText('🎶 一起跳!', '#ff9be8'); o.celebrate(); }
@@ -161,7 +164,8 @@ export function useWorldGame(opts: UseWorldGameOptions) {
         h.setAction('pray');
         break;
       default:
-        h.setAction('point');
+        // 感悟地标:她停下来想一想;其它地标:指一下
+        h.setAction(zoneFeed(z) === 'insight' ? 'think' : 'point');
     }
     if (z.prompt) {
       if (o.busy) { toast('⏳', '她还在说话,等她说完再试'); return; }
@@ -180,12 +184,16 @@ export function useWorldGame(opts: UseWorldGameOptions) {
         const prev = zoneRef.current;
         zoneRef.current = e.zone;
         setZone(e.zone);
+        const def = optsRef.current.def ?? DEFAULT_WORLD;
+        const prevZone = findZone(def, prev);
         // 离开舞池就不跳了
-        if (prev === 'dance' && e.zone !== 'dance' && optsRef.current.dancing) optsRef.current.setDancing(false);
-        if (e.zone) {
+        if (prevZone && zoneProp(prevZone) === 'dance' && e.zone !== prev && optsRef.current.dancing) optsRef.current.setDancing(false);
+        const z = findZone(def, e.zone);
+        if (e.zone && z) {
           const first = !stateRef.current.visited.includes(e.zone);
-          record({ kind: 'visit', zone: e.zone });
-          if (first) h?.setAction('wave');
+          const insight = zoneFeed(z) === 'insight';
+          record({ kind: 'visit', zone: e.zone, insight });
+          if (first) h?.setAction(insight ? 'think' : 'wave');
         }
         break;
       }
@@ -213,6 +221,8 @@ export function useWorldGame(opts: UseWorldGameOptions) {
 
   return {
     state, zone, toasts, overview, toast,
+    /** 当前所在地标的完整信息(按当前场景查) */
+    zoneInfo: findZone(opts.def ?? DEFAULT_WORLD, zone),
     level: levelOf(state.xp),
     onWorldEvent, interact, record, toggleOverview,
     goHome: () => optsRef.current.handle?.walkTo(0, 0.6),

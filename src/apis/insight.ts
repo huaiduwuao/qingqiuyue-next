@@ -123,3 +123,12 @@ export function writeNote(key: string, text: string) {
     /* ignore */
   }
 }
+
+/** 某位诗人写某个主题的原句(只取语料原文,不改写)。author 用语料里的写法(繁体) */
+export interface InsightVoiceLine { poemId: string; title: string; line: string; author: string }
+export const voice = (key: string, author: string, limit = 3): Promise<{ key: string; author: string; lines: InsightVoiceLine[] }> =>
+  contentClient.get('/insight/voice', { params: { key, author, limit } });
+
+/** 哪些名家写这个主题最多(人物选角用) */
+export const themePoets = (key: string): Promise<{ key: string; list: { author: string; poems: number }[] }> =>
+  contentClient.get('/insight/poets', { params: { key } });
