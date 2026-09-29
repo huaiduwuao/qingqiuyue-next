@@ -25,6 +25,9 @@ import ForumRoundedIcon from '@mui/icons-material/ForumRounded';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import PersonRoundedIcon from '@mui/icons-material/PersonRounded';
 import TvRoundedIcon from '@mui/icons-material/TvRounded';
+import ParkRoundedIcon from '@mui/icons-material/ParkRounded';
+import { useWorldGame } from './scene-ui/useWorldGame';
+import { GameStatusBar, GameToasts, Minimap, QuestPanel, WorldHelp, WorldTools, ZonePrompt, useWorldHelp } from './scene-ui/GameHud';
 import { useRouter } from 'next/navigation';
 import { alpha } from '@mui/material/styles';
 import { VrmStage, type VrmStageHandle } from './VrmStage';
@@ -197,6 +200,19 @@ export default function ImmersiveDigitalHuman() {
   const [focusedDisplay, setFocusedDisplay] = React.useState<DisplaySlot | null>(null);
   // 最近打开的那块屏:没有 3D 屏幕可用时(非 VRM 形象 / 手机)只叠这一块在画面上
   const [activeDisplay, setActiveDisplay] = React.useState<DisplaySlot | null>(null);
+  // 星光广场(舞台外一整座能逛的广场 + 小玩法);记住用户的选择,默认开
+  const [worldOn, setWorldOn] = React.useState(true);
+  React.useEffect(() => {
+    try { if (localStorage.getItem('dh_world') === '0') setWorldOn(false); } catch { /* 隐私模式 */ }
+  }, []);
+  const toggleWorld = React.useCallback(() => {
+    setWorldOn((on) => {
+      try { localStorage.setItem('dh_world', on ? '0' : '1'); } catch { /* ignore */ }
+      return !on;
+    });
+  }, []);
+  const [questsOpen, setQuestsOpen] = React.useState(false);
+  const worldHelp = useWorldHelp();
   const [narrow, setNarrow] = React.useState(false);
   React.useEffect(() => {
     const mq = window.matchMedia('(max-width: 899px)');
@@ -621,6 +637,32 @@ export default function ImmersiveDigitalHuman() {
     setStageState((prev) => ({ ...prev, ...patch }));
   }, []);
 
+  // 广场玩法:经验/任务记账 + 角色反应 + 地标互动
+  const confettiTimerRef = React.useRef<number | null>(null);
+  const game = useWorldGame({
+    handle: stageHandle,
+    sendText: (t) => { void sendText(t); },
+    setDancing: (on) => updateStageState({ dancing: on }),
+    dancing: stageState.dancing,
+    celebrate: () => {
+      updateStageState({ confetti: true });
+      if (confettiTimerRef.current) window.clearTimeout(confettiTimerRef.current);
+      confettiTimerRef.current = window.setTimeout(() => updateStageState({ confetti: false }), 4000);
+    },
+    busy: chatBusy,
+  });
+  React.useEffect(() => () => { if (confettiTimerRef.current) window.clearTimeout(confettiTimerRef.current); }, []);
+  // 「和她聊 3 句」:用户消息每多一条记一次(切到旧会话一次性载入很多条,不算)
+  const userMsgCountRef = React.useRef<number | null>(null);
+  React.useEffect(() => {
+    const n = chatLog.filter((m) => m.who === 'user').length;
+    const prev = userMsgCountRef.current;
+    userMsgCountRef.current = n;
+    if (prev !== null && n === prev + 1) game.record({ kind: 'chat' });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatLog]);
+  const worldActive = avatarMode === 'vrm' && worldOn;
+
   // 实时读 VrmStage 里的 positionRef 给面板显示（每 250ms）
   const [posDisplay, setPosDisplay] = React.useState({ x: 0, z: 0 });
   React.useEffect(() => {
@@ -754,6 +796,8 @@ export default function ImmersiveDigitalHuman() {
           lookAtCamera={stageState.lookAtCamera}
           onScenePanelHost={setPanelHost}
           onDisplayHosts={setDisplayHosts}
+          world={worldOn}
+          onWorldEvent={game.onWorldEvent}
           transparentBackground={!!gsBackdrop}
           background={gsBackdrop ? 'transparent' : undefined}
           sx={{ position: 'absolute', inset: 0, zIndex: 1 }}
@@ -847,7 +891,7 @@ export default function ImmersiveDigitalHuman() {
             left: { xs: 108, sm: 60 },
             zIndex: 3,
             minWidth: { xs: 0, sm: 120 },
-            maxWidth: { xs: 'calc(100vw - 172px)', sm: 'none' },
+            maxWidth: { xs: 'calc(100vw - 220px)', sm: 'none' }, // 右边让出广场开关 + 控制台两个按钮
             '& .MuiOutlinedInput-root': {
               color: 'rgba(255,255,255,0.85)',
               bgcolor: 'rgba(0,0,0,0.4)',
@@ -897,6 +941,26 @@ export default function ImmersiveDigitalHuman() {
       >
         <ForumRoundedIcon />
       </IconButton>
+      {avatarMode === 'vrm' && (
+        <IconButton
+          onClick={toggleWorld}
+          size="medium"
+          aria-label={worldOn ? '收起星光广场' : '打开星光广场'}
+          title={worldOn ? '收起星光广场(回到小舞台)' : '打开星光广场'}
+          sx={{
+            position: 'absolute',
+            top: 'calc(12px + var(--sat, 0px))',
+            right: narrow ? 60 : 108,
+            zIndex: 3,
+            color: worldOn ? '#9dffcb' : 'rgba(255,255,255,0.85)',
+            bgcolor: worldOn ? 'rgba(157,255,203,0.15)' : 'rgba(0,0,0,0.4)',
+            backdropFilter: 'blur(8px)',
+            '&:hover': { bgcolor: 'rgba(157,255,203,0.2)' },
+          }}
+        >
+          <ParkRoundedIcon />
+        </IconButton>
+      )}
       {avatarMode === 'vrm' && !narrow && (
         <IconButton
           onClick={() => setDisplaysOn((o) => !o)}
@@ -934,6 +998,39 @@ export default function ImmersiveDigitalHuman() {
       >
         <TuneRoundedIcon />
       </IconButton>
+
+      {/* 星光广场 HUD:顶部等级/任务/提示,右侧小地图,走进地标弹互动卡 */}
+      {worldActive && (
+        <>
+          <Box sx={{
+            position: 'absolute', zIndex: 3, left: '50%', transform: 'translateX(-50%)',
+            // 手机顶栏两边都是按钮,放到第二行
+            top: narrow ? 'calc(62px + var(--sat, 0px))' : 'calc(12px + var(--sat, 0px))',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, pointerEvents: 'none',
+          }}>
+            <GameStatusBar game={game} compact={narrow} questsOpen={questsOpen} onToggleQuests={() => setQuestsOpen((o) => !o)} />
+            {questsOpen && <QuestPanel game={game} />}
+            <GameToasts game={game} />
+          </Box>
+          {/* 手机上叠着打开的页面、或任务清单展开时让位 */}
+          {!(!displaysInScene && activeDisplay && displayPages[activeDisplay]) && !(narrow && questsOpen) && (
+            <Box sx={{
+              position: 'absolute', zIndex: 3, right: { xs: 12, md: 16 },
+              top: narrow ? 'calc(112px + var(--sat, 0px))' : 'calc(68px + var(--sat, 0px))',
+              display: 'flex', flexDirection: 'column', gap: 1, alignItems: 'center',
+            }}>
+              <Minimap handle={stageHandle} size={narrow ? 104 : 156} />
+              <WorldTools game={game} onHelp={worldHelp.show} />
+            </Box>
+          )}
+          <ZonePrompt
+            game={game}
+            touch={narrow}
+            bottom={narrow ? 'calc(min(46vh, 460px) + 10px)' : 'calc(min(40vh, 400px) + 10px)'}
+          />
+          {worldHelp.open && <WorldHelp onClose={worldHelp.close} touch={narrow} />}
+        </>
+      )}
 
       {/* 底部 chip 条：情绪 + 姿势（移动端隐藏，腾位置给 chat） */}
       <Box sx={{

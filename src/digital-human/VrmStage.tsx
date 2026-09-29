@@ -43,6 +43,8 @@ import { useVrmScenePanel, type DisplayHosts } from './vrm/useVrmScenePanel';
 import { DISPLAY_SPECS, displayFocusPose, type DisplaySlot } from './vrm/sceneDisplays';
 import { makeConfetti, updateConfetti } from './vrm/particles';
 import { createAudioHandle, type AudioHandle } from './vrm/audio';
+import { useVrmWorld, type WorldEvent } from './vrm/world/useVrmWorld';
+import { clampToWorld, type Orb, type ZoneId } from './vrm/world/worldLayout';
 import { detectVrmVersion, setExpression, setExpressionDict, listAvailableExpressions, getBone } from './vrm/vrmCompat';
 import { lookupAutoExpression } from './vrm/config/types';
 import type { ScenePresetName, CameraPresetName, DanceStyle, PoseName } from './vrm/types';
@@ -96,6 +98,14 @@ export interface VrmStageHandle {
   /** 获取当前 (x, z) */
   getPosition: () => { x: number; z: number };
   getScreenshot: () => string | null;
+  /** 广场:走到某点(自动决定走/跑,超出广场会被收回来) */
+  walkTo: (x: number, z: number) => void;
+  /** 广场:角色头顶冒一句飘字 */
+  floatText: (text: string, color?: string) => void;
+  /** 广场:镜头拉高俯瞰整座广场;false 飞回原来的机位 */
+  setOverview: (on: boolean) => void;
+  /** 广场:小地图用的快照(角色位置/朝向、镜头朝向、星光、所在地标) */
+  getWorldSnapshot: () => { x: number; z: number; yaw: number; camYaw: number; orbs: Orb[]; zone: ZoneId | null } | null;
 }
 
 export interface VrmStageProps {
@@ -139,6 +149,13 @@ export interface VrmStageProps {
   onDisplayHosts?: (hosts: DisplayHosts | null) => void;
   /** 舞台后面垫了别的渲染层(3DGS 场景)时置 true:three 不画背景和雾 */
   transparentBackground?: boolean;
+  /**
+   * 开启「广场」:舞台外铺一整座能逛的广场(地标、星光),WASD/方向键走动、点地面前往、
+   * 点角色戳一戳,角色朝着走的方向转身。关着就是原来的小舞台 + WASD 转镜头。
+   */
+  world?: boolean;
+  /** 广场里发生的事(捡到星光、进出地标、戳一戳、按 F 互动),由页面层记账 */
+  onWorldEvent?: (e: WorldEvent) => void;
 }
 
 const EXPRESSION_PASSTHROUGH = new Set([
@@ -213,7 +230,11 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     onScenePanelHost,
     onDisplayHosts,
     transparentBackground,
+    world = false,
+    onWorldEvent,
   } = props;
+  const worldOnRef = useRef(world);
+  worldOnRef.current = world;
   // Phase 1：模块加载时已 loadConfigBundle()，所有子模块（expressions/visemes/actions）已用
   // Phase 2：父组件可以传 config prop 覆盖
   // 用 useState 保持引用稳定，async loader 完成后一次性更新，避免每次 render 产生新对象
@@ -360,6 +381,36 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   const camApi = useVrmCamera({ camera: rendererState?.camera ?? null, controls: rendererState?.controls ?? null });
   camApiRef.current = camApi;
 
+  // 6. 广场(可选)
+  const onWorldEventRef = useRef(onWorldEvent);
+  onWorldEventRef.current = onWorldEvent;
+  const worldApi = useVrmWorld({
+    enabled: world && !debugNoThree,
+    THREE_NS: (rendererState as any)?.THREE_NS ?? null,
+    scene: rendererState?.scene ?? null,
+    camera: rendererState?.camera ?? null,
+    canvas: rendererState ? canvasRef.current : null,
+    preset: sceneApi.preset,
+    getAvatar: () => vrmDataRef.current?.scene ?? null,
+    walkTo: (x, z) => handleInternalRef.current?.walkTo(x, z),
+    onEvent: (e) => onWorldEventRef.current?.(e),
+  });
+  const worldApiRef = useRef(worldApi);
+  worldApiRef.current = worldApi;
+  /** 角色朝向(绕 Y,0 = 面朝 +Z 即默认机位);走动时转向前进方向,停下一会儿转回来看镜头 */
+  const yawRef = useRef(0);
+  const idleSinceRef = useRef(0);
+  const overviewPoseRef = useRef<{ pos: [number, number, number]; target: [number, number, number] } | null>(null);
+  /** 俯瞰时把视角拉宽(舞台相机 30° 太窄,拉到 55° 才装得下整座广场);null = 回到原视角 */
+  const fovTargetRef = useRef<number | null>(null);
+  const baseFovRef = useRef<number | null>(null);
+  // 广场比舞台大得多:允许镜头拉远一些(太远会出天空球)
+  useEffect(() => {
+    const c = rendererState?.controls;
+    if (!c) return;
+    c.maxDistance = world ? 24 : 12;
+  }, [rendererState, world]);
+
   // 加载 VRM
   useEffect(() => {
     if (!rendererState) return;
@@ -415,12 +466,30 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   }, [rendererState, modelUrl]);
 
   // WASD/QE 键盘控制 — 自由轨道
+  // 广场模式:WASD/方向键走、Shift 跑、Q/E 转镜头、空格跳、F 互动
   const keysRef = useRef<Record<string, boolean>>({});
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       const k = e.key.toLowerCase();
+      if (worldOnRef.current) {
+        if (k === ' ' || k === 'spacebar') {
+          e.preventDefault();
+          if (!e.repeat) handleInternalRef.current?.setAction('jump');
+          return;
+        }
+        if (k === 'f') {
+          if (!e.repeat) onWorldEventRef.current?.({ type: 'interact' });
+          return;
+        }
+        if (['w', 'a', 's', 'd', 'q', 'e', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'shift'].includes(k)) {
+          keysRef.current[k] = true;
+          if (k.startsWith('arrow')) e.preventDefault();
+        }
+        return;
+      }
       if (['w', 'a', 's', 'd', 'q', 'e'].includes(k)) {
         keysRef.current[k] = true;
         e.preventDefault();
@@ -444,12 +513,25 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     rendererApi.setOnFrame((dt, t) => {
       // 0. WASD 键盘控制（先于其他，避免 camera 动画冲突）
       const keys = keysRef.current;
-      if (keys.w) camApi.orbit('in', dt);
-      if (keys.s) camApi.orbit('out', dt);
-      if (keys.a) camApi.orbit('left', dt);
-      if (keys.d) camApi.orbit('right', dt);
-      if (keys.q) camApi.orbit('up', dt);
-      if (keys.e) camApi.orbit('down', dt);
+      const inWorld = worldOnRef.current;
+      // 广场里 WASD 是走路(见下面第 4 步),Q/E 左右转镜头
+      let kbX = 0, kbY = 0;
+      if (inWorld) {
+        if (keys.q) camApi.orbit('left', dt * 1.6);
+        if (keys.e) camApi.orbit('right', dt * 1.6);
+        // 凑近看屏幕时不走动,不然镜头会跟着角色从屏幕前滑走
+        if (!preFocusPoseRef.current) {
+          kbY = (keys.w || keys.arrowup ? 1 : 0) - (keys.s || keys.arrowdown ? 1 : 0);
+          kbX = (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0);
+        }
+      } else {
+        if (keys.w) camApi.orbit('in', dt);
+        if (keys.s) camApi.orbit('out', dt);
+        if (keys.a) camApi.orbit('left', dt);
+        if (keys.d) camApi.orbit('right', dt);
+        if (keys.q) camApi.orbit('up', dt);
+        if (keys.e) camApi.orbit('down', dt);
+      }
       // 1. lip sync:有真实语音在响时,嘴跟着音频频谱走(和声音天然同步)
       const audioLip = lipApi.tick(dt);
       if (audioLip) lastAudioLipAtRef.current = performance.now();
@@ -550,7 +632,28 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       // 4. 位置 / 行走动画
       const mv = moveAnimRef.current;
       const pos = positionRef.current;
-      if (mv.active) {
+      if ((kbX !== 0 || kbY !== 0) && rendererState) {
+        // 以镜头为参照:W 是「往画面里走」,D 是「往画面右边走」
+        mv.active = false;
+        const cam = rendererState.camera;
+        const tgt = rendererState.controls?.target ?? { x: pos.x, z: pos.z };
+        let fx = tgt.x - cam.position.x, fz = tgt.z - cam.position.z;
+        const fl = Math.hypot(fx, fz) || 1;
+        fx /= fl; fz /= fl;
+        let mx = fx * kbY - fz * kbX;
+        let mz = fz * kbY + fx * kbX;
+        const ml = Math.hypot(mx, mz) || 1;
+        mx /= ml; mz /= ml;
+        const running = !!keys.shift;
+        const speed = running ? 4.6 : 2.1;
+        pos.prevX = pos.x; pos.prevZ = pos.z;
+        const next = clampToWorld(pos.x + mx * speed * dt, pos.z + mz * speed * dt);
+        pos.x = next.x; pos.z = next.z;
+        walkRef.current.moving = true;
+        walkRef.current.style = running ? 'run' : 'walk';
+        walkStepRef.current += dt * (running ? 8 : 4) * 2 * Math.PI;
+        walkRef.current.phase = walkStepRef.current;
+      } else if (mv.active) {
         const elapsed = performance.now() - mv.startTime;
         const k = Math.min(1, elapsed / mv.duration);
         const eased = 1 - Math.pow(1 - k, 2);  // easeOutQuad
@@ -592,13 +695,38 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       }
       const dx = pos.x - pos.prevX;
       const dz = pos.z - pos.prevZ;
-      if ((dx !== 0 || dz !== 0) && rendererState) {
+      // 镜头跟着角色平移;俯瞰、凑近看屏幕时不跟。镜头正在飞的途中也要把终点一起挪,不然飞到的是旧位置
+      if ((dx !== 0 || dz !== 0) && rendererState && !overviewPoseRef.current && !preFocusPoseRef.current) {
+        camApi.shift(dx, dz);
         rendererState.camera.position.x += dx;
         rendererState.camera.position.z += dz;
         if (rendererState.controls) {
           rendererState.controls.target.x += dx;
           rendererState.controls.target.z += dz;
         }
+      }
+      // 4.5 广场:角色朝向 + 地标/星光
+      if (inWorld && vrmDataRef.current?.scene && rendererState) {
+        const root = vrmDataRef.current.scene;
+        // rotateVRM0 会把 VRM0 模型转 180°,朝向要叠在这个基准上
+        if (root.userData.baseYaw === undefined) root.userData.baseYaw = root.rotation.y;
+        const moved = Math.hypot(dx, dz);
+        let targetYaw: number | null = null;
+        if (moved > 1e-4) {
+          targetYaw = Math.atan2(dx, dz);
+          idleSinceRef.current = t;
+        } else if (t - idleSinceRef.current > 1.6) {
+          // 停下来一会儿就转回来面向镜头(聊天时要看着人)
+          const cam = rendererState.camera.position;
+          targetYaw = Math.atan2(cam.x - pos.x, cam.z - pos.z);
+        }
+        if (targetYaw !== null) {
+          let d = targetYaw - yawRef.current;
+          d = Math.atan2(Math.sin(d), Math.cos(d));
+          yawRef.current += d * Math.min(1, dt * (moved > 1e-4 ? 10 : 3));
+        }
+        root.rotation.y = (root.userData.baseYaw as number) + yawRef.current;
+        worldApiRef.current.tick(t, dt, pos, animApiRef.current?.dancing ?? false);
       }
       // 5. 统一动画状态机
       animApi.tick(t, dt);
@@ -607,6 +735,15 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       sceneApi.tick(t, dt, bass, animApiRef.current?.dancing ?? false, 1);
       // 7. camera anim
       camApi.tick(dt);
+      {
+        const cam = rendererState.camera;
+        if (baseFovRef.current === null) baseFovRef.current = cam.fov;
+        const want = fovTargetRef.current ?? baseFovRef.current;
+        if (Math.abs(cam.fov - want) > 0.05) {
+          cam.fov += (want - cam.fov) * Math.min(1, dt * 3.5);
+          cam.updateProjectionMatrix();
+        }
+      }
       // 7. confetti
       if (confettiOn && confettiRef.current && rendererState) {
         updateConfetti((rendererState as any).THREE_NS, confettiRef.current, dt);
@@ -782,9 +919,13 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         else if (target === 'back') { tz += 2; }
         else if (target === 'center') { tx = 0; tz = 0; }
         else if (typeof target === 'object') { tx = target.x ?? tx; tz = target.z ?? tz; }
-        // 边界：限制在 ±6
-        tx = Math.max(-6, Math.min(6, tx));
-        tz = Math.max(-6, Math.min(6, tz));
+        // 边界:广场里收进广场(绕开地标),否则限制在 ±6
+        if (worldOnRef.current) {
+          ({ x: tx, z: tz } = clampToWorld(tx, tz));
+        } else {
+          tx = Math.max(-6, Math.min(6, tx));
+          tz = Math.max(-6, Math.min(6, tz));
+        }
         devLog.debug(`[VrmStage.move] style=${style} duration=${durationMs}ms from=(${positionRef.current.x.toFixed(2)}, ${positionRef.current.z.toFixed(2)}) to=(${tx.toFixed(2)}, ${tz.toFixed(2)})`);
         walkRef.current.style = style;
         if (style === 'teleport') {
@@ -811,8 +952,9 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         devLog.debug(`[VrmStage.setPosition] (${x}, ${z})`);
         positionRef.current.prevX = positionRef.current.x;
         positionRef.current.prevZ = positionRef.current.z;
-        positionRef.current.x = Math.max(-6, Math.min(6, x));
-        positionRef.current.z = Math.max(-6, Math.min(6, z));
+        const c = worldOnRef.current ? clampToWorld(x, z) : { x: Math.max(-6, Math.min(6, x)), z: Math.max(-6, Math.min(6, z)) };
+        positionRef.current.x = c.x;
+        positionRef.current.z = c.z;
         walkRef.current.moving = false;
       },
       setYOffset: (y) => {
@@ -830,6 +972,54 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         const r = (rendererStateRef.current as any)?.renderer;
         if (!r) return null;
         try { return r.domElement.toDataURL('image/png'); } catch { return null; }
+      },
+      walkTo: (x, z) => {
+        const target = worldOnRef.current ? clampToWorld(x, z) : { x, z };
+        const d = Math.hypot(target.x - positionRef.current.x, target.z - positionRef.current.z);
+        if (d < 0.05) return;
+        const style = d > 6 ? 'run' : 'walk';
+        const speed = style === 'run' ? 4.2 : 1.9;
+        handleInternalRef.current?.move({ x: target.x, z: target.z }, { durationMs: Math.max(350, (d / speed) * 1000), style });
+      },
+      floatText: (text, color) => {
+        const p = positionRef.current;
+        const h = modelMetricsRef.current?.height ?? 1.6;
+        worldApiRef.current.floatText(text, p.x, h + 0.15, p.z, color);
+      },
+      setOverview: (on) => {
+        const cam = camApiRef.current;
+        if (!cam) return;
+        if (on) {
+          if (!overviewPoseRef.current) overviewPoseRef.current = cam.getPose();
+          fovTargetRef.current = 55;
+          const c = rendererStateRef.current?.controls;
+          if (c) c.maxDistance = 36;
+          // 够高才能越过舞台背景板看到后面的观星台
+          cam.flyTo([0, 28, 12], [0, 0, -1.5], 1.4);
+        } else {
+          const back = overviewPoseRef.current;
+          overviewPoseRef.current = null;
+          fovTargetRef.current = null;
+          const c = rendererStateRef.current?.controls;
+          if (c) c.maxDistance = worldOnRef.current ? 24 : 12;
+          if (back) {
+            // 俯瞰期间角色可能走动过:回到「跟在角色身后」的相对机位
+            const p = positionRef.current;
+            const off = { x: back.pos[0] - back.target[0], y: back.pos[1] - back.target[1], z: back.pos[2] - back.target[2] };
+            cam.flyTo([p.x + off.x, back.target[1] + off.y, p.z + off.z], [p.x, back.target[1], p.z], 1.1);
+          }
+        }
+      },
+      getWorldSnapshot: () => {
+        if (!worldOnRef.current) return null;
+        const rs = rendererStateRef.current;
+        const snap = worldApiRef.current.snapshot();
+        let camYaw = 0;
+        if (rs) {
+          const tgt = rs.controls?.target ?? { x: positionRef.current.x, z: positionRef.current.z };
+          camYaw = Math.atan2(tgt.x - rs.camera.position.x, tgt.z - rs.camera.position.z);
+        }
+        return { x: positionRef.current.x, z: positionRef.current.z, yaw: yawRef.current, camYaw, orbs: snap.orbs, zone: snap.zone };
       },
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
