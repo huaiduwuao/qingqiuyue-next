@@ -7,6 +7,15 @@
 import { contentClient } from '@/lib/api/client';
 import type { EntityId } from '@/lib/id';
 
+/** 史书 / 诗文里的真实记载的白话转述,src 是原始出处 */
+export interface InsightStory {
+  /** 这个故事从哪个角度看人生,如「被看低的时候」 */
+  angle: string;
+  title: string;
+  body: string;
+  src: string;
+}
+
 export interface InsightTheme {
   key: string;
   name: string;
@@ -16,7 +25,19 @@ export interface InsightTheme {
   lineSrc: string;
   /** 编者一问 */
   ask: string;
+  /** 编者论第一段的开头(只在 overview 里有) */
+  lead?: string;
+  /** 编者论(观点,不是史料),只在 /insight/theme 里有 */
+  essay?: string[];
+  /** 不同角度的故事,只在 /insight/theme 里有 */
+  stories?: InsightStory[];
 }
+
+/**
+ * 站内能不能直接消费:play = 本站能看到画面;read = 站内直接能读 / 能看(诗词原文、有正文的文章)。
+ * 空 = 只有资料,要去原站。
+ */
+export type InsightAvail = '' | 'play' | 'read';
 
 export interface InsightGroup {
   key: string;
@@ -44,6 +65,7 @@ export interface InsightItem {
   year?: number;
   dynasty?: string;
   rating?: number;
+  avail?: InsightAvail;
 }
 
 export interface InsightSection {
@@ -67,16 +89,24 @@ export interface InsightDaily {
 export const overview = (): Promise<{ groups: InsightGroup[]; eras: InsightEraMeta[] }> =>
   contentClient.get('/insight/overview');
 
-export const theme = (key: string): Promise<{ theme: InsightTheme; sections: InsightSection[] }> =>
-  contentClient.get('/insight/theme', { params: { key } });
+export const theme = (
+  key: string,
+  avail: InsightAvail = '',
+): Promise<{
+  theme: InsightTheme;
+  sections: InsightSection[];
+  /** 不筛时才有:两个筛选各有多少(粗数) */
+  availTotals?: { play: number; read: number };
+}> => contentClient.get('/insight/theme', { params: { key, avail: avail || undefined } });
 
-export const timeline = (key: string): Promise<{ theme: InsightTheme; eras: InsightEra[] }> =>
-  contentClient.get('/insight/timeline', { params: { key } });
+export const timeline = (key: string, avail: InsightAvail = ''): Promise<{ theme: InsightTheme; eras: InsightEra[] }> =>
+  contentClient.get('/insight/timeline', { params: { key, avail: avail || undefined } });
 
 export const items = (params: {
   key: string;
   type?: string;
   era?: string;
+  avail?: InsightAvail;
   page?: number;
   size?: number;
 }): Promise<{ list: InsightItem[]; total: number; page: number; pageSize: number }> =>

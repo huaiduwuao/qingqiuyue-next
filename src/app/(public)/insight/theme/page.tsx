@@ -5,6 +5,8 @@
 // 两个页签:
 //   作品:诗词、电影、剧集、动画、短剧、书、音乐、视频、文章,各取几部;点类型看全部
 //   时间线:唐 → 宋 → 1949 年以前 → … → 当下,同一种心事在每个年代的作品
+// 页签上方是「论」(编者观点)和「不同角度」的故事(史书原典的白话转述,标出处),
+// 以及可用性筛选:全部 / 本站可播 / 直接可看 —— 两个页签共用,作品卡上也打同样的标。
 // 底部是「写给自己」(只存在本机)和同组的其它主题。
 //
 // 静态导出不能用 [key] 动态段,所以用 ?key=,且 useSearchParams 必须包在 Suspense 里。
@@ -31,17 +33,26 @@ import {
   pushRecentTheme,
   readNote,
   writeNote,
+  type InsightAvail,
   type InsightItem,
   type InsightSection,
   type InsightTheme,
 } from '@/apis/insight';
-import { accentOf, Epigraph, InsightCard } from '@/components/insight/InsightCards';
+import { accentOf, AVAIL_META, EssayCard, Epigraph, InsightCard, StoryCard } from '@/components/insight/InsightCards';
 import { TYPE_LABEL } from '@/lib/contentRoute';
 
 const SERIF = '"Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, serif';
 const PAGE_SIZE = 24;
 
 const typeName = (t: string) => (t === 'POETRY' ? '诗词' : TYPE_LABEL[t] || t);
+
+/** 筛选后为空时的说法:要说清楚是「站内暂时没有」,不是「没有相关作品」。 */
+const emptyText = (avail: InsightAvail) =>
+  avail === 'play'
+    ? '这里暂时没有本站能直接播放的作品'
+    : avail === 'read'
+      ? '这里暂时没有站内能直接看的作品'
+      : '这里还没有收录到相关作品';
 
 /** 诗词两列文字卡,其余作品封面网格。 */
 function ItemGrid({
@@ -123,24 +134,26 @@ function PagedList({
   themeKey,
   type,
   era,
+  avail,
   accent,
 }: {
   themeKey: string;
   type?: string;
   era?: string;
+  avail: InsightAvail;
   accent: string;
 }) {
   const [page, setPage] = React.useState(1);
-  React.useEffect(() => setPage(1), [type, era]);
+  React.useEffect(() => setPage(1), [type, era, avail]);
   const q = useQuery({
-    queryKey: ['insight', 'items', themeKey, type || '', era || '', page],
-    queryFn: () => fetchItems({ key: themeKey, type, era, page, size: PAGE_SIZE }),
+    queryKey: ['insight', 'items', themeKey, type || '', era || '', avail, page],
+    queryFn: () => fetchItems({ key: themeKey, type, era, avail: avail || undefined, page, size: PAGE_SIZE }),
     placeholderData: keepPreviousData,
   });
   const total = q.data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   if (q.isLoading) return <Skeleton variant="rounded" height={320} />;
-  if (!total) return <EmptyState text="这里还没有收录到相关作品" />;
+  if (!total) return <EmptyState text={emptyText(avail)} />;
   return (
     <>
       <Typography sx={{ fontSize: 12, color: 'text.disabled', mb: 1.5 }}>共 {total.toLocaleString()} 部</Typography>
@@ -162,12 +175,17 @@ function PagedList({
   );
 }
 
-function WorksTab({ t, accent }: { t: InsightTheme; accent: string }) {
+function WorksTab({ t, avail, accent }: { t: InsightTheme; avail: InsightAvail; accent: string }) {
   const [type, setType] = React.useState('');
-  const q = useQuery({ queryKey: ['insight', 'theme', t.key], queryFn: () => fetchTheme(t.key), staleTime: 10 * 60_000 });
+  const q = useQuery({
+    queryKey: ['insight', 'theme', t.key, avail],
+    queryFn: () => fetchTheme(t.key, avail),
+    staleTime: 10 * 60_000,
+    placeholderData: keepPreviousData,
+  });
   const sections = q.data?.sections ?? [];
   if (q.isLoading) return <Skeleton variant="rounded" height={420} />;
-  if (!sections.length) return <EmptyState text="这里还没有收录到相关作品" />;
+  if (!sections.length) return <EmptyState text={emptyText(avail)} />;
   return (
     <>
       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 3 }}>
@@ -190,7 +208,7 @@ function WorksTab({ t, accent }: { t: InsightTheme; accent: string }) {
         ))}
       </Box>
       {type ? (
-        <PagedList themeKey={t.key} type={type} accent={accent} />
+        <PagedList themeKey={t.key} type={type} avail={avail} accent={accent} />
       ) : (
         sections.map((s) => (
           <SectionRow
@@ -208,16 +226,17 @@ function WorksTab({ t, accent }: { t: InsightTheme; accent: string }) {
   );
 }
 
-function TimelineTab({ t, accent }: { t: InsightTheme; accent: string }) {
+function TimelineTab({ t, avail, accent }: { t: InsightTheme; avail: InsightAvail; accent: string }) {
   const [era, setEra] = React.useState('');
   const q = useQuery({
-    queryKey: ['insight', 'timeline', t.key],
-    queryFn: () => fetchTimeline(t.key),
+    queryKey: ['insight', 'timeline', t.key, avail],
+    queryFn: () => fetchTimeline(t.key, avail),
     staleTime: 10 * 60_000,
+    placeholderData: keepPreviousData,
   });
   const eras = q.data?.eras ?? [];
   if (q.isLoading) return <Skeleton variant="rounded" height={420} />;
-  if (!eras.length) return <EmptyState text="这里还没有收录到相关作品" />;
+  if (!eras.length) return <EmptyState text={emptyText(avail)} />;
   if (era) {
     const e = eras.find((x) => x.key === era);
     return (
@@ -229,7 +248,7 @@ function TimelineTab({ t, accent }: { t: InsightTheme; accent: string }) {
           ← 回到时间线
         </Typography>
         <Typography sx={{ fontFamily: SERIF, fontSize: 20, fontWeight: 700, mb: 1 }}>{e?.name}</Typography>
-        <PagedList themeKey={t.key} era={era} accent={accent} />
+        <PagedList themeKey={t.key} era={era} avail={avail} accent={accent} />
       </>
     );
   }
@@ -273,6 +292,60 @@ function TimelineTab({ t, accent }: { t: InsightTheme; accent: string }) {
       ))}
       <Typography sx={{ fontSize: 11, color: 'text.disabled', lineHeight: 1.8 }}>
         诗词语料目前只有唐、宋两代;近现代作品按上映 / 发行年份分段,没有年份的作品不进时间线。
+      </Typography>
+    </Box>
+  );
+}
+
+/** 可用性筛选:全部 / 本站可播 / 直接可看。数字是不筛时后端给的粗数。 */
+function AvailFilter({
+  value,
+  onChange,
+  totals,
+}: {
+  value: InsightAvail;
+  onChange: (v: InsightAvail) => void;
+  totals?: { play: number; read: number };
+}) {
+  const opts: { v: InsightAvail; label: string; color?: string; n?: number }[] = [
+    { v: '', label: '全部' },
+    { v: 'play', label: AVAIL_META.play.label, color: AVAIL_META.play.color, n: totals?.play },
+    { v: 'read', label: AVAIL_META.read.label, color: AVAIL_META.read.color, n: totals?.read },
+  ];
+  return (
+    <Box sx={{ mb: 2.5 }}>
+      <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
+        {opts.map((o) => {
+          const on = value === o.v;
+          return (
+            <Box
+              key={o.v || 'all'}
+              onClick={() => onChange(o.v)}
+              sx={{
+                px: 1.5,
+                py: 0.5,
+                borderRadius: 5,
+                fontSize: 13,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.75,
+                border: '1px solid',
+                borderColor: on ? o.color || 'text.primary' : 'divider',
+                color: on ? '#fff' : 'text.primary',
+                bgcolor: on ? o.color || 'text.primary' : 'transparent',
+                ...(on && !o.color && { color: 'background.default' }),
+              }}
+            >
+              {o.color && !on && <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: o.color }} />}
+              {o.label}
+              {typeof o.n === 'number' && <Box component="span" sx={{ opacity: 0.7, fontSize: 12 }}>{o.n.toLocaleString()}</Box>}
+            </Box>
+          );
+        })}
+      </Box>
+      <Typography sx={{ fontSize: 11, color: 'text.disabled', mt: 1 }}>
+        「可播」在本站就能看到画面，「可看」是诗词原文与站内有正文的文章；没有标记的作品站内只有资料，需要去原站看。
       </Typography>
     </Box>
   );
@@ -324,6 +397,15 @@ function ThemeInner() {
   const sp = useSearchParams();
   const key = sp.get('key') || '';
   const [tab, setTab] = React.useState<'works' | 'timeline'>(sp.get('tab') === 'timeline' ? 'timeline' : 'works');
+  const initAvail = sp.get('avail');
+  const [avail, setAvail] = React.useState<InsightAvail>(initAvail === 'play' || initAvail === 'read' ? initAvail : '');
+  // 编者论、故事和筛选数字都在不筛的主题接口里(和「作品」页签默认那次请求是同一个缓存)
+  const detail = useQuery({
+    queryKey: ['insight', 'theme', key, ''],
+    queryFn: () => fetchTheme(key, ''),
+    enabled: !!key,
+    staleTime: 10 * 60_000,
+  });
 
   const ov = useQuery({ queryKey: ['insight', 'overview'], queryFn: overview, staleTime: 60 * 60_000 });
   const groups = ov.data?.groups ?? [];
@@ -380,6 +462,35 @@ function ThemeInner() {
         <Epigraph line={t.line} src={t.lineSrc} accent={accent} size={17} />
       </Box>
 
+      {/* 论:编者观点 */}
+      {(detail.data?.theme.essay?.length ?? 0) > 0 && (
+        <Box sx={{ mb: 4 }}>
+          <EssayCard paras={detail.data!.theme.essay!} accent={accent} />
+        </Box>
+      )}
+
+      {/* 不同角度的故事:史书原典的白话转述 */}
+      {(detail.data?.theme.stories?.length ?? 0) > 0 && (
+        <Box sx={{ mb: 5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 1.5 }}>
+            <Typography sx={{ fontSize: 16, fontWeight: 600 }}>不同角度</Typography>
+            <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>史书与诗文里的真事，白话转述，均注出处</Typography>
+          </Box>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, minmax(0, 1fr))' },
+              gap: 1.5,
+              alignItems: 'start',
+            }}
+          >
+            {detail.data!.theme.stories!.map((st) => (
+              <StoryCard key={st.title} story={st} accent={accent} />
+            ))}
+          </Box>
+        </Box>
+      )}
+
       <Tabs
         value={tab}
         onChange={(_, v) => setTab(v)}
@@ -389,7 +500,13 @@ function ThemeInner() {
         <Tab value="timeline" label="从古至今" />
       </Tabs>
 
-      {tab === 'works' ? <WorksTab key={t.key} t={t} accent={accent} /> : <TimelineTab key={t.key} t={t} accent={accent} />}
+      <AvailFilter value={avail} onChange={setAvail} totals={detail.data?.availTotals} />
+
+      {tab === 'works' ? (
+        <WorksTab key={t.key} t={t} avail={avail} accent={accent} />
+      ) : (
+        <TimelineTab key={t.key} t={t} avail={avail} accent={accent} />
+      )}
 
       <Box sx={{ mt: 5 }}>
         <NoteBox t={t} accent={accent} />

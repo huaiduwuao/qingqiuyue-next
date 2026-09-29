@@ -3,7 +3,8 @@
 // 人生感悟专题首页。
 //
 // 结构:今日一悟(按日期轮换的主题 + 一首诗 + 一部作品)→ 你最近在想的(本机记录)
-// → 四组主题(心脉受损 / 爱情·友情·亲情 / 七情 / 六欲)。
+// → 五组主题(心脉受损 / 人生真相 / 爱情·友情·亲情 / 七情 / 六欲)。
+// 「人生真相」用宽卡:露出编者论的开头,告诉读者这里是讲透规律的论述,不只是作品清单。
 //
 // 页面上的编辑文字只有两类:题记(原句 + 出处,后端 insight_themes.go 里逐条核对过)
 // 和「一问」(编者按)。作品都是按字面命中取的真实条目,不生成解读。
@@ -21,6 +22,54 @@ import { accentOf, WorkCard } from '@/components/insight/InsightCards';
 import { useContentNavigate } from '@/lib/contentRoute';
 
 const SERIF = '"Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, serif';
+
+/** 人生真相的宽卡:主题名 + 论的开头 + 题记。 */
+function ArgueTile({ t, onClick }: { t: InsightTheme; onClick: () => void }) {
+  const accent = accentOf(t.group);
+  return (
+    <Box
+      onClick={onClick}
+      sx={{
+        p: { xs: 2, md: 2.5 },
+        borderRadius: 2,
+        border: '1px solid',
+        borderColor: 'divider',
+        borderTop: `3px solid ${accent}`,
+        cursor: 'pointer',
+        minWidth: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        transition: 'border-color .15s, transform .15s',
+        '&:hover': { borderColor: accent, transform: 'translateY(-2px)' },
+      }}
+    >
+      <Typography sx={{ fontFamily: SERIF, fontSize: 21, fontWeight: 700, color: accent, letterSpacing: '0.12em' }}>
+        {t.name}
+      </Typography>
+      {t.lead && (
+        <Typography
+          sx={{
+            fontSize: 13,
+            color: 'text.primary',
+            lineHeight: 1.85,
+            mt: 1,
+            flex: 1,
+            display: '-webkit-box',
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+          }}
+        >
+          {t.lead}……
+        </Typography>
+      )}
+      <Typography sx={{ fontSize: 11.5, color: 'text.disabled', mt: 1.25, fontFamily: SERIF }}>
+        「{t.line}」—— {t.lineSrc}
+      </Typography>
+      <Typography sx={{ fontSize: 12, color: accent, mt: 1 }}>读论 · 看故事 →</Typography>
+    </Box>
+  );
+}
 
 function ThemeTile({ t, onClick }: { t: InsightTheme; onClick: () => void }) {
   const accent = accentOf(t.group);
@@ -86,17 +135,31 @@ function GroupBlock({ g, open }: { g: InsightGroup; open: (key: string) => void 
       <Typography sx={{ fontSize: 12, color: 'text.disabled', mb: 2, fontFamily: SERIF }}>
         「{g.line}」—— {g.lineSrc}
       </Typography>
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' },
-          gap: 1.5,
-        }}
-      >
-        {g.themes.map((t) => (
-          <ThemeTile key={t.key} t={t} onClick={() => open(t.key)} />
-        ))}
-      </Box>
+      {g.key === 'truth' ? (
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'repeat(2, minmax(0, 1fr))', md: 'repeat(3, minmax(0, 1fr))' },
+            gap: 1.5,
+          }}
+        >
+          {g.themes.map((t) => (
+            <ArgueTile key={t.key} t={t} onClick={() => open(t.key)} />
+          ))}
+        </Box>
+      ) : (
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))', md: 'repeat(4, minmax(0, 1fr))' },
+            gap: 1.5,
+          }}
+        >
+          {g.themes.map((t) => (
+            <ThemeTile key={t.key} t={t} onClick={() => open(t.key)} />
+          ))}
+        </Box>
+      )}
     </Box>
   );
 }
@@ -201,7 +264,7 @@ export default function InsightHomePage() {
             人生感悟
           </Typography>
           <Typography sx={{ fontSize: 13, color: 'text.secondary', mt: 1.5, lineHeight: 1.8 }}>
-            爱恨离合、七情六欲,从唐诗宋词到今天的电影与歌
+            爱恨离合、七情六欲、世道人心,从唐诗宋词到今天的电影与歌
             <br />
             同一种心事,换一种作品,再看一遍
           </Typography>
