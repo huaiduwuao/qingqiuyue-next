@@ -87,7 +87,11 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
     const d = defRef.current;
     const renderer = cbRef.current.renderer;
     const withEnv = quality !== 'off' && !!renderer;
-    const w = buildWorld(THREE_NS, cbRef.current.preset, d, { island: withEnv });
+    const style = worldEnv(d);
+    const w = buildWorld(THREE_NS, cbRef.current.preset, d, {
+      island: withEnv,
+      realistic: withEnv && style.style === 'realistic' ? { base: style.assets, quality: quality as Quality } : undefined,
+    });
     scene.add(w.group);
     worldRef.current = w;
     let env: Environment | null = null;

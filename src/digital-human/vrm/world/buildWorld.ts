@@ -10,7 +10,8 @@
 
 import type * as THREE from 'three';
 import { createNpcRig, type NpcRig } from './npcRig';
-import { DEFAULT_WORLD, WORLD_RADIUS, zoneProp, type Orb, type WorldCharacter, type WorldDef, type WorldZone, type ZoneId } from './worldLayout';
+import { createRealKit, type RealKit, type Spot } from './realKit';
+import { DEFAULT_WORLD, WORLD_RADIUS, zoneProp, type Orb, type WorldCharacter, type WorldDef, type WorldZone, type ZoneId, worldEnv } from './worldLayout';
 
 /** 各场景预设下广场的配色:地面要跟舞台地板接得上,不然白天草坪外面一圈黑地很突兀 */
 export interface WorldTheme { ground: number; path: number; accent: number; hemiSky: number; hemiGround: number; hemi: number }
@@ -115,6 +116,8 @@ function hex(c: number) { return `#${c.toString(16).padStart(6, '0')}`; }
 export interface BuildWorldOptions {
   /** 外面接了环境层(湖、山、昼夜):地面收成湖心石台,半球光交给环境层 */
   island?: boolean;
+  /** 写实画风:石台、台边、路灯、灌木、亭子 / 石碑 / 月洞门换成 Poly Haven 实景素材,四周点缀石头、蕨、野花 */
+  realistic?: { base?: string; quality: 'high' | 'low' };
 }
 
 export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: WorldDef = DEFAULT_WORLD, bopts: BuildWorldOptions = {}): WorldHandle {
@@ -125,6 +128,7 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
   const disposables: { dispose: () => void }[] = [];
   const track = <T extends { dispose: () => void }>(x: T) => { disposables.push(x); return x; };
   let theme = worldTheme(initialPreset);
+  const kit: RealKit | null = bopts.realistic ? createRealKit(THREE_NS, bopts.realistic) : null;
 
   // ── 托底光:舞台聚光照不到外圈,给一点点环境光让远处的地标有体积感
   const hemi = new THREE_NS.HemisphereLight(theme.hemiSky, theme.hemiGround, island ? 0 : theme.hemi);
@@ -132,7 +136,10 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
 
   // ── 地面:实心大圆(接收阴影)+ 一层叠加着色器画小路、网格和地标光圈
   const groundMat = track(new THREE_NS.MeshStandardMaterial({ color: theme.ground, roughness: 0.92, metalness: 0.05 }));
-  if (island) {
+  if (kit) {
+    // CircleGeometry 的 uv 横跨整个直径:按 1.6 米一块铺
+    kit.texSet(groundMat, def.kind === 'insight' ? 'mossy_cobblestone' : 'stone_tiles_02', ((WORLD_RADIUS + 1.3) * 2) / 1.6, { normalScale: 0.9 });
+  } else if (island) {
     // 地面细节:大块的深浅斑驳 + (星光广场)石板铺装的缝;感悟庭院只在舞台一圈铺石板,外面是土和苔
     const paved = def.kind !== 'insight' ? 1 : 0;
     groundMat.onBeforeCompile = (shader) => {
@@ -174,7 +181,13 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
     const wall = new THREE_NS.Mesh(track(new THREE_NS.CylinderGeometry(WORLD_RADIUS + 1.3, WORLD_RADIUS + 1.6, 1.4, 128, 1, true)), rimMat);
     wall.position.y = -0.72;
     wall.receiveShadow = true;
-    const cap = new THREE_NS.Mesh(track(new THREE_NS.RingGeometry(WORLD_RADIUS + 0.8, WORLD_RADIUS + 1.35, 128)), track(new THREE_NS.MeshStandardMaterial({ color: 0x9a948a, roughness: 0.85 })));
+    const capMat = track(new THREE_NS.MeshStandardMaterial({ color: 0x9a948a, roughness: 0.85 }));
+    const cap = new THREE_NS.Mesh(track(new THREE_NS.RingGeometry(WORLD_RADIUS + 0.8, WORLD_RADIUS + 1.35, 128)), capMat);
+    if (kit) {
+      // 台边一圈周长约 110 米、高 1.4 米:横向铺 60 块,竖向 1 块
+      kit.texSet(rimMat, 'japanese_stone_wall', [60, 1]);
+      kit.texSet(capMat, 'rock_wall_08', 40);
+    }
     cap.rotation.x = -Math.PI / 2;
     cap.position.y = 0.035;
     cap.receiveShadow = true;
@@ -196,7 +209,7 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
       uZones: { value: zoneUniform },
       uActive: { value: -1 },
       uR: { value: WORLD_RADIUS },
-      uStrength: { value: 1 },
+      uStrength: { value: kit ? 0.28 : 1 },
     },
     vertexShader: `varying vec2 vW; void main(){ vec4 w = modelMatrix * vec4(position,1.); vW = w.xz; gl_Position = projectionMatrix * viewMatrix * w; }`,
     fragmentShader: `
@@ -248,6 +261,11 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
   // ── 共用材质
   const darkMetal = track(new THREE_NS.MeshStandardMaterial({ color: 0x1b1f2e, roughness: 0.4, metalness: 0.75 }));
   const stone = track(new THREE_NS.MeshStandardMaterial({ color: 0x3a3f55, roughness: 0.85, metalness: 0.05 }));
+  if (kit) kit.texSet(stone, 'rock_wall_08', 1.5, { tint: 0xb8b4ac });
+  /** 写实时在某个地标组里摆一件实景道具(本地坐标) */
+  const place = (parent: THREE.Object3D, id: string, x: number, z: number, rot = 0, scale = 1, y = 0) => {
+    kit?.model(id).then((o) => { o.position.set(x, y, z); o.rotation.y = rot; o.scale.setScalar(scale); parent.add(o); }).catch(() => { /* 没到就不摆 */ });
+  };
   const glowMat = (c: number, opacity = 1) => track(new THREE_NS.MeshBasicMaterial({ color: c, transparent: opacity < 1, opacity, fog: false }));
   const emissive = (c: number, k = 1.2) => track(new THREE_NS.MeshStandardMaterial({ color: 0x111111, emissive: c, emissiveIntensity: k, roughness: 0.5 }));
   const G = {
@@ -431,17 +449,27 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
       case 'pavilion': {
         // 亭子:四根朱柱 + 两层攒尖顶 + 顶上一颗宝珠,亭心一盏灯
         const pillar = track(new THREE_NS.MeshStandardMaterial({ color: 0x7a1f1f, roughness: 0.6 }));
+        if (kit) kit.texSet(pillar, 'lacquered_cherry_wood', [1, 4], { tint: 0xff9a80 }); // 朱漆:木纹上提一层暖红
         for (const [px, pz] of [[-0.9, -0.9], [0.9, -0.9], [-0.9, 0.9], [0.9, 0.9]]) g.add(mesh(G.cyl(0.08, 0.09, 2.2, 10), pillar, px, 1.1, pz));
         const base = mesh(G.box(2.4, 0.2, 2.4), stone, 0, 0.1, 0);
         base.receiveShadow = true;
         const roofMat = track(new THREE_NS.MeshStandardMaterial({ color: 0x1d2433, roughness: 0.5, metalness: 0.3, emissive: c, emissiveIntensity: 0.12 }));
+        if (kit) {
+          kit.texSet(roofMat, 'grey_roof_tiles', 3);
+          // 亭心一张茶几两个凳子
+          place(g, 'chinese_tea_table', 0, 0, 0.3, 1, 0.2);
+          place(g, 'chinese_stool', -0.62, 0.2, 1.2, 1, 0.2);
+          place(g, 'chinese_stool', 0.6, -0.25, -1.9, 1, 0.2);
+          // 亭心的灯换成一盏中式吊灯(模型原点在顶上,往下垂 0.75 米),原来的发光球缩成灯芯
+          place(g, 'chinese_chandelier', 0, 0, 0, 1, 2.45);
+        }
         const roof1 = mesh(G.cyl(0.2, 1.9, 0.7, 4), roofMat, 0, 2.55, 0);
         roof1.rotation.y = Math.PI / 4;
         const roof2 = mesh(G.cyl(0.05, 0.6, 0.45, 4), roofMat, 0, 3.05, 0);
         roof2.rotation.y = Math.PI / 4;
         const pearl = mesh(G.sphere(0.12), glowMat(c), 0, 3.35, 0);
-        const lamp = mesh(G.sphere(0.2), glowMat(0xfff0c8, 0.9), 0, 1.6, 0);
-        bobbers.push({ o: lamp, base: 1.6, amp: 0.05, speed: 1.3, phase: zone.x });
+        const lamp = mesh(G.sphere(kit ? 0.07 : 0.2), glowMat(0xfff0c8, 0.9), 0, kit ? 1.95 : 1.6, 0);
+        if (!kit) bobbers.push({ o: lamp, base: 1.6, amp: 0.05, speed: 1.3, phase: zone.x });
         g.add(base, roof1, roof2, pearl, lamp);
         pickables.push(base, roof1);
         break;
@@ -449,7 +477,13 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
       case 'stele': {
         // 石碑:碑座 + 碑身,碑面一道发光的竖线(像刻着的字)
         const seat = mesh(G.box(1.3, 0.35, 0.8), stone, 0, 0.175, 0);
-        const body = mesh(G.box(0.95, 2.1, 0.28), track(new THREE_NS.MeshStandardMaterial({ color: 0x2a2d38, roughness: 0.8 })), 0, 1.4, 0);
+        const steleMat = track(new THREE_NS.MeshStandardMaterial({ color: 0x2a2d38, roughness: 0.8 }));
+        if (kit) {
+          kit.texSet(steleMat, 'dry_riverbed_rock', 1, { tint: 0x77746f });
+          place(g, 'moss_01', 0.7, 0.35, 0.4);
+          place(g, 'fern_02', -0.8, 0.3, 2.1, 0.8);
+        }
+        const body = mesh(G.box(0.95, 2.1, 0.28), steleMat, 0, 1.4, 0);
         const cap = mesh(G.box(1.1, 0.18, 0.36), stone, 0, 2.5, 0);
         for (let i = 0; i < 3; i++) g.add(mesh(G.box(0.05, 1.5, 0.01), glowMat(c, 0.85), -0.25 + i * 0.25, 1.45, 0.145));
         g.add(seat, body, cap);
@@ -458,7 +492,9 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
       }
       case 'lantern': {
         // 灯亭:一根木杆挑着三盏红灯笼,微微晃
-        const pole = mesh(G.cyl(0.06, 0.08, 3.2, 10), track(new THREE_NS.MeshStandardMaterial({ color: 0x4a2f1b, roughness: 0.8 })), 0, 1.6, 0);
+        const poleMat = track(new THREE_NS.MeshStandardMaterial({ color: 0x4a2f1b, roughness: 0.8 }));
+        if (kit) kit.texSet(poleMat, 'japanese_cedar_planks', [0.5, 3]);
+        const pole = mesh(G.cyl(0.06, 0.08, 3.2, 10), poleMat, 0, 1.6, 0);
         const arm = mesh(G.cyl(0.04, 0.04, 2.0, 8), darkMetal, 0, 3.1, 0);
         arm.rotation.z = Math.PI / 2;
         g.add(pole, arm);
@@ -499,13 +535,16 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
       case 'moongate': {
         // 月洞门:一面墙中间开一个圆洞,洞沿发光
         const wallMat = track(new THREE_NS.MeshStandardMaterial({ color: 0xe8e2d4, roughness: 0.9 }));
+        if (kit) kit.texSet(wallMat, 'white_plaster_rough_01', 0.35);
         const shape = new THREE_NS.Shape();
         shape.moveTo(-1.8, 0); shape.lineTo(1.8, 0); shape.lineTo(1.8, 3.0); shape.lineTo(-1.8, 3.0); shape.lineTo(-1.8, 0);
         const hole = new THREE_NS.Path();
         hole.absarc(0, 1.45, 1.1, 0, Math.PI * 2, false);
         shape.holes.push(hole);
         const wall = mesh(track(new THREE_NS.ExtrudeGeometry(shape, { depth: 0.25, bevelEnabled: false })), wallMat, 0, 0, -0.12);
-        const tile = mesh(G.box(3.9, 0.16, 0.5), track(new THREE_NS.MeshStandardMaterial({ color: 0x2b2f3a, roughness: 0.6 })), 0, 3.08, 0);
+        const tileMat = track(new THREE_NS.MeshStandardMaterial({ color: 0x2b2f3a, roughness: 0.6 }));
+        if (kit) kit.texSet(tileMat, 'grey_roof_tiles', [4, 1]);
+        const tile = mesh(G.box(3.9, 0.16, 0.5), tileMat, 0, 3.08, 0);
         const ring = mesh(G.torus(1.1, 0.04), emissive(c, 1.6), 0, 1.45, 0.14);
         g.add(wall, tile, ring);
         pickables.push(wall);
@@ -538,8 +577,12 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
     lampHead.color.setRGB(1.0 * k, 0.95 * k, 0.78 * k);
     for (const l of lampLights) l.intensity = Math.max(0, k - 1.3) * 14;
   }
-  const lampGeo = G.cyl(0.04, 0.05, 2.6, 8);
-  const headGeo = G.sphere(0.13, 12);
+  const lampGeo = kit ? G.cyl(0.05, 0.06, 2.3, 8) : G.cyl(0.04, 0.05, 2.6, 8);
+  const headGeo = G.sphere(kit ? 0.06 : 0.13, 12);
+  const postMat = kit ? track(new THREE_NS.MeshStandardMaterial({ color: 0x5a4030, roughness: 0.8 })) : darkMetal;
+  if (kit) kit.texSet(postMat, 'japanese_cedar_planks', [0.4, 3]);
+  const lanternSpots: Spot[] = [];
+  const bushSpots: Spot[][] = [[], [], [], []];
   const bushMat = track(new THREE_NS.MeshStandardMaterial({ color: 0x1f4a33, roughness: 0.9 }));
   const bushGeo = G.sphere(0.5, 10);
   const lamps = 20;
@@ -547,19 +590,67 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
     const a = (i / lamps) * Math.PI * 2 + 0.08;
     const r = WORLD_RADIUS + 0.4;
     const x = Math.sin(a) * r, z = Math.cos(a) * r;
-    const post = mesh(lampGeo, darkMetal, x, 1.3, z);
+    const post = mesh(lampGeo, postMat, x, kit ? 1.15 : 1.3, z);
     const head = new THREE_NS.Mesh(headGeo, lampHead);
-    head.position.set(x, 2.65, z);
+    head.position.set(x, kit ? 2.55 : 2.65, z);
     group.add(post, head);
+    if (kit) lanternSpots.push({ x, y: 2.3, z, rot: a, scale: 1.25 });
     if (island && i % 3 === 0) {
       const pl = new THREE_NS.PointLight(0xffc98a, 0, 9, 1.6);
       pl.position.set(x * 0.97, 2.5, z * 0.97);
       group.add(pl);
       lampLights.push(pl);
     }
+    if (kit) {
+      bushSpots[i % 4].push({ x: Math.sin(a + 0.16) * (r + 0.3), z: Math.cos(a + 0.16) * (r + 0.3), rot: i * 1.7, scale: 0.7 + (i % 3) * 0.15 });
+      continue;
+    }
     const b = mesh(bushGeo, bushMat, Math.sin(a + 0.16) * (r + 0.3), 0.3, Math.cos(a + 0.16) * (r + 0.3));
     b.scale.set(1.2, 0.7, 1);
     group.add(b);
+  }
+  if (kit) {
+    kit.scatter(group, 'wooden_lantern_01', lanternSpots);
+    ['shrub_01', 'shrub_02', 'shrub_03', 'shrub_04'].forEach((id, k) => kit.scatter(group, id, bushSpots[k]));
+    scatterNature(kit);
+  }
+
+  /** 写实:台面外圈和地标旁边点缀石头、蕨、树桩、野花(避开地标实心区和小路) */
+  function scatterNature(k: RealKit) {
+    let seed = 7;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    const blocked = (x: number, z: number) => ZONES.some((zn) => Math.hypot(x - zn.x, z - zn.z) < zn.solidRadius + 0.8)
+      || ZONES.some((zn) => {
+        const L = Math.hypot(zn.x, zn.z) || 1, ux = zn.x / L, uz = zn.z / L;
+        const t = x * ux + z * uz;
+        return t > 4.5 && t < L && Math.abs(x * uz - z * ux) < 1.0;
+      });
+    const ring = (n: number, r0: number, r1: number, scale: [number, number]) => {
+      const out: Spot[] = [];
+      for (let tries = 0; out.length < n && tries < n * 20; tries++) {
+        const a = rnd() * Math.PI * 2, r = r0 + rnd() * (r1 - r0);
+        const x = Math.sin(a) * r, z = Math.cos(a) * r;
+        if (blocked(x, z)) continue;
+        out.push({ x, z, rot: rnd() * 6.28, scale: scale[0] + rnd() * (scale[1] - scale[0]) });
+      }
+      return out;
+    };
+    const R = WORLD_RADIUS;
+    k.scatter(group, 'rock_moss_set_01', ring(8, R - 2.4, R - 0.9, [0.7, 1.1]));
+    k.scatter(group, 'rock_moss_set_02', ring(8, R - 2.4, R - 0.9, [0.7, 1.1]));
+    k.scatter(group, 'boulder_01', ring(3, R - 2.6, R - 1.4, [0.8, 1.1]));
+    k.scatter(group, 'stone_01', ring(14, 6.5, R - 1, [0.6, 1.2]), { castShadow: false });
+    k.scatter(group, 'fern_02', ring(18, 7, R - 0.8, [0.6, 1.0]));
+    k.scatter(group, 'tree_stump_01', ring(3, R - 3, R - 1.5, [0.8, 1.0]));
+    k.scatter(group, 'dandelion_01', ring(24, 7, R - 1, [0.8, 1.2]), { castShadow: false });
+    k.scatter(group, 'celandine_01', ring(24, 7, R - 1, [0.8, 1.2]), { castShadow: false });
+    k.scatter(group, 'moss_01', ring(10, 6, R - 1, [0.8, 1.3]), { castShadow: false });
+    // 庭院的草:真实的草丛代替风格化的草叶(环境层在写实时不再种那一种)
+    if (worldEnv(def).grass) {
+      const n = bopts.realistic?.quality === 'high' ? 420 : 160;
+      k.scatter(group, 'grass_medium_01', ring(n, 7.2, R - 0.6, [0.8, 1.3]), { castShadow: false });
+      k.scatter(group, 'grass_medium_02', ring(n, 7.2, R - 0.6, [0.8, 1.3]), { castShadow: false });
+    }
   }
 
   // ── 星光
@@ -961,6 +1052,7 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
   }
 
   function dispose() {
+    kit?.dispose();
     for (const id of Array.from(npcs.keys())) removeNpc(id);
     setAura(null);
     setPeers([]);

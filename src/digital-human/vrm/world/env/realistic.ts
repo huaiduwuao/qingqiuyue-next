@@ -16,7 +16,7 @@
 import type * as THREE from 'three';
 import { mediaUrl } from '@/lib/media';
 
-export const WORLD_ASSET_BASE = '/qq-media/world';
+import { WORLD_ASSET_BASE } from '../realKit';
 
 /** 时辰 → 天空 HDRI(Poly Haven,CC0) */
 export const SKIES = {

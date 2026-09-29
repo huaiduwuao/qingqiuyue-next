@@ -489,7 +489,8 @@ export function createEnvironment(THREE_NS: typeof THREE, renderer: THREE.WebGLR
 
   // ── 草:庭院里一丛丛的草,随风摆(实例化 + 顶点着色器里摆) ─────────────────
   const grassUniforms = { uTime: { value: 0 } };
-  if (opts.grass && high) {
+  // 写实画风的草是广场层种的真实草丛(buildWorld 的 scatterNature)
+  if (opts.grass && high && !realistic) {
     const blade = track(new THREE_NS.PlaneGeometry(0.045, 0.34, 1, 4));
     blade.translate(0, 0.17, 0);
     {
@@ -639,7 +640,8 @@ export function createEnvironment(THREE_NS: typeof THREE, renderer: THREE.WebGLR
       const up = Math.abs(nz.set(0, 0, 1).applyQuaternion(wq).y) > 0.9;
       const flat = (geo?.type === 'CircleGeometry' || geo?.type === 'RingGeometry' || geo?.type === 'PlaneGeometry') && wp.y < 0.15 && up && !bigFloor;
       const beam = mat?.blending === THREE_NS.AdditiveBlending;
-      if (dome || backdrop || outside || beam || !flat) {
+      // 写实画风:舞台的地板和 LED 环也是霓虹风,一并藏起来,只露出石台
+      if (realistic || dome || backdrop || outside || beam || !flat) {
         m.visible = false;
         hiddenDomes.add(m);
       }
