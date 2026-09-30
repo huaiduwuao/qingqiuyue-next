@@ -30,6 +30,7 @@ const STAGES = [
   { id: 'pacing', label: '节奏' },
   { id: 'render', label: '出图' },
   { id: 'qc', label: '质检' },
+  { id: 'post', label: '后期' },
 ];
 
 export default function OverviewSection({ projectId, setSection, setFeedbackTarget }: SectionProps) {

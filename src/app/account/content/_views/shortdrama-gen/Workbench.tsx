@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * 短剧工作台:左侧分区导航(概览 / 剧本 / 角色 / 场景 / 道具 / 分镜 / 任务 / 设置),
+ * 短剧工作台:左侧分区导航(概览 / 剧本 / 角色 / 场景 / 道具 / 分镜 / 后期 / 任务 / 设置),
  * 中间内容,右侧「数字员工活动」面板(当前任务实时日志 + 修改意见输入)。
  */
 
@@ -37,6 +37,7 @@ import CategoryRoundedIcon from '@mui/icons-material/CategoryRounded';
 import ViewCarouselRoundedIcon from '@mui/icons-material/ViewCarouselRounded';
 import TaskAltRoundedIcon from '@mui/icons-material/TaskAltRounded';
 import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
+import MovieFilterRoundedIcon from '@mui/icons-material/MovieFilterRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import PublishRoundedIcon from '@mui/icons-material/PublishRounded';
 import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
@@ -52,11 +53,12 @@ import OverviewSection from './sections/OverviewSection';
 import ScriptSection from './sections/ScriptSection';
 import EntitySection from './sections/EntitySection';
 import StoryboardSection from './sections/StoryboardSection';
+import PostSection from './sections/PostSection';
 import TasksSection from './sections/TasksSection';
 import SettingsSection from './sections/SettingsSection';
 import { BOARD_STEPS, FiveStepBoard } from './FiveStepBoard';
 
-export type SectionId = 'overview' | 'script' | 'characters' | 'scenes' | 'props' | 'storyboard' | 'tasks' | 'settings';
+export type SectionId = 'overview' | 'script' | 'characters' | 'scenes' | 'props' | 'storyboard' | 'post' | 'tasks' | 'settings';
 
 const SECTIONS: { id: SectionId; label: string; icon: React.ReactNode }[] = [
   { id: 'overview', label: '概览', icon: <DashboardRoundedIcon fontSize="small" /> },
@@ -65,6 +67,7 @@ const SECTIONS: { id: SectionId; label: string; icon: React.ReactNode }[] = [
   { id: 'scenes', label: '场景', icon: <LandscapeRoundedIcon fontSize="small" /> },
   { id: 'props', label: '道具', icon: <CategoryRoundedIcon fontSize="small" /> },
   { id: 'storyboard', label: '分镜', icon: <ViewCarouselRoundedIcon fontSize="small" /> },
+  { id: 'post', label: '后期', icon: <MovieFilterRoundedIcon fontSize="small" /> },
   { id: 'tasks', label: '任务', icon: <TaskAltRoundedIcon fontSize="small" /> },
   { id: 'settings', label: '设置', icon: <SettingsRoundedIcon fontSize="small" /> },
 ];
@@ -223,6 +226,7 @@ export default function Workbench({ projectId, onExit }: { projectId: number; on
         {publish.isSuccess && publish.data && (
           <Alert severity="success" sx={{ mt: 1 }} onClose={() => publish.reset()}>
             已作为短剧作品提交:{publish.data.episodes} 集、{publish.data.shots} 个镜头
+            {publish.data.finals ? `,其中 ${publish.data.finals} 集用的是合成成片` : ''}
             {publish.data.missing_render > 0 ? `(${publish.data.missing_render} 个镜头还没有画面,出图后再点"更新作品"即可补上)` : ''}
             ,状态 {publish.data.status === 'REVIEWING' ? '审核中' : publish.data.status}。
           </Alert>
@@ -246,7 +250,9 @@ export default function Workbench({ projectId, onExit }: { projectId: number; on
             onStartStep={(bs) => {
               // 启动该看板步对应后端 step 列表的第一个 step;同一个 step 也可以再次启动覆盖
               const firstBackend = bs.backendSteps[0];
-              start.mutate({ step: firstBackend });
+              // 分镜之后的环节都是按集跑的,不带 episode_id 后端直接报「缺少 episode_id」
+              const ep = overview.data?.episodes.find((x) => x.id === episodeId) ?? overview.data?.episodes[0];
+              start.mutate({ step: firstBackend, input: ep ? { episode_id: ep.id, episode_no: ep.no } : {} });
               setActivityOpen(true);
             }}
           />
@@ -291,6 +297,7 @@ export default function Workbench({ projectId, onExit }: { projectId: number; on
               {section === 'scenes' && <EntitySection {...sectionProps} kind="scene" />}
               {section === 'props' && <EntitySection {...sectionProps} kind="prop" />}
               {section === 'storyboard' && <StoryboardSection {...sectionProps} />}
+              {section === 'post' && <PostSection {...sectionProps} />}
               {section === 'tasks' && <TasksSection {...sectionProps} />}
               {section === 'settings' && <SettingsSection {...sectionProps} />}
             </>

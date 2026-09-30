@@ -8,7 +8,7 @@
 //   2. 主题(视觉与角色一致性) = visual_design
 //   3. 分镜提示词 = storyboard
 //   4. 故事板分镜图 = visual_gen
-//   5. 成片合成   = pacing + qc
+//   5. 成片合成   = pacing + qc + 后期(localize / dubbing / compose / distribute)
 //
 // 每个步骤卡显示:图标 + 标题 + 描述 + 当前状态(完成/进行中/待办) +
 // 后端实际步骤(小标签)+ 一键启动按钮(若该步未开始)。
@@ -82,15 +82,15 @@ export const BOARD_STEPS: BoardStep[] = [
   {
     index: 5,
     title: '成片合成',
-    desc: '节奏调整 + 质检,产出最终成片发布为标准作品。',
+    desc: '节奏调整 + 质检,再配音、上字幕,合成带多语种版本的竖屏成片。',
     icon: <MovieFilterRoundedIcon sx={{ fontSize: 28 }} />,
-    backendSteps: ['pacing', 'qc'],
+    backendSteps: ['pacing', 'qc', 'dubbing', 'compose'],
     gradient: 'linear-gradient(135deg, #5DDB96 0%, #10B981 100%)',
   },
 ];
 
 /** 把后端 step 状态(字符串 stage)映射到 5 步看板的当前/完成步。
- *  stage 取值:intent/script/visual/storyboard/pacing/render/qc/done */
+ *  stage 取值:intent/script/visual/storyboard/pacing/render/qc/post/done */
 export function stageToBoardIndex(stage: string | undefined): number {
   switch (stage) {
     case 'intent':
@@ -104,6 +104,7 @@ export function stageToBoardIndex(stage: string | undefined): number {
     case 'render':
       return 4;
     case 'qc':
+    case 'post':
     case 'done':
       return 5;
     default:

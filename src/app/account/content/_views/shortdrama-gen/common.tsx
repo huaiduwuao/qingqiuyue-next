@@ -46,7 +46,7 @@ export function ShotStatusChip({ status }: { status: ShotStatus }) {
 export function EntityStatusChip({ status }: { status: string }) {
   const label: Record<string, string> = {
     draft: '草稿', designed: '已设定', locked: '已定妆', scripted: '已写剧本', storyboarded: '已分镜', paced: '已调节奏',
-    rendered: '已出图', checked: '已质检',
+    rendered: '已出图', checked: '已质检', composed: '已成片',
   };
   return <Chip size="small" variant="outlined" label={label[status] ?? status} />;
 }
