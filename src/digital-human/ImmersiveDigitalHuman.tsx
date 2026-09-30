@@ -43,6 +43,7 @@ import { worldEnv } from './vrm/world/worldLayout';
 import { WORLD_ASSET_BASE } from './vrm/world/realKit';
 import { mediaUrl } from '@/lib/media';
 import { useWorldObjects, type WorldToolEvent } from './scene-ui/useWorldObjects';
+import { GenesisHud, GenesisPanels, RoomPlate, RoomsSection, useGenesis } from './scene-ui/Genesis';
 import type { PlazaState } from './scene-state';
 import { useRouter } from 'next/navigation';
 import { alpha } from '@mui/material/styles';
@@ -189,7 +190,8 @@ function conversationTitle(text: string): string {
   return t.length > 50 ? `${t.slice(0, 50)}…` : t;
 }
 
-export default function ImmersiveDigitalHuman() {
+/** initialRoom:?room=<uid> 串门链接直达那个人的房间 */
+export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: string | null } = {}) {
   const router = useRouter();
   useDigitalHumanDebug();
   const { setTheme } = useThemeMode();
@@ -658,8 +660,27 @@ export default function ImmersiveDigitalHuman() {
     setStageState((prev) => ({ ...prev, ...patch }));
   }, []);
 
-  // 场景与人物(后台 /system/plaza 维护):星光广场 + 感悟庭院……
-  const scenes = usePlazaScenes(avatarMode === 'vrm' && worldOn);
+  // 创世:每人一间房、捏人(房间是场景列表里 kind = room 的那几个)
+  const genesis = useGenesis({ enabled: avatarMode === 'vrm' && worldOn });
+  // 场景与人物(后台 /system/plaza 维护):星光广场 + 感悟庭院…… + 我的房间 / 串门去过的房间
+  const scenes = usePlazaScenes(avatarMode === 'vrm' && worldOn, genesis.room.defs);
+  const goHome = React.useCallback(() => {
+    const m = genesis.room.mine;
+    if (m) scenes.switchTo(`room:${m.ownerId}`);
+    else void genesis.room.reload().then((r) => r && scenes.switchTo(`room:${r.ownerId}`));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [genesis.room.mine, scenes.switchTo]);
+  // ?room=<uid>:进来就去那个人的房间(一次)
+  const initialRoomDoneRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!initialRoom || initialRoomDoneRef.current || !genesis.room.mine) return;
+    initialRoomDoneRef.current = true;
+    genesis.room.enter(initialRoom).then((k) => scenes.switchTo(k)).catch((e) => {
+      // 没开放 / 不存在:留在原地,提示一句(game 还没建好,用浏览器原生提示太吵,只记日志)
+      devLog.warn('[genesis] 串门失败', e);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialRoom, genesis.room.mine]);
 
   // 广场玩法:经验/任务记账 + 角色反应 + 地标互动
   const confettiTimerRef = React.useRef<number | null>(null);
@@ -741,6 +762,7 @@ export default function ImmersiveDigitalHuman() {
   }, []);
   const currentChar = charId ? scenes.characters.find((c) => c.id === charId) ?? null : null;
   const onWorldEvent = React.useCallback((e: WorldEvent) => {
+    if (genesis.onWorldEvent(e)) return;
     if (e.type === 'character') { openCharacter(e.id); return; }
     if (e.type === 'nearCharacter') { if (e.id) openCharacter(e.id); return; }
     game.onWorldEvent(e);
@@ -935,7 +957,10 @@ export default function ImmersiveDigitalHuman() {
       {avatarMode === 'vrm' && (
         <VrmStage
           onReady={(h) => { devLog.debug('[Immersive] onReady 被调用, h=', h); setStageHandle(h); }}
-          modelUrl={realAvatarUrl ?? selectedModel?.url ?? '/avatars/character.vrm'}
+          modelUrl={(worldActive ? genesis.avatarUrl : null) ?? realAvatarUrl ?? selectedModel?.url ?? '/avatars/character.vrm'}
+          worldEditing={worldActive && genesis.editing}
+          avatarParams={worldActive ? genesis.avatarParams : null}
+          onAvatarLoaded={genesis.avatar.setInfo}
           currentAction={action}
           emotion={emotion}
           viseme={viseme}
@@ -1169,7 +1194,7 @@ export default function ImmersiveDigitalHuman() {
             <GameToasts game={game} />
           </Box>
           {/* 手机上叠着打开的页面、或任务清单展开时让位 */}
-          {!(!displaysInScene && activeDisplay && displayPages[activeDisplay]) && !(narrow && questsOpen) && (
+          {!(!displaysInScene && activeDisplay && displayPages[activeDisplay]) && !(narrow && questsOpen) && !genesis.editing && !genesis.settingsOpen && (
             <Box sx={{
               position: 'absolute', zIndex: 3, right: { xs: 12, md: 16 },
               top: narrow ? 'calc(112px + var(--sat, 0px))' : 'calc(68px + var(--sat, 0px))',
@@ -1182,6 +1207,7 @@ export default function ImmersiveDigitalHuman() {
               >
                 <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🧭 {scenes.def.name}</Box>
               </ButtonBase>
+              <GenesisHud g={genesis} def={scenes.def} onGoHome={goHome} narrow={narrow} />
               <Minimap handle={stageHandle} size={narrow ? 104 : 156} def={scenes.def} />
               <WorldTools game={game} onHelp={worldHelp.show} timeLabel={TIME_LABELS[currentTime]} onTime={cycleTime} quality={worldQuality} onQuality={toggleQuality} onShop={() => setAuraShopOpen((o) => !o)} shopOpen={auraShopOpen} />
               {auraShopOpen && (
@@ -1232,12 +1258,23 @@ export default function ImmersiveDigitalHuman() {
             bottom={narrow ? 'calc(min(46vh, 460px) + 10px)' : 'calc(min(40vh, 400px) + 10px)'}
           />
           {worldHelp.open && <WorldHelp onClose={worldHelp.close} touch={narrow} />}
+          <RoomPlate def={scenes.def} onGoHome={goHome} narrow={narrow} />
+          <GenesisPanels
+            g={genesis}
+            def={scenes.def}
+            handle={stageHandle}
+            objects={worldObjects}
+            siteBases={models.map((m) => ({ base: m.url, name: m.name, hint: '站内形象' }))}
+            toast={(icon, t) => game.toast(icon, t)}
+            narrow={narrow}
+          />
           {scenePickerOpen && (
             <ScenePicker
               defs={scenes.defs}
               current={scenes.def.key}
               onPick={(k) => { setScenePickerOpen(false); scenes.switchTo(k); }}
               onClose={() => setScenePickerOpen(false)}
+              extra={<RoomsSection g={genesis} current={scenes.def.key} onPick={(k) => { setScenePickerOpen(false); scenes.switchTo(k); }} />}
             />
           )}
         </ErrorBoundary>

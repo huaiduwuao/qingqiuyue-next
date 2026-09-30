@@ -47,7 +47,9 @@ import { useVrmWorld, type WorldEvent } from './vrm/world/useVrmWorld';
 import type { WorldPeer } from './vrm/world/buildWorld';
 import type { PlacedObject } from './vrm/world/worldObjects';
 import type { TimeMode } from './vrm/world/env/timeOfDay';
-import { DEFAULT_WORLD, clampToWorld, type Orb, type WorldCharacter, type WorldDef, type ZoneId } from './vrm/world/worldLayout';
+import { DEFAULT_WORLD, clampToWorld, type Orb, type RoomShellAlign, type WorldCharacter, type WorldDef, type ZoneId } from './vrm/world/worldLayout';
+import { applyAvatarParams, inspectAvatar, type AvatarInfo } from './vrm/avatarCustomize';
+import type { AvatarParams } from '@/apis/world';
 import { detectVrmVersion, setExpression, setExpressionDict, listAvailableExpressions, getBone } from './vrm/vrmCompat';
 import { lookupAutoExpression } from './vrm/config/types';
 import type { ScenePresetName, CameraPresetName, DanceStyle, PoseName } from './vrm/types';
@@ -123,6 +125,19 @@ export interface VrmStageHandle {
   removePlacement: (id: string) => void;
   /** 广场:换场景后回到舞台前、镜头复位 */
   enterScene: () => void;
+  /** 创世 · 布置房间:选中哪一件(脚下高亮);null = 取消 */
+  selectPlacement: (id: string | null) => void;
+  /** 创世 · 布置房间:某件摆放在场景里的组(gizmo 挂它身上) */
+  getPlacementGroup: (id: string) => import('three').Group | null;
+  /** 创世:three 的几样东西(布置房间的 gizmo 要用);还没初始化 = null */
+  getThree: () => { THREE: typeof import('three'); scene: import('three').Scene; camera: import('three').PerspectiveCamera; renderer: import('three').WebGLRenderer; controls: any; canvas: HTMLCanvasElement } | null;
+  /** 创世 · 泼溅外壳:实时改对齐 / 按包围盒自动摆正 */
+  setRoomAlign: (a: RoomShellAlign) => void;
+  autoFitRoom: () => RoomShellAlign | null;
+  /** 创世 · 捏人:把参数套到当前形象上(换模型后自动重套) */
+  applyAvatarParams: (p: AvatarParams | null) => void;
+  /** 创世 · 捏人:当前模型能调什么(脸型形变、眼骨、颜色分类) */
+  getAvatarInfo: () => AvatarInfo | null;
 }
 
 export interface VrmStageProps {
@@ -181,6 +196,12 @@ export interface VrmStageProps {
   worldQuality?: 'high' | 'low' | 'off';
   /** 用户手动选的时辰;null = 场景默认 */
   worldTime?: TimeMode | null;
+  /** 创世:正在布置房间(点东西 = 选中) */
+  worldEditing?: boolean;
+  /** 创世:捏人参数(换模型后自动重新套上) */
+  avatarParams?: AvatarParams | null;
+  /** 形象加载完成(捏人面板据此刷新能调的项) */
+  onAvatarLoaded?: (info: AvatarInfo) => void;
 }
 
 const EXPRESSION_PASSTHROUGH = new Set([
@@ -261,7 +282,14 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     worldQuality = 'high',
     worldTime = null,
     onWorldEvent,
+    worldEditing = false,
+    avatarParams = null,
+    onAvatarLoaded,
   } = props;
+  const avatarParamsRef = useRef(avatarParams);
+  avatarParamsRef.current = avatarParams;
+  const onAvatarLoadedRef = useRef(onAvatarLoaded);
+  onAvatarLoadedRef.current = onAvatarLoaded;
   const worldOnRef = useRef(world);
   worldOnRef.current = world;
   const worldDefRef = useRef(worldDef);
@@ -429,6 +457,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     renderer: (rendererState as any)?.renderer ?? null,
     getAvatar: () => vrmDataRef.current?.scene ?? null,
     walkTo: (x, z) => handleInternalRef.current?.walkTo(x, z),
+    editing: worldEditing,
     onEvent: (e) => onWorldEventRef.current?.(e),
   });
   const worldApiRef = useRef(worldApi);
@@ -453,6 +482,24 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     if (!c) return;
     c.maxDistance = world ? 24 : 12;
   }, [rendererState, world]);
+
+  /** 捏人:把 avatarParamsRef 里的参数套到当前模型上,并按新的脚底位置重新贴地 */
+  function applyAvatarNow() {
+    const cached = vrmDataRef.current;
+    const rs = rendererStateRef.current;
+    if (!cached || !rs?.THREE_NS) return;
+    try {
+      const r = applyAvatarParams(rs.THREE_NS, cached.vrm, avatarParamsRef.current);
+      yOffsetRef.current = r.footOffset;
+      cached.scene.position.y = r.footOffset;
+      if (modelMetricsRef.current) {
+        modelMetricsRef.current = { ...modelMetricsRef.current, height: r.height, footOffsetY: r.footOffset };
+        physics.setModelMetrics(modelMetricsRef.current);
+      }
+    } catch (e) {
+      devLog.warn('[VrmStage] 捏人参数没套上', e);
+    }
+  }
 
   // 加载 VRM
   useEffect(() => {
@@ -495,6 +542,9 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         // VRM 模型默认是 T-pose，手臂水平外伸
         // 大臂 rotation.z ≈ ±1.4 rad 让手臂垂到身体两侧
         setNaturalPose(cached.vrm);
+        // 捏人参数:套上后脚底位置会变,重新量
+        applyAvatarNow();
+        onAvatarLoadedRef.current?.(inspectAvatar(cached.vrm));
         setLoading(false);
       } catch (e: any) {
         devLog.error('[VrmStage] load failed', e);
@@ -509,6 +559,9 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rendererState, modelUrl]);
+
+  // 捏人参数变了:直接套到当前模型上(不重新加载)
+  useEffect(() => { applyAvatarNow(); }, [avatarParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // WASD/QE 键盘控制 — 自由轨道
   // 广场模式:WASD/方向键走、Shift 跑、Q/E 转镜头、空格跳、F 互动
@@ -1077,6 +1130,17 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       setPlacements: (list) => worldApiRef.current.setPlacements(list),
       upsertPlacement: (p) => worldApiRef.current.upsertPlacement(p),
       removePlacement: (id) => worldApiRef.current.removePlacement(id),
+      selectPlacement: (id) => worldApiRef.current.selectPlacement(id),
+      getPlacementGroup: (id) => worldApiRef.current.placementGroup(id),
+      getThree: () => {
+        const rs = rendererStateRef.current;
+        if (!rs?.scene || !rs?.camera || !rs?.renderer || !canvasRef.current) return null;
+        return { THREE: rs.THREE_NS, scene: rs.scene, camera: rs.camera, renderer: rs.renderer, controls: rs.controls, canvas: canvasRef.current };
+      },
+      setRoomAlign: (a) => worldApiRef.current.setRoomAlign(a),
+      autoFitRoom: () => worldApiRef.current.autoFitRoom(),
+      applyAvatarParams: (p) => { avatarParamsRef.current = p; applyAvatarNow(); },
+      getAvatarInfo: () => (vrmDataRef.current ? inspectAvatar(vrmDataRef.current.vrm) : null),
       enterScene: () => {
         // 瞬移不会带动镜头(镜头只跟走路的位移),所以手动把镜头也挪回舞台前
         moveAnimRef.current.active = false;

@@ -8,6 +8,9 @@
  * - world_edit:按叫法找(「凳子」),找不到就用最近摆的那件;挪 / 转 / 缩放 / 删 / 清空
  * - scene_go:按场景 key 或名字找,切过去(外面放过场)
  * 个人空间随便摆;public=true 走后台接口(没有 system:plaza:manage 会失败,提示一句)。
+ *
+ * 创世:房间(场景 key = "room:<uid>")里只有房主能摆;布置编辑器(RoomEditor)用这里的
+ * placeAsset / patchItem / removeItem / restoreItem 做手动摆放和撤销。
  */
 
 import * as React from 'react';
@@ -32,9 +35,10 @@ interface Options {
   onTravel?: (name: string) => void;
 }
 
-const toPlaced = (p: WorldPlacement): PlacedObject => ({
+export const toPlaced = (p: WorldPlacement): PlacedObject => ({
   id: p.id, assetKey: p.assetKey, label: p.label, x: p.x, y: p.y, z: p.z, rotY: p.rotY, scale: p.scale || 1,
   status: p.asset?.status ?? 'ready', nameZh: p.asset?.nameZh, isSet: p.asset?.isSet, height: p.asset?.height,
+  file: p.asset?.file || undefined, normalize: p.asset?.source === 'upload',
 });
 
 export function useWorldObjects(opts: Options) {
@@ -197,7 +201,9 @@ export function useWorldObjects(opts: Options) {
     const want = String(args.scene || '').trim();
     if (!want) return;
     const { defs } = optsRef.current;
-    const hit = defs.find((d) => d.key === want) ?? defs.find((d) => d.name === want) ?? defs.find((d) => d.name.includes(want) || want.includes(d.name))
+    // 「回我的房间 / 回家」:自己的房间
+    const home = /我的房间|我的小屋|回家|我家|房间/.test(want) ? defs.find((d) => d.kind === 'room' && d.room?.mine) : undefined;
+    const hit = home ?? defs.find((d) => d.key === want) ?? defs.find((d) => d.name === want) ?? defs.find((d) => d.name.includes(want) || want.includes(d.name))
       ?? defs.find((d) => d.zones.some((z) => want.includes(z.label)));
     if (!hit) { optsRef.current.toast('🤔', `没找到「${want}」这个地方`); return; }
     if (hit.key === optsRef.current.def.key) return;
@@ -212,8 +218,79 @@ export function useWorldObjects(opts: Options) {
     else if (e.name === 'scene_go') go(e.args);
   }, [place, edit, go]);
 
+  // ── 布置编辑器用 ──
+
+  /** 手动摆一件(素材抽屉里点的):默认放在面前;返回存好的摆放 */
+  const placeAsset = React.useCallback(async (asset: WorldAsset, at?: { x: number; z: number; rotY?: number }): Promise<WorldPlacement | null> => {
+    const h = optsRef.current.handle;
+    if (!h) return null;
+    const spot = at ? [at.x, at.z, at.rotY ?? 0] as const : spotFor('front', asset.footprint || 0.6, 0, 1);
+    if (!spot) return null;
+    try {
+      const saved = await createPlacement({ scene: optsRef.current.def.key, asset: asset.key, label: asset.nameZh.slice(0, 32), x: spot[0], z: spot[1], rotY: spot[2] });
+      const withAsset: WorldPlacement = { ...saved, public: false, asset: saved.asset ?? asset };
+      setItems((cur) => [...cur, withAsset]);
+      h.upsertPlacement(toPlaced(withAsset));
+      lastRef.current = withAsset.id;
+      return withAsset;
+    } catch (e: any) {
+      optsRef.current.toast('⚠️', `没摆成:${e?.message || e}`);
+      return null;
+    }
+  }, [spotFor]);
+
+  /** 改一件(挪 / 转 / 缩放 / 改名):先画出来再存,存失败就退回去 */
+  const patchItem = React.useCallback(async (id: string, patch: { x?: number; y?: number; z?: number; rotY?: number; scale?: number; label?: string }): Promise<boolean> => {
+    const h = optsRef.current.handle;
+    const p = itemsRef.current.find((x) => x.id === id);
+    if (!h || !p) return false;
+    const next: WorldPlacement = { ...p, ...patch };
+    setItems((cur) => cur.map((x) => (x.id === id ? next : x)));
+    h.upsertPlacement(toPlaced(next));
+    try {
+      await updatePlacement(id, patch, p.public);
+      return true;
+    } catch (e: any) {
+      setItems((cur) => cur.map((x) => (x.id === id ? p : x)));
+      h.upsertPlacement(toPlaced(p));
+      optsRef.current.toast('⚠️', `没改成:${e?.message || e}`);
+      return false;
+    }
+  }, []);
+
+  const removeItem = React.useCallback(async (id: string): Promise<WorldPlacement | null> => {
+    const h = optsRef.current.handle;
+    const p = itemsRef.current.find((x) => x.id === id);
+    if (!h || !p) return null;
+    try {
+      await deletePlacement(id, p.public);
+      h.removePlacement(id);
+      setItems((cur) => cur.filter((x) => x.id !== id));
+      return p;
+    } catch (e: any) {
+      optsRef.current.toast('⚠️', `没删掉:${e?.message || e}`);
+      return null;
+    }
+  }, []);
+
+  /** 撤销删除:照原样再摆一件(会拿到新 id) */
+  const restoreItem = React.useCallback(async (p: WorldPlacement): Promise<WorldPlacement | null> => {
+    const h = optsRef.current.handle;
+    if (!h) return null;
+    try {
+      const saved = await createPlacement({ scene: p.sceneKey, asset: p.assetKey, label: p.label, x: p.x, y: p.y, z: p.z, rotY: p.rotY, scale: p.scale });
+      const withAsset: WorldPlacement = { ...saved, public: false, asset: saved.asset ?? p.asset };
+      setItems((cur) => [...cur, withAsset]);
+      h.upsertPlacement(toPlaced(withAsset));
+      return withAsset;
+    } catch (e: any) {
+      optsRef.current.toast('⚠️', `没恢复:${e?.message || e}`);
+      return null;
+    }
+  }, []);
+
   /** 给模型的场景状态:摆了什么(id:叫法) */
   const placedSummary = React.useMemo(() => items.slice(-30).map((p) => `${p.id}:${p.label || p.asset?.nameZh || p.assetKey}${p.public ? '(公共)' : ''}`), [items]);
 
-  return { handleTool, placedSummary, count: items.length };
+  return { handleTool, placedSummary, count: items.length, items, placeAsset, patchItem, removeItem, restoreItem };
 }

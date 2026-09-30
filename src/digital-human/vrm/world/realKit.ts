@@ -21,6 +21,8 @@ export interface RealKit {
   base: string;
   texSet: (m: THREE.MeshStandardMaterial, id: string, repeat?: number | [number, number], opts?: { normalScale?: number; tint?: number }) => void;
   model: (id: string) => Promise<THREE.Object3D>;
+  /** 按 qq-media/world 下的相对路径加载(用户上传的 uploads/<key>/src.glb 这种),同样缓存 + 克隆 */
+  modelFile: (path: string) => Promise<THREE.Object3D>;
   /** 带骨骼的人物(avatars/<id>.vrm):每次拿到一份独立骨骼的克隆,几何和材质共用 */
   character: (id: string) => Promise<THREE.Object3D>;
   scatter: (parent: THREE.Object3D, id: string, spots: Spot[], opts?: { castShadow?: boolean; whole?: boolean }) => void;
@@ -72,14 +74,17 @@ export function createRealKit(THREE_NS: typeof THREE, opts: { base?: string; qua
 
   const modelCache = new Map<string, Promise<THREE.Object3D>>();
   async function loadModel(id: string, path = `models/${id}.glb`): Promise<THREE.Object3D> {
-    const [{ GLTFLoader }, { DRACOLoader }] = await Promise.all([
+    const [{ GLTFLoader }, { DRACOLoader }, { MeshoptDecoder }] = await Promise.all([
       import('three/examples/jsm/loaders/GLTFLoader.js'),
       import('three/examples/jsm/loaders/DRACOLoader.js'),
+      import('three/examples/jsm/libs/meshopt_decoder.module.js'),
     ]);
     const draco = new DRACOLoader();
     draco.setDecoderPath('/draco/'); // 解码器随前端发(public/draco)
     const loader = new GLTFLoader();
     loader.setDRACOLoader(draco);
+    // 用户上传的 GLB 常见 meshopt 压缩(gltfpack / gltf-transform 导出的)
+    loader.setMeshoptDecoder(MeshoptDecoder);
     try {
       const gltf = await loader.loadAsync(`${base}/${path}`);
       const root = gltf.scene as THREE.Object3D;
@@ -113,6 +118,17 @@ export function createRealKit(THREE_NS: typeof THREE, opts: { base?: string; qua
   function model(id: string) {
     let p = modelCache.get(id);
     if (!p) { p = loadModel(id); modelCache.set(id, p); }
+    return p.then((root) => root.clone(true));
+  }
+  function modelFile(path: string) {
+    const k = `file:${path}`;
+    let p = modelCache.get(k);
+    if (!p) {
+      p = loadModel(k, path);
+      // 失败了别缓存,下次还能再试(比如刚上传、CDN 还没到)
+      p.catch(() => modelCache.delete(k));
+      modelCache.set(k, p);
+    }
     return p.then((root) => root.clone(true));
   }
 
@@ -165,6 +181,7 @@ export function createRealKit(THREE_NS: typeof THREE, opts: { base?: string; qua
     base,
     texSet,
     model,
+    modelFile,
     character,
     scatter,
     dispose: () => { disposed = true; disposables.forEach((d) => d.dispose()); disposables.clear(); },

@@ -13,6 +13,7 @@ import { createNpcRig, type NpcRig } from './npcRig';
 import { createRealKit, type RealKit, type Spot } from './realKit';
 import { createRealNpc, realNpcModel } from './realNpc';
 import { createObjectLayer, type ObjectLayer } from './worldObjects';
+import { buildRoomShell, type RoomShell, type SplatStatus } from './roomShell';
 import { DEFAULT_WORLD, WORLD_RADIUS, zoneProp, type Orb, type WorldCharacter, type WorldDef, type WorldZone, type ZoneId, worldEnv } from './worldLayout';
 
 /** 各场景预设下广场的配色:地面要跟舞台地板接得上,不然白天草坪外面一圈黑地很突兀 */
@@ -73,6 +74,8 @@ export interface WorldHandle {
   peerPositions: () => { id: string; x: number; z: number; aura?: string }[];
   /** 言出法随摆出来的东西 */
   objects: ObjectLayer;
+  /** 创世:房间外壳(不是房间 = null) */
+  room: RoomShell | null;
   dispose: () => void;
 }
 
@@ -122,11 +125,17 @@ export interface BuildWorldOptions {
   island?: boolean;
   /** 写实画风:石台、台边、路灯、灌木、亭子 / 石碑 / 月洞门换成 Poly Haven 实景素材,四周点缀石头、蕨、野花 */
   realistic?: { base?: string; quality: 'high' | 'low' };
+  /** 房间的泼溅外壳要用(Spark 需要渲染器) */
+  renderer?: THREE.WebGLRenderer | null;
+  quality?: 'high' | 'low';
+  onSplatStatus?: (s: SplatStatus, info?: { error?: string; splats?: number }) => void;
 }
 
 export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: WorldDef = DEFAULT_WORLD, bopts: BuildWorldOptions = {}): WorldHandle {
   const island = !!bopts.island;
-  const ZONES = def.zones.length > 0 ? def.zones : DEFAULT_WORLD.zones;
+  // 房间:没有地标、小路、星光,换成房间外壳(roomShell.ts)
+  const roomInfo = def.kind === 'room' ? def.room ?? null : null;
+  const ZONES = roomInfo ? [] : def.zones.length > 0 ? def.zones : DEFAULT_WORLD.zones;
   const group = new THREE_NS.Group();
   group.name = 'dh-world';
   const disposables: { dispose: () => void }[] = [];
@@ -205,7 +214,15 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
   ground.name = 'dh-world-ground';
   group.add(ground);
 
-  const zoneUniform = ZONES.map((z) => new THREE_NS.Vector3(z.x, z.z, z.radius));
+  const roomShell: RoomShell | null = roomInfo ? buildRoomShell(THREE_NS, roomInfo, { renderer: bopts.renderer, quality: bopts.quality, onSplatStatus: bopts.onSplatStatus }) : null;
+  if (roomShell) {
+    group.add(roomShell.group);
+    // 泼溅自带地面:石台面藏起来(台边还在,看得出是湖心)
+    if (roomShell.hideIslandGround) ground.visible = false;
+  }
+
+  // 房间没有地标:着色器数组不能是 0 长,塞一个远处的假地标,整层也不显示
+  const zoneUniform = (ZONES.length ? ZONES : [{ x: 1e4, z: 1e4, radius: 0 }]).map((z) => new THREE_NS.Vector3(z.x, z.z, z.radius));
   const overlayMat = track(new THREE_NS.ShaderMaterial({
     transparent: true, depthWrite: false, blending: THREE_NS.AdditiveBlending, fog: false,
     uniforms: {
@@ -220,7 +237,7 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
     vertexShader: `varying vec2 vW; void main(){ vec4 w = modelMatrix * vec4(position,1.); vW = w.xz; gl_Position = projectionMatrix * viewMatrix * w; }`,
     fragmentShader: `
       varying vec2 vW; uniform float uTime; uniform vec3 uPath; uniform vec3 uAccent;
-      uniform vec3 uZones[${ZONES.length}]; uniform float uActive; uniform float uR; uniform float uStrength;
+      uniform vec3 uZones[${zoneUniform.length}]; uniform float uActive; uniform float uR; uniform float uStrength;
       float line(float d, float w){ return 1.0 - smoothstep(0.0, w, abs(d)); }
       float segDist(vec2 p, vec2 a, vec2 b){ vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa,ba)/dot(ba,ba), 0.0, 1.0); return length(pa - ba*h); }
       void main(){
@@ -236,7 +253,7 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
         a += line(r - 5.2, 0.16) * dash * 0.6;
         // 舞台 → 各地标的小路 + 地标光圈
         vec3 col = uPath * a;
-        for (int i = 0; i < ${ZONES.length}; i++) {
+        for (int i = 0; i < ${zoneUniform.length}; i++) {
           vec2 zc = uZones[i].xy; float zr = uZones[i].z;
           vec2 dir = normalize(zc);
           float pd = segDist(vW, dir * 5.2, zc - dir * zr);
@@ -262,6 +279,7 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
   overlay.rotation.x = -Math.PI / 2;
   overlay.position.y = 0.012;
   overlay.renderOrder = 1;
+  overlay.visible = !roomInfo;
   group.add(overlay);
 
   // ── 共用材质
@@ -1092,6 +1110,7 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
   function dispose() {
     kit?.dispose();
     objects.dispose();
+    roomShell?.dispose();
     for (const id of Array.from(npcs.keys())) removeNpc(id);
     setAura(null);
     setPeers([]);
@@ -1110,11 +1129,11 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
   }
 
   return {
-    group, ground, pickables,
+    group, ground: roomShell?.floor ?? ground, pickables, room: roomShell,
     setTheme, setOrbs, collectOrb, showMarker, setActiveZone,
     setDanceFloorHot: (on) => { danceHot = on; },
     floatText, dispose,
-    tick: (t, dt, camera) => { tick(t, dt, camera); tickPeers(t, dt); tickNpcs(t, dt); objects.tick(t, dt); },
+    tick: (t, dt, camera) => { tick(t, dt, camera); tickPeers(t, dt); tickNpcs(t, dt); objects.tick(t, dt); roomShell?.tick(t, camera); },
     objects,
     setPeers, setAura, setSelfPos, peerPositions, setCharacters, characterSay, characterPositions, setLampBoost,
   };

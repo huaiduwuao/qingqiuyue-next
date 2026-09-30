@@ -14,6 +14,8 @@ import type * as THREE from 'three';
 import { buildWorld, type WorldHandle, type WorldPeer } from './buildWorld';
 import { createEnvironment, type Environment, type Quality } from './env/environment';
 import type { PlacedObject } from './worldObjects';
+import type { SplatStatus } from './roomShell';
+import type { RoomShellAlign } from './worldLayout';
 import type { TimeMode, Weather } from './env/timeOfDay';
 import {
   DEFAULT_WORLD, worldEnv, ORB_POINTS, ORB_RESPAWN_MS, WORLD_ZONES, findZone, orbsInReach, pickOrbSpot, spawnOrbs, zoneApproachPoint, zoneAt,
@@ -28,7 +30,11 @@ export type WorldEvent =
   /** 点了某位人物 */
   | { type: 'character'; id: string }
   /** 走到某位人物跟前(null = 走开了) */
-  | { type: 'nearCharacter'; id: string | null };
+  | { type: 'nearCharacter'; id: string | null }
+  /** 布置房间时点中了一件摆放(null = 点在空地上,取消选中) */
+  | { type: 'object'; id: string | null }
+  /** 房间的泼溅外壳加载状态 */
+  | { type: 'splat'; status: SplatStatus; splats?: number; error?: string };
 
 export interface UseVrmWorldOptions {
   enabled: boolean;
@@ -51,6 +57,8 @@ export interface UseVrmWorldOptions {
   getAvatar: () => THREE.Object3D | null;
   /** 让角色走到某点(已经过 clampToWorld) */
   walkTo: (x: number, z: number) => void;
+  /** 布置房间中:点东西是「选中」,不是走过去 */
+  editing?: boolean;
   onEvent?: (e: WorldEvent) => void;
 }
 
@@ -93,6 +101,9 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
     const w = buildWorld(THREE_NS, cbRef.current.preset, d, {
       island: withEnv,
       realistic: withEnv && style.style === 'realistic' ? { base: style.assets, quality: quality as Quality } : undefined,
+      renderer: renderer ?? null,
+      quality: quality === 'low' ? 'low' : 'high',
+      onSplatStatus: (status, info) => cbRef.current.onEvent?.({ type: 'splat', status, splats: info?.splats, error: info?.error }),
     });
     scene.add(w.group);
     worldRef.current = w;
@@ -109,9 +120,28 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
         zones: d.zones,
         style: e.style,
         assetBase: e.assets,
+        hideStage: d.kind === 'room',
       });
       scene.add(env.group);
       envRef.current = env;
+    }
+    // 房间:给一份室内环境光照贴图(RoomEnvironment)。写实底模、摆的家具都是 PBR 材质,
+    // 风格化场景里只有几盏灯,没有环境反射时皮肤和木头都发黑;离开房间还原
+    let roomEnv: THREE.Texture | null = null;
+    const prevEnv = scene.environment;
+    const prevEnvIntensity = (scene as THREE.Scene & { environmentIntensity?: number }).environmentIntensity ?? 1;
+    let envCancelled = false;
+    if (d.kind === 'room' && renderer && style.style !== 'realistic') {
+      import('three/examples/jsm/environments/RoomEnvironment.js').then(({ RoomEnvironment }) => {
+        if (envCancelled) return;
+        const pmrem = new THREE_NS.PMREMGenerator(renderer);
+        const room = new RoomEnvironment();
+        roomEnv = pmrem.fromScene(room, 0.04).texture;
+        room.dispose();
+        pmrem.dispose();
+        scene.environment = roomEnv;
+        (scene as THREE.Scene & { environmentIntensity?: number }).environmentIntensity = 0.6;
+      }).catch(() => { /* 没有环境光也能看,只是暗一点 */ });
     }
     orbsRef.current = spawnOrbs((Date.now() / 1000) | 0, undefined, d);
     respawnRef.current = [];
@@ -119,6 +149,12 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
     w.setCharacters(charactersRef.current);
     if (auraRef.current) w.setAura(auraRef.current);
     return () => {
+      envCancelled = true;
+      if (roomEnv) {
+        if (scene.environment === roomEnv) scene.environment = prevEnv;
+        (scene as THREE.Scene & { environmentIntensity?: number }).environmentIntensity = prevEnvIntensity;
+        roomEnv.dispose();
+      }
       scene.remove(w.group);
       w.dispose();
       worldRef.current = null;
@@ -127,8 +163,9 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
       if (nearRef.current) { nearRef.current = null; cbRef.current.onEvent?.({ type: 'nearCharacter', id: null }); }
     };
   // 地标内容的改动(后台改了坐标)也要重建:key + 地标签名
+  // 房间:换模板 / 换泼溅文件才重建(对齐走 setRoomAlign,不重建)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, THREE_NS, scene, def.key, quality, JSON.stringify(def.zones.map((z) => [z.id, z.x, z.z, z.prop, z.color])), JSON.stringify(def.env ?? {})]);
+  }, [enabled, THREE_NS, scene, def.key, quality, JSON.stringify(def.zones.map((z) => [z.id, z.x, z.z, z.prop, z.color])), JSON.stringify(def.env ?? {}), def.room ? `${def.room.template}|${def.room.splatUrl ?? ''}` : '']);
 
   // 用户手动换时辰:只动环境层,不重建
   useEffect(() => {
@@ -160,6 +197,8 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
       down = null;
       if (!d || d.id !== e.pointerId) return;
       if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 8 || performance.now() - d.t > 450) return;
+      // 布置房间时点在 gizmo 的轴上:那是在拖东西,不是点地面
+      if (canvas.dataset.gizmo) return;
       const w = worldRef.current;
       if (!w) return;
       const rect = canvas.getBoundingClientRect();
@@ -171,6 +210,12 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
       if (avatar && raycaster.intersectObject(avatar, true).length > 0) {
         cb.onEvent?.({ type: 'poke' });
         return;
+      }
+      // 布置房间:点中摆放 = 选中它;点空地 = 取消选中(照样走过去)
+      if (cb.editing) {
+        const id = w.objects.pick(raycaster);
+        if (id) { cb.onEvent?.({ type: 'object', id }); return; }
+        cb.onEvent?.({ type: 'object', id: null });
       }
       const hit = raycaster.intersectObjects(w.pickables, true)[0];
       // 2. 人物 → 走到他跟前,并开口
@@ -302,5 +347,11 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   const setAura = useCallback((v: string | null) => { auraRef.current = v; worldRef.current?.setAura(v); }, []);
   const characterSay = useCallback((id: string, text: string) => { worldRef.current?.characterSay(id, text); }, []);
 
-  return { tick, render, floatText, showMarker, snapshot, setPeers, setAura, characterSay, setPlacements, upsertPlacement, removePlacement, zones: WORLD_ZONES };
+  // 创世:布置房间要的几样
+  const selectPlacement = useCallback((id: string | null) => { worldRef.current?.objects.setSelected(id); }, []);
+  const placementGroup = useCallback((id: string) => worldRef.current?.objects.groupOf(id) ?? null, []);
+  const setRoomAlign = useCallback((a: RoomShellAlign) => { worldRef.current?.room?.setAlign(a); }, []);
+  const autoFitRoom = useCallback(() => worldRef.current?.room?.autoFit() ?? null, []);
+
+  return { tick, render, floatText, showMarker, snapshot, setPeers, setAura, characterSay, setPlacements, upsertPlacement, removePlacement, selectPlacement, placementGroup, setRoomAlign, autoFitRoom, zones: WORLD_ZONES };
 }

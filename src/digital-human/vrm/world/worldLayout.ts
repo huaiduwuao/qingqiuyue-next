@@ -63,11 +63,50 @@ export const WORLD_ZONES: WorldZone[] = [
 export const ZONE_BY_ID: Record<string, WorldZone> = Object.fromEntries(WORLD_ZONES.map((z) => [z.id, z]));
 
 /** 一个场景(后台 plaza_scene 的前端形状) */
+/** 房间外壳模板(创世:每人一间房) */
+export type RoomTemplate = 'study' | 'courtyard' | 'loft' | 'empty' | 'splat';
+
+/** 泼溅外壳的对齐:平移 / 缩放 / 旋转(弧度) */
+export interface RoomShellAlign { x: number; y: number; z: number; scale: number; rotX: number; rotY: number; rotZ: number }
+
+/** 房间的形状(一间房 = 一个 WorldDef,kind = 'room',key = "room:<房主 uid>") */
+export interface WorldRoomInfo {
+  ownerId: string;
+  ownerName: string;
+  /** 是不是我自己的房间(只有房主能布置) */
+  mine: boolean;
+  template: RoomTemplate;
+  /** template = splat 时:泼溅文件地址(已经过 mediaUrl) */
+  splatUrl?: string;
+  splatKey?: string;
+  shell?: RoomShellAlign;
+}
+
+/** 各模板的可走范围(半宽 x / 半深 z,米)。房间开口朝 +z(镜头那边) */
+export const ROOM_SIZES: Record<RoomTemplate, { hx: number; hz: number }> = {
+  study: { hx: 5, hz: 4 },
+  loft: { hx: 6, hz: 4.5 },
+  courtyard: { hx: 8, hz: 7 },
+  empty: { hx: 9, hz: 9 },
+  splat: { hx: 12, hz: 12 },
+};
+
+export const ROOM_TEMPLATE_LABELS: Record<RoomTemplate, string> = {
+  study: '书斋', loft: '阁楼', courtyard: '庭院', empty: '空地', splat: '扫描的真实空间',
+};
+
+export function roomBounds(def: WorldDef): { hx: number; hz: number } | null {
+  if (def.kind !== 'room' || !def.room) return null;
+  return ROOM_SIZES[def.room.template] ?? ROOM_SIZES.study;
+}
+
 export interface WorldDef {
   key: string;
   name: string;
   intro?: string;
-  kind: 'plaza' | 'insight';
+  kind: 'plaza' | 'insight' | 'room';
+  /** kind = room:房间信息 */
+  room?: WorldRoomInfo;
   /** kind=insight:感悟分组 wound / bond / qiqing / liuyu */
   group?: string;
   /** 中央舞台用哪个场景预设 */
@@ -78,8 +117,11 @@ export interface WorldDef {
   zones: WorldZone[];
 }
 
-/** 场景的环境设置,缺的按类型补:星光广场是夜里 + 萤火;感悟庭院是黄昏 + 落花 + 草地 */
+/** 场景的环境设置,缺的按类型补:星光广场是夜里 + 萤火;感悟庭院是黄昏 + 落花 + 草地;房间是白天、无天气、无草 */
 export function worldEnv(def: WorldDef): { time: string; weather: string; grass: boolean; style: 'stylized' | 'realistic'; assets?: string } {
+  if (def.kind === 'room') {
+    return { time: def.env?.time || 'day', weather: def.env?.weather || 'none', grass: false, style: 'stylized', assets: def.env?.assets || undefined };
+  }
   const plaza = def.kind !== 'insight';
   return {
     time: def.env?.time || (plaza ? 'night' : 'dusk'),
@@ -125,6 +167,12 @@ const BODY_RADIUS = 0.35;
  * 所有位置写入(键盘走、点地面、模型的 body.move)都过一遍。
  */
 export function clampToWorld(x: number, z: number, def: WorldDef = DEFAULT_WORLD): { x: number; z: number } {
+  const rb = roomBounds(def);
+  if (rb) {
+    // 房间:矩形,贴墙留出身体的宽度;前面(+z)开口那边也收住,不然走出房间掉进湖里
+    const mx = rb.hx - BODY_RADIUS - 0.15, mz = rb.hz - BODY_RADIUS - 0.15;
+    return { x: Math.max(-mx, Math.min(mx, x)), z: Math.max(-mz, Math.min(mz, z)) };
+  }
   const limit = WORLD_RADIUS - 0.6;
   const r = Math.hypot(x, z);
   if (r > limit) {
@@ -212,6 +260,8 @@ export function pickOrbSpot(rng: () => number, taken: { x: number; z: number }[]
 }
 
 export function spawnOrbs(seed: number, count = ORB_COUNT, def: WorldDef = DEFAULT_WORLD): Orb[] {
+  // 房间里不刷星光:那是自己的家,不是玩法场地
+  if (def.kind === 'room') return [];
   const rng = makeRng(seed);
   const orbs: Orb[] = [];
   for (let i = 0; i < count; i++) {

@@ -216,7 +216,8 @@ function GuidePanel({ character: c, width, onClose, onSay, onOpenScenes, onOpen 
 
 const GROUP_EMOJI: Record<string, string> = { wound: '🌙', bond: '🏮', qiqing: '🎐', liuyu: '🌱' };
 
-export function ScenePicker({ defs, current, onPick, onClose }: { defs: WorldDef[]; current: string; onPick: (key: string) => void; onClose: () => void }) {
+/** extra:列表下面再放一块(创世的「房间 / 串门」);房间不在上面的网格里重复出现 */
+export function ScenePicker({ defs, current, onPick, onClose, extra }: { defs: WorldDef[]; current: string; onPick: (key: string) => void; onClose: () => void; extra?: React.ReactNode }) {
   return (
     <Box onClick={onClose} sx={{ position: 'absolute', inset: 0, zIndex: 6, display: 'grid', placeItems: 'center', bgcolor: 'rgba(0,0,0,0.4)' }}>
       <Box onClick={(e) => e.stopPropagation()} sx={{ ...glass, borderRadius: 4, p: 2, width: 560, maxWidth: 'calc(100vw - 24px)', maxHeight: 'calc(100vh - 48px)', overflowY: 'auto', animation: `${slideIn} .2s ease-out` }}>
@@ -225,7 +226,7 @@ export function ScenePicker({ defs, current, onPick, onClose }: { defs: WorldDef
           <IconButton size="small" aria-label="关闭" onClick={onClose} sx={{ color: 'rgba(255,255,255,0.6)' }}><CloseRoundedIcon /></IconButton>
         </Box>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1.25 }}>
-          {defs.map((d) => {
+          {defs.filter((d) => d.kind !== 'room').map((d) => {
             const active = d.key === current;
             const accent = hexOf(d.palette?.accent, d.kind === 'insight' ? '#b9a6ff' : '#25F4EE');
             return (
@@ -250,6 +251,7 @@ export function ScenePicker({ defs, current, onPick, onClose }: { defs: WorldDef
             );
           })}
         </Box>
+        {extra}
       </Box>
     </Box>
   );

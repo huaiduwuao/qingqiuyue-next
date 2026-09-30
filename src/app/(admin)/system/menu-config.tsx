@@ -57,6 +57,7 @@ import KeyRoundedIcon from '@mui/icons-material/KeyRounded';
 import StreamRoundedIcon from '@mui/icons-material/StreamRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import ParkRoundedIcon from '@mui/icons-material/ParkRounded';
+import ViewInArRoundedIcon from '@mui/icons-material/ViewInArRounded';
 import { PERMISSIONS } from '@/lib/permissions';
 
 export interface MenuItemDef {
@@ -192,6 +193,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
       { id: 'dh-instructions', label: '人设指令', path: '/system/digital-human-instructions', icon: <MenuBookRoundedIcon sx={{ fontSize: 18 }} />, accent: '#07C160' },
       { id: 'wake-word-train', label: '唤醒词训练', path: '/system/record-wake', icon: <RecordVoiceOverRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FE2C55' },
       { id: 'plaza', label: '广场场景与人物', path: '/system/plaza', icon: <ParkRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE', permission: PERMISSIONS.SYSTEM_PLAZA.VIEW },
+      { id: 'world-assets', label: '世界素材库', path: '/system/world-assets', icon: <ViewInArRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE', permission: PERMISSIONS.SYSTEM_PLAZA.VIEW },
     ],
   },
   {

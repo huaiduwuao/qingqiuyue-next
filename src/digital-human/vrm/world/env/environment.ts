@@ -30,6 +30,8 @@ export interface EnvOptions {
   style?: 'stylized' | 'realistic';
   /** 写实素材根路径(默认 /qq-media/world) */
   assetBase?: string;
+  /** 房间:舞台预设整个藏掉(连地板和 LED 环),房间有自己的地板 */
+  hideStage?: boolean;
 }
 
 export interface Environment {
@@ -652,7 +654,7 @@ export function createEnvironment(THREE_NS: typeof THREE, renderer: THREE.WebGLR
       const flat = (geo?.type === 'CircleGeometry' || geo?.type === 'RingGeometry' || geo?.type === 'PlaneGeometry') && wp.y < 0.15 && up && !bigFloor;
       const beam = mat?.blending === THREE_NS.AdditiveBlending;
       // 写实画风:舞台的地板和 LED 环也是霓虹风,一并藏起来,只露出石台
-      if (realistic || dome || backdrop || outside || beam || !flat) {
+      if (realistic || opts.hideStage || dome || backdrop || outside || beam || !flat) {
         m.visible = false;
         hiddenDomes.add(m);
       }

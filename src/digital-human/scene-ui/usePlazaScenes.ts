@@ -68,8 +68,10 @@ export function toCharacter(c: PlazaCharacter): WorldCharacter {
   };
 }
 
-export function usePlazaScenes(enabled: boolean) {
-  const [defs, setDefs] = useState<WorldDef[]>([DEFAULT_WORLD]);
+/** extraDefs:后台场景之外的(创世的房间:我的房间 + 串门去过的),排在后台场景后面 */
+export function usePlazaScenes(enabled: boolean, extraDefs: WorldDef[] = []) {
+  const [plazaDefs, setDefs] = useState<WorldDef[]>([DEFAULT_WORLD]);
+  const defs = useMemo(() => (extraDefs.length ? [...plazaDefs, ...extraDefs] : plazaDefs), [plazaDefs, extraDefs]);
   const [chars, setChars] = useState<WorldCharacter[]>([]);
   const [current, setCurrent] = useState<string>('plaza');
   // 诗人名字留空时由前端按主题补上(见 CharacterPanel),补到的名字写回来,名牌就能显示

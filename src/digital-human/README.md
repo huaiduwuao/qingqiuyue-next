@@ -163,6 +163,31 @@ MUI 的列表、输入框、下拉框全都能正常点击和输入 —— 不�
 角色步态(`useVrmAnimation.applyGait`)不再用配置里的 walk / run 公式:腿按步相摆、摆动相屈膝、手臂前后摆(以前是左右扇)、
 胯胸反扭、跑步前倾,淡入淡出;叠加偏移记着上一帧写的值,不会在不被重置的骨骼上越叠越歪。
 
+## 创世:每人一间房、捏人(2026-09-30)
+
+方案和分期见 qingqiuyue-go `docs/GENESIS-WORLD.md`。不单开入口:房间就是世界里 `kind = 'room'` 的一个场景
+(key `room:<房主 uid>`),`usePlazaScenes(enabled, extraDefs)` 把「我的房间 + 串门去过的房间」接在后台场景后面;
+`/digital-human?room=<uid>` 直达别人的房间。后端是 core-api `internal/worldapp`(`/api/core/world/*`)。
+
+| 文件 | 管什么 |
+|---|---|
+| `scene-ui/useRoom.ts` | 我的房间(第一次读自动建)、串门、保存设置;`roomToDef` 把房间转成 WorldDef |
+| `vrm/world/roomShell.ts` | 房间外壳:书斋 / 阁楼 / 庭院 / 空地(程序化)+ 高斯泼溅(Spark,`SparkRenderer` 挂在房间组里);挡镜头的墙淡掉;`autoFit` 按点中心分位数摆正、按 10 的倍数换单位 |
+| `vrm/world/buildWorld.ts` | `def.kind === 'room'` 时不画地标 / 小路 / 星光,换成房间外壳;`handle.ground` 是房间地板 |
+| `vrm/world/useVrmWorld.ts` | 房间换模板 / 泼溅才重建;房间给一份 RoomEnvironment 环境光照(PBR 的写实形象、家具不发黑);`editing` 时点东西 = 选中 |
+| `vrm/world/worldObjects.ts` | 用户上传的模型按 `file` 加载并归一化(脚底中心到原点、厘米缩米);`pick` / `groupOf` / `setSelected` 给编辑器 |
+| `scene-ui/RoomEditor.tsx` | 布置:素材抽屉、gizmo(TransformControls,拖动时关 OrbitControls,`canvas.dataset.gizmo` 挡掉误点)、撤销重做 |
+| `scene-ui/RoomSettings.tsx` / `WorldUpload.tsx` | 房间设置;上传(PLY 在浏览器里用 Spark `transcodeSpz` 转成 SPZ 再传) |
+| `vrm/avatarCustomize.ts` / `scene-ui/AvatarStudio.tsx` | 捏人:原始骨骼缩放(沿骨头拉长、子骨反向缩回)、眼骨、`qq_face_<滑杆>_incr/_decr` 形变、按材质名归类调色;参数存 world_avatar |
+| `scene-ui/Genesis.tsx` | 页面层:`useGenesis`、HUD 按钮、串门门牌、面板、「去哪儿走走」里的房间列表 |
+
+几个坑:
+- 捏脸形变**不能绑 VRM 表情**:表情管理器每帧把绑定的形变清零。Blender 那边 `setup_vrm` 跳过了 `qq_face_*`。
+- 写实底模是 PBR 材质,没有 `scene.environment` 时脸是黑的(风格化场景只有几盏灯)。房间里给了环境光照;广场里用写实底模会偏暗。
+- 绕 X 轴「上下翻转」会把前后也对调,用户要再用「转向」转 180°,这是旋转本身的性质。
+- 形象只在世界里生效(`worldActive` 时 `modelUrl` 用捏好的底模),收起世界回到舞台还是后台配的数字人。
+- 测试台:scratchpad 里的 Vite harness(真组件 + 内存模拟 `/api/core/world/*`),合成的泼溅房间 `gen_splat.mjs`。
+
 ## 语音
 
 - 唤醒词:openWakeWord ONNX(`public/wake/xiaoyue.onnx`)+ VAD,说「小月」唤醒
