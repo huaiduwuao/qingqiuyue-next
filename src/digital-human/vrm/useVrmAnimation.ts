@@ -11,6 +11,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { getBone } from './vrmCompat';
+import { loadMocap, MOCAP_BONES, sampleBone, sampleHipsY, type MocapClip, type MocapSet } from './mocap';
 import { buildLookups, safeEvalFormula } from './config/loader';
 import type {
   ActionConfig,
@@ -66,7 +67,7 @@ export interface UseVrmAnimationOptions {
   configBundle: ConfigBundle;
   vrmRef: React.MutableRefObject<any>;
   audio: AudioHandle;
-  walkRef: React.MutableRefObject<{ moving: boolean; phase: number; style: 'walk' | 'run' | 'idle' | 'teleport' }>;
+  walkRef: React.MutableRefObject<{ moving: boolean; phase: number; style: 'walk' | 'run' | 'idle' | 'teleport'; dist?: number }>;
   /** 物理世界（用于 Foot IK 射线检测） */
   physics?: { ready: boolean; raycastGround: (origin: { x: number; y: number; z: number }, maxDistance?: number) => number | null };
 }
@@ -323,9 +324,61 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
     set('rightHand', -0.3, 0, -0.12);
   }
 
+  // ── 真人动捕(走 / 跑 / 待机):第一次用到时下载,没下到就一直用程序步态 ──
+  const mocapRef = useRef<MocapSet | null>(null);
+  const mocapReqRef = useRef(false);
+  const legLenRef = useRef(new WeakMap<object, number>());
+  const idleMocapRef = useRef({ w: 0 });
+  const qA = useRef(new THREE.Quaternion()).current;
+  const qB = useRef(new THREE.Quaternion()).current;
+  const qT = useRef(new THREE.Quaternion()).current;
+  const qT2 = useRef(new THREE.Quaternion()).current;
+  /** 这个模型的腿长(大腿根 → 脚踝,米):动捕的步幅 / 起伏都以腿长为单位 */
+  function legLen(vrm: any, H: (n: string) => any): number {
+    let v = legLenRef.current.get(vrm);
+    if (v) return v;
+    const a = H('leftUpperLeg'), b = H('leftLowerLeg'), c = H('leftFoot');
+    if (!a || !b || !c) return 0.8;
+    const pa = a.getWorldPosition(new THREE.Vector3()), pb = b.getWorldPosition(new THREE.Vector3()), pc = c.getWorldPosition(new THREE.Vector3());
+    let len = pa.distanceTo(pb) + pb.distanceTo(pc);
+    if (!(len > 0.3 && len < 2)) len = 0.8;
+    legLenRef.current.set(vrm, len);
+    return len;
+  }
+  /** 取一段动捕在进度 u 处的四元数;wrap = 循环衔接处要交叉淡化的秒数 */
+  function sampleLoop(clip: MocapClip, bone: string, u: number, out: THREE.Quaternion, wrap = 0): boolean {
+    if (!sampleBone(THREE, clip, bone, u, out, qT)) return false;
+    if (wrap > 0) {
+      const tc = (((u % 1) + 1) % 1) * clip.duration;
+      const k = (tc - (clip.duration - wrap)) / wrap;
+      if (k > 0) {
+        // 快到结尾:往开头那几帧淡过去,接缝处不跳
+        sampleBone(THREE, clip, bone, (tc - (clip.duration - wrap)) / clip.duration, qT2, qT);
+        out.slerp(qT2, k);
+      }
+    }
+    return true;
+  }
+  /** 髋的上下起伏:按「上一帧写进去的值」判断底子,不越叠越高 */
+  function layerHipsY(H: (n: string) => any, dy: number) {
+    const hips = H('hips');
+    if (!hips?.position) return;
+    let rec = gaitBase.get('mocap:hips.y');
+    if (!rec || Math.abs(hips.position.y - rec.wy) > 1e-6) {
+      rec = { bx: 0, by: hips.position.y, bz: 0, wx: 0, wy: 0, wz: 0 };
+      gaitBase.set('mocap:hips.y', rec);
+    }
+    hips.position.y = rec.by + dy;
+    rec.wy = hips.position.y;
+  }
+
   function tick(elapsed: number, dt: number) {
     const vrm = vrmRef.current;
     if (!vrm?.humanoid) return;
+    if (!mocapReqRef.current) {
+      mocapReqRef.current = true;
+      loadMocap().then((m) => { mocapRef.current = m; });
+    }
     const H = (n: string) => getBone(vrm.humanoid, n);
     const sceneObj = vrm.scene;
 
@@ -345,15 +398,48 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
 
     // 3.5 站姿修正:配置里的 idle 姿势手臂微微张开、笔直,小臂和手腕是「拧」(绕 X)不是「弯」,
     //     看着像提线木偶。只在默认站姿下叠一层:手臂收回贴身、取消拧、手肘自然微屈、随呼吸轻晃。
-    if (currentPose === 'idle') applyRestFix(elapsed, H);
+    if (currentPose === 'idle' && !mocapRef.current) applyRestFix(elapsed, H);
 
-    // 4. walk 步态:程序化的走 / 跑,淡入淡出(以前按配置公式硬切,手臂左右扇、身子不动,很僵)
+    // 4. walk 步态:有真人动捕就用动捕(按走过的距离推进,脚不打滑),没有就用程序步态
     const w = walkRef.current;
     const moving = w.moving && w.style !== 'teleport' && w.style !== 'idle';
     gaitRef.current.blend = Math.min(1, Math.max(0, gaitRef.current.blend + (moving ? dt * 6 : -dt * 4)));
     if (moving) gaitRef.current.run = w.style === 'run' ? Math.min(1, gaitRef.current.run + dt * 3) : Math.max(0, gaitRef.current.run - dt * 3);
+    const mocap = mocapRef.current;
+
+    // 4a. 真人待机:站着(默认站姿、没在走、没跳舞)时,真人等人时的重心转换、呼吸、小动作
+    const idleOk = !!mocap && currentPose === 'idle' && !dancingRef.current && gaitRef.current.blend < 0.999;
+    const im = idleMocapRef.current;
+    im.w = Math.min(1, Math.max(0, im.w + (idleOk ? dt * 2 : -dt * 4)));
+    if (mocap && im.w > 0.001) {
+      const u = elapsed / mocap.idle.duration;
+      const k = im.w * (1 - gaitRef.current.blend);
+      for (const b of MOCAP_BONES) {
+        const node = H(b);
+        if (node && sampleLoop(mocap.idle, b, u, qA, 0.6)) node.quaternion.slerp(qA, k);
+      }
+    }
+
     if (gaitRef.current.blend > 0.001) {
-      applyGait(w.phase, gaitRef.current.blend, gaitRef.current.run, elapsed, H);
+      if (mocap) {
+        const run = gaitRef.current.run;
+        const L = legLen(vrm, H);
+        const stride = (mocap.walk.stride * (1 - run) + mocap.run.stride * run) * L;
+        const u = (w.dist ?? 0) / Math.max(0.2, stride);
+        for (const b of MOCAP_BONES) {
+          const node = H(b);
+          if (!node) continue;
+          if (!sampleLoop(mocap.walk, b, u, qA)) continue;
+          if (run > 0.001 && sampleLoop(mocap.run, b, u, qB)) qA.slerp(qB, run);
+          node.quaternion.slerp(qA, gaitRef.current.blend);
+        }
+        const bob = (sampleHipsY(mocap.walk, u) * (1 - run) + sampleHipsY(mocap.run, u) * run) * L;
+        layerHipsY(H, bob * gaitRef.current.blend);
+      } else {
+        applyGait(w.phase, gaitRef.current.blend, gaitRef.current.run, elapsed, H);
+      }
+    } else if (mocap) {
+      layerHipsY(H, 0);
     }
     if (moving) smRef.current.set({ kind: 'walk', phase: w.phase, style: w.style === 'run' ? 'run' : 'walk' });
     else smRef.current.remove('walk');

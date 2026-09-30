@@ -335,7 +335,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
     active: false, startTime: 0, duration: 0, fromX: 0, fromZ: 0, toX: 0, toZ: 0, style: 'walk',
   });
   // 行走状态（useVrmDance 通过 walkRef 读这个来播放行走动画）
-  const walkRef = useRef<{ moving: boolean; phase: number; style: 'walk' | 'run' | 'idle' | 'teleport' }>({ moving: false, phase: 0, style: 'idle' });
+  const walkRef = useRef<{ moving: boolean; phase: number; style: 'walk' | 'run' | 'idle' | 'teleport'; dist?: number }>({ moving: false, phase: 0, style: 'idle', dist: 0 });
   // 行走步进（每帧 dt 累积）
   const walkStepRef = useRef(0);
 
@@ -690,7 +690,8 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         const ml = Math.hypot(mx, mz) || 1;
         mx /= ml; mz /= ml;
         const running = !!keys.shift;
-        const speed = running ? 4.6 : 2.1;
+        // 真人的速度:走 1.5 米/秒、慢跑 3.6 米/秒(动捕按走过的距离推进,速度越接近真人越自然)
+        const speed = running ? 3.6 : 1.5;
         pos.prevX = pos.x; pos.prevZ = pos.z;
         const next = clampToWorld(pos.x + mx * speed * dt, pos.z + mz * speed * dt, worldDefRef.current);
         pos.x = next.x; pos.z = next.z;
@@ -720,6 +721,9 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         walkRef.current.phase = walkStepRef.current;
         walkRef.current.moving = false;
       }
+
+      // 走过的距离:真人动捕的步态按它推进(一个循环 = 步幅 × 腿长)
+      walkRef.current.dist = (walkRef.current.dist ?? 0) + Math.hypot(pos.x - pos.prevX, pos.z - pos.prevZ);
 
       // Phase 3: 同步给物理 + 物理 step（撞墙会修正 pos）
       targetPositionRef.current.x = pos.x;
@@ -1023,7 +1027,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         const d = Math.hypot(target.x - positionRef.current.x, target.z - positionRef.current.z);
         if (d < 0.05) return;
         const style = d > 6 ? 'run' : 'walk';
-        const speed = style === 'run' ? 4.2 : 1.9;
+        const speed = style === 'run' ? 3.4 : 1.45; // 真人速度(动捕步态按走过的距离推进)
         handleInternalRef.current?.move({ x: target.x, z: target.z }, { durationMs: Math.max(350, (d / speed) * 1000), style });
       },
       floatText: (text, color) => {
