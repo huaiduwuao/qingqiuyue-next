@@ -135,6 +135,38 @@ if (kind === 'idle' && !args.includes('--start')) {
   console.error(`idle window ${t0.toFixed(1)} → ${t1.toFixed(1)}s, hips moved ${(best / legLen).toFixed(3)} leg`);
 }
 
+// 单次动作(鞠躬…):裁掉开头结尾站着不动的部分(各留 0.3 秒)
+// 手势(说话比划):找手臂动得最多的 len 秒做循环
+if ((kind === 'action' || kind === 'gesture') && !args.includes('--start')) {
+  const pts = [];
+  let prev = null;
+  for (let t = 0; t < total - 0.01; t += 1 / 30) {
+    const { W } = sample(t);
+    const armDir = ['leftUpperArm', 'rightUpperArm', 'leftLowerArm', 'rightLowerArm', 'spine', 'chest', 'head'].map((b) => new THREE.Vector3(0, 1, 0).applyQuaternion(W[b]));
+    let motion = 0;
+    if (prev) armDir.forEach((d, i) => { motion += d.distanceTo(prev[i]); });
+    pts.push([t, motion]);
+    prev = armDir;
+  }
+  if (kind === 'action') {
+    const peak = Math.max(...pts.map((p) => p[1]));
+    const act = pts.filter((p) => p[1] > peak * 0.12);
+    t0 = Math.max(0, act[0][0] - 0.3);
+    t1 = Math.min(total - 0.01, act[act.length - 1][0] + 0.3);
+  } else {
+    const win = Number(opt('len', 6));
+    let best = -1;
+    for (let i = 0; i < pts.length; i++) {
+      const j = pts.findIndex((p) => p[0] >= pts[i][0] + win);
+      if (j < 0) break;
+      let m = 0;
+      for (let k = i; k < j; k++) m += pts[k][1];
+      if (m > best) { best = m; t0 = pts[i][0]; t1 = pts[j][0]; }
+    }
+  }
+  console.error(`${kind} window ${t0.toFixed(2)} → ${t1.toFixed(2)}s`);
+}
+
 const frames = Math.max(2, Math.round((t1 - t0) * FPS));
 // 朝向:走的方向(或 idle 时髋的平均朝向)转到 +Z
 const a0 = sample(t0), a1 = sample(t1);

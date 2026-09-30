@@ -11,7 +11,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { getBone } from './vrmCompat';
-import { loadMocap, MOCAP_BONES, sampleBone, sampleHipsY, type MocapClip, type MocapSet } from './mocap';
+import { loadActionClip, loadMocap, MOCAP_ACTIONS, MOCAP_BONES, MOCAP_UPPER, sampleBone, sampleHipsY, type MocapClip, type MocapSet } from './mocap';
 import { buildLookups, safeEvalFormula } from './config/loader';
 import type {
   ActionConfig,
@@ -329,6 +329,9 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
   const mocapReqRef = useRef(false);
   const legLenRef = useRef(new WeakMap<object, number>());
   const idleMocapRef = useRef({ w: 0 });
+  // 动作的真人动捕(鞠躬 / 说话比划…):已下载的片段 + 正在播 / 淡出的那一段
+  const actionClipsRef = useRef(new Map<string, MocapClip | null>());
+  const actionMocapRef = useRef<{ name: string; clip: MocapClip; loop: boolean; u: number; w: number } | null>(null);
   const qA = useRef(new THREE.Quaternion()).current;
   const qB = useRef(new THREE.Quaternion()).current;
   const qT = useRef(new THREE.Quaternion()).current;
@@ -378,6 +381,7 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
     if (!mocapReqRef.current) {
       mocapReqRef.current = true;
       loadMocap().then((m) => { mocapRef.current = m; });
+      for (const n of Object.keys(MOCAP_ACTIONS)) loadActionClip(n).then((c) => { actionClipsRef.current.set(n, c); });
     }
     const H = (n: string) => getBone(vrm.humanoid, n);
     const sceneObj = vrm.scene;
@@ -457,7 +461,36 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
 
     // 6. action（最高优先级）+ 自动过期
     const actionState = smRef.current.stack.find((s): s is Extract<AnimState, { kind: 'action' }> => s.kind === 'action');
-    if (actionState) {
+    // 6a. 有真人动捕的动作(鞠躬、说话比划)用动捕:淡入,单次的播完就收,换了别的动作从最后一帧淡出
+    const am = actionMocapRef.current;
+    const clipFor = actionState ? actionClipsRef.current.get(actionState.name) : null;
+    if (actionState && clipFor) {
+      const t = (performance.now() - actionState.startedAtMs) / 1000;
+      const loop = MOCAP_ACTIONS[actionState.name]?.loop ?? false;
+      if (!am || am.name !== actionState.name || am.clip !== clipFor) {
+        actionMocapRef.current = { name: actionState.name, clip: clipFor, loop, u: 0, w: am?.w ?? 0 };
+      }
+      const cur = actionMocapRef.current!;
+      cur.u = loop ? t / clipFor.duration : Math.min(0.999, t / clipFor.duration);
+      const tail = loop ? 1 : Math.min(1, (clipFor.duration - t) / 0.35);
+      cur.w = Math.min(1, cur.w + dt * 4, Math.max(0, tail));
+      if (!loop && t > clipFor.duration) smRef.current.remove('action');
+    } else if (am) {
+      am.w = Math.max(0, am.w - dt * 3);
+      if (am.w <= 0) actionMocapRef.current = null;
+    }
+    const amNow = actionMocapRef.current;
+    if (amNow && amNow.w > 0.001) {
+      const spec = MOCAP_ACTIONS[amNow.name];
+      const strength = amNow.w * (spec?.strength ?? 1);
+      for (const b of MOCAP_BONES) {
+        if (spec?.upper && !MOCAP_UPPER.has(b)) continue;
+        const node = H(b);
+        if (!node) continue;
+        if (amNow.loop ? sampleLoop(amNow.clip, b, amNow.u, qA, 0.5) : sampleBone(THREE, amNow.clip, b, amNow.u, qA, qT)) node.quaternion.slerp(qA, strength);
+      }
+    }
+    if (actionState && !clipFor) {
       const actionCfg = lookups.actionByName.get(actionState.name);
       if (actionCfg) {
         const t = (performance.now() - actionState.startedAtMs) / 1000;

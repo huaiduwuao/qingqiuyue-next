@@ -58,6 +58,32 @@ export function sampleHipsY(clip: MocapClip, u: number): number {
   return clip.hipsY[i0] * (1 - k) + clip.hipsY[i1] * k;
 }
 
+/**
+ * 哪些动作有真人动捕:鞠躬(CMU 111_02)、说话比划(CMU 18_08 里手臂动得最多的 6 秒,循环)。
+ * upper = 只用上半身(CMU 的鞠躬是舞台谢幕式的,一条腿往后伸得很远 —— 腿留着站姿,只借弯腰和手臂);
+ * strength = 叠上去的强度(1 = 原样)。
+ */
+export const MOCAP_ACTIONS: Record<string, { file: string; loop: boolean; upper?: boolean; strength?: number }> = {
+  bow: { file: 'bow', loop: false, upper: true, strength: 0.75 },
+  greet: { file: 'bow', loop: false, upper: true, strength: 0.6 },
+  talk: { file: 'talk', loop: true },
+  explain: { file: 'talk', loop: true },
+};
+const actionCache = new Map<string, Promise<MocapClip | null>>();
+/** 动作片段按需下载(各 50–90 KB) */
+export function loadActionClip(name: string, base = '/mocap'): Promise<MocapClip | null> {
+  const a = MOCAP_ACTIONS[name];
+  if (!a) return Promise.resolve(null);
+  let p = actionCache.get(a.file);
+  if (!p) {
+    p = fetch(`${base}/${a.file}.json`).then((r) => (r.ok ? r.json() as Promise<MocapClip> : null)).catch(() => null);
+    actionCache.set(a.file, p);
+  }
+  return p;
+}
+
+export const MOCAP_UPPER = new Set(['spine', 'chest', 'neck', 'head', 'leftShoulder', 'leftUpperArm', 'leftLowerArm', 'leftHand', 'rightShoulder', 'rightUpperArm', 'rightLowerArm', 'rightHand']);
+
 export const MOCAP_BONES = [
   'hips', 'spine', 'chest', 'neck', 'head',
   'leftShoulder', 'leftUpperArm', 'leftLowerArm', 'leftHand',
