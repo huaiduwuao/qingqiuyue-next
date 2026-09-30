@@ -573,7 +573,8 @@ export function createEnvironment(THREE_NS: typeof THREE, renderer: THREE.WebGLR
   }
 
   // ── 后期 ───────────────────────────────────────────────────────────
-  const post: PostPipeline | null = high ? createPost(THREE_NS, renderer) : null;
+  // 写实画风再加环境光遮蔽(屋檐下、墙角、东西落地处的暗部)
+  const post: PostPipeline | null = high ? createPost(THREE_NS, renderer, { ao: realistic }) : null;
   const bufSize = new THREE_NS.Vector2();
   let lastW = 0, lastH = 0;
 
