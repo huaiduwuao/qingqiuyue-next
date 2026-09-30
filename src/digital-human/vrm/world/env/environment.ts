@@ -611,7 +611,10 @@ export function createEnvironment(THREE_NS: typeof THREE, renderer: THREE.WebGLR
     real?.setHour(hour);
     waterMat.uniforms.uLamp.value = s.lampBoost;
     for (const b of boats) (b.lamp.material as THREE.MeshBasicMaterial).color.setRGB(3.2 * s.lampBoost, 1.6 * s.lampBoost, 0.6 * s.lampBoost);
-    post?.set({ warmth: s.warmth, bloom: 0.35 + s.night * 0.45, threshold: 1.6 - s.night * 0.85 });
+    // 写实画风:泛光只给灯笼这类真光源(阈值高),不然夜里被灯照亮的白衣服也会整个发光
+    post?.set(realistic
+      ? { warmth: s.warmth * 0.6, bloom: 0.22 + s.night * 0.2, threshold: 2.4 - s.night * 0.4 }
+      : { warmth: s.warmth, bloom: 0.35 + s.night * 0.45, threshold: 1.6 - s.night * 0.85 });
   }
   applySky(sky);
 

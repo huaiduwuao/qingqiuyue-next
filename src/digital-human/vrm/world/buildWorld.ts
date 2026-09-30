@@ -268,6 +268,14 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
   const darkMetal = track(new THREE_NS.MeshStandardMaterial({ color: 0x1b1f2e, roughness: 0.4, metalness: 0.75 }));
   const stone = track(new THREE_NS.MeshStandardMaterial({ color: 0x3a3f55, roughness: 0.85, metalness: 0.05 }));
   if (kit) kit.texSet(stone, 'rock_wall_08', 1.5, { tint: 0xb8b4ac });
+  /** 写实地标:模型异步到,点击靠一个看不见的盒子 */
+  const pickBox = (g: THREE.Group, w: number, h: number, d: number, rotY = 0) => {
+    const pick = new THREE_NS.Mesh(G.box(w, h, d), track(new THREE_NS.MeshBasicMaterial({ visible: false })));
+    pick.position.y = h / 2;
+    pick.rotation.y = rotY;
+    g.add(pick);
+    pickables.push(pick);
+  };
   /** 写实时在某个地标组里摆一件实景道具(本地坐标) */
   const place = (parent: THREE.Object3D, id: string, x: number, z: number, rot = 0, scale = 1, y = 0) => {
     kit?.model(id).then((o) => { o.position.set(x, y, z); o.rotation.y = rot; o.scale.setScalar(scale); parent.add(o); }).catch(() => { /* 没到就不摆 */ });
@@ -527,6 +535,12 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
         break;
       }
       case 'willow': {
+        if (kit) {
+          // 写实:Poly Haven 阔叶树(bake_tree.py 减面),柳树没有现成的 CC0 模型
+          place(g, 'tree_broad', 0, 0, zone.x * 0.7, 0.95);
+          pickBox(g, 2.4, 4.6, 2.4);
+          break;
+        }
         // 柳树:树干 + 一圈垂下来的柳条(细长的半透明片)
         const trunk = mesh(G.cyl(0.18, 0.28, 2.6, 10), track(new THREE_NS.MeshStandardMaterial({ color: 0x3b2a1a, roughness: 0.9 })), 0, 1.3, 0);
         const crown = mesh(G.sphere(1.1, 14), track(new THREE_NS.MeshStandardMaterial({ color: 0x2f6b3a, roughness: 0.8, emissive: c, emissiveIntensity: 0.08 })), 0, 3.0, 0);
@@ -546,9 +560,15 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
         break;
       }
       case 'moongate': {
+        if (kit) {
+          // 写实:Blender 建的粉墙黛瓦月洞门(scripts/blender/make_moongate.py),墙面朝广场中心
+          const face = Math.atan2(-zone.x, -zone.z);
+          place(g, 'moongate', 0, 0, face);
+          pickBox(g, 4.4, 3.4, 0.5, face);
+          break;
+        }
         // 月洞门:一面墙中间开一个圆洞,洞沿发光
         const wallMat = track(new THREE_NS.MeshStandardMaterial({ color: 0xe8e2d4, roughness: 0.9 }));
-        if (kit) kit.texSet(wallMat, 'white_plaster_rough_01', 0.35);
         const shape = new THREE_NS.Shape();
         shape.moveTo(-1.8, 0); shape.lineTo(1.8, 0); shape.lineTo(1.8, 3.0); shape.lineTo(-1.8, 3.0); shape.lineTo(-1.8, 0);
         const hole = new THREE_NS.Path();
@@ -556,7 +576,6 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
         shape.holes.push(hole);
         const wall = mesh(track(new THREE_NS.ExtrudeGeometry(shape, { depth: 0.25, bevelEnabled: false })), wallMat, 0, 0, -0.12);
         const tileMat = track(new THREE_NS.MeshStandardMaterial({ color: 0x2b2f3a, roughness: 0.6 }));
-        if (kit) kit.texSet(tileMat, 'grey_roof_tiles', [4, 1]);
         const tile = mesh(G.box(3.9, 0.16, 0.5), tileMat, 0, 3.08, 0);
         const ring = mesh(G.torus(1.1, 0.04), emissive(c, 1.6), 0, 1.45, 0.14);
         g.add(wall, tile, ring);
@@ -568,7 +587,7 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
     const label = makeTextSprite(THREE_NS, `${zone.emoji} ${zone.label}`, { color: '#fff', bg: 'rgba(8,10,20,0.72)', border: hex(zone.color), size: 40 });
     track(label.material); track(label.material.map!);
     const prop = zoneProp(zone);
-    const labelY = prop === 'dance' ? 3.9 : prop === 'wish' || prop === 'stars' ? 2.7 : prop === 'pavilion' ? (kit ? 5.0 : 3.6) : prop === 'moongate' ? 3.6 : prop === 'willow' ? 3.9 : 3.1;
+    const labelY = prop === 'dance' ? 3.9 : prop === 'wish' || prop === 'stars' ? 2.7 : prop === 'pavilion' ? (kit ? 5.0 : 3.6) : prop === 'moongate' ? (kit ? 4.1 : 3.6) : prop === 'willow' ? (kit ? 5.4 : 3.9) : 3.1;
     label.position.set(zone.x, labelY, zone.z);
     group.add(label);
     zoneLabels.set(zone.id, label);
