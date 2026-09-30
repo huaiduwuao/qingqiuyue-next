@@ -42,6 +42,10 @@ export interface PlazaState {
   online: number;
   level: number;
   orbsTotal: number;
+  /** 言出法随:这里摆了什么(id:叫法),world_edit 按叫法找 */
+  placed?: string[];
+  /** 能去的场景(key:名字),scene_go 用 */
+  scenes?: string[];
 }
 
 export interface SceneState {

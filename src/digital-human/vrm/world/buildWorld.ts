@@ -12,6 +12,7 @@ import type * as THREE from 'three';
 import { createNpcRig, type NpcRig } from './npcRig';
 import { createRealKit, type RealKit, type Spot } from './realKit';
 import { createRealNpc, realNpcModel } from './realNpc';
+import { createObjectLayer, type ObjectLayer } from './worldObjects';
 import { DEFAULT_WORLD, WORLD_RADIUS, zoneProp, type Orb, type WorldCharacter, type WorldDef, type WorldZone, type ZoneId, worldEnv } from './worldLayout';
 
 /** 各场景预设下广场的配色:地面要跟舞台地板接得上,不然白天草坪外面一圈黑地很突兀 */
@@ -70,6 +71,8 @@ export interface WorldHandle {
   characterPositions: () => { id: string; x: number; z: number }[];
   /** 当前画着的其他人(小地图用) */
   peerPositions: () => { id: string; x: number; z: number; aura?: string }[];
+  /** 言出法随摆出来的东西 */
+  objects: ObjectLayer;
   dispose: () => void;
 }
 
@@ -130,6 +133,8 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
   const track = <T extends { dispose: () => void }>(x: T) => { disposables.push(x); return x; };
   let theme = worldTheme(initialPreset);
   const kit: RealKit | null = bopts.realistic ? createRealKit(THREE_NS, bopts.realistic) : null;
+  // 言出法随摆出来的东西:画风无关,风格化场景里摆的也是实景模型
+  const objects = createObjectLayer(THREE_NS, group, { base: bopts.realistic?.base, quality: bopts.realistic?.quality ?? 'high' });
 
   // ── 托底光:舞台聚光照不到外圈,给一点点环境光让远处的地标有体积感
   const hemi = new THREE_NS.HemisphereLight(theme.hemiSky, theme.hemiGround, island ? 0 : theme.hemi);
@@ -1058,6 +1063,7 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
 
   function dispose() {
     kit?.dispose();
+    objects.dispose();
     for (const id of Array.from(npcs.keys())) removeNpc(id);
     setAura(null);
     setPeers([]);
@@ -1080,7 +1086,8 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
     setTheme, setOrbs, collectOrb, showMarker, setActiveZone,
     setDanceFloorHot: (on) => { danceHot = on; },
     floatText, dispose,
-    tick: (t, dt, camera) => { tick(t, dt, camera); tickPeers(t, dt); tickNpcs(t, dt); },
+    tick: (t, dt, camera) => { tick(t, dt, camera); tickPeers(t, dt); tickNpcs(t, dt); objects.tick(t, dt); },
+    objects,
     setPeers, setAura, setSelfPos, peerPositions, setCharacters, characterSay, characterPositions, setLampBoost,
   };
 }

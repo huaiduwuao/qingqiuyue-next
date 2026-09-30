@@ -42,6 +42,7 @@ import { TIME_LABELS, type TimeMode } from './vrm/world/env/timeOfDay';
 import { worldEnv } from './vrm/world/worldLayout';
 import { WORLD_ASSET_BASE } from './vrm/world/realKit';
 import { mediaUrl } from '@/lib/media';
+import { useWorldObjects, type WorldToolEvent } from './scene-ui/useWorldObjects';
 import type { PlazaState } from './scene-state';
 import { useRouter } from 'next/navigation';
 import { alpha } from '@mui/material/styles';
@@ -228,6 +229,8 @@ export default function ImmersiveDigitalHuman() {
   }, []);
   const [questsOpen, setQuestsOpen] = React.useState(false);
   const plazaStateRef = React.useRef<PlazaState | null>(null);
+  // 言出法随:聊天钩子比场景 / 舞台先建,工具事件经这个 ref 转给 useWorldObjects
+  const worldToolRef = React.useRef<((e: WorldToolEvent) => void) | null>(null);
   const worldHelp = useWorldHelp();
   const [narrow, setNarrow] = React.useState(false);
   React.useEffect(() => {
@@ -324,6 +327,7 @@ export default function ImmersiveDigitalHuman() {
     },
     // 生成式 UI:数字人把列表/网格/表单推到 3D 场景面板
     onScenePanel: (panel) => setScenePanel(panel),
+    onWorldTool: (e) => worldToolRef.current?.(e),
     // 数字人自己往屏幕上放东西 / 关屏(screen_open / screen_close)
     onScreen: (cmd) => {
       const slot = parseSlot(cmd.screen);
@@ -697,8 +701,22 @@ export default function ImmersiveDigitalHuman() {
     onWished: () => { game.record({ kind: 'interact', zone: 'wish' }); setTasksKey((k) => k + 1); },
     onBlessed: () => setTasksKey((k) => k + 1),
   });
+  // 言出法随:摆放、现做进度、换场景(过场)
+  const [travel, setTravel] = React.useState<string | null>(null);
+  const worldObjects = useWorldObjects({
+    handle: stageHandle,
+    enabled: worldActive,
+    def: scenes.def,
+    defs: scenes.defs,
+    switchTo: scenes.switchTo,
+    toast: (icon, t) => game.toast(icon, t),
+    onTravel: (name) => { setTravel(name); window.setTimeout(() => setTravel(null), 2600); },
+  });
+  worldToolRef.current = worldObjects.handleTool;
   // 发给模型的场景状态里带上广场信息(她在哪个地标、有几个人在逛),模型能据此接话
   plazaStateRef.current = worldActive ? {
+    placed: worldObjects.placedSummary,
+    scenes: scenes.defs.map((d) => `${d.key}:${d.name}`),
     scene: scenes.def.name,
     zone: game.zone,
     zoneLabel: game.zoneInfo?.label,
@@ -891,6 +909,18 @@ export default function ImmersiveDigitalHuman() {
 
   return (
     <Box sx={{ position: 'fixed', inset: 0, zIndex: 1, background: '#05060B' }}>
+      {/* 换场景的过场:黑底淡入「前往 X」,新场景建好后淡出 */}
+      <Box sx={{
+        position: 'absolute', inset: 0, zIndex: 50, pointerEvents: travel ? 'auto' : 'none',
+        bgcolor: '#05060B', opacity: travel ? 1 : 0, transition: 'opacity 0.6s ease',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 1.5,
+      }}>
+        <Box sx={{ color: 'rgba(255,255,255,0.9)', fontSize: 22, letterSpacing: 6 }}>{travel ? `前往 · ${travel}` : ''}</Box>
+        <Box sx={{ width: 160, height: 2, bgcolor: 'rgba(255,255,255,0.12)', overflow: 'hidden', borderRadius: 1 }}>
+          <Box sx={{ width: '40%', height: '100%', bgcolor: 'rgba(255,220,160,0.8)', animation: travel ? 'dhTravel 1.2s ease-in-out infinite' : 'none',
+            '@keyframes dhTravel': { from: { transform: 'translateX(-100%)' }, to: { transform: 'translateX(250%)' } } }} />
+        </Box>
+      </Box>
       {/* 全屏 VRM 角色（与浮窗同一个 character.vrm） — 用 VrmStage 替代 BlenderAvatar */}
       {/* 背景层:一份 3DGS 场景资产垫在 VRM 舞台后面(orbit 关掉,当静态布景) */}
       {avatarMode === 'vrm' && gsBackdrop && (

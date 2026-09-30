@@ -45,6 +45,7 @@ import { makeConfetti, updateConfetti } from './vrm/particles';
 import { createAudioHandle, type AudioHandle } from './vrm/audio';
 import { useVrmWorld, type WorldEvent } from './vrm/world/useVrmWorld';
 import type { WorldPeer } from './vrm/world/buildWorld';
+import type { PlacedObject } from './vrm/world/worldObjects';
 import type { TimeMode } from './vrm/world/env/timeOfDay';
 import { DEFAULT_WORLD, clampToWorld, type Orb, type WorldCharacter, type WorldDef, type ZoneId } from './vrm/world/worldLayout';
 import { detectVrmVersion, setExpression, setExpressionDict, listAvailableExpressions, getBone } from './vrm/vrmCompat';
@@ -116,6 +117,10 @@ export interface VrmStageHandle {
   floatTextAt: (text: string, x: number, y: number, z: number, color?: string) => void;
   /** 广场:某位人物头顶冒一句话 */
   characterSay: (id: string, text: string) => void;
+  /** 言出法随:整批设置 / 增改 / 删掉摆出来的东西 */
+  setPlacements: (list: PlacedObject[]) => void;
+  upsertPlacement: (p: PlacedObject) => void;
+  removePlacement: (id: string) => void;
   /** 广场:换场景后回到舞台前、镜头复位 */
   enterScene: () => void;
 }
@@ -1065,6 +1070,9 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       setAura: (value) => worldApiRef.current.setAura(value),
       floatTextAt: (text, x, y, z, color) => worldApiRef.current.floatText(text, x, y, z, color),
       characterSay: (id, text) => worldApiRef.current.characterSay(id, text),
+      setPlacements: (list) => worldApiRef.current.setPlacements(list),
+      upsertPlacement: (p) => worldApiRef.current.upsertPlacement(p),
+      removePlacement: (id) => worldApiRef.current.removePlacement(id),
       enterScene: () => {
         // 瞬移不会带动镜头(镜头只跟走路的位移),所以手动把镜头也挪回舞台前
         moveAnimRef.current.active = false;

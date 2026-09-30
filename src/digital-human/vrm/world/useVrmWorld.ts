@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import type * as THREE from 'three';
 import { buildWorld, type WorldHandle, type WorldPeer } from './buildWorld';
 import { createEnvironment, type Environment, type Quality } from './env/environment';
+import type { PlacedObject } from './worldObjects';
 import type { TimeMode, Weather } from './env/timeOfDay';
 import {
   DEFAULT_WORLD, worldEnv, ORB_POINTS, ORB_RESPAWN_MS, WORLD_ZONES, findZone, orbsInReach, pickOrbSpot, spawnOrbs, zoneApproachPoint, zoneAt,
@@ -70,6 +71,7 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   defRef.current = def;
   const worldRef = useRef<WorldHandle | null>(null);
   const envRef = useRef<Environment | null>(null);
+  const placementsRef = useRef<PlacedObject[]>([]);
   const quality = opts.quality ?? 'high';
   const orbsRef = useRef<Orb[]>([]);
   const respawnRef = useRef<number[]>([]);
@@ -94,6 +96,8 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
     });
     scene.add(w.group);
     worldRef.current = w;
+    // 场景重建(换场景 / 换画质)后把摆放放回去
+    w.objects.set(placementsRef.current);
     let env: Environment | null = null;
     if (withEnv && renderer) {
       const e = worldEnv(d);
@@ -285,8 +289,18 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   }), []);
 
   const setPeers = useCallback((peers: WorldPeer[]) => { worldRef.current?.setPeers(peers); }, []);
+  // 言出法随:摆放记一份,场景重建时放回去
+  const setPlacements = useCallback((list: PlacedObject[]) => { placementsRef.current = list; worldRef.current?.objects.set(list); }, []);
+  const upsertPlacement = useCallback((p: PlacedObject) => {
+    placementsRef.current = [...placementsRef.current.filter((x) => x.id !== p.id), p];
+    worldRef.current?.objects.upsert(p);
+  }, []);
+  const removePlacement = useCallback((id: string) => {
+    placementsRef.current = placementsRef.current.filter((x) => x.id !== id);
+    worldRef.current?.objects.remove(id);
+  }, []);
   const setAura = useCallback((v: string | null) => { auraRef.current = v; worldRef.current?.setAura(v); }, []);
   const characterSay = useCallback((id: string, text: string) => { worldRef.current?.characterSay(id, text); }, []);
 
-  return { tick, render, floatText, showMarker, snapshot, setPeers, setAura, characterSay, zones: WORLD_ZONES };
+  return { tick, render, floatText, showMarker, snapshot, setPeers, setAura, characterSay, setPlacements, upsertPlacement, removePlacement, zones: WORLD_ZONES };
 }
