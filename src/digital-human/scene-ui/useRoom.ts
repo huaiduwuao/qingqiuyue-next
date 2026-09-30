@@ -96,6 +96,13 @@ export function useRoom(enabled: boolean) {
     return out;
   }, [mine, visited]);
 
+  /** 创世二期:房间设置变了(服务端推过来的;推给所有人时 mine 都是 false,这里按房主纠正) */
+  const applyRemote = useCallback((r: WorldRoom) => {
+    if (!r?.ownerId) return;
+    setMine((m) => (m && m.ownerId === r.ownerId ? { ...r, mine: true } : m));
+    setVisited((v) => (v[r.ownerId] ? { ...v, [r.ownerId]: { ...r, mine: false } } : v));
+  }, []);
+
   /** 某个场景 key 对应的房间(不是房间 / 还没读过 = null) */
   const roomOf = useCallback((key: string): WorldRoom | null => {
     const owner = roomOwnerOf(key);
@@ -104,7 +111,7 @@ export function useRoom(enabled: boolean) {
     return visited[owner] ?? null;
   }, [mine, visited]);
 
-  return { mine, defs, publicRooms, loadPublic, enter, save, roomOf, reload: loadMine, error };
+  return { mine, defs, publicRooms, loadPublic, enter, save, roomOf, reload: loadMine, error, applyRemote };
 }
 
 export type RoomState = ReturnType<typeof useRoom>;

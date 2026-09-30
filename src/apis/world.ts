@@ -112,6 +112,16 @@ export interface WorldRoom {
   owner: { id: string; nickname: string; avatar?: string };
   splat?: WorldAssetFull;
   updatedAt?: string;
+  /** 此刻房里有几个人 */
+  online?: number;
+}
+
+export interface RoomVisitor { userId: string; times: number; lastAt: string; user: { id: string; nickname: string; avatar?: string } }
+
+/** 最近来我房间串门的人 */
+export async function listMyVisitors(): Promise<RoomVisitor[]> {
+  const r = await accountClient.get<{ list: RoomVisitor[] }>('/world/rooms/mine/visitors');
+  return Array.isArray(r?.list) ? r.list : [];
 }
 
 export const roomSceneKey = (ownerId: string | number) => `room:${ownerId}`;

@@ -289,8 +289,27 @@ export function useWorldObjects(opts: Options) {
     }
   }, []);
 
+  /** 创世二期:房间里别人(或自己另一个标签页)改了摆放,服务端推过来的 */
+  const applyRemote = React.useCallback((op: 'upsert' | 'remove', data: unknown) => {
+    const h = optsRef.current.handle;
+    if (!h) return;
+    if (op === 'remove') {
+      const id = String(data);
+      if (!itemsRef.current.some((x) => x.id === id)) return;
+      setItems((cur) => cur.filter((x) => x.id !== id));
+      h.removePlacement(id);
+      return;
+    }
+    const p = data as WorldPlacement | null;
+    if (!p?.id || p.sceneKey !== optsRef.current.def.key) return;
+    const old = itemsRef.current.find((x) => x.id === p.id);
+    const next: WorldPlacement = { ...old, ...p, public: false, asset: p.asset ?? old?.asset };
+    setItems((cur) => (cur.some((x) => x.id === p.id) ? cur.map((x) => (x.id === p.id ? next : x)) : [...cur, next]));
+    h.upsertPlacement(toPlaced(next));
+  }, []);
+
   /** 给模型的场景状态:摆了什么(id:叫法) */
   const placedSummary = React.useMemo(() => items.slice(-30).map((p) => `${p.id}:${p.label || p.asset?.nameZh || p.assetKey}${p.public ? '(公共)' : ''}`), [items]);
 
-  return { handleTool, placedSummary, count: items.length, items, placeAsset, patchItem, removeItem, restoreItem };
+  return { handleTool, placedSummary, count: items.length, items, placeAsset, patchItem, removeItem, restoreItem, applyRemote };
 }

@@ -15,6 +15,16 @@ import { buildWorld, type WorldHandle, type WorldPeer } from './buildWorld';
 import { createEnvironment, type Environment, type Quality } from './env/environment';
 import type { PlacedObject } from './worldObjects';
 import type { SplatStatus } from './roomShell';
+import { createPeerLayer, type PeerLayer, type RoomPeer } from './peerAvatars';
+import { WORLD_ASSET_BASE } from './realKit';
+import { mediaUrl } from '@/lib/media';
+
+/** 形象底模地址:站内 /avatars/… 原样;qq-media/world 下的补前缀;空 = 默认形象 */
+function avatarUrl(base: string): string {
+  if (!base) return '/avatars/character.vrm';
+  if (base.startsWith('/')) return base;
+  return mediaUrl(`${WORLD_ASSET_BASE}/${base}`);
+}
 import type { RoomShellAlign } from './worldLayout';
 import type { TimeMode, Weather } from './env/timeOfDay';
 import {
@@ -80,6 +90,9 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   const worldRef = useRef<WorldHandle | null>(null);
   const envRef = useRef<Environment | null>(null);
   const placementsRef = useRef<PlacedObject[]>([]);
+  // 创世二期:房间里的其他人(真形象);场景重建后放回去
+  const roomPeersRef = useRef<RoomPeer[]>([]);
+  const peerLayerRef = useRef<PeerLayer | null>(null);
   const quality = opts.quality ?? 'high';
   const orbsRef = useRef<Orb[]>([]);
   const respawnRef = useRef<number[]>([]);
@@ -147,9 +160,14 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
     respawnRef.current = [];
     w.setOrbs(orbsRef.current);
     w.setCharacters(charactersRef.current);
+    const peers = d.kind === 'room' ? createPeerLayer(THREE_NS, w.group, { resolveUrl: avatarUrl }) : null;
+    peerLayerRef.current = peers;
+    peers?.set(roomPeersRef.current);
     if (auraRef.current) w.setAura(auraRef.current);
     return () => {
       envCancelled = true;
+      peers?.dispose();
+      if (peerLayerRef.current === peers) peerLayerRef.current = null;
       if (roomEnv) {
         if (scene.environment === roomEnv) scene.environment = prevEnv;
         (scene as THREE.Scene & { environmentIntensity?: number }).environmentIntensity = prevEnvIntensity;
@@ -305,6 +323,7 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
     }
 
     w.tick(t, dt, camera);
+    peerLayerRef.current?.tick(t, dt, camera);
     const env = envRef.current;
     if (env) {
       env.tick(t, dt, camera, pos);
@@ -329,7 +348,7 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   const snapshot = useCallback((): WorldSnapshot => ({
     orbs: orbsRef.current,
     zone: zoneRef.current,
-    peers: worldRef.current?.peerPositions() ?? [],
+    peers: [...(worldRef.current?.peerPositions() ?? []), ...(peerLayerRef.current?.positions() ?? [])],
     characters: worldRef.current?.characterPositions() ?? [],
   }), []);
 
@@ -352,6 +371,8 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   const placementGroup = useCallback((id: string) => worldRef.current?.objects.groupOf(id) ?? null, []);
   const setRoomAlign = useCallback((a: RoomShellAlign) => { worldRef.current?.room?.setAlign(a); }, []);
   const autoFitRoom = useCallback(() => worldRef.current?.room?.autoFit() ?? null, []);
+  const setRoomPeers = useCallback((list: RoomPeer[]) => { roomPeersRef.current = list; peerLayerRef.current?.set(list); }, []);
+  const peerSay = useCallback((id: string, text: string) => { peerLayerRef.current?.say(id, text); }, []);
 
-  return { tick, render, floatText, showMarker, snapshot, setPeers, setAura, characterSay, setPlacements, upsertPlacement, removePlacement, selectPlacement, placementGroup, setRoomAlign, autoFitRoom, zones: WORLD_ZONES };
+  return { tick, render, floatText, showMarker, snapshot, setPeers, setAura, characterSay, setPlacements, upsertPlacement, removePlacement, selectPlacement, placementGroup, setRoomAlign, autoFitRoom, setRoomPeers, peerSay, zones: WORLD_ZONES };
 }

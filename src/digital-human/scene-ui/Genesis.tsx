@@ -25,6 +25,7 @@ import { RoomEditor } from './RoomEditor';
 import { RoomSettings } from './RoomSettings';
 import { useRoom } from './useRoom';
 import { WorldUpload } from './WorldUpload';
+import { useRealtimeEvent, type RealtimeEvent } from '@/lib/realtime';
 
 /** 底模地址 → 能加载的 URL:站内 /avatars/… 原样;qq-media/world 下的补前缀 */
 export function avatarUrlOf(base: string | undefined | null): string | null {
@@ -127,11 +128,21 @@ type ObjectsApi = {
   restoreItem: (p: WorldPlacement) => Promise<WorldPlacement | null>;
 };
 
-export function GenesisPanels({ g, def, handle, objects, siteBases, toast, narrow }: {
+export function GenesisPanels({ g, def, handle, objects, siteBases, toast, narrow, onVisitor }: {
   g: Genesis; def: WorldDef; handle: VrmStageHandle | null; objects: ObjectsApi; siteBases: AvatarBase[];
   toast: (icon: string, text: string) => void; narrow?: boolean;
+  /** 有人来我房间串门(推送):不在自己房间时给个「回去看看」 */
+  onVisitor?: (nickname: string) => void;
 }) {
   const mine = def.kind === 'room' && !!def.room?.mine;
+  // 有人进了我的房间(服务端推 world.visit,不管我在哪个页面)
+  useRealtimeEvent(React.useCallback((ev: RealtimeEvent) => {
+    if (ev.type !== 'world.visit') return;
+    const v = (ev.data as { visitor?: { nickname?: string } } | undefined)?.visitor;
+    const name = v?.nickname || '有人';
+    if (mine) return; // 在自己房间里:房里的「XX 来了」已经提示过
+    if (onVisitor) onVisitor(name); else toast('🏠', `${name}来你的房间串门了`);
+  }, [mine, onVisitor, toast]));
   // 离开自己的房间:编辑器和设置收起
   React.useEffect(() => { if (!mine) { g.setEditing(false); g.setSettingsOpen(false); g.setSelected(null); } }, [mine]); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => { if (!g.editing) g.setSelected(null); }, [g.editing]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -177,6 +188,7 @@ export function GenesisPanels({ g, def, handle, objects, siteBases, toast, narro
 
 /** 「去哪儿走走」里的房间:我的 + 开放串门的 */
 export function RoomsSection({ g, current, onPick }: { g: Genesis; current: string; onPick: (key: string) => void }) {
+  const liveBadge = (n?: number) => (n && n > 0 ? <Box component="span" sx={{ ml: 0.75, fontSize: 10.5, color: '#7dffb0', border: '1px solid rgba(125,255,176,0.5)', borderRadius: 1, px: 0.5 }}>{n} 人在</Box> : null);
   const [busy, setBusy] = React.useState<string | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
   React.useEffect(() => { void g.room.loadPublic(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -191,7 +203,7 @@ export function RoomsSection({ g, current, onPick }: { g: Genesis; current: stri
       <Typography sx={{ fontSize: 14, fontWeight: 800, color: '#fff', mb: 1 }}>🏠 房间</Typography>
       {g.room.mine && (
         <ButtonBase onClick={() => mineKey && onPick(mineKey)} sx={{ display: 'block', width: '100%', textAlign: 'left', p: 1.25, mb: 1, borderRadius: 3, bgcolor: current === mineKey ? 'rgba(37,244,238,0.16)' : 'rgba(255,255,255,0.05)', border: `1px solid ${current === mineKey ? '#25F4EE' : 'transparent'}` }}>
-          <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>{g.room.mine.name} <Box component="span" sx={{ fontSize: 11, color: '#9be8ff' }}>我的</Box></Typography>
+          <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>{g.room.mine.name} <Box component="span" sx={{ fontSize: 11, color: '#9be8ff' }}>我的</Box>{liveBadge(g.room.mine.online)}</Typography>
           <Typography sx={{ fontSize: 11.5, color: 'rgba(255,255,255,0.55)' }}>{g.room.mine.items} 件摆设 · {g.room.mine.visibility === 'public' ? `开放串门,来过 ${g.room.mine.visits} 次` : '只有自己能进'}</Typography>
         </ButtonBase>
       )}
@@ -203,7 +215,7 @@ export function RoomsSection({ g, current, onPick }: { g: Genesis; current: stri
           const key = `room:${r.ownerId}`;
           return (
             <ButtonBase key={r.ownerId} disabled={!!busy} onClick={() => void visit(r.ownerId)} sx={{ display: 'block', textAlign: 'left', p: 1.25, borderRadius: 3, bgcolor: current === key ? 'rgba(37,244,238,0.16)' : 'rgba(255,255,255,0.05)', position: 'relative' }}>
-              <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</Typography>
+              <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}{liveBadge(r.online)}</Typography>
               <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>{r.owner?.nickname} · {r.items} 件 · 来过 {r.visits} 次</Typography>
               {r.intro && <Typography sx={{ fontSize: 11.5, color: 'rgba(255,255,255,0.65)', mt: 0.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.intro}</Typography>}
               {busy === r.ownerId && <CircularProgress size={14} sx={{ position: 'absolute', top: 10, right: 10 }} />}

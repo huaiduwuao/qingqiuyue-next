@@ -46,6 +46,7 @@ import { createAudioHandle, type AudioHandle } from './vrm/audio';
 import { useVrmWorld, type WorldEvent } from './vrm/world/useVrmWorld';
 import type { WorldPeer } from './vrm/world/buildWorld';
 import type { PlacedObject } from './vrm/world/worldObjects';
+import type { RoomPeer } from './vrm/world/peerAvatars';
 import type { TimeMode } from './vrm/world/env/timeOfDay';
 import { DEFAULT_WORLD, clampToWorld, type Orb, type RoomShellAlign, type WorldCharacter, type WorldDef, type ZoneId } from './vrm/world/worldLayout';
 import { applyAvatarParams, inspectAvatar, type AvatarInfo } from './vrm/avatarCustomize';
@@ -138,6 +139,10 @@ export interface VrmStageHandle {
   applyAvatarParams: (p: AvatarParams | null) => void;
   /** 创世 · 捏人:当前模型能调什么(脸型形变、眼骨、颜色分类) */
   getAvatarInfo: () => AvatarInfo | null;
+  /** 创世二期 · 房间里的其他人(真形象,插值走动) */
+  setRoomPeers: (list: RoomPeer[]) => void;
+  /** 创世二期 · 某人头顶冒一句话 */
+  peerSay: (id: string, text: string) => void;
 }
 
 export interface VrmStageProps {
@@ -1141,6 +1146,8 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       autoFitRoom: () => worldApiRef.current.autoFitRoom(),
       applyAvatarParams: (p) => { avatarParamsRef.current = p; applyAvatarNow(); },
       getAvatarInfo: () => (vrmDataRef.current ? inspectAvatar(vrmDataRef.current.vrm) : null),
+      setRoomPeers: (list) => worldApiRef.current.setRoomPeers(list),
+      peerSay: (id, text) => worldApiRef.current.peerSay(id, text),
       enterScene: () => {
         // 瞬移不会带动镜头(镜头只跟走路的位移),所以手动把镜头也挪回舞台前
         moveAnimRef.current.active = false;

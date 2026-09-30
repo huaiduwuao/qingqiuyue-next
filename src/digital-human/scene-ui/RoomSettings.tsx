@@ -8,7 +8,7 @@
 import React from 'react';
 import { Box, Button, ButtonBase, CircularProgress, IconButton, MenuItem, Slider, Switch, TextField, Typography } from '@mui/material';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
-import { browseAssets, type RoomPatch, type RoomTemplate, type ShellAlign, type WorldAssetFull, type WorldRoom } from '@/apis/world';
+import { browseAssets, listMyVisitors, type RoomVisitor, type RoomPatch, type RoomTemplate, type ShellAlign, type WorldAssetFull, type WorldRoom } from '@/apis/world';
 import type { VrmStageHandle } from '../VrmStage';
 import { ROOM_TEMPLATE_LABELS } from '../vrm/world/worldLayout';
 import type { SplatStatus } from '../vrm/world/roomShell';
@@ -51,6 +51,8 @@ export function RoomSettings({ room, handle, save, splat, onClose, toast, narrow
     try { setSplats((await browseAssets({ kind: 'splat', size: 60 })).list); } catch { setSplats([]); }
   }, []);
   React.useEffect(() => { void loadSplats(); }, [loadSplats]);
+  const [visitors, setVisitors] = React.useState<RoomVisitor[] | null>(null);
+  React.useEffect(() => { listMyVisitors().then(setVisitors).catch(() => setVisitors([])); }, []);
 
   const run = async (p: RoomPatch, ok?: string) => {
     setBusy(true);
@@ -185,6 +187,19 @@ export function RoomSettings({ room, handle, save, splat, onClose, toast, narrow
               </Box>
             )}
           </>
+        )}
+
+        {label('最近来过')}
+        {visitors === null && <CircularProgress size={14} />}
+        {visitors?.length === 0 && <Typography sx={{ fontSize: 11.5, color: 'rgba(255,255,255,0.45)' }}>{room.visibility === 'public' ? '还没人来过。把串门链接发给朋友吧。' : '房间没开放,别人进不来。'}</Typography>}
+        {!!visitors?.length && (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+            {visitors.slice(0, 20).map((v) => (
+              <Box key={v.userId} title={`来过 ${v.times} 次`} sx={{ fontSize: 11.5, px: 0.75, py: 0.2, borderRadius: 999, bgcolor: 'rgba(255,255,255,0.08)' }}>
+                {v.user?.nickname || '访客'}{v.times > 1 ? ` ×${v.times}` : ''}
+              </Box>
+            ))}
+          </Box>
         )}
 
         {label('时辰与天气')}

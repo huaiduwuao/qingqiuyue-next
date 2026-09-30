@@ -44,6 +44,8 @@ import { WORLD_ASSET_BASE } from './vrm/world/realKit';
 import { mediaUrl } from '@/lib/media';
 import { useWorldObjects, type WorldToolEvent } from './scene-ui/useWorldObjects';
 import { GenesisHud, GenesisPanels, RoomPlate, RoomsSection, useGenesis } from './scene-ui/Genesis';
+import { useRoomSocket } from './scene-ui/useRoomSocket';
+import { RoomChat } from './scene-ui/RoomChat';
 import type { PlazaState } from './scene-state';
 import { useRouter } from 'next/navigation';
 import { alpha } from '@mui/material/styles';
@@ -716,7 +718,8 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
   const [tasksKey, setTasksKey] = React.useState(0);
   const online = usePlazaOnline({
     handle: stageHandle,
-    enabled: worldActive,
+    // 房间里的人走创世的多人同步(useRoomSocket),不再发广场心跳,免得同一个人画两遍
+    enabled: worldActive && scenes.def.kind !== 'room',
     toast: (icon, t) => game.toast(icon, t),
     sceneKey: scenes.def.key,
     onWished: () => { game.record({ kind: 'interact', zone: 'wish' }); setTasksKey((k) => k + 1); },
@@ -734,6 +737,16 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
     onTravel: (name) => { setTravel(name); window.setTimeout(() => setTravel(null), 2600); },
   });
   worldToolRef.current = worldObjects.handleTool;
+  // 创世二期:房间里的多人同步(同伴的真形象、位置、说话、别人改的摆放)
+  const roomSock = useRoomSocket({
+    handle: stageHandle,
+    def: scenes.def,
+    enabled: worldActive,
+    applyEdit: worldObjects.applyRemote,
+    applyRoom: genesis.room.applyRemote,
+    onKick: (msg) => { game.toast('🚪', msg); goHome(); },
+    toast: (icon, t) => game.toast(icon, t),
+  });
   // 发给模型的场景状态里带上广场信息(她在哪个地标、有几个人在逛),模型能据此接话
   plazaStateRef.current = worldActive ? {
     placed: worldObjects.placedSummary,
@@ -1259,6 +1272,7 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
           />
           {worldHelp.open && <WorldHelp onClose={worldHelp.close} touch={narrow} />}
           <RoomPlate def={scenes.def} onGoHome={goHome} narrow={narrow} />
+          <RoomChat rs={roomSock} narrow={narrow} />
           <GenesisPanels
             g={genesis}
             def={scenes.def}

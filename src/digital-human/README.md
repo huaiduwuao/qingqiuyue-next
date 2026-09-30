@@ -181,6 +181,11 @@ MUI 的列表、输入框、下拉框全都能正常点击和输入 —— 不�
 | `vrm/avatarCustomize.ts` / `scene-ui/AvatarStudio.tsx` | 捏人:原始骨骼缩放(沿骨头拉长、子骨反向缩回)、眼骨、`qq_face_<滑杆>_incr/_decr` 形变、按材质名归类调色;参数存 world_avatar |
 | `scene-ui/Genesis.tsx` | 页面层:`useGenesis`、HUD 按钮、串门门牌、面板、「去哪儿走走」里的房间列表 |
 
+**二期:房间里的多人同步。** `lib/world/roomSocket.ts` 连 `/ws/notify?ch=world`(core-api 按 ch 转给 worldapp 的房间集线器,
+不用新开网关路由),`scene-ui/useRoomSocket.ts` 在房间场景里自动 join、10Hz 报位置(变了才发)、把房里的人交给
+`vrm/world/peerAvatars.ts` 画成他们捏的真形象;`scene-ui/RoomChat.tsx` 是房间里的聊天。房间里不发广场心跳。
+本地 next dev 连不上 WebSocket,NEXT_PUBLIC_WS_BASE 指向网关;测试台里有 JS 版集线器,`?as=<uid>` 开两个标签页就是两个人。
+
 几个坑:
 - 捏脸形变**不能绑 VRM 表情**:表情管理器每帧把绑定的形变清零。Blender 那边 `setup_vrm` 跳过了 `qq_face_*`。
 - 写实底模是 PBR 材质,没有 `scene.environment` 时脸是黑的(风格化场景只有几盏灯)。房间里给了环境光照;广场里用写实底模会偏暗。
