@@ -186,6 +186,12 @@ MUI 的列表、输入框、下拉框全都能正常点击和输入 —— 不�
 `vrm/world/peerAvatars.ts` 画成他们捏的真形象;`scene-ui/RoomChat.tsx` 是房间里的聊天。房间里不发广场心跳。
 本地 next dev 连不上 WebSocket,NEXT_PUBLIC_WS_BASE 指向网关;测试台里有 JS 版集线器,`?as=<uid>` 开两个标签页就是两个人。
 
+**三期:AI 进入房间。** 在房间里时场景状态带 `plaza.room`(摆设 id / 坐标、房里的人),数字人能用 world_place 的
+`at:` / `near:`、world_edit 的 `id` 精确改,用 room_design 出整份布置方案(`useWorldObjects` 先画成半透明的 ghost 件,
+`scene-ui/RoomAI.tsx` 的 DesignBar 确认才摆)。房间里的 AI 成员(管家、做客的 agent)由 core-api 驱动,前端当普通同伴画
+(`ai: true` → 紫色 🤖 名牌、wave / bow 动作);管家开关和请客在 RoomSettings 里的 RoomAISection。
+位置帧里 `m` / `a` 为空时服务端不发,合并时要以每一帧为准,不然会一直「在走」「招手」。
+
 几个坑:
 - 捏脸形变**不能绑 VRM 表情**:表情管理器每帧把绑定的形变清零。Blender 那边 `setup_vrm` 跳过了 `qq_face_*`。
 - 写实底模是 PBR 材质,没有 `scene.environment` 时脸是黑的(风格化场景只有几盏灯)。房间里给了环境光照;广场里用写实底模会偏暗。

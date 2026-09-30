@@ -37,6 +37,9 @@ describe('useRoomSocket', () => {
     expect(t.hook.result.current.peers).toHaveLength(2);
     t.emit({ t: 'peers', list: [{ id: '7', x: 3, y: 0, z: -1, yaw: 1, m: true }] });
     expect(t.hook.result.current.peers.find((p) => p.id === '7')).toMatchObject({ x: 3, z: -1, m: true, nickname: '阿青' });
+    // 停下:帧里没有 m / a,不能沿用上一帧
+    t.emit({ t: 'peers', list: [{ id: '7', x: 3.2, y: 0, z: -1, yaw: 1 }] });
+    expect(t.hook.result.current.peers.find((p) => p.id === '7')).toMatchObject({ m: false, a: undefined });
     t.emit({ t: 'leave', id: '8' });
     expect(t.hook.result.current.peers.map((p) => p.id)).toEqual(['7']);
     const last = (t.handle.setRoomPeers as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];

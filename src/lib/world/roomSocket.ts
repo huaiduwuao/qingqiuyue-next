@@ -34,6 +34,8 @@ export interface PeerInfo extends PeerPose {
   nickname: string;
   avatar?: string;
   owner?: boolean;
+  /** AI 成员(管家 / 做客的 agent) */
+  ai?: boolean;
   look: PeerLook;
 }
 
@@ -42,7 +44,7 @@ export type RoomFrame =
   | { t: 'join'; peer: PeerInfo }
   | { t: 'leave'; id: string }
   | { t: 'peers'; list: (PeerPose & { id: string })[] }
-  | { t: 'say'; id: string; nickname: string; text: string; ts: number }
+  | { t: 'say'; id: string; nickname: string; text: string; ts: number; ai?: boolean }
   | { t: 'edit'; op: 'upsert' | 'remove'; version: number; placement?: unknown; id?: string }
   | { t: 'avatar'; id: string; look: PeerLook }
   | { t: 'room'; room: unknown }

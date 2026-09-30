@@ -22,7 +22,11 @@ import type { VrmStageHandle } from '../VrmStage';
 import type { PlacedObject } from '../vrm/world/worldObjects';
 import type { WorldDef } from '../vrm/world/worldLayout';
 
-export type WorldToolEvent = { name: 'world_place' | 'world_edit' | 'scene_go'; args: Record<string, any>; result?: any };
+export type WorldToolEvent = { name: 'world_place' | 'world_edit' | 'scene_go' | 'room_design'; args: Record<string, any>; result?: any };
+
+/** 布置助手的一件(服务端 room_design 的结果) */
+export interface DesignItem { item: string; x: number; z: number; rot_deg?: number; scale?: number; why?: string; asset: WorldAsset }
+export interface DesignPlan { theme: string; clearFirst: boolean; items: DesignItem[]; missing: string[] }
 
 interface Options {
   handle: VrmStageHandle | null;
@@ -94,6 +98,24 @@ export function useWorldObjects(opts: Options) {
     const spread = (i - (n - 1) / 2) * gap; // 多件排一排,横着展开
     let cx: number, cz: number;
     const w = (where || 'front').trim();
+    // 房间里的精确位置:at:<x>,<z>(房间坐标)/ near:<摆放 id>(挨着那件,朝向和它一样)
+    if (w.startsWith('at:')) {
+      const [ax, az] = w.slice(3).split(',').map((v) => Number(v));
+      if (Number.isFinite(ax) && Number.isFinite(az)) {
+        const face = Math.atan2(x - ax, z - az); // 正面朝着用户
+        return [ax + Math.cos(face) * spread, az - Math.sin(face) * spread, face];
+      }
+    }
+    if (w.startsWith('near:')) {
+      const other = itemsRef.current.find((p) => p.id === w.slice(5));
+      if (other) {
+        const ofp = (other.asset?.footprint || 0.6) * (other.scale || 1);
+        const d = ofp / 2 + footprint / 2 + 0.15;
+        const rx2 = Math.cos(other.rotY), rz2 = -Math.sin(other.rotY); // 那件东西的右手边
+        const k = d + Math.abs(spread);
+        return [other.x + rx2 * k * (i % 2 ? -1 : 1), other.z + rz2 * k * (i % 2 ? -1 : 1), other.rotY];
+      }
+    }
     if (w.startsWith('zone:')) {
       const zone = def.zones.find((zn) => zn.id === w.slice(5));
       if (zone) {
@@ -122,8 +144,12 @@ export function useWorldObjects(opts: Options) {
     return [cx, cz, yaw + Math.PI];
   }, [handle, def.zones]);
 
-  const findTarget = React.useCallback((target?: string): WorldPlacement | null => {
+  const findTarget = React.useCallback((target?: string, id?: string): WorldPlacement | null => {
     const list = itemsRef.current;
+    if (id) {
+      const byId = list.find((p) => p.id === String(id));
+      if (byId) return byId;
+    }
     const t = (target || '').trim();
     if (t) {
       const hit = [...list].reverse().find((p) => (p.label && (p.label.includes(t) || t.includes(p.label))) || (p.asset?.nameZh && (t.includes(p.asset.nameZh) || p.asset.nameZh.includes(t))));
@@ -168,7 +194,7 @@ export function useWorldObjects(opts: Options) {
       setItems((cur) => cur.filter((p) => p.public));
       return;
     }
-    const p = findTarget(args.target);
+    const p = findTarget(args.target, args.id);
     if (!p) { optsRef.current.toast('🤔', '这里还没有摆过东西'); return; }
     try {
       if (action === 'remove') {
@@ -183,7 +209,9 @@ export function useWorldObjects(opts: Options) {
         if (!spot) return;
         [patch.x, patch.z, patch.rotY] = spot;
       } else if (action === 'rotate') {
-        patch.rotY = p.rotY + ((Number(args.amount) || 90) * Math.PI) / 180;
+        patch.rotY = Number.isFinite(Number(args.to_deg)) && args.to_deg !== undefined && args.to_deg !== null
+          ? (Number(args.to_deg) * Math.PI) / 180
+          : p.rotY + ((Number(args.amount) || 90) * Math.PI) / 180;
       } else if (action === 'scale') {
         patch.scale = Math.max(0.1, Math.min(10, (p.scale || 1) * (Number(args.amount) || 1.5)));
       } else return;
@@ -212,11 +240,74 @@ export function useWorldObjects(opts: Options) {
     window.setTimeout(() => optsRef.current.switchTo(hit.key), 600);
   }, []);
 
+  // ── 布置助手:先半透明预览(ghost:<i>),用户确认才真的摆
+  const [design, setDesign] = React.useState<DesignPlan | null>(null);
+  const designRef = React.useRef<DesignPlan | null>(null);
+  designRef.current = design;
+  const clearGhosts = React.useCallback((plan: DesignPlan | null) => {
+    const h = optsRef.current.handle;
+    if (!h || !plan) return;
+    plan.items.forEach((_, i) => h.removePlacement(`ghost:${i}`));
+  }, []);
+  const previewDesign = React.useCallback((result: any) => {
+    const h = optsRef.current.handle;
+    if (!h || !result?.ok || !Array.isArray(result.items)) return;
+    const def = optsRef.current.def;
+    if (def.kind !== 'room' || !def.room?.mine) {
+      optsRef.current.toast('🏠', '布置方案只能用在自己的房间里');
+      return;
+    }
+    clearGhosts(designRef.current);
+    const plan: DesignPlan = { theme: String(result.theme || ''), clearFirst: !!result.clearFirst, items: result.items as DesignItem[], missing: Array.isArray(result.missing) ? result.missing : [] };
+    plan.items.forEach((it, i) => {
+      h.upsertPlacement({
+        id: `ghost:${i}`, assetKey: it.asset.key, label: it.item, x: it.x, y: 0, z: it.z, rotY: ((it.rot_deg ?? 0) * Math.PI) / 180, scale: it.scale || 1,
+        status: it.asset.status, nameZh: it.asset.nameZh, isSet: it.asset.isSet, height: it.asset.height,
+        file: it.asset.file || undefined, normalize: it.asset.source === 'upload', ghost: true,
+      });
+    });
+    setDesign(plan);
+  }, [clearGhosts]);
+  const cancelDesign = React.useCallback(() => { clearGhosts(designRef.current); setDesign(null); }, [clearGhosts]);
+  const [applying, setApplying] = React.useState(false);
+  const applyDesign = React.useCallback(async () => {
+    const plan = designRef.current;
+    const h = optsRef.current.handle;
+    if (!plan || !h) return;
+    setApplying(true);
+    try {
+      if (plan.clearFirst) {
+        const mine = itemsRef.current.filter((p) => !p.public);
+        await Promise.allSettled(mine.map((p) => deletePlacement(p.id)));
+        mine.forEach((p) => h.removePlacement(p.id));
+        setItems((cur) => cur.filter((p) => p.public));
+      }
+      let ok = 0;
+      for (const it of plan.items) {
+        try {
+          const saved = await createPlacement({ scene: optsRef.current.def.key, asset: it.asset.key, label: it.item.slice(0, 32), x: it.x, z: it.z, rotY: ((it.rot_deg ?? 0) * Math.PI) / 180, scale: it.scale || 1 });
+          const withAsset: WorldPlacement = { ...saved, public: false, asset: saved.asset ?? it.asset };
+          setItems((cur) => (cur.some((x) => x.id === withAsset.id) ? cur : [...cur, withAsset]));
+          h.upsertPlacement(toPlaced(withAsset));
+          ok++;
+        } catch { /* 一件失败不影响别的 */ }
+      }
+      clearGhosts(plan);
+      setDesign(null);
+      optsRef.current.toast('🏠', ok === plan.items.length ? `按「${plan.theme}」布置好了,共 ${ok} 件` : `摆好了 ${ok} / ${plan.items.length} 件`);
+    } finally {
+      setApplying(false);
+    }
+  }, [clearGhosts]);
+  // 离开这间房:预览作废
+  React.useEffect(() => { cancelDesign(); }, [def.key]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleTool = React.useCallback((e: WorldToolEvent) => {
+    if (e.name === 'room_design') { previewDesign(e.result); return; }
     if (e.name === 'world_place') void place(e.args, e.result);
     else if (e.name === 'world_edit') void edit(e.args);
     else if (e.name === 'scene_go') go(e.args);
-  }, [place, edit, go]);
+  }, [place, edit, go, previewDesign]);
 
   // ── 布置编辑器用 ──
 
@@ -311,5 +402,5 @@ export function useWorldObjects(opts: Options) {
   /** 给模型的场景状态:摆了什么(id:叫法) */
   const placedSummary = React.useMemo(() => items.slice(-30).map((p) => `${p.id}:${p.label || p.asset?.nameZh || p.assetKey}${p.public ? '(公共)' : ''}`), [items]);
 
-  return { handleTool, placedSummary, count: items.length, items, placeAsset, patchItem, removeItem, restoreItem, applyRemote };
+  return { handleTool, placedSummary, count: items.length, items, placeAsset, patchItem, removeItem, restoreItem, applyRemote, design, applyDesign, cancelDesign, applying };
 }

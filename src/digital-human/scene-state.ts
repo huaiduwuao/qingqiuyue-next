@@ -46,6 +46,23 @@ export interface PlazaState {
   placed?: string[];
   /** 能去的场景(key:名字),scene_go 用 */
   scenes?: string[];
+  /** 创世:在某间房里时,房间的结构化状态(AI 据此看懂房间) */
+  room?: RoomState;
+}
+
+export interface RoomState {
+  name: string;
+  owner: string;
+  /** 是不是用户自己的房间(只有自己的能摆 / 改) */
+  mine: boolean;
+  template: string;
+  /** 宽 × 深(米),原点在房间中间,+z 朝门口 */
+  size: [number, number];
+  me: { x: number; z: number };
+  /** 摆着的东西:id、叫法、坐标、朝向(度,0 = 朝门口)、大小 */
+  objects: { id: string; label: string; x: number; z: number; deg: number; scale?: number }[];
+  /** 此刻房里的其他人 */
+  people: { name: string; x: number; z: number; owner?: boolean; ai?: boolean }[];
 }
 
 export interface SceneState {

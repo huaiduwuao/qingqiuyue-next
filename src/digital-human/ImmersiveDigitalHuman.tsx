@@ -39,7 +39,7 @@ import { usePlazaScenes } from './scene-ui/usePlazaScenes';
 import { CharacterPanel, ScenePicker } from './scene-ui/PlazaPeople';
 import { SCENE_PRESETS } from './vrm/sceneBuilders';
 import { TIME_LABELS, type TimeMode } from './vrm/world/env/timeOfDay';
-import { worldEnv } from './vrm/world/worldLayout';
+import { roomBounds, worldEnv } from './vrm/world/worldLayout';
 import { WORLD_ASSET_BASE } from './vrm/world/realKit';
 import { mediaUrl } from '@/lib/media';
 import { useWorldObjects, type WorldToolEvent } from './scene-ui/useWorldObjects';
@@ -747,6 +747,22 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
     onKick: (msg) => { game.toast('🚪', msg); goHome(); },
     toast: (icon, t) => game.toast(icon, t),
   });
+  function roomStateOf() {
+    const d = scenes.def;
+    const b = roomBounds(d) ?? { hx: 5, hz: 4 };
+    const snap = stageHandleRef.current?.getWorldSnapshot();
+    const r1 = (v: number) => Math.round(v * 10) / 10;
+    return {
+      name: d.name,
+      owner: d.room?.ownerName ?? '',
+      mine: !!d.room?.mine,
+      template: d.room?.template ?? 'study',
+      size: [b.hx * 2, b.hz * 2] as [number, number],
+      me: { x: r1(snap?.x ?? 0), z: r1(snap?.z ?? 0) },
+      objects: worldObjects.items.slice(0, 40).map((p) => ({ id: p.id, label: p.label || p.asset?.nameZh || p.assetKey, x: r1(p.x), z: r1(p.z), deg: Math.round((p.rotY * 180) / Math.PI) % 360, ...(p.scale && p.scale !== 1 ? { scale: r1(p.scale) } : {}) })),
+      people: roomSock.peers.slice(0, 20).map((p) => ({ name: p.nickname, x: r1(p.x), z: r1(p.z), ...(p.owner ? { owner: true } : {}), ...(p.ai ? { ai: true } : {}) })),
+    };
+  }
   // 发给模型的场景状态里带上广场信息(她在哪个地标、有几个人在逛),模型能据此接话
   plazaStateRef.current = worldActive ? {
     placed: worldObjects.placedSummary,
@@ -759,6 +775,8 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
     online: online.online,
     level: game.level.level,
     orbsTotal: game.state.orbsTotal,
+    // 创世三期:在房间里时,房间的结构化状态(数字人据此看懂房间,world_place / world_edit / room_design 用坐标和 id)
+    ...(scenes.def.kind === 'room' && scenes.def.room ? { room: roomStateOf() } : {}),
   } : null;
   // 地标内容面板:走进地标自动展开,可以手动收起(离开再进来会重新展开)
   const [panelZone, setPanelZone] = React.useState<string | null>(null);

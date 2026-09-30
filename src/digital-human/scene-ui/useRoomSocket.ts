@@ -21,6 +21,7 @@ export interface ChatLine {
   text: string;
   ts: number;
   mine: boolean;
+  ai?: boolean;
 }
 
 export interface UseRoomSocketOptions {
@@ -90,7 +91,8 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
         for (const u of f.list) {
           const p = peersRef.current.get(u.id);
           if (!p) continue;
-          peersRef.current.set(u.id, { ...p, ...u });
+          // m / a 为空时服务端不发(omitempty):以这一帧为准,别留着上一帧的「在走」「招手」
+          peersRef.current.set(u.id, { ...p, ...u, m: !!u.m, a: u.a });
           changed = true;
         }
         if (changed) pushPeers();
@@ -105,7 +107,7 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
       }
       case 'say': {
         const mine = f.id === youRef.current;
-        setChat((c) => [...c.slice(-49), { id: f.id, nickname: f.nickname, text: f.text, ts: f.ts || Date.now(), mine }]);
+        setChat((c) => [...c.slice(-49), { id: f.id, nickname: f.nickname, text: f.text, ts: f.ts || Date.now(), mine, ai: !!f.ai }]);
         if (mine) o.handle?.floatText(f.text.length > 18 ? `${f.text.slice(0, 18)}…` : f.text, '#ffffff');
         else o.handle?.peerSay(f.id, f.text);
         return;
@@ -181,7 +183,9 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
     return sockRef.current?.say(t.slice(0, 120)) ?? false;
   }, []);
 
-  return { status, peers, chat, say, online: owner ? peers.length + 1 : 0, inRoom: !!owner };
+  // online 只算真人(含自己);AI 另外数
+  const aiCount = peers.filter((p) => p.ai).length;
+  return { status, peers, chat, say, online: owner ? peers.length - aiCount + 1 : 0, aiCount, inRoom: !!owner };
 }
 
 export type RoomSocketState = ReturnType<typeof useRoomSocket>;

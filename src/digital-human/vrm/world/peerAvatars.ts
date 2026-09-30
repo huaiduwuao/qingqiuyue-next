@@ -18,6 +18,7 @@ export interface RoomPeer {
   id: string;
   nickname: string;
   owner?: boolean;
+  ai?: boolean;
   look: { base: string; params: Record<string, unknown>; version: number };
   x: number;
   y: number;
@@ -148,7 +149,7 @@ export function createPeerLayer(
 
   function makeLabel(e: Entry) {
     if (e.label) { e.g.remove(e.label); disposeSprite(e.label); }
-    e.label = textSprite(THREE_NS, `${e.p.owner ? '🏠 ' : ''}${e.p.nickname || '访客'}`, { bg: 'rgba(8,10,20,0.66)', border: e.p.owner ? '#25F4EE' : undefined, size: 34 });
+    e.label = textSprite(THREE_NS, `${e.p.owner ? '🏠 ' : e.p.ai ? '🤖 ' : ''}${e.p.nickname || '访客'}`, { bg: e.p.ai ? 'rgba(40,20,70,0.72)' : 'rgba(8,10,20,0.66)', border: e.p.owner ? '#25F4EE' : e.p.ai ? '#c7a6ff' : undefined, size: 34 });
     e.label.position.y = e.height + 0.18;
     e.g.add(e.label);
   }
@@ -170,7 +171,7 @@ export function createPeerLayer(
       entries.set(p.id, e);
       makeLabel(e);
     } else {
-      const nameChanged = e.p.nickname !== p.nickname || !!e.p.owner !== !!p.owner;
+      const nameChanged = e.p.nickname !== p.nickname || !!e.p.owner !== !!p.owner || !!e.p.ai !== !!p.ai;
       e.p = p;
       e.removing = false;
       if (nameChanged) makeLabel(e);
@@ -254,6 +255,16 @@ export function createPeerLayer(
     if (lLA) lLA.rotation.y = -0.15 - amt * 0.25;
     if (rLA) rLA.rotation.y = 0.15 + amt * 0.25;
     if (spine) spine.rotation.x = (running ? 0.12 : 0.03 * amt) + Math.sin(t * 1.6 + e.phase) * 0.015 * (1 - amt);
+    // 招手:右臂抬起左右摆;作揖:上身前倾、双臂收到胸前
+    if (e.p.a === 'wave' && rUA && rLA) {
+      rUA.rotation.z = -0.35;
+      rUA.rotation.x = -0.2;
+      rLA.rotation.y = 0.9 + Math.sin(t * 9) * 0.35;
+    } else if (e.p.a === 'bow' && spine && lUA && rUA) {
+      spine.rotation.x = 0.45;
+      lUA.rotation.z = -0.9; lUA.rotation.x = -0.6;
+      rUA.rotation.z = 0.9; rUA.rotation.x = -0.6;
+    }
     vrm.scene.position.y = e.footOffset + Math.abs(Math.sin(e.phase)) * 0.035 * amt;
     vrm.update(dt);
   }

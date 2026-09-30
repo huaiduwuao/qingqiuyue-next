@@ -114,6 +114,33 @@ export interface WorldRoom {
   updatedAt?: string;
   /** 此刻房里有几个人 */
   online?: number;
+  /** 三期:AI 管家开着 */
+  butler?: boolean;
+}
+
+// ── 三期:AI 进入房间 ──
+
+export interface AIAgentOption { agentId: string; name: string; description: string; avatarUrl?: string }
+export interface AIMember { id: string; key: string; name: string; butler?: boolean; expiresAt?: string }
+
+/** 能请来做客的 AI(后台上架的数字员工) */
+export async function listAIAgents(): Promise<AIAgentOption[]> {
+  const r = await accountClient.get<{ list: AIAgentOption[] }>('/world/ai/agents');
+  return Array.isArray(r?.list) ? r.list : [];
+}
+
+/** 我房间里此刻的 AI + 管家开没开 */
+export async function getMyRoomAI(): Promise<{ butler: boolean; members: AIMember[] }> {
+  const r = await accountClient.get<{ butler: boolean; members: AIMember[] }>('/world/rooms/mine/ai');
+  return { butler: !!r?.butler, members: Array.isArray(r?.members) ? r.members : [] };
+}
+
+export async function inviteAI(agentId: string): Promise<AIMember> {
+  return accountClient.post<AIMember>('/world/rooms/mine/ai', { agentId });
+}
+
+export async function dismissAI(id: string): Promise<void> {
+  await accountClient.delete(`/world/rooms/mine/ai/${encodeURIComponent(id)}`);
 }
 
 export interface RoomVisitor { userId: string; times: number; lastAt: string; user: { id: string; nickname: string; avatar?: string } }
@@ -135,7 +162,7 @@ export async function getRoom(ownerId: string): Promise<WorldRoom> {
   return accountClient.get<WorldRoom>(`/world/rooms/${encodeURIComponent(ownerId)}`);
 }
 
-export type RoomPatch = Partial<Pick<WorldRoom, 'name' | 'intro' | 'template' | 'splatKey' | 'shell' | 'palette' | 'visibility'>>;
+export type RoomPatch = Partial<Pick<WorldRoom, 'name' | 'intro' | 'template' | 'splatKey' | 'shell' | 'palette' | 'visibility' | 'butler'>>;
 
 export async function updateMyRoom(p: RoomPatch): Promise<WorldRoom> {
   return accountClient.put<WorldRoom>('/world/rooms/mine', p);

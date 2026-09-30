@@ -826,7 +826,7 @@ export interface UseChatAvatarWSOptions {
    * 言出法随:world_place 在结果回来后交付(要服务端挑好的素材),world_edit / scene_go 在调用时交付。
    * result 是 world_place 的 JSON 结果(见 agentmanager engine/tools_world.go)。
    */
-  onWorldTool?: (e: { name: 'world_place' | 'world_edit' | 'scene_go'; args: Record<string, any>; result?: any }) => void;
+  onWorldTool?: (e: { name: 'world_place' | 'world_edit' | 'scene_go' | 'room_design'; args: Record<string, any>; result?: any }) => void;
   /**
    * AG-UI 模式:当前还没有服务端会话时,发送前调用它建一个并返回 id(失败返回 null);
    * firstText 是这条消息,可直接用作会话标题。
@@ -1601,8 +1601,9 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
               }
 
               // 言出法随:摆东西要等服务端挑好素材(结果里),挪 / 删 / 换场景现在就执行
-              if (name === 'world_place' || name === 'world_edit' || name === 'scene_go') {
-                if (name === 'world_place') worldCallsRef.current.set(toolCallId, { name, args });
+              if (name === 'world_place' || name === 'world_edit' || name === 'scene_go' || name === 'room_design') {
+                // 摆东西 / 布置方案要等服务端配好素材(结果里)
+                if (name === 'world_place' || name === 'room_design') worldCallsRef.current.set(toolCallId, { name, args });
                 else optionsRef.current.onWorldTool?.({ name, args });
                 return;
               }
@@ -1628,7 +1629,7 @@ export function useChatAvatarWS(agentId: string = 'digital_human', options: UseC
                 worldCallsRef.current.delete(toolCallId);
                 let result: any = null;
                 try { result = JSON.parse(content); } catch { /* ERROR: 开头的纯文本 */ }
-                if (result) optionsRef.current.onWorldTool?.({ name: 'world_place', args: wc.args, result });
+                if (result) optionsRef.current.onWorldTool?.({ name: wc.name as 'world_place' | 'room_design', args: wc.args, result });
               }
               setChatLog((c) => c.map((m) => (m.who === 'tool' && m.tool?.id === toolCallId
                 ? { ...m, tool: { ...m.tool, status: content.startsWith('ERROR:') ? 'error' : 'done', result: content } }

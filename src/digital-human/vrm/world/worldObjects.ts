@@ -33,6 +33,8 @@ export interface PlacedObject {
   file?: string;
   /** 用户上传的:加载后归一化 */
   normalize?: boolean;
+  /** 布置方案的预览件:半透明、点不中 */
+  ghost?: boolean;
 }
 
 export interface ObjectLayer {
@@ -120,6 +122,21 @@ export function createObjectLayer(THREE_NS: typeof THREE, parent: THREE.Object3D
         obj = first;
       }
       if (e.p.normalize) obj = normalizeObject(obj);
+      if (e.p.ghost) {
+        // 预览:材质各自拷一份再调透明,不影响同一模型的正式摆放
+        obj.traverse((o) => {
+          const mesh = o as THREE.Mesh;
+          if (!mesh.isMesh) return;
+          const mats = (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).map((m) => {
+            const c = (m as THREE.Material).clone() as THREE.MeshStandardMaterial;
+            c.transparent = true; c.opacity = 0.45; c.depthWrite = false; c.alphaTest = 0;
+            if (c.emissive) c.emissive.setRGB(0.08, 0.35, 0.4);
+            return c;
+          });
+          mesh.material = Array.isArray(mesh.material) ? mats : mats[0];
+          mesh.castShadow = false;
+        });
+      }
       if (e.model) e.g.remove(e.model);
       e.model = obj;
       e.radius = 0;
@@ -178,7 +195,7 @@ export function createObjectLayer(THREE_NS: typeof THREE, parent: THREE.Object3D
   const tmpV = new THREE_NS.Vector3();
 
   function pick(raycaster: THREE.Raycaster): string | null {
-    const hits = raycaster.intersectObjects(Array.from(entries.values()).filter((e) => e.grow >= 0).map((e) => e.g), true);
+    const hits = raycaster.intersectObjects(Array.from(entries.values()).filter((e) => e.grow >= 0 && !e.p.ghost).map((e) => e.g), true);
     for (const h of hits) {
       if (h.object.name === 'spawn-ring') continue;
       let o: THREE.Object3D | null = h.object;

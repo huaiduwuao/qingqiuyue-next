@@ -26,6 +26,8 @@ import { RoomSettings } from './RoomSettings';
 import { useRoom } from './useRoom';
 import { WorldUpload } from './WorldUpload';
 import { useRealtimeEvent, type RealtimeEvent } from '@/lib/realtime';
+import { DesignBar } from './RoomAI';
+import type { DesignPlan } from './useWorldObjects';
 
 /** 底模地址 → 能加载的 URL:站内 /avatars/… 原样;qq-media/world 下的补前缀 */
 export function avatarUrlOf(base: string | undefined | null): string | null {
@@ -126,6 +128,11 @@ type ObjectsApi = {
   patchItem: (id: string, patch: { x?: number; y?: number; z?: number; rotY?: number; scale?: number; label?: string }) => Promise<boolean>;
   removeItem: (id: string) => Promise<WorldPlacement | null>;
   restoreItem: (p: WorldPlacement) => Promise<WorldPlacement | null>;
+  /** 三期:布置助手的方案预览 */
+  design?: DesignPlan | null;
+  applyDesign?: () => Promise<void>;
+  cancelDesign?: () => void;
+  applying?: boolean;
 };
 
 export function GenesisPanels({ g, def, handle, objects, siteBases, toast, narrow, onVisitor }: {
@@ -152,6 +159,7 @@ export function GenesisPanels({ g, def, handle, objects, siteBases, toast, narro
 
   return (
     <>
+      <DesignBar design={objects.design ?? null} applying={!!objects.applying} onApply={() => void objects.applyDesign?.()} onCancel={() => objects.cancelDesign?.()} narrow={narrow} />
       {mine && g.editing && (
         <RoomEditor handle={handle} def={def} objects={objects} selectedId={g.selected} onSelect={g.setSelected} onClose={() => g.setEditing(false)} toast={toast} narrow={narrow} />
       )}
