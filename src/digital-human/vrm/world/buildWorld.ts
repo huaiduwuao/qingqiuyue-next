@@ -453,29 +453,36 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
       }
       // ── 感悟庭院的中式造型 ──
       case 'pavilion': {
-        // 亭子:四根朱柱 + 两层攒尖顶 + 顶上一颗宝珠,亭心一盏灯
+        if (kit) {
+          // 写实:Blender 建的四角攒尖亭(scripts/blender/make_pavilion.py:石台基、朱漆柱、额枋挂落、美人靠、
+          // 起翘的曲面瓦顶和垂脊宝顶),正面朝广场中心;台基面 0.38 米高,亭心摆茶几凳子、檐下挂吊灯
+          const face = Math.atan2(-zone.x, -zone.z);
+          place(g, 'pavilion_square', 0, 0, face);
+          place(g, 'chinese_tea_table', 0, 0, face + 0.3, 1, 0.38);
+          place(g, 'chinese_stool', Math.cos(face) * -0.6, -Math.sin(face) * -0.6, face + 1.2, 1, 0.38);
+          place(g, 'chinese_stool', Math.cos(face) * 0.6, -Math.sin(face) * 0.6, face - 1.9, 1, 0.38);
+          place(g, 'chinese_chandelier', 0, 0, 0, 1, 2.8);
+          const lamp = mesh(G.sphere(0.07), glowMat(0xfff0c8, 0.9), 0, 2.2, 0);
+          // 拾取:看不见的盒子(模型是异步到的,点击要一直能点中)
+          const pick = new THREE_NS.Mesh(G.box(3.0, 3.2, 3.0), track(new THREE_NS.MeshBasicMaterial({ visible: false })));
+          pick.position.y = 1.6;
+          g.add(lamp, pick);
+          pickables.push(pick);
+          break;
+        }
+        // 风格化:四根朱柱 + 两层攒尖顶 + 顶上一颗宝珠,亭心一盏灯
         const pillar = track(new THREE_NS.MeshStandardMaterial({ color: 0x7a1f1f, roughness: 0.6 }));
-        if (kit) kit.texSet(pillar, 'lacquered_cherry_wood', [1, 4], { tint: 0xff9a80 }); // 朱漆:木纹上提一层暖红
         for (const [px, pz] of [[-0.9, -0.9], [0.9, -0.9], [-0.9, 0.9], [0.9, 0.9]]) g.add(mesh(G.cyl(0.08, 0.09, 2.2, 10), pillar, px, 1.1, pz));
         const base = mesh(G.box(2.4, 0.2, 2.4), stone, 0, 0.1, 0);
         base.receiveShadow = true;
         const roofMat = track(new THREE_NS.MeshStandardMaterial({ color: 0x1d2433, roughness: 0.5, metalness: 0.3, emissive: c, emissiveIntensity: 0.12 }));
-        if (kit) {
-          kit.texSet(roofMat, 'grey_roof_tiles', 3);
-          // 亭心一张茶几两个凳子
-          place(g, 'chinese_tea_table', 0, 0, 0.3, 1, 0.2);
-          place(g, 'chinese_stool', -0.62, 0.2, 1.2, 1, 0.2);
-          place(g, 'chinese_stool', 0.6, -0.25, -1.9, 1, 0.2);
-          // 亭心的灯换成一盏中式吊灯(模型原点在顶上,往下垂 0.75 米),原来的发光球缩成灯芯
-          place(g, 'chinese_chandelier', 0, 0, 0, 1, 2.45);
-        }
         const roof1 = mesh(G.cyl(0.2, 1.9, 0.7, 4), roofMat, 0, 2.55, 0);
         roof1.rotation.y = Math.PI / 4;
         const roof2 = mesh(G.cyl(0.05, 0.6, 0.45, 4), roofMat, 0, 3.05, 0);
         roof2.rotation.y = Math.PI / 4;
         const pearl = mesh(G.sphere(0.12), glowMat(c), 0, 3.35, 0);
-        const lamp = mesh(G.sphere(kit ? 0.07 : 0.2), glowMat(0xfff0c8, 0.9), 0, kit ? 1.95 : 1.6, 0);
-        if (!kit) bobbers.push({ o: lamp, base: 1.6, amp: 0.05, speed: 1.3, phase: zone.x });
+        const lamp = mesh(G.sphere(0.2), glowMat(0xfff0c8, 0.9), 0, 1.6, 0);
+        bobbers.push({ o: lamp, base: 1.6, amp: 0.05, speed: 1.3, phase: zone.x });
         g.add(base, roof1, roof2, pearl, lamp);
         pickables.push(base, roof1);
         break;
@@ -561,7 +568,7 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
     const label = makeTextSprite(THREE_NS, `${zone.emoji} ${zone.label}`, { color: '#fff', bg: 'rgba(8,10,20,0.72)', border: hex(zone.color), size: 40 });
     track(label.material); track(label.material.map!);
     const prop = zoneProp(zone);
-    const labelY = prop === 'dance' ? 3.9 : prop === 'wish' || prop === 'stars' ? 2.7 : prop === 'pavilion' || prop === 'moongate' ? 3.6 : prop === 'willow' ? 3.9 : 3.1;
+    const labelY = prop === 'dance' ? 3.9 : prop === 'wish' || prop === 'stars' ? 2.7 : prop === 'pavilion' ? (kit ? 5.0 : 3.6) : prop === 'moongate' ? 3.6 : prop === 'willow' ? 3.9 : 3.1;
     label.position.set(zone.x, labelY, zone.z);
     group.add(label);
     zoneLabels.set(zone.id, label);
