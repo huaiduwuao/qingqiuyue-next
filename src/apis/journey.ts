@@ -16,6 +16,8 @@ export interface JourneyOption {
   label: string;
   /** 感受词,如「不甘」「珍惜」「放下」 */
   feel?: string;
+  /** 这个选项偏向哪个内在维度(本心 / 底气 / 棱角 / 沉默 / 微笑) */
+  axis?: string;
   next: string;
 }
 

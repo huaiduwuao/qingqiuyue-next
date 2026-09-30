@@ -469,13 +469,21 @@ function EndingBeat({
       )}
       <Typography sx={{ fontSize: 12, color: 'text.disabled', mb: 3 }}>
         {(data?.reached ?? 0) > 0 ? `${data!.reached!.toLocaleString()} 人走到了这个结局` : ''}
-        {!authed && (
+        {!authed ? (
           <>
             {(data?.reached ?? 0) > 0 && ' · '}
             <Box component="a" href={loginHref()} sx={{ color: accent, textDecoration: 'none' }}>
               登录
             </Box>
             后这一趟会记在你的账号里
+          </>
+        ) : (
+          <>
+            {(data?.reached ?? 0) > 0 && ' · '}
+            这一趟已记进
+            <Box component="a" href="/insight/path" sx={{ color: accent, textDecoration: 'none', mx: 0.5 }}>
+              你的心路
+            </Box>
           </>
         )}
       </Typography>

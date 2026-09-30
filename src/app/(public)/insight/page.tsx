@@ -268,6 +268,12 @@ export default function InsightHomePage() {
             <br />
             同一种心事,换一种作品,再看一遍
           </Typography>
+          <Typography
+            onClick={() => router.push('/insight/path')}
+            sx={{ fontSize: 13, color: 'primary.main', mt: 1.5, cursor: 'pointer', display: 'inline-block' }}
+          >
+            我的心路 →
+          </Typography>
         </Box>
 
         <DailyCard open={open} />
