@@ -11,6 +11,7 @@
 import type * as THREE from 'three';
 import { createNpcRig, type NpcRig } from './npcRig';
 import { createRealKit, type RealKit, type Spot } from './realKit';
+import { createRealNpc, realNpcModel } from './realNpc';
 import { DEFAULT_WORLD, WORLD_RADIUS, zoneProp, type Orb, type WorldCharacter, type WorldDef, type WorldZone, type ZoneId, worldEnv } from './worldLayout';
 
 /** 各场景预设下广场的配色:地面要跟舞台地板接得上,不然白天草坪外面一圈黑地很突兀 */
@@ -1003,7 +1004,11 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
       const robe = new THREE_NS.Color(col).lerp(new THREE_NS.Color(0x55555f), 0.15);
       let seed = 0;
       for (let i = 0; i < c.id.length; i++) seed = (seed * 31 + c.id.charCodeAt(i)) % 9973;
-      const rig = createNpcRig(THREE_NS, { style: c.kind === 'poet' ? 'poet' : 'guide', robe: robe.getHex(), seed, faceYaw: Math.atan2(-c.x, -c.z) });
+      // 写实画风:Blender 流水线生成的真人 + 汉服(avatars/*.vrm);风格化:程序拼的小人
+      const faceYaw = Math.atan2(-c.x, -c.z);
+      const rig = kit
+        ? createRealNpc(THREE_NS, kit, { model: realNpcModel(c.kind === 'poet' ? 'poet' : 'guide', seed), seed, faceYaw })
+        : createNpcRig(THREE_NS, { style: c.kind === 'poet' ? 'poet' : 'guide', robe: robe.getHex(), seed, faceYaw });
       for (const m of rig.pickables) m.userData.characterId = c.id;
       g.add(rig.root);
       const label = makeTextSprite(THREE_NS, npcLabelText(c), { color: '#fff', bg: 'rgba(20,14,30,0.72)', border: hex(col), size: 30 });

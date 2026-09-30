@@ -40,6 +40,8 @@ import { CharacterPanel, ScenePicker } from './scene-ui/PlazaPeople';
 import { SCENE_PRESETS } from './vrm/sceneBuilders';
 import { TIME_LABELS, type TimeMode } from './vrm/world/env/timeOfDay';
 import { worldEnv } from './vrm/world/worldLayout';
+import { WORLD_ASSET_BASE } from './vrm/world/realKit';
+import { mediaUrl } from '@/lib/media';
 import type { PlazaState } from './scene-state';
 import { useRouter } from 'next/navigation';
 import { alpha } from '@mui/material/styles';
@@ -681,6 +683,9 @@ export default function ImmersiveDigitalHuman() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatLog]);
   const worldActive = avatarMode === 'vrm' && worldOn;
+  // 写实画风的场景里换成写实形象(Blender 流水线生成的真人 + 汉服);回到风格化场景用回自己选的形象
+  const realEnv = worldActive ? worldEnv(scenes.def) : null;
+  const realAvatarUrl = realEnv?.style === 'realistic' ? mediaUrl((realEnv.assets || WORLD_ASSET_BASE) + '/avatars/real_f01.vrm') : null;
 
   // 广场联网:谁在广场、许愿墙、祝福、光环;许愿/祝福会在服务端记平台每日任务
   const [tasksKey, setTasksKey] = React.useState(0);
@@ -900,7 +905,7 @@ export default function ImmersiveDigitalHuman() {
       {avatarMode === 'vrm' && (
         <VrmStage
           onReady={(h) => { devLog.debug('[Immersive] onReady 被调用, h=', h); setStageHandle(h); }}
-          modelUrl={selectedModel?.url ?? '/avatars/character.vrm'}
+          modelUrl={realAvatarUrl ?? selectedModel?.url ?? '/avatars/character.vrm'}
           currentAction={action}
           emotion={emotion}
           viseme={viseme}

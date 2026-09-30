@@ -21,6 +21,8 @@ export interface RealKit {
   base: string;
   texSet: (m: THREE.MeshStandardMaterial, id: string, repeat?: number | [number, number], opts?: { normalScale?: number; tint?: number }) => void;
   model: (id: string) => Promise<THREE.Object3D>;
+  /** 带骨骼的人物(avatars/<id>.vrm):每次拿到一份独立骨骼的克隆,几何和材质共用 */
+  character: (id: string) => Promise<THREE.Object3D>;
   scatter: (parent: THREE.Object3D, id: string, spots: Spot[], opts?: { castShadow?: boolean; whole?: boolean }) => void;
   dispose: () => void;
 }
@@ -69,7 +71,7 @@ export function createRealKit(THREE_NS: typeof THREE, opts: { base?: string; qua
   }
 
   const modelCache = new Map<string, Promise<THREE.Object3D>>();
-  async function loadModel(id: string): Promise<THREE.Object3D> {
+  async function loadModel(id: string, path = `models/${id}.glb`): Promise<THREE.Object3D> {
     const [{ GLTFLoader }, { DRACOLoader }] = await Promise.all([
       import('three/examples/jsm/loaders/GLTFLoader.js'),
       import('three/examples/jsm/loaders/DRACOLoader.js'),
@@ -79,7 +81,7 @@ export function createRealKit(THREE_NS: typeof THREE, opts: { base?: string; qua
     const loader = new GLTFLoader();
     loader.setDRACOLoader(draco);
     try {
-      const gltf = await loader.loadAsync(`${base}/models/${id}.glb`);
+      const gltf = await loader.loadAsync(`${base}/${path}`);
       const root = gltf.scene as THREE.Object3D;
       root.traverse((o) => {
         const mesh = o as THREE.Mesh;
@@ -100,6 +102,13 @@ export function createRealKit(THREE_NS: typeof THREE, opts: { base?: string; qua
     } finally {
       draco.dispose();
     }
+  }
+  // VRM 就是 glb(多了 VRMC 扩展,GLTFLoader 忽略掉);骨骼动画要用 SkeletonUtils 克隆,普通 clone 会共用一副骨骼
+  const charCache = new Map<string, Promise<THREE.Object3D>>();
+  function character(id: string) {
+    let p = charCache.get(id);
+    if (!p) { p = loadModel(id, `avatars/${id}.vrm`); charCache.set(id, p); }
+    return Promise.all([p, import('three/examples/jsm/utils/SkeletonUtils.js')]).then(([root, SU]) => SU.clone(root));
   }
   function model(id: string) {
     let p = modelCache.get(id);
@@ -156,6 +165,7 @@ export function createRealKit(THREE_NS: typeof THREE, opts: { base?: string; qua
     base,
     texSet,
     model,
+    character,
     scatter,
     dispose: () => { disposed = true; disposables.forEach((d) => d.dispose()); disposables.clear(); },
   };
