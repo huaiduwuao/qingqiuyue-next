@@ -14,6 +14,7 @@ import { keyLightDir, modeHour, skyAt, type SkyState, type TimeMode, type Weathe
 import { createPost, type PostPipeline } from './post';
 import { WORLD_RADIUS, type WorldZone } from '../worldLayout';
 import { createRealistic, type RealisticLayer, type TreeSpot } from './realistic';
+import { createRealKit } from '../realKit';
 
 export type Quality = 'high' | 'low';
 
@@ -356,6 +357,12 @@ export function createEnvironment(THREE_NS: typeof THREE, renderer: THREE.WebGLR
     const hullMat = track(new THREE_NS.MeshStandardMaterial({ color: 0x4a3322, roughness: 0.75 }));
     const roofMat = track(new THREE_NS.MeshStandardMaterial({ color: 0x2a2620, roughness: 0.9, side: THREE_NS.DoubleSide }));
     const lampMat = track(new THREE_NS.MeshBasicMaterial({ color: new THREE_NS.Color(3.2, 1.6, 0.6) }));
+    if (realistic) {
+      // 写实:船身桧木板、乌篷深色木篷;船头灯笼照旧发暖光
+      const rk = track(createRealKit(THREE_NS, { base: opts.assetBase, quality: opts.quality }));
+      rk.texSet(hullMat, 'hinoki_planks', [2, 0.6], { tint: 0x7a5a42 });
+      rk.texSet(roofMat, 'japanese_cedar_planks', [1.5, 1], { tint: 0x3a3028 });
+    }
     // 船身:一个两头翘起的长条(把盒子的两端顶点抬高、收窄)
     const hullGeo = track(new THREE_NS.BoxGeometry(3.2, 0.45, 1.0, 12, 1, 2));
     {

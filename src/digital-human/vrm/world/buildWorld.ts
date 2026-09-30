@@ -698,9 +698,11 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
       if (!o) {
         const g = new THREE_NS.Group();
         const core = new THREE_NS.Mesh(orbCore, orb.golden ? orbGoldMat : orbCoreMat);
-        if (orb.golden) core.scale.setScalar(1.35);
+        // 写实画风:星光缩成萤火大小的暖光点,不要一个个大圆盘
+        const k = kit ? 0.4 : 1;
+        core.scale.setScalar((orb.golden ? 1.35 : 1) * k);
         const halo = new THREE_NS.Sprite(orb.golden ? haloGoldMat : haloMat);
-        halo.scale.setScalar(orb.golden ? 1.0 : 0.7);
+        halo.scale.setScalar((orb.golden ? 1.0 : 0.7) * k);
         g.add(core, halo);
         g.userData.phase = Math.random() * Math.PI * 2;
         orbGroup.add(g);
