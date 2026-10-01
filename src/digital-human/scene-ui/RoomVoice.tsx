@@ -60,7 +60,7 @@ export function VoiceStrip({ rs, voice, narrow }: { rs: RoomSocketState; voice: 
             {voice.ptt ? '🎙 松开结束' : narrow ? '按住说话' : '按住说话 (V)'}
           </ButtonBase>
         )}
-        {anyAI && voice.aiSpeechSupported && (
+        {anyAI && (
           <ButtonBase onClick={() => voice.setAiVoice(!voice.aiVoice)} sx={pill(voice.aiVoice, '#c7a6ff')} aria-label="AI 念出来">
             🤖 {voice.aiVoice ? '念' : '不念'}
           </ButtonBase>

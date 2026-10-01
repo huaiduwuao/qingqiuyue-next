@@ -194,7 +194,8 @@ MUI 的列表、输入框、下拉框全都能正常点击和输入 —— 不�
 
 **四期:房间语音。** 走房间同一条 WebSocket 的二进制帧(线上 UDP 进不来,不用 WebRTC):`lib/world/voice/` 里
 packet(包格式,和 go `worldapp/voice.go` 对齐)、gate(开麦的人声闸门)、jitter(播放排期 + 嘴型音量)、voiceEngine
-(麦克风 → WebCodecs Opus → 上行;下行 → 解码 → HRTF 声像)、aiSpeech(AI 的话用浏览器朗读念,没中文声音就不念)。
+(麦克风 → WebCodecs Opus → 上行;下行 → 解码 → HRTF 声像)。房里 AI 说的话由 core-api 用服务端 TTS 合成 Opus、
+当成它的语音从同一条通道送来(go `worldapp/aivoice.go`),前端不用另外处理;「🤖 念 / 不念」只是本地静音所有 AI。
 `scene-ui/useRoomVoice.ts` 把它们接到房间连接和舞台上(`setPeerVoiceLevels` 给同伴嘴型),界面在 RoomChat 里的
 VoiceStrip / PeerChip。AudioContext 只能在用户点击后建,所以要先点「开启声音」。测试台没有麦克风:挂
 `window.__qqVoiceMicStream` 换成合成的声音(测试台 `?fakemic=1`)。

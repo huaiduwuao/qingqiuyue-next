@@ -3,7 +3,6 @@ import { act, renderHook } from '@testing-library/react';
 import { decodeDown, encodeUp, relayFrame, FLAG_END, VOICE_KIND } from '@/lib/world/voice/packet';
 import { VoiceGate, rmsDb } from '@/lib/world/voice/gate';
 import { LevelTimeline, mouthOpen, scheduleChunk } from '@/lib/world/voice/jitter';
-import { AiSpeech, speakableText, volumeForDistance } from '@/lib/world/voice/aiSpeech';
 import { useRoomSocket } from '../scene-ui/useRoomSocket';
 import type { RoomFrame, RoomSocket, RoomSocketStatus } from '@/lib/world/roomSocket';
 import type { VrmStageHandle } from '../VrmStage';
@@ -98,42 +97,6 @@ describe('jitter scheduling', () => {
     expect(mouthOpen(0)).toBe(0);
     expect(mouthOpen(0.5)).toBe(1);
     expect(mouthOpen(0.003)).toBe(0);
-  });
-});
-
-describe('ai speech text', () => {
-  it('drops stage directions, emoji and links', () => {
-    expect(speakableText('(测试回复)我带你去看看「书架」。😊 https://x.y/z')).toBe('我带你去看看「书架」。');
-    expect(volumeForDistance(0)).toBe(1);
-    expect(volumeForDistance(40)).toBe(0.15);
-  });
-});
-
-describe('AiSpeech', () => {
-  it('speaks with a Chinese voice and stays quiet without one', () => {
-    const spoken: { text: string; volume: number; voice: { name: string }; onstart?: () => void }[] = [];
-    const voices = [{ name: 'Huihui', lang: 'zh-CN', localService: true }, { name: 'David', lang: 'en-US', localService: true }];
-    vi.stubGlobal('speechSynthesis', {
-      getVoices: () => voices,
-      speak: (u: (typeof spoken)[number]) => { spoken.push(u); u.onstart?.(); },
-      cancel: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(),
-    });
-    vi.stubGlobal('SpeechSynthesisUtterance', class { text: string; constructor(t: string) { this.text = t; } });
-    try {
-      const a = new AiSpeech();
-      expect(a.hasChineseVoice()).toBe(true);
-      expect(a.speak('ai:butler', '(测试回复)你好', 0.5)).toBe(true);
-      expect(spoken[0]).toMatchObject({ text: '你好', volume: 0.5, voice: { name: 'Huihui' } });
-      expect(a.speakingId).toBe('ai:butler');
-      expect(a.level('ai:butler')).toBeGreaterThan(0);
-      expect(a.level('ai:other')).toBe(0);
-      voices.splice(0, 1);
-      expect(a.hasChineseVoice()).toBe(false);
-      expect(a.speak('ai:butler', '再见')).toBe(false);
-      expect(spoken).toHaveLength(1);
-    } finally {
-      vi.unstubAllGlobals();
-    }
   });
 });
 

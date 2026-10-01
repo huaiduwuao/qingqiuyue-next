@@ -4,7 +4,8 @@
  *   - 「开启声音」(用户点一下,浏览器才让放声音)→ 建 VoiceEngine,接上房间连接的二进制帧,报 voice=1;
  *   - 「开麦」= 接上麦克风 + 人声闸门,说话才发;「按住说话」/ 按住 V 键 = 按着就发;接上麦克风后报 voice=2;
  *   - 每 100ms:自己的位置和镜头朝向 → 听者;同伴(插值后的)位置 → 各自的声像;谁在说话 → 界面和嘴型;
- *   - 房里的 AI 说的话用浏览器朗读念出来(按距离调音量),可以关;
+ *   - 房里的 AI 说的话由服务端 TTS 念好、当成它的语音从同一条通道送来(core-api worldapp/aivoice.go),
+ *     和真人一样有声像和嘴型;「🤖 念 / 不念」只在我这边把所有 AI 的声音关掉;
  *   - 我这边屏蔽某人只影响自己听到的;房主「禁言」走服务端(vmute),被禁言的人发了也不转。
  *   - 离开房间 / 房主关了语音 / 被禁言:麦克风立即关掉(浏览器的录音指示灯也灭)。
  *
@@ -13,7 +14,6 @@
 
 import React from 'react';
 import { VoiceEngine, voiceSupport, type VoiceSupport } from '@/lib/world/voice/voiceEngine';
-import { AiSpeech, volumeForDistance } from '@/lib/world/voice/aiSpeech';
 import type { VrmStageHandle } from '../VrmStage';
 import type { RoomSocketState } from './useRoomSocket';
 
@@ -47,9 +47,7 @@ export function useRoomVoice({ rs, handle, toast }: UseRoomVoiceOptions) {
   const [aiVoice, setAiVoiceState] = React.useState(true);
   const [blocked, setBlocked] = React.useState<Record<string, boolean>>({});
   const [busy, setBusy] = React.useState(false);
-  const [aiSpeechOk, setAiSpeechOk] = React.useState(false);
   const engineRef = React.useRef<VoiceEngine | null>(null);
-  const aiRef = React.useRef<AiSpeech | null>(null);
   const rsRef = React.useRef(rs);
   rsRef.current = rs;
   const handleRef = React.useRef(handle);
@@ -61,27 +59,16 @@ export function useRoomVoice({ rs, handle, toast }: UseRoomVoiceOptions) {
     let alive = true;
     voiceSupport().then((s) => { if (alive) setSupport(s); }).catch(() => { if (alive) setSupport({ listen: false, talk: false, reason: '这个浏览器不支持房间语音' }); });
     setAiVoiceState(readAiVoicePref());
-    // 中文朗读声音是异步加载的
-    aiRef.current ??= new AiSpeech();
-    const ai = aiRef.current;
-    const check = () => { if (alive) setAiSpeechOk(ai.hasChineseVoice()); };
-    check();
-    if (ai.supported) window.speechSynthesis.addEventListener?.('voiceschanged', check);
-    return () => { alive = false; if (ai.supported) window.speechSynthesis.removeEventListener?.('voiceschanged', check); };
+    return () => { alive = false; };
   }, []);
 
-  // 同伴的嘴型:真人看解出来的音量,AI 看朗读
-  const levelOf = React.useCallback((id: string) => {
-    const e = engineRef.current;
-    const a = aiRef.current;
-    return Math.max(e ? e.level(id) : 0, a ? a.level(id) : 0);
-  }, []);
+  // 同伴的嘴型:解出来的音量(真人和 AI 一样)
+  const levelOf = React.useCallback((id: string) => engineRef.current?.level(id) ?? 0, []);
 
   const disable = React.useCallback(() => {
     const e = engineRef.current;
     engineRef.current = null;
     e?.dispose();
-    aiRef.current?.cancel();
     rsRef.current.setVoiceHandler(null);
     rsRef.current.setVoiceState(0);
     handleRef.current?.setPeerVoiceLevels(null);
@@ -107,7 +94,6 @@ export function useRoomVoice({ rs, handle, toast }: UseRoomVoiceOptions) {
     const e = new VoiceEngine({ send: (b) => rsRef.current.sendVoice(b), micStream });
     await e.resume();
     engineRef.current = e;
-    aiRef.current ??= new AiSpeech();
     rsRef.current.setVoiceHandler((b) => e.receive(b));
     rsRef.current.setVoiceState(1);
     handleRef.current?.setPeerVoiceLevels(levelOf);
@@ -178,20 +164,25 @@ export function useRoomVoice({ rs, handle, toast }: UseRoomVoiceOptions) {
   const setAiVoice = React.useCallback((on: boolean) => {
     setAiVoiceState(on);
     try { window.localStorage.setItem(AI_VOICE_KEY, on ? '1' : '0'); } catch { /* 隐私模式 */ }
-    if (!on) aiRef.current?.cancel();
   }, []);
 
   const toggleBlock = React.useCallback((id: string) => {
-    setBlocked((b) => {
-      const next = { ...b, [id]: !b[id] };
-      engineRef.current?.setPeerVolume(id, 1, !!next[id]);
-      return next;
-    });
+    setBlocked((b) => ({ ...b, [id]: !b[id] }));
   }, []);
+
+  // 我这边谁听不见:点名屏蔽的人 +(关了「AI 念」时)所有 AI
+  const aiIds = rs.peers.filter((p) => p.ai).map((p) => p.id).join(',');
+  React.useEffect(() => {
+    const e = engineRef.current;
+    if (!e || !soundOn) return;
+    const ai = new Set(aiIds ? aiIds.split(',') : []);
+    const ids = new Set([...Object.keys(blocked), ...ai]);
+    for (const id of ids) e.setPeerVolume(id, 1, !!blocked[id] || (!aiVoice && ai.has(id)));
+  }, [blocked, aiVoice, aiIds, soundOn]);
 
   // 离开房间:全关(麦克风也放掉)
   React.useEffect(() => { if (!rs.inRoom && engineRef.current) disable(); }, [rs.inRoom, disable]);
-  React.useEffect(() => () => { engineRef.current?.dispose(); engineRef.current = null; aiRef.current?.cancel(); }, []);
+  React.useEffect(() => () => { engineRef.current?.dispose(); engineRef.current = null; }, []);
   // 房主关了语音 / 我被禁言:关麦
   React.useEffect(() => {
     if ((!rs.roomVoice || rs.selfMuted) && engineRef.current?.micReady) {
@@ -228,10 +219,7 @@ export function useRoomVoice({ rs, handle, toast }: UseRoomVoiceOptions) {
         e.setListener(snap.x, snap.z, snap.camYaw);
         for (const p of snap.peers) e.setSpeakerPos(p.id, p.x, p.z);
       }
-      const ids = e.speaking();
-      const ai = aiRef.current?.speakingId;
-      if (ai) ids.push(ai);
-      ids.sort();
+      const ids = e.speaking().sort();
       setSpeaking((prev) => (prev.length === ids.length && prev.every((v, i) => v === ids[i]) ? prev : ids));
       setTalking(e.talking);
       setSelfLevel((v) => (Math.abs(v - e.selfLevel) > 0.04 ? e.selfLevel : v));
@@ -248,25 +236,11 @@ export function useRoomVoice({ rs, handle, toast }: UseRoomVoiceOptions) {
     for (const id of e.speakerIds()) if (!keep.has(id)) e.removeSpeaker(id);
   }, [peerIds]);
 
-  // AI 说的话念出来
-  const lastSpoken = React.useRef(0);
-  const lastLine = rs.chat[rs.chat.length - 1];
-  React.useEffect(() => {
-    if (!lastLine || lastLine.ts <= lastSpoken.current) return;
-    lastSpoken.current = lastLine.ts;
-    if (!soundOn || !aiVoice || !lastLine.ai || blocked[lastLine.id]) return;
-    const snap = handleRef.current?.getWorldSnapshot();
-    const p = rsRef.current.peers.find((x) => x.id === lastLine.id);
-    const d = snap && p ? Math.hypot(p.x - snap.x, p.z - snap.z) : 3;
-    aiRef.current?.speak(lastLine.id, lastLine.text, volumeForDistance(d));
-  }, [lastLine, soundOn, aiVoice, blocked]);
-
   const engineStats = React.useCallback(() => engineRef.current?.stats ?? null, []);
 
   return {
     support, soundOn, micOn, micReady, ptt, talking, selfLevel, speaking, aiVoice, blocked, busy,
     enable, disable, toggleMic, closeMic, setPtt, setAiVoice, toggleBlock, engineStats,
-    aiSpeechSupported: aiSpeechOk,
   };
 }
 
