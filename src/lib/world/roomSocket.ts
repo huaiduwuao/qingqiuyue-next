@@ -59,7 +59,7 @@ export type RoomFrame =
   | { t: 'leave'; id: string }
   | { t: 'peers'; list: (PeerPose & { id: string })[] }
   | { t: 'say'; id: string; nickname: string; text: string; ts: number; ai?: boolean }
-  | { t: 'edit'; op: 'upsert' | 'remove'; version: number; placement?: unknown; id?: string }
+  | { t: 'edit'; op: 'upsert' | 'remove' | 'reload'; version: number; placement?: unknown; id?: string }
   | { t: 'avatar'; id: string; look: PeerLook }
   | { t: 'room'; room: unknown }
   | { t: 'kick'; msg: string }

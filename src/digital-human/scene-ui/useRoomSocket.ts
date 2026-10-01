@@ -35,7 +35,7 @@ export interface UseRoomSocketOptions {
   handle: VrmStageHandle | null;
   def: WorldDef;
   enabled: boolean;
-  applyEdit: (op: 'upsert' | 'remove', data: unknown) => void;
+  applyEdit: (op: 'upsert' | 'remove' | 'reload', data: unknown) => void;
   applyRoom: (r: WorldRoom) => void;
   onKick: (msg: string) => void;
   toast: (icon: string, text: string) => void;
@@ -139,6 +139,7 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
       }
       case 'edit':
         if (f.op === 'remove') o.applyEdit('remove', f.id);
+        else if (f.op === 'reload') o.applyEdit('reload', null); // 十一期:套了样板间,整个重读
         else o.applyEdit('upsert', f.placement);
         return;
       case 'room':

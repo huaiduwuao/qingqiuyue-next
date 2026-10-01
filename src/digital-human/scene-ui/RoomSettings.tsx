@@ -200,6 +200,15 @@ export function RoomSettings({ room, handle, save, splat, onClose, toast, narrow
           </Box>
         </Box>
 
+        {label('照着布置')}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Switch checked={!room.noCopy} disabled={busy} onChange={(e) => void run({ noCopy: !e.target.checked }, e.target.checked ? '来串门的人可以照着你的房间布置了' : '别人不能照着你的房间布置了')} />
+          <Box sx={{ flex: 1 }}>
+            <Typography sx={{ fontSize: 12.5, fontWeight: 700 }}>{room.noCopy ? '不让照着摆' : '可以照着摆'}</Typography>
+            <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>来串门的人能一键把自己的房间布置成你这样(只复制摆法,不动你的房间)</Typography>
+          </Box>
+        </Box>
+
         {label('活动')}
         <RoomEventsSection room={room} toast={toast} />
 

@@ -162,6 +162,8 @@ export interface WorldRoom {
   voiceOff?: boolean;
   /** 八期:房间封面(qq-media/world 下的相对路径,房主在布置模式里截的) */
   cover?: string;
+  /** 十一期:房主不让别人「照着布置」 */
+  noCopy?: boolean;
 }
 
 // ── 三期:AI 进入房间 ──
@@ -208,7 +210,35 @@ export async function getRoom(ownerId: string): Promise<WorldRoom> {
   return accountClient.get<WorldRoom>(`/world/rooms/${encodeURIComponent(ownerId)}`);
 }
 
-export type RoomPatch = Partial<Pick<WorldRoom, 'name' | 'intro' | 'template' | 'splatKey' | 'shell' | 'palette' | 'visibility' | 'butler' | 'voiceOff'>>;
+export type RoomPatch = Partial<Pick<WorldRoom, 'name' | 'intro' | 'template' | 'splatKey' | 'shell' | 'palette' | 'visibility' | 'butler' | 'voiceOff' | 'noCopy'>>;
+
+// ── 十一期:样板间 / 照着布置 ──
+export interface WorldLayout {
+  key: string;
+  name: string;
+  intro: string;
+  template: RoomTemplate;
+  items: number;
+  /** 现在就能摆出来的件数(其余还没做好,套用时跳过) */
+  ready: number;
+  /** 用到的几件素材的缩略图 */
+  thumbs: string[];
+}
+export interface ApplyLayoutResult { placed: number; skipped: number; canUndo: boolean }
+
+export async function listLayouts(): Promise<WorldLayout[]> {
+  const r = await accountClient.get<{ list: WorldLayout[] }>('/world/layouts');
+  return Array.isArray(r?.list) ? r.list : [];
+}
+
+/** 套样板间(template)或照着某人的房间(from = 房主 uid);replace = 整个换掉(能撤销一次),add = 往里加 */
+export async function applyLayout(p: { template?: string; from?: string; mode: 'replace' | 'add' }): Promise<ApplyLayoutResult> {
+  return accountClient.post<ApplyLayoutResult>('/world/rooms/mine/layout', p);
+}
+
+export async function undoLayout(): Promise<ApplyLayoutResult> {
+  return accountClient.post<ApplyLayoutResult>('/world/rooms/mine/layout/undo', {});
+}
 
 export async function updateMyRoom(p: RoomPatch): Promise<WorldRoom> {
   return accountClient.put<WorldRoom>('/world/rooms/mine', p);

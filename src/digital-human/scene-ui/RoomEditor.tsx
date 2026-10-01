@@ -19,6 +19,7 @@ import { assetBytes, browseAssets, deleteMyAsset, fetchWorldAsset, uploadRoomCov
 import type { VrmStageHandle } from '../VrmStage';
 import { roomBounds, type WorldDef } from '../vrm/world/worldLayout';
 import { WorldUpload } from './WorldUpload';
+import { RoomLayouts } from './RoomLayouts';
 
 type Objects = {
   items: WorldPlacement[];
@@ -74,7 +75,7 @@ function statusBadge(a: WorldAssetFull): { text: string; color: string } | null 
 export interface RoomEditorProps {
   handle: VrmStageHandle | null;
   def: WorldDef;
-  objects: Objects;
+  objects: Objects & { reload?: () => void };
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   onClose: () => void;
@@ -82,6 +83,8 @@ export interface RoomEditorProps {
   narrow?: boolean;
   /** 八期:封面换好了 */
   onCover?: (cover: string) => void;
+  /** 十一期:套了样板间 / 撤销以后(重读房间外壳) */
+  onLayoutApplied?: () => void;
 }
 
 /** 房间预算:件数 / 要下载多大(同一件素材只算一次,和服务端 maxRoomBytes 一致) */
@@ -99,14 +102,15 @@ function RoomBudget({ items }: { items: WorldPlacement[] }) {
   const { n, mb } = roomUsage(items);
   const tight = n >= ROOM_MAX_ITEMS * 0.9 || mb >= ROOM_MAX_MB * 0.9;
   return (
-    <Typography title="一间房最多 200 件、加起来 30 MB(同一件摆几份只算一次);超了摆不进去" sx={{ fontSize: 11, color: tight ? '#ffb07a' : 'rgba(255,255,255,0.4)', ml: 'auto', alignSelf: 'center', whiteSpace: 'nowrap' }}>
+    <Typography title="一间房最多 200 件、加起来 30 MB(同一件摆几份只算一次);超了摆不进去" sx={{ fontSize: 11, color: tight ? '#ffb07a' : 'rgba(255,255,255,0.4)', ml: 'auto', alignSelf: 'center', whiteSpace: 'nowrap', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>
       {n} / {ROOM_MAX_ITEMS} 件 · {mb.toFixed(1)} / {ROOM_MAX_MB} MB
     </Typography>
   );
 }
 
-export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose, toast, narrow, onCover }: RoomEditorProps) {
-  const [tab, setTab] = React.useState<'lib' | 'mine'>('lib');
+export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose, toast, narrow, onCover, onLayoutApplied }: RoomEditorProps) {
+  // 十一期:空房间默认打开样板间
+  const [tab, setTab] = React.useState<'lib' | 'mine' | 'tpl'>(() => (objects.items.length === 0 ? 'tpl' : 'lib'));
   const [group, setGroup] = React.useState(0);
   const [q, setQ] = React.useState('');
   const [qLive, setQLive] = React.useState('');
@@ -380,15 +384,20 @@ export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose
       )}
 
       <Box sx={{ display: 'flex', gap: 1, px: 1.5, mb: 0.75 }}>
-        {(['lib', 'mine'] as const).map((t) => (
-          <ButtonBase key={t} onClick={() => setTab(t)} sx={{ px: 1.25, py: 0.4, borderRadius: 999, fontSize: 12, fontWeight: 700, bgcolor: tab === t ? 'rgba(37,244,238,0.18)' : 'rgba(255,255,255,0.06)', color: tab === t ? '#25F4EE' : 'rgba(255,255,255,0.75)' }}>
-            {t === 'lib' ? '素材库' : '我的上传'}
+        {(['lib', 'tpl', 'mine'] as const).map((t) => (
+          <ButtonBase key={t} onClick={() => setTab(t)} sx={{ px: 1, py: 0.4, whiteSpace: 'nowrap', flexShrink: 0, borderRadius: 999, fontSize: 12, fontWeight: 700, bgcolor: tab === t ? 'rgba(37,244,238,0.18)' : 'rgba(255,255,255,0.06)', color: tab === t ? '#25F4EE' : 'rgba(255,255,255,0.75)' }}>
+            {t === 'lib' ? '素材库' : t === 'tpl' ? '样板间' : '我的上传'}
           </ButtonBase>
         ))}
         <RoomBudget items={objects.items} />
       </Box>
 
-      {tab === 'lib' ? (
+      {tab === 'lib' && objects.items.length === 0 && (
+        <ButtonBase onClick={() => setTab('tpl')} sx={{ mx: 1.5, mb: 0.75, px: 1, py: 0.6, borderRadius: 2, bgcolor: 'rgba(255,210,122,0.1)', color: '#ffd27a', fontSize: 12, textAlign: 'left', display: 'block' }}>
+          🏡 房间还空着 —— 先从样板间挑一套,再慢慢改?
+        </ButtonBase>
+      )}
+      {tab === 'tpl' ? null : tab === 'lib' ? (
         <>
           <Box sx={{ px: 1.5, mb: 0.75 }}>
             <TextField size="small" fullWidth placeholder="搜:椅子、灯笼、lamp…" value={qLive} onChange={(e) => setQLive(e.target.value)}
@@ -407,7 +416,8 @@ export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose
       )}
 
       <Box sx={{ flex: 1, minHeight: 80, overflowY: 'auto', overflowX: 'hidden', px: 1.5, pb: 1.25 }}>
-        <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 0.75 }}>
+        {tab === 'tpl' && <RoomLayouts toast={toast} narrow={narrow} onApplied={() => { onSelect(null); objects.reload?.(); onLayoutApplied?.(); }} />}
+        <Box sx={{ display: tab === 'tpl' ? 'none' : 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 0.75 }}>
           {list.map((a) => {
             const badge = statusBadge(a);
             return (
@@ -444,13 +454,13 @@ export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose
             );
           })}
         </Box>
-        {loading && <Box sx={{ display: 'grid', placeItems: 'center', py: 1.5 }}><CircularProgress size={18} /></Box>}
-        {!loading && list.length === 0 && (
+        {tab !== 'tpl' && loading && <Box sx={{ display: 'grid', placeItems: 'center', py: 1.5 }}><CircularProgress size={18} /></Box>}
+        {tab !== 'tpl' && !loading && list.length === 0 && (
           <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', textAlign: 'center', py: 2 }}>
             {tab === 'mine' ? '还没传过模型' : '没找到,换个说法试试'}
           </Typography>
         )}
-        {!loading && list.length < total && (
+        {tab !== 'tpl' && !loading && list.length < total && (
           <Button fullWidth size="small" onClick={() => setPage((p) => p + 1)} sx={{ mt: 1, color: '#9be8ff' }}>再看 {Math.min(30, total - list.length)} 件</Button>
         )}
       </Box>

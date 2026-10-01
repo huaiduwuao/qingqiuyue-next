@@ -59,7 +59,9 @@ export function useWorldObjects(opts: Options) {
   const optsRef = React.useRef(opts);
   optsRef.current = opts;
 
-  // 进场景读摆放
+  // 进场景读摆放(十一期:套了样板间 / 收到 reload 时重读)
+  const [reloadTick, setReloadTick] = React.useState(0);
+  const reload = React.useCallback(() => setReloadTick((n) => n + 1), []);
   React.useEffect(() => {
     if (!enabled || !handle) return;
     let alive = true;
@@ -69,7 +71,7 @@ export function useWorldObjects(opts: Options) {
       handle.setPlacements(list.map(toPlaced));
     }).catch(() => { /* 没登录 / 接口没上线:就是空的 */ });
     return () => { alive = false; };
-  }, [enabled, handle, def.key]);
+  }, [enabled, handle, def.key, reloadTick]);
 
   // 现做进度:每 8 秒问一次还没好的素材
   React.useEffect(() => {
@@ -386,9 +388,10 @@ export function useWorldObjects(opts: Options) {
   }, []);
 
   /** 创世二期:房间里别人(或自己另一个标签页)改了摆放,服务端推过来的 */
-  const applyRemote = React.useCallback((op: 'upsert' | 'remove', data: unknown) => {
+  const applyRemote = React.useCallback((op: 'upsert' | 'remove' | 'reload', data: unknown) => {
     const h = optsRef.current.handle;
     if (!h) return;
+    if (op === 'reload') { setReloadTick((n) => n + 1); return; }
     if (op === 'remove') {
       const id = String(data);
       if (!itemsRef.current.some((x) => x.id === id)) return;
@@ -407,5 +410,5 @@ export function useWorldObjects(opts: Options) {
   /** 给模型的场景状态:摆了什么(id:叫法) */
   const placedSummary = React.useMemo(() => items.slice(-30).map((p) => `${p.id}:${p.label || p.asset?.nameZh || p.assetKey}${p.public ? '(公共)' : ''}`), [items]);
 
-  return { handleTool, placedSummary, count: items.length, items, placeAsset, patchItem, removeItem, restoreItem, applyRemote, design, applyDesign, cancelDesign, applying };
+  return { handleTool, placedSummary, count: items.length, items, reload, placeAsset, patchItem, removeItem, restoreItem, applyRemote, design, applyDesign, cancelDesign, applying };
 }

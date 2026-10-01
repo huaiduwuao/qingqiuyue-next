@@ -12,7 +12,7 @@
 
 import React from 'react';
 import { Box, Button, ButtonBase, CircularProgress, Typography } from '@mui/material';
-import { getMyAvatar, saveMyAvatar, roomOwnerOf, rsvpRoomEvent, worldFileUrl, type AvatarParams, type RoomTab, type WorldAvatar, type WorldPlacement, type WorldAssetFull, type WorldRoom } from '@/apis/world';
+import { applyLayout, getMyAvatar, saveMyAvatar, roomOwnerOf, rsvpRoomEvent, worldFileUrl, type AvatarParams, type RoomTab, type WorldAvatar, type WorldPlacement, type WorldAssetFull, type WorldRoom } from '@/apis/world';
 import { mediaUrl } from '@/lib/media';
 import type { VrmStageHandle } from '../VrmStage';
 import type { AvatarInfo } from '../vrm/avatarCustomize';
@@ -22,6 +22,7 @@ import type { SplatStatus } from '../vrm/world/roomShell';
 import type { WorldEvent } from '../vrm/world/useVrmWorld';
 import { AvatarStudio, type AvatarBase } from './AvatarStudio';
 import { RoomEditor } from './RoomEditor';
+import { layoutResultText } from './RoomLayouts';
 import { RoomSettings } from './RoomSettings';
 import { useRoom } from './useRoom';
 import { WorldUpload } from './WorldUpload';
@@ -111,17 +112,36 @@ export function GenesisHud({ g, def, onGoHome, narrow }: { g: Genesis; def: Worl
 }
 
 /** 串门时顶上的门牌 */
-export function RoomPlate({ def, onGoHome, narrow, room, toast }: {
+export function RoomPlate({ def, onGoHome, narrow, room, toast, onCopied }: {
   def: WorldDef; onGoHome: () => void; narrow?: boolean;
+  /** 十一期:照着这间布置好了(重读自己的房间,然后回家) */
+  onCopied?: () => void;
   /** 六期:这间房的详情(关注房主、门牌上的活动);没有就只显示名字 */
   room?: WorldRoom | null;
   toast?: (icon: string, text: string) => void;
 }) {
   const [joined, setJoined] = React.useState(!!room?.event?.joined);
+  const [copying, setCopying] = React.useState(false);
   React.useEffect(() => setJoined(!!room?.event?.joined), [room?.event?.id, room?.event?.joined]);
   if (def.kind !== 'room' || !def.room || def.room.mine) return null;
   const say = toast ?? (() => {});
   const ev = room?.event;
+  // 十一期:照着这间布置(整个换掉自己的房间,能撤销)
+  const copy = async () => {
+    if (!room || copying) return;
+    if (!window.confirm(`把你的房间换成「${def.name}」这样的布置?你原来的摆设会先存一份,在布置 → 样板间里能撤销。`)) return;
+    setCopying(true);
+    try {
+      const r = await applyLayout({ from: room.ownerId, mode: 'replace' });
+      say('🏡', `照着摆好了:${layoutResultText(r)}`);
+      onCopied?.();
+      onGoHome();
+    } catch (e) {
+      say('⚠️', (e as { message?: string })?.message || '没照着摆成');
+    } finally {
+      setCopying(false);
+    }
+  };
   const rsvp = async () => {
     if (!ev) return;
     try {
@@ -146,6 +166,7 @@ export function RoomPlate({ def, onGoHome, narrow, room, toast }: {
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
         <Button size="small" onClick={onGoHome} sx={{ color: '#9be8ff', px: 0 }}>回我的房间</Button>
         {room && <FollowOwnerButton room={room} toast={say} />}
+        {room && !room.noCopy && <Button size="small" disabled={copying} onClick={() => void copy()} sx={{ color: '#ffd27a', px: 0.5, minWidth: 0 }}>{copying ? '摆着呢…' : '照着布置'}</Button>}
       </Box>
     </Box>
   );
@@ -198,7 +219,7 @@ export function GenesisPanels({ g, def, handle, objects, siteBases, toast, narro
     <>
       <DesignBar design={objects.design ?? null} applying={!!objects.applying} onApply={() => void objects.applyDesign?.()} onCancel={() => objects.cancelDesign?.()} narrow={narrow} />
       {mine && g.editing && (
-        <RoomEditor handle={handle} def={def} objects={objects} selectedId={g.selected} onSelect={g.setSelected} onClose={() => g.setEditing(false)} toast={toast} narrow={narrow} onCover={g.room.setCover} />
+        <RoomEditor handle={handle} def={def} objects={objects} selectedId={g.selected} onSelect={g.setSelected} onClose={() => g.setEditing(false)} toast={toast} narrow={narrow} onCover={g.room.setCover} onLayoutApplied={() => void g.room.reload()} />
       )}
       {mine && g.settingsOpen && g.room.mine && (
         <RoomSettings room={g.room.mine} handle={handle} save={g.room.save} splat={g.splat} onClose={() => g.setSettingsOpen(false)} toast={toast} narrow={narrow} />

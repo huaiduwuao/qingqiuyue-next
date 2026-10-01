@@ -192,6 +192,9 @@ MUI 的列表、输入框、下拉框全都能正常点击和输入 —— 不�
 (`ai: true` → 紫色 🤖 名牌、wave / bow 动作);管家开关和请客在 RoomSettings 里的 RoomAISection。
 位置帧里 `m` / `a` 为空时服务端不发,合并时要以每一帧为准,不然会一直「在走」「招手」。
 
+**十一期:样板间。** 布置抽屉多一栏「样板间」(`RoomLayouts.tsx`:换成这样 / 加进来 / 撤销),串门门牌上「照着布置」;
+都走 `applyLayout`,服务端改完推 `edit {op: 'reload'}`,`useWorldObjects.reload` 整个重读摆放;外壳变了由 `onLayoutApplied` / `onCopied` 重读房间。
+
 **十期:能动手的摆设。** `interactOf` 认出椅子和灯(PlacedObject.interact);不在布置时点它们发 `useObject` 世界事件,
 `useObjectUse` 处理:椅子 → `handle.seatSpots` 挑座位、走过去、`sitAt`;灯 → `switchPlacement`(服务端推 edit 回来才变)。
 坐姿在 `interact.ts`(`applySitPose`),自己和同伴共用;坐着时位置帧 `a: 'sit'`、`y` = 座面高度。

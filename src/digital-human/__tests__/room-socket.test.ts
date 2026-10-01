@@ -123,6 +123,12 @@ describe('useRoomSocket', () => {
     vi.useRealTimers();
   });
 
+  it('routes reload edits (十一期:套了样板间)', () => {
+    const t = setup();
+    t.emit({ t: 'edit', op: 'reload', version: 9 });
+    expect(t.opts.applyEdit).toHaveBeenLastCalledWith('reload', null);
+  });
+
   it('shows captions: own partial, everyone final', () => {
     const t = setup();
     t.emit({ t: 'hello', you: '1', room: { ownerId: '1', version: 1, name: 'x' }, peers: [{ id: '7', nickname: '阿青', look, x: 0, y: 0, z: 0, yaw: 0 }] });
