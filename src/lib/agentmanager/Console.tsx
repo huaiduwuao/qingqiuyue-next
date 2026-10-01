@@ -720,10 +720,10 @@ export default function AgentManagerConsole({ tab, embedded }: { tab?: Tab; embe
               <Card sx={{ mb: 2 }}>
                 <CardContent>
                   <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-                    本月({costStats.period}) {costStats.total_requests.toLocaleString()} 次调用 · {costStats.total_tokens.toLocaleString()} tokens
+                    本月({costStats.period}) {(costStats.total_requests ?? 0).toLocaleString()} 次调用 · {(costStats.total_tokens ?? 0).toLocaleString()} tokens
                   </Typography>
                   <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    {costStats.breakdown.map(b => (
+                    {(costStats.breakdown ?? []).map(b => (
                       <Chip
                         key={`${b.source}-${b.agent}`}
                         size="small"
