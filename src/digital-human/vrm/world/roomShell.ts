@@ -295,7 +295,8 @@ export function buildRoomShell(THREE_NS: typeof THREE, room: WorldRoomInfo, opts
     splat.scale.setScalar(align.scale > 0 ? align.scale : 1);
   };
   if (room.template === 'splat' && room.splatUrl) {
-    const url = room.splatUrl;
+    // 流畅画质用精简档(≤ 40 万点,手机 / 安卓 WebView 也跑得动);没有精简档就用原文件
+    const url = (opts.quality === 'low' && room.splatLiteUrl) || room.splatUrl;
     opts.onSplatStatus?.('loading');
     import('@sparkjsdev/spark').then(async ({ SparkRenderer, SplatMesh }) => {
       if (disposed) return;

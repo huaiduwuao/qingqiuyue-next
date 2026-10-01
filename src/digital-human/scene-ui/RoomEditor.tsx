@@ -14,7 +14,7 @@ import { Box, Button, ButtonBase, Chip, CircularProgress, IconButton, Slider, Te
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import UndoRoundedIcon from '@mui/icons-material/UndoRounded';
 import RedoRoundedIcon from '@mui/icons-material/RedoRounded';
-import { browseAssets, deleteMyAsset, fetchWorldAsset, type WorldAssetFull, type WorldPlacement } from '@/apis/world';
+import { assetBytes, browseAssets, deleteMyAsset, fetchWorldAsset, type WorldAssetFull, type WorldPlacement } from '@/apis/world';
 import type { VrmStageHandle } from '../VrmStage';
 import { roomBounds, type WorldDef } from '../vrm/world/worldLayout';
 import { WorldUpload } from './WorldUpload';
@@ -65,6 +65,27 @@ export interface RoomEditorProps {
   onClose: () => void;
   toast: (icon: string, text: string) => void;
   narrow?: boolean;
+}
+
+/** 房间预算:件数 / 要下载多大(同一件素材只算一次,和服务端 maxRoomBytes 一致) */
+export const ROOM_MAX_ITEMS = 200;
+export const ROOM_MAX_MB = 30;
+export function roomUsage(items: WorldPlacement[]): { n: number; mb: number } {
+  const seen = new Map<string, number>();
+  for (const p of items) if (!seen.has(p.assetKey)) seen.set(p.assetKey, assetBytes(p.asset));
+  let bytes = 0;
+  seen.forEach((b) => { bytes += b; });
+  return { n: items.length, mb: bytes / (1 << 20) };
+}
+
+function RoomBudget({ items }: { items: WorldPlacement[] }) {
+  const { n, mb } = roomUsage(items);
+  const tight = n >= ROOM_MAX_ITEMS * 0.9 || mb >= ROOM_MAX_MB * 0.9;
+  return (
+    <Typography title="一间房最多 200 件、加起来 30 MB(同一件摆几份只算一次);超了摆不进去" sx={{ fontSize: 11, color: tight ? '#ffb07a' : 'rgba(255,255,255,0.4)', ml: 'auto', alignSelf: 'center', whiteSpace: 'nowrap' }}>
+      {n} / {ROOM_MAX_ITEMS} 件 · {mb.toFixed(1)} / {ROOM_MAX_MB} MB
+    </Typography>
+  );
 }
 
 export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose, toast, narrow }: RoomEditorProps) {
@@ -321,7 +342,7 @@ export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose
             {t === 'lib' ? '素材库' : '我的上传'}
           </ButtonBase>
         ))}
-        <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', ml: 'auto', alignSelf: 'center' }}>{objects.items.length} / 200 件</Typography>
+        <RoomBudget items={objects.items} />
       </Box>
 
       {tab === 'lib' ? (

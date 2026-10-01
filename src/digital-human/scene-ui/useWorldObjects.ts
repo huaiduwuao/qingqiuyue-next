@@ -43,6 +43,8 @@ export const toPlaced = (p: WorldPlacement): PlacedObject => ({
   id: p.id, assetKey: p.assetKey, label: p.label, x: p.x, y: p.y, z: p.z, rotY: p.rotY, scale: p.scale || 1,
   status: p.asset?.status ?? 'ready', nameZh: p.asset?.nameZh, isSet: p.asset?.isSet, height: p.asset?.height,
   file: p.asset?.file || undefined, normalize: p.asset?.source === 'upload',
+  lods: p.asset?.lods?.length ? p.asset.lods.map((l) => ({ file: l.file, bytes: l.bytes })) : undefined,
+  footprint: p.asset?.footprint,
 });
 
 export function useWorldObjects(opts: Options) {

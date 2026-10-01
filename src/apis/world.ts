@@ -21,6 +21,27 @@ export interface WorldAsset {
   /** polyhaven / upload / … */
   source?: string;
   kind?: 'model' | 'avatar' | 'splat';
+  /** 老格式文件的大小(字节) */
+  bytes?: number;
+  /** 创世五期:三档文件(近 / 中 / 远,meshopt + KTX2);没有 = 只有 file 一份 */
+  lods?: WorldAssetLod[];
+  /** 创世五期:泼溅的精简档(≤ 40 万点,SPZ),流畅画质用 */
+  lite?: string;
+}
+
+export interface WorldAssetLod {
+  /** qq-media/world 下的相对路径 */
+  file: string;
+  tris: number;
+  bytes: number;
+  /** 转成 KTX2 的贴图张数 */
+  ktx2?: number;
+}
+
+/** 一件素材摆进房间要下载多大(有分档按最近一档) */
+export function assetBytes(a?: Pick<WorldAsset, 'bytes' | 'lods'> | null): number {
+  if (!a) return 0;
+  return a.lods?.[0]?.bytes || a.bytes || 0;
 }
 
 export interface WorldPlacement {
@@ -279,6 +300,11 @@ export async function adminUpdateWorldAsset(key: string, p: { nameZh?: string; t
 
 export async function adminDeleteWorldAsset(key: string, force = false) {
   await accountClient.delete(`/admin/world/assets/${encodeURIComponent(key)}`, { params: force ? { force: 1 } : undefined });
+}
+
+/** 创世五期:给还没有分档的已上架素材(和没抽精简档的大泼溅)排加工 */
+export async function adminRelodWorldAssets(limit = 100) {
+  return accountClient.post<{ queued: number; keys: string[] }>('/admin/world/assets/relod', undefined, { params: { limit } });
 }
 
 export async function adminRetryWorldAsset(key: string) {

@@ -78,6 +78,8 @@ export interface WorldRoomInfo {
   template: RoomTemplate;
   /** template = splat 时:泼溅文件地址(已经过 mediaUrl) */
   splatUrl?: string;
+  /** 精简档(≤ 40 万点):流畅画质用;没有就用 splatUrl */
+  splatLiteUrl?: string;
   splatKey?: string;
   shell?: RoomShellAlign;
 }

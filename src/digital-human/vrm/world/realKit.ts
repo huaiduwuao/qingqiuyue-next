@@ -3,7 +3,8 @@
  *
  * 素材是 Blender 流水线(qingqiuyue-go/scripts/blender)加工过的 Poly Haven CC0 素材,在 MinIO qq-media/world:
  *   textures/<id>_{diff,nor,arm}.jpg   平铺 PBR 贴图(ARM = R 环境光遮蔽 / G 粗糙 / B 金属)
- *   models/<id>{,_lod1}.glb            Draco + WebP 的模型
+ *   models/<id>{,_lod1}.glb            Draco + WebP 的模型(老格式)
+ *   models/<id>.lod{0,1,2}.glb         创世五期的三档:meshopt 几何 + KTX2 贴图(要 renderer 才能解 KTX2)
  *
  * - texSet(id, repeat):把一套平铺贴图挂到材质上(异步,到了再换;没到时材质保持原来的纯色)
  * - model(id):加载一次、之后克隆;scatter(id, spots):同一个模型种很多份(每个子网格一组 InstancedMesh)
@@ -19,6 +20,8 @@ export interface Spot { x: number; y?: number; z: number; scale?: number; rot?: 
 
 export interface RealKit {
   base: string;
+  /** 能不能解 KTX2(创建时给了 renderer) */
+  canKtx2: boolean;
   texSet: (m: THREE.MeshStandardMaterial, id: string, repeat?: number | [number, number], opts?: { normalScale?: number; tint?: number }) => void;
   model: (id: string) => Promise<THREE.Object3D>;
   /** 按 qq-media/world 下的相对路径加载(用户上传的 uploads/<key>/src.glb 这种),同样缓存 + 克隆 */
@@ -29,7 +32,18 @@ export interface RealKit {
   dispose: () => void;
 }
 
-export function createRealKit(THREE_NS: typeof THREE, opts: { base?: string; quality: 'high' | 'low'; anisotropy?: number }): RealKit {
+/** Basis 转码器(KTX2 → GPU 格式)随前端发,和 Draco 解码器一样放 public 下 */
+export const BASIS_TRANSCODER_PATH = '/basis/';
+
+export interface RealKitOptions {
+  base?: string;
+  quality: 'high' | 'low';
+  anisotropy?: number;
+  /** 给了才能解 KTX2 贴图(KTX2Loader 要按显卡挑转码目标) */
+  renderer?: THREE.WebGLRenderer | null;
+}
+
+export function createRealKit(THREE_NS: typeof THREE, opts: RealKitOptions): RealKit {
   const base = mediaUrl(opts.base ?? WORLD_ASSET_BASE);
   const high = opts.quality === 'high';
   const disposables = new Set<{ dispose: () => void }>();
@@ -72,6 +86,22 @@ export function createRealKit(THREE_NS: typeof THREE, opts: { base?: string; qua
       .catch(() => { /* 贴图没到:保持纯色 */ });
   }
 
+  // KTX2:一个 kit 一个 loader(内部有转码 worker 池),第一次用到时再建
+  type K2 = import('three/examples/jsm/loaders/KTX2Loader.js').KTX2Loader;
+  let ktx2: Promise<K2 | null> | null = null;
+  const ktx2Loader = (): Promise<K2 | null> => {
+    const renderer = opts.renderer;
+    if (!renderer) return Promise.resolve(null);
+    ktx2 ??= import('three/examples/jsm/loaders/KTX2Loader.js').then(({ KTX2Loader }) => {
+      const l = new KTX2Loader();
+      l.setTranscoderPath(BASIS_TRANSCODER_PATH);
+      l.detectSupport(renderer);
+      disposables.add({ dispose: () => l.dispose() });
+      return l;
+    }).catch(() => null);
+    return ktx2;
+  };
+
   const modelCache = new Map<string, Promise<THREE.Object3D>>();
   async function loadModel(id: string, path = `models/${id}.glb`): Promise<THREE.Object3D> {
     const [{ GLTFLoader }, { DRACOLoader }, { MeshoptDecoder }] = await Promise.all([
@@ -85,6 +115,8 @@ export function createRealKit(THREE_NS: typeof THREE, opts: { base?: string; qua
     loader.setDRACOLoader(draco);
     // 用户上传的 GLB 常见 meshopt 压缩(gltfpack / gltf-transform 导出的)
     loader.setMeshoptDecoder(MeshoptDecoder);
+    const k2 = await ktx2Loader();
+    if (k2) loader.setKTX2Loader(k2);
     try {
       const gltf = await loader.loadAsync(`${base}/${path}`);
       const root = gltf.scene as THREE.Object3D;
@@ -179,6 +211,7 @@ export function createRealKit(THREE_NS: typeof THREE, opts: { base?: string; qua
 
   return {
     base,
+    canKtx2: !!opts.renderer,
     texSet,
     model,
     modelFile,

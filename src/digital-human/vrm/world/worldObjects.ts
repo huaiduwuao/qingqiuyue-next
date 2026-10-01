@@ -10,6 +10,10 @@
  *
  * 创世:用户上传的模型按 file 加载(加工完之前是原文件 uploads/<key>/src.glb),加载后归一化
  * (脚底中心到原点、厘米单位缩回米);房间布置时可以点选(pick)、高亮选中的那件,gizmo 直接拖它的组。
+ *
+ * 创世五期:素材有三档(lods:近 / 中 / 远,meshopt + KTX2)时按离镜头多远挑一档 —— 8 米内近档、20 米内中档、
+ * 再远远档,东西越大换档越晚;流畅画质整体降一档。每半秒看一次,离边界不到 10% 不换(免得来回闪);
+ * 新的一档下好之前一直显示旧的。没有分档、没有 renderer(解不了 KTX2)或者分档文件加载失败,就用老格式 file。
  */
 
 import type * as THREE from 'three';
@@ -35,6 +39,29 @@ export interface PlacedObject {
   normalize?: boolean;
   /** 布置方案的预览件:半透明、点不中 */
   ghost?: boolean;
+  /** 创世五期:三档文件(近 → 远) */
+  lods?: { file: string; bytes?: number }[];
+  /** 占地最长边(米):越大的东西越晚换粗的一档 */
+  footprint?: number;
+}
+
+/** 离镜头 dist 米、大小 size 米的东西该用第几档(0 近 / 1 中 / 2 远)。prev = 上次的结果,离边界不到 10% 不换 */
+export function lodByDistance(dist: number, size: number, prev = -1): number {
+  const k = Math.max(1, (size || 1) / 1.5);
+  const edges = [8 * k, 20 * k];
+  let lv = edges.filter((e) => dist >= e).length;
+  if (prev >= 0 && Math.abs(lv - prev) === 1) {
+    const edge = edges[Math.min(lv, prev)];
+    if (Math.abs(dist - edge) < edge * 0.1) lv = prev;
+  }
+  return lv;
+}
+
+/** 按距离档位 + 画质挑实际加载哪一个文件(n = 这件素材有几档);-1 = 没有分档 */
+export function lodIndex(distLevel: number, n: number, quality: 'high' | 'low'): number {
+  if (n <= 0) return -1;
+  const lv = Math.max(0, distLevel) + (quality === 'low' ? 1 : 0);
+  return Math.min(n - 1, lv);
 }
 
 export interface ObjectLayer {
@@ -42,7 +69,7 @@ export interface ObjectLayer {
   upsert: (p: PlacedObject) => void;
   remove: (id: string) => void;
   list: () => PlacedObject[];
-  tick: (t: number, dt: number) => void;
+  tick: (t: number, dt: number, camera?: THREE.Camera) => void;
   /** 射线点中了哪一件(返回摆放 id) */
   pick: (raycaster: THREE.Raycaster) => string | null;
   /** 某一件的组(gizmo 挂在它上面) */
@@ -59,12 +86,27 @@ interface Entry {
   glow: THREE.Mesh | null;
   grow: number; // 0 → 1 长出来;< 0 表示正在缩回去
   loadedKey: string;
+  /** 正在下的那一份(下好之前继续显示 loadedKey 那份) */
+  loadingKey: string;
   /** 选中高亮圈的半径(按模型大小量一次,0 = 还没量) */
   radius: number;
+  /** 五期分档:按距离算出的档位(-1 = 还没算)、分档文件加载失败过(以后只用老格式) */
+  distLevel: number;
+  lodBroken: boolean;
 }
 
-export function createObjectLayer(THREE_NS: typeof THREE, parent: THREE.Object3D, opts: { base?: string; quality: 'high' | 'low' }): ObjectLayer {
-  const kit: RealKit = createRealKit(THREE_NS, opts);
+export function createObjectLayer(
+  THREE_NS: typeof THREE,
+  parent: THREE.Object3D,
+  opts: { base?: string; quality: 'high' | 'low'; lodQuality?: 'high' | 'low'; renderer?: THREE.WebGLRenderer | null },
+): ObjectLayer {
+  const kit: RealKit = createRealKit(THREE_NS, { base: opts.base, quality: opts.quality, renderer: opts.renderer });
+  const lodQuality = opts.lodQuality ?? opts.quality;
+  // 最近一次的镜头位置:新摆的东西一出现就按它挑档,不用先下一份再换
+  let camKnown = false;
+  const camPos = new THREE_NS.Vector3();
+  const wp = new THREE_NS.Vector3();
+  let lodTimer = 0;
   const root = new THREE_NS.Group();
   root.name = 'dh-world-objects';
   parent.add(root);
@@ -104,14 +146,34 @@ export function createObjectLayer(THREE_NS: typeof THREE, parent: THREE.Object3D
     return wrap;
   }
 
+  /** 这件现在该加载哪一份 */
+  function target(e: Entry): { file: string; loadKey: string; lod: boolean } {
+    const key = e.p.assetKey;
+    const lods = e.p.lods ?? [];
+    if (lods.length && kit.canKtx2 && !e.lodBroken) {
+      if (e.distLevel < 0 && camKnown) {
+        e.g.getWorldPosition(wp);
+        e.distLevel = lodByDistance(wp.distanceTo(camPos), sizeOf(e));
+      }
+      const i = lodIndex(e.distLevel < 0 ? 1 : e.distLevel, lods.length, lodQuality);
+      return { file: lods[i].file, loadKey: `lod:${lods[i].file}`, lod: true };
+    }
+    const file = e.p.file && e.p.file !== `models/${key}.glb` ? e.p.file : '';
+    return { file, loadKey: file || key, lod: false };
+  }
+
+  const sizeOf = (e: Entry) => Math.max(e.p.footprint ?? 0, e.p.height ?? 0, 0.5) * (e.p.scale || 1);
+
   function loadModel(e: Entry) {
     const key = e.p.assetKey;
-    const file = e.p.file && e.p.file !== `models/${key}.glb` ? e.p.file : '';
-    const loadKey = file || key;
-    if (e.p.status !== 'ready' || e.loadedKey === loadKey) return;
-    e.loadedKey = loadKey;
+    const t = target(e);
+    const { file, loadKey } = t;
+    if (e.p.status !== 'ready' || e.loadedKey === loadKey || e.loadingKey === loadKey) return;
+    e.loadingKey = loadKey;
     (file ? kit.modelFile(file) : kit.model(key)).then((m) => {
-      if (disposed || !entries.has(e.p.id) || e.loadedKey !== loadKey) return;
+      if (disposed || !entries.has(e.p.id) || e.loadingKey !== loadKey) return;
+      e.loadingKey = '';
+      e.loadedKey = loadKey;
       let obj = m;
       if (e.p.isSet && m.children.length > 1) {
         // 只取第一件,挪回原点
@@ -121,7 +183,8 @@ export function createObjectLayer(THREE_NS: typeof THREE, parent: THREE.Object3D
         first.position.z = 0;
         obj = first;
       }
-      if (e.p.normalize) obj = normalizeObject(obj);
+      // 分档文件在流水线里已经归一过;只有用户上传的原文件要在这里归一
+      if (e.p.normalize && !t.lod) obj = normalizeObject(obj);
       if (e.p.ghost) {
         // 预览:材质各自拷一份再调透明,不影响同一模型的正式摆放
         obj.traverse((o) => {
@@ -137,13 +200,23 @@ export function createObjectLayer(THREE_NS: typeof THREE, parent: THREE.Object3D
           mesh.castShadow = false;
         });
       }
+      const first = !e.model;
       if (e.model) e.g.remove(e.model);
       e.model = obj;
       e.radius = 0;
       e.g.add(obj);
       if (e.glow) { e.g.remove(e.glow); e.glow = null; }
-      e.grow = Math.min(e.grow, 0.001); // 实物到了:从小长出来
-    }).catch(() => { e.loadedKey = ''; /* 下次再试 */ });
+      if (first) e.grow = Math.min(e.grow, 0.001); // 实物到了:从小长出来(换档不用)
+    }).catch(() => {
+      if (e.loadingKey !== loadKey) return;
+      e.loadingKey = '';
+      if (t.lod) {
+        // 分档文件不行(浏览器解不了 KTX2 之类):以后这件只用老格式
+        e.lodBroken = true;
+        loadModel(e);
+      }
+      /* 老格式也失败:下次 upsert 再试 */
+    });
   }
 
   function upsert(p: PlacedObject) {
@@ -157,13 +230,13 @@ export function createObjectLayer(THREE_NS: typeof THREE, parent: THREE.Object3D
       ring.name = 'spawn-ring';
       g.add(ring);
       root.add(g);
-      e = { p, g, model: null, glow: null, grow: 0.001, loadedKey: '', radius: 0 };
+      e = { p, g, model: null, glow: null, grow: 0.001, loadedKey: '', loadingKey: '', radius: 0, distLevel: -1, lodBroken: false };
       entries.set(p.id, e);
     }
     const keyChanged = e.p.assetKey !== p.assetKey;
     e.p = p;
     place(e);
-    if (keyChanged && e.model) { e.g.remove(e.model); e.model = null; e.loadedKey = ''; }
+    if (keyChanged) { if (e.model) e.g.remove(e.model); e.model = null; e.loadedKey = ''; e.loadingKey = ''; e.distLevel = -1; e.lodBroken = false; }
     if (p.status === 'ready') loadModel(e);
     else if (!e.glow && !e.model) {
       // 还在现做:一团光占位,高度按素材大约多高放
@@ -206,7 +279,27 @@ export function createObjectLayer(THREE_NS: typeof THREE, parent: THREE.Object3D
   }
 
   const ease = (x: number) => 1 - Math.pow(1 - x, 3);
-  function tick(t: number, dt: number) {
+  /** 每半秒按离镜头的距离换档 */
+  function tickLod(dt: number, camera?: THREE.Camera) {
+    if (!camera) return;
+    camera.getWorldPosition(camPos);
+    camKnown = true;
+    lodTimer -= dt;
+    if (lodTimer > 0) return;
+    lodTimer = 0.5;
+    for (const e of entries.values()) {
+      if (e.grow < 0 || !e.p.lods?.length || e.lodBroken || e.p.status !== 'ready') continue;
+      e.g.getWorldPosition(wp);
+      const lv = lodByDistance(wp.distanceTo(camPos), sizeOf(e), e.distLevel);
+      if (lv !== e.distLevel) {
+        e.distLevel = lv;
+        loadModel(e);
+      }
+    }
+  }
+
+  function tick(t: number, dt: number, camera?: THREE.Camera) {
+    tickLod(dt, camera);
     const sel = selected ? entries.get(selected) : undefined;
     if (sel && sel.grow >= 0) {
       if (!sel.radius && (sel.model || sel.glow)) {

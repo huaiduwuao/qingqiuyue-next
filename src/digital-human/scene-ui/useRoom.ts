@@ -39,6 +39,7 @@ export function roomToDef(r: WorldRoom): WorldDef {
       // 泼溅还没选好 / 被删了:退回书斋,别给一间空房
       template: r.template === 'splat' && !splatFile ? 'study' : r.template,
       splatUrl: splatUrlOf(splatFile),
+      splatLiteUrl: splatFile ? splatUrlOf(r.splat?.lite) : undefined,
       splatKey: r.splatKey || undefined,
       shell: r.shell,
     },

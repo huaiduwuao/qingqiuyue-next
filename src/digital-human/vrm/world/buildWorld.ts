@@ -143,7 +143,7 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
   let theme = worldTheme(initialPreset);
   const kit: RealKit | null = bopts.realistic ? createRealKit(THREE_NS, bopts.realistic) : null;
   // 言出法随摆出来的东西:画风无关,风格化场景里摆的也是实景模型
-  const objects = createObjectLayer(THREE_NS, group, { base: bopts.realistic?.base, quality: bopts.realistic?.quality ?? 'high' });
+  const objects = createObjectLayer(THREE_NS, group, { base: bopts.realistic?.base, quality: bopts.realistic?.quality ?? 'high', lodQuality: bopts.quality ?? 'high', renderer: bopts.renderer ?? null });
 
   // ── 托底光:舞台聚光照不到外圈,给一点点环境光让远处的地标有体积感
   const hemi = new THREE_NS.HemisphereLight(theme.hemiSky, theme.hemiGround, island ? 0 : theme.hemi);
@@ -1133,7 +1133,7 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
     setTheme, setOrbs, collectOrb, showMarker, setActiveZone,
     setDanceFloorHot: (on) => { danceHot = on; },
     floatText, dispose,
-    tick: (t, dt, camera) => { tick(t, dt, camera); tickPeers(t, dt); tickNpcs(t, dt); objects.tick(t, dt); roomShell?.tick(t, camera); },
+    tick: (t, dt, camera) => { tick(t, dt, camera); tickPeers(t, dt); tickNpcs(t, dt); objects.tick(t, dt, camera); roomShell?.tick(t, camera); },
     objects,
     setPeers, setAura, setSelfPos, peerPositions, setCharacters, characterSay, characterPositions, setLampBoost,
   };

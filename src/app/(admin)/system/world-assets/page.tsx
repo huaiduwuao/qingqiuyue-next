@@ -44,7 +44,7 @@ import { PERMISSIONS } from '@/lib/permissions';
 import { formatApiError } from '@/lib/api/client';
 import { mediaUrl } from '@/lib/media';
 import {
-  adminDeleteWorldAsset, adminListWorldAssets, adminRetryWorldAsset, adminUpdateWorldAsset, adminWorldStats,
+  adminDeleteWorldAsset, adminListWorldAssets, adminRetryWorldAsset, adminRelodWorldAssets, adminUpdateWorldAsset, adminWorldStats,
   type AdminWorldAsset, type AdminWorldStats,
 } from '@/apis/world';
 import { WorldUpload } from '@/digital-human/scene-ui/WorldUpload';
@@ -126,6 +126,11 @@ function Inner() {
     <Box sx={{ p: { xs: 1.5, md: 3 } }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
         <Typography variant="h5" sx={{ fontWeight: 800, flex: 1 }}>世界素材库</Typography>
+        {canManage && (
+          <Tooltip title="给还没有三档(meshopt + KTX2)的已上架模型、没抽精简档的大泼溅排加工,一次 100 件">
+            <Button onClick={() => void act(async () => { const r = await adminRelodWorldAssets(100); return r; }, '已排进加工队列')}>补齐分档</Button>
+          </Tooltip>
+        )}
         <Button startIcon={<RefreshRoundedIcon />} onClick={() => void load()}>刷新</Button>
       </Box>
       <Typography sx={{ color: 'text.secondary', fontSize: 13, mb: 2 }}>
@@ -214,7 +219,15 @@ function Inner() {
                     {a.owner && <Typography sx={{ fontSize: 11, color: 'text.secondary' }}>{a.owner.nickname}</Typography>}
                   </TableCell>
                   <TableCell><Chip size="small" label={st.label} color={st.color} /></TableCell>
-                  <TableCell align="right">{fmtBytes(a.bytes)}</TableCell>
+                  <TableCell align="right">
+                    {fmtBytes(a.bytes)}
+                    {!!a.lods?.length && (
+                      <Tooltip title={a.lods.map((l, i) => `${['近', '中', '远'][i] ?? i}档 ${l.tris.toLocaleString()} 面 ${fmtBytes(l.bytes)}${l.ktx2 ? ` · ${l.ktx2} 张 KTX2` : ''}`).join('\n')}>
+                        <Typography component="div" sx={{ fontSize: 11, color: 'success.main' }}>{a.lods.length} 档 · {a.lods.map((l) => fmtBytes(l.bytes)).join(' / ')}</Typography>
+                      </Tooltip>
+                    )}
+                    {!!a.lite && <Typography component="div" sx={{ fontSize: 11, color: 'success.main' }}>有精简档</Typography>}
+                  </TableCell>
                   <TableCell align="right">{a.kind === 'splat' ? (a.splats ? `${(a.splats / 10000).toFixed(1)} 万点` : '—') : a.polycount ? a.polycount.toLocaleString() : '—'}</TableCell>
                   <TableCell align="right">{a.uses || ''}</TableCell>
                   <TableCell>{a.ownerId === '0' ? '平台' : a.visibility === 'public' ? '公开' : '仅本人'}</TableCell>
@@ -226,7 +239,7 @@ function Inner() {
                         {a.status === 'hidden'
                           ? <Tooltip title="恢复上架"><IconButton size="small" onClick={() => void act(() => adminUpdateWorldAsset(a.key, { status: a.file ? 'ready' : 'available' }), '恢复了')}><CheckCircleOutlineRoundedIcon fontSize="small" /></IconButton></Tooltip>
                           : <Tooltip title="下架(搜不到、抽屉里不出现;已经摆着的还在)"><IconButton size="small" onClick={() => void act(() => adminUpdateWorldAsset(a.key, { status: 'hidden' }), '下架了')}><BlockRoundedIcon fontSize="small" /></IconButton></Tooltip>}
-                        {(a.kind === 'model' || !a.kind) && (a.source === 'upload' || a.source === 'polyhaven') && (
+                        {(((a.kind === 'model' || !a.kind) && (a.source === 'upload' || a.source === 'polyhaven')) || (a.kind === 'splat' && a.source === 'upload')) && (
                           <Tooltip title="重新加工"><IconButton size="small" onClick={() => void act(() => adminRetryWorldAsset(a.key), '排进加工队列了')}><ReplayRoundedIcon fontSize="small" /></IconButton></Tooltip>
                         )}
                         <Tooltip title="删除"><IconButton size="small" color="error" onClick={() => void del(a)}><DeleteOutlineRoundedIcon fontSize="small" /></IconButton></Tooltip>
