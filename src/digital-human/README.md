@@ -192,6 +192,10 @@ MUI 的列表、输入框、下拉框全都能正常点击和输入 —— 不�
 (`ai: true` → 紫色 🤖 名牌、wave / bow 动作);管家开关和请客在 RoomSettings 里的 RoomAISection。
 位置帧里 `m` / `a` 为空时服务端不发,合并时要以每一帧为准,不然会一直「在走」「招手」。
 
+**六期:社交与发现。** 串门面板(Genesis.tsx 的 RoomsSection)分热门 / 关注 / 最近 / 活动四栏;`scene-ui/RoomSocial.tsx`
+放活动时间的说法、活动标签、活动列表(报名)、房间设置里「办活动」、门牌上「关注房主」。房间连接上的 `event` 帧 = 活动开始;
+全站推送 `world.event`(soon / start)= 报名的活动快开始 / 开始了;铃铛类型 `room_event` 点开进房主的房间。
+
 **四期:房间语音。** 走房间同一条 WebSocket 的二进制帧(线上 UDP 进不来,不用 WebRTC):`lib/world/voice/` 里
 packet(包格式,和 go `worldapp/voice.go` 对齐)、gate(开麦的人声闸门)、jitter(播放排期 + 嘴型音量)、voiceEngine
 (麦克风 → WebCodecs Opus → 上行;下行 → 解码 → HRTF 声像)。房里 AI 说的话由 core-api 用服务端 TTS 合成 Opus、

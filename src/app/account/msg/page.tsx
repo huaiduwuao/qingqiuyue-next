@@ -34,6 +34,7 @@ import CommentOutlinedIcon from '@mui/icons-material/CommentOutlined';
 import AlternateEmailIcon from '@mui/icons-material/AlternateEmail';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import PersonAddAlt1Icon from '@mui/icons-material/PersonAddAlt1';
+import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import CampaignOutlinedIcon from '@mui/icons-material/CampaignOutlined';
 import EventOutlinedIcon from '@mui/icons-material/EventOutlined';
 import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
@@ -89,6 +90,7 @@ const INTERACTION_SUB_TYPES = [
   { key: 'like', label: '赞' },
   { key: 'follow', label: '粉丝' },
   { key: 'friend', label: '好友' },
+  { key: 'room_event', label: '活动' },
 ];
 
 const QUICK_EMOJI = ['😀', '😂', '🥰', '😍', '🤔', '😢', '👍', '👏', '🎉', '❤️', '🔥', '✨'];
@@ -313,11 +315,17 @@ function FullNoticeItem({ item }: { item: any }) {
     if (item.type === 'mention') return <AlternateEmailIcon sx={{ fontSize: 12, color: '#5B8DEF' }} />;
     if (item.type === 'like') return <FavoriteBorderIcon sx={{ fontSize: 12, color: 'primary.main' }} />;
     if (item.type === 'follow') return <PersonAddAlt1Icon sx={{ fontSize: 12, color: 'warning.main' }} />;
+    if (item.type === 'room_event') return <EventAvailableIcon sx={{ fontSize: 12, color: 'success.main' }} />;
     return null;
   })();
 
   const handleClick = async () => {
     markRead(); // 点击即标记已读(异步,不阻塞后续操作)
+    if (item.type === 'room_event' && item.fromUserId) {
+      // 创世房间活动(from = 房主):进他的房间
+      router.push(`/digital-human?room=${encodeURIComponent(String(item.fromUserId))}`);
+      return;
+    }
     if (item.type === 'follow') {
       // 粉丝消息:已读即可,不自动回关;看主页点头像,回关点右侧按钮
       return;

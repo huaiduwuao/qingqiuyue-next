@@ -137,6 +137,12 @@ export interface WorldRoom {
   online?: number;
   /** 三期:AI 管家开着 */
   butler?: boolean;
+  /** 六期:我关注了房主 */
+  followed?: boolean;
+  /** 六期:我上次来是什么时候(串门面板「最近」栏) */
+  lastVisit?: string;
+  /** 六期:门牌上的活动(正在进行的,或 7 天内最近的一场) */
+  event?: WorldRoomEvent;
   /** 四期:房主关了房间语音 */
   voiceOff?: boolean;
 }
@@ -191,9 +197,46 @@ export async function updateMyRoom(p: RoomPatch): Promise<WorldRoom> {
   return accountClient.put<WorldRoom>('/world/rooms/mine', p);
 }
 
-export async function listPublicRooms(limit = 30): Promise<WorldRoom[]> {
-  const r = await accountClient.get<{ list: WorldRoom[] }>('/world/rooms', { params: { limit } });
+/** 串门面板的栏:热门 / 我关注的人 / 我最近去过的 */
+export type RoomTab = 'hot' | 'follow' | 'recent';
+
+export async function listPublicRooms(limit = 30, tab: RoomTab = 'hot'): Promise<WorldRoom[]> {
+  const r = await accountClient.get<{ list: WorldRoom[] }>('/world/rooms', { params: { limit, tab } });
   return Array.isArray(r?.list) ? r.list : [];
+}
+
+// ── 六期:房间活动 ──
+
+export interface WorldRoomEvent {
+  id: string;
+  ownerId: string;
+  title: string;
+  intro: string;
+  startAt: string;
+  endAt: string;
+  status: 'scheduled' | 'cancelled';
+  rsvps: number;
+  joined: boolean;
+  live: boolean;
+  room?: { ownerId: string; name: string; ownerName: string; online: number };
+}
+
+export async function listRoomEvents(scope: 'upcoming' | 'joined' | 'mine' = 'upcoming'): Promise<WorldRoomEvent[]> {
+  const r = await accountClient.get<{ list: WorldRoomEvent[] }>('/world/events', { params: { scope } });
+  return Array.isArray(r?.list) ? r.list : [];
+}
+
+export async function createRoomEvent(p: { title: string; intro?: string; startAt: string; minutes: number }): Promise<WorldRoomEvent> {
+  return accountClient.post<WorldRoomEvent>('/world/rooms/mine/events', p);
+}
+
+export async function cancelRoomEvent(id: string): Promise<WorldRoomEvent> {
+  return accountClient.delete<WorldRoomEvent>(`/world/rooms/mine/events/${encodeURIComponent(id)}`);
+}
+
+export async function rsvpRoomEvent(id: string, join: boolean): Promise<WorldRoomEvent> {
+  const url = `/world/events/${encodeURIComponent(id)}/rsvp`;
+  return join ? accountClient.post<WorldRoomEvent>(url) : accountClient.delete<WorldRoomEvent>(url);
 }
 
 export async function visitRoom(ownerId: string): Promise<void> {

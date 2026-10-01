@@ -142,6 +142,10 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
       case 'kick':
         o.onKick(f.msg);
         return;
+      case 'event':
+        // 六期:房间活动到点开始(门牌上的「进行中」由随后的 room 帧更新)
+        o.toast('🎉', `「${f.event?.title ?? '活动'}」开始了`);
+        return;
       case 'error':
         o.toast('⚠️', f.msg);
         return;

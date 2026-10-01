@@ -1322,7 +1322,7 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
             bottom={narrow ? 'calc(min(46vh, 460px) + 10px)' : 'calc(min(40vh, 400px) + 10px)'}
           />
           {worldHelp.open && <WorldHelp onClose={worldHelp.close} touch={narrow} />}
-          <RoomPlate def={scenes.def} onGoHome={goHome} narrow={narrow} />
+          <RoomPlate def={scenes.def} onGoHome={goHome} narrow={narrow} room={genesis.room.roomOf(scenes.def.key)} toast={(icon, t) => game.toast(icon, t)} />
           <RoomChat rs={roomSock} narrow={narrow} voice={roomVoice} />
           <GenesisPanels
             g={genesis}
@@ -1339,7 +1339,7 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
               current={scenes.def.key}
               onPick={(k) => { setScenePickerOpen(false); scenes.switchTo(k); }}
               onClose={() => setScenePickerOpen(false)}
-              extra={<RoomsSection g={genesis} current={scenes.def.key} onPick={(k) => { setScenePickerOpen(false); scenes.switchTo(k); }} />}
+              extra={<RoomsSection g={genesis} toast={(icon, t) => game.toast(icon, t)} current={scenes.def.key} onPick={(k) => { setScenePickerOpen(false); scenes.switchTo(k); }} />}
             />
           )}
         </ErrorBoundary>

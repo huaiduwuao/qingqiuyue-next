@@ -22,6 +22,7 @@ import CommentOutlinedIcon from '@mui/icons-material/CommentOutlined';
 import AlternateEmailIcon from '@mui/icons-material/AlternateEmail';
 import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
 import PersonAddAlt1Icon from '@mui/icons-material/PersonAddAlt1';
+import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { adminClient } from '@/lib/api/client';
 import { getDetailRoute } from '@/lib/contentRoute';
@@ -36,6 +37,7 @@ const SUB_TYPES = [
   { key: 'like', label: '赞' },
   { key: 'follow', label: '粉丝' },
   { key: 'friend', label: '好友' },
+  { key: 'room_event', label: '活动' },
 ];
 
 function timeAgo(iso: string): string {
@@ -321,6 +323,7 @@ function InteractionItem({ item, onClose, onMessage }: { item: any; onClose: () 
     if (item.type === 'mention') return <AlternateEmailIcon sx={{ fontSize: 12, color: '#5B8DEF' }} />;
     if (item.type === 'like') return <FavoriteBorderIcon sx={{ fontSize: 12, color: 'primary.main' }} />;
     if (item.type === 'follow') return <PersonAddAlt1Icon sx={{ fontSize: 12, color: 'warning.main' }} />;
+    if (item.type === 'room_event') return <EventAvailableIcon sx={{ fontSize: 12, color: 'success.main' }} />;
     return null;
   })();
 
@@ -359,6 +362,11 @@ function InteractionItem({ item, onClose, onMessage }: { item: any; onClose: () 
   const handleClick = async () => {
     markRead();
     onClose();
+    if (item.type === 'room_event' && item.fromUserId) {
+      // 创世房间活动(from = 房主):进他的房间
+      router.push(`/digital-human?room=${encodeURIComponent(String(item.fromUserId))}`);
+      return;
+    }
     if (item.type === 'follow') {
       // 粉丝消息:已读即可;看对方主页点头像
       return;

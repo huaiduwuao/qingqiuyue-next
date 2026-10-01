@@ -12,7 +12,7 @@
 
 import React from 'react';
 import { Box, Button, ButtonBase, CircularProgress, Typography } from '@mui/material';
-import { getMyAvatar, saveMyAvatar, roomOwnerOf, type AvatarParams, type WorldAvatar, type WorldPlacement, type WorldAssetFull } from '@/apis/world';
+import { getMyAvatar, saveMyAvatar, roomOwnerOf, rsvpRoomEvent, type AvatarParams, type RoomTab, type WorldAvatar, type WorldPlacement, type WorldAssetFull, type WorldRoom } from '@/apis/world';
 import { mediaUrl } from '@/lib/media';
 import type { VrmStageHandle } from '../VrmStage';
 import type { AvatarInfo } from '../vrm/avatarCustomize';
@@ -27,6 +27,7 @@ import { useRoom } from './useRoom';
 import { WorldUpload } from './WorldUpload';
 import { useRealtimeEvent, type RealtimeEvent } from '@/lib/realtime';
 import { DesignBar } from './RoomAI';
+import { EventsList, FollowOwnerButton, RoomEventBadge } from './RoomSocial';
 import type { DesignPlan } from './useWorldObjects';
 
 /** 底模地址 → 能加载的 URL:站内 /avatars/… 原样;qq-media/world 下的补前缀 */
@@ -110,14 +111,42 @@ export function GenesisHud({ g, def, onGoHome, narrow }: { g: Genesis; def: Worl
 }
 
 /** 串门时顶上的门牌 */
-export function RoomPlate({ def, onGoHome, narrow }: { def: WorldDef; onGoHome: () => void; narrow?: boolean }) {
+export function RoomPlate({ def, onGoHome, narrow, room, toast }: {
+  def: WorldDef; onGoHome: () => void; narrow?: boolean;
+  /** 六期:这间房的详情(关注房主、门牌上的活动);没有就只显示名字 */
+  room?: WorldRoom | null;
+  toast?: (icon: string, text: string) => void;
+}) {
+  const [joined, setJoined] = React.useState(!!room?.event?.joined);
+  React.useEffect(() => setJoined(!!room?.event?.joined), [room?.event?.id, room?.event?.joined]);
   if (def.kind !== 'room' || !def.room || def.room.mine) return null;
+  const say = toast ?? (() => {});
+  const ev = room?.event;
+  const rsvp = async () => {
+    if (!ev) return;
+    try {
+      const next = await rsvpRoomEvent(ev.id, !joined);
+      setJoined(next.joined);
+      say('📅', next.joined ? '报好名了,开始前 10 分钟提醒你' : '取消报名了');
+    } catch (e) {
+      say('⚠️', (e as { message?: string })?.message || '没成功');
+    }
+  };
   return (
     <Box sx={{ position: 'absolute', zIndex: 3, left: narrow ? 12 : 16, top: narrow ? 'calc(112px + var(--sat, 0px))' : 'calc(64px + var(--sat, 0px))', maxWidth: 300, p: 1.25, borderRadius: 3, bgcolor: 'rgba(8,10,20,0.66)', backdropFilter: 'blur(14px)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff' }}>
       <Typography sx={{ fontSize: 12, color: '#9be8ff' }}>正在串门</Typography>
       <Typography sx={{ fontSize: 15, fontWeight: 800 }}>🏠 {def.name}</Typography>
       {def.intro && <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', mt: 0.25, lineHeight: 1.6 }}>{def.intro}</Typography>}
-      <Button size="small" onClick={onGoHome} sx={{ mt: 0.5, color: '#9be8ff', px: 0 }}>回我的房间</Button>
+      {ev && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
+          <RoomEventBadge ev={ev} />
+          {!ev.live && <Button size="small" onClick={() => void rsvp()} sx={{ minWidth: 0, fontSize: 11.5, color: joined ? 'rgba(255,255,255,0.55)' : '#ffd27a', mt: 0.5 }}>{joined ? '已报名' : '报名'}</Button>}
+        </Box>
+      )}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+        <Button size="small" onClick={onGoHome} sx={{ color: '#9be8ff', px: 0 }}>回我的房间</Button>
+        {room && <FollowOwnerButton room={room} toast={say} />}
+      </Box>
     </Box>
   );
 }
@@ -144,12 +173,20 @@ export function GenesisPanels({ g, def, handle, objects, siteBases, toast, narro
   const mine = def.kind === 'room' && !!def.room?.mine;
   // 有人进了我的房间(服务端推 world.visit,不管我在哪个页面)
   useRealtimeEvent(React.useCallback((ev: RealtimeEvent) => {
+    if (ev.type === 'world.event') {
+      // 六期:报名的活动快开始 / 开始了(在那间房里的话,房间连接已经提示过「开始了」)
+      const d = (ev.data ?? {}) as { phase?: string; room?: string; title?: string; minutes?: number };
+      const here = def.kind === 'room' && def.room?.ownerId === d.room;
+      if (d.phase === 'soon') toast('📅', `你报名的「${d.title || '活动'}」${d.minutes ?? 10} 分钟后开始,在串门面板的「活动」里进房间`);
+      else if (d.phase === 'start' && !here) toast('🎉', `你报名的「${d.title || '活动'}」开始了,在串门面板的「活动」里进房间`);
+      return;
+    }
     if (ev.type !== 'world.visit') return;
     const v = (ev.data as { visitor?: { nickname?: string } } | undefined)?.visitor;
     const name = v?.nickname || '有人';
     if (mine) return; // 在自己房间里:房里的「XX 来了」已经提示过
     if (onVisitor) onVisitor(name); else toast('🏠', `${name}来你的房间串门了`);
-  }, [mine, onVisitor, toast]));
+  }, [mine, onVisitor, toast, def.kind, def.room?.ownerId]));
   // 离开自己的房间:编辑器和设置收起
   React.useEffect(() => { if (!mine) { g.setEditing(false); g.setSettingsOpen(false); g.setSelected(null); } }, [mine]); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => { if (!g.editing) g.setSelected(null); }, [g.editing]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -195,11 +232,29 @@ export function GenesisPanels({ g, def, handle, objects, siteBases, toast, narro
 }
 
 /** 「去哪儿走走」里的房间:我的 + 开放串门的 */
-export function RoomsSection({ g, current, onPick }: { g: Genesis; current: string; onPick: (key: string) => void }) {
+const ROOM_TABS: { key: RoomTab | 'events'; label: string; empty: string }[] = [
+  { key: 'hot', label: '热门', empty: '还没有人开放串门。把自己的房间布置好,在房间设置里打开「开放串门」吧。' },
+  { key: 'follow', label: '关注', empty: '你关注的人还没有开放的房间。串门时点门牌上的「关注房主」,以后在这里找得到。' },
+  { key: 'recent', label: '最近', empty: '还没去别人家串过门。' },
+  { key: 'events', label: '活动', empty: '' },
+];
+
+/** 「上次 3 天前」 */
+export function visitedAgo(iso?: string, now = Date.now()): string {
+  if (!iso) return '';
+  const d = Math.max(0, now - new Date(iso).getTime()) / 1000;
+  if (d < 120) return '刚去过';
+  if (d < 3600) return `上次 ${Math.round(d / 60)} 分钟前`;
+  if (d < 86400) return `上次 ${Math.round(d / 3600)} 小时前`;
+  return `上次 ${Math.round(d / 86400)} 天前`;
+}
+
+export function RoomsSection({ g, current, onPick, toast }: { g: Genesis; current: string; onPick: (key: string) => void; toast?: (icon: string, text: string) => void }) {
+  const [tab, setTab] = React.useState<RoomTab | 'events'>('hot');
   const liveBadge = (n?: number) => (n && n > 0 ? <Box component="span" sx={{ ml: 0.75, fontSize: 10.5, color: '#7dffb0', border: '1px solid rgba(125,255,176,0.5)', borderRadius: 1, px: 0.5 }}>{n} 人在</Box> : null);
   const [busy, setBusy] = React.useState<string | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
-  React.useEffect(() => { void g.room.loadPublic(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => { if (tab !== 'events') void g.room.loadPublic(tab); }, [tab]); // eslint-disable-line react-hooks/exhaustive-deps
   const visit = async (ownerId: string) => {
     setBusy(ownerId);
     setErr(null);
@@ -216,22 +271,33 @@ export function RoomsSection({ g, current, onPick }: { g: Genesis; current: stri
         </ButtonBase>
       )}
       {g.room.error && !g.room.mine && <Typography sx={{ fontSize: 12, color: '#ff9b9b', mb: 1 }}>{g.room.error}</Typography>}
-      <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', mb: 0.75 }}>去别人家串门</Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1 }}>
+        <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', mr: 0.5 }}>去别人家串门</Typography>
+        {ROOM_TABS.map((t) => (
+          <ButtonBase key={t.key} onClick={() => setTab(t.key)} sx={{ px: 1, py: 0.3, borderRadius: 999, fontSize: 12, fontWeight: 700, bgcolor: tab === t.key ? 'rgba(37,244,238,0.18)' : 'rgba(255,255,255,0.06)', color: tab === t.key ? '#25F4EE' : 'rgba(255,255,255,0.75)' }}>{t.label}</ButtonBase>
+        ))}
+      </Box>
       {err && <Typography sx={{ fontSize: 12, color: '#ff9b9b', mb: 0.75 }}>{err}</Typography>}
+      {tab === 'events' && <EventsList onVisit={(id) => void visit(id)} toast={toast} />}
+      {tab !== 'events' && (
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
         {g.room.publicRooms.map((r) => {
           const key = `room:${r.ownerId}`;
           return (
             <ButtonBase key={r.ownerId} disabled={!!busy} onClick={() => void visit(r.ownerId)} sx={{ display: 'block', textAlign: 'left', p: 1.25, borderRadius: 3, bgcolor: current === key ? 'rgba(37,244,238,0.16)' : 'rgba(255,255,255,0.05)', position: 'relative' }}>
               <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}{liveBadge(r.online)}</Typography>
-              <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>{r.owner?.nickname} · {r.items} 件 · 来过 {r.visits} 次</Typography>
+              <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
+                {r.owner?.nickname}{r.followed ? <Box component="span" sx={{ color: '#25F4EE' }}> · 已关注</Box> : null} · {r.items} 件 · {tab === 'recent' && r.lastVisit ? visitedAgo(r.lastVisit) : `来过 ${r.visits} 次`}
+              </Typography>
               {r.intro && <Typography sx={{ fontSize: 11.5, color: 'rgba(255,255,255,0.65)', mt: 0.25, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.intro}</Typography>}
+              <RoomEventBadge ev={r.event} />
               {busy === r.ownerId && <CircularProgress size={14} sx={{ position: 'absolute', top: 10, right: 10 }} />}
             </ButtonBase>
           );
         })}
       </Box>
-      {g.room.publicRooms.length === 0 && <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>还没有人开放串门。把自己的房间布置好,在房间设置里打开「开放串门」吧。</Typography>}
+      )}
+      {tab !== 'events' && g.room.publicRooms.length === 0 && <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>{ROOM_TABS.find((t) => t.key === tab)?.empty}</Typography>}
     </Box>
   );
 }

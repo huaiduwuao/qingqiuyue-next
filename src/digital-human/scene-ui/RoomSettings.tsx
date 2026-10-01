@@ -14,6 +14,7 @@ import { ROOM_TEMPLATE_LABELS } from '../vrm/world/worldLayout';
 import type { SplatStatus } from '../vrm/world/roomShell';
 import { WorldUpload } from './WorldUpload';
 import { RoomAISection } from './RoomAI';
+import { RoomEventsSection } from './RoomSocial';
 
 const glass = { bgcolor: 'rgba(10,12,24,0.82)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff' } as const;
 const TEMPLATES: { key: RoomTemplate; emoji: string; hint: string }[] = [
@@ -198,6 +199,9 @@ export function RoomSettings({ room, handle, save, splat, onClose, toast, narrow
             <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>进来的人可以开麦说话,离得近听得清;在聊天面板点某人的名字可以禁言</Typography>
           </Box>
         </Box>
+
+        {label('活动')}
+        <RoomEventsSection room={room} toast={toast} />
 
         {label('房间里的 AI')}
         <RoomAISection room={room} save={save} toast={toast} />

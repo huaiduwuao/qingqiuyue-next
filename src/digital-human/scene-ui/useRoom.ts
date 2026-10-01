@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  getMyRoom, getRoom, listPublicRooms, roomOwnerOf, roomSceneKey, updateMyRoom, visitRoom,
+  getMyRoom, getRoom, listPublicRooms, roomOwnerOf, roomSceneKey, updateMyRoom, visitRoom, type RoomTab,
   type RoomPatch, type WorldRoom,
 } from '@/apis/world';
 import { mediaUrl } from '@/lib/media';
@@ -71,8 +71,8 @@ export function useRoom(enabled: boolean) {
   }, []);
   useEffect(() => { if (enabled) void loadMine(); }, [enabled, loadMine]);
 
-  const loadPublic = useCallback(async () => {
-    try { setPublicRooms(await listPublicRooms(30)); } catch { setPublicRooms([]); }
+  const loadPublic = useCallback(async (tab: RoomTab = 'hot') => {
+    try { setPublicRooms(await listPublicRooms(30, tab)); } catch { setPublicRooms([]); }
   }, []);
 
   /** 读某人的房间(串门);返回场景 key,失败抛出带原因的错误 */

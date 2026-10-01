@@ -57,6 +57,7 @@ export type RoomFrame =
   | { t: 'room'; room: unknown }
   | { t: 'kick'; msg: string }
   | { t: 'voice'; id: string; v: number; muted?: boolean }
+  | { t: 'event'; phase: 'start'; event: { id: string; title: string; endAt: string } }
   | { t: 'error'; msg: string }
   | { t: 'pong' };
 
