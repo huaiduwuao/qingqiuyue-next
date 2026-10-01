@@ -6,6 +6,9 @@
  * 只写不读:保存后只显示末 4 位,任何接口都取不回原值(后端 AES-GCM 加密存储)。
  * 模板里用 "credential_id": <id> 引用;抓取时只有请求目标属于凭据绑定的域名才会带上。
  * 凭据不经过数字人对话 —— 接入助手只按 id 引用它。
+ *
+ * 「浏览器登录」:在后台操作服务器上的浏览器亲手登录,保存时服务器自己收 Cookie(见 RemoteLoginDialog)。
+ * 带着凭据的抓取又被验证页拦住时,后端会把它标成「已失效」,这里点「重新登录」即可。
  */
 
 import React, { useState } from 'react';
@@ -31,6 +34,9 @@ import Tooltip from '@mui/material/Tooltip';
 import AddIcon from '@mui/icons-material/Add';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
+import LoginIcon from '@mui/icons-material/Login';
+import Chip from '@mui/material/Chip';
+import RemoteLoginDialog from '@/components/admin/RemoteLoginDialog';
 import {
   listCredentials, createCredential, updateCredential, deleteCredential,
   type CrawlCredential, type CredentialWrite,
@@ -51,6 +57,8 @@ export default function SpiderCredentialsPage() {
   const [editing, setEditing] = useState<CrawlCredential | null>(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<CredentialWrite>(EMPTY);
+  // 浏览器登录:null = 关闭;{cred: null} = 新建;{cred} = 重新登录这一条
+  const [remote, setRemote] = useState<{ cred: CrawlCredential | null } | null>(null);
   const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
   const showMsg = (message: string, severity: 'success' | 'error' = 'success') => setSnack({ open: true, message, severity });
   const refresh = () => qc.invalidateQueries({ queryKey: LIST_KEY });
@@ -92,11 +100,12 @@ export default function SpiderCredentialsPage() {
         <Box sx={{ flex: 1, minWidth: 240 }}>
           <Typography variant="h6">登录凭据</Typography>
           <Typography variant="body2" color="text.secondary">
-            要登录才给数据的平台(如抖音、小红书)在这里录入 Cookie。保存后只显示末 4 位;模板里写 credential_id 引用,
+            要登录才给数据的平台(如抖音、小红书)在这里录入 Cookie —— 推荐用「浏览器登录」:在服务器浏览器里亲手登录,Cookie 自动收进来。保存后只显示末 4 位;模板里写 credential_id 引用,
             只有请求目标属于绑定域名时才会带上。数字人接入助手只按编号引用,不要把 Cookie 发在对话里。
           </Typography>
         </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={openCreate} disabled={!enabled}>新增凭据</Button>
+        <Button variant="contained" startIcon={<LoginIcon />} onClick={() => setRemote({ cred: null })} disabled={!enabled}>浏览器登录</Button>
+        <Button variant="outlined" startIcon={<AddIcon />} onClick={openCreate} disabled={!enabled}>手动录入</Button>
       </Box>
 
       {!enabled && (
@@ -114,6 +123,7 @@ export default function SpiderCredentialsPage() {
               <TableCell>名称</TableCell>
               <TableCell>域名</TableCell>
               <TableCell>值</TableCell>
+              <TableCell>状态</TableCell>
               <TableCell>备注</TableCell>
               <TableCell>最近使用</TableCell>
               <TableCell>更新时间</TableCell>
@@ -123,7 +133,7 @@ export default function SpiderCredentialsPage() {
           <TableBody>
             {rows.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} sx={{ color: 'text.secondary', textAlign: 'center', py: 4 }}>
+                <TableCell colSpan={9} sx={{ color: 'text.secondary', textAlign: 'center', py: 4 }}>
                   {query.isLoading ? '加载中…' : '还没有凭据'}
                 </TableCell>
               </TableRow>
@@ -134,10 +144,26 @@ export default function SpiderCredentialsPage() {
                 <TableCell>{c.name}</TableCell>
                 <TableCell sx={{ fontFamily: 'monospace' }}>{c.domain}</TableCell>
                 <TableCell sx={{ fontFamily: 'monospace', color: 'text.secondary' }}>{c.has_value ? c.hint : '—'}</TableCell>
+                <TableCell>
+                  {c.invalid_at ? (
+                    <Tooltip title={`${fmtTime(c.invalid_at)} ${c.invalid_reason || ''}`}>
+                      <Chip size="small" color="error" label="已失效,需重新登录" />
+                    </Tooltip>
+                  ) : c.refreshed_at ? (
+                    <Tooltip title="最近一次浏览器登录收集的时间">
+                      <Chip size="small" color="success" variant="outlined" label={`浏览器登录 ${fmtTime(c.refreshed_at)}`} />
+                    </Tooltip>
+                  ) : (
+                    <Chip size="small" variant="outlined" label="手动录入" />
+                  )}
+                </TableCell>
                 <TableCell sx={{ maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.note || '—'}</TableCell>
                 <TableCell>{fmtTime(c.last_used_at)}</TableCell>
                 <TableCell>{fmtTime(c.update_time)}</TableCell>
                 <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                  <Tooltip title="浏览器登录:在服务器浏览器里重新登录并覆盖这条凭据">
+                    <IconButton size="small" color={c.invalid_at ? 'error' : 'primary'} onClick={() => setRemote({ cred: c })} disabled={!enabled}><LoginIcon fontSize="small" /></IconButton>
+                  </Tooltip>
                   <Tooltip title="编辑(Cookie 留空不修改)">
                     <IconButton size="small" onClick={() => openEdit(c)} disabled={!enabled}><EditOutlinedIcon fontSize="small" /></IconButton>
                   </Tooltip>
@@ -170,6 +196,14 @@ export default function SpiderCredentialsPage() {
           <Button variant="contained" onClick={submit} disabled={save.isPending}>保存</Button>
         </DialogActions>
       </Dialog>
+
+      {remote && (
+        <RemoteLoginDialog
+          credential={remote.cred}
+          onClose={() => { setRemote(null); refresh(); }}
+          onSaved={(c, names) => { showMsg(`已保存凭据 #${c.id}(${names.length} 个 Cookie)`); refresh(); }}
+        />
+      )}
 
       <Snackbar open={snack.open} autoHideDuration={3000} onClose={() => setSnack({ ...snack, open: false })}>
         <Alert severity={snack.severity} onClose={() => setSnack({ ...snack, open: false })}>{snack.message}</Alert>

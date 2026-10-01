@@ -18,6 +18,13 @@ export interface CrawlCredential {
   create_time: string;
   update_time: string;
   last_used_at: string | null;
+  /** 经「浏览器登录」收集时记下了那台浏览器的 UA */
+  has_user_agent?: boolean;
+  /** 最近一次浏览器登录收集的时间 */
+  refreshed_at?: string | null;
+  /** 带着它的请求又被验证页拦了 = 登录态过期,需要重新浏览器登录 */
+  invalid_at?: string | null;
+  invalid_reason?: string;
 }
 
 export interface CredentialList {
@@ -100,4 +107,59 @@ export function summarizeDraftReport(d: Pick<SourceDraft, 'kind' | 'report'>): s
     if (eps) lines.push(eps.error ? `分集出错:${eps.error}` : `共 ${eps.count ?? 0} 集:${(eps.first ?? []).map((e) => e.title).filter(Boolean).join('、')}`);
   }
   return lines;
+}
+
+// ---------------------------------------------------------------------------
+// 浏览器登录(后端 internal/crawler/remote_login.go):在后台操作服务器上的浏览器亲手登录,
+// 点保存时服务器把这个站的 Cookie 收进凭据仓库。截屏帧长轮询,输入事件 POST。
+// ---------------------------------------------------------------------------
+
+export interface RemoteLoginSession {
+  id: string;
+  domain: string;
+  credential_id: number;
+  width: number;
+  height: number;
+  expires_at: string;
+}
+
+export interface RemoteLoginFrame {
+  seq: number;
+  /** base64 JPEG;没有比请求的 seq 更新的帧时不带 */
+  data?: string;
+  url?: string;
+  width?: number;
+  height?: number;
+  closed?: boolean;
+  reason?: string;
+}
+
+export type RemoteInput =
+  | { t: 'mouse'; type: 'mousePressed' | 'mouseReleased' | 'mouseMoved'; x: number; y: number; button?: string; clickCount?: number; modifiers?: number }
+  | { t: 'wheel'; x: number; y: number; dx: number; dy: number }
+  | { t: 'text'; text: string }
+  | { t: 'key'; key: string; code: string; keyCode: number; modifiers?: number };
+
+export function startRemoteLogin(body: { url?: string; credential_id?: number; name?: string }): Promise<RemoteLoginSession> {
+  return spiderClient('/remote-login', { method: 'POST', data: body }) as Promise<RemoteLoginSession>;
+}
+
+export function remoteLoginFrame(id: string, seq: number, signal?: AbortSignal): Promise<RemoteLoginFrame> {
+  return spiderClient(`/remote-login/${encodeURIComponent(id)}/frame`, { params: { seq }, signal }) as Promise<RemoteLoginFrame>;
+}
+
+export function remoteLoginInput(id: string, events: RemoteInput[]): Promise<unknown> {
+  return spiderClient(`/remote-login/${encodeURIComponent(id)}/input`, { method: 'POST', data: { events } });
+}
+
+export function remoteLoginNavigate(id: string, body: { url?: string; action?: 'back' | 'forward' | 'reload' }): Promise<unknown> {
+  return spiderClient(`/remote-login/${encodeURIComponent(id)}/navigate`, { method: 'POST', data: body });
+}
+
+export function saveRemoteLogin(id: string): Promise<{ credential: CrawlCredential; cookie_names: string[] }> {
+  return spiderClient(`/remote-login/${encodeURIComponent(id)}/save`, { method: 'POST' }) as Promise<{ credential: CrawlCredential; cookie_names: string[] }>;
+}
+
+export function closeRemoteLogin(id: string): Promise<unknown> {
+  return spiderClient(`/remote-login/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }
