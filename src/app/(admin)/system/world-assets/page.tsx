@@ -48,6 +48,7 @@ import {
   type AdminWorldAsset, type AdminWorldStats,
 } from '@/apis/world';
 import { WorldUpload } from '@/digital-human/scene-ui/WorldUpload';
+import { WorldLivePanel } from './LivePanel';
 
 const KINDS: Record<string, string> = { model: '模型', avatar: '形象', splat: '泼溅' };
 const STATUS: Record<string, { label: string; color: 'success' | 'warning' | 'default' | 'error' | 'info' }> = {
@@ -160,6 +161,7 @@ function Inner() {
           <Typography sx={{ fontSize: 12, color: jobs('failed') ? 'error.main' : 'text.secondary' }}>失败 {jobs('failed')} · 完成 {jobs('done')}</Typography>
         </Paper>
       </Box>
+      <WorldLivePanel />
       {!!stats?.recentFailed?.length && (
         <Alert severity="warning" sx={{ mb: 2 }}>
           最近加工失败:{stats.recentFailed.slice(0, 4).map((j) => `${j.assetKey}(${(j.error || '').slice(0, 60)})`).join(';')}

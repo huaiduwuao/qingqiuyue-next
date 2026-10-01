@@ -7,6 +7,7 @@
  * 七期:公共场景(广场、庭院)也走这条连接:join(场景 key),服务端当成没有房主的房间;
  * 说话转字幕:caption 帧(自己说话的识别中 / 房里任何人说完一句的最终结果)。
  *
+ * 九期分线:场景一条线满 50 人自动开下一条;hello 里带 line / lines,join 可以指定线,断线重连回到原来那条。
  * 一个页面一条连接,同一时刻只在一间房里。断线按 1→2→4…→15 秒退避重连,连上后自动重新 join,
  * 服务端回 hello 全量(房里的人 + 房间版本),客户端据此补齐。
  *
@@ -52,7 +53,8 @@ export interface PeerInfo extends PeerPose {
 }
 
 export type RoomFrame =
-  | { t: 'hello'; you: string; room: { ownerId: string; version: number; name: string; voice?: boolean; scene?: string }; peers: PeerInfo[]; muted?: boolean }
+  | { t: 'hello'; you: string; room: { ownerId: string; version: number; name: string; voice?: boolean; scene?: string; line?: number; lines?: SceneLine[] }; peers: PeerInfo[]; muted?: boolean }
+  | { t: 'lines'; scene: string; line: number; lines: SceneLine[] }
   | { t: 'join'; peer: PeerInfo }
   | { t: 'leave'; id: string }
   | { t: 'peers'; list: (PeerPose & { id: string })[] }
@@ -67,6 +69,9 @@ export type RoomFrame =
   | { t: 'error'; msg: string }
   | { t: 'pong' };
 
+/** 九期:公共场景的一条线和人数 */
+export interface SceneLine { line: number; n: number }
+
 export type RoomSocketStatus = 'idle' | 'connecting' | 'open' | 'reconnecting';
 
 function socketURL(ticket: string): string {
@@ -80,6 +85,8 @@ function socketURL(ticket: string): string {
 export class RoomSocket {
   private ws: WebSocket | null = null;
   private room: string | null = null;
+  /** 九期:场景里在第几条线(0 = 让服务端挑);重连时回到这条 */
+  private line = 0;
   private joined = false;
   private retry = 0;
   private retryTimer: number | null = null;
@@ -97,9 +104,11 @@ export class RoomSocket {
   }
 
   /** 进某人的房间(房主 uid)或公共场景(场景 key,比如 plaza);没连上就先连 */
-  join(ownerId: string) {
+  join(ownerId: string, line?: number) {
     this.closed = false;
-    if (this.room === ownerId && this.joined) return;
+    if (this.room === ownerId && this.joined && (line === undefined || line === this.line)) return;
+    if (this.room !== ownerId) this.line = 0;
+    if (line !== undefined) this.line = line;
     this.room = ownerId;
     this.joined = false;
     if (this.ws?.readyState === WebSocket.OPEN) this.sendJoin();
@@ -115,8 +124,17 @@ export class RoomSocket {
 
   private sendJoin() {
     if (!this.room) return;
-    this.raw(/^\d+$/.test(this.room) ? { t: 'join', room: this.room } : { t: 'join', scene: this.room });
+    this.raw(/^\d+$/.test(this.room) ? { t: 'join', room: this.room } : { t: 'join', scene: this.room, ...(this.line > 0 ? { line: this.line } : {}) });
     this.joined = true;
+  }
+
+  /** 九期:服务端分到了哪条线(hello 里来的),记下来重连用 */
+  noteLine(line: number) { this.line = line > 0 ? line : 0; }
+
+  /** 九期:问一下各条线现在几个人(回 lines 帧) */
+  lines() {
+    if (!this.joined) return false;
+    return this.raw({ t: 'lines' });
   }
 
   sendState(p: PeerPose & { tp?: boolean }) {

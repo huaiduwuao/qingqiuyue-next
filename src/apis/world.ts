@@ -350,6 +350,31 @@ export interface AdminWorldStats {
   uploads: number;
 }
 
+/** 九期:集线器运行状况(GET /admin/world/live) */
+export interface WorldLiveStats {
+  sockets: number;
+  users: number;
+  inRooms: number;
+  rooms: number;
+  bots: number;
+  listening: number;
+  speaking: number;
+  captions: number;
+  asrDown: boolean;
+  ttsBusy: number;
+  scenes: Record<string, { line: number; n: number }[]>;
+  busiestRoom?: { ownerId: string; n: number };
+  window: {
+    seconds: number; msgsInPerSec: number; framesOutPerSec: number; kbOutPerSec: number; voiceInPerSec: number; voiceOutPerSec: number;
+    voiceDrop: number; slowDrops: number; joins: number; joinFull: number; tickAvgMs: number; tickWaitAvgMs: number; tickMaxMs: number; endedAt: number;
+  };
+  at: number;
+}
+
+export async function adminWorldLive(): Promise<WorldLiveStats> {
+  return accountClient.get<WorldLiveStats>('/admin/world/live');
+}
+
 export async function adminWorldStats(): Promise<AdminWorldStats> {
   return accountClient.get<AdminWorldStats>('/admin/world/stats');
 }

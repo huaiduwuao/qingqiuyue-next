@@ -5,6 +5,7 @@
  * 这里说的话发给房里的人(过敏感词),和数字人对话是两回事;说话的人头顶会冒气泡。
  * 四期:标题下面是语音条(RoomVoice.tsx),名字标签上看得出谁开着麦、谁在说话,点名字能屏蔽 / 禁言。
  * 七期:广场等公共场景里也有(「这里 N 人」);开麦说的话转成字幕进聊天(🎙 标记)。
+ * 九期:场景分了线时标题旁是「N 线」,点开看各条线几个人、换线。
  */
 
 import React from 'react';
@@ -26,11 +27,14 @@ export function RoomChat({ rs, narrow, voice }: { rs: RoomSocketState; narrow?: 
   const [text, setText] = React.useState('');
   const [open, setOpen] = React.useState(!narrow);
   const [picked, setPicked] = React.useState<string | null>(null);
+  const [linesOpen, setLinesOpen] = React.useState(false);
   const listRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => { listRef.current?.scrollTo({ top: listRef.current.scrollHeight }); }, [rs.chat.length, open]);
   if (!rs.inRoom) return null;
   const st = STATUS_TEXT[rs.status] ?? STATUS_TEXT.idle;
   const where = rs.space === 'scene' ? '这里' : '房间里';
+  // 九期:只有一条线时不提线号
+  const showLine = rs.space === 'scene' && rs.line > 0 && (rs.line > 1 || rs.lines.length > 1);
   const send = () => {
     if (rs.say(text)) setText('');
   };
@@ -43,7 +47,7 @@ export function RoomChat({ rs, narrow, voice }: { rs: RoomSocketState; narrow?: 
     return (
       <ButtonBase onClick={() => setOpen(true)} sx={{ position: 'absolute', zIndex: 3, ...pos, px: 1.25, py: 0.5, borderRadius: 999, bgcolor: 'rgba(8,10,20,0.66)', backdropFilter: 'blur(14px)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 12, fontWeight: 700, gap: 0.75 }}>
         <Box component="span" sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: st.color }} />
-        💬 {where} {rs.online} 人{rs.aiCount ? ` · ${rs.aiCount} 位 AI` : ''}
+        💬 {showLine ? `${rs.line} 线 · ` : ''}{where} {rs.online} 人{rs.aiCount ? ` · ${rs.aiCount} 位 AI` : ''}
         {voice?.soundOn && <Box component="span" sx={{ color: voice.talking ? '#7dffb0' : 'rgba(255,255,255,0.7)' }}>{voice.micOn || voice.ptt ? '🎙' : '🔈'}</Box>}
         {!!voice?.speaking.length && <Box component="span" sx={{ color: '#7dffb0' }}>· {voice.speaking.length} 人在说</Box>}
       </ButtonBase>
@@ -54,8 +58,21 @@ export function RoomChat({ rs, narrow, voice }: { rs: RoomSocketState; narrow?: 
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.25, pt: 1, pb: 0.5 }}>
         <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: st.color, flexShrink: 0 }} />
         <Typography sx={{ fontSize: 13, fontWeight: 800, flex: 1 }}>{where} {rs.online} 人{rs.aiCount ? ` · ${rs.aiCount} 位 AI` : ''}{st.text ? ` · ${st.text}` : ''}</Typography>
+        {showLine && (
+          <ButtonBase onClick={() => { setLinesOpen((v) => !v); rs.refreshLines(); }} sx={{ px: 0.75, py: 0.2, borderRadius: 999, fontSize: 11.5, fontWeight: 700, bgcolor: linesOpen ? 'rgba(37,244,238,0.18)' : 'rgba(255,255,255,0.08)', color: '#9be8ff' }}>{rs.line} 线 ▾</ButtonBase>
+        )}
         <IconButton size="small" aria-label="收起" onClick={() => setOpen(false)} sx={{ color: 'rgba(255,255,255,0.55)', p: 0.25 }}><ExpandMoreRoundedIcon fontSize="small" /></IconButton>
       </Box>
+      {showLine && linesOpen && (
+        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', px: 1.25, pb: 0.75 }}>
+          {rs.lines.map((l) => (
+            <ButtonBase key={l.line} disabled={l.line === rs.line} onClick={() => { rs.switchLine(l.line); setLinesOpen(false); }}
+              sx={{ px: 0.9, py: 0.3, borderRadius: 1.5, fontSize: 11.5, bgcolor: l.line === rs.line ? 'rgba(37,244,238,0.2)' : 'rgba(255,255,255,0.07)', color: l.n >= 50 && l.line !== rs.line ? 'rgba(255,255,255,0.35)' : '#fff' }}>
+              {l.line} 线 · {l.n >= 50 ? '满' : `${l.n} 人`}
+            </ButtonBase>
+          ))}
+        </Box>
+      )}
       {voice && <VoiceStrip rs={rs} voice={voice} narrow={narrow} />}
       {rs.peers.length > 0 && (
         <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', px: 1.25, pb: 0.5 }}>

@@ -11,10 +11,11 @@
  *     最终结果进聊天记录(voice: true)、说话人头顶冒气泡;中间结果只有说话人自己收到(myCaption)。
  *   - 四期语音:二进制帧交给 setVoiceHandler 登记的处理器(useRoomVoice);voice 帧更新每个人的声音状态
  *     (peer.voice / muted)和自己是否被禁言;hello 之后把自己的声音状态再报一次(服务端进房时清零)。
+ *   - 九期分线:场景里 hello / lines 帧带着自己在第几条线、各条线几个人;switchLine 换线(清掉聊天,重新收 hello)。
  */
 
 import React from 'react';
-import { RoomSocket, type PeerInfo, type RoomFrame, type RoomSocketStatus } from '@/lib/world/roomSocket';
+import { RoomSocket, type PeerInfo, type RoomFrame, type RoomSocketStatus, type SceneLine } from '@/lib/world/roomSocket';
 import type { WorldRoom } from '@/apis/world';
 import type { VrmStageHandle } from '../VrmStage';
 import type { WorldDef } from '../vrm/world/worldLayout';
@@ -60,6 +61,9 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
   const [selfMuted, setSelfMuted] = React.useState(false);
   // 七期:自己说话时的识别中字幕
   const [myCaption, setMyCaption] = React.useState('');
+  // 九期:场景分线
+  const [line, setLine] = React.useState(0);
+  const [lines, setLines] = React.useState<SceneLine[]>([]);
   const captionTimer = React.useRef<number | null>(null);
   const voiceStateRef = React.useRef<0 | 1 | 2>(0);
   const voiceHandlerRef = React.useRef<((b: ArrayBuffer) => void) | null>(null);
@@ -81,6 +85,9 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
         pushPeers();
         setRoomVoice(f.room.voice !== false);
         setSelfMuted(!!f.muted);
+        setLine(f.room.line ?? 0);
+        setLines(f.room.lines ?? []);
+        sockRef.current?.noteLine(f.room.line ?? 0);
         if (voiceStateRef.current > 0) sockRef.current?.voice(voiceStateRef.current);
         // 出生点上已经站着人:往旁边错开一点,别叠在一起
         const snap = o.handle?.getWorldSnapshot();
@@ -168,6 +175,10 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
         else o.handle?.peerSay(f.id, f.text);
         return;
       }
+      case 'lines':
+        setLine(f.line);
+        setLines(f.lines ?? []);
+        return;
       case 'event':
         // 六期:房间活动到点开始(门牌上的「进行中」由随后的 room 帧更新)
         o.toast('🎉', `「${f.event?.title ?? '活动'}」开始了`);
@@ -241,6 +252,14 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
   const sendVoice = React.useCallback((b: Uint8Array) => sockRef.current?.sendBinary(b) ?? false, []);
   const vmute = React.useCallback((id: string, muted: boolean) => sockRef.current?.vmute(id, muted) ?? false, []);
   const setVoiceHandler = React.useCallback((fn: ((b: ArrayBuffer) => void) | null) => { voiceHandlerRef.current = fn; }, []);
+  // 九期:换线 / 刷新各条线人数
+  const refreshLines = React.useCallback(() => sockRef.current?.lines() ?? false, []);
+  const switchLine = React.useCallback((n: number) => {
+    if (!owner || n === line) return;
+    setChat([]);
+    tpRef.current = true;
+    sockRef.current?.join(owner, n);
+  }, [owner, line]);
 
   // online 只算真人(含自己);AI 另外数
   const aiCount = peers.filter((p) => p.ai).length;
@@ -250,6 +269,8 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
     /** room = 某人的房间;scene = 公共场景(广场、庭院) */
     space: (owner ? (def.kind === 'room' ? 'room' : 'scene') : null) as 'room' | 'scene' | null,
     myCaption,
+    /** 九期:场景里在第几条线(0 = 不分线 / 不在场景)、开着的线 */
+    line, lines, refreshLines, switchLine,
     roomVoice, selfMuted, setVoiceState, sendVoice, vmute, setVoiceHandler,
   };
 }

@@ -106,7 +106,7 @@ describe('useRoomSocket voice', () => {
   function setup() {
     let emit: (f: RoomFrame) => void = () => {};
     let bin: (b: ArrayBuffer) => void = () => {};
-    const sock = { join: vi.fn(), leave: vi.fn(), close: vi.fn(), say: vi.fn(() => true), sendState: vi.fn(), voice: vi.fn(() => true), vmute: vi.fn(() => true), sendBinary: vi.fn(() => true) };
+    const sock = { join: vi.fn(), leave: vi.fn(), close: vi.fn(), say: vi.fn(() => true), sendState: vi.fn(), voice: vi.fn(() => true), vmute: vi.fn(() => true), sendBinary: vi.fn(() => true), noteLine: vi.fn(), lines: vi.fn(() => true) };
     const handle = {
       setRoomPeers: vi.fn(), peerSay: vi.fn(), floatText: vi.fn(), setPosition: vi.fn(),
       getWorldSnapshot: vi.fn(() => ({ x: 0, z: 5, yaw: 0, camYaw: 0, orbs: [], zone: null, peers: [], characters: [] })),

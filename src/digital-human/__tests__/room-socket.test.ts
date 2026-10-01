@@ -10,7 +10,7 @@ const roomDef = (owner: string): WorldDef => ({ key: `room:${owner}`, name: 'x',
 function setup() {
   let emit: (f: RoomFrame) => void = () => {};
   let status: (s: RoomSocketStatus) => void = () => {};
-  const sock = { join: vi.fn(), leave: vi.fn(), close: vi.fn(), say: vi.fn(() => true), sendState: vi.fn() };
+  const sock = { join: vi.fn(), leave: vi.fn(), close: vi.fn(), say: vi.fn(() => true), sendState: vi.fn(), noteLine: vi.fn(), lines: vi.fn(() => true) };
   const handle = {
     setRoomPeers: vi.fn(), peerSay: vi.fn(), floatText: vi.fn(), setPosition: vi.fn(),
     getWorldSnapshot: vi.fn(() => ({ x: 0, z: 1.2, yaw: 0, camYaw: 0, orbs: [], zone: null, peers: [], characters: [] })),
@@ -85,6 +85,24 @@ describe('useRoomSocket', () => {
     expect(t.hook.result.current.space).toBe('room');
     // 关掉世界:断开
     t.hook.rerender({ def: { ...roomDef('2') } });
+  });
+
+  it('tracks scene lines and switches line (九期分线)', () => {
+    const t = setup();
+    t.hook.rerender({ def: { ...roomDef('1'), key: 'plaza', kind: 'plaza', room: undefined } });
+    t.emit({ t: 'hello', you: '1', room: { ownerId: '', version: 0, name: 'plaza', scene: 'plaza', line: 2, lines: [{ line: 1, n: 50 }, { line: 2, n: 3 }] }, peers: [] });
+    expect(t.hook.result.current.line).toBe(2);
+    expect(t.hook.result.current.lines).toHaveLength(2);
+    expect(t.sock.noteLine).toHaveBeenLastCalledWith(2);
+    t.emit({ t: 'say', id: '8', nickname: '阿远', text: '二线的人好', ts: 1 });
+    expect(t.hook.result.current.chat).toHaveLength(1);
+    act(() => { t.hook.result.current.switchLine(1); });
+    expect(t.sock.join).toHaveBeenLastCalledWith('plaza', 1);
+    expect(t.hook.result.current.chat).toHaveLength(0);
+    t.emit({ t: 'lines', scene: 'plaza', line: 1, lines: [{ line: 1, n: 50 }, { line: 2, n: 2 }] });
+    expect(t.hook.result.current.line).toBe(1);
+    expect(t.hook.result.current.refreshLines()).toBe(true);
+    expect(t.sock.lines).toHaveBeenCalled();
   });
 
   it('shows captions: own partial, everyone final', () => {
