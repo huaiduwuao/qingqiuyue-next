@@ -15,6 +15,8 @@ export interface SearchOptions {
   author?: string;
   genre?: string;
   year?: string | number;
+  /** 1 = 只要站内真的能看 / 能读的 */
+  usable?: 0 | 1;
 }
 
 // 站内结果少于 8 条时,后端把关键词交给全网检索(spider-api internal/discover),响应里带

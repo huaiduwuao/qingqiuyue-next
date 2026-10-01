@@ -76,6 +76,10 @@ interface SearchContentItem {
   matchField?: 'title' | 'subtitle' | 'author';
   /** §15.11 这条结果为什么出现:title-exact / alias-match / pinyin-match / hot-score-boost / auto-indexed … */
   reason?: string;
+  /** >1:同一部作品被几个数据源各收录了一条,后端并成了这一张卡(代表行优先选能看的) */
+  mergedCount?: number;
+  /** 被并进来的其余几条 */
+  variants?: { id: number | string; contentType: string; sourceLabel?: string; usable?: boolean }[];
 }
 interface SearchCreatorItem {
   id: number;
@@ -175,6 +179,8 @@ function SearchPageContent() {
   const [fActor, setFActor] = useState('');
   const [fGenre, setFGenre] = useState('');
   const [fYear, setFYear] = useState('');
+  // 只看站内能看 / 能读的(后端 usable=1)
+  const [fUsable, setFUsable] = useState(false);
   // 动态聚合建议当前字段(聚焦导演/演员输入时拉取候选)
   const [facetField, setFacetField] = useState('');
   const [history, setHistory] = useState<string[]>([]);
@@ -280,8 +286,8 @@ function SearchPageContent() {
   });
   const facetSuggestions = facetsQuery.data ?? [];
 
-  const searchKey = [query.trim(), fType, fDirector, fActor, fGenre, fYear].join('|');
-  const searchQueryKey = ['search-content', query.trim(), fType, fDirector, fActor, fGenre, fYear];
+  const searchKey = [query.trim(), fType, fDirector, fActor, fGenre, fYear, fUsable ? 'u' : ''].join('|');
+  const searchQueryKey = ['search-content', query.trim(), fType, fDirector, fActor, fGenre, fYear, fUsable];
   const queryClient = useQueryClient();
 
   const searchQuery = useQuery({
@@ -303,6 +309,7 @@ function SearchPageContent() {
         actor: fActor || undefined,
         genre: fGenre || undefined,
         year: fYear || undefined,
+        usable: fUsable ? 1 : undefined,
       })) as any;
       const items = toSearchItems(res, q);
       // 类型猜测:后端在用户没选分类时猜他想找的类型(并据此收窄全网检索源)。
@@ -440,6 +447,7 @@ function SearchPageContent() {
         actor: fActor || undefined,
         genre: fGenre || undefined,
         year: fYear || undefined,
+        usable: fUsable ? 1 : undefined,
       })) as any;
       const items = toSearchItems(res, query.trim());
       setMore((prev) => ({
@@ -729,6 +737,31 @@ function SearchPageContent() {
           suggestions={facetField === 'genre' ? facetSuggestions : []}
         />
         <FilterField value={fYear} onChange={setFYear} placeholder="年代(2020)" inputMode="numeric" />
+        <Box
+          component="button"
+          aria-pressed={fUsable}
+          onClick={() => setFUsable((v) => !v)}
+          sx={{
+            flexShrink: 0,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 0.5,
+            px: 1.25,
+            py: 0.35,
+            borderRadius: 999,
+            border: '1px solid',
+            borderColor: fUsable ? '#22c55e' : 'var(--border-color, rgba(255,255,255,0.12))',
+            bgcolor: fUsable ? '#22c55e1F' : 'transparent',
+            color: fUsable ? '#22c55e' : 'var(--text-muted, rgba(255,255,255,0.65))',
+            fontSize: 11.5,
+            fontWeight: fUsable ? 600 : 400,
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: fUsable ? '#22c55e' : 'currentColor', opacity: fUsable ? 1 : 0.5 }} />
+          只看能看的
+        </Box>
         {(fType || fDirector || fActor || fGenre || fYear) && (
           <Box
             component="button"
@@ -994,6 +1027,8 @@ function toSearchItems(res: any, q: string): SearchContentItem[] {
       matchField,
       // §15.11 后端算的 reason(为什么这条结果出现);后端没给就 undefined
       reason: typeof it.reason === 'string' ? it.reason : undefined,
+      mergedCount: typeof it.mergedCount === 'number' ? it.mergedCount : undefined,
+      variants: Array.isArray(it.variants) ? it.variants : undefined,
     } as SearchContentItem;
   });
 }
@@ -1410,6 +1445,22 @@ function ContentResult({
                 />
                 {availabilityBadge.label}
               </Box>
+            </>
+          )}
+          {(item.mergedCount ?? 0) > 1 && (
+            <>
+              <Box sx={{ width: 2, height: 2, borderRadius: '50%', bgcolor: 'var(--text-disabled, rgba(255,255,255,0.25))' }} />
+              <Tooltip
+                arrow
+                placement="top"
+                title={`同一部作品在 ${item.mergedCount} 个数据源各有一条收录,已合并显示${
+                  item.usable ? ',这里打开的是能看的那条' : ''
+                }:${[...new Set((item.variants || []).map((v) => v.sourceLabel?.replace(/\s*\[.*?\]/g, '') || ''))].filter(Boolean).join('、')}`}
+              >
+                <Typography component="span" sx={{ fontSize: 11, color: 'var(--text-muted, rgba(255,255,255,0.55))', cursor: 'help' }}>
+                  已合并 {item.mergedCount} 个来源
+                </Typography>
+              </Tooltip>
             </>
           )}
           {item.reason && REASON_HINT[item.reason] && (

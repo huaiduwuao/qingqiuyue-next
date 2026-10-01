@@ -20,6 +20,7 @@ import { useContentInteraction } from '@/hooks/useContentInteraction';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import { PlatformLinks, UnavailablePlayer, platformsOf, linkOutNoticeOf } from '@/components/detail/ExternalPlatforms';
 import UserPlaySources from '@/components/detail/UserPlaySources';
+import { PlayableAlternative, type PlayableAlternativeInfo } from '@/components/detail/PlayableAlternative';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
 import VideoDetailSkeleton from '@/components/detail/VideoDetailSkeleton';
@@ -54,6 +55,8 @@ interface Film {
   playSourceUrl?: string;
   playSourceLabel?: string;
   availability?: { axis?: string; status?: string; watchable?: boolean; notice?: string; backfill?: BackfillState };
+  /** 这条看不了、同一部作品另有能看的那条时后端给出 */
+  playableAlternative?: PlayableAlternativeInfo | null;
 }
 
 function FilmDetailContent() {
@@ -125,6 +128,7 @@ function FilmDetailContent() {
                 })()}
               </Container>
             </Box>
+            <PlayableAlternative alt={data.playableAlternative} />
 
             <Container maxWidth="lg" sx={{ py: 3 }}>
               <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>

@@ -24,6 +24,7 @@ import { formatApiError } from '@/lib/api/client';
 import { TYPE_LABEL } from '@/lib/contentType.gen';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import { PlatformLinks, UnavailablePlayer, platformsOf, linkOutNoticeOf } from '@/components/detail/ExternalPlatforms';
+import { PlayableAlternative, type PlayableAlternativeInfo } from '@/components/detail/PlayableAlternative';
 import { backfillPending, backfillRefetchInterval, videoBackfillNotice, type BackfillState } from '@/lib/autoBackfill';
 import UserPlaySources from '@/components/detail/UserPlaySources';
 import DetailHeader from '@/components/detail/DetailHeader';
@@ -70,6 +71,8 @@ export interface EpisodicDetail {
   /** 登记片源站的绑定(分集行由它写入,播放时实时解析);详情带了它而分集还是空的就立刻重查一次 */
   videoSource?: { label?: string; domain?: string; episodes?: number };
   availability?: { axis?: string; status?: string; watchable?: boolean; notice?: string; backfill?: BackfillState };
+  /** 这条看不了、同一部作品另有能看的那条时后端给出 */
+  playableAlternative?: PlayableAlternativeInfo | null;
 }
 
 type PeopleKey = 'director' | 'actors' | 'host' | 'guests';
@@ -268,6 +271,7 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
                   )}
                 </Container>
               </Box>
+              <PlayableAlternative alt={data.playableAlternative} />
 
               <Container maxWidth="lg" sx={{ py: 3 }}>
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
