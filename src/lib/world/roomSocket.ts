@@ -7,6 +7,9 @@
  * 一个页面一条连接,同一时刻只在一间房里。断线按 1→2→4…→15 秒退避重连,连上后自动重新 join,
  * 服务端回 hello 全量(房里的人 + 房间版本),客户端据此补齐。
  *
+ * 四期语音:同一条连接上的二进制帧(lib/world/voice/packet.ts),onBinary 收、sendBinary 发;
+ * 状态用 voice {v} / vmute {id, muted}。
+ *
  * 本地 next dev 连不上(rewrite 不代理 WebSocket),把 NEXT_PUBLIC_WS_BASE 指到网关(ws://10.9.1.2:10005)。
  */
 
@@ -36,11 +39,15 @@ export interface PeerInfo extends PeerPose {
   owner?: boolean;
   /** AI 成员(管家 / 做客的 agent) */
   ai?: boolean;
+  /** 四期:0 没开声音 / 1 在听 / 2 开着麦 */
+  voice?: number;
+  /** 被房主禁言 */
+  muted?: boolean;
   look: PeerLook;
 }
 
 export type RoomFrame =
-  | { t: 'hello'; you: string; room: { ownerId: string; version: number; name: string }; peers: PeerInfo[] }
+  | { t: 'hello'; you: string; room: { ownerId: string; version: number; name: string; voice?: boolean }; peers: PeerInfo[]; muted?: boolean }
   | { t: 'join'; peer: PeerInfo }
   | { t: 'leave'; id: string }
   | { t: 'peers'; list: (PeerPose & { id: string })[] }
@@ -49,6 +56,7 @@ export type RoomFrame =
   | { t: 'avatar'; id: string; look: PeerLook }
   | { t: 'room'; room: unknown }
   | { t: 'kick'; msg: string }
+  | { t: 'voice'; id: string; v: number; muted?: boolean }
   | { t: 'error'; msg: string }
   | { t: 'pong' };
 
@@ -73,7 +81,7 @@ export class RoomSocket {
   private connecting = false;
   status: RoomSocketStatus = 'idle';
 
-  constructor(private onFrame: (f: RoomFrame) => void, private onStatus: (s: RoomSocketStatus) => void) {}
+  constructor(private onFrame: (f: RoomFrame) => void, private onStatus: (s: RoomSocketStatus) => void, private onBinary?: (b: ArrayBuffer) => void) {}
 
   private setStatus(s: RoomSocketStatus) {
     if (this.status === s) return;
@@ -114,6 +122,26 @@ export class RoomSocket {
     return this.raw({ t: 'say', text });
   }
 
+  /** 报自己的声音状态:0 没开声音 / 1 在听 / 2 开着麦 */
+  voice(v: 0 | 1 | 2) {
+    if (!this.joined) return false;
+    return this.raw({ t: 'voice', v });
+  }
+
+  /** 房主禁言 / 解禁 */
+  vmute(id: string, muted: boolean) {
+    if (!this.joined) return false;
+    return this.raw({ t: 'vmute', id, muted });
+  }
+
+  /** 发一包语音;发送缓冲积压(网络卡了)就丢,不让语音越积越晚 */
+  sendBinary(b: Uint8Array): boolean {
+    const ws = this.ws;
+    if (!this.joined || ws?.readyState !== WebSocket.OPEN) return false;
+    if (ws.bufferedAmount > 16_384) return false;
+    try { ws.send(b); return true; } catch { return false; }
+  }
+
   private raw(v: unknown): boolean {
     if (this.ws?.readyState !== WebSocket.OPEN) return false;
     try { this.ws.send(JSON.stringify(v)); return true; } catch { return false; }
@@ -141,6 +169,7 @@ export class RoomSocket {
       return;
     }
     this.ws = ws;
+    ws.binaryType = 'arraybuffer';
     ws.onopen = () => {
       this.connecting = false;
       this.retry = 0;
@@ -150,6 +179,7 @@ export class RoomSocket {
       this.pingTimer = window.setInterval(() => this.raw({ t: 'ping' }), 25_000);
     };
     ws.onmessage = (ev) => {
+      if (ev.data instanceof ArrayBuffer) { this.onBinary?.(ev.data); return; }
       let f: RoomFrame;
       try { f = JSON.parse(String(ev.data)); } catch { return; }
       if (f && typeof f === 'object' && 't' in f) this.onFrame(f);

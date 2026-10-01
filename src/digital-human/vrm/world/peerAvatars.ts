@@ -7,6 +7,8 @@
  * 动起来靠插值 + 程序化步态:服务端 10Hz 发位置,这里按指数平滑追过去;按实际移动速度摆腿摆臂
  * (规范化骨骼:upperLeg / upperArm 的 X+ 是往后,lowerLeg 的 X+ 是屈膝),停下来轻轻呼吸。
  * 头顶一块名牌(房主带 🏠),说话时名牌上面冒气泡,5 秒后淡掉。
+ * 四期语音:名牌前缀 🎙(开着麦)/ 🔇(被房主禁言);setVoiceLevels 给一个「谁此刻嘴张多大」的查询,
+ * 说话时嘴跟着动(VRM 表情 aa / oh),名牌上方亮一个绿色的 🔊。
  */
 
 import type * as THREE from 'three';
@@ -26,11 +28,16 @@ export interface RoomPeer {
   yaw: number;
   m?: boolean;
   a?: string;
+  /** 0 没开声音 / 1 在听 / 2 开着麦 */
+  voice?: number;
+  muted?: boolean;
 }
 
 export interface PeerLayer {
   set: (list: RoomPeer[]) => void;
   say: (id: string, text: string) => void;
+  /** 四期:谁此刻嘴张多大(0..1);null = 不说话 */
+  setVoiceLevels: (fn: ((id: string) => number) | null) => void;
   tick: (t: number, dt: number, camera: THREE.Camera) => void;
   positions: () => { id: string; x: number; z: number }[];
   dispose: () => void;
@@ -117,6 +124,8 @@ interface Entry {
   label: THREE.Sprite;
   bubble: THREE.Sprite | null;
   bubbleUntil: number;
+  speak: THREE.Sprite | null;
+  talk: number; // 平滑后的嘴型 0..1
   ghost: THREE.Mesh;
   vrm: THREE_VRM.VRM | null;
   loadingKey: string;
@@ -145,13 +154,26 @@ export function createPeerLayer(
   const ghostGeo = new THREE_NS.CapsuleGeometry(0.22, 1.05, 6, 12);
   const ghostMat = new THREE_NS.MeshStandardMaterial({ color: 0x9be8ff, transparent: true, opacity: 0.35, emissive: 0x2a6a80, roughness: 0.6 });
 
+  let voiceLevel: ((id: string) => number) | null = null;
+  const labelText = (p: RoomPeer) => `${p.muted ? '🔇 ' : p.voice === 2 ? '🎙 ' : ''}${p.owner ? '🏠 ' : p.ai ? '🤖 ' : ''}${p.nickname || '访客'}`;
   const keyOf = (p: RoomPeer) => `${opts.resolveUrl(p.look?.base || '')}#${p.look?.version ?? 0}#${JSON.stringify(p.look?.params ?? {})}`;
 
   function makeLabel(e: Entry) {
     if (e.label) { e.g.remove(e.label); disposeSprite(e.label); }
-    e.label = textSprite(THREE_NS, `${e.p.owner ? '🏠 ' : e.p.ai ? '🤖 ' : ''}${e.p.nickname || '访客'}`, { bg: e.p.ai ? 'rgba(40,20,70,0.72)' : 'rgba(8,10,20,0.66)', border: e.p.owner ? '#25F4EE' : e.p.ai ? '#c7a6ff' : undefined, size: 34 });
+    e.label = textSprite(THREE_NS, labelText(e.p), { bg: e.p.ai ? 'rgba(40,20,70,0.72)' : 'rgba(8,10,20,0.66)', border: e.p.owner ? '#25F4EE' : e.p.ai ? '#c7a6ff' : undefined, size: 34 });
     e.label.position.y = e.height + 0.18;
     e.g.add(e.label);
+    if (e.speak) e.speak.position.y = e.height + 0.36;
+  }
+
+  // 「在说话」的绿色小喇叭:第一次说话时才建
+  function speakIcon(e: Entry) {
+    if (!e.speak) {
+      e.speak = textSprite(THREE_NS, '🔊', { bg: 'rgba(30,190,110,0.9)', size: 30, worldScale: 0.07 });
+      e.speak.position.y = e.height + 0.36;
+      e.g.add(e.speak);
+    }
+    return e.speak;
   }
 
   function upsert(p: RoomPeer) {
@@ -165,13 +187,13 @@ export function createPeerLayer(
       g.add(ghost);
       root.add(g);
       e = {
-        p, g, label: null as unknown as THREE.Sprite, bubble: null, bubbleUntil: 0, ghost, vrm: null, loadingKey: '', loadedKey: '',
+        p, g, label: null as unknown as THREE.Sprite, bubble: null, bubbleUntil: 0, speak: null, talk: 0, ghost, vrm: null, loadingKey: '', loadedKey: '',
         footOffset: 0, height: 1.6, pos: new THREE_NS.Vector3(p.x, p.y, p.z), yaw: p.yaw, speed: 0, phase: Math.random() * 6, wantFull: true, fade: 0, removing: false,
       };
       entries.set(p.id, e);
       makeLabel(e);
     } else {
-      const nameChanged = e.p.nickname !== p.nickname || !!e.p.owner !== !!p.owner || !!e.p.ai !== !!p.ai;
+      const nameChanged = labelText(e.p) !== labelText(p) || !!e.p.ai !== !!p.ai;
       e.p = p;
       e.removing = false;
       if (nameChanged) makeLabel(e);
@@ -266,6 +288,12 @@ export function createPeerLayer(
       rUA.rotation.z = 0.9; rUA.rotation.x = -0.6;
     }
     vrm.scene.position.y = e.footOffset + Math.abs(Math.sin(e.phase)) * 0.035 * amt;
+    // 说话的嘴型(没开声音 / 不说话时 talk = 0,不碰表情)
+    const em = vrm.expressionManager;
+    if (em && (e.talk > 0.01 || em.getValue('aa'))) {
+      em.setValue('aa', Math.min(1, e.talk * 1.1));
+      em.setValue('oh', Math.min(1, e.talk * 0.35 * (1 + Math.sin(t * 7))));
+    }
     vrm.update(dt);
   }
 
@@ -294,6 +322,7 @@ export function createPeerLayer(
         if (e.vrm) THREE_VRM.VRMUtils.deepDispose(e.vrm.scene);
         disposeSprite(e.label);
         if (e.bubble) disposeSprite(e.bubble);
+        if (e.speak) disposeSprite(e.speak);
         entries.delete(id);
         continue;
       }
@@ -311,6 +340,14 @@ export function createPeerLayer(
       dy = Math.atan2(Math.sin(dy), Math.cos(dy));
       e.yaw += dy * Math.min(1, dt * 8);
       e.g.rotation.y = e.yaw;
+      const lv = voiceLevel ? voiceLevel(id) : 0;
+      e.talk += (lv - e.talk) * Math.min(1, dt * (lv > e.talk ? 30 : 12));
+      if (e.talk > 0.04 || e.speak) {
+        const s = speakIcon(e);
+        const mat = s.material as THREE.SpriteMaterial;
+        mat.opacity += ((e.talk > 0.06 ? 1 : 0) - mat.opacity) * Math.min(1, dt * 10);
+        s.visible = mat.opacity > 0.02;
+      }
       animate(e, t, dt);
       if (e.bubble) {
         const left = e.bubbleUntil - now;
@@ -323,6 +360,7 @@ export function createPeerLayer(
   return {
     set,
     say,
+    setVoiceLevels: (fn) => { voiceLevel = fn; },
     tick,
     positions: () => Array.from(entries.values()).filter((e) => !e.removing).map((e) => ({ id: e.p.id, x: e.pos.x, z: e.pos.z })),
     dispose: () => {
@@ -331,6 +369,7 @@ export function createPeerLayer(
         if (e.vrm) THREE_VRM.VRMUtils.deepDispose(e.vrm.scene);
         disposeSprite(e.label);
         if (e.bubble) disposeSprite(e.bubble);
+        if (e.speak) disposeSprite(e.speak);
       }
       entries.clear();
       parent.remove(root);

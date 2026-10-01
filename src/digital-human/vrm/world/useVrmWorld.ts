@@ -93,6 +93,7 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   // 创世二期:房间里的其他人(真形象);场景重建后放回去
   const roomPeersRef = useRef<RoomPeer[]>([]);
   const peerLayerRef = useRef<PeerLayer | null>(null);
+  const voiceLevelsRef = useRef<((id: string) => number) | null>(null);
   const quality = opts.quality ?? 'high';
   const orbsRef = useRef<Orb[]>([]);
   const respawnRef = useRef<number[]>([]);
@@ -162,6 +163,7 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
     w.setCharacters(charactersRef.current);
     const peers = d.kind === 'room' ? createPeerLayer(THREE_NS, w.group, { resolveUrl: avatarUrl }) : null;
     peerLayerRef.current = peers;
+    peers?.setVoiceLevels(voiceLevelsRef.current);
     peers?.set(roomPeersRef.current);
     if (auraRef.current) w.setAura(auraRef.current);
     return () => {
@@ -372,7 +374,8 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   const setRoomAlign = useCallback((a: RoomShellAlign) => { worldRef.current?.room?.setAlign(a); }, []);
   const autoFitRoom = useCallback(() => worldRef.current?.room?.autoFit() ?? null, []);
   const setRoomPeers = useCallback((list: RoomPeer[]) => { roomPeersRef.current = list; peerLayerRef.current?.set(list); }, []);
+  const setPeerVoiceLevels = useCallback((fn: ((id: string) => number) | null) => { voiceLevelsRef.current = fn; peerLayerRef.current?.setVoiceLevels(fn); }, []);
   const peerSay = useCallback((id: string, text: string) => { peerLayerRef.current?.say(id, text); }, []);
 
-  return { tick, render, floatText, showMarker, snapshot, setPeers, setAura, characterSay, setPlacements, upsertPlacement, removePlacement, selectPlacement, placementGroup, setRoomAlign, autoFitRoom, setRoomPeers, peerSay, zones: WORLD_ZONES };
+  return { tick, render, floatText, showMarker, snapshot, setPeers, setAura, characterSay, setPlacements, upsertPlacement, removePlacement, selectPlacement, placementGroup, setRoomAlign, autoFitRoom, setRoomPeers, peerSay, setPeerVoiceLevels, zones: WORLD_ZONES };
 }

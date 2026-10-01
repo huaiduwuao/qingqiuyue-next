@@ -3,6 +3,7 @@
  *
  * 在房间场景里常驻左下(手机是一颗可展开的小按钮):此刻几个人、谁在、最近几句话、输入框。
  * 这里说的话发给房里的人(过敏感词),和数字人对话是两回事;说话的人头顶会冒气泡。
+ * 四期:标题下面是语音条(RoomVoice.tsx),名字标签上看得出谁开着麦、谁在说话,点名字能屏蔽 / 禁言。
  */
 
 import React from 'react';
@@ -10,6 +11,8 @@ import { Box, ButtonBase, IconButton, InputBase, Typography } from '@mui/materia
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import type { RoomSocketState } from './useRoomSocket';
+import type { RoomVoiceState } from './useRoomVoice';
+import { PeerChip, VoiceStrip } from './RoomVoice';
 
 const STATUS_TEXT: Record<string, { text: string; color: string }> = {
   open: { text: '', color: '#7dffb0' },
@@ -18,9 +21,10 @@ const STATUS_TEXT: Record<string, { text: string; color: string }> = {
   idle: { text: '未连接', color: 'rgba(255,255,255,0.4)' },
 };
 
-export function RoomChat({ rs, narrow }: { rs: RoomSocketState; narrow?: boolean }) {
+export function RoomChat({ rs, narrow, voice }: { rs: RoomSocketState; narrow?: boolean; voice?: RoomVoiceState | null }) {
   const [text, setText] = React.useState('');
   const [open, setOpen] = React.useState(!narrow);
+  const [picked, setPicked] = React.useState<string | null>(null);
   const listRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => { listRef.current?.scrollTo({ top: listRef.current.scrollHeight }); }, [rs.chat.length, open]);
   if (!rs.inRoom) return null;
@@ -38,6 +42,8 @@ export function RoomChat({ rs, narrow }: { rs: RoomSocketState; narrow?: boolean
       <ButtonBase onClick={() => setOpen(true)} sx={{ position: 'absolute', zIndex: 3, ...pos, px: 1.25, py: 0.5, borderRadius: 999, bgcolor: 'rgba(8,10,20,0.66)', backdropFilter: 'blur(14px)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 12, fontWeight: 700, gap: 0.75 }}>
         <Box component="span" sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: st.color }} />
         💬 房间里 {rs.online} 人{rs.aiCount ? ` · ${rs.aiCount} 位 AI` : ''}
+        {voice?.soundOn && <Box component="span" sx={{ color: voice.talking ? '#7dffb0' : 'rgba(255,255,255,0.7)' }}>{voice.micOn || voice.ptt ? '🎙' : '🔈'}</Box>}
+        {!!voice?.speaking.length && <Box component="span" sx={{ color: '#7dffb0' }}>· {voice.speaking.length} 人在说</Box>}
       </ButtonBase>
     );
   }
@@ -48,12 +54,11 @@ export function RoomChat({ rs, narrow }: { rs: RoomSocketState; narrow?: boolean
         <Typography sx={{ fontSize: 13, fontWeight: 800, flex: 1 }}>房间里 {rs.online} 人{rs.aiCount ? ` · ${rs.aiCount} 位 AI` : ''}{st.text ? ` · ${st.text}` : ''}</Typography>
         <IconButton size="small" aria-label="收起" onClick={() => setOpen(false)} sx={{ color: 'rgba(255,255,255,0.55)', p: 0.25 }}><ExpandMoreRoundedIcon fontSize="small" /></IconButton>
       </Box>
+      {voice && <VoiceStrip rs={rs} voice={voice} narrow={narrow} />}
       {rs.peers.length > 0 && (
         <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', px: 1.25, pb: 0.5 }}>
           {rs.peers.slice(0, 12).map((p) => (
-            <Box key={p.id} sx={{ fontSize: 11, px: 0.75, py: 0.1, borderRadius: 999, bgcolor: p.owner ? 'rgba(37,244,238,0.18)' : p.ai ? 'rgba(199,166,255,0.16)' : 'rgba(255,255,255,0.08)', color: p.owner ? '#9ff' : p.ai ? '#d9c6ff' : 'rgba(255,255,255,0.8)' }}>
-              {p.owner ? '🏠 ' : p.ai ? '🤖 ' : ''}{p.nickname}
-            </Box>
+            <PeerChip key={p.id} p={p} rs={rs} voice={voice ?? null} open={picked === p.id} onToggle={() => setPicked((x) => (x === p.id ? null : p.id))} />
           ))}
           {rs.peers.length > 12 && <Box sx={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>…等 {rs.peers.length} 人</Box>}
         </Box>

@@ -192,6 +192,13 @@ MUI 的列表、输入框、下拉框全都能正常点击和输入 —— 不�
 (`ai: true` → 紫色 🤖 名牌、wave / bow 动作);管家开关和请客在 RoomSettings 里的 RoomAISection。
 位置帧里 `m` / `a` 为空时服务端不发,合并时要以每一帧为准,不然会一直「在走」「招手」。
 
+**四期:房间语音。** 走房间同一条 WebSocket 的二进制帧(线上 UDP 进不来,不用 WebRTC):`lib/world/voice/` 里
+packet(包格式,和 go `worldapp/voice.go` 对齐)、gate(开麦的人声闸门)、jitter(播放排期 + 嘴型音量)、voiceEngine
+(麦克风 → WebCodecs Opus → 上行;下行 → 解码 → HRTF 声像)、aiSpeech(AI 的话用浏览器朗读念,没中文声音就不念)。
+`scene-ui/useRoomVoice.ts` 把它们接到房间连接和舞台上(`setPeerVoiceLevels` 给同伴嘴型),界面在 RoomChat 里的
+VoiceStrip / PeerChip。AudioContext 只能在用户点击后建,所以要先点「开启声音」。测试台没有麦克风:挂
+`window.__qqVoiceMicStream` 换成合成的声音(测试台 `?fakemic=1`)。
+
 几个坑:
 - 捏脸形变**不能绑 VRM 表情**:表情管理器每帧把绑定的形变清零。Blender 那边 `setup_vrm` 跳过了 `qq_face_*`。
 - 写实底模是 PBR 材质,没有 `scene.environment` 时脸是黑的(风格化场景只有几盏灯)。房间里给了环境光照;广场里用写实底模会偏暗。

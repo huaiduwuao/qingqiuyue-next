@@ -46,6 +46,7 @@ import { useWorldObjects, type WorldToolEvent } from './scene-ui/useWorldObjects
 import { GenesisHud, GenesisPanels, RoomPlate, RoomsSection, useGenesis } from './scene-ui/Genesis';
 import { useRoomSocket } from './scene-ui/useRoomSocket';
 import { RoomChat } from './scene-ui/RoomChat';
+import { useRoomVoice } from './scene-ui/useRoomVoice';
 import type { PlazaState } from './scene-state';
 import { useRouter } from 'next/navigation';
 import { alpha } from '@mui/material/styles';
@@ -747,6 +748,8 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
     onKick: (msg) => { game.toast('🚪', msg); goHome(); },
     toast: (icon, t) => game.toast(icon, t),
   });
+  // 创世四期:房间语音(真人开麦走房间连接,AI 的话浏览器念)
+  const roomVoice = useRoomVoice({ rs: roomSock, handle: stageHandle, toast: (icon, t) => game.toast(icon, t) });
   function roomStateOf() {
     const d = scenes.def;
     const b = roomBounds(d) ?? { hx: 5, hz: 4 };
@@ -1290,7 +1293,7 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
           />
           {worldHelp.open && <WorldHelp onClose={worldHelp.close} touch={narrow} />}
           <RoomPlate def={scenes.def} onGoHome={goHome} narrow={narrow} />
-          <RoomChat rs={roomSock} narrow={narrow} />
+          <RoomChat rs={roomSock} narrow={narrow} voice={roomVoice} />
           <GenesisPanels
             g={genesis}
             def={scenes.def}

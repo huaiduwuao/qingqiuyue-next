@@ -116,6 +116,8 @@ export interface WorldRoom {
   online?: number;
   /** 三期:AI 管家开着 */
   butler?: boolean;
+  /** 四期:房主关了房间语音 */
+  voiceOff?: boolean;
 }
 
 // ── 三期:AI 进入房间 ──
@@ -162,7 +164,7 @@ export async function getRoom(ownerId: string): Promise<WorldRoom> {
   return accountClient.get<WorldRoom>(`/world/rooms/${encodeURIComponent(ownerId)}`);
 }
 
-export type RoomPatch = Partial<Pick<WorldRoom, 'name' | 'intro' | 'template' | 'splatKey' | 'shell' | 'palette' | 'visibility' | 'butler'>>;
+export type RoomPatch = Partial<Pick<WorldRoom, 'name' | 'intro' | 'template' | 'splatKey' | 'shell' | 'palette' | 'visibility' | 'butler' | 'voiceOff'>>;
 
 export async function updateMyRoom(p: RoomPatch): Promise<WorldRoom> {
   return accountClient.put<WorldRoom>('/world/rooms/mine', p);

@@ -143,6 +143,8 @@ export interface VrmStageHandle {
   setRoomPeers: (list: RoomPeer[]) => void;
   /** 创世二期 · 某人头顶冒一句话 */
   peerSay: (id: string, text: string) => void;
+  /** 四期语音:同伴嘴型的音量来源(谁此刻嘴张多大,0..1);null 关掉 */
+  setPeerVoiceLevels: (fn: ((id: string) => number) | null) => void;
 }
 
 export interface VrmStageProps {
@@ -1148,6 +1150,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       getAvatarInfo: () => (vrmDataRef.current ? inspectAvatar(vrmDataRef.current.vrm) : null),
       setRoomPeers: (list) => worldApiRef.current.setRoomPeers(list),
       peerSay: (id, text) => worldApiRef.current.peerSay(id, text),
+      setPeerVoiceLevels: (fn) => worldApiRef.current.setPeerVoiceLevels(fn),
       enterScene: () => {
         // 瞬移不会带动镜头(镜头只跟走路的位移),所以手动把镜头也挪回舞台前
         moveAnimRef.current.active = false;

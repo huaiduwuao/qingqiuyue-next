@@ -190,6 +190,15 @@ export function RoomSettings({ room, handle, save, splat, onClose, toast, narrow
           </>
         )}
 
+        {label('房间语音')}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Switch checked={!room.voiceOff} disabled={busy} onChange={(e) => void run({ voiceOff: !e.target.checked }, e.target.checked ? '房间语音打开了' : '房间语音关了')} />
+          <Box sx={{ flex: 1 }}>
+            <Typography sx={{ fontSize: 12.5, fontWeight: 700 }}>{room.voiceOff ? '关着' : '开着'}</Typography>
+            <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>进来的人可以开麦说话,离得近听得清;在聊天面板点某人的名字可以禁言</Typography>
+          </Box>
+        </Box>
+
         {label('房间里的 AI')}
         <RoomAISection room={room} save={save} toast={toast} />
 

@@ -7,6 +7,8 @@
  *   - 说话:say 帧进聊天记录,说话人头顶冒气泡(自己的也冒);
  *   - edit:别人(或自己另一个标签页)改了摆放 → useWorldObjects.applyRemote;
  *   - room:房间设置变了 → useRoom.applyRemote;kick:被请出去 → 回自己家。
+ *   - 四期语音:二进制帧交给 setVoiceHandler 登记的处理器(useRoomVoice);voice 帧更新每个人的声音状态
+ *     (peer.voice / muted)和自己是否被禁言;hello 之后把自己的声音状态再报一次(服务端进房时清零)。
  */
 
 import React from 'react';
@@ -33,7 +35,7 @@ export interface UseRoomSocketOptions {
   onKick: (msg: string) => void;
   toast: (icon: string, text: string) => void;
   /** 测试用:换掉连接实现 */
-  makeSocket?: (onFrame: (f: RoomFrame) => void, onStatus: (s: RoomSocketStatus) => void) => RoomSocket;
+  makeSocket?: (onFrame: (f: RoomFrame) => void, onStatus: (s: RoomSocketStatus) => void, onBinary: (b: ArrayBuffer) => void) => RoomSocket;
 }
 
 const STATE_EVERY = 100;
@@ -49,6 +51,12 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
   const youRef = React.useRef<string | null>(null);
   const sockRef = React.useRef<RoomSocket | null>(null);
   const tpRef = React.useRef(true);
+  // 四期语音
+  const [roomVoice, setRoomVoice] = React.useState(true);
+  const [selfMuted, setSelfMuted] = React.useState(false);
+  const voiceStateRef = React.useRef<0 | 1 | 2>(0);
+  const voiceHandlerRef = React.useRef<((b: ArrayBuffer) => void) | null>(null);
+  const onBinary = React.useCallback((b: ArrayBuffer) => { voiceHandlerRef.current?.(b); }, []);
 
   const pushPeers = React.useCallback(() => {
     const list = Array.from(peersRef.current.values());
@@ -64,6 +72,9 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
         peersRef.current = new Map(f.peers.filter((p) => p.id !== f.you).map((p) => [p.id, p]));
         tpRef.current = true;
         pushPeers();
+        setRoomVoice(f.room.voice !== false);
+        setSelfMuted(!!f.muted);
+        if (voiceStateRef.current > 0) sockRef.current?.voice(voiceStateRef.current);
         // 出生点上已经站着人:往旁边错开一点,别叠在一起
         const snap = o.handle?.getWorldSnapshot();
         if (o.handle && snap && f.peers.some((p) => p.id !== f.you && Math.hypot(p.x - snap.x, p.z - snap.z) < 0.9)) {
@@ -118,7 +129,16 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
         return;
       case 'room':
         o.applyRoom(f.room as WorldRoom);
+        setRoomVoice(!(f.room as WorldRoom).voiceOff);
         return;
+      case 'voice': {
+        if (f.id === youRef.current) { setSelfMuted(!!f.muted); return; }
+        const p = peersRef.current.get(f.id);
+        if (!p) return;
+        peersRef.current.set(f.id, { ...p, voice: f.v, muted: !!f.muted });
+        pushPeers();
+        return;
+      }
       case 'kick':
         o.onKick(f.msg);
         return;
@@ -135,7 +155,7 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
     if (!owner) return;
     let sock = sockRef.current;
     if (!sock) {
-      sock = (optsRef.current.makeSocket ?? ((f, s) => new RoomSocket(f, s)))(onFrame, setStatus);
+      sock = (optsRef.current.makeSocket ?? ((f, s, b) => new RoomSocket(f, s, b)))(onFrame, setStatus, onBinary);
       sockRef.current = sock;
     }
     peersRef.current = new Map();
@@ -149,7 +169,7 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
       optsRef.current.handle?.setRoomPeers([]);
       setPeers([]);
     };
-  }, [owner, onFrame, pushPeers]);
+  }, [owner, onFrame, pushPeers, onBinary]);
   React.useEffect(() => () => { sockRef.current?.close(); sockRef.current = null; }, []);
 
   // 报自己的位置:变了才发
@@ -183,9 +203,22 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
     return sockRef.current?.say(t.slice(0, 120)) ?? false;
   }, []);
 
+  // 四期语音
+  const setVoiceState = React.useCallback((v: 0 | 1 | 2) => {
+    voiceStateRef.current = v;
+    sockRef.current?.voice(v);
+  }, []);
+  const sendVoice = React.useCallback((b: Uint8Array) => sockRef.current?.sendBinary(b) ?? false, []);
+  const vmute = React.useCallback((id: string, muted: boolean) => sockRef.current?.vmute(id, muted) ?? false, []);
+  const setVoiceHandler = React.useCallback((fn: ((b: ArrayBuffer) => void) | null) => { voiceHandlerRef.current = fn; }, []);
+
   // online 只算真人(含自己);AI 另外数
   const aiCount = peers.filter((p) => p.ai).length;
-  return { status, peers, chat, say, online: owner ? peers.length - aiCount + 1 : 0, aiCount, inRoom: !!owner };
+  return {
+    status, peers, chat, say, online: owner ? peers.length - aiCount + 1 : 0, aiCount, inRoom: !!owner,
+    isOwner: !!owner && !!def.room?.mine,
+    roomVoice, selfMuted, setVoiceState, sendVoice, vmute, setVoiceHandler,
+  };
 }
 
 export type RoomSocketState = ReturnType<typeof useRoomSocket>;
