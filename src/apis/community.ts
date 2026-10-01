@@ -86,6 +86,8 @@ export interface CommunityTopic {
   /** 当前启用的展现形式模板 kind(aggregateFeed / narrativeWorld / cardArchive)。
    *  空数组等同 [aggregateFeed](存量专题零回归)。 */
   templates?: string[];
+  /** 旗舰意境(人生感悟、文明图谱)有自己完整的页面,点进来直接去那里 */
+  portal?: string;
 }
 
 export interface TopicContentItem {

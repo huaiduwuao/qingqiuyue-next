@@ -36,7 +36,13 @@ export const ORIGIN_LABEL: Record<CivOrigin, string> = {
   user: '用户嫁接',
 };
 
-export const civHref = (key: string) => `/civ/node?key=${encodeURIComponent(key)}`;
+/** 节点去哪。意境(c.yj)是镜像过来的:意境本身回意境详情页,意境领域回意境广场,其余去节点页。 */
+export const civHref = (key: string) => {
+  if (key === 'c.yj') return '/home/recommend?tab=topic';
+  const m = /^c.yj.(d+)$/.exec(key);
+  if (m) return `/detail/topic-detail?id=${m[1]}`;
+  return `/civ/node?key=${encodeURIComponent(key)}`;
+};
 
 /** 为什么开着:热搜 / 搜索,有几样说几样 */
 export function civSignals(n: CivNode): string[] {

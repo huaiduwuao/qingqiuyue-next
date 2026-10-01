@@ -21,6 +21,7 @@ import { compactCount, topicGradient, topicHref } from './format';
 import { coverBackground } from '@/lib/media';
 import { useListLayout } from '@/lib/listLayoutPrefs';
 import { TopicFormDialog } from '@/components/topic/TopicFormDialog';
+import { FlagshipStrip, LiveTopics } from './TopicLive';
 
 const TOPIC_PAGE_SIZE = 12;
 
@@ -132,6 +133,14 @@ export function TopicHub() {
           }
         }}
       />
+
+      {/* 旗舰意境(人生感悟、文明图谱)与「此刻 · 意境在长」:每个意境都跟着热点和用户长分支 */}
+      {!keyword && (
+        <>
+          <FlagshipStrip />
+          <LiveTopics />
+        </>
+      )}
 
       {!keyword && (mine.data?.list.length ?? 0) > 0 && (
         <Section title="我关注的">

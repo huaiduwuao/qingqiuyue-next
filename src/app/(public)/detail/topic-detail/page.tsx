@@ -25,6 +25,8 @@ import { TopicInsightSection } from '@/components/community/topic';
 import RealmCollab, { type RealmCollabTab } from '@/components/reward/RealmCollab';
 import { CONTENT_TYPE_LABEL, TOPIC_KIND_LABEL, compactCount, topicGradient } from '@/components/community/format';
 import ShareButtons from '@/components/share/ShareButtons';
+import { TopicLiveSection } from '@/components/community/TopicLive';
+import { topicTrack } from '@/lib/topicTrack';
 import { useAuth, useAuthority } from '@/contexts/AuthContext';
 
 export default function TopicDetailPage() {
@@ -62,6 +64,11 @@ function TopicDetail() {
   const showAggregateFeed = !templates || templates.length === 0 || templates.includes('aggregateFeed');
 
   const back = () => (window.history.length > 1 ? router.back() : router.push('/home/recommend?tab=topic'));
+  // 旗舰意境(人生感悟、文明图谱)有自己完整的页面
+  const portal = topic?.portal;
+  useEffect(() => {
+    if (portal) router.replace(portal);
+  }, [portal, router]);
 
   // IntersectionObserver 监听 Hero 末尾的 sentinel:滚出 Hero 后,顶部条由 transparent 切到玻璃态
   // 默认 heroVisible=true(transparent),与今天 Hero 内嵌返回按钮的视觉一致;水合后 IO 接管
@@ -117,6 +124,8 @@ function TopicDetail() {
       {/* 1px sentinel:位于 Hero 末尾,IntersectionObserver 用它判断 Hero 是否仍在视口内 */}
       <div ref={heroSentinelRef} style={{ height: 1 }} aria-hidden />
       <Container maxWidth="md" sx={{ mt: 1 }}>
+        {/* 每个意境都跟着热点、搜索和用户长分支:此刻的热点、站内此刻、长出的枝、接一枝、意思相近的作品 */}
+        <TopicLiveSection topicId={String(topic.id)} />
         {showAggregateFeed && (
           <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ mb: 2, borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.08))', '& .MuiTab-root': { textTransform: 'none', fontWeight: 600 } }}>
             {topic.hasContents && <Tab value="contents" label="作品" />}
@@ -232,6 +241,8 @@ function TopicContents({ topicId }: { topicId: string | number }) {
           <Box
             key={String(c.id)}
             onClick={() => {
+              // 意境里点开了哪部作品:意境下的作品按它重排、个性化推荐也用它(lib/topicTrack)
+              topicTrack(`c.yj.${topicId}`, 'work', { workId: String(c.id) });
               const r = getDetailRoute(c.contentType, c.id);
               if (r) router.push(r);
             }}

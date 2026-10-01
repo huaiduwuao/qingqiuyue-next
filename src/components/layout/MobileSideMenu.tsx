@@ -14,8 +14,6 @@ import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import LiveTvRoundedIcon from '@mui/icons-material/LiveTvRounded';
 import MovieRoundedIcon from '@mui/icons-material/MovieRounded';
 import TheatersRoundedIcon from '@mui/icons-material/TheatersRounded';
-import SpaRoundedIcon from '@mui/icons-material/SpaRounded';
-import PublicRoundedIcon from '@mui/icons-material/PublicRounded';
 import CollectionsRoundedIcon from '@mui/icons-material/CollectionsRounded';
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import WallpaperRoundedIcon from '@mui/icons-material/WallpaperRounded';
@@ -61,13 +59,11 @@ const GROUPS: { title: string; items: MenuItem[] }[] = [
   {
     title: '发现',
     items: [
-      // 人生感悟是平台主打,放「发现」第一格
-      { key: 'insight', label: '人生感悟', icon: <SpaRoundedIcon />, color: '#C8553D', href: '/insight' },
-      { key: 'civ', label: '文明图谱', icon: <PublicRoundedIcon />, color: '#2E86AB', href: '/civ' },
+      // 意境放「发现」第一格:人生感悟、文明图谱是其中的旗舰意境,都从这里进
+      { key: 'topic', label: '意境', icon: <CollectionsRoundedIcon />, color: '#FF8A3D', tab: 'topic' },
       { key: 'live', label: '直播', icon: <LiveTvRoundedIcon />, color: ACCENT.red.main, tab: 'live' },
       { key: 'theater', label: '放映厅', icon: <MovieRoundedIcon />, color: ACCENT.purple.main, tab: 'theater' },
       { key: 'drama', label: '短剧', icon: <TheatersRoundedIcon />, color: ACCENT.orange.main, tab: 'drama' },
-      { key: 'topic', label: '意境', icon: <CollectionsRoundedIcon />, color: '#FF8A3D', tab: 'topic' },
       { key: 'ai', label: 'AI 助手', icon: <AutoAwesomeRoundedIcon />, color: ACCENT.blue.main, tab: 'ai' },
       { key: 'poetry', label: '诗词', icon: <HistoryEduRoundedIcon />, color: ACCENT.cyan.main, href: '/poetry' },
       { key: 'wallpaper', label: '壁纸', icon: <WallpaperRoundedIcon />, color: ACCENT.gold.main, href: '/wallpaper' },

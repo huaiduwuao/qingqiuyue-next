@@ -100,12 +100,14 @@ function NodeInner() {
     <Container maxWidth="lg" sx={{ py: 3, pb: 8 }}>
       {/* 路径 */}
       <Typography sx={{ fontSize: 12, color: 'text.disabled', mb: 1, letterSpacing: '0.05em' }}>
-        <Box component="span" onClick={() => router.push('/civ')} sx={{ cursor: 'pointer' }}>
-          文明图谱
-        </Box>
-        {path.map((p) => (
+        {n.domain !== 'yj' && (
+          <Box component="span" onClick={() => router.push('/civ')} sx={{ cursor: 'pointer' }}>
+            文明图谱
+          </Box>
+        )}
+        {path.map((p, i) => (
           <React.Fragment key={p.key}>
-            {' › '}
+            {n.domain === 'yj' && i === 0 ? '' : ' › '}
             <Box component="span" onClick={() => router.push(civHref(p.key))} sx={{ cursor: 'pointer', color: p.depth === 0 ? accent : undefined }}>
               {p.name}
             </Box>
