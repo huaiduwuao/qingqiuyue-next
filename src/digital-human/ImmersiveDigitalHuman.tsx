@@ -766,6 +766,10 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
       if (p) stageHandle?.floatTextAt(text, p.x, p.y + 1.3, p.z, '#ffe9b0'); else game.toast('💬', text);
     },
     onTravel: (space) => { if (space.startsWith('room:')) void genesis.room.enter(space.slice(5)).then((k) => scenes.switchTo(k)).catch(() => {}); else scenes.switchTo(space); },
+    onEnv: (env) => {
+      const r = genesis.room.roomOf(scenes.def.key);
+      if (r) genesis.room.applyRemote({ ...r, palette: { ...r.palette, ...Object.fromEntries(Object.entries(env).filter(([, v]) => v)) } });
+    },
   });
   hubPeersRef.current = new Set(roomSock.status === 'open' ? roomSock.peers.map((p) => p.id) : []);
   // 创世十期:点椅子坐下、点灯开关

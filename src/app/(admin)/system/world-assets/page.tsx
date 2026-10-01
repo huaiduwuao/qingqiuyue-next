@@ -49,6 +49,7 @@ import {
 } from '@/apis/world';
 import { WorldUpload } from '@/digital-human/scene-ui/WorldUpload';
 import { WorldLivePanel } from './LivePanel';
+import { WorldModelPanel } from './ModelPanel';
 
 const KINDS: Record<string, string> = { model: '模型', avatar: '形象', splat: '泼溅' };
 const STATUS: Record<string, { label: string; color: 'success' | 'warning' | 'default' | 'error' | 'info' }> = {
@@ -162,6 +163,7 @@ function Inner() {
         </Paper>
       </Box>
       <WorldLivePanel />
+      <WorldModelPanel canManage={canManage} />
       {!!stats?.recentFailed?.length && (
         <Alert severity="warning" sx={{ mb: 2 }}>
           最近加工失败:{stats.recentFailed.slice(0, 4).map((j) => `${j.assetKey}(${(j.error || '').slice(0, 60)})`).join(';')}
@@ -275,7 +277,7 @@ function Inner() {
 }
 
 function EditDialog({ asset, onClose, onSaved, onError }: { asset: AdminWorldAsset; onClose: () => void; onSaved: () => void; onError: (t: string) => void }) {
-  const [v, setV] = React.useState({ nameZh: asset.nameZh, tagsZh: asset.tagsZh ?? '', tagsEn: asset.tagsEn ?? '', category: asset.category ?? '', visibility: asset.visibility ?? 'public' });
+  const [v, setV] = React.useState({ nameZh: asset.nameZh, tagsZh: asset.tagsZh ?? '', tagsEn: asset.tagsEn ?? '', category: asset.category ?? '', visibility: asset.visibility ?? 'public', kindKey: asset.kindKey ?? '' });
   const [busy, setBusy] = React.useState(false);
   return (
     <Dialog open onClose={onClose} fullWidth maxWidth="sm">
@@ -285,6 +287,7 @@ function EditDialog({ asset, onClose, onSaved, onError }: { asset: AdminWorldAss
         <TextField label="中文标签(空格分隔;数字人按用户的话字面匹配它们)" value={v.tagsZh} onChange={(e) => setV({ ...v, tagsZh: e.target.value })} />
         <TextField label="英文标签(模型给的英文关键词匹配它们)" value={v.tagsEn} onChange={(e) => setV({ ...v, tagsEn: e.target.value })} />
         <TextField label="分类" value={v.category} onChange={(e) => setV({ ...v, category: e.target.value })} />
+        <TextField label="摆出来默认是什么原型" helperText="空着 = 按平台原型的 match 自动认(灯、座位……);- = 只是摆着看;或者写原型 key(lamp、seat、door……)" value={v.kindKey} onChange={(e) => setV({ ...v, kindKey: e.target.value.trim() })} />
         {asset.ownerId !== '0' && (
           <TextField select label="公开" value={v.visibility} onChange={(e) => setV({ ...v, visibility: e.target.value as 'public' | 'private' })}>
             <MenuItem value="public">公开(别人能在素材库里用)</MenuItem>

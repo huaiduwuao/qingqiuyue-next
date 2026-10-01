@@ -19,10 +19,14 @@ const api = vi.hoisted(() => ({
   ]),
   saveKind: vi.fn(async () => { throw new Error('规则有问题:第 1 条规则的条件:表达式不完整'); }),
   deleteKind: vi.fn(async () => undefined),
+  getSpaceRules: vi.fn(async () => ({ rules: [{ on: 'join', do: [{ toast: { text: '欢迎', to: 'actor' } }] }], state: { visits: 0 } })),
+  saveSpaceRules: vi.fn(async (p: { rules: unknown[]; state: unknown }) => p),
+  composeWorld: vi.fn(async () => ({ explain: '只有房主能开', rules: [{ on: 'use', if: 'actor.isOwner', do: [{ toggle: 'open' }] }], tags: ['mine'] })),
   switchPlacement: vi.fn(),
 }));
 vi.mock('@/apis/world', () => api);
-import { EntityPanel, KindsDrawer } from '../scene-ui/RoomEntities';
+import { EntityPanel, KindsDrawer, SpaceRulesPanel } from '../scene-ui/RoomEntities';
+import { RuleListForm, effectKind, formable } from '../scene-ui/RuleForm';
 
 const ent = (over: Partial<PlacedObject>): PlacedObject => ({ id: 'e1', assetKey: '', x: 0, y: 0, z: 0, rotY: 0, scale: 1, status: 'ready', ...over });
 
@@ -116,17 +120,75 @@ describe('editor', () => {
     await screen.findByText(/表达式不完整/);
   });
 
-  it('edits an entity\'s state, rules and tags as JSON', async () => {
+  it('edits an entity\'s state (JSON), rules (form) and tags, and takes an AI draft', async () => {
     const onSave = vi.fn(async () => undefined);
     render(<EntityPanel item={{ id: 'd', kind: 'door', state: { open: false }, rules: [], tags: ['door'], props: { usable: true, solid: true } } as never} onSave={onSave} />);
     fireEvent.click(screen.getByText('属性 / 规则'));
+    // 文本框:AI 那句话、原型、状态、标签(规则是表单,没有规则时没有文本框)
     const boxes = screen.getAllByRole('textbox');
-    fireEvent.change(boxes[1], { target: { value: '{"open": true}' } });
+    fireEvent.change(boxes[2], { target: { value: '{"open": true}' } });
+    fireEvent.blur(boxes[2]);
     fireEvent.change(boxes[3], { target: { value: 'door, front' } });
+    // 表单里加一条规则:被点 → 开 / 关
+    fireEvent.click(screen.getByRole('button', { name: '＋ 加一条规则' }));
+    fireEvent.change(screen.getByLabelText('加一个效果'), { target: { value: 'toggle' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: '存' })); });
-    expect(onSave).toHaveBeenCalledWith({ state: { open: true }, rules: [], tags: ['door', 'front'] });
-    fireEvent.change(boxes[2], { target: { value: '[{oops' } });
+    expect(onSave).toHaveBeenCalledWith({ state: { open: true }, rules: [{ on: 'use', do: [{ toggle: 'open' }] }], tags: ['door', 'front'] });
+    // 状态 JSON 写错:就地提示,不存
+    fireEvent.change(boxes[2], { target: { value: '{oops' } });
+    fireEvent.blur(boxes[2]);
+    await waitFor(() => expect(screen.getByText(/JSON 写错了/)).toBeTruthy());
+    // 一句话交给 AI:草稿填进编辑器(没存),人再点存
+    fireEvent.change(boxes[0], { target: { value: '只有我能开' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: '写' })); });
+    await screen.findByText(/只有房主能开/);
+    expect(api.composeWorld).toHaveBeenCalledWith('只有我能开', 'entity', expect.objectContaining({ kind: 'door' }));
+    onSave.mockClear();
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: '存' })); });
-    await waitFor(() => expect(screen.getByText(/规则的 JSON 写错了/)).toBeTruthy());
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ rules: [{ on: 'use', if: 'actor.isOwner', do: [{ toggle: 'open' }] }], tags: ['door', 'front', 'mine'] }));
+  });
+
+});
+
+describe('rule form', () => {
+  it('knows which effects it can draw and keeps the rest as JSON', () => {
+    expect(effectKind({ if: 'x', then: [] })).toBe('if');
+    expect(formable({ set: { open: 'true', target: 'actor' } })).toBe(true);
+    expect(formable({ say: 'hi' })).toBe(true);
+    expect(formable({ toast: { text: 'a', to: 'actor' } })).toBe(true);
+    expect(formable({ teleport: { to: 'tag:x', target: 'actor' } })).toBe(false); // 表单没有 target 这一格
+    expect(formable({ fly: 1 })).toBe(false);
+  });
+
+  it('edits nested effects and custom events', () => {
+    let rules: { on: string; if?: string; do: Record<string, unknown>[] }[] = [{ on: 'my-signal', do: [{ wait: { ms: 1000, do: [] } }, { teleport: { to: 'tag:x', target: 'actor' } }] }];
+    const { rerender } = render(<RuleListForm rules={rules} scope="kind" onChange={(r) => { rules = r as typeof rules; }} />);
+    // 自定义事件名显示在输入框里
+    expect(screen.getByDisplayValue('my-signal')).toBeTruthy();
+    // 认不出的效果显示成 JSON
+    expect(screen.getByDisplayValue(JSON.stringify({ teleport: { to: 'tag:x', target: 'actor' } }))).toBeTruthy();
+    // wait 里面再加一个效果
+    const adds = screen.getAllByLabelText('加一个效果');
+    fireEvent.change(adds[0], { target: { value: 'say' } }); // 第一个是 wait 里面的
+    expect(rules[0].do[0]).toEqual({ wait: { ms: 1000, do: [{ say: '你好' }] } });
+    rerender(<RuleListForm rules={rules} scope="kind" onChange={(r) => { rules = r as typeof rules; }} />);
+    // 点「只有房主」填条件
+    fireEvent.click(screen.getByRole('button', { name: '只有房主' }));
+    expect(rules[0].if).toBe('actor.isOwner');
+  });
+
+  it('space rules: loads, edits and saves', async () => {
+    const toast = vi.fn();
+    render(<SpaceRulesPanel toast={toast} />);
+    fireEvent.click(screen.getByText(/整间房的规则/));
+    await screen.findByDisplayValue('欢迎');
+    // 空间能选的事件里有「有人进了房间」,没有「被点」
+    const ev = screen.getByLabelText('事件') as HTMLSelectElement;
+    const opts = Array.from(ev.options).map((o) => o.textContent);
+    expect(opts).toContain('有人进了房间');
+    expect(opts).not.toContain('被点');
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: '存' })); });
+    expect(api.saveSpaceRules).toHaveBeenCalledWith({ rules: [{ on: 'join', do: [{ toast: { text: '欢迎', to: 'actor' } }] }], state: { visits: 0 } });
+    expect(toast).toHaveBeenCalled();
   });
 });

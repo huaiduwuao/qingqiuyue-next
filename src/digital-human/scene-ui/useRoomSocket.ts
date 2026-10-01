@@ -37,6 +37,8 @@ export interface UseRoomSocketOptions {
   enabled: boolean;
   applyEdit: (op: 'upsert' | 'remove' | 'reload' | 'blocks', data: unknown) => void;
   applyRoom: (r: WorldRoom) => void;
+  /** 规则的 env 效果:临时换时辰 / 天气 */
+  onEnv?: (env: { time?: string; weather?: string }) => void;
   onKick: (msg: string) => void;
   toast: (icon: string, text: string) => void;
   /** 世界模型:规则让某个实体「说话」(头顶冒字);不给就用提示条 */
@@ -59,7 +61,7 @@ function playCue(name?: string) {
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     const t = ctx.currentTime;
-    const spec = ({ coin: [880, 1320, 0.18, 'square'], door: [180, 120, 0.35, 'sawtooth'], whoosh: [600, 150, 0.4, 'sine'] } as Record<string, [number, number, number, OscillatorType]>)[name ?? ''] ?? [1200, 900, 0.06, 'square'];
+    const spec = ({ coin: [880, 1320, 0.18, 'square'], door: [180, 120, 0.35, 'sawtooth'], whoosh: [600, 150, 0.4, 'sine'], chime: [1568, 1760, 0.5, 'sine'], ding: [1320, 1300, 0.35, 'triangle'] } as Record<string, [number, number, number, OscillatorType]>)[name ?? ''] ?? [1200, 900, 0.06, 'square'];
     o.type = spec[3];
     o.frequency.setValueAtTime(spec[0], t);
     o.frequency.exponentialRampToValueAtTime(spec[1], t + spec[2]);
@@ -226,7 +228,9 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
         if (f.errors?.length) o.toast('⚠️', `规则出错:${f.errors[0]}`);
         return;
       case 'env':
-        return; // 时辰 / 天气的改动先不接(空间环境走房间设置)
+        // 规则改了时辰 / 天气(env 效果):这一趟在房里时生效,不改房间设置
+        if (f.env && (f.env.time || f.env.weather)) o.onEnv?.({ time: f.env.time, weather: f.env.weather });
+        return;
       case 'event':
         // 六期:房间活动到点开始(门牌上的「进行中」由随后的 room 帧更新)
         o.toast('🎉', `「${f.event?.title ?? '活动'}」开始了`);

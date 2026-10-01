@@ -126,6 +126,69 @@ export async function deleteKind(key: string): Promise<void> {
   await accountClient.delete(`/world/kinds/${encodeURIComponent(key)}`);
 }
 
+// ── 整间房的规则(空间级):join / part / say / 自定义事件……和空间状态 ──
+export interface SpaceRules { rules: WorldRule[]; state: Record<string, unknown> }
+export async function getSpaceRules(): Promise<SpaceRules> {
+  const r = await accountClient.get<SpaceRules>('/world/rooms/mine/rules');
+  return { rules: Array.isArray(r?.rules) ? r.rules : [], state: r?.state ?? {} };
+}
+export async function saveSpaceRules(p: { rules?: WorldRule[]; state?: Record<string, unknown> }): Promise<SpaceRules> {
+  return accountClient.put<SpaceRules>('/world/rooms/mine/rules', p);
+}
+
+// ── 「一句话交给 AI」:人话 → 原型 / 规则的草稿(不存;人看过、改过再走正常的保存) ──
+export type ComposeTarget = 'kind' | 'entity' | 'space';
+export interface ComposeDraft {
+  explain: string;
+  kind?: Omit<WorldKind, 'ownerId' | 'mine' | 'visibility'>;
+  rules?: WorldRule[];
+  state?: Record<string, unknown>;
+  tags?: string[];
+  /** AI 写的没通过校验的地方(已经让它改过一次);人自己改 */
+  errors?: string[];
+}
+export async function composeWorld(text: string, target: ComposeTarget, current?: unknown): Promise<ComposeDraft> {
+  return accountClient.post<ComposeDraft>('/world/ai/compose', { text, target, current }, { timeout: 100000 });
+}
+
+// ── 后台「造物」:平台原型、物质、下架玩家公开的原型 / 蓝图 ──
+export interface AdminWorldKind extends Omit<WorldKind, 'mine'> {
+  owner?: { id: string; nickname: string; avatar: string };
+  edited?: boolean;
+  updatedAt: string;
+  match?: Record<string, unknown>;
+}
+export async function adminListKinds(scope: 'platform' | 'public' | 'all', q = ''): Promise<AdminWorldKind[]> {
+  const r = await accountClient.get<{ list: AdminWorldKind[] }>('/admin/world/kinds', { params: { scope, q } });
+  return Array.isArray(r?.list) ? r.list : [];
+}
+/** 平台原型:key 不存在就新建;玩家的原型只能改 visibility(private = 下架) */
+export async function adminSaveKind(p: { key?: string; def?: Record<string, unknown>; visibility?: 'public' | 'private' }): Promise<void> {
+  if (p.key) await accountClient.put(`/admin/world/kinds/${encodeURIComponent(p.key)}`, { def: p.def, visibility: p.visibility });
+  else await accountClient.post('/admin/world/kinds', { def: p.def });
+}
+export async function adminDeleteKind(key: string): Promise<void> {
+  await accountClient.delete(`/admin/world/kinds/${encodeURIComponent(key)}`);
+}
+export interface AdminWorldPrefab extends WorldLayout { owner?: { id: string; nickname: string; avatar: string }; updatedAt: string }
+export async function adminListPrefabs(q = '', all = false): Promise<AdminWorldPrefab[]> {
+  const r = await accountClient.get<{ list: AdminWorldPrefab[] }>('/admin/world/prefabs', { params: { q, all: all ? 1 : undefined } });
+  return Array.isArray(r?.list) ? r.list : [];
+}
+export async function adminSetPrefabVisibility(key: string, visibility: 'public' | 'private'): Promise<void> {
+  await accountClient.put(`/admin/world/prefabs/${encodeURIComponent(key)}`, { visibility });
+}
+export async function adminListMaterials(): Promise<WorldMaterial[]> {
+  const r = await accountClient.get<{ list: WorldMaterial[] }>('/world/materials', { params: { all: 1 } });
+  return Array.isArray(r?.list) ? r.list : [];
+}
+export async function adminSaveMaterial(id: number, def: Record<string, unknown>): Promise<void> {
+  await accountClient.put(`/admin/world/materials/${id}`, { def });
+}
+export async function adminHideMaterial(id: number): Promise<void> {
+  await accountClient.delete(`/admin/world/materials/${id}`);
+}
+
 export async function listPlacements(scene: string): Promise<WorldPlacement[]> {
   const r = await accountClient.get<{ placements: WorldPlacement[] }>('/world/placements', { params: { scene } });
   return Array.isArray(r?.placements) ? r.placements : [];
@@ -295,6 +358,7 @@ export interface WorldMaterial {
   look?: { pattern?: string; opacity?: number; roughness?: number; metalness?: number; unlit?: boolean; n?: number; lo?: number; hi?: number; size?: number };
   /** solid 挡人、walkable 顶上能站、transparent 透光、emits 发光、liquid {slow} 人在里面走得慢 */
   props?: { solid?: boolean; walkable?: boolean; transparent?: number; emits?: { intensity?: number; radius?: number }; liquid?: { slow?: number } };
+  hidden?: boolean;
 }
 
 export async function listMaterials(): Promise<WorldMaterial[]> {
@@ -527,7 +591,7 @@ export async function adminWorldStats(): Promise<AdminWorldStats> {
   return accountClient.get<AdminWorldStats>('/admin/world/stats');
 }
 
-export async function adminUpdateWorldAsset(key: string, p: { nameZh?: string; tagsZh?: string; tagsEn?: string; category?: string; visibility?: string; status?: string }) {
+export async function adminUpdateWorldAsset(key: string, p: { nameZh?: string; tagsZh?: string; tagsEn?: string; category?: string; visibility?: string; status?: string; kindKey?: string }) {
   return accountClient.put<WorldAssetFull>(`/admin/world/assets/${encodeURIComponent(key)}`, p);
 }
 
