@@ -28,6 +28,8 @@ export interface UsePlazaOnlineOptions {
   /** 许愿 / 祝福成功后:让页面层记任务、刷新平台任务 */
   onWished?: () => void;
   onBlessed?: () => void;
+  /** 七期:已经在房间集线器里的人(画成真形象了):心跳回来的人影里去掉,免得画两遍 */
+  exclude?: () => Set<string>;
 }
 
 function errMsg(e: unknown, fallback: string): string {
@@ -63,7 +65,8 @@ export function usePlazaOnline(opts: UsePlazaOnlineOptions) {
           if (!alive || !r) return;
           failuresRef.current = 0;
           setOnline(r.online);
-          handle.setPeers(r.peers.map((p) => ({ id: p.id, nickname: p.nickname, x: p.x, z: p.z, yaw: p.yaw, aura: p.aura, moving: p.moving })));
+          const skip = optsRef.current.exclude?.();
+          handle.setPeers(r.peers.filter((p) => !skip?.has(String(p.id))).map((p) => ({ id: p.id, nickname: p.nickname, x: p.x, z: p.z, yaw: p.yaw, aura: p.aura, moving: p.moving })));
           handle.setAura(r.self?.aura || null);
         } catch {
           // 没登录 / 服务没上线:连错几次就放慢,别每 3 秒刷一条错误

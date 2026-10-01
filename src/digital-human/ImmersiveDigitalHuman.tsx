@@ -719,12 +719,15 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
 
   // 广场联网:谁在广场、许愿墙、祝福、光环;许愿/祝福会在服务端记平台每日任务
   const [tasksKey, setTasksKey] = React.useState(0);
+  // 七期:广场也走房间集线器;已经在集线器里的人,心跳那边不再画成人影
+  const hubPeersRef = React.useRef<Set<string>>(new Set());
   const online = usePlazaOnline({
     handle: stageHandle,
     // 房间里的人走创世的多人同步(useRoomSocket),不再发广场心跳,免得同一个人画两遍
     enabled: worldActive && scenes.def.kind !== 'room',
     toast: (icon, t) => game.toast(icon, t),
     sceneKey: scenes.def.key,
+    exclude: () => hubPeersRef.current,
     onWished: () => { game.record({ kind: 'interact', zone: 'wish' }); setTasksKey((k) => k + 1); },
     onBlessed: () => setTasksKey((k) => k + 1),
   });
@@ -750,7 +753,8 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
     onKick: (msg) => { game.toast('🚪', msg); goHome(); },
     toast: (icon, t) => game.toast(icon, t),
   });
-  // 创世四期:房间语音(真人开麦走房间连接,AI 的话浏览器念)
+  hubPeersRef.current = new Set(roomSock.status === 'open' ? roomSock.peers.map((p) => p.id) : []);
+  // 创世四期:房间语音(真人开麦走房间连接;AI 的话服务端合成后也从这条连接来)
   const roomVoice = useRoomVoice({ rs: roomSock, handle: stageHandle, toast: (icon, t) => game.toast(icon, t) });
   function roomStateOf() {
     const d = scenes.def;

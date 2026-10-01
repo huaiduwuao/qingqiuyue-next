@@ -161,7 +161,8 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
     respawnRef.current = [];
     w.setOrbs(orbsRef.current);
     w.setCharacters(charactersRef.current);
-    const peers = d.kind === 'room' ? createPeerLayer(THREE_NS, w.group, { resolveUrl: avatarUrl }) : null;
+    // 七期:广场等公共场景也走房间集线器,同伴一样画真形象
+    const peers = createPeerLayer(THREE_NS, w.group, { resolveUrl: avatarUrl });
     peerLayerRef.current = peers;
     peers?.setVoiceLevels(voiceLevelsRef.current);
     peers?.set(roomPeersRef.current);

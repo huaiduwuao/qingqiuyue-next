@@ -70,13 +70,36 @@ describe('useRoomSocket', () => {
     expect(t.opts.onKick).toHaveBeenCalledWith('关门了');
   });
 
-  it('leaves when switching to a non-room scene and rejoins on the next room', () => {
+  it('moves between rooms and public scenes (七期:广场也走集线器)', () => {
     const t = setup();
     t.hook.rerender({ def: { ...roomDef('1'), key: 'plaza', kind: 'plaza', room: undefined } });
     expect(t.sock.leave).toHaveBeenCalled();
-    expect(t.hook.result.current.inRoom).toBe(false);
+    expect(t.sock.join).toHaveBeenLastCalledWith('plaza');
+    expect(t.hook.result.current.space).toBe('scene');
+    // 场景里谁来谁走不弹提示
+    t.emit({ t: 'hello', you: '1', room: { ownerId: '', version: 0, name: 'plaza', scene: 'plaza' }, peers: [] });
+    t.emit({ t: 'join', peer: { id: '8', nickname: '阿远', look, x: 0, y: 0, z: 0, yaw: 0 } });
+    expect(t.opts.toast).not.toHaveBeenCalled();
     t.hook.rerender({ def: roomDef('2') });
     expect(t.sock.join).toHaveBeenLastCalledWith('2');
+    expect(t.hook.result.current.space).toBe('room');
+    // 关掉世界:断开
+    t.hook.rerender({ def: { ...roomDef('2') } });
+  });
+
+  it('shows captions: own partial, everyone final', () => {
+    const t = setup();
+    t.emit({ t: 'hello', you: '1', room: { ownerId: '1', version: 1, name: 'x' }, peers: [{ id: '7', nickname: '阿青', look, x: 0, y: 0, z: 0, yaw: 0 }] });
+    t.emit({ t: 'caption', id: '1', text: '你好', final: false });
+    expect(t.hook.result.current.myCaption).toBe('你好');
+    t.emit({ t: 'caption', id: '1', nickname: '我', text: '你好呀。', final: true, ts: 5 });
+    expect(t.hook.result.current.myCaption).toBe('');
+    t.emit({ t: 'caption', id: '7', nickname: '阿青', text: '欢迎欢迎。', final: true, ts: 6 });
+    expect(t.hook.result.current.chat.map((c) => [c.text, c.mine, c.voice])).toEqual([['你好呀。', true, true], ['欢迎欢迎。', false, true]]);
+    expect(t.handle.peerSay).toHaveBeenCalledWith('7', '欢迎欢迎。');
+    expect(t.handle.floatText).toHaveBeenCalled();
+    t.emit({ t: 'caption', id: '1', text: '', final: true, blocked: true });
+    expect(t.hook.result.current.myCaption).toContain('敏感词');
   });
 
   it('says through the socket, trimmed and capped', () => {

@@ -4,6 +4,9 @@
  * 地址复用全站推送的网关路由:ws(s)://<host>/ws/notify?ch=world&ticket=…(core-api 按 ch 转给房间集线器,
  * 不用新开 APISIX 路由)。票和推送是同一种:POST /api/core/realtime/ticket,每次连接换一张。
  *
+ * 七期:公共场景(广场、庭院)也走这条连接:join(场景 key),服务端当成没有房主的房间;
+ * 说话转字幕:caption 帧(自己说话的识别中 / 房里任何人说完一句的最终结果)。
+ *
  * 一个页面一条连接,同一时刻只在一间房里。断线按 1→2→4…→15 秒退避重连,连上后自动重新 join,
  * 服务端回 hello 全量(房里的人 + 房间版本),客户端据此补齐。
  *
@@ -39,6 +42,8 @@ export interface PeerInfo extends PeerPose {
   owner?: boolean;
   /** AI 成员(管家 / 做客的 agent) */
   ai?: boolean;
+  /** 七期:广场光环(颜色值) */
+  aura?: string;
   /** 四期:0 没开声音 / 1 在听 / 2 开着麦 */
   voice?: number;
   /** 被房主禁言 */
@@ -47,7 +52,7 @@ export interface PeerInfo extends PeerPose {
 }
 
 export type RoomFrame =
-  | { t: 'hello'; you: string; room: { ownerId: string; version: number; name: string; voice?: boolean }; peers: PeerInfo[]; muted?: boolean }
+  | { t: 'hello'; you: string; room: { ownerId: string; version: number; name: string; voice?: boolean; scene?: string }; peers: PeerInfo[]; muted?: boolean }
   | { t: 'join'; peer: PeerInfo }
   | { t: 'leave'; id: string }
   | { t: 'peers'; list: (PeerPose & { id: string })[] }
@@ -57,6 +62,7 @@ export type RoomFrame =
   | { t: 'room'; room: unknown }
   | { t: 'kick'; msg: string }
   | { t: 'voice'; id: string; v: number; muted?: boolean }
+  | { t: 'caption'; id: string; nickname?: string; text: string; final: boolean; blocked?: boolean; ts?: number }
   | { t: 'event'; phase: 'start'; event: { id: string; title: string; endAt: string } }
   | { t: 'error'; msg: string }
   | { t: 'pong' };
@@ -90,7 +96,7 @@ export class RoomSocket {
     this.onStatus(s);
   }
 
-  /** 进某人的房间(房主 uid);没连上就先连 */
+  /** 进某人的房间(房主 uid)或公共场景(场景 key,比如 plaza);没连上就先连 */
   join(ownerId: string) {
     this.closed = false;
     if (this.room === ownerId && this.joined) return;
@@ -109,7 +115,7 @@ export class RoomSocket {
 
   private sendJoin() {
     if (!this.room) return;
-    this.raw({ t: 'join', room: this.room });
+    this.raw(/^\d+$/.test(this.room) ? { t: 'join', room: this.room } : { t: 'join', scene: this.room });
     this.joined = true;
   }
 

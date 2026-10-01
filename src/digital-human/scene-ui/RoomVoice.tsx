@@ -69,6 +69,7 @@ export function VoiceStrip({ rs, voice, narrow }: { rs: RoomSocketState; voice: 
         <ButtonBase onClick={voice.disable} sx={{ ...pill(false), px: 0.75 }} aria-label="关掉声音">🔇</ButtonBase>
       </Box>
       {rs.selfMuted && <Typography sx={{ fontSize: 11, color: '#ffb0b0', mt: 0.5 }}>房主让你先别说话</Typography>}
+      {!!rs.myCaption && <Typography sx={{ fontSize: 11.5, color: '#c8f7ff', mt: 0.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🎙 {rs.myCaption}</Typography>}
       {!rs.selfMuted && s.talk && !live && !voice.micReady && (
         <Typography sx={{ fontSize: 10.5, color: 'rgba(255,255,255,0.42)', mt: 0.5 }}>戴耳机效果最好;开麦后只在你说话时才发声音</Typography>
       )}

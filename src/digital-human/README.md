@@ -192,6 +192,10 @@ MUI 的列表、输入框、下拉框全都能正常点击和输入 —— 不�
 (`ai: true` → 紫色 🤖 名牌、wave / bow 动作);管家开关和请客在 RoomSettings 里的 RoomAISection。
 位置帧里 `m` / `a` 为空时服务端不发,合并时要以每一帧为准,不然会一直「在走」「招手」。
 
+**七期:字幕与广场同步。** 开麦说的话由服务端转字幕(caption 帧:自己的识别中 → `rs.myCaption`;任何人说完一句 →
+聊天里 🎙 一行 + 头顶气泡)。广场等公共场景也连房间集线器(`useRoomSocket` 的 `space = 'scene'`,join 时发场景 key),
+同伴层(peerAvatars)所有场景都有,广场光环画成脚下一圈;`usePlazaOnline` 的心跳还在,集线器里已有的人不再画成人影。
+
 **六期:社交与发现。** 串门面板(Genesis.tsx 的 RoomsSection)分热门 / 关注 / 最近 / 活动四栏;`scene-ui/RoomSocial.tsx`
 放活动时间的说法、活动标签、活动列表(报名)、房间设置里「办活动」、门牌上「关注房主」。房间连接上的 `event` 帧 = 活动开始;
 全站推送 `world.event`(soon / start)= 报名的活动快开始 / 开始了;铃铛类型 `room_event` 点开进房主的房间。

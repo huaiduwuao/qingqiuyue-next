@@ -7,6 +7,8 @@
  *   - 说话:say 帧进聊天记录,说话人头顶冒气泡(自己的也冒);
  *   - edit:别人(或自己另一个标签页)改了摆放 → useWorldObjects.applyRemote;
  *   - room:房间设置变了 → useRoom.applyRemote;kick:被请出去 → 回自己家。
+ *   - 七期:公共场景(广场、庭院)也连(space = 'scene',不提示谁来谁走);caption 帧 = 说话转字幕:
+ *     最终结果进聊天记录(voice: true)、说话人头顶冒气泡;中间结果只有说话人自己收到(myCaption)。
  *   - 四期语音:二进制帧交给 setVoiceHandler 登记的处理器(useRoomVoice);voice 帧更新每个人的声音状态
  *     (peer.voice / muted)和自己是否被禁言;hello 之后把自己的声音状态再报一次(服务端进房时清零)。
  */
@@ -24,6 +26,8 @@ export interface ChatLine {
   ts: number;
   mine: boolean;
   ai?: boolean;
+  /** 七期:开麦说的,字幕转出来的 */
+  voice?: boolean;
 }
 
 export interface UseRoomSocketOptions {
@@ -54,6 +58,9 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
   // 四期语音
   const [roomVoice, setRoomVoice] = React.useState(true);
   const [selfMuted, setSelfMuted] = React.useState(false);
+  // 七期:自己说话时的识别中字幕
+  const [myCaption, setMyCaption] = React.useState('');
+  const captionTimer = React.useRef<number | null>(null);
   const voiceStateRef = React.useRef<0 | 1 | 2>(0);
   const voiceHandlerRef = React.useRef<((b: ArrayBuffer) => void) | null>(null);
   const onBinary = React.useCallback((b: ArrayBuffer) => { voiceHandlerRef.current?.(b); }, []);
@@ -87,14 +94,14 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
         if (f.peer.id === youRef.current) return;
         peersRef.current.set(f.peer.id, f.peer);
         pushPeers();
-        o.toast('👋', `${f.peer.nickname || '有人'}来了`);
+        if (o.def.kind === 'room') o.toast('👋', `${f.peer.nickname || '有人'}来了`);
         return;
       case 'leave': {
         const p = peersRef.current.get(f.id);
         if (!p) return;
         peersRef.current.delete(f.id);
         pushPeers();
-        o.toast('🚪', `${p.nickname || '有人'}走了`);
+        if (o.def.kind === 'room') o.toast('🚪', `${p.nickname || '有人'}走了`);
         return;
       }
       case 'peers': {
@@ -142,6 +149,25 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
       case 'kick':
         o.onKick(f.msg);
         return;
+      case 'caption': {
+        const mine = f.id === youRef.current;
+        if (!f.final) {
+          if (mine) setMyCaption(f.text);
+          return;
+        }
+        if (mine) {
+          setMyCaption(f.blocked ? '这句没显示出来(含敏感词)' : '');
+          if (f.blocked) {
+            if (captionTimer.current) window.clearTimeout(captionTimer.current);
+            captionTimer.current = window.setTimeout(() => setMyCaption(''), 3000);
+          }
+        }
+        if (!f.text) return;
+        setChat((c) => [...c.slice(-49), { id: f.id, nickname: f.nickname || '', text: f.text, ts: f.ts || Date.now(), mine, voice: true }]);
+        if (mine) o.handle?.floatText(f.text.length > 18 ? `${f.text.slice(0, 18)}…` : f.text, '#c8f7ff');
+        else o.handle?.peerSay(f.id, f.text);
+        return;
+      }
       case 'event':
         // 六期:房间活动到点开始(门牌上的「进行中」由随后的 room 帧更新)
         o.toast('🎉', `「${f.event?.title ?? '活动'}」开始了`);
@@ -153,8 +179,8 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
     }
   }, [pushPeers]);
 
-  // 进 / 出房间
-  const owner = enabled && def.kind === 'room' ? def.room?.ownerId ?? null : null;
+  // 进 / 出房间(七期:公共场景用场景 key)
+  const owner = !enabled ? null : def.kind === 'room' ? def.room?.ownerId ?? null : def.key;
   React.useEffect(() => {
     if (!owner) return;
     let sock = sockRef.current;
@@ -221,6 +247,9 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
   return {
     status, peers, chat, say, online: owner ? peers.length - aiCount + 1 : 0, aiCount, inRoom: !!owner,
     isOwner: !!owner && !!def.room?.mine,
+    /** room = 某人的房间;scene = 公共场景(广场、庭院) */
+    space: (owner ? (def.kind === 'room' ? 'room' : 'scene') : null) as 'room' | 'scene' | null,
+    myCaption,
     roomVoice, selfMuted, setVoiceState, sendVoice, vmute, setVoiceHandler,
   };
 }

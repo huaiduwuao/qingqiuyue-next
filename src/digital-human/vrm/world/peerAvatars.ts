@@ -31,6 +31,8 @@ export interface RoomPeer {
   /** 0 没开声音 / 1 在听 / 2 开着麦 */
   voice?: number;
   muted?: boolean;
+  /** 七期:广场光环(颜色值),脚下一圈光 */
+  aura?: string;
 }
 
 export interface PeerLayer {
@@ -126,6 +128,8 @@ interface Entry {
   bubbleUntil: number;
   speak: THREE.Sprite | null;
   talk: number; // 平滑后的嘴型 0..1
+  aura: THREE.Mesh | null;
+  auraColor: string;
   ghost: THREE.Mesh;
   vrm: THREE_VRM.VRM | null;
   loadingKey: string;
@@ -187,7 +191,7 @@ export function createPeerLayer(
       g.add(ghost);
       root.add(g);
       e = {
-        p, g, label: null as unknown as THREE.Sprite, bubble: null, bubbleUntil: 0, speak: null, talk: 0, ghost, vrm: null, loadingKey: '', loadedKey: '',
+        p, g, label: null as unknown as THREE.Sprite, bubble: null, bubbleUntil: 0, speak: null, talk: 0, aura: null, auraColor: '', ghost, vrm: null, loadingKey: '', loadedKey: '',
         footOffset: 0, height: 1.6, pos: new THREE_NS.Vector3(p.x, p.y, p.z), yaw: p.yaw, speed: 0, phase: Math.random() * 6, wantFull: true, fade: 0, removing: false,
       };
       entries.set(p.id, e);
@@ -198,7 +202,26 @@ export function createPeerLayer(
       e.removing = false;
       if (nameChanged) makeLabel(e);
     }
+    setAura(e);
     maybeLoad(e);
+  }
+
+  // 广场光环:脚下一圈半透明的光(颜色变了换材质颜色,摘了就拿掉)
+  const auraGeo = new THREE_NS.RingGeometry(0.42, 0.62, 48);
+  function setAura(e: Entry) {
+    const c = e.p.aura || '';
+    if (c === e.auraColor) return;
+    e.auraColor = c;
+    if (e.aura) { e.g.remove(e.aura); (e.aura.material as THREE.Material).dispose(); e.aura = null; }
+    if (!c) return;
+    let color: THREE.Color;
+    try { color = new THREE_NS.Color(c); } catch { return; }
+    const m = new THREE_NS.Mesh(auraGeo, new THREE_NS.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, depthWrite: false, side: THREE_NS.DoubleSide }));
+    m.rotation.x = -Math.PI / 2;
+    m.position.y = 0.03;
+    m.name = 'peer-aura';
+    e.aura = m;
+    e.g.add(m);
   }
 
   function maybeLoad(e: Entry) {
@@ -323,6 +346,7 @@ export function createPeerLayer(
         disposeSprite(e.label);
         if (e.bubble) disposeSprite(e.bubble);
         if (e.speak) disposeSprite(e.speak);
+        if (e.aura) (e.aura.material as THREE.Material).dispose();
         entries.delete(id);
         continue;
       }
@@ -374,6 +398,7 @@ export function createPeerLayer(
       entries.clear();
       parent.remove(root);
       ghostGeo.dispose();
+      auraGeo.dispose();
       ghostMat.dispose();
     },
   };
