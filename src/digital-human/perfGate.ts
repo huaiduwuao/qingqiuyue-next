@@ -6,7 +6,7 @@
  *      或者根本没有显卡)、内存 < 2 GB、CPU < 2 核 → 直接拦。
  *   2. 进门后量帧率(useFpsGate):只在页面可见时算,前 5 秒(加载、编译着色器)不算;
  *      高画质持续 < 24 帧 → 先自动降到流畅画质;流畅画质下还持续 < 18 帧 → 拦。
- * 拦下的结论记在本机 3 天,下次进来直接拦;「重新检测」会清掉记录再测一遍。
+ * 不记结论:每次进来都现场检测(快检 + 量帧率),「重新检测」就是再测一遍。
  */
 
 import * as React from 'react';
@@ -17,29 +17,7 @@ export interface GateVerdict {
   detail?: string;
 }
 
-const KEY = 'dh_perf_gate';
-const TTL_MS = 3 * 24 * 3600 * 1000;
 const SOFTWARE_GPU = /swiftshader|llvmpipe|softpipe|software|microsoft basic render|basic render driver|mesa offscreen/i;
-
-export function loadVerdict(): GateVerdict | null {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return null;
-    const v = JSON.parse(raw) as GateVerdict & { at: number };
-    if (!v.blocked || Date.now() - v.at > TTL_MS) return null;
-    return { blocked: true, reason: v.reason, detail: v.detail };
-  } catch {
-    return null;
-  }
-}
-
-export function saveVerdict(v: GateVerdict) {
-  try { localStorage.setItem(KEY, JSON.stringify({ ...v, at: Date.now() })); } catch { /* 隐私模式 */ }
-}
-
-export function clearVerdict() {
-  try { localStorage.removeItem(KEY); } catch { /* ignore */ }
-}
 
 /** 进门前的快检:不读任何素材,只问浏览器和显卡 */
 export function quickCheck(): GateVerdict {
@@ -110,7 +88,6 @@ export function useFpsGate(opts: { enabled: boolean; quality: 'high' | 'low'; se
           o.onDegrade?.();
         } else {
           const v: GateVerdict = { blocked: true, reason: '设备性能不够', detail: `流畅画质下只有约 ${Math.round(fps)} 帧/秒,会一直卡顿。` };
-          saveVerdict(v);
           setVerdict(v);
         }
       }
@@ -119,5 +96,5 @@ export function useFpsGate(opts: { enabled: boolean; quality: 'high' | 'low'; se
     return () => cancelAnimationFrame(raf);
   }, [opts.enabled, verdict]);
 
-  return { verdict, reset: () => { clearVerdict(); setVerdict(null); } };
+  return { verdict, reset: () => setVerdict(null) };
 }

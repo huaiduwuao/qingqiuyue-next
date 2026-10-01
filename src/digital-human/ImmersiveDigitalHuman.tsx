@@ -47,7 +47,7 @@ import { GenesisHud, GenesisPanels, RoomPlate, RoomsSection, useGenesis } from '
 import { useRoomSocket } from './scene-ui/useRoomSocket';
 import { RoomChat } from './scene-ui/RoomChat';
 import { useRoomVoice } from './scene-ui/useRoomVoice';
-import { loadVerdict, quickCheck, saveVerdict, useFpsGate, type GateVerdict } from './perfGate';
+import { quickCheck, useFpsGate, type GateVerdict } from './perfGate';
 import { PerfBlockScreen } from './PerfBlockScreen';
 import type { PlazaState } from './scene-state';
 import { useRouter } from 'next/navigation';
@@ -812,13 +812,11 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
     try { const saved = localStorage.getItem('dh_world_quality'); if (saved === 'high' || saved === 'low') q = saved; } catch { /* 隐私模式 */ }
     setWorldQuality(q);
   }, []);
-  // 设备性能门槛:进门快检(没有 WebGL2 / 软件渲染 / 内存或 CPU 太弱)+ 进门后量帧率,跑不动就拦(perfGate.ts)
+  // 设备性能门槛:每次进来都现场检测 —— 快检(没有 WebGL2 / 软件渲染 / 内存或 CPU 太弱)+ 进门后量帧率,跑不动就拦(perfGate.ts)
   const [gate, setGate] = React.useState<GateVerdict | null>(null);
   React.useEffect(() => {
-    const saved = loadVerdict();
-    if (saved) { setGate(saved); return; }
     const v = quickCheck();
-    if (v.blocked) { saveVerdict(v); setGate(v); }
+    if (v.blocked) setGate(v);
   }, []);
   const fpsGate = useFpsGate({
     enabled: avatarMode === 'vrm' && !gate,
@@ -990,7 +988,7 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
         onRetry={() => {
           fpsGate.reset();
           const v = quickCheck();
-          if (v.blocked) { saveVerdict(v); setGate(v); } else setGate(null);
+          setGate(v.blocked ? v : null);
         }}
       />
     );

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { clearVerdict, loadVerdict, quickCheck, saveVerdict } from '../perfGate';
+import { quickCheck } from '../perfGate';
 
 function fakeGL(renderer: string | null) {
   const orig = document.createElement.bind(document);
@@ -17,7 +17,6 @@ function fakeGL(renderer: string | null) {
 
 afterEach(() => {
   vi.restoreAllMocks();
-  clearVerdict();
   Object.defineProperty(navigator, 'deviceMemory', { value: undefined, configurable: true });
 });
 
@@ -49,11 +48,12 @@ describe('digital human perf gate', () => {
     expect(quickCheck().blocked).toBe(false);
   });
 
-  it('remembers a block for 3 days, then forgets it', () => {
-    saveVerdict({ blocked: true, reason: '设备性能不够' });
-    expect(loadVerdict()?.reason).toBe('设备性能不够');
-    const raw = JSON.parse(localStorage.getItem('dh_perf_gate')!);
-    localStorage.setItem('dh_perf_gate', JSON.stringify({ ...raw, at: Date.now() - 4 * 24 * 3600 * 1000 }));
-    expect(loadVerdict()).toBeNull();
+  it('keeps no verdict between visits (every entry is checked live)', () => {
+    fakeGL('llvmpipe (LLVM 15.0.7, 256 bits)');
+    expect(quickCheck().blocked).toBe(true);
+    vi.restoreAllMocks();
+    fakeGL('ANGLE (NVIDIA, NVIDIA GeForce RTX 3060)');
+    expect(quickCheck().blocked).toBe(false);
+    expect(localStorage.getItem('dh_perf_gate')).toBeNull();
   });
 });
