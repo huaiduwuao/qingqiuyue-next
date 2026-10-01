@@ -21,6 +21,7 @@ import { overview, daily, readRecentThemes, type InsightGroup, type InsightTheme
 import { accentOf, WorkCard } from '@/components/insight/InsightCards';
 import { useContentNavigate } from '@/lib/contentRoute';
 import { BranchStrip, NeedBox } from '@/components/insight/Branches';
+import { useAuthority } from '@/contexts/AuthContext';
 
 const SERIF = '"Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, serif';
 
@@ -247,6 +248,8 @@ function DailyCard({ open }: { open: (key: string) => void }) {
 
 export default function InsightHomePage() {
   const router = useRouter();
+  const { isAdmin, roles } = useAuthority();
+  const isStaff = isAdmin || roles.includes('OPERATOR') || roles.includes('AUDITOR');
   const ov = useQuery({ queryKey: ['insight', 'overview'], queryFn: overview, staleTime: 60 * 60_000 });
   const [recent, setRecent] = React.useState<string[]>([]);
   React.useEffect(() => setRecent(readRecentThemes()), []);
@@ -275,6 +278,14 @@ export default function InsightHomePage() {
           >
             我的心路 →
           </Typography>
+          {isStaff && (
+            <Typography
+              onClick={() => router.push('/civ/insights')}
+              sx={{ fontSize: 13, color: 'text.secondary', mt: 1.5, ml: 2, cursor: 'pointer', display: 'inline-block' }}
+            >
+              专题看板 →
+            </Typography>
+          )}
         </Box>
 
         <DailyCard open={open} />

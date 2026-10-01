@@ -325,7 +325,7 @@ function NodeInner() {
 
 export default function CivNodePage() {
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', color: 'text.primary' }}>
       <DetailHeader title="文明图谱" />
       <Suspense fallback={null}>
         <NodeInner />
