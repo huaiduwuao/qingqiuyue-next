@@ -151,6 +151,7 @@ function VideoDetailContent() {
                   autoPlay={false}
                   isAIGenerated={data.isAIGenerated === true}
                   dockTitle={data.title || "视频"}
+                  fitVideo
                 />
               </Container>
             </Box>

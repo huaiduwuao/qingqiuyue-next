@@ -53,6 +53,11 @@ interface Props {
    */
   fill?: boolean;
   /**
+   * 详情页:播放框按视频真实宽高比,而不是写死 16:9(竖屏视频在 16:9 框里两边大黑边、手机上缩成一小条);
+   * 高度封顶 75vh,竖屏视频不会一屏装不下。推荐卡片这类外框尺寸固定的场景不要传。
+   */
+  fitVideo?: boolean;
+  /**
    * sourceUrl 解析失败时回调(拿到 streamError 那一刻触发)。VideoPlayer 本身不知道
    * 调用方的 contentId/contentType 是什么,不在这里直接调举报接口——由调用方决定
    * 要不要、以及怎么把"这条播不出来"这件事记下来(比如自动提交举报,让"暂时无法
@@ -90,7 +95,7 @@ const RECOVER_RESET_MS = 30_000;
 const PREEMPT_EXPIRY_MS = 60_000;
 
 /** 生命周期 effect 里挂到 <video> 上的事件 */
-const VIDEO_EVENTS = ['timeupdate', 'loadedmetadata', 'canplay', 'playing', 'play', 'pause', 'ended', 'error', 'volumechange', 'enterpictureinpicture', 'leavepictureinpicture', 'webkitpresentationmodechanged'];
+const VIDEO_EVENTS = ['timeupdate', 'loadedmetadata', 'resize', 'canplay', 'playing', 'play', 'pause', 'ended', 'error', 'volumechange', 'enterpictureinpicture', 'leavepictureinpicture', 'webkitpresentationmodechanged'];
 
 function fmt(s: number) {
   if (!isFinite(s) || s < 0) return '0:00';
@@ -160,7 +165,7 @@ function seekBarSx(thick: boolean) {
 }
 
 const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVideoPlayer(
-  { src, sourceUrl, refreshSource, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false, fill = false, onPlaybackError, dockTitle, localSource, onLocalFail, localRefresh },
+  { src, sourceUrl, refreshSource, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false, fill = false, fitVideo = false, onPlaybackError, dockTitle, localSource, onLocalFail, localRefresh },
   ref,
 ) {
   // 封面同样经网关:调用方传进来的可能是 MinIO 内网直链或外站防盗链图。
@@ -174,6 +179,12 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
   const dockKey = src || sourceUrl || '';
   const hlsRef = useRef<any>(null);
   const [playing, setPlaying] = useState(false);
+  /** 视频真实宽高比(videoWidth / videoHeight),拿到元数据前为 0 → 先按 16:9 */
+  const [videoRatio, setVideoRatio] = useState(0);
+  const syncRatio = () => {
+    const v = videoRef.current;
+    if (v && v.videoWidth > 0 && v.videoHeight > 0) setVideoRatio(v.videoWidth / v.videoHeight);
+  };
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(initialDuration);
   const [volume, setVolume] = useState(readVolume);
@@ -581,6 +592,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
   const handleLoaded = () => {
     const v = videoRef.current;
     if (!v) return;
+    syncRatio();
     setDuration(v.duration || initialDuration);
     // 换链后回到原来的进度
     if (resumeAt.current > 0) {
@@ -714,6 +726,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     handlers.current = {
       timeupdate: handleTimeUpdate,
       loadedmetadata: handleLoaded,
+      resize: syncRatio,
       canplay: () => {
         const v = videoRef.current;
         if (v && wantAutoPlay.current && v.paused) tryAutoPlay(v);
@@ -807,6 +820,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
       if (isFinite(v.duration)) setDuration(v.duration);
       setPip(inPip(v));
       setMuted(v.muted);
+      if (v.videoWidth > 0 && v.videoHeight > 0) setVideoRatio(v.videoWidth / v.videoHeight);
     } else {
       v = document.createElement('video');
       v.playsInline = true;
@@ -976,7 +990,8 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
       } : {
         position: 'relative',
         width: '100%',
-        aspectRatio: '16/9',
+        aspectRatio: fitVideo && videoRatio > 0 && !isFs ? String(videoRatio) : '16/9',
+        maxHeight: fitVideo && !isFs ? '75vh' : undefined,
         bgcolor: '#000',
         borderRadius: 2,
         overflow: 'hidden',

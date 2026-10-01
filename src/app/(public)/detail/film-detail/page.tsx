@@ -120,7 +120,7 @@ function FilmDetailContent() {
                     // 只有会员/付费平台有片源、或片源页只是个索引:如实说明,不把它交给播放器硬解析。
                     <UnavailablePlayer notice={notice} platforms={platformsOf(data)} poster={data.cover} />
                   ) : (
-                    <VideoPlayer key={playPage} src={data.videoUrl || ''} sourceUrl={playPage} poster={data.cover} initialDuration={(data.duration || 0) * 60} autoPlay={false} dockTitle={data.title || "电影"} />
+                    <VideoPlayer key={playPage} src={data.videoUrl || ''} sourceUrl={playPage} poster={data.cover} initialDuration={(data.duration || 0) * 60} autoPlay={false} dockTitle={data.title || "电影"} fitVideo />
                   );
                 })()}
               </Container>
