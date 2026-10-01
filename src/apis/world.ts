@@ -30,6 +30,8 @@ export interface WorldAsset {
   lite?: string;
   /** 创世八期:缩略图(qq-media/world 下的相对路径,256px 透明底 PNG) */
   thumb?: string;
+  /** Poly Haven 的类别(furniture / lighting / seating …),用户上传的是自己选的 */
+  category?: string;
 }
 
 /** qq-media/world 下的相对路径 → 能直接放进 <img> 的地址 */
@@ -63,11 +65,18 @@ export interface WorldPlacement {
   scale: number;
   public: boolean;
   asset?: WorldAsset;
+  /** 十期:灯关着(默认亮) */
+  off?: boolean;
 }
 
 export async function listPlacements(scene: string): Promise<WorldPlacement[]> {
   const r = await accountClient.get<{ placements: WorldPlacement[] }>('/world/placements', { params: { scene } });
   return Array.isArray(r?.placements) ? r.placements : [];
+}
+
+/** 十期:开 / 关房间里的一盏灯(要在那间房里) */
+export async function switchPlacement(id: string, on: boolean): Promise<{ id: string; on: boolean }> {
+  return accountClient.post<{ id: string; on: boolean }>(`/world/placements/${encodeURIComponent(id)}/switch`, { on });
 }
 
 export interface PlacementInput {

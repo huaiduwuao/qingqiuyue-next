@@ -192,6 +192,10 @@ MUI 的列表、输入框、下拉框全都能正常点击和输入 —— 不�
 (`ai: true` → 紫色 🤖 名牌、wave / bow 动作);管家开关和请客在 RoomSettings 里的 RoomAISection。
 位置帧里 `m` / `a` 为空时服务端不发,合并时要以每一帧为准,不然会一直「在走」「招手」。
 
+**十期:能动手的摆设。** `interactOf` 认出椅子和灯(PlacedObject.interact);不在布置时点它们发 `useObject` 世界事件,
+`useObjectUse` 处理:椅子 → `handle.seatSpots` 挑座位、走过去、`sitAt`;灯 → `switchPlacement`(服务端推 edit 回来才变)。
+坐姿在 `interact.ts`(`applySitPose`),自己和同伴共用;坐着时位置帧 `a: 'sit'`、`y` = 座面高度。
+
 **九期:扩容。** 公共场景分线(一条线 50 人,满了自动开下一条;`rs.line / rs.lines / rs.switchLine`,RoomChat 标题旁「N 线 ▾」),
 `RoomSocket` 记着线号,断线重连回原线。服务端把坐标量化到厘米、大文本帧走 permessage-deflate(浏览器自动协商,前端不用管)。
 

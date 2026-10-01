@@ -17,11 +17,17 @@
  *
  * 八期:obstacles() 给出每件摆设在地上占的那块(模型在自己组里的包围盒,带上转向 / 缩放),人走路绕开它们;
  * 地毯、吊灯、灯杆、栈桥这类不挡(blocksWalking)。
+ *
+ * 十期:灯(interact = 'lamp')亮着时灯头上一团暖光(加色精灵)、灯罩 / 玻璃材质自发光;离镜头最近的几盏
+ * 分到一个点光源池(高画质 4 个、流畅 1 个,第一盏灯出现时才建,之后数量不变 —— 灯数一变 three 要重编所有着色器)。
+ * 能坐的(interact = 'seat')按模型量座位:从上往下打射线找座面,四个方向里最高的一边是靠背,对面是正面;
+ * 两边一样高(凳子、长椅)就面朝走过来的人;宽的沙发 / 长椅按 0.55 米一个座位排开。
  */
 
 import type * as THREE from 'three';
 import { createRealKit, type RealKit } from './realKit';
 import type { Obstacle } from './worldLayout';
+import { guessSeatHeight, seatCount, type Interact, type SeatSpot } from './interact';
 
 export interface PlacedObject {
   id: string;
@@ -47,6 +53,10 @@ export interface PlacedObject {
   lods?: { file: string; bytes?: number }[];
   /** 占地最长边(米):越大的东西越晚换粗的一档 */
   footprint?: number;
+  /** 十期:能坐 / 是灯 */
+  interact?: Interact | null;
+  /** 十期:灯关着 */
+  off?: boolean;
 }
 
 /** 离镜头 dist 米、大小 size 米的东西该用第几档(0 近 / 1 中 / 2 远)。prev = 上次的结果,离边界不到 10% 不换 */
@@ -82,6 +92,12 @@ export interface ObjectLayer {
   setSelected: (id: string | null) => void;
   /** 八期:人走路要绕开的摆设(地上占的那块);缓存 200ms */
   obstacles: () => Obstacle[];
+  /** 十期:射线点中的摆放和点中的位置 */
+  pickHit: (raycaster: THREE.Raycaster) => { id: string; point: { x: number; y: number; z: number } } | null;
+  /** 十期:这件能坐的摆设上有哪些座位(世界坐标);from = 人现在在哪(两边一样高时面朝他) */
+  seatSpots: (id: string, from: { x: number; z: number }) => SeatSpot[];
+  /** 十期:某件摆放现在的记录 */
+  get: (id: string) => PlacedObject | null;
   dispose: () => void;
 }
 
@@ -101,6 +117,9 @@ interface Entry {
   lodBroken: boolean;
   /** 八期:模型在组里的包围盒(没缩放;undefined = 还没量,null = 量不出) */
   obox?: LocalBox | null;
+  /** 十期:灯头那团光;灯罩材质(各自拷过一份) */
+  lampGlow?: THREE.Sprite | null;
+  lampMats?: THREE.MeshStandardMaterial[];
 }
 
 /** 模型在自己组里的包围盒:地面上的中心 / 半宽,和上下沿 */
@@ -228,8 +247,10 @@ export function createObjectLayer(
       e.model = obj;
       e.radius = 0;
       e.obox = undefined;
+      e.lampMats = undefined;
       e.g.add(obj);
       if (e.glow) { e.g.remove(e.glow); e.glow = null; }
+      if (e.p.interact === 'lamp' && !e.p.ghost) setupLamp(e);
       if (first) e.grow = Math.min(e.grow, 0.001); // 实物到了:从小长出来(换档不用)
     }).catch(() => {
       if (e.loadingKey !== loadKey) return;
@@ -258,7 +279,9 @@ export function createObjectLayer(
       entries.set(p.id, e);
     }
     const keyChanged = e.p.assetKey !== p.assetKey;
+    const offChanged = !!e.p.off !== !!p.off;
     e.p = p;
+    if (offChanged && e.model && p.interact === 'lamp') applyLamp(e);
     place(e);
     if (keyChanged) { if (e.model) e.g.remove(e.model); e.model = null; e.obox = undefined; e.loadedKey = ''; e.loadingKey = ''; e.distLevel = -1; e.lodBroken = false; }
     if (p.status === 'ready') loadModel(e);
@@ -352,6 +375,191 @@ export function createObjectLayer(
     return out;
   }
 
+  // ── 十期:灯 ──
+  let glowTex: THREE.Texture | null = null;
+  const glowTexture = (): THREE.Texture | null => {
+    if (glowTex) return glowTex;
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g2 = c.getContext('2d');
+    if (!g2) return null; // 没有 2D 画布(测试环境):光团只用颜色
+    const grad = g2.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(255,240,210,1)');
+    grad.addColorStop(0.25, 'rgba(255,200,130,0.65)');
+    grad.addColorStop(1, 'rgba(255,170,90,0)');
+    g2.fillStyle = grad;
+    g2.fillRect(0, 0, 64, 64);
+    glowTex = new THREE_NS.CanvasTexture(c);
+    return glowTex;
+  };
+  const LAMP_MAT_RE = /(glass|bulb|shade|light|lamp|emiss|candle|flame|paper|wick|lantern|fabric)/i;
+  const warm = new THREE_NS.Color(1, 0.72, 0.42);
+  /** 灯模型到了:材质各拷一份(同一种灯的别的摆放不受影响),认得出的灯罩 / 玻璃 / 灯泡发光,灯头挂一团光 */
+  function setupLamp(e: Entry) {
+    if (!e.model) return;
+    const shades: THREE.MeshStandardMaterial[] = [];
+    const all: THREE.MeshStandardMaterial[] = [];
+    e.model.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      const next = list.map((m) => {
+        const sm = m as THREE.MeshStandardMaterial;
+        if (!sm || !('emissive' in sm)) return m;
+        const c = sm.clone();
+        c.userData.lampBase = { e: c.emissive.clone(), i: c.emissiveIntensity };
+        all.push(c);
+        if (LAMP_MAT_RE.test(sm.name || '') || LAMP_MAT_RE.test(sm.map?.name || '') || !!sm.emissiveMap || sm.transparent) shades.push(c);
+        return c;
+      });
+      mesh.material = Array.isArray(mesh.material) ? next : next[0];
+    });
+    // 认不出灯罩(材质名没规律)就整盏灯微微发光
+    e.lampMats = shades.length ? shades : all;
+    for (const m of e.lampMats) m.userData.lampWeak = !shades.length;
+    if (!e.lampGlow) {
+      e.lampGlow = new THREE_NS.Sprite(new THREE_NS.SpriteMaterial({ map: glowTexture(), color: 0xffd9a8, blending: THREE_NS.AdditiveBlending, depthWrite: false, transparent: true }));
+      e.g.add(e.lampGlow);
+    }
+    if (e.obox === undefined) e.obox = measure(e);
+    const b = e.obox;
+    if (b) {
+      e.lampGlow.position.set(b.cx, b.y0 + (b.y1 - b.y0) * 0.78, b.cz);
+      const size = Math.max(0.25, Math.min(1.2, Math.max(b.hx, b.hz) * 1.1));
+      e.lampGlow.scale.set(size, size, size);
+    }
+    applyLamp(e);
+  }
+  function applyLamp(e: Entry) {
+    const on = !e.p.off;
+    if (e.lampGlow) e.lampGlow.visible = on;
+    for (const m of e.lampMats ?? []) {
+      const base = m.userData.lampBase as { e: THREE.Color; i: number };
+      if (on) {
+        m.emissive.copy(warm);
+        m.emissiveIntensity = m.userData.lampWeak ? 0.25 : 1.4;
+      } else {
+        m.emissive.copy(base.e);
+        m.emissiveIntensity = base.i;
+      }
+    }
+    lightsDirty = true;
+  }
+  // 点光源池:第一盏灯出现时建,数量之后不变
+  let lights: THREE.PointLight[] | null = null;
+  let lightsDirty = false;
+  const lp = new THREE_NS.Vector3();
+  function assignLights() {
+    lightsDirty = false;
+    const lit = Array.from(entries.values()).filter((e) => e.p.interact === 'lamp' && !e.p.off && e.lampGlow && e.grow >= 0);
+    if (!lit.length && !lights) return;
+    if (!lights) {
+      const n = opts.quality === 'high' ? 4 : 1;
+      lights = Array.from({ length: n }, () => {
+        const l = new THREE_NS.PointLight(0xffc98a, 0, 7, 2);
+        root.add(l);
+        return l;
+      });
+    }
+    lit.sort((a, b) => a.g.position.distanceToSquared(camPos) - b.g.position.distanceToSquared(camPos));
+    lights.forEach((l, i) => {
+      const e = lit[i];
+      if (!e) { l.intensity = 0; return; }
+      e.lampGlow!.getWorldPosition(lp);
+      root.worldToLocal(lp);
+      l.position.copy(lp);
+      l.intensity = 6 * Math.max(0.6, Math.min(2, e.p.scale || 1));
+    });
+  }
+
+  // ── 十期:座位 ──
+  const ray = new THREE_NS.Raycaster();
+  const down = new THREE_NS.Vector3(0, -1, 0);
+  const rv = new THREE_NS.Vector3();
+  /** 在组里的 (lx, lz) 处从 fromY 往下打一条射线,返回打到的世界高度(打不到 = null) */
+  function topAt(e: Entry, lx: number, lz: number, fromY: number): number | null {
+    if (!e.model) return null;
+    rv.set(lx, fromY, lz);
+    e.g.localToWorld(rv);
+    ray.set(rv, down);
+    ray.far = 10;
+    const hit = ray.intersectObject(e.model, true)[0];
+    return hit ? hit.point.y : null;
+  }
+  function seatSpots(id: string, from: { x: number; z: number }): SeatSpot[] {
+    const e = entries.get(id);
+    if (!e || !e.model || e.p.interact !== 'seat') return [];
+    e.g.updateMatrixWorld(true);
+    if (e.obox === undefined) e.obox = measure(e);
+    const b = e.obox;
+    if (!b) return [];
+    const s = e.p.scale || 1;
+    const top = b.y1 + 0.05;
+    // 四条边上量一下多高:最高的那边是靠背
+    // 每条边从里到外量三处取最高(靠背常常是最外沿薄薄一片)
+    const edge = (dx: number, dz: number) => {
+      let h: number | null = null;
+      for (const k of [0.7, 0.85, 0.97]) {
+        const y = topAt(e, b.cx + dx * b.hx * k, b.cz + dz * b.hz * k, top);
+        if (y !== null && (h === null || y > h)) h = y;
+      }
+      return h;
+    };
+    const sides = [
+      { dx: 0, dz: 1, h: edge(0, 1) },
+      { dx: 0, dz: -1, h: edge(0, -1) },
+      { dx: 1, dz: 0, h: edge(1, 0) },
+      { dx: -1, dz: 0, h: edge(-1, 0) },
+    ];
+    const hs = sides.map((x) => x.h ?? -Infinity);
+    const hiI = hs.indexOf(Math.max(...hs));
+    const finite = hs.filter((h) => h > -Infinity);
+    const lo = finite.length ? Math.min(...finite) : 0;
+    const height = (b.y1 - b.y0) * s;
+    let front: { dx: number; dz: number };
+    if (hs[hiI] > -Infinity && hs[hiI] - lo > Math.max(0.12, height * 0.15)) {
+      front = { dx: -sides[hiI].dx, dz: -sides[hiI].dz };
+    } else {
+      // 没有靠背:沿短边那个方向,朝着走过来的人
+      rv.set(from.x, e.g.position.y, from.z);
+      e.g.worldToLocal(rv);
+      if (b.hx >= b.hz) front = { dx: 0, dz: rv.z - b.cz >= 0 ? 1 : -1 };
+      else front = { dx: rv.x - b.cx >= 0 ? 1 : -1, dz: 0 };
+    }
+    const depth = front.dz !== 0 ? b.hz : b.hx; // 前后方向的半深(组里的单位)
+    const width = (front.dz !== 0 ? b.hx : b.hz) * 2 * s;
+    const n = seatCount(width);
+    const lat = { dx: front.dz, dz: -front.dx }; // 横向
+    const floorY = e.g.position.y - e.p.y; // 摆放的 y 是离地高度
+    const out: SeatSpot[] = [];
+    for (let i = 0; i < n; i++) {
+      const off = n === 1 ? 0 : ((i + 0.5) / n - 0.5) * (width / s) * 0.9;
+      // 座位中心往前挪一点(后半边是靠背)
+      const lx = b.cx + front.dx * depth * 0.1 + lat.dx * off;
+      const lz = b.cz + front.dz * depth * 0.1 + lat.dz * off;
+      const hit = topAt(e, lx, lz, top);
+      const bottom = e.p.y + b.y0 * s;
+      let seatY = hit !== null ? hit - floorY : NaN;
+      if (!(seatY > bottom + 0.12 && seatY < bottom + 1.1)) seatY = bottom + guessSeatHeight(height);
+      const p = e.g.localToWorld(new THREE_NS.Vector3(lx, 0, lz));
+      const a = e.g.localToWorld(new THREE_NS.Vector3(lx + front.dx * (depth + 0.45 / s), 0, lz + front.dz * (depth + 0.45 / s)));
+      const f = new THREE_NS.Vector3(front.dx, 0, front.dz).applyQuaternion(e.g.quaternion);
+      out.push({ x: p.x, z: p.z, y: Math.max(0.1, seatY), yaw: Math.atan2(f.x, f.z), approach: { x: a.x, z: a.z } });
+    }
+    return out;
+  }
+
+  function pickHit(raycaster: THREE.Raycaster) {
+    const hits = raycaster.intersectObjects(Array.from(entries.values()).filter((e) => e.grow >= 0 && !e.p.ghost).map((e) => e.g), true);
+    for (const h of hits) {
+      if (h.object.name === 'spawn-ring' || (h.object as THREE.Sprite).isSprite) continue;
+      let o: THREE.Object3D | null = h.object;
+      while (o && o.userData.placementId === undefined) o = o.parent;
+      if (o) return { id: o.userData.placementId as string, point: { x: h.point.x, y: h.point.y, z: h.point.z } };
+    }
+    return null;
+  }
+
   const ease = (x: number) => 1 - Math.pow(1 - x, 3);
   /** 每半秒按离镜头的距离换档 */
   function tickLod(dt: number, camera?: THREE.Camera) {
@@ -361,6 +569,7 @@ export function createObjectLayer(
     lodTimer -= dt;
     if (lodTimer > 0) return;
     lodTimer = 0.5;
+    assignLights();
     for (const e of entries.values()) {
       if (e.grow < 0 || !e.p.lods?.length || e.lodBroken || e.p.status !== 'ready') continue;
       e.g.getWorldPosition(wp);
@@ -374,6 +583,7 @@ export function createObjectLayer(
 
   function tick(t: number, dt: number, camera?: THREE.Camera) {
     tickLod(dt, camera);
+    if (lightsDirty) assignLights();
     const sel = selected ? entries.get(selected) : undefined;
     if (sel && sel.grow >= 0) {
       if (!sel.radius && (sel.model || sel.glow)) {
@@ -427,10 +637,15 @@ export function createObjectLayer(
     groupOf: (id) => entries.get(id)?.g ?? null,
     setSelected: (id) => { selected = id; const e = id ? entries.get(id) : undefined; if (e) e.radius = 0; },
     obstacles,
+    pickHit,
+    seatSpots,
+    get: (id) => entries.get(id)?.p ?? null,
     dispose: () => {
       disposed = true;
       parent.remove(root);
       glowGeo.dispose(); glowMat.dispose(); ringGeo.dispose(); ringMat.dispose();
+      glowTex?.dispose();
+      entries.forEach((e) => { e.lampMats?.forEach((m) => m.dispose()); (e.lampGlow?.material as THREE.Material | undefined)?.dispose(); });
       selRing.geometry.dispose(); (selRing.material as THREE.Material).dispose();
       entries.forEach((e) => e.g.traverse((o) => { const m = (o as THREE.Mesh).material as THREE.Material | undefined; if (m && o.name === 'spawn-ring') m.dispose(); }));
       entries.clear();

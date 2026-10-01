@@ -48,6 +48,7 @@ import type { WorldPeer } from './vrm/world/buildWorld';
 import type { PlacedObject } from './vrm/world/worldObjects';
 import type { RoomPeer } from './vrm/world/peerAvatars';
 import type { TimeMode } from './vrm/world/env/timeOfDay';
+import type { SeatSpot } from './vrm/world/interact';
 import { DEFAULT_WORLD, clampToWorld, type Orb, type RoomShellAlign, type WorldCharacter, type WorldDef, type ZoneId } from './vrm/world/worldLayout';
 import { applyAvatarParams, inspectAvatar, type AvatarInfo } from './vrm/avatarCustomize';
 import type { AvatarParams } from '@/apis/world';
@@ -111,7 +112,15 @@ export interface VrmStageHandle {
   /** 广场:镜头拉高俯瞰整座广场;false 飞回原来的机位 */
   setOverview: (on: boolean) => void;
   /** 广场:小地图用的快照(角色位置/朝向、镜头朝向、星光、所在地标) */
-  getWorldSnapshot: () => { x: number; z: number; yaw: number; camYaw: number; orbs: Orb[]; zone: ZoneId | null; peers: { id: string; x: number; z: number; aura?: string }[]; characters: { id: string; x: number; z: number }[] } | null;
+  getWorldSnapshot: () => { x: number; z: number; yaw: number; camYaw: number; orbs: Orb[]; zone: ZoneId | null; peers: { id: string; x: number; z: number; aura?: string }[]; characters: { id: string; x: number; z: number }[]; sit?: number | null } | null;
+  /** 十期:某件能坐的摆设上的座位(世界坐标);from = 人现在在哪 */
+  seatSpots: (id: string, from: { x: number; z: number }) => SeatSpot[];
+  /** 十期:坐到某个座位上(不过碰撞,直接落座);走动 / 走向别处时自动站起来 */
+  sitAt: (spot: SeatSpot) => void;
+  /** 十期:站起来(站到座位前面);没坐着就什么都不做 */
+  standUp: () => void;
+  /** 十期:正坐着的座位(null = 站着) */
+  sitting: () => SeatSpot | null;
   /** 广场:其他在线的人 */
   setPeers: (peers: WorldPeer[]) => void;
   /** 广场:自己脚下的光环(颜色 / rainbow / null) */
@@ -378,6 +387,8 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   const walkRef = useRef<{ moving: boolean; phase: number; style: 'walk' | 'run' | 'idle' | 'teleport'; dist?: number }>({ moving: false, phase: 0, style: 'idle', dist: 0 });
   // 行走步进（每帧 dt 累积）
   const walkStepRef = useRef(0);
+  // 十期:坐着的座位(null = 站着)
+  const sitRef = useRef<SeatSpot | null>(null);
 
   // Phase 3: 物理（vrmDataRef 之后才能访问 scene）
   const vrmSceneForPhysics = vrmDataRef.current?.scene ?? null;
@@ -436,7 +447,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   const preFocusPoseRef = useRef<{ pos: [number, number, number]; target: [number, number, number] } | null>(null);
 
   // 3. 统一动画状态机（替代 useVrmDance）
-  const animApi = useVrmAnimation({ vrmRef, audio, walkRef, configBundle, physics });
+  const animApi = useVrmAnimation({ vrmRef, audio, walkRef, configBundle, physics, sitRef });
   animApiRef.current = animApi;
 
   // 4. lip sync
@@ -742,6 +753,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       // 4. 位置 / 行走动画
       const mv = moveAnimRef.current;
       const pos = positionRef.current;
+      if ((kbX !== 0 || kbY !== 0) && rendererState && sitRef.current) handleInternalRef.current?.standUp();
       if ((kbX !== 0 || kbY !== 0) && rendererState) {
         // 以镜头为参照:W 是「往画面里走」,D 是「往画面右边走」
         mv.active = false;
@@ -830,6 +842,8 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         if (moved > 1e-4) {
           targetYaw = Math.atan2(dx, dz);
           idleSinceRef.current = t;
+        } else if (sitRef.current) {
+          targetYaw = sitRef.current.yaw;
         } else if (t - idleSinceRef.current > 1.6) {
           // 停下来一会儿就转回来面向镜头(聊天时要看着人)
           const cam = rendererState.camera.position;
@@ -1024,6 +1038,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       startMic: async () => { devLog.debug('[VrmStage.startMic]'); const ok = await lipApiRef.current?.startMic() ?? false; devLog.debug('[VrmStage.startMic] result=', ok); return ok; },
       stopMic: () => { devLog.debug('[VrmStage.stopMic]'); lipApiRef.current?.stopMic(); },
       move: (target, opts = {}) => {
+        if (sitRef.current) handleInternalRef.current?.standUp();
         const durationMs = opts.durationMs ?? 1500;
         const style = opts.style ?? 'walk';
         // target 解析
@@ -1134,8 +1149,40 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
           const tgt = rs.controls?.target ?? { x: positionRef.current.x, z: positionRef.current.z };
           camYaw = Math.atan2(tgt.x - rs.camera.position.x, tgt.z - rs.camera.position.z);
         }
-        return { x: positionRef.current.x, z: positionRef.current.z, yaw: yawRef.current, camYaw, orbs: snap.orbs, zone: snap.zone, peers: snap.peers, characters: snap.characters };
+        return { x: positionRef.current.x, z: positionRef.current.z, yaw: yawRef.current, camYaw, orbs: snap.orbs, zone: snap.zone, peers: snap.peers, characters: snap.characters, sit: sitRef.current?.y ?? null };
       },
+      seatSpots: (id, from) => worldApiRef.current.seatSpots(id, from),
+      sitAt: (spot) => {
+        moveAnimRef.current.active = false;
+        walkRef.current.moving = false;
+        // 镜头跟着挪过去(瞬移不带镜头,这里手动平移,和走路时一样)
+        const dx = spot.x - positionRef.current.x, dz = spot.z - positionRef.current.z;
+        const rs = rendererStateRef.current;
+        if (rs && !overviewPoseRef.current && !preFocusPoseRef.current) {
+          camApiRef.current?.shift(dx, dz);
+          rs.camera.position.x += dx;
+          rs.camera.position.z += dz;
+          if (rs.controls) { rs.controls.target.x += dx; rs.controls.target.z += dz; }
+        }
+        positionRef.current.prevX = positionRef.current.x = spot.x;
+        positionRef.current.prevZ = positionRef.current.z = spot.z;
+        sitRef.current = spot;
+      },
+      standUp: () => {
+        const s = sitRef.current;
+        if (!s) return;
+        sitRef.current = null;
+        const dx = s.approach.x - positionRef.current.x, dz = s.approach.z - positionRef.current.z;
+        const rs = rendererStateRef.current;
+        if (rs && !overviewPoseRef.current && !preFocusPoseRef.current) {
+          camApiRef.current?.shift(dx, dz);
+          rs.camera.position.x += dx;
+          rs.camera.position.z += dz;
+          if (rs.controls) { rs.controls.target.x += dx; rs.controls.target.z += dz; }
+        }
+        handleInternalRef.current?.setPosition(s.approach.x, s.approach.z);
+      },
+      sitting: () => sitRef.current,
       setPeers: (peers) => worldApiRef.current.setPeers(peers),
       setAura: (value) => worldApiRef.current.setAura(value),
       floatTextAt: (text, x, y, z, color) => worldApiRef.current.floatText(text, x, y, z, color),

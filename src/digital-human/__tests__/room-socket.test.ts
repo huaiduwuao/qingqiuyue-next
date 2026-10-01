@@ -105,6 +105,24 @@ describe('useRoomSocket', () => {
     expect(t.sock.lines).toHaveBeenCalled();
   });
 
+  it('reports sitting as a=sit with the seat height (十期)', () => {
+    vi.useFakeTimers();
+    const t = setup();
+    const snap = vi.mocked(t.handle.getWorldSnapshot);
+    act(() => { vi.advanceTimersByTime(120); });
+    expect(t.sock.sendState).toHaveBeenLastCalledWith(expect.objectContaining({ y: 0 }));
+    snap.mockReturnValue({ x: 0.6, z: 0, yaw: 0, camYaw: 0, orbs: [], zone: null, peers: [], characters: [], sit: 0.45 });
+    act(() => { vi.advanceTimersByTime(120); });
+    expect(t.sock.sendState).toHaveBeenLastCalledWith(expect.objectContaining({ a: 'sit', y: 0.45, m: false }));
+    const n = t.sock.sendState.mock.calls.length;
+    act(() => { vi.advanceTimersByTime(300); }); // 坐着不动:不重复报
+    expect(t.sock.sendState.mock.calls.length).toBe(n);
+    snap.mockReturnValue({ x: 0.6, z: 0, yaw: 0, camYaw: 0, orbs: [], zone: null, peers: [], characters: [], sit: null });
+    act(() => { vi.advanceTimersByTime(120); }); // 站起来那一下也要报
+    expect(t.sock.sendState).toHaveBeenLastCalledWith(expect.objectContaining({ y: 0, a: undefined }));
+    vi.useRealTimers();
+  });
+
   it('shows captions: own partial, everyone final', () => {
     const t = setup();
     t.emit({ t: 'hello', you: '1', room: { ownerId: '1', version: 1, name: 'x' }, peers: [{ id: '7', nickname: '阿青', look, x: 0, y: 0, z: 0, yaw: 0 }] });

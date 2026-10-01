@@ -9,12 +9,14 @@
  * 头顶一块名牌(房主带 🏠),说话时名牌上面冒气泡,5 秒后淡掉。
  * 四期语音:名牌前缀 🎙(开着麦)/ 🔇(被房主禁言);setVoiceLevels 给一个「谁此刻嘴张多大」的查询,
  * 说话时嘴跟着动(VRM 表情 aa / oh),名牌上方亮一个绿色的 🔊。
+ * 十期:a = 'sit' 时画坐姿(interact.ts 的 applySitPose),人放在 y(座面高度)上,髋沉下去坐在那。
  */
 
 import type * as THREE from 'three';
 import * as THREE_VRM from '@pixiv/three-vrm';
 import type { AvatarParams } from '@/apis/world';
 import { applyAvatarParams } from '../avatarCustomize';
+import { applySitPose, sitDrop } from './interact';
 
 export interface RoomPeer {
   id: string;
@@ -143,6 +145,10 @@ interface Entry {
   wantFull: boolean;
   fade: number; // 1 在场;<1 正在淡出
   removing: boolean;
+  /** 十期:坐姿权重;髋静止时的高度(规范化骨骼局部)、站着时髋离脚底多高(米) */
+  sitW: number;
+  hipsRest: number | null;
+  hipH: number;
 }
 
 export function createPeerLayer(
@@ -192,7 +198,7 @@ export function createPeerLayer(
       root.add(g);
       e = {
         p, g, label: null as unknown as THREE.Sprite, bubble: null, bubbleUntil: 0, speak: null, talk: 0, aura: null, auraColor: '', ghost, vrm: null, loadingKey: '', loadedKey: '',
-        footOffset: 0, height: 1.6, pos: new THREE_NS.Vector3(p.x, p.y, p.z), yaw: p.yaw, speed: 0, phase: Math.random() * 6, wantFull: true, fade: 0, removing: false,
+        footOffset: 0, height: 1.6, pos: new THREE_NS.Vector3(p.x, p.y, p.z), yaw: p.yaw, speed: 0, phase: Math.random() * 6, wantFull: true, fade: 0, removing: false, sitW: 0, hipsRest: null, hipH: 0.85,
       };
       entries.set(p.id, e);
       makeLabel(e);
@@ -242,6 +248,16 @@ export function createPeerLayer(
       e.height = r.height;
       vrm.scene.position.y = r.footOffset;
       e.g.add(vrm.scene);
+      // 十期:量一下髋多高(坐下时往下沉多少)
+      const hips = vrm.humanoid?.getNormalizedBoneNode('hips');
+      e.hipsRest = hips ? hips.position.y : null;
+      const ul = vrm.humanoid?.getNormalizedBoneNode('leftUpperLeg'), ll = vrm.humanoid?.getNormalizedBoneNode('leftLowerLeg'), ft = vrm.humanoid?.getNormalizedBoneNode('leftFoot');
+      if (ul && ll && ft) {
+        vrm.scene.updateMatrixWorld(true);
+        const a = ul.getWorldPosition(new THREE_NS.Vector3()), b = ll.getWorldPosition(new THREE_NS.Vector3()), c = ft.getWorldPosition(new THREE_NS.Vector3());
+        const len = (a.distanceTo(b) + b.distanceTo(c)) / Math.max(1e-3, e.g.scale.y);
+        if (len > 0.3 && len < 2) e.hipH = len + 0.07;
+      }
       e.ghost.visible = false;
       e.loadedKey = key;
       e.loadingKey = '';
@@ -311,6 +327,17 @@ export function createPeerLayer(
       rUA.rotation.z = 0.9; rUA.rotation.x = -0.6;
     }
     vrm.scene.position.y = e.footOffset + Math.abs(Math.sin(e.phase)) * 0.035 * amt;
+    // 十期:坐着
+    e.sitW = Math.min(1, Math.max(0, e.sitW + (e.p.a === 'sit' ? dt * 2.5 : -dt * 3)));
+    const hips = bone(vrm, 'hips');
+    if (e.sitW > 0.001) {
+      const sw = e.sitW * e.sitW * (3 - 2 * e.sitW);
+      applySitPose(THREE_NS, (n) => bone(vrm, n as THREE_VRM.VRMHumanBoneName), sw);
+      if (hips && e.hipsRest !== null) hips.position.y = e.hipsRest - (sitDrop(e.hipH, 0) * sw) / (vrm.scene.scale.y || 1);
+      vrm.scene.position.y = e.footOffset;
+    } else if (hips && e.hipsRest !== null) {
+      hips.position.y = e.hipsRest;
+    }
     // 说话的嘴型(没开声音 / 不说话时 talk = 0,不碰表情)
     const em = vrm.expressionManager;
     if (em && (e.talk > 0.01 || em.getValue('aa'))) {

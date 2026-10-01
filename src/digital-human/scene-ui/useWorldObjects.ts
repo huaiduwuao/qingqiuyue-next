@@ -20,6 +20,7 @@ import {
 } from '@/apis/world';
 import type { VrmStageHandle } from '../VrmStage';
 import type { PlacedObject } from '../vrm/world/worldObjects';
+import { interactOf } from '../vrm/world/interact';
 import type { WorldDef } from '../vrm/world/worldLayout';
 
 export type WorldToolEvent = { name: 'world_place' | 'world_edit' | 'scene_go' | 'room_design'; args: Record<string, any>; result?: any };
@@ -45,6 +46,8 @@ export const toPlaced = (p: WorldPlacement): PlacedObject => ({
   file: p.asset?.file || undefined, normalize: p.asset?.source === 'upload',
   lods: p.asset?.lods?.length ? p.asset.lods.map((l) => ({ file: l.file, bytes: l.bytes })) : undefined,
   footprint: p.asset?.footprint,
+  interact: interactOf(p.asset ? { key: p.assetKey, category: p.asset.category, nameZh: p.asset.nameZh, kind: p.asset.kind, isSet: p.asset.isSet } : null),
+  off: !!p.off,
 });
 
 export function useWorldObjects(opts: Options) {

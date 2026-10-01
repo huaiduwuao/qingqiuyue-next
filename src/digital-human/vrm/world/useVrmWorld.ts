@@ -14,6 +14,7 @@ import type * as THREE from 'three';
 import { buildWorld, type WorldHandle, type WorldPeer } from './buildWorld';
 import { createEnvironment, type Environment, type Quality } from './env/environment';
 import type { PlacedObject } from './worldObjects';
+import type { Interact } from './interact';
 import type { SplatStatus } from './roomShell';
 import { createPeerLayer, type PeerLayer, type RoomPeer } from './peerAvatars';
 import { WORLD_ASSET_BASE } from './realKit';
@@ -43,6 +44,8 @@ export type WorldEvent =
   | { type: 'nearCharacter'; id: string | null }
   /** 布置房间时点中了一件摆放(null = 点在空地上,取消选中) */
   | { type: 'object'; id: string | null }
+  /** 十期:不在布置时点了一件能坐的 / 一盏灯 */
+  | { type: 'useObject'; id: string; kind: Interact; point: { x: number; y: number; z: number } }
   /** 房间的泼溅外壳加载状态 */
   | { type: 'splat'; status: SplatStatus; splats?: number; error?: string };
 
@@ -232,6 +235,15 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
         cb.onEvent?.({ type: 'poke' });
         return;
       }
+      // 十期:不在布置时,点椅子 = 坐下、点灯 = 开关
+      if (!cb.editing) {
+        const used = w.objects.pickHit(raycaster);
+        const obj = used ? w.objects.get(used.id) : null;
+        if (used && obj?.interact) {
+          cb.onEvent?.({ type: 'useObject', id: used.id, kind: obj.interact, point: used.point });
+          return;
+        }
+      }
       // 布置房间:点中摆放 = 选中它;点空地 = 取消选中(照样走过去)
       if (cb.editing) {
         const id = w.objects.pick(raycaster);
@@ -374,11 +386,13 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   const placementGroup = useCallback((id: string) => worldRef.current?.objects.groupOf(id) ?? null, []);
   /** 八期:人走路要绕开的摆设 */
   const obstacles = useCallback(() => worldRef.current?.objects.obstacles() ?? [], []);
+  /** 十期:某件能坐的摆设上的座位 */
+  const seatSpots = useCallback((id: string, from: { x: number; z: number }) => worldRef.current?.objects.seatSpots(id, from) ?? [], []);
   const setRoomAlign = useCallback((a: RoomShellAlign) => { worldRef.current?.room?.setAlign(a); }, []);
   const autoFitRoom = useCallback(() => worldRef.current?.room?.autoFit() ?? null, []);
   const setRoomPeers = useCallback((list: RoomPeer[]) => { roomPeersRef.current = list; peerLayerRef.current?.set(list); }, []);
   const setPeerVoiceLevels = useCallback((fn: ((id: string) => number) | null) => { voiceLevelsRef.current = fn; peerLayerRef.current?.setVoiceLevels(fn); }, []);
   const peerSay = useCallback((id: string, text: string) => { peerLayerRef.current?.say(id, text); }, []);
 
-  return { tick, render, floatText, showMarker, snapshot, setPeers, setAura, characterSay, setPlacements, upsertPlacement, removePlacement, selectPlacement, placementGroup, obstacles, setRoomAlign, autoFitRoom, setRoomPeers, peerSay, setPeerVoiceLevels, zones: WORLD_ZONES };
+  return { tick, render, floatText, showMarker, snapshot, setPeers, setAura, characterSay, setPlacements, upsertPlacement, removePlacement, selectPlacement, placementGroup, obstacles, seatSpots, setRoomAlign, autoFitRoom, setRoomPeers, peerSay, setPeerVoiceLevels, zones: WORLD_ZONES };
 }

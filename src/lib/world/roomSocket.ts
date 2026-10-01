@@ -82,6 +82,8 @@ function socketURL(ticket: string): string {
   return `${proto}//${window.location.host}/ws/notify?${q}`;
 }
 
+const TICKET_TIMEOUT = 8000;
+
 export class RoomSocket {
   private ws: WebSocket | null = null;
   private room: string | null = null;
@@ -93,6 +95,8 @@ export class RoomSocket {
   private pingTimer: number | null = null;
   private closed = false;
   private connecting = false;
+  /** 第几次连接尝试:close() / 新的一次连接开始后,还在等票的旧尝试作废(它回来时什么都不做) */
+  private gen = 0;
   status: RoomSocketStatus = 'idle';
 
   constructor(private onFrame: (f: RoomFrame) => void, private onStatus: (s: RoomSocketStatus) => void, private onBinary?: (b: ArrayBuffer) => void) {}
@@ -175,15 +179,22 @@ export class RoomSocket {
   private async connect() {
     if (this.connecting || this.closed || !this.room) return;
     this.connecting = true;
+    const gen = ++this.gen;
     this.setStatus(this.retry > 0 ? 'reconnecting' : 'connecting');
     let ticket: string;
     try {
-      ticket = await getRealtimeTicket();
+      // 换票的请求卡住(网络抖、页面刷新那一下)不能把连接永远卡在「连接中」:8 秒没回就当失败重试
+      ticket = await Promise.race([
+        getRealtimeTicket(),
+        new Promise<never>((_, reject) => window.setTimeout(() => reject(new Error('ticket timeout')), TICKET_TIMEOUT)),
+      ]);
     } catch {
+      if (gen !== this.gen) return;
       this.connecting = false;
       this.scheduleRetry();
       return;
     }
+    if (gen !== this.gen) return;
     if (this.closed || !this.room) { this.connecting = false; return; }
     let ws: WebSocket;
     try {
@@ -231,6 +242,8 @@ export class RoomSocket {
 
   close() {
     this.closed = true;
+    this.connecting = false;
+    this.gen++;
     this.joined = false;
     if (this.retryTimer) { window.clearTimeout(this.retryTimer); this.retryTimer = null; }
     if (this.pingTimer) { window.clearInterval(this.pingTimer); this.pingTimer = null; }

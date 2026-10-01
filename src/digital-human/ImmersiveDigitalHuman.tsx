@@ -47,6 +47,7 @@ import { GenesisHud, GenesisPanels, RoomPlate, RoomsSection, useGenesis } from '
 import { useRoomSocket } from './scene-ui/useRoomSocket';
 import { RoomChat } from './scene-ui/RoomChat';
 import { useRoomVoice } from './scene-ui/useRoomVoice';
+import { useObjectUse } from './scene-ui/useObjectUse';
 import { quickCheck, useFpsGate, type GateVerdict } from './perfGate';
 import { PerfBlockScreen } from './PerfBlockScreen';
 import type { PlazaState } from './scene-state';
@@ -754,6 +755,8 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
     toast: (icon, t) => game.toast(icon, t),
   });
   hubPeersRef.current = new Set(roomSock.status === 'open' ? roomSock.peers.map((p) => p.id) : []);
+  // 创世十期:点椅子坐下、点灯开关
+  const objectUse = useObjectUse({ handle: stageHandle, rs: roomSock, items: worldObjects.items, toast: (icon, t) => game.toast(icon, t) });
   // 创世四期:房间语音(真人开麦走房间连接;AI 的话服务端合成后也从这条连接来)
   const roomVoice = useRoomVoice({ rs: roomSock, handle: stageHandle, toast: (icon, t) => game.toast(icon, t) });
   function roomStateOf() {
@@ -803,11 +806,12 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
   const currentChar = charId ? scenes.characters.find((c) => c.id === charId) ?? null : null;
   const onWorldEvent = React.useCallback((e: WorldEvent) => {
     if (genesis.onWorldEvent(e)) return;
+    if (objectUse.onWorldEvent(e)) return;
     if (e.type === 'character') { openCharacter(e.id); return; }
     if (e.type === 'nearCharacter') { if (e.id) openCharacter(e.id); return; }
     game.onWorldEvent(e);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openCharacter, game.onWorldEvent]);
+  }, [openCharacter, game.onWorldEvent, objectUse.onWorldEvent]);
 
   // 画质:手机默认流畅,桌面默认高;记在本机
   const [worldQuality, setWorldQuality] = React.useState<'high' | 'low'>('high');

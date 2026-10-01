@@ -216,7 +216,7 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
   // 报自己的位置:变了才发
   React.useEffect(() => {
     if (!owner || !handle) return;
-    let last: { x: number; z: number; yaw: number; at: number } | null = null;
+    let last: { x: number; z: number; yaw: number; at: number; sit?: number | null } | null = null;
     const timer = window.setInterval(() => {
       const s = handle.getWorldSnapshot();
       const sock = sockRef.current;
@@ -227,10 +227,14 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
       const speed = last ? moved / Math.max(0.05, (now - last.at) / 1000) : 0;
       // 突然跳了好几米(换场景、回舞台前)= 瞬移
       const tp = tpRef.current || moved > 3;
-      if (!last || moved > 0.01 || turned > 0.01 || tp) {
-        sock.sendState({ x: +s.x.toFixed(3), y: 0, z: +s.z.toFixed(3), yaw: +s.yaw.toFixed(3), m: speed > 0.2, a: speed > 3 ? 'run' : speed > 0.2 ? 'walk' : undefined, tp: tp || undefined });
+      // 十期:坐着 = a 'sit'、y 座面高度(坐下 / 站起来那一下也要报)
+      const sit = s.sit ?? null;
+      const sitChanged = !last || (last.sit ?? null) !== sit;
+      if (!last || moved > 0.01 || turned > 0.01 || tp || sitChanged) {
+        if (sit !== null) sock.sendState({ x: +s.x.toFixed(3), y: +sit.toFixed(3), z: +s.z.toFixed(3), yaw: +s.yaw.toFixed(3), m: false, a: 'sit', tp: tp || undefined });
+        else sock.sendState({ x: +s.x.toFixed(3), y: 0, z: +s.z.toFixed(3), yaw: +s.yaw.toFixed(3), m: speed > 0.2, a: speed > 3 ? 'run' : speed > 0.2 ? 'walk' : undefined, tp: tp || undefined });
         tpRef.current = false;
-        last = { x: s.x, z: s.z, yaw: s.yaw, at: now };
+        last = { x: s.x, z: s.z, yaw: s.yaw, at: now, sit };
       } else if (last) {
         last.at = now;
       }

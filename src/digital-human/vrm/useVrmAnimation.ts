@@ -11,6 +11,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { getBone } from './vrmCompat';
+import { applySitPose, sitDrop } from './world/interact';
 import { loadActionClip, loadMocap, MOCAP_ACTIONS, MOCAP_BONES, MOCAP_UPPER, sampleBone, sampleHipsY, type MocapClip, type MocapSet } from './mocap';
 import { buildLookups, safeEvalFormula } from './config/loader';
 import type {
@@ -68,12 +69,17 @@ export interface UseVrmAnimationOptions {
   vrmRef: React.MutableRefObject<any>;
   audio: AudioHandle;
   walkRef: React.MutableRefObject<{ moving: boolean; phase: number; style: 'walk' | 'run' | 'idle' | 'teleport'; dist?: number }>;
+  /** 十期:坐着的座位(y = 座面离地多高);null = 站着 */
+  sitRef?: React.MutableRefObject<{ y: number } | null>;
   /** 物理世界（用于 Foot IK 射线检测） */
   physics?: { ready: boolean; raycastGround: (origin: { x: number; y: number; z: number }, maxDistance?: number) => number | null };
 }
 
 export function useVrmAnimation(opts: UseVrmAnimationOptions) {
-  const { configBundle, vrmRef, audio, walkRef, physics } = opts;
+  const { configBundle, vrmRef, audio, walkRef, physics, sitRef } = opts;
+  // 十期:坐姿的权重(0 站着 → 1 坐下),半秒过渡
+  const sitWRef = useRef(0);
+  const sitYRef = useRef(0.45);
   const smRef = useRef<AnimationStateMachine>(new AnimationStateMachine());
   const lookups = useMemo(() => buildLookups(configBundle), [configBundle]);
 
@@ -338,7 +344,7 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
   const qT2 = useRef(new THREE.Quaternion()).current;
   /** 这个模型的腿长(大腿根 → 脚踝,米):动捕的步幅 / 起伏都以腿长为单位 */
   function legLen(vrm: any, H: (n: string) => any): number {
-    let v = legLenRef.current.get(vrm);
+    const v = legLenRef.current.get(vrm);
     if (v) return v;
     const a = H('leftUpperLeg'), b = H('leftLowerLeg'), c = H('leftFoot');
     if (!a || !b || !c) return 0.8;
@@ -500,6 +506,18 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
           applyActionFormula(actionCfg, t, H, sceneObj);
         }
       }
+    }
+
+    // 6.9 十期:坐下 —— 腿和手臂摆成坐姿,髋沉到座面上(脚不再贴地)
+    const sit = sitRef?.current ?? null;
+    if (sit) sitYRef.current = sit.y;
+    sitWRef.current = Math.min(1, Math.max(0, sitWRef.current + (sit ? dt * 2.5 : -dt * 3)));
+    if (sitWRef.current > 0.001) {
+      const sw = sitWRef.current * sitWRef.current * (3 - 2 * sitWRef.current);
+      applySitPose(THREE, H, sw);
+      const scale = vrm.scene?.scale?.y || 1;
+      layerHipsY(H, (-sitDrop(legLen(vrm, H) + 0.07, sitYRef.current) * sw) / scale);
+      return;
     }
 
     // 7. Foot IK：脚贴地
