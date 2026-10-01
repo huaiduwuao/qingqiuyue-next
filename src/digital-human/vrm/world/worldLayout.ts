@@ -168,12 +168,48 @@ const BODY_RADIUS = 0.35;
  * 把目标点收进广场:先拉回世界圆内,再从地标实体里推出来。
  * 所有位置写入(键盘走、点地面、模型的 body.move)都过一遍。
  */
-export function clampToWorld(x: number, z: number, def: WorldDef = DEFAULT_WORLD): { x: number; z: number } {
+/** 八期:摆设在地上占的那块(绕竖轴转过 rot 的矩形,中心 x/z、半宽 hx/hz,米) */
+export interface Obstacle { x: number; z: number; hx: number; hz: number; rot: number }
+
+/**
+ * 把半径 r 的圆(人)从一组转过的矩形(摆设)里推出去:按矩形自己的坐标看,往穿得浅的那条边推。
+ * 走两遍,挨着摆的两件之间不会被推进另一件里(推不出去的窄缝就停在原地附近)。
+ */
+export function pushOutOfBoxes(x: number, z: number, r: number, boxes: readonly Obstacle[]): { x: number; z: number } {
+  for (let pass = 0; pass < 2; pass++) {
+    let moved = false;
+    for (const b of boxes) {
+      const c = Math.cos(b.rot), s = Math.sin(b.rot);
+      const dx = x - b.x, dz = z - b.z;
+      // 世界 → 矩形局部(three 的 rotation.y:局部 (lx, lz) 转到世界是 (lx·c + lz·s, −lx·s + lz·c))
+      let lx = dx * c - dz * s;
+      let lz = dx * s + dz * c;
+      const ex = b.hx + r, ez = b.hz + r;
+      if (Math.abs(lx) >= ex || Math.abs(lz) >= ez) continue;
+      if (ex - Math.abs(lx) < ez - Math.abs(lz)) lx = (lx < 0 ? -1 : 1) * ex;
+      else lz = (lz < 0 ? -1 : 1) * ez;
+      x = b.x + lx * c + lz * s;
+      z = b.z - lx * s + lz * c;
+      moved = true;
+    }
+    if (!moved) break;
+  }
+  return { x, z };
+}
+
+export function clampToWorld(x: number, z: number, def: WorldDef = DEFAULT_WORLD, obstacles?: readonly Obstacle[]): { x: number; z: number } {
   const rb = roomBounds(def);
   if (rb) {
     // 房间:矩形,贴墙留出身体的宽度;前面(+z)开口那边也收住,不然走出房间掉进湖里
     const mx = rb.hx - BODY_RADIUS - 0.15, mz = rb.hz - BODY_RADIUS - 0.15;
-    return { x: Math.max(-mx, Math.min(mx, x)), z: Math.max(-mz, Math.min(mz, z)) };
+    const box = (px: number, pz: number) => ({ x: Math.max(-mx, Math.min(mx, px)), z: Math.max(-mz, Math.min(mz, pz)) });
+    let p = box(x, z);
+    // 八期:绕开摆设;推完再收进墙里(贴墙的柜子不会把人推到墙外)
+    if (obstacles?.length) {
+      const q = pushOutOfBoxes(p.x, p.z, BODY_RADIUS, obstacles);
+      p = box(q.x, q.z);
+    }
+    return p;
   }
   const limit = WORLD_RADIUS - 0.6;
   const r = Math.hypot(x, z);
@@ -194,6 +230,11 @@ export function clampToWorld(x: number, z: number, def: WorldDef = DEFAULT_WORLD
       x = zone.x + nx * min;
       z = zone.z + nz * min;
     }
+  }
+  if (obstacles?.length) {
+    ({ x, z } = pushOutOfBoxes(x, z, BODY_RADIUS, obstacles));
+    const r2 = Math.hypot(x, z);
+    if (r2 > limit) { x = (x / r2) * limit; z = (z / r2) * limit; }
   }
   return { x, z };
 }

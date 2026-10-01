@@ -14,10 +14,14 @@
  * 创世五期:素材有三档(lods:近 / 中 / 远,meshopt + KTX2)时按离镜头多远挑一档 —— 8 米内近档、20 米内中档、
  * 再远远档,东西越大换档越晚;流畅画质整体降一档。每半秒看一次,离边界不到 10% 不换(免得来回闪);
  * 新的一档下好之前一直显示旧的。没有分档、没有 renderer(解不了 KTX2)或者分档文件加载失败,就用老格式 file。
+ *
+ * 八期:obstacles() 给出每件摆设在地上占的那块(模型在自己组里的包围盒,带上转向 / 缩放),人走路绕开它们;
+ * 地毯、吊灯、灯杆、栈桥这类不挡(blocksWalking)。
  */
 
 import type * as THREE from 'three';
 import { createRealKit, type RealKit } from './realKit';
+import type { Obstacle } from './worldLayout';
 
 export interface PlacedObject {
   id: string;
@@ -76,6 +80,8 @@ export interface ObjectLayer {
   groupOf: (id: string) => THREE.Group | null;
   /** 选中的那件脚下画一圈高亮;null = 取消 */
   setSelected: (id: string | null) => void;
+  /** 八期:人走路要绕开的摆设(地上占的那块);缓存 200ms */
+  obstacles: () => Obstacle[];
   dispose: () => void;
 }
 
@@ -93,6 +99,23 @@ interface Entry {
   /** 五期分档:按距离算出的档位(-1 = 还没算)、分档文件加载失败过(以后只用老格式) */
   distLevel: number;
   lodBroken: boolean;
+  /** 八期:模型在组里的包围盒(没缩放;undefined = 还没量,null = 量不出) */
+  obox?: LocalBox | null;
+}
+
+/** 模型在自己组里的包围盒:地面上的中心 / 半宽,和上下沿 */
+interface LocalBox { cx: number; cz: number; hx: number; hz: number; y0: number; y1: number }
+
+/**
+ * 一件摆设算不算挡路(s = 缩放后的盒子):太矮的(地毯、草)跨得过去,
+ * 挂得高的(吊灯)从底下走,太细的(灯杆、花枝)不挡,特别大的(栈桥、亭子)人要走上去 / 走进去,也不挡。
+ */
+export function blocksWalking(b: { hx: number; hz: number; bottom: number; top: number }): boolean {
+  if (b.top - Math.max(0, b.bottom) < 0.3) return false;
+  if (b.bottom > 1.4) return false;
+  if (b.hx < 0.08 && b.hz < 0.08) return false;
+  if (Math.max(b.hx, b.hz) > 2) return false;
+  return true;
 }
 
 export function createObjectLayer(
@@ -204,6 +227,7 @@ export function createObjectLayer(
       if (e.model) e.g.remove(e.model);
       e.model = obj;
       e.radius = 0;
+      e.obox = undefined;
       e.g.add(obj);
       if (e.glow) { e.g.remove(e.glow); e.glow = null; }
       if (first) e.grow = Math.min(e.grow, 0.001); // 实物到了:从小长出来(换档不用)
@@ -236,7 +260,7 @@ export function createObjectLayer(
     const keyChanged = e.p.assetKey !== p.assetKey;
     e.p = p;
     place(e);
-    if (keyChanged) { if (e.model) e.g.remove(e.model); e.model = null; e.loadedKey = ''; e.loadingKey = ''; e.distLevel = -1; e.lodBroken = false; }
+    if (keyChanged) { if (e.model) e.g.remove(e.model); e.model = null; e.obox = undefined; e.loadedKey = ''; e.loadingKey = ''; e.distLevel = -1; e.lodBroken = false; }
     if (p.status === 'ready') loadModel(e);
     else if (!e.glow && !e.model) {
       // 还在现做:一团光占位,高度按素材大约多高放
@@ -262,6 +286,7 @@ export function createObjectLayer(
   selRing.rotation.x = -Math.PI / 2;
   selRing.visible = false;
   selRing.renderOrder = 2;
+  selRing.userData.noCapture = true; // 截封面时不画
   root.add(selRing);
   let selected: string | null = null;
   const tmpBox = new THREE_NS.Box3();
@@ -276,6 +301,55 @@ export function createObjectLayer(
       if (o) return o.userData.placementId as string;
     }
     return null;
+  }
+
+  /** 量模型在组里的包围盒:每个网格的几何包围盒乘上「组 → 网格」的矩阵(组自己的位置 / 转向 / 缩放不算) */
+  const invG = new THREE_NS.Matrix4();
+  const relM = new THREE_NS.Matrix4();
+  const meshBox = new THREE_NS.Box3();
+  function measure(e: Entry): LocalBox | null {
+    if (!e.model) return null;
+    e.g.updateMatrixWorld(true);
+    invG.copy(e.g.matrixWorld).invert();
+    tmpBox.makeEmpty();
+    e.model.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh || !mesh.geometry) return;
+      if (!mesh.geometry.boundingBox) mesh.geometry.computeBoundingBox();
+      if (!mesh.geometry.boundingBox) return;
+      relM.multiplyMatrices(invG, mesh.matrixWorld);
+      meshBox.copy(mesh.geometry.boundingBox).applyMatrix4(relM);
+      tmpBox.union(meshBox);
+    });
+    if (tmpBox.isEmpty()) return null;
+    return {
+      cx: (tmpBox.min.x + tmpBox.max.x) / 2, cz: (tmpBox.min.z + tmpBox.max.z) / 2,
+      hx: (tmpBox.max.x - tmpBox.min.x) / 2, hz: (tmpBox.max.z - tmpBox.min.z) / 2,
+      y0: tmpBox.min.y, y1: tmpBox.max.y,
+    };
+  }
+  let obsCache: Obstacle[] = [];
+  let obsAt = -1;
+  function obstacles(): Obstacle[] {
+    const now = performance.now();
+    if (obsAt >= 0 && now - obsAt < 200) return obsCache;
+    const out: Obstacle[] = [];
+    for (const e of entries.values()) {
+      // 长出来一半之前组的缩放接近 0,量不准;预览件(半透明)不挡
+      if (e.grow < 1 || e.p.ghost || !e.model) continue;
+      if (e.obox === undefined) e.obox = measure(e);
+      const b = e.obox;
+      if (!b) continue;
+      const s = e.p.scale || 1;
+      const hx = b.hx * s, hz = b.hz * s;
+      if (!blocksWalking({ hx, hz, bottom: e.g.position.y + b.y0 * s, top: e.g.position.y + b.y1 * s })) continue;
+      const rot = e.g.rotation.y;
+      const c = Math.cos(rot), sn = Math.sin(rot);
+      out.push({ x: e.g.position.x + (b.cx * c + b.cz * sn) * s, z: e.g.position.z + (-b.cx * sn + b.cz * c) * s, hx, hz, rot });
+    }
+    obsCache = out;
+    obsAt = now;
+    return out;
   }
 
   const ease = (x: number) => 1 - Math.pow(1 - x, 3);
@@ -352,6 +426,7 @@ export function createObjectLayer(
     pick,
     groupOf: (id) => entries.get(id)?.g ?? null,
     setSelected: (id) => { selected = id; const e = id ? entries.get(id) : undefined; if (e) e.radius = 0; },
+    obstacles,
     dispose: () => {
       disposed = true;
       parent.remove(root);

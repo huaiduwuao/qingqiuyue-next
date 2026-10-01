@@ -104,6 +104,9 @@ export function useRoom(enabled: boolean) {
     setVisited((v) => (v[r.ownerId] ? { ...v, [r.ownerId]: { ...r, mine: false } } : v));
   }, []);
 
+  /** 八期:换了封面(不重读房间,只改这一项) */
+  const setCover = useCallback((cover: string) => { setMine((m) => (m ? { ...m, cover } : m)); }, []);
+
   /** 某个场景 key 对应的房间(不是房间 / 还没读过 = null) */
   const roomOf = useCallback((key: string): WorldRoom | null => {
     const owner = roomOwnerOf(key);
@@ -112,7 +115,7 @@ export function useRoom(enabled: boolean) {
     return visited[owner] ?? null;
   }, [mine, visited]);
 
-  return { mine, defs, publicRooms, loadPublic, enter, save, roomOf, reload: loadMine, error, applyRemote };
+  return { mine, defs, publicRooms, loadPublic, enter, save, roomOf, reload: loadMine, error, applyRemote, setCover };
 }
 
 export type RoomState = ReturnType<typeof useRoom>;

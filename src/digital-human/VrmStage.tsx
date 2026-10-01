@@ -131,6 +131,11 @@ export interface VrmStageHandle {
   /** 创世 · 布置房间:某件摆放在场景里的组(gizmo 挂它身上) */
   getPlacementGroup: (id: string) => import('three').Group | null;
   /** 创世:three 的几样东西(布置房间的 gizmo 要用);还没初始化 = null */
+  /**
+   * 八期:按当前画面截一张图(房间封面):先画一帧再立刻读,中间裁成 16:9、缩到 maxW 宽的 JPEG data URL;
+   * userData.noCapture 的东西(选中圈、gizmo)这一帧不画。画不出返回 null
+   */
+  captureFrame: (maxW?: number) => string | null;
   getThree: () => { THREE: typeof import('three'); scene: import('three').Scene; camera: import('three').PerspectiveCamera; renderer: import('three').WebGLRenderer; controls: any; canvas: HTMLCanvasElement } | null;
   /** 创世 · 泼溅外壳:实时改对齐 / 按包围盒自动摆正 */
   setRoomAlign: (a: RoomShellAlign) => void;
@@ -753,7 +758,8 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         // 真人的速度:走 1.5 米/秒、慢跑 3.6 米/秒(动捕按走过的距离推进,速度越接近真人越自然)
         const speed = running ? 3.6 : 1.5;
         pos.prevX = pos.x; pos.prevZ = pos.z;
-        const next = clampToWorld(pos.x + mx * speed * dt, pos.z + mz * speed * dt, worldDefRef.current);
+        // 八期:绕开摆设(撞上就顺着边滑过去)
+        const next = clampToWorld(pos.x + mx * speed * dt, pos.z + mz * speed * dt, worldDefRef.current, worldApiRef.current.obstacles());
         pos.x = next.x; pos.z = next.z;
         walkRef.current.moving = true;
         walkRef.current.style = running ? 'run' : 'walk';
@@ -1030,7 +1036,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         else if (typeof target === 'object') { tx = target.x ?? tx; tz = target.z ?? tz; }
         // 边界:广场里收进广场(绕开地标),否则限制在 ±6
         if (worldOnRef.current) {
-          ({ x: tx, z: tz } = clampToWorld(tx, tz, worldDefRef.current));
+          ({ x: tx, z: tz } = clampToWorld(tx, tz, worldDefRef.current, worldApiRef.current.obstacles()));
         } else {
           tx = Math.max(-6, Math.min(6, tx));
           tz = Math.max(-6, Math.min(6, tz));
@@ -1061,7 +1067,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         devLog.debug(`[VrmStage.setPosition] (${x}, ${z})`);
         positionRef.current.prevX = positionRef.current.x;
         positionRef.current.prevZ = positionRef.current.z;
-        const c = worldOnRef.current ? clampToWorld(x, z, worldDefRef.current) : { x: Math.max(-6, Math.min(6, x)), z: Math.max(-6, Math.min(6, z)) };
+        const c = worldOnRef.current ? clampToWorld(x, z, worldDefRef.current, worldApiRef.current.obstacles()) : { x: Math.max(-6, Math.min(6, x)), z: Math.max(-6, Math.min(6, z)) };
         positionRef.current.x = c.x;
         positionRef.current.z = c.z;
         walkRef.current.moving = false;
@@ -1083,7 +1089,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         try { return r.domElement.toDataURL('image/png'); } catch { return null; }
       },
       walkTo: (x, z) => {
-        const target = worldOnRef.current ? clampToWorld(x, z, worldDefRef.current) : { x, z };
+        const target = worldOnRef.current ? clampToWorld(x, z, worldDefRef.current, worldApiRef.current.obstacles()) : { x, z };
         const d = Math.hypot(target.x - positionRef.current.x, target.z - positionRef.current.z);
         if (d < 0.05) return;
         const style = d > 6 ? 'run' : 'walk';
@@ -1139,6 +1145,31 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       removePlacement: (id) => worldApiRef.current.removePlacement(id),
       selectPlacement: (id) => worldApiRef.current.selectPlacement(id),
       getPlacementGroup: (id) => worldApiRef.current.placementGroup(id),
+      captureFrame: (maxW = 640) => {
+        const rs = rendererStateRef.current;
+        if (!rs?.renderer || !rs.scene || !rs.camera) return null;
+        const hidden: import('three').Object3D[] = [];
+        rs.scene.traverse((o: import('three').Object3D) => { if (o.userData.noCapture && o.visible) { o.visible = false; hidden.push(o); } });
+        try {
+          // 没开 preserveDrawingBuffer:画完马上在同一个任务里读
+          if (!(worldOnRef.current && worldApiRef.current.render(rs.renderer, rs.scene, rs.camera, performance.now() / 1000))) rs.renderer.render(rs.scene, rs.camera);
+          const src = rs.renderer.domElement;
+          const W = src.width, H = src.height;
+          let cw = W, ch = Math.round((W * 9) / 16);
+          if (ch > H) { ch = H; cw = Math.round((H * 16) / 9); }
+          const out = document.createElement('canvas');
+          out.width = Math.min(maxW, cw);
+          out.height = Math.round((out.width * 9) / 16);
+          const ctx = out.getContext('2d');
+          if (!ctx || !cw || !ch) return null;
+          ctx.drawImage(src, (W - cw) / 2, (H - ch) / 2, cw, ch, 0, 0, out.width, out.height);
+          return out.toDataURL('image/jpeg', 0.82);
+        } catch {
+          return null;
+        } finally {
+          hidden.forEach((o) => { o.visible = true; });
+        }
+      },
       getThree: () => {
         const rs = rendererStateRef.current;
         if (!rs?.scene || !rs?.camera || !rs?.renderer || !canvasRef.current) return null;

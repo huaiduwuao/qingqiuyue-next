@@ -7,6 +7,7 @@
  *     松手就存;工具条上有转 ±15°、大小、贴地、复制、删除;
  *   - 撤销 / 重做(Ctrl+Z / Ctrl+Y),Delete 删、Esc 取消选中;
  *   - 数字人「言出法随」摆的东西和手摆的是同一张表,这里一样能挪能删。
+ *   - 八期:抽屉卡片带缩略图;拖动默认吸附(0.25 米格、15°),工具条上能关;「设为封面」按当前画面截一张传上去。
  */
 
 import React from 'react';
@@ -14,7 +15,7 @@ import { Box, Button, ButtonBase, Chip, CircularProgress, IconButton, Slider, Te
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import UndoRoundedIcon from '@mui/icons-material/UndoRounded';
 import RedoRoundedIcon from '@mui/icons-material/RedoRounded';
-import { assetBytes, browseAssets, deleteMyAsset, fetchWorldAsset, type WorldAssetFull, type WorldPlacement } from '@/apis/world';
+import { assetBytes, browseAssets, deleteMyAsset, fetchWorldAsset, uploadRoomCover, worldFileUrl, type WorldAssetFull, type WorldPlacement } from '@/apis/world';
 import type { VrmStageHandle } from '../VrmStage';
 import { roomBounds, type WorldDef } from '../vrm/world/worldLayout';
 import { WorldUpload } from './WorldUpload';
@@ -46,6 +47,20 @@ const GROUPS: { label: string; cats: string }[] = [
 
 const glass = { bgcolor: 'rgba(10,12,24,0.78)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff' } as const;
 
+/** 八期:拖动吸附 —— 移动按 0.25 米的格,转向按 15° */
+export const SNAP_MOVE = 0.25;
+export const SNAP_TURN = Math.PI / 12;
+
+/** data URL → Blob(截的封面图) */
+function dataUrlToBlob(url: string): Blob {
+  const [head, b64] = url.split(',', 2);
+  const mime = /data:([^;]+)/.exec(head)?.[1] || 'image/jpeg';
+  const bin = atob(b64);
+  const buf = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  return new Blob([buf], { type: mime });
+}
+
 const poseOf = (p: WorldPlacement): Pose => ({ x: p.x, y: p.y, z: p.z, rotY: p.rotY, scale: p.scale || 1 });
 const fmtSize = (b: number) => (b > 1048576 ? `${(b / 1048576).toFixed(1)}MB` : b > 0 ? `${Math.round(b / 1024)}KB` : '');
 
@@ -65,6 +80,8 @@ export interface RoomEditorProps {
   onClose: () => void;
   toast: (icon: string, text: string) => void;
   narrow?: boolean;
+  /** 八期:封面换好了 */
+  onCover?: (cover: string) => void;
 }
 
 /** 房间预算:件数 / 要下载多大(同一件素材只算一次,和服务端 maxRoomBytes 一致) */
@@ -88,7 +105,7 @@ function RoomBudget({ items }: { items: WorldPlacement[] }) {
   );
 }
 
-export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose, toast, narrow }: RoomEditorProps) {
+export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose, toast, narrow, onCover }: RoomEditorProps) {
   const [tab, setTab] = React.useState<'lib' | 'mine'>('lib');
   const [group, setGroup] = React.useState(0);
   const [q, setQ] = React.useState('');
@@ -99,6 +116,8 @@ export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose
   const [loading, setLoading] = React.useState(false);
   const [mode, setMode] = React.useState<'translate' | 'rotate'>('translate');
   const [placing, setPlacing] = React.useState<string | null>(null);
+  const [snap, setSnap] = React.useState(true);
+  const [covering, setCovering] = React.useState(false);
   const undoRef = React.useRef<Op[]>([]);
   const redoRef = React.useRef<Op[]>([]);
   const [, bump] = React.useReducer((x: number) => x + 1, 0);
@@ -161,9 +180,12 @@ export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose
       tc = new TransformControls(three.camera, canvas);
       tc.setMode(mode);
       tc.setSize(narrow ? 1.2 : 0.9);
+      tc.setTranslationSnap(snap ? SNAP_MOVE : null);
+      tc.setRotationSnap(snap ? SNAP_TURN : null);
       if (mode === 'translate') { tc.showY = false; } else { tc.showX = false; tc.showZ = false; }
       tc.attach(g);
       helper = tc.getHelper();
+      helper.userData.noCapture = true;
       three.scene.add(helper);
       tc.addEventListener('mouseDown', () => {
         canvas.dataset.gizmo = '1';
@@ -193,7 +215,7 @@ export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose
       delete canvas.dataset.gizmo;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [handle, selectedId, mode, narrow]);
+  }, [handle, selectedId, mode, narrow, snap]);
   // 关掉编辑器:取消选中
   React.useEffect(() => () => { handle?.selectPlacement(null); }, [handle]);
 
@@ -272,6 +294,23 @@ export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // 八期:当前画面截一张当房间封面(选中圈和 gizmo 不进画面)
+  const takeCover = async () => {
+    if (!handle || covering) return;
+    const url = handle.captureFrame(640);
+    if (!url) { toast('⚠️', '这台设备截不了画面'); return; }
+    setCovering(true);
+    try {
+      const r = await uploadRoomCover(dataUrlToBlob(url));
+      onCover?.(r.cover);
+      toast('📷', '封面换好了,串门列表里大家看到的就是这一幕');
+    } catch (e: any) {
+      toast('⚠️', e?.message || '封面没传上去');
+    } finally {
+      setCovering(false);
+    }
+  };
+
   const rotateBy = (deg: number) => {
     if (!selected) return;
     const before = poseOf(selected);
@@ -288,6 +327,9 @@ export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose
     <Box sx={{ ...panelSx, ...glass, borderRadius: 3, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1.5, pt: 1.25, pb: 0.75 }}>
         <Typography sx={{ fontSize: 15, fontWeight: 800, flex: 1 }}>🛠️ 布置房间</Typography>
+        <Tooltip title="把现在看到的画面设为房间封面(先转好镜头)">
+          <span><Button size="small" disabled={covering || !handle} onClick={() => void takeCover()} sx={{ minWidth: 0, px: 1, color: '#9be8ff', fontSize: 12 }}>{covering ? <CircularProgress size={14} /> : '📷 封面'}</Button></span>
+        </Tooltip>
         <Tooltip title="撤销(Ctrl+Z)"><span><IconButton size="small" disabled={!undoRef.current.length} onClick={() => void undo()} sx={{ color: '#fff' }}><UndoRoundedIcon fontSize="small" /></IconButton></span></Tooltip>
         <Tooltip title="重做(Ctrl+Y)"><span><IconButton size="small" disabled={!redoRef.current.length} onClick={() => void redo()} sx={{ color: '#fff' }}><RedoRoundedIcon fontSize="small" /></IconButton></span></Tooltip>
         <Button size="small" variant="contained" onClick={onClose} sx={{ ml: 0.5, minWidth: 0, px: 1.5 }}>完成</Button>
@@ -304,6 +346,7 @@ export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose
           <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 0.75 }}>
             <Chip size="small" label="移动" color={mode === 'translate' ? 'primary' : 'default'} onClick={() => setMode('translate')} sx={{ color: '#fff' }} />
             <Chip size="small" label="旋转" color={mode === 'rotate' ? 'primary' : 'default'} onClick={() => setMode('rotate')} sx={{ color: '#fff' }} />
+            <Chip size="small" label={snap ? '吸附 开' : '吸附 关'} variant={snap ? 'filled' : 'outlined'} onClick={() => setSnap((v) => !v)} sx={{ color: '#fff' }} />
             <Chip size="small" label="↺ 15°" onClick={() => rotateBy(15)} sx={{ color: '#fff' }} />
             <Chip size="small" label="↻ 15°" onClick={() => rotateBy(-15)} sx={{ color: '#fff' }} />
             <Chip size="small" label="贴地" onClick={() => { const b = poseOf(selected); if (b.y !== 0) void setPose(selected.id, b, { ...b, y: 0 }); }} sx={{ color: '#fff' }} />
@@ -328,7 +371,7 @@ export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose
             />
             <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', width: 36, textAlign: 'right' }}>×{(scaleDraft ?? (selected.scale || 1)).toFixed(2)}</Typography>
           </Box>
-          <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', mt: 0.5 }}>拖箭头挪动 / 拖圆环转向 · R 切换 · Delete 删除 · Esc 取消</Typography>
+          <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', mt: 0.5 }}>拖箭头挪动 / 拖圆环转向{snap ? '(按 0.25 米、15° 吸附)' : ''} · R 切换 · Delete 删除 · Esc 取消</Typography>
         </Box>
       ) : (
         <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', px: 1.5, mb: 1 }}>
@@ -374,7 +417,12 @@ export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose
                 disabled={!!placing}
                 sx={{ display: 'block', textAlign: 'left', p: 1, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.05)', '&:hover': { bgcolor: 'rgba(37,244,238,0.1)' }, position: 'relative' }}
               >
-                <Typography sx={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', pr: badge ? 4 : 0 }}>{a.nameZh}</Typography>
+                <Box sx={{ height: narrow ? 64 : 84, mb: 0.5, borderRadius: 1.5, display: 'grid', placeItems: 'center', overflow: 'hidden', background: 'radial-gradient(circle at 50% 60%, rgba(255,255,255,0.14), rgba(255,255,255,0.02) 70%)' }}>
+                  {a.thumb
+                    ? <Box component="img" src={worldFileUrl(a.thumb)} alt="" loading="lazy" draggable={false} sx={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', opacity: a.status === 'ready' ? 1 : 0.75 }} />
+                    : <Typography sx={{ fontSize: 26, opacity: 0.35 }}>📦</Typography>}
+                </Box>
+                <Typography sx={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.nameZh}</Typography>
                 <Typography sx={{ fontSize: 10.5, color: 'rgba(255,255,255,0.45)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {[a.source === 'upload' ? (tab === 'mine' ? (a.visibility === 'public' ? '已公开' : '仅自己') : '用户上传') : null, a.height ? `高 ${a.height.toFixed(1)}m` : null, fmtSize(a.bytes)].filter(Boolean).join(' · ')}
                 </Typography>

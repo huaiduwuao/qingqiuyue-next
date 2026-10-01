@@ -6,6 +6,7 @@
  */
 
 import { accountClient } from '@/lib/api/client';
+import { mediaUrl } from '@/lib/media';
 
 export interface WorldAsset {
   key: string;
@@ -27,7 +28,12 @@ export interface WorldAsset {
   lods?: WorldAssetLod[];
   /** 创世五期:泼溅的精简档(≤ 40 万点,SPZ),流畅画质用 */
   lite?: string;
+  /** 创世八期:缩略图(qq-media/world 下的相对路径,256px 透明底 PNG) */
+  thumb?: string;
 }
+
+/** qq-media/world 下的相对路径 → 能直接放进 <img> 的地址 */
+export const worldFileUrl = (rel?: string | null) => (rel ? mediaUrl(`/qq-media/world/${rel}`) : '');
 
 export interface WorldAssetLod {
   /** qq-media/world 下的相对路径 */
@@ -145,6 +151,8 @@ export interface WorldRoom {
   event?: WorldRoomEvent;
   /** 四期:房主关了房间语音 */
   voiceOff?: boolean;
+  /** 八期:房间封面(qq-media/world 下的相对路径,房主在布置模式里截的) */
+  cover?: string;
 }
 
 // ── 三期:AI 进入房间 ──
@@ -195,6 +203,13 @@ export type RoomPatch = Partial<Pick<WorldRoom, 'name' | 'intro' | 'template' | 
 
 export async function updateMyRoom(p: RoomPatch): Promise<WorldRoom> {
   return accountClient.put<WorldRoom>('/world/rooms/mine', p);
+}
+
+/** 八期:换房间封面(JPEG / PNG / WebP,≤ 800KB);返回新封面的相对路径 */
+export async function uploadRoomCover(img: Blob): Promise<{ cover: string }> {
+  const fd = new FormData();
+  fd.append('file', img, 'cover.jpg');
+  return accountClient.post<{ cover: string }>('/world/rooms/mine/cover', fd, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 30000 });
 }
 
 /** 串门面板的栏:热门 / 我关注的人 / 我最近去过的 */
@@ -276,6 +291,8 @@ export async function uploadWorldAsset(u: UploadInput, onProgress?: (ratio: numb
   if (u.tags) fd.append('tags', u.tags);
   if (u.visibility) fd.append('visibility', u.visibility);
   return accountClient.post<WorldAssetFull>(admin ? '/admin/world/uploads' : '/world/uploads', fd, {
+    // 客户端默认 Content-Type 是 JSON,axios 会把 FormData 转成 JSON 发出去;显式写 multipart,浏览器自己补 boundary
+    headers: { 'Content-Type': 'multipart/form-data' },
     timeout: 0,
     onUploadProgress: (e) => { if (onProgress && e.total) onProgress(e.loaded / e.total); },
   });

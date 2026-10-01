@@ -208,10 +208,17 @@ function Inner() {
               const st = STATUS[a.status] ?? { label: a.status, color: 'default' as const };
               return (
                 <TableRow key={a.key} hover>
-                  <TableCell sx={{ maxWidth: 260 }}>
-                    <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{a.nameZh}</Typography>
-                    <Typography sx={{ fontSize: 11, color: 'text.secondary', wordBreak: 'break-all' }}>{a.key}{a.category ? ` · ${a.category}` : ''}</Typography>
-                    {a.error && <Typography sx={{ fontSize: 11, color: 'error.main' }}>{a.error.slice(0, 120)}</Typography>}
+                  <TableCell sx={{ maxWidth: 320 }}>
+                    <Box sx={{ display: 'flex', gap: 1.25, alignItems: 'center' }}>
+                      <Box sx={{ width: 48, height: 48, flexShrink: 0, borderRadius: 1, bgcolor: 'action.hover', display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
+                        {a.thumb ? <Box component="img" src={mediaUrl(`${WORLD_BASE}/${a.thumb}`)} alt="" loading="lazy" sx={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} /> : null}
+                      </Box>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography sx={{ fontSize: 13, fontWeight: 700 }}>{a.nameZh}</Typography>
+                        <Typography sx={{ fontSize: 11, color: 'text.secondary', wordBreak: 'break-all' }}>{a.key}{a.category ? ` · ${a.category}` : ''}</Typography>
+                        {a.error && <Typography sx={{ fontSize: 11, color: 'error.main' }}>{a.error.slice(0, 120)}</Typography>}
+                      </Box>
+                    </Box>
                   </TableCell>
                   <TableCell>{KINDS[a.kind || 'model'] ?? a.kind}</TableCell>
                   <TableCell>

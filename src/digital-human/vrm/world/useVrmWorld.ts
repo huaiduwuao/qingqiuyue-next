@@ -372,11 +372,13 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   // 创世:布置房间要的几样
   const selectPlacement = useCallback((id: string | null) => { worldRef.current?.objects.setSelected(id); }, []);
   const placementGroup = useCallback((id: string) => worldRef.current?.objects.groupOf(id) ?? null, []);
+  /** 八期:人走路要绕开的摆设 */
+  const obstacles = useCallback(() => worldRef.current?.objects.obstacles() ?? [], []);
   const setRoomAlign = useCallback((a: RoomShellAlign) => { worldRef.current?.room?.setAlign(a); }, []);
   const autoFitRoom = useCallback(() => worldRef.current?.room?.autoFit() ?? null, []);
   const setRoomPeers = useCallback((list: RoomPeer[]) => { roomPeersRef.current = list; peerLayerRef.current?.set(list); }, []);
   const setPeerVoiceLevels = useCallback((fn: ((id: string) => number) | null) => { voiceLevelsRef.current = fn; peerLayerRef.current?.setVoiceLevels(fn); }, []);
   const peerSay = useCallback((id: string, text: string) => { peerLayerRef.current?.say(id, text); }, []);
 
-  return { tick, render, floatText, showMarker, snapshot, setPeers, setAura, characterSay, setPlacements, upsertPlacement, removePlacement, selectPlacement, placementGroup, setRoomAlign, autoFitRoom, setRoomPeers, peerSay, setPeerVoiceLevels, zones: WORLD_ZONES };
+  return { tick, render, floatText, showMarker, snapshot, setPeers, setAura, characterSay, setPlacements, upsertPlacement, removePlacement, selectPlacement, placementGroup, obstacles, setRoomAlign, autoFitRoom, setRoomPeers, peerSay, setPeerVoiceLevels, zones: WORLD_ZONES };
 }

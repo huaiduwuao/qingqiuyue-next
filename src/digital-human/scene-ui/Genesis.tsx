@@ -12,7 +12,7 @@
 
 import React from 'react';
 import { Box, Button, ButtonBase, CircularProgress, Typography } from '@mui/material';
-import { getMyAvatar, saveMyAvatar, roomOwnerOf, rsvpRoomEvent, type AvatarParams, type RoomTab, type WorldAvatar, type WorldPlacement, type WorldAssetFull, type WorldRoom } from '@/apis/world';
+import { getMyAvatar, saveMyAvatar, roomOwnerOf, rsvpRoomEvent, worldFileUrl, type AvatarParams, type RoomTab, type WorldAvatar, type WorldPlacement, type WorldAssetFull, type WorldRoom } from '@/apis/world';
 import { mediaUrl } from '@/lib/media';
 import type { VrmStageHandle } from '../VrmStage';
 import type { AvatarInfo } from '../vrm/avatarCustomize';
@@ -198,7 +198,7 @@ export function GenesisPanels({ g, def, handle, objects, siteBases, toast, narro
     <>
       <DesignBar design={objects.design ?? null} applying={!!objects.applying} onApply={() => void objects.applyDesign?.()} onCancel={() => objects.cancelDesign?.()} narrow={narrow} />
       {mine && g.editing && (
-        <RoomEditor handle={handle} def={def} objects={objects} selectedId={g.selected} onSelect={g.setSelected} onClose={() => g.setEditing(false)} toast={toast} narrow={narrow} />
+        <RoomEditor handle={handle} def={def} objects={objects} selectedId={g.selected} onSelect={g.setSelected} onClose={() => g.setEditing(false)} toast={toast} narrow={narrow} onCover={g.room.setCover} />
       )}
       {mine && g.settingsOpen && g.room.mine && (
         <RoomSettings room={g.room.mine} handle={handle} save={g.room.save} splat={g.splat} onClose={() => g.setSettingsOpen(false)} toast={toast} narrow={narrow} />
@@ -249,6 +249,12 @@ export function visitedAgo(iso?: string, now = Date.now()): string {
   return `上次 ${Math.round(d / 86400)} 天前`;
 }
 
+/** 八期:房间封面(房主截的那一幕);没截过就不占地方 */
+function RoomCover({ cover }: { cover?: string }) {
+  if (!cover) return null;
+  return <Box component="img" src={worldFileUrl(cover)} alt="" loading="lazy" draggable={false} sx={{ display: 'block', width: '100%', aspectRatio: '16 / 9', objectFit: 'cover', borderRadius: 2, mb: 0.75, bgcolor: 'rgba(255,255,255,0.04)' }} />;
+}
+
 export function RoomsSection({ g, current, onPick, toast }: { g: Genesis; current: string; onPick: (key: string) => void; toast?: (icon: string, text: string) => void }) {
   const [tab, setTab] = React.useState<RoomTab | 'events'>('hot');
   const liveBadge = (n?: number) => (n && n > 0 ? <Box component="span" sx={{ ml: 0.75, fontSize: 10.5, color: '#7dffb0', border: '1px solid rgba(125,255,176,0.5)', borderRadius: 1, px: 0.5 }}>{n} 人在</Box> : null);
@@ -266,6 +272,7 @@ export function RoomsSection({ g, current, onPick, toast }: { g: Genesis; curren
       <Typography sx={{ fontSize: 14, fontWeight: 800, color: '#fff', mb: 1 }}>🏠 房间</Typography>
       {g.room.mine && (
         <ButtonBase onClick={() => mineKey && onPick(mineKey)} sx={{ display: 'block', width: '100%', textAlign: 'left', p: 1.25, mb: 1, borderRadius: 3, bgcolor: current === mineKey ? 'rgba(37,244,238,0.16)' : 'rgba(255,255,255,0.05)', border: `1px solid ${current === mineKey ? '#25F4EE' : 'transparent'}` }}>
+          <RoomCover cover={g.room.mine.cover} />
           <Typography sx={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>{g.room.mine.name} <Box component="span" sx={{ fontSize: 11, color: '#9be8ff' }}>我的</Box>{liveBadge(g.room.mine.online)}</Typography>
           <Typography sx={{ fontSize: 11.5, color: 'rgba(255,255,255,0.55)' }}>{g.room.mine.items} 件摆设 · {g.room.mine.visibility === 'public' ? `开放串门,来过 ${g.room.mine.visits} 次` : '只有自己能进'}</Typography>
         </ButtonBase>
@@ -285,6 +292,7 @@ export function RoomsSection({ g, current, onPick, toast }: { g: Genesis; curren
           const key = `room:${r.ownerId}`;
           return (
             <ButtonBase key={r.ownerId} disabled={!!busy} onClick={() => void visit(r.ownerId)} sx={{ display: 'block', textAlign: 'left', p: 1.25, borderRadius: 3, bgcolor: current === key ? 'rgba(37,244,238,0.16)' : 'rgba(255,255,255,0.05)', position: 'relative' }}>
+              <RoomCover cover={r.cover} />
               <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}{liveBadge(r.online)}</Typography>
               <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>
                 {r.owner?.nickname}{r.followed ? <Box component="span" sx={{ color: '#25F4EE' }}> · 已关注</Box> : null} · {r.items} 件 · {tab === 'recent' && r.lastVisit ? visitedAgo(r.lastVisit) : `来过 ${r.visits} 次`}

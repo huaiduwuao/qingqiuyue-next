@@ -192,6 +192,10 @@ MUI 的列表、输入框、下拉框全都能正常点击和输入 —— 不�
 (`ai: true` → 紫色 🤖 名牌、wave / bow 动作);管家开关和请客在 RoomSettings 里的 RoomAISection。
 位置帧里 `m` / `a` 为空时服务端不发,合并时要以每一帧为准,不然会一直「在走」「招手」。
 
+**八期:布置体验。** 素材卡片带缩略图(`WorldAsset.thumb`,`worldFileUrl` 转地址);布置模式「📷 封面」走
+`VrmStageHandle.captureFrame`(先画一帧再读,`userData.noCapture` 的东西不画);摆设层 `obstacles()` 给出地上占的转向矩形,
+VrmStage 的 `clampToWorld` 调用都带上它(`pushOutOfBoxes` 推出去);gizmo 默认吸附 0.25 米 / 15°。
+
 **七期:字幕与广场同步。** 开麦说的话由服务端转字幕(caption 帧:自己的识别中 → `rs.myCaption`;任何人说完一句 →
 聊天里 🎙 一行 + 头顶气泡)。广场等公共场景也连房间集线器(`useRoomSocket` 的 `space = 'scene'`,join 时发场景 key),
 同伴层(peerAvatars)所有场景都有,广场光环画成脚下一圈;`usePlazaOnline` 的心跳还在,集线器里已有的人不再画成人影。
