@@ -76,7 +76,8 @@ export function useVrmRenderer(opts: UseVrmRendererOptions) {
         controls.enableDamping = true;
         controls.maxDistance = 12;
         controls.minDistance = 1.0;
-        controls.maxPolarAngle = Math.PI * 0.95;
+        // 镜头不能转到地面以下(看见地底):最低到稍高于水平,再低由 VrmStage 每帧按脚下高度兜底
+        controls.maxPolarAngle = Math.PI * 0.49;
         controls.minPolarAngle = 0.05;
       }
 

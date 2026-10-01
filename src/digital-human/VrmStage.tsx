@@ -888,6 +888,11 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         root.rotation.y = (root.userData.baseYaw as number) + yawRef.current;
         worldApiRef.current.tick(t, dt, pos, animApiRef.current?.dancing ?? false);
       }
+      // 4.9 镜头不进地下:预设机位、飞镜头、拉远都不许低于脚下地面 0.25 米(看不到地底)
+      if (rendererState) {
+        const minY = (worldOnRef.current ? groundYRef.current : 0) + 0.25;
+        if (rendererState.camera.position.y < minY) rendererState.camera.position.y = minY;
+      }
       // 5. 统一动画状态机
       animApi.tick(t, dt);
       // 6. scene breath
