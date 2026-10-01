@@ -7,6 +7,7 @@ export interface AppConfigListParams {
   pageNumber?: number;
   name?: string;
   code?: string;
+  type?: string;
 }
 
 // -> 后端 GET /app/config/listByMap

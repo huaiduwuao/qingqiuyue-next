@@ -24,6 +24,7 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
 import Autocomplete from '@mui/material/Autocomplete';
+import MenuItem from '@mui/material/MenuItem';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Switch from '@mui/material/Switch';
 import Checkbox from '@mui/material/Checkbox';
@@ -81,6 +82,7 @@ export default function SpiderBatchPage() {
   const qc = useQueryClient();
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(20);
+  const [status, setStatus] = useState<string>('');
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [detailId, setDetailId] = useState<number | null>(null);
@@ -88,8 +90,8 @@ export default function SpiderBatchPage() {
   const showMsg = (message: string, severity: 'success' | 'error' = 'success') => setSnack({ open: true, message, severity });
 
   const listQ = useQuery({
-    queryKey: ['spider', 'batch', page, pageSize],
-    queryFn: () => listBatch({ page: page + 1, pageSize }),
+    queryKey: ['spider', 'batch', page, pageSize, status],
+    queryFn: () => listBatch({ page: page + 1, pageSize, status: status || undefined }),
     refetchInterval: POLL_MS,
   });
   const sitesQ = useQuery({ queryKey: ['spider', 'sites'], queryFn: () => listSites(), enabled: createOpen });
@@ -141,7 +143,14 @@ export default function SpiderBatchPage() {
           <Typography variant="h6">批量任务</Typography>
           <Typography variant="body2" color="text.secondary">一次对多个站点各发一个整站任务;任务进队列由 Worker 执行,每个站点受「站点调度」里的并发上限约束。</Typography>
         </Box>
-        <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setForm(EMPTY_FORM); setCreateOpen(true); }}>新建批量任务</Button>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <TextField select size="small" label="状态" value={status}
+            onChange={(e) => { setStatus(e.target.value); setPage(0); }} sx={{ minWidth: 120 }}>
+            <MenuItem value="">全部</MenuItem>
+            {Object.entries(BATCH_STATUS).map(([k, v]) => <MenuItem key={k} value={k}>{v.label}</MenuItem>)}
+          </TextField>
+          <Button variant="contained" startIcon={<AddIcon />} onClick={() => { setForm(EMPTY_FORM); setCreateOpen(true); }}>新建批量任务</Button>
+        </Box>
       </Box>
 
       <TableContainer component={Paper} variant="outlined">
@@ -162,7 +171,7 @@ export default function SpiderBatchPage() {
             {listQ.isLoading && [0, 1, 2].map((i) => <TableRow key={i}><TableCell colSpan={8}><Skeleton height={28} /></TableCell></TableRow>)}
             {!listQ.isLoading && rows.length === 0 && (
               <TableRow><TableCell colSpan={8} align="center" sx={{ py: 5, color: 'text.secondary' }}>
-                还没有批量任务。点右上角「新建批量任务」选几个站点试试;单个站点也可以在「站点调度」里直接「立即抓取」。
+                {status ? '没有该状态的批量任务。' : '还没有批量任务。点右上角「新建批量任务」选几个站点试试;单个站点也可以在「站点调度」里直接「立即抓取」。'}
               </TableCell></TableRow>
             )}
             {rows.map((b) => {

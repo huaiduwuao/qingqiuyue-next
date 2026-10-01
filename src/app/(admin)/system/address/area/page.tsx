@@ -17,7 +17,10 @@ const fields: CrudFormField[] = [
   { key: 'cityCode', label: '所属城市编码', required: true, placeholder: '如 110100' },
 ];
 
-const filters: FilterField[] = [{ key: 'name', label: '名称', type: 'text' }];
+const filters: FilterField[] = [
+  { key: 'name', label: '名称', type: 'text' },
+  { key: 'parentCode', label: '所属城市编码', type: 'text' },
+];
 
 export default function SystemAddressAreaPage() {
   return <AdminCrudPage title="区县管理" entity="区县" api={api} columns={columns} fields={fields} filters={filters} />;

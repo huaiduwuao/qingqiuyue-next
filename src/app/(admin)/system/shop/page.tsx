@@ -107,18 +107,29 @@ export default function SystemShopPage() {
   const redemptionsAll = React.useRef<AdminRedemption[]>([]);
   const giftsAll = React.useRef<AdminGift[]>([]);
 
-  const fetchItems = useCallback(async (params: { pageNumber: number; pageSize: number }) => {
-    itemsAll.current = await listMallItems();
-    return sliceAll(itemsAll.current, params.pageNumber, params.pageSize);
+  // 每个 tab 各自的筛选值;筛选在后端 SQL 里做。
+  const [itemFilters, setItemFilters] = useState<Record<string, string | undefined>>({});
+  const [redemptionFilters, setRedemptionFilters] = useState<Record<string, string | undefined>>({});
+  const [giftFilters, setGiftFilters] = useState<Record<string, string | undefined>>({});
+
+  type FetchParams = { pageNumber: number; pageSize: number; [key: string]: any };
+  const fetchItems = useCallback(async ({ pageNumber, pageSize, keyword, category, status, deliverType }: FetchParams) => {
+    itemsAll.current = await listMallItems({ keyword, category, status, deliverType });
+    return sliceAll(itemsAll.current, pageNumber, pageSize);
   }, []);
-  const fetchRedemptions = useCallback(async (params: { pageNumber: number; pageSize: number }) => {
-    redemptionsAll.current = await listRedemptions();
-    return sliceAll(redemptionsAll.current, params.pageNumber, params.pageSize);
+  const fetchRedemptions = useCallback(async ({ pageNumber, pageSize, status, userId, itemId }: FetchParams) => {
+    redemptionsAll.current = await listRedemptions({ status, userId, itemId });
+    return sliceAll(redemptionsAll.current, pageNumber, pageSize);
   }, []);
-  const fetchGifts = useCallback(async (params: { pageNumber: number; pageSize: number }) => {
-    giftsAll.current = await listGifts();
-    return sliceAll(giftsAll.current, params.pageNumber, params.pageSize);
+  const fetchGifts = useCallback(async ({ pageNumber, pageSize, keyword, status }: FetchParams) => {
+    giftsAll.current = await listGifts({ keyword, status });
+    return sliceAll(giftsAll.current, pageNumber, pageSize);
   }, []);
+
+  const shelfOptions = [
+    { label: '上架', value: 'active' },
+    { label: '下架', value: 'offline' },
+  ];
 
   const itemsColumns: GridColDef[] = [
     { field: 'name', headerName: '商品', flex: 1.5, minWidth: 180, renderCell: (p) => `${(p.row as AdminMallItem).emoji} ${p.value}` },
@@ -180,9 +191,23 @@ export default function SystemShopPage() {
 
       {tab === 0 && (
         <DataGridTable
+        queryKey={['admin-shop']}
           title="商城商品"
           columns={itemsColumns}
           fetchData={fetchItems}
+          filters={{
+            fields: [
+              { key: 'keyword', label: '商品名称', type: 'text' },
+              { key: 'category', label: '分类', type: 'select',
+                options: Object.entries(CATEGORY_LABEL).map(([value, label]) => ({ label, value })) },
+              { key: 'deliverType', label: '发放方式', type: 'select',
+                options: Object.entries(DELIVER_LABEL).map(([value, label]) => ({ label, value })) },
+              { key: 'status', label: '状态', type: 'select', options: shelfOptions },
+            ],
+            values: itemFilters,
+            onChange: setItemFilters,
+            onReset: () => setItemFilters({}),
+          }}
           onEdit={(row) => setItem({ ...(row as AdminMallItem) })}
           toolBarRender={() => (
             <Button variant="contained" startIcon={<AddIcon />} onClick={() => setItem({ ...EMPTY_ITEM })}>
@@ -194,9 +219,21 @@ export default function SystemShopPage() {
 
       {tab === 1 && (
         <DataGridTable
+        queryKey={['admin-shop']}
           title="订单与发货"
           columns={redemptionsColumns}
           fetchData={fetchRedemptions}
+          filters={{
+            fields: [
+              { key: 'status', label: '状态', type: 'select',
+                options: Object.entries(REDEMPTION_STATUS).map(([value, label]) => ({ label, value })) },
+              { key: 'userId', label: '用户ID', type: 'text', width: 140 },
+              { key: 'itemId', label: '商品ID', type: 'text', width: 140 },
+            ],
+            values: redemptionFilters,
+            onChange: setRedemptionFilters,
+            onReset: () => setRedemptionFilters({}),
+          }}
           customActions={[
             {
               label: '发货',
@@ -216,9 +253,19 @@ export default function SystemShopPage() {
 
       {tab === 2 && (
         <DataGridTable
+        queryKey={['admin-shop']}
           title="礼物"
           columns={giftsColumns}
           fetchData={fetchGifts}
+          filters={{
+            fields: [
+              { key: 'keyword', label: '礼物名称', type: 'text' },
+              { key: 'status', label: '状态', type: 'select', options: shelfOptions },
+            ],
+            values: giftFilters,
+            onChange: setGiftFilters,
+            onReset: () => setGiftFilters({}),
+          }}
           onEdit={(row) => setGift({ ...(row as AdminGift) })}
           toolBarRender={() => (
             <Button variant="contained" startIcon={<AddIcon />} onClick={() => setGift({ ...EMPTY_GIFT })}>

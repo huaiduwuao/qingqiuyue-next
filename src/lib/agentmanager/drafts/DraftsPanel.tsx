@@ -15,7 +15,7 @@ import Alert from '@mui/material/Alert'
 import Switch from '@mui/material/Switch'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import CircularProgress from '@mui/material/CircularProgress'
-import { draftsAPI, draftSummary, KIND_LABEL, type Draft, type DraftStatus } from './draftsApi'
+import { draftsAPI, draftSummary, KIND_LABEL, type Draft, type DraftKind, type DraftStatus } from './draftsApi'
 
 const STATUS_LABEL: Record<DraftStatus, string> = { draft: '草稿', published: '已发布', discarded: '已丢弃' }
 
@@ -24,6 +24,8 @@ export default function DraftsPanel({ isAdmin }: { isAdmin: boolean }) {
   const [loading, setLoading] = useState(false)
   const [all, setAll] = useState(false)
   const [status, setStatus] = useState<DraftStatus | ''>('')
+  const [kind, setKind] = useState<DraftKind | ''>('')
+  const [keyword, setKeyword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<number | null>(null)
   const [open, setOpen] = useState<number | null>(null)
@@ -32,13 +34,13 @@ export default function DraftsPanel({ isAdmin }: { isAdmin: boolean }) {
     setLoading(true)
     setError(null)
     try {
-      setDrafts(await draftsAPI.list(all && isAdmin, status || undefined))
+      setDrafts(await draftsAPI.list(all && isAdmin, status || undefined, { kind: kind || undefined, keyword }))
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setLoading(false)
     }
-  }, [all, isAdmin, status])
+  }, [all, isAdmin, status, kind, keyword])
 
   useEffect(() => {
     load()
@@ -66,7 +68,12 @@ export default function DraftsPanel({ isAdmin }: { isAdmin: boolean }) {
             和数字员工 builder 对话起草;这里试运行、发布或丢弃。发布 = 你的批准。
           </Typography>
         </Box>
-        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input aria-label="名称" placeholder="搜索名称 / 描述" value={keyword} onChange={e => setKeyword(e.target.value)} style={{ fontSize: 13, padding: '4px 6px', width: 160 }} />
+          <select aria-label="类型" value={kind} onChange={e => setKind(e.target.value as DraftKind | '')} style={{ fontSize: 13, padding: '4px 6px' }}>
+            <option value="">全部类型</option>
+            {(Object.keys(KIND_LABEL) as DraftKind[]).map(k => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
+          </select>
           <select aria-label="状态" value={status} onChange={e => setStatus(e.target.value as DraftStatus | '')} style={{ fontSize: 13, padding: '4px 6px' }}>
             <option value="">未丢弃</option>
             <option value="draft">草稿</option>
@@ -81,7 +88,9 @@ export default function DraftsPanel({ isAdmin }: { isAdmin: boolean }) {
       {error && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>{error}</Alert>}
       {loading && drafts.length === 0 && <CircularProgress size={20} />}
       {!loading && drafts.length === 0 && (
-        <Typography variant="body2" color="text.secondary">还没有草稿。到数字人页面选「builder」员工,说说你想造什么。</Typography>
+        <Typography variant="body2" color="text.secondary">
+          {status || kind || keyword.trim() ? '没有符合筛选条件的草稿。' : '还没有草稿。到数字人页面选「builder」员工,说说你想造什么。'}
+        </Typography>
       )}
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>

@@ -54,9 +54,9 @@ const statusConfig: Record<string, { label: string; color: 'warning' | 'success'
   rejected: { label: '已拒绝', color: 'error' },
 };
 
-async function fetchWithdrawList(params: { pageNumber: number; pageSize: number; status?: string }): Promise<WithdrawListResp> {
+async function fetchWithdrawList(params: { pageNumber: number; pageSize: number; status?: string; userId?: string }): Promise<WithdrawListResp> {
   return adminClient<WithdrawListResp>('/wallet/withdraw/list', {
-    params: { page: params.pageNumber, size: params.pageSize, status: params.status || undefined },
+    params: { page: params.pageNumber, size: params.pageSize, status: params.status || undefined, user_id: params.userId || undefined },
   });
 }
 
@@ -142,6 +142,7 @@ function WithdrawReviewPageInner() {
                 { label: '已通过', value: 'approved' },
                 { label: '已拒绝', value: 'rejected' },
               ] },
+            { key: 'userId', label: '用户ID', type: 'text' },
           ],
           values: filterValues,
           onChange: setFilterValues,

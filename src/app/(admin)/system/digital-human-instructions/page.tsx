@@ -46,6 +46,7 @@ export default function DigitalHumanInstructionsPage() {
   const [snack, setSnack] = React.useState<{ open: boolean; msg: string; severity: 'success' | 'error' }>({ open: false, msg: '', severity: 'success' });
   const [previewTemplate, setPreviewTemplate] = React.useState<ExpressionTemplateName>('happy');
   const [tab, setTab] = React.useState(0);
+  const [keyword, setKeyword] = React.useState('');
   // 员工列表(内置 4 类 + worker + builder 发布的):agentId 从这里选,填错了指令就进不了对话链路
   const [staff, setStaff] = React.useState<{ agentId: string; name: string; description: string }[]>([]);
   React.useEffect(() => {
@@ -121,6 +122,10 @@ export default function DigitalHumanInstructionsPage() {
   }
 
   const isOpen = editing !== null || creating;
+  // 指令表很小,名称 / agentId / 描述 / 标签在前端过滤
+  const kw = keyword.trim().toLowerCase();
+  const rows = (listQuery.data || []).filter((r) => !kw
+    || [r.name, r.agentId, r.description, ...(r.tags ?? [])].some((x) => (x ?? '').toLowerCase().includes(kw)));
 
   return (
     <Box sx={{ p: 3, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
@@ -141,8 +146,13 @@ export default function DigitalHumanInstructionsPage() {
 
       <Box sx={{ display: 'flex', gap: 2, flex: 1, minHeight: 0, overflow: 'hidden' }}>
         <Box sx={{ width: LIST_FRACTION, flexShrink: 0, overflow: 'auto' }}>
+          <TextField
+            size="small" fullWidth placeholder="搜索名称 / agentId / 标签"
+            value={keyword} onChange={(e) => setKeyword(e.target.value)} sx={{ mb: 1.5 }}
+          />
           <Stack spacing={1.5}>
-            {(listQuery.data || []).map((row) => (
+            {kw && rows.length === 0 && <Typography variant="body2" color="text.secondary">没有匹配的指令</Typography>}
+            {rows.map((row) => (
               <Card key={row.agentId} variant="outlined"
                 sx={{
                   cursor: 'pointer',

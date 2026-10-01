@@ -44,10 +44,12 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const draftsAPI = {
-  list: async (all: boolean, status?: DraftStatus) => {
+  list: async (all: boolean, status?: DraftStatus, opts: { kind?: DraftKind; keyword?: string } = {}) => {
     const qs = new URLSearchParams()
     if (all) qs.set('all', '1')
     if (status) qs.set('status', status)
+    if (opts.kind) qs.set('kind', opts.kind)
+    if (opts.keyword?.trim()) qs.set('keyword', opts.keyword.trim())
     const q = qs.toString()
     return (await call<{ list: Draft[] }>(q ? `?${q}` : '')).list || []
   },

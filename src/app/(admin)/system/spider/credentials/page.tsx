@@ -53,7 +53,12 @@ function fmtTime(s: string | null | undefined): string {
 
 export default function SpiderCredentialsPage() {
   const qc = useQueryClient();
-  const query = useQuery({ queryKey: LIST_KEY, queryFn: () => listCredentials() });
+  const [domainFilter, setDomainFilter] = useState('');
+  const [keyword, setKeyword] = useState('');
+  const query = useQuery({
+    queryKey: [...LIST_KEY, domainFilter.trim(), keyword.trim()],
+    queryFn: () => listCredentials(domainFilter.trim() || undefined, keyword.trim() || undefined),
+  });
   const [editing, setEditing] = useState<CrawlCredential | null>(null);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<CredentialWrite>(EMPTY);
@@ -115,6 +120,13 @@ export default function SpiderCredentialsPage() {
       )}
       {query.error && <Alert severity="error">{(query.error as Error).message}</Alert>}
 
+      <Box sx={{ display: 'flex', gap: 1.25, flexWrap: 'wrap' }}>
+        <TextField size="small" label="域名" placeholder="包含即可,如 douyin" value={domainFilter}
+          onChange={(e) => setDomainFilter(e.target.value)} sx={{ width: 200 }} />
+        <TextField size="small" label="关键词" placeholder="名称 / 备注" value={keyword}
+          onChange={(e) => setKeyword(e.target.value)} sx={{ width: 200 }} />
+      </Box>
+
       <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
         <Table size="small">
           <TableHead>
@@ -134,7 +146,7 @@ export default function SpiderCredentialsPage() {
             {rows.length === 0 && (
               <TableRow>
                 <TableCell colSpan={9} sx={{ color: 'text.secondary', textAlign: 'center', py: 4 }}>
-                  {query.isLoading ? '加载中…' : '还没有凭据'}
+                  {query.isLoading ? '加载中…' : domainFilter.trim() || keyword.trim() ? '没有匹配的凭据' : '还没有凭据'}
                 </TableCell>
               </TableRow>
             )}

@@ -24,6 +24,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import ScheduleIcon from '@mui/icons-material/Schedule'
 import type { GridColDef } from '@mui/x-data-grid'
 import { DataGridTable } from '@/components/tables/DataGridTable'
+import type { FilterBarProps } from '@/components/tables/FilterBar'
 import { agentmAPI, type Agent } from './api'
 import { canvasAPI } from './canvas/api'
 import type { AgentWorkflowInfo, WorkflowType } from './canvas/types'
@@ -63,6 +64,32 @@ export default function WorkflowsOverview({ onCreate, onEdit }: { onCreate?: () 
   // ref 让 fetchData 永远读到最新 allRows,避免闭包 staleness
   const rowsRef = useRef<WorkflowRow[]>([])
   useEffect(() => { rowsRef.current = allRows }, [allRows])
+  // 筛选(所属 Agent / 状态 / 类型 / 名称):数据已全量在内存,fetchData 里先过滤再切片
+  const [filterValues, setFilterValues] = useState<FilterBarProps['values']>({})
+  const filterFields = useMemo<FilterBarProps['fields']>(() => {
+    const agents = new Map<number, string>()
+    const statuses = new Set<string>()
+    allRows.forEach((w) => {
+      agents.set(w.agent_id, w.agent_name)
+      if (w.status) statuses.add(w.status)
+    })
+    return [
+      { key: 'keyword', label: '名称', type: 'text', placeholder: '名称 / 描述' },
+      {
+        key: 'agent_id',
+        label: '所属 Agent',
+        type: 'select',
+        options: Array.from(agents, ([value, label]) => ({ label, value: String(value) })),
+      },
+      { key: 'status', label: '状态', type: 'select', options: Array.from(statuses).sort().map((s) => ({ label: s, value: s })) },
+      {
+        key: 'workflow_type',
+        label: '类型',
+        type: 'select',
+        options: (Object.keys(TYPE_LABEL) as WorkflowType[]).map((t) => ({ label: TYPE_LABEL[t], value: t })),
+      },
+    ]
+  }, [allRows])
 
   const load = useCallback(async () => {
     setError('')
@@ -198,12 +225,25 @@ export default function WorkflowsOverview({ onCreate, onEdit }: { onCreate?: () 
         columns={columns}
         // 纯内存切片;读 ref 避免 fetchData 闭包捕获 stale allRows。
         // 真实数据加载由 useEffect 内的 load() 完成,完成后再 setTick 触发这里。
-        fetchData={async ({ pageNumber, pageSize }) => {
-          const rows = rowsRef.current
+        fetchData={async ({ pageNumber, pageSize, keyword, agent_id, status, workflow_type }) => {
+          const kw = String(keyword || '').trim().toLowerCase()
+          const rows = rowsRef.current.filter((w) =>
+            (!kw || `${w.name} ${w.description || ''}`.toLowerCase().includes(kw)) &&
+            (!agent_id || String(w.agent_id) === String(agent_id)) &&
+            (!status || w.status === status) &&
+            (!workflow_type || w.workflow_type === workflow_type)
+          )
           const start = (pageNumber - 1) * pageSize
           return { records: rows.slice(start, start + pageSize), totalRow: rows.length }
         }}
-        extraParams={{ tick, count: allRows.length }}
+        extraParams={{ count: allRows.length }}
+        refreshKey={tick}
+        filters={{
+          fields: filterFields,
+          values: filterValues,
+          onChange: setFilterValues,
+          onReset: () => setFilterValues({}),
+        }}
         onEdit={onEdit ? (row) => onEdit(row) : undefined}
         onDelete={handleDelete}
         toolBarRender={

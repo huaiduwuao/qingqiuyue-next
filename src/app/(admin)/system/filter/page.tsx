@@ -38,6 +38,7 @@ import Collapse from '@mui/material/Collapse';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import { DataGridTable } from '@/components/tables/DataGridTable';
+import { FilterBar } from '@/components/tables/FilterBar';
 import {
   pageContentTypes, saveContentType, removeContentTypes,
   pageSubcategories, saveSubcategory, removeSubcategories,
@@ -97,6 +98,7 @@ function TypesTab({ showMessage }: { showMessage: ShowMessage }) {
   const [form, setForm] = useState<Partial<ContentTypeRow>>({ name: '', code: '', icon: '', color: '', sort: 0, status: 1 });
   // 展开的大类 code 集合
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [filterValues, setFilterValues] = useState<Record<string, string | undefined>>({});
 
   const openCreate = () => { setForm({ name: '', code: '', icon: '', color: '', sort: 0, status: 1 }); setWriteVisible(true); };
   const openEdit = (row: ContentTypeRow) => { setForm(row); setWriteVisible(true); };
@@ -109,6 +111,14 @@ function TypesTab({ showMessage }: { showMessage: ShowMessage }) {
     queryKey: TYPE_KEY,
     queryFn: () => listContentTypes().then((r: any) => (r?.list ?? []) as ContentTypeRow[]),
   });
+  // 类型表很小,名称/代码关键字与状态都在前端过滤
+  const shownTypes = React.useMemo(() => {
+    const kw = (filterValues.keyword || '').trim().toLowerCase();
+    const st = filterValues.status;
+    return types.filter((t) =>
+      (!kw || `${t.name ?? ''} ${t.code ?? ''}`.toLowerCase().includes(kw)) &&
+      (st === undefined || st === '' || String(t.status) === st));
+  }, [types, filterValues]);
 
   const saveMutation = useMutation({
     mutationFn: (vals: Partial<ContentTypeRow>) => saveContentType(vals),
@@ -129,6 +139,15 @@ function TypesTab({ showMessage }: { showMessage: ShowMessage }) {
         <Box sx={{ mb: 2 }}>
           <Button size="small" variant="contained" startIcon={<AddIcon />} onClick={openCreate}>新增类型</Button>
         </Box>
+        <FilterBar
+          fields={[
+            { key: 'keyword', label: '名称/代码', type: 'text' },
+            { key: 'status', label: '状态', type: 'select', options: [{ label: '启用', value: '1' }, { label: '停用', value: '0' }] },
+          ]}
+          values={filterValues}
+          onChange={setFilterValues}
+          onReset={() => setFilterValues({})}
+        />
         <Table size="small">
           <TableHead>
             <TableRow>
@@ -145,10 +164,10 @@ function TypesTab({ showMessage }: { showMessage: ShowMessage }) {
             {isLoading && (
               <TableRow><TableCell colSpan={7} align="center"><CircularProgress size={24} /></TableCell></TableRow>
             )}
-            {!isLoading && types.length === 0 && (
+            {!isLoading && shownTypes.length === 0 && (
               <TableRow><TableCell colSpan={7} align="center">暂无数据</TableCell></TableRow>
             )}
-            {types.map((row) => (
+            {shownTypes.map((row) => (
               <React.Fragment key={row.code}>
                 <TableRow hover sx={{ cursor: 'pointer' }} onClick={() => toggle(row.code)}>
                   <TableCell>
@@ -277,6 +296,7 @@ function SubcatsTab({ showMessage }: { showMessage: ShowMessage }) {
   return (
     <>
       <DataGridTable
+        queryKey={SUBCAT_KEY}
         columns={columns}
         extraParams={{ parentType: filterParent || undefined }}
         fetchData={async (params: any) => {

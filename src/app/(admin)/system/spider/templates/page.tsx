@@ -40,6 +40,9 @@ const TYPE_LABELS: Record<string, string> = {
   animation: '动漫', film: '电影', tv: '电视剧', html: '通用',
 };
 
+// 筛选用:module_template.type 实际在用的取值(规则引擎按页面角色分),不是上面表单里的内容类型
+const TEMPLATE_TYPE_FILTER = ['detail', 'list', 'book', 'video', 'category', 'chapter'].map((v) => ({ label: TYPE_LABELS[v] || v, value: v }));
+
 const ATTR_TYPES = ['text', 'link', 'image', 'element', 'meta'];
 const ATTR_CODES = ['title', 'link', 'cover', 'content', 'description', 'date', 'container', 'item'];
 
@@ -59,6 +62,9 @@ export default function SpiderTemplatesPage() {
   const [autoOpen, setAutoOpen] = useState(false);
   const [autoUrl, setAutoUrl] = useState('');
   const [autoResult, setAutoResult] = useState<AutoTemplateResult | null>(null);
+  const [filterValues, setFilterValues] = useState<Record<string, string | undefined>>({});
+  // DataGridTable 不走 react-query,invalidate 刷不到它;改完数据靠这个 key 触发重拉
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // 来源下拉 / 列表里的源名称
   const sourcesQuery = useQuery({ queryKey: ['spider', 'sources-list'], queryFn: () => listSources({ page: 1, pageSize: 200 }).then((r) => r.list || []) });
@@ -66,7 +72,10 @@ export default function SpiderTemplatesPage() {
   const sourceNames = new Map(sourceOptions.map((o) => [o.id, o.name]));
 
   const showMessage = useCallback((message: string, severity: 'success' | 'error' = 'success') => setSnackbar({ open: true, message, severity }), []);
-  const refresh = useCallback(() => qc.invalidateQueries({ queryKey: ['spider', 'templates'] }), [qc]);
+  const refresh = useCallback(() => {
+    qc.invalidateQueries({ queryKey: ['spider', 'templates'] });
+    setRefreshKey((k) => k + 1);
+  }, [qc]);
 
   const createMutation = useMutation({
     mutationFn: (values: TemplateFormData) => createTemplate(values),
@@ -184,12 +193,33 @@ export default function SpiderTemplatesPage() {
         columns={columns}
         fetchData={async (params) => {
           try {
-            const res = await listTemplates({ page: params.pageNumber, pageSize: params.pageSize });
+            const res = await listTemplates({
+              page: params.pageNumber,
+              pageSize: params.pageSize,
+              keyword: params.keyword,
+              type: params.type,
+              status: params.status,
+              source_id: params.source_id,
+              domain: params.domain,
+            });
             return { records: res.list || [], totalRow: res.total || 0 };
           } catch (err: any) {
             showMessage(err.message || '获取数据失败', 'error');
             return { records: [], totalRow: 0 };
           }
+        }}
+        refreshKey={refreshKey}
+        filters={{
+          fields: [
+            { key: 'keyword', label: '关键词', type: 'text', placeholder: '名称 / 编码 / 域名' },
+            { key: 'domain', label: '域名', type: 'text', width: 160 },
+            { key: 'type', label: '类型', type: 'select', options: TEMPLATE_TYPE_FILTER, width: 130 },
+            { key: 'status', label: '状态', type: 'select', options: [{ label: '启用', value: '1' }, { label: '停用', value: '0' }], width: 110 },
+            { key: 'source_id', label: '来源', type: 'select', options: sourceOptions.map((o) => ({ label: o.name, value: o.id })), width: 180 },
+          ],
+          values: filterValues,
+          onChange: setFilterValues,
+          onReset: () => setFilterValues({}),
         }}
       />
 

@@ -70,6 +70,7 @@ export default function TopicAdminPage() {
   // 待审池筛选(E2)。用户在前台自己建的意境进 status=0 归自己名下,要在这里通过才上线;
   // 不传 status 是看全部 —— 默认停在「待审」上,否则用户提交的意境会一直压在池子里没人看。
   const [statusFilter, setStatusFilter] = useState<'' | '0' | '1' | '2'>('0');
+  const [filterValues, setFilterValues] = useState<Record<string, string | undefined>>({});
   // 主编辑表单(共享 TopicFormDialog)。
   const [formOpen, setFormOpen] = useState(false);
   const [editingTopic, setEditingTopic] = useState<Topic | null>(null);
@@ -367,13 +368,50 @@ export default function TopicAdminPage() {
             page: params.pageNumber,
             pageSize: params.pageSize,
             status: statusFilter === '' ? undefined : Number(statusFilter),
+            keyword: params.keyword,
+            kind: params.kind,
+            visibility: params.visibility,
+            source: params.source,
           });
           return {
             records: res?.list || res?.records || [],
             totalRow: res?.total || 0,
           };
         }}
-        extraParams={{ refresh: refreshToken, status: statusFilter }}
+        extraParams={{ status: statusFilter }}
+        refreshKey={refreshToken}
+        filters={{
+          fields: [
+            { key: 'keyword', label: '标题', type: 'text' },
+            {
+              key: 'kind',
+              label: '类型',
+              type: 'select',
+              options: [
+                { label: '合集', value: 'collection' },
+                { label: '话题', value: 'topic' },
+              ],
+            },
+            {
+              key: 'visibility',
+              label: '可见范围',
+              type: 'select',
+              options: Object.entries(TOPIC_VISIBILITY_LABEL).map(([value, label]) => ({ label, value })),
+            },
+            {
+              key: 'source',
+              label: '来源',
+              type: 'select',
+              options: [
+                { label: '人工创建', value: 'manual' },
+                { label: '自动生成', value: 'auto' },
+              ],
+            },
+          ],
+          values: filterValues,
+          onChange: setFilterValues,
+          onReset: () => setFilterValues({}),
+        }}
         customActions={[
           {
             label: '通过',

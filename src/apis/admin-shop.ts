@@ -58,8 +58,11 @@ export interface AdminGift {
 // axios 拦截器(client.ts)已经把 list/records、total/totalRow 互填别名,所以这里读 .list 即可。
 type ListResp<T> = { list: T[]; records?: T[]; total: number; totalRow?: number };
 
-export async function listMallItems(): Promise<AdminMallItem[]> {
-  const r = await adminClient<ListResp<AdminMallItem>>('/admin/shop/mall/items');
+type Params = Record<string, string | number | undefined>;
+
+/** 筛选:keyword(名称) / category / status / deliverType,后端 SQL 过滤后全量返回 */
+export async function listMallItems(params: Params = {}): Promise<AdminMallItem[]> {
+  const r = await adminClient<ListResp<AdminMallItem>>('/admin/shop/mall/items', { params });
   return r?.list ?? [];
 }
 
@@ -69,10 +72,9 @@ export async function saveMallItem(item: AdminMallItem) {
     : adminClient('/admin/shop/mall/items', { method: 'POST', data: item });
 }
 
-export async function listRedemptions(status?: string): Promise<AdminRedemption[]> {
-  const r = await adminClient<ListResp<AdminRedemption>>('/admin/shop/mall/redemptions', {
-    params: status ? { status } : undefined,
-  });
+/** 筛选:status / userId / itemId,最新 200 条 */
+export async function listRedemptions(params: Params = {}): Promise<AdminRedemption[]> {
+  const r = await adminClient<ListResp<AdminRedemption>>('/admin/shop/mall/redemptions', { params });
   return r?.list ?? [];
 }
 
@@ -84,8 +86,9 @@ export async function completeRedemption(id: number) {
   return adminClient(`/admin/shop/mall/redemptions/${id}/complete`, { method: 'PUT' });
 }
 
-export async function listGifts(): Promise<AdminGift[]> {
-  const r = await adminClient<ListResp<AdminGift>>('/admin/shop/gifts');
+/** 筛选:keyword(名称) / status */
+export async function listGifts(params: Params = {}): Promise<AdminGift[]> {
+  const r = await adminClient<ListResp<AdminGift>>('/admin/shop/gifts', { params });
   return r?.list ?? [];
 }
 

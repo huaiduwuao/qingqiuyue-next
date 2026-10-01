@@ -162,6 +162,9 @@ async function startTraining(name: string, method: string, source: string): Prom
 export default function SystemDigitalHumanPage() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState(0);
+  // 前端筛选(资产 / 任务都是全量小列表),切 tab 时清空状态筛选
+  const [keyword, setKeyword] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [snack, setSnack] = useState<{ msg: string; severity: 'success' | 'error' } | null>(null);
   const [detailAsset, setDetailAsset] = useState<DHAsset | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<DHAsset | null>(null);
@@ -253,6 +256,10 @@ export default function SystemDigitalHumanPage() {
   const jobs = jobsData?.list || [];
   const onlineCount = assets.filter(a => a.status === 'ready' && a.published).length;
   const trainingCount = assets.filter(a => a.status === 'training').length;
+  const kw = keyword.trim().toLowerCase();
+  const shownAssets = assets.filter(a => (!kw || `${a.name} ${a.id}`.toLowerCase().includes(kw)) && (!statusFilter || a.status === statusFilter));
+  const shownJobs = jobs.filter(j => (!kw || `${j.name} ${j.id} ${j.method}`.toLowerCase().includes(kw)) && (!statusFilter || j.status === statusFilter));
+  const statusOptions: Record<string, string> = tab === 0 ? { ready: '就绪', training: '训练中', failed: '失败' } : STATUS_LABELS;
 
   const handleRefresh = useCallback(() => {
     refetchAssets();
@@ -314,10 +321,21 @@ export default function SystemDigitalHumanPage() {
       )}
 
       {/* ── Tab ── */}
-      <Tabs value={tab} onChange={(_, v) => setTab(v)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
+      <Tabs value={tab} onChange={(_, v) => { setTab(v); setStatusFilter(''); }} sx={{ borderBottom: 1, borderColor: 'divider' }}>
         <Tab label="我的数字人" />
         <Tab label="训练任务" />
       </Tabs>
+
+      <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mt: -1.5 }}>
+        <TextField size="small" label={tab === 0 ? '名称 / ID' : '任务名 / ID / 方法'} value={keyword} onChange={(e) => setKeyword(e.target.value)} sx={{ width: 220 }} />
+        <FormControl size="small" sx={{ minWidth: 130 }}>
+          <InputLabel id="dh-status-filter" shrink>状态</InputLabel>
+          <Select labelId="dh-status-filter" label="状态" value={statusFilter} displayEmpty notched onChange={(e) => setStatusFilter(e.target.value)}>
+            <MenuItem value="">全部</MenuItem>
+            {Object.entries(statusOptions).map(([k, v]) => <MenuItem key={k} value={k}>{v}</MenuItem>)}
+          </Select>
+        </FormControl>
+      </Box>
 
       {/* ── 资产列表 ── */}
       {tab === 0 && (
@@ -336,7 +354,8 @@ export default function SystemDigitalHumanPage() {
           </Card>
         ) : (
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr', md: 'repeat(3, 1fr)' }, gap: 2 }}>
-            {assets.map((a) => (
+            {shownAssets.length === 0 && <Typography color="text.secondary">没有符合条件的数字人</Typography>}
+            {shownAssets.map((a) => (
               <Card
                 key={a.id}
                 sx={{
@@ -425,13 +444,13 @@ export default function SystemDigitalHumanPage() {
               <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 2 }}>训练任务</Typography>
               {jobsLoading ? (
                 Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} variant="rounded" height={60} sx={{ mb: 1 }} />)
-              ) : jobs.length === 0 ? (
+              ) : shownJobs.length === 0 ? (
                 <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 3 }}>
-                  暂无训练任务
+                  {jobs.length === 0 ? '暂无训练任务' : '没有符合条件的任务'}
                 </Typography>
               ) : (
                 <List dense disablePadding>
-                  {jobs.map((j) => (
+                  {shownJobs.map((j) => (
                     <React.Fragment key={j.id}>
                       <ListItem
                         sx={{ px: 0, py: 1.5 }}

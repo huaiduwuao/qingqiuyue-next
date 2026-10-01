@@ -46,6 +46,10 @@ function when(ts?: string) {
 export default function RunsPanel({ token }: { token: string }) {
   const [runs, setRuns] = useState<Run[]>([])
   const [all, setAll] = useState(false)
+  // 列表筛选:状态 / 员工 / 用户 ID(用户只在「全部用户」时生效)
+  const [fStatus, setFStatus] = useState('')
+  const [fAgent, setFAgent] = useState('')
+  const [fUser, setFUser] = useState('')
   const [selected, setSelected] = useState<string | null>(null)
   const [staff, setStaff] = useState<StaffItem[]>([])
   const [agent, setAgent] = useState('worker')
@@ -55,11 +59,11 @@ export default function RunsPanel({ token }: { token: string }) {
 
   const loadRuns = useCallback(async () => {
     try {
-      setRuns(await runsAPI.list(token, { all }))
+      setRuns(await runsAPI.list(token, { all, status: fStatus, agent: fAgent, userId: /^d+$/.test(fUser.trim()) ? fUser.trim() : '' }))
     } catch (e: any) {
       setError(e.message)
     }
-  }, [token, all])
+  }, [token, all, fStatus, fAgent, fUser])
 
   useEffect(() => {
     loadRuns()
@@ -153,9 +157,56 @@ export default function RunsPanel({ token }: { token: string }) {
               label={<Typography variant="caption">全部用户</Typography>}
             />
           </Box>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', px: 2, pt: 1 }}>
+            <TextField
+              id="runs-filter-status"
+              select
+              size="small"
+              label="状态"
+              value={fStatus}
+              onChange={(e) => setFStatus(e.target.value)}
+              sx={{ flex: 1, minWidth: 110 }}
+            >
+              <MenuItem value="">全部</MenuItem>
+              {(Object.keys(STATUS) as RunStatus[]).map((s) => (
+                <MenuItem key={s} value={s}>
+                  {STATUS[s].label}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              id="runs-filter-agent"
+              select
+              size="small"
+              label="员工"
+              value={fAgent}
+              onChange={(e) => setFAgent(e.target.value)}
+              sx={{ flex: 1, minWidth: 110 }}
+            >
+              <MenuItem value="">全部</MenuItem>
+              <MenuItem value="worker">通用助手(worker)</MenuItem>
+              {staff
+                .filter((s) => s.agentId !== 'worker')
+                .map((s) => (
+                  <MenuItem key={s.agentId} value={s.agentId}>
+                    {s.name}
+                  </MenuItem>
+                ))}
+            </TextField>
+            {all && (
+              <TextField
+                id="runs-filter-user"
+                size="small"
+                label="用户 ID"
+                value={fUser}
+                onChange={(e) => setFUser(e.target.value)}
+                sx={{ width: '100%' }}
+              />
+            )}
+          </Box>
           {runs.length === 0 ? (
             <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
-              还没有运行。在上面发起一个。
+              {fStatus || fAgent || (all && fUser.trim()) ? '没有符合筛选条件的运行。' : '还没有运行。在上面发起一个。'}
             </Typography>
           ) : (
             <List dense>

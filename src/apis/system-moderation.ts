@@ -27,6 +27,9 @@ export interface ListReportsParams {
   page?: number
   pageSize?: number
   status?: 'pending' | 'resolved' | 'rejected'
+  target_type?: string
+  target_id?: string | number
+  reporter_id?: string | number
 }
 
 export const listReports = (params: ListReportsParams = {}) =>
@@ -47,7 +50,10 @@ export interface SensitiveWordItem {
   createdAt: string
 }
 
-export const listSensitiveWords = (params: { page?: number; pageSize?: number } = {}) =>
+/** 后端返回全量数组(不分页);status 不传只看 active,'all' 不限状态 */
+export const listSensitiveWords = (
+  params: { keyword?: string; category?: string; level?: number | string; status?: string } = {},
+) =>
   adminClient('/moderation/sensitive-words', { params })
 
 export const addSensitiveWord = (body: { word: string; category?: string; level?: number }) =>

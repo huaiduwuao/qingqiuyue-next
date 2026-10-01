@@ -12,7 +12,7 @@ export async function listOpsTaskKinds(): Promise<OpsTaskKindList> {
 }
 
 // 历史列表。query: kind(可选), limit(默认 50, 上限 200)
-export async function listOpsTasks(params?: { kind?: string; limit?: number }): Promise<OpsTaskRun[]> {
+export async function listOpsTasks(params?: { kind?: string; status?: string; limit?: number }): Promise<OpsTaskRun[]> {
   return contentClient('/ops/task', { params });
 }
 

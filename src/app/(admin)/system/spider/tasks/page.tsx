@@ -180,6 +180,8 @@ export default function SpiderTasksPage() {
   // 任务类型筛选。正文回填是持续产生的背景任务(见 go 端 chapter_backfill.go),
   // 不给一个能单独看/能滤掉的开关,任务页第一屏很快就只剩回填,手工任务反而看不见。
   const [jobType, setJobType] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('');
+  const [keyword, setKeyword] = useState<string>('');
   const statusKey = useMemo(() => liveTasks.map((t) => `${t.id}:${t.status}`).sort().join('|'), [liveTasks]);
 
   const showMsg = useCallback((message: string, severity: 'success' | 'error' = 'success') => setSnack({ open: true, message, severity }), []);
@@ -299,16 +301,30 @@ export default function SpiderTasksPage() {
             <MenuItem value="lyric_backfill">歌词回填</MenuItem>
             <MenuItem value="video_backfill">视频回填</MenuItem>
           </TextField>
+          <TextField select size="small" label="状态" value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)} sx={{ minWidth: 120 }}>
+            <MenuItem value="">全部</MenuItem>
+            {Object.entries(STATUS_LABELS).map(([k, v]) => <MenuItem key={k} value={k}>{v}</MenuItem>)}
+          </TextField>
+          <TextField size="small" label="关键词" placeholder="源名 / 域名 / URL / 任务ID" value={keyword}
+            onChange={(e) => setKeyword(e.target.value)} sx={{ width: 200 }} />
         <Button variant="contained" startIcon={<AddIcon />} onClick={() => setWriteVisible(true)}>新建任务</Button>
         </Box>
       </Box>
 
       <DataGridTable
         columns={columns}
-        extraParams={{ statusKey, reloadTick, jobType }}
+        extraParams={{ statusKey, jobType, statusFilter, keyword }}
+        refreshKey={reloadTick}
         fetchData={async (params) => {
           try {
-            const res = await listTasks({ page: params.pageNumber, pageSize: params.pageSize, type: jobType || undefined });
+            const res = await listTasks({
+              page: params.pageNumber,
+              pageSize: params.pageSize,
+              type: jobType || undefined,
+              status: statusFilter || undefined,
+              keyword: keyword.trim() || undefined,
+            });
             const sourceMap = new Map((sourcesQuery.data || []).map((s: SpiderSource) => [s.id, s.name]));
             const list = (res.list || []).map((raw: any) => {
               const task = normalizeTask(raw);

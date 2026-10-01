@@ -444,11 +444,12 @@ function RepairTaskList({
 }) {
   const [onlyThis, setOnlyThis] = useState(false);
   const [page, setPage] = useState(1);
+  const [status, setStatus] = useState('');
   const filterId = onlyThis ? contentId : undefined;
   const pageSize = 10;
   const q = useQuery({
-    queryKey: ['repair-tasks', filterId ?? '', page],
-    queryFn: () => listRepairTasks({ page, pageSize, contentId: filterId }),
+    queryKey: ['repair-tasks', filterId ?? '', page, status],
+    queryFn: () => listRepairTasks({ page, pageSize, contentId: filterId, status: status || undefined }),
     refetchInterval: (query) =>
       (query.state.data?.list || []).some((t) => t.status === 'running' && !t.stale) ? 5000 : false,
   });
@@ -475,6 +476,24 @@ function RepairTaskList({
             label={<Typography variant="caption">只看「{contentTitle || contentId}」</Typography>}
           />
         )}
+        <TextField
+          select
+          size="small"
+          label="状态"
+          value={status}
+          onChange={(e) => {
+            setStatus(e.target.value);
+            setPage(1);
+          }}
+          sx={{ minWidth: 110 }}
+        >
+          <MenuItem value="">全部</MenuItem>
+          {Object.entries(TASK_STATUS_META).map(([k, v]) => (
+            <MenuItem key={k} value={k}>
+              {v.label}
+            </MenuItem>
+          ))}
+        </TextField>
         <Tooltip title="刷新">
           <span>
             <IconButton size="small" onClick={() => q.refetch()} disabled={q.isFetching}>
@@ -486,7 +505,7 @@ function RepairTaskList({
       {q.isError && <Alert severity="error">任务列表加载失败:{(q.error as any)?.message || '未知错误'}</Alert>}
       {q.isLoading && <LinearProgress />}
       {!q.isLoading && !q.isError && rows.length === 0 && (
-        <Typography variant="body2" color="text.secondary">还没有修复任务。</Typography>
+        <Typography variant="body2" color="text.secondary">{status ? '没有该状态的修复任务。' : '还没有修复任务。'}</Typography>
       )}
       {rows.length > 0 && (
         <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1 }}>

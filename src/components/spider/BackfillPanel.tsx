@@ -588,9 +588,10 @@ function BackfillTaskCard({ taskId, onDone }: { taskId: number; onDone?: () => v
 /** 最近补全任务列表(运营看历史)。 */
 function RecentBackfillList() {
   const [expanded, setExpanded] = useState(false);
+  const [status, setStatus] = useState('');
   const q = useQuery({
-    queryKey: ['backfill-recent', expanded],
-    queryFn: () => listContentBackfillRecent({ page: 1, pageSize: expanded ? 20 : 5 }),
+    queryKey: ['backfill-recent', expanded, status],
+    queryFn: () => listContentBackfillRecent({ page: 1, pageSize: expanded ? 20 : 5, status: status || undefined }),
     refetchInterval: 15_000,
   });
   const list = q.data?.list ?? [];
@@ -601,6 +602,10 @@ function RecentBackfillList() {
         <Typography variant="subtitle2">最近补全任务</Typography>
         {q.isFetching && <CircularProgress size={12} />}
         <Box sx={{ flex: 1 }} />
+        <TextField select size="small" label="状态" value={status} onChange={(e) => setStatus(e.target.value)} sx={{ minWidth: 110 }}>
+          <MenuItem value="">全部</MenuItem>
+          {Object.entries(STATUS_META).map(([k, v]) => <MenuItem key={k} value={k}>{v.label}</MenuItem>)}
+        </TextField>
         <Button size="small" onClick={() => setExpanded((v) => !v)} sx={{ textTransform: 'none' }}>
           {expanded ? '收起' : '查看全部'}
         </Button>
@@ -608,7 +613,7 @@ function RecentBackfillList() {
 
       {list.length === 0 ? (
         <Typography variant="caption" color="text.disabled">
-          暂无补全任务
+          {status ? '没有该状态的补全任务' : '暂无补全任务'}
         </Typography>
       ) : (
         list.map((it) => <BackfillRecentRow key={it.task_id} item={it} />)

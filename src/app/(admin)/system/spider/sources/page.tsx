@@ -48,15 +48,22 @@ interface SourceFormData {
   type: string;
 }
 
+// module_source 里实际在用的 type / category(category 可能是逗号拼的多值,后端按包含匹配)
+const TYPE_OPTIONS = ['auto', 'crawl_text', 'copyright_only'].map((v) => ({ label: v, value: v }));
+const CATEGORY_OPTIONS = ['VIDEO', 'FILM', 'TELEPLAY', 'ANIMATION', 'SHORT_DRAMA', 'VSHOW', 'NOVEL', 'COMICS', 'MUSIC', 'NEWS', 'ARTICLE', 'LIVE', 'WALLPAPER'].map((v) => ({ label: v, value: v }));
+
 export default function SpiderSourcesPage() {
   const qc = useQueryClient();
   const [writeVisible, setWriteVisible] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
   const [formValues, setFormValues] = useState<SourceFormData>({ name: '', domain: '', url: '', type: 'html' });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+  const [filterValues, setFilterValues] = useState<Record<string, string | undefined>>({});
+  // DataGridTable 不走 react-query,invalidate 刷不到它;改完数据靠这个 key 触发重拉
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const showMessage = (message: string, severity: 'success' | 'error' = 'success') => setSnackbar({ open: true, message, severity });
-  const invalidate = () => qc.invalidateQueries({ queryKey: LIST_KEY });
+  const invalidate = () => { qc.invalidateQueries({ queryKey: LIST_KEY }); setRefreshKey((k) => k + 1); };
 
   const saveMutation = useMutation({
     mutationFn: (vals: SourceFormData) => createSource(vals),
@@ -138,8 +145,33 @@ export default function SpiderSourcesPage() {
       <DataGridTable
         columns={columns}
         fetchData={async (params) => {
-          const r = await listSources({ page: params.page + 1, pageSize: params.pageSize });
+          const r = await listSources({
+            page: params.pageNumber,
+            pageSize: params.pageSize,
+            keyword: params.keyword,
+            type: params.type,
+            status: params.status,
+            category: params.category,
+          });
           return { records: r.list || [], totalRow: r.total || 0 };
+        }}
+        refreshKey={refreshKey}
+        filters={{
+          fields: [
+            { key: 'keyword', label: '关键词', type: 'text', placeholder: '名称 / 域名 / URL' },
+            { key: 'type', label: '类型', type: 'select', options: TYPE_OPTIONS, width: 150 },
+            {
+              key: 'status',
+              label: '状态',
+              type: 'select',
+              options: Object.entries(STATUS_LABELS).map(([value, label]) => ({ label, value })),
+              width: 120,
+            },
+            { key: 'category', label: '分类', type: 'select', options: CATEGORY_OPTIONS, width: 150 },
+          ],
+          values: filterValues,
+          onChange: setFilterValues,
+          onReset: () => setFilterValues({}),
         }}
       />
 

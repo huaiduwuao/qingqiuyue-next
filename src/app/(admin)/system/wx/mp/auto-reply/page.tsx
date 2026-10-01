@@ -2,6 +2,7 @@
 
 import type { GridColDef } from '@mui/x-data-grid';
 import { AdminCrudPage, type CrudFormField } from '@/components/admin/AdminCrudPage';
+import type { FilterField } from '@/components/tables/FilterBar';
 import { WxMpStatusBar } from '@/components/admin/WxMpStatusBar';
 import * as api from '@/apis/wx-mp-auto-reply';
 
@@ -40,6 +41,11 @@ const fields: CrudFormField[] = [
   { key: 'sort', label: '优先级', type: 'number', helperText: '数字小的先匹配', defaultValue: '0' },
 ];
 
+const filters: FilterField[] = [
+  { key: 'type', label: '触发方式', type: 'select', options: [{ label: '关注时回复', value: 'subscribe' }, { label: '关键词回复', value: 'keyword' }, { label: '默认回复', value: 'default' }] },
+  { key: 'reqKey', label: '关键词', type: 'text' },
+];
+
 const validate = (b: Record<string, any>) => {
   if (b.type === 'keyword' && !String(b.reqKey ?? '').trim()) return '关键词回复需要填写关键词';
   if (b.repType === 'news' ? !String(b.repUrl ?? '').trim() || !String(b.repName ?? '').trim() : !String(b.repContent ?? '').trim()) {
@@ -52,7 +58,7 @@ export default function WxMpAutoReplyPage() {
   return (
     <>
       <WxMpStatusBar />
-      <AdminCrudPage title="自动回复" entity="自动回复" api={api} columns={columns} fields={fields} validate={validate} />
+      <AdminCrudPage title="自动回复" entity="自动回复" api={api} columns={columns} fields={fields} filters={filters} validate={validate} />
     </>
   );
 }

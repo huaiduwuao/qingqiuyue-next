@@ -150,7 +150,9 @@ export async function crawlSiteNow(domain: string, data?: { max_pages?: number; 
 }
 
 // Source APIs
-export async function listSources(params?: PageParams): Promise<PageResult<any>> {
+export async function listSources(
+  params?: PageParams & { keyword?: string; type?: string; status?: string; category?: string },
+): Promise<PageResult<any>> {
   const res = await spiderClient('/sources', { params });
   return normalizePageResponse(res);
 }
@@ -168,7 +170,9 @@ export async function deleteSource(id: number): Promise<any> {
 }
 
 // Template APIs
-export async function listTemplates(params?: PageParams): Promise<PageResult<any>> {
+export async function listTemplates(
+  params?: PageParams & { keyword?: string; type?: string; status?: string; source_id?: string; domain?: string },
+): Promise<PageResult<any>> {
   const res = await spiderClient('/templates', { params });
   return normalizePageResponse(res);
 }
@@ -236,7 +240,7 @@ export async function getRecentActivity(): Promise<ActivityFeed> {
 }
 
 // ─── Tasks ───
-export async function listTasks(params?: PageParams & { status?: string; type?: string }): Promise<PageResult<any>> {
+export async function listTasks(params?: PageParams & { status?: string; type?: string; keyword?: string }): Promise<PageResult<any>> {
   const res = await spiderClient('/tasks', { params });
   return normalizePageResponse(res);
 }
@@ -451,7 +455,7 @@ export async function getContentBackfillStatus(taskId: number): Promise<any> {
 }
 
 /** 最近的内容补全任务(运营看历史用)。 */
-export async function listContentBackfillRecent(params?: { page?: number; pageSize?: number }): Promise<{
+export async function listContentBackfillRecent(params?: { page?: number; pageSize?: number; status?: string }): Promise<{
   list: ContentBackfillRecentItem[];
   total: number;
   page: number;
@@ -1002,7 +1006,7 @@ export interface RepairTaskRow {
   has_report: boolean;
 }
 
-export async function listRepairTasks(params: { page?: number; pageSize?: number; contentId?: string } = {}): Promise<{
+export async function listRepairTasks(params: { page?: number; pageSize?: number; contentId?: string; status?: string } = {}): Promise<{
   list: RepairTaskRow[];
   total: number;
 }> {
@@ -1012,6 +1016,7 @@ export async function listRepairTasks(params: { page?: number; pageSize?: number
       page: params.page ?? 1,
       pageSize: params.pageSize ?? 10,
       content_id: params.contentId || undefined,
+      status: params.status || undefined,
     },
   });
 }

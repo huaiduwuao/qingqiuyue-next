@@ -23,10 +23,17 @@ export interface BoostListPage {
   total: number;
 }
 
-export async function fetchBoostList(page: number, pageSize = 20): Promise<BoostListPage> {
+export async function fetchBoostList(
+  page: number,
+  pageSize = 20,
+  filter: { action?: 'boost' | 'suppress' | ''; contentId?: string } = {},
+): Promise<BoostListPage> {
   const res = await contentClient<{ list?: BoostItem[]; records?: BoostItem[]; total?: number; totalRow?: number }>(
     '/recommend/boost/list',
-    { method: 'GET', params: { page, size: pageSize } },
+    {
+      method: 'GET',
+      params: { page, size: pageSize, action: filter.action || undefined, contentId: filter.contentId || undefined },
+    },
   );
   const d = res;
   const list = (d?.list as BoostItem[]) ?? (d?.records as BoostItem[]) ?? [];

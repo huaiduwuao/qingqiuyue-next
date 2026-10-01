@@ -97,9 +97,17 @@ export async function refundOrder(orderNo: string, reason?: string): Promise<voi
 // ── 管理后台:退款审批 ──
 // 用户申请退款后订单停在 refunding;通过时后端扣回充值的钻石 / 会员时长并原路退款,驳回回到 paid。
 
-export async function adminListRefunds(params: PageParams & { status?: string }): Promise<PageResult<PaymentOrder>> {
+export async function adminListRefunds(
+  params: PageParams & { status?: string; userId?: string | number; orderNo?: string },
+): Promise<PageResult<PaymentOrder>> {
   const data = await accountClient('/admin/payment/refunds', {
-    params: { page: params.page ?? params.pageNumber, pageSize: params.pageSize, status: params.status || undefined },
+    params: {
+      page: params.page ?? params.pageNumber,
+      pageSize: params.pageSize,
+      status: params.status || undefined,
+      user_id: params.userId || undefined,
+      order_no: params.orderNo || undefined,
+    },
   });
   return normalizePageResponse(data ?? ({ list: [], total: 0, page: 1, pageSize: 20 } as any));
 }

@@ -102,6 +102,10 @@ export default function KanbanBoard({ boardId: fixedBoardId, token, workerId, on
   const [dragOver, setDragOver] = useState<string | null>(null)
   const [agentFor, setAgentFor] = useState<Record<number, string>>({})
   const [runError, setRunError] = useState<string | null>(null)
+  // 前端筛选(看板一次拉全部任务):关键字 / 执行人 / 优先级
+  const [keyword, setKeyword] = useState('')
+  const [fAssignee, setFAssignee] = useState('')
+  const [fPriority, setFPriority] = useState('')
 
   const load = useCallback(async () => {
     if (boardId == null) { setTasks([]); return }
@@ -182,6 +186,16 @@ export default function KanbanBoard({ boardId: fixedBoardId, token, workerId, on
     await moveTask(taskId, toStatus as KanbanTask['status'])
   }
 
+  const kw = keyword.trim().toLowerCase()
+  const visibleTasks = tasks.filter(t =>
+    (!kw || `${t.title} ${t.body || ''}`.toLowerCase().includes(kw)) &&
+    (!fAssignee || (fAssignee === '-' ? !t.assignee : t.assignee === fAssignee)) &&
+    (!fPriority || String(t.priority || 0) === fPriority)
+  )
+  const assignees = Array.from(new Set(tasks.map(t => t.assignee).filter((a): a is string => !!a))).sort()
+  const priorities = Array.from(new Set(tasks.map(t => t.priority || 0))).sort((a, b) => b - a)
+  const staffLabel = (id: string) => staff.find(s => s.id === id)?.label || id
+
   return (
     <Box>
       {/* Header */}
@@ -206,6 +220,23 @@ export default function KanbanBoard({ boardId: fixedBoardId, token, workerId, on
           新建任务
         </Button>
       </Box>
+      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap', mb: 1.5 }}>
+        <input aria-label="搜索任务" placeholder="搜索标题 / 描述" value={keyword} onChange={e => setKeyword(e.target.value)} style={{ fontSize: 13, padding: '4px 6px', width: 180 }} />
+        <select aria-label="执行人" value={fAssignee} onChange={e => setFAssignee(e.target.value)} style={{ fontSize: 13, padding: '4px 6px' }}>
+          <option value="">全部执行人</option>
+          <option value="-">未指派</option>
+          {assignees.map(a => <option key={a} value={a}>{staffLabel(a)}</option>)}
+        </select>
+        <select aria-label="优先级" value={fPriority} onChange={e => setFPriority(e.target.value)} style={{ fontSize: 13, padding: '4px 6px' }}>
+          <option value="">全部优先级</option>
+          {priorities.map(p => <option key={p} value={String(p)}>{p > 0 ? `P${p}` : '无优先级'}</option>)}
+        </select>
+        {(kw || fAssignee || fPriority) && (
+          <Button size="small" variant="text" onClick={() => { setKeyword(''); setFAssignee(''); setFPriority('') }}>
+            重置({visibleTasks.length}/{tasks.length})
+          </Button>
+        )}
+      </Box>
       {runError && <Alert severity="error" sx={{ mb: 1 }} onClose={() => setRunError(null)}>{runError}</Alert>}
 
       {loading && <CircularProgress size={20} />}
@@ -213,7 +244,7 @@ export default function KanbanBoard({ boardId: fixedBoardId, token, workerId, on
       {/* 看板列 */}
       <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2 }}>
         {COLUMNS.map(col => {
-          const colTasks = tasks.filter(t => t.status === col.id)
+          const colTasks = visibleTasks.filter(t => t.status === col.id)
           return (
             <Paper
               key={col.id}

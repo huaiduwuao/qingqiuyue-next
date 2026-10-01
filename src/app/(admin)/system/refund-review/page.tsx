@@ -39,8 +39,8 @@ const statusConfig: Record<string, { label: string; color: 'warning' | 'success'
 
 const ORDER_TYPE_LABEL: Record<string, string> = { diamond: '钻石充值', membership: '会员' };
 
-const fetchRefunds = (params: { pageNumber: number; pageSize: number; status?: string }) =>
-  adminListRefunds({ page: params.pageNumber, pageSize: params.pageSize, status: params.status });
+const fetchRefunds = (params: { pageNumber: number; pageSize: number; status?: string; userId?: string; orderNo?: string }) =>
+  adminListRefunds({ page: params.pageNumber, pageSize: params.pageSize, status: params.status, userId: params.userId, orderNo: params.orderNo });
 
 export default function RefundReviewPage() {
   return (
@@ -121,6 +121,8 @@ function RefundReviewPageInner() {
                 { label: '已退款', value: 'refunded' },
                 { label: '异常订单', value: 'abnormal' },
               ] },
+            { key: 'userId', label: '用户ID', type: 'text' },
+            { key: 'orderNo', label: '订单号', type: 'text' },
           ],
           values: filterValues,
           onChange: setFilterValues,

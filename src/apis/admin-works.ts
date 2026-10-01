@@ -32,7 +32,10 @@ export interface AdminWorkQuery {
   contentType?: string;
   status?: string;
   title?: string;
+  /** 精确匹配 module_content.source */
   source?: string;
+  /** 标签行或 metadata.genre 任一包含即命中(题材也走这个) */
+  tag?: string;
 }
 
 export interface AdminWorkPage {

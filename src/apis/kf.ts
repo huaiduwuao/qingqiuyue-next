@@ -59,8 +59,18 @@ export async function markKfRead(): Promise<void> {
 
 // ── 客服侧(内容运营及以上) ────────────────────────────────────────────────
 
-export async function getKfSessions(status?: 'open' | 'closed'): Promise<KfSession[]> {
-  const res = await adminClient('/kf/sessions', { params: status ? { status } : undefined });
+/** keyword 匹配最后一条消息或用户昵称;unread=1 只看客服未读 */
+export async function getKfSessions(
+  status?: 'open' | 'closed',
+  filter: { userId?: number; keyword?: string; unread?: boolean } = {},
+): Promise<KfSession[]> {
+  const params = {
+    status: status || undefined,
+    userId: filter.userId || undefined,
+    keyword: filter.keyword || undefined,
+    unread: filter.unread ? 1 : undefined,
+  };
+  const res = await adminClient('/kf/sessions', { params });
   return res?.list ?? [];
 }
 

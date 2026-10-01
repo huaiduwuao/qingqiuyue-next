@@ -30,6 +30,8 @@ import LinearProgress from '@mui/material/LinearProgress';
 import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Alert from '@mui/material/Alert';
+import Switch from '@mui/material/Switch';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import {
   getCrawlStats,
   getCrawlTimeseries,
@@ -63,6 +65,9 @@ const EVENT_SEVERITY_COLOR: Record<string, 'default' | 'info' | 'warning' | 'err
 export default function SpiderAnalyticsPage() {
   // 爬虫源 id 是 idgen 大整数,保持字符串,别 Number() 截断
   const [filterSourceId, setFilterSourceId] = useState<string>('');
+  // 单源健康度列表的前端筛选(不过滤 source_id 时生效)
+  const [filterCategory, setFilterCategory] = useState<string>('');
+  const [onlyFailing, setOnlyFailing] = useState(false);
 
   const statsQ = useQuery({ queryKey: ['spider', 'analytics', 'stats'], queryFn: getCrawlStats, refetchInterval: 30_000 });
   const enhancedQ = useQuery({ queryKey: ['spider', 'analytics', 'enhanced'], queryFn: getEnhancedStats, refetchInterval: 60_000 });
@@ -83,6 +88,14 @@ export default function SpiderAnalyticsPage() {
     queryFn: () => (filterSourceId !== '' ? getHourlySourceHealth(filterSourceId) : null),
     enabled: filterSourceId !== '',
     refetchInterval: 30_000,
+  });
+
+  const allSources = hourlyQ.data?.sources ?? [];
+  const sourceCategories = Array.from(new Set(allSources.map((s) => s.category).filter(Boolean))).sort();
+  const shownSources = allSources.filter((s) => {
+    if (filterCategory && s.category !== filterCategory) return false;
+    if (onlyFailing && !(s.consecErrors > 0)) return false;
+    return true;
   });
 
   return (
@@ -107,8 +120,27 @@ export default function SpiderAnalyticsPage() {
       </Paper>
 
       <Paper sx={{ p: 2 }}>
-        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="subtitle1">单源健康度</Typography>
+        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+          <Typography variant="subtitle1" sx={{ flex: 1 }}>单源健康度</Typography>
+          {filterSourceId === '' && (
+            <>
+              <TextField
+                select
+                size="small"
+                label="分类"
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value)}
+                sx={{ minWidth: 140 }}
+              >
+                <MenuItem value="">全部</MenuItem>
+                {sourceCategories.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+              </TextField>
+              <FormControlLabel
+                control={<Switch size="small" checked={onlyFailing} onChange={(e) => setOnlyFailing(e.target.checked)} />}
+                label="只看失败中"
+              />
+            </>
+          )}
           <TextField
             select
             size="small"
@@ -127,7 +159,11 @@ export default function SpiderAnalyticsPage() {
         </Stack>
         <Divider sx={{ my: 1 }} />
         {filterSourceId === '' ? (
-          <SourcesTable sources={hourlyQ.data?.sources ?? []} />
+          allSources.length > 0 && shownSources.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">没有符合筛选条件的源。</Typography>
+          ) : (
+            <SourcesTable sources={shownSources} />
+          )
         ) : (
           <SourceDetail loading={sourceHealthQ.isLoading} data={sourceHealthQ.data as any} error={sourceHealthQ.isError} />
         )}

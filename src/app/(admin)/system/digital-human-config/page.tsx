@@ -171,10 +171,30 @@ function ModelEditor({ value, onChange, onSave, onCancel }: any) {
 // ============================================================================
 // Actions
 // ============================================================================
+/** 列表前端筛选:category 下拉,选项取自当前数据 */
+function CategoryFilter({ items, value, onChange }: { items: any[]; value: string; onChange: (v: string) => void }) {
+  const cats = Array.from(new Set(items.map((x) => x?.category).filter(Boolean) as string[])).sort();
+  return (
+    <FormControl size="small" sx={{ minWidth: 140 }}>
+      <InputLabel shrink>category</InputLabel>
+      <Select value={value} label="category" displayEmpty notched onChange={(e) => onChange(e.target.value as string)}>
+        <MenuItem value="">全部</MenuItem>
+        {cats.map((c) => <MenuItem key={c} value={c}>{c}</MenuItem>)}
+      </Select>
+    </FormControl>
+  );
+}
+
+const matchKw = (kw: string, ...xs: (string | undefined)[]) => {
+  const k = kw.trim().toLowerCase();
+  return !k || xs.some((x) => (x ?? '').toLowerCase().includes(k));
+};
+
 function ActionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   const list = useQuery({ queryKey: ['dhc', 'actions'], queryFn: () => listActions('character'), refetchInterval: 60_000 });
   const [editing, setEditing] = React.useState<any | null>(null);
   const [filter, setFilter] = React.useState('');
+  const [category, setCategory] = React.useState('');
 
   const save = useMutation({
     mutationFn: (e: any) => editing?.id ? updateAction(editing.id, e) : createAction(e),
@@ -187,12 +207,13 @@ function ActionsTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
 
   if (editing) return <ActionEditor value={editing} onChange={setEditing} onSave={save.mutate} onCancel={() => setEditing(null)} />;
 
-  const filtered = (list.data ?? []).filter((a: any) => !filter || a.name.includes(filter) || a.label?.includes(filter));
+  const filtered = (list.data ?? []).filter((a: any) => matchKw(filter, a.name, a.label) && (!category || a.category === category));
 
   return (
     <Stack spacing={1}>
       <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
         <TextField size="small" placeholder="搜索 name / label" value={filter} onChange={(e) => setFilter(e.target.value)} sx={{ flex: 1 }} />
+        <CategoryFilter items={list.data ?? []} value={category} onChange={setCategory} />
         <Button startIcon={<AddRoundedIcon />} variant="contained"
           onClick={() => setEditing({
             id: 0, modelId: '00000000-0000-0000-0000-000000000001', name: '', label: '',
@@ -271,6 +292,8 @@ function ActionEditor({ value, onChange, onSave, onCancel }: any) {
 function DancesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   const list = useQuery({ queryKey: ['dhc', 'dances'], queryFn: () => listDanceStyles('character'), refetchInterval: 60_000 });
   const [editing, setEditing] = React.useState<any | null>(null);
+  const [filter, setFilter] = React.useState('');
+  const [category, setCategory] = React.useState('');
 
   const save = useMutation({
     mutationFn: (e: any) => editing?.id ? updateDanceStyle(editing.id, e) : createDanceStyle(e),
@@ -283,9 +306,15 @@ function DancesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
 
   if (editing) return <DanceEditor value={editing} onChange={setEditing} onSave={save.mutate} onCancel={() => setEditing(null)} />;
 
+  // 旧数据 category 可能为空,展示和筛选都按 idle_bounce 处理
+  const items = (list.data ?? []).map((d: any) => ({ ...d, category: d.category || 'idle_bounce' }));
+  const filtered = items.filter((d: any) => matchKw(filter, d.name, d.label) && (!category || d.category === category));
+
   return (
     <Stack spacing={1}>
-      <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
+      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+        <TextField size="small" placeholder="搜索 name / label" value={filter} onChange={(e) => setFilter(e.target.value)} sx={{ flex: 1 }} />
+        <CategoryFilter items={items} value={category} onChange={setCategory} />
         <Button startIcon={<AddRoundedIcon />} variant="contained"
           onClick={() => setEditing({
             id: 0, modelId: '00000000-0000-0000-0000-000000000001', name: '', label: '',
@@ -293,7 +322,7 @@ function DancesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
           })}>新建舞蹈风格</Button>
       </Stack>
       <Stack spacing={1}>
-        {list.data?.map((d: any) => (
+        {filtered.map((d: any) => (
           <Card key={d.id} variant="outlined" sx={{ p: 1.5 }}>
             <Stack direction="row" sx={{ alignItems: 'center' }} spacing={2}>
               <Chip label={d.category || 'idle_bounce'} size="small" />
@@ -360,6 +389,7 @@ function DanceEditor({ value, onChange, onSave, onCancel }: any) {
 function PosesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
   const list = useQuery({ queryKey: ['dhc', 'poses'], queryFn: () => listPoses('character'), refetchInterval: 60_000 });
   const [editing, setEditing] = React.useState<any | null>(null);
+  const [filter, setFilter] = React.useState('');
 
   const save = useMutation({
     mutationFn: (e: any) => editing?.id ? updatePose(editing.id, e) : createPose(e),
@@ -372,9 +402,13 @@ function PosesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
 
   if (editing) return <PoseEditor value={editing} onChange={setEditing} onSave={save.mutate} onCancel={() => setEditing(null)} />;
 
+  // 姿势没有 category 字段,只做 name / label / 描述关键字
+  const filtered = (list.data ?? []).filter((p: any) => matchKw(filter, p.name, p.label, p.description));
+
   return (
     <Stack spacing={1}>
-      <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
+      <Stack direction="row" sx={{ alignItems: 'center' }} spacing={1}>
+        <TextField size="small" placeholder="搜索 name / label / 描述" value={filter} onChange={(e) => setFilter(e.target.value)} sx={{ flex: 1 }} />
         <Button startIcon={<AddRoundedIcon />} variant="contained"
           onClick={() => setEditing({
             id: 0, modelId: '00000000-0000-0000-0000-000000000001', name: '', label: '',
@@ -382,7 +416,7 @@ function PosesTab({ qc }: { qc: ReturnType<typeof useQueryClient> }) {
           })}>新建姿势</Button>
       </Stack>
       <Stack spacing={1}>
-        {list.data?.map((p: any) => (
+        {filtered.map((p: any) => (
           <Card key={p.id} variant="outlined" sx={{ p: 1.5 }}>
             <Stack direction="row" sx={{ alignItems: 'center' }} spacing={2}>
               <Typography sx={{ fontWeight: 600, fontSize: 14, minWidth: 80 }}>{p.name}</Typography>

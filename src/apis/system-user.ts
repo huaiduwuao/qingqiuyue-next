@@ -4,7 +4,9 @@ import { PageParams } from '@/beans/pagination';
 export interface UserListParams extends PageParams {
   name?: string;
   username?: string;
+  mobile?: string;
   status?: number;
+  is_bot?: number;
 }
 
 // 用户分页 -> GET /api/core/user/list

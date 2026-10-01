@@ -73,6 +73,10 @@ function PlazaAdminInner() {
   const [editScene, setEditScene] = React.useState<Partial<PlazaScene> | null>(null);
   const [editChar, setEditChar] = React.useState<Partial<PlazaCharacter> | null>(null);
   const [sceneFilter, setSceneFilter] = React.useState('');
+  // 前端筛选:关键字 / 状态对两个 tab 都生效,类型只对人物生效
+  const [keyword, setKeyword] = React.useState('');
+  const [statusFilter, setStatusFilter] = React.useState('');
+  const [kindFilter, setKindFilter] = React.useState('');
 
   const load = React.useCallback(async () => {
     try {
@@ -96,7 +100,13 @@ function PlazaAdminInner() {
     try { await fn(); setMsg({ text: '已删除', severity: 'success' }); void load(); } catch (e) { setMsg({ text: formatApiError(e), severity: 'error' }); }
   };
 
-  const shownChars = chars.filter((c) => !sceneFilter || c.sceneKey === sceneFilter);
+  const kw = keyword.trim().toLowerCase();
+  const hit = (...xs: (string | undefined)[]) => !kw || xs.some((x) => (x ?? '').toLowerCase().includes(kw));
+  const shownScenes = scenes.filter((s) => hit(s.name, s.key, s.intro) && (!statusFilter || s.status === statusFilter));
+  const shownChars = chars.filter((c) => (!sceneFilter || c.sceneKey === sceneFilter)
+    && hit(c.name, c.poet, c.title, ...(c.lines ?? []))
+    && (!statusFilter || c.status === statusFilter)
+    && (!kindFilter || c.kind === kindFilter));
 
   return (
     <Box sx={{ p: { xs: 1.5, md: 3 } }}>
@@ -120,10 +130,31 @@ function PlazaAdminInner() {
         <Tab value="scenes" label={`场景(${scenes.length})`} />
         <Tab value="characters" label={`人物(${chars.length})`} />
       </Tabs>
+      <Box sx={{ display: 'flex', gap: 1.5, mb: 2, flexWrap: 'wrap' }}>
+        <TextField size="small" label="关键字" placeholder={tab === 'scenes' ? '名称 / key / 简介' : '名字 / 诗人 / 台词'} value={keyword} onChange={(e) => setKeyword(e.target.value)} sx={{ width: 220 }} />
+        <TextField select size="small" label="状态" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} sx={{ minWidth: 120 }} slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true } }}>
+          <MenuItem value="">全部</MenuItem>
+          <MenuItem value="published">已发布</MenuItem>
+          <MenuItem value="draft">草稿</MenuItem>
+        </TextField>
+        {tab === 'characters' && (
+          <>
+            <TextField select size="small" label="场景" value={sceneFilter} onChange={(e) => setSceneFilter(e.target.value)} sx={{ minWidth: 220 }} slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true } }}>
+              <MenuItem value="">全部场景</MenuItem>
+              {scenes.map((s) => <MenuItem key={s.key} value={s.key}>{s.name}</MenuItem>)}
+            </TextField>
+            <TextField select size="small" label="类型" value={kindFilter} onChange={(e) => setKindFilter(e.target.value)} sx={{ minWidth: 120 }} slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true } }}>
+              <MenuItem value="">全部</MenuItem>
+              <MenuItem value="poet">诗人</MenuItem>
+              <MenuItem value="guide">引路人</MenuItem>
+            </TextField>
+          </>
+        )}
+      </Box>
 
       {tab === 'scenes' && (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr', xl: '1fr 1fr 1fr' }, gap: 2 }}>
-          {scenes.map((s) => (
+          {shownScenes.map((s) => (
             <Paper key={s.id} variant="outlined" sx={{ p: 2, borderRadius: 3, display: 'flex', gap: 2 }}>
               <LayoutPreview size={120} landmarks={s.landmarks} characters={chars.filter((c) => c.sceneKey === s.key)} accent={s.palette?.accent} />
               <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -147,15 +178,12 @@ function PlazaAdminInner() {
               </Box>
             </Paper>
           ))}
+          {shownScenes.length === 0 && <Typography color="text.secondary">没有符合条件的场景</Typography>}
         </Box>
       )}
 
       {tab === 'characters' && (
         <>
-          <TextField select size="small" label="场景" value={sceneFilter} onChange={(e) => setSceneFilter(e.target.value)} sx={{ mb: 2, minWidth: 220 }}>
-            <MenuItem value="">全部场景</MenuItem>
-            {scenes.map((s) => <MenuItem key={s.key} value={s.key}>{s.name}</MenuItem>)}
-          </TextField>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr', xl: '1fr 1fr 1fr' }, gap: 1.5 }}>
             {shownChars.map((c) => (
               <Paper key={c.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2, display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
@@ -185,7 +213,7 @@ function PlazaAdminInner() {
                 )}
               </Paper>
             ))}
-            {shownChars.length === 0 && <Typography color="text.secondary">这个场景还没有人物</Typography>}
+            {shownChars.length === 0 && <Typography color="text.secondary">{kw || statusFilter || kindFilter ? '没有符合条件的人物' : '这个场景还没有人物'}</Typography>}
           </Box>
         </>
       )}

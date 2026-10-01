@@ -12,7 +12,7 @@
  * AppID 不通用),type 就是那个平台键 —— pc 是网页/兜底,windows/macos/android/ios 各自一行。
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -59,6 +59,7 @@ const PLATFORMS: { value: string; label: string; hint: string }[] = [
 const platformLabel = (type: string) => PLATFORMS.find((p) => p.value === type)?.label || type || '(未设置)';
 
 const LIST_KEY = ['wx-config', 'list'];
+const PAGE_SIZE = 50;
 
 /**
  * 微信 AppID 一律是 wx + 16 位十六进制。2026-09-19 新增应用弹窗被浏览器把后台登录的账号密码自动填进了
@@ -78,14 +79,35 @@ const EDITABLE = [
 
 export default function WxConfigPage() {
   const qc = useQueryClient();
-  const { data: configs = [] } = useQuery({
-    queryKey: LIST_KEY,
+  // 筛选走后端 /wxConfig/list(appId 模糊、type / status 精确),不再只拉第一页 50 条在前端过滤。
+  const [appIdInput, setAppIdInput] = useState('');
+  const [appIdFilter, setAppIdFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [limit, setLimit] = useState(PAGE_SIZE);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setAppIdFilter(appIdInput.trim());
+      setLimit(PAGE_SIZE);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [appIdInput]);
+  const { data: listData } = useQuery({
+    queryKey: [...LIST_KEY, appIdFilter, typeFilter, statusFilter, limit],
     queryFn: () => wxClient<{ list?: WxConfig[]; total?: number }>('/wxConfig/list', {
-      params: { page: 1, pageSize: 50 },
-    }).then((r) => r?.list || []),
+      params: {
+        page: 1,
+        pageSize: limit,
+        ...(appIdFilter ? { appId: appIdFilter } : {}),
+        ...(typeFilter ? { type: typeFilter } : {}),
+        ...(statusFilter ? { status: statusFilter } : {}),
+      },
+    }).then((r) => ({ list: r?.list || [], total: r?.total || 0 })),
+    placeholderData: (prev) => prev,
   });
+  const configs = listData?.list || [];
+  const total = listData?.total || 0;
   const [selected, setSelectedState] = useState<WxConfig | null>(null);
-  const [nameFilter, setNameFilter] = useState('');
   const [formValues, setFormValues] = useState<Partial<WxConfig>>({});
   const [createOpen, setCreateOpen] = useState(false);
   const [createValues, setCreateValues] = useState<Partial<WxConfig>>({ type: 'pc' });
@@ -98,14 +120,6 @@ export default function WxConfigPage() {
     setSelectedState(c);
     setFormValues(c ? { appId: c.appId, appSecret: c.appSecret, token: c.token, notifyUrl: c.notifyUrl, type: c.type } : {});
   };
-
-  const filteredConfigs = useMemo(() => {
-    if (!nameFilter) return configs;
-    const k = nameFilter.toLowerCase();
-    return configs.filter(
-      (c) => c.appId?.toLowerCase().includes(k) || c.type?.toLowerCase().includes(k) || platformLabel(c.type).includes(nameFilter),
-    );
-  }, [configs, nameFilter]);
 
   const updateMutation = useMutation({
     mutationFn: (vals: Partial<WxConfig> & { id: number }) => wxClient('/wxConfig/updateById', { method: 'PUT', data: vals }),
@@ -184,9 +198,9 @@ export default function WxConfigPage() {
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
             <TextField
               size="small"
-              placeholder="搜索平台 / AppID"
-              value={nameFilter}
-              onChange={(e) => setNameFilter(e.target.value)}
+              placeholder="搜索 AppID"
+              value={appIdInput}
+              onChange={(e) => setAppIdInput(e.target.value)}
               slotProps={{
                 input: {
                   startAdornment: (
@@ -197,12 +211,27 @@ export default function WxConfigPage() {
                 },
               }}
             />
-            {filteredConfigs.length === 0 && (
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <TextField select size="small" label="平台" value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setLimit(PAGE_SIZE); }} sx={{ flex: 1 }}>
+                <MenuItem value="">全部</MenuItem>
+                {PLATFORMS.map((p) => (
+                  <MenuItem key={p.value} value={p.value}>
+                    {p.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField select size="small" label="状态" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setLimit(PAGE_SIZE); }} sx={{ width: 110 }}>
+                <MenuItem value="">全部</MenuItem>
+                <MenuItem value="1">已启用</MenuItem>
+                <MenuItem value="2">已停用</MenuItem>
+              </TextField>
+            </Box>
+            {configs.length === 0 && (
               <Typography sx={{ fontSize: 13, color: 'text.secondary', px: 1, py: 3, textAlign: 'center' }}>
-                还没有配置。点右上角「新增应用」。
+                {appIdFilter || typeFilter || statusFilter ? '没有符合条件的配置。' : '还没有配置。点右上角「新增应用」。'}
               </Typography>
             )}
-            {filteredConfigs.map((c) => {
+            {configs.map((c) => {
               const active = selected?.id === c.id;
               return (
                 <Box
@@ -240,6 +269,11 @@ export default function WxConfigPage() {
                 </Box>
               );
             })}
+            {total > configs.length && (
+              <Button variant="text" size="small" onClick={() => setLimit((n) => n + PAGE_SIZE)}>
+                加载更多({configs.length}/{total})
+              </Button>
+            )}
           </Box>
         </Box>
 

@@ -41,8 +41,11 @@ export interface CredentialWrite {
   note: string;
 }
 
-export function listCredentials(domain?: string): Promise<CredentialList> {
-  return spiderClient('/credentials', { params: domain ? { domain } : undefined }) as Promise<CredentialList>;
+export function listCredentials(domain?: string, keyword?: string): Promise<CredentialList> {
+  const params: Record<string, string> = {};
+  if (domain) params.domain = domain;
+  if (keyword) params.keyword = keyword;
+  return spiderClient('/credentials', { params }) as Promise<CredentialList>;
 }
 
 export function createCredential(body: CredentialWrite): Promise<CrawlCredential> {

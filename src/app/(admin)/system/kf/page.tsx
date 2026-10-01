@@ -67,6 +67,9 @@ export default function KfConsolePage() {
   const [status, setStatus] = useState<'open' | 'closed'>('open');
   const [activeUser, setActiveUser] = useState<number | null>(null);
   const [draft, setDraft] = useState('');
+  const [search, setSearch] = useState('');
+  const [searchQ, setSearchQ] = useState('');
+  const [unreadOnly, setUnreadOnly] = useState(false);
   const [snack, setSnack] = useState<{ open: boolean; msg: string; severity: 'success' | 'error' }>({
     open: false,
     msg: '',
@@ -76,9 +79,19 @@ export default function KfConsolePage() {
   const listPoll = usePollFallback(20_000);
   const threadPoll = usePollFallback(8_000);
 
+  // 搜索框:纯数字按用户 ID 查,否则按昵称/最后一条消息查;输入停 300ms 再请求
+  useEffect(() => {
+    const t = setTimeout(() => setSearchQ(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+  const sessionFilter = useMemo(
+    () => (/^d+$/.test(searchQ) ? { userId: Number(searchQ) } : { keyword: searchQ }),
+    [searchQ],
+  );
+
   const { data: sessions = [], isLoading: loadingList } = useQuery({
-    queryKey: ['kf-sessions', status],
-    queryFn: () => getKfSessions(status),
+    queryKey: ['kf-sessions', status, searchQ, unreadOnly],
+    queryFn: () => getKfSessions(status, { ...sessionFilter, unread: unreadOnly }),
     refetchInterval: listPoll,
     staleTime: 5_000,
   });
@@ -153,6 +166,23 @@ export default function KfConsolePage() {
             <Tab value="open" label="进行中" />
             <Tab value="closed" label="已结束" />
           </Tabs>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.75, flexShrink: 0, borderBottom: '1px solid', borderColor: 'divider' }}>
+            <TextField
+              size="small"
+              placeholder="用户ID / 昵称 / 消息"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              sx={{ flex: 1, '& .MuiInputBase-input': { fontSize: 12.5, py: 0.75 } }}
+            />
+            <Chip
+              size="small"
+              label="仅未读"
+              clickable
+              color={unreadOnly ? 'primary' : 'default'}
+              variant={unreadOnly ? 'filled' : 'outlined'}
+              onClick={() => setUnreadOnly((v) => !v)}
+            />
+          </Box>
           <Box sx={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
             {loadingList ? (
               <Box sx={{ p: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>

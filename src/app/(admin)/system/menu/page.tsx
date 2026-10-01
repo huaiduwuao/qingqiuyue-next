@@ -171,6 +171,7 @@ export default function SystemMenuPage() {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
       <DataGridTable
+        queryKey={LIST_KEY}
         columns={columns}
         actionPermissions={{ edit: PERMISSIONS.SYSTEM_MENU.UPDATE, delete: PERMISSIONS.SYSTEM_MENU.DELETE }}
         hasPermission={can}

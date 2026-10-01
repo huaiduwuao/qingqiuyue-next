@@ -47,9 +47,12 @@ export default function SpiderProxiesPage() {
   const [form, setForm] = useState({ url: '', type: 'http' as 'http' | 'https' | 'socks5' });
   const [snack, setSnack] = useState<{ open: boolean; message: string; severity: 'success' | 'error' }>({ open: false, message: '', severity: 'success' });
   const [stats, setStats] = useState<{ total: number; active: number; successRate: number; failCount: number } | null>(null);
+  const [filterValues, setFilterValues] = useState<Record<string, string | undefined>>({});
+  // DataGridTable 不走 react-query,invalidate 刷不到它;改完数据靠这个 key 触发重拉
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const showMsg = (m: string, s: 'success' | 'error' = 'success') => setSnack({ open: true, message: m, severity: s });
-  const refresh = () => qc.invalidateQueries({ queryKey: LIST_KEY });
+  const refresh = () => { qc.invalidateQueries({ queryKey: LIST_KEY }); setRefreshKey((k) => k + 1); };
 
   const addMutation = useMutation({
     mutationFn: (vals: typeof form) => addProxy(vals),
@@ -159,18 +162,35 @@ export default function SpiderProxiesPage() {
       <Paper sx={{ p: 2 }}>
         <DataGridTable
           columns={columns}
-          fetchData={async () => {
+          fetchData={async (params) => {
             try {
               const res = await listProxies();
               const statsRes = await getProxyStats();
               setStats(statsRes);
-              return {
-                data: { records: res.list || [], totalRow: res.total || 0 },
-                success: true,
-              };
+              // 后端一次返回整个代理池,筛选 + 分页都在前端做
+              const kw = String(params.keyword || '').trim().toLowerCase();
+              const list = (res.list || []).filter((p) => {
+                if (kw && !(p.url || '').toLowerCase().includes(kw)) return false;
+                if (params.type && p.type !== params.type) return false;
+                if (params.active && !!p.active !== (params.active === '1')) return false;
+                return true;
+              });
+              const start = (params.pageNumber - 1) * params.pageSize;
+              return { records: list.slice(start, start + params.pageSize), totalRow: list.length };
             } catch {
               return { records: [], totalRow: 0 };
             }
+          }}
+          refreshKey={refreshKey}
+          filters={{
+            fields: [
+              { key: 'keyword', label: '代理 URL', type: 'text', placeholder: '包含即可' },
+              { key: 'type', label: '类型', type: 'select', options: [{ label: 'HTTP', value: 'http' }, { label: 'HTTPS', value: 'https' }, { label: 'SOCKS5', value: 'socks5' }], width: 120 },
+              { key: 'active', label: '启用', type: 'select', options: [{ label: '已启用', value: '1' }, { label: '已停用', value: '0' }], width: 120 },
+            ],
+            values: filterValues,
+            onChange: setFilterValues,
+            onReset: () => setFilterValues({}),
           }}
         />
       </Paper>

@@ -74,10 +74,17 @@ async function call<T>(path: string, token: string | null | undefined, init: Req
 export const runsAPI = {
   start: (token: string | null, body: { agent?: string; input: string; parent_run_id?: string }) =>
     call<Run>('', token, { method: 'POST', body: JSON.stringify(body) }),
-  list: async (token: string | null, opts: { all?: boolean; limit?: number } = {}) => {
+  /** status / agent 任何人可用;user_id 只在 all(管理员「全部用户」)时后端才认 */
+  list: async (
+    token: string | null,
+    opts: { all?: boolean; limit?: number; status?: string; agent?: string; userId?: string } = {},
+  ) => {
     const q = new URLSearchParams()
     if (opts.all) q.set('all', '1')
     if (opts.limit) q.set('limit', String(opts.limit))
+    if (opts.status) q.set('status', opts.status)
+    if (opts.agent) q.set('agent', opts.agent)
+    if (opts.all && opts.userId) q.set('user_id', opts.userId)
     const res = await call<{ list: Run[] }>(q.toString() ? `?${q}` : '', token)
     return res.list || []
   },

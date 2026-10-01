@@ -45,6 +45,9 @@ function pct(v?: number) {
 export default function RecommendConsolePage() {
   const qc = useQueryClient();
   const [page, setPage] = useState(1);
+  // 干预列表筛选
+  const [boostAction, setBoostAction] = useState<'' | 'boost' | 'suppress'>('');
+  const [boostContentId, setBoostContentId] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [snack, setSnack] = useState<{ open: boolean; msg: string; sev: 'success' | 'error' }>({ open: false, msg: '', sev: 'success' });
 
@@ -58,7 +61,11 @@ export default function RecommendConsolePage() {
 
   const overview = useQuery({ queryKey: ['admin', 'recommend', 'overview'], queryFn: () => fetchRecommendOverview(7), refetchInterval: 60_000 });
   const profile = useQuery({ queryKey: ['admin', 'recommend', 'profile'], queryFn: fetchProfileStats, refetchInterval: 120_000 });
-  const boosts = useQuery({ queryKey: ['admin', 'recommend', 'boost', page], queryFn: () => fetchBoostList(page, PAGE_SIZE) });
+  const boostCid = /^d+$/.test(boostContentId.trim()) ? boostContentId.trim() : '';
+  const boosts = useQuery({
+    queryKey: ['admin', 'recommend', 'boost', page, boostAction, boostCid],
+    queryFn: () => fetchBoostList(page, PAGE_SIZE, { action: boostAction, contentId: boostCid }),
+  });
   const embeds = useQuery({ queryKey: ['admin', 'recommend', 'embeddings'], queryFn: fetchEmbeddingStats, refetchInterval: 60_000 });
   const em = embeds.data;
   const emTypes = Object.entries(em?.catalog ?? {})
@@ -209,6 +216,26 @@ export default function RecommendConsolePage() {
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
           <Typography sx={{ fontWeight: 700, flex: 1 }}>内容强推 / 降权</Typography>
+          <TextField
+            select
+            size="small"
+            label="动作"
+            value={boostAction}
+            onChange={(e) => { setBoostAction(e.target.value as '' | 'boost' | 'suppress'); setPage(1); }}
+            sx={{ width: 120, mr: 1 }}
+            slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true } }}
+          >
+            <MenuItem value="">全部</MenuItem>
+            <MenuItem value="boost">强推</MenuItem>
+            <MenuItem value="suppress">降权</MenuItem>
+          </TextField>
+          <TextField
+            size="small"
+            label="内容 ID"
+            value={boostContentId}
+            onChange={(e) => { setBoostContentId(e.target.value); setPage(1); }}
+            sx={{ width: 160, mr: 1 }}
+          />
           <Button variant="contained" size="small" onClick={() => setDialogOpen(true)}>新增干预</Button>
         </Box>
         <TableContainer>

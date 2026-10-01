@@ -82,6 +82,7 @@ export default function SystemUserPointPage() {
     <Box sx={{ p: { xs: 1.5, md: 2 } }}>
       <Typography variant="h5" sx={{ mb: 2 }}>用户积分</Typography>
       <DataGridTable
+        queryKey={LIST_KEY}
         columns={columns}
         fetchData={async (params: any) => {
           const userId = Number(filterValues.userId) || undefined;
@@ -91,7 +92,10 @@ export default function SystemUserPointPage() {
           return { records: list, totalRow: total };
         }}
         filters={{
-          fields: [{ key: 'userId', label: '用户ID', type: 'text' }],
+          fields: [
+            { key: 'userId', label: '用户ID', type: 'text' },
+            { key: 'type', label: '类型', type: 'text', placeholder: '如 admin_adjust / achievement' },
+          ],
           values: filterValues,
           onChange: setFilterValues,
           onReset: () => setFilterValues({}),

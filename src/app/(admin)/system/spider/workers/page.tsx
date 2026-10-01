@@ -27,6 +27,7 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
+import MenuItem from '@mui/material/MenuItem';
 import Skeleton from '@mui/material/Skeleton';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
@@ -46,7 +47,7 @@ import {
   removeWorkerContainer,
 } from '@/apis/spider';
 import { useAuthority } from '@/contexts/AuthContext';
-import type { Worker, WorkerState } from '@/beans/spider';
+import type { Worker, WorkerKind, WorkerState } from '@/beans/spider';
 
 const POLL_MS = 5000;
 
@@ -81,6 +82,9 @@ export default function SpiderWorkersPage() {
   const [snack, setSnack] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
   const [launchOpen, setLaunchOpen] = useState(false);
   const [launchSlots, setLaunchSlots] = useState('2');
+  const [keyword, setKeyword] = useState('');
+  const [stateFilter, setStateFilter] = useState<'' | WorkerState>('');
+  const [kindFilter, setKindFilter] = useState<'' | WorkerKind>('');
   const showMsg = (message: string, severity: 'success' | 'error' = 'success') => setSnack({ open: true, message, severity });
 
   const workersQ = useQuery({ queryKey: ['spider', 'workers'], queryFn: listWorkers, refetchInterval: POLL_MS });
@@ -128,6 +132,17 @@ export default function SpiderWorkersPage() {
   const containerByWorker = new Map(containers.map((c) => [c.workerId, c]));
   const onlineCrawl = crawlWorkers.filter((w) => w.state !== 'offline');
   const noCapacity = !workersQ.isLoading && (onlineCrawl.length === 0 || onlineCrawl.every((w) => w.slots === 0 || w.state === 'draining'));
+  // 筛选只影响下面两块列表的展示;容量告警 / 未注册容器仍按全量算
+  const kw = keyword.trim().toLowerCase();
+  const filtering = !!(kw || stateFilter || kindFilter);
+  const matchW = (w: Worker) => {
+    if (stateFilter && w.state !== stateFilter) return false;
+    if (kindFilter && w.kind !== kindFilter) return false;
+    if (kw && ![w.name, w.id, w.host].some((s) => (s || '').toLowerCase().includes(kw))) return false;
+    return true;
+  };
+  const shownCrawl = crawlWorkers.filter(matchW);
+  const shownOthers = others.filter(matchW);
 
   return (
     <Box>
@@ -162,17 +177,35 @@ export default function SpiderWorkersPage() {
         </Alert>
       )}
 
+      <Box sx={{ display: 'flex', gap: 1.25, mb: 2, flexWrap: 'wrap' }}>
+        <TextField size="small" label="关键词" placeholder="名称 / ID / 主机" value={keyword}
+          onChange={(e) => setKeyword(e.target.value)} sx={{ width: 200 }} />
+        <TextField select size="small" label="状态" value={stateFilter}
+          onChange={(e) => setStateFilter(e.target.value as typeof stateFilter)} sx={{ minWidth: 120 }}>
+          <MenuItem value="">全部</MenuItem>
+          {Object.entries(STATE_META).map(([k, v]) => <MenuItem key={k} value={k}>{v.label}</MenuItem>)}
+        </TextField>
+        <TextField select size="small" label="类型" value={kindFilter}
+          onChange={(e) => setKindFilter(e.target.value as typeof kindFilter)} sx={{ minWidth: 140 }}>
+          <MenuItem value="">全部</MenuItem>
+          <MenuItem value="crawl">抓取 Worker</MenuItem>
+          <MenuItem value="loop">常驻循环</MenuItem>
+          <MenuItem value="browser">渲染服务</MenuItem>
+        </TextField>
+      </Box>
+
       {/* 抓取 Worker */}
+      {(!kindFilter || kindFilter === 'crawl') && <>
       <Typography variant="subtitle2" sx={{ mb: 1 }}>抓取 Worker</Typography>
       {workersQ.isLoading ? (
         <Skeleton variant="rounded" height={160} sx={{ mb: 2 }} />
-      ) : crawlWorkers.length === 0 ? (
+      ) : shownCrawl.length === 0 ? (
         <Paper variant="outlined" sx={{ p: 3, mb: 2, textAlign: 'center' }}>
-          <Typography color="text.secondary">还没有抓取 Worker 注册。spider-api 启动后内嵌 Worker 会自动出现在这里。</Typography>
+          <Typography color="text.secondary">{filtering && crawlWorkers.length > 0 ? '没有符合筛选条件的抓取 Worker。' : '还没有抓取 Worker 注册。spider-api 启动后内嵌 Worker 会自动出现在这里。'}</Typography>
         </Paper>
       ) : (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '1fr 1fr' }, gap: 1.5, mb: 2 }}>
-          {crawlWorkers.map((w) => (
+          {shownCrawl.map((w) => (
             <CrawlWorkerCard
               key={w.id}
               w={w}
@@ -187,6 +220,7 @@ export default function SpiderWorkersPage() {
           ))}
         </Box>
       )}
+      </>}
 
       {/* 超管:没对上 Worker 行的容器(刚拉起还没注册 / 起不来) */}
       {isSuperAdmin && containers.filter((c) => !crawlWorkers.some((w) => w.id === c.workerId)).length > 0 && (
@@ -207,11 +241,12 @@ export default function SpiderWorkersPage() {
       )}
 
       {/* 常驻循环 / BrowserWorker */}
+      {kindFilter !== 'crawl' && <>
       <Typography variant="subtitle2" sx={{ mb: 1 }}>常驻循环 · 渲染服务</Typography>
       <Paper variant="outlined" sx={{ mb: 2 }}>
-        {others.length === 0 ? (
-          <Typography color="text.secondary" sx={{ p: 2 }}>暂无</Typography>
-        ) : others.map((w, i) => (
+        {shownOthers.length === 0 ? (
+          <Typography color="text.secondary" sx={{ p: 2 }}>{filtering && others.length > 0 ? '没有符合筛选条件的' : '暂无'}</Typography>
+        ) : shownOthers.map((w, i) => (
           <Box key={w.id} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.25, borderTop: i ? '1px solid' : 'none', borderColor: 'divider', flexWrap: 'wrap' }}>
             <Chip size="small" label={STATE_META[w.state]?.label ?? w.state} color={STATE_META[w.state]?.color ?? 'default'} />
             <Box sx={{ flex: 1, minWidth: 200 }}>
@@ -228,6 +263,7 @@ export default function SpiderWorkersPage() {
           </Box>
         ))}
       </Paper>
+      </>}
 
       <Typography variant="caption" color="text.secondary" component="div">
         Worker 容器 = spider-api 同一个镜像以 SPIDER_ROLE=worker 运行:只从队列认领任务,不对外提供接口、不跑整点刷新。

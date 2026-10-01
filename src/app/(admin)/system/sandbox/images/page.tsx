@@ -21,7 +21,7 @@ import Tooltip from '@mui/material/Tooltip';
 import Chip from '@mui/material/Chip';
 import MenuItem from '@mui/material/MenuItem';
 import { DataGridTable } from '@/components/tables/DataGridTable';
-import { FilterBar, type FilterField } from '@/components/tables/FilterBar';
+import type { FilterField } from '@/components/tables/FilterBar';
 import { listImages, createImage, pullImage } from '@/apis/sandbox';
 import { IMAGE_STATUS_LABELS, type SandboxImageResp } from '@/beans/sandbox';
 
@@ -33,14 +33,19 @@ export default function ImagesPage() {
   const [viewing, setViewing] = useState<SandboxImageResp | null>(null);
   const [snack, setSnack] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
   const [filterValues, setFilterValues] = useState<Record<string, any>>({});
+  // DataGridTable 没有暴露 refresh;改 extraParams 触发它重拉(fetchData 的依赖变了)。
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const showMsg = useCallback((message: string, severity: 'success' | 'error' = 'success') => setSnack({ open: true, message, severity }), []);
-  const refresh = useCallback(() => qc.invalidateQueries({ queryKey: LIST_KEY }), [qc]);
+  const refresh = useCallback(() => {
+    qc.invalidateQueries({ queryKey: LIST_KEY });
+    setRefreshKey((k) => k + 1);
+  }, [qc]);
 
   const filterFields: FilterField[] = [
     { key: 'name', label: '镜像名称', type: 'text', placeholder: '搜索镜像名称' },
+    // FilterBar 自带「全部」(空值);空值时 fetchData 发 status=all,后端默认只回 active
     { key: 'status', label: '状态', type: 'select', options: [
-      { label: '全部', value: '' },
       { label: '启用', value: 'active' },
       { label: '禁用', value: 'disabled' },
       { label: '废弃', value: 'deprecated' },
@@ -58,8 +63,6 @@ export default function ImagesPage() {
   });
 
   const [pullingId, setPullingId] = useState<number | null>(null);
-  // DataGridTable 没有暴露 refresh;改 extraParams 触发它重拉(fetchData 的依赖变了)。
-  const [refreshKey, setRefreshKey] = useState(0);
 
   const handlePull = async (id: number) => {
     setPullingId(id);
@@ -130,14 +133,18 @@ export default function ImagesPage() {
         <Button variant="contained" onClick={() => setWriteVisible(true)}>+ 新建镜像</Button>
       </Box>
 
-      <FilterBar fields={filterFields} values={filterValues} onChange={setFilterValues} onReset={() => setFilterValues({})} />
-
       <DataGridTable
-        extraParams={{ _r: refreshKey }}
+        refreshKey={refreshKey}
+        filters={{ fields: filterFields, values: filterValues, onChange: setFilterValues, onReset: () => setFilterValues({}) }}
         columns={columns}
         fetchData={async (params) => {
           try {
-            const res = await listImages({ page: params.pageNumber, pageSize: params.pageSize });
+            const res = await listImages({
+              page: params.pageNumber,
+              pageSize: params.pageSize,
+              name: params.name?.trim() || undefined,
+              status: params.status || 'all',
+            });
             return { records: res?.records || res?.list || [], totalRow: res?.total || res?.totalRow || 0 };
           } catch (err: any) {
             showMsg(err.message || '获取数据失败', 'error');

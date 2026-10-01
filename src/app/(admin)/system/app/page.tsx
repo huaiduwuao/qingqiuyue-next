@@ -18,8 +18,7 @@ const fields: CrudFormField[] = [
 ];
 
 const filters: FilterField[] = [
-  { key: 'name', label: '名称', type: 'text' },
-  { key: 'status', label: '状态', type: 'select', options: [{ label: '启用', value: 1 }, { label: '禁用', value: 0 }] },
+  { key: 'name', label: '名称/编码', type: 'text' },
 ];
 
 export default function SystemAppPage() {

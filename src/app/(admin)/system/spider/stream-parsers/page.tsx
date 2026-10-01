@@ -11,7 +11,7 @@
  */
 
 import React, { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Paper from '@mui/material/Paper';
@@ -52,17 +52,17 @@ export default function StreamParsersPage() {
   const [editing, setEditing] = useState<StreamParserDTO | null>(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
 
-  const listQuery = useQuery({
-    queryKey: LIST_KEY,
-    queryFn: () => listStreamParsers(),
-    staleTime: 30_000,
-  });
+  const [filterValues, setFilterValues] = useState<Record<string, string | undefined>>({});
+  // 表格自己拉数(DataGridTable 不走 react-query);增删改后靠 refreshKey 触发重拉。
+  // 以前 fetchData 读 useQuery 的缓存,表格首次拉数时缓存还空着,列表一直是空的。
+  const [refreshKey, setRefreshKey] = useState(0);
+  const reload = () => { qc.invalidateQueries({ queryKey: LIST_KEY }); setRefreshKey((k) => k + 1); };
   const showMessage = (message: string, severity: 'success' | 'error' = 'success') =>
     setSnackbar({ open: true, message, severity });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => deleteStreamParser(id),
-    onSuccess: () => { showMessage('已删除'); qc.invalidateQueries({ queryKey: LIST_KEY }); },
+    onSuccess: () => { showMessage('已删除'); reload(); },
     onError: (e: any) => showMessage(e?.message ?? '删除失败', 'error'),
   });
 
@@ -80,7 +80,7 @@ export default function StreamParsersPage() {
       : updateStreamParser(id, input);
     return promise.then(() => {
       showMessage(id == null ? '已创建' : '已更新');
-      qc.invalidateQueries({ queryKey: LIST_KEY });
+      reload();
       setEditorOpen(false);
     }).catch((e: any) => showMessage(e?.message ?? '保存失败', 'error'));
   };
@@ -161,9 +161,23 @@ export default function StreamParsersPage() {
       <Paper sx={{ p: 2 }}>
         <DataGridTable
           columns={columns}
-          fetchData={async () => {
-            const items = listQuery.data?.items ?? [];
-            return { records: items, totalRow: items.length };
+          fetchData={async (params) => {
+            // 后端不分页(行数小,全量返回 + 服务端按 name/platform/engine 过滤),这里在前端切页
+            const res = await listStreamParsers({ name: params.name, platform: params.platform, engine: params.engine });
+            const items = res?.items ?? [];
+            const start = (params.pageNumber - 1) * params.pageSize;
+            return { records: items.slice(start, start + params.pageSize), totalRow: items.length };
+          }}
+          refreshKey={refreshKey}
+          filters={{
+            fields: [
+              { key: 'name', label: 'name', type: 'text' },
+              { key: 'platform', label: 'platform', type: 'text', width: 160 },
+              { key: 'engine', label: 'engine', type: 'select', options: ENGINES.map((v) => ({ label: v, value: v })), width: 130 },
+            ],
+            values: filterValues,
+            onChange: setFilterValues,
+            onReset: () => setFilterValues({}),
           }}
           onEdit={(r: any) => openEdit(r as StreamParserDTO)}
           onDelete={(r: any) => deleteMutation.mutate(r.id)}
