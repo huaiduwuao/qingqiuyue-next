@@ -71,12 +71,14 @@ export interface UseVrmAnimationOptions {
   walkRef: React.MutableRefObject<{ moving: boolean; phase: number; style: 'walk' | 'run' | 'idle' | 'teleport'; dist?: number }>;
   /** 十期:坐着的座位(y = 座面离地多高);null = 站着 */
   sitRef?: React.MutableRefObject<{ y: number } | null>;
+  /** 十二期:脚下积木多高(> 0 时不做 Foot IK) */
+  groundRef?: React.MutableRefObject<number>;
   /** 物理世界（用于 Foot IK 射线检测） */
   physics?: { ready: boolean; raycastGround: (origin: { x: number; y: number; z: number }, maxDistance?: number) => number | null };
 }
 
 export function useVrmAnimation(opts: UseVrmAnimationOptions) {
-  const { configBundle, vrmRef, audio, walkRef, physics, sitRef } = opts;
+  const { configBundle, vrmRef, audio, walkRef, physics, sitRef, groundRef } = opts;
   // 十期:坐姿的权重(0 站着 → 1 坐下),半秒过渡
   const sitWRef = useRef(0);
   const sitYRef = useRef(0.45);
@@ -520,8 +522,8 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
       return;
     }
 
-    // 7. Foot IK：脚贴地
-    applyFootIK(dt, H);
+    // 7. Foot IK：脚贴地(站在积木上时物理世界里脚下没东西,不做)
+    if ((groundRef?.current ?? 0) < 0.01) applyFootIK(dt, H);
   }
 
   return {

@@ -200,6 +200,14 @@ export function RoomSettings({ room, handle, save, splat, onClose, toast, narrow
           </Box>
         </Box>
 
+        {label('一起搭积木')}
+        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+          {([['owner', '只有我'], ['friends', '我关注的人'], ['anyone', '来串门的都可以']] as const).map(([v, t]) => (
+            <Button key={v} size="small" disabled={busy} variant={(room.buildPolicy ?? 'owner') === v ? 'contained' : 'outlined'} onClick={() => void run({ buildPolicy: v }, v === 'owner' ? '只有你能在房间里搭积木' : v === 'friends' ? '你关注的人来串门时能一起搭' : '来串门的人都能一起搭(得房间开放)')} sx={{ fontSize: 12 }}>{t}</Button>
+          ))}
+        </Box>
+        <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', mt: 0.5 }}>放开以后别人进了你的房间能一起放 / 拆积木(家具摆放还是只有你能动)</Typography>
+
         {label('照着布置')}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Switch checked={!room.noCopy} disabled={busy} onChange={(e) => void run({ noCopy: !e.target.checked }, e.target.checked ? '来串门的人可以照着你的房间布置了' : '别人不能照着你的房间布置了')} />

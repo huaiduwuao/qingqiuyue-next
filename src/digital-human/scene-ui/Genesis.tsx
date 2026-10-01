@@ -22,6 +22,8 @@ import type { SplatStatus } from '../vrm/world/roomShell';
 import type { WorldEvent } from '../vrm/world/useVrmWorld';
 import { AvatarStudio, type AvatarBase } from './AvatarStudio';
 import { RoomEditor } from './RoomEditor';
+import { BuildPanel } from './BuildPanel';
+import type { BlocksState } from './useBlocks';
 import { layoutResultText } from './RoomLayouts';
 import { RoomSettings } from './RoomSettings';
 import { useRoom } from './useRoom';
@@ -45,6 +47,8 @@ export function useGenesis(opts: { enabled: boolean; initialRoom?: string | null
   const [editing, setEditing] = React.useState(false);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [studioOpen, setStudioOpen] = React.useState(false);
+  // 十二期:搭积木
+  const [building, setBuilding] = React.useState(false);
   const [selected, setSelected] = React.useState<string | null>(null);
   const [splat, setSplat] = React.useState<{ status: SplatStatus; splats?: number; error?: string } | null>(null);
 
@@ -81,6 +85,7 @@ export function useGenesis(opts: { enabled: boolean; initialRoom?: string | null
 
   return {
     room, editing, setEditing, settingsOpen, setSettingsOpen, studioOpen, setStudioOpen, selected, setSelected, splat, setSplat,
+    building, setBuilding,
     avatar: { saved, draft, setDraft, info, setInfo, dirty, save: saveAvatar, saving },
     /** 世界里用的形象地址(没捏过 = null,沿用原来的) */
     avatarUrl: draft?.base ? avatarUrlOf(draft.base) : null,
@@ -94,7 +99,7 @@ export type Genesis = ReturnType<typeof useGenesis>;
 const pill = { px: 1.25, py: 0.4, borderRadius: 999, bgcolor: 'rgba(8,10,20,0.62)', backdropFilter: 'blur(14px)', border: '1px solid rgba(255,255,255,0.12)', color: '#fff', fontSize: 12, fontWeight: 700 } as const;
 
 /** 右上角工具列里的按钮 */
-export function GenesisHud({ g, def, onGoHome, narrow }: { g: Genesis; def: WorldDef; onGoHome: () => void; narrow?: boolean }) {
+export function GenesisHud({ g, def, onGoHome, narrow, canBuild }: { g: Genesis; def: WorldDef; onGoHome: () => void; narrow?: boolean; /** 十二期:在别人房间里也能一起搭 */ canBuild?: boolean }) {
   const inRoom = def.kind === 'room';
   const mine = inRoom && !!def.room?.mine;
   return (
@@ -102,9 +107,12 @@ export function GenesisHud({ g, def, onGoHome, narrow }: { g: Genesis; def: Worl
       {!mine && <ButtonBase onClick={onGoHome} sx={pill}>🏠 我的房间</ButtonBase>}
       {mine && (
         <Box sx={{ display: 'flex', gap: 0.5 }}>
-          <ButtonBase onClick={() => { g.setSettingsOpen(false); g.setEditing((v) => !v); }} sx={{ ...pill, flex: 1, borderColor: g.editing ? '#25F4EE' : pill.border }}>🛠️ 布置</ButtonBase>
+          <ButtonBase onClick={() => { g.setSettingsOpen(false); g.setBuilding(false); g.setEditing((v) => !v); }} sx={{ ...pill, flex: 1, borderColor: g.editing ? '#25F4EE' : pill.border }}>🛠️ 布置</ButtonBase>
           <ButtonBase onClick={() => { g.setEditing(false); g.setSettingsOpen((v) => !v); }} sx={{ ...pill, px: 1 }} aria-label="房间设置">⚙️</ButtonBase>
         </Box>
+      )}
+      {(mine || canBuild) && (
+        <ButtonBase onClick={() => { g.setEditing(false); g.setSettingsOpen(false); g.setBuilding((v) => !v); }} sx={{ ...pill, borderColor: g.building ? '#25F4EE' : pill.border }}>🧱 {mine ? '搭积木' : '一起搭'}</ButtonBase>
       )}
       <ButtonBase onClick={() => g.setStudioOpen((v) => !v)} sx={{ ...pill, borderColor: g.studioOpen ? '#25F4EE' : pill.border }}>🧑‍🎨 捏人</ButtonBase>
     </Box>
@@ -185,8 +193,10 @@ type ObjectsApi = {
   applying?: boolean;
 };
 
-export function GenesisPanels({ g, def, handle, objects, siteBases, toast, narrow, onVisitor }: {
+export function GenesisPanels({ g, def, handle, objects, siteBases, toast, narrow, onVisitor, blocks }: {
   g: Genesis; def: WorldDef; handle: VrmStageHandle | null; objects: ObjectsApi; siteBases: AvatarBase[];
+  /** 十二期:积木(useBlocks);没有就不显示搭建面板 */
+  blocks?: BlocksState | null;
   toast: (icon: string, text: string) => void; narrow?: boolean;
   /** 有人来我房间串门(推送):不在自己房间时给个「回去看看」 */
   onVisitor?: (nickname: string) => void;
@@ -210,6 +220,9 @@ export function GenesisPanels({ g, def, handle, objects, siteBases, toast, narro
   }, [mine, onVisitor, toast, def.kind, def.room?.ownerId]));
   // 离开自己的房间:编辑器和设置收起
   React.useEffect(() => { if (!mine) { g.setEditing(false); g.setSettingsOpen(false); g.setSelected(null); } }, [mine]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 十二期:换了场景 / 没权限了,搭建面板收起
+  const canBuildHere = def.kind === 'room' && !!blocks?.owner && (mine || !!blocks?.canBuild);
+  React.useEffect(() => { if (!canBuildHere) g.setBuilding(false); }, [canBuildHere, def.key]); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => { if (!g.editing) g.setSelected(null); }, [g.editing]); // eslint-disable-line react-hooks/exhaustive-deps
   React.useEffect(() => { g.setSplat(null); }, [def.key, def.room?.splatUrl]); // eslint-disable-line react-hooks/exhaustive-deps
   const [uploaded, setUploaded] = React.useState<AvatarBase[]>([]);
@@ -218,6 +231,9 @@ export function GenesisPanels({ g, def, handle, objects, siteBases, toast, narro
   return (
     <>
       <DesignBar design={objects.design ?? null} applying={!!objects.applying} onApply={() => void objects.applyDesign?.()} onCancel={() => objects.cancelDesign?.()} narrow={narrow} />
+      {g.building && canBuildHere && blocks && (
+        <BuildPanel handle={handle} blocks={blocks} onClose={() => g.setBuilding(false)} toast={toast} narrow={narrow} />
+      )}
       {mine && g.editing && (
         <RoomEditor handle={handle} def={def} objects={objects} selectedId={g.selected} onSelect={g.setSelected} onClose={() => g.setEditing(false)} toast={toast} narrow={narrow} onCover={g.room.setCover} onLayoutApplied={() => void g.room.reload()} />
       )}

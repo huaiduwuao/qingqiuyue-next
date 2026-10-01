@@ -32,7 +32,7 @@ export interface PhysicsWorld {
   ground: RAPIER.Collider;
   walls: RAPIER.RigidBody[];
   /** 步进 + 同步 scene.position */
-  step: (dt: number, targetPos: { x: number; y: number; z: number }, scene: THREE.Object3D) => { x: number; y: number; z: number };
+  step: (dt: number, targetPos: { x: number; y: number; z: number; ground?: number }, scene: THREE.Object3D) => { x: number; y: number; z: number };
   /** 从某点向下射线检测地面高度（Foot IK 用） */
   raycastGround: (origin: { x: number; y: number; z: number }, maxDistance?: number) => number | null;
   /** 按实际加载模型的包围盒更新胶囊尺寸与贴地偏移（重建 collider） */
@@ -92,13 +92,13 @@ export async function createPhysicsWorld(
   );
 
   // step + sync
-  const step = (dt: number, targetPos: { x: number; y: number; z: number }, sceneObj: THREE.Object3D) => {
+  const step = (dt: number, targetPos: { x: number; y: number; z: number; ground?: number }, sceneObj: THREE.Object3D) => {
     // targetPos 是脚本想要的位置（来自 VrmStage move/setPosition）
     // kinematic body: 直接 setNextKinematicTranslation，物理 step 处理碰撞（撞墙会卡住）
     const cur = character.translation();
     const desiredX = targetPos.x;
     const desiredZ = targetPos.z;
-    const desiredY = metrics.height / 2;  // 胶囊底部贴地（地面 y=0）
+    const desiredY = metrics.height / 2 + (targetPos.ground ?? 0);  // 胶囊底部贴地(地面 y=0;十二期:站在积木上时抬高)
     character.setNextKinematicTranslation({ x: desiredX, y: desiredY, z: desiredZ });
 
     // step physics

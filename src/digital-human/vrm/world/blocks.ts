@@ -1,0 +1,199 @@
+/**
+ * vrm/world/blocks.ts — 创世十二期:积木的数据(纯函数,不碰 three)
+ *
+ * 房间按 0.5 米一格:格子 (x, y, z) 占 [x·S, (x+1)·S) × [y·S, (y+1)·S) × [z·S, (z+1)·S),y 从地面 0 往上(最高 32 格)。
+ * 形状:0 方块 / 1 半砖(下半格)/ 2 斜坡(朝 rot 那边往上)/ 3 薄墙(rot 0、2 沿 x,1、3 沿 z)/ 4 柱子。
+ * 材质:0 灰墙 / 1 木 / 2 石 / 3 砖 / 4 玻璃 / 5 发光 / 6 金属 / 7 草 / 8 地砖 / 9 布;颜色 0xRRGGBB 乘在材质纹理上。
+ *
+ * 走路:方块、半砖、斜坡的顶面能站;一步能迈上 0.55 米(正好一格),再高就挡路;薄墙、柱子只挡路不能站。
+ * 服务端 worldapp/blocks.go 按同样的格子存,一次最多改 512 格。
+ */
+
+import type { Obstacle } from './worldLayout';
+
+export const BLOCK_SIZE = 0.5;
+export const BLOCK_MAX_Y = 32;
+export const BLOCK_MAX_OPS = 512;
+export const BLOCK_MAX_ROOM = 20000;
+/** 一步能迈多高(米) */
+export const STEP_UP = 0.55;
+
+export const SHAPES = [
+  { id: 0, name: '方块', icon: '◼' },
+  { id: 1, name: '半砖', icon: '▬' },
+  { id: 2, name: '斜坡', icon: '◢' },
+  { id: 3, name: '薄墙', icon: '▮' },
+  { id: 4, name: '柱子', icon: '●' },
+] as const;
+
+export const MATS = [
+  { id: 0, name: '灰墙', color: 0xe8e2d6 },
+  { id: 1, name: '木', color: 0xa0703c },
+  { id: 2, name: '石', color: 0x9a9a96 },
+  { id: 3, name: '砖', color: 0xa84a32 },
+  { id: 4, name: '玻璃', color: 0xbfe6ff },
+  { id: 5, name: '发光', color: 0xffd98a },
+  { id: 6, name: '金属', color: 0xb8bcc4 },
+  { id: 7, name: '草', color: 0x6aa84f },
+  { id: 8, name: '地砖', color: 0xd8cbb0 },
+  { id: 9, name: '布', color: 0x8a5a9a },
+] as const;
+
+export interface BlockData { x: number; y: number; z: number; s: number; m: number; c: number; r: number }
+
+/** 一条改动:[1, x, y, z, shape, mat, color, rot] 放 / [0, x, y, z] 拆 */
+export type BlockOp = number[];
+
+export const blockKey = (x: number, y: number, z: number) => `${x},${y},${z}`;
+
+/** 世界坐标 → 格子 */
+export const cellOf = (v: number) => Math.floor(v / BLOCK_SIZE);
+
+/** 服务端打包的 base64(每块 12 字节)→ 方块列表 */
+export function decodeBlocks(b64: string): BlockData[] {
+  if (!b64) return [];
+  const bin = atob(b64);
+  const out: BlockData[] = [];
+  const i16 = (o: number) => { const v = bin.charCodeAt(o) | (bin.charCodeAt(o + 1) << 8); return v >= 0x8000 ? v - 0x10000 : v; };
+  for (let o = 0; o + 12 <= bin.length; o += 12) {
+    out.push({ x: i16(o), y: i16(o + 2), z: i16(o + 4), s: bin.charCodeAt(o + 6), m: bin.charCodeAt(o + 7), c: (bin.charCodeAt(o + 8) << 16) | (bin.charCodeAt(o + 9) << 8) | bin.charCodeAt(o + 10), r: bin.charCodeAt(o + 11) & 3 });
+  }
+  return out;
+}
+
+/** 斜坡往上的方向(rot 0 往 -z,也就是背向镜头;1 往 -x;2 往 +z;3 往 +x) */
+export function rampDir(rot: number): { dx: number; dz: number } {
+  return [{ dx: 0, dz: -1 }, { dx: -1, dz: 0 }, { dx: 0, dz: 1 }, { dx: 1, dz: 0 }][rot & 3];
+}
+
+/** 一块在格子里 (fx, fz)(0..1)处的顶面高度(米);不能站的形状返回 null */
+export function topAt(b: BlockData, fx: number, fz: number): number | null {
+  const base = b.y * BLOCK_SIZE;
+  if (b.s === 0) return base + BLOCK_SIZE;
+  if (b.s === 1) return base + BLOCK_SIZE / 2;
+  if (b.s === 2) {
+    const d = rampDir(b.r);
+    const u = d.dx !== 0 ? (d.dx > 0 ? fx : 1 - fx) : (d.dz > 0 ? fz : 1 - fz);
+    return base + Math.max(0, Math.min(1, u)) * BLOCK_SIZE;
+  }
+  return null;
+}
+
+/** 一块真正占的高度上沿(挡路判断用) */
+export function blockTop(b: BlockData): number {
+  return b.y * BLOCK_SIZE + (b.s === 1 ? BLOCK_SIZE / 2 : BLOCK_SIZE);
+}
+
+export class BlockGrid {
+  readonly map = new Map<string, BlockData>();
+  /** 每一列(x,z)里有哪些 y:站高判断只看一列 */
+  private cols = new Map<string, Set<number>>();
+
+  get size() { return this.map.size; }
+  get(x: number, y: number, z: number) { return this.map.get(blockKey(x, y, z)); }
+  all() { return this.map.values(); }
+
+  clear() { this.map.clear(); this.cols.clear(); }
+
+  set(b: BlockData) {
+    this.map.set(blockKey(b.x, b.y, b.z), b);
+    const ck = `${b.x},${b.z}`;
+    let col = this.cols.get(ck);
+    if (!col) { col = new Set(); this.cols.set(ck, col); }
+    col.add(b.y);
+  }
+
+  del(x: number, y: number, z: number): BlockData | undefined {
+    const k = blockKey(x, y, z);
+    const old = this.map.get(k);
+    if (!old) return undefined;
+    this.map.delete(k);
+    this.cols.get(`${x},${z}`)?.delete(y);
+    return old;
+  }
+
+  load(list: BlockData[]) { this.clear(); for (const b of list) this.set(b); }
+
+  /** 套用一串改动,返回它们的反操作(撤销用,顺序已经倒过来) */
+  apply(ops: readonly BlockOp[]): BlockOp[] {
+    const inverse: BlockOp[] = [];
+    for (const op of ops) {
+      const [kind, x, y, z] = op;
+      const old = this.get(x, y, z);
+      inverse.push(old ? [1, old.x, old.y, old.z, old.s, old.m, old.c, old.r] : [0, x, y, z]);
+      if (kind === 0) this.del(x, y, z);
+      else this.set({ x, y, z, s: op[4] ?? 0, m: op[5] ?? 0, c: op[6] ?? 0xffffff, r: (op[7] ?? 0) & 3 });
+    }
+    return inverse.reverse();
+  }
+
+  /**
+   * (x, z) 处脚能踩的高度:这一列里顶面不高于 curY + STEP_UP 的方块 / 半砖 / 斜坡,取最高;没有就是地面 0。
+   */
+  surfaceAt(x: number, z: number, curY: number): number {
+    const cx = cellOf(x), cz = cellOf(z);
+    const col = this.cols.get(`${cx},${cz}`);
+    if (!col || !col.size) return 0;
+    const fx = x / BLOCK_SIZE - cx, fz = z / BLOCK_SIZE - cz;
+    let best = 0;
+    for (const y of col) {
+      const b = this.get(cx, y, cz)!;
+      const t = topAt(b, fx, fz);
+      if (t === null || t > curY + STEP_UP) continue;
+      if (t > best) best = t;
+    }
+    return best;
+  }
+
+  /**
+   * 站在 curY 高度、(x, z) 附近 range 米内挡路的格子:底在头顶以下、顶高过一步能迈的;斜坡不挡(顺着坡走上去)。
+   * 返回八期 pushOutOfBoxes 用的矩形。
+   */
+  obstaclesNear(x: number, z: number, curY: number, range = 2): Obstacle[] {
+    const out: Obstacle[] = [];
+    const r = Math.ceil(range / BLOCK_SIZE);
+    const cx = cellOf(x), cz = cellOf(z);
+    for (let i = cx - r; i <= cx + r; i++) {
+      for (let k = cz - r; k <= cz + r; k++) {
+        const col = this.cols.get(`${i},${k}`);
+        if (!col || !col.size) continue;
+        let blocking: BlockData | null = null;
+        for (const y of col) {
+          const b = this.get(i, y, k)!;
+          if (b.s === 2) continue;
+          const bottom = b.y * BLOCK_SIZE;
+          // 方块、半砖:迈得上去就不挡;薄墙、柱子站不上去,和身子有重叠就挡
+          const standable = b.s === 0 || b.s === 1;
+          if (bottom >= curY + 1.4 || blockTop(b) <= curY + (standable ? STEP_UP : 0.05)) continue;
+          blocking = b;
+          break;
+        }
+        if (!blocking) continue;
+        const ox = (i + 0.5) * BLOCK_SIZE, oz = (k + 0.5) * BLOCK_SIZE;
+        if (blocking.s === 3) {
+          const alongX = (blocking.r & 1) === 0;
+          out.push({ x: ox, z: oz, hx: alongX ? BLOCK_SIZE / 2 : 0.05, hz: alongX ? 0.05 : BLOCK_SIZE / 2, rot: 0 });
+        } else if (blocking.s === 4) {
+          out.push({ x: ox, z: oz, hx: 0.2, hz: 0.2, rot: 0 });
+        } else {
+          out.push({ x: ox, z: oz, hx: BLOCK_SIZE / 2, hz: BLOCK_SIZE / 2, rot: 0 });
+        }
+      }
+    }
+    return out;
+  }
+}
+
+/** 两个角之间铺满的改动(放:同一种积木;拆:把里面有的都拆掉);超过 limit 格返回 null */
+export function fillOps(a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }, put: { s: number; m: number; c: number; r: number } | null, grid: BlockGrid, limit = BLOCK_MAX_OPS): BlockOp[] | null {
+  const [x0, x1] = [Math.min(a.x, b.x), Math.max(a.x, b.x)];
+  const [y0, y1] = [Math.min(a.y, b.y), Math.max(a.y, b.y)];
+  const [z0, z1] = [Math.min(a.z, b.z), Math.max(a.z, b.z)];
+  if ((x1 - x0 + 1) * (y1 - y0 + 1) * (z1 - z0 + 1) > limit) return null;
+  const ops: BlockOp[] = [];
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) {
+    if (put) ops.push([1, x, y, z, put.s, put.m, put.c, put.r]);
+    else if (grid.get(x, y, z)) ops.push([0, x, y, z]);
+  }
+  return ops;
+}

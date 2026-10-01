@@ -164,6 +164,8 @@ export interface WorldRoom {
   cover?: string;
   /** 十一期:房主不让别人「照着布置」 */
   noCopy?: boolean;
+  /** 十二期:谁能一起搭积木:owner 只有房主 / friends 房主关注的人 / anyone 进得来的人 */
+  buildPolicy?: 'owner' | 'friends' | 'anyone';
 }
 
 // ── 三期:AI 进入房间 ──
@@ -210,7 +212,17 @@ export async function getRoom(ownerId: string): Promise<WorldRoom> {
   return accountClient.get<WorldRoom>(`/world/rooms/${encodeURIComponent(ownerId)}`);
 }
 
-export type RoomPatch = Partial<Pick<WorldRoom, 'name' | 'intro' | 'template' | 'splatKey' | 'shell' | 'palette' | 'visibility' | 'butler' | 'voiceOff' | 'noCopy'>>;
+export type RoomPatch = Partial<Pick<WorldRoom, 'name' | 'intro' | 'template' | 'splatKey' | 'shell' | 'palette' | 'visibility' | 'butler' | 'voiceOff' | 'noCopy' | 'buildPolicy'>>;
+
+// ── 十二期:积木 ──
+/** 一间房的积木:blocks 是打包的二进制(每块 12 字节)再 base64,用 vrm/world/blocks.ts decodeBlocks 解 */
+export async function getBlocks(owner: string): Promise<{ blocks: string; n: number; version: number; canBuild: boolean }> {
+  return accountClient.get(`/world/rooms/${encodeURIComponent(owner)}/blocks`);
+}
+/** 改积木:[1, x, y, z, shape, mat, color, rot] 放 / [0, x, y, z] 拆,一次最多 512 条 */
+export async function editBlocks(owner: string, ops: number[][]): Promise<{ applied: number }> {
+  return accountClient.post(`/world/rooms/${encodeURIComponent(owner)}/blocks`, { ops });
+}
 
 // ── 十一期:样板间 / 照着布置 ──
 export interface WorldLayout {

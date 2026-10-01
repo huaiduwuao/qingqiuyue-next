@@ -49,6 +49,8 @@ import type { PlacedObject } from './vrm/world/worldObjects';
 import type { RoomPeer } from './vrm/world/peerAvatars';
 import type { TimeMode } from './vrm/world/env/timeOfDay';
 import type { SeatSpot } from './vrm/world/interact';
+import type { BlockGrid, BlockOp } from './vrm/world/blocks';
+import type { BlockHit } from './vrm/world/blockLayer';
 import { DEFAULT_WORLD, clampToWorld, type Orb, type RoomShellAlign, type WorldCharacter, type WorldDef, type ZoneId } from './vrm/world/worldLayout';
 import { applyAvatarParams, inspectAvatar, type AvatarInfo } from './vrm/avatarCustomize';
 import type { AvatarParams } from '@/apis/world';
@@ -112,7 +114,7 @@ export interface VrmStageHandle {
   /** 广场:镜头拉高俯瞰整座广场;false 飞回原来的机位 */
   setOverview: (on: boolean) => void;
   /** 广场:小地图用的快照(角色位置/朝向、镜头朝向、星光、所在地标) */
-  getWorldSnapshot: () => { x: number; z: number; yaw: number; camYaw: number; orbs: Orb[]; zone: ZoneId | null; peers: { id: string; x: number; z: number; aura?: string }[]; characters: { id: string; x: number; z: number }[]; sit?: number | null } | null;
+  getWorldSnapshot: () => { x: number; z: number; yaw: number; camYaw: number; orbs: Orb[]; zone: ZoneId | null; peers: { id: string; x: number; z: number; aura?: string }[]; characters: { id: string; x: number; z: number }[]; sit?: number | null; y?: number } | null;
   /** 十期:某件能坐的摆设上的座位(世界坐标);from = 人现在在哪 */
   seatSpots: (id: string, from: { x: number; z: number }) => SeatSpot[];
   /** 十期:坐到某个座位上(不过碰撞,直接落座);走动 / 走向别处时自动站起来 */
@@ -121,6 +123,16 @@ export interface VrmStageHandle {
   standUp: () => void;
   /** 十期:正坐着的座位(null = 站着) */
   sitting: () => SeatSpot | null;
+  /** 十二期:换一份积木网格(null = 这里没有) */
+  setBlockGrid: (grid: BlockGrid | null) => void;
+  /** 十二期:网格改好了,画面跟着改 */
+  applyBlockOps: (ops: readonly BlockOp[]) => void;
+  /** 十二期:搭建中(点击不走路,交给搭建面板) */
+  setBuilding: (on: boolean) => void;
+  /** 十二期:屏幕上这一点打中哪块积木 / 地面哪一格 */
+  blockPick: (clientX: number, clientY: number) => BlockHit | null;
+  /** 十二期:预览框 */
+  setBlockGhost: (a: { x: number; y: number; z: number } | null, b?: { x: number; y: number; z: number }, remove?: boolean) => void;
   /** 广场:其他在线的人 */
   setPeers: (peers: WorldPeer[]) => void;
   /** 广场:自己脚下的光环(颜色 / rainbow / null) */
@@ -389,6 +401,8 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   const walkStepRef = useRef(0);
   // 十期:坐着的座位(null = 站着)
   const sitRef = useRef<SeatSpot | null>(null);
+  // 十二期:脚下积木的高度(站在平台 / 台阶上)
+  const groundYRef = useRef(0);
 
   // Phase 3: 物理（vrmDataRef 之后才能访问 scene）
   const vrmSceneForPhysics = vrmDataRef.current?.scene ?? null;
@@ -447,7 +461,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   const preFocusPoseRef = useRef<{ pos: [number, number, number]; target: [number, number, number] } | null>(null);
 
   // 3. 统一动画状态机（替代 useVrmDance）
-  const animApi = useVrmAnimation({ vrmRef, audio, walkRef, configBundle, physics, sitRef });
+  const animApi = useVrmAnimation({ vrmRef, audio, walkRef, configBundle, physics, sitRef, groundRef: groundYRef });
   animApiRef.current = animApi;
 
   // 4. lip sync
@@ -771,7 +785,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         const speed = running ? 3.6 : 1.5;
         pos.prevX = pos.x; pos.prevZ = pos.z;
         // 八期:绕开摆设(撞上就顺着边滑过去)
-        const next = clampToWorld(pos.x + mx * speed * dt, pos.z + mz * speed * dt, worldDefRef.current, worldApiRef.current.obstacles());
+        const next = clampToWorld(pos.x + mx * speed * dt, pos.z + mz * speed * dt, worldDefRef.current, worldApiRef.current.obstacles(groundYRef.current));
         pos.x = next.x; pos.z = next.z;
         walkRef.current.moving = true;
         walkRef.current.style = running ? 'run' : 'walk';
@@ -784,6 +798,11 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         pos.prevX = pos.x; pos.prevZ = pos.z;
         pos.x = mv.fromX + (mv.toX - mv.fromX) * eased;
         pos.z = mv.fromZ + (mv.toZ - mv.fromZ) * eased;
+        // 十二期:点地走过去也不穿墙(积木墙、家具):顺着边滑
+        if (worldOnRef.current) {
+          const c = clampToWorld(pos.x, pos.z, worldDefRef.current, worldApiRef.current.obstacles(groundYRef.current));
+          pos.x = c.x; pos.z = c.z;
+        }
         if (k >= 1) {
           mv.active = false;
           walkRef.current.moving = false;
@@ -803,6 +822,18 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       // 走过的距离:真人动捕的步态按它推进(一个循环 = 步幅 × 腿长)
       walkRef.current.dist = (walkRef.current.dist ?? 0) + Math.hypot(pos.x - pos.prevX, pos.z - pos.prevZ);
 
+      // 十二期:脚下的积木 —— 迈得上去的立刻站上去,走出边缘往下掉(9 米/秒)
+      if (worldOnRef.current && !sitRef.current) {
+        const want = worldApiRef.current.groundAt(pos.x, pos.z, groundYRef.current);
+        const before = groundYRef.current;
+        groundYRef.current = want >= before ? want : Math.max(want, before - 9 * dt);
+        const dy = groundYRef.current - before;
+        if (dy !== 0 && rendererState && !overviewPoseRef.current && !preFocusPoseRef.current) {
+          rendererState.camera.position.y += dy;
+          if (rendererState.controls) rendererState.controls.target.y += dy;
+        }
+      }
+      (targetPositionRef.current as { ground?: number }).ground = groundYRef.current;
       // Phase 3: 同步给物理 + 物理 step（撞墙会修正 pos）
       targetPositionRef.current.x = pos.x;
       targetPositionRef.current.y = yOffsetRef.current;
@@ -816,7 +847,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         // 没物理：直接写 scene.position（旧路径）
         if (vrmDataRef.current?.scene) {
           vrmDataRef.current.scene.position.x = pos.x;
-          vrmDataRef.current.scene.position.y = yOffsetRef.current;
+          vrmDataRef.current.scene.position.y = yOffsetRef.current + groundYRef.current;
           vrmDataRef.current.scene.position.z = pos.z;
         }
       }
@@ -1051,7 +1082,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         else if (typeof target === 'object') { tx = target.x ?? tx; tz = target.z ?? tz; }
         // 边界:广场里收进广场(绕开地标),否则限制在 ±6
         if (worldOnRef.current) {
-          ({ x: tx, z: tz } = clampToWorld(tx, tz, worldDefRef.current, worldApiRef.current.obstacles()));
+          ({ x: tx, z: tz } = clampToWorld(tx, tz, worldDefRef.current, worldApiRef.current.obstacles(groundYRef.current)));
         } else {
           tx = Math.max(-6, Math.min(6, tx));
           tz = Math.max(-6, Math.min(6, tz));
@@ -1082,7 +1113,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         devLog.debug(`[VrmStage.setPosition] (${x}, ${z})`);
         positionRef.current.prevX = positionRef.current.x;
         positionRef.current.prevZ = positionRef.current.z;
-        const c = worldOnRef.current ? clampToWorld(x, z, worldDefRef.current, worldApiRef.current.obstacles()) : { x: Math.max(-6, Math.min(6, x)), z: Math.max(-6, Math.min(6, z)) };
+        const c = worldOnRef.current ? clampToWorld(x, z, worldDefRef.current, worldApiRef.current.obstacles(groundYRef.current)) : { x: Math.max(-6, Math.min(6, x)), z: Math.max(-6, Math.min(6, z)) };
         positionRef.current.x = c.x;
         positionRef.current.z = c.z;
         walkRef.current.moving = false;
@@ -1104,7 +1135,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         try { return r.domElement.toDataURL('image/png'); } catch { return null; }
       },
       walkTo: (x, z) => {
-        const target = worldOnRef.current ? clampToWorld(x, z, worldDefRef.current, worldApiRef.current.obstacles()) : { x, z };
+        const target = worldOnRef.current ? clampToWorld(x, z, worldDefRef.current, worldApiRef.current.obstacles(groundYRef.current)) : { x, z };
         const d = Math.hypot(target.x - positionRef.current.x, target.z - positionRef.current.z);
         if (d < 0.05) return;
         const style = d > 6 ? 'run' : 'walk';
@@ -1149,7 +1180,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
           const tgt = rs.controls?.target ?? { x: positionRef.current.x, z: positionRef.current.z };
           camYaw = Math.atan2(tgt.x - rs.camera.position.x, tgt.z - rs.camera.position.z);
         }
-        return { x: positionRef.current.x, z: positionRef.current.z, yaw: yawRef.current, camYaw, orbs: snap.orbs, zone: snap.zone, peers: snap.peers, characters: snap.characters, sit: sitRef.current?.y ?? null };
+        return { x: positionRef.current.x, z: positionRef.current.z, yaw: yawRef.current, camYaw, orbs: snap.orbs, zone: snap.zone, peers: snap.peers, characters: snap.characters, sit: sitRef.current?.y ?? null, y: groundYRef.current };
       },
       seatSpots: (id, from) => worldApiRef.current.seatSpots(id, from),
       sitAt: (spot) => {
@@ -1183,6 +1214,11 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         handleInternalRef.current?.setPosition(s.approach.x, s.approach.z);
       },
       sitting: () => sitRef.current,
+      setBlockGrid: (grid) => worldApiRef.current.setBlockGrid(grid),
+      applyBlockOps: (ops) => worldApiRef.current.applyBlockOps(ops),
+      setBuilding: (on) => worldApiRef.current.setBuilding(on),
+      blockPick: (x, y) => worldApiRef.current.blockPick(x, y),
+      setBlockGhost: (a, b, remove) => worldApiRef.current.setBlockGhost(a, b, remove),
       setPeers: (peers) => worldApiRef.current.setPeers(peers),
       setAura: (value) => worldApiRef.current.setAura(value),
       floatTextAt: (text, x, y, z, color) => worldApiRef.current.floatText(text, x, y, z, color),

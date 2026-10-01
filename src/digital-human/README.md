@@ -192,6 +192,10 @@ MUI 的列表、输入框、下拉框全都能正常点击和输入 —— 不�
 (`ai: true` → 紫色 🤖 名牌、wave / bow 动作);管家开关和请客在 RoomSettings 里的 RoomAISection。
 位置帧里 `m` / `a` 为空时服务端不发,合并时要以每一帧为准,不然会一直「在走」「招手」。
 
+**十二期:积木建造。** `useBlocks`(数据 / 同步 / 撤销)+ `BuildPanel`(放、拆、吸色、框铺、框拆)+ `blockLayer`(实例化渲染、点选、预览框);
+搭建中 `handle.setBuilding(true)`,画面点击不走路。`blocks.ts` 的 `surfaceAt / obstaclesNear` 让人走上自己搭的台阶、被墙挡住;
+VrmStage 的 `groundYRef` 是脚下高度,物理胶囊、镜头、位置帧都跟着它。
+
 **十一期:样板间。** 布置抽屉多一栏「样板间」(`RoomLayouts.tsx`:换成这样 / 加进来 / 撤销),串门门牌上「照着布置」;
 都走 `applyLayout`,服务端改完推 `edit {op: 'reload'}`,`useWorldObjects.reload` 整个重读摆放;外壳变了由 `onLayoutApplied` / `onCopied` 重读房间。
 

@@ -35,7 +35,7 @@ export interface UseRoomSocketOptions {
   handle: VrmStageHandle | null;
   def: WorldDef;
   enabled: boolean;
-  applyEdit: (op: 'upsert' | 'remove' | 'reload', data: unknown) => void;
+  applyEdit: (op: 'upsert' | 'remove' | 'reload' | 'blocks', data: unknown) => void;
   applyRoom: (r: WorldRoom) => void;
   onKick: (msg: string) => void;
   toast: (icon: string, text: string) => void;
@@ -140,6 +140,7 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
       case 'edit':
         if (f.op === 'remove') o.applyEdit('remove', f.id);
         else if (f.op === 'reload') o.applyEdit('reload', null); // 十一期:套了样板间,整个重读
+        else if (f.op === 'blocks') o.applyEdit('blocks', f.blocks); // 十二期:积木
         else o.applyEdit('upsert', f.placement);
         return;
       case 'room':
@@ -217,7 +218,7 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
   // 报自己的位置:变了才发
   React.useEffect(() => {
     if (!owner || !handle) return;
-    let last: { x: number; z: number; yaw: number; at: number; sit?: number | null } | null = null;
+    let last: { x: number; z: number; yaw: number; at: number; sit?: number | null; y?: number } | null = null;
     const timer = window.setInterval(() => {
       const s = handle.getWorldSnapshot();
       const sock = sockRef.current;
@@ -230,12 +231,12 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
       const tp = tpRef.current || moved > 3;
       // 十期:坐着 = a 'sit'、y 座面高度(坐下 / 站起来那一下也要报)
       const sit = s.sit ?? null;
-      const sitChanged = !last || (last.sit ?? null) !== sit;
+      const sitChanged = !last || (last.sit ?? null) !== sit || Math.abs((last.y ?? 0) - (s.y ?? 0)) > 0.01;
       if (!last || moved > 0.01 || turned > 0.01 || tp || sitChanged) {
         if (sit !== null) sock.sendState({ x: +s.x.toFixed(3), y: +sit.toFixed(3), z: +s.z.toFixed(3), yaw: +s.yaw.toFixed(3), m: false, a: 'sit', tp: tp || undefined });
-        else sock.sendState({ x: +s.x.toFixed(3), y: 0, z: +s.z.toFixed(3), yaw: +s.yaw.toFixed(3), m: speed > 0.2, a: speed > 3 ? 'run' : speed > 0.2 ? 'walk' : undefined, tp: tp || undefined });
+        else sock.sendState({ x: +s.x.toFixed(3), y: +(s.y ?? 0).toFixed(3), z: +s.z.toFixed(3), yaw: +s.yaw.toFixed(3), m: speed > 0.2, a: speed > 3 ? 'run' : speed > 0.2 ? 'walk' : undefined, tp: tp || undefined });
         tpRef.current = false;
-        last = { x: s.x, z: s.z, yaw: s.yaw, at: now, sit };
+        last = { x: s.x, z: s.z, yaw: s.yaw, at: now, sit, y: s.y ?? 0 };
       } else if (last) {
         last.at = now;
       }

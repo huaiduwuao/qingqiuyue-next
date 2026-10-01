@@ -15,6 +15,8 @@ import { buildWorld, type WorldHandle, type WorldPeer } from './buildWorld';
 import { createEnvironment, type Environment, type Quality } from './env/environment';
 import type { PlacedObject } from './worldObjects';
 import type { Interact } from './interact';
+import type { BlockGrid, BlockOp } from './blocks';
+import type { BlockHit } from './blockLayer';
 import type { SplatStatus } from './roomShell';
 import { createPeerLayer, type PeerLayer, type RoomPeer } from './peerAvatars';
 import { WORLD_ASSET_BASE } from './realKit';
@@ -105,6 +107,10 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   const nearRef = useRef<string | null>(null);
   const auraRef = useRef<string | null>(null);
   const charactersRef = useRef<WorldCharacter[]>(opts.characters ?? []);
+  // 十二期:积木网格(useBlocks 管数据,这里拿来画、算站高和挡路)、搭建中、自己在哪
+  const blockGridRef = useRef<BlockGrid | null>(null);
+  const buildingRef = useRef(false);
+  const selfPosRef = useRef({ x: 0, z: 0 });
   const cbRef = useRef(opts);
   cbRef.current = opts;
 
@@ -126,6 +132,7 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
     worldRef.current = w;
     // 场景重建(换场景 / 换画质)后把摆放放回去
     w.objects.set(placementsRef.current);
+    if (blockGridRef.current) w.blocks?.load(blockGridRef.current);
     let env: Environment | null = null;
     if (withEnv && renderer) {
       const e = worldEnv(d);
@@ -220,6 +227,8 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
       const d = down;
       down = null;
       if (!d || d.id !== e.pointerId) return;
+      // 十二期:搭积木时点击归搭建面板管(放 / 拆),不走路
+      if (buildingRef.current) return;
       if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 8 || performance.now() - d.t > 450) return;
       // 布置房间时点在 gizmo 的轴上:那是在拖东西,不是点地面
       if (canvas.dataset.gizmo) return;
@@ -295,6 +304,7 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
     const d = defRef.current;
     w.setDanceFloorHot(dancing);
     w.setSelfPos(pos.x, pos.z);
+    selfPosRef.current = pos;
 
     const zone = zoneAt(pos.x, pos.z, d)?.id ?? null;
     if (zone !== zoneRef.current) {
@@ -385,7 +395,38 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   const selectPlacement = useCallback((id: string | null) => { worldRef.current?.objects.setSelected(id); }, []);
   const placementGroup = useCallback((id: string) => worldRef.current?.objects.groupOf(id) ?? null, []);
   /** 八期:人走路要绕开的摆设 */
-  const obstacles = useCallback(() => worldRef.current?.objects.obstacles() ?? [], []);
+  const obstacles = useCallback((y = 0) => {
+    const objs = worldRef.current?.objects.obstacles() ?? [];
+    const grid = blockGridRef.current;
+    if (!grid || !grid.size) return objs;
+    const p = selfPosRef.current;
+    return objs.concat(grid.obstaclesNear(p.x, p.z, y));
+  }, []);
+  // ── 十二期:积木 ──
+  /** 换一份积木(进房间 / 重读);null = 这里没有 */
+  const setBlockGrid = useCallback((grid: BlockGrid | null) => {
+    blockGridRef.current = grid;
+    if (grid) worldRef.current?.blocks?.load(grid);
+  }, []);
+  /** 网格已经改好了,画面跟着改 */
+  const applyBlockOps = useCallback((ops: readonly BlockOp[]) => {
+    const g = blockGridRef.current;
+    if (g) worldRef.current?.blocks?.applyOps(ops, g);
+  }, []);
+  /** 脚下能踩多高 */
+  const groundAt = useCallback((x: number, z: number, curY: number) => blockGridRef.current?.surfaceAt(x, z, curY) ?? 0, []);
+  const setBuilding = useCallback((on: boolean) => { buildingRef.current = on; if (!on) worldRef.current?.blocks?.setGhost(null); }, []);
+  const blockPick = useCallback((clientX: number, clientY: number): BlockHit | null => {
+    const w = worldRef.current;
+    if (!w?.blocks || !camera || !canvas || !THREE_NS) return null;
+    const rect = canvas.getBoundingClientRect();
+    const rc = new THREE_NS.Raycaster();
+    rc.setFromCamera(new THREE_NS.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1), camera);
+    return w.blocks.pick(rc);
+  }, [camera, canvas, THREE_NS]);
+  const setBlockGhost = useCallback((a: { x: number; y: number; z: number } | null, b?: { x: number; y: number; z: number }, remove?: boolean) => {
+    worldRef.current?.blocks?.setGhost(a, b, remove);
+  }, []);
   /** 十期:某件能坐的摆设上的座位 */
   const seatSpots = useCallback((id: string, from: { x: number; z: number }) => worldRef.current?.objects.seatSpots(id, from) ?? [], []);
   const setRoomAlign = useCallback((a: RoomShellAlign) => { worldRef.current?.room?.setAlign(a); }, []);
@@ -394,5 +435,5 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   const setPeerVoiceLevels = useCallback((fn: ((id: string) => number) | null) => { voiceLevelsRef.current = fn; peerLayerRef.current?.setVoiceLevels(fn); }, []);
   const peerSay = useCallback((id: string, text: string) => { peerLayerRef.current?.say(id, text); }, []);
 
-  return { tick, render, floatText, showMarker, snapshot, setPeers, setAura, characterSay, setPlacements, upsertPlacement, removePlacement, selectPlacement, placementGroup, obstacles, seatSpots, setRoomAlign, autoFitRoom, setRoomPeers, peerSay, setPeerVoiceLevels, zones: WORLD_ZONES };
+  return { tick, render, floatText, showMarker, snapshot, setPeers, setAura, characterSay, setPlacements, upsertPlacement, removePlacement, selectPlacement, placementGroup, obstacles, seatSpots, setBlockGrid, applyBlockOps, groundAt, setBuilding, blockPick, setBlockGhost, setRoomAlign, autoFitRoom, setRoomPeers, peerSay, setPeerVoiceLevels, zones: WORLD_ZONES };
 }

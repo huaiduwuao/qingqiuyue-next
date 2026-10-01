@@ -48,6 +48,7 @@ import { useRoomSocket } from './scene-ui/useRoomSocket';
 import { RoomChat } from './scene-ui/RoomChat';
 import { useRoomVoice } from './scene-ui/useRoomVoice';
 import { useObjectUse } from './scene-ui/useObjectUse';
+import { useBlocks } from './scene-ui/useBlocks';
 import { quickCheck, useFpsGate, type GateVerdict } from './perfGate';
 import { PerfBlockScreen } from './PerfBlockScreen';
 import type { PlazaState } from './scene-state';
@@ -744,12 +745,18 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
     onTravel: (name) => { setTravel(name); window.setTimeout(() => setTravel(null), 2600); },
   });
   worldToolRef.current = worldObjects.handleTool;
+  // 创世十二期:积木(数据 + 同步 + 撤销)
+  const blocks = useBlocks({ handle: stageHandle, def: scenes.def, enabled: worldActive, me: genesis.room.mine?.ownerId ?? null, toast: (icon, t) => game.toast(icon, t) });
   // 创世二期:房间里的多人同步(同伴的真形象、位置、说话、别人改的摆放)
   const roomSock = useRoomSocket({
     handle: stageHandle,
     def: scenes.def,
     enabled: worldActive,
-    applyEdit: worldObjects.applyRemote,
+    applyEdit: (op, data) => {
+      if (op === 'blocks') { blocks.applyRemote(data); return; }
+      if (op === 'reload') blocks.reload();
+      worldObjects.applyRemote(op, data);
+    },
     applyRoom: genesis.room.applyRemote,
     onKick: (msg) => { game.toast('🚪', msg); goHome(); },
     toast: (icon, t) => game.toast(icon, t),
@@ -1279,7 +1286,7 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
               >
                 <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🧭 {scenes.def.name}</Box>
               </ButtonBase>
-              <GenesisHud g={genesis} def={scenes.def} onGoHome={goHome} narrow={narrow} />
+              <GenesisHud g={genesis} def={scenes.def} onGoHome={goHome} narrow={narrow} canBuild={blocks.canBuild} />
               <Minimap handle={stageHandle} size={narrow ? 104 : 156} def={scenes.def} />
               <WorldTools game={game} onHelp={worldHelp.show} timeLabel={TIME_LABELS[currentTime]} onTime={cycleTime} quality={worldQuality} onQuality={toggleQuality} onShop={() => setAuraShopOpen((o) => !o)} shopOpen={auraShopOpen} />
               {auraShopOpen && (
@@ -1337,6 +1344,7 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
             def={scenes.def}
             handle={stageHandle}
             objects={worldObjects}
+            blocks={blocks}
             siteBases={models.map((m) => ({ base: m.url, name: m.name, hint: '站内形象' }))}
             toast={(icon, t) => game.toast(icon, t)}
             narrow={narrow}
