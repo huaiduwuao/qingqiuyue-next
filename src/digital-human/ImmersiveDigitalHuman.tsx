@@ -47,6 +47,8 @@ import { GenesisHud, GenesisPanels, RoomPlate, RoomsSection, useGenesis } from '
 import { useRoomSocket } from './scene-ui/useRoomSocket';
 import { RoomChat } from './scene-ui/RoomChat';
 import { useRoomVoice } from './scene-ui/useRoomVoice';
+import { loadVerdict, quickCheck, saveVerdict, useFpsGate, type GateVerdict } from './perfGate';
+import { PerfBlockScreen } from './PerfBlockScreen';
 import type { PlazaState } from './scene-state';
 import { useRouter } from 'next/navigation';
 import { alpha } from '@mui/material/styles';
@@ -810,6 +812,21 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
     try { const saved = localStorage.getItem('dh_world_quality'); if (saved === 'high' || saved === 'low') q = saved; } catch { /* 隐私模式 */ }
     setWorldQuality(q);
   }, []);
+  // 设备性能门槛:进门快检(没有 WebGL2 / 软件渲染 / 内存或 CPU 太弱)+ 进门后量帧率,跑不动就拦(perfGate.ts)
+  const [gate, setGate] = React.useState<GateVerdict | null>(null);
+  React.useEffect(() => {
+    const saved = loadVerdict();
+    if (saved) { setGate(saved); return; }
+    const v = quickCheck();
+    if (v.blocked) { saveVerdict(v); setGate(v); }
+  }, []);
+  const fpsGate = useFpsGate({
+    enabled: avatarMode === 'vrm' && !gate,
+    quality: worldQuality,
+    setQuality: (q) => { setWorldQuality(q); try { localStorage.setItem('dh_world_quality', q); } catch { /* ignore */ } },
+    onDegrade: () => game.toast('⚙️', '设备有点吃力,已自动切到流畅画质'),
+  });
+  const blockedBy = gate ?? fpsGate.verdict;
   const toggleQuality = () => setWorldQuality((q) => {
     const n = q === 'high' ? 'low' : 'high';
     try { localStorage.setItem('dh_world_quality', n); } catch { /* ignore */ }
@@ -963,6 +980,21 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
     onInterrupt: () => chat.cancel(),
   })
 
+  // 跑不动:整页换成拦截页,3D 舞台不挂载(不再吃显卡)
+  if (blockedBy) {
+    return (
+      <PerfBlockScreen
+        reason={blockedBy.reason}
+        detail={blockedBy.detail}
+        onBack={() => router.push('/')}
+        onRetry={() => {
+          fpsGate.reset();
+          const v = quickCheck();
+          if (v.blocked) { saveVerdict(v); setGate(v); } else setGate(null);
+        }}
+      />
+    );
+  }
   return (
     <Box sx={{ position: 'fixed', inset: 0, zIndex: 1, background: '#05060B' }}>
       {/* 换场景的过场:黑底淡入「前往 X」,新场景建好后淡出 */}
