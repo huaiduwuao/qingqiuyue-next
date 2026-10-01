@@ -121,11 +121,11 @@ describe('editor', () => {
     render(<EntityPanel item={{ id: 'd', kind: 'door', state: { open: false }, rules: [], tags: ['door'], props: { usable: true, solid: true } } as never} onSave={onSave} />);
     fireEvent.click(screen.getByText('属性 / 规则'));
     const boxes = screen.getAllByRole('textbox');
-    fireEvent.change(boxes[0], { target: { value: '{"open": true}' } });
-    fireEvent.change(boxes[2], { target: { value: 'door, front' } });
+    fireEvent.change(boxes[1], { target: { value: '{"open": true}' } });
+    fireEvent.change(boxes[3], { target: { value: 'door, front' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: '存' })); });
     expect(onSave).toHaveBeenCalledWith({ state: { open: true }, rules: [], tags: ['door', 'front'] });
-    fireEvent.change(boxes[1], { target: { value: '[{oops' } });
+    fireEvent.change(boxes[2], { target: { value: '[{oops' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: '存' })); });
     await waitFor(() => expect(screen.getByText(/规则的 JSON 写错了/)).toBeTruthy());
   });

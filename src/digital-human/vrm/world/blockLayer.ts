@@ -2,15 +2,17 @@
  * vrm/world/blockLayer.ts — 创世十二期:把积木画出来
  *
  * 每种「形状 × 材质」一个 InstancedMesh(用到才建,不够了容量翻倍重建),每块一个实例:位置 = 格子中心、
- * 绕竖轴转 rot × 90°、颜色乘在材质纹理上。材质纹理是程序画的(木纹、石头、砖缝、地砖缝……),不用下载。
- * 玻璃半透明、发光是不受光照的纯色(配合后期泛光像灯)。两万块也只有几十次绘制。
+ * 绕竖轴转 rot × 90°、颜色乘在材质纹理上。材质按物质数据画(materials.ts):look.pattern 选一种程序纹理
+ * (木纹、石点、砖缝、地砖缝、拉丝、布纹,不用下载),opacity 半透明(玻璃、水),unlit 不受光(发光块,配合后期泛光像灯)。
+ * 物质登记表换了(第一次读到 / 后台改了)就把材质整个重建。两万块也只有几十次绘制。
  *
  * 点选:射线打到哪一块、哪一面(按打中的点离格子中心哪一轴最远算面);没打到积木就落在地面那一格。
  * 预览:一个线框盒子跟着鼠标(放 = 青色、拆 = 红色),框选铺满时是一个大框。
  */
 
 import type * as THREE from 'three';
-import { BLOCK_SIZE, MATS, blockKey, cellOf, type BlockData, type BlockGrid, type BlockOp } from './blocks';
+import { BLOCK_SIZE, blockKey, cellOf, type BlockData, type BlockGrid, type BlockOp } from './blocks';
+import { materialOf, materialsVersion, type BlockMaterial } from './materials';
 
 export interface BlockHit {
   /** 打中的那块(打在地面上 = null) */
@@ -36,35 +38,37 @@ export interface BlockLayer {
 
 const S = BLOCK_SIZE;
 
-function makeTexture(THREE_NS: typeof THREE, mat: number): THREE.Texture | null {
+/** 引擎认得的几种程序纹理(灰度,颜色乘在上面);plain / 不认识的 = 不贴图 */
+function makeTexture(THREE_NS: typeof THREE, id: number, look: BlockMaterial['look']): THREE.Texture | null {
+  const pattern = look?.pattern ?? 'plain';
+  if (pattern === 'plain') return null;
   const c = document.createElement('canvas');
   c.width = c.height = 64;
   const g = c.getContext('2d');
   if (!g) return null;
-  const rnd = (() => { let s = 1234 + mat * 97; return () => ((s = (s * 16807) % 2147483647) / 2147483647); })();
+  const rnd = (() => { let s = 1234 + id * 97; return () => ((s = (s * 16807) % 2147483647) / 2147483647); })();
   const fill = (v: number) => { g.fillStyle = `rgb(${v},${v},${v})`; };
   fill(235); g.fillRect(0, 0, 64, 64);
-  const speckle = (n: number, lo: number, hi: number, size = 2) => {
-    for (let i = 0; i < n; i++) { fill(lo + Math.floor(rnd() * (hi - lo))); g.fillRect(Math.floor(rnd() * 64), Math.floor(rnd() * 64), size, size); }
-  };
-  switch (mat) {
-    case 0: speckle(500, 215, 250); break; // 灰墙
-    case 1: // 木纹
+  switch (pattern) {
+    case 'speckle': { // 灰墙、石、草、沙:撒点
+      const n = look?.n ?? 500, lo = look?.lo ?? 215, hi = look?.hi ?? 250, size = look?.size ?? 2;
+      for (let i = 0; i < Math.min(4000, n); i++) { fill(lo + Math.floor(rnd() * (hi - lo))); g.fillRect(Math.floor(rnd() * 64), Math.floor(rnd() * 64), size, size); }
+      break;
+    }
+    case 'wood':
       for (let y = 0; y < 64; y++) { fill(200 + Math.floor(30 * Math.sin(y * 0.55 + Math.sin(y * 0.13) * 3) + rnd() * 10)); g.fillRect(0, y, 64, 1); }
       break;
-    case 2: speckle(900, 150, 245, 3); break; // 石
-    case 3: // 砖
+    case 'brick':
       fill(190); g.fillRect(0, 0, 64, 64);
       for (let row = 0; row < 4; row++) for (let col = -1; col < 3; col++) {
         const x = col * 32 + (row % 2) * 16;
         fill(215 + Math.floor(rnd() * 35)); g.fillRect(x + 1, row * 16 + 1, 30, 14);
       }
       break;
-    case 6: for (let y = 0; y < 64; y++) { fill(205 + Math.floor(rnd() * 40)); g.fillRect(0, y, 64, 1); } break; // 拉丝金属
-    case 7: speckle(1400, 170, 255, 2); break; // 草
-    case 8: fill(245); g.fillRect(0, 0, 64, 64); fill(175); g.fillRect(0, 0, 64, 2); g.fillRect(0, 0, 2, 64); g.fillRect(0, 31, 64, 2); g.fillRect(31, 0, 2, 64); break; // 地砖
-    case 9: for (let y = 0; y < 64; y += 2) for (let x = 0; x < 64; x += 2) { fill(((x + y) / 2) % 2 ? 215 : 245); g.fillRect(x, y, 2, 2); } break; // 布
-    default: return null; // 玻璃、发光:纯色
+    case 'brushed': for (let y = 0; y < 64; y++) { fill(205 + Math.floor(rnd() * 40)); g.fillRect(0, y, 64, 1); } break;
+    case 'tile': fill(245); g.fillRect(0, 0, 64, 64); fill(175); g.fillRect(0, 0, 64, 2); g.fillRect(0, 0, 2, 64); g.fillRect(0, 31, 64, 2); g.fillRect(31, 0, 2, 64); break;
+    case 'cloth': for (let y = 0; y < 64; y += 2) for (let x = 0; x < 64; x += 2) { fill(((x + y) / 2) % 2 ? 215 : 245); g.fillRect(x, y, 2, 2); } break;
+    default: return null;
   }
   const t = new THREE_NS.CanvasTexture(c);
   t.colorSpace = THREE_NS.SRGBColorSpace;
@@ -72,11 +76,21 @@ function makeTexture(THREE_NS: typeof THREE, mat: number): THREE.Texture | null 
   return t;
 }
 
-function makeMaterial(THREE_NS: typeof THREE, mat: number): THREE.Material {
-  if (mat === 5) return new THREE_NS.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
-  if (mat === 4) return new THREE_NS.MeshStandardMaterial({ color: 0xffffff, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.35, depthWrite: false });
-  const map = makeTexture(THREE_NS, mat);
-  return new THREE_NS.MeshStandardMaterial({ color: 0xffffff, map, roughness: mat === 6 ? 0.35 : 0.85, metalness: mat === 6 ? 0.7 : 0 });
+function makeMaterial(THREE_NS: typeof THREE, id: number): THREE.Material {
+  const look = materialOf(id)?.look;
+  if (look?.unlit) return new THREE_NS.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
+  const opacity = Math.max(0.05, Math.min(1, look?.opacity ?? 1));
+  return new THREE_NS.MeshStandardMaterial({
+    color: 0xffffff, map: makeTexture(THREE_NS, id, look),
+    roughness: look?.roughness ?? 0.85, metalness: look?.metalness ?? 0,
+    transparent: opacity < 1, opacity, depthWrite: opacity >= 1,
+  });
+}
+
+/** 透明的、自己发光的不投影 */
+function castsShadow(id: number) {
+  const look = materialOf(id)?.look;
+  return !look?.unlit && (look?.opacity ?? 1) >= 0.9;
 }
 
 /** 斜坡:三棱柱,rot 0 时往 -z 方向升高 */
@@ -139,7 +153,7 @@ export function createBlockLayer(THREE_NS: typeof THREE, parent: THREE.Object3D)
     const cap = Math.max(64, b ? b.cap * 2 : 64, need);
     const mesh = new THREE_NS.InstancedMesh(geo(s), mat(m), cap);
     mesh.frustumCulled = false;
-    mesh.castShadow = m !== 4 && m !== 5;
+    mesh.castShadow = castsShadow(m);
     mesh.receiveShadow = true;
     mesh.userData.blockBucket = key;
     mesh.instanceMatrix.setUsage(THREE_NS.DynamicDrawUsage);
@@ -204,13 +218,29 @@ export function createBlockLayer(THREE_NS: typeof THREE, parent: THREE.Object3D)
     if (b.mesh.instanceColor) b.mesh.instanceColor.needsUpdate = true;
   }
 
+  // 物质登记表换了:材质整个重建(桶里的网格换上新材质)
+  let matsVersion = materialsVersion();
+  function refreshMaterials() {
+    if (matsVersion === materialsVersion()) return;
+    matsVersion = materialsVersion();
+    mats.forEach((m) => { (m as THREE.MeshStandardMaterial).map?.dispose(); m.dispose(); });
+    mats.clear();
+    for (const [key, b] of buckets) {
+      const m = Number(key.split('_')[1]);
+      b.mesh.material = mat(m);
+      b.mesh.castShadow = castsShadow(m);
+    }
+  }
+
   function load(grid: BlockGrid) {
+    refreshMaterials();
     for (const b of buckets.values()) { b.mesh.count = 0; b.keys.length = 0; }
     where.clear();
     for (const d of grid.all()) add(d);
   }
 
   function applyOps(ops: readonly BlockOp[], grid: BlockGrid) {
+    refreshMaterials();
     for (const op of ops) {
       const k = blockKey(op[1], op[2], op[3]);
       const d = grid.get(op[1], op[2], op[3]);
@@ -272,6 +302,3 @@ export function createBlockLayer(THREE_NS: typeof THREE, parent: THREE.Object3D)
     },
   };
 }
-
-/** 材质的默认颜色(调色板没选颜色时用) */
-export const matColor = (m: number) => MATS.find((x) => x.id === m)?.color ?? 0xffffff;

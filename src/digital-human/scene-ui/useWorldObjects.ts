@@ -46,9 +46,8 @@ export const toPlaced = (p: WorldPlacement): PlacedObject => ({
   file: p.asset?.file || undefined, normalize: p.asset?.source === 'upload',
   lods: p.asset?.lods?.length ? p.asset.lods.map((l) => ({ file: l.file, bytes: l.bytes })) : undefined,
   footprint: p.asset?.footprint,
-  // 世界模型:有规则能点的实体走规则(use);没有规则的老摆设照旧认椅子 / 灯
-  interact: p.props?.usable ? 'use' : interactOf(p.asset ? { key: p.assetKey, category: p.asset.category, nameZh: p.asset.nameZh, kind: p.asset.kind, isSet: p.asset.isSet } : null),
-  off: !!p.off,
+  // 点了会怎样全看属性:sittable 坐下、usable 交给服务端跑规则(椅子 / 灯是什么由原型数据决定,见 kinds_seed.json 的 match)
+  interact: interactOf(p.props),
   kind: p.kind,
   look: p.look,
   props: p.props,

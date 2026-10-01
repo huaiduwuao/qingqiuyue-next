@@ -379,7 +379,7 @@ export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose
             />
             <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', width: 36, textAlign: 'right' }}>×{(scaleDraft ?? (selected.scale || 1)).toFixed(2)}</Typography>
           </Box>
-          {(selected.kind || (selected.rules?.length ?? 0) > 0) && objects.patchEntity && (
+          {objects.patchEntity && (
             <EntityPanel item={selected} onSave={(patch) => objects.patchEntity!(selected.id, patch)} />
           )}
           <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', mt: 0.5 }}>拖箭头挪动 / 拖圆环转向{snap ? '(按 0.25 米、15° 吸附)' : ''} · R 切换 · Delete 删除 · Esc 取消</Typography>
@@ -393,7 +393,7 @@ export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose
       <Box sx={{ display: 'flex', gap: 1, px: 1.5, mb: 0.75 }}>
         {(['lib', 'kind', 'tpl', 'mine'] as const).map((t) => (
           <ButtonBase key={t} onClick={() => setTab(t)} sx={{ px: 1, py: 0.4, whiteSpace: 'nowrap', flexShrink: 0, borderRadius: 999, fontSize: 12, fontWeight: 700, bgcolor: tab === t ? 'rgba(37,244,238,0.18)' : 'rgba(255,255,255,0.06)', color: tab === t ? '#25F4EE' : 'rgba(255,255,255,0.75)' }}>
-            {t === 'lib' ? '素材库' : t === 'kind' ? '机关' : t === 'tpl' ? '样板间' : '我的上传'}
+            {t === 'lib' ? '素材库' : t === 'kind' ? '机关' : t === 'tpl' ? '蓝图' : '我的上传'}
           </ButtonBase>
         ))}
         <RoomBudget items={objects.items} />

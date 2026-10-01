@@ -15,7 +15,7 @@ import { buildWorld, type WorldHandle, type WorldPeer } from './buildWorld';
 import { createEnvironment, type Environment, type Quality } from './env/environment';
 import type { PlacedObject } from './worldObjects';
 import type { Interact } from './interact';
-import type { BlockGrid, BlockOp } from './blocks';
+import { slowAt, type BlockGrid, type BlockOp } from './blocks';
 import type { BlockHit } from './blockLayer';
 import type { SplatStatus } from './roomShell';
 import { createPeerLayer, type PeerLayer, type RoomPeer } from './peerAvatars';
@@ -415,6 +415,8 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   }, []);
   /** 脚下能踩多高 */
   const groundAt = useCallback((x: number, z: number, curY: number) => blockGridRef.current?.surfaceAt(x, z, curY) ?? 0, []);
+  /** 泡在液体物质(水)里走路打几折 */
+  const slowAtFn = useCallback((x: number, z: number, curY: number) => (blockGridRef.current ? slowAt(blockGridRef.current, x, z, curY) : 0), []);
   const setBuilding = useCallback((on: boolean) => { buildingRef.current = on; if (!on) worldRef.current?.blocks?.setGhost(null); }, []);
   const blockPick = useCallback((clientX: number, clientY: number): BlockHit | null => {
     const w = worldRef.current;
@@ -435,5 +437,5 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   const setPeerVoiceLevels = useCallback((fn: ((id: string) => number) | null) => { voiceLevelsRef.current = fn; peerLayerRef.current?.setVoiceLevels(fn); }, []);
   const peerSay = useCallback((id: string, text: string) => { peerLayerRef.current?.say(id, text); }, []);
 
-  return { tick, render, floatText, showMarker, snapshot, setPeers, setAura, characterSay, setPlacements, upsertPlacement, removePlacement, selectPlacement, placementGroup, obstacles, seatSpots, setBlockGrid, applyBlockOps, groundAt, setBuilding, blockPick, setBlockGhost, setRoomAlign, autoFitRoom, setRoomPeers, peerSay, setPeerVoiceLevels, zones: WORLD_ZONES };
+  return { tick, render, floatText, showMarker, snapshot, setPeers, setAura, characterSay, setPlacements, upsertPlacement, removePlacement, selectPlacement, placementGroup, obstacles, seatSpots, setBlockGrid, applyBlockOps, groundAt, slowAt: slowAtFn, setBuilding, blockPick, setBlockGhost, setRoomAlign, autoFitRoom, setRoomPeers, peerSay, setPeerVoiceLevels, zones: WORLD_ZONES };
 }

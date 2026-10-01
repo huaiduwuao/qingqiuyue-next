@@ -3,13 +3,16 @@
  *
  * 房间按 0.5 米一格:格子 (x, y, z) 占 [x·S, (x+1)·S) × [y·S, (y+1)·S) × [z·S, (z+1)·S),y 从地面 0 往上(最高 32 格)。
  * 形状:0 方块 / 1 半砖(下半格)/ 2 斜坡(朝 rot 那边往上)/ 3 薄墙(rot 0、2 沿 x,1、3 沿 z)/ 4 柱子。
- * 材质:0 灰墙 / 1 木 / 2 石 / 3 砖 / 4 玻璃 / 5 发光 / 6 金属 / 7 草 / 8 地砖 / 9 布;颜色 0xRRGGBB 乘在材质纹理上。
+ * 材质 = 物质的 id(数据,见 materials.ts:灰墙、木、石……水、冰、沙);颜色 0xRRGGBB 乘在材质纹理上。
  *
  * 走路:方块、半砖、斜坡的顶面能站;一步能迈上 0.55 米(正好一格),再高就挡路;薄墙、柱子只挡路不能站。
+ * 物质的属性也算数:solid = false(水)穿得过去、不挡也站不上;walkable = false 站不上去(和墙一样挡);
+ * liquid.slow 人泡在里面走得慢(slowAt)。
  * 服务端 worldapp/blocks.go 按同样的格子存,一次最多改 512 格。
  */
 
 import type { Obstacle } from './worldLayout';
+import { matPhysics } from './materials';
 
 export const BLOCK_SIZE = 0.5;
 export const BLOCK_MAX_Y = 32;
@@ -24,19 +27,6 @@ export const SHAPES = [
   { id: 2, name: '斜坡', icon: '◢' },
   { id: 3, name: '薄墙', icon: '▮' },
   { id: 4, name: '柱子', icon: '●' },
-] as const;
-
-export const MATS = [
-  { id: 0, name: '灰墙', color: 0xe8e2d6 },
-  { id: 1, name: '木', color: 0xa0703c },
-  { id: 2, name: '石', color: 0x9a9a96 },
-  { id: 3, name: '砖', color: 0xa84a32 },
-  { id: 4, name: '玻璃', color: 0xbfe6ff },
-  { id: 5, name: '发光', color: 0xffd98a },
-  { id: 6, name: '金属', color: 0xb8bcc4 },
-  { id: 7, name: '草', color: 0x6aa84f },
-  { id: 8, name: '地砖', color: 0xd8cbb0 },
-  { id: 9, name: '布', color: 0x8a5a9a },
 ] as const;
 
 export interface BlockData { x: number; y: number; z: number; s: number; m: number; c: number; r: number }
@@ -138,6 +128,7 @@ export class BlockGrid {
     let best = 0;
     for (const y of col) {
       const b = this.get(cx, y, cz)!;
+      if (!matPhysics(b.m).walkable) continue;
       const t = topAt(b, fx, fz);
       if (t === null || t > curY + STEP_UP) continue;
       if (t > best) best = t;
@@ -160,10 +151,11 @@ export class BlockGrid {
         let blocking: BlockData | null = null;
         for (const y of col) {
           const b = this.get(i, y, k)!;
-          if (b.s === 2) continue;
+          const ph = matPhysics(b.m);
+          if (!ph.solid || (b.s === 2 && ph.walkable)) continue;
           const bottom = b.y * BLOCK_SIZE;
-          // 方块、半砖:迈得上去就不挡;薄墙、柱子站不上去,和身子有重叠就挡
-          const standable = b.s === 0 || b.s === 1;
+          // 方块、半砖:迈得上去就不挡;薄墙、柱子、站不上去的物质:和身子有重叠就挡
+          const standable = (b.s === 0 || b.s === 1) && ph.walkable;
           if (bottom >= curY + 1.4 || blockTop(b) <= curY + (standable ? STEP_UP : 0.05)) continue;
           blocking = b;
           break;
@@ -182,6 +174,20 @@ export class BlockGrid {
     }
     return out;
   }
+}
+
+/**
+ * 站在 (x, curY, z) 的人泡在液体里的话走路打几折(0 = 不减速):这一格里和身子(脚底往上 1.2 米)有重叠的格子,
+ * 取物质 liquid.slow 最大的。
+ */
+export function slowAt(grid: BlockGrid, x: number, z: number, curY: number): number {
+  const cx = cellOf(x), cz = cellOf(z);
+  let slow = 0;
+  for (let y = Math.floor(curY / BLOCK_SIZE); y <= Math.floor((curY + 1.2) / BLOCK_SIZE); y++) {
+    const b = grid.get(cx, y, cz);
+    if (b) slow = Math.max(slow, matPhysics(b.m).slow);
+  }
+  return slow;
 }
 
 /** 两个角之间铺满的改动(放:同一种积木;拆:把里面有的都拆掉);超过 limit 格返回 null */

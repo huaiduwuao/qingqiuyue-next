@@ -14,9 +14,10 @@ import { Box, Button, ButtonBase, Chip, IconButton, Tooltip, Typography } from '
 import UndoRoundedIcon from '@mui/icons-material/UndoRounded';
 import RedoRoundedIcon from '@mui/icons-material/RedoRounded';
 import type { VrmStageHandle } from '../VrmStage';
-import { BLOCK_MAX_ROOM, BLOCK_MAX_Y, MATS, SHAPES, fillOps, type BlockOp } from '../vrm/world/blocks';
+import { BLOCK_MAX_ROOM, BLOCK_MAX_Y, SHAPES, fillOps, type BlockOp } from '../vrm/world/blocks';
 import type { BlockHit } from '../vrm/world/blockLayer';
-import type { BlocksState } from './useBlocks';
+import { matColor, onMaterials, pickableMaterials } from '../vrm/world/materials';
+import { ensureMaterials, type BlocksState } from './useBlocks';
 
 type Tool = 'place' | 'erase' | 'pick' | 'fill' | 'clear';
 const TOOLS: { id: Tool; label: string; tip: string }[] = [
@@ -32,6 +33,15 @@ const glass = { bgcolor: 'rgba(10,12,24,0.8)', backdropFilter: 'blur(16px)', bor
 
 type Cell = { x: number; y: number; z: number };
 
+/** 鼠标停在材质上时说一句它的物理属性 */
+function matHint(p: { solid?: boolean; walkable?: boolean; liquid?: { slow?: number } } | undefined): string {
+  const out: string[] = [];
+  if (p?.solid === false) out.push('能穿过去');
+  else if (p?.walkable === false) out.push('站不上去');
+  if (p?.liquid?.slow) out.push(`在里面走得慢`);
+  return out.join(',');
+}
+
 export function BuildPanel({ handle, blocks, onClose, narrow, toast }: {
   handle: VrmStageHandle | null;
   blocks: BlocksState;
@@ -42,7 +52,14 @@ export function BuildPanel({ handle, blocks, onClose, narrow, toast }: {
   const [tool, setTool] = React.useState<Tool>('place');
   const [shape, setShape] = React.useState(0);
   const [mat, setMat] = React.useState(1);
-  const [color, setColor] = React.useState<number>(MATS[1].color);
+  const [color, setColor] = React.useState<number>(() => matColor(1));
+  // 材质是数据(物质登记表):读到 / 换了跟着刷新
+  const [mats, setMats] = React.useState(pickableMaterials);
+  React.useEffect(() => {
+    const off = onMaterials(() => setMats(pickableMaterials()));
+    void ensureMaterials().then(() => setMats(pickableMaterials()));
+    return off;
+  }, []);
   const [rot, setRot] = React.useState(0);
   const [corner, setCorner] = React.useState<Cell | null>(null);
   const stateRef = React.useRef({ tool, shape, mat, color, rot, corner });
@@ -176,9 +193,9 @@ export function BuildPanel({ handle, blocks, onClose, narrow, toast }: {
       <Box>
         <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', mb: 0.4 }}>材质</Typography>
         <Box sx={narrow ? { display: 'flex', gap: 0.5, overflowX: 'auto', '&::-webkit-scrollbar': { display: 'none' } } : { display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 0.5 }}>
-          {MATS.map((m) => (
-            <ButtonBase key={m.id} onClick={() => { setMat(m.id); setColor(m.color); }} sx={{ py: 0.5, flexShrink: 0, minWidth: narrow ? 48 : 0, borderRadius: 1.5, fontSize: 11.5, display: 'flex', flexDirection: 'column', gap: 0.25, bgcolor: mat === m.id ? 'rgba(37,244,238,0.18)' : 'rgba(255,255,255,0.05)', border: mat === m.id ? '1px solid #25F4EE' : '1px solid transparent' }}>
-              <Box sx={{ width: 18, height: 18, borderRadius: 0.75, bgcolor: hex(m.color), opacity: m.id === 4 ? 0.5 : 1, boxShadow: m.id === 5 ? `0 0 8px ${hex(m.color)}` : 'none' }} />
+          {mats.map((m) => (
+            <ButtonBase key={m.id} title={matHint(m.props)} onClick={() => { setMat(m.id); setColor(matColor(m.id)); }} sx={{ py: 0.5, flexShrink: 0, minWidth: narrow ? 48 : 0, borderRadius: 1.5, fontSize: 11.5, display: 'flex', flexDirection: 'column', gap: 0.25, bgcolor: mat === m.id ? 'rgba(37,244,238,0.18)' : 'rgba(255,255,255,0.05)', border: mat === m.id ? '1px solid #25F4EE' : '1px solid transparent' }}>
+              <Box sx={{ width: 18, height: 18, borderRadius: 0.75, bgcolor: hex(matColor(m.id)), opacity: Math.max(0.3, m.look?.opacity ?? 1), boxShadow: m.look?.unlit ? `0 0 8px ${hex(matColor(m.id))}` : 'none' }} />
               {m.name}
             </ButtonBase>
           ))}

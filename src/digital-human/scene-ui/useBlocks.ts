@@ -9,10 +9,18 @@
  */
 
 import React from 'react';
-import { editBlocks, getBlocks } from '@/apis/world';
+import { editBlocks, getBlocks, listMaterials } from '@/apis/world';
 import type { VrmStageHandle } from '../VrmStage';
 import type { WorldDef } from '../vrm/world/worldLayout';
 import { BLOCK_MAX_OPS, BlockGrid, decodeBlocks, type BlockOp } from '../vrm/world/blocks';
+import { setMaterials } from '../vrm/world/materials';
+
+let matsLoad: Promise<void> | null = null;
+/** 物质(积木材质)登记表读一次;读失败下次再试 */
+export function ensureMaterials(): Promise<void> {
+  if (!matsLoad) matsLoad = listMaterials().then(setMaterials).catch(() => { matsLoad = null; });
+  return matsLoad;
+}
 
 export interface UseBlocksOptions {
   handle: VrmStageHandle | null;
@@ -62,7 +70,8 @@ export function useBlocks(opts: UseBlocksOptions) {
     handle.setBlockGrid(grid);
     setCount(0);
     let alive = true;
-    getBlocks(owner).then((r) => {
+    // 先有物质登记表再画(材质、能不能站都按它)
+    Promise.all([getBlocks(owner), ensureMaterials()]).then(([r]) => {
       if (!alive) return;
       grid.load(decodeBlocks(r.blocks));
       handle.setBlockGrid(grid);

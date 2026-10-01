@@ -1,15 +1,16 @@
 /**
- * scene-ui/useObjectUse.ts — 创世十期:点椅子坐下、点灯开关
+ * scene-ui/useObjectUse.ts — 点一件东西:坐下,或者交给服务端跑规则
  *
- *   - 椅子 / 凳子 / 沙发:量出这件上的座位(handle.seatSpots),挑离点的地方最近、没人坐的那个;
+ *   - 能坐的(属性 sittable):量出这件上的座位(handle.seatSpots),挑离点的地方最近、没人坐的那个;
  *     走到座位前面,到了就坐下(handle.sitAt)。点自己正坐着的那件 = 站起来。走动 / 点别处会自动站起来。
- *   - 灯:POST /world/placements/:id/switch;服务端存好后推 edit 给房里所有人(自己也收到,灯跟着亮 / 灭)。
+ *   - 能用的(属性 usable,挂着 use 规则 —— 灯的开关就是 lamp 原型上的一条规则):房间连接发 {t:"use"},
+ *     服务端跑完规则推 edit 给房里所有人(自己也收到,灯跟着亮 / 灭)。又能坐又能用的:坐下,同时触发 use。
  *
  * 坐着时 useRoomSocket 报的位置帧带 a = 'sit'、y = 座面高度,同伴那边照着画坐姿。
  */
 
 import React from 'react';
-import { switchPlacement, type WorldPlacement } from '@/apis/world';
+import type { WorldPlacement } from '@/apis/world';
 import type { VrmStageHandle } from '../VrmStage';
 import type { WorldEvent } from '../vrm/world/useVrmWorld';
 import { pickSeat, type SeatSpot } from '../vrm/world/interact';
@@ -80,21 +81,18 @@ export function useObjectUse(opts: UseObjectUseOptions) {
     pendingRef.current = { spot, id, timer, started };
   }, [cancel]);
 
-  const toggleLamp = React.useCallback((id: string) => {
-    const { items, toast } = optsRef.current;
-    const p = items.find((x) => x.id === id);
-    const on = !(p?.off ?? false);
-    switchPlacement(id, !on).catch((e: unknown) => toast('💡', (e as Error)?.message || '开关不了'));
-  }, []);
-
   /** 交给世界事件:处理了返回 true */
   const onWorldEvent = React.useCallback((e: WorldEvent): boolean => {
     if (e.type !== 'useObject') return false;
-    if (e.kind === 'use') { optsRef.current.rs.use?.(e.id); return true; } // 世界模型:交给服务端跑规则
-    if (e.kind === 'seat') sitDown(e.id, e.point);
-    else toggleLamp(e.id);
+    const { rs, items } = optsRef.current;
+    if (e.kind === 'seat') {
+      sitDown(e.id, e.point);
+      if (items.find((x) => x.id === e.id)?.props?.usable) rs.use?.(e.id);
+      return true;
+    }
+    rs.use?.(e.id); // 交给服务端跑规则
     return true;
-  }, [sitDown, toggleLamp]);
+  }, [sitDown]);
 
   // 别的途径站起来了(键盘走、点地面走开):同步状态
   React.useEffect(() => {

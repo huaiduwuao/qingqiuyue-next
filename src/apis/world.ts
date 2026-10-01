@@ -32,6 +32,8 @@ export interface WorldAsset {
   thumb?: string;
   /** Poly Haven 的类别(furniture / lighting / seating …),用户上传的是自己选的 */
   category?: string;
+  /** 世界模型:摆出来默认是什么原型。空 = 按平台原型的 match 自动认(灯、座位……);'-' = 只是摆着看 */
+  kindKey?: string;
 }
 
 /** qq-media/world 下的相对路径 → 能直接放进 <img> 的地址 */
@@ -65,8 +67,6 @@ export interface WorldPlacement {
   scale: number;
   public: boolean;
   asset?: WorldAsset;
-  /** 十期:灯关着(默认亮) */
-  off?: boolean;
   // ── 世界模型(docs/WORLD-MODEL.md):有原型或规则的摆放就是「实体」 ──
   /** 原型 key */
   kind?: string;
@@ -129,11 +129,6 @@ export async function deleteKind(key: string): Promise<void> {
 export async function listPlacements(scene: string): Promise<WorldPlacement[]> {
   const r = await accountClient.get<{ placements: WorldPlacement[] }>('/world/placements', { params: { scene } });
   return Array.isArray(r?.placements) ? r.placements : [];
-}
-
-/** 十期:开 / 关房间里的一盏灯(要在那间房里) */
-export async function switchPlacement(id: string, on: boolean): Promise<{ id: string; on: boolean }> {
-  return accountClient.post<{ id: string; on: boolean }>(`/world/placements/${encodeURIComponent(id)}/switch`, { on });
 }
 
 export interface PlacementInput {
@@ -288,7 +283,26 @@ export async function editBlocks(owner: string, ops: number[][]): Promise<{ appl
   return accountClient.post(`/world/rooms/${encodeURIComponent(owner)}/blocks`, { ops });
 }
 
-// ── 十一期:样板间 / 照着布置 ──
+// ── 物质(积木的材质):外观 + 物理属性,全是数据(go worldapp/materials.go) ──
+export interface WorldMaterial {
+  /** 积木里存的那个字节 */
+  id: number;
+  key: string;
+  name: string;
+  /** 默认颜色 #rrggbb */
+  color: string;
+  /** pattern 纹理样式(plain / speckle / wood / brick / brushed / tile / cloth)、opacity、roughness、metalness、unlit */
+  look?: { pattern?: string; opacity?: number; roughness?: number; metalness?: number; unlit?: boolean; n?: number; lo?: number; hi?: number; size?: number };
+  /** solid 挡人、walkable 顶上能站、transparent 透光、emits 发光、liquid {slow} 人在里面走得慢 */
+  props?: { solid?: boolean; walkable?: boolean; transparent?: number; emits?: { intensity?: number; radius?: number }; liquid?: { slow?: number } };
+}
+
+export async function listMaterials(): Promise<WorldMaterial[]> {
+  const r = await accountClient.get<{ list: WorldMaterial[] }>('/world/materials');
+  return Array.isArray(r?.list) ? r.list : [];
+}
+
+// ── 蓝图(原来十一期的样板间):平台的、我存的、别人公开的 ──
 export interface WorldLayout {
   key: string;
   name: string;
@@ -297,10 +311,29 @@ export interface WorldLayout {
   items: number;
   /** 现在就能摆出来的件数(其余还没做好,套用时跳过) */
   ready: number;
+  /** 带着几块积木 */
+  blocks?: number;
   /** 用到的几件素材的缩略图 */
   thumbs: string[];
+  /** '0' = 平台的 */
+  ownerId: string;
+  mine?: boolean;
+  visibility: 'public' | 'private';
 }
-export interface ApplyLayoutResult { placed: number; skipped: number; canUndo: boolean }
+export interface ApplyLayoutResult { placed: number; skipped: number; blocks?: number; canUndo: boolean }
+
+/** 把我现在的房间(摆设、机关、积木、外壳)存成一份蓝图 */
+export async function savePrefab(p: { name: string; intro?: string; visibility: 'public' | 'private' }): Promise<WorldLayout> {
+  return accountClient.post<WorldLayout>('/world/prefabs', p);
+}
+
+export async function updatePrefab(key: string, p: { name?: string; intro?: string; visibility?: 'public' | 'private' }): Promise<void> {
+  await accountClient.put(`/world/prefabs/${encodeURIComponent(key)}`, p);
+}
+
+export async function deletePrefab(key: string): Promise<void> {
+  await accountClient.delete(`/world/prefabs/${encodeURIComponent(key)}`);
+}
 
 export async function listLayouts(): Promise<WorldLayout[]> {
   const r = await accountClient.get<{ list: WorldLayout[] }>('/world/layouts');

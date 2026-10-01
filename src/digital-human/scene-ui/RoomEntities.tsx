@@ -3,7 +3,8 @@
  *
  *   - KindsDrawer:布置抽屉里的「机关」一栏 —— 平台原型(灯、门、按钮、告示牌、传送区、星星……)和我自己的原型,
  *     点「放一个」就按原型放一个实体;「＋ 新原型」写一份原型 JSON(外观、属性、状态、规则),服务端先校验再存;
- *   - EntityPanel:选中一个实体时,看它的原型、算好的属性,改它的状态 / 规则 / 标签(JSON),存的时候服务端校验规则。
+ *   - EntityPanel:选中一件东西时,看它的原型、算好的属性,改它的原型 / 状态 / 规则 / 标签(JSON),存的时候服务端校验规则。
+ *     原型空着 = 用素材的默认原型(椅子是 seat、灯是 lamp……),写 "-" = 只是摆着看。
  * 这是三种写法里的「JSON」那一种;表单和「一句话交给 AI」写的是同一份数据。
  */
 
@@ -101,8 +102,9 @@ export function KindsDrawer({ onPlace, toast }: {
 
 export function EntityPanel({ item, onSave }: {
   item: WorldPlacement;
-  onSave: (patch: { state?: Record<string, unknown>; rules?: WorldPlacement['rules']; tags?: string[] }) => Promise<void>;
+  onSave: (patch: { kind?: string; state?: Record<string, unknown>; rules?: WorldPlacement['rules']; tags?: string[] }) => Promise<void>;
 }) {
+  const [kind, setKind] = React.useState('');
   const [state, setState] = React.useState('');
   const [rules, setRules] = React.useState('');
   const [tags, setTags] = React.useState('');
@@ -110,13 +112,15 @@ export function EntityPanel({ item, onSave }: {
   const [busy, setBusy] = React.useState(false);
   const [open, setOpen] = React.useState(false);
   React.useEffect(() => {
+    setKind(item.kind ?? '');
     setState(JSON.stringify(item.state ?? {}, null, 2));
     setRules(JSON.stringify(item.rules ?? [], null, 2));
     setTags((item.tags ?? []).join(', '));
     setErr('');
-  }, [item.id, item.state, item.rules, item.tags]);
+  }, [item.id, item.kind, item.state, item.rules, item.tags]);
   const props = item.props ?? {};
   const flags = [
+    props.sittable && '能坐',
     props.usable && '能点',
     props.sense && '感应进出',
     props.solid === false ? '不挡人' : '挡人',
@@ -132,17 +136,21 @@ export function EntityPanel({ item, onSave }: {
     const tg = tags.split(/[,，\s]+/).map((x) => x.trim()).filter(Boolean);
     setBusy(true);
     setErr('');
-    try { await onSave({ state: st, rules: rl, tags: tg }); } catch (e) { setErr(errText(e)); } finally { setBusy(false); }
+    const patch: Parameters<typeof onSave>[0] = { state: st, rules: rl, tags: tg };
+    if (kind.trim() !== (item.kind ?? '')) patch.kind = kind.trim();
+    try { await onSave(patch); } catch (e) { setErr(errText(e)); } finally { setBusy(false); }
   };
 
   return (
     <Box sx={{ mt: 0.75, pt: 0.75, borderTop: '1px solid rgba(255,255,255,0.1)' }}>
       <ButtonBase onClick={() => setOpen((v) => !v)} sx={{ display: 'flex', width: '100%', justifyContent: 'space-between', fontSize: 12 }}>
-        <span>🧩 {item.kind || '自定义实体'} · {flags.join(' · ')}</span>
+        <span>🧩 {item.kind || (item.props ? '自定义实体' : '摆着看')}{item.props ? ` · ${flags.join(' · ')}` : ''}</span>
         <span style={{ color: '#9be8ff' }}>{open ? '收起' : '属性 / 规则'}</span>
       </ButtonBase>
       {open && (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mt: 0.75 }}>
+          <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>原型(空着 = 素材默认的,椅子是 seat、灯是 lamp;写 - = 只是摆着看)</Typography>
+          <TextField size="small" value={kind} placeholder="素材默认" onChange={(e) => setKind(e.target.value)} sx={field} />
           <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>状态(规则读写的变量)</Typography>
           <TextField multiline minRows={2} maxRows={8} value={state} onChange={(e) => setState(e.target.value)} sx={field} />
           <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>这一个自己的规则(接在原型的规则后面)</Typography>

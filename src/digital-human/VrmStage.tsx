@@ -782,7 +782,9 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         mx /= ml; mz /= ml;
         const running = !!keys.shift;
         // 真人的速度:走 1.5 米/秒、慢跑 3.6 米/秒(动捕按走过的距离推进,速度越接近真人越自然)
-        const speed = running ? 3.6 : 1.5;
+        // 泡在水这类液体物质里走得慢(物质的 liquid.slow)
+        const slow = worldOnRef.current ? worldApiRef.current.slowAt(pos.x, pos.z, groundYRef.current) : 0;
+        const speed = (running ? 3.6 : 1.5) * (1 - slow);
         pos.prevX = pos.x; pos.prevZ = pos.z;
         // 八期:绕开摆设(撞上就顺着边滑过去)
         const next = clampToWorld(pos.x + mx * speed * dt, pos.z + mz * speed * dt, worldDefRef.current, worldApiRef.current.obstacles(groundYRef.current));
@@ -792,6 +794,8 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         walkStepRef.current += dt * (running ? 8 : 4) * 2 * Math.PI;
         walkRef.current.phase = walkStepRef.current;
       } else if (mv.active) {
+        // 液体里点地走:进度按 slow 打折(把起点往后推)
+        if (worldOnRef.current) mv.startTime += dt * 1000 * worldApiRef.current.slowAt(pos.x, pos.z, groundYRef.current);
         const elapsed = performance.now() - mv.startTime;
         const k = Math.min(1, elapsed / mv.duration);
         const eased = 1 - Math.pow(1 - k, 2);  // easeOutQuad

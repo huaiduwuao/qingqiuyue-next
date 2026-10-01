@@ -18,9 +18,9 @@
  * 八期:obstacles() 给出每件摆设在地上占的那块(模型在自己组里的包围盒,带上转向 / 缩放),人走路绕开它们;
  * 地毯、吊灯、灯杆、栈桥这类不挡(blocksWalking)。
  *
- * 十期:灯(interact = 'lamp')亮着时灯头上一团暖光(加色精灵)、灯罩 / 玻璃材质自发光;离镜头最近的几盏
+ * 发光(props.emits,灯是 lamp 原型的实体,开关是它的状态)亮着时灯头上一团光(加色精灵)、灯罩 / 玻璃材质自发光;离镜头最近的几盏
  * 分到一个点光源池(高画质 4 个、流畅 1 个,第一盏灯出现时才建,之后数量不变 —— 灯数一变 three 要重编所有着色器)。
- * 能坐的(interact = 'seat')按模型量座位:从上往下打射线找座面,四个方向里最高的一边是靠背,对面是正面;
+ * 能坐的(props.sittable → interact = 'seat')按模型量座位:从上往下打射线找座面,四个方向里最高的一边是靠背,对面是正面;
  * 两边一样高(凳子、长椅)就面朝走过来的人;宽的沙发 / 长椅按 0.55 米一个座位排开。
  *
  * 世界模型(docs/WORLD-MODEL.md):实体按服务端算好的属性画 —— look.shape 没有模型时画简单形状(盒子、圆柱、球、圆盘),
@@ -57,10 +57,8 @@ export interface PlacedObject {
   lods?: { file: string; bytes?: number }[];
   /** 占地最长边(米):越大的东西越晚换粗的一档 */
   footprint?: number;
-  /** 十期:能坐 / 是灯 */
+  /** 点了会怎样:坐下 / 交给服务端跑规则 */
   interact?: Interact | null;
-  /** 十期:灯关着 */
-  off?: boolean;
   /** 世界模型:原型、外观、算好的属性、动画毫秒数 */
   kind?: string;
   look?: { model?: string; shape?: string; color?: string; size?: number[] };
@@ -366,12 +364,11 @@ export function createObjectLayer(
       entries.set(p.id, e);
     }
     const keyChanged = e.p.assetKey !== p.assetKey || (!p.assetKey && JSON.stringify(e.p.look) !== JSON.stringify(p.look));
-    const offChanged = !!e.p.off !== !!p.off;
     const propsKey = JSON.stringify(p.props ?? null);
     const propsChanged = propsKey !== e.propsKey;
     e.propsKey = propsKey;
     e.p = p;
-    if ((offChanged || propsChanged) && e.model && isLightSource(e)) {
+    if (propsChanged && e.model && isLightSource(e)) {
       if (!e.lampMats) setupLamp(e); else applyLamp(e);
     }
     place(e);
@@ -529,13 +526,12 @@ export function createObjectLayer(
     }
     applyLamp(e);
   }
-  /** 会发光的:老的灯(interact = lamp)或者世界模型里带 emits 属性的 */
-  function isLightSource(e: Entry) { return e.p.interact === 'lamp' || !!e.p.props?.emits; }
-  /** 此刻亮着:emits 的强度 > 0(且没藏起来);老的灯看 off */
+  /** 会发光的:带 emits 属性的 */
+  function isLightSource(e: Entry) { return !!e.p.props?.emits; }
+  /** 此刻亮着:emits 的强度 > 0(且没藏起来) */
   function isLit(e: Entry) {
     const em = e.p.props?.emits;
-    if (em) return (em.intensity ?? 0) > 0 && e.p.props?.visible !== false;
-    return !e.p.off;
+    return !!em && (em.intensity ?? 0) > 0 && e.p.props?.visible !== false;
   }
   function applyLamp(e: Entry) {
     const on = isLit(e);

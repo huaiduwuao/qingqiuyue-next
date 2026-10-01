@@ -1,7 +1,8 @@
 /**
- * vrm/world/interact.ts — 创世十期:能动手的摆设(坐下、开关灯)
+ * vrm/world/interact.ts — 点一件东西会怎样(世界模型里的两条「定律」)
  *
- *   - interactOf:哪些素材能坐(椅、凳、沙发、长椅、脚凳)、哪些是灯(和服务端 worldapp/interact.go 的 isLamp 同一套规则);
+ *   - interactOf:按服务端算好的属性 —— sittable(seat 原型,椅子、凳子、沙发……哪些素材默认是座位是原型上的 match 数据)
+ *     就坐下;usable(挂着 use 规则,灯的开关也是规则)就交给服务端跑规则。两个都有:坐下,同时触发 use;
  *   - 坐姿:规范化骨骼上直接摆(upperLeg X− = 大腿往前抬,lowerLeg X+ = 屈膝,手搭在腿上),
  *     髋往下沉到座面上;自己(useVrmAnimation)和同伴(peerAvatars)用同一份;
  *   - 选座位:一件摆设可能有好几个座位(长沙发、长椅),挑离点的地方最近、没人坐的那个。
@@ -11,24 +12,13 @@
 
 import type * as THREE from 'three';
 
-/** seat 能坐 / lamp 老的开关灯 / use 世界模型的实体(点了交给服务端跑规则) */
-export type Interact = 'seat' | 'lamp' | 'use';
+/** seat 能坐(sittable)/ use 点了交给服务端跑规则(usable) */
+export type Interact = 'seat' | 'use';
 
-const SEAT_RE = /(chair|stool|sofa|bench|couch|ottoman|seating)/i;
-const SEAT_NOT = /(bench_vice|table_chair_set|_set_)/i;
-const SEAT_ZH = /椅|凳|沙发|榻/;
-const LAMP_RE = /(lamp|lantern|chandelier|candle|sconce|light)/i;
-const LAMP_NOT = /(lighter|flashlight|torch|searchlight)/i;
-const LAMP_ZH = /灯|烛/;
-const LAMP_ZH_NOT = /灯塔|打火机|手电/;
-
-/** 这件素材能干什么(null = 只是摆着看) */
-export function interactOf(a: { key: string; category?: string; nameZh?: string; kind?: string; isSet?: boolean } | null | undefined): Interact | null {
-  if (!a || (a.kind && a.kind !== 'model')) return null;
-  const zh = a.nameZh ?? '';
-  if (a.category === 'lighting' || (LAMP_RE.test(a.key) && !LAMP_NOT.test(a.key)) || (LAMP_ZH.test(zh) && !LAMP_ZH_NOT.test(zh))) return 'lamp';
-  if (a.isSet) return null;
-  if (a.category === 'seating' || (SEAT_RE.test(a.key) && !SEAT_NOT.test(a.key)) || SEAT_ZH.test(zh)) return 'seat';
+/** 这件东西点了会怎样(null = 只是摆着看) */
+export function interactOf(props: { sittable?: unknown; usable?: unknown } | null | undefined): Interact | null {
+  if (props?.sittable) return 'seat';
+  if (props?.usable) return 'use';
   return null;
 }
 

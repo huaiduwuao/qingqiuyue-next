@@ -1,11 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { act, renderHook } from '@testing-library/react';
-import { BLOCK_SIZE, BlockGrid, decodeBlocks, fillOps, rampDir, topAt, type BlockData } from '../vrm/world/blocks';
+import { BLOCK_SIZE, BlockGrid, decodeBlocks, fillOps, rampDir, slowAt, topAt, type BlockData } from '../vrm/world/blocks';
 import { createBlockLayer } from '../vrm/world/blockLayer';
+import { matColor, matPhysics, materialsVersion, setMaterials, type BlockMaterial } from '../vrm/world/materials';
+
+// 和服务端 materials_seed.json 同样的几种
+const MATERIALS: BlockMaterial[] = [
+  { id: 0, key: 'plaster', name: '灰墙', color: '#e8e2d6', look: { pattern: 'speckle' }, props: { solid: true, walkable: true } },
+  { id: 1, key: 'wood', name: '木', color: '#a0703c', look: { pattern: 'wood' }, props: { solid: true, walkable: true } },
+  { id: 4, key: 'glass', name: '玻璃', color: '#bfe6ff', look: { opacity: 0.35 }, props: { solid: true, walkable: true } },
+  { id: 10, key: 'water', name: '水', color: '#3a8fd0', look: { opacity: 0.55 }, props: { solid: false, walkable: false, liquid: { slow: 0.5 } } },
+  { id: 20, key: 'hedge', name: '树篱', color: '#2e7d5b', props: { solid: true, walkable: false } },
+];
 
 const api = vi.hoisted(() => ({
   getBlocks: vi.fn(async () => ({ blocks: '', n: 0, version: 1, canBuild: true })),
+  listMaterials: vi.fn(async () => MATERIALS),
   editBlocks: vi.fn(async () => ({ applied: 1 })),
 }));
 vi.mock('@/apis/world', () => api);
@@ -26,6 +37,26 @@ function pack(list: BlockData[]): string {
   buf.forEach((v) => { bin += String.fromCharCode(v); });
   return btoa(bin);
 }
+
+describe('materials', () => {
+  it('turns material data into walking rules', () => {
+    setMaterials(MATERIALS);
+    expect(matColor(1)).toBe(0xa0703c);
+    expect(matPhysics(10)).toEqual({ solid: false, walkable: false, slow: 0.5 });
+    expect(matPhysics(99)).toEqual({ solid: true, walkable: true, slow: 0 }); // 不认识的当普通方块
+    const g = new BlockGrid();
+    // 一格水铺在地上:穿得过、站不上去、在里面走得慢
+    g.set({ x: 0, y: 0, z: 0, s: 0, m: 10, c: 0, r: 0 });
+    expect(g.surfaceAt(0.25, 0.25, 0)).toBe(0);
+    expect(g.obstaclesNear(0.25, 1, 0)).toEqual([]);
+    expect(slowAt(g, 0.25, 0.25, 0)).toBe(0.5);
+    expect(slowAt(g, 1.25, 0.25, 0)).toBe(0);
+    // 一格矮树篱:站不上去,所以就算只有半米高也挡路
+    g.set({ x: 2, y: 0, z: 0, s: 0, m: 20, c: 0, r: 0 });
+    expect(g.surfaceAt(1.25, 0.25, 0)).toBe(0);
+    expect(g.obstaclesNear(1.25, 0.25, 0)).toHaveLength(1);
+  });
+});
 
 describe('blocks data', () => {
   it('decodes the server packing, including negative coords', () => {
@@ -89,6 +120,29 @@ describe('blocks data', () => {
     g.apply(ops);
     expect(fillOps({ x: 0, y: 0, z: -9 }, { x: 9, y: 0, z: 9 }, null, g)).toHaveLength(4 * 3); // 只拆有的(y=0 那一层)
     expect(fillOps({ x: 0, y: 0, z: 0 }, { x: 20, y: 20, z: 20 }, put, g)).toBeNull();
+  });
+});
+
+describe('block layer materials', () => {
+  it('builds materials from data and rebuilds them when the data changes', () => {
+    setMaterials(MATERIALS);
+    const parent = new THREE.Group();
+    const layer = createBlockLayer(THREE, parent);
+    const g = new BlockGrid();
+    g.set({ x: 0, y: 0, z: 0, s: 0, m: 4, c: 0xffffff, r: 0 });
+    layer.load(g);
+    const meshes: THREE.InstancedMesh[] = [];
+    parent.traverse((o) => { if ((o as THREE.InstancedMesh).isInstancedMesh) meshes.push(o as THREE.InstancedMesh); });
+    const mat = () => meshes[0].material as THREE.MeshStandardMaterial;
+    expect(mat().transparent).toBe(true);
+    expect(mat().opacity).toBeCloseTo(0.35);
+    expect(meshes[0].castShadow).toBe(false);
+    const v = materialsVersion();
+    setMaterials(MATERIALS.map((m) => (m.id === 4 ? { ...m, look: { opacity: 1 } } : m)));
+    expect(materialsVersion()).toBe(v + 1);
+    layer.applyOps([], g);
+    expect(mat().transparent).toBe(false);
+    layer.dispose();
   });
 });
 

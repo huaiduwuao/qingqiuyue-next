@@ -27,21 +27,16 @@ vi.mock('../vrm/world/realKit', () => ({
     return { canKtx2: false, model: make, modelFile: make, dispose: () => undefined };
   },
 }));
-vi.mock('@/apis/world', () => ({ switchPlacement: vi.fn(async (id: string, on: boolean) => ({ id, on })) }));
+vi.mock('@/apis/world', () => ({}));
 
 describe('interactOf', () => {
-  it('knows seats and lamps by key, category and 中文名', () => {
-    expect(interactOf({ key: 'chinese_armchair', category: 'furniture' })).toBe('seat');
-    expect(interactOf({ key: 'painted_wooden_sofa' })).toBe('seat');
-    expect(interactOf({ key: 'wooden_stool_01', category: 'seating' })).toBe('seat');
-    expect(interactOf({ key: 'u1_x', nameZh: '我做的长凳' })).toBe('seat');
-    expect(interactOf({ key: 'chinese_chandelier', category: 'lighting' })).toBe('lamp');
-    expect(interactOf({ key: 'wooden_lantern_01', category: 'props' })).toBe('lamp');
-    expect(interactOf({ key: 'u1_y', nameZh: '小台灯' })).toBe('lamp');
-    for (const k of ['bench_vice_01', 'outdoor_table_chair_set_01', 'vintage_lighter', 'signal_flashlight', 'boulder_01']) expect(interactOf({ key: k })).toBeNull();
-    expect(interactOf({ key: 'u1_z', nameZh: '灯塔' })).toBeNull();
-    expect(interactOf({ key: 'chair_avatar', kind: 'avatar' })).toBeNull();
-    expect(interactOf({ key: 'chairs_row', isSet: true })).toBeNull();
+  // 椅子 / 灯是什么由服务端原型数据决定(kinds_seed.json 的 match),前端只看算好的属性
+  it('reads sittable / usable props', () => {
+    expect(interactOf({ sittable: true })).toBe('seat');
+    expect(interactOf({ usable: true })).toBe('use');
+    expect(interactOf({ sittable: true, usable: true })).toBe('seat');
+    expect(interactOf({})).toBeNull();
+    expect(interactOf(undefined)).toBeNull();
   });
 });
 
@@ -115,18 +110,19 @@ describe('seat spots', () => {
     expect(layer.seatSpots('t', { x: 0, z: 3 })[0].y).toBeCloseTo(0.45, 2);
   });
   it('only seats have spots', async () => {
-    const { layer } = await layerWith([placed({ id: 'l', assetKey: 'lamp', interact: 'lamp' })]);
+    const { layer } = await layerWith([placed({ id: 'l', assetKey: 'lamp', interact: 'use', props: { emits: { color: '#ffc98a', intensity: 6, radius: 7 }, usable: true } })]);
     expect(layer.seatSpots('l', { x: 0, z: 0 })).toEqual([]);
   });
 });
 
 describe('lamps', () => {
+  // 灯 = lamp 原型的实体:亮不亮看算好的 emits.intensity(开关是规则改状态 on)
   it('lights the nearest lamps from a fixed pool and follows on / off', async () => {
     const parent = new THREE.Group();
     const layer = createObjectLayer(THREE, parent, { quality: 'low' });
     const cam = new THREE.PerspectiveCamera();
     cam.position.set(0, 1.6, 4);
-    layer.set([placed({ id: 'l1', assetKey: 'lamp', interact: 'lamp', x: 0 }), placed({ id: 'l2', assetKey: 'lamp', interact: 'lamp', x: 6 })]);
+    layer.set([placed({ id: 'l1', assetKey: 'lamp', interact: 'use', x: 0, props: { emits: { color: '#ffc98a', intensity: 6, radius: 7 }, usable: true } }), placed({ id: 'l2', assetKey: 'lamp', interact: 'use', x: 6, props: { emits: { color: '#ffc98a', intensity: 6, radius: 7 }, usable: true } })]);
     await new Promise((r) => setTimeout(r, 0));
     layer.tick(0, 1, cam);
     const lights: THREE.PointLight[] = [];
@@ -138,12 +134,12 @@ describe('lamps', () => {
     parent.traverse((o) => { const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined; if (m?.name === 'lamp_shade' && o.parent?.parent?.userData.placementId === 'l1') shade = m; });
     expect(shade!.emissiveIntensity).toBeGreaterThan(1);
     // 关掉 l1:光源让给 l2,灯罩不亮了
-    layer.upsert(placed({ id: 'l1', assetKey: 'lamp', interact: 'lamp', x: 0, off: true }));
+    layer.upsert(placed({ id: 'l1', assetKey: 'lamp', interact: 'use', x: 0, props: { emits: { color: '#ffc98a', intensity: 0, radius: 7 }, usable: true } }));
     layer.tick(0.1, 0.1, cam);
     expect(lights[0].getWorldPosition(new THREE.Vector3()).x).toBeCloseTo(6, 1);
     expect(shade!.emissiveIntensity).toBe(1);
     // 两盏都关:光源熄灭,数量不变
-    layer.upsert(placed({ id: 'l2', assetKey: 'lamp', interact: 'lamp', x: 6, off: true }));
+    layer.upsert(placed({ id: 'l2', assetKey: 'lamp', interact: 'use', x: 6, props: { emits: { color: '#ffc98a', intensity: 0, radius: 7 }, usable: true } }));
     layer.tick(0.2, 0.1, cam);
     let n = 0;
     parent.traverse((o) => { if ((o as THREE.PointLight).isPointLight) n++; });
@@ -184,11 +180,15 @@ describe('useObjectUse', () => {
     expect(result.current.onWorldEvent({ type: 'poke' })).toBe(false);
     vi.useRealTimers();
   });
-  it('toggles a lamp through the API', async () => {
-    const { switchPlacement } = await import('@/apis/world');
+  it('hands usable things to the server, and sits + uses things that are both', () => {
     const h = fakeHandle();
-    const { result } = renderHook(() => useObjectUse({ handle: h as unknown as VrmStageHandle, rs: { peers: [] }, items: [{ id: 'l', off: true } as never], toast: vi.fn() }));
-    act(() => { result.current.onWorldEvent({ type: 'useObject', id: 'l', kind: 'lamp', point: { x: 0, y: 1, z: 0 } }); });
-    expect(switchPlacement).toHaveBeenCalledWith('l', true);
+    const use = vi.fn(() => true);
+    const { result } = renderHook(() => useObjectUse({ handle: h as unknown as VrmStageHandle, rs: { peers: [], use }, items: [{ id: 'swing', props: { sittable: true, usable: true } } as never], toast: vi.fn() }));
+    act(() => { result.current.onWorldEvent({ type: 'useObject', id: 'l', kind: 'use', point: { x: 0, y: 1, z: 0 } }); });
+    expect(use).toHaveBeenCalledWith('l');
+    act(() => { result.current.onWorldEvent({ type: 'useObject', id: 'swing', kind: 'seat', point: { x: 0, y: 0.4, z: 0 } }); });
+    expect(use).toHaveBeenLastCalledWith('swing');
+    expect(h.walkTo).toHaveBeenCalled();
   });
+
 });
