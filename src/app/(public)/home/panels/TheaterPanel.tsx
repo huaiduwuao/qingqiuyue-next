@@ -256,7 +256,9 @@ export function TheaterPanel() {
           bgcolor: 'var(--bg-input, rgba(255,255,255,0.03))',
           border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
           display: 'grid',
-          gridTemplateColumns: { xs: '1fr', md: '1fr 1fr 1fr 1fr 1fr' },
+          // 列必须是 minmax(0, 1fr):裸 1fr 的下限是内容宽,每行标签不换行,
+          // 列会被撑到两千多像素,整块筛选区超出屏幕被裁掉,里面的横滑也失效。
+          gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(5, minmax(0, 1fr))' },
           gap: 1.5,
         }}
       >
@@ -266,7 +268,7 @@ export function TheaterPanel() {
         <FilterRow label="评分" allLabel="全部评分" options={facets?.ratings} value={minRating} onChange={setMinRating} />
         <Box>
           <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mb: 0.5, textTransform: 'uppercase', letterSpacing: 0.5 }}>排序</Typography>
-          <Box sx={{ display: 'flex', gap: 0.5 }}>
+          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
             {SORTS.map((s) => {
               const active = sort === s.key;
               return (
