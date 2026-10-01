@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -9,6 +9,7 @@ import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import WhatshotIcon from '@mui/icons-material/Whatshot';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import { homeClient } from '@/lib/api/client';
 import { findScrollRoot, PREFETCH_MARGIN } from '@/hooks/useInfiniteScroll';
 import { CoverImage } from '@/components/common/CoverImage';
@@ -255,20 +256,18 @@ export function TheaterPanel() {
           borderRadius: 2,
           bgcolor: 'var(--bg-input, rgba(255,255,255,0.03))',
           border: '1px solid var(--border-color, rgba(255,255,255,0.06))',
-          display: 'grid',
-          // 列必须是 minmax(0, 1fr):裸 1fr 的下限是内容宽,每行标签不换行,
-          // 列会被撑到两千多像素,整块筛选区超出屏幕被裁掉,里面的横滑也失效。
-          gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'repeat(5, minmax(0, 1fr))' },
-          gap: 1.5,
+          // 每个维度占满一整行、标签自动换行。以前是五列并排 + 行内横滑,
+          // 题材有几十个,横滑里看不全也不知道还有多少,体验很差。
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 1,
         }}
       >
         <FilterRow label="题材" allLabel="全部题材" options={facets?.genres} value={genre} onChange={setGenre} />
         <FilterRow label="地区" allLabel="全部地区" options={facets?.regions} value={region} onChange={setRegion} />
         <FilterRow label="年份" allLabel="全部年份" options={facets?.years} value={year} onChange={setYear} />
         <FilterRow label="评分" allLabel="全部评分" options={facets?.ratings} value={minRating} onChange={setMinRating} />
-        <Box>
-          <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mb: 0.5, textTransform: 'uppercase', letterSpacing: 0.5 }}>排序</Typography>
-          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+        <FilterLine label="排序">
             {SORTS.map((s) => {
               const active = sort === s.key;
               return (
@@ -297,8 +296,7 @@ export function TheaterPanel() {
                 </Box>
               );
             })}
-          </Box>
-        </Box>
+        </FilterLine>
       </Box>
 
       <Box sx={{ mt: 4, mb: 2, display: 'flex', alignItems: 'baseline', gap: 1, flexWrap: 'wrap' }}>
@@ -398,17 +396,7 @@ function FilterRow({
   if (!options || options.length === 0) return null;
   const all: FacetOption = { value: '', label: allLabel, count: 0 };
   return (
-    <Box>
-      <Typography sx={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', mb: 0.5, textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</Typography>
-      <Box
-        sx={{
-          display: 'flex',
-          gap: 0.5,
-          overflowX: 'auto',
-          pb: 0.5,
-          '&::-webkit-scrollbar': { display: 'none' },
-        }}
-      >
+    <FilterLine label={label}>
         {[all, ...options].map((o) => {
           const active = value === o.value;
           return (
@@ -436,7 +424,61 @@ function FilterRow({
             </Box>
           );
         })}
+    </FilterLine>
+  );
+}
+
+/**
+ * 筛选的一行:左边维度名,右边选项自动换行。
+ * 题材有几十个,手机上全展开要九行、占掉大半屏,所以超过两行先收起,
+ * 右侧给一个"展开"。只有真的放不下时才出现这个按钮。
+ */
+function FilterLine({ label, children }: { label: string; children: ReactNode }) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  // 收起时的高度 = 第三行选项的顶边;null 表示两行以内放得下,不用收。
+  // 按实际排版量,不写死像素:选项高度随字号/边框变,写死会让刚好两行的也出"展开"。
+  const [collapsedHeight, setCollapsedHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const measure = () => {
+      const tops = Array.from(new Set(Array.from(el.children, (c) => (c as HTMLElement).offsetTop))).sort((a, b) => a - b);
+      setCollapsedHeight(tops.length > 2 ? tops[2] - tops[0] - 4 : null);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [children]);
+
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+      <Typography sx={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted, rgba(255,255,255,0.4))', width: 32, flexShrink: 0, lineHeight: '24px' }}>{label}</Typography>
+      <Box
+        ref={boxRef}
+        sx={{
+          flex: 1,
+          minWidth: 0,
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 0.5,
+          maxHeight: expanded || collapsedHeight == null ? 'none' : collapsedHeight,
+          overflow: 'hidden',
+        }}
+      >
+        {children}
       </Box>
+      {collapsedHeight != null && (
+        <Box
+          onClick={() => setExpanded((v) => !v)}
+          sx={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', height: 24, fontSize: 11, color: 'var(--text-secondary, rgba(255,255,255,0.6))', cursor: 'pointer', userSelect: 'none', '&:hover': { color: 'primary.main' } }}
+        >
+          {expanded ? '收起' : '展开'}
+          <ExpandMoreRoundedIcon sx={{ fontSize: 16, transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+        </Box>
+      )}
     </Box>
   );
 }
