@@ -162,3 +162,65 @@ export const voice = (key: string, author: string, limit = 3): Promise<{ key: st
 /** 哪些名家写这个主题最多(人物选角用) */
 export const themePoets = (key: string): Promise<{ key: string; list: { author: string; poems: number }[] }> =>
   contentClient.get('/insight/poets', { params: { key } });
+
+// ── 分支:跟着实时热点和大家的心事自动开、自动收。后端见 handler/insight_branch.go。 ──
+// 分支 key 可以直接当主题 key 用:theme / items / timeline 都认,作品区与主题页同一套组件。
+
+export interface InsightBranch {
+  key: string;
+  /** 线索词,如「外卖」「妈妈」—— 分支的名字 */
+  cue: string;
+  status: 'open' | 'closed';
+  /** 父主题 */
+  theme: string;
+  themeName: string;
+  group: string;
+  /** 最近一次命中热搜时的热度 */
+  heat: number;
+  /** 近 14 天写到这个词的人数 */
+  needUsers: number;
+  /** 近 14 天搜过这个词的人数 */
+  searchUsers: number;
+  /** 站内相关的非诗词作品数 */
+  works: number;
+  firstSeen: number;
+  lastSignal: number;
+  openedAt: number;
+  /** 最近一条热搜原题 */
+  headline?: string;
+  hotCount?: number;
+}
+
+/** 分支的凭据:哪条热搜、什么时候 */
+export interface InsightBranchEvidence {
+  word: string;
+  desc?: string;
+  url?: string;
+  img?: string;
+  hot?: number;
+  rank?: number;
+  source: string;
+  at: number;
+}
+
+export const branches = (params: { theme?: string; status?: 'open' | 'closed'; limit?: number } = {}): Promise<{ list: InsightBranch[] }> =>
+  contentClient.get('/insight/branches', { params });
+
+export const branch = (
+  key: string,
+): Promise<{ branch: InsightBranch; parent: InsightTheme; evidence: InsightBranchEvidence[]; now: InsightItem[] }> =>
+  contentClient.get('/insight/branch', { params: { key } });
+
+/** 「此刻在想什么」:返回相近的主题与分支。登录时只记命中了哪些词,原话不存。 */
+export const need = (
+  text: string,
+): Promise<{
+  hits: { theme: string; cue: string; branch?: string }[];
+  themes: InsightTheme[];
+  branches: InsightBranch[];
+  recorded: boolean;
+}> => contentClient.post('/insight/need', { text });
+
+/** 运营:封 / 解封一个分支 */
+export const blockBranch = (key: string, block: boolean): Promise<{ key: string; status: string }> =>
+  contentClient.post('/insight/branch/block', { key, block });

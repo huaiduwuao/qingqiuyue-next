@@ -2,8 +2,8 @@
 
 // 人生感悟专题首页。
 //
-// 结构:今日一悟(按日期轮换的主题 + 一首诗 + 一部作品)→ 你最近在想的(本机记录)
-// → 五组主题(心脉受损 / 人生真相 / 爱情·友情·亲情 / 七情 / 六欲)。
+// 结构:今日一悟(按日期轮换的主题 + 一首诗 + 一部作品)→ 此刻(自动开出来的分支)→ 此刻在想什么
+// → 你最近在想的(本机记录)→ 五组主题(心脉受损 / 人生真相 / 爱情·友情·亲情 / 七情 / 六欲)。
 // 「人生真相」用宽卡:露出编者论的开头,告诉读者这里是讲透规律的论述,不只是作品清单。
 //
 // 页面上的编辑文字只有两类:题记(原句 + 出处,后端 insight_themes.go 里逐条核对过)
@@ -20,6 +20,7 @@ import DetailHeader from '@/components/detail/DetailHeader';
 import { overview, daily, readRecentThemes, type InsightGroup, type InsightTheme } from '@/apis/insight';
 import { accentOf, WorkCard } from '@/components/insight/InsightCards';
 import { useContentNavigate } from '@/lib/contentRoute';
+import { BranchStrip, NeedBox } from '@/components/insight/Branches';
 
 const SERIF = '"Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, serif';
 
@@ -277,6 +278,10 @@ export default function InsightHomePage() {
         </Box>
 
         <DailyCard open={open} />
+
+        {/* 此刻:跟着热点和大家的心事自动开出来的分支;下面是写一句心事找相近的主题 */}
+        <BranchStrip limit={9} />
+        <NeedBox />
 
         {recentThemes.length > 0 && (
           <Box sx={{ mb: 5 }}>
