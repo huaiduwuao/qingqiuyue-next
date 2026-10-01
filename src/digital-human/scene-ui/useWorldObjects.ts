@@ -15,7 +15,7 @@
 
 import * as React from 'react';
 import {
-  createPlacement, deletePlacement, getAsset, listPlacements, updatePlacement,
+  createPlacement, deletePlacement, getAsset, listPlacements, updatePlacement, type PlacementInput,
   type WorldAsset, type WorldPlacement,
 } from '@/apis/world';
 import type { VrmStageHandle } from '../VrmStage';
@@ -46,8 +46,13 @@ export const toPlaced = (p: WorldPlacement): PlacedObject => ({
   file: p.asset?.file || undefined, normalize: p.asset?.source === 'upload',
   lods: p.asset?.lods?.length ? p.asset.lods.map((l) => ({ file: l.file, bytes: l.bytes })) : undefined,
   footprint: p.asset?.footprint,
-  interact: interactOf(p.asset ? { key: p.assetKey, category: p.asset.category, nameZh: p.asset.nameZh, kind: p.asset.kind, isSet: p.asset.isSet } : null),
+  // 世界模型:有规则能点的实体走规则(use);没有规则的老摆设照旧认椅子 / 灯
+  interact: p.props?.usable ? 'use' : interactOf(p.asset ? { key: p.assetKey, category: p.asset.category, nameZh: p.asset.nameZh, kind: p.asset.kind, isSet: p.asset.isSet } : null),
   off: !!p.off,
+  kind: p.kind,
+  look: p.look,
+  props: p.props,
+  anim: p.anim,
 });
 
 export function useWorldObjects(opts: Options) {
@@ -337,6 +342,34 @@ export function useWorldObjects(opts: Options) {
     }
   }, [spotFor]);
 
+  /** 世界模型:按原型放一个实体(门、按钮、传送区、星星……);没有外观模型的原型画成简单形状 */
+  const placeKind = React.useCallback(async (kind: string, name: string, at?: { x: number; z: number; rotY?: number }): Promise<WorldPlacement | null> => {
+    const h = optsRef.current.handle;
+    if (!h) return null;
+    const spot = at ? [at.x, at.z, at.rotY ?? 0] as const : spotFor('front', 0.6, 0, 1);
+    if (!spot) return null;
+    try {
+      const saved = await createPlacement({ scene: optsRef.current.def.key, kind, label: name.slice(0, 32), x: spot[0], z: spot[1], rotY: spot[2] });
+      const p: WorldPlacement = { ...saved, public: false };
+      setItems((cur) => (cur.some((x) => x.id === p.id) ? cur : [...cur, p]));
+      h.upsertPlacement(toPlaced(p));
+      lastRef.current = p.id;
+      return p;
+    } catch (e: any) {
+      optsRef.current.toast('⚠️', `没放成:${e?.message || e}`);
+      return null;
+    }
+  }, [spotFor]);
+
+  /** 世界模型:改实体的状态 / 规则 / 属性 / 标签(服务端校验规则,错了原样把错误抛回来) */
+  const patchEntity = React.useCallback(async (id: string, patch: { state?: Record<string, unknown>; rules?: WorldPlacement['rules']; props?: Record<string, unknown>; tags?: string[]; kind?: string }): Promise<void> => {
+    const saved = await updatePlacement(id, patch as Partial<PlacementInput>);
+    const h = optsRef.current.handle;
+    setItems((cur) => cur.map((x) => (x.id === id ? { ...x, ...saved, public: false, asset: saved.asset ?? x.asset } : x)));
+    const next = itemsRef.current.find((x) => x.id === id);
+    if (h && next) h.upsertPlacement(toPlaced({ ...next, ...saved }));
+  }, []);
+
   /** 改一件(挪 / 转 / 缩放 / 改名):先画出来再存,存失败就退回去 */
   const patchItem = React.useCallback(async (id: string, patch: { x?: number; y?: number; z?: number; rotY?: number; scale?: number; label?: string }): Promise<boolean> => {
     const h = optsRef.current.handle;
@@ -410,5 +443,5 @@ export function useWorldObjects(opts: Options) {
   /** 给模型的场景状态:摆了什么(id:叫法) */
   const placedSummary = React.useMemo(() => items.slice(-30).map((p) => `${p.id}:${p.label || p.asset?.nameZh || p.assetKey}${p.public ? '(公共)' : ''}`), [items]);
 
-  return { handleTool, placedSummary, count: items.length, items, reload, placeAsset, patchItem, removeItem, restoreItem, applyRemote, design, applyDesign, cancelDesign, applying };
+  return { handleTool, placedSummary, count: items.length, items, reload, placeAsset, placeKind, patchEntity, patchItem, removeItem, restoreItem, applyRemote, design, applyDesign, cancelDesign, applying };
 }

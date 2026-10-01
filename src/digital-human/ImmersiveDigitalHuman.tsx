@@ -760,6 +760,12 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
     applyRoom: genesis.room.applyRemote,
     onKick: (msg) => { game.toast('🚪', msg); goHome(); },
     toast: (icon, t) => game.toast(icon, t),
+    // 世界模型:规则让某个东西说话 → 它头顶冒字;规则把人送去别的空间
+    onEntitySay: (id, text) => {
+      const p = worldObjects.items.find((x) => x.id === id);
+      if (p) stageHandle?.floatTextAt(text, p.x, p.y + 1.3, p.z, '#ffe9b0'); else game.toast('💬', text);
+    },
+    onTravel: (space) => { if (space.startsWith('room:')) void genesis.room.enter(space.slice(5)).then((k) => scenes.switchTo(k)).catch(() => {}); else scenes.switchTo(space); },
   });
   hubPeersRef.current = new Set(roomSock.status === 'open' ? roomSock.peers.map((p) => p.id) : []);
   // 创世十期:点椅子坐下、点灯开关

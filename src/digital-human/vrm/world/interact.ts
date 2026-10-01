@@ -11,7 +11,8 @@
 
 import type * as THREE from 'three';
 
-export type Interact = 'seat' | 'lamp';
+/** seat 能坐 / lamp 老的开关灯 / use 世界模型的实体(点了交给服务端跑规则) */
+export type Interact = 'seat' | 'lamp' | 'use';
 
 const SEAT_RE = /(chair|stool|sofa|bench|couch|ottoman|seating)/i;
 const SEAT_NOT = /(bench_vice|table_chair_set|_set_)/i;

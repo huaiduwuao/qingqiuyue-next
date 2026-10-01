@@ -20,6 +20,7 @@ import type { VrmStageHandle } from '../VrmStage';
 import { roomBounds, type WorldDef } from '../vrm/world/worldLayout';
 import { WorldUpload } from './WorldUpload';
 import { RoomLayouts } from './RoomLayouts';
+import { EntityPanel, KindsDrawer } from './RoomEntities';
 
 type Objects = {
   items: WorldPlacement[];
@@ -27,6 +28,9 @@ type Objects = {
   patchItem: (id: string, patch: { x?: number; y?: number; z?: number; rotY?: number; scale?: number; label?: string }) => Promise<boolean>;
   removeItem: (id: string) => Promise<WorldPlacement | null>;
   restoreItem: (p: WorldPlacement) => Promise<WorldPlacement | null>;
+  /** 世界模型:按原型放、改实体 */
+  placeKind?: (kind: string, name: string, at?: { x: number; z: number; rotY?: number }) => Promise<WorldPlacement | null>;
+  patchEntity?: (id: string, patch: { state?: Record<string, unknown>; rules?: WorldPlacement['rules']; tags?: string[] }) => Promise<void>;
 };
 
 type Pose = { x: number; y: number; z: number; rotY: number; scale: number };
@@ -110,7 +114,7 @@ function RoomBudget({ items }: { items: WorldPlacement[] }) {
 
 export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose, toast, narrow, onCover, onLayoutApplied }: RoomEditorProps) {
   // 十一期:空房间默认打开样板间
-  const [tab, setTab] = React.useState<'lib' | 'mine' | 'tpl'>(() => (objects.items.length === 0 ? 'tpl' : 'lib'));
+  const [tab, setTab] = React.useState<'lib' | 'mine' | 'tpl' | 'kind'>(() => (objects.items.length === 0 ? 'tpl' : 'lib'));
   const [group, setGroup] = React.useState(0);
   const [q, setQ] = React.useState('');
   const [qLive, setQLive] = React.useState('');
@@ -375,6 +379,9 @@ export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose
             />
             <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', width: 36, textAlign: 'right' }}>×{(scaleDraft ?? (selected.scale || 1)).toFixed(2)}</Typography>
           </Box>
+          {(selected.kind || (selected.rules?.length ?? 0) > 0) && objects.patchEntity && (
+            <EntityPanel item={selected} onSave={(patch) => objects.patchEntity!(selected.id, patch)} />
+          )}
           <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', mt: 0.5 }}>拖箭头挪动 / 拖圆环转向{snap ? '(按 0.25 米、15° 吸附)' : ''} · R 切换 · Delete 删除 · Esc 取消</Typography>
         </Box>
       ) : (
@@ -384,9 +391,9 @@ export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose
       )}
 
       <Box sx={{ display: 'flex', gap: 1, px: 1.5, mb: 0.75 }}>
-        {(['lib', 'tpl', 'mine'] as const).map((t) => (
+        {(['lib', 'kind', 'tpl', 'mine'] as const).map((t) => (
           <ButtonBase key={t} onClick={() => setTab(t)} sx={{ px: 1, py: 0.4, whiteSpace: 'nowrap', flexShrink: 0, borderRadius: 999, fontSize: 12, fontWeight: 700, bgcolor: tab === t ? 'rgba(37,244,238,0.18)' : 'rgba(255,255,255,0.06)', color: tab === t ? '#25F4EE' : 'rgba(255,255,255,0.75)' }}>
-            {t === 'lib' ? '素材库' : t === 'tpl' ? '样板间' : '我的上传'}
+            {t === 'lib' ? '素材库' : t === 'kind' ? '机关' : t === 'tpl' ? '样板间' : '我的上传'}
           </ButtonBase>
         ))}
         <RoomBudget items={objects.items} />
@@ -397,7 +404,7 @@ export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose
           🏡 房间还空着 —— 先从样板间挑一套,再慢慢改?
         </ButtonBase>
       )}
-      {tab === 'tpl' ? null : tab === 'lib' ? (
+      {tab === 'tpl' || tab === 'kind' ? null : tab === 'lib' ? (
         <>
           <Box sx={{ px: 1.5, mb: 0.75 }}>
             <TextField size="small" fullWidth placeholder="搜:椅子、灯笼、lamp…" value={qLive} onChange={(e) => setQLive(e.target.value)}
@@ -417,7 +424,13 @@ export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose
 
       <Box sx={{ flex: 1, minHeight: 80, overflowY: 'auto', overflowX: 'hidden', px: 1.5, pb: 1.25 }}>
         {tab === 'tpl' && <RoomLayouts toast={toast} narrow={narrow} onApplied={() => { onSelect(null); objects.reload?.(); onLayoutApplied?.(); }} />}
-        <Box sx={{ display: tab === 'tpl' ? 'none' : 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 0.75 }}>
+        {tab === 'kind' && (
+          <KindsDrawer toast={toast} onPlace={(k) => {
+            if (!objects.placeKind) return;
+            void objects.placeKind(k.key, k.name || k.key).then((p) => { if (p) { push({ t: 'add', id: p.id, snap: p }); onSelect(p.id); } });
+          }} />
+        )}
+        <Box sx={{ display: tab === 'tpl' || tab === 'kind' ? 'none' : 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 0.75 }}>
           {list.map((a) => {
             const badge = statusBadge(a);
             return (
@@ -454,13 +467,13 @@ export function RoomEditor({ handle, def, objects, selectedId, onSelect, onClose
             );
           })}
         </Box>
-        {tab !== 'tpl' && loading && <Box sx={{ display: 'grid', placeItems: 'center', py: 1.5 }}><CircularProgress size={18} /></Box>}
-        {tab !== 'tpl' && !loading && list.length === 0 && (
+        {tab !== 'tpl' && tab !== 'kind' && loading && <Box sx={{ display: 'grid', placeItems: 'center', py: 1.5 }}><CircularProgress size={18} /></Box>}
+        {tab !== 'tpl' && tab !== 'kind' && !loading && list.length === 0 && (
           <Typography sx={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', textAlign: 'center', py: 2 }}>
             {tab === 'mine' ? '还没传过模型' : '没找到,换个说法试试'}
           </Typography>
         )}
-        {tab !== 'tpl' && !loading && list.length < total && (
+        {tab !== 'tpl' && tab !== 'kind' && !loading && list.length < total && (
           <Button fullWidth size="small" onClick={() => setPage((p) => p + 1)} sx={{ mt: 1, color: '#9be8ff' }}>再看 {Math.min(30, total - list.length)} 件</Button>
         )}
       </Box>

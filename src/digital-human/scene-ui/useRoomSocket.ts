@@ -39,11 +39,37 @@ export interface UseRoomSocketOptions {
   applyRoom: (r: WorldRoom) => void;
   onKick: (msg: string) => void;
   toast: (icon: string, text: string) => void;
+  /** 世界模型:规则让某个实体「说话」(头顶冒字);不给就用提示条 */
+  onEntitySay?: (entityId: string, text: string) => void;
+  /** 世界模型:规则把我传送到别的空间(房间 key,比如 room:12) */
+  onTravel?: (spaceKey: string) => void;
   /** 测试用:换掉连接实现 */
   makeSocket?: (onFrame: (f: RoomFrame) => void, onStatus: (s: RoomSocketStatus) => void, onBinary: (b: ArrayBuffer) => void) => RoomSocket;
 }
 
 const STATE_EVERY = 100;
+
+/** 规则里的 sound:几种合成的短音(click / coin / door / whoosh),不下载音频 */
+let cueCtx: AudioContext | null = null;
+function playCue(name?: string) {
+  try {
+    if (typeof window === 'undefined' || !('AudioContext' in window)) return;
+    cueCtx ??= new AudioContext();
+    const ctx = cueCtx;
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    const t = ctx.currentTime;
+    const spec = ({ coin: [880, 1320, 0.18, 'square'], door: [180, 120, 0.35, 'sawtooth'], whoosh: [600, 150, 0.4, 'sine'] } as Record<string, [number, number, number, OscillatorType]>)[name ?? ''] ?? [1200, 900, 0.06, 'square'];
+    o.type = spec[3];
+    o.frequency.setValueAtTime(spec[0], t);
+    o.frequency.exponentialRampToValueAtTime(spec[1], t + spec[2]);
+    g.gain.setValueAtTime(0.06, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + spec[2]);
+    o.connect(g).connect(ctx.destination);
+    o.start(t);
+    o.stop(t + spec[2] + 0.02);
+  } catch { /* 没有声音就算了 */ }
+}
 
 export function useRoomSocket(opts: UseRoomSocketOptions) {
   const { handle, def, enabled } = opts;
@@ -61,6 +87,8 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
   const [selfMuted, setSelfMuted] = React.useState(false);
   // 七期:自己说话时的识别中字幕
   const [myCaption, setMyCaption] = React.useState('');
+  // 世界模型:我身上的状态(规则给的分数、道具……)
+  const [myState, setMyState] = React.useState<Record<string, unknown>>({});
   // 九期:场景分线
   const [line, setLine] = React.useState(0);
   const [lines, setLines] = React.useState<SceneLine[]>([]);
@@ -181,6 +209,24 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
         setLine(f.line);
         setLines(f.lines ?? []);
         return;
+      // ── 世界模型(规则运行时推过来的)──
+      case 'fx':
+        if (f.kind === 'toast' && f.text) o.toast('✨', f.text);
+        else if (f.kind === 'say' && f.text) { if (f.entity && o.onEntitySay) o.onEntitySay(f.entity, f.text); else o.toast('💬', f.text); }
+        else if (f.kind === 'sound') playCue(f.sound);
+        return;
+      case 'tp':
+        if (f.space) { o.onTravel?.(f.space); return; }
+        if (typeof f.x === 'number' && typeof f.z === 'number') { tpRef.current = true; o.handle?.setPosition(f.x, f.z); }
+        return;
+      case 'me':
+        setMyState(f.state ?? {});
+        return;
+      case 'ruleErr':
+        if (f.errors?.length) o.toast('⚠️', `规则出错:${f.errors[0]}`);
+        return;
+      case 'env':
+        return; // 时辰 / 天气的改动先不接(空间环境走房间设置)
       case 'event':
         // 六期:房间活动到点开始(门牌上的「进行中」由随后的 room 帧更新)
         o.toast('🎉', `「${f.event?.title ?? '活动'}」开始了`);
@@ -204,6 +250,7 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
     peersRef.current = new Map();
     pushPeers();
     setChat([]);
+    setMyState({}); // 换房间:分数之类是那间房的规则给的
     tpRef.current = true;
     sock.join(owner);
     return () => {
@@ -260,6 +307,8 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
   const setVoiceHandler = React.useCallback((fn: ((b: ArrayBuffer) => void) | null) => { voiceHandlerRef.current = fn; }, []);
   // 九期:换线 / 刷新各条线人数
   const refreshLines = React.useCallback(() => sockRef.current?.lines() ?? false, []);
+  /** 世界模型:点了一个实体 */
+  const use = React.useCallback((id: string) => sockRef.current?.use(id) ?? false, []);
   const switchLine = React.useCallback((n: number) => {
     if (!owner || n === line) return;
     setChat([]);
@@ -277,6 +326,8 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
     myCaption,
     /** 九期:场景里在第几条线(0 = 不分线 / 不在场景)、开着的线 */
     line, lines, refreshLines, switchLine,
+    /** 世界模型:点实体、我身上的状态 */
+    use, myState,
     roomVoice, selfMuted, setVoiceState, sendVoice, vmute, setVoiceHandler,
   };
 }

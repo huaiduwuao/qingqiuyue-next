@@ -67,6 +67,12 @@ export type RoomFrame =
   | { t: 'caption'; id: string; nickname?: string; text: string; final: boolean; blocked?: boolean; ts?: number }
   | { t: 'event'; phase: 'start'; event: { id: string; title: string; endAt: string } }
   | { t: 'error'; msg: string }
+  // 世界模型(规则运行时)
+  | { t: 'fx'; kind: 'toast' | 'say' | 'sound'; text?: string; entity?: string; sound?: string }
+  | { t: 'tp'; x?: number; y?: number; z?: number; space?: string }
+  | { t: 'me'; state: Record<string, unknown> }
+  | { t: 'env'; env: Record<string, string> }
+  | { t: 'ruleErr'; errors: string[] }
   | { t: 'pong' };
 
 /** 九期:公共场景的一条线和人数 */
@@ -155,6 +161,12 @@ export class RoomSocket {
   voice(v: 0 | 1 | 2) {
     if (!this.joined) return false;
     return this.raw({ t: 'voice', v });
+  }
+
+  /** 世界模型:点了一个实体(服务端跑它的 use 规则) */
+  use(id: string) {
+    if (!this.joined) return false;
+    return this.raw({ t: 'use', id });
   }
 
   /** 房主禁言 / 解禁 */

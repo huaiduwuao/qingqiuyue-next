@@ -67,6 +67,63 @@ export interface WorldPlacement {
   asset?: WorldAsset;
   /** 十期:灯关着(默认亮) */
   off?: boolean;
+  // ── 世界模型(docs/WORLD-MODEL.md):有原型或规则的摆放就是「实体」 ──
+  /** 原型 key */
+  kind?: string;
+  /** 状态(规则读写) */
+  state?: Record<string, unknown>;
+  /** 服务端按当前状态算好的属性:solid / emits / label / visible / zone / usable / sense … */
+  props?: EntityProps;
+  /** 外观:model(素材 key)或 shape(box / cylinder / sphere / disc)+ color + size(半宽 / 半高 / 半深) */
+  look?: EntityLook;
+  /** 这一个自己的规则 */
+  rules?: WorldRule[];
+  tags?: string[];
+  /** 规则改了位置 / 朝向时的动画毫秒数 */
+  anim?: number;
+}
+
+export interface EntityLook { model?: string; shape?: 'box' | 'cylinder' | 'sphere' | 'disc'; color?: string; size?: number[] }
+export interface EntityProps {
+  solid?: boolean;
+  walkable?: boolean;
+  visible?: boolean;
+  usable?: boolean;
+  sense?: boolean;
+  emits?: { color?: string; intensity?: number; radius?: number };
+  label?: { text?: string } | string;
+  zone?: { hx?: number; hy?: number; hz?: number };
+  sittable?: unknown;
+  [k: string]: unknown;
+}
+export interface WorldRule { on: string; if?: string; do: Record<string, unknown>[] }
+
+/** 原型(平台的 ownerId = '0') */
+export interface WorldKind {
+  key: string;
+  name?: string;
+  extends?: string;
+  look?: EntityLook;
+  props?: Record<string, unknown>;
+  state?: Record<string, unknown>;
+  rules?: WorldRule[];
+  tags?: string[];
+  ownerId: string;
+  mine: boolean;
+  visibility: 'public' | 'private';
+}
+
+export async function listKinds(): Promise<WorldKind[]> {
+  const r = await accountClient.get<{ list: WorldKind[] }>('/world/kinds');
+  return Array.isArray(r?.list) ? r.list : [];
+}
+/** 新建 / 改我的原型:def 是原型的 JSON(key 会自动加 u<我的 uid>. 前缀);规则写错了服务端会拒并说哪里错 */
+export async function saveKind(def: Record<string, unknown>, opts: { key?: string; visibility?: 'public' | 'private' } = {}): Promise<WorldKind> {
+  const body = { def, visibility: opts.visibility ?? 'private' };
+  return opts.key ? accountClient.put<WorldKind>(`/world/kinds/${encodeURIComponent(opts.key)}`, body) : accountClient.post<WorldKind>('/world/kinds', body);
+}
+export async function deleteKind(key: string): Promise<void> {
+  await accountClient.delete(`/world/kinds/${encodeURIComponent(key)}`);
 }
 
 export async function listPlacements(scene: string): Promise<WorldPlacement[]> {
@@ -81,7 +138,14 @@ export async function switchPlacement(id: string, on: boolean): Promise<{ id: st
 
 export interface PlacementInput {
   scene: string;
-  asset: string;
+  /** 素材(按原型放时可以不填,用原型的外观) */
+  asset?: string;
+  /** 世界模型:按原型放 / 改实体 */
+  kind?: string;
+  state?: Record<string, unknown>;
+  rules?: WorldRule[];
+  props?: Record<string, unknown>;
+  tags?: string[];
   label?: string;
   x: number;
   y?: number;

@@ -22,6 +22,10 @@
  * 分到一个点光源池(高画质 4 个、流畅 1 个,第一盏灯出现时才建,之后数量不变 —— 灯数一变 three 要重编所有着色器)。
  * 能坐的(interact = 'seat')按模型量座位:从上往下打射线找座面,四个方向里最高的一边是靠背,对面是正面;
  * 两边一样高(凳子、长椅)就面朝走过来的人;宽的沙发 / 长椅按 0.55 米一个座位排开。
+ *
+ * 世界模型(docs/WORLD-MODEL.md):实体按服务端算好的属性画 —— look.shape 没有模型时画简单形状(盒子、圆柱、球、圆盘),
+ * props.visible 隐藏、props.emits 发光(颜色 / 强度 / 半径,和老的灯共用光源池)、props.label 头顶文字、
+ * props.solid = false 或带 zone 的(区域)不挡路;规则改了位置 / 朝向(anim 毫秒)就平滑地挪过去。
  */
 
 import type * as THREE from 'three';
@@ -57,6 +61,11 @@ export interface PlacedObject {
   interact?: Interact | null;
   /** 十期:灯关着 */
   off?: boolean;
+  /** 世界模型:原型、外观、算好的属性、动画毫秒数 */
+  kind?: string;
+  look?: { model?: string; shape?: string; color?: string; size?: number[] };
+  props?: { solid?: boolean; visible?: boolean; emits?: { color?: string; intensity?: number; radius?: number }; label?: unknown; zone?: unknown; sense?: boolean; [k: string]: unknown };
+  anim?: number;
 }
 
 /** 离镜头 dist 米、大小 size 米的东西该用第几档(0 近 / 1 中 / 2 远)。prev = 上次的结果,离边界不到 10% 不换 */
@@ -120,6 +129,12 @@ interface Entry {
   /** 十期:灯头那团光;灯罩材质(各自拷过一份) */
   lampGlow?: THREE.Sprite | null;
   lampMats?: THREE.MeshStandardMaterial[];
+  /** 世界模型:画成简单形状的(没有模型)、头顶文字、规则动画、上次的属性(变了才重画灯) */
+  primitive?: boolean;
+  labelSprite?: THREE.Sprite | null;
+  labelText?: string;
+  tween?: { from: THREE.Vector3; to: THREE.Vector3; r0: number; r1: number; t0: number; ms: number } | null;
+  propsKey?: string;
 }
 
 /** 模型在自己组里的包围盒:地面上的中心 / 半宽,和上下沿 */
@@ -163,8 +178,78 @@ export function createObjectLayer(
 
   function place(e: Entry) {
     const { p } = e;
+    // 规则让它动(anim 毫秒):从现在的位置平滑过去
+    if (p.anim && p.anim > 0 && e.model) {
+      let d = p.rotY - e.g.rotation.y;
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      e.tween = { from: e.g.position.clone(), to: new THREE_NS.Vector3(p.x, p.y, p.z), r0: e.g.rotation.y, r1: e.g.rotation.y + d, t0: performance.now(), ms: p.anim };
+      return;
+    }
+    e.tween = null;
     e.g.position.set(p.x, p.y, p.z);
     e.g.rotation.y = p.rotY;
+  }
+
+  // ── 世界模型:简单形状、头顶文字 ──
+  /** 没有模型的实体画成简单形状;size 是半宽 / 半高 / 半深,脚底在 0 */
+  function buildPrimitive(e: Entry) {
+    const look = e.p.look ?? {};
+    const [hx = 0.25, hy = 0.25, hz = hx] = look.size ?? [];
+    let geo: THREE.BufferGeometry;
+    let y = hy;
+    switch (look.shape) {
+      case 'cylinder': geo = new THREE_NS.CylinderGeometry(hx, hx, hy * 2, 20); break;
+      case 'disc': geo = new THREE_NS.CylinderGeometry(hx, hx, Math.max(0.01, hy * 2), 28); break;
+      case 'sphere': geo = new THREE_NS.SphereGeometry(hx, 20, 14); y = Math.max(hx, 0.6); break;
+      default: geo = new THREE_NS.BoxGeometry(hx * 2, hy * 2, hz * 2);
+    }
+    const mat = new THREE_NS.MeshStandardMaterial({ color: new THREE_NS.Color(look.color || '#cccccc'), roughness: 0.6, transparent: look.shape === 'disc', opacity: look.shape === 'disc' ? 0.55 : 1, name: 'emiss' });
+    const mesh = new THREE_NS.Mesh(geo, mat);
+    mesh.position.y = y;
+    mesh.castShadow = look.shape !== 'disc';
+    const wrap = new THREE_NS.Group();
+    wrap.add(mesh);
+    e.model = wrap;
+    e.primitive = true;
+    e.obox = undefined;
+    e.g.add(wrap);
+    if (e.glow) { e.g.remove(e.glow); e.glow = null; }
+    e.grow = Math.min(e.grow, 0.001);
+    if (isLightSource(e)) setupLamp(e);
+  }
+
+  function labelTextOf(p: PlacedObject): string {
+    const l = p.props?.label;
+    if (typeof l === 'string') return l;
+    if (l && typeof l === 'object' && typeof (l as { text?: unknown }).text === 'string') return (l as { text: string }).text;
+    return '';
+  }
+  function updateLabel(e: Entry) {
+    const text = labelTextOf(e.p).slice(0, 40);
+    if (text === (e.labelText ?? '')) return;
+    e.labelText = text;
+    if (e.labelSprite) { e.g.remove(e.labelSprite); e.labelSprite.material.map?.dispose(); e.labelSprite.material.dispose(); e.labelSprite = null; }
+    if (!text) return;
+    const c = document.createElement('canvas');
+    const g2 = c.getContext('2d');
+    if (!g2) return;
+    g2.font = 'bold 30px sans-serif';
+    const w = Math.ceil(g2.measureText(text).width) + 28;
+    c.width = w; c.height = 46;
+    g2.font = 'bold 30px sans-serif';
+    g2.fillStyle = 'rgba(16,18,28,0.82)';
+    g2.fillRect(0, 0, w, 46);
+    g2.fillStyle = '#fff';
+    g2.textBaseline = 'middle';
+    g2.fillText(text, 14, 24);
+    const tex = new THREE_NS.CanvasTexture(c);
+    const s = new THREE_NS.Sprite(new THREE_NS.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+    s.scale.set(w / 46 * 0.22, 0.22, 1);
+    s.renderOrder = 6;
+    const b = e.obox === undefined ? (e.obox = measure(e)) : e.obox;
+    s.position.y = (b ? b.y1 : 0.8) + 0.3;
+    e.labelSprite = s;
+    e.g.add(s);
   }
 
   /** 用户上传的模型:脚底中心挪到原点;最长边 > 100 多半是厘米,缩 0.01;太大 / 太小的缩放到能看的尺寸 */
@@ -250,7 +335,9 @@ export function createObjectLayer(
       e.lampMats = undefined;
       e.g.add(obj);
       if (e.glow) { e.g.remove(e.glow); e.glow = null; }
-      if (e.p.interact === 'lamp' && !e.p.ghost) setupLamp(e);
+      if (isLightSource(e) && !e.p.ghost) setupLamp(e);
+      // 模型换了(高度变了):头顶文字按新高度重放
+      if (e.labelText) { e.labelText = ''; updateLabel(e); }
       if (first) e.grow = Math.min(e.grow, 0.001); // 实物到了:从小长出来(换档不用)
     }).catch(() => {
       if (e.loadingKey !== loadKey) return;
@@ -278,13 +365,23 @@ export function createObjectLayer(
       e = { p, g, model: null, glow: null, grow: 0.001, loadedKey: '', loadingKey: '', radius: 0, distLevel: -1, lodBroken: false };
       entries.set(p.id, e);
     }
-    const keyChanged = e.p.assetKey !== p.assetKey;
+    const keyChanged = e.p.assetKey !== p.assetKey || (!p.assetKey && JSON.stringify(e.p.look) !== JSON.stringify(p.look));
     const offChanged = !!e.p.off !== !!p.off;
+    const propsKey = JSON.stringify(p.props ?? null);
+    const propsChanged = propsKey !== e.propsKey;
+    e.propsKey = propsKey;
     e.p = p;
-    if (offChanged && e.model && p.interact === 'lamp') applyLamp(e);
+    if ((offChanged || propsChanged) && e.model && isLightSource(e)) {
+      if (!e.lampMats) setupLamp(e); else applyLamp(e);
+    }
     place(e);
-    if (keyChanged) { if (e.model) e.g.remove(e.model); e.model = null; e.obox = undefined; e.loadedKey = ''; e.loadingKey = ''; e.distLevel = -1; e.lodBroken = false; }
-    if (p.status === 'ready') loadModel(e);
+    e.g.visible = p.props?.visible !== false;
+    if (keyChanged) { if (e.model) e.g.remove(e.model); e.model = null; e.obox = undefined; e.loadedKey = ''; e.loadingKey = ''; e.distLevel = -1; e.lodBroken = false; e.lampMats = undefined; e.primitive = false; }
+    if (propsChanged) updateLabel(e);
+    if (!p.assetKey) {
+      // 世界模型:没有模型的实体(按钮、告示牌、区域……)画成简单形状
+      if (!e.model) { buildPrimitive(e); updateLabel(e); }
+    } else if (p.status === 'ready') loadModel(e);
     else if (!e.glow && !e.model) {
       // 还在现做:一团光占位,高度按素材大约多高放
       e.glow = new THREE_NS.Mesh(glowGeo, glowMat);
@@ -360,6 +457,8 @@ export function createObjectLayer(
     for (const e of entries.values()) {
       // 长出来一半之前组的缩放接近 0,量不准;预览件(半透明)不挡
       if (e.grow < 1 || e.p.ghost || !e.model) continue;
+      // 世界模型:不挡人的(solid = false)、区域、藏起来的,都不算障碍
+      if (e.p.props && (e.p.props.solid === false || e.p.props.sense || e.p.props.zone || e.p.props.visible === false)) continue;
       if (e.obox === undefined) e.obox = measure(e);
       const b = e.obox;
       if (!b) continue;
@@ -430,13 +529,24 @@ export function createObjectLayer(
     }
     applyLamp(e);
   }
+  /** 会发光的:老的灯(interact = lamp)或者世界模型里带 emits 属性的 */
+  function isLightSource(e: Entry) { return e.p.interact === 'lamp' || !!e.p.props?.emits; }
+  /** 此刻亮着:emits 的强度 > 0(且没藏起来);老的灯看 off */
+  function isLit(e: Entry) {
+    const em = e.p.props?.emits;
+    if (em) return (em.intensity ?? 0) > 0 && e.p.props?.visible !== false;
+    return !e.p.off;
+  }
   function applyLamp(e: Entry) {
-    const on = !e.p.off;
+    const on = isLit(e);
+    const em = e.p.props?.emits;
+    const tint = em?.color ? new THREE_NS.Color(em.color) : warm;
+    if (e.lampGlow) (e.lampGlow.material as THREE.SpriteMaterial).color.copy(tint);
     if (e.lampGlow) e.lampGlow.visible = on;
     for (const m of e.lampMats ?? []) {
       const base = m.userData.lampBase as { e: THREE.Color; i: number };
       if (on) {
-        m.emissive.copy(warm);
+        m.emissive.copy(tint);
         m.emissiveIntensity = m.userData.lampWeak ? 0.25 : 1.4;
       } else {
         m.emissive.copy(base.e);
@@ -451,7 +561,7 @@ export function createObjectLayer(
   const lp = new THREE_NS.Vector3();
   function assignLights() {
     lightsDirty = false;
-    const lit = Array.from(entries.values()).filter((e) => e.p.interact === 'lamp' && !e.p.off && e.lampGlow && e.grow >= 0);
+    const lit = Array.from(entries.values()).filter((e) => isLightSource(e) && isLit(e) && e.lampGlow && e.grow >= 0);
     if (!lit.length && !lights) return;
     if (!lights) {
       const n = opts.quality === 'high' ? 4 : 1;
@@ -468,7 +578,16 @@ export function createObjectLayer(
       e.lampGlow!.getWorldPosition(lp);
       root.worldToLocal(lp);
       l.position.copy(lp);
-      l.intensity = 6 * Math.max(0.6, Math.min(2, e.p.scale || 1));
+      const em = e.p.props?.emits;
+      if (em) {
+        l.color.set(em.color || '#ffc98a');
+        l.distance = Math.max(1, Math.min(20, em.radius ?? 7));
+        l.intensity = Math.max(0, Math.min(20, em.intensity ?? 6));
+      } else {
+        l.color.set(0xffc98a);
+        l.distance = 7;
+        l.intensity = 6 * Math.max(0.6, Math.min(2, e.p.scale || 1));
+      }
     });
   }
 
@@ -583,6 +702,17 @@ export function createObjectLayer(
 
   function tick(t: number, dt: number, camera?: THREE.Camera) {
     tickLod(dt, camera);
+    // 世界模型:规则动画(门转开、平台升起……)
+    const nowMs = performance.now();
+    for (const e of entries.values()) {
+      const tw = e.tween;
+      if (!tw) continue;
+      const k = Math.min(1, (nowMs - tw.t0) / tw.ms);
+      const ease = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+      e.g.position.lerpVectors(tw.from, tw.to, ease);
+      e.g.rotation.y = tw.r0 + (tw.r1 - tw.r0) * ease;
+      if (k >= 1) { e.tween = null; lightsDirty = true; }
+    }
     if (lightsDirty) assignLights();
     const sel = selected ? entries.get(selected) : undefined;
     if (sel && sel.grow >= 0) {
