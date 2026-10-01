@@ -284,6 +284,8 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
               orderBy: 'update_time',
               // 只要有封面的条目:资讯热搜这类纯文字条目在瀑布流里是一片空白卡片。
               hasCover: true,
+              // 影视类只放站内能看的(其它类型后端放行)。
+              watchable: 1,
             }).catch(() => null),
           ),
         );
@@ -332,6 +334,8 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
         ...params,
         // 后端认的参数名是 orderBy;之前传 order 被静默丢弃,"最新/高评分"排序从未生效。
         orderBy: sort === 'new' ? 'CREATE_TIME' : sort === 'rating' ? 'rating' : 'COLLECT',
+        // 影视类只放站内能看的(其它类型后端放行)。
+        watchable: 1,
         ...(ratingMin ? { ratingMin } : {}),
         ...(year ? { releaseYear: year } : {}),
       }) as any;

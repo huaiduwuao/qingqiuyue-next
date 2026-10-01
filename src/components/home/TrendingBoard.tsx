@@ -55,7 +55,7 @@ export default function TrendingBoard({
   title = '全网热榜',
   defaultPeriod = 'day',
   maxItems = 20,
-  playableOnly = false,
+  playableOnly = true,
 }: Props) {
   const router = useRouter();
   const [period, setPeriod] = useState<TrendingPeriod>(defaultPeriod);
