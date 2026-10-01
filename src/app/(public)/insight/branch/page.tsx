@@ -31,6 +31,7 @@ import { accentOf, Epigraph } from '@/components/insight/InsightCards';
 import { AvailFilter, ItemGrid, TimelineTab, WorksTab } from '@/components/insight/ThemeWorks';
 import { ago, BranchStrip, branchSignals } from '@/components/insight/Branches';
 import { useAuthority } from '@/contexts/AuthContext';
+import { useTopicOpen, workClickCapture } from '@/lib/topicTrack';
 
 const SERIF = '"Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, serif';
 
@@ -42,6 +43,7 @@ function BranchInner() {
   const [avail, setAvail] = React.useState<InsightAvail>('');
   const { isAdmin, roles } = useAuthority();
   const isStaff = isAdmin || roles.includes('OPERATOR') || roles.includes('AUDITOR');
+  useTopicOpen(key || undefined);
 
   const q = useQuery({
     queryKey: ['insight', 'branch', key],
@@ -199,7 +201,9 @@ function BranchInner() {
             <Typography sx={{ fontSize: 16, fontWeight: 600, whiteSpace: 'nowrap' }}>站内此刻</Typography>
             <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>热点点名的作品,和近几天标题里带「{b.cue}」的资讯与视频</Typography>
           </Box>
-          <ItemGrid list={now} accent={accent} showType />
+          <Box onClickCapture={workClickCapture(key)}>
+            <ItemGrid list={now} accent={accent} showType />
+          </Box>
         </Box>
       )}
 

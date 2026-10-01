@@ -21,6 +21,7 @@ import { civMap, type CivMap } from '@/apis/civ';
 import type { InsightBranchEvidence } from '@/apis/insight';
 import { civAccent, civHref, GraftBox, GrownCard, SERIF } from '@/components/civ/CivParts';
 import { ago } from '@/components/insight/Branches';
+import { useTopicImpressions } from '@/lib/topicTrack';
 
 function Stat({ n, label }: { n: number | string; label: string }) {
   return (
@@ -128,6 +129,7 @@ function Unplaced({ list, data }: { list: InsightBranchEvidence[]; data: CivMap 
               <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>
                 {e.source}
                 {e.rank ? ` 第 ${e.rank} 位` : ''} · {ago(e.at)}
+                {e.suggestName ? ` · 可能属于「${e.suggestName}」` : ''}
               </Typography>
             </Box>
             <Typography onClick={() => setPick(e)} sx={{ fontSize: 13, color: 'primary.main', cursor: 'pointer', flexShrink: 0 }}>
@@ -151,6 +153,10 @@ function Unplaced({ list, data }: { list: InsightBranchEvidence[]; data: CivMap 
 export default function CivPage() {
   const q = useQuery({ queryKey: ['civ', 'map'], queryFn: civMap, staleTime: 5 * 60_000 });
   const d = q.data;
+  // 曝光:领域、门类、分支卡都算(行为闭环的分母,见 lib/topicTrack)
+  useTopicImpressions(
+    (d?.domains ?? []).flatMap((dm) => [dm.key, ...dm.fields.map((f) => f.key), ...dm.branches.map((b) => b.key)]),
+  );
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <DetailHeader title="文明图谱" />
@@ -164,6 +170,9 @@ export default function CivPage() {
             <br />
             支架是搭好的;上面长什么,由此刻的热点、大家的搜索和你自己决定
           </Typography>
+          {d?.personalized && (
+            <Typography sx={{ fontSize: 12, color: 'primary.main', mt: 1 }}>按你常看的领域和兴趣排了顺序</Typography>
+          )}
         </Box>
 
         {q.isLoading || !d ? (

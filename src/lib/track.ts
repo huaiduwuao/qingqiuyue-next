@@ -19,8 +19,8 @@ function isLoggedIn(): boolean {
   return hasToken;
 }
 
-// 浏览器级匿名访客 id(随机生成,不含任何个人信息),只用于站点 UV 去重。
-function visitorId(): string {
+// 浏览器级匿名访客 id(随机生成,不含任何个人信息),用于站点 UV 去重与专题节点的游客偏好。
+export function visitorId(): string {
   if (typeof window === 'undefined') return '';
   try {
     let id = localStorage.getItem('qq_vid');

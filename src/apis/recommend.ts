@@ -59,6 +59,8 @@ export interface FeedItem {
   channels?: string[];
   /** 主召回通道(兼容旧字段) */
   reason: string;
+  /** 被「此刻的分支」召回时是哪一枝(channels 里有 topic) */
+  topic?: string;
   metadata?: string;
 
   // ── 播放性 ──

@@ -22,6 +22,7 @@ import {
 } from '@/apis/insight';
 import { AVAIL_META, InsightCard } from '@/components/insight/InsightCards';
 import { TYPE_LABEL } from '@/lib/contentRoute';
+import { workClickCapture } from '@/lib/topicTrack';
 
 const SERIF = '"Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, serif';
 const PAGE_SIZE = 24;
@@ -169,7 +170,8 @@ export function WorksTab({ t, avail, accent }: { t: InsightTheme; avail: Insight
   if (q.isLoading) return <Skeleton variant="rounded" height={420} />;
   if (!sections.length) return <EmptyState text={emptyText(avail)} />;
   return (
-    <>
+    // 点开作品时记「在这个节点里点了哪部」,节点下的作品按它重排(lib/topicTrack)
+    <Box onClickCapture={workClickCapture(t.key)}>
       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 3 }}>
         <Chip
           size="small"
@@ -204,7 +206,7 @@ export function WorksTab({ t, avail, accent }: { t: InsightTheme; avail: Insight
           />
         ))
       )}
-    </>
+    </Box>
   );
 }
 
@@ -230,12 +232,14 @@ export function TimelineTab({ t, avail, accent }: { t: InsightTheme; avail: Insi
           ← 回到时间线
         </Typography>
         <Typography sx={{ fontFamily: SERIF, fontSize: 20, fontWeight: 700, mb: 1 }}>{e?.name}</Typography>
-        <PagedList themeKey={t.key} era={era} avail={avail} accent={accent} />
+        <Box onClickCapture={workClickCapture(t.key)}>
+          <PagedList themeKey={t.key} era={era} avail={avail} accent={accent} />
+        </Box>
       </>
     );
   }
   return (
-    <Box sx={{ position: 'relative', pl: { xs: 3, md: 4 } }}>
+    <Box onClickCapture={workClickCapture(t.key)} sx={{ position: 'relative', pl: { xs: 3, md: 4 } }}>
       {/* 竖线 */}
       <Box sx={{ position: 'absolute', left: { xs: 7, md: 11 }, top: 8, bottom: 8, width: 2, bgcolor: 'divider' }} />
       {eras.map((e) => (

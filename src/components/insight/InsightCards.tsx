@@ -152,6 +152,7 @@ export function VerseCard({ item, accent }: { item: InsightItem; accent: string 
   const go = useContentNavigate();
   return (
     <Box
+      data-work-id={String(item.id)}
       onClick={() => go(item.contentType, item.id)}
       sx={{
         p: 2,
@@ -208,7 +209,7 @@ export function WorkCard({ item, showType = false }: { item: InsightItem; showTy
     .filter(Boolean)
     .join(' · ');
   return (
-    <Box onClick={() => go(item.contentType, item.id)} sx={{ cursor: 'pointer', minWidth: 0 }}>
+    <Box data-work-id={String(item.id)} onClick={() => go(item.contentType, item.id)} sx={{ cursor: 'pointer', minWidth: 0 }}>
       <Box
         sx={{
           position: 'relative',

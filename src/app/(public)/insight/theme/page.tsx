@@ -36,6 +36,7 @@ import { accentOf, EssayCard, Epigraph, StoryCard } from '@/components/insight/I
 import { AvailFilter, TimelineTab, WorksTab } from '@/components/insight/ThemeWorks';
 import { list as fetchJourneys } from '@/apis/journey';
 import { BranchStrip } from '@/components/insight/Branches';
+import { useTopicOpen } from '@/lib/topicTrack';
 
 const SERIF = '"Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, serif';
 
@@ -110,6 +111,7 @@ function ThemeInner() {
   React.useEffect(() => {
     if (t) pushRecentTheme(t.key);
   }, [t]);
+  useTopicOpen(t?.key);
 
   if (ov.isLoading) {
     return (

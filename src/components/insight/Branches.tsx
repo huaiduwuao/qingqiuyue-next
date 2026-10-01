@@ -15,6 +15,7 @@ import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import { branches as fetchBranches, need as postNeed, type InsightBranch } from '@/apis/insight';
 import { accentOf } from '@/components/insight/InsightCards';
+import { useTopicImpressions } from '@/lib/topicTrack';
 
 const SERIF = '"Noto Serif SC", "Source Han Serif SC", "Songti SC", STSong, serif';
 
@@ -68,6 +69,7 @@ export function BranchCard({ b, showTheme = true }: { b: InsightBranch; showThem
           <Typography sx={{ fontSize: 12, color: 'text.secondary', whiteSpace: 'nowrap' }}>· {b.themeName}</Typography>
         )}
         <Typography sx={{ fontSize: 11, color: 'text.disabled', ml: 'auto', whiteSpace: 'nowrap' }}>
+          {b.forYou ? '你可能在意 · ' : ''}
           {ago(b.lastSignal)}
         </Typography>
       </Box>
@@ -111,6 +113,7 @@ export function BranchStrip({
     staleTime: 5 * 60_000,
   });
   const list = (q.data?.list ?? []).filter((b) => b.key !== exclude);
+  useTopicImpressions(list.map((b) => b.key));
   if (!list.length) return null;
   return (
     <Box sx={{ mb: 5 }}>
@@ -118,7 +121,9 @@ export function BranchStrip({
         <Typography sx={{ fontFamily: SERIF, fontSize: theme ? 17 : 22, fontWeight: 700, letterSpacing: '0.12em' }}>
           {title || '此刻'}
         </Typography>
-        <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>跟着热点和大家的心事自动长出来的分支</Typography>
+        <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>
+          跟着热点和大家的心事自动长出来的分支{q.data?.personalized ? ' · 按你的偏好排' : ''}
+        </Typography>
       </Box>
       <Box
         sx={{

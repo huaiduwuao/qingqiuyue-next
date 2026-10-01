@@ -6,6 +6,7 @@
 
 import { contentClient } from '@/lib/api/client';
 import type { InsightBranchEvidence, InsightItem } from '@/apis/insight';
+import { visitorId } from '@/lib/track';
 
 /** editorial = 编辑搭的支架;hot / search = 跟着热搜 / 搜索长出来的;user = 用户嫁接的 */
 export type CivOrigin = 'editorial' | 'hot' | 'search' | 'user';
@@ -39,6 +40,8 @@ export interface CivNode {
   parentName?: string;
   /** 只在 node 的子节点上:它自己的子节点数 */
   children?: number;
+  /** 与这个人的偏好很近(画像标签 / 常看的领域) */
+  forYou?: boolean;
 }
 
 export interface CivMap {
@@ -47,9 +50,12 @@ export interface CivMap {
   stats: { domains: number; fields: number; open: number; pending: number; grafted: number; works: number };
   /** 最近一轮热搜的归置:多少条、归了多少、哪些没地方挂 */
   round: { at: number; total: number; placed: number; harm: number; unplaced: InsightBranchEvidence[] };
+  /** 这次是按这个人的偏好排的(登录画像或游客的浏览历史) */
+  personalized?: boolean;
 }
 
-export const civMap = (): Promise<CivMap> => contentClient.get('/civ/map');
+/** 带上访客 id:领域、门类、分支按这个人的偏好排 */
+export const civMap = (): Promise<CivMap> => contentClient.get('/civ/map', { params: { vid: visitorId() || undefined } });
 
 export const civNode = (
   key: string,
@@ -59,7 +65,10 @@ export const civNode = (
   children: CivNode[];
   evidence: InsightBranchEvidence[];
   now: InsightItem[];
-}> => contentClient.get('/civ/node', { params: { key } });
+  /** 意思相近的作品:向量近邻里标题 / 标签没出现线索词的 */
+  semantic?: InsightItem[];
+  personalized?: boolean;
+}> => contentClient.get('/civ/node', { params: { key, vid: visitorId() || undefined } });
 
 /** 在某个门类 / 分支下接一枝。要登录;名字与词过审核。 */
 export const graft = (body: { parent: string; name: string; cues: string[]; intro?: string }): Promise<{ node: CivNode; existed?: boolean }> =>

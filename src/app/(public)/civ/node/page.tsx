@@ -26,6 +26,7 @@ import { AvailFilter, ItemGrid, TimelineTab, WorksTab } from '@/components/insig
 import { ago } from '@/components/insight/Branches';
 import { civAccent, civHref, civSignals, GraftBox, GrownCard, ORIGIN_LABEL, SERIF } from '@/components/civ/CivParts';
 import { useAuthority } from '@/contexts/AuthContext';
+import { useTopicImpressions, useTopicOpen, workClickCapture } from '@/lib/topicTrack';
 
 function NodeInner() {
   const router = useRouter();
@@ -44,6 +45,8 @@ function NodeInner() {
     retry: false,
   });
   const n = q.data?.node;
+  useTopicOpen(n?.key);
+  useTopicImpressions((q.data?.children ?? []).map((c) => c.key));
   // 筛选数字在不筛的主题接口里(和「作品」页签默认那次请求是同一个缓存)
   const detail = useQuery({
     queryKey: ['insight', 'theme', key, ''],
@@ -77,6 +80,7 @@ function NodeInner() {
   const { path, children } = q.data;
   const evidence = q.data.evidence ?? [];
   const now = q.data.now ?? [];
+  const semantic = q.data.semantic ?? [];
   const accent = civAccent(n.domain);
   const isDomain = n.depth === 0;
   const fields = isDomain ? children.filter((c) => c.origin === 'editorial') : [];
@@ -204,7 +208,7 @@ function NodeInner() {
               >
                 <Box sx={{ display: 'flex', gap: 1, alignItems: 'baseline', minWidth: 0 }}>
                   <Typography sx={{ fontSize: 14, fontWeight: 600, flex: 1, minWidth: 0 }}>{e.word}</Typography>
-                  <Typography sx={{ fontSize: 11, color: 'text.disabled', whiteSpace: 'nowrap' }}>
+                  <Typography sx={{ fontSize: 11, color: e.via === 'semantic' ? accent : 'text.disabled', whiteSpace: 'nowrap' }}>
                     {e.source}
                     {e.rank ? ` 第 ${e.rank} 位` : ''} · {ago(e.at)}
                   </Typography>
@@ -238,7 +242,22 @@ function NodeInner() {
             <Typography sx={{ fontSize: 16, fontWeight: 600, whiteSpace: 'nowrap' }}>站内此刻</Typography>
             <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>热点点名的作品,和近几天标题里带线索词的资讯与视频</Typography>
           </Box>
-          <ItemGrid list={now} accent={accent} showType />
+          <Box onClickCapture={workClickCapture(n.key)}>
+            <ItemGrid list={now} accent={accent} showType />
+          </Box>
+        </Box>
+      )}
+
+      {/* 意思相近:向量近邻里,标题和标签都没出现线索词的作品 */}
+      {semantic.length > 0 && (
+        <Box sx={{ mb: 4 }}>
+          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, mb: 1.5, flexWrap: 'wrap' }}>
+            <Typography sx={{ fontSize: 16, fontWeight: 600, whiteSpace: 'nowrap' }}>意思相近的作品</Typography>
+            <Typography sx={{ fontSize: 11, color: 'text.disabled' }}>字面上没出现线索词,按语义向量找到的</Typography>
+          </Box>
+          <Box onClickCapture={workClickCapture(n.key)}>
+            <ItemGrid list={semantic} accent={accent} showType />
+          </Box>
         </Box>
       )}
 

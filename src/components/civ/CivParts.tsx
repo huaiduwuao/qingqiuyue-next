@@ -71,6 +71,7 @@ export function GrownCard({ n, showParent = true }: { n: CivNode; showParent?: b
           <Typography sx={{ fontSize: 11.5, color: 'text.secondary', whiteSpace: 'nowrap' }}>← {n.parentName}</Typography>
         )}
         <Typography sx={{ fontSize: 10.5, color: 'text.disabled', ml: 'auto', whiteSpace: 'nowrap' }}>
+          {n.forYou ? '你可能在意 · ' : ''}
           {n.status === 'pending' ? '待长出' : ORIGIN_LABEL[n.origin]}
           {n.lastSignal ? ` · ${ago(n.lastSignal)}` : ''}
         </Typography>

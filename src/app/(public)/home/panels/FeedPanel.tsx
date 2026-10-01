@@ -91,6 +91,8 @@ type FeedItem = {
    *  此时角标不显示 —— 宁可不说,也不要猜。 */
   playbackStatus?: PlaybackStatus;
   readyItems?: number;
+  /** 推荐里被「此刻的分支」召回时,是哪一枝(如「外卖 · 谋生之重」) */
+  topic?: string;
   totalItems?: number;
 };
 
@@ -920,6 +922,11 @@ function FeedCard({ item }: { item: FeedItem }) {
 
       {/* 手机两列时卡片只有一百七八十像素宽:内边距、行距都收一点 */}
       <Box sx={{ p: { xs: 1, md: 1.5 }, [LIST_ROW]: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' } }}>
+        {item.topic && (
+          <Typography sx={{ fontSize: 10.5, color: '#2E86AB', mb: 0.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            此刻 · {item.topic}
+          </Typography>
+        )}
         <Typography
           sx={{
             fontSize: 13,

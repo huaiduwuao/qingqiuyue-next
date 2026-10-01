@@ -6,6 +6,7 @@
 
 import { contentClient } from '@/lib/api/client';
 import type { EntityId } from '@/lib/id';
+import { visitorId } from '@/lib/track';
 
 /** 史书 / 诗文里的真实记载的白话转述,src 是原始出处 */
 export interface InsightStory {
@@ -189,6 +190,8 @@ export interface InsightBranch {
   /** 最近一条热搜原题 */
   headline?: string;
   hotCount?: number;
+  /** 与这个人的偏好很近(画像标签 / 常看的主题) */
+  forYou?: boolean;
 }
 
 /** 分支的凭据:哪条热搜、什么时候 */
@@ -201,10 +204,19 @@ export interface InsightBranchEvidence {
   rank?: number;
   source: string;
   at: number;
+  /** semantic = 字面没认出来、按向量相似归的位 */
+  via?: 'semantic';
+  sim?: number;
+  /** 没归位的热点:语义上最近的门类(给嫁接参考) */
+  suggest?: string;
+  suggestName?: string;
 }
 
-export const branches = (params: { theme?: string; status?: 'open' | 'closed'; limit?: number } = {}): Promise<{ list: InsightBranch[] }> =>
-  contentClient.get('/insight/branches', { params });
+/** 开着的分支按真实反馈 + 个人偏好排(登录用户用画像,游客用访客 id 的浏览历史) */
+export const branches = (
+  params: { theme?: string; status?: 'open' | 'closed'; limit?: number } = {},
+): Promise<{ list: InsightBranch[]; personalized?: boolean }> =>
+  contentClient.get('/insight/branches', { params: { ...params, vid: visitorId() || undefined } });
 
 export const branch = (
   key: string,
