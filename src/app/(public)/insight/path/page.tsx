@@ -24,7 +24,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { loginHref } from '@/lib/auth/redirect';
 import { accentOf } from '@/components/insight/InsightCards';
 import { overview } from '@/apis/insight';
-import { clearMyClues, clearMyMemory, deleteMyEcho, getMyClues, getMyEchoes, getMyMemory, type WorldClue } from '@/apis/world';
+import { clearMyClues, clearMyMemory, deleteMyEcho, getMyWorld, type WorldClue, type WorldEchoLine } from '@/apis/world';
 import {
   LIFE_AXES,
   addMoment,
@@ -217,12 +217,24 @@ function NodeRow({ n, names, onDelete }: { n: LifePathNode; names: Record<string
   );
 }
 
+/** 我在世界里留下的:一份跟着人走的档案(线索本、留给后来人的话、故事记忆),一次取齐 */
+const WORLD_ME = ['world', 'me'];
+function WorldTrace({ names }: { names: Record<string, string> }) {
+  const q = useQuery({ queryKey: WORLD_ME, queryFn: getMyWorld });
+  if (!q.data) return null;
+  return (
+    <>
+      <Clues list={q.data.clues} />
+      <MyEchoes list={q.data.echoes} />
+      <StoryMemory memory={q.data.memory} names={names} />
+    </>
+  );
+}
+
 /** 留给后来人的话:在场景里写下、自愿匿名分享的;能撤回 */
-function MyEchoes() {
+function MyEchoes({ list }: { list: WorldEchoLine[] }) {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['world', 'echoes'], queryFn: getMyEchoes });
-  const del = useMutation({ mutationFn: deleteMyEcho, onSuccess: () => qc.invalidateQueries({ queryKey: ['world', 'echoes'] }) });
-  const list = q.data ?? [];
+  const del = useMutation({ mutationFn: deleteMyEcho, onSuccess: () => qc.invalidateQueries({ queryKey: WORLD_ME }) });
   if (!list.length) return null;
   return (
     <Box sx={{ mb: 5 }}>
@@ -244,11 +256,9 @@ function MyEchoes() {
 }
 
 /** 线索本:在虚拟世界的各个场景里发现的(只记描写,没有答案);按场景分组,能清 */
-function Clues() {
+function Clues({ list }: { list: WorldClue[] }) {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['world', 'clues'], queryFn: getMyClues });
-  const clear = useMutation({ mutationFn: (room?: string) => clearMyClues(room), onSuccess: () => qc.invalidateQueries({ queryKey: ['world', 'clues'] }) });
-  const list = q.data ?? [];
+  const clear = useMutation({ mutationFn: (room?: string) => clearMyClues(room), onSuccess: () => qc.invalidateQueries({ queryKey: WORLD_ME }) });
   if (!list.length) return null;
   const groups = new Map<string, WorldClue[]>();
   for (const c of list) {
@@ -285,11 +295,10 @@ function Clues() {
 }
 
 /** 故事里记着你的:虚拟世界里的场景记下的(下一个场景照着它开场);能逐条忘掉、全部清空 */
-function StoryMemory({ names }: { names: Record<string, string> }) {
+function StoryMemory({ memory, names }: { memory: Record<string, unknown>; names: Record<string, string> }) {
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ['world', 'memory'], queryFn: getMyMemory });
-  const clear = useMutation({ mutationFn: (key?: string) => clearMyMemory(key), onSuccess: () => qc.invalidateQueries({ queryKey: ['world', 'memory'] }) });
-  const entries = Object.entries(q.data ?? {});
+  const clear = useMutation({ mutationFn: (key?: string) => clearMyMemory(key), onSuccess: () => qc.invalidateQueries({ queryKey: WORLD_ME }) });
+  const entries = Object.entries(memory);
   if (!entries.length) return null;
   const show = (v: unknown): string => {
     if (v && typeof v === 'object') {
@@ -501,11 +510,7 @@ export default function LifePathPage() {
               )}
             </Box>
 
-            <Clues />
-
-            <MyEchoes />
-
-            <StoryMemory names={names} />
+            <WorldTrace names={names} />
 
             <Peers profile={q.data.profile} meta={meta} onToggle={(v) => vis.mutate(v)} />
           </>

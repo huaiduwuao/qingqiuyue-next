@@ -15,7 +15,7 @@ vi.mock('@/apis/world', () => ({
 import { createPeerLayer, type RoomPeer } from '../vrm/world/peerAvatars';
 import { createObjectLayer, type PlacedObject } from '../vrm/world/worldObjects';
 import { EntityPanel } from '../scene-ui/RoomEntities';
-import { formable, RuleListForm } from '../scene-ui/RuleForm';
+import { effectKind, formable, RuleListForm } from '../scene-ui/RuleForm';
 import { EchoCard, EchoLinesCard, FoundCounter, ReflectCard } from '../scene-ui/ExploreCards';
 
 const look = { base: '/none.vrm', params: {}, version: 1 };
@@ -142,13 +142,16 @@ describe('characters played by digital humans', () => {
   it('edits a dialogue between characters, line by line, and a converse', () => {
     expect(formable({ dialogue: { lines: [{ who: 'self', say: 'a', anim: 'nod' }], then: [] } })).toBe(true);
     expect(formable({ dialogue: { lines: [{ who: 'self', say: 'a', sing: 1 }] } })).toBe(false);
+    expect(effectKind({ say: { lines: [] } })).toBe('dialogue');
+    expect(effectKind({ say: '你好' })).toBe('say');
+    expect(formable({ say: { lines: [{ who: 'self', say: 'a' }], then: [] } })).toBe(true);
     expect(formable({ converse: { with: 'tag:mother', about: '?', turns: 4 } })).toBe(true);
     let rules: { on: string; do: Record<string, unknown>[] }[] = [{ on: 'use', do: [] }];
     const rr = () => <RuleListForm rules={rules} scope="kind" onChange={(r) => { rules = r as typeof rules; }} />;
     const { rerender } = render(rr());
     fireEvent.change(screen.getAllByLabelText('加一个效果')[0], { target: { value: 'dialogue' } });
     rerender(rr());
-    const dl = () => rules[0].do[0].dialogue as { lines: { who?: string; say?: string; anim?: string; expr?: string; pause?: unknown }[] };
+    const dl = () => rules[0].do[0].say as { lines: { who?: string; say?: string; anim?: string; expr?: string; pause?: unknown }[] };
     expect(dl().lines.map((l) => l.who)).toEqual(['self', 'tag:mother']);
     fireEvent.change(screen.getByLabelText('第 2 句的表情'), { target: { value: 'sad' } });
     rerender(rr());

@@ -86,7 +86,7 @@ const SPECS: Record<string, Spec> = {
   spawn: { label: '生成一个', fields: [{ k: 'kind', label: '原型', kind: 'text', placeholder: 'star' }, { k: 'x', label: 'x', kind: 'num', width: 56 }, { k: 'z', label: 'z', kind: 'num', width: 56 }] },
   remove: { label: '拿走', fields: [{ k: '$', label: '谁(self / tag:名字)', kind: 'text', placeholder: 'self' }], str: '$' },
   teleport: { label: '传送人', fields: [{ k: 'to', label: '到哪(tag:名字 / space:room:uid)', kind: 'text', placeholder: 'tag:exit' }] },
-  say: { label: '头顶冒字', fields: [{ k: '$', label: '说什么({{state.x}} 嵌值)', kind: 'text' }], str: '$' },
+  say: { label: '说一句', fields: [{ k: '$', label: '说什么({{state.x}} 嵌值)', kind: 'text' }], str: '$' },
   toast: { label: '提示条', fields: [{ k: 'text', label: '说什么', kind: 'text' }, { k: 'to', label: '给谁', kind: 'select', options: [{ v: '', label: '房里所有人' }, { v: 'actor', label: '触发的人' }] }], str: 'text' },
   label: { label: '改牌子', fields: [{ k: '$', label: '牌子上写', kind: 'text' }], str: '$' },
   sound: { label: '放声音', fields: [{ k: '$', label: '声音', kind: 'sound' }, { k: 'at', label: '从哪儿传来', kind: 'at' }], str: '$' },
@@ -96,7 +96,7 @@ const SPECS: Record<string, Spec> = {
     { k: 'feel', label: '感受词', kind: 'text', placeholder: '遗憾', width: 90 },
   ], str: 'text' },
   choose: { label: '出一道抉择', fields: [] },
-  dialogue: { label: '对白(角色之间)', fields: [] },
+  dialogue: { label: '对白(几个角色一句接一句)', fields: [] },
   converse: { label: '即兴对戏', fields: [{ k: 'with', label: '和谁(tag:名字)', kind: 'text', placeholder: 'tag:mother', width: 120 }, { k: 'about', label: '处境 / 话题', kind: 'text' }, { k: 'turns', label: '几句', kind: 'num', width: 56 }] },
   discover: { label: '让人发现一样东西', fields: [{ k: 'key', label: '叫什么(进线索本)', kind: 'text', placeholder: '信', width: 110 }, { k: 'text', label: '只描写,不评价', kind: 'text' }] },
   reflect: { label: '反问(让他自己写)', fields: [{ k: 'text', label: '一个开放的问题', kind: 'text' }, { k: 'axis', label: '偏向', kind: 'select', options: AXIS_OPTIONS }, { k: 'key', label: '回声归在一起(可省)', kind: 'text', placeholder: '路口', width: 110 }], str: 'text' },
@@ -121,7 +121,8 @@ const SPECS: Record<string, Spec> = {
   wait: { label: '过一会儿', fields: [{ k: 'ms', label: '等多少 ms', kind: 'num', width: 80 }], nest: ['do'] },
   if: { label: '如果', fields: [], nest: ['then', 'else'] },
 };
-const EFFECT_ORDER = ['choose', 'reflect', 'discover', 'act', 'dialogue', 'converse', 'remember', 'insight', 'set', 'add', 'toggle', 'say', 'toast', 'label', 'sound', 'move', 'rotate', 'scale', 'spawn', 'remove', 'teleport', 'emit', 'env', 'water', 'wait', 'if'];
+// insight(直接给一句感悟)不再列出来:规范第 4 条要让人自己写(reflect);老规则里的照样能编辑
+const EFFECT_ORDER = ['choose', 'reflect', 'discover', 'act', 'dialogue', 'converse', 'remember', 'set', 'add', 'toggle', 'say', 'toast', 'label', 'sound', 'move', 'rotate', 'scale', 'spawn', 'remove', 'teleport', 'emit', 'env', 'water', 'wait', 'if'];
 
 const NEW_EFFECT: Record<string, () => Effect> = {
   set: () => ({ set: { open: 'true' } }),
@@ -143,7 +144,7 @@ const NEW_EFFECT: Record<string, () => Effect> = {
   choose: () => ({ choose: { text: '他转身要走,你……', options: [{ label: '叫住他', axis: 'spine', feel: '开口', do: [] }, { label: '什么也不说', axis: 'silence', feel: '目送', do: [] }] } }),
   insight: () => ({ insight: { text: '有些话,当时不说,就再也没有机会了' } }),
   act: () => ({ act: { anim: 'nod', face: 'actor' } }),
-  dialogue: () => ({ dialogue: { lines: [{ who: 'self', say: '车快来了。' }, { who: 'tag:mother', say: '路上小心。' }] } }),
+  dialogue: () => ({ say: { lines: [{ who: 'self', say: '车快来了。' }, { who: 'tag:mother', say: '路上小心。' }] } }),
   converse: () => ({ converse: { with: 'tag:mother', about: '要不要让孩子走', turns: 4 } }),
   remember: () => ({ remember: { 见过: 'true' } }),
   discover: () => ({ discover: { key: '信', text: '抽屉里有一封没寄出去的信' } }),
@@ -152,10 +153,21 @@ const NEW_EFFECT: Record<string, () => Effect> = {
   if: () => ({ if: 'state.open', then: [], else: [] }),
 };
 
-/** 一个效果是哪种(if 的 then / else 不算名字) */
+/** 一个效果是哪种(if 的 then / else 不算名字);say 带 lines 是一段对白(老写法 dialogue 一样) */
 export function effectKind(e: Effect): string {
   if ('if' in e) return 'if';
-  return Object.keys(e).find((k) => k !== 'then' && k !== 'else') ?? '?';
+  const k = Object.keys(e).find((x) => x !== 'then' && x !== 'else') ?? '?';
+  if (k === 'say' && isLines(e.say)) return 'dialogue';
+  return k;
+}
+
+function isLines(a: unknown): boolean {
+  return !!a && typeof a === 'object' && 'lines' in a;
+}
+
+/** 对白写在哪个键下:新写法 say,老的 dialogue */
+function dialogueKey(e: Effect): 'say' | 'dialogue' {
+  return isLines(e.say) ? 'say' : 'dialogue';
 }
 
 /** 表单认得这个效果吗(不认得就整段 JSON 显示) */
@@ -165,7 +177,7 @@ export function formable(e: Effect): boolean {
   if (!spec) return false;
   if (k === 'if') return typeof e.if === 'string';
   if (k === 'dialogue') {
-    const a = e.dialogue as Record<string, unknown> | undefined;
+    const a = e[dialogueKey(e)] as Record<string, unknown> | undefined;
     if (!a || typeof a !== 'object' || !Array.isArray(a.lines)) return false;
     if (!Object.keys(a).every((x) => ['lines', 'then'].includes(x))) return false;
     return (a.lines as unknown[]).every((l) => l && typeof l === 'object' && Object.keys(l).every((x) => ['who', 'say', 'anim', 'expr', 'face', 'pause'].includes(x)));
@@ -296,7 +308,10 @@ function EffectRow({ eff, onChange, onRemove, onMove, depth, scope }: {
     onChange({ [kind]: clean });
   };
   const set = (k: string, v: unknown) => write({ ...obj, [k]: v });
-  if (kind === 'dialogue') return <DialogueBody box={box} head={head} arg={eff.dialogue as DialogueArg} onChange={(a) => onChange({ dialogue: a })} depth={depth} scope={scope} />;
+  if (kind === 'dialogue') {
+    const dk = dialogueKey(eff);
+    return <DialogueBody box={box} head={head} arg={eff[dk] as DialogueArg} onChange={(a) => onChange({ [dk]: a })} depth={depth} scope={scope} />;
+  }
   if (kind === 'choose') return <ChooseBody box={box} head={head} arg={eff.choose as ChooseArg} onChange={(a) => onChange({ choose: a })} depth={depth} scope={scope} />;
   if (kind === 'if') {
     return (

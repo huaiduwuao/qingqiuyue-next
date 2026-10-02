@@ -432,30 +432,27 @@ export async function updateMySound(key: string, p: { name?: string; category?: 
 export async function deleteMySound(key: string): Promise<void> {
   await accountClient.delete(`/world/sounds/${encodeURIComponent(key)}`);
 }
-/** 场景之间的连续:我的故事记忆(场景规则 remember / 抉择 key 记下的,go worldapp/lifememory.go) */
-export async function getMyMemory(): Promise<Record<string, unknown>> {
-  const r = await accountClient.get<{ memory: Record<string, unknown> }>('/world/me/memory');
-  return r?.memory ?? {};
-}
 /** 线索本:我在各个场景里发现的(go worldapp/lifeexplore.go) */
 export interface WorldClue { room: string; space: string; key: string; text: string; at: string }
-export async function getMyClues(): Promise<WorldClue[]> {
-  const r = await accountClient.get<{ list: WorldClue[] }>('/world/me/clues');
-  return Array.isArray(r?.list) ? r.list : [];
-}
 export async function clearMyClues(room?: string): Promise<void> {
   await accountClient.delete('/world/me/clues', { params: room ? { room } : {} });
 }
 /** 回声:我匿名留给后来人的话(go worldapp/echo.go) */
 export interface WorldEchoLine { id: string; room: string; prompt: string; text: string; at: string }
-export async function getMyEchoes(): Promise<WorldEchoLine[]> {
-  const r = await accountClient.get<{ list: WorldEchoLine[] }>('/world/me/echoes');
-  return Array.isArray(r?.list) ? r.list : [];
-}
 export async function deleteMyEcho(id: string): Promise<void> {
   await accountClient.delete(`/world/me/echoes/${encodeURIComponent(id)}`);
 }
-/** 忘掉一样(key)或全部 */
+/** 跟着人走的档案:故事记忆 + 线索本 + 留给后来人的话,一次取齐(go worldapp/me.go) */
+export interface WorldMe { memory: Record<string, unknown>; clues: WorldClue[]; echoes: WorldEchoLine[] }
+export async function getMyWorld(): Promise<WorldMe> {
+  const r = await accountClient.get<Partial<WorldMe>>('/world/me');
+  return {
+    memory: r?.memory && typeof r.memory === 'object' ? r.memory : {},
+    clues: Array.isArray(r?.clues) ? r.clues : [],
+    echoes: Array.isArray(r?.echoes) ? r.echoes : [],
+  };
+}
+/** 故事记忆(go worldapp/lifememory.go):忘掉一样(key)或全部 */
 export async function clearMyMemory(key?: string): Promise<void> {
   await accountClient.delete('/world/me/memory', { params: key ? { key } : {} });
 }

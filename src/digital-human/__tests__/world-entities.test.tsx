@@ -304,10 +304,11 @@ describe('rule form', () => {
     fireEvent.change(screen.getByLabelText('到点没选'), { target: { value: '1' } });
     rerender(rr());
     expect(ch().default).toBe(1);
-    // 选项 1 选了以后:加一句感悟
-    fireEvent.change(screen.getAllByLabelText('加一个效果')[0], { target: { value: 'insight' } });
+    // 选项 1 选了以后:反问他(感悟不再列在菜单里,让他自己写)
+    expect(Array.from(screen.getAllByLabelText('加一个效果')[0].querySelectorAll('option')).some((o) => o.value === 'insight')).toBe(false);
+    fireEvent.change(screen.getAllByLabelText('加一个效果')[0], { target: { value: 'reflect' } });
     rerender(rr());
-    expect(ch().options[0].do).toEqual([{ insight: { text: '有些话,当时不说,就再也没有机会了' } }]);
+    expect(ch().options[0].do).toEqual([{ reflect: { text: '那一刻,你在想什么?' } }]);
     fireEvent.click(screen.getByText('＋ 再加一个选项'));
     rerender(rr());
     expect(ch().options.length).toBe(3);
