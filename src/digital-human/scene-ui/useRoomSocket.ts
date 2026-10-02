@@ -179,7 +179,7 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
           const p = peersRef.current.get(u.id);
           if (!p) continue;
           // m / a 为空时服务端不发(omitempty):以这一帧为准,别留着上一帧的「在走」「招手」
-          peersRef.current.set(u.id, { ...p, ...u, m: !!u.m, a: u.a, e: u.e });
+          peersRef.current.set(u.id, { ...p, ...u, m: !!u.m, a: u.a, e: u.e, lk: u.lk ?? null });
           changed = true;
         }
         if (changed) pushPeers();

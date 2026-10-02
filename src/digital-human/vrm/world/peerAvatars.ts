@@ -41,6 +41,8 @@ export interface RoomPeer {
   aura?: string;
   /** 表情(场景里的角色) */
   e?: string;
+  /** 眼神看着的那一点(场景里的角色,go worldapp/gaze.go);没有 = 平视前方 */
+  lk?: [number, number, number] | null;
   /** 场景里的角色:演的是哪个实体 */
   entity?: string;
 }
@@ -163,6 +165,10 @@ interface Entry {
   hipH: number;
   /** 表情还没回到 0(场景里的角色) */
   exprOn?: boolean;
+  /** 眼神:头此刻转了多少(平滑追 lk)、眼珠看的目标 */
+  gazeYaw?: number;
+  gazePitch?: number;
+  gazeTarget?: THREE.Object3D;
 }
 
 export function createPeerLayer(
@@ -358,9 +364,36 @@ export function createPeerLayer(
     // 头:点头 / 摇头 / 想事情时微微侧着低头
     const head = bone(vrm, 'head');
     if (head) {
-      head.rotation.x = e.p.a === 'nod' ? 0.12 + Math.sin(t * 7) * 0.2 : e.p.a === 'think' ? 0.12 : 0;
-      head.rotation.y = e.p.a === 'shake' ? Math.sin(t * 8) * 0.35 : 0;
+      // 眼神:头转向看着的那一点(左右最多 ±60°、上下 ±25°,平滑跟过去),眼珠交给 VRM lookAt
+      let gy = 0, gp = 0;
+      const lk = e.p.lk;
+      if (lk) {
+        head.getWorldPosition(tmp);
+        const dx = lk[0] - tmp.x, dy = lk[1] - tmp.y, dz = lk[2] - tmp.z;
+        let rel = Math.atan2(dx, dz) - e.yaw;
+        rel = Math.atan2(Math.sin(rel), Math.cos(rel));
+        gy = Math.max(-1.05, Math.min(1.05, rel));
+        gp = Math.max(-0.45, Math.min(0.45, Math.atan2(dy, Math.hypot(dx, dz))));
+      }
+      const k = Math.min(1, dt * 4);
+      e.gazeYaw = (e.gazeYaw ?? 0) + (gy - (e.gazeYaw ?? 0)) * k;
+      e.gazePitch = (e.gazePitch ?? 0) + (gp - (e.gazePitch ?? 0)) * k;
+      head.rotation.x = (e.p.a === 'nod' ? 0.12 + Math.sin(t * 7) * 0.2 : e.p.a === 'think' ? 0.12 : 0) - e.gazePitch * 0.6;
+      head.rotation.y = (e.p.a === 'shake' ? Math.sin(t * 8) * 0.35 : 0) + e.gazeYaw * 0.7;
       head.rotation.z = e.p.a === 'think' ? 0.12 : 0;
+      if (vrm.lookAt) {
+        if (lk) {
+          if (!e.gazeTarget) { e.gazeTarget = new THREE_NS.Object3D(); root.add(e.gazeTarget); }
+          // root 是同伴层的父节点:lk 是世界坐标,换到它里面
+          e.gazeTarget.position.set(lk[0], lk[1], lk[2]);
+          root.worldToLocal(e.gazeTarget.position);
+          vrm.lookAt.target = e.gazeTarget;
+          vrm.lookAt.autoUpdate = true;
+        } else if (vrm.lookAt.target) {
+          vrm.lookAt.target = null;
+          vrm.lookAt.reset();
+        }
+      }
     }
     vrm.scene.position.y = e.footOffset + Math.abs(Math.sin(e.phase)) * 0.035 * amt;
     // 十期:坐着
@@ -422,6 +455,7 @@ export function createPeerLayer(
         if (e.bubble) disposeSprite(e.bubble);
         if (e.speak) disposeSprite(e.speak);
         if (e.aura) (e.aura.material as THREE.Material).dispose();
+        if (e.gazeTarget) root.remove(e.gazeTarget);
         entries.delete(id);
         continue;
       }

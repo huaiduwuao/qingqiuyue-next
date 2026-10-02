@@ -105,6 +105,7 @@ const SPECS: Record<string, Spec> = {
     { k: 'anim', label: '动作', kind: 'select', options: [{ v: '', label: '不做' }, { v: 'nod', label: '点头' }, { v: 'shake', label: '摇头' }, { v: 'wave', label: '挥手' }, { v: 'bow', label: '鞠躬' }, { v: 'think', label: '托腮想' }, { v: 'point', label: '指' }, { v: 'cheer', label: '欢呼' }, { v: 'sit', label: '坐下' }, { v: 'stand', label: '站起来' }] },
     { k: 'expr', label: '表情', kind: 'select', options: [{ v: '', label: '不变' }, { v: 'happy', label: '高兴' }, { v: 'sad', label: '难过' }, { v: 'surprised', label: '吃惊' }, { v: 'relaxed', label: '放松' }, { v: 'angry', label: '生气' }, { v: 'neutral', label: '收起表情' }] },
     { k: 'face', label: '转向', kind: 'at' },
+    { k: 'look', label: '看着', kind: 'at' },
     { k: 'ms', label: '表情多久 ms', kind: 'num', width: 90 },
     { k: 'target', label: '谁', kind: 'target' },
   ], str: 'anim' },

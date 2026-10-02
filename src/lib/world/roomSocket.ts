@@ -36,6 +36,8 @@ export interface PeerPose {
   a?: string;
   /** 表情(场景里的角色:happy / sad / angry / surprised / relaxed) */
   e?: string;
+  /** 眼神看着的那一点(场景里的角色);没有 = 平视 */
+  lk?: [number, number, number] | null;
 }
 
 export interface PeerInfo extends PeerPose {

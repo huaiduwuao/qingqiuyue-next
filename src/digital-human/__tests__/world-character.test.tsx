@@ -21,6 +21,22 @@ import { EchoCard, EchoLinesCard, FoundCounter, ReflectCard } from '../scene-ui/
 const look = { base: '/none.vrm', params: {}, version: 1 };
 
 describe('characters played by digital humans', () => {
+  it('takes a gaze target (lk) and lets go of it without a loaded model', () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
+    const ctx2d = new Proxy({}, { get: (_t, k) => (k === 'measureText' ? () => ({ width: 10 }) : () => undefined), set: () => true });
+    const gc = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(ctx2d as never);
+    const parent = new THREE.Group();
+    const layer = createPeerLayer(THREE, parent, { resolveUrl: (b) => b });
+    layer.set([{ id: 'ai:1', nickname: '父亲', ai: true, entity: 'e7', look, x: 0, y: 0, z: 0, yaw: 0, lk: [3, 1.5, 0] }]);
+    const cam = new THREE.PerspectiveCamera();
+    for (let i = 0; i < 5; i++) layer.tick(i, 0.5, cam);
+    // 没有 VRM(下载失败)也不出错;lk 换成 null 照样不出错
+    layer.set([{ id: 'ai:1', nickname: '父亲', ai: true, entity: 'e7', look, x: 0, y: 0, z: 0, yaw: 0, lk: null }]);
+    layer.tick(6, 0.5, cam);
+    layer.dispose();
+    gc.mockRestore();
+  });
+
   it('clicking a character body picks the entity it plays; others are just people', () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
     // jsdom 没有 2D canvas:名牌 / 气泡的文字精灵给一个什么都不画的上下文
