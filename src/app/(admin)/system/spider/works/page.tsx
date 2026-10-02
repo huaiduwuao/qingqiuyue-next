@@ -17,6 +17,7 @@ import Alert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress';
 import { spiderClient } from '@/lib/api/client';
 import { ReviewQueue } from './ReviewQueue';
+import { DailyTrend } from './DailyTrend';
 
 interface Metrics {
   works: number;
@@ -174,6 +175,8 @@ export default function WorkCatalogPage() {
         </Paper>
       )}
       {!last && !query.isLoading && <Alert severity="info">服务启动后约 5 分钟跑第一轮,也可以点「立即重跑」。</Alert>}
+
+      <DailyTrend />
 
       <ReviewQueue />
     </Box>
