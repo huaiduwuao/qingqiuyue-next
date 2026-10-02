@@ -1020,6 +1020,15 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
   }
   return (
     <Box sx={{ position: 'fixed', inset: 0, zIndex: 1, background: '#05060B' }}>
+      {/* 憋气:头泡在会憋气的液体里,还能憋几秒 */}
+      {roomSock.breath && (
+        <Box sx={{ position: 'absolute', top: 72, left: '50%', transform: 'translateX(-50%)', zIndex: 40, pointerEvents: 'none', px: 1.5, py: 0.75, borderRadius: 3, bgcolor: 'rgba(10,30,60,0.7)', color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <span>🫧 憋气 {roomSock.breath.left} 秒</span>
+          <Box sx={{ width: 90, height: 6, borderRadius: 3, bgcolor: 'rgba(255,255,255,0.15)', overflow: 'hidden' }}>
+            <Box sx={{ width: Math.max(0, Math.min(100, (roomSock.breath.left / Math.max(1, roomSock.breath.max)) * 100)) + '%', height: '100%', bgcolor: roomSock.breath.left <= 3 ? '#ff7b7b' : '#7fd3ff', transition: 'width 0.9s linear' }} />
+          </Box>
+        </Box>
+      )}
       {/* 换场景的过场:黑底淡入「前往 X」,新场景建好后淡出 */}
       <Box sx={{
         position: 'absolute', inset: 0, zIndex: 50, pointerEvents: travel ? 'auto' : 'none',

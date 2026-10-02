@@ -34,6 +34,7 @@ const EVENTS: { v: string; label: string; scopes: RuleScope[]; hint?: string }[]
   { v: 'remove', label: '被拿走', scopes: ['kind', 'entity'] },
   { v: 'join', label: '有人进了房间', scopes: ['space'] },
   { v: 'part', label: '有人离开房间', scopes: ['space'] },
+  { v: 'drown', label: '有人憋不住气了', scopes: ['space', 'material'], hint: '头泡在会憋气的液体里,憋的秒数用完;没有规则管就默认送到出口' },
 ];
 
 /** 条件:点一下就填 */

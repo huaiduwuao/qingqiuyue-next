@@ -8,7 +8,8 @@
  *   - props:solid 挡不挡人、walkable 顶上能不能站、liquid.slow 人在里面走得慢多少(0–0.9)。
  * 积木网格(blocks.ts)按这里判断走路,积木层(blockLayer.ts)按这里画,搭建面板按这里列。
  * 0–199 是平台的(GET /world/materials),200–255 是这间房自己的(跟着 GET /world/rooms/:uid/blocks 下发,setRoomMaterials)。
- * liquid.float:深的液体里人浮在水面附近(blocks.ts surfaceAt),靠岸能爬上去。
+ * liquid.float:深的液体里人浮在水面附近(blocks.ts surfaceAt),靠岸能爬上去;liquid.flow:水流推人(米/秒,方向 = 积木朝向);
+ * liquid.spread / breath(会流开、能憋几秒)是服务端的定律(go worldapp/laws.go)。emits:发光积木照亮周围(blocks.ts glowLights)。
  * 还没读到(或者读失败)时谁都当成能站、挡人的白色方块。
  */
 
@@ -18,7 +19,7 @@ export interface BlockMaterial {
   name: string;
   color: string;
   look?: { pattern?: string; opacity?: number; roughness?: number; metalness?: number; unlit?: boolean; n?: number; lo?: number; hi?: number; size?: number };
-  props?: { solid?: boolean; walkable?: boolean; transparent?: number; emits?: { intensity?: number; radius?: number }; liquid?: { slow?: number; float?: boolean } };
+  props?: { solid?: boolean; walkable?: boolean; transparent?: number; emits?: { intensity?: number; radius?: number }; liquid?: { slow?: number; float?: boolean; flow?: number; spread?: number; breath?: number } };
   /** 人踩上 / 走进这种积木时(enter / leave / touch)做什么(服务端跑) */
   rules?: { on: string; if?: string; do: Record<string, unknown>[] }[];
   hidden?: boolean;
@@ -35,9 +36,13 @@ export interface MatPhysics {
   slow: number;
   /** 深的液体里浮起来 */
   float: boolean;
+  /** 水流推人多快(米/秒,方向 = 积木朝向) */
+  flow: number;
+  /** 发光照亮周围:强度、半径(米);null = 不发光 */
+  glow: { intensity: number; radius: number } | null;
 }
 
-const DEFAULT_PHYS: MatPhysics = { solid: true, walkable: true, slow: 0, float: false };
+const DEFAULT_PHYS: MatPhysics = { solid: true, walkable: true, slow: 0, float: false, flow: 0, glow: null };
 
 let platform: readonly BlockMaterial[] = [];
 let room: readonly BlockMaterial[] = [];
@@ -51,7 +56,13 @@ function rebuild() {
   byId = new Map(list.map((m) => [m.id, m]));
   phys = new Map(list.map((m) => {
     const solid = m.props?.solid !== false;
-    return [m.id, { solid, walkable: solid && m.props?.walkable !== false, slow: Math.max(0, Math.min(0.9, m.props?.liquid?.slow ?? 0)), float: !!m.props?.liquid?.float }];
+    const em = m.props?.emits;
+    return [m.id, {
+      solid, walkable: solid && m.props?.walkable !== false,
+      slow: Math.max(0, Math.min(0.9, m.props?.liquid?.slow ?? 0)), float: !!m.props?.liquid?.float,
+      flow: Math.max(0, Math.min(6, m.props?.liquid?.flow ?? 0)),
+      glow: em && (em.intensity ?? 0) > 0 ? { intensity: Math.min(10, em.intensity ?? 0), radius: Math.max(1, Math.min(12, em.radius ?? 3)) } : null,
+    }];
   }));
   version++;
   listeners.forEach((f) => f());

@@ -91,6 +91,9 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
   const [myCaption, setMyCaption] = React.useState('');
   // 世界模型:我身上的状态(规则给的分数、道具……)
   const [myState, setMyState] = React.useState<Record<string, unknown>>({});
+  /** 憋气:还能憋几秒(null = 没在憋)*/
+  const [breath, setBreath] = React.useState<{ left: number; max: number } | null>(null);
+  React.useEffect(() => { setBreath(null); }, [def.key]);
   // 九期:场景分线
   const [line, setLine] = React.useState(0);
   const [lines, setLines] = React.useState<SceneLine[]>([]);
@@ -227,6 +230,10 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
       case 'ruleErr':
         if (f.errors?.length) o.toast('⚠️', `规则出错:${f.errors[0]}`);
         return;
+      case 'breath':
+        // 头泡在会憋气的液体里:还能憋几秒(-1 = 出水了)
+        setBreath(f.left < 0 ? null : { left: f.left, max: f.max ?? f.left });
+        return;
       case 'env':
         // 规则改了时辰 / 天气(env 效果):这一趟在房里时生效,不改房间设置
         if (f.env && (f.env.time || f.env.weather)) o.onEnv?.({ time: f.env.time, weather: f.env.weather });
@@ -331,7 +338,7 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
     /** 九期:场景里在第几条线(0 = 不分线 / 不在场景)、开着的线 */
     line, lines, refreshLines, switchLine,
     /** 世界模型:点实体、我身上的状态 */
-    use, myState,
+    use, myState, breath,
     roomVoice, selfMuted, setVoiceState, sendVoice, vmute, setVoiceHandler,
   };
 }

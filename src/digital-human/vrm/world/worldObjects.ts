@@ -107,6 +107,8 @@ export interface ObjectLayer {
   seatSpots: (id: string, from: { x: number; z: number }) => SeatSpot[];
   /** 十期:某件摆放现在的记录 */
   get: (id: string) => PlacedObject | null;
+  /** 发光积木合成的候选光源(和灯一起按离镜头远近分光源池;坐标和摆设同一个父节点) */
+  setExtraLights: (list: { x: number; y: number; z: number; color: number; intensity: number; radius: number }[]) => void;
   dispose: () => void;
 }
 
@@ -565,10 +567,11 @@ export function createObjectLayer(
   let lights: THREE.PointLight[] | null = null;
   let lightsDirty = false;
   const lp = new THREE_NS.Vector3();
+  let extraLights: { x: number; y: number; z: number; color: number; intensity: number; radius: number }[] = [];
   function assignLights() {
     lightsDirty = false;
     const lit = Array.from(entries.values()).filter((e) => isLightSource(e) && isLit(e) && e.lampGlow && e.grow >= 0);
-    if (!lit.length && !lights) return;
+    if (!lit.length && !extraLights.length && !lights) return;
     if (!lights) {
       const n = opts.quality === 'high' ? 4 : 1;
       lights = Array.from({ length: n }, () => {
@@ -577,10 +580,22 @@ export function createObjectLayer(
         return l;
       });
     }
-    lit.sort((a, b) => a.g.position.distanceToSquared(camPos) - b.g.position.distanceToSquared(camPos));
+    // 灯和发光积木放在一起,离镜头近的先分到光源
+    type Cand = { d: number; e?: Entry; x?: { x: number; y: number; z: number; color: number; intensity: number; radius: number } };
+    const cands: Cand[] = lit.map((e) => ({ d: e.g.position.distanceToSquared(camPos), e }));
+    for (const x of extraLights) cands.push({ d: (x.x - camPos.x) ** 2 + (x.y - camPos.y) ** 2 + (x.z - camPos.z) ** 2, x });
+    cands.sort((a, b) => a.d - b.d);
     lights.forEach((l, i) => {
-      const e = lit[i];
-      if (!e) { l.intensity = 0; return; }
+      const c = cands[i];
+      if (!c) { l.intensity = 0; return; }
+      if (c.x) {
+        l.position.set(c.x.x, c.x.y, c.x.z);
+        l.color.setHex(c.x.color);
+        l.distance = c.x.radius;
+        l.intensity = c.x.intensity;
+        return;
+      }
+      const e = c.e!;
       e.lampGlow!.getWorldPosition(lp);
       root.worldToLocal(lp);
       l.position.copy(lp);
@@ -771,6 +786,7 @@ export function createObjectLayer(
     tick,
     pick,
     groupOf: (id) => entries.get(id)?.g ?? null,
+    setExtraLights: (list) => { extraLights = list; lightsDirty = true; },
     setSelected: (id) => { selected = id; const e = id ? entries.get(id) : undefined; if (e) e.radius = 0; },
     obstacles,
     pickHit,

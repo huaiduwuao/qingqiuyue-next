@@ -823,6 +823,15 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         walkRef.current.moving = false;
       }
 
+      // 水流:泡在流动的液体里被冲着走(物质 liquid.flow,方向 = 积木朝向);坐着不冲
+      if (worldOnRef.current && !sitRef.current) {
+        const f = worldApiRef.current.flowAt(pos.x, pos.z, groundYRef.current);
+        if (f) {
+          const c = clampToWorld(pos.x + f.x * dt, pos.z + f.z * dt, worldDefRef.current, worldApiRef.current.obstacles(groundYRef.current));
+          pos.x = c.x; pos.z = c.z;
+        }
+      }
+
       // 走过的距离:真人动捕的步态按它推进(一个循环 = 步幅 × 腿长)
       walkRef.current.dist = (walkRef.current.dist ?? 0) + Math.hypot(pos.x - pos.prevX, pos.z - pos.prevZ);
 

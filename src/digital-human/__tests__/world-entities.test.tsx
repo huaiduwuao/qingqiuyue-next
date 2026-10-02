@@ -68,6 +68,26 @@ describe('entities in the object layer', () => {
     layer.dispose();
   });
 
+  it('lets glowing blocks share the light pool with lamps, nearest first', () => {
+    const parent = new THREE.Group();
+    const layer = createObjectLayer(THREE, parent, { quality: 'low' });
+    const cam = new THREE.PerspectiveCamera();
+    cam.position.set(0, 1.6, 4);
+    layer.set([ent({ id: 'far', kind: 'star', x: 30, look: { shape: 'sphere', size: [0.2, 0.2, 0.2] }, props: { emits: { color: '#ffffff', intensity: 2, radius: 2 } } })]);
+    layer.setExtraLights([{ x: 1, y: 0.5, z: 2, color: 0xff0000, intensity: 4, radius: 5 }]);
+    layer.tick(0, 1, cam);
+    const lights: THREE.PointLight[] = [];
+    parent.traverse((o) => { if ((o as THREE.PointLight).isPointLight) lights.push(o as THREE.PointLight); });
+    expect(lights).toHaveLength(1); // 流畅画质一个光源:给离镜头近的那簇积木
+    expect(lights[0].color.getHex()).toBe(0xff0000);
+    expect(lights[0].intensity).toBe(4);
+    expect(lights[0].position.x).toBe(1);
+    layer.setExtraLights([]);
+    layer.tick(0.1, 0.1, cam);
+    expect(lights[0].color.getHex()).toBe(0xffffff); // 积木拆了:光源回到那颗星星
+    layer.dispose();
+  });
+
   it('tweens rule-driven moves and blocks walking only when solid', async () => {
     const parent = new THREE.Group();
     const layer = createObjectLayer(THREE, parent, { quality: 'high' });
@@ -109,6 +129,10 @@ describe('rule frames on the room socket', () => {
     expect(onTravel).toHaveBeenCalledWith('room:12');
     act(() => { emit({ t: 'me', state: { stars: 2 } }); });
     expect(result.current.myState).toEqual({ stars: 2 });
+    act(() => { emit({ t: 'breath', left: 7, max: 10 }); });
+    expect(result.current.breath).toEqual({ left: 7, max: 10 });
+    act(() => { emit({ t: 'breath', left: -1 }); });
+    expect(result.current.breath).toBeNull();
     act(() => { emit({ t: 'ruleErr', errors: ['「x」的效果 spawn 出错:没有这个原型'] }); });
     expect(toast).toHaveBeenLastCalledWith('⚠️', expect.stringContaining('没有这个原型'));
     expect(result.current.use('e9')).toBe(true);

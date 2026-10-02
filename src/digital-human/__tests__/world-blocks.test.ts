@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import { act, renderHook } from '@testing-library/react';
-import { BLOCK_SIZE, BlockGrid, decodeBlocks, fillOps, rampDir, slowAt, topAt, type BlockData } from '../vrm/world/blocks';
+import { BLOCK_SIZE, BlockGrid, decodeBlocks, fillOps, flowAt, glowLights, rampDir, slowAt, topAt, type BlockData } from '../vrm/world/blocks';
 import { createBlockLayer } from '../vrm/world/blockLayer';
 import { matColor, matPhysics, materialsVersion, pickableMaterials, setMaterials, setRoomMaterials, type BlockMaterial } from '../vrm/world/materials';
 
@@ -42,8 +42,8 @@ describe('materials', () => {
   it('turns material data into walking rules', () => {
     setMaterials(MATERIALS);
     expect(matColor(1)).toBe(0xa0703c);
-    expect(matPhysics(10)).toEqual({ solid: false, walkable: false, slow: 0.5, float: true });
-    expect(matPhysics(99)).toEqual({ solid: true, walkable: true, slow: 0, float: false }); // 不认识的当普通方块
+    expect(matPhysics(10)).toEqual({ solid: false, walkable: false, slow: 0.5, float: true, flow: 0, glow: null });
+    expect(matPhysics(99)).toEqual({ solid: true, walkable: true, slow: 0, float: false, flow: 0, glow: null }); // 不认识的当普通方块
     const g = new BlockGrid();
     // 一格水铺在地上:穿得过、站不上去、在里面走得慢
     g.set({ x: 0, y: 0, z: 0, s: 0, m: 10, c: 0, r: 0 });
@@ -90,6 +90,33 @@ describe('liquids and room materials', () => {
     expect(pickableMaterials().map((m) => m.key)).toContain('lava');
     setRoomMaterials([]);
     expect(pickableMaterials().map((m) => m.key)).not.toContain('lava');
+  });
+});
+
+describe('flowing water and glowing blocks', () => {
+  it('pushes along the block\'s direction', () => {
+    setMaterials([...MATERIALS, { id: 13, key: 'flowing-water', name: '流水', color: '#4fa6e0', props: { solid: false, walkable: false, liquid: { slow: 0.4, flow: 1.5 } } }]);
+    const g = new BlockGrid();
+    g.set({ x: 0, y: 0, z: 0, s: 0, m: 13, c: 0, r: 3 }); // rot 3 = 往 +x
+    g.set({ x: 2, y: 0, z: 0, s: 0, m: 10, c: 0, r: 3 }); // 静水不推
+    expect(flowAt(g, 0.25, 0.25, 0)).toEqual({ x: 1.5, z: 0 });
+    expect(flowAt(g, 1.25, 0.25, 0)).toBeNull();
+    expect(flowAt(g, 0.25, 0.25, 3)).toBeNull(); // 人在高处,没泡着
+  });
+
+  it('groups glowing blocks into a few lights', () => {
+    setMaterials([...MATERIALS, { id: 5, key: 'glow', name: '发光', color: '#ffd98a', look: { unlit: true }, props: { emits: { intensity: 3, radius: 3 } } }]);
+    const g = new BlockGrid();
+    for (let x = 0; x < 4; x++) g.set({ x, y: 0, z: 0, s: 0, m: 5, c: 0xff0000, r: 0 }); // 一簇 4 块红的
+    g.set({ x: 20, y: 0, z: 0, s: 0, m: 5, c: 0x0000ff, r: 0 }); // 远处一块蓝的
+    g.set({ x: 10, y: 0, z: 0, s: 0, m: 1, c: 0xffffff, r: 0 }); // 木头不发光
+    const lights = glowLights(g);
+    expect(lights).toHaveLength(2);
+    expect(lights[0].count).toBe(4);
+    expect(lights[0].color).toBe(0xff0000);
+    expect(lights[0].x).toBeCloseTo(1); // 4 块中心的平均
+    expect(lights[0].intensity).toBeGreaterThan(lights[1].intensity); // 块多更亮
+    expect(lights[1].color).toBe(0x0000ff);
   });
 });
 

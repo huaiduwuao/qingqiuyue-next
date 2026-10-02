@@ -8,7 +8,8 @@
  * 走路:方块、半砖、斜坡的顶面能站;一步能迈上 0.55 米(正好一格),再高就挡路;薄墙、柱子只挡路不能站。
  * 物质的属性也算数:solid = false(水)穿得过去、不挡也站不上;walkable = false 站不上去(和墙一样挡);
  * liquid.slow 人泡在里面走得慢(slowAt);liquid.float 深的液体里人浮在液面下 FLOAT_DEPTH 米(脚),
- * 泡在液体里时一步能迈 SWIM_STEP 米 —— 游到岸边能爬上去。
+ * 泡在液体里时一步能迈 SWIM_STEP 米 —— 游到岸边能爬上去;liquid.flow 泡在里面会被冲着走(flowAt,方向 = 那块的朝向)。
+ * 发光的物质(emits)照亮周围:相邻的发光积木按 2 米一簇合成一个候选光源(glowLights),和灯一起抢光源池。
  * 服务端 worldapp/blocks.go 按同样的格子存,一次最多改 512 格。
  */
 
@@ -214,6 +215,47 @@ export function slowAt(grid: BlockGrid, x: number, z: number, curY: number): num
     if (b) slow = Math.max(slow, matPhysics(b.m).slow);
   }
   return slow;
+}
+
+/**
+ * 站在 (x, curY, z) 的人被水流推着走的速度(米/秒):身子泡着的液体格子里流速最大的那块,方向是它的朝向(rampDir)。
+ */
+export function flowAt(grid: BlockGrid, x: number, z: number, curY: number): { x: number; z: number } | null {
+  const cx = cellOf(x), cz = cellOf(z);
+  let best: { x: number; z: number } | null = null;
+  let speed = 0;
+  for (let y = Math.floor(curY / BLOCK_SIZE); y <= Math.floor((curY + 1.2) / BLOCK_SIZE); y++) {
+    const b = grid.get(cx, y, cz);
+    if (!b) continue;
+    const f = matPhysics(b.m).flow;
+    if (f > speed) { speed = f; const d = rampDir(b.r); best = { x: d.dx * f, z: d.dz * f }; }
+  }
+  return best;
+}
+
+export interface GlowLight { x: number; y: number; z: number; color: number; intensity: number; radius: number; count: number }
+
+/**
+ * 发光积木 → 候选光源:按 2 米(4 格)一簇,位置取平均、颜色取平均,块越多越亮、照得越远(有上限);块多的在前,最多 max 个。
+ */
+export function glowLights(grid: BlockGrid, max = 48): GlowLight[] {
+  const acc = new Map<string, { x: number; y: number; z: number; r: number; g: number; b: number; n: number; i: number; rad: number }>();
+  for (const b of grid.all()) {
+    const glow = matPhysics(b.m).glow;
+    if (!glow) continue;
+    const k = `${Math.floor(b.x / 4)},${Math.floor(b.y / 4)},${Math.floor(b.z / 4)}`;
+    let a = acc.get(k);
+    if (!a) { a = { x: 0, y: 0, z: 0, r: 0, g: 0, b: 0, n: 0, i: 0, rad: 0 }; acc.set(k, a); }
+    a.x += (b.x + 0.5) * BLOCK_SIZE; a.y += (b.y + 0.5) * BLOCK_SIZE; a.z += (b.z + 0.5) * BLOCK_SIZE;
+    a.r += (b.c >> 16) & 255; a.g += (b.c >> 8) & 255; a.b += b.c & 255;
+    a.n++; a.i = Math.max(a.i, glow.intensity); a.rad = Math.max(a.rad, glow.radius);
+  }
+  const out: GlowLight[] = [];
+  for (const a of acc.values()) {
+    const color = (Math.round(a.r / a.n) << 16) | (Math.round(a.g / a.n) << 8) | Math.round(a.b / a.n);
+    out.push({ x: a.x / a.n, y: a.y / a.n, z: a.z / a.n, color: color || 0xffd98a, intensity: Math.min(12, a.i * (1 + Math.log2(a.n) * 0.5)), radius: Math.min(20, a.rad + Math.sqrt(a.n) * 0.5), count: a.n });
+  }
+  return out.sort((p, q) => q.count - p.count).slice(0, max);
 }
 
 /** 两个角之间铺满的改动(放:同一种积木;拆:把里面有的都拆掉);超过 limit 格返回 null */

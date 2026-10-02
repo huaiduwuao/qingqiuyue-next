@@ -2,7 +2,8 @@
  * scene-ui/RoomMaterials.tsx — 这间房自己的物质(id 200–255,最多 56 种;go worldapp/laws.go)
  *
  * 搭积木面板里「＋ 我的材质」:房主给自己的房间定义新物质 —— 外观(颜色、纹理样式、透明、自己发光)、
- * 物理(挡不挡人、顶上能不能站、在里面走得慢、深了浮起来)、还有人踩上去 / 走进去时的规则(熔岩把人送回出口、金砖加分……)。
+ * 物理(挡不挡人、顶上能不能站、在里面走得慢、深了浮起来、水流推人、放下流开、能憋几秒)、发光(照亮周围)、
+ * 还有人踩上去 / 走进去 / 憋不住气时的规则(熔岩把人送回出口、金砖加分……)。
  * 存了整间房的人重新读积木;蓝图会带着这些物质走。平台的物质(0–199)在后台「造物」里管。
  */
 
@@ -45,7 +46,7 @@ function MaterialForm({ m, onChange }: { m: WorldMaterial; onChange: (m: WorldMa
         </select>
         <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>不透明</Typography>
         <Box component="input" type="range" min={0.1} max={1} step={0.05} aria-label="不透明度" value={look.opacity ?? 1} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setLook('opacity', Number(e.target.value))} sx={{ width: 80 }} />
-        {check('自己发光', !!look.unlit, (v) => setLook('unlit', v || undefined))}
+        {check('发光(照亮周围)', !!look.unlit || !!props.emits, (v) => onChange({ ...m, look: { ...look, unlit: v || undefined }, props: { ...props, emits: v ? { intensity: 3, radius: 4 } : undefined } }))}
       </Box>
       <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
         {check('挡人', props.solid !== false, (v) => setProps('solid', v))}
@@ -53,6 +54,15 @@ function MaterialForm({ m, onChange }: { m: WorldMaterial; onChange: (m: WorldMa
         {check('是液体(走得慢)', !!liquid.slow, (v) => setProps('liquid', v ? { slow: 0.5, float: liquid.float } : undefined))}
         {!!liquid.slow && check('深了浮起来', !!liquid.float, (v) => setProps('liquid', { ...liquid, float: v }))}
       </Box>
+      {!!liquid.slow && (
+        <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', alignItems: 'center' }}>
+          {([['flow', '水流推人 米/秒(朝积木的方向)', 6], ['spread', '放下流开几格', 16], ['breath', '能憋几秒(0 = 能呼吸)', 600]] as const).map(([k, label, max]) => (
+            <TextField key={k} size="small" type="number" label={label} value={liquid[k] ?? 0} sx={{ ...field, width: 150 }}
+              slotProps={{ htmlInput: { min: 0, max, step: k === 'flow' ? 0.5 : 1 } }}
+              onChange={(e) => { const v = Math.max(0, Math.min(max, Number(e.target.value) || 0)); setProps('liquid', { ...liquid, [k]: v || undefined }); }} />
+          ))}
+        </Box>
+      )}
       <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>有人踩上去 / 走进去时(比如熔岩把人送回出口、金砖加分)</Typography>
       <AiCompose target="space" current={{ rules: m.rules ?? [] }} onDraft={(d) => { if (d.rules) onChange({ ...m, rules: d.rules.filter((r) => ['enter', 'leave', 'touch'].includes(r.on)) }); }} />
       <RulesEditor rules={(m.rules ?? []) as WorldRule[]} onChange={(r) => onChange({ ...m, rules: r })} scope="material" />

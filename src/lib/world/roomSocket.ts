@@ -72,6 +72,7 @@ export type RoomFrame =
   | { t: 'tp'; x?: number; y?: number; z?: number; space?: string }
   | { t: 'me'; state: Record<string, unknown> }
   | { t: 'env'; env: Record<string, string> }
+  | { t: 'breath'; left: number; max?: number }
   | { t: 'ruleErr'; errors: string[] }
   | { t: 'pong' };
 
