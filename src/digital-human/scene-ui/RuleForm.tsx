@@ -34,7 +34,7 @@ const EVENTS: { v: string; label: string; scopes: RuleScope[]; hint?: string }[]
   { v: 'spawn', label: '被生成出来', scopes: ['kind', 'entity'] },
   { v: 'pushed', label: '被推了一下', scopes: ['kind', 'entity'], hint: '要有属性 movable;event.dx / event.dz 是推的方向' },
   { v: 'remove', label: '被拿走', scopes: ['kind', 'entity'] },
-  { v: 'join', label: '有人进了房间', scopes: ['space'] },
+  { v: 'join', label: '有人进了房间', scopes: ['space'], hint: 'event.from 是他刚从哪个空间来;memory.x 是他身上的故事记忆;actor.path.top 是他心路上最多的那一面' },
   { v: 'part', label: '有人离开房间', scopes: ['space'] },
   { v: 'arrived', label: '走到了(角色)', scopes: ['kind', 'entity'], hint: '角色被 move 之后走到了那里' },
   { v: 'chose', label: '有人回答了它出的题', scopes: ['kind', 'entity', 'space', 'material'], hint: 'event.choice 选的那句、event.axis 维度、event.feel 感受词、event.auto 到点没选' },
@@ -93,6 +93,7 @@ const SPECS: Record<string, Spec> = {
     { k: 'feel', label: '感受词', kind: 'text', placeholder: '遗憾', width: 90 },
   ], str: 'text' },
   choose: { label: '出一道抉择', fields: [] },
+  remember: { label: '记住(跟着人走)', fields: [{ k: 'target', label: '记在谁身上', kind: 'target' }], pairs: true },
   act: { label: '角色表演', fields: [
     { k: 'anim', label: '动作', kind: 'select', options: [{ v: '', label: '不做' }, { v: 'nod', label: '点头' }, { v: 'shake', label: '摇头' }, { v: 'wave', label: '挥手' }, { v: 'bow', label: '鞠躬' }, { v: 'think', label: '托腮想' }, { v: 'point', label: '指' }, { v: 'cheer', label: '欢呼' }, { v: 'sit', label: '坐下' }, { v: 'stand', label: '站起来' }] },
     { k: 'expr', label: '表情', kind: 'select', options: [{ v: '', label: '不变' }, { v: 'happy', label: '高兴' }, { v: 'sad', label: '难过' }, { v: 'surprised', label: '吃惊' }, { v: 'relaxed', label: '放松' }, { v: 'angry', label: '生气' }, { v: 'neutral', label: '收起表情' }] },
@@ -112,7 +113,7 @@ const SPECS: Record<string, Spec> = {
   wait: { label: '过一会儿', fields: [{ k: 'ms', label: '等多少 ms', kind: 'num', width: 80 }], nest: ['do'] },
   if: { label: '如果', fields: [], nest: ['then', 'else'] },
 };
-const EFFECT_ORDER = ['choose', 'insight', 'act', 'set', 'add', 'toggle', 'say', 'toast', 'label', 'sound', 'move', 'rotate', 'scale', 'spawn', 'remove', 'teleport', 'emit', 'env', 'water', 'wait', 'if'];
+const EFFECT_ORDER = ['choose', 'insight', 'act', 'remember', 'set', 'add', 'toggle', 'say', 'toast', 'label', 'sound', 'move', 'rotate', 'scale', 'spawn', 'remove', 'teleport', 'emit', 'env', 'water', 'wait', 'if'];
 
 const NEW_EFFECT: Record<string, () => Effect> = {
   set: () => ({ set: { open: 'true' } }),
@@ -134,6 +135,7 @@ const NEW_EFFECT: Record<string, () => Effect> = {
   choose: () => ({ choose: { text: '他转身要走,你……', options: [{ label: '叫住他', axis: 'spine', feel: '开口', do: [] }, { label: '什么也不说', axis: 'silence', feel: '目送', do: [] }] } }),
   insight: () => ({ insight: { text: '有些话,当时不说,就再也没有机会了' } }),
   act: () => ({ act: { anim: 'nod', face: 'actor' } }),
+  remember: () => ({ remember: { 见过: 'true' } }),
   wait: () => ({ wait: { ms: 3000, do: [] } }),
   if: () => ({ if: 'state.open', then: [], else: [] }),
 };
@@ -153,7 +155,7 @@ export function formable(e: Effect): boolean {
   if (k === 'choose') {
     const a = e.choose as Record<string, unknown> | undefined;
     if (!a || typeof a !== 'object' || !Array.isArray(a.options)) return false;
-    if (!Object.keys(a).every((x) => ['text', 'wait', 'default', 'options'].includes(x))) return false;
+    if (!Object.keys(a).every((x) => ['text', 'wait', 'default', 'options', 'key'].includes(x))) return false;
     return (a.options as unknown[]).every((o) => o && typeof o === 'object' && Object.keys(o).every((x) => ['label', 'axis', 'feel', 'do'].includes(x)));
   }
   const arg = e[k];
@@ -336,7 +338,7 @@ function EffectRow({ eff, onChange, onRemove, onMove, depth, scope }: {
 }
 
 type ChooseOpt = { label?: string; axis?: string; feel?: string; do?: Effect[] };
-type ChooseArg = { text?: string; wait?: unknown; default?: unknown; options: ChooseOpt[] };
+type ChooseArg = { text?: string; wait?: unknown; default?: unknown; key?: string; options: ChooseOpt[] };
 
 /** 出一道抉择:题面、限时、到点按哪个,每个选项 = 一句话 + 维度 + 感受词 + 选了以后做什么 */
 function ChooseBody({ box, head, arg, onChange, depth, scope }: { box: object; head: React.ReactNode; arg: ChooseArg; onChange: (a: ChooseArg) => void; depth: number; scope: RuleScope }) {
@@ -363,6 +365,7 @@ function ChooseBody({ box, head, arg, onChange, depth, scope }: { box: object; h
           <option value="">什么都不发生</option>
           {opts.map((o, i) => <option key={i} value={String(i)}>按「{o.label || `选项 ${i + 1}`}」</option>)}
         </select>
+        <Small value={arg.key ?? ''} width={110} title="记作" placeholder="记作(下一场读 memory.名字)" onChange={(v) => write({ key: v })} />
       </Box>
       {opts.map((o, i) => (
         <Box key={i} sx={{ mt: 0.75, pl: 1, borderLeft: '2px solid rgba(255,226,168,0.35)' }}>

@@ -15,7 +15,7 @@ vi.mock('@/apis/world', () => ({
 import { createPeerLayer, type RoomPeer } from '../vrm/world/peerAvatars';
 import { createObjectLayer, type PlacedObject } from '../vrm/world/worldObjects';
 import { EntityPanel } from '../scene-ui/RoomEntities';
-import { formable } from '../scene-ui/RuleForm';
+import { formable, RuleListForm } from '../scene-ui/RuleForm';
 
 const look = { base: '/none.vrm', params: {}, version: 1 };
 
@@ -72,6 +72,19 @@ describe('characters played by digital humans', () => {
     fireEvent.change(screen.getByPlaceholderText(/人设:他是谁/), { target: { value: '话少的父亲' } });
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: '存' })); });
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ props: { character: { name: '父亲', avatar: 'avatars/face/poet_mid.vrm', voice: 'male', persona: '话少的父亲' } } }));
+  });
+
+  it('the rule form knows remember and a choice key', () => {
+    expect(formable({ remember: { 站台: "'抱过'", target: 'actor' } })).toBe(true);
+    expect(formable({ choose: { key: '站台', text: '?', options: [{ label: 'a' }] } })).toBe(true);
+    let rules: { on: string; do: Record<string, unknown>[] }[] = [{ on: 'use', do: [{ choose: { text: '?', options: [{ label: 'a', do: [] }] } }] }];
+    const rr = () => <RuleListForm rules={rules} scope="kind" onChange={(r) => { rules = r as typeof rules; }} />;
+    const { rerender } = render(rr());
+    fireEvent.change(screen.getByPlaceholderText('记作(下一场读 memory.名字)'), { target: { value: '站台' } });
+    expect((rules[0].do[0].choose as { key?: string }).key).toBe('站台');
+    rerender(rr());
+    fireEvent.change(screen.getAllByLabelText('加一个效果')[1], { target: { value: 'remember' } });
+    expect(rules[0].do[1]).toEqual({ remember: { 见过: 'true' } });
   });
 
   it('the rule form knows act', () => {

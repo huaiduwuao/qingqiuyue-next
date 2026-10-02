@@ -24,6 +24,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { loginHref } from '@/lib/auth/redirect';
 import { accentOf } from '@/components/insight/InsightCards';
 import { overview } from '@/apis/insight';
+import { clearMyMemory, getMyMemory } from '@/apis/world';
 import {
   LIFE_AXES,
   addMoment,
@@ -215,6 +216,44 @@ function NodeRow({ n, names, onDelete }: { n: LifePathNode; names: Record<string
   );
 }
 
+/** 故事里记着你的:虚拟世界里的场景记下的(下一个场景照着它开场);能逐条忘掉、全部清空 */
+function StoryMemory({ names }: { names: Record<string, string> }) {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ['world', 'memory'], queryFn: getMyMemory });
+  const clear = useMutation({ mutationFn: (key?: string) => clearMyMemory(key), onSuccess: () => qc.invalidateQueries({ queryKey: ['world', 'memory'] }) });
+  const entries = Object.entries(q.data ?? {});
+  if (!entries.length) return null;
+  const show = (v: unknown): string => {
+    if (v && typeof v === 'object') {
+      const o = v as { label?: string; axis?: string; feel?: string; auto?: boolean };
+      if (o.label) return [`「${o.label}」`, o.auto ? '(没选,默认的)' : '', o.axis && names[o.axis] ? `偏${names[o.axis]}` : '', o.feel || ''].filter(Boolean).join(' · ');
+      return JSON.stringify(v);
+    }
+    return String(v);
+  };
+  return (
+    <Box sx={{ mb: 5 }}>
+      <Typography sx={{ fontSize: 16, fontWeight: 600, mb: 0.5 }}>
+        故事里记着你的
+        <Typography component="span" onClick={() => { if (window.confirm('全部忘掉?之后的场景会把你当成第一次来。')) clear.mutate(undefined); }}
+          sx={{ fontSize: 12, color: 'text.disabled', ml: 1.5, cursor: 'pointer', '&:hover': { color: 'error.main' } }}>
+          全部忘掉
+        </Typography>
+      </Typography>
+      <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1.5, lineHeight: 1.8 }}>
+        你在虚拟世界的场景里做过的选择,会被下一个场景记着 —— 走到哪儿,故事都接着讲。
+      </Typography>
+      {entries.map(([k, v]) => (
+        <Box key={k} sx={{ display: 'flex', gap: 1.5, alignItems: 'baseline', py: 0.75, borderTop: '1px solid', borderColor: 'divider' }}>
+          <Typography sx={{ fontSize: 13, fontWeight: 600, minWidth: 72 }}>{k}</Typography>
+          <Typography sx={{ fontSize: 13, color: 'text.secondary', flex: 1, overflowWrap: 'anywhere' }}>{show(v)}</Typography>
+          <Typography onClick={() => clear.mutate(k)} sx={{ fontSize: 11, color: 'text.disabled', cursor: 'pointer', '&:hover': { color: 'error.main' } }}>忘掉</Typography>
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
 function Peers({ profile, meta, onToggle }: { profile: LifeProfile; meta: LifeAxisMeta[]; onToggle: (v: boolean) => void }) {
   const q = useQuery({ queryKey: ['lifepath', 'peers', profile.public], queryFn: fetchPeers, enabled: profile.public });
   const names = Object.fromEntries(meta.map((m) => [m.key, m.name]));
@@ -393,6 +432,8 @@ export default function LifePathPage() {
                 q.data.list.map((n) => <NodeRow key={n.id} n={n} names={names} onDelete={() => del.mutate(n.id)} />)
               )}
             </Box>
+
+            <StoryMemory names={names} />
 
             <Peers profile={q.data.profile} meta={meta} onToggle={(v) => vis.mutate(v)} />
           </>

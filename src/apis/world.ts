@@ -432,6 +432,15 @@ export async function updateMySound(key: string, p: { name?: string; category?: 
 export async function deleteMySound(key: string): Promise<void> {
   await accountClient.delete(`/world/sounds/${encodeURIComponent(key)}`);
 }
+/** 场景之间的连续:我的故事记忆(场景规则 remember / 抉择 key 记下的,go worldapp/lifememory.go) */
+export async function getMyMemory(): Promise<Record<string, unknown>> {
+  const r = await accountClient.get<{ memory: Record<string, unknown> }>('/world/me/memory');
+  return r?.memory ?? {};
+}
+/** 忘掉一样(key)或全部 */
+export async function clearMyMemory(key?: string): Promise<void> {
+  await accountClient.delete('/world/me/memory', { params: key ? { key } : {} });
+}
 export async function adminListSounds(q = ''): Promise<WorldSoundRow[]> {
   const r = await accountClient.get<{ list: WorldSoundRow[] }>('/admin/world/sounds', { params: { q } });
   return Array.isArray(r?.list) ? r.list : [];
