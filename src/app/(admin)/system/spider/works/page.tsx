@@ -29,6 +29,8 @@ interface Metrics {
   hot500Watchable: number;
   playOk7d: number;
   playFail7d: number;
+  realWorks?: number;
+  realWatchable?: number;
 }
 
 interface RunStats {
@@ -132,10 +134,11 @@ export default function WorkCatalogPage() {
 
       {m && (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: 1.5 }}>
-          <Stat label="热门前 500 能看率" value={pct(m.hot500Watchable, m.hot500)} hint={`${m.hot500Watchable} / ${m.hot500} 部`} />
+          <Stat label="真人点开的作品能看率" value={pct(m.realWatchable ?? 0, m.realWorks ?? 0)} hint={`近 30 天 ${m.realWatchable ?? 0} / ${m.realWorks ?? 0} 部(不含机器人账号,含游客播放)`} />
           <Stat label="近 7 天播放成功率" value={pct(m.playOk7d, plays)} hint={plays ? `${m.playOk7d} 成功 / ${m.playFail7d} 失败` : '还没有播放上报'} />
           <Stat label="能看的作品" value={m.watchableWorks.toLocaleString()} hint={`共 ${m.works.toLocaleString()} 部作品`} />
           <Stat label="有权威出处" value={m.withAuthority.toLocaleString()} hint="维基数据或 Bangumi" />
+          <Stat label="热门前 500 能看率(参考)" value={pct(m.hot500Watchable, m.hot500)} hint="按 hot_score 排,含热榜虚拟分,仅供参考" />
           <Stat label="归并过的作品" value={m.mergedWorks.toLocaleString()} hint="由 2 条及以上收录合成" />
         </Box>
       )}

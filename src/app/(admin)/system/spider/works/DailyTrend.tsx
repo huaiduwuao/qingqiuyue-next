@@ -28,6 +28,8 @@ interface DailyRow {
   playFail7d: number;
   searchTotal: number;
   searchFirstUsable: number;
+  realWorks?: number;
+  realWatchable?: number;
 }
 
 function pct(n: number, d: number): string {
@@ -57,7 +59,7 @@ export function DailyTrend() {
             <TableHead>
               <TableRow>
                 <TableCell>日期</TableCell>
-                <TableCell align="right">热门前 500 能看率</TableCell>
+                <TableCell align="right">真人点开作品能看率</TableCell>
                 <TableCell align="right">搜索首条能看率</TableCell>
                 <TableCell align="right">近 7 天播放成功率</TableCell>
                 <TableCell align="right">能看的作品</TableCell>
@@ -69,7 +71,10 @@ export function DailyTrend() {
               {rows.map((r) => (
                 <TableRow key={r.day}>
                   <TableCell sx={{ fontFamily: 'monospace' }}>{r.day}</TableCell>
-                  <TableCell align="right">{pct(r.hot500Watchable, r.hot500)}</TableCell>
+                  <TableCell align="right">
+                    {pct(r.realWatchable ?? 0, r.realWorks ?? 0)}
+                    {(r.realWorks ?? 0) > 0 && <Box component="span" sx={{ color: 'text.secondary', fontSize: 12 }}> ({r.realWorks} 部)</Box>}
+                  </TableCell>
                   <TableCell align="right">
                     {pct(r.searchFirstUsable, r.searchTotal)}
                     {r.searchTotal > 0 && <Box component="span" sx={{ color: 'text.secondary', fontSize: 12 }}> ({r.searchTotal} 次)</Box>}
