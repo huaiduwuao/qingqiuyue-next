@@ -169,7 +169,7 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
           const p = peersRef.current.get(u.id);
           if (!p) continue;
           // m / a 为空时服务端不发(omitempty):以这一帧为准,别留着上一帧的「在走」「招手」
-          peersRef.current.set(u.id, { ...p, ...u, m: !!u.m, a: u.a });
+          peersRef.current.set(u.id, { ...p, ...u, m: !!u.m, a: u.a, e: u.e });
           changed = true;
         }
         if (changed) pushPeers();
@@ -366,9 +366,9 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
   }, [owner, line]);
 
   // online 只算真人(含自己);AI 另外数
-  const aiCount = peers.filter((p) => p.ai).length;
+  const aiCount = peers.filter((p) => p.ai && !p.entity).length; // 场景里的角色不算「AI 成员」
   return {
-    status, peers, chat, say, online: owner ? peers.length - aiCount + 1 : 0, aiCount, inRoom: !!owner,
+    status, peers, chat, say, online: owner ? peers.filter((p) => !p.ai).length + 1 : 0, aiCount, inRoom: !!owner,
     isOwner: !!owner && !!def.room?.mine,
     /** room = 某人的房间;scene = 公共场景(广场、庭院) */
     space: (owner ? (def.kind === 'room' ? 'room' : 'scene') : null) as 'room' | 'scene' | null,

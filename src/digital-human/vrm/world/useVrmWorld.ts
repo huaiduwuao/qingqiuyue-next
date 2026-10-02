@@ -272,6 +272,13 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
         cb.onEvent?.({ type: 'poke' });
         return;
       }
+      // 场景里的角色(数字人,go worldapp/character.go):点它 = 点它演的实体;布置时 = 选中那个实体
+      const roleEnt = peerLayerRef.current?.pickEntity(raycaster);
+      if (roleEnt) {
+        if (cb.editing) cb.onEvent?.({ type: 'object', id: roleEnt });
+        else cb.onEvent?.({ type: 'useObject', id: roleEnt, kind: 'use', point: { x: 0, y: 0, z: 0 } });
+        return;
+      }
       // 十期:不在布置时,点椅子 = 坐下、点灯 = 开关
       if (!cb.editing) {
         const used = w.objects.pickHit(raycaster);

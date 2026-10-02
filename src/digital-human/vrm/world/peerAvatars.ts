@@ -10,6 +10,9 @@
  * 四期语音:名牌前缀 🎙(开着麦)/ 🔇(被房主禁言);setVoiceLevels 给一个「谁此刻嘴张多大」的查询,
  * 说话时嘴跟着动(VRM 表情 aa / oh),名牌上方亮一个绿色的 🔊。
  * 十期:a = 'sit' 时画坐姿(interact.ts 的 applySitPose),人放在 y(座面高度)上,髋沉下去坐在那。
+ * 场景里的角色(entity = 它演的实体,go worldapp/character.go):名牌只写名字;规则让它做的动作
+ * (a = nod 点头 / shake 摇头 / think 托腮 / point 指 / cheer 举手)和表情(e = happy / sad / angry / surprised / relaxed,
+ * VRM 表情平滑过渡);点它 = 点那个实体(pickEntity)。
  */
 
 import type * as THREE from 'three';
@@ -35,6 +38,10 @@ export interface RoomPeer {
   muted?: boolean;
   /** 七期:广场光环(颜色值),脚下一圈光 */
   aura?: string;
+  /** 表情(场景里的角色) */
+  e?: string;
+  /** 场景里的角色:演的是哪个实体 */
+  entity?: string;
 }
 
 export interface PeerLayer {
@@ -44,10 +51,14 @@ export interface PeerLayer {
   setVoiceLevels: (fn: ((id: string) => number) | null) => void;
   tick: (t: number, dt: number, camera: THREE.Camera) => void;
   positions: () => { id: string; x: number; z: number }[];
+  /** 射线打中的场景角色:它演的实体 id */
+  pickEntity: (raycaster: THREE.Raycaster) => string | null;
   dispose: () => void;
 }
 
 const MAX_FULL = 10;
+/** VRM 表情预设(角色的 e) */
+const EXPRS = ['happy', 'sad', 'angry', 'surprised', 'relaxed'] as const;
 const BUBBLE_MS = 5000;
 
 const bufCache = new Map<string, Promise<ArrayBuffer>>();
@@ -149,6 +160,8 @@ interface Entry {
   sitW: number;
   hipsRest: number | null;
   hipH: number;
+  /** 表情还没回到 0(场景里的角色) */
+  exprOn?: boolean;
 }
 
 export function createPeerLayer(
@@ -165,12 +178,13 @@ export function createPeerLayer(
   const ghostMat = new THREE_NS.MeshStandardMaterial({ color: 0x9be8ff, transparent: true, opacity: 0.35, emissive: 0x2a6a80, roughness: 0.6 });
 
   let voiceLevel: ((id: string) => number) | null = null;
-  const labelText = (p: RoomPeer) => `${p.muted ? '🔇 ' : p.voice === 2 ? '🎙 ' : ''}${p.owner ? '🏠 ' : p.ai ? '🤖 ' : ''}${p.nickname || '访客'}`;
+  const labelText = (p: RoomPeer) => (p.entity ? p.nickname || '角色' : `${p.muted ? '🔇 ' : p.voice === 2 ? '🎙 ' : ''}${p.owner ? '🏠 ' : p.ai ? '🤖 ' : ''}${p.nickname || '访客'}`);
   const keyOf = (p: RoomPeer) => `${opts.resolveUrl(p.look?.base || '')}#${p.look?.version ?? 0}#${JSON.stringify(p.look?.params ?? {})}`;
 
   function makeLabel(e: Entry) {
     if (e.label) { e.g.remove(e.label); disposeSprite(e.label); }
-    e.label = textSprite(THREE_NS, labelText(e.p), { bg: e.p.ai ? 'rgba(40,20,70,0.72)' : 'rgba(8,10,20,0.66)', border: e.p.owner ? '#25F4EE' : e.p.ai ? '#c7a6ff' : undefined, size: 34 });
+    const role = !!e.p.entity; // 场景里的角色:暖色、不带 🤖
+    e.label = textSprite(THREE_NS, labelText(e.p), { bg: role ? 'rgba(60,40,20,0.66)' : e.p.ai ? 'rgba(40,20,70,0.72)' : 'rgba(8,10,20,0.66)', border: role ? '#ffe2a8' : e.p.owner ? '#25F4EE' : e.p.ai ? '#c7a6ff' : undefined, size: 34 });
     e.label.position.y = e.height + 0.18;
     e.g.add(e.label);
     if (e.speak) e.speak.position.y = e.height + 0.36;
@@ -312,7 +326,7 @@ export function createPeerLayer(
     if (rLL) rLL.rotation.x = Math.max(0, Math.sin(e.phase + 1.3 + Math.PI)) * 0.9 * amt;
     // 手臂垂下来(VRM 静止是 T / A 字),走路时前后摆,和同侧的腿反着
     if (lUA) { lUA.rotation.z = -1.25; lUA.rotation.x = swing * 0.6; }
-    if (rUA) { rUA.rotation.z = 1.25; rUA.rotation.x = -swing * 0.6; }
+    if (rUA) { rUA.rotation.z = 1.25; rUA.rotation.x = -swing * 0.6; rUA.rotation.y = 0; }
     if (lLA) lLA.rotation.y = -0.15 - amt * 0.25;
     if (rLA) rLA.rotation.y = 0.15 + amt * 0.25;
     if (spine) spine.rotation.x = (running ? 0.12 : 0.03 * amt) + Math.sin(t * 1.6 + e.phase) * 0.015 * (1 - amt);
@@ -325,6 +339,26 @@ export function createPeerLayer(
       spine.rotation.x = 0.45;
       lUA.rotation.z = -0.9; lUA.rotation.x = -0.6;
       rUA.rotation.z = 0.9; rUA.rotation.x = -0.6;
+    } else if (e.p.a === 'point' && rUA && rLA) {
+      // 指:右臂朝前抬平
+      rUA.rotation.z = 0.2; rUA.rotation.x = 0; rUA.rotation.y = -1.2;
+      rLA.rotation.y = 0.05;
+    } else if (e.p.a === 'cheer' && lUA && rUA && lLA && rLA) {
+      // 欢呼:两臂举过头,一颠一颠
+      lUA.rotation.z = 0.8 + Math.sin(t * 8) * 0.12; rUA.rotation.z = -0.8 - Math.sin(t * 8) * 0.12;
+      lUA.rotation.x = rUA.rotation.x = -0.2;
+      lLA.rotation.y = -0.3; rLA.rotation.y = 0.3;
+    } else if (e.p.a === 'think' && rUA && rLA) {
+      // 托腮:右手收到下巴前
+      rUA.rotation.z = 0.95; rUA.rotation.x = -0.6;
+      rLA.rotation.y = 1.85;
+    }
+    // 头:点头 / 摇头 / 想事情时微微侧着低头
+    const head = bone(vrm, 'head');
+    if (head) {
+      head.rotation.x = e.p.a === 'nod' ? 0.12 + Math.sin(t * 7) * 0.2 : e.p.a === 'think' ? 0.12 : 0;
+      head.rotation.y = e.p.a === 'shake' ? Math.sin(t * 8) * 0.35 : 0;
+      head.rotation.z = e.p.a === 'think' ? 0.12 : 0;
     }
     vrm.scene.position.y = e.footOffset + Math.abs(Math.sin(e.phase)) * 0.035 * amt;
     // 十期:坐着
@@ -338,8 +372,20 @@ export function createPeerLayer(
     } else if (hips && e.hipsRest !== null) {
       hips.position.y = e.hipsRest;
     }
-    // 说话的嘴型(没开声音 / 不说话时 talk = 0,不碰表情)
+    // 表情(场景里的角色):目标那个过渡到 1,其余回 0
     const em = vrm.expressionManager;
+    if (em && (e.p.e || e.exprOn)) {
+      let any = false;
+      for (const x of EXPRS) {
+        const cur = em.getValue(x) ?? 0;
+        const want = e.p.e === x ? 1 : 0;
+        const nv = cur + (want - cur) * Math.min(1, dt * 5);
+        em.setValue(x, Math.abs(nv - want) < 0.01 ? want : nv);
+        if (nv > 0.01) any = true;
+      }
+      e.exprOn = any;
+    }
+    // 说话的嘴型(没开声音 / 不说话时 talk = 0,不碰表情)
     if (em && (e.talk > 0.01 || em.getValue('aa'))) {
       em.setValue('aa', Math.min(1, e.talk * 1.1));
       em.setValue('oh', Math.min(1, e.talk * 0.35 * (1 + Math.sin(t * 7))));
@@ -414,6 +460,18 @@ export function createPeerLayer(
     setVoiceLevels: (fn) => { voiceLevel = fn; },
     tick,
     positions: () => Array.from(entries.values()).filter((e) => !e.removing).map((e) => ({ id: e.p.id, x: e.pos.x, z: e.pos.z })),
+    pickEntity: (raycaster) => {
+      const list = Array.from(entries.values()).filter((e) => e.p.entity && !e.removing);
+      if (!list.length) return null;
+      const hits = raycaster.intersectObjects(list.map((e) => e.g), true).filter((h) => !(h.object as THREE.Sprite).isSprite);
+      for (const h of hits) {
+        let o: THREE.Object3D | null = h.object;
+        while (o && !list.some((e) => e.g === o)) o = o.parent;
+        const e = o ? list.find((x) => x.g === o) : undefined;
+        if (e?.p.entity) return e.p.entity;
+      }
+      return null;
+    },
     dispose: () => {
       disposed = true;
       for (const e of entries.values()) {

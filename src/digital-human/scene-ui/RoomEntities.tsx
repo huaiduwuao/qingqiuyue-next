@@ -286,10 +286,52 @@ export function KindsDrawer({ onPlace, toast }: {
   );
 }
 
+/** 角色(go worldapp/character.go 的 props.character) */
+interface CharacterDef { name?: string; avatar?: string; voice?: string; persona?: string }
+const ROLE_AVATARS = [
+  { v: 'avatars/face/real_f01.vrm', label: '年轻女性' },
+  { v: 'avatars/face/poet_young.vrm', label: '年轻男性' },
+  { v: 'avatars/face/poet_mid.vrm', label: '中年男性' },
+  { v: 'avatars/face/guide.vrm', label: '向导' },
+];
+
+/** 角色:由数字人来演 —— 形象、嗓音、人设(人设写了,别人走到跟前说话它就入戏回) */
+export function CharacterEditor({ value, onChange }: { value: CharacterDef; onChange: (v: CharacterDef) => void }) {
+  const sel = { background: 'rgba(255,255,255,0.06)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 6, fontSize: 12, padding: '4px 6px' } as const;
+  return (
+    <Box sx={{ p: 1, borderRadius: 2, bgcolor: 'rgba(255,226,168,0.06)', border: '1px solid rgba(255,226,168,0.22)', display: 'flex', flexDirection: 'column', gap: 0.75 }}>
+      <Typography sx={{ fontSize: 12, fontWeight: 700, color: '#ffe2a8' }}>🎭 角色(数字人来演)</Typography>
+      <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap', alignItems: 'center' }}>
+        <TextField size="small" value={value.name ?? ''} placeholder="名字(父亲、阿婆……)" onChange={(e) => onChange({ ...value, name: e.target.value })} sx={{ ...field, width: 130 }} />
+        <select aria-label="形象" value={value.avatar ?? ''} onChange={(e) => onChange({ ...value, avatar: e.target.value })} style={sel}>
+          {!ROLE_AVATARS.some((a) => a.v === value.avatar) && <option value={value.avatar ?? ''}>{value.avatar || '默认形象'}</option>}
+          {ROLE_AVATARS.map((a) => <option key={a.v} value={a.v}>{a.label}</option>)}
+        </select>
+        <select aria-label="嗓音" value={value.voice ?? ''} onChange={(e) => onChange({ ...value, voice: e.target.value })} style={sel}>
+          <option value="">嗓音按形象</option>
+          <option value="female">女声</option>
+          <option value="male">男声</option>
+        </select>
+      </Box>
+      <TextField size="small" multiline minRows={2} maxRows={6} value={value.persona ?? ''} onChange={(e) => onChange({ ...value, persona: e.target.value })}
+        placeholder="人设:他是谁、在什么处境、怎么说话。写了人设,别人走到跟前说话,他就入戏回一两句;不写就只说规则里写的台词。" sx={field} />
+      <Typography sx={{ fontSize: 10.5, color: 'rgba(255,255,255,0.45)', lineHeight: 1.6 }}>
+        规则里对他「头顶冒字」就是他开口(有声音);「挪动」就是他走过去,走到了派「走到了」;「角色表演」让他点头、摇头、换表情、转身。
+      </Typography>
+    </Box>
+  );
+}
+
 export function EntityPanel({ item, onSave }: {
   item: WorldPlacement;
-  onSave: (patch: { kind?: string; state?: Record<string, unknown>; rules?: WorldPlacement['rules']; tags?: string[] }) => Promise<void>;
+  onSave: (patch: { kind?: string; state?: Record<string, unknown>; rules?: WorldPlacement['rules']; tags?: string[]; props?: Record<string, unknown> }) => Promise<void>;
 }) {
+  // 角色(props.character,数字人来演):名字、形象、嗓音、人设
+  const [role, setRole] = React.useState<CharacterDef | null>(null);
+  React.useEffect(() => {
+    const c = (item.props as { character?: CharacterDef } | undefined)?.character;
+    setRole(c ? { name: c.name ?? '', avatar: c.avatar ?? '', voice: c.voice ?? '', persona: c.persona ?? '' } : null);
+  }, [item.id, item.props]);
   const [kind, setKind] = React.useState('');
   const [state, setState] = React.useState<Record<string, unknown>>({});
   const [rules, setRules] = React.useState<WorldRule[]>([]);
@@ -317,6 +359,11 @@ export function EntityPanel({ item, onSave }: {
   const save = async () => {
     const tg = tags.split(/[,，\s]+/).map((x) => x.trim()).filter(Boolean);
     const patch: Parameters<typeof onSave>[0] = { state, rules, tags: tg };
+    if (role) {
+      const c: Record<string, string> = {};
+      for (const [k, v] of Object.entries(role)) if (typeof v === 'string' && v.trim()) c[k] = v.trim();
+      patch.props = { character: c };
+    }
     if (kind.trim() !== (item.kind ?? '')) patch.kind = kind.trim();
     setBusy(true);
     setErr('');
@@ -337,7 +384,8 @@ export function EntityPanel({ item, onSave }: {
       {open && (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75, mt: 0.75 }}>
           <AiCompose target="entity" current={{ kind: item.kind, state, rules, tags }} onDraft={onDraft} />
-          {label('原型(空着 = 素材默认的,椅子是 seat、灯是 lamp;写 - = 只是摆着看)')}
+          {role && <CharacterEditor value={role} onChange={setRole} />}
+          {label('原型(空着 = 素材默认的,椅子是 seat、灯是 lamp;写 - = 只是摆着看;character = 数字人来演的角色)')}
           <TextField size="small" value={kind} placeholder="素材默认" onChange={(e) => setKind(e.target.value)} sx={field} />
           {label('状态(规则读写的变量)')}
           <JsonBox value={state} onChange={setState} />

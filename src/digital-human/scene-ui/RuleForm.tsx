@@ -36,6 +36,7 @@ const EVENTS: { v: string; label: string; scopes: RuleScope[]; hint?: string }[]
   { v: 'remove', label: '被拿走', scopes: ['kind', 'entity'] },
   { v: 'join', label: '有人进了房间', scopes: ['space'] },
   { v: 'part', label: '有人离开房间', scopes: ['space'] },
+  { v: 'arrived', label: '走到了(角色)', scopes: ['kind', 'entity'], hint: '角色被 move 之后走到了那里' },
   { v: 'chose', label: '有人回答了它出的题', scopes: ['kind', 'entity', 'space', 'material'], hint: 'event.choice 选的那句、event.axis 维度、event.feel 感受词、event.auto 到点没选' },
   { v: 'drown', label: '有人憋不住气了', scopes: ['space', 'material'], hint: '头泡在会憋气的液体里,憋的秒数用完;没有规则管就默认送到出口' },
 ];
@@ -92,6 +93,13 @@ const SPECS: Record<string, Spec> = {
     { k: 'feel', label: '感受词', kind: 'text', placeholder: '遗憾', width: 90 },
   ], str: 'text' },
   choose: { label: '出一道抉择', fields: [] },
+  act: { label: '角色表演', fields: [
+    { k: 'anim', label: '动作', kind: 'select', options: [{ v: '', label: '不做' }, { v: 'nod', label: '点头' }, { v: 'shake', label: '摇头' }, { v: 'wave', label: '挥手' }, { v: 'bow', label: '鞠躬' }, { v: 'think', label: '托腮想' }, { v: 'point', label: '指' }, { v: 'cheer', label: '欢呼' }, { v: 'sit', label: '坐下' }, { v: 'stand', label: '站起来' }] },
+    { k: 'expr', label: '表情', kind: 'select', options: [{ v: '', label: '不变' }, { v: 'happy', label: '高兴' }, { v: 'sad', label: '难过' }, { v: 'surprised', label: '吃惊' }, { v: 'relaxed', label: '放松' }, { v: 'angry', label: '生气' }, { v: 'neutral', label: '收起表情' }] },
+    { k: 'face', label: '转向', kind: 'at' },
+    { k: 'ms', label: '表情多久 ms', kind: 'num', width: 90 },
+    { k: 'target', label: '谁', kind: 'target' },
+  ], str: 'anim' },
   water: { label: '放水 / 抽水', fields: [
     { k: 'level', label: '灌到多高(米)', kind: 'num', width: 96 },
     { k: 'rise', label: '涨多少(米,负数落)', kind: 'num', width: 120 },
@@ -104,7 +112,7 @@ const SPECS: Record<string, Spec> = {
   wait: { label: '过一会儿', fields: [{ k: 'ms', label: '等多少 ms', kind: 'num', width: 80 }], nest: ['do'] },
   if: { label: '如果', fields: [], nest: ['then', 'else'] },
 };
-const EFFECT_ORDER = ['choose', 'insight', 'set', 'add', 'toggle', 'say', 'toast', 'label', 'sound', 'move', 'rotate', 'scale', 'spawn', 'remove', 'teleport', 'emit', 'env', 'water', 'wait', 'if'];
+const EFFECT_ORDER = ['choose', 'insight', 'act', 'set', 'add', 'toggle', 'say', 'toast', 'label', 'sound', 'move', 'rotate', 'scale', 'spawn', 'remove', 'teleport', 'emit', 'env', 'water', 'wait', 'if'];
 
 const NEW_EFFECT: Record<string, () => Effect> = {
   set: () => ({ set: { open: 'true' } }),
@@ -125,6 +133,7 @@ const NEW_EFFECT: Record<string, () => Effect> = {
   water: () => ({ water: { rise: 0.2 } }),
   choose: () => ({ choose: { text: '他转身要走,你……', options: [{ label: '叫住他', axis: 'spine', feel: '开口', do: [] }, { label: '什么也不说', axis: 'silence', feel: '目送', do: [] }] } }),
   insight: () => ({ insight: { text: '有些话,当时不说,就再也没有机会了' } }),
+  act: () => ({ act: { anim: 'nod', face: 'actor' } }),
   wait: () => ({ wait: { ms: 3000, do: [] } }),
   if: () => ({ if: 'state.open', then: [], else: [] }),
 };

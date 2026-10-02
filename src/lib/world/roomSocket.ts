@@ -32,8 +32,10 @@ export interface PeerPose {
   yaw: number;
   /** 在走 */
   m?: boolean;
-  /** 动作(walk / run / jump / dance…) */
+  /** 动作(walk / run / jump / dance…;场景角色还有 nod / shake / think / point / cheer) */
   a?: string;
+  /** 表情(场景里的角色:happy / sad / angry / surprised / relaxed) */
+  e?: string;
 }
 
 export interface PeerInfo extends PeerPose {
@@ -50,6 +52,8 @@ export interface PeerInfo extends PeerPose {
   /** 被房主禁言 */
   muted?: boolean;
   look: PeerLook;
+  /** 场景里的角色(go worldapp/character.go):演的是哪个实体 */
+  entity?: string;
 }
 
 export type RoomFrame =

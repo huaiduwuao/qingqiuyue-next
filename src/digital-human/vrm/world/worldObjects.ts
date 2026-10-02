@@ -386,10 +386,14 @@ export function createObjectLayer(
       if (!e.lampMats) setupLamp(e); else applyLamp(e);
     }
     place(e);
-    e.g.visible = p.props?.visible !== false;
+    // 角色(props.character)由数字人演(房间同伴里那位 entity = 它),摆设本身不画、不点
+    const role = !!p.props?.character;
+    e.g.visible = p.props?.visible !== false && !role;
     if (keyChanged) { if (e.model) e.g.remove(e.model); e.model = null; e.obox = undefined; e.loadedKey = ''; e.loadingKey = ''; e.distLevel = -1; e.lodBroken = false; e.lampMats = undefined; e.primitive = false; }
     if (propsChanged) updateLabel(e);
-    if (!p.assetKey) {
+    if (role) {
+      // 不画
+    } else if (!p.assetKey) {
       // 世界模型:没有模型的实体(按钮、告示牌、区域……)画成简单形状
       if (!e.model) { buildPrimitive(e); updateLabel(e); }
     } else if (p.status === 'ready') loadModel(e);
@@ -424,7 +428,7 @@ export function createObjectLayer(
   const tmpV = new THREE_NS.Vector3();
 
   function pick(raycaster: THREE.Raycaster): string | null {
-    const hits = raycaster.intersectObjects(Array.from(entries.values()).filter((e) => e.grow >= 0 && !e.p.ghost).map((e) => e.g), true);
+    const hits = raycaster.intersectObjects(Array.from(entries.values()).filter((e) => e.grow >= 0 && !e.p.ghost && !e.p.props?.character).map((e) => e.g), true);
     for (const h of hits) {
       if (h.object.name === 'spawn-ring') continue;
       let o: THREE.Object3D | null = h.object;
@@ -469,7 +473,7 @@ export function createObjectLayer(
       // 长出来一半之前组的缩放接近 0,量不准;预览件(半透明)不挡
       if (e.grow < 1 || e.p.ghost || !e.model) continue;
       // 世界模型:不挡人的(solid = false)、区域、藏起来的,都不算障碍
-      if (e.p.props && (e.p.props.solid === false || e.p.props.sense || e.p.props.zone || e.p.props.visible === false)) continue;
+      if (e.p.props && (e.p.props.solid === false || e.p.props.sense || e.p.props.zone || e.p.props.visible === false || e.p.props.character)) continue;
       if (e.obox === undefined) e.obox = measure(e);
       const b = e.obox;
       if (!b) continue;
@@ -692,7 +696,7 @@ export function createObjectLayer(
   }
 
   function pickHit(raycaster: THREE.Raycaster) {
-    const hits = raycaster.intersectObjects(Array.from(entries.values()).filter((e) => e.grow >= 0 && !e.p.ghost).map((e) => e.g), true);
+    const hits = raycaster.intersectObjects(Array.from(entries.values()).filter((e) => e.grow >= 0 && !e.p.ghost && !e.p.props?.character).map((e) => e.g), true);
     for (const h of hits) {
       if (h.object.name === 'spawn-ring' || (h.object as THREE.Sprite).isSprite) continue;
       let o: THREE.Object3D | null = h.object;
