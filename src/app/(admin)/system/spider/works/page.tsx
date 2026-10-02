@@ -16,6 +16,7 @@ import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress';
 import { spiderClient } from '@/lib/api/client';
+import { ReviewQueue } from './ReviewQueue';
 
 interface Metrics {
   works: number;
@@ -40,6 +41,9 @@ interface RunStats {
   withQid: number;
   watchableWorks: number;
   offers: number;
+  titleLookups?: number;
+  titleHits?: number;
+  pendingReviews?: number;
   error?: string;
 }
 
@@ -158,7 +162,7 @@ export default function WorkCatalogPage() {
           <Typography variant="body2">
             收录 {last.records.toLocaleString()} 条 → 作品 {last.works.toLocaleString()} 部;归并 {last.mergedWorks.toLocaleString()} 部
             (涉及 {last.mergedRows.toLocaleString()} 条);带维基数据 {last.withQid.toLocaleString()} 部;能看 {last.watchableWorks.toLocaleString()} 部;
-            播放源 {last.offers.toLocaleString()} 个。
+            播放源 {last.offers.toLocaleString()} 个;按片名补维基数据编号 {last.titleHits ?? 0}/{last.titleLookups ?? 0};待审 {last.pendingReviews ?? 0} 条。
           </Typography>
           <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', mt: 1 }}>
             {Object.entries(last.byConfidence || {}).map(([k, v]) => (
@@ -170,6 +174,8 @@ export default function WorkCatalogPage() {
         </Paper>
       )}
       {!last && !query.isLoading && <Alert severity="info">服务启动后约 5 分钟跑第一轮,也可以点「立即重跑」。</Alert>}
+
+      <ReviewQueue />
     </Box>
   );
 }
