@@ -24,7 +24,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { loginHref } from '@/lib/auth/redirect';
 import { accentOf } from '@/components/insight/InsightCards';
 import { overview } from '@/apis/insight';
-import { clearMyMemory, getMyMemory } from '@/apis/world';
+import { clearMyClues, clearMyMemory, getMyClues, getMyMemory, type WorldClue } from '@/apis/world';
 import {
   LIFE_AXES,
   addMoment,
@@ -199,6 +199,7 @@ function NodeRow({ n, names, onDelete }: { n: LifePathNode; names: Record<string
             </Typography>
           )}
         </Box>
+        {n.prompt && <Typography sx={{ fontSize: 12.5, color: 'text.secondary', mt: 0.25 }}>{n.prompt}</Typography>}
         <Typography sx={{ fontSize: 14.5, lineHeight: 1.8, mt: 0.25, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
           {n.kind === 'journey' ? `走到了「${n.text}」` : n.text}
         </Typography>
@@ -212,6 +213,47 @@ function NodeRow({ n, names, onDelete }: { n: LifePathNode; names: Record<string
           </Typography>
         )}
       </Box>
+    </Box>
+  );
+}
+
+/** 线索本:在虚拟世界的各个场景里发现的(只记描写,没有答案);按场景分组,能清 */
+function Clues() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ['world', 'clues'], queryFn: getMyClues });
+  const clear = useMutation({ mutationFn: (room?: string) => clearMyClues(room), onSuccess: () => qc.invalidateQueries({ queryKey: ['world', 'clues'] }) });
+  const list = q.data ?? [];
+  if (!list.length) return null;
+  const groups = new Map<string, WorldClue[]>();
+  for (const c of list) {
+    const g = groups.get(c.room) ?? [];
+    g.push(c);
+    groups.set(c.room, g);
+  }
+  return (
+    <Box sx={{ mb: 5 }}>
+      <Typography sx={{ fontSize: 16, fontWeight: 600, mb: 0.5 }}>线索本</Typography>
+      <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1.5, lineHeight: 1.8 }}>
+        你在场景里找到的东西。它们说明不了什么 —— 怎么拼起来,是你自己的事。
+      </Typography>
+      {Array.from(groups.entries()).map(([room, cs]) => (
+        <Box key={room} sx={{ mb: 1.5 }}>
+          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1 }}>
+            <Typography
+              onClick={() => { window.location.href = `/digital-human?room=${encodeURIComponent(room)}`; }}
+              sx={{ fontSize: 13, fontWeight: 600, cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
+            >
+              {cs[0].space || '一个场景'}
+            </Typography>
+            <Typography onClick={() => clear.mutate(room)} sx={{ fontSize: 11, color: 'text.disabled', cursor: 'pointer', '&:hover': { color: 'error.main' } }}>清掉这里的</Typography>
+          </Box>
+          {cs.map((c) => (
+            <Typography key={c.key} sx={{ fontSize: 13, color: 'text.secondary', lineHeight: 1.8, pl: 1.5, borderLeft: '2px solid', borderColor: 'divider', mt: 0.5 }}>
+              {c.text || c.key}
+            </Typography>
+          ))}
+        </Box>
+      ))}
     </Box>
   );
 }
@@ -432,6 +474,8 @@ export default function LifePathPage() {
                 q.data.list.map((n) => <NodeRow key={n.id} n={n} names={names} onDelete={() => del.mutate(n.id)} />)
               )}
             </Box>
+
+            <Clues />
 
             <StoryMemory names={names} />
 

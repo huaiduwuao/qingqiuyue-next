@@ -16,6 +16,7 @@ import { createPeerLayer, type RoomPeer } from '../vrm/world/peerAvatars';
 import { createObjectLayer, type PlacedObject } from '../vrm/world/worldObjects';
 import { EntityPanel } from '../scene-ui/RoomEntities';
 import { formable, RuleListForm } from '../scene-ui/RuleForm';
+import { FoundCounter, ReflectCard } from '../scene-ui/ExploreCards';
 
 const look = { base: '/none.vrm', params: {}, version: 1 };
 
@@ -85,6 +86,24 @@ describe('characters played by digital humans', () => {
     rerender(rr());
     fireEvent.change(screen.getAllByLabelText('加一个效果')[1], { target: { value: 'remember' } });
     expect(rules[0].do[1]).toEqual({ remember: { 见过: 'true' } });
+  });
+
+  it('explore cards: a counter without answers, a found line, a question to answer yourself', () => {
+    const { unmount } = render(<FoundCounter count={2} total={5} />);
+    expect(screen.getByText('🔍 已发现 2 / 5')).toBeTruthy();
+    unmount();
+    const onAnswer = vi.fn();
+    const onClose = vi.fn();
+    render(<ReflectCard q={{ id: 'q1', text: '你说不想走,是在留下什么?' }} onAnswer={onAnswer} onClose={onClose} />);
+    expect((screen.getByRole('button', { name: '写下' }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getByPlaceholderText(/写下你自己的那句话/), { target: { value: '  留下我自己  ' } });
+    fireEvent.click(screen.getByRole('button', { name: '写下' }));
+    expect(onAnswer).toHaveBeenCalledWith('留下我自己');
+    fireEvent.click(screen.getByText('先不写'));
+    expect(onClose).toHaveBeenCalled();
+    expect(formable({ discover: { key: '信', text: '一封信' } })).toBe(true);
+    expect(formable({ reflect: '你在想什么?' })).toBe(true);
+    expect(formable({ reflect: { text: '?', axis: 'heart' } })).toBe(true);
   });
 
   it('the rule form knows act', () => {

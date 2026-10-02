@@ -26,6 +26,8 @@ export interface LifePathNode {
   createdAt: number;
   scriptKey?: string;
   space?: string;
+  /** scene:场景问他的那个问题(text 是他自己写的) */
+  prompt?: string;
   scriptTitle?: string;
   theme?: string;
   ending?: string;

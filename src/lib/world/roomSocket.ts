@@ -81,6 +81,10 @@ export type RoomFrame =
   | { t: 'choose'; id: string; text: string; options: { label: string; axis?: string; feel?: string }[]; wait?: number; default?: number; entity?: string }
   | { t: 'chosen'; id: string; index: number; auto?: boolean }
   | { t: 'insight'; text: string; axis?: string; feel?: string; path?: boolean }
+  // 留给人推理(go worldapp/lifeexplore.go):这里藏着几样 / 我发现了什么;场景反问我;我写的记下了
+  | { t: 'found'; count: number; total: number; key?: string; text?: string }
+  | { t: 'reflect'; id: string; text: string }
+  | { t: 'reflected'; id: string; path?: boolean }
   | { t: 'ruleErr'; errors: string[] }
   | { t: 'pong' };
 
@@ -176,6 +180,12 @@ export class RoomSocket {
   use(id: string) {
     if (!this.joined) return false;
     return this.raw({ t: 'use', id });
+  }
+
+  /** 回答场景的反问:自己写的一句话 */
+  reflect(id: string, text: string) {
+    if (!this.joined) return false;
+    return this.raw({ t: 'reflect', id, text });
   }
 
   /** 人生场景:回答规则出的题(第 index 个选项) */

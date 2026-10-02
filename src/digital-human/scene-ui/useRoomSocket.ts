@@ -112,6 +112,10 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
   // 人生场景:等我回答的题(收到时刻,算倒计时)、最近一句感悟
   const [question, setQuestion] = React.useState<(SceneQuestion & { at: number }) | null>(null);
   const [insight, setInsight] = React.useState<SceneInsight | null>(null);
+  // 留给人推理:这里藏着几样、找到几样;刚发现的;场景问我的
+  const [explore, setExplore] = React.useState<{ count: number; total: number } | null>(null);
+  const [found, setFound] = React.useState<{ key: string; text: string; at: number } | null>(null);
+  const [asked, setAsked] = React.useState<{ id: string; text: string } | null>(null);
   React.useEffect(() => { setBreath(null); }, [def.key]);
   // 九期:场景分线
   const [line, setLine] = React.useState(0);
@@ -257,6 +261,17 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
         // 我选了 / 到点按默认算了 / 题作废:收起那道题
         setQuestion((q) => (q && q.id === f.id ? null : q));
         return;
+      case 'found':
+        setExplore(f.total > 0 ? { count: f.count, total: f.total } : null);
+        if (f.key) setFound({ key: f.key, text: f.text ?? '', at: Date.now() });
+        return;
+      case 'reflect':
+        setAsked({ id: f.id, text: f.text });
+        return;
+      case 'reflected':
+        setAsked((q) => (q && q.id === f.id ? null : q));
+        if (f.path) o.toast('✍️', '记在你的心路上了');
+        return;
       case 'insight':
         setInsight({ text: f.text, axis: f.axis ?? '', feel: f.feel ?? '', path: !!f.path, at: Date.now() });
         return;
@@ -292,6 +307,8 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
     pushPeers();
     setChat([]);
     setMyState({}); // 换房间:分数之类是那间房的规则给的
+    setExplore(null); // 藏着几样是那个空间的
+    setAsked(null);
     tpRef.current = true;
     sock.join(owner);
     return () => {
@@ -358,6 +375,10 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
     return ok;
   }, []);
   const dismissInsight = React.useCallback(() => setInsight(null), []);
+  /** 回答场景的反问(自己写的);不想写就收起 */
+  const answerReflect = React.useCallback((id: string, text: string) => sockRef.current?.reflect(id, text) ?? false, []);
+  const dismissAsked = React.useCallback(() => setAsked(null), []);
+  const dismissFound = React.useCallback(() => setFound(null), []);
   const switchLine = React.useCallback((n: number) => {
     if (!owner || n === line) return;
     setChat([]);
@@ -379,6 +400,8 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
     use, push, myState, breath,
     /** 人生场景:等我回答的题、回答、最近一句感悟 */
     question, answer, insight, dismissInsight,
+    /** 留给人推理:这里藏着几样 / 刚发现的 / 场景问我的 */
+    explore, found, dismissFound, asked, answerReflect, dismissAsked,
     roomVoice, selfMuted, setVoiceState, sendVoice, vmute, setVoiceHandler,
   };
 }

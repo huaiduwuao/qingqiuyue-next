@@ -128,7 +128,7 @@ describe('rule frames on the room socket', () => {
   const roomDef: WorldDef = { key: 'room:1', name: 'x', kind: 'room', stage: 'studio', zones: [], room: { ownerId: '1', ownerName: '', mine: true, template: 'study' } } as unknown as WorldDef;
   it('routes fx / tp / me / ruleErr and sends use', () => {
     let emit: (f: RoomFrame) => void = () => {};
-    const sock = { join: vi.fn(), leave: vi.fn(), close: vi.fn(), say: vi.fn(), sendState: vi.fn(), noteLine: vi.fn(), lines: vi.fn(), use: vi.fn(() => true), choose: vi.fn(() => true) };
+    const sock = { join: vi.fn(), leave: vi.fn(), close: vi.fn(), say: vi.fn(), sendState: vi.fn(), noteLine: vi.fn(), lines: vi.fn(), use: vi.fn(() => true), choose: vi.fn(() => true), reflect: vi.fn(() => true) };
     const handle = { setRoomPeers: vi.fn(), setPosition: vi.fn(), getWorldSnapshot: vi.fn(() => null) } as unknown as VrmStageHandle;
     const toast = vi.fn();
     const onEntitySay = vi.fn();
@@ -170,6 +170,20 @@ describe('rule frames on the room socket', () => {
     expect(result.current.insight).toMatchObject({ text: '目送也是一种告别', axis: 'silence', path: true });
     act(() => { result.current.dismissInsight(); });
     expect(result.current.insight).toBeNull();
+    // 留给人推理:进来只知道藏着几样;发现一样;场景反问,自己写
+    act(() => { emit({ t: 'found', count: 0, total: 3 }); });
+    expect(result.current.explore).toEqual({ count: 0, total: 3 });
+    expect(result.current.found).toBeNull();
+    act(() => { emit({ t: 'found', count: 1, total: 3, key: '信', text: '抽屉里有一封信' }); });
+    expect(result.current.explore).toEqual({ count: 1, total: 3 });
+    expect(result.current.found).toMatchObject({ key: '信', text: '抽屉里有一封信' });
+    act(() => { emit({ t: 'reflect', id: 'q1', text: '那一刻,你在想什么?' }); });
+    expect(result.current.asked).toEqual({ id: 'q1', text: '那一刻,你在想什么?' });
+    act(() => { result.current.answerReflect('q1', '想他'); });
+    expect(sock.reflect).toHaveBeenCalledWith('q1', '想他');
+    act(() => { emit({ t: 'reflected', id: 'q1', path: true }); });
+    expect(result.current.asked).toBeNull();
+    expect(toast).toHaveBeenLastCalledWith('✍️', '记在你的心路上了');
   });
 
   it('draws the choice card and the insight card', () => {

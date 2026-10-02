@@ -437,6 +437,15 @@ export async function getMyMemory(): Promise<Record<string, unknown>> {
   const r = await accountClient.get<{ memory: Record<string, unknown> }>('/world/me/memory');
   return r?.memory ?? {};
 }
+/** 线索本:我在各个场景里发现的(go worldapp/lifeexplore.go) */
+export interface WorldClue { room: string; space: string; key: string; text: string; at: string }
+export async function getMyClues(): Promise<WorldClue[]> {
+  const r = await accountClient.get<{ list: WorldClue[] }>('/world/me/clues');
+  return Array.isArray(r?.list) ? r.list : [];
+}
+export async function clearMyClues(room?: string): Promise<void> {
+  await accountClient.delete('/world/me/clues', { params: room ? { room } : {} });
+}
 /** 忘掉一样(key)或全部 */
 export async function clearMyMemory(key?: string): Promise<void> {
   await accountClient.delete('/world/me/memory', { params: key ? { key } : {} });

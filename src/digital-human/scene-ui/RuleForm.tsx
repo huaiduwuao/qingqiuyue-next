@@ -37,6 +37,7 @@ const EVENTS: { v: string; label: string; scopes: RuleScope[]; hint?: string }[]
   { v: 'join', label: '有人进了房间', scopes: ['space'], hint: 'event.from 是他刚从哪个空间来;memory.x 是他身上的故事记忆;actor.path.top 是他心路上最多的那一面' },
   { v: 'part', label: '有人离开房间', scopes: ['space'] },
   { v: 'arrived', label: '走到了(角色)', scopes: ['kind', 'entity'], hint: '角色被 move 之后走到了那里' },
+  { v: 'reflected', label: '有人回答了它的反问', scopes: ['kind', 'entity', 'space', 'material'], hint: 'event.text 是他自己写的那句话、event.question 是问题' },
   { v: 'chose', label: '有人回答了它出的题', scopes: ['kind', 'entity', 'space', 'material'], hint: 'event.choice 选的那句、event.axis 维度、event.feel 感受词、event.auto 到点没选' },
   { v: 'drown', label: '有人憋不住气了', scopes: ['space', 'material'], hint: '头泡在会憋气的液体里,憋的秒数用完;没有规则管就默认送到出口' },
 ];
@@ -93,6 +94,8 @@ const SPECS: Record<string, Spec> = {
     { k: 'feel', label: '感受词', kind: 'text', placeholder: '遗憾', width: 90 },
   ], str: 'text' },
   choose: { label: '出一道抉择', fields: [] },
+  discover: { label: '让人发现一样东西', fields: [{ k: 'key', label: '叫什么(进线索本)', kind: 'text', placeholder: '信', width: 110 }, { k: 'text', label: '只描写,不评价', kind: 'text' }] },
+  reflect: { label: '反问(让他自己写)', fields: [{ k: 'text', label: '一个开放的问题', kind: 'text' }, { k: 'axis', label: '偏向', kind: 'select', options: AXIS_OPTIONS }], str: 'text' },
   remember: { label: '记住(跟着人走)', fields: [{ k: 'target', label: '记在谁身上', kind: 'target' }], pairs: true },
   act: { label: '角色表演', fields: [
     { k: 'anim', label: '动作', kind: 'select', options: [{ v: '', label: '不做' }, { v: 'nod', label: '点头' }, { v: 'shake', label: '摇头' }, { v: 'wave', label: '挥手' }, { v: 'bow', label: '鞠躬' }, { v: 'think', label: '托腮想' }, { v: 'point', label: '指' }, { v: 'cheer', label: '欢呼' }, { v: 'sit', label: '坐下' }, { v: 'stand', label: '站起来' }] },
@@ -113,7 +116,7 @@ const SPECS: Record<string, Spec> = {
   wait: { label: '过一会儿', fields: [{ k: 'ms', label: '等多少 ms', kind: 'num', width: 80 }], nest: ['do'] },
   if: { label: '如果', fields: [], nest: ['then', 'else'] },
 };
-const EFFECT_ORDER = ['choose', 'insight', 'act', 'remember', 'set', 'add', 'toggle', 'say', 'toast', 'label', 'sound', 'move', 'rotate', 'scale', 'spawn', 'remove', 'teleport', 'emit', 'env', 'water', 'wait', 'if'];
+const EFFECT_ORDER = ['choose', 'reflect', 'discover', 'act', 'remember', 'insight', 'set', 'add', 'toggle', 'say', 'toast', 'label', 'sound', 'move', 'rotate', 'scale', 'spawn', 'remove', 'teleport', 'emit', 'env', 'water', 'wait', 'if'];
 
 const NEW_EFFECT: Record<string, () => Effect> = {
   set: () => ({ set: { open: 'true' } }),
@@ -136,6 +139,8 @@ const NEW_EFFECT: Record<string, () => Effect> = {
   insight: () => ({ insight: { text: '有些话,当时不说,就再也没有机会了' } }),
   act: () => ({ act: { anim: 'nod', face: 'actor' } }),
   remember: () => ({ remember: { 见过: 'true' } }),
+  discover: () => ({ discover: { key: '信', text: '抽屉里有一封没寄出去的信' } }),
+  reflect: () => ({ reflect: { text: '那一刻,你在想什么?' } }),
   wait: () => ({ wait: { ms: 3000, do: [] } }),
   if: () => ({ if: 'state.open', then: [], else: [] }),
 };
