@@ -610,6 +610,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   // 潜水:按住 C(或手机上的潜水按钮)往下潜,松开慢慢浮回去;diveRef = 现在潜了多深(米)
   const diveRef = useRef(0);
   const diveHoldRef = useRef(false);
+  const pushAtRef = useRef(0);
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
@@ -795,6 +796,11 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
         pos.prevX = pos.x; pos.prevZ = pos.z;
         // 八期:绕开摆设(撞上就顺着边滑过去)
         const next = clampToWorld(pos.x + mx * speed * dt, pos.z + mz * speed * dt, worldDefRef.current, worldApiRef.current.obstacles(groundYRef.current));
+        // 推得动的东西(movable):顶着它走、几乎走不动时,告诉服务端推一下(服务端挪它、推给大家)
+        if (Math.hypot(next.x - pos.x, next.z - pos.z) < speed * dt * 0.4 && performance.now() - pushAtRef.current > 200) {
+          const id = worldApiRef.current.movableAt(pos.x + mx * 0.45, pos.z + mz * 0.45);
+          if (id) { pushAtRef.current = performance.now(); onWorldEventRef.current?.({ type: 'push', id, dx: mx, dz: mz }); }
+        }
         pos.x = next.x; pos.z = next.z;
         walkRef.current.moving = true;
         walkRef.current.style = running ? 'run' : 'walk';

@@ -30,7 +30,7 @@
 
 import type * as THREE from 'three';
 import { createRealKit, type RealKit } from './realKit';
-import type { Obstacle } from './worldLayout';
+import { insideBox, type Obstacle } from './worldLayout';
 import { guessSeatHeight, seatCount, type Interact, type SeatSpot } from './interact';
 import { makeMaterial } from './blockLayer';
 import { matColor } from './materials';
@@ -107,6 +107,8 @@ export interface ObjectLayer {
   seatSpots: (id: string, from: { x: number; z: number }) => SeatSpot[];
   /** 十期:某件摆放现在的记录 */
   get: (id: string) => PlacedObject | null;
+  /** (x, z) 处(放宽 margin 米)有没有推得动的实体,返回它的 id */
+  movableAt: (x: number, z: number, margin?: number) => string | null;
   /** 发光积木合成的候选光源(和灯一起按离镜头远近分光源池;坐标和摆设同一个父节点) */
   setExtraLights: (list: { x: number; y: number; z: number; color: number; intensity: number; radius: number }[]) => void;
   dispose: () => void;
@@ -476,7 +478,7 @@ export function createObjectLayer(
       if (!blocksWalking({ hx, hz, bottom: e.g.position.y + b.y0 * s, top: e.g.position.y + b.y1 * s })) continue;
       const rot = e.g.rotation.y;
       const c = Math.cos(rot), sn = Math.sin(rot);
-      out.push({ x: e.g.position.x + (b.cx * c + b.cz * sn) * s, z: e.g.position.z + (-b.cx * sn + b.cz * c) * s, hx, hz, rot });
+      out.push({ x: e.g.position.x + (b.cx * c + b.cz * sn) * s, z: e.g.position.z + (-b.cx * sn + b.cz * c) * s, hx, hz, rot, id: e.p.props?.movable ? e.p.id : undefined });
     }
     obsCache = out;
     obsAt = now;
@@ -787,6 +789,7 @@ export function createObjectLayer(
     pick,
     groupOf: (id) => entries.get(id)?.g ?? null,
     setExtraLights: (list) => { extraLights = list; lightsDirty = true; },
+    movableAt: (x, z, margin = 0.1) => obstacles().find((o) => o.id && insideBox(o, x, z, margin))?.id ?? null,
     setSelected: (id) => { selected = id; const e = id ? entries.get(id) : undefined; if (e) e.radius = 0; },
     obstacles,
     pickHit,

@@ -88,6 +88,21 @@ describe('entities in the object layer', () => {
     layer.dispose();
   });
 
+  it('finds movable entities in front of you', async () => {
+    const parent = new THREE.Group();
+    const layer = createObjectLayer(THREE, parent, { quality: 'low' });
+    layer.set([
+      ent({ id: 'c', kind: 'crate', z: 2, look: { shape: 'box', size: [0.25, 0.25, 0.25] }, props: { solid: true, movable: true } }),
+      ent({ id: 'w', kind: 'wall', x: 3, look: { shape: 'box', size: [0.5, 0.5, 0.5] }, props: { solid: true } }),
+    ]);
+    layer.tick(0, 1);
+    await new Promise((r) => setTimeout(r, 210));
+    expect(layer.movableAt(0, 2.3)).toBe('c');
+    expect(layer.movableAt(3, 0)).toBeNull(); // 墙不是 movable
+    expect(layer.movableAt(0, 3)).toBeNull();
+    layer.dispose();
+  });
+
   it('tweens rule-driven moves and blocks walking only when solid', async () => {
     const parent = new THREE.Group();
     const layer = createObjectLayer(THREE, parent, { quality: 'high' });
@@ -137,6 +152,13 @@ describe('rule frames on the room socket', () => {
     expect(toast).toHaveBeenLastCalledWith('⚠️', expect.stringContaining('没有这个原型'));
     expect(result.current.use('e9')).toBe(true);
     expect(sock.use).toHaveBeenCalledWith('e9');
+  });
+
+  it('useObjectUse hands pushes to the room socket', () => {
+    const push = vi.fn(() => true);
+    const { result } = renderHook(() => useObjectUse({ handle: null, rs: { peers: [], push }, items: [], toast: vi.fn() }));
+    act(() => { result.current.onWorldEvent({ type: 'push', id: 'c', dx: 0, dz: -1 }); });
+    expect(push).toHaveBeenCalledWith('c', 0, -1);
   });
 
   it('useObjectUse hands rule entities to the server', () => {

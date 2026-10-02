@@ -320,6 +320,7 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
   const refreshLines = React.useCallback(() => sockRef.current?.lines() ?? false, []);
   /** 世界模型:点了一个实体 */
   const use = React.useCallback((id: string) => sockRef.current?.use(id) ?? false, []);
+  const push = React.useCallback((id: string, dx: number, dz: number) => sockRef.current?.push(id, dx, dz) ?? false, []);
   const switchLine = React.useCallback((n: number) => {
     if (!owner || n === line) return;
     setChat([]);
@@ -338,7 +339,7 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
     /** 九期:场景里在第几条线(0 = 不分线 / 不在场景)、开着的线 */
     line, lines, refreshLines, switchLine,
     /** 世界模型:点实体、我身上的状态 */
-    use, myState, breath,
+    use, push, myState, breath,
     roomVoice, selfMuted, setVoiceState, sendVoice, vmute, setVoiceHandler,
   };
 }

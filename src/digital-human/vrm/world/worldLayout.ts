@@ -169,7 +169,14 @@ const BODY_RADIUS = 0.35;
  * 所有位置写入(键盘走、点地面、模型的 body.move)都过一遍。
  */
 /** 八期:摆设在地上占的那块(绕竖轴转过 rot 的矩形,中心 x/z、半宽 hx/hz,米) */
-export interface Obstacle { x: number; z: number; hx: number; hz: number; rot: number }
+export interface Obstacle { x: number; z: number; hx: number; hz: number; rot: number; /** 推得动的实体(movable)才带 */ id?: string }
+
+/** (x, z) 在不在这个转过的矩形里(四边各放宽 margin 米) */
+export function insideBox(b: Obstacle, x: number, z: number, margin = 0): boolean {
+  const c = Math.cos(b.rot), s = Math.sin(b.rot);
+  const dx = x - b.x, dz = z - b.z;
+  return Math.abs(dx * c - dz * s) < b.hx + margin && Math.abs(dx * s + dz * c) < b.hz + margin;
+}
 
 /**
  * 把半径 r 的圆(人)从一组转过的矩形(摆设)里推出去:按矩形自己的坐标看,往穿得浅的那条边推。

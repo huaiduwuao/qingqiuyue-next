@@ -31,6 +31,7 @@ const EVENTS: { v: string; label: string; scopes: RuleScope[]; hint?: string }[]
   { v: 'say', label: '有人说话', scopes: ['kind', 'entity', 'space'], hint: '那句话在 text 里' },
   { v: 'changed', label: '自己的状态变了', scopes: ['kind', 'entity'], hint: 'key / old / new' },
   { v: 'spawn', label: '被生成出来', scopes: ['kind', 'entity'] },
+  { v: 'pushed', label: '被推了一下', scopes: ['kind', 'entity'], hint: '要有属性 movable;event.dx / event.dz 是推的方向' },
   { v: 'remove', label: '被拿走', scopes: ['kind', 'entity'] },
   { v: 'join', label: '有人进了房间', scopes: ['space'] },
   { v: 'part', label: '有人离开房间', scopes: ['space'] },

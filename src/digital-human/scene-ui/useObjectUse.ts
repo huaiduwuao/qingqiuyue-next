@@ -18,7 +18,7 @@ import type { RoomSocketState } from './useRoomSocket';
 
 export interface UseObjectUseOptions {
   handle: VrmStageHandle | null;
-  rs: Pick<RoomSocketState, 'peers'> & { use?: (id: string) => boolean };
+  rs: Pick<RoomSocketState, 'peers'> & { use?: (id: string) => boolean; push?: (id: string, dx: number, dz: number) => boolean };
   items: WorldPlacement[];
   toast: (icon: string, text: string) => void;
 }
@@ -83,6 +83,7 @@ export function useObjectUse(opts: UseObjectUseOptions) {
 
   /** 交给世界事件:处理了返回 true */
   const onWorldEvent = React.useCallback((e: WorldEvent): boolean => {
+    if (e.type === 'push') { optsRef.current.rs.push?.(e.id, e.dx, e.dz); return true; }
     if (e.type !== 'useObject') return false;
     const { rs, items } = optsRef.current;
     if (e.kind === 'seat') {

@@ -48,6 +48,8 @@ export type WorldEvent =
   | { type: 'object'; id: string | null }
   /** 十期:不在布置时点了一件能坐的 / 一盏灯 */
   | { type: 'useObject'; id: string; kind: Interact; point: { x: number; y: number; z: number } }
+  /** 顶着一个推得动的实体走(dx / dz = 走的方向,单位向量) */
+  | { type: 'push'; id: string; dx: number; dz: number }
   /** 房间的泼溅外壳加载状态 */
   | { type: 'splat'; status: SplatStatus; splats?: number; error?: string };
 
@@ -415,6 +417,8 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
     if (g) worldRef.current?.blocks?.applyOps(ops, g);
     if (g) worldRef.current?.objects.setExtraLights(glowLights(g));
   }, []);
+  /** 前面有没有推得动的实体 */
+  const movableAt = useCallback((x: number, z: number) => worldRef.current?.objects.movableAt(x, z) ?? null, []);
   /** 水流推人(米/秒) */
   const flowAtFn = useCallback((x: number, z: number, curY: number) => (blockGridRef.current ? flowAt(blockGridRef.current, x, z, curY) : null), []);
   /** 脚下能踩多高 */
@@ -443,5 +447,5 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   const setPeerVoiceLevels = useCallback((fn: ((id: string) => number) | null) => { voiceLevelsRef.current = fn; peerLayerRef.current?.setVoiceLevels(fn); }, []);
   const peerSay = useCallback((id: string, text: string) => { peerLayerRef.current?.say(id, text); }, []);
 
-  return { tick, render, floatText, showMarker, snapshot, setPeers, setAura, characterSay, setPlacements, upsertPlacement, removePlacement, selectPlacement, placementGroup, obstacles, seatSpots, setBlockGrid, applyBlockOps, groundAt, inLiquid, slowAt: slowAtFn, flowAt: flowAtFn, setBuilding, blockPick, setBlockGhost, setRoomAlign, autoFitRoom, setRoomPeers, peerSay, setPeerVoiceLevels, zones: WORLD_ZONES };
+  return { tick, render, floatText, showMarker, snapshot, setPeers, setAura, characterSay, setPlacements, upsertPlacement, removePlacement, selectPlacement, placementGroup, obstacles, seatSpots, setBlockGrid, applyBlockOps, groundAt, inLiquid, slowAt: slowAtFn, flowAt: flowAtFn, movableAt, setBuilding, blockPick, setBlockGhost, setRoomAlign, autoFitRoom, setRoomPeers, peerSay, setPeerVoiceLevels, zones: WORLD_ZONES };
 }

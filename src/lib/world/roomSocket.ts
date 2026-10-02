@@ -170,6 +170,12 @@ export class RoomSocket {
     return this.raw({ t: 'use', id });
   }
 
+  /** 推一个推得动的实体(dx / dz = 走的方向) */
+  push(id: string, dx: number, dz: number) {
+    if (!this.joined) return false;
+    return this.raw({ t: 'push', id, dx: Math.round(dx * 100) / 100, dz: Math.round(dz * 100) / 100 });
+  }
+
   /** 房主禁言 / 解禁 */
   vmute(id: string, muted: boolean) {
     if (!this.joined) return false;
