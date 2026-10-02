@@ -347,6 +347,18 @@ export async function resetRoomPlayers(): Promise<{ cleared: number }> {
   return accountClient.delete<{ cleared: number }>('/world/rooms/mine/players');
 }
 
+/** 地形(高度场 + 物质);data 空 = 没有 */
+export async function getTerrain(owner: string): Promise<{ x0: number; z0: number; cell: number; w: number; h: number; data: string }> {
+  return accountClient.get(`/world/rooms/${encodeURIComponent(owner)}/terrain`);
+}
+/** 改地形:一次最多 32 笔;回改到的那一块 */
+export async function editTerrain(owner: string, ops: { tool: string; x?: number; z?: number; r?: number; amount?: number; mat?: number }[]): Promise<{ changed: boolean; patch?: { i0: number; j0: number; w: number; h: number; data: string } }> {
+  return accountClient.post(`/world/rooms/${encodeURIComponent(owner)}/terrain`, { ops });
+}
+export async function clearTerrain(): Promise<void> {
+  await accountClient.delete('/world/rooms/mine/terrain');
+}
+
 export async function getBlocks(owner: string): Promise<{ blocks: string; n: number; version: number; canBuild: boolean; materials?: WorldMaterial[] }> {
   return accountClient.get(`/world/rooms/${encodeURIComponent(owner)}/blocks`);
 }

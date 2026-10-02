@@ -16,6 +16,7 @@ import { createEnvironment, type Environment, type Quality } from './env/environ
 import type { PlacedObject } from './worldObjects';
 import type { Interact } from './interact';
 import { flowAt, glowLights, slowAt, type BlockGrid, type BlockOp } from './blocks';
+import type { TerrainData, TerrainPatch } from './terrain';
 import type { BlockHit } from './blockLayer';
 import type { SplatStatus } from './roomShell';
 import { createPeerLayer, type PeerLayer, type RoomPeer } from './peerAvatars';
@@ -111,6 +112,8 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   const charactersRef = useRef<WorldCharacter[]>(opts.characters ?? []);
   // 十二期:积木网格(useBlocks 管数据,这里拿来画、算站高和挡路)、搭建中、自己在哪
   const blockGridRef = useRef<BlockGrid | null>(null);
+  /** 地形(useBlocks 管数据):走路时脚下取它和积木里高的那个 */
+  const terrainRef = useRef<TerrainData | null>(null);
   const buildingRef = useRef(false);
   const selfPosRef = useRef({ x: 0, z: 0 });
   const cbRef = useRef(opts);
@@ -135,6 +138,7 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
     // 场景重建(换场景 / 换画质)后把摆放放回去
     w.objects.set(placementsRef.current);
     if (blockGridRef.current) w.blocks?.load(blockGridRef.current);
+    w.terrain?.load(terrainRef.current);
     let env: Environment | null = null;
     if (withEnv && renderer) {
       const e = worldEnv(d);
@@ -422,7 +426,27 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   /** 水流推人(米/秒) */
   const flowAtFn = useCallback((x: number, z: number, curY: number) => (blockGridRef.current ? flowAt(blockGridRef.current, x, z, curY) : null), []);
   /** 脚下能踩多高 */
-  const groundAt = useCallback((x: number, z: number, curY: number, dive = 0) => blockGridRef.current?.surfaceAt(x, z, curY, dive) ?? 0, []);
+  const groundAt = useCallback((x: number, z: number, curY: number, dive = 0) => Math.max(blockGridRef.current?.surfaceAt(x, z, curY, dive) ?? 0, terrainRef.current?.heightAt(x, z) ?? 0), []);
+  /** 地形:换一整张 / 盖上改到的一块 */
+  const setTerrain = useCallback((t: TerrainData | null) => { terrainRef.current = t; worldRef.current?.terrain?.load(t); }, []);
+  const applyTerrainPatch = useCallback((p: TerrainPatch) => {
+    if (!terrainRef.current) return;
+    if (worldRef.current?.terrain) worldRef.current.terrain.applyPatch(p); // 它会改 terrainRef 指的同一份数据
+    else terrainRef.current.applyPatch(p);
+  }, []);
+  const terrainPick = useCallback((clientX: number, clientY: number) => {
+    const w = worldRef.current;
+    if (!w?.terrain || !camera || !canvas || !THREE_NS) return null;
+    const rect = canvas.getBoundingClientRect();
+    const rc = new THREE_NS.Raycaster();
+    rc.setFromCamera(new THREE_NS.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1), camera);
+    const hit = w.terrain.pick(rc);
+    if (hit) return hit;
+    // 还没地形(或打在地形外):落到地板上
+    const gp = new THREE_NS.Vector3();
+    return rc.ray.intersectPlane(new THREE_NS.Plane(new THREE_NS.Vector3(0, 1, 0), 0), gp) ? { x: gp.x, y: 0, z: gp.z } : null;
+  }, [camera, canvas, THREE_NS]);
+  const setTerrainBrush = useCallback((b: { x: number; z: number; r: number; color?: number } | null) => { worldRef.current?.terrain?.setBrush(b); }, []);
   /** 泡在液体里没有(潜水按钮要不要出来) */
   const inLiquid = useCallback((x: number, z: number, curY: number) => blockGridRef.current?.inLiquid(x, z, curY) ?? false, []);
   /** 泡在液体物质(水)里走路打几折 */
@@ -447,5 +471,5 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   const setPeerVoiceLevels = useCallback((fn: ((id: string) => number) | null) => { voiceLevelsRef.current = fn; peerLayerRef.current?.setVoiceLevels(fn); }, []);
   const peerSay = useCallback((id: string, text: string) => { peerLayerRef.current?.say(id, text); }, []);
 
-  return { tick, render, floatText, showMarker, snapshot, setPeers, setAura, characterSay, setPlacements, upsertPlacement, removePlacement, selectPlacement, placementGroup, obstacles, seatSpots, setBlockGrid, applyBlockOps, groundAt, inLiquid, slowAt: slowAtFn, flowAt: flowAtFn, movableAt, setBuilding, blockPick, setBlockGhost, setRoomAlign, autoFitRoom, setRoomPeers, peerSay, setPeerVoiceLevels, zones: WORLD_ZONES };
+  return { tick, render, floatText, showMarker, snapshot, setPeers, setAura, characterSay, setPlacements, upsertPlacement, removePlacement, selectPlacement, placementGroup, obstacles, seatSpots, setBlockGrid, applyBlockOps, groundAt, setTerrain, applyTerrainPatch, terrainPick, setTerrainBrush, inLiquid, slowAt: slowAtFn, flowAt: flowAtFn, movableAt, setBuilding, blockPick, setBlockGhost, setRoomAlign, autoFitRoom, setRoomPeers, peerSay, setPeerVoiceLevels, zones: WORLD_ZONES };
 }

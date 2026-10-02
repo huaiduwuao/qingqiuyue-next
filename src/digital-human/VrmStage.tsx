@@ -50,6 +50,7 @@ import type { RoomPeer } from './vrm/world/peerAvatars';
 import type { TimeMode } from './vrm/world/env/timeOfDay';
 import type { SeatSpot } from './vrm/world/interact';
 import type { BlockGrid, BlockOp } from './vrm/world/blocks';
+import type { TerrainData, TerrainPatch } from './vrm/world/terrain';
 import type { BlockHit } from './vrm/world/blockLayer';
 import { DEFAULT_WORLD, clampToWorld, type Orb, type RoomShellAlign, type WorldCharacter, type WorldDef, type ZoneId } from './vrm/world/worldLayout';
 import { applyAvatarParams, inspectAvatar, type AvatarInfo } from './vrm/avatarCustomize';
@@ -125,6 +126,11 @@ export interface VrmStageHandle {
   sitting: () => SeatSpot | null;
   /** 十二期:换一份积木网格(null = 这里没有) */
   setBlockGrid: (grid: BlockGrid | null) => void;
+  /** 地形:换一整张(null = 没有)/ 盖上改到的一块 / 点到地形哪儿 / 笔刷预览圈 */
+  setTerrain: (t: TerrainData | null) => void;
+  applyTerrainPatch: (p: TerrainPatch) => void;
+  terrainPick: (clientX: number, clientY: number) => { x: number; y: number; z: number } | null;
+  setTerrainBrush: (b: { x: number; z: number; r: number; color?: number } | null) => void;
   /** 十二期:网格改好了,画面跟着改 */
   applyBlockOps: (ops: readonly BlockOp[]) => void;
   /** 十二期:搭建中(点击不走路,交给搭建面板) */
@@ -1249,6 +1255,10 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       },
       sitting: () => sitRef.current,
       setBlockGrid: (grid) => worldApiRef.current.setBlockGrid(grid),
+      setTerrain: (t) => worldApiRef.current.setTerrain(t),
+      applyTerrainPatch: (p) => worldApiRef.current.applyTerrainPatch(p),
+      terrainPick: (x, y) => worldApiRef.current.terrainPick(x, y),
+      setTerrainBrush: (b) => worldApiRef.current.setTerrainBrush(b),
       applyBlockOps: (ops) => worldApiRef.current.applyBlockOps(ops),
       setBuilding: (on) => worldApiRef.current.setBuilding(on),
       setDiving: (on) => { diveHoldRef.current = on; },

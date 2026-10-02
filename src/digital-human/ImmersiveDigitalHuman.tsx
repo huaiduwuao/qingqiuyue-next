@@ -755,6 +755,7 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
     enabled: worldActive,
     applyEdit: (op, data) => {
       if (op === 'blocks') { blocks.applyRemote(data); return; }
+      if (op === 'terrain') { blocks.applyTerrain(data); return; }
       if (op === 'reload') blocks.reload();
       worldObjects.applyRemote(op, data);
     },

@@ -14,6 +14,7 @@ import { createRealKit, type RealKit, type Spot } from './realKit';
 import { createRealNpc, realNpcModel } from './realNpc';
 import { createObjectLayer, type ObjectLayer } from './worldObjects';
 import { createBlockLayer, type BlockLayer } from './blockLayer';
+import { createTerrainLayer, type TerrainLayer } from './terrainLayer';
 import { buildRoomShell, type RoomShell, type SplatStatus } from './roomShell';
 import { DEFAULT_WORLD, WORLD_RADIUS, zoneProp, type Orb, type WorldCharacter, type WorldDef, type WorldZone, type ZoneId, worldEnv } from './worldLayout';
 
@@ -79,6 +80,8 @@ export interface WorldHandle {
   room: RoomShell | null;
   /** 十二期:积木(只有房间里有) */
   blocks: BlockLayer | null;
+  /** 地形(房间里才有) */
+  terrain: TerrainLayer | null;
   dispose: () => void;
 }
 
@@ -218,6 +221,7 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
   group.add(ground);
 
   const blocks: BlockLayer | null = roomInfo ? createBlockLayer(THREE_NS, group) : null;
+  const terrain: TerrainLayer | null = roomInfo ? createTerrainLayer(THREE_NS, group) : null;
   const roomShell: RoomShell | null = roomInfo ? buildRoomShell(THREE_NS, roomInfo, { renderer: bopts.renderer, quality: bopts.quality, onSplatStatus: bopts.onSplatStatus }) : null;
   if (roomShell) {
     group.add(roomShell.group);
@@ -1115,6 +1119,7 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
     kit?.dispose();
     objects.dispose();
     blocks?.dispose();
+    terrain?.dispose();
     roomShell?.dispose();
     for (const id of Array.from(npcs.keys())) removeNpc(id);
     setAura(null);
@@ -1141,6 +1146,7 @@ export function buildWorld(THREE_NS: typeof THREE, initialPreset: string, def: W
     tick: (t, dt, camera) => { tick(t, dt, camera); tickPeers(t, dt); tickNpcs(t, dt); objects.tick(t, dt, camera); roomShell?.tick(t, camera); },
     objects,
     blocks,
+    terrain,
     setPeers, setAura, setSelfPos, peerPositions, setCharacters, characterSay, characterPositions, setLampBoost,
   };
 }

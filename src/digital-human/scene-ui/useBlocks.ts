@@ -9,7 +9,8 @@
  */
 
 import React from 'react';
-import { editBlocks, getBlocks, listMaterials } from '@/apis/world';
+import { clearTerrain, editBlocks, editTerrain, getBlocks, getTerrain, listMaterials } from '@/apis/world';
+import { TerrainData, type TerrainOp, type TerrainPatch } from '../vrm/world/terrain';
 import type { VrmStageHandle } from '../VrmStage';
 import type { WorldDef } from '../vrm/world/worldLayout';
 import { BLOCK_MAX_OPS, BlockGrid, decodeBlocks, type BlockOp } from '../vrm/world/blocks';
@@ -53,6 +54,33 @@ export function useBlocks(opts: UseBlocksOptions) {
   ownerRef.current = owner;
 
   const reload = React.useCallback(() => setTick((n) => n + 1), []);
+  // 地形
+  const terrainRef = React.useRef<TerrainData | null>(null);
+  const [hasTerrain, setHasTerrain] = React.useState(false);
+  /** 别人(或自己)改了地形:盖上那一块;铲掉了就整个去掉 */
+  const applyTerrain = React.useCallback((data: unknown) => {
+    const d = data as { patch?: TerrainPatch; cleared?: boolean } | null;
+    if (d?.cleared) { terrainRef.current = null; optsRef.current.handle?.setTerrain(null); setHasTerrain(false); return; }
+    if (!d?.patch) return;
+    if (!terrainRef.current) { setTick((n) => n + 1); return; } // 刚铺的:整张重读
+    optsRef.current.handle?.applyTerrainPatch(d.patch);
+  }, []);
+  /** 改地形(几笔一起发);服务端回改到的那一块,先盖上(推回来的同一块再盖一次也一样) */
+  const commitTerrain = React.useCallback(async (ops: TerrainOp[]) => {
+    const o = ownerRef.current;
+    if (!o) return;
+    try {
+      const r = await editTerrain(o, ops);
+      if (!r.changed || !r.patch) return;
+      if (!terrainRef.current || ops.some((x) => x.tool === 'init')) { setTick((n) => n + 1); return; }
+      optsRef.current.handle?.applyTerrainPatch(r.patch);
+    } catch (e) {
+      optsRef.current.toast('⛰️', (e as Error)?.message || '地形没改上');
+    }
+  }, []);
+  const removeTerrain = React.useCallback(async () => {
+    try { await clearTerrain(); } catch (e) { optsRef.current.toast('⚠️', (e as Error)?.message || '没铲掉'); }
+  }, []);
 
   // 进房间 / 重读
   React.useEffect(() => {
@@ -64,6 +92,9 @@ export function useBlocks(opts: UseBlocksOptions) {
       setReady(false);
       setRoomMaterials([]);
       handle?.setBlockGrid(null);
+      handle?.setTerrain(null);
+      terrainRef.current = null;
+      setHasTerrain(false);
       return;
     }
     // 先清掉上一间房的,读回来之前不显示别人家的积木
@@ -72,8 +103,12 @@ export function useBlocks(opts: UseBlocksOptions) {
     setCount(0);
     let alive = true;
     // 先有物质登记表再画(材质、能不能站都按它)
-    Promise.all([getBlocks(owner), ensureMaterials()]).then(([r]) => {
+    Promise.all([getBlocks(owner), ensureMaterials(), getTerrain(owner).catch(() => null)]).then(([r, , tv]) => {
       if (!alive) return;
+      const terr = tv ? TerrainData.decode(tv) : null;
+      terrainRef.current = terr;
+      handle.setTerrain(terr);
+      setHasTerrain(!!terr);
       setRoomMaterials(r.materials ?? []);
       grid.load(decodeBlocks(r.blocks));
       handle.setBlockGrid(grid);
@@ -155,6 +190,9 @@ export function useBlocks(opts: UseBlocksOptions) {
     mine: !!owner && owner === opts.me,
     commit, undo, redo, canUndo: undoRef.current.length > 0, canRedo: redoRef.current.length > 0,
     applyRemote, reload,
+    /** 地形:有没有、高度(放东西 / 笔刷预览用)、改、铲掉、别人改的 */
+    hasTerrain, terrainAt: (x: number, z: number) => terrainRef.current?.heightAt(x, z) ?? 0,
+    commitTerrain, removeTerrain, applyTerrain,
   };
 }
 

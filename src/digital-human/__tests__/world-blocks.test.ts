@@ -17,6 +17,9 @@ const MATERIALS: BlockMaterial[] = [
 const api = vi.hoisted(() => ({
   getBlocks: vi.fn(async () => ({ blocks: '', n: 0, version: 1, canBuild: true })),
   listMaterials: vi.fn(async () => MATERIALS),
+  getTerrain: vi.fn(async () => ({ x0: 0, z0: 0, cell: 0.5, w: 1, h: 1, data: '' })),
+  editTerrain: vi.fn(async () => ({ changed: false })),
+  clearTerrain: vi.fn(async () => undefined),
   editBlocks: vi.fn(async () => ({ applied: 1 })),
 }));
 vi.mock('@/apis/world', () => api);
@@ -269,7 +272,7 @@ describe('block layer', () => {
 
 describe('useBlocks', () => {
   const def = { key: 'room:1', name: 'x', kind: 'room', stage: 'studio', zones: [], room: { ownerId: '1', ownerName: '', mine: true, template: 'study' } } as unknown as WorldDef;
-  const fakeHandle = () => ({ setBlockGrid: vi.fn(), applyBlockOps: vi.fn() }) as unknown as VrmStageHandle & { setBlockGrid: ReturnType<typeof vi.fn>; applyBlockOps: ReturnType<typeof vi.fn> };
+  const fakeHandle = () => ({ setBlockGrid: vi.fn(), applyBlockOps: vi.fn(), setTerrain: vi.fn(), applyTerrainPatch: vi.fn() }) as unknown as VrmStageHandle & { setBlockGrid: ReturnType<typeof vi.fn>; applyBlockOps: ReturnType<typeof vi.fn> };
 
   it('loads, commits in batches, undoes, and skips its own echoes', async () => {
     vi.useFakeTimers();

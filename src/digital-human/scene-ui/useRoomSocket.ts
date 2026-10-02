@@ -35,7 +35,7 @@ export interface UseRoomSocketOptions {
   handle: VrmStageHandle | null;
   def: WorldDef;
   enabled: boolean;
-  applyEdit: (op: 'upsert' | 'remove' | 'reload' | 'blocks', data: unknown) => void;
+  applyEdit: (op: 'upsert' | 'remove' | 'reload' | 'blocks' | 'terrain', data: unknown) => void;
   applyRoom: (r: WorldRoom) => void;
   /** 规则的 env 效果:临时换时辰 / 天气 */
   onEnv?: (env: { time?: string; weather?: string }) => void;
@@ -174,6 +174,7 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
         if (f.op === 'remove') o.applyEdit('remove', f.id);
         else if (f.op === 'reload') o.applyEdit('reload', null); // 十一期:套了样板间,整个重读
         else if (f.op === 'blocks') o.applyEdit('blocks', f.blocks); // 十二期:积木
+        else if (f.op === 'terrain') o.applyEdit('terrain', f.terrain); // 地形
         else o.applyEdit('upsert', f.placement);
         return;
       case 'room':
