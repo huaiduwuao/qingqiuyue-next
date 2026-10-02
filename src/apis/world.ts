@@ -398,10 +398,39 @@ export interface WorldSoundRow {
   source: string;
   license: string;
   hidden?: boolean;
+  /** '0' = 平台的 */
+  ownerId?: string;
+  visibility?: 'public' | 'private';
+  /** 我传的 */
+  mine?: boolean;
 }
 export async function listSounds(): Promise<WorldSoundRow[]> {
   const r = await accountClient.get<{ list: WorldSoundRow[] }>('/world/sounds');
   return Array.isArray(r?.list) ? r.list : [];
+}
+/** 按 key 取一个(私有的也给,只要没被下架) */
+export async function getSound(key: string): Promise<WorldSoundRow> {
+  return accountClient.get<WorldSoundRow>(`/world/sounds/${encodeURIComponent(key)}`);
+}
+export async function listMySounds(): Promise<WorldSoundRow[]> {
+  const r = await accountClient.get<{ list: WorldSoundRow[] }>('/world/sounds', { params: { mine: 1 } });
+  return Array.isArray(r?.list) ? r.list : [];
+}
+/** 玩家传一个声音(≤ 2MB,一人最多 50 个) */
+export async function uploadMySound(file: File, meta: { name: string; category: string; loop: boolean; visibility: 'public' | 'private' }): Promise<WorldSoundRow> {
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('name', meta.name);
+  fd.append('category', meta.category);
+  fd.append('loop', String(meta.loop));
+  fd.append('visibility', meta.visibility);
+  return accountClient.post<WorldSoundRow>('/world/sounds', fd, { timeout: 60000 });
+}
+export async function updateMySound(key: string, p: { name?: string; category?: string; loop?: boolean; visibility?: 'public' | 'private' }): Promise<void> {
+  await accountClient.put(`/world/sounds/${encodeURIComponent(key)}`, p);
+}
+export async function deleteMySound(key: string): Promise<void> {
+  await accountClient.delete(`/world/sounds/${encodeURIComponent(key)}`);
 }
 export async function adminListSounds(q = ''): Promise<WorldSoundRow[]> {
   const r = await accountClient.get<{ list: WorldSoundRow[] }>('/admin/world/sounds', { params: { q } });

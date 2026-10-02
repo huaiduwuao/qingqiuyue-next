@@ -13,6 +13,7 @@ import React from 'react';
 import { Box, Button, ButtonBase, Chip, CircularProgress, Switch, TextField, Typography } from '@mui/material';
 import { deleteKind, getSpaceRules, listKinds, resetRoomPlayers, saveKind, saveSpaceRules, type ComposeDraft, type WorldKind, type WorldPlacement, type WorldRule } from '@/apis/world';
 import { AiCompose, RulesEditor } from './RuleForm';
+import { MySounds } from './MySounds';
 
 const NEW_KIND: Record<string, unknown> = {
   key: 'my-thing',
@@ -262,6 +263,7 @@ export function KindsDrawer({ onPlace, toast }: {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
       <SpaceRulesPanel toast={toast} />
+      <MySounds toast={toast} />
       <Button size="small" variant="outlined" onClick={() => setEditing({ def: NEW_KIND, pub: false })} sx={{ color: '#9be8ff', borderColor: 'rgba(155,232,255,0.4)' }}>＋ 新原型</Button>
       {list.map((k) => (
         <Box key={k.key} sx={{ p: 1, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.05)' }}>

@@ -769,6 +769,7 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
       if (p) stageHandle?.floatTextAt(text, p.x, p.y + 1.3, p.z, '#ffe9b0'); else game.toast('💬', text);
     },
     onTravel: (space) => { if (space.startsWith('room:')) void genesis.room.enter(space.slice(5)).then((k) => scenes.switchTo(k)).catch(() => {}); else scenes.switchTo(space); },
+    positionOf: (id) => { const p = worldObjects.items.find((x) => x.id === id); return p ? { x: p.x, y: p.y + 0.5, z: p.z } : null; },
     onEnv: (env) => {
       const r = genesis.room.roomOf(scenes.def.key);
       if (r) genesis.room.applyRemote({ ...r, palette: { ...r.palette, ...Object.fromEntries(Object.entries(env).filter(([, v]) => v)) } });

@@ -46,6 +46,8 @@ export interface UseRoomSocketOptions {
   onEntitySay?: (entityId: string, text: string) => void;
   /** 世界模型:规则把我传送到别的空间(房间 key,比如 room:12) */
   onTravel?: (spaceKey: string) => void;
+  /** 规则的声音从哪个东西那儿传来:实体 id → 位置 */
+  positionOf?: (entityId: string) => { x: number; y: number; z: number } | null;
   /** 测试用:换掉连接实现 */
   makeSocket?: (onFrame: (f: RoomFrame) => void, onStatus: (s: RoomSocketStatus) => void, onBinary: (b: ArrayBuffer) => void) => RoomSocket;
 }
@@ -54,7 +56,7 @@ const STATE_EVERY = 100;
 
 /** 规则里的 sound:几种合成的短音(click / coin / door / whoosh),不下载音频 */
 let cueCtx: AudioContext | null = null;
-function playCue(name?: string) {
+function playCue(name?: string, at?: { x: number; y: number; z: number } | null) {
   try {
     if (typeof window === 'undefined' || !('AudioContext' in window)) return;
     cueCtx ??= new AudioContext();
@@ -63,7 +65,7 @@ function playCue(name?: string) {
     const g = ctx.createGain();
     const t = ctx.currentTime;
     const known = ({ coin: [880, 1320, 0.18, 'square'], door: [180, 120, 0.35, 'sawtooth'], whoosh: [600, 150, 0.4, 'sine'], chime: [1568, 1760, 0.5, 'sine'], ding: [1320, 1300, 0.35, 'triangle'] } as Record<string, [number, number, number, OscillatorType]>)[name ?? ''];
-    if (!known && name && name !== 'click') { void playLibSound(name).then((ok) => { if (!ok) playCue('click'); }); return; } // 声音库里的
+    if (!known && name && name !== 'click') { void playLibSound(name, 0.7, at).then((ok) => { if (!ok) playCue('click'); }); return; } // 声音库里的(从那个东西那儿传来)
     const spec = known ?? [1200, 900, 0.06, 'square'];
     o.type = spec[3];
     o.frequency.setValueAtTime(spec[0], t);
@@ -222,7 +224,7 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
       case 'fx':
         if (f.kind === 'toast' && f.text) o.toast('✨', f.text);
         else if (f.kind === 'say' && f.text) { if (f.entity && o.onEntitySay) o.onEntitySay(f.entity, f.text); else o.toast('💬', f.text); }
-        else if (f.kind === 'sound') playCue(f.sound);
+        else if (f.kind === 'sound') playCue(f.sound, f.entity ? o.positionOf?.(f.entity) : null);
         return;
       case 'tp':
         if (f.space) { o.onTravel?.(f.space); return; }

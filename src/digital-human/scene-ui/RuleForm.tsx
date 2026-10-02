@@ -135,7 +135,7 @@ function Small({ value, onChange, placeholder, width, title, mono: m }: { value:
 
 /** 选一个声音:内置的几个 + 声音库(打字搜),旁边能试听 */
 export function SoundField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [lib, setLib] = React.useState<{ key: string; name: string; category: string }[]>([]);
+  const [lib, setLib] = React.useState<{ key: string; name: string; category: string; mine?: boolean }[]>([]);
   const id = React.useId();
   React.useEffect(() => { void soundList().then((m) => setLib(Array.from(m.values()))); }, []);
   const name = lib.find((s) => s.key === value)?.name;
@@ -145,7 +145,7 @@ export function SoundField({ value, onChange }: { value: string; onChange: (v: s
         slotProps={{ htmlInput: { list: id } }} sx={{ ...inputSx, flex: 1 }} />
       <datalist id={id}>
         {SOUNDS.map((s) => <option key={s} value={s}>内置 · {s}</option>)}
-        {lib.map((s) => <option key={s.key} value={s.key}>{s.name} · {s.category}</option>)}
+        {lib.map((s) => <option key={s.key} value={s.key}>{s.mine ? '我的 · ' : ''}{s.name} · {s.category}</option>)}
       </datalist>
       {name && <Typography sx={{ fontSize: 10.5, color: 'rgba(255,255,255,0.55)' }}>{name}</Typography>}
       <ButtonBase onClick={() => { if (!SOUNDS.includes(value)) void playLibSound(value); }} sx={{ fontSize: 12, px: 0.5 }} aria-label="试听">▶</ButtonBase>
