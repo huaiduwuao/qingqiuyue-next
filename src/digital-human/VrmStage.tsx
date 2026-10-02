@@ -473,7 +473,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   const preFocusPoseRef = useRef<{ pos: [number, number, number]; target: [number, number, number] } | null>(null);
 
   // 3. 统一动画状态机（替代 useVrmDance）
-  const animApi = useVrmAnimation({ vrmRef, audio, walkRef, configBundle, physics, sitRef, groundRef: groundYRef });
+  const animApi = useVrmAnimation({ vrmRef, audio, walkRef, configBundle, sitRef });
   animApiRef.current = animApi;
 
   // 4. lip sync

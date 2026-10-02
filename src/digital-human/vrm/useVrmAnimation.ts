@@ -75,14 +75,10 @@ export interface UseVrmAnimationOptions {
   walkRef: React.MutableRefObject<{ moving: boolean; phase: number; style: 'walk' | 'run' | 'idle' | 'teleport'; dist?: number }>;
   /** 十期:坐着的座位(y = 座面离地多高);null = 站着 */
   sitRef?: React.MutableRefObject<{ y: number } | null>;
-  /** 十二期:脚下积木多高(> 0 时不做 Foot IK) */
-  groundRef?: React.MutableRefObject<number>;
-  /** 物理世界（用于 Foot IK 射线检测） */
-  physics?: { ready: boolean; raycastGround: (origin: { x: number; y: number; z: number }, maxDistance?: number) => number | null };
 }
 
 export function useVrmAnimation(opts: UseVrmAnimationOptions) {
-  const { configBundle, vrmRef, audio, walkRef, physics, sitRef, groundRef } = opts;
+  const { configBundle, vrmRef, audio, walkRef, sitRef } = opts;
   // 十期:坐姿的权重(0 站着 → 1 坐下),半秒过渡
   const sitWRef = useRef(0);
   const sitYRef = useRef(0.45);
@@ -220,24 +216,44 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
     }
   }
 
-  function applyFootIK(dt: number, H: (n: string) => any) {
-    if (!physics?.ready) return;
-    const footOffset = 0.05;
-    const speed = 8;
+  /**
+   * 落脚:这一刻的腿(待机微弯、走路的步子、跳舞、比划)让每个着地点(脚踝、脚尖)比站直时抬高了多少,
+   * 取最低的那个 —— 胯就沉这么多,最低的着地点正好踩在地上(模型原点 = 地面)。返回髋该挪多少(髋父节点的单位)。
+   * 规范化骨骼站直时转角全是 0,所以站直时髋到着地点的高度差就是这条链上各节点本地 y 之和。
+   * 以前是把脚踝骨头本身往地面拽(每帧累加、不复位,脚会脱离小腿悬着),换成这个。
+   */
+  const plantV = new THREE.Vector3();
+  const plantS = new THREE.Vector3();
+  const flatRoot = new THREE.Quaternion();
+  const flatQ = new THREE.Quaternion();
+  /** 站着时脚放平:小腿微弯会把脚带得脚尖上翘,把脚的朝向拧回站直时的样子(平放、朝前)。w = 站着的程度 */
+  function flattenFeet(H: (n: string) => any, root: any, w: number) {
+    if (w <= 0.001 || !root) return;
+    root.getWorldQuaternion(flatRoot);
     for (const side of ['left', 'right'] as const) {
-      const foot = H(`${side}Foot`);
-      if (!foot) continue;
-      const pos = new THREE.Vector3();
-      foot.getWorldPosition(pos);
-      const groundY = physics.raycastGround({ x: pos.x, y: pos.y + 1, z: pos.z }, 2);
-      if (groundY == null || !Number.isFinite(groundY)) continue;
-      const desiredY = groundY + footOffset;
-      const diff = desiredY - pos.y;
-      if (Math.abs(diff) > 0.005) {
-        // 限制单帧调整量，避免抖动
-        foot.position.y += Math.max(-0.08, Math.min(0.08, diff * dt * speed));
-      }
+      const ll = H(`${side}LowerLeg`), ft = H(`${side}Foot`);
+      if (!ll || !ft) continue;
+      ll.updateWorldMatrix(true, false);
+      ll.getWorldQuaternion(flatQ).invert().multiply(flatRoot); // 让脚的世界朝向 = 身体根的朝向
+      ft.quaternion.slerp(flatQ, w);
     }
+  }
+  function plantDrop(H: (n: string) => any): number | null {
+    const hips = H('hips');
+    if (!hips?.parent) return null;
+    hips.updateWorldMatrix(false, true);
+    const scale = hips.parent.getWorldScale(plantS).y || 1;
+    const hipsY = hips.getWorldPosition(plantV).y;
+    let lowest = Infinity;
+    for (const side of ['left', 'right'] as const) {
+      const ul = H(`${side}UpperLeg`), ll = H(`${side}LowerLeg`), ft = H(`${side}Foot`), toe = H(`${side}Toes`);
+      if (!ul || !ll || !ft) continue;
+      const restFoot = -(ul.position.y + ll.position.y + ft.position.y);
+      const raised = (c: any, rest: number) => rest - (hipsY - c.getWorldPosition(plantV).y) / scale;
+      lowest = Math.min(lowest, raised(ft, restFoot));
+      if (toe) lowest = Math.min(lowest, raised(toe, restFoot - toe.position.y));
+    }
+    return Number.isFinite(lowest) ? -lowest : null;
   }
 
   /**
@@ -453,7 +469,7 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
           node.quaternion.slerp(qA, gaitRef.current.blend);
         }
         const bob = (sampleHipsY(mocap.walk, u) * (1 - run) + sampleHipsY(mocap.run, u) * run) * L;
-        layerHipsY(H, bob * gaitRef.current.blend);
+        layerHipsY(H, bob * gaitRef.current.blend); // 最后落脚时会按腿的实际姿势重算(见 plantDrop)
       } else {
         applyGait(w.phase, gaitRef.current.blend, gaitRef.current.run, elapsed, H);
       }
@@ -529,8 +545,12 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
       return;
     }
 
-    // 7. Foot IK：脚贴地(站在积木上时物理世界里脚下没东西,不做)
-    if ((groundRef?.current ?? 0) < 0.01) applyFootIK(dt, H);
+    // 7. 落脚:站着时脚放平;按此刻腿的姿势沉胯,最低的着地点踩在地上(有动捕时;没动捕的程序化步态自己叠髋的起伏)
+    if (mocap) {
+      flattenFeet(H, sceneObj, dancingRef.current ? 0 : 1 - gaitRef.current.blend);
+      const drop = plantDrop(H);
+      if (drop !== null) layerHipsY(H, Math.max(-0.4, Math.min(0.1, drop)));
+    }
   }
 
   return {

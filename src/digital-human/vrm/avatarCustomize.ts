@@ -37,6 +37,8 @@ interface Base {
   scales: Map<THREE.Object3D, THREE.Vector3>;
   colors: Map<THREE.Material, { color?: THREE.Color; shade?: THREE.Color }>;
   sceneScale: number;
+  /** 刚加载时(还没动起来)每根骨头的本地姿势:量脚底要在这个站姿下量,不然量到的是当下的动作 */
+  rest: Map<THREE.Object3D, { q: THREE.Quaternion; p: THREE.Vector3 }>;
 }
 
 const FACE_PREFIX = 'qq_face_';
@@ -105,8 +107,12 @@ function ensureBase(THREE_NS: typeof THREE, vrm: any): Base {
   const root = vrm.scene as THREE.Object3D;
   let base = root.userData.qqBase as Base | undefined;
   if (base) return base;
-  base = { scales: new Map(), colors: new Map(), sceneScale: root.scale.x || 1 };
-  root.traverse((o) => { if ((o as THREE.Bone).isBone || o.type === 'Object3D') base!.scales.set(o, o.scale.clone()); });
+  base = { scales: new Map(), colors: new Map(), sceneScale: root.scale.x || 1, rest: new Map() };
+  root.traverse((o) => {
+    if (!(o as THREE.Bone).isBone && o.type !== 'Object3D') return;
+    base!.scales.set(o, o.scale.clone());
+    base!.rest.set(o, { q: o.quaternion.clone(), p: o.position.clone() });
+  });
   forEachMaterial(root, (m) => {
     if (base!.colors.has(m)) return;
     const sm = m as THREE.MeshStandardMaterial & { shadeColorFactor?: THREE.Color };
@@ -245,8 +251,15 @@ export function applyAvatarParams(THREE_NS: typeof THREE, vrm: any, params: Avat
     if (sm.shadeColorFactor && c?.shade) sm.shadeColorFactor.copy(c.shade).multiply(tint);
   });
 
-  // 6. 量新的脚底:蒙皮网格的包围盒是缓存的,要重算
+  // 6. 量新的脚底:蒙皮网格的包围盒是缓存的,要重算。参数常常是角色已经在走、在坐、在做动作时才到的,
+  //    按当下的姿势量,胯一沉(走路的起伏、坐下)脚底就「更低」,整个人被抬离地面 —— 所以先摆回刚加载时的站姿再量,量完放回去
   const savedY = root.position.y;
+  const now = new Map<THREE.Object3D, { q: THREE.Quaternion; p: THREE.Vector3 }>();
+  for (const [o, r] of base.rest) {
+    now.set(o, { q: o.quaternion.clone(), p: o.position.clone() });
+    o.quaternion.copy(r.q);
+    o.position.copy(r.p);
+  }
   root.position.y = 0;
   root.updateMatrixWorld(true);
   root.traverse((o) => {
@@ -254,7 +267,12 @@ export function applyAvatarParams(THREE_NS: typeof THREE, vrm: any, params: Avat
     if (sk.isSkinnedMesh) sk.computeBoundingBox();
   });
   const box = new THREE_NS.Box3().setFromObject(root);
+  for (const [o, r] of now) {
+    o.quaternion.copy(r.q);
+    o.position.copy(r.p);
+  }
   root.position.y = savedY;
+  root.updateMatrixWorld(true);
   return { footOffset: -box.min.y, height: Math.max(0.3, box.max.y - box.min.y) };
 }
 
