@@ -129,6 +129,10 @@ export interface VrmStageHandle {
   applyBlockOps: (ops: readonly BlockOp[]) => void;
   /** 十二期:搭建中(点击不走路,交给搭建面板) */
   setBuilding: (on: boolean) => void;
+  /** 潜水按钮:按住 = 往下潜 */
+  setDiving: (on: boolean) => void;
+  /** 现在泡在液体里没有(潜水按钮要不要出来) */
+  inLiquid: () => boolean;
   /** 十二期:屏幕上这一点打中哪块积木 / 地面哪一格 */
   blockPick: (clientX: number, clientY: number) => BlockHit | null;
   /** 十二期:预览框 */
@@ -603,6 +607,9 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
   // WASD/QE 键盘控制 — 自由轨道
   // 广场模式:WASD/方向键走、Shift 跑、Q/E 转镜头、空格跳、F 互动
   const keysRef = useRef<Record<string, boolean>>({});
+  // 潜水:按住 C(或手机上的潜水按钮)往下潜,松开慢慢浮回去;diveRef = 现在潜了多深(米)
+  const diveRef = useRef(0);
+  const diveHoldRef = useRef(false);
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
@@ -619,7 +626,7 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
           if (!e.repeat) onWorldEventRef.current?.({ type: 'interact' });
           return;
         }
-        if (['w', 'a', 's', 'd', 'q', 'e', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'shift'].includes(k)) {
+        if (['w', 'a', 's', 'd', 'q', 'e', 'c', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'shift'].includes(k)) {
           keysRef.current[k] = true;
           if (k.startsWith('arrow')) e.preventDefault();
         }
@@ -837,9 +844,12 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
 
       // 十二期:脚下的积木 —— 迈得上去的立刻站上去,走出边缘往下掉(9 米/秒)
       if (worldOnRef.current && !sitRef.current) {
-        const want = worldApiRef.current.groundAt(pos.x, pos.z, groundYRef.current);
+        const inLiquid = worldApiRef.current.inLiquid(pos.x, pos.z, groundYRef.current);
+        diveRef.current = inLiquid && (keysRef.current.c || diveHoldRef.current) ? Math.min(30, diveRef.current + 1.2 * dt) : Math.max(0, diveRef.current - 1.5 * dt);
+        const want = worldApiRef.current.groundAt(pos.x, pos.z, groundYRef.current, diveRef.current);
         const before = groundYRef.current;
-        groundYRef.current = want >= before ? want : Math.max(want, before - 9 * dt);
+        // 一步能迈的(≤ 0.6 米)立刻站上去;更高的(爬梯子、浮上水面)按 2.5 米/秒升;往下掉 9 米/秒
+        groundYRef.current = want >= before ? (want - before > 0.6 ? before + Math.min(want - before, 2.5 * dt) : want) : Math.max(want, before - 9 * dt);
         const dy = groundYRef.current - before;
         if (dy !== 0 && rendererState && !overviewPoseRef.current && !preFocusPoseRef.current) {
           rendererState.camera.position.y += dy;
@@ -1235,6 +1245,8 @@ export const VrmStage = forwardRef<VrmStageHandle, VrmStageProps>(function VrmSt
       setBlockGrid: (grid) => worldApiRef.current.setBlockGrid(grid),
       applyBlockOps: (ops) => worldApiRef.current.applyBlockOps(ops),
       setBuilding: (on) => worldApiRef.current.setBuilding(on),
+      setDiving: (on) => { diveHoldRef.current = on; },
+      inLiquid: () => worldOnRef.current && worldApiRef.current.inLiquid(positionRef.current.x, positionRef.current.z, groundYRef.current),
       blockPick: (x, y) => worldApiRef.current.blockPick(x, y),
       setBlockGhost: (a, b, remove) => worldApiRef.current.setBlockGhost(a, b, remove),
       setPeers: (peers) => worldApiRef.current.setPeers(peers),

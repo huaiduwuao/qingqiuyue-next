@@ -42,8 +42,8 @@ describe('materials', () => {
   it('turns material data into walking rules', () => {
     setMaterials(MATERIALS);
     expect(matColor(1)).toBe(0xa0703c);
-    expect(matPhysics(10)).toEqual({ solid: false, walkable: false, slow: 0.5, float: true, flow: 0, glow: null });
-    expect(matPhysics(99)).toEqual({ solid: true, walkable: true, slow: 0, float: false, flow: 0, glow: null }); // 不认识的当普通方块
+    expect(matPhysics(10)).toEqual({ solid: false, walkable: false, slow: 0.5, float: true, flow: 0, glow: null, climbable: false });
+    expect(matPhysics(99)).toEqual({ solid: true, walkable: true, slow: 0, float: false, flow: 0, glow: null, climbable: false }); // 不认识的当普通方块
     const g = new BlockGrid();
     // 一格水铺在地上:穿得过、站不上去、在里面走得慢
     g.set({ x: 0, y: 0, z: 0, s: 0, m: 10, c: 0, r: 0 });
@@ -90,6 +90,33 @@ describe('liquids and room materials', () => {
     expect(pickableMaterials().map((m) => m.key)).toContain('lava');
     setRoomMaterials([]);
     expect(pickableMaterials().map((m) => m.key)).not.toContain('lava');
+  });
+});
+
+describe('diving and climbing', () => {
+  it('dives below the float height down to the bottom', () => {
+    setMaterials(MATERIALS);
+    const g = new BlockGrid();
+    for (let y = 0; y < 6; y++) g.set({ x: 0, y, z: 0, s: 0, m: 10, c: 0, r: 0 }); // 3 米深
+    expect(g.surfaceAt(0.25, 0.25, 2, 0)).toBeCloseTo(2); // 浮着:液面 3 米下 1 米
+    expect(g.surfaceAt(0.25, 0.25, 2, 1.5)).toBeCloseTo(0.5); // 潜下去 1.5 米
+    expect(g.surfaceAt(0.25, 0.25, 2, 10)).toBe(0); // 潜到底就停
+  });
+
+  it('climbs a ladder up to its top, then onto the ledge', () => {
+    setMaterials([...MATERIALS, { id: 15, key: 'ladder', name: '梯子', color: '#8a5a2b', props: { solid: true, walkable: false, climbable: true } }]);
+    const g = new BlockGrid();
+    // 一面 2 米高的墙(x = 2 那一列 y 0..3)前面贴一架梯子(x = 1,薄墙)
+    for (let y = 0; y < 4; y++) { g.set({ x: 2, y, z: 0, s: 0, m: 0, c: 0, r: 0 }); g.set({ x: 1, y, z: 0, s: 3, m: 15, c: 0, r: 1 }); }
+    // 站在梯子跟前(x = 0 那格):能爬到 2 米
+    expect(g.climbTop(0.25, 0.25, 0)).toBeCloseTo(2);
+    expect(g.surfaceAt(0.25, 0.25, 0)).toBeCloseTo(2);
+    // 爬到 2 米时,墙顶(2 米)不挡,能走上去,站在墙顶
+    expect(g.obstaclesNear(0.25, 0.25, 2, 1).filter((o) => o.x > 0.9)).toHaveLength(0);
+    expect(g.surfaceAt(1.25, 0.25, 2)).toBeCloseTo(2);
+    // 离梯子远了就爬不了
+    expect(g.climbTop(-1.25, 0.25, 0)).toBeNull();
+    expect(g.surfaceAt(-1.25, 0.25, 0)).toBe(0);
   });
 });
 

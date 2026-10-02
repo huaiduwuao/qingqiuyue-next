@@ -366,7 +366,7 @@ export interface WorldMaterial {
   /** pattern 纹理样式(plain / speckle / wood / brick / brushed / tile / cloth)、opacity、roughness、metalness、unlit */
   look?: { pattern?: string; opacity?: number; roughness?: number; metalness?: number; unlit?: boolean; n?: number; lo?: number; hi?: number; size?: number };
   /** solid 挡人、walkable 顶上能站、transparent 透光、emits 发光、liquid {slow} 人在里面走得慢 */
-  props?: { solid?: boolean; walkable?: boolean; transparent?: number; emits?: { intensity?: number; radius?: number }; liquid?: { slow?: number; float?: boolean; flow?: number; spread?: number; breath?: number } };
+  props?: { solid?: boolean; walkable?: boolean; climbable?: boolean; transparent?: number; emits?: { intensity?: number; radius?: number }; liquid?: { slow?: number; float?: boolean; flow?: number; spread?: number; breath?: number } };
   /** 人踩上 / 走进这种积木时做什么(只认 enter / leave / touch 和自定义信号) */
   rules?: WorldRule[];
   hidden?: boolean;

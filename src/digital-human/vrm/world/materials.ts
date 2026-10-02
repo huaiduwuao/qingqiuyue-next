@@ -19,7 +19,7 @@ export interface BlockMaterial {
   name: string;
   color: string;
   look?: { pattern?: string; opacity?: number; roughness?: number; metalness?: number; unlit?: boolean; n?: number; lo?: number; hi?: number; size?: number };
-  props?: { solid?: boolean; walkable?: boolean; transparent?: number; emits?: { intensity?: number; radius?: number }; liquid?: { slow?: number; float?: boolean; flow?: number; spread?: number; breath?: number } };
+  props?: { solid?: boolean; walkable?: boolean; climbable?: boolean; transparent?: number; emits?: { intensity?: number; radius?: number }; liquid?: { slow?: number; float?: boolean; flow?: number; spread?: number; breath?: number } };
   /** 人踩上 / 走进这种积木时(enter / leave / touch)做什么(服务端跑) */
   rules?: { on: string; if?: string; do: Record<string, unknown>[] }[];
   hidden?: boolean;
@@ -40,9 +40,11 @@ export interface MatPhysics {
   flow: number;
   /** 发光照亮周围:强度、半径(米);null = 不发光 */
   glow: { intensity: number; radius: number } | null;
+  /** 走到旁边能爬上去(梯子、藤) */
+  climbable: boolean;
 }
 
-const DEFAULT_PHYS: MatPhysics = { solid: true, walkable: true, slow: 0, float: false, flow: 0, glow: null };
+const DEFAULT_PHYS: MatPhysics = { solid: true, walkable: true, slow: 0, float: false, flow: 0, glow: null, climbable: false };
 
 let platform: readonly BlockMaterial[] = [];
 let room: readonly BlockMaterial[] = [];
@@ -62,6 +64,7 @@ function rebuild() {
       slow: Math.max(0, Math.min(0.9, m.props?.liquid?.slow ?? 0)), float: !!m.props?.liquid?.float,
       flow: Math.max(0, Math.min(6, m.props?.liquid?.flow ?? 0)),
       glow: em && (em.intensity ?? 0) > 0 ? { intensity: Math.min(10, em.intensity ?? 0), radius: Math.max(1, Math.min(12, em.radius ?? 3)) } : null,
+      climbable: !!m.props?.climbable,
     }];
   }));
   version++;

@@ -418,7 +418,9 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   /** 水流推人(米/秒) */
   const flowAtFn = useCallback((x: number, z: number, curY: number) => (blockGridRef.current ? flowAt(blockGridRef.current, x, z, curY) : null), []);
   /** 脚下能踩多高 */
-  const groundAt = useCallback((x: number, z: number, curY: number) => blockGridRef.current?.surfaceAt(x, z, curY) ?? 0, []);
+  const groundAt = useCallback((x: number, z: number, curY: number, dive = 0) => blockGridRef.current?.surfaceAt(x, z, curY, dive) ?? 0, []);
+  /** 泡在液体里没有(潜水按钮要不要出来) */
+  const inLiquid = useCallback((x: number, z: number, curY: number) => blockGridRef.current?.inLiquid(x, z, curY) ?? false, []);
   /** 泡在液体物质(水)里走路打几折 */
   const slowAtFn = useCallback((x: number, z: number, curY: number) => (blockGridRef.current ? slowAt(blockGridRef.current, x, z, curY) : 0), []);
   const setBuilding = useCallback((on: boolean) => { buildingRef.current = on; if (!on) worldRef.current?.blocks?.setGhost(null); }, []);
@@ -441,5 +443,5 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   const setPeerVoiceLevels = useCallback((fn: ((id: string) => number) | null) => { voiceLevelsRef.current = fn; peerLayerRef.current?.setVoiceLevels(fn); }, []);
   const peerSay = useCallback((id: string, text: string) => { peerLayerRef.current?.say(id, text); }, []);
 
-  return { tick, render, floatText, showMarker, snapshot, setPeers, setAura, characterSay, setPlacements, upsertPlacement, removePlacement, selectPlacement, placementGroup, obstacles, seatSpots, setBlockGrid, applyBlockOps, groundAt, slowAt: slowAtFn, flowAt: flowAtFn, setBuilding, blockPick, setBlockGhost, setRoomAlign, autoFitRoom, setRoomPeers, peerSay, setPeerVoiceLevels, zones: WORLD_ZONES };
+  return { tick, render, floatText, showMarker, snapshot, setPeers, setAura, characterSay, setPlacements, upsertPlacement, removePlacement, selectPlacement, placementGroup, obstacles, seatSpots, setBlockGrid, applyBlockOps, groundAt, inLiquid, slowAt: slowAtFn, flowAt: flowAtFn, setBuilding, blockPick, setBlockGhost, setRoomAlign, autoFitRoom, setRoomPeers, peerSay, setPeerVoiceLevels, zones: WORLD_ZONES };
 }

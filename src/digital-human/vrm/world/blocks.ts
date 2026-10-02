@@ -10,6 +10,9 @@
  * liquid.slow 人泡在里面走得慢(slowAt);liquid.float 深的液体里人浮在液面下 FLOAT_DEPTH 米(脚),
  * 泡在液体里时一步能迈 SWIM_STEP 米 —— 游到岸边能爬上去;liquid.flow 泡在里面会被冲着走(flowAt,方向 = 那块的朝向)。
  * 发光的物质(emits)照亮周围:相邻的发光积木按 2 米一簇合成一个候选光源(glowLights),和灯一起抢光源池。
+ * 潜水:浮着的时候往下潜 dive 米(surfaceAt 的 dive,最多潜到底),头没进去就开始憋气(服务端按头的位置算)。
+ * 攀爬:climbable 的物质(梯子、藤)在自己这格或前后左右一格、身子高度上 —— 能升到那一摞能爬的顶上(climbTop),
+ * 到顶接着往旁边的平台上走;离开梯子就照常往下掉。
  * 服务端 worldapp/blocks.go 按同样的格子存,一次最多改 512 格。
  */
 
@@ -126,12 +129,13 @@ export class BlockGrid {
   /**
    * (x, z) 处脚能踩的高度:这一列里顶面不高于 curY + STEP_UP 的方块 / 半砖 / 斜坡,取最高;没有就是地面 0。
    */
-  surfaceAt(x: number, z: number, curY: number): number {
+  surfaceAt(x: number, z: number, curY: number, dive = 0): number {
     const cx = cellOf(x), cz = cellOf(z);
+    const climb = this.climbTop(x, z, curY);
     const col = this.cols.get(`${cx},${cz}`);
-    if (!col || !col.size) return 0;
+    if (!col || !col.size) return climb ?? 0;
     const fx = x / BLOCK_SIZE - cx, fz = z / BLOCK_SIZE - cz;
-    const step = this.inLiquid(x, z, curY) ? SWIM_STEP : STEP_UP;
+    const step = climb !== null ? Math.max(SWIM_STEP, climb - curY + STEP_UP) : this.inLiquid(x, z, curY) ? SWIM_STEP : STEP_UP;
     let best = 0;
     for (const y of col) {
       const b = this.get(cx, y, cz)!;
@@ -144,7 +148,28 @@ export class BlockGrid {
     let y = Math.floor(best / BLOCK_SIZE + 1e-6);
     let top = -1;
     while (this.get(cx, y, cz) && matPhysics(this.get(cx, y, cz)!.m).float) { top = (y + 1) * BLOCK_SIZE; y++; }
-    if (top > 0 && top - FLOAT_DEPTH > best) return top - FLOAT_DEPTH;
+    if (top > 0 && top - FLOAT_DEPTH - dive > best) best = top - FLOAT_DEPTH - dive;
+    return climb !== null && climb > best ? climb : best;
+  }
+
+  /**
+   * 站在 (x, curY, z) 能爬到多高:自己这格和前后左右一格里,身子高度上有能爬的积木,就是那一摞能爬的积木的顶;没有 = null。
+   */
+  climbTop(x: number, z: number, curY: number): number | null {
+    const cx = cellOf(x), cz = cellOf(z);
+    let best: number | null = null;
+    for (const [i, k] of [[cx, cz], [cx + 1, cz], [cx - 1, cz], [cx, cz + 1], [cx, cz - 1]]) {
+      if (!this.cols.get(`${i},${k}`)?.size) continue;
+      for (let y = Math.floor((curY - 0.25) / BLOCK_SIZE); y <= Math.floor((curY + 1.2) / BLOCK_SIZE); y++) {
+        const b = this.get(i, y, k);
+        if (!b || !matPhysics(b.m).climbable) continue;
+        let top = y;
+        while (this.get(i, top + 1, k) && matPhysics(this.get(i, top + 1, k)!.m).climbable) top++;
+        const h = (top + 1) * BLOCK_SIZE;
+        if (best === null || h > best) best = h;
+        break;
+      }
+    }
     return best;
   }
 
@@ -170,7 +195,8 @@ export class BlockGrid {
     const out: Obstacle[] = [];
     const r = Math.ceil(range / BLOCK_SIZE);
     const cx = cellOf(x), cz = cellOf(z);
-    const step = this.inLiquid(x, z, curY) ? SWIM_STEP : STEP_UP;
+    const climb = this.climbTop(x, z, curY);
+    const step = climb !== null ? Math.max(SWIM_STEP, climb - curY + STEP_UP) : this.inLiquid(x, z, curY) ? SWIM_STEP : STEP_UP;
     for (let i = cx - r; i <= cx + r; i++) {
       for (let k = cz - r; k <= cz + r; k++) {
         const col = this.cols.get(`${i},${k}`);

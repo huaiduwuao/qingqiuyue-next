@@ -51,6 +51,7 @@ function MaterialForm({ m, onChange }: { m: WorldMaterial; onChange: (m: WorldMa
       <Box sx={{ display: 'flex', gap: 0.75, flexWrap: 'wrap' }}>
         {check('挡人', props.solid !== false, (v) => setProps('solid', v))}
         {check('顶上能站', props.walkable !== false, (v) => setProps('walkable', v))}
+        {check('能爬(梯子、藤)', !!props.climbable, (v) => setProps('climbable', v || undefined))}
         {check('是液体(走得慢)', !!liquid.slow, (v) => setProps('liquid', v ? { slow: 0.5, float: liquid.float } : undefined))}
         {!!liquid.slow && check('深了浮起来', !!liquid.float, (v) => setProps('liquid', { ...liquid, float: v }))}
       </Box>

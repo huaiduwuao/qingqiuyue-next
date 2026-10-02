@@ -48,6 +48,7 @@ import { useRoomSocket } from './scene-ui/useRoomSocket';
 import { RoomChat } from './scene-ui/RoomChat';
 import { useRoomVoice } from './scene-ui/useRoomVoice';
 import { useObjectUse } from './scene-ui/useObjectUse';
+import { DiveButton } from './scene-ui/DiveButton';
 import { useBlocks } from './scene-ui/useBlocks';
 import { quickCheck, useFpsGate, type GateVerdict } from './perfGate';
 import { PerfBlockScreen } from './PerfBlockScreen';
@@ -1020,6 +1021,8 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
   }
   return (
     <Box sx={{ position: 'fixed', inset: 0, zIndex: 1, background: '#05060B' }}>
+      {/* 潜水:泡在液体里时出现,按住往下潜 */}
+      {worldActive && <DiveButton handle={stageHandle} />}
       {/* 憋气:头泡在会憋气的液体里,还能憋几秒 */}
       {roomSock.breath && (
         <Box sx={{ position: 'absolute', top: 72, left: '50%', transform: 'translateX(-50%)', zIndex: 40, pointerEvents: 'none', px: 1.5, py: 0.75, borderRadius: 3, bgcolor: 'rgba(10,30,60,0.7)', color: '#fff', fontSize: 13, display: 'flex', alignItems: 'center', gap: 1 }}>
