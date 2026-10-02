@@ -26,6 +26,18 @@ describe('terrain data', () => {
     expect(TerrainData.decode({ ...view, w: 3 })).toBeNull(); // 大小对不上
   });
 
+  it('reads signed heights (offset) and the water surface', () => {
+    // offset 200:存的 50 = −1.5 米(挖到地板下)
+    const dug = TerrainData.decode({ ...view, offset: 200, data: pack(Array.from({ length: 9 }, () => ({ h: 50, m: 7 }))), water: { level: -0.5, mat: 10 } })!;
+    expect(dug.heightAt(0, 0)).toBeCloseTo(-1.5);
+    expect(dug.waterAt(0, -1, 0)).toBe(10); // 坑里是水
+    expect(dug.waterAt(0, 0, 0)).toBeNull(); // 高过水面
+    expect(dug.waterAt(9, -1, 9)).toBeNull(); // 网格外
+    dug.applyPatch({ i0: 1, j0: 1, w: 1, h: 1, offset: 200, data: pack([{ h: 300, m: 7 }]) });
+    expect(dug.heightAt(0, 0)).toBeCloseTo(1);
+    expect(dug.waterAt(0, -0.8, 0)).toBeNull(); // 那里鼓起来了,高过水面
+  });
+
   it('applies a patch', () => {
     const t = TerrainData.decode(view)!;
     t.applyPatch({ i0: 2, j0: 2, w: 1, h: 1, data: pack([{ h: 200, m: 12 }]) });

@@ -15,6 +15,7 @@
  */
 
 import React from 'react';
+import { playLibSound } from './soundLib';
 import { RoomSocket, type PeerInfo, type RoomFrame, type RoomSocketStatus, type SceneLine } from '@/lib/world/roomSocket';
 import type { WorldRoom } from '@/apis/world';
 import type { VrmStageHandle } from '../VrmStage';
@@ -61,7 +62,9 @@ function playCue(name?: string) {
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     const t = ctx.currentTime;
-    const spec = ({ coin: [880, 1320, 0.18, 'square'], door: [180, 120, 0.35, 'sawtooth'], whoosh: [600, 150, 0.4, 'sine'], chime: [1568, 1760, 0.5, 'sine'], ding: [1320, 1300, 0.35, 'triangle'] } as Record<string, [number, number, number, OscillatorType]>)[name ?? ''] ?? [1200, 900, 0.06, 'square'];
+    const known = ({ coin: [880, 1320, 0.18, 'square'], door: [180, 120, 0.35, 'sawtooth'], whoosh: [600, 150, 0.4, 'sine'], chime: [1568, 1760, 0.5, 'sine'], ding: [1320, 1300, 0.35, 'triangle'] } as Record<string, [number, number, number, OscillatorType]>)[name ?? ''];
+    if (!known && name && name !== 'click') { void playLibSound(name).then((ok) => { if (!ok) playCue('click'); }); return; } // 声音库里的
+    const spec = known ?? [1200, 900, 0.06, 'square'];
     o.type = spec[3];
     o.frequency.setValueAtTime(spec[0], t);
     o.frequency.exponentialRampToValueAtTime(spec[1], t + spec[2]);

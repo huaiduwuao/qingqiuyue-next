@@ -129,14 +129,14 @@ export class BlockGrid {
   /**
    * (x, z) 处脚能踩的高度:这一列里顶面不高于 curY + STEP_UP 的方块 / 半砖 / 斜坡,取最高;没有就是地面 0。
    */
-  surfaceAt(x: number, z: number, curY: number, dive = 0): number {
+  surfaceAt(x: number, z: number, curY: number, dive = 0, base = 0): number {
     const cx = cellOf(x), cz = cellOf(z);
     const climb = this.climbTop(x, z, curY);
     const col = this.cols.get(`${cx},${cz}`);
-    if (!col || !col.size) return climb ?? 0;
+    if (!col || !col.size) return Math.max(climb ?? base, base);
     const fx = x / BLOCK_SIZE - cx, fz = z / BLOCK_SIZE - cz;
     const step = climb !== null ? Math.max(SWIM_STEP, climb - curY + STEP_UP) : this.inLiquid(x, z, curY) ? SWIM_STEP : STEP_UP;
-    let best = 0;
+    let best = base; // 没有积木托着就是地形 / 地板
     for (const y of col) {
       const b = this.get(cx, y, cz)!;
       if (!matPhysics(b.m).walkable) continue;

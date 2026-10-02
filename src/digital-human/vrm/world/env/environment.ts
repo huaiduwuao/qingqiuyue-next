@@ -286,13 +286,14 @@ export function createEnvironment(THREE_NS: typeof THREE, renderer: THREE.WebGLR
   // ── 湖面 ───────────────────────────────────────────────────────────
   const fogUniforms = { uFogColor: { value: col(sky.fog) }, uFogDensity: { value: sky.fogDensity } };
   const waterMat = track(new THREE_NS.ShaderMaterial({
-    uniforms: { ...skyUniforms, ...fogUniforms, uLamp: { value: 1 }, uShore: { value: SHORE }, uPlaza: { value: WORLD_RADIUS + 1.3 } },
+    // uHole:房间有地形时在湖面上挖掉房间那块(xmin, zmin, xmax, zmax;全 0 = 不挖),挖下去的坑别被湖面盖住
+    uniforms: { ...skyUniforms, ...fogUniforms, uLamp: { value: 1 }, uShore: { value: SHORE }, uPlaza: { value: WORLD_RADIUS + 1.3 }, uHole: { value: new THREE_NS.Vector4(0, 0, 0, 0) } },
     vertexShader: /* glsl */ `
       varying vec3 vWorld;
       void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vWorld = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
     fragmentShader: /* glsl */ `
       varying vec3 vWorld;
-      uniform float uTime; uniform vec3 uFogColor; uniform float uFogDensity; uniform float uLamp; uniform float uShore; uniform float uPlaza;
+      uniform float uTime; uniform vec3 uFogColor; uniform float uFogDensity; uniform float uLamp; uniform float uShore; uniform float uPlaza; uniform vec4 uHole;
       ${NOISE_GLSL}
       ${SKY_COLOR_GLSL}
       // 几组方向不同的波叠起来,解析求导得法线;再叠两层滚动噪声做细碎波纹
@@ -312,6 +313,7 @@ export function createEnvironment(THREE_NS: typeof THREE, renderer: THREE.WebGLR
         return g;
       }
       void main(){
+        if (uHole.z > uHole.x && vWorld.x > uHole.x && vWorld.x < uHole.z && vWorld.z > uHole.y && vWorld.z < uHole.w) discard;
         vec2 g = waveGrad(vWorld.xz, uTime);
         vec3 n = normalize(vec3(-g.x, 1.0, -g.y));
         vec3 toCam = cameraPosition - vWorld;
@@ -350,6 +352,7 @@ export function createEnvironment(THREE_NS: typeof THREE, renderer: THREE.WebGLR
   const water = new THREE_NS.Mesh(track(new THREE_NS.CircleGeometry(460, 96)), waterMat);
   water.rotation.x = -Math.PI / 2;
   water.position.y = WATER_Y;
+  water.name = 'dh-env-water'; // 房间有地形时挖掉房间那块(uHole;useVrmWorld showFloor)
   group.add(water);
 
   // ── 船:几条挂灯笼的小船在湖上慢慢绕 ─────────────────────────────────

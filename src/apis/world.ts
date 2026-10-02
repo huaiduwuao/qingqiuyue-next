@@ -348,11 +348,11 @@ export async function resetRoomPlayers(): Promise<{ cleared: number }> {
 }
 
 /** 地形(高度场 + 物质);data 空 = 没有 */
-export async function getTerrain(owner: string): Promise<{ x0: number; z0: number; cell: number; w: number; h: number; data: string }> {
+export async function getTerrain(owner: string): Promise<{ x0: number; z0: number; cell: number; w: number; h: number; data: string; offset?: number; water?: { level: number; mat: number } | null }> {
   return accountClient.get(`/world/rooms/${encodeURIComponent(owner)}/terrain`);
 }
 /** 改地形:一次最多 32 笔;回改到的那一块 */
-export async function editTerrain(owner: string, ops: { tool: string; x?: number; z?: number; r?: number; amount?: number; mat?: number }[]): Promise<{ changed: boolean; patch?: { i0: number; j0: number; w: number; h: number; data: string } }> {
+export async function editTerrain(owner: string, ops: { tool: string; x?: number; z?: number; r?: number; amount?: number; mat?: number }[]): Promise<{ changed: boolean; patch?: { i0: number; j0: number; w: number; h: number; data: string; offset?: number }; waterSet?: boolean; water?: { level: number; mat: number } | null }> {
   return accountClient.post(`/world/rooms/${encodeURIComponent(owner)}/terrain`, { ops });
 }
 export async function clearTerrain(): Promise<void> {
@@ -382,6 +382,42 @@ export interface WorldMaterial {
   /** 人踩上 / 走进这种积木时做什么(只认 enter / leave / touch 和自定义信号) */
   rules?: WorldRule[];
   hidden?: boolean;
+}
+
+// ── 声音库(go worldapp/sounds.go):规则效果 sound / 实体属性 sound 按 key 用 ──
+export interface WorldSoundRow {
+  key: string;
+  name: string;
+  tags: string;
+  /** ambient 环境 / sfx 音效 / ui 界面 / music 音乐 */
+  category: string;
+  /** qq-media/world 下的相对路径 */
+  file: string;
+  duration: number;
+  loop: boolean;
+  source: string;
+  license: string;
+  hidden?: boolean;
+}
+export async function listSounds(): Promise<WorldSoundRow[]> {
+  const r = await accountClient.get<{ list: WorldSoundRow[] }>('/world/sounds');
+  return Array.isArray(r?.list) ? r.list : [];
+}
+export async function adminListSounds(q = ''): Promise<WorldSoundRow[]> {
+  const r = await accountClient.get<{ list: WorldSoundRow[] }>('/admin/world/sounds', { params: { q } });
+  return Array.isArray(r?.list) ? r.list : [];
+}
+export async function adminUpdateSound(key: string, p: { name?: string; tags?: string; category?: string; loop?: boolean; hidden?: boolean }): Promise<void> {
+  await accountClient.put(`/admin/world/sounds/${encodeURIComponent(key)}`, p);
+}
+export async function adminUploadSound(file: File, meta: { name: string; category: string; loop: boolean; tags?: string }): Promise<WorldSoundRow> {
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('name', meta.name);
+  fd.append('category', meta.category);
+  fd.append('loop', String(meta.loop));
+  if (meta.tags) fd.append('tags', meta.tags);
+  return accountClient.post<WorldSoundRow>('/admin/world/sounds', fd, { timeout: 60000 });
 }
 
 export async function listMaterials(): Promise<WorldMaterial[]> {

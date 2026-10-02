@@ -5,7 +5,8 @@
  *
  *   - 平台原型:灯、座位、门、按钮……(JSON 编辑;match 决定哪些素材默认是它)。改过的不再被 kinds_seed.json 覆盖;
  *   - 物质:积木的材质(id = 积木里存的那个字节,定了别改;look 外观、props 物理属性),藏起来 = 面板里选不到、搭了的还在;
- *   - 玩家公开的原型 / 蓝图:不先审,出问题在这里下架(改成私有,本人还能用,别人看不到)。
+ *   - 玩家公开的原型 / 蓝图:不先审,出问题在这里下架(改成私有,本人还能用,别人看不到);
+ *   - 声音库:平台自带的(Kenney CC0 + 合成的环境声)和后台传的;试听、改名 / 分类 / 循环、藏起来、上传。
  * 后端:/api/core/admin/world/kinds、/materials、/prefabs(看 system:plaza:view,改 system:plaza:manage)。
  */
 
@@ -26,11 +27,12 @@ import Alert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress';
 import { formatApiError } from '@/lib/api/client';
 import {
-  adminDeleteKind, adminHideMaterial, adminListKinds, adminListMaterials, adminListPrefabs, adminSaveKind, adminSaveMaterial, adminSetPrefabVisibility,
-  type AdminWorldKind, type AdminWorldPrefab, type WorldMaterial,
+  adminDeleteKind, adminHideMaterial, adminListKinds, adminListMaterials, adminListPrefabs, adminListSounds, adminSaveKind, adminSaveMaterial, adminSetPrefabVisibility,
+  adminUpdateSound, adminUploadSound, worldFileUrl,
+  type AdminWorldKind, type AdminWorldPrefab, type WorldMaterial, type WorldSoundRow,
 } from '@/apis/world';
 
-type TabKey = 'platform' | 'public' | 'materials' | 'prefabs';
+type TabKey = 'platform' | 'public' | 'materials' | 'prefabs' | 'sounds';
 
 const mono = { fontFamily: 'ui-monospace, Menlo, Consolas, monospace', fontSize: 12.5 } as const;
 
@@ -73,6 +75,9 @@ export function WorldModelPanel({ canManage }: { canManage: boolean }) {
   const [kinds, setKinds] = React.useState<AdminWorldKind[] | null>(null);
   const [mats, setMats] = React.useState<WorldMaterial[] | null>(null);
   const [prefabs, setPrefabs] = React.useState<AdminWorldPrefab[] | null>(null);
+  const [sounds, setSounds] = React.useState<WorldSoundRow[] | null>(null);
+  const [soundCat, setSoundCat] = React.useState('');
+  const fileRef = React.useRef<HTMLInputElement>(null);
   const [msg, setMsg] = React.useState<{ text: string; severity: 'success' | 'error' } | null>(null);
   const [dialog, setDialog] = React.useState<{ title: string; initial: unknown; hint?: string; save: (v: Record<string, unknown>) => Promise<void> } | null>(null);
 
@@ -80,6 +85,7 @@ export function WorldModelPanel({ canManage }: { canManage: boolean }) {
     if (tab === 'platform' || tab === 'public') { setKinds(null); adminListKinds(tab, q).then(setKinds).catch((e) => { setKinds([]); setMsg({ text: formatApiError(e), severity: 'error' }); }); }
     if (tab === 'materials') { setMats(null); adminListMaterials().then(setMats).catch((e) => { setMats([]); setMsg({ text: formatApiError(e), severity: 'error' }); }); }
     if (tab === 'prefabs') { setPrefabs(null); adminListPrefabs(q).then(setPrefabs).catch((e) => { setPrefabs([]); setMsg({ text: formatApiError(e), severity: 'error' }); }); }
+    if (tab === 'sounds') { setSounds(null); adminListSounds(q).then(setSounds).catch((e) => { setSounds([]); setMsg({ text: formatApiError(e), severity: 'error' }); }); }
   }, [tab, q]);
   React.useEffect(load, [load]);
 
@@ -109,6 +115,7 @@ export function WorldModelPanel({ canManage }: { canManage: boolean }) {
         <Tab value="public" label="玩家公开的原型" />
         <Tab value="materials" label="物质" />
         <Tab value="prefabs" label="玩家公开的蓝图" />
+        <Tab value="sounds" label="声音库" />
       </Tabs>
       {msg && <Alert severity={msg.severity} onClose={() => setMsg(null)} sx={{ my: 1 }}>{msg.text}</Alert>}
       <Box sx={{ display: 'flex', gap: 1, my: 1 }}>
@@ -177,6 +184,48 @@ export function WorldModelPanel({ canManage }: { canManage: boolean }) {
           ? <Button size="small" color="error" onClick={() => void act(() => adminSetPrefabVisibility(p.key, 'private'), '下架了')}>下架</Button>
           : <Button size="small" onClick={() => void act(() => adminSetPrefabVisibility(p.key, 'public'), '恢复公开了')}>恢复</Button>,
       )))}
+
+      {tab === 'sounds' && (
+        <Box>
+          <Box sx={{ display: 'flex', gap: 1, mb: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+            {['', 'ambient', 'sfx', 'ui', 'music'].map((c) => (
+              <Chip key={c} size="small" label={c ? ({ ambient: '环境', sfx: '音效', ui: '界面', music: '音乐' } as Record<string, string>)[c] : '全部'} color={soundCat === c ? 'primary' : 'default'} onClick={() => setSoundCat(c)} />
+            ))}
+            {canManage && (
+              <>
+                <input ref={fileRef} type="file" accept="audio/ogg,audio/mpeg,audio/wav,audio/mp4,.ogg,.mp3,.wav,.m4a" hidden onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = '';
+                  if (!f) return;
+                  const name = window.prompt('名字', f.name.replace(/\.[^.]+$/, '')) ?? '';
+                  if (!name) return;
+                  const category = window.prompt('分类(ambient 环境 / sfx 音效 / ui 界面 / music 音乐)', 'sfx') || 'sfx';
+                  const loop = category === 'ambient';
+                  void act(async () => { await adminUploadSound(f, { name, category, loop }); }, '传好了');
+                }} />
+                <Button size="small" variant="outlined" onClick={() => fileRef.current?.click()}>＋ 传一个声音(ogg / mp3 / wav,≤ 4MB)</Button>
+              </>
+            )}
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{sounds ? `${sounds.length} 个` : ''}</Typography>
+          </Box>
+          {!sounds ? loading : sounds.filter((s) => !soundCat || s.category === soundCat).slice(0, 300).map((s) => row(s.key,
+            <>
+              <Button size="small" sx={{ minWidth: 0, px: 0.75 }} onClick={() => { void new Audio(worldFileUrl(s.file)).play(); }}>▶</Button>
+              <Typography sx={{ fontWeight: 700 }}>{s.name}</Typography>
+              <Typography sx={{ ...mono, color: 'text.secondary' }}>{s.key}</Typography>
+              <Chip size="small" label={s.category} />
+              {s.loop && <Chip size="small" label="循环" />}
+              {s.hidden && <Chip size="small" color="warning" label="已藏" />}
+            </>,
+            `${s.duration ? s.duration.toFixed(1) + ' 秒 · ' : ''}${s.source} · ${s.license}${s.tags ? ' · ' + s.tags : ''}`,
+            <>
+              <Button size="small" onClick={() => { const name = window.prompt('名字', s.name); if (name) void act(() => adminUpdateSound(s.key, { name }), '改好了'); }}>改名</Button>
+              <Button size="small" onClick={() => void act(() => adminUpdateSound(s.key, { loop: !s.loop }), s.loop ? '不循环了' : '改成循环')}>{s.loop ? '不循环' : '循环'}</Button>
+              <Button size="small" color={s.hidden ? 'primary' : 'error'} onClick={() => void act(() => adminUpdateSound(s.key, { hidden: !s.hidden }), s.hidden ? '放出来了' : '藏起来了')}>{s.hidden ? '放出来' : '藏'}</Button>
+            </>,
+          ))}
+        </Box>
+      )}
 
       {dialog && <JsonDialog title={dialog.title} hint={dialog.hint} initial={dialog.initial} onClose={() => setDialog(null)} onSave={async (v) => { await dialog.save(v); load(); }} />}
     </Paper>

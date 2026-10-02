@@ -16,7 +16,27 @@ import { createEnvironment, type Environment, type Quality } from './env/environ
 import type { PlacedObject } from './worldObjects';
 import type { Interact } from './interact';
 import { flowAt, glowLights, slowAt, type BlockGrid, type BlockOp } from './blocks';
-import type { TerrainData, TerrainPatch } from './terrain';
+import type { TerrainData, TerrainPatch, TerrainWater } from './terrain';
+import { FLOAT_DEPTH } from './blocks';
+import { matPhysics } from './materials';
+
+/** 有地形时藏起房间原来的地板,外面的大地降到地形的土边下面,湖面挖掉房间那块(挖下去的坑看得见) */
+type Named = { getObjectByName: (n: string) => { visible: boolean; position: { y: number }; material?: unknown } | undefined };
+function showFloor(group: (Named & { parent?: Named | null }) | null, on: boolean, t?: TerrainData | null) {
+  if (!group) return;
+  const lake = group.parent?.getObjectByName('dh-env-water');
+  const hole = (lake?.material as { uniforms?: { uHole?: { value: { set: (a: number, b: number, c: number, d: number) => void } } } } | undefined)?.uniforms?.uHole;
+  if (hole) {
+    if (on || !t) hole.value.set(0, 0, 0, 0);
+    else hole.value.set(t.x0 - 0.05, t.z0 - 0.05, t.x0 + t.w * t.cell + 0.05, t.z0 + t.h * t.cell + 0.05);
+  }
+  for (const n of ['dh-room-floor', 'dh-room-skirt']) {
+    const o = group.getObjectByName(n);
+    if (o) o.visible = on;
+  }
+  const ground = group.getObjectByName('dh-world-ground');
+  if (ground) ground.position.y = on ? -0.03 : -2.1;
+}
 import type { BlockHit } from './blockLayer';
 import type { SplatStatus } from './roomShell';
 import { createPeerLayer, type PeerLayer, type RoomPeer } from './peerAvatars';
@@ -139,6 +159,7 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
     w.objects.set(placementsRef.current);
     if (blockGridRef.current) w.blocks?.load(blockGridRef.current);
     w.terrain?.load(terrainRef.current);
+    showFloor(w.group, !terrainRef.current, terrainRef.current);
     let env: Environment | null = null;
     if (withEnv && renderer) {
       const e = worldEnv(d);
@@ -154,6 +175,7 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
       });
       scene.add(env.group);
       envRef.current = env;
+      showFloor(w.group, !terrainRef.current, terrainRef.current);
     }
     // 房间:给一份室内环境光照贴图(RoomEnvironment)。写实底模、摆的家具都是 PBR 材质,
     // 风格化场景里只有几盏灯,没有环境反射时皮肤和木头都发黑;离开房间还原
@@ -426,9 +448,27 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   /** 水流推人(米/秒) */
   const flowAtFn = useCallback((x: number, z: number, curY: number) => (blockGridRef.current ? flowAt(blockGridRef.current, x, z, curY) : null), []);
   /** 脚下能踩多高 */
-  const groundAt = useCallback((x: number, z: number, curY: number, dive = 0) => Math.max(blockGridRef.current?.surfaceAt(x, z, curY, dive) ?? 0, terrainRef.current?.heightAt(x, z) ?? 0), []);
+  const groundAt = useCallback((x: number, z: number, curY: number, dive = 0) => {
+    const t = terrainRef.current;
+    const base = t ? t.heightAt(x, z) : 0;
+    let g = blockGridRef.current ? blockGridRef.current.surfaceAt(x, z, curY, dive, base) : base;
+    // 地形上的水面:会浮的液体够深就浮在水面下 FLOAT_DEPTH 米(潜下去 dive 米,最多到底)
+    const w = t?.water;
+    if (w && t!.inside(x, z) && matPhysics(w.mat).float && w.level - base > FLOAT_DEPTH) g = Math.max(g, Math.max(base, w.level - FLOAT_DEPTH - dive));
+    return g;
+  }, []);
   /** 地形:换一整张 / 盖上改到的一块 */
-  const setTerrain = useCallback((t: TerrainData | null) => { terrainRef.current = t; worldRef.current?.terrain?.load(t); }, []);
+  const setTerrain = useCallback((t: TerrainData | null) => {
+    terrainRef.current = t;
+    const w = worldRef.current;
+    w?.terrain?.load(t);
+    showFloor(w?.group ?? null, !t, t);
+  }, []);
+  /** 地形的水面换了 */
+  const setTerrainWater = useCallback((wt: TerrainWater | null) => {
+    if (terrainRef.current) terrainRef.current.water = wt;
+    worldRef.current?.terrain?.setWater(wt);
+  }, []);
   const applyTerrainPatch = useCallback((p: TerrainPatch) => {
     if (!terrainRef.current) return;
     if (worldRef.current?.terrain) worldRef.current.terrain.applyPatch(p); // 它会改 terrainRef 指的同一份数据
@@ -448,9 +488,17 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   }, [camera, canvas, THREE_NS]);
   const setTerrainBrush = useCallback((b: { x: number; z: number; r: number; color?: number } | null) => { worldRef.current?.terrain?.setBrush(b); }, []);
   /** 泡在液体里没有(潜水按钮要不要出来) */
-  const inLiquid = useCallback((x: number, z: number, curY: number) => blockGridRef.current?.inLiquid(x, z, curY) ?? false, []);
+  const inLiquid = useCallback((x: number, z: number, curY: number) => {
+    if (blockGridRef.current?.inLiquid(x, z, curY)) return true;
+    const m = terrainRef.current?.waterAt(x, curY + 0.1, z);
+    return m != null && matPhysics(m).slow > 0;
+  }, []);
   /** 泡在液体物质(水)里走路打几折 */
-  const slowAtFn = useCallback((x: number, z: number, curY: number) => (blockGridRef.current ? slowAt(blockGridRef.current, x, z, curY) : 0), []);
+  const slowAtFn = useCallback((x: number, z: number, curY: number) => {
+    const b = blockGridRef.current ? slowAt(blockGridRef.current, x, z, curY) : 0;
+    const m = terrainRef.current?.waterAt(x, curY + 0.1, z);
+    return Math.max(b, m != null ? matPhysics(m).slow : 0);
+  }, []);
   const setBuilding = useCallback((on: boolean) => { buildingRef.current = on; if (!on) worldRef.current?.blocks?.setGhost(null); }, []);
   const blockPick = useCallback((clientX: number, clientY: number): BlockHit | null => {
     const w = worldRef.current;
@@ -471,5 +519,5 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
   const setPeerVoiceLevels = useCallback((fn: ((id: string) => number) | null) => { voiceLevelsRef.current = fn; peerLayerRef.current?.setVoiceLevels(fn); }, []);
   const peerSay = useCallback((id: string, text: string) => { peerLayerRef.current?.say(id, text); }, []);
 
-  return { tick, render, floatText, showMarker, snapshot, setPeers, setAura, characterSay, setPlacements, upsertPlacement, removePlacement, selectPlacement, placementGroup, obstacles, seatSpots, setBlockGrid, applyBlockOps, groundAt, setTerrain, applyTerrainPatch, terrainPick, setTerrainBrush, inLiquid, slowAt: slowAtFn, flowAt: flowAtFn, movableAt, setBuilding, blockPick, setBlockGhost, setRoomAlign, autoFitRoom, setRoomPeers, peerSay, setPeerVoiceLevels, zones: WORLD_ZONES };
+  return { tick, render, floatText, showMarker, snapshot, setPeers, setAura, characterSay, setPlacements, upsertPlacement, removePlacement, selectPlacement, placementGroup, obstacles, seatSpots, setBlockGrid, applyBlockOps, groundAt, setTerrain, setTerrainWater, applyTerrainPatch, terrainPick, setTerrainBrush, inLiquid, slowAt: slowAtFn, flowAt: flowAtFn, movableAt, setBuilding, blockPick, setBlockGhost, setRoomAlign, autoFitRoom, setRoomPeers, peerSay, setPeerVoiceLevels, zones: WORLD_ZONES };
 }

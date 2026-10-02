@@ -12,6 +12,7 @@
 import React from 'react';
 import { Box, Button, ButtonBase, CircularProgress, TextField, Typography } from '@mui/material';
 import { composeWorld, type ComposeDraft, type ComposeTarget, type WorldRule } from '@/apis/world';
+import { playLibSound, soundList } from './soundLib';
 
 type Effect = Record<string, unknown>;
 export type RuleScope = 'kind' | 'entity' | 'space' | 'material';
@@ -55,7 +56,7 @@ const TARGETS = [
 
 const SOUNDS = ['click', 'door', 'coin', 'whoosh', 'chime', 'ding'];
 
-type FieldKind = 'expr' | 'text' | 'num' | 'select' | 'target';
+type FieldKind = 'expr' | 'text' | 'num' | 'select' | 'target' | 'sound';
 interface Field { k: string; label: string; kind: FieldKind; options?: { v: string; label: string }[]; placeholder?: string; width?: number }
 
 /** 每种效果怎么画:fields 是参数对象里的格子;str = 参数也可以直接是一个字符串(那时它就是这一格) */
@@ -73,7 +74,7 @@ const SPECS: Record<string, Spec> = {
   say: { label: '头顶冒字', fields: [{ k: '$', label: '说什么({{state.x}} 嵌值)', kind: 'text' }], str: '$' },
   toast: { label: '提示条', fields: [{ k: 'text', label: '说什么', kind: 'text' }, { k: 'to', label: '给谁', kind: 'select', options: [{ v: '', label: '房里所有人' }, { v: 'actor', label: '触发的人' }] }], str: 'text' },
   label: { label: '改牌子', fields: [{ k: '$', label: '牌子上写', kind: 'text' }], str: '$' },
-  sound: { label: '放声音', fields: [{ k: '$', label: '声音', kind: 'select', options: SOUNDS.map((s) => ({ v: s, label: s })) }], str: '$' },
+  sound: { label: '放声音', fields: [{ k: '$', label: '声音', kind: 'sound' }], str: '$' },
   emit: { label: '发信号', fields: [{ k: 'event', label: '信号名', kind: 'text', placeholder: 'open' }, { k: 'to', label: '发给(tag:名字 / space)', kind: 'text', placeholder: 'tag:door' }] },
   env: { label: '改时辰天气', fields: [{ k: 'time', label: '时辰', kind: 'select', options: [{ v: '', label: '不变' }, { v: 'dawn', label: '清晨' }, { v: 'day', label: '白天' }, { v: 'dusk', label: '黄昏' }, { v: 'night', label: '夜里' }] }, { k: 'weather', label: '天气', kind: 'select', options: [{ v: '', label: '不变' }, { v: 'clear', label: '晴' }, { v: 'rain', label: '雨' }, { v: 'snow', label: '雪' }, { v: 'petals', label: '花瓣' }] }] },
   wait: { label: '过一会儿', fields: [{ k: 'ms', label: '等多少 ms', kind: 'num', width: 80 }], nest: ['do'] },
@@ -130,6 +131,26 @@ function numOrExpr(s: string): unknown {
 
 function Small({ value, onChange, placeholder, width, title, mono: m }: { value: string; onChange: (v: string) => void; placeholder?: string; width?: number; title?: string; mono?: boolean }) {
   return <TextField size="small" title={title} value={value} placeholder={placeholder ?? title} onChange={(e) => onChange(e.target.value)} sx={{ ...inputSx, width: width ?? 'auto', flex: width ? 'none' : 1, minWidth: width ?? 90, ...(m ? { '& .MuiInputBase-input': { ...mono, py: 0.6, px: 0.9 } } : {}) }} />;
+}
+
+/** 选一个声音:内置的几个 + 声音库(打字搜),旁边能试听 */
+export function SoundField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [lib, setLib] = React.useState<{ key: string; name: string; category: string }[]>([]);
+  const id = React.useId();
+  React.useEffect(() => { void soundList().then((m) => setLib(Array.from(m.values()))); }, []);
+  const name = lib.find((s) => s.key === value)?.name;
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flex: 1, minWidth: 160 }}>
+      <TextField size="small" value={value} placeholder="声音(打字搜:门、脚步、水……)" onChange={(e) => onChange(e.target.value)}
+        slotProps={{ htmlInput: { list: id } }} sx={{ ...inputSx, flex: 1 }} />
+      <datalist id={id}>
+        {SOUNDS.map((s) => <option key={s} value={s}>内置 · {s}</option>)}
+        {lib.map((s) => <option key={s.key} value={s.key}>{s.name} · {s.category}</option>)}
+      </datalist>
+      {name && <Typography sx={{ fontSize: 10.5, color: 'rgba(255,255,255,0.55)' }}>{name}</Typography>}
+      <ButtonBase onClick={() => { if (!SOUNDS.includes(value)) void playLibSound(value); }} sx={{ fontSize: 12, px: 0.5 }} aria-label="试听">▶</ButtonBase>
+    </Box>
+  );
 }
 
 function EffectRow({ eff, onChange, onRemove, onMove, depth, scope }: {
@@ -203,6 +224,7 @@ function EffectRow({ eff, onChange, onRemove, onMove, depth, scope }: {
         {spec.fields.map((f) => {
           const v = obj[f.k];
           const sv = v === undefined || v === null ? '' : typeof v === 'string' ? v : String(v);
+          if (f.kind === 'sound') return <SoundField key={f.k} value={sv} onChange={(x) => set(f.k, x)} />;
           if (f.kind === 'select' || f.kind === 'target') {
             const opts = f.kind === 'target' ? TARGETS : f.options ?? [];
             const custom = sv !== '' && !opts.some((o) => o.v === sv);

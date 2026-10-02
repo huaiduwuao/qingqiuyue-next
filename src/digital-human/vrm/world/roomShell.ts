@@ -164,6 +164,7 @@ export function buildRoomShell(THREE_NS: typeof THREE, room: WorldRoomInfo, opts
     // 顶面比地板低 3 厘米:和地板同高会 z-fighting(近处地板一片发暗)
     const skirt = box(hx * 2 + 0.24, 0.18, hz * 2 + 0.24, std(room.template === 'courtyard' ? 0x5c5a55 : 0x4a3424, 0.8), 0, -0.1, 0);
     skirt.castShadow = false;
+    skirt.name = 'dh-room-skirt'; // 有地形时跟地板一起藏(挖下去的坑别被它挡住)
     group.add(skirt);
   }
 

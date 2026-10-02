@@ -25,7 +25,8 @@ const NEW_KIND: Record<string, unknown> = {
 
 const CHEAT = '表达式:state.x、actor.isOwner、actor.state.x、space.state.x、text;文字里用 {{表达式}}。'
   + '属性:solid 挡人 · visible 看得见 · sittable 能坐 · emits {color,intensity,radius} 发光 · label {text} 头顶字 · zone {hx,hy,hz} 感应范围'
-  + ' · movable 推得动 · portal {to: room:uid / plaza / tag:名字} 走进去送走(配 zone)。外观 material: 积木物质 id。';
+  + ' · movable 推得动 · portal {to: room:uid / plaza / tag:名字} 走进去送走(配 zone)'
+  + ' · sound {key, volume, radius} 走近了循环出声(key 是声音库的,比如 amb_stream 流水、amb_fire 篝火、amb_chimes 风铃)。外观 material: 积木物质 id。';
 
 const mono = { fontFamily: 'ui-monospace, Menlo, Consolas, monospace', fontSize: 11.5 } as const;
 const field = { '& .MuiInputBase-root': { color: '#fff', ...mono }, '& fieldset': { borderColor: 'rgba(255,255,255,0.2)' } } as const;
@@ -68,6 +69,7 @@ const PROP_CHIPS: { k: string; label: string; v: unknown }[] = [
   { k: 'zone', label: '感应范围', v: { hx: 0.6, hy: 1, hz: 0.6 } },
   { k: 'label', label: '头顶字', v: { text: '{{state.text}}' } },
   { k: 'movable', label: '推得动', v: true },
+  { k: 'sound', label: '持续出声', v: { key: 'amb_stream', volume: 0.8, radius: 6 } },
   { k: 'portal', label: '传送门', v: { to: 'plaza' } },
 ];
 

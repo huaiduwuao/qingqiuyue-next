@@ -3,11 +3,14 @@
  *
  * 一张网格(w × h 段),每个点的高度就是顶点的高,颜色按那个点的物质(物质登记表的颜色)。
  * 改地形只更新改到的那一块顶点再重算法线。比房间地板(0.02 米)再高 1 厘米,盖住地板;没有地形时整个藏起来。
+ * 四周一圈土边从地形边一直垂到地板下 2 米(挖下去的坑从房间外面看不穿);水面是一张盖满网格的半透明平面
+ * (按那种液体的物质画),地形高过水面的地方自然把它挡住 —— 挖个坑就是池塘。
  * 点选:射线打到地形上的哪一点(改地形用);笔刷预览是一个贴着地形的圈。
  */
 
 import type * as THREE from 'three';
 import { matColor } from './materials';
+import { makeMaterial } from './blockLayer';
 import type { TerrainData, TerrainPatch } from './terrain';
 
 /** 平的地方画在多高:房间地板在 0.02 米,再高一点盖住它 */
@@ -15,6 +18,8 @@ const FLOOR_LIFT = 0.03;
 
 export interface TerrainLayer {
   load: (t: TerrainData | null) => void;
+  /** 水面换了(null = 没有) */
+  setWater: (w: { level: number; mat: number } | null) => void;
   applyPatch: (p: TerrainPatch) => void;
   pick: (raycaster: THREE.Raycaster) => { x: number; y: number; z: number } | null;
   /** 笔刷预览圈:null = 不显示 */
@@ -64,6 +69,64 @@ export function createTerrainLayer(THREE_NS: typeof THREE, parent: THREE.Object3
     mesh.castShadow = true;
     mesh.name = 'dh-terrain';
     root.add(mesh);
+    buildSkirt();
+    setWater(t.water);
+  }
+
+  // 四周的土边:每条边上的点往下垂到 SKIRT_Y
+  const SKIRT_Y = -2.05;
+  const skirtMat = new THREE_NS.MeshStandardMaterial({ color: 0x5a4632, roughness: 1, side: THREE_NS.DoubleSide });
+  let skirt: THREE.Mesh | null = null;
+  function buildSkirt() {
+    if (skirt) { root.remove(skirt); skirt.geometry.dispose(); skirt = null; }
+    const t = data;
+    if (!t) return;
+    const ring: [number, number][] = [];
+    for (let i = 0; i <= t.w; i++) ring.push([i, 0]);
+    for (let j = 1; j <= t.h; j++) ring.push([t.w, j]);
+    for (let i = t.w - 1; i >= 0; i--) ring.push([i, t.h]);
+    for (let j = t.h - 1; j >= 1; j--) ring.push([0, j]);
+    ring.push(ring[0]);
+    const pos: number[] = [];
+    for (let k = 0; k < ring.length - 1; k++) {
+      const [a, b] = ring[k], [c, d] = ring[k + 1];
+      const x1 = t.x0 + a * t.cell, z1 = t.z0 + b * t.cell, y1 = t.height[t.idx(a, b)] / 100 + FLOOR_LIFT;
+      const x2 = t.x0 + c * t.cell, z2 = t.z0 + d * t.cell, y2 = t.height[t.idx(c, d)] / 100 + FLOOR_LIFT;
+      pos.push(x1, y1, z1, x1, SKIRT_Y, z1, x2, y2, z2, x2, y2, z2, x1, SKIRT_Y, z1, x2, SKIRT_Y, z2);
+    }
+    const geo = new THREE_NS.BufferGeometry();
+    geo.setAttribute('position', new THREE_NS.Float32BufferAttribute(pos, 3));
+    geo.computeVertexNormals();
+    skirt = new THREE_NS.Mesh(geo, skirtMat);
+    skirt.name = 'dh-terrain-skirt';
+    root.add(skirt);
+  }
+
+  // 水面
+  let waterMesh: THREE.Mesh | null = null;
+  function setWater(w: { level: number; mat: number } | null) {
+    if (waterMesh) { root.remove(waterMesh); waterMesh.geometry.dispose(); (waterMesh.material as THREE.Material).dispose(); waterMesh = null; }
+    if (data) data.water = w;
+    if (!w || !data) return;
+    const t = data;
+    const geo = new THREE_NS.PlaneGeometry(t.w * t.cell, t.h * t.cell);
+    geo.rotateX(-Math.PI / 2);
+    const m = makeMaterial(THREE_NS, w.mat);
+    (m as THREE.MeshStandardMaterial).color?.set(`#${matColor(w.mat).toString(16).padStart(6, '0')}`);
+    // 大片水面太光滑会把房间的墙全反射出来(看着像泥),压一压反射,让水自己的颜色出来
+    const std = m as THREE.MeshStandardMaterial;
+    // 房间的暖光会把蓝色压成土色:给水一点自己的光
+    if (std.isMeshStandardMaterial) { std.roughness = Math.max(std.roughness, 0.35); std.envMapIntensity = 0.25; std.emissive.copy(std.color).multiplyScalar(0.45); }
+    if (!(m as THREE.MeshStandardMaterial).transparent && !(m as THREE.MeshBasicMaterial).isMeshBasicMaterial) {
+      m.transparent = true;
+      m.opacity = 0.6;
+      m.depthWrite = false;
+    }
+    waterMesh = new THREE_NS.Mesh(geo, m);
+    waterMesh.position.set(t.x0 + (t.w * t.cell) / 2, w.level + FLOOR_LIFT, t.z0 + (t.h * t.cell) / 2);
+    waterMesh.name = 'dh-terrain-water';
+    waterMesh.renderOrder = 2;
+    root.add(waterMesh);
   }
 
   function applyPatch(p: TerrainPatch) {
@@ -80,6 +143,7 @@ export function createTerrainLayer(THREE_NS: typeof THREE, parent: THREE.Object3
     geo.computeVertexNormals();
     geo.computeBoundingSphere();
     geo.computeBoundingBox();
+    if (p.i0 === 0 || p.j0 === 0 || p.i0 + p.w > data.w || p.j0 + p.h > data.h) buildSkirt(); // 改到边了:土边跟着
   }
 
   function pick(raycaster: THREE.Raycaster) {
@@ -116,6 +180,7 @@ export function createTerrainLayer(THREE_NS: typeof THREE, parent: THREE.Object3
 
   return {
     load,
+    setWater,
     applyPatch,
     pick,
     setBrush,
@@ -123,6 +188,9 @@ export function createTerrainLayer(THREE_NS: typeof THREE, parent: THREE.Object3
       parent.remove(root);
       mesh?.geometry.dispose();
       mat.dispose();
+      skirt?.geometry.dispose();
+      skirtMat.dispose();
+      if (waterMesh) { waterMesh.geometry.dispose(); (waterMesh.material as THREE.Material).dispose(); }
       ringGeo.dispose();
       ringMat.dispose();
     },

@@ -49,6 +49,7 @@ import { RoomChat } from './scene-ui/RoomChat';
 import { useRoomVoice } from './scene-ui/useRoomVoice';
 import { useObjectUse } from './scene-ui/useObjectUse';
 import { DiveButton } from './scene-ui/DiveButton';
+import { useAmbientSounds } from './scene-ui/useAmbientSounds';
 import { useBlocks } from './scene-ui/useBlocks';
 import { quickCheck, useFpsGate, type GateVerdict } from './perfGate';
 import { PerfBlockScreen } from './PerfBlockScreen';
@@ -775,6 +776,8 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
   });
   hubPeersRef.current = new Set(roomSock.status === 'open' ? roomSock.peers.map((p) => p.id) : []);
   // 创世十期:点椅子坐下、点灯开关
+  // 带 sound 属性的东西:走近了循环播(声音库)
+  useAmbientSounds({ handle: stageHandle, items: worldObjects.items, enabled: worldActive });
   const objectUse = useObjectUse({ handle: stageHandle, rs: roomSock, items: worldObjects.items, toast: (icon, t) => game.toast(icon, t) });
   // 创世四期:房间语音(真人开麦走房间连接;AI 的话服务端合成后也从这条连接来)
   const roomVoice = useRoomVoice({ rs: roomSock, handle: stageHandle, toast: (icon, t) => game.toast(icon, t) });

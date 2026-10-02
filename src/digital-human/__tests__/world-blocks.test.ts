@@ -96,6 +96,17 @@ describe('liquids and room materials', () => {
   });
 });
 
+describe('ground under the blocks', () => {
+  it('stands on the terrain (base) where there is no block, and on blocks above it', () => {
+    setMaterials(MATERIALS);
+    const g = new BlockGrid();
+    expect(g.surfaceAt(0.25, 0.25, -1, 0, -1.2)).toBeCloseTo(-1.2); // 坑底
+    g.set({ x: 0, y: 0, z: 0, s: 0, m: 1, c: 0, r: 0 });
+    expect(g.surfaceAt(0.25, 0.25, 0, 0, -1.2)).toBeCloseTo(0.5); // 坑上搭了一块木头
+    expect(g.surfaceAt(0.25, 0.25, 0, 0, 0.8)).toBeCloseTo(0.8); // 地形比积木高
+  });
+});
+
 describe('diving and climbing', () => {
   it('dives below the float height down to the bottom', () => {
     setMaterials(MATERIALS);

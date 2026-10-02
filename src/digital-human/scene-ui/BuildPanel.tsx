@@ -82,6 +82,8 @@ export function BuildPanel({ handle, blocks, onClose, narrow, toast }: {
   const [ttool, setTtool] = React.useState<TTool>('raise');
   const [radius, setRadius] = React.useState(1.5);
   const [strength, setStrength] = React.useState(0.3);
+  const [waterLevel, setWaterLevel] = React.useState(() => blocks.water?.level ?? -0.3);
+  const [waterMat, setWaterMat] = React.useState(() => blocks.water?.mat ?? 10);
   const stateRef = React.useRef({ tool, shape, mat, color, rot, corner, mode, ttool, radius, strength });
   stateRef.current = { tool, shape, mat, color, rot, corner, mode, ttool, radius, strength };
   const blocksRef = React.useRef(blocks);
@@ -232,7 +234,24 @@ export function BuildPanel({ handle, blocks, onClose, narrow, toast }: {
                   <span style={{ width: 44, textAlign: 'right' }}>{v.toFixed(2)} {unit}</span>
                 </Box>
               ))}
-              <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>点地形用笔刷;拖动还是转镜头。涂的时候用下面选的材质。</Typography>
+              <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>点地形用笔刷;拖动还是转镜头。涂的时候用下面选的材质。压低最深挖到地板下 2 米。</Typography>
+              <Box sx={{ p: 0.75, borderRadius: 1.5, bgcolor: 'rgba(58,143,208,0.12)', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 12 }}>
+                  <span style={{ opacity: 0.75 }}>💧 水面</span>
+                  <Box component="input" type="range" min={-2} max={3} step={0.1} aria-label="水面高度" value={waterLevel}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setWaterLevel(Number(e.target.value))} sx={{ flex: 1 }} />
+                  <span style={{ width: 48, textAlign: 'right' }}>{waterLevel.toFixed(1)} 米</span>
+                </Box>
+                <Box sx={{ display: 'flex', gap: 0.75, alignItems: 'center' }}>
+                  <select aria-label="水面用的液体" value={waterMat} onChange={(e) => setWaterMat(Number(e.target.value))}
+                    style={{ background: 'rgba(255,255,255,0.06)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 6, fontSize: 12, padding: '3px 6px' }}>
+                    {mats.filter((m) => m.props?.liquid?.slow).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                  </select>
+                  <Button size="small" variant="outlined" onClick={() => void blocks.commitTerrain([{ tool: 'water', amount: waterLevel, mat: waterMat }])} sx={{ fontSize: 12, color: '#9be8ff', borderColor: 'rgba(155,232,255,0.4)' }}>{blocks.water ? '改水面' : '放水'}</Button>
+                  {blocks.water && <ButtonBase onClick={() => void blocks.commitTerrain([{ tool: 'nowater' }])} sx={{ fontSize: 11.5, color: '#ffb0b0' }}>抽干</ButtonBase>}
+                </Box>
+                <Typography sx={{ fontSize: 10.5, color: 'rgba(255,255,255,0.5)' }}>地形低过水面的地方都是这种液体:挖个坑放水就是池塘,换成熔岩就是熔岩湖。</Typography>
+              </Box>
               <ButtonBase onClick={() => { if (window.confirm('铲掉整张地形,回到原来的地板?')) void blocks.removeTerrain(); }} sx={{ alignSelf: 'flex-start', fontSize: 11.5, color: '#ffb0b0' }}>铲掉整张地形</ButtonBase>
             </>
           )}
