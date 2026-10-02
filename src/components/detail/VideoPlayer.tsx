@@ -105,6 +105,24 @@ const PREEMPT_EXPIRY_MS = 60_000;
 /** 生命周期 effect 里挂到 <video> 上的事件 */
 const VIDEO_EVENTS = ['timeupdate', 'loadedmetadata', 'resize', 'canplay', 'playing', 'play', 'pause', 'ended', 'error', 'volumechange', 'enterpictureinpicture', 'leavepictureinpicture', 'webkitpresentationmodechanged'];
 
+/**
+ * 键盘快捷键归哪个播放器:最近点过 / 最近开播的那个。一页可能有多个播放器(详情页 + 推荐卡片),
+ * 按键只给一个,不然按一下 ← 所有视频一起退。
+ */
+let hotkeyOwner: object | null = null;
+
+/**
+ * 焦点在输入框 / 可编辑区 / 下拉框里时按键归它们(评论框里打空格不能暂停视频)。
+ * 滑块(进度条、音量条的 range input)不算:方向键它们自己处理(MUI 会 preventDefault,
+ * 下面据此跳过),空格 / M / F 照样归播放器。
+ */
+function typingTarget(t: EventTarget | null) {
+  const el = t as HTMLElement | null;
+  if (!el?.tagName) return false;
+  if (el.tagName === 'INPUT' && (el as HTMLInputElement).type === 'range') return false;
+  return el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
+}
+
 function fmt(s: number) {
   if (!isFinite(s) || s < 0) return '0:00';
   const m = Math.floor(s / 60);
@@ -638,9 +656,12 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
   };
 
   const seek = (delta: number) => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = Math.max(0, Math.min(duration, videoRef.current.currentTime + delta));
-    }
+    const v = videoRef.current;
+    if (!v) return;
+    // duration 状态在元数据到之前是 initialDuration 猜的值,以元素自己的为准
+    const end = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : duration;
+    v.currentTime = Math.max(0, Math.min(end, v.currentTime + delta));
+    setCurrentTime(v.currentTime);
   };
 
   /**
@@ -723,6 +744,52 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
   /** 用户在页面内小窗上点了关闭:回到视口之前不再自动浮出 */
   const dismissed = useRef(false);
 
+  // 键盘:← / → 退进 5 秒,空格 / K 播放暂停,M 静音,F 全屏。
+  // fill(推荐流)不接:RecommendVideoFeed 自己在 window 上管按键(含 ↑↓ 切条),两边都接会退两次。
+  // 挂在 window 上而不是容器上:点过播放器之后焦点多半落在控制条按钮或 body 上,
+  // 只认容器焦点的话"点一下再按 →"经常没反应。归属见 hotkeyOwner。
+  const hotkeys = useRef({ seek, togglePlay, goFullscreen, toggleMute });
+  hotkeys.current = { seek, togglePlay, goFullscreen, toggleMute };
+  useEffect(() => {
+    if (fill) return;
+    if (!hotkeyOwner) hotkeyOwner = owner;
+    const onKey = (e: KeyboardEvent) => {
+      if (hotkeyOwner !== owner || e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (!videoRef.current || typingTarget(e.target)) return;
+      const k = hotkeys.current;
+      switch (e.key) {
+        case 'ArrowLeft':
+          k.seek(-5);
+          break;
+        case 'ArrowRight':
+          k.seek(5);
+          break;
+        case ' ':
+        case 'k':
+        case 'K':
+          k.togglePlay();
+          break;
+        case 'm':
+        case 'M':
+          k.toggleMute();
+          break;
+        case 'f':
+        case 'F':
+          void k.goFullscreen();
+          break;
+        default:
+          return;
+      }
+      // 空格默认会滚页面,还会再"点"一次聚焦着的控制条按钮(刚暂停又被按钮切回播放)
+      e.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      if (hotkeyOwner === owner) hotkeyOwner = null;
+    };
+  }, [fill, owner]);
+
   // 卸载时要交给小窗的最新状态 + 元素事件的最新回调
   const live = useRef({ dockKey, dockTitle, posterUrl, streams, currentStream, platformName, expiresAt, streamError });
   const handlers = useRef<Record<string, () => void>>({});
@@ -749,6 +816,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
       },
       play: () => {
         setPlaying(true);
+        hotkeyOwner = owner;
         if (dockTitle && videoRef.current) claimMediaSession(videoRef.current, dockTitle, posterUrl);
       },
       pause: () => {
@@ -992,6 +1060,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
     <Box
       ref={containerRef}
       onMouseMove={() => setControlsVisible(true)}
+      onPointerDown={() => { hotkeyOwner = owner; }}
       sx={fill ? {
         position: 'absolute',
         inset: 0,

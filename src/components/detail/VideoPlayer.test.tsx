@@ -5,7 +5,7 @@
  * 渲染的是封面图,<video> 从没挂进页面,但它照样在后台出声。这里锁住:解析完成后 <video> 在 DOM 里、
  * 地址已挂上;第一次失败静默重解析一次,第二次才出重试界面。
  */
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const resolveStream = vi.fn();
@@ -98,5 +98,62 @@ describe('VideoPlayer · 自动播放补播', () => {
       v.dispatchEvent(new Event('canplay'));
     });
     expect(play.mock.calls.length).toBe(calls + 1);
+  });
+});
+
+describe('VideoPlayer · 键盘快捷键', () => {
+  const mount = async (props: Record<string, unknown> = {}) => {
+    resolveStream.mockResolvedValue({ kind: 'progressive', provider: 'bilibili', duration: 100, urls: [MP4], mediaHeaders: {}, source: 'server' });
+    const r = render(<VideoPlayer sourceUrl={PAGE} {...props} />);
+    await waitFor(() => expect(r.container.querySelector('video')).not.toBeNull());
+    const v = r.container.querySelector('video')!;
+    Object.defineProperty(v, 'duration', { configurable: true, value: 100 });
+    v.currentTime = 50;
+    return { ...r, v };
+  };
+
+  it('← / → 退进 5 秒,不越过两头', async () => {
+    const { v, unmount } = await mount();
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(v.currentTime).toBe(55);
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    fireEvent.keyDown(window, { key: 'ArrowLeft' });
+    expect(v.currentTime).toBe(45);
+    v.currentTime = 98;
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(v.currentTime).toBe(100);
+    unmount();
+  });
+
+  it('输入框里的方向键、带 Ctrl 的组合键不动视频', async () => {
+    const { v, unmount } = await mount();
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    fireEvent.keyDown(input, { key: 'ArrowRight' });
+    fireEvent.keyDown(window, { key: 'ArrowRight', ctrlKey: true });
+    expect(v.currentTime).toBe(50);
+    input.remove();
+    unmount();
+  });
+
+  it('空格切换播放并吞掉默认滚动', async () => {
+    const play = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(HTMLMediaElement.prototype, 'play', { configurable: true, value: play });
+    const { unmount } = await mount();
+    play.mockClear();
+    const ev = new KeyboardEvent('keydown', { key: ' ', cancelable: true, bubbles: true });
+    act(() => {
+      window.dispatchEvent(ev);
+    });
+    expect(play).toHaveBeenCalledTimes(1);
+    expect(ev.defaultPrevented).toBe(true);
+    unmount();
+  });
+
+  it('fill(推荐流)不接按键:推荐流自己管,两边都接会退两次', async () => {
+    const { v, unmount } = await mount({ fill: true });
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(v.currentTime).toBe(50);
+    unmount();
   });
 });
