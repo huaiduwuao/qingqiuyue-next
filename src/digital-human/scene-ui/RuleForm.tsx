@@ -56,7 +56,7 @@ const TARGETS = [
 
 const SOUNDS = ['click', 'door', 'coin', 'whoosh', 'chime', 'ding'];
 
-type FieldKind = 'expr' | 'text' | 'num' | 'select' | 'target' | 'sound';
+type FieldKind = 'expr' | 'text' | 'num' | 'select' | 'target' | 'sound' | 'at';
 interface Field { k: string; label: string; kind: FieldKind; options?: { v: string; label: string }[]; placeholder?: string; width?: number }
 
 /** 每种效果怎么画:fields 是参数对象里的格子;str = 参数也可以直接是一个字符串(那时它就是这一格) */
@@ -74,13 +74,20 @@ const SPECS: Record<string, Spec> = {
   say: { label: '头顶冒字', fields: [{ k: '$', label: '说什么({{state.x}} 嵌值)', kind: 'text' }], str: '$' },
   toast: { label: '提示条', fields: [{ k: 'text', label: '说什么', kind: 'text' }, { k: 'to', label: '给谁', kind: 'select', options: [{ v: '', label: '房里所有人' }, { v: 'actor', label: '触发的人' }] }], str: 'text' },
   label: { label: '改牌子', fields: [{ k: '$', label: '牌子上写', kind: 'text' }], str: '$' },
-  sound: { label: '放声音', fields: [{ k: '$', label: '声音', kind: 'sound' }], str: '$' },
+  sound: { label: '放声音', fields: [{ k: '$', label: '声音', kind: 'sound' }, { k: 'at', label: '从哪儿传来', kind: 'at' }], str: '$' },
+  water: { label: '放水 / 抽水', fields: [
+    { k: 'level', label: '灌到多高(米)', kind: 'num', width: 96 },
+    { k: 'rise', label: '涨多少(米,负数落)', kind: 'num', width: 120 },
+    { k: 'drain', label: '抽掉', kind: 'select', options: [{ v: '', label: '不抽' }, { v: 'true', label: '抽掉那片' }] },
+    { k: 'material', label: '液体', kind: 'text', placeholder: '水 / 熔岩', width: 90 },
+    { k: 'at', label: '在哪儿', kind: 'at' },
+  ] },
   emit: { label: '发信号', fields: [{ k: 'event', label: '信号名', kind: 'text', placeholder: 'open' }, { k: 'to', label: '发给(tag:名字 / space)', kind: 'text', placeholder: 'tag:door' }] },
   env: { label: '改时辰天气', fields: [{ k: 'time', label: '时辰', kind: 'select', options: [{ v: '', label: '不变' }, { v: 'dawn', label: '清晨' }, { v: 'day', label: '白天' }, { v: 'dusk', label: '黄昏' }, { v: 'night', label: '夜里' }] }, { k: 'weather', label: '天气', kind: 'select', options: [{ v: '', label: '不变' }, { v: 'clear', label: '晴' }, { v: 'rain', label: '雨' }, { v: 'snow', label: '雪' }, { v: 'petals', label: '花瓣' }] }] },
   wait: { label: '过一会儿', fields: [{ k: 'ms', label: '等多少 ms', kind: 'num', width: 80 }], nest: ['do'] },
   if: { label: '如果', fields: [], nest: ['then', 'else'] },
 };
-const EFFECT_ORDER = ['set', 'add', 'toggle', 'say', 'toast', 'label', 'sound', 'move', 'rotate', 'scale', 'spawn', 'remove', 'teleport', 'emit', 'env', 'wait', 'if'];
+const EFFECT_ORDER = ['set', 'add', 'toggle', 'say', 'toast', 'label', 'sound', 'move', 'rotate', 'scale', 'spawn', 'remove', 'teleport', 'emit', 'env', 'water', 'wait', 'if'];
 
 const NEW_EFFECT: Record<string, () => Effect> = {
   set: () => ({ set: { open: 'true' } }),
@@ -98,6 +105,7 @@ const NEW_EFFECT: Record<string, () => Effect> = {
   sound: () => ({ sound: 'click' }),
   emit: () => ({ emit: { event: 'open', to: 'tag:door' } }),
   env: () => ({ env: { time: 'night' } }),
+  water: () => ({ water: { rise: 0.2 } }),
   wait: () => ({ wait: { ms: 3000, do: [] } }),
   if: () => ({ if: 'state.open', then: [], else: [] }),
 };
@@ -119,7 +127,45 @@ export function formable(e: Effect): boolean {
   if (!arg || typeof arg !== 'object' || Array.isArray(arg)) return false;
   if (spec.pairs) return true;
   const known = new Set([...spec.fields.map((f) => f.k), ...(spec.nest ?? [])]);
+  if (spec.str === '$') known.add('name'); // {name, …} 的写法:name 就是那一格
   return Object.keys(arg).every((k2) => known.has(k2));
+}
+
+/** 「在哪儿」:不写 = 自己(没位置就是触发的人);actor / none / tag:… / 实体 id / {x, y, z} 表达式 */
+type At = string | { x?: unknown; y?: unknown; z?: unknown } | undefined;
+const AT_OPTIONS = [
+  { v: '', label: '自己(没位置就是触发的人)' },
+  { v: 'actor', label: '触发的人' },
+  { v: 'none', label: '不分方向' },
+  { v: '__tag', label: '带标签的(tag:…)' },
+  { v: '__xyz', label: '坐标' },
+];
+export function AtField({ label, value, onChange }: { label: string; value: At; onChange: (v: At) => void }) {
+  const mode = value === undefined || value === '' ? '' : typeof value === 'object' ? '__xyz' : value === 'actor' || value === 'none' ? value : '__tag';
+  const xyz = typeof value === 'object' && value ? value : {};
+  const axis = (k: 'x' | 'y' | 'z') => {
+    const v = xyz[k];
+    return v === undefined || v === null ? '' : String(v);
+  };
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
+      <Typography sx={{ fontSize: 10.5, color: 'rgba(255,255,255,0.5)' }}>{label}</Typography>
+      <select aria-label={label} style={selectStyle} value={mode} onChange={(e) => {
+        const m = e.target.value;
+        onChange(m === '' ? undefined : m === '__tag' ? 'tag:' : m === '__xyz' ? { x: 'actor.pos.x', y: 3, z: 'actor.pos.z' } : m);
+      }}>
+        {AT_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
+      </select>
+      {mode === '__tag' && <Small value={String(value)} width={110} onChange={(x) => onChange(x)} title="tag:名字 或实体 id" />}
+      {mode === '__xyz' && (['x', 'y', 'z'] as const).map((k) => (
+        <Small key={k} value={axis(k)} width={88} mono title={k} placeholder={`${k}(表达式)`} onChange={(x) => {
+          const next: Record<string, unknown> = { ...xyz, [k]: numOrExpr(x) };
+          if (next[k] === undefined) delete next[k];
+          onChange(next);
+        }} />
+      ))}
+    </Box>
+  );
 }
 
 /** 数字格:能当数字就存数字,否则当表达式字符串存 */
@@ -182,6 +228,7 @@ function EffectRow({ eff, onChange, onRemove, onMove, depth, scope }: {
   }
   const arg = eff[kind];
   const obj: Record<string, unknown> = typeof arg === 'string' ? { [spec.str ?? '$']: arg } : { ...((arg as Record<string, unknown>) ?? {}) };
+  if (spec.str === '$' && 'name' in obj) { obj.$ = obj.name; delete obj.name; } // {name, at} 的写法
   const write = (next: Record<string, unknown>) => {
     // 只有字符串那一格有值时,写回成简写的字符串(和手写的一样)
     // 空着的格子不写进去;改状态那几对(键 → 值)正在输入时可以是空的,先留着
@@ -225,6 +272,7 @@ function EffectRow({ eff, onChange, onRemove, onMove, depth, scope }: {
           const v = obj[f.k];
           const sv = v === undefined || v === null ? '' : typeof v === 'string' ? v : String(v);
           if (f.kind === 'sound') return <SoundField key={f.k} value={sv} onChange={(x) => set(f.k, x)} />;
+          if (f.kind === 'at') return <AtField key={f.k} label={f.label} value={v as At} onChange={(x) => set(f.k, x)} />;
           if (f.kind === 'select' || f.kind === 'target') {
             const opts = f.kind === 'target' ? TARGETS : f.options ?? [];
             const custom = sv !== '' && !opts.some((o) => o.v === sv);

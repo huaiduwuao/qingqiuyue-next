@@ -16,7 +16,7 @@ import { createEnvironment, type Environment, type Quality } from './env/environ
 import type { PlacedObject } from './worldObjects';
 import type { Interact } from './interact';
 import { flowAt, glowLights, slowAt, type BlockGrid, type BlockOp } from './blocks';
-import type { TerrainData, TerrainPatch, TerrainWater } from './terrain';
+import type { TerrainData, TerrainPatch } from './terrain';
 import { FLOAT_DEPTH } from './blocks';
 import { matPhysics } from './materials';
 
@@ -452,9 +452,9 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
     const t = terrainRef.current;
     const base = t ? t.heightAt(x, z) : 0;
     let g = blockGridRef.current ? blockGridRef.current.surfaceAt(x, z, curY, dive, base) : base;
-    // 地形上的水面:会浮的液体够深就浮在水面下 FLOAT_DEPTH 米(潜下去 dive 米,最多到底)
-    const w = t?.water;
-    if (w && t!.inside(x, z) && matPhysics(w.mat).float && w.level - base > FLOAT_DEPTH) g = Math.max(g, Math.max(base, w.level - FLOAT_DEPTH - dive));
+    // 地形上的液面:会浮的液体够深就浮在液面下 FLOAT_DEPTH 米(潜下去 dive 米,最多到底)
+    const w = t?.surfaceAt(x, z);
+    if (w && matPhysics(w.mat).float && w.level - base > FLOAT_DEPTH) g = Math.max(g, Math.max(base, w.level - FLOAT_DEPTH - dive));
     return g;
   }, []);
   /** 地形:换一整张 / 盖上改到的一块 */
@@ -464,10 +464,11 @@ export function useVrmWorld(opts: UseVrmWorldOptions) {
     w?.terrain?.load(t);
     showFloor(w?.group ?? null, !t, t);
   }, []);
-  /** 地形的水面换了 */
-  const setTerrainWater = useCallback((wt: TerrainWater | null) => {
-    if (terrainRef.current) terrainRef.current.water = wt;
-    worldRef.current?.terrain?.setWater(wt);
+  /** 地形的液面换了(服务端打包的一整张;null = 没水) */
+  const setTerrainWater = useCallback((b64: string | null) => {
+    const layer = worldRef.current?.terrain;
+    if (layer) layer.setWater(b64); // 它改的是 terrainRef 指的同一份数据
+    else terrainRef.current?.setWater(b64);
   }, []);
   const applyTerrainPatch = useCallback((p: TerrainPatch) => {
     if (!terrainRef.current) return;

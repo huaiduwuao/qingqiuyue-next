@@ -26,16 +26,23 @@ describe('terrain data', () => {
     expect(TerrainData.decode({ ...view, w: 3 })).toBeNull(); // 大小对不上
   });
 
-  it('reads signed heights (offset) and the water surface', () => {
-    // offset 200:存的 50 = −1.5 米(挖到地板下)
-    const dug = TerrainData.decode({ ...view, offset: 200, data: pack(Array.from({ length: 9 }, () => ({ h: 50, m: 7 }))), water: { level: -0.5, mat: 10 } })!;
+  it('reads signed heights (offset) and per-point water surfaces', () => {
+    // offset 200:存的 50 = −1.5 米(挖到地板下)。液面:左边一列是 −0.5 米的水,右边一列是 −1 米的熔岩,中间干
+    const wl = Array.from({ length: 9 }, (_, k) => (k % 3 === 0 ? { h: 150, m: 10 } : k % 3 === 2 ? { h: 100, m: 11 } : { h: 0xffff, m: 0 }));
+    const dug = TerrainData.decode({ ...view, offset: 200, data: pack(Array.from({ length: 9 }, () => ({ h: 50, m: 7 }))), water: pack(wl) })!;
     expect(dug.heightAt(0, 0)).toBeCloseTo(-1.5);
-    expect(dug.waterAt(0, -1, 0)).toBe(10); // 坑里是水
-    expect(dug.waterAt(0, 0, 0)).toBeNull(); // 高过水面
+    expect(dug.hasWater).toBe(true);
+    expect(dug.surfaceAt(-0.25, 0)).toEqual({ level: -0.5, mat: 10 }); // 左边那格
+    expect(dug.surfaceAt(0.25, 0)).toEqual({ level: -1, mat: 11 }); // 右边那格
+    expect(dug.waterAt(-0.25, -0.8, 0)).toBe(10);
+    expect(dug.waterAt(0.25, -0.8, 0)).toBeNull(); // 熔岩面只到 −1 米
+    expect(dug.waterAt(0.25, -1.2, 0)).toBe(11);
     expect(dug.waterAt(9, -1, 9)).toBeNull(); // 网格外
-    dug.applyPatch({ i0: 1, j0: 1, w: 1, h: 1, offset: 200, data: pack([{ h: 300, m: 7 }]) });
-    expect(dug.heightAt(0, 0)).toBeCloseTo(1);
-    expect(dug.waterAt(0, -0.8, 0)).toBeNull(); // 那里鼓起来了,高过水面
+    dug.applyPatch({ i0: 0, j0: 1, w: 1, h: 1, offset: 200, data: pack([{ h: 300, m: 7 }]) });
+    expect(dug.waterAt(-0.5, -0.4, 0)).toBeNull(); // 那里鼓起来了,高过液面
+    dug.setWater('');
+    expect(dug.hasWater).toBe(false);
+    expect(dug.surfaceAt(-0.25, 0)).toBeNull();
   });
 
   it('applies a patch', () => {
@@ -65,6 +72,24 @@ describe('terrain data', () => {
     expect(hit?.y).toBeCloseTo(0.53);
     layer.load(null);
     expect(layer.pick(rc)).toBeNull();
+    layer.dispose();
+  });
+
+  it('draws one water mesh per liquid at each pond\'s own level', () => {
+    setMaterials([{ id: 7, key: 'grass', name: '草', color: '#6aa84f' }, { id: 10, key: 'water', name: '水', color: '#3a8fd0' }, { id: 11, key: 'lava', name: '熔岩', color: '#ff5a1f' }]);
+    const parent = new THREE.Group();
+    const layer = createTerrainLayer(THREE, parent);
+    const wl = Array.from({ length: 9 }, (_, k) => (k % 3 === 0 ? { h: 150, m: 10 } : k % 3 === 2 ? { h: 100, m: 11 } : { h: 0xffff, m: 0 }));
+    layer.load(TerrainData.decode({ ...view, offset: 200, data: pack(Array.from({ length: 9 }, () => ({ h: 50, m: 7 }))), water: pack(wl) }));
+    const waters = () => { const out: THREE.Mesh[] = []; parent.traverse((o) => { if (o.name === 'dh-terrain-water') out.push(o as THREE.Mesh); }); return out; };
+    const ys = waters().map((m) => m.geometry.getAttribute('position').getY(0)).sort((a, b) => a - b);
+    expect(ys.length).toBe(2);
+    expect(ys[0]).toBeCloseTo(-0.97); // 熔岩 −1 米(+ 地形抬的 3 厘米)
+    expect(ys[1]).toBeCloseTo(-0.47); // 水 −0.5 米
+    layer.setWater(pack(wl.map((p, k) => (k % 3 === 2 ? { h: 0xffff, m: 0 } : p)))); // 熔岩抽掉了
+    expect(waters().length).toBe(1);
+    layer.setWater(null);
+    expect(waters().length).toBe(0);
     layer.dispose();
   });
 });

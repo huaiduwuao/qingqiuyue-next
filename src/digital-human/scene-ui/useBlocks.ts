@@ -10,7 +10,7 @@
 
 import React from 'react';
 import { clearTerrain, editBlocks, editTerrain, getBlocks, getTerrain, listMaterials } from '@/apis/world';
-import { TerrainData, type TerrainOp, type TerrainPatch, type TerrainWater } from '../vrm/world/terrain';
+import { TerrainData, type TerrainOp, type TerrainPatch } from '../vrm/world/terrain';
 import type { VrmStageHandle } from '../VrmStage';
 import type { WorldDef } from '../vrm/world/worldLayout';
 import { BLOCK_MAX_OPS, BlockGrid, decodeBlocks, type BlockOp } from '../vrm/world/blocks';
@@ -57,14 +57,14 @@ export function useBlocks(opts: UseBlocksOptions) {
   // 地形
   const terrainRef = React.useRef<TerrainData | null>(null);
   const [hasTerrain, setHasTerrain] = React.useState(false);
-  const [water, setWater] = React.useState<TerrainWater | null>(null);
+  const [hasWater, setHasWater] = React.useState(false);
   /** 别人(或自己)改了地形:盖上那一块;铲掉了就整个去掉 */
   const applyTerrain = React.useCallback((data: unknown) => {
-    const d = data as { patch?: TerrainPatch; cleared?: boolean; waterSet?: boolean; water?: TerrainWater | null } | null;
-    if (d?.cleared) { terrainRef.current = null; optsRef.current.handle?.setTerrain(null); setHasTerrain(false); setWater(null); return; }
+    const d = data as { patch?: TerrainPatch; cleared?: boolean; waterSet?: boolean; water?: string | null } | null;
+    if (d?.cleared) { terrainRef.current = null; optsRef.current.handle?.setTerrain(null); setHasTerrain(false); setHasWater(false); return; }
     if (!terrainRef.current) { if (d?.patch) setTick((n) => n + 1); return; } // 刚铺的:整张重读
     if (d?.patch) optsRef.current.handle?.applyTerrainPatch(d.patch);
-    if (d?.waterSet) { optsRef.current.handle?.setTerrainWater(d.water ?? null); setWater(d.water ?? null); }
+    if (d?.waterSet) { optsRef.current.handle?.setTerrainWater(d.water || null); setHasWater(!!d.water); } // 规则放的水也从这儿来
   }, []);
   /** 改地形(几笔一起发);服务端回改到的那一块,先盖上(推回来的同一块再盖一次也一样) */
   const commitTerrain = React.useCallback(async (ops: TerrainOp[]) => {
@@ -75,7 +75,7 @@ export function useBlocks(opts: UseBlocksOptions) {
       if (!r.changed) return;
       if (!terrainRef.current || ops.some((x) => x.tool === 'init')) { setTick((n) => n + 1); return; }
       if (r.patch) optsRef.current.handle?.applyTerrainPatch(r.patch);
-      if (r.waterSet) { optsRef.current.handle?.setTerrainWater(r.water ?? null); setWater(r.water ?? null); }
+      if (r.waterSet) { optsRef.current.handle?.setTerrainWater(r.water || null); setHasWater(!!r.water); }
     } catch (e) {
       optsRef.current.toast('⛰️', (e as Error)?.message || '地形没改上');
     }
@@ -111,7 +111,7 @@ export function useBlocks(opts: UseBlocksOptions) {
       terrainRef.current = terr;
       handle.setTerrain(terr);
       setHasTerrain(!!terr);
-      setWater(terr?.water ?? null);
+      setHasWater(!!terr?.hasWater);
       setRoomMaterials(r.materials ?? []);
       grid.load(decodeBlocks(r.blocks));
       handle.setBlockGrid(grid);
@@ -194,7 +194,7 @@ export function useBlocks(opts: UseBlocksOptions) {
     commit, undo, redo, canUndo: undoRef.current.length > 0, canRedo: redoRef.current.length > 0,
     applyRemote, reload,
     /** 地形:有没有、高度(放东西 / 笔刷预览用)、改、铲掉、别人改的 */
-    hasTerrain, water, terrainAt: (x: number, z: number) => terrainRef.current?.heightAt(x, z) ?? 0,
+    hasTerrain, hasWater, terrainAt: (x: number, z: number) => terrainRef.current?.heightAt(x, z) ?? 0,
     commitTerrain, removeTerrain, applyTerrain,
   };
 }

@@ -56,7 +56,13 @@ const STATE_EVERY = 100;
 
 /** 规则里的 sound:几种合成的短音(click / coin / door / whoosh),不下载音频 */
 let cueCtx: AudioContext | null = null;
-function playCue(name?: string, at?: { x: number; y: number; z: number } | null) {
+type Pos = { x: number; y: number; z: number };
+/** 规则的声音从哪儿传来:那个东西(跟着它此刻的位置),不然服务端算好的 at(触发的人、规则写的坐标);都没有 = 不分方向 */
+export function fxSoundAt(f: { entity?: string; at?: Pos | null }, positionOf?: (id: string) => Pos | null): Pos | null {
+  return (f.entity ? positionOf?.(f.entity) : null) ?? f.at ?? null;
+}
+
+function playCue(name?: string, at?: Pos | null) {
   try {
     if (typeof window === 'undefined' || !('AudioContext' in window)) return;
     cueCtx ??= new AudioContext();
@@ -224,7 +230,7 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
       case 'fx':
         if (f.kind === 'toast' && f.text) o.toast('✨', f.text);
         else if (f.kind === 'say' && f.text) { if (f.entity && o.onEntitySay) o.onEntitySay(f.entity, f.text); else o.toast('💬', f.text); }
-        else if (f.kind === 'sound') playCue(f.sound, f.entity ? o.positionOf?.(f.entity) : null);
+        else if (f.kind === 'sound') playCue(f.sound, fxSoundAt(f, o.positionOf));
         return;
       case 'tp':
         if (f.space) { o.onTravel?.(f.space); return; }

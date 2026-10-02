@@ -50,7 +50,7 @@ import type { RoomPeer } from './vrm/world/peerAvatars';
 import type { TimeMode } from './vrm/world/env/timeOfDay';
 import type { SeatSpot } from './vrm/world/interact';
 import type { BlockGrid, BlockOp } from './vrm/world/blocks';
-import type { TerrainData, TerrainPatch, TerrainWater } from './vrm/world/terrain';
+import type { TerrainData, TerrainPatch } from './vrm/world/terrain';
 import type { BlockHit } from './vrm/world/blockLayer';
 import { DEFAULT_WORLD, clampToWorld, type Orb, type RoomShellAlign, type WorldCharacter, type WorldDef, type ZoneId } from './vrm/world/worldLayout';
 import { applyAvatarParams, inspectAvatar, type AvatarInfo } from './vrm/avatarCustomize';
@@ -128,7 +128,8 @@ export interface VrmStageHandle {
   setBlockGrid: (grid: BlockGrid | null) => void;
   /** 地形:换一整张(null = 没有)/ 盖上改到的一块 / 点到地形哪儿 / 笔刷预览圈 */
   setTerrain: (t: TerrainData | null) => void;
-  setTerrainWater: (w: TerrainWater | null) => void;
+  /** 液面换了(服务端打包的一整张;null = 没水) */
+  setTerrainWater: (b64: string | null) => void;
   applyTerrainPatch: (p: TerrainPatch) => void;
   terrainPick: (clientX: number, clientY: number) => { x: number; y: number; z: number } | null;
   setTerrainBrush: (b: { x: number; z: number; r: number; color?: number } | null) => void;

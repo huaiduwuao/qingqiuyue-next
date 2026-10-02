@@ -37,7 +37,8 @@ const glass = { bgcolor: 'rgba(10,12,24,0.8)', backdropFilter: 'blur(16px)', bor
 
 type Cell = { x: number; y: number; z: number };
 
-type TTool = 'raise' | 'lower' | 'flatten' | 'smooth' | 'paint';
+/** water / drain:点哪儿往哪儿的坑里倒水 / 把那一片抽掉(在液面那一栏里选) */
+type TTool = 'raise' | 'lower' | 'flatten' | 'smooth' | 'paint' | 'water' | 'drain';
 const TTOOLS: { id: TTool; label: string; tip: string; color: number }[] = [
   { id: 'raise', label: '抬高', tip: '点哪儿哪儿鼓起来', color: 0x7dffb0 },
   { id: 'lower', label: '压低', tip: '点哪儿哪儿往下压(最低到地板)', color: 0xffb27d },
@@ -82,10 +83,10 @@ export function BuildPanel({ handle, blocks, onClose, narrow, toast }: {
   const [ttool, setTtool] = React.useState<TTool>('raise');
   const [radius, setRadius] = React.useState(1.5);
   const [strength, setStrength] = React.useState(0.3);
-  const [waterLevel, setWaterLevel] = React.useState(() => blocks.water?.level ?? -0.3);
-  const [waterMat, setWaterMat] = React.useState(() => blocks.water?.mat ?? 10);
-  const stateRef = React.useRef({ tool, shape, mat, color, rot, corner, mode, ttool, radius, strength });
-  stateRef.current = { tool, shape, mat, color, rot, corner, mode, ttool, radius, strength };
+  const [waterLevel, setWaterLevel] = React.useState(-0.3);
+  const [waterMat, setWaterMat] = React.useState(10);
+  const stateRef = React.useRef({ tool, shape, mat, color, rot, corner, mode, ttool, radius, strength, waterLevel, waterMat });
+  stateRef.current = { tool, shape, mat, color, rot, corner, mode, ttool, radius, strength, waterLevel, waterMat };
   const blocksRef = React.useRef(blocks);
   blocksRef.current = blocks;
 
@@ -110,7 +111,8 @@ export function BuildPanel({ handle, blocks, onClose, narrow, toast }: {
       if (s.mode === 'terrain') {
         handle.setBlockGhost(null);
         const p = blocksRef.current.hasTerrain ? handle.terrainPick(e.clientX, e.clientY) : null;
-        handle.setTerrainBrush(p ? { x: p.x, z: p.z, r: s.radius, color: TTOOLS.find((t) => t.id === s.ttool)?.color } : null);
+        const wet = s.ttool === 'water' || s.ttool === 'drain';
+        handle.setTerrainBrush(p ? { x: p.x, z: p.z, r: wet ? 0.35 : s.radius, color: wet ? (s.ttool === 'water' ? 0x5ab8ff : 0xffb0b0) : TTOOLS.find((t) => t.id === s.ttool)?.color } : null);
         return;
       }
       handle.setTerrainBrush(null);
@@ -130,7 +132,9 @@ export function BuildPanel({ handle, blocks, onClose, narrow, toast }: {
         if (!b.hasTerrain) { toast('⛰️', '先点「铺一张地形」'); return; }
         const p = handle.terrainPick(e.clientX, e.clientY);
         if (!p) return;
-        void b.commitTerrain([{ tool: s.ttool, x: p.x, z: p.z, r: s.radius, amount: s.strength, mat: s.ttool === 'paint' ? s.mat : undefined }]);
+        if (s.ttool === 'water') void b.commitTerrain([{ tool: 'water', x: p.x, z: p.z, amount: s.waterLevel, mat: s.waterMat }]);
+        else if (s.ttool === 'drain') void b.commitTerrain([{ tool: 'drain', x: p.x, z: p.z }]);
+        else void b.commitTerrain([{ tool: s.ttool, x: p.x, z: p.z, r: s.radius, amount: s.strength, mat: s.ttool === 'paint' ? s.mat : undefined }]);
         return;
       }
       const hit = handle.blockPick(e.clientX, e.clientY);
@@ -237,7 +241,7 @@ export function BuildPanel({ handle, blocks, onClose, narrow, toast }: {
               <Typography sx={{ fontSize: 11, color: 'rgba(255,255,255,0.5)' }}>点地形用笔刷;拖动还是转镜头。涂的时候用下面选的材质。压低最深挖到地板下 2 米。</Typography>
               <Box sx={{ p: 0.75, borderRadius: 1.5, bgcolor: 'rgba(58,143,208,0.12)', display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 12 }}>
-                  <span style={{ opacity: 0.75 }}>💧 水面</span>
+                  <span style={{ opacity: 0.75 }}>💧 液面</span>
                   <Box component="input" type="range" min={-2} max={3} step={0.1} aria-label="水面高度" value={waterLevel}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => setWaterLevel(Number(e.target.value))} sx={{ flex: 1 }} />
                   <span style={{ width: 48, textAlign: 'right' }}>{waterLevel.toFixed(1)} 米</span>
@@ -247,10 +251,12 @@ export function BuildPanel({ handle, blocks, onClose, narrow, toast }: {
                     style={{ background: 'rgba(255,255,255,0.06)', color: '#fff', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 6, fontSize: 12, padding: '3px 6px' }}>
                     {mats.filter((m) => m.props?.liquid?.slow).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
                   </select>
-                  <Button size="small" variant="outlined" onClick={() => void blocks.commitTerrain([{ tool: 'water', amount: waterLevel, mat: waterMat }])} sx={{ fontSize: 12, color: '#9be8ff', borderColor: 'rgba(155,232,255,0.4)' }}>{blocks.water ? '改水面' : '放水'}</Button>
-                  {blocks.water && <ButtonBase onClick={() => void blocks.commitTerrain([{ tool: 'nowater' }])} sx={{ fontSize: 11.5, color: '#ffb0b0' }}>抽干</ButtonBase>}
+                  {([['water', '倒水'], ['drain', '抽水']] as const).map(([id, label]) => (
+                    <Chip key={id} size="small" label={label} color={ttool === id ? 'primary' : 'default'} onClick={() => setTtool(id)} sx={{ color: '#fff' }} />
+                  ))}
+                  {blocks.hasWater && <ButtonBase onClick={() => { if (window.confirm('把所有的水都抽干?')) void blocks.commitTerrain([{ tool: 'nowater' }]); }} sx={{ fontSize: 11.5, color: '#ffb0b0' }}>全抽干</ButtonBase>}
                 </Box>
-                <Typography sx={{ fontSize: 10.5, color: 'rgba(255,255,255,0.5)' }}>地形低过水面的地方都是这种液体:挖个坑放水就是池塘,换成熔岩就是熔岩湖。</Typography>
+                <Typography sx={{ fontSize: 10.5, color: 'rgba(255,255,255,0.5)' }}>选「倒水」点一个坑,就把那个坑灌到这个高度;每个坑各是各的高度和液体(池塘、熔岩湖)。水会往低处流:挖开岸边它就流过去,往水里垫土它就涨。</Typography>
               </Box>
               <ButtonBase onClick={() => { if (window.confirm('铲掉整张地形,回到原来的地板?')) void blocks.removeTerrain(); }} sx={{ alignSelf: 'flex-start', fontSize: 11.5, color: '#ffb0b0' }}>铲掉整张地形</ButtonBase>
             </>

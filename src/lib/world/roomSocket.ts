@@ -68,7 +68,7 @@ export type RoomFrame =
   | { t: 'event'; phase: 'start'; event: { id: string; title: string; endAt: string } }
   | { t: 'error'; msg: string }
   // 世界模型(规则运行时)
-  | { t: 'fx'; kind: 'toast' | 'say' | 'sound'; text?: string; entity?: string; sound?: string }
+  | { t: 'fx'; kind: 'toast' | 'say' | 'sound'; text?: string; entity?: string; sound?: string; /** sound 从哪儿传来(没有 = 不分方向) */ at?: { x: number; y: number; z: number } | null }
   | { t: 'tp'; x?: number; y?: number; z?: number; space?: string }
   | { t: 'me'; state: Record<string, unknown> }
   | { t: 'env'; env: Record<string, string> }

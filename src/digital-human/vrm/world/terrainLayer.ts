@@ -3,23 +3,23 @@
  *
  * 一张网格(w × h 段),每个点的高度就是顶点的高,颜色按那个点的物质(物质登记表的颜色)。
  * 改地形只更新改到的那一块顶点再重算法线。比房间地板(0.02 米)再高 1 厘米,盖住地板;没有地形时整个藏起来。
- * 四周一圈土边从地形边一直垂到地板下 2 米(挖下去的坑从房间外面看不穿);水面是一张盖满网格的半透明平面
- * (按那种液体的物质画),地形高过水面的地方自然把它挡住 —— 挖个坑就是池塘。
+ * 四周一圈土边从地形边一直垂到地板下 2 米(挖下去的坑从房间外面看不穿);液面:每一格有水的画一块
+ * 半透明的平面(那片水的高度、按那种液体的物质画,同种液体并成一个网格),地形高过液面的地方自然把它挡住。
  * 点选:射线打到地形上的哪一点(改地形用);笔刷预览是一个贴着地形的圈。
  */
 
 import type * as THREE from 'three';
 import { matColor } from './materials';
 import { makeMaterial } from './blockLayer';
-import type { TerrainData, TerrainPatch } from './terrain';
+import { WATER_DRY, type TerrainData, type TerrainPatch } from './terrain';
 
 /** 平的地方画在多高:房间地板在 0.02 米,再高一点盖住它 */
 const FLOOR_LIFT = 0.03;
 
 export interface TerrainLayer {
   load: (t: TerrainData | null) => void;
-  /** 水面换了(null = 没有) */
-  setWater: (w: { level: number; mat: number } | null) => void;
+  /** 液面换了(服务端打包的一整张;null / 空 = 没水) */
+  setWater: (b64: string | null) => void;
   applyPatch: (p: TerrainPatch) => void;
   pick: (raycaster: THREE.Raycaster) => { x: number; y: number; z: number } | null;
   /** 笔刷预览圈:null = 不显示 */
@@ -70,7 +70,7 @@ export function createTerrainLayer(THREE_NS: typeof THREE, parent: THREE.Object3
     mesh.name = 'dh-terrain';
     root.add(mesh);
     buildSkirt();
-    setWater(t.water);
+    buildWater();
   }
 
   // 四周的土边:每条边上的点往下垂到 SKIRT_Y
@@ -102,17 +102,40 @@ export function createTerrainLayer(THREE_NS: typeof THREE, parent: THREE.Object3
     root.add(skirt);
   }
 
-  // 水面
-  let waterMesh: THREE.Mesh | null = null;
-  function setWater(w: { level: number; mat: number } | null) {
-    if (waterMesh) { root.remove(waterMesh); waterMesh.geometry.dispose(); (waterMesh.material as THREE.Material).dispose(); waterMesh = null; }
-    if (data) data.water = w;
-    if (!w || !data) return;
+  // 液面:每种液体一个网格
+  const waterMeshes: THREE.Mesh[] = [];
+  function setWater(b64: string | null) {
+    data?.setWater(b64);
+    buildWater();
+  }
+  function buildWater() {
+    for (const m of waterMeshes.splice(0)) { root.remove(m); m.geometry.dispose(); (m.material as THREE.Material).dispose(); }
     const t = data;
-    const geo = new THREE_NS.PlaneGeometry(t.w * t.cell, t.h * t.cell);
-    geo.rotateX(-Math.PI / 2);
-    const m = makeMaterial(THREE_NS, w.mat);
-    (m as THREE.MeshStandardMaterial).color?.set(`#${matColor(w.mat).toString(16).padStart(6, '0')}`);
+    const lv = t?.waterLevel, mt = t?.waterMat;
+    if (!t || !lv || !mt) return;
+    const byMat = new Map<number, number[]>();
+    for (let j = 0; j < t.h; j++) for (let i = 0; i < t.w; i++) {
+      let best = WATER_DRY, mat = -1;
+      for (const k of [t.idx(i, j), t.idx(i + 1, j), t.idx(i, j + 1), t.idx(i + 1, j + 1)]) {
+        if (lv[k] !== WATER_DRY && lv[k] > best) { best = lv[k]; mat = mt[k]; }
+      }
+      if (best === WATER_DRY) continue;
+      const y = best / 100 + FLOOR_LIFT;
+      const xa = t.x0 + i * t.cell, xb = xa + t.cell, za = t.z0 + j * t.cell, zb = za + t.cell;
+      let arr = byMat.get(mat);
+      if (!arr) byMat.set(mat, (arr = []));
+      arr.push(xa, y, za, xa, y, zb, xb, y, za, xb, y, za, xa, y, zb, xb, y, zb);
+    }
+    for (const [mat, pos] of byMat) {
+      const geo = new THREE_NS.BufferGeometry();
+      geo.setAttribute('position', new THREE_NS.Float32BufferAttribute(pos, 3));
+      geo.computeVertexNormals();
+      waterMeshes.push(makeWaterMesh(geo, mat));
+    }
+  }
+  function makeWaterMesh(geo: THREE.BufferGeometry, mat: number) {
+    const m = makeMaterial(THREE_NS, mat);
+    (m as THREE.MeshStandardMaterial).color?.set(`#${matColor(mat).toString(16).padStart(6, '0')}`);
     // 大片水面太光滑会把房间的墙全反射出来(看着像泥),压一压反射,让水自己的颜色出来
     const std = m as THREE.MeshStandardMaterial;
     // 房间的暖光会把蓝色压成土色:给水一点自己的光
@@ -122,11 +145,11 @@ export function createTerrainLayer(THREE_NS: typeof THREE, parent: THREE.Object3
       m.opacity = 0.6;
       m.depthWrite = false;
     }
-    waterMesh = new THREE_NS.Mesh(geo, m);
-    waterMesh.position.set(t.x0 + (t.w * t.cell) / 2, w.level + FLOOR_LIFT, t.z0 + (t.h * t.cell) / 2);
-    waterMesh.name = 'dh-terrain-water';
-    waterMesh.renderOrder = 2;
-    root.add(waterMesh);
+    const mesh = new THREE_NS.Mesh(geo, m);
+    mesh.name = 'dh-terrain-water';
+    mesh.renderOrder = 2;
+    root.add(mesh);
+    return mesh;
   }
 
   function applyPatch(p: TerrainPatch) {
@@ -190,7 +213,7 @@ export function createTerrainLayer(THREE_NS: typeof THREE, parent: THREE.Object3
       mat.dispose();
       skirt?.geometry.dispose();
       skirtMat.dispose();
-      if (waterMesh) { waterMesh.geometry.dispose(); (waterMesh.material as THREE.Material).dispose(); }
+      for (const m of waterMeshes) { m.geometry.dispose(); (m.material as THREE.Material).dispose(); }
       ringGeo.dispose();
       ringMat.dispose();
     },

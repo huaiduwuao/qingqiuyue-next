@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { createObjectLayer, type PlacedObject } from '../vrm/world/worldObjects';
 import { setMaterials } from '../vrm/world/materials';
-import { useRoomSocket } from '../scene-ui/useRoomSocket';
+import { fxSoundAt, useRoomSocket } from '../scene-ui/useRoomSocket';
 import { useObjectUse } from '../scene-ui/useObjectUse';
 import type { RoomFrame, RoomSocket, RoomSocketStatus } from '@/lib/world/roomSocket';
 import type { VrmStageHandle } from '../VrmStage';
@@ -24,6 +24,8 @@ const api = vi.hoisted(() => ({
   saveSpaceRules: vi.fn(async (p: { rules: unknown[]; state: unknown }) => p),
   composeWorld: vi.fn(async () => ({ explain: '只有房主能开', rules: [{ on: 'use', if: 'actor.isOwner', do: [{ toggle: 'open' }] }], tags: ['mine'] })),
   switchPlacement: vi.fn(),
+  listSounds: vi.fn(async () => []),
+  getSound: vi.fn(async () => { throw new Error('not found'); }),
 }));
 vi.mock('@/apis/world', () => api);
 import { EntityPanel, KindsDrawer, SpaceRulesPanel } from '../scene-ui/RoomEntities';
@@ -154,6 +156,14 @@ describe('rule frames on the room socket', () => {
     expect(sock.use).toHaveBeenCalledWith('e9');
   });
 
+  it('places rule sounds: the entity if it is still here, else the server\'s at, else nowhere', () => {
+    const positionOf = (id: string) => (id === 'bell' ? { x: 1, y: 0.5, z: 2 } : null);
+    expect(fxSoundAt({ entity: 'bell', at: { x: 9, y: 9, z: 9 } }, positionOf)).toEqual({ x: 1, y: 0.5, z: 2 });
+    expect(fxSoundAt({ entity: 'gone', at: { x: 9, y: 0, z: 9 } }, positionOf)).toEqual({ x: 9, y: 0, z: 9 });
+    expect(fxSoundAt({ at: { x: -3, y: 8, z: 0 } }, positionOf)).toEqual({ x: -3, y: 8, z: 0 }); // 空间规则:触发的人 / 写的坐标
+    expect(fxSoundAt({}, positionOf)).toBeNull(); // 背景音乐
+  });
+
   it('useObjectUse hands pushes to the room socket', () => {
     const push = vi.fn(() => true);
     const { result } = renderHook(() => useObjectUse({ handle: null, rs: { peers: [], push }, items: [], toast: vi.fn() }));
@@ -219,6 +229,28 @@ describe('rule form', () => {
     expect(formable({ toast: { text: 'a', to: 'actor' } })).toBe(true);
     expect(formable({ teleport: { to: 'tag:x', target: 'actor' } })).toBe(false); // 表单没有 target 这一格
     expect(formable({ fly: 1 })).toBe(false);
+    expect(formable({ sound: { name: 'amb_bell', at: { x: 1, y: 'actor.pos.y + 3', z: 0 } } })).toBe(true);
+    expect(formable({ water: { rise: 0.2, material: '熔岩', at: 'actor' } })).toBe(true);
+  });
+
+  it('edits where a sound comes from and a water effect', () => {
+    let rules: { on: string; do: Record<string, unknown>[] }[] = [{ on: 'use', do: [{ sound: 'amb_bell' }] }];
+    const { rerender } = render(<RuleListForm rules={rules} scope="kind" onChange={(r) => { rules = r as typeof rules; }} />);
+    const from = screen.getByLabelText('从哪儿传来') as HTMLSelectElement;
+    fireEvent.change(from, { target: { value: 'none' } });
+    expect(rules[0].do[0]).toEqual({ sound: { name: 'amb_bell', at: 'none' } });
+    rerender(<RuleListForm rules={rules} scope="kind" onChange={(r) => { rules = r as typeof rules; }} />);
+    fireEvent.change(screen.getByLabelText('从哪儿传来'), { target: { value: '__xyz' } });
+    expect(rules[0].do[0]).toEqual({ sound: { name: 'amb_bell', at: { x: 'actor.pos.x', y: 3, z: 'actor.pos.z' } } });
+    rerender(<RuleListForm rules={rules} scope="kind" onChange={(r) => { rules = r as typeof rules; }} />);
+    fireEvent.change(screen.getByLabelText('从哪儿传来'), { target: { value: '' } });
+    expect(rules[0].do[0]).toEqual({ sound: 'amb_bell' }); // 回到简写
+    rerender(<RuleListForm rules={rules} scope="kind" onChange={(r) => { rules = r as typeof rules; }} />);
+    fireEvent.change(screen.getAllByLabelText('加一个效果')[0], { target: { value: 'water' } });
+    expect(rules[0].do[1]).toEqual({ water: { rise: 0.2 } });
+    rerender(<RuleListForm rules={rules} scope="kind" onChange={(r) => { rules = r as typeof rules; }} />);
+    fireEvent.change(screen.getByLabelText('抽掉'), { target: { value: 'true' } });
+    expect(rules[0].do[1]).toEqual({ water: { rise: 0.2, drain: 'true' } });
   });
 
   it('edits nested effects and custom events', () => {
