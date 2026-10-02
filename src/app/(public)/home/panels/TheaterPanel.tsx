@@ -11,6 +11,7 @@ import WhatshotIcon from '@mui/icons-material/Whatshot';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import { homeClient } from '@/lib/api/client';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { findScrollRoot, PREFETCH_MARGIN } from '@/hooks/useInfiniteScroll';
 import { CoverImage } from '@/components/common/CoverImage';
 import { useContentNavigate, useDetailRoutePrefetch, TYPE_LABEL } from '@/lib/contentRoute';
@@ -96,15 +97,20 @@ function typeColor(t: string | undefined | null): string {
 
 const PAGE_SIZE = 12;
 
+const THEATER_DEFAULTS = { category: 'all', region: '', genre: '', year: '', minRating: '', sort: 'hot' };
+
 export function TheaterPanel() {
   // 放映厅四种内容各有详情页,列表一出来就把它们的代码预取好
   useDetailRoutePrefetch(['FILM', 'TELEPLAY', 'ANIMATION', 'VSHOW']);
-  const [category, setCategory] = useState('all');
-  const [region, setRegion] = useState('');
-  const [genre, setGenre] = useState('');
-  const [year, setYear] = useState('');
-  const [minRating, setMinRating] = useState('');
-  const [sort, setSort] = useState('hot');
+  // 筛选条件存 URL:点进详情再返回时还原(以前是 useState,一返回就全回到默认)
+  const [filters, setFilters] = useUrlFilters(THEATER_DEFAULTS);
+  const { category, region, genre, year, minRating, sort } = filters;
+  const setCategory = (v: string) => setFilters({ category: v });
+  const setRegion = (v: string) => setFilters({ region: v });
+  const setGenre = (v: string) => setFilters({ genre: v });
+  const setYear = (v: string) => setFilters({ year: v });
+  const setMinRating = (v: string) => setFilters({ minRating: v });
+  const setSort = (v: string) => setFilters({ sort: v });
 
   // 筛选器目录随分类变:电影的题材和综艺的题材不是一套词。
   const facetsQuery = useQuery({
@@ -121,10 +127,12 @@ export function TheaterPanel() {
     if (!facets) return;
     const has = (opts: FacetOption[] | undefined, v: string) =>
       !v || (opts ?? []).some((o) => o.value === v);
-    if (!has(facets.genres, genre)) setGenre('');
-    if (!has(facets.regions, region)) setRegion('');
-    if (!has(facets.years, year)) setYear('');
-    if (!has(facets.ratings, minRating)) setMinRating('');
+    const stale: Partial<typeof filters> = {};
+    if (!has(facets.genres, genre)) stale.genre = '';
+    if (!has(facets.regions, region)) stale.region = '';
+    if (!has(facets.years, year)) stale.year = '';
+    if (!has(facets.ratings, minRating)) stale.minRating = '';
+    if (Object.keys(stale).length) setFilters(stale);
   }, [facets]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const params = useMemo(() => {

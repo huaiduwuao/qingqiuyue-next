@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -11,6 +11,7 @@ import WhatshotIcon from '@mui/icons-material/Whatshot';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
 import { homeClient } from '@/lib/api/client';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { findScrollRoot, PREFETCH_MARGIN } from '@/hooks/useInfiniteScroll';
 import { CoverImage } from '@/components/common/CoverImage';
 import { useContentNavigate, useDetailRoutePrefetch } from '@/lib/contentRoute';
@@ -103,12 +104,18 @@ function genreColorOf(codes: string[] | undefined): string {
   return (first && GENRE_COLOR[first]) || DEFAULT_GENRE_COLOR;
 }
 
+const DRAMA_DEFAULTS = { genre: '', dramaStatus: 'ALL', sort: 'hot' };
+
 export function DramaPanel() {
   // 列表一出来就把短剧详情页(复用 teleplay 详情)的代码预取好,点进去只剩数据这一个来回
   useDetailRoutePrefetch(['SHORT_DRAMA']);
-  const [genre, setGenre] = useState('');
-  const [status, setStatus] = useState<DramaSeries['status'] | 'ALL'>('ALL');
-  const [sort, setSort] = useState('hot');
+  // 筛选条件存 URL,点进详情再返回时还原
+  const [filters, setFilters] = useUrlFilters(DRAMA_DEFAULTS);
+  const { genre, sort } = filters;
+  const status = filters.dramaStatus as DramaSeries['status'] | 'ALL';
+  const setGenre = (v: string) => setFilters({ genre: v });
+  const setStatus = (v: DramaSeries['status'] | 'ALL') => setFilters({ dramaStatus: v });
+  const setSort = (v: string) => setFilters({ sort: v });
 
   // 题材选项按当前库存现算,每项带条数。
   const facetsQuery = useQuery({

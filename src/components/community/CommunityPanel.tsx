@@ -46,6 +46,7 @@ export function CommunityPanel() {
     if (next === 'square') params.delete('scope');
     else params.set('scope', next);
     params.delete('feedId');
+    params.delete('feedSort'); // 换范围后排序回到该范围的默认值
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 

@@ -136,7 +136,9 @@ export function LivePanel() {
     staleTime: 60_000,
   });
 
-  const [range, setRange] = useState<ClassicRange>('month');
+  // 往期范围也存 URL,点进直播间再返回时还原
+  const range = (searchParams.get('classicRange') as ClassicRange) || 'month';
+  const setRange = (v: ClassicRange) => setParams({ classicRange: v }, { classicRange: 'month' });
   const classics = useQuery({
     queryKey: ['home', 'live', 'classics', range, platform, category],
     queryFn: () => fetchClassics(range, filters, 12),

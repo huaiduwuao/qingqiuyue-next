@@ -172,15 +172,37 @@ function SearchPageContent() {
   const aiMode = aiEnabled && searchParams.get('mode') === 'ai';
   const initialQ = searchParams.get('q') ?? '';
   const [query, setQuery] = useState(initialQ);
-  const [tab, setTab] = useState<ResultTab>('all');
+  // 结果页签和筛选的初值取自 URL,改动后写回 URL(见下方 filterQs),
+  // 点进详情再返回时还原 —— 以前只有关键词能回来,页签和筛选全丢。
+  const [tab, setTab] = useState<ResultTab>(() => parseResultTab(searchParams.get('tab')));
   // 结构化筛选:类型/导演/演员/类型标签/年代(走后端 /search 的 metadata 结构化参数)
-  const [fType, setFType] = useState('');
-  const [fDirector, setFDirector] = useState('');
-  const [fActor, setFActor] = useState('');
-  const [fGenre, setFGenre] = useState('');
-  const [fYear, setFYear] = useState('');
+  const [fType, setFType] = useState(() => searchParams.get('type') ?? '');
+  const [fDirector, setFDirector] = useState(() => searchParams.get('director') ?? '');
+  const [fActor, setFActor] = useState(() => searchParams.get('actor') ?? '');
+  const [fGenre, setFGenre] = useState(() => searchParams.get('genre') ?? '');
+  const [fYear, setFYear] = useState(() => searchParams.get('year') ?? '');
   // 只看站内能看 / 能读的(后端 usable=1)
-  const [fUsable, setFUsable] = useState(false);
+  const [fUsable, setFUsable] = useState(() => searchParams.get('usable') === '1');
+  const filterQs = React.useMemo(() => {
+    const p = new URLSearchParams();
+    if (tab !== 'all') p.set('tab', tab);
+    if (fType) p.set('type', fType);
+    if (fDirector) p.set('director', fDirector);
+    if (fActor) p.set('actor', fActor);
+    if (fGenre) p.set('genre', fGenre);
+    if (fYear) p.set('year', fYear);
+    if (fUsable) p.set('usable', '1');
+    return p.toString();
+  }, [tab, fType, fDirector, fActor, fGenre, fYear, fUsable]);
+  // 导演/演员是文本框,边打边改 URL 会打断输入法,停手 300ms 再写。
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const cur = new URLSearchParams(window.location.search);
+      const href = searchHref(cur.get('q') ?? '', cur.get('mode') === 'ai', filterQs);
+      if (href !== window.location.pathname + window.location.search) router.replace(href, { scroll: false });
+    }, 300);
+    return () => clearTimeout(t);
+  }, [filterQs]); // eslint-disable-line react-hooks/exhaustive-deps
   // 动态聚合建议当前字段(聚焦导演/演员输入时拉取候选)
   const [facetField, setFacetField] = useState('');
   const [history, setHistory] = useState<string[]>([]);
@@ -478,9 +500,9 @@ function SearchPageContent() {
   const pushQuery = useCallback(
     (next: string) => {
       const trimmed = next.trim();
-      router.replace(searchHref(trimmed, aiMode), { scroll: false });
+      router.replace(searchHref(trimmed, aiMode, filterQs), { scroll: false });
     },
-    [router, aiMode],
+    [router, aiMode, filterQs],
   );
 
   const handleSubmit = () => {
@@ -493,7 +515,7 @@ function SearchPageContent() {
 
   const handleClear = () => {
     setQuery('');
-    router.replace(searchHref('', aiMode), { scroll: false });
+    router.replace(searchHref('', aiMode, filterQs), { scroll: false });
   };
 
   const handleBack = () => {
@@ -505,7 +527,7 @@ function SearchPageContent() {
   };
 
   const switchMode = (ai: boolean) => {
-    router.replace(searchHref(q, ai), { scroll: false });
+    router.replace(searchHref(q, ai, filterQs), { scroll: false });
   };
 
   const handleKeywordPick = (kw: string) => {
@@ -2030,10 +2052,16 @@ function FilterField({ value, onChange, placeholder, inputMode, onFocus, suggest
   );
 }
 
-function searchHref(q: string, ai: boolean): string {
+function parseResultTab(v: string | null): ResultTab {
+  return v === 'content' || v === 'creator' || v === 'topic' ? v : 'all';
+}
+
+/** filterQs:页签 + 结构化筛选,换关键词 / 换模式时一并带上,不让它们从 URL 里掉出去。 */
+function searchHref(q: string, ai: boolean, filterQs = ''): string {
   const params = new URLSearchParams();
   if (q) params.set('q', q);
   if (ai) params.set('mode', 'ai');
+  new URLSearchParams(filterQs).forEach((v, k) => params.set(k, v));
   const qs = params.toString();
   return qs ? `/search?${qs}` : '/search';
 }

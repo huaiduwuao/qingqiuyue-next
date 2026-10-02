@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -27,7 +28,10 @@ type Sort = 'hot' | 'new';
  */
 export function CommunityFeed({ topic, userId, focusFeedId, circle }: { topic?: TopicBrief; userId?: Id; focusFeedId?: string | null; circle?: 'follow' | 'friend' }) {
   const router = useRouter();
-  const [sort, setSort] = useState<Sort>(topic || circle ? 'new' : 'hot');
+  // 排序存 URL(feedSort),点进帖子 / 作品再返回时还原
+  const [feedFilters, setFeedFilters] = useUrlFilters({ feedSort: topic || circle ? 'new' : 'hot' });
+  const sort: Sort = feedFilters.feedSort === 'new' ? 'new' : 'hot';
+  const setSort = (s: Sort) => setFeedFilters({ feedSort: s });
   // 刚发出的帖子插在列表顶部;按列表 key 记,切换页签/排序后自然失效
   const [freshByKey, setFreshByKey] = useState<{ key: string; items: FeedItem[] }>({ key: '', items: [] });
   const [removed, setRemoved] = useState<Set<string>>(new Set());

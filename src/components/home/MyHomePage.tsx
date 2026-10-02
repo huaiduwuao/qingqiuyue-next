@@ -3,7 +3,8 @@
 import { toEntityId } from '@/lib/id';
 import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useUrlFilters } from '@/hooks/useUrlFilters';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -239,6 +240,8 @@ function isMyGroup(x: any): x is MyCollectionGroup {
   return x && typeof x === 'object' && 'count' in x && 'updatedAt' in x && !('contentType' in x);
 }
 
+const ME_FILTER_DEFAULTS = { mainTab: 'works', sub: 'works', kw: '', range: 'all' };
+
 /**
  * 「我的」标签页。未登录时这里以前渲染的是一张占位资料卡(昵称 —、关注 —、作品 0),
  * 看上去像"你的主页空着",而不是"你还没登录" —— 头部那个 登录 按钮因此成了移动端
@@ -303,7 +306,6 @@ function MyHomePageAuthed() {
   const qc = useQueryClient();
   const navigate = useContentNavigate();
   const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
   const urlMainTab = searchParams.get('mainTab') || 'works';
   const [mainTab, setMainTab] = useState(urlMainTab);
@@ -321,16 +323,20 @@ function MyHomePageAuthed() {
     setPrevTabIdx(tabIdx);
     setTabDx(tabIdx > prevTabIdx ? 24 : -24);
   }
-  const [subTab, setSubTab] = useState('works');
+  // 子页签 / 关键词 / 日期筛选存 URL,点进作品再返回时还原
+  const [meFilters, setMeFilters] = useUrlFilters(ME_FILTER_DEFAULTS);
+  const subTab = meFilters.sub;
+  const setSubTab = (v: string) => setMeFilters({ sub: v });
+  const dateRange = meFilters.range;
+  const setDateRange = (v: string) => setMeFilters({ range: v });
 
   // URL → state(从其它页面跳过来时,主 tab 跟着 URL 走)
   useEffect(() => {
     setMainTab(urlMainTab);
   }, [urlMainTab]);
-  const [keyword, setKeyword] = useState('');
+  const [keyword, setKeyword] = useState(meFilters.kw);
   // 打字防抖后的关键词:它才是进 queryKey / 请求的那个,输入框自己保持即时响应
-  const [keywordQuery, setKeywordQuery] = useState('');
-  const [dateRange, setDateRange] = useState('all');
+  const [keywordQuery, setKeywordQuery] = useState(meFilters.kw);
   const [dateMenuAnchor, setDateMenuAnchor] = useState<null | HTMLElement>(null);
   const [batchMode, setBatchMode] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -346,9 +352,12 @@ function MyHomePageAuthed() {
   const profile = profileQuery.data;
 
   useEffect(() => {
-    const t = setTimeout(() => setKeywordQuery(keyword.trim()), 300);
+    const t = setTimeout(() => {
+      setKeywordQuery(keyword.trim());
+      setMeFilters({ kw: keyword.trim() });
+    }, 300);
     return () => clearTimeout(t);
-  }, [keyword]);
+  }, [keyword]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 列表是分页的:以前这里只打一次 /me/list(后端默认 pageSize=20),页面却照着
   // COUNT(*) 写「共 N 个作品」—— N 上万、列表永远 20 条、往下滚也不会再请求。
@@ -526,18 +535,10 @@ function MyHomePageAuthed() {
 
   const switchTab = (key: string) => {
     setMainTab(key);
-    setSubTab('works');
     setSelected(new Set());
     setBatchMode(false);
-    // 同步到 URL,让头像弹窗等其它入口能 deep-link 回来
-    const params = new URLSearchParams(searchParams.toString());
-    if (key === 'works') {
-      params.delete('mainTab');
-    } else {
-      params.set('mainTab', key);
-    }
-    const qs = params.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    // 同步到 URL,让头像弹窗等其它入口能 deep-link 回来;换主页签时子页签回到默认
+    setMeFilters({ mainTab: key, sub: 'works' });
   };
 
   return (
