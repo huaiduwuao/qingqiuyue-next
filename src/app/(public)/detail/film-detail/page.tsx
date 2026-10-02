@@ -21,6 +21,7 @@ import VideoPlayer from '@/components/detail/VideoPlayer';
 import { PlatformLinks, UnavailablePlayer, platformsOf, linkOutNoticeOf } from '@/components/detail/ExternalPlatforms';
 import UserPlaySources from '@/components/detail/UserPlaySources';
 import { PlayableAlternative, type PlayableAlternativeInfo } from '@/components/detail/PlayableAlternative';
+import { WorkSourcePanel, streamOffers, type WorkInfo } from '@/components/detail/WorkSourcePanel';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
 import VideoDetailSkeleton from '@/components/detail/VideoDetailSkeleton';
@@ -57,6 +58,8 @@ interface Film {
   availability?: { axis?: string; status?: string; watchable?: boolean; notice?: string; backfill?: BackfillState };
   /** 这条看不了、同一部作品另有能看的那条时后端给出 */
   playableAlternative?: PlayableAlternativeInfo | null;
+  /** 所属作品:权威出处 + 全部播放源(已排好选源顺序) */
+  work?: WorkInfo | null;
 }
 
 function FilmDetailContent() {
@@ -88,6 +91,9 @@ function FilmDetailContent() {
     setSnack({ open: true, message, severity });
   }, []);
 
+  // 用户手动切换的播放来源(作品的其它来源);换一部片就作废
+  const [chosenSource, setChosenSource] = React.useState<{ id: string | null; url: string } | null>(null);
+
   // 赞:真实状态从 /interaction 读,操作后以服务端为准并给出提示(见 hooks/useContentInteraction)
   const { liked, likeDelta: optimisticLikes, likeBusy, toggleLike: handleLike } = useContentInteraction(id, { notify });
 
@@ -116,21 +122,30 @@ function FilmDetailContent() {
             <Box sx={{ bgcolor: '#000' }}>
               <Container maxWidth="lg" sx={{ py: 0 }}>
                 {(() => {
-                  // 跨源绑定的可播页面优先;没有时才看原始 source 能不能放。
-                  const playPage = data.playSourceUrl || data.source || '';
-                  const notice = data.playSourceUrl ? '' : videoBackfillNotice(data, linkOutNoticeOf(data, data.source));
+                  // 选源:用户手动选的 > 这条收录跨源绑定的 > 这条自己能看的页面 > 同一部作品其它来源里最好的那个
+                  // (作品归并后,点进哪一条收录都能看)> 原始 source。
+                  const offers = streamOffers(data.work);
+                  const ownWatchable = data.availability?.watchable === true;
+                  const chosen = chosenSource && chosenSource.id === id ? chosenSource.url : '';
+                  const playPage = chosen || data.playSourceUrl || (ownWatchable ? data.source : '') || offers[0]?.url || data.source || '';
+                  const notice = data.playSourceUrl || chosen || offers.length > 0 ? '' : videoBackfillNotice(data, linkOutNoticeOf(data, data.source));
                   return notice && !data.videoUrl ? (
                     // 只有会员/付费平台有片源、或片源页只是个索引:如实说明,不把它交给播放器硬解析。
                     <UnavailablePlayer notice={notice} platforms={platformsOf(data)} poster={data.cover} />
                   ) : (
-                    <VideoPlayer key={playPage} src={data.videoUrl || ''} sourceUrl={playPage} poster={data.cover} initialDuration={(data.duration || 0) * 60} autoPlay={false} dockTitle={data.title || "电影"} fitVideo />
+                    <VideoPlayer key={playPage} src={data.videoUrl || ''} sourceUrl={playPage} poster={data.cover} initialDuration={(data.duration || 0) * 60} autoPlay={false} dockTitle={data.title || "电影"} fitVideo reportContentId={id || undefined} />
                   );
                 })()}
               </Container>
             </Box>
-            <PlayableAlternative alt={data.playableAlternative} />
+            {streamOffers(data.work).length === 0 && <PlayableAlternative alt={data.playableAlternative} />}
 
             <Container maxWidth="lg" sx={{ py: 3 }}>
+              <WorkSourcePanel
+                work={data.work}
+                activeUrl={(chosenSource && chosenSource.id === id ? chosenSource.url : '') || data.playSourceUrl || (data.availability?.watchable ? data.source : '') || streamOffers(data.work)[0]?.url}
+                onSelect={(o) => setChosenSource({ id, url: o.url })}
+              />
               <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>
                 <Box sx={{ flex: 1 }}>
                   <Typography sx={{ fontWeight: 800, fontSize: { xs: 20, sm: 24, md: 32 }, color: 'text.primary', mb: 1, lineHeight: 1.3 }}>

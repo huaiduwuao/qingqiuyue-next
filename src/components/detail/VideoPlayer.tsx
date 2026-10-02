@@ -1,6 +1,7 @@
 'use client';
 
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
+import { reportPlay } from '@/lib/playReport';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import Slider from '@mui/material/Slider';
@@ -79,6 +80,13 @@ interface Props {
   onLocalFail?: (err: Error) => void;
   /** 重试:绕过本地解析缓存重新解析 */
   localRefresh?: boolean;
+  /** 拿到第一帧(开始真正播放)时回调一次 */
+  onFirstFrame?: () => void;
+  /**
+   * 传了就上报播放结果(lib/playReport → 作品主档按播放源聚合真实成功率):
+   * 第一帧记 ok,解析 / 加载失败记 fail。值是内容 id。
+   */
+  reportContentId?: string | number;
 }
 
 export interface VideoPlayerHandle {
@@ -165,7 +173,7 @@ function seekBarSx(thick: boolean) {
 }
 
 const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVideoPlayer(
-  { src, sourceUrl, refreshSource, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false, fill = false, fitVideo = false, onPlaybackError, dockTitle, localSource, onLocalFail, localRefresh },
+  { src, sourceUrl, refreshSource, poster, initialDuration = 600, onEnded, autoPlay = false, isAIGenerated = false, fill = false, fitVideo = false, onPlaybackError, dockTitle, localSource, onLocalFail, localRefresh, onFirstFrame },
   ref,
 ) {
   // 封面同样经网关:调用方传进来的可能是 MinIO 内网直链或外站防盗链图。
@@ -223,6 +231,7 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
   const resumeAt = useRef(0);
   const resumePlaying = useRef(false);
   const refreshingRef = useRef(false);
+  const firstFrameSent = useRef(false);
 
   const fail = (msg: string) => {
     setStreamError(msg);
@@ -733,6 +742,10 @@ const NativeVideoPlayer = forwardRef<VideoPlayerHandle, Props>(function NativeVi
       },
       playing: () => {
         wantAutoPlay.current = false;
+        if (!firstFrameSent.current) {
+          firstFrameSent.current = true;
+          onFirstFrame?.();
+        }
       },
       play: () => {
         setPlaying(true);
@@ -1577,7 +1590,23 @@ function LocalPlayError({ pageUrl, message, fill, onRetry }: { pageUrl: string; 
   );
 }
 
-const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(props, ref) {
+const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(rawProps, ref) {
+  // 播放结果上报:包一层回调,内层播放器不用知道内容 id。
+  const reportId = rawProps.reportContentId;
+  const reportUrl = rawProps.sourceUrl || rawProps.refreshSource || rawProps.src || '';
+  const props: Props = reportId
+    ? {
+        ...rawProps,
+        onFirstFrame: () => {
+          rawProps.onFirstFrame?.();
+          reportPlay(reportId, reportUrl, true);
+        },
+        onPlaybackError: (msg: string) => {
+          rawProps.onPlaybackError?.(msg);
+          reportPlay(reportId, reportUrl, false, msg);
+        },
+      }
+    : rawProps;
   const pageUrl = props.sourceUrl || props.refreshSource || '';
   // 对外的播放器入口。有解析规则的源站(B 站投稿、AcFun)一律走本站播放器,两级回退:
   // 客户端本机解析 → 服务端解析;网页端直接服务端解析(lib/localStream/engine)。取媒体也是两级:
@@ -1631,7 +1660,10 @@ const VideoPlayer = forwardRef<VideoPlayerHandle, Props>(function VideoPlayer(pr
           // 第一次失败先静默强制重新解析一次(缓存里的地址过期 / 这次分到的节点不通),
           // 还不行才给重试界面
           if (attempt === 0) setAttempt(1);
-          else setFailure(err?.message || '加载失败');
+          else {
+            setFailure(err?.message || '加载失败');
+            if (reportId) reportPlay(reportId, pageUrl, false, String(err?.message || err || '加载失败'));
+          }
         }}
       />
     );

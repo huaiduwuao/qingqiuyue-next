@@ -25,6 +25,7 @@ import { TYPE_LABEL } from '@/lib/contentType.gen';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import { PlatformLinks, UnavailablePlayer, platformsOf, linkOutNoticeOf } from '@/components/detail/ExternalPlatforms';
 import { PlayableAlternative, type PlayableAlternativeInfo } from '@/components/detail/PlayableAlternative';
+import { WorkSourcePanel, type WorkInfo } from '@/components/detail/WorkSourcePanel';
 import { backfillPending, backfillRefetchInterval, videoBackfillNotice, type BackfillState } from '@/lib/autoBackfill';
 import UserPlaySources from '@/components/detail/UserPlaySources';
 import DetailHeader from '@/components/detail/DetailHeader';
@@ -73,6 +74,8 @@ export interface EpisodicDetail {
   availability?: { axis?: string; status?: string; watchable?: boolean; notice?: string; backfill?: BackfillState };
   /** 这条看不了、同一部作品另有能看的那条时后端给出 */
   playableAlternative?: PlayableAlternativeInfo | null;
+  /** 所属作品:权威出处 + 播放源(剧集按分集播放,这里只展示,不在页内切换) */
+  work?: WorkInfo | null;
 }
 
 type PeopleKey = 'director' | 'actors' | 'host' | 'guests';
@@ -265,6 +268,7 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
                     autoPlay={false}
                     onEnded={handleEnded}
                     onPlaybackError={handlePlaybackError}
+                    reportContentId={data.id ?? undefined}
                     fitVideo
                     dockTitle={active ? `${data.title || ''} · 第${activeIndex + 1}${config.unit}` : data.title || '视频'}
                   />
@@ -272,6 +276,9 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
                 </Container>
               </Box>
               <PlayableAlternative alt={data.playableAlternative} />
+              <Container maxWidth="lg" sx={{ pt: 2 }}>
+                <WorkSourcePanel work={data.work} />
+              </Container>
 
               <Container maxWidth="lg" sx={{ py: 3 }}>
                 <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2, mb: 2 }}>

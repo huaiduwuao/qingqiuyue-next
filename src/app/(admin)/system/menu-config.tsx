@@ -54,6 +54,7 @@ import MemoryRoundedIcon from '@mui/icons-material/MemoryRounded';
 import ScheduleRoundedIcon from '@mui/icons-material/ScheduleRounded';
 import VpnLockRoundedIcon from '@mui/icons-material/VpnLockRounded';
 import KeyRoundedIcon from '@mui/icons-material/KeyRounded';
+import MovieFilterRoundedIcon from '@mui/icons-material/MovieFilterRounded';
 import StreamRoundedIcon from '@mui/icons-material/StreamRounded';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import ParkRoundedIcon from '@mui/icons-material/ParkRounded';
@@ -246,6 +247,7 @@ export const MENU_GROUPS: { title: string; items: MenuItemDef[] }[] = [
       { id: 'spider-workers', label: 'Worker 池', path: '/system/spider/workers', icon: <MemoryRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
       { id: 'spider-sites', label: '站点调度', path: '/system/spider/sites', icon: <ScheduleRoundedIcon sx={{ fontSize: 18 }} />, accent: '#25F4EE', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
       { id: 'spider-proxies', label: '代理池', path: '/system/spider/proxies', icon: <VpnLockRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
+      { id: 'spider-works', label: '作品主档', path: '/system/spider/works', icon: <MovieFilterRoundedIcon sx={{ fontSize: 18 }} />, accent: '#22c55e', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
       { id: 'spider-credentials', label: '登录凭据', path: '/system/spider/credentials', icon: <KeyRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
       { id: 'spider-stream-parsers', label: '流解析器', path: '/system/spider/stream-parsers', icon: <StreamRoundedIcon sx={{ fontSize: 18 }} />, accent: '#5B8DEF', permission: PERMISSIONS.SYSTEM_SPIDER.SOURCE_LIST },
       { id: 'spider-analytics', label: '爬虫分析', path: '/system/spider/analytics', icon: <InsightsRoundedIcon sx={{ fontSize: 18 }} />, accent: '#FF8A3D', permission: PERMISSIONS.SYSTEM_SPIDER.ITEM_LIST },

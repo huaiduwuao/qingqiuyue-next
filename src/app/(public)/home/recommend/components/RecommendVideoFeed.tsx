@@ -860,6 +860,7 @@ export function RecommendVideoFeed() {
                         initialDuration={video?.durationSec || 60}
                         autoPlay={playing}
                         onPlaybackError={(message) => reportBrokenContent(v, message)}
+                        reportContentId={v.id}
                       />
                     ) : (
                       <Box
