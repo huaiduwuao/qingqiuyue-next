@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import HotspotBoard from '@/components/home/HotspotBoard';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
@@ -386,6 +387,12 @@ export function FeedPanel({ tab }: { tab: PanelTab }) {
   const filterCount = (sort !== 'views' ? 1 : 0) + (ratingMin ? 1 : 0) + (year ? 1 : 0);
   const sortFilterRows = (
     <>
+      {/* 精选频道顶部:此刻全网热搜对上的站内能看的内容(手机上也看得到) */}
+      {active.kind === 'recommend' && (
+        <Box sx={{ px: 1.5 }}>
+          <HotspotBoard variant="strip" limit={10} />
+        </Box>
+      )}
       {/* 歌单频道的顺序是歌单自己排好的,排序/筛选在这里没有意义,不摆出来 */}
       {tab === 'home' && active.kind !== 'playlist' && (
         <Box sx={{ position: 'relative', px: 1.5, pt: 0.5, pb: 0.75 }}>

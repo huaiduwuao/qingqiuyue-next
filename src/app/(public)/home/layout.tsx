@@ -40,6 +40,7 @@ import NoticeIconView, { DmIconView } from '@/components/NoticeIcon';
 import { FeedPanel } from './panels/FeedPanel';
 import { AIRecommendPanel } from './panels/AIRecommendPanel';
 import TrendingBoard from '@/components/home/TrendingBoard';
+import HotspotBoard from '@/components/home/HotspotBoard';
 import BountyPulse from '@/components/home/BountyPulse';
 import { LeaderboardPanel } from '@/components/leaderboard/LeaderboardPanel';
 import LeaderboardMini from '@/components/leaderboard/LeaderboardMini';
@@ -784,6 +785,9 @@ function RightSidebar({ section }: { section: string }) {
     >
       {/* 社区悬赏(teamapp /realm/demands,公开只读):首页上唯一能看见「有人在花钱
           找人做事」的地方。放在最上面 —— 榜单讲的是别人在看什么,这张讲的是你能做什么。 */}
+      {/* 此刻热议(internal/hotspot):全网热搜对上的站内能看 / 能读的内容,新访客最先想看的 */}
+      <HotspotBoard />
+
       <BountyPulse limit={6} />
 
       {/* 站内排行榜(internal/leaderboard):按类型出的热度日榜,跟随首页 section
