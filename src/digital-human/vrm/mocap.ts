@@ -22,6 +22,47 @@ export interface MocapClip {
 
 export type MocapSet = { walk: MocapClip; run: MocapClip; idle: MocapClip };
 
+/**
+ * 去掉动捕的逐帧抖:每根骨骼的四元数按时间做一遍高斯平滑(σ≈1.5 帧,30fps 下 50 毫秒)。
+ * 原始 CMU 数据每帧带零点几度的噪声,帧间线性插值会原样保留,站着时整个人在细抖。
+ * loop = 循环片段(首尾接着算),否则两头夹住。只在下载后做一次,结果写回 clip。
+ */
+export function smoothClip(clip: MocapClip, loop: boolean, sigma = 1.5): MocapClip {
+  const r = Math.ceil(sigma * 2.5);
+  const w: number[] = [];
+  for (let d = -r; d <= r; d++) w.push(Math.exp(-(d * d) / (2 * sigma * sigma)));
+  const n = clip.frames;
+  const at = (i: number) => (loop ? ((i % n) + n) % n : Math.max(0, Math.min(n - 1, i)));
+  for (const bone of Object.keys(clip.bones)) {
+    const src = clip.bones[bone];
+    if (!src || src.length < n * 4) continue;
+    const out = new Array<number>(n * 4);
+    for (let i = 0; i < n; i++) {
+      const cx = src[i * 4], cy = src[i * 4 + 1], cz = src[i * 4 + 2], cw = src[i * 4 + 3];
+      let x = 0, y = 0, z = 0, ww = 0;
+      for (let d = -r; d <= r; d++) {
+        const j = at(i + d) * 4;
+        let qx = src[j], qy = src[j + 1], qz = src[j + 2], qw = src[j + 3];
+        if (qx * cx + qy * cy + qz * cz + qw * cw < 0) { qx = -qx; qy = -qy; qz = -qz; qw = -qw; } // 同一半球再平均
+        const k = w[d + r];
+        x += qx * k; y += qy * k; z += qz * k; ww += qw * k;
+      }
+      const len = Math.hypot(x, y, z, ww) || 1;
+      out[i * 4] = x / len; out[i * 4 + 1] = y / len; out[i * 4 + 2] = z / len; out[i * 4 + 3] = ww / len;
+    }
+    clip.bones[bone] = out;
+  }
+  if (clip.hipsY?.length === n) {
+    const src = clip.hipsY;
+    clip.hipsY = src.map((_, i) => {
+      let s = 0, ks = 0;
+      for (let d = -r; d <= r; d++) { s += src[at(i + d)] * w[d + r]; ks += w[d + r]; }
+      return s / ks;
+    });
+  }
+  return clip;
+}
+
 let pending: Promise<MocapSet | null> | null = null;
 
 /** 三段动作只下一次(约 110 KB,随前端发) */
@@ -29,7 +70,7 @@ export function loadMocap(base = '/mocap'): Promise<MocapSet | null> {
   if (!pending) {
     const get = (n: string) => fetch(`${base}/${n}.json`).then((r) => (r.ok ? r.json() as Promise<MocapClip> : Promise.reject(new Error(n))));
     pending = Promise.all([get('walk'), get('run'), get('idle')])
-      .then(([walk, run, idle]) => ({ walk, run, idle }))
+      .then(([walk, run, idle]) => ({ walk: smoothClip(walk, true), run: smoothClip(run, true), idle: smoothClip(idle, true) }))
       .catch(() => null);
   }
   return pending;
@@ -76,7 +117,7 @@ export function loadActionClip(name: string, base = '/mocap'): Promise<MocapClip
   if (!a) return Promise.resolve(null);
   let p = actionCache.get(a.file);
   if (!p) {
-    p = fetch(`${base}/${a.file}.json`).then((r) => (r.ok ? r.json() as Promise<MocapClip> : null)).catch(() => null);
+    p = fetch(`${base}/${a.file}.json`).then((r) => (r.ok ? r.json() as Promise<MocapClip> : null)).then((c) => (c ? smoothClip(c, a.loop) : null)).catch(() => null);
     actionCache.set(a.file, p);
   }
   return p;

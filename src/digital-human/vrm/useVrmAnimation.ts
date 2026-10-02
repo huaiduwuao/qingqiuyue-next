@@ -14,6 +14,10 @@ import { getBone } from './vrmCompat';
 import { applySitPose, sitDrop } from './world/interact';
 import { loadActionClip, loadMocap, MOCAP_ACTIONS, MOCAP_BONES, MOCAP_UPPER, sampleBone, sampleHipsY, type MocapClip, type MocapSet } from './mocap';
 import { buildLookups, safeEvalFormula } from './config/loader';
+import { relaxHands } from './handRest';
+
+/** 待机动捕里腿和脚用多少(其余骨骼 = 1) */
+const IDLE_LEG_WEIGHT: Record<string, number> = { leftUpperLeg: 0.35, rightUpperLeg: 0.35, leftLowerLeg: 0.25, rightLowerLeg: 0.25, leftFoot: 0.1, rightFoot: 0.1 };
 import type {
   ActionConfig,
   ConfigBundle,
@@ -399,6 +403,7 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
     // 2. idle 基准（呼吸 + 微动）
     const idleCfg = lookups.actionByName.get('idle');
     if (idleCfg) applyActionFormula(idleCfg, elapsed, H, sceneObj);
+    relaxHands(H); // 手指放松微弯(T 字站姿的手是绷直张开的),后面的动作要摆手指照样盖得过
 
     // 3. pose 平滑混合
     poseBlendRef.current = Math.min(1, poseBlendRef.current + dt * 3);
@@ -428,7 +433,9 @@ export function useVrmAnimation(opts: UseVrmAnimationOptions) {
       const k = im.w * (1 - gaitRef.current.blend);
       for (const b of MOCAP_BONES) {
         const node = H(b);
-        if (node && sampleLoop(mocap.idle, b, u, qA, 0.6)) node.quaternion.slerp(qA, k);
+        // 这段待机动捕套到 VRM 上膝盖一直弯着、脚尖上翘外撇:腿只借一点重心转换,脚基本平放朝前
+        const legW = IDLE_LEG_WEIGHT[b] ?? 1;
+        if (node && sampleLoop(mocap.idle, b, u, qA, 0.6)) node.quaternion.slerp(qA, k * legW);
       }
     }
 

@@ -20,6 +20,7 @@ import * as THREE_VRM from '@pixiv/three-vrm';
 import type { AvatarParams } from '@/apis/world';
 import { applyAvatarParams } from '../avatarCustomize';
 import { applySitPose, sitDrop } from './interact';
+import { relaxHands } from '../handRest';
 
 export interface RoomPeer {
   id: string;
@@ -330,6 +331,7 @@ export function createPeerLayer(
     if (lLA) lLA.rotation.y = -0.15 - amt * 0.25;
     if (rLA) rLA.rotation.y = 0.15 + amt * 0.25;
     if (spine) spine.rotation.x = (running ? 0.12 : 0.03 * amt) + Math.sin(t * 1.6 + e.phase) * 0.015 * (1 - amt);
+    relaxHands((n) => bone(vrm, n as THREE_VRM.VRMHumanBoneName)); // 手指放松微弯,不是 T 字站姿绷直的
     // 招手:右臂抬起左右摆;作揖:上身前倾、双臂收到胸前
     if (e.p.a === 'wave' && rUA && rLA) {
       rUA.rotation.z = -0.35;
