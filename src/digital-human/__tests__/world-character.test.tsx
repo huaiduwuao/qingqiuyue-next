@@ -123,6 +123,30 @@ describe('characters played by digital humans', () => {
     expect(screen.getByText('你写的那句,后来的人也会读到。')).toBeTruthy();
   });
 
+  it('edits a dialogue between characters, line by line, and a converse', () => {
+    expect(formable({ dialogue: { lines: [{ who: 'self', say: 'a', anim: 'nod' }], then: [] } })).toBe(true);
+    expect(formable({ dialogue: { lines: [{ who: 'self', say: 'a', sing: 1 }] } })).toBe(false);
+    expect(formable({ converse: { with: 'tag:mother', about: '?', turns: 4 } })).toBe(true);
+    let rules: { on: string; do: Record<string, unknown>[] }[] = [{ on: 'use', do: [] }];
+    const rr = () => <RuleListForm rules={rules} scope="kind" onChange={(r) => { rules = r as typeof rules; }} />;
+    const { rerender } = render(rr());
+    fireEvent.change(screen.getAllByLabelText('加一个效果')[0], { target: { value: 'dialogue' } });
+    rerender(rr());
+    const dl = () => rules[0].do[0].dialogue as { lines: { who?: string; say?: string; anim?: string; expr?: string; pause?: unknown }[] };
+    expect(dl().lines.map((l) => l.who)).toEqual(['self', 'tag:mother']);
+    fireEvent.change(screen.getByLabelText('第 2 句的表情'), { target: { value: 'sad' } });
+    rerender(rr());
+    expect(dl().lines[1].expr).toBe('sad');
+    fireEvent.change(screen.getAllByPlaceholderText('说什么(空 = 只做动作)')[1], { target: { value: '你路上……' } });
+    rerender(rr());
+    expect(dl().lines[1].say).toBe('你路上……');
+    fireEvent.click(screen.getByText('＋ 再加一句'));
+    rerender(rr());
+    expect(dl().lines.length).toBe(3);
+    fireEvent.click(screen.getByLabelText('删掉第 1 句'));
+    expect(dl().lines.map((l) => l.who)).toEqual(['tag:mother', 'self']);
+  });
+
   it('the rule form knows act', () => {
     expect(formable({ act: 'nod' })).toBe(true);
     expect(formable({ act: { anim: 'nod', expr: 'sad', face: 'actor', ms: 3000, target: 'tag:father' } })).toBe(true);

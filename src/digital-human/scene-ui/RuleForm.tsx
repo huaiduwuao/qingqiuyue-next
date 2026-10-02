@@ -37,6 +37,8 @@ const EVENTS: { v: string; label: string; scopes: RuleScope[]; hint?: string }[]
   { v: 'join', label: '有人进了房间', scopes: ['space'], hint: 'event.from 是他刚从哪个空间来;memory.x 是他身上的故事记忆;actor.path.top 是他心路上最多的那一面' },
   { v: 'part', label: '有人离开房间', scopes: ['space'] },
   { v: 'arrived', label: '走到了(角色)', scopes: ['kind', 'entity'], hint: '角色被 move 之后走到了那里' },
+  { v: 'heard', label: '听见别的角色说话', scopes: ['kind', 'entity'], hint: 'event.from 说话的实体、event.fromName 名字、event.text 那句话(8 米内)' },
+  { v: 'conversed', label: '即兴对戏聊完了', scopes: ['kind', 'entity'], hint: 'event.with 和谁、event.lines 聊了几句' },
   { v: 'reflected', label: '有人回答了它的反问', scopes: ['kind', 'entity', 'space', 'material'], hint: 'event.text 是他自己写的那句话、event.question 是问题' },
   { v: 'chose', label: '有人回答了它出的题', scopes: ['kind', 'entity', 'space', 'material'], hint: 'event.choice 选的那句、event.axis 维度、event.feel 感受词、event.auto 到点没选' },
   { v: 'drown', label: '有人憋不住气了', scopes: ['space', 'material'], hint: '头泡在会憋气的液体里,憋的秒数用完;没有规则管就默认送到出口' },
@@ -94,6 +96,8 @@ const SPECS: Record<string, Spec> = {
     { k: 'feel', label: '感受词', kind: 'text', placeholder: '遗憾', width: 90 },
   ], str: 'text' },
   choose: { label: '出一道抉择', fields: [] },
+  dialogue: { label: '对白(角色之间)', fields: [] },
+  converse: { label: '即兴对戏', fields: [{ k: 'with', label: '和谁(tag:名字)', kind: 'text', placeholder: 'tag:mother', width: 120 }, { k: 'about', label: '处境 / 话题', kind: 'text' }, { k: 'turns', label: '几句', kind: 'num', width: 56 }] },
   discover: { label: '让人发现一样东西', fields: [{ k: 'key', label: '叫什么(进线索本)', kind: 'text', placeholder: '信', width: 110 }, { k: 'text', label: '只描写,不评价', kind: 'text' }] },
   reflect: { label: '反问(让他自己写)', fields: [{ k: 'text', label: '一个开放的问题', kind: 'text' }, { k: 'axis', label: '偏向', kind: 'select', options: AXIS_OPTIONS }, { k: 'key', label: '回声归在一起(可省)', kind: 'text', placeholder: '路口', width: 110 }], str: 'text' },
   remember: { label: '记住(跟着人走)', fields: [{ k: 'target', label: '记在谁身上', kind: 'target' }], pairs: true },
@@ -116,7 +120,7 @@ const SPECS: Record<string, Spec> = {
   wait: { label: '过一会儿', fields: [{ k: 'ms', label: '等多少 ms', kind: 'num', width: 80 }], nest: ['do'] },
   if: { label: '如果', fields: [], nest: ['then', 'else'] },
 };
-const EFFECT_ORDER = ['choose', 'reflect', 'discover', 'act', 'remember', 'insight', 'set', 'add', 'toggle', 'say', 'toast', 'label', 'sound', 'move', 'rotate', 'scale', 'spawn', 'remove', 'teleport', 'emit', 'env', 'water', 'wait', 'if'];
+const EFFECT_ORDER = ['choose', 'reflect', 'discover', 'act', 'dialogue', 'converse', 'remember', 'insight', 'set', 'add', 'toggle', 'say', 'toast', 'label', 'sound', 'move', 'rotate', 'scale', 'spawn', 'remove', 'teleport', 'emit', 'env', 'water', 'wait', 'if'];
 
 const NEW_EFFECT: Record<string, () => Effect> = {
   set: () => ({ set: { open: 'true' } }),
@@ -138,6 +142,8 @@ const NEW_EFFECT: Record<string, () => Effect> = {
   choose: () => ({ choose: { text: '他转身要走,你……', options: [{ label: '叫住他', axis: 'spine', feel: '开口', do: [] }, { label: '什么也不说', axis: 'silence', feel: '目送', do: [] }] } }),
   insight: () => ({ insight: { text: '有些话,当时不说,就再也没有机会了' } }),
   act: () => ({ act: { anim: 'nod', face: 'actor' } }),
+  dialogue: () => ({ dialogue: { lines: [{ who: 'self', say: '车快来了。' }, { who: 'tag:mother', say: '路上小心。' }] } }),
+  converse: () => ({ converse: { with: 'tag:mother', about: '要不要让孩子走', turns: 4 } }),
   remember: () => ({ remember: { 见过: 'true' } }),
   discover: () => ({ discover: { key: '信', text: '抽屉里有一封没寄出去的信' } }),
   reflect: () => ({ reflect: { text: '那一刻,你在想什么?' } }),
@@ -157,6 +163,12 @@ export function formable(e: Effect): boolean {
   const spec = SPECS[k];
   if (!spec) return false;
   if (k === 'if') return typeof e.if === 'string';
+  if (k === 'dialogue') {
+    const a = e.dialogue as Record<string, unknown> | undefined;
+    if (!a || typeof a !== 'object' || !Array.isArray(a.lines)) return false;
+    if (!Object.keys(a).every((x) => ['lines', 'then'].includes(x))) return false;
+    return (a.lines as unknown[]).every((l) => l && typeof l === 'object' && Object.keys(l).every((x) => ['who', 'say', 'anim', 'expr', 'face', 'pause'].includes(x)));
+  }
   if (k === 'choose') {
     const a = e.choose as Record<string, unknown> | undefined;
     if (!a || typeof a !== 'object' || !Array.isArray(a.options)) return false;
@@ -283,6 +295,7 @@ function EffectRow({ eff, onChange, onRemove, onMove, depth, scope }: {
     onChange({ [kind]: clean });
   };
   const set = (k: string, v: unknown) => write({ ...obj, [k]: v });
+  if (kind === 'dialogue') return <DialogueBody box={box} head={head} arg={eff.dialogue as DialogueArg} onChange={(a) => onChange({ dialogue: a })} depth={depth} scope={scope} />;
   if (kind === 'choose') return <ChooseBody box={box} head={head} arg={eff.choose as ChooseArg} onChange={(a) => onChange({ choose: a })} depth={depth} scope={scope} />;
   if (kind === 'if') {
     return (
@@ -338,6 +351,50 @@ function EffectRow({ eff, onChange, onRemove, onMove, depth, scope }: {
           <EffectList list={(obj[n] as Effect[]) ?? []} onChange={(l) => set(n, l)} depth={depth + 1} scope={scope} />
         </Box>
       ))}
+    </Box>
+  );
+}
+
+type DialogueLineDef = { who?: string; say?: string; anim?: string; expr?: string; face?: unknown; pause?: unknown };
+type DialogueArg = { lines: DialogueLineDef[]; then?: Effect[] };
+const ANIM_OPTIONS = [{ v: '', label: '不做动作' }, { v: 'nod', label: '点头' }, { v: 'shake', label: '摇头' }, { v: 'wave', label: '挥手' }, { v: 'bow', label: '鞠躬' }, { v: 'think', label: '托腮' }, { v: 'point', label: '指' }, { v: 'cheer', label: '欢呼' }];
+const EXPR_OPTIONS = [{ v: '', label: '表情不变' }, { v: 'happy', label: '高兴' }, { v: 'sad', label: '难过' }, { v: 'surprised', label: '吃惊' }, { v: 'relaxed', label: '放松' }, { v: 'angry', label: '生气' }];
+
+/** 对白:一句一行(谁说、说什么、动作、表情、先停多久),一句接一句演;说完再做「然后」 */
+function DialogueBody({ box, head, arg, onChange, depth, scope }: { box: object; head: React.ReactNode; arg: DialogueArg; onChange: (a: DialogueArg) => void; depth: number; scope: RuleScope }) {
+  const lines = arg.lines ?? [];
+  const write = (next: Partial<DialogueArg>) => {
+    const a: Record<string, unknown> = { ...arg, ...next };
+    if (Array.isArray(a.then) && !(a.then as unknown[]).length) delete a.then;
+    onChange(a as DialogueArg);
+  };
+  const setLine = (i: number, l: DialogueLineDef) => {
+    const clean: Record<string, unknown> = { ...l };
+    for (const k of Object.keys(clean)) if (clean[k] === '' || clean[k] === undefined) delete clean[k];
+    write({ lines: lines.map((x, j) => (j === i ? (clean as DialogueLineDef) : x)) });
+  };
+  return (
+    <Box sx={box}>
+      {head}
+      {lines.map((l, i) => (
+        <Box key={i} sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexWrap: 'wrap', mb: 0.5 }}>
+          <Small value={l.who ?? ''} width={96} title={`第 ${i + 1} 句谁说`} placeholder="self / tag:名字" onChange={(v) => setLine(i, { ...l, who: v })} />
+          <Small value={l.say ?? ''} title={`第 ${i + 1} 句`} placeholder="说什么(空 = 只做动作)" onChange={(v) => setLine(i, { ...l, say: v })} />
+          <select aria-label={`第 ${i + 1} 句的动作`} style={selectStyle} value={l.anim ?? ''} onChange={(e) => setLine(i, { ...l, anim: e.target.value })}>
+            {ANIM_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
+          </select>
+          <select aria-label={`第 ${i + 1} 句的表情`} style={selectStyle} value={l.expr ?? ''} onChange={(e) => setLine(i, { ...l, expr: e.target.value })}>
+            {EXPR_OPTIONS.map((o) => <option key={o.v} value={o.v}>{o.label}</option>)}
+          </select>
+          <Small value={l.pause === undefined ? '' : String(l.pause)} width={70} mono title="先停多久 ms" placeholder="停 ms" onChange={(v) => setLine(i, { ...l, pause: numOrExpr(v) })} />
+          {lines.length > 1 && <ButtonBase onClick={() => write({ lines: lines.filter((_, j) => j !== i) })} sx={{ fontSize: 11, color: '#ffb0b0', px: 0.5 }} aria-label={`删掉第 ${i + 1} 句`}>−</ButtonBase>}
+        </Box>
+      ))}
+      {lines.length < 20 && <ButtonBase onClick={() => write({ lines: [...lines, { who: (lines.length >= 2 ? lines[lines.length - 2].who : 'self') ?? 'self', say: '' }] }) /* 两人轮流:接上上一句的那个人 */} sx={{ fontSize: 11, color: '#ffe2a8', px: 0.5 }}>＋ 再加一句</ButtonBase>}
+      <Box sx={{ mt: 0.5, pl: 1, borderLeft: '2px solid rgba(155,232,255,0.25)' }}>
+        <Typography sx={{ fontSize: 10.5, color: 'rgba(255,255,255,0.5)' }}>演完以后</Typography>
+        <EffectList list={arg.then ?? []} onChange={(l) => write({ then: l })} depth={depth + 1} scope={scope} />
+      </Box>
     </Box>
   );
 }
