@@ -21,6 +21,7 @@ import VideoPlayer from '@/components/detail/VideoPlayer';
 import { PlatformLinks, UnavailablePlayer, platformsOf, linkOutNoticeOf } from '@/components/detail/ExternalPlatforms';
 import UserPlaySources from '@/components/detail/UserPlaySources';
 import { PlayableAlternative, type PlayableAlternativeInfo } from '@/components/detail/PlayableAlternative';
+import { useSeoMeta } from '@/hooks/useSeoMeta';
 import { WorkSourcePanel, streamOffers, type WorkInfo } from '@/components/detail/WorkSourcePanel';
 import DetailHeader from '@/components/detail/DetailHeader';
 import { AsyncState } from '@/components/common/AsyncState';
@@ -73,6 +74,8 @@ function FilmDetailContent() {
     // 站内放不了时后端已投自动补全(跨源找片源):排队 / 运行中就轮询,找到就直接换成播放器。
     refetchInterval: backfillRefetchInterval,
   });
+
+  useSeoMeta({ id, title: query.data?.title, description: query.data?.description });
 
   React.useEffect(() => {
     if (id) {

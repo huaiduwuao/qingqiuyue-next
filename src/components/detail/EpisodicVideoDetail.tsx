@@ -25,6 +25,7 @@ import { TYPE_LABEL } from '@/lib/contentType.gen';
 import VideoPlayer from '@/components/detail/VideoPlayer';
 import { PlatformLinks, UnavailablePlayer, platformsOf, linkOutNoticeOf } from '@/components/detail/ExternalPlatforms';
 import { PlayableAlternative, type PlayableAlternativeInfo } from '@/components/detail/PlayableAlternative';
+import { useSeoMeta } from '@/hooks/useSeoMeta';
 import { WorkSourcePanel, streamOffers, type WorkInfo, type WorkOffer } from '@/components/detail/WorkSourcePanel';
 import { backfillPending, backfillRefetchInterval, videoBackfillNotice, type BackfillState } from '@/lib/autoBackfill';
 import UserPlaySources from '@/components/detail/UserPlaySources';
@@ -145,6 +146,7 @@ export function EpisodicVideoDetail({ config }: { config: EpisodicVideoConfig })
   const sourceContentId = sourceOffer && sourceOffer.contentId !== id ? sourceOffer.contentId : id;
   const otherItemsQuery = useContentItems(config.kind, sourceContentId !== id ? sourceContentId : null, config.fetchItems);
   const itemsQuery = sourceContentId !== id ? otherItemsQuery : ownItemsQuery;
+  useSeoMeta({ id, title: query.data?.title, description: query.data?.description || query.data?.content });
   const items = useMemo(() => itemsQuery.data?.items ?? [], [itemsQuery.data]);
   // 详情在同一请求里当场绑定了片源(分集刚写进库),而分集列表那次请求可能先于它返回空:补查一次。
   const boundEpisodes = Number(query.data?.videoSource?.episodes) || 0;
