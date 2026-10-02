@@ -122,6 +122,16 @@ async function tryLoadFfmpeg() {
   return null
 }
 
+// core-api 的回包是 {code,msg,data},真正的字段在 data 里
+const unwrap = (j: any) => (j && typeof j === 'object' && 'data' in j ? j.data : j) ?? {}
+
+/** 训练日志(后端存的是 JSON 字符串) */
+function parseTrainingLog(raw: unknown): any {
+  if (!raw) return null
+  if (typeof raw === 'object') return raw
+  try { return JSON.parse(String(raw)) } catch { return null }
+}
+
 export default function RecordWakePage() {
   const [clips, setClips] = useState<RecordedClip[]>([])
   const [currentIdx, setCurrentIdx] = useState(0)
@@ -144,10 +154,10 @@ export default function RecordWakePage() {
   const loadModelStatus = useCallback(async () => {
     try {
       const r = await fetch(API_PREFIX + '/api/core/train-wake-word', { headers: authHeaders() })
-      const d = await r.json()
+      const d = unwrap(await r.json())
       if (d.ok) {
         setCurrentModel(d.model || '未部署')
-        setModelDetail(d)
+        setModelDetail({ ...d, trainingLog: parseTrainingLog(d.trainingLog) })
       }
     } catch {}
   }, [])
@@ -271,6 +281,39 @@ export default function RecordWakePage() {
   }, [autoRecord, currentIdx, recordOne])
 
   // 全部录完 → 训练
+  // 轮询沙盒训练任务,直到完成 + 模型自动部署(GET 状态时后端会把产物拉回来)
+  const pollTraining = useCallback(async () => {
+    setTrainStatus('沙盒训练中(合成语音 + 训练 + 评估,约 15-30 分钟,可以先离开本页)...')
+    const deadline = Date.now() + 70 * 60 * 1000
+    let done = false
+    while (Date.now() < deadline) {
+      await new Promise(res => setTimeout(res, 10000))
+      try {
+        const sr = await fetch(API_PREFIX + '/api/core/train-wake-word', { headers: authHeaders() })
+        const sd = unwrap(await sr.json())
+        if (!sd.ok) continue
+        if (sd.taskStatus === 'succeeded' || sd.taskStatus === 'completed') {
+          const log = parseTrainingLog(sd.trainingLog)
+          setTrainStatus(log?.fa_per_hour !== undefined
+            ? `✓ 训练完成并已部署:留出录音召回 ${(log.val_recall * 100).toFixed(0)}%,误唤醒 ${log.fa_per_hour} 次/小时(阈值 ${log.threshold})。数字人页刷新即用新模型`
+            : '✓ 训练完成,模型已自动部署。数字人页刷新即用新模型')
+          await loadModelStatus()
+          done = true
+          break
+        }
+        if (sd.taskStatus === 'failed' || sd.taskStatus === 'timeout') {
+          setError(`训练失败(${sd.taskStatus}),任务 ${sd.taskId},到沙盒任务页看日志`)
+          setTrainStatus(null)
+          done = true
+          break
+        }
+        setTrainStatus(`沙盒训练中... (${sd.taskStatus || 'running'}),约 15-30 分钟`)
+      } catch { /* 轮询失败继续 */ }
+    }
+    if (!done) setError('70 分钟还没训练完,请到沙盒任务页查看')
+    setIsTraining(false)
+  }, [loadModelStatus])
+
   const handleTrain = useCallback(async () => {
     const valid = clips.filter((c): c is RecordedClip => !!c)
     if (valid.length < 10) {
@@ -306,9 +349,10 @@ export default function RecordWakePage() {
         fd.append('files', blob, name)
       })
       const r = await fetch(API_PREFIX + '/api/core/train-wake-word', { method: 'POST', body: fd, headers: authHeaders() })
-      const data = await r.json()
+      const raw = await r.json()
+      const data = unwrap(raw)
       if (!data.ok) {
-        setError(data.error || '训练失败')
+        setError(raw?.msg || data.error || '训练失败')
         setTrainStatus(null)
         setIsTraining(false)
         return
@@ -316,40 +360,39 @@ export default function RecordWakePage() {
       // 沙盒异步训练: POST 返回 taskId,轮询 GET 直到训练完成 + 模型自动部署
       if (!data.training || !data.taskId) {
         setTrainStatus(`✓ 已上传 ${data.saved} 样本`)
+        if (data.trainError) setError(`样本已保存,但训练没触发: ${data.trainError}`)
         setIsTraining(false)
         return
       }
-      setTrainStatus(`样本已提交,沙盒训练中(约1-2分钟)...`)
-      const deadline = Date.now() + 8 * 60 * 1000
-      let done = false
-      while (Date.now() < deadline) {
-        await new Promise(res => setTimeout(res, 5000))
-        try {
-          const sr = await fetch(API_PREFIX + '/api/core/train-wake-word', { headers: authHeaders() })
-          const sd = await sr.json()
-          if (!sd.ok) continue
-          if (sd.taskStatus === 'succeeded' || sd.taskStatus === 'completed') {
-            setTrainStatus(`✓ 训练完成,模型已自动部署! recall 见训练日志. 刷新页面即可用新模型唤醒`)
-            fetch(API_PREFIX + '/api/core/train-wake-word', { headers: authHeaders() }).then(r => r.json()).then(d => { if (d.ok) setCurrentModel(d.model) })
-            done = true
-            break
-          }
-          if (sd.taskStatus === 'failed' || sd.taskStatus === 'timeout') {
-            setError(`训练失败(${sd.taskStatus}),查看沙盒任务日志`)
-            done = true
-            break
-          }
-          setTrainStatus(`沙盒训练中... (${sd.taskStatus || 'running'})`)
-        } catch { /* 轮询失败继续 */ }
-      }
-      if (!done) setError('训练超时(8分钟未完成),请到沙盒任务页查看')
-      setIsTraining(false)
+      await pollTraining()
     } catch (e: any) {
       setError(`处理失败: ${e.message}`)
       setTrainStatus(null)
       setIsTraining(false)
     }
-  }, [clips])
+  }, [clips, pollTraining])
+
+  // 不上传新样本,用服务器上已有的全部样本重新训练
+  const handleRetrain = useCallback(async () => {
+    setIsTraining(true)
+    setError(null)
+    setTrainStatus('提交沙盒训练...')
+    try {
+      const r = await fetch(API_PREFIX + '/api/core/train-wake-word/start', { method: 'POST', headers: authHeaders() })
+      const raw = await r.json()
+      if (!unwrap(raw).taskId) {
+        setError(raw?.msg || '触发训练失败')
+        setTrainStatus(null)
+        setIsTraining(false)
+        return
+      }
+      await pollTraining()
+    } catch (e: any) {
+      setError(`处理失败: ${e.message}`)
+      setTrainStatus(null)
+      setIsTraining(false)
+    }
+  }, [pollTraining])
 
   // 释放麦克风
   useEffect(() => {
@@ -408,10 +451,10 @@ export default function RecordWakePage() {
                 </Typography>
               </Box>
               <Box>
-                <Typography component="p" variant="caption" color="text.secondary">最后准确度</Typography>
-                <Typography component="p" variant="body2" sx={{ fontWeight: 600, fontSize: 13, color: modelDetail.trainingLog?.final_recall > 0.7 ? 'success.main' : 'warning.main' }}>
-                  {modelDetail.trainingLog?.final_recall !== undefined
-                    ? `recall ${(modelDetail.trainingLog.final_recall * 100).toFixed(0)}%`
+                <Typography component="p" variant="caption" color="text.secondary">召回 / 误唤醒</Typography>
+                <Typography component="p" variant="body2" sx={{ fontWeight: 600, fontSize: 13, color: modelDetail.trainingLog?.val_recall > 0.8 ? 'success.main' : 'warning.main' }}>
+                  {modelDetail.trainingLog?.val_recall !== undefined
+                    ? `${(modelDetail.trainingLog.val_recall * 100).toFixed(0)}% / ${modelDetail.trainingLog.fa_per_hour} 次每时`
                     : '-'}
                 </Typography>
               </Box>
@@ -503,6 +546,13 @@ export default function RecordWakePage() {
             </Button>
             <Box sx={{ flex: 1 }} />
             <Button
+              variant="outlined"
+              onClick={handleRetrain}
+              disabled={isTraining || !modelDetail?.positiveSamples}
+            >
+              用已有 {modelDetail?.positiveSamples ?? 0} 条重新训练
+            </Button>
+            <Button
               variant="contained"
               size="large"
               onClick={handleTrain}
@@ -521,7 +571,8 @@ export default function RecordWakePage() {
           • 录音时说"小月"两字(自然语速, 不要刻意慢或快)<br />
           • 变化语调/距离/角度, 让模型更鲁棒<br />
           • 至少 10 条可训练, 30+ 条显著提升, 50+ 条接近产品级<br />
-          • 训练在浏览器后台跑 (~30-60s), 完成后刷新页面即生效
+          • 训练在服务器沙盒里跑(约 15-30 分钟),会自动合成多音色"小月"和大量非唤醒语音做对照,<br />
+          &nbsp;&nbsp;按"每小时误唤醒 ≤0.5 次"自动选阈值;完成后数字人页刷新即生效
         </Typography>
       </Alert>
     </Box>

@@ -26,9 +26,13 @@ export interface WakeWordConfig {
   modelUrl?: string
   /** melspectrogram.onnx 路径 (默认 /wake/melspectrogram.onnx) */
   melModelUrl?: string
+  /** embedding_model.onnx 路径 (默认 /wake/embedding_model.onnx) */
+  embeddingModelUrl?: string
+  /** false = 不拉 core-api 上沙盒训练的模型, 只用 modelUrl 静态模型 */
+  serverModel?: boolean
   /** 唤醒词显示名 (用于日志) */
   label: string
-  /** 灵敏度 0-1 (default 0.5) */
+  /** 阈值 0-1; 不填用模型 meta 里训练时选出的阈值 (默认 0.8) */
   sensitivity?: number
 }
 

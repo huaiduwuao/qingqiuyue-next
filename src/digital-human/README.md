@@ -235,7 +235,7 @@ VoiceStrip / PeerChip。AudioContext 只能在用户点击后建,所以要先点
 
 ## 语音
 
-- 唤醒词:openWakeWord ONNX(`public/wake/xiaoyue.onnx`)+ VAD,说「小月」唤醒
+- 唤醒词:本地 openWakeWord 特征 + 自训小模型命中后再经 ASR 复核(沙盒训练,见 `public/wake/README.md`),说「小月」唤醒
 - ASR:`/api/audio` 网关
 - TTS:`/api/audio/speech`,**按句流式** —— 正文攒够一个句末标点就送去合成,
   首次出声不用等整段生成完;多句用队列串行播放(共用一个 `<audio>`,不排队会互相掐断)

@@ -1,22 +1,22 @@
 /**
- * Wake Word 检测 — openWakeWord (开源 MIT, 可商用)
+ * Wake Word 检测 — openWakeWord 特征 + 自训"小月"小模型 (v2)
  *
- * openWakeWord: https://github.com/dscripka/openWakeWord
- *   - 浏览器端用 onnxruntime-web 跑 ONNX 模型
- *   - 模型 ~30MB, 可放 public/wake/ 自托管
+ * 流水线与沙盒训练脚本 (qingqiuyue-go internal/handler/wake_train_sandbox.py) 逐帧同源:
+ *   1. 16kHz 音频按 int16 量纲 (×32767) 累积, 每 1280 samples (80ms) 一步
+ *   2. melspectrogram.onnx 跑最近 1280+480 samples → 8 帧 mel, 做 x/10+2
+ *   3. 最近 76 帧 mel → embedding_model.onnx → 96 维向量 (每步 1 个)
+ *   4. 最近 16 个向量 [1,16,96] → 唤醒模型 → 分数
+ *   5. 连续 3 步 (240ms) 超过阈值才算唤醒; 唤醒后冷却 2s 并清空缓冲
+ *      (真喊"小月"能连续高分 3~5 步, 误触发多是 1~2 步的尖峰)
  *
- * 运行方式:
- *   1. 加载 melspectrogram.onnx (特征提取器, ~10MB)
- *   2. 加载 {label}.onnx (唤醒词模型, ~30MB)
- *   3. VAD 每帧送入 80ms/1280 samples 音频
- *   4. 用 melspectrogram.onnx 提取 1 帧 mel 特征
- *   5. 累积约 31 帧 mel 特征后, 喂给唤醒词模型做推理
- *   6. 置信度 > sensitivity 则触发 onWake
+ * 模型来源: 优先 core-api 上沙盒最新训练的模型 (/api/core/wake-word/model),
+ * 拿不到就用打包在前端的 /wake/xiaoyue_v2.onnx。阈值随模型的 meta 下发。
  *
- * 任意环节失败都会自动降级到 vad-fallback (靠 ASR 文本匹配唤醒词)
+ * 任意环节失败都会降级到 vad-fallback (靠 ASR 文本匹配唤醒词)
  */
 
 import * as ort from 'onnxruntime-web'
+import { API_PREFIX } from '@/lib/api/prefix'
 import { voiceLog } from './logger'
 import type { WakeWordConfig } from './types'
 
@@ -25,11 +25,13 @@ export interface WakeWordCallbacks {
   onError?: (err: any) => void
 }
 
-const SAMPLE_RATE = 16000
-const FRAME_MS = 80
-const FRAME_SAMPLES = (SAMPLE_RATE * FRAME_MS) / 1000 // 1280
-const N_FEATURE_FRAMES = 31 // openWakeWord 默认特征帧数 (约 2.48s)
-const DEFAULT_SENSITIVITY = 0.3  // 降低灵敏度,更容易触发 (原 0.5)
+const STEP = 1280            // 80ms @16kHz
+const MEL_CONTEXT = 480      // mel 需要多看 3 帧 hop 才能出满 8 帧
+const MEL_WIN = 76           // 每个 embedding 吃 76 帧 mel
+const N_EMB = 16             // 唤醒模型看最近 16 个 embedding
+const DEFAULT_PATIENCE = 3   // 连续几步超阈值才触发 (meta 可覆盖)
+const COOLDOWN_STEPS = 25    // 触发后 2s 内不再触发
+const DEFAULT_SENSITIVITY = 0.8
 
 let engine: OpenWakeWordEngine | null = null
 
@@ -37,21 +39,27 @@ class OpenWakeWordEngine {
   private cfg: WakeWordConfig
   private cbs: WakeWordCallbacks
   private melSession: ort.InferenceSession | null = null
+  private embSession: ort.InferenceSession | null = null
   private wakeSession: ort.InferenceSession | null = null
-  // 环形 buffer: 预分配 8192 samples (~512ms),比 80ms 步长大够用
-  // 用 head 索引 + take 拷贝避免每帧 slice 重新分配 (原代码 80ms 一次 GC)
-  private readonly RING_CAPACITY = 8192
-  private audioBuffer: Float32Array = new Float32Array(this.RING_CAPACITY)
-  private audioBufferLen = 0  // 当前有效长度
-  private featureBuffer: Float32Array[] = [] // 每帧 mel 特征
+  private threshold = DEFAULT_SENSITIVITY
+  private patience = DEFAULT_PATIENCE
+
+  // 原始音频 (int16 量纲): 最近 MEL_CONTEXT 个历史样本 + 未满一步的新样本
+  private raw = new Float32Array(MEL_CONTEXT + STEP * 4)
+  private rawLen = MEL_CONTEXT // 开头用 0 填满上下文
+  private mel: Float32Array[] = []
+  private emb: Float32Array[] = []
+  private hitStreak = 0
+  private cooldown = 0
+
   private ready = false
   private destroyed = false
   private processing = false
-  private pendingAudio: Float32Array[] = []
-  // 推理延迟统计 (每 100 帧打一次平均)
-  private inferenceCount = 0
-  private inferenceTotalMs = 0
-  private runFrameErrorLogged = false  // 抑制重复 log 噪声
+  private pending: Float32Array[] = []
+  private stepCount = 0
+  private stepMsTotal = 0
+  private maxScore = 0
+  private errorLogged = false
 
   constructor(cfg: WakeWordConfig, cbs: WakeWordCallbacks) {
     this.cfg = cfg
@@ -59,258 +67,191 @@ class OpenWakeWordEngine {
   }
 
   async init(): Promise<boolean> {
-    if (!this.cfg.modelUrl) {
-      voiceLog('warn', 'wake', '未配置 modelUrl, 降级到 vad-fallback')
-      return false
-    }
-
     try {
-      // 动态探测 WASM 路径 (兼容 webpack + Turbopack + 同源 /wake/)
-      // 顺序: webpack 默认 → Turbopack → 同源 /wake/
-      // 注意: 必须用绝对 URL, 否则 ort.env.wasm.proxy=true 时 worker 内 fetch 相对路径会失败
-      // ("Failed to parse URL from /ort-wasm/ort-wasm-simd-threaded.wasm" — WorkerGlobalScope 没有 location)
       const wasmDir = await resolveWasmPaths()
+      // 必须用绝对 URL (worker 内没有 location); 单线程 + 主线程跑, 不需要 COOP/COEP
       ort.env.wasm.wasmPaths = (typeof window !== 'undefined' && window.location?.origin)
         ? window.location.origin + (wasmDir.startsWith('/') ? wasmDir : '/' + wasmDir)
         : wasmDir
-
-      // 禁用多线程 — 不创建 Web Worker, 避免 100+/s 的
-      // "Unchecked runtime.lastError: Could not establish connection"
-      // (threaded WASM 需要 SharedArrayBuffer + COOP/COEP 头, 当前项目没配)
       ort.env.wasm.numThreads = 1
-      // proxy = false 让 wasm 在主线程跑, fetch 用相对 URL 也 OK
-      // (proxy = true 会用 Worker, Worker 内 fetch 相对 URL 解析不出来)
       ort.env.wasm.proxy = false
 
-      // melspectrogram 路径: cfg 可覆盖,默认 /wake/melspectrogram.onnx
-      const melUrl = (this.cfg as WakeWordConfig & { melModelUrl?: string }).melModelUrl || '/wake/melspectrogram.onnx'
-      voiceLog('info', 'wake', 'loading melspectrogram model:', melUrl)
-      try {
-        this.melSession = await ort.InferenceSession.create(melUrl, {
-          executionProviders: ['wasm'],
-          graphOptimizationLevel: 'all',
-        })
-        voiceLog('info', 'wake', 'melspectrogram loaded OK')
-      } catch (e) {
-        voiceLog('error', 'wake', 'melspectrogram load failed:', e)
-        throw e
-      }
+      const opts: ort.InferenceSession.SessionOptions = { executionProviders: ['wasm'], graphOptimizationLevel: 'all' }
+      const melUrl = this.cfg.melModelUrl || '/wake/melspectrogram.onnx'
+      const embUrl = this.cfg.embeddingModelUrl || '/wake/embedding_model.onnx'
+      voiceLog('info', 'wake', 'loading feature models:', melUrl, embUrl)
+      ;[this.melSession, this.embSession] = await Promise.all([
+        ort.InferenceSession.create(melUrl, opts),
+        ort.InferenceSession.create(embUrl, opts),
+      ])
 
-      voiceLog('info', 'wake', 'loading wake word model:', this.cfg.modelUrl)
-      try {
-        // 尝试降低 graphOptimizationLevel,兼容更多模型
-        // 先试用官方 hey_jarvis 测试是否是模型问题
-        const testModelUrl = '/wake/hey_jarvis.onnx';
-        voiceLog('info', 'wake', 'testing with official model:', testModelUrl);
-        this.wakeSession = await ort.InferenceSession.create(testModelUrl, {
-          executionProviders: ['wasm'],
-          graphOptimizationLevel: 'disabled',
-        })
-        voiceLog('info', 'wake', 'official model loaded OK, now loading xiaoyue...')
-        // 官方模型 OK,再加载我们的
-        this.wakeSession = await ort.InferenceSession.create(this.cfg.modelUrl, {
-          executionProviders: ['wasm'],
-          graphOptimizationLevel: 'disabled',
-        })
-        voiceLog('info', 'wake', 'wake word model loaded OK')
-      } catch (e) {
-        voiceLog('error', 'wake', 'wake word model load failed:', e)
-        throw e
-      }
-
+      const model = await loadWakeModel(this.cfg)
+      this.wakeSession = await ort.InferenceSession.create(model.bytes, opts)
+      this.threshold = this.cfg.sensitivity ?? model.threshold ?? DEFAULT_SENSITIVITY
+      this.patience = model.patience ?? DEFAULT_PATIENCE
       this.ready = true
-      voiceLog('info', 'wake', 'openWakeWord init success, label=', this.cfg.label)
+      voiceLog('info', 'wake', `openWakeWord init success, label=${this.cfg.label} model=${model.source} threshold=${this.threshold} patience=${this.patience}`)
       return true
     } catch (err) {
-      // 排查: ORT 抛出的 err 经常是空对象 (因为内部 Symbol 字段 / Error.cause 链 JSON.stringify 拿不到)
-      // 展开所有可枚举属性 + stack + name + message + cause, 让用户能看到真实失败原因
-      const detail: Record<string, unknown> = {}
-      if (err && typeof err === 'object') {
-        for (const k of Object.getOwnPropertyNames(err)) {
-          try {
-            detail[k] = (err as Record<string, unknown>)[k]
-          } catch {
-            detail[k] = '<unreadable>'
-          }
-        }
-        const e = err as { message?: unknown; name?: unknown; stack?: unknown; cause?: unknown; code?: unknown }
-        if (e.message) detail.message = e.message
-        if (e.name) detail.name = e.name
-        if (e.stack) detail.stack = e.stack
-        if (e.cause !== undefined) detail.cause = e.cause
-        if (e.code !== undefined) detail.code = e.code
-      }
-      console.error('[wake] openWakeWord init failed, full err:', err)
-      console.error('[wake] openWakeWord init failed, detail:', detail)
-      voiceLog('error', 'wake', 'openWakeWord init failed:', JSON.stringify(detail))
-      this.cbs.onError?.(err instanceof Error ? err : new Error(JSON.stringify(detail)))
+      console.error('[wake] openWakeWord init failed:', err)
+      voiceLog('error', 'wake', 'openWakeWord init failed:', err instanceof Error ? err.message : String(err))
+      this.cbs.onError?.(err instanceof Error ? err : new Error(String(err)))
       return false
     }
   }
 
-  /**
-   * 把音频加入处理队列; 引擎会异步逐帧推理
-   */
+  /** 送入一段 16kHz float(-1..1) 音频; 引擎异步逐步推理 */
   feed(audio: Float32Array): void {
     if (!this.ready || this.destroyed) return
-    this.pendingAudio.push(audio)
+    this.pending.push(audio)
     if (!this.processing) {
       this.processing = true
-      this.processLoop().catch((err) => {
-        voiceLog('error', 'wake', 'processLoop error:', err)
-      })
+      this.processLoop().catch((err) => voiceLog('error', 'wake', 'processLoop error:', err))
     }
   }
 
   private async processLoop(): Promise<void> {
-    while (!this.destroyed && this.pendingAudio.length > 0) {
-      const chunks = this.pendingAudio.splice(0)
-      for (const audio of chunks) {
-        await this.processAudio(audio)
-      }
+    while (!this.destroyed && this.pending.length > 0) {
+      // 积压太多 (标签页切后台回来) 就丢旧的, 只保留最近 ~2s, 不追赶历史音频
+      let chunks = this.pending.splice(0)
+      let total = chunks.reduce((s, c) => s + c.length, 0)
+      while (total > 32000 && chunks.length > 1) total -= chunks.shift()!.length
+      for (const audio of chunks) await this.push(audio)
     }
     this.processing = false
   }
 
-  private async processAudio(audio: Float32Array): Promise<void> {
-    if (!this.melSession || !this.wakeSession) return
-
-    // 累积到环形 buffer (避免每帧 new Float32Array)
-    for (let i = 0; i < audio.length; i++) {
-      if (this.audioBufferLen >= this.RING_CAPACITY) {
-        // 满了: 整体左移丢弃前半 (保留最近 ~512ms 数据)
-        const keep = this.audioBufferLen - FRAME_SAMPLES
-        this.audioBuffer.copyWithin(0, FRAME_SAMPLES, this.audioBufferLen)
-        this.audioBufferLen = keep
+  private async push(audio: Float32Array): Promise<void> {
+    let off = 0
+    while (off < audio.length && !this.destroyed) {
+      const n = Math.min(audio.length - off, MEL_CONTEXT + STEP - this.rawLen)
+      for (let i = 0; i < n; i++) {
+        const s = audio[off + i]
+        this.raw[this.rawLen + i] = (s > 1 ? 1 : s < -1 ? -1 : s) * 32767
       }
-      this.audioBuffer[this.audioBufferLen++] = audio[i]
-    }
-
-    // 每次取 1280 samples 跑 mel, 50% overlap 滑动
-    while (this.audioBufferLen >= FRAME_SAMPLES) {
-      // 拷贝一帧 (1280 samples) 喂给 ONNX — 必须 copy 因为 ONNX 会持有
-      const frame = this.audioBuffer.slice(0, FRAME_SAMPLES)
-      const score = await this.runFrame(frame)
-
-      if (score !== null && score > (this.cfg.sensitivity ?? DEFAULT_SENSITIVITY)) {
-        voiceLog('info', 'wake', `detected "${this.cfg.label}" confidence=${score.toFixed(3)}`)
-        this.cbs.onWake(this.cfg.label, score)
+      this.rawLen += n
+      off += n
+      if (this.rawLen === MEL_CONTEXT + STEP) {
+        await this.step(this.raw.slice(0, MEL_CONTEXT + STEP))
+        // 保留最后 MEL_CONTEXT 个样本做下一步的上下文
+        this.raw.copyWithin(0, STEP, MEL_CONTEXT + STEP)
+        this.rawLen = MEL_CONTEXT
       }
-
-      // 打印每帧分数(前 20 帧)
-      if (this.audioBufferLen < 5000) {  // 只在开始时打印
-        voiceLog('info', 'wake', `frame score: ${score?.toFixed(3) ?? 'null'}`)
-      }
-
-      // 50% overlap 滑动: 左移半帧
-      this.audioBuffer.copyWithin(0, FRAME_SAMPLES / 2, this.audioBufferLen)
-      this.audioBufferLen -= FRAME_SAMPLES / 2
     }
   }
 
-  private async runFrame(frame: Float32Array): Promise<number | null> {
-    if (!this.melSession || !this.wakeSession) return null
-
-    // 声明在 try 外面,这样 catch 块打印调试信息时(哪怕在拿到 shape 之后的
-    // 后续步骤才出错)也能引用到当时已解析出的 melShape/nMels,而不是 TDZ 报错
-    let melShape: readonly number[] | undefined
-    let nMels = 0
-
+  private async step(window: Float32Array): Promise<void> {
+    if (!this.melSession || !this.embSession || !this.wakeSession) return
+    const t0 = performance.now()
     try {
-      // 1. melspectrogram
-      const melInputName = this.melSession.inputNames[0]
-      const melOutputName = this.melSession.outputNames[0]
-      const melTensor = new ort.Tensor('float32', frame, [1, frame.length])
-      const melFeeds: Record<string, ort.Tensor> = { [melInputName]: melTensor }
-      const melResult = await this.melSession.run(melFeeds)
-      const melOut = melResult[melOutputName]
-      const melData = melOut.data as Float32Array
-      melShape = melOut.dims
-
-      // 解析 mel 输出形状, 得到 nMels
-      let frameFeatures: Float32Array
-      // 打印 shape 调试
-      if (!this.runFrameErrorLogged) {
-        voiceLog('info', 'wake', 'mel output shape:', melShape, 'data length:', melData.length)
+      // 1. mel: [1, 1760] → [1,1,8,32]
+      const melOut = (await this.melSession.run({
+        [this.melSession.inputNames[0]]: new ort.Tensor('float32', window, [1, window.length]),
+      }))[this.melSession.outputNames[0]]
+      const md = melOut.data as Float32Array
+      const nFrames = md.length / 32
+      for (let f = 0; f < nFrames; f++) {
+        const row = new Float32Array(32)
+        for (let m = 0; m < 32; m++) row[m] = md[f * 32 + m] / 10 + 2
+        this.mel.push(row)
       }
-      if (melShape.length === 1) {
-        nMels = melShape[0]
-        frameFeatures = melData
-      } else if (melShape.length === 2) {
-        nMels = melShape[0] * melShape[1] === melData.length ? melShape[1] : melShape[0]
-        frameFeatures = melData.slice(0, nMels)
-      } else if (melShape.length === 3) {
-        // 3D: [batch, frames, nMels] 或 [batch, nMels, frames]
-        const [b, d1, d2] = melShape
-        nMels = Math.min(d1, d2)  // 通常 nMels 是较小的那个
-        frameFeatures = melData.slice(0, nMels)
-        if (!this.runFrameErrorLogged) {
-          voiceLog('info', 'wake', `3D shape: [${b}, ${d1}, ${d2}], nMels=${nMels}`)
-        }
-      } else if (melShape.length === 4) {
-        // 4D: [batch, 1, frames, nMels] — mel 模型输出 [1, 1, 5, 32]
-        // 最后一个维度 32 是 mel bands,第三个维度 5 是帧数
-        const [b, c, frames, nMelsDim] = melShape
-        nMels = nMelsDim  // 32
-        // 数据布局: [b, c, frames, nMels],我们取第一个 batch, 第一个 channel, 第一帧
-        frameFeatures = melData.slice(0, nMels)  // 取前 32 个 mel bands
-        if (!this.runFrameErrorLogged) {
-          voiceLog('info', 'wake', `4D shape: [${b}, ${c}, ${frames}, ${nMelsDim}], nMels=${nMels}`)
-        }
-      } else {
-        nMels = 32
-        frameFeatures = melData.slice(0, nMels)
-      }
+      if (this.mel.length > MEL_WIN) this.mel.splice(0, this.mel.length - MEL_WIN)
+      if (this.mel.length < MEL_WIN) return
 
-      // 2. 累积特征
-      this.featureBuffer.push(frameFeatures.slice())
-      if (this.featureBuffer.length > N_FEATURE_FRAMES) {
-        this.featureBuffer.shift()
-      }
+      // 2. embedding: [1,76,32,1] → [1,1,1,96]
+      const melWin = new Float32Array(MEL_WIN * 32)
+      for (let f = 0; f < MEL_WIN; f++) melWin.set(this.mel[f], f * 32)
+      const embOut = (await this.embSession.run({
+        [this.embSession.inputNames[0]]: new ort.Tensor('float32', melWin, [1, MEL_WIN, 32, 1]),
+      }))[this.embSession.outputNames[0]]
+      this.emb.push(Float32Array.from(embOut.data as Float32Array))
+      if (this.emb.length > N_EMB) this.emb.shift()
+      if (this.emb.length < N_EMB) return
 
-      // 3. 特征够帧数后跑唤醒词模型
-      if (this.featureBuffer.length < N_FEATURE_FRAMES) {
-        return null
-      }
-
-      const featureTensorData = new Float32Array(N_FEATURE_FRAMES * nMels)
-      for (let t = 0; t < N_FEATURE_FRAMES; t++) {
-        for (let m = 0; m < nMels; m++) {
-          featureTensorData[t * nMels + m] = this.featureBuffer[t][m] ?? 0
-        }
-      }
-
-      const wakeInputName = this.wakeSession.inputNames[0]
-      const wakeOutputName = this.wakeSession.outputNames[0]
-      const wakeTensor = new ort.Tensor('float32', featureTensorData, [1, N_FEATURE_FRAMES, nMels])
-      const wakeFeeds: Record<string, ort.Tensor> = { [wakeInputName]: wakeTensor }
-      const wakeResult = await this.wakeSession.run(wakeFeeds)
-      const wakeOut = wakeResult[wakeOutputName]
-      const wakeData = wakeOut.data as Float32Array
-
-      // 输出可能是 [batch, classes] 或 [batch, time, classes]; 取最大值作为置信度
-      let score = Number.NEGATIVE_INFINITY
-      for (let i = 0; i < wakeData.length; i++) {
-        if (wakeData[i] > score) score = wakeData[i]
-      }
-      return score === Number.NEGATIVE_INFINITY ? null : score
+      // 3. 唤醒模型: [1,16,96] → 分数
+      const feat = new Float32Array(N_EMB * 96)
+      for (let i = 0; i < N_EMB; i++) feat.set(this.emb[i], i * 96)
+      const out = (await this.wakeSession.run({
+        [this.wakeSession.inputNames[0]]: new ort.Tensor('float32', feat, [1, N_EMB, 96]),
+      }))[this.wakeSession.outputNames[0]]
+      const score = (out.data as Float32Array)[0]
+      this.decide(score)
     } catch (err) {
-      // 打印详细错误信息
-      voiceLog('error', 'wake', 'runFrame error:', err, 'melShape:', melShape, 'nMels:', nMels)
-      return null
+      if (!this.errorLogged) {
+        this.errorLogged = true
+        voiceLog('error', 'wake', 'inference error:', err)
+      }
+    } finally {
+      this.stepCount++
+      this.stepMsTotal += performance.now() - t0
+      if (this.stepCount % 250 === 0) { // 每 20s 打一次
+        voiceLog('info', 'wake', `avg step ${(this.stepMsTotal / this.stepCount).toFixed(1)}ms, max score 20s=${this.maxScore.toFixed(3)}`)
+        this.maxScore = 0
+      }
     }
+  }
+
+  private decide(score: number): void {
+    if (score > this.maxScore) this.maxScore = score
+    if (this.cooldown > 0) {
+      this.cooldown--
+      return
+    }
+    this.hitStreak = score >= this.threshold ? this.hitStreak + 1 : 0
+    if (this.hitStreak < this.patience) return
+    voiceLog('info', 'wake', `detected "${this.cfg.label}" score=${score.toFixed(3)} threshold=${this.threshold}`)
+    this.hitStreak = 0
+    this.cooldown = COOLDOWN_STEPS
+    // 清掉 embedding 历史, 同一句"小月"不会在冷却结束后再触发
+    this.emb = []
+    this.cbs.onWake(this.cfg.label, score)
   }
 
   destroy(): void {
     this.destroyed = true
     this.melSession = null
+    this.embSession = null
     this.wakeSession = null
-    this.audioBuffer = new Float32Array(this.RING_CAPACITY)
-    this.audioBufferLen = 0
-    this.featureBuffer = []
-    this.pendingAudio = []
+    this.mel = []
+    this.emb = []
+    this.pending = []
     this.ready = false
   }
+}
+
+/**
+ * 唤醒模型: 先拿 core-api 上沙盒最新训练的 (带阈值 meta), 失败再用前端打包的静态模型
+ */
+async function loadWakeModel(cfg: WakeWordConfig): Promise<{ bytes: Uint8Array; threshold?: number; patience?: number; source: string }> {
+  const candidates: { model: string; meta: string }[] = []
+  if (cfg.serverModel !== false) {
+    candidates.push({ model: API_PREFIX + '/api/core/wake-word/model', meta: API_PREFIX + '/api/core/wake-word/meta' })
+  }
+  const staticUrl = cfg.modelUrl || '/wake/xiaoyue_v2.onnx'
+  candidates.push({ model: staticUrl, meta: staticUrl.replace(/\.onnx$/, '.json') })
+  for (const c of candidates) {
+    try {
+      // 先 meta 后模型: 服务端在 meta 请求里顺手部署刚训练完的模型, 阈值和模型才对得上
+      let threshold: number | undefined
+      let patience: number | undefined
+      try {
+        const m = await fetch(c.meta, { cache: 'no-cache' })
+        if (m.ok) {
+          const j = await m.json()
+          const meta = j?.data ?? j
+          if (meta?.version === 2 && typeof meta.threshold === 'number') threshold = meta.threshold
+          if (meta?.version === 2 && Number.isInteger(meta.patience) && meta.patience > 0) patience = meta.patience
+        }
+      } catch { /* meta 可选 */ }
+      const r = await fetch(c.model, { cache: 'no-cache' })
+      if (!r.ok) continue
+      const bytes = new Uint8Array(await r.arrayBuffer())
+      return { bytes, threshold, patience, source: c.model }
+    } catch {
+      // 换下一个
+    }
+  }
+  throw new Error('唤醒模型加载失败')
 }
 
 export async function startWakeWord(
@@ -319,8 +260,7 @@ export async function startWakeWord(
 ): Promise<{ mode: 'openwakeword' | 'vad-fallback' }> {
   stopWakeWord()
 
-  // 调试：按 3 键可跳过 ONNX wake-word，用于排查 runtime.lastError 来源
-  const debug = (typeof window !== 'undefined' && (window as any).__DIGITAL_HUMAN_DEBUG) as { noWake?: boolean } | undefined;
+  const debug = (typeof window !== 'undefined' && (window as any).__DIGITAL_HUMAN_DEBUG) as { noWake?: boolean } | undefined
   if (debug?.noWake) {
     voiceLog('info', 'wake', 'noWake flag set, using vad-fallback')
     return { mode: 'vad-fallback' }
@@ -331,8 +271,10 @@ export async function startWakeWord(
     return { mode: 'vad-fallback' }
   }
 
-  engine = new OpenWakeWordEngine(cfg, cbs)
-  const ok = await engine.init()
+  const e = new OpenWakeWordEngine(cfg, cbs)
+  engine = e
+  const ok = await e.init()
+  if (engine !== e) { e.destroy(); return { mode: 'vad-fallback' } } // init 期间被 stop
   return { mode: ok ? 'openwakeword' : 'vad-fallback' }
 }
 
@@ -343,9 +285,7 @@ export function stopWakeWord(): void {
   }
 }
 
-/**
- * 把音频送入 openWakeWord 引擎异步推理
- */
+/** 把连续音频流送入 openWakeWord 引擎异步推理 (只能喂连续流, 不要重复喂同一段) */
 export function processAudioChunk(audio: Float32Array): void {
   engine?.feed(audio)
 }
@@ -362,38 +302,23 @@ export function isOpenWakeWordSupported(): boolean {
 export function getDefaultWakeWordConfig(): WakeWordConfig {
   return {
     label: '小月',
-    modelUrl: '/wake/xiaoyue.onnx',
+    modelUrl: '/wake/xiaoyue_v2.onnx',
     melModelUrl: '/wake/melspectrogram.onnx',
-    sensitivity: DEFAULT_SENSITIVITY,
+    embeddingModelUrl: '/wake/embedding_model.onnx',
+    // sensitivity 不填 → 用模型 meta 里训练时按"误唤醒 ≤0.5 次/小时"选出的阈值
   }
 }
 
 /**
- * 动态探测 ONNX Runtime WASM 路径
- *
- * Next.js 不会自动 bundle onnxruntime-web 的 WASM/.mjs 运行时,必须手动放
- * public/ 并显式指 wasmPaths。我们把整个 ORT runtime 复制到 public/ort-wasm/。
- *
- * ORT 1.27 实际文件名: 没有了旧版 ort-wasm.wasm,只保留变体
- *   - ort-wasm-simd-threaded.wasm (默认)
- *   - ort-wasm-simd-threaded.{jsep,jspi,asyncify}.wasm (变体)
- * ORT 启动时按 executionProvider 顺序自动选最合适的。
+ * ONNX Runtime WASM 路径: Next.js 不会 bundle onnxruntime-web 的 WASM,
+ * 整个 ORT runtime 复制在 public/ort-wasm/。
  */
 async function resolveWasmPaths(): Promise<string> {
   const localPath = '/ort-wasm/'
-
-  // 验证关键文件能访问(挑 ORT 默认会用的)
-  for (const probe of [
-    'ort-wasm-simd-threaded.wasm',
-    'ort-wasm-simd-threaded.jsep.wasm',
-    'ort.mjs',
-  ]) {
+  for (const probe of ['ort-wasm-simd-threaded.wasm', 'ort-wasm-simd-threaded.jsep.wasm', 'ort.mjs']) {
     try {
       const r = await fetch(localPath + probe, { method: 'HEAD' })
-      if (r.ok) {
-        voiceLog('info', 'wake', 'wasm path resolved:', localPath, 'via', probe)
-        return localPath
-      }
+      if (r.ok) return localPath
     } catch {
       // continue
     }
