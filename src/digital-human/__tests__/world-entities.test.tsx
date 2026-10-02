@@ -30,6 +30,7 @@ const api = vi.hoisted(() => ({
 vi.mock('@/apis/world', () => api);
 import { EntityPanel, KindsDrawer, SpaceRulesPanel } from '../scene-ui/RoomEntities';
 import { RuleListForm, effectKind, formable } from '../scene-ui/RuleForm';
+import { ChoiceCard, InsightCard } from '../scene-ui/LifeSceneCards';
 
 const ent = (over: Partial<PlacedObject>): PlacedObject => ({ id: 'e1', assetKey: '', x: 0, y: 0, z: 0, rotY: 0, scale: 1, status: 'ready', ...over });
 
@@ -127,7 +128,7 @@ describe('rule frames on the room socket', () => {
   const roomDef: WorldDef = { key: 'room:1', name: 'x', kind: 'room', stage: 'studio', zones: [], room: { ownerId: '1', ownerName: '', mine: true, template: 'study' } } as unknown as WorldDef;
   it('routes fx / tp / me / ruleErr and sends use', () => {
     let emit: (f: RoomFrame) => void = () => {};
-    const sock = { join: vi.fn(), leave: vi.fn(), close: vi.fn(), say: vi.fn(), sendState: vi.fn(), noteLine: vi.fn(), lines: vi.fn(), use: vi.fn(() => true) };
+    const sock = { join: vi.fn(), leave: vi.fn(), close: vi.fn(), say: vi.fn(), sendState: vi.fn(), noteLine: vi.fn(), lines: vi.fn(), use: vi.fn(() => true), choose: vi.fn(() => true) };
     const handle = { setRoomPeers: vi.fn(), setPosition: vi.fn(), getWorldSnapshot: vi.fn(() => null) } as unknown as VrmStageHandle;
     const toast = vi.fn();
     const onEntitySay = vi.fn();
@@ -154,6 +155,37 @@ describe('rule frames on the room socket', () => {
     expect(toast).toHaveBeenLastCalledWith('⚠️', expect.stringContaining('没有这个原型'));
     expect(result.current.use('e9')).toBe(true);
     expect(sock.use).toHaveBeenCalledWith('e9');
+    // 人生场景:出题 → 回答(收起)→ 感悟;到点按默认算的 chosen 也收起
+    act(() => { emit({ t: 'choose', id: 'c1', text: '他转身要走,你……', options: [{ label: '叫住他' }, { label: '什么也不说' }], wait: 5000, default: 1 }); });
+    expect(result.current.question?.options.length).toBe(2);
+    act(() => { result.current.answer('c1', 0); });
+    expect(sock.choose).toHaveBeenCalledWith('c1', 0);
+    expect(result.current.question).toBeNull();
+    act(() => { emit({ t: 'choose', id: 'c2', text: '?', options: [{ label: 'a' }] }); });
+    act(() => { emit({ t: 'chosen', id: 'c1', index: 0 }); });
+    expect(result.current.question?.id).toBe('c2'); // 别的题的 chosen 不动这道
+    act(() => { emit({ t: 'chosen', id: 'c2', index: -1, auto: true }); });
+    expect(result.current.question).toBeNull();
+    act(() => { emit({ t: 'insight', text: '目送也是一种告别', axis: 'silence', feel: '目送', path: true }); });
+    expect(result.current.insight).toMatchObject({ text: '目送也是一种告别', axis: 'silence', path: true });
+    act(() => { result.current.dismissInsight(); });
+    expect(result.current.insight).toBeNull();
+  });
+
+  it('draws the choice card and the insight card', () => {
+    const onAnswer = vi.fn();
+    const { unmount } = render(<ChoiceCard q={{ id: 'c1', text: '明早的车,你……', options: [{ label: '回去', axis: 'spine' }, { label: '不回' }], wait: 3000, at: Date.now() }} onAnswer={onAnswer} />);
+    expect(screen.queryByText(/底气/)).toBeNull(); // 选项不标维度
+    expect(screen.getByText('不选,也是一种选择。')).toBeTruthy();
+    fireEvent.click(screen.getByText('不回'));
+    expect(onAnswer).toHaveBeenCalledWith(1);
+    unmount();
+    const onClose = vi.fn();
+    render(<InsightCard insight={{ text: '留下的人,也在用自己的方式回家。', axis: 'edge', feel: '坚持', path: true, at: 1 }} onClose={onClose} />);
+    expect(screen.getByText('坚持 · 偏向棱角')).toBeTruthy();
+    expect(screen.getByText('已记在你的心路上 →').getAttribute('href')).toBe('/insight/path');
+    fireEvent.click(screen.getByLabelText('收起'));
+    expect(onClose).toHaveBeenCalled();
   });
 
   it('places rule sounds: the entity if it is still here, else the server\'s at, else nowhere', () => {
@@ -231,6 +263,34 @@ describe('rule form', () => {
     expect(formable({ fly: 1 })).toBe(false);
     expect(formable({ sound: { name: 'amb_bell', at: { x: 1, y: 'actor.pos.y + 3', z: 0 } } })).toBe(true);
     expect(formable({ water: { rise: 0.2, material: '熔岩', at: 'actor' } })).toBe(true);
+    expect(formable({ choose: { text: '?', wait: 5000, default: 1, options: [{ label: 'a', axis: 'spine', do: [] }, { label: 'b' }] } })).toBe(true);
+    expect(formable({ choose: { text: '?', options: [{ label: 'a', to: 'x' }] } })).toBe(false);
+    expect(formable({ insight: { text: '一句话', axis: 'heart', feel: '遗憾' } })).toBe(true);
+  });
+
+  it('edits a choice: options with axes, a default, nested effects', () => {
+    let rules: { on: string; do: Record<string, unknown>[] }[] = [{ on: 'use', do: [] }];
+    const rr = () => <RuleListForm rules={rules} scope="kind" onChange={(r) => { rules = r as typeof rules; }} />;
+    const { rerender } = render(rr());
+    fireEvent.change(screen.getAllByLabelText('加一个效果')[0], { target: { value: 'choose' } });
+    rerender(rr());
+    const ch = () => rules[0].do[0].choose as { options: { label: string; axis?: string; do?: unknown[] }[]; default?: number };
+    expect(ch().options.map((o) => o.axis)).toEqual(['spine', 'silence']);
+    fireEvent.change(screen.getByLabelText('选项 2 的维度'), { target: { value: 'smile' } });
+    rerender(rr());
+    expect(ch().options[1].axis).toBe('smile');
+    fireEvent.change(screen.getByLabelText('到点没选'), { target: { value: '1' } });
+    rerender(rr());
+    expect(ch().default).toBe(1);
+    // 选项 1 选了以后:加一句感悟
+    fireEvent.change(screen.getAllByLabelText('加一个效果')[0], { target: { value: 'insight' } });
+    rerender(rr());
+    expect(ch().options[0].do).toEqual([{ insight: { text: '有些话,当时不说,就再也没有机会了' } }]);
+    fireEvent.click(screen.getByText('＋ 再加一个选项'));
+    rerender(rr());
+    expect(ch().options.length).toBe(3);
+    fireEvent.click(screen.getByLabelText('删掉选项 3'));
+    expect(ch().options.length).toBe(2);
   });
 
   it('edits where a sound comes from and a water effect', () => {

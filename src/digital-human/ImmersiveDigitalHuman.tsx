@@ -49,6 +49,7 @@ import { RoomChat } from './scene-ui/RoomChat';
 import { useRoomVoice } from './scene-ui/useRoomVoice';
 import { useObjectUse } from './scene-ui/useObjectUse';
 import { DiveButton } from './scene-ui/DiveButton';
+import { ChoiceCard, InsightCard } from './scene-ui/LifeSceneCards';
 import { useAmbientSounds } from './scene-ui/useAmbientSounds';
 import { useBlocks } from './scene-ui/useBlocks';
 import { quickCheck, useFpsGate, type GateVerdict } from './perfGate';
@@ -1037,6 +1038,9 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
           </Box>
         </Box>
       )}
+      {/* 人生场景:规则出的题、选完的一句感悟 */}
+      {roomSock.question && <ChoiceCard key={roomSock.question.id} q={roomSock.question} narrow={narrow} onAnswer={(i) => { if (roomSock.question) roomSock.answer(roomSock.question.id, i); }} />}
+      {roomSock.insight && <InsightCard key={roomSock.insight.at} insight={roomSock.insight} onClose={roomSock.dismissInsight} />}
       {/* 换场景的过场:黑底淡入「前往 X」,新场景建好后淡出 */}
       <Box sx={{
         position: 'absolute', inset: 0, zIndex: 50, pointerEvents: travel ? 'auto' : 'none',

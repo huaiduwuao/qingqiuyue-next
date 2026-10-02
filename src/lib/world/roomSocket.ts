@@ -73,6 +73,10 @@ export type RoomFrame =
   | { t: 'me'; state: Record<string, unknown> }
   | { t: 'env'; env: Record<string, string> }
   | { t: 'breath'; left: number; max?: number }
+  // 人生场景(go worldapp/lifescene.go):规则给我出的题、我选了 / 到点按默认、给我的一句感悟
+  | { t: 'choose'; id: string; text: string; options: { label: string; axis?: string; feel?: string }[]; wait?: number; default?: number; entity?: string }
+  | { t: 'chosen'; id: string; index: number; auto?: boolean }
+  | { t: 'insight'; text: string; axis?: string; feel?: string; path?: boolean }
   | { t: 'ruleErr'; errors: string[] }
   | { t: 'pong' };
 
@@ -168,6 +172,12 @@ export class RoomSocket {
   use(id: string) {
     if (!this.joined) return false;
     return this.raw({ t: 'use', id });
+  }
+
+  /** 人生场景:回答规则出的题(第 index 个选项) */
+  choose(id: string, index: number) {
+    if (!this.joined) return false;
+    return this.raw({ t: 'choose', id, index });
   }
 
   /** 推一个推得动的实体(dx / dz = 走的方向) */

@@ -57,6 +57,11 @@ const STATE_EVERY = 100;
 /** 规则里的 sound:几种合成的短音(click / coin / door / whoosh),不下载音频 */
 let cueCtx: AudioContext | null = null;
 type Pos = { x: number; y: number; z: number };
+
+/** 人生场景:规则给我出的一道题(go worldrules/choice.go) */
+export interface SceneQuestion { id: string; text: string; options: { label: string; axis?: string; feel?: string }[]; /** 限时毫秒,0 = 不限 */ wait: number; entity?: string }
+/** 人生场景:给我的一句感悟;path = 记到心路上了 */
+export interface SceneInsight { text: string; axis: string; feel: string; path: boolean; at: number }
 /** 规则的声音从哪儿传来:那个东西(跟着它此刻的位置),不然服务端算好的 at(触发的人、规则写的坐标);都没有 = 不分方向 */
 export function fxSoundAt(f: { entity?: string; at?: Pos | null }, positionOf?: (id: string) => Pos | null): Pos | null {
   return (f.entity ? positionOf?.(f.entity) : null) ?? f.at ?? null;
@@ -104,6 +109,9 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
   const [myState, setMyState] = React.useState<Record<string, unknown>>({});
   /** 憋气:还能憋几秒(null = 没在憋)*/
   const [breath, setBreath] = React.useState<{ left: number; max: number } | null>(null);
+  // 人生场景:等我回答的题(收到时刻,算倒计时)、最近一句感悟
+  const [question, setQuestion] = React.useState<(SceneQuestion & { at: number }) | null>(null);
+  const [insight, setInsight] = React.useState<SceneInsight | null>(null);
   React.useEffect(() => { setBreath(null); }, [def.key]);
   // 九期:场景分线
   const [line, setLine] = React.useState(0);
@@ -242,6 +250,16 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
       case 'ruleErr':
         if (f.errors?.length) o.toast('⚠️', `规则出错:${f.errors[0]}`);
         return;
+      case 'choose':
+        setQuestion({ id: f.id, text: f.text, options: f.options ?? [], wait: f.wait ?? 0, entity: f.entity, at: Date.now() });
+        return;
+      case 'chosen':
+        // 我选了 / 到点按默认算了 / 题作废:收起那道题
+        setQuestion((q) => (q && q.id === f.id ? null : q));
+        return;
+      case 'insight':
+        setInsight({ text: f.text, axis: f.axis ?? '', feel: f.feel ?? '', path: !!f.path, at: Date.now() });
+        return;
       case 'breath':
         // 头泡在会憋气的液体里:还能憋几秒(-1 = 出水了)
         setBreath(f.left < 0 ? null : { left: f.left, max: f.max ?? f.left });
@@ -333,6 +351,13 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
   /** 世界模型:点了一个实体 */
   const use = React.useCallback((id: string) => sockRef.current?.use(id) ?? false, []);
   const push = React.useCallback((id: string, dx: number, dz: number) => sockRef.current?.push(id, dx, dz) ?? false, []);
+  /** 人生场景:回答那道题 */
+  const answer = React.useCallback((id: string, index: number) => {
+    const ok = sockRef.current?.choose(id, index) ?? false;
+    if (ok) setQuestion((q) => (q && q.id === id ? null : q));
+    return ok;
+  }, []);
+  const dismissInsight = React.useCallback(() => setInsight(null), []);
   const switchLine = React.useCallback((n: number) => {
     if (!owner || n === line) return;
     setChat([]);
@@ -352,6 +377,8 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
     line, lines, refreshLines, switchLine,
     /** 世界模型:点实体、我身上的状态 */
     use, push, myState, breath,
+    /** 人生场景:等我回答的题、回答、最近一句感悟 */
+    question, answer, insight, dismissInsight,
     roomVoice, selfMuted, setVoiceState, sendVoice, vmute, setVoiceHandler,
   };
 }

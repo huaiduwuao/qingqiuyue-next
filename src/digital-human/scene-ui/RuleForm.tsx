@@ -36,6 +36,7 @@ const EVENTS: { v: string; label: string; scopes: RuleScope[]; hint?: string }[]
   { v: 'remove', label: '被拿走', scopes: ['kind', 'entity'] },
   { v: 'join', label: '有人进了房间', scopes: ['space'] },
   { v: 'part', label: '有人离开房间', scopes: ['space'] },
+  { v: 'chose', label: '有人回答了它出的题', scopes: ['kind', 'entity', 'space', 'material'], hint: 'event.choice 选的那句、event.axis 维度、event.feel 感受词、event.auto 到点没选' },
   { v: 'drown', label: '有人憋不住气了', scopes: ['space', 'material'], hint: '头泡在会憋气的液体里,憋的秒数用完;没有规则管就默认送到出口' },
 ];
 
@@ -56,6 +57,16 @@ const TARGETS = [
 
 const SOUNDS = ['click', 'door', 'coin', 'whoosh', 'chime', 'ding'];
 
+/** 心路的五个维度(go worldrules.Axes);选项上的维度给人看不到,只记在心路上 */
+const AXIS_OPTIONS = [
+  { v: '', label: '不记' },
+  { v: 'heart', label: '本心' },
+  { v: 'spine', label: '底气' },
+  { v: 'edge', label: '棱角' },
+  { v: 'silence', label: '沉默' },
+  { v: 'smile', label: '微笑' },
+];
+
 type FieldKind = 'expr' | 'text' | 'num' | 'select' | 'target' | 'sound' | 'at';
 interface Field { k: string; label: string; kind: FieldKind; options?: { v: string; label: string }[]; placeholder?: string; width?: number }
 
@@ -75,6 +86,12 @@ const SPECS: Record<string, Spec> = {
   toast: { label: '提示条', fields: [{ k: 'text', label: '说什么', kind: 'text' }, { k: 'to', label: '给谁', kind: 'select', options: [{ v: '', label: '房里所有人' }, { v: 'actor', label: '触发的人' }] }], str: 'text' },
   label: { label: '改牌子', fields: [{ k: '$', label: '牌子上写', kind: 'text' }], str: '$' },
   sound: { label: '放声音', fields: [{ k: '$', label: '声音', kind: 'sound' }, { k: 'at', label: '从哪儿传来', kind: 'at' }], str: '$' },
+  insight: { label: '一句感悟(记到心路)', fields: [
+    { k: 'text', label: '感悟(不说教)', kind: 'text' },
+    { k: 'axis', label: '偏向', kind: 'select', options: AXIS_OPTIONS },
+    { k: 'feel', label: '感受词', kind: 'text', placeholder: '遗憾', width: 90 },
+  ], str: 'text' },
+  choose: { label: '出一道抉择', fields: [] },
   water: { label: '放水 / 抽水', fields: [
     { k: 'level', label: '灌到多高(米)', kind: 'num', width: 96 },
     { k: 'rise', label: '涨多少(米,负数落)', kind: 'num', width: 120 },
@@ -87,7 +104,7 @@ const SPECS: Record<string, Spec> = {
   wait: { label: '过一会儿', fields: [{ k: 'ms', label: '等多少 ms', kind: 'num', width: 80 }], nest: ['do'] },
   if: { label: '如果', fields: [], nest: ['then', 'else'] },
 };
-const EFFECT_ORDER = ['set', 'add', 'toggle', 'say', 'toast', 'label', 'sound', 'move', 'rotate', 'scale', 'spawn', 'remove', 'teleport', 'emit', 'env', 'water', 'wait', 'if'];
+const EFFECT_ORDER = ['choose', 'insight', 'set', 'add', 'toggle', 'say', 'toast', 'label', 'sound', 'move', 'rotate', 'scale', 'spawn', 'remove', 'teleport', 'emit', 'env', 'water', 'wait', 'if'];
 
 const NEW_EFFECT: Record<string, () => Effect> = {
   set: () => ({ set: { open: 'true' } }),
@@ -106,6 +123,8 @@ const NEW_EFFECT: Record<string, () => Effect> = {
   emit: () => ({ emit: { event: 'open', to: 'tag:door' } }),
   env: () => ({ env: { time: 'night' } }),
   water: () => ({ water: { rise: 0.2 } }),
+  choose: () => ({ choose: { text: '他转身要走,你……', options: [{ label: '叫住他', axis: 'spine', feel: '开口', do: [] }, { label: '什么也不说', axis: 'silence', feel: '目送', do: [] }] } }),
+  insight: () => ({ insight: { text: '有些话,当时不说,就再也没有机会了' } }),
   wait: () => ({ wait: { ms: 3000, do: [] } }),
   if: () => ({ if: 'state.open', then: [], else: [] }),
 };
@@ -122,6 +141,12 @@ export function formable(e: Effect): boolean {
   const spec = SPECS[k];
   if (!spec) return false;
   if (k === 'if') return typeof e.if === 'string';
+  if (k === 'choose') {
+    const a = e.choose as Record<string, unknown> | undefined;
+    if (!a || typeof a !== 'object' || !Array.isArray(a.options)) return false;
+    if (!Object.keys(a).every((x) => ['text', 'wait', 'default', 'options'].includes(x))) return false;
+    return (a.options as unknown[]).every((o) => o && typeof o === 'object' && Object.keys(o).every((x) => ['label', 'axis', 'feel', 'do'].includes(x)));
+  }
   const arg = e[k];
   if (typeof arg === 'string') return !!spec.str;
   if (!arg || typeof arg !== 'object' || Array.isArray(arg)) return false;
@@ -242,6 +267,7 @@ function EffectRow({ eff, onChange, onRemove, onMove, depth, scope }: {
     onChange({ [kind]: clean });
   };
   const set = (k: string, v: unknown) => write({ ...obj, [k]: v });
+  if (kind === 'choose') return <ChooseBody box={box} head={head} arg={eff.choose as ChooseArg} onChange={(a) => onChange({ choose: a })} depth={depth} scope={scope} />;
   if (kind === 'if') {
     return (
       <Box sx={box}>
@@ -296,6 +322,54 @@ function EffectRow({ eff, onChange, onRemove, onMove, depth, scope }: {
           <EffectList list={(obj[n] as Effect[]) ?? []} onChange={(l) => set(n, l)} depth={depth + 1} scope={scope} />
         </Box>
       ))}
+    </Box>
+  );
+}
+
+type ChooseOpt = { label?: string; axis?: string; feel?: string; do?: Effect[] };
+type ChooseArg = { text?: string; wait?: unknown; default?: unknown; options: ChooseOpt[] };
+
+/** 出一道抉择:题面、限时、到点按哪个,每个选项 = 一句话 + 维度 + 感受词 + 选了以后做什么 */
+function ChooseBody({ box, head, arg, onChange, depth, scope }: { box: object; head: React.ReactNode; arg: ChooseArg; onChange: (a: ChooseArg) => void; depth: number; scope: RuleScope }) {
+  const opts = arg.options ?? [];
+  const write = (next: Partial<ChooseArg>) => {
+    const a: Record<string, unknown> = { ...arg, ...next };
+    for (const k of Object.keys(a)) if (a[k] === undefined || a[k] === '') delete a[k];
+    onChange(a as ChooseArg);
+  };
+  const setOpt = (i: number, o: ChooseOpt) => {
+    const clean: Record<string, unknown> = { ...o };
+    for (const k of Object.keys(clean)) if (clean[k] === '' || clean[k] === undefined) delete clean[k];
+    write({ options: opts.map((x, j) => (j === i ? (clean as ChooseOpt) : x)) });
+  };
+  const def = arg.default === undefined ? '' : String(arg.default);
+  return (
+    <Box sx={box}>
+      {head}
+      <Small value={arg.text ?? ''} title="题面" placeholder="题面:他转身要走,你……({{actor.name}} 嵌值)" onChange={(v) => write({ text: v })} />
+      <Box sx={{ display: 'flex', gap: 0.5, mt: 0.5, alignItems: 'center', flexWrap: 'wrap' }}>
+        <Small value={arg.wait === undefined ? '' : String(arg.wait)} width={110} mono title="限时(毫秒)" placeholder="限时 ms(空 = 不限)" onChange={(v) => write({ wait: numOrExpr(v) })} />
+        <Typography sx={{ fontSize: 10.5, color: 'rgba(255,255,255,0.5)' }}>到点没选</Typography>
+        <select aria-label="到点没选" style={selectStyle} value={def} onChange={(e) => write({ default: e.target.value === '' ? undefined : Number(e.target.value) })}>
+          <option value="">什么都不发生</option>
+          {opts.map((o, i) => <option key={i} value={String(i)}>按「{o.label || `选项 ${i + 1}`}」</option>)}
+        </select>
+      </Box>
+      {opts.map((o, i) => (
+        <Box key={i} sx={{ mt: 0.75, pl: 1, borderLeft: '2px solid rgba(255,226,168,0.35)' }}>
+          <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Small value={o.label ?? ''} title={`选项 ${i + 1}`} placeholder={`选项 ${i + 1}`} onChange={(v) => setOpt(i, { ...o, label: v })} />
+            <select aria-label={`选项 ${i + 1} 的维度`} style={selectStyle} value={o.axis ?? ''} onChange={(e) => setOpt(i, { ...o, axis: e.target.value })}>
+              {AXIS_OPTIONS.map((a) => <option key={a.v} value={a.v}>{a.label}</option>)}
+            </select>
+            <Small value={o.feel ?? ''} width={80} title="感受词" placeholder="感受词" onChange={(v) => setOpt(i, { ...o, feel: v })} />
+            {opts.length > 1 && <ButtonBase onClick={() => write({ options: opts.filter((_, j) => j !== i) })} sx={{ fontSize: 11, color: '#ffb0b0', px: 0.5 }} aria-label={`删掉选项 ${i + 1}`}>−</ButtonBase>}
+          </Box>
+          <Typography sx={{ fontSize: 10.5, color: 'rgba(255,255,255,0.5)', mt: 0.25 }}>选了以后</Typography>
+          <EffectList list={o.do ?? []} onChange={(l) => setOpt(i, { ...o, do: l })} depth={depth + 1} scope={scope} />
+        </Box>
+      ))}
+      {opts.length < 6 && <ButtonBase onClick={() => write({ options: [...opts, { label: '', do: [] }] })} sx={{ fontSize: 11, color: '#ffe2a8', px: 0.5, mt: 0.5 }}>＋ 再加一个选项</ButtonBase>}
     </Box>
   );
 }

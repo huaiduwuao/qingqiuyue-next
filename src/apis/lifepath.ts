@@ -18,12 +18,14 @@ export interface LifeAxisMeta {
 
 export interface LifePathNode {
   id: number;
-  kind: 'journey' | 'moment';
+  /** scene:虚拟世界的人生场景里留下的一句感悟(space = room:房主) */
+  kind: 'journey' | 'moment' | 'scene';
   axis: LifeAxis | '';
   feel: string;
   text: string;
   createdAt: number;
   scriptKey?: string;
+  space?: string;
   scriptTitle?: string;
   theme?: string;
   ending?: string;

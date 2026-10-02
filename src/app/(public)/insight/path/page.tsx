@@ -189,12 +189,20 @@ function NodeRow({ n, names, onDelete }: { n: LifePathNode; names: Record<string
               回廊《{n.scriptTitle || n.scriptKey}》
             </Typography>
           )}
+          {n.kind === 'scene' && (
+            <Typography
+              onClick={() => { const o = n.space?.startsWith('room:') ? n.space.slice(5) : ''; if (o) router.push(`/digital-human?room=${encodeURIComponent(o)}`); }}
+              sx={{ fontSize: 11, color: 'text.secondary', cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
+            >
+              在一个场景里
+            </Typography>
+          )}
         </Box>
         <Typography sx={{ fontSize: 14.5, lineHeight: 1.8, mt: 0.25, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
           {n.kind === 'journey' ? `走到了「${n.text}」` : n.text}
         </Typography>
         {n.feel && <Typography sx={{ fontSize: 12, color: 'text.secondary', mt: 0.25 }}>{n.feel}</Typography>}
-        {n.kind === 'moment' && (
+        {n.kind !== 'journey' && (
           <Typography
             onClick={onDelete}
             sx={{ fontSize: 11, color: 'text.disabled', mt: 0.5, cursor: 'pointer', display: 'inline-block', '&:hover': { color: 'error.main' } }}
@@ -291,7 +299,7 @@ export default function LifePathPage() {
           我的心路
         </Typography>
         <Typography sx={{ fontSize: 13, color: 'text.secondary', lineHeight: 1.8, mb: 4, maxWidth: 560 }}>
-          走完的回廊、记下的一笔，攒起来是你的人生轨迹。五个面 —— 本心、底气、棱角、沉默、微笑 —— 只说这段路偏向哪边，不下结论。
+          走完的回廊、场景里的一次抉择、记下的一笔，攒起来是你的人生轨迹。五个面 —— 本心、底气、棱角、沉默、微笑 —— 只说这段路偏向哪边，不下结论。
         </Typography>
 
         {status === 'loading' ? (
