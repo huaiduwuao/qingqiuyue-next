@@ -60,6 +60,8 @@ type Pos = { x: number; y: number; z: number };
 
 /** 人生场景:规则给我出的一道题(go worldrules/choice.go) */
 export interface SceneQuestion { id: string; text: string; options: { label: string; axis?: string; feel?: string }[]; /** 限时毫秒,0 = 不限 */ wait: number; entity?: string }
+/** 回声:在这道题停下过的别人(不含我)各怎么选 */
+export interface SceneEcho { id: string; text: string; total: number; rows: { label: string; n: number; mine: boolean }[] }
 /** 人生场景:给我的一句感悟;path = 记到心路上了 */
 export interface SceneInsight { text: string; axis: string; feel: string; path: boolean; at: number }
 /** 规则的声音从哪儿传来:那个东西(跟着它此刻的位置),不然服务端算好的 at(触发的人、规则写的坐标);都没有 = 不分方向 */
@@ -116,6 +118,10 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
   const [explore, setExplore] = React.useState<{ count: number; total: number } | null>(null);
   const [found, setFound] = React.useState<{ key: string; text: string; at: number } | null>(null);
   const [asked, setAsked] = React.useState<{ id: string; text: string } | null>(null);
+  // 回声:刚选完的那道题别人怎么选;刚写完的那个问题先来的人留下的
+  const [echo, setEcho] = React.useState<SceneEcho | null>(null);
+  const [echoLines, setEchoLines] = React.useState<{ id: string; lines: string[]; total: number; shared: boolean } | null>(null);
+  const lastQuestionRef = React.useRef<SceneQuestion | null>(null);
   React.useEffect(() => { setBreath(null); }, [def.key]);
   // 九期:场景分线
   const [line, setLine] = React.useState(0);
@@ -256,6 +262,17 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
         return;
       case 'choose':
         setQuestion({ id: f.id, text: f.text, options: f.options ?? [], wait: f.wait ?? 0, entity: f.entity, at: Date.now() });
+        lastQuestionRef.current = { id: f.id, text: f.text, options: f.options ?? [], wait: f.wait ?? 0, entity: f.entity };
+        return;
+      case 'echo': {
+        const q = lastQuestionRef.current;
+        const labels = q && q.id === f.id ? q.options.map((x) => x.label) : Object.keys(f.counts ?? {});
+        if (f.mine && !labels.includes(f.mine)) labels.push(f.mine);
+        setEcho({ id: f.id, text: q && q.id === f.id ? q.text : '', total: f.total, rows: labels.map((l) => ({ label: l, n: f.counts?.[l] ?? 0, mine: l === f.mine })) });
+        return;
+      }
+      case 'echoLines':
+        if (f.lines?.length || f.shared) setEchoLines({ id: f.id, lines: f.lines ?? [], total: f.total ?? 0, shared: !!f.shared });
         return;
       case 'chosen':
         // 我选了 / 到点按默认算了 / 题作废:收起那道题
@@ -376,7 +393,9 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
   }, []);
   const dismissInsight = React.useCallback(() => setInsight(null), []);
   /** 回答场景的反问(自己写的);不想写就收起 */
-  const answerReflect = React.useCallback((id: string, text: string) => sockRef.current?.reflect(id, text) ?? false, []);
+  const answerReflect = React.useCallback((id: string, text: string, share = false) => sockRef.current?.reflect(id, text, share) ?? false, []);
+  const dismissEcho = React.useCallback(() => setEcho(null), []);
+  const dismissEchoLines = React.useCallback(() => setEchoLines(null), []);
   const dismissAsked = React.useCallback(() => setAsked(null), []);
   const dismissFound = React.useCallback(() => setFound(null), []);
   const switchLine = React.useCallback((n: number) => {
@@ -402,6 +421,8 @@ export function useRoomSocket(opts: UseRoomSocketOptions) {
     question, answer, insight, dismissInsight,
     /** 留给人推理:这里藏着几样 / 刚发现的 / 场景问我的 */
     explore, found, dismissFound, asked, answerReflect, dismissAsked,
+    /** 回声:别人怎么选、先来的人留下的话(都在自己选完 / 写完之后) */
+    echo, dismissEcho, echoLines, dismissEchoLines,
     roomVoice, selfMuted, setVoiceState, sendVoice, vmute, setVoiceHandler,
   };
 }

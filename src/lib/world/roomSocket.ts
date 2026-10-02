@@ -85,6 +85,9 @@ export type RoomFrame =
   | { t: 'found'; count: number; total: number; key?: string; text?: string }
   | { t: 'reflect'; id: string; text: string }
   | { t: 'reflected'; id: string; path?: boolean }
+  // 回声(go worldapp/echo.go):选完 / 写完以后,别人怎么选、先来的人留下的话
+  | { t: 'echo'; id: string; total: number; counts: Record<string, number>; mine: string }
+  | { t: 'echoLines'; id: string; lines: string[]; total: number; shared?: boolean }
   | { t: 'ruleErr'; errors: string[] }
   | { t: 'pong' };
 
@@ -183,9 +186,9 @@ export class RoomSocket {
   }
 
   /** 回答场景的反问:自己写的一句话 */
-  reflect(id: string, text: string) {
+  reflect(id: string, text: string, share = false) {
     if (!this.joined) return false;
-    return this.raw({ t: 'reflect', id, text });
+    return this.raw({ t: 'reflect', id, text, share });
   }
 
   /** 人生场景:回答规则出的题(第 index 个选项) */

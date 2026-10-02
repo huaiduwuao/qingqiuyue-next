@@ -16,7 +16,7 @@ import { createPeerLayer, type RoomPeer } from '../vrm/world/peerAvatars';
 import { createObjectLayer, type PlacedObject } from '../vrm/world/worldObjects';
 import { EntityPanel } from '../scene-ui/RoomEntities';
 import { formable, RuleListForm } from '../scene-ui/RuleForm';
-import { FoundCounter, ReflectCard } from '../scene-ui/ExploreCards';
+import { EchoCard, EchoLinesCard, FoundCounter, ReflectCard } from '../scene-ui/ExploreCards';
 
 const look = { base: '/none.vrm', params: {}, version: 1 };
 
@@ -98,12 +98,29 @@ describe('characters played by digital humans', () => {
     expect((screen.getByRole('button', { name: '写下' }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.change(screen.getByPlaceholderText(/写下你自己的那句话/), { target: { value: '  留下我自己  ' } });
     fireEvent.click(screen.getByRole('button', { name: '写下' }));
-    expect(onAnswer).toHaveBeenCalledWith('留下我自己');
+    expect(onAnswer).toHaveBeenCalledWith('留下我自己', false); // 默认不分享
+    fireEvent.click(screen.getByLabelText('匿名留给后来的人'));
+    fireEvent.click(screen.getByRole('button', { name: '写下' }));
+    expect(onAnswer).toHaveBeenLastCalledWith('留下我自己', true);
     fireEvent.click(screen.getByText('先不写'));
     expect(onClose).toHaveBeenCalled();
     expect(formable({ discover: { key: '信', text: '一封信' } })).toBe(true);
     expect(formable({ reflect: '你在想什么?' })).toBe(true);
     expect(formable({ reflect: { text: '?', axis: 'heart' } })).toBe(true);
+    expect(formable({ reflect: { text: '?', key: '路口' } })).toBe(true);
+  });
+
+  it('echo cards: first one here, or how the others chose (you marked)', () => {
+    const { unmount } = render(<EchoCard echo={{ total: 0, rows: [{ label: '左', n: 0, mine: true }] }} onClose={() => undefined} />);
+    expect(screen.getByText('你是第一个停在这里的人。')).toBeTruthy();
+    unmount();
+    const r = render(<EchoCard echo={{ total: 3, rows: [{ label: '左', n: 2, mine: false }, { label: '右', n: 1, mine: true }] }} onClose={() => undefined} />);
+    expect(screen.getByText('在这里停下过的 3 个人:')).toBeTruthy();
+    expect(screen.getByText('· 右(你)')).toBeTruthy();
+    r.unmount();
+    render(<EchoLinesCard data={{ lines: ['像小时候放学'], total: 5, shared: true }} onClose={() => undefined} />);
+    expect(screen.getByText('像小时候放学')).toBeTruthy();
+    expect(screen.getByText('你写的那句,后来的人也会读到。')).toBeTruthy();
   });
 
   it('the rule form knows act', () => {

@@ -179,11 +179,19 @@ describe('rule frames on the room socket', () => {
     expect(result.current.found).toMatchObject({ key: '信', text: '抽屉里有一封信' });
     act(() => { emit({ t: 'reflect', id: 'q1', text: '那一刻,你在想什么?' }); });
     expect(result.current.asked).toEqual({ id: 'q1', text: '那一刻,你在想什么?' });
-    act(() => { result.current.answerReflect('q1', '想他'); });
-    expect(sock.reflect).toHaveBeenCalledWith('q1', '想他');
+    act(() => { result.current.answerReflect('q1', '想他', true); });
+    expect(sock.reflect).toHaveBeenCalledWith('q1', '想他', true);
     act(() => { emit({ t: 'reflected', id: 'q1', path: true }); });
     expect(result.current.asked).toBeNull();
     expect(toast).toHaveBeenLastCalledWith('✍️', '记在你的心路上了');
+    // 回声:选完以后,别人怎么选(按题的选项排,标出自己)
+    act(() => { emit({ t: 'choose', id: 'c9', text: '往哪走?', options: [{ label: '左' }, { label: '右' }, { label: '原地' }] }); });
+    act(() => { emit({ t: 'echo', id: 'c9', total: 3, counts: { 左: 2, 右: 1 }, mine: '右' }); });
+    expect(result.current.echo).toEqual({ id: 'c9', text: '往哪走?', total: 3, rows: [{ label: '左', n: 2, mine: false }, { label: '右', n: 1, mine: true }, { label: '原地', n: 0, mine: false }] });
+    act(() => { emit({ t: 'echoLines', id: 'q1', lines: ['像小时候'], total: 4, shared: true }); });
+    expect(result.current.echoLines).toEqual({ id: 'q1', lines: ['像小时候'], total: 4, shared: true });
+    act(() => { result.current.dismissEchoLines(); emit({ t: 'echoLines', id: 'q2', lines: [], total: 0, shared: false }); });
+    expect(result.current.echoLines).toBeNull(); // 没人留过、自己也没分享:不弹
   });
 
   it('draws the choice card and the insight card', () => {

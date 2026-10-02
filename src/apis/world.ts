@@ -446,6 +446,15 @@ export async function getMyClues(): Promise<WorldClue[]> {
 export async function clearMyClues(room?: string): Promise<void> {
   await accountClient.delete('/world/me/clues', { params: room ? { room } : {} });
 }
+/** 回声:我匿名留给后来人的话(go worldapp/echo.go) */
+export interface WorldEchoLine { id: string; room: string; prompt: string; text: string; at: string }
+export async function getMyEchoes(): Promise<WorldEchoLine[]> {
+  const r = await accountClient.get<{ list: WorldEchoLine[] }>('/world/me/echoes');
+  return Array.isArray(r?.list) ? r.list : [];
+}
+export async function deleteMyEcho(id: string): Promise<void> {
+  await accountClient.delete(`/world/me/echoes/${encodeURIComponent(id)}`);
+}
 /** 忘掉一样(key)或全部 */
 export async function clearMyMemory(key?: string): Promise<void> {
   await accountClient.delete('/world/me/memory', { params: key ? { key } : {} });

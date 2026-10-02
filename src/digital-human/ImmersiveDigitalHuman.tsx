@@ -50,7 +50,7 @@ import { useRoomVoice } from './scene-ui/useRoomVoice';
 import { useObjectUse } from './scene-ui/useObjectUse';
 import { DiveButton } from './scene-ui/DiveButton';
 import { ChoiceCard, InsightCard } from './scene-ui/LifeSceneCards';
-import { FoundCard, FoundCounter, ReflectCard } from './scene-ui/ExploreCards';
+import { EchoCard, EchoLinesCard, FoundCard, FoundCounter, ReflectCard } from './scene-ui/ExploreCards';
 import { useAmbientSounds } from './scene-ui/useAmbientSounds';
 import { useBlocks } from './scene-ui/useBlocks';
 import { quickCheck, useFpsGate, type GateVerdict } from './perfGate';
@@ -1045,7 +1045,10 @@ export default function ImmersiveDigitalHuman({ initialRoom }: { initialRoom?: s
       {/* 留给人推理:藏着几样 / 刚发现的 / 场景的反问 */}
       {roomSock.explore && <FoundCounter count={roomSock.explore.count} total={roomSock.explore.total} />}
       {roomSock.found && <FoundCard key={roomSock.found.at} text={roomSock.found.text} onClose={roomSock.dismissFound} />}
-      {roomSock.asked && !roomSock.question && <ReflectCard key={roomSock.asked.id} q={roomSock.asked} narrow={narrow} onAnswer={(t) => { if (roomSock.asked) roomSock.answerReflect(roomSock.asked.id, t); }} onClose={roomSock.dismissAsked} />}
+      {roomSock.asked && !roomSock.question && <ReflectCard key={roomSock.asked.id} q={roomSock.asked} narrow={narrow} onAnswer={(t, share) => { if (roomSock.asked) roomSock.answerReflect(roomSock.asked.id, t, share); }} onClose={roomSock.dismissAsked} />}
+      {/* 回声:选完 / 写完以后才给 */}
+      {roomSock.echo && !roomSock.question && !roomSock.asked && <EchoCard key={roomSock.echo.id} echo={roomSock.echo} narrow={narrow} onClose={roomSock.dismissEcho} />}
+      {roomSock.echoLines && <EchoLinesCard key={roomSock.echoLines.id} data={roomSock.echoLines} onClose={roomSock.dismissEchoLines} />}
       {/* 换场景的过场:黑底淡入「前往 X」,新场景建好后淡出 */}
       <Box sx={{
         position: 'absolute', inset: 0, zIndex: 50, pointerEvents: travel ? 'auto' : 'none',

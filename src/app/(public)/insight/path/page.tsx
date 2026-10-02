@@ -24,7 +24,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { loginHref } from '@/lib/auth/redirect';
 import { accentOf } from '@/components/insight/InsightCards';
 import { overview } from '@/apis/insight';
-import { clearMyClues, clearMyMemory, getMyClues, getMyMemory, type WorldClue } from '@/apis/world';
+import { clearMyClues, clearMyMemory, deleteMyEcho, getMyClues, getMyEchoes, getMyMemory, type WorldClue } from '@/apis/world';
 import {
   LIFE_AXES,
   addMoment,
@@ -213,6 +213,32 @@ function NodeRow({ n, names, onDelete }: { n: LifePathNode; names: Record<string
           </Typography>
         )}
       </Box>
+    </Box>
+  );
+}
+
+/** 留给后来人的话:在场景里写下、自愿匿名分享的;能撤回 */
+function MyEchoes() {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ['world', 'echoes'], queryFn: getMyEchoes });
+  const del = useMutation({ mutationFn: deleteMyEcho, onSuccess: () => qc.invalidateQueries({ queryKey: ['world', 'echoes'] }) });
+  const list = q.data ?? [];
+  if (!list.length) return null;
+  return (
+    <Box sx={{ mb: 5 }}>
+      <Typography sx={{ fontSize: 16, fontWeight: 600, mb: 0.5 }}>留给后来人的话</Typography>
+      <Typography sx={{ fontSize: 12, color: 'text.secondary', mb: 1.5, lineHeight: 1.8 }}>
+        你在场景里写下、勾了「匿名留给后来的人」的话。后来的人写完自己的,会读到其中几句;不想留了就撤回。
+      </Typography>
+      {list.map((e) => (
+        <Box key={e.id} sx={{ py: 0.75, borderTop: '1px solid', borderColor: 'divider' }}>
+          {e.prompt && <Typography sx={{ fontSize: 12, color: 'text.disabled' }}>{e.prompt}</Typography>}
+          <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'baseline' }}>
+            <Typography sx={{ fontSize: 13.5, flex: 1, overflowWrap: 'anywhere' }}>{e.text}</Typography>
+            <Typography onClick={() => del.mutate(e.id)} sx={{ fontSize: 11, color: 'text.disabled', cursor: 'pointer', '&:hover': { color: 'error.main' } }}>撤回</Typography>
+          </Box>
+        </Box>
+      ))}
     </Box>
   );
 }
@@ -476,6 +502,8 @@ export default function LifePathPage() {
             </Box>
 
             <Clues />
+
+            <MyEchoes />
 
             <StoryMemory names={names} />
 

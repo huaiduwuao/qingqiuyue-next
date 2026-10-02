@@ -95,7 +95,7 @@ const SPECS: Record<string, Spec> = {
   ], str: 'text' },
   choose: { label: '出一道抉择', fields: [] },
   discover: { label: '让人发现一样东西', fields: [{ k: 'key', label: '叫什么(进线索本)', kind: 'text', placeholder: '信', width: 110 }, { k: 'text', label: '只描写,不评价', kind: 'text' }] },
-  reflect: { label: '反问(让他自己写)', fields: [{ k: 'text', label: '一个开放的问题', kind: 'text' }, { k: 'axis', label: '偏向', kind: 'select', options: AXIS_OPTIONS }], str: 'text' },
+  reflect: { label: '反问(让他自己写)', fields: [{ k: 'text', label: '一个开放的问题', kind: 'text' }, { k: 'axis', label: '偏向', kind: 'select', options: AXIS_OPTIONS }, { k: 'key', label: '回声归在一起(可省)', kind: 'text', placeholder: '路口', width: 110 }], str: 'text' },
   remember: { label: '记住(跟着人走)', fields: [{ k: 'target', label: '记在谁身上', kind: 'target' }], pairs: true },
   act: { label: '角色表演', fields: [
     { k: 'anim', label: '动作', kind: 'select', options: [{ v: '', label: '不做' }, { v: 'nod', label: '点头' }, { v: 'shake', label: '摇头' }, { v: 'wave', label: '挥手' }, { v: 'bow', label: '鞠躬' }, { v: 'think', label: '托腮想' }, { v: 'point', label: '指' }, { v: 'cheer', label: '欢呼' }, { v: 'sit', label: '坐下' }, { v: 'stand', label: '站起来' }] },
